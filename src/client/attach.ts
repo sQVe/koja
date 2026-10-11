@@ -65,6 +65,8 @@ export interface AttachSession {
   // Tells the server the client has drawn every row update up to this sequence.
   acknowledge: (sequence: number) => void;
   sendInput: (pane: PaneId, bytes: Uint8Array) => void;
+  // Asks the server to detach this client. The session closes with `detached`.
+  detach: () => void;
   close: () => void;
   closed: Promise<CloseReason>;
 }
@@ -320,6 +322,9 @@ export const connectAttach = async (
 
         enqueue(encodeFrame(FrameKind.input, encodePaneInput({ pane: number, bytes: part })));
       }
+    },
+    detach: () => {
+      send({ type: 'detach' });
     },
     close: () => {
       end('requested');

@@ -88,6 +88,7 @@ const routeInput = (session: AttachSession) =>
     send: (bytes) => {
       sendToPane(session, bytes);
     },
+    detach: session.detach,
   });
 
 export const runAttach = async (session: AttachSession): Promise<CloseReason> => {

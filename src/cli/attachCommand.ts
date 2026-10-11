@@ -1,4 +1,5 @@
 import { connectAttach } from '../client/client.ts';
+import type { CloseReason } from '../client/client.ts';
 import type { BuildVersion } from '../protocol/protocol.ts';
 import { resolveSocketPath } from './environment.ts';
 import type { Environment } from './environment.ts';
@@ -8,6 +9,11 @@ import type { AttachCommand } from './parse.ts';
 const defaultColumns = 80;
 
 const defaultRows = 24;
+
+const exitMessages = (socketPath: string): Partial<Record<CloseReason, string>> => ({
+  detached: `Detached from ${socketPath}.`,
+  takenOver: `Another client took over ${socketPath}.`,
+});
 
 export const runAttachCommand = async (
   command: AttachCommand,
@@ -44,6 +50,8 @@ export const runAttachCommand = async (
     return { ok: false, message };
   }
 
+  let exitMessage: string | undefined;
+
   try {
     const { runAttach } = await import('../ui/ui.tsx');
 
@@ -52,8 +60,14 @@ export const runAttachCommand = async (
     if (reason === 'connectionFailed') {
       return { ok: false, message: `The connection to the server on ${socketPath} failed.` };
     }
+
+    exitMessage = exitMessages(socketPath)[reason];
   } finally {
     result.session.close();
+  }
+
+  if (exitMessage !== undefined) {
+    process.stdout.write(`${exitMessage}\n`);
   }
 
   return { ok: true };

@@ -6,6 +6,7 @@ interface TokenRouterHost {
   setMode: (mode: InputMode) => void;
   modes: () => number;
   send: (bytes: Uint8Array) => void;
+  detach: () => void;
 }
 
 type RoutedToken =
@@ -15,6 +16,7 @@ type RoutedToken =
 interface KeyRoute {
   bytes: Uint8Array;
   mode: InputMode;
+  detach: boolean;
 }
 
 const encoder = new TextEncoder();
@@ -46,12 +48,16 @@ const encodeInsertKey = (raw: string, modes: number): Uint8Array => {
 
 const routeNormalKey = (raw: string): KeyRoute => {
   if (raw === prefixKey) {
-    return { bytes: encoder.encode(prefixKey), mode: 'insert' };
+    return { bytes: encoder.encode(prefixKey), mode: 'insert', detach: false };
+  }
+
+  if (raw === 'd') {
+    return { bytes: nothing, mode: 'insert', detach: true };
   }
 
   const leavesNormal = raw === 'i' || raw === escapeKey;
 
-  return { bytes: nothing, mode: leavesNormal ? 'insert' : 'normal' };
+  return { bytes: nothing, mode: leavesNormal ? 'insert' : 'normal', detach: false };
 };
 
 // raw is a key's legacy bytes. Kitty key reporting must stay off, or the bytes are not legacy.
@@ -61,10 +67,10 @@ export const routeKey = (raw: string, mode: InputMode, modes: number): KeyRoute 
   }
 
   if (raw === prefixKey) {
-    return { bytes: nothing, mode: 'normal' };
+    return { bytes: nothing, mode: 'normal', detach: false };
   }
 
-  return { bytes: encodeInsertKey(raw, modes), mode: 'insert' };
+  return { bytes: encodeInsertKey(raw, modes), mode: 'insert', detach: false };
 };
 
 export const routePaste = (bytes: Uint8Array, modes: number): Uint8Array => {
@@ -107,6 +113,11 @@ export const createInputRouter = (host: TokenRouterHost): ((token: RoutedToken) 
 
     host.send(withoutSentEscape(routed.bytes, token.escapeSent));
     host.setMode(routed.mode);
+
+    if (routed.detach) {
+      host.detach();
+    }
+
     escapeInPane = token.raw === escapeKey && routed.bytes.length > 0;
   };
 };

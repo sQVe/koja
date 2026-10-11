@@ -23,7 +23,16 @@ export interface PaneSendOutput {
   sent: true;
 }
 
-type CommandJson = VersionOutput | ServerRunOutput | ServerStopOutput | PaneReadOutput;
+interface DetachOutput {
+  detached: boolean;
+}
+
+type CommandJson =
+  | VersionOutput
+  | ServerRunOutput
+  | ServerStopOutput
+  | PaneReadOutput
+  | DetachOutput;
 
 // The JSON value is a public surface that agents parse.
 export interface Output<Json> {

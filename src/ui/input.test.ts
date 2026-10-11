@@ -61,6 +61,19 @@ it('returns to insert mode on i or Escape without sending anything', () => {
   expect(key('\x1b', 'normal')).toEqual({ text: '', mode: 'insert' });
 });
 
+it('asks to detach on d in normal mode, sends nothing, and returns to insert mode', () => {
+  expect(routeKey('d', 'normal', 0)).toEqual({
+    bytes: new Uint8Array(),
+    mode: 'insert',
+    detach: true,
+  });
+});
+
+it('does not ask to detach for d in insert mode or other keys in normal mode', () => {
+  expect(routeKey('d', 'insert', 0).detach).toBe(false);
+  expect(routeKey('i', 'normal', 0).detach).toBe(false);
+});
+
 it('sends nothing for other keys in normal mode', () => {
   expect(key('a', 'normal')).toEqual({ text: '', mode: 'normal' });
 
@@ -90,6 +103,7 @@ it('sends a paste in normal mode and keeps the mode', () => {
 const router = (initial: InputMode, modes: number) => {
   let mode = initial;
   const sent: string[] = [];
+  let detaches = 0;
 
   const input = createInputRouter({
     mode: () => mode,
@@ -102,9 +116,12 @@ const router = (initial: InputMode, modes: number) => {
         sent.push(decoder.decode(bytes));
       }
     },
+    detach: () => {
+      detaches += 1;
+    },
   });
 
-  return { input, sent, mode: () => mode };
+  return { input, sent, mode: () => mode, detaches: () => detaches };
 };
 
 const lone = { kind: 'key', raw: '\x1b', escapeSent: false } as const;
@@ -144,4 +161,21 @@ it('drops the sent Escape from a split paste only when the Escape reached the pa
   normal.input(split);
 
   expect(normal.sent).toEqual(['\x1b[200~hi\x1b[201~']);
+});
+
+it('detaches once when d follows Ctrl+B and not when d is typed in insert mode', () => {
+  const { input, detaches } = router('insert', 0);
+
+  const press = (raw: string) => {
+    input({ kind: 'key', raw, escapeSent: false });
+  };
+
+  press('d');
+
+  expect(detaches()).toBe(0);
+
+  press('\x02');
+  press('d');
+
+  expect(detaches()).toBe(1);
 });

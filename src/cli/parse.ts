@@ -7,7 +7,7 @@ interface CommandOptions {
   socket: string | undefined;
 }
 
-interface VersionCommand {
+export interface VersionCommand {
   kind: 'version';
   json: boolean;
 }
@@ -27,7 +27,16 @@ export interface AttachCommand {
   socket: string | undefined;
 }
 
-export type Command = VersionCommand | PaneCliCommand | ServerCommand | AttachCommand;
+export interface DetachCommand extends CommandOptions {
+  kind: 'detach';
+}
+
+export type Command =
+  | VersionCommand
+  | PaneCliCommand
+  | ServerCommand
+  | AttachCommand
+  | DetachCommand;
 
 const serverActions = ['run', 'start', 'stop'] as const;
 
@@ -36,6 +45,7 @@ type ServerAction = (typeof serverActions)[number];
 export const usage = `Usage:
   phi --version [--json]
   phi attach [--socket <path>]
+  phi detach [--socket <path>] [--json]
   phi server run [--socket <path>] [--json]
   phi server start [--socket <path>] [--json]
   phi server stop [--socket <path>] [--json]
@@ -72,6 +82,29 @@ const parseAttachCommand = (
   return { kind: 'attach', socket: options.socket };
 };
 
+const parseDetachCommand = (
+  positionals: string[],
+  options: CommandOptions,
+): DetachCommand | string => {
+  if (positionals.length !== 1) {
+    return 'detach takes only --socket and --json.';
+  }
+
+  return { kind: 'detach', ...options };
+};
+
+const isSessionGroup = (group: string | undefined): group is 'attach' | 'detach' =>
+  group === 'attach' || group === 'detach';
+
+const parseSessionCommand = (
+  group: 'attach' | 'detach',
+  positionals: string[],
+  options: CommandOptions,
+): AttachCommand | DetachCommand | string =>
+  group === 'attach'
+    ? parseAttachCommand(positionals, options)
+    : parseDetachCommand(positionals, options);
+
 export const parseCommand = (argv: string[]): Command | string => {
   try {
     const { values, positionals } = parseArgs({
@@ -94,8 +127,8 @@ export const parseCommand = (argv: string[]): Command | string => {
       return hasExtra ? '--version takes only --json.' : { kind: 'version', json };
     }
 
-    if (group === 'attach') {
-      return parseAttachCommand(positionals, { json, socket: values.socket });
+    if (isSessionGroup(group)) {
+      return parseSessionCommand(group, positionals, { json, socket: values.socket });
     }
 
     if (group === 'pane') {
