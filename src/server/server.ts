@@ -578,11 +578,12 @@ const handlePaneCommand = (
 const handleDetach = (context: ServerContext, connection: Connection): void => {
   const attachedId = context.state.attachedClientId;
 
+  // Answer first: the sender may be the attached client, and its detach closes the connection.
+  connection.send({ type: 'detachResult', detached: attachedId !== undefined });
+
   if (attachedId !== undefined) {
     dispatch(context, { type: 'detachClient', clientId: attachedId });
   }
-
-  connection.send({ type: 'detachResult', detached: attachedId !== undefined });
 };
 
 const handleClientSetting = (

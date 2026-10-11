@@ -923,6 +923,22 @@ it('detaches the attached terminal client when a CLI client sends detach', async
   expect(next.messages.some((message) => message.type === 'takenOver')).toBe(false);
 });
 
+it('answers a terminal client that detaches itself before it closes the connection', async () => {
+  const directory = await temporaryDirectory();
+  const { server, socketPath } = await startServer(directory);
+  const terminal = await attachTerminal(socketPath, 100);
+
+  terminal.send({ type: 'detach' });
+  await terminal.closed;
+
+  const answers = terminal.messages.filter(
+    (message) => message.type === 'detachResult' || message.type === 'detached',
+  );
+
+  expect(answers).toEqual([{ type: 'detachResult', detached: true }, { type: 'detached' }]);
+  expect(server.snapshot().pane?.lifecycle).toBe('running');
+});
+
 it('answers detach with no attached client and changes no state', async () => {
   const directory = await temporaryDirectory();
   const { server, socketPath } = await startServer(directory);
