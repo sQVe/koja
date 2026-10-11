@@ -23,9 +23,9 @@ export interface PaneSendOutput {
   sent: true;
 }
 
-interface DetachOutput {
-  detached: boolean;
-}
+export type DetachFailure = 'noServer' | 'refused' | 'connectionFailed' | 'noClient';
+
+type DetachOutput = { detached: true } | { detached: false; reason: DetachFailure };
 
 type CommandJson =
   | VersionOutput

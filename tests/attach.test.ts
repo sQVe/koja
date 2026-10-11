@@ -313,22 +313,25 @@ it('detaches on Ctrl+B then d and leaves the shell running', async () => {
   const { client, screen, command } = await setup();
 
   expect(await waitFor(() => screen.text().includes('INSERT'))).toBe(true);
-  await command('pane', 'send', 'echo before-detach\r');
-  expect(await waitFor(() => screen.text().includes('before-detach'))).toBe(true);
+  await command('pane', 'send', 'echo before-$((1+1))\r');
+  expect(await waitFor(() => screen.text().includes('before-2'))).toBe(true);
   await pressDetach(client, screen);
 
   expect(await client.exited).toBe(0);
   expect(await waitFor(() => !screen.stableRows().alternate)).toBe(true);
   expect(screen.text()).toContain('Detached from');
-  expect(await command('pane', 'read')).toContain('before-detach');
+  expect(await command('pane', 'read')).toContain('before-2');
 });
 
 it('shows the same screen text when a new client attaches after a detach', async () => {
   const { client, screen, command, socketPath } = await setup();
 
   expect(await waitFor(() => screen.text().includes('INSERT'))).toBe(true);
-  await command('pane', 'send', 'echo same-screen\r');
-  expect(await waitFor(() => screen.text().includes('same-screen'))).toBe(true);
+  await command('pane', 'send', 'echo same-$((1+1))\r');
+
+  const finished = () => /^same-2\nattach-prompt>/m.test(screen.text());
+
+  expect(await waitFor(finished)).toBe(true);
   const before = screen.text().split('\n').slice(0, -1).join('\n');
   await pressDetach(client, screen);
   expect(await client.exited).toBe(0);
@@ -390,7 +393,7 @@ it('reports when no client is attached to phi detach', async () => {
   const json = await runPhi('detach', '--json', '--socket', socketPath);
 
   expect(json.code).toBe(1);
-  expect(JSON.parse(json.stdout)).toEqual({ detached: false });
+  expect(JSON.parse(json.stdout)).toEqual({ detached: false, reason: 'noClient' });
 });
 
 const setupWithoutServer = async () => {

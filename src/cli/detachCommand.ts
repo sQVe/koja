@@ -3,8 +3,16 @@ import type { BuildVersion } from '../protocol/protocol.ts';
 import { resolveSocketPath } from './environment.ts';
 import type { Environment } from './environment.ts';
 import { print } from './output.ts';
-import type { Outcome } from './output.ts';
+import type { DetachFailure, Outcome } from './output.ts';
 import type { DetachCommand } from './parse.ts';
+
+const failed = (json: boolean, reason: DetachFailure, message: string): Outcome => {
+  if (json) {
+    print(true, { json: { detached: false, reason }, text: message });
+  }
+
+  return { ok: false, message };
+};
 
 export const runDetachCommand = async (
   command: DetachCommand,
@@ -18,13 +26,13 @@ export const runDetachCommand = async (
     if (result.reason === 'refused') {
       const { client, server } = result;
 
-      return {
-        ok: false,
-        message:
-          `CLI ${client.version} (ghostty ${client.ghostty}) cannot connect to server ` +
+      return failed(
+        command.json,
+        'refused',
+        `CLI ${client.version} (ghostty ${client.ghostty}) cannot connect to server ` +
           `${server.version} (ghostty ${server.ghostty}). Run phi server stop followed by phi ` +
           'to restart the server. This ends every pane.',
-      };
+      );
     }
 
     const message =
@@ -32,15 +40,15 @@ export const runDetachCommand = async (
         ? `No server is listening on ${socketPath}.`
         : `The server on ${socketPath} did not complete the detach.`;
 
-    return { ok: false, message };
+    return failed(command.json, result.reason, message);
   }
 
   if (!result.detached) {
-    if (command.json) {
-      print(true, { json: { detached: false }, text: '' });
-    }
-
-    return { ok: false, message: `No client is attached to the server on ${socketPath}.` };
+    return failed(
+      command.json,
+      'noClient',
+      `No client is attached to the server on ${socketPath}.`,
+    );
   }
 
   print(command.json, { json: { detached: true }, text: `Detached the client on ${socketPath}.` });
