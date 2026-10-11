@@ -21,6 +21,8 @@ interface ConnectionOptions {
   version: BuildVersion;
   log: Log;
   queueLimitBytes: number;
+  // How long a closing connection gets to write its queued bytes before it is closed anyway.
+  flushTimeoutMs: number;
   onWelcome: (connection: Connection, hello: Extract<ControlMessage, { type: 'hello' }>) => void;
   // Gets each control message after the handshake, and a stop that comes in place of hello.
   onMessage: (message: ControlMessage, connection: Connection) => void;
@@ -34,6 +36,8 @@ export interface Connection {
   send: (message: ControlMessage) => void;
   sendBinary: (kind: FrameKind, payload: Uint8Array) => void;
   close: () => void;
+  // Closes once every queued byte has been written, so a last message reaches the client.
+  closeWhenFlushed: () => void;
   isClosed: () => boolean;
   isWelcomed: () => boolean;
 }
@@ -49,6 +53,7 @@ export const createConnection = (options: ConnectionOptions): Connection => {
   let welcomed = false;
   let closed = false;
   let closeWhenDrained = false;
+  let flushTimer: ReturnType<typeof setTimeout> | undefined;
 
   const close = (): void => {
     if (closed) {
@@ -56,11 +61,12 @@ export const createConnection = (options: ConnectionOptions): Connection => {
     }
 
     closed = true;
+    clearTimeout(flushTimer);
     socket.end();
   };
 
   const sendBinary = (kind: FrameKind, payload: Uint8Array): void => {
-    if (closed) {
+    if (closed || closeWhenDrained) {
       return;
     }
 
@@ -85,6 +91,20 @@ export const createConnection = (options: ConnectionOptions): Connection => {
     if (closeWhenDrained && queue.isEmpty()) {
       close();
     }
+  };
+
+  const closeWhenFlushed = (): void => {
+    closeWhenDrained = true;
+
+    flushTimer = setTimeout(() => {
+      log.warn('Closed a connection that did not read its last bytes in time.', {
+        timeoutMs: options.flushTimeoutMs,
+      });
+
+      close();
+    }, options.flushTimeoutMs);
+
+    drain();
   };
 
   const refuseStart = (fields: Record<string, unknown>): void => {
@@ -136,8 +156,7 @@ export const createConnection = (options: ConnectionOptions): Connection => {
     }
 
     log.info('Refused a client from another build.', { client: answer.client });
-    closeWhenDrained = true;
-    drain();
+    closeWhenFlushed();
   };
 
   const handleFrame = (kind: FrameKind, payload: Uint8Array): void => {
@@ -209,6 +228,7 @@ export const createConnection = (options: ConnectionOptions): Connection => {
     send,
     sendBinary,
     close,
+    closeWhenFlushed,
     isClosed: () => closed,
     isWelcomed: () => welcomed,
   };

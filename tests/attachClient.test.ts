@@ -416,6 +416,19 @@ it('resolves closed when the server ends the socket', async () => {
   expect(await session.closed).toBe('serverClosed');
 });
 
+it.each([
+  ['takenOver', { type: 'takenOver' }],
+  ['detached', { type: 'detached' }],
+] as const)(
+  'resolves closed with %s when the server sends that message',
+  async (reason, message) => {
+    const server = await listen(welcomeWith(snapshotMessage(1), message));
+    const session = await attach(server);
+
+    expect(await session.closed).toBe(reason);
+  },
+);
+
 it('closes with connectionFailed after a frame it cannot parse', async () => {
   const server = await listen(
     welcomeWith(snapshotMessage(1), encodeFrame(FrameKind.control, new TextEncoder().encode('{'))),

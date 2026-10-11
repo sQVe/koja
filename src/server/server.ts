@@ -8,7 +8,7 @@ import { FrameKind } from '../protocol/protocol.ts';
 import type { BuildVersion, ControlMessage } from '../protocol/protocol.ts';
 import { decodePaneInput, encodeRowUpdate, rowsToText } from '../rows/rows.ts';
 import { applyFact, applyIntent, createState, paneTheme, snapshot } from '../store/store.ts';
-import type { Change, Fact, Intent, Pane, Snapshot, State } from '../store/store.ts';
+import type { Change, DetachReason, Fact, Intent, Pane, Snapshot, State } from '../store/store.ts';
 import { createConnection } from './connection.ts';
 import type { Connection } from './connection.ts';
 import type { Log } from './log.ts';
@@ -103,6 +103,9 @@ const paneExitWaitMs = 1000;
 
 // 1 MiB of frames a client has not read yet.
 const connectionQueueLimitBytes = 0x10_00_00;
+
+// How long a detached client gets to read its last message before the server closes it.
+const connectionFlushTimeoutMs = 5000;
 
 const describeError = (error: unknown): string =>
   error instanceof Error ? error.message : String(error);
@@ -400,6 +403,23 @@ const resizePane = (context: ServerContext, id: PaneId, size: TerminalSize): voi
   scheduleRows(context, id, pane.generation);
 };
 
+// Forgets the client first, so closing its socket does not detach it a second time.
+const closeDetachedClient = (
+  context: ServerContext,
+  detachedId: ClientId,
+  reason: DetachReason,
+): void => {
+  const { clientIds } = context.runtime;
+
+  for (const [connection, id] of clientIds) {
+    if (id === detachedId) {
+      clientIds.delete(connection);
+      connection.send({ type: reason === 'takenOver' ? 'takenOver' : 'detached' });
+      connection.closeWhenFlushed();
+    }
+  }
+};
+
 const runEffects = (context: ServerContext, changes: readonly Change[], report: Report): void => {
   for (const change of changes) {
     if (change.type === 'paneAdded') {
@@ -412,6 +432,10 @@ const runEffects = (context: ServerContext, changes: readonly Change[], report: 
 
     if (change.type === 'clientThemeChanged') {
       applyThemeToPane(context);
+    }
+
+    if (change.type === 'clientDetached') {
+      closeDetachedClient(context, change.clientId, change.reason);
     }
 
     if (change.type === 'serverStopping') {
@@ -551,6 +575,34 @@ const handlePaneCommand = (
   );
 };
 
+const handleDetach = (context: ServerContext, connection: Connection): void => {
+  const attachedId = context.state.attachedClientId;
+
+  if (attachedId !== undefined) {
+    dispatch(context, { type: 'detachClient', clientId: attachedId });
+  }
+
+  connection.send({ type: 'detachResult', detached: attachedId !== undefined });
+};
+
+const handleClientSetting = (
+  context: ServerContext,
+  message: Extract<ControlMessage, { type: 'resize' | 'theme' }>,
+  connection: Connection,
+): void => {
+  const clientId = context.runtime.clientIds.get(connection);
+
+  if (clientId === undefined) {
+    return;
+  }
+
+  if (message.type === 'resize') {
+    dispatch(context, { type: 'resizeClient', clientId, size: message.size });
+  } else {
+    dispatch(context, { type: 'setClientTheme', clientId, theme: message.theme });
+  }
+};
+
 const handleMessage = (
   context: ServerContext,
   message: ControlMessage,
@@ -562,22 +614,14 @@ const handleMessage = (
     return;
   }
 
-  if (message.type === 'resize') {
-    const clientId = context.runtime.clientIds.get(connection);
-
-    if (clientId !== undefined) {
-      dispatch(context, { type: 'resizeClient', clientId, size: message.size });
-    }
+  if (message.type === 'detach') {
+    handleDetach(context, connection);
 
     return;
   }
 
-  if (message.type === 'theme') {
-    const clientId = context.runtime.clientIds.get(connection);
-
-    if (clientId !== undefined) {
-      dispatch(context, { type: 'setClientTheme', clientId, theme: message.theme });
-    }
+  if (message.type === 'resize' || message.type === 'theme') {
+    handleClientSetting(context, message, connection);
 
     return;
   }
@@ -660,6 +704,7 @@ const openConnection = (context: ServerContext, socket: Bun.Socket<ConnectionDat
     version: options.version,
     log: options.log,
     queueLimitBytes: connectionQueueLimitBytes,
+    flushTimeoutMs: connectionFlushTimeoutMs,
     onWelcome: (welcomed, hello) => {
       welcomed.send({ type: 'snapshot', snapshot: snapshot(context.state) });
 

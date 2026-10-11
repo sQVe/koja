@@ -28,7 +28,12 @@ interface AttachState {
   inputMode: InputMode;
 }
 
-export type CloseReason = 'serverClosed' | 'connectionFailed' | 'requested';
+export type CloseReason =
+  | 'serverClosed'
+  | 'connectionFailed'
+  | 'requested'
+  | 'takenOver'
+  | 'detached';
 
 interface RowsChanged {
   pane: PaneId;
@@ -228,6 +233,10 @@ export const connectAttach = async (
 
     if (message.type === 'change') {
       takeChange(message.revision, message.change);
+    }
+
+    if (message.type === 'takenOver' || message.type === 'detached') {
+      end(message.type);
     }
   };
 

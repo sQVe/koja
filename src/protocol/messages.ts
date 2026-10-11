@@ -130,6 +130,9 @@ const controlSchema = z.discriminatedUnion('type', [
   z.object({ type: z.literal('snapshot'), snapshot: snapshotSchema }),
   z.object({ type: z.literal('change'), revision: count, change: changeSchema }),
   z.object({ type: z.literal('takenOver') }),
+  z.object({ type: z.literal('detached') }),
+  // Answers a detach. False when no terminal client was attached.
+  z.object({ type: z.literal('detachResult'), detached: z.boolean() }),
   z.object({ type: z.literal('paneRead'), paneId: paneIdSchema }),
   z.object({ type: z.literal('paneRows'), paneId: paneIdSchema, rows: z.array(z.string()) }),
   z.object({ type: z.literal('paneSend'), paneId: paneIdSchema, text: z.string() }),

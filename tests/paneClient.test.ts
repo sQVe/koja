@@ -3,7 +3,7 @@ import { mkdtemp, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
-import { runPaneCommand } from '../src/client/client.ts';
+import { runDetach, runPaneCommand } from '../src/client/client.ts';
 import { paneId } from '../src/ids.ts';
 import {
   createFrameDecoder,
@@ -143,5 +143,51 @@ it('rejects a snapshot sent before welcome without sending pane input', async ()
 
   expect(result).toEqual({ ok: false, reason: 'connectionFailed' });
   expect(server.received).toEqual([{ type: 'hello', version, size: undefined }]);
+  expect(server.failures).toEqual([]);
+});
+
+it.each([true, false])('returns the detach answer %p after sending detach', async (detached) => {
+  const server = await listen((message) => {
+    if (message.type === 'hello') {
+      return [{ type: 'welcome' }, snapshot(true)];
+    }
+
+    return [{ type: 'detachResult', detached }];
+  });
+
+  const result = await runDetach(server.socketPath, version);
+
+  expect(result).toEqual({ ok: true, detached });
+
+  expect(server.received).toEqual([
+    { type: 'hello', version, size: undefined },
+    { type: 'detach' },
+  ]);
+
+  expect(server.failures).toEqual([]);
+});
+
+it('returns noServer from detach when no server listens', async () => {
+  expect(await runDetach('/nonexistent/phi.sock', version)).toEqual({
+    ok: false,
+    reason: 'noServer',
+  });
+});
+
+it('delivers a command larger than the socket buffer in full', async () => {
+  const text = 'x'.repeat(2_000_000);
+
+  const server = await listen((message) => {
+    if (message.type === 'hello') {
+      return [{ type: 'welcome' }, snapshot(true)];
+    }
+
+    return message.type === 'paneSend' ? [{ type: 'paneSent', paneId: message.paneId }] : [];
+  });
+
+  const result = await runPaneCommand(server.socketPath, version, { action: 'send', text });
+
+  expect(result).toEqual({ ok: true, kind: 'sent' });
+  expect(server.received.at(-1)).toEqual({ type: 'paneSend', paneId: paneId(7), text });
   expect(server.failures).toEqual([]);
 });
