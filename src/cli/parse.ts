@@ -27,6 +27,11 @@ export interface AttachCommand {
   socket: string | undefined;
 }
 
+export interface DefaultCommand {
+  kind: 'default';
+  socket: string | undefined;
+}
+
 export interface DetachCommand extends CommandOptions {
   kind: 'detach';
 }
@@ -36,6 +41,7 @@ export type Command =
   | PaneCliCommand
   | ServerCommand
   | AttachCommand
+  | DefaultCommand
   | DetachCommand;
 
 const serverActions = ['run', 'start', 'stop'] as const;
@@ -43,6 +49,7 @@ const serverActions = ['run', 'start', 'stop'] as const;
 type ServerAction = (typeof serverActions)[number];
 
 export const usage = `Usage:
+  phi [--socket <path>]
   phi --version [--json]
   phi attach [--socket <path>]
   phi detach [--socket <path>] [--json]
@@ -93,6 +100,19 @@ const parseDetachCommand = (
   return { kind: 'detach', ...options };
 };
 
+const parseVersionCommand = (
+  positionals: string[],
+  socket: string | undefined,
+  json: boolean,
+): VersionCommand | string => {
+  const hasExtra = positionals.length > 0 || socket !== undefined;
+
+  return hasExtra ? '--version takes only --json.' : { kind: 'version', json };
+};
+
+const parseDefaultCommand = (options: CommandOptions): DefaultCommand | string =>
+  options.json ? 'phi takes only --socket.' : { kind: 'default', socket: options.socket };
+
 const isSessionGroup = (group: string | undefined): group is 'attach' | 'detach' =>
   group === 'attach' || group === 'detach';
 
@@ -122,9 +142,11 @@ export const parseCommand = (argv: string[]): Command | string => {
     const [group, action, ...rest] = positionals;
 
     if (values.version === true) {
-      const hasExtra = positionals.length > 0 || values.socket !== undefined;
+      return parseVersionCommand(positionals, values.socket, json);
+    }
 
-      return hasExtra ? '--version takes only --json.' : { kind: 'version', json };
+    if (positionals.length === 0) {
+      return parseDefaultCommand({ json, socket: values.socket });
     }
 
     if (isSessionGroup(group)) {

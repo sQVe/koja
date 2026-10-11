@@ -1,12 +1,13 @@
 import type { BuildVersion } from '../protocol/protocol.ts';
 import { runAttachCommand } from './attachCommand.ts';
+import { runDefaultCommand } from './defaultCommand.ts';
 import { runDetachCommand } from './detachCommand.ts';
 import type { Environment } from './environment.ts';
 import { print } from './output.ts';
 import type { Outcome } from './output.ts';
 import { runPaneAction } from './paneCommands.ts';
 import { parseCommand, usage } from './parse.ts';
-import type { AttachCommand, Command, VersionCommand } from './parse.ts';
+import type { AttachCommand, Command, DefaultCommand, VersionCommand } from './parse.ts';
 import { runServerAction } from './serverCommands.ts';
 import { readVersions } from './versions.ts';
 
@@ -15,7 +16,7 @@ const writeError = (message: string, suffix = ''): void => {
 };
 
 const runRequestCommand = (
-  command: Exclude<Command, VersionCommand | AttachCommand>,
+  command: Exclude<Command, VersionCommand | AttachCommand | DefaultCommand>,
   versions: BuildVersion,
   environment: Environment,
 ): Promise<Outcome> => {
@@ -59,8 +60,11 @@ export const runCli = async (argv: string[], environment: Environment): Promise<
     return 0;
   }
 
-  if (command.kind === 'attach') {
-    const outcome = await runAttachCommand(command, result.versions, environment);
+  if (command.kind === 'attach' || command.kind === 'default') {
+    const outcome =
+      command.kind === 'attach'
+        ? await runAttachCommand(command, result.versions, environment)
+        : await runDefaultCommand(command, result.versions, environment);
 
     if (!outcome.ok) {
       writeError(outcome.message);

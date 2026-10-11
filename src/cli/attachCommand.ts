@@ -6,6 +6,8 @@ import type { Environment } from './environment.ts';
 import type { Outcome } from './output.ts';
 import type { AttachCommand } from './parse.ts';
 
+type ConnectResult = Awaited<ReturnType<typeof connectAttach>>;
+
 const defaultColumns = 80;
 
 const defaultRows = 24;
@@ -15,20 +17,19 @@ const exitMessages = (socketPath: string): Partial<Record<CloseReason, string>> 
   takenOver: `Another client took over ${socketPath}.`,
 });
 
-export const runAttachCommand = async (
-  command: AttachCommand,
+export const connectWithTerminalSize = (
+  socketPath: string,
   version: BuildVersion,
-  environment: Environment,
-): Promise<Outcome> => {
-  const socketPath = resolveSocketPath(command.socket, environment);
-
+): Promise<ConnectResult> => {
   const size = {
     columns: process.stdout.columns || defaultColumns,
     rows: process.stdout.rows || defaultRows,
   };
 
-  const result = await connectAttach(socketPath, version, size);
+  return connectAttach(socketPath, version, size);
+};
 
+export const runConnected = async (result: ConnectResult, socketPath: string): Promise<Outcome> => {
   if (!result.ok) {
     if (result.reason === 'refused') {
       const { client, server } = result;
@@ -71,4 +72,15 @@ export const runAttachCommand = async (
   }
 
   return { ok: true };
+};
+
+export const runAttachCommand = async (
+  command: AttachCommand,
+  version: BuildVersion,
+  environment: Environment,
+): Promise<Outcome> => {
+  const socketPath = resolveSocketPath(command.socket, environment);
+  const result = await connectWithTerminalSize(socketPath, version);
+
+  return runConnected(result, socketPath);
 };
