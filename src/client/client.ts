@@ -13,7 +13,15 @@ import { workspaceRequest } from './workspaceRequest.ts';
 import type { WorkspaceCommand } from './workspaceRequest.ts';
 
 export { connectAttach } from './attach.ts';
-export type { AttachSession, CloseReason, InputMode, TerminalTheme } from './attach.ts';
+
+export type {
+  AttachSession,
+  CloseReason,
+  InputMode,
+  TerminalTheme,
+  WorkspaceReply,
+} from './attach.ts';
+
 export { createRowCache } from './rowCache.ts';
 export type { RowCache } from './rowCache.ts';
 export { focusedPane } from './snapshot.ts';

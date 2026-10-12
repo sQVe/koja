@@ -30,6 +30,8 @@ interface AttachState {
   inputMode: InputMode;
 }
 
+export type WorkspaceReply = 'done' | 'failed';
+
 export type CloseReason =
   | 'serverClosed'
   | 'connectionFailed'
@@ -70,7 +72,10 @@ export interface AttachSession {
   // Asks the server to detach this client. The session closes with `detached`.
   detach: () => void;
   // The snapshot changes show the result, so the replies are ignored.
-  sendWorkspaceCommand: (command: WorkspaceCommand) => void;
+  sendWorkspaceCommand: (
+    command: WorkspaceCommand,
+    onReply: (reply: WorkspaceReply) => void,
+  ) => void;
   close: () => void;
   closed: Promise<CloseReason>;
 }
@@ -101,6 +106,8 @@ export const connectAttach = async (
   const newestSequences = new Map<PaneId, number>();
   const stateListeners = new Set<() => void>();
   const rowListeners = new Set<(changed: RowsChanged) => void>();
+  // The server answers workspace requests in the order it receives them.
+  const replyQueue: ((reply: WorkspaceReply) => void)[] = [];
   let pending: Uint8Array = new Uint8Array();
   let state: AttachState | undefined;
   let welcomed = false;
@@ -254,6 +261,10 @@ export const connectAttach = async (
       takeChange(message.revision, message.change);
     }
 
+    if (message.type === 'workspaceDone' || message.type === 'workspaceFailed') {
+      replyQueue.shift()?.(message.type === 'workspaceDone' ? 'done' : 'failed');
+    }
+
     if (message.type === 'takenOver' || message.type === 'detached') {
       end(message.type);
     }
@@ -343,7 +354,8 @@ export const connectAttach = async (
     detach: () => {
       send({ type: 'detach' });
     },
-    sendWorkspaceCommand: (command) => {
+    sendWorkspaceCommand: (command, onReply) => {
+      replyQueue.push(onReply);
       send(workspaceRequest(command));
     },
     close: () => {

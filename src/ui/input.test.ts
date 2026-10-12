@@ -290,6 +290,8 @@ const chunkRouter = () => {
   let workspaceIds = [one, two, three];
   let focused: WorkspaceId | undefined = one;
   const commands: WorkspaceCommand[] = [];
+  const replies: (() => void)[] = [];
+  const failures: (() => void)[] = [];
   const sent: string[] = [];
 
   const input = createInputRouter({
@@ -304,8 +306,16 @@ const chunkRouter = () => {
     detach: () => undefined,
     workspaces: () => ({ ids: workspaceIds, focused }),
     startDirectory: '/work/start',
-    command: (command) => {
+    command: (command, onReply) => {
       commands.push(command);
+
+      replies.push(() => {
+        onReply('done');
+      });
+
+      failures.push(() => {
+        onReply('failed');
+      });
     },
   });
 
@@ -314,6 +324,8 @@ const chunkRouter = () => {
   return {
     press,
     commands,
+    replies,
+    failures,
     sent,
     one,
     two,
@@ -349,14 +361,26 @@ it('closes the workspace that j moved to when X follows j before the snapshot ch
   ]);
 });
 
-it('resolves from the snapshot again once it shows the requested focus', () => {
-  const { press, commands, snapshotChanges, two, three } = chunkRouter();
+it('resolves from the snapshot focus once the reply to the focus request arrived', () => {
+  const { press, commands, replies, snapshotChanges, one, three } = chunkRouter();
 
   press('j');
-  snapshotChanges({ focused: two });
+  snapshotChanges({ focused: three });
+  replies[0]?.();
   press('j');
 
-  expect(commands.at(-1)).toEqual({ action: 'focus', workspaceId: three });
+  expect(commands.at(-1)).toEqual({ action: 'focus', workspaceId: one });
+});
+
+it('keeps the pending focus until the reply to the latest focus request arrives', () => {
+  const { press, commands, replies, two } = chunkRouter();
+
+  press('j');
+  press('j');
+  replies[0]?.();
+  press('k');
+
+  expect(commands.at(-1)).toEqual({ action: 'focus', workspaceId: two });
 });
 
 it('drops the pending focus when its workspace leaves the list', () => {
@@ -381,8 +405,8 @@ it('creates a workspace on c after X found nothing to close', () => {
   ]);
 });
 
-it.each(['c', 'X'])('ignores workspace keys after %s until the snapshot changes', (first) => {
-  const { press, commands, sent, snapshotChanges, one, two } = chunkRouter();
+it.each(['c', 'X'])('ignores workspace keys after %s until its reply arrives', (first) => {
+  const { press, commands, sent, replies, two } = chunkRouter();
 
   press(first);
 
@@ -396,7 +420,21 @@ it.each(['c', 'X'])('ignores workspace keys after %s until the snapshot changes'
   expect(commands).toHaveLength(issued);
   expect(sent).toEqual([]);
 
-  snapshotChanges({ ids: [one, two], focused: one });
+  replies[0]?.();
+  press('j');
+
+  expect(commands.at(-1)).toEqual({ action: 'focus', workspaceId: two });
+});
+
+it('accepts workspace keys again after a create fails', () => {
+  const { press, commands, failures, two } = chunkRouter();
+
+  press('c');
+  press('j');
+
+  expect(commands).toHaveLength(1);
+
+  failures[0]?.();
   press('j');
 
   expect(commands.at(-1)).toEqual({ action: 'focus', workspaceId: two });

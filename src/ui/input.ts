@@ -1,4 +1,4 @@
-import type { InputMode, WorkspaceCommand } from '../client/client.ts';
+import type { InputMode, WorkspaceCommand, WorkspaceReply } from '../client/client.ts';
 import type { WorkspaceId } from '../ids.ts';
 import { ModeFlag } from '../rows/rows.ts';
 
@@ -10,7 +10,7 @@ interface TokenRouterHost {
   detach: () => void;
   workspaces: () => { ids: readonly WorkspaceId[]; focused: WorkspaceId | undefined };
   startDirectory: string;
-  command: (command: WorkspaceCommand) => void;
+  command: (command: WorkspaceCommand, onReply: (reply: WorkspaceReply) => void) => void;
 }
 
 type WorkspaceKey = 'next' | 'previous' | 'create' | 'close';
@@ -127,59 +127,62 @@ const neighborCommand = (
   return { action: 'focus', workspaceId: target };
 };
 
-const snapshotKey = ({ ids, focused }: ReturnType<TokenRouterHost['workspaces']>): string =>
-  `${focused ?? ''}|${ids.join(',')}`;
-
 export const createInputRouter = (host: TokenRouterHost): ((token: RoutedToken) => void) => {
   let escapeInPane = false;
-  // The focus the last j or k asked for, until the snapshot shows it or the workspace is gone.
+  // The focus the last j or k asked for, kept until the server answers the latest focus request.
   let pendingFocus: WorkspaceId | undefined;
-  // The snapshot that was current when c or X ran. Their result is unknown until it changes.
-  let blockedAt: string | undefined;
+  let focusRequests = 0;
+  // After c or X the resulting focus is unknown until the server answers.
+  let awaitingResult = false;
+
+  const settleFocus = (): void => {
+    focusRequests -= 1;
+
+    if (focusRequests === 0) {
+      pendingFocus = undefined;
+    }
+  };
 
   const workspaceCommandOf = (key: WorkspaceKey): WorkspaceCommand | undefined => {
-    const current = host.workspaces();
-    const currentKey = snapshotKey(current);
-
-    if (blockedAt === currentKey) {
+    if (awaitingResult) {
       return undefined;
     }
 
-    blockedAt = undefined;
-
-    const pendingReached = pendingFocus === current.focused;
-    const pendingGone = pendingFocus !== undefined && !current.ids.includes(pendingFocus);
-
-    if (pendingReached || pendingGone) {
-      pendingFocus = undefined;
-    }
-
-    const focused = pendingFocus ?? current.focused;
+    const current = host.workspaces();
+    const stillListed = pendingFocus !== undefined && current.ids.includes(pendingFocus);
+    const focused = stillListed ? pendingFocus : current.focused;
 
     if (key === 'create') {
-      blockedAt = currentKey;
-
       return { action: 'create', root: host.startDirectory, label: undefined, background: false };
     }
 
     if (key === 'close') {
-      if (focused === undefined) {
-        return undefined;
-      }
-
-      blockedAt = currentKey;
-      pendingFocus = undefined;
-
-      return { action: 'close', workspaceId: focused };
+      return focused === undefined ? undefined : { action: 'close', workspaceId: focused };
     }
 
-    const command = neighborCommand(current.ids, focused, key === 'next' ? 1 : -1);
+    return neighborCommand(current.ids, focused, key === 'next' ? 1 : -1);
+  };
 
-    if (command?.action === 'focus') {
+  const runWorkspaceKey = (key: WorkspaceKey): void => {
+    const command = workspaceCommandOf(key);
+
+    if (command === undefined) {
+      return;
+    }
+
+    if (command.action === 'focus') {
       pendingFocus = command.workspaceId;
+      focusRequests += 1;
+      host.command(command, settleFocus);
+
+      return;
     }
 
-    return command;
+    awaitingResult = true;
+
+    host.command(command, () => {
+      awaitingResult = false;
+    });
   };
 
   const withoutSentEscape = (bytes: Uint8Array, escapeSent: boolean): Uint8Array =>
@@ -206,11 +209,7 @@ export const createInputRouter = (host: TokenRouterHost): ((token: RoutedToken) 
     }
 
     if (routed.workspace !== undefined) {
-      const command = workspaceCommandOf(routed.workspace);
-
-      if (command !== undefined) {
-        host.command(command);
-      }
+      runWorkspaceKey(routed.workspace);
     }
 
     escapeInPane = token.raw === escapeKey && routed.bytes.length > 0;
