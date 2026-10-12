@@ -1,19 +1,7 @@
 import { expect, it, onTestFinished } from 'bun:test';
 import { existsSync } from 'node:fs';
-import {
-  chmod,
-  link,
-  lstat,
-  mkdir,
-  mkdtemp,
-  readFile,
-  rm,
-  symlink,
-  writeFile,
-} from 'node:fs/promises';
-import { tmpdir } from 'node:os';
+import { chmod, link, lstat, mkdir, readFile, rm, symlink, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
-import { fileURLToPath } from 'node:url';
 
 import { z } from 'zod';
 
@@ -26,61 +14,19 @@ import type { RowUpdate } from '../src/rows/rows.ts';
 import { createLog } from '../src/server/log.ts';
 import { runServer } from '../src/server/server.ts';
 import { ghosttyCommit } from '../src/vt/vt.ts';
-import { endServersIn, isRunning, serverProcessesIn, waitFor } from './serverProcesses.ts';
-
-interface CliRun {
-  exitCode: number;
-  stdout: string;
-  stderr: string;
-}
-
-const root = fileURLToPath(new URL('..', import.meta.url));
+import {
+  cliTestTimeoutMs,
+  environmentFor,
+  root,
+  runCli,
+  temporaryDirectory,
+} from './cliHarness.ts';
+import type { CliRun } from './cliHarness.ts';
+import { createWorkspaceAt, isRunning, serverProcessesIn, waitFor } from './serverProcesses.ts';
 
 const startOutputSchema = z.object({ socket: z.string(), pid: z.number().int().positive() });
 
 const paneOutputSchema = z.object({ pane: z.string(), rows: z.array(z.string()) });
-
-// The machine may be busy, and every command here starts Bun and loads the terminal library.
-const cliTestTimeoutMs = 30_000;
-
-const temporaryDirectory = async (): Promise<string> => {
-  const directory = await mkdtemp(join(tmpdir(), 'phi-cli-'));
-
-  onTestFinished(async () => {
-    await endServersIn(directory);
-    await rm(directory, { recursive: true, force: true });
-  });
-
-  return directory;
-};
-
-const environmentFor = (directory: string): Record<string, string | undefined> => ({
-  ...process.env,
-  XDG_STATE_HOME: join(directory, 'state'),
-  XDG_RUNTIME_DIR: join(directory, 'runtime'),
-});
-
-const runCli = async (
-  commandArguments: string[],
-  directory: string,
-  environment = environmentFor(directory),
-): Promise<CliRun> => {
-  const child = Bun.spawn(['bun', join(root, 'src/index.ts'), ...commandArguments], {
-    cwd: directory,
-    env: environment,
-    stdin: 'ignore',
-    stdout: 'pipe',
-    stderr: 'pipe',
-  });
-
-  const [exitCode, stdout, stderr] = await Promise.all([
-    child.exited,
-    new Response(child.stdout).text(),
-    new Response(child.stderr).text(),
-  ]);
-
-  return { exitCode, stdout, stderr };
-};
 
 const buildVersion = () => {
   const commit = ghosttyCommit();
@@ -134,6 +80,8 @@ const startServer = async (directory: string, socketPath: string) => {
     stderr: '',
   });
 
+  await createWorkspaceAt(socketPath, directory);
+
   return startOutputSchema.parse(JSON.parse(started.stdout));
 };
 
@@ -151,6 +99,7 @@ it(
     );
 
     expect(started.exitCode).toBe(0);
+    await createWorkspaceAt(socketPath, directory);
 
     let text: CliRun = { exitCode: -1, stdout: '', stderr: '' };
 
@@ -219,6 +168,7 @@ it(
     );
 
     expect(started.exitCode).toBe(0);
+    await createWorkspaceAt(socketPath, directory);
 
     const lines = Array.from({ length: 35 }, (_, row) => `line-${row}`);
     const screen = lines.join('\\r\\n');
@@ -316,6 +266,8 @@ it(
     expect(
       (await runCli(['server', 'start', '--socket', socketPath], directory, environment)).exitCode,
     ).toBe(0);
+
+    await createWorkspaceAt(socketPath, directory);
 
     const terminal = await connectTerminal(socketPath);
 
@@ -443,30 +395,6 @@ it(
     expect(exitCodes).toEqual([0, 1, 1, 1, 1, 1]);
     expect(pids.every((pid) => isRunning(pid))).toBe(true);
     expect(serverProcessesIn(directory)).toEqual(pids);
-  },
-  cliTestTimeoutMs,
-);
-
-it.each([
-  ['run', ['server', 'run']],
-  ['start', ['server', 'start']],
-] as const)(
-  'exits 1 with a message and leaves no socket when %s cannot start the shell',
-  async (_name, command) => {
-    const directory = await temporaryDirectory();
-    const socketPath = join(directory, 'run', 'phi.sock');
-    const environment = { ...environmentFor(directory), SHELL: join(directory, 'missing-shell') };
-
-    const run = await runCli(
-      [...command, '--socket', socketPath, '--json'],
-      directory,
-      environment,
-    );
-
-    expect({ exitCode: run.exitCode, stdout: run.stdout }).toEqual({ exitCode: 1, stdout: '' });
-    expect(run.stderr).toContain('missing-shell');
-    expect(existsSync(socketPath)).toBe(false);
-    expect(serverProcessesIn(directory)).toEqual([]);
   },
   cliTestTimeoutMs,
 );
@@ -776,12 +704,13 @@ it(
       version: other,
       log: created.log,
       environment: { ...process.env, SHELL: '/bin/sh' },
-      directory,
     });
 
     if (!result.ok) {
       throw new Error(result.message);
     }
+
+    await createWorkspaceAt(socketPath, directory, other);
 
     // The server logs while it stops, so the directory goes after it.
     onTestFinished(async () => {

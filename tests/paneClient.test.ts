@@ -3,7 +3,7 @@ import { mkdtemp, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
-import { runDetach, runPaneCommand } from '../src/client/client.ts';
+import { runDetach, runPaneCommand, runWorkspaceCommand } from '../src/client/client.ts';
 import { paneId, tabId, workspaceId } from '../src/ids.ts';
 import {
   createFrameDecoder,
@@ -216,4 +216,77 @@ it('delivers a command larger than the socket buffer in full', async () => {
   expect(result).toEqual({ ok: true, kind: 'sent' });
   expect(server.received.at(-1)).toEqual({ type: 'paneSend', paneId: paneId(7), text });
   expect(server.failures).toEqual([]);
+});
+
+it.each(['read', 'send'] as const)(
+  'sends %s to the given pane without waiting for the snapshot',
+  async (action) => {
+    const server = await listen((message) => {
+      if (message.type === 'hello') {
+        return [{ type: 'welcome' }];
+      }
+
+      return message.type === 'paneRead'
+        ? [{ type: 'paneRows', paneId: paneId(9), rows: ['hidden output'] }]
+        : [{ type: 'paneSent', paneId: paneId(9) }];
+    });
+
+    const command =
+      action === 'read' ? { action, pane: paneId(9) } : { action, text: 'ls', pane: paneId(9) };
+
+    const result = await runPaneCommand(server.socketPath, version, command);
+
+    const expectedRequest: ControlMessage =
+      action === 'read'
+        ? { type: 'paneRead', paneId: paneId(9) }
+        : { type: 'paneSend', paneId: paneId(9), text: 'ls' };
+
+    const expectedResult: Awaited<ReturnType<typeof runPaneCommand>> =
+      action === 'read'
+        ? { ok: true, kind: 'rows', paneId: paneId(9), rows: ['hidden output'] }
+        : { ok: true, kind: 'sent' };
+
+    expect(result).toEqual(expectedResult);
+
+    expect(server.received).toEqual([{ type: 'hello', version, size: undefined }, expectedRequest]);
+
+    expect(server.failures).toEqual([]);
+  },
+);
+
+it('reports the workspace the server answers a request with', async () => {
+  const server = await listen((message) =>
+    message.type === 'hello'
+      ? [{ type: 'welcome' }]
+      : [{ type: 'workspaceDone', workspaceId: workspaceId(4) }],
+  );
+
+  const result = await runWorkspaceCommand(server.socketPath, version, {
+    action: 'rename',
+    workspaceId: workspaceId(4),
+    label: 'docs',
+  });
+
+  expect(result).toEqual({ ok: true, workspaceId: workspaceId(4) });
+
+  expect(server.received).toEqual([
+    { type: 'hello', version, size: undefined },
+    { type: 'workspaceRename', workspaceId: workspaceId(4), label: 'docs' },
+  ]);
+});
+
+it('reports a failed workspace request with its reason', async () => {
+  const server = await listen((message) =>
+    message.type === 'hello'
+      ? [{ type: 'welcome' }]
+      : [{ type: 'workspaceFailed', reason: 'paneFailedToStart', message: 'no shell' }],
+  );
+
+  const result = await runWorkspaceCommand(server.socketPath, version, {
+    action: 'create',
+    root: '/work',
+    label: 'work',
+  });
+
+  expect(result).toEqual({ ok: false, reason: 'paneFailedToStart', message: 'no shell' });
 });

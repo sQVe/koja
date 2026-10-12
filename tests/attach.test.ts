@@ -1,6 +1,6 @@
 import { expect, it, onTestFinished } from 'bun:test';
 import { existsSync } from 'node:fs';
-import { mkdtemp, readFile, rm } from 'node:fs/promises';
+import { mkdir, mkdtemp, readFile, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
@@ -14,7 +14,7 @@ import {
 } from '../src/protocol/protocol.ts';
 import { CellFlag, cellWords } from '../src/rows/rows.ts';
 import { createTerminal } from '../src/vt/vt.ts';
-import { endServersIn, serverProcessesIn, waitFor } from './serverProcesses.ts';
+import { createWorkspaceAt, endServersIn, serverProcessesIn, waitFor } from './serverProcesses.ts';
 
 const attachClient = (
   socketPath: string,
@@ -91,10 +91,11 @@ const setup = async () => {
   });
 
   await command('server', 'start');
+  await createWorkspaceAt(socketPath, directory);
 
   const { client, screen } = attachClient(socketPath);
 
-  return { command, client, screen, socketPath };
+  return { command, client, screen, socketPath, directory };
 };
 
 const readPaneSize = async (socketPath: string) => {
@@ -421,8 +422,10 @@ it('starts a server and attaches when phi runs with no server', async () => {
   const { directory, socketPath, environment } = await setupWithoutServer();
   const { screen } = attachClient(socketPath, [], environment);
 
+  expect(await waitFor(() => serverProcessesIn(directory).length === 1)).toBe(true);
+  expect(await waitFor(() => existsSync(socketPath))).toBe(true);
+  await createWorkspaceAt(socketPath, directory);
   expect(await waitFor(() => screen.text().includes('attach-prompt>'))).toBe(true);
-  expect(serverProcessesIn(directory)).toHaveLength(1);
 
   const read = Bun.spawn(
     [process.execPath, 'src/index.ts', 'pane', 'read', '--socket', socketPath],
@@ -440,6 +443,8 @@ it('attaches to the running server without starting another', async () => {
   const { directory, socketPath, environment } = await setupWithoutServer();
   const first = attachClient(socketPath, [], environment);
 
+  expect(await waitFor(() => existsSync(socketPath))).toBe(true);
+  await createWorkspaceAt(socketPath, directory);
   expect(await waitFor(() => first.screen.text().includes('INSERT'))).toBe(true);
 
   const before = serverProcessesIn(directory);
@@ -454,6 +459,9 @@ it('attaches both phi runs to one server when they start together', async () => 
   const { directory, socketPath, environment } = await setupWithoutServer();
   const first = attachClient(socketPath, [], environment);
   const second = attachClient(socketPath, [], environment);
+
+  expect(await waitFor(() => existsSync(socketPath))).toBe(true);
+  await createWorkspaceAt(socketPath, directory);
 
   expect(
     await waitFor(
@@ -474,14 +482,61 @@ it('attaches both phi runs to one server when they start together', async () => 
   );
 });
 
-it('exits with code zero and removes the socket when the shell exits', async () => {
+it('keeps the server running after the only shell exits', async () => {
   const { directory, socketPath, environment } = await setupWithoutServer();
   const { client, screen } = attachClient(socketPath, [], environment);
 
+  expect(await waitFor(() => existsSync(socketPath))).toBe(true);
+  await createWorkspaceAt(socketPath, directory);
   expect(await waitFor(() => screen.text().includes('attach-prompt>'))).toBe(true);
   client.terminal?.write('exit\r');
 
-  expect(await client.exited).toBe(0);
-  expect(await waitFor(() => !existsSync(socketPath))).toBe(true);
-  expect(await waitFor(() => serverProcessesIn(directory).length === 0)).toBe(true);
+  const exitedEarly = await Promise.race([client.exited, Bun.sleep(1000).then(() => 'running')]);
+
+  expect(exitedEarly).toBe('running');
+  expect(existsSync(socketPath)).toBe(true);
+  expect(serverProcessesIn(directory)).toHaveLength(1);
+});
+
+const emptyHint = 'phi workspace create <dir>';
+
+it('switches to the pane of the workspace that phi workspace focus names', async () => {
+  const { directory, screen, command } = await setup();
+
+  expect(await waitFor(() => screen.text().includes('attach-prompt>'))).toBe(true);
+  await command('pane', 'send', 'echo first-$((1+1))\r');
+  expect(await waitFor(() => screen.text().includes('first-2'))).toBe(true);
+
+  const listed = JSON.parse(await command('workspace', 'list', '--json')) as { id: string }[];
+  const firstWorkspace = listed[0]?.id ?? '';
+
+  await mkdir(join(directory, 'second'));
+  await command('workspace', 'create', join(directory, 'second'));
+  await command('pane', 'send', 'echo second-$((2+3))\r');
+  expect(await waitFor(() => screen.text().includes('second-5'))).toBe(true);
+  expect(screen.text()).not.toContain('first-2');
+
+  await command('workspace', 'focus', firstWorkspace);
+
+  expect(await waitFor(() => screen.text().includes('first-2'))).toBe(true);
+  expect(screen.text()).not.toContain('second-5');
+});
+
+it('shows the empty screen when the only pane exits and the server keeps running', async () => {
+  const { directory, screen, command } = await setup();
+
+  expect(await waitFor(() => screen.text().includes('attach-prompt>'))).toBe(true);
+  await command('pane', 'send', 'exit\r');
+
+  expect(await waitFor(() => screen.text().includes(emptyHint))).toBe(true);
+  expect(screen.text()).not.toContain('attach-prompt>');
+  expect(JSON.parse(await command('workspace', 'list', '--json'))).toEqual([]);
+  expect(serverProcessesIn(directory)).toHaveLength(1);
+});
+
+it('shows the empty screen when phi starts with no server', async () => {
+  const { socketPath, environment } = await setupWithoutServer();
+  const { screen } = attachClient(socketPath, [], environment);
+
+  expect(await waitFor(() => screen.text().includes(emptyHint))).toBe(true);
 });

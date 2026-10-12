@@ -1,5 +1,4 @@
 import { rmSync } from 'node:fs';
-import { basename } from 'node:path';
 
 import { paneId as paneIdFor } from '../ids.ts';
 import type { ClientId, PaneId } from '../ids.ts';
@@ -34,9 +33,8 @@ interface ServerOptions {
   socketPath: string;
   version: BuildVersion;
   log: Log;
-  // The environment and directory the server started in. The pane's shell starts with both.
+  // The environment the server started in. Each pane's shell starts with it.
   environment: Record<string, string | undefined>;
-  directory: string;
   // For tests: ends a render hold after this many milliseconds. Defaults to the publisher's limit.
   holdLimitMs?: number;
 }
@@ -60,16 +58,16 @@ type ClaimFailure = Extract<Awaited<ReturnType<typeof claimSocketPath>>, { ok: f
 type RunServerResult =
   | { ok: true; server: Server }
   | ClaimFailure
-  | { ok: false; reason: 'listenFailed'; message: string }
-  | { ok: false; reason: 'paneFailedToStart'; message: string };
+  | { ok: false; reason: 'listenFailed'; message: string };
 
 interface ConnectionData {
   id: number;
   connection: Connection;
-  unsubscribeRows: () => void;
 }
 
 interface RowSubscriptions {
+  // The panes this connection gets rows from.
+  paneIds: readonly PaneId[];
   acknowledge: (sequence: number) => boolean;
   unsubscribe: () => void;
 }
@@ -83,8 +81,9 @@ interface Runtime {
   connections: Map<number, Connection>;
   // The client a terminal connection's sized hello attached.
   clientIds: Map<Connection, ClientId>;
-  // Records an ack on each pane subscription of a terminal connection. True if one took it.
-  rowAcknowledgers: Map<Connection, (sequence: number) => boolean>;
+  // The row subscriptions of each terminal connection. Their ack records an ack on each pane
+  // subscription, and is true if one took it.
+  rowSubscriptions: Map<Connection, RowSubscriptions>;
   listener: Listener | undefined;
   nextConnectionId: number;
   // Whether panes start in a systemd user scope. Decided when the first pane starts.
@@ -102,12 +101,17 @@ interface ServerContext {
   runtime: Runtime;
   stopped: PromiseWithResolvers<StopResult>;
   releaseSignals: () => void;
-  // Why the first pane failed to start, so runServer can report it.
+  // Why a pane failed to start during the current request, so the request can report it.
   paneStartFailure: string | undefined;
 }
 
 // Effects report facts with this, and report starts effects, so effects take it as an argument.
 type Report = (context: ServerContext, fact: Fact) => void;
+
+type WorkspaceRequest = Extract<
+  ControlMessage,
+  { type: 'workspaceCreate' | 'workspaceFocus' | 'workspaceRename' | 'workspaceClose' }
+>;
 
 // How long a pane whose stop failed gets to exit after it is killed.
 const paneExitWaitMs = 1000;
@@ -161,10 +165,20 @@ const scheduleRows = (context: ServerContext, id: PaneId, generation: number): v
   });
 };
 
-const subscribeRows = (context: ServerContext, connection: Connection): RowSubscriptions => {
+const subscribeRows = (
+  context: ServerContext,
+  connection: Connection,
+  paneIds: readonly PaneId[],
+): RowSubscriptions => {
   const subscriptions: RowSubscription[] = [];
 
-  for (const [id, publication] of context.runtime.rowPublishers) {
+  for (const id of paneIds) {
+    const publication = context.runtime.rowPublishers.get(id);
+
+    if (publication === undefined) {
+      continue;
+    }
+
     const subscription = publication.publisher.subscribe((update) => {
       if (connection.isClosed()) {
         return;
@@ -199,7 +213,35 @@ const subscribeRows = (context: ServerContext, connection: Connection): RowSubsc
     }
   };
 
-  return { acknowledge, unsubscribe };
+  return { paneIds, acknowledge, unsubscribe };
+};
+
+// The panes in the focused workspace's active tab that have a row publisher.
+const visiblePaneIds = (context: ServerContext): PaneId[] => {
+  const { state, runtime } = context;
+  const workspace = state.workspaces.find((known) => known.id === state.focusedWorkspaceId);
+  const tab = state.tabs.find((known) => known.id === workspace?.activeTabId);
+
+  if (tab === undefined) {
+    return [];
+  }
+
+  return [tab.layout.paneId].filter((id) => runtime.rowPublishers.has(id));
+};
+
+const sameIds = (left: readonly PaneId[], right: readonly PaneId[]): boolean =>
+  left.length === right.length && left.every((id) => right.includes(id));
+
+// Moves each terminal connection to the visible panes. A new subscriber gets the full screen.
+const syncRowSubscriptions = (context: ServerContext): void => {
+  const visible = visiblePaneIds(context);
+
+  for (const [connection, current] of context.runtime.rowSubscriptions) {
+    if (!sameIds(current.paneIds, visible)) {
+      current.unsubscribe();
+      context.runtime.rowSubscriptions.set(connection, subscribeRows(context, connection, visible));
+    }
+  }
 };
 
 const applyAttachedTheme = (context: ServerContext, runtime: PaneRuntime): void => {
@@ -459,10 +501,36 @@ const closeDetachedClient = (
   }
 };
 
+// Stops the process of a pane the store dropped. A pane that already exited has no runtime left.
+const removePane = (context: ServerContext, id: PaneId): void => {
+  const pane = context.runtime.panes.get(id);
+
+  if (pane === undefined) {
+    return;
+  }
+
+  // stopPane disposes the row publisher it finds in the registry, which releases held pane reads.
+  const stopping = stopPane(context, id, pane);
+
+  context.runtime.panes.delete(id);
+  context.runtime.rowPublishers.delete(id);
+
+  stopping.catch((error: unknown) => {
+    context.options.log.error('Stopping the pane failed.', {
+      paneId: id,
+      error: describeError(error),
+    });
+  });
+};
+
 const runEffects = (context: ServerContext, changes: readonly Change[], report: Report): void => {
   for (const change of changes) {
     if (change.type === 'paneAdded') {
       startPane(context, change.pane, report);
+    }
+
+    if (change.type === 'paneRemoved') {
+      removePane(context, change.paneId);
     }
 
     if (change.type === 'paneResized') {
@@ -481,6 +549,8 @@ const runEffects = (context: ServerContext, changes: readonly Change[], report: 
       stopServer(context);
     }
   }
+
+  syncRowSubscriptions(context);
 };
 
 const publishChanges = (context: ServerContext, changes: readonly Change[]): void => {
@@ -643,6 +713,99 @@ const handleClientSetting = (
   }
 };
 
+const workspaceRequestTypes: ReadonlySet<string> = new Set([
+  'workspaceCreate',
+  'workspaceFocus',
+  'workspaceRename',
+  'workspaceClose',
+]);
+
+const isWorkspaceRequest = (message: ControlMessage): message is WorkspaceRequest =>
+  workspaceRequestTypes.has(message.type);
+
+const intentOf = (message: WorkspaceRequest): Intent => {
+  if (message.type === 'workspaceCreate') {
+    return { type: 'createWorkspace', root: message.root, label: message.label };
+  }
+
+  if (message.type === 'workspaceFocus') {
+    return { type: 'focusWorkspace', workspaceId: message.workspaceId };
+  }
+
+  if (message.type === 'workspaceRename') {
+    return { type: 'renameWorkspace', workspaceId: message.workspaceId, label: message.label };
+  }
+
+  return { type: 'closeWorkspace', workspaceId: message.workspaceId };
+};
+
+// The store refuses a request for an unknown workspace, or while the server stops.
+const refusalOf = (
+  context: ServerContext,
+  message: WorkspaceRequest,
+): ControlMessage | undefined => {
+  if (context.state.stopping) {
+    return { type: 'workspaceFailed', reason: 'serverStopping', message: undefined };
+  }
+
+  if (message.type === 'workspaceCreate') {
+    return undefined;
+  }
+
+  const known = context.state.workspaces.some((workspace) => workspace.id === message.workspaceId);
+
+  return known
+    ? undefined
+    : { type: 'workspaceFailed', reason: 'unknownWorkspace', message: undefined };
+};
+
+const takePaneStartFailure = (context: ServerContext): string | undefined => {
+  const failure = context.paneStartFailure;
+
+  context.paneStartFailure = undefined;
+
+  return failure;
+};
+
+const handleWorkspaceRequest = (
+  context: ServerContext,
+  message: WorkspaceRequest,
+  connection: Connection,
+): void => {
+  const refusal = refusalOf(context, message);
+
+  if (refusal !== undefined) {
+    connection.send(refusal);
+
+    return;
+  }
+
+  const changes = dispatch(context, intentOf(message));
+  const added = changes.find((change) => change.type === 'workspaceAdded');
+  const startFailure = takePaneStartFailure(context);
+
+  if (startFailure !== undefined) {
+    connection.send({
+      type: 'workspaceFailed',
+      reason: 'paneFailedToStart',
+      message: startFailure,
+    });
+
+    return;
+  }
+
+  const workspaceId = added === undefined ? undefined : added.workspace.id;
+
+  if (message.type === 'workspaceCreate') {
+    invariant(workspaceId !== undefined, 'A created workspace must be added.');
+    connection.send({ type: 'workspaceDone', workspaceId });
+
+    return;
+  }
+
+  connection.send({ type: 'workspaceDone', workspaceId: message.workspaceId });
+};
+
 const handleMessage = (
   context: ServerContext,
   message: ControlMessage,
@@ -673,7 +836,9 @@ const handleMessage = (
   }
 
   if (message.type === 'ack') {
-    const accepted = context.runtime.rowAcknowledgers.get(connection)?.(message.sequence);
+    const accepted = context.runtime.rowSubscriptions
+      .get(connection)
+      ?.acknowledge(message.sequence);
 
     if (accepted !== true) {
       context.options.log.debug('Ignored an ack for a sequence the client was not sent.', {
@@ -686,6 +851,12 @@ const handleMessage = (
 
   if (message.type === 'paneRead' || message.type === 'paneSend') {
     handlePaneCommand(context, message, connection);
+
+    return;
+  }
+
+  if (isWorkspaceRequest(message)) {
+    handleWorkspaceRequest(context, message, connection);
 
     return;
   }
@@ -749,10 +920,11 @@ const openConnection = (context: ServerContext, socket: Bun.Socket<ConnectionDat
       welcomed.send({ type: 'snapshot', snapshot: snapshot(context.state) });
 
       if (hello.size !== undefined && !welcomed.isClosed()) {
-        const rows = subscribeRows(context, welcomed);
+        runtime.rowSubscriptions.set(
+          welcomed,
+          subscribeRows(context, welcomed, visiblePaneIds(context)),
+        );
 
-        socket.data.unsubscribeRows = rows.unsubscribe;
-        runtime.rowAcknowledgers.set(welcomed, rows.acknowledge);
         attachTerminal(context, welcomed, hello.size);
       }
     },
@@ -764,7 +936,7 @@ const openConnection = (context: ServerContext, socket: Bun.Socket<ConnectionDat
     },
   });
 
-  socket.data = { id, connection, unsubscribeRows: () => undefined };
+  socket.data = { id, connection };
   runtime.connections.set(id, connection);
 };
 
@@ -779,7 +951,8 @@ const closeConnection = (context: ServerContext, id: number): void => {
 
   context.runtime.connections.delete(id);
   context.runtime.clientIds.delete(connection);
-  context.runtime.rowAcknowledgers.delete(connection);
+  context.runtime.rowSubscriptions.get(connection)?.unsubscribe();
+  context.runtime.rowSubscriptions.delete(connection);
   connection.close();
 
   if (clientId !== undefined) {
@@ -813,7 +986,6 @@ const listen = (context: ServerContext, path: string): Listener | string => {
           socket.data.connection.drain();
         },
         close: (socket) => {
-          socket.data.unsubscribeRows();
           closeConnection(context, socket.data.id);
         },
       },
@@ -867,8 +1039,8 @@ const serverOf = (context: ServerContext): Server => ({
   snapshot: () => snapshot(context.state),
 });
 
-// Runs a server in this process on the socket path, with one pane. It stops on a stop message,
-// SIGTERM, SIGINT, or the shell exiting. When the pane fails to start, it stops before it returns.
+// Runs a server in this process on the socket path, with no workspace. It stops on a stop message,
+// SIGTERM, or SIGINT. A workspace closes when its shell exits.
 export const runServer = async (options: ServerOptions): Promise<RunServerResult> => {
   const claimed = await claimSocketPath(options.socketPath);
 
@@ -888,7 +1060,7 @@ export const runServer = async (options: ServerOptions): Promise<RunServerResult
       rowPublishers: new Map(),
       connections: new Map(),
       clientIds: new Map(),
-      rowAcknowledgers: new Map(),
+      rowSubscriptions: new Map(),
       listener: undefined,
       nextConnectionId: 1,
       paneScopes: undefined,
@@ -913,18 +1085,6 @@ export const runServer = async (options: ServerOptions): Promise<RunServerResult
   context.runtime.listener = listener;
   handleSignals(context);
   options.log.info('Listening.', { socketPath });
-
-  dispatch(context, {
-    type: 'createWorkspace',
-    root: options.directory,
-    label: basename(options.directory),
-  });
-
-  if (context.paneStartFailure !== undefined) {
-    await context.stopped.promise;
-
-    return { ok: false, reason: 'paneFailedToStart', message: context.paneStartFailure };
-  }
 
   return { ok: true, server: serverOf(context) };
 };

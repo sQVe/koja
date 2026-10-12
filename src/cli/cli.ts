@@ -10,6 +10,7 @@ import { parseCommand, usage } from './parse.ts';
 import type { AttachCommand, Command, DefaultCommand, VersionCommand } from './parse.ts';
 import { runServerAction } from './serverCommands.ts';
 import { readVersions } from './versions.ts';
+import { runWorkspaceAction } from './workspaceCommands.ts';
 
 const writeError = (message: string, suffix = ''): void => {
   process.stderr.write(`phi: ${message}${suffix}\n`);
@@ -22,6 +23,10 @@ const runRequestCommand = (
 ): Promise<Outcome> => {
   if (command.kind === 'pane') {
     return runPaneAction(command, versions, environment);
+  }
+
+  if (command.kind === 'workspace') {
+    return runWorkspaceAction(command, versions, environment);
   }
 
   if (command.kind === 'detach') {

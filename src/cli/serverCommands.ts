@@ -46,7 +46,6 @@ const runInForeground = async (context: ServerContext): Promise<Outcome> => {
     version,
     log,
     environment,
-    directory: process.cwd(),
   });
 
   if (!result.ok) {

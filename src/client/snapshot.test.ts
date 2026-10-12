@@ -85,3 +85,68 @@ it('records the theme of only the client the change names', () => {
 
   expect(next.clients).toEqual([first, { ...second, theme }]);
 });
+
+const secondWorkspace = {
+  id: workspaceId(2),
+  root: '/work/docs',
+  label: 'docs',
+  tabIds: [tabId(2)],
+  activeTabId: tabId(2),
+};
+
+const secondTab = {
+  id: tabId(2),
+  workspaceId: workspaceId(2),
+  layout: { kind: 'pane' as const, paneId: paneId(2) },
+  focusedPaneId: paneId(2),
+  zoomedPaneId: undefined,
+};
+
+const secondPane = {
+  id: paneId(2),
+  tabId: tabId(2),
+  lifecycle: 'running' as const,
+  generation: 2,
+  size,
+  exitCode: undefined,
+};
+
+const withSecond: StoreSnapshot = {
+  ...snapshot,
+  workspaces: [...snapshot.workspaces, secondWorkspace],
+  tabs: [...snapshot.tabs, secondTab],
+  panes: [...snapshot.panes, secondPane],
+  focusedWorkspaceId: secondWorkspace.id,
+};
+
+it('focuses a workspace', () => {
+  const next = applyChange(withSecond, { type: 'workspaceFocused', workspaceId: workspaceId(1) });
+
+  expect(next.focusedWorkspaceId).toBe(workspaceId(1));
+  expect(focusedPane(next)?.id).toBe(paneId(1));
+});
+
+it('renames only the workspace the change names', () => {
+  const next = applyChange(withSecond, {
+    type: 'workspaceRenamed',
+    workspaceId: workspaceId(2),
+    label: 'notes',
+  });
+
+  expect(next.workspaces.map((workspace) => workspace.label)).toEqual(['phi', 'notes']);
+});
+
+it('removes a workspace with its tab and pane and takes the focus the change names', () => {
+  const removed = [
+    { type: 'paneRemoved', paneId: paneId(2) },
+    { type: 'tabRemoved', tabId: tabId(2) },
+    { type: 'workspaceRemoved', workspaceId: workspaceId(2), focusedWorkspaceId: workspaceId(1) },
+  ] as const;
+
+  const next = removed.reduce(applyChange, withSecond);
+
+  expect(next.workspaces).toEqual(snapshot.workspaces);
+  expect(next.tabs).toEqual(snapshot.tabs);
+  expect(next.panes).toEqual(snapshot.panes);
+  expect(next.focusedWorkspaceId).toBe(workspaceId(1));
+});

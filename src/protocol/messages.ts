@@ -127,6 +127,19 @@ const changeSchema: z.ZodType<Change> = z.discriminatedUnion('type', [
   z.object({ type: z.literal('workspaceAdded'), workspace: workspaceSchema }),
   z.object({ type: z.literal('tabAdded'), tab: tabSchema }),
   z.object({ type: z.literal('paneAdded'), pane: paneSchema }),
+  z.object({ type: z.literal('workspaceFocused'), workspaceId: workspaceIdSchema }),
+  z.object({
+    type: z.literal('workspaceRenamed'),
+    workspaceId: workspaceIdSchema,
+    label: z.string(),
+  }),
+  z.object({
+    type: z.literal('workspaceRemoved'),
+    workspaceId: workspaceIdSchema,
+    focusedWorkspaceId: absent(workspaceIdSchema),
+  }),
+  z.object({ type: z.literal('tabRemoved'), tabId: tabIdSchema }),
+  z.object({ type: z.literal('paneRemoved'), paneId: paneIdSchema }),
   z.object({
     type: z.literal('paneStateChanged'),
     paneId: paneIdSchema,
@@ -155,6 +168,8 @@ const snapshotSchema: z.ZodType<Snapshot> = z.object({
   clients: z.array(clientSchema),
 });
 
+const workspaceFailureSchema = z.enum(['unknownWorkspace', 'paneFailedToStart', 'serverStopping']);
+
 const controlSchema = z.discriminatedUnion('type', [
   // A CLI client has no terminal, so it sends no size.
   z.object({ type: z.literal('hello'), version: buildVersionSchema, size: absent(sizeSchema) }),
@@ -178,6 +193,22 @@ const controlSchema = z.discriminatedUnion('type', [
   z.object({ type: z.literal('paneSend'), paneId: paneIdSchema, text: z.string() }),
   z.object({ type: z.literal('paneSent'), paneId: paneIdSchema }),
   z.object({ type: z.literal('paneMissing'), paneId: paneIdSchema }),
+  z.object({ type: z.literal('workspaceCreate'), root: z.string(), label: z.string() }),
+  z.object({ type: z.literal('workspaceFocus'), workspaceId: workspaceIdSchema }),
+  z.object({
+    type: z.literal('workspaceRename'),
+    workspaceId: workspaceIdSchema,
+    label: z.string(),
+  }),
+  z.object({ type: z.literal('workspaceClose'), workspaceId: workspaceIdSchema }),
+  // Answers a workspace request that worked, with the workspace it acted on.
+  z.object({ type: z.literal('workspaceDone'), workspaceId: workspaceIdSchema }),
+  // Answers a workspace request that changed nothing. The message is present for paneFailedToStart.
+  z.object({
+    type: z.literal('workspaceFailed'),
+    reason: workspaceFailureSchema,
+    message: absent(z.string()),
+  }),
 ]);
 
 export type ControlMessage = z.output<typeof controlSchema>;
