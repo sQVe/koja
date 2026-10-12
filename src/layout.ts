@@ -58,7 +58,9 @@ const frameCells = 2;
 
 const minimumExtent = frameCells + 1;
 
-const gapCells = 1;
+// Only side-by-side frames get a blank column. A cell is about twice as tall as it is wide, so
+// stacked frames that touch already look one row apart.
+const gapOf = (axis: SplitDirection): number => (axis === 'right' ? 1 : 0);
 
 const terminalOf = (area: Area): Area => ({
   x: area.x + 1,
@@ -76,7 +78,7 @@ const minimumOf = (layout: Layout, axis: SplitDirection): number => {
   const first = minimumOf(layout.first, axis);
   const second = minimumOf(layout.second, axis);
 
-  return layout.direction === axis ? first + gapCells + second : Math.max(first, second);
+  return layout.direction === axis ? first + gapOf(axis) + second : Math.max(first, second);
 };
 
 // The first child gets its share of the cells. Each child keeps at least the minimum of its subtree
@@ -104,8 +106,14 @@ const placeLayout = (layout: Layout, area: Area, placed: PaneRectangle[]): void 
   const secondMinimum = minimumOf(layout.second, axis);
 
   if (axis === 'right') {
-    const columns = firstExtent(area.columns - gapCells, layout.ratio, firstMinimum, secondMinimum);
-    const secondX = area.x + columns + gapCells;
+    const columns = firstExtent(
+      area.columns - gapOf(axis),
+      layout.ratio,
+      firstMinimum,
+      secondMinimum,
+    );
+
+    const secondX = area.x + columns + gapOf(axis);
 
     placeLayout(layout.first, { ...area, columns }, placed);
 
@@ -114,7 +122,7 @@ const placeLayout = (layout: Layout, area: Area, placed: PaneRectangle[]): void 
       {
         ...area,
         x: secondX,
-        columns: Math.max(secondMinimum, area.columns - columns - gapCells),
+        columns: Math.max(secondMinimum, area.columns - columns - gapOf(axis)),
       },
       placed,
     );
@@ -122,14 +130,18 @@ const placeLayout = (layout: Layout, area: Area, placed: PaneRectangle[]): void 
     return;
   }
 
-  const rows = firstExtent(area.rows - gapCells, layout.ratio, firstMinimum, secondMinimum);
-  const secondY = area.y + rows + gapCells;
+  const rows = firstExtent(area.rows - gapOf(axis), layout.ratio, firstMinimum, secondMinimum);
+  const secondY = area.y + rows + gapOf(axis);
 
   placeLayout(layout.first, { ...area, rows }, placed);
 
   placeLayout(
     layout.second,
-    { ...area, y: secondY, rows: Math.max(secondMinimum, area.rows - rows - gapCells) },
+    {
+      ...area,
+      y: secondY,
+      rows: Math.max(secondMinimum, area.rows - rows - gapOf(axis)),
+    },
     placed,
   );
 };
@@ -149,9 +161,9 @@ export const layoutPanes = (layout: Layout, size: TerminalSize): PaneRectangle[]
   return placed;
 };
 
-// A split needs room for two framed panes and the gap between them.
+// A split needs room for two framed panes, and a gap column for a right split.
 export const canSplit = (size: TerminalSize, direction: SplitDirection): boolean =>
-  (direction === 'right' ? size.columns : size.rows) >= 2 * minimumExtent + gapCells;
+  (direction === 'right' ? size.columns : size.rows) >= 2 * minimumExtent + gapOf(direction);
 
 export const firstPaneId = (layout: Layout): PaneId =>
   layout.kind === 'pane' ? layout.paneId : firstPaneId(layout.first);
@@ -196,13 +208,19 @@ export const removePane = (layout: Layout, target: PaneId): PaneRemoval | undefi
   const inFirst = removePane(layout.first, target);
 
   if (inFirst !== undefined) {
-    return { layout: { ...layout, first: inFirst.layout }, sibling: inFirst.sibling };
+    return {
+      layout: { ...layout, first: inFirst.layout },
+      sibling: inFirst.sibling,
+    };
   }
 
   const inSecond = removePane(layout.second, target);
 
   if (inSecond !== undefined) {
-    return { layout: { ...layout, second: inSecond.layout }, sibling: inSecond.sibling };
+    return {
+      layout: { ...layout, second: inSecond.layout },
+      sibling: inSecond.sibling,
+    };
   }
 
   return undefined;

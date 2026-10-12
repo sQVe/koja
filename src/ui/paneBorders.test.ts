@@ -42,12 +42,26 @@ it('draws two frames with a blank gap column for a right split', () => {
   expect(rowsOf(rightSplit, 1)).toEqual(['┌──┐ ┌─┐', '│  │ │ │', '│  │ │ │', '└──┘ └─┘']);
 });
 
-it('draws no frame cell in the gap between stacked panes', () => {
+it('draws two touching frames for a below split', () => {
   const stacked = split('below', leaf(1), leaf(2));
-  const cells = borderCells(layoutPanes(stacked, { columns: 4, rows: 7 }), paneId(1));
+  const grid = Array.from({ length: 6 }, () => Array.from({ length: 4 }, () => ' '));
 
-  expect(cells.filter((cell) => cell.y === 3)).toEqual([]);
-  expect(cells.filter((cell) => cell.y === 2)).not.toEqual([]);
+  for (const cell of borderCells(layoutPanes(stacked, { columns: 4, rows: 6 }), paneId(1))) {
+    const row = grid[cell.y];
+
+    if (row !== undefined) {
+      row[cell.x] = cell.glyph;
+    }
+  }
+
+  expect(grid.map((row) => row.join(''))).toEqual(['┌──┐', '│  │', '└──┘', '┌──┐', '│  │', '└──┘']);
+});
+
+it('draws no frame cell in the gap column of a right split', () => {
+  const cells = borderCells(layoutPanes(rightSplit, size), paneId(1));
+
+  expect(cells.filter((cell) => cell.x === 4)).toEqual([]);
+  expect(cells.filter((cell) => cell.x === 3)).not.toEqual([]);
 });
 
 it('draws a frame per pane for a nested split without junction glyphs', () => {

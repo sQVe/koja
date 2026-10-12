@@ -57,23 +57,23 @@ it('leaves one gap column between the frames of a right split', () => {
   ]);
 });
 
-it('leaves one gap row between the frames of a below split', () => {
-  const placed = layoutPanes(split('below', leaf(1), leaf(2)), { columns: 80, rows: 25 });
+it('leaves no gap row between the frames of a below split', () => {
+  const placed = layoutPanes(split('below', leaf(1), leaf(2)), { columns: 80, rows: 24 });
 
   expect(placed).toEqual([
     rectangle(1, [0, 0, 80, 12], [1, 1, 78, 10]),
-    rectangle(2, [0, 13, 80, 12], [1, 14, 78, 10]),
+    rectangle(2, [0, 12, 80, 12], [1, 13, 78, 10]),
   ]);
 });
 
-it('leaves a gap between neighbors of a nested split', () => {
+it('leaves a gap column but no gap row in a nested split', () => {
   const nested = split('right', leaf(1), split('below', leaf(2), leaf(3)));
-  const placed = layoutPanes(nested, { columns: 81, rows: 25 });
+  const placed = layoutPanes(nested, { columns: 81, rows: 24 });
 
   expect(placed).toEqual([
-    rectangle(1, [0, 0, 40, 25], [1, 1, 38, 23]),
+    rectangle(1, [0, 0, 40, 24], [1, 1, 38, 22]),
     rectangle(2, [41, 0, 40, 12], [42, 1, 38, 10]),
-    rectangle(3, [41, 13, 40, 12], [42, 14, 38, 10]),
+    rectangle(3, [41, 12, 40, 12], [42, 13, 38, 10]),
   ]);
 });
 
@@ -105,9 +105,9 @@ it.each([
   ['right', 12, 6],
   ['right', 11, 6],
   ['right', 13, 7],
-  ['below', 6, 12],
   ['below', 6, 11],
-  ['below', 7, 13],
+  ['below', 6, 10],
+  ['below', 7, 12],
 ] as const)(
   'keeps frames apart for nested %s splits resized to %ix%i',
   (direction, columns, rows) => {
@@ -123,11 +123,11 @@ it.each([
   },
 );
 
-it('allows a split only when both panes and the gap fit', () => {
+it('allows a split only when both panes fit, and a right split also fits its gap column', () => {
   expect(canSplit({ columns: 7, rows: 3 }, 'right')).toBe(true);
   expect(canSplit({ columns: 6, rows: 3 }, 'right')).toBe(false);
-  expect(canSplit({ columns: 3, rows: 7 }, 'below')).toBe(true);
-  expect(canSplit({ columns: 3, rows: 6 }, 'below')).toBe(false);
+  expect(canSplit({ columns: 3, rows: 6 }, 'below')).toBe(true);
+  expect(canSplit({ columns: 3, rows: 5 }, 'below')).toBe(false);
 });
 
 it('gives the pane 80x24 without a client', () => {

@@ -68,6 +68,31 @@ it(
 );
 
 it(
+  'draws stacked panes with touching frames and sizes each terminal to the inside of its frame',
+  async () => {
+    const { list, act, lines, until, first } = await setup();
+    const second = await act('split', first, '--direction', 'below');
+
+    await until(() => lines()[12]?.charAt(0) === '┌');
+
+    const rows = lines();
+
+    expect(glyphsAt(rows, 0, [0, 79])).toEqual(['┌', '┐']);
+    expect(glyphsAt(rows, 11, [0, 79])).toEqual(['└', '┘']);
+    expect(glyphsAt(rows, 12, [0, 79])).toEqual(['┌', '┐']);
+    expect(glyphsAt(rows, 22, [0, 79])).toEqual(['└', '┘']);
+
+    const sizes = (await list()).map((pane) => [pane.id, pane.columns, pane.rows]);
+
+    expect(sizes).toEqual([
+      [first, 78, 10],
+      [second, 78, 9],
+    ]);
+  },
+  cliTestTimeoutMs,
+);
+
+it(
   'sends typed keys only to the focused pane after pane focus',
   async () => {
     const { phi, act, lines, foreground, until, type, first } = await setup();

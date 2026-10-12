@@ -833,7 +833,7 @@ it('splits the focused pane below and gives each pane half the rows', () => {
 
   expect(result.state.panes.map((pane) => pane.size)).toEqual([
     { columns: 79, rows: 10 },
-    { columns: 79, rows: 9 },
+    { columns: 79, rows: 10 },
   ]);
 });
 
@@ -845,7 +845,7 @@ it('splits a pane inside a split at half the area of that pane', () => {
   expect(result.state.panes.map((pane) => pane.size)).toEqual([
     { columns: 38, rows: 22 },
     { columns: 38, rows: 10 },
-    { columns: 38, rows: 9 },
+    { columns: 38, rows: 10 },
   ]);
 });
 
@@ -881,7 +881,7 @@ it('focuses the first pane of a sibling split when its neighbor closes', () => {
 
   expect(result.state.panes.map((pane) => pane.size)).toEqual([
     { columns: 79, rows: 10 },
-    { columns: 79, rows: 9 },
+    { columns: 79, rows: 10 },
   ]);
 });
 
@@ -975,6 +975,32 @@ it('splits a pane that has room for exactly two framed 1x1 terminals and a gap',
   expect(
     applyIntent(result.state, { type: 'splitPane', paneId: paneId(2), direction: 'right' }),
   ).toMatchObject({ kind: 'rejected', reason: 'paneTooSmall' });
+});
+
+it('splits a pane by rows with no gap and refuses one row fewer', () => {
+  const fits = run([createPhi, { type: 'attachClient', size: { columns: 3, rows: 7 } }]);
+  const result = intent(fits, splitFirst('below'));
+
+  expect(result.state.panes.map((pane) => pane.size)).toEqual([
+    { columns: 1, rows: 1 },
+    { columns: 1, rows: 1 },
+  ]);
+
+  const short = run([createPhi, { type: 'attachClient', size: { columns: 3, rows: 6 } }]);
+
+  expect(applyIntent(short, splitFirst('below'))).toMatchObject({
+    kind: 'rejected',
+    reason: 'paneTooSmall',
+  });
+});
+
+it('refuses a right split one column short of two frames and a gap', () => {
+  const short = run([createPhi, { type: 'attachClient', size: { columns: 6, rows: 4 } }]);
+
+  expect(applyIntent(short, splitFirst('right'))).toMatchObject({
+    kind: 'rejected',
+    reason: 'paneTooSmall',
+  });
 });
 
 it.each([

@@ -219,7 +219,7 @@ it(
     const below = await listUntil(list, (panes) => panes.length === 2);
 
     expect(sizes(below)).toEqual([
-      [78, 9],
+      [78, 10],
       [78, 9],
     ]);
 
@@ -228,7 +228,7 @@ it(
     const right = await listUntil(list, (panes) => panes.length === 3);
 
     expect(sizes(right)).toEqual([
-      [78, 9],
+      [78, 10],
       [38, 9],
       [37, 9],
     ]);
