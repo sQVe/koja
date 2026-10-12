@@ -1,5 +1,5 @@
 import { expect, it } from 'bun:test';
-import { mkdir, readFile } from 'node:fs/promises';
+import { mkdir, readFile, rename } from 'node:fs/promises';
 import { join } from 'node:path';
 
 import { z } from 'zod';
@@ -210,6 +210,25 @@ it.each([
     expect(failed.exitCode).toBe(1);
     expect(failed.stdout).toBe('');
     expect(failed.stderr).toContain('pane-99');
+    expect(await list()).toEqual(before);
+  },
+  cliTestTimeoutMs,
+);
+
+it(
+  'leaves the focus where it was when a split pane fails to start',
+  async () => {
+    const { directory, phi, list, act, first } = await setup();
+
+    await act('split', first, '--direction', 'right');
+
+    const before = await list();
+
+    await rename(join(directory, 'work'), join(directory, 'moved'));
+
+    const failure = await phi('pane', 'split', first, '--direction', 'below');
+
+    expect(failure.exitCode).toBe(1);
     expect(await list()).toEqual(before);
   },
   cliTestTimeoutMs,

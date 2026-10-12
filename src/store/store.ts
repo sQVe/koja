@@ -71,6 +71,8 @@ export interface State {
   startFallbacks: readonly StartFallback[];
   // The layout area of the attached client, kept after it detaches.
   layoutArea: TerminalSize;
+  // For each split pane that has not started yet, the pane that had the focus before the split.
+  focusBeforeSplit: ReadonlyMap<PaneId, PaneId>;
   revision: number;
 }
 
@@ -196,6 +198,7 @@ export const createState = (): State => ({
   nextGeneration: 1,
   startFallbacks: [],
   layoutArea: paneSize(undefined),
+  focusBeforeSplit: new Map(),
   revision: 0,
 });
 
@@ -638,6 +641,7 @@ const splitPane = (state: State, id: PaneId, direction: SplitDirection): Applied
     panes: [...state.panes, added],
     nextPaneNumber: state.nextPaneNumber + 1,
     nextGeneration: state.nextGeneration + 1,
+    focusBeforeSplit: new Map(state.focusBeforeSplit).set(added.id, tab.focusedPaneId),
   };
 
   const fitted = fitPanesTo(split, area);
@@ -673,6 +677,9 @@ const focusPane = (state: State, id: PaneId): Applied | Rejected => {
   return commit({ ...state, tabs }, [{ type: 'paneFocused', tabId: tab.id, paneId: id }]);
 };
 
+const isInTab = (state: State, id: PaneId, tab: Tab): boolean =>
+  state.panes.some((pane) => pane.id === id && pane.tabId === tab.id);
+
 // The pane's area goes to its sibling. The focus moves to the sibling only when the pane had it.
 const closePaneIn = (state: State, tab: Tab, id: PaneId): Applied => {
   const removal = removePane(tab.layout, id);
@@ -681,11 +688,18 @@ const closePaneIn = (state: State, tab: Tab, id: PaneId): Applied => {
     return removeTab(state, tab);
   }
 
-  const focusedPaneId = tab.focusedPaneId === id ? firstPaneId(removal.sibling) : tab.focusedPaneId;
+  const previous = state.focusBeforeSplit.get(id);
+  const previousStays = previous !== undefined && previous !== id && isInTab(state, previous, tab);
+  const successor = previousStays ? previous : firstPaneId(removal.sibling);
+  const focusedPaneId = tab.focusedPaneId === id ? successor : tab.focusedPaneId;
   const closedTab: Tab = { ...tab, layout: removal.layout, focusedPaneId };
+  const focusBeforeSplit = new Map(state.focusBeforeSplit);
+
+  focusBeforeSplit.delete(id);
 
   const closed: State = {
     ...state,
+    focusBeforeSplit,
     tabs: state.tabs.map((known) => (known.id === tab.id ? closedTab : known)),
     panes: state.panes.filter((pane) => pane.id !== id),
   };
@@ -937,8 +951,13 @@ const endPane = (
 };
 
 const markRunning = (state: State, pane: Pane): Applied => {
+  const focusBeforeSplit = new Map(state.focusBeforeSplit);
+
+  focusBeforeSplit.delete(pane.id);
+
   const next: State = {
     ...state,
+    focusBeforeSplit,
     panes: replacePane(state, { ...pane, lifecycle: 'running' }),
     startFallbacks: state.startFallbacks.filter((known) => known.paneId !== pane.id),
   };

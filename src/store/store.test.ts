@@ -1036,3 +1036,29 @@ it('keeps the focus on an unfocused pane when its neighbor closes, and gives it 
     { columns: 40, rows: 24 },
   ]);
 });
+
+it('returns the focus to the earlier pane when a split pane fails to start', () => {
+  const opened = run([createPhi, attachLarge, splitFirst('right')]);
+  const state = fact(opened, startedPane(2, 2)).state;
+  const split = intent(state, splitFirst('below'));
+
+  expect(split.state.tabs[0]?.focusedPaneId).toBe(paneId(3));
+
+  const result = fact(split.state, { type: 'paneFailedToStart', paneId: paneId(3), generation: 3 });
+
+  expect(result.state.tabs[0]?.focusedPaneId).toBe(paneId(2));
+  expect(result.state.panes.map((pane) => pane.id)).toEqual([paneId(1), paneId(2)]);
+
+  expect(result.changes).toContainEqual({
+    type: 'paneFocused',
+    tabId: tabId(1),
+    paneId: paneId(2),
+  });
+});
+
+it('gives the focus to the sibling when the focused pane of a split fails to start', () => {
+  const state = run([createPhi, attachLarge, splitFirst('right')]);
+  const result = fact(state, { type: 'paneFailedToStart', paneId: paneId(2), generation: 2 });
+
+  expect(result.state.tabs[0]?.focusedPaneId).toBe(paneId(1));
+});
