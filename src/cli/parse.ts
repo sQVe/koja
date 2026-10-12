@@ -1,8 +1,10 @@
 import { parseArgs } from 'node:util';
 
-import type { PaneCommand } from '../client/client.ts';
+import type { PaneCommand, PaneLayoutCommand } from '../client/client.ts';
 import { paneId, tabId, workspaceId } from '../ids.ts';
 import type { PaneId, TabId, WorkspaceId } from '../ids.ts';
+
+type SplitDirection = Extract<PaneLayoutCommand, { action: 'split' }>['direction'];
 
 interface CommandOptions {
   json: boolean;
@@ -14,7 +16,7 @@ export interface VersionCommand {
   json: boolean;
 }
 
-type PaneCliAction = PaneCommand | { action: 'list' };
+type PaneCliAction = PaneCommand | PaneLayoutCommand | { action: 'list' };
 
 export interface PaneCliCommand extends CommandOptions {
   kind: 'pane';
@@ -54,6 +56,7 @@ interface StrayOptions {
   background?: boolean;
   pane?: string;
   workspace?: string;
+  direction?: string;
 }
 
 export interface AttachCommand {
@@ -87,6 +90,7 @@ interface GroupInput {
   background: boolean;
   pane: string | undefined;
   workspace: string | undefined;
+  direction: string | undefined;
   options: CommandOptions;
 }
 
@@ -115,7 +119,10 @@ export const usage = `Usage:
   phi tab close <id> [--socket <path>] [--json]
   phi pane list [--socket <path>] [--json]
   phi pane read [--pane <id>] [--socket <path>] [--json]
-  phi pane send <text> [--pane <id>] [--socket <path>] [--json]`;
+  phi pane send <text> [--pane <id>] [--socket <path>] [--json]
+  phi pane split <id> --direction below|right [--socket <path>] [--json]
+  phi pane focus <id> [--socket <path>] [--json]
+  phi pane close <id> [--socket <path>] [--json]`;
 
 const isServerAction = (action: string | undefined): action is ServerAction =>
   serverActions.some((serverAction) => serverAction === action);
@@ -155,7 +162,41 @@ const parsePaneId = (value: string | undefined): IdResult<PaneId | undefined> =>
     : { ok: true, id: paneId(number) };
 };
 
-const parsePaneCommand = (
+const parseDirection = (value: string | undefined): SplitDirection | undefined =>
+  value === 'below' || value === 'right' ? value : undefined;
+
+const parsePaneLayoutCommand = (
+  action: 'split' | 'focus' | 'close',
+  rest: string[],
+  direction: string | undefined,
+): PaneLayoutCommand | string => {
+  if (rest.length !== 1) {
+    return `pane ${action} takes one pane id.`;
+  }
+
+  const target = parseId(rest[0] ?? '', 'pane');
+
+  if (target === undefined) {
+    return `'${rest[0] ?? ''}' is not a pane id, such as pane-1.`;
+  }
+
+  if (action !== 'split') {
+    return direction === undefined
+      ? { action, pane: paneId(target) }
+      : '--direction belongs to pane split.';
+  }
+
+  const parsed = parseDirection(direction);
+
+  return parsed === undefined
+    ? 'pane split takes --direction below or --direction right.'
+    : { action, pane: paneId(target), direction: parsed };
+};
+
+const isPaneLayoutAction = (action: string | undefined): action is 'split' | 'focus' | 'close' =>
+  action === 'split' || action === 'focus' || action === 'close';
+
+const parsePaneTargetCommand = (
   action: string | undefined,
   rest: string[],
   pane: string | undefined,
@@ -185,6 +226,23 @@ const parsePaneCommand = (
   }
 
   return 'pane read takes no text; pane send takes one text argument.';
+};
+
+const parsePaneCommand = (
+  action: string | undefined,
+  rest: string[],
+  pane: string | undefined,
+  direction: string | undefined,
+): PaneCliAction | string => {
+  if (isPaneLayoutAction(action)) {
+    return pane === undefined
+      ? parsePaneLayoutCommand(action, rest, direction)
+      : '--pane belongs to pane read and pane send.';
+  }
+
+  return direction === undefined
+    ? parsePaneTargetCommand(action, rest, pane)
+    : '--direction belongs to pane split.';
 };
 
 const parseWorkspaceTarget = (
@@ -391,7 +449,7 @@ const parseGroupCommand = (group: string | undefined, input: GroupInput): Comman
   }
 
   if (group === 'pane') {
-    const pane = parsePaneCommand(input.action, input.rest, input.pane);
+    const pane = parsePaneCommand(input.action, input.rest, input.pane, input.direction);
 
     return typeof pane === 'string' ? pane : { kind: 'pane', pane, ...input.options };
   }
@@ -401,8 +459,12 @@ const parseGroupCommand = (group: string | undefined, input: GroupInput): Comman
 
 const strayOptionMessage = (
   group: string | undefined,
-  { label, background, pane, workspace }: StrayOptions,
+  { label, background, pane, workspace, direction }: StrayOptions,
 ): string | undefined => {
+  if (direction !== undefined && group !== 'pane') {
+    return '--direction belongs to pane split.';
+  }
+
   if (label !== undefined && group !== 'workspace') {
     return '--label belongs to workspace create.';
   }
@@ -432,6 +494,7 @@ export const parseCommand = (argv: string[]): Command | string => {
         background: { type: 'boolean' },
         pane: { type: 'string' },
         workspace: { type: 'string' },
+        direction: { type: 'string' },
       },
       allowPositionals: true,
       strict: true,
@@ -465,6 +528,7 @@ export const parseCommand = (argv: string[]): Command | string => {
       background: values.background === true,
       pane: values.pane,
       workspace: values.workspace,
+      direction: values.direction,
       options,
     });
   } catch (error) {

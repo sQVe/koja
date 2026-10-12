@@ -3,6 +3,7 @@ import { rmSync } from 'node:fs';
 import { paneId as paneIdFor } from '../ids.ts';
 import type { ClientId, PaneId } from '../ids.ts';
 import { invariant } from '../invariant.ts';
+import { layoutPanes } from '../layout.ts';
 import type { TerminalSize } from '../layout.ts';
 import { FrameKind } from '../protocol/protocol.ts';
 import type { BuildVersion, ControlMessage } from '../protocol/protocol.ts';
@@ -107,6 +108,8 @@ interface ServerContext {
 
 // Effects report facts with this, and report starts effects, so effects take it as an argument.
 type Report = (context: ServerContext, fact: Fact) => void;
+
+type PaneLayoutRequest = Extract<ControlMessage, { type: 'paneSplit' | 'paneFocus' | 'paneClose' }>;
 
 type WorkspaceRequest = Extract<
   ControlMessage,
@@ -218,7 +221,7 @@ const subscribeRows = (
   return { paneIds, acknowledge, unsubscribe };
 };
 
-// The panes in the focused workspace's active tab that have a row publisher.
+// The panes in the layout of the focused workspace's active tab that have a row publisher.
 const visiblePaneIds = (context: ServerContext): PaneId[] => {
   const { state, runtime } = context;
   const workspace = state.workspaces.find((known) => known.id === state.focusedWorkspaceId);
@@ -228,7 +231,9 @@ const visiblePaneIds = (context: ServerContext): PaneId[] => {
     return [];
   }
 
-  return [tab.focusedPaneId].filter((id) => runtime.rowPublishers.has(id));
+  const placed = layoutPanes(tab.layout, state.layoutArea);
+
+  return placed.map((rectangle) => rectangle.paneId).filter((id) => runtime.rowPublishers.has(id));
 };
 
 const sameIds = (left: readonly PaneId[], right: readonly PaneId[]): boolean =>
@@ -463,11 +468,14 @@ const stopServer = (context: ServerContext): void => {
     });
 };
 
-const resizePane = (context: ServerContext, id: PaneId, size: TerminalSize): void => {
+// Sizes the PTY from the current state, not from the change. A transition nested in the same effect
+// batch, such as a failed pane start, may have replaced the size the change carries.
+const resizePane = (context: ServerContext, id: PaneId): void => {
   const pane = context.runtime.panes.get(id);
   const publication = context.runtime.rowPublishers.get(id);
+  const size = context.state.panes.find((known) => known.id === id)?.size;
 
-  if (pane === undefined || publication === undefined) {
+  if (pane === undefined || publication === undefined || size === undefined) {
     return;
   }
 
@@ -536,7 +544,7 @@ const runEffects = (context: ServerContext, changes: readonly Change[], report: 
     }
 
     if (change.type === 'paneResized') {
-      resizePane(context, change.paneId, change.size);
+      resizePane(context, change.paneId);
     }
 
     if (change.type === 'clientThemeChanged') {
@@ -882,7 +890,85 @@ const handleTabRequest = (
   connection.send({ type: 'tabDone', tabId: message.tabId });
 };
 
-// Returns whether the message was a workspace or tab request.
+const paneLayoutRequestTypes: ReadonlySet<string> = new Set([
+  'paneSplit',
+  'paneFocus',
+  'paneClose',
+]);
+
+const isPaneLayoutRequest = (message: ControlMessage): message is PaneLayoutRequest =>
+  paneLayoutRequestTypes.has(message.type);
+
+const paneIntentOf = (message: PaneLayoutRequest): Intent => {
+  if (message.type === 'paneSplit') {
+    return { type: 'splitPane', paneId: message.paneId, direction: message.direction };
+  }
+
+  return message.type === 'paneFocus'
+    ? { type: 'focusPane', paneId: message.paneId }
+    : { type: 'closePane', paneId: message.paneId };
+};
+
+const paneRefusalOf = (
+  context: ServerContext,
+  message: PaneLayoutRequest,
+): ControlMessage | undefined => {
+  if (context.state.stopping) {
+    return { type: 'paneFailed', reason: 'serverStopping', message: undefined };
+  }
+
+  const known = context.state.panes.some((pane) => pane.id === message.paneId);
+
+  return known ? undefined : { type: 'paneFailed', reason: 'unknownPane', message: undefined };
+};
+
+const handlePaneLayoutRequest = (
+  context: ServerContext,
+  message: PaneLayoutRequest,
+  connection: Connection,
+): void => {
+  const refusal = paneRefusalOf(context, message);
+
+  if (refusal !== undefined) {
+    connection.send(refusal);
+
+    return;
+  }
+
+  const changes = dispatch(context, paneIntentOf(message));
+  const added = changes.find((change) => change.type === 'paneAdded');
+  const startFailure = takePaneStartFailure(context);
+
+  if (startFailure !== undefined) {
+    connection.send({ type: 'paneFailed', reason: 'paneFailedToStart', message: startFailure });
+
+    return;
+  }
+
+  if (message.type === 'paneSplit') {
+    connection.send(
+      added === undefined
+        ? { type: 'paneFailed', reason: 'paneTooSmall', message: undefined }
+        : { type: 'paneDone', paneId: added.pane.id },
+    );
+
+    return;
+  }
+
+  connection.send({ type: 'paneDone', paneId: message.paneId });
+};
+
+const handleAck = (context: ServerContext, sequence: number, connection: Connection): void => {
+  const accepted = context.runtime.rowSubscriptions.get(connection)?.acknowledge(sequence);
+
+  if (accepted !== true) {
+    context.options.log.debug('Ignored an ack for a sequence the client was not sent.', {
+      sequence,
+    });
+  }
+};
+
+// Returns whether the message was a workspace, tab, or pane layout request.
 const handleLayoutRequest = (
   context: ServerContext,
   message: ControlMessage,
@@ -896,6 +982,12 @@ const handleLayoutRequest = (
 
   if (isTabRequest(message)) {
     handleTabRequest(context, message, connection);
+
+    return true;
+  }
+
+  if (isPaneLayoutRequest(message)) {
+    handlePaneLayoutRequest(context, message, connection);
 
     return true;
   }
@@ -933,15 +1025,7 @@ const handleMessage = (
   }
 
   if (message.type === 'ack') {
-    const accepted = context.runtime.rowSubscriptions
-      .get(connection)
-      ?.acknowledge(message.sequence);
-
-    if (accepted !== true) {
-      context.options.log.debug('Ignored an ack for a sequence the client was not sent.', {
-        sequence: message.sequence,
-      });
-    }
+    handleAck(context, message.sequence, connection);
 
     return;
   }

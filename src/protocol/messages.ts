@@ -193,6 +193,13 @@ const snapshotSchema: z.ZodType<Snapshot> = z.object({
   clients: z.array(clientSchema),
 });
 
+const paneFailureSchema = z.enum([
+  'unknownPane',
+  'paneTooSmall',
+  'serverStopping',
+  'paneFailedToStart',
+]);
+
 const workspaceFailureSchema = z.enum(['unknownWorkspace', 'paneFailedToStart', 'serverStopping']);
 
 const tabFailureSchema = z.enum([
@@ -225,6 +232,18 @@ const controlSchema = z.discriminatedUnion('type', [
   z.object({ type: z.literal('paneSend'), paneId: paneIdSchema, text: z.string() }),
   z.object({ type: z.literal('paneSent'), paneId: paneIdSchema }),
   z.object({ type: z.literal('paneMissing'), paneId: paneIdSchema }),
+  z.object({ type: z.literal('paneSplit'), paneId: paneIdSchema, direction: splitDirectionSchema }),
+  z.object({ type: z.literal('paneFocus'), paneId: paneIdSchema }),
+  z.object({ type: z.literal('paneClose'), paneId: paneIdSchema }),
+  // Answers a pane split, focus, or close that worked, with the pane it acted on. For a split,
+  // that is the new pane.
+  z.object({ type: z.literal('paneDone'), paneId: paneIdSchema }),
+  // Answers a pane request that changed nothing. The message is present for paneFailedToStart.
+  z.object({
+    type: z.literal('paneFailed'),
+    reason: paneFailureSchema,
+    message: absent(z.string()),
+  }),
   z.object({
     type: z.literal('workspaceCreate'),
     root: z.string(),

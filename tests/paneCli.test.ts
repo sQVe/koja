@@ -1,0 +1,216 @@
+import { expect, it } from 'bun:test';
+import { mkdir, readFile } from 'node:fs/promises';
+import { join } from 'node:path';
+
+import { z } from 'zod';
+
+import { cliTestTimeoutMs, environmentFor, runCli, temporaryDirectory } from './cliHarness.ts';
+
+const paneListSchema = z.array(
+  z.object({
+    id: z.string(),
+    workspace: z.string(),
+    tab: z.string(),
+    lifecycle: z.string(),
+    focused: z.boolean(),
+    columns: z.number(),
+    rows: z.number(),
+  }),
+);
+
+const paneDoneSchema = z.object({ pane: z.string() });
+
+const paneReadSchema = z.object({ pane: z.string(), rows: z.array(z.string()) });
+
+const workspaceDoneSchema = z.object({ workspace: z.string() });
+
+const setup = async () => {
+  const directory = await temporaryDirectory();
+  const socketPath = join(directory, 'run', 'phi.sock');
+  const environment = { ...environmentFor(directory), SHELL: '/bin/sh', PS1: '' };
+
+  const phi = (...commandArguments: string[]) =>
+    runCli([...commandArguments, '--socket', socketPath], directory, environment);
+
+  const started = await phi('server', 'start');
+
+  expect(started.exitCode).toBe(0);
+
+  const workspaceRoot = join(directory, 'work');
+
+  await mkdir(workspaceRoot);
+
+  const created = await phi('workspace', 'create', workspaceRoot, '--json');
+
+  expect(created.exitCode).toBe(0);
+  workspaceDoneSchema.parse(JSON.parse(created.stdout));
+
+  const list = async () => {
+    const listed = await phi('pane', 'list', '--json');
+
+    expect(listed.exitCode).toBe(0);
+
+    return paneListSchema.parse(JSON.parse(listed.stdout));
+  };
+
+  const act = async (...commandArguments: string[]): Promise<string> => {
+    const result = await phi('pane', ...commandArguments, '--json');
+
+    expect({ exitCode: result.exitCode, stderr: result.stderr }).toEqual({
+      exitCode: 0,
+      stderr: '',
+    });
+
+    return paneDoneSchema.parse(JSON.parse(result.stdout)).pane;
+  };
+
+  const [first] = await list();
+
+  return { directory, phi, list, act, first: first?.id ?? '' };
+};
+
+const waitForFile = async (path: string): Promise<string> => {
+  for (let attempt = 0; attempt < 100; attempt += 1) {
+    const text = await readFile(path, 'utf8').catch(() => '');
+
+    if (text.endsWith('\n')) {
+      return text.trim();
+    }
+
+    await Bun.sleep(100);
+  }
+
+  return '';
+};
+
+const isRunning = (processId: number): boolean => {
+  try {
+    process.kill(processId, 0);
+
+    return true;
+  } catch {
+    return false;
+  }
+};
+
+it(
+  'splits a pane below and to the right, and lists both with their sizes',
+  async () => {
+    const { list, act, first } = await setup();
+    const [whole] = await list();
+
+    const below = await act('split', first, '--direction', 'below');
+
+    const afterBelow = await list();
+
+    expect(afterBelow.map((pane) => pane.id)).toEqual([first, below]);
+    expect(afterBelow.map((pane) => pane.focused)).toEqual([false, true]);
+    expect(afterBelow[0]?.tab).toBe(afterBelow[1]?.tab);
+    expect(afterBelow.every((pane) => pane.lifecycle === 'running')).toBe(true);
+    expect(afterBelow.every((pane) => pane.columns === whole?.columns)).toBe(true);
+    expect(afterBelow.reduce((sum, pane) => sum + pane.rows, 0)).toBeLessThan(whole?.rows ?? 0);
+
+    const right = await act('split', below, '--direction', 'right');
+
+    const afterRight = await list();
+    const lower = afterRight.filter((pane) => pane.id === below || pane.id === right);
+
+    expect(afterRight).toHaveLength(3);
+    expect(afterRight.find((pane) => pane.id === right)?.focused).toBe(true);
+    expect(lower[0]?.rows).toBe(lower[1]?.rows);
+
+    expect((lower[0]?.columns ?? 0) + (lower[1]?.columns ?? 0)).toBeLessThan(
+      afterBelow[1]?.columns ?? 0,
+    );
+  },
+  cliTestTimeoutMs,
+);
+
+it(
+  'moves focus with pane focus, and pane send reaches only the focused pane',
+  async () => {
+    const { directory, phi, list, act, first } = await setup();
+    const second = await act('split', first, '--direction', 'right');
+
+    expect((await list()).find((pane) => pane.focused)?.id).toBe(second);
+
+    expect(await act('focus', first)).toBe(first);
+    expect((await list()).find((pane) => pane.focused)?.id).toBe(first);
+
+    const marker = join(directory, 'marker');
+    const sent = await phi('pane', 'send', `echo reached > ${marker}\n`);
+
+    expect(sent.exitCode).toBe(0);
+    expect(await waitForFile(marker)).toBe('reached');
+
+    const read = async (id: string): Promise<string> => {
+      const result = await phi('pane', 'read', '--pane', id, '--json');
+
+      return paneReadSchema.parse(JSON.parse(result.stdout)).rows.join('\n');
+    };
+
+    let firstOutput = '';
+
+    for (let attempt = 0; attempt < 50 && !firstOutput.includes('reached'); attempt += 1) {
+      firstOutput = await read(first);
+    }
+
+    expect(firstOutput).toContain('echo reached');
+    expect(await read(second)).not.toContain('echo reached');
+  },
+  cliTestTimeoutMs,
+);
+
+it(
+  'closes a pane, ends its process, and gives its area to the sibling',
+  async () => {
+    const { directory, phi, list, act, first } = await setup();
+    const [whole] = await list();
+    const second = await act('split', first, '--direction', 'below');
+    const pidFile = join(directory, 'pid');
+    const sent = await phi('pane', 'send', `echo $$ > ${pidFile}\n`);
+
+    expect(sent.exitCode).toBe(0);
+
+    const processId = Number(await waitForFile(pidFile));
+
+    expect(isRunning(processId)).toBe(true);
+    expect(await act('close', second)).toBe(second);
+
+    const remaining = await list();
+
+    expect(remaining.map((pane) => pane.id)).toEqual([first]);
+
+    expect(remaining[0]).toMatchObject({
+      focused: true,
+      columns: whole?.columns,
+      rows: whole?.rows,
+    });
+
+    for (let attempt = 0; attempt < 100 && isRunning(processId); attempt += 1) {
+      await Bun.sleep(100);
+    }
+
+    expect(isRunning(processId)).toBe(false);
+  },
+  cliTestTimeoutMs,
+);
+
+it.each([
+  ['split', ['--direction', 'right']],
+  ['focus', []],
+  ['close', []],
+])(
+  'pane %s exits 1 for an unknown pane and changes nothing',
+  async (action, extra) => {
+    const { phi, list } = await setup();
+    const before = await list();
+    const failed = await phi('pane', action, 'pane-99', ...extra);
+
+    expect(failed.exitCode).toBe(1);
+    expect(failed.stdout).toBe('');
+    expect(failed.stderr).toContain('pane-99');
+    expect(await list()).toEqual(before);
+  },
+  cliTestTimeoutMs,
+);

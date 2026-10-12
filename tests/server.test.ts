@@ -1108,6 +1108,28 @@ it('sends rows only for the focused workspace and the other screen after workspa
   expect(terminal.updates.length).toBeGreaterThan(updatesBefore);
 });
 
+it('sends rows for every pane of the active tab after a split', async () => {
+  const directory = await temporaryDirectory();
+  const { socketPath } = await startServer(directory);
+  const cli = await connectCli(socketPath);
+  const terminal = await attachTerminal(socketPath, 100);
+
+  cli.send({ type: 'paneSplit', paneId: paneId(1), direction: 'right' });
+
+  expect(await nextOfType(cli, 'paneDone')).toEqual({ type: 'paneDone', paneId: paneId(2) });
+
+  cli.send({ type: 'paneSend', paneId: paneId(1), text: "printf 'left-%s\\n' marker\n" });
+  cli.send({ type: 'paneSend', paneId: paneId(2), text: "printf 'right-%s\\n' marker\n" });
+
+  const seen = new Set<number>();
+
+  while (seen.size < 2) {
+    seen.add((await terminal.nextUpdate()).pane);
+  }
+
+  expect(seen).toEqual(new Set([1, 2]));
+});
+
 it('tells the first terminal client it was taken over and closes it while the pane keeps running', async () => {
   const directory = await temporaryDirectory();
   const { server, socketPath } = await startServer(directory);
@@ -1368,6 +1390,31 @@ it('answers workspaceCreate with a failure and keeps no workspace when the shell
   expect(answer).toMatchObject({ type: 'workspaceFailed', reason: 'paneFailedToStart' });
   expect(server.snapshot()).toMatchObject({ workspaces: [], tabs: [], panes: [] });
   expect(existsSync(socketPath)).toBe(true);
+});
+
+it('keeps the existing pane at its full size when the split pane fails to start', async () => {
+  const directory = await temporaryDirectory();
+  const root = join(directory, 'root');
+
+  await mkdir(root);
+
+  const { server, socketPath } = await startEmptyServer(directory);
+
+  await createWorkspace(socketPath, root, 'root');
+
+  const before = server.snapshot().panes[0]?.size ?? { columns: 0, rows: 0 };
+
+  await rename(root, join(directory, 'moved'));
+
+  const cli = await connectCli(socketPath);
+
+  cli.send({ type: 'paneSplit', paneId: paneId(1), direction: 'right' });
+
+  expect(await nextOfType(cli, 'paneFailed')).toMatchObject({ reason: 'paneFailedToStart' });
+  expect(server.snapshot().panes.map((pane) => pane.size)).toEqual([before]);
+
+  server.writeToPane('stty size\n');
+  await waitFor(() => server.paneText()?.includes(`${before.rows} ${before.columns}`) === true);
 });
 
 it('refuses a client from another build with both versions and closes the connection', async () => {

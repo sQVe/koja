@@ -1,5 +1,10 @@
-import { focusedPane, runPaneCommand, runSnapshot } from '../client/client.ts';
-import type { StoreSnapshot } from '../client/client.ts';
+import {
+  focusedPane,
+  runPaneCommand,
+  runPaneLayoutCommand,
+  runSnapshot,
+} from '../client/client.ts';
+import type { PaneLayoutCommand, StoreSnapshot } from '../client/client.ts';
 import type { BuildVersion } from '../protocol/protocol.ts';
 import { resolveSocketPath } from './environment.ts';
 import type { Environment } from './environment.ts';
@@ -19,6 +24,8 @@ const listPanes = (snapshot: StoreSnapshot) => {
       tab: pane.tabId,
       lifecycle: pane.lifecycle,
       focused: pane.id === focusedId,
+      columns: pane.size.columns,
+      rows: pane.size.rows,
     };
   });
 };
@@ -38,13 +45,61 @@ const runPaneList = async (
 
   const lines = panes.map(
     (pane) =>
-      `${pane.focused ? '*' : ' '} ${pane.id}\t${pane.workspace}\t${pane.tab}\t${pane.lifecycle}`,
+      `${pane.focused ? '*' : ' '} ${pane.id}\t${pane.workspace}\t${pane.tab}\t${pane.lifecycle}\t${pane.columns}x${pane.rows}`,
   );
 
   print(command.json, { json: panes, text: lines.join('\n') });
 
   return { ok: true };
 };
+
+const layoutDoneText = (action: PaneLayoutCommand['action'], id: string): string => {
+  const verbs = { split: 'Split into', focus: 'Focused', close: 'Closed' };
+
+  return `${verbs[action]} ${id}.`;
+};
+
+const runPaneLayout = async (
+  command: PaneCliCommand,
+  request: PaneLayoutCommand,
+  version: BuildVersion,
+  socketPath: string,
+): Promise<Outcome> => {
+  const result = await runPaneLayoutCommand(socketPath, version, request);
+
+  if (result.ok) {
+    print(command.json, {
+      json: { pane: result.paneId },
+      text: layoutDoneText(request.action, result.paneId),
+    });
+
+    return { ok: true };
+  }
+
+  if (result.reason === 'unknownPane') {
+    return { ok: false, message: `There is no pane ${request.pane}.` };
+  }
+
+  if (result.reason === 'paneTooSmall') {
+    return { ok: false, message: `Pane ${request.pane} is too small to split.` };
+  }
+
+  if (result.reason === 'serverStopping') {
+    return { ok: false, message: 'The server is stopping.' };
+  }
+
+  if (result.reason === 'paneFailedToStart') {
+    return { ok: false, message: `The pane did not start: ${result.message}` };
+  }
+
+  return {
+    ok: false,
+    message: connectionFailureMessage(result, socketPath, `pane ${request.action}`),
+  };
+};
+
+const isLayoutAction = (action: PaneCliCommand['pane']): action is PaneLayoutCommand =>
+  action.action === 'split' || action.action === 'focus' || action.action === 'close';
 
 export const runPaneAction = async (
   command: PaneCliCommand,
@@ -55,6 +110,10 @@ export const runPaneAction = async (
 
   if (command.pane.action === 'list') {
     return runPaneList(command, version, socketPath);
+  }
+
+  if (isLayoutAction(command.pane)) {
+    return runPaneLayout(command, command.pane, version, socketPath);
   }
 
   const result = await runPaneCommand(socketPath, version, command.pane);
