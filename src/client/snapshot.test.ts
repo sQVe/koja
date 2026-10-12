@@ -150,3 +150,23 @@ it('removes a workspace with its tab and pane and takes the focus the change nam
   expect(next.panes).toEqual(snapshot.panes);
   expect(next.focusedWorkspaceId).toBe(workspaceId(1));
 });
+
+it('keeps the focused workspace and pane when a background workspace is added', () => {
+  const workspace = {
+    id: workspaceId(2),
+    root: '/work/other',
+    label: 'other',
+    tabIds: [tabId(2)],
+    activeTabId: tabId(2),
+  };
+
+  const added = applyChange(snapshot, {
+    type: 'workspaceAdded',
+    workspace,
+    focusedWorkspaceId: workspaceId(1),
+  });
+
+  expect(added.workspaces).toHaveLength(2);
+  expect(added.focusedWorkspaceId).toBe(workspaceId(1));
+  expect(focusedPane(added)).toEqual(snapshot.panes[0]);
+});

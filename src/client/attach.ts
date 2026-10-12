@@ -15,6 +15,8 @@ import { createRowCache } from './rowCache.ts';
 import type { RowCache } from './rowCache.ts';
 import { applyChange } from './snapshot.ts';
 import type { StoreChange, StoreSnapshot } from './snapshot.ts';
+import { workspaceRequest } from './workspaceRequest.ts';
+import type { WorkspaceCommand } from './workspaceRequest.ts';
 
 interface TerminalSize {
   columns: number;
@@ -67,6 +69,8 @@ export interface AttachSession {
   sendInput: (pane: PaneId, bytes: Uint8Array) => void;
   // Asks the server to detach this client. The session closes with `detached`.
   detach: () => void;
+  // Sends a workspace command. The snapshot changes show the result; the replies are ignored.
+  sendWorkspaceCommand: (command: WorkspaceCommand) => void;
   close: () => void;
   closed: Promise<CloseReason>;
 }
@@ -338,6 +342,9 @@ export const connectAttach = async (
     },
     detach: () => {
       send({ type: 'detach' });
+    },
+    sendWorkspaceCommand: (command) => {
+      send(workspaceRequest(command));
     },
     close: () => {
       end('requested');

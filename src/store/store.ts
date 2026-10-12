@@ -82,7 +82,8 @@ export type Fact =
 export type DetachReason = 'requested' | 'takenOver';
 
 export type Change =
-  | { type: 'workspaceAdded'; workspace: Workspace }
+  // Carries the focus that results, because a background create keeps the current focus.
+  | { type: 'workspaceAdded'; workspace: Workspace; focusedWorkspaceId: WorkspaceId }
   | { type: 'tabAdded'; tab: Tab }
   | { type: 'paneAdded'; pane: Pane }
   | { type: 'workspaceFocused'; workspaceId: WorkspaceId }
@@ -275,12 +276,15 @@ const createWorkspace = (
 
   const keepsFocus = background && state.focusedWorkspaceId !== undefined;
 
+  const focusedWorkspaceId =
+    keepsFocus && state.focusedWorkspaceId !== undefined ? state.focusedWorkspaceId : workspace.id;
+
   const next: State = {
     ...state,
     workspaces: [...state.workspaces, workspace],
     tabs: [...state.tabs, tab],
     panes: [...state.panes, pane],
-    focusedWorkspaceId: keepsFocus ? state.focusedWorkspaceId : workspace.id,
+    focusedWorkspaceId,
     nextWorkspaceNumber: state.nextWorkspaceNumber + 1,
     nextTabNumber: state.nextTabNumber + 1,
     nextPaneNumber: state.nextPaneNumber + 1,
@@ -288,7 +292,7 @@ const createWorkspace = (
   };
 
   return commit(next, [
-    { type: 'workspaceAdded', workspace },
+    { type: 'workspaceAdded', workspace, focusedWorkspaceId },
     { type: 'tabAdded', tab },
     { type: 'paneAdded', pane },
   ]);

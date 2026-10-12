@@ -124,7 +124,11 @@ const clientSchema: z.ZodType<Client> = z.object({
 const detachReasonSchema: z.ZodType<DetachReason> = z.enum(['requested', 'takenOver']);
 
 const changeSchema: z.ZodType<Change> = z.discriminatedUnion('type', [
-  z.object({ type: z.literal('workspaceAdded'), workspace: workspaceSchema }),
+  z.object({
+    type: z.literal('workspaceAdded'),
+    workspace: workspaceSchema,
+    focusedWorkspaceId: workspaceIdSchema,
+  }),
   z.object({ type: z.literal('tabAdded'), tab: tabSchema }),
   z.object({ type: z.literal('paneAdded'), pane: paneSchema }),
   z.object({ type: z.literal('workspaceFocused'), workspaceId: workspaceIdSchema }),

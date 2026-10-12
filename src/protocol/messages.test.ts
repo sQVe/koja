@@ -96,7 +96,15 @@ const messages: ControlMessage[] = [
     },
   },
   { type: 'snapshot', snapshot: emptySnapshot },
-  { type: 'change', revision: 1, change: { type: 'workspaceAdded', workspace } },
+  {
+    type: 'change',
+    revision: 1,
+    change: {
+      type: 'workspaceAdded',
+      workspace,
+      focusedWorkspaceId: workspace.id,
+    },
+  },
   { type: 'change', revision: 2, change: { type: 'workspaceFocused', workspaceId: workspace.id } },
   {
     type: 'change',
@@ -197,7 +205,11 @@ const workspaceIdJson = (id: string): string =>
   JSON.stringify({
     type: 'change',
     revision: 1,
-    change: { type: 'workspaceAdded', workspace: { ...workspace, id } },
+    change: {
+      type: 'workspaceAdded',
+      workspace: { ...workspace, id },
+      focusedWorkspaceId: id,
+    },
   });
 
 it.each([

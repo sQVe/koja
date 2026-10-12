@@ -9,6 +9,8 @@ import {
 import type { BuildVersion, ControlMessage } from '../protocol/protocol.ts';
 import { focusedPane } from './snapshot.ts';
 import type { StoreSnapshot } from './snapshot.ts';
+import { workspaceRequest } from './workspaceRequest.ts';
+import type { WorkspaceCommand } from './workspaceRequest.ts';
 
 export { connectAttach } from './attach.ts';
 export type { AttachSession, CloseReason, InputMode, TerminalTheme } from './attach.ts';
@@ -16,6 +18,7 @@ export { createRowCache } from './rowCache.ts';
 export type { RowCache } from './rowCache.ts';
 export { focusedPane } from './snapshot.ts';
 export type { StoreSnapshot } from './snapshot.ts';
+export type { WorkspaceCommand } from './workspaceRequest.ts';
 
 type StopResult = { ok: true; close: () => void } | { ok: false; reason: 'noServer' };
 
@@ -23,12 +26,6 @@ type StopResult = { ok: true; close: () => void } | { ok: false; reason: 'noServ
 export type PaneCommand =
   | { action: 'read'; pane?: PaneId | undefined }
   | { action: 'send'; text: string; pane?: PaneId | undefined };
-
-export type WorkspaceCommand =
-  | { action: 'create'; root: string; label: string | undefined; background: boolean }
-  | { action: 'focus'; workspaceId: WorkspaceId }
-  | { action: 'rename'; workspaceId: WorkspaceId; label: string }
-  | { action: 'close'; workspaceId: WorkspaceId };
 
 type WorkspaceResult =
   | { ok: true; workspaceId: WorkspaceId }
@@ -242,25 +239,6 @@ export const runPaneCommand = (
       answerPane(request, message);
     },
   });
-};
-
-const workspaceRequest = (command: WorkspaceCommand): ControlMessage => {
-  if (command.action === 'create') {
-    return {
-      type: 'workspaceCreate',
-      root: command.root,
-      label: command.label,
-      background: command.background,
-    };
-  }
-
-  if (command.action === 'rename') {
-    return { type: 'workspaceRename', workspaceId: command.workspaceId, label: command.label };
-  }
-
-  return command.action === 'focus'
-    ? { type: 'workspaceFocus', workspaceId: command.workspaceId }
-    : { type: 'workspaceClose', workspaceId: command.workspaceId };
 };
 
 export const runWorkspaceCommand = (

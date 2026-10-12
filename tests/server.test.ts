@@ -9,6 +9,7 @@ import { basename, join } from 'node:path';
 import { z } from 'zod';
 
 import { paneId, tabId, workspaceId } from '../src/ids.ts';
+import { sideListColumns } from '../src/layout.ts';
 import { createFrameDecoder, encodeFrame, FrameKind } from '../src/protocol/frames.ts';
 import { encodeControl, parseControl } from '../src/protocol/messages.ts';
 import type { BuildVersion, ControlMessage } from '../src/protocol/messages.ts';
@@ -756,7 +757,7 @@ it('publishes ordered rows to terminal clients but not CLI clients', async () =>
   applyRows(rows, first);
 
   expect(first.pane).toBe(1);
-  expect(first.size).toEqual({ columns: 100, rows: 29 });
+  expect(first.size).toEqual({ columns: 100 - sideListColumns, rows: 29 });
   expect(first.rowCount).toBe(29);
 
   server.writeToPane('echo first-$((6 * 7))\n');
@@ -798,12 +799,12 @@ it('resizes the pane to the client size less the status bar when a sized hello a
 
   const resized = await nextPaneResize(client);
 
-  expect(resized.size).toEqual({ columns: 100, rows: 29 });
-  expect(server.snapshot().panes[0]?.size).toEqual({ columns: 100, rows: 29 });
+  expect(resized.size).toEqual({ columns: 100 - sideListColumns, rows: 29 });
+  expect(server.snapshot().panes[0]?.size).toEqual({ columns: 100 - sideListColumns, rows: 29 });
 
   const update = await client.nextUpdate();
 
-  expect(update.size).toEqual({ columns: 100, rows: 29 });
+  expect(update.size).toEqual({ columns: 100 - sideListColumns, rows: 29 });
 });
 
 it('keeps change revisions consecutive when a stalled terminal overflows its write queue', async () => {
@@ -1195,13 +1196,15 @@ it('resizes the pane when an attached client sends resize', async () => {
 
   const resized = await nextPaneResize(client);
 
-  expect(resized.size).toEqual({ columns: 90, rows: 19 });
+  expect(resized.size).toEqual({ columns: 90 - sideListColumns, rows: 19 });
 
-  await waitFor(() => client.updates.some((update) => update.size.columns === 90));
+  await waitFor(() =>
+    client.updates.some((update) => update.size.columns === 90 - sideListColumns),
+  );
 
   const latest = client.updates.at(-1);
 
-  expect(latest?.size).toEqual({ columns: 90, rows: 19 });
+  expect(latest?.size).toEqual({ columns: 90 - sideListColumns, rows: 19 });
 });
 
 it('answers a pane color query with the background the attached client reported', async () => {

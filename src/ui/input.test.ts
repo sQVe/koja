@@ -1,6 +1,8 @@
 import { expect, it } from 'bun:test';
 
-import type { InputMode } from '../client/client.ts';
+import type { InputMode, WorkspaceCommand } from '../client/client.ts';
+import { workspaceId } from '../ids.ts';
+import type { WorkspaceId } from '../ids.ts';
 import { ModeFlag } from '../rows/rows.ts';
 import { createInputRouter, routeKey, routePaste } from './input.ts';
 
@@ -100,10 +102,18 @@ it('sends a paste in normal mode and keeps the mode', () => {
   expect(key('a', normal).mode).toBe('normal');
 });
 
-const router = (initial: InputMode, modes: number) => {
+const firstWorkspace = workspaceId(1);
+const secondWorkspace = workspaceId(2);
+
+const router = (
+  initial: InputMode,
+  modes: number,
+  focusedWorkspace: WorkspaceId | 'none' = firstWorkspace,
+) => {
   let mode = initial;
   const sent: string[] = [];
   let detaches = 0;
+  const commands: WorkspaceCommand[] = [];
 
   const input = createInputRouter({
     mode: () => mode,
@@ -119,9 +129,17 @@ const router = (initial: InputMode, modes: number) => {
     detach: () => {
       detaches += 1;
     },
+    workspaces: () => ({
+      ids: [firstWorkspace, secondWorkspace],
+      focused: focusedWorkspace === 'none' ? undefined : focusedWorkspace,
+    }),
+    startDirectory: '/work/start',
+    command: (command) => {
+      commands.push(command);
+    },
   });
 
-  return { input, sent, mode: () => mode, detaches: () => detaches };
+  return { input, sent, commands, mode: () => mode, detaches: () => detaches };
 };
 
 const lone = { kind: 'key', raw: '\x1b', escapeSent: false } as const;
@@ -178,4 +196,208 @@ it('detaches once when d follows Ctrl+B and not when d is typed in insert mode',
   press('d');
 
   expect(detaches()).toBe(1);
+});
+
+const presser = (input: ReturnType<typeof router>['input']) => (raw: string) => {
+  input({ kind: 'key', raw, escapeSent: false });
+};
+
+it('focuses the next workspace on j in normal mode, sends no bytes, and keeps normal mode', () => {
+  const { input, sent, commands, mode } = router('normal', 0);
+
+  presser(input)('j');
+
+  expect(commands).toEqual([{ action: 'focus', workspaceId: secondWorkspace }]);
+  expect(sent).toEqual([]);
+  expect(mode()).toBe('normal');
+});
+
+it('focuses the previous workspace on k and wraps at both ends', () => {
+  const first = router('normal', 0);
+
+  presser(first.input)('k');
+
+  expect(first.commands).toEqual([{ action: 'focus', workspaceId: secondWorkspace }]);
+
+  const last = router('normal', 0, secondWorkspace);
+  const press = presser(last.input);
+
+  press('j');
+  press('k');
+
+  expect(last.commands).toEqual([
+    { action: 'focus', workspaceId: firstWorkspace },
+    { action: 'focus', workspaceId: secondWorkspace },
+  ]);
+
+  expect(last.sent).toEqual([]);
+  expect(last.mode()).toBe('normal');
+});
+
+it('creates a workspace at the start directory on c without a label', () => {
+  const { input, sent, commands, mode } = router('normal', 0);
+
+  presser(input)('c');
+
+  expect(commands).toEqual([
+    { action: 'create', root: '/work/start', label: undefined, background: false },
+  ]);
+
+  expect(sent).toEqual([]);
+  expect(mode()).toBe('normal');
+});
+
+it('closes the focused workspace on X', () => {
+  const { input, sent, commands, mode } = router('normal', 0, secondWorkspace);
+
+  presser(input)('X');
+
+  expect(commands).toEqual([{ action: 'close', workspaceId: secondWorkspace }]);
+  expect(sent).toEqual([]);
+  expect(mode()).toBe('normal');
+});
+
+it('does nothing on j, k, and X when no workspace is focused', () => {
+  const { input, sent, commands, mode } = router('normal', 0, 'none');
+  const press = presser(input);
+
+  press('j');
+  press('k');
+  press('X');
+
+  expect(commands).toEqual([]);
+  expect(sent).toEqual([]);
+  expect(mode()).toBe('normal');
+});
+
+it('sends j, k, c, and X to the pane in insert mode', () => {
+  const { input, sent, commands } = router('insert', 0);
+  const press = presser(input);
+
+  press('j');
+  press('k');
+  press('c');
+  press('X');
+
+  expect(sent).toEqual(['j', 'k', 'c', 'X']);
+  expect(commands).toEqual([]);
+});
+
+const chunkRouter = () => {
+  const one = workspaceId(1);
+  const two = workspaceId(2);
+  const three = workspaceId(3);
+  let workspaceIds = [one, two, three];
+  let focused: WorkspaceId | undefined = one;
+  const commands: WorkspaceCommand[] = [];
+  const sent: string[] = [];
+
+  const input = createInputRouter({
+    mode: () => 'normal',
+    setMode: () => undefined,
+    modes: () => 0,
+    send: (bytes) => {
+      if (bytes.length > 0) {
+        sent.push(decoder.decode(bytes));
+      }
+    },
+    detach: () => undefined,
+    workspaces: () => ({ ids: workspaceIds, focused }),
+    startDirectory: '/work/start',
+    command: (command) => {
+      commands.push(command);
+    },
+  });
+
+  const press = presser(input);
+
+  return {
+    press,
+    commands,
+    sent,
+    one,
+    two,
+    three,
+    snapshotChanges: (next: { ids?: WorkspaceId[]; focused: WorkspaceId | undefined }) => {
+      workspaceIds = next.ids ?? workspaceIds;
+      focused = next.focused;
+    },
+  };
+};
+
+it('focuses two workspaces ahead when j is pressed twice before the snapshot changes', () => {
+  const { press, commands, two, three } = chunkRouter();
+
+  press('j');
+  press('j');
+
+  expect(commands).toEqual([
+    { action: 'focus', workspaceId: two },
+    { action: 'focus', workspaceId: three },
+  ]);
+});
+
+it('closes the workspace that j moved to when X follows j before the snapshot changes', () => {
+  const { press, commands, two } = chunkRouter();
+
+  press('j');
+  press('X');
+
+  expect(commands).toEqual([
+    { action: 'focus', workspaceId: two },
+    { action: 'close', workspaceId: two },
+  ]);
+});
+
+it('resolves from the snapshot again once it shows the requested focus', () => {
+  const { press, commands, snapshotChanges, two, three } = chunkRouter();
+
+  press('j');
+  snapshotChanges({ focused: two });
+  press('j');
+
+  expect(commands.at(-1)).toEqual({ action: 'focus', workspaceId: three });
+});
+
+it('drops the pending focus when its workspace leaves the list', () => {
+  const { press, commands, snapshotChanges, one, three } = chunkRouter();
+
+  press('j');
+  snapshotChanges({ ids: [one, three], focused: one });
+  press('j');
+
+  expect(commands.at(-1)).toEqual({ action: 'focus', workspaceId: three });
+});
+
+it('creates a workspace on c after X found nothing to close', () => {
+  const { press, commands, snapshotChanges } = chunkRouter();
+
+  snapshotChanges({ ids: [], focused: undefined });
+  press('X');
+  press('c');
+
+  expect(commands).toEqual([
+    { action: 'create', root: '/work/start', label: undefined, background: false },
+  ]);
+});
+
+it.each(['c', 'X'])('ignores workspace keys after %s until the snapshot changes', (first) => {
+  const { press, commands, sent, snapshotChanges, one, two } = chunkRouter();
+
+  press(first);
+
+  const issued = commands.length;
+
+  press('j');
+  press('k');
+  press('X');
+  press('c');
+
+  expect(commands).toHaveLength(issued);
+  expect(sent).toEqual([]);
+
+  snapshotChanges({ ids: [one, two], focused: one });
+  press('j');
+
+  expect(commands.at(-1)).toEqual({ action: 'focus', workspaceId: two });
 });

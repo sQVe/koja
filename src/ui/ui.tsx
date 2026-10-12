@@ -9,6 +9,7 @@ import type { AttachSession, CloseReason } from '../client/client.ts';
 import type { PaneId } from '../ids.ts';
 import { createInputRouter } from './input.ts';
 import { PaneRenderable } from './paneRenderable.ts';
+import { SideList } from './sideList.tsx';
 import { StatusBar } from './statusBar.tsx';
 import { takeStdin } from './stdinInput.ts';
 import { themeFromDetectedColors } from './terminalTheme.ts';
@@ -145,6 +146,13 @@ const routeInput = (session: AttachSession) =>
       sendToPane(session, bytes);
     },
     detach: session.detach,
+    workspaces: () => {
+      const { workspaces, focusedWorkspaceId } = session.getState().snapshot;
+
+      return { ids: workspaces.map((workspace) => workspace.id), focused: focusedWorkspaceId };
+    },
+    startDirectory: process.cwd(),
+    command: session.sendWorkspaceCommand,
   });
 
 export const runAttach = async (session: AttachSession): Promise<CloseReason> => {
@@ -192,7 +200,10 @@ export const runAttach = async (session: AttachSession): Promise<CloseReason> =>
 
   root.render(
     <box flexDirection="column" width="100%" height="100%">
-      <Screen session={session} placePane={placePane} />
+      <box flexDirection="row" flexGrow={1}>
+        <SideList session={session} />
+        <Screen session={session} placePane={placePane} />
+      </box>
       <StatusBar session={session} />
     </box>,
   );
