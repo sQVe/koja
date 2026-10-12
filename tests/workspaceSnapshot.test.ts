@@ -28,7 +28,7 @@ const replay = (steps: readonly (Intent | Fact)[]): Replay => {
   let mirror: StoreSnapshot = storeSnapshot(state);
 
   for (const step of steps) {
-    const result = 'paneId' in step ? applyFact(state, step) : applyIntent(state, step);
+    const result = 'generation' in step ? applyFact(state, step) : applyIntent(state, step);
 
     if (result.kind !== 'applied') {
       throw new Error(`Expected ${step.type} to apply.`);

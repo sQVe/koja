@@ -228,7 +228,7 @@ const visiblePaneIds = (context: ServerContext): PaneId[] => {
     return [];
   }
 
-  return [tab.layout.paneId].filter((id) => runtime.rowPublishers.has(id));
+  return [tab.focusedPaneId].filter((id) => runtime.rowPublishers.has(id));
 };
 
 const sameIds = (left: readonly PaneId[], right: readonly PaneId[]): boolean =>

@@ -36,6 +36,22 @@ const applyLayoutChange = (snapshot: StoreSnapshot, change: StoreChange): StoreS
     return { ...snapshot, tabs: [...snapshot.tabs, tab], workspaces };
   }
 
+  if (change.type === 'tabLayoutChanged') {
+    const tabs = snapshot.tabs.map((tab) =>
+      tab.id === change.tabId ? { ...tab, layout: change.layout } : tab,
+    );
+
+    return { ...snapshot, tabs };
+  }
+
+  if (change.type === 'paneFocused') {
+    const tabs = snapshot.tabs.map((tab) =>
+      tab.id === change.tabId ? { ...tab, focusedPaneId: change.paneId } : tab,
+    );
+
+    return { ...snapshot, tabs };
+  }
+
   if (change.type === 'workspaceFocused') {
     return { ...snapshot, focusedWorkspaceId: change.workspaceId };
   }

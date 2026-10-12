@@ -202,3 +202,27 @@ it('lists the first tab once when its workspace and tab are added', () => {
 
   expect(next.workspaces[0]?.tabIds).toEqual([tabId(1)]);
 });
+
+it('replaces the layout of the tab the change names', () => {
+  const layout = {
+    kind: 'split' as const,
+    direction: 'below' as const,
+    ratio: 0.5,
+    first: { kind: 'pane' as const, paneId: paneId(1) },
+    second: { kind: 'pane' as const, paneId: paneId(3) },
+  };
+
+  const next = applyChange(withSecond, { type: 'tabLayoutChanged', tabId: tabId(1), layout });
+
+  expect(next.tabs.map((tab) => tab.layout)).toEqual([layout, secondTab.layout]);
+});
+
+it('moves the focus of the tab the change names', () => {
+  const next = applyChange(withSecond, {
+    type: 'paneFocused',
+    tabId: tabId(2),
+    paneId: paneId(3),
+  });
+
+  expect(next.tabs.map((tab) => tab.focusedPaneId)).toEqual([paneId(1), paneId(3)]);
+});

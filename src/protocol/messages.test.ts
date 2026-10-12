@@ -73,6 +73,20 @@ const client = { id: clientId(2), size: { columns: 80, rows: 24 }, theme: undefi
 
 const themedClient = { ...client, theme };
 
+const nested = {
+  kind: 'split' as const,
+  direction: 'right' as const,
+  ratio: 0.5,
+  first: { kind: 'pane' as const, paneId: paneId(1) },
+  second: {
+    kind: 'split' as const,
+    direction: 'below' as const,
+    ratio: 0.5,
+    first: { kind: 'pane' as const, paneId: paneId(2) },
+    second: { kind: 'pane' as const, paneId: paneId(3) },
+  },
+};
+
 const messages: ControlMessage[] = [
   { type: 'hello', version: build, size: undefined },
   { type: 'welcome' },
@@ -118,6 +132,16 @@ const messages: ControlMessage[] = [
   },
   { type: 'change', revision: 4, change: { type: 'paneRemoved', paneId: pane.id } },
   { type: 'change', revision: 5, change: { type: 'tabRemoved', tabId: tab.id } },
+  {
+    type: 'change',
+    revision: 5,
+    change: { type: 'tabLayoutChanged', tabId: tab.id, layout: nested },
+  },
+  {
+    type: 'change',
+    revision: 5,
+    change: { type: 'paneFocused', tabId: tab.id, paneId: paneId(3) },
+  },
   {
     type: 'change',
     revision: 6,
@@ -313,4 +337,30 @@ it('parses a snapshot into ids the store accepts', () => {
   expect(received.workspaces[0]?.id).toBe(workspaceId(1));
   expect(received.attachedClientId).toBe(clientId(5));
   expect(received).toStrictEqual(sent);
+});
+
+it('round trips a snapshot with a split layout', () => {
+  const sent: Snapshot = {
+    ...emptySnapshot,
+    workspaces: [workspace],
+    tabs: [{ ...tab, layout: nested, focusedPaneId: paneId(3) }],
+  };
+
+  const message = parseMessage(encodeControl({ type: 'snapshot', snapshot: sent }));
+
+  expect(message).toStrictEqual({ type: 'snapshot', snapshot: sent });
+});
+
+it.each([0, 1, 1.5])('refuses a split with ratio %d', (ratio) => {
+  const json = JSON.stringify({
+    type: 'change',
+    revision: 1,
+    change: {
+      type: 'tabLayoutChanged',
+      tabId: 'tab-1',
+      layout: { ...nested, ratio },
+    },
+  });
+
+  expect(parseControl(text(json))).toEqual({ ok: false, reason: 'invalidMessage' });
 });
