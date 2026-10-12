@@ -22,7 +22,6 @@ const probeTimeoutMs = 2000;
 
 const killedOnTimeout = { killSignal: 'SIGKILL' } as const;
 
-// systemctl is-active exits with these when the unit is inactive or unknown.
 const inactiveExitCode = 3;
 
 const unknownUnitExitCode = 4;

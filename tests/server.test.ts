@@ -1200,7 +1200,6 @@ const logLinesOf = (logPath: string) => {
     .map((line) => logLineSchema.parse(JSON.parse(line)));
 };
 
-// A pane job in its own session that ignores SIGHUP, started with setsid.
 const startDetachedJob = async (server: Server): Promise<string> => {
   const command = `sleep 1000.${process.pid}${Date.now()}`;
 
