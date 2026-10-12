@@ -1,4 +1,4 @@
-import type { PaneId } from '../ids.ts';
+import type { PaneId, WorkspaceId } from '../ids.ts';
 import {
   createFrameDecoder,
   encodeControl,
@@ -8,16 +8,36 @@ import {
 } from '../protocol/protocol.ts';
 import type { BuildVersion, ControlMessage } from '../protocol/protocol.ts';
 import { focusedPane } from './snapshot.ts';
+import type { StoreSnapshot } from './snapshot.ts';
 
 export { connectAttach } from './attach.ts';
 export type { AttachSession, CloseReason, InputMode, TerminalTheme } from './attach.ts';
 export { createRowCache } from './rowCache.ts';
 export type { RowCache } from './rowCache.ts';
 export { focusedPane } from './snapshot.ts';
+export type { StoreSnapshot } from './snapshot.ts';
 
 type StopResult = { ok: true; close: () => void } | { ok: false; reason: 'noServer' };
 
-export type PaneCommand = { action: 'read' } | { action: 'send'; text: string };
+// Without a pane id, the command targets the focused pane.
+export type PaneCommand =
+  | { action: 'read'; pane?: PaneId | undefined }
+  | { action: 'send'; text: string; pane?: PaneId | undefined };
+
+export type WorkspaceCommand =
+  | { action: 'create'; root: string; label: string }
+  | { action: 'focus'; workspaceId: WorkspaceId }
+  | { action: 'rename'; workspaceId: WorkspaceId; label: string }
+  | { action: 'close'; workspaceId: WorkspaceId };
+
+type WorkspaceResult =
+  | { ok: true; workspaceId: WorkspaceId }
+  | { ok: false; reason: 'unknownWorkspace' }
+  | { ok: false; reason: 'serverStopping' }
+  | { ok: false; reason: 'paneFailedToStart'; message: string }
+  | RequestFailure;
+
+type SnapshotResult = { ok: true; snapshot: StoreSnapshot } | RequestFailure;
 
 type RequestFailure =
   | { ok: false; reason: 'noServer' | 'connectionFailed' }
@@ -160,12 +180,17 @@ const runRequest = async <Result>(
   }
 };
 
+const paneRequest = (paneId: PaneId, command: PaneCommand): ControlMessage =>
+  command.action === 'read'
+    ? { type: 'paneRead', paneId }
+    : { type: 'paneSend', paneId, text: command.text };
+
 export const runPaneCommand = (
   socketPath: string,
   version: BuildVersion,
   command: PaneCommand,
 ): Promise<PaneResult | RequestFailure> => {
-  let paneId: PaneId | undefined;
+  let paneId: PaneId | undefined = command.pane;
 
   const askPane = (
     request: Request<PaneResult>,
@@ -180,12 +205,7 @@ export const runPaneCommand = (
     }
 
     paneId = pane.id;
-
-    if (command.action === 'read') {
-      request.send({ type: 'paneRead', paneId: pane.id });
-    } else {
-      request.send({ type: 'paneSend', paneId: pane.id, text: command.text });
-    }
+    request.send(paneRequest(pane.id, command));
   };
 
   const answerPane = (request: Request<PaneResult>, message: ControlMessage): void => {
@@ -207,6 +227,11 @@ export const runPaneCommand = (
   };
 
   return runRequest<PaneResult>(socketPath, version, {
+    onWelcome: (request) => {
+      if (command.pane !== undefined) {
+        request.send(paneRequest(command.pane, command));
+      }
+    },
     onMessage: (request, message) => {
       if (message.type === 'snapshot' && paneId === undefined) {
         askPane(request, message.snapshot);
@@ -218,6 +243,54 @@ export const runPaneCommand = (
     },
   });
 };
+
+const workspaceRequest = (command: WorkspaceCommand): ControlMessage => {
+  if (command.action === 'create') {
+    return { type: 'workspaceCreate', root: command.root, label: command.label };
+  }
+
+  if (command.action === 'rename') {
+    return { type: 'workspaceRename', workspaceId: command.workspaceId, label: command.label };
+  }
+
+  return command.action === 'focus'
+    ? { type: 'workspaceFocus', workspaceId: command.workspaceId }
+    : { type: 'workspaceClose', workspaceId: command.workspaceId };
+};
+
+export const runWorkspaceCommand = (
+  socketPath: string,
+  version: BuildVersion,
+  command: WorkspaceCommand,
+): Promise<WorkspaceResult> =>
+  runRequest<WorkspaceResult>(socketPath, version, {
+    onWelcome: (request) => {
+      request.send(workspaceRequest(command));
+    },
+    onMessage: (request, message) => {
+      if (message.type === 'workspaceDone') {
+        request.finish({ ok: true, workspaceId: message.workspaceId });
+      }
+
+      if (message.type === 'workspaceFailed' && message.reason === 'paneFailedToStart') {
+        request.finish({ ok: false, reason: message.reason, message: message.message ?? '' });
+      }
+
+      if (message.type === 'workspaceFailed' && message.reason !== 'paneFailedToStart') {
+        request.finish({ ok: false, reason: message.reason });
+      }
+    },
+  });
+
+// Reads the snapshot the server sends after welcome.
+export const runSnapshot = (socketPath: string, version: BuildVersion): Promise<SnapshotResult> =>
+  runRequest<SnapshotResult>(socketPath, version, {
+    onMessage: (request, message) => {
+      if (message.type === 'snapshot') {
+        request.finish({ ok: true, snapshot: message.snapshot });
+      }
+    },
+  });
 
 // Asks the server to detach its terminal client. `detached` is false when none was attached.
 export const runDetach = (socketPath: string, version: BuildVersion): Promise<DetachResult> =>

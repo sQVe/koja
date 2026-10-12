@@ -1,19 +1,7 @@
 import { expect, it, onTestFinished } from 'bun:test';
 import { existsSync } from 'node:fs';
-import {
-  chmod,
-  link,
-  lstat,
-  mkdir,
-  mkdtemp,
-  readFile,
-  rm,
-  symlink,
-  writeFile,
-} from 'node:fs/promises';
-import { tmpdir } from 'node:os';
+import { chmod, link, lstat, mkdir, readFile, rm, symlink, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
-import { fileURLToPath } from 'node:url';
 
 import { z } from 'zod';
 
@@ -27,66 +15,18 @@ import { createLog } from '../src/server/log.ts';
 import { runServer } from '../src/server/server.ts';
 import { ghosttyCommit } from '../src/vt/vt.ts';
 import {
-  createWorkspaceAt,
-  endServersIn,
-  isRunning,
-  serverProcessesIn,
-  waitFor,
-} from './serverProcesses.ts';
-
-interface CliRun {
-  exitCode: number;
-  stdout: string;
-  stderr: string;
-}
-
-const root = fileURLToPath(new URL('..', import.meta.url));
+  cliTestTimeoutMs,
+  environmentFor,
+  root,
+  runCli,
+  temporaryDirectory,
+} from './cliHarness.ts';
+import type { CliRun } from './cliHarness.ts';
+import { createWorkspaceAt, isRunning, serverProcessesIn, waitFor } from './serverProcesses.ts';
 
 const startOutputSchema = z.object({ socket: z.string(), pid: z.number().int().positive() });
 
 const paneOutputSchema = z.object({ pane: z.string(), rows: z.array(z.string()) });
-
-// The machine may be busy, and every command here starts Bun and loads the terminal library.
-const cliTestTimeoutMs = 30_000;
-
-const temporaryDirectory = async (): Promise<string> => {
-  const directory = await mkdtemp(join(tmpdir(), 'phi-cli-'));
-
-  onTestFinished(async () => {
-    await endServersIn(directory);
-    await rm(directory, { recursive: true, force: true });
-  });
-
-  return directory;
-};
-
-const environmentFor = (directory: string): Record<string, string | undefined> => ({
-  ...process.env,
-  XDG_STATE_HOME: join(directory, 'state'),
-  XDG_RUNTIME_DIR: join(directory, 'runtime'),
-});
-
-const runCli = async (
-  commandArguments: string[],
-  directory: string,
-  environment = environmentFor(directory),
-): Promise<CliRun> => {
-  const child = Bun.spawn(['bun', join(root, 'src/index.ts'), ...commandArguments], {
-    cwd: directory,
-    env: environment,
-    stdin: 'ignore',
-    stdout: 'pipe',
-    stderr: 'pipe',
-  });
-
-  const [exitCode, stdout, stderr] = await Promise.all([
-    child.exited,
-    new Response(child.stdout).text(),
-    new Response(child.stderr).text(),
-  ]);
-
-  return { exitCode, stdout, stderr };
-};
 
 const buildVersion = () => {
   const commit = ghosttyCommit();
