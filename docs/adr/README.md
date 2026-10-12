@@ -36,3 +36,4 @@ line that links to the replacement.
 - [0011: Any build can stop the server with a stop message](./0011-stop-across-builds.md)
 - [0012: One server per socket path through a flock lock file](./0012-socket-path-lock.md)
 - [0013: A terminal multiplexer built around pi](./0013-multiplexer-built-around-pi.md)
+- [0014: Stop ends pane processes through a systemd scope per pane](./0014-pane-scope-stop.md)
