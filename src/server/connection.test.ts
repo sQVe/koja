@@ -467,6 +467,31 @@ it('sends nothing more to a connection that is closing', () => {
   expect(messagesIn(socket.written)).toEqual([{ type: 'welcome' }]);
 });
 
+it('starts no flush deadline for a connection its full queue already closed', () => {
+  jest.useFakeTimers();
+
+  try {
+    const socket = createSocket(0);
+    const { connection, entries } = open(socket);
+
+    connection.receive(frameOf(hello));
+
+    for (let sent = 0; sent < 100; sent += 1) {
+      connection.send({ type: 'takenOver' });
+    }
+
+    connection.closeWhenFlushed();
+
+    expect(jest.getTimerCount()).toBe(0);
+
+    jest.advanceTimersByTime(10_000);
+
+    expect(entries.filter((entry) => entry.level === 'warn')).toHaveLength(1);
+  } finally {
+    jest.useRealTimers();
+  }
+});
+
 it('does not close a flushed connection a second time when its deadline passes', () => {
   jest.useFakeTimers();
 

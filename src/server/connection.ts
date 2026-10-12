@@ -94,6 +94,10 @@ export const createConnection = (options: ConnectionOptions): Connection => {
   };
 
   const closeWhenFlushed = (): void => {
+    if (closed) {
+      return;
+    }
+
     closeWhenDrained = true;
 
     flushTimer = setTimeout(() => {
