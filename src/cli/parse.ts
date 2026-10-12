@@ -7,7 +7,7 @@ interface CommandOptions {
   socket: string | undefined;
 }
 
-interface VersionCommand {
+export interface VersionCommand {
   kind: 'version';
   json: boolean;
 }
@@ -27,15 +27,32 @@ export interface AttachCommand {
   socket: string | undefined;
 }
 
-export type Command = VersionCommand | PaneCliCommand | ServerCommand | AttachCommand;
+export interface DefaultCommand {
+  kind: 'default';
+  socket: string | undefined;
+}
+
+export interface DetachCommand extends CommandOptions {
+  kind: 'detach';
+}
+
+export type Command =
+  | VersionCommand
+  | PaneCliCommand
+  | ServerCommand
+  | AttachCommand
+  | DefaultCommand
+  | DetachCommand;
 
 const serverActions = ['run', 'start', 'stop'] as const;
 
 type ServerAction = (typeof serverActions)[number];
 
 export const usage = `Usage:
+  phi [--socket <path>]
   phi --version [--json]
   phi attach [--socket <path>]
+  phi detach [--socket <path>] [--json]
   phi server run [--socket <path>] [--json]
   phi server start [--socket <path>] [--json]
   phi server stop [--socket <path>] [--json]
@@ -72,6 +89,42 @@ const parseAttachCommand = (
   return { kind: 'attach', socket: options.socket };
 };
 
+const parseDetachCommand = (
+  positionals: string[],
+  options: CommandOptions,
+): DetachCommand | string => {
+  if (positionals.length !== 1) {
+    return 'detach takes only --socket and --json.';
+  }
+
+  return { kind: 'detach', ...options };
+};
+
+const parseVersionCommand = (
+  positionals: string[],
+  socket: string | undefined,
+  json: boolean,
+): VersionCommand | string => {
+  const hasExtra = positionals.length > 0 || socket !== undefined;
+
+  return hasExtra ? '--version takes only --json.' : { kind: 'version', json };
+};
+
+const parseDefaultCommand = (options: CommandOptions): DefaultCommand | string =>
+  options.json ? 'phi takes only --socket.' : { kind: 'default', socket: options.socket };
+
+const isSessionGroup = (group: string | undefined): group is 'attach' | 'detach' =>
+  group === 'attach' || group === 'detach';
+
+const parseSessionCommand = (
+  group: 'attach' | 'detach',
+  positionals: string[],
+  options: CommandOptions,
+): AttachCommand | DetachCommand | string =>
+  group === 'attach'
+    ? parseAttachCommand(positionals, options)
+    : parseDetachCommand(positionals, options);
+
 export const parseCommand = (argv: string[]): Command | string => {
   try {
     const { values, positionals } = parseArgs({
@@ -89,13 +142,15 @@ export const parseCommand = (argv: string[]): Command | string => {
     const [group, action, ...rest] = positionals;
 
     if (values.version === true) {
-      const hasExtra = positionals.length > 0 || values.socket !== undefined;
-
-      return hasExtra ? '--version takes only --json.' : { kind: 'version', json };
+      return parseVersionCommand(positionals, values.socket, json);
     }
 
-    if (group === 'attach') {
-      return parseAttachCommand(positionals, { json, socket: values.socket });
+    if (positionals.length === 0) {
+      return parseDefaultCommand({ json, socket: values.socket });
+    }
+
+    if (isSessionGroup(group)) {
+      return parseSessionCommand(group, positionals, { json, socket: values.socket });
     }
 
     if (group === 'pane') {

@@ -1,4 +1,4 @@
-import { expect, it } from 'bun:test';
+import { expect, it, jest } from 'bun:test';
 
 import {
   createFrameDecoder,
@@ -93,6 +93,7 @@ const open = (
     version: build,
     log,
     queueLimitBytes: 1024,
+    flushTimeoutMs: 5000,
     onMessage,
     onWelcome,
     onInput,
@@ -202,6 +203,7 @@ it('does not notify welcome when its response exceeds the write queue limit', ()
     version: build,
     log,
     queueLimitBytes: 1,
+    flushTimeoutMs: 5000,
     onMessage: () => undefined,
     onWelcome: (from) => {
       welcomed.push(from);
@@ -232,6 +234,7 @@ it('passes the accepted hello size to the welcome handler', () => {
     version: build,
     log,
     queueLimitBytes: 1024,
+    flushTimeoutMs: 5000,
     onMessage: () => undefined,
     onWelcome: (_connection, message) => {
       received.push(message);
@@ -413,4 +416,95 @@ it('closes a connection whose write queue passes the limit', () => {
   expect(connection.isClosed()).toBe(true);
   expect(socket.isEnded()).toBe(true);
   expect(entries.map((entry) => entry.level)).toContain('warn');
+});
+
+it('writes a last message and then closes a connection told to close when flushed', () => {
+  const socket = createSocket();
+  const { connection } = open(socket);
+
+  connection.receive(frameOf(hello));
+  connection.send({ type: 'detached' });
+  connection.closeWhenFlushed();
+
+  expect(messagesIn(socket.written)).toEqual([{ type: 'welcome' }, { type: 'detached' }]);
+  expect(socket.isEnded()).toBe(true);
+});
+
+it('closes a connection whose peer never reads its last bytes once the flush deadline passes', () => {
+  jest.useFakeTimers();
+
+  try {
+    const socket = createSocket(4);
+    const { connection } = open(socket);
+
+    connection.receive(frameOf(hello));
+    connection.closeWhenFlushed();
+    jest.advanceTimersByTime(4999);
+
+    expect(socket.isEnded()).toBe(false);
+
+    jest.advanceTimersByTime(1);
+
+    expect(socket.isEnded()).toBe(true);
+    expect(connection.isClosed()).toBe(true);
+  } finally {
+    jest.useRealTimers();
+  }
+});
+
+it('sends nothing more to a connection that is closing', () => {
+  const socket = createSocket(4);
+  const { connection } = open(socket);
+
+  connection.receive(frameOf(hello));
+  connection.closeWhenFlushed();
+
+  socket.grow(1000);
+  connection.send({ type: 'resync' });
+  connection.sendBinary(FrameKind.rowUpdate, Uint8Array.from([1, 2, 3]));
+  connection.drain();
+
+  expect(messagesIn(socket.written)).toEqual([{ type: 'welcome' }]);
+});
+
+it('starts no flush deadline for a connection its full queue already closed', () => {
+  jest.useFakeTimers();
+
+  try {
+    const socket = createSocket(0);
+    const { connection, entries } = open(socket);
+
+    connection.receive(frameOf(hello));
+
+    for (let sent = 0; sent < 100; sent += 1) {
+      connection.send({ type: 'takenOver' });
+    }
+
+    connection.closeWhenFlushed();
+
+    expect(jest.getTimerCount()).toBe(0);
+
+    jest.advanceTimersByTime(10_000);
+
+    expect(entries.filter((entry) => entry.level === 'warn')).toHaveLength(1);
+  } finally {
+    jest.useRealTimers();
+  }
+});
+
+it('does not close a flushed connection a second time when its deadline passes', () => {
+  jest.useFakeTimers();
+
+  try {
+    const socket = createSocket();
+    const { connection, entries } = open(socket);
+
+    connection.receive(frameOf(hello));
+    connection.closeWhenFlushed();
+    jest.advanceTimersByTime(10_000);
+
+    expect(entries.filter((entry) => entry.level === 'warn')).toEqual([]);
+  } finally {
+    jest.useRealTimers();
+  }
 });

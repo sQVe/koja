@@ -842,6 +842,115 @@ it('attaches after a closed terminal without a takeover change', async () => {
   expect(changes.filter((change) => change.type === 'clientDetached')).toEqual([]);
 });
 
+const attachTerminal = async (socketPath: string, columns: number): Promise<TestClient> => {
+  const client = await connect(socketPath);
+
+  client.send({ type: 'hello', version: build, size: { columns, rows: 30 } });
+  await nextPaneResize(client);
+
+  return client;
+};
+
+const connectCli = async (socketPath: string): Promise<TestClient> => {
+  const client = await connect(socketPath);
+
+  client.send({ type: 'hello', version: build, size: undefined });
+  expect(await client.nextMessage()).toEqual({ type: 'welcome' });
+  await client.nextMessage();
+
+  return client;
+};
+
+const nextOfType = async <Type extends ControlMessage['type']>(
+  client: TestClient,
+  type: Type,
+): Promise<Extract<ControlMessage, { type: Type }>> => {
+  for (;;) {
+    const message = await client.nextMessage();
+
+    if (message.type === type) {
+      return message as Extract<ControlMessage, { type: Type }>;
+    }
+  }
+};
+
+it('tells the first terminal client it was taken over and closes it while the pane keeps running', async () => {
+  const directory = await temporaryDirectory();
+  const { server, socketPath } = await startServer(directory);
+  const first = await attachTerminal(socketPath, 100);
+  const second = await attachTerminal(socketPath, 90);
+
+  await nextOfType(first, 'takenOver');
+  await first.closed;
+
+  await second.nextUpdate();
+  server.writeToPane("printf 'after-takeover\n'\n");
+  await waitFor(() => server.paneText()?.includes('after-takeover') === true);
+  expect(await second.nextUpdate()).toMatchObject({ pane: 1 });
+  expect(server.snapshot().pane?.lifecycle).toBe('running');
+  expect(server.snapshot().attachedClientId).toBeDefined();
+  expect(server.snapshot().clients).toHaveLength(1);
+});
+
+it('detaches the attached terminal client when a CLI client sends detach', async () => {
+  const directory = await temporaryDirectory();
+  const { server, socketPath } = await startServer(directory);
+  const terminal = await attachTerminal(socketPath, 100);
+  const cli = await connectCli(socketPath);
+
+  server.writeToPane("printf 'kept-marker\n'\n");
+  await waitFor(() => server.paneText()?.includes('kept-marker') === true);
+  cli.send({ type: 'detach' });
+
+  expect(await nextOfType(cli, 'detachResult')).toEqual({ type: 'detachResult', detached: true });
+  await nextOfType(terminal, 'detached');
+  await terminal.closed;
+
+  expect(server.snapshot()).toMatchObject({ attachedClientId: undefined, clients: [] });
+  expect(server.snapshot().pane?.lifecycle).toBe('running');
+
+  const next = await connect(socketPath);
+
+  next.send({ type: 'hello', version: build, size: { columns: 100, rows: 30 } });
+  const reattachedRows = new Map<number, string>();
+
+  await receiveText(next, reattachedRows, 'kept-marker');
+  cli.send({ type: 'paneRead', paneId: paneId(1) });
+
+  const read = await nextOfType(cli, 'paneRows');
+
+  expect(read.rows.join('\n')).toContain('kept-marker');
+  expect(next.messages.some((message) => message.type === 'takenOver')).toBe(false);
+});
+
+it('answers a terminal client that detaches itself before it closes the connection', async () => {
+  const directory = await temporaryDirectory();
+  const { server, socketPath } = await startServer(directory);
+  const terminal = await attachTerminal(socketPath, 100);
+
+  terminal.send({ type: 'detach' });
+  await terminal.closed;
+
+  const answers = terminal.messages.filter(
+    (message) => message.type === 'detachResult' || message.type === 'detached',
+  );
+
+  expect(answers).toEqual([{ type: 'detachResult', detached: true }, { type: 'detached' }]);
+  expect(server.snapshot().pane?.lifecycle).toBe('running');
+});
+
+it('answers detach with no attached client and changes no state', async () => {
+  const directory = await temporaryDirectory();
+  const { server, socketPath } = await startServer(directory);
+  const cli = await connectCli(socketPath);
+  const before = server.snapshot();
+
+  cli.send({ type: 'detach' });
+
+  expect(await nextOfType(cli, 'detachResult')).toEqual({ type: 'detachResult', detached: false });
+  expect(server.snapshot()).toEqual(before);
+});
+
 it('resizes the pane when an attached client sends resize', async () => {
   const directory = await temporaryDirectory();
   const { socketPath } = await startServer(directory);

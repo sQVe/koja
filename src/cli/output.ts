@@ -23,7 +23,16 @@ export interface PaneSendOutput {
   sent: true;
 }
 
-type CommandJson = VersionOutput | ServerRunOutput | ServerStopOutput | PaneReadOutput;
+export type DetachFailure = 'noServer' | 'refused' | 'connectionFailed' | 'noClient';
+
+type DetachOutput = { detached: true } | { detached: false; reason: DetachFailure };
+
+type CommandJson =
+  | VersionOutput
+  | ServerRunOutput
+  | ServerStopOutput
+  | PaneReadOutput
+  | DetachOutput;
 
 // The JSON value is a public surface that agents parse.
 export interface Output<Json> {

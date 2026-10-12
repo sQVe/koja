@@ -18,6 +18,10 @@ type StartFailure =
   | { kind: 'timedOut' }
   | { kind: 'badReadiness'; line: string };
 
+export type LaunchResult =
+  | { ok: true; pid: number }
+  | { ok: false; message: string; exitedEarly: boolean };
+
 type ServerProcess = Bun.Subprocess<'ignore', 'pipe', 'pipe'>;
 
 const serverStartTimeoutMs = 10_000;
@@ -138,7 +142,9 @@ const failureMessage = async (
   return `The server exited with code ${exitCode} before it was ready:\n${detail.trimEnd()}`;
 };
 
-const startInBackground = async (context: ServerContext): Promise<Outcome> => {
+// Starts a detached server and waits until it listens. A server that exits before it is ready
+// may have lost the socket lock to another start.
+export const launchServer = async (context: ServerContext): Promise<LaunchResult> => {
   const { socketPath } = context;
 
   // The server gets its own session, so closing this terminal does not reach it. Its stderr
@@ -156,32 +162,49 @@ const startInBackground = async (context: ServerContext): Promise<Outcome> => {
 
     server.kill('SIGTERM');
 
-    return { ok: false, message };
+    return { ok: false, message, exitedEarly: failure.kind === 'exited' };
   }
 
   await server.stderr.cancel();
   server.unref();
 
+  return { ok: true, pid: server.pid };
+};
+
+const startInBackground = async (context: ServerContext): Promise<Outcome> => {
+  const launched = await launchServer(context);
+
+  if (!launched.ok) {
+    return { ok: false, message: launched.message };
+  }
+
   print(context.json, {
-    json: { socket: socketPath, pid: server.pid },
-    text: `Started server ${server.pid} on ${socketPath}.`,
+    json: { socket: context.socketPath, pid: launched.pid },
+    text: `Started server ${launched.pid} on ${context.socketPath}.`,
   });
 
   return { ok: true };
 };
+
+export const serverContextFor = (
+  socket: string | undefined,
+  json: boolean,
+  version: BuildVersion,
+  environment: Environment,
+): ServerContext => ({
+  json,
+  socketPath: resolveSocketPath(socket, environment),
+  logPath: logPathFor(environment.XDG_STATE_HOME, homedir()),
+  version,
+  environment,
+});
 
 export const runServerAction = (
   command: ServerCommand,
   version: BuildVersion,
   environment: Environment,
 ): Promise<Outcome> => {
-  const context: ServerContext = {
-    json: command.json,
-    socketPath: resolveSocketPath(command.socket, environment),
-    logPath: logPathFor(environment.XDG_STATE_HOME, homedir()),
-    version,
-    environment,
-  };
+  const context = serverContextFor(command.socket, command.json, version, environment);
 
   if (command.action === 'run') {
     return runInForeground(context);

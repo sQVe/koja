@@ -1,4 +1,5 @@
 import { expect, it, onTestFinished } from 'bun:test';
+import { existsSync } from 'node:fs';
 import { mkdtemp, readFile, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -13,7 +14,48 @@ import {
 } from '../src/protocol/protocol.ts';
 import { CellFlag, cellWords } from '../src/rows/rows.ts';
 import { createTerminal } from '../src/vt/vt.ts';
-import { endServersIn, waitFor } from './serverProcesses.ts';
+import { endServersIn, serverProcessesIn, waitFor } from './serverProcesses.ts';
+
+const attachClient = (
+  socketPath: string,
+  commandArguments = ['attach'],
+  extraEnvironment: Record<string, string> = {},
+) => {
+  const result = createTerminal(80, 24, 0);
+
+  if (!result.ok) {
+    throw new Error(result.reason);
+  }
+
+  const screen = result.terminal;
+
+  const client = Bun.spawn(
+    [process.execPath, 'src/index.ts', ...commandArguments, '--socket', socketPath],
+    {
+      env: { ...process.env, ...extraEnvironment, TERM: 'xterm-256color' },
+      terminal: {
+        cols: 80,
+        rows: 24,
+        data: (terminal, bytes) => {
+          const reply = screen.write(bytes);
+
+          if (reply !== undefined) {
+            terminal.write(reply);
+          }
+        },
+      },
+    },
+  );
+
+  onTestFinished(async () => {
+    client.kill();
+    await client.exited;
+    client.terminal?.close();
+    screen[Symbol.dispose]();
+  });
+
+  return { client, screen };
+};
 
 const setup = async () => {
   const directory = await mkdtemp(join(tmpdir(), 'phi-attach-'));
@@ -50,35 +92,7 @@ const setup = async () => {
 
   await command('server', 'start');
 
-  const result = createTerminal(80, 24, 0);
-
-  if (!result.ok) {
-    throw new Error(result.reason);
-  }
-
-  const screen = result.terminal;
-
-  const client = Bun.spawn([process.execPath, 'src/index.ts', 'attach', '--socket', socketPath], {
-    env: { ...process.env, TERM: 'xterm-256color' },
-    terminal: {
-      cols: 80,
-      rows: 24,
-      data: (terminal, bytes) => {
-        const reply = screen.write(bytes);
-
-        if (reply !== undefined) {
-          terminal.write(reply);
-        }
-      },
-    },
-  });
-
-  onTestFinished(async () => {
-    client.kill();
-    await client.exited;
-    client.terminal?.close();
-    screen[Symbol.dispose]();
-  });
+  const { client, screen } = attachClient(socketPath);
 
   return { command, client, screen, socketPath };
 };
@@ -284,4 +298,187 @@ it('exits with code zero when the server stops', async () => {
   expect(await client.exited).toBe(0);
   expect(await waitFor(() => !screen.stableRows().alternate)).toBe(true);
   expect(screen.frame().cursor.visible).toBe(true);
+});
+
+const pressDetach = async (
+  client: ReturnType<typeof attachClient>['client'],
+  screen: ReturnType<typeof attachClient>['screen'],
+) => {
+  client.terminal?.write('\x02');
+  expect(await waitFor(() => screen.text().includes('NORMAL'))).toBe(true);
+  client.terminal?.write('d');
+};
+
+it('detaches on Ctrl+B then d and leaves the shell running', async () => {
+  const { client, screen, command } = await setup();
+
+  expect(await waitFor(() => screen.text().includes('INSERT'))).toBe(true);
+  await command('pane', 'send', 'echo before-$((1+1))\r');
+  expect(await waitFor(() => screen.text().includes('before-2'))).toBe(true);
+  await pressDetach(client, screen);
+
+  expect(await client.exited).toBe(0);
+  expect(await waitFor(() => !screen.stableRows().alternate)).toBe(true);
+  expect(screen.text()).toContain('Detached from');
+  expect(await command('pane', 'read')).toContain('before-2');
+});
+
+it('shows the same screen text when a new client attaches after a detach', async () => {
+  const { client, screen, command, socketPath } = await setup();
+
+  expect(await waitFor(() => screen.text().includes('INSERT'))).toBe(true);
+  await command('pane', 'send', 'echo same-$((1+1))\r');
+
+  const finished = () => /^same-2\nattach-prompt>/m.test(screen.text());
+
+  expect(await waitFor(finished)).toBe(true);
+  const before = screen.text().split('\n').slice(0, -1).join('\n');
+  await pressDetach(client, screen);
+  expect(await client.exited).toBe(0);
+
+  const next = attachClient(socketPath);
+
+  expect(await waitFor(() => next.screen.text().includes('INSERT'))).toBe(true);
+  expect(next.screen.text().split('\n').slice(0, -1).join('\n')).toBe(before);
+});
+
+it('detaches the attached client when phi detach runs in another process', async () => {
+  const { client, screen, command } = await setup();
+
+  expect(await waitFor(() => screen.text().includes('INSERT'))).toBe(true);
+  expect(await command('detach')).toContain('Detached');
+
+  expect(await client.exited).toBe(0);
+  expect(await waitFor(() => !screen.stableRows().alternate)).toBe(true);
+  expect(screen.text()).toContain('Detached from');
+});
+
+it('lets a second client take over and tells the first one', async () => {
+  const { client, screen, socketPath } = await setup();
+
+  expect(await waitFor(() => screen.text().includes('INSERT'))).toBe(true);
+
+  const second = attachClient(socketPath);
+
+  expect(await client.exited).toBe(0);
+  expect(await waitFor(() => !screen.stableRows().alternate)).toBe(true);
+  expect(screen.text()).toContain('Another client took over');
+  expect(await waitFor(() => second.screen.text().includes('INSERT'))).toBe(true);
+});
+
+const runPhi = async (...commandArguments: string[]) => {
+  const child = Bun.spawn([process.execPath, 'src/index.ts', ...commandArguments], {
+    stdout: 'pipe',
+    stderr: 'pipe',
+  });
+
+  const stdout = await new Response(child.stdout).text();
+  const stderr = await new Response(child.stderr).text();
+
+  return { code: await child.exited, stdout, stderr };
+};
+
+it('reports when no client is attached to phi detach', async () => {
+  const { client, screen, command, socketPath } = await setup();
+
+  expect(await waitFor(() => screen.text().includes('INSERT'))).toBe(true);
+  await command('detach');
+  expect(await client.exited).toBe(0);
+
+  const plain = await runPhi('detach', '--socket', socketPath);
+
+  expect(plain.code).toBe(1);
+  expect(plain.stderr).toContain('No client is attached');
+
+  const json = await runPhi('detach', '--json', '--socket', socketPath);
+
+  expect(json.code).toBe(1);
+  expect(JSON.parse(json.stdout)).toEqual({ detached: false, reason: 'noClient' });
+});
+
+const setupWithoutServer = async () => {
+  const directory = await mkdtemp(join(tmpdir(), 'phi-default-'));
+  const socketPath = join(directory, 'phi.sock');
+
+  const environment = {
+    SHELL: '/bin/sh',
+    PS1: 'attach-prompt> ',
+    XDG_STATE_HOME: join(directory, 'state'),
+  };
+
+  onTestFinished(async () => {
+    await endServersIn(directory);
+    await rm(directory, { recursive: true, force: true });
+  });
+
+  return { directory, socketPath, environment };
+};
+
+it('starts a server and attaches when phi runs with no server', async () => {
+  const { directory, socketPath, environment } = await setupWithoutServer();
+  const { screen } = attachClient(socketPath, [], environment);
+
+  expect(await waitFor(() => screen.text().includes('attach-prompt>'))).toBe(true);
+  expect(serverProcessesIn(directory)).toHaveLength(1);
+
+  const read = Bun.spawn(
+    [process.execPath, 'src/index.ts', 'pane', 'read', '--socket', socketPath],
+    {
+      env: { ...process.env, ...environment },
+      stdout: 'pipe',
+    },
+  );
+
+  expect(await read.exited).toBe(0);
+  expect(await new Response(read.stdout).text()).toContain('attach-prompt>');
+});
+
+it('attaches to the running server without starting another', async () => {
+  const { directory, socketPath, environment } = await setupWithoutServer();
+  const first = attachClient(socketPath, [], environment);
+
+  expect(await waitFor(() => first.screen.text().includes('INSERT'))).toBe(true);
+
+  const before = serverProcessesIn(directory);
+  const second = attachClient(socketPath, [], environment);
+
+  expect(await first.client.exited).toBe(0);
+  expect(await waitFor(() => second.screen.text().includes('INSERT'))).toBe(true);
+  expect(serverProcessesIn(directory)).toEqual(before);
+});
+
+it('attaches both phi runs to one server when they start together', async () => {
+  const { directory, socketPath, environment } = await setupWithoutServer();
+  const first = attachClient(socketPath, [], environment);
+  const second = attachClient(socketPath, [], environment);
+
+  expect(
+    await waitFor(
+      () => first.screen.text().includes('INSERT') || second.screen.text().includes('INSERT'),
+    ),
+  ).toBe(true);
+
+  expect(await waitFor(() => serverProcessesIn(directory).length === 1)).toBe(true);
+  await Bun.sleep(300);
+  expect(serverProcessesIn(directory)).toHaveLength(1);
+
+  const running = () => [first, second].filter((phi) => phi.client.exitCode === null);
+
+  expect(await waitFor(() => running().length === 1)).toBe(true);
+
+  expect([first, second].map((phi) => phi.client.exitCode).filter((code) => code !== null)).toEqual(
+    [0],
+  );
+});
+
+it('exits with code zero and removes the socket when the shell exits', async () => {
+  const { directory, socketPath, environment } = await setupWithoutServer();
+  const { client, screen } = attachClient(socketPath, [], environment);
+
+  expect(await waitFor(() => screen.text().includes('attach-prompt>'))).toBe(true);
+  client.terminal?.write('exit\r');
+
+  expect(await client.exited).toBe(0);
+  expect(await waitFor(() => !existsSync(socketPath))).toBe(true);
+  expect(await waitFor(() => serverProcessesIn(directory).length === 0)).toBe(true);
 });
