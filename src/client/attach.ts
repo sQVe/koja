@@ -13,7 +13,7 @@ import type { BuildVersion, ControlMessage } from '../protocol/protocol.ts';
 import { decodeRowUpdate, encodePaneInput } from '../rows/rows.ts';
 import { createRowCache } from './rowCache.ts';
 import type { RowCache } from './rowCache.ts';
-import { applyChange } from './snapshot.ts';
+import { applyChange, focusedPane } from './snapshot.ts';
 import type { StoreChange, StoreSnapshot } from './snapshot.ts';
 import { workspaceRequest } from './workspaceRequest.ts';
 import type { WorkspaceCommand } from './workspaceRequest.ts';
@@ -141,6 +141,9 @@ export const connectAttach = async (
   let waitingForSnapshot = false;
   let ended = false;
   let pendingTabRequests = 0;
+  let paneBeforeTabRequest: PaneId | undefined;
+  let awaitingRows: PaneId | undefined;
+  const freshRowPanes = new Set<PaneId>();
   let tabAnswerCallbacks: (() => void)[] = [];
   let socket: Bun.Socket | undefined;
 
@@ -221,6 +224,62 @@ export const connectAttach = async (
     setState({ ...state, snapshot });
   };
 
+  const releaseTabCallbacks = (): void => {
+    const callbacks = tabAnswerCallbacks;
+
+    tabAnswerCallbacks = [];
+
+    for (const callback of callbacks) {
+      callback();
+    }
+  };
+
+  // A pane's rows carry its modes. Only rows that arrive after a tab request are fresh: a cache
+  // from an earlier visit can be stale.
+  const noteFreshRows = (pane: PaneId): void => {
+    if (pendingTabRequests > 0 || awaitingRows !== undefined) {
+      freshRowPanes.add(pane);
+    }
+
+    if (awaitingRows === pane) {
+      awaitingRows = undefined;
+      releaseTabCallbacks();
+    }
+  };
+
+  const shownPane = (): PaneId | undefined => (state && focusedPane(state.snapshot))?.id;
+
+  // The server publishes a request's store changes before it answers, so the snapshot is current
+  // here. Input then waits for the rows of the pane the switch shows.
+  const takeTabAnswer = (done: boolean): void => {
+    pendingTabRequests = Math.max(pendingTabRequests - 1, 0);
+
+    if (pendingTabRequests > 0) {
+      return;
+    }
+
+    const shown = shownPane();
+    const switched = done && shown !== undefined && shown !== paneBeforeTabRequest;
+
+    if (switched && !freshRowPanes.has(shown)) {
+      awaitingRows = shown;
+
+      return;
+    }
+
+    releaseTabCallbacks();
+  };
+
+  const sendTabRequest = (message: ControlMessage): void => {
+    if (pendingTabRequests === 0) {
+      paneBeforeTabRequest = shownPane();
+      freshRowPanes.clear();
+    }
+
+    pendingTabRequests += 1;
+    send(message);
+  };
+
   const takeRows = (bytes: Uint8Array): void => {
     const decoded = decodeRowUpdate(bytes);
 
@@ -242,6 +301,8 @@ export const connectAttach = async (
     for (const listener of rowListeners) {
       listener({ pane, rows, sequence: decoded.update.sequence });
     }
+
+    noteFreshRows(pane);
   };
 
   const takeHandshake = (message: ControlMessage): void => {
@@ -267,33 +328,10 @@ export const connectAttach = async (
     welcomed = true;
   };
 
-  // The server publishes a request's store changes before it answers, so the snapshot is current
-  // when the callbacks run.
-  const takeTabAnswer = (): void => {
-    pendingTabRequests = Math.max(pendingTabRequests - 1, 0);
-
-    if (pendingTabRequests > 0) {
-      return;
-    }
-
-    const callbacks = tabAnswerCallbacks;
-
-    tabAnswerCallbacks = [];
-
-    for (const callback of callbacks) {
-      callback();
-    }
-  };
-
-  const sendTabRequest = (message: ControlMessage): void => {
-    pendingTabRequests += 1;
-    send(message);
-  };
-
   // Returns whether the message answered a tab or workspace request this session sent.
   const takeRequestAnswer = (message: ControlMessage): boolean => {
     if (message.type === 'tabDone' || message.type === 'tabFailed') {
-      takeTabAnswer();
+      takeTabAnswer(message.type === 'tabDone');
 
       return true;
     }
@@ -445,7 +483,7 @@ export const connectAttach = async (
         sendTabRequest({ type: 'tabFocus', tabId: tab });
       }
     },
-    tabPending: () => pendingTabRequests > 0,
+    tabPending: () => pendingTabRequests > 0 || awaitingRows !== undefined,
     afterTabAnswer: (callback) => {
       tabAnswerCallbacks.push(callback);
     },

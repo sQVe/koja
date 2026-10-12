@@ -748,3 +748,36 @@ it('refuses a tab intent while the server stops and leaves state unchanged', () 
     expect(applyIntent(state, next)).toEqual({ kind: 'rejected', state, reason: 'serverStopping' });
   }
 });
+
+it('keeps the tab that was active when the pane of a new tab fails to start', () => {
+  const state = run([
+    createPhi,
+    { type: 'createTab', workspaceId: workspaceId(1) },
+    { type: 'focusTab', tabId: tabId(1) },
+    { type: 'createTab', workspaceId: workspaceId(1) },
+  ]);
+
+  const result = fact(state, { type: 'paneFailedToStart', paneId: paneId(3), generation: 3 });
+  const owner = result.state.workspaces[0];
+
+  expect(owner?.tabIds).toEqual([tabId(1), tabId(2)]);
+  expect(owner?.activeTabId).toBe(tabId(1));
+});
+
+it('keeps the workspace that was focused when the pane of a new workspace fails to start', () => {
+  const state = run([
+    createPhi,
+    createDocs,
+    { type: 'focusWorkspace', workspaceId: workspaceId(1) },
+    { type: 'createWorkspace', root: '/work/api', label: 'api', background: false },
+  ]);
+
+  const result = fact(state, { type: 'paneFailedToStart', paneId: paneId(3), generation: 3 });
+
+  expect(result.state.focusedWorkspaceId).toBe(workspaceId(1));
+
+  expect(result.state.workspaces.map((workspace) => workspace.id)).toEqual([
+    workspaceId(1),
+    workspaceId(2),
+  ]);
+});

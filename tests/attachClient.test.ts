@@ -14,7 +14,7 @@ import {
   parseControl,
 } from '../src/protocol/protocol.ts';
 import type { ControlMessage } from '../src/protocol/protocol.ts';
-import { cellWords, decodePaneInput, encodeRowUpdate } from '../src/rows/rows.ts';
+import { cellWords, decodePaneInput, encodeRowUpdate, ModeFlag } from '../src/rows/rows.ts';
 import type { RowUpdate } from '../src/rows/rows.ts';
 import { createLog } from '../src/server/log.ts';
 import { runServer } from '../src/server/server.ts';
@@ -665,4 +665,101 @@ it('reports the reply to each workspace command in the order they were sent', as
   await waitFor(() => replies.length === 2);
 
   expect(replies).toEqual(['focus done', 'close failed']);
+});
+
+const twoTabSnapshot = (): ControlMessage => {
+  const second = { ...pane, id: paneId(8), tabId: tabId(2) };
+
+  const secondTab = {
+    ...tab,
+    id: tabId(2),
+    layout: { kind: 'pane', paneId: second.id },
+    focusedPaneId: second.id,
+  } as const;
+
+  return {
+    type: 'snapshot',
+    snapshot: {
+      ...snapshotAt(1),
+      workspaces: [{ ...workspace, tabIds: [tab.id, secondTab.id] }],
+      tabs: [tab, secondTab],
+      panes: [pane, second],
+    },
+  };
+};
+
+const switchedReplies = (message: ControlMessage): Reply => {
+  if (message.type === 'hello') {
+    const stale = encodeFrame(
+      FrameKind.rowUpdate,
+      encodeRowUpdate(rowUpdate({ pane: 8, modes: 0 })),
+    );
+
+    return [{ type: 'welcome' }, stale, twoTabSnapshot()];
+  }
+
+  if (message.type === 'tabFocus') {
+    return [
+      {
+        type: 'change',
+        revision: 2,
+        change: { type: 'tabFocused', workspaceId: workspace.id, tabId: tabId(2) },
+      },
+      { type: 'tabDone', tabId: tabId(2) },
+    ];
+  }
+
+  if (message.type === 'resize') {
+    return [
+      encodeFrame(
+        FrameKind.rowUpdate,
+        encodeRowUpdate(rowUpdate({ pane: 8, sequence: 2, modes: ModeFlag.bracketedPaste })),
+      ),
+    ];
+  }
+
+  return [];
+};
+
+it('holds input after a tab switch until the shown pane sends fresh rows', async () => {
+  const server = await listen(switchedReplies);
+  const session = await attach(server);
+  const released = Promise.withResolvers<number | undefined>();
+
+  session.focusTab({ kind: 'next' });
+
+  session.afterTabAnswer(() => {
+    released.resolve(session.rowCache(paneId(8))?.modes());
+  });
+
+  await untilState(session, () => session.getState().snapshot.revision === 2);
+  await waitFor(() => server.received.some((message) => message.type === 'tabFocus'));
+  await Bun.sleep(50);
+
+  expect(session.tabPending()).toBe(true);
+
+  session.resize({ columns: 90, rows: 20 });
+
+  expect(await released.promise).toBe(ModeFlag.bracketedPaste);
+  expect(session.tabPending()).toBe(false);
+});
+
+it('releases held input at once when the tab request fails', async () => {
+  const server = await listen((message) =>
+    message.type === 'tabFocus'
+      ? [{ type: 'tabFailed', reason: 'unknownTab', message: undefined }]
+      : switchedReplies(message),
+  );
+
+  const session = await attach(server);
+  const released = Promise.withResolvers<undefined>();
+
+  session.focusTab({ kind: 'next' });
+
+  session.afterTabAnswer(() => {
+    released.resolve(undefined);
+  });
+
+  await released.promise;
+  expect(session.tabPending()).toBe(false);
 });

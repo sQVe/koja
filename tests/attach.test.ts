@@ -636,3 +636,18 @@ it('reaches the third tab when two next-tab presses arrive in one read', async (
   client.terminal?.write('LL');
   expect(await waitFor(() => lastLine(screen.text()) === 'NORMAL 1 2 [3]')).toBe(true);
 });
+
+it('encodes a paste in the same read as a tab key with the modes of the newly shown pane', async () => {
+  const { client, screen, command } = await setup();
+
+  expect(await waitFor(() => screen.text().includes('attach-prompt>'))).toBe(true);
+  client.terminal?.write('\x02t');
+  expect(await waitFor(() => lastLine(screen.text()) === 'NORMAL 1 [2]')).toBe(true);
+  client.terminal?.write('H');
+  expect(await waitFor(() => lastLine(screen.text()) === 'NORMAL [1] 2')).toBe(true);
+  await command('pane', 'send', "printf '\\033[?2004h'; cat -v\r", '--pane', 'pane-2');
+  await Bun.sleep(300);
+  client.terminal?.write('L\x1b[200~xy\nz\x1b[201~');
+  expect(await waitFor(() => lastLine(screen.text()) === 'NORMAL 1 [2]')).toBe(true);
+  expect(await waitFor(() => screen.text().includes('^[[200~xy'))).toBe(true);
+});
