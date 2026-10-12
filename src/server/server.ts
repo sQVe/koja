@@ -16,6 +16,7 @@ import { spawnPane } from './pane.ts';
 import type { PaneRuntime } from './pane.ts';
 import { createRowPublisher } from './rowPublisher.ts';
 import type { RowPublisher, RowSubscription } from './rowPublisher.ts';
+import { scopeAvailable } from './scope.ts';
 import { claimSocketPath } from './socketPath.ts';
 
 export { createLog, logPathFor } from './log.ts';
@@ -78,6 +79,8 @@ interface Runtime {
   rowAcknowledgers: Map<Connection, (sequence: number) => boolean>;
   listener: Listener | undefined;
   nextConnectionId: number;
+  // Whether panes start in a systemd user scope. Decided when the first pane starts.
+  paneScopes: boolean | undefined;
 }
 
 interface ServerContext {
@@ -208,6 +211,22 @@ const applyThemeToPane = (context: ServerContext): void => {
   }
 };
 
+const paneScopesEnabled = (context: ServerContext): boolean => {
+  const { runtime, options } = context;
+
+  if (runtime.paneScopes === undefined) {
+    runtime.paneScopes = scopeAvailable(options.environment);
+
+    options.log.info(
+      runtime.paneScopes
+        ? 'Pane processes run in systemd user scopes.'
+        : 'No systemd user scope is available. Stop ends the shell session only.',
+    );
+  }
+
+  return runtime.paneScopes;
+};
+
 const startPane = (context: ServerContext, pane: Pane, report: Report): void => {
   const { log } = context.options;
   const { id, generation } = pane;
@@ -217,6 +236,7 @@ const startPane = (context: ServerContext, pane: Pane, report: Report): void => 
     size: pane.size,
     environment: context.options.environment,
     directory: context.options.directory,
+    useScope: paneScopesEnabled(context),
     onOutput: () => {
       scheduleRows(context, id, generation);
     },
@@ -295,7 +315,12 @@ const stopPane = async (
   context.runtime.rowPublishers.get(id)?.publisher[Symbol.dispose]();
 
   try {
-    await pane.stop();
+    const stopFailures = await pane.stop();
+
+    for (const failure of stopFailures) {
+      log.error('Stopping the pane failed.', { paneId: id, error: failure });
+      failures.push(`Stopping pane ${id}: ${failure}`);
+    }
 
     return failures;
   } catch (error) {
@@ -852,6 +877,7 @@ export const runServer = async (options: ServerOptions): Promise<RunServerResult
       rowAcknowledgers: new Map(),
       listener: undefined,
       nextConnectionId: 1,
+      paneScopes: undefined,
     },
     stopped: Promise.withResolvers(),
     releaseSignals: () => undefined,

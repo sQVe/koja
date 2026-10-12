@@ -2,6 +2,13 @@ import type { TerminalSize } from '../layout.ts';
 import { createTerminal } from '../vt/vt.ts';
 import type { Terminal } from '../vt/vt.ts';
 import { sessionGroups } from './processGroups.ts';
+import {
+  killScopeDetached,
+  scopedCommand,
+  scopeUnitName,
+  signalScope,
+  waitForScopeExit,
+} from './scope.ts';
 
 type Environment = Record<string, string | undefined>;
 
@@ -10,6 +17,8 @@ interface SpawnPaneOptions {
   size: TerminalSize;
   environment: Environment;
   directory: string;
+  // Start the shell in its own systemd user scope, and end the scope on stop.
+  useScope: boolean;
   onOutput: () => void;
 }
 
@@ -22,10 +31,12 @@ export interface PaneRuntime {
   // Resizes the PTY and the terminal, and answers whatever the terminal replies to the shell.
   resize: (size: TerminalSize) => void;
   text: () => string;
-  // Sends SIGHUP to every process group in the shell's session, then SIGKILL to what is left after
-  // the grace time.
-  stop: () => Promise<void>;
-  // Kills the shell's session at once and frees the terminal.
+  // Sends SIGHUP to every process in the pane's scope, or to every process group in the shell's
+  // session without one, then SIGKILL to what is left after the grace time. Resolves with what
+  // failed, after the session is killed.
+  stop: () => Promise<string[]>;
+  // Kills the shell's session and the pane's scope at once, and frees the terminal. The scope
+  // kill runs in the background.
   [Symbol.dispose]: () => void;
 }
 
@@ -78,10 +89,17 @@ const waitForSessionExit = async (session: number, graceMs: number): Promise<voi
 
 const shellOf = (environment: Environment): string => environment.SHELL ?? '/bin/sh';
 
-const spawnShell = (options: SpawnPaneOptions, onOutput: OnOutput) => {
-  const { size, environment, directory } = options;
+// systemd-run reports a missing shell only after the pane started, so a missing shell skips the
+// scope and fails to start here. systemd-run also expands `$` in the shell path, and the flag that
+// turns this off is missing before systemd 254, so such a path skips the scope too.
+const scopeCanRun = (shell: string): boolean => Bun.which(shell) !== null && !shell.includes('$');
 
-  return Bun.spawn([shellOf(environment)], {
+const spawnShell = (options: SpawnPaneOptions, onOutput: OnOutput, unit: string | undefined) => {
+  const { size, environment, directory } = options;
+  const shell = shellOf(environment);
+  const command = unit === undefined ? [shell] : scopedCommand(unit, shell);
+
+  return Bun.spawn(command, {
     cwd: directory,
     env: { ...environment, TERM: terminalName },
     terminal: {
@@ -120,9 +138,11 @@ export const spawnPane = (options: SpawnPaneOptions): SpawnPaneResult => {
   };
 
   let shell: ReturnType<typeof spawnShell>;
+  const scoped = options.useScope && scopeCanRun(shellOf(options.environment));
+  const unit = scoped ? scopeUnitName(process.pid) : undefined;
 
   try {
-    shell = spawnShell(options, onOutput);
+    shell = spawnShell(options, onOutput, unit);
   } catch (error) {
     terminal[Symbol.dispose]();
 
@@ -142,6 +162,10 @@ export const spawnPane = (options: SpawnPaneOptions): SpawnPaneResult => {
     disposed = true;
 
     try {
+      if (unit !== undefined) {
+        killScopeDetached(options.environment, unit);
+      }
+
       signalSession(session, 'SIGKILL');
     } finally {
       shell.terminal?.close();
@@ -149,11 +173,48 @@ export const spawnPane = (options: SpawnPaneOptions): SpawnPaneResult => {
     }
   };
 
-  const stop = async (): Promise<void> => {
+  // Returns what failed, so stop can still kill the session before it reports.
+  const endScope = async (scope: string): Promise<string[]> => {
+    const failures: string[] = [];
+    const hangup = await signalScope(options.environment, scope, 'SIGHUP');
+
+    if (!hangup.ok) {
+      failures.push(hangup.message);
+    }
+
+    const state = await waitForScopeExit(options.environment, scope, hangupGraceMs);
+
+    if (state === 'unknown') {
+      failures.push(`Cannot query scope ${scope}`);
+    }
+
+    const kill = await signalScope(options.environment, scope, 'SIGKILL');
+
+    if (!kill.ok) {
+      failures.push(kill.message);
+    }
+
+    return failures;
+  };
+
+  const endSession = async (): Promise<void> => {
     signalSession(session, 'SIGHUP');
     await waitForSessionExit(session, hangupGraceMs);
+  };
+
+  const stop = async (): Promise<string[]> => {
+    let failures: string[] = [];
+
+    if (unit === undefined) {
+      await endSession();
+    } else {
+      failures = await endScope(unit);
+    }
+
     dispose();
     await shell.exited;
+
+    return failures;
   };
 
   const pane: PaneRuntime = {
