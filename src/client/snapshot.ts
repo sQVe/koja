@@ -1,24 +1,48 @@
+import type { PaneId } from '../ids.ts';
 import type { ControlMessage } from '../protocol/protocol.ts';
 
 export type StoreSnapshot = Extract<ControlMessage, { type: 'snapshot' }>['snapshot'];
 
 export type StoreChange = Extract<ControlMessage, { type: 'change' }>['change'];
 
-const applyPaneChange = (snapshot: StoreSnapshot, change: StoreChange): StoreSnapshot => {
-  const { pane } = snapshot;
+const updatePane = (
+  snapshot: StoreSnapshot,
+  id: PaneId,
+  update: (pane: StoreSnapshot['panes'][number]) => StoreSnapshot['panes'][number],
+): StoreSnapshot => ({
+  ...snapshot,
+  panes: snapshot.panes.map((pane) => (pane.id === id ? update(pane) : pane)),
+});
 
-  if (change.type === 'paneAdded') {
-    return { ...snapshot, pane: change.pane };
+const applyLayoutChange = (snapshot: StoreSnapshot, change: StoreChange): StoreSnapshot => {
+  if (change.type === 'workspaceAdded') {
+    return {
+      ...snapshot,
+      workspaces: [...snapshot.workspaces, change.workspace],
+      focusedWorkspaceId: change.workspace.id,
+    };
   }
 
-  if (change.type === 'paneStateChanged' && pane?.id === change.paneId) {
+  if (change.type === 'tabAdded') {
+    return { ...snapshot, tabs: [...snapshot.tabs, change.tab] };
+  }
+
+  return snapshot;
+};
+
+const applyPaneChange = (snapshot: StoreSnapshot, change: StoreChange): StoreSnapshot => {
+  if (change.type === 'paneAdded') {
+    return { ...snapshot, panes: [...snapshot.panes, change.pane] };
+  }
+
+  if (change.type === 'paneStateChanged') {
     const { lifecycle, exitCode } = change;
 
-    return { ...snapshot, pane: { ...pane, lifecycle, exitCode } };
+    return updatePane(snapshot, change.paneId, (pane) => ({ ...pane, lifecycle, exitCode }));
   }
 
-  if (change.type === 'paneResized' && pane?.id === change.paneId) {
-    return { ...snapshot, pane: { ...pane, size: change.size } };
+  if (change.type === 'paneResized') {
+    return updatePane(snapshot, change.paneId, (pane) => ({ ...pane, size: change.size }));
   }
 
   return snapshot;
@@ -63,4 +87,14 @@ const applyClientChange = (snapshot: StoreSnapshot, change: StoreChange): StoreS
 };
 
 export const applyChange = (snapshot: StoreSnapshot, change: StoreChange): StoreSnapshot =>
-  applyClientChange(applyPaneChange(snapshot, change), change);
+  applyClientChange(applyPaneChange(applyLayoutChange(snapshot, change), change), change);
+
+// Mirrors the store's focusedPane: the client may not import the store at runtime.
+export const focusedPane = (
+  snapshot: StoreSnapshot,
+): StoreSnapshot['panes'][number] | undefined => {
+  const workspace = snapshot.workspaces.find((known) => known.id === snapshot.focusedWorkspaceId);
+  const tab = snapshot.tabs.find((known) => known.id === workspace?.activeTabId);
+
+  return snapshot.panes.find((known) => known.id === tab?.focusedPaneId);
+};

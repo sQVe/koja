@@ -1,7 +1,7 @@
 import { expect, it } from 'bun:test';
 
-import { clientId, paneId } from '../ids.ts';
-import { applyChange } from './snapshot.ts';
+import { clientId, paneId, tabId, workspaceId } from '../ids.ts';
+import { applyChange, focusedPane } from './snapshot.ts';
 import type { StoreSnapshot } from './snapshot.ts';
 
 const size = { columns: 80, rows: 24 };
@@ -12,7 +12,35 @@ const second = { id: clientId(2), size, theme: undefined };
 
 const snapshot: StoreSnapshot = {
   revision: 3,
-  pane: { id: paneId(1), lifecycle: 'running', generation: 1, size, exitCode: undefined },
+  workspaces: [
+    {
+      id: workspaceId(1),
+      root: '/work/phi',
+      label: 'phi',
+      tabIds: [tabId(1)],
+      activeTabId: tabId(1),
+    },
+  ],
+  tabs: [
+    {
+      id: tabId(1),
+      workspaceId: workspaceId(1),
+      layout: { kind: 'pane', paneId: paneId(1) },
+      focusedPaneId: paneId(1),
+      zoomedPaneId: undefined,
+    },
+  ],
+  panes: [
+    {
+      id: paneId(1),
+      tabId: tabId(1),
+      lifecycle: 'running',
+      generation: 1,
+      size,
+      exitCode: undefined,
+    },
+  ],
+  focusedWorkspaceId: workspaceId(1),
   attachedClientId: first.id,
   clients: [first],
 };
@@ -38,8 +66,8 @@ it('records the exit of the pane', () => {
     exitCode: 3,
   });
 
-  expect(exited.pane?.lifecycle).toBe('exited');
-  expect(exited.pane?.exitCode).toBe(3);
+  expect(focusedPane(exited)?.lifecycle).toBe('exited');
+  expect(focusedPane(exited)?.exitCode).toBe(3);
 });
 
 it('resizes only the client the change names', () => {

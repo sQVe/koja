@@ -1,4 +1,5 @@
 import { rmSync } from 'node:fs';
+import { basename } from 'node:path';
 
 import { paneId as paneIdFor } from '../ids.ts';
 import type { ClientId, PaneId } from '../ids.ts';
@@ -7,7 +8,14 @@ import type { TerminalSize } from '../layout.ts';
 import { FrameKind } from '../protocol/protocol.ts';
 import type { BuildVersion, ControlMessage } from '../protocol/protocol.ts';
 import { decodePaneInput, encodeRowUpdate, rowsToText } from '../rows/rows.ts';
-import { applyFact, applyIntent, createState, paneTheme, snapshot } from '../store/store.ts';
+import {
+  applyFact,
+  applyIntent,
+  createState,
+  focusedPane,
+  paneTheme,
+  snapshot,
+} from '../store/store.ts';
 import type { Change, DetachReason, Fact, Intent, Pane, Snapshot, State } from '../store/store.ts';
 import { createConnection } from './connection.ts';
 import type { Connection } from './connection.ts';
@@ -203,10 +211,7 @@ const applyAttachedTheme = (context: ServerContext, runtime: PaneRuntime): void 
 };
 
 const applyThemeToPane = (context: ServerContext): void => {
-  const id = context.state.pane?.id;
-  const runtime = id === undefined ? undefined : context.runtime.panes.get(id);
-
-  if (runtime !== undefined) {
+  for (const runtime of context.runtime.panes.values()) {
     applyAttachedTheme(context, runtime);
   }
 };
@@ -227,6 +232,15 @@ const paneScopesEnabled = (context: ServerContext): boolean => {
   return runtime.paneScopes;
 };
 
+const workspaceRootOf = (context: ServerContext, pane: Pane): string => {
+  const tab = context.state.tabs.find((known) => known.id === pane.tabId);
+  const workspace = context.state.workspaces.find((known) => known.id === tab?.workspaceId);
+
+  invariant(workspace !== undefined, `Pane ${pane.id} has no workspace.`);
+
+  return workspace.root;
+};
+
 const startPane = (context: ServerContext, pane: Pane, report: Report): void => {
   const { log } = context.options;
   const { id, generation } = pane;
@@ -235,7 +249,7 @@ const startPane = (context: ServerContext, pane: Pane, report: Report): void => 
     generation,
     size: pane.size,
     environment: context.options.environment,
-    directory: context.options.directory,
+    directory: workspaceRootOf(context, pane),
     useScope: paneScopesEnabled(context),
     onOutput: () => {
       scheduleRows(context, id, generation);
@@ -517,9 +531,9 @@ const dispatch = (context: ServerContext, intent: Intent): readonly Change[] => 
 };
 
 const findLivePane = (context: ServerContext, paneId: PaneId) => {
-  const pane = context.state.pane;
+  const pane = context.state.panes.find((known) => known.id === paneId);
   const runtime = context.runtime.panes.get(paneId);
-  const isLive = pane?.id === paneId && pane.lifecycle === 'running';
+  const isLive = pane?.lifecycle === 'running';
 
   if (!isLive || runtime === undefined) {
     return undefined;
@@ -836,7 +850,7 @@ const handleSignals = (context: ServerContext): void => {
 };
 
 const currentPane = (context: ServerContext): PaneRuntime | undefined => {
-  const id = context.state.pane?.id;
+  const id = focusedPane(context.state)?.id;
 
   return id === undefined ? undefined : context.runtime.panes.get(id);
 };
@@ -899,7 +913,12 @@ export const runServer = async (options: ServerOptions): Promise<RunServerResult
   context.runtime.listener = listener;
   handleSignals(context);
   options.log.info('Listening.', { socketPath });
-  dispatch(context, { type: 'startPane' });
+
+  dispatch(context, {
+    type: 'createWorkspace',
+    root: options.directory,
+    label: basename(options.directory),
+  });
 
   if (context.paneStartFailure !== undefined) {
     await context.stopped.promise;

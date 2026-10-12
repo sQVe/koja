@@ -3,7 +3,7 @@ import { mkdtemp, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
-import { clientId, paneId } from '../src/ids.ts';
+import { clientId, paneId, tabId, workspaceId } from '../src/ids.ts';
 import {
   createFrameDecoder,
   encodeControl,
@@ -35,10 +35,27 @@ interface AttachOptions {
 
 const pane = {
   id: paneId(1),
+  tabId: tabId(1),
   lifecycle: 'running',
   generation: 1,
   size: { columns: 80, rows: 23 },
   exitCode: undefined,
+} as const;
+
+const tab = {
+  id: tabId(1),
+  workspaceId: workspaceId(1),
+  layout: { kind: 'pane', paneId: pane.id },
+  focusedPaneId: pane.id,
+  zoomedPaneId: undefined,
+} as const;
+
+const workspace = {
+  id: workspaceId(1),
+  root: '/work/phi',
+  label: 'phi',
+  tabIds: [tab.id],
+  activeTabId: tab.id,
 } as const;
 
 const failureTimeoutMs = 10_000;
@@ -123,7 +140,10 @@ export const setupAttach = async (
                 type: 'snapshot',
                 snapshot: {
                   revision: 1,
-                  pane,
+                  workspaces: [workspace],
+                  tabs: [tab],
+                  panes: [pane],
+                  focusedWorkspaceId: workspace.id,
                   attachedClientId: clientId(1),
                   clients: [],
                 },

@@ -123,7 +123,7 @@ const readPaneSize = async (socketPath: string) => {
           const parsed = parseControl(frame.payload);
 
           if (parsed.ok && parsed.message.type === 'snapshot') {
-            answer.resolve(parsed.message.snapshot.pane?.size);
+            answer.resolve(parsed.message.snapshot.panes[0]?.size);
           }
         }
       },
@@ -238,7 +238,10 @@ it('exits with code one and reports a connection failure after the handshake', a
                   type: 'snapshot',
                   snapshot: {
                     revision: 0,
-                    pane: undefined,
+                    workspaces: [],
+                    tabs: [],
+                    panes: [],
+                    focusedWorkspaceId: undefined,
                     attachedClientId: undefined,
                     clients: [],
                   },

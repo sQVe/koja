@@ -4,7 +4,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
 import { runDetach, runPaneCommand } from '../src/client/client.ts';
-import { paneId } from '../src/ids.ts';
+import { paneId, tabId, workspaceId } from '../src/ids.ts';
 import {
   createFrameDecoder,
   encodeControl,
@@ -20,15 +20,41 @@ const snapshot = (live: boolean): ControlMessage => ({
   type: 'snapshot',
   snapshot: {
     revision: 2,
-    pane: live
-      ? {
-          id: paneId(7),
-          lifecycle: 'running',
-          generation: 1,
-          size: { columns: 80, rows: 24 },
-          exitCode: undefined,
-        }
-      : undefined,
+    workspaces: live
+      ? [
+          {
+            id: workspaceId(1),
+            root: '/work/phi',
+            label: 'phi',
+            tabIds: [tabId(1)],
+            activeTabId: tabId(1),
+          },
+        ]
+      : [],
+    tabs: live
+      ? [
+          {
+            id: tabId(1),
+            workspaceId: workspaceId(1),
+            layout: { kind: 'pane', paneId: paneId(7) },
+            focusedPaneId: paneId(7),
+            zoomedPaneId: undefined,
+          },
+        ]
+      : [],
+    panes: live
+      ? [
+          {
+            id: paneId(7),
+            tabId: tabId(1),
+            lifecycle: 'running',
+            generation: 1,
+            size: { columns: 80, rows: 24 },
+            exitCode: undefined,
+          },
+        ]
+      : [],
+    focusedWorkspaceId: live ? workspaceId(1) : undefined,
     attachedClientId: undefined,
     clients: [],
   },

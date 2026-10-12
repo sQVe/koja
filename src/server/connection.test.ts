@@ -8,6 +8,7 @@ import {
   parseControl,
 } from '../protocol/protocol.ts';
 import type { ControlMessage } from '../protocol/protocol.ts';
+import type { Snapshot } from '../store/store.ts';
 import { createConnection } from './connection.ts';
 import type { Connection } from './connection.ts';
 import type { Log } from './log.ts';
@@ -141,10 +142,20 @@ it('closes a connection whose first frame is input and hands nothing on', () => 
   expect(connection.isClosed()).toBe(true);
 });
 
+const emptySnapshot: Snapshot = {
+  revision: 0,
+  workspaces: [],
+  tabs: [],
+  panes: [],
+  focusedWorkspaceId: undefined,
+  attachedClientId: undefined,
+  clients: [],
+};
+
 const sendSnapshot = (connection: Connection): void => {
   connection.send({
     type: 'snapshot',
-    snapshot: { revision: 0, pane: undefined, clients: [], attachedClientId: undefined },
+    snapshot: emptySnapshot,
   });
 };
 
@@ -169,7 +180,7 @@ it('notifies welcome once and queues its snapshot after welcome even across part
     { type: 'welcome' },
     {
       type: 'snapshot',
-      snapshot: { revision: 0, pane: undefined, clients: [], attachedClientId: undefined },
+      snapshot: emptySnapshot,
     },
   ]);
 });

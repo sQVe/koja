@@ -2,6 +2,7 @@ import { createCliRenderer } from '@opentui/core';
 import type { BoxRenderable, CliRenderer } from '@opentui/core';
 import { createRoot } from '@opentui/react';
 
+import { focusedPane } from '../client/client.ts';
 import type { AttachSession, CloseReason } from '../client/client.ts';
 import { createInputRouter } from './input.ts';
 import { PaneRenderable } from './paneRenderable.ts';
@@ -13,7 +14,7 @@ const mountPane = (session: AttachSession, renderer: CliRenderer, box: BoxRender
   let pane: PaneRenderable | undefined;
 
   const draw = (rows?: readonly number[], sequence?: number): void => {
-    const current = session.getState().snapshot.pane;
+    const current = focusedPane(session.getState().snapshot);
     const cache = current === undefined ? undefined : session.rowCache(current.id);
     const size = cache?.size();
 
@@ -42,7 +43,7 @@ const mountPane = (session: AttachSession, renderer: CliRenderer, box: BoxRender
     draw(rows, sequence);
   });
 
-  const current = session.getState().snapshot.pane;
+  const current = focusedPane(session.getState().snapshot);
   const newest = current === undefined ? undefined : session.newestSequence(current.id);
 
   draw(undefined, newest);
@@ -65,13 +66,13 @@ const reportTheme = async (session: AttachSession, renderer: CliRenderer): Promi
 };
 
 const paneModes = (session: AttachSession): number => {
-  const current = session.getState().snapshot.pane;
+  const current = focusedPane(session.getState().snapshot);
 
   return current === undefined ? 0 : (session.rowCache(current.id)?.modes() ?? 0);
 };
 
 const sendToPane = (session: AttachSession, bytes: Uint8Array): void => {
-  const current = session.getState().snapshot.pane;
+  const current = focusedPane(session.getState().snapshot);
 
   if (current !== undefined && bytes.length > 0) {
     session.sendInput(current.id, bytes);

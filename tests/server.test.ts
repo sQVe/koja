@@ -4,7 +4,7 @@ import { existsSync, readdirSync, readFileSync, statSync } from 'node:fs';
 import { chmod, mkdir, mkdtemp, rename, rm, symlink } from 'node:fs/promises';
 import { createConnection } from 'node:net';
 import { tmpdir } from 'node:os';
-import { join } from 'node:path';
+import { basename, join } from 'node:path';
 
 import { z } from 'zod';
 
@@ -508,6 +508,22 @@ it('welcomes a client from the same build and removes the socket when it stops',
   expect(existsSync(socketPath)).toBe(false);
 });
 
+it('starts one workspace rooted at the start directory with one tab and one running pane', async () => {
+  const directory = await temporaryDirectory();
+  const { server } = await startServer(directory);
+  const { workspaces, tabs, panes, focusedWorkspaceId } = server.snapshot();
+
+  expect(workspaces).toHaveLength(1);
+  expect(workspaces[0]).toMatchObject({ root: directory, label: basename(directory) });
+  expect(focusedWorkspaceId).toBe(workspaces[0]?.id);
+  expect(tabs).toHaveLength(1);
+  expect(tabs[0]?.workspaceId).toBe(workspaces[0]?.id);
+  expect(workspaces[0]?.tabIds.map(String)).toEqual(tabs.map((tab) => tab.id));
+  expect(panes).toHaveLength(1);
+  expect(panes[0]?.lifecycle).toBe('running');
+  expect(panes[0]?.tabId).toBe(tabs[0]?.id);
+});
+
 it('sends a snapshot after welcome and each later change in revision order', async () => {
   const directory = await temporaryDirectory();
   const { server, socketPath } = await startServer(directory);
@@ -525,7 +541,7 @@ it('sends a snapshot after welcome and each later change in revision order', asy
     throw new Error('Expected a snapshot.');
   }
 
-  expect(initial.snapshot.pane?.id).toBe(paneId(1));
+  expect(initial.snapshot.panes[0]?.id).toBe(paneId(1));
 
   server.writeToPane('exit\n');
   await server.stopped;
@@ -585,7 +601,7 @@ it('resyncs after dropping a change inside a multi-change transition', async () 
   expect(recovered).toEqual({ type: 'snapshot', snapshot: server.snapshot() });
 
   expect(recovered).toMatchObject({
-    snapshot: { revision: received.revision, pane: { lifecycle: 'closing' } },
+    snapshot: { revision: received.revision, panes: [{ lifecycle: 'closing' }] },
   });
 
   server.writeToPane('exit\n');
@@ -724,7 +740,7 @@ it('resizes the pane to the client size less the status bar when a sized hello a
   const resized = await nextPaneResize(client);
 
   expect(resized.size).toEqual({ columns: 100, rows: 29 });
-  expect(server.snapshot().pane?.size).toEqual({ columns: 100, rows: 29 });
+  expect(server.snapshot().panes[0]?.size).toEqual({ columns: 100, rows: 29 });
 
   const update = await client.nextUpdate();
 
@@ -894,7 +910,7 @@ it('tells the first terminal client it was taken over and closes it while the pa
   server.writeToPane("printf 'after-takeover\n'\n");
   await waitFor(() => server.paneText()?.includes('after-takeover') === true);
   expect(await second.nextUpdate()).toMatchObject({ pane: 1 });
-  expect(server.snapshot().pane?.lifecycle).toBe('running');
+  expect(server.snapshot().panes[0]?.lifecycle).toBe('running');
   expect(server.snapshot().attachedClientId).toBeDefined();
   expect(server.snapshot().clients).toHaveLength(1);
 });
@@ -914,7 +930,7 @@ it('detaches the attached terminal client when a CLI client sends detach', async
   await terminal.closed;
 
   expect(server.snapshot()).toMatchObject({ attachedClientId: undefined, clients: [] });
-  expect(server.snapshot().pane?.lifecycle).toBe('running');
+  expect(server.snapshot().panes[0]?.lifecycle).toBe('running');
 
   const next = await connect(socketPath);
 
@@ -943,7 +959,7 @@ it('answers a terminal client that detaches itself before it closes the connecti
   );
 
   expect(answers).toEqual([{ type: 'detachResult', detached: true }, { type: 'detached' }]);
-  expect(server.snapshot().pane?.lifecycle).toBe('running');
+  expect(server.snapshot().panes[0]?.lifecycle).toBe('running');
 });
 
 it('answers detach with no attached client and changes no state', async () => {
@@ -1015,7 +1031,7 @@ it('ignores resize from a connection without a client', async () => {
   const answer = await cli.nextMessage();
 
   expect(answer).toMatchObject({ type: 'snapshot' });
-  expect(server.snapshot().pane?.size).toEqual({ columns: 80, rows: 24 });
+  expect(server.snapshot().panes[0]?.size).toEqual({ columns: 80, rows: 24 });
 });
 
 // Frames on one socket are handled in order, so the answer proves the earlier frames ran.
