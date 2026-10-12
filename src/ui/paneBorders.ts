@@ -39,12 +39,20 @@ const frameCellsOf = (rectangle: PaneRectangle, focused: boolean): BorderCell[] 
   return cells;
 };
 
-// Every pane gets a frame on the outer ring of its rectangle. Only the focused frame is marked.
+// Every pane of a split tab gets a frame on the outer ring of its rectangle. Only the focused frame
+// is marked. A lone pane has none.
 export const borderCells = (
   rectangles: readonly PaneRectangle[],
   focusedPaneId: PaneId | undefined,
-): BorderCell[] =>
-  rectangles.flatMap((rectangle) => frameCellsOf(rectangle, rectangle.paneId === focusedPaneId));
+): BorderCell[] => {
+  if (rectangles.length < 2) {
+    return [];
+  }
+
+  return rectangles.flatMap((rectangle) =>
+    frameCellsOf(rectangle, rectangle.paneId === focusedPaneId),
+  );
+};
 
 const dimColor = RGBA.fromHex('#666666');
 

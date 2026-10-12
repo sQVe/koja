@@ -357,7 +357,7 @@ it(
     const remaining = await listUntil(list, (panes) => panes.length === 1);
 
     expect(remaining.map((pane) => pane.id)).toEqual([first]);
-    expect(sizes(remaining)).toEqual([[78, 21]]);
+    expect(sizes(remaining)).toEqual([[80, 23]]);
   },
   cliTestTimeoutMs,
 );

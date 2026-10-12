@@ -163,10 +163,10 @@ it('shows the shell screen and cursor', async () => {
 
   await command('pane', 'send', 'echo phi-attach-ok\r');
 
-  expect(await waitFor(() => /^│phi-attach-ok *│$/m.test(paneText(screen)), 3000)).toBe(true);
+  expect(await waitFor(() => /^phi-attach-ok *$/m.test(paneText(screen)), 3000)).toBe(true);
 
   const rows = paneText(screen).split('\n');
-  const outputRow = rows.findIndex((row) => row.startsWith('│phi-attach-ok'));
+  const outputRow = rows.findIndex((row) => row.startsWith('phi-attach-ok'));
 
   expect(rows[outputRow + 1]).toContain('attach-prompt>');
   expect(screen.text()).toContain('INSERT');
@@ -175,7 +175,7 @@ it('shows the shell screen and cursor', async () => {
   const frame = screen.frame();
 
   const stride = 1 + 80 * cellWords;
-  const promptColumn = sideListColumns + 'attach-prompt> '.length + 1;
+  const promptColumn = sideListColumns + 'attach-prompt> '.length;
   const cursorFlags = frame.cells[(outputRow + 1) * stride + 1 + promptColumn * cellWords + 3] ?? 0;
 
   expect(cursorFlags & CellFlag.inverse).toBe(CellFlag.inverse);
@@ -190,7 +190,7 @@ it('resizes the pane to the client size less the side list and the status bar', 
   await command('pane', 'send', 'echo resized-screen\r');
 
   expect(await waitFor(() => screen.text().split('\n')[29] === 'INSERT [1]')).toBe(true);
-  expect(await readPaneSize(socketPath)).toEqual({ columns: 100 - sideListColumns - 2, rows: 27 });
+  expect(await readPaneSize(socketPath)).toEqual({ columns: 100 - sideListColumns, rows: 29 });
   expect(await waitFor(() => screen.text().includes('resized-screen'))).toBe(true);
 });
 
@@ -346,7 +346,7 @@ it('shows the same screen text when a new client attaches after a detach', async
   expect(await waitFor(() => screen.text().includes('INSERT'))).toBe(true);
   await command('pane', 'send', 'echo same-$((1+1))\r');
 
-  const finished = () => /^│same-2 *│\n│attach-prompt>/m.test(paneText(screen));
+  const finished = () => /^same-2 *\nattach-prompt>/m.test(paneText(screen));
 
   expect(await waitFor(finished)).toBe(true);
   const before = screen.text().split('\n').slice(0, -1).join('\n');

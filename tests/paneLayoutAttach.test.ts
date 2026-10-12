@@ -11,6 +11,25 @@ const glyphsAt = (lines: string[], row: number, columns: number[]): string[] =>
   columns.map((column) => lines[row]?.padEnd(100).charAt(column) ?? '');
 
 it(
+  'draws a lone pane with no frame and lists the full area',
+  async () => {
+    const { phi, list, lines, until, first } = await setup();
+
+    await phi('pane', 'send', 'echo LONETEXT\n', '--pane', first);
+    await until(() => lines().some((line) => line.startsWith('echo LONETEXT')));
+
+    const frameGlyphs = /[┌┐└┘│─]/;
+
+    expect(lines().some((line) => frameGlyphs.test(line))).toBe(false);
+
+    const panes = await list();
+
+    expect(panes.map((pane) => [pane.id, pane.columns, pane.rows])).toEqual([[first, 80, 23]]);
+  },
+  cliTestTimeoutMs,
+);
+
+it(
   'draws split panes in two frames and sizes each terminal to the inside of its frame',
   async () => {
     const { phi, list, act, lines, until, first } = await setup();
@@ -90,20 +109,13 @@ it(
 
     expect(await act('close', second)).toBe(second);
 
-    const fullTop = `┌${'─'.repeat(98)}┐`;
+    const frameGlyphs = /[┌┐└┘│─]/;
 
-    await until(() => lines()[0]?.padEnd(100) === fullTop);
-
-    const topRow = lines()[0]?.padEnd(100) ?? '';
-    const bottomRow = lines()[28]?.padEnd(100) ?? '';
-
-    expect(topRow).toBe(`┌${'─'.repeat(98)}┐`);
-    expect(bottomRow).toBe(`└${'─'.repeat(98)}┘`);
-    expect(glyphsAt(lines(), 10, [0, 49, 50, 99])).toEqual(['│', ' ', ' ', '│']);
+    await until(() => !lines().some((line) => frameGlyphs.test(line)));
 
     const remaining = await list();
 
-    expect(remaining.map((pane) => [pane.id, pane.columns, pane.rows])).toEqual([[first, 98, 27]]);
+    expect(remaining.map((pane) => [pane.id, pane.columns, pane.rows])).toEqual([[first, 100, 29]]);
   },
   cliTestTimeoutMs,
 );

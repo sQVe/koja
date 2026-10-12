@@ -34,8 +34,8 @@ const rowsOf = (layout: Layout, focused: number): string[] => {
   return grid.map((row) => row.join(''));
 };
 
-it('draws a full frame around a lone pane', () => {
-  expect(rowsOf(leaf(1), 1)).toEqual(['┌──────┐', '│      │', '│      │', '└──────┘']);
+it('draws no frame cells for a lone pane', () => {
+  expect(borderCells(layoutPanes(leaf(1), size), paneId(1))).toEqual([]);
 });
 
 it('draws two touching frames for a right split', () => {

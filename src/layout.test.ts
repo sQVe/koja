@@ -27,10 +27,25 @@ const rectangle = (
   terminal: { x: terminal[0], y: terminal[1], columns: terminal[2], rows: terminal[3] },
 });
 
-it('frames a lone pane over the whole area', () => {
-  expect(layoutPanes(leaf(1), { columns: 80, rows: 24 })).toEqual([
-    rectangle(1, [0, 0, 80, 24], [1, 1, 78, 22]),
+it('gives a lone pane a terminal over the whole area', () => {
+  expect(layoutPanes(leaf(1), { columns: 80, rows: 23 })).toEqual([
+    rectangle(1, [0, 0, 80, 23], [0, 0, 80, 23]),
   ]);
+});
+
+it('frames both panes of a split', () => {
+  const placed = layoutPanes(split('right', leaf(1), leaf(2)), { columns: 80, rows: 23 });
+
+  expect(placed).toHaveLength(2);
+
+  for (const pane of placed) {
+    expect(pane.terminal).toEqual({
+      x: pane.x + 1,
+      y: pane.y + 1,
+      columns: pane.columns - 2,
+      rows: pane.rows - 2,
+    });
+  }
 });
 
 it('gives a right split two touching frames', () => {

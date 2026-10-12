@@ -107,7 +107,7 @@ it(
     expect(afterBelow.map((pane) => pane.focused)).toEqual([false, true]);
     expect(afterBelow[0]?.tab).toBe(afterBelow[1]?.tab);
     expect(afterBelow.every((pane) => pane.lifecycle === 'running')).toBe(true);
-    expect(afterBelow.every((pane) => pane.columns === whole?.columns)).toBe(true);
+    expect(afterBelow.every((pane) => pane.columns === (whole?.columns ?? 0) - 2)).toBe(true);
     expect(afterBelow.reduce((sum, pane) => sum + pane.rows, 0)).toBeLessThan(whole?.rows ?? 0);
 
     const right = await act('split', below, '--direction', 'right');

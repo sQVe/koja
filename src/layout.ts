@@ -22,7 +22,8 @@ interface Area extends TerminalSize {
   y: number;
 }
 
-// The rectangle is the pane's frame. The terminal is the rectangle inset by the one-cell frame.
+// The rectangle is the pane's frame. The terminal is the rectangle inset by the one-cell frame,
+// except for a lone pane, which has no frame.
 export interface PaneRectangle extends Area {
   paneId: PaneId;
   terminal: Area;
@@ -125,12 +126,17 @@ const placeLayout = (layout: Layout, area: Area, placed: PaneRectangle[]): void 
   );
 };
 
-// Panes in tree order. A pane never gets less than a framed 1x1, so an area that is too small
-// overflows.
+// Panes in tree order. Only a tab with a split frames its panes. A pane never gets less than a
+// framed 1x1, so an area that is too small overflows.
 export const layoutPanes = (layout: Layout, size: TerminalSize): PaneRectangle[] => {
   const placed: PaneRectangle[] = [];
+  const area = { x: 0, y: 0, ...size };
 
-  placeLayout(layout, { x: 0, y: 0, ...size }, placed);
+  if (layout.kind === 'pane') {
+    return [{ paneId: layout.paneId, ...area, terminal: area }];
+  }
+
+  placeLayout(layout, area, placed);
 
   return placed;
 };

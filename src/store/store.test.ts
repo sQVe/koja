@@ -46,7 +46,7 @@ it('creates a workspace with one tab and one starting pane', () => {
     id: paneId(1),
     tabId: tabId(1),
     lifecycle: 'starting',
-    size: { columns: 78, rows: 22 },
+    size: { columns: 80, rows: 24 },
     generation: 1,
     exitCode: undefined,
   };
@@ -90,8 +90,8 @@ it('starts a pane at the layout size of the attached client', () => {
   const state = run([{ type: 'attachClient', size: { columns: 120, rows: 40 } }]);
 
   expect(intent(state, createPhi).state.panes[0]?.size).toEqual({
-    columns: 98,
-    rows: 37,
+    columns: 100,
+    rows: 39,
   });
 });
 
@@ -249,11 +249,11 @@ it('resizes the pane to the layout size of a client that attaches', () => {
   const client = { id: clientId(1), size: { columns: 100, rows: 30 }, theme: undefined };
 
   expect(result.state.attachedClientId).toBe(clientId(1));
-  expect(result.state.panes[0]?.size).toEqual({ columns: 78, rows: 27 });
+  expect(result.state.panes[0]?.size).toEqual({ columns: 80, rows: 29 });
 
   expect(result.changes).toEqual([
     { type: 'clientAttached', client },
-    { type: 'paneResized', paneId: paneId(1), size: { columns: 78, rows: 27 } },
+    { type: 'paneResized', paneId: paneId(1), size: { columns: 80, rows: 29 } },
   ]);
 });
 
@@ -269,7 +269,7 @@ it('takes over from the attached client when a second client attaches', () => {
   expect(result.changes).toEqual([
     { type: 'clientDetached', clientId: clientId(1), reason: 'takenOver' },
     { type: 'clientAttached', client },
-    { type: 'paneResized', paneId: paneId(1), size: { columns: 68, rows: 17 } },
+    { type: 'paneResized', paneId: paneId(1), size: { columns: 70, rows: 19 } },
   ]);
 });
 
@@ -282,11 +282,11 @@ it('reports the client size and the pane size when the attached client resizes',
     size: { columns: 60, rows: 15 },
   });
 
-  expect(result.state.panes[0]?.size).toEqual({ columns: 38, rows: 12 });
+  expect(result.state.panes[0]?.size).toEqual({ columns: 40, rows: 14 });
 
   expect(result.changes).toEqual([
     { type: 'clientResized', clientId: clientId(1), size: { columns: 60, rows: 15 } },
-    { type: 'paneResized', paneId: paneId(1), size: { columns: 38, rows: 12 } },
+    { type: 'paneResized', paneId: paneId(1), size: { columns: 40, rows: 14 } },
   ]);
 });
 
@@ -340,7 +340,7 @@ it('detaches a client on request and keeps the pane size', () => {
 
   expect(result.state.attachedClientId).toBeUndefined();
   expect(result.state.clients).toEqual([]);
-  expect(result.state.panes[0]?.size).toEqual({ columns: 78, rows: 27 });
+  expect(result.state.panes[0]?.size).toEqual({ columns: 80, rows: 29 });
 
   expect(result.changes).toEqual([
     { type: 'clientDetached', clientId: clientId(1), reason: 'requested' },
@@ -608,7 +608,7 @@ it('creates a second tab with a starting pane, last in the list and active', () 
     id: paneId(2),
     tabId: tabId(2),
     lifecycle: 'starting',
-    size: { columns: 78, rows: 22 },
+    size: { columns: 80, rows: 24 },
     generation: 2,
     exitCode: undefined,
   };
@@ -856,7 +856,7 @@ it('gives the area and the focus of a closed pane to its sibling', () => {
   expect(result.state.tabs[0]?.layout).toEqual({ kind: 'pane', paneId: paneId(1) });
   expect(result.state.tabs[0]?.focusedPaneId).toBe(paneId(1));
   expect(result.state.panes.map((pane) => pane.id)).toEqual([paneId(1)]);
-  expect(result.state.panes[0]?.size).toEqual({ columns: 78, rows: 22 });
+  expect(result.state.panes[0]?.size).toEqual({ columns: 80, rows: 24 });
 
   expect(result.changes.map((change) => change.type)).toEqual([
     'paneRemoved',
@@ -995,12 +995,12 @@ it('gives the area of a closed pane to its sibling without an attached client', 
   const state = run([createPhi, splitFirst('right')]);
   const result = intent(state, { type: 'closePane', paneId: paneId(2) });
 
-  expect(result.state.panes[0]?.size).toEqual({ columns: 78, rows: 22 });
+  expect(result.state.panes[0]?.size).toEqual({ columns: 80, rows: 24 });
 
   expect(result.changes).toContainEqual({
     type: 'paneResized',
     paneId: paneId(1),
-    size: { columns: 78, rows: 22 },
+    size: { columns: 80, rows: 24 },
   });
 });
 
@@ -1008,12 +1008,12 @@ it('gives the area of an exited pane to its sibling without an attached client',
   const state = run([createPhi, splitFirst('right')]);
   const result = fact(state, { type: 'paneExited', paneId: paneId(2), generation: 2, exitCode: 0 });
 
-  expect(result.state.panes[0]?.size).toEqual({ columns: 78, rows: 22 });
+  expect(result.state.panes[0]?.size).toEqual({ columns: 80, rows: 24 });
 
   expect(result.changes).toContainEqual({
     type: 'paneResized',
     paneId: paneId(1),
-    size: { columns: 78, rows: 22 },
+    size: { columns: 80, rows: 24 },
   });
 });
 

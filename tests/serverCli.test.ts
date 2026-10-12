@@ -118,10 +118,10 @@ it(
     const output = paneOutputSchema.parse(JSON.parse(json.stdout));
 
     expect(output.pane).toBe('pane-1');
-    expect(output.rows).toHaveLength(22);
+    expect(output.rows).toHaveLength(24);
     expect(text.exitCode).toBe(0);
     expect(text.stdout).toContain('phi-test>');
-    expect(text.stdout.split('\n')).toHaveLength(23);
+    expect(text.stdout.split('\n')).toHaveLength(25);
   },
   cliTestTimeoutMs,
 );
@@ -182,7 +182,7 @@ it(
     const primary = await runCli(['pane', 'read', '--socket', socketPath, '--json'], directory);
     const primaryOutput = paneOutputSchema.parse(JSON.parse(primary.stdout));
 
-    expect(primaryOutput.rows).toEqual(lines.slice(-22));
+    expect(primaryOutput.rows).toEqual(lines.slice(-24));
 
     const alternateText = "printf '\\033[?1049h\\033[Halternate-screen'; : > alternate-ready\n";
 
@@ -199,7 +199,7 @@ it(
 
     expect(alternateOutput.rows).toEqual([
       'alternate-screen',
-      ...Array.from({ length: 21 }, () => ''),
+      ...Array.from({ length: 23 }, () => ''),
     ]);
   },
   cliTestTimeoutMs,
@@ -274,7 +274,7 @@ it(
     const terminal = await connectTerminal(socketPath);
 
     expect(await waitFor(() => terminal.updates.length > 0)).toBe(true);
-    expect(terminal.updates[0]?.rowCount).toBe(22);
+    expect(terminal.updates[0]?.rowCount).toBe(24);
 
     for (let change = 0; change < 3; change += 1) {
       const expected = Array.from({ length: 20 }, (_, row) => `change-${change}-row-${row}`);
