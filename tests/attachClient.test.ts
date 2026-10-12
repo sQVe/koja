@@ -4,7 +4,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
 import { connectAttach } from '../src/client/client.ts';
-import { clientId, paneId } from '../src/ids.ts';
+import { clientId, paneId, tabId, workspaceId } from '../src/ids.ts';
 import {
   createFrameDecoder,
   encodeControl,
@@ -28,15 +28,35 @@ const size = { columns: 100, rows: 30 };
 
 const pane = {
   id: paneId(7),
+  tabId: tabId(1),
   lifecycle: 'running',
   generation: 1,
   size: { columns: 100, rows: 29 },
   exitCode: undefined,
 } as const;
 
+const tab = {
+  id: tabId(1),
+  workspaceId: workspaceId(1),
+  layout: { kind: 'pane', paneId: pane.id },
+  focusedPaneId: pane.id,
+  zoomedPaneId: undefined,
+} as const;
+
+const workspace = {
+  id: workspaceId(1),
+  root: '/work/phi',
+  label: 'phi',
+  tabIds: [tab.id],
+  activeTabId: tab.id,
+} as const;
+
 const snapshotAt = (revision: number, clients = 0) => ({
   revision,
-  pane,
+  workspaces: [workspace],
+  tabs: [tab],
+  panes: [pane],
+  focusedWorkspaceId: workspace.id,
   attachedClientId: undefined,
   clients: Array.from({ length: clients }, (_, index) => ({
     id: clientId(index + 1),
@@ -49,7 +69,10 @@ const snapshotMessage = (revision: number, clients = 0): ControlMessage => ({
   type: 'snapshot',
   snapshot: {
     revision,
-    pane,
+    workspaces: [workspace],
+    tabs: [tab],
+    panes: [pane],
+    focusedWorkspaceId: workspace.id,
     attachedClientId: undefined,
     clients: Array.from({ length: clients }, (_, index) => ({
       id: clientId(index + 1),
@@ -283,7 +306,7 @@ it('applies a change whose revision follows the snapshot', async () => {
 
   await untilState(session, () => session.getState().snapshot.revision === 3);
 
-  expect(session.getState().snapshot.pane?.size).toEqual(resized);
+  expect(session.getState().snapshot.panes[0]?.size).toEqual(resized);
   expect(server.received.map((message) => message.type)).toEqual(['hello']);
 });
 

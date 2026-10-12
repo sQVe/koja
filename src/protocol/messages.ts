@@ -1,8 +1,17 @@
 import { z } from 'zod';
 
-import { clientId, paneId } from '../ids.ts';
-import type { ClientId, PaneId } from '../ids.ts';
-import type { Change, Client, DetachReason, Pane, Snapshot, Theme } from '../store/store.ts';
+import { clientId, paneId, tabId, workspaceId } from '../ids.ts';
+import type { ClientId, PaneId, TabId, WorkspaceId } from '../ids.ts';
+import type {
+  Change,
+  Client,
+  DetachReason,
+  Pane,
+  Snapshot,
+  Tab,
+  Theme,
+  Workspace,
+} from '../store/store.ts';
 
 // The package.json version and the Ghostty commit, as `phi --version` prints them.
 export interface BuildVersion {
@@ -34,6 +43,10 @@ const idNumber = (prefix: string) =>
 
 const paneIdSchema: z.ZodType<PaneId> = idNumber('pane').transform(paneId);
 
+const workspaceIdSchema: z.ZodType<WorkspaceId> = idNumber('workspace').transform(workspaceId);
+
+const tabIdSchema: z.ZodType<TabId> = idNumber('tab').transform(tabId);
+
 const clientIdSchema: z.ZodType<ClientId> = idNumber('client').transform(clientId);
 
 const count = z.number().int().nonnegative();
@@ -62,10 +75,32 @@ const lifecycleSchema: z.ZodType<Pane['lifecycle']> = z.enum([
 
 const paneSchema: z.ZodType<Pane> = z.object({
   id: paneIdSchema,
+  tabId: tabIdSchema,
   lifecycle: lifecycleSchema,
   size: sizeSchema,
   generation: count,
   exitCode: absent(z.number().int()),
+});
+
+const layoutSchema: z.ZodType<Tab['layout']> = z.object({
+  kind: z.literal('pane'),
+  paneId: paneIdSchema,
+});
+
+const tabSchema: z.ZodType<Tab> = z.object({
+  id: tabIdSchema,
+  workspaceId: workspaceIdSchema,
+  layout: layoutSchema,
+  focusedPaneId: paneIdSchema,
+  zoomedPaneId: absent(paneIdSchema),
+});
+
+const workspaceSchema: z.ZodType<Workspace> = z.object({
+  id: workspaceIdSchema,
+  root: z.string(),
+  label: z.string(),
+  tabIds: z.array(tabIdSchema),
+  activeTabId: tabIdSchema,
 });
 
 const largestColor = 0xff_ff_ff;
@@ -89,6 +124,8 @@ const clientSchema: z.ZodType<Client> = z.object({
 const detachReasonSchema: z.ZodType<DetachReason> = z.enum(['requested', 'takenOver']);
 
 const changeSchema: z.ZodType<Change> = z.discriminatedUnion('type', [
+  z.object({ type: z.literal('workspaceAdded'), workspace: workspaceSchema }),
+  z.object({ type: z.literal('tabAdded'), tab: tabSchema }),
   z.object({ type: z.literal('paneAdded'), pane: paneSchema }),
   z.object({
     type: z.literal('paneStateChanged'),
@@ -110,7 +147,10 @@ const changeSchema: z.ZodType<Change> = z.discriminatedUnion('type', [
 
 const snapshotSchema: z.ZodType<Snapshot> = z.object({
   revision: count,
-  pane: absent(paneSchema),
+  workspaces: z.array(workspaceSchema),
+  tabs: z.array(tabSchema),
+  panes: z.array(paneSchema),
+  focusedWorkspaceId: absent(workspaceIdSchema),
   attachedClientId: absent(clientIdSchema),
   clients: z.array(clientSchema),
 });

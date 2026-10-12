@@ -1,8 +1,19 @@
 import { expect, it } from 'bun:test';
 
-import { clientId, paneId } from '../ids.ts';
-import { applyFact, applyIntent, createState, paneTheme, snapshot } from './store.ts';
-import type { Applied, Fact, Ignored, Intent, Pane, Rejected, State, Theme } from './store.ts';
+import { clientId, paneId, tabId, workspaceId } from '../ids.ts';
+import { applyFact, applyIntent, createState, focusedPane, paneTheme, snapshot } from './store.ts';
+import type {
+  Applied,
+  Fact,
+  Ignored,
+  Intent,
+  Pane,
+  Rejected,
+  State,
+  Tab,
+  Theme,
+  Workspace,
+} from './store.ts';
 
 const expectApplied = (result: Applied | Ignored | Rejected): Applied => {
   if (result.kind !== 'applied') {
@@ -21,52 +32,86 @@ const run = (intents: readonly Intent[]): State =>
 
 const firstPane = { paneId: paneId(1), generation: 1 };
 
-it('starts a pane at 80x24 when no client is attached', () => {
-  const result = intent(createState(), { type: 'startPane' });
+const createPhi: Intent = { type: 'createWorkspace', root: '/work/phi', label: 'phi' };
+
+it('creates a workspace with one tab and one starting pane', () => {
+  const result = intent(createState(), createPhi);
 
   const pane: Pane = {
     id: paneId(1),
+    tabId: tabId(1),
     lifecycle: 'starting',
     size: { columns: 80, rows: 24 },
     generation: 1,
     exitCode: undefined,
   };
 
-  expect(result.state.pane).toEqual(pane);
-  expect(result.changes).toEqual([{ type: 'paneAdded', pane }]);
+  const tab: Tab = {
+    id: tabId(1),
+    workspaceId: workspaceId(1),
+    layout: { kind: 'pane', paneId: paneId(1) },
+    focusedPaneId: paneId(1),
+    zoomedPaneId: undefined,
+  };
+
+  const workspace: Workspace = {
+    id: workspaceId(1),
+    root: '/work/phi',
+    label: 'phi',
+    tabIds: [tabId(1)],
+    activeTabId: tabId(1),
+  };
+
+  expect(snapshot(result.state)).toEqual({
+    revision: 3,
+    workspaces: [workspace],
+    tabs: [tab],
+    panes: [pane],
+    focusedWorkspaceId: workspaceId(1),
+    attachedClientId: undefined,
+    clients: [],
+  });
+
+  expect(focusedPane(result.state)).toEqual(pane);
+
+  expect(result.changes).toEqual([
+    { type: 'workspaceAdded', workspace },
+    { type: 'tabAdded', tab },
+    { type: 'paneAdded', pane },
+  ]);
 });
 
 it('starts a pane at the layout size of the attached client', () => {
   const state = run([{ type: 'attachClient', size: { columns: 120, rows: 40 } }]);
 
-  expect(intent(state, { type: 'startPane' }).state.pane?.size).toEqual({
+  expect(intent(state, createPhi).state.panes[0]?.size).toEqual({
     columns: 120,
     rows: 39,
   });
 });
 
-it('refuses a second pane and leaves state unchanged', () => {
-  const state = run([{ type: 'startPane' }]);
-  const result = applyIntent(state, { type: 'startPane' });
+it('refuses a second workspace and leaves state unchanged', () => {
+  const state = run([createPhi]);
+  const result = applyIntent(state, createPhi);
 
-  expect(result).toEqual({ kind: 'rejected', state, reason: 'paneExists' });
+  expect(result).toEqual({ kind: 'rejected', state, reason: 'workspaceExists' });
 });
 
 it('refuses to start a pane while the server stops and leaves state unchanged', () => {
   const state = run([{ type: 'stopServer' }]);
-  const result = applyIntent(state, { type: 'startPane' });
+  const result = applyIntent(state, createPhi);
 
   expect(result).toEqual({ kind: 'rejected', state, reason: 'serverStopping' });
   expect(result.state.revision).toBe(state.revision);
 });
 
 it('resizes the pane to the layout size of a client that attaches', () => {
-  const state = run([{ type: 'startPane' }]);
+  const state = run([createPhi]);
   const result = intent(state, { type: 'attachClient', size: { columns: 100, rows: 30 } });
   const client = { id: clientId(1), size: { columns: 100, rows: 30 }, theme: undefined };
 
   expect(result.state.attachedClientId).toBe(clientId(1));
-  expect(result.state.pane?.size).toEqual({ columns: 100, rows: 29 });
+  expect(result.state.panes[0]?.size).toEqual({ columns: 100, rows: 29 });
 
   expect(result.changes).toEqual([
     { type: 'clientAttached', client },
@@ -75,10 +120,7 @@ it('resizes the pane to the layout size of a client that attaches', () => {
 });
 
 it('takes over from the attached client when a second client attaches', () => {
-  const state = run([
-    { type: 'startPane' },
-    { type: 'attachClient', size: { columns: 100, rows: 30 } },
-  ]);
+  const state = run([createPhi, { type: 'attachClient', size: { columns: 100, rows: 30 } }]);
 
   const result = intent(state, { type: 'attachClient', size: { columns: 90, rows: 20 } });
   const client = { id: clientId(2), size: { columns: 90, rows: 20 }, theme: undefined };
@@ -94,10 +136,7 @@ it('takes over from the attached client when a second client attaches', () => {
 });
 
 it('reports the client size and the pane size when the attached client resizes', () => {
-  const state = run([
-    { type: 'startPane' },
-    { type: 'attachClient', size: { columns: 100, rows: 30 } },
-  ]);
+  const state = run([createPhi, { type: 'attachClient', size: { columns: 100, rows: 30 } }]);
 
   const result = intent(state, {
     type: 'resizeClient',
@@ -105,7 +144,7 @@ it('reports the client size and the pane size when the attached client resizes',
     size: { columns: 60, rows: 15 },
   });
 
-  expect(result.state.pane?.size).toEqual({ columns: 60, rows: 14 });
+  expect(result.state.panes[0]?.size).toEqual({ columns: 60, rows: 14 });
 
   expect(result.changes).toEqual([
     { type: 'clientResized', clientId: clientId(1), size: { columns: 60, rows: 15 } },
@@ -114,10 +153,7 @@ it('reports the client size and the pane size when the attached client resizes',
 });
 
 it('reports a client resize that keeps the pane size, and raises the revision', () => {
-  const state = run([
-    { type: 'startPane' },
-    { type: 'attachClient', size: { columns: 80, rows: 1 } },
-  ]);
+  const state = run([createPhi, { type: 'attachClient', size: { columns: 80, rows: 1 } }]);
 
   const result = intent(state, {
     type: 'resizeClient',
@@ -125,7 +161,7 @@ it('reports a client resize that keeps the pane size, and raises the revision', 
     size: { columns: 80, rows: 2 },
   });
 
-  expect(result.state.pane?.size).toEqual(state.pane?.size);
+  expect(result.state.panes[0]?.size).toEqual(state.panes[0]?.size);
 
   expect(result.changes).toEqual([
     { type: 'clientResized', clientId: clientId(1), size: { columns: 80, rows: 2 } },
@@ -135,10 +171,7 @@ it('reports a client resize that keeps the pane size, and raises the revision', 
 });
 
 it('treats a client resize to its current size as no change', () => {
-  const state = run([
-    { type: 'startPane' },
-    { type: 'attachClient', size: { columns: 100, rows: 30 } },
-  ]);
+  const state = run([createPhi, { type: 'attachClient', size: { columns: 100, rows: 30 } }]);
 
   const result = intent(state, {
     type: 'resizeClient',
@@ -151,7 +184,7 @@ it('treats a client resize to its current size as no change', () => {
 });
 
 it('refuses to resize an unknown client and leaves state unchanged', () => {
-  const state = run([{ type: 'startPane' }]);
+  const state = run([createPhi]);
 
   const result = applyIntent(state, {
     type: 'resizeClient',
@@ -163,16 +196,13 @@ it('refuses to resize an unknown client and leaves state unchanged', () => {
 });
 
 it('detaches a client on request and keeps the pane size', () => {
-  const state = run([
-    { type: 'startPane' },
-    { type: 'attachClient', size: { columns: 100, rows: 30 } },
-  ]);
+  const state = run([createPhi, { type: 'attachClient', size: { columns: 100, rows: 30 } }]);
 
   const result = intent(state, { type: 'detachClient', clientId: clientId(1) });
 
   expect(result.state.attachedClientId).toBeUndefined();
   expect(result.state.clients).toEqual([]);
-  expect(result.state.pane?.size).toEqual({ columns: 100, rows: 29 });
+  expect(result.state.panes[0]?.size).toEqual({ columns: 100, rows: 29 });
 
   expect(result.changes).toEqual([
     { type: 'clientDetached', clientId: clientId(1), reason: 'requested' },
@@ -180,7 +210,7 @@ it('detaches a client on request and keeps the pane size', () => {
 });
 
 it('refuses to detach an unknown client and leaves state unchanged', () => {
-  const state = run([{ type: 'startPane' }]);
+  const state = run([createPhi]);
 
   const result = applyIntent(state, { type: 'detachClient', clientId: clientId(7) });
 
@@ -188,10 +218,10 @@ it('refuses to detach an unknown client and leaves state unchanged', () => {
 });
 
 it('closes the pane and reports that the server should stop once', () => {
-  const state = run([{ type: 'startPane' }]);
+  const state = run([createPhi]);
   const stopped = intent(state, { type: 'stopServer' });
 
-  expect(stopped.state.pane?.lifecycle).toBe('closing');
+  expect(stopped.state.panes[0]?.lifecycle).toBe('closing');
 
   expect(stopped.changes).toEqual([
     { type: 'paneStateChanged', paneId: paneId(1), lifecycle: 'closing', exitCode: undefined },
@@ -202,10 +232,10 @@ it('closes the pane and reports that the server should stop once', () => {
 });
 
 it('marks a started pane as running', () => {
-  const state = run([{ type: 'startPane' }]);
+  const state = run([createPhi]);
   const result = fact(state, { type: 'paneStarted', ...firstPane });
 
-  expect(result.state.pane?.lifecycle).toBe('running');
+  expect(result.state.panes[0]?.lifecycle).toBe('running');
 
   expect(result.changes).toEqual([
     { type: 'paneStateChanged', paneId: paneId(1), lifecycle: 'running', exitCode: undefined },
@@ -213,12 +243,12 @@ it('marks a started pane as running', () => {
 });
 
 it('ignores a fact from an older generation and names the process to dispose', () => {
-  const started = run([{ type: 'startPane' }]);
-  const pane = started.pane;
+  const started = run([createPhi]);
+  const pane = started.panes[0];
 
   expect(pane).toBeDefined();
 
-  const state: State = { ...started, pane: pane && { ...pane, generation: 2 } };
+  const state: State = { ...started, panes: pane ? [{ ...pane, generation: 2 }] : [] };
   const result = applyFact(state, { type: 'paneStarted', ...firstPane });
 
   expect(result).toEqual({ kind: 'ignored', state, dispose: firstPane } satisfies Ignored);
@@ -226,18 +256,18 @@ it('ignores a fact from an older generation and names the process to dispose', (
 });
 
 it('ignores a pane that starts after the server began to stop, and names it for disposal', () => {
-  const state = run([{ type: 'startPane' }, { type: 'stopServer' }]);
+  const state = run([createPhi, { type: 'stopServer' }]);
   const result = applyFact(state, { type: 'paneStarted', ...firstPane });
 
   expect(result).toEqual({ kind: 'ignored', state, dispose: firstPane });
 });
 
 it('reports that the server should stop when the last pane exits', () => {
-  const state = fact(run([{ type: 'startPane' }]), { type: 'paneStarted', ...firstPane }).state;
+  const state = fact(run([createPhi]), { type: 'paneStarted', ...firstPane }).state;
   const result = fact(state, { type: 'paneExited', ...firstPane, exitCode: 3 });
 
-  expect(result.state.pane?.lifecycle).toBe('exited');
-  expect(result.state.pane?.exitCode).toBe(3);
+  expect(result.state.panes[0]?.lifecycle).toBe('exited');
+  expect(result.state.panes[0]?.exitCode).toBe(3);
 
   expect(result.changes).toEqual([
     { type: 'paneStateChanged', paneId: paneId(1), lifecycle: 'exited', exitCode: 3 },
@@ -246,10 +276,10 @@ it('reports that the server should stop when the last pane exits', () => {
 });
 
 it('reports that the server should stop when the last pane fails to start', () => {
-  const state = run([{ type: 'startPane' }]);
+  const state = run([createPhi]);
   const result = fact(state, { type: 'paneFailedToStart', ...firstPane });
 
-  expect(result.state.pane?.lifecycle).toBe('exited');
+  expect(result.state.panes[0]?.lifecycle).toBe('exited');
 
   expect(result.changes).toEqual([
     { type: 'paneStateChanged', paneId: paneId(1), lifecycle: 'exited', exitCode: undefined },
@@ -258,7 +288,7 @@ it('reports that the server should stop when the last pane fails to start', () =
 });
 
 it('does not report a second stop when a closing pane exits', () => {
-  const state = run([{ type: 'startPane' }, { type: 'stopServer' }]);
+  const state = run([createPhi, { type: 'stopServer' }]);
   const result = fact(state, { type: 'paneExited', ...firstPane, exitCode: 0 });
 
   expect(result.changes).toEqual([
@@ -267,18 +297,21 @@ it('does not report a second stop when a closing pane exits', () => {
 });
 
 it('raises the revision by one per change, and snapshots the last revision', () => {
-  const started = intent(createState(), { type: 'startPane' }).state;
-  const refused = applyIntent(started, { type: 'startPane' }).state;
+  const started = intent(createState(), createPhi).state;
+  const refused = applyIntent(started, createPhi).state;
   const attached = intent(refused, { type: 'attachClient', size: { columns: 100, rows: 30 } });
 
-  expect(started.revision).toBe(1);
-  expect(refused.revision).toBe(1);
+  expect(started.revision).toBe(3);
+  expect(refused.revision).toBe(3);
   expect(attached.changes).toHaveLength(2);
-  expect(attached.state.revision).toBe(3);
+  expect(attached.state.revision).toBe(5);
 
   expect(snapshot(attached.state)).toEqual({
-    revision: 3,
-    pane: attached.state.pane,
+    revision: 5,
+    workspaces: attached.state.workspaces,
+    tabs: attached.state.tabs,
+    panes: attached.state.panes,
+    focusedWorkspaceId: workspaceId(1),
     attachedClientId: clientId(1),
     clients: attached.state.clients,
   });

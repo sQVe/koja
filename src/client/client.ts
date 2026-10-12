@@ -7,11 +7,13 @@ import {
   parseControl,
 } from '../protocol/protocol.ts';
 import type { BuildVersion, ControlMessage } from '../protocol/protocol.ts';
+import { focusedPane } from './snapshot.ts';
 
 export { connectAttach } from './attach.ts';
 export type { AttachSession, CloseReason, InputMode, TerminalTheme } from './attach.ts';
 export { createRowCache } from './rowCache.ts';
 export type { RowCache } from './rowCache.ts';
+export { focusedPane } from './snapshot.ts';
 
 type StopResult = { ok: true; close: () => void } | { ok: false; reason: 'noServer' };
 
@@ -169,7 +171,7 @@ export const runPaneCommand = (
     request: Request<PaneResult>,
     snapshot: Extract<ControlMessage, { type: 'snapshot' }>['snapshot'],
   ): void => {
-    const pane = snapshot.pane;
+    const pane = focusedPane(snapshot);
 
     if (pane?.lifecycle !== 'running') {
       request.finish({ ok: false, reason: 'paneMissing' });

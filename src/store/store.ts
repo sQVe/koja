@@ -1,13 +1,31 @@
-import { clientId, paneId } from '../ids.ts';
-import type { ClientId, PaneId } from '../ids.ts';
+import { clientId, paneId, tabId, workspaceId } from '../ids.ts';
+import type { ClientId, PaneId, TabId, WorkspaceId } from '../ids.ts';
 import { invariant } from '../invariant.ts';
 import { paneSize } from '../layout.ts';
-import type { TerminalSize } from '../layout.ts';
+import type { Layout, TerminalSize } from '../layout.ts';
 
 type PaneLifecycle = 'starting' | 'running' | 'exited' | 'closing';
 
+export interface Workspace {
+  id: WorkspaceId;
+  // The directory its panes start in.
+  root: string;
+  label: string;
+  tabIds: readonly TabId[];
+  activeTabId: TabId;
+}
+
+export interface Tab {
+  id: TabId;
+  workspaceId: WorkspaceId;
+  layout: Layout;
+  focusedPaneId: PaneId;
+  zoomedPaneId: PaneId | undefined;
+}
+
 export interface Pane {
   id: PaneId;
+  tabId: TabId;
   lifecycle: PaneLifecycle;
   size: TerminalSize;
   generation: number;
@@ -30,10 +48,15 @@ export interface Client {
 }
 
 export interface State {
-  pane: Pane | undefined;
+  workspaces: readonly Workspace[];
+  tabs: readonly Tab[];
+  panes: readonly Pane[];
+  focusedWorkspaceId: WorkspaceId | undefined;
   attachedClientId: ClientId | undefined;
   clients: readonly Client[];
   stopping: boolean;
+  nextWorkspaceNumber: number;
+  nextTabNumber: number;
   nextPaneNumber: number;
   nextClientNumber: number;
   nextGeneration: number;
@@ -41,7 +64,7 @@ export interface State {
 }
 
 export type Intent =
-  | { type: 'startPane' }
+  | { type: 'createWorkspace'; root: string; label: string }
   | { type: 'attachClient'; size: TerminalSize }
   | { type: 'resizeClient'; clientId: ClientId; size: TerminalSize }
   | { type: 'setClientTheme'; clientId: ClientId; theme: Theme }
@@ -56,6 +79,8 @@ export type Fact =
 export type DetachReason = 'requested' | 'takenOver';
 
 export type Change =
+  | { type: 'workspaceAdded'; workspace: Workspace }
+  | { type: 'tabAdded'; tab: Tab }
   | { type: 'paneAdded'; pane: Pane }
   | {
       type: 'paneStateChanged';
@@ -70,7 +95,7 @@ export type Change =
   | { type: 'clientDetached'; clientId: ClientId; reason: DetachReason }
   | { type: 'serverStopping' };
 
-type RejectReason = 'paneExists' | 'serverStopping' | 'unknownClient';
+type RejectReason = 'workspaceExists' | 'serverStopping' | 'unknownClient';
 
 // Whatever an effect still holds for this pane generation, such as its process and PTY.
 interface PaneProcess {
@@ -98,16 +123,24 @@ export interface Ignored {
 
 export interface Snapshot {
   revision: number;
-  pane: Pane | undefined;
+  workspaces: readonly Workspace[];
+  tabs: readonly Tab[];
+  panes: readonly Pane[];
+  focusedWorkspaceId: WorkspaceId | undefined;
   attachedClientId: ClientId | undefined;
   clients: readonly Client[];
 }
 
 export const createState = (): State => ({
-  pane: undefined,
+  workspaces: [],
+  tabs: [],
+  panes: [],
+  focusedWorkspaceId: undefined,
   attachedClientId: undefined,
   clients: [],
   stopping: false,
+  nextWorkspaceNumber: 1,
+  nextTabNumber: 1,
   nextPaneNumber: 1,
   nextClientNumber: 1,
   nextGeneration: 1,
@@ -116,7 +149,10 @@ export const createState = (): State => ({
 
 export const snapshot = (state: State): Snapshot => ({
   revision: state.revision,
-  pane: state.pane,
+  workspaces: state.workspaces,
+  tabs: state.tabs,
+  panes: state.panes,
+  focusedWorkspaceId: state.focusedWorkspaceId,
   attachedClientId: state.attachedClientId,
   clients: state.clients,
 });
@@ -142,6 +178,15 @@ const isLive = (pane: Pane): boolean =>
 const attachedClientOf = (state: State): Client | undefined =>
   state.clients.find((client) => client.id === state.attachedClientId);
 
+export const focusedPane = (
+  state: Pick<Snapshot, 'workspaces' | 'tabs' | 'panes' | 'focusedWorkspaceId'>,
+): Pane | undefined => {
+  const workspace = state.workspaces.find((known) => known.id === state.focusedWorkspaceId);
+  const tab = state.tabs.find((known) => known.id === workspace?.activeTabId);
+
+  return state.panes.find((known) => known.id === tab?.focusedPaneId);
+};
+
 // The colors the pane's terminal answers with: those of the attached client, once it reported them.
 export const paneTheme = (state: State): Theme | undefined => attachedClientOf(state)?.theme;
 
@@ -150,51 +195,80 @@ const sameTheme = (left: Theme | undefined, right: Theme): boolean =>
   left.background === right.background &&
   left.palette.every((color, index) => color === right.palette[index]);
 
-const fitPane = (state: State): { pane: Pane | undefined; changes: Change[] } => {
-  const { pane } = state;
+const fitPanes = (state: State): { panes: readonly Pane[]; changes: Change[] } => {
   const client = attachedClientOf(state);
 
-  if (pane === undefined || client === undefined || !isLive(pane)) {
-    return { pane, changes: [] };
+  if (client === undefined) {
+    return { panes: state.panes, changes: [] };
   }
 
   const size = paneSize(client.size);
+  const changes: Change[] = [];
 
-  if (sameSize(size, pane.size)) {
-    return { pane, changes: [] };
-  }
+  const panes = state.panes.map((pane) => {
+    if (!isLive(pane) || sameSize(size, pane.size)) {
+      return pane;
+    }
 
-  return {
-    pane: { ...pane, size },
-    changes: [{ type: 'paneResized', paneId: pane.id, size }],
-  };
+    changes.push({ type: 'paneResized', paneId: pane.id, size });
+
+    return { ...pane, size };
+  });
+
+  return { panes, changes };
 };
 
-const startPane = (state: State): Applied | Rejected => {
+const createWorkspace = (state: State, root: string, label: string): Applied | Rejected => {
   if (state.stopping) {
     return reject(state, 'serverStopping');
   }
 
-  if (state.pane !== undefined) {
-    return reject(state, 'paneExists');
+  if (state.workspaces.length > 0) {
+    return reject(state, 'workspaceExists');
   }
 
   const pane: Pane = {
     id: paneId(state.nextPaneNumber),
+    tabId: tabId(state.nextTabNumber),
     lifecycle: 'starting',
     size: paneSize(attachedClientOf(state)?.size),
     generation: state.nextGeneration,
     exitCode: undefined,
   };
 
+  const tab: Tab = {
+    id: pane.tabId,
+    workspaceId: workspaceId(state.nextWorkspaceNumber),
+    layout: { kind: 'pane', paneId: pane.id },
+    focusedPaneId: pane.id,
+    zoomedPaneId: undefined,
+  };
+
+  const workspace: Workspace = {
+    id: tab.workspaceId,
+    root,
+    label,
+    tabIds: [tab.id],
+    activeTabId: tab.id,
+  };
+
   const next: State = {
     ...state,
-    pane,
+    workspaces: [...state.workspaces, workspace],
+    tabs: [...state.tabs, tab],
+    panes: [...state.panes, pane],
+    focusedWorkspaceId: workspace.id,
+    nextWorkspaceNumber: state.nextWorkspaceNumber + 1,
+    nextTabNumber: state.nextTabNumber + 1,
     nextPaneNumber: state.nextPaneNumber + 1,
     nextGeneration: state.nextGeneration + 1,
   };
 
-  return commit(next, [{ type: 'paneAdded', pane }]);
+  return commit(next, [
+    { type: 'workspaceAdded', workspace },
+    { type: 'tabAdded', tab },
+    { type: 'paneAdded', pane },
+  ]);
 };
 
 const attachClient = (state: State, size: TerminalSize): Applied => {
@@ -215,9 +289,9 @@ const attachClient = (state: State, size: TerminalSize): Applied => {
     nextClientNumber: state.nextClientNumber + 1,
   };
 
-  const fitted = fitPane(attached);
+  const fitted = fitPanes(attached);
 
-  return commit({ ...attached, pane: fitted.pane }, [...changes, ...fitted.changes]);
+  return commit({ ...attached, panes: fitted.panes }, [...changes, ...fitted.changes]);
 };
 
 const resizeClient = (state: State, id: ClientId, size: TerminalSize): Applied | Rejected => {
@@ -236,9 +310,9 @@ const resizeClient = (state: State, id: ClientId, size: TerminalSize): Applied |
     clients: state.clients.map((client) => (client.id === id ? { ...client, size } : client)),
   };
 
-  const fitted = fitPane(resized);
+  const fitted = fitPanes(resized);
 
-  return commit({ ...resized, pane: fitted.pane }, [
+  return commit({ ...resized, panes: fitted.panes }, [
     { type: 'clientResized', clientId: id, size },
     ...fitted.changes,
   ]);
@@ -285,12 +359,12 @@ const stopServer = (state: State): Applied => {
     return commit(state, []);
   }
 
-  const { pane } = state;
   const changes: Change[] = [];
-  let nextPane = pane;
 
-  if (pane !== undefined && isLive(pane)) {
-    nextPane = { ...pane, lifecycle: 'closing' };
+  const panes = state.panes.map((pane) => {
+    if (!isLive(pane)) {
+      return pane;
+    }
 
     changes.push({
       type: 'paneStateChanged',
@@ -298,16 +372,18 @@ const stopServer = (state: State): Applied => {
       lifecycle: 'closing',
       exitCode: undefined,
     });
-  }
+
+    return { ...pane, lifecycle: 'closing' as const };
+  });
 
   changes.push({ type: 'serverStopping' });
 
-  return commit({ ...state, pane: nextPane, stopping: true }, changes);
+  return commit({ ...state, panes, stopping: true }, changes);
 };
 
 export const applyIntent = (state: State, intent: Intent): Applied | Rejected => {
-  if (intent.type === 'startPane') {
-    return startPane(state);
+  if (intent.type === 'createWorkspace') {
+    return createWorkspace(state, intent.root, intent.label);
   }
 
   if (intent.type === 'attachClient') {
@@ -338,6 +414,9 @@ const ignore = (state: State, fact: Fact): Ignored => ({
 const isCurrent = (pane: Pane | undefined, fact: Fact): pane is Pane =>
   pane?.id === fact.paneId && pane.generation === fact.generation;
 
+const replacePane = (state: State, replacement: Pane): readonly Pane[] =>
+  state.panes.map((pane) => (pane.id === replacement.id ? replacement : pane));
+
 // The pane is the last one, so its end stops the server.
 const endPane = (state: State, pane: Pane, exitCode: number | undefined): Applied => {
   const changes: Change[] = [
@@ -350,7 +429,7 @@ const endPane = (state: State, pane: Pane, exitCode: number | undefined): Applie
 
   const next: State = {
     ...state,
-    pane: { ...pane, lifecycle: 'exited', exitCode },
+    panes: replacePane(state, { ...pane, lifecycle: 'exited', exitCode }),
     stopping: true,
   };
 
@@ -358,7 +437,7 @@ const endPane = (state: State, pane: Pane, exitCode: number | undefined): Applie
 };
 
 const markRunning = (state: State, pane: Pane): Applied => {
-  const next: State = { ...state, pane: { ...pane, lifecycle: 'running' } };
+  const next: State = { ...state, panes: replacePane(state, { ...pane, lifecycle: 'running' }) };
 
   return commit(next, [
     { type: 'paneStateChanged', paneId: pane.id, lifecycle: 'running', exitCode: undefined },
@@ -366,7 +445,7 @@ const markRunning = (state: State, pane: Pane): Applied => {
 };
 
 export const applyFact = (state: State, fact: Fact): Applied | Ignored => {
-  const { pane } = state;
+  const pane = state.panes.find((known) => known.id === fact.paneId);
 
   if (!isCurrent(pane, fact)) {
     return ignore(state, fact);

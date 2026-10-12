@@ -1,6 +1,6 @@
 import { expect, it } from 'bun:test';
 
-import { clientId, paneId } from '../ids.ts';
+import { clientId, paneId, tabId, workspaceId } from '../ids.ts';
 import type { Snapshot } from '../store/store.ts';
 import { answerHello, encodeControl, parseControl } from './protocol.ts';
 import type { ControlMessage } from './protocol.ts';
@@ -30,10 +30,37 @@ it('round-trips a hello with a version and a terminal size', () => {
 
 const pane = {
   id: paneId(1),
+  tabId: tabId(1),
   lifecycle: 'running' as const,
   size: { columns: 80, rows: 23 },
   generation: 1,
   exitCode: undefined,
+};
+
+const tab = {
+  id: tabId(1),
+  workspaceId: workspaceId(1),
+  layout: { kind: 'pane' as const, paneId: pane.id },
+  focusedPaneId: pane.id,
+  zoomedPaneId: undefined,
+};
+
+const workspace = {
+  id: workspaceId(1),
+  root: '/work/phi',
+  label: 'phi',
+  tabIds: [tab.id],
+  activeTabId: tab.id,
+};
+
+const emptySnapshot: Snapshot = {
+  revision: 0,
+  workspaces: [],
+  tabs: [],
+  panes: [],
+  focusedWorkspaceId: undefined,
+  attachedClientId: undefined,
+  clients: [],
 };
 
 const theme = {
@@ -58,12 +85,19 @@ const messages: ControlMessage[] = [
   { type: 'resync' },
   {
     type: 'snapshot',
-    snapshot: { revision: 3, pane, attachedClientId: client.id, clients: [client] },
+    snapshot: {
+      revision: 3,
+      workspaces: [workspace],
+      tabs: [tab],
+      panes: [pane],
+      focusedWorkspaceId: workspace.id,
+      attachedClientId: client.id,
+      clients: [client],
+    },
   },
-  {
-    type: 'snapshot',
-    snapshot: { revision: 0, pane: undefined, attachedClientId: undefined, clients: [] },
-  },
+  { type: 'snapshot', snapshot: emptySnapshot },
+  { type: 'change', revision: 1, change: { type: 'workspaceAdded', workspace } },
+  { type: 'change', revision: 2, change: { type: 'tabAdded', tab } },
   { type: 'change', revision: 1, change: { type: 'paneAdded', pane } },
   {
     type: 'change',
@@ -109,7 +143,7 @@ const nameOf = (message: ControlMessage): string => {
     return `change ${message.change.type}`;
   }
 
-  if (message.type === 'snapshot' && message.snapshot.pane === undefined) {
+  if (message.type === 'snapshot' && message.snapshot.panes.length === 0) {
     return 'snapshot without a pane';
   }
 
@@ -128,6 +162,13 @@ it.each([
 ] as const)('round-trips %s', (_name, message) => {
   expect(parseControl(encodeControl(message))).toStrictEqual({ ok: true, message });
 });
+
+const workspaceIdJson = (id: string): string =>
+  JSON.stringify({
+    type: 'change',
+    revision: 1,
+    change: { type: 'workspaceAdded', workspace: { ...workspace, id } },
+  });
 
 it.each([
   ['a missing field', '{"type":"resize"}'],
@@ -159,6 +200,9 @@ it.each([
   ['a malformed pane id', '{"type":"paneRead","paneId":"pane-01"}'],
   ['a pane id past the safe integers', '{"type":"paneRead","paneId":"pane-9007199254740993"}'],
   ['a client id as a pane id', '{"type":"paneRead","paneId":"client-1"}'],
+  ['a workspace id with a leading zero', workspaceIdJson('workspace-01')],
+  ['a workspace id without a number', workspaceIdJson('workspace-')],
+  ['a pane id as a workspace id', workspaceIdJson('pane-1')],
   ['a JSON value that is not an object', '"hello"'],
 ])('refuses a message with %s', (_name, json) => {
   expect(parseControl(text(json))).toEqual({ ok: false, reason: 'invalidMessage' });
@@ -196,7 +240,10 @@ it.each([
 it('parses a snapshot into ids the store accepts', () => {
   const sent: Snapshot = {
     revision: 2,
-    pane: { ...pane, id: paneId(4) },
+    workspaces: [workspace],
+    tabs: [tab],
+    panes: [{ ...pane, id: paneId(4) }],
+    focusedWorkspaceId: workspace.id,
     attachedClientId: clientId(5),
     clients: [{ id: clientId(5), size: { columns: 80, rows: 24 }, theme: undefined }],
   };
@@ -209,7 +256,8 @@ it('parses a snapshot into ids the store accepts', () => {
 
   const received: Snapshot = message.snapshot;
 
-  expect(received.pane?.id).toBe(paneId(4));
+  expect(received.panes[0]?.id).toBe(paneId(4));
+  expect(received.workspaces[0]?.id).toBe(workspaceId(1));
   expect(received.attachedClientId).toBe(clientId(5));
   expect(received).toStrictEqual(sent);
 });
