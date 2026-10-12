@@ -97,6 +97,28 @@ const messages: ControlMessage[] = [
   },
   { type: 'snapshot', snapshot: emptySnapshot },
   { type: 'change', revision: 1, change: { type: 'workspaceAdded', workspace } },
+  { type: 'change', revision: 2, change: { type: 'workspaceFocused', workspaceId: workspace.id } },
+  {
+    type: 'change',
+    revision: 3,
+    change: { type: 'workspaceRenamed', workspaceId: workspace.id, label: 'docs' },
+  },
+  { type: 'change', revision: 4, change: { type: 'paneRemoved', paneId: pane.id } },
+  { type: 'change', revision: 5, change: { type: 'tabRemoved', tabId: tab.id } },
+  {
+    type: 'change',
+    revision: 6,
+    change: { type: 'workspaceRemoved', workspaceId: workspace.id, focusedWorkspaceId: undefined },
+  },
+  {
+    type: 'change',
+    revision: 7,
+    change: {
+      type: 'workspaceRemoved',
+      workspaceId: workspace.id,
+      focusedWorkspaceId: workspaceId(2),
+    },
+  },
   { type: 'change', revision: 2, change: { type: 'tabAdded', tab } },
   { type: 'change', revision: 1, change: { type: 'paneAdded', pane } },
   {

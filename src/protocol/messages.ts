@@ -127,6 +127,19 @@ const changeSchema: z.ZodType<Change> = z.discriminatedUnion('type', [
   z.object({ type: z.literal('workspaceAdded'), workspace: workspaceSchema }),
   z.object({ type: z.literal('tabAdded'), tab: tabSchema }),
   z.object({ type: z.literal('paneAdded'), pane: paneSchema }),
+  z.object({ type: z.literal('workspaceFocused'), workspaceId: workspaceIdSchema }),
+  z.object({
+    type: z.literal('workspaceRenamed'),
+    workspaceId: workspaceIdSchema,
+    label: z.string(),
+  }),
+  z.object({
+    type: z.literal('workspaceRemoved'),
+    workspaceId: workspaceIdSchema,
+    focusedWorkspaceId: absent(workspaceIdSchema),
+  }),
+  z.object({ type: z.literal('tabRemoved'), tabId: tabIdSchema }),
+  z.object({ type: z.literal('paneRemoved'), paneId: paneIdSchema }),
   z.object({
     type: z.literal('paneStateChanged'),
     paneId: paneIdSchema,

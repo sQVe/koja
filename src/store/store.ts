@@ -65,6 +65,9 @@ export interface State {
 
 export type Intent =
   | { type: 'createWorkspace'; root: string; label: string }
+  | { type: 'focusWorkspace'; workspaceId: WorkspaceId }
+  | { type: 'renameWorkspace'; workspaceId: WorkspaceId; label: string }
+  | { type: 'closeWorkspace'; workspaceId: WorkspaceId }
   | { type: 'attachClient'; size: TerminalSize }
   | { type: 'resizeClient'; clientId: ClientId; size: TerminalSize }
   | { type: 'setClientTheme'; clientId: ClientId; theme: Theme }
@@ -82,6 +85,16 @@ export type Change =
   | { type: 'workspaceAdded'; workspace: Workspace }
   | { type: 'tabAdded'; tab: Tab }
   | { type: 'paneAdded'; pane: Pane }
+  | { type: 'workspaceFocused'; workspaceId: WorkspaceId }
+  | { type: 'workspaceRenamed'; workspaceId: WorkspaceId; label: string }
+  // Carries the focus that remains, so a client needs no rule to pick it.
+  | {
+      type: 'workspaceRemoved';
+      workspaceId: WorkspaceId;
+      focusedWorkspaceId: WorkspaceId | undefined;
+    }
+  | { type: 'tabRemoved'; tabId: TabId }
+  | { type: 'paneRemoved'; paneId: PaneId }
   | {
       type: 'paneStateChanged';
       paneId: PaneId;
@@ -95,7 +108,7 @@ export type Change =
   | { type: 'clientDetached'; clientId: ClientId; reason: DetachReason }
   | { type: 'serverStopping' };
 
-type RejectReason = 'workspaceExists' | 'serverStopping' | 'unknownClient';
+type RejectReason = 'serverStopping' | 'unknownClient' | 'unknownWorkspace';
 
 // Whatever an effect still holds for this pane generation, such as its process and PTY.
 interface PaneProcess {
@@ -223,10 +236,6 @@ const createWorkspace = (state: State, root: string, label: string): Applied | R
     return reject(state, 'serverStopping');
   }
 
-  if (state.workspaces.length > 0) {
-    return reject(state, 'workspaceExists');
-  }
-
   const pane: Pane = {
     id: paneId(state.nextPaneNumber),
     tabId: tabId(state.nextTabNumber),
@@ -269,6 +278,117 @@ const createWorkspace = (state: State, root: string, label: string): Applied | R
     { type: 'tabAdded', tab },
     { type: 'paneAdded', pane },
   ]);
+};
+
+const focusWorkspace = (state: State, id: WorkspaceId): Applied | Rejected => {
+  if (state.stopping) {
+    return reject(state, 'serverStopping');
+  }
+
+  if (!state.workspaces.some((workspace) => workspace.id === id)) {
+    return reject(state, 'unknownWorkspace');
+  }
+
+  if (state.focusedWorkspaceId === id) {
+    return commit(state, []);
+  }
+
+  return commit({ ...state, focusedWorkspaceId: id }, [
+    { type: 'workspaceFocused', workspaceId: id },
+  ]);
+};
+
+const renameWorkspace = (state: State, id: WorkspaceId, label: string): Applied | Rejected => {
+  if (state.stopping) {
+    return reject(state, 'serverStopping');
+  }
+
+  const renaming = state.workspaces.find((workspace) => workspace.id === id);
+
+  if (renaming === undefined) {
+    return reject(state, 'unknownWorkspace');
+  }
+
+  if (renaming.label === label) {
+    return commit(state, []);
+  }
+
+  const workspaces = state.workspaces.map((workspace) =>
+    workspace.id === id ? { ...workspace, label } : workspace,
+  );
+
+  return commit({ ...state, workspaces }, [{ type: 'workspaceRenamed', workspaceId: id, label }]);
+};
+
+// The next workspace in list order takes the focus, or the previous one when it was last.
+const focusAfterRemoval = (state: State, removedId: WorkspaceId): WorkspaceId | undefined => {
+  if (state.focusedWorkspaceId !== removedId) {
+    return state.focusedWorkspaceId;
+  }
+
+  const index = state.workspaces.findIndex((workspace) => workspace.id === removedId);
+  const neighbor = state.workspaces[index + 1] ?? state.workspaces[index - 1];
+
+  return neighbor?.id;
+};
+
+const removeTab = (state: State, tab: Tab): Applied => {
+  const remaining = state.panes.filter((pane) => pane.tabId !== tab.id);
+  const removedPanes = state.panes.filter((pane) => pane.tabId === tab.id);
+  const changes: Change[] = removedPanes.map((pane) => ({ type: 'paneRemoved', paneId: pane.id }));
+
+  changes.push({ type: 'tabRemoved', tabId: tab.id });
+
+  const tabs = state.tabs.filter((known) => known.id !== tab.id);
+  const owner = state.workspaces.find((workspace) => workspace.id === tab.workspaceId);
+  const tabIds = owner?.tabIds.filter((id) => id !== tab.id) ?? [];
+  let next: State = { ...state, panes: remaining, tabs };
+
+  if (owner === undefined) {
+    return commit(next, changes);
+  }
+
+  if (tabIds.length > 0) {
+    const workspaces = state.workspaces.map((workspace) =>
+      workspace.id === owner.id ? { ...workspace, tabIds } : workspace,
+    );
+
+    next = { ...next, workspaces };
+
+    return commit(next, changes);
+  }
+
+  const focusedWorkspaceId = focusAfterRemoval(state, owner.id);
+
+  changes.push({ type: 'workspaceRemoved', workspaceId: owner.id, focusedWorkspaceId });
+
+  const workspaces = state.workspaces.filter((workspace) => workspace.id !== owner.id);
+
+  return commit({ ...next, workspaces, focusedWorkspaceId }, changes);
+};
+
+const closeWorkspace = (state: State, id: WorkspaceId): Applied | Rejected => {
+  if (state.stopping) {
+    return reject(state, 'serverStopping');
+  }
+
+  const closing = state.workspaces.find((workspace) => workspace.id === id);
+
+  if (closing === undefined) {
+    return reject(state, 'unknownWorkspace');
+  }
+
+  let current: State = state;
+  const changes: Change[] = [];
+
+  for (const tab of state.tabs.filter((known) => known.workspaceId === id)) {
+    const removed = removeTab(current, tab);
+
+    current = removed.state;
+    changes.push(...removed.changes);
+  }
+
+  return commit({ ...current, revision: state.revision }, changes);
 };
 
 const attachClient = (state: State, size: TerminalSize): Applied => {
@@ -386,6 +506,18 @@ export const applyIntent = (state: State, intent: Intent): Applied | Rejected =>
     return createWorkspace(state, intent.root, intent.label);
   }
 
+  if (intent.type === 'focusWorkspace') {
+    return focusWorkspace(state, intent.workspaceId);
+  }
+
+  if (intent.type === 'renameWorkspace') {
+    return renameWorkspace(state, intent.workspaceId, intent.label);
+  }
+
+  if (intent.type === 'closeWorkspace') {
+    return closeWorkspace(state, intent.workspaceId);
+  }
+
   if (intent.type === 'attachClient') {
     return attachClient(state, intent.size);
   }
@@ -417,23 +549,20 @@ const isCurrent = (pane: Pane | undefined, fact: Fact): pane is Pane =>
 const replacePane = (state: State, replacement: Pane): readonly Pane[] =>
   state.panes.map((pane) => (pane.id === replacement.id ? replacement : pane));
 
-// The pane is the last one, so its end stops the server.
 const endPane = (state: State, pane: Pane, exitCode: number | undefined): Applied => {
-  const changes: Change[] = [
-    { type: 'paneStateChanged', paneId: pane.id, lifecycle: 'exited', exitCode },
-  ];
+  if (state.stopping) {
+    const exited = { ...pane, lifecycle: 'exited' as const, exitCode };
 
-  if (!state.stopping) {
-    changes.push({ type: 'serverStopping' });
+    return commit({ ...state, panes: replacePane(state, exited) }, [
+      { type: 'paneStateChanged', paneId: pane.id, lifecycle: 'exited', exitCode },
+    ]);
   }
 
-  const next: State = {
-    ...state,
-    panes: replacePane(state, { ...pane, lifecycle: 'exited', exitCode }),
-    stopping: true,
-  };
+  const tab = state.tabs.find((known) => known.id === pane.tabId);
 
-  return commit(next, changes);
+  invariant(tab !== undefined, `Pane ${pane.id} has no tab.`);
+
+  return removeTab(state, tab);
 };
 
 const markRunning = (state: State, pane: Pane): Applied => {

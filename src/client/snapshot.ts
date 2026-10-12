@@ -27,12 +27,47 @@ const applyLayoutChange = (snapshot: StoreSnapshot, change: StoreChange): StoreS
     return { ...snapshot, tabs: [...snapshot.tabs, change.tab] };
   }
 
+  if (change.type === 'workspaceFocused') {
+    return { ...snapshot, focusedWorkspaceId: change.workspaceId };
+  }
+
+  if (change.type === 'workspaceRenamed') {
+    const workspaces = snapshot.workspaces.map((workspace) =>
+      workspace.id === change.workspaceId ? { ...workspace, label: change.label } : workspace,
+    );
+
+    return { ...snapshot, workspaces };
+  }
+
+  if (change.type === 'workspaceRemoved') {
+    return {
+      ...snapshot,
+      workspaces: snapshot.workspaces.filter((workspace) => workspace.id !== change.workspaceId),
+      focusedWorkspaceId: change.focusedWorkspaceId,
+    };
+  }
+
+  if (change.type === 'tabRemoved') {
+    const tabs = snapshot.tabs.filter((tab) => tab.id !== change.tabId);
+
+    const workspaces = snapshot.workspaces.map((workspace) => ({
+      ...workspace,
+      tabIds: workspace.tabIds.filter((id) => id !== change.tabId),
+    }));
+
+    return { ...snapshot, tabs, workspaces };
+  }
+
   return snapshot;
 };
 
 const applyPaneChange = (snapshot: StoreSnapshot, change: StoreChange): StoreSnapshot => {
   if (change.type === 'paneAdded') {
     return { ...snapshot, panes: [...snapshot.panes, change.pane] };
+  }
+
+  if (change.type === 'paneRemoved') {
+    return { ...snapshot, panes: snapshot.panes.filter((pane) => pane.id !== change.paneId) };
   }
 
   if (change.type === 'paneStateChanged') {

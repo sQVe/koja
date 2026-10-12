@@ -90,11 +90,134 @@ it('starts a pane at the layout size of the attached client', () => {
   });
 });
 
-it('refuses a second workspace and leaves state unchanged', () => {
-  const state = run([createPhi]);
-  const result = applyIntent(state, createPhi);
+const createDocs: Intent = { type: 'createWorkspace', root: '/work/docs', label: 'docs' };
 
-  expect(result).toEqual({ kind: 'rejected', state, reason: 'workspaceExists' });
+const createApi: Intent = { type: 'createWorkspace', root: '/work/api', label: 'api' };
+
+const unknownWorkspace = workspaceId(99);
+
+it('adds a second workspace with its own tab and pane, and focuses it', () => {
+  const state = run([createPhi, createDocs]);
+
+  expect(state.workspaces.map((workspace) => workspace.id)).toEqual([
+    workspaceId(1),
+    workspaceId(2),
+  ]);
+
+  expect(state.workspaces.map((workspace) => workspace.root)).toEqual(['/work/phi', '/work/docs']);
+  expect(state.workspaces.map((workspace) => workspace.label)).toEqual(['phi', 'docs']);
+  expect(state.tabs.map((tab) => tab.id)).toEqual([tabId(1), tabId(2)]);
+  expect(state.panes.map((pane) => pane.id)).toEqual([paneId(1), paneId(2)]);
+  expect(state.panes.map((pane) => pane.generation)).toEqual([1, 2]);
+  expect(state.focusedWorkspaceId).toBe(workspaceId(2));
+});
+
+it('focuses a workspace', () => {
+  const state = run([createPhi, createDocs]);
+  const result = intent(state, { type: 'focusWorkspace', workspaceId: workspaceId(1) });
+
+  expect(result.state.focusedWorkspaceId).toBe(workspaceId(1));
+  expect(result.changes).toEqual([{ type: 'workspaceFocused', workspaceId: workspaceId(1) }]);
+  expect(focusedPane(result.state)?.id).toBe(paneId(1));
+});
+
+it('renames a workspace', () => {
+  const state = run([createPhi, createDocs]);
+
+  const result = intent(state, {
+    type: 'renameWorkspace',
+    workspaceId: workspaceId(1),
+    label: 'main',
+  });
+
+  expect(result.state.workspaces.map((workspace) => workspace.label)).toEqual(['main', 'docs']);
+
+  expect(result.changes).toEqual([
+    { type: 'workspaceRenamed', workspaceId: workspaceId(1), label: 'main' },
+  ]);
+});
+
+it('closes a workspace with its tab and pane', () => {
+  const state = run([createPhi, createDocs]);
+  const result = intent(state, { type: 'closeWorkspace', workspaceId: workspaceId(1) });
+
+  expect(result.state.workspaces.map((workspace) => workspace.id)).toEqual([workspaceId(2)]);
+  expect(result.state.tabs.map((tab) => tab.id)).toEqual([tabId(2)]);
+  expect(result.state.panes.map((pane) => pane.id)).toEqual([paneId(2)]);
+  expect(result.state.focusedWorkspaceId).toBe(workspaceId(2));
+  expect(result.state.revision).toBe(state.revision + result.changes.length);
+
+  expect(result.changes).toEqual([
+    { type: 'paneRemoved', paneId: paneId(1) },
+    { type: 'tabRemoved', tabId: tabId(1) },
+    { type: 'workspaceRemoved', workspaceId: workspaceId(1), focusedWorkspaceId: workspaceId(2) },
+  ]);
+});
+
+it('refuses a workspace intent for an unknown workspace and leaves state unchanged', () => {
+  const state = run([createPhi]);
+
+  const intents: Intent[] = [
+    { type: 'focusWorkspace', workspaceId: unknownWorkspace },
+    { type: 'renameWorkspace', workspaceId: unknownWorkspace, label: 'x' },
+    { type: 'closeWorkspace', workspaceId: unknownWorkspace },
+  ];
+
+  for (const next of intents) {
+    expect(applyIntent(state, next)).toEqual({
+      kind: 'rejected',
+      state,
+      reason: 'unknownWorkspace',
+    });
+  }
+});
+
+it('refuses a workspace intent while the server stops and leaves state unchanged', () => {
+  const state = run([createPhi, { type: 'stopServer' }]);
+
+  const intents: Intent[] = [
+    { type: 'focusWorkspace', workspaceId: workspaceId(1) },
+    { type: 'renameWorkspace', workspaceId: workspaceId(1), label: 'x' },
+    { type: 'closeWorkspace', workspaceId: workspaceId(1) },
+  ];
+
+  for (const next of intents) {
+    expect(applyIntent(state, next)).toEqual({ kind: 'rejected', state, reason: 'serverStopping' });
+  }
+});
+
+it('focuses the next workspace when the focused middle one closes', () => {
+  const state = run([
+    createPhi,
+    createDocs,
+    createApi,
+    { type: 'focusWorkspace', workspaceId: workspaceId(2) },
+  ]);
+
+  const result = intent(state, { type: 'closeWorkspace', workspaceId: workspaceId(2) });
+
+  expect(result.state.focusedWorkspaceId).toBe(workspaceId(3));
+});
+
+it('focuses the previous workspace when the focused last one closes', () => {
+  const state = run([createPhi, createDocs, createApi]);
+  const result = intent(state, { type: 'closeWorkspace', workspaceId: workspaceId(3) });
+
+  expect(result.state.focusedWorkspaceId).toBe(workspaceId(2));
+});
+
+it('keeps the focus when an unfocused workspace closes', () => {
+  const state = run([createPhi, createDocs]);
+  const result = intent(state, { type: 'closeWorkspace', workspaceId: workspaceId(1) });
+
+  expect(result.state.focusedWorkspaceId).toBe(workspaceId(2));
+});
+
+it('ignores the exit of a pane that a closed workspace removed, and names it for disposal', () => {
+  const state = run([createPhi, { type: 'closeWorkspace', workspaceId: workspaceId(1) }]);
+  const result = applyFact(state, { type: 'paneExited', ...firstPane, exitCode: 0 });
+
+  expect(result).toEqual({ kind: 'ignored', state, dispose: firstPane });
 });
 
 it('refuses to start a pane while the server stops and leaves state unchanged', () => {
@@ -262,32 +385,41 @@ it('ignores a pane that starts after the server began to stop, and names it for 
   expect(result).toEqual({ kind: 'ignored', state, dispose: firstPane });
 });
 
-it('reports that the server should stop when the last pane exits', () => {
+it('removes the pane, tab, and workspace of the only pane that exits, and keeps running', () => {
   const state = fact(run([createPhi]), { type: 'paneStarted', ...firstPane }).state;
   const result = fact(state, { type: 'paneExited', ...firstPane, exitCode: 3 });
 
-  expect(result.state.panes[0]?.lifecycle).toBe('exited');
-  expect(result.state.panes[0]?.exitCode).toBe(3);
+  expect(result.state.panes).toEqual([]);
+  expect(result.state.tabs).toEqual([]);
+  expect(result.state.workspaces).toEqual([]);
+  expect(result.state.focusedWorkspaceId).toBeUndefined();
+  expect(result.state.stopping).toBe(false);
 
   expect(result.changes).toEqual([
-    { type: 'paneStateChanged', paneId: paneId(1), lifecycle: 'exited', exitCode: 3 },
-    { type: 'serverStopping' },
+    { type: 'paneRemoved', paneId: paneId(1) },
+    { type: 'tabRemoved', tabId: tabId(1) },
+    { type: 'workspaceRemoved', workspaceId: workspaceId(1), focusedWorkspaceId: undefined },
   ]);
 });
 
-it('reports that the server should stop when the last pane fails to start', () => {
-  const state = run([createPhi]);
-  const result = fact(state, { type: 'paneFailedToStart', ...firstPane });
+it('removes the workspace of a pane that fails to start, and keeps running', () => {
+  const result = fact(run([createPhi]), { type: 'paneFailedToStart', ...firstPane });
 
-  expect(result.state.panes[0]?.lifecycle).toBe('exited');
-
-  expect(result.changes).toEqual([
-    { type: 'paneStateChanged', paneId: paneId(1), lifecycle: 'exited', exitCode: undefined },
-    { type: 'serverStopping' },
-  ]);
+  expect(result.state.workspaces).toEqual([]);
+  expect(result.state.panes).toEqual([]);
+  expect(result.state.stopping).toBe(false);
+  expect(result.changes.some((change) => change.type === 'serverStopping')).toBe(false);
 });
 
-it('does not report a second stop when a closing pane exits', () => {
+it('keeps the other workspaces when one pane exits', () => {
+  const state = run([createPhi, createDocs]);
+  const result = fact(state, { type: 'paneExited', ...firstPane, exitCode: 0 });
+
+  expect(result.state.workspaces.map((workspace) => workspace.id)).toEqual([workspaceId(2)]);
+  expect(result.state.focusedWorkspaceId).toBe(workspaceId(2));
+});
+
+it('marks a closing pane exited without removing it while the server stops', () => {
   const state = run([createPhi, { type: 'stopServer' }]);
   const result = fact(state, { type: 'paneExited', ...firstPane, exitCode: 0 });
 
@@ -298,7 +430,12 @@ it('does not report a second stop when a closing pane exits', () => {
 
 it('raises the revision by one per change, and snapshots the last revision', () => {
   const started = intent(createState(), createPhi).state;
-  const refused = applyIntent(started, createPhi).state;
+
+  const refused = applyIntent(started, {
+    type: 'closeWorkspace',
+    workspaceId: unknownWorkspace,
+  }).state;
+
   const attached = intent(refused, { type: 'attachClient', size: { columns: 100, rows: 30 } });
 
   expect(started.revision).toBe(3);

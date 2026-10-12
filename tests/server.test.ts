@@ -8,7 +8,7 @@ import { basename, join } from 'node:path';
 
 import { z } from 'zod';
 
-import { paneId } from '../src/ids.ts';
+import { paneId, tabId, workspaceId } from '../src/ids.ts';
 import { createFrameDecoder, encodeFrame, FrameKind } from '../src/protocol/frames.ts';
 import { encodeControl, parseControl } from '../src/protocol/messages.ts';
 import type { BuildVersion, ControlMessage } from '../src/protocol/messages.ts';
@@ -544,21 +544,32 @@ it('sends a snapshot after welcome and each later change in revision order', asy
   expect(initial.snapshot.panes[0]?.id).toBe(paneId(1));
 
   server.writeToPane('exit\n');
-  await server.stopped;
-  await client.closed;
+  await waitFor(() => client.messages.length >= 5);
 
   expect(client.messages.slice(2)).toEqual([
     {
       type: 'change',
       revision: initial.snapshot.revision + 1,
-      change: { type: 'paneStateChanged', paneId: paneId(1), lifecycle: 'exited', exitCode: 0 },
+      change: { type: 'paneRemoved', paneId: paneId(1) },
     },
     {
       type: 'change',
       revision: initial.snapshot.revision + 2,
-      change: { type: 'serverStopping' },
+      change: { type: 'tabRemoved', tabId: tabId(1) },
+    },
+    {
+      type: 'change',
+      revision: initial.snapshot.revision + 3,
+      change: {
+        type: 'workspaceRemoved',
+        workspaceId: workspaceId(1),
+        focusedWorkspaceId: undefined,
+      },
     },
   ]);
+
+  server.stop();
+  await server.stopped;
 });
 
 it('resyncs after dropping a change inside a multi-change transition', async () => {
@@ -625,10 +636,17 @@ it('broadcasts changes to every welcomed client but not a connection waiting for
   expect(await second.nextMessage()).toEqual(initial);
 
   server.writeToPane('exit\n');
+  await waitFor(() => first.messages.length >= 5 && second.messages.length >= 5);
+  server.stop();
   await server.stopped;
   await Promise.all([first.closed, second.closed, waiting.closed]);
 
-  expect(first.messages.slice(2)).toHaveLength(2);
+  expect(first.messages.slice(2, 5).map((message) => message.type)).toEqual([
+    'change',
+    'change',
+    'change',
+  ]);
+
   expect(second.messages).toEqual(first.messages);
   expect(waiting.messages).toEqual([]);
 });
@@ -1380,7 +1398,7 @@ it.skipIf(!scopesAvailable)(
   },
 );
 
-it('keeps running after SIGHUP and stops when the shell exits', async () => {
+it('keeps running after SIGHUP and after the shell exits, and stops on SIGTERM', async () => {
   const directory = await temporaryDirectory();
   const { child, socketPath } = await startServerProcess(directory);
 
@@ -1394,6 +1412,13 @@ it('keeps running after SIGHUP and stops when the shell exits', async () => {
 
   await child.stdin.write('exit\n');
   await child.stdin.flush();
+
+  const exitedEarly = await Promise.race([child.exited, Bun.sleep(500).then(() => 'running')]);
+
+  expect(exitedEarly).toBe('running');
+  expect(existsSync(socketPath)).toBe(true);
+
+  child.kill('SIGTERM');
 
   expect(await child.exited).toBe(0);
   expect(existsSync(socketPath)).toBe(false);

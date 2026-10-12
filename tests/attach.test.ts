@@ -474,14 +474,16 @@ it('attaches both phi runs to one server when they start together', async () => 
   );
 });
 
-it('exits with code zero and removes the socket when the shell exits', async () => {
+it('keeps the server running after the only shell exits', async () => {
   const { directory, socketPath, environment } = await setupWithoutServer();
   const { client, screen } = attachClient(socketPath, [], environment);
 
   expect(await waitFor(() => screen.text().includes('attach-prompt>'))).toBe(true);
   client.terminal?.write('exit\r');
 
-  expect(await client.exited).toBe(0);
-  expect(await waitFor(() => !existsSync(socketPath))).toBe(true);
-  expect(await waitFor(() => serverProcessesIn(directory).length === 0)).toBe(true);
+  const exitedEarly = await Promise.race([client.exited, Bun.sleep(1000).then(() => 'running')]);
+
+  expect(exitedEarly).toBe('running');
+  expect(existsSync(socketPath)).toBe(true);
+  expect(serverProcessesIn(directory)).toHaveLength(1);
 });

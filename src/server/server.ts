@@ -459,10 +459,33 @@ const closeDetachedClient = (
   }
 };
 
+// Stops the process of a pane the store dropped. A pane that already exited has no runtime left.
+const removePane = (context: ServerContext, id: PaneId): void => {
+  const pane = context.runtime.panes.get(id);
+
+  if (pane === undefined) {
+    return;
+  }
+
+  context.runtime.panes.delete(id);
+  context.runtime.rowPublishers.delete(id);
+
+  stopPane(context, id, pane).catch((error: unknown) => {
+    context.options.log.error('Stopping the pane failed.', {
+      paneId: id,
+      error: describeError(error),
+    });
+  });
+};
+
 const runEffects = (context: ServerContext, changes: readonly Change[], report: Report): void => {
   for (const change of changes) {
     if (change.type === 'paneAdded') {
       startPane(context, change.pane, report);
+    }
+
+    if (change.type === 'paneRemoved') {
+      removePane(context, change.paneId);
     }
 
     if (change.type === 'paneResized') {
@@ -921,6 +944,7 @@ export const runServer = async (options: ServerOptions): Promise<RunServerResult
   });
 
   if (context.paneStartFailure !== undefined) {
+    dispatch(context, { type: 'stopServer' });
     await context.stopped.promise;
 
     return { ok: false, reason: 'paneFailedToStart', message: context.paneStartFailure };
