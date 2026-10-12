@@ -1225,6 +1225,18 @@ it.skipIf(!scopesAvailable)(
   },
 );
 
+it.skipIf(!scopesAvailable)('runs a shell whose path holds a dollar sign', async () => {
+  const directory = await temporaryDirectory();
+  const shell = join(directory, 'sh$$');
+
+  await symlink('/bin/sh', shell);
+
+  const { server } = await startServer(directory, shell);
+
+  server.writeToPane('echo phi-$((6 * 7))\n');
+  await waitFor(() => server.paneText()?.includes('phi-42') === true);
+});
+
 it('starts the pane and ends its session when no user scope is available', async () => {
   const probe = spyOn(scope, 'scopeAvailable').mockReturnValue(false);
 

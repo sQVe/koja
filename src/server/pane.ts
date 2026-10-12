@@ -89,6 +89,11 @@ const waitForSessionExit = async (session: number, graceMs: number): Promise<voi
 
 const shellOf = (environment: Environment): string => environment.SHELL ?? '/bin/sh';
 
+// systemd-run reports a missing shell only after the pane started, so a missing shell skips the
+// scope and fails to start here. systemd-run also expands `$` in the shell path, and the flag that
+// turns this off is missing before systemd 254, so such a path skips the scope too.
+const scopeCanRun = (shell: string): boolean => Bun.which(shell) !== null && !shell.includes('$');
+
 const spawnShell = (options: SpawnPaneOptions, onOutput: OnOutput, unit: string | undefined) => {
   const { size, environment, directory } = options;
   const shell = shellOf(environment);
@@ -133,9 +138,7 @@ export const spawnPane = (options: SpawnPaneOptions): SpawnPaneResult => {
   };
 
   let shell: ReturnType<typeof spawnShell>;
-  // systemd-run reports a missing shell only after the pane started, so a missing shell skips
-  // the scope and fails to start here.
-  const scoped = options.useScope && Bun.which(shellOf(options.environment)) !== null;
+  const scoped = options.useScope && scopeCanRun(shellOf(options.environment));
   const unit = scoped ? scopeUnitName(process.pid) : undefined;
 
   try {
