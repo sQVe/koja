@@ -26,7 +26,13 @@ import type { RowUpdate } from '../src/rows/rows.ts';
 import { createLog } from '../src/server/log.ts';
 import { runServer } from '../src/server/server.ts';
 import { ghosttyCommit } from '../src/vt/vt.ts';
-import { endServersIn, isRunning, serverProcessesIn, waitFor } from './serverProcesses.ts';
+import {
+  createWorkspaceAt,
+  endServersIn,
+  isRunning,
+  serverProcessesIn,
+  waitFor,
+} from './serverProcesses.ts';
 
 interface CliRun {
   exitCode: number;
@@ -134,6 +140,8 @@ const startServer = async (directory: string, socketPath: string) => {
     stderr: '',
   });
 
+  await createWorkspaceAt(socketPath, directory);
+
   return startOutputSchema.parse(JSON.parse(started.stdout));
 };
 
@@ -151,6 +159,7 @@ it(
     );
 
     expect(started.exitCode).toBe(0);
+    await createWorkspaceAt(socketPath, directory);
 
     let text: CliRun = { exitCode: -1, stdout: '', stderr: '' };
 
@@ -219,6 +228,7 @@ it(
     );
 
     expect(started.exitCode).toBe(0);
+    await createWorkspaceAt(socketPath, directory);
 
     const lines = Array.from({ length: 35 }, (_, row) => `line-${row}`);
     const screen = lines.join('\\r\\n');
@@ -316,6 +326,8 @@ it(
     expect(
       (await runCli(['server', 'start', '--socket', socketPath], directory, environment)).exitCode,
     ).toBe(0);
+
+    await createWorkspaceAt(socketPath, directory);
 
     const terminal = await connectTerminal(socketPath);
 
@@ -443,30 +455,6 @@ it(
     expect(exitCodes).toEqual([0, 1, 1, 1, 1, 1]);
     expect(pids.every((pid) => isRunning(pid))).toBe(true);
     expect(serverProcessesIn(directory)).toEqual(pids);
-  },
-  cliTestTimeoutMs,
-);
-
-it.each([
-  ['run', ['server', 'run']],
-  ['start', ['server', 'start']],
-] as const)(
-  'exits 1 with a message and leaves no socket when %s cannot start the shell',
-  async (_name, command) => {
-    const directory = await temporaryDirectory();
-    const socketPath = join(directory, 'run', 'phi.sock');
-    const environment = { ...environmentFor(directory), SHELL: join(directory, 'missing-shell') };
-
-    const run = await runCli(
-      [...command, '--socket', socketPath, '--json'],
-      directory,
-      environment,
-    );
-
-    expect({ exitCode: run.exitCode, stdout: run.stdout }).toEqual({ exitCode: 1, stdout: '' });
-    expect(run.stderr).toContain('missing-shell');
-    expect(existsSync(socketPath)).toBe(false);
-    expect(serverProcessesIn(directory)).toEqual([]);
   },
   cliTestTimeoutMs,
 );
@@ -776,12 +764,13 @@ it(
       version: other,
       log: created.log,
       environment: { ...process.env, SHELL: '/bin/sh' },
-      directory,
     });
 
     if (!result.ok) {
       throw new Error(result.message);
     }
+
+    await createWorkspaceAt(socketPath, directory, other);
 
     // The server logs while it stops, so the directory goes after it.
     onTestFinished(async () => {

@@ -158,6 +158,13 @@ const messages: ControlMessage[] = [
   { type: 'paneSend', paneId: pane.id, text: 'ls\r' },
   { type: 'paneSent', paneId: pane.id },
   { type: 'paneMissing', paneId: paneId(9) },
+  { type: 'workspaceCreate', root: '/work/phi', label: 'phi' },
+  { type: 'workspaceFocus', workspaceId: workspace.id },
+  { type: 'workspaceRename', workspaceId: workspace.id, label: 'renamed' },
+  { type: 'workspaceClose', workspaceId: workspace.id },
+  { type: 'workspaceDone', workspaceId: workspace.id },
+  { type: 'workspaceFailed', reason: 'unknownWorkspace', message: undefined },
+  { type: 'workspaceFailed', reason: 'paneFailedToStart', message: 'no such directory' },
 ];
 
 const nameOf = (message: ControlMessage): string => {

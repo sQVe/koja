@@ -101,7 +101,7 @@ const openLog = (path: string): Log => {
   return created.log;
 };
 
-const startServer = async (
+const startEmptyServer = async (
   directory: string,
   shell = '/bin/sh',
   path = process.env.PATH,
@@ -115,7 +115,6 @@ const startServer = async (
     version: build,
     log,
     environment: { ...process.env, PATH: path, SHELL: shell },
-    directory,
     holdLimitMs: 60_000,
   });
 
@@ -265,6 +264,41 @@ const connect = async (socketPath: string): Promise<TestClient> => {
   };
 };
 
+// Sends workspaceCreate from a CLI connection, waits for the answer, and closes the connection.
+const createWorkspace = async (
+  socketPath: string,
+  root: string,
+  label: string,
+): Promise<ControlMessage> => {
+  const client = await connect(socketPath);
+
+  client.send({ type: 'hello', version: build, size: undefined });
+  client.send({ type: 'workspaceCreate', root, label });
+
+  for (;;) {
+    const message = await client.nextMessage();
+
+    if (message.type === 'workspaceDone' || message.type === 'workspaceFailed') {
+      client.close();
+
+      return message;
+    }
+  }
+};
+
+// Starts a server and one workspace rooted at the directory.
+const startServer = async (
+  directory: string,
+  shell = '/bin/sh',
+  path = process.env.PATH,
+): Promise<{ server: Server; socketPath: string; logPath: string }> => {
+  const started = await startEmptyServer(directory, shell, path);
+
+  await createWorkspace(started.socketPath, directory, basename(directory));
+
+  return started;
+};
+
 const serverModule = join(import.meta.dir, '..', 'src', 'server', 'server.ts');
 
 const logModule = join(import.meta.dir, '..', 'src', 'server', 'log.ts');
@@ -286,7 +320,6 @@ const serverScript = (socketPath: string): string => `
     version: ${JSON.stringify(build)},
     log: created.log,
     environment: { ...process.env, SHELL: '/bin/sh' },
-    directory: process.cwd(),
   });
 
   if (!result.ok) {
@@ -463,7 +496,6 @@ it('removes the socket it bound even when its symlink route changes', async () =
     version: build,
     log: openLog(join(directory, 'state', 'phi', 'server.log')),
     environment: { ...process.env, SHELL: '/bin/sh' },
-    directory,
   });
 
   if (!result.ok) {
@@ -506,22 +538,6 @@ it('welcomes a client from the same build and removes the socket when it stops',
 
   expect(await server.stopped).toEqual({ ok: true });
   expect(existsSync(socketPath)).toBe(false);
-});
-
-it('starts one workspace rooted at the start directory with one tab and one running pane', async () => {
-  const directory = await temporaryDirectory();
-  const { server } = await startServer(directory);
-  const { workspaces, tabs, panes, focusedWorkspaceId } = server.snapshot();
-
-  expect(workspaces).toHaveLength(1);
-  expect(workspaces[0]).toMatchObject({ root: directory, label: basename(directory) });
-  expect(focusedWorkspaceId).toBe(workspaces[0]?.id);
-  expect(tabs).toHaveLength(1);
-  expect(tabs[0]?.workspaceId).toBe(workspaces[0]?.id);
-  expect(workspaces[0]?.tabIds.map(String)).toEqual(tabs.map((tab) => tab.id));
-  expect(panes).toHaveLength(1);
-  expect(panes[0]?.lifecycle).toBe('running');
-  expect(panes[0]?.tabId).toBe(tabs[0]?.id);
 });
 
 it('sends a snapshot after welcome and each later change in revision order', async () => {
@@ -915,6 +931,157 @@ const nextOfType = async <Type extends ControlMessage['type']>(
   }
 };
 
+it('starts with no workspace and adds one focused workspace for each workspaceCreate', async () => {
+  const directory = await temporaryDirectory();
+  const first = join(directory, 'first');
+  const second = join(directory, 'second');
+
+  await mkdir(first);
+  await mkdir(second);
+
+  const { server, socketPath } = await startEmptyServer(directory);
+
+  expect(server.snapshot()).toMatchObject({ workspaces: [], tabs: [], panes: [] });
+
+  const answers = [
+    await createWorkspace(socketPath, first, 'first'),
+    await createWorkspace(socketPath, second, 'second'),
+  ];
+
+  const { workspaces, tabs, panes, focusedWorkspaceId } = server.snapshot();
+
+  expect(answers).toEqual([
+    { type: 'workspaceDone', workspaceId: workspaceId(1) },
+    { type: 'workspaceDone', workspaceId: workspaceId(2) },
+  ]);
+
+  expect(workspaces.map(({ root, label }) => ({ root, label }))).toEqual([
+    { root: first, label: 'first' },
+    { root: second, label: 'second' },
+  ]);
+
+  expect(focusedWorkspaceId).toBe(workspaceId(2));
+  expect(tabs).toHaveLength(2);
+  expect(panes.map((pane) => pane.lifecycle)).toEqual(['running', 'running']);
+});
+
+it('removes the workspace when its only shell exits and keeps serving', async () => {
+  const directory = await temporaryDirectory();
+  const { server, socketPath } = await startServer(directory);
+
+  server.writeToPane('exit\n');
+  await waitFor(() => server.snapshot().workspaces.length === 0);
+
+  expect(server.snapshot()).toMatchObject({ tabs: [], panes: [], focusedWorkspaceId: undefined });
+
+  const answer = await createWorkspace(socketPath, directory, 'again');
+
+  expect(answer.type).toBe('workspaceDone');
+  expect(server.snapshot().workspaces.map((workspace) => workspace.label)).toEqual(['again']);
+  expect(server.snapshot().panes.map((pane) => pane.lifecycle)).toEqual(['running']);
+});
+
+it.each([
+  { type: 'workspaceFocus', workspaceId: workspaceId(9) },
+  { type: 'workspaceRename', workspaceId: workspaceId(9), label: 'renamed' },
+  { type: 'workspaceClose', workspaceId: workspaceId(9) },
+] as const)(
+  'answers $type for an unknown workspace with a failure and changes nothing',
+  async (request) => {
+    const directory = await temporaryDirectory();
+    const { server, socketPath } = await startServer(directory);
+    const before = server.snapshot();
+    const client = await connectCli(socketPath);
+
+    client.send(request);
+
+    expect(await nextOfType(client, 'workspaceFailed')).toEqual({
+      type: 'workspaceFailed',
+      reason: 'unknownWorkspace',
+      message: undefined,
+    });
+
+    expect(server.snapshot()).toEqual(before);
+  },
+);
+
+it('focuses, renames, and closes a workspace and answers with its id', async () => {
+  const directory = await temporaryDirectory();
+  const { server, socketPath } = await startServer(directory);
+
+  await createWorkspace(socketPath, directory, 'second');
+
+  const client = await connectCli(socketPath);
+
+  client.send({ type: 'workspaceFocus', workspaceId: workspaceId(1) });
+
+  expect(await nextOfType(client, 'workspaceDone')).toEqual({
+    type: 'workspaceDone',
+    workspaceId: workspaceId(1),
+  });
+
+  expect(server.snapshot().focusedWorkspaceId).toBe(workspaceId(1));
+
+  client.send({ type: 'workspaceRename', workspaceId: workspaceId(1), label: 'renamed' });
+  await nextOfType(client, 'workspaceDone');
+  expect(server.snapshot().workspaces[0]?.label).toBe('renamed');
+
+  client.send({ type: 'workspaceClose', workspaceId: workspaceId(1) });
+  await nextOfType(client, 'workspaceDone');
+  await waitFor(() => server.snapshot().panes.length === 1);
+
+  expect(server.snapshot().workspaces.map((workspace) => workspace.id)).toEqual([workspaceId(2)]);
+  expect(server.snapshot().focusedWorkspaceId).toBe(workspaceId(2));
+});
+
+it('sends rows only for the focused workspace and the other screen after workspaceFocus', async () => {
+  const directory = await temporaryDirectory();
+  const { server, socketPath } = await startServer(directory);
+
+  await createWorkspace(socketPath, directory, 'second');
+
+  const cli = await connectCli(socketPath);
+
+  cli.send({ type: 'paneSend', paneId: paneId(1), text: "printf 'hidden-%s\\n' marker\n" });
+  await nextOfType(cli, 'paneSent');
+
+  const terminal = await attachTerminal(socketPath, 100);
+
+  server.writeToPane("printf 'visible-%s\\n' marker\n");
+  await waitFor(() => server.paneText()?.includes('visible-marker') === true);
+
+  const rows = new Map<number, string>();
+
+  await receiveText(terminal, rows, 'visible-marker');
+  cli.send({ type: 'paneRead', paneId: paneId(1) });
+
+  const hidden = await nextOfType(cli, 'paneRows');
+
+  expect(hidden.rows.join('\n')).toContain('hidden-marker');
+  expect(terminal.updates.every((update) => update.pane === 2)).toBe(true);
+
+  const updatesBefore = terminal.updates.length;
+
+  cli.send({ type: 'workspaceFocus', workspaceId: workspaceId(1) });
+  await nextOfType(cli, 'workspaceDone');
+
+  const shown = new Map<number, string>();
+
+  for (;;) {
+    const update = await terminal.nextUpdate();
+
+    if (update.pane === 1) {
+      applyRows(shown, update);
+
+      if ([...shown.values()].some((row) => row.includes('hidden-marker'))) {
+        break;
+      }
+    }
+  }
+
+  expect(terminal.updates.length).toBeGreaterThan(updatesBefore);
+});
+
 it('tells the first terminal client it was taken over and closes it while the pane keeps running', async () => {
   const directory = await temporaryDirectory();
   const { server, socketPath } = await startServer(directory);
@@ -1160,20 +1327,19 @@ it('publishes every changed row when range reads run between pane writes', async
   expect([...rows.values()].some((row) => row.includes('range-42'))).toBe(true);
 });
 
-it('fails and leaves no socket when the shell cannot start', async () => {
+it('answers workspaceCreate with a failure and keeps no workspace when the shell cannot start', async () => {
   const directory = await temporaryDirectory();
-  const socketPath = join(directory, 'run', 'phi.sock');
 
-  const result = await runServer({
-    socketPath,
-    version: build,
-    log: openLog(join(directory, 'state', 'phi', 'server.log')),
-    environment: { ...process.env, SHELL: join(directory, 'missing-shell') },
+  const { server, socketPath } = await startEmptyServer(
     directory,
-  });
+    join(directory, 'missing-shell'),
+  );
 
-  expect(result).toMatchObject({ ok: false, reason: 'paneFailedToStart' });
-  expect(existsSync(socketPath)).toBe(false);
+  const answer = await createWorkspace(socketPath, directory, 'broken');
+
+  expect(answer).toMatchObject({ type: 'workspaceFailed', reason: 'paneFailedToStart' });
+  expect(server.snapshot()).toMatchObject({ workspaces: [], tabs: [], panes: [] });
+  expect(existsSync(socketPath)).toBe(true);
 });
 
 it('refuses a client from another build with both versions and closes the connection', async () => {
@@ -1403,12 +1569,7 @@ it('keeps running after SIGHUP and after the shell exits, and stops on SIGTERM',
   const { child, socketPath } = await startServerProcess(directory);
 
   child.kill('SIGHUP');
-
-  const client = await connect(socketPath);
-
-  client.send({ type: 'hello', version: build, size: undefined });
-
-  expect(await client.nextMessage()).toEqual({ type: 'welcome' });
+  expect((await createWorkspace(socketPath, directory, 'shell')).type).toBe('workspaceDone');
 
   await child.stdin.write('exit\n');
   await child.stdin.flush();

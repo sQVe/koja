@@ -533,6 +533,38 @@ it('sends no ack for a row update it cannot decode', async () => {
   expect(server.received.map((message) => message.type)).toEqual(['hello']);
 });
 
+// Sends workspaceCreate over a raw connection and resolves once the server answers it.
+const createWorkspace = async (socketPath: string, root: string): Promise<void> => {
+  const decoder = createFrameDecoder();
+  const answered = Promise.withResolvers<undefined>();
+
+  const socket = await Bun.connect({
+    unix: socketPath,
+    socket: {
+      data: (_socket, bytes) => {
+        const decoded = decoder.push(bytes);
+
+        for (const frame of decoded.ok ? decoded.frames : []) {
+          const parsed = parseControl(frame.payload);
+
+          if (parsed.ok && parsed.message.type === 'workspaceDone') {
+            answered.resolve(undefined);
+          }
+        }
+      },
+    },
+  });
+
+  const send = (message: ControlMessage): void => {
+    socket.write(encodeFrame(FrameKind.control, encodeControl(message)));
+  };
+
+  send({ type: 'hello', version, size: undefined });
+  send({ type: 'workspaceCreate', root, label: 'paced' });
+  await answered.promise;
+  socket.end();
+};
+
 it('keeps receiving row updates from a real server past the in-flight limit', async () => {
   const directory = await mkdtemp(join(tmpdir(), 'phi-attach-paced-'));
   const created = createLog(join(directory, 'state', 'server.log'), Date.now);
@@ -546,7 +578,6 @@ it('keeps receiving row updates from a real server past the in-flight limit', as
     version,
     log: created.log,
     environment: { ...process.env, SHELL: '/bin/sh' },
-    directory,
     holdLimitMs: 60_000,
   });
 
@@ -561,6 +592,8 @@ it('keeps receiving row updates from a real server past the in-flight limit', as
     await server.stopped;
     await rm(directory, { recursive: true, force: true });
   });
+
+  await createWorkspace(join(directory, 'run', 'phi.sock'), directory);
 
   const session = await attach({ socketPath: join(directory, 'run', 'phi.sock') });
   let updates = 0;

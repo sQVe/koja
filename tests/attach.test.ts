@@ -14,7 +14,7 @@ import {
 } from '../src/protocol/protocol.ts';
 import { CellFlag, cellWords } from '../src/rows/rows.ts';
 import { createTerminal } from '../src/vt/vt.ts';
-import { endServersIn, serverProcessesIn, waitFor } from './serverProcesses.ts';
+import { createWorkspaceAt, endServersIn, serverProcessesIn, waitFor } from './serverProcesses.ts';
 
 const attachClient = (
   socketPath: string,
@@ -91,6 +91,7 @@ const setup = async () => {
   });
 
   await command('server', 'start');
+  await createWorkspaceAt(socketPath, directory);
 
   const { client, screen } = attachClient(socketPath);
 
@@ -421,8 +422,10 @@ it('starts a server and attaches when phi runs with no server', async () => {
   const { directory, socketPath, environment } = await setupWithoutServer();
   const { screen } = attachClient(socketPath, [], environment);
 
+  expect(await waitFor(() => serverProcessesIn(directory).length === 1)).toBe(true);
+  expect(await waitFor(() => existsSync(socketPath))).toBe(true);
+  await createWorkspaceAt(socketPath, directory);
   expect(await waitFor(() => screen.text().includes('attach-prompt>'))).toBe(true);
-  expect(serverProcessesIn(directory)).toHaveLength(1);
 
   const read = Bun.spawn(
     [process.execPath, 'src/index.ts', 'pane', 'read', '--socket', socketPath],
@@ -440,6 +443,8 @@ it('attaches to the running server without starting another', async () => {
   const { directory, socketPath, environment } = await setupWithoutServer();
   const first = attachClient(socketPath, [], environment);
 
+  expect(await waitFor(() => existsSync(socketPath))).toBe(true);
+  await createWorkspaceAt(socketPath, directory);
   expect(await waitFor(() => first.screen.text().includes('INSERT'))).toBe(true);
 
   const before = serverProcessesIn(directory);
@@ -454,6 +459,9 @@ it('attaches both phi runs to one server when they start together', async () => 
   const { directory, socketPath, environment } = await setupWithoutServer();
   const first = attachClient(socketPath, [], environment);
   const second = attachClient(socketPath, [], environment);
+
+  expect(await waitFor(() => existsSync(socketPath))).toBe(true);
+  await createWorkspaceAt(socketPath, directory);
 
   expect(
     await waitFor(
@@ -478,6 +486,8 @@ it('keeps the server running after the only shell exits', async () => {
   const { directory, socketPath, environment } = await setupWithoutServer();
   const { client, screen } = attachClient(socketPath, [], environment);
 
+  expect(await waitFor(() => existsSync(socketPath))).toBe(true);
+  await createWorkspaceAt(socketPath, directory);
   expect(await waitFor(() => screen.text().includes('attach-prompt>'))).toBe(true);
   client.terminal?.write('exit\r');
 
