@@ -223,7 +223,7 @@ it(
       [80, 11],
     ]);
 
-    type('\x02v');
+    type('v');
 
     const right = await listUntil(list, (panes) => panes.length === 3);
 
@@ -275,7 +275,7 @@ it(
 
     type('\x02h');
     await listUntil(list, (panes) => panes.find((pane) => pane.focused)?.id === first);
-    type('echo LEFTONLY\r');
+    type('iecho LEFTONLY\r');
     await until(() => lines().some((line) => line.slice(0, 40).includes('echo LEFTONLY')));
 
     expect(region(lines(), 41, 80).join('')).not.toContain('LEFTONLY');
@@ -283,7 +283,7 @@ it(
 
     type('\x02l');
     await listUntil(list, (panes) => panes.find((pane) => pane.focused)?.id === before);
-    type('echo RIGHTONLY\r');
+    type('iecho RIGHTONLY\r');
     await until(() => lines().some((line) => line.slice(41).includes('echo RIGHTONLY')));
 
     expect(region(lines(), 0, 40).join('')).not.toContain('RIGHTONLY');
@@ -352,7 +352,7 @@ it(
     type('\x02s');
     await listUntil(list, (panes) => panes.length === 2);
 
-    type('\x02x');
+    type('x');
 
     const remaining = await listUntil(list, (panes) => panes.length === 1);
 
@@ -388,7 +388,7 @@ it(
     await phi('pane', 'split', first, '--direction', 'right');
     await until(() => lines()[0]?.charAt(40) === '┝');
 
-    type('\x02hecho LEFTRACE\r');
+    type('\x02hiecho LEFTRACE\r');
 
     await until(() => lines().some((line) => line.slice(0, 40).includes('echo LEFTRACE')));
     await Bun.sleep(300);
@@ -407,7 +407,7 @@ it(
     await phi('pane', 'focus', first);
     await until(() => lines()[0]?.charAt(40) === '┥');
 
-    type('\x02lecho RIGHTRACE\r');
+    type('\x02liecho RIGHTRACE\r');
 
     await until(() => lines().some((line) => line.slice(41).includes('echo RIGHTRACE')));
     await Bun.sleep(300);
@@ -422,7 +422,7 @@ it(
   async () => {
     const { lines, until, type } = await setup();
 
-    type('\x02secho BELOWRACE\r');
+    type('\x02siecho BELOWRACE\r');
 
     await until(() =>
       lines()

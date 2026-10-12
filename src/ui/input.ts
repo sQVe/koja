@@ -121,7 +121,7 @@ const routeNormalKey = (raw: string): KeyRoute => {
   const paneAction = paneActions.get(raw);
 
   if (paneAction !== undefined) {
-    return { bytes: nothing, mode: 'insert', detach: false, paneAction };
+    return { bytes: nothing, mode: 'normal', detach: false, paneAction };
   }
 
   const leavesNormal = raw === 'i' || raw === escapeKey;

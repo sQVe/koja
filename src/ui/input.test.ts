@@ -582,7 +582,7 @@ const paneKeys: [string, PaneAction][] = [
 ];
 
 for (const [raw, action] of paneKeys) {
-  it(`asks for ${action} on ${raw} in normal mode, sends no bytes, and returns to insert mode`, () => {
+  it(`asks for ${action} on ${raw} in normal mode, sends no bytes, and stays in normal mode`, () => {
     const { input, sent, actions, mode } = router('insert', 0);
 
     input({ kind: 'key', raw: '\x02', escapeSent: false });
@@ -590,7 +590,7 @@ for (const [raw, action] of paneKeys) {
 
     expect(actions).toEqual([action]);
     expect(sent).toEqual([]);
-    expect(mode()).toBe('insert');
+    expect(mode()).toBe('normal');
   });
 
   it(`sends ${raw} to the pane in insert mode without a pane action`, () => {
@@ -612,6 +612,7 @@ it('holds the tokens after a pane action until its answer arrives, then sends th
 
   press('\x02');
   press('h');
+  press('i');
   press('a');
   press('b');
 
@@ -630,7 +631,7 @@ it('holds the tokens that follow a second pane action until that action is answe
     input({ kind: 'key', raw, escapeSent: false });
   };
 
-  for (const raw of ['\x02', 'l', '\x02', 's', 'z']) {
+  for (const raw of ['\x02', 'l', 's', 'i', 'z']) {
     press(raw);
   }
 
@@ -671,6 +672,7 @@ it('sends held tokens when the action fails to settle normally', async () => {
 
   input({ kind: 'key', raw: '\x02', escapeSent: false });
   input({ kind: 'key', raw: 'x', escapeSent: false });
+  input({ kind: 'key', raw: 'i', escapeSent: false });
   input({ kind: 'key', raw: 'q', escapeSent: false });
   await Promise.resolve();
   await Promise.resolve();
