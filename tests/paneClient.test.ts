@@ -286,6 +286,7 @@ it('reports a failed workspace request with its reason', async () => {
     action: 'create',
     root: '/work',
     label: 'work',
+    background: false,
   });
 
   expect(result).toEqual({ ok: false, reason: 'paneFailedToStart', message: 'no shell' });

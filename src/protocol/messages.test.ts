@@ -96,7 +96,15 @@ const messages: ControlMessage[] = [
     },
   },
   { type: 'snapshot', snapshot: emptySnapshot },
-  { type: 'change', revision: 1, change: { type: 'workspaceAdded', workspace } },
+  {
+    type: 'change',
+    revision: 1,
+    change: {
+      type: 'workspaceAdded',
+      workspace,
+      focusedWorkspaceId: workspace.id,
+    },
+  },
   { type: 'change', revision: 2, change: { type: 'workspaceFocused', workspaceId: workspace.id } },
   {
     type: 'change',
@@ -158,7 +166,8 @@ const messages: ControlMessage[] = [
   { type: 'paneSend', paneId: pane.id, text: 'ls\r' },
   { type: 'paneSent', paneId: pane.id },
   { type: 'paneMissing', paneId: paneId(9) },
-  { type: 'workspaceCreate', root: '/work/phi', label: 'phi' },
+  { type: 'workspaceCreate', root: '/work/phi', label: 'phi', background: false },
+  { type: 'workspaceCreate', root: '/work/phi', label: undefined, background: true },
   { type: 'workspaceFocus', workspaceId: workspace.id },
   { type: 'workspaceRename', workspaceId: workspace.id, label: 'renamed' },
   { type: 'workspaceClose', workspaceId: workspace.id },
@@ -196,7 +205,11 @@ const workspaceIdJson = (id: string): string =>
   JSON.stringify({
     type: 'change',
     revision: 1,
-    change: { type: 'workspaceAdded', workspace: { ...workspace, id } },
+    change: {
+      type: 'workspaceAdded',
+      workspace: { ...workspace, id },
+      focusedWorkspaceId: id,
+    },
   });
 
 it.each([

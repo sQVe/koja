@@ -1,6 +1,7 @@
 import { expect, it } from 'bun:test';
 
 import { clientId, paneId, tabId, workspaceId } from '../ids.ts';
+import { sideListColumns } from '../layout.ts';
 import { applyFact, applyIntent, createState, focusedPane, paneTheme, snapshot } from './store.ts';
 import type {
   Applied,
@@ -32,7 +33,12 @@ const run = (intents: readonly Intent[]): State =>
 
 const firstPane = { paneId: paneId(1), generation: 1 };
 
-const createPhi: Intent = { type: 'createWorkspace', root: '/work/phi', label: 'phi' };
+const createPhi: Intent = {
+  type: 'createWorkspace',
+  root: '/work/phi',
+  label: 'phi',
+  background: false,
+};
 
 it('creates a workspace with one tab and one starting pane', () => {
   const result = intent(createState(), createPhi);
@@ -75,7 +81,7 @@ it('creates a workspace with one tab and one starting pane', () => {
   expect(focusedPane(result.state)).toEqual(pane);
 
   expect(result.changes).toEqual([
-    { type: 'workspaceAdded', workspace },
+    { type: 'workspaceAdded', workspace, focusedWorkspaceId: workspace.id },
     { type: 'tabAdded', tab },
     { type: 'paneAdded', pane },
   ]);
@@ -85,14 +91,24 @@ it('starts a pane at the layout size of the attached client', () => {
   const state = run([{ type: 'attachClient', size: { columns: 120, rows: 40 } }]);
 
   expect(intent(state, createPhi).state.panes[0]?.size).toEqual({
-    columns: 120,
+    columns: 120 - sideListColumns,
     rows: 39,
   });
 });
 
-const createDocs: Intent = { type: 'createWorkspace', root: '/work/docs', label: 'docs' };
+const createDocs: Intent = {
+  type: 'createWorkspace',
+  root: '/work/docs',
+  label: 'docs',
+  background: false,
+};
 
-const createApi: Intent = { type: 'createWorkspace', root: '/work/api', label: 'api' };
+const createApi: Intent = {
+  type: 'createWorkspace',
+  root: '/work/api',
+  label: 'api',
+  background: false,
+};
 
 const unknownWorkspace = workspaceId(99);
 
@@ -234,11 +250,11 @@ it('resizes the pane to the layout size of a client that attaches', () => {
   const client = { id: clientId(1), size: { columns: 100, rows: 30 }, theme: undefined };
 
   expect(result.state.attachedClientId).toBe(clientId(1));
-  expect(result.state.panes[0]?.size).toEqual({ columns: 100, rows: 29 });
+  expect(result.state.panes[0]?.size).toEqual({ columns: 100 - sideListColumns, rows: 29 });
 
   expect(result.changes).toEqual([
     { type: 'clientAttached', client },
-    { type: 'paneResized', paneId: paneId(1), size: { columns: 100, rows: 29 } },
+    { type: 'paneResized', paneId: paneId(1), size: { columns: 100 - sideListColumns, rows: 29 } },
   ]);
 });
 
@@ -254,7 +270,7 @@ it('takes over from the attached client when a second client attaches', () => {
   expect(result.changes).toEqual([
     { type: 'clientDetached', clientId: clientId(1), reason: 'takenOver' },
     { type: 'clientAttached', client },
-    { type: 'paneResized', paneId: paneId(1), size: { columns: 90, rows: 19 } },
+    { type: 'paneResized', paneId: paneId(1), size: { columns: 90 - sideListColumns, rows: 19 } },
   ]);
 });
 
@@ -267,11 +283,11 @@ it('reports the client size and the pane size when the attached client resizes',
     size: { columns: 60, rows: 15 },
   });
 
-  expect(result.state.panes[0]?.size).toEqual({ columns: 60, rows: 14 });
+  expect(result.state.panes[0]?.size).toEqual({ columns: 60 - sideListColumns, rows: 14 });
 
   expect(result.changes).toEqual([
     { type: 'clientResized', clientId: clientId(1), size: { columns: 60, rows: 15 } },
-    { type: 'paneResized', paneId: paneId(1), size: { columns: 60, rows: 14 } },
+    { type: 'paneResized', paneId: paneId(1), size: { columns: 60 - sideListColumns, rows: 14 } },
   ]);
 });
 
@@ -325,7 +341,7 @@ it('detaches a client on request and keeps the pane size', () => {
 
   expect(result.state.attachedClientId).toBeUndefined();
   expect(result.state.clients).toEqual([]);
-  expect(result.state.panes[0]?.size).toEqual({ columns: 100, rows: 29 });
+  expect(result.state.panes[0]?.size).toEqual({ columns: 100 - sideListColumns, rows: 29 });
 
   expect(result.changes).toEqual([
     { type: 'clientDetached', clientId: clientId(1), reason: 'requested' },
@@ -533,4 +549,43 @@ it('refuses a theme from an unknown client and leaves state unchanged', () => {
   });
 
   expect(result).toEqual({ kind: 'rejected', state, reason: 'unknownClient' });
+});
+
+it('keeps the earlier focus when a background workspace is created without a label', () => {
+  const state = run([createPhi]);
+
+  const result = intent(state, {
+    type: 'createWorkspace',
+    root: '/work/docs',
+    label: undefined,
+    background: true,
+  });
+
+  const added = result.changes.find((change) => change.type === 'workspaceAdded');
+
+  expect(result.state.focusedWorkspaceId).toBe(workspaceId(1));
+  expect(added?.focusedWorkspaceId).toBe(workspaceId(1));
+  expect(result.state.workspaces.map((workspace) => workspace.label)).toEqual(['phi', 'docs']);
+});
+
+it('focuses a background workspace when no workspace is focused', () => {
+  const result = intent(createState(), {
+    type: 'createWorkspace',
+    root: '/work/docs',
+    label: 'docs',
+    background: true,
+  });
+
+  expect(result.state.focusedWorkspaceId).toBe(workspaceId(1));
+});
+
+it('labels a workspace with the whole root when the root has no base name', () => {
+  const result = intent(createState(), {
+    type: 'createWorkspace',
+    root: '/',
+    label: undefined,
+    background: false,
+  });
+
+  expect(result.state.workspaces.map((workspace) => workspace.label)).toEqual(['/']);
 });

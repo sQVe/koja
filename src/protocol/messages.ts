@@ -124,7 +124,11 @@ const clientSchema: z.ZodType<Client> = z.object({
 const detachReasonSchema: z.ZodType<DetachReason> = z.enum(['requested', 'takenOver']);
 
 const changeSchema: z.ZodType<Change> = z.discriminatedUnion('type', [
-  z.object({ type: z.literal('workspaceAdded'), workspace: workspaceSchema }),
+  z.object({
+    type: z.literal('workspaceAdded'),
+    workspace: workspaceSchema,
+    focusedWorkspaceId: workspaceIdSchema,
+  }),
   z.object({ type: z.literal('tabAdded'), tab: tabSchema }),
   z.object({ type: z.literal('paneAdded'), pane: paneSchema }),
   z.object({ type: z.literal('workspaceFocused'), workspaceId: workspaceIdSchema }),
@@ -193,7 +197,12 @@ const controlSchema = z.discriminatedUnion('type', [
   z.object({ type: z.literal('paneSend'), paneId: paneIdSchema, text: z.string() }),
   z.object({ type: z.literal('paneSent'), paneId: paneIdSchema }),
   z.object({ type: z.literal('paneMissing'), paneId: paneIdSchema }),
-  z.object({ type: z.literal('workspaceCreate'), root: z.string(), label: z.string() }),
+  z.object({
+    type: z.literal('workspaceCreate'),
+    root: z.string(),
+    label: absent(z.string()),
+    background: z.boolean(),
+  }),
   z.object({ type: z.literal('workspaceFocus'), workspaceId: workspaceIdSchema }),
   z.object({
     type: z.literal('workspaceRename'),

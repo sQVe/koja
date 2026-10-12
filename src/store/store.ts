@@ -64,7 +64,7 @@ export interface State {
 }
 
 export type Intent =
-  | { type: 'createWorkspace'; root: string; label: string }
+  | { type: 'createWorkspace'; root: string; label: string | undefined; background: boolean }
   | { type: 'focusWorkspace'; workspaceId: WorkspaceId }
   | { type: 'renameWorkspace'; workspaceId: WorkspaceId; label: string }
   | { type: 'closeWorkspace'; workspaceId: WorkspaceId }
@@ -82,7 +82,8 @@ export type Fact =
 export type DetachReason = 'requested' | 'takenOver';
 
 export type Change =
-  | { type: 'workspaceAdded'; workspace: Workspace }
+  // Carries the focus that results, because a background create keeps the current focus.
+  | { type: 'workspaceAdded'; workspace: Workspace; focusedWorkspaceId: WorkspaceId }
   | { type: 'tabAdded'; tab: Tab }
   | { type: 'paneAdded'; pane: Pane }
   | { type: 'workspaceFocused'; workspaceId: WorkspaceId }
@@ -231,7 +232,19 @@ const fitPanes = (state: State): { panes: readonly Pane[]; changes: Change[] } =
   return { panes, changes };
 };
 
-const createWorkspace = (state: State, root: string, label: string): Applied | Rejected => {
+const defaultLabel = (root: string): string => {
+  const trimmed = root.replace(/\/+$/, '');
+  const baseName = trimmed.slice(trimmed.lastIndexOf('/') + 1);
+
+  return baseName === '' ? root : baseName;
+};
+
+const createWorkspace = (
+  state: State,
+  root: string,
+  label: string | undefined,
+  background: boolean,
+): Applied | Rejected => {
   if (state.stopping) {
     return reject(state, 'serverStopping');
   }
@@ -256,17 +269,22 @@ const createWorkspace = (state: State, root: string, label: string): Applied | R
   const workspace: Workspace = {
     id: tab.workspaceId,
     root,
-    label,
+    label: label ?? defaultLabel(root),
     tabIds: [tab.id],
     activeTabId: tab.id,
   };
+
+  const keepsFocus = background && state.focusedWorkspaceId !== undefined;
+
+  const focusedWorkspaceId =
+    keepsFocus && state.focusedWorkspaceId !== undefined ? state.focusedWorkspaceId : workspace.id;
 
   const next: State = {
     ...state,
     workspaces: [...state.workspaces, workspace],
     tabs: [...state.tabs, tab],
     panes: [...state.panes, pane],
-    focusedWorkspaceId: workspace.id,
+    focusedWorkspaceId,
     nextWorkspaceNumber: state.nextWorkspaceNumber + 1,
     nextTabNumber: state.nextTabNumber + 1,
     nextPaneNumber: state.nextPaneNumber + 1,
@@ -274,7 +292,7 @@ const createWorkspace = (state: State, root: string, label: string): Applied | R
   };
 
   return commit(next, [
-    { type: 'workspaceAdded', workspace },
+    { type: 'workspaceAdded', workspace, focusedWorkspaceId },
     { type: 'tabAdded', tab },
     { type: 'paneAdded', pane },
   ]);
@@ -503,7 +521,7 @@ const stopServer = (state: State): Applied => {
 
 export const applyIntent = (state: State, intent: Intent): Applied | Rejected => {
   if (intent.type === 'createWorkspace') {
-    return createWorkspace(state, intent.root, intent.label);
+    return createWorkspace(state, intent.root, intent.label, intent.background);
   }
 
   if (intent.type === 'focusWorkspace') {

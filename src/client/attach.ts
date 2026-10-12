@@ -15,6 +15,8 @@ import { createRowCache } from './rowCache.ts';
 import type { RowCache } from './rowCache.ts';
 import { applyChange } from './snapshot.ts';
 import type { StoreChange, StoreSnapshot } from './snapshot.ts';
+import { workspaceRequest } from './workspaceRequest.ts';
+import type { WorkspaceCommand } from './workspaceRequest.ts';
 
 interface TerminalSize {
   columns: number;
@@ -27,6 +29,8 @@ interface AttachState {
   snapshot: StoreSnapshot;
   inputMode: InputMode;
 }
+
+export type WorkspaceReply = 'done' | 'failed';
 
 export type CloseReason =
   | 'serverClosed'
@@ -67,6 +71,11 @@ export interface AttachSession {
   sendInput: (pane: PaneId, bytes: Uint8Array) => void;
   // Asks the server to detach this client. The session closes with `detached`.
   detach: () => void;
+  // The snapshot changes show the result, so the replies are ignored.
+  sendWorkspaceCommand: (
+    command: WorkspaceCommand,
+    onReply: (reply: WorkspaceReply) => void,
+  ) => void;
   close: () => void;
   closed: Promise<CloseReason>;
 }
@@ -97,6 +106,8 @@ export const connectAttach = async (
   const newestSequences = new Map<PaneId, number>();
   const stateListeners = new Set<() => void>();
   const rowListeners = new Set<(changed: RowsChanged) => void>();
+  // The server answers workspace requests in the order it receives them.
+  const replyQueue: ((reply: WorkspaceReply) => void)[] = [];
   let pending: Uint8Array = new Uint8Array();
   let state: AttachState | undefined;
   let welcomed = false;
@@ -250,6 +261,10 @@ export const connectAttach = async (
       takeChange(message.revision, message.change);
     }
 
+    if (message.type === 'workspaceDone' || message.type === 'workspaceFailed') {
+      replyQueue.shift()?.(message.type === 'workspaceDone' ? 'done' : 'failed');
+    }
+
     if (message.type === 'takenOver' || message.type === 'detached') {
       end(message.type);
     }
@@ -338,6 +353,10 @@ export const connectAttach = async (
     },
     detach: () => {
       send({ type: 'detach' });
+    },
+    sendWorkspaceCommand: (command, onReply) => {
+      replyQueue.push(onReply);
+      send(workspaceRequest(command));
     },
     close: () => {
       end('requested');

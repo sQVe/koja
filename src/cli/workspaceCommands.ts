@@ -1,5 +1,5 @@
 import { stat } from 'node:fs/promises';
-import { basename, resolve } from 'node:path';
+import { resolve } from 'node:path';
 
 import { runSnapshot, runWorkspaceCommand } from '../client/client.ts';
 import type { WorkspaceCommand } from '../client/client.ts';
@@ -114,9 +114,14 @@ const runWorkspaceCreate = async (
     return { ok: false, message: `${root} is not a directory.` };
   }
 
-  const label = action.label ?? (basename(root) || root);
+  const request: WorkspaceCommand = {
+    action: 'create',
+    root,
+    label: action.label,
+    background: action.background,
+  };
 
-  return runWorkspaceRequest(command, { action: 'create', root, label }, version, socketPath);
+  return runWorkspaceRequest(command, request, version, socketPath);
 };
 
 export const runWorkspaceAction = (

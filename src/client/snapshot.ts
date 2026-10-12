@@ -19,7 +19,7 @@ const applyLayoutChange = (snapshot: StoreSnapshot, change: StoreChange): StoreS
     return {
       ...snapshot,
       workspaces: [...snapshot.workspaces, change.workspace],
-      focusedWorkspaceId: change.workspace.id,
+      focusedWorkspaceId: change.focusedWorkspaceId,
     };
   }
 

@@ -23,7 +23,7 @@ export interface PaneCliCommand extends CommandOptions {
 
 export type WorkspaceAction =
   | { action: 'list' }
-  | { action: 'create'; directory: string; label: string | undefined }
+  | { action: 'create'; directory: string; label: string | undefined; background: boolean }
   | { action: 'focus'; workspaceId: WorkspaceId }
   | { action: 'rename'; workspaceId: WorkspaceId; label: string }
   | { action: 'close'; workspaceId: WorkspaceId };
@@ -65,6 +65,7 @@ interface GroupInput {
   action: string | undefined;
   rest: string[];
   label: string | undefined;
+  background: boolean;
   pane: string | undefined;
   options: CommandOptions;
 }
@@ -84,7 +85,7 @@ export const usage = `Usage:
   phi server start [--socket <path>] [--json]
   phi server stop [--socket <path>] [--json]
   phi workspace list [--socket <path>] [--json]
-  phi workspace create <dir> [--label <label>] [--socket <path>] [--json]
+  phi workspace create <dir> [--label <label>] [--background] [--socket <path>] [--json]
   phi workspace focus <id> [--socket <path>] [--json]
   phi workspace rename <id> <label> [--socket <path>] [--json]
   phi workspace close <id> [--socket <path>] [--json]
@@ -186,6 +187,7 @@ const parseWorkspaceRename = (rest: string[]): WorkspaceAction | string => {
 const parseWorkspaceCreate = (
   rest: string[],
   label: string | undefined,
+  background: boolean,
 ): WorkspaceAction | string => {
   const [directory] = rest;
 
@@ -197,20 +199,25 @@ const parseWorkspaceCreate = (
     return 'The label cannot be empty.';
   }
 
-  return { action: 'create', directory, label };
+  return { action: 'create', directory, label, background };
 };
 
 const parseWorkspaceCommand = (
   action: string | undefined,
   rest: string[],
   label: string | undefined,
+  background: boolean,
 ): WorkspaceAction | string => {
   if (action === 'create') {
-    return parseWorkspaceCreate(rest, label);
+    return parseWorkspaceCreate(rest, label, background);
   }
 
   if (label !== undefined) {
     return '--label belongs to workspace create.';
+  }
+
+  if (background) {
+    return '--background belongs to workspace create.';
   }
 
   if (action === 'list') {
@@ -285,7 +292,12 @@ const parseServerCommand = ({ action, rest, options }: GroupInput): ServerComman
 
 const parseGroupCommand = (group: string | undefined, input: GroupInput): Command | string => {
   if (group === 'workspace') {
-    const workspace = parseWorkspaceCommand(input.action, input.rest, input.label);
+    const workspace = parseWorkspaceCommand(
+      input.action,
+      input.rest,
+      input.label,
+      input.background,
+    );
 
     return typeof workspace === 'string'
       ? workspace
@@ -304,10 +316,15 @@ const parseGroupCommand = (group: string | undefined, input: GroupInput): Comman
 const strayOptionMessage = (
   group: string | undefined,
   label: string | undefined,
+  background: boolean,
   pane: string | undefined,
 ): string | undefined => {
   if (label !== undefined && group !== 'workspace') {
     return '--label belongs to workspace create.';
+  }
+
+  if (background && group !== 'workspace') {
+    return '--background belongs to workspace create.';
   }
 
   return pane !== undefined && group !== 'pane'
@@ -324,6 +341,7 @@ export const parseCommand = (argv: string[]): Command | string => {
         json: { type: 'boolean' },
         socket: { type: 'string' },
         label: { type: 'string' },
+        background: { type: 'boolean' },
         pane: { type: 'string' },
       },
       allowPositionals: true,
@@ -333,7 +351,7 @@ export const parseCommand = (argv: string[]): Command | string => {
     const json = values.json === true;
     const options = { json, socket: values.socket };
     const [group, action, ...rest] = positionals;
-    const stray = strayOptionMessage(group, values.label, values.pane);
+    const stray = strayOptionMessage(group, values.label, values.background === true, values.pane);
 
     if (stray !== undefined) {
       return stray;
@@ -355,6 +373,7 @@ export const parseCommand = (argv: string[]): Command | string => {
       action,
       rest,
       label: values.label,
+      background: values.background === true,
       pane: values.pane,
       options,
     });

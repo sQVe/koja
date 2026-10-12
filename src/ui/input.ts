@@ -1,4 +1,5 @@
-import type { InputMode } from '../client/client.ts';
+import type { InputMode, WorkspaceCommand, WorkspaceReply } from '../client/client.ts';
+import type { WorkspaceId } from '../ids.ts';
 import { ModeFlag } from '../rows/rows.ts';
 
 interface TokenRouterHost {
@@ -7,7 +8,12 @@ interface TokenRouterHost {
   modes: () => number;
   send: (bytes: Uint8Array) => void;
   detach: () => void;
+  workspaces: () => { ids: readonly WorkspaceId[]; focused: WorkspaceId | undefined };
+  startDirectory: string;
+  command: (command: WorkspaceCommand, onReply: (reply: WorkspaceReply) => void) => void;
 }
+
+type WorkspaceKey = 'next' | 'previous' | 'create' | 'close';
 
 type RoutedToken =
   | { kind: 'key'; raw: string; escapeSent: boolean }
@@ -17,7 +23,15 @@ interface KeyRoute {
   bytes: Uint8Array;
   mode: InputMode;
   detach: boolean;
+  workspace?: WorkspaceKey;
 }
+
+const workspaceKeys: Record<string, WorkspaceKey> = {
+  j: 'next',
+  k: 'previous',
+  c: 'create',
+  X: 'close',
+};
 
 const encoder = new TextEncoder();
 
@@ -53,6 +67,12 @@ const routeNormalKey = (raw: string): KeyRoute => {
 
   if (raw === 'd') {
     return { bytes: nothing, mode: 'insert', detach: true };
+  }
+
+  const workspace = workspaceKeys[raw];
+
+  if (workspace !== undefined) {
+    return { bytes: nothing, mode: 'normal', detach: false, workspace };
   }
 
   const leavesNormal = raw === 'i' || raw === escapeKey;
@@ -92,8 +112,78 @@ export const routePaste = (bytes: Uint8Array, modes: number): Uint8Array => {
 // mode consumes an Escape. When the pane does not ask for bracketed paste, the pane keeps the stray
 // Escape and gets the bare paste. A terminal reply that arrives split after a lone Escape cannot
 // take that Escape back either.
+const neighborCommand = (
+  ids: readonly WorkspaceId[],
+  focused: WorkspaceId | undefined,
+  step: 1 | -1,
+): WorkspaceCommand | undefined => {
+  const index = focused === undefined ? -1 : ids.indexOf(focused);
+  const target = ids[(index + step + ids.length) % ids.length];
+
+  if (index === -1 || target === undefined) {
+    return undefined;
+  }
+
+  return { action: 'focus', workspaceId: target };
+};
+
 export const createInputRouter = (host: TokenRouterHost): ((token: RoutedToken) => void) => {
   let escapeInPane = false;
+  // The focus the last j or k asked for, kept until the server answers the latest focus request.
+  let pendingFocus: WorkspaceId | undefined;
+  let focusRequests = 0;
+  // After c or X the resulting focus is unknown until the server answers.
+  let awaitingResult = false;
+
+  const settleFocus = (): void => {
+    focusRequests -= 1;
+
+    if (focusRequests === 0) {
+      pendingFocus = undefined;
+    }
+  };
+
+  const workspaceCommandOf = (key: WorkspaceKey): WorkspaceCommand | undefined => {
+    if (awaitingResult) {
+      return undefined;
+    }
+
+    const current = host.workspaces();
+    const stillListed = pendingFocus !== undefined && current.ids.includes(pendingFocus);
+    const focused = stillListed ? pendingFocus : current.focused;
+
+    if (key === 'create') {
+      return { action: 'create', root: host.startDirectory, label: undefined, background: false };
+    }
+
+    if (key === 'close') {
+      return focused === undefined ? undefined : { action: 'close', workspaceId: focused };
+    }
+
+    return neighborCommand(current.ids, focused, key === 'next' ? 1 : -1);
+  };
+
+  const runWorkspaceKey = (key: WorkspaceKey): void => {
+    const command = workspaceCommandOf(key);
+
+    if (command === undefined) {
+      return;
+    }
+
+    if (command.action === 'focus') {
+      pendingFocus = command.workspaceId;
+      focusRequests += 1;
+      host.command(command, settleFocus);
+
+      return;
+    }
+
+    awaitingResult = true;
+
+    host.command(command, () => {
+      awaitingResult = false;
+    });
+  };
 
   const withoutSentEscape = (bytes: Uint8Array, escapeSent: boolean): Uint8Array =>
     escapeSent && escapeInPane ? bytes.subarray(1) : bytes;
@@ -116,6 +206,10 @@ export const createInputRouter = (host: TokenRouterHost): ((token: RoutedToken) 
 
     if (routed.detach) {
       host.detach();
+    }
+
+    if (routed.workspace !== undefined) {
+      runWorkspaceKey(routed.workspace);
     }
 
     escapeInPane = token.raw === escapeKey && routed.bytes.length > 0;

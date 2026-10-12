@@ -560,7 +560,7 @@ const createWorkspace = async (socketPath: string, root: string): Promise<void> 
   };
 
   send({ type: 'hello', version, size: undefined });
-  send({ type: 'workspaceCreate', root, label: 'paced' });
+  send({ type: 'workspaceCreate', root, label: 'paced', background: false });
   await answered.promise;
   socket.end();
 };
@@ -632,4 +632,37 @@ it('reports the newest sequence of row updates that arrived before any listener'
 
   expect(session.newestSequence(paneId(7))).toBe(2);
   expect(session.newestSequence(paneId(8))).toBeUndefined();
+});
+
+it('reports the reply to each workspace command in the order they were sent', async () => {
+  const server = await listen((message) => {
+    if (message.type === 'hello') {
+      return [{ type: 'welcome' }, snapshotMessage(1)];
+    }
+
+    if (message.type === 'workspaceFocus') {
+      return [{ type: 'workspaceDone', workspaceId: message.workspaceId }];
+    }
+
+    if (message.type === 'workspaceClose') {
+      return [{ type: 'workspaceFailed', reason: 'unknownWorkspace', message: undefined }];
+    }
+
+    return [];
+  });
+
+  const session = await attach(server);
+  const replies: string[] = [];
+
+  session.sendWorkspaceCommand({ action: 'focus', workspaceId: workspaceId(1) }, (reply) => {
+    replies.push(`focus ${reply}`);
+  });
+
+  session.sendWorkspaceCommand({ action: 'close', workspaceId: workspaceId(1) }, (reply) => {
+    replies.push(`close ${reply}`);
+  });
+
+  await waitFor(() => replies.length === 2);
+
+  expect(replies).toEqual(['focus done', 'close failed']);
 });
