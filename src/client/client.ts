@@ -18,6 +18,7 @@ export type {
   AttachSession,
   CloseReason,
   InputMode,
+  TabRoute,
   TerminalTheme,
   WorkspaceReply,
 } from './attach.ts';

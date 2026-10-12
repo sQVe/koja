@@ -153,6 +153,9 @@ const routeInput = (session: AttachSession) =>
     },
     startDirectory: process.cwd(),
     command: session.sendWorkspaceCommand,
+    tab: session.focusTab,
+    tabPending: session.tabPending,
+    afterTabAnswer: session.afterTabAnswer,
   });
 
 export const runAttach = async (session: AttachSession): Promise<CloseReason> => {

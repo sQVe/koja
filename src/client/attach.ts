@@ -25,6 +25,12 @@ interface TerminalSize {
 
 export type InputMode = 'insert' | 'normal';
 
+export type TabRoute =
+  | { kind: 'create' }
+  | { kind: 'previous' }
+  | { kind: 'next' }
+  | { kind: 'number'; number: number };
+
 interface AttachState {
   snapshot: StoreSnapshot;
   inputMode: InputMode;
@@ -69,6 +75,13 @@ export interface AttachSession {
   // Tells the server the client has drawn every row update up to this sequence.
   acknowledge: (sequence: number) => void;
   sendInput: (pane: PaneId, bytes: Uint8Array) => void;
+  // Creates a tab in the focused workspace, or focuses one of its tabs. A tab that does not exist
+  // changes nothing.
+  focusTab: (route: TabRoute) => void;
+  // Whether a tab request is sent and not yet answered. The snapshot lags behind it.
+  tabPending: () => boolean;
+  // Calls back once, when no tab request is pending any more.
+  afterTabAnswer: (callback: () => void) => void;
   // Asks the server to detach this client. The session closes with `detached`.
   detach: () => void;
   // The snapshot changes show the result, so the replies are ignored.
@@ -94,6 +107,20 @@ const paneNumberBytes = 4;
 
 const inputBytesPerFrame = maxFramePayloadBytes - paneNumberBytes;
 
+const tabToFocus = (workspace: StoreSnapshot['workspaces'][number], route: TabRoute) => {
+  const index = workspace.tabIds.indexOf(workspace.activeTabId);
+
+  if (route.kind === 'previous') {
+    return workspace.tabIds[index - 1];
+  }
+
+  if (route.kind === 'next') {
+    return workspace.tabIds[index + 1];
+  }
+
+  return route.kind === 'number' ? workspace.tabIds[route.number - 1] : undefined;
+};
+
 export const connectAttach = async (
   socketPath: string,
   version: BuildVersion,
@@ -113,6 +140,8 @@ export const connectAttach = async (
   let welcomed = false;
   let waitingForSnapshot = false;
   let ended = false;
+  let pendingTabRequests = 0;
+  let tabAnswerCallbacks: (() => void)[] = [];
   let socket: Bun.Socket | undefined;
 
   const drain = (): void => {
@@ -238,6 +267,46 @@ export const connectAttach = async (
     welcomed = true;
   };
 
+  // The server publishes a request's store changes before it answers, so the snapshot is current
+  // when the callbacks run.
+  const takeTabAnswer = (): void => {
+    pendingTabRequests = Math.max(pendingTabRequests - 1, 0);
+
+    if (pendingTabRequests > 0) {
+      return;
+    }
+
+    const callbacks = tabAnswerCallbacks;
+
+    tabAnswerCallbacks = [];
+
+    for (const callback of callbacks) {
+      callback();
+    }
+  };
+
+  const sendTabRequest = (message: ControlMessage): void => {
+    pendingTabRequests += 1;
+    send(message);
+  };
+
+  // Returns whether the message answered a tab or workspace request this session sent.
+  const takeRequestAnswer = (message: ControlMessage): boolean => {
+    if (message.type === 'tabDone' || message.type === 'tabFailed') {
+      takeTabAnswer();
+
+      return true;
+    }
+
+    if (message.type === 'workspaceDone' || message.type === 'workspaceFailed') {
+      replyQueue.shift()?.(message.type === 'workspaceDone' ? 'done' : 'failed');
+
+      return true;
+    }
+
+    return false;
+  };
+
   const takeControl = (message: ControlMessage): void => {
     if (!welcomed) {
       takeHandshake(message);
@@ -257,12 +326,12 @@ export const connectAttach = async (
       return;
     }
 
-    if (message.type === 'change') {
-      takeChange(message.revision, message.change);
+    if (takeRequestAnswer(message)) {
+      return;
     }
 
-    if (message.type === 'workspaceDone' || message.type === 'workspaceFailed') {
-      replyQueue.shift()?.(message.type === 'workspaceDone' ? 'done' : 'failed');
+    if (message.type === 'change') {
+      takeChange(message.revision, message.change);
     }
 
     if (message.type === 'takenOver' || message.type === 'detached') {
@@ -350,6 +419,35 @@ export const connectAttach = async (
 
         enqueue(encodeFrame(FrameKind.input, encodePaneInput({ pane: number, bytes: part })));
       }
+    },
+    focusTab: (route) => {
+      invariant(state !== undefined, 'The attach session is only handed out after a snapshot.');
+
+      const { snapshot } = state;
+
+      const workspace = snapshot.workspaces.find(
+        (known) => known.id === snapshot.focusedWorkspaceId,
+      );
+
+      if (workspace === undefined) {
+        return;
+      }
+
+      if (route.kind === 'create') {
+        sendTabRequest({ type: 'tabCreate', workspaceId: workspace.id });
+
+        return;
+      }
+
+      const tab = tabToFocus(workspace, route);
+
+      if (tab !== undefined && tab !== workspace.activeTabId) {
+        sendTabRequest({ type: 'tabFocus', tabId: tab });
+      }
+    },
+    tabPending: () => pendingTabRequests > 0,
+    afterTabAnswer: (callback) => {
+      tabAnswerCallbacks.push(callback);
     },
     detach: () => {
       send({ type: 'detach' });

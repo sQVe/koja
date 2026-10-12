@@ -18,21 +18,21 @@ import {
 it('shows the input mode in the status bar as the keys change it', async () => {
   const { statusBar, type, until } = await setupAttach(0);
 
-  await until(() => statusBar() === 'INSERT');
+  await until(() => statusBar() === 'INSERT [1]');
 
   type('\x02');
 
-  await until(() => statusBar() === 'NORMAL');
+  await until(() => statusBar() === 'NORMAL [1]');
 
   type('i');
 
-  await until(() => statusBar() === 'INSERT');
+  await until(() => statusBar() === 'INSERT [1]');
 });
 
 it('sends a bracketed paste with markers when the pane asks for them', async () => {
   const { statusBar, type, receivedText, until } = await setupAttach(ModeFlag.bracketedPaste);
 
-  await until(() => statusBar() === 'INSERT');
+  await until(() => statusBar() === 'INSERT [1]');
 
   type('\x1b[200~one\ntwo\x1b[201~');
 
@@ -43,7 +43,7 @@ it('sends a bracketed paste with markers when the pane asks for them', async () 
 it('sends a paste without markers when the pane does not ask for them', async () => {
   const { statusBar, type, receivedText, until } = await setupAttach(0);
 
-  await until(() => statusBar() === 'INSERT');
+  await until(() => statusBar() === 'INSERT [1]');
 
   type('\x1b[200~one\ntwo\x1b[201~');
 
@@ -173,7 +173,7 @@ it(
     }));
 
     expect(created).toEqual([{ root: startDirectory, label: 'start-here', focused: true }]);
-    expect(statusBar()).toBe('NORMAL');
+    expect(statusBar()).toBe('NORMAL [1]');
 
     type('X');
 
@@ -198,13 +198,13 @@ it(
         .find((line) => line.startsWith('>'));
 
     await until(() => markedLine()?.startsWith('> beta') === true);
-    await until(() => statusBar() === 'INSERT');
+    await until(() => statusBar() === 'INSERT [1]');
     type('\x02');
-    await until(() => statusBar() === 'NORMAL');
+    await until(() => statusBar() === 'NORMAL [1]');
     type('j');
 
     await until(() => markedLine()?.startsWith('> alpha') === true);
-    expect(statusBar()).toBe('NORMAL');
+    expect(statusBar()).toBe('NORMAL [1]');
   },
   cliTestTimeoutMs,
 );
@@ -226,17 +226,17 @@ it(
         .map((line) => line.slice(0, 20).trim());
 
     await until(() => labels().includes('> h'));
-    expect(statusBar()).toBe('INSERT');
+    expect(statusBar()).toBe('INSERT [1]');
 
     type('\x02');
-    await until(() => statusBar() === 'NORMAL');
+    await until(() => statusBar() === 'NORMAL [1]');
 
     for (let step = 0; step < 4; step += 1) {
       type('k');
       await until(() => labels().includes(`> ${'gfed'[step]}`));
     }
 
-    expect(statusBar()).toBe('NORMAL');
+    expect(statusBar()).toBe('NORMAL [1]');
     expect(labels().filter((label) => label.startsWith('>'))).toHaveLength(1);
   },
   cliTestTimeoutMs,
@@ -248,7 +248,7 @@ it(
     const { phi, createWorkspace, screen, statusBar } = await setupServer(10, 40);
 
     await createWorkspace('alpha');
-    await until(() => statusBar() === 'INSERT');
+    await until(() => statusBar() === 'INSERT [1]');
 
     const sent = await phi('pane', 'send', 'echo narrow-ok\r');
 

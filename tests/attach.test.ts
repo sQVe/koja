@@ -107,14 +107,14 @@ const paneText = (screen: { text: () => string }): string =>
     .map((row) => row.slice(sideListColumns))
     .join('\n');
 
-const readPaneSize = async (socketPath: string) => {
+const readPaneSizes = async (socketPath: string) => {
   const versions = readVersions();
 
   if (!versions.ok) {
     throw new Error(versions.message);
   }
 
-  const answer = Promise.withResolvers<{ columns: number; rows: number } | undefined>();
+  const answer = Promise.withResolvers<{ columns: number; rows: number }[]>();
   const decoder = createFrameDecoder();
 
   const socket = await Bun.connect({
@@ -133,7 +133,7 @@ const readPaneSize = async (socketPath: string) => {
           const parsed = parseControl(frame.payload);
 
           if (parsed.ok && parsed.message.type === 'snapshot') {
-            answer.resolve(parsed.message.snapshot.panes[0]?.size);
+            answer.resolve(parsed.message.snapshot.panes.map((pane) => pane.size));
           }
         }
       },
@@ -153,6 +153,10 @@ const readPaneSize = async (socketPath: string) => {
     socket.end();
   }
 };
+
+const readPaneSize = async (socketPath: string) => (await readPaneSizes(socketPath))[0];
+
+const lastLine = (text: string) => text.split('\n').findLast((line) => line.trim() !== '');
 
 it('shows the shell screen and cursor', async () => {
   const { command, screen } = await setup();
@@ -185,7 +189,7 @@ it('resizes the pane to the client size less the side list and the status bar', 
   client.terminal?.resize(100, 30);
   await command('pane', 'send', 'echo resized-screen\r');
 
-  expect(await waitFor(() => screen.text().split('\n')[29] === 'INSERT')).toBe(true);
+  expect(await waitFor(() => screen.text().split('\n')[29] === 'INSERT [1]')).toBe(true);
   expect(await readPaneSize(socketPath)).toEqual({ columns: 100 - sideListColumns, rows: 29 });
   expect(screen.text()).toContain('resized-screen');
 });
@@ -548,4 +552,87 @@ it('shows the empty screen when phi starts with no server', async () => {
   const { screen } = attachClient(socketPath, [], environment);
 
   expect(await waitFor(() => screen.text().includes(emptyHint))).toBe(true);
+});
+
+it('creates a tab on Ctrl+B then t and lists both tabs in the status bar', async () => {
+  const { client, screen, command } = await setup();
+
+  expect(await waitFor(() => lastLine(screen.text()) === 'INSERT [1]')).toBe(true);
+  client.terminal?.write('\x02t');
+
+  expect(await waitFor(() => lastLine(screen.text()) === 'NORMAL 1 [2]')).toBe(true);
+
+  const tabs = JSON.parse(await command('tab', 'list', '--json')) as {
+    number: number;
+    active: boolean;
+  }[];
+
+  expect(tabs.map((tab) => ({ number: tab.number, active: tab.active }))).toEqual([
+    { number: 1, active: false },
+    { number: 2, active: true },
+  ]);
+});
+
+it('shows the first tab again after H and 1 without resizing a pane', async () => {
+  const { client, screen, command, socketPath } = await setup();
+
+  expect(await waitFor(() => screen.text().includes('attach-prompt>'))).toBe(true);
+  await command('pane', 'send', 'echo tab-one-marker\r');
+  expect(await waitFor(() => paneText(screen).includes('\ntab-one-marker\n'))).toBe(true);
+  client.terminal?.write('\x02t');
+  expect(await waitFor(() => lastLine(screen.text()) === 'NORMAL 1 [2]')).toBe(true);
+  expect(await waitFor(() => !screen.text().includes('tab-one-marker'))).toBe(true);
+
+  const sizes = await readPaneSizes(socketPath);
+
+  client.terminal?.write('H');
+  expect(await waitFor(() => screen.text().includes('tab-one-marker'))).toBe(true);
+  expect(lastLine(screen.text())).toBe('NORMAL [1] 2');
+  client.terminal?.write('2');
+  expect(await waitFor(() => lastLine(screen.text()) === 'NORMAL 1 [2]')).toBe(true);
+  client.terminal?.write('1');
+  expect(await waitFor(() => lastLine(screen.text()) === 'NORMAL [1] 2')).toBe(true);
+  expect(screen.text()).toContain('tab-one-marker');
+  expect((await readPaneSizes(socketPath)).slice(0, sizes.length)).toEqual(sizes);
+});
+
+it('closes the workspace and shows the empty screen when the only pane of the only tab exits', async () => {
+  const { client, screen, command } = await setup();
+
+  expect(await waitFor(() => screen.text().includes('attach-prompt>'))).toBe(true);
+  client.terminal?.write('exit\r');
+
+  expect(await waitFor(() => screen.text().includes(emptyHint))).toBe(true);
+  expect(JSON.parse(await command('workspace', 'list', '--json'))).toEqual([]);
+  expect(JSON.parse(await command('tab', 'list', '--json'))).toEqual([]);
+});
+
+it('sends text typed in the same read as a tab key to the newly shown pane', async () => {
+  const { client, screen } = await setup();
+
+  expect(await waitFor(() => screen.text().includes('attach-prompt>'))).toBe(true);
+  client.terminal?.write('\x02t');
+  expect(await waitFor(() => lastLine(screen.text()) === 'NORMAL 1 [2]')).toBe(true);
+  client.terminal?.write('1');
+  expect(await waitFor(() => lastLine(screen.text()) === 'NORMAL [1] 2')).toBe(true);
+  client.terminal?.write('Liecho same-read-text\r');
+  expect(await waitFor(() => lastLine(screen.text()) === 'INSERT 1 [2]')).toBe(true);
+  expect(await waitFor(() => paneText(screen).includes('\nsame-read-text\n'))).toBe(true);
+  client.terminal?.write('\x02H');
+  expect(await waitFor(() => lastLine(screen.text()) === 'NORMAL [1] 2')).toBe(true);
+  expect(screen.text()).not.toContain('same-read-text');
+});
+
+it('reaches the third tab when two next-tab presses arrive in one read', async () => {
+  const { client, screen } = await setup();
+
+  expect(await waitFor(() => lastLine(screen.text()) === 'INSERT [1]')).toBe(true);
+  client.terminal?.write('\x02t');
+  expect(await waitFor(() => lastLine(screen.text()) === 'NORMAL 1 [2]')).toBe(true);
+  client.terminal?.write('t');
+  expect(await waitFor(() => lastLine(screen.text()) === 'NORMAL 1 2 [3]')).toBe(true);
+  client.terminal?.write('1');
+  expect(await waitFor(() => lastLine(screen.text()) === 'NORMAL [1] 2 3')).toBe(true);
+  client.terminal?.write('LL');
+  expect(await waitFor(() => lastLine(screen.text()) === 'NORMAL 1 2 [3]')).toBe(true);
 });
