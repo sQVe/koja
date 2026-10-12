@@ -744,6 +744,46 @@ it('holds input after a tab switch until the shown pane sends fresh rows', async
   expect(session.tabPending()).toBe(false);
 });
 
+it('waits for the rows of the pane shown after focus moves away from the awaited pane', async () => {
+  const server = await listen((message) => {
+    if (message.type !== 'resize') {
+      return switchedReplies(message);
+    }
+
+    return [
+      {
+        type: 'change',
+        revision: 3,
+        change: { type: 'tabFocused', workspaceId: workspace.id, tabId: tabId(1) },
+      },
+      encodeFrame(
+        FrameKind.rowUpdate,
+        encodeRowUpdate(rowUpdate({ pane: 7, sequence: 2, modes: ModeFlag.bracketedPaste })),
+      ),
+    ];
+  });
+
+  const session = await attach(server);
+  const released = Promise.withResolvers<number | undefined>();
+
+  session.focusTab({ kind: 'next' });
+
+  session.afterTabAnswer(() => {
+    released.resolve(session.rowCache(paneId(7))?.modes());
+  });
+
+  await untilState(session, () => session.getState().snapshot.revision === 2);
+  await waitFor(() => server.received.some((message) => message.type === 'tabFocus'));
+  await Bun.sleep(50);
+
+  expect(session.tabPending()).toBe(true);
+
+  session.resize({ columns: 90, rows: 20 });
+
+  expect(await released.promise).toBe(ModeFlag.bracketedPaste);
+  expect(session.tabPending()).toBe(false);
+});
+
 it('releases held input at once when the tab request fails', async () => {
   const server = await listen((message) =>
     message.type === 'tabFocus'

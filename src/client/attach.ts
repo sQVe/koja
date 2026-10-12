@@ -200,30 +200,6 @@ export const connectAttach = async (
     }
   };
 
-  const takeSnapshot = (snapshot: StoreSnapshot): void => {
-    waitingForSnapshot = false;
-    dropRowCaches(snapshot);
-    setState({ snapshot, inputMode: state?.inputMode ?? 'insert' });
-  };
-
-  const takeChange = (revision: number, change: StoreChange): void => {
-    if (state === undefined || waitingForSnapshot) {
-      return;
-    }
-
-    if (revision !== state.snapshot.revision + 1) {
-      waitingForSnapshot = true;
-      send({ type: 'resync' });
-
-      return;
-    }
-
-    const snapshot = { ...applyChange(state.snapshot, change), revision };
-
-    dropRowCaches(snapshot);
-    setState({ ...state, snapshot });
-  };
-
   const releaseTabCallbacks = (): void => {
     const callbacks = tabAnswerCallbacks;
 
@@ -248,6 +224,51 @@ export const connectAttach = async (
   };
 
   const shownPane = (): PaneId | undefined => (state && focusedPane(state.snapshot))?.id;
+
+  // The server stops sending rows of a pane that is no longer shown, so held input waits for the
+  // pane shown now instead.
+  const retargetAwaitedRows = (): void => {
+    const shown = shownPane();
+
+    if (awaitingRows === undefined || shown === awaitingRows) {
+      return;
+    }
+
+    if (shown !== undefined && !freshRowPanes.has(shown)) {
+      awaitingRows = shown;
+
+      return;
+    }
+
+    awaitingRows = undefined;
+    releaseTabCallbacks();
+  };
+
+  const takeSnapshot = (snapshot: StoreSnapshot): void => {
+    waitingForSnapshot = false;
+    dropRowCaches(snapshot);
+    setState({ snapshot, inputMode: state?.inputMode ?? 'insert' });
+    retargetAwaitedRows();
+  };
+
+  const takeChange = (revision: number, change: StoreChange): void => {
+    if (state === undefined || waitingForSnapshot) {
+      return;
+    }
+
+    if (revision !== state.snapshot.revision + 1) {
+      waitingForSnapshot = true;
+      send({ type: 'resync' });
+
+      return;
+    }
+
+    const snapshot = { ...applyChange(state.snapshot, change), revision };
+
+    dropRowCaches(snapshot);
+    setState({ ...state, snapshot });
+    retargetAwaitedRows();
+  };
 
   // The server publishes a request's store changes before it answers, so the snapshot is current
   // here. Input then waits for the rows of the pane the switch shows.
