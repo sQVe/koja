@@ -67,7 +67,7 @@ const until = async (condition: () => boolean | Promise<boolean>): Promise<void>
   }
 };
 
-const setupServer = async (terminalRows = 24) => {
+const setupServer = async (terminalRows = 24, terminalColumns = 80) => {
   const directory = await temporaryDirectory();
   const socketPath = join(directory, 'run', 'phi.sock');
   const environment = { ...environmentFor(directory), SHELL: '/bin/sh', PS1: '' };
@@ -103,7 +103,7 @@ const setupServer = async (terminalRows = 24) => {
 
   await mkdir(startDirectory);
 
-  const result = createTerminal(80, terminalRows, 0);
+  const result = createTerminal(terminalColumns, terminalRows, 0);
 
   if (!result.ok) {
     throw new Error(result.reason);
@@ -117,7 +117,7 @@ const setupServer = async (terminalRows = 24) => {
       cwd: startDirectory,
       env: { ...environment, TERM: 'xterm-256color' },
       terminal: {
-        cols: 80,
+        cols: terminalColumns,
         rows: terminalRows,
         data: (terminal, bytes) => {
           const reply = screen.write(bytes);
@@ -144,6 +144,7 @@ const setupServer = async (terminalRows = 24) => {
       .findLast((line) => line.trim() !== '');
 
   return {
+    phi,
     list,
     createWorkspace,
     screen,
@@ -237,6 +238,24 @@ it(
 
     expect(statusBar()).toBe('NORMAL');
     expect(labels().filter((label) => label.startsWith('>'))).toHaveLength(1);
+  },
+  cliTestTimeoutMs,
+);
+
+it(
+  'hides the side list in a 40-column client and gives the pane the full width',
+  async () => {
+    const { phi, createWorkspace, screen, statusBar } = await setupServer(10, 40);
+
+    await createWorkspace('alpha');
+    await until(() => statusBar() === 'INSERT');
+
+    const sent = await phi('pane', 'send', 'echo narrow-ok\r');
+
+    expect(sent.exitCode).toBe(0);
+
+    await until(() => screen.text().split('\n').includes('narrow-ok'));
+    expect(screen.text()).not.toContain('alpha');
   },
   cliTestTimeoutMs,
 );
