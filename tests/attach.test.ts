@@ -191,7 +191,7 @@ it('resizes the pane to the client size less the side list and the status bar', 
 
   expect(await waitFor(() => screen.text().split('\n')[29] === 'INSERT [1]')).toBe(true);
   expect(await readPaneSize(socketPath)).toEqual({ columns: 100 - sideListColumns, rows: 29 });
-  expect(screen.text()).toContain('resized-screen');
+  expect(await waitFor(() => screen.text().includes('resized-screen'))).toBe(true);
 });
 
 it.each(['SIGTERM', 'SIGINT', 'SIGHUP'] as const)(
