@@ -146,8 +146,20 @@ export const connectAttach = async (
     }
   };
 
+  const dropRowCaches = (snapshot: StoreSnapshot): void => {
+    const known = new Set(snapshot.panes.map((pane) => pane.id));
+
+    for (const pane of rowCaches.keys()) {
+      if (!known.has(pane)) {
+        rowCaches.delete(pane);
+        newestSequences.delete(pane);
+      }
+    }
+  };
+
   const takeSnapshot = (snapshot: StoreSnapshot): void => {
     waitingForSnapshot = false;
+    dropRowCaches(snapshot);
     setState({ snapshot, inputMode: state?.inputMode ?? 'insert' });
   };
 
@@ -165,6 +177,7 @@ export const connectAttach = async (
 
     const snapshot = { ...applyChange(state.snapshot, change), revision };
 
+    dropRowCaches(snapshot);
     setState({ ...state, snapshot });
   };
 

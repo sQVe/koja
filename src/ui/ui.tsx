@@ -1,9 +1,12 @@
 import { createCliRenderer } from '@opentui/core';
 import type { BoxRenderable, CliRenderer } from '@opentui/core';
 import { createRoot } from '@opentui/react';
+import { useSyncExternalStore } from 'react';
+import type { ReactNode } from 'react';
 
 import { focusedPane } from '../client/client.ts';
 import type { AttachSession, CloseReason } from '../client/client.ts';
+import type { PaneId } from '../ids.ts';
 import { createInputRouter } from './input.ts';
 import { PaneRenderable } from './paneRenderable.ts';
 import { StatusBar } from './statusBar.tsx';
@@ -12,13 +15,29 @@ import { themeFromDetectedColors } from './terminalTheme.ts';
 
 const mountPane = (session: AttachSession, renderer: CliRenderer, box: BoxRenderable) => {
   let pane: PaneRenderable | undefined;
+  let boundPaneId: PaneId | undefined;
+
+  const unbind = (): void => {
+    if (pane !== undefined) {
+      box.remove(pane);
+      pane.destroy();
+    }
+
+    pane = undefined;
+    boundPaneId = undefined;
+  };
 
   const draw = (rows?: readonly number[], sequence?: number): void => {
     const current = focusedPane(session.getState().snapshot);
+
+    if (current?.id !== boundPaneId) {
+      unbind();
+    }
+
     const cache = current === undefined ? undefined : session.rowCache(current.id);
     const size = cache?.size();
 
-    if (cache === undefined || size === undefined) {
+    if (current === undefined || cache === undefined || size === undefined) {
       return;
     }
 
@@ -30,6 +49,7 @@ const mountPane = (session: AttachSession, renderer: CliRenderer, box: BoxRender
         onDrawn: session.acknowledge,
       });
 
+      boundPaneId = current.id;
       box.add(pane);
     }
 
@@ -39,8 +59,18 @@ const mountPane = (session: AttachSession, renderer: CliRenderer, box: BoxRender
     pane.draw(changed, sequence);
   };
 
-  const unsubscribe = session.subscribeRows(({ rows, sequence }) => {
-    draw(rows, sequence);
+  const unsubscribeRows = session.subscribeRows(({ pane: changedPane, rows, sequence }) => {
+    if (changedPane === focusedPane(session.getState().snapshot)?.id) {
+      draw(rows, sequence);
+    }
+  });
+
+  const unsubscribeState = session.subscribe(() => {
+    const current = focusedPane(session.getState().snapshot);
+
+    if (current?.id !== boundPaneId) {
+      draw(undefined, current === undefined ? undefined : session.newestSequence(current.id));
+    }
   });
 
   const current = focusedPane(session.getState().snapshot);
@@ -48,7 +78,32 @@ const mountPane = (session: AttachSession, renderer: CliRenderer, box: BoxRender
 
   draw(undefined, newest);
 
-  return unsubscribe;
+  return () => {
+    unsubscribeRows();
+    unsubscribeState();
+  };
+};
+
+const emptyHint = 'No workspace is open. Run `phi workspace create <dir>` to start one.';
+
+const Screen = ({
+  session,
+  placePane,
+}: {
+  session: AttachSession;
+  placePane: (box: BoxRenderable | null) => void;
+}): ReactNode => {
+  const state = useSyncExternalStore(session.subscribe, session.getState);
+
+  if (focusedPane(state.snapshot) === undefined) {
+    return (
+      <box flexGrow={1} alignItems="center" justifyContent="center">
+        <text>{emptyHint}</text>
+      </box>
+    );
+  }
+
+  return <box ref={placePane} flexGrow={1} />;
 };
 
 const paletteTimeoutMs = 500;
@@ -137,7 +192,7 @@ export const runAttach = async (session: AttachSession): Promise<CloseReason> =>
 
   root.render(
     <box flexDirection="column" width="100%" height="100%">
-      <box ref={placePane} flexGrow={1} />
+      <Screen session={session} placePane={placePane} />
       <StatusBar session={session} />
     </box>,
   );
