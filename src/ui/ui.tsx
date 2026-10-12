@@ -6,86 +6,12 @@ import type { ReactNode } from 'react';
 
 import { focusedPane } from '../client/client.ts';
 import type { AttachSession, CloseReason } from '../client/client.ts';
-import type { PaneId } from '../ids.ts';
 import { createInputRouter } from './input.ts';
-import { PaneRenderable } from './paneRenderable.ts';
+import { mountPanes } from './paneLayer.ts';
 import { SideList } from './sideList.tsx';
 import { StatusBar } from './statusBar.tsx';
 import { takeStdin } from './stdinInput.ts';
 import { themeFromDetectedColors } from './terminalTheme.ts';
-
-const mountPane = (session: AttachSession, renderer: CliRenderer, box: BoxRenderable) => {
-  let pane: PaneRenderable | undefined;
-  let boundPaneId: PaneId | undefined;
-
-  const unbind = (): void => {
-    if (pane !== undefined) {
-      box.remove(pane);
-      pane.destroy();
-    }
-
-    pane = undefined;
-    boundPaneId = undefined;
-  };
-
-  const draw = (rows?: readonly number[], sequence?: number): void => {
-    const current = focusedPane(session.getState().snapshot);
-
-    if (current?.id !== boundPaneId) {
-      unbind();
-    }
-
-    const cache = current === undefined ? undefined : session.rowCache(current.id);
-    const size = cache?.size();
-
-    if (current === undefined || cache === undefined || size === undefined) {
-      return;
-    }
-
-    if (pane === undefined) {
-      pane = new PaneRenderable(renderer, {
-        cache,
-        width: size.columns,
-        height: size.rows,
-        onDrawn: (drawnSequence) => {
-          session.acknowledge(current.id, drawnSequence);
-        },
-      });
-
-      boundPaneId = current.id;
-      box.add(pane);
-    }
-
-    pane.resize(size.columns, size.rows);
-    const changed = rows ?? Array.from({ length: size.rows }, (_, index) => index);
-
-    pane.draw(changed, sequence);
-  };
-
-  const unsubscribeRows = session.subscribeRows(({ pane: changedPane, rows, sequence }) => {
-    if (changedPane === focusedPane(session.getState().snapshot)?.id) {
-      draw(rows, sequence);
-    }
-  });
-
-  const unsubscribeState = session.subscribe(() => {
-    const current = focusedPane(session.getState().snapshot);
-
-    if (current?.id !== boundPaneId) {
-      draw(undefined, current === undefined ? undefined : session.newestSequence(current.id));
-    }
-  });
-
-  const current = focusedPane(session.getState().snapshot);
-  const newest = current === undefined ? undefined : session.newestSequence(current.id);
-
-  draw(undefined, newest);
-
-  return () => {
-    unsubscribeRows();
-    unsubscribeState();
-  };
-};
 
 const emptyHint = 'No workspace is open. Run `phi workspace create <dir>` to start one.';
 
@@ -188,7 +114,7 @@ export const runAttach = async (session: AttachSession): Promise<CloseReason> =>
     unmountPane?.();
 
     if (box !== null) {
-      unmountPane = mountPane(session, renderer, box);
+      unmountPane = mountPanes(session, renderer, box);
     }
   };
 

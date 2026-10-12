@@ -15,6 +15,8 @@ interface PaneRenderableOptions {
   cache: RowCache;
   width: number;
   height: number;
+  left?: number;
+  top?: number;
   // Called once per render with the newest sequence passed to draw since the last render.
   onDrawn?: (sequence: number) => void;
 }
@@ -103,9 +105,9 @@ export class PaneRenderable extends FrameBufferRenderable {
 
   public constructor(
     context: RenderContext,
-    { cache, width, height, onDrawn }: PaneRenderableOptions,
+    { cache, width, height, left = 0, top = 0, onDrawn }: PaneRenderableOptions,
   ) {
-    super(context, { width, height });
+    super(context, { width, height, position: 'absolute', left, top });
     this.cache = cache;
     this.onDrawn = onDrawn;
   }
@@ -122,6 +124,11 @@ export class PaneRenderable extends FrameBufferRenderable {
     }
 
     this.requestRender();
+  }
+
+  public move(left: number, top: number): void {
+    this.left = left;
+    this.top = top;
   }
 
   public resize(width: number, height: number): void {
