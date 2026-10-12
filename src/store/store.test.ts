@@ -781,7 +781,7 @@ it('keeps the workspace that was focused when the pane of a new workspace fails 
   ]);
 });
 
-const attachLarge: Intent = { type: 'attachClient', size: { columns: 100, rows: 25 } };
+const attachLarge: Intent = { type: 'attachClient', size: { columns: 101, rows: 25 } };
 
 const splitFirst = (direction: 'below' | 'right'): Intent => ({
   type: 'splitPane',
@@ -832,8 +832,8 @@ it('splits the focused pane below and gives each pane half the rows', () => {
   const result = intent(run([createPhi, attachLarge]), splitFirst('below'));
 
   expect(result.state.panes.map((pane) => pane.size)).toEqual([
-    { columns: 78, rows: 10 },
-    { columns: 78, rows: 10 },
+    { columns: 79, rows: 10 },
+    { columns: 79, rows: 9 },
   ]);
 });
 
@@ -845,7 +845,7 @@ it('splits a pane inside a split at half the area of that pane', () => {
   expect(result.state.panes.map((pane) => pane.size)).toEqual([
     { columns: 38, rows: 22 },
     { columns: 38, rows: 10 },
-    { columns: 38, rows: 10 },
+    { columns: 38, rows: 9 },
   ]);
 });
 
@@ -856,7 +856,7 @@ it('gives the area and the focus of a closed pane to its sibling', () => {
   expect(result.state.tabs[0]?.layout).toEqual({ kind: 'pane', paneId: paneId(1) });
   expect(result.state.tabs[0]?.focusedPaneId).toBe(paneId(1));
   expect(result.state.panes.map((pane) => pane.id)).toEqual([paneId(1)]);
-  expect(result.state.panes[0]?.size).toEqual({ columns: 80, rows: 24 });
+  expect(result.state.panes[0]?.size).toEqual({ columns: 81, rows: 24 });
 
   expect(result.changes.map((change) => change.type)).toEqual([
     'paneRemoved',
@@ -880,8 +880,8 @@ it('focuses the first pane of a sibling split when its neighbor closes', () => {
   expect(result.state.tabs[0]?.focusedPaneId).toBe(paneId(2));
 
   expect(result.state.panes.map((pane) => pane.size)).toEqual([
-    { columns: 78, rows: 10 },
-    { columns: 78, rows: 10 },
+    { columns: 79, rows: 10 },
+    { columns: 79, rows: 9 },
   ]);
 });
 
@@ -915,7 +915,7 @@ it('resizes every live pane by the layout when the client resizes', () => {
   const result = intent(state, {
     type: 'resizeClient',
     clientId: clientId(1),
-    size: { columns: 120, rows: 31 },
+    size: { columns: 121, rows: 31 },
   });
 
   expect(result.state.panes.map((pane) => pane.size)).toEqual([
@@ -963,8 +963,8 @@ it.each([
   expect(applyIntent(state, refused)).toEqual({ kind: 'rejected', state, reason });
 });
 
-it('splits a pane that has room for exactly two framed 1x1 terminals', () => {
-  const state = run([createPhi, { type: 'attachClient', size: { columns: 6, rows: 7 } }]);
+it('splits a pane that has room for exactly two framed 1x1 terminals and a gap', () => {
+  const state = run([createPhi, { type: 'attachClient', size: { columns: 7, rows: 7 } }]);
   const result = intent(state, splitFirst('right'));
 
   expect(result.state.panes.map((pane) => pane.size)).toEqual([

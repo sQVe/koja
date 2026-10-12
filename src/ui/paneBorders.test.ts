@@ -38,8 +38,16 @@ it('draws no frame cells for a lone pane', () => {
   expect(borderCells(layoutPanes(leaf(1), size), paneId(1))).toEqual([]);
 });
 
-it('draws two touching frames for a right split', () => {
-  expect(rowsOf(rightSplit, 1)).toEqual(['┌──┐┌──┐', '│  ││  │', '│  ││  │', '└──┘└──┘']);
+it('draws two frames with a blank gap column for a right split', () => {
+  expect(rowsOf(rightSplit, 1)).toEqual(['┌──┐ ┌─┐', '│  │ │ │', '│  │ │ │', '└──┘ └─┘']);
+});
+
+it('draws no frame cell in the gap between stacked panes', () => {
+  const stacked = split('below', leaf(1), leaf(2));
+  const cells = borderCells(layoutPanes(stacked, { columns: 4, rows: 7 }), paneId(1));
+
+  expect(cells.filter((cell) => cell.y === 3)).toEqual([]);
+  expect(cells.filter((cell) => cell.y === 2)).not.toEqual([]);
 });
 
 it('draws a frame per pane for a nested split without junction glyphs', () => {

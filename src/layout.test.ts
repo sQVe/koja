@@ -48,32 +48,32 @@ it('frames both panes of a split', () => {
   }
 });
 
-it('gives a right split two touching frames', () => {
-  const placed = layoutPanes(split('right', leaf(1), leaf(2)), { columns: 80, rows: 24 });
+it('leaves one gap column between the frames of a right split', () => {
+  const placed = layoutPanes(split('right', leaf(1), leaf(2)), { columns: 81, rows: 24 });
 
   expect(placed).toEqual([
     rectangle(1, [0, 0, 40, 24], [1, 1, 38, 22]),
-    rectangle(2, [40, 0, 40, 24], [41, 1, 38, 22]),
+    rectangle(2, [41, 0, 40, 24], [42, 1, 38, 22]),
   ]);
 });
 
-it('gives a below split two touching frames', () => {
-  const placed = layoutPanes(split('below', leaf(1), leaf(2)), { columns: 80, rows: 24 });
+it('leaves one gap row between the frames of a below split', () => {
+  const placed = layoutPanes(split('below', leaf(1), leaf(2)), { columns: 80, rows: 25 });
 
   expect(placed).toEqual([
     rectangle(1, [0, 0, 80, 12], [1, 1, 78, 10]),
-    rectangle(2, [0, 12, 80, 12], [1, 13, 78, 10]),
+    rectangle(2, [0, 13, 80, 12], [1, 14, 78, 10]),
   ]);
 });
 
-it('places a nested split inside the area of its parent child', () => {
+it('leaves a gap between neighbors of a nested split', () => {
   const nested = split('right', leaf(1), split('below', leaf(2), leaf(3)));
-  const placed = layoutPanes(nested, { columns: 80, rows: 24 });
+  const placed = layoutPanes(nested, { columns: 81, rows: 25 });
 
   expect(placed).toEqual([
-    rectangle(1, [0, 0, 40, 24], [1, 1, 38, 22]),
-    rectangle(2, [40, 0, 40, 12], [41, 1, 38, 10]),
-    rectangle(3, [40, 12, 40, 12], [41, 13, 38, 10]),
+    rectangle(1, [0, 0, 40, 25], [1, 1, 38, 23]),
+    rectangle(2, [41, 0, 40, 12], [42, 1, 38, 10]),
+    rectangle(3, [41, 13, 40, 12], [42, 14, 38, 10]),
   ]);
 });
 
@@ -82,7 +82,7 @@ it('keeps every terminal at least 1x1 when the area is too small to split', () =
 
   expect(placed.map((pane) => pane.terminal)).toEqual([
     { x: 1, y: 1, columns: 1, rows: 1 },
-    { x: 4, y: 1, columns: 1, rows: 1 },
+    { x: 5, y: 1, columns: 1, rows: 1 },
   ]);
 });
 
@@ -102,12 +102,12 @@ const frameCellPositions = (placed: PaneRectangle[]): string[] =>
   );
 
 it.each([
-  ['right', 10, 6],
-  ['right', 9, 6],
-  ['right', 11, 7],
-  ['below', 6, 10],
-  ['below', 6, 9],
-  ['below', 7, 11],
+  ['right', 12, 6],
+  ['right', 11, 6],
+  ['right', 13, 7],
+  ['below', 6, 12],
+  ['below', 6, 11],
+  ['below', 7, 13],
 ] as const)(
   'keeps frames apart for nested %s splits resized to %ix%i',
   (direction, columns, rows) => {
@@ -123,11 +123,11 @@ it.each([
   },
 );
 
-it('allows a split only when both panes fit a framed 1x1 terminal', () => {
-  expect(canSplit({ columns: 6, rows: 3 }, 'right')).toBe(true);
-  expect(canSplit({ columns: 5, rows: 3 }, 'right')).toBe(false);
-  expect(canSplit({ columns: 3, rows: 6 }, 'below')).toBe(true);
-  expect(canSplit({ columns: 3, rows: 5 }, 'below')).toBe(false);
+it('allows a split only when both panes and the gap fit', () => {
+  expect(canSplit({ columns: 7, rows: 3 }, 'right')).toBe(true);
+  expect(canSplit({ columns: 6, rows: 3 }, 'right')).toBe(false);
+  expect(canSplit({ columns: 3, rows: 7 }, 'below')).toBe(true);
+  expect(canSplit({ columns: 3, rows: 6 }, 'below')).toBe(false);
 });
 
 it('gives the pane 80x24 without a client', () => {

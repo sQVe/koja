@@ -219,7 +219,7 @@ it(
     const below = await listUntil(list, (panes) => panes.length === 2);
 
     expect(sizes(below)).toEqual([
-      [78, 10],
+      [78, 9],
       [78, 9],
     ]);
 
@@ -228,9 +228,9 @@ it(
     const right = await listUntil(list, (panes) => panes.length === 3);
 
     expect(sizes(right)).toEqual([
-      [78, 10],
+      [78, 9],
       [38, 9],
-      [38, 9],
+      [37, 9],
     ]);
   },
   cliTestTimeoutMs,
@@ -268,7 +268,7 @@ it(
     const { phi, list, lines, until, type, first } = await setup();
 
     await phi('pane', 'split', first, '--direction', 'right');
-    await until(() => lines()[0]?.charAt(40) === '┌');
+    await until(() => lines()[0]?.charAt(41) === '┌');
 
     const focusedId = async () => (await list()).find((pane) => pane.focused)?.id;
     const before = await focusedId();
@@ -278,13 +278,13 @@ it(
     type('iecho LEFTONLY\r');
     await until(() => lines().some((line) => line.slice(0, 40).includes('echo LEFTONLY')));
 
-    expect(region(lines(), 41, 79).join('')).not.toContain('LEFTONLY');
+    expect(region(lines(), 42, 79).join('')).not.toContain('LEFTONLY');
     expect(before).not.toBe(first);
 
     type('\x02l');
     await listUntil(list, (panes) => panes.find((pane) => pane.focused)?.id === before);
     type('iecho RIGHTONLY\r');
-    await until(() => lines().some((line) => line.slice(41).includes('echo RIGHTONLY')));
+    await until(() => lines().some((line) => line.slice(42).includes('echo RIGHTONLY')));
 
     expect(region(lines(), 1, 39).join('')).not.toContain('RIGHTONLY');
   },
@@ -386,14 +386,14 @@ it(
     const { phi, lines, until, type, first } = await setup();
 
     await phi('pane', 'split', first, '--direction', 'right');
-    await until(() => lines()[0]?.charAt(40) === '┌');
+    await until(() => lines()[0]?.charAt(41) === '┌');
 
     type('\x02hiecho LEFTRACE\r');
 
     await until(() => lines().some((line) => line.slice(0, 40).includes('echo LEFTRACE')));
     await Bun.sleep(300);
 
-    expect(region(lines(), 41, 79).join('')).not.toContain('LEFTRACE');
+    expect(region(lines(), 42, 79).join('')).not.toContain('LEFTRACE');
   },
   cliTestTimeoutMs,
 );
@@ -405,11 +405,11 @@ it(
 
     await phi('pane', 'split', first, '--direction', 'right');
     await phi('pane', 'focus', first);
-    await until(() => foreground(0, 0) === accentWord && foreground(0, 40) !== accentWord);
+    await until(() => foreground(0, 0) === accentWord && foreground(0, 41) !== accentWord);
 
     type('\x02liecho RIGHTRACE\r');
 
-    await until(() => lines().some((line) => line.slice(41).includes('echo RIGHTRACE')));
+    await until(() => lines().some((line) => line.slice(42).includes('echo RIGHTRACE')));
     await Bun.sleep(300);
 
     expect(region(lines(), 1, 39).join('')).not.toContain('RIGHTRACE');

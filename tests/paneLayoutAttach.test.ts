@@ -45,15 +45,19 @@ it(
     const rightRow = rows.find((line) => line.includes('echo RIGHTTEXT')) ?? '';
 
     expect(leftRow.slice(1).startsWith('echo LEFTTEXT')).toBe(true);
-    expect(rightRow.slice(41).startsWith('echo RIGHTTEXT')).toBe(true);
+    expect(rightRow.slice(42).startsWith('echo RIGHTTEXT')).toBe(true);
 
-    expect(glyphsAt(rows, 0, [0, 39, 40, 79])).toEqual(['┌', '┐', '┌', '┐']);
-    expect(glyphsAt(rows, 22, [0, 39, 40, 79])).toEqual(['└', '┘', '└', '┘']);
-    expect(glyphsAt(rows, 10, [0, 39, 40, 79])).toEqual(['│', '│', '│', '│']);
+    expect(glyphsAt(rows, 0, [0, 39, 41, 79])).toEqual(['┌', '┐', '┌', '┐']);
+    expect(glyphsAt(rows, 22, [0, 39, 41, 79])).toEqual(['└', '┘', '└', '┘']);
+    expect(glyphsAt(rows, 10, [0, 39, 41, 79])).toEqual(['│', '│', '│', '│']);
+
+    expect(rows.slice(0, 23).map((line) => line.padEnd(80).charAt(40))).toEqual(
+      Array.from({ length: 23 }, () => ' '),
+    );
 
     const frameInsides = [
       [first, 39 - 0 - 1, 22 - 0 - 1],
-      [second, 79 - 40 - 1, 22 - 0 - 1],
+      [second, 79 - 41 - 1, 22 - 0 - 1],
     ];
 
     const sizes = (await list()).map((pane) => [pane.id, pane.columns, pane.rows]);
@@ -74,15 +78,15 @@ it(
 
     expect(await act('focus', first)).toBe(first);
 
-    await until(() => foreground(0, 0) === accentWord && foreground(0, 40) !== accentWord);
+    await until(() => foreground(0, 0) === accentWord && foreground(0, 41) !== accentWord);
 
-    const rightBefore = region(lines(), 41, 79);
+    const rightBefore = region(lines(), 42, 79);
 
     type('echo TYPED\r');
 
     await until(() => lines().some((line) => line.slice(1, 39).includes('echo TYPED')));
 
-    expect(region(lines(), 41, 79)).toEqual(rightBefore);
+    expect(region(lines(), 42, 79)).toEqual(rightBefore);
   },
   cliTestTimeoutMs,
 );
@@ -93,19 +97,19 @@ it(
     const { list, act, lines, until, resize, first } = await setup();
     const second = await act('split', first, '--direction', 'right');
 
-    await until(() => lines()[0]?.charAt(40) === '┌');
+    await until(() => lines()[0]?.charAt(41) === '┌');
     resize(100 + sideListColumns, 30);
-    await until(() => lines()[0]?.charAt(50) === '┌');
+    await until(() => lines()[0]?.charAt(51) === '┌');
 
     const resized = await list();
 
     expect(resized.map((pane) => [pane.id, pane.columns, pane.rows])).toEqual([
       [first, 48, 27],
-      [second, 48, 27],
+      [second, 47, 27],
     ]);
 
-    expect(glyphsAt(lines(), 0, [0, 49, 50, 99])).toEqual(['┌', '┐', '┌', '┐']);
-    expect(glyphsAt(lines(), 28, [0, 49, 50, 99])).toEqual(['└', '┘', '└', '┘']);
+    expect(glyphsAt(lines(), 0, [0, 49, 51, 99])).toEqual(['┌', '┐', '┌', '┐']);
+    expect(glyphsAt(lines(), 28, [0, 49, 51, 99])).toEqual(['└', '┘', '└', '┘']);
 
     expect(await act('close', second)).toBe(second);
 
