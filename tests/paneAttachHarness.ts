@@ -4,6 +4,8 @@ import { join } from 'node:path';
 
 import { z } from 'zod';
 
+import { sideListColumns } from '../src/layout.ts';
+import { cellWords } from '../src/rows/rows.ts';
 import { createTerminal } from '../src/vt/vt.ts';
 import { environmentFor, root, temporaryDirectory } from './cliHarness.ts';
 
@@ -13,6 +15,9 @@ const paneListSchema = z.array(
 
 const paneDoneSchema = z.object({ pane: z.string() });
 
+// The 0x5fafff accent of the focused frame as a color word.
+export const accentWord = 0x1_00_00_00 + 0x5f_af_ff;
+
 const failureTimeoutMs = 20_000;
 
 interface PaneAttachHarness {
@@ -20,6 +25,7 @@ interface PaneAttachHarness {
   list: () => Promise<z.infer<typeof paneListSchema>>;
   act: (...commandArguments: string[]) => Promise<string>;
   lines: () => string[];
+  foreground: (row: number, column: number) => number | undefined;
   until: (condition: () => boolean) => Promise<undefined>;
   resize: (columns: number, rows: number) => void;
   type: (input: string) => void;
@@ -56,7 +62,7 @@ export const setup = async (): Promise<PaneAttachHarness> => {
   const act = async (...commandArguments: string[]): Promise<string> =>
     paneDoneSchema.parse(JSON.parse(await phi('pane', ...commandArguments, '--json'))).pane;
 
-  const created = createTerminal(80, 24, 0);
+  const created = createTerminal(80 + sideListColumns, 24, 0);
 
   if (!created.ok) {
     throw new Error(created.reason);
@@ -69,7 +75,7 @@ export const setup = async (): Promise<PaneAttachHarness> => {
     cwd: root,
     env: { ...environment, COLORTERM: 'truecolor', TERM: 'xterm-256color' },
     terminal: {
-      cols: 80,
+      cols: 80 + sideListColumns,
       rows: 24,
       data: (terminal, bytes) => {
         const reply = screen.write(bytes);
@@ -92,7 +98,24 @@ export const setup = async (): Promise<PaneAttachHarness> => {
     screen[Symbol.dispose]();
   });
 
-  const lines = (): string[] => screen.text().split('\n');
+  // The rows of the pane area, without the side list. The status bar row keeps its full width.
+  const lines = (): string[] => {
+    const rows = screen.text().split('\n');
+
+    return rows.map((row, index) => (index === rows.length - 1 ? row : row.slice(sideListColumns)));
+  };
+
+  // The foreground color word of a cell, as rows.ts defines it, or undefined outside the screen.
+  const foreground = (row: number, column: number): number | undefined => {
+    const stable = screen.stableRows();
+    const read = screen.readRows(stable.epoch, stable.activeTop + row, 1);
+
+    if (!read.ok) {
+      return undefined;
+    }
+
+    return read.rows.cells[1 + (column + sideListColumns) * cellWords + 1];
+  };
 
   const until = (condition: () => boolean): Promise<undefined> => {
     const done = Promise.withResolvers<undefined>();
@@ -137,5 +160,5 @@ export const setup = async (): Promise<PaneAttachHarness> => {
 
   const [first] = await list();
 
-  return { phi, list, act, lines, until, resize, type, first: first?.id ?? '' };
+  return { phi, list, act, lines, foreground, until, resize, type, first: first?.id ?? '' };
 };

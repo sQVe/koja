@@ -11,102 +11,46 @@ export interface BorderCell {
   focused: boolean;
 }
 
-interface Neighbors {
-  above: PaneId | undefined;
-  below: PaneId | undefined;
-  left: PaneId | undefined;
-  right: PaneId | undefined;
-}
-
-// A border cell between two panes points at the focused pane with a heavy arm.
-const horizontalGlyph = (neighbors: Neighbors, focused: PaneId | undefined): string => {
-  if (neighbors.above !== undefined && neighbors.above === focused) {
-    return '┸';
-  }
-
-  if (neighbors.below !== undefined && neighbors.below === focused) {
-    return '┰';
-  }
-
-  return '─';
-};
-
-const verticalGlyph = (neighbors: Neighbors, focused: PaneId | undefined): string => {
-  if (neighbors.left !== undefined && neighbors.left === focused) {
-    return '┥';
-  }
-
-  if (neighbors.right !== undefined && neighbors.right === focused) {
-    return '┝';
-  }
-
-  return '│';
-};
-
-const plainGlyphs = new Set(['─', '│']);
-
-const ownersOf = (
-  rectangles: readonly PaneRectangle[],
-  size: TerminalSize,
-): ((x: number, y: number) => PaneId | undefined) => {
-  const owners = new Map<number, PaneId>();
-
-  for (const rectangle of rectangles) {
-    for (let y = rectangle.y; y < rectangle.y + rectangle.rows; y++) {
-      for (let x = rectangle.x; x < rectangle.x + rectangle.columns; x++) {
-        owners.set(y * size.columns + x, rectangle.paneId);
-      }
-    }
-  }
-
-  const outside = (x: number, y: number): boolean => {
-    const beforeStart = x < 0 || y < 0;
-    const pastEnd = x >= size.columns || y >= size.rows;
-
-    return beforeStart || pastEnd;
-  };
-
-  return (x, y) => (outside(x, y) ? undefined : owners.get(y * size.columns + x));
-};
-
-// Every cell of the area that no pane covers is a border cell.
-export const borderCells = (
-  rectangles: readonly PaneRectangle[],
-  size: TerminalSize,
-  focusedPaneId: PaneId | undefined,
-): BorderCell[] => {
-  const ownerAt = ownersOf(rectangles, size);
+const frameCellsOf = (rectangle: PaneRectangle, focused: boolean): BorderCell[] => {
+  const { x, y, columns, rows } = rectangle;
+  const right = x + columns - 1;
+  const bottom = y + rows - 1;
   const cells: BorderCell[] = [];
 
-  for (let y = 0; y < size.rows; y++) {
-    for (let x = 0; x < size.columns; x++) {
-      if (ownerAt(x, y) !== undefined) {
-        continue;
-      }
+  const put = (cellX: number, cellY: number, glyph: string): void => {
+    cells.push({ x: cellX, y: cellY, glyph, focused });
+  };
 
-      const neighbors = {
-        above: ownerAt(x, y - 1),
-        below: ownerAt(x, y + 1),
-        left: ownerAt(x - 1, y),
-        right: ownerAt(x + 1, y),
-      };
-
-      const betweenRows = neighbors.above !== undefined || neighbors.below !== undefined;
-
-      const glyph = betweenRows
-        ? horizontalGlyph(neighbors, focusedPaneId)
-        : verticalGlyph(neighbors, focusedPaneId);
-
-      cells.push({ x, y, glyph, focused: !plainGlyphs.has(glyph) });
-    }
+  for (let cellX = x + 1; cellX < right; cellX++) {
+    put(cellX, y, '─');
+    put(cellX, bottom, '─');
   }
+
+  for (let cellY = y + 1; cellY < bottom; cellY++) {
+    put(x, cellY, '│');
+    put(right, cellY, '│');
+  }
+
+  put(x, y, '┌');
+  put(right, y, '┐');
+  put(x, bottom, '└');
+  put(right, bottom, '┘');
 
   return cells;
 };
 
-const plainColor = RGBA.fromHex('#666666');
+// Every pane gets a frame on the outer ring of its rectangle. Only the focused frame is marked.
+export const borderCells = (
+  rectangles: readonly PaneRectangle[],
+  focusedPaneId: PaneId | undefined,
+): BorderCell[] =>
+  rectangles.flatMap((rectangle) => frameCellsOf(rectangle, rectangle.paneId === focusedPaneId));
 
-const focusedColor = RGBA.fromHex('#5fafff');
+const dimColor = RGBA.fromHex('#666666');
+
+const accentColor = RGBA.fromHex('#5fafff');
+
+export const frameColor = (cell: BorderCell): RGBA => (cell.focused ? accentColor : dimColor);
 
 // Draws the borders between panes under them, over the whole pane area.
 export class BorderRenderable extends FrameBufferRenderable {
@@ -142,7 +86,7 @@ export class BorderRenderable extends FrameBufferRenderable {
         cell.glyph,
         cell.x,
         cell.y,
-        cell.focused ? focusedColor : plainColor,
+        frameColor(cell),
         RGBA.defaultBackground(),
       );
     }

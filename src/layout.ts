@@ -17,15 +17,15 @@ export type Layout =
       second: Layout;
     };
 
-export interface PaneRectangle extends TerminalSize {
-  paneId: PaneId;
+interface Area extends TerminalSize {
   x: number;
   y: number;
 }
 
-interface Area extends TerminalSize {
-  x: number;
-  y: number;
+// The rectangle is the pane's frame. The terminal is the rectangle inset by the one-cell frame.
+export interface PaneRectangle extends Area {
+  paneId: PaneId;
+  terminal: Area;
 }
 
 export interface PaneRemoval {
@@ -53,46 +53,80 @@ export const paneSize = (client: TerminalSize | undefined): TerminalSize => {
   };
 };
 
-// The first child gets its share of the cells left after the one-cell border, and each child keeps
-// at least one cell.
-const firstExtent = (available: number, ratio: number): number =>
-  Math.min(Math.max(1, Math.round(available * ratio)), Math.max(1, available - 1));
+const frameCells = 2;
+
+const minimumExtent = frameCells + 1;
+
+const terminalOf = (area: Area): Area => ({
+  x: area.x + 1,
+  y: area.y + 1,
+  columns: Math.max(1, area.columns - frameCells),
+  rows: Math.max(1, area.rows - frameCells),
+});
+
+// The fewest cells a subtree needs on an axis for every pane to keep a framed 1x1 terminal.
+const minimumOf = (layout: Layout, axis: SplitDirection): number => {
+  if (layout.kind === 'pane') {
+    return minimumExtent;
+  }
+
+  const first = minimumOf(layout.first, axis);
+  const second = minimumOf(layout.second, axis);
+
+  return layout.direction === axis ? first + second : Math.max(first, second);
+};
+
+// The first child gets its share of the cells. Each child keeps at least the minimum of its subtree
+// while the area has room for both.
+const firstExtent = (
+  available: number,
+  ratio: number,
+  firstMinimum: number,
+  secondMinimum: number,
+) =>
+  Math.min(
+    Math.max(firstMinimum, Math.round(available * ratio)),
+    Math.max(firstMinimum, available - secondMinimum),
+  );
 
 const placeLayout = (layout: Layout, area: Area, placed: PaneRectangle[]): void => {
   if (layout.kind === 'pane') {
-    placed.push({ paneId: layout.paneId, ...area });
+    placed.push({ paneId: layout.paneId, ...area, terminal: terminalOf(area) });
 
     return;
   }
 
-  if (layout.direction === 'right') {
-    const available = area.columns - 1;
-    const columns = firstExtent(available, layout.ratio);
+  const axis = layout.direction;
+  const firstMinimum = minimumOf(layout.first, axis);
+  const secondMinimum = minimumOf(layout.second, axis);
+
+  if (axis === 'right') {
+    const columns = firstExtent(area.columns, layout.ratio, firstMinimum, secondMinimum);
 
     placeLayout(layout.first, { ...area, columns }, placed);
 
     placeLayout(
       layout.second,
-      { ...area, x: area.x + columns + 1, columns: Math.max(1, available - columns) },
+      { ...area, x: area.x + columns, columns: Math.max(secondMinimum, area.columns - columns) },
       placed,
     );
 
     return;
   }
 
-  const available = area.rows - 1;
-  const rows = firstExtent(available, layout.ratio);
+  const rows = firstExtent(area.rows, layout.ratio, firstMinimum, secondMinimum);
 
   placeLayout(layout.first, { ...area, rows }, placed);
 
   placeLayout(
     layout.second,
-    { ...area, y: area.y + rows + 1, rows: Math.max(1, available - rows) },
+    { ...area, y: area.y + rows, rows: Math.max(secondMinimum, area.rows - rows) },
     placed,
   );
 };
 
-// Panes in tree order. A pane never gets less than 1x1, so an area that is too small overflows.
+// Panes in tree order. A pane never gets less than a framed 1x1, so an area that is too small
+// overflows.
 export const layoutPanes = (layout: Layout, size: TerminalSize): PaneRectangle[] => {
   const placed: PaneRectangle[] = [];
 
@@ -101,11 +135,9 @@ export const layoutPanes = (layout: Layout, size: TerminalSize): PaneRectangle[]
   return placed;
 };
 
-const splitCells = 3;
-
-// A split needs one cell for each pane and one for the border.
+// A split needs room for two framed panes, the minimum of a split of two panes.
 export const canSplit = (size: TerminalSize, direction: SplitDirection): boolean =>
-  (direction === 'right' ? size.columns : size.rows) >= splitCells;
+  (direction === 'right' ? size.columns : size.rows) >= 2 * minimumExtent;
 
 export const firstPaneId = (layout: Layout): PaneId =>
   layout.kind === 'pane' ? layout.paneId : firstPaneId(layout.first);

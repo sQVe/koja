@@ -14,7 +14,7 @@ import {
   runCli,
   temporaryDirectory,
 } from './cliHarness.ts';
-import { setup } from './paneAttachHarness.ts';
+import { accentWord, setup } from './paneAttachHarness.ts';
 
 it('shows the input mode in the status bar as the keys change it', async () => {
   const { statusBar, type, until } = await setupAttach(0);
@@ -219,8 +219,8 @@ it(
     const below = await listUntil(list, (panes) => panes.length === 2);
 
     expect(sizes(below)).toEqual([
-      [80, 11],
-      [80, 11],
+      [78, 10],
+      [78, 9],
     ]);
 
     type('v');
@@ -228,9 +228,9 @@ it(
     const right = await listUntil(list, (panes) => panes.length === 3);
 
     expect(sizes(right)).toEqual([
-      [80, 11],
-      [40, 11],
-      [39, 11],
+      [78, 10],
+      [38, 9],
+      [38, 9],
     ]);
   },
   cliTestTimeoutMs,
@@ -268,7 +268,7 @@ it(
     const { phi, list, lines, until, type, first } = await setup();
 
     await phi('pane', 'split', first, '--direction', 'right');
-    await until(() => lines()[0]?.charAt(40) === '┝' || lines()[0]?.charAt(40) === '┥');
+    await until(() => lines()[0]?.charAt(40) === '┌');
 
     const focusedId = async () => (await list()).find((pane) => pane.focused)?.id;
     const before = await focusedId();
@@ -278,7 +278,7 @@ it(
     type('iecho LEFTONLY\r');
     await until(() => lines().some((line) => line.slice(0, 40).includes('echo LEFTONLY')));
 
-    expect(region(lines(), 41, 80).join('')).not.toContain('LEFTONLY');
+    expect(region(lines(), 41, 79).join('')).not.toContain('LEFTONLY');
     expect(before).not.toBe(first);
 
     type('\x02l');
@@ -286,7 +286,7 @@ it(
     type('iecho RIGHTONLY\r');
     await until(() => lines().some((line) => line.slice(41).includes('echo RIGHTONLY')));
 
-    expect(region(lines(), 0, 40).join('')).not.toContain('RIGHTONLY');
+    expect(region(lines(), 1, 39).join('')).not.toContain('RIGHTONLY');
   },
   cliTestTimeoutMs,
 );
@@ -357,7 +357,7 @@ it(
     const remaining = await listUntil(list, (panes) => panes.length === 1);
 
     expect(remaining.map((pane) => pane.id)).toEqual([first]);
-    expect(sizes(remaining)).toEqual([[80, 23]]);
+    expect(sizes(remaining)).toEqual([[78, 21]]);
   },
   cliTestTimeoutMs,
 );
@@ -386,14 +386,14 @@ it(
     const { phi, lines, until, type, first } = await setup();
 
     await phi('pane', 'split', first, '--direction', 'right');
-    await until(() => lines()[0]?.charAt(40) === '┝');
+    await until(() => lines()[0]?.charAt(40) === '┌');
 
     type('\x02hiecho LEFTRACE\r');
 
     await until(() => lines().some((line) => line.slice(0, 40).includes('echo LEFTRACE')));
     await Bun.sleep(300);
 
-    expect(region(lines(), 41, 80).join('')).not.toContain('LEFTRACE');
+    expect(region(lines(), 41, 79).join('')).not.toContain('LEFTRACE');
   },
   cliTestTimeoutMs,
 );
@@ -401,18 +401,18 @@ it(
 it(
   'runs a command typed in the same write as Ctrl+B l in the newly focused pane only',
   async () => {
-    const { phi, lines, until, type, first } = await setup();
+    const { phi, lines, foreground, until, type, first } = await setup();
 
     await phi('pane', 'split', first, '--direction', 'right');
     await phi('pane', 'focus', first);
-    await until(() => lines()[0]?.charAt(40) === '┥');
+    await until(() => foreground(0, 0) === accentWord && foreground(0, 40) !== accentWord);
 
     type('\x02liecho RIGHTRACE\r');
 
     await until(() => lines().some((line) => line.slice(41).includes('echo RIGHTRACE')));
     await Bun.sleep(300);
 
-    expect(region(lines(), 0, 40).join('')).not.toContain('RIGHTRACE');
+    expect(region(lines(), 1, 39).join('')).not.toContain('RIGHTRACE');
   },
   cliTestTimeoutMs,
 );

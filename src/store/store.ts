@@ -257,8 +257,8 @@ const fitPanesTo = (
   const sizes = new Map<PaneId, TerminalSize>();
 
   for (const tab of state.tabs) {
-    for (const { paneId: id, columns, rows } of layoutPanes(tab.layout, area)) {
-      sizes.set(id, { columns, rows });
+    for (const { paneId: id, terminal } of layoutPanes(tab.layout, area)) {
+      sizes.set(id, { columns: terminal.columns, rows: terminal.rows });
     }
   }
 
@@ -277,6 +277,14 @@ const fitPanesTo = (
   });
 
   return { panes, changes };
+};
+
+const lonePaneSize = (state: State, id: PaneId): TerminalSize => {
+  const [lone] = layoutPanes({ kind: 'pane', paneId: id }, state.layoutArea);
+
+  invariant(lone !== undefined, `Layout has no pane ${id}.`);
+
+  return { columns: lone.terminal.columns, rows: lone.terminal.rows };
 };
 
 const fitPanes = (state: State): { panes: readonly Pane[]; changes: Change[] } =>
@@ -299,11 +307,13 @@ const createWorkspace = (
     return reject(state, 'serverStopping');
   }
 
+  const newPaneId = paneId(state.nextPaneNumber);
+
   const pane: Pane = {
-    id: paneId(state.nextPaneNumber),
+    id: newPaneId,
     tabId: tabId(state.nextTabNumber),
     lifecycle: 'starting',
-    size: state.layoutArea,
+    size: lonePaneSize(state, newPaneId),
     generation: state.nextGeneration,
     exitCode: undefined,
   };
@@ -485,11 +495,13 @@ const createTab = (state: State, id: WorkspaceId): Applied | Rejected => {
     return reject(state, 'unknownWorkspace');
   }
 
+  const newPaneId = paneId(state.nextPaneNumber);
+
   const pane: Pane = {
-    id: paneId(state.nextPaneNumber),
+    id: newPaneId,
     tabId: tabId(state.nextTabNumber),
     lifecycle: 'starting',
-    size: state.layoutArea,
+    size: lonePaneSize(state, newPaneId),
     generation: state.nextGeneration,
     exitCode: undefined,
   };
@@ -628,7 +640,7 @@ const splitPane = (state: State, id: PaneId, direction: SplitDirection): Applied
     id: addedId,
     tabId: tab.id,
     lifecycle: 'starting',
-    size: { columns: addedRectangle.columns, rows: addedRectangle.rows },
+    size: { columns: addedRectangle.terminal.columns, rows: addedRectangle.terminal.rows },
     generation: state.nextGeneration,
     exitCode: undefined,
   };

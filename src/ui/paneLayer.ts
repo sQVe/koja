@@ -47,7 +47,8 @@ export const mountPanes = (
   };
 
   const place = (rectangle: PaneRectangle): void => {
-    const { paneId: id, x, y, columns, rows } = rectangle;
+    const { paneId: id, terminal } = rectangle;
+    const { x, y, columns, rows } = terminal;
     const existing = panes.get(id);
     const cache = session.rowCache(id);
 
@@ -110,7 +111,7 @@ export const mountPanes = (
 
     if (signature !== drawnBorders) {
       drawnBorders = signature;
-      borders.update(size, borderCells(rectangles, size, focusedPaneId));
+      borders.update(size, borderCells(rectangles, focusedPaneId));
     }
   };
 
