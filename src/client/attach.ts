@@ -73,7 +73,7 @@ export interface AttachSession {
   // Tells the server the colors of the client's terminal.
   setTheme: (theme: TerminalTheme) => void;
   // Tells the server the client has drawn every row update up to this sequence.
-  acknowledge: (sequence: number) => void;
+  acknowledge: (pane: PaneId, sequence: number) => void;
   sendInput: (pane: PaneId, bytes: Uint8Array) => void;
   // Creates a tab in the focused workspace, or focuses one of its tabs. A tab that does not exist
   // changes nothing.
@@ -465,9 +465,9 @@ export const connectAttach = async (
     setTheme: (theme) => {
       send({ type: 'theme', theme });
     },
-    acknowledge: (sequence) => {
+    acknowledge: (pane, sequence) => {
       if (!ended) {
-        send({ type: 'ack', sequence });
+        send({ type: 'ack', paneId: pane, sequence });
       }
     },
     sendInput: (pane, bytes) => {

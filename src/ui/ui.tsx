@@ -47,7 +47,9 @@ const mountPane = (session: AttachSession, renderer: CliRenderer, box: BoxRender
         cache,
         width: size.columns,
         height: size.rows,
-        onDrawn: session.acknowledge,
+        onDrawn: (drawnSequence) => {
+          session.acknowledge(current.id, drawnSequence);
+        },
       });
 
       boundPaneId = current.id;

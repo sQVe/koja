@@ -1798,7 +1798,7 @@ it('sends the newest screen after the client acks', async () => {
   server.writeToPane('echo after-limit-$((6 * 7))\n');
   await waitFor(() => server.paneText()?.includes('after-limit-42') === true);
 
-  client.send({ type: 'ack', sequence: client.updates.at(-1)?.sequence ?? 0 });
+  client.send({ type: 'ack', paneId: paneId(1), sequence: client.updates.at(-1)?.sequence ?? 0 });
   await waitFor(() => client.updates.length > sentBefore);
 
   const rows = new Map<number, string>();
@@ -1819,13 +1819,78 @@ it('sends the newest screen after the client acks', async () => {
   expect(cached).toEqual(expected.map((row) => row.trimEnd()));
 });
 
+const updatesOf = (client: TestClient, pane: number): RowUpdate[] =>
+  client.updates.filter((update) => update.pane === pane);
+
+it('counts an ack only for the pane it names', async () => {
+  const directory = await temporaryDirectory();
+  const { socketPath } = await startServer(directory);
+  const cli = await connectCli(socketPath);
+
+  cli.send({ type: 'paneSplit', paneId: paneId(1), direction: 'right' });
+  await nextOfType(cli, 'paneDone');
+
+  const terminal = await attachTerminal(socketPath, 100);
+
+  const fill = async (pane: number): Promise<void> => {
+    for (let step = 0; updatesOf(terminal, pane).length < inFlightLimit; step += 1) {
+      const seen = updatesOf(terminal, pane).length;
+
+      cli.send({ type: 'paneSend', paneId: paneId(pane), text: `echo fill-${pane}-${step}\n` });
+      await waitFor(() => updatesOf(terminal, pane).length > seen);
+    }
+  };
+
+  await fill(1);
+  await fill(2);
+
+  const secondBefore = updatesOf(terminal, 2).length;
+  const secondSequences = new Set(updatesOf(terminal, 2).map((update) => update.sequence));
+
+  const sharedSequences = updatesOf(terminal, 1)
+    .map((update) => update.sequence)
+    .filter((sequence) => secondSequences.has(sequence));
+
+  const sharedSequence = sharedSequences.at(-1);
+
+  if (sharedSequence === undefined) {
+    throw new Error('Both panes must have been sent the same sequence.');
+  }
+
+  terminal.send({ type: 'ack', paneId: paneId(1), sequence: sharedSequence });
+  await roundTrip(terminal);
+  cli.send({ type: 'paneSend', paneId: paneId(2), text: 'echo second-after-$((6 * 7))\n' });
+
+  // Pane 2 schedules its publication when it parses this output. Once the output is readable, the
+  // publication runs before any later publication of pane 1, and so before pane 1's update arrives.
+  for (;;) {
+    cli.send({ type: 'paneRead', paneId: paneId(2) });
+
+    if ((await nextPaneRows(cli)).join('\n').includes('second-after-42')) {
+      break;
+    }
+  }
+
+  const firstAfterFill = updatesOf(terminal, 1).length;
+
+  cli.send({ type: 'paneSend', paneId: paneId(1), text: 'echo first-after\n' });
+  await waitFor(() => updatesOf(terminal, 1).length > firstAfterFill);
+
+  expect(updatesOf(terminal, 2)).toHaveLength(secondBefore);
+});
+
 it('ignores an ack for a sequence the client was never sent', async () => {
   const directory = await temporaryDirectory();
   const { server, socketPath } = await startServer(directory);
   const client = await startPacedClient(server, socketPath);
   const sentBefore = client.updates.length;
 
-  client.send({ type: 'ack', sequence: (client.updates.at(-1)?.sequence ?? 0) + 1000 });
+  client.send({
+    type: 'ack',
+    paneId: paneId(1),
+    sequence: (client.updates.at(-1)?.sequence ?? 0) + 1000,
+  });
+
   await roundTrip(client);
 
   expect(client.updates).toHaveLength(sentBefore);
@@ -1915,7 +1980,7 @@ it('delivers a paneSend echo to an acking client without advancing a timer', asy
       const update = await client.nextUpdate();
 
       applyRows(rows, update);
-      client.send({ type: 'ack', sequence: update.sequence });
+      client.send({ type: 'ack', paneId: paneId(update.pane), sequence: update.sequence });
     }
   } finally {
     jest.useRealTimers();

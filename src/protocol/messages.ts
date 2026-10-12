@@ -219,7 +219,11 @@ const controlSchema = z.discriminatedUnion('type', [
   z.object({ type: z.literal('stop') }),
   z.object({ type: z.literal('resize'), size: sizeSchema }),
   z.object({ type: z.literal('theme'), theme: themeSchema }),
-  z.object({ type: z.literal('ack'), sequence: count.max(largestSequence) }),
+  z.object({
+    type: z.literal('ack'),
+    paneId: paneIdSchema,
+    sequence: count.max(largestSequence),
+  }),
   z.object({ type: z.literal('resync') }),
   z.object({ type: z.literal('snapshot'), snapshot: snapshotSchema }),
   z.object({ type: z.literal('change'), revision: count, change: changeSchema }),

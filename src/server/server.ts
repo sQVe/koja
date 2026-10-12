@@ -69,7 +69,7 @@ interface ConnectionData {
 interface RowSubscriptions {
   // The panes this connection gets rows from.
   paneIds: readonly PaneId[];
-  acknowledge: (sequence: number) => boolean;
+  acknowledge: (pane: PaneId, sequence: number) => boolean;
   unsubscribe: () => void;
 }
 
@@ -82,8 +82,8 @@ interface Runtime {
   connections: Map<number, Connection>;
   // The client a terminal connection's sized hello attached.
   clientIds: Map<Connection, ClientId>;
-  // The row subscriptions of each terminal connection. Their ack records an ack on each pane
-  // subscription, and is true if one took it.
+  // The row subscriptions of each terminal connection. Their ack records an ack on the named
+  // pane's subscription, and is true if it took it.
   rowSubscriptions: Map<Connection, RowSubscriptions>;
   listener: Listener | undefined;
   nextConnectionId: number;
@@ -175,7 +175,7 @@ const subscribeRows = (
   connection: Connection,
   paneIds: readonly PaneId[],
 ): RowSubscriptions => {
-  const subscriptions: RowSubscription[] = [];
+  const subscriptions = new Map<PaneId, RowSubscription>();
 
   for (const id of paneIds) {
     const publication = context.runtime.rowPublishers.get(id);
@@ -199,21 +199,18 @@ const subscribeRows = (
 
     const pane = context.runtime.panes.get(id);
 
-    subscriptions.push(subscription);
+    subscriptions.set(id, subscription);
 
     if (pane !== undefined) {
       scheduleRows(context, id, pane.generation);
     }
   }
 
-  const acknowledge = (sequence: number): boolean => {
-    const accepted = subscriptions.map((subscription) => subscription.acknowledge(sequence));
-
-    return accepted.includes(true);
-  };
+  const acknowledge = (pane: PaneId, sequence: number): boolean =>
+    subscriptions.get(pane)?.acknowledge(sequence) === true;
 
   const unsubscribe = (): void => {
-    for (const subscription of subscriptions) {
+    for (const subscription of subscriptions.values()) {
       subscription.unsubscribe();
     }
   };
@@ -958,11 +955,17 @@ const handlePaneLayoutRequest = (
   connection.send({ type: 'paneDone', paneId: message.paneId });
 };
 
-const handleAck = (context: ServerContext, sequence: number, connection: Connection): void => {
-  const accepted = context.runtime.rowSubscriptions.get(connection)?.acknowledge(sequence);
+const handleAck = (
+  context: ServerContext,
+  pane: PaneId,
+  sequence: number,
+  connection: Connection,
+): void => {
+  const accepted = context.runtime.rowSubscriptions.get(connection)?.acknowledge(pane, sequence);
 
   if (accepted !== true) {
-    context.options.log.debug('Ignored an ack for a sequence the client was not sent.', {
+    context.options.log.debug('Ignored an ack for a pane or sequence the client was not sent.', {
+      pane,
       sequence,
     });
   }
@@ -1025,7 +1028,7 @@ const handleMessage = (
   }
 
   if (message.type === 'ack') {
-    handleAck(context, message.sequence, connection);
+    handleAck(context, message.paneId, message.sequence, connection);
 
     return;
   }
