@@ -16,7 +16,9 @@ import { cellWords, decodeRowUpdate, encodePaneInput } from '../src/rows/rows.ts
 import type { RowUpdate } from '../src/rows/rows.ts';
 import { createLog } from '../src/server/log.ts';
 import type { Log } from '../src/server/log.ts';
+import { spawnPane } from '../src/server/pane.ts';
 import * as processGroups from '../src/server/processGroups.ts';
+import * as scope from '../src/server/scope.ts';
 import { runServer } from '../src/server/server.ts';
 import type { Server } from '../src/server/server.ts';
 import { claimSocketPath } from '../src/server/socketPath.ts';
@@ -36,7 +38,11 @@ interface TestClient {
   nextMessage: () => Promise<ControlMessage>;
 }
 
-const logLineSchema = z.object({ level: z.string(), fields: z.record(z.string(), z.unknown()) });
+const logLineSchema = z.object({
+  level: z.string(),
+  message: z.string(),
+  fields: z.record(z.string(), z.unknown()),
+});
 
 const build: BuildVersion = { version: '1.2.3', ghostty: 'abc123' };
 
@@ -98,6 +104,7 @@ const openLog = (path: string): Log => {
 const startServer = async (
   directory: string,
   shell = '/bin/sh',
+  path = process.env.PATH,
 ): Promise<{ server: Server; socketPath: string; logPath: string }> => {
   const socketPath = join(directory, 'run', 'phi.sock');
   const logPath = join(directory, 'state', 'phi', 'server.log');
@@ -107,7 +114,7 @@ const startServer = async (
     socketPath,
     version: build,
     log,
-    environment: { ...process.env, SHELL: shell },
+    environment: { ...process.env, PATH: path, SHELL: shell },
     directory,
     holdLimitMs: 60_000,
   });
@@ -1180,6 +1187,172 @@ it('ends a pane job that ignores SIGHUP within the bounded wait and removes the 
   expect(existsSync(socketPath)).toBe(false);
 });
 
+const scopesAvailable = scope.scopeAvailable(process.env);
+
+const logLinesOf = (logPath: string) => {
+  if (!existsSync(logPath)) {
+    return [];
+  }
+
+  return readFileSync(logPath, 'utf8')
+    .split('\n')
+    .filter((line) => line !== '')
+    .map((line) => logLineSchema.parse(JSON.parse(line)));
+};
+
+// A pane job in its own session that ignores SIGHUP, started with setsid.
+const startDetachedJob = async (server: Server): Promise<string> => {
+  const command = `sleep 1000.${process.pid}${Date.now()}`;
+
+  server.writeToPane(`setsid sh -c "trap '' HUP; exec ${command}" &\n`);
+  await waitFor(() => processesRunning(command).length > 0);
+
+  return command;
+};
+
+it.skipIf(!scopesAvailable)(
+  'ends a pane job that called setsid within the bounded wait',
+  async () => {
+    const directory = await temporaryDirectory();
+    const { server } = await startServer(directory);
+    const command = await startDetachedJob(server);
+    const started = performance.now();
+
+    server.stop();
+    await server.stopped;
+
+    expect(performance.now() - started).toBeLessThan(3000);
+    await waitFor(() => processesRunning(command).length === 0, 1000);
+  },
+);
+
+it('starts the pane and ends its session when no user scope is available', async () => {
+  const probe = spyOn(scope, 'scopeAvailable').mockReturnValue(false);
+
+  onTestFinished(() => {
+    probe.mockRestore();
+  });
+
+  const directory = await temporaryDirectory();
+  const { server, logPath } = await startServer(directory);
+  const command = `sleep 1000.${process.pid}${Date.now()}`;
+
+  server.writeToPane(`${command}\n`);
+  await waitFor(() => processesRunning(command).length > 0);
+
+  server.stop();
+  await server.stopped;
+
+  await waitFor(() => processesRunning(command).length === 0, 1000);
+
+  expect(logLinesOf(logPath).some((line) => line.message.includes('No systemd user scope'))).toBe(
+    true,
+  );
+});
+
+it.skipIf(!scopesAvailable)('ends the pane scope when the pane is disposed', async () => {
+  const result = spawnPane({
+    generation: 1,
+    size: { columns: 80, rows: 24 },
+    environment: { ...process.env, SHELL: '/bin/sh' },
+    directory: tmpdir(),
+    useScope: true,
+    onOutput: () => undefined,
+  });
+
+  if (!result.ok) {
+    throw new Error(result.message);
+  }
+
+  const { pane } = result;
+  const command = `sleep 1000.${process.pid}${Date.now()}`;
+
+  onTestFinished(() => {
+    for (const name of processesRunning(command)) {
+      process.kill(Number(name), 'SIGKILL');
+    }
+  });
+
+  pane.write(new TextEncoder().encode(`setsid sh -c "trap '' HUP; exec ${command}" &\n`));
+  await waitFor(() => processesRunning(command).length > 0);
+
+  pane[Symbol.dispose]();
+
+  await waitFor(() => processesRunning(command).length === 0, 2000);
+});
+
+it.skipIf(!scopesAvailable)(
+  'reports cleanupFailed and still ends the shell when a scope signal fails',
+  async () => {
+    const signal = spyOn(scope, 'signalScope').mockResolvedValue({
+      ok: false,
+      message: 'Cannot send SIGHUP to scope test.scope',
+    });
+
+    onTestFinished(() => {
+      signal.mockRestore();
+    });
+
+    const directory = await temporaryDirectory();
+    const { server, logPath } = await startServer(directory);
+    const command = `sleep 1000.${process.pid}${Date.now()}`;
+
+    server.writeToPane(`exec ${command}\n`);
+    await waitFor(() => processesRunning(command).length > 0);
+
+    const [shellProcess] = processesRunning(command);
+
+    server.stop();
+
+    const stopped = await server.stopped;
+
+    expect(stopped).toMatchObject({ ok: false, reason: 'cleanupFailed' });
+    expect(processExists(Number(shellProcess))).toBe(false);
+
+    expect(
+      logLinesOf(logPath).some((line) => String(line.fields.error).includes('Cannot send SIGHUP')),
+    ).toBe(true);
+  },
+);
+
+it.skipIf(!scopesAvailable)(
+  'stops within a bound and reports cleanupFailed when systemctl stalls',
+  async () => {
+    const directory = await temporaryDirectory();
+    const fakeDirectory = join(directory, 'fake-bin');
+
+    await mkdir(fakeDirectory);
+
+    const { server, logPath } = await startServer(
+      directory,
+      '/bin/sh',
+      `${fakeDirectory}:${process.env.PATH}`,
+    );
+
+    const command = `sleep 1000.${process.pid}${Date.now()}`;
+
+    server.writeToPane(`exec ${command}\n`);
+    await waitFor(() => processesRunning(command).length > 0);
+
+    const [shellProcess] = processesRunning(command);
+
+    // The fake goes on PATH only after the pane started in its scope, so only stop meets it.
+    await Bun.write(join(fakeDirectory, 'systemctl'), '#!/bin/sh\nexec sleep 30\n');
+    await chmod(join(fakeDirectory, 'systemctl'), 0o755);
+
+    const started = performance.now();
+
+    server.stop();
+
+    const stopped = await server.stopped;
+
+    expect(performance.now() - started).toBeLessThan(4000);
+    expect(stopped).toMatchObject({ ok: false, reason: 'cleanupFailed' });
+    expect(processExists(Number(shellProcess))).toBe(false);
+    expect(logLinesOf(logPath).some((line) => line.level === 'error')).toBe(true);
+  },
+);
+
 it('keeps running after SIGHUP and stops when the shell exits', async () => {
   const directory = await temporaryDirectory();
   const { child, socketPath } = await startServerProcess(directory);
@@ -1223,17 +1396,6 @@ it('stops when a client sends stop', async () => {
 
   expect(existsSync(socketPath)).toBe(false);
 });
-
-const logLinesOf = (logPath: string) => {
-  if (!existsSync(logPath)) {
-    return [];
-  }
-
-  return readFileSync(logPath, 'utf8')
-    .split('\n')
-    .filter((line) => line !== '')
-    .map((line) => logLineSchema.parse(JSON.parse(line)));
-};
 
 const hasQueueWarning = (logPath: string): boolean =>
   logLinesOf(logPath).some((line) => line.level === 'warn' && line.fields.limitBytes !== undefined);
