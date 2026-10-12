@@ -32,7 +32,12 @@ const run = (intents: readonly Intent[]): State =>
 
 const firstPane = { paneId: paneId(1), generation: 1 };
 
-const createPhi: Intent = { type: 'createWorkspace', root: '/work/phi', label: 'phi' };
+const createPhi: Intent = {
+  type: 'createWorkspace',
+  root: '/work/phi',
+  label: 'phi',
+  background: false,
+};
 
 it('creates a workspace with one tab and one starting pane', () => {
   const result = intent(createState(), createPhi);
@@ -90,9 +95,19 @@ it('starts a pane at the layout size of the attached client', () => {
   });
 });
 
-const createDocs: Intent = { type: 'createWorkspace', root: '/work/docs', label: 'docs' };
+const createDocs: Intent = {
+  type: 'createWorkspace',
+  root: '/work/docs',
+  label: 'docs',
+  background: false,
+};
 
-const createApi: Intent = { type: 'createWorkspace', root: '/work/api', label: 'api' };
+const createApi: Intent = {
+  type: 'createWorkspace',
+  root: '/work/api',
+  label: 'api',
+  background: false,
+};
 
 const unknownWorkspace = workspaceId(99);
 
@@ -533,4 +548,40 @@ it('refuses a theme from an unknown client and leaves state unchanged', () => {
   });
 
   expect(result).toEqual({ kind: 'rejected', state, reason: 'unknownClient' });
+});
+
+it('keeps the earlier focus when a background workspace is created without a label', () => {
+  const state = run([createPhi]);
+
+  const result = intent(state, {
+    type: 'createWorkspace',
+    root: '/work/docs',
+    label: undefined,
+    background: true,
+  });
+
+  expect(result.state.focusedWorkspaceId).toBe(workspaceId(1));
+  expect(result.state.workspaces.map((workspace) => workspace.label)).toEqual(['phi', 'docs']);
+});
+
+it('focuses a background workspace when no workspace is focused', () => {
+  const result = intent(createState(), {
+    type: 'createWorkspace',
+    root: '/work/docs',
+    label: 'docs',
+    background: true,
+  });
+
+  expect(result.state.focusedWorkspaceId).toBe(workspaceId(1));
+});
+
+it('labels a workspace with the whole root when the root has no base name', () => {
+  const result = intent(createState(), {
+    type: 'createWorkspace',
+    root: '/',
+    label: undefined,
+    background: false,
+  });
+
+  expect(result.state.workspaces.map((workspace) => workspace.label)).toEqual(['/']);
 });

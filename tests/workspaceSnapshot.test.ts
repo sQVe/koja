@@ -16,7 +16,12 @@ interface Replay {
   mirror: StoreSnapshot;
 }
 
-const create = (root: string): Intent => ({ type: 'createWorkspace', root, label: root });
+const create = (root: string): Intent => ({
+  type: 'createWorkspace',
+  root,
+  label: root,
+  background: false,
+});
 
 const replay = (steps: readonly (Intent | Fact)[]): Replay => {
   let state = createState();

@@ -193,7 +193,12 @@ const controlSchema = z.discriminatedUnion('type', [
   z.object({ type: z.literal('paneSend'), paneId: paneIdSchema, text: z.string() }),
   z.object({ type: z.literal('paneSent'), paneId: paneIdSchema }),
   z.object({ type: z.literal('paneMissing'), paneId: paneIdSchema }),
-  z.object({ type: z.literal('workspaceCreate'), root: z.string(), label: z.string() }),
+  z.object({
+    type: z.literal('workspaceCreate'),
+    root: z.string(),
+    label: absent(z.string()),
+    background: z.boolean(),
+  }),
   z.object({ type: z.literal('workspaceFocus'), workspaceId: workspaceIdSchema }),
   z.object({
     type: z.literal('workspaceRename'),

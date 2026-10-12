@@ -90,6 +90,27 @@ it(
 );
 
 it(
+  'workspace create --background keeps the earlier workspace focused',
+  async () => {
+    const { directory, phi, create, list } = await setup();
+
+    const first = await create('alpha');
+
+    await mkdir(join(directory, 'beta'));
+
+    const created = await phi('workspace', 'create', join(directory, 'beta'), '--background');
+
+    expect(created.exitCode).toBe(0);
+
+    const workspaces = await list();
+
+    expect(workspaces.map((workspace) => workspace.label)).toEqual(['alpha', 'beta']);
+    expect(workspaces.find((workspace) => workspace.focused)?.id).toBe(first);
+  },
+  cliTestTimeoutMs,
+);
+
+it(
   'uses --label and resolves a relative directory against the working directory',
   async () => {
     const { directory, phi, list } = await setup();

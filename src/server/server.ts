@@ -725,7 +725,12 @@ const isWorkspaceRequest = (message: ControlMessage): message is WorkspaceReques
 
 const intentOf = (message: WorkspaceRequest): Intent => {
   if (message.type === 'workspaceCreate') {
-    return { type: 'createWorkspace', root: message.root, label: message.label };
+    return {
+      type: 'createWorkspace',
+      root: message.root,
+      label: message.label,
+      background: message.background,
+    };
   }
 
   if (message.type === 'workspaceFocus') {

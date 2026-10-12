@@ -25,7 +25,7 @@ export type PaneCommand =
   | { action: 'send'; text: string; pane?: PaneId | undefined };
 
 export type WorkspaceCommand =
-  | { action: 'create'; root: string; label: string }
+  | { action: 'create'; root: string; label: string | undefined; background: boolean }
   | { action: 'focus'; workspaceId: WorkspaceId }
   | { action: 'rename'; workspaceId: WorkspaceId; label: string }
   | { action: 'close'; workspaceId: WorkspaceId };
@@ -246,7 +246,12 @@ export const runPaneCommand = (
 
 const workspaceRequest = (command: WorkspaceCommand): ControlMessage => {
   if (command.action === 'create') {
-    return { type: 'workspaceCreate', root: command.root, label: command.label };
+    return {
+      type: 'workspaceCreate',
+      root: command.root,
+      label: command.label,
+      background: command.background,
+    };
   }
 
   if (command.action === 'rename') {

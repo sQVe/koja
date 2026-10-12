@@ -36,14 +36,14 @@ it('parses the workspace commands', () => {
 
   expect(parseCommand(['workspace', 'create', 'work/api', '--label', 'API'])).toEqual({
     kind: 'workspace',
-    workspace: { action: 'create', directory: 'work/api', label: 'API' },
+    workspace: { action: 'create', directory: 'work/api', label: 'API', background: false },
     json: false,
     socket,
   });
 
   expect(parseCommand(['workspace', 'create', 'work/api'])).toEqual({
     kind: 'workspace',
-    workspace: { action: 'create', directory: 'work/api', label: undefined },
+    workspace: { action: 'create', directory: 'work/api', label: undefined, background: false },
     json: false,
     socket,
   });
@@ -70,6 +70,15 @@ it('parses the workspace commands', () => {
   });
 });
 
+it('parses --background on workspace create', () => {
+  expect(parseCommand(['workspace', 'create', 'work/api', '--background'])).toEqual({
+    kind: 'workspace',
+    workspace: { action: 'create', directory: 'work/api', label: undefined, background: true },
+    json: false,
+    socket: undefined,
+  });
+});
+
 it.each([
   ['an unknown action', ['workspace', 'open']],
   ['no action', ['workspace']],
@@ -88,6 +97,9 @@ it.each([
   ['a malformed id for rename', ['workspace', 'rename', '1', 'docs']],
   ['--label on a server command', ['server', 'start', '--label', 'x']],
   ['--label on the default command', ['--label', 'x']],
+  ['--background on workspace focus', ['workspace', 'focus', 'workspace-1', '--background']],
+  ['--background on a pane command', ['pane', 'list', '--background']],
+  ['--background on a server command', ['server', 'start', '--background']],
 ])('refuses %s', (_name, argv) => {
   expect(typeof parseCommand(argv)).toBe('string');
 });

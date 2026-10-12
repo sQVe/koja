@@ -64,7 +64,7 @@ export interface State {
 }
 
 export type Intent =
-  | { type: 'createWorkspace'; root: string; label: string }
+  | { type: 'createWorkspace'; root: string; label: string | undefined; background: boolean }
   | { type: 'focusWorkspace'; workspaceId: WorkspaceId }
   | { type: 'renameWorkspace'; workspaceId: WorkspaceId; label: string }
   | { type: 'closeWorkspace'; workspaceId: WorkspaceId }
@@ -231,7 +231,19 @@ const fitPanes = (state: State): { panes: readonly Pane[]; changes: Change[] } =
   return { panes, changes };
 };
 
-const createWorkspace = (state: State, root: string, label: string): Applied | Rejected => {
+const defaultLabel = (root: string): string => {
+  const trimmed = root.replace(/\/+$/, '');
+  const baseName = trimmed.slice(trimmed.lastIndexOf('/') + 1);
+
+  return baseName === '' ? root : baseName;
+};
+
+const createWorkspace = (
+  state: State,
+  root: string,
+  label: string | undefined,
+  background: boolean,
+): Applied | Rejected => {
   if (state.stopping) {
     return reject(state, 'serverStopping');
   }
@@ -256,17 +268,19 @@ const createWorkspace = (state: State, root: string, label: string): Applied | R
   const workspace: Workspace = {
     id: tab.workspaceId,
     root,
-    label,
+    label: label ?? defaultLabel(root),
     tabIds: [tab.id],
     activeTabId: tab.id,
   };
+
+  const keepsFocus = background && state.focusedWorkspaceId !== undefined;
 
   const next: State = {
     ...state,
     workspaces: [...state.workspaces, workspace],
     tabs: [...state.tabs, tab],
     panes: [...state.panes, pane],
-    focusedWorkspaceId: workspace.id,
+    focusedWorkspaceId: keepsFocus ? state.focusedWorkspaceId : workspace.id,
     nextWorkspaceNumber: state.nextWorkspaceNumber + 1,
     nextTabNumber: state.nextTabNumber + 1,
     nextPaneNumber: state.nextPaneNumber + 1,
@@ -503,7 +517,7 @@ const stopServer = (state: State): Applied => {
 
 export const applyIntent = (state: State, intent: Intent): Applied | Rejected => {
   if (intent.type === 'createWorkspace') {
-    return createWorkspace(state, intent.root, intent.label);
+    return createWorkspace(state, intent.root, intent.label, intent.background);
   }
 
   if (intent.type === 'focusWorkspace') {
