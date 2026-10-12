@@ -1,4 +1,4 @@
-import type { InputMode, WorkspaceCommand, WorkspaceReply } from '../client/client.ts';
+import type { InputMode, TabRoute, WorkspaceCommand, WorkspaceReply } from '../client/client.ts';
 import type { WorkspaceId } from '../ids.ts';
 import { ModeFlag } from '../rows/rows.ts';
 
@@ -11,6 +11,9 @@ interface TokenRouterHost {
   workspaces: () => { ids: readonly WorkspaceId[]; focused: WorkspaceId | undefined };
   startDirectory: string;
   command: (command: WorkspaceCommand, onReply: (reply: WorkspaceReply) => void) => void;
+  tab: (route: TabRoute) => void;
+  tabPending: () => boolean;
+  afterTabAnswer: (callback: () => void) => void;
 }
 
 type WorkspaceKey = 'next' | 'previous' | 'create' | 'close';
@@ -24,6 +27,7 @@ interface KeyRoute {
   mode: InputMode;
   detach: boolean;
   workspace?: WorkspaceKey;
+  tab?: TabRoute;
 }
 
 const workspaceKeys: Record<string, WorkspaceKey> = {
@@ -60,6 +64,26 @@ const encodeInsertKey = (raw: string, modes: number): Uint8Array => {
   return encoder.encode(`\x1bO${tail}`);
 };
 
+const routeTabKey = (raw: string): TabRoute | undefined => {
+  if (raw === 't') {
+    return { kind: 'create' };
+  }
+
+  if (raw === 'H') {
+    return { kind: 'previous' };
+  }
+
+  if (raw === 'L') {
+    return { kind: 'next' };
+  }
+
+  if (raw.length === 1 && raw >= '1' && raw <= '9') {
+    return { kind: 'number', number: Number(raw) };
+  }
+
+  return undefined;
+};
+
 const routeNormalKey = (raw: string): KeyRoute => {
   if (raw === prefixKey) {
     return { bytes: encoder.encode(prefixKey), mode: 'insert', detach: false };
@@ -73,6 +97,12 @@ const routeNormalKey = (raw: string): KeyRoute => {
 
   if (workspace !== undefined) {
     return { bytes: nothing, mode: 'normal', detach: false, workspace };
+  }
+
+  const tab = routeTabKey(raw);
+
+  if (tab !== undefined) {
+    return { bytes: nothing, mode: 'normal', detach: false, tab };
   }
 
   const leavesNormal = raw === 'i' || raw === escapeKey;
@@ -188,7 +218,9 @@ export const createInputRouter = (host: TokenRouterHost): ((token: RoutedToken) 
   const withoutSentEscape = (bytes: Uint8Array, escapeSent: boolean): Uint8Array =>
     escapeSent && escapeInPane ? bytes.subarray(1) : bytes;
 
-  return (token) => {
+  const queue: RoutedToken[] = [];
+
+  const route = (token: RoutedToken): void => {
     if (token.kind === 'paste') {
       const routed = routePaste(token.bytes, host.modes());
       const wrapped = routed.length > token.bytes.length;
@@ -212,6 +244,34 @@ export const createInputRouter = (host: TokenRouterHost): ((token: RoutedToken) 
       runWorkspaceKey(routed.workspace);
     }
 
+    if (routed.tab !== undefined) {
+      host.tab(routed.tab);
+    }
+
     escapeInPane = token.raw === escapeKey && routed.bytes.length > 0;
+  };
+
+  // The client's snapshot changes only when the server answers a tab request. Input after the
+  // request waits, so it reaches the pane the request shows and later tab keys see the new tab.
+  const drain = (): void => {
+    while (queue.length > 0 && !host.tabPending()) {
+      const next = queue.shift();
+
+      if (next !== undefined) {
+        route(next);
+      }
+    }
+
+    if (queue.length > 0) {
+      host.afterTabAnswer(drain);
+    }
+  };
+
+  return (token) => {
+    queue.push(token);
+
+    if (queue.length === 1) {
+      drain();
+    }
   };
 };

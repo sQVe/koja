@@ -113,6 +113,8 @@ type WorkspaceRequest = Extract<
   { type: 'workspaceCreate' | 'workspaceFocus' | 'workspaceRename' | 'workspaceClose' }
 >;
 
+type TabRequest = Extract<ControlMessage, { type: 'tabCreate' | 'tabFocus' | 'tabClose' }>;
+
 // How long a pane whose stop failed gets to exit after it is killed.
 const paneExitWaitMs = 1000;
 
@@ -811,6 +813,96 @@ const handleWorkspaceRequest = (
   connection.send({ type: 'workspaceDone', workspaceId: message.workspaceId });
 };
 
+const isTabRequest = (message: ControlMessage): message is TabRequest =>
+  message.type === 'tabCreate' || message.type === 'tabFocus' || message.type === 'tabClose';
+
+const tabIntentOf = (message: TabRequest): Intent => {
+  if (message.type === 'tabCreate') {
+    return { type: 'createTab', workspaceId: message.workspaceId };
+  }
+
+  if (message.type === 'tabFocus') {
+    return { type: 'focusTab', tabId: message.tabId };
+  }
+
+  return { type: 'closeTab', tabId: message.tabId };
+};
+
+// The store refuses a request for an unknown workspace or tab, or while the server stops.
+const tabRefusalOf = (context: ServerContext, message: TabRequest): ControlMessage | undefined => {
+  if (context.state.stopping) {
+    return { type: 'tabFailed', reason: 'serverStopping', message: undefined };
+  }
+
+  if (message.type === 'tabCreate') {
+    const known = context.state.workspaces.some(
+      (workspace) => workspace.id === message.workspaceId,
+    );
+
+    return known
+      ? undefined
+      : { type: 'tabFailed', reason: 'unknownWorkspace', message: undefined };
+  }
+
+  const known = context.state.tabs.some((tab) => tab.id === message.tabId);
+
+  return known ? undefined : { type: 'tabFailed', reason: 'unknownTab', message: undefined };
+};
+
+const handleTabRequest = (
+  context: ServerContext,
+  message: TabRequest,
+  connection: Connection,
+): void => {
+  const refusal = tabRefusalOf(context, message);
+
+  if (refusal !== undefined) {
+    connection.send(refusal);
+
+    return;
+  }
+
+  const changes = dispatch(context, tabIntentOf(message));
+  const added = changes.find((change) => change.type === 'tabAdded');
+  const startFailure = takePaneStartFailure(context);
+
+  if (startFailure !== undefined) {
+    connection.send({ type: 'tabFailed', reason: 'paneFailedToStart', message: startFailure });
+
+    return;
+  }
+
+  if (message.type === 'tabCreate') {
+    invariant(added !== undefined, 'A created tab must be added.');
+    connection.send({ type: 'tabDone', tabId: added.tab.id });
+
+    return;
+  }
+
+  connection.send({ type: 'tabDone', tabId: message.tabId });
+};
+
+// Returns whether the message was a workspace or tab request.
+const handleLayoutRequest = (
+  context: ServerContext,
+  message: ControlMessage,
+  connection: Connection,
+): boolean => {
+  if (isWorkspaceRequest(message)) {
+    handleWorkspaceRequest(context, message, connection);
+
+    return true;
+  }
+
+  if (isTabRequest(message)) {
+    handleTabRequest(context, message, connection);
+
+    return true;
+  }
+
+  return false;
+};
+
 const handleMessage = (
   context: ServerContext,
   message: ControlMessage,
@@ -860,9 +952,7 @@ const handleMessage = (
     return;
   }
 
-  if (isWorkspaceRequest(message)) {
-    handleWorkspaceRequest(context, message, connection);
-
+  if (handleLayoutRequest(context, message, connection)) {
     return;
   }
 

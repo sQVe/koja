@@ -13,7 +13,7 @@ import type { BuildVersion, ControlMessage } from '../protocol/protocol.ts';
 import { decodeRowUpdate, encodePaneInput } from '../rows/rows.ts';
 import { createRowCache } from './rowCache.ts';
 import type { RowCache } from './rowCache.ts';
-import { applyChange } from './snapshot.ts';
+import { applyChange, focusedPane } from './snapshot.ts';
 import type { StoreChange, StoreSnapshot } from './snapshot.ts';
 import { workspaceRequest } from './workspaceRequest.ts';
 import type { WorkspaceCommand } from './workspaceRequest.ts';
@@ -24,6 +24,12 @@ interface TerminalSize {
 }
 
 export type InputMode = 'insert' | 'normal';
+
+export type TabRoute =
+  | { kind: 'create' }
+  | { kind: 'previous' }
+  | { kind: 'next' }
+  | { kind: 'number'; number: number };
 
 interface AttachState {
   snapshot: StoreSnapshot;
@@ -69,6 +75,13 @@ export interface AttachSession {
   // Tells the server the client has drawn every row update up to this sequence.
   acknowledge: (sequence: number) => void;
   sendInput: (pane: PaneId, bytes: Uint8Array) => void;
+  // Creates a tab in the focused workspace, or focuses one of its tabs. A tab that does not exist
+  // changes nothing.
+  focusTab: (route: TabRoute) => void;
+  // Whether a tab request is sent and not yet answered. The snapshot lags behind it.
+  tabPending: () => boolean;
+  // Calls back once, when no tab request is pending any more.
+  afterTabAnswer: (callback: () => void) => void;
   // Asks the server to detach this client. The session closes with `detached`.
   detach: () => void;
   // The snapshot changes show the result, so the replies are ignored.
@@ -94,6 +107,20 @@ const paneNumberBytes = 4;
 
 const inputBytesPerFrame = maxFramePayloadBytes - paneNumberBytes;
 
+const tabToFocus = (workspace: StoreSnapshot['workspaces'][number], route: TabRoute) => {
+  const index = workspace.tabIds.indexOf(workspace.activeTabId);
+
+  if (route.kind === 'previous') {
+    return workspace.tabIds[index - 1];
+  }
+
+  if (route.kind === 'next') {
+    return workspace.tabIds[index + 1];
+  }
+
+  return route.kind === 'number' ? workspace.tabIds[route.number - 1] : undefined;
+};
+
 export const connectAttach = async (
   socketPath: string,
   version: BuildVersion,
@@ -113,6 +140,11 @@ export const connectAttach = async (
   let welcomed = false;
   let waitingForSnapshot = false;
   let ended = false;
+  let pendingTabRequests = 0;
+  let paneBeforeTabRequest: PaneId | undefined;
+  let awaitingRows: PaneId | undefined;
+  const freshRowPanes = new Set<PaneId>();
+  let tabAnswerCallbacks: (() => void)[] = [];
   let socket: Bun.Socket | undefined;
 
   const drain = (): void => {
@@ -168,10 +200,55 @@ export const connectAttach = async (
     }
   };
 
+  const releaseTabCallbacks = (): void => {
+    const callbacks = tabAnswerCallbacks;
+
+    tabAnswerCallbacks = [];
+
+    for (const callback of callbacks) {
+      callback();
+    }
+  };
+
+  // A pane's rows carry its modes. Only rows that arrive after a tab request are fresh: a cache
+  // from an earlier visit can be stale.
+  const noteFreshRows = (pane: PaneId): void => {
+    if (pendingTabRequests > 0 || awaitingRows !== undefined) {
+      freshRowPanes.add(pane);
+    }
+
+    if (awaitingRows === pane) {
+      awaitingRows = undefined;
+      releaseTabCallbacks();
+    }
+  };
+
+  const shownPane = (): PaneId | undefined => (state && focusedPane(state.snapshot))?.id;
+
+  // The server stops sending rows of a pane that is no longer shown, so held input waits for the
+  // pane shown now instead.
+  const retargetAwaitedRows = (): void => {
+    const shown = shownPane();
+
+    if (awaitingRows === undefined || shown === awaitingRows) {
+      return;
+    }
+
+    if (shown !== undefined && !freshRowPanes.has(shown)) {
+      awaitingRows = shown;
+
+      return;
+    }
+
+    awaitingRows = undefined;
+    releaseTabCallbacks();
+  };
+
   const takeSnapshot = (snapshot: StoreSnapshot): void => {
     waitingForSnapshot = false;
     dropRowCaches(snapshot);
     setState({ snapshot, inputMode: state?.inputMode ?? 'insert' });
+    retargetAwaitedRows();
   };
 
   const takeChange = (revision: number, change: StoreChange): void => {
@@ -190,6 +267,38 @@ export const connectAttach = async (
 
     dropRowCaches(snapshot);
     setState({ ...state, snapshot });
+    retargetAwaitedRows();
+  };
+
+  // The server publishes a request's store changes before it answers, so the snapshot is current
+  // here. Input then waits for the rows of the pane the switch shows.
+  const takeTabAnswer = (done: boolean): void => {
+    pendingTabRequests = Math.max(pendingTabRequests - 1, 0);
+
+    if (pendingTabRequests > 0) {
+      return;
+    }
+
+    const shown = shownPane();
+    const switched = done && shown !== undefined && shown !== paneBeforeTabRequest;
+
+    if (switched && !freshRowPanes.has(shown)) {
+      awaitingRows = shown;
+
+      return;
+    }
+
+    releaseTabCallbacks();
+  };
+
+  const sendTabRequest = (message: ControlMessage): void => {
+    if (pendingTabRequests === 0) {
+      paneBeforeTabRequest = shownPane();
+      freshRowPanes.clear();
+    }
+
+    pendingTabRequests += 1;
+    send(message);
   };
 
   const takeRows = (bytes: Uint8Array): void => {
@@ -213,6 +322,8 @@ export const connectAttach = async (
     for (const listener of rowListeners) {
       listener({ pane, rows, sequence: decoded.update.sequence });
     }
+
+    noteFreshRows(pane);
   };
 
   const takeHandshake = (message: ControlMessage): void => {
@@ -238,6 +349,23 @@ export const connectAttach = async (
     welcomed = true;
   };
 
+  // Returns whether the message answered a tab or workspace request this session sent.
+  const takeRequestAnswer = (message: ControlMessage): boolean => {
+    if (message.type === 'tabDone' || message.type === 'tabFailed') {
+      takeTabAnswer(message.type === 'tabDone');
+
+      return true;
+    }
+
+    if (message.type === 'workspaceDone' || message.type === 'workspaceFailed') {
+      replyQueue.shift()?.(message.type === 'workspaceDone' ? 'done' : 'failed');
+
+      return true;
+    }
+
+    return false;
+  };
+
   const takeControl = (message: ControlMessage): void => {
     if (!welcomed) {
       takeHandshake(message);
@@ -257,12 +385,12 @@ export const connectAttach = async (
       return;
     }
 
-    if (message.type === 'change') {
-      takeChange(message.revision, message.change);
+    if (takeRequestAnswer(message)) {
+      return;
     }
 
-    if (message.type === 'workspaceDone' || message.type === 'workspaceFailed') {
-      replyQueue.shift()?.(message.type === 'workspaceDone' ? 'done' : 'failed');
+    if (message.type === 'change') {
+      takeChange(message.revision, message.change);
     }
 
     if (message.type === 'takenOver' || message.type === 'detached') {
@@ -350,6 +478,35 @@ export const connectAttach = async (
 
         enqueue(encodeFrame(FrameKind.input, encodePaneInput({ pane: number, bytes: part })));
       }
+    },
+    focusTab: (route) => {
+      invariant(state !== undefined, 'The attach session is only handed out after a snapshot.');
+
+      const { snapshot } = state;
+
+      const workspace = snapshot.workspaces.find(
+        (known) => known.id === snapshot.focusedWorkspaceId,
+      );
+
+      if (workspace === undefined) {
+        return;
+      }
+
+      if (route.kind === 'create') {
+        sendTabRequest({ type: 'tabCreate', workspaceId: workspace.id });
+
+        return;
+      }
+
+      const tab = tabToFocus(workspace, route);
+
+      if (tab !== undefined && tab !== workspace.activeTabId) {
+        sendTabRequest({ type: 'tabFocus', tabId: tab });
+      }
+    },
+    tabPending: () => pendingTabRequests > 0 || awaitingRows !== undefined,
+    afterTabAnswer: (callback) => {
+      tabAnswerCallbacks.push(callback);
     },
     detach: () => {
       send({ type: 'detach' });

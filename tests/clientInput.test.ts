@@ -14,7 +14,7 @@ const separateRead = async () => {
 const startInInsert = async (modes: number) => {
   const attached = await setupAttach(modes);
 
-  await attached.until(() => attached.statusBar() === 'INSERT');
+  await attached.until(() => attached.statusBar() === 'INSERT [1]');
 
   return attached;
 };
@@ -81,7 +81,7 @@ it('sends only Escape when Ctrl+B follows and goes to normal mode', async () => 
   await sendEscape(attached);
   attached.type('\x02');
 
-  await attached.until(() => attached.statusBar() === 'NORMAL');
+  await attached.until(() => attached.statusBar() === 'NORMAL [1]');
   expect(attached.receivedText()).toBe(escape);
 });
 
@@ -100,10 +100,10 @@ it('sends one Ctrl+B to the pane when it is typed twice', async () => {
 
   attached.type('\x02');
 
-  await attached.until(() => attached.statusBar() === 'NORMAL');
+  await attached.until(() => attached.statusBar() === 'NORMAL [1]');
   attached.type('\x02');
 
-  await attached.until(() => attached.statusBar() === 'INSERT');
+  await attached.until(() => attached.statusBar() === 'INSERT [1]');
   await attached.until(() => attached.receivedText() === '\x02');
 });
 
@@ -183,7 +183,7 @@ it('sends an application arrow delivered in three reads as one key', async () =>
 it('keeps palette color replies out of the pane when the terminal has no truecolor', async () => {
   const attached = await setupAttach(0, { truecolor: false });
 
-  await attached.until(() => attached.statusBar() === 'INSERT');
+  await attached.until(() => attached.statusBar() === 'INSERT [1]');
   await attached.until(() => attached.repliesText().includes('\x1b]4;15;'));
   attached.type('x');
   await attached.until(() => attached.receivedText().endsWith('x'));

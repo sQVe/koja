@@ -60,7 +60,15 @@ export interface State {
   nextPaneNumber: number;
   nextClientNumber: number;
   nextGeneration: number;
+  // What a new tab or workspace replaced as active, until its pane starts.
+  startFallbacks: readonly StartFallback[];
   revision: number;
+}
+
+interface StartFallback {
+  paneId: PaneId;
+  tabId: TabId | undefined;
+  workspaceId: WorkspaceId | undefined;
 }
 
 export type Intent =
@@ -68,6 +76,9 @@ export type Intent =
   | { type: 'focusWorkspace'; workspaceId: WorkspaceId }
   | { type: 'renameWorkspace'; workspaceId: WorkspaceId; label: string }
   | { type: 'closeWorkspace'; workspaceId: WorkspaceId }
+  | { type: 'createTab'; workspaceId: WorkspaceId }
+  | { type: 'focusTab'; tabId: TabId }
+  | { type: 'closeTab'; tabId: TabId }
   | { type: 'attachClient'; size: TerminalSize }
   | { type: 'resizeClient'; clientId: ClientId; size: TerminalSize }
   | { type: 'setClientTheme'; clientId: ClientId; theme: Theme }
@@ -88,6 +99,7 @@ export type Change =
   | { type: 'paneAdded'; pane: Pane }
   | { type: 'workspaceFocused'; workspaceId: WorkspaceId }
   | { type: 'workspaceRenamed'; workspaceId: WorkspaceId; label: string }
+  | { type: 'tabFocused'; workspaceId: WorkspaceId; tabId: TabId }
   // Carries the focus that remains, so a client needs no rule to pick it.
   | {
       type: 'workspaceRemoved';
@@ -109,7 +121,7 @@ export type Change =
   | { type: 'clientDetached'; clientId: ClientId; reason: DetachReason }
   | { type: 'serverStopping' };
 
-type RejectReason = 'serverStopping' | 'unknownClient' | 'unknownWorkspace';
+type RejectReason = 'serverStopping' | 'unknownClient' | 'unknownWorkspace' | 'unknownTab';
 
 // Whatever an effect still holds for this pane generation, such as its process and PTY.
 interface PaneProcess {
@@ -158,6 +170,7 @@ export const createState = (): State => ({
   nextPaneNumber: 1,
   nextClientNumber: 1,
   nextGeneration: 1,
+  startFallbacks: [],
   revision: 0,
 });
 
@@ -285,6 +298,10 @@ const createWorkspace = (
     tabs: [...state.tabs, tab],
     panes: [...state.panes, pane],
     focusedWorkspaceId,
+    startFallbacks: [
+      ...state.startFallbacks,
+      { paneId: pane.id, tabId: undefined, workspaceId: state.focusedWorkspaceId },
+    ],
     nextWorkspaceNumber: state.nextWorkspaceNumber + 1,
     nextTabNumber: state.nextTabNumber + 1,
     nextPaneNumber: state.nextPaneNumber + 1,
@@ -339,9 +356,17 @@ const renameWorkspace = (state: State, id: WorkspaceId, label: string): Applied 
 };
 
 // The next workspace in list order takes the focus, or the previous one when it was last.
-const focusAfterRemoval = (state: State, removedId: WorkspaceId): WorkspaceId | undefined => {
+const focusAfterRemoval = (
+  state: State,
+  removedId: WorkspaceId,
+  restore: WorkspaceId | undefined,
+): WorkspaceId | undefined => {
   if (state.focusedWorkspaceId !== removedId) {
     return state.focusedWorkspaceId;
+  }
+
+  if (state.workspaces.some((workspace) => workspace.id === restore)) {
+    return restore;
   }
 
   const index = state.workspaces.findIndex((workspace) => workspace.id === removedId);
@@ -350,7 +375,26 @@ const focusAfterRemoval = (state: State, removedId: WorkspaceId): WorkspaceId | 
   return neighbor?.id;
 };
 
-const removeTab = (state: State, tab: Tab): Applied => {
+// The next tab in list order becomes active, or the previous one when it was last.
+const activeAfterRemoval = (
+  owner: Workspace,
+  removedId: TabId,
+  restore: TabId | undefined,
+): TabId | undefined => {
+  if (owner.activeTabId !== removedId) {
+    return owner.activeTabId;
+  }
+
+  if (restore !== undefined && owner.tabIds.includes(restore)) {
+    return restore;
+  }
+
+  const index = owner.tabIds.indexOf(removedId);
+
+  return owner.tabIds[index + 1] ?? owner.tabIds[index - 1];
+};
+
+const removeTab = (state: State, tab: Tab, restore?: StartFallback): Applied => {
   const remaining = state.panes.filter((pane) => pane.tabId !== tab.id);
   const removedPanes = state.panes.filter((pane) => pane.tabId === tab.id);
   const changes: Change[] = removedPanes.map((pane) => ({ type: 'paneRemoved', paneId: pane.id }));
@@ -367,8 +411,16 @@ const removeTab = (state: State, tab: Tab): Applied => {
   }
 
   if (tabIds.length > 0) {
+    const activeTabId = activeAfterRemoval(owner, tab.id, restore?.tabId);
+
+    invariant(activeTabId !== undefined, `Workspace ${owner.id} has no tab to activate.`);
+
+    if (activeTabId !== owner.activeTabId) {
+      changes.push({ type: 'tabFocused', workspaceId: owner.id, tabId: activeTabId });
+    }
+
     const workspaces = state.workspaces.map((workspace) =>
-      workspace.id === owner.id ? { ...workspace, tabIds } : workspace,
+      workspace.id === owner.id ? { ...workspace, tabIds, activeTabId } : workspace,
     );
 
     next = { ...next, workspaces };
@@ -376,13 +428,114 @@ const removeTab = (state: State, tab: Tab): Applied => {
     return commit(next, changes);
   }
 
-  const focusedWorkspaceId = focusAfterRemoval(state, owner.id);
+  const focusedWorkspaceId = focusAfterRemoval(state, owner.id, restore?.workspaceId);
 
   changes.push({ type: 'workspaceRemoved', workspaceId: owner.id, focusedWorkspaceId });
 
   const workspaces = state.workspaces.filter((workspace) => workspace.id !== owner.id);
 
   return commit({ ...next, workspaces, focusedWorkspaceId }, changes);
+};
+
+const createTab = (state: State, id: WorkspaceId): Applied | Rejected => {
+  if (state.stopping) {
+    return reject(state, 'serverStopping');
+  }
+
+  const owner = state.workspaces.find((workspace) => workspace.id === id);
+
+  if (owner === undefined) {
+    return reject(state, 'unknownWorkspace');
+  }
+
+  const pane: Pane = {
+    id: paneId(state.nextPaneNumber),
+    tabId: tabId(state.nextTabNumber),
+    lifecycle: 'starting',
+    size: paneSize(attachedClientOf(state)?.size),
+    generation: state.nextGeneration,
+    exitCode: undefined,
+  };
+
+  const tab: Tab = {
+    id: pane.tabId,
+    workspaceId: id,
+    layout: { kind: 'pane', paneId: pane.id },
+    focusedPaneId: pane.id,
+    zoomedPaneId: undefined,
+  };
+
+  const workspaces = state.workspaces.map((workspace) =>
+    workspace.id === id
+      ? { ...workspace, tabIds: [...workspace.tabIds, tab.id], activeTabId: tab.id }
+      : workspace,
+  );
+
+  const next: State = {
+    ...state,
+    workspaces,
+    tabs: [...state.tabs, tab],
+    panes: [...state.panes, pane],
+    startFallbacks: [
+      ...state.startFallbacks,
+      { paneId: pane.id, tabId: owner.activeTabId, workspaceId: undefined },
+    ],
+    nextTabNumber: state.nextTabNumber + 1,
+    nextPaneNumber: state.nextPaneNumber + 1,
+    nextGeneration: state.nextGeneration + 1,
+  };
+
+  return commit(next, [
+    { type: 'tabAdded', tab },
+    { type: 'paneAdded', pane },
+    { type: 'tabFocused', workspaceId: id, tabId: tab.id },
+  ]);
+};
+
+const focusTab = (state: State, id: TabId): Applied | Rejected => {
+  if (state.stopping) {
+    return reject(state, 'serverStopping');
+  }
+
+  const tab = state.tabs.find((known) => known.id === id);
+
+  if (tab === undefined) {
+    return reject(state, 'unknownTab');
+  }
+
+  const owner = state.workspaces.find((workspace) => workspace.id === tab.workspaceId);
+
+  invariant(owner !== undefined, `Tab ${id} has no workspace.`);
+
+  const changes: Change[] = [];
+
+  if (owner.activeTabId !== id) {
+    changes.push({ type: 'tabFocused', workspaceId: owner.id, tabId: id });
+  }
+
+  if (state.focusedWorkspaceId !== owner.id) {
+    changes.push({ type: 'workspaceFocused', workspaceId: owner.id });
+  }
+
+  const workspaces = state.workspaces.map((workspace) =>
+    workspace.id === owner.id ? { ...workspace, activeTabId: id } : workspace,
+  );
+
+  return commit({ ...state, workspaces, focusedWorkspaceId: owner.id }, changes);
+};
+
+const closeTab = (state: State, id: TabId): Applied | Rejected => {
+  if (state.stopping) {
+    return reject(state, 'serverStopping');
+  }
+
+  const tab = state.tabs.find((known) => known.id === id);
+
+  if (tab === undefined) {
+    return reject(state, 'unknownTab');
+  }
+
+  return removeTab(state, tab);
 };
 
 const closeWorkspace = (state: State, id: WorkspaceId): Applied | Rejected => {
@@ -403,7 +556,7 @@ const closeWorkspace = (state: State, id: WorkspaceId): Applied | Rejected => {
     const removed = removeTab(current, tab);
 
     current = removed.state;
-    changes.push(...removed.changes);
+    changes.push(...removed.changes.filter((change) => change.type !== 'tabFocused'));
   }
 
   return commit({ ...current, revision: state.revision }, changes);
@@ -536,6 +689,18 @@ export const applyIntent = (state: State, intent: Intent): Applied | Rejected =>
     return closeWorkspace(state, intent.workspaceId);
   }
 
+  if (intent.type === 'createTab') {
+    return createTab(state, intent.workspaceId);
+  }
+
+  if (intent.type === 'focusTab') {
+    return focusTab(state, intent.tabId);
+  }
+
+  if (intent.type === 'closeTab') {
+    return closeTab(state, intent.tabId);
+  }
+
   if (intent.type === 'attachClient') {
     return attachClient(state, intent.size);
   }
@@ -567,7 +732,12 @@ const isCurrent = (pane: Pane | undefined, fact: Fact): pane is Pane =>
 const replacePane = (state: State, replacement: Pane): readonly Pane[] =>
   state.panes.map((pane) => (pane.id === replacement.id ? replacement : pane));
 
-const endPane = (state: State, pane: Pane, exitCode: number | undefined): Applied => {
+const endPane = (
+  state: State,
+  pane: Pane,
+  exitCode: number | undefined,
+  restore?: StartFallback,
+): Applied => {
   if (state.stopping) {
     const exited = { ...pane, lifecycle: 'exited' as const, exitCode };
 
@@ -580,11 +750,15 @@ const endPane = (state: State, pane: Pane, exitCode: number | undefined): Applie
 
   invariant(tab !== undefined, `Pane ${pane.id} has no tab.`);
 
-  return removeTab(state, tab);
+  return removeTab(state, tab, restore);
 };
 
 const markRunning = (state: State, pane: Pane): Applied => {
-  const next: State = { ...state, panes: replacePane(state, { ...pane, lifecycle: 'running' }) };
+  const next: State = {
+    ...state,
+    panes: replacePane(state, { ...pane, lifecycle: 'running' }),
+    startFallbacks: state.startFallbacks.filter((known) => known.paneId !== pane.id),
+  };
 
   return commit(next, [
     { type: 'paneStateChanged', paneId: pane.id, lifecycle: 'running', exitCode: undefined },
@@ -601,12 +775,19 @@ export const applyFact = (state: State, fact: Fact): Applied | Ignored => {
   // The effect that runs a pane generation reports its end once.
   invariant(pane.lifecycle !== 'exited', `Pane ${pane.id} reported ${fact.type} after it exited.`);
 
+  const restore = state.startFallbacks.find((known) => known.paneId === pane.id);
+
+  const settled = {
+    ...state,
+    startFallbacks: state.startFallbacks.filter((known) => known.paneId !== pane.id),
+  };
+
   if (fact.type === 'paneExited') {
-    return endPane(state, pane, fact.exitCode);
+    return endPane(settled, pane, fact.exitCode);
   }
 
   if (fact.type === 'paneFailedToStart') {
-    return endPane(state, pane, undefined);
+    return endPane(settled, pane, undefined, restore);
   }
 
   return pane.lifecycle === 'starting' ? markRunning(state, pane) : ignore(state, fact);

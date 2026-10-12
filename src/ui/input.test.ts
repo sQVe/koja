@@ -126,6 +126,9 @@ const router = (
         sent.push(decoder.decode(bytes));
       }
     },
+    tab: () => undefined,
+    tabPending: () => false,
+    afterTabAnswer: () => undefined,
     detach: () => {
       detaches += 1;
     },
@@ -304,6 +307,9 @@ const chunkRouter = () => {
       }
     },
     detach: () => undefined,
+    tab: () => undefined,
+    tabPending: () => false,
+    afterTabAnswer: () => undefined,
     workspaces: () => ({ ids: workspaceIds, focused }),
     startDirectory: '/work/start',
     command: (command, onReply) => {
@@ -438,4 +444,113 @@ it('accepts workspace keys again after a create fails', () => {
   press('j');
 
   expect(commands.at(-1)).toEqual({ action: 'focus', workspaceId: two });
+});
+
+it('routes t to a new tab and sends nothing to the pane', () => {
+  expect(routeKey('t', 'normal', 0)).toEqual({
+    bytes: new Uint8Array(),
+    mode: 'normal',
+    detach: false,
+    tab: { kind: 'create' },
+  });
+});
+
+it('routes H and L to the previous and next tab', () => {
+  expect(routeKey('H', 'normal', 0).tab).toEqual({ kind: 'previous' });
+  expect(routeKey('L', 'normal', 0).tab).toEqual({ kind: 'next' });
+  expect(routeKey('L', 'normal', 0).bytes).toEqual(new Uint8Array());
+});
+
+it('routes 1 to 9 to a tab by number and leaves 0 alone', () => {
+  for (let number = 1; number <= 9; number += 1) {
+    const routed = routeKey(String(number), 'normal', 0);
+
+    expect(routed.tab).toEqual({ kind: 'number', number });
+    expect(routed.bytes).toEqual(new Uint8Array());
+  }
+
+  expect(routeKey('0', 'normal', 0).tab).toBeUndefined();
+});
+
+it('sends t, H, L, and digits to the pane in insert mode', () => {
+  for (const raw of ['t', 'H', 'L', '3']) {
+    expect(routeKey(raw, 'insert', 0)).toEqual({
+      bytes: encoder.encode(raw),
+      mode: 'insert',
+      detach: false,
+    });
+  }
+});
+
+it('asks the host for a tab and keeps normal mode', () => {
+  const routes: unknown[] = [];
+  const modes: string[] = [];
+
+  const route = createInputRouter({
+    mode: () => 'normal',
+    setMode: (mode) => modes.push(mode),
+    modes: () => 0,
+    send: () => undefined,
+    detach: () => undefined,
+    tab: (tab) => routes.push(tab),
+    tabPending: () => false,
+    afterTabAnswer: () => undefined,
+    workspaces: () => ({ ids: [], focused: undefined }),
+    startDirectory: '/work/start',
+    command: () => undefined,
+  });
+
+  route({ kind: 'key', raw: '2', escapeSent: false });
+
+  expect(routes).toEqual([{ kind: 'number', number: 2 }]);
+  expect(modes).toEqual(['normal']);
+});
+
+it('holds input while a tab request is unanswered and routes it in order after the answer', () => {
+  const events: string[] = [];
+  let pending = false;
+  let answered: (() => void) | undefined;
+
+  let mode: InputMode = 'insert';
+
+  const routeMode = createInputRouter({
+    mode: () => mode,
+    setMode: (next) => {
+      mode = next;
+    },
+    modes: () => 0,
+    send: (bytes) => {
+      if (bytes.length > 0) {
+        events.push(`send ${decoder.decode(bytes)}`);
+      }
+    },
+    detach: () => undefined,
+    tab: () => {
+      pending = true;
+      events.push('tab');
+    },
+    tabPending: () => pending,
+    afterTabAnswer: (callback) => {
+      answered = callback;
+    },
+    workspaces: () => ({ ids: [], focused: undefined }),
+    startDirectory: '/work/start',
+    command: () => undefined,
+  });
+
+  for (const raw of ['\x02', 'L', 'i', 'a', '\x02', 'L', 'i', 'b']) {
+    routeMode({ kind: 'key', raw, escapeSent: false });
+  }
+
+  expect(events).toEqual(['tab']);
+
+  pending = false;
+  answered?.();
+
+  expect(events).toEqual(['tab', 'send a', 'tab']);
+
+  pending = false;
+  answered?.();
+
+  expect(events).toEqual(['tab', 'send a', 'tab', 'send b']);
 });

@@ -24,11 +24,28 @@ const applyLayoutChange = (snapshot: StoreSnapshot, change: StoreChange): StoreS
   }
 
   if (change.type === 'tabAdded') {
-    return { ...snapshot, tabs: [...snapshot.tabs, change.tab] };
+    const { tab } = change;
+
+    // workspaceAdded already lists the first tab.
+    const workspaces = snapshot.workspaces.map((workspace) =>
+      workspace.id === tab.workspaceId && !workspace.tabIds.includes(tab.id)
+        ? { ...workspace, tabIds: [...workspace.tabIds, tab.id] }
+        : workspace,
+    );
+
+    return { ...snapshot, tabs: [...snapshot.tabs, tab], workspaces };
   }
 
   if (change.type === 'workspaceFocused') {
     return { ...snapshot, focusedWorkspaceId: change.workspaceId };
+  }
+
+  if (change.type === 'tabFocused') {
+    const workspaces = snapshot.workspaces.map((workspace) =>
+      workspace.id === change.workspaceId ? { ...workspace, activeTabId: change.tabId } : workspace,
+    );
+
+    return { ...snapshot, workspaces };
   }
 
   if (change.type === 'workspaceRenamed') {

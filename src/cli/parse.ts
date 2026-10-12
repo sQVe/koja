@@ -1,8 +1,8 @@
 import { parseArgs } from 'node:util';
 
 import type { PaneCommand } from '../client/client.ts';
-import { paneId, workspaceId } from '../ids.ts';
-import type { PaneId, WorkspaceId } from '../ids.ts';
+import { paneId, tabId, workspaceId } from '../ids.ts';
+import type { PaneId, TabId, WorkspaceId } from '../ids.ts';
 
 interface CommandOptions {
   json: boolean;
@@ -33,9 +33,27 @@ export interface WorkspaceCliCommand extends CommandOptions {
   workspace: WorkspaceAction;
 }
 
+export type TabAction =
+  | { action: 'list' }
+  | { action: 'create'; workspaceId: WorkspaceId | undefined }
+  | { action: 'focus'; tabId: TabId }
+  | { action: 'close'; tabId: TabId };
+
+export interface TabCliCommand extends CommandOptions {
+  kind: 'tab';
+  tab: TabAction;
+}
+
 export interface ServerCommand extends CommandOptions {
   kind: 'server';
   action: ServerAction;
+}
+
+interface StrayOptions {
+  label?: string;
+  background?: boolean;
+  pane?: string;
+  workspace?: string;
 }
 
 export interface AttachCommand {
@@ -56,6 +74,7 @@ export type Command =
   | VersionCommand
   | PaneCliCommand
   | WorkspaceCliCommand
+  | TabCliCommand
   | ServerCommand
   | AttachCommand
   | DefaultCommand
@@ -67,6 +86,7 @@ interface GroupInput {
   label: string | undefined;
   background: boolean;
   pane: string | undefined;
+  workspace: string | undefined;
   options: CommandOptions;
 }
 
@@ -89,6 +109,10 @@ export const usage = `Usage:
   phi workspace focus <id> [--socket <path>] [--json]
   phi workspace rename <id> <label> [--socket <path>] [--json]
   phi workspace close <id> [--socket <path>] [--json]
+  phi tab list [--socket <path>] [--json]
+  phi tab create [--workspace <id>] [--socket <path>] [--json]
+  phi tab focus <id> [--socket <path>] [--json]
+  phi tab close <id> [--socket <path>] [--json]
   phi pane list [--socket <path>] [--json]
   phi pane read [--pane <id>] [--socket <path>] [--json]
   phi pane send <text> [--pane <id>] [--socket <path>] [--json]`;
@@ -109,6 +133,14 @@ const parseWorkspaceId = (value: string | undefined): IdResult<WorkspaceId> => {
   return number === undefined
     ? { ok: false, message: `'${value ?? ''}' is not a workspace id, such as workspace-1.` }
     : { ok: true, id: workspaceId(number) };
+};
+
+const parseTabId = (value: string | undefined): IdResult<TabId> => {
+  const number = parseId(value ?? '', 'tab');
+
+  return number === undefined
+    ? { ok: false, message: `'${value ?? ''}' is not a tab id, such as tab-1.` }
+    : { ok: true, id: tabId(number) };
 };
 
 const parsePaneId = (value: string | undefined): IdResult<PaneId | undefined> => {
@@ -231,6 +263,54 @@ const parseWorkspaceCommand = (
   return action === 'rename' ? parseWorkspaceRename(rest) : 'Unknown workspace command.';
 };
 
+const parseTabTarget = (action: 'focus' | 'close', rest: string[]): TabAction | string => {
+  if (rest.length !== 1) {
+    return `tab ${action} takes one tab id.`;
+  }
+
+  const id = parseTabId(rest[0]);
+
+  return id.ok ? { action, tabId: id.id } : id.message;
+};
+
+const parseTabCreate = (rest: string[], workspace: string | undefined): TabAction | string => {
+  if (rest.length > 0) {
+    return 'tab create takes no arguments.';
+  }
+
+  if (workspace === undefined) {
+    return { action: 'create', workspaceId: undefined };
+  }
+
+  const id = parseWorkspaceId(workspace);
+
+  return id.ok ? { action: 'create', workspaceId: id.id } : id.message;
+};
+
+const parseTabCommand = (
+  action: string | undefined,
+  rest: string[],
+  workspace: string | undefined,
+): TabAction | string => {
+  if (action === 'create') {
+    return parseTabCreate(rest, workspace);
+  }
+
+  if (workspace !== undefined) {
+    return '--workspace belongs to tab create.';
+  }
+
+  if (action === 'list') {
+    return rest.length === 0 ? { action } : 'tab list takes no arguments.';
+  }
+
+  if (action === 'focus' || action === 'close') {
+    return parseTabTarget(action, rest);
+  }
+
+  return 'Unknown tab command.';
+};
+
 const parseAttachCommand = (
   positionals: string[],
   options: CommandOptions,
@@ -304,6 +384,12 @@ const parseGroupCommand = (group: string | undefined, input: GroupInput): Comman
       : { kind: 'workspace', workspace, ...input.options };
   }
 
+  if (group === 'tab') {
+    const tab = parseTabCommand(input.action, input.rest, input.workspace);
+
+    return typeof tab === 'string' ? tab : { kind: 'tab', tab, ...input.options };
+  }
+
   if (group === 'pane') {
     const pane = parsePaneCommand(input.action, input.rest, input.pane);
 
@@ -315,16 +401,18 @@ const parseGroupCommand = (group: string | undefined, input: GroupInput): Comman
 
 const strayOptionMessage = (
   group: string | undefined,
-  label: string | undefined,
-  background: boolean,
-  pane: string | undefined,
+  { label, background, pane, workspace }: StrayOptions,
 ): string | undefined => {
   if (label !== undefined && group !== 'workspace') {
     return '--label belongs to workspace create.';
   }
 
-  if (background && group !== 'workspace') {
+  if (background === true && group !== 'workspace') {
     return '--background belongs to workspace create.';
+  }
+
+  if (workspace !== undefined && group !== 'tab') {
+    return '--workspace belongs to tab create.';
   }
 
   return pane !== undefined && group !== 'pane'
@@ -343,6 +431,7 @@ export const parseCommand = (argv: string[]): Command | string => {
         label: { type: 'string' },
         background: { type: 'boolean' },
         pane: { type: 'string' },
+        workspace: { type: 'string' },
       },
       allowPositionals: true,
       strict: true,
@@ -351,7 +440,7 @@ export const parseCommand = (argv: string[]): Command | string => {
     const json = values.json === true;
     const options = { json, socket: values.socket };
     const [group, action, ...rest] = positionals;
-    const stray = strayOptionMessage(group, values.label, values.background === true, values.pane);
+    const stray = strayOptionMessage(group, values);
 
     if (stray !== undefined) {
       return stray;
@@ -375,6 +464,7 @@ export const parseCommand = (argv: string[]): Command | string => {
       label: values.label,
       background: values.background === true,
       pane: values.pane,
+      workspace: values.workspace,
       options,
     });
   } catch (error) {

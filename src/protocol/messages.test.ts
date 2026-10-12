@@ -111,6 +111,11 @@ const messages: ControlMessage[] = [
     revision: 3,
     change: { type: 'workspaceRenamed', workspaceId: workspace.id, label: 'docs' },
   },
+  {
+    type: 'change',
+    revision: 3,
+    change: { type: 'tabFocused', workspaceId: workspace.id, tabId: tab.id },
+  },
   { type: 'change', revision: 4, change: { type: 'paneRemoved', paneId: pane.id } },
   { type: 'change', revision: 5, change: { type: 'tabRemoved', tabId: tab.id } },
   {
@@ -173,6 +178,12 @@ const messages: ControlMessage[] = [
   { type: 'workspaceClose', workspaceId: workspace.id },
   { type: 'workspaceDone', workspaceId: workspace.id },
   { type: 'workspaceFailed', reason: 'unknownWorkspace', message: undefined },
+  { type: 'tabCreate', workspaceId: workspace.id },
+  { type: 'tabFocus', tabId: tab.id },
+  { type: 'tabClose', tabId: tab.id },
+  { type: 'tabDone', tabId: tab.id },
+  { type: 'tabFailed', reason: 'unknownTab', message: undefined },
+  { type: 'tabFailed', reason: 'paneFailedToStart', message: 'no such directory' },
   { type: 'workspaceFailed', reason: 'paneFailedToStart', message: 'no such directory' },
 ];
 

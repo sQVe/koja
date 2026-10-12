@@ -9,6 +9,7 @@ import { runPaneAction } from './paneCommands.ts';
 import { parseCommand, usage } from './parse.ts';
 import type { AttachCommand, Command, DefaultCommand, VersionCommand } from './parse.ts';
 import { runServerAction } from './serverCommands.ts';
+import { runTabAction } from './tabCommands.ts';
 import { readVersions } from './versions.ts';
 import { runWorkspaceAction } from './workspaceCommands.ts';
 
@@ -27,6 +28,10 @@ const runRequestCommand = (
 
   if (command.kind === 'workspace') {
     return runWorkspaceAction(command, versions, environment);
+  }
+
+  if (command.kind === 'tab') {
+    return runTabAction(command, versions, environment);
   }
 
   if (command.kind === 'detach') {
