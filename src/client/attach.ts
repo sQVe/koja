@@ -69,7 +69,7 @@ export interface AttachSession {
   sendInput: (pane: PaneId, bytes: Uint8Array) => void;
   // Asks the server to detach this client. The session closes with `detached`.
   detach: () => void;
-  // Sends a workspace command. The snapshot changes show the result; the replies are ignored.
+  // The snapshot changes show the result, so the replies are ignored.
   sendWorkspaceCommand: (command: WorkspaceCommand) => void;
   close: () => void;
   closed: Promise<CloseReason>;

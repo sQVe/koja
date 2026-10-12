@@ -9,7 +9,6 @@ interface TokenRouterHost {
   send: (bytes: Uint8Array) => void;
   detach: () => void;
   workspaces: () => { ids: readonly WorkspaceId[]; focused: WorkspaceId | undefined };
-  // The directory a created workspace is rooted at.
   startDirectory: string;
   command: (command: WorkspaceCommand) => void;
 }
