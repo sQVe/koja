@@ -509,10 +509,13 @@ const removePane = (context: ServerContext, id: PaneId): void => {
     return;
   }
 
+  // stopPane disposes the row publisher it finds in the registry, which releases held pane reads.
+  const stopping = stopPane(context, id, pane);
+
   context.runtime.panes.delete(id);
   context.runtime.rowPublishers.delete(id);
 
-  stopPane(context, id, pane).catch((error: unknown) => {
+  stopping.catch((error: unknown) => {
     context.options.log.error('Stopping the pane failed.', {
       paneId: id,
       error: describeError(error),

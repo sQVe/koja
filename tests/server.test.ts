@@ -450,6 +450,31 @@ it('answers paneRead during a synchronized-output hold only after the hold ends'
   expect(text).not.toContain('half-drawn');
 });
 
+it('answers a paneRead held by synchronized output with paneMissing when its workspace closes', async () => {
+  const directory = await temporaryDirectory();
+  const { server, socketPath } = await startServer(directory);
+  const client = await connect(socketPath);
+
+  client.send({ type: 'hello', version: build, size: undefined });
+  expect(await client.nextMessage()).toEqual({ type: 'welcome' });
+  await client.nextMessage();
+
+  server.writeToPane('printf \'\\033[?2026hhalf-\'"drawn"\n');
+  await waitFor(() => server.paneText()?.includes('half-drawn') === true);
+
+  client.sendTogether([
+    { type: 'paneRead', paneId: paneId(1) },
+    { type: 'paneSend', paneId: paneId(1), text: '' },
+  ]);
+
+  expect(await client.nextMessage()).toEqual({ type: 'paneSent', paneId: paneId(1) });
+
+  client.send({ type: 'workspaceClose', workspaceId: workspaceId(1) });
+
+  await waitFor(() => client.messages.some((message) => message.type === 'paneMissing'), 1000);
+  expect(client.messages.map((message) => message.type)).not.toContain('paneRows');
+});
+
 it.each(['paneSend', 'stop'] as const)(
   'answers paneRead with rows before a %s in the same write',
   async (type) => {
