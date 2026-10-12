@@ -18,6 +18,8 @@ import type { StoreChange, StoreSnapshot } from './snapshot.ts';
 import { workspaceRequest } from './workspaceRequest.ts';
 import type { WorkspaceCommand } from './workspaceRequest.ts';
 
+type SplitDirection = Extract<ControlMessage, { type: 'paneSplit' }>['direction'];
+
 interface TerminalSize {
   columns: number;
   rows: number;
@@ -82,6 +84,12 @@ export interface AttachSession {
   tabPending: () => boolean;
   // Calls back once, when no tab request is pending any more.
   afterTabAnswer: (callback: () => void) => void;
+  // Ask the server to change the pane layout, like `phi pane split|focus|close`. Each promise
+  // settles once the server has answered and the state changes it caused are applied. It also
+  // settles when the session ends or the answer takes too long.
+  splitPane: (pane: PaneId, direction: SplitDirection) => Promise<void>;
+  focusPane: (pane: PaneId) => Promise<void>;
+  closePane: (pane: PaneId) => Promise<void>;
   // Asks the server to detach this client. The session closes with `detached`.
   detach: () => void;
   // The snapshot changes show the result, so the replies are ignored.
@@ -99,6 +107,8 @@ export type AttachResult =
   | { ok: false; reason: 'refused'; client: BuildVersion; server: BuildVersion };
 
 const rowCacheLimit = 10_000;
+
+const layoutAnswerTimeoutMs = 2000;
 
 const handshakeTimeoutMs = 10_000;
 
@@ -145,6 +155,7 @@ export const connectAttach = async (
   let awaitingRows: PaneId | undefined;
   const freshRowPanes = new Set<PaneId>();
   let tabAnswerCallbacks: (() => void)[] = [];
+  const layoutAnswers: (() => void)[] = [];
   let socket: Bun.Socket | undefined;
 
   const drain = (): void => {
@@ -177,8 +188,34 @@ export const connectAttach = async (
 
     ended = true;
     socket?.end();
+
+    for (const answered of layoutAnswers.splice(0)) {
+      answered();
+    }
+
     handshake.resolve({ ok: false, reason: 'connectionFailed' });
     closedSignal.resolve(reason);
+  };
+
+  const requestLayout = (message: ControlMessage): Promise<void> => {
+    if (ended) {
+      return Promise.resolve();
+    }
+
+    const answer = Promise.withResolvers<undefined>();
+
+    const timer = setTimeout(() => {
+      answer.resolve(undefined);
+    }, layoutAnswerTimeoutMs);
+
+    layoutAnswers.push(() => {
+      clearTimeout(timer);
+      answer.resolve(undefined);
+    });
+
+    send(message);
+
+    return answer.promise;
   };
 
   const setState = (next: AttachState): void => {
@@ -393,6 +430,10 @@ export const connectAttach = async (
       takeChange(message.revision, message.change);
     }
 
+    if (message.type === 'paneDone' || message.type === 'paneFailed') {
+      layoutAnswers.shift()?.();
+    }
+
     if (message.type === 'takenOver' || message.type === 'detached') {
       end(message.type);
     }
@@ -508,6 +549,9 @@ export const connectAttach = async (
     afterTabAnswer: (callback) => {
       tabAnswerCallbacks.push(callback);
     },
+    splitPane: (pane, direction) => requestLayout({ type: 'paneSplit', paneId: pane, direction }),
+    focusPane: (pane) => requestLayout({ type: 'paneFocus', paneId: pane }),
+    closePane: (pane) => requestLayout({ type: 'paneClose', paneId: pane }),
     detach: () => {
       send({ type: 'detach' });
     },

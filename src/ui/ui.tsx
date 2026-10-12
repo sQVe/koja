@@ -6,7 +6,9 @@ import type { ReactNode } from 'react';
 
 import { focusedPane } from '../client/client.ts';
 import type { AttachSession, CloseReason } from '../client/client.ts';
+import { layoutPanes } from '../layout.ts';
 import { createInputRouter } from './input.ts';
+import type { PaneAction } from './input.ts';
 import { mountPanes } from './paneLayer.ts';
 import { SideList } from './sideList.tsx';
 import { StatusBar } from './statusBar.tsx';
@@ -63,6 +65,43 @@ const sendToPane = (session: AttachSession, bytes: Uint8Array): void => {
   }
 };
 
+const focusNeighbor = (session: AttachSession, offset: number): Promise<void> => {
+  const { snapshot } = session.getState();
+  const current = focusedPane(snapshot);
+  const tab = snapshot.tabs.find((known) => known.id === current?.tabId);
+
+  if (current === undefined || tab === undefined) {
+    return Promise.resolve();
+  }
+
+  const order = layoutPanes(tab.layout, { columns: 1, rows: 1 }).map((place) => place.paneId);
+  const target = order[order.indexOf(current.id) + offset];
+
+  return target === undefined ? Promise.resolve() : session.focusPane(target);
+};
+
+const runPaneAction = (session: AttachSession, action: PaneAction): Promise<void> => {
+  const current = focusedPane(session.getState().snapshot);
+
+  if (current === undefined) {
+    return Promise.resolve();
+  }
+
+  if (action === 'splitBelow') {
+    return session.splitPane(current.id, 'below');
+  }
+
+  if (action === 'splitRight') {
+    return session.splitPane(current.id, 'right');
+  }
+
+  if (action === 'close') {
+    return session.closePane(current.id);
+  }
+
+  return focusNeighbor(session, action === 'focusPrevious' ? -1 : 1);
+};
+
 const routeInput = (session: AttachSession) =>
   createInputRouter({
     mode: () => session.getState().inputMode,
@@ -84,6 +123,7 @@ const routeInput = (session: AttachSession) =>
     tab: session.focusTab,
     tabPending: session.tabPending,
     afterTabAnswer: session.afterTabAnswer,
+    paneAction: (action) => runPaneAction(session, action),
   });
 
 export const runAttach = async (session: AttachSession): Promise<CloseReason> => {

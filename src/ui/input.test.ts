@@ -5,6 +5,7 @@ import { workspaceId } from '../ids.ts';
 import type { WorkspaceId } from '../ids.ts';
 import { ModeFlag } from '../rows/rows.ts';
 import { createInputRouter, routeKey, routePaste } from './input.ts';
+import type { PaneAction } from './input.ts';
 
 const decoder = new TextDecoder();
 const encoder = new TextEncoder();
@@ -114,6 +115,8 @@ const router = (
   const sent: string[] = [];
   let detaches = 0;
   const commands: WorkspaceCommand[] = [];
+  const actions: PaneAction[] = [];
+  const answers: (() => void)[] = [];
 
   const input = createInputRouter({
     mode: () => mode,
@@ -140,9 +143,21 @@ const router = (
     command: (command) => {
       commands.push(command);
     },
+    paneAction: (action) => {
+      actions.push(action);
+
+      return new Promise((resolve) => {
+        answers.push(resolve);
+      });
+    },
   });
 
-  return { input, sent, commands, mode: () => mode, detaches: () => detaches };
+  const answer = async (): Promise<void> => {
+    answers.shift()?.();
+    await Promise.resolve();
+  };
+
+  return { input, sent, commands, actions, answer, mode: () => mode, detaches: () => detaches };
 };
 
 const lone = { kind: 'key', raw: '\x1b', escapeSent: false } as const;
@@ -311,6 +326,7 @@ const chunkRouter = () => {
     tabPending: () => false,
     afterTabAnswer: () => undefined,
     workspaces: () => ({ ids: workspaceIds, focused }),
+    paneAction: () => Promise.resolve(),
     startDirectory: '/work/start',
     command: (command, onReply) => {
       commands.push(command);
@@ -496,6 +512,7 @@ it('asks the host for a tab and keeps normal mode', () => {
     tabPending: () => false,
     afterTabAnswer: () => undefined,
     workspaces: () => ({ ids: [], focused: undefined }),
+    paneAction: () => Promise.resolve(),
     startDirectory: '/work/start',
     command: () => undefined,
   });
@@ -534,6 +551,7 @@ it('holds input while a tab request is unanswered and routes it in order after t
       answered = callback;
     },
     workspaces: () => ({ ids: [], focused: undefined }),
+    paneAction: () => Promise.resolve(),
     startDirectory: '/work/start',
     command: () => undefined,
   });
@@ -553,4 +571,109 @@ it('holds input while a tab request is unanswered and routes it in order after t
   answered?.();
 
   expect(events).toEqual(['tab', 'send a', 'tab', 'send b']);
+});
+
+const paneKeys: [string, PaneAction][] = [
+  ['s', 'splitBelow'],
+  ['v', 'splitRight'],
+  ['h', 'focusPrevious'],
+  ['l', 'focusNext'],
+  ['x', 'close'],
+];
+
+for (const [raw, action] of paneKeys) {
+  it(`asks for ${action} on ${raw} in normal mode, sends no bytes, and returns to insert mode`, () => {
+    const { input, sent, actions, mode } = router('insert', 0);
+
+    input({ kind: 'key', raw: '\x02', escapeSent: false });
+    input({ kind: 'key', raw, escapeSent: false });
+
+    expect(actions).toEqual([action]);
+    expect(sent).toEqual([]);
+    expect(mode()).toBe('insert');
+  });
+
+  it(`sends ${raw} to the pane in insert mode without a pane action`, () => {
+    const { input, sent, actions } = router('insert', 0);
+
+    input({ kind: 'key', raw, escapeSent: false });
+
+    expect(actions).toEqual([]);
+    expect(sent).toEqual([raw]);
+  });
+}
+
+it('holds the tokens after a pane action until its answer arrives, then sends them in order', async () => {
+  const { input, sent, actions, answer } = router('insert', 0);
+
+  const press = (raw: string) => {
+    input({ kind: 'key', raw, escapeSent: false });
+  };
+
+  press('\x02');
+  press('h');
+  press('a');
+  press('b');
+
+  expect(actions).toEqual(['focusPrevious']);
+  expect(sent).toEqual([]);
+
+  await answer();
+
+  expect(sent).toEqual(['a', 'b']);
+});
+
+it('holds the tokens that follow a second pane action until that action is answered', async () => {
+  const { input, sent, actions, answer } = router('insert', 0);
+
+  const press = (raw: string) => {
+    input({ kind: 'key', raw, escapeSent: false });
+  };
+
+  for (const raw of ['\x02', 'l', '\x02', 's', 'z']) {
+    press(raw);
+  }
+
+  await answer();
+
+  expect(actions).toEqual(['focusNext', 'splitBelow']);
+  expect(sent).toEqual([]);
+
+  await answer();
+
+  expect(sent).toEqual(['z']);
+});
+
+it('sends held tokens when the action fails to settle normally', async () => {
+  const held: string[] = [];
+  let mode: InputMode = 'insert';
+
+  const input = createInputRouter({
+    mode: () => mode,
+    setMode: (next) => {
+      mode = next;
+    },
+    modes: () => 0,
+    send: (bytes) => {
+      if (bytes.length > 0) {
+        held.push(decoder.decode(bytes));
+      }
+    },
+    detach: () => undefined,
+    tab: () => undefined,
+    tabPending: () => false,
+    afterTabAnswer: () => undefined,
+    workspaces: () => ({ ids: [], focused: undefined }),
+    startDirectory: '/work/start',
+    command: () => undefined,
+    paneAction: () => Promise.reject(new Error('lost')),
+  });
+
+  input({ kind: 'key', raw: '\x02', escapeSent: false });
+  input({ kind: 'key', raw: 'x', escapeSent: false });
+  input({ kind: 'key', raw: 'q', escapeSent: false });
+  await Promise.resolve();
+  await Promise.resolve();
+
+  expect(held).toEqual(['q']);
 });

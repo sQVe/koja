@@ -14,6 +14,7 @@ import {
   runCli,
   temporaryDirectory,
 } from './cliHarness.ts';
+import { setup } from './paneAttachHarness.ts';
 
 it('shows the input mode in the status bar as the keys change it', async () => {
   const { statusBar, type, until } = await setupAttach(0);
@@ -55,7 +56,7 @@ const workspaceListSchema = z.array(
   z.object({ id: z.string(), root: z.string(), label: z.string(), focused: z.boolean() }),
 );
 
-const until = async (condition: () => boolean | Promise<boolean>): Promise<void> => {
+const eventually = async (condition: () => boolean | Promise<boolean>): Promise<void> => {
   const deadline = performance.now() + cliTestTimeoutMs / 2;
 
   while (!(await condition())) {
@@ -159,12 +160,12 @@ it(
   async () => {
     const { list, statusBar, type, startDirectory } = await setupServer();
 
-    await until(() => statusBar() === 'INSERT');
+    await eventually(() => statusBar() === 'INSERT');
     type('\x02');
-    await until(() => statusBar() === 'NORMAL');
+    await eventually(() => statusBar() === 'NORMAL');
     type('c');
 
-    await until(async () => (await list()).length === 1);
+    await eventually(async () => (await list()).length === 1);
 
     const created = (await list()).map((workspace) => ({
       root: workspace.root,
@@ -177,8 +178,60 @@ it(
 
     type('X');
 
-    await until(async () => (await list()).length === 0);
+    await eventually(async () => (await list()).length === 0);
     expect(statusBar()).toBe('NORMAL');
+  },
+  cliTestTimeoutMs,
+);
+
+const pollTimeoutMs = 10_000;
+
+const pollIntervalMs = 50;
+
+const listUntil = async (
+  list: () => Promise<{ id: string; focused: boolean; columns: number; rows: number }[]>,
+  condition: (panes: { id: string; focused: boolean; columns: number; rows: number }[]) => boolean,
+) => {
+  const deadline = Date.now() + pollTimeoutMs;
+  let panes = await list();
+
+  while (!condition(panes) && Date.now() < deadline) {
+    await Bun.sleep(pollIntervalMs);
+    panes = await list();
+  }
+
+  return panes;
+};
+
+const sizes = (panes: { columns: number; rows: number }[]) =>
+  panes.map((pane) => [pane.columns, pane.rows]);
+
+const region = (lines: string[], from: number, to: number): string[] =>
+  lines.slice(0, 23).map((line) => line.slice(from, to).trimEnd());
+
+it(
+  'splits the focused pane below on Ctrl+B s and right on Ctrl+B v',
+  async () => {
+    const { list, type } = await setup();
+
+    type('\x02s');
+
+    const below = await listUntil(list, (panes) => panes.length === 2);
+
+    expect(sizes(below)).toEqual([
+      [80, 11],
+      [80, 11],
+    ]);
+
+    type('\x02v');
+
+    const right = await listUntil(list, (panes) => panes.length === 3);
+
+    expect(sizes(right)).toEqual([
+      [80, 11],
+      [40, 11],
+      [39, 11],
+    ]);
   },
   cliTestTimeoutMs,
 );
@@ -197,14 +250,63 @@ it(
         .split('\n')
         .find((line) => line.startsWith('>'));
 
-    await until(() => markedLine()?.startsWith('> beta') === true);
-    await until(() => statusBar() === 'INSERT [1]');
+    await eventually(() => markedLine()?.startsWith('> beta') === true);
+    await eventually(() => statusBar() === 'INSERT [1]');
     type('\x02');
-    await until(() => statusBar() === 'NORMAL [1]');
+    await eventually(() => statusBar() === 'NORMAL [1]');
     type('j');
 
-    await until(() => markedLine()?.startsWith('> alpha') === true);
+    await eventually(() => markedLine()?.startsWith('> alpha') === true);
     expect(statusBar()).toBe('NORMAL [1]');
+  },
+  cliTestTimeoutMs,
+);
+
+it(
+  'moves focus on Ctrl+B h and Ctrl+B l so typed keys reach the focused pane only',
+  async () => {
+    const { phi, list, lines, until, type, first } = await setup();
+
+    await phi('pane', 'split', first, '--direction', 'right');
+    await until(() => lines()[0]?.charAt(40) === '┝' || lines()[0]?.charAt(40) === '┥');
+
+    const focusedId = async () => (await list()).find((pane) => pane.focused)?.id;
+    const before = await focusedId();
+
+    type('\x02h');
+    await listUntil(list, (panes) => panes.find((pane) => pane.focused)?.id === first);
+    type('echo LEFTONLY\r');
+    await until(() => lines().some((line) => line.slice(0, 40).includes('echo LEFTONLY')));
+
+    expect(region(lines(), 41, 80).join('')).not.toContain('LEFTONLY');
+    expect(before).not.toBe(first);
+
+    type('\x02l');
+    await listUntil(list, (panes) => panes.find((pane) => pane.focused)?.id === before);
+    type('echo RIGHTONLY\r');
+    await until(() => lines().some((line) => line.slice(41).includes('echo RIGHTONLY')));
+
+    expect(region(lines(), 0, 40).join('')).not.toContain('RIGHTONLY');
+  },
+  cliTestTimeoutMs,
+);
+
+it(
+  'closes the pane of the workspace that j selected when x arrives in the same write',
+  async () => {
+    const { createWorkspace, list, statusBar, type } = await setupServer();
+
+    await createWorkspace('alpha');
+    await createWorkspace('beta');
+
+    await eventually(() => statusBar() === 'INSERT [1]');
+    type('\x02jx');
+
+    await eventually(async () => (await list()).length === 1);
+
+    const remaining = (await list()).map((workspace) => workspace.label);
+
+    expect(remaining).toEqual(['beta']);
   },
   cliTestTimeoutMs,
 );
@@ -225,19 +327,37 @@ it(
         .slice(0, -1)
         .map((line) => line.slice(0, 20).trim());
 
-    await until(() => labels().includes('> h'));
+    await eventually(() => labels().includes('> h'));
     expect(statusBar()).toBe('INSERT [1]');
 
     type('\x02');
-    await until(() => statusBar() === 'NORMAL [1]');
+    await eventually(() => statusBar() === 'NORMAL [1]');
 
     for (let step = 0; step < 4; step += 1) {
       type('k');
-      await until(() => labels().includes(`> ${'gfed'[step]}`));
+      await eventually(() => labels().includes(`> ${'gfed'[step]}`));
     }
 
     expect(statusBar()).toBe('NORMAL [1]');
     expect(labels().filter((label) => label.startsWith('>'))).toHaveLength(1);
+  },
+  cliTestTimeoutMs,
+);
+
+it(
+  'closes the focused pane on Ctrl+B x so its sibling fills the area',
+  async () => {
+    const { list, type, first } = await setup();
+
+    type('\x02s');
+    await listUntil(list, (panes) => panes.length === 2);
+
+    type('\x02x');
+
+    const remaining = await listUntil(list, (panes) => panes.length === 1);
+
+    expect(remaining.map((pane) => pane.id)).toEqual([first]);
+    expect(sizes(remaining)).toEqual([[80, 23]]);
   },
   cliTestTimeoutMs,
 );
@@ -248,14 +368,71 @@ it(
     const { phi, createWorkspace, screen, statusBar } = await setupServer(10, 40);
 
     await createWorkspace('alpha');
-    await until(() => statusBar() === 'INSERT [1]');
+    await eventually(() => statusBar() === 'INSERT [1]');
 
     const sent = await phi('pane', 'send', 'echo narrow-ok\r');
 
     expect(sent.exitCode).toBe(0);
 
-    await until(() => screen.text().split('\n').includes('narrow-ok'));
+    await eventually(() => screen.text().split('\n').includes('narrow-ok'));
     expect(screen.text()).not.toContain('alpha');
+  },
+  cliTestTimeoutMs,
+);
+
+it(
+  'runs a command typed in the same write as Ctrl+B h in the newly focused pane only',
+  async () => {
+    const { phi, lines, until, type, first } = await setup();
+
+    await phi('pane', 'split', first, '--direction', 'right');
+    await until(() => lines()[0]?.charAt(40) === '┝');
+
+    type('\x02hecho LEFTRACE\r');
+
+    await until(() => lines().some((line) => line.slice(0, 40).includes('echo LEFTRACE')));
+    await Bun.sleep(300);
+
+    expect(region(lines(), 41, 80).join('')).not.toContain('LEFTRACE');
+  },
+  cliTestTimeoutMs,
+);
+
+it(
+  'runs a command typed in the same write as Ctrl+B l in the newly focused pane only',
+  async () => {
+    const { phi, lines, until, type, first } = await setup();
+
+    await phi('pane', 'split', first, '--direction', 'right');
+    await phi('pane', 'focus', first);
+    await until(() => lines()[0]?.charAt(40) === '┥');
+
+    type('\x02lecho RIGHTRACE\r');
+
+    await until(() => lines().some((line) => line.slice(41).includes('echo RIGHTRACE')));
+    await Bun.sleep(300);
+
+    expect(region(lines(), 0, 40).join('')).not.toContain('RIGHTRACE');
+  },
+  cliTestTimeoutMs,
+);
+
+it(
+  'sends text typed in the same write as Ctrl+B s to the new pane',
+  async () => {
+    const { lines, until, type } = await setup();
+
+    type('\x02secho BELOWRACE\r');
+
+    await until(() =>
+      lines()
+        .slice(12, 23)
+        .some((line) => line.includes('echo BELOWRACE')),
+    );
+
+    await Bun.sleep(300);
+
+    expect(lines().slice(0, 11).join('')).not.toContain('BELOWRACE');
   },
   cliTestTimeoutMs,
 );
