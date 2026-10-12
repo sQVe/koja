@@ -170,3 +170,35 @@ it('keeps the focused workspace and pane when a background workspace is added', 
   expect(added.focusedWorkspaceId).toBe(workspaceId(1));
   expect(focusedPane(added)).toEqual(snapshot.panes[0]);
 });
+
+it('activates the tab a change names and keeps the pane in focus', () => {
+  const withTwoTabs: StoreSnapshot = {
+    ...snapshot,
+    workspaces: [{ ...snapshot.workspaces[0]!, tabIds: [tabId(1), tabId(2)] }],
+    tabs: [...snapshot.tabs, { ...secondTab, workspaceId: workspaceId(1) }],
+    panes: [...snapshot.panes, secondPane],
+  };
+
+  const next = applyChange(withTwoTabs, {
+    type: 'tabFocused',
+    workspaceId: workspaceId(1),
+    tabId: tabId(2),
+  });
+
+  expect(next.workspaces[0]?.activeTabId).toBe(tabId(2));
+  expect(focusedPane(next)?.id).toBe(paneId(2));
+});
+
+it('lists the first tab once when its workspace and tab are added', () => {
+  const workspace = { ...snapshot.workspaces[0]!, tabIds: [tabId(1)] };
+
+  const next = applyChange(
+    applyChange(
+      { ...snapshot, workspaces: [], tabs: [] },
+      { type: 'workspaceAdded', workspace, focusedWorkspaceId: workspace.id },
+    ),
+    { type: 'tabAdded', tab: snapshot.tabs[0]! },
+  );
+
+  expect(next.workspaces[0]?.tabIds).toEqual([tabId(1)]);
+});

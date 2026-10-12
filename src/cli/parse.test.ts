@@ -1,6 +1,6 @@
 import { expect, it } from 'bun:test';
 
-import { paneId, workspaceId } from '../ids.ts';
+import { paneId, tabId, workspaceId } from '../ids.ts';
 import { parseCommand, usage } from './parse.ts';
 
 it('parses no command as the default command, with an optional socket', () => {
@@ -77,6 +77,52 @@ it('parses --background on workspace create', () => {
     json: false,
     socket: undefined,
   });
+});
+
+it('parses the tab commands', () => {
+  const options = { json: false, socket: undefined };
+
+  expect(parseCommand(['tab', 'list'])).toEqual({
+    kind: 'tab',
+    tab: { action: 'list' },
+    ...options,
+  });
+
+  expect(parseCommand(['tab', 'create'])).toEqual({
+    kind: 'tab',
+    tab: { action: 'create', workspaceId: undefined },
+    ...options,
+  });
+
+  expect(parseCommand(['tab', 'create', '--workspace', 'workspace-2', '--json'])).toEqual({
+    kind: 'tab',
+    tab: { action: 'create', workspaceId: workspaceId(2) },
+    json: true,
+    socket: undefined,
+  });
+
+  expect(parseCommand(['tab', 'focus', 'tab-3'])).toEqual({
+    kind: 'tab',
+    tab: { action: 'focus', tabId: tabId(3) },
+    ...options,
+  });
+
+  expect(parseCommand(['tab', 'close', 'tab-3'])).toEqual({
+    kind: 'tab',
+    tab: { action: 'close', tabId: tabId(3) },
+    ...options,
+  });
+});
+
+it.each([
+  ['a workspace id as a tab id', ['tab', 'focus', 'workspace-1']],
+  ['no tab id', ['tab', 'close']],
+  ['an unknown action', ['tab', 'open']],
+  ['--workspace on tab focus', ['tab', 'focus', 'tab-1', '--workspace', 'workspace-1']],
+  ['--workspace on another group', ['workspace', 'list', '--workspace', 'workspace-1']],
+  ['a bad workspace id', ['tab', 'create', '--workspace', 'tab-1']],
+])('rejects %s', (_name, argv) => {
+  expect(typeof parseCommand(argv)).toBe('string');
 });
 
 it.each([

@@ -1,4 +1,4 @@
-import type { PaneId, WorkspaceId } from '../ids.ts';
+import type { PaneId, TabId, WorkspaceId } from '../ids.ts';
 import {
   createFrameDecoder,
   encodeControl,
@@ -38,6 +38,19 @@ export type PaneCommand =
 type WorkspaceResult =
   | { ok: true; workspaceId: WorkspaceId }
   | { ok: false; reason: 'unknownWorkspace' }
+  | { ok: false; reason: 'serverStopping' }
+  | { ok: false; reason: 'paneFailedToStart'; message: string }
+  | RequestFailure;
+
+export type TabCommand =
+  | { action: 'create'; workspaceId: WorkspaceId }
+  | { action: 'focus'; tabId: TabId }
+  | { action: 'close'; tabId: TabId };
+
+type TabResult =
+  | { ok: true; tabId: TabId }
+  | { ok: false; reason: 'unknownWorkspace' }
+  | { ok: false; reason: 'unknownTab' }
   | { ok: false; reason: 'serverStopping' }
   | { ok: false; reason: 'paneFailedToStart'; message: string }
   | RequestFailure;
@@ -268,6 +281,40 @@ export const runWorkspaceCommand = (
       }
 
       if (message.type === 'workspaceFailed' && message.reason !== 'paneFailedToStart') {
+        request.finish({ ok: false, reason: message.reason });
+      }
+    },
+  });
+
+const tabRequest = (command: TabCommand): ControlMessage => {
+  if (command.action === 'create') {
+    return { type: 'tabCreate', workspaceId: command.workspaceId };
+  }
+
+  return command.action === 'focus'
+    ? { type: 'tabFocus', tabId: command.tabId }
+    : { type: 'tabClose', tabId: command.tabId };
+};
+
+export const runTabCommand = (
+  socketPath: string,
+  version: BuildVersion,
+  command: TabCommand,
+): Promise<TabResult> =>
+  runRequest<TabResult>(socketPath, version, {
+    onWelcome: (request) => {
+      request.send(tabRequest(command));
+    },
+    onMessage: (request, message) => {
+      if (message.type === 'tabDone') {
+        request.finish({ ok: true, tabId: message.tabId });
+      }
+
+      if (message.type === 'tabFailed' && message.reason === 'paneFailedToStart') {
+        request.finish({ ok: false, reason: message.reason, message: message.message ?? '' });
+      }
+
+      if (message.type === 'tabFailed' && message.reason !== 'paneFailedToStart') {
         request.finish({ ok: false, reason: message.reason });
       }
     },

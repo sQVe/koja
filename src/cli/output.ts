@@ -40,6 +40,18 @@ interface PaneEntry {
   focused: boolean;
 }
 
+interface TabEntry {
+  id: string;
+  workspace: string;
+  number: number;
+  active: boolean;
+  pane: string;
+}
+
+interface TabActionOutput {
+  tab: string;
+}
+
 interface WorkspaceActionOutput {
   workspace: string;
 }
@@ -56,6 +68,8 @@ type CommandJson =
   | WorkspaceEntry[]
   | PaneEntry[]
   | WorkspaceActionOutput
+  | TabEntry[]
+  | TabActionOutput
   | DetachOutput;
 
 // The JSON value is a public surface that agents parse.

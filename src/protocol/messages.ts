@@ -138,6 +138,11 @@ const changeSchema: z.ZodType<Change> = z.discriminatedUnion('type', [
     label: z.string(),
   }),
   z.object({
+    type: z.literal('tabFocused'),
+    workspaceId: workspaceIdSchema,
+    tabId: tabIdSchema,
+  }),
+  z.object({
     type: z.literal('workspaceRemoved'),
     workspaceId: workspaceIdSchema,
     focusedWorkspaceId: absent(workspaceIdSchema),
@@ -173,6 +178,13 @@ const snapshotSchema: z.ZodType<Snapshot> = z.object({
 });
 
 const workspaceFailureSchema = z.enum(['unknownWorkspace', 'paneFailedToStart', 'serverStopping']);
+
+const tabFailureSchema = z.enum([
+  'unknownWorkspace',
+  'unknownTab',
+  'serverStopping',
+  'paneFailedToStart',
+]);
 
 const controlSchema = z.discriminatedUnion('type', [
   // A CLI client has no terminal, so it sends no size.
@@ -216,6 +228,17 @@ const controlSchema = z.discriminatedUnion('type', [
   z.object({
     type: z.literal('workspaceFailed'),
     reason: workspaceFailureSchema,
+    message: absent(z.string()),
+  }),
+  z.object({ type: z.literal('tabCreate'), workspaceId: workspaceIdSchema }),
+  z.object({ type: z.literal('tabFocus'), tabId: tabIdSchema }),
+  z.object({ type: z.literal('tabClose'), tabId: tabIdSchema }),
+  // Answers a tab request that worked, with the tab it acted on.
+  z.object({ type: z.literal('tabDone'), tabId: tabIdSchema }),
+  // Answers a tab request that changed nothing. The message is present for paneFailedToStart.
+  z.object({
+    type: z.literal('tabFailed'),
+    reason: tabFailureSchema,
     message: absent(z.string()),
   }),
 ]);
