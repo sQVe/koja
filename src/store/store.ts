@@ -678,15 +678,33 @@ const focusPane = (state: State, id: PaneId): Applied | Rejected => {
     return reject(state, 'unknownPane');
   }
 
-  if (tab.focusedPaneId === id) {
-    return commit(state, []);
+  const owner = state.workspaces.find((workspace) => workspace.id === tab.workspaceId);
+
+  invariant(owner !== undefined, `Tab ${tab.id} has no workspace.`);
+
+  const changes: Change[] = [];
+
+  if (tab.focusedPaneId !== id) {
+    changes.push({ type: 'paneFocused', tabId: tab.id, paneId: id });
+  }
+
+  if (owner.activeTabId !== tab.id) {
+    changes.push({ type: 'tabFocused', workspaceId: owner.id, tabId: tab.id });
+  }
+
+  if (state.focusedWorkspaceId !== owner.id) {
+    changes.push({ type: 'workspaceFocused', workspaceId: owner.id });
   }
 
   const tabs = state.tabs.map((known) =>
     known.id === tab.id ? { ...known, focusedPaneId: id } : known,
   );
 
-  return commit({ ...state, tabs }, [{ type: 'paneFocused', tabId: tab.id, paneId: id }]);
+  const workspaces = state.workspaces.map((workspace) =>
+    workspace.id === owner.id ? { ...workspace, activeTabId: tab.id } : workspace,
+  );
+
+  return commit({ ...state, tabs, workspaces, focusedWorkspaceId: owner.id }, changes);
 };
 
 const isInTab = (state: State, id: PaneId, tab: Tab): boolean =>

@@ -909,6 +909,45 @@ it('focuses another pane of the tab', () => {
   expect(result.changes).toEqual([{ type: 'paneFocused', tabId: tabId(1), paneId: paneId(1) }]);
 });
 
+it('makes the tab of the focused pane active when that tab is inactive', () => {
+  const state = run([createPhi, attachLarge, splitFirst('right'), createTab]);
+  const result = intent(state, { type: 'focusPane', paneId: paneId(1) });
+
+  expect(workspaceOne(result.state).activeTabId).toBe(tabId(1));
+  expect(result.state.tabs[0]?.focusedPaneId).toBe(paneId(1));
+  expect(focusedPane(result.state)?.id).toBe(paneId(1));
+
+  expect(result.changes).toEqual([
+    { type: 'paneFocused', tabId: tabId(1), paneId: paneId(1) },
+    { type: 'tabFocused', workspaceId: workspaceId(1), tabId: tabId(1) },
+  ]);
+});
+
+it('focuses the workspace of the focused pane when that workspace is unfocused', () => {
+  const state = run([createPhi, createDocs]);
+  const result = intent(state, { type: 'focusPane', paneId: paneId(1) });
+
+  expect(result.state.focusedWorkspaceId).toBe(workspaceId(1));
+  expect(focusedPane(result.state)?.id).toBe(paneId(1));
+  expect(result.changes).toEqual([{ type: 'workspaceFocused', workspaceId: workspaceId(1) }]);
+});
+
+it('focuses the tab and workspace of a pane in an inactive tab of an unfocused workspace', () => {
+  const state = run([createPhi, attachLarge, splitFirst('right'), createTab, createDocs]);
+
+  const result = intent(state, { type: 'focusPane', paneId: paneId(1) });
+
+  expect(workspaceOne(result.state).activeTabId).toBe(tabId(1));
+  expect(result.state.focusedWorkspaceId).toBe(workspaceId(1));
+  expect(focusedPane(result.state)?.id).toBe(paneId(1));
+
+  expect(result.changes).toEqual([
+    { type: 'paneFocused', tabId: tabId(1), paneId: paneId(1) },
+    { type: 'tabFocused', workspaceId: workspaceId(1), tabId: tabId(1) },
+    { type: 'workspaceFocused', workspaceId: workspaceId(1) },
+  ]);
+});
+
 it('resizes every live pane by the layout when the client resizes', () => {
   const state = run([createPhi, attachLarge, splitFirst('right')]);
 
