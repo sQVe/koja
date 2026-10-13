@@ -13,6 +13,7 @@ const paneListSchema = z.array(
     tab: z.string(),
     lifecycle: z.string(),
     focused: z.boolean(),
+    zoomed: z.boolean(),
     columns: z.number(),
     rows: z.number(),
   }),
@@ -127,6 +128,80 @@ it(
 );
 
 it(
+  'zooms a pane over the whole tab and restores the split on a second zoom',
+  async () => {
+    const { list, act, first } = await setup();
+    const [whole] = await list();
+    const second = await act('split', first, '--direction', 'right');
+    const split = await list();
+
+    expect(split.map((pane) => pane.zoomed)).toEqual([false, false]);
+    expect(await act('zoom', first)).toBe(first);
+
+    const zoomed = await list();
+
+    expect(zoomed.find((pane) => pane.id === first)).toMatchObject({
+      zoomed: true,
+      focused: true,
+      columns: whole?.columns,
+      rows: whole?.rows,
+    });
+
+    expect(zoomed.find((pane) => pane.id === second)?.zoomed).toBe(false);
+    expect(await act('zoom', first)).toBe(first);
+
+    const restored = await list();
+
+    expect(restored.map((pane) => pane.zoomed)).toEqual([false, false]);
+
+    expect(restored.map((pane) => [pane.columns, pane.rows])).toEqual(
+      split.map((pane) => [pane.columns, pane.rows]),
+    );
+  },
+  cliTestTimeoutMs,
+);
+
+const columnsOf = (panes: z.infer<typeof paneListSchema>, id: string) =>
+  panes.find((pane) => pane.id === id)?.columns ?? 0;
+
+it(
+  'resizes a split by cells, and keeps the other pane at one cell past the minimum',
+  async () => {
+    const { phi, list, act, first } = await setup();
+    const second = await act('split', first, '--direction', 'right');
+    const before = await list();
+
+    expect(await act('resize', first, '--direction', 'right', '--cells', '5')).toBe(first);
+
+    const grown = await list();
+
+    expect(columnsOf(grown, first)).toBe(columnsOf(before, first) + 5);
+    expect(columnsOf(grown, second)).toBe(columnsOf(before, second) - 5);
+
+    await act('resize', first, '--direction', 'left', '--cells', '2');
+
+    const shrunk = await list();
+
+    expect(columnsOf(shrunk, first)).toBe(columnsOf(grown, first) - 2);
+    expect(columnsOf(shrunk, second)).toBe(columnsOf(grown, second) + 2);
+
+    await act('resize', first, '--direction', 'right', '--cells', '100000');
+
+    const squeezed = await list();
+
+    expect(columnsOf(squeezed, second)).toBe(1);
+    expect(columnsOf(squeezed, first)).toBeGreaterThan(columnsOf(before, first));
+
+    const vertical = await phi('pane', 'resize', first, '--direction', 'down', '--cells', '1');
+
+    expect(vertical.exitCode).toBe(1);
+    expect(vertical.stderr).toContain(`Pane ${first} has no split to resize.`);
+    expect(await list()).toEqual(squeezed);
+  },
+  cliTestTimeoutMs,
+);
+
+it(
   'moves focus with pane focus, and pane send reaches only the focused pane',
   async () => {
     const { directory, phi, list, act, first } = await setup();
@@ -200,6 +275,8 @@ it.each([
   ['split', ['--direction', 'right']],
   ['focus', []],
   ['close', []],
+  ['zoom', []],
+  ['resize', ['--direction', 'left', '--cells', '2']],
 ])(
   'pane %s exits 1 for an unknown pane and changes nothing',
   async (action, extra) => {

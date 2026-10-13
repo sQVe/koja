@@ -210,6 +210,67 @@ it('parses pane split, focus, and close with the pane id as an argument', () => 
   });
 });
 
+it('parses pane zoom and pane resize', () => {
+  expect(parseCommand(['pane', 'zoom', 'pane-2', '--json'])).toEqual({
+    kind: 'pane',
+    pane: { action: 'zoom', pane: paneId(2) },
+    json: true,
+    socket: undefined,
+  });
+
+  expect(
+    parseCommand(['pane', 'resize', 'pane-2', '--direction', 'left', '--cells', '12']),
+  ).toEqual({
+    kind: 'pane',
+    pane: { action: 'resize', pane: paneId(2), direction: 'left', cells: 12 },
+    json: false,
+    socket: undefined,
+  });
+
+  for (const direction of ['right', 'up', 'down'] as const) {
+    expect(
+      parseCommand(['pane', 'resize', 'pane-1', '--cells', '1', '--direction', direction]),
+    ).toMatchObject({ pane: { action: 'resize', direction, cells: 1 } });
+  }
+});
+
+it.each([
+  ['no id for zoom', ['pane', 'zoom']],
+  ['a malformed id for zoom', ['pane', 'zoom', 'tab-1']],
+  ['a direction for zoom', ['pane', 'zoom', 'pane-1', '--direction', 'left']],
+  ['cells for zoom', ['pane', 'zoom', 'pane-1', '--cells', '2']],
+  ['cells for split', ['pane', 'split', 'pane-1', '--direction', 'right', '--cells', '2']],
+  ['cells for pane list', ['pane', 'list', '--cells', '2']],
+  ['cells on a workspace command', ['workspace', 'list', '--cells', '2']],
+  ['no id for resize', ['pane', 'resize', '--direction', 'left', '--cells', '2']],
+  ['no direction for resize', ['pane', 'resize', 'pane-1', '--cells', '2']],
+  [
+    'an invalid direction for resize',
+    ['pane', 'resize', 'pane-1', '--direction', 'below', '--cells', '2'],
+  ],
+  [
+    'an empty direction for resize',
+    ['pane', 'resize', 'pane-1', '--direction', '', '--cells', '2'],
+  ],
+  ['left for split', ['pane', 'split', 'pane-1', '--direction', 'left']],
+  ['no cells for resize', ['pane', 'resize', 'pane-1', '--direction', 'left']],
+  ['zero cells', ['pane', 'resize', 'pane-1', '--direction', 'left', '--cells', '0']],
+  ['negative cells', ['pane', 'resize', 'pane-1', '--direction', 'left', '--cells', '-3']],
+  ['fractional cells', ['pane', 'resize', 'pane-1', '--direction', 'left', '--cells', '1.5']],
+  ['non-numeric cells', ['pane', 'resize', 'pane-1', '--direction', 'left', '--cells', 'many']],
+  ['empty cells', ['pane', 'resize', 'pane-1', '--direction', 'left', '--cells', '']],
+  [
+    'cells past the safe integers',
+    ['pane', 'resize', 'pane-1', '--direction', 'left', '--cells', '9007199254740993'],
+  ],
+  [
+    '--pane on pane resize',
+    ['pane', 'resize', 'pane-1', '--direction', 'left', '--cells', '2', '--pane', 'pane-1'],
+  ],
+])('refuses %s', (_name, argv) => {
+  expect(typeof parseCommand(argv)).toBe('string');
+});
+
 it.each([
   ['no id for split', ['pane', 'split', '--direction', 'right']],
   ['no id for focus', ['pane', 'focus']],
@@ -254,4 +315,9 @@ it('lists the workspace and pane commands in the usage', () => {
 
   expect(lines).toContain('phi pane focus <id> [--socket <path>] [--json]');
   expect(lines).toContain('phi pane close <id> [--socket <path>] [--json]');
+  expect(lines).toContain('phi pane zoom <id> [--socket <path>] [--json]');
+
+  expect(lines).toContain(
+    'phi pane resize <id> --direction left|right|up|down --cells <n> [--socket <path>] [--json]',
+  );
 });

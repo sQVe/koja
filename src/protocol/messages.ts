@@ -6,6 +6,7 @@ import type {
   Change,
   Client,
   DetachReason,
+  Intent,
   Pane,
   Snapshot,
   Tab,
@@ -30,6 +31,8 @@ type Hello = Extract<ControlMessage, { type: 'hello' }>;
 type HelloAnswer = Extract<ControlMessage, { type: 'welcome' | 'refused' }>;
 
 type Layout = Tab['layout'];
+
+type ResizeDirection = Extract<Intent, { type: 'resizePane' }>['direction'];
 
 type SplitDirection = Extract<Layout, { kind: 'split' }>['direction'];
 
@@ -85,6 +88,8 @@ const paneSchema: z.ZodType<Pane> = z.object({
   generation: count,
   exitCode: absent(z.number().int()),
 });
+
+const resizeDirectionSchema: z.ZodType<ResizeDirection> = z.enum(['left', 'right', 'up', 'down']);
 
 const splitDirectionSchema: z.ZodType<SplitDirection> = z.enum(['below', 'right']);
 
@@ -201,6 +206,7 @@ const snapshotSchema: z.ZodType<Snapshot> = z.object({
 const paneFailureSchema = z.enum([
   'unknownPane',
   'paneTooSmall',
+  'noSplit',
   'serverStopping',
   'paneFailedToStart',
 ]);
@@ -244,7 +250,14 @@ const controlSchema = z.discriminatedUnion('type', [
   z.object({ type: z.literal('paneSplit'), paneId: paneIdSchema, direction: splitDirectionSchema }),
   z.object({ type: z.literal('paneFocus'), paneId: paneIdSchema }),
   z.object({ type: z.literal('paneClose'), paneId: paneIdSchema }),
-  // Answers a pane split, focus, or close that worked, with the pane it acted on. For a split,
+  z.object({ type: z.literal('paneZoom'), paneId: paneIdSchema }),
+  z.object({
+    type: z.literal('paneResize'),
+    paneId: paneIdSchema,
+    direction: resizeDirectionSchema,
+    cells: z.number().int().positive(),
+  }),
+  // Answers a pane split, focus, close, zoom, or resize that worked, with the pane it acted on. For a split,
   // that is the new pane.
   z.object({ type: z.literal('paneDone'), paneId: paneIdSchema }),
   // Answers a pane request that changed nothing. The message is present for paneFailedToStart.

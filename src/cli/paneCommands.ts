@@ -24,6 +24,7 @@ const listPanes = (snapshot: StoreSnapshot) => {
       tab: pane.tabId,
       lifecycle: pane.lifecycle,
       focused: pane.id === focusedId,
+      zoomed: tab?.zoomedPaneId === pane.id,
       columns: pane.size.columns,
       rows: pane.size.rows,
     };
@@ -45,7 +46,7 @@ const runPaneList = async (
 
   const lines = panes.map(
     (pane) =>
-      `${pane.focused ? '*' : ' '} ${pane.id}\t${pane.workspace}\t${pane.tab}\t${pane.lifecycle}\t${pane.columns}x${pane.rows}`,
+      `${pane.focused ? '*' : ' '} ${pane.id}\t${pane.workspace}\t${pane.tab}\t${pane.lifecycle}\t${pane.columns}x${pane.rows}${pane.zoomed ? '\tzoomed' : ''}`,
   );
 
   print(command.json, { json: panes, text: lines.join('\n') });
@@ -54,7 +55,13 @@ const runPaneList = async (
 };
 
 const layoutDoneText = (action: PaneLayoutCommand['action'], id: string): string => {
-  const verbs = { split: 'Split into', focus: 'Focused', close: 'Closed' };
+  const verbs = {
+    split: 'Split into',
+    focus: 'Focused',
+    close: 'Closed',
+    zoom: 'Toggled zoom of',
+    resize: 'Resized',
+  };
 
   return `${verbs[action]} ${id}.`;
 };
@@ -84,6 +91,10 @@ const runPaneLayout = async (
     return { ok: false, message: `Pane ${request.pane} is too small to split.` };
   }
 
+  if (result.reason === 'noSplit') {
+    return { ok: false, message: `Pane ${request.pane} has no split to resize.` };
+  }
+
   if (result.reason === 'serverStopping') {
     return { ok: false, message: 'The server is stopping.' };
   }
@@ -98,8 +109,10 @@ const runPaneLayout = async (
   };
 };
 
+const layoutActions: ReadonlySet<string> = new Set(['split', 'focus', 'close', 'zoom', 'resize']);
+
 const isLayoutAction = (action: PaneCliCommand['pane']): action is PaneLayoutCommand =>
-  action.action === 'split' || action.action === 'focus' || action.action === 'close';
+  layoutActions.has(action.action);
 
 export const runPaneAction = async (
   command: PaneCliCommand,

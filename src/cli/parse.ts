@@ -6,6 +6,8 @@ import type { PaneId, TabId, WorkspaceId } from '../ids.ts';
 
 type SplitDirection = Extract<PaneLayoutCommand, { action: 'split' }>['direction'];
 
+type ResizeDirection = Extract<PaneLayoutCommand, { action: 'resize' }>['direction'];
+
 interface CommandOptions {
   json: boolean;
   socket: string | undefined;
@@ -57,6 +59,7 @@ interface StrayOptions {
   pane?: string;
   workspace?: string;
   direction?: string;
+  cells?: string;
 }
 
 export interface AttachCommand {
@@ -91,10 +94,16 @@ interface GroupInput {
   pane: string | undefined;
   workspace: string | undefined;
   direction: string | undefined;
+  cells: string | undefined;
   options: CommandOptions;
 }
 
 type IdResult<Id> = { ok: true; id: Id } | { ok: false; message: string };
+
+interface LayoutOptions {
+  direction: string | undefined;
+  cells: string | undefined;
+}
 
 const serverActions = ['run', 'start', 'stop'] as const;
 
@@ -122,7 +131,9 @@ export const usage = `Usage:
   phi pane send <text> [--pane <id>] [--socket <path>] [--json]
   phi pane split <id> --direction below|right [--socket <path>] [--json]
   phi pane focus <id> [--socket <path>] [--json]
-  phi pane close <id> [--socket <path>] [--json]`;
+  phi pane close <id> [--socket <path>] [--json]
+  phi pane zoom <id> [--socket <path>] [--json]
+  phi pane resize <id> --direction left|right|up|down --cells <n> [--socket <path>] [--json]`;
 
 const isServerAction = (action: string | undefined): action is ServerAction =>
   serverActions.some((serverAction) => serverAction === action);
@@ -162,13 +173,46 @@ const parsePaneId = (value: string | undefined): IdResult<PaneId | undefined> =>
     : { ok: true, id: paneId(number) };
 };
 
-const parseDirection = (value: string | undefined): SplitDirection | undefined =>
+const parseSplitDirection = (value: string | undefined): SplitDirection | undefined =>
   value === 'below' || value === 'right' ? value : undefined;
 
-const parsePaneLayoutCommand = (
-  action: 'split' | 'focus' | 'close',
-  rest: string[],
+const resizeDirections: readonly ResizeDirection[] = ['left', 'right', 'up', 'down'];
+
+const parseResizeDirection = (value: string | undefined): ResizeDirection | undefined =>
+  resizeDirections.find((direction) => direction === value);
+
+const parseCells = (value: string | undefined): number | undefined => {
+  if (value === undefined || !/^[1-9][0-9]*$/.test(value)) {
+    return undefined;
+  }
+
+  const cells = Number(value);
+
+  return Number.isSafeInteger(cells) ? cells : undefined;
+};
+
+const parseResizeCommand = (
+  pane: PaneId,
   direction: string | undefined,
+  cells: string | undefined,
+): PaneLayoutCommand | string => {
+  const parsedDirection = parseResizeDirection(direction);
+
+  if (parsedDirection === undefined) {
+    return 'pane resize takes --direction left, right, up, or down.';
+  }
+
+  const parsedCells = parseCells(cells);
+
+  return parsedCells === undefined
+    ? 'pane resize takes --cells with a positive whole number.'
+    : { action: 'resize', pane, direction: parsedDirection, cells: parsedCells };
+};
+
+const parsePaneLayoutCommand = (
+  action: 'split' | 'focus' | 'close' | 'zoom' | 'resize',
+  rest: string[],
+  { direction, cells }: LayoutOptions,
 ): PaneLayoutCommand | string => {
   if (rest.length !== 1) {
     return `pane ${action} takes one pane id.`;
@@ -180,21 +224,40 @@ const parsePaneLayoutCommand = (
     return `'${rest[0] ?? ''}' is not a pane id, such as pane-1.`;
   }
 
-  if (action !== 'split') {
-    return direction === undefined
-      ? { action, pane: paneId(target) }
-      : '--direction belongs to pane split.';
+  if (action !== 'resize' && cells !== undefined) {
+    return '--cells belongs to pane resize.';
   }
 
-  const parsed = parseDirection(direction);
+  if (action === 'split') {
+    const parsed = parseSplitDirection(direction);
 
-  return parsed === undefined
-    ? 'pane split takes --direction below or --direction right.'
-    : { action, pane: paneId(target), direction: parsed };
+    return parsed === undefined
+      ? 'pane split takes --direction below or --direction right.'
+      : { action, pane: paneId(target), direction: parsed };
+  }
+
+  if (action === 'resize') {
+    return parseResizeCommand(paneId(target), direction, cells);
+  }
+
+  if (direction !== undefined) {
+    return '--direction belongs to pane split and pane resize.';
+  }
+
+  return { action, pane: paneId(target) };
 };
 
-const isPaneLayoutAction = (action: string | undefined): action is 'split' | 'focus' | 'close' =>
-  action === 'split' || action === 'focus' || action === 'close';
+const paneLayoutActions: ReadonlySet<string | undefined> = new Set([
+  'split',
+  'focus',
+  'close',
+  'zoom',
+  'resize',
+]);
+
+const isPaneLayoutAction = (
+  action: string | undefined,
+): action is 'split' | 'focus' | 'close' | 'zoom' | 'resize' => paneLayoutActions.has(action);
 
 const parsePaneTargetCommand = (
   action: string | undefined,
@@ -232,17 +295,21 @@ const parsePaneCommand = (
   action: string | undefined,
   rest: string[],
   pane: string | undefined,
-  direction: string | undefined,
+  options: LayoutOptions,
 ): PaneCliAction | string => {
   if (isPaneLayoutAction(action)) {
     return pane === undefined
-      ? parsePaneLayoutCommand(action, rest, direction)
+      ? parsePaneLayoutCommand(action, rest, options)
       : '--pane belongs to pane read and pane send.';
   }
 
-  return direction === undefined
+  if (options.direction !== undefined) {
+    return '--direction belongs to pane split and pane resize.';
+  }
+
+  return options.cells === undefined
     ? parsePaneTargetCommand(action, rest, pane)
-    : '--direction belongs to pane split.';
+    : '--cells belongs to pane resize.';
 };
 
 const parseWorkspaceTarget = (
@@ -449,7 +516,10 @@ const parseGroupCommand = (group: string | undefined, input: GroupInput): Comman
   }
 
   if (group === 'pane') {
-    const pane = parsePaneCommand(input.action, input.rest, input.pane, input.direction);
+    const pane = parsePaneCommand(input.action, input.rest, input.pane, {
+      direction: input.direction,
+      cells: input.cells,
+    });
 
     return typeof pane === 'string' ? pane : { kind: 'pane', pane, ...input.options };
   }
@@ -457,12 +527,26 @@ const parseGroupCommand = (group: string | undefined, input: GroupInput): Comman
   return group === 'server' ? parseServerCommand(input) : 'Unknown command.';
 };
 
-const strayOptionMessage = (
+const strayLayoutOptionMessage = (
   group: string | undefined,
-  { label, background, pane, workspace, direction }: StrayOptions,
+  direction: string | undefined,
+  cells: string | undefined,
 ): string | undefined => {
   if (direction !== undefined && group !== 'pane') {
-    return '--direction belongs to pane split.';
+    return '--direction belongs to pane split and pane resize.';
+  }
+
+  return cells !== undefined && group !== 'pane' ? '--cells belongs to pane resize.' : undefined;
+};
+
+const strayOptionMessage = (
+  group: string | undefined,
+  { label, background, pane, workspace, direction, cells }: StrayOptions,
+): string | undefined => {
+  const layoutStray = strayLayoutOptionMessage(group, direction, cells);
+
+  if (layoutStray !== undefined) {
+    return layoutStray;
   }
 
   if (label !== undefined && group !== 'workspace') {
@@ -495,6 +579,7 @@ export const parseCommand = (argv: string[]): Command | string => {
         pane: { type: 'string' },
         workspace: { type: 'string' },
         direction: { type: 'string' },
+        cells: { type: 'string' },
       },
       allowPositionals: true,
       strict: true,
@@ -529,6 +614,7 @@ export const parseCommand = (argv: string[]): Command | string => {
       pane: values.pane,
       workspace: values.workspace,
       direction: values.direction,
+      cells: values.cells,
       options,
     });
   } catch (error) {

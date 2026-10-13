@@ -109,7 +109,10 @@ interface ServerContext {
 // Effects report facts with this, and report starts effects, so effects take it as an argument.
 type Report = (context: ServerContext, fact: Fact) => void;
 
-type PaneLayoutRequest = Extract<ControlMessage, { type: 'paneSplit' | 'paneFocus' | 'paneClose' }>;
+type PaneLayoutRequest = Extract<
+  ControlMessage,
+  { type: 'paneSplit' | 'paneFocus' | 'paneClose' | 'paneZoom' | 'paneResize' }
+>;
 
 type WorkspaceRequest = Extract<
   ControlMessage,
@@ -891,6 +894,8 @@ const paneLayoutRequestTypes: ReadonlySet<string> = new Set([
   'paneSplit',
   'paneFocus',
   'paneClose',
+  'paneZoom',
+  'paneResize',
 ]);
 
 const isPaneLayoutRequest = (message: ControlMessage): message is PaneLayoutRequest =>
@@ -899,6 +904,19 @@ const isPaneLayoutRequest = (message: ControlMessage): message is PaneLayoutRequ
 const paneIntentOf = (message: PaneLayoutRequest): Intent => {
   if (message.type === 'paneSplit') {
     return { type: 'splitPane', paneId: message.paneId, direction: message.direction };
+  }
+
+  if (message.type === 'paneResize') {
+    return {
+      type: 'resizePane',
+      paneId: message.paneId,
+      direction: message.direction,
+      cells: message.cells,
+    };
+  }
+
+  if (message.type === 'paneZoom') {
+    return { type: 'zoomPane', paneId: message.paneId };
   }
 
   return message.type === 'paneFocus'
@@ -916,7 +934,14 @@ const paneRefusalOf = (
 
   const known = context.state.panes.some((pane) => pane.id === message.paneId);
 
-  return known ? undefined : { type: 'paneFailed', reason: 'unknownPane', message: undefined };
+  if (!known) {
+    return { type: 'paneFailed', reason: 'unknownPane', message: undefined };
+  }
+
+  const outcome = applyIntent(context.state, paneIntentOf(message));
+  const hasNoSplit = outcome.kind === 'rejected' && outcome.reason === 'noSplit';
+
+  return hasNoSplit ? { type: 'paneFailed', reason: 'noSplit', message: undefined } : undefined;
 };
 
 const handlePaneLayoutRequest = (
