@@ -166,6 +166,11 @@ const changeSchema: z.ZodType<Change> = z.discriminatedUnion('type', [
   z.object({ type: z.literal('tabLayoutChanged'), tabId: tabIdSchema, layout: layoutSchema }),
   z.object({ type: z.literal('paneFocused'), tabId: tabIdSchema, paneId: paneIdSchema }),
   z.object({
+    type: z.literal('tabZoomChanged'),
+    tabId: tabIdSchema,
+    zoomedPaneId: absent(paneIdSchema),
+  }),
+  z.object({
     type: z.literal('paneStateChanged'),
     paneId: paneIdSchema,
     lifecycle: lifecycleSchema,

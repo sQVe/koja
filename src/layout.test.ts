@@ -1,8 +1,16 @@
 import { expect, it } from 'bun:test';
 
 import { paneId } from './ids.ts';
-import { canSplit, layoutPanes, paneSize, sideListColumns, sideListWidth } from './layout.ts';
-import type { Layout, PaneRectangle } from './layout.ts';
+import {
+  canSplit,
+  layoutPanes,
+  paneSize,
+  resizeLayout,
+  shownLayout,
+  sideListColumns,
+  sideListWidth,
+} from './layout.ts';
+import type { Layout, PaneRectangle, TerminalSize } from './layout.ts';
 
 const leaf = (number: number): Layout => ({ kind: 'pane', paneId: paneId(number) });
 
@@ -151,4 +159,88 @@ it('shows the side list only when the client is wider than 40 columns', () => {
   expect(sideListWidth(40)).toBe(0);
   expect(paneSize({ columns: 41, rows: 10 }).columns).toBe(21);
   expect(paneSize({ columns: 40, rows: 10 }).columns).toBe(40);
+});
+
+const frameOf = (layout: Layout, size: TerminalSize, number: number): PaneRectangle => {
+  const found = layoutPanes(layout, size).find((placed) => placed.paneId === paneId(number));
+
+  if (found === undefined) {
+    throw new Error(`No pane ${number}`);
+  }
+
+  return found;
+};
+
+const area = { columns: 81, rows: 25 };
+
+const nested = split('right', split('below', leaf(1), leaf(2)), leaf(3));
+
+it('shows the zoomed pane alone, or the whole layout', () => {
+  expect(shownLayout(nested, paneId(2))).toEqual(leaf(2));
+  expect(shownLayout(nested, undefined)).toBe(nested);
+});
+
+it('grows the left pane of a right split by one column per cell with right', () => {
+  const resized = resizeLayout(nested, paneId(1), 'right', 2, area) as Layout;
+
+  expect(frameOf(resized, area, 1).columns).toBe(42);
+  expect(frameOf(resized, area, 3).columns).toBe(38);
+});
+
+it('shrinks the right pane of a right split with right, from either side', () => {
+  const resized = resizeLayout(nested, paneId(3), 'right', 3, area) as Layout;
+
+  expect(frameOf(resized, area, 1).columns).toBe(43);
+  expect(frameOf(resized, area, 3).columns).toBe(37);
+});
+
+it('moves the edge left with left', () => {
+  const fromLeft = resizeLayout(nested, paneId(2), 'left', 4, area) as Layout;
+  const fromRight = resizeLayout(nested, paneId(3), 'left', 4, area) as Layout;
+
+  expect(frameOf(fromLeft, area, 1).columns).toBe(36);
+  expect(frameOf(fromRight, area, 3).columns).toBe(44);
+});
+
+it('moves a below split edge down and up by rows', () => {
+  const down = resizeLayout(nested, paneId(1), 'down', 2, area) as Layout;
+  const up = resizeLayout(nested, paneId(2), 'up', 3, area) as Layout;
+
+  expect(frameOf(down, area, 1).rows).toBe(15);
+  expect(frameOf(down, area, 2).rows).toBe(10);
+  expect(frameOf(up, area, 1).rows).toBe(10);
+  expect(frameOf(up, area, 2).rows).toBe(15);
+});
+
+it('resizes the nearest split on the axis', () => {
+  const columns = split('right', leaf(1), split('right', leaf(2), leaf(3)));
+  const resized = resizeLayout(columns, paneId(3), 'left', 2, area) as Layout;
+  const before = layoutPanes(columns, area);
+  const after = layoutPanes(resized, area);
+
+  expect(after[0]).toEqual(before[0]);
+  expect(after[1]?.columns).toBe((before[1]?.columns ?? 0) - 2);
+  expect(after[2]?.columns).toBe((before[2]?.columns ?? 0) + 2);
+});
+
+it('stops at a framed 1x1 terminal', () => {
+  const pair = split('right', leaf(1), leaf(2));
+  const right = resizeLayout(pair, paneId(1), 'right', 500, area) as Layout;
+  const left = resizeLayout(pair, paneId(1), 'left', 500, area) as Layout;
+
+  expect(frameOf(right, area, 2).terminal.columns).toBe(1);
+  expect(frameOf(left, area, 1).terminal.columns).toBe(1);
+});
+
+it('gives the same layout when the edge cannot move', () => {
+  const pair = split('right', leaf(1), leaf(2));
+  const clamped = resizeLayout(pair, paneId(1), 'left', 500, area) as Layout;
+
+  expect(resizeLayout(clamped, paneId(1), 'left', 1, area)).toBe(clamped);
+});
+
+it('gives nothing when the pane has no split on the axis', () => {
+  expect(resizeLayout(leaf(1), paneId(1), 'left', 1, area)).toBeUndefined();
+  expect(resizeLayout(split('right', leaf(1), leaf(2)), paneId(1), 'up', 1, area)).toBeUndefined();
+  expect(resizeLayout(nested, paneId(3), 'down', 1, area)).toBeUndefined();
 });

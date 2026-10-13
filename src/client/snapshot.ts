@@ -52,6 +52,14 @@ const applyLayoutChange = (snapshot: StoreSnapshot, change: StoreChange): StoreS
     return { ...snapshot, tabs };
   }
 
+  if (change.type === 'tabZoomChanged') {
+    const tabs = snapshot.tabs.map((tab) =>
+      tab.id === change.tabId ? { ...tab, zoomedPaneId: change.zoomedPaneId } : tab,
+    );
+
+    return { ...snapshot, tabs };
+  }
+
   if (change.type === 'workspaceFocused') {
     return { ...snapshot, focusedWorkspaceId: change.workspaceId };
   }
