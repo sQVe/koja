@@ -221,7 +221,8 @@ const subscribeRows = (
   return { paneIds, acknowledge, unsubscribe };
 };
 
-// The panes drawn for the focused workspace's active tab, which is one pane while zoomed, that have a row publisher.
+// The panes the focused workspace's active tab shows that have a row publisher. A zoomed tab shows
+// one pane.
 const visiblePaneIds = (context: ServerContext): PaneId[] => {
   const { state, runtime } = context;
   const workspace = state.workspaces.find((known) => known.id === state.focusedWorkspaceId);

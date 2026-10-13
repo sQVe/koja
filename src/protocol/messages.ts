@@ -257,8 +257,8 @@ const controlSchema = z.discriminatedUnion('type', [
     direction: resizeDirectionSchema,
     cells: z.number().int().positive(),
   }),
-  // Answers a pane split, focus, close, zoom, or resize that worked, with the pane it acted on. For a split,
-  // that is the new pane.
+  // Answers a pane split, focus, close, zoom, or resize that worked, with the pane it acted on.
+  // For a split, that is the new pane.
   z.object({ type: z.literal('paneDone'), paneId: paneIdSchema }),
   // Answers a pane request that changed nothing. The message is present for paneFailedToStart.
   z.object({

@@ -226,7 +226,6 @@ export const removePane = (layout: Layout, target: PaneId): PaneRemoval | undefi
   return undefined;
 };
 
-// The layout a tab shows: the zoomed pane alone, or the whole layout.
 export const shownLayout = (layout: Layout, zoomedPaneId: PaneId | undefined): Layout =>
   zoomedPaneId === undefined ? layout : { kind: 'pane', paneId: zoomedPaneId };
 
