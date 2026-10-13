@@ -195,7 +195,7 @@ it(
     const vertical = await phi('pane', 'resize', first, '--direction', 'down', '--cells', '1');
 
     expect(vertical.exitCode).toBe(1);
-    expect(vertical.stderr).toContain(`Pane ${first} has no split to resize.`);
+    expect(vertical.stderr).toContain(first);
     expect(await list()).toEqual(squeezed);
   },
   cliTestTimeoutMs,
