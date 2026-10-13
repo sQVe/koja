@@ -1335,6 +1335,15 @@ it('clamps a resize at a framed 1x1 terminal and applies no changes when nothing
   expect(sizes(intent(state, resize(1, 'right', 500)).state).get(paneId(2))).toBe('1x22');
 });
 
+it('applies no changes when a nested resize is stopped at the minimum', () => {
+  const shrunk = intent(nestedState(), resize(1, 'up', 500));
+  const stuck = intent(shrunk.state, resize(1, 'up', 1));
+
+  expect(stuck.changes).toEqual([]);
+  expect(stuck.state.tabs).toEqual(shrunk.state.tabs);
+  expect(stuck.state.revision).toBe(shrunk.state.revision);
+});
+
 it('rejects a resize with no split on that axis and changes nothing', () => {
   const lone = run([createPhi, attachLarge]);
   const sideBySide = run([createPhi, attachLarge, splitFirst('right'), zoom(1)]);

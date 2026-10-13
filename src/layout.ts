@@ -281,6 +281,10 @@ export const resizeLayout = (
       ? resizeIn(current.first, firstArea)
       : resizeIn(current.second, secondArea);
 
+    if (inner === (inFirst ? current.first : current.second)) {
+      return current;
+    }
+
     if (inner !== undefined) {
       return inFirst ? { ...current, first: inner } : { ...current, second: inner };
     }
