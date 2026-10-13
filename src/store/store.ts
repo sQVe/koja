@@ -751,11 +751,17 @@ const focusPane = (state: State, id: PaneId): Applied | Rejected => {
 const isInTab = (state: State, id: PaneId, tab: Tab): boolean =>
   state.panes.some((pane) => pane.id === id && pane.tabId === tab.id);
 
-const restoredZoom = (state: State, tab: Tab, id: PaneId): PaneId | undefined => {
+// The zoomed pane must stay the focused pane, so the zoom comes back only with its focus.
+const restoredZoom = (
+  state: State,
+  tab: Tab,
+  id: PaneId,
+  focusedPaneId: PaneId,
+): PaneId | undefined => {
   const zoomed = state.stateBeforeSplit.get(id)?.zoomedPaneId;
   const zoomStays = zoomed !== undefined && zoomed !== id && isInTab(state, zoomed, tab);
 
-  return zoomStays ? zoomed : undefined;
+  return zoomStays && zoomed === focusedPaneId ? zoomed : undefined;
 };
 
 // The pane's area goes to its sibling. The focus moves to the sibling only when the pane had it.
@@ -771,7 +777,7 @@ const closePaneIn = (state: State, tab: Tab, id: PaneId): Applied => {
   const previousStays = previous !== undefined && previous !== id && isInTab(state, previous, tab);
   const successor = previousStays ? previous : firstPaneId(removal.sibling);
   const focusedPaneId = tab.focusedPaneId === id ? successor : tab.focusedPaneId;
-  const zoomedPaneId = restoredZoom(state, tab, id);
+  const zoomedPaneId = restoredZoom(state, tab, id, focusedPaneId);
   const closedTab: Tab = { ...tab, layout: removal.layout, focusedPaneId, zoomedPaneId };
   const stateBeforeSplit = new Map(state.stateBeforeSplit);
 

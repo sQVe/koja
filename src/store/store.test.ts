@@ -1263,16 +1263,22 @@ it('does not report a zoom change when a failed split leaves the zoom as it was'
 it('unzooms when a started split pane closes', () => {
   const opened = run([createPhi, attachLarge, splitFirst('right')]);
   const started = fact(opened, startedPane(2, 2)).state;
-  const state = intent(started, zoom(1)).state;
-  const result = intent(state, { type: 'closePane', paneId: paneId(2) });
+  const zoomed = intent(started, zoom(1)).state;
+  const split = intent(zoomed, splitPaneOf(1, 'below')).state;
+  const running = fact(split, startedPane(3, 3)).state;
+  const result = intent(running, { type: 'closePane', paneId: paneId(3) });
 
   expect(result.state.tabs[0]?.zoomedPaneId).toBeUndefined();
+});
 
-  expect(result.changes).toContainEqual({
-    type: 'tabZoomChanged',
-    tabId: tabId(1),
-    zoomedPaneId: undefined,
-  });
+it('leaves the tab unzoomed when the focus moved before a split pane failed to start', () => {
+  const zoomed = run([createPhi, attachLarge, splitFirst('right'), zoom(1)]);
+  const split = intent(zoomed, splitPaneOf(1, 'below')).state;
+  const refocused = intent(split, { type: 'focusPane', paneId: paneId(2) }).state;
+  const result = fact(refocused, { type: 'paneFailedToStart', paneId: paneId(3), generation: 3 });
+
+  expect(result.state.tabs[0]?.zoomedPaneId).toBeUndefined();
+  expect(result.state.tabs[0]?.focusedPaneId).toBe(paneId(2));
 });
 
 it('unzooms when a pane closes', () => {
