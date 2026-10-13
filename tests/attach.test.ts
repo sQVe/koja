@@ -163,10 +163,10 @@ it('shows the shell screen and cursor', async () => {
 
   await command('pane', 'send', 'echo phi-attach-ok\r');
 
-  expect(await waitFor(() => paneText(screen).includes('\nphi-attach-ok\n'), 3000)).toBe(true);
+  expect(await waitFor(() => /^phi-attach-ok *$/m.test(paneText(screen)), 3000)).toBe(true);
 
   const rows = paneText(screen).split('\n');
-  const outputRow = rows.indexOf('phi-attach-ok');
+  const outputRow = rows.findIndex((row) => row.startsWith('phi-attach-ok'));
 
   expect(rows[outputRow + 1]).toContain('attach-prompt>');
   expect(screen.text()).toContain('INSERT');
@@ -346,7 +346,7 @@ it('shows the same screen text when a new client attaches after a detach', async
   expect(await waitFor(() => screen.text().includes('INSERT'))).toBe(true);
   await command('pane', 'send', 'echo same-$((1+1))\r');
 
-  const finished = () => /^same-2\nattach-prompt>/m.test(paneText(screen));
+  const finished = () => /^same-2 *\nattach-prompt>/m.test(paneText(screen));
 
   expect(await waitFor(finished)).toBe(true);
   const before = screen.text().split('\n').slice(0, -1).join('\n');

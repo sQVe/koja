@@ -502,11 +502,11 @@ it('hands the update sequence to row listeners and acks only when told to', asyn
   expect(sequences).toEqual([1, 2]);
   expect(server.received.some((message) => message.type === 'ack')).toBe(false);
 
-  session.acknowledge(2);
+  session.acknowledge(paneId(7), 2);
   await arrived.promise;
 
   expect(server.received.filter((message) => message.type === 'ack')).toEqual([
-    { type: 'ack', sequence: 2 },
+    { type: 'ack', paneId: paneId(7), sequence: 2 },
   ]);
 });
 
@@ -516,7 +516,7 @@ it('sends no ack after the session closed', async () => {
 
   session.close();
   await session.closed;
-  session.acknowledge(1);
+  session.acknowledge(paneId(7), 1);
   await Bun.sleep(20);
 
   expect(server.received.map((message) => message.type)).toEqual(['hello']);
@@ -598,9 +598,9 @@ it('keeps receiving row updates from a real server past the in-flight limit', as
   const session = await attach({ socketPath: join(directory, 'run', 'phi.sock') });
   let updates = 0;
 
-  session.subscribeRows(({ sequence }) => {
+  session.subscribeRows(({ pane: changedPane, sequence }) => {
     updates += 1;
-    session.acknowledge(sequence);
+    session.acknowledge(changedPane, sequence);
   });
 
   const printLine = async (line: number): Promise<void> => {

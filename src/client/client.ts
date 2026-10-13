@@ -36,6 +36,21 @@ export type PaneCommand =
   | { action: 'read'; pane?: PaneId | undefined }
   | { action: 'send'; text: string; pane?: PaneId | undefined };
 
+type SplitDirection = Extract<ControlMessage, { type: 'paneSplit' }>['direction'];
+
+export type PaneLayoutCommand =
+  | { action: 'split'; pane: PaneId; direction: SplitDirection }
+  | { action: 'focus'; pane: PaneId }
+  | { action: 'close'; pane: PaneId };
+
+type PaneLayoutResult =
+  | { ok: true; paneId: PaneId }
+  | { ok: false; reason: 'unknownPane' }
+  | { ok: false; reason: 'paneTooSmall' }
+  | { ok: false; reason: 'serverStopping' }
+  | { ok: false; reason: 'paneFailedToStart'; message: string }
+  | RequestFailure;
+
 type WorkspaceResult =
   | { ok: true; workspaceId: WorkspaceId }
   | { ok: false; reason: 'unknownWorkspace' }
@@ -262,6 +277,40 @@ export const runPaneCommand = (
     },
   });
 };
+
+const paneLayoutRequest = (command: PaneLayoutCommand): ControlMessage => {
+  if (command.action === 'split') {
+    return { type: 'paneSplit', paneId: command.pane, direction: command.direction };
+  }
+
+  return command.action === 'focus'
+    ? { type: 'paneFocus', paneId: command.pane }
+    : { type: 'paneClose', paneId: command.pane };
+};
+
+export const runPaneLayoutCommand = (
+  socketPath: string,
+  version: BuildVersion,
+  command: PaneLayoutCommand,
+): Promise<PaneLayoutResult> =>
+  runRequest<PaneLayoutResult>(socketPath, version, {
+    onWelcome: (request) => {
+      request.send(paneLayoutRequest(command));
+    },
+    onMessage: (request, message) => {
+      if (message.type === 'paneDone') {
+        request.finish({ ok: true, paneId: message.paneId });
+      }
+
+      if (message.type === 'paneFailed' && message.reason === 'paneFailedToStart') {
+        request.finish({ ok: false, reason: message.reason, message: message.message ?? '' });
+      }
+
+      if (message.type === 'paneFailed' && message.reason !== 'paneFailedToStart') {
+        request.finish({ ok: false, reason: message.reason });
+      }
+    },
+  });
 
 export const runWorkspaceCommand = (
   socketPath: string,

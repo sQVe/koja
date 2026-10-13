@@ -180,6 +180,56 @@ it('parses pane list, and the pane target of read and send', () => {
   });
 });
 
+it('parses pane split, focus, and close with the pane id as an argument', () => {
+  expect(parseCommand(['pane', 'split', 'pane-2', '--direction', 'below', '--json'])).toEqual({
+    kind: 'pane',
+    pane: { action: 'split', pane: paneId(2), direction: 'below' },
+    json: true,
+    socket: undefined,
+  });
+
+  expect(parseCommand(['pane', 'split', 'pane-2', '--direction', 'right'])).toEqual({
+    kind: 'pane',
+    pane: { action: 'split', pane: paneId(2), direction: 'right' },
+    json: false,
+    socket: undefined,
+  });
+
+  expect(parseCommand(['pane', 'focus', 'pane-3'])).toEqual({
+    kind: 'pane',
+    pane: { action: 'focus', pane: paneId(3) },
+    json: false,
+    socket: undefined,
+  });
+
+  expect(parseCommand(['pane', 'close', 'pane-3', '--socket', '/tmp/p.sock'])).toEqual({
+    kind: 'pane',
+    pane: { action: 'close', pane: paneId(3) },
+    json: false,
+    socket: '/tmp/p.sock',
+  });
+});
+
+it.each([
+  ['no id for split', ['pane', 'split', '--direction', 'right']],
+  ['no id for focus', ['pane', 'focus']],
+  ['no id for close', ['pane', 'close']],
+  ['a malformed id for split', ['pane', 'split', 'tab-1', '--direction', 'right']],
+  ['a malformed id for focus', ['pane', 'focus', 'workspace-1']],
+  ['a malformed id for close', ['pane', 'close', 'pane-01']],
+  ['two ids for focus', ['pane', 'focus', 'pane-1', 'pane-2']],
+  ['no direction for split', ['pane', 'split', 'pane-1']],
+  ['an invalid direction', ['pane', 'split', 'pane-1', '--direction', 'left']],
+  ['an empty direction', ['pane', 'split', 'pane-1', '--direction', '']],
+  ['a direction for focus', ['pane', 'focus', 'pane-1', '--direction', 'right']],
+  ['a direction for pane read', ['pane', 'read', '--direction', 'right']],
+  ['a direction on a workspace command', ['workspace', 'list', '--direction', 'right']],
+  ['--pane on pane split', ['pane', 'split', 'pane-1', '--direction', 'right', '--pane', 'pane-1']],
+  ['--pane on pane close', ['pane', 'close', 'pane-1', '--pane', 'pane-1']],
+])('refuses %s', (_name, argv) => {
+  expect(typeof parseCommand(argv)).toBe('string');
+});
+
 it.each([
   ['a malformed pane id', ['pane', 'read', '--pane', 'workspace-1']],
   ['a pane id without a number', ['pane', 'send', 'ls', '--pane', 'pane-']],
@@ -199,4 +249,9 @@ it('lists the workspace and pane commands in the usage', () => {
   expect(lines).toContain('phi workspace list [--socket <path>] [--json]');
   expect(lines).toContain('phi pane list [--socket <path>] [--json]');
   expect(lines).toContain('phi pane read [--pane <id>] [--socket <path>] [--json]');
+
+  expect(lines).toContain('phi pane split <id> --direction below|right [--socket <path>] [--json]');
+
+  expect(lines).toContain('phi pane focus <id> [--socket <path>] [--json]');
+  expect(lines).toContain('phi pane close <id> [--socket <path>] [--json]');
 });

@@ -7,6 +7,8 @@ type Environment = Record<string, string | undefined>;
 
 export type ScopeState = 'running' | 'gone' | 'unknown';
 
+export type RegistrationResult = 'active' | 'exited' | 'unresolved';
+
 export type SignalScopeResult = { ok: true } | { ok: false; message: string };
 
 const systemdRun = 'systemd-run';
@@ -106,6 +108,37 @@ const queryScope = async (environment: Environment, unit: string): Promise<Scope
   }
 
   return exitCode === inactiveExitCode || exitCode === unknownUnitExitCode ? 'gone' : 'unknown';
+};
+
+// systemd registers a new scope a few milliseconds after systemd-run starts, and until then it
+// reports the scope as unknown. Waits until a query says the scope is running or the shell has
+// exited. A query that fails or times out proves nothing, so the wait goes on. 'unresolved' means
+// no positive answer came in time while the shell lives.
+export const waitForScopeActive = async (
+  environment: Environment,
+  unit: string,
+  shellExited: () => boolean,
+  waitMs: number,
+): Promise<RegistrationResult> => {
+  const deadline = performance.now() + waitMs;
+
+  while (performance.now() < deadline) {
+    if (shellExited()) {
+      return 'exited';
+    }
+
+    // oxlint-disable-next-line eslint/no-await-in-loop -- each check must follow the last wait.
+    const state = await queryScope(environment, unit);
+
+    if (state === 'running') {
+      return 'active';
+    }
+
+    // oxlint-disable-next-line eslint/no-await-in-loop -- each check must follow the last wait.
+    await Bun.sleep(scopePollMs);
+  }
+
+  return shellExited() ? 'exited' : 'unresolved';
 };
 
 // A signal that cannot reach a scope that has already ended is not a failure.

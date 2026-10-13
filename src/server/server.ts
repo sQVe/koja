@@ -3,6 +3,7 @@ import { rmSync } from 'node:fs';
 import { paneId as paneIdFor } from '../ids.ts';
 import type { ClientId, PaneId } from '../ids.ts';
 import { invariant } from '../invariant.ts';
+import { layoutPanes } from '../layout.ts';
 import type { TerminalSize } from '../layout.ts';
 import { FrameKind } from '../protocol/protocol.ts';
 import type { BuildVersion, ControlMessage } from '../protocol/protocol.ts';
@@ -68,7 +69,7 @@ interface ConnectionData {
 interface RowSubscriptions {
   // The panes this connection gets rows from.
   paneIds: readonly PaneId[];
-  acknowledge: (sequence: number) => boolean;
+  acknowledge: (pane: PaneId, sequence: number) => boolean;
   unsubscribe: () => void;
 }
 
@@ -81,8 +82,8 @@ interface Runtime {
   connections: Map<number, Connection>;
   // The client a terminal connection's sized hello attached.
   clientIds: Map<Connection, ClientId>;
-  // The row subscriptions of each terminal connection. Their ack records an ack on each pane
-  // subscription, and is true if one took it.
+  // The row subscriptions of each terminal connection. Their ack records an ack on the named
+  // pane's subscription, and is true if it took it.
   rowSubscriptions: Map<Connection, RowSubscriptions>;
   listener: Listener | undefined;
   nextConnectionId: number;
@@ -107,6 +108,8 @@ interface ServerContext {
 
 // Effects report facts with this, and report starts effects, so effects take it as an argument.
 type Report = (context: ServerContext, fact: Fact) => void;
+
+type PaneLayoutRequest = Extract<ControlMessage, { type: 'paneSplit' | 'paneFocus' | 'paneClose' }>;
 
 type WorkspaceRequest = Extract<
   ControlMessage,
@@ -172,7 +175,7 @@ const subscribeRows = (
   connection: Connection,
   paneIds: readonly PaneId[],
 ): RowSubscriptions => {
-  const subscriptions: RowSubscription[] = [];
+  const subscriptions = new Map<PaneId, RowSubscription>();
 
   for (const id of paneIds) {
     const publication = context.runtime.rowPublishers.get(id);
@@ -196,21 +199,18 @@ const subscribeRows = (
 
     const pane = context.runtime.panes.get(id);
 
-    subscriptions.push(subscription);
+    subscriptions.set(id, subscription);
 
     if (pane !== undefined) {
       scheduleRows(context, id, pane.generation);
     }
   }
 
-  const acknowledge = (sequence: number): boolean => {
-    const accepted = subscriptions.map((subscription) => subscription.acknowledge(sequence));
-
-    return accepted.includes(true);
-  };
+  const acknowledge = (pane: PaneId, sequence: number): boolean =>
+    subscriptions.get(pane)?.acknowledge(sequence) === true;
 
   const unsubscribe = (): void => {
-    for (const subscription of subscriptions) {
+    for (const subscription of subscriptions.values()) {
       subscription.unsubscribe();
     }
   };
@@ -218,7 +218,7 @@ const subscribeRows = (
   return { paneIds, acknowledge, unsubscribe };
 };
 
-// The panes in the focused workspace's active tab that have a row publisher.
+// The panes in the layout of the focused workspace's active tab that have a row publisher.
 const visiblePaneIds = (context: ServerContext): PaneId[] => {
   const { state, runtime } = context;
   const workspace = state.workspaces.find((known) => known.id === state.focusedWorkspaceId);
@@ -228,7 +228,9 @@ const visiblePaneIds = (context: ServerContext): PaneId[] => {
     return [];
   }
 
-  return [tab.layout.paneId].filter((id) => runtime.rowPublishers.has(id));
+  const placed = layoutPanes(tab.layout, state.layoutArea);
+
+  return placed.map((rectangle) => rectangle.paneId).filter((id) => runtime.rowPublishers.has(id));
 };
 
 const sameIds = (left: readonly PaneId[], right: readonly PaneId[]): boolean =>
@@ -463,11 +465,14 @@ const stopServer = (context: ServerContext): void => {
     });
 };
 
-const resizePane = (context: ServerContext, id: PaneId, size: TerminalSize): void => {
+// Sizes the PTY from the current state, not from the change. A transition nested in the same effect
+// batch, such as a failed pane start, may have replaced the size the change carries.
+const resizePane = (context: ServerContext, id: PaneId): void => {
   const pane = context.runtime.panes.get(id);
   const publication = context.runtime.rowPublishers.get(id);
+  const size = context.state.panes.find((known) => known.id === id)?.size;
 
-  if (pane === undefined || publication === undefined) {
+  if (pane === undefined || publication === undefined || size === undefined) {
     return;
   }
 
@@ -536,7 +541,7 @@ const runEffects = (context: ServerContext, changes: readonly Change[], report: 
     }
 
     if (change.type === 'paneResized') {
-      resizePane(context, change.paneId, change.size);
+      resizePane(context, change.paneId);
     }
 
     if (change.type === 'clientThemeChanged') {
@@ -882,7 +887,91 @@ const handleTabRequest = (
   connection.send({ type: 'tabDone', tabId: message.tabId });
 };
 
-// Returns whether the message was a workspace or tab request.
+const paneLayoutRequestTypes: ReadonlySet<string> = new Set([
+  'paneSplit',
+  'paneFocus',
+  'paneClose',
+]);
+
+const isPaneLayoutRequest = (message: ControlMessage): message is PaneLayoutRequest =>
+  paneLayoutRequestTypes.has(message.type);
+
+const paneIntentOf = (message: PaneLayoutRequest): Intent => {
+  if (message.type === 'paneSplit') {
+    return { type: 'splitPane', paneId: message.paneId, direction: message.direction };
+  }
+
+  return message.type === 'paneFocus'
+    ? { type: 'focusPane', paneId: message.paneId }
+    : { type: 'closePane', paneId: message.paneId };
+};
+
+const paneRefusalOf = (
+  context: ServerContext,
+  message: PaneLayoutRequest,
+): ControlMessage | undefined => {
+  if (context.state.stopping) {
+    return { type: 'paneFailed', reason: 'serverStopping', message: undefined };
+  }
+
+  const known = context.state.panes.some((pane) => pane.id === message.paneId);
+
+  return known ? undefined : { type: 'paneFailed', reason: 'unknownPane', message: undefined };
+};
+
+const handlePaneLayoutRequest = (
+  context: ServerContext,
+  message: PaneLayoutRequest,
+  connection: Connection,
+): void => {
+  const refusal = paneRefusalOf(context, message);
+
+  if (refusal !== undefined) {
+    connection.send(refusal);
+
+    return;
+  }
+
+  const changes = dispatch(context, paneIntentOf(message));
+  const added = changes.find((change) => change.type === 'paneAdded');
+  const startFailure = takePaneStartFailure(context);
+
+  if (startFailure !== undefined) {
+    connection.send({ type: 'paneFailed', reason: 'paneFailedToStart', message: startFailure });
+
+    return;
+  }
+
+  if (message.type === 'paneSplit') {
+    connection.send(
+      added === undefined
+        ? { type: 'paneFailed', reason: 'paneTooSmall', message: undefined }
+        : { type: 'paneDone', paneId: added.pane.id },
+    );
+
+    return;
+  }
+
+  connection.send({ type: 'paneDone', paneId: message.paneId });
+};
+
+const handleAck = (
+  context: ServerContext,
+  pane: PaneId,
+  sequence: number,
+  connection: Connection,
+): void => {
+  const accepted = context.runtime.rowSubscriptions.get(connection)?.acknowledge(pane, sequence);
+
+  if (accepted !== true) {
+    context.options.log.debug('Ignored an ack for a pane or sequence the client was not sent.', {
+      pane,
+      sequence,
+    });
+  }
+};
+
+// Returns whether the message was a workspace, tab, or pane layout request.
 const handleLayoutRequest = (
   context: ServerContext,
   message: ControlMessage,
@@ -896,6 +985,12 @@ const handleLayoutRequest = (
 
   if (isTabRequest(message)) {
     handleTabRequest(context, message, connection);
+
+    return true;
+  }
+
+  if (isPaneLayoutRequest(message)) {
+    handlePaneLayoutRequest(context, message, connection);
 
     return true;
   }
@@ -933,15 +1028,7 @@ const handleMessage = (
   }
 
   if (message.type === 'ack') {
-    const accepted = context.runtime.rowSubscriptions
-      .get(connection)
-      ?.acknowledge(message.sequence);
-
-    if (accepted !== true) {
-      context.options.log.debug('Ignored an ack for a sequence the client was not sent.', {
-        sequence: message.sequence,
-      });
-    }
+    handleAck(context, message.paneId, message.sequence, connection);
 
     return;
   }

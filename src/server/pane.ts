@@ -7,6 +7,7 @@ import {
   scopedCommand,
   scopeUnitName,
   signalScope,
+  waitForScopeActive,
   waitForScopeExit,
 } from './scope.ts';
 
@@ -49,6 +50,9 @@ const paneScrollbackBytes = 0xa0_00_00;
 
 // How long a pane's processes get to exit after SIGHUP before they get SIGKILL.
 const hangupGraceMs = 1000;
+
+// How long stop waits for systemd to register a new scope.
+const registrationWaitMs = 1000;
 
 const sessionPollMs = 10;
 
@@ -173,9 +177,28 @@ export const spawnPane = (options: SpawnPaneOptions): SpawnPaneResult => {
     }
   };
 
+  const endSession = async (): Promise<void> => {
+    signalSession(session, 'SIGHUP');
+    await waitForSessionExit(session, hangupGraceMs);
+  };
+
   // Returns what failed, so stop can still kill the session before it reports.
   const endScope = async (scope: string): Promise<string[]> => {
     const failures: string[] = [];
+
+    const registration = await waitForScopeActive(
+      options.environment,
+      scope,
+      () => shell.exitCode !== null || shell.signalCode !== null,
+      registrationWaitMs,
+    );
+
+    if (registration === 'unresolved') {
+      await endSession();
+
+      return [`Scope ${scope} did not register`];
+    }
+
     const hangup = await signalScope(options.environment, scope, 'SIGHUP');
 
     if (!hangup.ok) {
@@ -195,11 +218,6 @@ export const spawnPane = (options: SpawnPaneOptions): SpawnPaneResult => {
     }
 
     return failures;
-  };
-
-  const endSession = async (): Promise<void> => {
-    signalSession(session, 'SIGHUP');
-    await waitForSessionExit(session, hangupGraceMs);
   };
 
   const stop = async (): Promise<string[]> => {

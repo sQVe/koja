@@ -29,6 +29,10 @@ type Hello = Extract<ControlMessage, { type: 'hello' }>;
 
 type HelloAnswer = Extract<ControlMessage, { type: 'welcome' | 'refused' }>;
 
+type Layout = Tab['layout'];
+
+type SplitDirection = Extract<Layout, { kind: 'split' }>['direction'];
+
 // JSON has no undefined, so a value that is absent travels as null.
 const absent = <Schema extends z.ZodType>(schema: Schema) =>
   schema.nullable().transform((value) => value ?? undefined);
@@ -82,10 +86,20 @@ const paneSchema: z.ZodType<Pane> = z.object({
   exitCode: absent(z.number().int()),
 });
 
-const layoutSchema: z.ZodType<Tab['layout']> = z.object({
-  kind: z.literal('pane'),
-  paneId: paneIdSchema,
-});
+const splitDirectionSchema: z.ZodType<SplitDirection> = z.enum(['below', 'right']);
+
+const layoutSchema: z.ZodType<Layout> = z.lazy(() =>
+  z.discriminatedUnion('kind', [
+    z.object({ kind: z.literal('pane'), paneId: paneIdSchema }),
+    z.object({
+      kind: z.literal('split'),
+      direction: splitDirectionSchema,
+      ratio: z.number().gt(0).lt(1),
+      first: layoutSchema,
+      second: layoutSchema,
+    }),
+  ]),
+);
 
 const tabSchema: z.ZodType<Tab> = z.object({
   id: tabIdSchema,
@@ -149,6 +163,8 @@ const changeSchema: z.ZodType<Change> = z.discriminatedUnion('type', [
   }),
   z.object({ type: z.literal('tabRemoved'), tabId: tabIdSchema }),
   z.object({ type: z.literal('paneRemoved'), paneId: paneIdSchema }),
+  z.object({ type: z.literal('tabLayoutChanged'), tabId: tabIdSchema, layout: layoutSchema }),
+  z.object({ type: z.literal('paneFocused'), tabId: tabIdSchema, paneId: paneIdSchema }),
   z.object({
     type: z.literal('paneStateChanged'),
     paneId: paneIdSchema,
@@ -177,6 +193,13 @@ const snapshotSchema: z.ZodType<Snapshot> = z.object({
   clients: z.array(clientSchema),
 });
 
+const paneFailureSchema = z.enum([
+  'unknownPane',
+  'paneTooSmall',
+  'serverStopping',
+  'paneFailedToStart',
+]);
+
 const workspaceFailureSchema = z.enum(['unknownWorkspace', 'paneFailedToStart', 'serverStopping']);
 
 const tabFailureSchema = z.enum([
@@ -196,7 +219,11 @@ const controlSchema = z.discriminatedUnion('type', [
   z.object({ type: z.literal('stop') }),
   z.object({ type: z.literal('resize'), size: sizeSchema }),
   z.object({ type: z.literal('theme'), theme: themeSchema }),
-  z.object({ type: z.literal('ack'), sequence: count.max(largestSequence) }),
+  z.object({
+    type: z.literal('ack'),
+    paneId: paneIdSchema,
+    sequence: count.max(largestSequence),
+  }),
   z.object({ type: z.literal('resync') }),
   z.object({ type: z.literal('snapshot'), snapshot: snapshotSchema }),
   z.object({ type: z.literal('change'), revision: count, change: changeSchema }),
@@ -209,6 +236,18 @@ const controlSchema = z.discriminatedUnion('type', [
   z.object({ type: z.literal('paneSend'), paneId: paneIdSchema, text: z.string() }),
   z.object({ type: z.literal('paneSent'), paneId: paneIdSchema }),
   z.object({ type: z.literal('paneMissing'), paneId: paneIdSchema }),
+  z.object({ type: z.literal('paneSplit'), paneId: paneIdSchema, direction: splitDirectionSchema }),
+  z.object({ type: z.literal('paneFocus'), paneId: paneIdSchema }),
+  z.object({ type: z.literal('paneClose'), paneId: paneIdSchema }),
+  // Answers a pane split, focus, or close that worked, with the pane it acted on. For a split,
+  // that is the new pane.
+  z.object({ type: z.literal('paneDone'), paneId: paneIdSchema }),
+  // Answers a pane request that changed nothing. The message is present for paneFailedToStart.
+  z.object({
+    type: z.literal('paneFailed'),
+    reason: paneFailureSchema,
+    message: absent(z.string()),
+  }),
   z.object({
     type: z.literal('workspaceCreate'),
     root: z.string(),

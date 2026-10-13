@@ -1,8 +1,15 @@
 import { clientId, paneId, tabId, workspaceId } from '../ids.ts';
 import type { ClientId, PaneId, TabId, WorkspaceId } from '../ids.ts';
 import { invariant } from '../invariant.ts';
-import { paneSize } from '../layout.ts';
-import type { Layout, TerminalSize } from '../layout.ts';
+import {
+  canSplit,
+  firstPaneId,
+  layoutPanes,
+  paneSize,
+  removePane,
+  splitLayout,
+} from '../layout.ts';
+import type { Layout, SplitDirection, TerminalSize } from '../layout.ts';
 
 type PaneLifecycle = 'starting' | 'running' | 'exited' | 'closing';
 
@@ -62,6 +69,10 @@ export interface State {
   nextGeneration: number;
   // What a new tab or workspace replaced as active, until its pane starts.
   startFallbacks: readonly StartFallback[];
+  // The layout area of the attached client, kept after it detaches.
+  layoutArea: TerminalSize;
+  // For each split pane that has not started yet, the pane that had the focus before the split.
+  focusBeforeSplit: ReadonlyMap<PaneId, PaneId>;
   revision: number;
 }
 
@@ -79,6 +90,9 @@ export type Intent =
   | { type: 'createTab'; workspaceId: WorkspaceId }
   | { type: 'focusTab'; tabId: TabId }
   | { type: 'closeTab'; tabId: TabId }
+  | { type: 'splitPane'; paneId: PaneId; direction: SplitDirection }
+  | { type: 'focusPane'; paneId: PaneId }
+  | { type: 'closePane'; paneId: PaneId }
   | { type: 'attachClient'; size: TerminalSize }
   | { type: 'resizeClient'; clientId: ClientId; size: TerminalSize }
   | { type: 'setClientTheme'; clientId: ClientId; theme: Theme }
@@ -108,6 +122,8 @@ export type Change =
     }
   | { type: 'tabRemoved'; tabId: TabId }
   | { type: 'paneRemoved'; paneId: PaneId }
+  | { type: 'tabLayoutChanged'; tabId: TabId; layout: Layout }
+  | { type: 'paneFocused'; tabId: TabId; paneId: PaneId }
   | {
       type: 'paneStateChanged';
       paneId: PaneId;
@@ -121,7 +137,17 @@ export type Change =
   | { type: 'clientDetached'; clientId: ClientId; reason: DetachReason }
   | { type: 'serverStopping' };
 
-type RejectReason = 'serverStopping' | 'unknownClient' | 'unknownWorkspace' | 'unknownTab';
+type TabIntent = Extract<Intent, { type: 'createTab' | 'focusTab' | 'closeTab' }>;
+
+type PaneIntent = Extract<Intent, { type: 'splitPane' | 'focusPane' | 'closePane' }>;
+
+type RejectReason =
+  | 'serverStopping'
+  | 'unknownClient'
+  | 'unknownWorkspace'
+  | 'unknownTab'
+  | 'unknownPane'
+  | 'paneTooSmall';
 
 // Whatever an effect still holds for this pane generation, such as its process and PTY.
 interface PaneProcess {
@@ -171,6 +197,8 @@ export const createState = (): State => ({
   nextClientNumber: 1,
   nextGeneration: 1,
   startFallbacks: [],
+  layoutArea: paneSize(undefined),
+  focusBeforeSplit: new Map(),
   revision: 0,
 });
 
@@ -222,18 +250,24 @@ const sameTheme = (left: Theme | undefined, right: Theme): boolean =>
   left.background === right.background &&
   left.palette.every((color, index) => color === right.palette[index]);
 
-const fitPanes = (state: State): { panes: readonly Pane[]; changes: Change[] } => {
-  const client = attachedClientOf(state);
+const fitPanesTo = (
+  state: State,
+  area: TerminalSize,
+): { panes: readonly Pane[]; changes: Change[] } => {
+  const sizes = new Map<PaneId, TerminalSize>();
 
-  if (client === undefined) {
-    return { panes: state.panes, changes: [] };
+  for (const tab of state.tabs) {
+    for (const { paneId: id, terminal } of layoutPanes(tab.layout, area)) {
+      sizes.set(id, { columns: terminal.columns, rows: terminal.rows });
+    }
   }
 
-  const size = paneSize(client.size);
   const changes: Change[] = [];
 
   const panes = state.panes.map((pane) => {
-    if (!isLive(pane) || sameSize(size, pane.size)) {
+    const size = sizes.get(pane.id);
+
+    if (size === undefined || !isLive(pane) || sameSize(size, pane.size)) {
       return pane;
     }
 
@@ -244,6 +278,17 @@ const fitPanes = (state: State): { panes: readonly Pane[]; changes: Change[] } =
 
   return { panes, changes };
 };
+
+const lonePaneSize = (state: State, id: PaneId): TerminalSize => {
+  const [lone] = layoutPanes({ kind: 'pane', paneId: id }, state.layoutArea);
+
+  invariant(lone !== undefined, `Layout has no pane ${id}.`);
+
+  return { columns: lone.terminal.columns, rows: lone.terminal.rows };
+};
+
+const fitPanes = (state: State): { panes: readonly Pane[]; changes: Change[] } =>
+  fitPanesTo(state, state.layoutArea);
 
 const defaultLabel = (root: string): string => {
   const trimmed = root.replace(/\/+$/, '');
@@ -262,11 +307,13 @@ const createWorkspace = (
     return reject(state, 'serverStopping');
   }
 
+  const newPaneId = paneId(state.nextPaneNumber);
+
   const pane: Pane = {
-    id: paneId(state.nextPaneNumber),
+    id: newPaneId,
     tabId: tabId(state.nextTabNumber),
     lifecycle: 'starting',
-    size: paneSize(attachedClientOf(state)?.size),
+    size: lonePaneSize(state, newPaneId),
     generation: state.nextGeneration,
     exitCode: undefined,
   };
@@ -448,11 +495,13 @@ const createTab = (state: State, id: WorkspaceId): Applied | Rejected => {
     return reject(state, 'unknownWorkspace');
   }
 
+  const newPaneId = paneId(state.nextPaneNumber);
+
   const pane: Pane = {
-    id: paneId(state.nextPaneNumber),
+    id: newPaneId,
     tabId: tabId(state.nextTabNumber),
     lifecycle: 'starting',
-    size: paneSize(attachedClientOf(state)?.size),
+    size: lonePaneSize(state, newPaneId),
     generation: state.nextGeneration,
     exitCode: undefined,
   };
@@ -562,6 +611,158 @@ const closeWorkspace = (state: State, id: WorkspaceId): Applied | Rejected => {
   return commit({ ...current, revision: state.revision }, changes);
 };
 
+const splitPane = (state: State, id: PaneId, direction: SplitDirection): Applied | Rejected => {
+  if (state.stopping) {
+    return reject(state, 'serverStopping');
+  }
+
+  const target = state.panes.find((pane) => pane.id === id);
+  const tab = state.tabs.find((known) => known.id === target?.tabId);
+
+  if (target === undefined || tab === undefined) {
+    return reject(state, 'unknownPane');
+  }
+
+  const area = state.layoutArea;
+  const rectangle = layoutPanes(tab.layout, area).find((placed) => placed.paneId === id);
+
+  if (rectangle === undefined || !canSplit(rectangle, direction)) {
+    return reject(state, 'paneTooSmall');
+  }
+
+  const addedId = paneId(state.nextPaneNumber);
+  const layout = splitLayout(tab.layout, id, direction, addedId);
+  const addedRectangle = layoutPanes(layout, area).find((placed) => placed.paneId === addedId);
+
+  invariant(addedRectangle !== undefined, `Split layout has no pane ${addedId}.`);
+
+  const added: Pane = {
+    id: addedId,
+    tabId: tab.id,
+    lifecycle: 'starting',
+    size: { columns: addedRectangle.terminal.columns, rows: addedRectangle.terminal.rows },
+    generation: state.nextGeneration,
+    exitCode: undefined,
+  };
+
+  const splitTab: Tab = { ...tab, layout, focusedPaneId: added.id };
+
+  const split: State = {
+    ...state,
+    tabs: state.tabs.map((known) => (known.id === tab.id ? splitTab : known)),
+    panes: [...state.panes, added],
+    nextPaneNumber: state.nextPaneNumber + 1,
+    nextGeneration: state.nextGeneration + 1,
+    focusBeforeSplit: new Map(state.focusBeforeSplit).set(added.id, tab.focusedPaneId),
+  };
+
+  const fitted = fitPanesTo(split, area);
+
+  return commit({ ...split, panes: fitted.panes }, [
+    { type: 'paneAdded', pane: added },
+    { type: 'tabLayoutChanged', tabId: tab.id, layout },
+    { type: 'paneFocused', tabId: tab.id, paneId: added.id },
+    ...fitted.changes,
+  ]);
+};
+
+const focusPane = (state: State, id: PaneId): Applied | Rejected => {
+  if (state.stopping) {
+    return reject(state, 'serverStopping');
+  }
+
+  const target = state.panes.find((pane) => pane.id === id);
+  const tab = state.tabs.find((known) => known.id === target?.tabId);
+
+  if (target === undefined || tab === undefined) {
+    return reject(state, 'unknownPane');
+  }
+
+  const owner = state.workspaces.find((workspace) => workspace.id === tab.workspaceId);
+
+  invariant(owner !== undefined, `Tab ${tab.id} has no workspace.`);
+
+  const changes: Change[] = [];
+
+  if (tab.focusedPaneId !== id) {
+    changes.push({ type: 'paneFocused', tabId: tab.id, paneId: id });
+  }
+
+  if (owner.activeTabId !== tab.id) {
+    changes.push({ type: 'tabFocused', workspaceId: owner.id, tabId: tab.id });
+  }
+
+  if (state.focusedWorkspaceId !== owner.id) {
+    changes.push({ type: 'workspaceFocused', workspaceId: owner.id });
+  }
+
+  const tabs = state.tabs.map((known) =>
+    known.id === tab.id ? { ...known, focusedPaneId: id } : known,
+  );
+
+  const workspaces = state.workspaces.map((workspace) =>
+    workspace.id === owner.id ? { ...workspace, activeTabId: tab.id } : workspace,
+  );
+
+  return commit({ ...state, tabs, workspaces, focusedWorkspaceId: owner.id }, changes);
+};
+
+const isInTab = (state: State, id: PaneId, tab: Tab): boolean =>
+  state.panes.some((pane) => pane.id === id && pane.tabId === tab.id);
+
+// The pane's area goes to its sibling. The focus moves to the sibling only when the pane had it.
+const closePaneIn = (state: State, tab: Tab, id: PaneId): Applied => {
+  const removal = removePane(tab.layout, id);
+
+  if (removal === undefined) {
+    return removeTab(state, tab);
+  }
+
+  const previous = state.focusBeforeSplit.get(id);
+  const previousStays = previous !== undefined && previous !== id && isInTab(state, previous, tab);
+  const successor = previousStays ? previous : firstPaneId(removal.sibling);
+  const focusedPaneId = tab.focusedPaneId === id ? successor : tab.focusedPaneId;
+  const closedTab: Tab = { ...tab, layout: removal.layout, focusedPaneId };
+  const focusBeforeSplit = new Map(state.focusBeforeSplit);
+
+  focusBeforeSplit.delete(id);
+
+  const closed: State = {
+    ...state,
+    focusBeforeSplit,
+    tabs: state.tabs.map((known) => (known.id === tab.id ? closedTab : known)),
+    panes: state.panes.filter((pane) => pane.id !== id),
+  };
+
+  const changes: Change[] = [
+    { type: 'paneRemoved', paneId: id },
+    { type: 'tabLayoutChanged', tabId: tab.id, layout: removal.layout },
+  ];
+
+  if (focusedPaneId !== tab.focusedPaneId) {
+    changes.push({ type: 'paneFocused', tabId: tab.id, paneId: focusedPaneId });
+  }
+
+  const fitted = fitPanes(closed);
+
+  return commit({ ...closed, panes: fitted.panes }, [...changes, ...fitted.changes]);
+};
+
+const closePane = (state: State, id: PaneId): Applied | Rejected => {
+  if (state.stopping) {
+    return reject(state, 'serverStopping');
+  }
+
+  const target = state.panes.find((pane) => pane.id === id);
+  const tab = state.tabs.find((known) => known.id === target?.tabId);
+
+  if (target === undefined || tab === undefined) {
+    return reject(state, 'unknownPane');
+  }
+
+  return closePaneIn(state, tab, id);
+};
+
 const attachClient = (state: State, size: TerminalSize): Applied => {
   const client: Client = { id: clientId(state.nextClientNumber), size, theme: undefined };
   const previous = state.attachedClientId;
@@ -578,6 +779,7 @@ const attachClient = (state: State, size: TerminalSize): Applied => {
     attachedClientId: client.id,
     clients: [...state.clients.filter((known) => known.id !== previous), client],
     nextClientNumber: state.nextClientNumber + 1,
+    layoutArea: paneSize(size),
   };
 
   const fitted = fitPanes(attached);
@@ -599,6 +801,7 @@ const resizeClient = (state: State, id: ClientId, size: TerminalSize): Applied |
   const resized: State = {
     ...state,
     clients: state.clients.map((client) => (client.id === id ? { ...client, size } : client)),
+    layoutArea: paneSize(size),
   };
 
   const fitted = fitPanes(resized);
@@ -672,6 +875,30 @@ const stopServer = (state: State): Applied => {
   return commit({ ...state, panes, stopping: true }, changes);
 };
 
+const isTabIntent = (intent: Intent): intent is TabIntent =>
+  intent.type === 'createTab' || intent.type === 'focusTab' || intent.type === 'closeTab';
+
+const isPaneIntent = (intent: Intent): intent is PaneIntent =>
+  intent.type === 'splitPane' || intent.type === 'focusPane' || intent.type === 'closePane';
+
+const applyTabIntent = (state: State, intent: TabIntent): Applied | Rejected => {
+  if (intent.type === 'createTab') {
+    return createTab(state, intent.workspaceId);
+  }
+
+  return intent.type === 'focusTab' ? focusTab(state, intent.tabId) : closeTab(state, intent.tabId);
+};
+
+const applyPaneIntent = (state: State, intent: PaneIntent): Applied | Rejected => {
+  if (intent.type === 'splitPane') {
+    return splitPane(state, intent.paneId, intent.direction);
+  }
+
+  return intent.type === 'focusPane'
+    ? focusPane(state, intent.paneId)
+    : closePane(state, intent.paneId);
+};
+
 export const applyIntent = (state: State, intent: Intent): Applied | Rejected => {
   if (intent.type === 'createWorkspace') {
     return createWorkspace(state, intent.root, intent.label, intent.background);
@@ -689,16 +916,12 @@ export const applyIntent = (state: State, intent: Intent): Applied | Rejected =>
     return closeWorkspace(state, intent.workspaceId);
   }
 
-  if (intent.type === 'createTab') {
-    return createTab(state, intent.workspaceId);
+  if (isTabIntent(intent)) {
+    return applyTabIntent(state, intent);
   }
 
-  if (intent.type === 'focusTab') {
-    return focusTab(state, intent.tabId);
-  }
-
-  if (intent.type === 'closeTab') {
-    return closeTab(state, intent.tabId);
+  if (isPaneIntent(intent)) {
+    return applyPaneIntent(state, intent);
   }
 
   if (intent.type === 'attachClient') {
@@ -750,12 +973,21 @@ const endPane = (
 
   invariant(tab !== undefined, `Pane ${pane.id} has no tab.`);
 
-  return removeTab(state, tab, restore);
+  if (removePane(tab.layout, pane.id) === undefined) {
+    return removeTab(state, tab, restore);
+  }
+
+  return closePaneIn(state, tab, pane.id);
 };
 
 const markRunning = (state: State, pane: Pane): Applied => {
+  const focusBeforeSplit = new Map(state.focusBeforeSplit);
+
+  focusBeforeSplit.delete(pane.id);
+
   const next: State = {
     ...state,
+    focusBeforeSplit,
     panes: replacePane(state, { ...pane, lifecycle: 'running' }),
     startFallbacks: state.startFallbacks.filter((known) => known.paneId !== pane.id),
   };

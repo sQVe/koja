@@ -1,7 +1,6 @@
 import { expect, it } from 'bun:test';
 
 import { clientId, paneId, tabId, workspaceId } from '../ids.ts';
-import { sideListColumns } from '../layout.ts';
 import { applyFact, applyIntent, createState, focusedPane, paneTheme, snapshot } from './store.ts';
 import type {
   Applied,
@@ -91,7 +90,7 @@ it('starts a pane at the layout size of the attached client', () => {
   const state = run([{ type: 'attachClient', size: { columns: 120, rows: 40 } }]);
 
   expect(intent(state, createPhi).state.panes[0]?.size).toEqual({
-    columns: 120 - sideListColumns,
+    columns: 100,
     rows: 39,
   });
 });
@@ -250,11 +249,11 @@ it('resizes the pane to the layout size of a client that attaches', () => {
   const client = { id: clientId(1), size: { columns: 100, rows: 30 }, theme: undefined };
 
   expect(result.state.attachedClientId).toBe(clientId(1));
-  expect(result.state.panes[0]?.size).toEqual({ columns: 100 - sideListColumns, rows: 29 });
+  expect(result.state.panes[0]?.size).toEqual({ columns: 80, rows: 29 });
 
   expect(result.changes).toEqual([
     { type: 'clientAttached', client },
-    { type: 'paneResized', paneId: paneId(1), size: { columns: 100 - sideListColumns, rows: 29 } },
+    { type: 'paneResized', paneId: paneId(1), size: { columns: 80, rows: 29 } },
   ]);
 });
 
@@ -270,7 +269,7 @@ it('takes over from the attached client when a second client attaches', () => {
   expect(result.changes).toEqual([
     { type: 'clientDetached', clientId: clientId(1), reason: 'takenOver' },
     { type: 'clientAttached', client },
-    { type: 'paneResized', paneId: paneId(1), size: { columns: 90 - sideListColumns, rows: 19 } },
+    { type: 'paneResized', paneId: paneId(1), size: { columns: 70, rows: 19 } },
   ]);
 });
 
@@ -283,11 +282,11 @@ it('reports the client size and the pane size when the attached client resizes',
     size: { columns: 60, rows: 15 },
   });
 
-  expect(result.state.panes[0]?.size).toEqual({ columns: 60 - sideListColumns, rows: 14 });
+  expect(result.state.panes[0]?.size).toEqual({ columns: 40, rows: 14 });
 
   expect(result.changes).toEqual([
     { type: 'clientResized', clientId: clientId(1), size: { columns: 60, rows: 15 } },
-    { type: 'paneResized', paneId: paneId(1), size: { columns: 60 - sideListColumns, rows: 14 } },
+    { type: 'paneResized', paneId: paneId(1), size: { columns: 40, rows: 14 } },
   ]);
 });
 
@@ -341,7 +340,7 @@ it('detaches a client on request and keeps the pane size', () => {
 
   expect(result.state.attachedClientId).toBeUndefined();
   expect(result.state.clients).toEqual([]);
-  expect(result.state.panes[0]?.size).toEqual({ columns: 100 - sideListColumns, rows: 29 });
+  expect(result.state.panes[0]?.size).toEqual({ columns: 80, rows: 29 });
 
   expect(result.changes).toEqual([
     { type: 'clientDetached', clientId: clientId(1), reason: 'requested' },
@@ -780,4 +779,364 @@ it('keeps the workspace that was focused when the pane of a new workspace fails 
     workspaceId(1),
     workspaceId(2),
   ]);
+});
+
+const attachLarge: Intent = { type: 'attachClient', size: { columns: 101, rows: 25 } };
+
+const splitFirst = (direction: 'below' | 'right'): Intent => ({
+  type: 'splitPane',
+  paneId: paneId(1),
+  direction,
+});
+
+const startedPane = (id: number, generation: number): Fact => ({
+  type: 'paneStarted',
+  paneId: paneId(id),
+  generation,
+});
+
+it('splits a pane at half its area, starts the new pane, and focuses it', () => {
+  const state = run([createPhi, attachLarge]);
+  const result = intent(state, splitFirst('right'));
+  const added = result.state.panes[1];
+
+  expect(added).toEqual({
+    id: paneId(2),
+    tabId: tabId(1),
+    lifecycle: 'starting',
+    size: { columns: 38, rows: 22 },
+    generation: 2,
+    exitCode: undefined,
+  });
+
+  expect(result.state.panes[0]?.size).toEqual({ columns: 38, rows: 22 });
+  expect(result.state.tabs[0]?.focusedPaneId).toBe(paneId(2));
+
+  expect(result.state.tabs[0]?.layout).toEqual({
+    kind: 'split',
+    direction: 'right',
+    ratio: 0.5,
+    first: { kind: 'pane', paneId: paneId(1) },
+    second: { kind: 'pane', paneId: paneId(2) },
+  });
+
+  expect(result.changes.map((change) => change.type)).toEqual([
+    'paneAdded',
+    'tabLayoutChanged',
+    'paneFocused',
+    'paneResized',
+  ]);
+});
+
+it('splits the focused pane below and gives each pane half the rows', () => {
+  const result = intent(run([createPhi, attachLarge]), splitFirst('below'));
+
+  expect(result.state.panes.map((pane) => pane.size)).toEqual([
+    { columns: 79, rows: 10 },
+    { columns: 79, rows: 10 },
+  ]);
+});
+
+it('splits a pane inside a split at half the area of that pane', () => {
+  const state = run([createPhi, attachLarge, splitFirst('right')]);
+
+  const result = intent(state, { type: 'splitPane', paneId: paneId(2), direction: 'below' });
+
+  expect(result.state.panes.map((pane) => pane.size)).toEqual([
+    { columns: 38, rows: 22 },
+    { columns: 38, rows: 10 },
+    { columns: 38, rows: 10 },
+  ]);
+});
+
+it('gives the area and the focus of a closed pane to its sibling', () => {
+  const state = run([createPhi, attachLarge, splitFirst('right')]);
+  const result = intent(state, { type: 'closePane', paneId: paneId(2) });
+
+  expect(result.state.tabs[0]?.layout).toEqual({ kind: 'pane', paneId: paneId(1) });
+  expect(result.state.tabs[0]?.focusedPaneId).toBe(paneId(1));
+  expect(result.state.panes.map((pane) => pane.id)).toEqual([paneId(1)]);
+  expect(result.state.panes[0]?.size).toEqual({ columns: 81, rows: 24 });
+
+  expect(result.changes.map((change) => change.type)).toEqual([
+    'paneRemoved',
+    'tabLayoutChanged',
+    'paneFocused',
+    'paneResized',
+  ]);
+});
+
+it('focuses the first pane of a sibling split when its neighbor closes', () => {
+  const state = run([
+    createPhi,
+    attachLarge,
+    splitFirst('right'),
+    { type: 'splitPane', paneId: paneId(2), direction: 'below' },
+    { type: 'focusPane', paneId: paneId(1) },
+  ]);
+
+  const result = intent(state, { type: 'closePane', paneId: paneId(1) });
+
+  expect(result.state.tabs[0]?.focusedPaneId).toBe(paneId(2));
+
+  expect(result.state.panes.map((pane) => pane.size)).toEqual([
+    { columns: 79, rows: 10 },
+    { columns: 79, rows: 10 },
+  ]);
+});
+
+it('keeps the focus when an unfocused pane closes', () => {
+  const state = run([createPhi, attachLarge, splitFirst('right')]);
+  const result = intent(state, { type: 'closePane', paneId: paneId(1) });
+
+  expect(result.state.tabs[0]?.focusedPaneId).toBe(paneId(2));
+  expect(result.changes.some((change) => change.type === 'paneFocused')).toBe(false);
+});
+
+it('removes the tab and workspace when the last pane of a tab closes', () => {
+  const result = intent(run([createPhi]), { type: 'closePane', paneId: paneId(1) });
+
+  expect(result.state.tabs).toEqual([]);
+  expect(result.state.workspaces).toEqual([]);
+  expect(result.state.panes).toEqual([]);
+});
+
+it('focuses another pane of the tab', () => {
+  const state = run([createPhi, attachLarge, splitFirst('right')]);
+  const result = intent(state, { type: 'focusPane', paneId: paneId(1) });
+
+  expect(result.state.tabs[0]?.focusedPaneId).toBe(paneId(1));
+  expect(result.changes).toEqual([{ type: 'paneFocused', tabId: tabId(1), paneId: paneId(1) }]);
+});
+
+it('makes the tab of the focused pane active when that tab is inactive', () => {
+  const state = run([createPhi, attachLarge, splitFirst('right'), createTab]);
+  const result = intent(state, { type: 'focusPane', paneId: paneId(1) });
+
+  expect(workspaceOne(result.state).activeTabId).toBe(tabId(1));
+  expect(result.state.tabs[0]?.focusedPaneId).toBe(paneId(1));
+  expect(focusedPane(result.state)?.id).toBe(paneId(1));
+
+  expect(result.changes).toEqual([
+    { type: 'paneFocused', tabId: tabId(1), paneId: paneId(1) },
+    { type: 'tabFocused', workspaceId: workspaceId(1), tabId: tabId(1) },
+  ]);
+});
+
+it('focuses the workspace of the focused pane when that workspace is unfocused', () => {
+  const state = run([createPhi, createDocs]);
+  const result = intent(state, { type: 'focusPane', paneId: paneId(1) });
+
+  expect(result.state.focusedWorkspaceId).toBe(workspaceId(1));
+  expect(focusedPane(result.state)?.id).toBe(paneId(1));
+  expect(result.changes).toEqual([{ type: 'workspaceFocused', workspaceId: workspaceId(1) }]);
+});
+
+it('focuses the tab and workspace of a pane in an inactive tab of an unfocused workspace', () => {
+  const state = run([createPhi, attachLarge, splitFirst('right'), createTab, createDocs]);
+
+  const result = intent(state, { type: 'focusPane', paneId: paneId(1) });
+
+  expect(workspaceOne(result.state).activeTabId).toBe(tabId(1));
+  expect(result.state.focusedWorkspaceId).toBe(workspaceId(1));
+  expect(focusedPane(result.state)?.id).toBe(paneId(1));
+
+  expect(result.changes).toEqual([
+    { type: 'paneFocused', tabId: tabId(1), paneId: paneId(1) },
+    { type: 'tabFocused', workspaceId: workspaceId(1), tabId: tabId(1) },
+    { type: 'workspaceFocused', workspaceId: workspaceId(1) },
+  ]);
+});
+
+it('resizes every live pane by the layout when the client resizes', () => {
+  const state = run([createPhi, attachLarge, splitFirst('right')]);
+
+  const result = intent(state, {
+    type: 'resizeClient',
+    clientId: clientId(1),
+    size: { columns: 121, rows: 31 },
+  });
+
+  expect(result.state.panes.map((pane) => pane.size)).toEqual([
+    { columns: 48, rows: 28 },
+    { columns: 48, rows: 28 },
+  ]);
+
+  expect(result.changes.filter((change) => change.type === 'paneResized')).toHaveLength(2);
+});
+
+it('closes only the pane that exits in a tab with two panes', () => {
+  const state = run([createPhi, attachLarge, splitFirst('right')]);
+
+  const started = fact(state, startedPane(2, 2)).state;
+
+  const result = fact(started, {
+    type: 'paneExited',
+    paneId: paneId(2),
+    generation: 2,
+    exitCode: 0,
+  });
+
+  expect(result.state.workspaces).toHaveLength(1);
+  expect(result.state.tabs).toHaveLength(1);
+  expect(result.state.panes.map((pane) => pane.id)).toEqual([paneId(1)]);
+  expect(result.state.tabs[0]?.focusedPaneId).toBe(paneId(1));
+  expect(result.state.tabs[0]?.layout).toEqual({ kind: 'pane', paneId: paneId(1) });
+});
+
+const tinyClient: Intent = { type: 'attachClient', size: { columns: 2, rows: 3 } };
+
+it.each([
+  [
+    'split an unknown pane',
+    { type: 'splitPane', paneId: paneId(9), direction: 'right' },
+    'unknownPane',
+  ],
+  ['focus an unknown pane', { type: 'focusPane', paneId: paneId(9) }, 'unknownPane'],
+  ['close an unknown pane', { type: 'closePane', paneId: paneId(9) }, 'unknownPane'],
+  ['split a pane too narrow for two frames', splitFirst('right'), 'paneTooSmall'],
+  ['split a pane too short for two frames', splitFirst('below'), 'paneTooSmall'],
+] as const)('refuses to %s and leaves state unchanged', (_name, refused, reason) => {
+  const state = run([createPhi, tinyClient]);
+
+  expect(applyIntent(state, refused)).toEqual({ kind: 'rejected', state, reason });
+});
+
+it('splits a pane that has room for exactly two framed 1x1 terminals and a gap', () => {
+  const state = run([createPhi, { type: 'attachClient', size: { columns: 7, rows: 7 } }]);
+  const result = intent(state, splitFirst('right'));
+
+  expect(result.state.panes.map((pane) => pane.size)).toEqual([
+    { columns: 1, rows: 4 },
+    { columns: 1, rows: 4 },
+  ]);
+
+  expect(
+    applyIntent(result.state, { type: 'splitPane', paneId: paneId(2), direction: 'right' }),
+  ).toMatchObject({ kind: 'rejected', reason: 'paneTooSmall' });
+});
+
+it('splits a pane by rows with no gap and refuses one row fewer', () => {
+  const fits = run([createPhi, { type: 'attachClient', size: { columns: 3, rows: 7 } }]);
+  const result = intent(fits, splitFirst('below'));
+
+  expect(result.state.panes.map((pane) => pane.size)).toEqual([
+    { columns: 1, rows: 1 },
+    { columns: 1, rows: 1 },
+  ]);
+
+  const short = run([createPhi, { type: 'attachClient', size: { columns: 3, rows: 6 } }]);
+
+  expect(applyIntent(short, splitFirst('below'))).toMatchObject({
+    kind: 'rejected',
+    reason: 'paneTooSmall',
+  });
+});
+
+it('refuses a right split one column short of two frames and a gap', () => {
+  const short = run([createPhi, { type: 'attachClient', size: { columns: 6, rows: 4 } }]);
+
+  expect(applyIntent(short, splitFirst('right'))).toMatchObject({
+    kind: 'rejected',
+    reason: 'paneTooSmall',
+  });
+});
+
+it.each([
+  ['split', { type: 'splitPane', paneId: paneId(1), direction: 'right' }],
+  ['focus', { type: 'focusPane', paneId: paneId(1) }],
+  ['close', { type: 'closePane', paneId: paneId(1) }],
+] as const)('refuses to %s a pane while the server stops', (_name, refused) => {
+  const state = run([createPhi, { type: 'stopServer' }]);
+
+  expect(applyIntent(state, refused)).toEqual({
+    kind: 'rejected',
+    state,
+    reason: 'serverStopping',
+  });
+});
+
+it('gives the area of a closed pane to its sibling without an attached client', () => {
+  const state = run([createPhi, splitFirst('right')]);
+  const result = intent(state, { type: 'closePane', paneId: paneId(2) });
+
+  expect(result.state.panes[0]?.size).toEqual({ columns: 80, rows: 24 });
+
+  expect(result.changes).toContainEqual({
+    type: 'paneResized',
+    paneId: paneId(1),
+    size: { columns: 80, rows: 24 },
+  });
+});
+
+it('gives the area of an exited pane to its sibling without an attached client', () => {
+  const state = run([createPhi, splitFirst('right')]);
+  const result = fact(state, { type: 'paneExited', paneId: paneId(2), generation: 2, exitCode: 0 });
+
+  expect(result.state.panes[0]?.size).toEqual({ columns: 80, rows: 24 });
+
+  expect(result.changes).toContainEqual({
+    type: 'paneResized',
+    paneId: paneId(1),
+    size: { columns: 80, rows: 24 },
+  });
+});
+
+it('splits by the area of the last client after it detaches', () => {
+  const state = run([
+    createPhi,
+    { type: 'attachClient', size: { columns: 2, rows: 26 } },
+    { type: 'detachClient', clientId: clientId(1) },
+  ]);
+
+  expect(applyIntent(state, splitFirst('right'))).toEqual({
+    kind: 'rejected',
+    state,
+    reason: 'paneTooSmall',
+  });
+});
+
+it('keeps the focus on an unfocused pane when its neighbor closes, and gives it the area', () => {
+  const state = run([
+    createPhi,
+    attachLarge,
+    splitFirst('right'),
+    { type: 'splitPane', paneId: paneId(2), direction: 'below' },
+    { type: 'focusPane', paneId: paneId(1) },
+  ]);
+
+  const result = intent(state, { type: 'closePane', paneId: paneId(3) });
+
+  expect(result.state.tabs[0]?.focusedPaneId).toBe(paneId(1));
+
+  expect(result.state.panes.map((pane) => pane.size)).toEqual([
+    { columns: 38, rows: 22 },
+    { columns: 38, rows: 22 },
+  ]);
+});
+
+it('returns the focus to the earlier pane when a split pane fails to start', () => {
+  const opened = run([createPhi, attachLarge, splitFirst('right')]);
+  const state = fact(opened, startedPane(2, 2)).state;
+  const split = intent(state, splitFirst('below'));
+
+  expect(split.state.tabs[0]?.focusedPaneId).toBe(paneId(3));
+
+  const result = fact(split.state, { type: 'paneFailedToStart', paneId: paneId(3), generation: 3 });
+
+  expect(result.state.tabs[0]?.focusedPaneId).toBe(paneId(2));
+  expect(result.state.panes.map((pane) => pane.id)).toEqual([paneId(1), paneId(2)]);
+
+  expect(result.changes).toContainEqual({
+    type: 'paneFocused',
+    tabId: tabId(1),
+    paneId: paneId(2),
+  });
+});
+
+it('gives the focus to the sibling when the focused pane of a split fails to start', () => {
+  const state = run([createPhi, attachLarge, splitFirst('right')]);
+  const result = fact(state, { type: 'paneFailedToStart', paneId: paneId(2), generation: 2 });
+
+  expect(result.state.tabs[0]?.focusedPaneId).toBe(paneId(1));
 });

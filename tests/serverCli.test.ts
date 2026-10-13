@@ -6,6 +6,7 @@ import { join } from 'node:path';
 import { z } from 'zod';
 
 import packageJson from '../package.json' with { type: 'json' };
+import { paneId } from '../src/ids.ts';
 import { createFrameDecoder, encodeFrame, FrameKind } from '../src/protocol/frames.ts';
 import { encodeControl, parseControl } from '../src/protocol/messages.ts';
 import type { ControlMessage } from '../src/protocol/messages.ts';
@@ -229,7 +230,8 @@ const connectTerminal = async (socketPath: string) => {
           const result = decodeRowUpdate(frame.payload);
 
           if (result.ok) {
-            const ack = encodeControl({ type: 'ack', sequence: result.update.sequence });
+            const { pane, sequence } = result.update;
+            const ack = encodeControl({ type: 'ack', paneId: paneId(pane), sequence });
 
             updates.push(result.update);
             connection.write(encodeFrame(FrameKind.control, ack));

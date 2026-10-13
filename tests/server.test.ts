@@ -1108,6 +1108,28 @@ it('sends rows only for the focused workspace and the other screen after workspa
   expect(terminal.updates.length).toBeGreaterThan(updatesBefore);
 });
 
+it('sends rows for every pane of the active tab after a split', async () => {
+  const directory = await temporaryDirectory();
+  const { socketPath } = await startServer(directory);
+  const cli = await connectCli(socketPath);
+  const terminal = await attachTerminal(socketPath, 100);
+
+  cli.send({ type: 'paneSplit', paneId: paneId(1), direction: 'right' });
+
+  expect(await nextOfType(cli, 'paneDone')).toEqual({ type: 'paneDone', paneId: paneId(2) });
+
+  cli.send({ type: 'paneSend', paneId: paneId(1), text: "printf 'left-%s\\n' marker\n" });
+  cli.send({ type: 'paneSend', paneId: paneId(2), text: "printf 'right-%s\\n' marker\n" });
+
+  const seen = new Set<number>();
+
+  while (seen.size < 2) {
+    seen.add((await terminal.nextUpdate()).pane);
+  }
+
+  expect(seen).toEqual(new Set([1, 2]));
+});
+
 it('tells the first terminal client it was taken over and closes it while the pane keeps running', async () => {
   const directory = await temporaryDirectory();
   const { server, socketPath } = await startServer(directory);
@@ -1370,6 +1392,31 @@ it('answers workspaceCreate with a failure and keeps no workspace when the shell
   expect(existsSync(socketPath)).toBe(true);
 });
 
+it('keeps the existing pane at its full size when the split pane fails to start', async () => {
+  const directory = await temporaryDirectory();
+  const root = join(directory, 'root');
+
+  await mkdir(root);
+
+  const { server, socketPath } = await startEmptyServer(directory);
+
+  await createWorkspace(socketPath, root, 'root');
+
+  const before = server.snapshot().panes[0]?.size ?? { columns: 0, rows: 0 };
+
+  await rename(root, join(directory, 'moved'));
+
+  const cli = await connectCli(socketPath);
+
+  cli.send({ type: 'paneSplit', paneId: paneId(1), direction: 'right' });
+
+  expect(await nextOfType(cli, 'paneFailed')).toMatchObject({ reason: 'paneFailedToStart' });
+  expect(server.snapshot().panes.map((pane) => pane.size)).toEqual([before]);
+
+  server.writeToPane('stty size\n');
+  await waitFor(() => server.paneText()?.includes(`${before.rows} ${before.columns}`) === true);
+});
+
 it('refuses a client from another build with both versions and closes the connection', async () => {
   const directory = await temporaryDirectory();
   const { socketPath } = await startServer(directory);
@@ -1592,6 +1639,189 @@ it.skipIf(!scopesAvailable)(
   },
 );
 
+it.skipIf(!scopesAvailable)(
+  'signals a pane scope that systemd registers only after stop begins',
+  async () => {
+    const directory = await temporaryDirectory();
+    const fakeDirectory = join(directory, 'fake-bin');
+    const readyPath = join(directory, 'ready');
+    const armedPath = join(directory, 'armed');
+    const hangupPath = join(directory, 'hangup');
+    const queriedPath = join(directory, 'queried');
+    const realSystemctl = Bun.which('systemctl');
+
+    await mkdir(fakeDirectory);
+
+    // Until the ready file exists, the fake answers as systemd does for a scope it has not
+    // registered yet: kill fails and is-active reports an unknown unit.
+    const fake = [
+      '#!/bin/sh',
+      `if [ ! -e '${readyPath}' ]; then`,
+      '  case "$*" in',
+      `    *is-active*) touch '${queriedPath}'; exit 4 ;;`,
+      '    *kill*) exit 1 ;;',
+      '  esac',
+      'fi',
+      `exec '${realSystemctl}' "$@"`,
+      '',
+    ].join('\n');
+
+    await Bun.write(join(fakeDirectory, 'systemctl'), fake);
+    await chmod(join(fakeDirectory, 'systemctl'), 0o755);
+
+    const result = spawnPane({
+      generation: 1,
+      size: { columns: 80, rows: 24 },
+      environment: {
+        ...process.env,
+        SHELL: '/bin/sh',
+        PATH: `${fakeDirectory}:${process.env.PATH}`,
+      },
+      directory,
+      useScope: true,
+      onOutput: () => undefined,
+    });
+
+    if (!result.ok) {
+      throw new Error(result.message);
+    }
+
+    const { pane } = result;
+
+    onTestFinished(() => {
+      pane[Symbol.dispose]();
+    });
+
+    const script = `trap 'touch ${hangupPath}' HUP; touch ${armedPath}; while :; do sleep 0.05; done\n`;
+
+    pane.write(new TextEncoder().encode(script));
+    await waitFor(() => existsSync(armedPath));
+
+    const stopping = pane.stop();
+
+    await waitFor(() => existsSync(queriedPath));
+    await Bun.write(readyPath, '');
+
+    expect(await stopping).toEqual([]);
+    expect(existsSync(hangupPath)).toBe(true);
+  },
+);
+
+it.skipIf(!scopesAvailable)(
+  'reports cleanupFailed and still ends the shell when the scope never registers',
+  async () => {
+    const directory = await temporaryDirectory();
+    const fakeDirectory = join(directory, 'fake-bin');
+    const armedPath = join(directory, 'armed');
+
+    await mkdir(fakeDirectory);
+
+    const fake = [
+      '#!/bin/sh',
+      'case "$*" in',
+      '  *is-active*) exit 4 ;;',
+      '  *kill*) exit 1 ;;',
+      'esac',
+      '',
+    ].join('\n');
+
+    await Bun.write(join(fakeDirectory, 'systemctl'), fake);
+    await chmod(join(fakeDirectory, 'systemctl'), 0o755);
+
+    const result = spawnPane({
+      generation: 1,
+      size: { columns: 80, rows: 24 },
+      environment: {
+        ...process.env,
+        SHELL: '/bin/sh',
+        PATH: `${fakeDirectory}:${process.env.PATH}`,
+      },
+      directory,
+      useScope: true,
+      onOutput: () => undefined,
+    });
+
+    if (!result.ok) {
+      throw new Error(result.message);
+    }
+
+    const { pane } = result;
+
+    onTestFinished(() => {
+      pane[Symbol.dispose]();
+    });
+
+    pane.write(new TextEncoder().encode(`touch ${armedPath}; while :; do sleep 0.05; done\n`));
+    await waitFor(() => existsSync(armedPath));
+
+    const failures = await pane.stop();
+
+    expect(failures).toHaveLength(1);
+    expect(failures[0]).toContain('did not register');
+    expect(await pane.exited).not.toBe(0);
+  },
+);
+
+it.skipIf(!scopesAvailable)(
+  'reports cleanupFailed and signals the shell when a stalled query is followed by unknown unit answers',
+  async () => {
+    const directory = await temporaryDirectory();
+    const fakeDirectory = join(directory, 'fake-bin');
+    const armedPath = join(directory, 'armed');
+    const hangupPath = join(directory, 'hangup');
+    const queriedPath = join(directory, 'queried');
+
+    await mkdir(fakeDirectory);
+
+    const fake = [
+      '#!/bin/sh',
+      'case "$*" in',
+      `  *is-active*) if [ ! -e '${queriedPath}' ]; then touch '${queriedPath}'; exec sleep 2; fi; exit 4 ;;`,
+      '  *kill*) exit 1 ;;',
+      'esac',
+      '',
+    ].join('\n');
+
+    await Bun.write(join(fakeDirectory, 'systemctl'), fake);
+    await chmod(join(fakeDirectory, 'systemctl'), 0o755);
+
+    const result = spawnPane({
+      generation: 1,
+      size: { columns: 80, rows: 24 },
+      environment: {
+        ...process.env,
+        SHELL: '/bin/sh',
+        PATH: `${fakeDirectory}:${process.env.PATH}`,
+      },
+      directory,
+      useScope: true,
+      onOutput: () => undefined,
+    });
+
+    if (!result.ok) {
+      throw new Error(result.message);
+    }
+
+    const { pane } = result;
+
+    onTestFinished(() => {
+      pane[Symbol.dispose]();
+    });
+
+    const script = `trap 'touch ${hangupPath}' HUP; touch ${armedPath}; while :; do sleep 0.05; done\n`;
+
+    pane.write(new TextEncoder().encode(script));
+    await waitFor(() => existsSync(armedPath));
+
+    const failures = await pane.stop();
+
+    expect(failures).toHaveLength(1);
+    expect(failures[0]).toContain('did not register');
+    expect(existsSync(hangupPath)).toBe(true);
+    expect(await pane.exited).not.toBe(0);
+  },
+);
+
 it('keeps running after SIGHUP and after the shell exits, and stops on SIGTERM', async () => {
   const directory = await temporaryDirectory();
   const { child, socketPath } = await startServerProcess(directory);
@@ -1751,7 +1981,7 @@ it('sends the newest screen after the client acks', async () => {
   server.writeToPane('echo after-limit-$((6 * 7))\n');
   await waitFor(() => server.paneText()?.includes('after-limit-42') === true);
 
-  client.send({ type: 'ack', sequence: client.updates.at(-1)?.sequence ?? 0 });
+  client.send({ type: 'ack', paneId: paneId(1), sequence: client.updates.at(-1)?.sequence ?? 0 });
   await waitFor(() => client.updates.length > sentBefore);
 
   const rows = new Map<number, string>();
@@ -1772,13 +2002,78 @@ it('sends the newest screen after the client acks', async () => {
   expect(cached).toEqual(expected.map((row) => row.trimEnd()));
 });
 
+const updatesOf = (client: TestClient, pane: number): RowUpdate[] =>
+  client.updates.filter((update) => update.pane === pane);
+
+it('counts an ack only for the pane it names', async () => {
+  const directory = await temporaryDirectory();
+  const { socketPath } = await startServer(directory);
+  const cli = await connectCli(socketPath);
+
+  cli.send({ type: 'paneSplit', paneId: paneId(1), direction: 'right' });
+  await nextOfType(cli, 'paneDone');
+
+  const terminal = await attachTerminal(socketPath, 100);
+
+  const fill = async (pane: number): Promise<void> => {
+    for (let step = 0; updatesOf(terminal, pane).length < inFlightLimit; step += 1) {
+      const seen = updatesOf(terminal, pane).length;
+
+      cli.send({ type: 'paneSend', paneId: paneId(pane), text: `echo fill-${pane}-${step}\n` });
+      await waitFor(() => updatesOf(terminal, pane).length > seen);
+    }
+  };
+
+  await fill(1);
+  await fill(2);
+
+  const secondBefore = updatesOf(terminal, 2).length;
+  const secondSequences = new Set(updatesOf(terminal, 2).map((update) => update.sequence));
+
+  const sharedSequences = updatesOf(terminal, 1)
+    .map((update) => update.sequence)
+    .filter((sequence) => secondSequences.has(sequence));
+
+  const sharedSequence = sharedSequences.at(-1);
+
+  if (sharedSequence === undefined) {
+    throw new Error('Both panes must have been sent the same sequence.');
+  }
+
+  terminal.send({ type: 'ack', paneId: paneId(1), sequence: sharedSequence });
+  await roundTrip(terminal);
+  cli.send({ type: 'paneSend', paneId: paneId(2), text: 'echo second-after-$((6 * 7))\n' });
+
+  // Pane 2 schedules its publication when it parses this output. Once the output is readable, the
+  // publication runs before any later publication of pane 1, and so before pane 1's update arrives.
+  for (;;) {
+    cli.send({ type: 'paneRead', paneId: paneId(2) });
+
+    if ((await nextPaneRows(cli)).join('\n').includes('second-after-42')) {
+      break;
+    }
+  }
+
+  const firstAfterFill = updatesOf(terminal, 1).length;
+
+  cli.send({ type: 'paneSend', paneId: paneId(1), text: 'echo first-after\n' });
+  await waitFor(() => updatesOf(terminal, 1).length > firstAfterFill);
+
+  expect(updatesOf(terminal, 2)).toHaveLength(secondBefore);
+});
+
 it('ignores an ack for a sequence the client was never sent', async () => {
   const directory = await temporaryDirectory();
   const { server, socketPath } = await startServer(directory);
   const client = await startPacedClient(server, socketPath);
   const sentBefore = client.updates.length;
 
-  client.send({ type: 'ack', sequence: (client.updates.at(-1)?.sequence ?? 0) + 1000 });
+  client.send({
+    type: 'ack',
+    paneId: paneId(1),
+    sequence: (client.updates.at(-1)?.sequence ?? 0) + 1000,
+  });
+
   await roundTrip(client);
 
   expect(client.updates).toHaveLength(sentBefore);
@@ -1868,7 +2163,7 @@ it('delivers a paneSend echo to an acking client without advancing a timer', asy
       const update = await client.nextUpdate();
 
       applyRows(rows, update);
-      client.send({ type: 'ack', sequence: update.sequence });
+      client.send({ type: 'ack', paneId: paneId(update.pane), sequence: update.sequence });
     }
   } finally {
     jest.useRealTimers();

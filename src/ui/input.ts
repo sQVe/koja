@@ -2,6 +2,8 @@ import type { InputMode, TabRoute, WorkspaceCommand, WorkspaceReply } from '../c
 import type { WorkspaceId } from '../ids.ts';
 import { ModeFlag } from '../rows/rows.ts';
 
+export type PaneAction = 'splitBelow' | 'splitRight' | 'focusPrevious' | 'focusNext' | 'close';
+
 interface TokenRouterHost {
   mode: () => InputMode;
   setMode: (mode: InputMode) => void;
@@ -14,6 +16,8 @@ interface TokenRouterHost {
   tab: (route: TabRoute) => void;
   tabPending: () => boolean;
   afterTabAnswer: (callback: () => void) => void;
+  // The promise settles once the action's effect on the state has arrived.
+  paneAction: (action: PaneAction) => Promise<void>;
 }
 
 type WorkspaceKey = 'next' | 'previous' | 'create' | 'close';
@@ -28,6 +32,7 @@ interface KeyRoute {
   detach: boolean;
   workspace?: WorkspaceKey;
   tab?: TabRoute;
+  paneAction?: PaneAction;
 }
 
 const workspaceKeys: Record<string, WorkspaceKey> = {
@@ -84,6 +89,14 @@ const routeTabKey = (raw: string): TabRoute | undefined => {
   return undefined;
 };
 
+const paneActions = new Map<string, PaneAction>([
+  ['s', 'splitBelow'],
+  ['v', 'splitRight'],
+  ['h', 'focusPrevious'],
+  ['l', 'focusNext'],
+  ['x', 'close'],
+]);
+
 const routeNormalKey = (raw: string): KeyRoute => {
   if (raw === prefixKey) {
     return { bytes: encoder.encode(prefixKey), mode: 'insert', detach: false };
@@ -103,6 +116,12 @@ const routeNormalKey = (raw: string): KeyRoute => {
 
   if (tab !== undefined) {
     return { bytes: nothing, mode: 'normal', detach: false, tab };
+  }
+
+  const paneAction = paneActions.get(raw);
+
+  if (paneAction !== undefined) {
+    return { bytes: nothing, mode: 'normal', detach: false, paneAction };
   }
 
   const leavesNormal = raw === 'i' || raw === escapeKey;
@@ -165,12 +184,32 @@ export const createInputRouter = (host: TokenRouterHost): ((token: RoutedToken) 
   // After c or X the resulting focus is unknown until the server answers.
   let awaitingResult = false;
 
+  let workspaceWaiters: (() => void)[] = [];
+
+  const workspacePending = (): boolean => focusRequests > 0 || awaitingResult;
+
+  const notifyWorkspaceWaiters = (): void => {
+    if (workspacePending()) {
+      return;
+    }
+
+    const waiters = workspaceWaiters;
+
+    workspaceWaiters = [];
+
+    for (const waiter of waiters) {
+      waiter();
+    }
+  };
+
   const settleFocus = (): void => {
     focusRequests -= 1;
 
     if (focusRequests === 0) {
       pendingFocus = undefined;
     }
+
+    notifyWorkspaceWaiters();
   };
 
   const workspaceCommandOf = (key: WorkspaceKey): WorkspaceCommand | undefined => {
@@ -212,15 +251,18 @@ export const createInputRouter = (host: TokenRouterHost): ((token: RoutedToken) 
 
     host.command(command, () => {
       awaitingResult = false;
+      notifyWorkspaceWaiters();
     });
   };
+
+  // Whether a pane action or a tab request keeps the queue from routing.
+  let held = false;
+  const queue: RoutedToken[] = [];
 
   const withoutSentEscape = (bytes: Uint8Array, escapeSent: boolean): Uint8Array =>
     escapeSent && escapeInPane ? bytes.subarray(1) : bytes;
 
-  const queue: RoutedToken[] = [];
-
-  const route = (token: RoutedToken): void => {
+  const route = (token: RoutedToken): Promise<void> | undefined => {
     if (token.kind === 'paste') {
       const routed = routePaste(token.bytes, host.modes());
       const wrapped = routed.length > token.bytes.length;
@@ -228,7 +270,7 @@ export const createInputRouter = (host: TokenRouterHost): ((token: RoutedToken) 
       host.send(wrapped ? withoutSentEscape(routed, token.escapeSent) : routed);
       escapeInPane = false;
 
-      return;
+      return undefined;
     }
 
     const routed = routeKey(token.raw, host.mode(), host.modes());
@@ -249,29 +291,65 @@ export const createInputRouter = (host: TokenRouterHost): ((token: RoutedToken) 
     }
 
     escapeInPane = token.raw === escapeKey && routed.bytes.length > 0;
+
+    return routed.paneAction === undefined ? undefined : host.paneAction(routed.paneAction);
   };
 
-  // The client's snapshot changes only when the server answers a tab request. Input after the
-  // request waits, so it reaches the pane the request shows and later tab keys see the new tab.
-  const drain = (): void => {
-    while (queue.length > 0 && !host.tabPending()) {
-      const next = queue.shift();
+  // Whether the token acts on the pane or tab the snapshot shows. Workspace keys do not: they
+  // chain through pendingFocus.
+  const readsSnapshot = (token: RoutedToken): boolean => {
+    if (token.kind === 'paste') {
+      return false;
+    }
 
-      if (next !== undefined) {
-        route(next);
+    const routed = routeKey(token.raw, host.mode(), host.modes());
+
+    return routed.paneAction !== undefined || routed.tab !== undefined;
+  };
+
+  const waitsForWorkspace = (): boolean => {
+    const next = queue[0];
+
+    return next !== undefined && workspacePending() && readsSnapshot(next);
+  };
+
+  const mustWait = (): boolean => host.tabPending() || waitsForWorkspace();
+
+  // The client's snapshot changes only when the server answers a tab request. A token after the
+  // request waits, so it reaches the pane the request shows and later tab keys see the new tab. A
+  // token after a pane action waits for its answer for the same reason. A pane or tab key waits for
+  // earlier workspace requests, which change the pane it targets. A pane action that fails to
+  // settle only releases the tokens that follow it.
+  const drain = (): void => {
+    const release = (): void => {
+      held = false;
+      drain();
+    };
+
+    while (!held && queue.length > 0 && !mustWait()) {
+      const next = queue.shift();
+      const settled = next === undefined ? undefined : route(next);
+
+      if (settled !== undefined) {
+        held = true;
+
+        settled.finally(release).catch(() => undefined);
       }
     }
 
-    if (queue.length > 0) {
-      host.afterTabAnswer(drain);
+    if (!held && queue.length > 0) {
+      held = true;
+
+      if (host.tabPending()) {
+        host.afterTabAnswer(release);
+      } else {
+        workspaceWaiters.push(release);
+      }
     }
   };
 
   return (token) => {
     queue.push(token);
-
-    if (queue.length === 1) {
-      drain();
-    }
+    drain();
   };
 };

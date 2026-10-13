@@ -38,6 +38,12 @@ interface PaneEntry {
   tab: string;
   lifecycle: string;
   focused: boolean;
+  columns: number;
+  rows: number;
+}
+
+interface PaneActionOutput {
+  pane: string;
 }
 
 interface TabEntry {
@@ -65,6 +71,7 @@ type CommandJson =
   | ServerRunOutput
   | ServerStopOutput
   | PaneReadOutput
+  | PaneActionOutput
   | WorkspaceEntry[]
   | PaneEntry[]
   | WorkspaceActionOutput
