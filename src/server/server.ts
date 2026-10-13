@@ -3,7 +3,7 @@ import { rmSync } from 'node:fs';
 import { paneId as paneIdFor } from '../ids.ts';
 import type { ClientId, PaneId } from '../ids.ts';
 import { invariant } from '../invariant.ts';
-import { layoutPanes } from '../layout.ts';
+import { layoutPanes, shownLayout } from '../layout.ts';
 import type { TerminalSize } from '../layout.ts';
 import { FrameKind } from '../protocol/protocol.ts';
 import type { BuildVersion, ControlMessage } from '../protocol/protocol.ts';
@@ -221,7 +221,7 @@ const subscribeRows = (
   return { paneIds, acknowledge, unsubscribe };
 };
 
-// The panes in the layout of the focused workspace's active tab that have a row publisher.
+// The panes drawn for the focused workspace's active tab, which is one pane while zoomed, that have a row publisher.
 const visiblePaneIds = (context: ServerContext): PaneId[] => {
   const { state, runtime } = context;
   const workspace = state.workspaces.find((known) => known.id === state.focusedWorkspaceId);
@@ -231,7 +231,7 @@ const visiblePaneIds = (context: ServerContext): PaneId[] => {
     return [];
   }
 
-  const placed = layoutPanes(tab.layout, state.layoutArea);
+  const placed = layoutPanes(shownLayout(tab.layout, tab.zoomedPaneId), state.layoutArea);
 
   return placed.map((rectangle) => rectangle.paneId).filter((id) => runtime.rowPublishers.has(id));
 };
