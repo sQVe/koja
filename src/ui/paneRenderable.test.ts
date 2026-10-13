@@ -251,3 +251,24 @@ it('draws in the theme colors again after the program resets its colors', async 
   expect(cellColors(created, 0)?.bg).toEqual(theme);
   expect(cellColors(created, 5)?.bg).toEqual(theme);
 });
+
+it('draws rows added by a resize with the default background until their rows arrive', async () => {
+  const created = await createTestRenderer({ width: columns, height: 3 });
+  const cache = createRowCache({ rowLimit: 10 });
+  const pane = new PaneRenderable(created.renderer, { cache, width: columns, height: 1 });
+
+  setup = created;
+  created.renderer.root.add(pane);
+  pane.draw(cache.apply(rowUpdate([{ column: 0, codePoint: 0x61 }])));
+  await created.renderOnce();
+
+  pane.resize(columns, 3);
+  pane.draw([0, 1, 2]);
+  await created.renderOnce();
+
+  const lines = created.captureSpans().lines;
+  const grownSpans = [...(lines[1]?.spans ?? []), ...(lines[2]?.spans ?? [])];
+
+  expect(grownSpans.length).toBeGreaterThan(0);
+  expect(grownSpans.every((span) => span.bg.intent === 'default')).toBe(true);
+});
