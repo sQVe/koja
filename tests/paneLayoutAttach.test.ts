@@ -148,3 +148,57 @@ it(
   },
   cliTestTimeoutMs,
 );
+
+it(
+  'draws only the focused pane over the whole area while zoomed and both panes after a second zoom',
+  async () => {
+    const { list, act, lines, until, type, first } = await setup();
+    const second = await act('split', first, '--direction', 'right');
+
+    await until(() => lines()[0]?.charAt(41) === '┌');
+
+    type('\x02z');
+
+    const frameGlyphs = /[┌┐└┘│─]/;
+
+    await until(() => !lines().some((line) => frameGlyphs.test(line)));
+
+    const zoomed = await list();
+
+    expect(zoomed.find((pane) => pane.id === second)).toMatchObject({ columns: 80, rows: 23 });
+
+    type('z');
+
+    await until(() => glyphsAt(lines(), 0, [0, 39, 41, 79]).join('') === '┌┐┌┐');
+
+    const restored = await list();
+
+    expect(restored.map((pane) => [pane.id, pane.columns, pane.rows])).toEqual([
+      [first, 38, 21],
+      [second, 37, 21],
+    ]);
+  },
+  cliTestTimeoutMs,
+);
+
+it(
+  'moves the split edge by one cell on > in Phi mode',
+  async () => {
+    const { list, act, lines, until, type, first } = await setup();
+    const second = await act('split', first, '--direction', 'right');
+
+    await until(() => lines()[0]?.charAt(41) === '┌');
+
+    type('\x02>');
+
+    await until(() => lines()[0]?.charAt(42) === '┌');
+
+    const sizes = (await list()).map((pane) => [pane.id, pane.columns, pane.rows]);
+
+    expect(sizes).toEqual([
+      [first, 39, 21],
+      [second, 36, 21],
+    ]);
+  },
+  cliTestTimeoutMs,
+);

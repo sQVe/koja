@@ -2,7 +2,7 @@ import type { BoxRenderable, CliRenderer } from '@opentui/core';
 
 import type { AttachSession, StoreSnapshot } from '../client/client.ts';
 import type { PaneId } from '../ids.ts';
-import { layoutPanes, paneSize } from '../layout.ts';
+import { layoutPanes, paneSize, shownLayout } from '../layout.ts';
 import type { PaneRectangle, TerminalSize } from '../layout.ts';
 import { BorderRenderable, borderCells } from './paneBorders.ts';
 import { PaneRenderable } from './paneRenderable.ts';
@@ -20,7 +20,8 @@ const placementOf = (snapshot: StoreSnapshot, terminal: TerminalSize): Placement
   const size = paneSize(client?.size ?? terminal);
 
   return {
-    rectangles: tab === undefined ? [] : layoutPanes(tab.layout, size),
+    rectangles:
+      tab === undefined ? [] : layoutPanes(shownLayout(tab.layout, tab.zoomedPaneId), size),
     size,
     focusedPaneId: tab?.focusedPaneId,
   };

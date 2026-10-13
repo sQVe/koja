@@ -579,6 +579,11 @@ const paneKeys: [string, PaneAction][] = [
   ['h', 'focusPrevious'],
   ['l', 'focusNext'],
   ['x', 'close'],
+  ['z', 'zoom'],
+  ['<', 'resizeLeft'],
+  ['>', 'resizeRight'],
+  ['-', 'resizeUp'],
+  ['+', 'resizeDown'],
 ];
 
 for (const [raw, action] of paneKeys) {

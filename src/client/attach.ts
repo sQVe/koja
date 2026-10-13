@@ -20,6 +20,8 @@ import type { WorkspaceCommand } from './workspaceRequest.ts';
 
 type SplitDirection = Extract<ControlMessage, { type: 'paneSplit' }>['direction'];
 
+type ResizeDirection = Extract<ControlMessage, { type: 'paneResize' }>['direction'];
+
 interface TerminalSize {
   columns: number;
   rows: number;
@@ -90,6 +92,8 @@ export interface AttachSession {
   splitPane: (pane: PaneId, direction: SplitDirection) => Promise<void>;
   focusPane: (pane: PaneId) => Promise<void>;
   closePane: (pane: PaneId) => Promise<void>;
+  zoomPane: (pane: PaneId) => Promise<void>;
+  resizePane: (pane: PaneId, direction: ResizeDirection, cells: number) => Promise<void>;
   // Asks the server to detach this client. The session closes with `detached`.
   detach: () => void;
   // The snapshot changes show the result, so the replies are ignored.
@@ -552,6 +556,9 @@ export const connectAttach = async (
     splitPane: (pane, direction) => requestLayout({ type: 'paneSplit', paneId: pane, direction }),
     focusPane: (pane) => requestLayout({ type: 'paneFocus', paneId: pane }),
     closePane: (pane) => requestLayout({ type: 'paneClose', paneId: pane }),
+    zoomPane: (pane) => requestLayout({ type: 'paneZoom', paneId: pane }),
+    resizePane: (pane, direction, cells) =>
+      requestLayout({ type: 'paneResize', paneId: pane, direction, cells }),
     detach: () => {
       send({ type: 'detach' });
     },
