@@ -1130,6 +1130,76 @@ it('sends rows for every pane of the active tab after a split', async () => {
   expect(seen).toEqual(new Set([1, 2]));
 });
 
+const receiveShownText = async (
+  client: TestClient,
+  rows: Map<number, string>,
+  text: string,
+): Promise<void> => {
+  while (![...rows.values()].some((row) => row.includes(text))) {
+    const update = await client.nextUpdate();
+
+    client.send({ type: 'ack', paneId: paneId(update.pane), sequence: update.sequence });
+
+    if (update.pane === 1) {
+      applyRows(rows, update);
+    }
+  }
+};
+
+it('sends no rows for a hidden pane while its tab is zoomed and its current screen after unzoom', async () => {
+  const directory = await temporaryDirectory();
+  const { socketPath } = await startServer(directory);
+  const cli = await connectCli(socketPath);
+  const terminal = await attachTerminal(socketPath, 100);
+
+  cli.send({ type: 'paneSplit', paneId: paneId(1), direction: 'right' });
+  await nextOfType(cli, 'paneDone');
+  cli.send({ type: 'paneZoom', paneId: paneId(1) });
+  await nextOfType(cli, 'paneDone');
+
+  const visibleRows = new Map<number, string>();
+
+  cli.send({ type: 'paneSend', paneId: paneId(1), text: "printf 'shown-%s\\n' one\n" });
+  await receiveShownText(terminal, visibleRows, 'shown-one');
+
+  const updatesBefore = terminal.updates.length;
+
+  cli.send({ type: 'paneSend', paneId: paneId(2), text: "printf 'hidden-%s\\n' marker\n" });
+
+  for (;;) {
+    cli.send({ type: 'paneRead', paneId: paneId(2) });
+
+    const read = await nextOfType(cli, 'paneRows');
+
+    if (read.rows.join('\n').includes('hidden-marker')) {
+      break;
+    }
+  }
+
+  cli.send({ type: 'paneSend', paneId: paneId(1), text: "printf 'shown-%s\\n' two\n" });
+  await receiveShownText(terminal, visibleRows, 'shown-two');
+
+  const whileZoomed = terminal.updates.slice(updatesBefore).map((update) => update.pane);
+
+  expect(whileZoomed.length).toBeGreaterThan(0);
+  expect(whileZoomed.filter((pane) => pane !== 1)).toEqual([]);
+
+  cli.send({ type: 'paneZoom', paneId: paneId(1) });
+  await nextOfType(cli, 'paneDone');
+
+  const hiddenRows = new Map<number, string>();
+
+  while (![...hiddenRows.values()].some((row) => row.includes('hidden-marker'))) {
+    const update = await terminal.nextUpdate();
+
+    terminal.send({ type: 'ack', paneId: paneId(update.pane), sequence: update.sequence });
+
+    if (update.pane === 2) {
+      applyRows(hiddenRows, update);
+    }
+  }
+});
+
 it('tells the first terminal client it was taken over and closes it while the pane keeps running', async () => {
   const directory = await temporaryDirectory();
   const { server, socketPath } = await startServer(directory);

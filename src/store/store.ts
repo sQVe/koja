@@ -7,9 +7,11 @@ import {
   layoutPanes,
   paneSize,
   removePane,
+  resizeLayout,
+  shownLayout,
   splitLayout,
 } from '../layout.ts';
-import type { Layout, SplitDirection, TerminalSize } from '../layout.ts';
+import type { Layout, ResizeDirection, SplitDirection, TerminalSize } from '../layout.ts';
 
 type PaneLifecycle = 'starting' | 'running' | 'exited' | 'closing';
 
@@ -54,6 +56,11 @@ export interface Client {
   theme: Theme | undefined;
 }
 
+interface StateBeforeSplit {
+  focusedPaneId: PaneId;
+  zoomedPaneId: PaneId | undefined;
+}
+
 export interface State {
   workspaces: readonly Workspace[];
   tabs: readonly Tab[];
@@ -71,8 +78,8 @@ export interface State {
   startFallbacks: readonly StartFallback[];
   // The layout area of the attached client, kept after it detaches.
   layoutArea: TerminalSize;
-  // For each split pane that has not started yet, the pane that had the focus before the split.
-  focusBeforeSplit: ReadonlyMap<PaneId, PaneId>;
+  // For each split pane that has not started yet, the focus and zoom the tab had before the split.
+  stateBeforeSplit: ReadonlyMap<PaneId, StateBeforeSplit>;
   revision: number;
 }
 
@@ -93,6 +100,8 @@ export type Intent =
   | { type: 'splitPane'; paneId: PaneId; direction: SplitDirection }
   | { type: 'focusPane'; paneId: PaneId }
   | { type: 'closePane'; paneId: PaneId }
+  | { type: 'zoomPane'; paneId: PaneId }
+  | { type: 'resizePane'; paneId: PaneId; direction: ResizeDirection; cells: number }
   | { type: 'attachClient'; size: TerminalSize }
   | { type: 'resizeClient'; clientId: ClientId; size: TerminalSize }
   | { type: 'setClientTheme'; clientId: ClientId; theme: Theme }
@@ -124,6 +133,7 @@ export type Change =
   | { type: 'paneRemoved'; paneId: PaneId }
   | { type: 'tabLayoutChanged'; tabId: TabId; layout: Layout }
   | { type: 'paneFocused'; tabId: TabId; paneId: PaneId }
+  | { type: 'tabZoomChanged'; tabId: TabId; zoomedPaneId: PaneId | undefined }
   | {
       type: 'paneStateChanged';
       paneId: PaneId;
@@ -139,7 +149,10 @@ export type Change =
 
 type TabIntent = Extract<Intent, { type: 'createTab' | 'focusTab' | 'closeTab' }>;
 
-type PaneIntent = Extract<Intent, { type: 'splitPane' | 'focusPane' | 'closePane' }>;
+type PaneIntent = Extract<
+  Intent,
+  { type: 'splitPane' | 'focusPane' | 'closePane' | 'zoomPane' | 'resizePane' }
+>;
 
 type RejectReason =
   | 'serverStopping'
@@ -147,7 +160,8 @@ type RejectReason =
   | 'unknownWorkspace'
   | 'unknownTab'
   | 'unknownPane'
-  | 'paneTooSmall';
+  | 'paneTooSmall'
+  | 'noSplit';
 
 // Whatever an effect still holds for this pane generation, such as its process and PTY.
 interface PaneProcess {
@@ -198,7 +212,7 @@ export const createState = (): State => ({
   nextGeneration: 1,
   startFallbacks: [],
   layoutArea: paneSize(undefined),
-  focusBeforeSplit: new Map(),
+  stateBeforeSplit: new Map(),
   revision: 0,
 });
 
@@ -257,7 +271,10 @@ const fitPanesTo = (
   const sizes = new Map<PaneId, TerminalSize>();
 
   for (const tab of state.tabs) {
-    for (const { paneId: id, terminal } of layoutPanes(tab.layout, area)) {
+    for (const { paneId: id, terminal } of layoutPanes(
+      shownLayout(tab.layout, tab.zoomedPaneId),
+      area,
+    )) {
       sizes.set(id, { columns: terminal.columns, rows: terminal.rows });
     }
   }
@@ -611,6 +628,11 @@ const closeWorkspace = (state: State, id: WorkspaceId): Applied | Rejected => {
   return commit({ ...current, revision: state.revision }, changes);
 };
 
+const unzoomChanges = (tab: Tab): Change[] =>
+  tab.zoomedPaneId === undefined
+    ? []
+    : [{ type: 'tabZoomChanged', tabId: tab.id, zoomedPaneId: undefined }];
+
 const splitPane = (state: State, id: PaneId, direction: SplitDirection): Applied | Rejected => {
   if (state.stopping) {
     return reject(state, 'serverStopping');
@@ -645,7 +667,7 @@ const splitPane = (state: State, id: PaneId, direction: SplitDirection): Applied
     exitCode: undefined,
   };
 
-  const splitTab: Tab = { ...tab, layout, focusedPaneId: added.id };
+  const splitTab: Tab = { ...tab, layout, focusedPaneId: added.id, zoomedPaneId: undefined };
 
   const split: State = {
     ...state,
@@ -653,7 +675,10 @@ const splitPane = (state: State, id: PaneId, direction: SplitDirection): Applied
     panes: [...state.panes, added],
     nextPaneNumber: state.nextPaneNumber + 1,
     nextGeneration: state.nextGeneration + 1,
-    focusBeforeSplit: new Map(state.focusBeforeSplit).set(added.id, tab.focusedPaneId),
+    stateBeforeSplit: new Map(state.stateBeforeSplit).set(added.id, {
+      focusedPaneId: tab.focusedPaneId,
+      zoomedPaneId: tab.zoomedPaneId,
+    }),
   };
 
   const fitted = fitPanesTo(split, area);
@@ -662,6 +687,7 @@ const splitPane = (state: State, id: PaneId, direction: SplitDirection): Applied
     { type: 'paneAdded', pane: added },
     { type: 'tabLayoutChanged', tabId: tab.id, layout },
     { type: 'paneFocused', tabId: tab.id, paneId: added.id },
+    ...unzoomChanges(tab),
     ...fitted.changes,
   ]);
 };
@@ -696,19 +722,47 @@ const focusPane = (state: State, id: PaneId): Applied | Rejected => {
     changes.push({ type: 'workspaceFocused', workspaceId: owner.id });
   }
 
+  const keepsZoom = tab.zoomedPaneId === undefined || tab.zoomedPaneId === id;
+  const zoomedPaneId = keepsZoom ? tab.zoomedPaneId : undefined;
+
+  if (!keepsZoom) {
+    changes.push(...unzoomChanges(tab));
+  }
+
   const tabs = state.tabs.map((known) =>
-    known.id === tab.id ? { ...known, focusedPaneId: id } : known,
+    known.id === tab.id ? { ...known, focusedPaneId: id, zoomedPaneId } : known,
   );
 
   const workspaces = state.workspaces.map((workspace) =>
     workspace.id === owner.id ? { ...workspace, activeTabId: tab.id } : workspace,
   );
 
-  return commit({ ...state, tabs, workspaces, focusedWorkspaceId: owner.id }, changes);
+  const focused: State = { ...state, tabs, workspaces, focusedWorkspaceId: owner.id };
+
+  if (keepsZoom) {
+    return commit(focused, changes);
+  }
+
+  const fitted = fitPanes(focused);
+
+  return commit({ ...focused, panes: fitted.panes }, [...changes, ...fitted.changes]);
 };
 
 const isInTab = (state: State, id: PaneId, tab: Tab): boolean =>
   state.panes.some((pane) => pane.id === id && pane.tabId === tab.id);
+
+// The zoomed pane must stay the focused pane, so the zoom comes back only with its focus.
+const restoredZoom = (
+  state: State,
+  tab: Tab,
+  id: PaneId,
+  focusedPaneId: PaneId,
+): PaneId | undefined => {
+  const zoomed = state.stateBeforeSplit.get(id)?.zoomedPaneId;
+  const zoomStays = zoomed !== undefined && zoomed !== id && isInTab(state, zoomed, tab);
+
+  return zoomStays && zoomed === focusedPaneId ? zoomed : undefined;
+};
 
 // The pane's area goes to its sibling. The focus moves to the sibling only when the pane had it.
 const closePaneIn = (state: State, tab: Tab, id: PaneId): Applied => {
@@ -718,18 +772,20 @@ const closePaneIn = (state: State, tab: Tab, id: PaneId): Applied => {
     return removeTab(state, tab);
   }
 
-  const previous = state.focusBeforeSplit.get(id);
+  const before = state.stateBeforeSplit.get(id);
+  const previous = before?.focusedPaneId;
   const previousStays = previous !== undefined && previous !== id && isInTab(state, previous, tab);
   const successor = previousStays ? previous : firstPaneId(removal.sibling);
   const focusedPaneId = tab.focusedPaneId === id ? successor : tab.focusedPaneId;
-  const closedTab: Tab = { ...tab, layout: removal.layout, focusedPaneId };
-  const focusBeforeSplit = new Map(state.focusBeforeSplit);
+  const zoomedPaneId = restoredZoom(state, tab, id, focusedPaneId);
+  const closedTab: Tab = { ...tab, layout: removal.layout, focusedPaneId, zoomedPaneId };
+  const stateBeforeSplit = new Map(state.stateBeforeSplit);
 
-  focusBeforeSplit.delete(id);
+  stateBeforeSplit.delete(id);
 
   const closed: State = {
     ...state,
-    focusBeforeSplit,
+    stateBeforeSplit,
     tabs: state.tabs.map((known) => (known.id === tab.id ? closedTab : known)),
     panes: state.panes.filter((pane) => pane.id !== id),
   };
@@ -741,6 +797,10 @@ const closePaneIn = (state: State, tab: Tab, id: PaneId): Applied => {
 
   if (focusedPaneId !== tab.focusedPaneId) {
     changes.push({ type: 'paneFocused', tabId: tab.id, paneId: focusedPaneId });
+  }
+
+  if (zoomedPaneId !== tab.zoomedPaneId) {
+    changes.push({ type: 'tabZoomChanged', tabId: tab.id, zoomedPaneId });
   }
 
   const fitted = fitPanes(closed);
@@ -761,6 +821,82 @@ const closePane = (state: State, id: PaneId): Applied | Rejected => {
   }
 
   return closePaneIn(state, tab, id);
+};
+
+const zoomPane = (state: State, id: PaneId): Applied | Rejected => {
+  if (state.stopping) {
+    return reject(state, 'serverStopping');
+  }
+
+  const target = state.panes.find((pane) => pane.id === id);
+  const tab = state.tabs.find((known) => known.id === target?.tabId);
+
+  if (target === undefined || tab === undefined) {
+    return reject(state, 'unknownPane');
+  }
+
+  if (tab.layout.kind === 'pane') {
+    return commit(state, []);
+  }
+
+  const zoomedPaneId = tab.zoomedPaneId === id ? undefined : id;
+  const changes: Change[] = [{ type: 'tabZoomChanged', tabId: tab.id, zoomedPaneId }];
+
+  if (tab.focusedPaneId !== id) {
+    changes.push({ type: 'paneFocused', tabId: tab.id, paneId: id });
+  }
+
+  const zoomedTab: Tab = { ...tab, focusedPaneId: id, zoomedPaneId };
+
+  const zoomed: State = {
+    ...state,
+    tabs: state.tabs.map((known) => (known.id === tab.id ? zoomedTab : known)),
+  };
+
+  const fitted = fitPanes(zoomed);
+
+  return commit({ ...zoomed, panes: fitted.panes }, [...changes, ...fitted.changes]);
+};
+
+const resizePane = (
+  state: State,
+  id: PaneId,
+  direction: ResizeDirection,
+  cells: number,
+): Applied | Rejected => {
+  if (state.stopping) {
+    return reject(state, 'serverStopping');
+  }
+
+  const target = state.panes.find((pane) => pane.id === id);
+  const tab = state.tabs.find((known) => known.id === target?.tabId);
+
+  if (target === undefined || tab === undefined) {
+    return reject(state, 'unknownPane');
+  }
+
+  const layout = resizeLayout(tab.layout, id, direction, cells, state.layoutArea);
+
+  if (layout === undefined) {
+    return reject(state, 'noSplit');
+  }
+
+  const changes = unzoomChanges(tab);
+
+  if (layout !== tab.layout) {
+    changes.push({ type: 'tabLayoutChanged', tabId: tab.id, layout });
+  }
+
+  const resizedTab: Tab = { ...tab, layout, zoomedPaneId: undefined };
+
+  const resized: State = {
+    ...state,
+    tabs: state.tabs.map((known) => (known.id === tab.id ? resizedTab : known)),
+  };
+
+  const fitted = fitPanes(resized);
+
+  return commit({ ...resized, panes: fitted.panes }, [...changes, ...fitted.changes]);
 };
 
 const attachClient = (state: State, size: TerminalSize): Applied => {
@@ -878,8 +1014,15 @@ const stopServer = (state: State): Applied => {
 const isTabIntent = (intent: Intent): intent is TabIntent =>
   intent.type === 'createTab' || intent.type === 'focusTab' || intent.type === 'closeTab';
 
-const isPaneIntent = (intent: Intent): intent is PaneIntent =>
-  intent.type === 'splitPane' || intent.type === 'focusPane' || intent.type === 'closePane';
+const paneIntentTypes: ReadonlySet<Intent['type']> = new Set<PaneIntent['type']>([
+  'splitPane',
+  'focusPane',
+  'closePane',
+  'zoomPane',
+  'resizePane',
+]);
+
+const isPaneIntent = (intent: Intent): intent is PaneIntent => paneIntentTypes.has(intent.type);
 
 const applyTabIntent = (state: State, intent: TabIntent): Applied | Rejected => {
   if (intent.type === 'createTab') {
@@ -894,9 +1037,19 @@ const applyPaneIntent = (state: State, intent: PaneIntent): Applied | Rejected =
     return splitPane(state, intent.paneId, intent.direction);
   }
 
-  return intent.type === 'focusPane'
-    ? focusPane(state, intent.paneId)
-    : closePane(state, intent.paneId);
+  if (intent.type === 'focusPane') {
+    return focusPane(state, intent.paneId);
+  }
+
+  if (intent.type === 'zoomPane') {
+    return zoomPane(state, intent.paneId);
+  }
+
+  if (intent.type === 'resizePane') {
+    return resizePane(state, intent.paneId, intent.direction, intent.cells);
+  }
+
+  return closePane(state, intent.paneId);
 };
 
 export const applyIntent = (state: State, intent: Intent): Applied | Rejected => {
@@ -981,13 +1134,13 @@ const endPane = (
 };
 
 const markRunning = (state: State, pane: Pane): Applied => {
-  const focusBeforeSplit = new Map(state.focusBeforeSplit);
+  const stateBeforeSplit = new Map(state.stateBeforeSplit);
 
-  focusBeforeSplit.delete(pane.id);
+  stateBeforeSplit.delete(pane.id);
 
   const next: State = {
     ...state,
-    focusBeforeSplit,
+    stateBeforeSplit,
     panes: replacePane(state, { ...pane, lifecycle: 'running' }),
     startFallbacks: state.startFallbacks.filter((known) => known.paneId !== pane.id),
   };

@@ -206,6 +206,9 @@ const messages: ControlMessage[] = [
   { type: 'tabFocus', tabId: tab.id },
   { type: 'tabClose', tabId: tab.id },
   { type: 'tabDone', tabId: tab.id },
+  { type: 'paneZoom', paneId: paneId(2) },
+  { type: 'paneResize', paneId: paneId(2), direction: 'left', cells: 3 },
+  { type: 'paneFailed', reason: 'noSplit', message: undefined },
   { type: 'tabFailed', reason: 'unknownTab', message: undefined },
   { type: 'tabFailed', reason: 'paneFailedToStart', message: 'no such directory' },
   { type: 'workspaceFailed', reason: 'paneFailedToStart', message: 'no such directory' },
@@ -249,6 +252,18 @@ const workspaceIdJson = (id: string): string =>
 
 it.each([
   ['a missing field', '{"type":"resize"}'],
+  [
+    'a resize with zero cells',
+    '{"type":"paneResize","paneId":"pane-1","direction":"left","cells":0}',
+  ],
+  [
+    'a resize with a fractional cell count',
+    '{"type":"paneResize","paneId":"pane-1","direction":"left","cells":1.5}',
+  ],
+  [
+    'a resize with an unknown direction',
+    '{"type":"paneResize","paneId":"pane-1","direction":"in","cells":1}',
+  ],
   [
     'a theme palette with 15 colors',
     JSON.stringify({ type: 'theme', theme: { ...theme, palette: theme.palette.slice(1) } }),

@@ -80,6 +80,13 @@ const focusNeighbor = (session: AttachSession, offset: number): Promise<void> =>
   return target === undefined ? Promise.resolve() : session.focusPane(target);
 };
 
+const resizeDirections: Partial<Record<PaneAction, 'left' | 'right' | 'up' | 'down'>> = {
+  resizeLeft: 'left',
+  resizeRight: 'right',
+  resizeUp: 'up',
+  resizeDown: 'down',
+};
+
 const runPaneAction = (session: AttachSession, action: PaneAction): Promise<void> => {
   const current = focusedPane(session.getState().snapshot);
 
@@ -97,6 +104,16 @@ const runPaneAction = (session: AttachSession, action: PaneAction): Promise<void
 
   if (action === 'close') {
     return session.closePane(current.id);
+  }
+
+  if (action === 'zoom') {
+    return session.zoomPane(current.id);
+  }
+
+  const resizeDirection = resizeDirections[action];
+
+  if (resizeDirection !== undefined) {
+    return session.resizePane(current.id, resizeDirection, 1);
   }
 
   return focusNeighbor(session, action === 'focusPrevious' ? -1 : 1);

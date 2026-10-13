@@ -1,6 +1,7 @@
 import { expect, it } from 'bun:test';
 
 import { clientId, paneId, tabId, workspaceId } from '../ids.ts';
+import type { PaneId } from '../ids.ts';
 import { applyFact, applyIntent, createState, focusedPane, paneTheme, snapshot } from './store.ts';
 import type {
   Applied,
@@ -1139,4 +1140,291 @@ it('gives the focus to the sibling when the focused pane of a split fails to sta
   const result = fact(state, { type: 'paneFailedToStart', paneId: paneId(2), generation: 2 });
 
   expect(result.state.tabs[0]?.focusedPaneId).toBe(paneId(1));
+});
+
+const sizes = (state: State): Map<PaneId, string> =>
+  new Map(state.panes.map((pane) => [pane.id, `${pane.size.columns}x${pane.size.rows}`]));
+
+const zoom = (id: number): Intent => ({ type: 'zoomPane', paneId: paneId(id) });
+
+const resize = (
+  id: number,
+  direction: 'left' | 'right' | 'up' | 'down',
+  cells: number,
+): Intent => ({ type: 'resizePane', paneId: paneId(id), direction, cells });
+
+const splitPaneOf = (id: number, direction: 'below' | 'right'): Intent => ({
+  type: 'splitPane',
+  paneId: paneId(id),
+  direction,
+});
+
+it('zooms a pane over the whole area and keeps the size of the hidden pane', () => {
+  const split = run([createPhi, attachLarge, splitFirst('right')]);
+  const result = intent(split, zoom(1));
+
+  expect(result.state.tabs[0]?.zoomedPaneId).toBe(paneId(1));
+  expect(result.state.tabs[0]?.focusedPaneId).toBe(paneId(1));
+  expect(result.state.panes[0]?.size).toEqual({ columns: 81, rows: 24 });
+  expect(result.state.panes[1]?.size).toEqual({ columns: 38, rows: 22 });
+
+  expect(result.changes).toEqual([
+    { type: 'tabZoomChanged', tabId: tabId(1), zoomedPaneId: paneId(1) },
+    { type: 'paneFocused', tabId: tabId(1), paneId: paneId(1) },
+    { type: 'paneResized', paneId: paneId(1), size: { columns: 81, rows: 24 } },
+  ]);
+
+  const unzoomed = intent(result.state, zoom(1));
+
+  expect(unzoomed.state.tabs[0]?.zoomedPaneId).toBeUndefined();
+  expect(sizes(unzoomed.state)).toEqual(sizes(split));
+
+  expect(unzoomed.changes).toEqual([
+    { type: 'tabZoomChanged', tabId: tabId(1), zoomedPaneId: undefined },
+    { type: 'paneResized', paneId: paneId(1), size: { columns: 38, rows: 22 } },
+  ]);
+});
+
+it('zooms and focuses a pane that is not focused', () => {
+  const split = run([createPhi, attachLarge, splitFirst('right')]);
+  const result = intent(split, zoom(1));
+
+  expect(split.tabs[0]?.focusedPaneId).toBe(paneId(2));
+  expect(result.state.tabs[0]?.focusedPaneId).toBe(paneId(1));
+});
+
+it('does not zoom a tab with one pane', () => {
+  const state = run([createPhi, attachLarge]);
+  const result = intent(state, zoom(1));
+
+  expect(result.changes).toEqual([]);
+  expect(result.state.tabs).toEqual(state.tabs);
+});
+
+it('keeps the size of a hidden pane while the client resizes, and refits it on unzoom', () => {
+  const zoomed = run([createPhi, attachLarge, splitFirst('right'), zoom(1)]);
+  const client = zoomed.attachedClientId;
+
+  if (client === undefined) {
+    throw new Error('No client.');
+  }
+
+  const resized = intent(zoomed, {
+    type: 'resizeClient',
+    clientId: client,
+    size: { columns: 61, rows: 25 },
+  });
+
+  expect(resized.state.panes[0]?.size).toEqual({ columns: 41, rows: 24 });
+  expect(resized.state.panes[1]?.size).toEqual({ columns: 38, rows: 22 });
+  expect(intent(resized.state, zoom(1)).state.panes[1]?.size).toEqual({ columns: 18, rows: 22 });
+});
+
+it('unzooms when the zoomed pane is split', () => {
+  const state = run([createPhi, attachLarge, splitFirst('right'), zoom(1)]);
+  const result = intent(state, splitPaneOf(1, 'below'));
+
+  expect(result.state.tabs[0]?.zoomedPaneId).toBeUndefined();
+  expect(result.state.tabs[0]?.focusedPaneId).toBe(paneId(3));
+  expect(result.state.panes.every((pane) => pane.size.columns <= 38)).toBe(true);
+
+  expect(result.changes).toContainEqual({
+    type: 'tabZoomChanged',
+    tabId: tabId(1),
+    zoomedPaneId: undefined,
+  });
+});
+
+it('restores the zoom and focus when a split pane of a zoomed tab fails to start', () => {
+  const zoomed = run([createPhi, attachLarge, splitFirst('right'), zoom(1)]);
+  const split = intent(zoomed, splitPaneOf(1, 'below'));
+  const result = fact(split.state, { type: 'paneFailedToStart', paneId: paneId(3), generation: 3 });
+
+  expect(result.state.tabs[0]?.zoomedPaneId).toBe(paneId(1));
+  expect(result.state.tabs[0]?.focusedPaneId).toBe(paneId(1));
+  expect(result.state.panes.map((pane) => pane.id)).toEqual([paneId(1), paneId(2)]);
+  expect(result.state.panes[0]?.size).toEqual({ columns: 81, rows: 24 });
+
+  expect(result.changes).toContainEqual({
+    type: 'tabZoomChanged',
+    tabId: tabId(1),
+    zoomedPaneId: paneId(1),
+  });
+});
+
+it('does not report a zoom change when a failed split leaves the zoom as it was', () => {
+  const split = run([createPhi, attachLarge, splitFirst('right')]);
+  const result = fact(split, { type: 'paneFailedToStart', paneId: paneId(2), generation: 2 });
+
+  expect(result.state.tabs[0]?.zoomedPaneId).toBeUndefined();
+  expect(result.changes.some((change) => change.type === 'tabZoomChanged')).toBe(false);
+});
+
+it('unzooms when a started split pane closes', () => {
+  const opened = run([createPhi, attachLarge, splitFirst('right')]);
+  const started = fact(opened, startedPane(2, 2)).state;
+  const zoomed = intent(started, zoom(1)).state;
+  const split = intent(zoomed, splitPaneOf(1, 'below')).state;
+  const running = fact(split, startedPane(3, 3)).state;
+  const result = intent(running, { type: 'closePane', paneId: paneId(3) });
+
+  expect(result.state.tabs[0]?.zoomedPaneId).toBeUndefined();
+});
+
+it('leaves the tab unzoomed when the focus moved before a split pane failed to start', () => {
+  const zoomed = run([createPhi, attachLarge, splitFirst('right'), zoom(1)]);
+  const split = intent(zoomed, splitPaneOf(1, 'below')).state;
+  const refocused = intent(split, { type: 'focusPane', paneId: paneId(2) }).state;
+  const result = fact(refocused, { type: 'paneFailedToStart', paneId: paneId(3), generation: 3 });
+
+  expect(result.state.tabs[0]?.zoomedPaneId).toBeUndefined();
+  expect(result.state.tabs[0]?.focusedPaneId).toBe(paneId(2));
+});
+
+it('unzooms when a pane closes', () => {
+  const state = run([createPhi, attachLarge, splitFirst('right'), zoom(1)]);
+  const result = intent(state, { type: 'closePane', paneId: paneId(2) });
+
+  expect(result.state.tabs[0]?.zoomedPaneId).toBeUndefined();
+  expect(result.state.panes.map((pane) => pane.size)).toEqual([{ columns: 81, rows: 24 }]);
+
+  expect(result.changes).toContainEqual({
+    type: 'tabZoomChanged',
+    tabId: tabId(1),
+    zoomedPaneId: undefined,
+  });
+});
+
+it('unzooms when another pane takes the focus, but not when the zoomed pane does', () => {
+  const state = run([createPhi, attachLarge, splitFirst('right'), zoom(1)]);
+  const same = intent(state, { type: 'focusPane', paneId: paneId(1) });
+  const other = intent(state, { type: 'focusPane', paneId: paneId(2) });
+
+  expect(same.state.tabs[0]?.zoomedPaneId).toBe(paneId(1));
+  expect(same.changes).toEqual([]);
+  expect(other.state.tabs[0]?.zoomedPaneId).toBeUndefined();
+  expect(other.state.tabs[0]?.focusedPaneId).toBe(paneId(2));
+  expect(sizes(other.state)).toEqual(sizes(run([createPhi, attachLarge, splitFirst('right')])));
+
+  expect(other.changes).toEqual([
+    { type: 'paneFocused', tabId: tabId(1), paneId: paneId(2) },
+    { type: 'tabZoomChanged', tabId: tabId(1), zoomedPaneId: undefined },
+    { type: 'paneResized', paneId: paneId(1), size: { columns: 38, rows: 22 } },
+  ]);
+});
+
+const nestedState = (): State =>
+  run([createPhi, attachLarge, splitFirst('right'), splitPaneOf(1, 'below')]);
+
+it('resizes the panes of a nested layout by whole cells in each direction', () => {
+  const state = nestedState();
+
+  expect(sizes(state)).toEqual(
+    new Map([
+      [paneId(1), '38x10'],
+      [paneId(2), '38x22'],
+      [paneId(3), '38x10'],
+    ]),
+  );
+
+  const right = intent(state, resize(1, 'right', 3)).state;
+  const left = intent(state, resize(2, 'left', 2)).state;
+  const down = intent(state, resize(1, 'down', 2)).state;
+  const up = intent(state, resize(3, 'up', 1)).state;
+
+  expect(sizes(right).get(paneId(1))).toBe('41x10');
+  expect(sizes(right).get(paneId(2))).toBe('35x22');
+  expect(sizes(left).get(paneId(1))).toBe('36x10');
+  expect(sizes(left).get(paneId(2))).toBe('40x22');
+  expect(sizes(down).get(paneId(1))).toBe('38x12');
+  expect(sizes(down).get(paneId(3))).toBe('38x8');
+  expect(sizes(up).get(paneId(1))).toBe('38x9');
+  expect(sizes(up).get(paneId(3))).toBe('38x11');
+});
+
+it('reports the new layout and the resized panes of a resize', () => {
+  const result = intent(nestedState(), resize(1, 'right', 1));
+
+  expect(result.changes.map((change) => change.type)).toEqual([
+    'tabLayoutChanged',
+    'paneResized',
+    'paneResized',
+    'paneResized',
+  ]);
+});
+
+it('unzooms a zoomed tab before it resizes', () => {
+  const state = run([createPhi, attachLarge, splitFirst('right'), zoom(1)]);
+  const result = intent(state, resize(1, 'right', 2));
+
+  expect(result.state.tabs[0]?.zoomedPaneId).toBeUndefined();
+
+  expect(sizes(result.state)).toEqual(
+    new Map([
+      [paneId(1), '40x22'],
+      [paneId(2), '36x22'],
+    ]),
+  );
+});
+
+it('clamps a resize at a framed 1x1 terminal and applies no changes when nothing moves', () => {
+  const state = run([createPhi, attachLarge, splitFirst('right')]);
+  const shrunk = intent(state, resize(1, 'left', 500));
+
+  expect(sizes(shrunk.state).get(paneId(1))).toBe('1x22');
+  expect(sizes(shrunk.state).get(paneId(2))).toBe('75x22');
+
+  const stuck = intent(shrunk.state, resize(1, 'left', 1));
+
+  expect(stuck.changes).toEqual([]);
+  expect(stuck.state.tabs).toEqual(shrunk.state.tabs);
+  expect(sizes(intent(state, resize(1, 'right', 500)).state).get(paneId(2))).toBe('1x22');
+});
+
+it('applies no changes when a nested resize is stopped at the minimum', () => {
+  const shrunk = intent(nestedState(), resize(1, 'up', 500));
+  const stuck = intent(shrunk.state, resize(1, 'up', 1));
+
+  expect(stuck.changes).toEqual([]);
+  expect(stuck.state.tabs).toEqual(shrunk.state.tabs);
+  expect(stuck.state.revision).toBe(shrunk.state.revision);
+});
+
+it('rejects a resize with no split on that axis and changes nothing', () => {
+  const lone = run([createPhi, attachLarge]);
+  const sideBySide = run([createPhi, attachLarge, splitFirst('right'), zoom(1)]);
+
+  expect(applyIntent(lone, resize(1, 'left', 1))).toEqual({
+    kind: 'rejected',
+    state: lone,
+    reason: 'noSplit',
+  });
+
+  expect(applyIntent(sideBySide, resize(1, 'up', 1))).toEqual({
+    kind: 'rejected',
+    state: sideBySide,
+    reason: 'noSplit',
+  });
+});
+
+it.each([
+  ['zoom', zoom(9)],
+  ['resize', resize(9, 'left', 1)],
+] as const)('rejects a %s of an unknown pane', (_name, refused) => {
+  const state = run([createPhi]);
+
+  expect(applyIntent(state, refused)).toEqual({ kind: 'rejected', state, reason: 'unknownPane' });
+});
+
+it.each([
+  ['zoom', zoom(1)],
+  ['resize', resize(1, 'left', 1)],
+] as const)('refuses to %s a pane while the server stops', (_name, refused) => {
+  const state = run([createPhi, splitFirst('right'), { type: 'stopServer' }]);
+
+  expect(applyIntent(state, refused)).toEqual({
+    kind: 'rejected',
+    state,
+    reason: 'serverStopping',
+  });
 });

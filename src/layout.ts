@@ -1,4 +1,5 @@
 import type { PaneId } from './ids.ts';
+import { invariant } from './invariant.ts';
 
 export interface TerminalSize {
   readonly columns: number;
@@ -6,6 +7,8 @@ export interface TerminalSize {
 }
 
 export type SplitDirection = 'below' | 'right';
+
+export type ResizeDirection = 'left' | 'right' | 'up' | 'down';
 
 export type Layout =
   | { kind: 'pane'; paneId: PaneId }
@@ -94,13 +97,8 @@ const firstExtent = (
     Math.max(firstMinimum, available - secondMinimum),
   );
 
-const placeLayout = (layout: Layout, area: Area, placed: PaneRectangle[]): void => {
-  if (layout.kind === 'pane') {
-    placed.push({ paneId: layout.paneId, ...area, terminal: terminalOf(area) });
-
-    return;
-  }
-
+// The areas of a split's two children. The second child never gets less than its minimum.
+const childAreas = (layout: Layout & { kind: 'split' }, area: Area): readonly [Area, Area] => {
   const axis = layout.direction;
   const firstMinimum = minimumOf(layout.first, axis);
   const secondMinimum = minimumOf(layout.second, axis);
@@ -113,37 +111,39 @@ const placeLayout = (layout: Layout, area: Area, placed: PaneRectangle[]): void 
       secondMinimum,
     );
 
-    const secondX = area.x + columns + gapOf(axis);
-
-    placeLayout(layout.first, { ...area, columns }, placed);
-
-    placeLayout(
-      layout.second,
+    return [
+      { ...area, columns },
       {
         ...area,
-        x: secondX,
+        x: area.x + columns + gapOf(axis),
         columns: Math.max(secondMinimum, area.columns - columns - gapOf(axis)),
       },
-      placed,
-    );
+    ];
+  }
+
+  const rows = firstExtent(area.rows - gapOf(axis), layout.ratio, firstMinimum, secondMinimum);
+
+  return [
+    { ...area, rows },
+    {
+      ...area,
+      y: area.y + rows + gapOf(axis),
+      rows: Math.max(secondMinimum, area.rows - rows - gapOf(axis)),
+    },
+  ];
+};
+
+const placeLayout = (layout: Layout, area: Area, placed: PaneRectangle[]): void => {
+  if (layout.kind === 'pane') {
+    placed.push({ paneId: layout.paneId, ...area, terminal: terminalOf(area) });
 
     return;
   }
 
-  const rows = firstExtent(area.rows - gapOf(axis), layout.ratio, firstMinimum, secondMinimum);
-  const secondY = area.y + rows + gapOf(axis);
+  const [firstArea, secondArea] = childAreas(layout, area);
 
-  placeLayout(layout.first, { ...area, rows }, placed);
-
-  placeLayout(
-    layout.second,
-    {
-      ...area,
-      y: secondY,
-      rows: Math.max(secondMinimum, area.rows - rows - gapOf(axis)),
-    },
-    placed,
-  );
+  placeLayout(layout.first, firstArea, placed);
+  placeLayout(layout.second, secondArea, placed);
 };
 
 // Panes in tree order. Only a tab with a split frames its panes. A pane never gets less than a
@@ -224,4 +224,76 @@ export const removePane = (layout: Layout, target: PaneId): PaneRemoval | undefi
   }
 
   return undefined;
+};
+
+export const shownLayout = (layout: Layout, zoomedPaneId: PaneId | undefined): Layout =>
+  zoomedPaneId === undefined ? layout : { kind: 'pane', paneId: zoomedPaneId };
+
+const containsPane = (layout: Layout, target: PaneId): boolean =>
+  layout.kind === 'pane'
+    ? layout.paneId === target
+    : containsPane(layout.first, target) || containsPane(layout.second, target);
+
+// Moves the first child's edge by whole cells, within what both subtrees need. Gives the same
+// layout when nothing moves.
+const moveEdge = (layout: Layout & { kind: 'split' }, area: Area, movement: number): Layout => {
+  const axis = layout.direction;
+  const available = (axis === 'right' ? area.columns : area.rows) - gapOf(axis);
+  const firstMinimum = minimumOf(layout.first, axis);
+  const secondMinimum = minimumOf(layout.second, axis);
+
+  if (available < firstMinimum + secondMinimum) {
+    return layout;
+  }
+
+  const [firstArea] = childAreas(layout, area);
+  const current = axis === 'right' ? firstArea.columns : firstArea.rows;
+  const moved = Math.min(Math.max(firstMinimum, current + movement), available - secondMinimum);
+
+  return moved === current ? layout : { ...layout, ratio: moved / available };
+};
+
+// Moves the edge of the nearest split around the pane on the direction's axis: `right` and `down`
+// toward the end of the area, `left` and `up` toward the start. Gives undefined when the pane has
+// no split on that axis.
+export const resizeLayout = (
+  layout: Layout,
+  target: PaneId,
+  direction: ResizeDirection,
+  cells: number,
+  size: TerminalSize,
+): Layout | undefined => {
+  invariant(Number.isInteger(cells) && cells >= 0, `Cannot resize by ${cells} cells.`);
+
+  const axis: SplitDirection = direction === 'left' || direction === 'right' ? 'right' : 'below';
+  const movement = direction === 'right' || direction === 'down' ? cells : -cells;
+
+  const resizeIn = (current: Layout, area: Area): Layout | undefined => {
+    if (current.kind === 'pane') {
+      return undefined;
+    }
+
+    const [firstArea, secondArea] = childAreas(current, area);
+    const inFirst = containsPane(current.first, target);
+
+    const inner = inFirst
+      ? resizeIn(current.first, firstArea)
+      : resizeIn(current.second, secondArea);
+
+    if (inner === (inFirst ? current.first : current.second)) {
+      return current;
+    }
+
+    if (inner !== undefined) {
+      return inFirst ? { ...current, first: inner } : { ...current, second: inner };
+    }
+
+    if (current.direction !== axis || !containsPane(current, target)) {
+      return undefined;
+    }
+
+    return moveEdge(current, area, movement);
+  };
+
+  return resizeIn(layout, { x: 0, y: 0, ...size });
 };

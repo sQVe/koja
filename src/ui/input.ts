@@ -2,7 +2,17 @@ import type { InputMode, TabRoute, WorkspaceCommand, WorkspaceReply } from '../c
 import type { WorkspaceId } from '../ids.ts';
 import { ModeFlag } from '../rows/rows.ts';
 
-export type PaneAction = 'splitBelow' | 'splitRight' | 'focusPrevious' | 'focusNext' | 'close';
+export type PaneAction =
+  | 'splitBelow'
+  | 'splitRight'
+  | 'focusPrevious'
+  | 'focusNext'
+  | 'close'
+  | 'zoom'
+  | 'resizeLeft'
+  | 'resizeRight'
+  | 'resizeUp'
+  | 'resizeDown';
 
 interface TokenRouterHost {
   mode: () => InputMode;
@@ -95,6 +105,11 @@ const paneActions = new Map<string, PaneAction>([
   ['h', 'focusPrevious'],
   ['l', 'focusNext'],
   ['x', 'close'],
+  ['z', 'zoom'],
+  ['<', 'resizeLeft'],
+  ['>', 'resizeRight'],
+  ['-', 'resizeUp'],
+  ['+', 'resizeDown'],
 ]);
 
 const routeNormalKey = (raw: string): KeyRoute => {

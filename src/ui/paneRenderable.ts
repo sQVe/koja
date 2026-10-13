@@ -172,19 +172,23 @@ export class PaneRenderable extends FrameBufferRenderable {
   }
 
   private drawRow(index: number): void {
+    if (index >= this.frameBuffer.height) {
+      return;
+    }
+
+    const fill = this.defaultColor(defaultBackgroundSlot, RGBA.defaultBackground());
+
+    this.frameBuffer.fillRect(0, index, this.frameBuffer.width, 1, fill);
+
     const row = this.cache.row(index);
 
-    if (row === undefined || index >= this.frameBuffer.height) {
+    if (row === undefined) {
       return;
     }
 
     const cursor = this.cache.cursor();
     const cursorColumn = cursor?.visible === true && cursor.y === index ? cursor.x : undefined;
     const columns = Math.min(row.cells.length / cellWords, this.frameBuffer.width);
-
-    const fill = this.defaultColor(defaultBackgroundSlot, RGBA.defaultBackground());
-
-    this.frameBuffer.fillRect(0, index, this.frameBuffer.width, 1, fill);
 
     for (let column = 0; column < columns; column++) {
       this.drawCell(row, column, index, column === cursorColumn);

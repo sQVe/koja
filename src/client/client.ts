@@ -38,15 +38,20 @@ export type PaneCommand =
 
 type SplitDirection = Extract<ControlMessage, { type: 'paneSplit' }>['direction'];
 
+type ResizeDirection = Extract<ControlMessage, { type: 'paneResize' }>['direction'];
+
 export type PaneLayoutCommand =
   | { action: 'split'; pane: PaneId; direction: SplitDirection }
   | { action: 'focus'; pane: PaneId }
-  | { action: 'close'; pane: PaneId };
+  | { action: 'close'; pane: PaneId }
+  | { action: 'zoom'; pane: PaneId }
+  | { action: 'resize'; pane: PaneId; direction: ResizeDirection; cells: number };
 
 type PaneLayoutResult =
   | { ok: true; paneId: PaneId }
   | { ok: false; reason: 'unknownPane' }
   | { ok: false; reason: 'paneTooSmall' }
+  | { ok: false; reason: 'noSplit' }
   | { ok: false; reason: 'serverStopping' }
   | { ok: false; reason: 'paneFailedToStart'; message: string }
   | RequestFailure;
@@ -281,6 +286,19 @@ export const runPaneCommand = (
 const paneLayoutRequest = (command: PaneLayoutCommand): ControlMessage => {
   if (command.action === 'split') {
     return { type: 'paneSplit', paneId: command.pane, direction: command.direction };
+  }
+
+  if (command.action === 'resize') {
+    return {
+      type: 'paneResize',
+      paneId: command.pane,
+      direction: command.direction,
+      cells: command.cells,
+    };
+  }
+
+  if (command.action === 'zoom') {
+    return { type: 'paneZoom', paneId: command.pane };
   }
 
   return command.action === 'focus'
