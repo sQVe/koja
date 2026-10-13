@@ -1639,6 +1639,189 @@ it.skipIf(!scopesAvailable)(
   },
 );
 
+it.skipIf(!scopesAvailable)(
+  'signals a pane scope that systemd registers only after stop begins',
+  async () => {
+    const directory = await temporaryDirectory();
+    const fakeDirectory = join(directory, 'fake-bin');
+    const readyPath = join(directory, 'ready');
+    const armedPath = join(directory, 'armed');
+    const hangupPath = join(directory, 'hangup');
+    const queriedPath = join(directory, 'queried');
+    const realSystemctl = Bun.which('systemctl');
+
+    await mkdir(fakeDirectory);
+
+    // Until the ready file exists, the fake answers as systemd does for a scope it has not
+    // registered yet: kill fails and is-active reports an unknown unit.
+    const fake = [
+      '#!/bin/sh',
+      `if [ ! -e '${readyPath}' ]; then`,
+      '  case "$*" in',
+      `    *is-active*) touch '${queriedPath}'; exit 4 ;;`,
+      '    *kill*) exit 1 ;;',
+      '  esac',
+      'fi',
+      `exec '${realSystemctl}' "$@"`,
+      '',
+    ].join('\n');
+
+    await Bun.write(join(fakeDirectory, 'systemctl'), fake);
+    await chmod(join(fakeDirectory, 'systemctl'), 0o755);
+
+    const result = spawnPane({
+      generation: 1,
+      size: { columns: 80, rows: 24 },
+      environment: {
+        ...process.env,
+        SHELL: '/bin/sh',
+        PATH: `${fakeDirectory}:${process.env.PATH}`,
+      },
+      directory,
+      useScope: true,
+      onOutput: () => undefined,
+    });
+
+    if (!result.ok) {
+      throw new Error(result.message);
+    }
+
+    const { pane } = result;
+
+    onTestFinished(() => {
+      pane[Symbol.dispose]();
+    });
+
+    const script = `trap 'touch ${hangupPath}' HUP; touch ${armedPath}; while :; do sleep 0.05; done\n`;
+
+    pane.write(new TextEncoder().encode(script));
+    await waitFor(() => existsSync(armedPath));
+
+    const stopping = pane.stop();
+
+    await waitFor(() => existsSync(queriedPath));
+    await Bun.write(readyPath, '');
+
+    expect(await stopping).toEqual([]);
+    expect(existsSync(hangupPath)).toBe(true);
+  },
+);
+
+it.skipIf(!scopesAvailable)(
+  'reports cleanupFailed and still ends the shell when the scope never registers',
+  async () => {
+    const directory = await temporaryDirectory();
+    const fakeDirectory = join(directory, 'fake-bin');
+    const armedPath = join(directory, 'armed');
+
+    await mkdir(fakeDirectory);
+
+    const fake = [
+      '#!/bin/sh',
+      'case "$*" in',
+      '  *is-active*) exit 4 ;;',
+      '  *kill*) exit 1 ;;',
+      'esac',
+      '',
+    ].join('\n');
+
+    await Bun.write(join(fakeDirectory, 'systemctl'), fake);
+    await chmod(join(fakeDirectory, 'systemctl'), 0o755);
+
+    const result = spawnPane({
+      generation: 1,
+      size: { columns: 80, rows: 24 },
+      environment: {
+        ...process.env,
+        SHELL: '/bin/sh',
+        PATH: `${fakeDirectory}:${process.env.PATH}`,
+      },
+      directory,
+      useScope: true,
+      onOutput: () => undefined,
+    });
+
+    if (!result.ok) {
+      throw new Error(result.message);
+    }
+
+    const { pane } = result;
+
+    onTestFinished(() => {
+      pane[Symbol.dispose]();
+    });
+
+    pane.write(new TextEncoder().encode(`touch ${armedPath}; while :; do sleep 0.05; done\n`));
+    await waitFor(() => existsSync(armedPath));
+
+    const failures = await pane.stop();
+
+    expect(failures).toHaveLength(1);
+    expect(failures[0]).toContain('did not register');
+    expect(await pane.exited).not.toBe(0);
+  },
+);
+
+it.skipIf(!scopesAvailable)(
+  'reports cleanupFailed and signals the shell when a stalled query is followed by unknown unit answers',
+  async () => {
+    const directory = await temporaryDirectory();
+    const fakeDirectory = join(directory, 'fake-bin');
+    const armedPath = join(directory, 'armed');
+    const hangupPath = join(directory, 'hangup');
+    const queriedPath = join(directory, 'queried');
+
+    await mkdir(fakeDirectory);
+
+    const fake = [
+      '#!/bin/sh',
+      'case "$*" in',
+      `  *is-active*) if [ ! -e '${queriedPath}' ]; then touch '${queriedPath}'; exec sleep 2; fi; exit 4 ;;`,
+      '  *kill*) exit 1 ;;',
+      'esac',
+      '',
+    ].join('\n');
+
+    await Bun.write(join(fakeDirectory, 'systemctl'), fake);
+    await chmod(join(fakeDirectory, 'systemctl'), 0o755);
+
+    const result = spawnPane({
+      generation: 1,
+      size: { columns: 80, rows: 24 },
+      environment: {
+        ...process.env,
+        SHELL: '/bin/sh',
+        PATH: `${fakeDirectory}:${process.env.PATH}`,
+      },
+      directory,
+      useScope: true,
+      onOutput: () => undefined,
+    });
+
+    if (!result.ok) {
+      throw new Error(result.message);
+    }
+
+    const { pane } = result;
+
+    onTestFinished(() => {
+      pane[Symbol.dispose]();
+    });
+
+    const script = `trap 'touch ${hangupPath}' HUP; touch ${armedPath}; while :; do sleep 0.05; done\n`;
+
+    pane.write(new TextEncoder().encode(script));
+    await waitFor(() => existsSync(armedPath));
+
+    const failures = await pane.stop();
+
+    expect(failures).toHaveLength(1);
+    expect(failures[0]).toContain('did not register');
+    expect(existsSync(hangupPath)).toBe(true);
+    expect(await pane.exited).not.toBe(0);
+  },
+);
+
 it('keeps running after SIGHUP and after the shell exits, and stops on SIGTERM', async () => {
   const directory = await temporaryDirectory();
   const { child, socketPath } = await startServerProcess(directory);
