@@ -489,25 +489,27 @@ for (const unusable of unusableSetups) {
       const shellFolder = await makeFolder(directory, 'shell');
       const commandFolder = await makeFolder(directory, 'command');
 
-      expect((await phi('pane', 'send', `cd ${shellFolder}\n`)).exitCode).toBe(0);
-      await pollUntil(list, (panes) => folderOf(panes, first) === shellFolder);
+      try {
+        expect((await phi('pane', 'send', `cd ${shellFolder}\n`)).exitCode).toBe(0);
+        await pollUntil(list, (panes) => folderOf(panes, first) === shellFolder);
 
-      const command = `sh -c 'cd ${commandFolder}; ${unusable.prepare}; sleep 600'\n`;
+        const command = `sh -c 'cd ${commandFolder}; ${unusable.prepare}; sleep 600'\n`;
 
-      expect((await phi('pane', 'send', command)).exitCode).toBe(0);
+        expect((await phi('pane', 'send', command)).exitCode).toBe(0);
 
-      await pollUntil(list, (panes) => {
-        const foreground = panes.find((pane) => pane.id === first)?.foreground_cwd;
+        await pollUntil(list, (panes) => {
+          const foreground = panes.find((pane) => pane.id === first)?.foreground_cwd;
 
-        return foreground !== null && foreground !== undefined && foreground !== shellFolder;
-      });
+          return foreground !== null && foreground !== undefined && foreground !== shellFolder;
+        });
 
-      const added = await act('split', first, '--direction', 'right');
-      const panes = await pollUntil(list, (known) => folderOf(known, added) !== undefined);
+        const added = await act('split', first, '--direction', 'right');
+        const panes = await pollUntil(list, (known) => folderOf(known, added) !== undefined);
 
-      await restoreAccess(commandFolder);
-
-      expect(folderOf(panes, added)).toBe(shellFolder);
+        expect(folderOf(panes, added)).toBe(shellFolder);
+      } finally {
+        await restoreAccess(commandFolder);
+      }
     },
     cliTestTimeoutMs,
   );
@@ -518,23 +520,76 @@ for (const unusable of unusableSetups) {
       const { directory, phi, list, act, first } = await setup();
       const root = await realpath(join(directory, 'work'));
       const commandFolder = await makeFolder(directory, 'command');
-      const command = `cd ${commandFolder} && ${unusable.prepare}\n`;
 
-      expect((await phi('pane', 'send', command)).exitCode).toBe(0);
+      try {
+        const command = `cd ${commandFolder} && ${unusable.prepare}\n`;
 
-      await pollUntil(list, (panes) => {
-        const cwd = folderOf(panes, first);
+        expect((await phi('pane', 'send', command)).exitCode).toBe(0);
 
-        return cwd !== null && cwd !== undefined && cwd !== root;
-      });
+        await pollUntil(list, (panes) => {
+          const cwd = folderOf(panes, first);
 
-      const added = await act('split', first, '--direction', 'right');
-      const panes = await pollUntil(list, (known) => folderOf(known, added) !== undefined);
+          return cwd !== null && cwd !== undefined && cwd !== root;
+        });
 
-      await restoreAccess(commandFolder);
+        const added = await act('split', first, '--direction', 'right');
+        const panes = await pollUntil(list, (known) => folderOf(known, added) !== undefined);
 
-      expect(folderOf(panes, added)).toBe(root);
+        expect(folderOf(panes, added)).toBe(root);
+      } finally {
+        await restoreAccess(commandFolder);
+      }
     },
     cliTestTimeoutMs,
   );
 }
+
+it(
+  'starts a split pane in --cwd even when the source pane is in another folder',
+  async () => {
+    const { directory, phi, list, act, first } = await setup();
+    const moved = await makeFolder(directory, 'moved');
+    const target = await makeFolder(directory, 'target');
+
+    expect((await phi('pane', 'send', `cd ${moved}\n`)).exitCode).toBe(0);
+    await pollUntil(list, (panes) => folderOf(panes, first) === moved);
+
+    const added = await act('split', first, '--direction', 'right', '--cwd', target);
+    const panes = await pollUntil(list, (known) => folderOf(known, added) !== undefined);
+
+    expect(folderOf(panes, added)).toBe(target);
+  },
+  cliTestTimeoutMs,
+);
+
+it(
+  'resolves a relative --cwd against the folder the CLI runs in',
+  async () => {
+    const { directory, list, act, first } = await setup();
+    const target = await makeFolder(directory, 'relative');
+
+    // The CLI runs in `directory`, so `relative` names `target`.
+    const added = await act('split', first, '--direction', 'right', '--cwd', 'relative');
+    const panes = await pollUntil(list, (known) => folderOf(known, added) !== undefined);
+
+    expect(folderOf(panes, added)).toBe(target);
+  },
+  cliTestTimeoutMs,
+);
+
+it(
+  'refuses a --cwd that is not a directory and splits nothing',
+  async () => {
+    const { directory, phi, list, first } = await setup();
+    const missing = join(directory, 'missing');
+    const before = await list();
+
+    const failed = await phi('pane', 'split', first, '--direction', 'right', '--cwd', missing);
+
+    expect(failed.exitCode).toBe(1);
+    expect(failed.stdout).toBe('');
+    expect(failed.stderr).toContain(`${missing} is not a directory.`);
+    expect(await list()).toEqual(before);
+  },
+  cliTestTimeoutMs,
+);
