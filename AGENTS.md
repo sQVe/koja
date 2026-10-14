@@ -51,6 +51,15 @@ Terminal multiplexer with a session server and a terminal client. Read
   and `index.ts`. See [ADR 0008](docs/adr/0008-capability-modules.md).
 - Imports follow the table in ADR 0008. `phi/module-boundaries` enforces it in ordinary lint. Do not
   silence it; change the table in `scripts/lintRules.ts` when a new edge keeps the ADR's directions.
+- Put family code in private files inside each module. Coordinators such as `store/store.ts`,
+  `server/server.ts`, and `cli/parse.ts` hold only dispatch and ordering. A feature edits a
+  coordinator only to register an intent, request, or command. See
+  [ADR 0016](docs/adr/0016-family-files-and-owner-first-names.md).
+- Name a private file `<owner><job>` with the singular owner noun first, such as
+  `paneTransitions.ts`. Never put the qualifier first, as in `failedPane.ts`. A file may use the
+  owner noun alone when that noun names what it holds, such as `server/log.ts`.
+- Treat a file over 500 lines and a function over 60 lines or with more than 4 parameters as a
+  review signal. No check fails on size. Split by responsibility, not to meet a count.
 - Put types beside the code that owns them. Do not add barrels, a shared `types.ts`, or `utils/`.
   Extract shared code only for two existing consumers.
 

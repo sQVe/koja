@@ -16,7 +16,7 @@ import type { StoreSnapshot } from './snapshot.ts';
 import { workspaceRequest } from './workspaceRequest.ts';
 import type { WorkspaceCommand } from './workspaceRequest.ts';
 
-export { connectAttach } from './attach.ts';
+export { connectAttach } from './clientAttach.ts';
 
 export type {
   AttachSession,
@@ -25,7 +25,7 @@ export type {
   TabRoute,
   TerminalTheme,
   WorkspaceReply,
-} from './attach.ts';
+} from './clientAttach.ts';
 
 export { createRowCache } from './rowCache.ts';
 export type { RowCache } from './rowCache.ts';
