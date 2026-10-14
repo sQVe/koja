@@ -3,6 +3,7 @@ import { expect, it } from 'bun:test';
 import { clientId, paneId, tabId, workspaceId } from '../ids.ts';
 import type { PaneId } from '../ids.ts';
 import {
+  activeTabOf,
   applyFact,
   applyIntent,
   createState,
@@ -13,6 +14,7 @@ import {
 } from './store.ts';
 import type {
   Applied,
+  Client,
   Fact,
   Ignored,
   Intent,
@@ -20,8 +22,9 @@ import type {
   Rejected,
   State,
   Tab,
+  View,
   Theme,
-  Workspace,
+  WorkspaceRecord,
 } from './store.ts';
 
 const expectApplied = (result: Applied | Ignored | Rejected): Applied => {
@@ -68,12 +71,16 @@ it('creates a workspace with one tab and one starting pane', () => {
     zoomedPaneId: undefined,
   };
 
-  const workspace: Workspace = {
+  const workspace: WorkspaceRecord = {
     id: workspaceId(1),
     root: '/work/phi',
     label: 'phi',
     tabIds: [tabId(1)],
-    activeTabId: tabId(1),
+  };
+
+  const view = {
+    focusedWorkspaceId: workspaceId(1),
+    activeTabs: [{ workspaceId: workspaceId(1), tabId: tabId(1) }],
   };
 
   expect(snapshot(result.state)).toEqual({
@@ -81,15 +88,16 @@ it('creates a workspace with one tab and one starting pane', () => {
     workspaces: [workspace],
     tabs: [tab],
     panes: [pane],
-    focusedWorkspaceId: workspaceId(1),
+    defaultView: view,
     attachedClientId: undefined,
+    foregroundClientId: undefined,
     clients: [],
   });
 
   expect(focusedPane(result.state)).toEqual(pane);
 
   expect(result.changes).toEqual([
-    { type: 'workspaceAdded', workspace, focusedWorkspaceId: workspace.id },
+    { type: 'workspaceAdded', workspace, activeTabId: tabId(1), focusedWorkspaceId: workspace.id },
     { type: 'tabAdded', tab },
     { type: 'paneAdded', pane },
   ]);
@@ -133,14 +141,14 @@ it('adds a second workspace with its own tab and pane, and focuses it', () => {
   expect(state.tabs.map((tab) => tab.id)).toEqual([tabId(1), tabId(2)]);
   expect(state.panes.map((pane) => pane.id)).toEqual([paneId(1), paneId(2)]);
   expect(state.panes.map((pane) => pane.generation)).toEqual([1, 2]);
-  expect(state.focusedWorkspaceId).toBe(workspaceId(2));
+  expect(state.defaultView.focusedWorkspaceId).toBe(workspaceId(2));
 });
 
 it('focuses a workspace', () => {
   const state = run([createPhi, createDocs]);
   const result = intent(state, { type: 'focusWorkspace', workspaceId: workspaceId(1) });
 
-  expect(result.state.focusedWorkspaceId).toBe(workspaceId(1));
+  expect(result.state.defaultView.focusedWorkspaceId).toBe(workspaceId(1));
   expect(result.changes).toEqual([{ type: 'workspaceFocused', workspaceId: workspaceId(1) }]);
   expect(focusedPane(result.state)?.id).toBe(paneId(1));
 });
@@ -168,7 +176,7 @@ it('closes a workspace with its tab and pane', () => {
   expect(result.state.workspaces.map((workspace) => workspace.id)).toEqual([workspaceId(2)]);
   expect(result.state.tabs.map((tab) => tab.id)).toEqual([tabId(2)]);
   expect(result.state.panes.map((pane) => pane.id)).toEqual([paneId(2)]);
-  expect(result.state.focusedWorkspaceId).toBe(workspaceId(2));
+  expect(result.state.defaultView.focusedWorkspaceId).toBe(workspaceId(2));
   expect(result.state.revision).toBe(state.revision + result.changes.length);
 
   expect(result.changes).toEqual([
@@ -220,21 +228,21 @@ it('focuses the next workspace when the focused middle one closes', () => {
 
   const result = intent(state, { type: 'closeWorkspace', workspaceId: workspaceId(2) });
 
-  expect(result.state.focusedWorkspaceId).toBe(workspaceId(3));
+  expect(result.state.defaultView.focusedWorkspaceId).toBe(workspaceId(3));
 });
 
 it('focuses the previous workspace when the focused last one closes', () => {
   const state = run([createPhi, createDocs, createApi]);
   const result = intent(state, { type: 'closeWorkspace', workspaceId: workspaceId(3) });
 
-  expect(result.state.focusedWorkspaceId).toBe(workspaceId(2));
+  expect(result.state.defaultView.focusedWorkspaceId).toBe(workspaceId(2));
 });
 
 it('keeps the focus when an unfocused workspace closes', () => {
   const state = run([createPhi, createDocs]);
   const result = intent(state, { type: 'closeWorkspace', workspaceId: workspaceId(1) });
 
-  expect(result.state.focusedWorkspaceId).toBe(workspaceId(2));
+  expect(result.state.defaultView.focusedWorkspaceId).toBe(workspaceId(2));
 });
 
 it('ignores the exit of a pane that a closed workspace removed, and names it for disposal', () => {
@@ -255,7 +263,13 @@ it('refuses to start a pane while the server stops and leaves state unchanged', 
 it('resizes the pane to the layout size of a client that attaches', () => {
   const state = run([createPhi]);
   const result = intent(state, { type: 'attachClient', size: { columns: 100, rows: 30 } });
-  const client = { id: clientId(1), size: { columns: 100, rows: 30 }, theme: undefined };
+
+  const client = {
+    id: clientId(1),
+    size: { columns: 100, rows: 30 },
+    theme: undefined,
+    view: state.defaultView,
+  };
 
   expect(result.state.attachedClientId).toBe(clientId(1));
   expect(result.state.panes[0]?.size).toEqual({ columns: 80, rows: 29 });
@@ -270,7 +284,13 @@ it('takes over from the attached client when a second client attaches', () => {
   const state = run([createPhi, { type: 'attachClient', size: { columns: 100, rows: 30 } }]);
 
   const result = intent(state, { type: 'attachClient', size: { columns: 90, rows: 20 } });
-  const client = { id: clientId(2), size: { columns: 90, rows: 20 }, theme: undefined };
+
+  const client = {
+    id: clientId(2),
+    size: { columns: 90, rows: 20 },
+    theme: undefined,
+    view: state.defaultView,
+  };
 
   expect(result.state.attachedClientId).toBe(clientId(2));
   expect(result.state.clients).toEqual([client]);
@@ -416,7 +436,7 @@ it('removes the pane, tab, and workspace of the only pane that exits, and keeps 
   expect(result.state.panes).toEqual([]);
   expect(result.state.tabs).toEqual([]);
   expect(result.state.workspaces).toEqual([]);
-  expect(result.state.focusedWorkspaceId).toBeUndefined();
+  expect(result.state.defaultView.focusedWorkspaceId).toBeUndefined();
   expect(result.state.stopping).toBe(false);
 
   expect(result.changes).toEqual([
@@ -440,7 +460,7 @@ it('keeps the other workspaces when one pane exits', () => {
   const result = fact(state, { type: 'paneExited', ...firstPane, exitCode: 0 });
 
   expect(result.state.workspaces.map((workspace) => workspace.id)).toEqual([workspaceId(2)]);
-  expect(result.state.focusedWorkspaceId).toBe(workspaceId(2));
+  expect(result.state.defaultView.focusedWorkspaceId).toBe(workspaceId(2));
 });
 
 it('marks a closing pane exited without removing it while the server stops', () => {
@@ -472,8 +492,9 @@ it('raises the revision by one per change, and snapshots the last revision', () 
     workspaces: attached.state.workspaces,
     tabs: attached.state.tabs,
     panes: attached.state.panes,
-    focusedWorkspaceId: workspaceId(1),
+    defaultView: attached.state.defaultView,
     attachedClientId: clientId(1),
+    foregroundClientId: clientId(1),
     clients: attached.state.clients,
   });
 });
@@ -571,7 +592,7 @@ it('keeps the earlier focus when a background workspace is created without a lab
 
   const added = result.changes.find((change) => change.type === 'workspaceAdded');
 
-  expect(result.state.focusedWorkspaceId).toBe(workspaceId(1));
+  expect(result.state.defaultView.focusedWorkspaceId).toBe(workspaceId(1));
   expect(added?.focusedWorkspaceId).toBe(workspaceId(1));
   expect(result.state.workspaces.map((workspace) => workspace.label)).toEqual(['phi', 'docs']);
 });
@@ -584,7 +605,7 @@ it('focuses a background workspace when no workspace is focused', () => {
     background: true,
   });
 
-  expect(result.state.focusedWorkspaceId).toBe(workspaceId(1));
+  expect(result.state.defaultView.focusedWorkspaceId).toBe(workspaceId(1));
 });
 
 it('labels a workspace with the whole root when the root has no base name', () => {
@@ -600,7 +621,7 @@ it('labels a workspace with the whole root when the root has no base name', () =
 
 const createTab: Intent = { type: 'createTab', workspaceId: workspaceId(1) };
 
-const workspaceOne = (state: State): Workspace => {
+const workspaceOne = (state: State): WorkspaceRecord => {
   const workspace = state.workspaces.find((known) => known.id === workspaceId(1));
 
   if (workspace === undefined) {
@@ -630,10 +651,8 @@ it('creates a second tab with a starting pane, last in the list and active', () 
     zoomedPaneId: undefined,
   };
 
-  expect(workspaceOne(result.state)).toMatchObject({
-    tabIds: [tabId(1), tabId(2)],
-    activeTabId: tabId(2),
-  });
+  expect(workspaceOne(result.state)).toMatchObject({ tabIds: [tabId(1), tabId(2)] });
+  expect(activeTabOf(result.state.defaultView, workspaceId(1))).toBe(tabId(2));
 
   expect(result.changes).toEqual([
     { type: 'tabAdded', tab },
@@ -648,8 +667,8 @@ it('focuses a tab and the workspace that owns it', () => {
   const state = run([createPhi, createTab, createDocs]);
   const result = intent(state, { type: 'focusTab', tabId: tabId(1) });
 
-  expect(workspaceOne(result.state).activeTabId).toBe(tabId(1));
-  expect(result.state.focusedWorkspaceId).toBe(workspaceId(1));
+  expect(activeTabOf(result.state.defaultView, workspaceId(1))).toBe(tabId(1));
+  expect(result.state.defaultView.focusedWorkspaceId).toBe(workspaceId(1));
 
   expect(result.changes).toEqual([
     { type: 'tabFocused', workspaceId: workspaceId(1), tabId: tabId(1) },
@@ -671,24 +690,23 @@ it('closes a tab with its pane and keeps the workspace', () => {
 
   expect(result.state.tabs.map((tab) => tab.id)).toEqual([tabId(2)]);
   expect(result.state.panes.map((pane) => pane.id)).toEqual([paneId(2)]);
-  expect(workspaceOne(result.state)).toMatchObject({ tabIds: [tabId(2)], activeTabId: tabId(2) });
+  expect(workspaceOne(result.state)).toMatchObject({ tabIds: [tabId(2)] });
+  expect(activeTabOf(result.state.defaultView, workspaceId(1))).toBe(tabId(2));
 });
 
 it('removes the workspace when its only tab closes', () => {
   const result = intent(run([createPhi]), { type: 'closeTab', tabId: tabId(1) });
 
   expect(result.state.workspaces).toEqual([]);
-  expect(result.state.focusedWorkspaceId).toBeUndefined();
+  expect(result.state.defaultView.focusedWorkspaceId).toBeUndefined();
 });
 
 it('hands activity to the next tab when the active middle tab closes', () => {
   const state = run([createPhi, createTab, createTab, { type: 'focusTab', tabId: tabId(2) }]);
   const result = intent(state, { type: 'closeTab', tabId: tabId(2) });
 
-  expect(workspaceOne(result.state)).toMatchObject({
-    tabIds: [tabId(1), tabId(3)],
-    activeTabId: tabId(3),
-  });
+  expect(workspaceOne(result.state)).toMatchObject({ tabIds: [tabId(1), tabId(3)] });
+  expect(activeTabOf(result.state.defaultView, workspaceId(1))).toBe(tabId(3));
 
   expect(result.changes).toContainEqual({
     type: 'tabFocused',
@@ -701,7 +719,7 @@ it('hands activity to the previous tab when the active last tab closes', () => {
   const state = run([createPhi, createTab]);
   const result = intent(state, { type: 'closeTab', tabId: tabId(2) });
 
-  expect(workspaceOne(result.state).activeTabId).toBe(tabId(1));
+  expect(activeTabOf(result.state.defaultView, workspaceId(1))).toBe(tabId(1));
 
   expect(result.changes).toContainEqual({
     type: 'tabFocused',
@@ -721,7 +739,8 @@ it('hands activity to a neighbor when the pane of the active tab exits', () => {
   const state = run([createPhi, createTab]);
   const result = fact(state, { type: 'paneExited', paneId: paneId(2), generation: 2, exitCode: 0 });
 
-  expect(workspaceOne(result.state)).toMatchObject({ tabIds: [tabId(1)], activeTabId: tabId(1) });
+  expect(workspaceOne(result.state)).toMatchObject({ tabIds: [tabId(1)] });
+  expect(activeTabOf(result.state.defaultView, workspaceId(1))).toBe(tabId(1));
 });
 
 it('refuses a tab intent for an unknown tab or workspace and leaves state unchanged', () => {
@@ -769,7 +788,7 @@ it('keeps the tab that was active when the pane of a new tab fails to start', ()
   const owner = result.state.workspaces[0];
 
   expect(owner?.tabIds).toEqual([tabId(1), tabId(2)]);
-  expect(owner?.activeTabId).toBe(tabId(1));
+  expect(activeTabOf(result.state.defaultView, owner?.id)).toBe(tabId(1));
 });
 
 it('keeps the workspace that was focused when the pane of a new workspace fails to start', () => {
@@ -782,7 +801,7 @@ it('keeps the workspace that was focused when the pane of a new workspace fails 
 
   const result = fact(state, { type: 'paneFailedToStart', paneId: paneId(3), generation: 3 });
 
-  expect(result.state.focusedWorkspaceId).toBe(workspaceId(1));
+  expect(result.state.defaultView.focusedWorkspaceId).toBe(workspaceId(1));
 
   expect(result.state.workspaces.map((workspace) => workspace.id)).toEqual([
     workspaceId(1),
@@ -922,13 +941,14 @@ it('makes the tab of the focused pane active when that tab is inactive', () => {
   const state = run([createPhi, attachLarge, splitFirst('right'), createTab]);
   const result = intent(state, { type: 'focusPane', paneId: paneId(1) });
 
-  expect(workspaceOne(result.state).activeTabId).toBe(tabId(1));
+  expect(activeTabOf(result.state.defaultView, workspaceId(1))).toBe(tabId(1));
   expect(result.state.tabs[0]?.focusedPaneId).toBe(paneId(1));
   expect(focusedPane(result.state)?.id).toBe(paneId(1));
 
   expect(result.changes).toEqual([
     { type: 'paneFocused', tabId: tabId(1), paneId: paneId(1) },
     { type: 'tabFocused', workspaceId: workspaceId(1), tabId: tabId(1) },
+    { type: 'clientViewChanged', clientId: clientId(1), view: result.state.defaultView },
   ]);
 });
 
@@ -936,7 +956,7 @@ it('focuses the workspace of the focused pane when that workspace is unfocused',
   const state = run([createPhi, createDocs]);
   const result = intent(state, { type: 'focusPane', paneId: paneId(1) });
 
-  expect(result.state.focusedWorkspaceId).toBe(workspaceId(1));
+  expect(result.state.defaultView.focusedWorkspaceId).toBe(workspaceId(1));
   expect(focusedPane(result.state)?.id).toBe(paneId(1));
   expect(result.changes).toEqual([{ type: 'workspaceFocused', workspaceId: workspaceId(1) }]);
 });
@@ -946,14 +966,15 @@ it('focuses the tab and workspace of a pane in an inactive tab of an unfocused w
 
   const result = intent(state, { type: 'focusPane', paneId: paneId(1) });
 
-  expect(workspaceOne(result.state).activeTabId).toBe(tabId(1));
-  expect(result.state.focusedWorkspaceId).toBe(workspaceId(1));
+  expect(activeTabOf(result.state.defaultView, workspaceId(1))).toBe(tabId(1));
+  expect(result.state.defaultView.focusedWorkspaceId).toBe(workspaceId(1));
   expect(focusedPane(result.state)?.id).toBe(paneId(1));
 
   expect(result.changes).toEqual([
     { type: 'paneFocused', tabId: tabId(1), paneId: paneId(1) },
     { type: 'tabFocused', workspaceId: workspaceId(1), tabId: tabId(1) },
     { type: 'workspaceFocused', workspaceId: workspaceId(1) },
+    { type: 'clientViewChanged', clientId: clientId(1), view: result.state.defaultView },
   ]);
 });
 
@@ -1528,4 +1549,528 @@ it('closes a restored pane that fails to start through the usual cascade', () =>
   expect(result.state.workspaces.map((workspace) => workspace.id)).toEqual([workspaceId(1)]);
   expect(result.state.panes.map((pane) => pane.id)).toEqual([paneId(1)]);
   expect(result.changes.map((change) => change.type)).toContain('workspaceRemoved');
+});
+
+const viewOf = (state: State, id: number) =>
+  state.clients.find((client) => client.id === clientId(id))?.view;
+
+const focusedIn = (state: State, id: number) => viewOf(state, id)?.focusedWorkspaceId;
+
+const activeIn = (state: State, id: number, workspace: number) => {
+  const view = viewOf(state, id);
+
+  return view === undefined ? undefined : activeTabOf(view, workspaceId(workspace));
+};
+
+// The store attaches one client at a time, so a second client joins by hand.
+const withClient = (state: State, id: number): State => {
+  const client: Client = {
+    id: clientId(id),
+    size: { columns: 80, rows: 24 },
+    theme: undefined,
+    view: state.defaultView,
+  };
+
+  const clientActivity = new Map(state.clientActivity).set(client.id, state.nextActivity);
+
+  return {
+    ...state,
+    clients: [...state.clients, client],
+    clientActivity,
+    nextActivity: state.nextActivity + 1,
+    nextClientNumber: id + 1,
+  };
+};
+
+const twoClients = (...intents: readonly Intent[]): State =>
+  withClient(run([...intents, attachLarge]), 2);
+
+it('shows the workspace a CLI focus chose when no client is attached, after a reattach', () => {
+  const attached = run([attachLarge, createPhi, createDocs]);
+  const detached = intent(attached, { type: 'detachClient', clientId: clientId(1) }).state;
+
+  const focus = intent(detached, { type: 'focusWorkspace', workspaceId: workspaceId(1) });
+  const reattached = intent(focus.state, attachLarge).state;
+
+  expect(focus.changes).toEqual([{ type: 'workspaceFocused', workspaceId: workspaceId(1) }]);
+  expect(reattached.clients[0]?.view.focusedWorkspaceId).toBe(workspaceId(1));
+  expect(savedSessionOf(reattached).focusedWorkspaceId).toBe(workspaceId(1));
+});
+
+it('starts a new client from the default view', () => {
+  const state = run([
+    createPhi,
+    createDocs,
+    { type: 'focusWorkspace', workspaceId: workspaceId(1) },
+  ]);
+
+  const result = intent(state, attachLarge);
+
+  expect(result.state.clients[0]?.view).toEqual(state.defaultView);
+  expect(result.state.clients[0]?.view.focusedWorkspaceId).toBe(workspaceId(1));
+});
+
+it('moves the view of a terminal client and the default view, not that of another client', () => {
+  const state = twoClients(createPhi, createDocs);
+
+  const result = intent(state, {
+    type: 'focusWorkspace',
+    workspaceId: workspaceId(1),
+    clientId: clientId(1),
+  });
+
+  expect(focusedIn(result.state, 1)).toBe(workspaceId(1));
+  expect(result.state.defaultView.focusedWorkspaceId).toBe(workspaceId(1));
+  expect(focusedIn(result.state, 2)).toBe(workspaceId(2));
+
+  expect(result.changes).toEqual([
+    { type: 'workspaceFocused', workspaceId: workspaceId(1) },
+    { type: 'clientViewChanged', clientId: clientId(1), view: result.state.defaultView },
+  ]);
+});
+
+it('moves every view and the default view for a CLI focus', () => {
+  const state = twoClients(createPhi, createDocs);
+  const result = intent(state, { type: 'focusWorkspace', workspaceId: workspaceId(1) });
+
+  expect(focusedIn(result.state, 1)).toBe(workspaceId(1));
+  expect(focusedIn(result.state, 2)).toBe(workspaceId(1));
+  expect(result.state.defaultView.focusedWorkspaceId).toBe(workspaceId(1));
+
+  expect(result.changes.map((change) => change.type)).toEqual([
+    'workspaceFocused',
+    'clientViewChanged',
+    'clientViewChanged',
+  ]);
+});
+
+it('moves the active tab of a terminal client alone, and that of every view for the CLI', () => {
+  const state = twoClients(createPhi, createTab);
+
+  const terminal = intent(state, { type: 'focusTab', tabId: tabId(1), clientId: clientId(1) });
+
+  expect(activeIn(terminal.state, 1, 1)).toBe(tabId(1));
+  expect(activeTabOf(terminal.state.defaultView, workspaceId(1))).toBe(tabId(1));
+  expect(activeIn(terminal.state, 2, 1)).toBe(tabId(2));
+
+  const cli = intent(terminal.state, { type: 'focusTab', tabId: tabId(2) });
+
+  expect(activeIn(cli.state, 1, 1)).toBe(tabId(2));
+  expect(activeIn(cli.state, 2, 1)).toBe(tabId(2));
+  expect(activeTabOf(cli.state.defaultView, workspaceId(1))).toBe(tabId(2));
+});
+
+it('moves views by pane focus the way workspace focus does, and shares the pane focus', () => {
+  const state = twoClients(createPhi, createDocs);
+
+  const terminal = intent(state, {
+    type: 'focusPane',
+    paneId: paneId(1),
+    clientId: clientId(1),
+  });
+
+  expect(focusedIn(terminal.state, 1)).toBe(workspaceId(1));
+  expect(focusedIn(terminal.state, 2)).toBe(workspaceId(2));
+
+  const cli = intent(terminal.state, { type: 'focusPane', paneId: paneId(2) });
+
+  expect(focusedIn(cli.state, 1)).toBe(workspaceId(2));
+  expect(focusedIn(cli.state, 2)).toBe(workspaceId(2));
+  expect(cli.state.tabs.map((tab) => tab.focusedPaneId)).toEqual([paneId(1), paneId(2)]);
+});
+
+it('moves the view of a terminal client alone when it creates a workspace or a tab', () => {
+  const state = twoClients(createPhi);
+
+  const workspace = intent(state, { ...createDocs, clientId: clientId(1) });
+
+  expect(focusedIn(workspace.state, 1)).toBe(workspaceId(2));
+  expect(workspace.state.defaultView.focusedWorkspaceId).toBe(workspaceId(2));
+  expect(focusedIn(workspace.state, 2)).toBe(workspaceId(1));
+  expect(activeIn(workspace.state, 2, 2)).toBe(tabId(2));
+
+  const tab = intent(workspace.state, { ...createTab, clientId: clientId(2) });
+
+  expect(activeIn(tab.state, 2, 1)).toBe(tabId(3));
+  expect(activeIn(tab.state, 1, 1)).toBe(tabId(1));
+  expect(activeTabOf(tab.state.defaultView, workspaceId(1))).toBe(tabId(3));
+});
+
+it('moves every view when the CLI creates a workspace or a tab', () => {
+  const state = twoClients(createPhi);
+  const workspace = intent(state, createDocs);
+
+  expect(focusedIn(workspace.state, 1)).toBe(workspaceId(2));
+  expect(focusedIn(workspace.state, 2)).toBe(workspaceId(2));
+
+  const tab = intent(workspace.state, { type: 'createTab', workspaceId: workspaceId(2) });
+
+  expect(activeIn(tab.state, 1, 2)).toBe(tabId(3));
+  expect(activeIn(tab.state, 2, 2)).toBe(tabId(3));
+});
+
+it('keeps every view on its focus when a background workspace is created', () => {
+  const state = twoClients(createPhi);
+  const result = intent(state, { ...createDocs, background: true });
+
+  expect(focusedIn(result.state, 1)).toBe(workspaceId(1));
+  expect(focusedIn(result.state, 2)).toBe(workspaceId(1));
+  expect(activeIn(result.state, 2, 2)).toBe(tabId(2));
+});
+
+it('refuses a focus from an unknown client and changes nothing', () => {
+  const state = run([createPhi, createDocs]);
+
+  const result = applyIntent(state, {
+    type: 'focusWorkspace',
+    workspaceId: workspaceId(1),
+    clientId: clientId(7),
+  });
+
+  expect(result).toEqual({ kind: 'rejected', state, reason: 'unknownClient' });
+});
+
+it('leaves the default view as it is when a client detaches or is taken over', () => {
+  const state = run([createPhi, createDocs, attachLarge]);
+
+  const moved = intent(state, {
+    type: 'focusWorkspace',
+    workspaceId: workspaceId(1),
+    clientId: clientId(1),
+  }).state;
+
+  const detached = intent(moved, { type: 'detachClient', clientId: clientId(1) }).state;
+  const takenOver = intent(moved, attachLarge).state;
+
+  expect(detached.defaultView).toEqual(moved.defaultView);
+  expect(detached.clients).toEqual([]);
+  expect(takenOver.defaultView).toEqual(moved.defaultView);
+  expect(takenOver.clients.map((client) => client.id)).toEqual([clientId(2)]);
+  expect(takenOver.clients[0]?.view).toEqual(moved.defaultView);
+});
+
+it('moves every view that showed a closed tab to the same successor, and keeps the others', () => {
+  const base = twoClients(createPhi, createTab, createTab);
+
+  const shown = intent(base, {
+    type: 'focusTab',
+    tabId: tabId(2),
+    clientId: clientId(1),
+  }).state;
+
+  const result = intent(shown, { type: 'closeTab', tabId: tabId(2) });
+
+  expect(activeIn(result.state, 1, 1)).toBe(tabId(3));
+  expect(activeIn(result.state, 2, 1)).toBe(tabId(3));
+  expect(activeTabOf(result.state.defaultView, workspaceId(1))).toBe(tabId(3));
+
+  const moved = result.changes.flatMap((change) =>
+    change.type === 'clientViewChanged' ? [change.clientId] : [],
+  );
+
+  expect(moved).toEqual([clientId(1)]);
+});
+
+it('keeps the tab a view remembers when another tab closes', () => {
+  const base = twoClients(createPhi, createTab);
+
+  const shown = intent(base, {
+    type: 'focusTab',
+    tabId: tabId(1),
+    clientId: clientId(1),
+  }).state;
+
+  const result = intent(shown, { type: 'closeTab', tabId: tabId(2) });
+
+  expect(activeIn(result.state, 1, 1)).toBe(tabId(1));
+  expect(activeIn(result.state, 2, 1)).toBe(tabId(1));
+});
+
+it('moves every view off a closed workspace and drops its tabs from the views', () => {
+  const state = twoClients(createPhi, createDocs);
+
+  const shown = intent(state, {
+    type: 'focusWorkspace',
+    workspaceId: workspaceId(1),
+    clientId: clientId(1),
+  }).state;
+
+  const result = intent(shown, { type: 'closeWorkspace', workspaceId: workspaceId(2) });
+
+  expect(focusedIn(result.state, 1)).toBe(workspaceId(1));
+  expect(focusedIn(result.state, 2)).toBe(workspaceId(1));
+  expect(result.state.defaultView.focusedWorkspaceId).toBe(workspaceId(1));
+
+  expect(viewOf(result.state, 2)?.activeTabs).toEqual([
+    { workspaceId: workspaceId(1), tabId: tabId(1) },
+  ]);
+
+  expect(result.changes.filter((change) => change.type === 'clientViewChanged')).toHaveLength(2);
+});
+
+it('moves every view off a workspace whose only pane exits', () => {
+  const state = twoClients(createPhi, createDocs);
+  const second = state.panes[1];
+
+  const result = fact(state, {
+    type: 'paneExited',
+    paneId: paneId(2),
+    generation: second?.generation ?? 0,
+    exitCode: 0,
+  });
+
+  expect(focusedIn(result.state, 1)).toBe(workspaceId(1));
+  expect(focusedIn(result.state, 2)).toBe(workspaceId(1));
+});
+
+it('makes a client that attaches the foreground client', () => {
+  const first = run([attachLarge]);
+
+  expect(first.foregroundClientId).toBe(clientId(1));
+
+  const second = intent(first, attachLarge);
+
+  expect(second.state.foregroundClientId).toBe(clientId(2));
+  expect(second.changes.map((change) => change.type)).not.toContain('foregroundChanged');
+});
+
+it('makes a client that sends input or a request the foreground client', () => {
+  const state = withClient(run([attachLarge]), 2);
+
+  expect(state.foregroundClientId).toBe(clientId(1));
+
+  const result = intent(state, { type: 'markClientActive', clientId: clientId(2) });
+
+  expect(result.state.foregroundClientId).toBe(clientId(2));
+  expect(result.changes).toEqual([{ type: 'foregroundChanged', clientId: clientId(2) }]);
+
+  const again = intent(result.state, { type: 'markClientActive', clientId: clientId(2) });
+
+  expect(again.changes).toEqual([]);
+});
+
+it('makes a client that resizes the foreground client, even at the same size', () => {
+  const state = withClient(run([attachLarge]), 2);
+
+  const result = intent(state, {
+    type: 'resizeClient',
+    clientId: clientId(2),
+    size: { columns: 80, rows: 24 },
+  });
+
+  expect(result.state.foregroundClientId).toBe(clientId(2));
+  expect(result.changes).toEqual([{ type: 'foregroundChanged', clientId: clientId(2) }]);
+});
+
+it('gives the foreground to the client with the latest activity when the foreground leaves', () => {
+  const crowded = withClient(withClient(run([attachLarge]), 2), 3);
+  const second = intent(crowded, { type: 'markClientActive', clientId: clientId(2) }).state;
+  const third = intent(second, { type: 'markClientActive', clientId: clientId(3) }).state;
+  const first = intent(third, { type: 'markClientActive', clientId: clientId(1) }).state;
+
+  const left = intent(first, { type: 'detachClient', clientId: clientId(1) });
+
+  expect(left.state.foregroundClientId).toBe(clientId(3));
+
+  expect(left.changes).toEqual([
+    { type: 'clientDetached', clientId: clientId(1), reason: 'requested' },
+    { type: 'foregroundChanged', clientId: clientId(3) },
+  ]);
+
+  const other = intent(first, { type: 'detachClient', clientId: clientId(2) });
+
+  expect(other.state.foregroundClientId).toBe(clientId(1));
+  expect(other.changes.map((change) => change.type)).toEqual(['clientDetached']);
+});
+
+it('leaves no foreground client when the last client detaches', () => {
+  const result = intent(run([attachLarge]), { type: 'detachClient', clientId: clientId(1) });
+
+  expect(result.state.foregroundClientId).toBeUndefined();
+  expect(result.changes.map((change) => change.type)).toEqual(['clientDetached']);
+});
+
+it('refuses activity from an unknown client and changes nothing', () => {
+  const state = run([attachLarge]);
+
+  const result = applyIntent(state, { type: 'markClientActive', clientId: clientId(7) });
+
+  expect(result).toEqual({ kind: 'rejected', state, reason: 'unknownClient' });
+});
+
+it('saves the default view through the workspace fields and no client', () => {
+  const state = twoClients(createPhi, createDocs);
+
+  const moved = intent(state, {
+    type: 'focusTab',
+    tabId: tabId(1),
+    clientId: clientId(1),
+  }).state;
+
+  const saved = savedSessionOf(moved);
+
+  expect(saved.focusedWorkspaceId).toBe(workspaceId(1));
+  expect(saved.workspaces.map((workspace) => workspace.activeTabId)).toEqual([tabId(1), tabId(2)]);
+  expect(JSON.stringify(saved)).not.toContain('client');
+});
+
+const viewShowing = (workspace: number, tabs: readonly [number, number][]): View => ({
+  focusedWorkspaceId: workspaceId(workspace),
+  activeTabs: tabs.map(([owner, tab]) => ({ workspaceId: workspaceId(owner), tabId: tabId(tab) })),
+});
+
+// Replaces the default view and the views of clients 1 and 2.
+const withViews = (state: State, views: readonly [View, View, View]): State => {
+  const [defaultView, first, second] = views;
+
+  return {
+    ...state,
+    defaultView,
+    clients: state.clients.map((client, index) => ({
+      ...client,
+      view: index === 0 ? first : second,
+    })),
+  };
+};
+
+const workspaceTabs = twoClients(createPhi, createTab, createDocs);
+
+it('focuses the default tab of the workspace in every view for a CLI focus', () => {
+  const state = withViews(workspaceTabs, [
+    viewShowing(2, [
+      [1, 1],
+      [2, 3],
+    ]),
+    viewShowing(1, [
+      [1, 2],
+      [2, 3],
+    ]),
+    viewShowing(2, [
+      [1, 2],
+      [2, 3],
+    ]),
+  ]);
+
+  const result = intent(state, { type: 'focusWorkspace', workspaceId: workspaceId(1) });
+
+  const expected = viewShowing(1, [
+    [1, 1],
+    [2, 3],
+  ]);
+
+  expect(result.state.defaultView).toEqual(expected);
+  expect(viewOf(result.state, 1)).toEqual(expected);
+  expect(viewOf(result.state, 2)).toEqual(expected);
+});
+
+it('focuses the tab the client remembers for a terminal focus and leaves other clients', () => {
+  const state = withViews(workspaceTabs, [
+    viewShowing(2, [
+      [1, 1],
+      [2, 3],
+    ]),
+    viewShowing(2, [
+      [1, 2],
+      [2, 3],
+    ]),
+    viewShowing(2, [
+      [1, 1],
+      [2, 3],
+    ]),
+  ]);
+
+  const result = intent(state, {
+    type: 'focusWorkspace',
+    workspaceId: workspaceId(1),
+    clientId: clientId(1),
+  });
+
+  const expected = viewShowing(1, [
+    [1, 2],
+    [2, 3],
+  ]);
+
+  expect(result.state.defaultView).toEqual(expected);
+  expect(viewOf(result.state, 1)).toEqual(expected);
+
+  expect(viewOf(result.state, 2)).toEqual(
+    viewShowing(2, [
+      [1, 1],
+      [2, 3],
+    ]),
+  );
+});
+
+const failedStart = (state: State, number: number): Applied =>
+  fact(state, { type: 'paneFailedToStart', paneId: paneId(number), generation: number });
+
+it('returns each view a failed workspace start moved to its own earlier workspace', () => {
+  const base = withViews(twoClients(createPhi, createDocs), [
+    viewShowing(2, [
+      [1, 1],
+      [2, 2],
+    ]),
+    viewShowing(1, [
+      [1, 1],
+      [2, 2],
+    ]),
+    viewShowing(2, [
+      [1, 1],
+      [2, 2],
+    ]),
+  ]);
+
+  const terminal = intent(base, { ...createApi, clientId: clientId(1) }).state;
+  const terminalFailed = failedStart(terminal, 3).state;
+
+  expect(focusedIn(terminalFailed, 1)).toBe(workspaceId(1));
+  expect(focusedIn(terminalFailed, 2)).toBe(workspaceId(2));
+  expect(terminalFailed.defaultView.focusedWorkspaceId).toBe(workspaceId(2));
+
+  const cli = intent(base, createApi).state;
+
+  const moved = intent(cli, {
+    type: 'focusWorkspace',
+    workspaceId: workspaceId(1),
+    clientId: clientId(2),
+  }).state;
+
+  const cliFailed = failedStart(moved, 3).state;
+
+  expect(focusedIn(cliFailed, 1)).toBe(workspaceId(1));
+  expect(focusedIn(cliFailed, 2)).toBe(workspaceId(1));
+  expect(cliFailed.defaultView.focusedWorkspaceId).toBe(workspaceId(1));
+
+  const untouched = failedStart(cli, 3).state;
+
+  expect(focusedIn(untouched, 1)).toBe(workspaceId(1));
+  expect(focusedIn(untouched, 2)).toBe(workspaceId(2));
+  expect(untouched.defaultView.focusedWorkspaceId).toBe(workspaceId(2));
+});
+
+it('returns each view a failed tab start moved to its own earlier tab', () => {
+  const base = withViews(twoClients(createPhi, createTab), [
+    viewShowing(1, [[1, 2]]),
+    viewShowing(1, [[1, 1]]),
+    viewShowing(1, [[1, 2]]),
+  ]);
+
+  const created = intent(base, { type: 'createTab', workspaceId: workspaceId(1) }).state;
+  const failed = failedStart(created, 3).state;
+
+  expect(activeIn(failed, 1, 1)).toBe(tabId(1));
+  expect(activeIn(failed, 2, 1)).toBe(tabId(2));
+  expect(activeTabOf(failed.defaultView, workspaceId(1))).toBe(tabId(2));
+
+  const moved = intent(created, {
+    type: 'focusTab',
+    tabId: tabId(1),
+    clientId: clientId(2),
+  }).state;
+
+  const keeps = failedStart(moved, 3).state;
+
+  expect(activeIn(keeps, 1, 1)).toBe(tabId(1));
+  expect(activeIn(keeps, 2, 1)).toBe(tabId(1));
+  expect(activeTabOf(keeps.defaultView, workspaceId(1))).toBe(tabId(1));
 });

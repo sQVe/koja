@@ -50,7 +50,11 @@ const workspace = {
   root: '/work/phi',
   label: 'phi',
   tabIds: [tab.id],
-  activeTabId: tab.id,
+};
+
+const view = {
+  focusedWorkspaceId: workspace.id,
+  activeTabs: [{ workspaceId: workspace.id, tabId: tab.id }],
 };
 
 const emptySnapshot: Snapshot = {
@@ -58,8 +62,9 @@ const emptySnapshot: Snapshot = {
   workspaces: [],
   tabs: [],
   panes: [],
-  focusedWorkspaceId: undefined,
+  defaultView: { focusedWorkspaceId: undefined, activeTabs: [] },
   attachedClientId: undefined,
+  foregroundClientId: undefined,
   clients: [],
 };
 
@@ -69,7 +74,7 @@ const theme = {
   palette: Array.from({ length: 16 }, (_, index) => index * 0x01_01_01),
 };
 
-const client = { id: clientId(2), size: { columns: 80, rows: 24 }, theme: undefined };
+const client = { id: clientId(2), size: { columns: 80, rows: 24 }, theme: undefined, view };
 
 const themedClient = { ...client, theme };
 
@@ -104,8 +109,9 @@ const messages: ControlMessage[] = [
       workspaces: [workspace],
       tabs: [tab],
       panes: [pane],
-      focusedWorkspaceId: workspace.id,
+      defaultView: view,
       attachedClientId: client.id,
+      foregroundClientId: client.id,
       clients: [client],
     },
   },
@@ -116,6 +122,7 @@ const messages: ControlMessage[] = [
     change: {
       type: 'workspaceAdded',
       workspace,
+      activeTabId: tab.id,
       focusedWorkspaceId: workspace.id,
     },
   },
@@ -180,6 +187,9 @@ const messages: ControlMessage[] = [
     change: { type: 'clientDetached', clientId: client.id, reason: 'takenOver' },
   },
   { type: 'change', revision: 7, change: { type: 'serverStopping' } },
+  { type: 'change', revision: 7, change: { type: 'clientViewChanged', clientId: client.id, view } },
+  { type: 'change', revision: 7, change: { type: 'foregroundChanged', clientId: client.id } },
+  { type: 'change', revision: 7, change: { type: 'foregroundChanged', clientId: undefined } },
   { type: 'change', revision: 8, change: { type: 'clientAttached', client: themedClient } },
   {
     type: 'change',
@@ -370,9 +380,10 @@ it('parses a snapshot into ids the store accepts', () => {
     workspaces: [workspace],
     tabs: [tab],
     panes: [{ ...pane, id: paneId(4) }],
-    focusedWorkspaceId: workspace.id,
+    defaultView: view,
     attachedClientId: clientId(5),
-    clients: [{ id: clientId(5), size: { columns: 80, rows: 24 }, theme: undefined }],
+    foregroundClientId: undefined,
+    clients: [{ id: clientId(5), size: { columns: 80, rows: 24 }, theme: undefined, view }],
   };
 
   const message = parseMessage(encodeControl({ type: 'snapshot', snapshot: sent }));

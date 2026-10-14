@@ -15,13 +15,29 @@ import type { Layout, ResizeDirection, SplitDirection, TerminalSize } from '../l
 
 type PaneLifecycle = 'starting' | 'running' | 'exited' | 'closing';
 
-export interface Workspace {
+export interface WorkspaceRecord {
   id: WorkspaceId;
   // The directory its panes start in.
   root: string;
   label: string;
   tabIds: readonly TabId[];
+}
+
+// A workspace as the session file saves it, with the tab the default view shows.
+export interface Workspace extends WorkspaceRecord {
   activeTabId: TabId;
+}
+
+interface ActiveTab {
+  workspaceId: WorkspaceId;
+  tabId: TabId;
+}
+
+// What a client shows: the focused workspace and the active tab of every workspace. The focused
+// pane and zoom belong to the tab, so every view of a tab shows the same pane focus.
+export interface View {
+  focusedWorkspaceId: WorkspaceId | undefined;
+  activeTabs: readonly ActiveTab[];
 }
 
 export interface Tab {
@@ -54,6 +70,7 @@ export interface Client {
   size: TerminalSize;
   // Absent until the client reports the colors of its terminal.
   theme: Theme | undefined;
+  view: View;
 }
 
 interface StateBeforeSplit {
@@ -62,12 +79,18 @@ interface StateBeforeSplit {
 }
 
 export interface State {
-  workspaces: readonly Workspace[];
+  workspaces: readonly WorkspaceRecord[];
   tabs: readonly Tab[];
   panes: readonly Pane[];
-  focusedWorkspaceId: WorkspaceId | undefined;
+  // What a new client starts from, what the CLI reads, and what the session file saves.
+  defaultView: View;
   attachedClientId: ClientId | undefined;
+  // The client whose latest activity is the newest, if any client is attached.
+  foregroundClientId: ClientId | undefined;
   clients: readonly Client[];
+  // When each client was last active, as a position in a counter. The store reads no clock.
+  clientActivity: ReadonlyMap<ClientId, number>;
+  nextActivity: number;
   stopping: boolean;
   nextWorkspaceNumber: number;
   nextTabNumber: number;
@@ -83,10 +106,15 @@ export interface State {
   revision: number;
 }
 
+// The view of each view owner before a create moved it. The default view has no client id.
+interface ViewBefore {
+  clientId: ClientId | undefined;
+  view: View;
+}
+
 interface StartFallback {
   paneId: PaneId;
-  tabId: TabId | undefined;
-  workspaceId: WorkspaceId | undefined;
+  views: readonly ViewBefore[];
 }
 
 // What survives a restart: structure, layout, focus, and counters. Lifecycle, sizes, and
@@ -101,21 +129,31 @@ export interface SavedSession {
   nextPaneNumber: number;
 }
 
+// A focus or create intent from a terminal client carries its id and moves that client's view and
+// the default view. Without an id it comes from the CLI and moves every view.
 export type Intent =
-  | { type: 'createWorkspace'; root: string; label: string | undefined; background: boolean }
-  | { type: 'focusWorkspace'; workspaceId: WorkspaceId }
+  | {
+      type: 'createWorkspace';
+      root: string;
+      label: string | undefined;
+      background: boolean;
+      clientId?: ClientId;
+    }
+  | { type: 'focusWorkspace'; workspaceId: WorkspaceId; clientId?: ClientId }
   | { type: 'renameWorkspace'; workspaceId: WorkspaceId; label: string }
   | { type: 'closeWorkspace'; workspaceId: WorkspaceId }
-  | { type: 'createTab'; workspaceId: WorkspaceId }
-  | { type: 'focusTab'; tabId: TabId }
+  | { type: 'createTab'; workspaceId: WorkspaceId; clientId?: ClientId }
+  | { type: 'focusTab'; tabId: TabId; clientId?: ClientId }
   | { type: 'closeTab'; tabId: TabId }
   | { type: 'splitPane'; paneId: PaneId; direction: SplitDirection }
-  | { type: 'focusPane'; paneId: PaneId }
+  | { type: 'focusPane'; paneId: PaneId; clientId?: ClientId }
   | { type: 'closePane'; paneId: PaneId }
   | { type: 'zoomPane'; paneId: PaneId }
   | { type: 'resizePane'; paneId: PaneId; direction: ResizeDirection; cells: number }
   | { type: 'attachClient'; size: TerminalSize }
   | { type: 'resizeClient'; clientId: ClientId; size: TerminalSize }
+  // The client sent input or a request of its own.
+  | { type: 'markClientActive'; clientId: ClientId }
   | { type: 'setClientTheme'; clientId: ClientId; theme: Theme }
   | { type: 'detachClient'; clientId: ClientId }
   | { type: 'restoreSession'; session: SavedSession }
@@ -129,10 +167,16 @@ export type Fact =
 export type DetachReason = 'requested' | 'takenOver';
 
 export type Change =
-  // Carries the focus that results, because a background create keeps the current focus.
-  | { type: 'workspaceAdded'; workspace: Workspace; focusedWorkspaceId: WorkspaceId }
+  // Carries the default focus that results, because a background create keeps the current focus.
+  | {
+      type: 'workspaceAdded';
+      workspace: WorkspaceRecord;
+      activeTabId: TabId;
+      focusedWorkspaceId: WorkspaceId;
+    }
   | { type: 'tabAdded'; tab: Tab }
   | { type: 'paneAdded'; pane: Pane }
+  // The focus changes of the default view. A client's own view arrives as clientViewChanged.
   | { type: 'workspaceFocused'; workspaceId: WorkspaceId }
   | { type: 'workspaceRenamed'; workspaceId: WorkspaceId; label: string }
   | { type: 'tabFocused'; workspaceId: WorkspaceId; tabId: TabId }
@@ -154,7 +198,11 @@ export type Change =
       exitCode: number | undefined;
     }
   | { type: 'paneResized'; paneId: PaneId; size: TerminalSize }
+  // The attached client becomes the foreground client, and a detached foreground client leaves it.
+  // Only a foreground client that these two do not imply is reported by foregroundChanged.
   | { type: 'clientAttached'; client: Client }
+  | { type: 'clientViewChanged'; clientId: ClientId; view: View }
+  | { type: 'foregroundChanged'; clientId: ClientId | undefined }
   | { type: 'clientResized'; clientId: ClientId; size: TerminalSize }
   | { type: 'clientThemeChanged'; clientId: ClientId; theme: Theme }
   | { type: 'clientDetached'; clientId: ClientId; reason: DetachReason }
@@ -203,21 +251,32 @@ export interface Ignored {
 
 export interface Snapshot {
   revision: number;
-  workspaces: readonly Workspace[];
+  workspaces: readonly WorkspaceRecord[];
   tabs: readonly Tab[];
   panes: readonly Pane[];
-  focusedWorkspaceId: WorkspaceId | undefined;
+  defaultView: View;
   attachedClientId: ClientId | undefined;
+  foregroundClientId: ClientId | undefined;
   clients: readonly Client[];
 }
+
+type ClientIntent = Extract<
+  Intent,
+  {
+    type: 'attachClient' | 'resizeClient' | 'markClientActive' | 'setClientTheme' | 'detachClient';
+  }
+>;
 
 export const createState = (): State => ({
   workspaces: [],
   tabs: [],
   panes: [],
-  focusedWorkspaceId: undefined,
+  defaultView: { focusedWorkspaceId: undefined, activeTabs: [] },
   attachedClientId: undefined,
+  foregroundClientId: undefined,
   clients: [],
+  clientActivity: new Map(),
+  nextActivity: 1,
   stopping: false,
   nextWorkspaceNumber: 1,
   nextTabNumber: 1,
@@ -235,8 +294,9 @@ export const snapshot = (state: State): Snapshot => ({
   workspaces: state.workspaces,
   tabs: state.tabs,
   panes: state.panes,
-  focusedWorkspaceId: state.focusedWorkspaceId,
+  defaultView: state.defaultView,
   attachedClientId: state.attachedClientId,
+  foregroundClientId: state.foregroundClientId,
   clients: state.clients,
 });
 
@@ -261,14 +321,149 @@ const isLive = (pane: Pane): boolean =>
 const attachedClientOf = (state: State): Client | undefined =>
   state.clients.find((client) => client.id === state.attachedClientId);
 
+export const activeTabOf = (view: View, id: WorkspaceId | undefined): TabId | undefined =>
+  view.activeTabs.find((active) => active.workspaceId === id)?.tabId;
+
+// The pane with the focus in the tab the default view shows.
 export const focusedPane = (
-  state: Pick<Snapshot, 'workspaces' | 'tabs' | 'panes' | 'focusedWorkspaceId'>,
+  state: Pick<Snapshot, 'tabs' | 'panes' | 'defaultView'>,
 ): Pane | undefined => {
-  const workspace = state.workspaces.find((known) => known.id === state.focusedWorkspaceId);
-  const tab = state.tabs.find((known) => known.id === workspace?.activeTabId);
+  const { defaultView } = state;
+  const activeId = activeTabOf(defaultView, defaultView.focusedWorkspaceId);
+  const tab = state.tabs.find((known) => known.id === activeId);
 
   return state.panes.find((known) => known.id === tab?.focusedPaneId);
 };
+
+const sameView = (left: View, right: View): boolean =>
+  left.focusedWorkspaceId === right.focusedWorkspaceId &&
+  left.activeTabs.length === right.activeTabs.length &&
+  left.activeTabs.every((active) => activeTabOf(right, active.workspaceId) === active.tabId);
+
+const withActiveTab = (view: View, id: WorkspaceId, activeId: TabId): View => {
+  const known = view.activeTabs.some((active) => active.workspaceId === id);
+
+  const activeTabs = known
+    ? view.activeTabs.map((active) =>
+        active.workspaceId === id ? { workspaceId: id, tabId: activeId } : active,
+      )
+    : [...view.activeTabs, { workspaceId: id, tabId: activeId }];
+
+  return { ...view, activeTabs };
+};
+
+const withoutWorkspace = (view: View, id: WorkspaceId): View => ({
+  ...view,
+  activeTabs: view.activeTabs.filter((active) => active.workspaceId !== id),
+});
+
+const hasClient = (state: State, id: ClientId | undefined): boolean =>
+  state.clients.some((client) => client.id === id);
+
+// Applies the update to the views in scope: the default view always, and one client's view for a
+// terminal client or every client's view for the CLI.
+const updateViews = (
+  state: State,
+  source: ClientId | undefined,
+  update: (view: View) => View,
+): State => {
+  const clients = state.clients.map((client) =>
+    source === undefined || client.id === source
+      ? { ...client, view: update(client.view) }
+      : client,
+  );
+
+  return { ...state, defaultView: update(state.defaultView), clients };
+};
+
+// Applies the update to every view. It learns whose view it gets: a client id, or none for the
+// default view.
+const repairViews = (state: State, update: (view: View, owner?: ClientId) => View): State => ({
+  ...state,
+  defaultView: update(state.defaultView),
+  clients: state.clients.map((client) => ({ ...client, view: update(client.view, client.id) })),
+});
+
+// The views a create in this scope moves, as they were before it.
+const viewsBefore = (state: State, source: ClientId | undefined): ViewBefore[] => {
+  const moved = state.clients.filter((client) => source === undefined || client.id === source);
+
+  return [
+    { clientId: undefined, view: state.defaultView },
+    ...moved.map((client) => ({ clientId: client.id, view: client.view })),
+  ];
+};
+
+const viewBeforeOf = (restore: StartFallback | undefined, owner?: ClientId): View | undefined =>
+  restore?.views.find((known) => known.clientId === owner)?.view;
+
+const defaultViewChanges = (before: View, after: View): Change[] => {
+  const changes: Change[] = [];
+
+  for (const { workspaceId: id, tabId: activeId } of after.activeTabs) {
+    const previous = activeTabOf(before, id);
+
+    if (previous !== undefined && previous !== activeId) {
+      changes.push({ type: 'tabFocused', workspaceId: id, tabId: activeId });
+    }
+  }
+
+  const { focusedWorkspaceId } = after;
+
+  if (focusedWorkspaceId !== undefined && focusedWorkspaceId !== before.focusedWorkspaceId) {
+    changes.push({ type: 'workspaceFocused', workspaceId: focusedWorkspaceId });
+  }
+
+  return changes;
+};
+
+const clientViewChanges = (before: readonly Client[], after: readonly Client[]): Change[] => {
+  const changes: Change[] = [];
+
+  for (const client of after) {
+    const previous = before.find((known) => known.id === client.id);
+
+    if (previous !== undefined && !sameView(previous.view, client.view)) {
+      changes.push({ type: 'clientViewChanged', clientId: client.id, view: client.view });
+    }
+  }
+
+  return changes;
+};
+
+const viewChanges = (before: State, after: State): Change[] => [
+  ...defaultViewChanges(before.defaultView, after.defaultView),
+  ...clientViewChanges(before.clients, after.clients),
+];
+
+const markActive = (state: State, id: ClientId): State => ({
+  ...state,
+  foregroundClientId: id,
+  clientActivity: new Map(state.clientActivity).set(id, state.nextActivity),
+  nextActivity: state.nextActivity + 1,
+});
+
+const latestActiveClient = (state: State): ClientId | undefined => {
+  let latest: ClientId | undefined;
+  let latestActivity = 0;
+
+  for (const client of state.clients) {
+    const activity = state.clientActivity.get(client.id) ?? 0;
+
+    if (activity > latestActivity) {
+      latest = client.id;
+      latestActivity = activity;
+    }
+  }
+
+  return latest;
+};
+
+// Reports the foreground client unless the attach or detach change already implies it.
+const foregroundChanges = (implied: ClientId | undefined, state: State): Change[] =>
+  state.foregroundClientId === implied
+    ? []
+    : [{ type: 'foregroundChanged', clientId: state.foregroundClientId }];
 
 // The colors the pane's terminal answers with: those of the attached client, once it reported them.
 export const paneTheme = (state: State): Theme | undefined => attachedClientOf(state)?.theme;
@@ -338,6 +533,7 @@ const createWorkspace = (
   root: string,
   label: string | undefined,
   background: boolean,
+  source: ClientId | undefined,
 ): Applied | Rejected => {
   if (state.stopping) {
     return reject(state, 'serverStopping');
@@ -362,28 +558,31 @@ const createWorkspace = (
     zoomedPaneId: undefined,
   };
 
-  const workspace: Workspace = {
+  const workspace: WorkspaceRecord = {
     id: tab.workspaceId,
     root,
     label: label ?? defaultLabel(root),
     tabIds: [tab.id],
-    activeTabId: tab.id,
   };
 
-  const keepsFocus = background && state.focusedWorkspaceId !== undefined;
+  // A view with no focus takes the first workspace, background or not.
+  const added = repairViews(state, (view) => ({
+    ...withActiveTab(view, workspace.id, tab.id),
+    focusedWorkspaceId: view.focusedWorkspaceId ?? workspace.id,
+  }));
 
-  const focusedWorkspaceId =
-    keepsFocus && state.focusedWorkspaceId !== undefined ? state.focusedWorkspaceId : workspace.id;
+  const focused = background
+    ? added
+    : updateViews(added, source, (view) => ({ ...view, focusedWorkspaceId: workspace.id }));
 
   const next: State = {
-    ...state,
+    ...focused,
     workspaces: [...state.workspaces, workspace],
     tabs: [...state.tabs, tab],
     panes: [...state.panes, pane],
-    focusedWorkspaceId,
     startFallbacks: [
       ...state.startFallbacks,
-      { paneId: pane.id, tabId: undefined, workspaceId: state.focusedWorkspaceId },
+      { paneId: pane.id, views: viewsBefore(state, source) },
     ],
     nextWorkspaceNumber: state.nextWorkspaceNumber + 1,
     nextTabNumber: state.nextTabNumber + 1,
@@ -391,14 +590,26 @@ const createWorkspace = (
     nextGeneration: state.nextGeneration + 1,
   };
 
+  const { focusedWorkspaceId } = next.defaultView;
+
+  invariant(
+    focusedWorkspaceId !== undefined,
+    'A created workspace leaves the default view a focus.',
+  );
+
   return commit(next, [
-    { type: 'workspaceAdded', workspace, focusedWorkspaceId },
+    { type: 'workspaceAdded', workspace, activeTabId: tab.id, focusedWorkspaceId },
     { type: 'tabAdded', tab },
     { type: 'paneAdded', pane },
+    ...clientViewChanges(state.clients, next.clients),
   ]);
 };
 
-const focusWorkspace = (state: State, id: WorkspaceId): Applied | Rejected => {
+const focusWorkspace = (
+  state: State,
+  id: WorkspaceId,
+  source: ClientId | undefined,
+): Applied | Rejected => {
   if (state.stopping) {
     return reject(state, 'serverStopping');
   }
@@ -407,13 +618,19 @@ const focusWorkspace = (state: State, id: WorkspaceId): Applied | Rejected => {
     return reject(state, 'unknownWorkspace');
   }
 
-  if (state.focusedWorkspaceId === id) {
-    return commit(state, []);
-  }
+  // The workspace goes with its remembered tab: the source client's, or the default view's for
+  // the CLI. Every view in scope gets that pair, even one that already shows the workspace.
+  const sourceView = state.clients.find((client) => client.id === source)?.view;
+  const destination = activeTabOf(sourceView ?? state.defaultView, id);
 
-  return commit({ ...state, focusedWorkspaceId: id }, [
-    { type: 'workspaceFocused', workspaceId: id },
-  ]);
+  invariant(destination !== undefined, `Workspace ${id} has no active tab.`);
+
+  const focused = updateViews(state, source, (view) => ({
+    ...withActiveTab(view, id, destination),
+    focusedWorkspaceId: id,
+  }));
+
+  return commit(focused, viewChanges(state, focused));
 };
 
 const renameWorkspace = (state: State, id: WorkspaceId, label: string): Applied | Rejected => {
@@ -439,19 +656,7 @@ const renameWorkspace = (state: State, id: WorkspaceId, label: string): Applied 
 };
 
 // The next workspace in list order takes the focus, or the previous one when it was last.
-const focusAfterRemoval = (
-  state: State,
-  removedId: WorkspaceId,
-  restore: WorkspaceId | undefined,
-): WorkspaceId | undefined => {
-  if (state.focusedWorkspaceId !== removedId) {
-    return state.focusedWorkspaceId;
-  }
-
-  if (state.workspaces.some((workspace) => workspace.id === restore)) {
-    return restore;
-  }
-
+const workspaceAfterRemoval = (state: State, removedId: WorkspaceId): WorkspaceId | undefined => {
   const index = state.workspaces.findIndex((workspace) => workspace.id === removedId);
   const neighbor = state.workspaces[index + 1] ?? state.workspaces[index - 1];
 
@@ -459,19 +664,7 @@ const focusAfterRemoval = (
 };
 
 // The next tab in list order becomes active, or the previous one when it was last.
-const activeAfterRemoval = (
-  owner: Workspace,
-  removedId: TabId,
-  restore: TabId | undefined,
-): TabId | undefined => {
-  if (owner.activeTabId !== removedId) {
-    return owner.activeTabId;
-  }
-
-  if (restore !== undefined && owner.tabIds.includes(restore)) {
-    return restore;
-  }
-
+const tabAfterRemoval = (owner: WorkspaceRecord, removedId: TabId): TabId | undefined => {
   const index = owner.tabIds.indexOf(removedId);
 
   return owner.tabIds[index + 1] ?? owner.tabIds[index - 1];
@@ -487,40 +680,68 @@ const removeTab = (state: State, tab: Tab, restore?: StartFallback): Applied => 
   const tabs = state.tabs.filter((known) => known.id !== tab.id);
   const owner = state.workspaces.find((workspace) => workspace.id === tab.workspaceId);
   const tabIds = owner?.tabIds.filter((id) => id !== tab.id) ?? [];
-  let next: State = { ...state, panes: remaining, tabs };
+  const next: State = { ...state, panes: remaining, tabs };
 
   if (owner === undefined) {
     return commit(next, changes);
   }
 
   if (tabIds.length > 0) {
-    const activeTabId = activeAfterRemoval(owner, tab.id, restore?.tabId);
+    const ordinary = tabAfterRemoval(owner, tab.id);
 
-    invariant(activeTabId !== undefined, `Workspace ${owner.id} has no tab to activate.`);
-
-    if (activeTabId !== owner.activeTabId) {
-      changes.push({ type: 'tabFocused', workspaceId: owner.id, tabId: activeTabId });
-    }
+    invariant(ordinary !== undefined, `Workspace ${owner.id} has no tab to activate.`);
 
     const workspaces = state.workspaces.map((workspace) =>
-      workspace.id === owner.id ? { ...workspace, tabIds, activeTabId } : workspace,
+      workspace.id === owner.id ? { ...workspace, tabIds } : workspace,
     );
 
-    next = { ...next, workspaces };
+    // A view that showed the closed tab returns to its own earlier tab if that still exists, and
+    // otherwise moves to the ordinary successor. A view that moved on keeps its tab.
+    const repaired = repairViews({ ...next, workspaces }, (view, viewOwner) => {
+      const earlier = activeTabOf(viewBeforeOf(restore, viewOwner) ?? view, owner.id);
+      const restored = earlier !== undefined && tabIds.includes(earlier) ? earlier : undefined;
 
-    return commit(next, changes);
+      return activeTabOf(view, owner.id) === tab.id
+        ? withActiveTab(view, owner.id, restored ?? ordinary)
+        : view;
+    });
+
+    changes.push(...viewChanges(state, repaired));
+
+    return commit(repaired, changes);
   }
 
-  const focusedWorkspaceId = focusAfterRemoval(state, owner.id, restore?.workspaceId);
+  const ordinary = workspaceAfterRemoval(state, owner.id);
 
-  changes.push({ type: 'workspaceRemoved', workspaceId: owner.id, focusedWorkspaceId });
+  const repaired = repairViews(next, (view, viewOwner) => {
+    const withoutOwner = withoutWorkspace(view, owner.id);
+    const earlier = viewBeforeOf(restore, viewOwner)?.focusedWorkspaceId;
+    const isKnown = state.workspaces.some((workspace) => workspace.id === earlier);
+    const restored = isKnown && earlier !== owner.id ? earlier : undefined;
+
+    return view.focusedWorkspaceId === owner.id
+      ? { ...withoutOwner, focusedWorkspaceId: restored ?? ordinary }
+      : withoutOwner;
+  });
 
   const workspaces = state.workspaces.filter((workspace) => workspace.id !== owner.id);
 
-  return commit({ ...next, workspaces, focusedWorkspaceId }, changes);
+  changes.push({
+    type: 'workspaceRemoved',
+    workspaceId: owner.id,
+    focusedWorkspaceId: repaired.defaultView.focusedWorkspaceId,
+  });
+
+  changes.push(...clientViewChanges(state.clients, repaired.clients));
+
+  return commit({ ...repaired, workspaces }, changes);
 };
 
-const createTab = (state: State, id: WorkspaceId): Applied | Rejected => {
+const createTab = (
+  state: State,
+  id: WorkspaceId,
+  source: ClientId | undefined,
+): Applied | Rejected => {
   if (state.stopping) {
     return reject(state, 'serverStopping');
   }
@@ -551,19 +772,19 @@ const createTab = (state: State, id: WorkspaceId): Applied | Rejected => {
   };
 
   const workspaces = state.workspaces.map((workspace) =>
-    workspace.id === id
-      ? { ...workspace, tabIds: [...workspace.tabIds, tab.id], activeTabId: tab.id }
-      : workspace,
+    workspace.id === id ? { ...workspace, tabIds: [...workspace.tabIds, tab.id] } : workspace,
   );
 
+  const shown = updateViews(state, source, (view) => withActiveTab(view, id, tab.id));
+
   const next: State = {
-    ...state,
+    ...shown,
     workspaces,
     tabs: [...state.tabs, tab],
     panes: [...state.panes, pane],
     startFallbacks: [
       ...state.startFallbacks,
-      { paneId: pane.id, tabId: owner.activeTabId, workspaceId: undefined },
+      { paneId: pane.id, views: viewsBefore(state, source) },
     ],
     nextTabNumber: state.nextTabNumber + 1,
     nextPaneNumber: state.nextPaneNumber + 1,
@@ -573,11 +794,22 @@ const createTab = (state: State, id: WorkspaceId): Applied | Rejected => {
   return commit(next, [
     { type: 'tabAdded', tab },
     { type: 'paneAdded', pane },
-    { type: 'tabFocused', workspaceId: id, tabId: tab.id },
+    ...viewChanges(state, next),
   ]);
 };
 
-const focusTab = (state: State, id: TabId): Applied | Rejected => {
+const showTab = (
+  state: State,
+  source: ClientId | undefined,
+  owner: WorkspaceId,
+  id: TabId,
+): State =>
+  updateViews(state, source, (view) => ({
+    ...withActiveTab(view, owner, id),
+    focusedWorkspaceId: owner,
+  }));
+
+const focusTab = (state: State, id: TabId, source: ClientId | undefined): Applied | Rejected => {
   if (state.stopping) {
     return reject(state, 'serverStopping');
   }
@@ -592,21 +824,9 @@ const focusTab = (state: State, id: TabId): Applied | Rejected => {
 
   invariant(owner !== undefined, `Tab ${id} has no workspace.`);
 
-  const changes: Change[] = [];
+  const focused = showTab(state, source, owner.id, id);
 
-  if (owner.activeTabId !== id) {
-    changes.push({ type: 'tabFocused', workspaceId: owner.id, tabId: id });
-  }
-
-  if (state.focusedWorkspaceId !== owner.id) {
-    changes.push({ type: 'workspaceFocused', workspaceId: owner.id });
-  }
-
-  const workspaces = state.workspaces.map((workspace) =>
-    workspace.id === owner.id ? { ...workspace, activeTabId: id } : workspace,
-  );
-
-  return commit({ ...state, workspaces, focusedWorkspaceId: owner.id }, changes);
+  return commit(focused, viewChanges(state, focused));
 };
 
 const closeTab = (state: State, id: TabId): Applied | Rejected => {
@@ -622,6 +842,10 @@ const closeTab = (state: State, id: TabId): Applied | Rejected => {
 
   return removeTab(state, tab);
 };
+
+// The views of a closing workspace move once, not after each of its tabs.
+const isNotViewChange = (change: Change): boolean =>
+  change.type !== 'tabFocused' && change.type !== 'clientViewChanged';
 
 const closeWorkspace = (state: State, id: WorkspaceId): Applied | Rejected => {
   if (state.stopping) {
@@ -641,8 +865,10 @@ const closeWorkspace = (state: State, id: WorkspaceId): Applied | Rejected => {
     const removed = removeTab(current, tab);
 
     current = removed.state;
-    changes.push(...removed.changes.filter((change) => change.type !== 'tabFocused'));
+    changes.push(...removed.changes.filter(isNotViewChange));
   }
+
+  changes.push(...clientViewChanges(state.clients, current.clients));
 
   return commit({ ...current, revision: state.revision }, changes);
 };
@@ -711,7 +937,7 @@ const splitPane = (state: State, id: PaneId, direction: SplitDirection): Applied
   ]);
 };
 
-const focusPane = (state: State, id: PaneId): Applied | Rejected => {
+const focusPane = (state: State, id: PaneId, source: ClientId | undefined): Applied | Rejected => {
   if (state.stopping) {
     return reject(state, 'serverStopping');
   }
@@ -728,18 +954,13 @@ const focusPane = (state: State, id: PaneId): Applied | Rejected => {
   invariant(owner !== undefined, `Tab ${tab.id} has no workspace.`);
 
   const changes: Change[] = [];
+  const shown = showTab(state, source, owner.id, tab.id);
 
   if (tab.focusedPaneId !== id) {
     changes.push({ type: 'paneFocused', tabId: tab.id, paneId: id });
   }
 
-  if (owner.activeTabId !== tab.id) {
-    changes.push({ type: 'tabFocused', workspaceId: owner.id, tabId: tab.id });
-  }
-
-  if (state.focusedWorkspaceId !== owner.id) {
-    changes.push({ type: 'workspaceFocused', workspaceId: owner.id });
-  }
+  changes.push(...viewChanges(state, shown));
 
   const keepsZoom = tab.zoomedPaneId === undefined || tab.zoomedPaneId === id;
   const zoomedPaneId = keepsZoom ? tab.zoomedPaneId : undefined;
@@ -752,11 +973,7 @@ const focusPane = (state: State, id: PaneId): Applied | Rejected => {
     known.id === tab.id ? { ...known, focusedPaneId: id, zoomedPaneId } : known,
   );
 
-  const workspaces = state.workspaces.map((workspace) =>
-    workspace.id === owner.id ? { ...workspace, activeTabId: tab.id } : workspace,
-  );
-
-  const focused: State = { ...state, tabs, workspaces, focusedWorkspaceId: owner.id };
+  const focused: State = { ...shown, tabs };
 
   if (keepsZoom) {
     return commit(focused, changes);
@@ -919,7 +1136,13 @@ const resizePane = (
 };
 
 const attachClient = (state: State, size: TerminalSize): Applied => {
-  const client: Client = { id: clientId(state.nextClientNumber), size, theme: undefined };
+  const client: Client = {
+    id: clientId(state.nextClientNumber),
+    size,
+    theme: undefined,
+    view: state.defaultView,
+  };
+
   const previous = state.attachedClientId;
   const changes: Change[] = [];
 
@@ -929,13 +1152,23 @@ const attachClient = (state: State, size: TerminalSize): Applied => {
 
   changes.push({ type: 'clientAttached', client });
 
-  const attached: State = {
-    ...state,
-    attachedClientId: client.id,
-    clients: [...state.clients.filter((known) => known.id !== previous), client],
-    nextClientNumber: state.nextClientNumber + 1,
-    layoutArea: paneSize(size),
-  };
+  const activity = new Map(state.clientActivity);
+
+  if (previous !== undefined) {
+    activity.delete(previous);
+  }
+
+  const attached: State = markActive(
+    {
+      ...state,
+      attachedClientId: client.id,
+      clients: [...state.clients.filter((known) => known.id !== previous), client],
+      clientActivity: activity,
+      nextClientNumber: state.nextClientNumber + 1,
+      layoutArea: paneSize(size),
+    },
+    client.id,
+  );
 
   const fitted = fitPanes(attached);
 
@@ -949,12 +1182,15 @@ const resizeClient = (state: State, id: ClientId, size: TerminalSize): Applied |
     return reject(state, 'unknownClient');
   }
 
+  const active = markActive(state, id);
+  const foreground = foregroundChanges(state.foregroundClientId, active);
+
   if (sameSize(resizing.size, size)) {
-    return commit(state, []);
+    return commit(active, foreground);
   }
 
   const resized: State = {
-    ...state,
+    ...active,
     clients: state.clients.map((client) => (client.id === id ? { ...client, size } : client)),
     layoutArea: paneSize(size),
   };
@@ -962,9 +1198,20 @@ const resizeClient = (state: State, id: ClientId, size: TerminalSize): Applied |
   const fitted = fitPanes(resized);
 
   return commit({ ...resized, panes: fitted.panes }, [
+    ...foreground,
     { type: 'clientResized', clientId: id, size },
     ...fitted.changes,
   ]);
+};
+
+const markClientActive = (state: State, id: ClientId): Applied | Rejected => {
+  if (!hasClient(state, id)) {
+    return reject(state, 'unknownClient');
+  }
+
+  const active = markActive(state, id);
+
+  return commit(active, foregroundChanges(state.foregroundClientId, active));
 };
 
 const setClientTheme = (state: State, id: ClientId, theme: Theme): Applied | Rejected => {
@@ -993,14 +1240,31 @@ const detachClient = (state: State, id: ClientId): Applied | Rejected => {
   }
 
   const attachedClientId = state.attachedClientId === id ? undefined : state.attachedClientId;
+  const clientActivity = new Map(state.clientActivity);
 
-  const next: State = {
+  clientActivity.delete(id);
+
+  const remaining: State = {
     ...state,
     attachedClientId,
     clients: state.clients.filter((client) => client.id !== id),
+    clientActivity,
   };
 
-  return commit(next, [{ type: 'clientDetached', clientId: id, reason: 'requested' }]);
+  // The client with the latest activity takes over a foreground that its client leaves.
+  const leavesForeground = state.foregroundClientId === id;
+
+  const foregroundClientId = leavesForeground
+    ? latestActiveClient(remaining)
+    : state.foregroundClientId;
+
+  const next: State = { ...remaining, foregroundClientId };
+  const implied = leavesForeground ? undefined : state.foregroundClientId;
+
+  return commit(next, [
+    { type: 'clientDetached', clientId: id, reason: 'requested' },
+    ...foregroundChanges(implied, next),
+  ]);
 };
 
 const stopServer = (state: State): Applied => {
@@ -1031,10 +1295,16 @@ const stopServer = (state: State): Applied => {
 };
 
 export const savedSessionOf = (state: State): SavedSession => ({
-  workspaces: state.workspaces,
+  workspaces: state.workspaces.map((workspace) => {
+    const activeTabId = activeTabOf(state.defaultView, workspace.id);
+
+    invariant(activeTabId !== undefined, `Workspace ${workspace.id} has no active tab.`);
+
+    return { ...workspace, activeTabId };
+  }),
   tabs: state.tabs,
   panes: state.panes.map((pane) => ({ id: pane.id, tabId: pane.tabId })),
-  focusedWorkspaceId: state.focusedWorkspaceId,
+  focusedWorkspaceId: state.defaultView.focusedWorkspaceId,
   nextWorkspaceNumber: state.nextWorkspaceNumber,
   nextTabNumber: state.nextTabNumber,
   nextPaneNumber: state.nextPaneNumber,
@@ -1072,12 +1342,28 @@ const restoreSession = (state: State, session: SavedSession): Applied | Rejected
     };
   });
 
+  const defaultView: View = {
+    focusedWorkspaceId: session.focusedWorkspaceId,
+    activeTabs: session.workspaces.map((workspace) => ({
+      workspaceId: workspace.id,
+      tabId: workspace.activeTabId,
+    })),
+  };
+
+  const workspaces = session.workspaces.map(({ id, root, label, tabIds }): WorkspaceRecord => ({
+    id,
+    root,
+    label,
+    tabIds,
+  }));
+
   const next: State = {
     ...state,
-    workspaces: session.workspaces,
+    workspaces,
     tabs: session.tabs,
     panes,
-    focusedWorkspaceId: session.focusedWorkspaceId,
+    defaultView,
+    clients: state.clients.map((client) => ({ ...client, view: defaultView })),
     nextWorkspaceNumber: Math.max(state.nextWorkspaceNumber, session.nextWorkspaceNumber),
     nextTabNumber: Math.max(state.nextTabNumber, session.nextTabNumber),
     nextPaneNumber: Math.max(state.nextPaneNumber, session.nextPaneNumber),
@@ -1087,9 +1373,12 @@ const restoreSession = (state: State, session: SavedSession): Applied | Rejected
   const { focusedWorkspaceId } = session;
   const changes: Change[] = [];
 
-  for (const workspace of session.workspaces) {
+  for (const [index, workspace] of workspaces.entries()) {
+    const activeTabId = session.workspaces[index]?.activeTabId;
+
     invariant(focusedWorkspaceId !== undefined, 'A saved session with workspaces has no focus.');
-    changes.push({ type: 'workspaceAdded', workspace, focusedWorkspaceId });
+    invariant(activeTabId !== undefined, `Saved workspace ${workspace.id} has no active tab.`);
+    changes.push({ type: 'workspaceAdded', workspace, activeTabId, focusedWorkspaceId });
   }
 
   for (const tab of session.tabs) {
@@ -1099,6 +1388,8 @@ const restoreSession = (state: State, session: SavedSession): Applied | Rejected
   for (const pane of panes) {
     changes.push({ type: 'paneAdded', pane });
   }
+
+  changes.push(...clientViewChanges(state.clients, next.clients));
 
   return commit(next, changes);
 };
@@ -1118,10 +1409,12 @@ const isPaneIntent = (intent: Intent): intent is PaneIntent => paneIntentTypes.h
 
 const applyTabIntent = (state: State, intent: TabIntent): Applied | Rejected => {
   if (intent.type === 'createTab') {
-    return createTab(state, intent.workspaceId);
+    return createTab(state, intent.workspaceId, intent.clientId);
   }
 
-  return intent.type === 'focusTab' ? focusTab(state, intent.tabId) : closeTab(state, intent.tabId);
+  return intent.type === 'focusTab'
+    ? focusTab(state, intent.tabId, intent.clientId)
+    : closeTab(state, intent.tabId);
 };
 
 const applyPaneIntent = (state: State, intent: PaneIntent): Applied | Rejected => {
@@ -1130,7 +1423,7 @@ const applyPaneIntent = (state: State, intent: PaneIntent): Applied | Rejected =
   }
 
   if (intent.type === 'focusPane') {
-    return focusPane(state, intent.paneId);
+    return focusPane(state, intent.paneId, intent.clientId);
   }
 
   if (intent.type === 'zoomPane') {
@@ -1144,13 +1437,44 @@ const applyPaneIntent = (state: State, intent: PaneIntent): Applied | Rejected =
   return closePane(state, intent.paneId);
 };
 
-export const applyIntent = (state: State, intent: Intent): Applied | Rejected => {
+const clientIntentTypes: ReadonlySet<Intent['type']> = new Set<ClientIntent['type']>([
+  'attachClient',
+  'resizeClient',
+  'markClientActive',
+  'setClientTheme',
+  'detachClient',
+]);
+
+const isClientIntent = (intent: Intent): intent is ClientIntent =>
+  clientIntentTypes.has(intent.type);
+
+const applyClientIntent = (state: State, intent: ClientIntent): Applied | Rejected => {
+  if (intent.type === 'attachClient') {
+    return attachClient(state, intent.size);
+  }
+
+  if (intent.type === 'resizeClient') {
+    return resizeClient(state, intent.clientId, intent.size);
+  }
+
+  if (intent.type === 'markClientActive') {
+    return markClientActive(state, intent.clientId);
+  }
+
+  if (intent.type === 'setClientTheme') {
+    return setClientTheme(state, intent.clientId, intent.theme);
+  }
+
+  return detachClient(state, intent.clientId);
+};
+
+const applyKnownIntent = (state: State, intent: Intent): Applied | Rejected => {
   if (intent.type === 'createWorkspace') {
-    return createWorkspace(state, intent.root, intent.label, intent.background);
+    return createWorkspace(state, intent.root, intent.label, intent.background, intent.clientId);
   }
 
   if (intent.type === 'focusWorkspace') {
-    return focusWorkspace(state, intent.workspaceId);
+    return focusWorkspace(state, intent.workspaceId, intent.clientId);
   }
 
   if (intent.type === 'renameWorkspace') {
@@ -1169,20 +1493,8 @@ export const applyIntent = (state: State, intent: Intent): Applied | Rejected =>
     return applyPaneIntent(state, intent);
   }
 
-  if (intent.type === 'attachClient') {
-    return attachClient(state, intent.size);
-  }
-
-  if (intent.type === 'resizeClient') {
-    return resizeClient(state, intent.clientId, intent.size);
-  }
-
-  if (intent.type === 'setClientTheme') {
-    return setClientTheme(state, intent.clientId, intent.theme);
-  }
-
-  if (intent.type === 'detachClient') {
-    return detachClient(state, intent.clientId);
+  if (isClientIntent(intent)) {
+    return applyClientIntent(state, intent);
   }
 
   if (intent.type === 'restoreSession') {
@@ -1190,6 +1502,16 @@ export const applyIntent = (state: State, intent: Intent): Applied | Rejected =>
   }
 
   return stopServer(state);
+};
+
+export const applyIntent = (state: State, intent: Intent): Applied | Rejected => {
+  const source = 'clientId' in intent ? intent.clientId : undefined;
+
+  if (source !== undefined && !hasClient(state, source)) {
+    return reject(state, 'unknownClient');
+  }
+
+  return applyKnownIntent(state, intent);
 };
 
 const ignore = (state: State, fact: Fact): Ignored => ({

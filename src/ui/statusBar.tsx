@@ -1,17 +1,21 @@
 import { useSyncExternalStore } from 'react';
 import type { ReactNode } from 'react';
 
+import { activeTabIdOf, shownView } from '../client/client.ts';
 import type { AttachSession, StoreSnapshot } from '../client/client.ts';
 
 const tabLabels = (snapshot: StoreSnapshot): string => {
-  const workspace = snapshot.workspaces.find((known) => known.id === snapshot.focusedWorkspaceId);
+  const view = shownView(snapshot);
+  const workspace = snapshot.workspaces.find((known) => known.id === view.focusedWorkspaceId);
 
   if (workspace === undefined) {
     return '';
   }
 
+  const activeId = activeTabIdOf(view, workspace.id);
+
   return workspace.tabIds
-    .map((id, index) => (id === workspace.activeTabId ? `[${index + 1}]` : `${index + 1}`))
+    .map((id, index) => (id === activeId ? `[${index + 1}]` : `${index + 1}`))
     .join(' ');
 };
 

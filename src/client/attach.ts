@@ -1,5 +1,5 @@
 import { paneId } from '../ids.ts';
-import type { PaneId } from '../ids.ts';
+import type { PaneId, TabId } from '../ids.ts';
 import { invariant } from '../invariant.ts';
 import {
   createFrameDecoder,
@@ -13,7 +13,7 @@ import type { BuildVersion, ControlMessage } from '../protocol/protocol.ts';
 import { decodeRowUpdate, encodePaneInput } from '../rows/rows.ts';
 import { createRowCache } from './rowCache.ts';
 import type { RowCache } from './rowCache.ts';
-import { applyChange, focusedPane } from './snapshot.ts';
+import { activeTabIdOf, applyChange, viewedPane, shownView } from './snapshot.ts';
 import type { StoreChange, StoreSnapshot } from './snapshot.ts';
 import { workspaceRequest } from './workspaceRequest.ts';
 import type { WorkspaceCommand } from './workspaceRequest.ts';
@@ -121,8 +121,12 @@ const paneNumberBytes = 4;
 
 const inputBytesPerFrame = maxFramePayloadBytes - paneNumberBytes;
 
-const tabToFocus = (workspace: StoreSnapshot['workspaces'][number], route: TabRoute) => {
-  const index = workspace.tabIds.indexOf(workspace.activeTabId);
+const tabToFocus = (
+  workspace: StoreSnapshot['workspaces'][number],
+  activeId: TabId | undefined,
+  route: TabRoute,
+) => {
+  const index = activeId === undefined ? -1 : workspace.tabIds.indexOf(activeId);
 
   if (route.kind === 'previous') {
     return workspace.tabIds[index - 1];
@@ -264,7 +268,7 @@ export const connectAttach = async (
     }
   };
 
-  const shownPane = (): PaneId | undefined => (state && focusedPane(state.snapshot))?.id;
+  const shownPane = (): PaneId | undefined => (state && viewedPane(state.snapshot))?.id;
 
   // The server stops sending rows of a pane that is no longer shown, so held input waits for the
   // pane shown now instead.
@@ -529,9 +533,8 @@ export const connectAttach = async (
 
       const { snapshot } = state;
 
-      const workspace = snapshot.workspaces.find(
-        (known) => known.id === snapshot.focusedWorkspaceId,
-      );
+      const view = shownView(snapshot);
+      const workspace = snapshot.workspaces.find((known) => known.id === view.focusedWorkspaceId);
 
       if (workspace === undefined) {
         return;
@@ -543,9 +546,10 @@ export const connectAttach = async (
         return;
       }
 
-      const tab = tabToFocus(workspace, route);
+      const activeId = activeTabIdOf(view, workspace.id);
+      const tab = tabToFocus(workspace, activeId, route);
 
-      if (tab !== undefined && tab !== workspace.activeTabId) {
+      if (tab !== undefined && tab !== activeId) {
         sendTabRequest({ type: 'tabFocus', tabId: tab });
       }
     },

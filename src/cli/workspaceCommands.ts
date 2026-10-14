@@ -39,7 +39,7 @@ const runWorkspaceList = async (
     id: workspace.id,
     root: workspace.root,
     label: workspace.label,
-    focused: workspace.id === snapshot.focusedWorkspaceId,
+    focused: workspace.id === snapshot.defaultView.focusedWorkspaceId,
   }));
 
   const lines = workspaces.map(

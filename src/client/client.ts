@@ -25,7 +25,7 @@ export type {
 
 export { createRowCache } from './rowCache.ts';
 export type { RowCache } from './rowCache.ts';
-export { focusedPane } from './snapshot.ts';
+export { activeTabIdOf, focusedPane, viewedPane, shownView } from './snapshot.ts';
 export type { StoreSnapshot } from './snapshot.ts';
 export type { WorkspaceCommand } from './workspaceRequest.ts';
 

@@ -2,6 +2,7 @@ import { useTerminalDimensions } from '@opentui/react';
 import { useSyncExternalStore } from 'react';
 import type { ReactNode } from 'react';
 
+import { shownView } from '../client/client.ts';
 import type { AttachSession } from '../client/client.ts';
 import { sideListWidth } from '../layout.ts';
 
@@ -18,7 +19,8 @@ export const SideList = ({ session }: { session: AttachSession }): ReactNode => 
   const { snapshot } = useSyncExternalStore(session.subscribe, session.getState);
   const { height, width } = useTerminalDimensions();
   const rows = Math.max(1, height - statusBarRows);
-  const focusedIndex = snapshot.workspaces.findIndex((w) => w.id === snapshot.focusedWorkspaceId);
+  const { focusedWorkspaceId } = shownView(snapshot);
+  const focusedIndex = snapshot.workspaces.findIndex((w) => w.id === focusedWorkspaceId);
   const start = visibleStart(snapshot.workspaces.length, focusedIndex, rows);
   const shown = snapshot.workspaces.slice(start, start + rows);
 
@@ -29,7 +31,7 @@ export const SideList = ({ session }: { session: AttachSession }): ReactNode => 
   return (
     <box width={sideListWidth(width)} flexShrink={0} flexDirection="column" overflow="hidden">
       {shown.map((workspace) => {
-        const marker = workspace.id === snapshot.focusedWorkspaceId ? '>' : ' ';
+        const marker = workspace.id === focusedWorkspaceId ? '>' : ' ';
 
         return (
           <text key={workspace.id} height={1} wrapMode="none">

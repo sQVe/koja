@@ -55,8 +55,12 @@ const workspace = {
   root: '/work/phi',
   label: 'phi',
   tabIds: [tab.id],
-  activeTabId: tab.id,
 } as const;
+
+const view = {
+  focusedWorkspaceId: workspace.id,
+  activeTabs: [{ workspaceId: workspace.id, tabId: tab.id }],
+};
 
 const failureTimeoutMs = 10_000;
 
@@ -143,8 +147,9 @@ export const setupAttach = async (
                   workspaces: [workspace],
                   tabs: [tab],
                   panes: [pane],
-                  focusedWorkspaceId: workspace.id,
+                  defaultView: view,
                   attachedClientId: clientId(1),
+                  foregroundClientId: undefined,
                   clients: [],
                 },
               }),

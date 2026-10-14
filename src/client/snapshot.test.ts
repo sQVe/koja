@@ -1,14 +1,19 @@
 import { expect, it } from 'bun:test';
 
 import { clientId, paneId, tabId, workspaceId } from '../ids.ts';
-import { applyChange, focusedPane } from './snapshot.ts';
+import { applyChange, focusedPane, viewedPane } from './snapshot.ts';
 import type { StoreSnapshot } from './snapshot.ts';
 
 const size = { columns: 80, rows: 24 };
 
-const first = { id: clientId(1), size, theme: undefined };
+const view = {
+  focusedWorkspaceId: workspaceId(1),
+  activeTabs: [{ workspaceId: workspaceId(1), tabId: tabId(1) }],
+};
 
-const second = { id: clientId(2), size, theme: undefined };
+const first = { id: clientId(1), size, theme: undefined, view };
+
+const second = { id: clientId(2), size, theme: undefined, view };
 
 const snapshot: StoreSnapshot = {
   revision: 3,
@@ -18,7 +23,6 @@ const snapshot: StoreSnapshot = {
       root: '/work/phi',
       label: 'phi',
       tabIds: [tabId(1)],
-      activeTabId: tabId(1),
     },
   ],
   tabs: [
@@ -40,8 +44,9 @@ const snapshot: StoreSnapshot = {
       exitCode: undefined,
     },
   ],
-  focusedWorkspaceId: workspaceId(1),
+  defaultView: view,
   attachedClientId: first.id,
+  foregroundClientId: first.id,
   clients: [first],
 };
 
@@ -91,7 +96,6 @@ const secondWorkspace = {
   root: '/work/docs',
   label: 'docs',
   tabIds: [tabId(2)],
-  activeTabId: tabId(2),
 };
 
 const secondTab = {
@@ -116,13 +120,19 @@ const withSecond: StoreSnapshot = {
   workspaces: [...snapshot.workspaces, secondWorkspace],
   tabs: [...snapshot.tabs, secondTab],
   panes: [...snapshot.panes, secondPane],
-  focusedWorkspaceId: secondWorkspace.id,
+  defaultView: {
+    focusedWorkspaceId: secondWorkspace.id,
+    activeTabs: [
+      { workspaceId: workspaceId(1), tabId: tabId(1) },
+      { workspaceId: secondWorkspace.id, tabId: tabId(2) },
+    ],
+  },
 };
 
 it('focuses a workspace', () => {
   const next = applyChange(withSecond, { type: 'workspaceFocused', workspaceId: workspaceId(1) });
 
-  expect(next.focusedWorkspaceId).toBe(workspaceId(1));
+  expect(next.defaultView.focusedWorkspaceId).toBe(workspaceId(1));
   expect(focusedPane(next)?.id).toBe(paneId(1));
 });
 
@@ -148,7 +158,7 @@ it('removes a workspace with its tab and pane and takes the focus the change nam
   expect(next.workspaces).toEqual(snapshot.workspaces);
   expect(next.tabs).toEqual(snapshot.tabs);
   expect(next.panes).toEqual(snapshot.panes);
-  expect(next.focusedWorkspaceId).toBe(workspaceId(1));
+  expect(next.defaultView).toEqual(view);
 });
 
 it('keeps the focused workspace and pane when a background workspace is added', () => {
@@ -157,17 +167,23 @@ it('keeps the focused workspace and pane when a background workspace is added', 
     root: '/work/other',
     label: 'other',
     tabIds: [tabId(2)],
-    activeTabId: tabId(2),
   };
 
   const added = applyChange(snapshot, {
     type: 'workspaceAdded',
     workspace,
+    activeTabId: tabId(2),
     focusedWorkspaceId: workspaceId(1),
   });
 
   expect(added.workspaces).toHaveLength(2);
-  expect(added.focusedWorkspaceId).toBe(workspaceId(1));
+  expect(added.defaultView.focusedWorkspaceId).toBe(workspaceId(1));
+
+  expect(added.defaultView.activeTabs).toContainEqual({
+    workspaceId: workspaceId(2),
+    tabId: tabId(2),
+  });
+
   expect(focusedPane(added)).toEqual(snapshot.panes[0]);
 });
 
@@ -185,7 +201,7 @@ it('activates the tab a change names and keeps the pane in focus', () => {
     tabId: tabId(2),
   });
 
-  expect(next.workspaces[0]?.activeTabId).toBe(tabId(2));
+  expect(next.defaultView.activeTabs).toEqual([{ workspaceId: workspaceId(1), tabId: tabId(2) }]);
   expect(focusedPane(next)?.id).toBe(paneId(2));
 });
 
@@ -195,7 +211,12 @@ it('lists the first tab once when its workspace and tab are added', () => {
   const next = applyChange(
     applyChange(
       { ...snapshot, workspaces: [], tabs: [] },
-      { type: 'workspaceAdded', workspace, focusedWorkspaceId: workspace.id },
+      {
+        type: 'workspaceAdded',
+        workspace,
+        activeTabId: tabId(1),
+        focusedWorkspaceId: workspace.id,
+      },
     ),
     { type: 'tabAdded', tab: snapshot.tabs[0]! },
   );
@@ -225,4 +246,46 @@ it('moves the focus of the tab the change names', () => {
   });
 
   expect(next.tabs.map((tab) => tab.focusedPaneId)).toEqual([paneId(1), paneId(3)]);
+});
+
+it('replaces the view of only the client the change names', () => {
+  const both = { ...snapshot, clients: [first, second] };
+  const moved = { focusedWorkspaceId: undefined, activeTabs: [] };
+  const next = applyChange(both, { type: 'clientViewChanged', clientId: second.id, view: moved });
+
+  expect(next.clients).toEqual([first, { ...second, view: moved }]);
+  expect(next.defaultView).toEqual(view);
+});
+
+it('records the foreground client the change names', () => {
+  const next = applyChange(snapshot, { type: 'foregroundChanged', clientId: second.id });
+
+  expect(next.foregroundClientId).toBe(second.id);
+});
+
+it('makes an attached client the foreground and clears a foreground that detaches', () => {
+  const attached = applyChange(snapshot, { type: 'clientAttached', client: second });
+
+  expect(attached.foregroundClientId).toBe(second.id);
+
+  const detached = applyChange(attached, {
+    type: 'clientDetached',
+    clientId: second.id,
+    reason: 'requested',
+  });
+
+  expect(detached.foregroundClientId).toBeUndefined();
+});
+
+it('shows the pane of the attached client view, and the default view without a client', () => {
+  const ownView = {
+    ...first,
+    view: { ...withSecond.defaultView, focusedWorkspaceId: workspaceId(1) },
+  };
+
+  const next = { ...withSecond, clients: [ownView], attachedClientId: ownView.id };
+
+  expect(viewedPane(next)?.id).toBe(paneId(1));
+  expect(focusedPane(next)?.id).toBe(paneId(2));
+  expect(viewedPane({ ...next, attachedClientId: undefined })?.id).toBe(paneId(2));
 });

@@ -11,7 +11,8 @@ import type {
   Snapshot,
   Tab,
   Theme,
-  Workspace,
+  View,
+  WorkspaceRecord,
 } from '../store/store.ts';
 
 // The package.json version and the Ghostty commit, as `phi --version` prints them.
@@ -114,12 +115,11 @@ const tabSchema: z.ZodType<Tab> = z.object({
   zoomedPaneId: absent(paneIdSchema),
 });
 
-const workspaceSchema: z.ZodType<Workspace> = z.object({
+const workspaceSchema: z.ZodType<WorkspaceRecord> = z.object({
   id: workspaceIdSchema,
   root: z.string(),
   label: z.string(),
   tabIds: z.array(tabIdSchema),
-  activeTabId: tabIdSchema,
 });
 
 const largestColor = 0xff_ff_ff;
@@ -134,10 +134,16 @@ const themeSchema: z.ZodType<Theme> = z.object({
   palette: z.array(color).length(paletteSize),
 });
 
+const viewSchema: z.ZodType<View> = z.object({
+  focusedWorkspaceId: absent(workspaceIdSchema),
+  activeTabs: z.array(z.object({ workspaceId: workspaceIdSchema, tabId: tabIdSchema })),
+});
+
 const clientSchema: z.ZodType<Client> = z.object({
   id: clientIdSchema,
   size: sizeSchema,
   theme: absent(themeSchema),
+  view: viewSchema,
 });
 
 const detachReasonSchema: z.ZodType<DetachReason> = z.enum(['requested', 'takenOver']);
@@ -146,6 +152,7 @@ const changeSchema: z.ZodType<Change> = z.discriminatedUnion('type', [
   z.object({
     type: z.literal('workspaceAdded'),
     workspace: workspaceSchema,
+    activeTabId: tabIdSchema,
     focusedWorkspaceId: workspaceIdSchema,
   }),
   z.object({ type: z.literal('tabAdded'), tab: tabSchema }),
@@ -183,6 +190,8 @@ const changeSchema: z.ZodType<Change> = z.discriminatedUnion('type', [
   }),
   z.object({ type: z.literal('paneResized'), paneId: paneIdSchema, size: sizeSchema }),
   z.object({ type: z.literal('clientAttached'), client: clientSchema }),
+  z.object({ type: z.literal('clientViewChanged'), clientId: clientIdSchema, view: viewSchema }),
+  z.object({ type: z.literal('foregroundChanged'), clientId: absent(clientIdSchema) }),
   z.object({ type: z.literal('clientResized'), clientId: clientIdSchema, size: sizeSchema }),
   z.object({ type: z.literal('clientThemeChanged'), clientId: clientIdSchema, theme: themeSchema }),
   z.object({
@@ -198,8 +207,9 @@ const snapshotSchema: z.ZodType<Snapshot> = z.object({
   workspaces: z.array(workspaceSchema),
   tabs: z.array(tabSchema),
   panes: z.array(paneSchema),
-  focusedWorkspaceId: absent(workspaceIdSchema),
+  defaultView: viewSchema,
   attachedClientId: absent(clientIdSchema),
+  foregroundClientId: absent(clientIdSchema),
   clients: z.array(clientSchema),
 });
 

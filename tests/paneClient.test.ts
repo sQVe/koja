@@ -27,7 +27,6 @@ const snapshot = (live: boolean): ControlMessage => ({
             root: '/work/phi',
             label: 'phi',
             tabIds: [tabId(1)],
-            activeTabId: tabId(1),
           },
         ]
       : [],
@@ -54,8 +53,12 @@ const snapshot = (live: boolean): ControlMessage => ({
           },
         ]
       : [],
-    focusedWorkspaceId: live ? workspaceId(1) : undefined,
+    defaultView: {
+      focusedWorkspaceId: live ? workspaceId(1) : undefined,
+      activeTabs: live ? [{ workspaceId: workspaceId(1), tabId: tabId(1) }] : [],
+    },
     attachedClientId: undefined,
+    foregroundClientId: undefined,
     clients: [],
   },
 });
