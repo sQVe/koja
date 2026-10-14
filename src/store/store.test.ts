@@ -2224,11 +2224,7 @@ it('returns each view a failed tab start moved to its own earlier tab', () => {
     viewShowing(1, [[1, 2]]),
   ]);
 
-  const created = intent(base, {
-    type: 'createTab',
-    workspaceId: workspaceId(1),
-    folder: undefined,
-  }).state;
+  const created = intent(base, createTab).state;
   const failed = failedStart(created, 3).state;
 
   expect(activeIn(failed, 1, 1)).toBe(tabId(1));
