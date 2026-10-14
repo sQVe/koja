@@ -27,13 +27,15 @@ export interface PaneRuntime {
   generation: number;
   // The shell's process id, which is also its session and process group.
   processId: number;
+  // Whether the shell runs inside a systemd user scope.
+  scoped: boolean;
   terminal: Terminal;
   // Resolves with the shell's exit code once it has exited.
   exited: Promise<number>;
   write: (bytes: Uint8Array) => void;
   // Resizes the PTY and the terminal, and answers whatever the terminal replies to the shell.
   resize: (size: TerminalSize) => void;
-  text: () => string;
+  text: (options?: { unwrap?: boolean }) => string;
   // Sends SIGHUP to every process in the pane's scope, or to every process group in the shell's
   // session without one, then SIGKILL to what is left after the grace time. Resolves with what
   // failed, after the session is killed.
@@ -240,6 +242,7 @@ export const spawnPane = (options: SpawnPaneOptions): SpawnPaneResult => {
   const pane: PaneRuntime = {
     generation: options.generation,
     processId: session,
+    scoped: unit !== undefined,
     terminal,
     exited: shell.exited,
     write: (bytes) => {
@@ -254,7 +257,7 @@ export const spawnPane = (options: SpawnPaneOptions): SpawnPaneResult => {
         shell.terminal?.write(reply);
       }
     },
-    text: () => terminal.text(),
+    text: (textOptions) => terminal.text(textOptions),
     stop,
     [Symbol.dispose]: dispose,
   };

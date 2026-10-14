@@ -79,6 +79,7 @@ const lifecycleSchema: z.ZodType<Pane['lifecycle']> = z.enum([
   'running',
   'exited',
   'closing',
+  'failed',
 ]);
 
 const paneSchema: z.ZodType<Pane> = z.object({
@@ -88,7 +89,9 @@ const paneSchema: z.ZodType<Pane> = z.object({
   size: sizeSchema,
   generation: count,
   exitCode: absent(z.number().int()),
-  folder: absent(z.string()),
+  startFolder: absent(z.string()),
+  restored: z.boolean(),
+  error: absent(z.string()),
 });
 
 const resizeDirectionSchema: z.ZodType<ResizeDirection> = z.enum(['left', 'right', 'up', 'down']);
@@ -188,6 +191,7 @@ const changeSchema: z.ZodType<Change> = z.discriminatedUnion('type', [
     paneId: paneIdSchema,
     lifecycle: lifecycleSchema,
     exitCode: absent(z.number().int()),
+    error: absent(z.string()),
   }),
   z.object({ type: z.literal('paneResized'), paneId: paneIdSchema, size: sizeSchema }),
   z.object({ type: z.literal('clientAttached'), client: clientSchema }),

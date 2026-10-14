@@ -1,4 +1,4 @@
-import { rmSync } from 'node:fs';
+import { rmSync, statSync } from 'node:fs';
 
 import { paneId as paneIdFor } from '../ids.ts';
 import type { ClientId, PaneId } from '../ids.ts';
@@ -313,17 +313,69 @@ const workspaceRootOf = (context: ServerContext, pane: Pane): string => {
 };
 
 const startFolderOf = (context: ServerContext, pane: Pane): string =>
-  pane.folder ?? workspaceRootOf(context, pane);
+  pane.startFolder ?? workspaceRootOf(context, pane);
+
+const isDirectory = (path: string): boolean => {
+  try {
+    return statSync(path).isDirectory();
+  } catch {
+    return false;
+  }
+};
+
+const goneFolderMessage = (folder: string): string =>
+  `Saved folder ${folder} is unavailable. Restore the folder and restart the Phi server.`;
+
+const execFailurePattern = /Failed to (?:execute|find executable)[^\n]*/;
+
+// systemd-run starts before it runs the shell, so a shell that cannot execute looks like a pane
+// that started and exited with code 1. Its only trace is the message in the terminal text. A shell
+// that prints that message itself and exits 1 is taken for a failed start as well.
+const scopedExecFailure = (
+  pane: Pane,
+  runtime: PaneRuntime,
+  exitCode: number,
+): string | undefined => {
+  if (!pane.restored || !runtime.scoped || exitCode !== 1) {
+    return undefined;
+  }
+
+  const line = execFailurePattern.exec(runtime.text({ unwrap: true }))?.[0].trim();
+
+  return line === undefined ? undefined : `Cannot start the shell: ${line}`;
+};
+
+// A failed pane has no runtime. Only the runtime of this generation is released.
+const releaseRuntime = (context: ServerContext, id: PaneId, runtime: PaneRuntime): void => {
+  if (context.runtime.panes.get(id) !== runtime) {
+    return;
+  }
+
+  context.runtime.rowPublishers.get(id)?.publisher[Symbol.dispose]();
+  context.runtime.rowPublishers.delete(id);
+  context.runtime.panes.delete(id);
+  runtime[Symbol.dispose]();
+};
 
 const startPane = (context: ServerContext, pane: Pane, report: Report): void => {
   const { log } = context.options;
   const { id, generation } = pane;
+  const directory = startFolderOf(context, pane);
+
+  if (pane.restored && !isDirectory(directory)) {
+    const message = goneFolderMessage(directory);
+
+    log.error('The restored pane has no folder.', { paneId: id, message });
+    report(context, { type: 'paneFailedToStart', paneId: id, generation, message });
+
+    return;
+  }
 
   const spawned = spawnPane({
     generation,
     size: pane.size,
     environment: context.options.environment,
-    directory: startFolderOf(context, pane),
+    directory,
     useScope: paneScopesEnabled(context),
     onOutput: () => {
       scheduleRows(context, id, generation);
@@ -332,8 +384,17 @@ const startPane = (context: ServerContext, pane: Pane, report: Report): void => 
 
   if (!spawned.ok) {
     log.error('The pane failed to start.', { paneId: id, message: spawned.message });
-    context.paneStartFailure = spawned.message;
-    report(context, { type: 'paneFailedToStart', paneId: id, generation });
+
+    if (!pane.restored) {
+      context.paneStartFailure = spawned.message;
+    }
+
+    report(context, {
+      type: 'paneFailedToStart',
+      paneId: id,
+      generation,
+      message: spawned.message,
+    });
 
     return;
   }
@@ -357,7 +418,20 @@ const startPane = (context: ServerContext, pane: Pane, report: Report): void => 
   spawned.pane.exited
     .then((exitCode) => {
       log.info('The pane exited.', { paneId: id, exitCode });
-      report(context, { type: 'paneExited', paneId: id, generation, exitCode });
+
+      const message = context.state.stopping
+        ? undefined
+        : scopedExecFailure(pane, spawned.pane, exitCode);
+
+      if (message === undefined) {
+        report(context, { type: 'paneExited', paneId: id, generation, exitCode });
+
+        return;
+      }
+
+      log.error('The restored pane failed to start.', { paneId: id, message });
+      releaseRuntime(context, id, spawned.pane);
+      report(context, { type: 'paneFailedToStart', paneId: id, generation, message });
     })
     .catch((error: unknown) => {
       log.error('Handling the pane exit failed.', { paneId: id, error: describeError(error) });

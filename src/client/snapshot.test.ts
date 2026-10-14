@@ -42,7 +42,9 @@ const snapshot: StoreSnapshot = {
       generation: 1,
       size,
       exitCode: undefined,
-      folder: undefined,
+      startFolder: undefined,
+      restored: false,
+      error: undefined,
     },
   ],
   defaultView: view,
@@ -70,6 +72,7 @@ it('records the exit of the pane', () => {
     paneId: paneId(1),
     lifecycle: 'exited',
     exitCode: 3,
+    error: undefined,
   });
 
   expect(focusedPane(exited)?.lifecycle).toBe('exited');
@@ -114,7 +117,9 @@ const secondPane = {
   generation: 2,
   size,
   exitCode: undefined,
-  folder: undefined,
+  startFolder: undefined,
+  restored: false,
+  error: undefined,
 };
 
 const withSecond: StoreSnapshot = {

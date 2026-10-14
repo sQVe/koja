@@ -35,6 +35,7 @@ const listPanes = (snapshot: StoreSnapshot, folders: PaneFolders) => {
       rows: pane.size.rows,
       cwd: paneFolders?.folder ?? null,
       foreground_cwd: paneFolders?.foregroundFolder ?? null,
+      restore_error: pane.error ?? null,
     };
   });
 };
@@ -60,7 +61,7 @@ const runPaneList = async (
 
   const lines = panes.map(
     (pane) =>
-      `${pane.focused ? '*' : ' '} ${pane.id}\t${pane.workspace}\t${pane.tab}\t${pane.lifecycle}\t${pane.columns}x${pane.rows}\t${pane.cwd ?? ''}${pane.zoomed ? '\tzoomed' : ''}`,
+      `${pane.focused ? '*' : ' '} ${pane.id}\t${pane.workspace}\t${pane.tab}\t${pane.lifecycle}\t${pane.columns}x${pane.rows}\t${pane.cwd ?? ''}${pane.zoomed ? '\tzoomed' : ''}${pane.restore_error === null ? '' : `\t${pane.restore_error}`}`,
   );
 
   print(command.json, { json: panes, text: lines.join('\n') });

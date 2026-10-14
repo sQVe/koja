@@ -270,16 +270,27 @@ export const connectAttach = async (
 
   const shownPane = (): PaneId | undefined => (state && viewedPane(state.snapshot))?.id;
 
+  // A failed pane has no process, so the server never sends it rows.
+  const needsFreshRows = (pane: PaneId): boolean => {
+    const known = state?.snapshot.panes.find((candidate) => candidate.id === pane);
+
+    return known?.lifecycle !== 'failed' && !freshRowPanes.has(pane);
+  };
+
   // The server stops sending rows of a pane that is no longer shown, so held input waits for the
   // pane shown now instead.
   const retargetAwaitedRows = (): void => {
     const shown = shownPane();
 
-    if (awaitingRows === undefined || shown === awaitingRows) {
+    if (awaitingRows === undefined) {
       return;
     }
 
-    if (shown !== undefined && !freshRowPanes.has(shown)) {
+    if (shown === awaitingRows && needsFreshRows(shown)) {
+      return;
+    }
+
+    if (shown !== undefined && needsFreshRows(shown)) {
       awaitingRows = shown;
 
       return;
@@ -327,7 +338,7 @@ export const connectAttach = async (
     const shown = shownPane();
     const switched = done && shown !== undefined && shown !== paneBeforeTabRequest;
 
-    if (switched && !freshRowPanes.has(shown)) {
+    if (switched && needsFreshRows(shown)) {
       awaitingRows = shown;
 
       return;

@@ -135,9 +135,9 @@ const applyPaneChange = (snapshot: StoreSnapshot, change: StoreChange): StoreSna
   }
 
   if (change.type === 'paneStateChanged') {
-    const { lifecycle, exitCode } = change;
+    const { lifecycle, exitCode, error } = change;
 
-    return updatePane(snapshot, change.paneId, (pane) => ({ ...pane, lifecycle, exitCode }));
+    return updatePane(snapshot, change.paneId, (pane) => ({ ...pane, lifecycle, exitCode, error }));
   }
 
   if (change.type === 'paneResized') {

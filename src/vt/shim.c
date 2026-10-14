@@ -151,11 +151,12 @@ int64_t pane_resize(Pane *pane, uint16_t cols, uint16_t rows) {
 
 // Copies the active screen as plain text into buffer. Returns the text's length, or -1 when the
 // formatter fails. When the length is more than len, the caller reads again with a larger buffer.
-int64_t pane_text(Pane *pane, uint8_t *buffer, size_t len) {
+int64_t pane_text(Pane *pane, uint8_t *buffer, size_t len, bool unwrap) {
   GhosttyFormatterTerminalOptions options = GHOSTTY_INIT_SIZED(GhosttyFormatterTerminalOptions);
   options.extra = GHOSTTY_INIT_SIZED(GhosttyFormatterTerminalExtra);
   options.extra.screen = GHOSTTY_INIT_SIZED(GhosttyFormatterScreenExtra);
   options.emit = GHOSTTY_FORMATTER_FORMAT_PLAIN;
+  options.unwrap = unwrap;
   options.trim = true;
   GhosttyFormatter formatter = NULL;
   if (ghostty_formatter_terminal_new(NULL, &formatter, pane->terminal, options) != GHOSTTY_SUCCESS) return -1;

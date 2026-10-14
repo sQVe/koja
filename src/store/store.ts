@@ -13,7 +13,7 @@ import {
 } from '../layout.ts';
 import type { Layout, ResizeDirection, SplitDirection, TerminalSize } from '../layout.ts';
 
-type PaneLifecycle = 'starting' | 'running' | 'exited' | 'closing';
+type PaneLifecycle = 'starting' | 'running' | 'exited' | 'closing' | 'failed';
 
 export interface WorkspaceRecord {
   id: WorkspaceId;
@@ -55,8 +55,12 @@ export interface Pane {
   size: TerminalSize;
   generation: number;
   exitCode: number | undefined;
-  // The folder the pane was restored with. A pane that was not restored starts in its workspace root.
-  folder: string | undefined;
+  // The folder the pane's process starts in. The workspace root is used when it is absent.
+  startFolder: string | undefined;
+  // True for a pane the restore intent added. Only such a pane stays in the layout when it fails to start.
+  restored: boolean;
+  // Why a restored pane failed to start. Set only while the lifecycle is failed.
+  error: string | undefined;
 }
 
 // Colors as 0xRRGGBB numbers.
@@ -124,7 +128,7 @@ interface StartFallback {
 export interface SavedSession {
   workspaces: readonly Workspace[];
   tabs: readonly Tab[];
-  panes: readonly { id: PaneId; tabId: TabId; folder: string | undefined }[];
+  panes: readonly { id: PaneId; tabId: TabId; startFolder: string | undefined }[];
   focusedWorkspaceId: WorkspaceId | undefined;
   nextWorkspaceNumber: number;
   nextTabNumber: number;
@@ -163,7 +167,7 @@ export type Intent =
 
 export type Fact =
   | { type: 'paneStarted'; paneId: PaneId; generation: number }
-  | { type: 'paneFailedToStart'; paneId: PaneId; generation: number }
+  | { type: 'paneFailedToStart'; paneId: PaneId; generation: number; message: string }
   | { type: 'paneExited'; paneId: PaneId; generation: number; exitCode: number };
 
 export type DetachReason = 'requested' | 'takenOver';
@@ -198,6 +202,7 @@ export type Change =
       paneId: PaneId;
       lifecycle: PaneLifecycle;
       exitCode: number | undefined;
+      error: string | undefined;
     }
   | { type: 'paneResized'; paneId: PaneId; size: TerminalSize }
   // The attached client becomes the foreground client, and a detached foreground client leaves it.
@@ -550,7 +555,9 @@ const createWorkspace = (
     size: lonePaneSize(state, newPaneId),
     generation: state.nextGeneration,
     exitCode: undefined,
-    folder: undefined,
+    startFolder: undefined,
+    restored: false,
+    error: undefined,
   };
 
   const tab: Tab = {
@@ -778,7 +785,9 @@ const createTab = (
     size: lonePaneSize(state, newPaneId),
     generation: state.nextGeneration,
     exitCode: undefined,
-    folder: undefined,
+    startFolder: undefined,
+    restored: false,
+    error: undefined,
   };
 
   const tab: Tab = {
@@ -928,7 +937,9 @@ const splitPane = (state: State, id: PaneId, direction: SplitDirection): Applied
     size: { columns: addedRectangle.terminal.columns, rows: addedRectangle.terminal.rows },
     generation: state.nextGeneration,
     exitCode: undefined,
-    folder: undefined,
+    startFolder: undefined,
+    restored: false,
+    error: undefined,
   };
 
   const splitTab: Tab = { ...tab, layout, focusedPaneId: added.id, zoomedPaneId: undefined };
@@ -1303,6 +1314,7 @@ const stopServer = (state: State): Applied => {
       paneId: pane.id,
       lifecycle: 'closing',
       exitCode: undefined,
+      error: undefined,
     });
 
     return { ...pane, lifecycle: 'closing' as const };
@@ -1329,7 +1341,7 @@ export const savedSessionOf = (
   panes: state.panes.map((pane) => ({
     id: pane.id,
     tabId: pane.tabId,
-    folder: readFolders.get(pane.id) ?? pane.folder,
+    startFolder: readFolders.get(pane.id) ?? pane.startFolder,
   })),
   focusedWorkspaceId: state.defaultView.focusedWorkspaceId,
   nextWorkspaceNumber: state.nextWorkspaceNumber,
@@ -1366,7 +1378,9 @@ const restoreSession = (state: State, session: SavedSession): Applied | Rejected
       size,
       generation: state.nextGeneration + index,
       exitCode: undefined,
-      folder: saved.folder,
+      startFolder: saved.startFolder,
+      restored: true,
+      error: undefined,
     };
   });
 
@@ -1564,7 +1578,13 @@ const endPane = (
     const exited = { ...pane, lifecycle: 'exited' as const, exitCode };
 
     return commit({ ...state, panes: replacePane(state, exited) }, [
-      { type: 'paneStateChanged', paneId: pane.id, lifecycle: 'exited', exitCode },
+      {
+        type: 'paneStateChanged',
+        paneId: pane.id,
+        lifecycle: 'exited',
+        exitCode,
+        error: undefined,
+      },
     ]);
   }
 
@@ -1579,6 +1599,20 @@ const endPane = (
   return closePaneIn(state, tab, pane.id);
 };
 
+const markFailed = (state: State, pane: Pane, message: string): Applied =>
+  commit(
+    { ...state, panes: replacePane(state, { ...pane, lifecycle: 'failed', error: message }) },
+    [
+      {
+        type: 'paneStateChanged',
+        paneId: pane.id,
+        lifecycle: 'failed',
+        exitCode: undefined,
+        error: message,
+      },
+    ],
+  );
+
 const markRunning = (state: State, pane: Pane): Applied => {
   const stateBeforeSplit = new Map(state.stateBeforeSplit);
 
@@ -1592,7 +1626,13 @@ const markRunning = (state: State, pane: Pane): Applied => {
   };
 
   return commit(next, [
-    { type: 'paneStateChanged', paneId: pane.id, lifecycle: 'running', exitCode: undefined },
+    {
+      type: 'paneStateChanged',
+      paneId: pane.id,
+      lifecycle: 'running',
+      exitCode: undefined,
+      error: undefined,
+    },
   ]);
 };
 
@@ -1615,6 +1655,10 @@ export const applyFact = (state: State, fact: Fact): Applied | Ignored => {
 
   if (fact.type === 'paneExited') {
     return endPane(settled, pane, fact.exitCode);
+  }
+
+  if (fact.type === 'paneFailedToStart' && pane.restored && !state.stopping) {
+    return markFailed(settled, pane, fact.message);
   }
 
   if (fact.type === 'paneFailedToStart') {

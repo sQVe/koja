@@ -116,7 +116,7 @@ const sessionShape = z.object({
     z.object({
       id: paneIdSchema,
       tabId: tabIdSchema,
-      folder: z
+      startFolder: z
         .string()
         .nullish()
         .transform((value) => value ?? undefined),

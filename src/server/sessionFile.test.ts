@@ -55,9 +55,9 @@ const sessionWith = (overrides: Partial<SavedSession> = {}): SavedSession => ({
     },
   ],
   panes: [
-    { id: paneId(1), tabId: tabId(1), folder: undefined },
-    { id: paneId(2), tabId: tabId(1), folder: undefined },
-    { id: paneId(3), tabId: tabId(2), folder: undefined },
+    { id: paneId(1), tabId: tabId(1), startFolder: undefined },
+    { id: paneId(2), tabId: tabId(1), startFolder: undefined },
+    { id: paneId(3), tabId: tabId(2), startFolder: undefined },
   ],
   focusedWorkspaceId: workspaceId(2),
   nextWorkspaceNumber: 3,
@@ -141,7 +141,7 @@ it('reads back the folder of a pane and a pane with no folder', async () => {
   const base = sessionWith();
 
   const session = sessionWith({
-    panes: [{ ...base.panes[0]!, folder: '/work/one' }, ...base.panes.slice(1)],
+    panes: [{ ...base.panes[0]!, startFolder: '/work/one' }, ...base.panes.slice(1)],
   });
 
   await createSessionWriter(path, recordingLog().log).stopSaving(session);
@@ -150,11 +150,9 @@ it('reads back the folder of a pane and a pane with no folder', async () => {
 
   expect(result).toEqual({ kind: 'restored', session });
 
-  expect(result.kind === 'restored' && result.session.panes.map((pane) => pane.folder)).toEqual([
-    '/work/one',
-    undefined,
-    undefined,
-  ]);
+  expect(
+    result.kind === 'restored' && result.session.panes.map((pane) => pane.startFolder),
+  ).toEqual(['/work/one', undefined, undefined]);
 });
 
 it('restores a version 1 file whose panes have no folder', async () => {
@@ -164,7 +162,7 @@ it('restores a version 1 file whose panes have no folder', async () => {
   const saved = (await savedJson(session)) as { panes: Record<string, unknown>[] };
 
   for (const pane of saved.panes) {
-    delete pane.folder;
+    delete pane.startFolder;
   }
 
   await writeSession(path, saved);
@@ -213,12 +211,12 @@ const disagreeing: [string, Partial<SavedSession>][] = [
   ['an unknown focused workspace', { focusedWorkspaceId: workspaceId(9) }],
   [
     'a pane in no layout',
-    { panes: [...sessionWith().panes, { id: paneId(4), tabId: tabId(2), folder: undefined }] },
+    { panes: [...sessionWith().panes, { id: paneId(4), tabId: tabId(2), startFolder: undefined }] },
   ],
   ['a pane missing from the list', { panes: sessionWith().panes.slice(1) }],
   [
     'a duplicate pane',
-    { panes: [...sessionWith().panes, { id: paneId(3), tabId: tabId(2), folder: undefined }] },
+    { panes: [...sessionWith().panes, { id: paneId(3), tabId: tabId(2), startFolder: undefined }] },
   ],
   ['a counter at an existing id', { nextPaneNumber: 3 }],
   [

@@ -301,6 +301,15 @@ describe.each([
   });
 });
 
+it('joins a soft-wrapped line in the unwrapped text and keeps hard lines apart', () => {
+  using terminal = openTerminal(8, 6);
+
+  writeChunks(terminal, ['Failed to execute\r\nsecond\r\nthird']);
+
+  expect(terminal.text()).toBe('Failed t\no execut\ne\nsecond\nthird');
+  expect(terminal.text({ unwrap: true })).toBe('Failed to execute\nsecond\nthird');
+});
+
 it('returns the whole screen as text when it is larger than the first buffer', () => {
   using terminal = openTerminal(200, 60);
   const row = 'x'.repeat(200);
