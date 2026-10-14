@@ -161,12 +161,8 @@ export const readPaneProcesses = (shellPid: number): PaneProcesses => {
   return { shellPid, cwd, foregroundGroup, foregroundCwd, foregroundProcesses };
 };
 
-// The link text of a deleted folder is "<path> (deleted)", which may name an unrelated folder. A
-// folder is usable only when its path names the same directory the process is in.
-const isEnterable = ({ pid, folder }: FolderSource): boolean => {
+const namesProcessFolder = (pid: number, folder: string): boolean => {
   try {
-    accessSync(folder, constants.X_OK);
-
     const named = statSync(folder);
     const actual = statSync(`/proc/${pid}/cwd`);
 
@@ -174,6 +170,31 @@ const isEnterable = ({ pid, folder }: FolderSource): boolean => {
   } catch {
     return false;
   }
+};
+
+// The link text of a deleted folder is "<path> (deleted)", which may name an unrelated folder. A
+// folder is usable only when its path names the same directory the process is in.
+const isEnterable = ({ pid, folder }: FolderSource): boolean => {
+  try {
+    accessSync(folder, constants.X_OK);
+  } catch {
+    return false;
+  }
+
+  return namesProcessFolder(pid, folder);
+};
+
+const deletedSuffix = ' (deleted)';
+
+// Gives the path of a deleted folder without the suffix, so a restore treats it as gone.
+export const readSavedFolder = (pid: number): string | undefined => {
+  const folder = readProcessFolder(pid);
+
+  if (folder === undefined || namesProcessFolder(pid, folder)) {
+    return folder;
+  }
+
+  return folder.endsWith(deletedSuffix) ? folder.slice(0, -deletedSuffix.length) : undefined;
 };
 
 // Without an enterable folder, the caller starts the new pane in the workspace root.
