@@ -26,7 +26,7 @@ const logFileMode = 0o600;
 const encoder = new TextEncoder();
 
 // The XDG spec says to ignore a state directory that is not an absolute path.
-const usableStateHome = (stateHome: string | undefined): string | undefined =>
+export const usableStateHome = (stateHome: string | undefined): string | undefined =>
   stateHome !== undefined && isAbsolute(stateHome) ? stateHome : undefined;
 
 export const logPathFor = (stateHome: string | undefined, home: string): string => {
