@@ -1,10 +1,14 @@
-import { onTestFinished } from 'bun:test';
+import { expect, onTestFinished } from 'bun:test';
 import { mkdtemp, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
-import { endServersIn } from './serverProcesses.ts';
+import { z } from 'zod';
+
+import packageJson from '../package.json' with { type: 'json' };
+import { ghosttyCommit } from '../src/vt/vt.ts';
+import { createWorkspaceAt, endServersIn } from './serverProcesses.ts';
 
 export interface CliRun {
   exitCode: number;
@@ -54,4 +58,32 @@ export const runCli = async (
   ]);
 
   return { exitCode, stdout, stderr };
+};
+
+export const startOutputSchema = z.object({ socket: z.string(), pid: z.number().int().positive() });
+
+export const buildVersion = (): { version: string; ghostty: string } => {
+  const commit = ghosttyCommit();
+
+  if (!commit.ok) {
+    throw new Error(commit.detail);
+  }
+
+  return { version: packageJson.version, ghostty: commit.commit };
+};
+
+export const startServer = async (
+  directory: string,
+  socketPath: string,
+): Promise<z.infer<typeof startOutputSchema>> => {
+  const started = await runCli(['server', 'start', '--socket', socketPath, '--json'], directory);
+
+  expect({ exitCode: started.exitCode, stderr: started.stderr }).toEqual({
+    exitCode: 0,
+    stderr: '',
+  });
+
+  await createWorkspaceAt(socketPath, directory);
+
+  return startOutputSchema.parse(JSON.parse(started.stdout));
 };
