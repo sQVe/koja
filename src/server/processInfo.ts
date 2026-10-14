@@ -96,8 +96,6 @@ const readGroupProcesses = (group: number, session: number): ForegroundProcess[]
   return processes.toSorted((left, right) => left.pid - right.pid);
 };
 
-// Finds the first process in the foreground group, by ascending pid and not the shell, whose
-// folder can be read and differs from the shell's.
 const readMemberFolder = (group: number, shellPid: number, cwd: string | undefined) => {
   for (const member of readGroupProcesses(group, shellPid)) {
     if (member.pid !== shellPid && member.cwd !== undefined && member.cwd !== cwd) {
