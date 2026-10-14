@@ -28,6 +28,8 @@ export interface SnapshotStore<Owner> {
   keep: (owner: Owner, snapshot: PaneSnapshot) => void;
   find: (owner: Owner, paneId: PaneId, requestId: number) => PaneSnapshot | undefined;
   drop: (owner: Owner) => void;
+  // Drops the owner's snapshot and its read generation, for an owner that is gone.
+  forget: (owner: Owner) => void;
   has: (owner: Owner) => boolean;
   // Starts a read of the owner: drops its snapshot and returns the read's generation.
   begin: (owner: Owner) => number;
@@ -41,7 +43,7 @@ interface Stored {
 }
 
 // The most bytes of encoded rows all stored snapshots hold together.
-export const maxStoredSnapshotBytes = 0x4_00_00_00;
+const maxStoredSnapshotBytes = 0x4_00_00_00;
 
 // A snapshot that no part request touched for this long is dropped.
 export const snapshotIdleMs = 30_000;
@@ -166,6 +168,10 @@ export const createSnapshotStore = <Owner>(options: StoreOptions = {}): Snapshot
     },
     drop: (owner) => {
       stored.delete(owner);
+    },
+    forget: (owner) => {
+      stored.delete(owner);
+      generations.delete(owner);
     },
     has: (owner) => stored.has(owner),
     begin: (owner) => {

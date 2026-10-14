@@ -1547,7 +1547,7 @@ const closeConnection = (context: ServerContext, id: number): void => {
   context.runtime.clientIds.delete(connection);
   context.runtime.rowSubscriptions.get(connection)?.unsubscribe();
   context.runtime.rowSubscriptions.delete(connection);
-  context.runtime.readSnapshots.drop(connection);
+  context.runtime.readSnapshots.forget(connection);
   connection.close();
 
   if (clientId !== undefined) {

@@ -18,7 +18,6 @@ import {
   createSnapshot,
   createSnapshotStore,
   hasMoreParts,
-  maxStoredSnapshotBytes,
   snapshotIdleMs,
   takePart,
 } from './paneSnapshot.ts';
@@ -132,11 +131,6 @@ it('holds one snapshot per owner and drops it with its owner', () => {
   expect(store.find('connection', paneId(1), 2)).toBeUndefined();
 });
 
-it('names a server-wide budget of 64 MiB and an idle time of 30 seconds', () => {
-  expect(maxStoredSnapshotBytes).toBe(64 * 1024 * 1024);
-  expect(snapshotIdleMs).toBe(30_000);
-});
-
 it('drops the least recently used snapshot of another owner when a new one passes the budget', () => {
   const rows = snapshotRows(['a']);
   const size = createSnapshot(paneId(1), 1, rows);
@@ -194,4 +188,15 @@ it('does not let a read that a newer read superseded take the current generation
   expect(store.isCurrent('one', older)).toBe(false);
   expect(store.isCurrent('one', newer)).toBe(true);
   expect(store.isCurrent('other', newer)).toBe(false);
+});
+
+it('forgets the snapshot and the read generation of an owner that closed', () => {
+  const store = createSnapshotStore<string>();
+  const generation = store.begin('one');
+
+  store.keep('one', createSnapshot(paneId(1), 1, snapshotRows(['a'])));
+  store.forget('one');
+
+  expect(store.has('one')).toBe(false);
+  expect(store.isCurrent('one', generation)).toBe(false);
 });
