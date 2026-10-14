@@ -3,7 +3,7 @@ import { savedSessionOf } from '../store/store.ts';
 import type { Change, Intent, SavedSession, State } from '../store/store.ts';
 import type { Log } from './log.ts';
 import type { PaneRuntime } from './pane.ts';
-import { readProcessFolder } from './processInfo.ts';
+import { readSavedFolder } from './processInfo.ts';
 import type { readSessionFile } from './sessionFile.ts';
 
 interface SessionContext {
@@ -33,7 +33,7 @@ const readSavedFolders = (context: SessionContext): Map<PaneId, string> => {
   const folders = new Map<PaneId, string>();
 
   for (const [paneId, runtime] of context.runtime.panes) {
-    const folder = readProcessFolder(runtime.processId);
+    const folder = readSavedFolder(runtime.processId);
 
     if (folder !== undefined) {
       folders.set(paneId, folder);
