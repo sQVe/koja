@@ -7,7 +7,7 @@ import { resolveSocketPath } from './environment.ts';
 import type { Environment } from './environment.ts';
 import { connectionFailureMessage, print } from './output.ts';
 import type { Outcome } from './output.ts';
-import type { TabAction, TabCliCommand } from './parse.ts';
+import type { TabAction, TabCliCommand } from './tabCommandParse.ts';
 
 type RequestAction = Exclude<TabAction, { action: 'list' | 'create' }>;
 

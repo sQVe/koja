@@ -20,7 +20,7 @@ import { resolveSocketPath } from './environment.ts';
 import type { Environment } from './environment.ts';
 import { connectionFailureMessage, print, printJson } from './output.ts';
 import type { Outcome } from './output.ts';
-import type { PaneCliCommand } from './parse.ts';
+import type { PaneCliCommand } from './paneCommandParse.ts';
 
 type PaneFolders = Extract<Awaited<ReturnType<typeof runPaneFolders>>, { ok: true }>['panes'];
 

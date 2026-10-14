@@ -1,11 +1,11 @@
 import { runSnapshot } from '../client/client.ts';
 import type { StoreSnapshot } from '../client/client.ts';
 import type { BuildVersion } from '../protocol/protocol.ts';
+import type { ClientCliCommand } from './clientCommandParse.ts';
 import { resolveSocketPath } from './environment.ts';
 import type { Environment } from './environment.ts';
 import { connectionFailureMessage, print } from './output.ts';
 import type { Outcome } from './output.ts';
-import type { ClientCliCommand } from './parse.ts';
 
 const listClients = (snapshot: StoreSnapshot) =>
   snapshot.clients.map(({ id, size, view }) => ({

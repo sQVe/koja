@@ -8,7 +8,7 @@ import { resolveSocketPath } from './environment.ts';
 import type { Environment } from './environment.ts';
 import { connectionFailureMessage, print } from './output.ts';
 import type { Outcome } from './output.ts';
-import type { WorkspaceAction, WorkspaceCliCommand } from './parse.ts';
+import type { WorkspaceAction, WorkspaceCliCommand } from './workspaceCommandParse.ts';
 
 type RequestAction = Exclude<WorkspaceAction, { action: 'list' | 'create' }>;
 

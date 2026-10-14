@@ -1,10 +1,10 @@
 import { runDetach } from '../client/client.ts';
 import type { BuildVersion } from '../protocol/protocol.ts';
+import type { DetachCommand } from './clientCommandParse.ts';
 import { resolveSocketPath } from './environment.ts';
 import type { Environment } from './environment.ts';
 import { print } from './output.ts';
 import type { DetachFailure, Outcome } from './output.ts';
-import type { DetachCommand } from './parse.ts';
 
 const failed = (json: boolean, reason: DetachFailure, message: string): Outcome => {
   if (json) {
