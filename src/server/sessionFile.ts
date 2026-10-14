@@ -112,7 +112,16 @@ const sessionShape = z.object({
       zoomedPaneId: absent(paneIdSchema),
     }),
   ),
-  panes: z.array(z.object({ id: paneIdSchema, tabId: tabIdSchema })),
+  panes: z.array(
+    z.object({
+      id: paneIdSchema,
+      tabId: tabIdSchema,
+      startFolder: z
+        .string()
+        .nullish()
+        .transform((value) => value ?? undefined),
+    }),
+  ),
   focusedWorkspaceId: absent(workspaceIdSchema),
   nextWorkspaceNumber: counter,
   nextTabNumber: counter,

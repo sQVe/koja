@@ -35,6 +35,9 @@ const pane = {
   size: { columns: 80, rows: 23 },
   generation: 1,
   exitCode: undefined,
+  startFolder: undefined,
+  restored: false,
+  error: undefined,
 };
 
 const tab = {
@@ -169,7 +172,13 @@ const messages: ControlMessage[] = [
   {
     type: 'change',
     revision: 2,
-    change: { type: 'paneStateChanged', paneId: pane.id, lifecycle: 'exited', exitCode: 1 },
+    change: {
+      type: 'paneStateChanged',
+      paneId: pane.id,
+      lifecycle: 'exited',
+      exitCode: 1,
+      error: undefined,
+    },
   },
   {
     type: 'change',

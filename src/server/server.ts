@@ -1,4 +1,4 @@
-import { rmSync } from 'node:fs';
+import { rmSync, statSync } from 'node:fs';
 
 import { paneId as paneIdFor } from '../ids.ts';
 import type { ClientId, PaneId } from '../ids.ts';
@@ -18,13 +18,22 @@ import {
   savedSessionOf,
   snapshot,
 } from '../store/store.ts';
-import type { Change, DetachReason, Fact, Intent, Pane, Snapshot, State } from '../store/store.ts';
+import type {
+  Change,
+  DetachReason,
+  Fact,
+  Intent,
+  Pane,
+  SavedSession,
+  Snapshot,
+  State,
+} from '../store/store.ts';
 import { createConnection } from './connection.ts';
 import type { Connection } from './connection.ts';
 import type { Log } from './log.ts';
 import { spawnPane } from './pane.ts';
 import type { PaneRuntime } from './pane.ts';
-import { readPaneFolders, readPaneProcesses } from './processInfo.ts';
+import { readPaneFolders, readPaneProcesses, readProcessFolder } from './processInfo.ts';
 import { createRowPublisher } from './rowPublisher.ts';
 import type { RowPublisher, RowSubscription } from './rowPublisher.ts';
 import { scopeAvailable } from './scope.ts';
@@ -303,15 +312,73 @@ const workspaceRootOf = (context: ServerContext, pane: Pane): string => {
   return workspace.root;
 };
 
+const startFolderOf = (context: ServerContext, pane: Pane): string =>
+  pane.startFolder ?? workspaceRootOf(context, pane);
+
+const isDirectory = (path: string): boolean => {
+  try {
+    return statSync(path).isDirectory();
+  } catch {
+    return false;
+  }
+};
+
+const goneFolderMessage = (folder: string): string =>
+  `Saved folder ${folder} is unavailable. Restore the folder and restart the Phi server.`;
+
+const savedShellMessage = (detail: string): string =>
+  `Could not start the saved shell: ${detail.replace(/\.$/, '')}. Fix the shell configuration and restart the Phi server.`;
+
+const execFailurePattern = /Failed to (?:execute|find executable)[^\n]*/;
+
+// systemd-run starts before it runs the shell, so a shell that cannot execute looks like a pane
+// that started and exited with code 1. Its only trace is the message in the terminal text. A shell
+// that prints that message itself and exits 1 is taken for a failed start as well.
+const scopedExecFailure = (
+  pane: Pane,
+  runtime: PaneRuntime,
+  exitCode: number,
+): string | undefined => {
+  if (!pane.restored || !runtime.scoped || exitCode !== 1) {
+    return undefined;
+  }
+
+  const line = execFailurePattern.exec(runtime.text({ unwrap: true }))?.[0].trim();
+
+  return line === undefined ? undefined : savedShellMessage(line);
+};
+
+// A failed pane has no runtime. Only the runtime of this generation is released.
+const releaseRuntime = (context: ServerContext, id: PaneId, runtime: PaneRuntime): void => {
+  if (context.runtime.panes.get(id) !== runtime) {
+    return;
+  }
+
+  context.runtime.rowPublishers.get(id)?.publisher[Symbol.dispose]();
+  context.runtime.rowPublishers.delete(id);
+  context.runtime.panes.delete(id);
+  runtime[Symbol.dispose]();
+};
+
 const startPane = (context: ServerContext, pane: Pane, report: Report): void => {
   const { log } = context.options;
   const { id, generation } = pane;
+  const directory = startFolderOf(context, pane);
+
+  if (pane.restored && !isDirectory(directory)) {
+    const message = goneFolderMessage(directory);
+
+    log.error('The restored pane has no folder.', { paneId: id, message });
+    report(context, { type: 'paneFailedToStart', paneId: id, generation, message });
+
+    return;
+  }
 
   const spawned = spawnPane({
     generation,
     size: pane.size,
     environment: context.options.environment,
-    directory: workspaceRootOf(context, pane),
+    directory,
     useScope: paneScopesEnabled(context),
     onOutput: () => {
       scheduleRows(context, id, generation);
@@ -320,8 +387,14 @@ const startPane = (context: ServerContext, pane: Pane, report: Report): void => 
 
   if (!spawned.ok) {
     log.error('The pane failed to start.', { paneId: id, message: spawned.message });
-    context.paneStartFailure = spawned.message;
-    report(context, { type: 'paneFailedToStart', paneId: id, generation });
+
+    if (!pane.restored) {
+      context.paneStartFailure = spawned.message;
+    }
+
+    const message = pane.restored ? savedShellMessage(spawned.message) : spawned.message;
+
+    report(context, { type: 'paneFailedToStart', paneId: id, generation, message });
 
     return;
   }
@@ -345,7 +418,20 @@ const startPane = (context: ServerContext, pane: Pane, report: Report): void => 
   spawned.pane.exited
     .then((exitCode) => {
       log.info('The pane exited.', { paneId: id, exitCode });
-      report(context, { type: 'paneExited', paneId: id, generation, exitCode });
+
+      const message = context.state.stopping
+        ? undefined
+        : scopedExecFailure(pane, spawned.pane, exitCode);
+
+      if (message === undefined) {
+        report(context, { type: 'paneExited', paneId: id, generation, exitCode });
+
+        return;
+      }
+
+      log.error('The restored pane failed to start.', { paneId: id, message });
+      releaseRuntime(context, id, spawned.pane);
+      report(context, { type: 'paneFailedToStart', paneId: id, generation, message });
     })
     .catch((error: unknown) => {
       log.error('Handling the pane exit failed.', { paneId: id, error: describeError(error) });
@@ -428,12 +514,29 @@ const stopResultOf = (failures: readonly string[]): StopResult => {
   };
 };
 
+const readSavedFolders = (context: ServerContext): Map<PaneId, string> => {
+  const folders = new Map<PaneId, string>();
+
+  for (const [paneId, runtime] of context.runtime.panes) {
+    const folder = readProcessFolder(runtime.processId);
+
+    if (folder !== undefined) {
+      folders.set(paneId, folder);
+    }
+  }
+
+  return folders;
+};
+
+const currentSession = (context: ServerContext): SavedSession =>
+  savedSessionOf(context.state, readSavedFolders(context));
+
 // Every step runs even when an earlier one fails. The lock and the signal handlers go last.
 const shutDown = async (context: ServerContext): Promise<StopResult> => {
   const { runtime, options } = context;
 
   // Pane exits during the stop must not change the saved session, so it is final before any pane ends.
-  await runtime.sessionWriter?.stopSaving(savedSessionOf(context.state));
+  await runtime.sessionWriter?.stopSaving(currentSession(context));
 
   const panes = [...runtime.panes.entries()];
   const paneFailures = await Promise.all(panes.map(([id, pane]) => stopPane(context, id, pane)));
@@ -614,7 +717,7 @@ const savesSession = (changes: readonly Change[]): boolean =>
 
 const saveSession = (context: ServerContext, changes: readonly Change[]): void => {
   if (savesSession(changes)) {
-    context.runtime.sessionWriter?.save(savedSessionOf(context.state));
+    context.runtime.sessionWriter?.save(currentSession(context));
   }
 };
 
@@ -709,6 +812,14 @@ const answerPaneFolders = (context: ServerContext, connection: Connection): void
       const read = readPaneFolders(live.runtime.processId);
 
       panes.push({ paneId: pane.id, folder: read.cwd, foregroundFolder: read.foregroundCwd });
+    }
+
+    if (pane.lifecycle === 'failed') {
+      panes.push({
+        paneId: pane.id,
+        folder: startFolderOf(context, pane),
+        foregroundFolder: undefined,
+      });
     }
   }
 

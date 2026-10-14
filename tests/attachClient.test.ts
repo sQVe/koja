@@ -33,6 +33,9 @@ const pane = {
   generation: 1,
   size: { columns: 100, rows: 29 },
   exitCode: undefined,
+  startFolder: undefined,
+  restored: false,
+  error: undefined,
 } as const;
 
 const tab = {
@@ -807,6 +810,82 @@ it('releases held input at once when the tab request fails', async () => {
   session.afterTabAnswer(() => {
     released.resolve(undefined);
   });
+
+  await released.promise;
+  expect(session.tabPending()).toBe(false);
+});
+
+it('does not hold input after a switch to a tab whose pane failed', async () => {
+  const server = await listen((message) => {
+    if (message.type !== 'hello') {
+      return switchedReplies(message);
+    }
+
+    const snapshot = twoTabSnapshot();
+
+    if (snapshot.type !== 'snapshot') {
+      return [];
+    }
+
+    const panes = snapshot.snapshot.panes.map((each) =>
+      each.id === paneId(8)
+        ? { ...each, lifecycle: 'failed' as const, error: 'Cannot start' }
+        : each,
+    );
+
+    return [{ type: 'welcome' }, { ...snapshot, snapshot: { ...snapshot.snapshot, panes } }];
+  });
+
+  const session = await attach(server);
+  const released = Promise.withResolvers<undefined>();
+
+  session.focusTab({ kind: 'next' });
+
+  session.afterTabAnswer(() => {
+    released.resolve(undefined);
+  });
+
+  await released.promise;
+  expect(session.tabPending()).toBe(false);
+});
+
+it('releases held input when the awaited pane becomes failed', async () => {
+  const server = await listen((message) => {
+    if (message.type !== 'resize') {
+      return switchedReplies(message);
+    }
+
+    return [
+      {
+        type: 'change',
+        revision: 3,
+        change: {
+          type: 'paneStateChanged',
+          paneId: paneId(8),
+          lifecycle: 'failed',
+          exitCode: undefined,
+          error: 'Cannot start',
+        },
+      },
+    ];
+  });
+
+  const session = await attach(server);
+  const released = Promise.withResolvers<undefined>();
+
+  session.focusTab({ kind: 'next' });
+
+  session.afterTabAnswer(() => {
+    released.resolve(undefined);
+  });
+
+  await untilState(session, () => session.getState().snapshot.revision === 2);
+  await waitFor(() => server.received.some((message) => message.type === 'tabFocus'));
+  await Bun.sleep(50);
+
+  expect(session.tabPending()).toBe(true);
+
+  session.resize({ columns: 90, rows: 20 });
 
   await released.promise;
   expect(session.tabPending()).toBe(false);

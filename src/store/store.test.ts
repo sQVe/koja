@@ -61,6 +61,9 @@ it('creates a workspace with one tab and one starting pane', () => {
     size: { columns: 80, rows: 24 },
     generation: 1,
     exitCode: undefined,
+    startFolder: undefined,
+    restored: false,
+    error: undefined,
   };
 
   const tab: Tab = {
@@ -391,7 +394,13 @@ it('closes the pane and reports that the server should stop once', () => {
   expect(stopped.state.panes[0]?.lifecycle).toBe('closing');
 
   expect(stopped.changes).toEqual([
-    { type: 'paneStateChanged', paneId: paneId(1), lifecycle: 'closing', exitCode: undefined },
+    {
+      type: 'paneStateChanged',
+      paneId: paneId(1),
+      lifecycle: 'closing',
+      exitCode: undefined,
+      error: undefined,
+    },
     { type: 'serverStopping' },
   ]);
 
@@ -405,7 +414,13 @@ it('marks a started pane as running', () => {
   expect(result.state.panes[0]?.lifecycle).toBe('running');
 
   expect(result.changes).toEqual([
-    { type: 'paneStateChanged', paneId: paneId(1), lifecycle: 'running', exitCode: undefined },
+    {
+      type: 'paneStateChanged',
+      paneId: paneId(1),
+      lifecycle: 'running',
+      exitCode: undefined,
+      error: undefined,
+    },
   ]);
 });
 
@@ -447,7 +462,11 @@ it('removes the pane, tab, and workspace of the only pane that exits, and keeps 
 });
 
 it('removes the workspace of a pane that fails to start, and keeps running', () => {
-  const result = fact(run([createPhi]), { type: 'paneFailedToStart', ...firstPane });
+  const result = fact(run([createPhi]), {
+    type: 'paneFailedToStart',
+    ...firstPane,
+    message: 'no shell',
+  });
 
   expect(result.state.workspaces).toEqual([]);
   expect(result.state.panes).toEqual([]);
@@ -468,7 +487,13 @@ it('marks a closing pane exited without removing it while the server stops', () 
   const result = fact(state, { type: 'paneExited', ...firstPane, exitCode: 0 });
 
   expect(result.changes).toEqual([
-    { type: 'paneStateChanged', paneId: paneId(1), lifecycle: 'exited', exitCode: 0 },
+    {
+      type: 'paneStateChanged',
+      paneId: paneId(1),
+      lifecycle: 'exited',
+      exitCode: 0,
+      error: undefined,
+    },
   ]);
 });
 
@@ -641,6 +666,9 @@ it('creates a second tab with a starting pane, last in the list and active', () 
     size: { columns: 80, rows: 24 },
     generation: 2,
     exitCode: undefined,
+    startFolder: undefined,
+    restored: false,
+    error: undefined,
   };
 
   const tab: Tab = {
@@ -799,7 +827,13 @@ it('keeps the tab that was active when the pane of a new tab fails to start', ()
     { type: 'createTab', workspaceId: workspaceId(1) },
   ]);
 
-  const result = fact(state, { type: 'paneFailedToStart', paneId: paneId(3), generation: 3 });
+  const result = fact(state, {
+    type: 'paneFailedToStart',
+    paneId: paneId(3),
+    generation: 3,
+    message: 'no shell',
+  });
+
   const owner = result.state.workspaces[0];
 
   expect(owner?.tabIds).toEqual([tabId(1), tabId(2)]);
@@ -814,7 +848,12 @@ it('keeps the workspace that was focused when the pane of a new workspace fails 
     { type: 'createWorkspace', root: '/work/api', label: 'api', background: false },
   ]);
 
-  const result = fact(state, { type: 'paneFailedToStart', paneId: paneId(3), generation: 3 });
+  const result = fact(state, {
+    type: 'paneFailedToStart',
+    paneId: paneId(3),
+    generation: 3,
+    message: 'no shell',
+  });
 
   expect(result.state.defaultView.focusedWorkspaceId).toBe(workspaceId(1));
 
@@ -850,6 +889,9 @@ it('splits a pane at half its area, starts the new pane, and focuses it', () => 
     size: { columns: 38, rows: 22 },
     generation: 2,
     exitCode: undefined,
+    startFolder: undefined,
+    restored: false,
+    error: undefined,
   });
 
   expect(result.state.panes[0]?.size).toEqual({ columns: 38, rows: 22 });
@@ -1167,7 +1209,12 @@ it('returns the focus to the earlier pane when a split pane fails to start', () 
 
   expect(split.state.tabs[0]?.focusedPaneId).toBe(paneId(3));
 
-  const result = fact(split.state, { type: 'paneFailedToStart', paneId: paneId(3), generation: 3 });
+  const result = fact(split.state, {
+    type: 'paneFailedToStart',
+    paneId: paneId(3),
+    generation: 3,
+    message: 'no shell',
+  });
 
   expect(result.state.tabs[0]?.focusedPaneId).toBe(paneId(2));
   expect(result.state.panes.map((pane) => pane.id)).toEqual([paneId(1), paneId(2)]);
@@ -1181,7 +1228,13 @@ it('returns the focus to the earlier pane when a split pane fails to start', () 
 
 it('gives the focus to the sibling when the focused pane of a split fails to start', () => {
   const state = run([createPhi, attachLarge, splitFirst('right')]);
-  const result = fact(state, { type: 'paneFailedToStart', paneId: paneId(2), generation: 2 });
+
+  const result = fact(state, {
+    type: 'paneFailedToStart',
+    paneId: paneId(2),
+    generation: 2,
+    message: 'no shell',
+  });
 
   expect(result.state.tabs[0]?.focusedPaneId).toBe(paneId(1));
 });
@@ -1282,7 +1335,13 @@ it('unzooms when the zoomed pane is split', () => {
 it('restores the zoom and focus when a split pane of a zoomed tab fails to start', () => {
   const zoomed = run([createPhi, attachLarge, splitFirst('right'), zoom(1)]);
   const split = intent(zoomed, splitPaneOf(1, 'below'));
-  const result = fact(split.state, { type: 'paneFailedToStart', paneId: paneId(3), generation: 3 });
+
+  const result = fact(split.state, {
+    type: 'paneFailedToStart',
+    paneId: paneId(3),
+    generation: 3,
+    message: 'no shell',
+  });
 
   expect(result.state.tabs[0]?.zoomedPaneId).toBe(paneId(1));
   expect(result.state.tabs[0]?.focusedPaneId).toBe(paneId(1));
@@ -1298,7 +1357,13 @@ it('restores the zoom and focus when a split pane of a zoomed tab fails to start
 
 it('does not report a zoom change when a failed split leaves the zoom as it was', () => {
   const split = run([createPhi, attachLarge, splitFirst('right')]);
-  const result = fact(split, { type: 'paneFailedToStart', paneId: paneId(2), generation: 2 });
+
+  const result = fact(split, {
+    type: 'paneFailedToStart',
+    paneId: paneId(2),
+    generation: 2,
+    message: 'no shell',
+  });
 
   expect(result.state.tabs[0]?.zoomedPaneId).toBeUndefined();
   expect(result.changes.some((change) => change.type === 'tabZoomChanged')).toBe(false);
@@ -1319,7 +1384,13 @@ it('leaves the tab unzoomed when the focus moved before a split pane failed to s
   const zoomed = run([createPhi, attachLarge, splitFirst('right'), zoom(1)]);
   const split = intent(zoomed, splitPaneOf(1, 'below')).state;
   const refocused = intent(split, { type: 'focusPane', paneId: paneId(2) }).state;
-  const result = fact(refocused, { type: 'paneFailedToStart', paneId: paneId(3), generation: 3 });
+
+  const result = fact(refocused, {
+    type: 'paneFailedToStart',
+    paneId: paneId(3),
+    generation: 3,
+    message: 'no shell',
+  });
 
   expect(result.state.tabs[0]?.zoomedPaneId).toBeUndefined();
   expect(result.state.tabs[0]?.focusedPaneId).toBe(paneId(2));
@@ -1484,9 +1555,11 @@ const richSession: readonly Intent[] = [
   { type: 'focusWorkspace', workspaceId: workspaceId(1) },
 ];
 
+const noFolders: ReadonlyMap<PaneId, string> = new Map();
+
 const restoreIntent = (state: State): Intent => ({
   type: 'restoreSession',
-  session: savedSessionOf(state),
+  session: savedSessionOf(state, noFolders),
 });
 
 const attachedEmpty = (): State => intent(createState(), attachLarge).state;
@@ -1495,7 +1568,7 @@ it('restores a saved session with its ids, focus, and zoom', () => {
   const saved = run(richSession);
   const result = intent(attachedEmpty(), restoreIntent(saved));
 
-  expect(savedSessionOf(result.state)).toEqual(savedSessionOf(saved));
+  expect(savedSessionOf(result.state, noFolders)).toEqual(savedSessionOf(saved, noFolders));
   expect(result.state.panes).toHaveLength(4);
   expect(result.state.panes.every((pane) => pane.lifecycle === 'starting')).toBe(true);
   expect(result.state.tabs.some((tab) => tab.zoomedPaneId === paneId(4))).toBe(true);
@@ -1551,7 +1624,7 @@ it('gives ids above the restored ones to a workspace created after a restore', (
   expect(added.map((pane) => pane.tabId)).toEqual([tabId(4)]);
 });
 
-it('closes a restored pane that fails to start through the usual cascade', () => {
+const failRestoredSecondPane = () => {
   const restored = intent(createState(), restoreIntent(run([createPhi, createDocs]))).state;
   const [, second] = restored.panes;
 
@@ -1559,6 +1632,41 @@ it('closes a restored pane that fails to start through the usual cascade', () =>
     type: 'paneFailedToStart',
     paneId: paneId(2),
     generation: second?.generation ?? 0,
+    message: 'Cannot start /bin/missing',
+  });
+
+  return { restored, result };
+};
+
+it('keeps a restored pane that fails to start, with its error', () => {
+  const { restored, result } = failRestoredSecondPane();
+  const failed = result.state.panes.find((pane) => pane.id === paneId(2));
+
+  expect(failed?.lifecycle).toBe('failed');
+  expect(failed?.error).toBe('Cannot start /bin/missing');
+  expect(result.state.workspaces).toEqual(restored.workspaces);
+  expect(result.state.tabs).toEqual(restored.tabs);
+
+  expect(result.changes).toEqual([
+    {
+      type: 'paneStateChanged',
+      paneId: paneId(2),
+      lifecycle: 'failed',
+      exitCode: undefined,
+      error: 'Cannot start /bin/missing',
+    },
+  ]);
+});
+
+it('closes a new pane that fails to start through the usual cascade', () => {
+  const state = run([createPhi, createDocs]);
+  const second = state.panes[1];
+
+  const result = fact(state, {
+    type: 'paneFailedToStart',
+    paneId: paneId(2),
+    generation: second?.generation ?? 0,
+    message: 'Cannot start /bin/missing',
   });
 
   expect(result.state.workspaces.map((workspace) => workspace.id)).toEqual([workspaceId(1)]);
@@ -1609,7 +1717,7 @@ it('shows the workspace a CLI focus chose when no client is attached, after a re
 
   expect(focus.changes).toEqual([{ type: 'workspaceFocused', workspaceId: workspaceId(1) }]);
   expect(reattached.clients[0]?.view.focusedWorkspaceId).toBe(workspaceId(1));
-  expect(savedSessionOf(reattached).focusedWorkspaceId).toBe(workspaceId(1));
+  expect(savedSessionOf(reattached, noFolders).focusedWorkspaceId).toBe(workspaceId(1));
 });
 
 it('starts a new client from the default view', () => {
@@ -1945,7 +2053,7 @@ it('saves the default view through the workspace fields and no client', () => {
     clientId: clientId(1),
   }).state;
 
-  const saved = savedSessionOf(moved);
+  const saved = savedSessionOf(moved, noFolders);
 
   expect(saved.focusedWorkspaceId).toBe(workspaceId(1));
   expect(saved.workspaces.map((workspace) => workspace.activeTabId)).toEqual([tabId(1), tabId(2)]);
@@ -2040,7 +2148,12 @@ it('focuses the tab the client remembers for a terminal focus and leaves other c
 });
 
 const failedStart = (state: State, number: number): Applied =>
-  fact(state, { type: 'paneFailedToStart', paneId: paneId(number), generation: number });
+  fact(state, {
+    type: 'paneFailedToStart',
+    paneId: paneId(number),
+    generation: number,
+    message: 'no shell',
+  });
 
 it('returns each view a failed workspace start moved to its own earlier workspace', () => {
   const base = withViews(twoClients(createPhi, createDocs), [
@@ -2111,4 +2224,44 @@ it('returns each view a failed tab start moved to its own earlier tab', () => {
   expect(activeIn(keeps, 1, 1)).toBe(tabId(1));
   expect(activeIn(keeps, 2, 1)).toBe(tabId(1));
   expect(activeTabOf(keeps.defaultView, workspaceId(1))).toBe(tabId(1));
+});
+
+it('removes a failed pane when it is closed, and saves it until then', () => {
+  const { result } = failRestoredSecondPane();
+  const saved = savedSessionOf(result.state, noFolders);
+
+  expect(saved.panes.map((pane) => pane.id)).toEqual([paneId(1), paneId(2)]);
+
+  const closed = intent(result.state, { type: 'closePane', paneId: paneId(2) });
+
+  expect(closed.state.panes.map((pane) => pane.id)).toEqual([paneId(1)]);
+  expect(closed.changes.map((change) => change.type)).toContain('paneRemoved');
+});
+
+it('saves a folder that was read, and keeps the restored folder for a pane with none read', () => {
+  const saved = savedSessionOf(run(richSession), noFolders);
+
+  const withFolders = {
+    ...saved,
+    panes: saved.panes.map((pane) => ({
+      id: pane.id,
+      tabId: pane.tabId,
+      startFolder: `/restored/${pane.id}`,
+    })),
+  };
+
+  const restored = intent(attachedEmpty(), { type: 'restoreSession', session: withFolders }).state;
+  const read = new Map([[paneId(1), '/read/one']]);
+  const next = savedSessionOf(restored, read);
+
+  expect(next.panes.map((pane) => pane.startFolder)).toEqual([
+    '/read/one',
+    '/restored/pane-2',
+    '/restored/pane-3',
+    '/restored/pane-4',
+  ]);
+
+  expect(savedSessionOf(run(richSession), noFolders).panes.map((pane) => pane.startFolder)).toEqual(
+    [undefined, undefined, undefined, undefined],
+  );
 });

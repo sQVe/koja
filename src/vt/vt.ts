@@ -160,7 +160,10 @@ const loadLibrary = () =>
     pane_reply: { args: [FFIType.ptr], returns: FFIType.ptr },
     pane_clear_reply: { args: [FFIType.ptr], returns: FFIType.void },
     pane_resize: { args: [FFIType.ptr, FFIType.u16, FFIType.u16], returns: FFIType.i64 },
-    pane_text: { args: [FFIType.ptr, FFIType.ptr, FFIType.u64], returns: FFIType.i64 },
+    pane_text: {
+      args: [FFIType.ptr, FFIType.ptr, FFIType.u64, FFIType.bool],
+      returns: FFIType.i64,
+    },
     pane_frame: {
       args: [FFIType.ptr, FFIType.ptr, FFIType.u64, FFIType.ptr, FFIType.u64, FFIType.ptr],
       returns: FFIType.i32,
@@ -273,12 +276,13 @@ export class Terminal {
     return this.takeReply(handle, length);
   }
 
-  // Returns the history and the active screen as plain text, with trailing spaces trimmed.
-  text(): string {
+  // Returns the history and the active screen as plain text, with trailing spaces trimmed. With
+  // unwrap, a line that soft-wrapped comes back as one line.
+  text({ unwrap = false }: { unwrap?: boolean } = {}): string {
     const handle = this.live();
 
     for (let buffer = new Uint8Array(firstTextBufferBytes); ;) {
-      const length = Number(this.symbols.pane_text(handle, buffer, buffer.length));
+      const length = Number(this.symbols.pane_text(handle, buffer, buffer.length, unwrap));
 
       invariant(length >= 0, 'libghostty-vt could not format the screen.');
 
