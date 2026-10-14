@@ -105,7 +105,9 @@ it('prints a JSON failure when no client is attached', async () => {
       return [welcome];
     }
 
-    return message.type === 'detach' ? [{ type: 'detachResult', detached: false }] : [];
+    return message.type === 'detach'
+      ? [{ type: 'detachResult', result: { ok: false, reason: 'noClient' } }]
+      : [];
   });
 
   const result = await runPhi('detach', '--json', '--socket', socketPath);
@@ -121,7 +123,7 @@ it('prints JSON success and exits 0 when a client detaches', async () => {
       return [welcome];
     }
 
-    return message.type === 'detach' ? [{ type: 'detachResult', detached: true }] : [];
+    return message.type === 'detach' ? [{ type: 'detachResult', result: { ok: true } }] : [];
   });
 
   const result = await runPhi('detach', '--json', '--socket', socketPath);

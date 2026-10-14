@@ -1,4 +1,4 @@
-import type { PaneId, TabId, WorkspaceId } from '../ids.ts';
+import type { ClientId, PaneId, TabId, WorkspaceId } from '../ids.ts';
 import {
   createFrameDecoder,
   encodeControl,
@@ -100,7 +100,10 @@ type PaneProcessInfoResult =
   | { ok: false; reason: 'paneMissing' }
   | RequestFailure;
 
-type DetachResult = { ok: true; detached: boolean } | RequestFailure;
+type DetachResult =
+  | { ok: true }
+  | { ok: false; reason: 'noClient' | 'unknownClient' }
+  | RequestFailure;
 
 interface Request<Result> {
   send: (message: ControlMessage) => void;
@@ -451,15 +454,20 @@ export const runSnapshot = (socketPath: string, version: BuildVersion): Promise<
     },
   });
 
-// Asks the server to detach its terminal client. `detached` is false when none was attached.
-export const runDetach = (socketPath: string, version: BuildVersion): Promise<DetachResult> =>
+// Asks the server to detach a terminal client, the foreground one when `target` is absent.
+// Fails with `noClient` when none was attached and `unknownClient` when the target is unknown.
+export const runDetach = (
+  socketPath: string,
+  version: BuildVersion,
+  target: ClientId | undefined,
+): Promise<DetachResult> =>
   runRequest<DetachResult>(socketPath, version, {
     onWelcome: (request) => {
-      request.send({ type: 'detach' });
+      request.send({ type: 'detach', clientId: target });
     },
     onMessage: (request, message) => {
       if (message.type === 'detachResult') {
-        request.finish({ ok: true, detached: message.detached });
+        request.finish(message.result);
       }
     },
   });

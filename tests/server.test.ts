@@ -1261,9 +1261,13 @@ it('detaches the attached terminal client when a CLI client sends detach', async
 
   server.writeToPane("printf 'kept-marker\n'\n");
   await waitFor(() => server.paneText()?.includes('kept-marker') === true);
-  cli.send({ type: 'detach' });
+  cli.send({ type: 'detach', clientId: undefined });
 
-  expect(await nextOfType(cli, 'detachResult')).toEqual({ type: 'detachResult', detached: true });
+  expect(await nextOfType(cli, 'detachResult')).toEqual({
+    type: 'detachResult',
+    result: { ok: true },
+  });
+
   await nextOfType(terminal, 'detached');
   await terminal.closed;
 
@@ -1289,14 +1293,15 @@ it('answers a terminal client that detaches itself before it closes the connecti
   const { server, socketPath } = await startServer(directory);
   const terminal = await attachTerminal(socketPath, 100);
 
-  terminal.send({ type: 'detach' });
+  terminal.send({ type: 'detach', clientId: undefined });
   await terminal.closed;
 
   const answers = terminal.messages.filter(
     (message) => message.type === 'detachResult' || message.type === 'detached',
   );
 
-  expect(answers).toEqual([{ type: 'detachResult', detached: true }, { type: 'detached' }]);
+  expect(answers).toEqual([{ type: 'detachResult', result: { ok: true } }, { type: 'detached' }]);
+
   expect(server.snapshot().panes[0]?.lifecycle).toBe('running');
 });
 
@@ -1306,9 +1311,13 @@ it('answers detach with no attached client and changes no state', async () => {
   const cli = await connectCli(socketPath);
   const before = server.snapshot();
 
-  cli.send({ type: 'detach' });
+  cli.send({ type: 'detach', clientId: undefined });
 
-  expect(await nextOfType(cli, 'detachResult')).toEqual({ type: 'detachResult', detached: false });
+  expect(await nextOfType(cli, 'detachResult')).toEqual({
+    type: 'detachResult',
+    result: { ok: false, reason: 'noClient' },
+  });
+
   expect(server.snapshot()).toEqual(before);
 });
 

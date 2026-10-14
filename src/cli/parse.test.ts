@@ -1,6 +1,6 @@
 import { expect, it } from 'bun:test';
 
-import { paneId, tabId, workspaceId } from '../ids.ts';
+import { clientId, paneId, tabId, workspaceId } from '../ids.ts';
 import { parseCommand, usage } from './parse.ts';
 
 it('parses no command as the default command, with an optional socket', () => {
@@ -21,7 +21,7 @@ it('lists phi, phi attach, and phi detach in the usage', () => {
 
   expect(lines).toContain('phi [--socket <path>]');
   expect(lines).toContain('phi attach [--socket <path>]');
-  expect(lines).toContain('phi detach [--socket <path>] [--json]');
+  expect(lines).toContain('phi detach [--client <id>] [--socket <path>] [--json]');
 });
 
 it('parses the workspace commands', () => {
@@ -338,4 +338,35 @@ it('lists the workspace and pane commands in the usage', () => {
   expect(lines).toContain(
     'phi pane resize <id> --direction left|right|up|down --cells <n> [--socket <path>] [--json]',
   );
+});
+
+it('parses client list and detach with a client id', () => {
+  expect(parseCommand(['client', 'list', '--json'])).toEqual({
+    kind: 'client',
+    client: { action: 'list' },
+    json: true,
+    socket: undefined,
+  });
+
+  expect(parseCommand(['detach', '--client', 'client-3'])).toEqual({
+    kind: 'detach',
+    client: clientId(3),
+    json: false,
+    socket: undefined,
+  });
+
+  expect(parseCommand(['detach'])).toMatchObject({ kind: 'detach', client: undefined });
+});
+
+it.each([
+  ['a malformed client id', ['detach', '--client', 'pane-1']],
+  ['an id with a leading zero', ['detach', '--client', 'client-01']],
+  ['an empty client id', ['detach', '--client', '']],
+  ['--client without a value', ['detach', '--client']],
+  ['--client on another command', ['workspace', 'list', '--client', 'client-1']],
+  ['an unknown client action', ['client', 'kill']],
+  ['no client action', ['client']],
+  ['arguments for client list', ['client', 'list', 'extra']],
+])('rejects %s', (_name, argv) => {
+  expect(typeof parseCommand(argv)).toBe('string');
 });

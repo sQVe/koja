@@ -789,15 +789,27 @@ const handlePaneCommand = (
   );
 };
 
-const handleDetach = (context: ServerContext, connection: Connection): void => {
-  const attachedId = context.state.attachedClientId;
+const handleDetach = (
+  context: ServerContext,
+  message: Extract<ControlMessage, { type: 'detach' }>,
+  connection: Connection,
+): void => {
+  const { clients, foregroundClientId } = context.state;
+  const requestedId = message.clientId;
+  const unknownClient = requestedId !== undefined && !clients.some(({ id }) => id === requestedId);
+  const targetId = requestedId ?? foregroundClientId;
 
-  // Answer first: the sender may be the attached client, and its detach closes the connection.
-  connection.send({ type: 'detachResult', detached: attachedId !== undefined });
+  if (unknownClient || targetId === undefined) {
+    const reason = unknownClient ? 'unknownClient' : 'noClient';
 
-  if (attachedId !== undefined) {
-    dispatch(context, { type: 'detachClient', clientId: attachedId });
+    connection.send({ type: 'detachResult', result: { ok: false, reason } });
+
+    return;
   }
+
+  // Answer first: the sender may be the target client, and its detach closes the connection.
+  connection.send({ type: 'detachResult', result: { ok: true } });
+  dispatch(context, { type: 'detachClient', clientId: targetId });
 };
 
 const handleClientSetting = (
@@ -1149,7 +1161,7 @@ const handleMessage = (
   }
 
   if (message.type === 'detach') {
-    handleDetach(context, connection);
+    handleDetach(context, message, connection);
 
     return;
   }

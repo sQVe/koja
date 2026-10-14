@@ -1,8 +1,8 @@
 import { parseArgs } from 'node:util';
 
 import type { PaneCommand, PaneLayoutCommand } from '../client/client.ts';
-import { paneId, tabId, workspaceId } from '../ids.ts';
-import type { PaneId, TabId, WorkspaceId } from '../ids.ts';
+import { clientId, paneId, tabId, workspaceId } from '../ids.ts';
+import type { ClientId, PaneId, TabId, WorkspaceId } from '../ids.ts';
 
 type SplitDirection = Extract<PaneLayoutCommand, { action: 'split' }>['direction'];
 
@@ -52,6 +52,11 @@ export interface TabCliCommand extends CommandOptions {
   tab: TabAction;
 }
 
+export interface ClientCliCommand extends CommandOptions {
+  kind: 'client';
+  client: { action: 'list' };
+}
+
 export interface ServerCommand extends CommandOptions {
   kind: 'server';
   action: ServerAction;
@@ -64,6 +69,7 @@ interface StrayOptions {
   workspace?: string;
   direction?: string;
   cells?: string;
+  client?: string;
 }
 
 export interface AttachCommand {
@@ -78,6 +84,7 @@ export interface DefaultCommand {
 
 export interface DetachCommand extends CommandOptions {
   kind: 'detach';
+  client: ClientId | undefined;
 }
 
 export type Command =
@@ -85,6 +92,7 @@ export type Command =
   | PaneCliCommand
   | WorkspaceCliCommand
   | TabCliCommand
+  | ClientCliCommand
   | ServerCommand
   | AttachCommand
   | DefaultCommand
@@ -117,7 +125,8 @@ export const usage = `Usage:
   phi [--socket <path>]
   phi --version [--json]
   phi attach [--socket <path>]
-  phi detach [--socket <path>] [--json]
+  phi detach [--client <id>] [--socket <path>] [--json]
+  phi client list [--socket <path>] [--json]
   phi server run [--socket <path>] [--json]
   phi server start [--socket <path>] [--json]
   phi server stop [--socket <path>] [--json]
@@ -164,6 +173,18 @@ const parseTabId = (value: string | undefined): IdResult<TabId> => {
   return number === undefined
     ? { ok: false, message: `'${value ?? ''}' is not a tab id, such as tab-1.` }
     : { ok: true, id: tabId(number) };
+};
+
+const parseClientId = (value: string | undefined): IdResult<ClientId | undefined> => {
+  if (value === undefined) {
+    return { ok: true, id: undefined };
+  }
+
+  const number = parseId(value, 'client');
+
+  return number === undefined
+    ? { ok: false, message: `'${value}' is not a client id, such as client-1.` }
+    : { ok: true, id: clientId(number) };
 };
 
 const parsePaneId = (value: string | undefined): IdResult<PaneId | undefined> => {
@@ -478,12 +499,29 @@ const parseAttachCommand = (
 const parseDetachCommand = (
   positionals: string[],
   options: CommandOptions,
+  client: string | undefined,
 ): DetachCommand | string => {
   if (positionals.length !== 1) {
-    return 'detach takes only --socket and --json.';
+    return 'detach takes only --client, --socket, and --json.';
   }
 
-  return { kind: 'detach', ...options };
+  const target = parseClientId(client);
+
+  return target.ok ? { kind: 'detach', client: target.id, ...options } : target.message;
+};
+
+const parseClientCommand = (
+  action: string | undefined,
+  rest: string[],
+  options: CommandOptions,
+): ClientCliCommand | string => {
+  if (action !== 'list') {
+    return 'Unknown client command.';
+  }
+
+  return rest.length === 0
+    ? { kind: 'client', client: { action }, ...options }
+    : 'client list takes no arguments.';
 };
 
 const parseVersionCommand = (
@@ -506,10 +544,11 @@ const parseSessionCommand = (
   group: 'attach' | 'detach',
   positionals: string[],
   options: CommandOptions,
+  client: string | undefined,
 ): AttachCommand | DetachCommand | string =>
   group === 'attach'
     ? parseAttachCommand(positionals, options)
-    : parseDetachCommand(positionals, options);
+    : parseDetachCommand(positionals, options, client);
 
 const parseServerCommand = ({ action, rest, options }: GroupInput): ServerCommand | string => {
   if (!isServerAction(action)) {
@@ -552,6 +591,10 @@ const parseGroupCommand = (group: string | undefined, input: GroupInput): Comman
     return typeof pane === 'string' ? pane : { kind: 'pane', pane, ...input.options };
   }
 
+  if (group === 'client') {
+    return parseClientCommand(input.action, input.rest, input.options);
+  }
+
   return group === 'server' ? parseServerCommand(input) : 'Unknown command.';
 };
 
@@ -569,7 +612,7 @@ const strayLayoutOptionMessage = (
 
 const strayOptionMessage = (
   group: string | undefined,
-  { label, background, pane, workspace, direction, cells }: StrayOptions,
+  { label, background, pane, workspace, direction, cells, client }: StrayOptions,
 ): string | undefined => {
   const layoutStray = strayLayoutOptionMessage(group, direction, cells);
 
@@ -587,6 +630,10 @@ const strayOptionMessage = (
 
   if (workspace !== undefined && group !== 'tab') {
     return '--workspace belongs to tab create.';
+  }
+
+  if (client !== undefined && group !== 'detach') {
+    return '--client belongs to detach.';
   }
 
   return pane !== undefined && group !== 'pane'
@@ -608,6 +655,7 @@ export const parseCommand = (argv: string[]): Command | string => {
         workspace: { type: 'string' },
         direction: { type: 'string' },
         cells: { type: 'string' },
+        client: { type: 'string' },
       },
       allowPositionals: true,
       strict: true,
@@ -631,7 +679,7 @@ export const parseCommand = (argv: string[]): Command | string => {
     }
 
     if (isSessionGroup(group)) {
-      return parseSessionCommand(group, positionals, options);
+      return parseSessionCommand(group, positionals, options, values.client);
     }
 
     return parseGroupCommand(group, {

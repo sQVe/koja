@@ -230,12 +230,18 @@ const tabFailureSchema = z.enum([
   'paneFailedToStart',
 ]);
 
+const detachOutcomeSchema = z.discriminatedUnion('ok', [
+  z.strictObject({ ok: z.literal(true) }),
+  z.strictObject({ ok: z.literal(false), reason: z.enum(['noClient', 'unknownClient']) }),
+]);
+
 const controlSchema = z.discriminatedUnion('type', [
   // A CLI client has no terminal, so it sends no size.
   z.object({ type: z.literal('hello'), version: buildVersionSchema, size: absent(sizeSchema) }),
   z.object({ type: z.literal('welcome') }),
   z.object({ type: z.literal('refused'), client: buildVersionSchema, server: buildVersionSchema }),
-  z.object({ type: z.literal('detach') }),
+  // Without a client id, the foreground client detaches.
+  z.object({ type: z.literal('detach'), clientId: absent(clientIdSchema) }),
   // Builds stop each other's servers with this frame, so it must keep this shape in every build.
   z.object({ type: z.literal('stop') }),
   z.object({ type: z.literal('resize'), size: sizeSchema }),
@@ -250,8 +256,7 @@ const controlSchema = z.discriminatedUnion('type', [
   z.object({ type: z.literal('change'), revision: count, change: changeSchema }),
   z.object({ type: z.literal('takenOver') }),
   z.object({ type: z.literal('detached') }),
-  // Answers a detach. False when no terminal client was attached.
-  z.object({ type: z.literal('detachResult'), detached: z.boolean() }),
+  z.object({ type: z.literal('detachResult'), result: detachOutcomeSchema }),
   z.object({ type: z.literal('paneRead'), paneId: paneIdSchema }),
   z.object({ type: z.literal('paneRows'), paneId: paneIdSchema, rows: z.array(z.string()) }),
   // Asks for the shell folder and the foreground folder of every running pane.

@@ -175,29 +175,33 @@ it('rejects a snapshot sent before welcome without sending pane input', async ()
   expect(server.failures).toEqual([]);
 });
 
-it.each([true, false])('returns the detach answer %p after sending detach', async (detached) => {
+it.each([
+  ['succeeds', { ok: true }],
+  ['fails with noClient', { ok: false, reason: 'noClient' }],
+  ['fails with unknownClient', { ok: false, reason: 'unknownClient' }],
+] as const)('returns a detach that %s after sending detach', async (_name, answer) => {
   const server = await listen((message) => {
     if (message.type === 'hello') {
       return [{ type: 'welcome' }, snapshot(true)];
     }
 
-    return [{ type: 'detachResult', detached }];
+    return [{ type: 'detachResult', result: answer }];
   });
 
-  const result = await runDetach(server.socketPath, version);
+  const result = await runDetach(server.socketPath, version, undefined);
 
-  expect(result).toEqual({ ok: true, detached });
+  expect(result).toEqual(answer);
 
   expect(server.received).toEqual([
     { type: 'hello', version, size: undefined },
-    { type: 'detach' },
+    { type: 'detach', clientId: undefined },
   ]);
 
   expect(server.failures).toEqual([]);
 });
 
 it('returns noServer from detach when no server listens', async () => {
-  expect(await runDetach('/nonexistent/phi.sock', version)).toEqual({
+  expect(await runDetach('/nonexistent/phi.sock', version, undefined)).toEqual({
     ok: false,
     reason: 'noServer',
   });

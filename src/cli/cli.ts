@@ -1,5 +1,6 @@
 import type { BuildVersion } from '../protocol/protocol.ts';
 import { runAttachCommand } from './attachCommand.ts';
+import { runClientAction } from './clientCommands.ts';
 import { runDefaultCommand } from './defaultCommand.ts';
 import { runDetachCommand } from './detachCommand.ts';
 import type { Environment } from './environment.ts';
@@ -32,6 +33,10 @@ const runRequestCommand = (
 
   if (command.kind === 'tab') {
     return runTabAction(command, versions, environment);
+  }
+
+  if (command.kind === 'client') {
+    return runClientAction(command, versions, environment);
   }
 
   if (command.kind === 'detach') {

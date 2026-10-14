@@ -564,7 +564,7 @@ export const connectAttach = async (
     resizePane: (pane, direction, cells) =>
       requestLayout({ type: 'paneResize', paneId: pane, direction, cells }),
     detach: () => {
-      send({ type: 'detach' });
+      send({ type: 'detach', clientId: undefined });
     },
     sendWorkspaceCommand: (command, onReply) => {
       replyQueue.push(onReply);

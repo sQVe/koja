@@ -96,7 +96,8 @@ const messages: ControlMessage[] = [
   { type: 'hello', version: build, size: undefined },
   { type: 'welcome' },
   { type: 'refused', client: build, server: { version: '1.2.4', ghostty: 'def456' } },
-  { type: 'detach' },
+  { type: 'detach', clientId: undefined },
+  { type: 'detach', clientId: client.id },
   { type: 'stop' },
   { type: 'resize', size: { columns: 120, rows: 40 } },
   { type: 'theme', theme },
@@ -198,8 +199,9 @@ const messages: ControlMessage[] = [
   },
   { type: 'takenOver' },
   { type: 'detached' },
-  { type: 'detachResult', detached: true },
-  { type: 'detachResult', detached: false },
+  { type: 'detachResult', result: { ok: true } },
+  { type: 'detachResult', result: { ok: false, reason: 'noClient' } },
+  { type: 'detachResult', result: { ok: false, reason: 'unknownClient' } },
   { type: 'paneRead', paneId: pane.id },
   { type: 'paneRows', paneId: pane.id, rows: ['$ ls', ''] },
   { type: 'paneSend', paneId: pane.id, text: 'ls\r' },
@@ -340,6 +342,11 @@ it.each([
   ['a workspace id with a leading zero', workspaceIdJson('workspace-01')],
   ['a workspace id without a number', workspaceIdJson('workspace-')],
   ['a pane id as a workspace id', workspaceIdJson('pane-1')],
+  [
+    'a detach result that succeeds and names a failure',
+    '{"type":"detachResult","result":{"ok":true,"reason":"unknownClient"}}',
+  ],
+  ['a detach result that fails without a reason', '{"type":"detachResult","result":{"ok":false}}'],
   ['a JSON value that is not an object', '"hello"'],
 ])('refuses a message with %s', (_name, json) => {
   expect(parseControl(text(json))).toEqual({ ok: false, reason: 'invalidMessage' });
