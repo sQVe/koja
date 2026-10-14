@@ -3,11 +3,17 @@ import { parseArgs } from 'node:util';
 import {
   clientOptions,
   clientUsage,
+  parseAttachCommand,
   parseClientCommand,
   parseDetachCommand,
   strayClientOptionMessage,
 } from './clientCommandParse.ts';
-import type { ClientCliCommand, DetachCommand, RawClientOptions } from './clientCommandParse.ts';
+import type {
+  AttachCommand,
+  ClientCliCommand,
+  DetachCommand,
+  RawClientOptions,
+} from './clientCommandParse.ts';
 import type { CommandOptions } from './commandOptions.ts';
 import {
   paneOptions,
@@ -16,6 +22,8 @@ import {
   strayPaneOptionMessage,
 } from './paneCommandParse.ts';
 import type { PaneCliCommand, RawPaneOptions } from './paneCommandParse.ts';
+import { parseServerCommand, serverUsage } from './serverCommandParse.ts';
+import type { ServerCommand } from './serverCommandParse.ts';
 import {
   parseTabCommand,
   strayFolderOptionMessage,
@@ -47,16 +55,6 @@ export interface VersionCommand {
   json: boolean;
 }
 
-export interface ServerCommand extends CommandOptions {
-  kind: 'server';
-  action: ServerAction;
-}
-
-export interface AttachCommand {
-  kind: 'attach';
-  socket: string | undefined;
-}
-
 export interface DefaultCommand {
   kind: 'default';
   socket: string | undefined;
@@ -73,35 +71,14 @@ export type Command =
   | DefaultCommand
   | DetachCommand;
 
-const serverActions = ['run', 'start', 'stop'] as const;
-
-type ServerAction = (typeof serverActions)[number];
-
 export const usage = `Usage:
   phi [--socket <path>]
   phi --version [--json]
-  phi attach [--socket <path>]
 ${clientUsage}
-  phi server run [--socket <path>] [--json]
-  phi server start [--socket <path>] [--json]
-  phi server stop [--socket <path>] [--json]
+${serverUsage}
 ${workspaceUsage}
 ${tabUsage}
 ${paneUsage}`;
-
-const isServerAction = (action: string | undefined): action is ServerAction =>
-  serverActions.some((serverAction) => serverAction === action);
-
-const parseAttachCommand = (
-  positionals: string[],
-  options: CommandOptions,
-): AttachCommand | string => {
-  if (positionals.length !== 1 || options.json) {
-    return 'attach takes only --socket.';
-  }
-
-  return { kind: 'attach', socket: options.socket };
-};
 
 const parseVersionCommand = (
   positionals: string[],
@@ -115,22 +92,6 @@ const parseVersionCommand = (
 
 const parseDefaultCommand = (options: CommandOptions): DefaultCommand | string =>
   options.json ? 'phi takes only --socket.' : { kind: 'default', socket: options.socket };
-
-const parseServerCommand = (
-  action: string | undefined,
-  rest: string[],
-  options: CommandOptions,
-): ServerCommand | string => {
-  if (!isServerAction(action)) {
-    return 'Unknown command.';
-  }
-
-  if (rest.length > 0) {
-    return `Unexpected argument '${rest.join(' ')}'.`;
-  }
-
-  return { kind: 'server', action, ...options };
-};
 
 const parseSessionCommand = ({ positionals, values, options }: GroupInput, group: string) =>
   group === 'attach'

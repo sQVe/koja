@@ -1,5 +1,6 @@
 import type { BuildVersion } from '../protocol/protocol.ts';
 import { runAttachCommand } from './attachCommand.ts';
+import type { AttachCommand } from './clientCommandParse.ts';
 import { runClientAction } from './clientCommands.ts';
 import { runDefaultCommand } from './defaultCommand.ts';
 import { runDetachCommand } from './detachCommand.ts';
@@ -8,7 +9,7 @@ import { print } from './output.ts';
 import type { Outcome } from './output.ts';
 import { runPaneAction } from './paneCommands.ts';
 import { parseCommand, usage } from './parse.ts';
-import type { AttachCommand, Command, DefaultCommand, VersionCommand } from './parse.ts';
+import type { Command, DefaultCommand, VersionCommand } from './parse.ts';
 import { runServerAction } from './serverCommands.ts';
 import { runTabAction } from './tabCommands.ts';
 import { readVersions } from './versions.ts';

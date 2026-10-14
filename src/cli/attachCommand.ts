@@ -1,10 +1,10 @@
 import { connectAttach } from '../client/client.ts';
 import type { CloseReason } from '../client/client.ts';
 import type { BuildVersion } from '../protocol/protocol.ts';
+import type { AttachCommand } from './clientCommandParse.ts';
 import { resolveSocketPath } from './environment.ts';
 import type { Environment } from './environment.ts';
 import type { Outcome } from './output.ts';
-import type { AttachCommand } from './parse.ts';
 
 type ConnectResult = Awaited<ReturnType<typeof connectAttach>>;
 

@@ -9,6 +9,11 @@ export interface ClientCliCommand extends CommandOptions {
   client: { action: 'list' };
 }
 
+export interface AttachCommand {
+  kind: 'attach';
+  socket: string | undefined;
+}
+
 export interface DetachCommand extends CommandOptions {
   kind: 'detach';
   client: ClientId | undefined;
@@ -22,7 +27,8 @@ export const clientOptions = {
   client: { type: 'string' },
 } as const;
 
-export const clientUsage = `  phi detach [--client <id>] [--socket <path>] [--json]
+export const clientUsage = `  phi attach [--socket <path>]
+  phi detach [--client <id>] [--socket <path>] [--json]
   phi client list [--socket <path>] [--json]`;
 
 const parseClientId = (value: string | undefined): IdResult<ClientId | undefined> => {
@@ -42,6 +48,17 @@ export const strayClientOptionMessage = (
   { client }: RawClientOptions,
 ): string | undefined =>
   client !== undefined && group !== 'detach' ? '--client belongs to detach.' : undefined;
+
+export const parseAttachCommand = (
+  positionals: string[],
+  options: CommandOptions,
+): AttachCommand | string => {
+  if (positionals.length !== 1 || options.json) {
+    return 'attach takes only --socket.';
+  }
+
+  return { kind: 'attach', socket: options.socket };
+};
 
 export const parseDetachCommand = (
   positionals: string[],

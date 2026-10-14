@@ -8,7 +8,7 @@ import { resolveSocketPath } from './environment.ts';
 import type { Environment } from './environment.ts';
 import { print } from './output.ts';
 import type { Outcome } from './output.ts';
-import type { ServerCommand } from './parse.ts';
+import type { ServerCommand } from './serverCommandParse.ts';
 import { seconds } from './serverContext.ts';
 import type { ServerContext } from './serverContext.ts';
 import { stopServer } from './serverStop.ts';
