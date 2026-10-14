@@ -110,11 +110,19 @@ const paneActions = new Map<string, PaneAction>([
 
 const isPrefix = (event: KeyEvent): boolean => isKey(event, 'b', keyModifier.ctrl);
 
+// Normal-mode keys act on the plain key. Shift is allowed because some bindings are capitals.
+const commandBlockers =
+  keyModifier.alt | keyModifier.ctrl | keyModifier.super | keyModifier.hyper | keyModifier.meta;
+
 const routeNormalKey = (event: KeyEvent, modes: number): KeyRoute => {
   if (isPrefix(event)) {
     const bytes = encodeKey(event, kittyFlags(modes), applicationCursor(modes));
 
     return { bytes, mode: 'insert', detach: false };
+  }
+
+  if ((event.modifiers & commandBlockers) !== 0) {
+    return { bytes: nothing, mode: 'normal', detach: false };
   }
 
   const raw = keyText(event) ?? '';

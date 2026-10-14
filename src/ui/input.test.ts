@@ -783,3 +783,24 @@ it('sends one Up arrow when a legacy Escape and its continuation arrive in two r
   expect(splitUpArrow(31)).toBe('\x1b[27u\x1b[A');
   expect(splitUpArrow(0, 1)).toBe('\x1b[A');
 });
+
+it('ignores Alt keys in normal mode, in legacy and kitty form', () => {
+  const ignored = { bytes: new Uint8Array(), mode: 'normal' as const, detach: false };
+
+  for (const raw of [
+    '\x1bx',
+    '\x1bd',
+    '\x1bX',
+    '\x1bi',
+    '\x1b[120;3u',
+    '\x1b[100;3u',
+    '\x1b[120;4u',
+  ]) {
+    expect(routeKey(raw, 'normal', 0)).toEqual(ignored);
+    expect(routeKey(raw, 'normal', 31 << 9)).toEqual(ignored);
+  }
+});
+
+it('still sends an Alt key to the pane in insert mode', () => {
+  expect(key('\x1bx', 'insert')).toEqual({ text: '\x1bx', mode: 'insert' });
+});

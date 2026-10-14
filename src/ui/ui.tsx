@@ -178,8 +178,15 @@ export const runAttach = async (session: AttachSession): Promise<CloseReason> =>
     session.resize({ columns, rows });
   };
 
+  const releasePane = (): void => {
+    const release = unmountPane;
+
+    unmountPane = undefined;
+    release?.();
+  };
+
   const placePane = (box: BoxRenderable | null): void => {
-    unmountPane?.();
+    releasePane();
 
     if (box !== null) {
       unmountPane = mountPanes(session, renderer, box);
@@ -226,7 +233,7 @@ export const runAttach = async (session: AttachSession): Promise<CloseReason> =>
     unsubscribeRows?.();
     keyboard.restore();
     releaseStdin?.();
-    unmountPane?.();
+    releasePane();
     root?.unmount();
     renderer.destroy();
     session.close();
