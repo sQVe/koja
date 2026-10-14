@@ -88,6 +88,18 @@ type PaneResult =
   | { ok: false; reason: 'paneMissing' }
   | RequestFailure;
 
+type PaneFolders = Extract<ControlMessage, { type: 'paneFoldersReply' }>['panes'];
+
+type PaneProcessInfo = Omit<Extract<ControlMessage, { type: 'paneProcessInfoReply' }>, 'type'>;
+
+type PaneFoldersResult = { ok: true; panes: PaneFolders } | RequestFailure;
+
+type PaneProcessInfoResult =
+  | ({ ok: true } & PaneProcessInfo)
+  | { ok: false; reason: 'unknownPane' }
+  | { ok: false; reason: 'paneMissing' }
+  | RequestFailure;
+
 type DetachResult = { ok: true; detached: boolean } | RequestFailure;
 
 interface Request<Result> {
@@ -282,6 +294,47 @@ export const runPaneCommand = (
     },
   });
 };
+
+export const runPaneFolders = (
+  socketPath: string,
+  version: BuildVersion,
+): Promise<PaneFoldersResult> =>
+  runRequest<PaneFoldersResult>(socketPath, version, {
+    onWelcome: (request) => {
+      request.send({ type: 'paneFolders' });
+    },
+    onMessage: (request, message) => {
+      if (message.type === 'paneFoldersReply') {
+        request.finish({ ok: true, panes: message.panes });
+      }
+    },
+  });
+
+export const runPaneProcessInfo = (
+  socketPath: string,
+  version: BuildVersion,
+  paneId: PaneId,
+): Promise<PaneProcessInfoResult> =>
+  runRequest<PaneProcessInfoResult>(socketPath, version, {
+    onWelcome: (request) => {
+      request.send({ type: 'paneProcessInfo', paneId });
+    },
+    onMessage: (request, message) => {
+      if (message.type === 'paneProcessInfoReply' && message.paneId === paneId) {
+        const { type: _type, ...info } = message;
+
+        request.finish({ ok: true, ...info });
+      }
+
+      if (message.type === 'paneMissing' && message.paneId === paneId) {
+        request.finish({ ok: false, reason: 'paneMissing' });
+      }
+
+      if (message.type === 'paneFailed' && message.reason === 'unknownPane') {
+        request.finish({ ok: false, reason: 'unknownPane' });
+      }
+    },
+  });
 
 const paneLayoutRequest = (command: PaneLayoutCommand): ControlMessage => {
   if (command.action === 'split') {

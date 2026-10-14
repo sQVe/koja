@@ -1,13 +1,15 @@
 import { readdirSync, readFileSync } from 'node:fs';
 
-interface ProcessStat {
+export interface ProcessStat {
   group: number;
   session: number;
+  // The foreground process group of the controlling terminal.
+  terminalGroup: number;
 }
 
 const numericName = /^\d+$/;
 
-// Reads the process group and session from a /proc/<pid>/stat line. The command name sits in
+// Reads the process group, session, and terminal group from a /proc/<pid>/stat line. The command name sits in
 // parentheses and may hold spaces and ')', so the fields start after the last ')'.
 export const parseStat = (line: string): ProcessStat | undefined => {
   const nameEnd = line.lastIndexOf(')');
@@ -16,7 +18,7 @@ export const parseStat = (line: string): ProcessStat | undefined => {
     return undefined;
   }
 
-  // State, parent id, process group, session.
+  // State, parent id, process group, session, terminal number, terminal group.
   const fields = line
     .slice(nameEnd + 1)
     .trim()
@@ -24,15 +26,16 @@ export const parseStat = (line: string): ProcessStat | undefined => {
 
   const group = Number(fields[2]);
   const session = Number(fields[3]);
+  const terminalGroup = Number(fields[5]);
 
-  if (!Number.isInteger(group) || !Number.isInteger(session)) {
+  if (!Number.isInteger(group) || !Number.isInteger(session) || !Number.isInteger(terminalGroup)) {
     return undefined;
   }
 
-  return { group, session };
+  return { group, session, terminalGroup };
 };
 
-const readStat = (processId: string): ProcessStat | undefined => {
+export const readStat = (processId: string): ProcessStat | undefined => {
   try {
     return parseStat(readFileSync(`/proc/${processId}/stat`, 'utf8'));
   } catch {

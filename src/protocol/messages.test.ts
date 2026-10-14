@@ -195,6 +195,32 @@ const messages: ControlMessage[] = [
   { type: 'paneSend', paneId: pane.id, text: 'ls\r' },
   { type: 'paneSent', paneId: pane.id },
   { type: 'paneMissing', paneId: paneId(9) },
+  { type: 'paneFolders' },
+  {
+    type: 'paneFoldersReply',
+    panes: [
+      { paneId: paneId(1), folder: '/tmp', foregroundFolder: '/var' },
+      { paneId: paneId(2), folder: undefined, foregroundFolder: undefined },
+    ],
+  },
+  { type: 'paneProcessInfo', paneId: paneId(1) },
+  {
+    type: 'paneProcessInfoReply',
+    paneId: paneId(1),
+    shellPid: 4100,
+    foregroundGroup: 4120,
+    processes: [
+      { pid: 4120, name: 'sleep', argv: ['sleep', '60'], cmdline: 'sleep 60', folder: '/var' },
+      { pid: 4121, name: 'cat', argv: ['cat'], cmdline: 'cat', folder: undefined },
+    ],
+  },
+  {
+    type: 'paneProcessInfoReply',
+    paneId: paneId(1),
+    shellPid: 4100,
+    foregroundGroup: undefined,
+    processes: [],
+  },
   { type: 'workspaceCreate', root: '/work/phi', label: 'phi', background: false },
   { type: 'workspaceCreate', root: '/work/phi', label: undefined, background: true },
   { type: 'workspaceFocus', workspaceId: workspace.id },
@@ -252,6 +278,15 @@ const workspaceIdJson = (id: string): string =>
 
 it.each([
   ['a missing field', '{"type":"resize"}'],
+  ['a process info request without a pane', '{"type":"paneProcessInfo"}'],
+  [
+    'a process info reply with a negative pid',
+    '{"type":"paneProcessInfoReply","paneId":"pane-1","shellPid":1,"foregroundGroup":null,"processes":[{"pid":-1,"name":"a","argv":[],"cmdline":"","folder":null}]}',
+  ],
+  [
+    'a folders reply with a malformed pane id',
+    '{"type":"paneFoldersReply","panes":[{"paneId":"x","folder":null,"foregroundFolder":null}]}',
+  ],
   [
     'a resize with zero cells',
     '{"type":"paneResize","paneId":"pane-1","direction":"left","cells":0}',

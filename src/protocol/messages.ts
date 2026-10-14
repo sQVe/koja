@@ -244,6 +244,34 @@ const controlSchema = z.discriminatedUnion('type', [
   z.object({ type: z.literal('detachResult'), detached: z.boolean() }),
   z.object({ type: z.literal('paneRead'), paneId: paneIdSchema }),
   z.object({ type: z.literal('paneRows'), paneId: paneIdSchema, rows: z.array(z.string()) }),
+  // Asks for the shell folder and the foreground folder of every running pane.
+  z.object({ type: z.literal('paneFolders') }),
+  z.object({
+    type: z.literal('paneFoldersReply'),
+    panes: z.array(
+      z.object({
+        paneId: paneIdSchema,
+        folder: absent(z.string()),
+        foregroundFolder: absent(z.string()),
+      }),
+    ),
+  }),
+  z.object({ type: z.literal('paneProcessInfo'), paneId: paneIdSchema }),
+  z.object({
+    type: z.literal('paneProcessInfoReply'),
+    paneId: paneIdSchema,
+    shellPid: count,
+    foregroundGroup: absent(count),
+    processes: z.array(
+      z.object({
+        pid: count,
+        name: z.string(),
+        argv: z.array(z.string()),
+        cmdline: z.string(),
+        folder: absent(z.string()),
+      }),
+    ),
+  }),
   z.object({ type: z.literal('paneSend'), paneId: paneIdSchema, text: z.string() }),
   z.object({ type: z.literal('paneSent'), paneId: paneIdSchema }),
   z.object({ type: z.literal('paneMissing'), paneId: paneIdSchema }),
