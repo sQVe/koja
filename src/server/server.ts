@@ -326,6 +326,9 @@ const isDirectory = (path: string): boolean => {
 const goneFolderMessage = (folder: string): string =>
   `Saved folder ${folder} is unavailable. Restore the folder and restart the Phi server.`;
 
+const savedShellMessage = (detail: string): string =>
+  `Could not start the saved shell: ${detail.replace(/\.$/, '')}. Fix the shell configuration and restart the Phi server.`;
+
 const execFailurePattern = /Failed to (?:execute|find executable)[^\n]*/;
 
 // systemd-run starts before it runs the shell, so a shell that cannot execute looks like a pane
@@ -342,7 +345,7 @@ const scopedExecFailure = (
 
   const line = execFailurePattern.exec(runtime.text({ unwrap: true }))?.[0].trim();
 
-  return line === undefined ? undefined : `Cannot start the shell: ${line}`;
+  return line === undefined ? undefined : savedShellMessage(line);
 };
 
 // A failed pane has no runtime. Only the runtime of this generation is released.
@@ -389,12 +392,9 @@ const startPane = (context: ServerContext, pane: Pane, report: Report): void => 
       context.paneStartFailure = spawned.message;
     }
 
-    report(context, {
-      type: 'paneFailedToStart',
-      paneId: id,
-      generation,
-      message: spawned.message,
-    });
+    const message = pane.restored ? savedShellMessage(spawned.message) : spawned.message;
+
+    report(context, { type: 'paneFailedToStart', paneId: id, generation, message });
 
     return;
   }
@@ -812,6 +812,14 @@ const answerPaneFolders = (context: ServerContext, connection: Connection): void
       const read = readPaneFolders(live.runtime.processId);
 
       panes.push({ paneId: pane.id, folder: read.cwd, foregroundFolder: read.foregroundCwd });
+    }
+
+    if (pane.lifecycle === 'failed') {
+      panes.push({
+        paneId: pane.id,
+        folder: startFolderOf(context, pane),
+        foregroundFolder: undefined,
+      });
     }
   }
 

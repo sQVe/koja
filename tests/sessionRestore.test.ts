@@ -377,6 +377,14 @@ it(
   cliTestTimeoutMs,
 );
 
+const foregroundFolders = async (server: TestServer): Promise<Record<string, string | null>> => {
+  const listed = z
+    .array(z.object({ id: z.string(), foreground_cwd: z.string().nullable() }))
+    .parse(JSON.parse(await server.phi(['pane', 'list', '--json'])));
+
+  return Object.fromEntries(listed.map((pane) => [pane.id, pane.foreground_cwd]));
+};
+
 const layoutOf = async (server: TestServer): Promise<string> => {
   const workspaces = await server.phi(['workspace', 'list', '--json']);
   const tabs = await server.phi(['tab', 'list', '--json']);
@@ -422,7 +430,8 @@ it(
     );
 
     expect(await layoutOf(server)).toBe(layoutBefore);
-    expect((await server.folders())[second]).toBeNull();
+    expect((await server.folders())[second]).toBe(gone);
+    expect((await foregroundFolders(server))[second]).toBeNull();
   },
   cliTestTimeoutMs,
 );
@@ -450,7 +459,10 @@ it(
 
     for (const state of Object.values(states)) {
       expect(state.lifecycle).toBe('failed');
+      expect(state.error).toStartWith('Could not start the saved shell: ');
       expect(state.error).toContain('/bin/phi-missing-shell');
+      expect(state.error).toEndWith('Fix the shell configuration and restart the Phi server.');
+      expect(state.error).not.toContain('..');
     }
 
     expect(await layoutOf(server)).toBe(layoutBefore);
@@ -529,7 +541,14 @@ it.skipIf(!scopesAvailable)(
     const states = await server.states();
 
     expect(states['pane-1']?.lifecycle).toBe('failed');
-    expect(states['pane-1']?.error).toContain('Failed to execute');
+
+    expect(states['pane-1']?.error).toStartWith(
+      'Could not start the saved shell: Failed to execute',
+    );
+
+    expect(states['pane-1']?.error).toEndWith(
+      'Fix the shell configuration and restart the Phi server.',
+    );
   },
   cliTestTimeoutMs,
 );
@@ -574,7 +593,7 @@ it.skipIf(!scopesAvailable)(
       expect(state.lifecycle).toBe('failed');
 
       expect(state.error).toBe(
-        'Cannot start the shell: Failed to execute: No such file or directory',
+        'Could not start the saved shell: Failed to execute: No such file or directory. Fix the shell configuration and restart the Phi server.',
       );
     }
 
@@ -678,7 +697,7 @@ it.skipIf(!scopesAvailable)(
     }
 
     expect(states['pane-1'].error).toBe(
-      'Cannot start the shell: Failed to execute: No such file or directory',
+      'Could not start the saved shell: Failed to execute: No such file or directory. Fix the shell configuration and restart the Phi server.',
     );
   },
   cliTestTimeoutMs,
