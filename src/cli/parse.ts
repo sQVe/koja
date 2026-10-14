@@ -671,31 +671,54 @@ const parseGroupCommand = (group: string | undefined, input: GroupInput): Comman
   return group === 'server' ? parseServerCommand(input) : 'Unknown command.';
 };
 
-const strayLayoutOptionMessage = (
+const strayFolderOptionMessage = (
   group: string | undefined,
-  direction: string | undefined,
-  cells: string | undefined,
   cwd: string | undefined,
 ): string | undefined => {
-  if (cwd !== undefined && group !== 'pane' && group !== 'tab') {
-    return '--cwd belongs to pane split and tab create.';
-  }
+  const takesFolder = group === 'pane' || group === 'tab';
 
-  if (direction !== undefined && group !== 'pane') {
+  return cwd === undefined || takesFolder
+    ? undefined
+    : '--cwd belongs to pane split and tab create.';
+};
+
+const strayPaneOptionMessage = ({
+  pane,
+  direction,
+  cells,
+  ...read
+}: Pick<StrayOptions, 'pane' | 'direction' | 'cells'> & Partial<RawReadOptions>):
+  | string
+  | undefined => {
+  if (direction !== undefined) {
     return '--direction belongs to pane split and pane resize.';
   }
 
-  return cells !== undefined && group !== 'pane' ? '--cells belongs to pane resize.' : undefined;
+  if (cells !== undefined) {
+    return '--cells belongs to pane resize.';
+  }
+
+  if (hasReadOptions(read)) {
+    return '--source, --lines, --from, and --to belong to pane read.';
+  }
+
+  return pane === undefined ? undefined : '--pane belongs to pane read and pane send.';
 };
 
 const strayOptionMessage = (
   group: string | undefined,
-  { label, background, pane, workspace, direction, cells, client, cwd, ...read }: StrayOptions,
+  { label, background, workspace, client, cwd, ...paneOptions }: StrayOptions,
 ): string | undefined => {
-  const layoutStray = strayLayoutOptionMessage(group, direction, cells, cwd);
+  const paneStray = group === 'pane' ? undefined : strayPaneOptionMessage(paneOptions);
 
-  if (layoutStray !== undefined) {
-    return layoutStray;
+  if (paneStray !== undefined) {
+    return paneStray;
+  }
+
+  const folderStray = strayFolderOptionMessage(group, cwd);
+
+  if (folderStray !== undefined) {
+    return folderStray;
   }
 
   if (label !== undefined && group !== 'workspace') {
@@ -710,17 +733,7 @@ const strayOptionMessage = (
     return '--workspace belongs to tab create.';
   }
 
-  if (client !== undefined && group !== 'detach') {
-    return '--client belongs to detach.';
-  }
-
-  if (hasReadOptions(read) && group !== 'pane') {
-    return '--source, --lines, --from, and --to belong to pane read.';
-  }
-
-  return pane !== undefined && group !== 'pane'
-    ? '--pane belongs to pane read and pane send.'
-    : undefined;
+  return client !== undefined && group !== 'detach' ? '--client belongs to detach.' : undefined;
 };
 
 export const parseCommand = (argv: string[]): Command | string => {
