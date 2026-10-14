@@ -15,8 +15,6 @@ interface Placement {
   focusedPaneId: PaneId | undefined;
 }
 
-// Keeps one renderable per pane of the focused tab at its layout rectangle, with the borders
-// beneath them. Each pane draws and acknowledges its own row updates.
 export type PaneLayerSession = Pick<
   AttachSession,
   'getState' | 'rowCache' | 'newestSequence' | 'acknowledge' | 'subscribe' | 'subscribeRows'
@@ -37,6 +35,8 @@ const placementOf = (snapshot: StoreSnapshot, terminal: TerminalSize): Placement
   };
 };
 
+// Keeps one renderable per pane of the focused tab at its layout rectangle, with the borders
+// beneath them. Each pane draws and acknowledges its own row updates.
 export const mountPanes = (
   session: PaneLayerSession,
   renderer: CliRenderer,
