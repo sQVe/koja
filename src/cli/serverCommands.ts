@@ -1,4 +1,5 @@
 import { homedir } from 'node:os';
+import { resolve } from 'node:path';
 
 import { z } from 'zod';
 
@@ -36,6 +37,9 @@ const runningSchema = z.object({ socket: z.string(), pid: z.number().int().posit
 
 type RunningLine = z.infer<typeof runningSchema>;
 
+const ownBinaryPath = (): string =>
+  Bun.main.startsWith('/$bunfs/') ? process.execPath : resolve(Bun.main);
+
 const runInForeground = async (context: ServerContext): Promise<Outcome> => {
   const { socketPath, version, environment } = context;
   const created = createLog(context.logPath, Date.now);
@@ -51,6 +55,7 @@ const runInForeground = async (context: ServerContext): Promise<Outcome> => {
     version,
     log,
     environment,
+    binaryPath: ownBinaryPath(),
     sessionPathFor: (resolvedSocketPath) =>
       sessionPathFor(environment.XDG_STATE_HOME, homedir(), resolvedSocketPath),
   });

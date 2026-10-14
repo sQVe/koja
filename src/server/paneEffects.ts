@@ -2,11 +2,13 @@ import { statSync } from 'node:fs';
 
 import type { PaneId } from '../ids.ts';
 import { invariant } from '../invariant.ts';
+import type { BuildVersion } from '../protocol/protocol.ts';
 import { paneTheme } from '../store/store.ts';
 import type { Fact, Pane, State } from '../store/store.ts';
 import type { Log } from './log.ts';
 import { spawnPane } from './pane.ts';
 import type { PaneRuntime } from './pane.ts';
+import type { PaneIdentity } from './paneEnvironment.ts';
 import { readFollowFolder } from './processInfo.ts';
 import { createRowPublisher } from './rowPublisher.ts';
 import { scheduleRows } from './rowSubscriptions.ts';
@@ -17,6 +19,9 @@ export interface PaneEffectContext {
   options: {
     log: Log;
     environment: Record<string, string | undefined>;
+    socketPath: string;
+    binaryPath: string;
+    version: BuildVersion;
     holdLimitMs?: number;
     scrollbackBytes?: number;
   };
@@ -150,6 +155,21 @@ const releaseRuntime = (context: PaneEffectContext, id: PaneId, runtime: PaneRun
   runtime[Symbol.dispose]();
 };
 
+const paneIdentityOf = (context: PaneEffectContext, pane: Pane): PaneIdentity => {
+  const tab = context.state.tabs.find((known) => known.id === pane.tabId);
+
+  invariant(tab !== undefined, `Pane ${pane.id} has no tab.`);
+
+  return {
+    paneId: pane.id,
+    tabId: tab.id,
+    workspaceId: tab.workspaceId,
+    socketPath: context.options.socketPath,
+    binaryPath: context.options.binaryPath,
+    version: context.options.version.version,
+  };
+};
+
 export const paneNumber = (id: PaneId): number => Number(id.slice('pane-'.length));
 
 export const startPane = (context: PaneEffectContext, pane: Pane, report: Report): void => {
@@ -170,6 +190,7 @@ export const startPane = (context: PaneEffectContext, pane: Pane, report: Report
     generation,
     size: pane.size,
     environment: context.options.environment,
+    identity: paneIdentityOf(context, pane),
     directory,
     useScope: paneScopesEnabled(context),
     ...(context.options.scrollbackBytes === undefined

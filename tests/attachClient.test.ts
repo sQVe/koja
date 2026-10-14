@@ -595,6 +595,7 @@ it('keeps receiving row updates from a real server past the in-flight limit', as
     version,
     log: created.log,
     environment: { ...process.env, SHELL: '/bin/sh' },
+    binaryPath: process.execPath,
     holdLimitMs: 60_000,
   });
 

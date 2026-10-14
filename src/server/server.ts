@@ -53,6 +53,8 @@ interface ServerOptions {
   socketPath: string;
   version: BuildVersion;
   log: Log;
+  // The command that runs Phi. Panes receive it as PHI_BIN_PATH.
+  binaryPath: string;
   // The environment the server started in. Each pane's shell starts with it.
   environment: Record<string, string | undefined>;
   // For tests: ends a render hold after this many milliseconds. Defaults to the publisher's limit.
@@ -562,7 +564,7 @@ export const runServer = async (options: ServerOptions): Promise<RunServerResult
   const { path: socketPath, release: releaseLock } = claimed;
 
   const context: ServerContext = {
-    options,
+    options: { ...options, socketPath },
     socketPath,
     releaseLock,
     state: createState(),
