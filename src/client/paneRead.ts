@@ -30,6 +30,7 @@ export type PaneReadFailure = Extract<ControlMessage, { type: 'paneReadFailed' }
 
 export type ReadStep =
   | { kind: 'send'; selection: Selection }
+  | { kind: 'next' }
   | { kind: 'done'; output: PaneReadOutput }
   | { kind: 'failed'; failure: PaneReadFailure };
 
@@ -39,8 +40,8 @@ export interface PaneReader {
   takeFailure: (failure: PaneReadFailure) => ReadStep;
 }
 
-// The most rows a reply holds. A failure names the real limit, which can be lower.
-const firstPageRows = 1000;
+// A range is first asked for whole. A size failure names the rows it covers, and pages halve it.
+const wholeRange = Number.MAX_SAFE_INTEGER;
 
 // rowsToLines already trimmed the whitespace each source counts as blank, so a blank line is empty.
 const withoutTrailingBlanks = (lines: string[]): string[] => {
@@ -49,18 +50,22 @@ const withoutTrailingBlanks = (lines: string[]): string[] => {
   return lines.slice(0, lastText + 1);
 };
 
-// Reads what the command asks for. A read that fits one reply takes one request. When the server
-// refuses a source read as too large, the failure names the rows it selected, and the reader reads
-// them as pages of a range in one epoch, so the rows come from one numbering or the read fails.
+// Reads what the command asks for. The server takes one snapshot of the selected rows and sends it
+// in parts, so the reader asks for parts until none remain. When the selection is larger than one
+// snapshot, the failure names the rows it selected, and the reader reads them as pages of a range,
+// each a snapshot, pinned to one epoch and screen so the rows come from one numbering or the read
+// fails.
 // A source read drops its trailing blank lines. A range keeps every row.
 export const createPaneReader = (command: PaneReadCommand): PaneReader => {
   const unwrap = command.source === 'recentUnwrapped';
   const pages: PaneRows[] = [];
-  let pageRows = firstPageRows;
+  let pageRows = wholeRange;
+  let pageStart = command.range?.from ?? 0;
+  let received = 0;
   let next = command.range?.from ?? 0;
   let last = command.range?.to ?? 0;
   let epoch: number | undefined;
-  let alternate: boolean | undefined;
+  let screen: number | undefined;
   let paging = command.range !== undefined;
 
   const finish = (latest: PaneRows): ReadStep => {
@@ -82,48 +87,65 @@ export const createPaneReader = (command: PaneReadCommand): PaneReader => {
     };
   };
 
-  const nextPage = (): ReadStep => ({
-    kind: 'send',
-    selection: {
-      source: 'range',
-      from: next,
-      to: Math.min(last, next + pageRows - 1),
-      epoch,
-      alternate,
-    },
-  });
+  const nextPage = (): ReadStep => {
+    pageStart = next;
+    received = 0;
+
+    return {
+      kind: 'send',
+      selection: {
+        source: 'range',
+        from: next,
+        to: Math.min(last, next + pageRows - 1),
+        epoch,
+        screen,
+      },
+    };
+  };
 
   const takePage = (page: PaneRows): ReadStep => {
-    const requested = Math.min(last, next + pageRows - 1) - next + 1;
-
     epoch = page.epoch;
-    alternate = page.alternate;
+    screen = page.screen;
+    received += page.rowCount;
 
     if (page.rowCount > 0) {
       pages.push(page);
     }
 
-    next = page.first + page.rowCount;
+    if (page.remaining > 0) {
+      return { kind: 'next' };
+    }
 
-    const complete = page.rowCount < requested || next > last;
+    const requested = Math.min(last, pageStart + pageRows - 1) - pageStart + 1;
+
+    next = pageStart + received;
+
+    const complete = received < requested || next > last;
 
     return complete ? finish(page) : nextPage();
   };
 
+  const pinFrom = (failure: { epoch: number; screen: number }): void => {
+    epoch ??= failure.epoch;
+    screen ??= failure.screen;
+  };
+
   const failPaging = (failure: PaneReadFailure): ReadStep => {
-    if (failure.reason === 'tooManyRows' && failure.limit < pageRows) {
-      pageRows = failure.limit;
-
-      return nextPage();
+    if (failure.reason !== 'tooManyBytes') {
+      return { kind: 'failed', failure };
     }
 
-    if (failure.reason === 'tooManyBytes' && pageRows > 1) {
-      pageRows = Math.floor(pageRows / 2);
+    pinFrom(failure);
 
-      return nextPage();
+    const halved = Math.floor(Math.min(pageRows, failure.count) / 2);
+
+    if (halved < 1) {
+      return { kind: 'failed', failure };
     }
 
-    return { kind: 'failed', failure };
+    pageRows = halved;
+
+    return nextPage();
   };
 
   return {
@@ -140,7 +162,7 @@ export const createPaneReader = (command: PaneReadCommand): PaneReader => {
           pages.push(rows);
         }
 
-        return finish(rows);
+        return rows.remaining > 0 ? { kind: 'next' } : finish(rows);
       }
 
       return takePage(rows);
@@ -150,14 +172,14 @@ export const createPaneReader = (command: PaneReadCommand): PaneReader => {
         return failPaging(failure);
       }
 
-      if (failure.reason !== 'tooManyBytes' && failure.reason !== 'tooManyRows') {
+      if (failure.reason !== 'tooManyBytes') {
         return { kind: 'failed', failure };
       }
 
       next = failure.first;
       last = failure.first + failure.count - 1;
       epoch = failure.epoch;
-      alternate = failure.alternate;
+      screen = failure.screen;
       paging = true;
 
       return nextPage();

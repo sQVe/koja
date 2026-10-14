@@ -25,6 +25,9 @@ export interface StableRows {
   // The alternate screen has no history, so while it is active both numbers stay at the primary
   // screen's active top.
   alternate: boolean;
+  // Grows each time the active screen is found to have changed between the primary and alternate
+  // screens. Rows of one screen share numbers with the other, so a read pins the generation.
+  screen: number;
 }
 
 export interface Scrollback {
@@ -100,7 +103,7 @@ const frameInfoWords = 6;
 // words.
 const maxFrameWords = 0xff_ff_ff_ff;
 
-const stableRowsWords = 4;
+const stableRowsWords = 5;
 
 const scrollbackWords = 3;
 
@@ -349,13 +352,14 @@ export class Terminal {
 
     invariant(tracked, 'libghostty-vt could not track the active screen top.');
 
-    const [first = 0n, activeTop = 0n, epoch = 0n, alternate] = this.stableRowsInfo;
+    const [first = 0n, activeTop = 0n, epoch = 0n, alternate, screen = 0n] = this.stableRowsInfo;
 
     return {
       first: Number(first),
       activeTop: Number(activeTop),
       epoch: Number(epoch),
       alternate: alternate === 1n,
+      screen: Number(screen),
     };
   }
 

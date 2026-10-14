@@ -710,7 +710,13 @@ it('changes the epoch once when one write bursts past the history and enters the
   expect(alternate.epoch).not.toBe(before.epoch);
   expect(alternate.activeTop).toBeGreaterThan(before.activeTop + 23);
   expect(again).toEqual(alternate);
-  expect(primary).toEqual({ ...alternate, first: primary.first, alternate: false });
+
+  expect(primary).toEqual({
+    ...alternate,
+    first: primary.first,
+    alternate: false,
+    screen: alternate.screen + 1,
+  });
 });
 
 it.each([
@@ -779,9 +785,10 @@ it('reports the alternate screen and returns the primary numbers after leaving i
     activeTop: primary.activeTop,
     epoch: primary.epoch,
     alternate: true,
+    screen: primary.screen + 1,
   });
 
-  expect(terminal.stableRows()).toEqual(primary);
+  expect(terminal.stableRows()).toEqual({ ...primary, screen: primary.screen + 2 });
 });
 
 it('reports no history on the alternate screen and the primary history after leaving it', () => {

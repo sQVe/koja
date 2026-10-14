@@ -377,6 +377,12 @@ export const runPaneRead = (
       return;
     }
 
+    if (step.kind === 'next') {
+      request.send({ type: 'paneReadNext', paneId: readPane, requestId });
+
+      return;
+    }
+
     requestId += 1;
     request.send({ type: 'paneRead', paneId: readPane, requestId, selection: step.selection });
   };

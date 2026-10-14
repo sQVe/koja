@@ -26,7 +26,7 @@ type PaneFolders = Extract<Awaited<ReturnType<typeof runPaneFolders>>, { ok: tru
 
 type ReadFailure = Extract<
   Awaited<ReturnType<typeof runPaneRead>>,
-  { reason: 'pruned' | 'staleEpoch' | 'screenChanged' | 'tooManyRows' | 'tooManyBytes' }
+  { reason: 'pruned' | 'staleEpoch' | 'screenChanged' | 'tooManyBytes' | 'noSnapshot' }
 >;
 
 const listPanes = (snapshot: StoreSnapshot, folders: PaneFolders) => {
@@ -198,8 +198,8 @@ const readFailureReasons: ReadonlySet<string> = new Set([
   'pruned',
   'staleEpoch',
   'screenChanged',
-  'tooManyRows',
   'tooManyBytes',
+  'noSnapshot',
 ]);
 
 const isReadFailure = (
@@ -216,16 +216,14 @@ const readFailureMessage = (failure: ReadFailure): string => {
   }
 
   if (failure.reason === 'screenChanged') {
-    const screen = failure.alternate ? 'alternate' : 'primary';
-
-    return `The pane switched to its ${screen} screen during the read. Read again.`;
+    return 'The pane switched between its primary and alternate screens during the read. Read again.';
   }
 
   if (failure.reason === 'tooManyBytes') {
     return `A read holds at most ${failure.limitBytes} bytes. Read fewer rows.`;
   }
 
-  return `A read holds at most ${failure.limit} rows.`;
+  return 'The server no longer holds the rows of this read. Read again.';
 };
 
 const sourceNames = {

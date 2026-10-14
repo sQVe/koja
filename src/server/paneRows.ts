@@ -10,7 +10,7 @@ export type PaneReadSelection = Extract<ControlMessage, { type: 'paneRead' }>['s
 type PaneReadFailure = Extract<ControlMessage, { type: 'paneReadFailed' }>['failure'];
 
 // The rows of a reply, before the pane and request they answer are known.
-type SelectedRows = Omit<PaneRows, 'pane' | 'requestId'>;
+export type SelectedRows = Omit<PaneRows, 'pane' | 'requestId' | 'remaining'>;
 
 export type SelectRowsResult =
   | { ok: true; rows: SelectedRows }
@@ -21,14 +21,17 @@ interface Span {
   count: number;
 }
 
-// The most rows one reply holds. A larger range is read in pages.
+// The most rows a read with a line count selects, as herdr clamps --lines.
 export const maxReplyRows = 1000;
 
 // The most bytes one encoded reply holds. The connection queue holds 1 MiB of unread bytes, so a
-// reply of half that leaves room for updates already queued. It is also far below the frame limit.
-// A larger read fails instead of cutting rows, so the caller sees what it asked for and pages by
-// range. This applies to recent and visible reads too.
+// reply of half that leaves room for updates already queued. A snapshot larger than this goes out
+// in parts of whole rows, each asked for by the client.
 export const maxReplyBytes = 0x08_00_00;
+
+// The most bytes of encoded rows one snapshot holds. A larger selection fails with its bounds, and
+// the caller reads it as several snapshots by range.
+export const maxSnapshotBytes = 0x1_00_00_00;
 
 const defaultRecentRows = 80;
 
@@ -126,8 +129,8 @@ const rangeFailure = (
     return { reason: 'staleEpoch', epoch: stable.epoch };
   }
 
-  if (selection.alternate !== undefined && selection.alternate !== stable.alternate) {
-    return { reason: 'screenChanged', alternate: stable.alternate };
+  if (selection.screen !== undefined && selection.screen !== stable.screen) {
+    return { reason: 'screenChanged', screen: stable.screen };
   }
 
   if (selection.from < stable.first) {
@@ -175,7 +178,7 @@ const emptyRows = (
   source: sourceOf(selection),
   columns: size.columns,
   epoch: stable.epoch,
-  alternate: stable.alternate,
+  screen: stable.screen,
   oldest: stable.first,
   first: span.first,
   rowCount: 0,
@@ -185,7 +188,7 @@ const emptyRows = (
 
 const selected = (stable: StableRows, span: Span) => ({
   epoch: stable.epoch,
-  alternate: stable.alternate,
+  screen: stable.screen,
   first: span.first,
   count: span.count,
 });
@@ -209,19 +212,19 @@ export const selectPaneRows = (
 
   const span = spanOf(terminal, stable, size, selection);
 
-  if (span.count > maxReplyRows) {
+  if (paneRowsBytes(1, size.columns, 0) > maxReplyBytes) {
     return {
       ok: false,
-      failure: { reason: 'tooManyRows', limit: maxReplyRows, ...selected(stable, span) },
+      failure: { reason: 'tooManyBytes', limitBytes: maxReplyBytes, ...selected(stable, span) },
     };
   }
 
   const cellBytes = paneRowsBytes(span.count, size.columns, 0);
 
-  if (cellBytes > maxReplyBytes) {
+  if (cellBytes > maxSnapshotBytes) {
     return {
       ok: false,
-      failure: { reason: 'tooManyBytes', limitBytes: maxReplyBytes, ...selected(stable, span) },
+      failure: { reason: 'tooManyBytes', limitBytes: maxSnapshotBytes, ...selected(stable, span) },
     };
   }
 
@@ -239,10 +242,12 @@ export const selectPaneRows = (
     return { ok: false, failure: { reason: 'pruned', oldest: stable.first } };
   }
 
-  if (paneRowsBytes(read.rows.rowCount, size.columns, read.rows.graphemes.length) > maxReplyBytes) {
+  if (
+    paneRowsBytes(read.rows.rowCount, size.columns, read.rows.graphemes.length) > maxSnapshotBytes
+  ) {
     return {
       ok: false,
-      failure: { reason: 'tooManyBytes', limitBytes: maxReplyBytes, ...selected(stable, span) },
+      failure: { reason: 'tooManyBytes', limitBytes: maxSnapshotBytes, ...selected(stable, span) },
     };
   }
 
@@ -252,7 +257,7 @@ export const selectPaneRows = (
       source: sourceOf(selection),
       columns: size.columns,
       epoch: stable.epoch,
-      alternate: stable.alternate,
+      screen: stable.screen,
       oldest: stable.first,
       first: span.first,
       rowCount: read.rows.rowCount,

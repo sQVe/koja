@@ -38,7 +38,8 @@ const pageOf = (first: number, texts: string[], overrides: Partial<PaneRows> = {
     source: PaneRowsSource.range,
     columns,
     epoch: 3,
-    alternate: false,
+    screen: 0,
+    remaining: 0,
     oldest: 10,
     first,
     rowCount: texts.length,
@@ -63,7 +64,7 @@ it('finishes a read that fits one reply with that reply', () => {
 });
 
 const tooManyBytes = (first: number, count: number) =>
-  ({ reason: 'tooManyBytes', limitBytes: 100, epoch: 3, alternate: false, first, count }) as const;
+  ({ reason: 'tooManyBytes', limitBytes: 100, epoch: 3, screen: 0, first, count }) as const;
 
 it('reads a recent read the server refuses as pages of one epoch, oldest first', () => {
   const reader = createPaneReader(command({ lines: 5 }));
@@ -72,12 +73,17 @@ it('reads a recent read the server refuses as pages of one epoch, oldest first',
 
   expect(reader.takeFailure(tooManyBytes(46, 5))).toEqual({
     kind: 'send',
-    selection: { source: 'range', from: 46, to: 50, epoch: 3, alternate: false },
+    selection: { source: 'range', from: 46, to: 50, epoch: 3, screen: 0 },
   });
 
   expect(reader.takeFailure(tooManyBytes(46, 5))).toEqual({
     kind: 'send',
-    selection: { source: 'range', from: 46, to: 50, epoch: 3, alternate: false },
+    selection: { source: 'range', from: 46, to: 47, epoch: 3, screen: 0 },
+  });
+
+  expect(reader.takeFailure(tooManyBytes(46, 2))).toEqual({
+    kind: 'send',
+    selection: { source: 'range', from: 46, to: 46, epoch: 3, screen: 0 },
   });
 });
 
@@ -86,12 +92,18 @@ it('halves the page after a byte failure', () => {
 
   expect(reader.start()).toEqual({
     kind: 'send',
-    selection: { source: 'range', from: 0, to: 999, epoch: undefined, alternate: undefined },
+    selection: {
+      source: 'range',
+      from: 0,
+      to: 1999,
+      epoch: undefined,
+      screen: undefined,
+    },
   });
 
   expect(reader.takeFailure(tooManyBytes(0, 2000))).toEqual({
     kind: 'send',
-    selection: { source: 'range', from: 0, to: 499, epoch: undefined, alternate: undefined },
+    selection: { source: 'range', from: 0, to: 999, epoch: 3, screen: 0 },
   });
 });
 
@@ -101,10 +113,10 @@ it('joins a wrapped line across a page edge for recent-unwrapped', () => {
   );
 
   const sizeFailure = {
-    reason: 'tooManyRows',
-    limit: 2,
+    reason: 'tooManyBytes',
+    limitBytes: 100,
     epoch: 3,
-    alternate: false,
+    screen: 0,
     first: 0,
     count: 4,
   } as const;
@@ -113,12 +125,12 @@ it('joins a wrapped line across a page edge for recent-unwrapped', () => {
 
   expect(reader.takeFailure(sizeFailure)).toEqual({
     kind: 'send',
-    selection: { source: 'range', from: 0, to: 1, epoch: undefined, alternate: undefined },
+    selection: { source: 'range', from: 0, to: 1, epoch: 3, screen: 0 },
   });
 
   expect(reader.takeRows(pageOf(0, ['a', 'bcde+']))).toEqual({
     kind: 'send',
-    selection: { source: 'range', from: 2, to: 3, epoch: 3, alternate: false },
+    selection: { source: 'range', from: 2, to: 3, epoch: 3, screen: 0 },
   });
 
   expect(reader.takeRows(pageOf(2, ['fg', 'h']))).toEqual({
@@ -133,10 +145,10 @@ it('fails a later page that was pruned or changed epoch, and gives no partial re
   reader.start();
 
   reader.takeFailure({
-    reason: 'tooManyRows',
-    limit: 2,
+    reason: 'tooManyBytes',
+    limitBytes: 100,
     epoch: 3,
-    alternate: false,
+    screen: 0,
     first: 0,
     count: 4,
   });
@@ -155,10 +167,10 @@ it('fails the whole read when a later page was pruned', () => {
   reader.start();
 
   reader.takeFailure({
-    reason: 'tooManyRows',
-    limit: 2,
+    reason: 'tooManyBytes',
+    limitBytes: 100,
     epoch: 3,
-    alternate: false,
+    screen: 0,
     first: 0,
     count: 4,
   });
@@ -200,7 +212,7 @@ it('pages a visible read the server refuses over the rows it selected, in one ep
 
   expect(reader.takeFailure(tooManyBytes(30, 4))).toEqual({
     kind: 'send',
-    selection: { source: 'range', from: 30, to: 33, epoch: 3, alternate: false },
+    selection: { source: 'range', from: 30, to: 33, epoch: 3, screen: 0 },
   });
 
   expect(reader.takeRows(pageOf(30, ['a', 'b', 'c', 'd']))).toEqual({
@@ -280,22 +292,22 @@ it('fails the whole read when the screen changed after the first page', () => {
   reader.start();
 
   reader.takeFailure({
-    reason: 'tooManyRows',
-    limit: 2,
+    reason: 'tooManyBytes',
+    limitBytes: 100,
     epoch: 3,
-    alternate: false,
+    screen: 0,
     first: 0,
     count: 4,
   });
 
   expect(reader.takeRows(pageOf(0, ['a', 'b']))).toEqual({
     kind: 'send',
-    selection: { source: 'range', from: 2, to: 3, epoch: 3, alternate: false },
+    selection: { source: 'range', from: 2, to: 3, epoch: 3, screen: 0 },
   });
 
-  expect(reader.takeFailure({ reason: 'screenChanged', alternate: true })).toEqual({
+  expect(reader.takeFailure({ reason: 'screenChanged', screen: 1 })).toEqual({
     kind: 'failed',
-    failure: { reason: 'screenChanged', alternate: true },
+    failure: { reason: 'screenChanged', screen: 1 },
   });
 });
 
@@ -305,15 +317,86 @@ it('pins an explicit range to the screen its first page came from', () => {
   reader.start();
 
   reader.takeFailure({
-    reason: 'tooManyRows',
-    limit: 2,
+    reason: 'tooManyBytes',
+    limitBytes: 100,
     epoch: 3,
-    alternate: true,
+    screen: 1,
     first: 0,
     count: 4,
   });
 
-  expect(reader.takeRows(pageOf(0, ['a', 'b'], { alternate: true }))).toMatchObject({
-    selection: { alternate: true },
+  expect(reader.takeRows(pageOf(0, ['a', 'b'], { screen: 1 }))).toMatchObject({
+    selection: { screen: 1 },
+  });
+});
+
+it('pins an explicit range to the epoch and screen of its first size failure', () => {
+  const reader = createPaneReader(command({ range: { from: 0, to: 1999 } }));
+
+  reader.start();
+
+  expect(reader.takeFailure({ ...tooManyBytes(0, 2000), screen: 4 })).toEqual({
+    kind: 'send',
+    selection: { source: 'range', from: 0, to: 999, epoch: 3, screen: 4 },
+  });
+
+  expect(reader.takeFailure({ reason: 'screenChanged', screen: 5 })).toEqual({
+    kind: 'failed',
+    failure: { reason: 'screenChanged', screen: 5 },
+  });
+});
+
+it('sends the generation of the screen with every later page, also after the pane left and came back', () => {
+  const reader = createPaneReader(command({ range: { from: 0, to: 5 } }));
+
+  reader.start();
+  reader.takeFailure({ ...tooManyBytes(0, 6), screen: 2 });
+
+  expect(reader.takeRows(pageOf(0, ['a', 'b', 'c'], { screen: 2 }))).toMatchObject({
+    selection: { from: 3, to: 5, screen: 2 },
+  });
+
+  expect(reader.takeFailure({ reason: 'screenChanged', screen: 4 })).toEqual({
+    kind: 'failed',
+    failure: { reason: 'screenChanged', screen: 4 },
+  });
+});
+
+it('asks for the next part until a read has none left, then joins every part', () => {
+  const reader = createPaneReader(command({ source: 'recentUnwrapped', lines: 4 }));
+
+  reader.start();
+
+  expect(reader.takeRows(pageOf(10, ['ab', 'cdef+'], { remaining: 2 }))).toEqual({ kind: 'next' });
+
+  expect(reader.takeRows(pageOf(12, ['fg', 'h'], { remaining: 0 }))).toEqual({
+    kind: 'done',
+    output: { epoch: 3, oldest: 10, from: 10, to: 13, lines: ['ab', 'cdeffg', 'h'] },
+  });
+});
+
+it('asks for the next part of a page of a larger read before it asks for the next page', () => {
+  const reader = createPaneReader(command({ range: { from: 0, to: 5 } }));
+
+  reader.start();
+  reader.takeFailure(tooManyBytes(0, 6));
+
+  expect(reader.takeRows(pageOf(0, ['a', 'b'], { remaining: 1 }))).toEqual({ kind: 'next' });
+
+  expect(reader.takeRows(pageOf(2, ['c'], { remaining: 0 }))).toMatchObject({
+    kind: 'send',
+    selection: { from: 3, to: 5 },
+  });
+});
+
+it('fails the read when the server no longer holds the snapshot', () => {
+  const reader = createPaneReader(command({ lines: 4 }));
+
+  reader.start();
+  reader.takeRows(pageOf(10, ['a'], { remaining: 3 }));
+
+  expect(reader.takeFailure({ reason: 'noSnapshot' })).toEqual({
+    kind: 'failed',
+    failure: { reason: 'noSnapshot' },
   });
 });

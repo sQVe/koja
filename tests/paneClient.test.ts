@@ -99,7 +99,8 @@ const rowsReply = (text: string, requestId: number): PaneRows => {
     source: PaneRowsSource.recent,
     columns: text.length,
     epoch: 0,
-    alternate: false,
+    screen: 0,
+    remaining: 0,
     oldest: 0,
     first: 0,
     rowCount: 1,
@@ -400,7 +401,7 @@ it('prints a clear message and fails when the pane switched screens during a rea
             type: 'paneReadFailed',
             paneId: paneId(9),
             requestId: 1,
-            failure: { reason: 'screenChanged', alternate: true },
+            failure: { reason: 'screenChanged', screen: 1 },
           },
         ],
   );
@@ -418,6 +419,7 @@ it('prints a clear message and fails when the pane switched screens during a rea
 
   expect(outcome).toEqual({
     ok: false,
-    message: 'The pane switched to its alternate screen during the read. Read again.',
+    message:
+      'The pane switched between its primary and alternate screens during the read. Read again.',
   });
 });

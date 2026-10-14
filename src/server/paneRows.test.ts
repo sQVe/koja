@@ -2,7 +2,7 @@ import { expect, it } from 'bun:test';
 
 import { PaneRowsSource, rowsToLines } from '../rows/rows.ts';
 import { createTerminal } from '../vt/vt.ts';
-import { maxReplyBytes, maxReplyRows, selectPaneRows } from './paneRows.ts';
+import { maxReplyRows, maxSnapshotBytes, selectPaneRows } from './paneRows.ts';
 import type { PaneReadSelection } from './paneRows.ts';
 
 const encoder = new TextEncoder();
@@ -66,31 +66,16 @@ it('reads 80 rows by default and clamps a count to the rows one reply holds', ()
   expect(read(terminal, 24, recent(5000), 10).rowCount).toBe(maxReplyRows);
 });
 
-it('refuses a recent or visible read whose reply would be over the byte budget', () => {
+it('selects a read larger than one reply as one snapshot', () => {
   using terminal = openTerminal();
 
   feed(terminal, numbered(1, 1500));
 
-  const size = { columns: 80, rows: 24 };
-
-  const stable = terminal.stableRows();
-
-  expect(selectPaneRows(terminal, size, recent(1000))).toEqual({
-    ok: false,
-    failure: {
-      reason: 'tooManyBytes',
-      limitBytes: maxReplyBytes,
-      epoch: stable.epoch,
-      alternate: false,
-      first: stable.activeTop + 24 - 1000,
-      count: 1000,
-    },
-  });
-
+  expect(read(terminal, 24, recent(1000)).rowCount).toBe(1000);
   expect(read(terminal, 24, recent(400)).rowCount).toBe(400);
 });
 
-it('refuses a wide range over the byte budget without throwing', () => {
+it('refuses a wide range over the snapshot budget without throwing', () => {
   using terminal = openTerminal(1100, 5);
 
   feed(terminal, numbered(1, 1200));
@@ -100,12 +85,12 @@ it('refuses a wide range over the byte budget without throwing', () => {
   const result = selectPaneRows(
     terminal,
     { columns: 1100, rows: 5 },
-    { source: 'range', from: first, to: first + 999, epoch: undefined, alternate: undefined },
+    { source: 'range', from: first, to: first + 999, epoch: undefined, screen: undefined },
   );
 
   expect(result).toMatchObject({
     ok: false,
-    failure: { reason: 'tooManyBytes', limitBytes: maxReplyBytes, first, count: 990 },
+    failure: { reason: 'tooManyBytes', limitBytes: maxSnapshotBytes, first, count: 990 },
   });
 });
 
@@ -193,7 +178,7 @@ it('reads a range of stable row numbers, inclusive', () => {
     from: first + 3,
     to: first + 5,
     epoch: undefined,
-    alternate: undefined,
+    screen: undefined,
   });
 
   expect(linesOf(rows)).toEqual(['l4', 'l5', 'l6']);
@@ -213,7 +198,7 @@ it('leaves out the rows past the last row', () => {
     from: activeTop + 3,
     to: activeTop + 500,
     epoch,
-    alternate: undefined,
+    screen: undefined,
   });
 
   const past = read(terminal, 5, {
@@ -221,36 +206,28 @@ it('leaves out the rows past the last row', () => {
     from: activeTop + 5,
     to: activeTop + 9,
     epoch,
-    alternate: undefined,
+    screen: undefined,
   });
 
   expect(rows.rowCount).toBe(2);
   expect(past.rowCount).toBe(0);
 });
 
-it('refuses a range with more rows than one reply holds and reads one with exactly that many', () => {
+it('selects a range with more rows than a counted read holds, and one with exactly that many', () => {
   using terminal = openTerminal(10, 5);
 
   feed(terminal, numbered(1, 1200));
 
   const { first } = terminal.stableRows();
 
-  expect(
-    selectPaneRows(
-      terminal,
-      { columns: 10, rows: 5 },
-      {
-        source: 'range',
-        from: first,
-        to: first + maxReplyRows,
-        epoch: undefined,
-        alternate: undefined,
-      },
-    ),
-  ).toMatchObject({
-    ok: false,
-    failure: { reason: 'tooManyRows', limit: maxReplyRows, first, count: maxReplyRows + 1 },
-  });
+  const over = read(
+    terminal,
+    5,
+    { source: 'range', from: first, to: first + maxReplyRows, epoch: undefined, screen: undefined },
+    10,
+  );
+
+  expect(over.rowCount).toBe(maxReplyRows + 1);
 
   const exact = read(
     terminal,
@@ -260,7 +237,7 @@ it('refuses a range with more rows than one reply holds and reads one with exact
       from: first,
       to: first + maxReplyRows - 1,
       epoch: undefined,
-      alternate: undefined,
+      screen: undefined,
     },
     10,
   );
@@ -286,7 +263,7 @@ it('refuses a range below the oldest kept row and reports that row', () => {
       from: 0,
       to: 9,
       epoch: undefined,
-      alternate: undefined,
+      screen: undefined,
     }),
   ).toEqual({ ok: false, failure: { reason: 'pruned', oldest: first } });
 
@@ -295,7 +272,7 @@ it('refuses a range below the oldest kept row and reports that row', () => {
     from: first,
     to: first,
     epoch: undefined,
-    alternate: undefined,
+    screen: undefined,
   });
 
   expect(kept.oldest).toBe(first);
@@ -324,7 +301,7 @@ it('refuses a range in an old epoch and names the current one', () => {
         from: after.first,
         to: after.first,
         epoch: before.epoch,
-        alternate: undefined,
+        screen: undefined,
       },
     ),
   ).toEqual({ ok: false, failure: { reason: 'staleEpoch', epoch: after.epoch } });
@@ -348,12 +325,9 @@ it('selects a whole screen taller than one reply for an uncounted visible read, 
   feed(terminal, numbered(1, 1005));
 
   const { epoch, activeTop } = terminal.stableRows();
-  const size = { columns: 10, rows: 1005 };
+  const whole = read(terminal, 1005, { source: 'visible', lines: undefined }, 10);
 
-  expect(selectPaneRows(terminal, size, { source: 'visible', lines: undefined })).toMatchObject({
-    ok: false,
-    failure: { reason: 'tooManyRows', epoch, first: activeTop, count: 1005 },
-  });
+  expect(whole).toMatchObject({ epoch, first: activeTop, rowCount: 1005 });
 
   const counted = read(terminal, 1005, { source: 'visible', lines: 2000 }, 10);
 
@@ -361,34 +335,58 @@ it('selects a whole screen taller than one reply for an uncounted visible read, 
   expect(counted.first).toBe(activeTop + 5);
 });
 
-it('refuses a range that names the other screen, and reads one that names the active screen', () => {
+it('refuses a range that names an earlier generation of the screen, also after away and back', () => {
   using terminal = openTerminal(10, 5);
 
   feed(terminal, numbered(1, 12));
 
-  const { activeTop, epoch } = terminal.stableRows();
+  const first = terminal.stableRows();
 
-  const range = (alternate: boolean) =>
+  const range = (screen: number) =>
     selectPaneRows(
       terminal,
       { columns: 10, rows: 5 },
-      { source: 'range', from: activeTop, to: activeTop + 1, epoch, alternate },
+      {
+        source: 'range',
+        from: first.activeTop,
+        to: first.activeTop + 1,
+        epoch: first.epoch,
+        screen,
+      },
     );
 
-  expect(range(false).ok).toBe(true);
+  expect(range(first.screen).ok).toBe(true);
 
-  expect(range(true)).toEqual({
-    ok: false,
-    failure: { reason: 'screenChanged', alternate: false },
+  feed(terminal, '\u001B[?1049hOLD-TOP');
+
+  const alternate = terminal.stableRows();
+
+  expect(alternate).toMatchObject({
+    epoch: first.epoch,
+    activeTop: first.activeTop,
+    alternate: true,
   });
 
-  feed(terminal, '\u001B[?1049h\u001B[Halt');
+  expect(alternate.screen).not.toBe(first.screen);
 
-  expect(terminal.stableRows()).toMatchObject({ epoch, activeTop, alternate: true });
-  expect(range(true).ok).toBe(true);
-
-  expect(range(false)).toEqual({
+  expect(range(first.screen)).toEqual({
     ok: false,
-    failure: { reason: 'screenChanged', alternate: true },
+    failure: { reason: 'screenChanged', screen: alternate.screen },
+  });
+
+  expect(range(alternate.screen).ok).toBe(true);
+
+  feed(terminal, '\u001B[?1049l');
+  terminal.stableRows();
+  feed(terminal, '\u001B[?1049hNEW-BOTTOM');
+
+  const again = terminal.stableRows();
+
+  expect(again).toMatchObject({ alternate: true });
+  expect(again.screen).not.toBe(alternate.screen);
+
+  expect(range(alternate.screen)).toEqual({
+    ok: false,
+    failure: { reason: 'screenChanged', screen: again.screen },
   });
 });

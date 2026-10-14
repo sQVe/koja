@@ -19,6 +19,8 @@ typedef struct {
   uint64_t restart_first;
   bool reset;
   uint64_t epoch;
+  uint64_t screen;
+  bool screen_alternate;
   // While held, state keeps the frame captured when the hold began, see render_hold.
   bool held;
 } Pane;
@@ -493,7 +495,11 @@ static void restart_numbers(Pane *pane) {
 // in place until the primary screen is active again. Without an anchor, only the reset callback
 // shows that a reset cleared the primary screen.
 // info receives the number of screen row 0 (the oldest history row), the number of the active
-// area's top row, the epoch, and 1 when the alternate screen is active. The alternate screen has
+// area's top row, the epoch, 1 when the alternate screen is active, and the screen generation,
+// which grows each time a call finds the other screen active than the call before. Libghostty-vt
+// has no callback for a screen switch, so switches that happen between two calls and leave the
+// same screen active go unseen.
+// The alternate screen has
 // no history, so both numbers stay at the primary screen's active top. Returns false when
 // libghostty-vt cannot track the active top.
 static bool update_stable_rows(Pane *pane, uint64_t *info) {
@@ -511,7 +517,13 @@ static bool update_stable_rows(Pane *pane, uint64_t *info) {
   info[2] = pane->epoch;
   GhosttyTerminalScreen screen = GHOSTTY_TERMINAL_SCREEN_PRIMARY;
   ghostty_terminal_get(pane->terminal, GHOSTTY_TERMINAL_DATA_ACTIVE_SCREEN, &screen);
-  if (screen != GHOSTTY_TERMINAL_SCREEN_PRIMARY) {
+  bool alternate = screen != GHOSTTY_TERMINAL_SCREEN_PRIMARY;
+  if (alternate != pane->screen_alternate) {
+    pane->screen++;
+    pane->screen_alternate = alternate;
+  }
+  info[4] = pane->screen;
+  if (alternate) {
     info[0] = pane->active_top;
     info[3] = 1;
     return true;

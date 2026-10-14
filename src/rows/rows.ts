@@ -59,8 +59,12 @@ export interface PaneRows {
   source: PaneRowsSource;
   columns: number;
   epoch: number;
-  // Whether the alternate screen was active. Its rows share numbers with the primary screen.
-  alternate: boolean;
+  // The screen generation of the terminal. Rows of the alternate screen share numbers with the
+  // primary screen's.
+  screen: number;
+  // The rows of the same read that later parts hold. A client asks for the next part until this
+  // is 0.
+  remaining: number;
   // The stable number of the oldest row kept.
   oldest: number;
   // The stable number of the first row in cells.
@@ -176,10 +180,11 @@ const paneRowsHeader = {
   oldest: 5,
   first: 7,
   rowCount: 9,
-  alternate: 10,
+  screen: 10,
+  remaining: 11,
 };
 
-const paneRowsHeaderWords = 11;
+const paneRowsHeaderWords = 12;
 
 const colorMarker = 0x1_00_00_00;
 
@@ -335,6 +340,49 @@ export const concatRows = (pages: TextRows[]): TextRows => {
   }
 
   return { rowCount, cells, graphemes: Uint32Array.from(graphemes) };
+};
+
+// The graphemes words each row of a range holds, as the part of graphemes that names its cells.
+export const graphemeWordsPerRow = (range: TextRows, columns: number): number[] => {
+  const words = Array.from({ length: range.rowCount }, () => 0);
+
+  for (let index = 0; index < range.graphemes.length;) {
+    const length = range.graphemes[index + 1] ?? 0;
+    const row = Math.floor((range.graphemes[index] ?? 0) / rowWords(columns));
+
+    words[row] = (words[row] ?? 0) + 2 + length;
+    index += 2 + length;
+  }
+
+  return words;
+};
+
+// Returns count rows of the range from row start, with their clusters moved to the new cell
+// indexes. The inverse of concatRows.
+export const sliceRows = (
+  range: TextRows,
+  columns: number,
+  start: number,
+  count: number,
+): TextRows => {
+  const width = rowWords(columns);
+  const cells = range.cells.slice(start * width, (start + count) * width);
+  const graphemes: number[] = [];
+
+  for (let index = 0; index < range.graphemes.length;) {
+    const cellIndex = range.graphemes[index] ?? 0;
+    const length = range.graphemes[index + 1] ?? 0;
+    const row = Math.floor(cellIndex / width);
+
+    if (row >= start && row < start + count) {
+      graphemes.push(cellIndex - start * width);
+      graphemes.push(...range.graphemes.subarray(index + 1, index + 2 + length));
+    }
+
+    index += 2 + length;
+  }
+
+  return { rowCount: count, cells, graphemes: Uint32Array.from(graphemes) };
 };
 
 const writeRowNumber = (words: Uint32Array, index: number, value: number) => {
@@ -551,6 +599,8 @@ export const encodePaneRows = (rows: PaneRows): Uint8Array => {
   assertWord(rows.requestId, 'request id');
   assertWord(rows.columns, 'column count');
   assertWord(rows.epoch, 'epoch');
+  assertWord(rows.screen, 'screen generation');
+  assertWord(rows.remaining, 'remaining row count');
   assertRowNumber(rows.oldest, 'oldest row number');
   assertRowNumber(rows.first, 'first row number');
   assertWord(rows.rowCount, 'row count');
@@ -567,7 +617,8 @@ export const encodePaneRows = (rows: PaneRows): Uint8Array => {
   words[paneRowsHeader.source] = rows.source;
   words[paneRowsHeader.columns] = rows.columns;
   words[paneRowsHeader.epoch] = rows.epoch;
-  words[paneRowsHeader.alternate] = rows.alternate ? 1 : 0;
+  words[paneRowsHeader.screen] = rows.screen;
+  words[paneRowsHeader.remaining] = rows.remaining;
   writeRowNumber(words, paneRowsHeader.oldest, rows.oldest);
   writeRowNumber(words, paneRowsHeader.first, rows.first);
   words[paneRowsHeader.rowCount] = rows.rowCount;
@@ -576,6 +627,14 @@ export const encodePaneRows = (rows: PaneRows): Uint8Array => {
 
   return new Uint8Array(words.buffer);
 };
+
+const paneRowsCounters = (words: Uint32Array) => ({
+  pane: words[paneRowsHeader.pane] ?? 0,
+  requestId: words[paneRowsHeader.requestId] ?? 0,
+  epoch: words[paneRowsHeader.epoch] ?? 0,
+  screen: words[paneRowsHeader.screen] ?? 0,
+  remaining: words[paneRowsHeader.remaining] ?? 0,
+});
 
 // Returns an error for bytes the peer got wrong. It never throws.
 export const decodePaneRows = (bytes: Uint8Array): DecodePaneRowsResult => {
@@ -608,12 +667,9 @@ export const decodePaneRows = (bytes: Uint8Array): DecodePaneRowsResult => {
   return {
     ok: true,
     rows: {
-      pane: words[paneRowsHeader.pane] ?? 0,
-      requestId: words[paneRowsHeader.requestId] ?? 0,
+      ...paneRowsCounters(words),
       source: head.source,
       columns,
-      epoch: words[paneRowsHeader.epoch] ?? 0,
-      alternate: words[paneRowsHeader.alternate] === 1,
       oldest: readRowNumber(words, paneRowsHeader.oldest),
       first: readRowNumber(words, paneRowsHeader.first),
       rowCount,

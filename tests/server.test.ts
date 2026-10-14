@@ -34,7 +34,7 @@ import type { PaneRows, RowUpdate } from '../src/rows/rows.ts';
 import { createLog } from '../src/server/log.ts';
 import type { Log } from '../src/server/log.ts';
 import { spawnPane } from '../src/server/pane.ts';
-import { maxReplyBytes } from '../src/server/paneRows.ts';
+import { maxReplyBytes, maxSnapshotBytes } from '../src/server/paneRows.ts';
 import * as processGroups from '../src/server/processGroups.ts';
 import * as scope from '../src/server/scope.ts';
 import { runServer } from '../src/server/server.ts';
@@ -579,7 +579,7 @@ const readRange = async (client: TestClient, from: number, to: number) => {
     type: 'paneRead',
     paneId: paneId(1),
     requestId: 77,
-    selection: { source: 'range', from, to, epoch: undefined, alternate: undefined },
+    selection: { source: 'range', from, to, epoch: undefined, screen: undefined },
   });
 
   return client.nextPaneRows();
@@ -638,34 +638,88 @@ it('answers a soft-wrapped line as several rows, or as one line for the reader t
   ).toBe(true);
 });
 
-it('refuses a range over the rows one reply holds and a read of a missing pane', async () => {
+const askNext = (client: TestClient, requestId: number) => {
+  client.send({ type: 'paneReadNext', paneId: paneId(1), requestId });
+};
+
+it('sends a range larger than one reply in parts of whole rows, each asked for by the client', async () => {
   const client = await startCountingServer(1200);
 
   client.send({
     type: 'paneRead',
     paneId: paneId(1),
     requestId: 5,
-    selection: { source: 'range', from: 0, to: 1000, epoch: undefined, alternate: undefined },
+    selection: { source: 'range', from: 0, to: 1000, epoch: undefined, screen: undefined },
   });
+
+  const parts = [await client.nextPaneRows()];
+
+  while ((parts.at(-1)?.remaining ?? 0) > 0) {
+    askNext(client, 5);
+    parts.push(await client.nextPaneRows());
+  }
+
+  expect(parts.length).toBeGreaterThan(1);
+
+  for (const part of parts) {
+    expect(encodePaneRows(part).length).toBeLessThanOrEqual(maxReplyBytes);
+    expect(part.requestId).toBe(5);
+  }
+
+  const lines = parts.flatMap((part) => linesOf(part));
+
+  expect(lines).toEqual(Array.from({ length: 1001 }, (_, index) => `a${index + 1}`));
+
+  expect(parts.map((part) => part.first)).toEqual(
+    parts.map((_, index) => parts.slice(0, index).reduce((sum, part) => sum + part.rowCount, 0)),
+  );
+
+  askNext(client, 5);
 
   expect(await client.nextMessage()).toEqual({
     type: 'paneReadFailed',
     paneId: paneId(1),
     requestId: 5,
-    failure: {
-      reason: 'tooManyRows',
-      limit: 1000,
-      epoch: expect.any(Number) as number,
-      alternate: false,
-      first: 0,
-      count: 1001,
-    },
+    failure: { reason: 'noSnapshot' },
+  });
+});
+
+it('drops a snapshot when a new read arrives, and answers a part of an unknown request with noSnapshot', async () => {
+  const client = await startCountingServer(1200);
+
+  client.send({
+    type: 'paneRead',
+    paneId: paneId(1),
+    requestId: 5,
+    selection: { source: 'range', from: 0, to: 1000, epoch: undefined, screen: undefined },
   });
 
-  client.send(readRecent(paneId(99)));
+  expect((await client.nextPaneRows()).remaining).toBeGreaterThan(0);
 
-  expect(await client.nextMessage()).toEqual({ type: 'paneMissing', paneId: paneId(99) });
-  expect(client.paneRows).toHaveLength(0);
+  client.send({
+    type: 'paneRead',
+    paneId: paneId(1),
+    requestId: 6,
+    selection: { source: 'recent', lines: 3 },
+  });
+
+  await client.nextPaneRows();
+
+  askNext(client, 5);
+
+  expect(await client.nextMessage()).toMatchObject({
+    type: 'paneReadFailed',
+    requestId: 5,
+    failure: { reason: 'noSnapshot' },
+  });
+
+  askNext(client, 99);
+
+  expect(await client.nextMessage()).toMatchObject({
+    type: 'paneReadFailed',
+    requestId: 99,
+    failure: { reason: 'noSnapshot' },
+  });
 });
 
 it('refuses a range below the oldest kept row with that row number', async () => {
@@ -675,7 +729,7 @@ it('refuses a range below the oldest kept row with that row number', async () =>
     type: 'paneRead',
     paneId: paneId(1),
     requestId: 8,
-    selection: { source: 'range', from: 0, to: 9, epoch: undefined, alternate: undefined },
+    selection: { source: 'range', from: 0, to: 9, epoch: undefined, screen: undefined },
   });
 
   const failed = await client.nextMessage();
@@ -693,7 +747,7 @@ it('refuses a range below the oldest kept row with that row number', async () =>
   expect(kept).toMatchObject({ oldest, first: oldest, rowCount: 1 });
 });
 
-it('refuses a wide range over the byte budget with a typed failure and sends only replies that fit', async () => {
+it('refuses a wide range over the snapshot budget with a typed failure and sends only replies that fit', async () => {
   const directory = await temporaryDirectory();
   const { server, socketPath } = await startServer(directory);
   const client = await connect(socketPath);
@@ -723,7 +777,7 @@ it('refuses a wide range over the byte budget with a typed failure and sends onl
       from: oldest,
       to: oldest + 999,
       epoch: undefined,
-      alternate: undefined,
+      screen: undefined,
     },
   });
 
@@ -735,9 +789,9 @@ it('refuses a wide range over the byte budget with a typed failure and sends onl
     requestId: 9,
     failure: {
       reason: 'tooManyBytes',
-      limitBytes: maxReplyBytes,
+      limitBytes: maxSnapshotBytes,
       epoch: expect.any(Number) as number,
-      alternate: false,
+      screen: 0,
       first: oldest,
       count: 1000,
     },
@@ -758,7 +812,7 @@ it('refuses a range in another epoch with the current epoch', async () => {
     type: 'paneRead',
     paneId: paneId(1),
     requestId: 6,
-    selection: { source: 'range', from: 0, to: 1, epoch: 4242, alternate: undefined },
+    selection: { source: 'range', from: 0, to: 1, epoch: 4242, screen: undefined },
   });
 
   const failed = await client.nextMessage();

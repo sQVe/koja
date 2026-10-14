@@ -74,37 +74,31 @@ const paneReadSelectionSchema = z.discriminatedUnion('source', [
     from: z.number().int().nonnegative(),
     to: z.number().int().nonnegative(),
     epoch: absent(wordSchema),
-    alternate: absent(z.boolean()),
+    screen: absent(wordSchema),
   }),
 ]);
 
 // pruned: the range starts below the oldest row kept. staleEpoch: the request named another epoch
 // than the current one. screenChanged: the request named the primary or alternate screen, which is
-// not the one active now. The screens share row numbers and the epoch. alternate says which screen
-// is active. tooManyRows: the selection holds more rows than one reply can.
-// tooManyBytes: the encoded reply would be larger than one reply can be. Both name the rows the
-// selection covers, as the epoch, the screen, the first stable row number, and the row count, so a client can
-// read them as a range in pages.
+// not the current one. The screens share row numbers and the epoch, and a generation grows each
+// time the pane switches between them. screen is the current generation. tooManyBytes: the
+// selection is larger than one snapshot can be. It names the rows the selection covers, as the
+// epoch, the screen generation, the first stable row number, and the row count, so a client can
+// read them as a range in several snapshots. noSnapshot: the connection holds no snapshot for
+// the request a part was asked for.
 const paneReadFailureSchema = z.discriminatedUnion('reason', [
   z.object({ reason: z.literal('pruned'), oldest: z.number().int().nonnegative() }),
   z.object({ reason: z.literal('staleEpoch'), epoch: wordSchema }),
-  z.object({ reason: z.literal('screenChanged'), alternate: z.boolean() }),
-  z.object({
-    reason: z.literal('tooManyRows'),
-    limit: count,
-    epoch: wordSchema,
-    alternate: z.boolean(),
-    first: z.number().int().nonnegative(),
-    count,
-  }),
+  z.object({ reason: z.literal('screenChanged'), screen: wordSchema }),
   z.object({
     reason: z.literal('tooManyBytes'),
     limitBytes: count,
     epoch: wordSchema,
-    alternate: z.boolean(),
+    screen: wordSchema,
     first: z.number().int().nonnegative(),
     count,
   }),
+  z.object({ reason: z.literal('noSnapshot') }),
 ]);
 
 // The terminal passes sizes as 16-bit numbers.
@@ -345,6 +339,9 @@ const controlSchema = z.discriminatedUnion('type', [
     requestId: wordSchema,
     selection: paneReadSelectionSchema,
   }),
+  // Asks for the next part of the snapshot a paneRead took. The part comes back in a paneRows
+  // frame, or as paneReadFailed.
+  z.object({ type: z.literal('paneReadNext'), paneId: paneIdSchema, requestId: wordSchema }),
   z.object({
     type: z.literal('paneReadFailed'),
     paneId: paneIdSchema,

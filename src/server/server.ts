@@ -35,6 +35,8 @@ import type { Log } from './log.ts';
 import { spawnPane } from './pane.ts';
 import type { PaneRuntime } from './pane.ts';
 import { selectPaneRows } from './paneRows.ts';
+import { createSnapshot, createSnapshotStore, hasMoreParts, takePart } from './paneSnapshot.ts';
+import type { PaneSnapshot, SnapshotStore } from './paneSnapshot.ts';
 import {
   readFollowFolder,
   readPaneFolders,
@@ -112,6 +114,8 @@ interface Runtime {
   // The row subscriptions of each terminal connection. Their ack records an ack on the named
   // pane's subscription, and is true if it took it.
   rowSubscriptions: Map<Connection, RowSubscriptions>;
+  // The snapshot of the read a connection has parts left of, one per connection.
+  readSnapshots: SnapshotStore<Connection>;
   listener: Listener | undefined;
   nextConnectionId: number;
   // Whether panes start in a systemd user scope. Decided when the first pane starts.
@@ -150,6 +154,11 @@ type WorkspaceRequest = Extract<
 >;
 
 type TabRequest = Extract<ControlMessage, { type: 'tabCreate' | 'tabFocus' | 'tabClose' }>;
+
+type PaneCommandMessage = Extract<
+  ControlMessage,
+  { type: 'paneRead' | 'paneReadNext' | 'paneSend' }
+>;
 
 // How long a pane whose stop failed gets to exit after it is killed.
 const paneExitWaitMs = 1000;
@@ -784,6 +793,47 @@ const findLivePane = (context: ServerContext, paneId: PaneId) => {
   return { pane, runtime };
 };
 
+// Sends the next part of the snapshot, and keeps the snapshot only while parts remain.
+const sendPart = (context: ServerContext, connection: Connection, held: PaneSnapshot): void => {
+  const part = takePart(held);
+
+  const reply = encodePaneRows({
+    ...part,
+    pane: paneNumber(held.paneId),
+    requestId: held.requestId,
+  });
+
+  if (hasMoreParts(held)) {
+    context.runtime.readSnapshots.keep(connection, held);
+  } else {
+    context.runtime.readSnapshots.drop(connection);
+  }
+
+  connection.sendBinary(FrameKind.paneRows, reply);
+};
+
+const answerPaneReadNext = (
+  context: ServerContext,
+  message: Extract<ControlMessage, { type: 'paneReadNext' }>,
+  connection: Connection,
+): void => {
+  const { paneId, requestId } = message;
+  const held = context.runtime.readSnapshots.find(connection, paneId, requestId);
+
+  if (held === undefined) {
+    connection.send({
+      type: 'paneReadFailed',
+      paneId,
+      requestId,
+      failure: { reason: 'noSnapshot' },
+    });
+
+    return;
+  }
+
+  sendPart(context, connection, held);
+};
+
 const answerPaneRead = (
   context: ServerContext,
   message: PaneReadMessage,
@@ -810,9 +860,7 @@ const answerPaneRead = (
     return;
   }
 
-  const reply = encodePaneRows({ ...selected.rows, pane: paneNumber(paneId), requestId });
-
-  connection.sendBinary(FrameKind.paneRows, reply);
+  sendPart(context, connection, createSnapshot(paneId, requestId, selected.rows));
 };
 
 const answerPaneReadAfterHold = async (
@@ -886,12 +934,27 @@ const answerPaneProcessInfo = (
   });
 };
 
+const paneCommandTypes: ReadonlySet<string> = new Set(['paneRead', 'paneReadNext', 'paneSend']);
+
+const isPaneCommand = (message: ControlMessage): message is PaneCommandMessage =>
+  paneCommandTypes.has(message.type);
+
 const handlePaneCommand = (
   context: ServerContext,
-  message: Extract<ControlMessage, { type: 'paneRead' | 'paneSend' }>,
+  message: PaneCommandMessage,
   connection: Connection,
 ): void => {
   const live = findLivePane(context, message.paneId);
+
+  if (message.type === 'paneReadNext') {
+    answerPaneReadNext(context, message, connection);
+
+    return;
+  }
+
+  if (message.type === 'paneRead') {
+    context.runtime.readSnapshots.drop(connection);
+  }
 
   if (live === undefined) {
     connection.send({ type: 'paneMissing', paneId: message.paneId });
@@ -1353,7 +1416,7 @@ const handleMessage = (
 
   markActive(context, connection);
 
-  if (message.type === 'paneRead' || message.type === 'paneSend') {
+  if (isPaneCommand(message)) {
     handlePaneCommand(context, message, connection);
 
     return;
@@ -1470,6 +1533,7 @@ const closeConnection = (context: ServerContext, id: number): void => {
   context.runtime.clientIds.delete(connection);
   context.runtime.rowSubscriptions.get(connection)?.unsubscribe();
   context.runtime.rowSubscriptions.delete(connection);
+  context.runtime.readSnapshots.drop(connection);
   connection.close();
 
   if (clientId !== undefined) {
@@ -1605,6 +1669,7 @@ export const runServer = async (options: ServerOptions): Promise<RunServerResult
       connections: new Map(),
       clientIds: new Map(),
       rowSubscriptions: new Map(),
+      readSnapshots: createSnapshotStore(),
       listener: undefined,
       nextConnectionId: 1,
       paneScopes: undefined,
