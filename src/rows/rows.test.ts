@@ -2,6 +2,7 @@ import { expect, it } from 'bun:test';
 
 import {
   CellFlag,
+  concatRows,
   CellWidth,
   cellWords,
   decodePaneInput,
@@ -392,4 +393,26 @@ it.each([
   ],
 ] as const)('refuses pane rows with %s', (_name, bytes, reason) => {
   expect(decodePaneRows(bytes)).toEqual({ ok: false, reason });
+});
+
+it('joins the rows of two pages so a wrapped line crosses the page edge', () => {
+  const first = {
+    rowCount: 1,
+    cells: joinRows([wrappedRow(0, 'abc')]),
+    graphemes: new Uint32Array(),
+  };
+
+  const secondGrapheme = rowWords(columns) + rowHeaderWords + cellWords;
+
+  const second = {
+    rowCount: 2,
+    cells: joinRows([wrappedRow(1, 'de', false), textRow(2, 'xyz')]),
+    graphemes: Uint32Array.of(secondGrapheme, 2, 0x79, 0x3_01),
+  };
+
+  const joined = concatRows([first, second]);
+  const padded = 'abc'.padEnd(columns, ' ');
+
+  expect(joined.rowCount).toBe(3);
+  expect(rowsToLines(joined, columns, true)).toEqual([`${padded}de`, 'xy\u0301z']);
 });

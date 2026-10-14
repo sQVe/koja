@@ -7,8 +7,10 @@ import {
   parseControl,
 } from '../protocol/protocol.ts';
 import type { BuildVersion, ControlMessage } from '../protocol/protocol.ts';
-import { decodePaneRows, PaneRowsSource, rowsToLines } from '../rows/rows.ts';
+import { decodePaneRows } from '../rows/rows.ts';
 import type { PaneRows } from '../rows/rows.ts';
+import { createPaneReader } from './paneRead.ts';
+import type { PaneReadCommand, PaneReadFailure, PaneReadOutput, ReadStep } from './paneRead.ts';
 import { focusedPane } from './snapshot.ts';
 import type { StoreSnapshot } from './snapshot.ts';
 import { workspaceRequest } from './workspaceRequest.ts';
@@ -34,9 +36,13 @@ export type { WorkspaceCommand } from './workspaceRequest.ts';
 type StopResult = { ok: true; close: () => void } | { ok: false; reason: 'noServer' };
 
 // Without a pane id, the command targets the focused pane.
-export type PaneCommand =
-  | { action: 'read'; pane?: PaneId | undefined }
-  | { action: 'send'; text: string; pane?: PaneId | undefined };
+export interface PaneSendCommand {
+  action: 'send';
+  text: string;
+  pane?: PaneId | undefined;
+}
+
+export type { PaneReadCommand, PaneReadSource } from './paneRead.ts';
 
 type SplitDirection = Extract<ControlMessage, { type: 'paneSplit' }>['direction'];
 
@@ -84,15 +90,17 @@ type RequestFailure =
   | { ok: false; reason: 'noServer' | 'connectionFailed' }
   | { ok: false; reason: 'refused'; client: BuildVersion; server: BuildVersion };
 
-type PaneResult =
-  | { ok: true; kind: 'rows'; paneId: PaneId; rows: string[] }
-  | { ok: false; reason: 'pruned'; oldest: number }
-  | { ok: false; reason: 'staleEpoch'; epoch: number }
-  | { ok: false; reason: 'tooManyRows'; limit: number }
-  | { ok: false; reason: 'tooManyBytes'; limitBytes: number }
-  | { ok: true; kind: 'sent' }
-  | { ok: false; reason: 'paneMissing' }
-  | RequestFailure;
+interface PaneMissing {
+  ok: false;
+  reason: 'paneMissing';
+}
+
+type ReadResult =
+  | ({ ok: true; paneId: PaneId } & PaneReadOutput)
+  | ({ ok: false } & PaneReadFailure)
+  | PaneMissing;
+
+type SendResult = { ok: true } | PaneMissing;
 
 type PaneFolders = Extract<ControlMessage, { type: 'paneFoldersReply' }>['panes'];
 
@@ -121,6 +129,15 @@ interface RequestHandlers<Result> {
   onMessage: (request: Request<Result>, message: ControlMessage) => void;
   onPaneRows?: (request: Request<Result>, rows: PaneRows) => void;
 }
+
+interface PaneHandlers<Result> {
+  missing: Result;
+  begin: (request: Request<Result>, paneId: PaneId) => void;
+  onPaneMessage: (request: Request<Result>, message: ControlMessage) => void;
+  onPaneRows?: (request: Request<Result>, rows: PaneRows) => void;
+}
+
+const missingPane: PaneMissing = { ok: false, reason: 'paneMissing' };
 
 const requestTimeoutMs = 10_000;
 
@@ -259,79 +276,41 @@ const runRequest = async <Result>(
   }
 };
 
-// Answers are matched to the one read request a connection makes.
-const readRequestId = 1;
-
-const paneRequest = (paneId: PaneId, command: PaneCommand): ControlMessage =>
-  command.action === 'read'
-    ? {
-        type: 'paneRead',
-        paneId,
-        requestId: readRequestId,
-        selection: { source: 'visible', lines: undefined },
-      }
-    : { type: 'paneSend', paneId, text: command.text };
-
-export const runPaneCommand = (
+// Runs a request against one pane: the given one, or the focused one from the snapshot.
+const runPaneRequest = <Result>(
   socketPath: string,
   version: BuildVersion,
-  command: PaneCommand,
-): Promise<PaneResult | RequestFailure> => {
-  let paneId: PaneId | undefined = command.pane;
+  pane: PaneId | undefined,
+  handlers: PaneHandlers<Result>,
+): Promise<Result | RequestFailure> => {
+  let paneId: PaneId | undefined = pane;
 
   const askPane = (
-    request: Request<PaneResult>,
+    request: Request<Result>,
     snapshot: Extract<ControlMessage, { type: 'snapshot' }>['snapshot'],
   ): void => {
-    const pane = focusedPane(snapshot);
+    const focused = focusedPane(snapshot);
 
-    if (pane?.lifecycle !== 'running') {
-      request.finish({ ok: false, reason: 'paneMissing' });
+    if (focused?.lifecycle !== 'running') {
+      request.finish(handlers.missing);
 
       return;
     }
 
-    paneId = pane.id;
-    request.send(paneRequest(pane.id, command));
+    paneId = focused.id;
+    handlers.begin(request, focused.id);
   };
 
-  const answerPane = (request: Request<PaneResult>, message: ControlMessage): void => {
-    if (!('paneId' in message) || message.paneId !== paneId) {
-      return;
-    }
-
-    if (message.type === 'paneMissing') {
-      request.finish({ ok: false, reason: 'paneMissing' });
-    }
-
-    if (message.type === 'paneReadFailed' && message.requestId === readRequestId) {
-      request.finish({ ok: false, ...message.failure });
-    }
-
-    if (message.type === 'paneSent' && command.action === 'send') {
-      request.finish({ ok: true, kind: 'sent' });
-    }
-  };
-
-  return runRequest<PaneResult>(socketPath, version, {
+  return runRequest<Result>(socketPath, version, {
     onWelcome: (request) => {
-      if (command.pane !== undefined) {
-        request.send(paneRequest(command.pane, command));
+      if (pane !== undefined) {
+        handlers.begin(request, pane);
       }
     },
     onPaneRows: (request, rows) => {
-      if (paneId === undefined || rows.requestId !== readRequestId) {
-        return;
+      if (paneId !== undefined) {
+        handlers.onPaneRows?.(request, rows);
       }
-
-      const unwrap = rows.source === PaneRowsSource.recentUnwrapped;
-
-      request.finish({
-        ok: true,
-        kind: 'rows',
-        paneId,
-        rows: rowsToLines(rows, rows.columns, unwrap),
-      });
     },
     onMessage: (request, message) => {
       if (message.type === 'snapshot' && paneId === undefined) {
@@ -340,7 +319,83 @@ export const runPaneCommand = (
         return;
       }
 
-      answerPane(request, message);
+      if (!('paneId' in message) || message.paneId !== paneId) {
+        return;
+      }
+
+      if (message.type === 'paneMissing') {
+        request.finish(handlers.missing);
+
+        return;
+      }
+
+      handlers.onPaneMessage(request, message);
+    },
+  });
+};
+
+export const runPaneSend = (
+  socketPath: string,
+  version: BuildVersion,
+  command: PaneSendCommand,
+): Promise<SendResult | RequestFailure> =>
+  runPaneRequest<SendResult>(socketPath, version, command.pane, {
+    missing: missingPane,
+    begin: (request, paneId) => {
+      request.send({ type: 'paneSend', paneId, text: command.text });
+    },
+    onPaneMessage: (request, message) => {
+      if (message.type === 'paneSent') {
+        request.finish({ ok: true });
+      }
+    },
+  });
+
+export const runPaneRead = (
+  socketPath: string,
+  version: BuildVersion,
+  command: PaneReadCommand,
+): Promise<ReadResult | RequestFailure> => {
+  const reader = createPaneReader(command);
+  let requestId = 0;
+  let readPane: PaneId | undefined;
+
+  const follow = (request: Request<ReadResult>, step: ReadStep): void => {
+    if (readPane === undefined) {
+      return;
+    }
+
+    if (step.kind === 'done') {
+      request.finish({ ok: true, paneId: readPane, ...step.output });
+
+      return;
+    }
+
+    if (step.kind === 'failed') {
+      request.finish({ ok: false, ...step.failure });
+
+      return;
+    }
+
+    requestId += 1;
+    request.send({ type: 'paneRead', paneId: readPane, requestId, selection: step.selection });
+  };
+
+  return runPaneRequest<ReadResult>(socketPath, version, command.pane, {
+    missing: missingPane,
+    begin: (request, paneId) => {
+      readPane = paneId;
+      follow(request, reader.start());
+    },
+    onPaneRows: (request, rows) => {
+      if (rows.requestId === requestId) {
+        follow(request, reader.takeRows(rows));
+      }
+    },
+    onPaneMessage: (request, message) => {
+      if (message.type === 'paneReadFailed' && message.requestId === requestId) {
+        follow(request, reader.takeFailure(message.failure));
+      }
     },
   });
 };

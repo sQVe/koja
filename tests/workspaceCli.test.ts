@@ -22,7 +22,7 @@ const paneListSchema = z.array(
   }),
 );
 
-const paneReadSchema = z.object({ pane: z.string(), rows: z.array(z.string()) });
+const paneReadSchema = z.object({ pane: z.string(), lines: z.array(z.string()) });
 
 const setup = async () => {
   const directory = await temporaryDirectory();
@@ -155,7 +155,7 @@ it(
     for (let attempt = 0; attempt < 50 && !output.includes('hidden-42'); attempt += 1) {
       const read = await phi('pane', 'read', '--json', ...paneArguments);
 
-      output = paneReadSchema.parse(JSON.parse(read.stdout)).rows.join('\n');
+      output = paneReadSchema.parse(JSON.parse(read.stdout)).lines.join('\n');
     }
 
     expect(output).toContain('hidden-42');

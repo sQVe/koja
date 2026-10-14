@@ -1,5 +1,5 @@
-import { expect, it } from 'bun:test';
-import { mkdir, readFile, chmod, realpath, rm } from 'node:fs/promises';
+import { describe, expect, it } from 'bun:test';
+import { chmod, mkdir, readFile, realpath, rm, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 
 import { z } from 'zod';
@@ -23,14 +23,33 @@ const paneListSchema = z.array(
 
 const paneDoneSchema = z.object({ pane: z.string() });
 
-const paneReadSchema = z.object({ pane: z.string(), rows: z.array(z.string()) });
+const paneReadSchema = z.object({
+  pane: z.string(),
+  source: z.string(),
+  epoch: z.number(),
+  oldest: z.number(),
+  from: z.number().nullable(),
+  to: z.number().nullable(),
+  lines: z.array(z.string()),
+});
 
 const workspaceDoneSchema = z.object({ workspace: z.string() });
 
-const setup = async () => {
+// A shell that runs the body, then stays alive so the pane keeps its output.
+const scriptedShell = async (directory: string, body: string): Promise<string> => {
+  const path = join(directory, 'scripted-shell.sh');
+
+  await writeFile(path, `#!/bin/sh\n${body}\nexec sleep 3600\n`);
+  await chmod(path, 0o755);
+
+  return path;
+};
+
+const setup = async (shellBody?: string) => {
   const directory = await temporaryDirectory();
   const socketPath = join(directory, 'run', 'phi.sock');
-  const environment = { ...environmentFor(directory), SHELL: '/bin/sh', PS1: '' };
+  const shell = shellBody === undefined ? '/bin/sh' : await scriptedShell(directory, shellBody);
+  const environment = { ...environmentFor(directory), SHELL: shell, PS1: '' };
 
   const phi = (...commandArguments: string[]) =>
     runCli([...commandArguments, '--socket', socketPath], directory, environment);
@@ -223,7 +242,7 @@ it(
     const read = async (id: string): Promise<string> => {
       const result = await phi('pane', 'read', '--pane', id, '--json');
 
-      return paneReadSchema.parse(JSON.parse(result.stdout)).rows.join('\n');
+      return paneReadSchema.parse(JSON.parse(result.stdout)).lines.join('\n');
     };
 
     let firstOutput = '';
@@ -590,6 +609,169 @@ it(
     expect(failed.stdout).toBe('');
     expect(failed.stderr).toContain(`${missing} is not a directory.`);
     expect(await list()).toEqual(before);
+  },
+  cliTestTimeoutMs,
+);
+
+const readJson = async (phi: Awaited<ReturnType<typeof setup>>['phi'], ...flags: string[]) => {
+  const result = await phi('pane', 'read', ...flags, '--json');
+
+  expect({ exitCode: result.exitCode, stderr: result.stderr }).toEqual({
+    exitCode: 0,
+    stderr: '',
+  });
+
+  return paneReadSchema.parse(JSON.parse(result.stdout));
+};
+
+// The scripted shell ends its output with "done" and no newline, so the last row holds it.
+const waitForDone = async (phi: Awaited<ReturnType<typeof setup>>['phi']): Promise<void> => {
+  for (let attempt = 0; attempt < 100; attempt += 1) {
+    const read = await readJson(phi, '--lines', '1');
+
+    if (read.lines.at(-1) === 'done') {
+      return;
+    }
+
+    await Bun.sleep(100);
+  }
+
+  throw new Error('The pane did not finish its output.');
+};
+
+const numbered = (prefix: string, first: number, last: number): string[] =>
+  Array.from({ length: last - first + 1 }, (_, index) => `${prefix}${first + index}`);
+
+it(
+  'reads a row range and the last lines of a pane that printed 500 lines',
+  async () => {
+    const { phi } = await setup("seq 1 500 | sed 's/^/a/'\nprintf done");
+
+    await waitForDone(phi);
+
+    const range = await readJson(phi, '--from', '0', '--to', '9');
+
+    expect(range).toMatchObject({ from: 0, to: 9, oldest: 0 });
+    expect(range.lines).toEqual(numbered('a', 1, 10));
+
+    const recent = await readJson(phi, '--source', 'recent', '--lines', '5');
+
+    expect(recent.source).toBe('recent');
+    expect(recent.lines).toEqual([...numbered('a', 497, 500), 'done']);
+  },
+  cliTestTimeoutMs,
+);
+
+it(
+  'returns a line the terminal wrapped as one line when unwrapped and as rows otherwise',
+  async () => {
+    const wide = '0123456789'.repeat(10);
+    const { phi, list } = await setup(`echo ${wide}\nprintf done`);
+
+    await waitForDone(phi);
+
+    const [pane] = await list();
+    const columns = pane?.columns ?? 0;
+
+    expect(columns).toBeLessThan(wide.length);
+
+    const rows = await readJson(phi, '--source', 'recent', '--lines', '3');
+
+    expect(rows.lines).toEqual([wide.slice(0, columns), wide.slice(columns), 'done']);
+
+    const joined = await readJson(phi, '--source', 'recent-unwrapped', '--lines', '3');
+
+    expect(joined.source).toBe('recent-unwrapped');
+    expect(joined.lines).toEqual([wide, 'done']);
+  },
+  cliTestTimeoutMs,
+);
+
+it(
+  'fails a range below the oldest kept row and names that row',
+  async () => {
+    const { phi } = await setup('seq 1 120000\nprintf done');
+
+    await waitForDone(phi);
+
+    const kept = await readJson(phi, '--lines', '1');
+
+    expect(kept.oldest).toBeGreaterThan(0);
+
+    const pruned = await phi('pane', 'read', '--from', '0', '--to', '9');
+
+    expect(pruned.exitCode).not.toBe(0);
+    expect(pruned.stdout).toBe('');
+    expect(pruned.stderr).toContain(`oldest kept row is ${kept.oldest}`);
+
+    const range = await readJson(phi, '--from', String(kept.oldest), '--to', String(kept.oldest));
+
+    expect(range.lines).toHaveLength(1);
+  },
+  cliTestTimeoutMs,
+);
+
+describe('a pane with more output than one reply holds', () => {
+  const output = "seq 1 1200 | sed 's/^/n/'\nprintf done";
+
+  it(
+    'returns a range larger than one reply in full',
+    async () => {
+      const { phi } = await setup(output);
+
+      await waitForDone(phi);
+
+      const range = await readJson(phi, '--from', '0', '--to', '899');
+
+      expect(range).toMatchObject({ from: 0, to: 899 });
+      expect(range.lines).toEqual(numbered('n', 1, 900));
+    },
+    cliTestTimeoutMs,
+  );
+
+  it(
+    'returns the last 1000 rows of a recent read',
+    async () => {
+      const { phi } = await setup(output);
+
+      await waitForDone(phi);
+
+      const recent = await readJson(phi, '--source', 'recent', '--lines', '1000');
+
+      expect(recent.lines).toEqual([...numbered('n', 202, 1200), 'done']);
+      expect(recent.to).toBe(1200);
+    },
+    cliTestTimeoutMs,
+  );
+});
+
+it(
+  'prints text with a final line feed for recent and visible reads and none for recent-unwrapped',
+  async () => {
+    const { phi } = await setup('echo one\necho two\nprintf done');
+
+    await waitForDone(phi);
+
+    const text = async (source: string) =>
+      (await phi('pane', 'read', '--source', source, '--lines', '3')).stdout;
+
+    expect(await text('recent')).toBe('one\ntwo\ndone\n');
+    expect(await text('visible')).toBe('one\ntwo\ndone\n');
+    expect(await text('recent-unwrapped')).toBe('one\ntwo\ndone');
+  },
+  cliTestTimeoutMs,
+);
+
+it.each(['recent', 'visible'])(
+  'reads no lines and null bounds with --lines 0 from the %s source',
+  async (source) => {
+    const { phi } = await setup('echo one\nprintf done');
+
+    await waitForDone(phi);
+
+    const read = await readJson(phi, '--source', source, '--lines', '0');
+
+    expect(read).toMatchObject({ from: null, to: null, lines: [] });
   },
   cliTestTimeoutMs,
 );

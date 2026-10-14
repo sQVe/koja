@@ -160,14 +160,14 @@ it('parses pane list, and the pane target of read and send', () => {
 
   expect(parseCommand(['pane', 'read'])).toEqual({
     kind: 'pane',
-    pane: { action: 'read', pane: undefined },
+    pane: { action: 'read', pane: undefined, source: 'recent', lines: undefined, range: undefined },
     json: false,
     socket: undefined,
   });
 
   expect(parseCommand(['pane', 'read', '--pane', 'pane-3'])).toEqual({
     kind: 'pane',
-    pane: { action: 'read', pane: paneId(3) },
+    pane: { action: 'read', pane: paneId(3), source: 'recent', lines: undefined, range: undefined },
     json: false,
     socket: undefined,
   });
@@ -327,7 +327,12 @@ it('lists the workspace and pane commands in the usage', () => {
 
   expect(lines).toContain('phi workspace list [--socket <path>] [--json]');
   expect(lines).toContain('phi pane list [--socket <path>] [--json]');
-  expect(lines).toContain('phi pane read [--pane <id>] [--socket <path>] [--json]');
+
+  expect(lines).toContain(
+    'phi pane read [--pane <id>] [--source visible|recent|recent-unwrapped] [--lines <n>]',
+  );
+
+  expect(lines).toContain('[--from <row> --to <row>] [--socket <path>] [--json]');
 
   expect(lines).toContain(
     'phi pane split <id> --direction below|right [--cwd <dir>] [--socket <path>] [--json]',
@@ -403,4 +408,77 @@ it.each([
   ['an empty folder on tab create', ['tab', 'create', '--cwd', '']],
 ])('refuses --cwd on %s', (_name, argv) => {
   expect(typeof parseCommand(argv)).toBe('string');
+});
+
+const readCommand = (...flags: string[]) => parseCommand(['pane', 'read', ...flags]);
+
+it('parses the pane read source, line count, and row range', () => {
+  const pane = { action: 'read', pane: undefined } as const;
+  const options = { json: false, socket: undefined };
+
+  expect(readCommand('--source', 'visible')).toEqual({
+    kind: 'pane',
+    pane: { ...pane, source: 'visible', lines: undefined, range: undefined },
+    ...options,
+  });
+
+  expect(readCommand('--source', 'recent_unwrapped', '--lines', '5')).toEqual({
+    kind: 'pane',
+    pane: { ...pane, source: 'recentUnwrapped', lines: 5, range: undefined },
+    ...options,
+  });
+
+  expect(readCommand('--from', '0', '--to', '9', '--source', 'recent-unwrapped')).toEqual({
+    kind: 'pane',
+    pane: { ...pane, source: 'recentUnwrapped', lines: undefined, range: { from: 0, to: 9 } },
+    ...options,
+  });
+});
+
+it('clamps a line count to 1000 and accepts zero', () => {
+  expect(readCommand('--lines', '5000')).toMatchObject({ pane: { lines: 1000 } });
+  expect(readCommand('--lines', '0')).toMatchObject({ pane: { lines: 0 } });
+});
+
+it.each([
+  ['an unknown source', ['--source', 'screen'], "'screen' is not a source"],
+  ['a negative line count', ['--lines=-1'], '--lines takes a whole number'],
+  ['a non-numeric line count', ['--lines', 'many'], '--lines takes a whole number'],
+  ['a fractional line count', ['--lines', '1.5'], '--lines takes a whole number'],
+  ['--from without --to', ['--from', '2'], '--from and --to come together.'],
+  ['--to without --from', ['--to', '2'], '--from and --to come together.'],
+  ['a non-numeric row', ['--from', 'a', '--to', '2'], '--from and --to take whole row numbers'],
+  ['a negative row', ['--from=-1', '--to', '2'], '--from and --to take whole row numbers'],
+  ['from past to', ['--from', '5', '--to', '4'], '--from cannot be greater than --to.'],
+  [
+    '--from with --lines',
+    ['--from', '1', '--to', '2', '--lines', '3'],
+    '--from and --to cannot be combined with --lines.',
+  ],
+  [
+    '--from with the visible source',
+    ['--from', '1', '--to', '2', '--source', 'visible'],
+    '--from and --to cannot be combined with --source visible.',
+  ],
+])('refuses %s with its own error', (_name, flags, message) => {
+  const result = readCommand(...flags);
+
+  expect(typeof result === 'string' ? result : '').toContain(message);
+});
+
+it.each([
+  ['pane send', ['pane', 'send', 'ls', '--lines', '3'], '--lines'],
+  ['pane list', ['pane', 'list', '--lines', '3'], '--lines'],
+  ['pane list with --source', ['pane', 'list', '--source', 'recent'], '--source'],
+  ['pane focus', ['pane', 'focus', 'pane-1', '--from', '1', '--to', '2'], '--from'],
+  ['pane zoom', ['pane', 'zoom', 'pane-1', '--to', '2'], '--to'],
+  [
+    'a workspace command',
+    ['workspace', 'list', '--from', '1', '--to', '2'],
+    '--source, --lines, --from, and --to belong to pane read.',
+  ],
+])('refuses read flags on %s with its own error', (_name, argv, message) => {
+  expect(parseCommand(argv)).toBe(
+    message.startsWith('--source,') ? message : `${message} belongs to pane read.`,
+  );
 });

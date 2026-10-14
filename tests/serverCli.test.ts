@@ -27,7 +27,11 @@ import { createWorkspaceAt, isRunning, serverProcessesIn, waitFor } from './serv
 
 const startOutputSchema = z.object({ socket: z.string(), pid: z.number().int().positive() });
 
-const paneOutputSchema = z.object({ pane: z.string(), rows: z.array(z.string()) });
+const paneOutputSchema = z.object({
+  pane: z.string(),
+  lines: z.array(z.string()),
+  source: z.string(),
+});
 
 const buildVersion = () => {
   const commit = ghosttyCommit();
@@ -118,10 +122,17 @@ it(
     const output = paneOutputSchema.parse(JSON.parse(json.stdout));
 
     expect(output.pane).toBe('pane-1');
-    expect(output.rows).toHaveLength(24);
+    expect(output.source).toBe('recent');
+    expect(output.lines).toEqual(['phi-test>']);
     expect(text.exitCode).toBe(0);
-    expect(text.stdout).toContain('phi-test>');
-    expect(text.stdout.split('\n')).toHaveLength(25);
+    expect(text.stdout).toBe('phi-test>\n');
+
+    const visible = await runCli(
+      ['pane', 'read', '--source', 'visible', '--socket', socketPath, '--json'],
+      directory,
+    );
+
+    expect(paneOutputSchema.parse(JSON.parse(visible.stdout)).lines).toHaveLength(24);
   },
   cliTestTimeoutMs,
 );
@@ -146,7 +157,7 @@ it(
     expect(read.exitCode).toBe(0);
     const output = paneOutputSchema.parse(JSON.parse(read.stdout));
 
-    expect(output.rows.join('\n')).toContain('agent-text-中文-é');
+    expect(output.lines.join('\n')).toContain('agent-text-中文-é');
 
     const silent = await runCli(['pane', 'send', '', '--socket', socketPath], directory);
 
@@ -179,10 +190,14 @@ it(
     expect(sent.exitCode).toBe(0);
     expect(await waitFor(() => existsSync(join(directory, 'primary-ready')))).toBe(true);
 
-    const primary = await runCli(['pane', 'read', '--socket', socketPath, '--json'], directory);
+    const primary = await runCli(
+      ['pane', 'read', '--source', 'visible', '--socket', socketPath, '--json'],
+      directory,
+    );
+
     const primaryOutput = paneOutputSchema.parse(JSON.parse(primary.stdout));
 
-    expect(primaryOutput.rows).toEqual(lines.slice(-24));
+    expect(primaryOutput.lines).toEqual(lines.slice(-24));
 
     const alternateText = "printf '\\033[?1049h\\033[Halternate-screen'; : > alternate-ready\n";
 
@@ -194,10 +209,14 @@ it(
     expect(alternateSent.exitCode).toBe(0);
     expect(await waitFor(() => existsSync(join(directory, 'alternate-ready')))).toBe(true);
 
-    const alternate = await runCli(['pane', 'read', '--socket', socketPath, '--json'], directory);
+    const alternate = await runCli(
+      ['pane', 'read', '--source', 'visible', '--socket', socketPath, '--json'],
+      directory,
+    );
+
     const alternateOutput = paneOutputSchema.parse(JSON.parse(alternate.stdout));
 
-    expect(alternateOutput.rows).toEqual([
+    expect(alternateOutput.lines).toEqual([
       'alternate-screen',
       ...Array.from({ length: 23 }, () => ''),
     ]);
@@ -284,7 +303,10 @@ it(
       const sent = runCli(['pane', 'send', command, '--socket', socketPath], directory);
 
       const reads = Array.from({ length: 5 }, () =>
-        runCli(['pane', 'read', '--socket', socketPath, '--json'], directory),
+        runCli(
+          ['pane', 'read', '--source', 'visible', '--socket', socketPath, '--json'],
+          directory,
+        ),
       );
 
       const results = await Promise.all([sent, ...reads]);
@@ -303,11 +325,14 @@ it(
         expect(received).toContain(row);
       }
 
-      const read = await runCli(['pane', 'read', '--socket', socketPath, '--json'], directory);
+      const read = await runCli(
+        ['pane', 'read', '--source', 'visible', '--socket', socketPath, '--json'],
+        directory,
+      );
 
       const output = paneOutputSchema.parse(JSON.parse(read.stdout));
 
-      expect(output.rows.slice(0, 20)).toEqual(expected);
+      expect(output.lines.slice(0, 20)).toEqual(expected);
     }
 
     expect(terminal.failures).toEqual([]);

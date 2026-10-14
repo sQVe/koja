@@ -301,6 +301,32 @@ export const rowsToLines = (range: TextRows, columns: number, unwrap: boolean): 
   return lines;
 };
 
+// Joins pages of rows with the same column count into one range. A grapheme names its cell by
+// index, so each page's graphemes move by the cell words before the page.
+export const concatRows = (pages: TextRows[]): TextRows => {
+  const cells = new Uint32Array(pages.reduce((total, page) => total + page.cells.length, 0));
+  const graphemes: number[] = [];
+  let cellOffset = 0;
+  let rowCount = 0;
+
+  for (const page of pages) {
+    cells.set(page.cells, cellOffset);
+
+    for (let index = 0; index < page.graphemes.length;) {
+      const length = page.graphemes[index + 1] ?? 0;
+
+      graphemes.push((page.graphemes[index] ?? 0) + cellOffset);
+      graphemes.push(...page.graphemes.subarray(index + 1, index + 2 + length));
+      index += 2 + length;
+    }
+
+    cellOffset += page.cells.length;
+    rowCount += page.rowCount;
+  }
+
+  return { rowCount, cells, graphemes: Uint32Array.from(graphemes) };
+};
+
 const writeRowNumber = (words: Uint32Array, index: number, value: number) => {
   words[index] = value % lowWordRange;
   words[index + 1] = Math.floor(value / lowWordRange);

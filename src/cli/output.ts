@@ -18,7 +18,12 @@ interface ServerStopOutput {
 
 interface PaneReadOutput {
   pane: string;
-  rows: string[];
+  source: 'visible' | 'recent' | 'recent-unwrapped';
+  epoch: number;
+  oldest: number;
+  from: number | null;
+  to: number | null;
+  lines: string[];
 }
 
 export interface PaneSendOutput {
