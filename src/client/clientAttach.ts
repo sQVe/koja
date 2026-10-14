@@ -11,16 +11,15 @@ import {
 } from '../protocol/protocol.ts';
 import type { BuildVersion, ControlMessage } from '../protocol/protocol.ts';
 import { decodeRowUpdate, encodePaneInput } from '../rows/rows.ts';
+import { paneLayoutRequest } from './paneRequest.ts';
+import type { ResizeDirection, SplitDirection } from './paneRequest.ts';
 import { createRowCache } from './rowCache.ts';
 import type { RowCache } from './rowCache.ts';
 import { activeTabIdOf, applyChange, viewedPane, shownView } from './snapshot.ts';
 import type { StoreChange, StoreSnapshot } from './snapshot.ts';
+import { tabRequest } from './tabRequest.ts';
 import { workspaceRequest } from './workspaceRequest.ts';
 import type { WorkspaceCommand } from './workspaceRequest.ts';
-
-type SplitDirection = Extract<ControlMessage, { type: 'paneSplit' }>['direction'];
-
-type ResizeDirection = Extract<ControlMessage, { type: 'paneResize' }>['direction'];
 
 interface TerminalSize {
   columns: number;
@@ -552,7 +551,7 @@ export const connectAttach = async (
       }
 
       if (route.kind === 'create') {
-        sendTabRequest({ type: 'tabCreate', workspaceId: workspace.id, cwd: undefined });
+        sendTabRequest(tabRequest({ action: 'create', workspaceId: workspace.id, cwd: undefined }));
 
         return;
       }
@@ -561,7 +560,7 @@ export const connectAttach = async (
       const tab = tabToFocus(workspace, activeId, route);
 
       if (tab !== undefined && tab !== activeId) {
-        sendTabRequest({ type: 'tabFocus', tabId: tab });
+        sendTabRequest(tabRequest({ action: 'focus', tabId: tab }));
       }
     },
     tabPending: () => pendingTabRequests > 0 || awaitingRows !== undefined,
@@ -569,12 +568,12 @@ export const connectAttach = async (
       tabAnswerCallbacks.push(callback);
     },
     splitPane: (pane, direction) =>
-      requestLayout({ type: 'paneSplit', paneId: pane, direction, cwd: undefined }),
-    focusPane: (pane) => requestLayout({ type: 'paneFocus', paneId: pane }),
-    closePane: (pane) => requestLayout({ type: 'paneClose', paneId: pane }),
-    zoomPane: (pane) => requestLayout({ type: 'paneZoom', paneId: pane }),
+      requestLayout(paneLayoutRequest({ action: 'split', pane, direction, cwd: undefined })),
+    focusPane: (pane) => requestLayout(paneLayoutRequest({ action: 'focus', pane })),
+    closePane: (pane) => requestLayout(paneLayoutRequest({ action: 'close', pane })),
+    zoomPane: (pane) => requestLayout(paneLayoutRequest({ action: 'zoom', pane })),
     resizePane: (pane, direction, cells) =>
-      requestLayout({ type: 'paneResize', paneId: pane, direction, cells }),
+      requestLayout(paneLayoutRequest({ action: 'resize', pane, direction, cells })),
     detach: () => {
       send({ type: 'detach', clientId: undefined });
     },

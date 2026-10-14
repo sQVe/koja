@@ -1,0 +1,41 @@
+import type { PaneId } from '../ids.ts';
+import type { ControlMessage } from '../protocol/protocol.ts';
+
+export type SplitDirection = Extract<ControlMessage, { type: 'paneSplit' }>['direction'];
+
+export type ResizeDirection = Extract<ControlMessage, { type: 'paneResize' }>['direction'];
+
+export type PaneLayoutCommand =
+  | { action: 'split'; pane: PaneId; direction: SplitDirection; cwd: string | undefined }
+  | { action: 'focus'; pane: PaneId }
+  | { action: 'close'; pane: PaneId }
+  | { action: 'zoom'; pane: PaneId }
+  | { action: 'resize'; pane: PaneId; direction: ResizeDirection; cells: number };
+
+export const paneLayoutRequest = (command: PaneLayoutCommand): ControlMessage => {
+  if (command.action === 'split') {
+    return {
+      type: 'paneSplit',
+      paneId: command.pane,
+      direction: command.direction,
+      cwd: command.cwd,
+    };
+  }
+
+  if (command.action === 'resize') {
+    return {
+      type: 'paneResize',
+      paneId: command.pane,
+      direction: command.direction,
+      cells: command.cells,
+    };
+  }
+
+  if (command.action === 'zoom') {
+    return { type: 'paneZoom', paneId: command.pane };
+  }
+
+  return command.action === 'focus'
+    ? { type: 'paneFocus', paneId: command.pane }
+    : { type: 'paneClose', paneId: command.pane };
+};
