@@ -9,6 +9,12 @@ export const resolveSocketPath = (
   requested: string | undefined,
   environment: Environment,
 ): string => {
+  const inPaneSocket = environment.PHI_SOCKET_PATH;
+
+  if (requested === undefined && inPaneSocket !== undefined) {
+    return resolve(inPaneSocket);
+  }
+
   const userId = process.getuid?.();
 
   invariant(userId !== undefined, 'The platform has no user ids.');
