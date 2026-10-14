@@ -652,7 +652,13 @@ it('refuses a range over the rows one reply holds and a read of a missing pane',
     type: 'paneReadFailed',
     paneId: paneId(1),
     requestId: 5,
-    failure: { reason: 'tooManyRows', limit: 1000 },
+    failure: {
+      reason: 'tooManyRows',
+      limit: 1000,
+      epoch: expect.any(Number) as number,
+      first: 0,
+      count: 1001,
+    },
   });
 
   client.send(readRecent(paneId(99)));
@@ -720,7 +726,13 @@ it('refuses a wide range over the byte budget with a typed failure and sends onl
     type: 'paneReadFailed',
     paneId: paneId(1),
     requestId: 9,
-    failure: { reason: 'tooManyBytes', limitBytes: maxReplyBytes },
+    failure: {
+      reason: 'tooManyBytes',
+      limitBytes: maxReplyBytes,
+      epoch: expect.any(Number) as number,
+      first: oldest,
+      count: 1000,
+    },
   });
 
   const rows = await readRange(client, oldest, oldest + 19);

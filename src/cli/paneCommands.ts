@@ -229,11 +229,11 @@ const sourceNames = {
 
 // Like herdr, nonempty recent and visible text ends in a line feed and unwrapped text gets none.
 const printReadText = (read: PaneReadCommand, lines: string[]): void => {
-  const text = lines.join('\n');
-
-  if (text === '') {
+  if (lines.length === 0) {
     return;
   }
+
+  const text = lines.join('\n');
 
   process.stdout.write(read.source === 'recentUnwrapped' ? text : `${text}\n`);
 };

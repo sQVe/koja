@@ -257,7 +257,7 @@ const messages: ControlMessage[] = [
     type: 'paneReadFailed',
     paneId: pane.id,
     requestId: 6,
-    failure: { reason: 'tooManyRows', limit: 1000 },
+    failure: { reason: 'tooManyRows', limit: 1000, epoch: 2, first: 5, count: 1001 },
   },
   { type: 'paneSend', paneId: pane.id, text: 'ls\r' },
   { type: 'paneSent', paneId: pane.id },

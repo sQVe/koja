@@ -78,13 +78,27 @@ const paneReadSelectionSchema = z.discriminatedUnion('source', [
 ]);
 
 // pruned: the range starts below the oldest row kept. staleEpoch: the request named another epoch
-// than the current one. tooManyRows: the range holds more rows than one reply can.
-// tooManyBytes: the encoded reply would be larger than one reply can be.
+// than the current one. tooManyRows: the selection holds more rows than one reply can.
+// tooManyBytes: the encoded reply would be larger than one reply can be. Both name the rows the
+// selection covers, as the epoch, the first stable row number, and the row count, so a client can
+// read them as a range in pages.
 const paneReadFailureSchema = z.discriminatedUnion('reason', [
   z.object({ reason: z.literal('pruned'), oldest: z.number().int().nonnegative() }),
   z.object({ reason: z.literal('staleEpoch'), epoch: wordSchema }),
-  z.object({ reason: z.literal('tooManyRows'), limit: count }),
-  z.object({ reason: z.literal('tooManyBytes'), limitBytes: count }),
+  z.object({
+    reason: z.literal('tooManyRows'),
+    limit: count,
+    epoch: wordSchema,
+    first: z.number().int().nonnegative(),
+    count,
+  }),
+  z.object({
+    reason: z.literal('tooManyBytes'),
+    limitBytes: count,
+    epoch: wordSchema,
+    first: z.number().int().nonnegative(),
+    count,
+  }),
 ]);
 
 // The terminal passes sizes as 16-bit numbers.

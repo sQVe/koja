@@ -274,8 +274,17 @@ const rowText = (
 
 // Returns the text of each row, or with unwrap the text of each logical line, joining a wrapped
 // row to the row after it. A wrapped row keeps its trailing spaces. Spaces are trimmed only at
-// the end of a line.
-export const rowsToLines = (range: TextRows, columns: number, unwrap: boolean): string[] => {
+// the end of a line. With unicodeTrim, a row loses all Unicode whitespace at its end, like Rust's
+// trim_end, and no row is joined.
+export const rowsToLines = (
+  range: TextRows,
+  columns: number,
+  unwrap: boolean,
+  unicodeTrim = false,
+): string[] => {
+  const trimEnd = (text: string): string =>
+    unicodeTrim ? text.replace(/\p{White_Space}+$/u, '') : text.replace(/ +$/, '');
+
   const clusters = clustersOf(range.graphemes);
   const lines: string[] = [];
   let line = '';
@@ -289,13 +298,13 @@ export const rowsToLines = (range: TextRows, columns: number, unwrap: boolean): 
     const joinsNext = unwrap && (flags & RowFlag.wrapped) !== 0;
 
     if (!joinsNext) {
-      lines.push(line.replace(/ +$/, ''));
+      lines.push(trimEnd(line));
       line = '';
     }
   }
 
   if (line !== '') {
-    lines.push(line.replace(/ +$/, ''));
+    lines.push(trimEnd(line));
   }
 
   return lines;

@@ -73,12 +73,19 @@ it('refuses a recent or visible read whose reply would be over the byte budget',
 
   const size = { columns: 80, rows: 24 };
 
-  const tooManyBytes = {
-    ok: false,
-    failure: { reason: 'tooManyBytes', limitBytes: maxReplyBytes },
-  } as const;
+  const stable = terminal.stableRows();
 
-  expect(selectPaneRows(terminal, size, recent(1000))).toEqual(tooManyBytes);
+  expect(selectPaneRows(terminal, size, recent(1000))).toEqual({
+    ok: false,
+    failure: {
+      reason: 'tooManyBytes',
+      limitBytes: maxReplyBytes,
+      epoch: stable.epoch,
+      first: stable.activeTop + 24 - 1000,
+      count: 1000,
+    },
+  });
+
   expect(read(terminal, 24, recent(400)).rowCount).toBe(400);
 });
 
@@ -95,9 +102,9 @@ it('refuses a wide range over the byte budget without throwing', () => {
     { source: 'range', from: first, to: first + 999, epoch: undefined },
   );
 
-  expect(result).toEqual({
+  expect(result).toMatchObject({
     ok: false,
-    failure: { reason: 'tooManyBytes', limitBytes: maxReplyBytes },
+    failure: { reason: 'tooManyBytes', limitBytes: maxReplyBytes, first, count: 990 },
   });
 });
 
@@ -235,7 +242,10 @@ it('refuses a range with more rows than one reply holds and reads one with exact
         epoch: undefined,
       },
     ),
-  ).toEqual({ ok: false, failure: { reason: 'tooManyRows', limit: maxReplyRows } });
+  ).toMatchObject({
+    ok: false,
+    failure: { reason: 'tooManyRows', limit: maxReplyRows, first, count: maxReplyRows + 1 },
+  });
 
   const exact = read(
     terminal,
@@ -306,4 +316,23 @@ it('keeps dirty rows for the next frame while it looks up the cursor', () => {
   read(terminal, 5, recent(3));
 
   expect(terminal.frame().rowCount).toBeGreaterThan(0);
+});
+
+it('selects a whole screen taller than one reply for an uncounted visible read, and clamps a count', () => {
+  using terminal = openTerminal(10, 1005);
+
+  feed(terminal, numbered(1, 1005));
+
+  const { epoch, activeTop } = terminal.stableRows();
+  const size = { columns: 10, rows: 1005 };
+
+  expect(selectPaneRows(terminal, size, { source: 'visible', lines: undefined })).toMatchObject({
+    ok: false,
+    failure: { reason: 'tooManyRows', epoch, first: activeTop, count: 1005 },
+  });
+
+  const counted = read(terminal, 1005, { source: 'visible', lines: 2000 }, 10);
+
+  expect(counted.rowCount).toBe(maxReplyRows);
+  expect(counted.first).toBe(activeTop + 5);
 });

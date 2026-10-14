@@ -105,7 +105,7 @@ const visibleSpan = (
   const screenBottom = stable.activeTop + size.rows - 1;
 
   if (lines === undefined) {
-    return spanEndingAt(screenBottom, Math.min(size.rows, maxReplyRows), stable.activeTop);
+    return spanEndingAt(screenBottom, size.rows, stable.activeTop);
   }
 
   const lastText = lastTextRow(terminal, stable, size);
@@ -178,6 +178,12 @@ const emptyRows = (
   graphemes: new Uint32Array(),
 });
 
+const selected = (stable: StableRows, span: Span) => ({
+  epoch: stable.epoch,
+  first: span.first,
+  count: span.count,
+});
+
 // Selects the rows a client asked for by the rules of herdr's pane read, and reads them with their
 // wrap flags. The reader turns them into text.
 export const selectPaneRows = (
@@ -198,13 +204,19 @@ export const selectPaneRows = (
   const span = spanOf(terminal, stable, size, selection);
 
   if (span.count > maxReplyRows) {
-    return { ok: false, failure: { reason: 'tooManyRows', limit: maxReplyRows } };
+    return {
+      ok: false,
+      failure: { reason: 'tooManyRows', limit: maxReplyRows, ...selected(stable, span) },
+    };
   }
 
   const cellBytes = paneRowsBytes(span.count, size.columns, 0);
 
   if (cellBytes > maxReplyBytes) {
-    return { ok: false, failure: { reason: 'tooManyBytes', limitBytes: maxReplyBytes } };
+    return {
+      ok: false,
+      failure: { reason: 'tooManyBytes', limitBytes: maxReplyBytes, ...selected(stable, span) },
+    };
   }
 
   if (span.count === 0) {
@@ -222,7 +234,10 @@ export const selectPaneRows = (
   }
 
   if (paneRowsBytes(read.rows.rowCount, size.columns, read.rows.graphemes.length) > maxReplyBytes) {
-    return { ok: false, failure: { reason: 'tooManyBytes', limitBytes: maxReplyBytes } };
+    return {
+      ok: false,
+      failure: { reason: 'tooManyBytes', limitBytes: maxReplyBytes, ...selected(stable, span) },
+    };
   }
 
   return {

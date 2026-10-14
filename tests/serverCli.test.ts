@@ -132,7 +132,7 @@ it(
       directory,
     );
 
-    expect(paneOutputSchema.parse(JSON.parse(visible.stdout)).lines).toHaveLength(24);
+    expect(paneOutputSchema.parse(JSON.parse(visible.stdout)).lines).toEqual(['phi-test>']);
   },
   cliTestTimeoutMs,
 );
@@ -216,10 +216,7 @@ it(
 
     const alternateOutput = paneOutputSchema.parse(JSON.parse(alternate.stdout));
 
-    expect(alternateOutput.lines).toEqual([
-      'alternate-screen',
-      ...Array.from({ length: 23 }, () => ''),
-    ]);
+    expect(alternateOutput.lines).toEqual(['alternate-screen']);
   },
   cliTestTimeoutMs,
 );
