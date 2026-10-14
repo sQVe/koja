@@ -3,8 +3,8 @@ import { parseArgs } from 'node:util';
 import type { PaneLayoutCommand, PaneReadCommand, PaneSendCommand } from '../client/client.ts';
 import { clientId, paneId, tabId, workspaceId } from '../ids.ts';
 import type { ClientId, PaneId, TabId, WorkspaceId } from '../ids.ts';
-import { hasReadOptions, parseReadOptions } from './readOptions.ts';
-import type { RawReadOptions } from './readOptions.ts';
+import { hasReadOptions, parseReadOptions } from './paneReadOptions.ts';
+import type { RawReadOptions } from './paneReadOptions.ts';
 
 type SplitDirection = Extract<PaneLayoutCommand, { action: 'split' }>['direction'];
 

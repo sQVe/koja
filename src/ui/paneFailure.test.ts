@@ -3,7 +3,7 @@ import { afterEach, expect, it } from 'bun:test';
 import { createTestRenderer } from '@opentui/core/testing';
 import type { TestRendererSetup } from '@opentui/core/testing';
 
-import { FailedPaneRenderable } from './failedPane.ts';
+import { FailedPaneRenderable } from './paneFailure.ts';
 
 let setup: TestRendererSetup | undefined;
 

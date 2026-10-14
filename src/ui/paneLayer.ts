@@ -5,8 +5,8 @@ import type { AttachSession, StoreSnapshot } from '../client/client.ts';
 import type { PaneId } from '../ids.ts';
 import { layoutPanes, paneSize, shownLayout } from '../layout.ts';
 import type { PaneRectangle, TerminalSize } from '../layout.ts';
-import { FailedPaneRenderable } from './failedPane.ts';
 import { BorderRenderable, borderCells } from './paneBorders.ts';
+import { FailedPaneRenderable } from './paneFailure.ts';
 import { PaneRenderable } from './paneRenderable.ts';
 
 interface Placement {
@@ -43,7 +43,7 @@ export const mountPanes = (
   box: BoxRenderable,
 ): (() => void) => {
   const panes = new Map<PaneId, PaneRenderable>();
-  const failedPanes = new Map<PaneId, FailedPaneRenderable>();
+  const paneFailures = new Map<PaneId, FailedPaneRenderable>();
   const borders = new BorderRenderable(renderer, paneSize(undefined));
   let drawnBorders = '';
 
@@ -67,19 +67,19 @@ export const mountPanes = (
   };
 
   const removeFailed = (id: PaneId): void => {
-    const failed = failedPanes.get(id);
+    const failed = paneFailures.get(id);
 
     if (failed !== undefined) {
       box.remove(failed);
       failed.destroy();
-      failedPanes.delete(id);
+      paneFailures.delete(id);
     }
   };
 
   const placeFailed = (rectangle: PaneRectangle, message: string): void => {
     const { paneId: id, terminal } = rectangle;
     const { x, y, columns, rows } = terminal;
-    const existing = failedPanes.get(id);
+    const existing = paneFailures.get(id);
 
     if (existing === undefined) {
       const created = new FailedPaneRenderable(renderer, {
@@ -90,7 +90,7 @@ export const mountPanes = (
         top: y,
       });
 
-      failedPanes.set(id, created);
+      paneFailures.set(id, created);
       box.add(created);
 
       return;
@@ -161,11 +161,11 @@ export const mountPanes = (
       }
     }
 
-    for (const [id, pane] of failedPanes) {
+    for (const [id, pane] of paneFailures) {
       if (!present.has(id)) {
         box.remove(pane);
         pane.destroy();
-        failedPanes.delete(id);
+        paneFailures.delete(id);
       }
     }
   };
@@ -211,13 +211,13 @@ export const mountPanes = (
       pane.destroy();
     }
 
-    for (const pane of failedPanes.values()) {
+    for (const pane of paneFailures.values()) {
       box.remove(pane);
       pane.destroy();
     }
 
     panes.clear();
-    failedPanes.clear();
+    paneFailures.clear();
     box.remove(borders);
     borders.destroy();
   };
