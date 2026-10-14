@@ -148,10 +148,20 @@ export type Intent =
   | { type: 'focusWorkspace'; workspaceId: WorkspaceId; clientId?: ClientId }
   | { type: 'renameWorkspace'; workspaceId: WorkspaceId; label: string }
   | { type: 'closeWorkspace'; workspaceId: WorkspaceId }
-  | { type: 'createTab'; workspaceId: WorkspaceId; clientId?: ClientId }
+  | {
+      type: 'createTab';
+      workspaceId: WorkspaceId;
+      folder: string | undefined;
+      clientId?: ClientId;
+    }
   | { type: 'focusTab'; tabId: TabId; clientId?: ClientId }
   | { type: 'closeTab'; tabId: TabId }
-  | { type: 'splitPane'; paneId: PaneId; direction: SplitDirection }
+  | {
+      type: 'splitPane';
+      paneId: PaneId;
+      direction: SplitDirection;
+      folder: string | undefined;
+    }
   | { type: 'focusPane'; paneId: PaneId; clientId?: ClientId }
   | { type: 'closePane'; paneId: PaneId }
   | { type: 'zoomPane'; paneId: PaneId }
@@ -764,6 +774,7 @@ const removeTab = (state: State, tab: Tab, restore?: StartFallback): Applied => 
 const createTab = (
   state: State,
   id: WorkspaceId,
+  folder: string | undefined,
   source: ClientId | undefined,
 ): Applied | Rejected => {
   if (state.stopping) {
@@ -785,7 +796,7 @@ const createTab = (
     size: lonePaneSize(state, newPaneId),
     generation: state.nextGeneration,
     exitCode: undefined,
-    startFolder: undefined,
+    startFolder: folder,
     restored: false,
     error: undefined,
   };
@@ -905,7 +916,12 @@ const unzoomChanges = (tab: Tab): Change[] =>
     ? []
     : [{ type: 'tabZoomChanged', tabId: tab.id, zoomedPaneId: undefined }];
 
-const splitPane = (state: State, id: PaneId, direction: SplitDirection): Applied | Rejected => {
+const splitPane = (
+  state: State,
+  id: PaneId,
+  direction: SplitDirection,
+  folder: string | undefined,
+): Applied | Rejected => {
   if (state.stopping) {
     return reject(state, 'serverStopping');
   }
@@ -937,7 +953,7 @@ const splitPane = (state: State, id: PaneId, direction: SplitDirection): Applied
     size: { columns: addedRectangle.terminal.columns, rows: addedRectangle.terminal.rows },
     generation: state.nextGeneration,
     exitCode: undefined,
-    startFolder: undefined,
+    startFolder: folder,
     restored: false,
     error: undefined,
   };
@@ -1451,7 +1467,7 @@ const isPaneIntent = (intent: Intent): intent is PaneIntent => paneIntentTypes.h
 
 const applyTabIntent = (state: State, intent: TabIntent): Applied | Rejected => {
   if (intent.type === 'createTab') {
-    return createTab(state, intent.workspaceId, intent.clientId);
+    return createTab(state, intent.workspaceId, intent.folder, intent.clientId);
   }
 
   return intent.type === 'focusTab'
@@ -1461,7 +1477,7 @@ const applyTabIntent = (state: State, intent: TabIntent): Applied | Rejected => 
 
 const applyPaneIntent = (state: State, intent: PaneIntent): Applied | Rejected => {
   if (intent.type === 'splitPane') {
-    return splitPane(state, intent.paneId, intent.direction);
+    return splitPane(state, intent.paneId, intent.direction, intent.folder);
   }
 
   if (intent.type === 'focusPane') {
