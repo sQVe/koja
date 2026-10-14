@@ -663,11 +663,11 @@ const workspaceAfterRemoval = (state: State, removedId: WorkspaceId): WorkspaceI
   return neighbor?.id;
 };
 
-// The next tab in list order becomes active, or the previous one when it was last.
+// The previous tab in list order becomes active, or the next one when the closed tab was first.
 const tabAfterRemoval = (owner: WorkspaceRecord, removedId: TabId): TabId | undefined => {
   const index = owner.tabIds.indexOf(removedId);
 
-  return owner.tabIds[index + 1] ?? owner.tabIds[index - 1];
+  return owner.tabIds[index - 1] ?? owner.tabIds[index + 1];
 };
 
 const removeTab = (state: State, tab: Tab, restore?: StartFallback): Applied => {
@@ -687,24 +687,38 @@ const removeTab = (state: State, tab: Tab, restore?: StartFallback): Applied => 
   }
 
   if (tabIds.length > 0) {
-    const ordinary = tabAfterRemoval(owner, tab.id);
+    const neighbor = tabAfterRemoval(owner, tab.id);
 
-    invariant(ordinary !== undefined, `Workspace ${owner.id} has no tab to activate.`);
+    invariant(neighbor !== undefined, `Workspace ${owner.id} has no tab to activate.`);
 
     const workspaces = state.workspaces.map((workspace) =>
       workspace.id === owner.id ? { ...workspace, tabIds } : workspace,
     );
 
-    // A view that showed the closed tab returns to its own earlier tab if that still exists, and
-    // otherwise moves to the ordinary successor. A view that moved on keeps its tab.
-    const repaired = repairViews({ ...next, workspaces }, (view, viewOwner) => {
+    // A view that showed the closed tab returns to its own earlier tab if that still exists. Else
+    // the default view moves to the neighbor and client views follow the default view. A view that
+    // moved on keeps its tab.
+    const moveView = (view: View, viewOwner: ClientId | undefined, fallback: TabId): View => {
       const earlier = activeTabOf(viewBeforeOf(restore, viewOwner) ?? view, owner.id);
       const restored = earlier !== undefined && tabIds.includes(earlier) ? earlier : undefined;
 
       return activeTabOf(view, owner.id) === tab.id
-        ? withActiveTab(view, owner.id, restored ?? ordinary)
+        ? withActiveTab(view, owner.id, restored ?? fallback)
         : view;
-    });
+    };
+
+    const defaultView = moveView(state.defaultView, undefined, neighbor);
+    const defaultTab = activeTabOf(defaultView, owner.id) ?? neighbor;
+
+    const repaired: State = {
+      ...next,
+      workspaces,
+      defaultView,
+      clients: state.clients.map((client) => ({
+        ...client,
+        view: moveView(client.view, client.id, defaultTab),
+      })),
+    };
 
     changes.push(...viewChanges(state, repaired));
 

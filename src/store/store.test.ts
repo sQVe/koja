@@ -701,18 +701,33 @@ it('removes the workspace when its only tab closes', () => {
   expect(result.state.defaultView.focusedWorkspaceId).toBeUndefined();
 });
 
-it('hands activity to the next tab when the active middle tab closes', () => {
+it('hands activity to the previous tab when the active middle tab closes', () => {
   const state = run([createPhi, createTab, createTab, { type: 'focusTab', tabId: tabId(2) }]);
   const result = intent(state, { type: 'closeTab', tabId: tabId(2) });
 
   expect(workspaceOne(result.state)).toMatchObject({ tabIds: [tabId(1), tabId(3)] });
-  expect(activeTabOf(result.state.defaultView, workspaceId(1))).toBe(tabId(3));
+  expect(activeTabOf(result.state.defaultView, workspaceId(1))).toBe(tabId(1));
 
   expect(result.changes).toContainEqual({
     type: 'tabFocused',
     workspaceId: workspaceId(1),
-    tabId: tabId(3),
+    tabId: tabId(1),
   });
+});
+
+it('hands activity to the next tab when the active first tab closes', () => {
+  const state = run([createPhi, createTab, createTab, { type: 'focusTab', tabId: tabId(1) }]);
+  const result = intent(state, { type: 'closeTab', tabId: tabId(1) });
+
+  expect(activeTabOf(result.state.defaultView, workspaceId(1))).toBe(tabId(2));
+});
+
+it('keeps the active tab when an inactive tab closes before it', () => {
+  const state = run([createPhi, createTab, createTab, { type: 'focusTab', tabId: tabId(3) }]);
+  const result = intent(state, { type: 'closeTab', tabId: tabId(1) });
+
+  expect(activeTabOf(result.state.defaultView, workspaceId(1))).toBe(tabId(3));
+  expect(result.changes.some((change) => change.type === 'tabFocused')).toBe(false);
 });
 
 it('hands activity to the previous tab when the active last tab closes', () => {
@@ -1749,7 +1764,7 @@ it('leaves the default view as it is when a client detaches or is taken over', (
   expect(takenOver.clients[0]?.view).toEqual(moved.defaultView);
 });
 
-it('moves every view that showed a closed tab to the same successor, and keeps the others', () => {
+it('moves every view that showed a closed tab to the default view tab, and keeps the others', () => {
   const base = twoClients(createPhi, createTab, createTab);
 
   const shown = intent(base, {
@@ -1760,15 +1775,38 @@ it('moves every view that showed a closed tab to the same successor, and keeps t
 
   const result = intent(shown, { type: 'closeTab', tabId: tabId(2) });
 
-  expect(activeIn(result.state, 1, 1)).toBe(tabId(3));
+  expect(activeIn(result.state, 1, 1)).toBe(tabId(1));
   expect(activeIn(result.state, 2, 1)).toBe(tabId(3));
-  expect(activeTabOf(result.state.defaultView, workspaceId(1))).toBe(tabId(3));
+  expect(activeTabOf(result.state.defaultView, workspaceId(1))).toBe(tabId(1));
 
   const moved = result.changes.flatMap((change) =>
     change.type === 'clientViewChanged' ? [change.clientId] : [],
   );
 
   expect(moved).toEqual([clientId(1)]);
+});
+
+it('gives a view on the closed tab the default tab, not a neighbor of the closed tab', () => {
+  const base = twoClients(createPhi, createTab, createTab, createTab);
+
+  const first = intent(base, {
+    type: 'focusTab',
+    tabId: tabId(3),
+    clientId: clientId(1),
+  }).state;
+
+  const shown = intent(first, {
+    type: 'focusTab',
+    tabId: tabId(1),
+    clientId: clientId(2),
+  }).state;
+
+  const result = intent(shown, { type: 'closeTab', tabId: tabId(3) });
+
+  expect(activeTabOf(shown.defaultView, workspaceId(1))).toBe(tabId(1));
+  expect(activeIn(shown, 1, 1)).toBe(tabId(3));
+  expect(activeIn(result.state, 1, 1)).toBe(tabId(1));
+  expect(activeIn(result.state, 2, 1)).toBe(tabId(1));
 });
 
 it('keeps the tab a view remembers when another tab closes', () => {
