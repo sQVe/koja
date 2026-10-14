@@ -46,7 +46,7 @@ const sourceOf = (selection: PaneReadSelection): PaneRowsSource => {
     : PaneRowsSource.range;
 };
 
-// Unicode whitespace counts as blank, like Rust's trim_end, which rowsToLines does not do.
+// Unicode whitespace counts as blank, like Rust's trim_end.
 const hasText = (line: string): boolean => /\S/u.test(line);
 
 // The index in the active screen of its last row with text, or -1 when it has none.

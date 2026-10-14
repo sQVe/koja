@@ -55,7 +55,6 @@ export type DecodePaneInputResult =
 // Rows of one pane that a client asked for, in the layout of a row update's rows.
 export interface PaneRows {
   pane: number;
-  // The id of the request this answers.
   requestId: number;
   source: PaneRowsSource;
   columns: number;
@@ -87,7 +86,6 @@ type PaneRowsHeaderResult =
   | { ok: true; source: PaneRowsSource }
   | { ok: false; reason: 'unknownSource' | 'rowNumberTooLarge' };
 
-// What a pane read selected.
 export enum PaneRowsSource {
   visible = 0,
   recent = 1,
@@ -542,7 +540,6 @@ const readPaneRowsHeader = (words: Uint32Array): PaneRowsHeaderResult => {
     : { ok: false, reason: 'rowNumberTooLarge' };
 };
 
-// The encoded size of a rows reply with this many rows and grapheme words.
 export const paneRowsBytes = (rowCount: number, columns: number, graphemeWords: number): number =>
   (paneRowsHeaderWords + rowCount * rowWords(columns) + graphemeWords) * wordBytes;
 
