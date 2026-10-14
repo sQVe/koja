@@ -13,7 +13,7 @@ import {
   FrameKind,
   parseControl,
 } from '../src/protocol/protocol.ts';
-import { CellFlag, cellWords } from '../src/rows/rows.ts';
+import { CellFlag, cellWords, rowHeaderWords, rowWords } from '../src/rows/rows.ts';
 import { createTerminal } from '../src/vt/vt.ts';
 import { createWorkspaceAt, endServersIn, serverProcessesIn, waitFor } from './serverProcesses.ts';
 
@@ -174,9 +174,11 @@ it('shows the shell screen and cursor', async () => {
 
   const frame = screen.frame();
 
-  const stride = 1 + 80 * cellWords;
+  const stride = rowWords(80);
   const promptColumn = sideListColumns + 'attach-prompt> '.length;
-  const cursorFlags = frame.cells[(outputRow + 1) * stride + 1 + promptColumn * cellWords + 3] ?? 0;
+
+  const cursorFlags =
+    frame.cells[(outputRow + 1) * stride + rowHeaderWords + promptColumn * cellWords + 3] ?? 0;
 
   expect(cursorFlags & CellFlag.inverse).toBe(CellFlag.inverse);
 });

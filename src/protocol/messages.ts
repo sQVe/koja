@@ -59,6 +59,48 @@ const clientIdSchema: z.ZodType<ClientId> = idNumber('client').transform(clientI
 
 const count = z.number().int().nonnegative();
 
+const maxWord = 0xff_ff_ff_ff;
+
+const wordSchema = z.number().int().min(0).max(maxWord);
+
+// lines is absent for the default. Row numbers are stable row numbers, and epoch is absent to read
+// in the current epoch.
+const paneReadSelectionSchema = z.discriminatedUnion('source', [
+  z.object({ source: z.literal('visible'), lines: absent(count) }),
+  z.object({ source: z.literal('recent'), lines: absent(count) }),
+  z.object({ source: z.literal('recentUnwrapped'), lines: absent(count) }),
+  z.object({
+    source: z.literal('range'),
+    from: z.number().int().nonnegative(),
+    to: z.number().int().nonnegative(),
+    epoch: absent(wordSchema),
+    screen: absent(wordSchema),
+  }),
+]);
+
+// pruned: the range starts below the oldest row kept. staleEpoch: the request named another epoch
+// than the current one. screenChanged: the request named the primary or alternate screen, which is
+// not the current one. The screens share row numbers and the epoch, and a generation grows each
+// time the pane switches between them. screen is the current generation. tooManyBytes: the
+// selection is larger than one snapshot can be. It names the rows the selection covers, as the
+// epoch, the screen generation, the first stable row number, and the row count, so a client can
+// read them as a range in several snapshots. noSnapshot: the connection holds no snapshot for
+// the request a part was asked for.
+const paneReadFailureSchema = z.discriminatedUnion('reason', [
+  z.object({ reason: z.literal('pruned'), oldest: z.number().int().nonnegative() }),
+  z.object({ reason: z.literal('staleEpoch'), epoch: wordSchema }),
+  z.object({ reason: z.literal('screenChanged'), screen: wordSchema }),
+  z.object({
+    reason: z.literal('tooManyBytes'),
+    limitBytes: count,
+    epoch: wordSchema,
+    screen: wordSchema,
+    first: z.number().int().nonnegative(),
+    count,
+  }),
+  z.object({ reason: z.literal('noSnapshot') }),
+]);
+
 // The terminal passes sizes as 16-bit numbers.
 const largestDimension = 0xff_ff;
 
@@ -262,8 +304,6 @@ const controlSchema = z.discriminatedUnion('type', [
   z.object({ type: z.literal('takenOver') }),
   z.object({ type: z.literal('detached') }),
   z.object({ type: z.literal('detachResult'), result: detachOutcomeSchema }),
-  z.object({ type: z.literal('paneRead'), paneId: paneIdSchema }),
-  z.object({ type: z.literal('paneRows'), paneId: paneIdSchema, rows: z.array(z.string()) }),
   // Asks for the shell folder and the foreground folder of every running pane.
   z.object({ type: z.literal('paneFolders') }),
   z.object({
@@ -291,6 +331,22 @@ const controlSchema = z.discriminatedUnion('type', [
         folder: absent(z.string()),
       }),
     ),
+  }),
+  // Asks for the rows of a pane. The rows come back in a paneRows frame, or as paneReadFailed.
+  z.object({
+    type: z.literal('paneRead'),
+    paneId: paneIdSchema,
+    requestId: wordSchema,
+    selection: paneReadSelectionSchema,
+  }),
+  // Asks for the next part of the snapshot a paneRead took. The part comes back in a paneRows
+  // frame, or as paneReadFailed.
+  z.object({ type: z.literal('paneReadNext'), paneId: paneIdSchema, requestId: wordSchema }),
+  z.object({
+    type: z.literal('paneReadFailed'),
+    paneId: paneIdSchema,
+    requestId: wordSchema,
+    failure: paneReadFailureSchema,
   }),
   z.object({ type: z.literal('paneSend'), paneId: paneIdSchema, text: z.string() }),
   z.object({ type: z.literal('paneSent'), paneId: paneIdSchema }),

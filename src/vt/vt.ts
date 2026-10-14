@@ -4,7 +4,7 @@ import { dlopen, FFIType, toArrayBuffer } from 'bun:ffi';
 // path of the built file.
 import libraryPath from '../../build/libphi-vt.so' with { type: 'file' };
 import { invariant } from '../invariant.ts';
-import { cellWords } from '../rows/rows.ts';
+import { rowWords } from '../rows/rows.ts';
 
 export type CreateTerminalResult =
   | { ok: true; terminal: Terminal }
@@ -25,6 +25,9 @@ export interface StableRows {
   // The alternate screen has no history, so while it is active both numbers stay at the primary
   // screen's active top.
   alternate: boolean;
+  // Grows each time the active screen is found to have changed between the primary and alternate
+  // screens. Rows of one screen share numbers with the other, so a read pins the generation.
+  screen: number;
 }
 
 export interface Scrollback {
@@ -39,7 +42,8 @@ export interface Scrollback {
 export interface Frame {
   // The number of rows in cells.
   rowCount: number;
-  // Each changed row as one word with its viewport row, then cellWords words per column.
+  // Each changed row as one word with its viewport row, one word with its RowFlag bits, then
+  // cellWords words per column.
   cells: Uint32Array;
   // Each cluster longer than one code point as one word with the index in cells of its cell's
   // code point, one word with its length, then its code points, base first.
@@ -89,7 +93,7 @@ const firstFrameColumns = 80;
 const firstFrameRows = 24;
 
 // A whole screen of the first frame size without clusters fits the first buffers.
-const firstCellWords = firstFrameRows * (1 + firstFrameColumns * cellWords);
+const firstCellWords = firstFrameRows * rowWords(firstFrameColumns);
 
 const firstGraphemeWords = 1024;
 
@@ -99,7 +103,7 @@ const frameInfoWords = 6;
 // words.
 const maxFrameWords = 0xff_ff_ff_ff;
 
-const stableRowsWords = 4;
+const stableRowsWords = 5;
 
 const scrollbackWords = 3;
 
@@ -186,6 +190,7 @@ const loadLibrary = () =>
     pane_render_held: { args: [FFIType.ptr], returns: FFIType.bool },
     pane_end_render_hold: { args: [FFIType.ptr], returns: FFIType.void },
     pane_stable_rows: { args: [FFIType.ptr, FFIType.ptr], returns: FFIType.bool },
+    pane_cursor_row: { args: [FFIType.ptr], returns: FFIType.u16 },
     pane_scrollback: { args: [FFIType.ptr, FFIType.ptr], returns: FFIType.void },
     pane_colors: { args: [FFIType.ptr, FFIType.ptr], returns: FFIType.u64 },
     pane_set_default_colors: { args: [FFIType.ptr, FFIType.ptr], returns: FFIType.void },
@@ -324,6 +329,11 @@ export class Terminal {
     this.symbols.pane_mark_all_dirty(this.live());
   }
 
+  // The row of the cursor in the active screen. Does not consume dirty rows.
+  cursorRow(): number {
+    return this.symbols.pane_cursor_row(this.live());
+  }
+
   // Whether synchronized output holds the frame. Does not consume dirty rows.
   renderHeld(): boolean {
     return this.symbols.pane_render_held(this.live());
@@ -342,13 +352,14 @@ export class Terminal {
 
     invariant(tracked, 'libghostty-vt could not track the active screen top.');
 
-    const [first = 0n, activeTop = 0n, epoch = 0n, alternate] = this.stableRowsInfo;
+    const [first = 0n, activeTop = 0n, epoch = 0n, alternate, screen = 0n] = this.stableRowsInfo;
 
     return {
       first: Number(first),
       activeTop: Number(activeTop),
       epoch: Number(epoch),
       alternate: alternate === 1n,
+      screen: Number(screen),
     };
   }
 

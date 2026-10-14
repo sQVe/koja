@@ -16,7 +16,8 @@ export interface RowUpdate {
   activeTop: number;
   rowCount: number;
   // Each row as one signed 32-bit word with its offset from the active top, negative for a row
-  // that left the screen, then cellWords words per column. Read the offset with `| 0`.
+  // that left the screen, one word with its RowFlag bits, then cellWords words per column. Read
+  // the offset with `| 0`.
   cells: Uint32Array;
   // Each cluster longer than one code point as one word with the index in cells of its cell's
   // code point, one word with its length, then its code points, base first.
@@ -51,11 +52,52 @@ export type DecodePaneInputResult =
   | { ok: true; input: PaneInput }
   | { ok: false; reason: 'wrongLength' };
 
+// Rows of one pane that a client asked for, in the layout of a row update's rows.
+export interface PaneRows {
+  pane: number;
+  requestId: number;
+  source: PaneRowsSource;
+  columns: number;
+  epoch: number;
+  // The screen generation of the terminal. Rows of the alternate screen share numbers with the
+  // primary screen's.
+  screen: number;
+  // The rows of the same read that later parts hold. A client asks for the next part until this
+  // is 0.
+  remaining: number;
+  // The stable number of the oldest row kept.
+  oldest: number;
+  // The stable number of the first row in cells.
+  first: number;
+  rowCount: number;
+  cells: Uint32Array;
+  graphemes: Uint32Array;
+}
+
+export type DecodePaneRowsResult =
+  | { ok: true; rows: PaneRows }
+  | { ok: false; reason: 'wrongLength' }
+  | { ok: false; reason: 'unknownSource' }
+  | { ok: false; reason: 'rowNumberTooLarge' }
+  | { ok: false; reason: 'rowCountMismatch' }
+  | { ok: false; reason: GraphemeProblem };
+
 type GraphemeProblem =
   | 'graphemePastEnd'
   | 'graphemePastCells'
   | 'graphemeOffCell'
   | 'graphemeTooShort';
+
+type PaneRowsHeaderResult =
+  | { ok: true; source: PaneRowsSource }
+  | { ok: false; reason: 'unknownSource' | 'rowNumberTooLarge' };
+
+export enum PaneRowsSource {
+  visible = 0,
+  recent = 1,
+  recentUnwrapped = 2,
+  range = 3,
+}
 
 // Words per cell in a row: the base code point, the foreground color, the background color, and
 // the CellFlag and CellWidth bits. A color is 0 for the default color, 1-256 for a palette index
@@ -128,6 +170,22 @@ const header = {
 
 const headerWords = 15;
 
+// Header words of a pane rows reply. The cell words follow, then the grapheme words.
+const paneRowsHeader = {
+  pane: 0,
+  requestId: 1,
+  source: 2,
+  columns: 3,
+  epoch: 4,
+  oldest: 5,
+  first: 7,
+  rowCount: 9,
+  screen: 10,
+  remaining: 11,
+};
+
+const paneRowsHeaderWords = 12;
+
 const colorMarker = 0x1_00_00_00;
 
 const colorMask = 0xff_ff_ff;
@@ -168,7 +226,15 @@ const colorProblem = (colors: Uint32Array): 'colorSlotInvalid' | 'colorInvalid' 
   return undefined;
 };
 
-const rowWords = (columns: number) => 1 + columns * cellWords;
+export const rowHeaderWords = 2;
+
+// Bits of a row's flags word.
+export enum RowFlag {
+  // The row soft-wraps into the next row.
+  wrapped = 0x1,
+}
+
+export const rowWords = (columns: number): number => rowHeaderWords + columns * cellWords;
 
 const cellFlagsOffset = 3;
 
@@ -187,32 +253,136 @@ const clustersOf = (graphemes: Uint32Array): Map<number, string> => {
   return clusters;
 };
 
-export const rowsToText = (range: TextRows, columns: number): string[] => {
-  const clusters = clustersOf(range.graphemes);
-  const rows: string[] = [];
+const rowText = (
+  range: TextRows,
+  clusters: Map<number, string>,
+  rowStart: number,
+  columns: number,
+) => {
+  let text = '';
 
-  for (let row = 0; row < range.rowCount; row += 1) {
-    let text = '';
+  for (let column = 0; column < columns; column += 1) {
+    const index = rowStart + rowHeaderWords + column * cellWords;
+    const width: CellWidth = (range.cells[index + cellFlagsOffset] ?? 0) & cellWidthMask;
 
-    for (let column = 0; column < columns; column += 1) {
-      const index = row * rowWords(columns) + 1 + column * cellWords;
-      const width: CellWidth = (range.cells[index + cellFlagsOffset] ?? 0) & cellWidthMask;
-
-      if (width === CellWidth.spacerHead || width === CellWidth.spacerTail) {
-        continue;
-      }
-
-      const codePoint = range.cells[index] ?? 0;
-      const character = codePoint === 0 ? ' ' : String.fromCodePoint(codePoint);
-      const cluster = clusters.get(index) ?? character;
-
-      text += cluster;
+    if (width === CellWidth.spacerHead || width === CellWidth.spacerTail) {
+      continue;
     }
 
-    rows.push(text.replace(/ +$/, ''));
+    const codePoint = range.cells[index] ?? 0;
+    const character = codePoint === 0 ? ' ' : String.fromCodePoint(codePoint);
+
+    text += clusters.get(index) ?? character;
   }
 
-  return rows;
+  return text;
+};
+
+// Returns the text of each row, or with unwrap the text of each logical line, joining a wrapped
+// row to the row after it. A wrapped row keeps its trailing spaces. Spaces are trimmed only at
+// the end of a line. With unicodeTrim, a row loses all Unicode whitespace at its end, like Rust's
+// trim_end, and no row is joined.
+export const rowsToLines = (
+  range: TextRows,
+  columns: number,
+  unwrap: boolean,
+  unicodeTrim = false,
+): string[] => {
+  const trimEnd = (text: string): string =>
+    unicodeTrim ? text.replace(/\p{White_Space}+$/u, '') : text.replace(/ +$/, '');
+
+  const clusters = clustersOf(range.graphemes);
+  const lines: string[] = [];
+  let line = '';
+
+  for (let row = 0; row < range.rowCount; row += 1) {
+    const rowStart = row * rowWords(columns);
+
+    line += rowText(range, clusters, rowStart, columns);
+
+    const flags = range.cells[rowStart + 1] ?? 0;
+    const joinsNext = unwrap && (flags & RowFlag.wrapped) !== 0;
+
+    if (!joinsNext) {
+      lines.push(trimEnd(line));
+      line = '';
+    }
+  }
+
+  if (line !== '') {
+    lines.push(trimEnd(line));
+  }
+
+  return lines;
+};
+
+// Joins pages of rows with the same column count into one range. A grapheme names its cell by
+// index, so each page's graphemes move by the cell words before the page.
+export const concatRows = (pages: TextRows[]): TextRows => {
+  const cells = new Uint32Array(pages.reduce((total, page) => total + page.cells.length, 0));
+  const graphemes: number[] = [];
+  let cellOffset = 0;
+  let rowCount = 0;
+
+  for (const page of pages) {
+    cells.set(page.cells, cellOffset);
+
+    for (let index = 0; index < page.graphemes.length;) {
+      const length = page.graphemes[index + 1] ?? 0;
+
+      graphemes.push((page.graphemes[index] ?? 0) + cellOffset);
+      graphemes.push(...page.graphemes.subarray(index + 1, index + 2 + length));
+      index += 2 + length;
+    }
+
+    cellOffset += page.cells.length;
+    rowCount += page.rowCount;
+  }
+
+  return { rowCount, cells, graphemes: Uint32Array.from(graphemes) };
+};
+
+// The graphemes words each row of a range holds, as the part of graphemes that names its cells.
+export const graphemeWordsPerRow = (range: TextRows, columns: number): number[] => {
+  const words = Array.from({ length: range.rowCount }, () => 0);
+
+  for (let index = 0; index < range.graphemes.length;) {
+    const length = range.graphemes[index + 1] ?? 0;
+    const row = Math.floor((range.graphemes[index] ?? 0) / rowWords(columns));
+
+    words[row] = (words[row] ?? 0) + 2 + length;
+    index += 2 + length;
+  }
+
+  return words;
+};
+
+// Returns count rows of the range from row start, with their clusters moved to the new cell
+// indexes. The inverse of concatRows.
+export const sliceRows = (
+  range: TextRows,
+  columns: number,
+  start: number,
+  count: number,
+): TextRows => {
+  const width = rowWords(columns);
+  const cells = range.cells.slice(start * width, (start + count) * width);
+  const graphemes: number[] = [];
+
+  for (let index = 0; index < range.graphemes.length;) {
+    const cellIndex = range.graphemes[index] ?? 0;
+    const length = range.graphemes[index + 1] ?? 0;
+    const row = Math.floor(cellIndex / width);
+
+    if (row >= start && row < start + count) {
+      graphemes.push(cellIndex - start * width);
+      graphemes.push(...range.graphemes.subarray(index + 1, index + 2 + length));
+    }
+
+    index += 2 + length;
+  }
+
+  return { rowCount: count, cells, graphemes: Uint32Array.from(graphemes) };
 };
 
 const writeRowNumber = (words: Uint32Array, index: number, value: number) => {
@@ -322,7 +492,7 @@ const graphemeProblem = (
       return 'graphemePastCells';
     }
 
-    if ((cellIndex % rowWords(columns)) % cellWords !== 1) {
+    if ((cellIndex % rowWords(columns)) % cellWords !== rowHeaderWords % cellWords) {
       return 'graphemeOffCell';
     }
 
@@ -396,6 +566,117 @@ export const decodeRowUpdate = (bytes: Uint8Array): DecodeRowUpdateResult => {
   }
 
   return { ok: true, update: readRowUpdate(words, colorCount, cellCount) };
+};
+
+const paneRowsSources = new Map<number, PaneRowsSource>([
+  [PaneRowsSource.visible, PaneRowsSource.visible],
+  [PaneRowsSource.recent, PaneRowsSource.recent],
+  [PaneRowsSource.recentUnwrapped, PaneRowsSource.recentUnwrapped],
+  [PaneRowsSource.range, PaneRowsSource.range],
+]);
+
+const paneRowNumbersFit = (words: Uint32Array) =>
+  (words[paneRowsHeader.oldest + 1] ?? 0) <= maxHighWord &&
+  (words[paneRowsHeader.first + 1] ?? 0) <= maxHighWord;
+
+const readPaneRowsHeader = (words: Uint32Array): PaneRowsHeaderResult => {
+  const source = paneRowsSources.get(words[paneRowsHeader.source] ?? 0);
+
+  if (source === undefined) {
+    return { ok: false, reason: 'unknownSource' };
+  }
+
+  return paneRowNumbersFit(words)
+    ? { ok: true, source }
+    : { ok: false, reason: 'rowNumberTooLarge' };
+};
+
+export const paneRowsBytes = (rowCount: number, columns: number, graphemeWords: number): number =>
+  (paneRowsHeaderWords + rowCount * rowWords(columns) + graphemeWords) * wordBytes;
+
+export const encodePaneRows = (rows: PaneRows): Uint8Array => {
+  assertWord(rows.pane, 'pane number');
+  assertWord(rows.requestId, 'request id');
+  assertWord(rows.columns, 'column count');
+  assertWord(rows.epoch, 'epoch');
+  assertWord(rows.screen, 'screen generation');
+  assertWord(rows.remaining, 'remaining row count');
+  assertRowNumber(rows.oldest, 'oldest row number');
+  assertRowNumber(rows.first, 'first row number');
+  assertWord(rows.rowCount, 'row count');
+
+  invariant(
+    rows.cells.length === rows.rowCount * rowWords(rows.columns),
+    `${rows.rowCount} rows of ${rows.columns} columns do not fill ${rows.cells.length} cell words.`,
+  );
+
+  const words = new Uint32Array(paneRowsHeaderWords + rows.cells.length + rows.graphemes.length);
+
+  words[paneRowsHeader.pane] = rows.pane;
+  words[paneRowsHeader.requestId] = rows.requestId;
+  words[paneRowsHeader.source] = rows.source;
+  words[paneRowsHeader.columns] = rows.columns;
+  words[paneRowsHeader.epoch] = rows.epoch;
+  words[paneRowsHeader.screen] = rows.screen;
+  words[paneRowsHeader.remaining] = rows.remaining;
+  writeRowNumber(words, paneRowsHeader.oldest, rows.oldest);
+  writeRowNumber(words, paneRowsHeader.first, rows.first);
+  words[paneRowsHeader.rowCount] = rows.rowCount;
+  words.set(rows.cells, paneRowsHeaderWords);
+  words.set(rows.graphemes, paneRowsHeaderWords + rows.cells.length);
+
+  return new Uint8Array(words.buffer);
+};
+
+const paneRowsCounters = (words: Uint32Array) => ({
+  pane: words[paneRowsHeader.pane] ?? 0,
+  requestId: words[paneRowsHeader.requestId] ?? 0,
+  epoch: words[paneRowsHeader.epoch] ?? 0,
+  screen: words[paneRowsHeader.screen] ?? 0,
+  remaining: words[paneRowsHeader.remaining] ?? 0,
+});
+
+// Returns an error for bytes the peer got wrong. It never throws.
+export const decodePaneRows = (bytes: Uint8Array): DecodePaneRowsResult => {
+  if (bytes.length % wordBytes !== 0 || bytes.length < paneRowsHeaderWords * wordBytes) {
+    return { ok: false, reason: 'wrongLength' };
+  }
+
+  const words = wordsOf(bytes);
+  const head = readPaneRowsHeader(words);
+
+  if (!head.ok) {
+    return head;
+  }
+
+  const columns = words[paneRowsHeader.columns] ?? 0;
+  const rowCount = words[paneRowsHeader.rowCount] ?? 0;
+  const cellCount = rowCount * rowWords(columns);
+
+  if (paneRowsHeaderWords + cellCount > words.length) {
+    return { ok: false, reason: 'rowCountMismatch' };
+  }
+
+  const graphemes = words.subarray(paneRowsHeaderWords + cellCount);
+  const problem = graphemeProblem(graphemes, cellCount, columns);
+
+  if (problem !== undefined) {
+    return { ok: false, reason: problem };
+  }
+
+  return {
+    ok: true,
+    rows: {
+      ...paneRowsCounters(words),
+      source: head.source,
+      columns,
+      oldest: readRowNumber(words, paneRowsHeader.oldest),
+      first: readRowNumber(words, paneRowsHeader.first),
+      rowCount,
+      cells: words.subarray(paneRowsHeaderWords, paneRowsHeaderWords + cellCount),
+      graphemes,
+    },
+  };
 };
 
 export const encodePaneInput = (input: PaneInput): Uint8Array => {

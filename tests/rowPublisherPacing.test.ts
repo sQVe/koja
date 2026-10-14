@@ -1,7 +1,7 @@
 import { expect, it, onTestFinished } from 'bun:test';
 
 import { createRowCache } from '../src/client/client.ts';
-import { cellWords } from '../src/rows/rows.ts';
+import { rowHeaderWords, rowWords } from '../src/rows/rows.ts';
 import type { RowUpdate } from '../src/rows/rows.ts';
 import { createRowPublisher } from '../src/server/rowPublisher.ts';
 import { createTerminal } from '../src/vt/vt.ts';
@@ -81,11 +81,11 @@ it('sends one update with the newest screen after an ack, matching the terminal'
     throw new Error('The active screen must be readable.');
   }
 
-  const stride = 1 + 80 * cellWords;
+  const stride = rowWords(80);
 
   for (let index = 0; index < 24; index += 1) {
     const start = index * stride;
-    const expected = read.rows.cells.subarray(start + 1, start + stride);
+    const expected = read.rows.cells.subarray(start + rowHeaderWords, start + stride);
 
     expect(cache.row(index)?.cells).toEqual(expected);
   }
@@ -102,11 +102,11 @@ const expectCacheMatchesTerminal = (
     throw new Error('The active screen must be readable.');
   }
 
-  const stride = 1 + 80 * cellWords;
+  const stride = rowWords(80);
 
   for (let index = 0; index < 24; index += 1) {
     const start = index * stride;
-    const expected = read.rows.cells.subarray(start + 1, start + stride);
+    const expected = read.rows.cells.subarray(start + rowHeaderWords, start + stride);
 
     expect(cache.row(index)?.cells).toEqual(expected);
   }

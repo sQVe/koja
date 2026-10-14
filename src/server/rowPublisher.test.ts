@@ -1,6 +1,13 @@
 import { expect, it, onTestFinished } from 'bun:test';
 
-import { cellWords, decodeRowUpdate, encodeRowUpdate, ModeFlag } from '../rows/rows.ts';
+import {
+  cellWords,
+  decodeRowUpdate,
+  encodeRowUpdate,
+  ModeFlag,
+  rowHeaderWords,
+  rowWords,
+} from '../rows/rows.ts';
 import type { RowUpdate } from '../rows/rows.ts';
 import { createTerminal } from '../vt/vt.ts';
 import type { Terminal } from '../vt/vt.ts';
@@ -44,13 +51,13 @@ const publisherForTest = (terminal: Terminal, holdLimitMs = 1000) => {
 
 const rowsOf = (update: RowUpdate) => {
   const rows = new Map<number, string>();
-  const stride = 1 + update.size.columns * cellWords;
+  const stride = rowWords(update.size.columns);
 
   for (let start = 0; start < update.cells.length; start += stride) {
     const points: number[] = [];
 
     for (let column = 0; column < update.size.columns; column += 1) {
-      points.push(update.cells[start + 1 + column * cellWords] ?? 0);
+      points.push(update.cells[start + rowHeaderWords + column * cellWords] ?? 0);
     }
 
     const text = String.fromCodePoint(...points)
@@ -197,7 +204,7 @@ it('preserves changed grapheme clusters and rebases their indexes in departed ro
 
   const update = lastUpdate(updates);
   const decoded = decodeRowUpdate(encodeRowUpdate(update));
-  const stride = 1 + 80 * cellWords;
+  const stride = rowWords(80);
   const clusters = new Map<number, number[]>();
 
   for (let index = 0; index < update.graphemes.length;) {

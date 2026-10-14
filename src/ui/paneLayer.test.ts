@@ -8,7 +8,7 @@ import { createRowCache } from '../client/client.ts';
 import type { StoreSnapshot } from '../client/client.ts';
 import { paneId, tabId, workspaceId } from '../ids.ts';
 import type { Layout } from '../layout.ts';
-import { cellWords } from '../rows/rows.ts';
+import { cellWords, rowHeaderWords, rowWords } from '../rows/rows.ts';
 import type { RowUpdate } from '../rows/rows.ts';
 import { mountPanes } from './paneLayer.ts';
 import type { PaneLayerSession } from './paneLayer.ts';
@@ -72,9 +72,9 @@ const snapshotOf = (
 });
 
 const textAtColumn = (column: number): RowUpdate => {
-  const words = new Uint32Array(1 + columns * cellWords);
+  const words = new Uint32Array(rowWords(columns));
 
-  words[1 + column * cellWords] = 'Z'.codePointAt(0) ?? 0;
+  words[rowHeaderWords + column * cellWords] = 'Z'.codePointAt(0) ?? 0;
 
   return {
     pane: 1,

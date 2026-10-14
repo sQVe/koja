@@ -1,8 +1,10 @@
 import { parseArgs } from 'node:util';
 
-import type { PaneCommand, PaneLayoutCommand } from '../client/client.ts';
+import type { PaneLayoutCommand, PaneReadCommand, PaneSendCommand } from '../client/client.ts';
 import { clientId, paneId, tabId, workspaceId } from '../ids.ts';
 import type { ClientId, PaneId, TabId, WorkspaceId } from '../ids.ts';
+import { hasReadOptions, parseReadOptions } from './readOptions.ts';
+import type { RawReadOptions } from './readOptions.ts';
 
 type SplitDirection = Extract<PaneLayoutCommand, { action: 'split' }>['direction'];
 
@@ -19,7 +21,8 @@ export interface VersionCommand {
 }
 
 type PaneCliAction =
-  | PaneCommand
+  | PaneReadCommand
+  | PaneSendCommand
   | PaneLayoutCommand
   | { action: 'list' }
   | { action: 'process-info'; pane: PaneId };
@@ -62,7 +65,7 @@ export interface ServerCommand extends CommandOptions {
   action: ServerAction;
 }
 
-interface StrayOptions {
+interface StrayOptions extends Partial<RawReadOptions> {
   label?: string;
   background?: boolean;
   pane?: string;
@@ -109,6 +112,7 @@ interface GroupInput {
   direction: string | undefined;
   cells: string | undefined;
   cwd: string | undefined;
+  read: RawReadOptions;
   options: CommandOptions;
 }
 
@@ -118,6 +122,10 @@ interface LayoutOptions {
   direction: string | undefined;
   cells: string | undefined;
   cwd: string | undefined;
+}
+
+interface PaneOptions extends LayoutOptions {
+  read: RawReadOptions;
 }
 
 const serverActions = ['run', 'start', 'stop'] as const;
@@ -143,7 +151,8 @@ export const usage = `Usage:
   phi tab focus <id> [--socket <path>] [--json]
   phi tab close <id> [--socket <path>] [--json]
   phi pane list [--socket <path>] [--json]
-  phi pane read [--pane <id>] [--socket <path>] [--json]
+  phi pane read [--pane <id>] [--source visible|recent|recent-unwrapped] [--lines <n>]
+    [--from <row> --to <row>] [--socket <path>] [--json]
   phi pane send <text> [--pane <id>] [--socket <path>] [--json]
   phi pane split <id> --direction below|right [--cwd <dir>] [--socket <path>] [--json]
   phi pane focus <id> [--socket <path>] [--json]
@@ -323,10 +332,31 @@ const parseProcessInfoCommand = (
     : { action: 'process-info', pane: paneId(target) };
 };
 
+const parsePaneRead = (
+  rest: string[],
+  pane: PaneId | undefined,
+  read: RawReadOptions,
+): PaneReadCommand | string => {
+  if (rest.length > 0) {
+    return 'pane read takes no text; pane send takes one text argument.';
+  }
+
+  const options = parseReadOptions(read);
+
+  return typeof options === 'string' ? options : { action: 'read', pane, ...options };
+};
+
+const parsePaneSend = (rest: string[], pane: PaneId | undefined): PaneSendCommand | string => {
+  return rest.length === 1
+    ? { action: 'send', text: rest[0] ?? '', pane }
+    : 'pane read takes no text; pane send takes one text argument.';
+};
+
 const parsePaneTargetCommand = (
   action: string | undefined,
   rest: string[],
   pane: string | undefined,
+  read: RawReadOptions,
 ): PaneCliAction | string => {
   if (action === 'list') {
     return rest.length === 0 && pane === undefined
@@ -344,23 +374,28 @@ const parsePaneTargetCommand = (
     return target.message;
   }
 
-  if (action === 'read' && rest.length === 0) {
-    return { action, pane: target.id };
-  }
+  return action === 'read' ? parsePaneRead(rest, target.id, read) : parsePaneSend(rest, target.id);
+};
 
-  if (action === 'send' && rest.length === 1) {
-    return { action, text: rest[0] ?? '', pane: target.id };
-  }
+const strayReadFlagMessage = ({ source, lines, from, to }: RawReadOptions): string | undefined => {
+  const flags = { '--source': source, '--lines': lines, '--from': from, '--to': to };
+  const stray = Object.entries(flags).find(([, value]) => value !== undefined);
 
-  return 'pane read takes no text; pane send takes one text argument.';
+  return stray === undefined ? undefined : `${stray[0]} belongs to pane read.`;
 };
 
 const parsePaneCommand = (
   action: string | undefined,
   rest: string[],
   pane: string | undefined,
-  options: LayoutOptions,
+  options: PaneOptions,
 ): PaneCliAction | string => {
+  const strayRead = action === 'read' ? undefined : strayReadFlagMessage(options.read);
+
+  if (strayRead !== undefined) {
+    return strayRead;
+  }
+
   if (isPaneLayoutAction(action)) {
     return pane === undefined
       ? parsePaneLayoutCommand(action, rest, options)
@@ -380,7 +415,7 @@ const parsePaneCommand = (
   }
 
   return options.cells === undefined
-    ? parsePaneTargetCommand(action, rest, pane)
+    ? parsePaneTargetCommand(action, rest, pane, options.read)
     : '--cells belongs to pane resize.';
 };
 
@@ -623,6 +658,7 @@ const parseGroupCommand = (group: string | undefined, input: GroupInput): Comman
       direction: input.direction,
       cells: input.cells,
       cwd: input.cwd,
+      read: input.read,
     });
 
     return typeof pane === 'string' ? pane : { kind: 'pane', pane, ...input.options };
@@ -635,31 +671,54 @@ const parseGroupCommand = (group: string | undefined, input: GroupInput): Comman
   return group === 'server' ? parseServerCommand(input) : 'Unknown command.';
 };
 
-const strayLayoutOptionMessage = (
+const strayFolderOptionMessage = (
   group: string | undefined,
-  direction: string | undefined,
-  cells: string | undefined,
   cwd: string | undefined,
 ): string | undefined => {
-  if (cwd !== undefined && group !== 'pane' && group !== 'tab') {
-    return '--cwd belongs to pane split and tab create.';
-  }
+  const takesFolder = group === 'pane' || group === 'tab';
 
-  if (direction !== undefined && group !== 'pane') {
+  return cwd === undefined || takesFolder
+    ? undefined
+    : '--cwd belongs to pane split and tab create.';
+};
+
+const strayPaneOptionMessage = ({
+  pane,
+  direction,
+  cells,
+  ...read
+}: Pick<StrayOptions, 'pane' | 'direction' | 'cells'> & Partial<RawReadOptions>):
+  | string
+  | undefined => {
+  if (direction !== undefined) {
     return '--direction belongs to pane split and pane resize.';
   }
 
-  return cells !== undefined && group !== 'pane' ? '--cells belongs to pane resize.' : undefined;
+  if (cells !== undefined) {
+    return '--cells belongs to pane resize.';
+  }
+
+  if (hasReadOptions(read)) {
+    return '--source, --lines, --from, and --to belong to pane read.';
+  }
+
+  return pane === undefined ? undefined : '--pane belongs to pane read and pane send.';
 };
 
 const strayOptionMessage = (
   group: string | undefined,
-  { label, background, pane, workspace, direction, cells, client, cwd }: StrayOptions,
+  { label, background, workspace, client, cwd, ...paneOptions }: StrayOptions,
 ): string | undefined => {
-  const layoutStray = strayLayoutOptionMessage(group, direction, cells, cwd);
+  const paneStray = group === 'pane' ? undefined : strayPaneOptionMessage(paneOptions);
 
-  if (layoutStray !== undefined) {
-    return layoutStray;
+  if (paneStray !== undefined) {
+    return paneStray;
+  }
+
+  const folderStray = strayFolderOptionMessage(group, cwd);
+
+  if (folderStray !== undefined) {
+    return folderStray;
   }
 
   if (label !== undefined && group !== 'workspace') {
@@ -674,13 +733,7 @@ const strayOptionMessage = (
     return '--workspace belongs to tab create.';
   }
 
-  if (client !== undefined && group !== 'detach') {
-    return '--client belongs to detach.';
-  }
-
-  return pane !== undefined && group !== 'pane'
-    ? '--pane belongs to pane read and pane send.'
-    : undefined;
+  return client !== undefined && group !== 'detach' ? '--client belongs to detach.' : undefined;
 };
 
 export const parseCommand = (argv: string[]): Command | string => {
@@ -699,6 +752,10 @@ export const parseCommand = (argv: string[]): Command | string => {
         cells: { type: 'string' },
         client: { type: 'string' },
         cwd: { type: 'string' },
+        source: { type: 'string' },
+        lines: { type: 'string' },
+        from: { type: 'string' },
+        to: { type: 'string' },
       },
       allowPositionals: true,
       strict: true,
@@ -735,6 +792,12 @@ export const parseCommand = (argv: string[]): Command | string => {
       direction: values.direction,
       cells: values.cells,
       cwd: values.cwd,
+      read: {
+        source: values.source,
+        lines: values.lines,
+        from: values.from,
+        to: values.to,
+      },
       options,
     });
   } catch (error) {

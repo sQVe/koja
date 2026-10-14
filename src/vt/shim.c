@@ -19,6 +19,8 @@ typedef struct {
   uint64_t restart_first;
   bool reset;
   uint64_t epoch;
+  uint64_t screen;
+  bool screen_alternate;
   // While held, state keeps the frame captured when the hold began, see render_hold.
   bool held;
 } Pane;
@@ -275,8 +277,17 @@ static void read_cell(GhosttyRenderStateRowCells cells, FrameOutput *out) {
   put_cell_word(out, flags);
 }
 
+static uint32_t row_flags(GhosttyRow row) {
+  bool wrapped = false;
+  ghostty_row_get(row, GHOSTTY_ROW_DATA_WRAP, &wrapped);
+  return wrapped ? 1u : 0u;
+}
+
 static void read_row(Pane *pane, uint16_t y, uint16_t cols, FrameOutput *out) {
   put_cell_word(out, y);
+  GhosttyRow raw = 0;
+  ghostty_render_state_row_get(pane->rows, GHOSTTY_RENDER_STATE_ROW_DATA_RAW, &raw);
+  put_cell_word(out, row_flags(raw));
   ghostty_render_state_row_get(pane->rows, GHOSTTY_RENDER_STATE_ROW_DATA_CELLS, &pane->cells);
   for (uint16_t x = 0; x < cols; x++) {
     if (ghostty_render_state_row_cells_next(pane->cells)) {
@@ -317,8 +328,8 @@ static void read_cursor(Pane *pane, uint64_t *x, uint64_t *y, uint64_t *visible)
   *visible = cursor.visible && cursor.viewport_has_value;
 }
 
-// Reads the rows that changed since the last frame. Each row goes to cells as its viewport y,
-// then 4 words per cell: code point, fg key, bg key, and flags, with keys as at color_key. Flags
+// Reads the rows that changed since the last frame. Each row goes to cells as its viewport y, a
+// flags word (bit 0 means the row soft-wraps into the next row), then 4 words per cell: code point, fg key, bg key, and flags, with keys as at color_key. Flags
 // bits 0-4 are bold, faint, italic, underline, and inverse, bits 8-9 the GhosttyCellWide value,
 // and bit 16 means the cell's cluster is in graphemes as: the index in cells of the cell's code
 // point, the cluster length, then its code points.
@@ -378,6 +389,14 @@ void pane_scrollback(Pane *pane, uint64_t *info) {
   info[0] = rows;
   info[1] = max_bytes;
   info[2] = memory.primary_resident_bytes;
+}
+
+// Returns the cursor row in the active screen, read from the terminal so it is current even while
+// a render hold keeps the captured frame. Does not touch the render state.
+uint16_t pane_cursor_row(Pane *pane) {
+  uint16_t y = 0;
+  ghostty_terminal_get(pane->terminal, GHOSTTY_TERMINAL_DATA_CURSOR_Y, &y);
+  return y;
 }
 
 // Appends the slot and the color key of a default color a program set.
@@ -476,7 +495,11 @@ static void restart_numbers(Pane *pane) {
 // in place until the primary screen is active again. Without an anchor, only the reset callback
 // shows that a reset cleared the primary screen.
 // info receives the number of screen row 0 (the oldest history row), the number of the active
-// area's top row, the epoch, and 1 when the alternate screen is active. The alternate screen has
+// area's top row, the epoch, 1 when the alternate screen is active, and the screen generation,
+// which grows each time a call finds the other screen active than the call before. Libghostty-vt
+// has no callback for a screen switch, so switches that happen between two calls and leave the
+// same screen active go unseen.
+// The alternate screen has
 // no history, so both numbers stay at the primary screen's active top. Returns false when
 // libghostty-vt cannot track the active top.
 static bool update_stable_rows(Pane *pane, uint64_t *info) {
@@ -494,7 +517,13 @@ static bool update_stable_rows(Pane *pane, uint64_t *info) {
   info[2] = pane->epoch;
   GhosttyTerminalScreen screen = GHOSTTY_TERMINAL_SCREEN_PRIMARY;
   ghostty_terminal_get(pane->terminal, GHOSTTY_TERMINAL_DATA_ACTIVE_SCREEN, &screen);
-  if (screen != GHOSTTY_TERMINAL_SCREEN_PRIMARY) {
+  bool alternate = screen != GHOSTTY_TERMINAL_SCREEN_PRIMARY;
+  if (alternate != pane->screen_alternate) {
+    pane->screen++;
+    pane->screen_alternate = alternate;
+  }
+  info[4] = pane->screen;
+  if (alternate) {
     info[0] = pane->active_top;
     info[3] = 1;
     return true;
@@ -553,6 +582,9 @@ static bool read_screen_row(Pane *pane, uint64_t y, uint32_t offset, uint16_t co
   GhosttyGridRef ref = GHOSTTY_INIT_SIZED(GhosttyGridRef);
   if (ghostty_terminal_grid_ref(pane->terminal, point, &ref) != GHOSTTY_SUCCESS) return false;
   put_cell_word(out, offset);
+  GhosttyRow raw = 0;
+  ghostty_grid_ref_row(&ref, &raw);
+  put_cell_word(out, row_flags(raw));
   for (uint16_t x = 0; x < cols; x++) {
     ref.x = x;
     read_ref_cell(&ref, out);

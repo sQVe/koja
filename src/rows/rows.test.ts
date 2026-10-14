@@ -2,41 +2,46 @@ import { expect, it } from 'bun:test';
 
 import {
   CellFlag,
+  concatRows,
   CellWidth,
   cellWords,
   decodePaneInput,
+  decodePaneRows,
   decodeRowUpdate,
   encodePaneInput,
+  encodePaneRows,
   encodeRowUpdate,
   ModeFlag,
-  rowsToText,
+  PaneRowsSource,
+  RowFlag,
+  rowHeaderWords,
+  rowsToLines,
   rowUpdateBytes,
+  rowWords,
 } from './rows.ts';
-import type { RowUpdate } from './rows.ts';
+import type { PaneRows, RowUpdate } from './rows.ts';
 
 const columns = 80;
-
-const rowWords = 1 + columns * cellWords;
 
 // One row of text in the frame layout, starting with its offset from the active top. The text
 // holds no characters outside the Basic Multilingual Plane.
 const textRow = (offset: number, text: string) => {
-  const row = new Uint32Array(rowWords);
+  const row = new Uint32Array(rowWords(columns));
 
   row[0] = offset >>> 0;
 
   for (let column = 0; column < text.length; column++) {
-    row[1 + column * cellWords] = text.charCodeAt(column);
+    row[rowHeaderWords + column * cellWords] = text.charCodeAt(column);
   }
 
   return row;
 };
 
 const joinRows = (rows: Uint32Array[]) => {
-  const cells = new Uint32Array(rows.length * rowWords);
+  const cells = new Uint32Array(rows.length * rowWords(columns));
 
   rows.forEach((row, index) => {
-    cells.set(row, index * rowWords);
+    cells.set(row, index * rowWords(columns));
   });
 
   return cells;
@@ -61,21 +66,75 @@ const rowUpdate = (overrides: Partial<RowUpdate> = {}): RowUpdate => ({
 it('reads rows as text with clusters and wide spacers, preserving leading and interior spaces', () => {
   const cells = textRow(0, ' 中 e  x   ');
 
-  cells[1 + cellWords + 3] = CellWidth.wide;
-  cells[1 + 2 * cellWords + 3] = CellWidth.spacerTail;
-  cells[1 + 3 * cellWords + 3] = CellFlag.grapheme;
-  cells[1 + 9 * cellWords + 3] = CellWidth.spacerHead;
+  cells[rowHeaderWords + cellWords + 3] = CellWidth.wide;
+  cells[rowHeaderWords + 2 * cellWords + 3] = CellWidth.spacerTail;
+  cells[rowHeaderWords + 3 * cellWords + 3] = CellFlag.grapheme;
+  cells[rowHeaderWords + 9 * cellWords + 3] = CellWidth.spacerHead;
 
   const range = {
     rowCount: 2,
     cells: joinRows([cells, textRow(1, '')]),
-    graphemes: Uint32Array.of(1 + 3 * cellWords, 2, 0x65, 0x3_01),
+    graphemes: Uint32Array.of(rowHeaderWords + 3 * cellWords, 2, 0x65, 0x3_01),
   };
 
-  expect(rowsToText(range, columns)).toEqual([' 中é  x', '']);
+  expect(rowsToLines(range, columns, false)).toEqual([' 中é  x', '']);
 });
 
 const roundTrip = (update: RowUpdate) => decodeRowUpdate(encodeRowUpdate(update));
+
+const wrappedRow = (offset: number, text: string, wrapped = true) => {
+  const row = textRow(offset, text);
+
+  row[1] = wrapped ? RowFlag.wrapped : 0;
+
+  return row;
+};
+
+it('returns one line per row without unwrap', () => {
+  const range = {
+    rowCount: 3,
+    cells: joinRows([wrappedRow(0, 'abc'), wrappedRow(1, 'def', false), textRow(2, 'g')]),
+    graphemes: new Uint32Array(),
+  };
+
+  expect(rowsToLines(range, columns, false)).toEqual(['abc', 'def', 'g']);
+});
+
+it('joins soft-wrapped rows with unwrap and keeps a wrapped row trailing spaces', () => {
+  const range = {
+    rowCount: 3,
+    cells: joinRows([
+      wrappedRow(0, 'ab  '),
+      wrappedRow(1, 'cd', false),
+      wrappedRow(2, 'e   ', false),
+    ]),
+    graphemes: new Uint32Array(),
+  };
+
+  const padded = 'ab  '.padEnd(columns, ' ');
+
+  expect(rowsToLines(range, columns, true)).toEqual([`${padded}cd`, 'e']);
+});
+
+it('skips wide-character spacer cells when joining wrapped rows', () => {
+  const first = wrappedRow(0, '中 a');
+  const second = textRow(1, 'b');
+
+  first[rowHeaderWords + 3] = CellWidth.wide;
+  first[rowHeaderWords + cellWords + 3] = CellWidth.spacerTail;
+  first[rowHeaderWords + (columns - 1) * cellWords + 3] = CellWidth.spacerHead;
+
+  const range = { rowCount: 2, cells: joinRows([first, second]), graphemes: new Uint32Array() };
+
+  expect(rowsToLines(range, columns, true)).toEqual([`中a${' '.repeat(columns - 4)}b`]);
+});
+
+it('round-trips the wrapped flag of a row', () => {
+  const cells = joinRows([wrappedRow(0, 'abc'), wrappedRow(1, 'def', false)]);
+  const decoded = roundTrip(rowUpdate({ rowCount: 2, cells }));
+
+  expect(decoded.ok && decoded.update.cells).toEqual(cells);
+});
 
 it('round-trips a row update with one row, a cursor, and modes', () => {
   const update = rowUpdate();
@@ -92,7 +151,7 @@ it('round-trips a row update with changed colors', () => {
 it('round-trips colors beside rows and clusters', () => {
   const update = rowUpdate({
     colors: Uint32Array.of(255, 0x1_ff_ff_ff),
-    graphemes: Uint32Array.of(1, 2, 0x65, 0x3_01),
+    graphemes: Uint32Array.of(rowHeaderWords, 2, 0x65, 0x3_01),
   });
 
   expect(roundTrip(update)).toEqual({ ok: true, update });
@@ -118,11 +177,11 @@ it('round-trips a departed row, a wide character, a cluster, and row numbers abo
   const onScreen = textRow(0, '中 e');
   const family = [0x1_f4_68, 0x20_0d, 0x1_f4_69];
 
-  onScreen[1 + 3] = CellWidth.wide;
-  onScreen[1 + cellWords + 3] = CellWidth.spacerTail;
-  onScreen[1 + 3 * cellWords] = family[0] ?? 0;
+  onScreen[rowHeaderWords + 3] = CellWidth.wide;
+  onScreen[rowHeaderWords + cellWords + 3] = CellWidth.spacerTail;
+  onScreen[rowHeaderWords + 3 * cellWords] = family[0] ?? 0;
 
-  const clusterCell = rowWords + 1 + 3 * cellWords;
+  const clusterCell = rowWords(columns) + rowHeaderWords + 3 * cellWords;
 
   const update = rowUpdate({
     first: 2 ** 32 + 7,
@@ -196,20 +255,24 @@ it.each([
   ],
   [
     'a grapheme index past the cells',
-    encodeRowUpdate(clusterUpdate(rowWords + 1)),
+    encodeRowUpdate(clusterUpdate(rowWords(columns) + rowHeaderWords)),
     'graphemePastCells',
   ],
   ['a grapheme index on a row offset', encodeRowUpdate(clusterUpdate(0)), 'graphemeOffCell'],
-  ['a grapheme index on a color word', encodeRowUpdate(clusterUpdate(2)), 'graphemeOffCell'],
-  ['a cluster longer than the payload', encodeRowUpdate(clusterUpdate(1, 3)), 'graphemePastEnd'],
+  ['a grapheme index on a row flags word', encodeRowUpdate(clusterUpdate(1)), 'graphemeOffCell'],
+  [
+    'a cluster longer than the payload',
+    encodeRowUpdate(clusterUpdate(rowHeaderWords, 3)),
+    'graphemePastEnd',
+  ],
   [
     'a cluster of no code points',
-    encodeRowUpdate(rowUpdate({ graphemes: Uint32Array.of(1, 0) })),
+    encodeRowUpdate(rowUpdate({ graphemes: Uint32Array.of(rowHeaderWords, 0) })),
     'graphemeTooShort',
   ],
   [
     'a cluster of one code point',
-    encodeRowUpdate(rowUpdate({ graphemes: Uint32Array.of(1, 1, 0x65) })),
+    encodeRowUpdate(rowUpdate({ graphemes: Uint32Array.of(rowHeaderWords, 1, 0x65) })),
     'graphemeTooShort',
   ],
   [
@@ -241,4 +304,117 @@ it('keeps decoded pane input when the caller reuses its buffer', () => {
 
 it('refuses pane input shorter than its pane number', () => {
   expect(decodePaneInput(Uint8Array.of(7, 0, 0))).toEqual({ ok: false, reason: 'wrongLength' });
+});
+
+const corruptedRows = (rows: PaneRows, change: (words: Uint32Array) => Uint32Array) => {
+  const words = new Uint32Array(encodePaneRows(rows).buffer.slice(0));
+
+  return new Uint8Array(change(words).slice().buffer);
+};
+
+const paneRows = (overrides: Partial<PaneRows> = {}): PaneRows => ({
+  pane: 3,
+  requestId: 9,
+  source: PaneRowsSource.range,
+  columns,
+  epoch: 2,
+  screen: 1,
+  remaining: 0,
+  oldest: 2 ** 40,
+  first: 2 ** 40 + 5,
+  rowCount: 2,
+  cells: Uint32Array.from([...textRow(0, 'first'), ...textRow(1, 'second')]),
+  graphemes: new Uint32Array(),
+  ...overrides,
+});
+
+it('round-trips pane rows with row numbers above 2^32 and a wrapped row', () => {
+  const cells = Uint32Array.from([...textRow(0, 'first'), ...textRow(1, 'second')]);
+
+  cells[1] = RowFlag.wrapped;
+
+  const rows = paneRows({ cells });
+  const result = decodePaneRows(encodePaneRows(rows));
+
+  expect(result).toEqual({ ok: true, rows });
+
+  expect(result.ok && rowsToLines(result.rows, columns, true)).toEqual([
+    `first${' '.repeat(columns - 5)}second`,
+  ]);
+});
+
+it('round-trips pane rows with no rows', () => {
+  const rows = paneRows({ rowCount: 0, cells: new Uint32Array() });
+
+  expect(decodePaneRows(encodePaneRows(rows))).toEqual({ ok: true, rows });
+});
+
+it('keeps decoded pane rows when the caller reuses its buffer', () => {
+  const bytes = encodePaneRows(paneRows());
+  const result = decodePaneRows(bytes);
+
+  bytes.fill(0);
+
+  expect(result).toEqual({ ok: true, rows: paneRows() });
+});
+
+it.each([
+  ['bytes shorter than the header', new Uint8Array(8), 'wrongLength'],
+  ['bytes that are not whole words', new Uint8Array(41), 'wrongLength'],
+  [
+    'an unknown source',
+    corruptedRows(paneRows(), (words) => {
+      words[2] = 9;
+
+      return words;
+    }),
+    'unknownSource',
+  ],
+  [
+    'a row count past the cells',
+    corruptedRows(paneRows(), (words) => {
+      words[9] = 3;
+
+      return words;
+    }),
+    'rowCountMismatch',
+  ],
+  [
+    'a first row number past 2^53',
+    corruptedRows(paneRows(), (words) => {
+      words[8] = 0x20_00_00;
+
+      return words;
+    }),
+    'rowNumberTooLarge',
+  ],
+  [
+    'a cluster of one code point',
+    encodePaneRows(paneRows({ graphemes: Uint32Array.of(rowHeaderWords, 1, 0x65) })),
+    'graphemeTooShort',
+  ],
+] as const)('refuses pane rows with %s', (_name, bytes, reason) => {
+  expect(decodePaneRows(bytes)).toEqual({ ok: false, reason });
+});
+
+it('joins the rows of two pages so a wrapped line crosses the page edge', () => {
+  const first = {
+    rowCount: 1,
+    cells: joinRows([wrappedRow(0, 'abc')]),
+    graphemes: new Uint32Array(),
+  };
+
+  const secondGrapheme = rowWords(columns) + rowHeaderWords + cellWords;
+
+  const second = {
+    rowCount: 2,
+    cells: joinRows([wrappedRow(1, 'de', false), textRow(2, 'xyz')]),
+    graphemes: Uint32Array.of(secondGrapheme, 2, 0x79, 0x3_01),
+  };
+
+  const joined = concatRows([first, second]);
+  const padded = 'abc'.padEnd(columns, ' ');
+
+  expect(joined.rowCount).toBe(3);
+  expect(rowsToLines(joined, columns, true)).toEqual([`${padded}de`, 'xy\u0301z']);
 });

@@ -20,6 +20,7 @@ export enum FrameKind {
   control = 1,
   rowUpdate = 2,
   input = 3,
+  paneRows = 4,
 }
 
 // 16 MiB. The decoder refuses a longer payload before it allocates one, so a peer cannot make it
@@ -29,7 +30,12 @@ export const maxFramePayloadBytes = 0x1_00_00_00;
 // A kind byte, then the payload length as a little-endian u32.
 const headerBytes = 5;
 
-const frameKinds = new Set<number>([FrameKind.control, FrameKind.rowUpdate, FrameKind.input]);
+const frameKinds = new Set<number>([
+  FrameKind.control,
+  FrameKind.rowUpdate,
+  FrameKind.input,
+  FrameKind.paneRows,
+]);
 
 const isFrameKind = (value: number): value is FrameKind => frameKinds.has(value);
 

@@ -5,7 +5,7 @@ import { join } from 'node:path';
 import { z } from 'zod';
 
 import { sideListColumns } from '../src/layout.ts';
-import { cellWords } from '../src/rows/rows.ts';
+import { cellWords, rowHeaderWords } from '../src/rows/rows.ts';
 import { createTerminal } from '../src/vt/vt.ts';
 import { environmentFor, root, temporaryDirectory } from './cliHarness.ts';
 
@@ -120,7 +120,7 @@ export const setup = async (): Promise<PaneAttachHarness> => {
       return undefined;
     }
 
-    return read.rows.cells[1 + (column + sideListColumns) * cellWords + 1];
+    return read.rows.cells[rowHeaderWords + (column + sideListColumns) * cellWords + 1];
   };
 
   const until = (condition: () => boolean): Promise<undefined> => {

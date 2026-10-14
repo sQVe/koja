@@ -8,6 +8,10 @@ import {
   defaultBackgroundSlot,
   defaultForegroundSlot,
   ModeFlag,
+  RowFlag,
+  rowHeaderWords,
+  rowsToLines,
+  rowWords,
 } from '../rows/rows.ts';
 import type { Frame, StableRows, Terminal } from './vt.ts';
 import { createTerminal } from './vt.ts';
@@ -84,14 +88,14 @@ const readCell = (frame: DecodedRows, clusters: Map<number, number[]>, index: nu
 // Decodes a frame or a row range into its rows, keyed by the word before each row.
 const decodeRows = (frame: DecodedRows, cols: number) => {
   const clusters = readClusters(frame.graphemes);
-  const rowWords = 1 + cols * cellWords;
+  const stride = rowWords(cols);
 
   return new Map(
     Array.from({ length: frame.rowCount }, (_, row) => {
-      const offset = row * rowWords;
+      const offset = row * stride;
 
       const cells = Array.from({ length: cols }, (_unused, column) =>
-        readCell(frame, clusters, offset + 1 + column * cellWords),
+        readCell(frame, clusters, offset + rowHeaderWords + column * cellWords),
       );
 
       return [frame.cells[offset], cells] as const;
@@ -706,7 +710,13 @@ it('changes the epoch once when one write bursts past the history and enters the
   expect(alternate.epoch).not.toBe(before.epoch);
   expect(alternate.activeTop).toBeGreaterThan(before.activeTop + 23);
   expect(again).toEqual(alternate);
-  expect(primary).toEqual({ ...alternate, first: primary.first, alternate: false });
+
+  expect(primary).toEqual({
+    ...alternate,
+    first: primary.first,
+    alternate: false,
+    screen: alternate.screen + 1,
+  });
 });
 
 it.each([
@@ -775,9 +785,10 @@ it('reports the alternate screen and returns the primary numbers after leaving i
     activeTop: primary.activeTop,
     epoch: primary.epoch,
     alternate: true,
+    screen: primary.screen + 1,
   });
 
-  expect(terminal.stableRows()).toEqual(primary);
+  expect(terminal.stableRows()).toEqual({ ...primary, screen: primary.screen + 2 });
 });
 
 it('reports no history on the alternate screen and the primary history after leaving it', () => {
@@ -825,6 +836,36 @@ it.each([
   ['a fractional', 0.5],
 ])('refuses %s scrollback limit', (_name, scrollbackBytes) => {
   expect(() => createTerminal(80, 24, scrollbackBytes)).toThrow();
+});
+
+// The wrapped flag of each row, in row order.
+const wrappedFlags = (rows: DecodedRows, cols: number) =>
+  Array.from(
+    { length: rows.rowCount },
+    (_, row) => ((rows.cells[row * rowWords(cols) + 1] ?? 0) & RowFlag.wrapped) !== 0,
+  );
+
+it('flags a soft-wrapped row in the live frame and in read rows, not a row ended by a newline', () => {
+  using terminal = openTerminal(5, 4);
+  const { epoch, first } = terminal.stableRows();
+
+  terminal.write(encoder.encode('ABCDEFGHIJ\r\nK'));
+
+  const read = terminal.readRows(epoch, first, 3);
+
+  expect(read.ok).toBe(true);
+
+  if (!read.ok) {
+    return;
+  }
+
+  expect(wrappedFlags(read.rows, 5)).toEqual([true, false, false]);
+  expect(rowsToLines(read.rows, 5, false)).toEqual(['ABCDE', 'FGHIJ', 'K']);
+  expect(rowsToLines(read.rows, 5, true)).toEqual(['ABCDEFGHIJ', 'K']);
+
+  const frame = terminal.frame();
+
+  expect(wrappedFlags(frame, 5).slice(0, 3)).toEqual([true, false, false]);
 });
 
 it('reads a row that scrolled into history by its stable number', () => {
@@ -1183,7 +1224,7 @@ describe('reading history', () => {
     const rows = readAllRows(terminal);
 
     expect(terminal.stableRows().epoch).toBe(before.epoch);
-    expect(rows.cells.length).toBe(rows.rowCount * (1 + 80 * cellWords));
+    expect(rows.cells.length).toBe(rows.rowCount * rowWords(80));
     expect(rowTexts(rows).slice(0, 77)).toEqual(lines.slice(0, 77));
   });
 
