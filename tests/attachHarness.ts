@@ -25,59 +25,80 @@ export interface AttachHarness {
   themeReported: () => boolean;
   // What the outer terminal answered the client's queries, such as its palette colors.
   repliesText: () => string;
+  // Updates a pane's mode word, as a pane does when it pushes or pops kitty flags.
+  setModes: (pane: number, modes: number) => void;
+  // Moves the focus to a pane of the tab.
+  focusPane: (pane: number) => void;
+  // The bytes the client sent to one pane.
+  receivedBy: (pane: number) => string;
+  // Everything the client wrote to the outer terminal.
+  outputText: () => string;
+  // Ends the client the way a terminal hangup does.
+  hangUp: () => void;
 }
 
 interface AttachOptions {
   // Without truecolor, OpenTUI also asks for the palette on its own, at a time the tests do not
   // control, so the default keeps those replies out of tests that time their reads.
   truecolor?: boolean;
+  // Adds a second pane to the tab. The first pane has the focus.
+  secondPane?: boolean;
 }
 
-const pane = {
-  id: paneId(1),
+const makePane = (number: number) => ({
+  id: paneId(number),
   tabId: tabId(1),
-  lifecycle: 'running',
+  lifecycle: 'running' as const,
   generation: 1,
   size: { columns: 80, rows: 23 },
   exitCode: undefined,
   startFolder: undefined,
   restored: false,
   error: undefined,
-} as const;
+});
 
-const tab = {
+const makeTab = (panes: number, focused: number) => ({
   id: tabId(1),
   workspaceId: workspaceId(1),
-  layout: { kind: 'pane', paneId: pane.id },
-  focusedPaneId: pane.id,
+  layout:
+    panes === 1
+      ? { kind: 'pane' as const, paneId: paneId(1) }
+      : {
+          kind: 'split' as const,
+          direction: 'right' as const,
+          ratio: 0.5,
+          first: { kind: 'pane' as const, paneId: paneId(1) },
+          second: { kind: 'pane' as const, paneId: paneId(2) },
+        },
+  focusedPaneId: paneId(focused),
   zoomedPaneId: undefined,
-} as const;
+});
 
 const workspace = {
   id: workspaceId(1),
   root: '/work/phi',
   label: 'phi',
-  tabIds: [tab.id],
+  tabIds: [tabId(1)],
 } as const;
 
 const view = {
   focusedWorkspaceId: workspace.id,
-  activeTabs: [{ workspaceId: workspace.id, tabId: tab.id }],
+  activeTabs: [{ workspaceId: workspace.id, tabId: tabId(1) }],
 };
 
 const failureTimeoutMs = 10_000;
 
 const control = (message: ControlMessage) => encodeFrame(FrameKind.control, encodeControl(message));
 
-const paneRows = (modes: number) => {
+const paneRows = (pane: number, sequence: number, modes: number) => {
   const columns = 80;
   const cells = new Uint32Array(rowWords(columns));
 
   return encodeFrame(
     FrameKind.rowUpdate,
     encodeRowUpdate({
-      pane: 1,
-      sequence: 1,
+      pane,
+      sequence,
       size: { columns, rows: 23 },
       cursor: { x: 0, y: 0, visible: true },
       modes,
@@ -100,6 +121,13 @@ export const setupAttach = async (
   const socketPath = join(directory, 'phi.sock');
   const decoder = createFrameDecoder();
   const received: Uint8Array[] = [];
+  const receivedPanes: number[] = [];
+  const output: Uint8Array[] = [];
+  const paneCount = options.secondPane === true ? 2 : 1;
+  let connection: { write: (data: Uint8Array) => unknown } | undefined;
+  let revision = 1;
+  let focused = 1;
+  let sequence = 1;
   let themeReported = false;
   const waiters = new Set<() => void>();
 
@@ -108,6 +136,21 @@ export const setupAttach = async (
       waiter();
     }
   };
+
+  const snapshotFrame = () =>
+    control({
+      type: 'snapshot',
+      snapshot: {
+        revision,
+        workspaces: [workspace],
+        tabs: [makeTab(paneCount, focused)],
+        panes: Array.from({ length: paneCount }, (_, index) => makePane(index + 1)),
+        defaultView: view,
+        attachedClientId: clientId(1),
+        foregroundClientId: undefined,
+        clients: [],
+      },
+    });
 
   const listener = Bun.listen({
     unix: socketPath,
@@ -125,6 +168,7 @@ export const setupAttach = async (
 
             if (input.ok) {
               received.push(input.input.bytes);
+              receivedPanes.push(input.input.pane);
               changed();
             }
 
@@ -140,23 +184,13 @@ export const setupAttach = async (
 
           if (parsed.ok && parsed.message.type === 'hello') {
             socket.write(control({ type: 'welcome' }));
-            socket.write(paneRows(modes));
+            connection = socket;
 
-            socket.write(
-              control({
-                type: 'snapshot',
-                snapshot: {
-                  revision: 1,
-                  workspaces: [workspace],
-                  tabs: [tab],
-                  panes: [pane],
-                  defaultView: view,
-                  attachedClientId: clientId(1),
-                  foregroundClientId: undefined,
-                  clients: [],
-                },
-              }),
-            );
+            for (let number = 1; number <= paneCount; number++) {
+              socket.write(paneRows(number, sequence, modes));
+            }
+
+            socket.write(snapshotFrame());
           }
         }
       },
@@ -180,6 +214,8 @@ export const setupAttach = async (
       cols: 80,
       rows: 24,
       data: (terminal, bytes) => {
+        output.push(bytes.slice());
+
         const reply = screen.write(bytes);
 
         if (reply !== undefined) {
@@ -234,6 +270,22 @@ export const setupAttach = async (
     client.terminal?.write(input);
   };
 
+  const setModes = (pane: number, next: number) => {
+    sequence += 1;
+    connection?.write(paneRows(pane, sequence, next));
+  };
+
+  const focusPane = (pane: number) => {
+    revision += 1;
+    focused = pane;
+    connection?.write(snapshotFrame());
+  };
+
+  const receivedBy = (pane: number) =>
+    Buffer.concat(received.filter((_, index) => receivedPanes[index] === pane)).toString();
+
+  const outputText = () => Buffer.concat(output).toString();
+
   const receivedBytes = () => Buffer.concat(received);
 
   const receivedText = () => receivedBytes().toString();
@@ -248,6 +300,13 @@ export const setupAttach = async (
     type,
     receivedBytes,
     receivedText,
+    setModes,
+    focusPane,
+    receivedBy,
+    outputText,
+    hangUp: () => {
+      client.kill('SIGHUP');
+    },
     until,
     repliesText,
     themeReported: () => themeReported,

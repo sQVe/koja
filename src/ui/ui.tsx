@@ -7,11 +7,13 @@ import type { ReactNode } from 'react';
 import { viewedPane, shownView } from '../client/client.ts';
 import type { AttachSession, CloseReason } from '../client/client.ts';
 import { layoutPanes } from '../layout.ts';
+import { kittyFlags } from '../rows/rows.ts';
 import { createInputRouter } from './input.ts';
 import type { PaneAction } from './input.ts';
 import { takeStdin } from './inputStdin.ts';
 import { mountPanes } from './paneLayer.ts';
 import { StatusBar } from './statusBar.tsx';
+import { createTerminalKeyboard } from './terminalKeyboard.ts';
 import { themeFromDetectedColors } from './terminalTheme.ts';
 import { SideList } from './workspaceList.tsx';
 
@@ -147,8 +149,8 @@ const routeInput = (session: AttachSession) =>
   });
 
 export const runAttach = async (session: AttachSession): Promise<CloseReason> => {
-  // OpenTUI turns on Kitty key reporting for a null setting too. With every flag off, the terminal
-  // sends the legacy key bytes the pane expects.
+  // OpenTUI turns on Kitty key reporting for a null setting too. Phi asks for its own flags below,
+  // so OpenTUI's stay off.
   const renderer = await createCliRenderer({
     exitOnCtrlC: false,
     exitSignals: [],
@@ -156,11 +158,17 @@ export const runAttach = async (session: AttachSession): Promise<CloseReason> =>
     useMouse: false,
   });
 
-  const releaseStdin = takeStdin(renderer, routeInput(session));
-
-  const root = createRoot(renderer);
+  const keyboard = createTerminalKeyboard((text) => process.stdout.write(text));
   const signals = ['SIGTERM', 'SIGINT', 'SIGHUP'] as const;
+  let releaseStdin: (() => void) | undefined;
+  let unsubscribeState: (() => void) | undefined;
+  let unsubscribeRows: (() => void) | undefined;
+  let root: ReturnType<typeof createRoot> | undefined;
   let unmountPane: (() => void) | undefined;
+
+  const followPaneKeys = (): void => {
+    keyboard.follow(kittyFlags(paneModes(session)));
+  };
 
   const stop = (): void => {
     session.close();
@@ -178,28 +186,35 @@ export const runAttach = async (session: AttachSession): Promise<CloseReason> =>
     }
   };
 
-  for (const signal of signals) {
-    process.on(signal, stop);
-  }
-
-  renderer.on('resize', resize);
-  resize(renderer.terminalWidth, renderer.terminalHeight);
-
-  reportTheme(session, renderer).catch(() => {
-    // Detection is optional; the pane keeps the server's colors.
-  });
-
-  root.render(
-    <box flexDirection="column" width="100%" height="100%">
-      <box flexDirection="row" flexGrow={1}>
-        <SideList session={session} />
-        <Screen session={session} placePane={placePane} />
-      </box>
-      <StatusBar session={session} />
-    </box>,
-  );
-
+  // Cleanup runs after any step of the setup, so each step it undoes is optional here.
   try {
+    releaseStdin = takeStdin(renderer, routeInput(session));
+    unsubscribeState = session.subscribe(followPaneKeys);
+    unsubscribeRows = session.subscribeRows(followPaneKeys);
+    followPaneKeys();
+    root = createRoot(renderer);
+
+    for (const signal of signals) {
+      process.on(signal, stop);
+    }
+
+    renderer.on('resize', resize);
+    resize(renderer.terminalWidth, renderer.terminalHeight);
+
+    reportTheme(session, renderer).catch(() => {
+      // Detection is optional; the pane keeps the server's colors.
+    });
+
+    root.render(
+      <box flexDirection="column" width="100%" height="100%">
+        <box flexDirection="row" flexGrow={1}>
+          <SideList session={session} />
+          <Screen session={session} placePane={placePane} />
+        </box>
+        <StatusBar session={session} />
+      </box>,
+    );
+
     return await session.closed;
   } finally {
     for (const signal of signals) {
@@ -207,9 +222,12 @@ export const runAttach = async (session: AttachSession): Promise<CloseReason> =>
     }
 
     renderer.off('resize', resize);
-    releaseStdin();
+    unsubscribeState?.();
+    unsubscribeRows?.();
+    keyboard.restore();
+    releaseStdin?.();
     unmountPane?.();
-    root.unmount();
+    root?.unmount();
     renderer.destroy();
     session.close();
   }

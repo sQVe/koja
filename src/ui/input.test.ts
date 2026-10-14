@@ -6,6 +6,7 @@ import type { WorkspaceId } from '../ids.ts';
 import { ModeFlag } from '../rows/rows.ts';
 import { createInputRouter, routeKey, routePaste } from './input.ts';
 import type { PaneAction } from './input.ts';
+import { createInputTokenizer } from './inputTokens.ts';
 
 const decoder = new TextDecoder();
 const encoder = new TextEncoder();
@@ -108,10 +109,11 @@ const secondWorkspace = workspaceId(2);
 
 const router = (
   initial: InputMode,
-  modes: number,
+  initialModes: number,
   focusedWorkspace: WorkspaceId | 'none' = firstWorkspace,
 ) => {
   let mode = initial;
+  let modes = initialModes;
   const sent: string[] = [];
   let detaches = 0;
   const commands: WorkspaceCommand[] = [];
@@ -157,7 +159,20 @@ const router = (
     await Promise.resolve();
   };
 
-  return { input, sent, commands, actions, answer, mode: () => mode, detaches: () => detaches };
+  const setModes = (next: number): void => {
+    modes = next;
+  };
+
+  return {
+    input,
+    sent,
+    commands,
+    actions,
+    answer,
+    setModes,
+    mode: () => mode,
+    detaches: () => detaches,
+  };
 };
 
 const lone = { kind: 'key', raw: '\x1b', escapeSent: false } as const;
@@ -683,4 +698,88 @@ it('sends held tokens when the action fails to settle normally', async () => {
   await Promise.resolve();
 
   expect(held).toEqual(['q']);
+});
+
+const withKittyFlags = (flags: number, modes = 0) => modes | (flags << 9);
+
+it('enters normal mode on kitty Ctrl+B and sends nothing, whatever flags the pane asked for', () => {
+  for (const flags of [0, 1, 31]) {
+    expect(key('\x1b[98;5u', 'insert', withKittyFlags(flags))).toEqual({
+      text: '',
+      mode: 'normal',
+    });
+  }
+});
+
+it('reads normal-mode keys from kitty input', () => {
+  const modes = withKittyFlags(31);
+
+  expect(routeKey('\x1b[105u', 'normal', modes).mode).toBe('insert');
+  expect(routeKey('\x1b[27u', 'normal', modes).mode).toBe('insert');
+  expect(routeKey('\x1b[100u', 'normal', modes).detach).toBe(true);
+  expect(routeKey('\x1b[104;2:1;72u', 'normal', modes).tab).toEqual({ kind: 'previous' });
+  expect(routeKey('\x1b[104;5u', 'normal', modes).tab).toBeUndefined();
+  expect(routeKey('\x1b[108;2;76u', 'normal', modes).tab).toEqual({ kind: 'next' });
+  expect(routeKey('\x1b[115u', 'normal', modes).paneAction).toBe('splitBelow');
+});
+
+it('ignores a kitty release in normal mode', () => {
+  const routed = routeKey('\x1b[100;1:3u', 'normal', withKittyFlags(3));
+
+  expect(routed).toEqual({ bytes: new Uint8Array(), mode: 'normal', detach: false });
+});
+
+it('sends a kitty release to a pane with event types, and not to one without', () => {
+  expect(key('\x1b[97;1:3u', 'insert', withKittyFlags(3))).toEqual({
+    text: '\x1b[97;1:3u',
+    mode: 'insert',
+  });
+
+  expect(key('\x1b[97;1:3u', 'insert', withKittyFlags(1)).text).toBe('');
+});
+
+it('sends a literal kitty Ctrl+B in the pane encoding after Ctrl+B Ctrl+B', () => {
+  const modes = withKittyFlags(1);
+  const first = key('\x1b[98;5u', 'insert', modes);
+  const second = key('\x1b[98;5u', first.mode, modes);
+
+  expect(second).toEqual({ text: '\x1b[98;5u', mode: 'insert' });
+});
+
+it('does not send the release of a key that Phi took to the pane', () => {
+  const { input, sent, mode } = router('normal', withKittyFlags(31));
+
+  input({ kind: 'key', raw: '\x1b[105u', escapeSent: false });
+  input({ kind: 'key', raw: '\x1b[105;1:3u', escapeSent: false });
+
+  expect(mode()).toBe('insert');
+  expect(sent).toEqual([]);
+});
+
+const splitUpArrow = (flags: number, flagsAfterEscape = flags) => {
+  const { input, sent, setModes } = router('insert', flags << 9);
+  const tokenizer = createInputTokenizer();
+
+  for (const token of tokenizer.push(encoder.encode('\x1b'), 0)) {
+    if (token.kind === 'key') {
+      input(token);
+    }
+  }
+
+  setModes(flagsAfterEscape << 9);
+
+  for (const token of tokenizer.push(encoder.encode('[A'), 10)) {
+    if (token.kind === 'key') {
+      input(token);
+    }
+  }
+
+  return sent.join('');
+};
+
+it('sends one Up arrow when a legacy Escape and its continuation arrive in two reads', () => {
+  expect(splitUpArrow(0)).toBe('\x1b[A');
+  expect(splitUpArrow(1)).toBe('\x1b[27u\x1b[A');
+  expect(splitUpArrow(31)).toBe('\x1b[27u\x1b[A');
+  expect(splitUpArrow(0, 1)).toBe('\x1b[A');
 });

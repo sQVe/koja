@@ -436,3 +436,119 @@ it(
   },
   cliTestTimeoutMs,
 );
+
+const withFlags = (flags: number) => flags << 9;
+
+const countOf = (text: string, part: string) => text.split(part).length - 1;
+
+it('asks the outer terminal for kitty keys and puts it back on exit', async () => {
+  const { setModes, outputText, hangUp, until } = await setupAttach(0);
+
+  await until(() => outputText().includes('\x1b[>7u'));
+
+  setModes(1, withFlags(8));
+
+  await until(() => outputText().includes('\x1b[<u\x1b[>31u'));
+
+  setModes(1, 0);
+
+  await until(() => countOf(outputText(), '\x1b[<u\x1b[>7u') === 1);
+
+  const before = outputText().length;
+
+  hangUp();
+
+  await until(() => outputText().slice(before).includes('\x1b[<u'));
+});
+
+it('gives a pane kitty keys while it holds flags, and its neighbor legacy keys', async () => {
+  const { setModes, focusPane, type, receivedBy, outputText, until } = await setupAttach(0, {
+    secondPane: true,
+  });
+
+  const ctrlA = '\x1b[97;5u';
+
+  type(ctrlA);
+  type('\x1b');
+  await until(() => receivedBy(1) === '\x01\x1b');
+
+  // Flags 9 make the client ask the outer terminal for 31, which shows it has read the update.
+  setModes(1, withFlags(9));
+  await until(() => outputText().includes('\x1b[>31u'));
+
+  type(ctrlA);
+  type('\x1b');
+  await until(() => receivedBy(1) === `\x01\x1b${ctrlA}\x1b[27u`);
+
+  setModes(1, 0);
+  await until(() => countOf(outputText(), '\x1b[<u\x1b[>7u') === 1);
+
+  type(ctrlA);
+  await until(() => receivedBy(1) === `\x01\x1b${ctrlA}\x1b[27u\x01`);
+
+  setModes(1, withFlags(9));
+  await until(() => countOf(outputText(), '\x1b[>31u') === 2);
+
+  focusPane(2);
+  await until(() => countOf(outputText(), '\x1b[<u\x1b[>7u') === 2);
+
+  type(ctrlA);
+  type('\x1b');
+  await until(() => receivedBy(2) === '\x01\x1b');
+});
+
+// Flags 9 make the client ask the outer terminal for 31, so each switch to 9 and back to the flags
+// under test shows that the client has read the update.
+const setFlags = async (
+  attached: Awaited<ReturnType<typeof setupAttach>>,
+  flags: number,
+  round: number,
+) => {
+  attached.setModes(1, withFlags(9));
+  await attached.until(() => countOf(attached.outputText(), '\x1b[>31u') === round);
+  attached.setModes(1, withFlags(flags));
+  await attached.until(() => countOf(attached.outputText(), '\x1b[<u\x1b[>7u') === round);
+};
+
+it('sends a release to a pane with flags 3, and not to a pane with flags 1', async () => {
+  const attached = await setupAttach(0);
+  const { type, receivedBy, until } = attached;
+
+  const release = '\x1b[97;5:3u';
+  const press = '\x1b[97;5u';
+
+  await setFlags(attached, 3, 1);
+  type(release);
+  type(press);
+  await until(() => receivedBy(1) === release + press);
+
+  await setFlags(attached, 1, 2);
+  type(release);
+  type(press);
+  await until(() => receivedBy(1) === release + press + press);
+});
+
+const kittyCases = [
+  { flags: 0, literal: '\x02', letter: 'a' },
+  { flags: 1, literal: '\x1b[98;5u', letter: 'a' },
+  { flags: 31, literal: '\x1b[98;5u', letter: '\x1b[97;1;97u' },
+];
+
+for (const { flags, literal, letter } of kittyCases) {
+  it(`runs Ctrl+B and then a pane key with kitty input under pane flags ${flags}`, async () => {
+    const { type, receivedBy, statusBar, until } = await setupAttach(withFlags(flags));
+
+    await until(() => statusBar() === 'INSERT [1]');
+
+    type('\x1b[98;5u');
+    await until(() => statusBar() === 'NORMAL [1]');
+
+    type('\x1b[105u');
+    await until(() => statusBar() === 'INSERT [1]');
+
+    type('\x1b[98;5u');
+    type('\x1b[98;5u');
+    type('\x1b[97u');
+    await until(() => receivedBy(1) === literal + letter);
+  });
+}
