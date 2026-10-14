@@ -341,6 +341,19 @@ const attachedClientOf = (state: State): Client | undefined =>
 export const activeTabOf = (view: View, id: WorkspaceId | undefined): TabId | undefined =>
   view.activeTabs.find((active) => active.workspaceId === id)?.tabId;
 
+// The focused pane of the tab the source client's view shows in a workspace, or the default
+// view's for the CLI.
+export const shownFocusedPaneId = (
+  state: State,
+  id: WorkspaceId,
+  source: ClientId | undefined,
+): PaneId | undefined => {
+  const sourceView = state.clients.find((client) => client.id === source)?.view;
+  const activeId = activeTabOf(sourceView ?? state.defaultView, id);
+
+  return state.tabs.find((tab) => tab.id === activeId)?.focusedPaneId;
+};
+
 // The pane with the focus in the tab the default view shows.
 export const focusedPane = (
   state: Pick<Snapshot, 'tabs' | 'panes' | 'defaultView'>,

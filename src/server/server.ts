@@ -1,7 +1,7 @@
 import { rmSync, statSync } from 'node:fs';
 
 import { paneId as paneIdFor } from '../ids.ts';
-import type { ClientId, PaneId, WorkspaceId } from '../ids.ts';
+import type { ClientId, PaneId } from '../ids.ts';
 import { invariant } from '../invariant.ts';
 import { layoutPanes, shownLayout } from '../layout.ts';
 import type { TerminalSize } from '../layout.ts';
@@ -16,6 +16,7 @@ import {
   focusedPane,
   paneTheme,
   savedSessionOf,
+  shownFocusedPaneId,
   snapshot,
 } from '../store/store.ts';
 import type {
@@ -1062,27 +1063,13 @@ const followFolderOf = (context: ServerContext, id: PaneId | undefined): string 
   return live === undefined ? undefined : readFollowFolder(live.runtime.processId);
 };
 
-// A terminal client's new tab follows the tab its own view shows; a CLI request follows the
-// default view.
-const activeFocusedPaneOf = (
-  context: ServerContext,
-  id: WorkspaceId,
-  source: { clientId?: ClientId },
-): PaneId | undefined => {
-  const client = context.state.clients.find((known) => known.id === source.clientId);
-  const view = client?.view ?? context.state.defaultView;
-  const tab = context.state.tabs.find((known) => known.id === activeTabOf(view, id));
-
-  return tab?.focusedPaneId;
-};
-
 const tabIntentOf = (
   context: ServerContext,
   message: TabRequest,
   source: { clientId?: ClientId },
 ): Intent => {
   if (message.type === 'tabCreate') {
-    const sourcePane = activeFocusedPaneOf(context, message.workspaceId, source);
+    const sourcePane = shownFocusedPaneId(context.state, message.workspaceId, source.clientId);
     const folder = message.cwd ?? followFolderOf(context, sourcePane);
 
     return { type: 'createTab', workspaceId: message.workspaceId, folder, ...source };

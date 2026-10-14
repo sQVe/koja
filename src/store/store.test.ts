@@ -10,6 +10,7 @@ import {
   focusedPane,
   paneTheme,
   savedSessionOf,
+  shownFocusedPaneId,
   snapshot,
 } from './store.ts';
 import type {
@@ -2302,4 +2303,16 @@ it('records the folder of a splitPane intent on the new pane', () => {
 
   expect(result.state.panes.find((pane) => pane.id === paneId(2))?.startFolder).toBe('/srv/source');
   expect(result.state.panes.find((pane) => pane.id === paneId(1))?.startFolder).toBeUndefined();
+});
+
+it('finds the focused pane of the tab the source client shows, or the default view shows', () => {
+  const state = withViews(twoClients(createPhi, createTab), [
+    viewShowing(1, [[1, 1]]),
+    viewShowing(1, [[1, 2]]),
+    viewShowing(1, [[1, 1]]),
+  ]);
+
+  expect(shownFocusedPaneId(state, workspaceId(1), clientId(1))).toBe(paneId(2));
+  expect(shownFocusedPaneId(state, workspaceId(1), clientId(2))).toBe(paneId(1));
+  expect(shownFocusedPaneId(state, workspaceId(1), undefined)).toBe(paneId(1));
 });
