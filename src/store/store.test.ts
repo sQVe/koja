@@ -2,7 +2,15 @@ import { expect, it } from 'bun:test';
 
 import { clientId, paneId, tabId, workspaceId } from '../ids.ts';
 import type { PaneId } from '../ids.ts';
-import { applyFact, applyIntent, createState, focusedPane, paneTheme, snapshot } from './store.ts';
+import {
+  applyFact,
+  applyIntent,
+  createState,
+  focusedPane,
+  paneTheme,
+  savedSessionOf,
+  snapshot,
+} from './store.ts';
 import type {
   Applied,
   Fact,
@@ -1427,4 +1435,97 @@ it.each([
     state,
     reason: 'serverStopping',
   });
+});
+
+const richSession: readonly Intent[] = [
+  attachLarge,
+  createPhi,
+  createDocs,
+  createTab,
+  splitFirst('right'),
+  zoom(4),
+  { type: 'renameWorkspace', workspaceId: workspaceId(2), label: 'manual' },
+  { type: 'focusWorkspace', workspaceId: workspaceId(1) },
+];
+
+const restoreIntent = (state: State): Intent => ({
+  type: 'restoreSession',
+  session: savedSessionOf(state),
+});
+
+const attachedEmpty = (): State => intent(createState(), attachLarge).state;
+
+it('restores a saved session with its ids, focus, and zoom', () => {
+  const saved = run(richSession);
+  const result = intent(attachedEmpty(), restoreIntent(saved));
+
+  expect(savedSessionOf(result.state)).toEqual(savedSessionOf(saved));
+  expect(result.state.panes).toHaveLength(4);
+  expect(result.state.panes.every((pane) => pane.lifecycle === 'starting')).toBe(true);
+  expect(result.state.tabs.some((tab) => tab.zoomedPaneId === paneId(4))).toBe(true);
+});
+
+it('adds one paneAdded change per restored pane', () => {
+  const result = intent(attachedEmpty(), restoreIntent(run(richSession)));
+
+  const added = result.changes.flatMap((change) =>
+    change.type === 'paneAdded' ? [change.pane] : [],
+  );
+
+  expect(added).toEqual([...result.state.panes]);
+  expect(result.state.revision).toBe(1 + result.changes.length);
+  expect(new Set(added.map((pane) => pane.generation)).size).toBe(4);
+});
+
+it('refuses to restore into a state that has a workspace', () => {
+  const state = run([createPhi]);
+
+  expect(applyIntent(state, restoreIntent(run(richSession)))).toEqual({
+    kind: 'rejected',
+    state,
+    reason: 'sessionNotEmpty',
+  });
+});
+
+it('refuses to restore while the server stops', () => {
+  const state = run([{ type: 'stopServer' }]);
+
+  expect(applyIntent(state, restoreIntent(run(richSession)))).toEqual({
+    kind: 'rejected',
+    state,
+    reason: 'serverStopping',
+  });
+});
+
+it('gives ids above the restored ones to a workspace created after a restore', () => {
+  const restored = intent(createState(), restoreIntent(run(richSession))).state;
+  const result = intent(restored, createApi);
+
+  const added = result.changes.flatMap((change) =>
+    change.type === 'paneAdded' ? [change.pane] : [],
+  );
+
+  expect(result.state.workspaces.map((workspace) => workspace.id)).toEqual([
+    workspaceId(1),
+    workspaceId(2),
+    workspaceId(3),
+  ]);
+
+  expect(added.map((pane) => pane.id)).toEqual([paneId(5)]);
+  expect(added.map((pane) => pane.tabId)).toEqual([tabId(4)]);
+});
+
+it('closes a restored pane that fails to start through the usual cascade', () => {
+  const restored = intent(createState(), restoreIntent(run([createPhi, createDocs]))).state;
+  const [, second] = restored.panes;
+
+  const result = fact(restored, {
+    type: 'paneFailedToStart',
+    paneId: paneId(2),
+    generation: second?.generation ?? 0,
+  });
+
+  expect(result.state.workspaces.map((workspace) => workspace.id)).toEqual([workspaceId(1)]);
+  expect(result.state.panes.map((pane) => pane.id)).toEqual([paneId(1)]);
+  expect(result.changes.map((change) => change.type)).toContain('workspaceRemoved');
 });
