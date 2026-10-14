@@ -838,11 +838,25 @@ const answerPaneRead = (
   context: ServerContext,
   message: PaneReadMessage,
   connection: Connection,
+  generation: number,
 ): void => {
   const { paneId, requestId } = message;
   const live = findLivePane(context, paneId);
 
   if (connection.isClosed()) {
+    return;
+  }
+
+  // A newer read on this connection replaced this one while it waited. It must leave the newer
+  // read's snapshot alone.
+  if (!context.runtime.readSnapshots.isCurrent(connection, generation)) {
+    connection.send({
+      type: 'paneReadFailed',
+      paneId,
+      requestId,
+      failure: { reason: 'noSnapshot' },
+    });
+
     return;
   }
 
@@ -867,11 +881,12 @@ const answerPaneReadAfterHold = async (
   context: ServerContext,
   message: PaneReadMessage,
   connection: Connection,
+  generation: number,
   publisher: RowPublisher,
 ): Promise<void> => {
   await publisher.whenReleased();
 
-  answerPaneRead(context, message, connection);
+  answerPaneRead(context, message, connection, generation);
 };
 
 const answerPaneFolders = (context: ServerContext, connection: Connection): void => {
@@ -952,9 +967,8 @@ const handlePaneCommand = (
     return;
   }
 
-  if (message.type === 'paneRead') {
-    context.runtime.readSnapshots.drop(connection);
-  }
+  const generation =
+    message.type === 'paneRead' ? context.runtime.readSnapshots.begin(connection) : 0;
 
   if (live === undefined) {
     connection.send({ type: 'paneMissing', paneId: message.paneId });
@@ -972,12 +986,12 @@ const handlePaneCommand = (
   const publication = context.runtime.rowPublishers.get(message.paneId);
 
   if (publication === undefined || !live.runtime.terminal.renderHeld()) {
-    answerPaneRead(context, message, connection);
+    answerPaneRead(context, message, connection, generation);
 
     return;
   }
 
-  answerPaneReadAfterHold(context, message, connection, publication.publisher).catch(
+  answerPaneReadAfterHold(context, message, connection, generation, publication.publisher).catch(
     (error: unknown) => {
       context.options.log.error('Reading the pane failed.', {
         paneId: message.paneId,

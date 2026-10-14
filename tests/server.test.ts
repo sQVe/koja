@@ -492,6 +492,81 @@ it('answers paneRead during a synchronized-output hold only after the hold ends'
   expect(text).not.toContain('half-drawn');
 });
 
+it('leaves the snapshot of a newer read alone when an older held read resumes after it', async () => {
+  const directory = await temporaryDirectory();
+  const { socketPath } = await startServer(directory);
+
+  await mkdir(join(directory, 'second'));
+  await createWorkspace(socketPath, join(directory, 'second'), 'second');
+
+  const client = await connect(socketPath);
+
+  client.send({ type: 'hello', version: build, size: undefined });
+  expect(await client.nextMessage()).toEqual({ type: 'welcome' });
+
+  const typeInto = (pane: number, text: string) => {
+    client.send({ type: 'paneSend', paneId: paneId(pane), text });
+  };
+
+  const ready = join(directory, 'second', 'ready');
+
+  typeInto(2, `seq 1 1200 | sed 's/^/n/'; touch ${ready}\n`);
+  await waitFor(() => existsSync(ready));
+
+  const held = join(directory, 'held');
+
+  typeInto(1, `printf '\\033[?2026hhalf'; touch ${held}\n`);
+  await waitFor(() => existsSync(held));
+
+  const rangeA = { source: 'range', from: 0, to: 0, epoch: undefined, screen: undefined } as const;
+  const rangeB = { ...rangeA, to: 999 };
+
+  // The server handles frames in order, so paneSent shows it took read A and held it.
+  client.sendTogether([
+    { type: 'paneRead', paneId: paneId(1), requestId: 1, selection: rangeA },
+    { type: 'paneSend', paneId: paneId(1), text: '' },
+  ]);
+
+  await waitFor(() => client.messages.some((message) => message.type === 'paneSent'));
+  expect(client.paneRows).toHaveLength(0);
+
+  client.send({ type: 'paneRead', paneId: paneId(2), requestId: 2, selection: rangeB });
+  await waitFor(() => client.paneRows.some((rows) => rows.requestId === 2));
+
+  const first = client.paneRows.find((rows) => rows.requestId === 2);
+
+  expect(first?.remaining).toBeGreaterThan(0);
+
+  typeInto(1, "printf '\\033[?2026lfull'\n");
+  await waitFor(() => client.messages.some((message) => message.type === 'paneReadFailed'));
+
+  expect(client.messages.find((message) => message.type === 'paneReadFailed')).toEqual({
+    type: 'paneReadFailed',
+    paneId: paneId(1),
+    requestId: 1,
+    failure: { reason: 'noSnapshot' },
+  });
+
+  const parts = client.paneRows.filter((rows) => rows.requestId === 2);
+
+  while ((parts.at(-1)?.remaining ?? 0) > 0) {
+    client.send({ type: 'paneReadNext', paneId: paneId(2), requestId: 2 });
+
+    await waitFor(
+      () => client.paneRows.filter((rows) => rows.requestId === 2).length > parts.length,
+    );
+
+    parts.push(...client.paneRows.filter((rows) => rows.requestId === 2).slice(parts.length));
+  }
+
+  expect(parts.flatMap((part) => linesOf(part)).filter((line) => /^n\d+$/.test(line))).toEqual(
+    // Rows 0 and 1 hold the typed command and its echo.
+    Array.from({ length: 998 }, (_, index) => `n${index + 1}`),
+  );
+
+  expect(client.messages.filter((message) => message.type === 'paneReadFailed')).toHaveLength(1);
+});
+
 it('answers a paneRead held by synchronized output with paneMissing when its workspace closes', async () => {
   const directory = await temporaryDirectory();
   const { server, socketPath } = await startServer(directory);

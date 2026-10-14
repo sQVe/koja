@@ -16,13 +16,35 @@ export interface PaneSnapshot {
 
 type Part = Omit<PaneRows, 'pane' | 'requestId'>;
 
-// The snapshot each owner has parts left of, one per owner. Keeping a new one replaces the old.
+interface StoreOptions {
+  now?: () => number;
+  budgetBytes?: number;
+  idleMs?: number;
+}
+
+// The snapshot each owner has parts left of, one per owner. Keeping a new one replaces the old,
+// and drops the least recently used snapshots of other owners when the budget is passed.
 export interface SnapshotStore<Owner> {
   keep: (owner: Owner, snapshot: PaneSnapshot) => void;
   find: (owner: Owner, paneId: PaneId, requestId: number) => PaneSnapshot | undefined;
   drop: (owner: Owner) => void;
   has: (owner: Owner) => boolean;
+  // Starts a read of the owner: drops its snapshot and returns the read's generation.
+  begin: (owner: Owner) => number;
+  isCurrent: (owner: Owner, generation: number) => boolean;
 }
+
+interface Stored {
+  snapshot: PaneSnapshot;
+  bytes: number;
+  touched: number;
+}
+
+// The most bytes of encoded rows all stored snapshots hold together.
+export const maxStoredSnapshotBytes = 0x4_00_00_00;
+
+// A snapshot that no part request touched for this long is dropped.
+export const snapshotIdleMs = 30_000;
 
 export const createSnapshot = (
   paneId: PaneId,
@@ -77,22 +99,83 @@ export const takePart = (snapshot: PaneSnapshot): Part => {
   };
 };
 
-export const createSnapshotStore = <Owner>(): SnapshotStore<Owner> => {
-  const snapshots = new Map<Owner, PaneSnapshot>();
+const storedBytes = (snapshot: PaneSnapshot): number =>
+  paneRowsBytes(snapshot.rows.rowCount, snapshot.rows.columns, snapshot.rows.graphemes.length);
+
+export const createSnapshotStore = <Owner>(options: StoreOptions = {}): SnapshotStore<Owner> => {
+  const now = options.now ?? Date.now;
+  const budgetBytes = options.budgetBytes ?? maxStoredSnapshotBytes;
+  const idleMs = options.idleMs ?? snapshotIdleMs;
+  // Map order is least recently touched first, because a touch re-inserts the entry.
+  const stored = new Map<Owner, Stored>();
+  const generations = new Map<Owner, number>();
+
+  const dropIdle = (): void => {
+    const limit = now() - idleMs;
+
+    for (const [owner, entry] of stored) {
+      if (entry.touched <= limit) {
+        stored.delete(owner);
+      }
+    }
+  };
+
+  const totalBytes = (): number => {
+    let total = 0;
+
+    for (const entry of stored.values()) {
+      total += entry.bytes;
+    }
+
+    return total;
+  };
+
+  const makeRoom = (bytes: number): void => {
+    for (const owner of stored.keys()) {
+      if (totalBytes() + bytes <= budgetBytes) {
+        return;
+      }
+
+      stored.delete(owner);
+    }
+  };
 
   return {
     keep: (owner, snapshot) => {
-      snapshots.set(owner, snapshot);
+      const bytes = storedBytes(snapshot);
+
+      stored.delete(owner);
+      dropIdle();
+      makeRoom(bytes);
+      stored.set(owner, { snapshot, bytes, touched: now() });
     },
     find: (owner, paneId, requestId) => {
-      const snapshot = snapshots.get(owner);
-      const matches = snapshot?.paneId === paneId && snapshot.requestId === requestId;
+      dropIdle();
 
-      return matches ? snapshot : undefined;
+      const entry = stored.get(owner);
+      const snapshot = entry?.snapshot;
+
+      if (entry === undefined || snapshot?.paneId !== paneId || snapshot.requestId !== requestId) {
+        return undefined;
+      }
+
+      stored.delete(owner);
+      stored.set(owner, { ...entry, touched: now() });
+
+      return snapshot;
     },
     drop: (owner) => {
-      snapshots.delete(owner);
+      stored.delete(owner);
     },
-    has: (owner) => snapshots.has(owner),
+    has: (owner) => stored.has(owner),
+    begin: (owner) => {
+      const generation = (generations.get(owner) ?? 0) + 1;
+
+      stored.delete(owner);
+      generations.set(owner, generation);
+
+      return generation;
+    },
+    isCurrent: (owner, generation) => generations.get(owner) === generation,
   };
 };

@@ -1,7 +1,7 @@
 import { invariant } from '../invariant.ts';
 import type { TerminalSize } from '../layout.ts';
 import type { ControlMessage } from '../protocol/protocol.ts';
-import { paneRowsBytes, PaneRowsSource, rowsToLines } from '../rows/rows.ts';
+import { graphemeWordsPerRow, paneRowsBytes, PaneRowsSource, rowsToLines } from '../rows/rows.ts';
 import type { PaneRows } from '../rows/rows.ts';
 import type { StableRows, Terminal } from '../vt/vt.ts';
 
@@ -248,6 +248,15 @@ export const selectPaneRows = (
     return {
       ok: false,
       failure: { reason: 'tooManyBytes', limitBytes: maxSnapshotBytes, ...selected(stable, span) },
+    };
+  }
+
+  const widestRow = Math.max(0, ...graphemeWordsPerRow(read.rows, size.columns));
+
+  if (paneRowsBytes(1, size.columns, widestRow) > maxReplyBytes) {
+    return {
+      ok: false,
+      failure: { reason: 'tooManyBytes', limitBytes: maxReplyBytes, ...selected(stable, span) },
     };
   }
 

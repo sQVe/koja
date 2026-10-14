@@ -2,7 +2,7 @@ import { expect, it } from 'bun:test';
 
 import { PaneRowsSource, rowsToLines } from '../rows/rows.ts';
 import { createTerminal } from '../vt/vt.ts';
-import { maxReplyRows, maxSnapshotBytes, selectPaneRows } from './paneRows.ts';
+import { maxReplyBytes, maxReplyRows, maxSnapshotBytes, selectPaneRows } from './paneRows.ts';
 import type { PaneReadSelection } from './paneRows.ts';
 
 const encoder = new TextEncoder();
@@ -388,5 +388,24 @@ it('refuses a range that names an earlier generation of the screen, also after a
   expect(range(alternate.screen)).toEqual({
     ok: false,
     failure: { reason: 'screenChanged', screen: again.screen },
+  });
+});
+
+it('refuses a selection holding a row that cannot fit one part with its clusters', () => {
+  const columns = 16_400;
+
+  using terminal = openTerminal(columns, 2);
+
+  feed(terminal, 'e\u0301'.repeat(columns));
+
+  const result = selectPaneRows(
+    terminal,
+    { columns, rows: 2 },
+    { source: 'visible', lines: undefined },
+  );
+
+  expect(result).toMatchObject({
+    ok: false,
+    failure: { reason: 'tooManyBytes', limitBytes: maxReplyBytes },
   });
 });
