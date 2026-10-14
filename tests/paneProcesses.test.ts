@@ -4,7 +4,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
 import { sessionGroups } from '../src/server/processGroups.ts';
-import { readPaneProcesses } from '../src/server/processInfo.ts';
+import { readPaneFolders, readPaneProcesses } from '../src/server/processInfo.ts';
 import type { PaneProcesses } from '../src/server/processInfo.ts';
 
 const pollDeadlineMs = 5000;
@@ -108,4 +108,20 @@ it('lists every process of a foreground pipeline', async () => {
   const groups = new Set(processes.foregroundProcesses.map((entry) => entry.group));
 
   expect([...groups]).toEqual([processes.foregroundGroup as number]);
+});
+
+it('reads the same folders with the folder-only reader as with the process reader', async () => {
+  const shell = startShell();
+  shell.terminal?.write('cd /tmp\n(cd /var && sleep 60)\n');
+
+  await waitFor(shell, (read) => read.foregroundCwd === '/var');
+
+  const folders = readPaneFolders(shell.pid);
+  const processes = readPaneProcesses(shell.pid);
+
+  expect(folders.cwd).toBe('/tmp');
+  expect(folders.foregroundCwd).toBe('/var');
+  expect(folders.cwd).toBe(processes.cwd);
+  expect(folders.foregroundCwd).toBe(processes.foregroundCwd);
+  expect(folders.foregroundGroup).toBe(processes.foregroundGroup);
 });

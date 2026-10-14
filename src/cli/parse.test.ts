@@ -210,6 +210,24 @@ it('parses pane split, focus, and close with the pane id as an argument', () => 
   });
 });
 
+it('parses pane process-info with the pane id as an argument', () => {
+  expect(parseCommand(['pane', 'process-info', 'pane-1', '--json'])).toEqual({
+    kind: 'pane',
+    pane: { action: 'process-info', pane: paneId(1) },
+    json: true,
+    socket: undefined,
+  });
+});
+
+it.each([
+  ['no id for process-info', ['pane', 'process-info']],
+  ['a malformed id for process-info', ['pane', 'process-info', 'tab-1']],
+  ['two ids for process-info', ['pane', 'process-info', 'pane-1', 'pane-2']],
+  ['--pane on process-info', ['pane', 'process-info', 'pane-1', '--pane', 'pane-1']],
+])('refuses %s', (_name, argv) => {
+  expect(typeof parseCommand(argv)).toBe('string');
+});
+
 it('parses pane zoom and pane resize', () => {
   expect(parseCommand(['pane', 'zoom', 'pane-2', '--json'])).toEqual({
     kind: 'pane',

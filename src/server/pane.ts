@@ -25,6 +25,8 @@ interface SpawnPaneOptions {
 
 export interface PaneRuntime {
   generation: number;
+  // The shell's process id, which is also its session and process group.
+  processId: number;
   terminal: Terminal;
   // Resolves with the shell's exit code once it has exited.
   exited: Promise<number>;
@@ -237,6 +239,7 @@ export const spawnPane = (options: SpawnPaneOptions): SpawnPaneResult => {
 
   const pane: PaneRuntime = {
     generation: options.generation,
+    processId: session,
     terminal,
     exited: shell.exited,
     write: (bytes) => {

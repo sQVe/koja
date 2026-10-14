@@ -18,7 +18,11 @@ export interface VersionCommand {
   json: boolean;
 }
 
-type PaneCliAction = PaneCommand | PaneLayoutCommand | { action: 'list' };
+type PaneCliAction =
+  | PaneCommand
+  | PaneLayoutCommand
+  | { action: 'list' }
+  | { action: 'process-info'; pane: PaneId };
 
 export interface PaneCliCommand extends CommandOptions {
   kind: 'pane';
@@ -133,7 +137,8 @@ export const usage = `Usage:
   phi pane focus <id> [--socket <path>] [--json]
   phi pane close <id> [--socket <path>] [--json]
   phi pane zoom <id> [--socket <path>] [--json]
-  phi pane resize <id> --direction left|right|up|down --cells <n> [--socket <path>] [--json]`;
+  phi pane resize <id> --direction left|right|up|down --cells <n> [--socket <path>] [--json]
+  phi pane process-info <id> [--socket <path>] [--json]`;
 
 const isServerAction = (action: string | undefined): action is ServerAction =>
   serverActions.some((serverAction) => serverAction === action);
@@ -259,6 +264,25 @@ const isPaneLayoutAction = (
   action: string | undefined,
 ): action is 'split' | 'focus' | 'close' | 'zoom' | 'resize' => paneLayoutActions.has(action);
 
+const parseProcessInfoCommand = (
+  rest: string[],
+  pane: string | undefined,
+): PaneCliAction | string => {
+  if (pane !== undefined) {
+    return '--pane belongs to pane read and pane send.';
+  }
+
+  if (rest.length !== 1) {
+    return 'pane process-info takes one pane id.';
+  }
+
+  const target = parseId(rest[0] ?? '', 'pane');
+
+  return target === undefined
+    ? `'${rest[0] ?? ''}' is not a pane id, such as pane-1.`
+    : { action: 'process-info', pane: paneId(target) };
+};
+
 const parsePaneTargetCommand = (
   action: string | undefined,
   rest: string[],
@@ -305,6 +329,10 @@ const parsePaneCommand = (
 
   if (options.direction !== undefined) {
     return '--direction belongs to pane split and pane resize.';
+  }
+
+  if (action === 'process-info' && options.cells === undefined) {
+    return parseProcessInfoCommand(rest, pane);
   }
 
   return options.cells === undefined

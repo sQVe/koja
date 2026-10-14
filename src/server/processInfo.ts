@@ -11,6 +11,12 @@ interface ForegroundProcess {
   cwd: string | undefined;
 }
 
+export interface PaneFolders {
+  cwd: string | undefined;
+  foregroundCwd: string | undefined;
+  foregroundGroup: number | undefined;
+}
+
 export interface PaneProcesses {
   shellPid: number;
   cwd: string | undefined;
@@ -90,28 +96,30 @@ const readGroupProcesses = (group: number, session: number): ForegroundProcess[]
   return processes.toSorted((left, right) => left.pid - right.pid);
 };
 
-// Reads the pane shell's folder and the processes in the terminal's foreground group. Linux only.
-// A process that ends during the read, or a folder that cannot be read, comes back missing.
-export const readPaneProcesses = (shellPid: number): PaneProcesses => {
+// Reads only the shell's stat and the folders of the shell and the foreground group leader, so it
+// costs the same however many processes the host runs. The foreground folder falls back to the
+// shell's folder.
+export const readPaneFolders = (shellPid: number): PaneFolders => {
   const cwd = readProcessFolder(shellPid);
-  const shellStat = readStat(String(shellPid));
-  const terminalGroup = shellStat?.terminalGroup;
+  const terminalGroup = readStat(String(shellPid))?.terminalGroup;
 
   const foregroundGroup =
     terminalGroup !== undefined && terminalGroup > 0 ? terminalGroup : undefined;
 
   if (foregroundGroup === undefined) {
-    return { shellPid, cwd, foregroundGroup, foregroundCwd: cwd, foregroundProcesses: [] };
+    return { cwd, foregroundCwd: cwd, foregroundGroup };
   }
 
-  const foregroundProcesses = readGroupProcesses(foregroundGroup, shellPid);
-  const leaderFolder = readProcessFolder(foregroundGroup);
+  return { cwd, foregroundCwd: readProcessFolder(foregroundGroup) ?? cwd, foregroundGroup };
+};
 
-  return {
-    shellPid,
-    cwd,
-    foregroundGroup,
-    foregroundCwd: leaderFolder ?? cwd,
-    foregroundProcesses,
-  };
+// Reads the pane shell's folder and the processes in the terminal's foreground group. Linux only.
+// A process that ends during the read, or a folder that cannot be read, comes back missing.
+export const readPaneProcesses = (shellPid: number): PaneProcesses => {
+  const { cwd, foregroundCwd, foregroundGroup } = readPaneFolders(shellPid);
+
+  const foregroundProcesses =
+    foregroundGroup === undefined ? [] : readGroupProcesses(foregroundGroup, shellPid);
+
+  return { shellPid, cwd, foregroundGroup, foregroundCwd, foregroundProcesses };
 };

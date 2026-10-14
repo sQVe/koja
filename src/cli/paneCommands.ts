@@ -1,10 +1,13 @@
 import {
   focusedPane,
   runPaneCommand,
+  runPaneFolders,
   runPaneLayoutCommand,
+  runPaneProcessInfo,
   runSnapshot,
 } from '../client/client.ts';
 import type { PaneLayoutCommand, StoreSnapshot } from '../client/client.ts';
+import type { PaneId } from '../ids.ts';
 import type { BuildVersion } from '../protocol/protocol.ts';
 import { resolveSocketPath } from './environment.ts';
 import type { Environment } from './environment.ts';
@@ -12,11 +15,14 @@ import { connectionFailureMessage, print, printJson } from './output.ts';
 import type { Outcome } from './output.ts';
 import type { PaneCliCommand } from './parse.ts';
 
-const listPanes = (snapshot: StoreSnapshot) => {
+type PaneFolders = Extract<Awaited<ReturnType<typeof runPaneFolders>>, { ok: true }>['panes'];
+
+const listPanes = (snapshot: StoreSnapshot, folders: PaneFolders) => {
   const focusedId = focusedPane(snapshot)?.id;
 
   return snapshot.panes.map((pane) => {
     const tab = snapshot.tabs.find((known) => known.id === pane.tabId);
+    const paneFolders = folders.find((known) => known.paneId === pane.id);
 
     return {
       id: pane.id,
@@ -27,6 +33,8 @@ const listPanes = (snapshot: StoreSnapshot) => {
       zoomed: tab?.zoomedPaneId === pane.id,
       columns: pane.size.columns,
       rows: pane.size.rows,
+      cwd: paneFolders?.folder ?? null,
+      foreground_cwd: paneFolders?.foregroundFolder ?? null,
     };
   });
 };
@@ -42,16 +50,68 @@ const runPaneList = async (
     return { ok: false, message: connectionFailureMessage(result, socketPath, 'pane list') };
   }
 
-  const panes = listPanes(result.snapshot);
+  const folders = await runPaneFolders(socketPath, version);
+
+  if (!folders.ok) {
+    return { ok: false, message: connectionFailureMessage(folders, socketPath, 'pane list') };
+  }
+
+  const panes = listPanes(result.snapshot, folders.panes);
 
   const lines = panes.map(
     (pane) =>
-      `${pane.focused ? '*' : ' '} ${pane.id}\t${pane.workspace}\t${pane.tab}\t${pane.lifecycle}\t${pane.columns}x${pane.rows}${pane.zoomed ? '\tzoomed' : ''}`,
+      `${pane.focused ? '*' : ' '} ${pane.id}\t${pane.workspace}\t${pane.tab}\t${pane.lifecycle}\t${pane.columns}x${pane.rows}\t${pane.cwd ?? ''}${pane.zoomed ? '\tzoomed' : ''}`,
   );
 
   print(command.json, { json: panes, text: lines.join('\n') });
 
   return { ok: true };
+};
+
+const runPaneProcessInfoCommand = async (
+  command: PaneCliCommand,
+  pane: PaneId,
+  version: BuildVersion,
+  socketPath: string,
+): Promise<Outcome> => {
+  const result = await runPaneProcessInfo(socketPath, version, pane);
+
+  if (result.ok) {
+    const processes = result.processes.map((process) => ({
+      pid: process.pid,
+      name: process.name,
+      argv: process.argv,
+      cmdline: process.cmdline,
+      cwd: process.folder ?? null,
+    }));
+
+    print(command.json, {
+      json: {
+        pane: result.paneId,
+        shell_pid: result.shellPid,
+        foreground_process_group_id: result.foregroundGroup ?? null,
+        foreground_processes: processes,
+      },
+      text: processes
+        .map((process) => `${process.pid}\t${process.cwd ?? ''}\t${process.cmdline}`)
+        .join('\n'),
+    });
+
+    return { ok: true };
+  }
+
+  if (result.reason === 'unknownPane') {
+    return { ok: false, message: `There is no pane ${pane}.` };
+  }
+
+  if (result.reason === 'paneMissing') {
+    return { ok: false, message: 'The pane is no longer running.' };
+  }
+
+  return {
+    ok: false,
+    message: connectionFailureMessage(result, socketPath, 'pane process-info'),
+  };
 };
 
 const layoutDoneText = (action: PaneLayoutCommand['action'], id: string): string => {
@@ -123,6 +183,10 @@ export const runPaneAction = async (
 
   if (command.pane.action === 'list') {
     return runPaneList(command, version, socketPath);
+  }
+
+  if (command.pane.action === 'process-info') {
+    return runPaneProcessInfoCommand(command, command.pane.pane, version, socketPath);
   }
 
   if (isLayoutAction(command.pane)) {

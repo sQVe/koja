@@ -23,6 +23,7 @@ import type { Connection } from './connection.ts';
 import type { Log } from './log.ts';
 import { spawnPane } from './pane.ts';
 import type { PaneRuntime } from './pane.ts';
+import { readPaneFolders, readPaneProcesses } from './processInfo.ts';
 import { createRowPublisher } from './rowPublisher.ts';
 import type { RowPublisher, RowSubscription } from './rowPublisher.ts';
 import { scopeAvailable } from './scope.ts';
@@ -695,6 +696,58 @@ const answerPaneReadAfterHold = async (
   answerPaneRead(context, paneId, connection);
 };
 
+const answerPaneFolders = (context: ServerContext, connection: Connection): void => {
+  const panes = [];
+
+  for (const pane of context.state.panes) {
+    const live = findLivePane(context, pane.id);
+
+    if (live !== undefined) {
+      const read = readPaneFolders(live.runtime.processId);
+
+      panes.push({ paneId: pane.id, folder: read.cwd, foregroundFolder: read.foregroundCwd });
+    }
+  }
+
+  connection.send({ type: 'paneFoldersReply', panes });
+};
+
+const answerPaneProcessInfo = (
+  context: ServerContext,
+  paneId: PaneId,
+  connection: Connection,
+): void => {
+  if (!context.state.panes.some((known) => known.id === paneId)) {
+    connection.send({ type: 'paneFailed', reason: 'unknownPane', message: undefined });
+
+    return;
+  }
+
+  const live = findLivePane(context, paneId);
+
+  if (live === undefined) {
+    connection.send({ type: 'paneMissing', paneId });
+
+    return;
+  }
+
+  const read = readPaneProcesses(live.runtime.processId);
+
+  connection.send({
+    type: 'paneProcessInfoReply',
+    paneId,
+    shellPid: read.shellPid,
+    foregroundGroup: read.foregroundGroup,
+    processes: read.foregroundProcesses.map((process) => ({
+      pid: process.pid,
+      name: process.name,
+      argv: process.argv,
+      cmdline: process.cmdline,
+      folder: process.cwd,
+    })),
+  });
+};
+
 const handlePaneCommand = (
   context: ServerContext,
   message: Extract<ControlMessage, { type: 'paneRead' | 'paneSend' }>,
@@ -1099,6 +1152,18 @@ const handleMessage = (
 
   if (message.type === 'paneRead' || message.type === 'paneSend') {
     handlePaneCommand(context, message, connection);
+
+    return;
+  }
+
+  if (message.type === 'paneFolders') {
+    answerPaneFolders(context, connection);
+
+    return;
+  }
+
+  if (message.type === 'paneProcessInfo') {
+    answerPaneProcessInfo(context, message.paneId, connection);
 
     return;
   }
