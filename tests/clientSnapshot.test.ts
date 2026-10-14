@@ -33,7 +33,7 @@ it('matches the store workspaces after the store creates a tab', () => {
 
   expect(client.workspaces).toEqual(state.workspaces);
   expect(client.workspaces[0]?.tabIds).toEqual([tabId(1), tabId(2)]);
-  expect(client.workspaces[0]?.activeTabId).toBe(tabId(2));
+  expect(client.defaultView.activeTabs).toEqual([{ workspaceId: workspaceId(1), tabId: tabId(2) }]);
 });
 
 it('keeps a live tab in the workspace after the original tab closes', () => {

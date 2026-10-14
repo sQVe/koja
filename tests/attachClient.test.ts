@@ -48,20 +48,26 @@ const workspace = {
   root: '/work/phi',
   label: 'phi',
   tabIds: [tab.id],
-  activeTabId: tab.id,
 } as const;
+
+const view = {
+  focusedWorkspaceId: workspace.id,
+  activeTabs: [{ workspaceId: workspace.id, tabId: tab.id }],
+};
 
 const snapshotAt = (revision: number, clients = 0) => ({
   revision,
   workspaces: [workspace],
   tabs: [tab],
   panes: [pane],
-  focusedWorkspaceId: workspace.id,
+  defaultView: view,
   attachedClientId: undefined,
+  foregroundClientId: undefined,
   clients: Array.from({ length: clients }, (_, index) => ({
     id: clientId(index + 1),
     size,
     theme: undefined,
+    view,
   })),
 });
 
@@ -72,12 +78,14 @@ const snapshotMessage = (revision: number, clients = 0): ControlMessage => ({
     workspaces: [workspace],
     tabs: [tab],
     panes: [pane],
-    focusedWorkspaceId: workspace.id,
+    defaultView: view,
     attachedClientId: undefined,
+    foregroundClientId: undefined,
     clients: Array.from({ length: clients }, (_, index) => ({
       id: clientId(index + 1),
       size,
       theme: undefined,
+      view,
     })),
   },
 });

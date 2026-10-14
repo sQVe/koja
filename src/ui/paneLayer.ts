@@ -1,5 +1,6 @@
 import type { BoxRenderable, CliRenderer } from '@opentui/core';
 
+import { activeTabIdOf, shownView } from '../client/client.ts';
 import type { AttachSession, StoreSnapshot } from '../client/client.ts';
 import type { PaneId } from '../ids.ts';
 import { layoutPanes, paneSize, shownLayout } from '../layout.ts';
@@ -14,8 +15,9 @@ interface Placement {
 }
 
 const placementOf = (snapshot: StoreSnapshot, terminal: TerminalSize): Placement => {
-  const workspace = snapshot.workspaces.find((known) => known.id === snapshot.focusedWorkspaceId);
-  const tab = snapshot.tabs.find((known) => known.id === workspace?.activeTabId);
+  const view = shownView(snapshot);
+  const activeId = activeTabIdOf(view, view.focusedWorkspaceId);
+  const tab = snapshot.tabs.find((known) => known.id === activeId);
   const client = snapshot.clients.find((known) => known.id === snapshot.attachedClientId);
   const size = paneSize(client?.size ?? terminal);
 

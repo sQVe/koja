@@ -974,7 +974,7 @@ it('starts with no workspace and adds one focused workspace for each workspaceCr
     await createWorkspace(socketPath, second, 'second'),
   ];
 
-  const { workspaces, tabs, panes, focusedWorkspaceId } = server.snapshot();
+  const { workspaces, tabs, panes, defaultView } = server.snapshot();
 
   expect(answers).toEqual([
     { type: 'workspaceDone', workspaceId: workspaceId(1) },
@@ -986,7 +986,7 @@ it('starts with no workspace and adds one focused workspace for each workspaceCr
     { root: second, label: 'second' },
   ]);
 
-  expect(focusedWorkspaceId).toBe(workspaceId(2));
+  expect(defaultView.focusedWorkspaceId).toBe(workspaceId(2));
   expect(tabs).toHaveLength(2);
   expect(panes.map((pane) => pane.lifecycle)).toEqual(['running', 'running']);
 });
@@ -998,7 +998,11 @@ it('removes the workspace when its only shell exits and keeps serving', async ()
   server.writeToPane('exit\n');
   await waitFor(() => server.snapshot().workspaces.length === 0);
 
-  expect(server.snapshot()).toMatchObject({ tabs: [], panes: [], focusedWorkspaceId: undefined });
+  expect(server.snapshot()).toMatchObject({
+    tabs: [],
+    panes: [],
+    defaultView: { focusedWorkspaceId: undefined },
+  });
 
   const answer = await createWorkspace(socketPath, directory, 'again');
 
@@ -1031,6 +1035,37 @@ it.each([
   },
 );
 
+it('moves the view of a terminal client with its own focus and every view with a CLI focus', async () => {
+  const directory = await temporaryDirectory();
+  const { server, socketPath } = await startServer(directory);
+
+  await createWorkspace(socketPath, directory, 'second');
+
+  const terminal = await connect(socketPath);
+
+  terminal.send({ type: 'hello', version: build, size: { columns: 80, rows: 24 } });
+  await waitFor(() => server.snapshot().clients.length === 1);
+
+  terminal.send({ type: 'workspaceFocus', workspaceId: workspaceId(1) });
+  await nextOfType(terminal, 'workspaceDone');
+
+  const own = server.snapshot();
+
+  expect(own.clients[0]?.view.focusedWorkspaceId).toBe(workspaceId(1));
+  expect(own.defaultView.focusedWorkspaceId).toBe(workspaceId(1));
+  expect(own.foregroundClientId).toBe(own.clients[0]?.id);
+
+  const cli = await connectCli(socketPath);
+
+  cli.send({ type: 'workspaceFocus', workspaceId: workspaceId(2) });
+  await nextOfType(cli, 'workspaceDone');
+
+  const shared = server.snapshot();
+
+  expect(shared.clients[0]?.view.focusedWorkspaceId).toBe(workspaceId(2));
+  expect(shared.defaultView.focusedWorkspaceId).toBe(workspaceId(2));
+});
+
 it('focuses, renames, and closes a workspace and answers with its id', async () => {
   const directory = await temporaryDirectory();
   const { server, socketPath } = await startServer(directory);
@@ -1046,7 +1081,7 @@ it('focuses, renames, and closes a workspace and answers with its id', async () 
     workspaceId: workspaceId(1),
   });
 
-  expect(server.snapshot().focusedWorkspaceId).toBe(workspaceId(1));
+  expect(server.snapshot().defaultView.focusedWorkspaceId).toBe(workspaceId(1));
 
   client.send({ type: 'workspaceRename', workspaceId: workspaceId(1), label: 'renamed' });
   await nextOfType(client, 'workspaceDone');
@@ -1057,7 +1092,7 @@ it('focuses, renames, and closes a workspace and answers with its id', async () 
   await waitFor(() => server.snapshot().panes.length === 1);
 
   expect(server.snapshot().workspaces.map((workspace) => workspace.id)).toEqual([workspaceId(2)]);
-  expect(server.snapshot().focusedWorkspaceId).toBe(workspaceId(2));
+  expect(server.snapshot().defaultView.focusedWorkspaceId).toBe(workspaceId(2));
 });
 
 it('sends rows only for the focused workspace and the other screen after workspaceFocus', async () => {
@@ -1226,9 +1261,13 @@ it('detaches the attached terminal client when a CLI client sends detach', async
 
   server.writeToPane("printf 'kept-marker\n'\n");
   await waitFor(() => server.paneText()?.includes('kept-marker') === true);
-  cli.send({ type: 'detach' });
+  cli.send({ type: 'detach', clientId: undefined });
 
-  expect(await nextOfType(cli, 'detachResult')).toEqual({ type: 'detachResult', detached: true });
+  expect(await nextOfType(cli, 'detachResult')).toEqual({
+    type: 'detachResult',
+    result: { ok: true },
+  });
+
   await nextOfType(terminal, 'detached');
   await terminal.closed;
 
@@ -1254,14 +1293,15 @@ it('answers a terminal client that detaches itself before it closes the connecti
   const { server, socketPath } = await startServer(directory);
   const terminal = await attachTerminal(socketPath, 100);
 
-  terminal.send({ type: 'detach' });
+  terminal.send({ type: 'detach', clientId: undefined });
   await terminal.closed;
 
   const answers = terminal.messages.filter(
     (message) => message.type === 'detachResult' || message.type === 'detached',
   );
 
-  expect(answers).toEqual([{ type: 'detachResult', detached: true }, { type: 'detached' }]);
+  expect(answers).toEqual([{ type: 'detachResult', result: { ok: true } }, { type: 'detached' }]);
+
   expect(server.snapshot().panes[0]?.lifecycle).toBe('running');
 });
 
@@ -1271,9 +1311,13 @@ it('answers detach with no attached client and changes no state', async () => {
   const cli = await connectCli(socketPath);
   const before = server.snapshot();
 
-  cli.send({ type: 'detach' });
+  cli.send({ type: 'detach', clientId: undefined });
 
-  expect(await nextOfType(cli, 'detachResult')).toEqual({ type: 'detachResult', detached: false });
+  expect(await nextOfType(cli, 'detachResult')).toEqual({
+    type: 'detachResult',
+    result: { ok: false, reason: 'noClient' },
+  });
+
   expect(server.snapshot()).toEqual(before);
 });
 

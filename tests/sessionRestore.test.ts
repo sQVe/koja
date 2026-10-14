@@ -6,7 +6,10 @@ import { join } from 'node:path';
 
 import { z } from 'zod';
 
+import packageJson from '../package.json' with { type: 'json' };
+import { connectAttach, shownView } from '../src/client/client.ts';
 import { sessionPathFor } from '../src/server/sessionFile.ts';
+import { ghosttyCommit } from '../src/vt/vt.ts';
 import { cliTestTimeoutMs, environmentFor, runCli, temporaryDirectory } from './cliHarness.ts';
 import { isRunning, waitFor } from './serverProcesses.ts';
 
@@ -91,7 +94,7 @@ const setup = async () => {
         join(await realpath(directory), 'run', `${name}.sock`),
       );
 
-    return { phi, start, createWorkspace, split, described, workspaceIds, sessionPath };
+    return { socketPath, phi, start, createWorkspace, split, described, workspaceIds, sessionPath };
   };
 
   const logText = (): Promise<string> =>
@@ -242,6 +245,63 @@ it(
     await server.start();
 
     expect(await server.workspaceIds()).toEqual([]);
+  },
+  cliTestTimeoutMs,
+);
+
+const attachedFocus = async (socketPath: string): Promise<string | undefined> => {
+  const commit = ghosttyCommit();
+
+  if (!commit.ok) {
+    throw new Error(commit.detail);
+  }
+
+  const version = { version: packageJson.version, ghostty: commit.commit };
+  const result = await connectAttach(socketPath, version, { columns: 80, rows: 24 });
+
+  if (!result.ok) {
+    throw new Error(`Attach failed: ${result.reason}`);
+  }
+
+  const { session } = result;
+
+  const attached = await waitFor(() => {
+    const { snapshot } = session.getState();
+
+    return snapshot.attachedClientId !== undefined && snapshot.clients.length === 1;
+  });
+
+  expect(attached).toBe(true);
+
+  const focused = shownView(session.getState().snapshot).focusedWorkspaceId;
+
+  session.detach();
+  await session.closed;
+
+  return focused;
+};
+
+it(
+  'shows the workspace a CLI focus chose with no client attached, and restores it after a restart',
+  async () => {
+    const { serverAt } = await setup();
+    const server = serverAt('phi');
+
+    await server.start();
+
+    const first = await server.createWorkspace('one');
+    const second = await server.createWorkspace('two');
+
+    expect(await attachedFocus(server.socketPath)).toBe(second);
+
+    await server.phi(['workspace', 'focus', first]);
+
+    expect(await attachedFocus(server.socketPath)).toBe(first);
+
+    await server.phi(['server', 'stop']);
+    await server.start();
+
+    expect(await attachedFocus(server.socketPath)).toBe(first);
   },
   cliTestTimeoutMs,
 );

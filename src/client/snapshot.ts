@@ -1,9 +1,23 @@
-import type { PaneId } from '../ids.ts';
+import type { PaneId, TabId, WorkspaceId } from '../ids.ts';
 import type { ControlMessage } from '../protocol/protocol.ts';
 
 export type StoreSnapshot = Extract<ControlMessage, { type: 'snapshot' }>['snapshot'];
 
 export type StoreChange = Extract<ControlMessage, { type: 'change' }>['change'];
+
+export type StoreView = StoreSnapshot['defaultView'];
+
+const withActiveTab = (view: StoreView, id: WorkspaceId, activeId: TabId): StoreView => {
+  const known = view.activeTabs.some((active) => active.workspaceId === id);
+
+  const activeTabs = known
+    ? view.activeTabs.map((active) =>
+        active.workspaceId === id ? { workspaceId: id, tabId: activeId } : active,
+      )
+    : [...view.activeTabs, { workspaceId: id, tabId: activeId }];
+
+  return { ...view, activeTabs };
+};
 
 const updatePane = (
   snapshot: StoreSnapshot,
@@ -19,7 +33,10 @@ const applyLayoutChange = (snapshot: StoreSnapshot, change: StoreChange): StoreS
     return {
       ...snapshot,
       workspaces: [...snapshot.workspaces, change.workspace],
-      focusedWorkspaceId: change.focusedWorkspaceId,
+      defaultView: {
+        ...withActiveTab(snapshot.defaultView, change.workspace.id, change.activeTabId),
+        focusedWorkspaceId: change.focusedWorkspaceId,
+      },
     };
   }
 
@@ -61,15 +78,16 @@ const applyLayoutChange = (snapshot: StoreSnapshot, change: StoreChange): StoreS
   }
 
   if (change.type === 'workspaceFocused') {
-    return { ...snapshot, focusedWorkspaceId: change.workspaceId };
+    return {
+      ...snapshot,
+      defaultView: { ...snapshot.defaultView, focusedWorkspaceId: change.workspaceId },
+    };
   }
 
   if (change.type === 'tabFocused') {
-    const workspaces = snapshot.workspaces.map((workspace) =>
-      workspace.id === change.workspaceId ? { ...workspace, activeTabId: change.tabId } : workspace,
-    );
+    const defaultView = withActiveTab(snapshot.defaultView, change.workspaceId, change.tabId);
 
-    return { ...snapshot, workspaces };
+    return { ...snapshot, defaultView };
   }
 
   if (change.type === 'workspaceRenamed') {
@@ -84,7 +102,12 @@ const applyLayoutChange = (snapshot: StoreSnapshot, change: StoreChange): StoreS
     return {
       ...snapshot,
       workspaces: snapshot.workspaces.filter((workspace) => workspace.id !== change.workspaceId),
-      focusedWorkspaceId: change.focusedWorkspaceId,
+      defaultView: {
+        focusedWorkspaceId: change.focusedWorkspaceId,
+        activeTabs: snapshot.defaultView.activeTabs.filter(
+          (active) => active.workspaceId !== change.workspaceId,
+        ),
+      },
     };
   }
 
@@ -129,8 +152,21 @@ const applyClientChange = (snapshot: StoreSnapshot, change: StoreChange): StoreS
     return {
       ...snapshot,
       attachedClientId: change.client.id,
+      foregroundClientId: change.client.id,
       clients: [...snapshot.clients, change.client],
     };
+  }
+
+  if (change.type === 'clientViewChanged') {
+    const clients = snapshot.clients.map((client) =>
+      client.id === change.clientId ? { ...client, view: change.view } : client,
+    );
+
+    return { ...snapshot, clients };
+  }
+
+  if (change.type === 'foregroundChanged') {
+    return { ...snapshot, foregroundClientId: change.clientId };
   }
 
   if (change.type === 'clientResized') {
@@ -151,10 +187,12 @@ const applyClientChange = (snapshot: StoreSnapshot, change: StoreChange): StoreS
 
   if (change.type === 'clientDetached') {
     const detachedAttached = snapshot.attachedClientId === change.clientId;
+    const detachedForeground = snapshot.foregroundClientId === change.clientId;
 
     return {
       ...snapshot,
       attachedClientId: detachedAttached ? undefined : snapshot.attachedClientId,
+      foregroundClientId: detachedForeground ? undefined : snapshot.foregroundClientId,
       clients: snapshot.clients.filter((client) => client.id !== change.clientId),
     };
   }
@@ -165,12 +203,29 @@ const applyClientChange = (snapshot: StoreSnapshot, change: StoreChange): StoreS
 export const applyChange = (snapshot: StoreSnapshot, change: StoreChange): StoreSnapshot =>
   applyClientChange(applyPaneChange(applyLayoutChange(snapshot, change), change), change);
 
-// Mirrors the store's focusedPane: the client may not import the store at runtime.
-export const focusedPane = (
+const paneOfView = (
   snapshot: StoreSnapshot,
+  view: StoreView,
 ): StoreSnapshot['panes'][number] | undefined => {
-  const workspace = snapshot.workspaces.find((known) => known.id === snapshot.focusedWorkspaceId);
-  const tab = snapshot.tabs.find((known) => known.id === workspace?.activeTabId);
+  const { focusedWorkspaceId } = view;
+  const active = view.activeTabs.find((known) => known.workspaceId === focusedWorkspaceId);
+  const tab = snapshot.tabs.find((known) => known.id === active?.tabId);
 
   return snapshot.panes.find((known) => known.id === tab?.focusedPaneId);
 };
+
+// The view of the client this snapshot belongs to: the attached client's own, or the default
+// view when no client is attached. Only one client attaches at a time.
+export const shownView = (snapshot: StoreSnapshot): StoreView =>
+  snapshot.clients.find((known) => known.id === snapshot.attachedClientId)?.view ??
+  snapshot.defaultView;
+
+export const activeTabIdOf = (view: StoreView, id: WorkspaceId | undefined): TabId | undefined =>
+  view.activeTabs.find((active) => active.workspaceId === id)?.tabId;
+
+// Mirrors the store's focusedPane: the client may not import the store at runtime.
+export const focusedPane = (snapshot: StoreSnapshot): StoreSnapshot['panes'][number] | undefined =>
+  paneOfView(snapshot, snapshot.defaultView);
+
+export const viewedPane = (snapshot: StoreSnapshot): StoreSnapshot['panes'][number] | undefined =>
+  paneOfView(snapshot, shownView(snapshot));

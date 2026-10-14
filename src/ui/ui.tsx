@@ -4,7 +4,7 @@ import { createRoot } from '@opentui/react';
 import { useSyncExternalStore } from 'react';
 import type { ReactNode } from 'react';
 
-import { focusedPane } from '../client/client.ts';
+import { viewedPane, shownView } from '../client/client.ts';
 import type { AttachSession, CloseReason } from '../client/client.ts';
 import { layoutPanes } from '../layout.ts';
 import { createInputRouter } from './input.ts';
@@ -26,7 +26,7 @@ const Screen = ({
 }): ReactNode => {
   const state = useSyncExternalStore(session.subscribe, session.getState);
 
-  if (focusedPane(state.snapshot) === undefined) {
+  if (viewedPane(state.snapshot) === undefined) {
     return (
       <box flexGrow={1} alignItems="center" justifyContent="center">
         <text>{emptyHint}</text>
@@ -52,13 +52,13 @@ const reportTheme = async (session: AttachSession, renderer: CliRenderer): Promi
 };
 
 const paneModes = (session: AttachSession): number => {
-  const current = focusedPane(session.getState().snapshot);
+  const current = viewedPane(session.getState().snapshot);
 
   return current === undefined ? 0 : (session.rowCache(current.id)?.modes() ?? 0);
 };
 
 const sendToPane = (session: AttachSession, bytes: Uint8Array): void => {
-  const current = focusedPane(session.getState().snapshot);
+  const current = viewedPane(session.getState().snapshot);
 
   if (current !== undefined && bytes.length > 0) {
     session.sendInput(current.id, bytes);
@@ -67,7 +67,7 @@ const sendToPane = (session: AttachSession, bytes: Uint8Array): void => {
 
 const focusNeighbor = (session: AttachSession, offset: number): Promise<void> => {
   const { snapshot } = session.getState();
-  const current = focusedPane(snapshot);
+  const current = viewedPane(snapshot);
   const tab = snapshot.tabs.find((known) => known.id === current?.tabId);
 
   if (current === undefined || tab === undefined) {
@@ -88,7 +88,7 @@ const resizeDirections: Partial<Record<PaneAction, 'left' | 'right' | 'up' | 'do
 };
 
 const runPaneAction = (session: AttachSession, action: PaneAction): Promise<void> => {
-  const current = focusedPane(session.getState().snapshot);
+  const current = viewedPane(session.getState().snapshot);
 
   if (current === undefined) {
     return Promise.resolve();
@@ -131,9 +131,12 @@ const routeInput = (session: AttachSession) =>
     },
     detach: session.detach,
     workspaces: () => {
-      const { workspaces, focusedWorkspaceId } = session.getState().snapshot;
+      const { snapshot } = session.getState();
 
-      return { ids: workspaces.map((workspace) => workspace.id), focused: focusedWorkspaceId };
+      return {
+        ids: snapshot.workspaces.map((workspace) => workspace.id),
+        focused: shownView(snapshot).focusedWorkspaceId,
+      };
     },
     startDirectory: process.cwd(),
     command: session.sendWorkspaceCommand,

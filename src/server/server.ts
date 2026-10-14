@@ -9,6 +9,7 @@ import { FrameKind } from '../protocol/protocol.ts';
 import type { BuildVersion, ControlMessage } from '../protocol/protocol.ts';
 import { decodePaneInput, encodeRowUpdate, rowsToText } from '../rows/rows.ts';
 import {
+  activeTabOf,
   applyFact,
   applyIntent,
   createState,
@@ -230,12 +231,14 @@ const subscribeRows = (
   return { paneIds, acknowledge, unsubscribe };
 };
 
-// The panes the focused workspace's active tab shows that have a row publisher. A zoomed tab shows
-// one pane.
-const visiblePaneIds = (context: ServerContext): PaneId[] => {
+// The panes the tab of the connection's own view shows that have a row publisher. A zoomed tab
+// shows one pane. A connection that is no client yet, such as one that is attaching, follows the
+// default view.
+const visiblePaneIds = (context: ServerContext, connection: Connection): PaneId[] => {
   const { state, runtime } = context;
-  const workspace = state.workspaces.find((known) => known.id === state.focusedWorkspaceId);
-  const tab = state.tabs.find((known) => known.id === workspace?.activeTabId);
+  const owner = runtime.clientIds.get(connection);
+  const view = state.clients.find((client) => client.id === owner)?.view ?? state.defaultView;
+  const tab = state.tabs.find((known) => known.id === activeTabOf(view, view.focusedWorkspaceId));
 
   if (tab === undefined) {
     return [];
@@ -251,9 +254,9 @@ const sameIds = (left: readonly PaneId[], right: readonly PaneId[]): boolean =>
 
 // Moves each terminal connection to the visible panes. A new subscriber gets the full screen.
 const syncRowSubscriptions = (context: ServerContext): void => {
-  const visible = visiblePaneIds(context);
-
   for (const [connection, current] of context.runtime.rowSubscriptions) {
+    const visible = visiblePaneIds(context, connection);
+
     if (!sameIds(current.paneIds, visible)) {
       current.unsubscribe();
       context.runtime.rowSubscriptions.set(connection, subscribeRows(context, connection, visible));
@@ -786,15 +789,27 @@ const handlePaneCommand = (
   );
 };
 
-const handleDetach = (context: ServerContext, connection: Connection): void => {
-  const attachedId = context.state.attachedClientId;
+const handleDetach = (
+  context: ServerContext,
+  message: Extract<ControlMessage, { type: 'detach' }>,
+  connection: Connection,
+): void => {
+  const { clients, foregroundClientId } = context.state;
+  const requestedId = message.clientId;
+  const unknownClient = requestedId !== undefined && !clients.some(({ id }) => id === requestedId);
+  const targetId = requestedId ?? foregroundClientId;
 
-  // Answer first: the sender may be the attached client, and its detach closes the connection.
-  connection.send({ type: 'detachResult', detached: attachedId !== undefined });
+  if (unknownClient || targetId === undefined) {
+    const reason = unknownClient ? 'unknownClient' : 'noClient';
 
-  if (attachedId !== undefined) {
-    dispatch(context, { type: 'detachClient', clientId: attachedId });
+    connection.send({ type: 'detachResult', result: { ok: false, reason } });
+
+    return;
   }
+
+  // Answer first: the sender may be the target client, and its detach closes the connection.
+  connection.send({ type: 'detachResult', result: { ok: true } });
+  dispatch(context, { type: 'detachClient', clientId: targetId });
 };
 
 const handleClientSetting = (
@@ -825,18 +840,27 @@ const workspaceRequestTypes: ReadonlySet<string> = new Set([
 const isWorkspaceRequest = (message: ControlMessage): message is WorkspaceRequest =>
   workspaceRequestTypes.has(message.type);
 
-const intentOf = (message: WorkspaceRequest): Intent => {
+// A terminal connection is a client, so its focus and create intents move its own view. Any other
+// connection is the CLI, whose intents move every view.
+const sourceOf = (context: ServerContext, connection: Connection): { clientId?: ClientId } => {
+  const clientId = context.runtime.clientIds.get(connection);
+
+  return clientId === undefined ? {} : { clientId };
+};
+
+const intentOf = (message: WorkspaceRequest, source: { clientId?: ClientId }): Intent => {
   if (message.type === 'workspaceCreate') {
     return {
       type: 'createWorkspace',
       root: message.root,
       label: message.label,
       background: message.background,
+      ...source,
     };
   }
 
   if (message.type === 'workspaceFocus') {
-    return { type: 'focusWorkspace', workspaceId: message.workspaceId };
+    return { type: 'focusWorkspace', workspaceId: message.workspaceId, ...source };
   }
 
   if (message.type === 'workspaceRename') {
@@ -887,7 +911,7 @@ const handleWorkspaceRequest = (
     return;
   }
 
-  const changes = dispatch(context, intentOf(message));
+  const changes = dispatch(context, intentOf(message, sourceOf(context, connection)));
   const added = changes.find((change) => change.type === 'workspaceAdded');
   const startFailure = takePaneStartFailure(context);
 
@@ -916,13 +940,13 @@ const handleWorkspaceRequest = (
 const isTabRequest = (message: ControlMessage): message is TabRequest =>
   message.type === 'tabCreate' || message.type === 'tabFocus' || message.type === 'tabClose';
 
-const tabIntentOf = (message: TabRequest): Intent => {
+const tabIntentOf = (message: TabRequest, source: { clientId?: ClientId }): Intent => {
   if (message.type === 'tabCreate') {
-    return { type: 'createTab', workspaceId: message.workspaceId };
+    return { type: 'createTab', workspaceId: message.workspaceId, ...source };
   }
 
   if (message.type === 'tabFocus') {
-    return { type: 'focusTab', tabId: message.tabId };
+    return { type: 'focusTab', tabId: message.tabId, ...source };
   }
 
   return { type: 'closeTab', tabId: message.tabId };
@@ -962,7 +986,7 @@ const handleTabRequest = (
     return;
   }
 
-  const changes = dispatch(context, tabIntentOf(message));
+  const changes = dispatch(context, tabIntentOf(message, sourceOf(context, connection)));
   const added = changes.find((change) => change.type === 'tabAdded');
   const startFailure = takePaneStartFailure(context);
 
@@ -993,7 +1017,7 @@ const paneLayoutRequestTypes: ReadonlySet<string> = new Set([
 const isPaneLayoutRequest = (message: ControlMessage): message is PaneLayoutRequest =>
   paneLayoutRequestTypes.has(message.type);
 
-const paneIntentOf = (message: PaneLayoutRequest): Intent => {
+const paneIntentOf = (message: PaneLayoutRequest, source: { clientId?: ClientId }): Intent => {
   if (message.type === 'paneSplit') {
     return { type: 'splitPane', paneId: message.paneId, direction: message.direction };
   }
@@ -1012,13 +1036,14 @@ const paneIntentOf = (message: PaneLayoutRequest): Intent => {
   }
 
   return message.type === 'paneFocus'
-    ? { type: 'focusPane', paneId: message.paneId }
+    ? { type: 'focusPane', paneId: message.paneId, ...source }
     : { type: 'closePane', paneId: message.paneId };
 };
 
 const paneRefusalOf = (
   context: ServerContext,
   message: PaneLayoutRequest,
+  connection: Connection,
 ): ControlMessage | undefined => {
   if (context.state.stopping) {
     return { type: 'paneFailed', reason: 'serverStopping', message: undefined };
@@ -1030,7 +1055,7 @@ const paneRefusalOf = (
     return { type: 'paneFailed', reason: 'unknownPane', message: undefined };
   }
 
-  const outcome = applyIntent(context.state, paneIntentOf(message));
+  const outcome = applyIntent(context.state, paneIntentOf(message, sourceOf(context, connection)));
   const hasNoSplit = outcome.kind === 'rejected' && outcome.reason === 'noSplit';
 
   return hasNoSplit ? { type: 'paneFailed', reason: 'noSplit', message: undefined } : undefined;
@@ -1041,7 +1066,7 @@ const handlePaneLayoutRequest = (
   message: PaneLayoutRequest,
   connection: Connection,
 ): void => {
-  const refusal = paneRefusalOf(context, message);
+  const refusal = paneRefusalOf(context, message, connection);
 
   if (refusal !== undefined) {
     connection.send(refusal);
@@ -1049,7 +1074,7 @@ const handlePaneLayoutRequest = (
     return;
   }
 
-  const changes = dispatch(context, paneIntentOf(message));
+  const changes = dispatch(context, paneIntentOf(message, sourceOf(context, connection)));
   const added = changes.find((change) => change.type === 'paneAdded');
   const startFailure = takePaneStartFailure(context);
 
@@ -1115,6 +1140,15 @@ const handleLayoutRequest = (
   return false;
 };
 
+// A terminal client that sends input or a request of its own becomes the foreground client.
+const markActive = (context: ServerContext, connection: Connection): void => {
+  const clientId = context.runtime.clientIds.get(connection);
+
+  if (clientId !== undefined) {
+    dispatch(context, { type: 'markClientActive', clientId });
+  }
+};
+
 const handleMessage = (
   context: ServerContext,
   message: ControlMessage,
@@ -1127,7 +1161,7 @@ const handleMessage = (
   }
 
   if (message.type === 'detach') {
-    handleDetach(context, connection);
+    handleDetach(context, message, connection);
 
     return;
   }
@@ -1149,6 +1183,8 @@ const handleMessage = (
 
     return;
   }
+
+  markActive(context, connection);
 
   if (message.type === 'paneRead' || message.type === 'paneSend') {
     handlePaneCommand(context, message, connection);
@@ -1188,6 +1224,8 @@ const handleInput = (context: ServerContext, payload: Uint8Array, connection: Co
     return;
   }
 
+  markActive(context, connection);
+
   const target = paneIdFor(decoded.input.pane);
   const clientId = context.runtime.clientIds.get(connection);
   const isAttached = clientId !== undefined && clientId === context.state.attachedClientId;
@@ -1212,6 +1250,7 @@ const attachTerminal = (
 
   if (attached !== undefined) {
     context.runtime.clientIds.set(connection, attached.client.id);
+    syncRowSubscriptions(context);
   }
 };
 
@@ -1233,7 +1272,7 @@ const openConnection = (context: ServerContext, socket: Bun.Socket<ConnectionDat
       if (hello.size !== undefined && !welcomed.isClosed()) {
         runtime.rowSubscriptions.set(
           welcomed,
-          subscribeRows(context, welcomed, visiblePaneIds(context)),
+          subscribeRows(context, welcomed, visiblePaneIds(context, welcomed)),
         );
 
         attachTerminal(context, welcomed, hello.size);

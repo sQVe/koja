@@ -58,11 +58,23 @@ interface TabActionOutput {
   tab: string;
 }
 
+interface ClientEntry {
+  id: string;
+  foreground: boolean;
+  size: { columns: number; rows: number };
+  view: { workspace: string | null; tabs: Record<string, string> };
+}
+
 interface WorkspaceActionOutput {
   workspace: string;
 }
 
-export type DetachFailure = 'noServer' | 'refused' | 'connectionFailed' | 'noClient';
+export type DetachFailure =
+  | 'noServer'
+  | 'refused'
+  | 'connectionFailed'
+  | 'noClient'
+  | 'unknownClient';
 
 type DetachOutput = { detached: true } | { detached: false; reason: DetachFailure };
 
@@ -76,6 +88,7 @@ type CommandJson =
   | PaneEntry[]
   | WorkspaceActionOutput
   | TabEntry[]
+  | ClientEntry[]
   | TabActionOutput
   | DetachOutput;
 

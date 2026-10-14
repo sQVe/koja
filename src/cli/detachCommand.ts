@@ -20,7 +20,7 @@ export const runDetachCommand = async (
   environment: Environment,
 ): Promise<Outcome> => {
   const socketPath = resolveSocketPath(command.socket, environment);
-  const result = await runDetach(socketPath, version);
+  const result = await runDetach(socketPath, version, command.client);
 
   if (!result.ok) {
     if (result.reason === 'refused') {
@@ -35,20 +35,24 @@ export const runDetachCommand = async (
       );
     }
 
+    if (result.reason === 'unknownClient') {
+      return failed(command.json, 'unknownClient', `There is no client ${command.client ?? ''}.`);
+    }
+
+    if (result.reason === 'noClient') {
+      return failed(
+        command.json,
+        'noClient',
+        `No client is attached to the server on ${socketPath}.`,
+      );
+    }
+
     const message =
       result.reason === 'noServer'
         ? `No server is listening on ${socketPath}.`
         : `The server on ${socketPath} did not complete the detach.`;
 
     return failed(command.json, result.reason, message);
-  }
-
-  if (!result.detached) {
-    return failed(
-      command.json,
-      'noClient',
-      `No client is attached to the server on ${socketPath}.`,
-    );
   }
 
   print(command.json, { json: { detached: true }, text: `Detached the client on ${socketPath}.` });

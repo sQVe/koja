@@ -1,4 +1,4 @@
-import { runSnapshot, runTabCommand } from '../client/client.ts';
+import { activeTabIdOf, runSnapshot, runTabCommand } from '../client/client.ts';
 import type { StoreSnapshot, TabCommand } from '../client/client.ts';
 import type { WorkspaceId } from '../ids.ts';
 import type { BuildVersion } from '../protocol/protocol.ts';
@@ -18,7 +18,7 @@ const listTabs = (snapshot: StoreSnapshot) =>
       id: tab.id,
       workspace: tab.workspaceId,
       number: (owner?.tabIds.indexOf(tab.id) ?? -1) + 1,
-      active: owner?.activeTabId === tab.id,
+      active: activeTabIdOf(snapshot.defaultView, tab.workspaceId) === tab.id,
       pane: tab.focusedPaneId,
     };
   });
@@ -104,7 +104,7 @@ const focusedWorkspaceOf = async (
     return { ok: false, message: connectionFailureMessage(result, socketPath, 'tab create') };
   }
 
-  const id = result.snapshot.focusedWorkspaceId;
+  const id = result.snapshot.defaultView.focusedWorkspaceId;
 
   return id === undefined
     ? { ok: false, message: 'There is no focused workspace. Pass --workspace <id>.' }

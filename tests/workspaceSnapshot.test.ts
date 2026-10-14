@@ -49,7 +49,7 @@ const expectSameLayout = ({ state, mirror }: Replay): void => {
   expect(mirror.workspaces).toEqual(expected.workspaces);
   expect(mirror.tabs).toEqual(expected.tabs);
   expect(mirror.panes).toEqual(expected.panes);
-  expect(mirror.focusedWorkspaceId).toEqual(expected.focusedWorkspaceId);
+  expect(mirror.defaultView).toEqual(expected.defaultView);
 };
 
 it('mirrors create, focus, rename, and close in the client snapshot', () => {
@@ -63,7 +63,7 @@ it('mirrors create, focus, rename, and close in the client snapshot', () => {
   ]);
 
   expectSameLayout(result);
-  expect(result.mirror.focusedWorkspaceId).toBe(workspaceId(2));
+  expect(result.mirror.defaultView.focusedWorkspaceId).toBe(workspaceId(2));
 });
 
 it('mirrors the focus after the focused last workspace closes', () => {
@@ -74,7 +74,7 @@ it('mirrors the focus after the focused last workspace closes', () => {
   ]);
 
   expectSameLayout(result);
-  expect(result.mirror.focusedWorkspaceId).toBe(workspaceId(1));
+  expect(result.mirror.defaultView.focusedWorkspaceId).toBe(workspaceId(1));
 });
 
 it('mirrors the exit of the only pane in the client snapshot', () => {
@@ -85,5 +85,5 @@ it('mirrors the exit of the only pane in the client snapshot', () => {
 
   expectSameLayout(result);
   expect(result.mirror.workspaces).toEqual([]);
-  expect(result.mirror.focusedWorkspaceId).toBeUndefined();
+  expect(result.mirror.defaultView.focusedWorkspaceId).toBeUndefined();
 });

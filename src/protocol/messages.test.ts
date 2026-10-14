@@ -50,7 +50,11 @@ const workspace = {
   root: '/work/phi',
   label: 'phi',
   tabIds: [tab.id],
-  activeTabId: tab.id,
+};
+
+const view = {
+  focusedWorkspaceId: workspace.id,
+  activeTabs: [{ workspaceId: workspace.id, tabId: tab.id }],
 };
 
 const emptySnapshot: Snapshot = {
@@ -58,8 +62,9 @@ const emptySnapshot: Snapshot = {
   workspaces: [],
   tabs: [],
   panes: [],
-  focusedWorkspaceId: undefined,
+  defaultView: { focusedWorkspaceId: undefined, activeTabs: [] },
   attachedClientId: undefined,
+  foregroundClientId: undefined,
   clients: [],
 };
 
@@ -69,7 +74,7 @@ const theme = {
   palette: Array.from({ length: 16 }, (_, index) => index * 0x01_01_01),
 };
 
-const client = { id: clientId(2), size: { columns: 80, rows: 24 }, theme: undefined };
+const client = { id: clientId(2), size: { columns: 80, rows: 24 }, theme: undefined, view };
 
 const themedClient = { ...client, theme };
 
@@ -91,7 +96,8 @@ const messages: ControlMessage[] = [
   { type: 'hello', version: build, size: undefined },
   { type: 'welcome' },
   { type: 'refused', client: build, server: { version: '1.2.4', ghostty: 'def456' } },
-  { type: 'detach' },
+  { type: 'detach', clientId: undefined },
+  { type: 'detach', clientId: client.id },
   { type: 'stop' },
   { type: 'resize', size: { columns: 120, rows: 40 } },
   { type: 'theme', theme },
@@ -104,8 +110,9 @@ const messages: ControlMessage[] = [
       workspaces: [workspace],
       tabs: [tab],
       panes: [pane],
-      focusedWorkspaceId: workspace.id,
+      defaultView: view,
       attachedClientId: client.id,
+      foregroundClientId: client.id,
       clients: [client],
     },
   },
@@ -116,6 +123,7 @@ const messages: ControlMessage[] = [
     change: {
       type: 'workspaceAdded',
       workspace,
+      activeTabId: tab.id,
       focusedWorkspaceId: workspace.id,
     },
   },
@@ -180,6 +188,9 @@ const messages: ControlMessage[] = [
     change: { type: 'clientDetached', clientId: client.id, reason: 'takenOver' },
   },
   { type: 'change', revision: 7, change: { type: 'serverStopping' } },
+  { type: 'change', revision: 7, change: { type: 'clientViewChanged', clientId: client.id, view } },
+  { type: 'change', revision: 7, change: { type: 'foregroundChanged', clientId: client.id } },
+  { type: 'change', revision: 7, change: { type: 'foregroundChanged', clientId: undefined } },
   { type: 'change', revision: 8, change: { type: 'clientAttached', client: themedClient } },
   {
     type: 'change',
@@ -188,8 +199,9 @@ const messages: ControlMessage[] = [
   },
   { type: 'takenOver' },
   { type: 'detached' },
-  { type: 'detachResult', detached: true },
-  { type: 'detachResult', detached: false },
+  { type: 'detachResult', result: { ok: true } },
+  { type: 'detachResult', result: { ok: false, reason: 'noClient' } },
+  { type: 'detachResult', result: { ok: false, reason: 'unknownClient' } },
   { type: 'paneRead', paneId: pane.id },
   { type: 'paneRows', paneId: pane.id, rows: ['$ ls', ''] },
   { type: 'paneSend', paneId: pane.id, text: 'ls\r' },
@@ -330,6 +342,11 @@ it.each([
   ['a workspace id with a leading zero', workspaceIdJson('workspace-01')],
   ['a workspace id without a number', workspaceIdJson('workspace-')],
   ['a pane id as a workspace id', workspaceIdJson('pane-1')],
+  [
+    'a detach result that succeeds and names a failure',
+    '{"type":"detachResult","result":{"ok":true,"reason":"unknownClient"}}',
+  ],
+  ['a detach result that fails without a reason', '{"type":"detachResult","result":{"ok":false}}'],
   ['a JSON value that is not an object', '"hello"'],
 ])('refuses a message with %s', (_name, json) => {
   expect(parseControl(text(json))).toEqual({ ok: false, reason: 'invalidMessage' });
@@ -370,9 +387,10 @@ it('parses a snapshot into ids the store accepts', () => {
     workspaces: [workspace],
     tabs: [tab],
     panes: [{ ...pane, id: paneId(4) }],
-    focusedWorkspaceId: workspace.id,
+    defaultView: view,
     attachedClientId: clientId(5),
-    clients: [{ id: clientId(5), size: { columns: 80, rows: 24 }, theme: undefined }],
+    foregroundClientId: undefined,
+    clients: [{ id: clientId(5), size: { columns: 80, rows: 24 }, theme: undefined, view }],
   };
 
   const message = parseMessage(encodeControl({ type: 'snapshot', snapshot: sent }));
