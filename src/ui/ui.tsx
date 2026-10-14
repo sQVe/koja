@@ -11,9 +11,9 @@ import { createInputRouter } from './input.ts';
 import type { PaneAction } from './input.ts';
 import { takeStdin } from './inputStdin.ts';
 import { mountPanes } from './paneLayer.ts';
-import { SideList } from './sideList.tsx';
 import { StatusBar } from './statusBar.tsx';
 import { themeFromDetectedColors } from './terminalTheme.ts';
+import { SideList } from './workspaceList.tsx';
 
 const emptyHint = 'No workspace is open. Run `phi workspace create <dir>` to start one.';
 
