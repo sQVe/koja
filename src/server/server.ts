@@ -1,7 +1,7 @@
 import { rmSync, statSync } from 'node:fs';
 
 import { paneId as paneIdFor } from '../ids.ts';
-import type { ClientId, PaneId } from '../ids.ts';
+import type { ClientId, PaneId, WorkspaceId } from '../ids.ts';
 import { invariant } from '../invariant.ts';
 import { layoutPanes, shownLayout } from '../layout.ts';
 import type { TerminalSize } from '../layout.ts';
@@ -33,7 +33,12 @@ import type { Connection } from './connection.ts';
 import type { Log } from './log.ts';
 import { spawnPane } from './pane.ts';
 import type { PaneRuntime } from './pane.ts';
-import { readPaneFolders, readPaneProcesses, readProcessFolder } from './processInfo.ts';
+import {
+  readFollowFolder,
+  readPaneFolders,
+  readPaneProcesses,
+  readProcessFolder,
+} from './processInfo.ts';
 import { createRowPublisher } from './rowPublisher.ts';
 import type { RowPublisher, RowSubscription } from './rowPublisher.ts';
 import { scopeAvailable } from './scope.ts';
@@ -1051,9 +1056,40 @@ const handleWorkspaceRequest = (
 const isTabRequest = (message: ControlMessage): message is TabRequest =>
   message.type === 'tabCreate' || message.type === 'tabFocus' || message.type === 'tabClose';
 
-const tabIntentOf = (message: TabRequest, source: { clientId?: ClientId }): Intent => {
+const followFolderOf = (context: ServerContext, id: PaneId | undefined): string | undefined => {
+  const live = id === undefined ? undefined : findLivePane(context, id);
+
+  return live === undefined ? undefined : readFollowFolder(live.runtime.processId);
+};
+
+// A terminal client's new tab follows the tab its own view shows; a CLI request follows the
+// default view.
+const activeFocusedPaneOf = (
+  context: ServerContext,
+  id: WorkspaceId,
+  source: { clientId?: ClientId },
+): PaneId | undefined => {
+  const client = context.state.clients.find((known) => known.id === source.clientId);
+  const view = client?.view ?? context.state.defaultView;
+  const tab = context.state.tabs.find((known) => known.id === activeTabOf(view, id));
+
+  return tab?.focusedPaneId;
+};
+
+const tabIntentOf = (
+  context: ServerContext,
+  message: TabRequest,
+  source: { clientId?: ClientId },
+): Intent => {
   if (message.type === 'tabCreate') {
-    return { type: 'createTab', workspaceId: message.workspaceId, ...source };
+    const sourcePane = activeFocusedPaneOf(context, message.workspaceId, source);
+
+    return {
+      type: 'createTab',
+      workspaceId: message.workspaceId,
+      folder: followFolderOf(context, sourcePane),
+      ...source,
+    };
   }
 
   if (message.type === 'tabFocus') {
@@ -1097,7 +1133,7 @@ const handleTabRequest = (
     return;
   }
 
-  const changes = dispatch(context, tabIntentOf(message, sourceOf(context, connection)));
+  const changes = dispatch(context, tabIntentOf(context, message, sourceOf(context, connection)));
   const added = changes.find((change) => change.type === 'tabAdded');
   const startFailure = takePaneStartFailure(context);
 
@@ -1128,9 +1164,18 @@ const paneLayoutRequestTypes: ReadonlySet<string> = new Set([
 const isPaneLayoutRequest = (message: ControlMessage): message is PaneLayoutRequest =>
   paneLayoutRequestTypes.has(message.type);
 
-const paneIntentOf = (message: PaneLayoutRequest, source: { clientId?: ClientId }): Intent => {
+const paneIntentOf = (
+  message: PaneLayoutRequest,
+  source: { clientId?: ClientId },
+  folder: string | undefined,
+): Intent => {
   if (message.type === 'paneSplit') {
-    return { type: 'splitPane', paneId: message.paneId, direction: message.direction };
+    return {
+      type: 'splitPane',
+      paneId: message.paneId,
+      direction: message.direction,
+      folder,
+    };
   }
 
   if (message.type === 'paneResize') {
@@ -1166,7 +1211,8 @@ const paneRefusalOf = (
     return { type: 'paneFailed', reason: 'unknownPane', message: undefined };
   }
 
-  const outcome = applyIntent(context.state, paneIntentOf(message, sourceOf(context, connection)));
+  const intent = paneIntentOf(message, sourceOf(context, connection), undefined);
+  const outcome = applyIntent(context.state, intent);
   const hasNoSplit = outcome.kind === 'rejected' && outcome.reason === 'noSplit';
 
   return hasNoSplit ? { type: 'paneFailed', reason: 'noSplit', message: undefined } : undefined;
@@ -1185,7 +1231,8 @@ const handlePaneLayoutRequest = (
     return;
   }
 
-  const changes = dispatch(context, paneIntentOf(message, sourceOf(context, connection)));
+  const folder = followFolderOf(context, message.paneId);
+  const changes = dispatch(context, paneIntentOf(message, sourceOf(context, connection), folder));
   const added = changes.find((change) => change.type === 'paneAdded');
   const startFailure = takePaneStartFailure(context);
 

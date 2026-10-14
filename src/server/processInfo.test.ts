@@ -1,6 +1,11 @@
 import { expect, it } from 'bun:test';
 
-import { readPaneProcesses, readProcessFolder, splitCommandLine } from './processInfo.ts';
+import {
+  readFollowFolder,
+  readPaneProcesses,
+  readProcessFolder,
+  splitCommandLine,
+} from './processInfo.ts';
 
 const missingPid = 0x7f_ff_ff_ff;
 
@@ -30,4 +35,12 @@ it('gives no folder or processes for a pid without a /proc entry', () => {
     foregroundCwd: undefined,
     foregroundProcesses: [],
   });
+});
+
+it('follows the folder of this process when the folder is enterable', () => {
+  expect(readFollowFolder(process.pid)).toBe(process.cwd());
+});
+
+it('has no follow folder for a pid without a /proc entry', () => {
+  expect(readFollowFolder(missingPid)).toBeUndefined();
 });

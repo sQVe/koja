@@ -1,4 +1,7 @@
-import { expect, it } from 'bun:test';
+import { expect, it, onTestFinished } from 'bun:test';
+import { mkdtemp, realpath, rm } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 
 import { sideListColumns } from '../src/layout.ts';
 import { cliTestTimeoutMs } from './cliHarness.ts';
@@ -199,6 +202,35 @@ it(
       [first, 39, 21],
       [second, 36, 21],
     ]);
+  },
+  cliTestTimeoutMs,
+);
+
+it(
+  'starts the pane of the split key in the folder of the focused pane',
+  async () => {
+    const { phi, list, type, first } = await setup();
+    const target = await realpath(await mkdtemp(join(tmpdir(), 'phi-split-key-')));
+
+    onTestFinished(() => rm(target, { recursive: true, force: true }));
+
+    await phi('pane', 'send', `cd ${target}\n`, '--pane', first);
+
+    let panes = await list();
+
+    for (let attempt = 0; attempt < 100 && panes[0]?.cwd !== target; attempt += 1) {
+      await Bun.sleep(100);
+      panes = await list();
+    }
+
+    type('\x02s');
+
+    for (let attempt = 0; attempt < 100 && panes.length < 2; attempt += 1) {
+      await Bun.sleep(100);
+      panes = await list();
+    }
+
+    expect(panes.map((pane) => pane.cwd)).toEqual([target, target]);
   },
   cliTestTimeoutMs,
 );

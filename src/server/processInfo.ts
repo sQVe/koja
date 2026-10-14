@@ -1,4 +1,4 @@
-import { readdirSync, readFileSync, readlinkSync } from 'node:fs';
+import { accessSync, constants, readdirSync, readFileSync, readlinkSync, statSync } from 'node:fs';
 
 import { readStat } from './processGroups.ts';
 
@@ -136,4 +136,29 @@ export const readPaneProcesses = (shellPid: number): PaneProcesses => {
     foregroundGroup === undefined ? [] : readGroupProcesses(foregroundGroup, shellPid);
 
   return { shellPid, cwd, foregroundGroup, foregroundCwd, foregroundProcesses };
+};
+
+const isEnterable = (path: string): boolean => {
+  try {
+    accessSync(path, constants.X_OK);
+
+    return statSync(path).isDirectory();
+  } catch {
+    // A deleted folder reads as "<path> (deleted)", which does not exist.
+    return false;
+  }
+};
+
+// The folder a new pane follows: the foreground folder, else the shell folder. A folder is used
+// only when the server can enter it. Without one, the caller picks the workspace root.
+export const readFollowFolder = (shellPid: number): string | undefined => {
+  const { cwd, foregroundCwd } = readPaneFolders(shellPid);
+
+  for (const candidate of [foregroundCwd, cwd]) {
+    if (candidate !== undefined && isEnterable(candidate)) {
+      return candidate;
+    }
+  }
+
+  return undefined;
 };

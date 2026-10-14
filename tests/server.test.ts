@@ -1518,7 +1518,7 @@ it('keeps the existing pane at its full size when the split pane fails to start'
 
   const before = server.snapshot().panes[0]?.size ?? { columns: 0, rows: 0 };
 
-  await rename(root, join(directory, 'moved'));
+  await rm(root, { recursive: true });
 
   const cli = await connectCli(socketPath);
 

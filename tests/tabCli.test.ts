@@ -1,5 +1,5 @@
 import { expect, it } from 'bun:test';
-import { mkdir } from 'node:fs/promises';
+import { mkdir, realpath } from 'node:fs/promises';
 import { join } from 'node:path';
 
 import { z } from 'zod';
@@ -18,7 +18,9 @@ const tabListSchema = z.array(
 
 const workspaceListSchema = z.array(z.object({ id: z.string() }));
 
-const paneListSchema = z.array(z.object({ id: z.string(), lifecycle: z.string() }));
+const paneListSchema = z.array(
+  z.object({ id: z.string(), lifecycle: z.string(), cwd: z.string().nullable() }),
+);
 
 const doneSchema = z.object({ workspace: z.string() });
 
@@ -70,7 +72,7 @@ const setup = async () => {
     return paneListSchema.parse(JSON.parse(listed.stdout));
   };
 
-  return { phi, createWorkspace, tabs, workspaces, panes };
+  return { directory, phi, createWorkspace, tabs, workspaces, panes };
 };
 
 it(
@@ -206,6 +208,38 @@ it.each(['focus', 'close'])(
     expect(failed.stdout).toBe('');
     expect(failed.stderr).toContain('tab-99');
     expect(await tabs()).toEqual(before);
+  },
+  cliTestTimeoutMs,
+);
+
+it(
+  'tab create starts the new pane in the folder of the focused pane of the active tab',
+  async () => {
+    const { directory, phi, createWorkspace, tabs, panes } = await setup();
+
+    await createWorkspace('alpha');
+
+    const target = join(await realpath(directory), 'elsewhere');
+
+    await mkdir(target);
+
+    const [first] = await panes();
+
+    expect((await phi('pane', 'send', `cd ${target}\n`)).exitCode).toBe(0);
+
+    for (let attempt = 0; attempt < 100; attempt += 1) {
+      if ((await panes()).find((pane) => pane.id === first?.id)?.cwd === target) {
+        break;
+      }
+
+      await Bun.sleep(100);
+    }
+
+    expect((await phi('tab', 'create')).exitCode).toBe(0);
+
+    const added = (await tabs()).find((tab) => tab.active);
+
+    expect((await panes()).find((pane) => pane.id === added?.pane)?.cwd).toBe(target);
   },
   cliTestTimeoutMs,
 );

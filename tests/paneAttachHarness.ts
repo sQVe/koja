@@ -10,7 +10,13 @@ import { createTerminal } from '../src/vt/vt.ts';
 import { environmentFor, root, temporaryDirectory } from './cliHarness.ts';
 
 const paneListSchema = z.array(
-  z.object({ id: z.string(), focused: z.boolean(), columns: z.number(), rows: z.number() }),
+  z.object({
+    id: z.string(),
+    focused: z.boolean(),
+    columns: z.number(),
+    rows: z.number(),
+    cwd: z.string().nullable(),
+  }),
 );
 
 const paneDoneSchema = z.object({ pane: z.string() });
