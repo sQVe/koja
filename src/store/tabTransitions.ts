@@ -1,0 +1,238 @@
+import { paneId, tabId } from '../ids.ts';
+import type { ClientId, TabId, WorkspaceId } from '../ids.ts';
+import { invariant } from '../invariant.ts';
+import { lonePaneSize } from './paneSizes.ts';
+import type {
+  Change,
+  Intent,
+  Pane,
+  StartFallback,
+  State,
+  Tab,
+  View,
+  WorkspaceRecord,
+} from './store.ts';
+import { propose, refuse } from './transitionOutcome.ts';
+import type { Outcome, Proposal } from './transitionOutcome.ts';
+import {
+  activeTabOf,
+  clientViewChanges,
+  repairViews,
+  updateViews,
+  viewChanges,
+  viewsBefore,
+  withActiveTab,
+} from './view.ts';
+
+type CreateTabIntent = Extract<Intent, { type: 'createTab' }>;
+
+const withoutWorkspace = (view: View, id: WorkspaceId): View => ({
+  ...view,
+  activeTabs: view.activeTabs.filter((active) => active.workspaceId !== id),
+});
+
+const viewBeforeOf = (restore: StartFallback | undefined, owner?: ClientId): View | undefined =>
+  restore?.views.find((known) => known.clientId === owner)?.view;
+
+// The next workspace in list order takes the focus, or the previous one when it was last.
+const workspaceAfterRemoval = (state: State, removedId: WorkspaceId): WorkspaceId | undefined => {
+  const index = state.workspaces.findIndex((workspace) => workspace.id === removedId);
+  const neighbor = state.workspaces[index + 1] ?? state.workspaces[index - 1];
+
+  return neighbor?.id;
+};
+
+// The previous tab in list order becomes active, or the next one when the closed tab was first.
+const tabAfterRemoval = (owner: WorkspaceRecord, removedId: TabId): TabId | undefined => {
+  const index = owner.tabIds.indexOf(removedId);
+
+  return owner.tabIds[index - 1] ?? owner.tabIds[index + 1];
+};
+
+export const removeTab = (state: State, tab: Tab, restore?: StartFallback): Proposal => {
+  const remaining = state.panes.filter((pane) => pane.tabId !== tab.id);
+  const removedPanes = state.panes.filter((pane) => pane.tabId === tab.id);
+  const changes: Change[] = removedPanes.map((pane) => ({ type: 'paneRemoved', paneId: pane.id }));
+
+  changes.push({ type: 'tabRemoved', tabId: tab.id });
+
+  const tabs = state.tabs.filter((known) => known.id !== tab.id);
+  const owner = state.workspaces.find((workspace) => workspace.id === tab.workspaceId);
+  const tabIds = owner?.tabIds.filter((id) => id !== tab.id) ?? [];
+  const next: State = { ...state, panes: remaining, tabs };
+
+  if (owner === undefined) {
+    return propose(next, changes);
+  }
+
+  if (tabIds.length > 0) {
+    const neighbor = tabAfterRemoval(owner, tab.id);
+
+    invariant(neighbor !== undefined, `Workspace ${owner.id} has no tab to activate.`);
+
+    const workspaces = state.workspaces.map((workspace) =>
+      workspace.id === owner.id ? { ...workspace, tabIds } : workspace,
+    );
+
+    // A view that showed the closed tab returns to its own earlier tab if that still exists. Else
+    // the default view moves to the neighbor and client views follow the default view. A view that
+    // moved on keeps its tab.
+    const moveView = (view: View, viewOwner: ClientId | undefined, fallback: TabId): View => {
+      const earlier = activeTabOf(viewBeforeOf(restore, viewOwner) ?? view, owner.id);
+      const restored = earlier !== undefined && tabIds.includes(earlier) ? earlier : undefined;
+
+      return activeTabOf(view, owner.id) === tab.id
+        ? withActiveTab(view, owner.id, restored ?? fallback)
+        : view;
+    };
+
+    const defaultView = moveView(state.defaultView, undefined, neighbor);
+    const defaultTab = activeTabOf(defaultView, owner.id) ?? neighbor;
+
+    const repaired: State = {
+      ...next,
+      workspaces,
+      defaultView,
+      clients: state.clients.map((client) => ({
+        ...client,
+        view: moveView(client.view, client.id, defaultTab),
+      })),
+    };
+
+    changes.push(...viewChanges(state, repaired));
+
+    return propose(repaired, changes);
+  }
+
+  const ordinary = workspaceAfterRemoval(state, owner.id);
+
+  const repaired = repairViews(next, (view, viewOwner) => {
+    const withoutOwner = withoutWorkspace(view, owner.id);
+    const earlier = viewBeforeOf(restore, viewOwner)?.focusedWorkspaceId;
+    const isKnown = state.workspaces.some((workspace) => workspace.id === earlier);
+    const restored = isKnown && earlier !== owner.id ? earlier : undefined;
+
+    return view.focusedWorkspaceId === owner.id
+      ? { ...withoutOwner, focusedWorkspaceId: restored ?? ordinary }
+      : withoutOwner;
+  });
+
+  const workspaces = state.workspaces.filter((workspace) => workspace.id !== owner.id);
+
+  changes.push({
+    type: 'workspaceRemoved',
+    workspaceId: owner.id,
+    focusedWorkspaceId: repaired.defaultView.focusedWorkspaceId,
+  });
+
+  changes.push(...clientViewChanges(state.clients, repaired.clients));
+
+  return propose({ ...repaired, workspaces }, changes);
+};
+
+export const createTab = (state: State, intent: CreateTabIntent): Outcome => {
+  const { workspaceId: id, folder, clientId: source } = intent;
+
+  if (state.stopping) {
+    return refuse('serverStopping');
+  }
+
+  const owner = state.workspaces.find((workspace) => workspace.id === id);
+
+  if (owner === undefined) {
+    return refuse('unknownWorkspace');
+  }
+
+  const newPaneId = paneId(state.nextPaneNumber);
+
+  const pane: Pane = {
+    id: newPaneId,
+    tabId: tabId(state.nextTabNumber),
+    lifecycle: 'starting',
+    size: lonePaneSize(state, newPaneId),
+    generation: state.nextGeneration,
+    exitCode: undefined,
+    startFolder: folder,
+    restored: false,
+    error: undefined,
+  };
+
+  const tab: Tab = {
+    id: pane.tabId,
+    workspaceId: id,
+    layout: { kind: 'pane', paneId: pane.id },
+    focusedPaneId: pane.id,
+    zoomedPaneId: undefined,
+  };
+
+  const workspaces = state.workspaces.map((workspace) =>
+    workspace.id === id ? { ...workspace, tabIds: [...workspace.tabIds, tab.id] } : workspace,
+  );
+
+  const shown = updateViews(state, source, (view) => withActiveTab(view, id, tab.id));
+
+  const next: State = {
+    ...shown,
+    workspaces,
+    tabs: [...state.tabs, tab],
+    panes: [...state.panes, pane],
+    startFallbacks: [
+      ...state.startFallbacks,
+      { paneId: pane.id, views: viewsBefore(state, source) },
+    ],
+    nextTabNumber: state.nextTabNumber + 1,
+    nextPaneNumber: state.nextPaneNumber + 1,
+    nextGeneration: state.nextGeneration + 1,
+  };
+
+  return propose(next, [
+    { type: 'tabAdded', tab },
+    { type: 'paneAdded', pane },
+    ...viewChanges(state, next),
+  ]);
+};
+
+export const showTab = (
+  state: State,
+  source: ClientId | undefined,
+  owner: WorkspaceId,
+  id: TabId,
+): State =>
+  updateViews(state, source, (view) => ({
+    ...withActiveTab(view, owner, id),
+    focusedWorkspaceId: owner,
+  }));
+
+export const focusTab = (state: State, id: TabId, source: ClientId | undefined): Outcome => {
+  if (state.stopping) {
+    return refuse('serverStopping');
+  }
+
+  const tab = state.tabs.find((known) => known.id === id);
+
+  if (tab === undefined) {
+    return refuse('unknownTab');
+  }
+
+  const owner = state.workspaces.find((workspace) => workspace.id === tab.workspaceId);
+
+  invariant(owner !== undefined, `Tab ${id} has no workspace.`);
+
+  const focused = showTab(state, source, owner.id, id);
+
+  return propose(focused, viewChanges(state, focused));
+};
+
+export const closeTab = (state: State, id: TabId): Outcome => {
+  if (state.stopping) {
+    return refuse('serverStopping');
+  }
+
+  const tab = state.tabs.find((known) => known.id === id);
+
+  if (tab === undefined) {
+    return refuse('unknownTab');
+  }
+
+  return removeTab(state, tab);
+};
