@@ -53,6 +53,8 @@ fails.
 
 - Name a private file `<owner><job>` in camelCase, with a singular owner noun first:
   `paneTransitions.ts`, `paneRequests.ts`, `paneFailure.ts`, `paneReadOptions.ts`.
+- A file may use the owner noun alone when that noun names what the file holds, such as
+  `server/log.ts`. A plural noun alone names a collection, such as `protocol/messages.ts`.
 - A plural job names a collection, such as `paneCommands.ts`; a singular job names one thing, such
   as `attachCommand.ts` for `phi attach`. A CLI file uses the command group as its owner.
 - A test file keeps its source name with `.test`. An integration test in `tests/` is named for its

@@ -56,7 +56,8 @@ Terminal multiplexer with a session server and a terminal client. Read
   coordinator only to register an intent, request, or command. See
   [ADR 0016](docs/adr/0016-family-files-and-owner-first-names.md).
 - Name a private file `<owner><job>` with the singular owner noun first, such as
-  `paneTransitions.ts`. Never put the qualifier first, as in `failedPane.ts`.
+  `paneTransitions.ts`. Never put the qualifier first, as in `failedPane.ts`. A file may use the
+  owner noun alone when that noun names what it holds, such as `server/log.ts`.
 - Treat a file over 500 lines and a function over 60 lines or with more than 4 parameters as a
   review signal. No check fails on size. Split by responsibility, not to meet a count.
 - Put types beside the code that owns them. Do not add barrels, a shared `types.ts`, or `utils/`.
