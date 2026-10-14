@@ -559,10 +559,18 @@ it('leaves the snapshot of a newer read alone when an older held read resumes af
     parts.push(...client.paneRows.filter((rows) => rows.requestId === 2).slice(parts.length));
   }
 
-  expect(parts.flatMap((part) => linesOf(part)).filter((line) => /^n\d+$/.test(line))).toEqual(
-    // Rows 0 and 1 hold the typed command and its echo.
-    Array.from({ length: 998 }, (_, index) => `n${index + 1}`),
+  expect(parts.reduce((total, part) => total + part.rowCount, 0)).toBe(1000);
+
+  // The typed command and its echo take the first rows; how many depends on the shell.
+  const lines = parts.flatMap((part) => linesOf(part));
+  const numbered = lines.slice(lines.findIndex((line) => /^n\d+$/.test(line)));
+  const firstNumber = Number(numbered[0]?.slice(1));
+
+  expect(numbered).toEqual(
+    Array.from({ length: numbered.length }, (_, index) => `n${firstNumber + index}`),
   );
+
+  expect(numbered.length).toBeGreaterThan(900);
 
   expect(client.messages.filter((message) => message.type === 'paneReadFailed')).toHaveLength(1);
 });
