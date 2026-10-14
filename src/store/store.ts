@@ -89,6 +89,18 @@ interface StartFallback {
   workspaceId: WorkspaceId | undefined;
 }
 
+// What survives a restart: structure, layout, focus, and counters. Lifecycle, sizes, and
+// generations belong to running panes and start fresh.
+export interface SavedSession {
+  workspaces: readonly Workspace[];
+  tabs: readonly Tab[];
+  panes: readonly { id: PaneId; tabId: TabId }[];
+  focusedWorkspaceId: WorkspaceId | undefined;
+  nextWorkspaceNumber: number;
+  nextTabNumber: number;
+  nextPaneNumber: number;
+}
+
 export type Intent =
   | { type: 'createWorkspace'; root: string; label: string | undefined; background: boolean }
   | { type: 'focusWorkspace'; workspaceId: WorkspaceId }
@@ -106,6 +118,7 @@ export type Intent =
   | { type: 'resizeClient'; clientId: ClientId; size: TerminalSize }
   | { type: 'setClientTheme'; clientId: ClientId; theme: Theme }
   | { type: 'detachClient'; clientId: ClientId }
+  | { type: 'restoreSession'; session: SavedSession }
   | { type: 'stopServer' };
 
 export type Fact =
@@ -156,6 +169,7 @@ type PaneIntent = Extract<
 
 type RejectReason =
   | 'serverStopping'
+  | 'sessionNotEmpty'
   | 'unknownClient'
   | 'unknownWorkspace'
   | 'unknownTab'
@@ -264,13 +278,10 @@ const sameTheme = (left: Theme | undefined, right: Theme): boolean =>
   left.background === right.background &&
   left.palette.every((color, index) => color === right.palette[index]);
 
-const fitPanesTo = (
-  state: State,
-  area: TerminalSize,
-): { panes: readonly Pane[]; changes: Change[] } => {
+const tabPaneSizes = (tabs: readonly Tab[], area: TerminalSize): Map<PaneId, TerminalSize> => {
   const sizes = new Map<PaneId, TerminalSize>();
 
-  for (const tab of state.tabs) {
+  for (const tab of tabs) {
     for (const { paneId: id, terminal } of layoutPanes(
       shownLayout(tab.layout, tab.zoomedPaneId),
       area,
@@ -279,6 +290,14 @@ const fitPanesTo = (
     }
   }
 
+  return sizes;
+};
+
+const fitPanesTo = (
+  state: State,
+  area: TerminalSize,
+): { panes: readonly Pane[]; changes: Change[] } => {
+  const sizes = tabPaneSizes(state.tabs, area);
   const changes: Change[] = [];
 
   const panes = state.panes.map((pane) => {
@@ -1011,6 +1030,79 @@ const stopServer = (state: State): Applied => {
   return commit({ ...state, panes, stopping: true }, changes);
 };
 
+export const savedSessionOf = (state: State): SavedSession => ({
+  workspaces: state.workspaces,
+  tabs: state.tabs,
+  panes: state.panes.map((pane) => ({ id: pane.id, tabId: pane.tabId })),
+  focusedWorkspaceId: state.focusedWorkspaceId,
+  nextWorkspaceNumber: state.nextWorkspaceNumber,
+  nextTabNumber: state.nextTabNumber,
+  nextPaneNumber: state.nextPaneNumber,
+});
+
+const restoreSession = (state: State, session: SavedSession): Applied | Rejected => {
+  if (state.stopping) {
+    return reject(state, 'serverStopping');
+  }
+
+  if (state.workspaces.length > 0) {
+    return reject(state, 'sessionNotEmpty');
+  }
+
+  // A pane hidden by zoom has no shown size, so it starts at its size in the unzoomed layout.
+  const unzoomed = session.tabs.map((tab) => ({ ...tab, zoomedPaneId: undefined }));
+
+  const sizes = new Map([
+    ...tabPaneSizes(unzoomed, state.layoutArea),
+    ...tabPaneSizes(session.tabs, state.layoutArea),
+  ]);
+
+  const panes = session.panes.map((saved, index): Pane => {
+    const size = sizes.get(saved.id);
+
+    invariant(size !== undefined, `Saved pane ${saved.id} is not in the layout of its tab.`);
+
+    return {
+      id: saved.id,
+      tabId: saved.tabId,
+      lifecycle: 'starting',
+      size,
+      generation: state.nextGeneration + index,
+      exitCode: undefined,
+    };
+  });
+
+  const next: State = {
+    ...state,
+    workspaces: session.workspaces,
+    tabs: session.tabs,
+    panes,
+    focusedWorkspaceId: session.focusedWorkspaceId,
+    nextWorkspaceNumber: Math.max(state.nextWorkspaceNumber, session.nextWorkspaceNumber),
+    nextTabNumber: Math.max(state.nextTabNumber, session.nextTabNumber),
+    nextPaneNumber: Math.max(state.nextPaneNumber, session.nextPaneNumber),
+    nextGeneration: state.nextGeneration + panes.length,
+  };
+
+  const { focusedWorkspaceId } = session;
+  const changes: Change[] = [];
+
+  for (const workspace of session.workspaces) {
+    invariant(focusedWorkspaceId !== undefined, 'A saved session with workspaces has no focus.');
+    changes.push({ type: 'workspaceAdded', workspace, focusedWorkspaceId });
+  }
+
+  for (const tab of session.tabs) {
+    changes.push({ type: 'tabAdded', tab });
+  }
+
+  for (const pane of panes) {
+    changes.push({ type: 'paneAdded', pane });
+  }
+
+  return commit(next, changes);
+};
+
 const isTabIntent = (intent: Intent): intent is TabIntent =>
   intent.type === 'createTab' || intent.type === 'focusTab' || intent.type === 'closeTab';
 
@@ -1091,6 +1183,10 @@ export const applyIntent = (state: State, intent: Intent): Applied | Rejected =>
 
   if (intent.type === 'detachClient') {
     return detachClient(state, intent.clientId);
+  }
+
+  if (intent.type === 'restoreSession') {
+    return restoreSession(state, intent.session);
   }
 
   return stopServer(state);

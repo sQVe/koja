@@ -37,3 +37,4 @@ line that links to the replacement.
 - [0012: One server per socket path through a flock lock file](./0012-socket-path-lock.md)
 - [0013: A terminal multiplexer built around pi](./0013-multiplexer-built-around-pi.md)
 - [0014: Stop ends pane processes through a systemd scope per pane](./0014-pane-scope-stop.md)
+- [0015: Save the session after every change and start empty on a file it cannot use](./0015-save-session-after-every-change.md)

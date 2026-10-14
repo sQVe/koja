@@ -3,7 +3,7 @@ import { homedir } from 'node:os';
 import { z } from 'zod';
 
 import type { BuildVersion } from '../protocol/protocol.ts';
-import { createLog, logPathFor, runServer } from '../server/server.ts';
+import { createLog, logPathFor, runServer, sessionPathFor } from '../server/server.ts';
 import { resolveSocketPath } from './environment.ts';
 import type { Environment } from './environment.ts';
 import { print } from './output.ts';
@@ -46,6 +46,8 @@ const runInForeground = async (context: ServerContext): Promise<Outcome> => {
     version,
     log,
     environment,
+    sessionPathFor: (resolvedSocketPath) =>
+      sessionPathFor(environment.XDG_STATE_HOME, homedir(), resolvedSocketPath),
   });
 
   if (!result.ok) {
