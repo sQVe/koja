@@ -220,7 +220,6 @@ export const shownView = (snapshot: StoreSnapshot): StoreView =>
   snapshot.clients.find((known) => known.id === snapshot.attachedClientId)?.view ??
   snapshot.defaultView;
 
-// The tab a view shows.
 export const activeTabIdOf = (view: StoreView, id: WorkspaceId | undefined): TabId | undefined =>
   view.activeTabs.find((active) => active.workspaceId === id)?.tabId;
 
