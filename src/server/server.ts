@@ -14,6 +14,7 @@ import {
   createState,
   focusedPane,
   paneTheme,
+  savedSessionOf,
   snapshot,
 } from '../store/store.ts';
 import type { Change, DetachReason, Fact, Intent, Pane, Snapshot, State } from '../store/store.ts';
@@ -25,9 +26,12 @@ import type { PaneRuntime } from './pane.ts';
 import { createRowPublisher } from './rowPublisher.ts';
 import type { RowPublisher, RowSubscription } from './rowPublisher.ts';
 import { scopeAvailable } from './scope.ts';
+import { createSessionWriter, readSessionFile } from './sessionFile.ts';
+import type { SessionWriter } from './sessionFile.ts';
 import { claimSocketPath } from './socketPath.ts';
 
 export { createLog, logPathFor } from './log.ts';
+export { sessionPathFor } from './sessionFile.ts';
 export { socketPathFor } from './socketPath.ts';
 
 interface ServerOptions {
@@ -38,6 +42,9 @@ interface ServerOptions {
   environment: Record<string, string | undefined>;
   // For tests: ends a render hold after this many milliseconds. Defaults to the publisher's limit.
   holdLimitMs?: number;
+  // Names the save file for the claimed socket path, which has its symlinks resolved. Without it
+  // the server neither saves nor restores a session.
+  sessionPathFor?: (socketPath: string) => string;
 }
 
 // A failed step does not stop the steps after it, and the lock is always released.
@@ -89,6 +96,7 @@ interface Runtime {
   nextConnectionId: number;
   // Whether panes start in a systemd user scope. Decided when the first pane starts.
   paneScopes: boolean | undefined;
+  sessionWriter: SessionWriter | undefined;
 }
 
 interface ServerContext {
@@ -419,6 +427,10 @@ const stopResultOf = (failures: readonly string[]): StopResult => {
 // Every step runs even when an earlier one fails. The lock and the signal handlers go last.
 const shutDown = async (context: ServerContext): Promise<StopResult> => {
   const { runtime, options } = context;
+
+  // Pane exits during the stop must not change the saved session, so it is final before any pane ends.
+  await runtime.sessionWriter?.stopSaving(savedSessionOf(context.state));
+
   const panes = [...runtime.panes.entries()];
   const paneFailures = await Promise.all(panes.map(([id, pane]) => stopPane(context, id, pane)));
   const failures = paneFailures.flat();
@@ -578,6 +590,30 @@ const publishChanges = (context: ServerContext, changes: readonly Change[]): voi
   }
 };
 
+const sessionChangeTypes: ReadonlySet<Change['type']> = new Set([
+  'workspaceAdded',
+  'tabAdded',
+  'paneAdded',
+  'workspaceFocused',
+  'workspaceRenamed',
+  'tabFocused',
+  'workspaceRemoved',
+  'tabRemoved',
+  'paneRemoved',
+  'tabLayoutChanged',
+  'paneFocused',
+  'tabZoomChanged',
+]);
+
+const savesSession = (changes: readonly Change[]): boolean =>
+  changes.some((change) => sessionChangeTypes.has(change.type));
+
+const saveSession = (context: ServerContext, changes: readonly Change[]): void => {
+  if (savesSession(changes)) {
+    context.runtime.sessionWriter?.save(savedSessionOf(context.state));
+  }
+};
+
 const report = (context: ServerContext, fact: Fact): void => {
   const result = applyFact(context.state, fact);
 
@@ -591,6 +627,7 @@ const report = (context: ServerContext, fact: Fact): void => {
 
   publishChanges(context, result.changes);
   runEffects(context, result.changes, report);
+  saveSession(context, result.changes);
 };
 
 // Returns the changes the intent made, none when the store refuses it.
@@ -607,6 +644,7 @@ const dispatch = (context: ServerContext, intent: Intent): readonly Change[] => 
 
   publishChanges(context, result.changes);
   runEffects(context, result.changes, report);
+  saveSession(context, result.changes);
 
   return result.changes;
 };
@@ -1235,6 +1273,33 @@ const currentPane = (context: ServerContext): PaneRuntime | undefined => {
   return id === undefined ? undefined : context.runtime.panes.get(id);
 };
 
+// Leaves a file that is broken or newer as it is, until the next save replaces it.
+const restoreSession = (
+  context: ServerContext,
+  path: string,
+  saved: Awaited<ReturnType<typeof readSessionFile>> | undefined,
+): void => {
+  const { log } = context.options;
+
+  if (saved?.kind === 'restored') {
+    dispatch(context, { type: 'restoreSession', session: saved.session });
+  }
+
+  if (saved?.kind === 'broken') {
+    log.warn('Cannot read the saved session, so the server starts empty.', {
+      path,
+      message: saved.message,
+    });
+  }
+
+  if (saved?.kind === 'newer') {
+    log.warn('The saved session is from a newer version, so the server starts empty.', {
+      path,
+      version: saved.version,
+    });
+  }
+};
+
 const serverOf = (context: ServerContext): Server => ({
   stopped: context.stopped.promise,
   stop: () => {
@@ -1272,11 +1337,15 @@ export const runServer = async (options: ServerOptions): Promise<RunServerResult
       listener: undefined,
       nextConnectionId: 1,
       paneScopes: undefined,
+      sessionWriter: undefined,
     },
     stopped: Promise.withResolvers(),
     releaseSignals: () => undefined,
     paneStartFailure: undefined,
   };
+
+  const sessionPath = options.sessionPathFor?.(socketPath);
+  const saved = sessionPath === undefined ? undefined : await readSessionFile(sessionPath);
 
   const listener = listen(context, socketPath);
 
@@ -1293,6 +1362,11 @@ export const runServer = async (options: ServerOptions): Promise<RunServerResult
   context.runtime.listener = listener;
   handleSignals(context);
   options.log.info('Listening.', { socketPath });
+
+  if (sessionPath !== undefined) {
+    context.runtime.sessionWriter = createSessionWriter(sessionPath, options.log);
+    restoreSession(context, sessionPath, saved);
+  }
 
   return { ok: true, server: serverOf(context) };
 };
