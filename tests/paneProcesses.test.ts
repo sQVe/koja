@@ -1,10 +1,10 @@
 import { afterEach, expect, it } from 'bun:test';
-import { mkdtempSync, rmSync } from 'node:fs';
+import { mkdirSync, mkdtempSync, realpathSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
 import { sessionGroups } from '../src/server/processGroups.ts';
-import { readPaneFolders, readPaneProcesses } from '../src/server/processInfo.ts';
+import { readFollowFolder, readPaneFolders, readPaneProcesses } from '../src/server/processInfo.ts';
 import type { PaneProcesses } from '../src/server/processInfo.ts';
 
 const pollDeadlineMs = 5000;
@@ -140,4 +140,37 @@ it('reads the folder of a foreground process when the group leader has exited', 
   expect(folders.foregroundCwd).toBe('/var');
   expect(readPaneFolders(shell.pid).foregroundCwd).toBe('/var');
   expect(readPaneFolders(shell.pid).cwd).toBe('/tmp');
+});
+
+it('does not follow a real folder named like the deleted folder of the pane', async () => {
+  const shell = startShell();
+  const parent = realpathSync(mkdtempSync(join(tmpdir(), 'phi-deleted-')));
+  directories.push(parent);
+
+  const gone = join(parent, 'A');
+  const lookalike = `${gone} (deleted)`;
+  const shellFolder = realpathSync(directories[0] ?? '');
+
+  mkdirSync(gone);
+  shell.terminal?.write(`(cd ${gone} && sleep 60)\n`);
+  await waitFor(shell, (read) => read.foregroundCwd === gone);
+
+  rmSync(gone, { recursive: true });
+  mkdirSync(lookalike);
+
+  expect(readFollowFolder(shell.pid)).toBe(shellFolder);
+});
+
+it('follows a real folder whose name ends in (deleted)', async () => {
+  const shell = startShell();
+  const parent = realpathSync(mkdtempSync(join(tmpdir(), 'phi-named-')));
+  directories.push(parent);
+
+  const folder = join(parent, 'A (deleted)');
+
+  mkdirSync(folder);
+  shell.terminal?.write(`cd '${folder}'\n`);
+  await waitFor(shell, (read) => read.cwd === folder);
+
+  expect(readFollowFolder(shell.pid)).toBe(folder);
 });

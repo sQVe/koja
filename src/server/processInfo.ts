@@ -1,4 +1,4 @@
-import { readdirSync, readFileSync, readlinkSync } from 'node:fs';
+import { accessSync, constants, readdirSync, readFileSync, readlinkSync, statSync } from 'node:fs';
 
 import { readStat } from './processGroups.ts';
 
@@ -9,6 +9,17 @@ interface ForegroundProcess {
   argv: string[];
   cmdline: string;
   cwd: string | undefined;
+}
+
+interface FolderSource {
+  pid: number;
+  folder: string;
+}
+
+interface PaneFolderSources {
+  shell: FolderSource | undefined;
+  foreground: FolderSource | undefined;
+  foregroundGroup: number | undefined;
 }
 
 export interface PaneFolders {
@@ -96,35 +107,47 @@ const readGroupProcesses = (group: number, session: number): ForegroundProcess[]
   return processes.toSorted((left, right) => left.pid - right.pid);
 };
 
-const readMemberFolder = (group: number, shellPid: number, cwd: string | undefined) => {
+const sourceOf = (pid: number): FolderSource | undefined => {
+  const folder = readProcessFolder(pid);
+
+  return folder === undefined ? undefined : { pid, folder };
+};
+
+const readMemberSource = (group: number, shellPid: number, cwd: string | undefined) => {
   for (const member of readGroupProcesses(group, shellPid)) {
     if (member.pid !== shellPid && member.cwd !== undefined && member.cwd !== cwd) {
-      return member.cwd;
+      return { pid: member.pid, folder: member.cwd };
     }
   }
 
   return undefined;
 };
 
-// Reads the shell's stat and the folders of the shell and the foreground group leader. The
-// foreground folder is the leader's folder. Only when that cannot be read does it scan the group
-// for the first other process in a different folder than the shell, else it is missing. Without a
-// foreground group it is the shell's folder.
-export const readPaneFolders = (shellPid: number): PaneFolders => {
-  const cwd = readProcessFolder(shellPid);
+// The foreground folder is the leader's folder. Only when that cannot be read does it scan the
+// group for the first other process in a different folder than the shell, else it is missing.
+// Without a foreground group it is the shell's folder. Each folder keeps the pid it came from.
+const readPaneFolderSources = (shellPid: number): PaneFolderSources => {
+  const shell = sourceOf(shellPid);
   const terminalGroup = readStat(String(shellPid))?.terminalGroup;
 
   const foregroundGroup =
     terminalGroup !== undefined && terminalGroup > 0 ? terminalGroup : undefined;
 
   if (foregroundGroup === undefined) {
-    return { cwd, foregroundCwd: cwd, foregroundGroup };
+    return { shell, foreground: shell, foregroundGroup };
   }
 
-  const foregroundCwd =
-    readProcessFolder(foregroundGroup) ?? readMemberFolder(foregroundGroup, shellPid, cwd);
+  const foreground =
+    sourceOf(foregroundGroup) ?? readMemberSource(foregroundGroup, shellPid, shell?.folder);
 
-  return { cwd, foregroundCwd, foregroundGroup };
+  return { shell, foreground, foregroundGroup };
+};
+
+// Reads the shell's stat and the folders of the shell and the foreground group leader.
+export const readPaneFolders = (shellPid: number): PaneFolders => {
+  const { shell, foreground, foregroundGroup } = readPaneFolderSources(shellPid);
+
+  return { cwd: shell?.folder, foregroundCwd: foreground?.folder, foregroundGroup };
 };
 
 // Reads the pane shell's folder and the processes in the terminal's foreground group. Linux only.
@@ -136,4 +159,32 @@ export const readPaneProcesses = (shellPid: number): PaneProcesses => {
     foregroundGroup === undefined ? [] : readGroupProcesses(foregroundGroup, shellPid);
 
   return { shellPid, cwd, foregroundGroup, foregroundCwd, foregroundProcesses };
+};
+
+// The link text of a deleted folder is "<path> (deleted)", which may name an unrelated folder. A
+// folder is usable only when its path names the same directory the process is in.
+const isEnterable = ({ pid, folder }: FolderSource): boolean => {
+  try {
+    accessSync(folder, constants.X_OK);
+
+    const named = statSync(folder);
+    const actual = statSync(`/proc/${pid}/cwd`);
+
+    return named.isDirectory() && named.dev === actual.dev && named.ino === actual.ino;
+  } catch {
+    return false;
+  }
+};
+
+// Without an enterable folder, the caller starts the new pane in the workspace root.
+export const readFollowFolder = (shellPid: number): string | undefined => {
+  const { shell, foreground } = readPaneFolderSources(shellPid);
+
+  for (const candidate of [foreground, shell]) {
+    if (candidate !== undefined && isEnterable(candidate)) {
+      return candidate.folder;
+    }
+  }
+
+  return undefined;
 };

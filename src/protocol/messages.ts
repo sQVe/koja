@@ -295,7 +295,12 @@ const controlSchema = z.discriminatedUnion('type', [
   z.object({ type: z.literal('paneSend'), paneId: paneIdSchema, text: z.string() }),
   z.object({ type: z.literal('paneSent'), paneId: paneIdSchema }),
   z.object({ type: z.literal('paneMissing'), paneId: paneIdSchema }),
-  z.object({ type: z.literal('paneSplit'), paneId: paneIdSchema, direction: splitDirectionSchema }),
+  z.object({
+    type: z.literal('paneSplit'),
+    paneId: paneIdSchema,
+    direction: splitDirectionSchema,
+    cwd: absent(z.string()),
+  }),
   z.object({ type: z.literal('paneFocus'), paneId: paneIdSchema }),
   z.object({ type: z.literal('paneClose'), paneId: paneIdSchema }),
   z.object({ type: z.literal('paneZoom'), paneId: paneIdSchema }),
@@ -335,7 +340,11 @@ const controlSchema = z.discriminatedUnion('type', [
     reason: workspaceFailureSchema,
     message: absent(z.string()),
   }),
-  z.object({ type: z.literal('tabCreate'), workspaceId: workspaceIdSchema }),
+  z.object({
+    type: z.literal('tabCreate'),
+    workspaceId: workspaceIdSchema,
+    cwd: absent(z.string()),
+  }),
   z.object({ type: z.literal('tabFocus'), tabId: tabIdSchema }),
   z.object({ type: z.literal('tabClose'), tabId: tabIdSchema }),
   // Answers a tab request that worked, with the tab it acted on.

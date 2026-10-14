@@ -16,6 +16,7 @@ import {
   focusedPane,
   paneTheme,
   savedSessionOf,
+  shownFocusedPaneId,
   snapshot,
 } from '../store/store.ts';
 import type {
@@ -33,7 +34,12 @@ import type { Connection } from './connection.ts';
 import type { Log } from './log.ts';
 import { spawnPane } from './pane.ts';
 import type { PaneRuntime } from './pane.ts';
-import { readPaneFolders, readPaneProcesses, readProcessFolder } from './processInfo.ts';
+import {
+  readFollowFolder,
+  readPaneFolders,
+  readPaneProcesses,
+  readProcessFolder,
+} from './processInfo.ts';
 import { createRowPublisher } from './rowPublisher.ts';
 import type { RowPublisher, RowSubscription } from './rowPublisher.ts';
 import { scopeAvailable } from './scope.ts';
@@ -1051,9 +1057,22 @@ const handleWorkspaceRequest = (
 const isTabRequest = (message: ControlMessage): message is TabRequest =>
   message.type === 'tabCreate' || message.type === 'tabFocus' || message.type === 'tabClose';
 
-const tabIntentOf = (message: TabRequest, source: { clientId?: ClientId }): Intent => {
+const followFolderOf = (context: ServerContext, id: PaneId | undefined): string | undefined => {
+  const live = id === undefined ? undefined : findLivePane(context, id);
+
+  return live === undefined ? undefined : readFollowFolder(live.runtime.processId);
+};
+
+const tabIntentOf = (
+  context: ServerContext,
+  message: TabRequest,
+  source: { clientId?: ClientId },
+): Intent => {
   if (message.type === 'tabCreate') {
-    return { type: 'createTab', workspaceId: message.workspaceId, ...source };
+    const sourcePane = shownFocusedPaneId(context.state, message.workspaceId, source.clientId);
+    const folder = message.cwd ?? followFolderOf(context, sourcePane);
+
+    return { type: 'createTab', workspaceId: message.workspaceId, folder, ...source };
   }
 
   if (message.type === 'tabFocus') {
@@ -1097,7 +1116,7 @@ const handleTabRequest = (
     return;
   }
 
-  const changes = dispatch(context, tabIntentOf(message, sourceOf(context, connection)));
+  const changes = dispatch(context, tabIntentOf(context, message, sourceOf(context, connection)));
   const added = changes.find((change) => change.type === 'tabAdded');
   const startFailure = takePaneStartFailure(context);
 
@@ -1128,9 +1147,26 @@ const paneLayoutRequestTypes: ReadonlySet<string> = new Set([
 const isPaneLayoutRequest = (message: ControlMessage): message is PaneLayoutRequest =>
   paneLayoutRequestTypes.has(message.type);
 
-const paneIntentOf = (message: PaneLayoutRequest, source: { clientId?: ClientId }): Intent => {
+const paneFolderOf = (context: ServerContext, message: PaneLayoutRequest): string | undefined => {
+  if (message.type !== 'paneSplit') {
+    return undefined;
+  }
+
+  return message.cwd ?? followFolderOf(context, message.paneId);
+};
+
+const paneIntentOf = (
+  message: PaneLayoutRequest,
+  source: { clientId?: ClientId },
+  folder: string | undefined,
+): Intent => {
   if (message.type === 'paneSplit') {
-    return { type: 'splitPane', paneId: message.paneId, direction: message.direction };
+    return {
+      type: 'splitPane',
+      paneId: message.paneId,
+      direction: message.direction,
+      folder,
+    };
   }
 
   if (message.type === 'paneResize') {
@@ -1166,7 +1202,8 @@ const paneRefusalOf = (
     return { type: 'paneFailed', reason: 'unknownPane', message: undefined };
   }
 
-  const outcome = applyIntent(context.state, paneIntentOf(message, sourceOf(context, connection)));
+  const intent = paneIntentOf(message, sourceOf(context, connection), undefined);
+  const outcome = applyIntent(context.state, intent);
   const hasNoSplit = outcome.kind === 'rejected' && outcome.reason === 'noSplit';
 
   return hasNoSplit ? { type: 'paneFailed', reason: 'noSplit', message: undefined } : undefined;
@@ -1185,7 +1222,8 @@ const handlePaneLayoutRequest = (
     return;
   }
 
-  const changes = dispatch(context, paneIntentOf(message, sourceOf(context, connection)));
+  const folder = paneFolderOf(context, message);
+  const changes = dispatch(context, paneIntentOf(message, sourceOf(context, connection), folder));
   const added = changes.find((change) => change.type === 'paneAdded');
   const startFailure = takePaneStartFailure(context);
 

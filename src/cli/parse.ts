@@ -43,7 +43,7 @@ export interface WorkspaceCliCommand extends CommandOptions {
 
 export type TabAction =
   | { action: 'list' }
-  | { action: 'create'; workspaceId: WorkspaceId | undefined }
+  | { action: 'create'; workspaceId: WorkspaceId | undefined; cwd: string | undefined }
   | { action: 'focus'; tabId: TabId }
   | { action: 'close'; tabId: TabId };
 
@@ -70,6 +70,7 @@ interface StrayOptions {
   direction?: string;
   cells?: string;
   client?: string;
+  cwd?: string;
 }
 
 export interface AttachCommand {
@@ -107,6 +108,7 @@ interface GroupInput {
   workspace: string | undefined;
   direction: string | undefined;
   cells: string | undefined;
+  cwd: string | undefined;
   options: CommandOptions;
 }
 
@@ -115,6 +117,7 @@ type IdResult<Id> = { ok: true; id: Id } | { ok: false; message: string };
 interface LayoutOptions {
   direction: string | undefined;
   cells: string | undefined;
+  cwd: string | undefined;
 }
 
 const serverActions = ['run', 'start', 'stop'] as const;
@@ -136,13 +139,13 @@ export const usage = `Usage:
   phi workspace rename <id> <label> [--socket <path>] [--json]
   phi workspace close <id> [--socket <path>] [--json]
   phi tab list [--socket <path>] [--json]
-  phi tab create [--workspace <id>] [--socket <path>] [--json]
+  phi tab create [--workspace <id>] [--cwd <dir>] [--socket <path>] [--json]
   phi tab focus <id> [--socket <path>] [--json]
   phi tab close <id> [--socket <path>] [--json]
   phi pane list [--socket <path>] [--json]
   phi pane read [--pane <id>] [--socket <path>] [--json]
   phi pane send <text> [--pane <id>] [--socket <path>] [--json]
-  phi pane split <id> --direction below|right [--socket <path>] [--json]
+  phi pane split <id> --direction below|right [--cwd <dir>] [--socket <path>] [--json]
   phi pane focus <id> [--socket <path>] [--json]
   phi pane close <id> [--socket <path>] [--json]
   phi pane zoom <id> [--socket <path>] [--json]
@@ -235,10 +238,26 @@ const parseResizeCommand = (
     : { action: 'resize', pane, direction: parsedDirection, cells: parsedCells };
 };
 
+const parseSplitCommand = (
+  pane: PaneId,
+  direction: string | undefined,
+  cwd: string | undefined,
+): PaneLayoutCommand | string => {
+  const parsed = parseSplitDirection(direction);
+
+  if (cwd === '') {
+    return 'The --cwd folder cannot be empty.';
+  }
+
+  return parsed === undefined
+    ? 'pane split takes --direction below or --direction right.'
+    : { action: 'split', pane, direction: parsed, cwd };
+};
+
 const parsePaneLayoutCommand = (
   action: 'split' | 'focus' | 'close' | 'zoom' | 'resize',
   rest: string[],
-  { direction, cells }: LayoutOptions,
+  { direction, cells, cwd }: LayoutOptions,
 ): PaneLayoutCommand | string => {
   if (rest.length !== 1) {
     return `pane ${action} takes one pane id.`;
@@ -254,12 +273,12 @@ const parsePaneLayoutCommand = (
     return '--cells belongs to pane resize.';
   }
 
-  if (action === 'split') {
-    const parsed = parseSplitDirection(direction);
+  if (action !== 'split' && cwd !== undefined) {
+    return '--cwd belongs to pane split and tab create.';
+  }
 
-    return parsed === undefined
-      ? 'pane split takes --direction below or --direction right.'
-      : { action, pane: paneId(target), direction: parsed };
+  if (action === 'split') {
+    return parseSplitCommand(paneId(target), direction, cwd);
   }
 
   if (action === 'resize') {
@@ -350,6 +369,10 @@ const parsePaneCommand = (
 
   if (options.direction !== undefined) {
     return '--direction belongs to pane split and pane resize.';
+  }
+
+  if (options.cwd !== undefined) {
+    return '--cwd belongs to pane split and tab create.';
   }
 
   if (action === 'process-info' && options.cells === undefined) {
@@ -447,27 +470,40 @@ const parseTabTarget = (action: 'focus' | 'close', rest: string[]): TabAction | 
   return id.ok ? { action, tabId: id.id } : id.message;
 };
 
-const parseTabCreate = (rest: string[], workspace: string | undefined): TabAction | string => {
+const parseTabCreate = (
+  rest: string[],
+  workspace: string | undefined,
+  cwd: string | undefined,
+): TabAction | string => {
   if (rest.length > 0) {
     return 'tab create takes no arguments.';
   }
 
+  if (cwd === '') {
+    return 'The --cwd folder cannot be empty.';
+  }
+
   if (workspace === undefined) {
-    return { action: 'create', workspaceId: undefined };
+    return { action: 'create', workspaceId: undefined, cwd };
   }
 
   const id = parseWorkspaceId(workspace);
 
-  return id.ok ? { action: 'create', workspaceId: id.id } : id.message;
+  return id.ok ? { action: 'create', workspaceId: id.id, cwd } : id.message;
 };
 
 const parseTabCommand = (
   action: string | undefined,
   rest: string[],
   workspace: string | undefined,
+  cwd: string | undefined,
 ): TabAction | string => {
   if (action === 'create') {
-    return parseTabCreate(rest, workspace);
+    return parseTabCreate(rest, workspace, cwd);
+  }
+
+  if (cwd !== undefined) {
+    return '--cwd belongs to pane split and tab create.';
   }
 
   if (workspace !== undefined) {
@@ -577,7 +613,7 @@ const parseGroupCommand = (group: string | undefined, input: GroupInput): Comman
   }
 
   if (group === 'tab') {
-    const tab = parseTabCommand(input.action, input.rest, input.workspace);
+    const tab = parseTabCommand(input.action, input.rest, input.workspace, input.cwd);
 
     return typeof tab === 'string' ? tab : { kind: 'tab', tab, ...input.options };
   }
@@ -586,6 +622,7 @@ const parseGroupCommand = (group: string | undefined, input: GroupInput): Comman
     const pane = parsePaneCommand(input.action, input.rest, input.pane, {
       direction: input.direction,
       cells: input.cells,
+      cwd: input.cwd,
     });
 
     return typeof pane === 'string' ? pane : { kind: 'pane', pane, ...input.options };
@@ -602,7 +639,12 @@ const strayLayoutOptionMessage = (
   group: string | undefined,
   direction: string | undefined,
   cells: string | undefined,
+  cwd: string | undefined,
 ): string | undefined => {
+  if (cwd !== undefined && group !== 'pane' && group !== 'tab') {
+    return '--cwd belongs to pane split and tab create.';
+  }
+
   if (direction !== undefined && group !== 'pane') {
     return '--direction belongs to pane split and pane resize.';
   }
@@ -612,9 +654,9 @@ const strayLayoutOptionMessage = (
 
 const strayOptionMessage = (
   group: string | undefined,
-  { label, background, pane, workspace, direction, cells, client }: StrayOptions,
+  { label, background, pane, workspace, direction, cells, client, cwd }: StrayOptions,
 ): string | undefined => {
-  const layoutStray = strayLayoutOptionMessage(group, direction, cells);
+  const layoutStray = strayLayoutOptionMessage(group, direction, cells, cwd);
 
   if (layoutStray !== undefined) {
     return layoutStray;
@@ -656,6 +698,7 @@ export const parseCommand = (argv: string[]): Command | string => {
         direction: { type: 'string' },
         cells: { type: 'string' },
         client: { type: 'string' },
+        cwd: { type: 'string' },
       },
       allowPositionals: true,
       strict: true,
@@ -691,6 +734,7 @@ export const parseCommand = (argv: string[]): Command | string => {
       workspace: values.workspace,
       direction: values.direction,
       cells: values.cells,
+      cwd: values.cwd,
       options,
     });
   } catch (error) {

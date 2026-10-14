@@ -9,6 +9,7 @@ import {
 import type { PaneLayoutCommand, StoreSnapshot } from '../client/client.ts';
 import type { PaneId } from '../ids.ts';
 import type { BuildVersion } from '../protocol/protocol.ts';
+import { resolveFolder } from './directory.ts';
 import { resolveSocketPath } from './environment.ts';
 import type { Environment } from './environment.ts';
 import { connectionFailureMessage, print, printJson } from './output.ts';
@@ -133,7 +134,14 @@ const runPaneLayout = async (
   version: BuildVersion,
   socketPath: string,
 ): Promise<Outcome> => {
-  const result = await runPaneLayoutCommand(socketPath, version, request);
+  const resolved = await resolveFolder(request.action === 'split' ? request.cwd : undefined);
+
+  if (!resolved.ok) {
+    return resolved;
+  }
+
+  const sent = request.action === 'split' ? { ...request, cwd: resolved.folder } : request;
+  const result = await runPaneLayoutCommand(socketPath, version, sent);
 
   if (result.ok) {
     print(command.json, {

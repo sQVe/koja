@@ -10,6 +10,7 @@ import {
   focusedPane,
   paneTheme,
   savedSessionOf,
+  shownFocusedPaneId,
   snapshot,
 } from './store.ts';
 import type {
@@ -644,7 +645,7 @@ it('labels a workspace with the whole root when the root has no base name', () =
   expect(result.state.workspaces.map((workspace) => workspace.label)).toEqual(['/']);
 });
 
-const createTab: Intent = { type: 'createTab', workspaceId: workspaceId(1) };
+const createTab: Intent = { type: 'createTab', workspaceId: workspaceId(1), folder: undefined };
 
 const workspaceOne = (state: State): WorkspaceRecord => {
   const workspace = state.workspaces.find((known) => known.id === workspaceId(1));
@@ -798,7 +799,9 @@ it('refuses a tab intent for an unknown tab or workspace and leaves state unchan
     expect(applyIntent(state, next)).toEqual({ kind: 'rejected', state, reason: 'unknownTab' });
   }
 
-  expect(applyIntent(state, { type: 'createTab', workspaceId: unknownWorkspace })).toEqual({
+  expect(
+    applyIntent(state, { type: 'createTab', workspaceId: unknownWorkspace, folder: undefined }),
+  ).toEqual({
     kind: 'rejected',
     state,
     reason: 'unknownWorkspace',
@@ -822,9 +825,9 @@ it('refuses a tab intent while the server stops and leaves state unchanged', () 
 it('keeps the tab that was active when the pane of a new tab fails to start', () => {
   const state = run([
     createPhi,
-    { type: 'createTab', workspaceId: workspaceId(1) },
+    { type: 'createTab', workspaceId: workspaceId(1), folder: undefined },
     { type: 'focusTab', tabId: tabId(1) },
-    { type: 'createTab', workspaceId: workspaceId(1) },
+    { type: 'createTab', workspaceId: workspaceId(1), folder: undefined },
   ]);
 
   const result = fact(state, {
@@ -869,6 +872,7 @@ const splitFirst = (direction: 'below' | 'right'): Intent => ({
   type: 'splitPane',
   paneId: paneId(1),
   direction,
+  folder: undefined,
 });
 
 const startedPane = (id: number, generation: number): Fact => ({
@@ -925,7 +929,12 @@ it('splits the focused pane below and gives each pane half the rows', () => {
 it('splits a pane inside a split at half the area of that pane', () => {
   const state = run([createPhi, attachLarge, splitFirst('right')]);
 
-  const result = intent(state, { type: 'splitPane', paneId: paneId(2), direction: 'below' });
+  const result = intent(state, {
+    type: 'splitPane',
+    paneId: paneId(2),
+    direction: 'below',
+    folder: undefined,
+  });
 
   expect(result.state.panes.map((pane) => pane.size)).toEqual([
     { columns: 38, rows: 22 },
@@ -956,7 +965,7 @@ it('focuses the first pane of a sibling split when its neighbor closes', () => {
     createPhi,
     attachLarge,
     splitFirst('right'),
-    { type: 'splitPane', paneId: paneId(2), direction: 'below' },
+    { type: 'splitPane', paneId: paneId(2), direction: 'below', folder: undefined },
     { type: 'focusPane', paneId: paneId(1) },
   ]);
 
@@ -1076,7 +1085,7 @@ const tinyClient: Intent = { type: 'attachClient', size: { columns: 2, rows: 3 }
 it.each([
   [
     'split an unknown pane',
-    { type: 'splitPane', paneId: paneId(9), direction: 'right' },
+    { type: 'splitPane', paneId: paneId(9), direction: 'right', folder: undefined },
     'unknownPane',
   ],
   ['focus an unknown pane', { type: 'focusPane', paneId: paneId(9) }, 'unknownPane'],
@@ -1099,7 +1108,12 @@ it('splits a pane that has room for exactly two framed 1x1 terminals and a gap',
   ]);
 
   expect(
-    applyIntent(result.state, { type: 'splitPane', paneId: paneId(2), direction: 'right' }),
+    applyIntent(result.state, {
+      type: 'splitPane',
+      paneId: paneId(2),
+      direction: 'right',
+      folder: undefined,
+    }),
   ).toMatchObject({ kind: 'rejected', reason: 'paneTooSmall' });
 });
 
@@ -1130,7 +1144,7 @@ it('refuses a right split one column short of two frames and a gap', () => {
 });
 
 it.each([
-  ['split', { type: 'splitPane', paneId: paneId(1), direction: 'right' }],
+  ['split', { type: 'splitPane', paneId: paneId(1), direction: 'right', folder: undefined }],
   ['focus', { type: 'focusPane', paneId: paneId(1) }],
   ['close', { type: 'closePane', paneId: paneId(1) }],
 ] as const)('refuses to %s a pane while the server stops', (_name, refused) => {
@@ -1188,7 +1202,7 @@ it('keeps the focus on an unfocused pane when its neighbor closes, and gives it 
     createPhi,
     attachLarge,
     splitFirst('right'),
-    { type: 'splitPane', paneId: paneId(2), direction: 'below' },
+    { type: 'splitPane', paneId: paneId(2), direction: 'below', folder: undefined },
     { type: 'focusPane', paneId: paneId(1) },
   ]);
 
@@ -1254,6 +1268,7 @@ const splitPaneOf = (id: number, direction: 'below' | 'right'): Intent => ({
   type: 'splitPane',
   paneId: paneId(id),
   direction,
+  folder: undefined,
 });
 
 it('zooms a pane over the whole area and keeps the size of the hidden pane', () => {
@@ -1826,7 +1841,11 @@ it('moves every view when the CLI creates a workspace or a tab', () => {
   expect(focusedIn(workspace.state, 1)).toBe(workspaceId(2));
   expect(focusedIn(workspace.state, 2)).toBe(workspaceId(2));
 
-  const tab = intent(workspace.state, { type: 'createTab', workspaceId: workspaceId(2) });
+  const tab = intent(workspace.state, {
+    type: 'createTab',
+    workspaceId: workspaceId(2),
+    folder: undefined,
+  });
 
   expect(activeIn(tab.state, 1, 2)).toBe(tabId(3));
   expect(activeIn(tab.state, 2, 2)).toBe(tabId(3));
@@ -2206,7 +2225,7 @@ it('returns each view a failed tab start moved to its own earlier tab', () => {
     viewShowing(1, [[1, 2]]),
   ]);
 
-  const created = intent(base, { type: 'createTab', workspaceId: workspaceId(1) }).state;
+  const created = intent(base, createTab).state;
   const failed = failedStart(created, 3).state;
 
   expect(activeIn(failed, 1, 1)).toBe(tabId(1));
@@ -2264,4 +2283,36 @@ it('saves a folder that was read, and keeps the restored folder for a pane with 
   expect(savedSessionOf(run(richSession), noFolders).panes.map((pane) => pane.startFolder)).toEqual(
     [undefined, undefined, undefined, undefined],
   );
+});
+
+it('records the folder of a createTab intent on the new pane', () => {
+  const result = intent(run([createPhi]), { ...createTab, folder: '/srv/source' });
+
+  expect(result.state.panes.find((pane) => pane.id === paneId(2))?.startFolder).toBe('/srv/source');
+});
+
+it('records the folder of a splitPane intent on the new pane', () => {
+  const state = run([createPhi, attachLarge]);
+
+  const result = intent(state, {
+    type: 'splitPane',
+    paneId: paneId(1),
+    direction: 'right',
+    folder: '/srv/source',
+  });
+
+  expect(result.state.panes.find((pane) => pane.id === paneId(2))?.startFolder).toBe('/srv/source');
+  expect(result.state.panes.find((pane) => pane.id === paneId(1))?.startFolder).toBeUndefined();
+});
+
+it('finds the focused pane of the tab the source client shows, or the default view shows', () => {
+  const state = withViews(twoClients(createPhi, createTab), [
+    viewShowing(1, [[1, 1]]),
+    viewShowing(1, [[1, 2]]),
+    viewShowing(1, [[1, 1]]),
+  ]);
+
+  expect(shownFocusedPaneId(state, workspaceId(1), clientId(1))).toBe(paneId(2));
+  expect(shownFocusedPaneId(state, workspaceId(1), clientId(2))).toBe(paneId(1));
+  expect(shownFocusedPaneId(state, workspaceId(1), undefined)).toBe(paneId(1));
 });

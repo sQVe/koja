@@ -552,7 +552,7 @@ export const connectAttach = async (
       }
 
       if (route.kind === 'create') {
-        sendTabRequest({ type: 'tabCreate', workspaceId: workspace.id });
+        sendTabRequest({ type: 'tabCreate', workspaceId: workspace.id, cwd: undefined });
 
         return;
       }
@@ -568,7 +568,8 @@ export const connectAttach = async (
     afterTabAnswer: (callback) => {
       tabAnswerCallbacks.push(callback);
     },
-    splitPane: (pane, direction) => requestLayout({ type: 'paneSplit', paneId: pane, direction }),
+    splitPane: (pane, direction) =>
+      requestLayout({ type: 'paneSplit', paneId: pane, direction, cwd: undefined }),
     focusPane: (pane) => requestLayout({ type: 'paneFocus', paneId: pane }),
     closePane: (pane) => requestLayout({ type: 'paneClose', paneId: pane }),
     zoomPane: (pane) => requestLayout({ type: 'paneZoom', paneId: pane }),
