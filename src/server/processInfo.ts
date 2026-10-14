@@ -96,9 +96,22 @@ const readGroupProcesses = (group: number, session: number): ForegroundProcess[]
   return processes.toSorted((left, right) => left.pid - right.pid);
 };
 
-// Reads only the shell's stat and the folders of the shell and the foreground group leader, so it
-// costs the same however many processes the host runs. The foreground folder falls back to the
-// shell's folder.
+// Finds the first process in the foreground group, by ascending pid and not the shell, whose
+// folder can be read and differs from the shell's.
+const readMemberFolder = (group: number, shellPid: number, cwd: string | undefined) => {
+  for (const member of readGroupProcesses(group, shellPid)) {
+    if (member.pid !== shellPid && member.cwd !== undefined && member.cwd !== cwd) {
+      return member.cwd;
+    }
+  }
+
+  return undefined;
+};
+
+// Reads the shell's stat and the folders of the shell and the foreground group leader. The
+// foreground folder is the leader's folder. Only when that cannot be read does it scan the group
+// for the first other process in a different folder than the shell, else it is missing. Without a
+// foreground group it is the shell's folder.
 export const readPaneFolders = (shellPid: number): PaneFolders => {
   const cwd = readProcessFolder(shellPid);
   const terminalGroup = readStat(String(shellPid))?.terminalGroup;
@@ -110,7 +123,10 @@ export const readPaneFolders = (shellPid: number): PaneFolders => {
     return { cwd, foregroundCwd: cwd, foregroundGroup };
   }
 
-  return { cwd, foregroundCwd: readProcessFolder(foregroundGroup) ?? cwd, foregroundGroup };
+  const foregroundCwd =
+    readProcessFolder(foregroundGroup) ?? readMemberFolder(foregroundGroup, shellPid, cwd);
+
+  return { cwd, foregroundCwd, foregroundGroup };
 };
 
 // Reads the pane shell's folder and the processes in the terminal's foreground group. Linux only.

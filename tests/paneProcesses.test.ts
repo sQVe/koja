@@ -125,3 +125,19 @@ it('reads the same folders with the folder-only reader as with the process reade
   expect(folders.foregroundCwd).toBe(processes.foregroundCwd);
   expect(folders.foregroundGroup).toBe(processes.foregroundGroup);
 });
+
+it('reads the folder of a foreground process when the group leader has exited', async () => {
+  const shell = startShell();
+  shell.terminal?.write('cd /tmp\ntrue | (cd /var && sleep 60)\n');
+
+  const processes = await waitFor(shell, (read) =>
+    read.foregroundProcesses.some((entry) => entry.cmdline === 'sleep 60'),
+  );
+
+  const folders = await waitFor(shell, (read) => read.foregroundCwd === '/var');
+
+  expect(processes.cwd).toBe('/tmp');
+  expect(folders.foregroundCwd).toBe('/var');
+  expect(readPaneFolders(shell.pid).foregroundCwd).toBe('/var');
+  expect(readPaneFolders(shell.pid).cwd).toBe('/tmp');
+});
