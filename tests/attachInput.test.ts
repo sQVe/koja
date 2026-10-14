@@ -552,3 +552,29 @@ for (const { flags, literal, letter } of kittyCases) {
     await until(() => receivedBy(1) === literal + letter);
   });
 }
+
+it('leaves the outer terminal kitty stack as it was after attach, 7, 31, 7, and hangup', async () => {
+  const { setModes, outputText, hangUp, until } = await setupAttach(0);
+
+  await until(() => outputText().includes('\x1b[>7u'));
+  setModes(1, withFlags(8));
+  await until(() => outputText().includes('\x1b[>31u'));
+  setModes(1, 0);
+  await until(() => countOf(outputText(), '\x1b[>7u') === 2);
+  hangUp();
+  await until(() => countOf(outputText(), '\x1b[<u') === 3);
+
+  const sequences = outputText().match(new RegExp(String.raw`\u001b\[[<>]\d*u`, 'g')) ?? [];
+  const stack: string[] = [];
+
+  for (const sequence of sequences) {
+    if (sequence.startsWith('\x1b[>')) {
+      stack.push(sequence);
+    } else {
+      stack.pop();
+    }
+  }
+
+  expect(sequences[0]).toBe('\x1b[>7u');
+  expect(stack).toEqual([]);
+});
