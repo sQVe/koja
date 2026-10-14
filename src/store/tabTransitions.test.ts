@@ -1,0 +1,216 @@
+import { expect, it } from 'bun:test';
+
+import { paneId, tabId, workspaceId } from '../ids.ts';
+import { activeTabOf, applyIntent, focusedPane } from './store.ts';
+import type { Intent, Pane, State, Tab, WorkspaceRecord } from './store.ts';
+import {
+  createDocs,
+  createPhi,
+  createTab,
+  fact,
+  intent,
+  run,
+  unknownWorkspace,
+} from './storeFixtures.ts';
+
+const workspaceOne = (state: State): WorkspaceRecord => {
+  const workspace = state.workspaces.find((known) => known.id === workspaceId(1));
+
+  if (workspace === undefined) {
+    throw new Error('Expected workspace-1.');
+  }
+
+  return workspace;
+};
+
+it('creates a second tab with a starting pane, last in the list and active', () => {
+  const result = intent(run([createPhi]), createTab);
+
+  const pane: Pane = {
+    id: paneId(2),
+    tabId: tabId(2),
+    lifecycle: 'starting',
+    size: { columns: 80, rows: 24 },
+    generation: 2,
+    exitCode: undefined,
+    startFolder: undefined,
+    restored: false,
+    error: undefined,
+  };
+
+  const tab: Tab = {
+    id: tabId(2),
+    workspaceId: workspaceId(1),
+    layout: { kind: 'pane', paneId: paneId(2) },
+    focusedPaneId: paneId(2),
+    zoomedPaneId: undefined,
+  };
+
+  expect(workspaceOne(result.state)).toMatchObject({ tabIds: [tabId(1), tabId(2)] });
+  expect(activeTabOf(result.state.defaultView, workspaceId(1))).toBe(tabId(2));
+
+  expect(result.changes).toEqual([
+    { type: 'tabAdded', tab },
+    { type: 'paneAdded', pane },
+    { type: 'tabFocused', workspaceId: workspaceId(1), tabId: tabId(2) },
+  ]);
+
+  expect(focusedPane(result.state)).toEqual(pane);
+});
+
+it('focuses a tab and the workspace that owns it', () => {
+  const state = run([createPhi, createTab, createDocs]);
+  const result = intent(state, { type: 'focusTab', tabId: tabId(1) });
+
+  expect(activeTabOf(result.state.defaultView, workspaceId(1))).toBe(tabId(1));
+  expect(result.state.defaultView.focusedWorkspaceId).toBe(workspaceId(1));
+
+  expect(result.changes).toEqual([
+    { type: 'tabFocused', workspaceId: workspaceId(1), tabId: tabId(1) },
+    { type: 'workspaceFocused', workspaceId: workspaceId(1) },
+  ]);
+});
+
+it('reports no change when the tab is already active and focused', () => {
+  const state = run([createPhi, createTab]);
+  const result = intent(state, { type: 'focusTab', tabId: tabId(2) });
+
+  expect(result.changes).toEqual([]);
+  expect(result.state).toEqual(state);
+});
+
+it('closes a tab with its pane and keeps the workspace', () => {
+  const state = run([createPhi, createTab]);
+  const result = intent(state, { type: 'closeTab', tabId: tabId(1) });
+
+  expect(result.state.tabs.map((tab) => tab.id)).toEqual([tabId(2)]);
+  expect(result.state.panes.map((pane) => pane.id)).toEqual([paneId(2)]);
+  expect(workspaceOne(result.state)).toMatchObject({ tabIds: [tabId(2)] });
+  expect(activeTabOf(result.state.defaultView, workspaceId(1))).toBe(tabId(2));
+});
+
+it('removes the workspace when its only tab closes', () => {
+  const result = intent(run([createPhi]), { type: 'closeTab', tabId: tabId(1) });
+
+  expect(result.state.workspaces).toEqual([]);
+  expect(result.state.defaultView.focusedWorkspaceId).toBeUndefined();
+});
+
+it('hands activity to the previous tab when the active middle tab closes', () => {
+  const state = run([createPhi, createTab, createTab, { type: 'focusTab', tabId: tabId(2) }]);
+  const result = intent(state, { type: 'closeTab', tabId: tabId(2) });
+
+  expect(workspaceOne(result.state)).toMatchObject({ tabIds: [tabId(1), tabId(3)] });
+  expect(activeTabOf(result.state.defaultView, workspaceId(1))).toBe(tabId(1));
+
+  expect(result.changes).toContainEqual({
+    type: 'tabFocused',
+    workspaceId: workspaceId(1),
+    tabId: tabId(1),
+  });
+});
+
+it('hands activity to the next tab when the active first tab closes', () => {
+  const state = run([createPhi, createTab, createTab, { type: 'focusTab', tabId: tabId(1) }]);
+  const result = intent(state, { type: 'closeTab', tabId: tabId(1) });
+
+  expect(activeTabOf(result.state.defaultView, workspaceId(1))).toBe(tabId(2));
+});
+
+it('keeps the active tab when an inactive tab closes before it', () => {
+  const state = run([createPhi, createTab, createTab, { type: 'focusTab', tabId: tabId(3) }]);
+  const result = intent(state, { type: 'closeTab', tabId: tabId(1) });
+
+  expect(activeTabOf(result.state.defaultView, workspaceId(1))).toBe(tabId(3));
+  expect(result.changes.some((change) => change.type === 'tabFocused')).toBe(false);
+});
+
+it('hands activity to the previous tab when the active last tab closes', () => {
+  const state = run([createPhi, createTab]);
+  const result = intent(state, { type: 'closeTab', tabId: tabId(2) });
+
+  expect(activeTabOf(result.state.defaultView, workspaceId(1))).toBe(tabId(1));
+
+  expect(result.changes).toContainEqual({
+    type: 'tabFocused',
+    workspaceId: workspaceId(1),
+    tabId: tabId(1),
+  });
+});
+
+it('keeps the active tab when another tab closes', () => {
+  const state = run([createPhi, createTab]);
+  const result = intent(state, { type: 'closeTab', tabId: tabId(1) });
+
+  expect(result.changes.some((change) => change.type === 'tabFocused')).toBe(false);
+});
+
+it('hands activity to a neighbor when the pane of the active tab exits', () => {
+  const state = run([createPhi, createTab]);
+  const result = fact(state, { type: 'paneExited', paneId: paneId(2), generation: 2, exitCode: 0 });
+
+  expect(workspaceOne(result.state)).toMatchObject({ tabIds: [tabId(1)] });
+  expect(activeTabOf(result.state.defaultView, workspaceId(1))).toBe(tabId(1));
+});
+
+it('refuses a tab intent for an unknown tab or workspace and leaves state unchanged', () => {
+  const state = run([createPhi]);
+
+  const unknownTabs: Intent[] = [
+    { type: 'focusTab', tabId: tabId(99) },
+    { type: 'closeTab', tabId: tabId(99) },
+  ];
+
+  for (const next of unknownTabs) {
+    expect(applyIntent(state, next)).toEqual({ kind: 'rejected', state, reason: 'unknownTab' });
+  }
+
+  expect(
+    applyIntent(state, { type: 'createTab', workspaceId: unknownWorkspace, folder: undefined }),
+  ).toEqual({
+    kind: 'rejected',
+    state,
+    reason: 'unknownWorkspace',
+  });
+});
+
+it('refuses a tab intent while the server stops and leaves state unchanged', () => {
+  const state = run([createPhi, { type: 'stopServer' }]);
+
+  const intents: Intent[] = [
+    createTab,
+    { type: 'focusTab', tabId: tabId(1) },
+    { type: 'closeTab', tabId: tabId(1) },
+  ];
+
+  for (const next of intents) {
+    expect(applyIntent(state, next)).toEqual({ kind: 'rejected', state, reason: 'serverStopping' });
+  }
+});
+
+it('keeps the tab that was active when the pane of a new tab fails to start', () => {
+  const state = run([
+    createPhi,
+    { type: 'createTab', workspaceId: workspaceId(1), folder: undefined },
+    { type: 'focusTab', tabId: tabId(1) },
+    { type: 'createTab', workspaceId: workspaceId(1), folder: undefined },
+  ]);
+
+  const result = fact(state, {
+    type: 'paneFailedToStart',
+    paneId: paneId(3),
+    generation: 3,
+    message: 'no shell',
+  });
+
+  const owner = result.state.workspaces[0];
+
+  expect(owner?.tabIds).toEqual([tabId(1), tabId(2)]);
+  expect(activeTabOf(result.state.defaultView, owner?.id)).toBe(tabId(1));
+});
+
+it('records the folder of a createTab intent on the new pane', () => {
+  const result = intent(run([createPhi]), { ...createTab, folder: '/srv/source' });
+
+  expect(result.state.panes.find((pane) => pane.id === paneId(2))?.startFolder).toBe('/srv/source');
+});
