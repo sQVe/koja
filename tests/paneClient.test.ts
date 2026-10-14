@@ -50,6 +50,7 @@ const snapshot = (live: boolean): ControlMessage => ({
             generation: 1,
             size: { columns: 80, rows: 24 },
             exitCode: undefined,
+            folder: undefined,
           },
         ]
       : [],

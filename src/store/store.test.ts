@@ -61,6 +61,7 @@ it('creates a workspace with one tab and one starting pane', () => {
     size: { columns: 80, rows: 24 },
     generation: 1,
     exitCode: undefined,
+    folder: undefined,
   };
 
   const tab: Tab = {
@@ -641,6 +642,7 @@ it('creates a second tab with a starting pane, last in the list and active', () 
     size: { columns: 80, rows: 24 },
     generation: 2,
     exitCode: undefined,
+    folder: undefined,
   };
 
   const tab: Tab = {
@@ -850,6 +852,7 @@ it('splits a pane at half its area, starts the new pane, and focuses it', () => 
     size: { columns: 38, rows: 22 },
     generation: 2,
     exitCode: undefined,
+    folder: undefined,
   });
 
   expect(result.state.panes[0]?.size).toEqual({ columns: 38, rows: 22 });
@@ -1484,9 +1487,11 @@ const richSession: readonly Intent[] = [
   { type: 'focusWorkspace', workspaceId: workspaceId(1) },
 ];
 
+const noFolders: ReadonlyMap<PaneId, string> = new Map();
+
 const restoreIntent = (state: State): Intent => ({
   type: 'restoreSession',
-  session: savedSessionOf(state),
+  session: savedSessionOf(state, noFolders),
 });
 
 const attachedEmpty = (): State => intent(createState(), attachLarge).state;
@@ -1495,7 +1500,7 @@ it('restores a saved session with its ids, focus, and zoom', () => {
   const saved = run(richSession);
   const result = intent(attachedEmpty(), restoreIntent(saved));
 
-  expect(savedSessionOf(result.state)).toEqual(savedSessionOf(saved));
+  expect(savedSessionOf(result.state, noFolders)).toEqual(savedSessionOf(saved, noFolders));
   expect(result.state.panes).toHaveLength(4);
   expect(result.state.panes.every((pane) => pane.lifecycle === 'starting')).toBe(true);
   expect(result.state.tabs.some((tab) => tab.zoomedPaneId === paneId(4))).toBe(true);
@@ -1609,7 +1614,7 @@ it('shows the workspace a CLI focus chose when no client is attached, after a re
 
   expect(focus.changes).toEqual([{ type: 'workspaceFocused', workspaceId: workspaceId(1) }]);
   expect(reattached.clients[0]?.view.focusedWorkspaceId).toBe(workspaceId(1));
-  expect(savedSessionOf(reattached).focusedWorkspaceId).toBe(workspaceId(1));
+  expect(savedSessionOf(reattached, noFolders).focusedWorkspaceId).toBe(workspaceId(1));
 });
 
 it('starts a new client from the default view', () => {
@@ -1945,7 +1950,7 @@ it('saves the default view through the workspace fields and no client', () => {
     clientId: clientId(1),
   }).state;
 
-  const saved = savedSessionOf(moved);
+  const saved = savedSessionOf(moved, noFolders);
 
   expect(saved.focusedWorkspaceId).toBe(workspaceId(1));
   expect(saved.workspaces.map((workspace) => workspace.activeTabId)).toEqual([tabId(1), tabId(2)]);
@@ -2111,4 +2116,35 @@ it('returns each view a failed tab start moved to its own earlier tab', () => {
   expect(activeIn(keeps, 1, 1)).toBe(tabId(1));
   expect(activeIn(keeps, 2, 1)).toBe(tabId(1));
   expect(activeTabOf(keeps.defaultView, workspaceId(1))).toBe(tabId(1));
+});
+
+it('saves a folder that was read, and keeps the restored folder for a pane with none read', () => {
+  const saved = savedSessionOf(run(richSession), noFolders);
+
+  const withFolders = {
+    ...saved,
+    panes: saved.panes.map((pane) => ({
+      id: pane.id,
+      tabId: pane.tabId,
+      folder: `/restored/${pane.id}`,
+    })),
+  };
+
+  const restored = intent(attachedEmpty(), { type: 'restoreSession', session: withFolders }).state;
+  const read = new Map([[paneId(1), '/read/one']]);
+  const next = savedSessionOf(restored, read);
+
+  expect(next.panes.map((pane) => pane.folder)).toEqual([
+    '/read/one',
+    '/restored/pane-2',
+    '/restored/pane-3',
+    '/restored/pane-4',
+  ]);
+
+  expect(savedSessionOf(run(richSession), noFolders).panes.map((pane) => pane.folder)).toEqual([
+    undefined,
+    undefined,
+    undefined,
+    undefined,
+  ]);
 });

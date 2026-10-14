@@ -18,13 +18,22 @@ import {
   savedSessionOf,
   snapshot,
 } from '../store/store.ts';
-import type { Change, DetachReason, Fact, Intent, Pane, Snapshot, State } from '../store/store.ts';
+import type {
+  Change,
+  DetachReason,
+  Fact,
+  Intent,
+  Pane,
+  SavedSession,
+  Snapshot,
+  State,
+} from '../store/store.ts';
 import { createConnection } from './connection.ts';
 import type { Connection } from './connection.ts';
 import type { Log } from './log.ts';
 import { spawnPane } from './pane.ts';
 import type { PaneRuntime } from './pane.ts';
-import { readPaneFolders, readPaneProcesses } from './processInfo.ts';
+import { readPaneFolders, readPaneProcesses, readProcessFolder } from './processInfo.ts';
 import { createRowPublisher } from './rowPublisher.ts';
 import type { RowPublisher, RowSubscription } from './rowPublisher.ts';
 import { scopeAvailable } from './scope.ts';
@@ -303,6 +312,9 @@ const workspaceRootOf = (context: ServerContext, pane: Pane): string => {
   return workspace.root;
 };
 
+const startFolderOf = (context: ServerContext, pane: Pane): string =>
+  pane.folder ?? workspaceRootOf(context, pane);
+
 const startPane = (context: ServerContext, pane: Pane, report: Report): void => {
   const { log } = context.options;
   const { id, generation } = pane;
@@ -311,7 +323,7 @@ const startPane = (context: ServerContext, pane: Pane, report: Report): void => 
     generation,
     size: pane.size,
     environment: context.options.environment,
-    directory: workspaceRootOf(context, pane),
+    directory: startFolderOf(context, pane),
     useScope: paneScopesEnabled(context),
     onOutput: () => {
       scheduleRows(context, id, generation);
@@ -428,12 +440,29 @@ const stopResultOf = (failures: readonly string[]): StopResult => {
   };
 };
 
+const readSavedFolders = (context: ServerContext): Map<PaneId, string> => {
+  const folders = new Map<PaneId, string>();
+
+  for (const [paneId, runtime] of context.runtime.panes) {
+    const folder = readProcessFolder(runtime.processId);
+
+    if (folder !== undefined) {
+      folders.set(paneId, folder);
+    }
+  }
+
+  return folders;
+};
+
+const currentSession = (context: ServerContext): SavedSession =>
+  savedSessionOf(context.state, readSavedFolders(context));
+
 // Every step runs even when an earlier one fails. The lock and the signal handlers go last.
 const shutDown = async (context: ServerContext): Promise<StopResult> => {
   const { runtime, options } = context;
 
   // Pane exits during the stop must not change the saved session, so it is final before any pane ends.
-  await runtime.sessionWriter?.stopSaving(savedSessionOf(context.state));
+  await runtime.sessionWriter?.stopSaving(currentSession(context));
 
   const panes = [...runtime.panes.entries()];
   const paneFailures = await Promise.all(panes.map(([id, pane]) => stopPane(context, id, pane)));
@@ -614,7 +643,7 @@ const savesSession = (changes: readonly Change[]): boolean =>
 
 const saveSession = (context: ServerContext, changes: readonly Change[]): void => {
   if (savesSession(changes)) {
-    context.runtime.sessionWriter?.save(savedSessionOf(context.state));
+    context.runtime.sessionWriter?.save(currentSession(context));
   }
 };
 

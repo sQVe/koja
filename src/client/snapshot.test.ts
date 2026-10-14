@@ -42,6 +42,7 @@ const snapshot: StoreSnapshot = {
       generation: 1,
       size,
       exitCode: undefined,
+      folder: undefined,
     },
   ],
   defaultView: view,
@@ -113,6 +114,7 @@ const secondPane = {
   generation: 2,
   size,
   exitCode: undefined,
+  folder: undefined,
 };
 
 const withSecond: StoreSnapshot = {

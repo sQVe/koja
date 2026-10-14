@@ -21,6 +21,8 @@ const workspaceSchema = z.object({ workspace: z.string() });
 
 const paneSchema = z.object({ pane: z.string() });
 
+const paneListSchema = z.array(z.object({ id: z.string(), cwd: z.string().nullable() }));
+
 const readText = (path: string): string => {
   try {
     return readFileSync(path, 'utf8');
@@ -79,6 +81,12 @@ const setup = async () => {
       return [workspaces, tabs, panes].join('\n');
     };
 
+    const folders = async (): Promise<Record<string, string | null>> => {
+      const listed = paneListSchema.parse(JSON.parse(await phi(['pane', 'list', '--json'])));
+
+      return Object.fromEntries(listed.map((pane) => [pane.id, pane.cwd]));
+    };
+
     const workspaceIds = async (): Promise<string[]> => {
       const listed = workspaceListSchema.parse(
         JSON.parse(await phi(['workspace', 'list', '--json'])),
@@ -94,7 +102,17 @@ const setup = async () => {
         join(await realpath(directory), 'run', `${name}.sock`),
       );
 
-    return { socketPath, phi, start, createWorkspace, split, described, workspaceIds, sessionPath };
+    return {
+      socketPath,
+      phi,
+      start,
+      createWorkspace,
+      split,
+      described,
+      folders,
+      workspaceIds,
+      sessionPath,
+    };
   };
 
   const logText = (): Promise<string> =>
@@ -302,6 +320,43 @@ it(
     await server.start();
 
     expect(await attachedFocus(server.socketPath)).toBe(first);
+  },
+  cliTestTimeoutMs,
+);
+
+it(
+  'starts each restored shell in its last folder',
+  async () => {
+    const { serverAt } = await setup();
+    const server = serverAt('phi');
+
+    await server.start();
+
+    await server.createWorkspace('one');
+
+    const second = await server.split('pane-1');
+
+    const firstFolder = await realpath(await temporaryDirectory());
+    const secondFolder = await realpath(await temporaryDirectory());
+
+    await server.phi(['pane', 'focus', 'pane-1']);
+    await server.phi(['pane', 'send', `cd ${firstFolder}\n`]);
+    await server.phi(['pane', 'focus', second]);
+    await server.phi(['pane', 'send', `cd ${secondFolder}\n`]);
+
+    const deadline = performance.now() + 10_000;
+    let folders = await server.folders();
+
+    while (folders['pane-1'] !== firstFolder || folders[second] !== secondFolder) {
+      expect(performance.now()).toBeLessThan(deadline);
+      await Bun.sleep(20);
+      folders = await server.folders();
+    }
+
+    await server.phi(['server', 'stop']);
+    await server.start();
+
+    expect(await server.folders()).toEqual({ 'pane-1': firstFolder, [second]: secondFolder });
   },
   cliTestTimeoutMs,
 );

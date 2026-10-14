@@ -55,6 +55,8 @@ export interface Pane {
   size: TerminalSize;
   generation: number;
   exitCode: number | undefined;
+  // The folder the pane was restored with. A pane that was not restored starts in its workspace root.
+  folder: string | undefined;
 }
 
 // Colors as 0xRRGGBB numbers.
@@ -122,7 +124,7 @@ interface StartFallback {
 export interface SavedSession {
   workspaces: readonly Workspace[];
   tabs: readonly Tab[];
-  panes: readonly { id: PaneId; tabId: TabId }[];
+  panes: readonly { id: PaneId; tabId: TabId; folder: string | undefined }[];
   focusedWorkspaceId: WorkspaceId | undefined;
   nextWorkspaceNumber: number;
   nextTabNumber: number;
@@ -548,6 +550,7 @@ const createWorkspace = (
     size: lonePaneSize(state, newPaneId),
     generation: state.nextGeneration,
     exitCode: undefined,
+    folder: undefined,
   };
 
   const tab: Tab = {
@@ -775,6 +778,7 @@ const createTab = (
     size: lonePaneSize(state, newPaneId),
     generation: state.nextGeneration,
     exitCode: undefined,
+    folder: undefined,
   };
 
   const tab: Tab = {
@@ -924,6 +928,7 @@ const splitPane = (state: State, id: PaneId, direction: SplitDirection): Applied
     size: { columns: addedRectangle.terminal.columns, rows: addedRectangle.terminal.rows },
     generation: state.nextGeneration,
     exitCode: undefined,
+    folder: undefined,
   };
 
   const splitTab: Tab = { ...tab, layout, focusedPaneId: added.id, zoomedPaneId: undefined };
@@ -1308,7 +1313,11 @@ const stopServer = (state: State): Applied => {
   return commit({ ...state, panes, stopping: true }, changes);
 };
 
-export const savedSessionOf = (state: State): SavedSession => ({
+// A pane without a folder read keeps the folder it was restored with.
+export const savedSessionOf = (
+  state: State,
+  readFolders: ReadonlyMap<PaneId, string>,
+): SavedSession => ({
   workspaces: state.workspaces.map((workspace) => {
     const activeTabId = activeTabOf(state.defaultView, workspace.id);
 
@@ -1317,7 +1326,11 @@ export const savedSessionOf = (state: State): SavedSession => ({
     return { ...workspace, activeTabId };
   }),
   tabs: state.tabs,
-  panes: state.panes.map((pane) => ({ id: pane.id, tabId: pane.tabId })),
+  panes: state.panes.map((pane) => ({
+    id: pane.id,
+    tabId: pane.tabId,
+    folder: readFolders.get(pane.id) ?? pane.folder,
+  })),
   focusedWorkspaceId: state.defaultView.focusedWorkspaceId,
   nextWorkspaceNumber: state.nextWorkspaceNumber,
   nextTabNumber: state.nextTabNumber,
@@ -1353,6 +1366,7 @@ const restoreSession = (state: State, session: SavedSession): Applied | Rejected
       size,
       generation: state.nextGeneration + index,
       exitCode: undefined,
+      folder: saved.folder,
     };
   });
 

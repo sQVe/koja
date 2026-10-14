@@ -40,6 +40,7 @@ const pane = {
   generation: 1,
   size: { columns: 80, rows: 23 },
   exitCode: undefined,
+  folder: undefined,
 } as const;
 
 const tab = {

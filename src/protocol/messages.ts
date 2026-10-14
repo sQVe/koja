@@ -88,6 +88,7 @@ const paneSchema: z.ZodType<Pane> = z.object({
   size: sizeSchema,
   generation: count,
   exitCode: absent(z.number().int()),
+  folder: absent(z.string()),
 });
 
 const resizeDirectionSchema: z.ZodType<ResizeDirection> = z.enum(['left', 'right', 'up', 'down']);
