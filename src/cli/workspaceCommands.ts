@@ -10,6 +10,17 @@ import { connectionFailureMessage, print } from './output.ts';
 import type { Outcome } from './output.ts';
 import type { WorkspaceAction, WorkspaceCliCommand } from './workspaceCommandParse.ts';
 
+interface WorkspaceEntry {
+  id: string;
+  root: string;
+  label: string;
+  focused: boolean;
+}
+
+interface WorkspaceActionOutput {
+  workspace: string;
+}
+
 type RequestAction = Exclude<WorkspaceAction, { action: 'list' | 'create' }>;
 
 const runWorkspaceList = async (
@@ -37,7 +48,7 @@ const runWorkspaceList = async (
       `${workspace.focused ? '*' : ' '} ${workspace.id}\t${workspace.label}\t${workspace.root}`,
   );
 
-  print(command.json, { json: workspaces, text: lines.join('\n') });
+  print<WorkspaceEntry[]>(command.json, { json: workspaces, text: lines.join('\n') });
 
   return { ok: true };
 };
@@ -64,7 +75,7 @@ const runWorkspaceRequest = async (
   const result = await runWorkspaceCommand(socketPath, version, request);
 
   if (result.ok) {
-    print(command.json, {
+    print<WorkspaceActionOutput>(command.json, {
       json: { workspace: result.workspaceId },
       text: doneText(request.action, result.workspaceId),
     });

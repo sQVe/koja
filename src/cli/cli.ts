@@ -14,6 +14,11 @@ import { runTabAction } from './tabCommands.ts';
 import { readVersions } from './versions.ts';
 import { runWorkspaceAction } from './workspaceCommands.ts';
 
+interface VersionOutput {
+  version: string;
+  ghostty: string;
+}
+
 const writeError = (message: string, suffix = ''): void => {
   process.stderr.write(`phi: ${message}${suffix}\n`);
 };
@@ -67,7 +72,7 @@ export const runCli = async (argv: string[], environment: Environment): Promise<
   if (command.kind === 'version') {
     const { version, ghostty } = result.versions;
 
-    print(command.json, {
+    print<VersionOutput>(command.json, {
       json: { version, ghostty },
       text: `phi ${version} (ghostty ${ghostty})`,
     });

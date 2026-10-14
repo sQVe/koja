@@ -9,6 +9,18 @@ import { connectionFailureMessage, print } from './output.ts';
 import type { Outcome } from './output.ts';
 import type { TabAction, TabCliCommand } from './tabCommandParse.ts';
 
+interface TabEntry {
+  id: string;
+  workspace: string;
+  number: number;
+  active: boolean;
+  pane: string;
+}
+
+interface TabActionOutput {
+  tab: string;
+}
+
 type RequestAction = Exclude<TabAction, { action: 'list' | 'create' }>;
 
 const listTabs = (snapshot: StoreSnapshot) =>
@@ -41,7 +53,7 @@ const runTabList = async (
     (tab) => `${tab.active ? '*' : ' '} ${tab.id}\t${tab.workspace}\t${tab.number}\t${tab.pane}`,
   );
 
-  print(command.json, { json: tabs, text: lines.join('\n') });
+  print<TabEntry[]>(command.json, { json: tabs, text: lines.join('\n') });
 
   return { ok: true };
 };
@@ -61,7 +73,7 @@ const runTabRequest = async (
   const result = await runTabCommand(socketPath, version, request);
 
   if (result.ok) {
-    print(command.json, {
+    print<TabActionOutput>(command.json, {
       json: { tab: result.tabId },
       text: doneText(request.action, result.tabId),
     });

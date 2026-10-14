@@ -6,6 +6,10 @@ import type { Outcome } from './output.ts';
 import { poll, pollIntervalMs, seconds } from './serverContext.ts';
 import type { ServerContext } from './serverContext.ts';
 
+interface ServerStopOutput {
+  stopped: true;
+}
+
 type SocketRelease = 'removed' | 'leftSocket';
 
 // Covers the server's wait for pane processes that ignore SIGHUP.
@@ -73,7 +77,7 @@ export const stopServer = async (context: ServerContext): Promise<Outcome> => {
     };
   }
 
-  print(context.json, {
+  print<ServerStopOutput>(context.json, {
     json: { stopped: true },
     text: `Stopped the server on ${socketPath}.`,
   });

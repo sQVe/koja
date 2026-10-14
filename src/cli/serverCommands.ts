@@ -13,6 +13,11 @@ import { seconds } from './serverContext.ts';
 import type { ServerContext } from './serverContext.ts';
 import { stopServer } from './serverStop.ts';
 
+interface ServerRunOutput {
+  socket: string;
+  pid: number;
+}
+
 type StartFailure =
   | { kind: 'exited' }
   | { kind: 'timedOut' }
@@ -56,7 +61,7 @@ const runInForeground = async (context: ServerContext): Promise<Outcome> => {
     return result;
   }
 
-  print(context.json, {
+  print<ServerRunOutput>(context.json, {
     json: { socket: socketPath, pid: process.pid },
     text: `Server ${process.pid} runs on ${socketPath}.`,
   });
@@ -179,7 +184,7 @@ const startInBackground = async (context: ServerContext): Promise<Outcome> => {
     return { ok: false, message: launched.message };
   }
 
-  print(context.json, {
+  print<ServerRunOutput>(context.json, {
     json: { socket: context.socketPath, pid: launched.pid },
     text: `Started server ${launched.pid} on ${context.socketPath}.`,
   });

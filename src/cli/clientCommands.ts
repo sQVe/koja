@@ -7,6 +7,13 @@ import type { Environment } from './environment.ts';
 import { connectionFailureMessage, print } from './output.ts';
 import type { Outcome } from './output.ts';
 
+interface ClientEntry {
+  id: string;
+  foreground: boolean;
+  size: { columns: number; rows: number };
+  view: { workspace: string | null; tabs: Record<string, string> };
+}
+
 const listClients = (snapshot: StoreSnapshot) =>
   snapshot.clients.map(({ id, size, view }) => ({
     id,
@@ -37,7 +44,7 @@ export const runClientAction = async (
       `${foreground ? '*' : ' '} ${id}\t${size.columns}x${size.rows}\t${view.workspace ?? '-'}`,
   );
 
-  print(command.json, { json: clients, text: lines.join('\n') });
+  print<ClientEntry[]>(command.json, { json: clients, text: lines.join('\n') });
 
   return { ok: true };
 };
