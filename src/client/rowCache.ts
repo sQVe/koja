@@ -1,7 +1,9 @@
-import { cellWords, ModeFlag } from '../rows/rows.ts';
+import { cellWords, ModeFlag, RowFlag, rowHeaderWords, rowWords } from '../rows/rows.ts';
 import type { RowUpdate } from '../rows/rows.ts';
 
 interface CachedRow {
+  // Whether the row soft-wraps into the next row.
+  wrapped: boolean;
   // cellWords words per column. Each column's first word is its base code point.
   cells: Uint32Array;
   // The text of each cluster longer than one code point, by the column of its cell.
@@ -59,7 +61,7 @@ const clustersOf = (graphemes: Uint32Array, rowStart: number, stride: number) =>
     const length = graphemes[index + 1] ?? 0;
 
     if (cellIndex >= rowStart && cellIndex < rowStart + stride) {
-      const column = (cellIndex - rowStart - 1) / cellWords;
+      const column = (cellIndex - rowStart - rowHeaderWords) / cellWords;
       const codePoints = graphemes.subarray(index + 2, index + 2 + length);
 
       clusters.set(column, String.fromCodePoint(...codePoints));
@@ -99,7 +101,7 @@ export const createRowCache = ({ rowLimit }: RowCacheOptions): RowCache => {
   };
 
   const storeRows = (update: RowUpdate): Set<number> => {
-    const stride = 1 + update.size.columns * cellWords;
+    const stride = rowWords(update.size.columns);
     const stored = new Set<number>();
 
     for (let index = 0; index < update.rowCount; index++) {
@@ -108,7 +110,8 @@ export const createRowCache = ({ rowLimit }: RowCacheOptions): RowCache => {
       const rowNumber = update.activeTop + offset;
 
       rows.set(rowNumber, {
-        cells: update.cells.slice(start + 1, start + stride),
+        wrapped: ((update.cells[start + 1] ?? 0) & RowFlag.wrapped) !== 0,
+        cells: update.cells.slice(start + rowHeaderWords, start + stride),
         clusters: clustersOf(update.graphemes, start, stride),
       });
 

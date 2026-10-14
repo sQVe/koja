@@ -5,7 +5,13 @@ import { createTestRenderer } from '@opentui/core/testing';
 import type { TestRendererSetup } from '@opentui/core/testing';
 
 import { createRowCache } from '../client/client.ts';
-import { cellWords, defaultBackgroundSlot, defaultForegroundSlot } from '../rows/rows.ts';
+import {
+  cellWords,
+  defaultBackgroundSlot,
+  defaultForegroundSlot,
+  rowHeaderWords,
+  rowWords,
+} from '../rows/rows.ts';
 import type { RowUpdate } from '../rows/rows.ts';
 import { PaneRenderable } from './paneRenderable.ts';
 
@@ -19,7 +25,7 @@ interface TestCell {
 
 const columns = 6;
 
-const stride = 1 + columns * cellWords;
+const stride = rowWords(columns);
 
 const wideTail = 0x2_00;
 
@@ -29,7 +35,7 @@ const rowUpdate = (cells: TestCell[], colors: number[] = [], cursorVisible = fal
   const words = new Uint32Array(stride);
 
   for (const cell of cells) {
-    const start = 1 + cell.column * cellWords;
+    const start = rowHeaderWords + cell.column * cellWords;
 
     words[start] = cell.codePoint;
     words[start + 1] = cell.foreground ?? 0;
@@ -107,7 +113,7 @@ it('draws a combining cluster whole in one cell', async () => {
     { column: 2, codePoint: 0x78 },
   ]);
 
-  const base = 1 + 1 * cellWords;
+  const base = rowHeaderWords + cellWords;
 
   update.graphemes = new Uint32Array([base, 2, 0x65, 0x301]);
 

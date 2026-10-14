@@ -4,7 +4,7 @@ import { dlopen, FFIType, toArrayBuffer } from 'bun:ffi';
 // path of the built file.
 import libraryPath from '../../build/libphi-vt.so' with { type: 'file' };
 import { invariant } from '../invariant.ts';
-import { cellWords } from '../rows/rows.ts';
+import { rowWords } from '../rows/rows.ts';
 
 export type CreateTerminalResult =
   | { ok: true; terminal: Terminal }
@@ -39,7 +39,8 @@ export interface Scrollback {
 export interface Frame {
   // The number of rows in cells.
   rowCount: number;
-  // Each changed row as one word with its viewport row, then cellWords words per column.
+  // Each changed row as one word with its viewport row, one word with its RowFlag bits, then
+  // cellWords words per column.
   cells: Uint32Array;
   // Each cluster longer than one code point as one word with the index in cells of its cell's
   // code point, one word with its length, then its code points, base first.
@@ -89,7 +90,7 @@ const firstFrameColumns = 80;
 const firstFrameRows = 24;
 
 // A whole screen of the first frame size without clusters fits the first buffers.
-const firstCellWords = firstFrameRows * (1 + firstFrameColumns * cellWords);
+const firstCellWords = firstFrameRows * rowWords(firstFrameColumns);
 
 const firstGraphemeWords = 1024;
 

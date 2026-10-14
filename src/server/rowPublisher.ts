@@ -1,6 +1,6 @@
 import { invariant } from '../invariant.ts';
 import type { TerminalSize } from '../layout.ts';
-import { cellWords, ModeFlag, rowUpdateBytes } from '../rows/rows.ts';
+import { ModeFlag, rowUpdateBytes, rowWords } from '../rows/rows.ts';
 import type { RowUpdate } from '../rows/rows.ts';
 import type { Frame, RowRange, StableRows, Terminal } from '../vt/vt.ts';
 
@@ -74,7 +74,7 @@ const sentRows = (subscriber: Subscriber, alternate: boolean): Map<number, bigin
   alternate ? subscriber.alternateSent : subscriber.primarySent;
 
 const splitRows = (source: RowRange, columns: number): Row[] => {
-  const stride = 1 + columns * cellWords;
+  const stride = rowWords(columns);
   const rows: Row[] = [];
 
   for (let start = 0; start < source.cells.length; start += stride) {
@@ -109,7 +109,7 @@ const splitRows = (source: RowRange, columns: number): Row[] => {
 };
 
 const joinRows = (rows: readonly Row[], columns: number): RowRange => {
-  const stride = 1 + columns * cellWords;
+  const stride = rowWords(columns);
   const cells = new Uint32Array(rows.length * stride);
   const graphemes: number[] = [];
   let start = 0;

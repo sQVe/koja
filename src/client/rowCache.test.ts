@@ -1,12 +1,20 @@
 import { expect, it } from 'bun:test';
 
-import { cellWords, ModeFlag } from '../rows/rows.ts';
+import {
+  cellWords,
+  decodeRowUpdate,
+  encodeRowUpdate,
+  ModeFlag,
+  RowFlag,
+  rowHeaderWords,
+  rowWords,
+} from '../rows/rows.ts';
 import type { RowUpdate } from '../rows/rows.ts';
 import { createRowCache } from './rowCache.ts';
 
 const columns = 4;
 
-const stride = 1 + columns * cellWords;
+const stride = rowWords(columns);
 
 // Each row is an offset from the active top and the text of its cells.
 const rowUpdate = (rows: [number, string][], overrides: Partial<RowUpdate> = {}): RowUpdate => {
@@ -16,7 +24,7 @@ const rowUpdate = (rows: [number, string][], overrides: Partial<RowUpdate> = {})
     cells[index * stride] = offset >>> 0;
 
     for (const [column, character] of text.split('').entries()) {
-      cells[index * stride + 1 + column * cellWords] = character.codePointAt(0) ?? 0;
+      cells[index * stride + rowHeaderWords + column * cellWords] = character.codePointAt(0) ?? 0;
     }
   }
 
@@ -121,7 +129,7 @@ it('keeps the latest size, cursor, and modes', () => {
 it('reads a grapheme cluster by the column of its cell', () => {
   const cache = createRowCache({ rowLimit: 50 });
   const family = [0x1_f4_68, 0x20_0d, 0x1_f4_69];
-  const second = stride + 1 + 2 * cellWords;
+  const second = stride + rowHeaderWords + 2 * cellWords;
 
   const update = rowUpdate(
     [
@@ -212,4 +220,27 @@ it('does not report an active row that the limit dropped', () => {
       ]),
     ),
   ).toEqual([1]);
+});
+
+it('keeps the wrapped flag of a row that went through the row update encoding', () => {
+  const cache = createRowCache({ rowLimit: 50 });
+
+  const update = rowUpdate([
+    [0, 'ab'],
+    [1, 'cd'],
+  ]);
+
+  update.cells[1] = RowFlag.wrapped;
+
+  const decoded = decodeRowUpdate(encodeRowUpdate(update));
+
+  expect(decoded.ok).toBe(true);
+
+  if (decoded.ok) {
+    cache.apply(decoded.update);
+  }
+
+  expect(cache.row(0)?.wrapped).toBe(true);
+  expect(cache.row(1)?.wrapped).toBe(false);
+  expect(firstWord(cache, 0)).toBe(97);
 });

@@ -9,34 +9,35 @@ import {
   encodePaneInput,
   encodeRowUpdate,
   ModeFlag,
-  rowsToText,
+  RowFlag,
+  rowHeaderWords,
+  rowsToLines,
   rowUpdateBytes,
+  rowWords,
 } from './rows.ts';
 import type { RowUpdate } from './rows.ts';
 
 const columns = 80;
 
-const rowWords = 1 + columns * cellWords;
-
 // One row of text in the frame layout, starting with its offset from the active top. The text
 // holds no characters outside the Basic Multilingual Plane.
 const textRow = (offset: number, text: string) => {
-  const row = new Uint32Array(rowWords);
+  const row = new Uint32Array(rowWords(columns));
 
   row[0] = offset >>> 0;
 
   for (let column = 0; column < text.length; column++) {
-    row[1 + column * cellWords] = text.charCodeAt(column);
+    row[rowHeaderWords + column * cellWords] = text.charCodeAt(column);
   }
 
   return row;
 };
 
 const joinRows = (rows: Uint32Array[]) => {
-  const cells = new Uint32Array(rows.length * rowWords);
+  const cells = new Uint32Array(rows.length * rowWords(columns));
 
   rows.forEach((row, index) => {
-    cells.set(row, index * rowWords);
+    cells.set(row, index * rowWords(columns));
   });
 
   return cells;
@@ -61,21 +62,75 @@ const rowUpdate = (overrides: Partial<RowUpdate> = {}): RowUpdate => ({
 it('reads rows as text with clusters and wide spacers, preserving leading and interior spaces', () => {
   const cells = textRow(0, ' 中 e  x   ');
 
-  cells[1 + cellWords + 3] = CellWidth.wide;
-  cells[1 + 2 * cellWords + 3] = CellWidth.spacerTail;
-  cells[1 + 3 * cellWords + 3] = CellFlag.grapheme;
-  cells[1 + 9 * cellWords + 3] = CellWidth.spacerHead;
+  cells[rowHeaderWords + cellWords + 3] = CellWidth.wide;
+  cells[rowHeaderWords + 2 * cellWords + 3] = CellWidth.spacerTail;
+  cells[rowHeaderWords + 3 * cellWords + 3] = CellFlag.grapheme;
+  cells[rowHeaderWords + 9 * cellWords + 3] = CellWidth.spacerHead;
 
   const range = {
     rowCount: 2,
     cells: joinRows([cells, textRow(1, '')]),
-    graphemes: Uint32Array.of(1 + 3 * cellWords, 2, 0x65, 0x3_01),
+    graphemes: Uint32Array.of(rowHeaderWords + 3 * cellWords, 2, 0x65, 0x3_01),
   };
 
-  expect(rowsToText(range, columns)).toEqual([' 中é  x', '']);
+  expect(rowsToLines(range, columns, false)).toEqual([' 中é  x', '']);
 });
 
 const roundTrip = (update: RowUpdate) => decodeRowUpdate(encodeRowUpdate(update));
+
+const wrappedRow = (offset: number, text: string, wrapped = true) => {
+  const row = textRow(offset, text);
+
+  row[1] = wrapped ? RowFlag.wrapped : 0;
+
+  return row;
+};
+
+it('returns one line per row without unwrap', () => {
+  const range = {
+    rowCount: 3,
+    cells: joinRows([wrappedRow(0, 'abc'), wrappedRow(1, 'def', false), textRow(2, 'g')]),
+    graphemes: new Uint32Array(),
+  };
+
+  expect(rowsToLines(range, columns, false)).toEqual(['abc', 'def', 'g']);
+});
+
+it('joins soft-wrapped rows with unwrap and keeps a wrapped row trailing spaces', () => {
+  const range = {
+    rowCount: 3,
+    cells: joinRows([
+      wrappedRow(0, 'ab  '),
+      wrappedRow(1, 'cd', false),
+      wrappedRow(2, 'e   ', false),
+    ]),
+    graphemes: new Uint32Array(),
+  };
+
+  const padded = 'ab  '.padEnd(columns, ' ');
+
+  expect(rowsToLines(range, columns, true)).toEqual([`${padded}cd`, 'e']);
+});
+
+it('skips wide-character spacer cells when joining wrapped rows', () => {
+  const first = wrappedRow(0, '中 a');
+  const second = textRow(1, 'b');
+
+  first[rowHeaderWords + 3] = CellWidth.wide;
+  first[rowHeaderWords + cellWords + 3] = CellWidth.spacerTail;
+  first[rowHeaderWords + (columns - 1) * cellWords + 3] = CellWidth.spacerHead;
+
+  const range = { rowCount: 2, cells: joinRows([first, second]), graphemes: new Uint32Array() };
+
+  expect(rowsToLines(range, columns, true)).toEqual([`中a${' '.repeat(columns - 4)}b`]);
+});
+
+it('round-trips the wrapped flag of a row', () => {
+  const cells = joinRows([wrappedRow(0, 'abc'), wrappedRow(1, 'def', false)]);
+  const decoded = roundTrip(rowUpdate({ rowCount: 2, cells }));
+
+  expect(decoded.ok && decoded.update.cells).toEqual(cells);
+});
 
 it('round-trips a row update with one row, a cursor, and modes', () => {
   const update = rowUpdate();
@@ -92,7 +147,7 @@ it('round-trips a row update with changed colors', () => {
 it('round-trips colors beside rows and clusters', () => {
   const update = rowUpdate({
     colors: Uint32Array.of(255, 0x1_ff_ff_ff),
-    graphemes: Uint32Array.of(1, 2, 0x65, 0x3_01),
+    graphemes: Uint32Array.of(rowHeaderWords, 2, 0x65, 0x3_01),
   });
 
   expect(roundTrip(update)).toEqual({ ok: true, update });
@@ -118,11 +173,11 @@ it('round-trips a departed row, a wide character, a cluster, and row numbers abo
   const onScreen = textRow(0, '中 e');
   const family = [0x1_f4_68, 0x20_0d, 0x1_f4_69];
 
-  onScreen[1 + 3] = CellWidth.wide;
-  onScreen[1 + cellWords + 3] = CellWidth.spacerTail;
-  onScreen[1 + 3 * cellWords] = family[0] ?? 0;
+  onScreen[rowHeaderWords + 3] = CellWidth.wide;
+  onScreen[rowHeaderWords + cellWords + 3] = CellWidth.spacerTail;
+  onScreen[rowHeaderWords + 3 * cellWords] = family[0] ?? 0;
 
-  const clusterCell = rowWords + 1 + 3 * cellWords;
+  const clusterCell = rowWords(columns) + rowHeaderWords + 3 * cellWords;
 
   const update = rowUpdate({
     first: 2 ** 32 + 7,
@@ -196,20 +251,24 @@ it.each([
   ],
   [
     'a grapheme index past the cells',
-    encodeRowUpdate(clusterUpdate(rowWords + 1)),
+    encodeRowUpdate(clusterUpdate(rowWords(columns) + rowHeaderWords)),
     'graphemePastCells',
   ],
   ['a grapheme index on a row offset', encodeRowUpdate(clusterUpdate(0)), 'graphemeOffCell'],
-  ['a grapheme index on a color word', encodeRowUpdate(clusterUpdate(2)), 'graphemeOffCell'],
-  ['a cluster longer than the payload', encodeRowUpdate(clusterUpdate(1, 3)), 'graphemePastEnd'],
+  ['a grapheme index on a row flags word', encodeRowUpdate(clusterUpdate(1)), 'graphemeOffCell'],
+  [
+    'a cluster longer than the payload',
+    encodeRowUpdate(clusterUpdate(rowHeaderWords, 3)),
+    'graphemePastEnd',
+  ],
   [
     'a cluster of no code points',
-    encodeRowUpdate(rowUpdate({ graphemes: Uint32Array.of(1, 0) })),
+    encodeRowUpdate(rowUpdate({ graphemes: Uint32Array.of(rowHeaderWords, 0) })),
     'graphemeTooShort',
   ],
   [
     'a cluster of one code point',
-    encodeRowUpdate(rowUpdate({ graphemes: Uint32Array.of(1, 1, 0x65) })),
+    encodeRowUpdate(rowUpdate({ graphemes: Uint32Array.of(rowHeaderWords, 1, 0x65) })),
     'graphemeTooShort',
   ],
   [

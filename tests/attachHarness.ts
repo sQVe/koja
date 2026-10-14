@@ -12,7 +12,7 @@ import {
   parseControl,
 } from '../src/protocol/protocol.ts';
 import type { ControlMessage } from '../src/protocol/protocol.ts';
-import { cellWords, decodePaneInput, encodeRowUpdate } from '../src/rows/rows.ts';
+import { decodePaneInput, encodeRowUpdate, rowWords } from '../src/rows/rows.ts';
 import { createTerminal } from '../src/vt/vt.ts';
 
 export interface AttachHarness {
@@ -71,7 +71,7 @@ const control = (message: ControlMessage) => encodeFrame(FrameKind.control, enco
 
 const paneRows = (modes: number) => {
   const columns = 80;
-  const cells = new Uint32Array(1 + columns * cellWords);
+  const cells = new Uint32Array(rowWords(columns));
 
   return encodeFrame(
     FrameKind.rowUpdate,

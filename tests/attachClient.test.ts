@@ -14,7 +14,13 @@ import {
   parseControl,
 } from '../src/protocol/protocol.ts';
 import type { ControlMessage } from '../src/protocol/protocol.ts';
-import { cellWords, decodePaneInput, encodeRowUpdate, ModeFlag } from '../src/rows/rows.ts';
+import {
+  decodePaneInput,
+  encodeRowUpdate,
+  ModeFlag,
+  rowHeaderWords,
+  rowWords,
+} from '../src/rows/rows.ts';
 import type { RowUpdate } from '../src/rows/rows.ts';
 import { createLog } from '../src/server/log.ts';
 import { runServer } from '../src/server/server.ts';
@@ -323,9 +329,9 @@ it('applies a change whose revision follows the snapshot', async () => {
 
 const rowUpdate = (overrides: Partial<RowUpdate> = {}): RowUpdate => {
   const columns = 3;
-  const cells = new Uint32Array(1 + columns * cellWords);
+  const cells = new Uint32Array(rowWords(columns));
 
-  cells[1] = 'h'.codePointAt(0) ?? 0;
+  cells[rowHeaderWords] = 'h'.codePointAt(0) ?? 0;
 
   return {
     pane: 7,

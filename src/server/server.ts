@@ -7,7 +7,7 @@ import { layoutPanes, shownLayout } from '../layout.ts';
 import type { TerminalSize } from '../layout.ts';
 import { FrameKind } from '../protocol/protocol.ts';
 import type { BuildVersion, ControlMessage } from '../protocol/protocol.ts';
-import { decodePaneInput, encodeRowUpdate, rowsToText } from '../rows/rows.ts';
+import { decodePaneInput, encodeRowUpdate, rowsToLines } from '../rows/rows.ts';
 import {
   activeTabOf,
   applyFact,
@@ -792,7 +792,7 @@ const answerPaneRead = (context: ServerContext, paneId: PaneId, connection: Conn
 
   invariant(read.ok, 'The active screen must remain available during a synchronous read.');
 
-  const rows = rowsToText(read.rows, live.pane.size.columns);
+  const rows = rowsToLines(read.rows, live.pane.size.columns, false);
 
   connection.send({ type: 'paneRows', paneId, rows });
 };

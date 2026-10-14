@@ -16,7 +16,8 @@ export interface RowUpdate {
   activeTop: number;
   rowCount: number;
   // Each row as one signed 32-bit word with its offset from the active top, negative for a row
-  // that left the screen, then cellWords words per column. Read the offset with `| 0`.
+  // that left the screen, one word with its RowFlag bits, then cellWords words per column. Read
+  // the offset with `| 0`.
   cells: Uint32Array;
   // Each cluster longer than one code point as one word with the index in cells of its cell's
   // code point, one word with its length, then its code points, base first.
@@ -168,7 +169,15 @@ const colorProblem = (colors: Uint32Array): 'colorSlotInvalid' | 'colorInvalid' 
   return undefined;
 };
 
-const rowWords = (columns: number) => 1 + columns * cellWords;
+export const rowHeaderWords = 2;
+
+// Bits of a row's flags word.
+export enum RowFlag {
+  // The row soft-wraps into the next row.
+  wrapped = 0x1,
+}
+
+export const rowWords = (columns: number): number => rowHeaderWords + columns * cellWords;
 
 const cellFlagsOffset = 3;
 
@@ -187,32 +196,58 @@ const clustersOf = (graphemes: Uint32Array): Map<number, string> => {
   return clusters;
 };
 
-export const rowsToText = (range: TextRows, columns: number): string[] => {
-  const clusters = clustersOf(range.graphemes);
-  const rows: string[] = [];
+const rowText = (
+  range: TextRows,
+  clusters: Map<number, string>,
+  rowStart: number,
+  columns: number,
+) => {
+  let text = '';
 
-  for (let row = 0; row < range.rowCount; row += 1) {
-    let text = '';
+  for (let column = 0; column < columns; column += 1) {
+    const index = rowStart + rowHeaderWords + column * cellWords;
+    const width: CellWidth = (range.cells[index + cellFlagsOffset] ?? 0) & cellWidthMask;
 
-    for (let column = 0; column < columns; column += 1) {
-      const index = row * rowWords(columns) + 1 + column * cellWords;
-      const width: CellWidth = (range.cells[index + cellFlagsOffset] ?? 0) & cellWidthMask;
-
-      if (width === CellWidth.spacerHead || width === CellWidth.spacerTail) {
-        continue;
-      }
-
-      const codePoint = range.cells[index] ?? 0;
-      const character = codePoint === 0 ? ' ' : String.fromCodePoint(codePoint);
-      const cluster = clusters.get(index) ?? character;
-
-      text += cluster;
+    if (width === CellWidth.spacerHead || width === CellWidth.spacerTail) {
+      continue;
     }
 
-    rows.push(text.replace(/ +$/, ''));
+    const codePoint = range.cells[index] ?? 0;
+    const character = codePoint === 0 ? ' ' : String.fromCodePoint(codePoint);
+
+    text += clusters.get(index) ?? character;
   }
 
-  return rows;
+  return text;
+};
+
+// Returns the text of each row, or with unwrap the text of each logical line, joining a wrapped
+// row to the row after it. A wrapped row keeps its trailing spaces. Spaces are trimmed only at
+// the end of a line.
+export const rowsToLines = (range: TextRows, columns: number, unwrap: boolean): string[] => {
+  const clusters = clustersOf(range.graphemes);
+  const lines: string[] = [];
+  let line = '';
+
+  for (let row = 0; row < range.rowCount; row += 1) {
+    const rowStart = row * rowWords(columns);
+
+    line += rowText(range, clusters, rowStart, columns);
+
+    const flags = range.cells[rowStart + 1] ?? 0;
+    const joinsNext = unwrap && (flags & RowFlag.wrapped) !== 0;
+
+    if (!joinsNext) {
+      lines.push(line.replace(/ +$/, ''));
+      line = '';
+    }
+  }
+
+  if (line !== '') {
+    lines.push(line.replace(/ +$/, ''));
+  }
+
+  return lines;
 };
 
 const writeRowNumber = (words: Uint32Array, index: number, value: number) => {
@@ -322,7 +357,7 @@ const graphemeProblem = (
       return 'graphemePastCells';
     }
 
-    if ((cellIndex % rowWords(columns)) % cellWords !== 1) {
+    if ((cellIndex % rowWords(columns)) % cellWords !== rowHeaderWords % cellWords) {
       return 'graphemeOffCell';
     }
 

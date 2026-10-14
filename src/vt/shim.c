@@ -275,8 +275,17 @@ static void read_cell(GhosttyRenderStateRowCells cells, FrameOutput *out) {
   put_cell_word(out, flags);
 }
 
+static uint32_t row_flags(GhosttyRow row) {
+  bool wrapped = false;
+  ghostty_row_get(row, GHOSTTY_ROW_DATA_WRAP, &wrapped);
+  return wrapped ? 1u : 0u;
+}
+
 static void read_row(Pane *pane, uint16_t y, uint16_t cols, FrameOutput *out) {
   put_cell_word(out, y);
+  GhosttyRow raw = 0;
+  ghostty_render_state_row_get(pane->rows, GHOSTTY_RENDER_STATE_ROW_DATA_RAW, &raw);
+  put_cell_word(out, row_flags(raw));
   ghostty_render_state_row_get(pane->rows, GHOSTTY_RENDER_STATE_ROW_DATA_CELLS, &pane->cells);
   for (uint16_t x = 0; x < cols; x++) {
     if (ghostty_render_state_row_cells_next(pane->cells)) {
@@ -317,8 +326,8 @@ static void read_cursor(Pane *pane, uint64_t *x, uint64_t *y, uint64_t *visible)
   *visible = cursor.visible && cursor.viewport_has_value;
 }
 
-// Reads the rows that changed since the last frame. Each row goes to cells as its viewport y,
-// then 4 words per cell: code point, fg key, bg key, and flags, with keys as at color_key. Flags
+// Reads the rows that changed since the last frame. Each row goes to cells as its viewport y, a
+// flags word (bit 0 means the row soft-wraps into the next row), then 4 words per cell: code point, fg key, bg key, and flags, with keys as at color_key. Flags
 // bits 0-4 are bold, faint, italic, underline, and inverse, bits 8-9 the GhosttyCellWide value,
 // and bit 16 means the cell's cluster is in graphemes as: the index in cells of the cell's code
 // point, the cluster length, then its code points.
@@ -553,6 +562,9 @@ static bool read_screen_row(Pane *pane, uint64_t y, uint32_t offset, uint16_t co
   GhosttyGridRef ref = GHOSTTY_INIT_SIZED(GhosttyGridRef);
   if (ghostty_terminal_grid_ref(pane->terminal, point, &ref) != GHOSTTY_SUCCESS) return false;
   put_cell_word(out, offset);
+  GhosttyRow raw = 0;
+  ghostty_grid_ref_row(&ref, &raw);
+  put_cell_word(out, row_flags(raw));
   for (uint16_t x = 0; x < cols; x++) {
     ref.x = x;
     read_ref_cell(&ref, out);

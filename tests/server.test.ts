@@ -13,7 +13,13 @@ import { sideListColumns } from '../src/layout.ts';
 import { createFrameDecoder, encodeFrame, FrameKind } from '../src/protocol/frames.ts';
 import { encodeControl, parseControl } from '../src/protocol/messages.ts';
 import type { BuildVersion, ControlMessage } from '../src/protocol/messages.ts';
-import { cellWords, decodeRowUpdate, encodePaneInput } from '../src/rows/rows.ts';
+import {
+  cellWords,
+  rowHeaderWords,
+  rowWords,
+  decodeRowUpdate,
+  encodePaneInput,
+} from '../src/rows/rows.ts';
 import type { RowUpdate } from '../src/rows/rows.ts';
 import { createLog } from '../src/server/log.ts';
 import type { Log } from '../src/server/log.ts';
@@ -706,13 +712,13 @@ it('sends no snapshot or changes to a stop-only connection', async () => {
 });
 
 const applyRows = (rows: Map<number, string>, update: RowUpdate): void => {
-  const stride = 1 + update.size.columns * cellWords;
+  const stride = rowWords(update.size.columns);
 
   for (let start = 0; start < update.cells.length; start += stride) {
     const points: number[] = [];
 
     for (let column = 0; column < update.size.columns; column += 1) {
-      points.push(update.cells[start + 1 + column * cellWords] ?? 0);
+      points.push(update.cells[start + rowHeaderWords + column * cellWords] ?? 0);
     }
 
     const offset = (update.cells[start] ?? 0) | 0;

@@ -10,7 +10,7 @@ import { paneId } from '../src/ids.ts';
 import { createFrameDecoder, encodeFrame, FrameKind } from '../src/protocol/frames.ts';
 import { encodeControl, parseControl } from '../src/protocol/messages.ts';
 import type { ControlMessage } from '../src/protocol/messages.ts';
-import { decodeRowUpdate, rowsToText } from '../src/rows/rows.ts';
+import { decodeRowUpdate, rowsToLines } from '../src/rows/rows.ts';
 import type { RowUpdate } from '../src/rows/rows.ts';
 import { createLog } from '../src/server/log.ts';
 import { runServer } from '../src/server/server.ts';
@@ -292,7 +292,9 @@ it(
       expect(results.every((result) => result.exitCode === 0)).toBe(true);
 
       const receivedRows = () =>
-        terminal.updates.slice(start).flatMap((update) => rowsToText(update, update.size.columns));
+        terminal.updates
+          .slice(start)
+          .flatMap((update) => rowsToLines(update, update.size.columns, false));
 
       expect(await waitFor(() => expected.every((row) => receivedRows().includes(row)))).toBe(true);
       const received = receivedRows();
