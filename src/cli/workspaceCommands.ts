@@ -1,9 +1,9 @@
-import { stat } from 'node:fs/promises';
 import { resolve } from 'node:path';
 
 import { runSnapshot, runWorkspaceCommand } from '../client/client.ts';
 import type { WorkspaceCommand } from '../client/client.ts';
 import type { BuildVersion } from '../protocol/protocol.ts';
+import { isDirectory } from './directory.ts';
 import { resolveSocketPath } from './environment.ts';
 import type { Environment } from './environment.ts';
 import { connectionFailureMessage, print } from './output.ts';
@@ -11,16 +11,6 @@ import type { Outcome } from './output.ts';
 import type { WorkspaceAction, WorkspaceCliCommand } from './parse.ts';
 
 type RequestAction = Exclude<WorkspaceAction, { action: 'list' | 'create' }>;
-
-const isDirectory = async (path: string): Promise<boolean> => {
-  try {
-    const status = await stat(path);
-
-    return status.isDirectory();
-  } catch {
-    return false;
-  }
-};
 
 const runWorkspaceList = async (
   command: WorkspaceCliCommand,

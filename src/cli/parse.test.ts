@@ -90,13 +90,13 @@ it('parses the tab commands', () => {
 
   expect(parseCommand(['tab', 'create'])).toEqual({
     kind: 'tab',
-    tab: { action: 'create', workspaceId: undefined },
+    tab: { action: 'create', workspaceId: undefined, cwd: undefined },
     ...options,
   });
 
   expect(parseCommand(['tab', 'create', '--workspace', 'workspace-2', '--json'])).toEqual({
     kind: 'tab',
-    tab: { action: 'create', workspaceId: workspaceId(2) },
+    tab: { action: 'create', workspaceId: workspaceId(2), cwd: undefined },
     json: true,
     socket: undefined,
   });
@@ -183,14 +183,14 @@ it('parses pane list, and the pane target of read and send', () => {
 it('parses pane split, focus, and close with the pane id as an argument', () => {
   expect(parseCommand(['pane', 'split', 'pane-2', '--direction', 'below', '--json'])).toEqual({
     kind: 'pane',
-    pane: { action: 'split', pane: paneId(2), direction: 'below' },
+    pane: { action: 'split', pane: paneId(2), direction: 'below', cwd: undefined },
     json: true,
     socket: undefined,
   });
 
   expect(parseCommand(['pane', 'split', 'pane-2', '--direction', 'right'])).toEqual({
     kind: 'pane',
-    pane: { action: 'split', pane: paneId(2), direction: 'right' },
+    pane: { action: 'split', pane: paneId(2), direction: 'right', cwd: undefined },
     json: false,
     socket: undefined,
   });
@@ -329,7 +329,9 @@ it('lists the workspace and pane commands in the usage', () => {
   expect(lines).toContain('phi pane list [--socket <path>] [--json]');
   expect(lines).toContain('phi pane read [--pane <id>] [--socket <path>] [--json]');
 
-  expect(lines).toContain('phi pane split <id> --direction below|right [--socket <path>] [--json]');
+  expect(lines).toContain(
+    'phi pane split <id> --direction below|right [--cwd <dir>] [--socket <path>] [--json]',
+  );
 
   expect(lines).toContain('phi pane focus <id> [--socket <path>] [--json]');
   expect(lines).toContain('phi pane close <id> [--socket <path>] [--json]');
@@ -368,5 +370,37 @@ it.each([
   ['no client action', ['client']],
   ['arguments for client list', ['client', 'list', 'extra']],
 ])('rejects %s', (_name, argv) => {
+  expect(typeof parseCommand(argv)).toBe('string');
+});
+
+it('parses --cwd on pane split and tab create', () => {
+  expect(parseCommand(['pane', 'split', 'pane-2', '--direction', 'right', '--cwd', 'sub'])).toEqual(
+    {
+      kind: 'pane',
+      pane: { action: 'split', pane: paneId(2), direction: 'right', cwd: 'sub' },
+      json: false,
+      socket: undefined,
+    },
+  );
+
+  expect(parseCommand(['tab', 'create', '--cwd', '/srv', '--workspace', 'workspace-2'])).toEqual({
+    kind: 'tab',
+    tab: { action: 'create', workspaceId: workspaceId(2), cwd: '/srv' },
+    json: false,
+    socket: undefined,
+  });
+});
+
+it.each([
+  ['pane focus', ['pane', 'focus', 'pane-1', '--cwd', '/srv']],
+  ['pane list', ['pane', 'list', '--cwd', '/srv']],
+  ['tab focus', ['tab', 'focus', 'tab-1', '--cwd', '/srv']],
+  ['workspace create', ['workspace', 'create', '/srv', '--cwd', '/srv']],
+  [
+    'an empty folder on pane split',
+    ['pane', 'split', 'pane-1', '--direction', 'below', '--cwd', ''],
+  ],
+  ['an empty folder on tab create', ['tab', 'create', '--cwd', '']],
+])('refuses --cwd on %s', (_name, argv) => {
   expect(typeof parseCommand(argv)).toBe('string');
 });

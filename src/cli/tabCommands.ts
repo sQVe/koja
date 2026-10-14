@@ -2,6 +2,7 @@ import { activeTabIdOf, runSnapshot, runTabCommand } from '../client/client.ts';
 import type { StoreSnapshot, TabCommand } from '../client/client.ts';
 import type { WorkspaceId } from '../ids.ts';
 import type { BuildVersion } from '../protocol/protocol.ts';
+import { resolveFolder } from './directory.ts';
 import { resolveSocketPath } from './environment.ts';
 import type { Environment } from './environment.ts';
 import { connectionFailureMessage, print } from './output.ts';
@@ -113,12 +114,22 @@ const focusedWorkspaceOf = async (
 
 const runTabCreate = async (
   command: TabCliCommand,
-  workspaceId: WorkspaceId | undefined,
+  action: Extract<TabAction, { action: 'create' }>,
   version: BuildVersion,
   socketPath: string,
 ): Promise<Outcome> => {
-  if (workspaceId !== undefined) {
-    return runTabRequest(command, { action: 'create', workspaceId }, version, socketPath);
+  const resolved = await resolveFolder(action.cwd);
+
+  if (!resolved.ok) {
+    return resolved;
+  }
+
+  const cwd = resolved.folder;
+
+  if (action.workspaceId !== undefined) {
+    const request = { action: 'create', workspaceId: action.workspaceId, cwd } as const;
+
+    return runTabRequest(command, request, version, socketPath);
   }
 
   const focused = await focusedWorkspaceOf(version, socketPath);
@@ -127,7 +138,12 @@ const runTabCreate = async (
     return focused;
   }
 
-  return runTabRequest(command, { action: 'create', workspaceId: focused.id }, version, socketPath);
+  return runTabRequest(
+    command,
+    { action: 'create', workspaceId: focused.id, cwd },
+    version,
+    socketPath,
+  );
 };
 
 const requestFor = (action: RequestAction): TabCommand => action;
@@ -145,7 +161,7 @@ export const runTabAction = (
   }
 
   if (tab.action === 'create') {
-    return runTabCreate(command, tab.workspaceId, version, socketPath);
+    return runTabCreate(command, tab, version, socketPath);
   }
 
   return runTabRequest(command, requestFor(tab), version, socketPath);

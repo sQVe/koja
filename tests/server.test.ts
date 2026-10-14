@@ -1149,7 +1149,7 @@ it('sends rows for every pane of the active tab after a split', async () => {
   const cli = await connectCli(socketPath);
   const terminal = await attachTerminal(socketPath, 100);
 
-  cli.send({ type: 'paneSplit', paneId: paneId(1), direction: 'right' });
+  cli.send({ type: 'paneSplit', paneId: paneId(1), direction: 'right', cwd: undefined });
 
   expect(await nextOfType(cli, 'paneDone')).toEqual({ type: 'paneDone', paneId: paneId(2) });
 
@@ -1187,7 +1187,7 @@ it('sends no rows for a hidden pane while its tab is zoomed and its current scre
   const cli = await connectCli(socketPath);
   const terminal = await attachTerminal(socketPath, 100);
 
-  cli.send({ type: 'paneSplit', paneId: paneId(1), direction: 'right' });
+  cli.send({ type: 'paneSplit', paneId: paneId(1), direction: 'right', cwd: undefined });
   await nextOfType(cli, 'paneDone');
   cli.send({ type: 'paneZoom', paneId: paneId(1) });
   await nextOfType(cli, 'paneDone');
@@ -1522,7 +1522,7 @@ it('keeps the existing pane at its full size when the split pane fails to start'
 
   const cli = await connectCli(socketPath);
 
-  cli.send({ type: 'paneSplit', paneId: paneId(1), direction: 'right' });
+  cli.send({ type: 'paneSplit', paneId: paneId(1), direction: 'right', cwd: undefined });
 
   expect(await nextOfType(cli, 'paneFailed')).toMatchObject({ reason: 'paneFailedToStart' });
   expect(server.snapshot().panes.map((pane) => pane.size)).toEqual([before]);
@@ -2124,7 +2124,7 @@ it('counts an ack only for the pane it names', async () => {
   const { socketPath } = await startServer(directory);
   const cli = await connectCli(socketPath);
 
-  cli.send({ type: 'paneSplit', paneId: paneId(1), direction: 'right' });
+  cli.send({ type: 'paneSplit', paneId: paneId(1), direction: 'right', cwd: undefined });
   await nextOfType(cli, 'paneDone');
 
   const terminal = await attachTerminal(socketPath, 100);

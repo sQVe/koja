@@ -41,7 +41,7 @@ type SplitDirection = Extract<ControlMessage, { type: 'paneSplit' }>['direction'
 type ResizeDirection = Extract<ControlMessage, { type: 'paneResize' }>['direction'];
 
 export type PaneLayoutCommand =
-  | { action: 'split'; pane: PaneId; direction: SplitDirection }
+  | { action: 'split'; pane: PaneId; direction: SplitDirection; cwd: string | undefined }
   | { action: 'focus'; pane: PaneId }
   | { action: 'close'; pane: PaneId }
   | { action: 'zoom'; pane: PaneId }
@@ -64,7 +64,7 @@ type WorkspaceResult =
   | RequestFailure;
 
 export type TabCommand =
-  | { action: 'create'; workspaceId: WorkspaceId }
+  | { action: 'create'; workspaceId: WorkspaceId; cwd: string | undefined }
   | { action: 'focus'; tabId: TabId }
   | { action: 'close'; tabId: TabId };
 
@@ -341,7 +341,12 @@ export const runPaneProcessInfo = (
 
 const paneLayoutRequest = (command: PaneLayoutCommand): ControlMessage => {
   if (command.action === 'split') {
-    return { type: 'paneSplit', paneId: command.pane, direction: command.direction };
+    return {
+      type: 'paneSplit',
+      paneId: command.pane,
+      direction: command.direction,
+      cwd: command.cwd,
+    };
   }
 
   if (command.action === 'resize') {
@@ -412,7 +417,7 @@ export const runWorkspaceCommand = (
 
 const tabRequest = (command: TabCommand): ControlMessage => {
   if (command.action === 'create') {
-    return { type: 'tabCreate', workspaceId: command.workspaceId };
+    return { type: 'tabCreate', workspaceId: command.workspaceId, cwd: command.cwd };
   }
 
   return command.action === 'focus'

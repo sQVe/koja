@@ -1083,13 +1083,9 @@ const tabIntentOf = (
 ): Intent => {
   if (message.type === 'tabCreate') {
     const sourcePane = activeFocusedPaneOf(context, message.workspaceId, source);
+    const folder = message.cwd ?? followFolderOf(context, sourcePane);
 
-    return {
-      type: 'createTab',
-      workspaceId: message.workspaceId,
-      folder: followFolderOf(context, sourcePane),
-      ...source,
-    };
+    return { type: 'createTab', workspaceId: message.workspaceId, folder, ...source };
   }
 
   if (message.type === 'tabFocus') {
@@ -1164,6 +1160,14 @@ const paneLayoutRequestTypes: ReadonlySet<string> = new Set([
 const isPaneLayoutRequest = (message: ControlMessage): message is PaneLayoutRequest =>
   paneLayoutRequestTypes.has(message.type);
 
+const paneFolderOf = (context: ServerContext, message: PaneLayoutRequest): string | undefined => {
+  if (message.type !== 'paneSplit') {
+    return undefined;
+  }
+
+  return message.cwd ?? followFolderOf(context, message.paneId);
+};
+
 const paneIntentOf = (
   message: PaneLayoutRequest,
   source: { clientId?: ClientId },
@@ -1231,7 +1235,7 @@ const handlePaneLayoutRequest = (
     return;
   }
 
-  const folder = followFolderOf(context, message.paneId);
+  const folder = paneFolderOf(context, message);
   const changes = dispatch(context, paneIntentOf(message, sourceOf(context, connection), folder));
   const added = changes.find((change) => change.type === 'paneAdded');
   const startFailure = takePaneStartFailure(context);

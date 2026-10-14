@@ -243,3 +243,57 @@ it(
   },
   cliTestTimeoutMs,
 );
+
+it(
+  'tab create --cwd starts the new pane in that folder, resolving a relative path against the CLI folder',
+  async () => {
+    const { directory, phi, createWorkspace, tabs, panes } = await setup();
+
+    await createWorkspace('alpha');
+
+    const [first] = await panes();
+    const moved = join(await realpath(directory), 'moved');
+    const target = join(await realpath(directory), 'target');
+
+    await mkdir(moved);
+    await mkdir(target);
+
+    expect((await phi('pane', 'send', `cd ${moved}\n`)).exitCode).toBe(0);
+
+    for (let attempt = 0; attempt < 100; attempt += 1) {
+      if ((await panes()).find((pane) => pane.id === first?.id)?.cwd === moved) {
+        break;
+      }
+
+      await Bun.sleep(100);
+    }
+
+    expect((await phi('tab', 'create', '--cwd', target)).exitCode).toBe(0);
+    expect((await phi('tab', 'create', '--cwd', 'target')).exitCode).toBe(0);
+
+    const created = new Set((await tabs()).filter((tab) => tab.number > 1).map((tab) => tab.pane));
+    const folders = (await panes()).filter((pane) => created.has(pane.id));
+
+    expect(folders.map((pane) => pane.cwd)).toEqual([target, target]);
+  },
+  cliTestTimeoutMs,
+);
+
+it(
+  'tab create --cwd refuses a folder that is not a directory and creates no tab',
+  async () => {
+    const { directory, phi, createWorkspace, tabs } = await setup();
+
+    await createWorkspace('alpha');
+
+    const missing = join(directory, 'missing');
+    const before = await tabs();
+    const failed = await phi('tab', 'create', '--cwd', missing);
+
+    expect(failed.exitCode).toBe(1);
+    expect(failed.stdout).toBe('');
+    expect(failed.stderr).toContain(`${missing} is not a directory.`);
+    expect(await tabs()).toEqual(before);
+  },
+  cliTestTimeoutMs,
+);
