@@ -3,31 +3,43 @@ import {
   runPaneFolders,
   runPaneLayoutCommand,
   runPaneProcessInfo,
-  runPaneRead,
   runPaneSend,
   runSnapshot,
 } from '../client/client.ts';
-import type {
-  PaneLayoutCommand,
-  PaneReadCommand,
-  PaneSendCommand,
-  StoreSnapshot,
-} from '../client/client.ts';
+import type { PaneLayoutCommand, PaneSendCommand, StoreSnapshot } from '../client/client.ts';
 import type { PaneId } from '../ids.ts';
 import type { BuildVersion } from '../protocol/protocol.ts';
 import { resolveFolder } from './directory.ts';
 import { resolveSocketPath } from './environment.ts';
 import type { Environment } from './environment.ts';
-import { connectionFailureMessage, print, printJson } from './output.ts';
+import { connectionFailureMessage, print } from './output.ts';
 import type { Outcome } from './output.ts';
-import type { PaneCliCommand } from './parse.ts';
+import type { PaneCliCommand } from './paneCommandParse.ts';
+import { runPaneReadCommand } from './paneReadCommand.ts';
 
 type PaneFolders = Extract<Awaited<ReturnType<typeof runPaneFolders>>, { ok: true }>['panes'];
 
-type ReadFailure = Extract<
-  Awaited<ReturnType<typeof runPaneRead>>,
-  { reason: 'pruned' | 'staleEpoch' | 'screenChanged' | 'tooManyBytes' | 'noSnapshot' }
->;
+interface PaneEntry {
+  id: string;
+  workspace: string;
+  tab: string;
+  lifecycle: string;
+  focused: boolean;
+  zoomed: boolean;
+  columns: number;
+  rows: number;
+  cwd: string | null;
+  foreground_cwd: string | null;
+  restore_error: string | null;
+}
+
+interface PaneActionOutput {
+  pane: string;
+}
+
+interface PaneSendOutput {
+  sent: true;
+}
 
 const listPanes = (snapshot: StoreSnapshot, folders: PaneFolders) => {
   const focusedId = focusedPane(snapshot)?.id;
@@ -76,7 +88,7 @@ const runPaneList = async (
       `${pane.focused ? '*' : ' '} ${pane.id}\t${pane.workspace}\t${pane.tab}\t${pane.lifecycle}\t${pane.columns}x${pane.rows}\t${pane.cwd ?? ''}${pane.zoomed ? '\tzoomed' : ''}${pane.restore_error === null ? '' : `\t${pane.restore_error}`}`,
   );
 
-  print(command.json, { json: panes, text: lines.join('\n') });
+  print<PaneEntry[]>(command.json, { json: panes, text: lines.join('\n') });
 
   return { ok: true };
 };
@@ -155,7 +167,7 @@ const runPaneLayout = async (
   const result = await runPaneLayoutCommand(socketPath, version, sent);
 
   if (result.ok) {
-    print(command.json, {
+    print<PaneActionOutput>(command.json, {
       json: { pane: result.paneId },
       text: layoutDoneText(request.action, result.paneId),
     });
@@ -194,97 +206,6 @@ const layoutActions: ReadonlySet<string> = new Set(['split', 'focus', 'close', '
 const isLayoutAction = (action: PaneCliCommand['pane']): action is PaneLayoutCommand =>
   layoutActions.has(action.action);
 
-const readFailureReasons: ReadonlySet<string> = new Set([
-  'pruned',
-  'staleEpoch',
-  'screenChanged',
-  'tooManyBytes',
-  'noSnapshot',
-]);
-
-const isReadFailure = (
-  result: Extract<Awaited<ReturnType<typeof runPaneRead>>, { ok: false }>,
-): result is ReadFailure => readFailureReasons.has(result.reason);
-
-const readFailureMessage = (failure: ReadFailure): string => {
-  if (failure.reason === 'pruned') {
-    return `Rows below row ${failure.oldest} are no longer kept. The oldest kept row is ${failure.oldest}.`;
-  }
-
-  if (failure.reason === 'staleEpoch') {
-    return `The pane's rows were renumbered during the read. The epoch is now ${failure.epoch}. Read again.`;
-  }
-
-  if (failure.reason === 'screenChanged') {
-    return 'The pane switched between its primary and alternate screens during the read. Read again.';
-  }
-
-  if (failure.reason === 'tooManyBytes') {
-    return `A read holds at most ${failure.limitBytes} bytes. Read fewer rows.`;
-  }
-
-  return 'The server no longer holds the rows of this read. Read again.';
-};
-
-const sourceNames = {
-  visible: 'visible',
-  recent: 'recent',
-  recentUnwrapped: 'recent-unwrapped',
-} as const;
-
-// Like herdr, nonempty recent and visible text ends in a line feed and unwrapped text gets none.
-const printReadText = (read: PaneReadCommand, lines: string[]): void => {
-  if (lines.length === 0) {
-    return;
-  }
-
-  const text = lines.join('\n');
-
-  process.stdout.write(read.source === 'recentUnwrapped' ? text : `${text}\n`);
-};
-
-const runPaneReadCommand = async (
-  command: PaneCliCommand,
-  read: PaneReadCommand,
-  version: BuildVersion,
-  socketPath: string,
-): Promise<Outcome> => {
-  const result = await runPaneRead(socketPath, version, read);
-
-  if (!result.ok && result.reason === 'paneMissing') {
-    return { ok: false, message: 'The pane is no longer running.' };
-  }
-
-  if (!result.ok && isReadFailure(result)) {
-    return { ok: false, message: readFailureMessage(result) };
-  }
-
-  if (!result.ok) {
-    return { ok: false, message: connectionFailureMessage(result, socketPath, 'pane command') };
-  }
-
-  if (!command.json) {
-    printReadText(read, result.lines);
-
-    return { ok: true };
-  }
-
-  print(command.json, {
-    json: {
-      pane: result.paneId,
-      source: sourceNames[read.source],
-      epoch: result.epoch,
-      oldest: result.oldest,
-      from: result.from ?? null,
-      to: result.to ?? null,
-      lines: result.lines,
-    },
-    text: '',
-  });
-
-  return { ok: true };
-};
-
 const runPaneSendCommand = async (
   command: PaneCliCommand,
   send: PaneSendCommand,
@@ -302,7 +223,7 @@ const runPaneSendCommand = async (
   }
 
   if (command.json) {
-    printJson({ sent: true });
+    print<PaneSendOutput>(true, { json: { sent: true }, text: '' });
   }
 
   return { ok: true };

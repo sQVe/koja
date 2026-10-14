@@ -1,5 +1,6 @@
 import type { BuildVersion } from '../protocol/protocol.ts';
 import { runAttachCommand } from './attachCommand.ts';
+import type { AttachCommand } from './clientCommandParse.ts';
 import { runClientAction } from './clientCommands.ts';
 import { runDefaultCommand } from './defaultCommand.ts';
 import { runDetachCommand } from './detachCommand.ts';
@@ -8,11 +9,16 @@ import { print } from './output.ts';
 import type { Outcome } from './output.ts';
 import { runPaneAction } from './paneCommands.ts';
 import { parseCommand, usage } from './parse.ts';
-import type { AttachCommand, Command, DefaultCommand, VersionCommand } from './parse.ts';
+import type { Command, DefaultCommand, VersionCommand } from './parse.ts';
 import { runServerAction } from './serverCommands.ts';
 import { runTabAction } from './tabCommands.ts';
 import { readVersions } from './versions.ts';
 import { runWorkspaceAction } from './workspaceCommands.ts';
+
+interface VersionOutput {
+  version: string;
+  ghostty: string;
+}
 
 const writeError = (message: string, suffix = ''): void => {
   process.stderr.write(`phi: ${message}${suffix}\n`);
@@ -67,7 +73,7 @@ export const runCli = async (argv: string[], environment: Environment): Promise<
   if (command.kind === 'version') {
     const { version, ghostty } = result.versions;
 
-    print(command.json, {
+    print<VersionOutput>(command.json, {
       json: { version, ghostty },
       text: `phi ${version} (ghostty ${ghostty})`,
     });

@@ -3,14 +3,10 @@ import { existsSync } from 'node:fs';
 import { cp, mkdir, mkdtemp, readFile, rm, symlink } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { fileURLToPath } from 'node:url';
-
-import { z } from 'zod';
 
 import packageJson from '../package.json' with { type: 'json' };
+import { root, startOutputSchema } from './cliHarness.ts';
 import { endServersIn, isRunning, serverProcessesIn, waitFor } from './serverProcesses.ts';
-
-const root = fileURLToPath(new URL('..', import.meta.url));
 
 let source: string;
 let directory: string;
@@ -95,8 +91,6 @@ it('prints the version and the pinned Ghostty commit when run from source', asyn
     new RegExp(`^phi \\S+ \\(ghostty ${await pinnedGhosttyCommit()}\\)\\n$`),
   );
 });
-
-const startOutputSchema = z.object({ socket: z.string(), pid: z.number().int().positive() });
 
 it('starts and stops a server', async () => {
   const state = await mkdtemp(join(tmpdir(), 'phi-binary-server-'));

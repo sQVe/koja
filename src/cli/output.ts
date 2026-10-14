@@ -2,101 +2,6 @@ import type { BuildVersion } from '../protocol/protocol.ts';
 
 export type Outcome = { ok: true } | { ok: false; message: string };
 
-interface VersionOutput {
-  version: string;
-  ghostty: string;
-}
-
-interface ServerRunOutput {
-  socket: string;
-  pid: number;
-}
-
-interface ServerStopOutput {
-  stopped: true;
-}
-
-interface PaneReadOutput {
-  pane: string;
-  source: 'visible' | 'recent' | 'recent-unwrapped';
-  epoch: number;
-  oldest: number;
-  from: number | null;
-  to: number | null;
-  lines: string[];
-}
-
-export interface PaneSendOutput {
-  sent: true;
-}
-
-interface WorkspaceEntry {
-  id: string;
-  root: string;
-  label: string;
-  focused: boolean;
-}
-
-interface PaneEntry {
-  id: string;
-  workspace: string;
-  tab: string;
-  lifecycle: string;
-  focused: boolean;
-  columns: number;
-  rows: number;
-}
-
-interface PaneActionOutput {
-  pane: string;
-}
-
-interface TabEntry {
-  id: string;
-  workspace: string;
-  number: number;
-  active: boolean;
-  pane: string;
-}
-
-interface TabActionOutput {
-  tab: string;
-}
-
-interface ClientEntry {
-  id: string;
-  foreground: boolean;
-  size: { columns: number; rows: number };
-  view: { workspace: string | null; tabs: Record<string, string> };
-}
-
-interface WorkspaceActionOutput {
-  workspace: string;
-}
-
-export type DetachFailure =
-  | 'noServer'
-  | 'refused'
-  | 'connectionFailed'
-  | 'noClient'
-  | 'unknownClient';
-
-type DetachOutput = { detached: true } | { detached: false; reason: DetachFailure };
-
-type CommandJson =
-  | VersionOutput
-  | ServerRunOutput
-  | ServerStopOutput
-  | PaneReadOutput
-  | PaneActionOutput
-  | WorkspaceEntry[]
-  | PaneEntry[]
-  | WorkspaceActionOutput
-  | TabEntry[]
-  | ClientEntry[]
-  | TabActionOutput
-  | DetachOutput;
-
 // The JSON value is a public surface that agents parse.
 export interface Output<Json> {
   json: Json;
@@ -107,7 +12,7 @@ type ConnectionFailure =
   | { reason: 'noServer' | 'connectionFailed' }
   | { reason: 'refused'; client: BuildVersion; server: BuildVersion };
 
-export const print = <Json extends CommandJson>(json: boolean, output: Output<Json>): void => {
+export const print = <Json>(json: boolean, output: Output<Json>): void => {
   const line = json ? JSON.stringify(output.json) : output.text;
 
   if (line === '') {
@@ -135,8 +40,4 @@ export const connectionFailureMessage = (
   return failure.reason === 'noServer'
     ? `No server is listening on ${socketPath}.`
     : `The server on ${socketPath} did not complete the ${task}.`;
-};
-
-export const printJson = (output: PaneSendOutput): void => {
-  process.stdout.write(`${JSON.stringify(output)}\n`);
 };
