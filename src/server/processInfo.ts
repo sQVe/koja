@@ -149,8 +149,7 @@ const isEnterable = (path: string): boolean => {
   }
 };
 
-// The folder a new pane follows: the foreground folder, else the shell folder. A folder is used
-// only when the server can enter it. Without one, the caller picks the workspace root.
+// Without an enterable folder, the caller starts the new pane in the workspace root.
 export const readFollowFolder = (shellPid: number): string | undefined => {
   const { cwd, foregroundCwd } = readPaneFolders(shellPid);
 

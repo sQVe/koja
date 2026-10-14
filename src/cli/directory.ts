@@ -15,7 +15,6 @@ export const isDirectory = async (path: string): Promise<boolean> => {
   }
 };
 
-// A relative folder resolves against the folder this process runs in.
 export const resolveFolder = async (folder: string | undefined): Promise<ResolvedFolder> => {
   if (folder === undefined) {
     return { ok: true, folder };
