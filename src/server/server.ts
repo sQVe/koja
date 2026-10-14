@@ -7,7 +7,7 @@ import { layoutPanes, shownLayout } from '../layout.ts';
 import type { TerminalSize } from '../layout.ts';
 import { FrameKind } from '../protocol/protocol.ts';
 import type { BuildVersion, ControlMessage } from '../protocol/protocol.ts';
-import { decodePaneInput, encodeRowUpdate, rowsToLines } from '../rows/rows.ts';
+import { decodePaneInput, encodePaneRows, encodeRowUpdate } from '../rows/rows.ts';
 import {
   activeTabOf,
   applyFact,
@@ -34,6 +34,7 @@ import type { Connection } from './connection.ts';
 import type { Log } from './log.ts';
 import { spawnPane } from './pane.ts';
 import type { PaneRuntime } from './pane.ts';
+import { selectPaneRows } from './paneRows.ts';
 import {
   readFollowFolder,
   readPaneFolders,
@@ -59,6 +60,8 @@ interface ServerOptions {
   environment: Record<string, string | undefined>;
   // For tests: ends a render hold after this many milliseconds. Defaults to the publisher's limit.
   holdLimitMs?: number;
+  // For tests: the history each pane keeps, in bytes. Defaults to the pane's limit.
+  scrollbackBytes?: number;
   // Names the save file for the claimed socket path, which has its symlinks resolved. Without it
   // the server neither saves nor restores a session.
   sessionPathFor?: (socketPath: string) => string;
@@ -115,6 +118,8 @@ interface Runtime {
   paneScopes: boolean | undefined;
   sessionWriter: SessionWriter | undefined;
 }
+
+type PaneReadMessage = Extract<ControlMessage, { type: 'paneRead' }>;
 
 interface ServerContext {
   options: ServerOptions;
@@ -366,6 +371,8 @@ const releaseRuntime = (context: ServerContext, id: PaneId, runtime: PaneRuntime
   runtime[Symbol.dispose]();
 };
 
+const paneNumber = (id: PaneId): number => Number(id.slice('pane-'.length));
+
 const startPane = (context: ServerContext, pane: Pane, report: Report): void => {
   const { log } = context.options;
   const { id, generation } = pane;
@@ -386,6 +393,9 @@ const startPane = (context: ServerContext, pane: Pane, report: Report): void => 
     environment: context.options.environment,
     directory,
     useScope: paneScopesEnabled(context),
+    ...(context.options.scrollbackBytes === undefined
+      ? {}
+      : { scrollbackBytes: context.options.scrollbackBytes }),
     onOutput: () => {
       scheduleRows(context, id, generation);
     },
@@ -405,7 +415,7 @@ const startPane = (context: ServerContext, pane: Pane, report: Report): void => 
     return;
   }
 
-  const number = Number(id.slice('pane-'.length));
+  const number = paneNumber(id);
 
   const publisher = createRowPublisher(spawned.pane.terminal, number, pane.size, {
     ...(context.options.holdLimitMs === undefined
@@ -774,7 +784,12 @@ const findLivePane = (context: ServerContext, paneId: PaneId) => {
   return { pane, runtime };
 };
 
-const answerPaneRead = (context: ServerContext, paneId: PaneId, connection: Connection): void => {
+const answerPaneRead = (
+  context: ServerContext,
+  message: PaneReadMessage,
+  connection: Connection,
+): void => {
+  const { paneId, requestId } = message;
   const live = findLivePane(context, paneId);
 
   if (connection.isClosed()) {
@@ -787,25 +802,28 @@ const answerPaneRead = (context: ServerContext, paneId: PaneId, connection: Conn
     return;
   }
 
-  const { epoch, activeTop } = live.runtime.terminal.stableRows();
-  const read = live.runtime.terminal.readRows(epoch, activeTop, live.pane.size.rows);
+  const selected = selectPaneRows(live.runtime.terminal, live.pane.size, message.selection);
 
-  invariant(read.ok, 'The active screen must remain available during a synchronous read.');
+  if (!selected.ok) {
+    connection.send({ type: 'paneReadFailed', paneId, requestId, failure: selected.failure });
 
-  const rows = rowsToLines(read.rows, live.pane.size.columns, false);
+    return;
+  }
 
-  connection.send({ type: 'paneRows', paneId, rows });
+  const reply = encodePaneRows({ ...selected.rows, pane: paneNumber(paneId), requestId });
+
+  connection.sendBinary(FrameKind.paneRows, reply);
 };
 
 const answerPaneReadAfterHold = async (
   context: ServerContext,
-  paneId: PaneId,
+  message: PaneReadMessage,
   connection: Connection,
   publisher: RowPublisher,
 ): Promise<void> => {
   await publisher.whenReleased();
 
-  answerPaneRead(context, paneId, connection);
+  answerPaneRead(context, message, connection);
 };
 
 const answerPaneFolders = (context: ServerContext, connection: Connection): void => {
@@ -891,12 +909,12 @@ const handlePaneCommand = (
   const publication = context.runtime.rowPublishers.get(message.paneId);
 
   if (publication === undefined || !live.runtime.terminal.renderHeld()) {
-    answerPaneRead(context, message.paneId, connection);
+    answerPaneRead(context, message, connection);
 
     return;
   }
 
-  answerPaneReadAfterHold(context, message.paneId, connection, publication.publisher).catch(
+  answerPaneReadAfterHold(context, message, connection, publication.publisher).catch(
     (error: unknown) => {
       context.options.log.error('Reading the pane failed.', {
         paneId: message.paneId,

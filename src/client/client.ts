@@ -7,6 +7,8 @@ import {
   parseControl,
 } from '../protocol/protocol.ts';
 import type { BuildVersion, ControlMessage } from '../protocol/protocol.ts';
+import { decodePaneRows, PaneRowsSource, rowsToLines } from '../rows/rows.ts';
+import type { PaneRows } from '../rows/rows.ts';
 import { focusedPane } from './snapshot.ts';
 import type { StoreSnapshot } from './snapshot.ts';
 import { workspaceRequest } from './workspaceRequest.ts';
@@ -84,6 +86,10 @@ type RequestFailure =
 
 type PaneResult =
   | { ok: true; kind: 'rows'; paneId: PaneId; rows: string[] }
+  | { ok: false; reason: 'pruned'; oldest: number }
+  | { ok: false; reason: 'staleEpoch'; epoch: number }
+  | { ok: false; reason: 'tooManyRows'; limit: number }
+  | { ok: false; reason: 'tooManyBytes'; limitBytes: number }
   | { ok: true; kind: 'sent' }
   | { ok: false; reason: 'paneMissing' }
   | RequestFailure;
@@ -113,6 +119,7 @@ interface Request<Result> {
 interface RequestHandlers<Result> {
   onWelcome?: (request: Request<Result>) => void;
   onMessage: (request: Request<Result>, message: ControlMessage) => void;
+  onPaneRows?: (request: Request<Result>, rows: PaneRows) => void;
 }
 
 const requestTimeoutMs = 10_000;
@@ -181,6 +188,18 @@ const runRequest = async <Result>(
     handlers.onWelcome?.(request);
   };
 
+  const takePaneRows = (payload: Uint8Array): void => {
+    const decoded = decodePaneRows(payload);
+
+    if (!decoded.ok || !welcomed) {
+      fail();
+
+      return;
+    }
+
+    handlers.onPaneRows?.(request, decoded.rows);
+  };
+
   const receive = (_socket: Bun.Socket, bytes: Uint8Array): void => {
     const decoded = decoder.push(bytes);
 
@@ -193,6 +212,12 @@ const runRequest = async <Result>(
     for (const frame of decoded.frames) {
       if (finished) {
         return;
+      }
+
+      if (frame.kind === FrameKind.paneRows) {
+        takePaneRows(frame.payload);
+
+        continue;
       }
 
       const parsed = parseControl(frame.payload);
@@ -234,9 +259,17 @@ const runRequest = async <Result>(
   }
 };
 
+// Answers are matched to the one read request a connection makes.
+const readRequestId = 1;
+
 const paneRequest = (paneId: PaneId, command: PaneCommand): ControlMessage =>
   command.action === 'read'
-    ? { type: 'paneRead', paneId }
+    ? {
+        type: 'paneRead',
+        paneId,
+        requestId: readRequestId,
+        selection: { source: 'visible', lines: undefined },
+      }
     : { type: 'paneSend', paneId, text: command.text };
 
 export const runPaneCommand = (
@@ -271,8 +304,8 @@ export const runPaneCommand = (
       request.finish({ ok: false, reason: 'paneMissing' });
     }
 
-    if (message.type === 'paneRows' && command.action === 'read') {
-      request.finish({ ok: true, kind: 'rows', paneId: message.paneId, rows: message.rows });
+    if (message.type === 'paneReadFailed' && message.requestId === readRequestId) {
+      request.finish({ ok: false, ...message.failure });
     }
 
     if (message.type === 'paneSent' && command.action === 'send') {
@@ -285,6 +318,20 @@ export const runPaneCommand = (
       if (command.pane !== undefined) {
         request.send(paneRequest(command.pane, command));
       }
+    },
+    onPaneRows: (request, rows) => {
+      if (paneId === undefined || rows.requestId !== readRequestId) {
+        return;
+      }
+
+      const unwrap = rows.source === PaneRowsSource.recentUnwrapped;
+
+      request.finish({
+        ok: true,
+        kind: 'rows',
+        paneId,
+        rows: rowsToLines(rows, rows.columns, unwrap),
+      });
     },
     onMessage: (request, message) => {
       if (message.type === 'snapshot' && paneId === undefined) {

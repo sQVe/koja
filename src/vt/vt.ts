@@ -187,6 +187,7 @@ const loadLibrary = () =>
     pane_render_held: { args: [FFIType.ptr], returns: FFIType.bool },
     pane_end_render_hold: { args: [FFIType.ptr], returns: FFIType.void },
     pane_stable_rows: { args: [FFIType.ptr, FFIType.ptr], returns: FFIType.bool },
+    pane_cursor_row: { args: [FFIType.ptr], returns: FFIType.u16 },
     pane_scrollback: { args: [FFIType.ptr, FFIType.ptr], returns: FFIType.void },
     pane_colors: { args: [FFIType.ptr, FFIType.ptr], returns: FFIType.u64 },
     pane_set_default_colors: { args: [FFIType.ptr, FFIType.ptr], returns: FFIType.void },
@@ -323,6 +324,11 @@ export class Terminal {
   // The next frame returns every row.
   markAllDirty(): void {
     this.symbols.pane_mark_all_dirty(this.live());
+  }
+
+  // The row of the cursor in the active screen. Does not consume dirty rows.
+  cursorRow(): number {
+    return this.symbols.pane_cursor_row(this.live());
   }
 
   // Whether synchronized output holds the frame. Does not consume dirty rows.

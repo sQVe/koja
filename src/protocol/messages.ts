@@ -59,6 +59,34 @@ const clientIdSchema: z.ZodType<ClientId> = idNumber('client').transform(clientI
 
 const count = z.number().int().nonnegative();
 
+const maxWord = 0xff_ff_ff_ff;
+
+const wordSchema = z.number().int().min(0).max(maxWord);
+
+// lines is absent for the default. Row numbers are stable row numbers, and epoch is absent to read
+// in the current epoch.
+const paneReadSelectionSchema = z.discriminatedUnion('source', [
+  z.object({ source: z.literal('visible'), lines: absent(count) }),
+  z.object({ source: z.literal('recent'), lines: absent(count) }),
+  z.object({ source: z.literal('recentUnwrapped'), lines: absent(count) }),
+  z.object({
+    source: z.literal('range'),
+    from: z.number().int().nonnegative(),
+    to: z.number().int().nonnegative(),
+    epoch: absent(wordSchema),
+  }),
+]);
+
+// pruned: the range starts below the oldest row kept. staleEpoch: the request named another epoch
+// than the current one. tooManyRows: the range holds more rows than one reply can.
+// tooManyBytes: the encoded reply would be larger than one reply can be.
+const paneReadFailureSchema = z.discriminatedUnion('reason', [
+  z.object({ reason: z.literal('pruned'), oldest: z.number().int().nonnegative() }),
+  z.object({ reason: z.literal('staleEpoch'), epoch: wordSchema }),
+  z.object({ reason: z.literal('tooManyRows'), limit: count }),
+  z.object({ reason: z.literal('tooManyBytes'), limitBytes: count }),
+]);
+
 // The terminal passes sizes as 16-bit numbers.
 const largestDimension = 0xff_ff;
 
@@ -262,8 +290,6 @@ const controlSchema = z.discriminatedUnion('type', [
   z.object({ type: z.literal('takenOver') }),
   z.object({ type: z.literal('detached') }),
   z.object({ type: z.literal('detachResult'), result: detachOutcomeSchema }),
-  z.object({ type: z.literal('paneRead'), paneId: paneIdSchema }),
-  z.object({ type: z.literal('paneRows'), paneId: paneIdSchema, rows: z.array(z.string()) }),
   // Asks for the shell folder and the foreground folder of every running pane.
   z.object({ type: z.literal('paneFolders') }),
   z.object({
@@ -291,6 +317,19 @@ const controlSchema = z.discriminatedUnion('type', [
         folder: absent(z.string()),
       }),
     ),
+  }),
+  // Asks for the rows of a pane. The rows come back in a paneRows frame, or as paneReadFailed.
+  z.object({
+    type: z.literal('paneRead'),
+    paneId: paneIdSchema,
+    requestId: wordSchema,
+    selection: paneReadSelectionSchema,
+  }),
+  z.object({
+    type: z.literal('paneReadFailed'),
+    paneId: paneIdSchema,
+    requestId: wordSchema,
+    failure: paneReadFailureSchema,
   }),
   z.object({ type: z.literal('paneSend'), paneId: paneIdSchema, text: z.string() }),
   z.object({ type: z.literal('paneSent'), paneId: paneIdSchema }),

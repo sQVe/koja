@@ -5,17 +5,20 @@ import {
   CellWidth,
   cellWords,
   decodePaneInput,
+  decodePaneRows,
   decodeRowUpdate,
   encodePaneInput,
+  encodePaneRows,
   encodeRowUpdate,
   ModeFlag,
+  PaneRowsSource,
   RowFlag,
   rowHeaderWords,
   rowsToLines,
   rowUpdateBytes,
   rowWords,
 } from './rows.ts';
-import type { RowUpdate } from './rows.ts';
+import type { PaneRows, RowUpdate } from './rows.ts';
 
 const columns = 80;
 
@@ -300,4 +303,93 @@ it('keeps decoded pane input when the caller reuses its buffer', () => {
 
 it('refuses pane input shorter than its pane number', () => {
   expect(decodePaneInput(Uint8Array.of(7, 0, 0))).toEqual({ ok: false, reason: 'wrongLength' });
+});
+
+const corruptedRows = (rows: PaneRows, change: (words: Uint32Array) => Uint32Array) => {
+  const words = new Uint32Array(encodePaneRows(rows).buffer.slice(0));
+
+  return new Uint8Array(change(words).slice().buffer);
+};
+
+const paneRows = (overrides: Partial<PaneRows> = {}): PaneRows => ({
+  pane: 3,
+  requestId: 9,
+  source: PaneRowsSource.range,
+  columns,
+  epoch: 2,
+  oldest: 2 ** 40,
+  first: 2 ** 40 + 5,
+  rowCount: 2,
+  cells: Uint32Array.from([...textRow(0, 'first'), ...textRow(1, 'second')]),
+  graphemes: new Uint32Array(),
+  ...overrides,
+});
+
+it('round-trips pane rows with row numbers above 2^32 and a wrapped row', () => {
+  const cells = Uint32Array.from([...textRow(0, 'first'), ...textRow(1, 'second')]);
+
+  cells[1] = RowFlag.wrapped;
+
+  const rows = paneRows({ cells });
+  const result = decodePaneRows(encodePaneRows(rows));
+
+  expect(result).toEqual({ ok: true, rows });
+
+  expect(result.ok && rowsToLines(result.rows, columns, true)).toEqual([
+    `first${' '.repeat(columns - 5)}second`,
+  ]);
+});
+
+it('round-trips pane rows with no rows', () => {
+  const rows = paneRows({ rowCount: 0, cells: new Uint32Array() });
+
+  expect(decodePaneRows(encodePaneRows(rows))).toEqual({ ok: true, rows });
+});
+
+it('keeps decoded pane rows when the caller reuses its buffer', () => {
+  const bytes = encodePaneRows(paneRows());
+  const result = decodePaneRows(bytes);
+
+  bytes.fill(0);
+
+  expect(result).toEqual({ ok: true, rows: paneRows() });
+});
+
+it.each([
+  ['bytes shorter than the header', new Uint8Array(8), 'wrongLength'],
+  ['bytes that are not whole words', new Uint8Array(41), 'wrongLength'],
+  [
+    'an unknown source',
+    corruptedRows(paneRows(), (words) => {
+      words[2] = 9;
+
+      return words;
+    }),
+    'unknownSource',
+  ],
+  [
+    'a row count past the cells',
+    corruptedRows(paneRows(), (words) => {
+      words[9] = 3;
+
+      return words;
+    }),
+    'rowCountMismatch',
+  ],
+  [
+    'a first row number past 2^53',
+    corruptedRows(paneRows(), (words) => {
+      words[8] = 0x20_00_00;
+
+      return words;
+    }),
+    'rowNumberTooLarge',
+  ],
+  [
+    'a cluster of one code point',
+    encodePaneRows(paneRows({ graphemes: Uint32Array.of(rowHeaderWords, 1, 0x65) })),
+    'graphemeTooShort',
+  ],
+] as const)('refuses pane rows with %s', (_name, bytes, reason) => {
+  expect(decodePaneRows(bytes)).toEqual({ ok: false, reason });
 });

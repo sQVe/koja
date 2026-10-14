@@ -52,11 +52,48 @@ export type DecodePaneInputResult =
   | { ok: true; input: PaneInput }
   | { ok: false; reason: 'wrongLength' };
 
+// Rows of one pane that a client asked for, in the layout of a row update's rows.
+export interface PaneRows {
+  pane: number;
+  // The id of the request this answers.
+  requestId: number;
+  source: PaneRowsSource;
+  columns: number;
+  epoch: number;
+  // The stable number of the oldest row kept.
+  oldest: number;
+  // The stable number of the first row in cells.
+  first: number;
+  rowCount: number;
+  cells: Uint32Array;
+  graphemes: Uint32Array;
+}
+
+export type DecodePaneRowsResult =
+  | { ok: true; rows: PaneRows }
+  | { ok: false; reason: 'wrongLength' }
+  | { ok: false; reason: 'unknownSource' }
+  | { ok: false; reason: 'rowNumberTooLarge' }
+  | { ok: false; reason: 'rowCountMismatch' }
+  | { ok: false; reason: GraphemeProblem };
+
 type GraphemeProblem =
   | 'graphemePastEnd'
   | 'graphemePastCells'
   | 'graphemeOffCell'
   | 'graphemeTooShort';
+
+type PaneRowsHeaderResult =
+  | { ok: true; source: PaneRowsSource }
+  | { ok: false; reason: 'unknownSource' | 'rowNumberTooLarge' };
+
+// What a pane read selected.
+export enum PaneRowsSource {
+  visible = 0,
+  recent = 1,
+  recentUnwrapped = 2,
+  range = 3,
+}
 
 // Words per cell in a row: the base code point, the foreground color, the background color, and
 // the CellFlag and CellWidth bits. A color is 0 for the default color, 1-256 for a palette index
@@ -128,6 +165,20 @@ const header = {
 };
 
 const headerWords = 15;
+
+// Header words of a pane rows reply. The cell words follow, then the grapheme words.
+const paneRowsHeader = {
+  pane: 0,
+  requestId: 1,
+  source: 2,
+  columns: 3,
+  epoch: 4,
+  oldest: 5,
+  first: 7,
+  rowCount: 9,
+};
+
+const paneRowsHeaderWords = 10;
 
 const colorMarker = 0x1_00_00_00;
 
@@ -431,6 +482,108 @@ export const decodeRowUpdate = (bytes: Uint8Array): DecodeRowUpdateResult => {
   }
 
   return { ok: true, update: readRowUpdate(words, colorCount, cellCount) };
+};
+
+const paneRowsSources = new Map<number, PaneRowsSource>([
+  [PaneRowsSource.visible, PaneRowsSource.visible],
+  [PaneRowsSource.recent, PaneRowsSource.recent],
+  [PaneRowsSource.recentUnwrapped, PaneRowsSource.recentUnwrapped],
+  [PaneRowsSource.range, PaneRowsSource.range],
+]);
+
+const paneRowNumbersFit = (words: Uint32Array) =>
+  (words[paneRowsHeader.oldest + 1] ?? 0) <= maxHighWord &&
+  (words[paneRowsHeader.first + 1] ?? 0) <= maxHighWord;
+
+const readPaneRowsHeader = (words: Uint32Array): PaneRowsHeaderResult => {
+  const source = paneRowsSources.get(words[paneRowsHeader.source] ?? 0);
+
+  if (source === undefined) {
+    return { ok: false, reason: 'unknownSource' };
+  }
+
+  return paneRowNumbersFit(words)
+    ? { ok: true, source }
+    : { ok: false, reason: 'rowNumberTooLarge' };
+};
+
+// The encoded size of a rows reply with this many rows and grapheme words.
+export const paneRowsBytes = (rowCount: number, columns: number, graphemeWords: number): number =>
+  (paneRowsHeaderWords + rowCount * rowWords(columns) + graphemeWords) * wordBytes;
+
+export const encodePaneRows = (rows: PaneRows): Uint8Array => {
+  assertWord(rows.pane, 'pane number');
+  assertWord(rows.requestId, 'request id');
+  assertWord(rows.columns, 'column count');
+  assertWord(rows.epoch, 'epoch');
+  assertRowNumber(rows.oldest, 'oldest row number');
+  assertRowNumber(rows.first, 'first row number');
+  assertWord(rows.rowCount, 'row count');
+
+  invariant(
+    rows.cells.length === rows.rowCount * rowWords(rows.columns),
+    `${rows.rowCount} rows of ${rows.columns} columns do not fill ${rows.cells.length} cell words.`,
+  );
+
+  const words = new Uint32Array(paneRowsHeaderWords + rows.cells.length + rows.graphemes.length);
+
+  words[paneRowsHeader.pane] = rows.pane;
+  words[paneRowsHeader.requestId] = rows.requestId;
+  words[paneRowsHeader.source] = rows.source;
+  words[paneRowsHeader.columns] = rows.columns;
+  words[paneRowsHeader.epoch] = rows.epoch;
+  writeRowNumber(words, paneRowsHeader.oldest, rows.oldest);
+  writeRowNumber(words, paneRowsHeader.first, rows.first);
+  words[paneRowsHeader.rowCount] = rows.rowCount;
+  words.set(rows.cells, paneRowsHeaderWords);
+  words.set(rows.graphemes, paneRowsHeaderWords + rows.cells.length);
+
+  return new Uint8Array(words.buffer);
+};
+
+// Returns an error for bytes the peer got wrong. It never throws.
+export const decodePaneRows = (bytes: Uint8Array): DecodePaneRowsResult => {
+  if (bytes.length % wordBytes !== 0 || bytes.length < paneRowsHeaderWords * wordBytes) {
+    return { ok: false, reason: 'wrongLength' };
+  }
+
+  const words = wordsOf(bytes);
+  const head = readPaneRowsHeader(words);
+
+  if (!head.ok) {
+    return head;
+  }
+
+  const columns = words[paneRowsHeader.columns] ?? 0;
+  const rowCount = words[paneRowsHeader.rowCount] ?? 0;
+  const cellCount = rowCount * rowWords(columns);
+
+  if (paneRowsHeaderWords + cellCount > words.length) {
+    return { ok: false, reason: 'rowCountMismatch' };
+  }
+
+  const graphemes = words.subarray(paneRowsHeaderWords + cellCount);
+  const problem = graphemeProblem(graphemes, cellCount, columns);
+
+  if (problem !== undefined) {
+    return { ok: false, reason: problem };
+  }
+
+  return {
+    ok: true,
+    rows: {
+      pane: words[paneRowsHeader.pane] ?? 0,
+      requestId: words[paneRowsHeader.requestId] ?? 0,
+      source: head.source,
+      columns,
+      epoch: words[paneRowsHeader.epoch] ?? 0,
+      oldest: readRowNumber(words, paneRowsHeader.oldest),
+      first: readRowNumber(words, paneRowsHeader.first),
+      rowCount,
+      cells: words.subarray(paneRowsHeaderWords, paneRowsHeaderWords + cellCount),
+      graphemes,
+    },
+  };
 };
 
 export const encodePaneInput = (input: PaneInput): Uint8Array => {

@@ -13,6 +13,16 @@ import {
   parseControl,
 } from '../src/protocol/protocol.ts';
 import type { ControlMessage } from '../src/protocol/protocol.ts';
+import {
+  cellWords,
+  encodePaneRows,
+  PaneRowsSource,
+  rowHeaderWords,
+  rowWords,
+} from '../src/rows/rows.ts';
+import type { PaneRows } from '../src/rows/rows.ts';
+
+type Reply = ControlMessage | PaneRows;
 
 const version = { version: 'test', ghostty: 'test-ghostty' };
 
@@ -66,7 +76,29 @@ const snapshot = (live: boolean): ControlMessage => ({
   },
 });
 
-const listen = async (respond: (message: ControlMessage) => ControlMessage[] | undefined) => {
+// One row of text as a rows reply to the request.
+const rowsReply = (text: string, requestId: number): PaneRows => {
+  const cells = new Uint32Array(rowWords(text.length));
+
+  for (let column = 0; column < text.length; column += 1) {
+    cells[rowHeaderWords + column * cellWords] = text.charCodeAt(column);
+  }
+
+  return {
+    pane: 9,
+    requestId,
+    source: PaneRowsSource.recent,
+    columns: text.length,
+    epoch: 0,
+    oldest: 0,
+    first: 0,
+    rowCount: 1,
+    cells,
+    graphemes: new Uint32Array(),
+  };
+};
+
+const listen = async (respond: (message: ControlMessage) => Reply[] | undefined) => {
   const directory = await mkdtemp(join(tmpdir(), 'phi-pane-client-'));
   const socketPath = join(directory, 'phi.sock');
   const received: ControlMessage[] = [];
@@ -106,8 +138,13 @@ const listen = async (respond: (message: ControlMessage) => ControlMessage[] | u
             return;
           }
 
-          for (const message of responses) {
-            socket.write(encodeFrame(FrameKind.control, encodeControl(message)));
+          for (const reply of responses) {
+            const sent =
+              'type' in reply
+                ? encodeFrame(FrameKind.control, encodeControl(reply))
+                : encodeFrame(FrameKind.paneRows, encodePaneRows(reply));
+
+            socket.write(sent);
           }
         }
       },
@@ -147,7 +184,12 @@ it.each(['read', 'send'] as const)(
 
     const expected: ControlMessage =
       action === 'read'
-        ? { type: 'paneRead', paneId: paneId(7) }
+        ? {
+            type: 'paneRead',
+            paneId: paneId(7),
+            requestId: 1,
+            selection: { source: 'visible', lines: undefined },
+          }
         : { type: 'paneSend', paneId: paneId(7), text: 'hello' };
 
     expect(result).toEqual({ ok: false, reason: 'paneMissing' });
@@ -237,7 +279,7 @@ it.each(['read', 'send'] as const)(
       }
 
       return message.type === 'paneRead'
-        ? [{ type: 'paneRows', paneId: paneId(9), rows: ['hidden output'] }]
+        ? [rowsReply('hidden output', 1)]
         : [{ type: 'paneSent', paneId: paneId(9) }];
     });
 
@@ -248,7 +290,12 @@ it.each(['read', 'send'] as const)(
 
     const expectedRequest: ControlMessage =
       action === 'read'
-        ? { type: 'paneRead', paneId: paneId(9) }
+        ? {
+            type: 'paneRead',
+            paneId: paneId(9),
+            requestId: 1,
+            selection: { source: 'visible', lines: undefined },
+          }
         : { type: 'paneSend', paneId: paneId(9), text: 'ls' };
 
     const expectedResult: Awaited<ReturnType<typeof runPaneCommand>> =
@@ -263,6 +310,28 @@ it.each(['read', 'send'] as const)(
     expect(server.failures).toEqual([]);
   },
 );
+
+it('reports a read the server refuses with its reason', async () => {
+  const server = await listen((message) =>
+    message.type === 'hello'
+      ? [{ type: 'welcome' }]
+      : [
+          {
+            type: 'paneReadFailed',
+            paneId: paneId(9),
+            requestId: 1,
+            failure: { reason: 'pruned', oldest: 40 },
+          },
+        ],
+  );
+
+  const result = await runPaneCommand(server.socketPath, version, {
+    action: 'read',
+    pane: paneId(9),
+  });
+
+  expect(result).toEqual({ ok: false, reason: 'pruned', oldest: 40 });
+});
 
 it('reports the workspace the server answers a request with', async () => {
   const server = await listen((message) =>

@@ -389,6 +389,14 @@ void pane_scrollback(Pane *pane, uint64_t *info) {
   info[2] = memory.primary_resident_bytes;
 }
 
+// Returns the cursor row in the active screen, read from the terminal so it is current even while
+// a render hold keeps the captured frame. Does not touch the render state.
+uint16_t pane_cursor_row(Pane *pane) {
+  uint16_t y = 0;
+  ghostty_terminal_get(pane->terminal, GHOSTTY_TERMINAL_DATA_CURSOR_Y, &y);
+  return y;
+}
+
 // Appends the slot and the color key of a default color a program set.
 static size_t append_default_color(
     Pane *pane, GhosttyTerminalData overridden_data, GhosttyTerminalData current_data, uint32_t slot, uint32_t *out) {

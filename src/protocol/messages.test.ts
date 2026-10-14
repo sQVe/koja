@@ -211,8 +211,54 @@ const messages: ControlMessage[] = [
   { type: 'detachResult', result: { ok: true } },
   { type: 'detachResult', result: { ok: false, reason: 'noClient' } },
   { type: 'detachResult', result: { ok: false, reason: 'unknownClient' } },
-  { type: 'paneRead', paneId: pane.id },
-  { type: 'paneRows', paneId: pane.id, rows: ['$ ls', ''] },
+  {
+    type: 'paneRead',
+    paneId: pane.id,
+    requestId: 1,
+    selection: { source: 'recent', lines: undefined },
+  },
+  {
+    type: 'paneRead',
+    paneId: pane.id,
+    requestId: 2,
+    selection: { source: 'visible', lines: 20 },
+  },
+  {
+    type: 'paneRead',
+    paneId: pane.id,
+    requestId: 3,
+    selection: { source: 'recentUnwrapped', lines: 0 },
+  },
+  {
+    type: 'paneRead',
+    paneId: pane.id,
+    requestId: 4,
+    selection: { source: 'range', from: 0, to: 9, epoch: undefined },
+  },
+  {
+    type: 'paneRead',
+    paneId: pane.id,
+    requestId: 5,
+    selection: { source: 'range', from: 2 ** 40, to: 2 ** 40 + 3, epoch: 3 },
+  },
+  {
+    type: 'paneReadFailed',
+    paneId: pane.id,
+    requestId: 4,
+    failure: { reason: 'pruned', oldest: 2 ** 40 },
+  },
+  {
+    type: 'paneReadFailed',
+    paneId: pane.id,
+    requestId: 5,
+    failure: { reason: 'staleEpoch', epoch: 4 },
+  },
+  {
+    type: 'paneReadFailed',
+    paneId: pane.id,
+    requestId: 6,
+    failure: { reason: 'tooManyRows', limit: 1000 },
+  },
   { type: 'paneSend', paneId: pane.id, text: 'ls\r' },
   { type: 'paneSent', paneId: pane.id },
   { type: 'paneMissing', paneId: paneId(9) },
@@ -286,6 +332,8 @@ it.each([
   expect(parseControl(encodeControl(message))).toStrictEqual({ ok: true, message });
 });
 
+const readTail = '"requestId":1,"selection":{"source":"recent","lines":null}';
+
 const workspaceIdJson = (id: string): string =>
   JSON.stringify({
     type: 'change',
@@ -345,9 +393,24 @@ it.each([
   ],
   ['an ack sequence past 32 bits', '{"type":"ack","paneId":1,"sequence":4294967296}'],
   ['a negative ack sequence', '{"type":"ack","paneId":1,"sequence":-1}'],
-  ['a malformed pane id', '{"type":"paneRead","paneId":"pane-01"}'],
-  ['a pane id past the safe integers', '{"type":"paneRead","paneId":"pane-9007199254740993"}'],
-  ['a client id as a pane id', '{"type":"paneRead","paneId":"client-1"}'],
+  ['a malformed pane id', `{"type":"paneRead","paneId":"pane-01",${readTail}}`],
+  [
+    'a pane id past the safe integers',
+    `{"type":"paneRead","paneId":"pane-9007199254740993",${readTail}}`,
+  ],
+  [
+    'a request id past 32 bits',
+    '{"type":"paneRead","paneId":"pane-1","requestId":4294967296,"selection":{"source":"recent","lines":null}}',
+  ],
+  [
+    'an unknown read source',
+    '{"type":"paneRead","paneId":"pane-1","requestId":1,"selection":{"source":"detection","lines":null}}',
+  ],
+  [
+    'a negative range start',
+    '{"type":"paneRead","paneId":"pane-1","requestId":1,"selection":{"source":"range","from":-1,"to":4,"epoch":null}}',
+  ],
+  ['a client id as a pane id', `{"type":"paneRead","paneId":"client-1",${readTail}}`],
   ['a workspace id with a leading zero', workspaceIdJson('workspace-01')],
   ['a workspace id without a number', workspaceIdJson('workspace-')],
   ['a pane id as a workspace id', workspaceIdJson('pane-1')],

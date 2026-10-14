@@ -20,6 +20,8 @@ interface SpawnPaneOptions {
   directory: string;
   // Start the shell in its own systemd user scope, and end the scope on stop.
   useScope: boolean;
+  // Defaults to 10 MiB.
+  scrollbackBytes?: number;
   onOutput: () => void;
 }
 
@@ -121,7 +123,11 @@ const spawnShell = (options: SpawnPaneOptions, onOutput: OnOutput, unit: string 
 
 // Spawns the shell in a PTY at size, and parses every byte it writes.
 export const spawnPane = (options: SpawnPaneOptions): SpawnPaneResult => {
-  const created = createTerminal(options.size.columns, options.size.rows, paneScrollbackBytes);
+  const created = createTerminal(
+    options.size.columns,
+    options.size.rows,
+    options.scrollbackBytes ?? paneScrollbackBytes,
+  );
 
   if (!created.ok) {
     return { ok: false, message: `Cannot create the pane terminal: ${created.reason}` };

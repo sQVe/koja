@@ -9,21 +9,32 @@ import { basename, join } from 'node:path';
 import { z } from 'zod';
 
 import { paneId, tabId, workspaceId } from '../src/ids.ts';
+import type { PaneId } from '../src/ids.ts';
 import { sideListColumns } from '../src/layout.ts';
-import { createFrameDecoder, encodeFrame, FrameKind } from '../src/protocol/frames.ts';
+import {
+  createFrameDecoder,
+  encodeFrame,
+  FrameKind,
+  maxFramePayloadBytes,
+} from '../src/protocol/frames.ts';
 import { encodeControl, parseControl } from '../src/protocol/messages.ts';
 import type { BuildVersion, ControlMessage } from '../src/protocol/messages.ts';
 import {
   cellWords,
   rowHeaderWords,
   rowWords,
+  decodePaneRows,
   decodeRowUpdate,
   encodePaneInput,
+  encodePaneRows,
+  PaneRowsSource,
+  rowsToLines,
 } from '../src/rows/rows.ts';
-import type { RowUpdate } from '../src/rows/rows.ts';
+import type { PaneRows, RowUpdate } from '../src/rows/rows.ts';
 import { createLog } from '../src/server/log.ts';
 import type { Log } from '../src/server/log.ts';
 import { spawnPane } from '../src/server/pane.ts';
+import { maxReplyBytes } from '../src/server/paneRows.ts';
 import * as processGroups from '../src/server/processGroups.ts';
 import * as scope from '../src/server/scope.ts';
 import { runServer } from '../src/server/server.ts';
@@ -35,6 +46,8 @@ import type { ReadRowsResult } from '../src/vt/vt.ts';
 interface TestClient {
   messages: ControlMessage[];
   updates: RowUpdate[];
+  paneRows: PaneRows[];
+  nextPaneRows: () => Promise<PaneRows>;
   nextUpdate: () => Promise<RowUpdate>;
   closed: Promise<void>;
   close: () => void;
@@ -50,6 +63,24 @@ const logLineSchema = z.object({
   message: z.string(),
   fields: z.record(z.string(), z.unknown()),
 });
+
+// The server's limit on bytes a client has not read.
+const unreadQueueLimitBytes = 0x10_00_00;
+
+let nextReadRequestId = 1;
+
+const readRecent = (target: PaneId): ControlMessage => {
+  nextReadRequestId += 1;
+
+  return {
+    type: 'paneRead',
+    paneId: target,
+    requestId: nextReadRequestId,
+    selection: { source: 'recent', lines: undefined },
+  };
+};
+
+const linesOf = (rows: PaneRows): string[] => rowsToLines(rows, rows.columns, false);
 
 const build: BuildVersion = { version: '1.2.3', ghostty: 'abc123' };
 
@@ -112,6 +143,7 @@ const startEmptyServer = async (
   directory: string,
   shell = '/bin/sh',
   path = process.env.PATH,
+  scrollbackBytes?: number,
 ): Promise<{ server: Server; socketPath: string; logPath: string }> => {
   const socketPath = join(directory, 'run', 'phi.sock');
   const logPath = join(directory, 'state', 'phi', 'server.log');
@@ -123,6 +155,7 @@ const startEmptyServer = async (
     log,
     environment: { ...process.env, PATH: path, SHELL: shell },
     holdLimitMs: 60_000,
+    ...(scrollbackBytes === undefined ? {} : { scrollbackBytes }),
   });
 
   if (!result.ok) {
@@ -179,6 +212,7 @@ const connect = async (socketPath: string): Promise<TestClient> => {
   const decoder = createFrameDecoder();
   const messages: ControlMessage[] = [];
   const updates: RowUpdate[] = [];
+  const paneRows: PaneRows[] = [];
   const waiting: (() => void)[] = [];
   const { promise: closed, resolve: markClosed } = Promise.withResolvers<undefined>();
   let isClosed = false;
@@ -202,6 +236,18 @@ const connect = async (socketPath: string): Promise<TestClient> => {
             }
 
             updates.push(parsed.update);
+
+            continue;
+          }
+
+          if (frame.kind === FrameKind.paneRows) {
+            const decodedRows = decodePaneRows(frame.payload);
+
+            if (!decodedRows.ok) {
+              throw new Error(decodedRows.reason);
+            }
+
+            paneRows.push(decodedRows.rows);
 
             continue;
           }
@@ -236,6 +282,7 @@ const connect = async (socketPath: string): Promise<TestClient> => {
 
   const nextMessage = createReader(messages, waiting, () => isClosed);
   const nextUpdate = createReader(updates, waiting, () => isClosed);
+  const nextPaneRows = createReader(paneRows, waiting, () => isClosed);
 
   const send = (message: ControlMessage): void => {
     socket.write(encodeFrame(FrameKind.control, encodeControl(message)));
@@ -258,6 +305,8 @@ const connect = async (socketPath: string): Promise<TestClient> => {
   return {
     messages,
     updates,
+    paneRows,
+    nextPaneRows,
     nextUpdate,
     closed,
     close: () => {
@@ -298,8 +347,9 @@ const startServer = async (
   directory: string,
   shell = '/bin/sh',
   path = process.env.PATH,
+  scrollbackBytes?: number,
 ): Promise<{ server: Server; socketPath: string; logPath: string }> => {
-  const started = await startEmptyServer(directory, shell, path);
+  const started = await startEmptyServer(directory, shell, path, scrollbackBytes);
 
   await createWorkspace(started.socketPath, directory, basename(directory));
 
@@ -399,7 +449,7 @@ it.each(['paneRead', 'paneSend'] as const)(
 
     const message: ControlMessage =
       type === 'paneRead'
-        ? { type, paneId: missing }
+        ? readRecent(missing)
         : { type, paneId: missing, text: 'must-not-reach-live-pane' };
 
     client.send(message);
@@ -407,18 +457,12 @@ it.each(['paneRead', 'paneSend'] as const)(
     expect(await client.nextMessage()).toEqual({ type: 'paneMissing', paneId: missing });
     expect(server.snapshot()).toEqual(before);
 
-    client.send({ type: 'paneRead', paneId: paneId(1) });
+    client.send(readRecent(paneId(1)));
 
-    const read = await client.nextMessage();
+    const read = linesOf(await client.nextPaneRows()).join('\n');
 
-    expect(read.type).toBe('paneRows');
-
-    if (read.type !== 'paneRows') {
-      throw new Error('Expected the live pane rows.');
-    }
-
-    expect(read.rows.join('\n')).toContain('ready-marker');
-    expect(read.rows.join('\n')).not.toContain('must-not-reach-live-pane');
+    expect(read).toContain('ready-marker');
+    expect(read).not.toContain('must-not-reach-live-pane');
   },
 );
 
@@ -435,23 +479,14 @@ it('answers paneRead during a synchronized-output hold only after the hold ends'
   await waitFor(() => server.paneText()?.includes('half-drawn') === true);
 
   // The server handles frames in order, so this answer shows it took the read before it.
-  client.sendTogether([
-    { type: 'paneRead', paneId: paneId(1) },
-    { type: 'paneSend', paneId: paneId(1), text: '' },
-  ]);
+  client.sendTogether([readRecent(paneId(1)), { type: 'paneSend', paneId: paneId(1), text: '' }]);
 
   expect(await client.nextMessage()).toEqual({ type: 'paneSent', paneId: paneId(1) });
-  expect(client.messages.map((message) => message.type)).not.toContain('paneRows');
+  expect(client.paneRows).toHaveLength(0);
 
   server.writeToPane("printf '\\033[2J\\033[Hfull-'\"drawn\"'\\033[?2026l'\n");
 
-  const read = await client.nextMessage();
-
-  if (read.type !== 'paneRows') {
-    throw new Error('Expected the live pane rows.');
-  }
-
-  const text = read.rows.join('\n');
+  const text = linesOf(await client.nextPaneRows()).join('\n');
 
   expect(text).toContain('full-drawn');
   expect(text).not.toContain('half-drawn');
@@ -469,17 +504,14 @@ it('answers a paneRead held by synchronized output with paneMissing when its wor
   server.writeToPane('printf \'\\033[?2026hhalf-\'"drawn"\n');
   await waitFor(() => server.paneText()?.includes('half-drawn') === true);
 
-  client.sendTogether([
-    { type: 'paneRead', paneId: paneId(1) },
-    { type: 'paneSend', paneId: paneId(1), text: '' },
-  ]);
+  client.sendTogether([readRecent(paneId(1)), { type: 'paneSend', paneId: paneId(1), text: '' }]);
 
   expect(await client.nextMessage()).toEqual({ type: 'paneSent', paneId: paneId(1) });
 
   client.send({ type: 'workspaceClose', workspaceId: workspaceId(1) });
 
   await waitFor(() => client.messages.some((message) => message.type === 'paneMissing'), 1000);
-  expect(client.messages.map((message) => message.type)).not.toContain('paneRows');
+  expect(client.paneRows).toHaveLength(0);
 });
 
 it.each(['paneSend', 'stop'] as const)(
@@ -499,21 +531,226 @@ it.each(['paneSend', 'stop'] as const)(
     const next: ControlMessage =
       type === 'paneSend' ? { type, paneId: paneId(1), text: '' } : { type };
 
-    client.sendTogether([{ type: 'paneRead', paneId: paneId(1) }, next]);
+    client.sendTogether([readRecent(paneId(1)), next]);
 
-    const read = await client.nextMessage();
+    const read = await client.nextPaneRows();
 
-    if (read.type !== 'paneRows') {
-      throw new Error('Expected the live pane rows.');
-    }
-
-    expect(read.rows.join('\n')).toContain('ready-marker');
+    expect(linesOf(read).join('\n')).toContain('ready-marker');
 
     if (type === 'paneSend') {
       expect(await client.nextMessage()).toEqual({ type: 'paneSent', paneId: paneId(1) });
     }
   },
 );
+
+// A shell that prints a1 to the last count on an empty screen, the last without a newline, then
+// waits.
+const startCountingServer = async (count = 500, scrollbackBytes?: number) => {
+  const directory = await temporaryDirectory();
+  const shell = join(directory, 'count.sh');
+
+  await Bun.write(
+    shell,
+    `#!/bin/sh\ni=1\nwhile [ $i -lt ${count} ]; do echo a$i; i=$((i + 1)); done\nprintf a${count}\nexec sleep 600\n`,
+  );
+
+  await chmod(shell, 0o755);
+
+  const { server, socketPath } = await startServer(
+    directory,
+    shell,
+    process.env.PATH,
+    scrollbackBytes,
+  );
+
+  await waitFor(() => server.paneText()?.includes(`a${count}`) === true);
+
+  const client = await connect(socketPath);
+
+  client.send({ type: 'hello', version: build, size: undefined });
+  expect(await client.nextMessage()).toEqual({ type: 'welcome' });
+  await client.nextMessage();
+
+  return client;
+};
+
+const readRange = async (client: TestClient, from: number, to: number) => {
+  client.send({
+    type: 'paneRead',
+    paneId: paneId(1),
+    requestId: 77,
+    selection: { source: 'range', from, to, epoch: undefined },
+  });
+
+  return client.nextPaneRows();
+};
+
+it('reads rows 0 to 9 of a pane as a1 to a10 and the last five printed lines as recent', async () => {
+  const client = await startCountingServer();
+  const range = await readRange(client, 0, 9);
+
+  expect(linesOf(range)).toEqual(Array.from({ length: 10 }, (_, index) => `a${index + 1}`));
+  expect(range).toMatchObject({ pane: 1, requestId: 77, first: 0, oldest: 0 });
+
+  client.send({
+    type: 'paneRead',
+    paneId: paneId(1),
+    requestId: 78,
+    selection: { source: 'recent', lines: 5 },
+  });
+
+  const recent = await client.nextPaneRows();
+
+  expect(recent.requestId).toBe(78);
+  expect(linesOf(recent)).toEqual(['a496', 'a497', 'a498', 'a499', 'a500']);
+});
+
+it('answers a soft-wrapped line as several rows, or as one line for the reader that joins them', async () => {
+  const directory = await temporaryDirectory();
+  const { server, socketPath } = await startServer(directory);
+  const client = await connect(socketPath);
+
+  client.send({ type: 'hello', version: build, size: { columns: 20, rows: 10 } });
+  expect(await client.nextMessage()).toEqual({ type: 'welcome' });
+  await client.nextMessage();
+
+  server.writeToPane("printf '\\033[H\\033[2J%s' wrap-0123456789-wrap-0123456789-wrap-end\n");
+  await waitFor(() => server.paneText()?.includes('wrap-end') === true);
+
+  client.send({
+    type: 'paneRead',
+    paneId: paneId(1),
+    requestId: 1,
+    selection: { source: 'recentUnwrapped', lines: 10 },
+  });
+
+  const rows = await client.nextPaneRows();
+  const lines = linesOf(rows);
+
+  expect(rows.source).toBe(PaneRowsSource.recentUnwrapped);
+  expect(lines.length).toBeGreaterThan(1);
+  expect(lines.join('')).toContain('wrap-0123456789-wrap-0123456789-wrap-end');
+
+  expect(
+    rowsToLines(rows, rows.columns, true).some((line) =>
+      line.startsWith('wrap-0123456789-wrap-0123456789-wrap-end'),
+    ),
+  ).toBe(true);
+});
+
+it('refuses a range over the rows one reply holds and a read of a missing pane', async () => {
+  const client = await startCountingServer(1200);
+
+  client.send({
+    type: 'paneRead',
+    paneId: paneId(1),
+    requestId: 5,
+    selection: { source: 'range', from: 0, to: 1000, epoch: undefined },
+  });
+
+  expect(await client.nextMessage()).toEqual({
+    type: 'paneReadFailed',
+    paneId: paneId(1),
+    requestId: 5,
+    failure: { reason: 'tooManyRows', limit: 1000 },
+  });
+
+  client.send(readRecent(paneId(99)));
+
+  expect(await client.nextMessage()).toEqual({ type: 'paneMissing', paneId: paneId(99) });
+  expect(client.paneRows).toHaveLength(0);
+});
+
+it('refuses a range below the oldest kept row with that row number', async () => {
+  const client = await startCountingServer(20_000, 1);
+
+  client.send({
+    type: 'paneRead',
+    paneId: paneId(1),
+    requestId: 8,
+    selection: { source: 'range', from: 0, to: 9, epoch: undefined },
+  });
+
+  const failed = await client.nextMessage();
+
+  if (failed.type !== 'paneReadFailed' || failed.failure.reason !== 'pruned') {
+    throw new Error('Expected a pruned failure.');
+  }
+
+  const { oldest } = failed.failure;
+
+  expect(oldest).toBeGreaterThan(0);
+
+  const kept = await readRange(client, oldest, oldest);
+
+  expect(kept).toMatchObject({ oldest, first: oldest, rowCount: 1 });
+});
+
+it('refuses a wide range over the byte budget with a typed failure and sends only replies that fit', async () => {
+  const directory = await temporaryDirectory();
+  const { server, socketPath } = await startServer(directory);
+  const client = await connect(socketPath);
+
+  client.send({ type: 'hello', version: build, size: { columns: 1100, rows: 24 } });
+  expect(await client.nextMessage()).toEqual({ type: 'welcome' });
+  await client.nextMessage();
+
+  server.writeToPane('seq 1 1200; echo wide-$((6 * 7))\n');
+  await waitFor(() => server.paneText()?.includes('wide-42') === true);
+
+  client.send({
+    type: 'paneRead',
+    paneId: paneId(1),
+    requestId: 8,
+    selection: { source: 'recent', lines: 1 },
+  });
+
+  const { oldest } = await client.nextPaneRows();
+
+  client.send({
+    type: 'paneRead',
+    paneId: paneId(1),
+    requestId: 9,
+    selection: { source: 'range', from: oldest, to: oldest + 999, epoch: undefined },
+  });
+
+  await waitFor(() => client.messages.some((message) => message.type === 'paneReadFailed'));
+
+  expect(client.messages.find((message) => message.type === 'paneReadFailed')).toEqual({
+    type: 'paneReadFailed',
+    paneId: paneId(1),
+    requestId: 9,
+    failure: { reason: 'tooManyBytes', limitBytes: maxReplyBytes },
+  });
+
+  const rows = await readRange(client, oldest, oldest + 19);
+  const bytes = encodePaneRows(rows).length;
+
+  expect(bytes).toBeLessThanOrEqual(maxReplyBytes);
+  expect(maxReplyBytes).toBeLessThan(unreadQueueLimitBytes);
+  expect(maxReplyBytes).toBeLessThan(maxFramePayloadBytes);
+});
+
+it('refuses a range in another epoch with the current epoch', async () => {
+  const client = await startCountingServer();
+
+  client.send({
+    type: 'paneRead',
+    paneId: paneId(1),
+    requestId: 6,
+    selection: { source: 'range', from: 0, to: 1, epoch: 4242 },
+  });
+
+  const failed = await client.nextMessage();
+
+  expect(failed).toMatchObject({
+    type: 'paneReadFailed',
+    requestId: 6,
+    failure: { reason: 'staleEpoch' },
+  });
+
+  expect(client.paneRows).toHaveLength(0);
+});
 
 it('removes the socket it bound even when its symlink route changes', async () => {
   const directory = await temporaryDirectory();
@@ -1120,11 +1357,11 @@ it('sends rows only for the focused workspace and the other screen after workspa
   const rows = new Map<number, string>();
 
   await receiveText(terminal, rows, 'visible-marker');
-  cli.send({ type: 'paneRead', paneId: paneId(1) });
+  cli.send(readRecent(paneId(1)));
 
-  const hidden = await nextOfType(cli, 'paneRows');
+  const hidden = await cli.nextPaneRows();
 
-  expect(hidden.rows.join('\n')).toContain('hidden-marker');
+  expect(linesOf(hidden).join('\n')).toContain('hidden-marker');
   expect(terminal.updates.every((update) => update.pane === 2)).toBe(true);
 
   const updatesBefore = terminal.updates.length;
@@ -1208,11 +1445,11 @@ it('sends no rows for a hidden pane while its tab is zoomed and its current scre
   cli.send({ type: 'paneSend', paneId: paneId(2), text: "printf 'hidden-%s\\n' marker\n" });
 
   for (;;) {
-    cli.send({ type: 'paneRead', paneId: paneId(2) });
+    cli.send(readRecent(paneId(2)));
 
-    const read = await nextOfType(cli, 'paneRows');
+    const read = await cli.nextPaneRows();
 
-    if (read.rows.join('\n').includes('hidden-marker')) {
+    if (linesOf(read).join('\n').includes('hidden-marker')) {
       break;
     }
   }
@@ -1286,11 +1523,11 @@ it('detaches the attached terminal client when a CLI client sends detach', async
   const reattachedRows = new Map<number, string>();
 
   await receiveText(next, reattachedRows, 'kept-marker');
-  cli.send({ type: 'paneRead', paneId: paneId(1) });
+  cli.send(readRecent(paneId(1)));
 
-  const read = await nextOfType(cli, 'paneRows');
+  const read = await cli.nextPaneRows();
 
-  expect(read.rows.join('\n')).toContain('kept-marker');
+  expect(linesOf(read).join('\n')).toContain('kept-marker');
   expect(next.messages.some((message) => message.type === 'takenOver')).toBe(false);
 });
 
@@ -2033,21 +2270,14 @@ const sizedHello: ControlMessage = {
   size: { columns: 100, rows: 30 },
 };
 
-const nextPaneRows = async (client: TestClient): Promise<string[]> => {
-  for (;;) {
-    const message = await client.nextMessage();
-
-    if (message.type === 'paneRows') {
-      return message.rows;
-    }
-  }
-};
+const nextPaneLines = async (client: TestClient): Promise<string[]> =>
+  linesOf(await client.nextPaneRows());
 
 // Every row update the server sent before this call has arrived when it returns.
 const roundTrip = async (client: TestClient): Promise<string[]> => {
-  client.send({ type: 'paneRead', paneId: paneId(1) });
+  client.send(readRecent(paneId(1)));
 
-  return nextPaneRows(client);
+  return nextPaneLines(client);
 };
 
 const hasText = (rows: Map<number, string>, text: string): boolean =>
@@ -2167,9 +2397,9 @@ it('counts an ack only for the pane it names', async () => {
   // Pane 2 schedules its publication when it parses this output. Once the output is readable, the
   // publication runs before any later publication of pane 1, and so before pane 1's update arrives.
   for (;;) {
-    cli.send({ type: 'paneRead', paneId: paneId(2) });
+    cli.send(readRecent(paneId(2)));
 
-    if ((await nextPaneRows(cli)).join('\n').includes('second-after-42')) {
+    if ((await nextPaneLines(cli)).join('\n').includes('second-after-42')) {
       break;
     }
   }

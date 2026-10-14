@@ -18,6 +18,11 @@ import type { PaneCliCommand } from './parse.ts';
 
 type PaneFolders = Extract<Awaited<ReturnType<typeof runPaneFolders>>, { ok: true }>['panes'];
 
+type ReadFailure = Extract<
+  Awaited<ReturnType<typeof runPaneCommand>>,
+  { reason: 'pruned' | 'staleEpoch' | 'tooManyRows' | 'tooManyBytes' }
+>;
+
 const listPanes = (snapshot: StoreSnapshot, folders: PaneFolders) => {
   const focusedId = focusedPane(snapshot)?.id;
 
@@ -183,6 +188,35 @@ const layoutActions: ReadonlySet<string> = new Set(['split', 'focus', 'close', '
 const isLayoutAction = (action: PaneCliCommand['pane']): action is PaneLayoutCommand =>
   layoutActions.has(action.action);
 
+const readFailureReasons: ReadonlySet<string> = new Set([
+  'pruned',
+  'staleEpoch',
+  'tooManyRows',
+  'tooManyBytes',
+]);
+
+const isReadFailureReason = (reason: string): boolean => readFailureReasons.has(reason);
+
+const isReadFailure = (
+  result: Extract<Awaited<ReturnType<typeof runPaneCommand>>, { ok: false }>,
+): result is ReadFailure => isReadFailureReason(result.reason);
+
+const readFailureMessage = (failure: ReadFailure): string => {
+  if (failure.reason === 'pruned') {
+    return `Rows below row ${failure.oldest} are no longer kept.`;
+  }
+
+  if (failure.reason === 'staleEpoch') {
+    return `The rows changed numbering. The epoch is now ${failure.epoch}.`;
+  }
+
+  if (failure.reason === 'tooManyBytes') {
+    return `A read holds at most ${failure.limitBytes} bytes. Read fewer rows.`;
+  }
+
+  return `A read holds at most ${failure.limit} rows.`;
+};
+
 export const runPaneAction = async (
   command: PaneCliCommand,
   version: BuildVersion,
@@ -206,6 +240,10 @@ export const runPaneAction = async (
 
   if (!result.ok && result.reason === 'paneMissing') {
     return { ok: false, message: 'The pane is no longer running.' };
+  }
+
+  if (!result.ok && isReadFailure(result)) {
+    return { ok: false, message: readFailureMessage(result) };
   }
 
   if (!result.ok) {
