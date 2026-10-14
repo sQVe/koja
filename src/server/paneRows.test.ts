@@ -81,6 +81,7 @@ it('refuses a recent or visible read whose reply would be over the byte budget',
       reason: 'tooManyBytes',
       limitBytes: maxReplyBytes,
       epoch: stable.epoch,
+      alternate: false,
       first: stable.activeTop + 24 - 1000,
       count: 1000,
     },
@@ -99,7 +100,7 @@ it('refuses a wide range over the byte budget without throwing', () => {
   const result = selectPaneRows(
     terminal,
     { columns: 1100, rows: 5 },
-    { source: 'range', from: first, to: first + 999, epoch: undefined },
+    { source: 'range', from: first, to: first + 999, epoch: undefined, alternate: undefined },
   );
 
   expect(result).toMatchObject({
@@ -192,6 +193,7 @@ it('reads a range of stable row numbers, inclusive', () => {
     from: first + 3,
     to: first + 5,
     epoch: undefined,
+    alternate: undefined,
   });
 
   expect(linesOf(rows)).toEqual(['l4', 'l5', 'l6']);
@@ -211,6 +213,7 @@ it('leaves out the rows past the last row', () => {
     from: activeTop + 3,
     to: activeTop + 500,
     epoch,
+    alternate: undefined,
   });
 
   const past = read(terminal, 5, {
@@ -218,6 +221,7 @@ it('leaves out the rows past the last row', () => {
     from: activeTop + 5,
     to: activeTop + 9,
     epoch,
+    alternate: undefined,
   });
 
   expect(rows.rowCount).toBe(2);
@@ -240,6 +244,7 @@ it('refuses a range with more rows than one reply holds and reads one with exact
         from: first,
         to: first + maxReplyRows,
         epoch: undefined,
+        alternate: undefined,
       },
     ),
   ).toMatchObject({
@@ -250,7 +255,13 @@ it('refuses a range with more rows than one reply holds and reads one with exact
   const exact = read(
     terminal,
     5,
-    { source: 'range', from: first, to: first + maxReplyRows - 1, epoch: undefined },
+    {
+      source: 'range',
+      from: first,
+      to: first + maxReplyRows - 1,
+      epoch: undefined,
+      alternate: undefined,
+    },
     10,
   );
 
@@ -270,10 +281,22 @@ it('refuses a range below the oldest kept row and reports that row', () => {
   expect(first).toBeGreaterThan(0);
 
   expect(
-    selectPaneRows(terminal, size, { source: 'range', from: 0, to: 9, epoch: undefined }),
+    selectPaneRows(terminal, size, {
+      source: 'range',
+      from: 0,
+      to: 9,
+      epoch: undefined,
+      alternate: undefined,
+    }),
   ).toEqual({ ok: false, failure: { reason: 'pruned', oldest: first } });
 
-  const kept = read(terminal, 24, { source: 'range', from: first, to: first, epoch: undefined });
+  const kept = read(terminal, 24, {
+    source: 'range',
+    from: first,
+    to: first,
+    epoch: undefined,
+    alternate: undefined,
+  });
 
   expect(kept.oldest).toBe(first);
   expect(kept.rowCount).toBe(1);
@@ -301,6 +324,7 @@ it('refuses a range in an old epoch and names the current one', () => {
         from: after.first,
         to: after.first,
         epoch: before.epoch,
+        alternate: undefined,
       },
     ),
   ).toEqual({ ok: false, failure: { reason: 'staleEpoch', epoch: after.epoch } });
@@ -335,4 +359,36 @@ it('selects a whole screen taller than one reply for an uncounted visible read, 
 
   expect(counted.rowCount).toBe(maxReplyRows);
   expect(counted.first).toBe(activeTop + 5);
+});
+
+it('refuses a range that names the other screen, and reads one that names the active screen', () => {
+  using terminal = openTerminal(10, 5);
+
+  feed(terminal, numbered(1, 12));
+
+  const { activeTop, epoch } = terminal.stableRows();
+
+  const range = (alternate: boolean) =>
+    selectPaneRows(
+      terminal,
+      { columns: 10, rows: 5 },
+      { source: 'range', from: activeTop, to: activeTop + 1, epoch, alternate },
+    );
+
+  expect(range(false).ok).toBe(true);
+
+  expect(range(true)).toEqual({
+    ok: false,
+    failure: { reason: 'screenChanged', alternate: false },
+  });
+
+  feed(terminal, '\u001B[?1049h\u001B[Halt');
+
+  expect(terminal.stableRows()).toMatchObject({ epoch, activeTop, alternate: true });
+  expect(range(true).ok).toBe(true);
+
+  expect(range(false)).toEqual({
+    ok: false,
+    failure: { reason: 'screenChanged', alternate: true },
+  });
 });

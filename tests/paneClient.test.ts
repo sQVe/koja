@@ -3,6 +3,7 @@ import { mkdtemp, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
+import { runPaneAction } from '../src/cli/paneCommands.ts';
 import { runDetach, runPaneRead, runPaneSend, runWorkspaceCommand } from '../src/client/client.ts';
 import { paneId, tabId, workspaceId } from '../src/ids.ts';
 import {
@@ -98,6 +99,7 @@ const rowsReply = (text: string, requestId: number): PaneRows => {
     source: PaneRowsSource.recent,
     columns: text.length,
     epoch: 0,
+    alternate: false,
     oldest: 0,
     first: 0,
     rowCount: 1,
@@ -387,4 +389,35 @@ it('reports a failed workspace request with its reason', async () => {
   });
 
   expect(result).toEqual({ ok: false, reason: 'paneFailedToStart', message: 'no shell' });
+});
+
+it('prints a clear message and fails when the pane switched screens during a read', async () => {
+  const server = await listen((message) =>
+    message.type === 'hello'
+      ? [{ type: 'welcome' }]
+      : [
+          {
+            type: 'paneReadFailed',
+            paneId: paneId(9),
+            requestId: 1,
+            failure: { reason: 'screenChanged', alternate: true },
+          },
+        ],
+  );
+
+  const outcome = await runPaneAction(
+    {
+      kind: 'pane',
+      pane: { ...readCommand, pane: paneId(9) },
+      json: false,
+      socket: server.socketPath,
+    },
+    version,
+    {},
+  );
+
+  expect(outcome).toEqual({
+    ok: false,
+    message: 'The pane switched to its alternate screen during the read. Read again.',
+  });
 });

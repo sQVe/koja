@@ -59,6 +59,8 @@ export interface PaneRows {
   source: PaneRowsSource;
   columns: number;
   epoch: number;
+  // Whether the alternate screen was active. Its rows share numbers with the primary screen.
+  alternate: boolean;
   // The stable number of the oldest row kept.
   oldest: number;
   // The stable number of the first row in cells.
@@ -174,9 +176,10 @@ const paneRowsHeader = {
   oldest: 5,
   first: 7,
   rowCount: 9,
+  alternate: 10,
 };
 
-const paneRowsHeaderWords = 10;
+const paneRowsHeaderWords = 11;
 
 const colorMarker = 0x1_00_00_00;
 
@@ -564,6 +567,7 @@ export const encodePaneRows = (rows: PaneRows): Uint8Array => {
   words[paneRowsHeader.source] = rows.source;
   words[paneRowsHeader.columns] = rows.columns;
   words[paneRowsHeader.epoch] = rows.epoch;
+  words[paneRowsHeader.alternate] = rows.alternate ? 1 : 0;
   writeRowNumber(words, paneRowsHeader.oldest, rows.oldest);
   writeRowNumber(words, paneRowsHeader.first, rows.first);
   words[paneRowsHeader.rowCount] = rows.rowCount;
@@ -609,6 +613,7 @@ export const decodePaneRows = (bytes: Uint8Array): DecodePaneRowsResult => {
       source: head.source,
       columns,
       epoch: words[paneRowsHeader.epoch] ?? 0,
+      alternate: words[paneRowsHeader.alternate] === 1,
       oldest: readRowNumber(words, paneRowsHeader.oldest),
       first: readRowNumber(words, paneRowsHeader.first),
       rowCount,

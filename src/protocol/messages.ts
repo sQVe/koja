@@ -74,21 +74,26 @@ const paneReadSelectionSchema = z.discriminatedUnion('source', [
     from: z.number().int().nonnegative(),
     to: z.number().int().nonnegative(),
     epoch: absent(wordSchema),
+    alternate: absent(z.boolean()),
   }),
 ]);
 
 // pruned: the range starts below the oldest row kept. staleEpoch: the request named another epoch
-// than the current one. tooManyRows: the selection holds more rows than one reply can.
+// than the current one. screenChanged: the request named the primary or alternate screen, which is
+// not the one active now. The screens share row numbers and the epoch. alternate says which screen
+// is active. tooManyRows: the selection holds more rows than one reply can.
 // tooManyBytes: the encoded reply would be larger than one reply can be. Both name the rows the
-// selection covers, as the epoch, the first stable row number, and the row count, so a client can
+// selection covers, as the epoch, the screen, the first stable row number, and the row count, so a client can
 // read them as a range in pages.
 const paneReadFailureSchema = z.discriminatedUnion('reason', [
   z.object({ reason: z.literal('pruned'), oldest: z.number().int().nonnegative() }),
   z.object({ reason: z.literal('staleEpoch'), epoch: wordSchema }),
+  z.object({ reason: z.literal('screenChanged'), alternate: z.boolean() }),
   z.object({
     reason: z.literal('tooManyRows'),
     limit: count,
     epoch: wordSchema,
+    alternate: z.boolean(),
     first: z.number().int().nonnegative(),
     count,
   }),
@@ -96,6 +101,7 @@ const paneReadFailureSchema = z.discriminatedUnion('reason', [
     reason: z.literal('tooManyBytes'),
     limitBytes: count,
     epoch: wordSchema,
+    alternate: z.boolean(),
     first: z.number().int().nonnegative(),
     count,
   }),

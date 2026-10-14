@@ -318,6 +318,7 @@ const paneRows = (overrides: Partial<PaneRows> = {}): PaneRows => ({
   source: PaneRowsSource.range,
   columns,
   epoch: 2,
+  alternate: true,
   oldest: 2 ** 40,
   first: 2 ** 40 + 5,
   rowCount: 2,

@@ -26,7 +26,7 @@ type PaneFolders = Extract<Awaited<ReturnType<typeof runPaneFolders>>, { ok: tru
 
 type ReadFailure = Extract<
   Awaited<ReturnType<typeof runPaneRead>>,
-  { reason: 'pruned' | 'staleEpoch' | 'tooManyRows' | 'tooManyBytes' }
+  { reason: 'pruned' | 'staleEpoch' | 'screenChanged' | 'tooManyRows' | 'tooManyBytes' }
 >;
 
 const listPanes = (snapshot: StoreSnapshot, folders: PaneFolders) => {
@@ -197,6 +197,7 @@ const isLayoutAction = (action: PaneCliCommand['pane']): action is PaneLayoutCom
 const readFailureReasons: ReadonlySet<string> = new Set([
   'pruned',
   'staleEpoch',
+  'screenChanged',
   'tooManyRows',
   'tooManyBytes',
 ]);
@@ -212,6 +213,12 @@ const readFailureMessage = (failure: ReadFailure): string => {
 
   if (failure.reason === 'staleEpoch') {
     return `The pane's rows were renumbered during the read. The epoch is now ${failure.epoch}. Read again.`;
+  }
+
+  if (failure.reason === 'screenChanged') {
+    const screen = failure.alternate ? 'alternate' : 'primary';
+
+    return `The pane switched to its ${screen} screen during the read. Read again.`;
   }
 
   if (failure.reason === 'tooManyBytes') {

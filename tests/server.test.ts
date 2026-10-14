@@ -579,7 +579,7 @@ const readRange = async (client: TestClient, from: number, to: number) => {
     type: 'paneRead',
     paneId: paneId(1),
     requestId: 77,
-    selection: { source: 'range', from, to, epoch: undefined },
+    selection: { source: 'range', from, to, epoch: undefined, alternate: undefined },
   });
 
   return client.nextPaneRows();
@@ -645,7 +645,7 @@ it('refuses a range over the rows one reply holds and a read of a missing pane',
     type: 'paneRead',
     paneId: paneId(1),
     requestId: 5,
-    selection: { source: 'range', from: 0, to: 1000, epoch: undefined },
+    selection: { source: 'range', from: 0, to: 1000, epoch: undefined, alternate: undefined },
   });
 
   expect(await client.nextMessage()).toEqual({
@@ -656,6 +656,7 @@ it('refuses a range over the rows one reply holds and a read of a missing pane',
       reason: 'tooManyRows',
       limit: 1000,
       epoch: expect.any(Number) as number,
+      alternate: false,
       first: 0,
       count: 1001,
     },
@@ -674,7 +675,7 @@ it('refuses a range below the oldest kept row with that row number', async () =>
     type: 'paneRead',
     paneId: paneId(1),
     requestId: 8,
-    selection: { source: 'range', from: 0, to: 9, epoch: undefined },
+    selection: { source: 'range', from: 0, to: 9, epoch: undefined, alternate: undefined },
   });
 
   const failed = await client.nextMessage();
@@ -717,7 +718,13 @@ it('refuses a wide range over the byte budget with a typed failure and sends onl
     type: 'paneRead',
     paneId: paneId(1),
     requestId: 9,
-    selection: { source: 'range', from: oldest, to: oldest + 999, epoch: undefined },
+    selection: {
+      source: 'range',
+      from: oldest,
+      to: oldest + 999,
+      epoch: undefined,
+      alternate: undefined,
+    },
   });
 
   await waitFor(() => client.messages.some((message) => message.type === 'paneReadFailed'));
@@ -730,6 +737,7 @@ it('refuses a wide range over the byte budget with a typed failure and sends onl
       reason: 'tooManyBytes',
       limitBytes: maxReplyBytes,
       epoch: expect.any(Number) as number,
+      alternate: false,
       first: oldest,
       count: 1000,
     },
@@ -750,7 +758,7 @@ it('refuses a range in another epoch with the current epoch', async () => {
     type: 'paneRead',
     paneId: paneId(1),
     requestId: 6,
-    selection: { source: 'range', from: 0, to: 1, epoch: 4242 },
+    selection: { source: 'range', from: 0, to: 1, epoch: 4242, alternate: undefined },
   });
 
   const failed = await client.nextMessage();

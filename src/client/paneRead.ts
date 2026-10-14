@@ -60,6 +60,7 @@ export const createPaneReader = (command: PaneReadCommand): PaneReader => {
   let next = command.range?.from ?? 0;
   let last = command.range?.to ?? 0;
   let epoch: number | undefined;
+  let alternate: boolean | undefined;
   let paging = command.range !== undefined;
 
   const finish = (latest: PaneRows): ReadStep => {
@@ -88,6 +89,7 @@ export const createPaneReader = (command: PaneReadCommand): PaneReader => {
       from: next,
       to: Math.min(last, next + pageRows - 1),
       epoch,
+      alternate,
     },
   });
 
@@ -95,6 +97,7 @@ export const createPaneReader = (command: PaneReadCommand): PaneReader => {
     const requested = Math.min(last, next + pageRows - 1) - next + 1;
 
     epoch = page.epoch;
+    alternate = page.alternate;
 
     if (page.rowCount > 0) {
       pages.push(page);
@@ -154,6 +157,7 @@ export const createPaneReader = (command: PaneReadCommand): PaneReader => {
       next = failure.first;
       last = failure.first + failure.count - 1;
       epoch = failure.epoch;
+      alternate = failure.alternate;
       paging = true;
 
       return nextPage();

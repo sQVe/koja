@@ -126,6 +126,10 @@ const rangeFailure = (
     return { reason: 'staleEpoch', epoch: stable.epoch };
   }
 
+  if (selection.alternate !== undefined && selection.alternate !== stable.alternate) {
+    return { reason: 'screenChanged', alternate: stable.alternate };
+  }
+
   if (selection.from < stable.first) {
     return { reason: 'pruned', oldest: stable.first };
   }
@@ -171,6 +175,7 @@ const emptyRows = (
   source: sourceOf(selection),
   columns: size.columns,
   epoch: stable.epoch,
+  alternate: stable.alternate,
   oldest: stable.first,
   first: span.first,
   rowCount: 0,
@@ -180,6 +185,7 @@ const emptyRows = (
 
 const selected = (stable: StableRows, span: Span) => ({
   epoch: stable.epoch,
+  alternate: stable.alternate,
   first: span.first,
   count: span.count,
 });
@@ -246,6 +252,7 @@ export const selectPaneRows = (
       source: sourceOf(selection),
       columns: size.columns,
       epoch: stable.epoch,
+      alternate: stable.alternate,
       oldest: stable.first,
       first: span.first,
       rowCount: read.rows.rowCount,
