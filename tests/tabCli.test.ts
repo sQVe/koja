@@ -16,7 +16,7 @@ const tabListSchema = z.array(
   }),
 );
 
-const workspaceListSchema = z.array(z.object({ id: z.string() }));
+const workspaceListSchema = z.array(z.object({ id: z.string(), focused: z.boolean() }));
 
 const paneListSchema = z.array(
   z.object({ id: z.string(), lifecycle: z.string(), cwd: z.string().nullable() }),
@@ -76,34 +76,101 @@ const setup = async () => {
 };
 
 it(
-  'tab create adds an active tab with a running pane',
+  'tab create adds a tab with a running pane and leaves the active tab alone',
   async () => {
-    const { phi, createWorkspace, tabs, panes } = await setup();
+    const { phi, createWorkspace, tabs, workspaces, panes } = await setup();
     const workspace = await createWorkspace('alpha');
-    const created = await phi('tab', 'create', '--json');
+    const [original] = await tabs();
+
+    for (const flags of [[], ['--no-focus']]) {
+      const created = await phi('tab', 'create', ...flags, '--json');
+
+      expect(created.exitCode).toBe(0);
+    }
+
+    const listed = await tabs();
+
+    expect(listed.map((known) => ({ workspace: known.workspace, number: known.number }))).toEqual([
+      { workspace, number: 1 },
+      { workspace, number: 2 },
+      { workspace, number: 3 },
+    ]);
+
+    expect(listed.filter((known) => known.active).map((known) => known.id)).toEqual([
+      original?.id ?? '',
+    ]);
+
+    expect((await workspaces()).map((known) => known.id)).toEqual([workspace]);
+
+    let lifecycle: string | undefined;
+
+    for (let attempt = 0; attempt < 50 && lifecycle !== 'running'; attempt += 1) {
+      lifecycle = (await panes()).find((pane) => pane.id === listed[1]?.pane)?.lifecycle;
+    }
+
+    expect(lifecycle).toBe('running');
+  },
+  cliTestTimeoutMs,
+);
+
+it(
+  'tab create --focus makes the new tab active and focuses its workspace',
+  async () => {
+    const { phi, createWorkspace, tabs, workspaces } = await setup();
+    const first = await createWorkspace('alpha');
+    const second = await createWorkspace('beta');
+    const focusedBefore = (await workspaces()).filter((known) => known.focused);
+
+    expect(focusedBefore.map((known) => known.id)).toEqual([second]);
+
+    const created = await phi('tab', 'create', '--workspace', first, '--focus', '--json');
 
     expect(created.exitCode).toBe(0);
 
     const { tab } = tabDoneSchema.parse(JSON.parse(created.stdout));
     const listed = await tabs();
 
-    expect(listed.map((known) => ({ workspace: known.workspace, number: known.number }))).toEqual([
-      { workspace, number: 1 },
-      { workspace, number: 2 },
-    ]);
+    expect(listed.find((known) => known.id === tab)).toMatchObject({
+      workspace: first,
+      active: true,
+    });
 
-    const added = listed.find((known) => known.id === tab);
+    expect(listed.filter((known) => known.workspace === first && known.active)).toHaveLength(1);
 
-    expect(added).toMatchObject({ number: 2, active: true });
-    expect(listed.filter((known) => known.active)).toHaveLength(1);
+    const focusedAfter = (await workspaces()).filter((known) => known.focused);
 
-    let lifecycle: string | undefined;
+    expect(focusedAfter.map((known) => known.id)).toEqual([first]);
+  },
+  cliTestTimeoutMs,
+);
 
-    for (let attempt = 0; attempt < 50 && lifecycle !== 'running'; attempt += 1) {
-      lifecycle = (await panes()).find((pane) => pane.id === added?.pane)?.lifecycle;
+it(
+  'tab create and --no-focus keep the active tab and the focused workspace',
+  async () => {
+    const { phi, createWorkspace, tabs, workspaces } = await setup();
+    const first = await createWorkspace('alpha');
+    const second = await createWorkspace('beta');
+    const activeBefore = (await tabs()).filter((known) => known.active);
+    const focusedBefore = (await workspaces()).filter((known) => known.focused);
+
+    expect(focusedBefore.map((known) => known.id)).toEqual([second]);
+
+    const variants: string[][] = [
+      [],
+      ['--no-focus'],
+      ['--workspace', first],
+      ['--workspace', first, '--no-focus'],
+    ];
+
+    for (const flags of variants) {
+      const created = await phi('tab', 'create', ...flags);
+
+      expect(created.exitCode).toBe(0);
+      expect((await tabs()).filter((known) => known.active)).toEqual(activeBefore);
+      expect((await workspaces()).filter((known) => known.focused)).toEqual(focusedBefore);
     }
 
-    expect(lifecycle).toBe('running');
+    expect(await tabs()).toHaveLength(2 + variants.length);
   },
   cliTestTimeoutMs,
 );
@@ -235,9 +302,12 @@ it(
       await Bun.sleep(100);
     }
 
-    expect((await phi('tab', 'create')).exitCode).toBe(0);
+    const created = await phi('tab', 'create', '--json');
 
-    const added = (await tabs()).find((tab) => tab.active);
+    expect(created.exitCode).toBe(0);
+
+    const { tab } = tabDoneSchema.parse(JSON.parse(created.stdout));
+    const added = (await tabs()).find((known) => known.id === tab);
 
     expect((await panes()).find((pane) => pane.id === added?.pane)?.cwd).toBe(target);
   },

@@ -309,7 +309,7 @@ const messages: ControlMessage[] = [
   { type: 'workspaceClose', workspaceId: workspace.id },
   { type: 'workspaceDone', workspaceId: workspace.id },
   { type: 'workspaceFailed', reason: 'unknownWorkspace', message: undefined },
-  { type: 'tabCreate', workspaceId: workspace.id, cwd: undefined },
+  { type: 'tabCreate', workspaceId: workspace.id, cwd: undefined, focus: true },
   { type: 'tabFocus', tabId: tab.id },
   { type: 'tabClose', tabId: tab.id },
   { type: 'tabDone', tabId: tab.id },

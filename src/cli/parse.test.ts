@@ -95,13 +95,13 @@ it('parses the tab commands', () => {
 
   expect(parseCommand(['tab', 'create'])).toEqual({
     kind: 'tab',
-    tab: { action: 'create', workspaceId: undefined, cwd: undefined },
+    tab: { action: 'create', workspaceId: undefined, cwd: undefined, focus: false },
     ...options,
   });
 
   expect(parseCommand(['tab', 'create', '--workspace', 'workspace-2', '--json'])).toEqual({
     kind: 'tab',
-    tab: { action: 'create', workspaceId: workspaceId(2), cwd: undefined },
+    tab: { action: 'create', workspaceId: workspaceId(2), cwd: undefined, focus: false },
     json: true,
     socket: undefined,
   });
@@ -117,6 +117,24 @@ it('parses the tab commands', () => {
     tab: { action: 'close', tabId: tabId(3) },
     ...options,
   });
+});
+
+it.each([
+  [['tab', 'create', '--focus'], true],
+  [['tab', 'create', '--no-focus'], false],
+  [['tab', 'create', '--focus', '--no-focus'], false],
+  [['tab', 'create', '--no-focus', '--focus'], true],
+])('parses %j with focus %p', (argv, focus) => {
+  expect(parseCommand(argv)).toMatchObject({ tab: { action: 'create', focus } });
+});
+
+it.each([
+  ['tab focus', ['tab', 'focus', 'tab-1', '--focus']],
+  ['tab focus', ['tab', 'focus', 'tab-1', '--no-focus']],
+  ['workspace list', ['workspace', 'list', '--focus']],
+  ['another group', ['pane', 'list', '--focus']],
+])('refuses --focus on %s', (_name, argv) => {
+  expect(parseCommand(argv)).toContain('belong to workspace create and tab create');
 });
 
 it.each([
@@ -398,7 +416,7 @@ it('parses --cwd on pane split and tab create', () => {
 
   expect(parseCommand(['tab', 'create', '--cwd', '/srv', '--workspace', 'workspace-2'])).toEqual({
     kind: 'tab',
-    tab: { action: 'create', workspaceId: workspaceId(2), cwd: '/srv' },
+    tab: { action: 'create', workspaceId: workspaceId(2), cwd: '/srv', focus: false },
     json: false,
     socket: undefined,
   });

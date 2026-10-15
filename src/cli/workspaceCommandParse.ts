@@ -41,6 +41,9 @@ export const lastFocusFlag = (tokens: ParsedToken[]): boolean | undefined => {
   return last === undefined ? undefined : last.name === 'focus';
 };
 
+export const strayFocusMessage =
+  '--focus and --no-focus belong to workspace create and tab create.';
+
 export const workspaceUsage = `  phi workspace list [--socket <path>] [--json]
   phi workspace create <dir> [--label <label>] [--focus | --no-focus] [--socket <path>] [--json]
   phi workspace focus <id> [--socket <path>] [--json]
@@ -55,9 +58,9 @@ export const strayWorkspaceOptionMessage = (
     return '--label belongs to workspace create.';
   }
 
-  return focus !== undefined && group !== 'workspace'
-    ? '--focus and --no-focus belong to workspace create.'
-    : undefined;
+  const takesFocus = group === 'workspace' || group === 'tab';
+
+  return focus === undefined || takesFocus ? undefined : strayFocusMessage;
 };
 
 const parseWorkspaceTarget = (
@@ -122,7 +125,7 @@ const parseWorkspaceAction = (
   }
 
   if (focus !== undefined) {
-    return '--focus and --no-focus belong to workspace create.';
+    return strayFocusMessage;
   }
 
   if (action === 'list') {

@@ -76,14 +76,22 @@ export const removeTab = (state: State, tab: Tab, restore?: StartFallback): Prop
 
     // A view that showed the closed tab returns to its own earlier tab if that still exists. Else
     // the default view moves to the neighbor and client views follow the default view. A view that
-    // moved on keeps its tab.
+    // moved on keeps its tab. A view still focused on the owner also returns to its earlier
+    // workspace, which a focused create of the failed tab moved it from.
     const moveView = (view: View, viewOwner: ClientId | undefined, fallback: TabId): View => {
-      const earlier = activeTabOf(viewBeforeOf(restore, viewOwner) ?? view, owner.id);
-      const restored = earlier !== undefined && tabIds.includes(earlier) ? earlier : undefined;
+      if (activeTabOf(view, owner.id) !== tab.id) {
+        return view;
+      }
 
-      return activeTabOf(view, owner.id) === tab.id
-        ? withActiveTab(view, owner.id, restored ?? fallback)
-        : view;
+      const before = viewBeforeOf(restore, viewOwner);
+      const earlier = activeTabOf(before ?? view, owner.id);
+      const restored = earlier !== undefined && tabIds.includes(earlier) ? earlier : undefined;
+      const moved = withActiveTab(view, owner.id, restored ?? fallback);
+      const earlierWorkspace = before?.focusedWorkspaceId;
+      const isKnown = state.workspaces.some((workspace) => workspace.id === earlierWorkspace);
+      const returns = isKnown && view.focusedWorkspaceId === owner.id;
+
+      return returns ? { ...moved, focusedWorkspaceId: earlierWorkspace } : moved;
     };
 
     const defaultView = moveView(state.defaultView, undefined, neighbor);
@@ -130,8 +138,19 @@ export const removeTab = (state: State, tab: Tab, restore?: StartFallback): Prop
   return propose({ ...repaired, workspaces }, changes);
 };
 
+export const showTab = (
+  state: State,
+  source: ClientId | undefined,
+  owner: WorkspaceId,
+  id: TabId,
+): State =>
+  updateViews(state, source, (view) => ({
+    ...withActiveTab(view, owner, id),
+    focusedWorkspaceId: owner,
+  }));
+
 export const createTab = (state: State, intent: CreateTabIntent): Outcome => {
-  const { workspaceId: id, folder, clientId: source } = intent;
+  const { workspaceId: id, folder, focus, clientId: source } = intent;
 
   if (state.stopping) {
     return refuse('serverStopping');
@@ -169,7 +188,7 @@ export const createTab = (state: State, intent: CreateTabIntent): Outcome => {
     workspace.id === id ? { ...workspace, tabIds: [...workspace.tabIds, tab.id] } : workspace,
   );
 
-  const shown = updateViews(state, source, (view) => withActiveTab(view, id, tab.id));
+  const shown = focus ? showTab(state, source, id, tab.id) : state;
 
   const next: State = {
     ...shown,
@@ -191,17 +210,6 @@ export const createTab = (state: State, intent: CreateTabIntent): Outcome => {
     ...viewChanges(state, next),
   ]);
 };
-
-export const showTab = (
-  state: State,
-  source: ClientId | undefined,
-  owner: WorkspaceId,
-  id: TabId,
-): State =>
-  updateViews(state, source, (view) => ({
-    ...withActiveTab(view, owner, id),
-    focusedWorkspaceId: owner,
-  }));
 
 export const focusTab = (state: State, id: TabId, source: ClientId | undefined): Outcome => {
   if (state.stopping) {
