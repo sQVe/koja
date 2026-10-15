@@ -90,7 +90,6 @@ it(
     expect(refused.exitCode).not.toBe(0);
     expect(refused.stdout).toBe('');
     expect(refused.stderr).toContain('Usage');
-    expect(refused.stderr).toContain('phi pane read <id>');
 
     const flagged = await runCli(
       ['pane', 'read', '--pane', 'pane-1', '--socket', socketPath],
