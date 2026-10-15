@@ -32,8 +32,10 @@ export const temporaryDirectory = async (): Promise<string> => {
   return directory;
 };
 
+// Inside a Phi pane, an inherited PHI_SOCKET_PATH would send commands to the enclosing server.
 export const environmentFor = (directory: string): Record<string, string | undefined> => ({
   ...process.env,
+  PHI_SOCKET_PATH: undefined,
   XDG_STATE_HOME: join(directory, 'state'),
   XDG_RUNTIME_DIR: join(directory, 'runtime'),
 });

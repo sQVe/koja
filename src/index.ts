@@ -1,3 +1,4 @@
+#!/usr/bin/env bun
 import { runCli } from './cli/cli.ts';
 
 // oxlint-disable-next-line node/no-process-env -- the command line is where the environment enters.

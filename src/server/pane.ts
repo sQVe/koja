@@ -1,6 +1,8 @@
 import type { TerminalSize } from '../layout.ts';
 import { createTerminal } from '../vt/vt.ts';
 import type { Terminal } from '../vt/vt.ts';
+import { buildPaneEnvironment } from './paneEnvironment.ts';
+import type { PaneIdentity } from './paneEnvironment.ts';
 import { sessionGroups } from './processGroups.ts';
 import {
   killScopeDetached,
@@ -16,7 +18,9 @@ type Environment = Record<string, string | undefined>;
 interface SpawnPaneOptions {
   generation: number;
   size: TerminalSize;
+  // The server's environment. Scope commands run with it; the shell runs with a pane environment.
   environment: Environment;
+  identity: PaneIdentity;
   directory: string;
   // Start the shell in its own systemd user scope, and end the scope on stop.
   useScope: boolean;
@@ -105,13 +109,13 @@ const shellOf = (environment: Environment): string => environment.SHELL ?? '/bin
 const scopeCanRun = (shell: string): boolean => Bun.which(shell) !== null && !shell.includes('$');
 
 const spawnShell = (options: SpawnPaneOptions, onOutput: OnOutput, unit: string | undefined) => {
-  const { size, environment, directory } = options;
+  const { size, environment, identity, directory } = options;
   const shell = shellOf(environment);
   const command = unit === undefined ? [shell] : scopedCommand(unit, shell);
 
   return Bun.spawn(command, {
     cwd: directory,
-    env: { ...environment, TERM: terminalName },
+    env: buildPaneEnvironment(environment, identity),
     terminal: {
       cols: size.columns,
       rows: size.rows,

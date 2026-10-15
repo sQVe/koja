@@ -13,6 +13,7 @@ import {
   processesRunning,
   processExists,
   startServer,
+  testIdentity,
   logLinesOf,
 } from './serverHarness.ts';
 
@@ -85,6 +86,7 @@ it.skipIf(!scopesAvailable)('ends the pane scope when the pane is disposed', asy
     size: { columns: 80, rows: 24 },
     environment: { ...process.env, SHELL: '/bin/sh' },
     directory: tmpdir(),
+    identity: testIdentity,
     useScope: true,
     onOutput: () => undefined,
   });
@@ -221,6 +223,7 @@ it.skipIf(!scopesAvailable)(
         PATH: `${fakeDirectory}:${process.env.PATH}`,
       },
       directory,
+      identity: testIdentity,
       useScope: true,
       onOutput: () => undefined,
     });
@@ -280,6 +283,7 @@ it.skipIf(!scopesAvailable)(
         PATH: `${fakeDirectory}:${process.env.PATH}`,
       },
       directory,
+      identity: testIdentity,
       useScope: true,
       onOutput: () => undefined,
     });
@@ -337,6 +341,7 @@ it.skipIf(!scopesAvailable)(
         PATH: `${fakeDirectory}:${process.env.PATH}`,
       },
       directory,
+      identity: testIdentity,
       useScope: true,
       onOutput: () => undefined,
     });

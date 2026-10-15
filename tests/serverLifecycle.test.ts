@@ -44,6 +44,7 @@ const serverScript = (socketPath: string): string => `
     version: ${JSON.stringify(build)},
     log: created.log,
     environment: { ...process.env, SHELL: '/bin/sh' },
+    binaryPath: process.execPath,
   });
 
   if (!result.ok) {
@@ -109,6 +110,7 @@ it('removes the socket it bound even when its symlink route changes', async () =
     version: build,
     log: openLog(join(directory, 'state', 'phi', 'server.log')),
     environment: { ...process.env, SHELL: '/bin/sh' },
+    binaryPath: process.execPath,
   });
 
   if (!result.ok) {

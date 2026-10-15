@@ -92,6 +92,20 @@ it('prints the version and the pinned Ghostty commit when run from source', asyn
   );
 });
 
+it('runs the source entry file directly, as panes run PHI_BIN_PATH', () => {
+  const run = Bun.spawnSync([join(root, 'src/index.ts'), '--version'], {
+    cwd: root,
+    stdin: 'ignore',
+    stdout: 'pipe',
+    stderr: 'pipe',
+  });
+
+  expect({ exitCode: run.exitCode, stderr: run.stderr.toString() }).toEqual({
+    exitCode: 0,
+    stderr: '',
+  });
+});
+
 it('starts and stops a server', async () => {
   const state = await mkdtemp(join(tmpdir(), 'phi-binary-server-'));
   const socketPath = join(state, 'run', 'phi.sock');

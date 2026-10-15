@@ -6,6 +6,7 @@ import { basename, join } from 'node:path';
 
 import { z } from 'zod';
 
+import { paneId, tabId, workspaceId } from '../src/ids.ts';
 import type { PaneId } from '../src/ids.ts';
 import { createFrameDecoder, encodeFrame, FrameKind } from '../src/protocol/frames.ts';
 import { encodeControl, parseControl } from '../src/protocol/messages.ts';
@@ -22,6 +23,7 @@ import {
 import type { PaneRows, RowUpdate } from '../src/rows/rows.ts';
 import { createLog } from '../src/server/log.ts';
 import type { Log } from '../src/server/log.ts';
+import type { PaneIdentity } from '../src/server/paneEnvironment.ts';
 import { runServer } from '../src/server/server.ts';
 import type { Server } from '../src/server/server.ts';
 
@@ -62,6 +64,15 @@ export const readRecent = (target: PaneId): ControlMessage => {
 export const linesOf = (rows: PaneRows): string[] => rowsToLines(rows, rows.columns, false);
 
 export const build: BuildVersion = { version: '1.2.3', ghostty: 'abc123' };
+
+export const testIdentity: PaneIdentity = {
+  paneId: paneId(1),
+  tabId: tabId(1),
+  workspaceId: workspaceId(1),
+  socketPath: '/tmp/phi-test.sock',
+  binaryPath: process.execPath,
+  version: build.version,
+};
 
 export const temporaryDirectory = async (): Promise<string> => {
   const directory = await mkdtemp(join(tmpdir(), 'phi-server-'));
@@ -121,6 +132,7 @@ export const startEmptyServer = async (
   shell = '/bin/sh',
   path = process.env.PATH,
   scrollbackBytes?: number,
+  extraEnvironment: Record<string, string> = {},
 ): Promise<{ server: Server; socketPath: string; logPath: string }> => {
   const socketPath = join(directory, 'run', 'phi.sock');
   const logPath = join(directory, 'state', 'phi', 'server.log');
@@ -130,7 +142,8 @@ export const startEmptyServer = async (
     socketPath,
     version: build,
     log,
-    environment: { ...process.env, PATH: path, SHELL: shell },
+    environment: { ...process.env, PATH: path, SHELL: shell, ...extraEnvironment },
+    binaryPath: process.execPath,
     holdLimitMs: 60_000,
     ...(scrollbackBytes === undefined ? {} : { scrollbackBytes }),
   });
@@ -325,8 +338,9 @@ export const startServer = async (
   shell = '/bin/sh',
   path = process.env.PATH,
   scrollbackBytes?: number,
+  extraEnvironment: Record<string, string> = {},
 ): Promise<{ server: Server; socketPath: string; logPath: string }> => {
-  const started = await startEmptyServer(directory, shell, path, scrollbackBytes);
+  const started = await startEmptyServer(directory, shell, path, scrollbackBytes, extraEnvironment);
 
   await createWorkspace(started.socketPath, directory, basename(directory));
 

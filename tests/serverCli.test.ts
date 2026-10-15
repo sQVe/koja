@@ -426,6 +426,7 @@ it(
       version: other,
       log: created.log,
       environment: { ...process.env, SHELL: '/bin/sh' },
+      binaryPath: process.execPath,
     });
 
     if (!result.ok) {
