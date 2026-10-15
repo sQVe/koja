@@ -8,7 +8,10 @@ import type { Connection } from './connection.ts';
 import type { PaneRuntime } from './pane.ts';
 import { followFolderOf, takePaneStartFailure } from './paneEffects.ts';
 
-export type TabRequest = Extract<ControlMessage, { type: 'tabCreate' | 'tabFocus' | 'tabClose' }>;
+export type TabRequest = Extract<
+  ControlMessage,
+  { type: 'tabCreate' | 'tabFocus' | 'tabRename' | 'tabClose' }
+>;
 
 interface TabRequestContext {
   state: State;
@@ -18,8 +21,15 @@ interface TabRequestContext {
 
 type Dispatch = (intent: Intent) => readonly Change[];
 
+const tabRequestTypes: ReadonlySet<string> = new Set([
+  'tabCreate',
+  'tabFocus',
+  'tabRename',
+  'tabClose',
+]);
+
 export const isTabRequest = (message: ControlMessage): message is TabRequest =>
-  message.type === 'tabCreate' || message.type === 'tabFocus' || message.type === 'tabClose';
+  tabRequestTypes.has(message.type);
 
 const tabIntentOf = (
   context: TabRequestContext,
@@ -41,6 +51,10 @@ const tabIntentOf = (
 
   if (message.type === 'tabFocus') {
     return { type: 'focusTab', tabId: message.tabId, ...source };
+  }
+
+  if (message.type === 'tabRename') {
+    return { type: 'renameTab', tabId: message.tabId, label: message.label };
   }
 
   return { type: 'closeTab', tabId: message.tabId };

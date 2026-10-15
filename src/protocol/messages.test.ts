@@ -46,6 +46,7 @@ const tab = {
   layout: { kind: 'pane' as const, paneId: pane.id },
   focusedPaneId: pane.id,
   zoomedPaneId: undefined,
+  label: undefined,
 };
 
 const workspace = {

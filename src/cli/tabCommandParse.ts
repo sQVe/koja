@@ -14,6 +14,7 @@ export type TabAction =
       focus: boolean;
     }
   | { action: 'focus'; tabId: TabId }
+  | { action: 'rename'; tabId: TabId; label: string }
   | { action: 'close'; tabId: TabId };
 
 export interface TabCliCommand extends CommandOptions {
@@ -36,6 +37,7 @@ export const tabUsage = `  phi tab list [--socket <path>] [--json]
   phi tab create [--workspace <id>] [--cwd <dir>] [--focus | --no-focus]
     [--socket <path>] [--json]
   phi tab focus <id> [--socket <path>] [--json]
+  phi tab rename <id> <label> [--socket <path>] [--json]
   phi tab close <id> [--socket <path>] [--json]`;
 
 const parseTabId = (value: string | undefined): IdResult<TabId> => {
@@ -71,6 +73,22 @@ const parseTabTarget = (action: 'focus' | 'close', rest: string[]): TabAction | 
   const id = parseTabId(rest[0]);
 
   return id.ok ? { action, tabId: id.id } : id.message;
+};
+
+const parseTabRename = (rest: string[]): TabAction | string => {
+  const [id, label] = rest;
+
+  if (rest.length !== 2 || label === undefined) {
+    return 'tab rename takes a tab id and a label.';
+  }
+
+  const target = parseTabId(id);
+
+  if (label === '') {
+    return 'The label cannot be empty.';
+  }
+
+  return target.ok ? { action: 'rename', tabId: target.id, label } : target.message;
 };
 
 const parseTabCreate = (
@@ -121,6 +139,10 @@ const parseTabAction = (
     return rest.length === 0 ? { action } : 'tab list takes no arguments.';
   }
 
+  if (action === 'rename') {
+    return parseTabRename(rest);
+  }
+
   if (action === 'focus' || action === 'close') {
     return parseTabTarget(action, rest);
   }
@@ -136,5 +158,5 @@ export const parseTabCommand = (
 ): TabCliCommand | string => {
   const tab = parseTabAction(action, rest, raw);
 
-  return typeof tab === 'string' ? tab : { kind: 'tab', tab, ...options };
+  return typeof tab === 'string' ? tab : { kind: 'tab', tab, ...options, json: true };
 };

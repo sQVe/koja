@@ -56,6 +56,7 @@ export const createWorkspace = (state: State, intent: CreateWorkspaceIntent): Ou
     layout: { kind: 'pane', paneId: pane.id },
     focusedPaneId: pane.id,
     zoomedPaneId: undefined,
+    label: undefined,
   };
 
   const workspace: WorkspaceRecord = {

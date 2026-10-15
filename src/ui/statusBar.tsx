@@ -4,6 +4,12 @@ import type { ReactNode } from 'react';
 import { activeTabIdOf, shownView } from '../client/client.ts';
 import type { AttachSession, StoreSnapshot } from '../client/client.ts';
 
+export const tabEntry = (number: number, label: string | undefined, active: boolean): string => {
+  const name = label === undefined ? `${number}` : `${number}:${label}`;
+
+  return active ? `[${name}]` : name;
+};
+
 const tabLabels = (snapshot: StoreSnapshot): string => {
   const view = shownView(snapshot);
   const workspace = snapshot.workspaces.find((known) => known.id === view.focusedWorkspaceId);
@@ -15,7 +21,11 @@ const tabLabels = (snapshot: StoreSnapshot): string => {
   const activeId = activeTabIdOf(view, workspace.id);
 
   return workspace.tabIds
-    .map((id, index) => (id === activeId ? `[${index + 1}]` : `${index + 1}`))
+    .map((id, index) => {
+      const label = snapshot.tabs.find((tab) => tab.id === id)?.label;
+
+      return tabEntry(index + 1, label, id === activeId);
+    })
     .join(' ');
 };
 

@@ -159,6 +159,7 @@ const tabSchema: z.ZodType<Tab> = z.object({
   layout: layoutSchema,
   focusedPaneId: paneIdSchema,
   zoomedPaneId: absent(paneIdSchema),
+  label: absent(z.string()),
 });
 
 const workspaceSchema: z.ZodType<WorkspaceRecord> = z.object({
@@ -219,6 +220,7 @@ const changeSchema: z.ZodType<Change> = z.discriminatedUnion('type', [
     workspaceId: workspaceIdSchema,
     focusedWorkspaceId: absent(workspaceIdSchema),
   }),
+  z.object({ type: z.literal('tabRenamed'), tabId: tabIdSchema, label: z.string() }),
   z.object({ type: z.literal('tabRemoved'), tabId: tabIdSchema }),
   z.object({ type: z.literal('paneRemoved'), paneId: paneIdSchema }),
   z.object({ type: z.literal('paneMoved'), paneId: paneIdSchema, tabId: tabIdSchema }),
@@ -415,6 +417,7 @@ const controlSchema = z.discriminatedUnion('type', [
     focus: z.boolean(),
   }),
   z.object({ type: z.literal('tabFocus'), tabId: tabIdSchema }),
+  z.object({ type: z.literal('tabRename'), tabId: tabIdSchema, label: z.string() }),
   z.object({ type: z.literal('tabClose'), tabId: tabIdSchema }),
   // Answers a tab request that worked, with the tab it acted on.
   z.object({ type: z.literal('tabDone'), tabId: tabIdSchema }),

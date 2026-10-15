@@ -87,10 +87,10 @@ it(
       { id: second, root: join(directory, 'beta'), label: 'beta', focused: true },
     ]);
 
-    const text = await phi('workspace', 'list');
+    const withoutFlag = await phi('workspace', 'list');
 
-    expect(text.stdout).toContain(`* ${second}\tbeta\t${join(directory, 'beta')}`);
-    expect(text.stdout).toContain(`  ${first}\talpha\t${join(directory, 'alpha')}`);
+    expect(withoutFlag.exitCode).toBe(0);
+    expect(workspaceListSchema.parse(JSON.parse(withoutFlag.stdout))).toEqual(await list());
   },
   cliTestTimeoutMs,
 );

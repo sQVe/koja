@@ -90,6 +90,14 @@ const applyLayoutChange = (snapshot: StoreSnapshot, change: StoreChange): StoreS
     return { ...snapshot, defaultView };
   }
 
+  if (change.type === 'tabRenamed') {
+    const tabs = snapshot.tabs.map((tab) =>
+      tab.id === change.tabId ? { ...tab, label: change.label } : tab,
+    );
+
+    return { ...snapshot, tabs };
+  }
+
   if (change.type === 'workspaceRenamed') {
     const workspaces = snapshot.workspaces.map((workspace) =>
       workspace.id === change.workspaceId ? { ...workspace, label: change.label } : workspace,

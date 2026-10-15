@@ -34,6 +34,7 @@ it('creates a workspace with one tab and one starting pane', () => {
     layout: { kind: 'pane', paneId: paneId(1) },
     focusedPaneId: paneId(1),
     zoomedPaneId: undefined,
+    label: undefined,
   };
 
   const workspace: WorkspaceRecord = {

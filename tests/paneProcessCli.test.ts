@@ -56,7 +56,7 @@ it(
     expect((await phi('pane', 'send', 'sleep 60 | cat\n')).exitCode).toBe(0);
 
     const read = async () => {
-      const result = await phi('pane', 'process-info', first, '--json');
+      const result = await phi('pane', 'process-info', first);
 
       expect({ exitCode: result.exitCode, stderr: result.stderr }).toEqual({
         exitCode: 0,

@@ -45,6 +45,7 @@ const sessionWith = (overrides: Partial<SavedSession> = {}): SavedSession => ({
       },
       focusedPaneId: paneId(1),
       zoomedPaneId: paneId(2),
+      label: undefined,
     },
     {
       id: tabId(2),
@@ -52,6 +53,7 @@ const sessionWith = (overrides: Partial<SavedSession> = {}): SavedSession => ({
       layout: { kind: 'pane', paneId: paneId(3) },
       focusedPaneId: paneId(3),
       zoomedPaneId: undefined,
+      label: undefined,
     },
   ],
   panes: [
@@ -113,6 +115,35 @@ it('reads back the session it saved', async () => {
 
   writer.save(session);
   await writer.stopSaving(session);
+
+  expect(await readSessionFile(path)).toEqual({ kind: 'restored', session });
+});
+
+it('reads back the label of a tab', async () => {
+  const directory = await temporaryDirectory();
+  const path = join(directory, 'session.json');
+  const session = sessionWith({ tabs: sessionWith().tabs.map(tabWith({ label: 'build' })) });
+  const writer = createSessionWriter(path, recordingLog().log);
+
+  await writer.stopSaving(session);
+
+  expect(await readSessionFile(path)).toEqual({ kind: 'restored', session });
+});
+
+it('reads a session file saved before tabs had labels', async () => {
+  const directory = await temporaryDirectory();
+  const path = join(directory, 'session.json');
+  const session = sessionWith();
+
+  const saved = structuredClone(await savedJson(session)) as {
+    tabs: Record<string, unknown>[];
+  };
+
+  for (const tab of saved.tabs) {
+    delete tab['label'];
+  }
+
+  await writeSession(path, saved);
 
   expect(await readSessionFile(path)).toEqual({ kind: 'restored', session });
 });

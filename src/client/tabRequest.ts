@@ -4,6 +4,7 @@ import type { ControlMessage } from '../protocol/protocol.ts';
 export type TabCommand =
   | { action: 'create'; workspaceId: WorkspaceId; cwd: string | undefined; focus: boolean }
   | { action: 'focus'; tabId: TabId }
+  | { action: 'rename'; tabId: TabId; label: string }
   | { action: 'close'; tabId: TabId };
 
 export const tabRequest = (command: TabCommand): ControlMessage => {
@@ -14,6 +15,10 @@ export const tabRequest = (command: TabCommand): ControlMessage => {
       cwd: command.cwd,
       focus: command.focus,
     };
+  }
+
+  if (command.action === 'rename') {
+    return { type: 'tabRename', tabId: command.tabId, label: command.label };
   }
 
   return command.action === 'focus'

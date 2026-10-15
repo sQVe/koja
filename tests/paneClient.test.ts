@@ -49,6 +49,7 @@ const snapshot = (live: boolean): ControlMessage => ({
             layout: { kind: 'pane', paneId: paneId(7) },
             focusedPaneId: paneId(7),
             zoomedPaneId: undefined,
+            label: undefined,
           },
         ]
       : [],

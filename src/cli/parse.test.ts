@@ -37,35 +37,35 @@ it('parses the workspace commands', () => {
   expect(parseCommand(['workspace', 'create', 'work/api', '--label', 'API'])).toEqual({
     kind: 'workspace',
     workspace: { action: 'create', directory: 'work/api', label: 'API', focus: false },
-    json: false,
+    json: true,
     socket,
   });
 
   expect(parseCommand(['workspace', 'create', 'work/api'])).toEqual({
     kind: 'workspace',
     workspace: { action: 'create', directory: 'work/api', label: undefined, focus: false },
-    json: false,
+    json: true,
     socket,
   });
 
   expect(parseCommand(['workspace', 'focus', 'workspace-2'])).toEqual({
     kind: 'workspace',
     workspace: { action: 'focus', workspaceId: workspaceId(2) },
-    json: false,
+    json: true,
     socket,
   });
 
   expect(parseCommand(['workspace', 'rename', 'workspace-2', 'docs'])).toEqual({
     kind: 'workspace',
     workspace: { action: 'rename', workspaceId: workspaceId(2), label: 'docs' },
-    json: false,
+    json: true,
     socket,
   });
 
   expect(parseCommand(['workspace', 'close', 'workspace-2', '--socket', '/tmp/p.sock'])).toEqual({
     kind: 'workspace',
     workspace: { action: 'close', workspaceId: workspaceId(2) },
-    json: false,
+    json: true,
     socket: '/tmp/p.sock',
   });
 });
@@ -79,13 +79,13 @@ it.each([
   expect(parseCommand(['workspace', 'create', 'work/api', ...flags])).toEqual({
     kind: 'workspace',
     workspace: { action: 'create', directory: 'work/api', label: undefined, focus },
-    json: false,
+    json: true,
     socket: undefined,
   });
 });
 
 it('parses the tab commands', () => {
-  const options = { json: false, socket: undefined };
+  const options = { json: true, socket: undefined };
 
   expect(parseCommand(['tab', 'list'])).toEqual({
     kind: 'tab',
@@ -109,6 +109,12 @@ it('parses the tab commands', () => {
   expect(parseCommand(['tab', 'focus', 'tab-3'])).toEqual({
     kind: 'tab',
     tab: { action: 'focus', tabId: tabId(3) },
+    ...options,
+  });
+
+  expect(parseCommand(['tab', 'rename', 'tab-3', 'build'])).toEqual({
+    kind: 'tab',
+    tab: { action: 'rename', tabId: tabId(3), label: 'build' },
     ...options,
   });
 
@@ -140,6 +146,9 @@ it.each([
 it.each([
   ['a workspace id as a tab id', ['tab', 'focus', 'workspace-1']],
   ['no tab id', ['tab', 'close']],
+  ['no label for tab rename', ['tab', 'rename', 'tab-1']],
+  ['an empty label for tab rename', ['tab', 'rename', 'tab-1', '']],
+  ['a bad tab id for tab rename', ['tab', 'rename', '1', 'build']],
   ['an unknown action', ['tab', 'open']],
   ['--workspace on tab focus', ['tab', 'focus', 'tab-1', '--workspace', 'workspace-1']],
   ['--workspace on another group', ['workspace', 'list', '--workspace', 'workspace-1']],
@@ -217,21 +226,21 @@ it('parses pane split, focus, and close with the pane id as an argument', () => 
   expect(parseCommand(['pane', 'split', 'pane-2', '--direction', 'right'])).toEqual({
     kind: 'pane',
     pane: { action: 'split', pane: paneId(2), direction: 'right', cwd: undefined },
-    json: false,
+    json: true,
     socket: undefined,
   });
 
   expect(parseCommand(['pane', 'focus', 'pane-3'])).toEqual({
     kind: 'pane',
     pane: { action: 'focus', pane: paneId(3) },
-    json: false,
+    json: true,
     socket: undefined,
   });
 
   expect(parseCommand(['pane', 'close', 'pane-3', '--socket', '/tmp/p.sock'])).toEqual({
     kind: 'pane',
     pane: { action: 'close', pane: paneId(3) },
-    json: false,
+    json: true,
     socket: '/tmp/p.sock',
   });
 });
@@ -304,7 +313,7 @@ it('parses pane zoom and pane resize', () => {
   ).toEqual({
     kind: 'pane',
     pane: { action: 'resize', pane: paneId(2), direction: 'left', cells: 12 },
-    json: false,
+    json: true,
     socket: undefined,
   });
 
@@ -446,7 +455,7 @@ it('parses --cwd on pane split and tab create', () => {
     {
       kind: 'pane',
       pane: { action: 'split', pane: paneId(2), direction: 'right', cwd: 'sub' },
-      json: false,
+      json: true,
       socket: undefined,
     },
   );
@@ -454,7 +463,7 @@ it('parses --cwd on pane split and tab create', () => {
   expect(parseCommand(['tab', 'create', '--cwd', '/srv', '--workspace', 'workspace-2'])).toEqual({
     kind: 'tab',
     tab: { action: 'create', workspaceId: workspaceId(2), cwd: '/srv', focus: false },
-    json: false,
+    json: true,
     socket: undefined,
   });
 });
@@ -544,4 +553,36 @@ it.each([
   expect(parseCommand(argv)).toBe(
     message.startsWith('--source,') ? message : `${message} belongs to pane read.`,
   );
+});
+
+const jsonDefaultCommands = [
+  ['workspace', 'list'],
+  ['workspace', 'create', 'work/api'],
+  ['workspace', 'focus', 'workspace-2'],
+  ['workspace', 'rename', 'workspace-2', 'docs'],
+  ['workspace', 'close', 'workspace-2'],
+  ['tab', 'list'],
+  ['tab', 'create'],
+  ['tab', 'focus', 'tab-3'],
+  ['tab', 'rename', 'tab-3', 'build'],
+  ['tab', 'close', 'tab-3'],
+  ['pane', 'list'],
+  ['pane', 'split', 'pane-2', '--direction', 'below'],
+  ['pane', 'focus', 'pane-3'],
+  ['pane', 'zoom', 'pane-2'],
+  ['pane', 'resize', 'pane-2', '--direction', 'left', '--cells', '12'],
+  ['pane', 'close', 'pane-3'],
+  ['pane', 'process-info', 'pane-1'],
+];
+
+it.each(jsonDefaultCommands)('prints JSON by default for %s %s', (...argv) => {
+  const without = parseCommand(argv);
+  const withFlag = parseCommand([...argv, '--json']);
+
+  expect(without).toMatchObject({ json: true });
+  expect(withFlag).toEqual(without);
+});
+
+it.each([[['pane', 'read']], [['pane', 'send', 'ls']]])('prints text by default for %j', (argv) => {
+  expect(parseCommand(argv)).toMatchObject({ json: false });
 });

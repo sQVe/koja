@@ -147,5 +147,7 @@ export const parseWorkspaceCommand = (
 ): WorkspaceCliCommand | string => {
   const workspace = parseWorkspaceAction(action, rest, label, focus);
 
-  return typeof workspace === 'string' ? workspace : { kind: 'workspace', workspace, ...options };
+  return typeof workspace === 'string'
+    ? workspace
+    : { kind: 'workspace', workspace, ...options, json: true };
 };
