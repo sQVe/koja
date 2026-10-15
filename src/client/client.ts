@@ -18,11 +18,14 @@ export type {
   AttachSession,
   CloseReason,
   InputMode,
+  PaneNotice,
   TabRoute,
   TerminalTheme,
   WorkspaceReply,
 } from './clientAttach.ts';
 
+export { createClipboardQueue } from './clipboardWrite.ts';
+export type { ClipboardQueue } from './clipboardWrite.ts';
 export { createRowCache } from './rowCache.ts';
 export type { RowCache } from './rowCache.ts';
 export { activeTabIdOf, focusedPane, viewedPane, shownView } from './snapshot.ts';

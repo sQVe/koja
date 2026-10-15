@@ -4,8 +4,8 @@ import { createRoot } from '@opentui/react';
 import { useSyncExternalStore } from 'react';
 import type { ReactNode } from 'react';
 
-import { viewedPane, shownView } from '../client/client.ts';
-import type { AttachSession, CloseReason } from '../client/client.ts';
+import { createClipboardQueue, viewedPane, shownView } from '../client/client.ts';
+import type { AttachSession, ClipboardQueue, CloseReason, PaneNotice } from '../client/client.ts';
 import { layoutPanes } from '../layout.ts';
 import { kittyFlags } from '../rows/rows.ts';
 import { createInputRouter } from './input.ts';
@@ -182,6 +182,16 @@ const routeInput = (session: AttachSession, renderer: CliRenderer) =>
     paneAction: (action) => runPaneAction(session, action),
   });
 
+const showNotice = (notice: PaneNotice, clipboard: ClipboardQueue): void => {
+  if (notice.kind === 'bell') {
+    process.stdout.write('\u0007'.repeat(notice.count));
+
+    return;
+  }
+
+  clipboard.copy(notice.text);
+};
+
 export const runAttach = async (session: AttachSession): Promise<CloseReason> => {
   // OpenTUI turns on Kitty key reporting for a null setting too. Phi asks for its own flags below,
   // so OpenTUI's stay off.
@@ -198,6 +208,8 @@ export const runAttach = async (session: AttachSession): Promise<CloseReason> =>
   let releaseStdin: (() => void) | undefined;
   let unsubscribeState: (() => void) | undefined;
   let unsubscribeRows: (() => void) | undefined;
+  const clipboard = createClipboardQueue();
+  let unsubscribeNotices: (() => void) | undefined;
   let root: ReturnType<typeof createRoot> | undefined;
   let unmountPane: (() => void) | undefined;
 
@@ -233,6 +245,11 @@ export const runAttach = async (session: AttachSession): Promise<CloseReason> =>
     releaseStdin = takeStdin(renderer, routeInput(session, renderer));
     unsubscribeState = session.subscribe(followPaneKeys);
     unsubscribeRows = session.subscribeRows(followPaneKeys);
+
+    unsubscribeNotices = session.subscribeNotices((notice) => {
+      showNotice(notice, clipboard);
+    });
+
     followPaneKeys();
     mouse.enable();
     root = createRoot(renderer);
@@ -267,6 +284,8 @@ export const runAttach = async (session: AttachSession): Promise<CloseReason> =>
     renderer.off('resize', resize);
     unsubscribeState?.();
     unsubscribeRows?.();
+    unsubscribeNotices?.();
+    clipboard.close();
     keyboard.restore();
     mouse.restore();
     releaseStdin?.();

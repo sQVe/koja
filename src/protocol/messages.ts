@@ -306,6 +306,10 @@ const controlSchema = z.discriminatedUnion('type', [
   z.object({ type: z.literal('resync') }),
   z.object({ type: z.literal('snapshot'), snapshot: snapshotSchema }),
   z.object({ type: z.literal('change'), revision: count, change: changeSchema }),
+  // A pane rang the bell this many times. Only the foreground client gets it.
+  z.object({ type: z.literal('bell'), count: count.min(1) }),
+  // A pane program wrote text to the clipboard. Only the foreground client gets it.
+  z.object({ type: z.literal('clipboardWrite'), text: z.string() }),
   z.object({ type: z.literal('takenOver') }),
   z.object({ type: z.literal('detached') }),
   z.object({ type: z.literal('detachResult'), result: detachOutcomeSchema }),
