@@ -13,6 +13,10 @@ const describeToken = (token: InputToken): string => {
     return `key:${token.raw}${token.escapeSent ? ':sent' : ''}`;
   }
 
+  if (token.kind === 'mouse') {
+    return `mouse:${token.raw}${token.escapeSent ? ':sent' : ''}`;
+  }
+
   const text = decoder.decode(token.bytes);
 
   return token.kind === 'paste'
@@ -426,4 +430,44 @@ it('keeps a large paste that arrives in many reads, in time linear in its size',
   expect(token?.kind === 'paste' ? token.bytes.length : 0).toBe(reads * chunk.length);
   // Copying the open paste on every read takes several seconds for this size.
   expect(elapsedMs).toBeLessThan(3000);
+});
+
+it('emits an SGR mouse report as one mouse token and a key after it as a key', () => {
+  const { read } = setup();
+
+  expect(read('\x1b[<0;5;3Mx')).toEqual(['mouse:\x1b[<0;5;3M', 'key:x']);
+  expect(read('\x1b[<35;120;40m')).toEqual(['mouse:\x1b[<35;120;40m']);
+});
+
+it('joins an SGR mouse report cut across two reads', () => {
+  const { read } = setup();
+
+  expect(read('\x1b[<64;1')).toEqual([]);
+  expect(read('2;7Mq')).toEqual(['mouse:\x1b[<64;12;7M', 'key:q']);
+});
+
+it('splits one SGR mouse report at every boundary into one mouse token', () => {
+  const report = '\x1b[<0;12;7M';
+
+  for (let cut = 1; cut < report.length; cut += 1) {
+    const { read } = setup();
+    const first = read(report.slice(0, cut), 0);
+    const second = read(report.slice(cut), 1);
+    const sent = cut === 1 ? ':sent' : '';
+
+    expect(first.concat(second).filter((token) => token.startsWith('mouse:'))).toEqual([
+      `mouse:${report}${sent}`,
+    ]);
+
+    expect(first.concat(second)).toEqual(
+      cut === 1 ? ['key:\x1b', `mouse:${report}:sent`] : [`mouse:${report}`],
+    );
+  }
+});
+
+it('keeps a CSI < sequence that is not a mouse report a key', () => {
+  const { read } = setup();
+
+  expect(read('\x1b[<0;5;3Z')).toEqual(['key:\x1b[<0;5;3Z']);
+  expect(read('\x1b[<0;5M')).toEqual(['key:\x1b[<0;5M']);
 });

@@ -19,7 +19,7 @@ const releaseCheckMs = 25;
 // puts OpenTUI's listener back.
 export const takeStdin = (
   renderer: CliRenderer,
-  onInput: (token: Exclude<InputToken, { kind: 'response' }>) => void,
+  onInput: (token: Exclude<InputToken, { kind: 'response' | 'mouse' }>) => void,
 ): (() => void) => {
   // SAFETY: the renderer's private field is read as optional and checked before use.
   // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- the field is private in OpenTUI's types.
@@ -40,7 +40,7 @@ export const takeStdin = (
     for (const token of tokens) {
       if (token.kind === 'response') {
         openTuiListener(Buffer.from(token.bytes));
-      } else {
+      } else if (token.kind !== 'mouse') {
         onInput(token);
       }
     }

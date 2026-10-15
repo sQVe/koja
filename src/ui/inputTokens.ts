@@ -1,7 +1,8 @@
 export type InputToken =
   | { kind: 'key'; raw: string; escapeSent: boolean }
   | { kind: 'paste'; bytes: Uint8Array; escapeSent: boolean }
-  | { kind: 'response'; bytes: Uint8Array };
+  | { kind: 'response'; bytes: Uint8Array }
+  | { kind: 'mouse'; raw: string; escapeSent: boolean };
 
 export interface InputTokenizer {
   push: (bytes: Uint8Array, nowMs: number) => InputToken[];
@@ -20,6 +21,7 @@ interface Paste {
 type Scanned =
   | { kind: 'key'; end: number }
   | { kind: 'response'; end: number }
+  | { kind: 'mouse'; end: number }
   | { kind: 'pasteStart'; end: number }
   | { kind: 'skip'; end: number };
 
@@ -90,6 +92,8 @@ const csiReplyShapes = [
   /^[IO]$/,
   /^\?997;[12]n$/,
 ];
+
+const sgrMouseShape = /^<[0-9]+;[0-9]+;[0-9]+[Mm]$/;
 
 // The longest reply body worth waiting for. Kitty and iTerm2 capability replies stay far below it.
 const maxReplyBodyBytes = 512;
@@ -266,11 +270,15 @@ const classifyCsi = (
   input: Uint8Array,
   start: number,
   final: number,
-): 'key' | 'response' | 'pasteStart' => {
+): 'key' | 'response' | 'mouse' | 'pasteStart' => {
   const body = new TextDecoder().decode(input.subarray(start + 2, final + 1));
 
   if (body === `${pasteStartParams}~`) {
     return 'pasteStart';
+  }
+
+  if (sgrMouseShape.test(body)) {
+    return 'mouse';
   }
 
   return csiReplyShapes.some((shape) => shape.test(body)) ? 'response' : 'key';
@@ -446,6 +454,10 @@ export const createInputTokenizer = (): InputTokenizer => {
       if (text.length === 1 && text[0] === escape && atEnd) {
         escapeSentAt = nowMs;
       }
+    }
+
+    if (scanned.kind === 'mouse') {
+      tokens.push({ kind: 'mouse', raw: decoder.decode(text), escapeSent });
     }
 
     if (scanned.kind === 'response') {
