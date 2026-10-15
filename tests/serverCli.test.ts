@@ -392,6 +392,7 @@ it.each([
   'server stop --socket',
   'pane',
   'pane restart',
+  'pane read',
   'pane read text',
   'pane send',
   'pane send one two',
@@ -443,7 +444,7 @@ it(
     });
 
     for (const command of [
-      ['pane', 'read'],
+      ['pane', 'read', 'pane-1'],
       ['pane', 'send', 'must-not-be-written'],
     ]) {
       const refused = await runCli([...command, '--socket', socketPath, '--json'], directory);

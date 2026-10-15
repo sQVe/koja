@@ -193,14 +193,7 @@ it('parses pane list, and the pane target of read and send', () => {
     socket: undefined,
   });
 
-  expect(parseCommand(['pane', 'read'])).toEqual({
-    kind: 'pane',
-    pane: { action: 'read', pane: undefined, source: 'recent', lines: undefined, range: undefined },
-    json: false,
-    socket: undefined,
-  });
-
-  expect(parseCommand(['pane', 'read', '--pane', 'pane-3'])).toEqual({
+  expect(parseCommand(['pane', 'read', 'pane-3'])).toEqual({
     kind: 'pane',
     pane: { action: 'read', pane: paneId(3), source: 'recent', lines: undefined, range: undefined },
     json: false,
@@ -373,7 +366,7 @@ it.each([
   ['an invalid direction', ['pane', 'split', 'pane-1', '--direction', 'left']],
   ['an empty direction', ['pane', 'split', 'pane-1', '--direction', '']],
   ['a direction for focus', ['pane', 'focus', 'pane-1', '--direction', 'right']],
-  ['a direction for pane read', ['pane', 'read', '--direction', 'right']],
+  ['a direction for pane read', ['pane', 'read', 'pane-1', '--direction', 'right']],
   ['a direction on a workspace command', ['workspace', 'list', '--direction', 'right']],
   ['--pane on pane split', ['pane', 'split', 'pane-1', '--direction', 'right', '--pane', 'pane-1']],
   ['--pane on pane close', ['pane', 'close', 'pane-1', '--pane', 'pane-1']],
@@ -382,12 +375,17 @@ it.each([
 });
 
 it.each([
-  ['a malformed pane id', ['pane', 'read', '--pane', 'workspace-1']],
+  ['a malformed pane id for send', ['pane', 'send', 'ls', '--pane', 'workspace-1']],
+  ['no id for pane read', ['pane', 'read']],
+  ['--pane on pane read', ['pane', 'read', '--pane', 'pane-3']],
+  ['--pane on pane read with an id', ['pane', 'read', 'pane-3', '--pane', 'pane-3']],
+  ['a malformed id for pane read', ['pane', 'read', 'workspace-1']],
+  ['a padded id for pane read', ['pane', 'read', 'pane-03']],
+  ['two ids for pane read', ['pane', 'read', 'pane-1', 'pane-2']],
   ['a pane id without a number', ['pane', 'send', 'ls', '--pane', 'pane-']],
-  ['--pane without a value', ['pane', 'read', '--pane']],
+  ['--pane without a value', ['pane', 'send', 'ls', '--pane']],
   ['--pane on pane list', ['pane', 'list', '--pane', 'pane-1']],
   ['arguments for pane list', ['pane', 'list', 'extra']],
-  ['text for pane read', ['pane', 'read', 'text']],
   ['no text for pane send', ['pane', 'send', '--pane', 'pane-1']],
   ['--pane on a workspace command', ['workspace', 'list', '--pane', 'pane-1']],
 ])('refuses %s', (_name, argv) => {
@@ -401,7 +399,7 @@ it('lists the workspace and pane commands in the usage', () => {
   expect(lines).toContain('phi pane list [--socket <path>] [--json]');
 
   expect(lines).toContain(
-    'phi pane read [--pane <id>] [--source visible|recent|recent-unwrapped] [--lines <n>]',
+    'phi pane read <id> [--source visible|recent|recent-unwrapped] [--lines <n>]',
   );
 
   expect(lines).toContain('[--from <row> --to <row>] [--socket <path>] [--json]');
@@ -482,10 +480,10 @@ it.each([
   expect(typeof parseCommand(argv)).toBe('string');
 });
 
-const readCommand = (...flags: string[]) => parseCommand(['pane', 'read', ...flags]);
+const readCommand = (...flags: string[]) => parseCommand(['pane', 'read', 'pane-3', ...flags]);
 
 it('parses the pane read source, line count, and row range', () => {
-  const pane = { action: 'read', pane: undefined } as const;
+  const pane = { action: 'read', pane: paneId(3) } as const;
   const options = { json: false, socket: undefined };
 
   expect(readCommand('--source', 'visible')).toEqual({
@@ -583,6 +581,9 @@ it.each(jsonDefaultCommands)('prints JSON by default for %s %s', (...argv) => {
   expect(withFlag).toEqual(without);
 });
 
-it.each([[['pane', 'read']], [['pane', 'send', 'ls']]])('prints text by default for %j', (argv) => {
-  expect(parseCommand(argv)).toMatchObject({ json: false });
-});
+it.each([[['pane', 'read', 'pane-1']], [['pane', 'send', 'ls']]])(
+  'prints text by default for %j',
+  (argv) => {
+    expect(parseCommand(argv)).toMatchObject({ json: false });
+  },
+);

@@ -80,7 +80,14 @@ it(
       PHI_WORKSPACE_ID: 'workspace-1',
     };
 
-    const read = await phi(inPane, 'pane', 'read', '--json');
+    const refused = await phi(inPane, 'pane', 'read', '--json');
+
+    expect({ exitCode: refused.exitCode, stdout: refused.stdout }).toEqual({
+      exitCode: 2,
+      stdout: '',
+    });
+
+    const read = await phi(inPane, 'pane', 'read', 'pane-2', '--json');
 
     expect(read.exitCode).toBe(0);
     expect(readSchema.parse(JSON.parse(read.stdout)).pane).toBe('pane-2');

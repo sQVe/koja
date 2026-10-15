@@ -1,5 +1,6 @@
 import { expect, it } from 'bun:test';
 
+import { paneId } from '../ids.ts';
 import { RowFlag, PaneRowsSource, cellWords, rowHeaderWords, rowWords } from '../rows/rows.ts';
 import type { PaneRows } from '../rows/rows.ts';
 import { createPaneReader } from './paneRead.ts';
@@ -9,7 +10,7 @@ const columns = 4;
 
 const command = (overrides: Partial<PaneReadCommand> = {}): PaneReadCommand => ({
   action: 'read',
-  pane: undefined,
+  pane: paneId(1),
   source: 'recent',
   lines: undefined,
   range: undefined,
