@@ -259,7 +259,7 @@ export const createInputRouter = (host: TokenRouterHost): ((token: RoutedToken) 
     const focused = stillListed ? pendingFocus : current.focused;
 
     if (key === 'create') {
-      return { action: 'create', root: host.startDirectory, label: undefined, background: false };
+      return { action: 'create', root: host.startDirectory, label: undefined, focus: true };
     }
 
     if (key === 'close') {

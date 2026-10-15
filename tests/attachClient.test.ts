@@ -577,7 +577,7 @@ const createWorkspace = async (socketPath: string, root: string): Promise<void> 
   };
 
   send({ type: 'hello', version, size: undefined });
-  send({ type: 'workspaceCreate', root, label: 'paced', background: false });
+  send({ type: 'workspaceCreate', root, label: 'paced', focus: true });
   await answered.promise;
   socket.end();
 };

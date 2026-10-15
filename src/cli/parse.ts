@@ -33,6 +33,7 @@ import {
 } from './tabCommandParse.ts';
 import type { RawTabOptions, TabCliCommand } from './tabCommandParse.ts';
 import {
+  lastFocusFlag,
   parseWorkspaceCommand,
   strayWorkspaceOptionMessage,
   workspaceOptions,
@@ -133,7 +134,7 @@ const strayOptionMessage = (group: string | undefined, values: RawOptions): stri
 
 export const parseCommand = (argv: string[]): Command | string => {
   try {
-    const { values, positionals } = parseArgs({
+    const parsed = parseArgs({
       args: argv,
       options: {
         version: { type: 'boolean' },
@@ -146,8 +147,11 @@ export const parseCommand = (argv: string[]): Command | string => {
       },
       allowPositionals: true,
       strict: true,
+      tokens: true,
     });
 
+    const values = { ...parsed.values, focus: lastFocusFlag(parsed.tokens) };
+    const { positionals } = parsed;
     const json = values.json === true;
     const options = { json, socket: values.socket };
     const [group, action, ...rest] = positionals;

@@ -319,7 +319,7 @@ export const createWorkspace = async (
   const client = await connect(socketPath);
 
   client.send({ type: 'hello', version: build, size: undefined });
-  client.send({ type: 'workspaceCreate', root, label, background: false });
+  client.send({ type: 'workspaceCreate', root, label, focus: true });
 
   for (;;) {
     const message = await client.nextMessage();

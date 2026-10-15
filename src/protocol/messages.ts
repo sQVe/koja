@@ -379,7 +379,7 @@ const controlSchema = z.discriminatedUnion('type', [
     type: z.literal('workspaceCreate'),
     root: z.string(),
     label: absent(z.string()),
-    background: z.boolean(),
+    focus: z.boolean(),
   }),
   z.object({ type: z.literal('workspaceFocus'), workspaceId: workspaceIdSchema }),
   z.object({

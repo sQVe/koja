@@ -61,7 +61,7 @@ export const setup = async (): Promise<PaneAttachHarness> => {
   const workspaceRoot = join(directory, 'work');
 
   await mkdir(workspaceRoot);
-  await phi('workspace', 'create', workspaceRoot);
+  await phi('workspace', 'create', workspaceRoot, '--focus');
 
   const list = async () => paneListSchema.parse(JSON.parse(await phi('pane', 'list', '--json')));
 

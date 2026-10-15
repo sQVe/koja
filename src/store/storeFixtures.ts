@@ -22,21 +22,21 @@ export const createPhi = {
   type: 'createWorkspace',
   root: '/work/phi',
   label: 'phi',
-  background: false,
+  focus: true,
 } satisfies Intent;
 
 export const createDocs = {
   type: 'createWorkspace',
   root: '/work/docs',
   label: 'docs',
-  background: false,
+  focus: true,
 } satisfies Intent;
 
 export const createApi = {
   type: 'createWorkspace',
   root: '/work/api',
   label: 'api',
-  background: false,
+  focus: true,
 } satisfies Intent;
 
 const missingId = 99;

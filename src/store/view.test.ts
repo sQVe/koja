@@ -167,13 +167,29 @@ it('moves every view when the CLI creates a workspace or a tab', () => {
   expect(activeIn(tab.state, 2, 2)).toBe(tabId(3));
 });
 
-it('keeps every view on its focus when a background workspace is created', () => {
+it('keeps every view on its focus when a workspace is created without focus', () => {
   const state = twoClients(createPhi);
-  const result = intent(state, { ...createDocs, background: true });
+  const result = intent(state, { ...createDocs, focus: false });
 
   expect(focusedIn(result.state, 1)).toBe(workspaceId(1));
   expect(focusedIn(result.state, 2)).toBe(workspaceId(1));
   expect(activeIn(result.state, 2, 2)).toBe(tabId(2));
+});
+
+it('keeps every view on its focus when a client creates a workspace without focus', () => {
+  const state = twoClients(createPhi);
+  const result = intent(state, { ...createDocs, focus: false, clientId: clientId(1) });
+
+  expect(focusedIn(result.state, 1)).toBe(workspaceId(1));
+  expect(focusedIn(result.state, 2)).toBe(workspaceId(1));
+});
+
+it('focuses a workspace created with focus for the client that sent it only', () => {
+  const state = twoClients(createPhi);
+  const result = intent(state, { ...createDocs, focus: true, clientId: clientId(1) });
+
+  expect(focusedIn(result.state, 1)).toBe(workspaceId(2));
+  expect(focusedIn(result.state, 2)).toBe(workspaceId(1));
 });
 
 it('refuses a focus from an unknown client and changes nothing', () => {

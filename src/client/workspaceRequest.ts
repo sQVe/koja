@@ -2,7 +2,7 @@ import type { WorkspaceId } from '../ids.ts';
 import type { ControlMessage } from '../protocol/protocol.ts';
 
 export type WorkspaceCommand =
-  | { action: 'create'; root: string; label: string | undefined; background: boolean }
+  | { action: 'create'; root: string; label: string | undefined; focus: boolean }
   | { action: 'focus'; workspaceId: WorkspaceId }
   | { action: 'rename'; workspaceId: WorkspaceId; label: string }
   | { action: 'close'; workspaceId: WorkspaceId };
@@ -13,7 +13,7 @@ export const workspaceRequest = (command: WorkspaceCommand): ControlMessage => {
       type: 'workspaceCreate',
       root: command.root,
       label: command.label,
-      background: command.background,
+      focus: command.focus,
     };
   }
 

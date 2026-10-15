@@ -35,7 +35,7 @@ const workspaceIntentOf = (message: WorkspaceRequest, source: { clientId?: Clien
       type: 'createWorkspace',
       root: message.root,
       label: message.label,
-      background: message.background,
+      focus: message.focus,
       ...source,
     };
   }
