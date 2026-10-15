@@ -350,6 +350,26 @@ it(
 );
 
 it(
+  'prints JSON for tab list and tab create without --json',
+  async () => {
+    const { phi, createWorkspace, tabs } = await setup();
+
+    await createWorkspace('alpha');
+
+    const created = await phi('tab', 'create');
+
+    expect(created.exitCode).toBe(0);
+    expect(tabDoneSchema.parse(JSON.parse(created.stdout)).tab).toBeString();
+
+    const listed = await phi('tab', 'list');
+
+    expect(listed.exitCode).toBe(0);
+    expect(tabListSchema.parse(JSON.parse(listed.stdout))).toEqual(await tabs());
+  },
+  cliTestTimeoutMs,
+);
+
+it(
   'tab create --cwd refuses a folder that is not a directory and creates no tab',
   async () => {
     const { directory, phi, createWorkspace, tabs } = await setup();

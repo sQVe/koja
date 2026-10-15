@@ -136,5 +136,5 @@ export const parseTabCommand = (
 ): TabCliCommand | string => {
   const tab = parseTabAction(action, rest, raw);
 
-  return typeof tab === 'string' ? tab : { kind: 'tab', tab, ...options };
+  return typeof tab === 'string' ? tab : { kind: 'tab', tab, ...options, json: true };
 };

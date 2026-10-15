@@ -305,6 +305,10 @@ const parsePaneAction = (
     : '--cells belongs to pane resize.';
 };
 
+const textByDefaultActions: ReadonlySet<string> = new Set(['read', 'send', 'process-info']);
+
+const printsJsonByDefault = (action: string): boolean => !textByDefaultActions.has(action);
+
 export const parsePaneCommand = (
   action: string | undefined,
   rest: string[],
@@ -318,5 +322,11 @@ export const parsePaneCommand = (
     read: { source, lines, from, to },
   });
 
-  return typeof parsed === 'string' ? parsed : { kind: 'pane', pane: parsed, ...options };
+  if (typeof parsed === 'string') {
+    return parsed;
+  }
+
+  const json = options.json || printsJsonByDefault(parsed.action);
+
+  return { kind: 'pane', pane: parsed, ...options, json };
 };

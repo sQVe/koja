@@ -2,12 +2,13 @@ import { expect, it } from 'bun:test';
 import { readFile, rm } from 'node:fs/promises';
 import { join } from 'node:path';
 
-import type { z } from 'zod';
+import { z } from 'zod';
 
 import { cliTestTimeoutMs } from './cliHarness.ts';
-import { paneReadSchema, setup } from './paneHarness.ts';
-import type { paneListSchema } from './paneHarness.ts';
+import { paneListSchema, paneReadSchema, setup } from './paneHarness.ts';
 import { isRunning } from './serverProcesses.ts';
+
+const splitDoneSchema = z.object({ pane: z.string() });
 
 const waitForFile = async (path: string): Promise<string> => {
   for (let attempt = 0; attempt < 100; attempt += 1) {
@@ -52,6 +53,24 @@ it(
     expect((lower[0]?.columns ?? 0) + (lower[1]?.columns ?? 0)).toBeLessThan(
       afterBelow[1]?.columns ?? 0,
     );
+  },
+  cliTestTimeoutMs,
+);
+
+it(
+  'prints JSON for pane list and pane split without --json',
+  async () => {
+    const { phi, list, first } = await setup();
+
+    const listed = await phi('pane', 'list');
+
+    expect(listed.exitCode).toBe(0);
+    expect(paneListSchema.parse(JSON.parse(listed.stdout))).toEqual(await list());
+
+    const split = await phi('pane', 'split', first, '--direction', 'below');
+
+    expect(split.exitCode).toBe(0);
+    expect(splitDoneSchema.parse(JSON.parse(split.stdout)).pane).toBeString();
   },
   cliTestTimeoutMs,
 );
