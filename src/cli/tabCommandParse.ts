@@ -3,10 +3,16 @@ import type { TabId, WorkspaceId } from '../ids.ts';
 import type { CommandOptions } from './commandOptions.ts';
 import type { IdResult } from './idParse.ts';
 import { parseId, parseWorkspaceId } from './idParse.ts';
+import { strayFocusMessage } from './workspaceCommandParse.ts';
 
 export type TabAction =
   | { action: 'list' }
-  | { action: 'create'; workspaceId: WorkspaceId | undefined; cwd: string | undefined }
+  | {
+      action: 'create';
+      workspaceId: WorkspaceId | undefined;
+      cwd: string | undefined;
+      focus: boolean;
+    }
   | { action: 'focus'; tabId: TabId }
   | { action: 'close'; tabId: TabId };
 
@@ -18,6 +24,7 @@ export interface TabCliCommand extends CommandOptions {
 export interface RawTabOptions {
   workspace?: string | undefined;
   cwd?: string | undefined;
+  focus?: boolean | undefined;
 }
 
 export const tabOptions = {
@@ -26,7 +33,8 @@ export const tabOptions = {
 } as const;
 
 export const tabUsage = `  phi tab list [--socket <path>] [--json]
-  phi tab create [--workspace <id>] [--cwd <dir>] [--socket <path>] [--json]
+  phi tab create [--workspace <id>] [--cwd <dir>] [--focus | --no-focus]
+    [--socket <path>] [--json]
   phi tab focus <id> [--socket <path>] [--json]
   phi tab close <id> [--socket <path>] [--json]`;
 
@@ -69,6 +77,7 @@ const parseTabCreate = (
   rest: string[],
   workspace: string | undefined,
   cwd: string | undefined,
+  focus: boolean,
 ): TabAction | string => {
   if (rest.length > 0) {
     return 'tab create takes no arguments.';
@@ -79,21 +88,21 @@ const parseTabCreate = (
   }
 
   if (workspace === undefined) {
-    return { action: 'create', workspaceId: undefined, cwd };
+    return { action: 'create', workspaceId: undefined, cwd, focus };
   }
 
   const id = parseWorkspaceId(workspace);
 
-  return id.ok ? { action: 'create', workspaceId: id.id, cwd } : id.message;
+  return id.ok ? { action: 'create', workspaceId: id.id, cwd, focus } : id.message;
 };
 
 const parseTabAction = (
   action: string | undefined,
   rest: string[],
-  { workspace, cwd }: RawTabOptions,
+  { workspace, cwd, focus }: RawTabOptions,
 ): TabAction | string => {
   if (action === 'create') {
-    return parseTabCreate(rest, workspace, cwd);
+    return parseTabCreate(rest, workspace, cwd, focus === true);
   }
 
   if (cwd !== undefined) {
@@ -102,6 +111,10 @@ const parseTabAction = (
 
   if (workspace !== undefined) {
     return '--workspace belongs to tab create.';
+  }
+
+  if (focus !== undefined) {
+    return strayFocusMessage;
   }
 
   if (action === 'list') {

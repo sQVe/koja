@@ -28,7 +28,7 @@ const applyStoreIntents = (intents: readonly Intent[]) => {
 it('matches the store workspaces after the store creates a tab', () => {
   const { state, client } = applyStoreIntents([
     { type: 'createWorkspace', root: '/work/phi', label: 'phi', focus: true },
-    { type: 'createTab', workspaceId: workspaceId(1), folder: undefined },
+    { type: 'createTab', workspaceId: workspaceId(1), folder: undefined, focus: true },
   ]);
 
   expect(client.workspaces).toEqual(state.workspaces);
@@ -39,7 +39,7 @@ it('matches the store workspaces after the store creates a tab', () => {
 it('keeps a live tab in the workspace after the original tab closes', () => {
   const { state, client } = applyStoreIntents([
     { type: 'createWorkspace', root: '/work/phi', label: 'phi', focus: true },
-    { type: 'createTab', workspaceId: workspaceId(1), folder: undefined },
+    { type: 'createTab', workspaceId: workspaceId(1), folder: undefined, focus: true },
     { type: 'closeTab', tabId: tabId(1) },
   ]);
 

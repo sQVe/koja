@@ -551,7 +551,9 @@ export const connectAttach = async (
       }
 
       if (route.kind === 'create') {
-        sendTabRequest(tabRequest({ action: 'create', workspaceId: workspace.id, cwd: undefined }));
+        sendTabRequest(
+          tabRequest({ action: 'create', workspaceId: workspace.id, cwd: undefined, focus: true }),
+        );
 
         return;
       }

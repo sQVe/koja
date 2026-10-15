@@ -168,6 +168,7 @@ export type Intent =
       type: 'createTab';
       workspaceId: WorkspaceId;
       folder: string | undefined;
+      focus: boolean;
       clientId?: ClientId;
     }
   | { type: 'focusTab'; tabId: TabId; clientId?: ClientId }

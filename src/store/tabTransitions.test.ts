@@ -1,6 +1,6 @@
 import { expect, it } from 'bun:test';
 
-import { paneId, tabId, workspaceId } from '../ids.ts';
+import { clientId, paneId, tabId, workspaceId } from '../ids.ts';
 import { activeTabOf, applyIntent, focusedPane } from './store.ts';
 import type { Intent, Pane, State, Tab, WorkspaceRecord } from './store.ts';
 import {
@@ -10,6 +10,7 @@ import {
   fact,
   intent,
   run,
+  twoClients,
   unknownWorkspace,
 } from './storeFixtures.ts';
 
@@ -166,7 +167,12 @@ it('refuses a tab intent for an unknown tab or workspace and leaves state unchan
   }
 
   expect(
-    applyIntent(state, { type: 'createTab', workspaceId: unknownWorkspace, folder: undefined }),
+    applyIntent(state, {
+      type: 'createTab',
+      workspaceId: unknownWorkspace,
+      folder: undefined,
+      focus: true,
+    }),
   ).toEqual({
     kind: 'rejected',
     state,
@@ -191,9 +197,9 @@ it('refuses a tab intent while the server stops and leaves state unchanged', () 
 it('keeps the tab that was active when the pane of a new tab fails to start', () => {
   const state = run([
     createPhi,
-    { type: 'createTab', workspaceId: workspaceId(1), folder: undefined },
+    { type: 'createTab', workspaceId: workspaceId(1), folder: undefined, focus: true },
     { type: 'focusTab', tabId: tabId(1) },
-    { type: 'createTab', workspaceId: workspaceId(1), folder: undefined },
+    { type: 'createTab', workspaceId: workspaceId(1), folder: undefined, focus: true },
   ]);
 
   const result = fact(state, {
@@ -207,6 +213,42 @@ it('keeps the tab that was active when the pane of a new tab fails to start', ()
 
   expect(owner?.tabIds).toEqual([tabId(1), tabId(2)]);
   expect(activeTabOf(result.state.defaultView, owner?.id)).toBe(tabId(1));
+});
+
+it('restores the focused workspace of every view when the pane of a focused new tab fails to start', () => {
+  const state = twoClients(createPhi, createDocs);
+  const created = intent(state, { ...createTab, focus: true }).state;
+  const pane = created.panes.at(-1);
+
+  expect(created.defaultView.focusedWorkspaceId).toBe(workspaceId(1));
+
+  const result = fact(created, {
+    type: 'paneFailedToStart',
+    paneId: pane?.id ?? paneId(0),
+    generation: pane?.generation ?? 0,
+    message: 'no shell',
+  });
+
+  expect(result.state.defaultView).toEqual(state.defaultView);
+  expect(result.state.clients).toEqual(state.clients);
+});
+
+it('leaves every view unchanged when createTab does not focus', () => {
+  const state = twoClients(createPhi);
+  const sources = [undefined, clientId(1)];
+
+  for (const source of sources) {
+    const result = intent(state, {
+      ...createTab,
+      focus: false,
+      ...(source === undefined ? {} : { clientId: source }),
+    });
+
+    expect(result.state.workspaces[0]?.tabIds).toEqual([tabId(1), tabId(2)]);
+    expect(result.state.defaultView).toEqual(state.defaultView);
+    expect(result.state.clients).toEqual(state.clients);
+    expect(result.changes.map((change) => change.type)).toEqual(['tabAdded', 'paneAdded']);
+  }
 });
 
 it('records the folder of a createTab intent on the new pane', () => {

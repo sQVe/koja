@@ -400,6 +400,7 @@ const controlSchema = z.discriminatedUnion('type', [
     type: z.literal('tabCreate'),
     workspaceId: workspaceIdSchema,
     cwd: absent(z.string()),
+    focus: z.boolean(),
   }),
   z.object({ type: z.literal('tabFocus'), tabId: tabIdSchema }),
   z.object({ type: z.literal('tabClose'), tabId: tabIdSchema }),

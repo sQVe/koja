@@ -626,6 +626,16 @@ it('sends text typed in the same read as a tab key to the newly shown pane', asy
   expect(screen.text()).not.toContain('same-read-text');
 });
 
+it('shows the tab from the new-tab key and keeps the view on a tab from phi tab create', async () => {
+  const { client, screen, command } = await setup();
+
+  expect(await waitFor(() => lastLine(screen.text()) === 'INSERT [1]')).toBe(true);
+  await command('tab', 'create');
+  expect(await waitFor(() => lastLine(screen.text()) === 'INSERT [1] 2')).toBe(true);
+  client.terminal?.write('\x02t');
+  expect(await waitFor(() => lastLine(screen.text()) === 'NORMAL 1 2 [3]')).toBe(true);
+});
+
 it('reaches the third tab when two next-tab presses arrive in one read', async () => {
   const { client, screen } = await setup();
 

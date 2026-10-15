@@ -30,7 +30,13 @@ const tabIntentOf = (
     const sourcePane = shownFocusedPaneId(context.state, message.workspaceId, source.clientId);
     const folder = message.cwd ?? followFolderOf(context, sourcePane);
 
-    return { type: 'createTab', workspaceId: message.workspaceId, folder, ...source };
+    return {
+      type: 'createTab',
+      workspaceId: message.workspaceId,
+      folder,
+      focus: message.focus,
+      ...source,
+    };
   }
 
   if (message.type === 'tabFocus') {

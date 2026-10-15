@@ -139,7 +139,12 @@ const runTabCreate = async (
   const cwd = resolved.folder;
 
   if (action.workspaceId !== undefined) {
-    const request = { action: 'create', workspaceId: action.workspaceId, cwd } as const;
+    const request = {
+      action: 'create',
+      workspaceId: action.workspaceId,
+      cwd,
+      focus: action.focus,
+    } as const;
 
     return runTabRequest(command, request, version, socketPath);
   }
@@ -152,7 +157,7 @@ const runTabCreate = async (
 
   return runTabRequest(
     command,
-    { action: 'create', workspaceId: focused.id, cwd },
+    { action: 'create', workspaceId: focused.id, cwd, focus: action.focus },
     version,
     socketPath,
   );

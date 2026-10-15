@@ -161,6 +161,7 @@ it('moves every view when the CLI creates a workspace or a tab', () => {
     type: 'createTab',
     workspaceId: workspaceId(2),
     folder: undefined,
+    focus: true,
   });
 
   expect(activeIn(tab.state, 1, 2)).toBe(tabId(3));

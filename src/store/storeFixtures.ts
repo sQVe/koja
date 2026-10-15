@@ -47,6 +47,7 @@ export const createTab = {
   type: 'createTab',
   workspaceId: workspaceId(1),
   folder: undefined,
+  focus: true,
 } satisfies Intent;
 
 export const attachLarge: Intent = { type: 'attachClient', size: { columns: 101, rows: 25 } };
