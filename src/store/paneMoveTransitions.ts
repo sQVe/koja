@@ -14,7 +14,6 @@ import { defaultLabel } from './workspaceTransitions.ts';
 
 type MovePaneIntent = Extract<Intent, { type: 'movePane' }>;
 
-// The state with the pane inside the tab, and the changes that put it there.
 interface Placement {
   kind: 'placed';
   state: State;
