@@ -6,6 +6,7 @@ import { paneId } from '../src/ids.ts';
 import { sideListColumns } from '../src/layout.ts';
 import { encodeFrame, FrameKind } from '../src/protocol/frames.ts';
 import { encodeControl } from '../src/protocol/messages.ts';
+import { kittyFlags } from '../src/rows/rows.ts';
 import type { RowUpdate } from '../src/rows/rows.ts';
 import type { Server } from '../src/server/server.ts';
 import type { TestClient } from './serverHarness.ts';
@@ -358,4 +359,30 @@ it('delivers a paneSend echo to an acking client without advancing a timer', asy
   }
 
   expect(hasText(rows, 'echoed-42')).toBe(true);
+});
+
+it('sends new kitty keyboard flags to a subscriber without a row change', async () => {
+  const directory = await temporaryDirectory();
+  const { server, socketPath } = await startServer(directory);
+  const client = await connect(socketPath);
+  const rows = new Map<number, string>();
+
+  client.send(sizedHello);
+  await receiveText(client, rows, '$');
+
+  // The program prints its marker, so the echoed command line never matches it. Echo is off before
+  // the marker, so the line that starts the push draws no row.
+  server.writeToPane("stty -echo; echo rea''dy; read go; printf '\\033[>5u'; read stop\n");
+  await receiveText(client, rows, 'ready');
+  server.writeToPane('go\n');
+
+  let update = await client.nextUpdate();
+
+  while (kittyFlags(update.modes) !== 5) {
+    applyRows(rows, update);
+    client.send({ type: 'ack', paneId: paneId(update.pane), sequence: update.sequence });
+    update = await client.nextUpdate();
+  }
+
+  expect(update.rowCount).toBe(0);
 });

@@ -306,7 +306,7 @@ static bool private_mode(Pane *pane, uint16_t value) {
 
 // Bit i is DEC private mode private_modes[i]. Bit 7 is set while the alternate screen is active,
 // whichever of modes 47, 1047, and 1049 switched to it. Bit 8 is set while a render hold keeps
-// the captured frame.
+// the captured frame. Bits 9 to 13 are the kitty keyboard flags of the active screen.
 static uint32_t mode_bits(Pane *pane) {
   static const uint16_t private_modes[] = {1, 2004, 9, 1000, 1002, 1003, 1006};
   uint32_t bits = 0;
@@ -317,6 +317,9 @@ static uint32_t mode_bits(Pane *pane) {
   ghostty_terminal_get(pane->terminal, GHOSTTY_TERMINAL_DATA_ACTIVE_SCREEN, &screen);
   if (screen == GHOSTTY_TERMINAL_SCREEN_ALTERNATE) bits |= 1u << 7;
   if (pane->held) bits |= 1u << 8;
+  GhosttyKittyKeyFlags kitty = 0;
+  ghostty_terminal_get(pane->terminal, GHOSTTY_TERMINAL_DATA_KITTY_KEYBOARD_FLAGS, &kitty);
+  bits |= ((uint32_t)kitty & 0x1fu) << 9;
   return bits;
 }
 

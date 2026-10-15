@@ -147,6 +147,13 @@ export enum ModeFlag {
   renderHeld = 0x1_00,
 }
 
+const kittyFlagsShift = 9;
+const kittyFlagsMask = 0x1f;
+
+// The kitty keyboard flags a pane asked for: disambiguate 1, event types 2, alternate keys 4, all
+// keys as escape codes 8, and associated text 16. They sit in the mode word above ModeFlag.
+export const kittyFlags = (modes: number): number => (modes >> kittyFlagsShift) & kittyFlagsMask;
+
 // Messages are 32-bit words in the host's byte order. The server and its clients share one host.
 const wordBytes = 4;
 

@@ -7,6 +7,7 @@ import {
   cellWords,
   defaultBackgroundSlot,
   defaultForegroundSlot,
+  kittyFlags,
   ModeFlag,
   RowFlag,
   rowHeaderWords,
@@ -493,6 +494,59 @@ describe.each([
     writeChunks(terminal, [reset]);
 
     expect(terminal.frame().modes).toBe(0);
+  });
+});
+
+describe('the kitty keyboard flags', () => {
+  const flagsAndReply = (terminal: Terminal) => {
+    const reply = writeChunks(terminal, ['\u001B[?u']);
+
+    return { flags: kittyFlags(terminal.frame().modes), reply };
+  };
+
+  it('start at 0', () => {
+    using terminal = openTerminal();
+
+    expect(flagsAndReply(terminal)).toEqual({ flags: 0, reply: '\u001B[?0u' });
+  });
+
+  it('follow a push and a pop', () => {
+    using terminal = openTerminal();
+
+    writeChunks(terminal, ['\u001B[>5u']);
+
+    expect(flagsAndReply(terminal)).toEqual({ flags: 5, reply: '\u001B[?5u' });
+
+    writeChunks(terminal, ['\u001B[<u']);
+
+    expect(flagsAndReply(terminal)).toEqual({ flags: 0, reply: '\u001B[?0u' });
+  });
+
+  it('follow a set', () => {
+    using terminal = openTerminal();
+
+    writeChunks(terminal, ['\u001B[=31u']);
+
+    expect(flagsAndReply(terminal)).toEqual({ flags: 31, reply: '\u001B[?31u' });
+
+    writeChunks(terminal, ['\u001B[=2;2u']);
+
+    expect(flagsAndReply(terminal)).toEqual({ flags: 31, reply: '\u001B[?31u' });
+
+    writeChunks(terminal, ['\u001B[=2;3u']);
+
+    expect(flagsAndReply(terminal)).toEqual({ flags: 29, reply: '\u001B[?29u' });
+  });
+
+  it('keep the other mode bits', () => {
+    using terminal = openTerminal();
+
+    writeChunks(terminal, ['\u001B[?2004h\u001B[>1u']);
+
+    const { modes } = terminal.frame();
+
+    expect(modes & ModeFlag.bracketedPaste).not.toBe(0);
+    expect(kittyFlags(modes)).toBe(1);
   });
 });
 

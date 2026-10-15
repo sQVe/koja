@@ -1,6 +1,8 @@
 import type { InputMode, TabRoute, WorkspaceCommand, WorkspaceReply } from '../client/client.ts';
 import type { WorkspaceId } from '../ids.ts';
-import { ModeFlag } from '../rows/rows.ts';
+import { kittyFlags, ModeFlag } from '../rows/rows.ts';
+import { encodeKey, isKey, keyModifier, keyText, parseKey } from './keyEncoding.ts';
+import type { KeyEvent } from './keyEncoding.ts';
 
 export type PaneAction =
   | 'splitBelow'
@@ -54,13 +56,15 @@ const workspaceKeys: Record<string, WorkspaceKey> = {
 
 const encoder = new TextEncoder();
 
-const nothing = new Uint8Array();
+const decoder = new TextDecoder();
 
-const prefixKey = '\x02';
+const nothing = new Uint8Array();
 
 const escapeKey = '\x1b';
 
-const cursorKeyTails = 'ABCDHF';
+// Only a bare Escape can be completed by a continuation. A kitty Escape event is already whole.
+const isBareEscape = (bytes: Uint8Array): boolean =>
+  bytes.length === 1 && decoder.decode(bytes) === escapeKey;
 
 const pasteStart = encoder.encode('\x1b[200~');
 
@@ -68,16 +72,8 @@ const pasteEnd = encoder.encode('\x1b[201~');
 
 const hasMode = (modes: number, flag: ModeFlag): boolean => (modes & flag) !== 0;
 
-const encodeInsertKey = (raw: string, modes: number): Uint8Array => {
-  const tail = raw.slice(2);
-  const isCursorKey = raw.startsWith('\x1b[') && tail.length === 1 && cursorKeyTails.includes(tail);
-
-  if (!isCursorKey || !hasMode(modes, ModeFlag.applicationCursorKeys)) {
-    return encoder.encode(raw);
-  }
-
-  return encoder.encode(`\x1bO${tail}`);
-};
+const applicationCursor = (modes: number): boolean =>
+  hasMode(modes, ModeFlag.applicationCursorKeys);
 
 const routeTabKey = (raw: string): TabRoute | undefined => {
   if (raw === 't') {
@@ -112,10 +108,24 @@ const paneActions = new Map<string, PaneAction>([
   ['+', 'resizeDown'],
 ]);
 
-const routeNormalKey = (raw: string): KeyRoute => {
-  if (raw === prefixKey) {
-    return { bytes: encoder.encode(prefixKey), mode: 'insert', detach: false };
+const isPrefix = (event: KeyEvent): boolean => isKey(event, 'b', keyModifier.ctrl);
+
+// Normal-mode keys act on the plain key. Shift is allowed because some bindings are capitals.
+const commandBlockers =
+  keyModifier.alt | keyModifier.ctrl | keyModifier.super | keyModifier.hyper | keyModifier.meta;
+
+const routeNormalKey = (event: KeyEvent, modes: number): KeyRoute => {
+  if (isPrefix(event)) {
+    const bytes = encodeKey(event, kittyFlags(modes), applicationCursor(modes));
+
+    return { bytes, mode: 'insert', detach: false };
   }
+
+  if ((event.modifiers & commandBlockers) !== 0) {
+    return { bytes: nothing, mode: 'normal', detach: false };
+  }
+
+  const raw = keyText(event) ?? '';
 
   if (raw === 'd') {
     return { bytes: nothing, mode: 'insert', detach: true };
@@ -139,22 +149,32 @@ const routeNormalKey = (raw: string): KeyRoute => {
     return { bytes: nothing, mode: 'normal', detach: false, paneAction };
   }
 
-  const leavesNormal = raw === 'i' || raw === escapeKey;
+  const leavesNormal = raw === 'i' || isKey(event, 'escape');
 
   return { bytes: nothing, mode: leavesNormal ? 'insert' : 'normal', detach: false };
 };
 
-// raw is a key's legacy bytes. Kitty key reporting must stay off, or the bytes are not legacy.
+// raw is the bytes of one key token, legacy or kitty. A release is never routed to the pane in
+// normal mode.
 export const routeKey = (raw: string, mode: InputMode, modes: number): KeyRoute => {
-  if (mode === 'normal') {
-    return routeNormalKey(raw);
+  const event = parseKey(raw);
+
+  // Holding Ctrl+B repeats it. Only a new press may send a literal Ctrl+B or leave normal mode.
+  if (event.kind === 'repeat' && isPrefix(event)) {
+    return { bytes: nothing, mode, detach: false };
   }
 
-  if (raw === prefixKey) {
+  if (mode === 'normal') {
+    return routeNormalKey(event, modes);
+  }
+
+  if (isPrefix(event)) {
     return { bytes: nothing, mode: 'normal', detach: false };
   }
 
-  return { bytes: encodeInsertKey(raw, modes), mode: 'insert', detach: false };
+  const bytes = encodeKey(event, kittyFlags(modes), applicationCursor(modes));
+
+  return { bytes, mode: 'insert', detach: false };
 };
 
 export const routePaste = (bytes: Uint8Array, modes: number): Uint8Array => {
@@ -193,6 +213,8 @@ const neighborCommand = (
 
 export const createInputRouter = (host: TokenRouterHost): ((token: RoutedToken) => void) => {
   let escapeInPane = false;
+  // Keys whose press Phi took. Their release must not reach the pane, which never saw the press.
+  const consumedKeys = new Set<string>();
   // The focus the last j or k asked for, kept until the server answers the latest focus request.
   let pendingFocus: WorkspaceId | undefined;
   let focusRequests = 0;
@@ -277,6 +299,18 @@ export const createInputRouter = (host: TokenRouterHost): ((token: RoutedToken) 
   const withoutSentEscape = (bytes: Uint8Array, escapeSent: boolean): Uint8Array =>
     escapeSent && escapeInPane ? bytes.subarray(1) : bytes;
 
+  const trackConsumed = (event: KeyEvent, bytes: Uint8Array): void => {
+    if (event.kind === 'release') {
+      return;
+    }
+
+    if (bytes.length === 0) {
+      consumedKeys.add(event.key);
+    } else {
+      consumedKeys.delete(event.key);
+    }
+  };
+
   const route = (token: RoutedToken): Promise<void> | undefined => {
     if (token.kind === 'paste') {
       const routed = routePaste(token.bytes, host.modes());
@@ -288,7 +322,14 @@ export const createInputRouter = (host: TokenRouterHost): ((token: RoutedToken) 
       return undefined;
     }
 
+    const event = parseKey(token.raw);
     const routed = routeKey(token.raw, host.mode(), host.modes());
+
+    if (event.kind === 'release' && consumedKeys.delete(event.key)) {
+      return undefined;
+    }
+
+    trackConsumed(event, routed.bytes);
 
     host.send(withoutSentEscape(routed.bytes, token.escapeSent));
     host.setMode(routed.mode);
@@ -305,7 +346,7 @@ export const createInputRouter = (host: TokenRouterHost): ((token: RoutedToken) 
       host.tab(routed.tab);
     }
 
-    escapeInPane = token.raw === escapeKey && routed.bytes.length > 0;
+    escapeInPane = token.raw === escapeKey && isBareEscape(routed.bytes);
 
     return routed.paneAction === undefined ? undefined : host.paneAction(routed.paneAction);
   };
