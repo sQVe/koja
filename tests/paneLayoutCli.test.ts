@@ -167,7 +167,7 @@ it(
     expect(await waitForFile(marker)).toBe('reached');
 
     const read = async (id: string): Promise<string> => {
-      const result = await phi('pane', 'read', '--pane', id, '--json');
+      const result = await phi('pane', 'read', id, '--json');
 
       return paneReadSchema.parse(JSON.parse(result.stdout)).lines.join('\n');
     };

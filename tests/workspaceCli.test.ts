@@ -205,15 +205,15 @@ it(
     expect(panes.filter((pane) => pane.focused)).toHaveLength(1);
     expect(hiddenPane?.focused).toBe(false);
 
-    const paneArguments = ['--pane', hiddenPane?.id ?? ''];
-    const sent = await phi('pane', 'send', 'echo hidden-$((20+22))\n', ...paneArguments);
+    const hiddenId = hiddenPane?.id ?? '';
+    const sent = await phi('pane', 'send', 'echo hidden-$((20+22))\n', '--pane', hiddenId);
 
     expect(sent.exitCode).toBe(0);
 
     let output = '';
 
     for (let attempt = 0; attempt < 50 && !output.includes('hidden-42'); attempt += 1) {
-      const read = await phi('pane', 'read', '--json', ...paneArguments);
+      const read = await phi('pane', 'read', hiddenId, '--json');
 
       output = paneReadSchema.parse(JSON.parse(read.stdout)).lines.join('\n');
     }

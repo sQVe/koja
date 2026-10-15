@@ -70,7 +70,7 @@ export const paneOptions = {
 } as const;
 
 export const paneUsage = `  phi pane list [--socket <path>] [--json]
-  phi pane read [--pane <id>] [--source visible|recent|recent-unwrapped] [--lines <n>]
+  phi pane read <id> [--source visible|recent|recent-unwrapped] [--lines <n>]
     [--from <row> --to <row>] [--socket <path>] [--json]
   phi pane send <text> [--pane <id>] [--socket <path>] [--json]
   phi pane split <id> --direction below|right [--cwd <dir>] [--socket <path>] [--json]
@@ -130,7 +130,7 @@ export const strayPaneOptionMessage = (
     return '--source, --lines, --from, and --to belong to pane read.';
   }
 
-  return pane === undefined ? undefined : '--pane belongs to pane read and pane send.';
+  return pane === undefined ? undefined : '--pane belongs to pane send.';
 };
 
 const parseSplitDirection = (value: string | undefined): SplitDirection | undefined =>
@@ -304,7 +304,7 @@ const parseProcessInfoCommand = (
   pane: string | undefined,
 ): PaneCliAction | string => {
   if (pane !== undefined) {
-    return '--pane belongs to pane read and pane send.';
+    return '--pane belongs to pane send.';
   }
 
   if (rest.length !== 1) {
@@ -320,22 +320,34 @@ const parseProcessInfoCommand = (
 
 const parsePaneRead = (
   rest: string[],
-  pane: PaneId | undefined,
+  pane: string | undefined,
   read: RawReadOptions,
 ): PaneReadCommand | string => {
-  if (rest.length > 0) {
-    return 'pane read takes no text; pane send takes one text argument.';
+  if (pane !== undefined) {
+    return '--pane belongs to pane send. pane read takes the pane id as an argument.';
+  }
+
+  if (rest.length !== 1) {
+    return 'pane read takes one pane id.';
+  }
+
+  const target = parseId(rest[0] ?? '', 'pane');
+
+  if (target === undefined) {
+    return `'${rest[0] ?? ''}' is not a pane id, such as pane-1.`;
   }
 
   const options = parseReadOptions(read);
 
-  return typeof options === 'string' ? options : { action: 'read', pane, ...options };
+  return typeof options === 'string'
+    ? options
+    : { action: 'read', pane: paneId(target), ...options };
 };
 
 const parsePaneSend = (rest: string[], pane: PaneId | undefined): PaneSendCommand | string => {
   return rest.length === 1
     ? { action: 'send', text: rest[0] ?? '', pane }
-    : 'pane read takes no text; pane send takes one text argument.';
+    : 'pane send takes one text argument.';
 };
 
 const parsePaneTargetCommand = (
@@ -350,7 +362,11 @@ const parsePaneTargetCommand = (
       : 'pane list takes no arguments and no --pane.';
   }
 
-  if (action !== 'read' && action !== 'send') {
+  if (action === 'read') {
+    return parsePaneRead(rest, pane, read);
+  }
+
+  if (action !== 'send') {
     return 'Unknown pane command.';
   }
 
@@ -360,7 +376,7 @@ const parsePaneTargetCommand = (
     return target.message;
   }
 
-  return action === 'read' ? parsePaneRead(rest, target.id, read) : parsePaneSend(rest, target.id);
+  return parsePaneSend(rest, target.id);
 };
 
 const strayReadFlagMessage = ({ source, lines, from, to }: RawReadOptions): string | undefined => {
@@ -393,7 +409,7 @@ const parsePaneAction = (
   if (isPaneLayoutAction(action)) {
     return pane === undefined
       ? parsePaneLayoutCommand(action, rest, options)
-      : '--pane belongs to pane read and pane send.';
+      : '--pane belongs to pane send.';
   }
 
   if (options.direction !== undefined) {

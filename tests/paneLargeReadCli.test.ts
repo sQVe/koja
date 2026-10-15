@@ -56,7 +56,7 @@ const connectLargeTerminal = async (
 it(
   'reads the whole visible screen of a pane too large for one reply',
   async () => {
-    const { directory, phi, list } = await setup();
+    const { directory, phi, list, first } = await setup();
     const socketPath = join(directory, 'run', 'phi.sock');
 
     await connectLargeTerminal(socketPath, { columns: 340, rows: 131 });
@@ -77,16 +77,16 @@ it(
     const sent = await phi('pane', 'send', "seq 1 400 | sed 's/^/v/'; printf done\n");
 
     expect(sent.exitCode).toBe(0);
-    await waitForText(phi, 'done');
+    await waitForText(phi, first, 'done');
 
-    const full = await readJson(phi, '--source', 'visible');
+    const full = await readJson(phi, first, '--source', 'visible');
 
     expect(full.lines).toHaveLength(rows);
     expect(full.lines.at(-1)).toBe('done');
     expect(full.lines.at(-2)).toBe('v400');
     expect(full.to).toBe((full.from ?? 0) + rows - 1);
 
-    const counted = await readJson(phi, '--source', 'visible', '--lines', '120');
+    const counted = await readJson(phi, first, '--source', 'visible', '--lines', '120');
 
     expect(counted.lines).toEqual(full.lines.slice(-120));
   },
@@ -96,7 +96,7 @@ it(
 it(
   'reads every row of a visible screen taller than one reply, and clamps a count to 1000',
   async () => {
-    const { directory, phi, list } = await setup();
+    const { directory, phi, list, first } = await setup();
 
     await connectLargeTerminal(join(directory, 'run', 'phi.sock'), { columns: 100, rows: 1006 });
 
@@ -112,15 +112,15 @@ it(
     const sent = await phi('pane', 'send', "printf '\\033[2J\\033[H'; seq 1 1004; printf done\n");
 
     expect(sent.exitCode).toBe(0);
-    await waitForText(phi, 'done');
+    await waitForText(phi, first, 'done');
 
-    const full = await readJson(phi, '--source', 'visible');
+    const full = await readJson(phi, first, '--source', 'visible');
 
     expect(full.lines.slice(0, 3)).toEqual(['1', '2', '3']);
     expect(full.lines.at(-1)).toBe('done');
     expect(full.to).toBe((full.from ?? 0) + 1004);
 
-    const counted = await readJson(phi, '--source', 'visible', '--lines', '2000');
+    const counted = await readJson(phi, first, '--source', 'visible', '--lines', '2000');
 
     expect(counted.lines).toHaveLength(1000);
     expect(counted.lines.at(-1)).toBe('done');
@@ -222,7 +222,7 @@ const holdFirstPage = async (upstreamPath: string, proxyPath: string) => {
 // Starts a visible read of a pane too large for one reply through a proxy that holds its first
 // part, runs the pane's switching steps, and returns the finished read.
 const readAcrossSwitch = async (switchSteps: string[], waitFor: string) => {
-  const { directory, phi, list } = await setup();
+  const { directory, phi, list, first } = await setup();
   const socketPath = join(directory, 'run', 'phi.sock');
 
   await connectLargeTerminal(socketPath, { columns: 340, rows: 131 });
@@ -243,20 +243,20 @@ const readAcrossSwitch = async (switchSteps: string[], waitFor: string) => {
   ].join('; ');
 
   expect((await phi('pane', 'send', `${script}\n`)).exitCode).toBe(0);
-  await waitForText(phi, 'ready');
+  await waitForText(phi, first, 'ready');
 
   const proxyPath = join(directory, 'proxy.sock');
   const proxy = await holdFirstPage(socketPath, proxyPath);
 
   const read = runCli(
-    ['pane', 'read', '--source', 'visible', '--json', '--socket', proxyPath],
+    ['pane', 'read', first, '--source', 'visible', '--json', '--socket', proxyPath],
     directory,
     environmentFor(directory),
   );
 
   await proxy.held;
   await writeFile(join(directory, 'work', 'switch'), '');
-  await waitForText(phi, waitFor);
+  await waitForText(phi, first, waitFor);
   proxy.release();
 
   return read;
@@ -320,7 +320,7 @@ const largePane = async (columns: number, rows: number) => {
 it(
   'returns every row of a read that needs several parts once, joining a wrapped line across the part edges',
   async () => {
-    const { phi } = await largePane(340, 131);
+    const { phi, first } = await largePane(340, 131);
 
     const sent = await phi(
       'pane',
@@ -329,15 +329,15 @@ it(
     );
 
     expect(sent.exitCode).toBe(0);
-    await waitForText(phi, 'done');
+    await waitForText(phi, first, 'done');
 
-    const unwrapped = await readJson(phi, '--source', 'recent-unwrapped', '--lines', '200');
+    const unwrapped = await readJson(phi, first, '--source', 'recent-unwrapped', '--lines', '200');
 
     expect(unwrapped.lines).toHaveLength(3);
     expect(unwrapped.lines[0]).toBe('x'.repeat(51_000));
     expect(unwrapped.lines.slice(1)).toEqual(['second', 'done']);
 
-    const rows = await readJson(phi, '--source', 'recent', '--lines', '200');
+    const rows = await readJson(phi, first, '--source', 'recent', '--lines', '200');
 
     expect(rows.lines.length).toBeGreaterThan(150);
     expect(rows.lines.join('')).toBe(`${'x'.repeat(51_000)}seconddone`);
@@ -349,7 +349,7 @@ it(
 it(
   'pages a read larger than one snapshot by range and fails without output when the screen changes',
   async () => {
-    const { directory, phi } = await largePane(1100, 40);
+    const { directory, phi, first } = await largePane(1100, 40);
 
     const script = [
       "printf '\\033[2J\\033[H'",
@@ -360,22 +360,32 @@ it(
     ].join('; ');
 
     expect((await phi('pane', 'send', `${script}\n`)).exitCode).toBe(0);
-    await waitForText(phi, 'ready');
+    await waitForText(phi, first, 'ready');
 
-    const kept = await readJson(phi, '--lines', '1');
+    const kept = await readJson(phi, first, '--lines', '1');
     const last = kept.to ?? 0;
     const proxyPath = join(directory, 'proxy.sock');
     const proxy = await holdFirstPage(join(directory, 'run', 'phi.sock'), proxyPath);
 
     const read = runCli(
-      ['pane', 'read', '--from', String(kept.oldest), '--to', String(last), '--socket', proxyPath],
+      [
+        'pane',
+        'read',
+        first,
+        '--from',
+        String(kept.oldest),
+        '--to',
+        String(last),
+        '--socket',
+        proxyPath,
+      ],
       directory,
       environmentFor(directory),
     );
 
     await proxy.held;
     await writeFile(join(directory, 'work', 'switch'), '');
-    await waitForText(phi, 'AGAIN');
+    await waitForText(phi, first, 'AGAIN');
     proxy.release();
 
     const result = await read;

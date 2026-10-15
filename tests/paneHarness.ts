@@ -118,9 +118,10 @@ export const pollUntil = async <Value>(
 
 export const readJson = async (
   phi: PhiRunner,
+  pane: string,
   ...flags: string[]
 ): Promise<z.infer<typeof paneReadSchema>> => {
-  const result = await phi('pane', 'read', ...flags, '--json');
+  const result = await phi('pane', 'read', pane, ...flags, '--json');
 
   expect({ exitCode: result.exitCode, stderr: result.stderr }).toEqual({
     exitCode: 0,
@@ -132,11 +133,12 @@ export const readJson = async (
 
 export const waitForText = async (
   phi: PhiRunner,
+  pane: string,
   text: string,
   source = 'visible',
 ): Promise<void> => {
   for (let attempt = 0; attempt < 100; attempt += 1) {
-    const read = await readJson(phi, '--source', source, '--lines', '30');
+    const read = await readJson(phi, pane, '--source', source, '--lines', '30');
 
     if (read.lines.includes(text)) {
       return;

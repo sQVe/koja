@@ -5,11 +5,10 @@ import type { PaneRows } from '../rows/rows.ts';
 
 export type PaneReadSource = 'visible' | 'recent' | 'recentUnwrapped';
 
-// Without a pane id, the command targets the focused pane. With a range, the source says whether
-// the rows are joined into logical lines.
+// With a range, the source says whether the rows are joined into logical lines.
 export interface PaneReadCommand {
   action: 'read';
-  pane: PaneId | undefined;
+  pane: PaneId;
   source: PaneReadSource;
   lines: number | undefined;
   range: { from: number; to: number } | undefined;

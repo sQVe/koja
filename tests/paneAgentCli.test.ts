@@ -45,14 +45,17 @@ it(
     let text: CliRun = { exitCode: -1, stdout: '', stderr: '' };
 
     for (let attempt = 0; attempt < 30; attempt += 1) {
-      text = await runCli(['pane', 'read', '--socket', socketPath], directory);
+      text = await runCli(['pane', 'read', 'pane-1', '--socket', socketPath], directory);
 
       if (text.stdout.includes('phi-test>')) {
         break;
       }
     }
 
-    const json = await runCli(['pane', 'read', '--socket', socketPath, '--json'], directory);
+    const json = await runCli(
+      ['pane', 'read', 'pane-1', '--socket', socketPath, '--json'],
+      directory,
+    );
 
     expect(json.exitCode).toBe(0);
     const output = paneOutputSchema.parse(JSON.parse(json.stdout));
@@ -64,11 +67,38 @@ it(
     expect(text.stdout).toBe('phi-test>\n');
 
     const visible = await runCli(
-      ['pane', 'read', '--source', 'visible', '--socket', socketPath, '--json'],
+      ['pane', 'read', 'pane-1', '--source', 'visible', '--socket', socketPath, '--json'],
       directory,
     );
 
     expect(paneOutputSchema.parse(JSON.parse(visible.stdout)).lines).toEqual(['phi-test>']);
+  },
+  cliTestTimeoutMs,
+);
+
+it(
+  'refuses pane read without a pane id, with the usage on stderr and nothing on stdout',
+  async () => {
+    const directory = await temporaryDirectory();
+    const socketPath = join(directory, 'run', 'phi.sock');
+
+    await startServer(directory, socketPath);
+    await createWorkspaceAt(socketPath, directory);
+
+    const refused = await runCli(['pane', 'read', '--socket', socketPath], directory);
+
+    expect(refused.exitCode).not.toBe(0);
+    expect(refused.stdout).toBe('');
+    expect(refused.stderr).toContain('Usage');
+    expect(refused.stderr).toContain('phi pane read <id>');
+
+    const flagged = await runCli(
+      ['pane', 'read', '--pane', 'pane-1', '--socket', socketPath],
+      directory,
+    );
+
+    expect(flagged.exitCode).not.toBe(0);
+    expect(flagged.stdout).toBe('');
   },
   cliTestTimeoutMs,
 );
@@ -88,7 +118,10 @@ it(
 
     expect(sent).toEqual({ exitCode: 0, stdout: '{"sent":true}\n', stderr: '' });
 
-    const read = await runCli(['pane', 'read', '--socket', socketPath, '--json'], directory);
+    const read = await runCli(
+      ['pane', 'read', 'pane-1', '--socket', socketPath, '--json'],
+      directory,
+    );
 
     expect(read.exitCode).toBe(0);
     const output = paneOutputSchema.parse(JSON.parse(read.stdout));
@@ -127,7 +160,7 @@ it(
     expect(await waitFor(() => existsSync(join(directory, 'primary-ready')))).toBe(true);
 
     const primary = await runCli(
-      ['pane', 'read', '--source', 'visible', '--socket', socketPath, '--json'],
+      ['pane', 'read', 'pane-1', '--source', 'visible', '--socket', socketPath, '--json'],
       directory,
     );
 
@@ -146,7 +179,7 @@ it(
     expect(await waitFor(() => existsSync(join(directory, 'alternate-ready')))).toBe(true);
 
     const alternate = await runCli(
-      ['pane', 'read', '--source', 'visible', '--socket', socketPath, '--json'],
+      ['pane', 'read', 'pane-1', '--source', 'visible', '--socket', socketPath, '--json'],
       directory,
     );
 
@@ -237,7 +270,7 @@ it(
 
       const reads = Array.from({ length: 5 }, () =>
         runCli(
-          ['pane', 'read', '--source', 'visible', '--socket', socketPath, '--json'],
+          ['pane', 'read', 'pane-1', '--source', 'visible', '--socket', socketPath, '--json'],
           directory,
         ),
       );
@@ -259,7 +292,7 @@ it(
       }
 
       const read = await runCli(
-        ['pane', 'read', '--source', 'visible', '--socket', socketPath, '--json'],
+        ['pane', 'read', 'pane-1', '--source', 'visible', '--socket', socketPath, '--json'],
         directory,
       );
 
@@ -277,11 +310,7 @@ it.each(['read', 'send'] as const)(
   'exits 1 without output when pane %s finds no server',
   async (action) => {
     const directory = await temporaryDirectory();
-    const argumentsForAction = ['pane', action];
-
-    if (action === 'send') {
-      argumentsForAction.push('text');
-    }
+    const argumentsForAction = ['pane', action, action === 'send' ? 'text' : 'pane-1'];
 
     const result = await runCli(
       [...argumentsForAction, '--socket', join(directory, 'absent.sock'), '--json'],

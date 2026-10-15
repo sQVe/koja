@@ -81,7 +81,7 @@ const snapshot = (live: boolean): ControlMessage => ({
 // One row of text as a rows reply to the request.
 const readCommand = {
   action: 'read',
-  pane: undefined,
+  pane: paneId(7),
   source: 'visible',
   lines: undefined,
   range: undefined,
@@ -173,44 +173,41 @@ const listen = async (respond: (message: ControlMessage) => Reply[] | undefined)
 
 it('returns a missing pane without sending a command when the snapshot has no live pane', async () => {
   const server = await listen(() => [{ type: 'welcome' }, snapshot(false)]);
-  const result = await runPaneRead(server.socketPath, version, readCommand);
+  const result = await runPaneSend(server.socketPath, version, { action: 'send', text: 'hello' });
 
   expect(result).toEqual({ ok: false, reason: 'paneMissing' });
   expect(server.received).toEqual([{ type: 'hello', version, size: undefined }]);
   expect(server.failures).toEqual([]);
 });
 
-it.each(['read', 'send'] as const)(
-  'uses the snapshot pane id and reports a pane lost before %s',
-  async (action) => {
-    const server = await listen((message) => {
-      if (message.type === 'hello') {
-        return [{ type: 'welcome' }, snapshot(true)];
-      }
+it.each(['read', 'send'] as const)('reports a pane lost before %s', async (action) => {
+  const server = await listen((message) => {
+    if (message.type === 'hello') {
+      return [{ type: 'welcome' }, snapshot(true)];
+    }
 
-      return [{ type: 'paneMissing', paneId: paneId(7) }];
-    });
+    return [{ type: 'paneMissing', paneId: paneId(7) }];
+  });
 
-    const result =
-      action === 'read'
-        ? await runPaneRead(server.socketPath, version, readCommand)
-        : await runPaneSend(server.socketPath, version, { action, text: 'hello' });
+  const result =
+    action === 'read'
+      ? await runPaneRead(server.socketPath, version, readCommand)
+      : await runPaneSend(server.socketPath, version, { action, text: 'hello' });
 
-    const expected: ControlMessage =
-      action === 'read'
-        ? {
-            type: 'paneRead',
-            paneId: paneId(7),
-            requestId: 1,
-            selection: { source: 'visible', lines: undefined },
-          }
-        : { type: 'paneSend', paneId: paneId(7), text: 'hello' };
+  const expected: ControlMessage =
+    action === 'read'
+      ? {
+          type: 'paneRead',
+          paneId: paneId(7),
+          requestId: 1,
+          selection: { source: 'visible', lines: undefined },
+        }
+      : { type: 'paneSend', paneId: paneId(7), text: 'hello' };
 
-    expect(result).toEqual({ ok: false, reason: 'paneMissing' });
-    expect(server.received).toEqual([{ type: 'hello', version, size: undefined }, expected]);
-    expect(server.failures).toEqual([]);
-  },
-);
+  expect(result).toEqual({ ok: false, reason: 'paneMissing' });
+  expect(server.received).toEqual([{ type: 'hello', version, size: undefined }, expected]);
+  expect(server.failures).toEqual([]);
+});
 
 it('returns a connection failure when the server closes before answering', async () => {
   const server = await listen(() => undefined);

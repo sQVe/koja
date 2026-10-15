@@ -210,7 +210,7 @@ it.each(['SIGTERM', 'SIGINT', 'SIGHUP'] as const)(
     expect(screen.frame().cursor.visible).toBe(true);
     await command('pane', 'send', 'echo still-running\r');
 
-    const rows = await command('pane', 'read');
+    const rows = await command('pane', 'read', 'pane-1');
 
     expect(rows).toContain('still-running');
   },
@@ -340,7 +340,7 @@ it('detaches on Ctrl+B then d and leaves the shell running', async () => {
   expect(await client.exited).toBe(0);
   expect(await waitFor(() => !screen.stableRows().alternate)).toBe(true);
   expect(screen.text()).toContain('Detached from');
-  expect(await command('pane', 'read')).toContain('before-2');
+  expect(await command('pane', 'read', 'pane-1')).toContain('before-2');
 });
 
 it('shows the same screen text when a new client attaches after a detach', async () => {
@@ -444,7 +444,7 @@ it('starts a server and attaches when phi runs with no server', async () => {
   expect(await waitFor(() => screen.text().includes('attach-prompt>'))).toBe(true);
 
   const read = Bun.spawn(
-    [process.execPath, 'src/index.ts', 'pane', 'read', '--socket', socketPath],
+    [process.execPath, 'src/index.ts', 'pane', 'read', 'pane-1', '--socket', socketPath],
     {
       env: { ...process.env, ...environment },
       stdout: 'pipe',
