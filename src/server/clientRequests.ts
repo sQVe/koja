@@ -4,18 +4,23 @@ import type { ControlMessage } from '../protocol/protocol.ts';
 import type { Change, DetachReason, Intent, State } from '../store/store.ts';
 import type { Connection } from './connection.ts';
 import type { Log } from './log.ts';
+import type { PaneRuntime } from './pane.ts';
+import { findLivePane } from './paneEffects.ts';
 import type { RowSubscriptions } from './rowSubscriptions.ts';
 
 interface ClientRequestContext {
   options: { log: Log };
   state: State;
   runtime: {
+    panes: Map<PaneId, PaneRuntime>;
     clientIds: Map<Connection, ClientId>;
     rowSubscriptions: Map<Connection, RowSubscriptions>;
   };
 }
 
 type Dispatch = (intent: Intent) => readonly Change[];
+
+type PaneScrollMessage = Extract<ControlMessage, { type: 'paneScroll' }>;
 
 export const handleDetach = (
   context: ClientRequestContext,
@@ -39,6 +44,59 @@ export const handleDetach = (
   // Answer first: the sender may be the target client, and its detach closes the connection.
   connection.send({ type: 'detachResult', result: { ok: true } });
   dispatch({ type: 'detachClient', clientId: targetId });
+};
+
+// Resolves `top` to the oldest row the pane keeps, so the store never reads the terminal.
+const scrollRowOf = (
+  context: ClientRequestContext,
+  message: PaneScrollMessage,
+): number | undefined => {
+  if (message.to === 'bottom') {
+    return undefined;
+  }
+
+  if (message.to !== 'top') {
+    return message.to;
+  }
+
+  const live = findLivePane(context, message.paneId);
+
+  return live?.runtime.terminal.stableRows().first ?? 0;
+};
+
+export const handlePaneScroll = (
+  context: ClientRequestContext,
+  message: PaneScrollMessage,
+  connection: Connection,
+  dispatch: Dispatch,
+): void => {
+  const { clients, foregroundClientId, panes } = context.state;
+  const requestedId = message.clientId;
+  const unknownClient = requestedId !== undefined && !clients.some(({ id }) => id === requestedId);
+  const targetId = requestedId ?? foregroundClientId;
+
+  if (unknownClient || targetId === undefined) {
+    const reason = unknownClient ? 'unknownClient' : 'noClient';
+
+    connection.send({ type: 'paneScrollResult', result: { ok: false, reason } });
+
+    return;
+  }
+
+  if (!panes.some(({ id }) => id === message.paneId)) {
+    connection.send({ type: 'paneScrollResult', result: { ok: false, reason: 'unknownPane' } });
+
+    return;
+  }
+
+  const row = scrollRowOf(context, message);
+
+  dispatch({ type: 'scrollPane', clientId: targetId, paneId: message.paneId, row });
+
+  connection.send({
+    type: 'paneScrollResult',
+    result: { ok: true, clientId: targetId, topRow: row },
+  });
 };
 
 export const handleClientSetting = (

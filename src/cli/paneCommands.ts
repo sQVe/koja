@@ -16,6 +16,7 @@ import { connectionFailureMessage, print } from './output.ts';
 import type { Outcome } from './output.ts';
 import type { PaneCliCommand } from './paneCommandParse.ts';
 import { runPaneReadCommand } from './paneReadCommand.ts';
+import { runPaneScrollCommand } from './paneScrollCommand.ts';
 
 type PaneFolders = Extract<Awaited<ReturnType<typeof runPaneFolders>>, { ok: true }>['panes'];
 
@@ -279,6 +280,10 @@ export const runPaneAction = async (
 
   if (isLayoutAction(command.pane)) {
     return runPaneLayout(command, command.pane, version, socketPath);
+  }
+
+  if (command.pane.action === 'scroll') {
+    return runPaneScrollCommand(command.json, command.pane, version, socketPath);
   }
 
   if (command.pane.action === 'read') {

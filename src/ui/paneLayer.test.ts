@@ -66,6 +66,7 @@ const snapshotOf = (
   defaultView: {
     focusedWorkspaceId: workspaceId(1),
     activeTabs: [{ workspaceId: workspaceId(1), tabId: tabId(1) }],
+    scrolls: [],
   },
   attachedClientId: undefined,
   foregroundClientId: undefined,

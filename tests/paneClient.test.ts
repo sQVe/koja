@@ -71,6 +71,7 @@ const snapshot = (live: boolean): ControlMessage => ({
     defaultView: {
       focusedWorkspaceId: live ? workspaceId(1) : undefined,
       activeTabs: live ? [{ workspaceId: workspaceId(1), tabId: tabId(1) }] : [],
+      scrolls: [],
     },
     attachedClientId: undefined,
     foregroundClientId: undefined,

@@ -38,6 +38,20 @@ export interface PaneSendCommand {
   pane?: PaneId | undefined;
 }
 
+// Scrolls a client's view of a pane to its oldest row, to the bottom, or to a stable row. Without
+// a client, the foreground client scrolls.
+export interface PaneScrollCommand {
+  action: 'scroll';
+  pane: PaneId;
+  to: 'top' | 'bottom' | number;
+  client: ClientId | undefined;
+}
+
+type PaneScrollResult =
+  | { ok: true; clientId: ClientId; topRow: number | undefined }
+  | { ok: false; reason: 'noClient' | 'unknownClient' | 'unknownPane' }
+  | RequestFailure;
+
 type PaneLayoutResult =
   | { ok: true; paneId: PaneId }
   | { ok: false; reason: 'unknownPane' }
@@ -312,6 +326,29 @@ export const runDetach = (
     },
     onMessage: (request, message) => {
       if (message.type === 'detachResult') {
+        request.finish(message.result);
+      }
+    },
+  });
+
+// Fails with `noClient` when none was attached, `unknownClient` when the target is unknown, and
+// `unknownPane` when the pane is unknown.
+export const runPaneScroll = (
+  socketPath: string,
+  version: BuildVersion,
+  command: PaneScrollCommand,
+): Promise<PaneScrollResult> =>
+  runRequest<PaneScrollResult>(socketPath, version, {
+    onWelcome: (request) => {
+      request.send({
+        type: 'paneScroll',
+        paneId: command.pane,
+        to: command.to,
+        clientId: command.client,
+      });
+    },
+    onMessage: (request, message) => {
+      if (message.type === 'paneScrollResult') {
         request.finish(message.result);
       }
     },

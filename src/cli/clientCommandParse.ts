@@ -31,7 +31,7 @@ export const clientUsage = `  phi attach [--socket <path>]
   phi detach [--client <id>] [--socket <path>] [--json]
   phi client list [--socket <path>] [--json]`;
 
-const parseClientId = (value: string | undefined): IdResult<ClientId | undefined> => {
+export const parseClientId = (value: string | undefined): IdResult<ClientId | undefined> => {
   if (value === undefined) {
     return { ok: true, id: undefined };
   }
@@ -47,7 +47,9 @@ export const strayClientOptionMessage = (
   group: string | undefined,
   { client }: RawClientOptions,
 ): string | undefined =>
-  client !== undefined && group !== 'detach' ? '--client belongs to detach.' : undefined;
+  client !== undefined && group !== 'detach' && group !== 'pane'
+    ? '--client belongs to detach and pane scroll.'
+    : undefined;
 
 export const parseAttachCommand = (
   positionals: string[],

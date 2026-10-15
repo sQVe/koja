@@ -110,6 +110,7 @@ export const twoClients = (...intents: readonly Intent[]): State =>
 export const viewShowing = (workspace: number, tabs: readonly [number, number][]): View => ({
   focusedWorkspaceId: workspaceId(workspace),
   activeTabs: tabs.map(([owner, tab]) => ({ workspaceId: workspaceId(owner), tabId: tabId(tab) })),
+  scrolls: [],
 });
 
 // Replaces the default view and the views of clients 1 and 2.

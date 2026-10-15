@@ -85,6 +85,7 @@ const workspace = {
 const view = {
   focusedWorkspaceId: workspace.id,
   activeTabs: [{ workspaceId: workspace.id, tabId: tabId(1) }],
+  scrolls: [],
 };
 
 const failureTimeoutMs = 10_000;

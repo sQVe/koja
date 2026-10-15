@@ -74,6 +74,7 @@ export const restoreSession = (state: State, session: SavedSession): Outcome => 
       workspaceId: workspace.id,
       tabId: workspace.activeTabId,
     })),
+    scrolls: [],
   };
 
   const workspaces = session.workspaces.map(({ id, root, label, tabIds }): WorkspaceRecord => ({

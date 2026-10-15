@@ -63,6 +63,7 @@ const workspace = {
 const view = {
   focusedWorkspaceId: workspace.id,
   activeTabs: [{ workspaceId: workspace.id, tabId: tab.id }],
+  scrolls: [],
 };
 
 const snapshotAt = (revision: number, clients = 0) => ({

@@ -115,6 +115,7 @@ const applyLayoutChange = (snapshot: StoreSnapshot, change: StoreChange): StoreS
         activeTabs: snapshot.defaultView.activeTabs.filter(
           (active) => active.workspaceId !== change.workspaceId,
         ),
+        scrolls: snapshot.defaultView.scrolls,
       },
     };
   }
