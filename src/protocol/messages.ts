@@ -221,6 +221,7 @@ const changeSchema: z.ZodType<Change> = z.discriminatedUnion('type', [
   }),
   z.object({ type: z.literal('tabRemoved'), tabId: tabIdSchema }),
   z.object({ type: z.literal('paneRemoved'), paneId: paneIdSchema }),
+  z.object({ type: z.literal('paneMoved'), paneId: paneIdSchema, tabId: tabIdSchema }),
   z.object({ type: z.literal('tabLayoutChanged'), tabId: tabIdSchema, layout: layoutSchema }),
   z.object({ type: z.literal('paneFocused'), tabId: tabIdSchema, paneId: paneIdSchema }),
   z.object({

@@ -18,7 +18,7 @@ import {
 
 type CreateWorkspaceIntent = Extract<Intent, { type: 'createWorkspace' }>;
 
-const defaultLabel = (root: string): string => {
+export const defaultLabel = (root: string): string => {
   const trimmed = root.replace(/\/+$/, '');
   const baseName = trimmed.slice(trimmed.lastIndexOf('/') + 1);
 
