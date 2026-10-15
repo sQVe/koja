@@ -12,6 +12,7 @@ import { environmentFor, root, temporaryDirectory } from './cliHarness.ts';
 const paneListSchema = z.array(
   z.object({
     id: z.string(),
+    tab: z.string(),
     focused: z.boolean(),
     columns: z.number(),
     rows: z.number(),

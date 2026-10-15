@@ -108,6 +108,10 @@ const runPaneAction = (session: AttachSession, action: PaneAction): Promise<void
     return session.closePane(current.id);
   }
 
+  if (action === 'breakPane') {
+    return session.movePane(current.id, { kind: 'newTab' });
+  }
+
   if (action === 'zoom') {
     return session.zoomPane(current.id);
   }

@@ -10,6 +10,7 @@ export type PaneAction =
   | 'focusPrevious'
   | 'focusNext'
   | 'close'
+  | 'breakPane'
   | 'zoom'
   | 'resizeLeft'
   | 'resizeRight'
@@ -101,6 +102,7 @@ const paneActions = new Map<string, PaneAction>([
   ['h', 'focusPrevious'],
   ['l', 'focusNext'],
   ['x', 'close'],
+  ['!', 'breakPane'],
   ['z', 'zoom'],
   ['<', 'resizeLeft'],
   ['>', 'resizeRight'],

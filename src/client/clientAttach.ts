@@ -12,7 +12,7 @@ import {
 import type { BuildVersion, ControlMessage } from '../protocol/protocol.ts';
 import { decodeRowUpdate, encodePaneInput } from '../rows/rows.ts';
 import { paneLayoutRequest } from './paneRequest.ts';
-import type { ResizeDirection, SplitDirection } from './paneRequest.ts';
+import type { PaneMoveDestination, ResizeDirection, SplitDirection } from './paneRequest.ts';
 import { createRowCache } from './rowCache.ts';
 import type { RowCache } from './rowCache.ts';
 import { activeTabIdOf, applyChange, viewedPane, shownView } from './snapshot.ts';
@@ -91,6 +91,7 @@ export interface AttachSession {
   splitPane: (pane: PaneId, direction: SplitDirection) => Promise<void>;
   focusPane: (pane: PaneId) => Promise<void>;
   closePane: (pane: PaneId) => Promise<void>;
+  movePane: (pane: PaneId, destination: PaneMoveDestination) => Promise<void>;
   zoomPane: (pane: PaneId) => Promise<void>;
   resizePane: (pane: PaneId, direction: ResizeDirection, cells: number) => Promise<void>;
   // Asks the server to detach this client. The session closes with `detached`.
@@ -573,6 +574,8 @@ export const connectAttach = async (
       requestLayout(paneLayoutRequest({ action: 'split', pane, direction, cwd: undefined })),
     focusPane: (pane) => requestLayout(paneLayoutRequest({ action: 'focus', pane })),
     closePane: (pane) => requestLayout(paneLayoutRequest({ action: 'close', pane })),
+    movePane: (pane, destination) =>
+      requestLayout(paneLayoutRequest({ action: 'move', pane, destination })),
     zoomPane: (pane) => requestLayout(paneLayoutRequest({ action: 'zoom', pane })),
     resizePane: (pane, direction, cells) =>
       requestLayout(paneLayoutRequest({ action: 'resize', pane, direction, cells })),
