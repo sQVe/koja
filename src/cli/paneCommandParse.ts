@@ -1,5 +1,10 @@
-import type { PaneLayoutCommand, PaneReadCommand, PaneSendCommand } from '../client/client.ts';
-import { paneId } from '../ids.ts';
+import type {
+  PaneLayoutCommand,
+  PaneMoveDestination,
+  PaneReadCommand,
+  PaneSendCommand,
+} from '../client/client.ts';
+import { paneId, tabId } from '../ids.ts';
 import type { PaneId } from '../ids.ts';
 import type { CommandOptions } from './commandOptions.ts';
 import { parseId } from './idParse.ts';
@@ -28,6 +33,15 @@ export interface RawPaneOptions extends Partial<RawReadOptions> {
   direction?: string | undefined;
   cells?: string | undefined;
   cwd?: string | undefined;
+  tab?: string | undefined;
+  'new-tab'?: boolean | undefined;
+  'new-workspace'?: boolean | undefined;
+}
+
+interface MoveOptions {
+  tab: string | undefined;
+  newTab: boolean | undefined;
+  newWorkspace: boolean | undefined;
 }
 
 interface LayoutOptions {
@@ -38,6 +52,7 @@ interface LayoutOptions {
 
 interface PaneOptions extends LayoutOptions {
   read: RawReadOptions;
+  move: MoveOptions;
 }
 
 export const paneOptions = {
@@ -45,6 +60,9 @@ export const paneOptions = {
   direction: { type: 'string' },
   cells: { type: 'string' },
   cwd: { type: 'string' },
+  tab: { type: 'string' },
+  'new-tab': { type: 'boolean' },
+  'new-workspace': { type: 'boolean' },
   source: { type: 'string' },
   lines: { type: 'string' },
   from: { type: 'string' },
@@ -56,6 +74,7 @@ export const paneUsage = `  phi pane list [--socket <path>] [--json]
     [--from <row> --to <row>] [--socket <path>] [--json]
   phi pane send <text> [--pane <id>] [--socket <path>] [--json]
   phi pane split <id> --direction below|right [--cwd <dir>] [--socket <path>] [--json]
+  phi pane move <id> --tab <id> | --new-tab | --new-workspace [--socket <path>] [--json]
   phi pane focus <id> [--socket <path>] [--json]
   phi pane close <id> [--socket <path>] [--json]
   phi pane zoom <id> [--socket <path>] [--json]
@@ -74,12 +93,29 @@ const parsePaneId = (value: string | undefined): IdResult<PaneId | undefined> =>
     : { ok: true, id: paneId(number) };
 };
 
+const moveOptionsMessage = '--tab, --new-tab, and --new-workspace belong to pane move.';
+
+const hasMoveOptions = ({ tab, newTab, newWorkspace }: MoveOptions): boolean =>
+  tab !== undefined || newTab !== undefined || newWorkspace !== undefined;
+
 export const strayPaneOptionMessage = (
   group: string | undefined,
-  { pane, direction, cells, ...read }: RawPaneOptions,
+  {
+    pane,
+    direction,
+    cells,
+    tab,
+    'new-tab': newTab,
+    'new-workspace': newWorkspace,
+    ...read
+  }: RawPaneOptions,
 ): string | undefined => {
   if (group === 'pane') {
     return undefined;
+  }
+
+  if (hasMoveOptions({ tab, newTab, newWorkspace })) {
+    return moveOptionsMessage;
   }
 
   if (direction !== undefined) {
@@ -187,6 +223,70 @@ const parsePaneLayoutCommand = (
   return { action, pane: paneId(target) };
 };
 
+const moveDestinationOf = ({
+  tab,
+  newTab,
+  newWorkspace,
+}: MoveOptions): PaneMoveDestination | string => {
+  const chosen = [tab !== undefined, newTab === true, newWorkspace === true].filter(Boolean);
+
+  if (chosen.length === 0) {
+    return 'pane move takes one of --tab, --new-tab, or --new-workspace.';
+  }
+
+  if (chosen.length > 1) {
+    return 'pane move takes only one of --tab, --new-tab, or --new-workspace.';
+  }
+
+  if (tab === undefined) {
+    return newTab === true ? { kind: 'newTab' } : { kind: 'newWorkspace' };
+  }
+
+  const number = parseId(tab, 'tab');
+
+  return number === undefined
+    ? `'${tab}' is not a tab id, such as tab-1.`
+    : { kind: 'tab', tabId: tabId(number) };
+};
+
+const parseMoveCommand = (
+  rest: string[],
+  pane: string | undefined,
+  options: PaneOptions,
+): PaneLayoutCommand | string => {
+  if (pane !== undefined) {
+    return '--pane belongs to pane read and pane send.';
+  }
+
+  if (rest.length !== 1) {
+    return 'pane move takes one pane id.';
+  }
+
+  const target = parseId(rest[0] ?? '', 'pane');
+
+  if (target === undefined) {
+    return `'${rest[0] ?? ''}' is not a pane id, such as pane-1.`;
+  }
+
+  if (options.direction !== undefined) {
+    return '--direction belongs to pane split and pane resize.';
+  }
+
+  if (options.cells !== undefined) {
+    return '--cells belongs to pane resize.';
+  }
+
+  if (options.cwd !== undefined) {
+    return '--cwd belongs to pane split and tab create.';
+  }
+
+  const destination = moveDestinationOf(options.move);
+
+  return typeof destination === 'string'
+    ? destination
+    : { action: 'move', pane: paneId(target), destination };
+};
+
 const paneLayoutActions: ReadonlySet<string | undefined> = new Set([
   'split',
   'focus',
@@ -282,6 +382,14 @@ const parsePaneAction = (
     return strayRead;
   }
 
+  if (action === 'move') {
+    return parseMoveCommand(rest, pane, options);
+  }
+
+  if (hasMoveOptions(options.move)) {
+    return moveOptionsMessage;
+  }
+
   if (isPaneLayoutAction(action)) {
     return pane === undefined
       ? parsePaneLayoutCommand(action, rest, options)
@@ -308,7 +416,19 @@ const parsePaneAction = (
 export const parsePaneCommand = (
   action: string | undefined,
   rest: string[],
-  { pane, direction, cells, cwd, source, lines, from, to }: RawPaneOptions,
+  {
+    pane,
+    direction,
+    cells,
+    cwd,
+    tab,
+    'new-tab': newTab,
+    'new-workspace': newWorkspace,
+    source,
+    lines,
+    from,
+    to,
+  }: RawPaneOptions,
   options: CommandOptions,
 ): PaneCliCommand | string => {
   const parsed = parsePaneAction(action, rest, pane, {
@@ -316,6 +436,7 @@ export const parsePaneCommand = (
     cells,
     cwd,
     read: { source, lines, from, to },
+    move: { tab, newTab, newWorkspace },
   });
 
   return typeof parsed === 'string' ? parsed : { kind: 'pane', pane: parsed, ...options };

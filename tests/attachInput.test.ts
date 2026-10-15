@@ -189,8 +189,12 @@ const pollTimeoutMs = 10_000;
 const pollIntervalMs = 50;
 
 const listUntil = async (
-  list: () => Promise<{ id: string; focused: boolean; columns: number; rows: number }[]>,
-  condition: (panes: { id: string; focused: boolean; columns: number; rows: number }[]) => boolean,
+  list: () => Promise<
+    { id: string; tab: string; focused: boolean; columns: number; rows: number }[]
+  >,
+  condition: (
+    panes: { id: string; tab: string; focused: boolean; columns: number; rows: number }[],
+  ) => boolean,
 ) => {
   const deadline = Date.now() + pollTimeoutMs;
   let panes = await list();
@@ -232,6 +236,29 @@ it(
       [38, 9],
       [37, 9],
     ]);
+  },
+  cliTestTimeoutMs,
+);
+
+it(
+  'moves the focused pane alone into a new tab on Ctrl+B !',
+  async () => {
+    const { phi, list, lines, foreground, until, type, first } = await setup();
+    const second = await phi('pane', 'split', first, '--direction', 'right', '--json');
+    const secondId = z.object({ pane: z.string() }).parse(JSON.parse(second)).pane;
+
+    await until(() => lines()[0]?.charAt(41) === '┌' && foreground(0, 41) === accentWord);
+    type('\x02!');
+    await until(() => lines()[0]?.charAt(0) !== '┌');
+
+    const moved = await list();
+    const lone = moved.find((pane) => pane.id === secondId);
+    const rest = moved.find((pane) => pane.id === first);
+
+    expect(moved.map((pane) => pane.id).toSorted()).toEqual([first, secondId].toSorted());
+    expect(lone?.focused).toBe(true);
+    expect(moved.filter((pane) => pane.tab === lone?.tab)).toHaveLength(1);
+    expect(rest?.tab).not.toBe(lone?.tab);
   },
   cliTestTimeoutMs,
 );

@@ -41,6 +41,8 @@ interface PaneSendOutput {
   sent: true;
 }
 
+type PaneLayoutFailure = Exclude<Awaited<ReturnType<typeof runPaneLayoutCommand>>, { ok: true }>;
+
 const listPanes = (snapshot: StoreSnapshot, folders: PaneFolders) => {
   const focusedId = focusedPane(snapshot)?.id;
 
@@ -144,6 +146,7 @@ const layoutDoneText = (action: PaneLayoutCommand['action'], id: string): string
     split: 'Split into',
     focus: 'Focused',
     close: 'Closed',
+    move: 'Moved',
     zoom: 'Toggled zoom of',
     resize: 'Resized',
   };
@@ -151,32 +154,28 @@ const layoutDoneText = (action: PaneLayoutCommand['action'], id: string): string
   return `${verbs[action]} ${id}.`;
 };
 
-const runPaneLayout = async (
-  command: PaneCliCommand,
+const isMoveTooSmall = (request: PaneLayoutCommand, reason: string): boolean =>
+  request.action === 'move' && reason === 'paneTooSmall';
+
+const layoutFailure = (
   request: PaneLayoutCommand,
-  version: BuildVersion,
+  result: PaneLayoutFailure,
   socketPath: string,
-): Promise<Outcome> => {
-  const resolved = await resolveFolder(request.action === 'split' ? request.cwd : undefined);
-
-  if (!resolved.ok) {
-    return resolved;
-  }
-
-  const sent = request.action === 'split' ? { ...request, cwd: resolved.folder } : request;
-  const result = await runPaneLayoutCommand(socketPath, version, sent);
-
-  if (result.ok) {
-    print<PaneActionOutput>(command.json, {
-      json: { pane: result.paneId },
-      text: layoutDoneText(request.action, result.paneId),
-    });
-
-    return { ok: true };
-  }
-
+): Outcome => {
   if (result.reason === 'unknownPane') {
     return { ok: false, message: `There is no pane ${request.pane}.` };
+  }
+
+  if (result.reason === 'unknownTab') {
+    return { ok: false, message: 'There is no such tab.' };
+  }
+
+  if (result.reason === 'sameTab') {
+    return { ok: false, message: `Pane ${request.pane} is already in that tab.` };
+  }
+
+  if (isMoveTooSmall(request, result.reason)) {
+    return { ok: false, message: `Pane ${request.pane} is too small to move there.` };
   }
 
   if (result.reason === 'paneTooSmall') {
@@ -201,7 +200,41 @@ const runPaneLayout = async (
   };
 };
 
-const layoutActions: ReadonlySet<string> = new Set(['split', 'focus', 'close', 'zoom', 'resize']);
+const runPaneLayout = async (
+  command: PaneCliCommand,
+  request: PaneLayoutCommand,
+  version: BuildVersion,
+  socketPath: string,
+): Promise<Outcome> => {
+  const resolved = await resolveFolder(request.action === 'split' ? request.cwd : undefined);
+
+  if (!resolved.ok) {
+    return resolved;
+  }
+
+  const sent = request.action === 'split' ? { ...request, cwd: resolved.folder } : request;
+  const result = await runPaneLayoutCommand(socketPath, version, sent);
+
+  if (!result.ok) {
+    return layoutFailure(request, result, socketPath);
+  }
+
+  print<PaneActionOutput>(command.json, {
+    json: { pane: result.paneId },
+    text: layoutDoneText(request.action, result.paneId),
+  });
+
+  return { ok: true };
+};
+
+const layoutActions: ReadonlySet<string> = new Set([
+  'split',
+  'focus',
+  'close',
+  'move',
+  'zoom',
+  'resize',
+]);
 
 const isLayoutAction = (action: PaneCliCommand['pane']): action is PaneLayoutCommand =>
   layoutActions.has(action.action);

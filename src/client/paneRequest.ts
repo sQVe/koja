@@ -3,12 +3,15 @@ import type { ControlMessage } from '../protocol/protocol.ts';
 
 export type SplitDirection = Extract<ControlMessage, { type: 'paneSplit' }>['direction'];
 
+export type PaneMoveDestination = Extract<ControlMessage, { type: 'paneMove' }>['destination'];
+
 export type ResizeDirection = Extract<ControlMessage, { type: 'paneResize' }>['direction'];
 
 export type PaneLayoutCommand =
   | { action: 'split'; pane: PaneId; direction: SplitDirection; cwd: string | undefined }
   | { action: 'focus'; pane: PaneId }
   | { action: 'close'; pane: PaneId }
+  | { action: 'move'; pane: PaneId; destination: PaneMoveDestination }
   | { action: 'zoom'; pane: PaneId }
   | { action: 'resize'; pane: PaneId; direction: ResizeDirection; cells: number };
 
@@ -29,6 +32,10 @@ export const paneLayoutRequest = (command: PaneLayoutCommand): ControlMessage =>
       direction: command.direction,
       cells: command.cells,
     };
+  }
+
+  if (command.action === 'move') {
+    return { type: 'paneMove', paneId: command.pane, destination: command.destination };
   }
 
   if (command.action === 'zoom') {

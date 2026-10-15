@@ -5,7 +5,7 @@ import type { ControlMessage } from '../protocol/protocol.ts';
 import { encodePaneRows } from '../rows/rows.ts';
 import type { PaneInput } from '../rows/rows.ts';
 import { applyIntent } from '../store/store.ts';
-import type { Change, Intent, State } from '../store/store.ts';
+import type { Change, Intent, RejectReason, State } from '../store/store.ts';
 import { sourceOf } from './clientRequests.ts';
 import type { Connection } from './connection.ts';
 import type { Log } from './log.ts';
@@ -43,8 +43,10 @@ type PaneReadMessage = Extract<ControlMessage, { type: 'paneRead' }>;
 
 type PaneLayoutRequest = Extract<
   ControlMessage,
-  { type: 'paneSplit' | 'paneFocus' | 'paneClose' | 'paneZoom' | 'paneResize' }
+  { type: 'paneSplit' | 'paneFocus' | 'paneClose' | 'paneMove' | 'paneZoom' | 'paneResize' }
 >;
+
+type PaneFailureReason = Extract<ControlMessage, { type: 'paneFailed' }>['reason'];
 
 type PaneCommandMessage = Extract<
   ControlMessage,
@@ -270,6 +272,7 @@ const paneLayoutRequestTypes: ReadonlySet<string> = new Set([
   'paneSplit',
   'paneFocus',
   'paneClose',
+  'paneMove',
   'paneZoom',
   'paneResize',
 ]);
@@ -277,15 +280,49 @@ const paneLayoutRequestTypes: ReadonlySet<string> = new Set([
 export const isPaneLayoutRequest = (message: ControlMessage): message is PaneLayoutRequest =>
   paneLayoutRequestTypes.has(message.type);
 
+// A new workspace takes the folder the pane is in, or the root of the workspace it leaves.
+const workspaceRootOfMove = (
+  context: PaneRequestContext,
+  message: Extract<PaneLayoutRequest, { type: 'paneMove' }>,
+): string | undefined => {
+  const followed = followFolderOf(context, message.paneId);
+
+  if (followed !== undefined) {
+    return followed;
+  }
+
+  const pane = context.state.panes.find((known) => known.id === message.paneId);
+  const tab = context.state.tabs.find((known) => known.id === pane?.tabId);
+
+  return context.state.workspaces.find((known) => known.id === tab?.workspaceId)?.root;
+};
+
 const paneFolderOf = (
   context: PaneRequestContext,
   message: PaneLayoutRequest,
 ): string | undefined => {
+  if (message.type === 'paneMove') {
+    return message.destination.kind === 'newWorkspace'
+      ? workspaceRootOfMove(context, message)
+      : undefined;
+  }
+
   if (message.type !== 'paneSplit') {
     return undefined;
   }
 
   return message.cwd ?? followFolderOf(context, message.paneId);
+};
+
+const moveDestinationOf = (
+  { destination }: Extract<PaneLayoutRequest, { type: 'paneMove' }>,
+  folder: string | undefined,
+): Extract<Intent, { type: 'movePane' }>['destination'] => {
+  if (destination.kind === 'newWorkspace') {
+    return { kind: 'newWorkspace', root: folder ?? '' };
+  }
+
+  return destination;
 };
 
 const paneIntentOf = (
@@ -299,6 +336,15 @@ const paneIntentOf = (
       paneId: message.paneId,
       direction: message.direction,
       folder,
+    };
+  }
+
+  if (message.type === 'paneMove') {
+    return {
+      type: 'movePane',
+      paneId: message.paneId,
+      destination: moveDestinationOf(message, folder),
+      ...source,
     };
   }
 
@@ -320,6 +366,19 @@ const paneIntentOf = (
     : { type: 'closePane', paneId: message.paneId };
 };
 
+const refusalReasonOf = (
+  message: PaneLayoutRequest,
+  reason: RejectReason,
+): PaneFailureReason | undefined => {
+  if (reason === 'noSplit') {
+    return reason;
+  }
+
+  const isMoveReason = reason === 'unknownTab' || reason === 'paneTooSmall' || reason === 'sameTab';
+
+  return message.type === 'paneMove' && isMoveReason ? reason : undefined;
+};
+
 const paneRefusalOf = (
   context: PaneRequestContext,
   message: PaneLayoutRequest,
@@ -337,9 +396,14 @@ const paneRefusalOf = (
 
   const intent = paneIntentOf(message, sourceOf(context, connection), undefined);
   const outcome = applyIntent(context.state, intent);
-  const hasNoSplit = outcome.kind === 'rejected' && outcome.reason === 'noSplit';
 
-  return hasNoSplit ? { type: 'paneFailed', reason: 'noSplit', message: undefined } : undefined;
+  if (outcome.kind !== 'rejected') {
+    return undefined;
+  }
+
+  const reason = refusalReasonOf(message, outcome.reason);
+
+  return reason === undefined ? undefined : { type: 'paneFailed', reason, message: undefined };
 };
 
 export const handlePaneLayoutRequest = (

@@ -10,6 +10,7 @@ import {
   resizeClient,
   setClientTheme,
 } from './clientTransitions.ts';
+import { movePane } from './paneMoveTransitions.ts';
 import {
   closePane,
   focusPane,
@@ -151,6 +152,13 @@ export interface SavedSession {
   nextPaneNumber: number;
 }
 
+// Where a moved pane goes. A tab destination splits next to that tab's focused pane. A new tab
+// joins the pane's workspace.
+type PaneDestination =
+  | { kind: 'tab'; tabId: TabId }
+  | { kind: 'newTab' }
+  | { kind: 'newWorkspace'; root: string };
+
 // A focus or create intent from a terminal client carries its id and moves that client's view and
 // the default view. Without an id it comes from the CLI and moves every view.
 export type Intent =
@@ -181,6 +189,7 @@ export type Intent =
     }
   | { type: 'focusPane'; paneId: PaneId; clientId?: ClientId }
   | { type: 'closePane'; paneId: PaneId }
+  | { type: 'movePane'; paneId: PaneId; destination: PaneDestination; clientId?: ClientId }
   | { type: 'zoomPane'; paneId: PaneId }
   | { type: 'resizePane'; paneId: PaneId; direction: ResizeDirection; cells: number }
   | { type: 'attachClient'; size: TerminalSize }
@@ -221,6 +230,8 @@ export type Change =
     }
   | { type: 'tabRemoved'; tabId: TabId }
   | { type: 'paneRemoved'; paneId: PaneId }
+  // The pane keeps its process and moves to the tab. Its old tab, if emptied, arrives as tabRemoved.
+  | { type: 'paneMoved'; paneId: PaneId; tabId: TabId }
   | { type: 'tabLayoutChanged'; tabId: TabId; layout: Layout }
   | { type: 'paneFocused'; tabId: TabId; paneId: PaneId }
   | { type: 'tabZoomChanged'; tabId: TabId; zoomedPaneId: PaneId | undefined }
@@ -246,7 +257,7 @@ type TabIntent = Extract<Intent, { type: 'createTab' | 'focusTab' | 'closeTab' }
 
 type PaneIntent = Extract<
   Intent,
-  { type: 'splitPane' | 'focusPane' | 'closePane' | 'zoomPane' | 'resizePane' }
+  { type: 'splitPane' | 'focusPane' | 'closePane' | 'movePane' | 'zoomPane' | 'resizePane' }
 >;
 
 export type RejectReason =
@@ -257,6 +268,7 @@ export type RejectReason =
   | 'unknownTab'
   | 'unknownPane'
   | 'paneTooSmall'
+  | 'sameTab'
   | 'noSplit';
 
 // Whatever an effect still holds for this pane generation, such as its process and PTY.
@@ -413,6 +425,7 @@ const paneIntentTypes: ReadonlySet<Intent['type']> = new Set<PaneIntent['type']>
   'splitPane',
   'focusPane',
   'closePane',
+  'movePane',
   'zoomPane',
   'resizePane',
 ]);
@@ -436,6 +449,10 @@ const transitionPaneIntent = (state: State, intent: PaneIntent): Outcome => {
 
   if (intent.type === 'focusPane') {
     return focusPane(state, intent.paneId, intent.clientId);
+  }
+
+  if (intent.type === 'movePane') {
+    return movePane(state, intent);
   }
 
   if (intent.type === 'zoomPane') {

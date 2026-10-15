@@ -142,6 +142,7 @@ const messages: ControlMessage[] = [
     change: { type: 'tabFocused', workspaceId: workspace.id, tabId: tab.id },
   },
   { type: 'change', revision: 4, change: { type: 'paneRemoved', paneId: pane.id } },
+  { type: 'change', revision: 5, change: { type: 'paneMoved', paneId: pane.id, tabId: tab.id } },
   { type: 'change', revision: 5, change: { type: 'tabRemoved', tabId: tab.id } },
   {
     type: 'change',

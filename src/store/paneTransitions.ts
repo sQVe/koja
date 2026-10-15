@@ -19,7 +19,7 @@ import { viewChanges } from './view.ts';
 type SplitPaneIntent = Extract<Intent, { type: 'splitPane' }>;
 type ResizePaneIntent = Extract<Intent, { type: 'resizePane' }>;
 
-const unzoomChanges = (tab: Tab): Change[] =>
+export const unzoomChanges = (tab: Tab): Change[] =>
   tab.zoomedPaneId === undefined
     ? []
     : [{ type: 'tabZoomChanged', tabId: tab.id, zoomedPaneId: undefined }];

@@ -21,6 +21,7 @@ const sessionChangeTypes: ReadonlySet<Change['type']> = new Set([
   'workspaceRemoved',
   'tabRemoved',
   'paneRemoved',
+  'paneMoved',
   'tabLayoutChanged',
   'paneFocused',
   'tabZoomChanged',

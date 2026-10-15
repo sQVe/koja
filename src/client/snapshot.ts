@@ -134,6 +134,10 @@ const applyPaneChange = (snapshot: StoreSnapshot, change: StoreChange): StoreSna
     return { ...snapshot, panes: snapshot.panes.filter((pane) => pane.id !== change.paneId) };
   }
 
+  if (change.type === 'paneMoved') {
+    return updatePane(snapshot, change.paneId, (pane) => ({ ...pane, tabId: change.tabId }));
+  }
+
   if (change.type === 'paneStateChanged') {
     const { lifecycle, exitCode, error } = change;
 

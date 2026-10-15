@@ -66,6 +66,12 @@ it('replaces the attached client when a client takes over', () => {
   expect(attached.attachedClientId).toBe(second.id);
 });
 
+it('moves a pane to another tab and keeps the rest of the pane', () => {
+  const moved = applyChange(snapshot, { type: 'paneMoved', paneId: paneId(1), tabId: tabId(2) });
+
+  expect(moved.panes).toMatchObject([{ id: paneId(1), tabId: tabId(2), generation: 1 }]);
+});
+
 it('records the exit of the pane', () => {
   const exited = applyChange(snapshot, {
     type: 'paneStateChanged',

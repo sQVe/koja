@@ -221,6 +221,7 @@ const changeSchema: z.ZodType<Change> = z.discriminatedUnion('type', [
   }),
   z.object({ type: z.literal('tabRemoved'), tabId: tabIdSchema }),
   z.object({ type: z.literal('paneRemoved'), paneId: paneIdSchema }),
+  z.object({ type: z.literal('paneMoved'), paneId: paneIdSchema, tabId: tabIdSchema }),
   z.object({ type: z.literal('tabLayoutChanged'), tabId: tabIdSchema, layout: layoutSchema }),
   z.object({ type: z.literal('paneFocused'), tabId: tabIdSchema, paneId: paneIdSchema }),
   z.object({
@@ -262,7 +263,9 @@ const snapshotSchema: z.ZodType<Snapshot> = z.object({
 
 const paneFailureSchema = z.enum([
   'unknownPane',
+  'unknownTab',
   'paneTooSmall',
+  'sameTab',
   'noSplit',
   'serverStopping',
   'paneFailedToStart',
@@ -357,6 +360,15 @@ const controlSchema = z.discriminatedUnion('type', [
     direction: splitDirectionSchema,
     cwd: absent(z.string()),
   }),
+  z.object({
+    type: z.literal('paneMove'),
+    paneId: paneIdSchema,
+    destination: z.discriminatedUnion('kind', [
+      z.object({ kind: z.literal('tab'), tabId: tabIdSchema }),
+      z.object({ kind: z.literal('newTab') }),
+      z.object({ kind: z.literal('newWorkspace') }),
+    ]),
+  }),
   z.object({ type: z.literal('paneFocus'), paneId: paneIdSchema }),
   z.object({ type: z.literal('paneClose'), paneId: paneIdSchema }),
   z.object({ type: z.literal('paneZoom'), paneId: paneIdSchema }),
@@ -366,7 +378,7 @@ const controlSchema = z.discriminatedUnion('type', [
     direction: resizeDirectionSchema,
     cells: z.number().int().positive(),
   }),
-  // Answers a pane split, focus, close, zoom, or resize that worked, with the pane it acted on.
+  // Answers a pane split, focus, close, move, zoom, or resize that worked, with the pane it acted on.
   // For a split, that is the new pane.
   z.object({ type: z.literal('paneDone'), paneId: paneIdSchema }),
   // Answers a pane request that changed nothing. The message is present for paneFailedToStart.

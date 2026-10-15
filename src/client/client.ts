@@ -38,7 +38,9 @@ export interface PaneSendCommand {
 type PaneLayoutResult =
   | { ok: true; paneId: PaneId }
   | { ok: false; reason: 'unknownPane' }
+  | { ok: false; reason: 'unknownTab' }
   | { ok: false; reason: 'paneTooSmall' }
+  | { ok: false; reason: 'sameTab' }
   | { ok: false; reason: 'noSplit' }
   | { ok: false; reason: 'serverStopping' }
   | { ok: false; reason: 'paneFailedToStart'; message: string }
@@ -92,6 +94,7 @@ type DetachResult =
 
 export { sendStop };
 export type { PaneLayoutCommand, TabCommand };
+export type { PaneMoveDestination } from './paneRequest.ts';
 export type { WorkspaceCommand } from './workspaceRequest.ts';
 
 export type { PaneReadCommand, PaneReadSource } from './paneRead.ts';

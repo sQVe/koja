@@ -599,6 +599,7 @@ const paneKeys: [string, PaneAction][] = [
   ['>', 'resizeRight'],
   ['-', 'resizeUp'],
   ['+', 'resizeDown'],
+  ['!', 'breakPane'],
 ];
 
 for (const [raw, action] of paneKeys) {
