@@ -4,7 +4,6 @@ interface ClipboardDependencies {
   environment: Environment;
   // Whether the command ran and exited with zero. A missing command is false.
   runCommand: (command: string[], text: string, signal?: AbortSignal) => Promise<boolean>;
-  // Writes bytes to the outer terminal.
   writeTerminal: (bytes: string) => void;
   // Stops the copy: the running tool is killed and no later step runs.
   signal?: AbortSignal;
