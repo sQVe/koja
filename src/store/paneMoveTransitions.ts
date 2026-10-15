@@ -91,6 +91,7 @@ const placeInNewTab = (state: State, id: PaneId, source: Tab): Placement => {
     layout: { kind: 'pane', paneId: id },
     focusedPaneId: id,
     zoomedPaneId: undefined,
+    label: undefined,
   };
 
   const workspaces = state.workspaces.map((workspace) =>
@@ -124,6 +125,7 @@ const placeInNewWorkspace = (state: State, id: PaneId, root: string): Placement 
     layout: { kind: 'pane', paneId: id },
     focusedPaneId: id,
     zoomedPaneId: undefined,
+    label: undefined,
   };
 
   const workspace: WorkspaceRecord = {
