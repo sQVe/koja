@@ -15,6 +15,13 @@ export type GhosttyCommitResult =
   | { ok: true; commit: string }
   | { ok: false; reason: 'library-missing'; detail: string };
 
+// What a write made the terminal do. The clipboard texts are the standard clipboard's, in order.
+export interface WriteResult {
+  reply: Uint8Array | undefined;
+  bells: number;
+  clipboard: string[];
+}
+
 // Numbers of primary-screen rows. A number stays with its row until the epoch changes.
 export interface StableRows {
   // The number of the oldest history row.
@@ -105,6 +112,9 @@ const maxFrameWords = 0xff_ff_ff_ff;
 
 const stableRowsWords = 5;
 
+// Bytes of the length that starts each clipboard text from the shim.
+const clipboardLengthBytes = 4;
+
 const scrollbackWords = 3;
 
 // Two words for each of the 256 palette slots and the default foreground and background.
@@ -163,6 +173,10 @@ const loadLibrary = () =>
     pane_write: { args: [FFIType.ptr, FFIType.ptr, FFIType.u64], returns: FFIType.i64 },
     pane_reply: { args: [FFIType.ptr], returns: FFIType.ptr },
     pane_clear_reply: { args: [FFIType.ptr], returns: FFIType.void },
+    pane_bells: { args: [FFIType.ptr], returns: FFIType.u32 },
+    pane_clipboard: { args: [FFIType.ptr], returns: FFIType.ptr },
+    pane_clipboard_len: { args: [FFIType.ptr], returns: FFIType.u64 },
+    pane_clear_events: { args: [FFIType.ptr], returns: FFIType.void },
     pane_resize: { args: [FFIType.ptr, FFIType.u16, FFIType.u16], returns: FFIType.i64 },
     pane_text: {
       args: [FFIType.ptr, FFIType.ptr, FFIType.u64, FFIType.bool],
@@ -260,11 +274,48 @@ export class Terminal {
     return reply;
   }
 
-  write(bytes: Uint8Array): Uint8Array | undefined {
+  private takeEvents(handle: Handle): Pick<WriteResult, 'bells' | 'clipboard'> {
+    const bells = this.symbols.pane_bells(handle);
+    const clipboardLength = Number(this.symbols.pane_clipboard_len(handle));
+    const clipboard: string[] = [];
+
+    if (clipboardLength > 0) {
+      const pointer = this.symbols.pane_clipboard(handle);
+
+      invariant(pointer !== null, 'libghostty-vt reported clipboard text without a buffer.');
+
+      const buffer = new Uint8Array(toArrayBuffer(pointer, 0, clipboardLength)).slice();
+      const view = new DataView(buffer.buffer);
+      const decoder = new TextDecoder();
+      let offset = 0;
+
+      while (offset < buffer.length) {
+        const length = view.getUint32(offset, true);
+
+        clipboard.push(
+          decoder.decode(
+            buffer.subarray(offset + clipboardLengthBytes, offset + clipboardLengthBytes + length),
+          ),
+        );
+
+        offset += clipboardLengthBytes + length;
+      }
+    }
+
+    return { bells, clipboard };
+  }
+
+  write(bytes: Uint8Array): WriteResult {
     const handle = this.live();
     const length = Number(this.symbols.pane_write(handle, bytes, bytes.length));
 
-    return this.takeReply(handle, length);
+    try {
+      const reply = this.takeReply(handle, length);
+
+      return { reply, ...this.takeEvents(handle) };
+    } finally {
+      this.symbols.pane_clear_events(handle);
+    }
   }
 
   resize(cols: number, rows: number): Uint8Array | undefined {

@@ -85,7 +85,7 @@ export const setup = async (): Promise<PaneAttachHarness> => {
       cols: 80 + sideListColumns,
       rows: 24,
       data: (terminal, bytes) => {
-        const reply = screen.write(bytes);
+        const { reply } = screen.write(bytes);
 
         if (reply !== undefined) {
           terminal.write(reply);

@@ -145,7 +145,7 @@ export const spawnPane = (options: SpawnPaneOptions): SpawnPaneResult => {
       return;
     }
 
-    const reply = terminal.write(bytes);
+    const { reply } = terminal.write(bytes);
 
     if (reply !== undefined) {
       pty.write(reply);
