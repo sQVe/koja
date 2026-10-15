@@ -236,6 +236,43 @@ it('parses pane split, focus, and close with the pane id as an argument', () => 
   });
 });
 
+it.each([
+  ['--tab', ['--tab', 'tab-2'], { kind: 'tab', tabId: tabId(2) }],
+  ['--new-tab', ['--new-tab'], { kind: 'newTab' }],
+  ['--new-workspace', ['--new-workspace'], { kind: 'newWorkspace' }],
+] as const)('parses pane move with %s', (_name, flags, destination) => {
+  expect(parseCommand(['pane', 'move', 'pane-2', ...flags, '--json'])).toEqual({
+    kind: 'pane',
+    pane: { action: 'move', pane: paneId(2), destination },
+    json: true,
+    socket: undefined,
+  });
+});
+
+it('names the missing destination and the several destinations of pane move in turn', () => {
+  expect(parseCommand(['pane', 'move', 'pane-1'])).toBe(
+    'pane move takes one of --tab, --new-tab, or --new-workspace.',
+  );
+
+  expect(parseCommand(['pane', 'move', 'pane-1', '--new-tab', '--new-workspace'])).toBe(
+    'pane move takes only one of --tab, --new-tab, or --new-workspace.',
+  );
+});
+
+it.each([
+  ['no id for move', ['pane', 'move', '--new-tab']],
+  ['a malformed id for move', ['pane', 'move', 'tab-1', '--new-tab']],
+  ['a malformed tab id', ['pane', 'move', 'pane-1', '--tab', 'pane-1']],
+  ['--tab with --new-tab', ['pane', 'move', 'pane-1', '--tab', 'tab-1', '--new-tab']],
+  ['--pane on move', ['pane', 'move', 'pane-1', '--new-tab', '--pane', 'pane-1']],
+  ['--direction on move', ['pane', 'move', 'pane-1', '--new-tab', '--direction', 'right']],
+  ['--new-tab on pane close', ['pane', 'close', 'pane-1', '--new-tab']],
+  ['--tab on pane read', ['pane', 'read', '--tab', 'tab-1']],
+  ['--new-workspace on tab create', ['tab', 'create', '--new-workspace']],
+])('refuses %s', (_name, argv) => {
+  expect(typeof parseCommand(argv)).toBe('string');
+});
+
 it('parses pane process-info with the pane id as an argument', () => {
   expect(parseCommand(['pane', 'process-info', 'pane-1', '--json'])).toEqual({
     kind: 'pane',
