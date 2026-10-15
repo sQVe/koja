@@ -33,7 +33,6 @@ export const workspaceOptions = {
 const isFocusFlag = (token: ParsedToken): boolean =>
   token.name === 'focus' || token.name === 'no-focus';
 
-// The last of --focus and --no-focus on the command line wins.
 export const lastFocusFlag = (tokens: ParsedToken[]): boolean | undefined => {
   const flags = tokens.filter((token) => token.kind === 'option' && isFocusFlag(token));
 
