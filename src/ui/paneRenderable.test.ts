@@ -400,3 +400,38 @@ it('redraws scrolled history rows in the new colors after a palette-only update'
 
   expect(foregroundRed()).toBe(true);
 });
+
+it('draws the scroll cursor in place of the pane cursor, keeps it drawn at the edge while the view lags, and gives the pane cursor back', async () => {
+  const { show, created, pane } = await startPane();
+
+  const invertedColumns = (): number[] => {
+    const spans = created.captureSpans().lines[0]?.spans ?? [];
+    let column = 0;
+    const inverted: number[] = [];
+
+    for (const span of spans) {
+      if ((span.attributes & TextAttributes.INVERSE) !== 0) {
+        inverted.push(column);
+      }
+
+      column += span.width;
+    }
+
+    return inverted;
+  };
+
+  await show(rowUpdate([{ column: 0, codePoint: 0x61 }], [], true));
+  expect(invertedColumns()).toEqual([0]);
+
+  pane.setScrollCursor({ row: 0, col: 3 });
+  await created.renderOnce();
+  expect(invertedColumns()).toEqual([3]);
+
+  pane.setScrollCursor({ row: 5, col: 3 });
+  await created.renderOnce();
+  expect(invertedColumns()).toEqual([3]);
+
+  pane.setScrollCursor(undefined);
+  await created.renderOnce();
+  expect(invertedColumns()).toEqual([0]);
+});

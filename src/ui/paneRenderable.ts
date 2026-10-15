@@ -21,6 +21,12 @@ interface PaneRenderableOptions {
   onDrawn?: (sequence: number) => void;
 }
 
+// A scroll mode cursor: a stable row number and a column.
+interface ScrollCell {
+  row: number;
+  col: number;
+}
+
 interface Cursor {
   x: number;
   y: number;
@@ -103,6 +109,7 @@ export class PaneRenderable extends FrameBufferRenderable {
   private drawnCursor: Cursor | undefined;
   private drawnColors: ReadonlyMap<number, number> | undefined;
   private viewTop: number | undefined;
+  private scrollCursor: ScrollCell | undefined;
   private pendingSequence: number | undefined;
 
   public constructor(
@@ -141,6 +148,19 @@ export class PaneRenderable extends FrameBufferRenderable {
 
     this.viewTop = top;
     this.drawAll();
+  }
+
+  // Marks the cell of the scroll mode cursor, which replaces the pane's own cursor. Undefined
+  // removes it.
+  public setScrollCursor(cursor: ScrollCell | undefined): void {
+    const unchanged =
+      cursor?.row === this.scrollCursor?.row && cursor?.col === this.scrollCursor?.col;
+
+    this.scrollCursor = cursor;
+
+    if (!unchanged) {
+      this.requestRender();
+    }
   }
 
   // Marks every row for drawing, such as after the cache received rows the pane showed blank.
@@ -190,7 +210,19 @@ export class PaneRenderable extends FrameBufferRenderable {
     return index >= 0 && index < this.height ? index : undefined;
   }
 
+  // A cursor outside the shown rows waits there for the view to catch up, at the nearest edge.
+  private scrollCursorCell(cursor: ScrollCell): Cursor {
+    const top = this.viewTop ?? this.cache.bounds()?.activeTop ?? 0;
+    const y = Math.min(Math.max(cursor.row - top, 0), this.height - 1);
+
+    return { x: cursor.col, y, visible: true };
+  }
+
   private shownCursor(): Cursor | undefined {
+    if (this.scrollCursor !== undefined) {
+      return this.scrollCursorCell(this.scrollCursor);
+    }
+
     return this.viewTop === undefined ? this.cache.cursor() : undefined;
   }
 

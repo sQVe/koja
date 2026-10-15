@@ -257,7 +257,7 @@ it('keeps pinned rows when new rows exceed the row limit', () => {
     ]),
   );
 
-  cache.pin({ from: 100, to: 101 });
+  cache.pin([{ from: 100, to: 101 }]);
 
   cache.apply(
     rowUpdate(
@@ -280,7 +280,7 @@ it('drops the oldest rows again once nothing is pinned', () => {
   const cache = createRowCache({ rowLimit: 3 });
 
   cache.apply(rowUpdate([[0, 'a']]));
-  cache.pin({ from: 100, to: 100 });
+  cache.pin([{ from: 100, to: 100 }]);
 
   cache.apply(
     rowUpdate(
@@ -346,7 +346,7 @@ it('stores fetched rows at their stable numbers and names the span still missing
   expect(cache.rowAt(97)?.cells[0]).toBe(121);
   expect(cache.missing({ from: 95, to: 99 })).toEqual({ from: 95, to: 99 });
   expect(cache.missing({ from: 96, to: 97 })).toBeUndefined();
-  expect(cache.bounds()).toEqual({ oldest: 90, activeTop: 100 });
+  expect(cache.bounds()).toEqual({ oldest: 90, activeTop: 100, epoch: 1 });
 });
 
 it('refuses fetched rows of another epoch or while the alternate screen shows', () => {

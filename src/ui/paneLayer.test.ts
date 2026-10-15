@@ -73,6 +73,12 @@ const snapshotOf = (
   clients: [],
 });
 
+const noScrollMode = {
+  cursor: () => undefined,
+  reach: () => undefined,
+  subscribe: () => () => undefined,
+};
+
 const textAtColumn = (column: number): RowUpdate => {
   const words = new Uint32Array(rowWords(columns));
 
@@ -122,7 +128,7 @@ it('removes the terminal cells of a pane that became failed when the layout chan
   };
 
   created.renderer.root.add(box);
-  mountPanes(session, created.renderer, box);
+  mountPanes(session, created.renderer, box, noScrollMode);
   await created.renderOnce();
 
   expect(rowsDrawn).toEqual([0]);
@@ -145,4 +151,46 @@ it('removes the terminal cells of a pane that became failed when the layout chan
   await created.renderOnce();
 
   expect(created.captureCharFrame()).not.toContain('Z');
+});
+
+it('holds the shown rows and the rows a waiting motion needs as separate ranges', async () => {
+  const created = await createTestRenderer({ width: columns, height: rows + 1 });
+
+  setup = created;
+
+  const cache = createRowCache({ rowLimit: 10 });
+
+  cache.apply({ ...textAtColumn(1), first: 0, activeTop: 100_000 });
+
+  const box = new BoxRenderable(created.renderer, { width: columns, height: rows + 1 });
+  const held: (readonly { from: number; to: number }[] | undefined)[] = [];
+
+  const scrolled = snapshotOf({ kind: 'pane', paneId: paneId(1) }, [pane(1, 'running')], 1);
+
+  scrolled.defaultView.scrolls = [{ paneId: paneId(1), topRow: 5 }];
+
+  const session: PaneLayerSession = {
+    getState: () => ({ snapshot: scrolled, inputMode: 'scroll' }),
+    rowCache: () => cache,
+    holdRows: (_pane, ranges) => {
+      held.push(ranges);
+    },
+    newestSequence: () => 1,
+    acknowledge: () => undefined,
+    subscribe: () => () => undefined,
+    subscribeRows: () => () => undefined,
+    subscribeFetched: () => () => undefined,
+  };
+
+  created.renderer.root.add(box);
+
+  mountPanes(session, created.renderer, box, {
+    ...noScrollMode,
+    reach: () => ({ from: 90_000, to: 90_255 }),
+  });
+
+  expect(held.at(-1)).toEqual([
+    { from: 5, to: 10 },
+    { from: 90_000, to: 90_255 },
+  ]);
 });

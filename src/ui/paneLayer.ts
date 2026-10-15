@@ -9,6 +9,7 @@ import { BorderRenderable, borderCells } from './paneBorders.ts';
 import { FailedPaneRenderable } from './paneFailure.ts';
 import { PaneRenderable } from './paneRenderable.ts';
 import { placementOf } from './screenTargets.ts';
+import type { ScrollMode } from './scrollMode.ts';
 
 export type PaneLayerSession = Pick<
   AttachSession,
@@ -28,6 +29,7 @@ export const mountPanes = (
   session: PaneLayerSession,
   renderer: CliRenderer,
   box: BoxRenderable,
+  scrollMode: Pick<ScrollMode, 'cursor' | 'reach' | 'subscribe'>,
 ): (() => void) => {
   const panes = new Map<PaneId, PaneRenderable>();
   const paneFailures = new Map<PaneId, FailedPaneRenderable>();
@@ -46,8 +48,18 @@ export const mountPanes = (
     const view = shownView(session.getState().snapshot);
     const top = session.rowCache(id)?.viewTop(scrollTopOf(view, id));
 
+    const shown = top === undefined ? undefined : { from: top, to: top + rows - 1 };
+    const reach = scrollMode.reach(id);
+    const held = [shown, reach].filter((range) => range !== undefined);
+
     pane.setTop(top);
-    session.holdRows(id, top === undefined ? undefined : { from: top, to: top + rows - 1 });
+    session.holdRows(id, held.length === 0 ? undefined : held);
+  };
+
+  const showScrollCursor = (pane: PaneRenderable, id: PaneId): void => {
+    const cursor = scrollMode.cursor();
+
+    pane.setScrollCursor(cursor?.pane === id ? { row: cursor.row, col: cursor.col } : undefined);
   };
 
   const removeTerminal = (id: PaneId): void => {
@@ -126,6 +138,7 @@ export const mountPanes = (
       panes.set(id, created);
       box.add(created);
       showScroll(created, id, rows);
+      showScrollCursor(created, id);
       drawAll(created, id);
 
       return;
@@ -141,6 +154,7 @@ export const mountPanes = (
     existing.resize(columns, rows);
 
     showScroll(existing, id, rows);
+    showScrollCursor(existing, id);
 
     if (resized) {
       drawAll(existing, id);
@@ -202,12 +216,20 @@ export const mountPanes = (
 
   const unsubscribeState = session.subscribe(sync);
 
+  const unsubscribeScroll = scrollMode.subscribe(() => {
+    for (const [id, pane] of panes) {
+      showScroll(pane, id, pane.height);
+      showScrollCursor(pane, id);
+    }
+  });
+
   sync();
 
   return () => {
     unsubscribeRows();
     unsubscribeFetched();
     unsubscribeState();
+    unsubscribeScroll();
 
     for (const pane of panes.values()) {
       box.remove(pane);

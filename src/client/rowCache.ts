@@ -19,14 +19,14 @@ export interface RowCache {
   // One row by its stable number, or undefined while the cache does not hold it.
   rowAt: (rowNumber: number) => CachedRow | undefined;
   // The stable numbers of the oldest history row and the active screen's top row.
-  bounds: () => { oldest: number; activeTop: number } | undefined;
+  bounds: () => { oldest: number; activeTop: number; epoch: number } | undefined;
   // Where a view scrolled to the stable row starts, moved inside the history. Undefined when the
   // view follows the bottom: no scroll row, a row at or below the active top, or the alternate
   // screen, which keeps no history.
   viewTop: (scroll: number | undefined) => number | undefined;
-  // Keeps the rows from the first to the last stable number when the cache drops rows. Undefined
-  // releases them.
-  pin: (range: RowRange | undefined) => void;
+  // Keeps the rows from the first to the last stable number of each range when the cache drops
+  // rows. Undefined releases them.
+  pin: (ranges: readonly RowRange[] | undefined) => void;
   // The span from the first to the last row of the range the cache does not hold.
   missing: (range: RowRange) => RowRange | undefined;
   // Stores rows a range read returned. Returns false for rows of another epoch or while the
@@ -99,14 +99,14 @@ export const createRowCache = ({ rowLimit }: RowCacheOptions): RowCache => {
   let epoch: number | undefined;
   let oldest = 0;
   let activeTop = 0;
-  let pinned: RowRange | undefined;
+  let pinned: readonly RowRange[] | undefined;
   let size: { columns: number; rows: number } | undefined;
   let cursor: { x: number; y: number; visible: boolean } | undefined;
   let modes = 0;
   let colors: ReadonlyMap<number, number> = new Map();
 
   const isPinned = (rowNumber: number): boolean =>
-    pinned !== undefined && rowNumber >= pinned.from && rowNumber <= pinned.to;
+    pinned?.some((range) => rowNumber >= range.from && rowNumber <= range.to) === true;
 
   const dropOldest = (): void => {
     if (rows.size <= rowLimit) {
@@ -241,9 +241,9 @@ export const createRowCache = ({ rowLimit }: RowCacheOptions): RowCache => {
     apply,
     row: (index) => rows.get(activeTop + index),
     rowAt: (rowNumber) => rows.get(rowNumber),
-    bounds: () => (epoch === undefined ? undefined : { oldest, activeTop }),
-    pin: (range) => {
-      pinned = range;
+    bounds: () => (epoch === undefined ? undefined : { oldest, activeTop, epoch }),
+    pin: (ranges) => {
+      pinned = ranges;
     },
     missing,
     viewTop,

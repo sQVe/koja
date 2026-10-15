@@ -6,6 +6,7 @@ import type { KeyEvent } from './keyEncoding.ts';
 import { encodeMouse, parseMouse } from './mouseEncoding.ts';
 import type { MouseEvent } from './mouseEncoding.ts';
 import type { PaneTarget } from './screenTargets.ts';
+import type { ScrollMotion } from './scrollMotions.ts';
 
 export type PaneAction =
   | 'splitBelow'
@@ -19,6 +20,11 @@ export type PaneAction =
   | 'resizeRight'
   | 'resizeUp'
   | 'resizeDown';
+
+export type ScrollAction =
+  | { kind: 'enter' }
+  | { kind: 'move'; motion: ScrollMotion }
+  | { kind: 'leave' };
 
 interface TokenRouterHost {
   mode: () => InputMode;
@@ -44,6 +50,7 @@ interface TokenRouterHost {
   afterTabAnswer: (callback: () => void) => void;
   // The promise settles once the action's effect on the state has arrived.
   paneAction: (action: PaneAction) => Promise<void>;
+  scroll: (action: ScrollAction) => void;
 }
 
 type ChromeTarget =
@@ -64,6 +71,7 @@ interface KeyRoute {
   workspace?: WorkspaceKey;
   tab?: TabRoute;
   paneAction?: PaneAction;
+  scroll?: ScrollAction;
 }
 
 const workspaceKeys: Record<string, WorkspaceKey> = {
@@ -128,11 +136,88 @@ const paneActions = new Map<string, PaneAction>([
   ['+', 'resizeDown'],
 ]);
 
+const scrollTextMotions = new Map<string, ScrollMotion>([
+  ['h', 'left'],
+  ['j', 'down'],
+  ['k', 'up'],
+  ['l', 'right'],
+  ['w', 'wordStart'],
+  ['b', 'wordStartPrevious'],
+  ['e', 'wordEnd'],
+  ['W', 'bigWordStart'],
+  ['B', 'bigWordStartPrevious'],
+  ['E', 'bigWordEnd'],
+  ['0', 'lineStart'],
+  ['^', 'firstNonBlank'],
+  ['$', 'lineEnd'],
+  ['{', 'paragraphPrevious'],
+  ['}', 'paragraphNext'],
+  ['g', 'historyTop'],
+  ['G', 'historyBottom'],
+]);
+
+const scrollNamedMotions = new Map<string, ScrollMotion>([
+  ['left', 'left'],
+  ['down', 'down'],
+  ['up', 'up'],
+  ['right', 'right'],
+  ['home', 'lineStart'],
+  ['end', 'lineEnd'],
+  ['pageUp', 'pageUp'],
+  ['pageDown', 'pageDown'],
+]);
+
+const scrollControlMotions = new Map<string, ScrollMotion>([
+  ['u', 'halfPageUp'],
+  ['d', 'halfPageDown'],
+  ['f', 'pageDown'],
+]);
+
 const isPrefix = (event: KeyEvent): boolean => isKey(event, 'b', keyModifier.ctrl);
 
 // Normal-mode keys act on the plain key. Shift is allowed because some bindings are capitals.
 const commandBlockers =
   keyModifier.alt | keyModifier.ctrl | keyModifier.super | keyModifier.hyper | keyModifier.meta;
+
+const stayInScroll: KeyRoute = { bytes: nothing, mode: 'scroll', detach: false };
+
+const scrollMotionOf = (event: KeyEvent): ScrollMotion | undefined => {
+  if ((event.modifiers & commandBlockers) === keyModifier.ctrl) {
+    return isKey(event, event.key, keyModifier.ctrl)
+      ? scrollControlMotions.get(event.key)
+      : undefined;
+  }
+
+  if ((event.modifiers & commandBlockers) !== 0) {
+    return undefined;
+  }
+
+  return scrollNamedMotions.get(event.key) ?? scrollTextMotions.get(keyText(event) ?? '');
+};
+
+const routeScrollKey = (event: KeyEvent): KeyRoute => {
+  if (event.kind === 'release') {
+    return stayInScroll;
+  }
+
+  if (isPrefix(event)) {
+    return { bytes: nothing, mode: 'normal', detach: false, scroll: { kind: 'leave' } };
+  }
+
+  const leaves = keyText(event) === 'q' || isKey(event, 'escape');
+
+  if (leaves && (event.modifiers & commandBlockers) === 0) {
+    return { bytes: nothing, mode: 'insert', detach: false, scroll: { kind: 'leave' } };
+  }
+
+  const motion = scrollMotionOf(event);
+
+  if (motion === undefined) {
+    return stayInScroll;
+  }
+
+  return { ...stayInScroll, scroll: { kind: 'move', motion } };
+};
 
 const routeNormalKey = (event: KeyEvent, modes: number): KeyRoute => {
   if (isPrefix(event)) {
@@ -169,6 +254,10 @@ const routeNormalKey = (event: KeyEvent, modes: number): KeyRoute => {
     return { bytes: nothing, mode: 'normal', detach: false, paneAction };
   }
 
+  if (raw === '[') {
+    return { bytes: nothing, mode: 'scroll', detach: false, scroll: { kind: 'enter' } };
+  }
+
   const leavesNormal = raw === 'i' || isKey(event, 'escape');
 
   return { bytes: nothing, mode: leavesNormal ? 'insert' : 'normal', detach: false };
@@ -186,6 +275,10 @@ export const routeKey = (raw: string, mode: InputMode, modes: number): KeyRoute 
 
   if (mode === 'normal') {
     return routeNormalKey(event, modes);
+  }
+
+  if (mode === 'scroll') {
+    return routeScrollKey(event);
   }
 
   if (isPrefix(event)) {
@@ -510,6 +603,10 @@ export const createInputRouter = (host: TokenRouterHost): ((token: RoutedToken) 
     host.send(withoutSentEscape(routed.bytes, token.escapeSent));
     host.setMode(routed.mode);
 
+    if (routed.scroll !== undefined) {
+      host.scroll(routed.scroll);
+    }
+
     if (routed.detach) {
       host.detach();
     }
@@ -540,7 +637,9 @@ export const createInputRouter = (host: TokenRouterHost): ((token: RoutedToken) 
 
     const routed = routeKey(token.raw, host.mode(), host.modes());
 
-    return routed.paneAction !== undefined || routed.tab !== undefined;
+    const entersScroll = routed.scroll?.kind === 'enter';
+
+    return routed.paneAction !== undefined || routed.tab !== undefined || entersScroll;
   };
 
   const waitsForWorkspace = (): boolean => {

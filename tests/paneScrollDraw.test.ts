@@ -57,7 +57,12 @@ const attachAndDraw = async (directory: string) => {
   session.resize(terminalSize);
   drawing = created;
   created.renderer.root.add(box);
-  unmount = mountPanes(session, created.renderer, box);
+
+  unmount = mountPanes(session, created.renderer, box, {
+    cursor: () => undefined,
+    reach: () => undefined,
+    subscribe: () => () => undefined,
+  });
 
   // The rows of the pane area.
   const drawn = async (): Promise<string[]> => {
