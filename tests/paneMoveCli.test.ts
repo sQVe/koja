@@ -16,7 +16,7 @@ const workspaceListSchema = z.array(z.object({ id: z.string(), root: z.string() 
 const processInfoSchema = z.object({ shell_pid: z.number() });
 
 const latestCount = async (phi: PaneSetup['phi'], pane: string): Promise<number> => {
-  const read = await readJson(phi, '--pane', pane, '--source', 'visible');
+  const read = await readJson(phi, pane, '--source', 'visible');
 
   const counts = read.lines.flatMap((line) => {
     const match = /^count (\d+)$/.exec(line);
@@ -160,7 +160,7 @@ it(
     expect(moved.exitCode).toBe(0);
 
     const output = join(directory, 'read.json');
-    const command = `bun "$PHI_BIN_PATH" pane read --pane "$PHI_PANE_ID" --json > ${output}.tmp && mv ${output}.tmp ${output}\n`;
+    const command = `bun "$PHI_BIN_PATH" pane read "$PHI_PANE_ID" --json > ${output}.tmp && mv ${output}.tmp ${output}\n`;
 
     expect((await phi('pane', 'send', command, '--pane', first)).exitCode).toBe(0);
 

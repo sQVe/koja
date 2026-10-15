@@ -581,6 +581,9 @@ it.each(jsonDefaultCommands)('prints JSON by default for %s %s', (...argv) => {
   expect(withFlag).toEqual(without);
 });
 
-it.each([[['pane', 'read']], [['pane', 'send', 'ls']]])('prints text by default for %j', (argv) => {
-  expect(parseCommand(argv)).toMatchObject({ json: false });
-});
+it.each([[['pane', 'read', 'pane-1']], [['pane', 'send', 'ls']]])(
+  'prints text by default for %j',
+  (argv) => {
+    expect(parseCommand(argv)).toMatchObject({ json: false });
+  },
+);
