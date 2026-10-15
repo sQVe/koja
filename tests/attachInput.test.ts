@@ -669,11 +669,35 @@ it('sends a click only to the pane under the pointer, at its own coordinates', a
   });
 
   // The second pane's first cell is outer column 53, inside a one-cell frame.
+  type(sgrClick(54, 4));
+
+  await until(() => receivedBy(2).endsWith('m'));
+  expect(receivedBy(1)).toBe('');
+  expect(receivedBy(2)).toBe('\x1b[<0;2;3M\x1b[<0;2;3m');
+});
+
+it('focuses an unfocused pane that reports the mouse and sends it the click', async () => {
+  const { type, receivedBy, statusBar, until } = await setupAttach(
+    ModeFlag.normalMouse | ModeFlag.sgrMouse,
+    { secondPane: true },
+  );
+
   type(sgrClick(54, 4) + 'x');
 
-  await until(() => receivedBy(1).endsWith('x'));
-  expect(receivedBy(1)).toBe('x');
-  expect(receivedBy(2)).toBe('\x1b[<0;2;3M\x1b[<0;2;3m');
+  await until(() => receivedBy(2).endsWith('x'));
+  expect(receivedBy(2)).toBe('\x1b[<0;2;3M\x1b[<0;2;3mx');
+  expect(receivedBy(1)).toBe('');
+  expect(statusBar()).toBe('INSERT [1]');
+});
+
+it('focuses a pane without a mouse mode, sends it nothing, and sends later keys to it', async () => {
+  const { type, receivedBy, until } = await setupAttach(0, { secondPane: true });
+
+  type(sgrClick(54, 4) + 'x');
+
+  await until(() => receivedBy(2).endsWith('x'));
+  expect(receivedBy(2)).toBe('x');
+  expect(receivedBy(1)).toBe('');
 });
 
 it('turns the outer mouse modes on at attach and off after detach', async () => {

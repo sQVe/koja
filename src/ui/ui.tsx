@@ -12,7 +12,7 @@ import { createInputRouter } from './input.ts';
 import type { PaneAction } from './input.ts';
 import { takeStdin } from './inputStdin.ts';
 import { mountPanes } from './paneLayer.ts';
-import { placementOf, targetAt, targetNear } from './screenTargets.ts';
+import { placementOf, tabAt, targetAt, targetNear, workspaceAt } from './screenTargets.ts';
 import { StatusBar } from './statusBar.tsx';
 import { createTerminalKeyboard } from './terminalKeyboard.ts';
 import { createTerminalMouse } from './terminalMouse.ts';
@@ -145,6 +145,21 @@ const routeInput = (session: AttachSession, renderer: CliRenderer) =>
 
       return pane === undefined ? targetAt(placement, x, y) : targetNear(placement, pane, x, y);
     },
+    focusedPane: () => viewedPane(session.getState().snapshot)?.id,
+    chromeAt: (x, y) => {
+      const { snapshot, inputMode } = session.getState();
+      const terminal = { columns: renderer.terminalWidth, rows: renderer.terminalHeight };
+      const workspaceId = workspaceAt(snapshot, terminal, { x, y });
+
+      if (workspaceId !== undefined) {
+        return { kind: 'workspace', workspaceId };
+      }
+
+      const number = tabAt(snapshot, inputMode, terminal, { x, y });
+
+      return number === undefined ? undefined : { kind: 'tab', number };
+    },
+    focusPane: (pane) => session.focusPane(pane),
     paneModes: (pane) => session.rowCache(pane)?.modes() ?? 0,
     sendToPane: (pane, bytes) => {
       session.sendInput(pane, bytes);

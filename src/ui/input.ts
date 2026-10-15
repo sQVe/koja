@@ -27,6 +27,10 @@ interface TokenRouterHost {
   send: (bytes: Uint8Array) => void;
   // The pane cell under an outer cell, or the cell of the given pane nearest to it.
   mouseTarget: (x: number, y: number, pane?: PaneId) => PaneTarget | undefined;
+  focusedPane: () => PaneId | undefined;
+  // The workspace or tab whose label is drawn under an outer cell.
+  chromeAt: (x: number, y: number) => ChromeTarget | undefined;
+  focusPane: (pane: PaneId) => Promise<void>;
   paneModes: (pane: PaneId) => number;
   sendToPane: (pane: PaneId, bytes: Uint8Array) => void;
   detach: () => void;
@@ -39,6 +43,10 @@ interface TokenRouterHost {
   // The promise settles once the action's effect on the state has arrived.
   paneAction: (action: PaneAction) => Promise<void>;
 }
+
+type ChromeTarget =
+  | { kind: 'workspace'; workspaceId: WorkspaceId }
+  | { kind: 'tab'; number: number };
 
 type WorkspaceKey = 'next' | 'previous' | 'create' | 'close';
 
@@ -238,10 +246,15 @@ export const createInputRouter = (host: TokenRouterHost): ((token: RoutedToken) 
 
   const workspacePending = (): boolean => focusRequests > 0 || awaitingResult;
 
+  // Set by a workspace click. Every later token waits for the answer, so it reaches the new pane.
+  let clickFocusing = false;
+
   const notifyWorkspaceWaiters = (): void => {
     if (workspacePending()) {
       return;
     }
+
+    clickFocusing = false;
 
     const waiters = workspaceWaiters;
 
@@ -282,6 +295,12 @@ export const createInputRouter = (host: TokenRouterHost): ((token: RoutedToken) 
     return neighborCommand(current.ids, focused, key === 'next' ? 1 : -1);
   };
 
+  const focusWorkspace = (workspaceId: WorkspaceId): void => {
+    pendingFocus = workspaceId;
+    focusRequests += 1;
+    host.command({ action: 'focus', workspaceId }, settleFocus);
+  };
+
   const runWorkspaceKey = (key: WorkspaceKey): void => {
     const command = workspaceCommandOf(key);
 
@@ -290,9 +309,7 @@ export const createInputRouter = (host: TokenRouterHost): ((token: RoutedToken) 
     }
 
     if (command.action === 'focus') {
-      pendingFocus = command.workspaceId;
-      focusRequests += 1;
-      host.command(command, settleFocus);
+      focusWorkspace(command.workspaceId);
 
       return;
     }
@@ -340,19 +357,62 @@ export const createInputRouter = (host: TokenRouterHost): ((token: RoutedToken) 
       : host.mouseTarget(event.x, event.y, captured.pane);
   };
 
-  const routeMouse = (raw: string): void => {
+  const forwardMouse = (event: MouseEvent, target: PaneTarget): void => {
+    const bytes = encodeMouse(event, host.paneModes(target.paneId), target.column, target.row);
+
+    if (bytes.length > 0) {
+      host.sendToPane(target.paneId, bytes);
+    }
+  };
+
+  const focusChromeAt = (x: number, y: number): void => {
+    const chrome = host.chromeAt(x, y);
+
+    if (chrome === undefined) {
+      return;
+    }
+
+    if (chrome.kind === 'tab') {
+      host.tab({ kind: 'number', number: chrome.number });
+
+      return;
+    }
+
+    const current = host.workspaces();
+    const shown = pendingFocus ?? current.focused;
+
+    if (chrome.workspaceId !== shown) {
+      clickFocusing = true;
+      focusWorkspace(chrome.workspaceId);
+    }
+  };
+
+  // Whether the event is a press that starts a gesture.
+  const beginPress = (event: MouseEvent): boolean => {
+    if (captured !== undefined || event.kind !== 'press') {
+      return false;
+    }
+
+    captured = { button: event.button, pane: host.mouseTarget(event.x, event.y)?.paneId };
+
+    return true;
+  };
+
+  const routeMouse = (raw: string): Promise<void> | undefined => {
     const event = parseMouse(raw);
 
     if (event === undefined) {
-      return;
+      return undefined;
     }
 
     if (captured !== undefined && isButtonGesture(event) && event.button !== captured.button) {
-      return;
+      return undefined;
     }
 
-    if (captured === undefined && event.kind === 'press') {
-      captured = { button: event.button, pane: host.mouseTarget(event.x, event.y)?.paneId };
+    const startsLeftPress = beginPress(event) && event.button === 0;
+
+    if (startsLeftPress) {
+      focusChromeAt(event.x, event.y);
     }
 
     const target = mouseTargetOf(event);
@@ -362,22 +422,23 @@ export const createInputRouter = (host: TokenRouterHost): ((token: RoutedToken) 
     }
 
     if (target === undefined) {
-      return;
+      return undefined;
     }
 
-    const bytes = encodeMouse(event, host.paneModes(target.paneId), target.column, target.row);
+    forwardMouse(event, target);
 
-    if (bytes.length > 0) {
-      host.sendToPane(target.paneId, bytes);
-    }
+    const unfocused = target.paneId !== host.focusedPane();
+
+    return startsLeftPress && unfocused ? host.focusPane(target.paneId) : undefined;
   };
 
   const route = (token: RoutedToken): Promise<void> | undefined => {
     if (token.kind === 'mouse') {
-      routeMouse(token.raw);
+      const settled = routeMouse(token.raw);
+
       escapeInPane = false;
 
-      return undefined;
+      return settled;
     }
 
     if (token.kind === 'paste') {
@@ -422,6 +483,10 @@ export const createInputRouter = (host: TokenRouterHost): ((token: RoutedToken) 
   // Whether the token acts on the pane or tab the snapshot shows. Workspace keys do not: they
   // chain through pendingFocus.
   const readsSnapshot = (token: RoutedToken): boolean => {
+    if (token.kind === 'mouse') {
+      return true;
+    }
+
     if (token.kind !== 'key') {
       return false;
     }
@@ -434,7 +499,11 @@ export const createInputRouter = (host: TokenRouterHost): ((token: RoutedToken) 
   const waitsForWorkspace = (): boolean => {
     const next = queue[0];
 
-    return next !== undefined && workspacePending() && readsSnapshot(next);
+    if (next === undefined || !workspacePending()) {
+      return false;
+    }
+
+    return clickFocusing || readsSnapshot(next);
   };
 
   const mustWait = (): boolean => host.tabPending() || waitsForWorkspace();

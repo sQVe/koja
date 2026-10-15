@@ -38,7 +38,8 @@ export interface PaneRemoval {
 }
 
 const detachedSize: TerminalSize = { columns: 80, rows: 24 };
-const statusBarRows = 1;
+
+export const statusBarRows = 1;
 
 export const sideListColumns = 20;
 

@@ -2,7 +2,16 @@ import { expect, it } from 'bun:test';
 
 import type { StoreSnapshot } from '../client/client.ts';
 import { clientId, paneId, tabId, workspaceId } from '../ids.ts';
-import { placementOf, targetAt, targetNear } from './screenTargets.ts';
+import {
+  placementOf,
+  statusBarLine,
+  tabAt,
+  tabEntry,
+  tabLabelsOf,
+  targetAt,
+  targetNear,
+  workspaceAt,
+} from './screenTargets.ts';
 import type { Placement } from './screenTargets.ts';
 
 const area = (x: number, y: number, columns: number, rows: number) => ({ x, y, columns, rows });
@@ -83,4 +92,115 @@ it('hits only the zoomed pane, over the whole pane area', () => {
   expect(targetAt(zoomed, 20, 0)).toEqual({ paneId: paneId(2), column: 0, row: 0 });
   expect(targetAt(zoomed, 79, 22)).toEqual({ paneId: paneId(2), column: 59, row: 22 });
   expect(targetAt(zoomed, 30, 5)?.paneId).toBe(paneId(2));
+});
+
+const listSnapshot = (workspaceCount: number, focused: number, tabCount: number) =>
+  ({
+    revision: 1,
+    workspaces: Array.from({ length: workspaceCount }, (_, index) => ({
+      id: workspaceId(index + 1),
+      root: '/work',
+      label: `w${index + 1}`,
+      tabIds: Array.from({ length: tabCount }, (_unused, tab) => tabId(tab + 1)),
+    })),
+    tabs: [],
+    panes: [],
+    defaultView: {
+      focusedWorkspaceId: workspaceId(focused),
+      activeTabs: [{ workspaceId: workspaceId(focused), tabId: tabId(2) }],
+    },
+    attachedClientId: clientId(1),
+    foregroundClientId: undefined,
+    clients: [],
+  }) as unknown as StoreSnapshot;
+
+const terminal = { columns: 80, rows: 6 };
+
+it('hits the workspace in a side list row', () => {
+  const snapshot = listSnapshot(3, 1, 1);
+
+  expect(workspaceAt(snapshot, terminal, { x: 0, y: 0 })).toBe(workspaceId(1));
+  expect(workspaceAt(snapshot, terminal, { x: 19, y: 2 })).toBe(workspaceId(3));
+});
+
+it('hits nothing beside the rows, the list, or the status bar', () => {
+  const snapshot = listSnapshot(3, 1, 1);
+
+  expect(workspaceAt(snapshot, terminal, { x: 0, y: 3 })).toBeUndefined();
+  expect(workspaceAt(snapshot, terminal, { x: 20, y: 0 })).toBeUndefined();
+  expect(workspaceAt(snapshot, terminal, { x: 0, y: 5 })).toBeUndefined();
+
+  expect(workspaceAt(listSnapshot(3, 1, 1), { columns: 40, rows: 6 }, { x: 0, y: 0 })).toBe(
+    undefined,
+  );
+});
+
+it('hits the drawn workspace when the list is scrolled to keep the focus in view', () => {
+  const snapshot = listSnapshot(8, 8, 1);
+
+  expect(workspaceAt(snapshot, terminal, { x: 3, y: 0 })).toBe(workspaceId(4));
+  expect(workspaceAt(snapshot, terminal, { x: 3, y: 4 })).toBe(workspaceId(8));
+});
+
+it('hits the tab whose status bar label is under the cell', () => {
+  const snapshot = listSnapshot(1, 1, 3);
+
+  // INSERT [2] 3 reads: "INSERT 1 [2] 3" with the labels at columns 7, 9, and 13.
+  expect(statusBarLine('insert', tabLabelsOf(snapshot, 'insert'))).toBe('INSERT 1 [2] 3');
+  expect(tabAt(snapshot, 'insert', terminal, { x: 7, y: 5 })).toBe(1);
+  expect(tabAt(snapshot, 'insert', terminal, { x: 10, y: 5 })).toBe(2);
+  expect(tabAt(snapshot, 'insert', terminal, { x: 13, y: 5 })).toBe(3);
+});
+
+it('hits a named tab across its whole drawn label', () => {
+  const snapshot = {
+    ...listSnapshot(1, 1, 3),
+    tabs: [{ id: tabId(1), label: 'build' }],
+  } as unknown as StoreSnapshot;
+
+  expect(statusBarLine('insert', tabLabelsOf(snapshot, 'insert'))).toBe('INSERT 1:build [2] 3');
+  expect(tabAt(snapshot, 'insert', terminal, { x: 13, y: 5 })).toBe(1);
+  expect(tabAt(snapshot, 'insert', terminal, { x: 15, y: 5 })).toBe(2);
+  expect(tabAt(snapshot, 'insert', terminal, { x: 19, y: 5 })).toBe(3);
+});
+
+it('hits no tab on the mode name, a gap, past the last label, or another row', () => {
+  const snapshot = listSnapshot(1, 1, 3);
+
+  expect(tabAt(snapshot, 'insert', terminal, { x: 2, y: 5 })).toBeUndefined();
+  expect(tabAt(snapshot, 'insert', terminal, { x: 8, y: 5 })).toBeUndefined();
+  expect(tabAt(snapshot, 'insert', terminal, { x: 14, y: 5 })).toBeUndefined();
+  expect(tabAt(snapshot, 'insert', terminal, { x: 7, y: 4 })).toBeUndefined();
+});
+
+it('hits chrome by the live terminal size, not the size the server last heard', () => {
+  const snapshot = {
+    ...listSnapshot(8, 8, 3),
+    clients: [{ id: clientId(1), size: { columns: 80, rows: 6 } }],
+  } as unknown as StoreSnapshot;
+
+  const live = { columns: 40, rows: 10 };
+
+  expect(workspaceAt(snapshot, live, { x: 0, y: 0 })).toBeUndefined();
+  expect(tabAt(snapshot, 'insert', live, { x: 7, y: 9 })).toBe(1);
+  expect(tabAt(snapshot, 'insert', live, { x: 7, y: 5 })).toBeUndefined();
+});
+
+it('hits the side list rows of a live terminal taller than the server size', () => {
+  const snapshot = {
+    ...listSnapshot(8, 8, 1),
+    clients: [{ id: clientId(1), size: { columns: 80, rows: 6 } }],
+  } as unknown as StoreSnapshot;
+
+  expect(workspaceAt(snapshot, { columns: 80, rows: 10 }, { x: 3, y: 0 })).toBe(workspaceId(1));
+});
+
+it('shows a labeled tab as number and label, in brackets when active', () => {
+  expect(tabEntry(2, 'build', true)).toBe('[2:build]');
+  expect(tabEntry(3, 'logs', false)).toBe('3:logs');
+});
+
+it('shows an unlabeled tab as its number only', () => {
+  expect(tabEntry(1, undefined, true)).toBe('[1]');
+  expect(tabEntry(4, undefined, false)).toBe('4');
 });

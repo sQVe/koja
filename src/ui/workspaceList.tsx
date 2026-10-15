@@ -4,16 +4,8 @@ import type { ReactNode } from 'react';
 
 import { shownView } from '../client/client.ts';
 import type { AttachSession } from '../client/client.ts';
-import { sideListWidth } from '../layout.ts';
-
-const statusBarRows = 1;
-
-// Shows the entries that fit, scrolled only as far as needed to keep the focused one in view.
-const visibleStart = (count: number, focusedIndex: number, rows: number): number => {
-  const lastStart = Math.max(0, count - rows);
-
-  return Math.min(lastStart, Math.max(0, focusedIndex - rows + 1));
-};
+import { sideListWidth, statusBarRows } from '../layout.ts';
+import { visibleStart } from './screenTargets.ts';
 
 export const SideList = ({ session }: { session: AttachSession }): ReactNode => {
   const { snapshot } = useSyncExternalStore(session.subscribe, session.getState);
