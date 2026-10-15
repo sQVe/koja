@@ -159,6 +159,11 @@ const routeNormalKey = (event: KeyEvent, modes: number): KeyRoute => {
 export const routeKey = (raw: string, mode: InputMode, modes: number): KeyRoute => {
   const event = parseKey(raw);
 
+  // Holding Ctrl+B repeats it. Only a new press may send a literal Ctrl+B or leave normal mode.
+  if (event.kind === 'repeat' && isPrefix(event)) {
+    return { bytes: nothing, mode, detach: false };
+  }
+
   if (mode === 'normal') {
     return routeNormalKey(event, modes);
   }

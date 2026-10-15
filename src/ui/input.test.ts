@@ -746,6 +746,20 @@ it('sends a literal kitty Ctrl+B in the pane encoding after Ctrl+B Ctrl+B', () =
   expect(second).toEqual({ text: '\x1b[98;5u', mode: 'insert' });
 });
 
+it('keeps normal mode and sends nothing while Ctrl+B is held and released', () => {
+  for (const flags of [0, 3, 31]) {
+    const { input, sent, mode } = router('insert', withKittyFlags(flags));
+
+    input({ kind: 'key', raw: '\x1b[98;5u', escapeSent: false });
+    input({ kind: 'key', raw: '\x1b[98;5:2u', escapeSent: false });
+    input({ kind: 'key', raw: '\x1b[98;5:2u', escapeSent: false });
+    input({ kind: 'key', raw: '\x1b[98;5:3u', escapeSent: false });
+
+    expect(mode()).toBe('normal');
+    expect(sent).toEqual([]);
+  }
+});
+
 it('does not send the release of a key that Phi took to the pane', () => {
   const { input, sent, mode } = router('normal', withKittyFlags(31));
 
