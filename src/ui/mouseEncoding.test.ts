@@ -20,6 +20,9 @@ const encode = (raw: string, modes: number, column = 4, row = 2): string =>
   text(encodeMouse(parsed(raw), modes, column, row));
 
 const sgr = ModeFlag.normalMouse | ModeFlag.sgrMouse;
+const x10Sgr = ModeFlag.x10Mouse | ModeFlag.sgrMouse;
+const x10Normal = ModeFlag.x10Mouse | ModeFlag.normalMouse | ModeFlag.sgrMouse;
+const x10Button = ModeFlag.x10Mouse | ModeFlag.buttonMouse | ModeFlag.sgrMouse;
 
 it('encodes a left press at pane cell (4, 2) in SGR and legacy form', () => {
   expect(encode('\x1b[<0;10;10M', sgr)).toBe('\x1b[<0;5;3M');
@@ -102,4 +105,32 @@ it('parses the button, modifiers, and 0-based cell of a report', () => {
 it('rejects text that is not an SGR mouse report', () => {
   expect(parseMouse('\x1b[A')).toBeUndefined();
   expect(parseMouse('\x1b[<0;0;1M')).toBeUndefined();
+});
+
+it('encodes only left, middle, and right presses under mode 9', () => {
+  expect(encode('\x1b[<0;10;10M', ModeFlag.x10Mouse)).toBe('\x1b[M %#');
+  expect(encode('\x1b[<1;10;10M', ModeFlag.x10Mouse)).toBe('\x1b[M!%#');
+  expect(encode('\x1b[<2;10;10M', x10Sgr)).toBe('\x1b[<2;5;3M');
+  expect(encode('\x1b[<0;10;10m', ModeFlag.x10Mouse)).toBe('');
+  expect(encode('\x1b[<0;10;10m', x10Sgr)).toBe('');
+  expect(encode('\x1b[<32;10;10M', ModeFlag.x10Mouse)).toBe('');
+  expect(encode('\x1b[<35;10;10M', ModeFlag.x10Mouse)).toBe('');
+  expect(encode('\x1b[<64;10;10M', ModeFlag.x10Mouse)).toBe('');
+  expect(encode('\x1b[<65;10;10M', x10Sgr)).toBe('');
+});
+
+it('drops modifier bits under mode 9', () => {
+  const shiftAltCtrl = '\x1b[<28;10;10M';
+
+  expect(encode(shiftAltCtrl, ModeFlag.x10Mouse)).toBe('\x1b[M %#');
+  expect(encode(shiftAltCtrl, x10Sgr)).toBe('\x1b[<0;5;3M');
+  expect(encode(shiftAltCtrl, ModeFlag.normalMouse | ModeFlag.sgrMouse)).toBe('\x1b[<28;5;3M');
+});
+
+it('lets modes 1000, 1002, and 1003 win over mode 9', () => {
+  const release = '\x1b[<0;10;10m';
+
+  expect(encode(release, x10Normal)).toBe('\x1b[<0;5;3m');
+  expect(encode('\x1b[<64;1;1M', x10Normal)).toBe('\x1b[<64;5;3M');
+  expect(encode('\x1b[<32;1;1M', x10Button)).toBe('\x1b[<32;5;3M');
 });

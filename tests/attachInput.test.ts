@@ -724,3 +724,13 @@ it('turns the outer mouse modes off after a key-driven detach', async () => {
   await until(() => outputText().includes(off));
   expect(outputText().indexOf(off)).toBeGreaterThan(outputText().indexOf(on));
 });
+
+it('sends only the press of a click to a pane with mouse mode 9', async () => {
+  const { type, receivedText, until } = await setupAttach(ModeFlag.x10Mouse | ModeFlag.sgrMouse);
+
+  type(sgrClick(25, 5));
+  type(sgrClick(26, 5));
+
+  await until(() => receivedText().includes('\x1b[<0;6;5M'));
+  expect(receivedText()).toBe('\x1b[<0;5;5M\x1b[<0;6;5M');
+});

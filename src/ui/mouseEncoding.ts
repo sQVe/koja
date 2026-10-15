@@ -74,10 +74,21 @@ export const parseMouse = (raw: string): MouseEvent | undefined => {
   };
 };
 
-const wantsEvent = (kind: MouseKind, modes: number): boolean => {
-  const anyMode = ModeFlag.normalMouse | ModeFlag.buttonMouse | ModeFlag.anyMouse;
+const trackingModes = ModeFlag.normalMouse | ModeFlag.buttonMouse | ModeFlag.anyMouse;
 
-  if ((modes & anyMode) === 0) {
+// Mode 9 alone reports only left, middle, and right presses, without modifiers. Modes 1000,
+// 1002, and 1003 take over when set with it.
+const isX10Only = (modes: number): boolean =>
+  (modes & ModeFlag.x10Mouse) !== 0 && (modes & trackingModes) === 0;
+
+const wantsEvent = (event: MouseEvent, modes: number): boolean => {
+  const { kind } = event;
+
+  if (isX10Only(modes)) {
+    return kind === 'press' && event.button <= 2;
+  }
+
+  if ((modes & trackingModes) === 0) {
     return false;
   }
 
@@ -96,8 +107,13 @@ const baseCode = (event: MouseEvent): number => {
   return event.kind === 'motion' ? motionBit + noButton : event.button;
 };
 
-const buildCode = (event: MouseEvent, sgr: boolean): number => {
+const buildCode = (event: MouseEvent, sgr: boolean, modifiers: boolean): number => {
   const base = event.kind === 'release' && !sgr ? noButton : baseCode(event);
+
+  if (!modifiers) {
+    return base;
+  }
+
   const shift = event.shift ? shiftBit : 0;
   const alt = event.alt ? altBit : 0;
   const ctrl = event.ctrl ? ctrlBit : 0;
@@ -113,12 +129,12 @@ export const encodeMouse = (
   column: number,
   row: number,
 ): Uint8Array => {
-  if (!wantsEvent(event.kind, modes)) {
+  if (!wantsEvent(event, modes)) {
     return new Uint8Array();
   }
 
   const sgr = (modes & ModeFlag.sgrMouse) !== 0;
-  const code = buildCode(event, sgr);
+  const code = buildCode(event, sgr, !isX10Only(modes));
 
   if (sgr) {
     const final = event.kind === 'release' ? 'm' : 'M';
