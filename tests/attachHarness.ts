@@ -153,6 +153,12 @@ export const setupAttach = async (
       },
     });
 
+  const focusPane = (pane: number) => {
+    revision += 1;
+    focused = pane;
+    connection?.write(snapshotFrame());
+  };
+
   const listener = Bun.listen({
     unix: socketPath,
     socket: {
@@ -181,6 +187,15 @@ export const setupAttach = async (
           if (parsed.ok && parsed.message.type === 'theme') {
             themeReported = true;
             changed();
+          }
+
+          if (parsed.ok && parsed.message.type === 'paneFocus') {
+            focusPane(Number(parsed.message.paneId.slice('pane-'.length)));
+            socket.write(control({ type: 'paneDone', paneId: parsed.message.paneId }));
+          }
+
+          if (parsed.ok && parsed.message.type === 'detach') {
+            socket.write(control({ type: 'detached' }));
           }
 
           if (parsed.ok && parsed.message.type === 'hello') {
@@ -274,12 +289,6 @@ export const setupAttach = async (
   const setModes = (pane: number, next: number) => {
     sequence += 1;
     connection?.write(paneRows(pane, sequence, next));
-  };
-
-  const focusPane = (pane: number) => {
-    revision += 1;
-    focused = pane;
-    connection?.write(snapshotFrame());
   };
 
   const receivedBy = (pane: number) =>

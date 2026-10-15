@@ -15,8 +15,8 @@ interface OpenTuiInternals {
 
 const releaseCheckMs = 25;
 
-// Replaces OpenTUI's stdin listener, hands keys and pastes to onInput, and returns a function that
-// puts OpenTUI's listener back.
+// Replaces OpenTUI's stdin listener, hands keys, mouse reports, and pastes to onInput, and returns
+// a function that puts OpenTUI's listener back.
 export const takeStdin = (
   renderer: CliRenderer,
   onInput: (token: Exclude<InputToken, { kind: 'response' }>) => void,

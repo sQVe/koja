@@ -1,12 +1,18 @@
 import { expect, it } from 'bun:test';
 
-import type { InputMode, WorkspaceCommand } from '../client/client.ts';
-import { workspaceId } from '../ids.ts';
-import type { WorkspaceId } from '../ids.ts';
+import type { InputMode, TabRoute, WorkspaceCommand } from '../client/client.ts';
+import { paneId, workspaceId } from '../ids.ts';
+import type { PaneId, WorkspaceId } from '../ids.ts';
 import { ModeFlag } from '../rows/rows.ts';
 import { createInputRouter, routeKey, routePaste } from './input.ts';
 import type { PaneAction } from './input.ts';
 import { createInputTokenizer } from './inputTokens.ts';
+
+interface GonePanes {
+  unplaced: Set<PaneId>;
+  missing: Set<PaneId>;
+  sizes: Map<PaneId, { columns: number; rows: number }>;
+}
 
 const decoder = new TextDecoder();
 const encoder = new TextEncoder();
@@ -134,6 +140,13 @@ const router = (
     tab: () => undefined,
     tabPending: () => false,
     afterTabAnswer: () => undefined,
+    mouseTarget: () => undefined,
+    focusedPane: () => undefined,
+    chromeAt: () => undefined,
+    focusPane: () => Promise.resolve(),
+    paneModes: () => 0,
+    paneSize: () => ({ columns: 80, rows: 24 }),
+    sendToPane: () => undefined,
     detach: () => {
       detaches += 1;
     },
@@ -336,6 +349,13 @@ const chunkRouter = () => {
         sent.push(decoder.decode(bytes));
       }
     },
+    mouseTarget: () => undefined,
+    focusedPane: () => undefined,
+    chromeAt: () => undefined,
+    focusPane: () => Promise.resolve(),
+    paneModes: () => 0,
+    paneSize: () => ({ columns: 80, rows: 24 }),
+    sendToPane: () => undefined,
     detach: () => undefined,
     tab: () => undefined,
     tabPending: () => false,
@@ -522,6 +542,13 @@ it('asks the host for a tab and keeps normal mode', () => {
     setMode: (mode) => modes.push(mode),
     modes: () => 0,
     send: () => undefined,
+    mouseTarget: () => undefined,
+    focusedPane: () => undefined,
+    chromeAt: () => undefined,
+    focusPane: () => Promise.resolve(),
+    paneModes: () => 0,
+    paneSize: () => ({ columns: 80, rows: 24 }),
+    sendToPane: () => undefined,
     detach: () => undefined,
     tab: (tab) => routes.push(tab),
     tabPending: () => false,
@@ -556,6 +583,13 @@ it('holds input while a tab request is unanswered and routes it in order after t
         events.push(`send ${decoder.decode(bytes)}`);
       }
     },
+    mouseTarget: () => undefined,
+    focusedPane: () => undefined,
+    chromeAt: () => undefined,
+    focusPane: () => Promise.resolve(),
+    paneModes: () => 0,
+    paneSize: () => ({ columns: 80, rows: 24 }),
+    sendToPane: () => undefined,
     detach: () => undefined,
     tab: () => {
       pending = true;
@@ -681,6 +715,13 @@ it('sends held tokens when the action fails to settle normally', async () => {
         held.push(decoder.decode(bytes));
       }
     },
+    mouseTarget: () => undefined,
+    focusedPane: () => undefined,
+    chromeAt: () => undefined,
+    focusPane: () => Promise.resolve(),
+    paneModes: () => 0,
+    paneSize: () => ({ columns: 80, rows: 24 }),
+    sendToPane: () => undefined,
     detach: () => undefined,
     tab: () => undefined,
     tabPending: () => false,
@@ -818,4 +859,377 @@ it('ignores Alt keys in normal mode, in legacy and kitty form', () => {
 
 it('still sends an Alt key to the pane in insert mode', () => {
   expect(key('\x1bx', 'insert')).toEqual({ text: '\x1bx', mode: 'insert' });
+});
+
+const goneNone = (): GonePanes => ({
+  unplaced: new Set(),
+  missing: new Set(),
+  sizes: new Map(),
+});
+
+const mouseRouter = (tabPending: () => boolean = () => false, gone: GonePanes = goneNone()) => {
+  const sent: { pane: PaneId; text: string }[] = [];
+  let answered: (() => void) | undefined;
+  const focused: PaneId[] = [];
+  const keys: string[] = [];
+  const focusGate: { current: Promise<undefined> } = { current: Promise.resolve(undefined) };
+  const tabs: TabRoute[] = [];
+  const commands: WorkspaceCommand[] = [];
+  let mode: InputMode = 'insert';
+
+  const input = createInputRouter({
+    mode: () => mode,
+    setMode: (next) => {
+      mode = next;
+    },
+    modes: () => 0,
+    send: (bytes) => {
+      keys.push(decoder.decode(bytes));
+    },
+    // Pane 1 holds columns 0 to 9 and pane 2 holds columns 10 to 19. A pointer outside hits nothing.
+    mouseTarget: (x, y, pane) => {
+      if (pane !== undefined) {
+        if (gone.unplaced.has(pane)) {
+          return undefined;
+        }
+
+        return {
+          paneId: pane,
+          column: Math.min(Math.max(x - (pane === paneId(2) ? 10 : 0), 0), 9),
+          row: y,
+        };
+      }
+
+      if (x < 0 || x > 19) {
+        return undefined;
+      }
+
+      return { paneId: paneId(x < 10 ? 1 : 2), column: x % 10, row: y };
+    },
+    focusedPane: () => paneId(1),
+    // Side list row at columns 50 to 59 and a tab label at columns 60 to 69.
+    chromeAt: (x) => {
+      if (x >= 60 && x < 70) {
+        return { kind: 'tab', number: 2 };
+      }
+
+      return x >= 50 && x < 60 ? { kind: 'workspace', workspaceId: workspaceId(7) } : undefined;
+    },
+    focusPane: (pane) => {
+      focused.push(pane);
+
+      return focusGate.current;
+    },
+    paneModes: (pane) => (gone.missing.has(pane) ? 0 : ModeFlag.buttonMouse | ModeFlag.sgrMouse),
+    paneSize: (pane) =>
+      gone.missing.has(pane) ? undefined : (gone.sizes.get(pane) ?? { columns: 10, rows: 100 }),
+    sendToPane: (pane, bytes) => {
+      sent.push({ pane, text: decoder.decode(bytes) });
+    },
+    tab: (route) => {
+      tabs.push(route);
+    },
+    tabPending,
+    afterTabAnswer: (callback) => {
+      answered = callback;
+    },
+    detach: () => undefined,
+    workspaces: () => ({ ids: [], focused: undefined }),
+    startDirectory: '/work/start',
+    command: (command) => {
+      commands.push(command);
+    },
+    paneAction: () => Promise.resolve(),
+  });
+
+  const mouse = (code: number, column: number, row: number, final: 'M' | 'm') => {
+    input({ kind: 'mouse', raw: `\x1b[<${code};${column};${row}${final}`, escapeSent: false });
+  };
+
+  return {
+    sent,
+    keys,
+    focusGate,
+    focused,
+    tabs,
+    commands,
+    mouse,
+    mode: () => mode,
+    input,
+    answer: () => answered?.(),
+  };
+};
+
+it('sends a drag and the release to the pane where the press started', () => {
+  const { sent, mouse } = mouseRouter();
+
+  mouse(0, 6, 3, 'M');
+  mouse(32, 16, 3, 'M');
+  mouse(0, 16, 3, 'm');
+
+  expect(sent).toEqual([
+    { pane: paneId(1), text: '\x1b[<0;6;3M' },
+    { pane: paneId(1), text: '\x1b[<32;10;3M' },
+    { pane: paneId(1), text: '\x1b[<0;10;3m' },
+  ]);
+});
+
+it('sends a click to the pane under the pointer after a release', () => {
+  const { sent, mouse } = mouseRouter();
+
+  mouse(0, 6, 3, 'M');
+  mouse(0, 6, 3, 'm');
+  mouse(0, 16, 3, 'M');
+
+  expect(sent.map((entry) => entry.pane)).toEqual([paneId(1), paneId(1), paneId(2)]);
+});
+
+it('sends nothing for a press outside every pane or the drag that follows it', () => {
+  const { sent, mouse } = mouseRouter();
+
+  mouse(0, 40, 3, 'M');
+  mouse(32, 6, 3, 'M');
+  mouse(0, 6, 3, 'm');
+
+  expect(sent).toEqual([]);
+});
+
+it('keeps the input mode and the key order when a mouse report arrives between keys', () => {
+  const { sent, mouse, mode, input } = mouseRouter();
+
+  input({ kind: 'key', raw: '\x02', escapeSent: false });
+  mouse(0, 6, 3, 'M');
+
+  expect(mode()).toBe('normal');
+  expect(sent.map((entry) => entry.pane)).toEqual([paneId(1)]);
+});
+
+it('keeps the first press capture while another button presses and releases elsewhere', () => {
+  const { sent, mouse } = mouseRouter();
+
+  mouse(0, 6, 3, 'M');
+  mouse(2, 16, 3, 'M');
+  mouse(2, 16, 3, 'm');
+  mouse(0, 16, 3, 'm');
+
+  expect(sent).toEqual([
+    { pane: paneId(1), text: '\x1b[<0;6;3M' },
+    { pane: paneId(1), text: '\x1b[<0;10;3m' },
+  ]);
+});
+
+it('captures a new press after the release of the first', () => {
+  const { sent, mouse } = mouseRouter();
+
+  mouse(0, 6, 3, 'M');
+  mouse(0, 6, 3, 'm');
+  mouse(2, 16, 3, 'M');
+  mouse(2, 16, 3, 'm');
+
+  expect(sent.map((entry) => entry.pane)).toEqual([paneId(1), paneId(1), paneId(2), paneId(2)]);
+});
+
+it('sends the release to the captured pane at its last cell once the pane is not placed', () => {
+  const gone = goneNone();
+  const { sent, mouse } = mouseRouter(undefined, gone);
+
+  mouse(0, 6, 3, 'M');
+  mouse(32, 8, 4, 'M');
+  gone.unplaced.add(paneId(1));
+  mouse(32, 16, 5, 'M');
+  mouse(0, 16, 5, 'm');
+
+  expect(sent).toEqual([
+    { pane: paneId(1), text: '\x1b[<0;6;3M' },
+    { pane: paneId(1), text: '\x1b[<32;8;4M' },
+    { pane: paneId(1), text: '\x1b[<0;8;4m' },
+  ]);
+});
+
+it('sends nothing and clears the capture when the captured pane no longer exists', () => {
+  const gone = goneNone();
+  const { sent, mouse } = mouseRouter(undefined, gone);
+
+  mouse(0, 6, 3, 'M');
+  gone.unplaced.add(paneId(1));
+  gone.missing.add(paneId(1));
+  mouse(0, 6, 3, 'm');
+  mouse(0, 16, 3, 'M');
+
+  expect(sent.map((entry) => entry.pane)).toEqual([paneId(1), paneId(2)]);
+});
+
+it('keeps the release for the captured pane when a wheel turns over another pane', () => {
+  const gone = goneNone();
+  const { sent, mouse } = mouseRouter(undefined, gone);
+
+  mouse(0, 6, 3, 'M');
+  mouse(64, 16, 4, 'M');
+  gone.unplaced.add(paneId(1));
+  mouse(0, 16, 4, 'm');
+
+  expect(sent.filter((entry) => entry.text.endsWith('m'))).toEqual([
+    { pane: paneId(1), text: '\x1b[<0;6;3m' },
+  ]);
+});
+
+it('clamps the release cell to the size the hidden pane has now', () => {
+  const gone = goneNone();
+  const { sent, mouse } = mouseRouter(undefined, gone);
+
+  mouse(0, 9, 8, 'M');
+  gone.unplaced.add(paneId(1));
+  gone.sizes.set(paneId(1), { columns: 4, rows: 5 });
+  mouse(0, 16, 4, 'm');
+
+  expect(sent.at(-1)).toEqual({ pane: paneId(1), text: '\x1b[<0;4;5m' });
+});
+
+it('uses the current placement when the captured pane is placed again before the release', () => {
+  const gone = goneNone();
+  const { sent, mouse } = mouseRouter(undefined, gone);
+
+  mouse(0, 9, 8, 'M');
+  gone.unplaced.add(paneId(1));
+  mouse(32, 16, 4, 'M');
+  gone.unplaced.delete(paneId(1));
+  mouse(0, 3, 6, 'm');
+
+  expect(sent.map((entry) => entry.text)).toEqual(['\x1b[<0;9;8M', '\x1b[<0;3;6m']);
+});
+
+it('holds a mouse token behind a pending tab request until the answer arrives', () => {
+  let pending = false;
+  const { sent, mouse, answer } = mouseRouter(() => pending);
+
+  pending = true;
+  mouse(0, 6, 3, 'M');
+
+  expect(sent).toEqual([]);
+
+  pending = false;
+  answer();
+
+  expect(sent).toEqual([{ pane: paneId(1), text: '\x1b[<0;6;3M' }]);
+});
+
+const nextTick = (): Promise<void> =>
+  new Promise((resolve) => {
+    setTimeout(resolve, 0);
+  });
+
+it('focuses an unfocused pane on a left press and sends it the press', async () => {
+  const { sent, focused, mouse } = mouseRouter();
+
+  mouse(0, 16, 3, 'M');
+  mouse(32, 17, 3, 'M');
+  mouse(0, 17, 3, 'm');
+  await nextTick();
+
+  expect(focused).toEqual([paneId(2)]);
+  expect(sent.map((entry) => entry.pane)).toEqual([paneId(2), paneId(2), paneId(2)]);
+});
+
+it('does not focus the focused pane, or a pane on a right press, a drag, or a wheel', () => {
+  const { focused, mouse } = mouseRouter();
+
+  mouse(0, 6, 3, 'M');
+  mouse(0, 6, 3, 'm');
+  mouse(2, 16, 3, 'M');
+  mouse(2, 16, 3, 'm');
+  mouse(65, 16, 3, 'M');
+
+  expect(focused).toEqual([]);
+});
+
+it('focuses a workspace on a left press over it', () => {
+  const { commands, focused, mouse } = mouseRouter();
+
+  mouse(0, 56, 3, 'M');
+  mouse(0, 56, 3, 'm');
+
+  expect(commands).toEqual([{ action: 'focus', workspaceId: workspaceId(7) }]);
+  expect(focused).toEqual([]);
+});
+
+it('focuses a tab by number on a left press over its label', () => {
+  const { commands, tabs, focused, mouse } = mouseRouter();
+
+  mouse(0, 66, 3, 'M');
+  mouse(0, 66, 3, 'm');
+
+  expect(tabs).toEqual([{ kind: 'number', number: 2 }]);
+  expect(commands).toEqual([]);
+  expect(focused).toEqual([]);
+});
+
+it('ignores a right press and a drag that starts over a workspace or tab', () => {
+  const { commands, tabs, mouse } = mouseRouter();
+
+  mouse(2, 56, 3, 'M');
+  mouse(2, 56, 3, 'm');
+  mouse(32, 66, 3, 'M');
+
+  expect(commands).toEqual([]);
+  expect(tabs).toEqual([]);
+});
+
+it('holds a key typed after a focusing click until the focus settles', async () => {
+  const { keys, focusGate, mouse, input } = mouseRouter();
+  const gate = Promise.withResolvers<undefined>();
+
+  focusGate.current = gate.promise;
+  mouse(0, 16, 3, 'M');
+  input({ kind: 'key', raw: 'x', escapeSent: false });
+
+  expect(keys).toEqual([]);
+
+  gate.resolve();
+  await gate.promise;
+  await Promise.resolve();
+
+  expect(keys).toEqual(['x']);
+});
+
+it('holds a key typed after a workspace click until the focus reply arrives', () => {
+  const replies: (() => void)[] = [];
+  const keys: string[] = [];
+
+  const input = createInputRouter({
+    mode: () => 'insert',
+    setMode: () => undefined,
+    modes: () => 0,
+    send: (bytes) => {
+      keys.push(decoder.decode(bytes));
+    },
+    mouseTarget: () => undefined,
+    focusedPane: () => undefined,
+    chromeAt: () => ({ kind: 'workspace', workspaceId: workspaceId(2) }),
+    focusPane: () => Promise.resolve(),
+    paneModes: () => 0,
+    paneSize: () => ({ columns: 80, rows: 24 }),
+    sendToPane: () => undefined,
+    tab: () => undefined,
+    tabPending: () => false,
+    afterTabAnswer: () => undefined,
+    detach: () => undefined,
+    workspaces: () => ({ ids: [workspaceId(1), workspaceId(2)], focused: workspaceId(1) }),
+    startDirectory: '/work/start',
+    command: (_command, onReply) => {
+      replies.push(() => {
+        onReply('done');
+      });
+    },
+    paneAction: () => Promise.resolve(),
+  });
+
+  input({ kind: 'mouse', raw: '\x1b[<0;6;3M', escapeSent: false });
+  input({ kind: 'key', raw: 'x', escapeSent: false });
+  input({ kind: 'paste', bytes: new TextEncoder().encode('p'), escapeSent: false });
+
+  expect(keys).toEqual([]);
+
+  replies[0]?.();
+
+  expect(keys).toEqual(['x', 'p']);
 });
