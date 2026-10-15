@@ -45,7 +45,13 @@ const setup = async () => {
   };
 
   const create = async (name: string): Promise<string> => {
-    const created = await phi('workspace', 'create', await createDirectory(name), '--json');
+    const created = await phi(
+      'workspace',
+      'create',
+      await createDirectory(name),
+      '--focus',
+      '--json',
+    );
 
     expect({ exitCode: created.exitCode, stderr: created.stderr }).toEqual({
       exitCode: 0,
@@ -90,7 +96,7 @@ it(
 );
 
 it(
-  'workspace create --background keeps the earlier workspace focused',
+  'workspace create leaves the earlier workspace focused',
   async () => {
     const { directory, phi, create, list } = await setup();
 
@@ -98,7 +104,7 @@ it(
 
     await mkdir(join(directory, 'beta'));
 
-    const created = await phi('workspace', 'create', join(directory, 'beta'), '--background');
+    const created = await phi('workspace', 'create', join(directory, 'beta'));
 
     expect(created.exitCode).toBe(0);
 
@@ -106,6 +112,60 @@ it(
 
     expect(workspaces.map((workspace) => workspace.label)).toEqual(['alpha', 'beta']);
     expect(workspaces.find((workspace) => workspace.focused)?.id).toBe(first);
+  },
+  cliTestTimeoutMs,
+);
+
+it(
+  'workspace create --focus focuses the new workspace and the last of --focus and --no-focus wins',
+  async () => {
+    const { directory, phi, create, list } = await setup();
+
+    const first = await create('alpha');
+
+    await mkdir(join(directory, 'beta'));
+    await mkdir(join(directory, 'gamma'));
+
+    const focused = await phi('workspace', 'create', join(directory, 'beta'), '--focus');
+
+    expect(focused.exitCode).toBe(0);
+
+    const afterFocus = await list();
+    const beta = afterFocus.find((workspace) => workspace.label === 'beta');
+
+    expect(afterFocus.find((workspace) => workspace.focused)?.id).toBe(beta?.id);
+    expect(beta?.id).not.toBe(first);
+
+    const kept = await phi(
+      'workspace',
+      'create',
+      join(directory, 'gamma'),
+      '--focus',
+      '--no-focus',
+    );
+
+    expect(kept.exitCode).toBe(0);
+
+    const afterBoth = await list();
+
+    expect(afterBoth.map((workspace) => workspace.label)).toEqual(['alpha', 'beta', 'gamma']);
+    expect(afterBoth.find((workspace) => workspace.focused)?.id).toBe(beta?.id);
+  },
+  cliTestTimeoutMs,
+);
+
+it(
+  'workspace create refuses --background and creates no workspace',
+  async () => {
+    const { directory, phi, list } = await setup();
+
+    await mkdir(join(directory, 'beta'));
+
+    const refused = await phi('workspace', 'create', join(directory, 'beta'), '--background');
+
+    expect(refused.exitCode).not.toBe(0);
+    expect(refused.stderr).toContain('Usage');
+    expect(await list()).toEqual([]);
   },
   cliTestTimeoutMs,
 );

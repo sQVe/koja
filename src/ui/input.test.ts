@@ -273,7 +273,7 @@ it('creates a workspace at the start directory on c without a label', () => {
   presser(input)('c');
 
   expect(commands).toEqual([
-    { action: 'create', root: '/work/start', label: undefined, background: false },
+    { action: 'create', root: '/work/start', label: undefined, focus: true },
   ]);
 
   expect(sent).toEqual([]);
@@ -438,7 +438,7 @@ it('creates a workspace on c after X found nothing to close', () => {
   press('c');
 
   expect(commands).toEqual([
-    { action: 'create', root: '/work/start', label: undefined, background: false },
+    { action: 'create', root: '/work/start', label: undefined, focus: true },
   ]);
 });
 

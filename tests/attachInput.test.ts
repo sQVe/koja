@@ -85,7 +85,7 @@ const setupServer = async (terminalRows = 24, terminalColumns = 80) => {
 
     await mkdir(path);
 
-    const created = await phi('workspace', 'create', path, '--json');
+    const created = await phi('workspace', 'create', path, '--focus', '--json');
 
     expect(created.exitCode).toBe(0);
   };

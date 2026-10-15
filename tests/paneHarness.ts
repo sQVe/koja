@@ -73,7 +73,7 @@ export const setup = async (shellBody?: string): Promise<PaneSetup> => {
 
   await mkdir(workspaceRoot);
 
-  const created = await phi('workspace', 'create', workspaceRoot, '--json');
+  const created = await phi('workspace', 'create', workspaceRoot, '--focus', '--json');
 
   expect(created.exitCode).toBe(0);
   workspaceDoneSchema.parse(JSON.parse(created.stdout));

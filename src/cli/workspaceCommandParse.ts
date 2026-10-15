@@ -2,9 +2,14 @@ import type { WorkspaceId } from '../ids.ts';
 import type { CommandOptions } from './commandOptions.ts';
 import { parseWorkspaceId } from './idParse.ts';
 
+interface ParsedToken {
+  kind: string;
+  name?: string;
+}
+
 export type WorkspaceAction =
   | { action: 'list' }
-  | { action: 'create'; directory: string; label: string | undefined; background: boolean }
+  | { action: 'create'; directory: string; label: string | undefined; focus: boolean }
   | { action: 'focus'; workspaceId: WorkspaceId }
   | { action: 'rename'; workspaceId: WorkspaceId; label: string }
   | { action: 'close'; workspaceId: WorkspaceId };
@@ -16,30 +21,42 @@ export interface WorkspaceCliCommand extends CommandOptions {
 
 export interface RawWorkspaceOptions {
   label?: string | undefined;
-  background?: boolean | undefined;
+  focus?: boolean | undefined;
 }
 
 export const workspaceOptions = {
   label: { type: 'string' },
-  background: { type: 'boolean' },
+  focus: { type: 'boolean' },
+  'no-focus': { type: 'boolean' },
 } as const;
 
+const isFocusFlag = (token: ParsedToken): boolean =>
+  token.name === 'focus' || token.name === 'no-focus';
+
+export const lastFocusFlag = (tokens: ParsedToken[]): boolean | undefined => {
+  const flags = tokens.filter((token) => token.kind === 'option' && isFocusFlag(token));
+
+  const last = flags.at(-1);
+
+  return last === undefined ? undefined : last.name === 'focus';
+};
+
 export const workspaceUsage = `  phi workspace list [--socket <path>] [--json]
-  phi workspace create <dir> [--label <label>] [--background] [--socket <path>] [--json]
+  phi workspace create <dir> [--label <label>] [--focus | --no-focus] [--socket <path>] [--json]
   phi workspace focus <id> [--socket <path>] [--json]
   phi workspace rename <id> <label> [--socket <path>] [--json]
   phi workspace close <id> [--socket <path>] [--json]`;
 
 export const strayWorkspaceOptionMessage = (
   group: string | undefined,
-  { label, background }: RawWorkspaceOptions,
+  { label, focus }: RawWorkspaceOptions,
 ): string | undefined => {
   if (label !== undefined && group !== 'workspace') {
     return '--label belongs to workspace create.';
   }
 
-  return background === true && group !== 'workspace'
-    ? '--background belongs to workspace create.'
+  return focus !== undefined && group !== 'workspace'
+    ? '--focus and --no-focus belong to workspace create.'
     : undefined;
 };
 
@@ -75,7 +92,7 @@ const parseWorkspaceRename = (rest: string[]): WorkspaceAction | string => {
 const parseWorkspaceCreate = (
   rest: string[],
   label: string | undefined,
-  background: boolean,
+  focus: boolean,
 ): WorkspaceAction | string => {
   const [directory] = rest;
 
@@ -87,25 +104,25 @@ const parseWorkspaceCreate = (
     return 'The label cannot be empty.';
   }
 
-  return { action: 'create', directory, label, background };
+  return { action: 'create', directory, label, focus };
 };
 
 const parseWorkspaceAction = (
   action: string | undefined,
   rest: string[],
   label: string | undefined,
-  background: boolean,
+  focus: boolean | undefined,
 ): WorkspaceAction | string => {
   if (action === 'create') {
-    return parseWorkspaceCreate(rest, label, background);
+    return parseWorkspaceCreate(rest, label, focus === true);
   }
 
   if (label !== undefined) {
     return '--label belongs to workspace create.';
   }
 
-  if (background) {
-    return '--background belongs to workspace create.';
+  if (focus !== undefined) {
+    return '--focus and --no-focus belong to workspace create.';
   }
 
   if (action === 'list') {
@@ -122,10 +139,10 @@ const parseWorkspaceAction = (
 export const parseWorkspaceCommand = (
   action: string | undefined,
   rest: string[],
-  { label, background }: RawWorkspaceOptions,
+  { label, focus }: RawWorkspaceOptions,
   options: CommandOptions,
 ): WorkspaceCliCommand | string => {
-  const workspace = parseWorkspaceAction(action, rest, label, background === true);
+  const workspace = parseWorkspaceAction(action, rest, label, focus);
 
   return typeof workspace === 'string' ? workspace : { kind: 'workspace', workspace, ...options };
 };

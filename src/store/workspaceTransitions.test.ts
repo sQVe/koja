@@ -194,14 +194,14 @@ it('keeps the focus when an unfocused workspace closes', () => {
   expect(result.state.defaultView.focusedWorkspaceId).toBe(workspaceId(2));
 });
 
-it('keeps the earlier focus when a background workspace is created without a label', () => {
+it('keeps the earlier focus when a workspace is created without focus or a label', () => {
   const state = run([createPhi]);
 
   const result = intent(state, {
     type: 'createWorkspace',
     root: '/work/docs',
     label: undefined,
-    background: true,
+    focus: false,
   });
 
   const added = result.changes.find((change) => change.type === 'workspaceAdded');
@@ -211,12 +211,12 @@ it('keeps the earlier focus when a background workspace is created without a lab
   expect(result.state.workspaces.map((workspace) => workspace.label)).toEqual(['phi', 'docs']);
 });
 
-it('focuses a background workspace when no workspace is focused', () => {
+it('focuses a workspace created without focus when no workspace is focused', () => {
   const result = intent(createState(), {
     type: 'createWorkspace',
     root: '/work/docs',
     label: 'docs',
-    background: true,
+    focus: false,
   });
 
   expect(result.state.defaultView.focusedWorkspaceId).toBe(workspaceId(1));
@@ -227,7 +227,7 @@ it('labels a workspace with the whole root when the root has no base name', () =
     type: 'createWorkspace',
     root: '/',
     label: undefined,
-    background: false,
+    focus: true,
   });
 
   expect(result.state.workspaces.map((workspace) => workspace.label)).toEqual(['/']);
@@ -238,7 +238,7 @@ it('keeps the workspace that was focused when the pane of a new workspace fails 
     createPhi,
     createDocs,
     { type: 'focusWorkspace', workspaceId: workspaceId(1) },
-    { type: 'createWorkspace', root: '/work/api', label: 'api', background: false },
+    { type: 'createWorkspace', root: '/work/api', label: 'api', focus: true },
   ]);
 
   const result = fact(state, {

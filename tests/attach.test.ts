@@ -527,7 +527,7 @@ it('switches to the pane of the workspace that phi workspace focus names', async
   const firstWorkspace = listed[0]?.id ?? '';
 
   await mkdir(join(directory, 'second'));
-  await command('workspace', 'create', join(directory, 'second'));
+  await command('workspace', 'create', join(directory, 'second'), '--focus');
   await command('pane', 'send', 'echo second-$((2+3))\r');
   expect(await waitFor(() => screen.text().includes('second-5'))).toBe(true);
   expect(screen.text()).not.toContain('first-2');

@@ -30,7 +30,7 @@ const isNotViewChange = (change: Change): boolean =>
   change.type !== 'tabFocused' && change.type !== 'clientViewChanged';
 
 export const createWorkspace = (state: State, intent: CreateWorkspaceIntent): Outcome => {
-  const { root, label, background, clientId: source } = intent;
+  const { root, label, focus, clientId: source } = intent;
 
   if (state.stopping) {
     return refuse('serverStopping');
@@ -65,15 +65,15 @@ export const createWorkspace = (state: State, intent: CreateWorkspaceIntent): Ou
     tabIds: [tab.id],
   };
 
-  // A view with no focus takes the first workspace, background or not.
+  // A view with no focused workspace takes the new one, even when the create asks for no focus.
   const added = repairViews(state, (view) => ({
     ...withActiveTab(view, workspace.id, tab.id),
     focusedWorkspaceId: view.focusedWorkspaceId ?? workspace.id,
   }));
 
-  const focused = background
-    ? added
-    : updateViews(added, source, (view) => ({ ...view, focusedWorkspaceId: workspace.id }));
+  const focused = focus
+    ? updateViews(added, source, (view) => ({ ...view, focusedWorkspaceId: workspace.id }))
+    : added;
 
   const next: State = {
     ...focused,

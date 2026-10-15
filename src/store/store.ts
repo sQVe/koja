@@ -158,7 +158,7 @@ export type Intent =
       type: 'createWorkspace';
       root: string;
       label: string | undefined;
-      background: boolean;
+      focus: boolean;
       clientId?: ClientId;
     }
   | { type: 'focusWorkspace'; workspaceId: WorkspaceId; clientId?: ClientId }
@@ -199,7 +199,7 @@ export type Fact =
 export type DetachReason = 'requested' | 'takenOver';
 
 export type Change =
-  // Carries the default focus that results, because a background create keeps the current focus.
+  // Carries the default focus that results, because a create without focus keeps the current focus.
   | {
       type: 'workspaceAdded';
       workspace: WorkspaceRecord;

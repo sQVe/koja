@@ -119,7 +119,7 @@ const runWorkspaceCreate = async (
     action: 'create',
     root,
     label: action.label,
-    background: action.background,
+    focus: action.focus,
   };
 
   return runWorkspaceRequest(command, request, version, socketPath);

@@ -74,8 +74,9 @@ export const setup = async (): Promise<TestSetup> => {
 
       await mkdir(root, { recursive: true });
 
-      return workspaceSchema.parse(JSON.parse(await phi(['workspace', 'create', root, '--json'])))
-        .workspace;
+      return workspaceSchema.parse(
+        JSON.parse(await phi(['workspace', 'create', root, '--focus', '--json'])),
+      ).workspace;
     };
 
     const split = async (pane: string): Promise<string> =>

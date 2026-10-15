@@ -122,7 +122,7 @@ export const createWorkspaceAt = async (
   };
 
   send({ type: 'hello', version, size: undefined });
-  send({ type: 'workspaceCreate', root, label: 'test', background: false });
+  send({ type: 'workspaceCreate', root, label: 'test', focus: true });
 
   try {
     await answer.promise;

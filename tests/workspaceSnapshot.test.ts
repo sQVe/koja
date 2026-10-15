@@ -20,7 +20,7 @@ const create = (root: string): Intent => ({
   type: 'createWorkspace',
   root,
   label: root,
-  background: false,
+  focus: true,
 });
 
 const replay = (steps: readonly (Intent | Fact)[]): Replay => {

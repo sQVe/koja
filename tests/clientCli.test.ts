@@ -33,7 +33,7 @@ const setup = async () => {
 
     await mkdir(root);
 
-    const created = await phi('workspace', 'create', root, '--json');
+    const created = await phi('workspace', 'create', root, '--focus', '--json');
 
     expect(created.exitCode).toBe(0);
 
