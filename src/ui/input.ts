@@ -387,7 +387,7 @@ export const createInputRouter = (host: TokenRouterHost): ((token: RoutedToken) 
     }
   };
 
-  // Whether the event is a press that starts a gesture.
+  // Captures the button and pane of a press that starts a gesture, and returns whether it did.
   const beginPress = (event: MouseEvent): boolean => {
     if (captured !== undefined || event.kind !== 'press') {
       return false;
