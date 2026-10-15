@@ -898,3 +898,55 @@ it('releases held input when the awaited pane becomes failed', async () => {
   await released.promise;
   expect(session.tabPending()).toBe(false);
 });
+
+it('hands notices that arrived before any listener to the first listener in order', async () => {
+  const server = await listen(
+    welcomeWith(
+      { type: 'bell', count: 2 },
+      { type: 'clipboardWrite', text: 'copied' },
+      snapshotMessage(1),
+    ),
+  );
+
+  const session = await attach(server);
+  const first: unknown[] = [];
+  const second: unknown[] = [];
+
+  session.subscribeNotices((notice) => first.push(notice));
+  session.subscribeNotices((notice) => second.push(notice));
+
+  expect(first).toEqual([
+    { kind: 'bell', count: 2 },
+    { kind: 'clipboardWrite', text: 'copied' },
+  ]);
+
+  expect(second).toEqual([]);
+});
+
+it('announces a later notice once to every current listener', async () => {
+  const server = await listen((message) => {
+    if (message.type === 'hello') {
+      return [{ type: 'welcome' }, snapshotMessage(1)];
+    }
+
+    return message.type === 'resize' ? [{ type: 'bell', count: 1 }] : [];
+  });
+
+  const session = await attach(server);
+  const first: unknown[] = [];
+  const second: unknown[] = [];
+  const arrived = Promise.withResolvers<undefined>();
+
+  session.subscribeNotices((notice) => first.push(notice));
+
+  session.subscribeNotices((notice) => {
+    second.push(notice);
+    arrived.resolve(undefined);
+  });
+
+  session.resize(size);
+  await arrived.promise;
+
+  expect(first).toEqual([{ kind: 'bell', count: 1 }]);
+  expect(second).toEqual([{ kind: 'bell', count: 1 }]);
+});

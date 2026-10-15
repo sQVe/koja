@@ -117,6 +117,10 @@ export type AttachResult =
 
 const rowCacheLimit = 10_000;
 
+// Startup is short, so a few notices cover it. The limit stops a client that never subscribes from
+// growing without bound.
+const unheardNoticeLimit = 32;
+
 const layoutAnswerTimeoutMs = 2000;
 
 const handshakeTimeoutMs = 10_000;
@@ -157,6 +161,7 @@ export const connectAttach = async (
   const stateListeners = new Set<() => void>();
   const rowListeners = new Set<(changed: RowsChanged) => void>();
   const noticeListeners = new Set<(notice: PaneNotice) => void>();
+  const unheardNotices: PaneNotice[] = [];
   // The server answers workspace requests in the order it receives them.
   const replyQueue: ((reply: WorkspaceReply) => void)[] = [];
   let pending: Uint8Array = new Uint8Array();
@@ -389,6 +394,16 @@ export const connectAttach = async (
   };
 
   const announce = (notice: PaneNotice): void => {
+    if (noticeListeners.size === 0) {
+      unheardNotices.push(notice);
+
+      if (unheardNotices.length > unheardNoticeLimit) {
+        unheardNotices.shift();
+      }
+
+      return;
+    }
+
     for (const listener of noticeListeners) {
       listener(notice);
     }
@@ -548,6 +563,10 @@ export const connectAttach = async (
     },
     subscribeNotices: (listener) => {
       noticeListeners.add(listener);
+
+      for (const notice of unheardNotices.splice(0)) {
+        listener(notice);
+      }
 
       return () => {
         noticeListeners.delete(listener);
