@@ -28,7 +28,7 @@ export { createClipboardQueue } from './clipboardWrite.ts';
 export type { ClipboardQueue } from './clipboardWrite.ts';
 export { createRowCache } from './rowCache.ts';
 export type { RowCache } from './rowCache.ts';
-export { activeTabIdOf, focusedPane, viewedPane, shownView } from './snapshot.ts';
+export { activeTabIdOf, focusedPane, scrollTopOf, viewedPane, shownView } from './snapshot.ts';
 export type { StoreSnapshot } from './snapshot.ts';
 
 // Without a pane id, the command targets the focused pane.

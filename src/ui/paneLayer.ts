@@ -1,5 +1,6 @@
 import type { BoxRenderable, CliRenderer } from '@opentui/core';
 
+import { scrollTopOf, shownView } from '../client/client.ts';
 import type { AttachSession } from '../client/client.ts';
 import type { PaneId } from '../ids.ts';
 import { paneSize } from '../layout.ts';
@@ -11,7 +12,14 @@ import { placementOf } from './screenTargets.ts';
 
 export type PaneLayerSession = Pick<
   AttachSession,
-  'getState' | 'rowCache' | 'newestSequence' | 'acknowledge' | 'subscribe' | 'subscribeRows'
+  | 'getState'
+  | 'rowCache'
+  | 'holdRows'
+  | 'newestSequence'
+  | 'acknowledge'
+  | 'subscribe'
+  | 'subscribeRows'
+  | 'subscribeFetched'
 >;
 
 // Keeps one renderable per pane of the focused tab at its layout rectangle, with the borders
@@ -28,11 +36,18 @@ export const mountPanes = (
 
   box.add(borders);
 
-  const drawAll = (pane: PaneRenderable, id: PaneId, rows: number): void => {
-    pane.draw(
-      Array.from({ length: rows }, (_, index) => index),
-      session.newestSequence(id),
-    );
+  const drawAll = (pane: PaneRenderable, id: PaneId): void => {
+    pane.drawAll(session.newestSequence(id));
+  };
+
+  // Shows the pane from its view's scroll row, kept inside the history the cache knows, and holds
+  // the rows it shows so they stay in the cache.
+  const showScroll = (pane: PaneRenderable, id: PaneId, rows: number): void => {
+    const view = shownView(session.getState().snapshot);
+    const top = session.rowCache(id)?.viewTop(scrollTopOf(view, id));
+
+    pane.setTop(top);
+    session.holdRows(id, top === undefined ? undefined : { from: top, to: top + rows - 1 });
   };
 
   const removeTerminal = (id: PaneId): void => {
@@ -110,7 +125,8 @@ export const mountPanes = (
 
       panes.set(id, created);
       box.add(created);
-      drawAll(created, id, rows);
+      showScroll(created, id, rows);
+      drawAll(created, id);
 
       return;
     }
@@ -124,8 +140,10 @@ export const mountPanes = (
     existing.move(x, y);
     existing.resize(columns, rows);
 
+    showScroll(existing, id, rows);
+
     if (resized) {
-      drawAll(existing, id, rows);
+      drawAll(existing, id);
     }
   };
 
@@ -173,8 +191,13 @@ export const mountPanes = (
     if (renderable === undefined) {
       sync();
     } else {
+      showScroll(renderable, pane, renderable.height);
       renderable.draw(rows, sequence);
     }
+  });
+
+  const unsubscribeFetched = session.subscribeFetched((pane) => {
+    panes.get(pane)?.drawAll();
   });
 
   const unsubscribeState = session.subscribe(sync);
@@ -183,6 +206,7 @@ export const mountPanes = (
 
   return () => {
     unsubscribeRows();
+    unsubscribeFetched();
     unsubscribeState();
 
     for (const pane of panes.values()) {

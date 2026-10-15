@@ -5,11 +5,12 @@ import {
   decodeRowUpdate,
   encodeRowUpdate,
   ModeFlag,
+  PaneRowsSource,
   RowFlag,
   rowHeaderWords,
   rowWords,
 } from '../rows/rows.ts';
-import type { RowUpdate } from '../rows/rows.ts';
+import type { PaneRows, RowUpdate } from '../rows/rows.ts';
 import { createRowCache } from './rowCache.ts';
 
 const columns = 4;
@@ -59,7 +60,7 @@ it('stores rows at their stable numbers and reports the changed screen rows', ()
         [-1, 'z'],
       ]),
     ),
-  ).toEqual([0, 2]);
+  ).toEqual([-1, 0, 2]);
 
   expect(firstWord(cache, 0)).toBe(97);
   expect(firstWord(cache, 1)).toBeUndefined();
@@ -243,4 +244,171 @@ it('keeps the wrapped flag of a row that went through the row update encoding', 
   expect(cache.row(0)?.wrapped).toBe(true);
   expect(cache.row(1)?.wrapped).toBe(false);
   expect(firstWord(cache, 0)).toBe(97);
+});
+
+it('keeps pinned rows when new rows exceed the row limit', () => {
+  const cache = createRowCache({ rowLimit: 3 });
+
+  cache.apply(
+    rowUpdate([
+      [0, 'a'],
+      [1, 'b'],
+      [2, 'c'],
+    ]),
+  );
+
+  cache.pin({ from: 100, to: 101 });
+
+  cache.apply(
+    rowUpdate(
+      [
+        [0, 'd'],
+        [1, 'e'],
+        [2, 'f'],
+      ],
+      { activeTop: 103, sequence: 2 },
+    ),
+  );
+
+  expect(cache.rowAt(100)?.cells[0]).toBe(97);
+  expect(cache.rowAt(101)?.cells[0]).toBe(98);
+  expect(cache.rowAt(102)).toBeUndefined();
+  expect(cache.heldRowCount()).toBe(3);
+});
+
+it('drops the oldest rows again once nothing is pinned', () => {
+  const cache = createRowCache({ rowLimit: 3 });
+
+  cache.apply(rowUpdate([[0, 'a']]));
+  cache.pin({ from: 100, to: 100 });
+
+  cache.apply(
+    rowUpdate(
+      [
+        [0, 'd'],
+        [1, 'e'],
+        [2, 'f'],
+      ],
+      { activeTop: 103, sequence: 2 },
+    ),
+  );
+
+  cache.pin(undefined);
+
+  cache.apply(
+    rowUpdate(
+      [
+        [0, 'g'],
+        [1, 'h'],
+      ],
+      { activeTop: 106, sequence: 3 },
+    ),
+  );
+
+  expect(cache.rowAt(100)).toBeUndefined();
+  expect(cache.heldRowCount()).toBe(3);
+});
+
+// Rows of a range read: columns wide, starting at the stable row number first.
+const paneRows = (first: number, texts: string[], epoch = 1): PaneRows => {
+  const cells = new Uint32Array(texts.length * stride);
+
+  for (const [index, text] of texts.entries()) {
+    for (const [column, character] of text.split('').entries()) {
+      cells[index * stride + rowHeaderWords + column * cellWords] = character.codePointAt(0) ?? 0;
+    }
+  }
+
+  return {
+    pane: 1,
+    requestId: 1,
+    source: PaneRowsSource.range,
+    columns,
+    epoch,
+    screen: 1,
+    remaining: 0,
+    oldest: 0,
+    first,
+    rowCount: texts.length,
+    cells,
+    graphemes: new Uint32Array(),
+  };
+};
+
+it('stores fetched rows at their stable numbers and names the span still missing', () => {
+  const cache = createRowCache({ rowLimit: 50 });
+
+  cache.apply(rowUpdate([[0, 'a']], { first: 90 }));
+
+  expect(cache.missing({ from: 95, to: 99 })).toEqual({ from: 95, to: 99 });
+  expect(cache.storeRange(paneRows(96, ['x', 'y']))).toBe(true);
+  expect(cache.rowAt(96)?.cells[0]).toBe(120);
+  expect(cache.rowAt(97)?.cells[0]).toBe(121);
+  expect(cache.missing({ from: 95, to: 99 })).toEqual({ from: 95, to: 99 });
+  expect(cache.missing({ from: 96, to: 97 })).toBeUndefined();
+  expect(cache.bounds()).toEqual({ oldest: 90, activeTop: 100 });
+});
+
+it('refuses fetched rows of another epoch or while the alternate screen shows', () => {
+  const cache = createRowCache({ rowLimit: 50 });
+
+  cache.apply(rowUpdate([[0, 'a']]));
+
+  expect(cache.storeRange(paneRows(96, ['x'], 2))).toBe(false);
+  expect(cache.rowAt(96)).toBeUndefined();
+
+  cache.apply(rowUpdate([[0, 'a']], { modes: ModeFlag.alternateScreen, sequence: 2 }));
+
+  expect(cache.storeRange(paneRows(96, ['x']))).toBe(false);
+  expect(cache.rowAt(96)).toBeUndefined();
+});
+
+it('clamps a scroll row into the history and follows the bottom at or below the active top', () => {
+  const cache = createRowCache({ rowLimit: 50 });
+
+  expect(cache.viewTop(50)).toBeUndefined();
+
+  cache.apply(rowUpdate([[0, 'a']], { first: 90 }));
+
+  expect(cache.viewTop(undefined)).toBeUndefined();
+  expect(cache.viewTop(95)).toBe(95);
+  expect(cache.viewTop(10)).toBe(90);
+  expect(cache.viewTop(100)).toBeUndefined();
+  expect(cache.viewTop(5000)).toBeUndefined();
+
+  cache.apply(rowUpdate([[0, 'a']], { first: 98, activeTop: 110, sequence: 2 }));
+
+  expect(cache.viewTop(95)).toBe(98);
+});
+
+it('follows the bottom on the alternate screen', () => {
+  const cache = createRowCache({ rowLimit: 50 });
+
+  cache.apply(rowUpdate([[0, 'a']], { first: 90, modes: ModeFlag.alternateScreen }));
+
+  expect(cache.viewTop(95)).toBeUndefined();
+});
+
+it('reports a changed row that left the active screen as a negative index', () => {
+  const cache = createRowCache({ rowLimit: 50 });
+
+  cache.apply(
+    rowUpdate([
+      [0, 'a'],
+      [1, 'b'],
+    ]),
+  );
+
+  const changed = cache.apply(
+    rowUpdate(
+      [
+        [-1, 'z'],
+        [2, 'c'],
+      ],
+      { activeTop: 101, sequence: 2 },
+    ),
+  );
+
+  expect(changed).toContain(-1);
+  expect(cache.rowAt(100)?.cells[0]).toBe(122);
 });

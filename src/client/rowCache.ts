@@ -1,5 +1,5 @@
 import { cellWords, ModeFlag, RowFlag, rowHeaderWords, rowWords } from '../rows/rows.ts';
-import type { RowUpdate } from '../rows/rows.ts';
+import type { PaneRows, RowUpdate } from '../rows/rows.ts';
 
 interface CachedRow {
   // Whether the row soft-wraps into the next row.
@@ -11,11 +11,27 @@ interface CachedRow {
 }
 
 export interface RowCache {
-  // Stores the update's rows. Returns the indexes, from the active screen's top, of the active
-  // screen rows that changed.
+  // Stores the update's rows. Returns the indexes, from the active screen's top, of the rows that
+  // changed: active screen rows, and negative indexes for changed rows that left the screen.
   apply: (update: RowUpdate) => number[];
   // One row of the active screen, or undefined while the cache has not received it.
   row: (index: number) => CachedRow | undefined;
+  // One row by its stable number, or undefined while the cache does not hold it.
+  rowAt: (rowNumber: number) => CachedRow | undefined;
+  // The stable numbers of the oldest history row and the active screen's top row.
+  bounds: () => { oldest: number; activeTop: number } | undefined;
+  // Where a view scrolled to the stable row starts, moved inside the history. Undefined when the
+  // view follows the bottom: no scroll row, a row at or below the active top, or the alternate
+  // screen, which keeps no history.
+  viewTop: (scroll: number | undefined) => number | undefined;
+  // Keeps the rows from the first to the last stable number when the cache drops rows. Undefined
+  // releases them.
+  pin: (range: RowRange | undefined) => void;
+  // The span from the first to the last row of the range the cache does not hold.
+  missing: (range: RowRange) => RowRange | undefined;
+  // Stores rows a range read returned. Returns false for rows of another epoch or while the
+  // alternate screen shows, which have no place among the rows held.
+  storeRange: (rows: PaneRows) => boolean;
   size: () => { columns: number; rows: number } | undefined;
   cursor: () => { x: number; y: number; visible: boolean } | undefined;
   // The ModeFlag bits that are on.
@@ -23,6 +39,11 @@ export interface RowCache {
   // The colors the program set, by slot. Each color is 0x1000000 plus the 0xRRGGBB value.
   colors: () => ReadonlyMap<number, number>;
   heldRowCount: () => number;
+}
+
+export interface RowRange {
+  from: number;
+  to: number;
 }
 
 interface RowCacheOptions {
@@ -76,18 +97,24 @@ const clustersOf = (graphemes: Uint32Array, rowStart: number, stride: number) =>
 export const createRowCache = ({ rowLimit }: RowCacheOptions): RowCache => {
   const rows = new Map<number, CachedRow>();
   let epoch: number | undefined;
+  let oldest = 0;
   let activeTop = 0;
+  let pinned: RowRange | undefined;
   let size: { columns: number; rows: number } | undefined;
   let cursor: { x: number; y: number; visible: boolean } | undefined;
   let modes = 0;
   let colors: ReadonlyMap<number, number> = new Map();
+
+  const isPinned = (rowNumber: number): boolean =>
+    pinned !== undefined && rowNumber >= pinned.from && rowNumber <= pinned.to;
 
   const dropOldest = (): void => {
     if (rows.size <= rowLimit) {
       return;
     }
 
-    const ascending = [...rows.keys()].toSorted((left, right) => left - right);
+    const unpinned = [...rows.keys()].filter((rowNumber) => !isPinned(rowNumber));
+    const ascending = unpinned.toSorted((left, right) => left - right);
 
     for (const rowNumber of ascending.slice(0, rows.size - rowLimit)) {
       rows.delete(rowNumber);
@@ -121,6 +148,56 @@ export const createRowCache = ({ rowLimit }: RowCacheOptions): RowCache => {
     return stored;
   };
 
+  const storeRange = (read: PaneRows): boolean => {
+    const alternate = (modes & ModeFlag.alternateScreen) !== 0;
+
+    if (read.epoch !== epoch || alternate) {
+      return false;
+    }
+
+    const stride = rowWords(read.columns);
+
+    for (let index = 0; index < read.rowCount; index++) {
+      const start = index * stride;
+
+      rows.set(read.first + index, {
+        wrapped: ((read.cells[start + 1] ?? 0) & RowFlag.wrapped) !== 0,
+        cells: read.cells.slice(start + rowHeaderWords, start + stride),
+        clusters: clustersOf(read.graphemes, start, stride),
+      });
+    }
+
+    dropOldest();
+
+    return true;
+  };
+
+  const missing = (range: RowRange): RowRange | undefined => {
+    let from: number | undefined;
+    let to: number | undefined;
+
+    for (let rowNumber = range.from; rowNumber <= range.to; rowNumber++) {
+      if (!rows.has(rowNumber)) {
+        from ??= rowNumber;
+        to = rowNumber;
+      }
+    }
+
+    return from === undefined || to === undefined ? undefined : { from, to };
+  };
+
+  const viewTop = (scroll: number | undefined): number | undefined => {
+    const alternate = (modes & ModeFlag.alternateScreen) !== 0;
+
+    if (scroll === undefined || epoch === undefined || alternate) {
+      return undefined;
+    }
+
+    const top = Math.max(scroll, oldest);
+
+    return top >= activeTop ? undefined : top;
+  };
+
   const apply = (update: RowUpdate): number[] => {
     if (changedScreen(update)) {
       rows.clear();
@@ -130,17 +207,24 @@ export const createRowCache = ({ rowLimit }: RowCacheOptions): RowCache => {
     const repaintAll = activeTop !== update.activeTop || !sameColors(colors, updatedColors);
 
     epoch = update.epoch;
+    oldest = update.first;
     activeTop = update.activeTop;
     size = update.size;
     cursor = update.cursor;
     modes = update.modes;
-    colors = updatedColors;
+    colors = sameColors(colors, updatedColors) ? colors : updatedColors;
 
     const stored = storeRows(update);
 
     dropOldest();
 
     const changed: number[] = [];
+
+    for (const rowNumber of [...stored].toSorted((left, right) => left - right)) {
+      if (rowNumber < activeTop && rows.has(rowNumber)) {
+        changed.push(rowNumber - activeTop);
+      }
+    }
 
     for (let index = 0; index < update.size.rows; index++) {
       const reported = repaintAll || stored.has(activeTop + index);
@@ -156,6 +240,14 @@ export const createRowCache = ({ rowLimit }: RowCacheOptions): RowCache => {
   return {
     apply,
     row: (index) => rows.get(activeTop + index),
+    rowAt: (rowNumber) => rows.get(rowNumber),
+    bounds: () => (epoch === undefined ? undefined : { oldest, activeTop }),
+    pin: (range) => {
+      pinned = range;
+    },
+    missing,
+    viewTop,
+    storeRange,
     size: () => size,
     cursor: () => cursor,
     modes: () => modes,

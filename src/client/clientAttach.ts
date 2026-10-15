@@ -10,11 +10,12 @@ import {
   parseControl,
 } from '../protocol/protocol.ts';
 import type { BuildVersion, ControlMessage } from '../protocol/protocol.ts';
-import { decodeRowUpdate, encodePaneInput } from '../rows/rows.ts';
+import { decodePaneRows, decodeRowUpdate, encodePaneInput } from '../rows/rows.ts';
 import { paneLayoutRequest } from './paneRequest.ts';
 import type { PaneMoveDestination, ResizeDirection, SplitDirection } from './paneRequest.ts';
 import { createRowCache } from './rowCache.ts';
-import type { RowCache } from './rowCache.ts';
+import type { RowCache, RowRange } from './rowCache.ts';
+import { createRowFetcher } from './rowFetch.ts';
 import { activeTabIdOf, applyChange, viewedPane, shownView } from './snapshot.ts';
 import type { StoreChange, StoreSnapshot } from './snapshot.ts';
 import { tabRequest } from './tabRequest.ts';
@@ -75,6 +76,11 @@ export interface AttachSession {
   // foreground.
   subscribeNotices: (listener: (notice: PaneNotice) => void) => () => void;
   rowCache: (pane: PaneId) => RowCache | undefined;
+  // Keeps the pane's rows in the range in its cache, and fetches those the cache lacks from the
+  // server. Undefined releases the rows.
+  holdRows: (pane: PaneId, range: RowRange | undefined) => void;
+  // Calls back after fetched rows of a pane are in its cache.
+  subscribeFetched: (listener: (pane: PaneId) => void) => () => void;
   // The sequence of the newest row update applied to the pane's cache, drawn or not.
   newestSequence: (pane: PaneId) => number | undefined;
   resize: (size: TerminalSize) => void;
@@ -162,6 +168,7 @@ export const connectAttach = async (
   const rowListeners = new Set<(changed: RowsChanged) => void>();
   const noticeListeners = new Set<(notice: PaneNotice) => void>();
   const unheardNotices: PaneNotice[] = [];
+  const fetchListeners = new Set<(pane: PaneId) => void>();
   // The server answers workspace requests in the order it receives them.
   const replyQueue: ((reply: WorkspaceReply) => void)[] = [];
   let pending: Uint8Array = new Uint8Array();
@@ -245,6 +252,18 @@ export const connectAttach = async (
     }
   };
 
+  const rowFetcher = createRowFetcher({
+    send: (message) => {
+      send(message);
+    },
+    cacheOf: (pane) => rowCaches.get(pane),
+    onFetched: (pane) => {
+      for (const listener of fetchListeners) {
+        listener(pane);
+      }
+    },
+  });
+
   const dropRowCaches = (snapshot: StoreSnapshot): void => {
     const known = new Set(snapshot.panes.map((pane) => pane.id));
 
@@ -252,6 +271,7 @@ export const connectAttach = async (
       if (!known.has(pane)) {
         rowCaches.delete(pane);
         newestSequences.delete(pane);
+        rowFetcher.forget(pane);
       }
     }
   };
@@ -409,6 +429,18 @@ export const connectAttach = async (
     }
   };
 
+  const takePaneRows = (bytes: Uint8Array): void => {
+    const decoded = decodePaneRows(bytes);
+
+    if (!decoded.ok) {
+      end('connectionFailed');
+
+      return;
+    }
+
+    rowFetcher.takeRows(decoded.rows);
+  };
+
   const takeHandshake = (message: ControlMessage): void => {
     if (message.type === 'refused') {
       handshake.resolve({
@@ -466,6 +498,16 @@ export const connectAttach = async (
     return false;
   };
 
+  const takeFetchAnswer = (message: ControlMessage): void => {
+    if (message.type === 'paneReadFailed') {
+      rowFetcher.takeFailure(message.paneId, message.requestId, message.failure);
+    }
+
+    if (message.type === 'paneMissing') {
+      rowFetcher.forget(message.paneId);
+    }
+  };
+
   const takeControl = (message: ControlMessage): void => {
     if (!welcomed) {
       takeHandshake(message);
@@ -488,6 +530,8 @@ export const connectAttach = async (
     if (takeRequestAnswer(message) || takePaneNotice(message)) {
       return;
     }
+
+    takeFetchAnswer(message);
 
     if (message.type === 'change') {
       takeChange(message.revision, message.change);
@@ -518,6 +562,12 @@ export const connectAttach = async (
 
       if (frame.kind === FrameKind.rowUpdate) {
         takeRows(frame.payload);
+
+        continue;
+      }
+
+      if (frame.kind === FrameKind.paneRows) {
+        takePaneRows(frame.payload);
 
         continue;
       }
@@ -573,6 +623,22 @@ export const connectAttach = async (
       };
     },
     rowCache: (pane) => rowCaches.get(pane),
+    holdRows: (pane, range) => {
+      rowCaches.get(pane)?.pin(range);
+
+      if (range === undefined) {
+        rowFetcher.forget(pane);
+      } else {
+        rowFetcher.want(pane, range);
+      }
+    },
+    subscribeFetched: (listener) => {
+      fetchListeners.add(listener);
+
+      return () => {
+        fetchListeners.delete(listener);
+      };
+    },
     newestSequence: (pane) => newestSequences.get(pane),
     resize: (next) => {
       send({ type: 'resize', size: next });

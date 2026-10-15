@@ -109,6 +109,7 @@ it('removes the terminal cells of a pane that became failed when the layout chan
   const session: PaneLayerSession = {
     getState: () => ({ snapshot, inputMode: 'insert' }),
     rowCache: (id) => (id === paneId(1) ? cache : undefined),
+    holdRows: () => undefined,
     newestSequence: () => 1,
     acknowledge: () => undefined,
     subscribe: (listener) => {
@@ -117,6 +118,7 @@ it('removes the terminal cells of a pane that became failed when the layout chan
       return () => listeners.delete(listener);
     },
     subscribeRows: () => () => undefined,
+    subscribeFetched: () => () => undefined,
   };
 
   created.renderer.root.add(box);
