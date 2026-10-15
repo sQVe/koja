@@ -32,6 +32,8 @@ interface TokenRouterHost {
   chromeAt: (x: number, y: number) => ChromeTarget | undefined;
   focusPane: (pane: PaneId) => Promise<void>;
   paneModes: (pane: PaneId) => number;
+  // The pane's current size, or undefined once the pane is gone.
+  paneSize: (pane: PaneId) => { columns: number; rows: number } | undefined;
   sendToPane: (pane: PaneId, bytes: Uint8Array) => void;
   detach: () => void;
   workspaces: () => { ids: readonly WorkspaceId[]; focused: WorkspaceId | undefined };
@@ -343,7 +345,11 @@ export const createInputRouter = (host: TokenRouterHost): ((token: RoutedToken) 
 
   // The first press fixes the pane that gets its button's drags and release. Other buttons'
   // presses, drags, and releases are ignored until then.
-  let captured: { button: number; pane: PaneId | undefined } | undefined;
+  // `last` is the latest target forwarded to the pane. A release that finds the pane no longer
+  // placed, such as after a tab switch or a zoom, goes there.
+  let captured:
+    | { button: number; pane: PaneId | undefined; last: PaneTarget | undefined }
+    | undefined;
 
   const mouseTargetOf = (event: MouseEvent): PaneTarget | undefined => {
     const followsPress = event.kind === 'drag' || event.kind === 'release';
@@ -363,6 +369,41 @@ export const createInputRouter = (host: TokenRouterHost): ((token: RoutedToken) 
     if (bytes.length > 0) {
       host.sendToPane(target.paneId, bytes);
     }
+  };
+
+  const rememberTarget = (event: MouseEvent, target: PaneTarget | undefined): void => {
+    const ownsGesture = isButtonGesture(event) && target?.paneId === captured?.pane;
+
+    if (target !== undefined && captured !== undefined && ownsGesture) {
+      captured.last = target;
+    }
+  };
+
+  const endGesture = (event: MouseEvent): void => {
+    if (event.kind === 'release') {
+      captured = undefined;
+    }
+  };
+
+  // The saved cell, kept inside the pane's current size, which changes while the pane is hidden.
+  const unplacedReleaseTarget = (event: MouseEvent): PaneTarget | undefined => {
+    const last = captured?.last;
+
+    if (event.kind !== 'release' || last === undefined) {
+      return undefined;
+    }
+
+    const size = host.paneSize(last.paneId);
+
+    if (size === undefined) {
+      return undefined;
+    }
+
+    return {
+      paneId: last.paneId,
+      column: Math.min(last.column, size.columns - 1),
+      row: Math.min(last.row, size.rows - 1),
+    };
   };
 
   const focusChromeAt = (x: number, y: number): void => {
@@ -393,7 +434,9 @@ export const createInputRouter = (host: TokenRouterHost): ((token: RoutedToken) 
       return false;
     }
 
-    captured = { button: event.button, pane: host.mouseTarget(event.x, event.y)?.paneId };
+    const pressed = host.mouseTarget(event.x, event.y);
+
+    captured = { button: event.button, pane: pressed?.paneId, last: pressed };
 
     return true;
   };
@@ -415,17 +458,21 @@ export const createInputRouter = (host: TokenRouterHost): ((token: RoutedToken) 
       focusChromeAt(event.x, event.y);
     }
 
-    const target = mouseTargetOf(event);
+    const placedTarget = mouseTargetOf(event);
+    const target = placedTarget ?? unplacedReleaseTarget(event);
 
-    if (event.kind === 'release') {
-      captured = undefined;
-    }
+    rememberTarget(event, placedTarget);
+    endGesture(event);
 
     if (target === undefined) {
       return undefined;
     }
 
     forwardMouse(event, target);
+
+    if (placedTarget === undefined) {
+      return undefined;
+    }
 
     const unfocused = target.paneId !== host.focusedPane();
 

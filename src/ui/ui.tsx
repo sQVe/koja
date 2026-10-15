@@ -161,6 +161,7 @@ const routeInput = (session: AttachSession, renderer: CliRenderer) =>
     },
     focusPane: (pane) => session.focusPane(pane),
     paneModes: (pane) => session.rowCache(pane)?.modes() ?? 0,
+    paneSize: (pane) => session.getState().snapshot.panes.find((known) => known.id === pane)?.size,
     sendToPane: (pane, bytes) => {
       session.sendInput(pane, bytes);
     },

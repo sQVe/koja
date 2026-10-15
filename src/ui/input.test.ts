@@ -8,6 +8,12 @@ import { createInputRouter, routeKey, routePaste } from './input.ts';
 import type { PaneAction } from './input.ts';
 import { createInputTokenizer } from './inputTokens.ts';
 
+interface GonePanes {
+  unplaced: Set<PaneId>;
+  missing: Set<PaneId>;
+  sizes: Map<PaneId, { columns: number; rows: number }>;
+}
+
 const decoder = new TextDecoder();
 const encoder = new TextEncoder();
 
@@ -139,6 +145,7 @@ const router = (
     chromeAt: () => undefined,
     focusPane: () => Promise.resolve(),
     paneModes: () => 0,
+    paneSize: () => ({ columns: 80, rows: 24 }),
     sendToPane: () => undefined,
     detach: () => {
       detaches += 1;
@@ -347,6 +354,7 @@ const chunkRouter = () => {
     chromeAt: () => undefined,
     focusPane: () => Promise.resolve(),
     paneModes: () => 0,
+    paneSize: () => ({ columns: 80, rows: 24 }),
     sendToPane: () => undefined,
     detach: () => undefined,
     tab: () => undefined,
@@ -539,6 +547,7 @@ it('asks the host for a tab and keeps normal mode', () => {
     chromeAt: () => undefined,
     focusPane: () => Promise.resolve(),
     paneModes: () => 0,
+    paneSize: () => ({ columns: 80, rows: 24 }),
     sendToPane: () => undefined,
     detach: () => undefined,
     tab: (tab) => routes.push(tab),
@@ -579,6 +588,7 @@ it('holds input while a tab request is unanswered and routes it in order after t
     chromeAt: () => undefined,
     focusPane: () => Promise.resolve(),
     paneModes: () => 0,
+    paneSize: () => ({ columns: 80, rows: 24 }),
     sendToPane: () => undefined,
     detach: () => undefined,
     tab: () => {
@@ -710,6 +720,7 @@ it('sends held tokens when the action fails to settle normally', async () => {
     chromeAt: () => undefined,
     focusPane: () => Promise.resolve(),
     paneModes: () => 0,
+    paneSize: () => ({ columns: 80, rows: 24 }),
     sendToPane: () => undefined,
     detach: () => undefined,
     tab: () => undefined,
@@ -850,7 +861,13 @@ it('still sends an Alt key to the pane in insert mode', () => {
   expect(key('\x1bx', 'insert')).toEqual({ text: '\x1bx', mode: 'insert' });
 });
 
-const mouseRouter = (tabPending: () => boolean = () => false) => {
+const goneNone = (): GonePanes => ({
+  unplaced: new Set(),
+  missing: new Set(),
+  sizes: new Map(),
+});
+
+const mouseRouter = (tabPending: () => boolean = () => false, gone: GonePanes = goneNone()) => {
   const sent: { pane: PaneId; text: string }[] = [];
   let answered: (() => void) | undefined;
   const focused: PaneId[] = [];
@@ -872,6 +889,10 @@ const mouseRouter = (tabPending: () => boolean = () => false) => {
     // Pane 1 holds columns 0 to 9 and pane 2 holds columns 10 to 19. A pointer outside hits nothing.
     mouseTarget: (x, y, pane) => {
       if (pane !== undefined) {
+        if (gone.unplaced.has(pane)) {
+          return undefined;
+        }
+
         return {
           paneId: pane,
           column: Math.min(Math.max(x - (pane === paneId(2) ? 10 : 0), 0), 9),
@@ -899,7 +920,9 @@ const mouseRouter = (tabPending: () => boolean = () => false) => {
 
       return focusGate.current;
     },
-    paneModes: () => ModeFlag.buttonMouse | ModeFlag.sgrMouse,
+    paneModes: (pane) => (gone.missing.has(pane) ? 0 : ModeFlag.buttonMouse | ModeFlag.sgrMouse),
+    paneSize: (pane) =>
+      gone.missing.has(pane) ? undefined : (gone.sizes.get(pane) ?? { columns: 10, rows: 100 }),
     sendToPane: (pane, bytes) => {
       sent.push({ pane, text: decoder.decode(bytes) });
     },
@@ -1004,6 +1027,75 @@ it('captures a new press after the release of the first', () => {
   mouse(2, 16, 3, 'm');
 
   expect(sent.map((entry) => entry.pane)).toEqual([paneId(1), paneId(1), paneId(2), paneId(2)]);
+});
+
+it('sends the release to the captured pane at its last cell once the pane is not placed', () => {
+  const gone = goneNone();
+  const { sent, mouse } = mouseRouter(undefined, gone);
+
+  mouse(0, 6, 3, 'M');
+  mouse(32, 8, 4, 'M');
+  gone.unplaced.add(paneId(1));
+  mouse(32, 16, 5, 'M');
+  mouse(0, 16, 5, 'm');
+
+  expect(sent).toEqual([
+    { pane: paneId(1), text: '\x1b[<0;6;3M' },
+    { pane: paneId(1), text: '\x1b[<32;8;4M' },
+    { pane: paneId(1), text: '\x1b[<0;8;4m' },
+  ]);
+});
+
+it('sends nothing and clears the capture when the captured pane no longer exists', () => {
+  const gone = goneNone();
+  const { sent, mouse } = mouseRouter(undefined, gone);
+
+  mouse(0, 6, 3, 'M');
+  gone.unplaced.add(paneId(1));
+  gone.missing.add(paneId(1));
+  mouse(0, 6, 3, 'm');
+  mouse(0, 16, 3, 'M');
+
+  expect(sent.map((entry) => entry.pane)).toEqual([paneId(1), paneId(2)]);
+});
+
+it('keeps the release for the captured pane when a wheel turns over another pane', () => {
+  const gone = goneNone();
+  const { sent, mouse } = mouseRouter(undefined, gone);
+
+  mouse(0, 6, 3, 'M');
+  mouse(64, 16, 4, 'M');
+  gone.unplaced.add(paneId(1));
+  mouse(0, 16, 4, 'm');
+
+  expect(sent.filter((entry) => entry.text.endsWith('m'))).toEqual([
+    { pane: paneId(1), text: '\x1b[<0;6;3m' },
+  ]);
+});
+
+it('clamps the release cell to the size the hidden pane has now', () => {
+  const gone = goneNone();
+  const { sent, mouse } = mouseRouter(undefined, gone);
+
+  mouse(0, 9, 8, 'M');
+  gone.unplaced.add(paneId(1));
+  gone.sizes.set(paneId(1), { columns: 4, rows: 5 });
+  mouse(0, 16, 4, 'm');
+
+  expect(sent.at(-1)).toEqual({ pane: paneId(1), text: '\x1b[<0;4;5m' });
+});
+
+it('uses the current placement when the captured pane is placed again before the release', () => {
+  const gone = goneNone();
+  const { sent, mouse } = mouseRouter(undefined, gone);
+
+  mouse(0, 9, 8, 'M');
+  gone.unplaced.add(paneId(1));
+  mouse(32, 16, 4, 'M');
+  gone.unplaced.delete(paneId(1));
+  mouse(0, 3, 6, 'm');
+
+  expect(sent.map((entry) => entry.text)).toEqual(['\x1b[<0;9;8M', '\x1b[<0;3;6m']);
 });
 
 it('holds a mouse token behind a pending tab request until the answer arrives', () => {
@@ -1115,6 +1207,7 @@ it('holds a key typed after a workspace click until the focus reply arrives', ()
     chromeAt: () => ({ kind: 'workspace', workspaceId: workspaceId(2) }),
     focusPane: () => Promise.resolve(),
     paneModes: () => 0,
+    paneSize: () => ({ columns: 80, rows: 24 }),
     sendToPane: () => undefined,
     tab: () => undefined,
     tabPending: () => false,
