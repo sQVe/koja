@@ -305,7 +305,7 @@ const parsePaneAction = (
     : '--cells belongs to pane resize.';
 };
 
-const textByDefaultActions: ReadonlySet<string> = new Set(['read', 'send', 'process-info']);
+const textByDefaultActions: ReadonlySet<string> = new Set(['read', 'send']);
 
 const printsJsonByDefault = (action: string): boolean => !textByDefaultActions.has(action);
 
