@@ -1,8 +1,11 @@
 import type { InputMode, TabRoute, WorkspaceCommand, WorkspaceReply } from '../client/client.ts';
-import type { WorkspaceId } from '../ids.ts';
+import type { PaneId, WorkspaceId } from '../ids.ts';
 import { kittyFlags, ModeFlag } from '../rows/rows.ts';
 import { encodeKey, isKey, keyModifier, keyText, parseKey } from './keyEncoding.ts';
 import type { KeyEvent } from './keyEncoding.ts';
+import { encodeMouse, parseMouse } from './mouseEncoding.ts';
+import type { MouseEvent } from './mouseEncoding.ts';
+import type { PaneTarget } from './screenTargets.ts';
 
 export type PaneAction =
   | 'splitBelow'
@@ -22,6 +25,10 @@ interface TokenRouterHost {
   setMode: (mode: InputMode) => void;
   modes: () => number;
   send: (bytes: Uint8Array) => void;
+  // The pane cell under an outer cell, or the cell of the given pane nearest to it.
+  mouseTarget: (x: number, y: number, pane?: PaneId) => PaneTarget | undefined;
+  paneModes: (pane: PaneId) => number;
+  sendToPane: (pane: PaneId, bytes: Uint8Array) => void;
   detach: () => void;
   workspaces: () => { ids: readonly WorkspaceId[]; focused: WorkspaceId | undefined };
   startDirectory: string;
@@ -37,7 +44,8 @@ type WorkspaceKey = 'next' | 'previous' | 'create' | 'close';
 
 type RoutedToken =
   | { kind: 'key'; raw: string; escapeSent: boolean }
-  | { kind: 'paste'; bytes: Uint8Array; escapeSent: boolean };
+  | { kind: 'paste'; bytes: Uint8Array; escapeSent: boolean }
+  | { kind: 'mouse'; raw: string; escapeSent: boolean };
 
 interface KeyRoute {
   bytes: Uint8Array;
@@ -213,6 +221,9 @@ const neighborCommand = (
   return { action: 'focus', workspaceId: target };
 };
 
+const isButtonGesture = (event: MouseEvent): boolean =>
+  event.kind === 'press' || event.kind === 'drag' || event.kind === 'release';
+
 export const createInputRouter = (host: TokenRouterHost): ((token: RoutedToken) => void) => {
   let escapeInPane = false;
   // Keys whose press Phi took. Their release must not reach the pane, which never saw the press.
@@ -313,7 +324,62 @@ export const createInputRouter = (host: TokenRouterHost): ((token: RoutedToken) 
     }
   };
 
+  // The first press fixes the pane that gets its button's drags and release. Other buttons'
+  // presses, drags, and releases are ignored until then.
+  let captured: { button: number; pane: PaneId | undefined } | undefined;
+
+  const mouseTargetOf = (event: MouseEvent): PaneTarget | undefined => {
+    const followsPress = event.kind === 'drag' || event.kind === 'release';
+
+    if (captured === undefined || !followsPress) {
+      return host.mouseTarget(event.x, event.y);
+    }
+
+    return captured.pane === undefined
+      ? undefined
+      : host.mouseTarget(event.x, event.y, captured.pane);
+  };
+
+  const routeMouse = (raw: string): void => {
+    const event = parseMouse(raw);
+
+    if (event === undefined) {
+      return;
+    }
+
+    if (captured !== undefined && isButtonGesture(event) && event.button !== captured.button) {
+      return;
+    }
+
+    if (captured === undefined && event.kind === 'press') {
+      captured = { button: event.button, pane: host.mouseTarget(event.x, event.y)?.paneId };
+    }
+
+    const target = mouseTargetOf(event);
+
+    if (event.kind === 'release') {
+      captured = undefined;
+    }
+
+    if (target === undefined) {
+      return;
+    }
+
+    const bytes = encodeMouse(event, host.paneModes(target.paneId), target.column, target.row);
+
+    if (bytes.length > 0) {
+      host.sendToPane(target.paneId, bytes);
+    }
+  };
+
   const route = (token: RoutedToken): Promise<void> | undefined => {
+    if (token.kind === 'mouse') {
+      routeMouse(token.raw);
+      escapeInPane = false;
+
+      return undefined;
+    }
+
     if (token.kind === 'paste') {
       const routed = routePaste(token.bytes, host.modes());
       const wrapped = routed.length > token.bytes.length;
@@ -356,7 +422,7 @@ export const createInputRouter = (host: TokenRouterHost): ((token: RoutedToken) 
   // Whether the token acts on the pane or tab the snapshot shows. Workspace keys do not: they
   // chain through pendingFocus.
   const readsSnapshot = (token: RoutedToken): boolean => {
-    if (token.kind === 'paste') {
+    if (token.kind !== 'key') {
       return false;
     }
 

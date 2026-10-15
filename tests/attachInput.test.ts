@@ -605,3 +605,98 @@ it('leaves the outer terminal kitty stack as it was after attach, 7, 31, 7, and 
   expect(sequences[0]).toBe('\x1b[>7u');
   expect(stack).toEqual([]);
 });
+
+const sgrClick = (column: number, row: number) =>
+  `\x1b[<0;${column};${row}M\x1b[<0;${column};${row}m`;
+
+// The side list takes 20 columns of the 80-column test terminal. A lone pane has no frame.
+it('sends a click to a pane with mouse mode 1000 at its local SGR coordinates', async () => {
+  const { type, receivedText, until } = await setupAttach(ModeFlag.normalMouse | ModeFlag.sgrMouse);
+
+  type(sgrClick(25, 5));
+
+  await until(() => receivedText().includes('m'));
+  expect(receivedText()).toBe('\x1b[<0;5;5M\x1b[<0;5;5m');
+});
+
+it('sends a click in legacy encoding when the pane does not ask for SGR', async () => {
+  const { type, receivedBytes, until } = await setupAttach(ModeFlag.normalMouse);
+
+  type(sgrClick(25, 5));
+
+  await until(() => receivedBytes().length >= 12);
+
+  expect([...receivedBytes()]).toEqual([
+    0x1b, 0x5b, 0x4d, 32, 37, 37, 0x1b, 0x5b, 0x4d, 35, 37, 37,
+  ]);
+});
+
+const drag = '\x1b[<32;25;5M';
+const motion = '\x1b[<35;25;5M';
+
+it('sends a drag only to a pane with mode 1002, and plain motion only with 1003', async () => {
+  const buttons = await setupAttach(ModeFlag.normalMouse | ModeFlag.sgrMouse);
+
+  buttons.type(drag + motion + 'x');
+  await buttons.until(() => buttons.receivedText().endsWith('x'));
+  expect(buttons.receivedText()).toBe('x');
+
+  const drags = await setupAttach(ModeFlag.buttonMouse | ModeFlag.sgrMouse);
+
+  drags.type(drag + motion + 'x');
+  await drags.until(() => drags.receivedText().endsWith('x'));
+  expect(drags.receivedText()).toBe('\x1b[<32;5;5Mx');
+
+  const everything = await setupAttach(ModeFlag.anyMouse | ModeFlag.sgrMouse);
+
+  everything.type(drag + motion + 'x');
+  await everything.until(() => everything.receivedText().endsWith('x'));
+  expect(everything.receivedText()).toBe('\x1b[<32;5;5M\x1b[<35;5;5Mx');
+});
+
+it('sends nothing for a click or the wheel to a pane without a mouse mode', async () => {
+  const { type, receivedText, until } = await setupAttach(0);
+
+  type(sgrClick(25, 5) + '\x1b[<64;25;5M\x1b[<65;25;5Mx');
+
+  await until(() => receivedText().endsWith('x'));
+  expect(receivedText()).toBe('x');
+});
+
+it('sends a click only to the pane under the pointer, at its own coordinates', async () => {
+  const { type, receivedBy, until } = await setupAttach(ModeFlag.normalMouse | ModeFlag.sgrMouse, {
+    secondPane: true,
+  });
+
+  // The second pane's first cell is outer column 53, inside a one-cell frame.
+  type(sgrClick(54, 4) + 'x');
+
+  await until(() => receivedBy(1).endsWith('x'));
+  expect(receivedBy(1)).toBe('x');
+  expect(receivedBy(2)).toBe('\x1b[<0;2;3M\x1b[<0;2;3m');
+});
+
+it('turns the outer mouse modes on at attach and off after detach', async () => {
+  const { outputText, hangUp, until } = await setupAttach(0);
+  const on = '\x1b[?1000h\x1b[?1002h\x1b[?1003h\x1b[?1006h';
+  const off = '\x1b[?1006l\x1b[?1016l\x1b[?1015l\x1b[?1005l\x1b[?1003l\x1b[?1002l\x1b[?1000l';
+
+  await until(() => outputText().includes(on));
+
+  hangUp();
+
+  await until(() => outputText().includes(off));
+});
+
+it('turns the outer mouse modes off after a key-driven detach', async () => {
+  const { outputText, type, until } = await setupAttach(0);
+  const on = '\x1b[?1000h\x1b[?1002h\x1b[?1003h\x1b[?1006h';
+  const off = '\x1b[?1006l\x1b[?1016l\x1b[?1015l\x1b[?1005l\x1b[?1003l\x1b[?1002l\x1b[?1000l';
+
+  await until(() => outputText().includes(on));
+
+  type('\x02d');
+
+  await until(() => outputText().includes(off));
+  expect(outputText().indexOf(off)).toBeGreaterThan(outputText().indexOf(on));
+});

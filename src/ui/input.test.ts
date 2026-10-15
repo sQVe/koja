@@ -1,8 +1,8 @@
 import { expect, it } from 'bun:test';
 
 import type { InputMode, WorkspaceCommand } from '../client/client.ts';
-import { workspaceId } from '../ids.ts';
-import type { WorkspaceId } from '../ids.ts';
+import { paneId, workspaceId } from '../ids.ts';
+import type { PaneId, WorkspaceId } from '../ids.ts';
 import { ModeFlag } from '../rows/rows.ts';
 import { createInputRouter, routeKey, routePaste } from './input.ts';
 import type { PaneAction } from './input.ts';
@@ -134,6 +134,9 @@ const router = (
     tab: () => undefined,
     tabPending: () => false,
     afterTabAnswer: () => undefined,
+    mouseTarget: () => undefined,
+    paneModes: () => 0,
+    sendToPane: () => undefined,
     detach: () => {
       detaches += 1;
     },
@@ -336,6 +339,9 @@ const chunkRouter = () => {
         sent.push(decoder.decode(bytes));
       }
     },
+    mouseTarget: () => undefined,
+    paneModes: () => 0,
+    sendToPane: () => undefined,
     detach: () => undefined,
     tab: () => undefined,
     tabPending: () => false,
@@ -522,6 +528,9 @@ it('asks the host for a tab and keeps normal mode', () => {
     setMode: (mode) => modes.push(mode),
     modes: () => 0,
     send: () => undefined,
+    mouseTarget: () => undefined,
+    paneModes: () => 0,
+    sendToPane: () => undefined,
     detach: () => undefined,
     tab: (tab) => routes.push(tab),
     tabPending: () => false,
@@ -556,6 +565,9 @@ it('holds input while a tab request is unanswered and routes it in order after t
         events.push(`send ${decoder.decode(bytes)}`);
       }
     },
+    mouseTarget: () => undefined,
+    paneModes: () => 0,
+    sendToPane: () => undefined,
     detach: () => undefined,
     tab: () => {
       pending = true;
@@ -681,6 +693,9 @@ it('sends held tokens when the action fails to settle normally', async () => {
         held.push(decoder.decode(bytes));
       }
     },
+    mouseTarget: () => undefined,
+    paneModes: () => 0,
+    sendToPane: () => undefined,
     detach: () => undefined,
     tab: () => undefined,
     tabPending: () => false,
@@ -818,4 +833,139 @@ it('ignores Alt keys in normal mode, in legacy and kitty form', () => {
 
 it('still sends an Alt key to the pane in insert mode', () => {
   expect(key('\x1bx', 'insert')).toEqual({ text: '\x1bx', mode: 'insert' });
+});
+
+const mouseRouter = (tabPending: () => boolean = () => false) => {
+  const sent: { pane: PaneId; text: string }[] = [];
+  let answered: (() => void) | undefined;
+  let mode: InputMode = 'insert';
+
+  const input = createInputRouter({
+    mode: () => mode,
+    setMode: (next) => {
+      mode = next;
+    },
+    modes: () => 0,
+    send: () => undefined,
+    // Pane 1 holds columns 0 to 9 and pane 2 holds columns 10 to 19. A pointer outside hits nothing.
+    mouseTarget: (x, y, pane) => {
+      if (pane !== undefined) {
+        return {
+          paneId: pane,
+          column: Math.min(Math.max(x - (pane === paneId(2) ? 10 : 0), 0), 9),
+          row: y,
+        };
+      }
+
+      if (x < 0 || x > 19) {
+        return undefined;
+      }
+
+      return { paneId: paneId(x < 10 ? 1 : 2), column: x % 10, row: y };
+    },
+    paneModes: () => ModeFlag.buttonMouse | ModeFlag.sgrMouse,
+    sendToPane: (pane, bytes) => {
+      sent.push({ pane, text: decoder.decode(bytes) });
+    },
+    tab: () => undefined,
+    tabPending,
+    afterTabAnswer: (callback) => {
+      answered = callback;
+    },
+    detach: () => undefined,
+    workspaces: () => ({ ids: [], focused: undefined }),
+    startDirectory: '/work/start',
+    command: () => undefined,
+    paneAction: () => Promise.resolve(),
+  });
+
+  const mouse = (code: number, column: number, row: number, final: 'M' | 'm') => {
+    input({ kind: 'mouse', raw: `\x1b[<${code};${column};${row}${final}`, escapeSent: false });
+  };
+
+  return { sent, mouse, mode: () => mode, input, answer: () => answered?.() };
+};
+
+it('sends a drag and the release to the pane where the press started', () => {
+  const { sent, mouse } = mouseRouter();
+
+  mouse(0, 6, 3, 'M');
+  mouse(32, 16, 3, 'M');
+  mouse(0, 16, 3, 'm');
+
+  expect(sent).toEqual([
+    { pane: paneId(1), text: '\x1b[<0;6;3M' },
+    { pane: paneId(1), text: '\x1b[<32;10;3M' },
+    { pane: paneId(1), text: '\x1b[<0;10;3m' },
+  ]);
+});
+
+it('sends a click to the pane under the pointer after a release', () => {
+  const { sent, mouse } = mouseRouter();
+
+  mouse(0, 6, 3, 'M');
+  mouse(0, 6, 3, 'm');
+  mouse(0, 16, 3, 'M');
+
+  expect(sent.map((entry) => entry.pane)).toEqual([paneId(1), paneId(1), paneId(2)]);
+});
+
+it('sends nothing for a press outside every pane or the drag that follows it', () => {
+  const { sent, mouse } = mouseRouter();
+
+  mouse(0, 40, 3, 'M');
+  mouse(32, 6, 3, 'M');
+  mouse(0, 6, 3, 'm');
+
+  expect(sent).toEqual([]);
+});
+
+it('keeps the input mode and the key order when a mouse report arrives between keys', () => {
+  const { sent, mouse, mode, input } = mouseRouter();
+
+  input({ kind: 'key', raw: '\x02', escapeSent: false });
+  mouse(0, 6, 3, 'M');
+
+  expect(mode()).toBe('normal');
+  expect(sent.map((entry) => entry.pane)).toEqual([paneId(1)]);
+});
+
+it('keeps the first press capture while another button presses and releases elsewhere', () => {
+  const { sent, mouse } = mouseRouter();
+
+  mouse(0, 6, 3, 'M');
+  mouse(2, 16, 3, 'M');
+  mouse(2, 16, 3, 'm');
+  mouse(0, 16, 3, 'm');
+
+  expect(sent).toEqual([
+    { pane: paneId(1), text: '\x1b[<0;6;3M' },
+    { pane: paneId(1), text: '\x1b[<0;10;3m' },
+  ]);
+});
+
+it('captures a new press after the release of the first', () => {
+  const { sent, mouse } = mouseRouter();
+
+  mouse(0, 6, 3, 'M');
+  mouse(0, 6, 3, 'm');
+  mouse(2, 16, 3, 'M');
+  mouse(2, 16, 3, 'm');
+
+  expect(sent.map((entry) => entry.pane)).toEqual([paneId(1), paneId(1), paneId(2), paneId(2)]);
+});
+
+it('holds a mouse token behind a pending tab request until the answer arrives', () => {
+  let pending = false;
+  const { sent, mouse, answer } = mouseRouter(() => pending);
+
+  pending = true;
+  mouse(0, 6, 3, 'M');
+
+  expect(sent).toEqual([]);
+
+  pending = false;
+  answer();
+
+  expect(sent).toEqual([{ pane: paneId(1), text: '\x1b[<0;6;3M' }]);
 });

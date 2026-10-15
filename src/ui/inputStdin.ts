@@ -15,11 +15,11 @@ interface OpenTuiInternals {
 
 const releaseCheckMs = 25;
 
-// Replaces OpenTUI's stdin listener, hands keys and pastes to onInput, and returns a function that
+// Replaces OpenTUI's stdin listener, hands keys, mouse reports, and pastes to onInput, and returns a function that
 // puts OpenTUI's listener back.
 export const takeStdin = (
   renderer: CliRenderer,
-  onInput: (token: Exclude<InputToken, { kind: 'response' | 'mouse' }>) => void,
+  onInput: (token: Exclude<InputToken, { kind: 'response' }>) => void,
 ): (() => void) => {
   // SAFETY: the renderer's private field is read as optional and checked before use.
   // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- the field is private in OpenTUI's types.
@@ -40,7 +40,7 @@ export const takeStdin = (
     for (const token of tokens) {
       if (token.kind === 'response') {
         openTuiListener(Buffer.from(token.bytes));
-      } else if (token.kind !== 'mouse') {
+      } else {
         onInput(token);
       }
     }

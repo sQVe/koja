@@ -183,6 +183,10 @@ export const setupAttach = async (
             changed();
           }
 
+          if (parsed.ok && parsed.message.type === 'detach') {
+            socket.write(control({ type: 'detached' }));
+          }
+
           if (parsed.ok && parsed.message.type === 'hello') {
             socket.write(control({ type: 'welcome' }));
             connection = socket;

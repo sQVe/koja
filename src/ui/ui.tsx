@@ -12,8 +12,10 @@ import { createInputRouter } from './input.ts';
 import type { PaneAction } from './input.ts';
 import { takeStdin } from './inputStdin.ts';
 import { mountPanes } from './paneLayer.ts';
+import { placementOf, targetAt, targetNear } from './screenTargets.ts';
 import { StatusBar } from './statusBar.tsx';
 import { createTerminalKeyboard } from './terminalKeyboard.ts';
+import { createTerminalMouse } from './terminalMouse.ts';
 import { themeFromDetectedColors } from './terminalTheme.ts';
 import { SideList } from './workspaceList.tsx';
 
@@ -125,7 +127,7 @@ const runPaneAction = (session: AttachSession, action: PaneAction): Promise<void
   return focusNeighbor(session, action === 'focusPrevious' ? -1 : 1);
 };
 
-const routeInput = (session: AttachSession) =>
+const routeInput = (session: AttachSession, renderer: CliRenderer) =>
   createInputRouter({
     mode: () => session.getState().inputMode,
     setMode: (mode) => {
@@ -134,6 +136,18 @@ const routeInput = (session: AttachSession) =>
     modes: () => paneModes(session),
     send: (bytes) => {
       sendToPane(session, bytes);
+    },
+    mouseTarget: (x, y, pane) => {
+      const placement = placementOf(session.getState().snapshot, {
+        columns: renderer.terminalWidth,
+        rows: renderer.terminalHeight,
+      });
+
+      return pane === undefined ? targetAt(placement, x, y) : targetNear(placement, pane, x, y);
+    },
+    paneModes: (pane) => session.rowCache(pane)?.modes() ?? 0,
+    sendToPane: (pane, bytes) => {
+      session.sendInput(pane, bytes);
     },
     detach: session.detach,
     workspaces: () => {
@@ -163,6 +177,7 @@ export const runAttach = async (session: AttachSession): Promise<CloseReason> =>
   });
 
   const keyboard = createTerminalKeyboard((text) => process.stdout.write(text));
+  const mouse = createTerminalMouse((text) => process.stdout.write(text));
   const signals = ['SIGTERM', 'SIGINT', 'SIGHUP'] as const;
   let releaseStdin: (() => void) | undefined;
   let unsubscribeState: (() => void) | undefined;
@@ -199,10 +214,11 @@ export const runAttach = async (session: AttachSession): Promise<CloseReason> =>
 
   // Cleanup runs after any step of the setup, so each step it undoes is optional here.
   try {
-    releaseStdin = takeStdin(renderer, routeInput(session));
+    releaseStdin = takeStdin(renderer, routeInput(session, renderer));
     unsubscribeState = session.subscribe(followPaneKeys);
     unsubscribeRows = session.subscribeRows(followPaneKeys);
     followPaneKeys();
+    mouse.enable();
     root = createRoot(renderer);
 
     for (const signal of signals) {
@@ -236,6 +252,7 @@ export const runAttach = async (session: AttachSession): Promise<CloseReason> =>
     unsubscribeState?.();
     unsubscribeRows?.();
     keyboard.restore();
+    mouse.restore();
     releaseStdin?.();
     releasePane();
     root?.unmount();
