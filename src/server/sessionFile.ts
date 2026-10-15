@@ -110,7 +110,7 @@ const sessionShape = z.object({
       layout: layoutSchema,
       focusedPaneId: paneIdSchema,
       zoomedPaneId: absent(paneIdSchema),
-      // A file saved before tabs had labels has no label key.
+      // A session file may have no label key on a tab, and must still load.
       label: z
         .string()
         .nullish()
