@@ -182,6 +182,7 @@ export const createTab = (state: State, intent: CreateTabIntent): Outcome => {
     layout: { kind: 'pane', paneId: pane.id },
     focusedPaneId: pane.id,
     zoomedPaneId: undefined,
+    label: undefined,
   };
 
   const workspaces = state.workspaces.map((workspace) =>
@@ -229,6 +230,26 @@ export const focusTab = (state: State, id: TabId, source: ClientId | undefined):
   const focused = showTab(state, source, owner.id, id);
 
   return propose(focused, viewChanges(state, focused));
+};
+
+export const renameTab = (state: State, id: TabId, label: string): Outcome => {
+  if (state.stopping) {
+    return refuse('serverStopping');
+  }
+
+  const renaming = state.tabs.find((tab) => tab.id === id);
+
+  if (renaming === undefined) {
+    return refuse('unknownTab');
+  }
+
+  if (renaming.label === label) {
+    return propose(state, []);
+  }
+
+  const tabs = state.tabs.map((tab) => (tab.id === id ? { ...tab, label } : tab));
+
+  return propose({ ...state, tabs }, [{ type: 'tabRenamed', tabId: id, label }]);
 };
 
 export const closeTab = (state: State, id: TabId): Outcome => {

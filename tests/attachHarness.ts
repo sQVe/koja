@@ -72,6 +72,7 @@ const makeTab = (panes: number, focused: number) => ({
         },
   focusedPaneId: paneId(focused),
   zoomedPaneId: undefined,
+  label: undefined,
 });
 
 const workspace = {

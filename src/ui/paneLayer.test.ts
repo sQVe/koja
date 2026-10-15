@@ -59,6 +59,7 @@ const snapshotOf = (
       layout,
       focusedPaneId: paneId(1),
       zoomedPaneId: undefined,
+      label: undefined,
     },
   ],
   panes,

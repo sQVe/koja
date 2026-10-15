@@ -32,6 +32,7 @@ const snapshot: StoreSnapshot = {
       layout: { kind: 'pane', paneId: paneId(1) },
       focusedPaneId: paneId(1),
       zoomedPaneId: undefined,
+      label: undefined,
     },
   ],
   panes: [
@@ -108,6 +109,7 @@ const secondTab = {
   layout: { kind: 'pane' as const, paneId: paneId(2) },
   focusedPaneId: paneId(2),
   zoomedPaneId: undefined,
+  label: undefined,
 };
 
 const secondPane = {

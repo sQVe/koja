@@ -15,6 +15,7 @@ interface TabEntry {
   number: number;
   active: boolean;
   pane: string;
+  label: string | null;
 }
 
 interface TabActionOutput {
@@ -33,6 +34,7 @@ const listTabs = (snapshot: StoreSnapshot) =>
       number: (owner?.tabIds.indexOf(tab.id) ?? -1) + 1,
       active: activeTabIdOf(snapshot.defaultView, tab.workspaceId) === tab.id,
       pane: tab.focusedPaneId,
+      label: tab.label ?? null,
     };
   });
 
@@ -59,7 +61,7 @@ const runTabList = async (
 };
 
 const doneText = (action: TabCommand['action'], id: string): string => {
-  const verbs = { create: 'Created', focus: 'Focused', close: 'Closed' };
+  const verbs = { create: 'Created', focus: 'Focused', rename: 'Renamed', close: 'Closed' };
 
   return `${verbs[action]} ${id}.`;
 };

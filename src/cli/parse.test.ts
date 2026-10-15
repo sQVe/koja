@@ -112,6 +112,12 @@ it('parses the tab commands', () => {
     ...options,
   });
 
+  expect(parseCommand(['tab', 'rename', 'tab-3', 'build'])).toEqual({
+    kind: 'tab',
+    tab: { action: 'rename', tabId: tabId(3), label: 'build' },
+    ...options,
+  });
+
   expect(parseCommand(['tab', 'close', 'tab-3'])).toEqual({
     kind: 'tab',
     tab: { action: 'close', tabId: tabId(3) },
@@ -140,6 +146,9 @@ it.each([
 it.each([
   ['a workspace id as a tab id', ['tab', 'focus', 'workspace-1']],
   ['no tab id', ['tab', 'close']],
+  ['no label for tab rename', ['tab', 'rename', 'tab-1']],
+  ['an empty label for tab rename', ['tab', 'rename', 'tab-1', '']],
+  ['a bad tab id for tab rename', ['tab', 'rename', '1', 'build']],
   ['an unknown action', ['tab', 'open']],
   ['--workspace on tab focus', ['tab', 'focus', 'tab-1', '--workspace', 'workspace-1']],
   ['--workspace on another group', ['workspace', 'list', '--workspace', 'workspace-1']],
@@ -518,6 +527,7 @@ const jsonDefaultCommands = [
   ['tab', 'list'],
   ['tab', 'create'],
   ['tab', 'focus', 'tab-3'],
+  ['tab', 'rename', 'tab-3', 'build'],
   ['tab', 'close', 'tab-3'],
   ['pane', 'list'],
   ['pane', 'split', 'pane-2', '--direction', 'below'],

@@ -45,6 +45,7 @@ it('creates a second tab with a starting pane, last in the list and active', () 
     layout: { kind: 'pane', paneId: paneId(2) },
     focusedPaneId: paneId(2),
     zoomedPaneId: undefined,
+    label: undefined,
   };
 
   expect(workspaceOne(result.state)).toMatchObject({ tabIds: [tabId(1), tabId(2)] });
@@ -255,4 +256,40 @@ it('records the folder of a createTab intent on the new pane', () => {
   const result = intent(run([createPhi]), { ...createTab, folder: '/srv/source' });
 
   expect(result.state.panes.find((pane) => pane.id === paneId(2))?.startFolder).toBe('/srv/source');
+});
+
+it('renames a tab and reports the change', () => {
+  const state = run([createPhi]);
+  const result = intent(state, { type: 'renameTab', tabId: tabId(1), label: 'build' });
+
+  expect(result.state.tabs.map((tab) => tab.label)).toEqual(['build']);
+  expect(result.changes).toEqual([{ type: 'tabRenamed', tabId: tabId(1), label: 'build' }]);
+});
+
+it('changes nothing when a tab gets the label it has', () => {
+  const state = run([createPhi, { type: 'renameTab', tabId: tabId(1), label: 'build' }]);
+  const result = intent(state, { type: 'renameTab', tabId: tabId(1), label: 'build' });
+
+  expect(result.state).toEqual(state);
+  expect(result.changes).toEqual([]);
+});
+
+it('refuses to rename an unknown tab and leaves state unchanged', () => {
+  const state = run([createPhi]);
+
+  expect(applyIntent(state, { type: 'renameTab', tabId: tabId(9), label: 'x' })).toEqual({
+    kind: 'rejected',
+    state,
+    reason: 'unknownTab',
+  });
+});
+
+it('refuses to rename a tab while the server stops and leaves state unchanged', () => {
+  const state = run([createPhi, { type: 'stopServer' }]);
+
+  expect(applyIntent(state, { type: 'renameTab', tabId: tabId(1), label: 'x' })).toEqual({
+    kind: 'rejected',
+    state,
+    reason: 'serverStopping',
+  });
 });

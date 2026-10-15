@@ -19,7 +19,7 @@ import {
   zoomPane,
 } from './paneTransitions.ts';
 import { restoreSession, stopServer } from './sessionTransitions.ts';
-import { closeTab, createTab, focusTab } from './tabTransitions.ts';
+import { closeTab, createTab, focusTab, renameTab } from './tabTransitions.ts';
 import type { Outcome, Proposal } from './transitionOutcome.ts';
 import { activeTabOf } from './view.ts';
 import {
@@ -62,6 +62,7 @@ export interface Tab {
   layout: Layout;
   focusedPaneId: PaneId;
   zoomedPaneId: PaneId | undefined;
+  label: string | undefined;
 }
 
 export interface Pane {
@@ -172,6 +173,7 @@ export type Intent =
       clientId?: ClientId;
     }
   | { type: 'focusTab'; tabId: TabId; clientId?: ClientId }
+  | { type: 'renameTab'; tabId: TabId; label: string }
   | { type: 'closeTab'; tabId: TabId }
   | {
       type: 'splitPane';
@@ -213,6 +215,7 @@ export type Change =
   | { type: 'workspaceFocused'; workspaceId: WorkspaceId }
   | { type: 'workspaceRenamed'; workspaceId: WorkspaceId; label: string }
   | { type: 'tabFocused'; workspaceId: WorkspaceId; tabId: TabId }
+  | { type: 'tabRenamed'; tabId: TabId; label: string }
   // Carries the focus that remains, so a client needs no rule to pick it.
   | {
       type: 'workspaceRemoved';
@@ -242,7 +245,7 @@ export type Change =
   | { type: 'clientDetached'; clientId: ClientId; reason: DetachReason }
   | { type: 'serverStopping' };
 
-type TabIntent = Extract<Intent, { type: 'createTab' | 'focusTab' | 'closeTab' }>;
+type TabIntent = Extract<Intent, { type: 'createTab' | 'focusTab' | 'renameTab' | 'closeTab' }>;
 
 type PaneIntent = Extract<
   Intent,
@@ -406,8 +409,14 @@ export const savedSessionOf = (
   nextPaneNumber: state.nextPaneNumber,
 });
 
-const isTabIntent = (intent: Intent): intent is TabIntent =>
-  intent.type === 'createTab' || intent.type === 'focusTab' || intent.type === 'closeTab';
+const tabIntentTypes: ReadonlySet<Intent['type']> = new Set<TabIntent['type']>([
+  'createTab',
+  'focusTab',
+  'renameTab',
+  'closeTab',
+]);
+
+const isTabIntent = (intent: Intent): intent is TabIntent => tabIntentTypes.has(intent.type);
 
 const paneIntentTypes: ReadonlySet<Intent['type']> = new Set<PaneIntent['type']>([
   'splitPane',
@@ -422,6 +431,10 @@ const isPaneIntent = (intent: Intent): intent is PaneIntent => paneIntentTypes.h
 const transitionTabIntent = (state: State, intent: TabIntent): Outcome => {
   if (intent.type === 'createTab') {
     return createTab(state, intent);
+  }
+
+  if (intent.type === 'renameTab') {
+    return renameTab(state, intent.tabId, intent.label);
   }
 
   return intent.type === 'focusTab'
