@@ -4,6 +4,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
 import { paneId, tabId, workspaceId } from '../ids.ts';
+import type { PaneId, TabId } from '../ids.ts';
 import type { SavedSession, Tab, Workspace } from '../store/store.ts';
 import type { Log } from './log.ts';
 import { createSessionWriter, readSessionFile, sessionPathFor } from './sessionFile.ts';
@@ -297,6 +298,97 @@ for (const [name, overrides] of disagreeing) {
     await expectBroken(path);
   });
 }
+
+const workspacesWith = (index: number, changes: Partial<Workspace>): Workspace[] =>
+  sessionWith().workspaces.map((workspace, position) =>
+    position === index ? workspaceWith(changes)(workspace) : workspace,
+  );
+
+const movedPane = (pane: SavedSession['panes'][number], owner: TabId) => ({
+  ...pane,
+  tabId: owner,
+});
+
+const panesWith = (id: PaneId, owner: TabId): SavedSession['panes'] =>
+  sessionWith().panes.map((pane) => (pane.id === id ? movedPane(pane, owner) : pane));
+
+// Each case breaks one rule only, so a check that is gone lets the session load.
+const splitTab = (tab: Tab): Tab => ({
+  ...tab,
+  layout: {
+    kind: 'split',
+    direction: 'right',
+    ratio: 0.5,
+    first: { kind: 'pane', paneId: paneId(3) },
+    second: { kind: 'pane', paneId: paneId(1) },
+  },
+});
+
+const isolated: [string, Partial<SavedSession>][] = [
+  [
+    'a workspace id that appears twice',
+    { workspaces: [...sessionWith().workspaces, ...sessionWith().workspaces.slice(0, 1)] },
+  ],
+  ['a next workspace number that is not above every workspace id', { nextWorkspaceNumber: 2 }],
+  ['a next tab number that is not above every tab id', { nextTabNumber: 2 }],
+  [
+    'a workspace that lists the tab of another workspace',
+    {
+      workspaces: workspacesWith(0, { tabIds: [tabId(1), tabId(2)] }),
+    },
+  ],
+  [
+    'a workspace that lists a tab that does not exist',
+    {
+      workspaces: workspacesWith(0, { tabIds: [tabId(1), tabId(9)] }),
+    },
+  ],
+  [
+    'a tab that its workspace does not list',
+    {
+      tabs: [
+        ...sessionWith().tabs,
+        {
+          id: tabId(4),
+          workspaceId: workspaceId(2),
+          layout: { kind: 'pane', paneId: paneId(4) },
+          focusedPaneId: paneId(4),
+          zoomedPaneId: undefined,
+          label: undefined,
+        },
+      ],
+      panes: [...sessionWith().panes, { id: paneId(4), tabId: tabId(4), startFolder: undefined }],
+      nextTabNumber: 5,
+      nextPaneNumber: 5,
+    },
+  ],
+  [
+    'a pane in two layouts',
+    {
+      tabs: sessionWith().tabs.map((tab) => (tab.id === tabId(2) ? splitTab(tab) : tab)),
+    },
+  ],
+  [
+    'a pane in the layout of another tab',
+    {
+      panes: panesWith(paneId(3), tabId(1)),
+    },
+  ],
+  [
+    'a pane of a tab that does not exist',
+    {
+      panes: panesWith(paneId(3), tabId(9)),
+    },
+  ],
+];
+
+it.each(isolated)('reports %s as broken', async (_name, overrides) => {
+  const directory = await temporaryDirectory();
+  const path = join(directory, 'session.json');
+  await writeSession(path, await savedJson(sessionWith(overrides)));
+
+  await expectBroken(path);
+});
 
 it('accepts the unmodified session as written by hand', async () => {
   const directory = await temporaryDirectory();
