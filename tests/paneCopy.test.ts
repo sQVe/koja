@@ -247,3 +247,27 @@ it.each([true, false])(
   },
   20_000,
 );
+
+it('answers a copy during a synchronized-output hold only after the hold ends', async () => {
+  const { server, socketPath } = await startServerOnly();
+
+  await drawScreen(server);
+
+  server.writeToPane('printf \'\\033[?2026h\\033[2J\\033[Hhalf-\'"drawn"\n');
+  await waitFor(() => server.paneText()?.includes('half-drawn') === true);
+
+  const cli = await connectCli(socketPath);
+
+  cli.sendTogether([copyRange(true), { type: 'paneSend', paneId: paneId(1), text: '' }]);
+
+  expect(await nextOfType(cli, 'paneSent')).toEqual({ type: 'paneSent', paneId: paneId(1) });
+  expect(cli.messages.some((message) => message.type === 'paneCopyResult')).toBe(false);
+
+  server.writeToPane("printf '\\033[2J\\033[Hxxxxxxbravo\\nchaos\\033[?2026l'\n");
+
+  expect((await nextOfType(cli, 'paneCopyResult')).result).toEqual({
+    ok: true,
+    text: 'bravo\ncha',
+    clientId: undefined,
+  });
+});

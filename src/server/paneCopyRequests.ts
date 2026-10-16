@@ -4,20 +4,29 @@ import type { ControlMessage } from '../protocol/protocol.ts';
 import { rowsRangeText } from '../rows/rows.ts';
 import type { State } from '../store/store.ts';
 import type { Connection } from './connection.ts';
+import type { Log } from './log.ts';
 import type { PaneRuntime } from './pane.ts';
 import { findLivePane } from './paneEffects.ts';
 import { sendToForeground } from './paneNotice.ts';
 import type { ForegroundContext } from './paneNotice.ts';
 import { maxReplyBytes, selectPaneRows } from './paneRows.ts';
+import type { RowPublication } from './rowSubscriptions.ts';
 
 interface PaneCopyContext extends ForegroundContext {
+  options: { log: Log };
   state: State;
-  runtime: ForegroundContext['runtime'] & { panes: Map<PaneId, PaneRuntime> };
+  runtime: ForegroundContext['runtime'] & {
+    panes: Map<PaneId, PaneRuntime>;
+    rowPublishers: Map<PaneId, RowPublication>;
+  };
 }
 
 type PaneCopyMessage = Extract<ControlMessage, { type: 'paneCopy' }>;
 
 type PaneCopyResult = Extract<ControlMessage, { type: 'paneCopyResult' }>['result'];
+
+const describeError = (error: unknown): string =>
+  error instanceof Error ? error.message : String(error);
 
 const copyTextOf = (context: PaneCopyContext, message: PaneCopyMessage): PaneCopyResult => {
   const live = findLivePane(context, message.paneId);
@@ -62,7 +71,7 @@ const tooLarge: PaneCopyResult = { ok: false, reason: 'tooLarge', oldest: undefi
 // bounds both.
 const fitsReply = (reply: ControlMessage): boolean => encodeControl(reply).length <= maxReplyBytes;
 
-export const handlePaneCopy = (
+const answerPaneCopy = (
   context: PaneCopyContext,
   message: PaneCopyMessage,
   connection: Connection,
@@ -103,4 +112,32 @@ export const handlePaneCopy = (
   }
 
   connection.send(reply);
+};
+
+// Attached clients still show the frame from before a hold, so a copy waits for the hold to end.
+export const handlePaneCopy = (
+  context: PaneCopyContext,
+  message: PaneCopyMessage,
+  connection: Connection,
+): void => {
+  const live = findLivePane(context, message.paneId);
+  const publication = context.runtime.rowPublishers.get(message.paneId);
+
+  if (live === undefined || publication === undefined || !live.runtime.terminal.renderHeld()) {
+    answerPaneCopy(context, message, connection);
+
+    return;
+  }
+
+  publication.publisher
+    .whenReleased()
+    .then(() => {
+      answerPaneCopy(context, message, connection);
+    })
+    .catch((error: unknown) => {
+      context.options.log.error('Copying from the pane failed.', {
+        paneId: message.paneId,
+        error: describeError(error),
+      });
+    });
 };
