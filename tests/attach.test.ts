@@ -594,7 +594,7 @@ it('shows the first tab again after H and 1 without resizing a pane', async () =
   expect(await waitFor(() => lastLine(screen.text()) === 'NORMAL 1 [2]')).toBe(true);
   client.terminal?.write('1');
   expect(await waitFor(() => lastLine(screen.text()) === 'NORMAL [1] 2')).toBe(true);
-  expect(screen.text()).toContain('tab-one-marker');
+  expect(await waitFor(() => screen.text().includes('tab-one-marker'))).toBe(true);
   expect((await readPaneSizes(socketPath)).slice(0, sizes.length)).toEqual(sizes);
 });
 
