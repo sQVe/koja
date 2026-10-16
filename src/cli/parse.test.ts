@@ -413,6 +413,10 @@ it('lists the workspace and pane commands in the usage', () => {
   expect(lines).toContain('phi pane zoom <id> [--socket <path>] [--json]');
 
   expect(lines).toContain(
+    'phi pane scroll <id> --to top|bottom|<row> [--client <id>] [--socket <path>] [--json]',
+  );
+
+  expect(lines).toContain(
     'phi pane resize <id> --direction left|right|up|down --cells <n> [--socket <path>] [--json]',
   );
 });
@@ -587,3 +591,52 @@ it.each([[['pane', 'read', 'pane-1']], [['pane', 'send', 'ls']]])(
     expect(parseCommand(argv)).toMatchObject({ json: false });
   },
 );
+
+it('parses pane scroll to top, bottom, or a row', () => {
+  expect(parseCommand(['pane', 'scroll', 'pane-2', '--to', 'top'])).toEqual({
+    kind: 'pane',
+    pane: { action: 'scroll', pane: paneId(2), to: 'top', client: undefined },
+    json: true,
+    socket: undefined,
+  });
+
+  expect(parseCommand(['pane', 'scroll', 'pane-2', '--to', 'bottom'])).toMatchObject({
+    pane: { action: 'scroll', to: 'bottom' },
+  });
+
+  expect(parseCommand(['pane', 'scroll', 'pane-2', '--to', '0'])).toMatchObject({
+    pane: { action: 'scroll', to: 0 },
+  });
+
+  expect(parseCommand(['pane', 'scroll', 'pane-2', '--to', '120'])).toMatchObject({
+    pane: { action: 'scroll', to: 120 },
+  });
+});
+
+it('parses pane scroll with a client', () => {
+  expect(
+    parseCommand(['pane', 'scroll', 'pane-1', '--to', 'top', '--client', 'client-3']),
+  ).toMatchObject({ pane: { action: 'scroll', client: clientId(3) } });
+});
+
+it.each([
+  ['no position', ['pane', 'scroll', 'pane-1']],
+  ['an empty position', ['pane', 'scroll', 'pane-1', '--to', '']],
+  ['a word that is not a position', ['pane', 'scroll', 'pane-1', '--to', 'middle']],
+  ['a negative row', ['pane', 'scroll', 'pane-1', '--to', '-1']],
+  ['a fractional row', ['pane', 'scroll', 'pane-1', '--to', '1.5']],
+  ['a row too large to count', ['pane', 'scroll', 'pane-1', '--to', '99999999999999999999']],
+  ['no id', ['pane', 'scroll', '--to', 'top']],
+  ['a malformed id', ['pane', 'scroll', 'tab-1', '--to', 'top']],
+  ['two ids', ['pane', 'scroll', 'pane-1', 'pane-2', '--to', 'top']],
+  ['--pane', ['pane', 'scroll', 'pane-1', '--to', 'top', '--pane', 'pane-1']],
+  ['a malformed client id', ['pane', 'scroll', 'pane-1', '--to', 'top', '--client', 'pane-1']],
+  ['an empty client id', ['pane', 'scroll', 'pane-1', '--to', 'top', '--client', '']],
+  ['--from', ['pane', 'scroll', 'pane-1', '--to', 'top', '--from', '1']],
+  ['--cells', ['pane', 'scroll', 'pane-1', '--to', 'top', '--cells', '1']],
+  ['--client on pane read', ['pane', 'read', 'pane-1', '--client', 'client-1']],
+  ['--client on pane zoom', ['pane', 'zoom', 'pane-1', '--client', 'client-1']],
+  ['--to on pane zoom', ['pane', 'zoom', 'pane-1', '--to', 'top']],
+])('refuses pane scroll with %s', (_name, argv) => {
+  expect(typeof parseCommand(argv)).toBe('string');
+});

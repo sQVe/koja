@@ -10,12 +10,13 @@ import {
   parseControl,
 } from '../protocol/protocol.ts';
 import type { BuildVersion, ControlMessage } from '../protocol/protocol.ts';
-import { decodeRowUpdate, encodePaneInput } from '../rows/rows.ts';
+import { decodePaneRows, decodeRowUpdate, encodePaneInput } from '../rows/rows.ts';
 import { paneLayoutRequest } from './paneRequest.ts';
 import type { PaneMoveDestination, ResizeDirection, SplitDirection } from './paneRequest.ts';
 import { createRowCache } from './rowCache.ts';
-import type { RowCache } from './rowCache.ts';
-import { activeTabIdOf, applyChange, viewedPane, shownView } from './snapshot.ts';
+import type { RowCache, RowRange } from './rowCache.ts';
+import { createRowFetcher } from './rowFetch.ts';
+import { activeTabIdOf, applyChange, shownPaneIds, viewedPane, shownView } from './snapshot.ts';
 import type { StoreChange, StoreSnapshot } from './snapshot.ts';
 import { tabRequest } from './tabRequest.ts';
 import { workspaceRequest } from './workspaceRequest.ts';
@@ -26,7 +27,7 @@ interface TerminalSize {
   rows: number;
 }
 
-export type InputMode = 'insert' | 'normal';
+export type InputMode = 'insert' | 'normal' | 'scroll';
 
 export type TabRoute =
   | { kind: 'create' }
@@ -75,6 +76,11 @@ export interface AttachSession {
   // foreground.
   subscribeNotices: (listener: (notice: PaneNotice) => void) => () => void;
   rowCache: (pane: PaneId) => RowCache | undefined;
+  // Keeps the pane's rows in the range in its cache, and fetches those the cache lacks from the
+  // server. Undefined releases the rows.
+  holdRows: (pane: PaneId, ranges: readonly RowRange[] | undefined) => void;
+  // Calls back after fetched rows of a pane are in its cache.
+  subscribeFetched: (listener: (pane: PaneId) => void) => () => void;
   // The sequence of the newest row update applied to the pane's cache, drawn or not.
   newestSequence: (pane: PaneId) => number | undefined;
   resize: (size: TerminalSize) => void;
@@ -99,6 +105,11 @@ export interface AttachSession {
   movePane: (pane: PaneId, destination: PaneMoveDestination) => Promise<void>;
   zoomPane: (pane: PaneId) => Promise<void>;
   resizePane: (pane: PaneId, direction: ResizeDirection, cells: number) => Promise<void>;
+  // Moves this client's view of the pane to a stable row, or back to the bottom, like
+  // `phi pane scroll --client`.
+  // The promise settles once the server has answered and its change is in the snapshot, when the
+  // session ends, or when the answer takes too long.
+  scrollPane: (pane: PaneId, to: 'bottom' | number) => Promise<void>;
   // Asks the server to detach this client. The session closes with `detached`.
   detach: () => void;
   // The snapshot changes show the result, so the replies are ignored.
@@ -162,6 +173,7 @@ export const connectAttach = async (
   const rowListeners = new Set<(changed: RowsChanged) => void>();
   const noticeListeners = new Set<(notice: PaneNotice) => void>();
   const unheardNotices: PaneNotice[] = [];
+  const fetchListeners = new Set<(pane: PaneId) => void>();
   // The server answers workspace requests in the order it receives them.
   const replyQueue: ((reply: WorkspaceReply) => void)[] = [];
   let pending: Uint8Array = new Uint8Array();
@@ -175,6 +187,7 @@ export const connectAttach = async (
   const freshRowPanes = new Set<PaneId>();
   let tabAnswerCallbacks: (() => void)[] = [];
   const layoutAnswers: (() => void)[] = [];
+  const scrollAnswers: (() => void)[] = [];
   let socket: Bun.Socket | undefined;
 
   const drain = (): void => {
@@ -208,7 +221,7 @@ export const connectAttach = async (
     ended = true;
     socket?.end();
 
-    for (const answered of layoutAnswers.splice(0)) {
+    for (const answered of [...layoutAnswers.splice(0), ...scrollAnswers.splice(0)]) {
       answered();
     }
 
@@ -216,7 +229,7 @@ export const connectAttach = async (
     closedSignal.resolve(reason);
   };
 
-  const requestLayout = (message: ControlMessage): Promise<void> => {
+  const requestAnswered = (answers: (() => void)[], message: ControlMessage): Promise<void> => {
     if (ended) {
       return Promise.resolve();
     }
@@ -227,7 +240,7 @@ export const connectAttach = async (
       answer.resolve(undefined);
     }, layoutAnswerTimeoutMs);
 
-    layoutAnswers.push(() => {
+    answers.push(() => {
       clearTimeout(timer);
       answer.resolve(undefined);
     });
@@ -237,6 +250,9 @@ export const connectAttach = async (
     return answer.promise;
   };
 
+  const requestLayout = (message: ControlMessage): Promise<void> =>
+    requestAnswered(layoutAnswers, message);
+
   const setState = (next: AttachState): void => {
     state = next;
 
@@ -245,13 +261,29 @@ export const connectAttach = async (
     }
   };
 
+  const rowFetcher = createRowFetcher({
+    send: (message) => {
+      send(message);
+    },
+    cacheOf: (pane) => rowCaches.get(pane),
+    onFetched: (pane) => {
+      for (const listener of fetchListeners) {
+        listener(pane);
+      }
+    },
+  });
+
+  // A pane the server stopped sending rows for keeps no cache: rows that changed meanwhile would
+  // never be repaired, because the server sends only the screen when it sends again.
   const dropRowCaches = (snapshot: StoreSnapshot): void => {
     const known = new Set(snapshot.panes.map((pane) => pane.id));
+    const shown = shownPaneIds(snapshot);
 
     for (const pane of rowCaches.keys()) {
-      if (!known.has(pane)) {
+      if (!known.has(pane) || !shown.has(pane)) {
         rowCaches.delete(pane);
         newestSequences.delete(pane);
+        rowFetcher.forget(pane);
       }
     }
   };
@@ -409,6 +441,18 @@ export const connectAttach = async (
     }
   };
 
+  const takePaneRows = (bytes: Uint8Array): void => {
+    const decoded = decodePaneRows(bytes);
+
+    if (!decoded.ok) {
+      end('connectionFailed');
+
+      return;
+    }
+
+    rowFetcher.takeRows(decoded.rows);
+  };
+
   const takeHandshake = (message: ControlMessage): void => {
     if (message.type === 'refused') {
       handshake.resolve({
@@ -440,6 +484,12 @@ export const connectAttach = async (
       return true;
     }
 
+    if (message.type === 'paneScrollResult') {
+      scrollAnswers.shift()?.();
+
+      return true;
+    }
+
     if (message.type === 'workspaceDone' || message.type === 'workspaceFailed') {
       replyQueue.shift()?.(message.type === 'workspaceDone' ? 'done' : 'failed');
 
@@ -466,6 +516,16 @@ export const connectAttach = async (
     return false;
   };
 
+  const takeFetchAnswer = (message: ControlMessage): void => {
+    if (message.type === 'paneReadFailed') {
+      rowFetcher.takeFailure(message.paneId, message.requestId, message.failure);
+    }
+
+    if (message.type === 'paneMissing') {
+      rowFetcher.forget(message.paneId);
+    }
+  };
+
   const takeControl = (message: ControlMessage): void => {
     if (!welcomed) {
       takeHandshake(message);
@@ -488,6 +548,8 @@ export const connectAttach = async (
     if (takeRequestAnswer(message) || takePaneNotice(message)) {
       return;
     }
+
+    takeFetchAnswer(message);
 
     if (message.type === 'change') {
       takeChange(message.revision, message.change);
@@ -518,6 +580,12 @@ export const connectAttach = async (
 
       if (frame.kind === FrameKind.rowUpdate) {
         takeRows(frame.payload);
+
+        continue;
+      }
+
+      if (frame.kind === FrameKind.paneRows) {
+        takePaneRows(frame.payload);
 
         continue;
       }
@@ -573,6 +641,26 @@ export const connectAttach = async (
       };
     },
     rowCache: (pane) => rowCaches.get(pane),
+    holdRows: (pane, ranges) => {
+      const cache = rowCaches.get(pane);
+
+      cache?.pin(ranges);
+
+      const lacking = ranges?.find((range) => cache?.missing(range) !== undefined);
+
+      if (lacking === undefined) {
+        rowFetcher.forget(pane);
+      } else {
+        rowFetcher.want(pane, lacking);
+      }
+    },
+    subscribeFetched: (listener) => {
+      fetchListeners.add(listener);
+
+      return () => {
+        fetchListeners.delete(listener);
+      };
+    },
     newestSequence: (pane) => newestSequences.get(pane),
     resize: (next) => {
       send({ type: 'resize', size: next });
@@ -634,6 +722,17 @@ export const connectAttach = async (
     zoomPane: (pane) => requestLayout(paneLayoutRequest({ action: 'zoom', pane })),
     resizePane: (pane, direction, cells) =>
       requestLayout(paneLayoutRequest({ action: 'resize', pane, direction, cells })),
+    scrollPane: (pane, to) => {
+      invariant(state !== undefined, 'The attach session is only handed out after a snapshot.');
+
+      const clientId = state.snapshot.attachedClientId;
+
+      if (clientId === undefined) {
+        return Promise.resolve();
+      }
+
+      return requestAnswered(scrollAnswers, { type: 'paneScroll', paneId: pane, to, clientId });
+    },
     detach: () => {
       send({ type: 'detach', clientId: undefined });
     },

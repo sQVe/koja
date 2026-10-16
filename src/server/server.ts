@@ -11,6 +11,7 @@ import {
   handleAck,
   handleClientSetting,
   handleDetach,
+  handlePaneScroll,
   markActive,
 } from './clientRequests.ts';
 import { createConnection } from './connection.ts';
@@ -340,6 +341,12 @@ const handleMessage = (
 
   if (message.type === 'detach') {
     handleDetach(context, message, connection, dispatchIntent);
+
+    return;
+  }
+
+  if (message.type === 'paneScroll') {
+    handlePaneScroll(context, message, connection, dispatchIntent);
 
     return;
   }

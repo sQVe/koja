@@ -184,6 +184,7 @@ const themeSchema: z.ZodType<Theme> = z.object({
 const viewSchema: z.ZodType<View> = z.object({
   focusedWorkspaceId: absent(workspaceIdSchema),
   activeTabs: z.array(z.object({ workspaceId: workspaceIdSchema, tabId: tabIdSchema })),
+  scrolls: z.array(z.object({ paneId: paneIdSchema, topRow: count })),
 });
 
 const clientSchema: z.ZodType<Client> = z.object({
@@ -287,6 +288,16 @@ const detachOutcomeSchema = z.discriminatedUnion('ok', [
   z.strictObject({ ok: z.literal(false), reason: z.enum(['noClient', 'unknownClient']) }),
 ]);
 
+const paneScrollTargetSchema = z.union([z.literal('top'), z.literal('bottom'), count]);
+
+const paneScrollOutcomeSchema = z.discriminatedUnion('ok', [
+  z.strictObject({ ok: z.literal(true), clientId: clientIdSchema, topRow: absent(count) }),
+  z.strictObject({
+    ok: z.literal(false),
+    reason: z.enum(['noClient', 'unknownClient', 'unknownPane']),
+  }),
+]);
+
 const controlSchema = z.discriminatedUnion('type', [
   // A CLI client has no terminal, so it sends no size.
   z.object({ type: z.literal('hello'), version: buildVersionSchema, size: absent(sizeSchema) }),
@@ -294,6 +305,15 @@ const controlSchema = z.discriminatedUnion('type', [
   z.object({ type: z.literal('refused'), client: buildVersionSchema, server: buildVersionSchema }),
   // Without a client id, the foreground client detaches.
   z.object({ type: z.literal('detach'), clientId: absent(clientIdSchema) }),
+  // Scrolls a client's view of a pane to its oldest row, to the bottom, or to a stable row.
+  // Without a client id, the foreground client scrolls.
+  z.object({
+    type: z.literal('paneScroll'),
+    paneId: paneIdSchema,
+    to: paneScrollTargetSchema,
+    clientId: absent(clientIdSchema),
+  }),
+  z.object({ type: z.literal('paneScrollResult'), result: paneScrollOutcomeSchema }),
   // Builds stop each other's servers with this frame, so it must keep this shape in every build.
   z.object({ type: z.literal('stop') }),
   z.object({ type: z.literal('resize'), size: sizeSchema }),

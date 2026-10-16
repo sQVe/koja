@@ -23,6 +23,7 @@ import { restoreSession, stopServer } from './sessionTransitions.ts';
 import { closeTab, createTab, focusTab, renameTab } from './tabTransitions.ts';
 import type { Outcome, Proposal } from './transitionOutcome.ts';
 import { activeTabOf } from './view.ts';
+import { renumberPaneScrolls, scrollPaneView } from './viewScrollTransitions.ts';
 import {
   closeWorkspace,
   createWorkspace,
@@ -50,11 +51,19 @@ interface ActiveTab {
   tabId: TabId;
 }
 
+// The stable row number of the top row a view draws for a pane. A pane without one follows the
+// bottom.
+interface PaneScroll {
+  paneId: PaneId;
+  topRow: number;
+}
+
 // What a client shows: the focused workspace and the active tab of every workspace. The focused
 // pane and zoom belong to the tab, so every view of a tab shows the same pane focus.
 export interface View {
   focusedWorkspaceId: WorkspaceId | undefined;
   activeTabs: readonly ActiveTab[];
+  scrolls: readonly PaneScroll[];
 }
 
 export interface Tab {
@@ -200,13 +209,25 @@ export type Intent =
   | { type: 'markClientActive'; clientId: ClientId }
   | { type: 'setClientTheme'; clientId: ClientId; theme: Theme }
   | { type: 'detachClient'; clientId: ClientId }
+  // Scrolls the client's view of a pane to a stable row, or to the bottom without a row.
+  | { type: 'scrollPane'; clientId: ClientId; paneId: PaneId; row: number | undefined }
   | { type: 'restoreSession'; session: SavedSession }
   | { type: 'stopServer' };
 
 export type Fact =
   | { type: 'paneStarted'; paneId: PaneId; generation: number }
   | { type: 'paneFailedToStart'; paneId: PaneId; generation: number; message: string }
-  | { type: 'paneExited'; paneId: PaneId; generation: number; exitCode: number };
+  | { type: 'paneExited'; paneId: PaneId; generation: number; exitCode: number }
+  // The pane's stable row numbers restarted. Carries the active top before and after, and the
+  // oldest row after.
+  | {
+      type: 'paneRowsRenumbered';
+      paneId: PaneId;
+      generation: number;
+      oldActiveTop: number;
+      first: number;
+      newActiveTop: number;
+    };
 
 export type DetachReason = 'requested' | 'takenOver';
 
@@ -322,7 +343,7 @@ export const createState = (): State => ({
   workspaces: [],
   tabs: [],
   panes: [],
-  defaultView: { focusedWorkspaceId: undefined, activeTabs: [] },
+  defaultView: { focusedWorkspaceId: undefined, activeTabs: [], scrolls: [] },
   attachedClientId: undefined,
   foregroundClientId: undefined,
   clients: [],
@@ -539,6 +560,10 @@ const transitionIntent = (state: State, intent: Intent): Outcome => {
     return transitionClientIntent(state, intent);
   }
 
+  if (intent.type === 'scrollPane') {
+    return scrollPaneView(state, intent.clientId, intent.paneId, intent.row);
+  }
+
   if (intent.type === 'restoreSession') {
     return restoreSession(state, intent.session);
   }
@@ -570,6 +595,10 @@ export const applyFact = (state: State, fact: Fact): Applied | Ignored => {
 
   if (!isCurrent(pane, fact)) {
     return ignore(state, fact);
+  }
+
+  if (fact.type === 'paneRowsRenumbered') {
+    return commit(renumberPaneScrolls(state, fact));
   }
 
   const proposal = transitionPaneFact(state, pane, fact);

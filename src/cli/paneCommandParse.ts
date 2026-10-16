@@ -2,6 +2,7 @@ import type {
   PaneLayoutCommand,
   PaneMoveDestination,
   PaneReadCommand,
+  PaneScrollCommand,
   PaneSendCommand,
 } from '../client/client.ts';
 import { paneId, tabId } from '../ids.ts';
@@ -11,6 +12,7 @@ import { parseId } from './idParse.ts';
 import type { IdResult } from './idParse.ts';
 import { hasReadOptions, parseReadOptions } from './paneReadOptions.ts';
 import type { RawReadOptions } from './paneReadOptions.ts';
+import { parsePaneScroll } from './paneScrollParse.ts';
 
 type SplitDirection = Extract<PaneLayoutCommand, { action: 'split' }>['direction'];
 
@@ -20,6 +22,7 @@ type PaneCliAction =
   | PaneReadCommand
   | PaneSendCommand
   | PaneLayoutCommand
+  | PaneScrollCommand
   | { action: 'list' }
   | { action: 'process-info'; pane: PaneId };
 
@@ -30,6 +33,7 @@ export interface PaneCliCommand extends CommandOptions {
 
 export interface RawPaneOptions extends Partial<RawReadOptions> {
   pane?: string | undefined;
+  client?: string | undefined;
   direction?: string | undefined;
   cells?: string | undefined;
   cwd?: string | undefined;
@@ -51,6 +55,7 @@ interface LayoutOptions {
 }
 
 interface PaneOptions extends LayoutOptions {
+  client: string | undefined;
   read: RawReadOptions;
   move: MoveOptions;
 }
@@ -79,6 +84,7 @@ export const paneUsage = `  phi pane list [--socket <path>] [--json]
   phi pane close <id> [--socket <path>] [--json]
   phi pane zoom <id> [--socket <path>] [--json]
   phi pane resize <id> --direction left|right|up|down --cells <n> [--socket <path>] [--json]
+  phi pane scroll <id> --to top|bottom|<row> [--client <id>] [--socket <path>] [--json]
   phi pane process-info <id> [--socket <path>] [--json]`;
 
 const parsePaneId = (value: string | undefined): IdResult<PaneId | undefined> => {
@@ -386,13 +392,22 @@ const strayReadFlagMessage = ({ source, lines, from, to }: RawReadOptions): stri
   return stray === undefined ? undefined : `${stray[0]} belongs to pane read.`;
 };
 
+// pane scroll takes its position in --to.
+const strayReadMessage = (action: string | undefined, read: RawReadOptions): string | undefined => {
+  if (action === 'read') {
+    return undefined;
+  }
+
+  return strayReadFlagMessage(action === 'scroll' ? { ...read, to: undefined } : read);
+};
+
 const parsePaneAction = (
   action: string | undefined,
   rest: string[],
   pane: string | undefined,
   options: PaneOptions,
 ): PaneCliAction | string => {
-  const strayRead = action === 'read' ? undefined : strayReadFlagMessage(options.read);
+  const strayRead = strayReadMessage(action, options.read);
 
   if (strayRead !== undefined) {
     return strayRead;
@@ -420,13 +435,19 @@ const parsePaneAction = (
     return '--cwd belongs to pane split and tab create.';
   }
 
-  if (action === 'process-info' && options.cells === undefined) {
+  if (options.cells !== undefined) {
+    return '--cells belongs to pane resize.';
+  }
+
+  if (action === 'process-info') {
     return parseProcessInfoCommand(rest, pane);
   }
 
-  return options.cells === undefined
-    ? parsePaneTargetCommand(action, rest, pane, options.read)
-    : '--cells belongs to pane resize.';
+  if (action === 'scroll') {
+    return parsePaneScroll(rest, pane, options.read.to, options.client);
+  }
+
+  return parsePaneTargetCommand(action, rest, pane, options.read);
 };
 
 const textByDefaultActions: ReadonlySet<string> = new Set(['read', 'send']);
@@ -438,6 +459,7 @@ export const parsePaneCommand = (
   rest: string[],
   {
     pane,
+    client,
     direction,
     cells,
     cwd,
@@ -451,10 +473,15 @@ export const parsePaneCommand = (
   }: RawPaneOptions,
   options: CommandOptions,
 ): PaneCliCommand | string => {
+  if (client !== undefined && action !== 'scroll') {
+    return '--client belongs to detach and pane scroll.';
+  }
+
   const parsed = parsePaneAction(action, rest, pane, {
     direction,
     cells,
     cwd,
+    client,
     read: { source, lines, from, to },
     move: { tab, newTab, newWorkspace },
   });

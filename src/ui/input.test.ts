@@ -5,8 +5,9 @@ import { paneId, workspaceId } from '../ids.ts';
 import type { PaneId, WorkspaceId } from '../ids.ts';
 import { ModeFlag } from '../rows/rows.ts';
 import { createInputRouter, routeKey, routePaste } from './input.ts';
-import type { PaneAction } from './input.ts';
+import type { PaneAction, ScrollAction } from './input.ts';
 import { createInputTokenizer } from './inputTokens.ts';
+import type { ScrollMotion } from './scrollMotions.ts';
 
 interface GonePanes {
   unplaced: Set<PaneId>;
@@ -84,6 +85,100 @@ it('does not ask to detach for d in insert mode or other keys in normal mode', (
   expect(routeKey('i', 'normal', 0).detach).toBe(false);
 });
 
+it('enters scroll mode on [ in normal mode and returns to insert mode on q', () => {
+  const entered = routeKey('[', 'normal', 0);
+
+  expect(entered).toEqual({
+    bytes: new Uint8Array(),
+    mode: 'scroll',
+    detach: false,
+    scroll: { kind: 'enter' },
+  });
+
+  expect(routeKey('q', 'scroll', 0)).toEqual({
+    bytes: new Uint8Array(),
+    mode: 'insert',
+    detach: false,
+    scroll: { kind: 'leave' },
+  });
+});
+
+it('leaves scroll mode on Escape and sends nothing', () => {
+  expect(routeKey('\x1b', 'scroll', 0)).toMatchObject({
+    bytes: new Uint8Array(),
+    mode: 'insert',
+    scroll: { kind: 'leave' },
+  });
+
+  expect(routeKey('\x1b[27u', 'scroll', 0)).toMatchObject({
+    mode: 'insert',
+    scroll: { kind: 'leave' },
+  });
+});
+
+it('treats Ctrl+B in scroll mode as the prefix, which leaves scroll mode', () => {
+  for (const raw of ['\x02', '\x1b[98;5u']) {
+    expect(routeKey(raw, 'scroll', 0)).toEqual({
+      bytes: new Uint8Array(),
+      mode: 'normal',
+      detach: false,
+      scroll: { kind: 'leave' },
+    });
+  }
+});
+
+const scrollKeys: [string, ScrollMotion][] = [
+  ['h', 'left'],
+  ['j', 'down'],
+  ['k', 'up'],
+  ['l', 'right'],
+  ['\x1b[D', 'left'],
+  ['\x1b[B', 'down'],
+  ['\x1b[A', 'up'],
+  ['\x1b[C', 'right'],
+  ['w', 'wordStart'],
+  ['b', 'wordStartPrevious'],
+  ['e', 'wordEnd'],
+  ['W', 'bigWordStart'],
+  ['B', 'bigWordStartPrevious'],
+  ['E', 'bigWordEnd'],
+  ['0', 'lineStart'],
+  ['\x1b[H', 'lineStart'],
+  ['^', 'firstNonBlank'],
+  ['$', 'lineEnd'],
+  ['\x1b[F', 'lineEnd'],
+  ['{', 'paragraphPrevious'],
+  ['}', 'paragraphNext'],
+  ['\x1b[5~', 'pageUp'],
+  ['\x1b[6~', 'pageDown'],
+  ['\x15', 'halfPageUp'],
+  ['\x04', 'halfPageDown'],
+  ['\x06', 'pageDown'],
+  ['g', 'historyTop'],
+  ['G', 'historyBottom'],
+];
+
+for (const [raw, motion] of scrollKeys) {
+  it(`moves ${motion} on ${JSON.stringify(raw)} in scroll mode, sending nothing to the pane`, () => {
+    expect(routeKey(raw, 'scroll', 0)).toEqual({
+      bytes: new Uint8Array(),
+      mode: 'scroll',
+      detach: false,
+      scroll: { kind: 'move', motion },
+    });
+  });
+}
+
+it('ignores other keys, Alt keys, and releases in scroll mode', () => {
+  for (const raw of ['a', 'i', 'd', 'x', '\x1bh', '\x1b[104;1:3u', '\x1b[66;1:3u', '\x1b[1;3A']) {
+    expect(routeKey(raw, 'scroll', 0)).toEqual({
+      bytes: new Uint8Array(),
+      mode: 'scroll',
+      detach: false,
+    });
+  }
+});
+
 it('sends nothing for other keys in normal mode', () => {
   expect(key('a', 'normal')).toEqual({ text: '', mode: 'normal' });
 
@@ -124,6 +219,7 @@ const router = (
   let detaches = 0;
   const commands: WorkspaceCommand[] = [];
   const actions: PaneAction[] = [];
+  const scrolls: ScrollAction[] = [];
   const answers: (() => void)[] = [];
 
   const input = createInputRouter({
@@ -158,6 +254,9 @@ const router = (
     command: (command) => {
       commands.push(command);
     },
+    scroll: (action) => {
+      scrolls.push(action);
+    },
     paneAction: (action) => {
       actions.push(action);
 
@@ -181,6 +280,7 @@ const router = (
     sent,
     commands,
     actions,
+    scrolls,
     answer,
     setModes,
     mode: () => mode,
@@ -247,6 +347,41 @@ it('detaches once when d follows Ctrl+B and not when d is typed in insert mode',
 const presser = (input: ReturnType<typeof router>['input']) => (raw: string) => {
   input({ kind: 'key', raw, escapeSent: false });
 };
+
+it('hands scroll actions to the host and returns to normal mode on Ctrl+B', () => {
+  const { input, scrolls, sent, mode } = router('normal', 0);
+  const press = presser(input);
+
+  press('[');
+  press('g');
+  press('\x02');
+
+  expect(scrolls).toEqual([
+    { kind: 'enter' },
+    { kind: 'move', motion: 'historyTop' },
+    { kind: 'leave' },
+  ]);
+
+  expect(mode()).toBe('normal');
+
+  press('\x02');
+
+  expect(sent).toEqual(['\x02']);
+  expect(mode()).toBe('insert');
+});
+
+it('leaves scroll mode for insert mode on q and sends nothing to the pane', () => {
+  const { input, scrolls, sent, mode } = router('normal', 0);
+  const press = presser(input);
+
+  press('[');
+  press('q');
+  press('x');
+
+  expect(scrolls).toEqual([{ kind: 'enter' }, { kind: 'leave' }]);
+  expect(mode()).toBe('insert');
+  expect(sent).toEqual(['x']);
+});
 
 it('focuses the next workspace on j in normal mode, sends no bytes, and keeps normal mode', () => {
   const { input, sent, commands, mode } = router('normal', 0);
@@ -362,6 +497,7 @@ const chunkRouter = () => {
     afterTabAnswer: () => undefined,
     workspaces: () => ({ ids: workspaceIds, focused }),
     paneAction: () => Promise.resolve(),
+    scroll: () => undefined,
     startDirectory: '/work/start',
     command: (command, onReply) => {
       commands.push(command);
@@ -555,6 +691,7 @@ it('asks the host for a tab and keeps normal mode', () => {
     afterTabAnswer: () => undefined,
     workspaces: () => ({ ids: [], focused: undefined }),
     paneAction: () => Promise.resolve(),
+    scroll: () => undefined,
     startDirectory: '/work/start',
     command: () => undefined,
   });
@@ -601,6 +738,7 @@ it('holds input while a tab request is unanswered and routes it in order after t
     },
     workspaces: () => ({ ids: [], focused: undefined }),
     paneAction: () => Promise.resolve(),
+    scroll: () => undefined,
     startDirectory: '/work/start',
     command: () => undefined,
   });
@@ -730,6 +868,7 @@ it('sends held tokens when the action fails to settle normally', async () => {
     startDirectory: '/work/start',
     command: () => undefined,
     paneAction: () => Promise.reject(new Error('lost')),
+    scroll: () => undefined,
   });
 
   input({ kind: 'key', raw: '\x02', escapeSent: false });
@@ -940,6 +1079,7 @@ const mouseRouter = (tabPending: () => boolean = () => false, gone: GonePanes = 
       commands.push(command);
     },
     paneAction: () => Promise.resolve(),
+    scroll: () => undefined,
   });
 
   const mouse = (code: number, column: number, row: number, final: 'M' | 'm') => {
@@ -1221,6 +1361,7 @@ it('holds a key typed after a workspace click until the focus reply arrives', ()
       });
     },
     paneAction: () => Promise.resolve(),
+    scroll: () => undefined,
   });
 
   input({ kind: 'mouse', raw: '\x1b[<0;6;3M', escapeSent: false });

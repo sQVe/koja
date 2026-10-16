@@ -147,7 +147,7 @@ const emptySnapshot: Snapshot = {
   workspaces: [],
   tabs: [],
   panes: [],
-  defaultView: { focusedWorkspaceId: undefined, activeTabs: [] },
+  defaultView: { focusedWorkspaceId: undefined, activeTabs: [], scrolls: [] },
   attachedClientId: undefined,
   foregroundClientId: undefined,
   clients: [],

@@ -9,6 +9,7 @@ const size = { columns: 80, rows: 24 };
 const view = {
   focusedWorkspaceId: workspaceId(1),
   activeTabs: [{ workspaceId: workspaceId(1), tabId: tabId(1) }],
+  scrolls: [],
 };
 
 const first = { id: clientId(1), size, theme: undefined, view };
@@ -141,6 +142,7 @@ const withSecond: StoreSnapshot = {
       { workspaceId: workspaceId(1), tabId: tabId(1) },
       { workspaceId: secondWorkspace.id, tabId: tabId(2) },
     ],
+    scrolls: [],
   },
 };
 
@@ -265,7 +267,7 @@ it('moves the focus of the tab the change names', () => {
 
 it('replaces the view of only the client the change names', () => {
   const both = { ...snapshot, clients: [first, second] };
-  const moved = { focusedWorkspaceId: undefined, activeTabs: [] };
+  const moved = { focusedWorkspaceId: undefined, activeTabs: [], scrolls: [] };
   const next = applyChange(both, { type: 'clientViewChanged', clientId: second.id, view: moved });
 
   expect(next.clients).toEqual([first, { ...second, view: moved }]);

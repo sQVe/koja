@@ -257,7 +257,7 @@ it('exits with code one and reports a connection failure after the handshake', a
                     workspaces: [],
                     tabs: [],
                     panes: [],
-                    defaultView: { focusedWorkspaceId: undefined, activeTabs: [] },
+                    defaultView: { focusedWorkspaceId: undefined, activeTabs: [], scrolls: [] },
                     attachedClientId: undefined,
                     foregroundClientId: undefined,
                     clients: [],

@@ -59,6 +59,7 @@ const workspace = {
 const view = {
   focusedWorkspaceId: workspace.id,
   activeTabs: [{ workspaceId: workspace.id, tabId: tab.id }],
+  scrolls: [],
 };
 
 const emptySnapshot: Snapshot = {
@@ -66,7 +67,7 @@ const emptySnapshot: Snapshot = {
   workspaces: [],
   tabs: [],
   panes: [],
-  defaultView: { focusedWorkspaceId: undefined, activeTabs: [] },
+  defaultView: { focusedWorkspaceId: undefined, activeTabs: [], scrolls: [] },
   attachedClientId: undefined,
   foregroundClientId: undefined,
   clients: [],
@@ -102,6 +103,9 @@ const messages: ControlMessage[] = [
   { type: 'refused', client: build, server: { version: '1.2.4', ghostty: 'def456' } },
   { type: 'detach', clientId: undefined },
   { type: 'detach', clientId: client.id },
+  { type: 'paneScroll', paneId: pane.id, to: 'top', clientId: undefined },
+  { type: 'paneScroll', paneId: pane.id, to: 'bottom', clientId: client.id },
+  { type: 'paneScroll', paneId: pane.id, to: 42, clientId: undefined },
   { type: 'stop' },
   { type: 'resize', size: { columns: 120, rows: 40 } },
   { type: 'theme', theme },
@@ -213,6 +217,9 @@ const messages: ControlMessage[] = [
   { type: 'detachResult', result: { ok: true } },
   { type: 'detachResult', result: { ok: false, reason: 'noClient' } },
   { type: 'detachResult', result: { ok: false, reason: 'unknownClient' } },
+  { type: 'paneScrollResult', result: { ok: true, clientId: client.id, topRow: 5 } },
+  { type: 'paneScrollResult', result: { ok: true, clientId: client.id, topRow: undefined } },
+  { type: 'paneScrollResult', result: { ok: false, reason: 'unknownPane' } },
   {
     type: 'paneRead',
     paneId: pane.id,
@@ -435,6 +442,11 @@ it.each([
     '{"type":"detachResult","result":{"ok":true,"reason":"unknownClient"}}',
   ],
   ['a detach result that fails without a reason', '{"type":"detachResult","result":{"ok":false}}'],
+  ['a scroll to a negative row', `{"type":"paneScroll","paneId":"pane-1","to":-1,"clientId":null}`],
+  [
+    'a scroll to a word that is not a position',
+    `{"type":"paneScroll","paneId":"pane-1","to":"middle","clientId":null}`,
+  ],
   ['a JSON value that is not an object', '"hello"'],
 ])('refuses a message with %s', (_name, json) => {
   expect(parseControl(text(json))).toEqual({ ok: false, reason: 'invalidMessage' });

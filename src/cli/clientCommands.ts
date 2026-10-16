@@ -11,7 +11,12 @@ interface ClientEntry {
   id: string;
   foreground: boolean;
   size: { columns: number; rows: number };
-  view: { workspace: string | null; tabs: Record<string, string> };
+  view: {
+    workspace: string | null;
+    tabs: Record<string, string>;
+    // The stable row at the top of each scrolled pane.
+    scrolls: Record<string, number>;
+  };
 }
 
 const listClients = (snapshot: StoreSnapshot) =>
@@ -22,6 +27,7 @@ const listClients = (snapshot: StoreSnapshot) =>
     view: {
       workspace: view.focusedWorkspaceId ?? null,
       tabs: Object.fromEntries(view.activeTabs.map((active) => [active.workspaceId, active.tabId])),
+      scrolls: Object.fromEntries(view.scrolls.map((scroll) => [scroll.paneId, scroll.topRow])),
     },
   }));
 

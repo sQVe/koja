@@ -81,7 +81,7 @@ const startPane = async () => {
     return created.captureCharFrame();
   };
 
-  return { show, created };
+  return { show, created, cache, pane };
 };
 
 it('leaves no stale half when a wide character moves one column left', async () => {
@@ -277,4 +277,161 @@ it('draws rows added by a resize with the default background until their rows ar
 
   expect(grownSpans.length).toBeGreaterThan(0);
   expect(grownSpans.every((span) => span.bg.intent === 'default')).toBe(true);
+});
+
+const historyUpdate = (): RowUpdate => {
+  const words = new Uint32Array(3 * stride);
+
+  for (const [index, offset] of [-2, -1, 0].entries()) {
+    words[index * stride] = offset >>> 0;
+    words[index * stride + rowHeaderWords] = 0x61 + index;
+  }
+
+  return {
+    ...rowUpdate([], [], true),
+    activeTop: 10,
+    first: 8,
+    rowCount: 3,
+    cells: words,
+  };
+};
+
+it('draws from the stable row it is scrolled to and hides the cursor', async () => {
+  const { created, cache, pane } = await startPane();
+
+  const inverted = (): boolean =>
+    (created.captureSpans().lines[0]?.spans ?? []).some(
+      (span) => (span.attributes & TextAttributes.INVERSE) !== 0,
+    );
+
+  cache.apply(historyUpdate());
+  pane.draw([0]);
+  await created.renderOnce();
+
+  expect(created.captureCharFrame().trim()).toBe('c');
+  expect(inverted()).toBe(true);
+
+  pane.setTop(8);
+  await created.renderOnce();
+
+  expect(created.captureCharFrame().trim()).toBe('a');
+  expect(inverted()).toBe(false);
+
+  pane.setTop(undefined);
+  await created.renderOnce();
+
+  expect(created.captureCharFrame().trim()).toBe('c');
+  expect(inverted()).toBe(true);
+});
+
+it('keeps the scrolled rows when the active rows change', async () => {
+  const { created, cache, pane } = await startPane();
+
+  cache.apply(historyUpdate());
+  pane.setTop(9);
+  await created.renderOnce();
+
+  const next = historyUpdate();
+
+  next.activeTop = 11;
+  next.cells = next.cells.slice(2 * stride);
+  next.cells[0] = 0;
+  next.cells[rowHeaderWords] = 0x7a;
+  next.rowCount = 1;
+  pane.draw(cache.apply(next));
+  await created.renderOnce();
+
+  expect(created.captureCharFrame().trim()).toBe('b');
+
+  pane.setTop(11);
+  await created.renderOnce();
+
+  expect(created.captureCharFrame().trim()).toBe('z');
+});
+
+it('redraws a scrolled row that changed and left the active screen', async () => {
+  const { created, cache, pane } = await startPane();
+
+  cache.apply(historyUpdate());
+  pane.setTop(10);
+  await created.renderOnce();
+
+  expect(created.captureCharFrame().trim()).toBe('c');
+
+  const next = historyUpdate();
+
+  next.activeTop = 11;
+  next.cells = next.cells.slice(stride);
+  next.cells[0] = -1 >>> 0;
+  next.cells[rowHeaderWords] = 0x7a;
+  next.cells[stride] = 0;
+  next.cells[stride + rowHeaderWords] = 0x64;
+  next.rowCount = 2;
+  pane.draw(cache.apply(next));
+  await created.renderOnce();
+
+  expect(created.captureCharFrame().trim()).toBe('z');
+});
+
+it('redraws scrolled history rows in the new colors after a palette-only update', async () => {
+  const { created, cache, pane } = await startPane();
+  const red = 0x1_00_00_00 + 0xff_00_00;
+  const withColor = historyUpdate();
+
+  cache.apply(withColor);
+  pane.setTop(8);
+  await created.renderOnce();
+
+  const foregroundRed = (): boolean =>
+    (created.captureSpans().lines[0]?.spans ?? []).some((span) => span.bg.toInts()[0] === 255);
+
+  expect(foregroundRed()).toBe(false);
+
+  const paletteOnly = {
+    ...withColor,
+    sequence: 2,
+    rowCount: 0,
+    cells: new Uint32Array(),
+    colors: Uint32Array.from([defaultBackgroundSlot, red]),
+  };
+
+  pane.draw(cache.apply(paletteOnly));
+  await created.renderOnce();
+
+  expect(foregroundRed()).toBe(true);
+});
+
+it('draws the scroll cursor in place of the pane cursor, keeps it drawn at the edge while the view lags, and gives the pane cursor back', async () => {
+  const { show, created, pane } = await startPane();
+
+  const invertedColumns = (): number[] => {
+    const spans = created.captureSpans().lines[0]?.spans ?? [];
+    let column = 0;
+    const inverted: number[] = [];
+
+    for (const span of spans) {
+      if ((span.attributes & TextAttributes.INVERSE) !== 0) {
+        inverted.push(column);
+      }
+
+      column += span.width;
+    }
+
+    return inverted;
+  };
+
+  await show(rowUpdate([{ column: 0, codePoint: 0x61 }], [], true));
+  expect(invertedColumns()).toEqual([0]);
+
+  pane.setScrollCursor({ row: 0, col: 3 });
+  await created.renderOnce();
+  expect(invertedColumns()).toEqual([3]);
+
+  pane.setScrollCursor({ row: 5, col: 3 });
+  await created.renderOnce();
+  expect(invertedColumns()).toEqual([3]);
+
+  pane.setScrollCursor(undefined);
+  await created.renderOnce();
+  expect(invertedColumns()).toEqual([0]);
 });

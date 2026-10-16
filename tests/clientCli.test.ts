@@ -12,7 +12,11 @@ const clientListSchema = z.array(
     id: z.string(),
     foreground: z.boolean(),
     size: z.object({ columns: z.number(), rows: z.number() }),
-    view: z.object({ workspace: z.string().nullable(), tabs: z.record(z.string(), z.string()) }),
+    view: z.object({
+      workspace: z.string().nullable(),
+      tabs: z.record(z.string(), z.string()),
+      scrolls: z.record(z.string(), z.number()),
+    }),
   }),
 );
 
@@ -104,7 +108,7 @@ it(
         id: client?.id ?? '',
         foreground: true,
         size: { columns: 80, rows: 24 },
-        view: { workspace, tabs: { [workspace]: 'tab-1' } },
+        view: { workspace, tabs: { [workspace]: 'tab-1' }, scrolls: {} },
       },
     ]);
 

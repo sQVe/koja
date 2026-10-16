@@ -287,3 +287,35 @@ it('closes a connection whose input payload cannot be decoded', async () => {
 
   await terminal.closed;
 });
+
+it('keeps a scrolled view at its distance from the bottom after a resize renumbers the rows', async () => {
+  const directory = await temporaryDirectory();
+  const { server, socketPath } = await startServer(directory);
+  const terminal = await connect(socketPath);
+  const rows = new Map<number, string>();
+
+  terminal.send({ type: 'hello', version: build, size: { columns: 100, rows: 30 } });
+  await nextPaneResize(terminal);
+  terminal.sendInput(1, new TextEncoder().encode("seq -f '%070g' 1 300; echo phi-done\r"));
+  await receiveText(terminal, rows, 'phi-done');
+  await waitFor(() => (terminal.updates.at(-1)?.activeTop ?? 0) > 100);
+
+  const before = terminal.updates.at(-1);
+
+  expect(before).toBeDefined();
+
+  const topRow = (before?.activeTop ?? 0) - 60;
+  const distance = (before?.activeTop ?? 0) - topRow;
+
+  terminal.send({ type: 'paneScroll', paneId: paneId(1), to: topRow, clientId: undefined });
+  await nextOfType(terminal, 'paneScrollResult');
+  terminal.send({ type: 'resize', size: { columns: 60, rows: 30 } });
+  await nextPaneResize(terminal);
+
+  await waitFor(() => (terminal.updates.at(-1)?.first ?? 0) > (before?.activeTop ?? 0));
+
+  const after = terminal.updates.at(-1);
+  const scrolls = server.snapshot().clients[0]?.view.scrolls;
+
+  expect(scrolls).toEqual([{ paneId: paneId(1), topRow: (after?.activeTop ?? 0) - distance }]);
+});

@@ -13,6 +13,8 @@ import type { PaneAction } from './input.ts';
 import { takeStdin } from './inputStdin.ts';
 import { mountPanes } from './paneLayer.ts';
 import { placementOf, tabAt, targetAt, targetNear, workspaceAt } from './screenTargets.ts';
+import { createScrollMode } from './scrollMode.ts';
+import type { ScrollMode } from './scrollMode.ts';
 import { StatusBar } from './statusBar.tsx';
 import { createTerminalKeyboard } from './terminalKeyboard.ts';
 import { createTerminalMouse } from './terminalMouse.ts';
@@ -127,7 +129,7 @@ const runPaneAction = (session: AttachSession, action: PaneAction): Promise<void
   return focusNeighbor(session, action === 'focusPrevious' ? -1 : 1);
 };
 
-const routeInput = (session: AttachSession, renderer: CliRenderer) =>
+const routeInput = (session: AttachSession, renderer: CliRenderer, scrollMode: ScrollMode) =>
   createInputRouter({
     mode: () => session.getState().inputMode,
     setMode: (mode) => {
@@ -180,6 +182,7 @@ const routeInput = (session: AttachSession, renderer: CliRenderer) =>
     tabPending: session.tabPending,
     afterTabAnswer: session.afterTabAnswer,
     paneAction: (action) => runPaneAction(session, action),
+    scroll: scrollMode.handle,
   });
 
 const showNotice = (notice: PaneNotice, clipboard: ClipboardQueue): void => {
@@ -202,6 +205,7 @@ export const runAttach = async (session: AttachSession): Promise<CloseReason> =>
     useMouse: false,
   });
 
+  const scrollMode = createScrollMode(session);
   const keyboard = createTerminalKeyboard((text) => process.stdout.write(text));
   const mouse = createTerminalMouse((text) => process.stdout.write(text));
   const signals = ['SIGTERM', 'SIGINT', 'SIGHUP'] as const;
@@ -236,13 +240,13 @@ export const runAttach = async (session: AttachSession): Promise<CloseReason> =>
     releasePane();
 
     if (box !== null) {
-      unmountPane = mountPanes(session, renderer, box);
+      unmountPane = mountPanes(session, renderer, box, scrollMode);
     }
   };
 
   // Cleanup runs after any step of the setup, so each step it undoes is optional here.
   try {
-    releaseStdin = takeStdin(renderer, routeInput(session, renderer));
+    releaseStdin = takeStdin(renderer, routeInput(session, renderer, scrollMode));
     unsubscribeState = session.subscribe(followPaneKeys);
     unsubscribeRows = session.subscribeRows(followPaneKeys);
 

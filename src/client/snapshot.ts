@@ -7,6 +7,8 @@ export type StoreChange = Extract<ControlMessage, { type: 'change' }>['change'];
 
 export type StoreView = StoreSnapshot['defaultView'];
 
+type TabLayout = StoreSnapshot['tabs'][number]['layout'];
+
 const withActiveTab = (view: StoreView, id: WorkspaceId, activeId: TabId): StoreView => {
   const known = view.activeTabs.some((active) => active.workspaceId === id);
 
@@ -115,6 +117,7 @@ const applyLayoutChange = (snapshot: StoreSnapshot, change: StoreChange): StoreS
         activeTabs: snapshot.defaultView.activeTabs.filter(
           (active) => active.workspaceId !== change.workspaceId,
         ),
+        scrolls: snapshot.defaultView.scrolls,
       },
     };
   }
@@ -232,6 +235,11 @@ export const shownView = (snapshot: StoreSnapshot): StoreView =>
   snapshot.clients.find((known) => known.id === snapshot.attachedClientId)?.view ??
   snapshot.defaultView;
 
+// The stable row a client's view of a pane starts at, or undefined while the view follows the
+// bottom.
+export const scrollTopOf = (view: StoreView, id: PaneId): number | undefined =>
+  view.scrolls.find((scroll) => scroll.paneId === id)?.topRow;
+
 export const activeTabIdOf = (view: StoreView, id: WorkspaceId | undefined): TabId | undefined =>
   view.activeTabs.find((active) => active.workspaceId === id)?.tabId;
 
@@ -241,3 +249,23 @@ export const focusedPane = (snapshot: StoreSnapshot): StoreSnapshot['panes'][num
 
 export const viewedPane = (snapshot: StoreSnapshot): StoreSnapshot['panes'][number] | undefined =>
   paneOfView(snapshot, shownView(snapshot));
+
+const layoutPaneIds = (layout: TabLayout): PaneId[] =>
+  layout.kind === 'pane'
+    ? [layout.paneId]
+    : [...layoutPaneIds(layout.first), ...layoutPaneIds(layout.second)];
+
+// The panes the shown tab places, which the server sends rows for. A zoomed tab shows one.
+export const shownPaneIds = (snapshot: StoreSnapshot): Set<PaneId> => {
+  const view = shownView(snapshot);
+
+  const tab = snapshot.tabs.find(
+    (known) => known.id === activeTabIdOf(view, view.focusedWorkspaceId),
+  );
+
+  if (tab === undefined) {
+    return new Set();
+  }
+
+  return new Set(tab.zoomedPaneId === undefined ? layoutPaneIds(tab.layout) : [tab.zoomedPaneId]);
+};

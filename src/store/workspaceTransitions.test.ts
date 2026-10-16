@@ -47,6 +47,7 @@ it('creates a workspace with one tab and one starting pane', () => {
   const view = {
     focusedWorkspaceId: workspaceId(1),
     activeTabs: [{ workspaceId: workspaceId(1), tabId: tabId(1) }],
+    scrolls: [],
   };
 
   expect(snapshot(result.state)).toEqual({

@@ -27,8 +27,16 @@ interface SpawnPaneOptions {
   // Defaults to 10 MiB.
   scrollbackBytes?: number;
   onOutput: () => void;
+  // Called when the primary screen's stable row numbers restart.
+  onRenumbered: (renumbered: Renumbered) => void;
   onBell: (count: number) => void;
   onClipboard: (text: string) => void;
+}
+
+interface Renumbered {
+  oldActiveTop: number;
+  first: number;
+  newActiveTop: number;
 }
 
 export interface PaneRuntime {
@@ -141,6 +149,29 @@ export const spawnPane = (options: SpawnPaneOptions): SpawnPaneResult => {
 
   const { terminal } = created;
   let disposed = false;
+  let lastPrimary = terminal.stableRows();
+
+  // The alternate screen keeps no history, so only primary-screen samples are compared. The primary
+  // screen returns with the epoch the alternate screen reached.
+  const readStableRows = (): void => {
+    const current = terminal.stableRows();
+
+    if (current.alternate) {
+      return;
+    }
+
+    const previous = lastPrimary;
+
+    lastPrimary = current;
+
+    if (current.epoch !== previous.epoch) {
+      options.onRenumbered({
+        oldActiveTop: previous.activeTop,
+        first: current.first,
+        newActiveTop: current.activeTop,
+      });
+    }
+  };
 
   const onOutput: OnOutput = (pty, bytes) => {
     if (disposed) {
@@ -161,7 +192,7 @@ export const spawnPane = (options: SpawnPaneOptions): SpawnPaneResult => {
       options.onClipboard(text);
     }
 
-    terminal.stableRows();
+    readStableRows();
     options.onOutput();
   };
 
@@ -276,6 +307,8 @@ export const spawnPane = (options: SpawnPaneOptions): SpawnPaneResult => {
       if (reply !== undefined) {
         shell.terminal?.write(reply);
       }
+
+      readStableRows();
     },
     text: (textOptions) => terminal.text(textOptions),
     stop,

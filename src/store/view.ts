@@ -1,13 +1,24 @@
-import type { ClientId, TabId, WorkspaceId } from '../ids.ts';
+import type { ClientId, PaneId, TabId, WorkspaceId } from '../ids.ts';
 import type { Change, Client, State, View, ViewBefore } from './store.ts';
 
 export const activeTabOf = (view: View, id: WorkspaceId | undefined): TabId | undefined =>
   view.activeTabs.find((active) => active.workspaceId === id)?.tabId;
 
-const sameView = (left: View, right: View): boolean =>
-  left.focusedWorkspaceId === right.focusedWorkspaceId &&
+export const scrollOf = (view: View, id: PaneId): number | undefined =>
+  view.scrolls.find((scroll) => scroll.paneId === id)?.topRow;
+
+const sameScrolls = (left: View, right: View): boolean =>
+  left.scrolls.length === right.scrolls.length &&
+  left.scrolls.every((scroll) => scrollOf(right, scroll.paneId) === scroll.topRow);
+
+const sameActiveTabs = (left: View, right: View): boolean =>
   left.activeTabs.length === right.activeTabs.length &&
   left.activeTabs.every((active) => activeTabOf(right, active.workspaceId) === active.tabId);
+
+const sameView = (left: View, right: View): boolean =>
+  left.focusedWorkspaceId === right.focusedWorkspaceId &&
+  sameActiveTabs(left, right) &&
+  sameScrolls(left, right);
 
 export const withActiveTab = (view: View, id: WorkspaceId, activeId: TabId): View => {
   const known = view.activeTabs.some((active) => active.workspaceId === id);
