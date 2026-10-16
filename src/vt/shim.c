@@ -275,6 +275,9 @@ static uint32_t style_flags(GhosttyCell raw, const GhosttyStyle *style, uint32_t
     if (style->italic) flags |= 4;
     if (style->underline) flags |= 8;
     if (style->inverse) flags |= 16;
+    if (style->strikethrough) flags |= 32;
+    if (style->blink) flags |= 64;
+    if (style->invisible) flags |= 128;
   }
   GhosttyCellWide wide = GHOSTTY_CELL_WIDE_NARROW;
   ghostty_cell_get(raw, GHOSTTY_CELL_DATA_WIDE, &wide);
@@ -396,7 +399,7 @@ static void read_cursor(Pane *pane, uint64_t *x, uint64_t *y, uint64_t *visible)
 
 // Reads the rows that changed since the last frame. Each row goes to cells as its viewport y, a
 // flags word (bit 0 means the row soft-wraps into the next row), then 4 words per cell: code point, fg key, bg key, and flags, with keys as at color_key. Flags
-// bits 0-4 are bold, faint, italic, underline, and inverse, bits 8-9 the GhosttyCellWide value,
+// bits 0-7 are bold, faint, italic, underline, inverse, strikethrough, blink, and invisible, bits 8-9 the GhosttyCellWide value,
 // and bit 16 means the cell's cluster is in graphemes as: the index in cells of the cell's code
 // point, the cluster length, then its code points.
 // info receives the cell words and grapheme words the frame needs, the cursor x, y, and

@@ -53,6 +53,9 @@ const flagAttributes: [CellFlag, number][] = [
   [CellFlag.italic, TextAttributes.ITALIC],
   [CellFlag.underline, TextAttributes.UNDERLINE],
   [CellFlag.inverse, TextAttributes.INVERSE],
+  [CellFlag.strikethrough, TextAttributes.STRIKETHROUGH],
+  [CellFlag.blink, TextAttributes.BLINK],
+  [CellFlag.invisible, TextAttributes.HIDDEN],
 ];
 
 const rgbaOf = (word: number): RGBA => {

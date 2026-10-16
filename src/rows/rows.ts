@@ -116,6 +116,9 @@ export enum CellFlag {
   italic = 0x4,
   underline = 0x8,
   inverse = 0x10,
+  strikethrough = 0x20,
+  blink = 0x40,
+  invisible = 0x80,
   // The cell's whole cluster is in the graphemes.
   grapheme = 0x1_00_00,
 }

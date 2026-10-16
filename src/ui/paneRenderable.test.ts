@@ -8,6 +8,7 @@ import { createRowCache } from '../client/client.ts';
 import {
   cellWords,
   defaultBackgroundSlot,
+  CellFlag,
   defaultForegroundSlot,
   rowHeaderWords,
   rowWords,
@@ -212,6 +213,42 @@ const cellColors = (created: TestRendererSetup, column: number) => {
 
   return undefined;
 };
+
+it.each([
+  ['strikethrough', CellFlag.strikethrough, TextAttributes.STRIKETHROUGH],
+  ['blink', CellFlag.blink, TextAttributes.BLINK],
+  ['invisible', CellFlag.invisible, TextAttributes.HIDDEN],
+])(
+  'draws a %s cell with its attribute and a plain cell without',
+  async (_name, flag, attribute) => {
+    const { show, created } = await startPane();
+
+    await show(
+      rowUpdate([
+        { column: 0, codePoint: 0x61, flags: flag },
+        { column: 1, codePoint: 0x62 },
+      ]),
+    );
+
+    const attributesAt = (column: number) => {
+      const spans = created.captureSpans().lines[0]?.spans ?? [];
+      let start = 0;
+
+      for (const span of spans) {
+        if (column < start + span.width) {
+          return span.attributes;
+        }
+
+        start += span.width;
+      }
+
+      return undefined;
+    };
+
+    expect((attributesAt(0) ?? 0) & attribute).toBe(attribute);
+    expect((attributesAt(1) ?? 0) & attribute).toBe(0);
+  },
+);
 
 it('draws a palette cell in the color the program set', async () => {
   const { show, created } = await startPane();

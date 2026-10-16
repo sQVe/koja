@@ -424,6 +424,9 @@ it.each([
   ['italic', '\u001B[3m', CellFlag.italic],
   ['underline', '\u001B[4m', CellFlag.underline],
   ['inverse', '\u001B[7m', CellFlag.inverse],
+  ['strikethrough', '\u001B[9m', CellFlag.strikethrough],
+  ['blink', '\u001B[5m', CellFlag.blink],
+  ['invisible', '\u001B[8m', CellFlag.invisible],
 ])('returns a %s cell with its style flag', (_name, style, flag) => {
   using terminal = openTerminal();
 
@@ -1045,6 +1048,27 @@ it('reads a row from history with the cells the frame returned while it was on s
   expect(terminal.stableRows().first).toBe(activeTop);
   expect(rowText(onScreen ?? [])).toBe(`red 漢 ${cluster}e\u0301`);
   expect(fromHistory).toEqual(onScreen);
+});
+
+it.each([
+  ['strikethrough', '\u001B[9m', CellFlag.strikethrough],
+  ['blink', '\u001B[5m', CellFlag.blink],
+  ['invisible', '\u001B[8m', CellFlag.invisible],
+])('reads a %s cell from history with its style flag', (_name, style, flag) => {
+  using terminal = openTerminal();
+
+  terminal.write(encoder.encode(`${style}S\u001B[0mT\r\n`));
+
+  const { epoch, activeTop } = terminal.stableRows();
+
+  terminal.write(encoder.encode(numberedLines(0, 40)));
+
+  const read = terminal.readRows(epoch, activeTop, 1);
+  const [styled, plain] = (read.ok ? decodeRows(read.rows, 80).get(0) : undefined) ?? [];
+
+  expect(terminal.stableRows().first).toBe(activeTop);
+  expect(styled?.flags).toBe(flag);
+  expect(plain?.flags).toBe(0);
 });
 
 it('refuses a read with an epoch from before a resize and reads with the new epoch', () => {
