@@ -145,11 +145,7 @@ const isFunctionalKey = (key: string): boolean => keyFinals.has(key) || tildeCod
 const isEditingKey = (key: string): boolean => editingCodes.has(key);
 
 const toNumber = (field: string | undefined): number | undefined => {
-  if (field === undefined || field === '') {
-    return undefined;
-  }
-
-  const value = Number.parseInt(field, 10);
+  const value = Number.parseInt(field ?? '', 10);
 
   return Number.isNaN(value) ? undefined : value;
 };
@@ -190,10 +186,6 @@ const isTextCode = (code: number | undefined): boolean =>
   code !== undefined && isCodePoint(code) && !isSurrogate(code);
 
 const textOfCodes = (field: string | undefined): string | undefined => {
-  if (field === undefined || field === '') {
-    return undefined;
-  }
-
   const codes = numbersOf(field);
   const valid = codes.every(isTextCode);
 
@@ -299,13 +291,11 @@ const parseCharacter = (raw: string): KeyEvent => {
   };
 };
 
-const parseAlt = (raw: string, inner: KeyEvent): KeyEvent => {
-  if (inner.key === 'opaque' || inner.key === 'unsupported') {
-    return opaqueEvent(raw);
-  }
-
-  return { ...inner, raw, modifiers: inner.modifiers | keyModifier.alt };
-};
+const parseAlt = (raw: string, inner: KeyEvent): KeyEvent => ({
+  ...inner,
+  raw,
+  modifiers: inner.modifiers | keyModifier.alt,
+});
 
 const parseSs3 = (raw: string): KeyEvent => {
   const key = finalKeys.get(raw.slice(2));

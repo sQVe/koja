@@ -134,3 +134,12 @@ it('lets modes 1000, 1002, and 1003 win over mode 9', () => {
   expect(encode('\x1b[<64;1;1M', x10Normal)).toBe('\x1b[<64;5;3M');
   expect(encode('\x1b[<32;1;1M', x10Button)).toBe('\x1b[<32;5;3M');
 });
+
+it('rejects a report with row 0', () => {
+  expect(parseMouse('\x1b[<0;1;0M')).toBeUndefined();
+});
+
+it('encodes a drag with the middle or right button', () => {
+  expect(encode('\x1b[<33;3;3M', ModeFlag.buttonMouse | ModeFlag.sgrMouse)).toBe('\x1b[<33;5;3M');
+  expect(encode('\x1b[<34;3;3M', ModeFlag.buttonMouse | ModeFlag.sgrMouse)).toBe('\x1b[<34;5;3M');
+});

@@ -57,7 +57,7 @@ export const parseMouse = (raw: string): MouseEvent | undefined => {
   const column = Number(match[2]);
   const row = Number(match[3]);
   const kind = kindOf(code, match[4] ?? 'M');
-  const button = kind === 'wheel' ? code & (wheelBit | buttonMask) : code & buttonMask;
+  const button = code & (wheelBit | buttonMask);
 
   if (column < 1 || row < 1) {
     return undefined;
