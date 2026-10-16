@@ -1,9 +1,12 @@
-import { expect, it } from 'bun:test';
+import { afterEach, expect, it } from 'bun:test';
+
+import { createTestRenderer } from '@opentui/core/testing';
+import type { TestRendererSetup } from '@opentui/core/testing';
 
 import { paneId } from '../ids.ts';
 import { layoutPanes } from '../layout.ts';
 import type { Layout } from '../layout.ts';
-import { borderCells, frameColor } from './paneBorders.ts';
+import { BorderRenderable, borderCells, frameColor } from './paneBorders.ts';
 
 const leaf = (id: number): Layout => ({ kind: 'pane', paneId: paneId(id) });
 
@@ -91,4 +94,83 @@ it('dims every frame when no pane is focused', () => {
   const cells = borderCells(layoutPanes(rightSplit, size), undefined);
 
   expect(cells.every((cell) => !cell.focused)).toBe(true);
+});
+
+let setup: TestRendererSetup | undefined;
+
+afterEach(() => {
+  setup?.renderer.destroy();
+  setup = undefined;
+});
+
+const startBorders = async () => {
+  const created = await createTestRenderer({ width: size.columns, height: size.rows });
+  const borders = new BorderRenderable(created.renderer, size);
+
+  setup = created;
+  created.renderer.root.add(borders);
+
+  const show = async (layout: Layout, focused: number): Promise<string[]> => {
+    borders.update(size, borderCells(layoutPanes(layout, size), paneId(focused)));
+    await created.renderOnce();
+
+    return created
+      .captureCharFrame()
+      .split('\n')
+      .slice(0, size.rows)
+      .map((line) => line.trimEnd());
+  };
+
+  return { show, created, borders };
+};
+
+it('draws the frames on screen and replaces them when the layout changes', async () => {
+  const { show } = await startBorders();
+
+  expect(await show(rightSplit, 1)).toEqual(['┌──┐ ┌─┐', '│  │ │ │', '│  │ │ │', '└──┘ └─┘']);
+
+  expect(await show(split('below', leaf(1), leaf(2)), 1)).toEqual([
+    '┌──────┐',
+    '│      │',
+    '└──────┘',
+    '┌──────┐',
+  ]);
+});
+
+it('requests a render when the frames change', async () => {
+  const { created, borders } = await startBorders();
+
+  await created.flush();
+  borders.update(size, borderCells(layoutPanes(rightSplit, size), paneId(1)));
+
+  expect(created.renderer.getSchedulerState().hasScheduledRender).toBe(true);
+});
+
+it('draws the focused frame in the accent color', async () => {
+  const { show, created } = await startBorders();
+
+  await show(rightSplit, 2);
+
+  const spans = created.captureSpans().lines[0]?.spans ?? [];
+
+  const colorOf = (column: number) => {
+    let start = 0;
+
+    for (const span of spans) {
+      if (column < start + span.width) {
+        return span.fg.toInts().slice(0, 3);
+      }
+
+      start += span.width;
+    }
+
+    return undefined;
+  };
+
+  const cells = borderCells(layoutPanes(rightSplit, size), paneId(2));
+  const focused = cells.find((cell) => cell.focused);
+  const other = cells.find((cell) => !cell.focused);
+
+  expect(colorOf(5)).toEqual(frameColor(focused!).toInts().slice(0, 3));
+  expect(colorOf(0)).toEqual(frameColor(other!).toInts().slice(0, 3));
 });

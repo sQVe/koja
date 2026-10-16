@@ -25,6 +25,12 @@ interface TestCell {
   flags?: number;
 }
 
+interface ScreenOptions {
+  activeTop?: number;
+  first?: number;
+  cursor?: { x: number; y: number; visible: boolean };
+}
+
 const columns = 6;
 
 const stride = rowWords(columns);
@@ -68,10 +74,10 @@ afterEach(() => {
   setup = undefined;
 });
 
-const startPane = async () => {
-  const created = await createTestRenderer({ width: columns, height: 1 });
+const startPane = async (height = 1) => {
+  const created = await createTestRenderer({ width: columns, height });
   const cache = createRowCache({ rowLimit: 10 });
-  const pane = new PaneRenderable(created.renderer, { cache, width: columns, height: 1 });
+  const pane = new PaneRenderable(created.renderer, { cache, width: columns, height });
 
   setup = created;
   created.renderer.root.add(pane);
@@ -216,6 +222,10 @@ const cellColors = (created: TestRendererSetup, column: number) => {
 };
 
 it.each([
+  ['bold', CellFlag.bold, TextAttributes.BOLD],
+  ['faint', CellFlag.faint, TextAttributes.DIM],
+  ['italic', CellFlag.italic, TextAttributes.ITALIC],
+  ['underline', CellFlag.underline, TextAttributes.UNDERLINE],
   ['strikethrough', CellFlag.strikethrough, TextAttributes.STRIKETHROUGH],
   ['blink', CellFlag.blink, TextAttributes.BLINK],
   ['invisible', CellFlag.invisible, TextAttributes.HIDDEN],
@@ -504,4 +514,260 @@ it('hides the focused pane native cursor while the pane is scrolled or shows the
   pane.setScrollCursor(undefined);
 
   expect(await nativeVisible()).toBe(true);
+});
+
+it('draws every attribute of a cell with several flags', async () => {
+  const { show, created } = await startPane();
+
+  await show(
+    rowUpdate([
+      {
+        column: 0,
+        codePoint: 0x61,
+        flags: CellFlag.bold | CellFlag.italic | CellFlag.underline | CellFlag.faint,
+      },
+    ]),
+  );
+
+  const attributes = created.captureSpans().lines[0]?.spans[0]?.attributes;
+
+  expect(attributes).toBe(
+    TextAttributes.BOLD | TextAttributes.DIM | TextAttributes.ITALIC | TextAttributes.UNDERLINE,
+  );
+});
+
+it('draws the last palette color as a palette color', async () => {
+  const { show, created } = await startPane();
+
+  await show(rowUpdate([{ column: 0, codePoint: 0x61, foreground: 256 }]));
+
+  expect(cellColors(created, 0)?.fg).toEqual(RGBA.fromIndex(255).toInts().slice(0, 3));
+});
+
+it('draws a cell background in the cell that has it', async () => {
+  const { show, created } = await startPane();
+  const red = 0x1_00_00_00 + 0xff_00_00;
+
+  await show(rowUpdate([{ column: 2, codePoint: 0x62, background: red }]));
+
+  const theme = RGBA.defaultBackground().toInts().slice(0, 3);
+
+  expect(cellColors(created, 1)?.bg).toEqual(theme);
+  expect(cellColors(created, 2)?.bg).toEqual([255, 0, 0]);
+  expect(cellColors(created, 3)?.bg).toEqual(theme);
+});
+
+const screenOf = (lines: string[], options: ScreenOptions = {}): RowUpdate => {
+  const { activeTop = 0, first = activeTop, cursor = { x: 0, y: 0, visible: false } } = options;
+  const words = new Uint32Array(stride * lines.length);
+
+  for (const [index, line] of lines.entries()) {
+    words[index * stride] = (first + index - activeTop) >>> 0;
+
+    for (const [column, character] of Array.from(line).entries()) {
+      words[index * stride + rowHeaderWords + column * cellWords] = character.codePointAt(0) ?? 0;
+    }
+  }
+
+  return {
+    ...rowUpdate([]),
+    cursor: { ...cursor, shape: CursorShape.default, blinking: false },
+    activeTop,
+    first,
+    rowCount: lines.length,
+    cells: words,
+  };
+};
+
+const invertedCells = (created: TestRendererSetup): string[] => {
+  const inverted: string[] = [];
+
+  for (const [row, line] of created.captureSpans().lines.entries()) {
+    let column = 0;
+
+    for (const span of line.spans) {
+      if ((span.attributes & TextAttributes.INVERSE) !== 0) {
+        inverted.push(`${row}:${column}`);
+      }
+
+      column += span.width;
+    }
+  }
+
+  return inverted;
+};
+
+const frameLines = (created: TestRendererSetup): string[] =>
+  created
+    .captureCharFrame()
+    .split('\n')
+    .map((line) => line.trimEnd());
+
+it('moves the cursor between rows and hides it again', async () => {
+  const { created, cache, pane } = await startPane(3);
+
+  const withCursor = (y: number, visible: boolean): RowUpdate =>
+    screenOf(['ab', 'cd', 'ef'], { cursor: { x: 1, y, visible } });
+
+  pane.draw(cache.apply(withCursor(0, true)));
+  await created.renderOnce();
+
+  expect(invertedCells(created)).toEqual(['0:1']);
+
+  pane.draw(cache.apply({ ...withCursor(2, true), rowCount: 0, cells: new Uint32Array() }));
+  await created.renderOnce();
+
+  expect(invertedCells(created)).toEqual(['2:1']);
+
+  pane.draw(cache.apply({ ...withCursor(2, false), rowCount: 0, cells: new Uint32Array() }));
+  await created.renderOnce();
+
+  expect(invertedCells(created)).toEqual([]);
+
+  pane.draw(cache.apply({ ...withCursor(2, true), rowCount: 0, cells: new Uint32Array() }));
+  await created.renderOnce();
+
+  expect(invertedCells(created)).toEqual(['2:1']);
+});
+
+it('requests a render when rows, the scroll cursor, or the pane change', async () => {
+  const { created, pane } = await startPane(3);
+
+  const requested = async (change: () => void): Promise<boolean> => {
+    await created.flush();
+    change();
+
+    return created.renderer.getSchedulerState().hasScheduledRender;
+  };
+
+  const scrollCursorAt = (row: number, col: number) => (): void => {
+    pane.setScrollCursor({ row, col });
+  };
+
+  const drawNothing = (): void => {
+    pane.draw([]);
+  };
+
+  const drawEverything = (): void => {
+    pane.drawAll();
+  };
+
+  const clearScrollCursor = (): void => {
+    pane.setScrollCursor(undefined);
+  };
+
+  expect(await requested(drawNothing)).toBe(true);
+  expect(await requested(drawEverything)).toBe(true);
+  expect(await requested(scrollCursorAt(1, 2))).toBe(true);
+  expect(await requested(scrollCursorAt(1, 2))).toBe(false);
+  expect(await requested(scrollCursorAt(2, 2))).toBe(true);
+  expect(await requested(scrollCursorAt(2, 3))).toBe(true);
+  expect(await requested(clearScrollCursor)).toBe(true);
+  expect(await requested(clearScrollCursor)).toBe(false);
+});
+
+it('clears a scroll cursor that was never set', async () => {
+  const { created, pane } = await startPane();
+
+  expect(() => {
+    pane.setScrollCursor(undefined);
+  }).not.toThrow();
+
+  await created.renderOnce();
+
+  expect(invertedCells(created)).toEqual([]);
+});
+
+it('draws a scrolled view in row order and redraws the changed row where it shows', async () => {
+  const { created, cache, pane } = await startPane(3);
+
+  cache.apply(screenOf(['a', 'b', 'c', 'd', 'e'], { activeTop: 10, first: 8 }));
+  pane.setTop(8);
+  await created.renderOnce();
+
+  expect(frameLines(created).slice(0, 3)).toEqual(['a', 'b', 'c']);
+
+  pane.draw(cache.apply(screenOf(['z'], { activeTop: 10, first: 10 })));
+  await created.renderOnce();
+
+  expect(frameLines(created).slice(0, 3)).toEqual(['a', 'b', 'z']);
+});
+
+it('places the scroll cursor at its row relative to the view top', async () => {
+  const { created, cache, pane } = await startPane(3);
+
+  cache.apply(screenOf(['a', 'b', 'c', 'd', 'e'], { activeTop: 10, first: 8 }));
+  pane.setTop(8);
+  pane.setScrollCursor({ row: 9, col: 2 });
+  await created.renderOnce();
+
+  expect(invertedCells(created)).toEqual(['1:2']);
+
+  pane.setTop(undefined);
+  pane.setScrollCursor({ row: 11, col: 2 });
+  await created.renderOnce();
+
+  expect(invertedCells(created)).toEqual(['1:2']);
+});
+
+const startReportingPane = async () => {
+  const drawn: (number | undefined)[] = [];
+  const created = await createTestRenderer({ width: columns, height: 2 });
+  const cache = createRowCache({ rowLimit: 10 });
+
+  const pane = new PaneRenderable(created.renderer, {
+    cache,
+    width: columns,
+    height: 2,
+    onDrawn: (sequence) => {
+      drawn.push(sequence);
+    },
+  });
+
+  setup = created;
+  created.renderer.root.add(pane);
+  await created.renderOnce();
+
+  return { created, pane, drawn };
+};
+
+it('keeps the pending sequence when later rows come without one', async () => {
+  const { created, pane, drawn } = await startReportingPane();
+
+  pane.draw([0], 4);
+  pane.draw([1]);
+  await created.renderOnce();
+
+  expect(drawn).toEqual([4]);
+
+  pane.drawAll(6);
+  pane.drawAll();
+  await created.renderOnce();
+
+  expect(drawn).toEqual([4, 6]);
+});
+
+it('reports no sequence when a render draws rows that came without one', async () => {
+  const { created, pane, drawn } = await startReportingPane();
+
+  pane.draw([0]);
+  await created.renderOnce();
+  pane.drawAll();
+  await created.renderOnce();
+
+  expect(drawn).toEqual([]);
+});
+
+it('draws the rows where the pane was moved to', async () => {
+  const created = await createTestRenderer({ width: columns, height: 3 });
+  const cache = createRowCache({ rowLimit: 10 });
+  const pane = new PaneRenderable(created.renderer, { cache, width: 3, height: 1 });
+
+  setup = created;
+  created.renderer.root.add(pane);
+  pane.draw(cache.apply(rowUpdate([{ column: 0, codePoint: 0x61 }])));
+  pane.move(2, 1);
+  await created.renderOnce();
+
+  expect(frameLines(created)).toEqual(['', '  a', '', '']);
 });
