@@ -298,6 +298,27 @@ const paneScrollOutcomeSchema = z.discriminatedUnion('ok', [
   }),
 ]);
 
+const cellPositionSchema = z.strictObject({ row: count, column: count });
+
+type CellPosition = z.infer<typeof cellPositionSchema>;
+
+const startsBeforeEnd = ({ start, end }: { start: CellPosition; end: CellPosition }): boolean => {
+  const inOrderOnOneRow = start.row === end.row && start.column <= end.column;
+
+  return start.row < end.row || inOrderOnOneRow;
+};
+
+// pruned: the range starts below the oldest row kept, which is `oldest`. tooLarge: the range holds
+// more rows than one read can.
+const paneCopyOutcomeSchema = z.discriminatedUnion('ok', [
+  z.strictObject({ ok: z.literal(true), text: z.string(), clientId: absent(clientIdSchema) }),
+  z.strictObject({
+    ok: z.literal(false),
+    reason: z.enum(['noClient', 'unknownPane', 'tooLarge', 'pruned']),
+    oldest: absent(count),
+  }),
+]);
+
 const controlSchema = z.discriminatedUnion('type', [
   // A CLI client has no terminal, so it sends no size.
   z.object({ type: z.literal('hello'), version: buildVersionSchema, size: absent(sizeSchema) }),
@@ -314,6 +335,19 @@ const controlSchema = z.discriminatedUnion('type', [
     clientId: absent(clientIdSchema),
   }),
   z.object({ type: z.literal('paneScrollResult'), result: paneScrollOutcomeSchema }),
+  // Copies the text from one cell to another, both inclusive, as stable rows and columns from 0.
+  // Without print, the foreground client gets it as a clipboardWrite. With print, the result holds
+  // the text and no client gets anything. The result names the client that got the text.
+  z
+    .object({
+      type: z.literal('paneCopy'),
+      paneId: paneIdSchema,
+      start: cellPositionSchema,
+      end: cellPositionSchema,
+      print: z.boolean(),
+    })
+    .refine(startsBeforeEnd),
+  z.object({ type: z.literal('paneCopyResult'), result: paneCopyOutcomeSchema }),
   // Builds stop each other's servers with this frame, so it must keep this shape in every build.
   z.object({ type: z.literal('stop') }),
   z.object({ type: z.literal('resize'), size: sizeSchema }),

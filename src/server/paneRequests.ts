@@ -10,6 +10,7 @@ import { sourceOf } from './clientRequests.ts';
 import type { Connection } from './connection.ts';
 import type { Log } from './log.ts';
 import type { PaneRuntime } from './pane.ts';
+import { handlePaneCopy } from './paneCopyRequests.ts';
 import {
   findLivePane,
   followFolderOf,
@@ -50,7 +51,7 @@ type PaneFailureReason = Extract<ControlMessage, { type: 'paneFailed' }>['reason
 
 type PaneCommandMessage = Extract<
   ControlMessage,
-  { type: 'paneRead' | 'paneReadNext' | 'paneSend' }
+  { type: 'paneRead' | 'paneReadNext' | 'paneSend' | 'paneCopy' }
 >;
 
 const describeError = (error: unknown): string =>
@@ -216,7 +217,12 @@ export const answerPaneProcessInfo = (
   });
 };
 
-const paneCommandTypes: ReadonlySet<string> = new Set(['paneRead', 'paneReadNext', 'paneSend']);
+const paneCommandTypes: ReadonlySet<string> = new Set([
+  'paneRead',
+  'paneReadNext',
+  'paneSend',
+  'paneCopy',
+]);
 
 export const isPaneCommand = (message: ControlMessage): message is PaneCommandMessage =>
   paneCommandTypes.has(message.type);
@@ -226,6 +232,12 @@ export const handlePaneCommand = (
   message: PaneCommandMessage,
   connection: Connection,
 ): void => {
+  if (message.type === 'paneCopy') {
+    handlePaneCopy(context, message, connection);
+
+    return;
+  }
+
   const live = findLivePane(context, message.paneId);
 
   if (message.type === 'paneReadNext') {

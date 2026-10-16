@@ -29,6 +29,12 @@ export interface RowUpdate {
 
 type TextRows = Pick<RowUpdate, 'rowCount' | 'cells' | 'graphemes'>;
 
+export interface CellPosition {
+  // The index of the row in the range.
+  row: number;
+  column: number;
+}
+
 export type DecodeRowUpdateResult =
   | { ok: true; update: RowUpdate }
   | { ok: false; reason: 'wrongLength' }
@@ -260,17 +266,25 @@ const clustersOf = (graphemes: Uint32Array): Map<number, string> => {
   return clusters;
 };
 
+const widthAt = (range: TextRows, rowStart: number, column: number): CellWidth => {
+  const index = rowStart + rowHeaderWords + column * cellWords;
+
+  return (range.cells[index + cellFlagsOffset] ?? 0) & cellWidthMask;
+};
+
+// The text of the columns first..last of one row, both inclusive.
 const rowText = (
   range: TextRows,
   clusters: Map<number, string>,
   rowStart: number,
-  columns: number,
+  first: number,
+  last: number,
 ) => {
   let text = '';
 
-  for (let column = 0; column < columns; column += 1) {
+  for (let column = first; column <= last; column += 1) {
     const index = rowStart + rowHeaderWords + column * cellWords;
-    const width: CellWidth = (range.cells[index + cellFlagsOffset] ?? 0) & cellWidthMask;
+    const width = widthAt(range, rowStart, column);
 
     if (width === CellWidth.spacerHead || width === CellWidth.spacerTail) {
       continue;
@@ -305,7 +319,7 @@ export const rowsToLines = (
   for (let row = 0; row < range.rowCount; row += 1) {
     const rowStart = row * rowWords(columns);
 
-    line += rowText(range, clusters, rowStart, columns);
+    line += rowText(range, clusters, rowStart, 0, columns - 1);
 
     const flags = range.cells[rowStart + 1] ?? 0;
     const joinsNext = unwrap && (flags & RowFlag.wrapped) !== 0;
@@ -321,6 +335,47 @@ export const rowsToLines = (
   }
 
   return lines;
+};
+
+// Returns the text from start to end, both inclusive, with rows as `rowsToLines` unwraps them: a
+// wrapped row joins the next row, and any other row end gives a line feed. Spaces are trimmed only
+// where the range reaches the end of a line. A wide character is copied whole when either of its
+// cells is in the range. A position past the range or past the last column is clamped.
+export const rowsRangeText = (
+  range: TextRows,
+  columns: number,
+  start: CellPosition,
+  end: CellPosition,
+): string => {
+  const clusters = clustersOf(range.graphemes);
+  const lastRow = Math.min(end.row, range.rowCount - 1);
+  let text = '';
+  let line = '';
+
+  for (let row = start.row; row <= lastRow; row += 1) {
+    const rowStart = row * rowWords(columns);
+    const requestedFirst = row === start.row ? Math.min(start.column, columns - 1) : 0;
+    const requestedLast = row === end.row ? end.column : columns - 1;
+    const last = Math.min(requestedLast, columns - 1);
+    const startsOnTail = widthAt(range, rowStart, requestedFirst) === CellWidth.spacerTail;
+    const first = startsOnTail ? requestedFirst - 1 : requestedFirst;
+    const segment = rowText(range, clusters, rowStart, first, last);
+    const wrapped = ((range.cells[rowStart + 1] ?? 0) & RowFlag.wrapped) !== 0;
+    const reachesLineEnd = last === columns - 1 && !wrapped;
+
+    line += segment;
+
+    if (reachesLineEnd) {
+      text += line.replace(/ +$/, '');
+      line = '';
+
+      if (row < lastRow) {
+        text += '\n';
+      }
+    }
+  }
+
+  return text + line;
 };
 
 // Joins pages of rows with the same column count into one range. A grapheme names its cell by

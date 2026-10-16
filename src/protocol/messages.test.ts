@@ -106,6 +106,15 @@ const messages: ControlMessage[] = [
   { type: 'paneScroll', paneId: pane.id, to: 'top', clientId: undefined },
   { type: 'paneScroll', paneId: pane.id, to: 'bottom', clientId: client.id },
   { type: 'paneScroll', paneId: pane.id, to: 42, clientId: undefined },
+  {
+    type: 'paneCopy',
+    paneId: pane.id,
+    start: { row: 4, column: 2 },
+    end: { row: 5, column: 0 },
+    print: false,
+  },
+  { type: 'paneCopyResult', result: { ok: true, text: 'hi', clientId: client.id } },
+  { type: 'paneCopyResult', result: { ok: false, reason: 'pruned', oldest: 3 } },
   { type: 'stop' },
   { type: 'resize', size: { columns: 120, rows: 40 } },
   { type: 'theme', theme },
@@ -446,6 +455,14 @@ it.each([
   [
     'a scroll to a word that is not a position',
     `{"type":"paneScroll","paneId":"pane-1","to":"middle","clientId":null}`,
+  ],
+  [
+    'a copy that starts after its end',
+    '{"type":"paneCopy","paneId":"pane-1","start":{"row":4,"column":3},"end":{"row":4,"column":2},"print":false}',
+  ],
+  [
+    'a copy with a negative column',
+    '{"type":"paneCopy","paneId":"pane-1","start":{"row":4,"column":-1},"end":{"row":5,"column":2},"print":false}',
   ],
   ['a JSON value that is not an object', '"hello"'],
 ])('refuses a message with %s', (_name, json) => {
