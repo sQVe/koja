@@ -34,7 +34,6 @@ interface ScrollState extends ScrollCursor {
   // The view top this mode asked for, held until the server has answered every request. The server
   // owns the view; this value only lets keys typed before its answer build on each other.
   pending: { top: number | undefined } | undefined;
-  // Requests sent and not yet answered.
   unanswered: number;
   // Continues the waiting motion's scan from where it stopped.
   resume: ((rows: ScrollRows, top: number) => ScrollResult) | undefined;

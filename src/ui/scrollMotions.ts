@@ -162,10 +162,10 @@ const sameClass: RunTest = (start, candidate) => start === candidate;
 
 const notWhitespace: RunTest = (_start, candidate) => candidate !== 'whitespace';
 
-// Finds the cell a word motion reaches, reading rows as it goes and yielding the number of a row
-// the cache lacks. It keeps at most two rows of atoms, so it needs nothing it has passed.
 const isBlankAtom = (atom: Atom): boolean => atom.textClass === 'whitespace';
 
+// Finds the cell a word motion reaches, reading rows as it goes and yielding the number of a row
+// the cache lacks. It keeps at most two rows of atoms, so it needs nothing it has passed.
 const wordScan = function* (
   rowsNow: () => ScrollRows,
   position: ScrollPosition,
