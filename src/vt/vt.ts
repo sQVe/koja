@@ -5,6 +5,7 @@ import { dlopen, FFIType, toArrayBuffer } from 'bun:ffi';
 import libraryPath from '../../build/libphi-vt.so' with { type: 'file' };
 import { invariant } from '../invariant.ts';
 import { rowWords } from '../rows/rows.ts';
+import type { Cursor } from '../rows/rows.ts';
 
 export type CreateTerminalResult =
   | { ok: true; terminal: Terminal }
@@ -55,7 +56,7 @@ export interface Frame {
   // Each cluster longer than one code point as one word with the index in cells of its cell's
   // code point, one word with its length, then its code points, base first.
   graphemes: Uint32Array;
-  cursor: { x: number; y: number; visible: boolean };
+  cursor: Cursor;
   // The ModeFlag bits that are on.
   modes: number;
 }
@@ -104,7 +105,7 @@ const firstCellWords = firstFrameRows * rowWords(firstFrameColumns);
 
 const firstGraphemeWords = 1024;
 
-const frameInfoWords = 6;
+const frameInfoWords = 8;
 
 // Frame.graphemes holds each cell index in one 32-bit word, so a frame has at most this many cell
 // words.
@@ -226,7 +227,8 @@ export class Terminal {
 
   private graphemes = new Uint32Array(firstGraphemeWords);
 
-  // Cell words used, grapheme words used, cursor x, cursor y, cursor visible, and mode bits.
+  // Cell words used, grapheme words used, cursor x, cursor y, cursor visible, cursor shape, cursor
+  // blinking, and mode bits.
   private readonly frameInfo = new BigUint64Array(frameInfoWords);
 
   // Rows read by number use their own arrays, so a read does not overwrite the last frame.
@@ -523,14 +525,24 @@ export class Terminal {
       cursorX = 0n,
       cursorY = 0n,
       cursorVisible,
+      cursorShape = 0n,
+      cursorBlinking,
       modes = 0n,
     ] = this.frameInfo;
+
+    const cursor: Cursor = {
+      x: Number(cursorX),
+      y: Number(cursorY),
+      visible: cursorVisible === 1n,
+      shape: Number(cursorShape),
+      blinking: cursorBlinking === 1n,
+    };
 
     return {
       rowCount,
       cells: this.cells.subarray(0, Number(cellWordsUsed)),
       graphemes: this.graphemes.subarray(0, Number(graphemeWordsUsed)),
-      cursor: { x: Number(cursorX), y: Number(cursorY), visible: cursorVisible === 1n },
+      cursor,
       modes: Number(modes),
     };
   }

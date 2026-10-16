@@ -1,12 +1,20 @@
 import { invariant } from '../invariant.ts';
 
+export interface Cursor {
+  x: number;
+  y: number;
+  visible: boolean;
+  shape: CursorShape;
+  blinking: boolean;
+}
+
 // Changed rows of one pane. cells and graphemes use the layout of a vt frame, so the server sends
 // a frame without converting it.
 export interface RowUpdate {
   pane: number;
   sequence: number;
   size: { columns: number; rows: number };
-  cursor: { x: number; y: number; visible: boolean };
+  cursor: Cursor;
   // The ModeFlag bits that are on.
   modes: number;
   epoch: number;
@@ -40,7 +48,8 @@ export type DecodeRowUpdateResult =
   | { ok: false; reason: 'graphemeTooShort' }
   | { ok: false; reason: 'colorPastEnd' }
   | { ok: false; reason: 'colorSlotInvalid' }
-  | { ok: false; reason: 'colorInvalid' };
+  | { ok: false; reason: 'colorInvalid' }
+  | { ok: false; reason: 'unknownCursorShape' };
 
 // Raw bytes for a pane's PTY.
 export interface PaneInput {
@@ -91,6 +100,15 @@ type GraphemeProblem =
 type PaneRowsHeaderResult =
   | { ok: true; source: PaneRowsSource }
   | { ok: false; reason: 'unknownSource' | 'rowNumberTooLarge' };
+
+// The cursor shape a program set with DECSCUSR, numbered as libghostty-vt numbers them. default is
+// DECSCUSR 0, which asks for the client terminal's own cursor.
+export enum CursorShape {
+  bar = 0,
+  block = 1,
+  underline = 2,
+  default = 3,
+}
 
 export enum PaneRowsSource {
   visible = 0,
@@ -170,15 +188,24 @@ const header = {
   cursorX: 4,
   cursorY: 5,
   cursorVisible: 6,
-  modes: 7,
-  epoch: 8,
-  first: 9,
-  activeTop: 11,
-  rowCount: 13,
-  colorCount: 14,
+  cursorShape: 7,
+  cursorBlinking: 8,
+  modes: 9,
+  epoch: 10,
+  first: 11,
+  activeTop: 13,
+  rowCount: 15,
+  colorCount: 16,
 };
 
-const headerWords = 15;
+const headerWords = 17;
+
+const cursorShapes = new Map<number, CursorShape>([
+  [CursorShape.bar, CursorShape.bar],
+  [CursorShape.block, CursorShape.block],
+  [CursorShape.underline, CursorShape.underline],
+  [CursorShape.default, CursorShape.default],
+]);
 
 // Header words of a pane rows reply. The cell words follow, then the grapheme words.
 const paneRowsHeader = {
@@ -459,6 +486,8 @@ export const encodeRowUpdate = (update: RowUpdate): Uint8Array => {
   words[header.cursorX] = update.cursor.x;
   words[header.cursorY] = update.cursor.y;
   words[header.cursorVisible] = update.cursor.visible ? 1 : 0;
+  words[header.cursorShape] = update.cursor.shape;
+  words[header.cursorBlinking] = update.cursor.blinking ? 1 : 0;
   words[header.modes] = update.modes;
   words[header.epoch] = update.epoch;
   writeRowNumber(words, header.first, update.first);
@@ -512,7 +541,12 @@ const graphemeProblem = (
   return undefined;
 };
 
-const readRowUpdate = (words: Uint32Array, colorCount: number, cellCount: number): RowUpdate => ({
+const readRowUpdate = (
+  words: Uint32Array,
+  colorCount: number,
+  cellCount: number,
+  cursorShape: CursorShape,
+): RowUpdate => ({
   pane: words[header.pane] ?? 0,
   sequence: words[header.sequence] ?? 0,
   size: { columns: words[header.columns] ?? 0, rows: words[header.rows] ?? 0 },
@@ -520,6 +554,8 @@ const readRowUpdate = (words: Uint32Array, colorCount: number, cellCount: number
     x: words[header.cursorX] ?? 0,
     y: words[header.cursorY] ?? 0,
     visible: words[header.cursorVisible] === 1,
+    shape: cursorShape,
+    blinking: words[header.cursorBlinking] === 1,
   },
   modes: words[header.modes] ?? 0,
   epoch: words[header.epoch] ?? 0,
@@ -530,6 +566,17 @@ const readRowUpdate = (words: Uint32Array, colorCount: number, cellCount: number
   cells: words.subarray(headerWords + colorCount, headerWords + colorCount + cellCount),
   graphemes: words.subarray(headerWords + colorCount + cellCount),
 });
+
+const updateColorProblem = (
+  words: Uint32Array,
+  colorCount: number,
+): 'colorPastEnd' | 'colorSlotInvalid' | 'colorInvalid' | undefined => {
+  if (colorCount % 2 !== 0 || headerWords + colorCount > words.length) {
+    return 'colorPastEnd';
+  }
+
+  return colorProblem(words.subarray(headerWords, headerWords + colorCount));
+};
 
 // Returns an error for bytes the peer got wrong. It never throws.
 export const decodeRowUpdate = (bytes: Uint8Array): DecodeRowUpdateResult => {
@@ -547,14 +594,14 @@ export const decodeRowUpdate = (bytes: Uint8Array): DecodeRowUpdateResult => {
     return { ok: false, reason: 'rowNumberTooLarge' };
   }
 
-  const colorCount = words[header.colorCount] ?? 0;
+  const cursorShape = cursorShapes.get(words[header.cursorShape] ?? 0);
 
-  if (colorCount % 2 !== 0 || headerWords + colorCount > words.length) {
-    return { ok: false, reason: 'colorPastEnd' };
+  if (cursorShape === undefined) {
+    return { ok: false, reason: 'unknownCursorShape' };
   }
 
-  const colors = words.subarray(headerWords, headerWords + colorCount);
-  const colorFault = colorProblem(colors);
+  const colorCount = words[header.colorCount] ?? 0;
+  const colorFault = updateColorProblem(words, colorCount);
 
   if (colorFault !== undefined) {
     return { ok: false, reason: colorFault };
@@ -575,7 +622,7 @@ export const decodeRowUpdate = (bytes: Uint8Array): DecodeRowUpdateResult => {
     return { ok: false, reason: problem };
   }
 
-  return { ok: true, update: readRowUpdate(words, colorCount, cellCount) };
+  return { ok: true, update: readRowUpdate(words, colorCount, cellCount, cursorShape) };
 };
 
 const paneRowsSources = new Map<number, PaneRowsSource>([

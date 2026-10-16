@@ -164,6 +164,10 @@ Pane *pane_new(uint16_t cols, uint16_t rows, uint64_t scrollback_bytes) {
   GhosttyColorRgb background = {0, 0, 0};
   ghostty_terminal_set(terminal, GHOSTTY_TERMINAL_OPT_COLOR_FOREGROUND, &foreground);
   ghostty_terminal_set(terminal, GHOSTTY_TERMINAL_OPT_COLOR_BACKGROUND, &background);
+  // DECSCUSR 0 selects this default style. No sequence selects a hollow block, so the hollow block
+  // in pane_frame's cursor style means the program asked for the client terminal's own cursor.
+  GhosttyTerminalCursorStyle default_cursor = GHOSTTY_TERMINAL_CURSOR_STYLE_BLOCK_HOLLOW;
+  ghostty_terminal_set(terminal, GHOSTTY_TERMINAL_OPT_DEFAULT_CURSOR_STYLE, &default_cursor);
   // Join emoji ZWJ sequences into one cell like the Ghostty app. A program can still turn the mode
   // off, and a full reset turns it back on.
   GhosttyTerminalModeConfig grapheme_cluster = {.mode = GHOSTTY_MODE_GRAPHEME_CLUSTER, .value = true};
@@ -389,12 +393,15 @@ static uint32_t mode_bits(Pane *pane) {
   return bits;
 }
 
-static void read_cursor(Pane *pane, uint64_t *x, uint64_t *y, uint64_t *visible) {
+// Writes the cursor x, y, visibility, GhosttyRenderStateCursorVisualStyle, and blinking to info.
+static void read_cursor(Pane *pane, uint64_t *info) {
   GhosttyRenderStateCursor cursor = GHOSTTY_INIT_SIZED(GhosttyRenderStateCursor);
   ghostty_render_state_get(pane->state, GHOSTTY_RENDER_STATE_DATA_CURSOR, &cursor);
-  *x = cursor.viewport_x;
-  *y = cursor.viewport_y;
-  *visible = cursor.visible && cursor.viewport_has_value;
+  info[0] = cursor.viewport_x;
+  info[1] = cursor.viewport_y;
+  info[2] = cursor.visible && cursor.viewport_has_value;
+  info[3] = cursor.visual_style;
+  info[4] = cursor.blinking;
 }
 
 // Reads the rows that changed since the last frame. Each row goes to cells as its viewport y, a
@@ -402,9 +409,9 @@ static void read_cursor(Pane *pane, uint64_t *x, uint64_t *y, uint64_t *visible)
 // bits 0-7 are bold, faint, italic, underline, inverse, strikethrough, blink, and invisible, bits 8-9 the GhosttyCellWide value,
 // and bit 16 means the cell's cluster is in graphemes as: the index in cells of the cell's code
 // point, the cluster length, then its code points.
-// info receives the cell words and grapheme words the frame needs, the cursor x, y, and
-// visibility, and the bits of mode_bits. Returns the number of rows, -1 when a buffer is too
-// small, or -2 when libghostty-vt cannot update. Rows stay dirty unless the whole frame fits.
+// info receives the cell words and grapheme words the frame needs, the cursor x, y, visibility,
+// style, and blinking as at read_cursor, and the bits of mode_bits. Returns the number of rows,
+// -1 when a buffer is too small, or -2 when libghostty-vt cannot update. Rows stay dirty unless the whole frame fits.
 // During a render hold the rows and cursor come from the captured frame.
 int32_t pane_frame(Pane *pane, uint32_t *cells, uint64_t cells_len, uint32_t *graphemes, uint64_t graphemes_len,
                    uint64_t *info) {
@@ -422,8 +429,8 @@ int32_t pane_frame(Pane *pane, uint32_t *cells, uint64_t cells_len, uint32_t *gr
   }
   info[0] = out.cells_used;
   info[1] = out.graphemes_used;
-  read_cursor(pane, &info[2], &info[3], &info[4]);
-  info[5] = mode_bits(pane);
+  read_cursor(pane, &info[2]);
+  info[7] = mode_bits(pane);
   if (out.cells_used > cells_len || out.graphemes_used > graphemes_len) return -1;
   ghostty_render_state_clean(pane->state);
   return rows;

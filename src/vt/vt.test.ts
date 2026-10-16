@@ -5,6 +5,7 @@ import {
   CellWidth,
   cellWidthMask,
   cellWords,
+  CursorShape,
   defaultBackgroundSlot,
   defaultForegroundSlot,
   kittyFlags,
@@ -526,11 +527,27 @@ it('returns the cursor position and visibility', () => {
 
   writeChunks(terminal, ['\u001B[5;10Habc']);
 
-  expect(terminal.frame().cursor).toEqual({ x: 12, y: 4, visible: true });
+  expect(terminal.frame().cursor).toMatchObject({ x: 12, y: 4, visible: true });
 
   writeChunks(terminal, ['\u001B[?25l']);
 
-  expect(terminal.frame().cursor).toEqual({ x: 12, y: 4, visible: false });
+  expect(terminal.frame().cursor).toMatchObject({ x: 12, y: 4, visible: false });
+});
+
+it.each([
+  [0, CursorShape.default, false],
+  [1, CursorShape.block, true],
+  [2, CursorShape.block, false],
+  [3, CursorShape.underline, true],
+  [4, CursorShape.underline, false],
+  [5, CursorShape.bar, true],
+  [6, CursorShape.bar, false],
+])('gives DECSCUSR %i the cursor shape %i and blinking %p', (value, shape, blinking) => {
+  using terminal = openTerminal();
+
+  writeChunks(terminal, [value === 0 ? '\u001B[6 q' : '\u001B[0 q', `\u001B[${value} q`]);
+
+  expect(terminal.frame().cursor).toMatchObject({ shape, blinking });
 });
 
 describe.each([
@@ -660,7 +677,7 @@ describe('a render hold', () => {
 
     expect(rowText(decodeRows(frame, 80).get(0) ?? [])).toBe('old');
     expect(rowTexts(frame)).not.toContain('half');
-    expect(frame.cursor).toEqual({ x: 3, y: 0, visible: true });
+    expect(frame.cursor).toMatchObject({ x: 3, y: 0, visible: true });
   });
 
   it.each([

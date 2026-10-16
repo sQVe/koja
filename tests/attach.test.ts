@@ -13,7 +13,7 @@ import {
   FrameKind,
   parseControl,
 } from '../src/protocol/protocol.ts';
-import { CellFlag, cellWords, rowHeaderWords, rowWords } from '../src/rows/rows.ts';
+import { CursorShape } from '../src/rows/rows.ts';
 import { createTerminal } from '../src/vt/vt.ts';
 import { createWorkspaceAt, endServersIn, serverProcessesIn, waitFor } from './serverProcesses.ts';
 
@@ -170,17 +170,16 @@ it('shows the shell screen and cursor', async () => {
 
   expect(rows[outputRow + 1]).toContain('attach-prompt>');
   expect(screen.text()).toContain('INSERT');
-  screen.markAllDirty();
 
-  const frame = screen.frame();
-
-  const stride = rowWords(80);
   const promptColumn = sideListColumns + 'attach-prompt> '.length;
 
-  const cursorFlags =
-    frame.cells[(outputRow + 1) * stride + rowHeaderWords + promptColumn * cellWords + 3] ?? 0;
-
-  expect(cursorFlags & CellFlag.inverse).toBe(CellFlag.inverse);
+  expect(screen.frame().cursor).toEqual({
+    x: promptColumn,
+    y: outputRow + 1,
+    visible: true,
+    shape: CursorShape.default,
+    blinking: false,
+  });
 });
 
 it('resizes the pane to the client size less the side list and the status bar', async () => {

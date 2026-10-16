@@ -6,9 +6,10 @@ import type { TestRendererSetup } from '@opentui/core/testing';
 
 import { createRowCache } from '../client/client.ts';
 import {
-  cellWords,
-  defaultBackgroundSlot,
   CellFlag,
+  cellWords,
+  CursorShape,
+  defaultBackgroundSlot,
   defaultForegroundSlot,
   rowHeaderWords,
   rowWords,
@@ -48,7 +49,7 @@ const rowUpdate = (cells: TestCell[], colors: number[] = [], cursorVisible = fal
     pane: 1,
     sequence: 1,
     size: { columns, rows: 1 },
-    cursor: { x: 0, y: 0, visible: cursorVisible },
+    cursor: { x: 0, y: 0, visible: cursorVisible, shape: CursorShape.default, blinking: false },
     modes: 0,
     epoch: 1,
     first: 0,
@@ -162,7 +163,7 @@ it('moves the cursor inside one row without new rows', async () => {
 
   moved.rowCount = 0;
   moved.cells = new Uint32Array();
-  moved.cursor = { x: 2, y: 0, visible: true };
+  moved.cursor = { x: 2, y: 0, visible: true, shape: CursorShape.default, blinking: false };
   await show(moved);
 
   expect(invertedColumns()).toEqual([2]);
@@ -471,4 +472,36 @@ it('draws the scroll cursor in place of the pane cursor, keeps it drawn at the e
   pane.setScrollCursor(undefined);
   await created.renderOnce();
   expect(invertedColumns()).toEqual([0]);
+});
+
+it('hides the focused pane native cursor while the pane is scrolled or shows the scroll cursor', async () => {
+  const { created, cache, pane } = await startPane();
+
+  const nativeVisible = async (): Promise<boolean> => {
+    await created.renderOnce();
+
+    return created.renderer.getCursorState().visible;
+  };
+
+  cache.apply(historyUpdate());
+  pane.setFocused(true);
+  pane.draw([0]);
+
+  expect(await nativeVisible()).toBe(true);
+
+  pane.setTop(8);
+
+  expect(await nativeVisible()).toBe(false);
+
+  pane.setTop(undefined);
+
+  expect(await nativeVisible()).toBe(true);
+
+  pane.setScrollCursor({ row: 10, col: 0 });
+
+  expect(await nativeVisible()).toBe(false);
+
+  pane.setScrollCursor(undefined);
+
+  expect(await nativeVisible()).toBe(true);
 });

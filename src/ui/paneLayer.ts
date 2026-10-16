@@ -181,6 +181,20 @@ export const mountPanes = (
     }
   };
 
+  // Only the focused pane draws its cursor with the terminal's native cursor. Without a focused
+  // pane renderable, such as on a failed pane, nothing shows it.
+  const focusPane = (focusedPaneId: PaneId | undefined): void => {
+    for (const [id, pane] of panes) {
+      pane.setFocused(id === focusedPaneId);
+    }
+
+    const focused = focusedPaneId === undefined ? undefined : panes.get(focusedPaneId);
+
+    if (focused === undefined) {
+      renderer.setCursorPosition(0, 0, false);
+    }
+  };
+
   const sync = (): void => {
     const terminal = { columns: renderer.terminalWidth, rows: renderer.terminalHeight };
     const { rectangles, size, focusedPaneId } = placementOf(session.getState().snapshot, terminal);
@@ -190,6 +204,8 @@ export const mountPanes = (
     for (const rectangle of rectangles) {
       place(rectangle);
     }
+
+    focusPane(focusedPaneId);
 
     const signature = JSON.stringify([rectangles, size, focusedPaneId]);
 
@@ -244,6 +260,7 @@ export const mountPanes = (
 
     panes.clear();
     paneFailures.clear();
+    renderer.setCursorPosition(0, 0, false);
     box.remove(borders);
     borders.destroy();
   };

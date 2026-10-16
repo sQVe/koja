@@ -92,7 +92,7 @@ it('sends the whole screen first, only changed rows next, and final departed row
 
   expect(first.rowCount).toBe(24);
   expect([...rowsOf(first).keys()]).toEqual(Array.from({ length: 24 }, (_, index) => index));
-  expect(first.cursor).toEqual({ x: 0, y: 0, visible: true });
+  expect(first.cursor).toMatchObject({ x: 0, y: 0, visible: true });
   expect(first.epoch).toBe(terminal.stableRows().epoch);
 
   terminal.write(encoder.encode('hello'));
@@ -103,7 +103,7 @@ it('sends the whole screen first, only changed rows next, and final departed row
 
   expect(second.rowCount).toBe(1);
   expect(rowsOf(second)).toEqual(new Map([[0, 'hello']]));
-  expect(second.cursor).toEqual({ x: 5, y: 0, visible: true });
+  expect(second.cursor).toMatchObject({ x: 5, y: 0, visible: true });
   expect(second.sequence).toBeGreaterThan(first.sequence);
 
   terminal.write(encoder.encode(' world\r\n' + 'line\r\n'.repeat(24)));
@@ -497,7 +497,7 @@ it('sends cursor and mode changes without rows and stops sending after unsubscri
   const update = lastUpdate(updates);
 
   expect(update.rowCount).toBe(0);
-  expect(update.cursor).toEqual({ x: 3, y: 2, visible: false });
+  expect(update.cursor).toMatchObject({ x: 3, y: 2, visible: false });
   expect(update.modes & ModeFlag.bracketedPaste).not.toBe(0);
 
   unsubscribe();
