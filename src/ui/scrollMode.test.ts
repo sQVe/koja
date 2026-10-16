@@ -653,7 +653,6 @@ const counted = (mode: ReturnType<typeof start>['mode']) => {
     calls.cursors.push(mode.cursor());
   });
 
-  // How many times subscribers heard of the change the action makes.
   const notifiedBy = (action: () => void): number => {
     const before = calls.count;
 
