@@ -58,15 +58,13 @@ const scrollRowOf = (
 
   const stable = findLivePane(context, message.paneId)?.runtime.terminal.stableRows();
 
-  if (message.to === 'top') {
-    return stable?.first ?? 0;
-  }
-
   if (stable === undefined) {
-    return message.to;
+    return message.to === 'top' ? 0 : message.to;
   }
 
-  return message.to >= stable.activeTop ? undefined : Math.max(message.to, stable.first);
+  const row = message.to === 'top' ? stable.first : message.to;
+
+  return row >= stable.activeTop ? undefined : Math.max(row, stable.first);
 };
 
 export const handlePaneScroll = (

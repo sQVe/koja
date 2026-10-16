@@ -84,6 +84,29 @@ it(
 );
 
 it(
+  'keeps following the bottom when scrolled to the top of a pane with no history',
+  async () => {
+    const { directory, phi, first } = await setup('printf done');
+
+    attach(directory);
+
+    await pollUntil(
+      () => listClients(phi),
+      (clients) => clients.length === 1,
+    );
+
+    await waitForText(phi, first, 'done');
+
+    const result = await phi('pane', 'scroll', first, '--to', 'top', '--json');
+
+    expect(result.exitCode).toBe(0);
+    expect(rowSchema.parse(JSON.parse(result.stdout)).row).toBeNull();
+    expect((await listClients(phi))[0]?.view.scrolls).toEqual({});
+  },
+  cliTestTimeoutMs,
+);
+
+it(
   'fails with noClient when no client is attached',
   async () => {
     const { phi, first } = await setup();
