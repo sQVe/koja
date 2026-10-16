@@ -471,3 +471,313 @@ it('keeps a CSI < sequence that is not a mouse report a key', () => {
   expect(read('\x1b[<0;5;3Z')).toEqual(['key:\x1b[<0;5;3Z']);
   expect(read('\x1b[<0;5M')).toEqual(['key:\x1b[<0;5M']);
 });
+
+const rawKeys = (tokens: string[]): string[] => tokens.map((token) => token.slice('key:'.length));
+
+it('sends a string reply with bytes around a valid body to the pane as keys', () => {
+  const sequences = [
+    '\x1b]4;4;1;#aabbcc\x07',
+    '\x1b]4;1;#aabbccdd\x07',
+    '\x1b]99;\x0199;x\x07',
+    '\x1b]99;ab\x01\x07',
+    '\x1b]1337;x1337;Capabilities=\x07',
+    '\x1b]1337;Capabilities=a\x01\x07',
+    '\x1bP1+r=zz0+r\x1b\\',
+    '\x1bP1+rzz\x1b\\',
+    '\x1bP>|\x01>|x\x1b\\',
+    '\x1bP>|x\x01\x1b\\',
+    '\x1b_GGi=1;a\x1b\\',
+    '\x1b_Gi=1;a\x01\x1b\\',
+  ];
+
+  for (const sequence of sequences) {
+    const { read, holding } = setup();
+    const tokens = read(sequence);
+
+    expect(tokens.every((token) => token.startsWith('key:'))).toBe(true);
+    expect(rawKeys(tokens).join('')).toBe(sequence);
+    expect(holding()).toBe(false);
+  }
+});
+
+it('sends a CSI sequence with extra parameter bytes before a reply shape to the pane as keys', () => {
+  const sequences = [
+    '\x1b[1?1;2$y',
+    '\x1b[1?31u',
+    '\x1b[1?62;c',
+    '\x1b[14;4;600;800t',
+    '\x1b[1;1;5R',
+    '\x1b[1I',
+    '\x1b[1O',
+    '\x1b[1?997;1n',
+    '\x1b[1<0;5;3M',
+  ];
+
+  for (const sequence of sequences) {
+    const { read } = setup();
+
+    expect(read(sequence)).toEqual([`key:${sequence}`]);
+  }
+});
+
+it('passes a Kitty keyboard flags reply with several digits as a response', () => {
+  const { read } = setup();
+
+  expect(read('\x1b[?31u\x1b[?u')).toEqual(['response:\x1b[?31u', 'response:\x1b[?u']);
+});
+
+it('keeps the edge bytes of CSI and SS3 sequences inside them', () => {
+  const { read } = setup();
+
+  expect(read('\x1b[@')).toEqual(['key:\x1b[@']);
+  expect(read('\x1b[~')).toEqual(['key:\x1b[~']);
+  expect(read('\x1b[ q')).toEqual(['key:\x1b[ q']);
+  expect(read('\x1b[?1;2~')).toEqual(['key:\x1b[?1;2~']);
+  expect(read('\x1bO@')).toEqual(['key:\x1bO@']);
+  expect(read('\x1bO~')).toEqual(['key:\x1bO~']);
+  expect(read('\x1b[\x7f')).toEqual(['key:\x1b[', 'key:\x7f']);
+  expect(read('\x1bO\x7f')).toEqual(['key:\x1bO', 'key:\x7f']);
+  expect(read('\x1bO ')).toEqual(['key:\x1bO', 'key: ']);
+});
+
+it('reads characters of every UTF-8 length, plain and after Escape', () => {
+  const characters = ['£', 'ß', 'ߙ', 'क', '€', '\u{ffff}', '😀', '\u{10ffff}'];
+
+  for (const character of characters) {
+    const { read } = setup();
+
+    expect(read(character)).toEqual([`key:${character}`]);
+    expect(read(`\x1b${character}`)).toEqual([`key:\x1b${character}`]);
+  }
+});
+
+it('splits every UTF-8 length at each byte into one key', () => {
+  for (const character of ['£', 'क', '😀']) {
+    const bytes = [...encoder.encode(character)];
+
+    for (let cut = 1; cut < bytes.length; cut += 1) {
+      const { read } = setup();
+
+      expect(read(bytes.slice(0, cut))).toEqual([]);
+      expect(read(bytes.slice(cut))).toEqual([`key:${character}`]);
+    }
+  }
+});
+
+it('reads continuation bytes only after a lead and drops stray ones', () => {
+  const { read } = setup();
+
+  expect(read([0xc3, 0x80])).toEqual(['key:\u00c0']);
+  expect(read([0xc3, 0xbf])).toEqual(['key:ÿ']);
+  expect(read([0x80])).toEqual([]);
+  expect(read([0xbf])).toEqual([]);
+  expect(read([0xc0, 0x61])).toEqual(['key:a']);
+  expect(read([0xc1, 0x61])).toEqual(['key:a']);
+  expect(read([0xf5, 0x61])).toEqual(['key:a']);
+  expect(read([0xc3, 0x61])).toEqual(['key:a']);
+  expect(read([0xc3, 0x7f])).toEqual(['key:\x7f']);
+  expect(read([0xc3, 0xc0, 0x61])).toEqual(['key:a']);
+  expect(read([0xe2, 0x82, 0x61])).toEqual(['key:a']);
+  expect(read([0xf0, 0x9f, 0x98, 0x61])).toEqual(['key:a']);
+  expect(read([0xf5, 0x80, 0x80, 0x80])).toEqual([]);
+  expect(read([0xf8, 0x80, 0x80, 0x80])).toEqual([]);
+});
+
+it('opens the continuation window only for a lone Escape at the end of a read', () => {
+  const inputs = ['\x1bx', 'x', '\x1b\x1bx'];
+
+  for (const input of inputs) {
+    const { read } = setup();
+
+    read(input, 0);
+
+    expect(read('[A', 5)).toEqual(['key:[', 'key:A']);
+  }
+});
+
+it('keeps the continuation window open after a read of replies alone only', () => {
+  const reply = '\x1b]4;1;rgb:cdcd/0000/0000\x07';
+  const open = setup();
+
+  open.read('\x1b', 0);
+  open.read(reply, 5);
+
+  expect(open.read('[A', 10)).toEqual(['key:\x1b[A:sent']);
+
+  const closers = ['', `${reply}x`, '\x1b[200~p\x1b[201~'];
+
+  for (const closer of closers) {
+    const { read } = setup();
+
+    read('\x1b', 0);
+    read(closer, 5);
+
+    expect(read('[A', 10)).toEqual(['key:[', 'key:A']);
+  }
+});
+
+it('measures the continuation window from the Escape at any clock time', () => {
+  const { read, expire } = setup();
+
+  read('\x1b', 1000);
+
+  expect(read('[A', 1019)).toEqual(['key:\x1b[A:sent']);
+
+  read('\x1b', 5000);
+
+  expect(read('[A', 5020)).toEqual(['key:[', 'key:A']);
+
+  read('\x1b', 6000);
+  expire(6010);
+
+  expect(read('[A', 6015)).toEqual(['key:\x1b[A:sent']);
+});
+
+it('counts the hold window from the first held byte', () => {
+  const { read, expire, holding } = setup();
+
+  expect(read('\x1b]', 1000)).toEqual([]);
+  expect(read('1', 1030)).toEqual([]);
+  expect(expire(1049)).toEqual([]);
+  expect(expire(1050)).toEqual(['key:\x1b]', 'key:1']);
+  expect(holding()).toBe(false);
+});
+
+it('starts a new hold window for bytes held after earlier tokens', () => {
+  const { read, expire } = setup();
+
+  expect(read('\x1b]', 1000)).toEqual([]);
+  expect(read('\x1b]', 1020)).toEqual(['key:\x1b]']);
+  expect(expire(1060)).toEqual([]);
+  expect(expire(1070)).toEqual(['key:\x1b]']);
+});
+
+it('starts a new hold window for a hold after a released one', () => {
+  const { read, expire } = setup();
+
+  read('\x1b]1', 0);
+  expire(50);
+  read('\x1b]1', 1000);
+
+  expect(expire(1049)).toEqual([]);
+  expect(expire(1050)).toEqual(['key:\x1b]', 'key:1']);
+});
+
+it('holds only the cut token after complete tokens, and releases only it', () => {
+  const { read, expire } = setup();
+
+  expect(read('ab\x1b]1', 0)).toEqual(['key:a', 'key:b']);
+  expect(expire(50)).toEqual(['key:\x1b]', 'key:1']);
+});
+
+it('completes an SS3 key at the start of a read, split or whole', () => {
+  const { read, holding } = setup();
+
+  expect(read('\x1bOP')).toEqual(['key:\x1bOP']);
+  expect(read('\x1bO')).toEqual([]);
+  expect(holding()).toBe(true);
+  expect(read('P')).toEqual(['key:\x1bOP']);
+  expect(read('\x1bO1')).toEqual(['key:\x1bO', 'key:1']);
+});
+
+it('reads an SS3 tail after a lone Escape inside the window as a continuation', () => {
+  const { read } = setup();
+
+  read('\x1b', 0);
+
+  expect(read('OA', 5)).toEqual(['key:\x1bOA:sent']);
+});
+
+it('keeps two Escapes as two keys', () => {
+  const { read } = setup();
+
+  expect(read('\x1b\x1b')).toEqual(['key:\x1b', 'key:\x1b']);
+  expect(read('\x1b\x1bx')).toEqual(['key:\x1b', 'key:\x1bx']);
+});
+
+it('reads Escape before invalid UTF-8 as a key and drops the cut character', () => {
+  const { read } = setup();
+
+  expect(read([0x1b, 0xc3, 0x61])).toEqual(['key:\x1b', 'key:a']);
+});
+
+it('releases a held Escape and a cut character one token at a time', () => {
+  const { read, expire, holding } = setup();
+
+  expect(read([0x1b, 0xc3], 0)).toEqual([]);
+  expect(expire(50)).toEqual(['key:\x1b']);
+  expect(holding()).toBe(true);
+  expect(expire(99)).toEqual([]);
+  expect(expire(100)).toEqual([]);
+  expect(holding()).toBe(false);
+});
+
+it('sends a valid string reply over the length limit to the pane as keys', () => {
+  const { read, holding } = setup();
+  const long = `\x1b]99;${'a'.repeat(600)}\x07`;
+  const tokens = read(long);
+
+  expect(tokens.every((token) => token.startsWith('key:'))).toBe(true);
+  expect(rawKeys(tokens).join('')).toBe(long);
+  expect(holding()).toBe(false);
+  expect(read(`\x1b]99;${'a'.repeat(400)}\x07`)).toHaveLength(1);
+});
+
+it('sends a reply body cut by Escape and a non-backslash to the pane as keys', () => {
+  const { read, holding } = setup();
+
+  expect(read('\x1b]4;\x1bx')).toEqual(['key:\x1b]', 'key:4', 'key:;', 'key:\x1bx']);
+  expect(holding()).toBe(false);
+  expect(read('\x1b]4;\x1b')).toEqual([]);
+  expect(holding()).toBe(true);
+});
+
+it('keeps a backslash inside a reply body', () => {
+  const { read } = setup();
+
+  expect(read('\x1b]99;a\\b\x07')).toEqual(['response:\x1b]99;a\\b\x07']);
+});
+
+it('holds a cut reply that starts late in a long read', () => {
+  const { read, holding } = setup();
+  const keys = read(`${'x'.repeat(600)}\x1b]99;ab`);
+
+  expect(keys).toHaveLength(600);
+  expect(holding()).toBe(true);
+  expect(read('\x07')).toEqual(['response:\x1b]99;ab\x07']);
+});
+
+it('cuts a CSI with a bad byte or over 64 bytes to Escape bracket', () => {
+  const { read, holding } = setup();
+
+  expect(read('\x1b[1\x01a')).toEqual(['key:\x1b[', 'key:1', 'key:\x01', 'key:a']);
+  expect(read('\x1b[1\x7fa')).toEqual(['key:\x1b[', 'key:1', 'key:\x7f', 'key:a']);
+
+  const long = read(`\x1b[${'1'.repeat(70)}`);
+
+  expect(long).toHaveLength(71);
+  expect(long[0]).toBe('key:\x1b[');
+  expect(holding()).toBe(false);
+});
+
+it('keeps the sent flag off a key after a resumed continuation', () => {
+  const { read } = setup();
+
+  read('\x1b', 0);
+
+  expect(read('[', 1)).toEqual([]);
+  expect(read('A', 2)).toEqual(['key:\x1b[A:sent']);
+  expect(read('x', 3)).toEqual(['key:x']);
+});
+
+it('keeps held bytes when a continuation tail arrives after a reply that left a hold', () => {
+  const { read } = setup();
+
+  read('\x1b', 0);
+
+  expect(read('\x1b]4;1;rgb:cdcd/0000/0000\x07\x1b]1', 5)).toEqual([
+    'response:\x1b]4;1;rgb:cdcd/0000/0000\x07',
+  ]);
+
+  expect(read('[A', 10)).toEqual(['key:\x1b]', 'key:1', 'key:[', 'key:A']);
+});
