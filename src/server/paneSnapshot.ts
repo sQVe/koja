@@ -155,16 +155,19 @@ export const createSnapshotStore = <Owner>(options: StoreOptions = {}): Snapshot
       dropIdle();
 
       const entry = stored.get(owner);
-      const snapshot = entry?.snapshot;
 
-      if (entry === undefined || snapshot?.paneId !== paneId || snapshot.requestId !== requestId) {
+      if (
+        entry === undefined ||
+        entry.snapshot.paneId !== paneId ||
+        entry.snapshot.requestId !== requestId
+      ) {
         return undefined;
       }
 
       stored.delete(owner);
       stored.set(owner, { ...entry, touched: now() });
 
-      return snapshot;
+      return entry.snapshot;
     },
     drop: (owner) => {
       stored.delete(owner);
