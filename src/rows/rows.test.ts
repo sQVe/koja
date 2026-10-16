@@ -170,13 +170,32 @@ it('trims the trailing spaces of a wrapped row when the next row is blank and en
   expect(text).toBe('a');
 });
 
-it('keeps the spaces of a range that ends inside a row', () => {
-  const range = textRange([textRow(0, 'a  b')]);
+it('trims the spaces of a range that ends inside a row on blank cells', () => {
+  const range = textRange([textRow(0, 'alpha beta gamma')]);
 
-  expect(rowsRangeText(range, columns, { row: 0, column: 0 }, { row: 0, column: 2 })).toBe('a  ');
+  expect(rowsRangeText(range, columns, { row: 0, column: 4 }, { row: 0, column: 5 })).toBe('a');
+
+  expect(rowsRangeText(range, columns, { row: 0, column: 0 }, { row: 0, column: 40 })).toBe(
+    'alpha beta gamma',
+  );
 
   expect(rowsRangeText(range, columns, { row: 0, column: 0 }, { row: 0, column: columns })).toBe(
-    'a  b',
+    'alpha beta gamma',
+  );
+});
+
+it('keeps the spaces inside a range that ends inside a row', () => {
+  const range = textRange([textRow(0, 'a  b')]);
+
+  expect(rowsRangeText(range, columns, { row: 0, column: 0 }, { row: 0, column: 3 })).toBe('a  b');
+});
+
+it('keeps the trailing spaces of a wrapped row that joins the next row in the range', () => {
+  const range = textRange([wrappedRow(0, 'ab  '), textRow(1, 'cd  ')]);
+  const padded = 'ab  '.padEnd(columns, ' ');
+
+  expect(rowsRangeText(range, columns, { row: 0, column: 0 }, { row: 1, column: 5 })).toBe(
+    `${padded}cd`,
   );
 });
 

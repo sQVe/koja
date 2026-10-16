@@ -339,7 +339,7 @@ export const rowsToLines = (
 
 // Returns the text from start to end, both inclusive, with rows as `rowsToLines` unwraps them: a
 // wrapped row joins the next row, and any other row end gives a line feed. Spaces are trimmed only
-// where the range reaches the end of a line. A wide character is copied whole when either of its
+// where the range reaches the end of a line or its own end. A wide character is copied whole when either of its
 // cells is in the range. A position past the range or past the last column is clamped.
 export const rowsRangeText = (
   range: TextRows,
@@ -365,17 +365,17 @@ export const rowsRangeText = (
 
     line += segment;
 
-    if (reachesLineEnd) {
+    if (reachesLineEnd || row === lastRow) {
       text += line.replace(/ +$/, '');
       line = '';
 
-      if (row < lastRow) {
+      if (reachesLineEnd && row < lastRow) {
         text += '\n';
       }
     }
   }
 
-  return text + line;
+  return text;
 };
 
 // Joins pages of rows with the same column count into one range. A grapheme names its cell by
