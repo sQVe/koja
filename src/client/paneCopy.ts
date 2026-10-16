@@ -31,8 +31,8 @@ const copyResultOf = (
 };
 
 // Fails with `noClient` when it copies and no client is in the foreground, `unknownPane` when the
-// pane is unknown, and `pruned` when the range starts below the oldest row kept. With print, it
-// returns the text and no client gets it.
+// pane is unknown, `pruned` when the range starts below the oldest row kept, and `tooLarge` when
+// the text does not fit in one reply. With print, it returns the text and no client gets it.
 export const runPaneCopy = (
   socketPath: string,
   version: BuildVersion,

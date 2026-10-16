@@ -339,8 +339,8 @@ export const rowsToLines = (
 
 // Returns the text from start to end, both inclusive, with rows as `rowsToLines` unwraps them: a
 // wrapped row joins the next row, and any other row end gives a line feed. Spaces are trimmed only
-// where the range reaches the end of a line or its own end. A wide character is copied whole when either of its
-// cells is in the range. A position past the range or past the last column is clamped.
+// where the range reaches the end of a line or its own end. A wide character is copied whole when
+// either of its cells is in the range. A position past the range or past the last column is clamped.
 export const rowsRangeText = (
   range: TextRows,
   columns: number,

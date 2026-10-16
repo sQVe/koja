@@ -309,7 +309,7 @@ const startsBeforeEnd = ({ start, end }: { start: CellPosition; end: CellPositio
 };
 
 // pruned: the range starts below the oldest row kept, which is `oldest`. tooLarge: the range holds
-// more rows than one read can.
+// more rows than one read can, or its encoded reply would not fit in one reply.
 const paneCopyOutcomeSchema = z.discriminatedUnion('ok', [
   z.strictObject({ ok: z.literal(true), text: z.string(), clientId: absent(clientIdSchema) }),
   z.strictObject({
