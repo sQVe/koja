@@ -9,6 +9,8 @@ import type { PaneAction, ScrollAction } from './input.ts';
 import { createInputTokenizer } from './inputTokens.ts';
 import type { ScrollMotion } from './scrollMotions.ts';
 
+type RouterHost = Parameters<typeof createInputRouter>[0];
+
 interface GonePanes {
   unplaced: Set<PaneId>;
   missing: Set<PaneId>;
@@ -1373,4 +1375,388 @@ it('holds a key typed after a workspace click until the focus reply arrives', ()
   replies[0]?.();
 
   expect(keys).toEqual(['x', 'p']);
+});
+
+const harness = (initial: InputMode, overrides: Partial<RouterHost> = {}, initialModes = 0) => {
+  let mode = initial;
+  let tabIsPending = false;
+  const sent: string[] = [];
+  const toPane: { pane: PaneId; text: string }[] = [];
+  const scrolls: ScrollAction[] = [];
+  const tabs: TabRoute[] = [];
+  const actions: PaneAction[] = [];
+  const paneAnswers: (() => void)[] = [];
+  const commands: { command: WorkspaceCommand; reply: () => void }[] = [];
+  const tabCallbacks: (() => void)[] = [];
+
+  const input = createInputRouter({
+    mode: () => mode,
+    setMode: (next) => {
+      mode = next;
+    },
+    modes: () => initialModes,
+    send: (bytes) => {
+      if (bytes.length > 0) {
+        sent.push(decoder.decode(bytes));
+      }
+    },
+    // Pane 1 holds columns 0 to 9 and pane 2 holds columns 10 to 19.
+    mouseTarget: (x, y, pane) => {
+      const target = pane ?? paneId(x < 10 ? 1 : 2);
+
+      return { paneId: target, column: x % 10, row: y };
+    },
+    focusedPane: () => paneId(1),
+    chromeAt: () => undefined,
+    focusPane: () => Promise.resolve(),
+    paneModes: () => ModeFlag.buttonMouse | ModeFlag.sgrMouse,
+    paneSize: () => ({ columns: 10, rows: 100 }),
+    sendToPane: (pane, bytes) => {
+      toPane.push({ pane, text: decoder.decode(bytes) });
+    },
+    detach: () => undefined,
+    workspaces: () => ({ ids: [firstWorkspace, secondWorkspace], focused: firstWorkspace }),
+    startDirectory: '/work/start',
+    command: (command, onReply) => {
+      commands.push({
+        command,
+        reply: () => {
+          onReply('done');
+        },
+      });
+    },
+    tab: (route) => {
+      tabs.push(route);
+    },
+    tabPending: () => tabIsPending,
+    afterTabAnswer: (callback) => {
+      tabCallbacks.push(callback);
+    },
+    paneAction: (action) => {
+      actions.push(action);
+
+      return new Promise((resolve) => {
+        paneAnswers.push(resolve);
+      });
+    },
+    scroll: (action) => {
+      scrolls.push(action);
+    },
+    ...overrides,
+  });
+
+  const press = (raw: string) => {
+    input({ kind: 'key', raw, escapeSent: false });
+  };
+
+  const mouse = (code: number, column: number, row: number, final: 'M' | 'm') => {
+    input({ kind: 'mouse', raw: `\x1b[<${code};${column};${row}${final}`, escapeSent: false });
+  };
+
+  const pastes = (text: string) => {
+    input({ kind: 'paste', bytes: encoder.encode(text), escapeSent: false });
+  };
+
+  const answerTab = () => {
+    tabIsPending = false;
+
+    for (const callback of tabCallbacks.splice(0)) {
+      callback();
+    }
+  };
+
+  return {
+    input,
+    press,
+    mouse,
+    pastes,
+    sent,
+    toPane,
+    scrolls,
+    tabs,
+    actions,
+    commands,
+    mode: () => mode,
+    startTab: () => {
+      tabIsPending = true;
+    },
+    answerTab,
+    answerPaneAction: async () => {
+      paneAnswers.shift()?.();
+      await nextTick();
+    },
+  };
+};
+
+it('asks to detach only for d', () => {
+  const taken = [
+    routeKey('\x02', 'normal', 0),
+    routeKey('\x1b[98;5u', 'normal', 0),
+    routeKey('j', 'normal', 0),
+    routeKey('c', 'normal', 0),
+    routeKey('t', 'normal', 0),
+    routeKey('s', 'normal', 0),
+    routeKey('[', 'normal', 0),
+    routeKey('x', 'normal', 0),
+    routeKey('\x1b[98;5:2u', 'insert', 0),
+    routeKey('\x1b[98;5:2u', 'normal', 0),
+  ];
+
+  expect(taken.map((routed) => routed.detach)).toEqual(taken.map(() => false));
+});
+
+it('ignores the release of a scroll key', () => {
+  for (const raw of ['\x1b[1;1:3A', '\x1b[27;1:3u', '\x1b[113;1:3u']) {
+    expect(routeKey(raw, 'scroll', 0)).toEqual({
+      bytes: new Uint8Array(),
+      mode: 'scroll',
+      detach: false,
+    });
+  }
+
+  expect(routeKey('\x1b[1;1:1A', 'scroll', 0).scroll).toEqual({ kind: 'move', motion: 'up' });
+});
+
+it('stays in scroll mode on q with Alt or Ctrl', () => {
+  for (const raw of ['\x1b[113;3;113u', '\x1b[113;5;113u', '\x1b[113;9;113u']) {
+    const routed = routeKey(raw, 'scroll', 0);
+
+    expect(routed.mode).toBe('scroll');
+    expect(routed.scroll).toBeUndefined();
+  }
+});
+
+it('asks for no tab when the key text is more than one digit', () => {
+  expect(routeKey('\x1b[49;1;49:50u', 'normal', 0).tab).toBeUndefined();
+  expect(routeKey('\x1b[49;1;49u', 'normal', 0).tab).toEqual({ kind: 'number', number: 1 });
+});
+
+it('sends the release of a key to the pane when its press reached the pane', () => {
+  const { press, sent } = harness('insert', {}, withKittyFlags(0b1011));
+
+  press('\x1b[97;1:1u');
+  press('\x1b[97;1:3u');
+
+  expect(sent).toEqual(['\x1b[97u', '\x1b[97;1:3u']);
+});
+
+it('sends the release of a key to the pane after Phi took an earlier press of it', () => {
+  const { press, sent, mode } = harness('normal', {}, withKittyFlags(0b1011));
+
+  press('\x1b[105;1:1u');
+
+  expect(mode()).toBe('insert');
+  expect(sent).toEqual([]);
+
+  press('\x1b[105;1:1u');
+  press('\x1b[105;1:3u');
+
+  expect(sent).toEqual(['\x1b[105u', '\x1b[105;1:3u']);
+});
+
+it('sends a wheel to the pane under the pointer during a held button', () => {
+  const { mouse, toPane } = harness('insert');
+
+  mouse(0, 6, 3, 'M');
+  mouse(65, 16, 3, 'M');
+
+  expect(toPane.map((entry) => entry.pane)).toEqual([paneId(1), paneId(2)]);
+});
+
+it('keeps the pressed cell for the release when a wheel turns over the captured pane', () => {
+  let unplaced = false;
+
+  const { mouse, toPane } = harness('insert', {
+    mouseTarget: (x, y, pane) => {
+      if (unplaced) {
+        return undefined;
+      }
+
+      return { paneId: pane ?? paneId(1), column: x, row: y };
+    },
+  });
+
+  mouse(0, 6, 3, 'M');
+  mouse(65, 2, 9, 'M');
+  unplaced = true;
+  mouse(0, 6, 3, 'm');
+
+  expect(toPane.at(-1)).toEqual({ pane: paneId(1), text: '\x1b[<0;6;3m' });
+});
+
+it('sends nothing to the pane for an event it does not want', () => {
+  const { mouse, toPane } = harness('insert');
+
+  mouse(35, 6, 3, 'M');
+
+  expect(toPane).toEqual([]);
+});
+
+it('does nothing when the clicked workspace is already shown', () => {
+  const clicked = harness('insert', {
+    chromeAt: () => ({ kind: 'workspace', workspaceId: firstWorkspace }),
+  });
+
+  clicked.mouse(0, 6, 3, 'M');
+
+  expect(clicked.commands).toEqual([]);
+
+  const chosen = harness('normal', {
+    chromeAt: () => ({ kind: 'workspace', workspaceId: secondWorkspace }),
+  });
+
+  chosen.press('j');
+  chosen.mouse(0, 6, 3, 'M');
+
+  expect(chosen.commands.map((entry) => entry.command)).toEqual([
+    { action: 'focus', workspaceId: secondWorkspace },
+  ]);
+});
+
+it('ignores a mouse report with column or row 0', () => {
+  const { mouse, toPane, press, sent } = harness('insert');
+
+  mouse(0, 0, 1, 'M');
+  mouse(0, 1, 0, 'M');
+  press('a');
+
+  expect(toPane).toEqual([]);
+  expect(sent).toEqual(['a']);
+});
+
+it('sends a paste after a sent Escape without bracketed paste as it is', () => {
+  const { input, sent } = harness('insert');
+
+  input(lone);
+  input(split);
+
+  expect(sent).toEqual(['\x1b', 'hi']);
+});
+
+it('gives the host no scroll action for keys that do not scroll', () => {
+  const { press, scrolls } = harness('normal');
+
+  press('j');
+  press('i');
+  press('a');
+
+  expect(scrolls).toHaveLength(0);
+});
+
+it('holds a pane key, a tab key, [, and a mouse token behind a workspace request, not a paste', () => {
+  const held = harness('normal');
+
+  held.press('j');
+  held.press('s');
+  held.press('t');
+  held.press('[');
+  held.mouse(0, 6, 3, 'M');
+  held.pastes('p');
+
+  expect(held.actions).toEqual([]);
+  expect(held.tabs).toEqual([]);
+  expect(held.scrolls).toEqual([]);
+  expect(held.toPane).toEqual([]);
+  expect(held.sent).toEqual([]);
+
+  held.commands[0]?.reply();
+
+  expect(held.actions).toEqual(['splitBelow']);
+});
+
+it('holds each kind of snapshot token alone behind a workspace request', () => {
+  const kinds: [string, (h: ReturnType<typeof harness>) => unknown[]][] = [
+    ['s', (h) => h.actions],
+    ['t', (h) => h.tabs],
+    ['[', (h) => h.scrolls],
+  ];
+
+  for (const [raw, observed] of kinds) {
+    const { press, commands, ...rest } = harness('normal');
+
+    press('k');
+    press(raw);
+
+    expect(observed({ press, commands, ...rest })).toEqual([]);
+
+    commands[0]?.reply();
+
+    expect(observed({ press, commands, ...rest })).toHaveLength(1);
+  }
+
+  const mouseHeld = harness('normal');
+
+  mouseHeld.press('j');
+  mouseHeld.mouse(0, 6, 3, 'M');
+
+  expect(mouseHeld.toPane).toEqual([]);
+
+  mouseHeld.commands[0]?.reply();
+
+  expect(mouseHeld.toPane).toHaveLength(1);
+});
+
+it('passes a paste and a workspace key at once behind a workspace request', () => {
+  const { press, pastes, sent, commands } = harness('normal');
+
+  press('j');
+  pastes('p');
+  press('k');
+  press('i');
+
+  expect(sent).toEqual(['p']);
+  expect(commands).toHaveLength(2);
+});
+
+it('resumes held tokens after the answer to c and to X', () => {
+  for (const raw of ['c', 'X']) {
+    const { press, commands, actions } = harness('normal');
+
+    press(raw);
+    press('s');
+
+    expect(actions).toEqual([]);
+
+    commands[0]?.reply();
+
+    expect(actions).toEqual(['splitBelow']);
+  }
+});
+
+it('resumes held tokens after each of two workspace answers', async () => {
+  const { press, commands, actions, answerPaneAction } = harness('normal');
+
+  press('j');
+  press('s');
+  commands[0]?.reply();
+  await answerPaneAction();
+  press('j');
+  press('v');
+  commands[1]?.reply();
+
+  expect(actions).toEqual(['splitBelow', 'splitRight']);
+});
+
+it('lets a key pass at once after a workspace click was answered and j was pressed', () => {
+  const { press, mouse, commands, mode } = harness('normal', {
+    chromeAt: () => ({ kind: 'workspace', workspaceId: secondWorkspace }),
+  });
+
+  mouse(0, 6, 3, 'M');
+  commands[0]?.reply();
+  press('j');
+  press('i');
+
+  expect(mode()).toBe('insert');
+});
+
+it('wakes held tokens once after a tab answer', () => {
+  const { press, startTab, answerTab, actions } = harness('normal');
+
+  startTab();
+  press('s');
+  press('v');
+  answerTab();
+
+  expect(actions).toEqual(['splitBelow']);
 });
