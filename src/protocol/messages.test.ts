@@ -113,6 +113,20 @@ const messages: ControlMessage[] = [
     end: { row: 5, column: 0 },
     print: false,
   },
+  {
+    type: 'paneCopy',
+    paneId: pane.id,
+    start: { row: 4, column: 1 },
+    end: { row: 4, column: 2 },
+    print: true,
+  },
+  {
+    type: 'paneCopy',
+    paneId: pane.id,
+    start: { row: 4, column: 2 },
+    end: { row: 4, column: 2 },
+    print: false,
+  },
   { type: 'paneCopyResult', result: { ok: true, text: 'hi', clientId: client.id } },
   { type: 'paneCopyResult', result: { ok: false, reason: 'pruned', oldest: 3 } },
   { type: 'stop' },
@@ -120,6 +134,18 @@ const messages: ControlMessage[] = [
   { type: 'theme', theme },
   { type: 'ack', paneId: paneId(1), sequence: 7 },
   { type: 'resync' },
+  { type: 'bell', count: 1 },
+  { type: 'bell', count: 2 },
+  { type: 'paneMove', paneId: pane.id, destination: { kind: 'tab', tabId: tab.id } },
+  { type: 'paneMove', paneId: pane.id, destination: { kind: 'newTab' } },
+  { type: 'paneMove', paneId: pane.id, destination: { kind: 'newWorkspace' } },
+  {
+    type: 'snapshot',
+    snapshot: {
+      ...emptySnapshot,
+      defaultView: { ...view, scrolls: [{ paneId: pane.id, topRow: 12 }] },
+    },
+  },
   {
     type: 'snapshot',
     snapshot: {
@@ -344,8 +370,24 @@ const nameOf = (message: ControlMessage): string => {
     return `change ${message.change.type}`;
   }
 
+  if (message.type === 'snapshot' && message.snapshot.defaultView.scrolls.length > 0) {
+    return 'snapshot with scroll rows';
+  }
+
   if (message.type === 'snapshot' && message.snapshot.panes.length === 0) {
     return 'snapshot without a pane';
+  }
+
+  if (message.type === 'paneCopy') {
+    return `paneCopy from ${message.start.row}:${message.start.column} to ${message.end.row}:${message.end.column}`;
+  }
+
+  if (message.type === 'paneMove') {
+    return `paneMove to ${message.destination.kind}`;
+  }
+
+  if (message.type === 'bell') {
+    return `bell of ${message.count}`;
   }
 
   return message.type;
@@ -464,6 +506,11 @@ it.each([
     'a copy with a negative column',
     '{"type":"paneCopy","paneId":"pane-1","start":{"row":4,"column":-1},"end":{"row":5,"column":2},"print":false}',
   ],
+  [
+    'a copy that starts on a later row with an earlier column',
+    '{"type":"paneCopy","paneId":"pane-1","start":{"row":5,"column":1},"end":{"row":4,"column":2},"print":false}',
+  ],
+  ['a bell with a count of 0', '{"type":"bell","count":0}'],
   ['a JSON value that is not an object', '"hello"'],
 ])('refuses a message with %s', (_name, json) => {
   expect(parseControl(text(json))).toEqual({ ok: false, reason: 'invalidMessage' });
