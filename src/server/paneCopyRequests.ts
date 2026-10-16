@@ -1,4 +1,5 @@
 import type { PaneId } from '../ids.ts';
+import { encodeControl } from '../protocol/protocol.ts';
 import type { ControlMessage } from '../protocol/protocol.ts';
 import { rowsRangeText } from '../rows/rows.ts';
 import type { State } from '../store/store.ts';
@@ -7,7 +8,7 @@ import type { PaneRuntime } from './pane.ts';
 import { findLivePane } from './paneEffects.ts';
 import { sendToForeground } from './paneNotice.ts';
 import type { ForegroundContext } from './paneNotice.ts';
-import { selectPaneRows } from './paneRows.ts';
+import { maxReplyBytes, selectPaneRows } from './paneRows.ts';
 
 interface PaneCopyContext extends ForegroundContext {
   state: State;
@@ -55,6 +56,12 @@ const copyTextOf = (context: PaneCopyContext, message: PaneCopyMessage): PaneCop
   return { ok: true, text, clientId: undefined };
 };
 
+const tooLarge: PaneCopyResult = { ok: false, reason: 'tooLarge', oldest: undefined };
+
+// The reply carries the text and more than the clipboardWrite does, so the reply's encoded size
+// bounds both.
+const fitsReply = (reply: ControlMessage): boolean => encodeControl(reply).length <= maxReplyBytes;
+
 export const handlePaneCopy = (
   context: PaneCopyContext,
   message: PaneCopyMessage,
@@ -63,13 +70,13 @@ export const handlePaneCopy = (
   const { foregroundClientId } = context.state;
   const copied = copyTextOf(context, message);
 
-  if (!copied.ok || message.print) {
+  if (!copied.ok) {
     connection.send({ type: 'paneCopyResult', result: copied });
 
     return;
   }
 
-  if (foregroundClientId === undefined) {
+  if (!message.print && foregroundClientId === undefined) {
     connection.send({
       type: 'paneCopyResult',
       result: { ok: false, reason: 'noClient', oldest: undefined },
@@ -78,10 +85,22 @@ export const handlePaneCopy = (
     return;
   }
 
-  sendToForeground(context, { type: 'clipboardWrite', text: copied.text });
+  const clientId = message.print ? undefined : foregroundClientId;
 
-  connection.send({
+  const reply: ControlMessage = {
     type: 'paneCopyResult',
-    result: { ok: true, text: copied.text, clientId: foregroundClientId },
-  });
+    result: { ok: true, text: copied.text, clientId },
+  };
+
+  if (!fitsReply(reply)) {
+    connection.send({ type: 'paneCopyResult', result: tooLarge });
+
+    return;
+  }
+
+  if (!message.print) {
+    sendToForeground(context, { type: 'clipboardWrite', text: copied.text });
+  }
+
+  connection.send(reply);
 };

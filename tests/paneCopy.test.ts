@@ -182,3 +182,68 @@ it('reports noClient through runPaneCopy and prints with no client', async () =>
     clientId: undefined,
   });
 });
+
+const largeCommand = `head -c 700000 /dev/zero | tr '\\000' x; printf '\\nlarge-%s\\n' done\n`;
+
+const copyEverything = (print: boolean): ControlMessage => ({
+  type: 'paneCopy',
+  paneId: paneId(1),
+  start: { row: 0, column: 0 },
+  end: { row: 100_000, column: 0 },
+  print,
+});
+
+it.each([true, false])(
+  'fails with tooLarge and sends no clipboard write when the text is over one reply (print %s)',
+  async (print) => {
+    const { server, socketPath } = await startServerOnly();
+    const terminal = await attachTerminal(socketPath, 100);
+
+    server.writeToPane(largeCommand);
+
+    await waitFor(() => server.paneText()?.includes('large-done') === true);
+
+    const cli = await connectCli(socketPath);
+
+    cli.send(copyEverything(print));
+
+    expect((await nextOfType(cli, 'paneCopyResult')).result).toMatchObject({
+      ok: false,
+      reason: 'tooLarge',
+    });
+
+    await settle(terminal);
+
+    expect(terminal.messages.some((message) => message.type === 'clipboardWrite')).toBe(false);
+  },
+  20_000,
+);
+
+// The raw text is under maxReplyBytes, but JSON doubles each quote, so the encoded reply is over it.
+const quoteCommand = `head -c 400000 /dev/zero | tr '\\000' '"'; printf '\\nquote-%s\\n' done\n`;
+
+it.each([true, false])(
+  'fails with tooLarge when the encoded reply is over one reply but the raw text is not (print %s)',
+  async (print) => {
+    const { server, socketPath } = await startServerOnly();
+    const terminal = await attachTerminal(socketPath, 100);
+
+    server.writeToPane(quoteCommand);
+
+    await waitFor(() => server.paneText()?.includes('quote-done') === true);
+
+    const cli = await connectCli(socketPath);
+
+    cli.send(copyEverything(print));
+
+    expect((await nextOfType(cli, 'paneCopyResult')).result).toMatchObject({
+      ok: false,
+      reason: 'tooLarge',
+    });
+
+    await settle(terminal);
+
+    expect(terminal.messages.some((message) => message.type === 'clipboardWrite')).toBe(false);
+  },
+  20_000,
+);
