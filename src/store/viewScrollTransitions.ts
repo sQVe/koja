@@ -14,10 +14,6 @@ export const scrollPaneView = (
   target: PaneId,
   row: number | undefined,
 ): Outcome => {
-  if (!state.clients.some((client) => client.id === id)) {
-    return refuse('unknownClient');
-  }
-
   if (!state.panes.some((pane) => pane.id === target)) {
     return refuse('unknownPane');
   }

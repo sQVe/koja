@@ -28,16 +28,10 @@ const isInTab = (state: State, id: PaneId, tab: Tab): boolean =>
   state.panes.some((pane) => pane.id === id && pane.tabId === tab.id);
 
 // The zoomed pane must stay the focused pane, so the zoom comes back only with its focus.
-const restoredZoom = (
-  state: State,
-  tab: Tab,
-  id: PaneId,
-  focusedPaneId: PaneId,
-): PaneId | undefined => {
+const restoredZoom = (state: State, id: PaneId, focusedPaneId: PaneId): PaneId | undefined => {
   const zoomed = state.stateBeforeSplit.get(id)?.zoomedPaneId;
-  const zoomStays = zoomed !== undefined && zoomed !== id && isInTab(state, zoomed, tab);
 
-  return zoomStays && zoomed === focusedPaneId ? zoomed : undefined;
+  return zoomed === focusedPaneId ? zoomed : undefined;
 };
 
 const replacePane = (state: State, replacement: Pane): readonly Pane[] =>
@@ -53,7 +47,7 @@ export const splitPane = (state: State, intent: SplitPaneIntent): Outcome => {
   const target = state.panes.find((pane) => pane.id === id);
   const tab = state.tabs.find((known) => known.id === target?.tabId);
 
-  if (target === undefined || tab === undefined) {
+  if (tab === undefined) {
     return refuse('unknownPane');
   }
 
@@ -115,7 +109,7 @@ export const focusPane = (state: State, id: PaneId, source: ClientId | undefined
   const target = state.panes.find((pane) => pane.id === id);
   const tab = state.tabs.find((known) => known.id === target?.tabId);
 
-  if (target === undefined || tab === undefined) {
+  if (tab === undefined) {
     return refuse('unknownPane');
   }
 
@@ -145,10 +139,6 @@ export const focusPane = (state: State, id: PaneId, source: ClientId | undefined
 
   const focused: State = { ...shown, tabs };
 
-  if (keepsZoom) {
-    return propose(focused, changes);
-  }
-
   const fitted = fitPanes(focused);
 
   return propose({ ...focused, panes: fitted.panes }, [...changes, ...fitted.changes]);
@@ -167,7 +157,7 @@ const closePaneIn = (state: State, tab: Tab, id: PaneId): Proposal => {
   const previousStays = previous !== undefined && previous !== id && isInTab(state, previous, tab);
   const successor = previousStays ? previous : firstPaneId(removal.sibling);
   const focusedPaneId = tab.focusedPaneId === id ? successor : tab.focusedPaneId;
-  const zoomedPaneId = restoredZoom(state, tab, id, focusedPaneId);
+  const zoomedPaneId = restoredZoom(state, id, focusedPaneId);
   const closedTab: Tab = { ...tab, layout: removal.layout, focusedPaneId, zoomedPaneId };
   const stateBeforeSplit = new Map(state.stateBeforeSplit);
 
@@ -206,7 +196,7 @@ export const closePane = (state: State, id: PaneId): Outcome => {
   const target = state.panes.find((pane) => pane.id === id);
   const tab = state.tabs.find((known) => known.id === target?.tabId);
 
-  if (target === undefined || tab === undefined) {
+  if (tab === undefined) {
     return refuse('unknownPane');
   }
 
@@ -221,7 +211,7 @@ export const zoomPane = (state: State, id: PaneId): Outcome => {
   const target = state.panes.find((pane) => pane.id === id);
   const tab = state.tabs.find((known) => known.id === target?.tabId);
 
-  if (target === undefined || tab === undefined) {
+  if (tab === undefined) {
     return refuse('unknownPane');
   }
 
@@ -258,7 +248,7 @@ export const resizePane = (state: State, intent: ResizePaneIntent): Outcome => {
   const target = state.panes.find((pane) => pane.id === id);
   const tab = state.tabs.find((known) => known.id === target?.tabId);
 
-  if (target === undefined || tab === undefined) {
+  if (tab === undefined) {
     return refuse('unknownPane');
   }
 

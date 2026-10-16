@@ -85,7 +85,7 @@ export const removeTab = (state: State, tab: Tab, restore?: StartFallback): Prop
 
       const before = viewBeforeOf(restore, viewOwner);
       const earlier = activeTabOf(before ?? view, owner.id);
-      const restored = earlier !== undefined && tabIds.includes(earlier) ? earlier : undefined;
+      const restored = tabIds.find((id) => id === earlier);
       const moved = withActiveTab(view, owner.id, restored ?? fallback);
       const earlierWorkspace = before?.focusedWorkspaceId;
       const isKnown = state.workspaces.some((workspace) => workspace.id === earlierWorkspace);

@@ -1,10 +1,11 @@
 import { clientId } from '../ids.ts';
 import type { ClientId } from '../ids.ts';
+import { invariant } from '../invariant.ts';
 import { paneSize } from '../layout.ts';
 import type { TerminalSize } from '../layout.ts';
 import { fitPanes, sameSize } from './paneSizes.ts';
 import type { Change, Client, State, Theme } from './store.ts';
-import { propose, refuse } from './transitionOutcome.ts';
+import { propose } from './transitionOutcome.ts';
 import type { Outcome } from './transitionOutcome.ts';
 
 export const hasClient = (state: State, id: ClientId | undefined): boolean =>
@@ -54,18 +55,14 @@ export const attachClient = (state: State, size: TerminalSize): Outcome => {
 
   const previous = state.attachedClientId;
   const changes: Change[] = [];
-
-  if (previous !== undefined) {
-    changes.push({ type: 'clientDetached', clientId: previous, reason: 'takenOver' });
-  }
-
-  changes.push({ type: 'clientAttached', client });
-
   const activity = new Map(state.clientActivity);
 
   if (previous !== undefined) {
+    changes.push({ type: 'clientDetached', clientId: previous, reason: 'takenOver' });
     activity.delete(previous);
   }
+
+  changes.push({ type: 'clientAttached', client });
 
   const attached: State = markActive(
     {
@@ -87,9 +84,7 @@ export const attachClient = (state: State, size: TerminalSize): Outcome => {
 export const resizeClient = (state: State, id: ClientId, size: TerminalSize): Outcome => {
   const resizing = state.clients.find((known) => known.id === id);
 
-  if (resizing === undefined) {
-    return refuse('unknownClient');
-  }
+  invariant(resizing !== undefined, `Client ${id} is not known.`);
 
   const active = markActive(state, id);
   const foreground = foregroundChanges(state.foregroundClientId, active);
@@ -114,10 +109,6 @@ export const resizeClient = (state: State, id: ClientId, size: TerminalSize): Ou
 };
 
 export const markClientActive = (state: State, id: ClientId): Outcome => {
-  if (!hasClient(state, id)) {
-    return refuse('unknownClient');
-  }
-
   const active = markActive(state, id);
 
   return propose(active, foregroundChanges(state.foregroundClientId, active));
@@ -126,9 +117,7 @@ export const markClientActive = (state: State, id: ClientId): Outcome => {
 export const setClientTheme = (state: State, id: ClientId, theme: Theme): Outcome => {
   const reporting = state.clients.find((known) => known.id === id);
 
-  if (reporting === undefined) {
-    return refuse('unknownClient');
-  }
+  invariant(reporting !== undefined, `Client ${id} is not known.`);
 
   if (sameTheme(reporting.theme, theme)) {
     return propose(state, []);
@@ -144,10 +133,6 @@ export const setClientTheme = (state: State, id: ClientId, theme: Theme): Outcom
 
 // The pane keeps its size after a detach, so the next attach redraws the same screen.
 export const detachClient = (state: State, id: ClientId): Outcome => {
-  if (!state.clients.some((client) => client.id === id)) {
-    return refuse('unknownClient');
-  }
-
   const attachedClientId = state.attachedClientId === id ? undefined : state.attachedClientId;
   const clientActivity = new Map(state.clientActivity);
 

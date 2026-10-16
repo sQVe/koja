@@ -77,12 +77,17 @@ export const restoreSession = (state: State, session: SavedSession): Outcome => 
     scrolls: [],
   };
 
-  const workspaces = session.workspaces.map(({ id, root, label, tabIds }): WorkspaceRecord => ({
-    id,
-    root,
-    label,
-    tabIds,
-  }));
+  const { focusedWorkspaceId } = session;
+  const workspaces: WorkspaceRecord[] = [];
+  const changes: Change[] = [];
+
+  for (const { id, root, label, tabIds, activeTabId } of session.workspaces) {
+    const workspace: WorkspaceRecord = { id, root, label, tabIds };
+
+    invariant(focusedWorkspaceId !== undefined, 'A saved session with workspaces has no focus.');
+    workspaces.push(workspace);
+    changes.push({ type: 'workspaceAdded', workspace, activeTabId, focusedWorkspaceId });
+  }
 
   const next: State = {
     ...state,
@@ -96,17 +101,6 @@ export const restoreSession = (state: State, session: SavedSession): Outcome => 
     nextPaneNumber: Math.max(state.nextPaneNumber, session.nextPaneNumber),
     nextGeneration: state.nextGeneration + panes.length,
   };
-
-  const { focusedWorkspaceId } = session;
-  const changes: Change[] = [];
-
-  for (const [index, workspace] of workspaces.entries()) {
-    const activeTabId = session.workspaces[index]?.activeTabId;
-
-    invariant(focusedWorkspaceId !== undefined, 'A saved session with workspaces has no focus.');
-    invariant(activeTabId !== undefined, `Saved workspace ${workspace.id} has no active tab.`);
-    changes.push({ type: 'workspaceAdded', workspace, activeTabId, focusedWorkspaceId });
-  }
 
   for (const tab of session.tabs) {
     changes.push({ type: 'tabAdded', tab });

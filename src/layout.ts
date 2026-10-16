@@ -122,14 +122,14 @@ const childAreas = (layout: Layout & { kind: 'split' }, area: Area): readonly [A
     ];
   }
 
-  const rows = firstExtent(area.rows - gapOf(axis), layout.ratio, firstMinimum, secondMinimum);
+  const rows = firstExtent(area.rows, layout.ratio, firstMinimum, secondMinimum);
 
   return [
     { ...area, rows },
     {
       ...area,
-      y: area.y + rows + gapOf(axis),
-      rows: Math.max(secondMinimum, area.rows - rows - gapOf(axis)),
+      y: area.y + rows,
+      rows: Math.max(secondMinimum, area.rows - rows),
     },
   ];
 };
