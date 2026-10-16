@@ -3,6 +3,7 @@ import { expect, it } from 'bun:test';
 import {
   CellFlag,
   concatRows,
+  graphemeWordsPerRow,
   CellWidth,
   cellWords,
   CursorShape,
@@ -12,12 +13,15 @@ import {
   encodePaneInput,
   encodePaneRows,
   encodeRowUpdate,
+  kittyFlags,
   ModeFlag,
   PaneRowsSource,
+  paneRowsBytes,
   RowFlag,
   rowHeaderWords,
   rowsRangeText,
   rowsToLines,
+  sliceRows,
   rowUpdateBytes,
   rowWords,
 } from './rows.ts';
@@ -524,4 +528,209 @@ it('joins the rows of two pages so a wrapped line crosses the page edge', () => 
 
   expect(joined.rowCount).toBe(3);
   expect(rowsToLines(joined, columns, true)).toEqual([`${padded}de`, 'xy\u0301z']);
+});
+
+const cellIndex = (row: number, column: number) =>
+  row * rowWords(columns) + rowHeaderWords + column * cellWords;
+
+// Three rows. Row 0 has one cluster, row 1 none, and row 2 two clusters of different lengths.
+const clusterRows = () => {
+  const cells = joinRows([textRow(0, 'abc'), textRow(1, 'def'), textRow(2, 'ghij')]);
+
+  cells[cellIndex(0, 1) + 3] = CellFlag.grapheme;
+  cells[cellIndex(2, 0) + 3] = CellFlag.grapheme;
+  cells[cellIndex(2, 3) + 3] = CellFlag.grapheme;
+
+  return {
+    rowCount: 3,
+    cells,
+    graphemes: Uint32Array.of(
+      cellIndex(0, 1),
+      2,
+      0x62,
+      0x3_01,
+      cellIndex(2, 0),
+      3,
+      0x67,
+      0x3_01,
+      0x3_02,
+      cellIndex(2, 3),
+      2,
+      0x6a,
+      0x3_08,
+    ),
+  };
+};
+
+it('reads the text of every cluster in a range', () => {
+  expect(rowsToLines(clusterRows(), columns, false)).toEqual([
+    'ab\u0301c',
+    'def',
+    'g\u0301\u0302hij\u0308',
+  ]);
+});
+
+it('keeps the last line when the range ends on a soft-wrapped row', () => {
+  const range = textRange([wrappedRow(0, 'abc', false), wrappedRow(1, 'def')]);
+
+  expect(rowsToLines(range, columns, true)).toEqual(['abc', 'def']);
+});
+
+it('trims only spaces at the end of a row unless asked for Unicode trimming', () => {
+  const range = textRange([textRow(0, 'a b\u3000\u00a0 ')]);
+
+  expect(rowsToLines(range, columns, false)).toEqual(['a b\u3000\u00a0']);
+});
+
+it('trims every Unicode space at the end of a row when asked and keeps the text before it', () => {
+  const range = textRange([textRow(0, 'a b\u3000\u00a0 '), textRow(1, '\u3000'), textRow(2, 'xy')]);
+
+  expect(rowsToLines(range, columns, true, true)).toEqual(['a b', '', 'xy']);
+});
+
+it('does not join wrapped rows when trimming Unicode spaces', () => {
+  const range = textRange([wrappedRow(0, 'ab'), textRow(1, 'cd')]);
+
+  expect(rowsToLines(range, columns, false, true)).toEqual(['ab', 'cd']);
+});
+
+it('returns the cells and clusters of the requested rows with clusters moved to their cells', () => {
+  const sliced = sliceRows(clusterRows(), columns, 1, 2);
+
+  expect(sliced.rowCount).toBe(2);
+  expect(sliced.cells).toEqual(clusterRows().cells.slice(rowWords(columns), 3 * rowWords(columns)));
+
+  expect(sliced.graphemes).toEqual(
+    Uint32Array.of(cellIndex(1, 0), 3, 0x67, 0x3_01, 0x3_02, cellIndex(1, 3), 2, 0x6a, 0x3_08),
+  );
+});
+
+it('drops the clusters of rows outside the requested rows', () => {
+  const sliced = sliceRows(clusterRows(), columns, 0, 2);
+
+  expect(rowsToLines(sliced, columns, false)).toEqual(['ab\u0301c', 'def']);
+  expect(sliced.graphemes).toEqual(Uint32Array.of(cellIndex(0, 1), 2, 0x62, 0x3_01));
+});
+
+it('slices no rows from the end of a range', () => {
+  const sliced = sliceRows(clusterRows(), columns, 3, 0);
+
+  expect(sliced.rowCount).toBe(0);
+  expect(sliced.cells).toHaveLength(0);
+  expect(sliced.graphemes).toHaveLength(0);
+});
+
+it('counts the cluster words of each row', () => {
+  expect(graphemeWordsPerRow(clusterRows(), columns)).toEqual([4, 0, 5 + 4]);
+});
+
+it('counts no cluster words for rows without clusters', () => {
+  expect(graphemeWordsPerRow(textRange([textRow(0, 'a'), textRow(1, 'b')]), columns)).toEqual([
+    0, 0,
+  ]);
+});
+
+it('round-trips the cursor row and a hidden cursor', () => {
+  const update = rowUpdate({
+    cursor: { x: 1, y: 9, visible: false, shape: CursorShape.block, blinking: false },
+  });
+
+  expect(roundTrip(update)).toEqual({ ok: true, update });
+});
+
+it.each([
+  ['no rows and no colors', rowUpdate({ rowCount: 0, cells: new Uint32Array() })],
+  [
+    'no rows and colors',
+    rowUpdate({
+      rowCount: 0,
+      cells: new Uint32Array(),
+      colors: Uint32Array.of(1, 0x1_12_34_56),
+    }),
+  ],
+])('round-trips an update with %s', (_name, update) => {
+  expect(roundTrip(update)).toEqual({ ok: true, update });
+});
+
+it('refuses a cluster that names the first cell word after the cells as past the cells', () => {
+  const bytes = encodeRowUpdate(clusterUpdate(rowWords(columns)));
+
+  expect(decodeRowUpdate(bytes)).toEqual({ ok: false, reason: 'graphemePastCells' });
+});
+
+it('round-trips row numbers at the largest whole number', () => {
+  const update = rowUpdate({ first: Number.MAX_SAFE_INTEGER, activeTop: Number.MAX_SAFE_INTEGER });
+
+  expect(roundTrip(update)).toEqual({ ok: true, update });
+});
+
+it.each([
+  ['the first row number', 12],
+  ['the active top row number', 14],
+])('refuses %s of 2^53 or more', (_name, index) => {
+  const bytes = corrupted(rowUpdate(), (words) => words.with(index, 2 ** 21));
+
+  expect(decodeRowUpdate(bytes)).toEqual({ ok: false, reason: 'rowNumberTooLarge' });
+});
+
+it.each([
+  PaneRowsSource.visible,
+  PaneRowsSource.recent,
+  PaneRowsSource.recentUnwrapped,
+  PaneRowsSource.range,
+])('round-trips pane rows of source %d', (source) => {
+  const rows = paneRows({ source });
+
+  expect(decodePaneRows(encodePaneRows(rows))).toEqual({ ok: true, rows });
+});
+
+it('round-trips the remaining row count and the largest row numbers of pane rows', () => {
+  const rows = paneRows({
+    remaining: 77,
+    oldest: Number.MAX_SAFE_INTEGER - 1,
+    first: Number.MAX_SAFE_INTEGER,
+  });
+
+  expect(decodePaneRows(encodePaneRows(rows))).toEqual({ ok: true, rows });
+});
+
+it.each([
+  ['an oldest row number', 6],
+  ['a first row number', 8],
+])('refuses pane rows with %s of 2^53 or more', (_name, index) => {
+  const bytes = corruptedRows(paneRows(), (words) => words.with(index, 2 ** 21));
+
+  expect(decodePaneRows(bytes)).toEqual({ ok: false, reason: 'rowNumberTooLarge' });
+});
+
+it('refuses pane rows with a size that is not whole words but holds the header', () => {
+  const bytes = encodePaneRows(paneRows({ rowCount: 0, cells: new Uint32Array() }));
+  const extra = new Uint8Array(bytes.length + 1);
+
+  extra.set(bytes);
+
+  expect(decodePaneRows(extra)).toEqual({ ok: false, reason: 'wrongLength' });
+});
+
+it('returns the encoded size of a pane rows reply', () => {
+  const rows = paneRows({ graphemes: Uint32Array.of(rowHeaderWords, 2, 0x65, 0x3_01) });
+
+  expect(paneRowsBytes(rows.rowCount, columns, rows.graphemes.length)).toBe(
+    encodePaneRows(rows).length,
+  );
+});
+
+it('reads the kitty keyboard flags above the mode bits', () => {
+  expect(kittyFlags(ModeFlag.alternateScreen | ModeFlag.renderHeld | (0b10101 << 9))).toBe(0b10101);
+});
+
+it('clamps positions past the last row and the last column', () => {
+  const row = textRow(0, 'a'.padEnd(columns - 1, ' ').concat('z'));
+  const range = textRange([row, textRow(1, 'bcd')]);
+
+  expect(rowsRangeText(range, columns, { row: 0, column: 0 }, { row: 9, column: 3 })).toBe(
+    `a${' '.repeat(columns - 2)}z\nbcd`,
+  );
+
+  expect(rowsRangeText(range, columns, { row: 0, column: 500 }, { row: 0, column: 900 })).toBe('z');
 });
