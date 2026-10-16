@@ -4,7 +4,7 @@ import { createRowCache } from '../client/client.ts';
 import type { InputMode, StoreSnapshot } from '../client/client.ts';
 import { paneId, tabId, workspaceId } from '../ids.ts';
 import type { PaneId } from '../ids.ts';
-import { cellWords, CursorShape, rowHeaderWords, rowWords } from '../rows/rows.ts';
+import { CellWidth, cellWords, CursorShape, rowHeaderWords, rowWords } from '../rows/rows.ts';
 import type { RowUpdate } from '../rows/rows.ts';
 import { createScrollMode } from './scrollMode.ts';
 import type { ScrollModeSession } from './scrollMode.ts';
@@ -106,6 +106,7 @@ const start = (
     focused: 1,
     inputMode: 'scroll' as InputMode,
     removed: undefined as number | undefined,
+    cached: true,
   };
 
   cache.apply(updateOf(shown));
@@ -115,7 +116,7 @@ const start = (
       snapshot: snapshotWith(external.topRow, external.focused, external.removed),
       inputMode: external.inputMode,
     }),
-    rowCache: () => cache,
+    rowCache: () => (external.cached ? cache : undefined),
     scrollPane: (pane, to) => {
       const answer = Promise.withResolvers<undefined>();
 
@@ -162,9 +163,9 @@ const start = (
   };
 
   // The server answers the oldest request, after its change reached the snapshot.
-  const fetchedNow = (): void => {
+  const fetchedNow = (pane = 1): void => {
     for (const listener of fetched) {
-      listener(paneId(1));
+      listener(paneId(pane));
     }
   };
 
@@ -642,4 +643,455 @@ it('starts a waiting motion again when pruning removed the row it waits for', ()
   mode.handle({ kind: 'move', motion: 'lineStart' });
 
   expect(mode.cursor()).toMatchObject({ row: 98, col: 0 });
+});
+
+const counted = (mode: ReturnType<typeof start>['mode']) => {
+  const calls = { count: 0, cursors: [] as ReturnType<typeof mode.cursor>[] };
+
+  const unsubscribe = mode.subscribe(() => {
+    calls.count += 1;
+    calls.cursors.push(mode.cursor());
+  });
+
+  // How many times subscribers heard of the change the action makes.
+  const notifiedBy = (action: () => void): number => {
+    const before = calls.count;
+
+    action();
+
+    return calls.count - before;
+  };
+
+  return { calls, unsubscribe, notifiedBy };
+};
+
+it('notifies subscribers when the mode begins, moves, and ends, until they unsubscribe', () => {
+  const { mode } = start();
+  const { calls, unsubscribe, notifiedBy } = counted(mode);
+
+  expect(
+    notifiedBy(() => {
+      mode.handle({ kind: 'enter' });
+    }),
+  ).toBeGreaterThan(0);
+
+  expect(calls.cursors.at(-1)).toEqual({ pane: paneId(1), row: 102, col: 1 });
+
+  expect(
+    notifiedBy(() => {
+      mode.handle({ kind: 'move', motion: 'up' });
+    }),
+  ).toBeGreaterThan(0);
+
+  expect(calls.cursors.at(-1)).toEqual({ pane: paneId(1), row: 101, col: 1 });
+
+  expect(
+    notifiedBy(() => {
+      mode.handle({ kind: 'leave' });
+    }),
+  ).toBeGreaterThan(0);
+
+  expect(calls.cursors.at(-1)).toBeUndefined();
+
+  unsubscribe();
+
+  const heard = calls.count;
+
+  mode.handle({ kind: 'enter' });
+  mode.handle({ kind: 'move', motion: 'up' });
+  mode.handle({ kind: 'leave' });
+
+  expect(calls.count).toBe(heard);
+});
+
+it('resumes a mode that entering finds on the same pane, with its cursor', () => {
+  const { mode, show, modes, external } = start();
+  const { notifiedBy } = counted(mode);
+
+  mode.handle({ kind: 'enter' });
+  mode.handle({ kind: 'move', motion: 'up' });
+  mode.handle({ kind: 'move', motion: 'up' });
+  mode.handle({ kind: 'move', motion: 'right' });
+
+  const before = mode.cursor();
+
+  expect(
+    notifiedBy(() => {
+      mode.handle({ kind: 'enter' });
+    }),
+  ).toBeGreaterThan(0);
+
+  expect(mode.cursor()).toEqual(before);
+
+  show({ focused: 2 });
+  external.focused = 1;
+  external.inputMode = 'scroll';
+  mode.handle({ kind: 'enter' });
+  show({ focused: 2 });
+
+  expect(modes).toEqual(['insert', 'insert']);
+});
+
+it("restores the old pane's view when entering on another pane", () => {
+  const { mode, scrolls, scrolled, external } = start(undefined, 97);
+
+  mode.handle({ kind: 'enter' });
+  mode.handle({ kind: 'move', motion: 'historyTop' });
+  external.focused = 2;
+  mode.handle({ kind: 'enter' });
+
+  expect(scrolled).toEqual([paneId(1), paneId(1)]);
+  expect(scrolls).toEqual([95, 97]);
+  expect(mode.cursor()).toMatchObject({ pane: paneId(2) });
+});
+
+it('enters at the bottom-left cell when the pane cursor is hidden', () => {
+  const { mode, cache } = start();
+
+  cache.apply({
+    ...updateOf([95, 96, 97, 98, 99, 100, 101, 102]),
+    cursor: { x: 1, y: 2, visible: false, shape: CursorShape.default, blinking: false },
+  });
+
+  mode.handle({ kind: 'enter' });
+
+  expect(mode.cursor()).toEqual({ pane: paneId(1), row: 102, col: 0 });
+});
+
+it('keeps the cursor row while output advances a scrolled view', () => {
+  const { mode, cache } = start(undefined, 97);
+
+  mode.handle({ kind: 'enter' });
+  cache.apply({ ...updateOf([100, 101, 102]), activeTop: activeTop + 8 });
+
+  expect(mode.cursor()).toMatchObject({ row: 99 });
+});
+
+it('builds keys typed before the server answers on the requested top', () => {
+  const { mode, scrolls } = start(undefined, 97);
+
+  mode.handle({ kind: 'enter' });
+  mode.handle({ kind: 'move', motion: 'historyBottom' });
+  mode.handle({ kind: 'move', motion: 'up' });
+
+  expect(scrolls).toEqual(['bottom']);
+  expect(mode.cursor()).toMatchObject({ row: 101 });
+});
+
+it('keeps building on the requested top until every request is answered', async () => {
+  const { mode, scrolls, answer } = start();
+
+  mode.handle({ kind: 'enter' });
+
+  for (let count = 0; count < 4; count += 1) {
+    mode.handle({ kind: 'move', motion: 'up' });
+  }
+
+  expect(scrolls).toEqual([99, 98]);
+
+  await answer();
+  mode.handle({ kind: 'move', motion: 'down' });
+
+  expect(scrolls).toEqual([99, 98]);
+  expect(mode.cursor()).toMatchObject({ row: 99 });
+});
+
+it('keeps the cursor and does not throw when the pane has no row cache', () => {
+  const { mode, external } = start();
+
+  mode.handle({ kind: 'enter' });
+  external.cached = false;
+
+  expect(mode.cursor()).toEqual({ pane: paneId(1), row: 102, col: 1 });
+});
+
+it('ends the mode and returns to insert mode when a motion finds the row cache gone', () => {
+  const { mode, scrolls, modes, external } = start(undefined, 97);
+  const { notifiedBy } = counted(mode);
+
+  mode.handle({ kind: 'enter' });
+  external.cached = false;
+
+  const heard = notifiedBy(() => {
+    mode.handle({ kind: 'move', motion: 'up' });
+  });
+
+  expect(heard).toBeGreaterThan(0);
+  expect(modes).toEqual(['insert']);
+  expect(mode.cursor()).toBeUndefined();
+  expect(scrolls).toEqual([]);
+});
+
+it('falls back to normal mode when the focused pane is gone or has no row cache', () => {
+  const gone = start();
+
+  gone.external.removed = 1;
+  gone.mode.handle({ kind: 'enter' });
+
+  expect(gone.modes).toEqual(['normal']);
+  expect(gone.mode.cursor()).toBeUndefined();
+
+  const uncached = start();
+
+  uncached.external.cached = false;
+  uncached.mode.handle({ kind: 'enter' });
+
+  expect(uncached.modes).toEqual(['normal']);
+  expect(uncached.mode.cursor()).toBeUndefined();
+});
+
+it('leaves to the bottom when no history is left above the active top', () => {
+  const { mode, cache, scrolls } = start(undefined, 97);
+
+  mode.handle({ kind: 'enter' });
+  cache.apply({ ...updateOf([100, 101, 102]), sequence: 2, first: activeTop });
+  mode.handle({ kind: 'leave' });
+
+  expect(scrolls).toEqual([]);
+});
+
+it('starts a motion from a row clamped into a pane that shrank', () => {
+  const { mode, cache } = start([100, 101, 102]);
+
+  mode.handle({ kind: 'enter' });
+  cache.apply({ ...updateOf([100, 101]), sequence: 2, size: { columns, rows: 2 } });
+  mode.handle({ kind: 'move', motion: 'lineStart' });
+
+  expect(mode.cursor()).toMatchObject({ row: 101, col: 0 });
+});
+
+it('runs queued motions only once the pane is focused again, even after the wait ended', () => {
+  const { mode, scrolls, show, supply } = start([100, 101, 102]);
+
+  mode.handle({ kind: 'enter' });
+  mode.handle({ kind: 'move', motion: 'historyTop' });
+  mode.handle({ kind: 'move', motion: 'lineEnd' });
+  mode.handle({ kind: 'move', motion: 'historyBottom' });
+  show({ focused: 2 });
+  supply([95, 96, 97, 98, 99]);
+
+  expect(scrolls).toEqual([95]);
+
+  show({ focused: 1 });
+
+  expect(scrolls).toEqual([95, 'bottom']);
+});
+
+it('ends the mode and returns to insert mode when the shown pane is removed', () => {
+  const { mode, modes, show, external } = start();
+  const { notifiedBy } = counted(mode);
+
+  mode.handle({ kind: 'enter' });
+
+  expect(
+    notifiedBy(() => {
+      show({ removePane: 1 });
+    }),
+  ).toBeGreaterThan(0);
+
+  expect(modes).toEqual(['insert']);
+  expect(mode.cursor()).toBeUndefined();
+
+  external.removed = undefined;
+  show({});
+
+  expect(modes).toEqual(['insert']);
+});
+
+it('leaves a mode that is not scroll alone when the shown pane is removed', () => {
+  const { mode, modes, show, external } = start();
+
+  mode.handle({ kind: 'enter' });
+  external.inputMode = 'normal';
+  show({ removePane: 1 });
+
+  expect(modes).toEqual([]);
+});
+
+it("leaves scroll mode alone when a suspended pane is removed after another pane's scroll began", () => {
+  const { mode, modes, show, external } = start();
+
+  mode.handle({ kind: 'enter' });
+  show({ focused: 2 });
+  external.inputMode = 'scroll';
+  show({ removePane: 1 });
+
+  expect(modes).toEqual(['insert']);
+});
+
+it('changes the input mode only between insert and scroll, and only when the focus changed', () => {
+  const unchanged = start();
+
+  unchanged.mode.handle({ kind: 'enter' });
+  unchanged.external.inputMode = 'insert';
+
+  const { calls } = counted(unchanged.mode);
+
+  unchanged.show({});
+
+  expect(unchanged.modes).toEqual([]);
+  expect(calls.count).toBe(0);
+
+  const lost = start();
+
+  lost.mode.handle({ kind: 'enter' });
+  lost.external.inputMode = 'normal';
+  lost.show({ focused: 2 });
+
+  expect(lost.modes).toEqual([]);
+
+  lost.show({ focused: 1 });
+
+  expect(lost.modes).toEqual([]);
+
+  const regained = start();
+
+  regained.mode.handle({ kind: 'enter' });
+  regained.show({ focused: 2 });
+  regained.external.inputMode = 'scroll';
+  regained.show({ focused: 1 });
+
+  expect(regained.modes).toEqual(['insert']);
+});
+
+it('ignores focus changes, keys, and reach calls when no mode exists', () => {
+  const { mode, show, modes, scrolls } = start();
+
+  show({ focused: 2 });
+  mode.handle({ kind: 'move', motion: 'up' });
+  mode.handle({ kind: 'leave' });
+
+  expect(mode.reach(paneId(1))).toBeUndefined();
+  expect(mode.cursor()).toBeUndefined();
+  expect(modes).toEqual([]);
+  expect(scrolls).toEqual([]);
+});
+
+it('asks for rows only for the pane being scrolled', () => {
+  const { mode } = start([95, 100, 101, 102]);
+
+  mode.handle({ kind: 'enter' });
+  mode.handle({ kind: 'move', motion: 'historyTop' });
+  mode.handle({ kind: 'move', motion: 'paragraphNext' });
+
+  expect(mode.reach(paneId(1))).toEqual({ from: 96, to: 102 });
+  expect(mode.reach(paneId(2))).toBeUndefined();
+});
+
+it('asks for at most one chunk of rows below the cursor', () => {
+  const { mode, cache } = start();
+
+  cache.apply({ ...updateOf([100, 101, 102]), first: 0, activeTop: 100_000 });
+  mode.handle({ kind: 'enter' });
+  mode.handle({ kind: 'move', motion: 'historyTop' });
+  mode.handle({ kind: 'move', motion: 'paragraphNext' });
+
+  expect(mode.reach(paneId(1))).toEqual({ from: 1, to: 256 });
+});
+
+it('ignores a fetch that ends before the mode, for another pane, or with no motion waiting', () => {
+  const { mode, cache, fetchedNow } = start([100, 101, 102]);
+  const { calls, notifiedBy } = counted(mode);
+
+  expect(
+    notifiedBy(() => {
+      fetchedNow();
+    }),
+  ).toBe(0);
+
+  mode.handle({ kind: 'enter' });
+
+  expect(
+    notifiedBy(() => {
+      fetchedNow();
+    }),
+  ).toBe(0);
+
+  mode.handle({ kind: 'move', motion: 'historyTop' });
+  mode.handle({ kind: 'move', motion: 'lineEnd' });
+  cache.apply(updateOf([95, 96, 97, 98, 99, 100, 101, 102]));
+
+  const notified = calls.count;
+
+  fetchedNow(2);
+
+  expect(calls.count).toBe(notified);
+  expect(mode.cursor()).toMatchObject({ row: 95, col: 1 });
+
+  fetchedNow();
+
+  expect(mode.cursor()).toMatchObject({ row: 95, col: 2 });
+});
+
+it('counts only fetches that miss, and asks again after a miss', () => {
+  const { mode, supply } = start([100, 101, 102]);
+  const { notifiedBy } = counted(mode);
+
+  mode.handle({ kind: 'enter' });
+  mode.handle({ kind: 'move', motion: 'up' });
+  mode.handle({ kind: 'move', motion: 'up' });
+  mode.handle({ kind: 'move', motion: 'paragraphPrevious' });
+  expect(mode.reach(paneId(1))).toMatchObject({ to: 99 });
+
+  supply([99]);
+  supply([98, 99]);
+  supply([97, 98, 99]);
+  expect(mode.reach(paneId(1))).toMatchObject({ to: 96 });
+
+  expect(
+    notifiedBy(() => {
+      supply([97, 98, 99]);
+    }),
+  ).toBeGreaterThan(0);
+
+  expect(
+    notifiedBy(() => {
+      supply([97, 98, 99]);
+    }),
+  ).toBeGreaterThan(0);
+
+  expect(mode.reach(paneId(1))).toMatchObject({ to: 96 });
+});
+
+it('moves over a wide character as one cell of a word', () => {
+  const { mode, cache } = start();
+  const update = updateOf([100, 101, 102]);
+  const rowStart = 2 * rowWords(columns) + rowHeaderWords;
+
+  const put = (column: number, character: string, flags = 0): void => {
+    update.cells[rowStart + column * cellWords] = character.codePointAt(0) ?? 0;
+    update.cells[rowStart + column * cellWords + cellWords - 1] = flags;
+  };
+
+  put(0, 'a');
+  put(1, 'b');
+  put(2, '世', CellWidth.wide);
+  put(3, '\0', CellWidth.spacerTail);
+  put(4, 'c');
+  put(5, 'd');
+  cache.apply(update);
+
+  mode.handle({ kind: 'enter' });
+  mode.handle({ kind: 'move', motion: 'wordEnd' });
+  expect(mode.cursor()).toMatchObject({ row: 102, col: 5 });
+
+  mode.handle({ kind: 'move', motion: 'wordStartPrevious' });
+  expect(mode.cursor()).toMatchObject({ row: 102, col: 0 });
+});
+
+it('keeps a motion waiting on its fetch when the focus changes after its rows arrived', () => {
+  const { mode, cache, show, fetchedNow } = start([100, 101, 102]);
+
+  mode.handle({ kind: 'enter' });
+  mode.handle({ kind: 'move', motion: 'historyTop' });
+  mode.handle({ kind: 'move', motion: 'lineEnd' });
+  cache.apply(updateOf([95, 96, 97, 98, 99, 100, 101, 102]));
+  show({ focused: 2 });
+  show({ focused: 1 });
+
+  expect(mode.cursor()).toMatchObject({ row: 95, col: 1 });
+
+  fetchedNow();
+
+  expect(mode.cursor()).toMatchObject({ row: 95, col: 2 });
 });

@@ -13,6 +13,9 @@ interface Options {
   wrapped?: readonly number[];
 }
 
+// The second cell of a wide character, which holds no text.
+const spacer = '\0';
+
 // Line `index` of `lines` is stable row `oldest + index`. The last `height` lines are the active
 // screen.
 const rowsOf = (lines: readonly string[], options: Options = {}): ScrollRows => {
@@ -32,7 +35,7 @@ const rowsOf = (lines: readonly string[], options: Options = {}): ScrollRows => 
       }
 
       return {
-        cells: Array.from(line.padEnd(columns)),
+        cells: Array.from(line.padEnd(columns), (cell) => (cell === spacer ? '' : cell)),
         wrapped: wrapped.includes(row),
       };
     },
@@ -158,6 +161,14 @@ describe('word motions', () => {
 
   it('moves w from a blank cell to the next word', () => {
     expect(move(text, { row: 0, col: 3 }, 'wordStart').col).toBe(4);
+  });
+
+  it('moves W from a single blank cell to the next WORD', () => {
+    expect(move(text, { row: 0, col: 3 }, 'bigWordStart').col).toBe(4);
+  });
+
+  it('moves w from the second cell of a row', () => {
+    expect(move(text, { row: 0, col: 1 }, 'wordStart').col).toBe(4);
   });
 
   it('moves w across rows and over blank rows', () => {
@@ -310,6 +321,96 @@ describe('word motions', () => {
   });
 });
 
+describe('word motions over wide characters', () => {
+  const wide = ['ab世\0cd', 'ef'];
+
+  it('treats a wide character and its spacer as one cell of the word', () => {
+    expect(move(wide, { row: 0, col: 0 }, 'wordEnd').col).toBe(5);
+    expect(move(wide, { row: 0, col: 5 }, 'wordStartPrevious').col).toBe(0);
+    expect(move(wide, { row: 0, col: 0 }, 'wordStart')).toMatchObject({ row: 1, col: 0 });
+  });
+
+  it('starts a word motion from the spacer of a wide character', () => {
+    expect(move(wide, { row: 0, col: 3 }, 'wordEnd').col).toBe(5);
+    expect(move(wide, { row: 0, col: 3 }, 'wordStartPrevious').col).toBe(0);
+  });
+
+  it('starts a word motion from the cell after a wide character', () => {
+    expect(move(wide, { row: 0, col: 4 }, 'wordEnd').col).toBe(5);
+    expect(move(wide, { row: 0, col: 4 }, 'wordStartPrevious').col).toBe(0);
+  });
+});
+
+// Rows the cache hands out once. A scan that asks for a row again would find it dropped.
+const dropAfterRead = (rows: ScrollRows): ScrollRows => {
+  const read = new Set<number>();
+
+  return {
+    ...rows,
+    row: (row) => {
+      if (read.has(row)) {
+        return undefined;
+      }
+
+      read.add(row);
+
+      return rows.row(row);
+    },
+  };
+};
+
+describe('word scans', () => {
+  it('keeps the rows it stands on when the cache drops them', () => {
+    const lines = ['abc def', 'ghi', 'jkl mno', '', 'pqr'];
+    const motions: ScrollMotion[] = ['wordStart', 'wordEnd', 'bigWordStart', 'bigWordEnd'];
+
+    for (const motion of motions) {
+      const rows = rowsOf(lines);
+
+      const result = moveScroll(
+        dropAfterRead(rows),
+        { row: 0, col: 5, top: rows.activeTop },
+        motion,
+      );
+
+      expect(result.kind).toBe('moved');
+    }
+
+    const rows = rowsOf(lines);
+
+    expect(
+      moveScroll(dropAfterRead(rows), { row: 4, col: 1, top: rows.activeTop }, 'wordStartPrevious')
+        .kind,
+    ).toBe('moved');
+  });
+
+  it('continues from where it stopped when the missing row arrives', () => {
+    const lines = ['one two', 'three'];
+    const reads: number[] = [];
+
+    const counting = (rows: ScrollRows): ScrollRows => ({
+      ...rows,
+      row: (row) => {
+        reads.push(row);
+
+        return rows.row(row);
+      },
+    });
+
+    const gap = rowsOf(lines, { missing: [1] });
+    const full = rowsOf(lines);
+    const first = moveScroll(counting(gap), { row: 0, col: 4, top: gap.activeTop }, 'wordStart');
+
+    expect(first).toMatchObject({ kind: 'missing', row: 1 });
+
+    const next =
+      first.kind === 'missing' ? first.resume?.(counting(full), full.activeTop) : undefined;
+
+    expect(next).toMatchObject({ kind: 'moved', position: { row: 1, col: 0 } });
+    expect(reads).toEqual([0, 1, 1]);
+  });
+});
+
 describe('paragraph motions', () => {
   it('moves } to the next blank row and { to the previous, keeping the column', () => {
     expect(move(text, { row: 0, col: 5 }, 'paragraphNext')).toMatchObject({ row: 2, col: 5 });
@@ -336,6 +437,18 @@ describe('paragraph motions', () => {
     const near = ['', ...Array.from({ length: 998 }, () => 'x'), ''];
 
     expect(move(near, { row: 0 }, 'paragraphNext').row).toBe(999);
+
+    const edge = ['', ...Array.from({ length: 999 }, () => 'x'), ''];
+
+    expect(move(edge, { row: 0 }, 'paragraphNext').row).toBe(0);
+    expect(move(edge, { row: 1000 }, 'paragraphPrevious').row).toBe(1000);
+  });
+
+  it('finds a blank row at the oldest row', () => {
+    const lines = ['', 'x', 'y'];
+
+    expect(move(lines, { row: 2 }, 'paragraphPrevious').row).toBe(0);
+    expect(move(lines, { row: 102 }, 'paragraphPrevious', { oldest: 100 }).row).toBe(100);
   });
 
   it('asks for a row the cache lacks', () => {
