@@ -46,7 +46,8 @@ export const handleDetach = (
   dispatch({ type: 'detachClient', clientId: targetId });
 };
 
-// Resolves `top` to the oldest row the pane keeps, so the store never reads the terminal.
+// Resolves `top` to the oldest row the pane keeps, a row at or past the active top to the bottom,
+// and a row older than the oldest to the oldest, so the store never reads the terminal.
 const scrollRowOf = (
   context: ClientRequestContext,
   message: PaneScrollMessage,
@@ -55,13 +56,17 @@ const scrollRowOf = (
     return undefined;
   }
 
-  if (message.to !== 'top') {
+  const stable = findLivePane(context, message.paneId)?.runtime.terminal.stableRows();
+
+  if (message.to === 'top') {
+    return stable?.first ?? 0;
+  }
+
+  if (stable === undefined) {
     return message.to;
   }
 
-  const live = findLivePane(context, message.paneId);
-
-  return live?.runtime.terminal.stableRows().first ?? 0;
+  return message.to >= stable.activeTop ? undefined : Math.max(message.to, stable.first);
 };
 
 export const handlePaneScroll = (

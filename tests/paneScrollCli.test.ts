@@ -4,7 +4,7 @@ import { join } from 'node:path';
 import { z } from 'zod';
 
 import { cliTestTimeoutMs, environmentFor, root } from './cliHarness.ts';
-import { pollUntil, readJson, setup } from './paneHarness.ts';
+import { pollUntil, readJson, setup, waitForText } from './paneHarness.ts';
 import type { PhiRunner } from './paneHarness.ts';
 
 const clientListSchema = z.array(
@@ -12,6 +12,8 @@ const clientListSchema = z.array(
 );
 
 const scrollSchema = z.object({ scrolled: z.boolean(), client: z.string().optional() });
+
+const rowSchema = z.object({ row: z.number().nullable() });
 
 const failureSchema = z.object({ scrolled: z.literal(false), reason: z.string() });
 
@@ -94,6 +96,41 @@ it(
       scrolled: false,
       reason: 'noClient',
     });
+  },
+  cliTestTimeoutMs,
+);
+
+it(
+  'stores no scroll row for a row at the bottom, and clamps a row below the oldest row',
+  async () => {
+    const { directory, phi, first } = await setup('seq 1 120000\nprintf done');
+
+    attach(directory);
+
+    await pollUntil(
+      () => listClients(phi),
+      (clients) => clients.length === 1,
+    );
+
+    await waitForText(phi, first, 'done');
+
+    const { oldest } = await readJson(phi, first, '--lines', '1');
+
+    expect(oldest).toBeGreaterThan(0);
+
+    const past = await phi('pane', 'scroll', first, '--to', '1000000', '--json');
+
+    expect(past.exitCode).toBe(0);
+    expect(rowSchema.parse(JSON.parse(past.stdout)).row).toBeNull();
+    expect((await listClients(phi))[0]?.view.scrolls).toEqual({});
+
+    await phi('pane', 'scroll', first, '--to', '1000', '--json');
+
+    const clamped = await phi('pane', 'scroll', first, '--to', '0', '--json');
+
+    expect(clamped.exitCode).toBe(0);
+    expect(rowSchema.parse(JSON.parse(clamped.stdout)).row).toBe(oldest);
+    expect((await listClients(phi))[0]?.view.scrolls).toEqual({ [first]: oldest });
   },
   cliTestTimeoutMs,
 );
