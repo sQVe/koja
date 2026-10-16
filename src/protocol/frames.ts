@@ -147,7 +147,7 @@ export const createFrameDecoder = (): FrameDecoder => {
       return error;
     }
 
-    const midFrame = headerFilled > 0 || payload !== undefined;
+    const midFrame = headerFilled > 0;
 
     return midFrame ? { ok: false, reason: 'truncated' } : { ok: true };
   };

@@ -173,17 +173,15 @@ export const createRowCache = ({ rowLimit }: RowCacheOptions): RowCache => {
   };
 
   const missing = (range: RowRange): RowRange | undefined => {
-    let from: number | undefined;
-    let to: number | undefined;
+    let lacking: RowRange | undefined;
 
     for (let rowNumber = range.from; rowNumber <= range.to; rowNumber++) {
       if (!rows.has(rowNumber)) {
-        from ??= rowNumber;
-        to = rowNumber;
+        lacking = { from: lacking?.from ?? rowNumber, to: rowNumber };
       }
     }
 
-    return from === undefined || to === undefined ? undefined : { from, to };
+    return lacking;
   };
 
   const viewTop = (scroll: number | undefined): number | undefined => {
