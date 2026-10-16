@@ -15,6 +15,7 @@ import type { Environment } from './environment.ts';
 import { connectionFailureMessage, print } from './output.ts';
 import type { Outcome } from './output.ts';
 import type { PaneCliCommand } from './paneCommandParse.ts';
+import { runPaneCopyCommand } from './paneCopyCommand.ts';
 import { runPaneReadCommand } from './paneReadCommand.ts';
 import { runPaneScrollCommand } from './paneScrollCommand.ts';
 
@@ -284,6 +285,10 @@ export const runPaneAction = async (
 
   if (command.pane.action === 'scroll') {
     return runPaneScrollCommand(command.json, command.pane, version, socketPath);
+  }
+
+  if (command.pane.action === 'copy') {
+    return runPaneCopyCommand(command.json, command.pane, version, socketPath);
   }
 
   if (command.pane.action === 'read') {

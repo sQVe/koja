@@ -1,4 +1,5 @@
 import type {
+  PaneCopyCommand,
   PaneLayoutCommand,
   PaneMoveDestination,
   PaneReadCommand,
@@ -10,6 +11,7 @@ import type { PaneId } from '../ids.ts';
 import type { CommandOptions } from './commandOptions.ts';
 import { parseId } from './idParse.ts';
 import type { IdResult } from './idParse.ts';
+import { parsePaneCopy } from './paneCopyParse.ts';
 import { hasReadOptions, parseReadOptions } from './paneReadOptions.ts';
 import type { RawReadOptions } from './paneReadOptions.ts';
 import { parsePaneScroll } from './paneScrollParse.ts';
@@ -23,6 +25,7 @@ type PaneCliAction =
   | PaneSendCommand
   | PaneLayoutCommand
   | PaneScrollCommand
+  | PaneCopyCommand
   | { action: 'list' }
   | { action: 'process-info'; pane: PaneId };
 
@@ -34,6 +37,7 @@ export interface PaneCliCommand extends CommandOptions {
 export interface RawPaneOptions extends Partial<RawReadOptions> {
   pane?: string | undefined;
   client?: string | undefined;
+  print?: boolean | undefined;
   direction?: string | undefined;
   cells?: string | undefined;
   cwd?: string | undefined;
@@ -56,6 +60,7 @@ interface LayoutOptions {
 
 interface PaneOptions extends LayoutOptions {
   client: string | undefined;
+  print: boolean | undefined;
   read: RawReadOptions;
   move: MoveOptions;
 }
@@ -65,6 +70,7 @@ export const paneOptions = {
   direction: { type: 'string' },
   cells: { type: 'string' },
   cwd: { type: 'string' },
+  print: { type: 'boolean' },
   tab: { type: 'string' },
   'new-tab': { type: 'boolean' },
   'new-workspace': { type: 'boolean' },
@@ -85,6 +91,7 @@ export const paneUsage = `  phi pane list [--socket <path>] [--json]
   phi pane zoom <id> [--socket <path>] [--json]
   phi pane resize <id> --direction left|right|up|down --cells <n> [--socket <path>] [--json]
   phi pane scroll <id> --to top|bottom|<row> [--client <id>] [--socket <path>] [--json]
+  phi pane copy <id> --from <row>:<col> --to <row>:<col> [--print] [--socket <path>] [--json]
   phi pane process-info <id> [--socket <path>] [--json]`;
 
 const parsePaneId = (value: string | undefined): IdResult<PaneId | undefined> => {
@@ -99,6 +106,8 @@ const parsePaneId = (value: string | undefined): IdResult<PaneId | undefined> =>
     : { ok: true, id: paneId(number) };
 };
 
+const printMessage = '--print belongs to pane copy.';
+
 const moveOptionsMessage = '--tab, --new-tab, and --new-workspace belong to pane move.';
 
 const hasMoveOptions = ({ tab, newTab, newWorkspace }: MoveOptions): boolean =>
@@ -108,6 +117,7 @@ export const strayPaneOptionMessage = (
   group: string | undefined,
   {
     pane,
+    print,
     direction,
     cells,
     tab,
@@ -118,6 +128,10 @@ export const strayPaneOptionMessage = (
 ): string | undefined => {
   if (group === 'pane') {
     return undefined;
+  }
+
+  if (print !== undefined) {
+    return printMessage;
   }
 
   if (hasMoveOptions({ tab, newTab, newWorkspace })) {
@@ -392,14 +406,23 @@ const strayReadFlagMessage = ({ source, lines, from, to }: RawReadOptions): stri
   return stray === undefined ? undefined : `${stray[0]} belongs to pane read.`;
 };
 
-// pane scroll takes its position in --to.
+// pane scroll takes its position in --to, and pane copy takes its range in --from and --to.
 const strayReadMessage = (action: string | undefined, read: RawReadOptions): string | undefined => {
   if (action === 'read') {
     return undefined;
   }
 
+  if (action === 'copy') {
+    return strayReadFlagMessage({ ...read, from: undefined, to: undefined });
+  }
+
   return strayReadFlagMessage(action === 'scroll' ? { ...read, to: undefined } : read);
 };
+
+const strayFlagMessage = (action: string | undefined, options: PaneOptions): string | undefined =>
+  options.print !== undefined && action !== 'copy'
+    ? printMessage
+    : strayReadMessage(action, options.read);
 
 const parsePaneAction = (
   action: string | undefined,
@@ -407,10 +430,10 @@ const parsePaneAction = (
   pane: string | undefined,
   options: PaneOptions,
 ): PaneCliAction | string => {
-  const strayRead = strayReadMessage(action, options.read);
+  const stray = strayFlagMessage(action, options);
 
-  if (strayRead !== undefined) {
-    return strayRead;
+  if (stray !== undefined) {
+    return stray;
   }
 
   if (action === 'move') {
@@ -439,6 +462,12 @@ const parsePaneAction = (
     return '--cells belongs to pane resize.';
   }
 
+  if (action === 'copy') {
+    const { from, to } = options.read;
+
+    return parsePaneCopy(rest, pane, from, to, options.print === true);
+  }
+
   if (action === 'process-info') {
     return parseProcessInfoCommand(rest, pane);
   }
@@ -450,7 +479,7 @@ const parsePaneAction = (
   return parsePaneTargetCommand(action, rest, pane, options.read);
 };
 
-const textByDefaultActions: ReadonlySet<string> = new Set(['read', 'send']);
+const textByDefaultActions: ReadonlySet<string> = new Set(['read', 'send', 'copy']);
 
 const printsJsonByDefault = (action: string): boolean => !textByDefaultActions.has(action);
 
@@ -460,6 +489,7 @@ export const parsePaneCommand = (
   {
     pane,
     client,
+    print,
     direction,
     cells,
     cwd,
@@ -482,6 +512,7 @@ export const parsePaneCommand = (
     cells,
     cwd,
     client,
+    print,
     read: { source, lines, from, to },
     move: { tab, newTab, newWorkspace },
   });
