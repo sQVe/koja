@@ -56,6 +56,30 @@ const fetchChunkRows = 256;
 
 const maxMisses = 3;
 
+const waitsOutside = (current: ScrollState, oldest: number, last: number): boolean => {
+  const { waiting } = current;
+
+  if (waiting === undefined) {
+    return false;
+  }
+
+  const outside = waiting < oldest || waiting > last;
+
+  return outside;
+};
+
+const reachOf = (current: ScrollState, oldest: number, last: number): RowRange | undefined => {
+  const { waiting } = current;
+
+  if (waiting === undefined) {
+    return undefined;
+  }
+
+  return waiting <= current.row
+    ? { from: Math.max(oldest, waiting - fetchChunkRows + 1), to: waiting }
+    : { from: waiting, to: Math.min(last, waiting + fetchChunkRows - 1) };
+};
+
 const blankCodePoint = 0x20;
 
 const spacerWidths = new Set<number>([CellWidth.spacerTail, CellWidth.spacerHead]);
@@ -270,6 +294,13 @@ export const createScrollMode = (session: ScrollModeSession): ScrollMode => {
     notify();
   };
 
+  const restartWaiting = (current: ScrollState): void => {
+    current.waiting = undefined;
+    current.resume = undefined;
+    current.misses = 0;
+    run(current);
+  };
+
   const begin = (): void => {
     const { snapshot } = session.getState();
     const pane = viewedPane(snapshot);
@@ -422,18 +453,21 @@ export const createScrollMode = (session: ScrollModeSession): ScrollMode => {
       return { pane: state.pane, row: state.row, col: state.col };
     },
     reach: (pane) => {
-      const waiting = state?.pane === pane ? state.waiting : undefined;
       const bounds = session.rowCache(pane)?.bounds();
 
-      if (state === undefined || waiting === undefined || bounds === undefined) {
+      if (state?.pane !== pane || bounds === undefined) {
         return undefined;
       }
 
       const last = bounds.activeTop + (session.rowCache(pane)?.size()?.rows ?? 1) - 1;
 
-      return waiting <= state.row
-        ? { from: Math.max(bounds.oldest, waiting - fetchChunkRows + 1), to: waiting }
-        : { from: waiting, to: Math.min(last, waiting + fetchChunkRows - 1) };
+      // Output pruned the row the motion waits for. Its fetch can never end, so run the motion
+      // again from the cursor, which the scan clamps into the history.
+      if (waitsOutside(state, bounds.oldest, last)) {
+        restartWaiting(state);
+      }
+
+      return reachOf(state, bounds.oldest, last);
     },
     subscribe: (listener) => {
       listeners.add(listener);

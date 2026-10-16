@@ -620,3 +620,26 @@ it('falls back to normal mode when there is no pane to scroll', () => {
   expect(mode.cursor()).toBeUndefined();
   expect(modes).toEqual(['normal']);
 });
+
+it('starts a waiting motion again when pruning removed the row it waits for', () => {
+  const { mode, cache, fetchedNow } = start([100, 101, 102]);
+
+  mode.handle({ kind: 'enter' });
+  mode.handle({ kind: 'move', motion: 'historyTop' });
+  mode.handle({ kind: 'move', motion: 'lineEnd' });
+  expect(mode.reach(paneId(1))).toEqual({ from: 95, to: 95 });
+
+  cache.apply({ ...updateOf([100, 101, 102]), sequence: 2, first: 98 });
+
+  expect(mode.reach(paneId(1))).toMatchObject({ from: 98 });
+
+  cache.apply({ ...updateOf([98, 99, 100, 101, 102]), sequence: 3, first: 98 });
+  fetchedNow();
+
+  expect(mode.cursor()).toMatchObject({ row: 98, col: 2 });
+  expect(mode.reach(paneId(1))).toBeUndefined();
+
+  mode.handle({ kind: 'move', motion: 'lineStart' });
+
+  expect(mode.cursor()).toMatchObject({ row: 98, col: 0 });
+});
