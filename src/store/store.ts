@@ -23,7 +23,7 @@ import { restoreSession, stopServer } from './sessionTransitions.ts';
 import { closeTab, createTab, focusTab, renameTab } from './tabTransitions.ts';
 import type { Outcome, Proposal } from './transitionOutcome.ts';
 import { activeTabOf } from './view.ts';
-import { scrollPaneView } from './viewScrollTransitions.ts';
+import { renumberPaneScrolls, scrollPaneView } from './viewScrollTransitions.ts';
 import {
   closeWorkspace,
   createWorkspace,
@@ -217,7 +217,17 @@ export type Intent =
 export type Fact =
   | { type: 'paneStarted'; paneId: PaneId; generation: number }
   | { type: 'paneFailedToStart'; paneId: PaneId; generation: number; message: string }
-  | { type: 'paneExited'; paneId: PaneId; generation: number; exitCode: number };
+  | { type: 'paneExited'; paneId: PaneId; generation: number; exitCode: number }
+  // The pane's stable row numbers restarted. Carries the active top before and after, and the
+  // oldest row after.
+  | {
+      type: 'paneRowsRenumbered';
+      paneId: PaneId;
+      generation: number;
+      oldActiveTop: number;
+      first: number;
+      newActiveTop: number;
+    };
 
 export type DetachReason = 'requested' | 'takenOver';
 
@@ -585,6 +595,10 @@ export const applyFact = (state: State, fact: Fact): Applied | Ignored => {
 
   if (!isCurrent(pane, fact)) {
     return ignore(state, fact);
+  }
+
+  if (fact.type === 'paneRowsRenumbered') {
+    return commit(renumberPaneScrolls(state, fact));
   }
 
   const proposal = transitionPaneFact(state, pane, fact);

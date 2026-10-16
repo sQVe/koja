@@ -201,6 +201,9 @@ export const startPane = (context: PaneEffectContext, pane: Pane, report: Report
     onOutput: () => {
       scheduleRows(context, id, generation);
     },
+    onRenumbered: (renumbered) => {
+      report({ type: 'paneRowsRenumbered', paneId: id, generation, ...renumbered });
+    },
     onBell: (count) => {
       sendToForeground(context, { type: 'bell', count });
     },

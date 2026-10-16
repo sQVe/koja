@@ -89,6 +89,7 @@ it.skipIf(!scopesAvailable)('ends the pane scope when the pane is disposed', asy
     identity: testIdentity,
     useScope: true,
     onOutput: () => undefined,
+    onRenumbered: () => undefined,
     onBell: () => undefined,
     onClipboard: () => undefined,
   });
@@ -228,6 +229,7 @@ it.skipIf(!scopesAvailable)(
       identity: testIdentity,
       useScope: true,
       onOutput: () => undefined,
+      onRenumbered: () => undefined,
       onBell: () => undefined,
       onClipboard: () => undefined,
     });
@@ -290,6 +292,7 @@ it.skipIf(!scopesAvailable)(
       identity: testIdentity,
       useScope: true,
       onOutput: () => undefined,
+      onRenumbered: () => undefined,
       onBell: () => undefined,
       onClipboard: () => undefined,
     });
@@ -350,6 +353,7 @@ it.skipIf(!scopesAvailable)(
       identity: testIdentity,
       useScope: true,
       onOutput: () => undefined,
+      onRenumbered: () => undefined,
       onBell: () => undefined,
       onClipboard: () => undefined,
     });
