@@ -206,6 +206,7 @@ export const mountPanes = (
       sync();
     } else {
       showScroll(renderable, pane, renderable.height);
+      showScrollCursor(renderable, pane);
       renderable.draw(rows, sequence);
     }
   });

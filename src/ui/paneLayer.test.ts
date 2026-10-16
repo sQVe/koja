@@ -1,6 +1,6 @@
 import { afterEach, expect, it } from 'bun:test';
 
-import { BoxRenderable } from '@opentui/core';
+import { BoxRenderable, TextAttributes } from '@opentui/core';
 import { createTestRenderer } from '@opentui/core/testing';
 import type { TestRendererSetup } from '@opentui/core/testing';
 
@@ -193,4 +193,77 @@ it('holds the shown rows and the rows a waiting motion needs as separate ranges'
     { from: 5, to: 10 },
     { from: 90_000, to: 90_255 },
   ]);
+});
+
+const fullScreen = (activeTop: number, sequence: number): RowUpdate => {
+  const stride = rowWords(columns);
+  const cells = new Uint32Array(stride * rows);
+
+  for (let line = 0; line < rows; line++) {
+    cells[line * stride] = line;
+  }
+
+  return { ...textAtColumn(1), sequence, size, activeTop, rowCount: rows, cells };
+};
+
+it('redraws the scroll cursor on the same screen row when output advances a following view', async () => {
+  const created = await createTestRenderer({ width: columns, height: rows + 1 });
+
+  setup = created;
+
+  const cache = createRowCache({ rowLimit: 10 });
+
+  cache.apply(fullScreen(0, 1));
+
+  const box = new BoxRenderable(created.renderer, { width: columns, height: rows + 1 });
+
+  const listeners = new Set<
+    (changed: { pane: ReturnType<typeof paneId>; rows: number[]; sequence: number }) => void
+  >();
+
+  const following = snapshotOf({ kind: 'pane', paneId: paneId(1) }, [pane(1, 'running')], 1);
+
+  const session: PaneLayerSession = {
+    getState: () => ({ snapshot: following, inputMode: 'scroll' }),
+    rowCache: () => cache,
+    holdRows: () => undefined,
+    newestSequence: () => 1,
+    acknowledge: () => undefined,
+    subscribe: () => () => undefined,
+    subscribeRows: (listener) => {
+      listeners.add(listener);
+
+      return () => listeners.delete(listener);
+    },
+    subscribeFetched: () => () => undefined,
+  };
+
+  // Like the controller, the cursor row follows the active top when it is read.
+  const mode = {
+    ...noScrollMode,
+    cursor: () => ({ pane: paneId(1), row: 3 + (cache.bounds()?.activeTop ?? 0), col: 0 }),
+  };
+
+  created.renderer.root.add(box);
+  mountPanes(session, created.renderer, box, mode);
+  await created.renderOnce();
+
+  const highlighted = (): number[] =>
+    created
+      .captureSpans()
+      .lines.flatMap((line, index) =>
+        line.spans.some((span) => (span.attributes & TextAttributes.INVERSE) !== 0) ? [index] : [],
+      );
+
+  expect(highlighted()).toEqual([3]);
+
+  const changed = cache.apply(fullScreen(1, 2));
+
+  for (const listener of listeners) {
+    listener({ pane: paneId(1), rows: changed, sequence: 2 });
+  }
+
+  await created.renderOnce();
+
+  expect(highlighted()).toEqual([3]);
 });

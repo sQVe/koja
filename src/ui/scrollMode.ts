@@ -42,6 +42,9 @@ interface ScrollState extends ScrollCursor {
   resumeEpoch: number | undefined;
   // Fetches that ended with the waiting row still absent.
   misses: number;
+  // The active top the cursor row was last aligned to. While the view follows the bottom, output
+  // advances the active top and the cursor moves with it, so it keeps its place in the view.
+  alignedTop: number;
   // Whether the pane was focused at the last look.
   focused: boolean;
   // Motions that wait for the one at the front to finish.
@@ -127,6 +130,26 @@ export const createScrollMode = (session: ScrollModeSession): ScrollMode => {
     return session.rowCache(current.pane)?.viewTop(scrollTopOf(shownView(snapshot), current.pane));
   };
 
+  const align = (current: ScrollState): void => {
+    const cache = session.rowCache(current.pane);
+    const bounds = cache?.bounds();
+    const columns = cache?.size()?.columns;
+
+    if (columns !== undefined) {
+      current.col = Math.min(current.col, Math.max(columns - 1, 0));
+    }
+
+    if (bounds === undefined) {
+      return;
+    }
+
+    if (viewTopOf(current) === undefined) {
+      current.row = Math.max(current.row + bounds.activeTop - current.alignedTop, bounds.oldest);
+    }
+
+    current.alignedTop = bounds.activeTop;
+  };
+
   const scrollTo = (current: ScrollState, to: number | 'bottom'): void => {
     const cache = session.rowCache(current.pane);
 
@@ -185,6 +208,8 @@ export const createScrollMode = (session: ScrollModeSession): ScrollMode => {
     if (rows === undefined) {
       return 'lost';
     }
+
+    align(current);
 
     const top = viewTopOf(current);
     const last = rows.activeTop + rows.height - 1;
@@ -268,6 +293,7 @@ export const createScrollMode = (session: ScrollModeSession): ScrollMode => {
       misses: 0,
       resume: undefined,
       resumeEpoch: undefined,
+      alignedTop: rows.activeTop,
       focused: true,
       queue: [],
       waiting: undefined,
@@ -387,10 +413,15 @@ export const createScrollMode = (session: ScrollModeSession): ScrollMode => {
       state.queue.push(action.motion);
       run(state);
     },
-    cursor: () =>
-      state === undefined || !isFocused(state)
-        ? undefined
-        : { pane: state.pane, row: state.row, col: state.col },
+    cursor: () => {
+      if (state === undefined || !isFocused(state)) {
+        return undefined;
+      }
+
+      align(state);
+
+      return { pane: state.pane, row: state.row, col: state.col };
+    },
     reach: (pane) => {
       const waiting = state?.pane === pane ? state.waiting : undefined;
       const bounds = session.rowCache(pane)?.bounds();

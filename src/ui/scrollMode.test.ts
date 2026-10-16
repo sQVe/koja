@@ -211,6 +211,17 @@ it('scrolls the view up only when the cursor leaves it, and keeps scrolling from
   expect(scrolls).toEqual([99, 98]);
 });
 
+it('keeps the view still on k while output advances a following view after entry', () => {
+  const { mode, cache, scrolls } = start();
+
+  mode.handle({ kind: 'enter' });
+  cache.apply({ ...updateOf([100, 101, 102]), activeTop: activeTop + 8 });
+  mode.handle({ kind: 'move', motion: 'up' });
+
+  expect(mode.cursor()).toEqual({ pane: paneId(1), row: 109, col: 1 });
+  expect(scrolls).toEqual([]);
+});
+
 it('sends G to the bottom after the CLI scrolled a following view to the top', () => {
   const { mode, scrolls, show } = start();
 
@@ -569,6 +580,24 @@ it('starts a waiting word motion again when a reflow changes the epoch', () => {
   fetchedNow();
 
   expect(mode.cursor()).toMatchObject({ row: 95, col: 8 });
+});
+
+it('keeps the cursor inside the pane when the pane narrows', () => {
+  const { mode, cache } = start([100, 101, 102]);
+
+  mode.handle({ kind: 'enter' });
+  mode.handle({ kind: 'move', motion: 'lineEnd' });
+  expect(mode.cursor()).toMatchObject({ row: 102, col: 3 });
+
+  cache.apply(
+    reflowUpdate(2, 2, [
+      [100, 'a1'],
+      [101, 'a1'],
+      [102, 'a1'],
+    ]),
+  );
+
+  expect(mode.cursor()).toMatchObject({ row: 102, col: 1 });
 });
 
 it('falls back to normal mode when there is no pane to scroll', () => {
