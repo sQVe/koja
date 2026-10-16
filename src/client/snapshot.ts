@@ -7,6 +7,8 @@ export type StoreChange = Extract<ControlMessage, { type: 'change' }>['change'];
 
 export type StoreView = StoreSnapshot['defaultView'];
 
+type TabLayout = StoreSnapshot['tabs'][number]['layout'];
+
 const withActiveTab = (view: StoreView, id: WorkspaceId, activeId: TabId): StoreView => {
   const known = view.activeTabs.some((active) => active.workspaceId === id);
 
@@ -247,3 +249,23 @@ export const focusedPane = (snapshot: StoreSnapshot): StoreSnapshot['panes'][num
 
 export const viewedPane = (snapshot: StoreSnapshot): StoreSnapshot['panes'][number] | undefined =>
   paneOfView(snapshot, shownView(snapshot));
+
+const layoutPaneIds = (layout: TabLayout): PaneId[] =>
+  layout.kind === 'pane'
+    ? [layout.paneId]
+    : [...layoutPaneIds(layout.first), ...layoutPaneIds(layout.second)];
+
+// The panes the shown tab places, which the server sends rows for. A zoomed tab shows one.
+export const shownPaneIds = (snapshot: StoreSnapshot): Set<PaneId> => {
+  const view = shownView(snapshot);
+
+  const tab = snapshot.tabs.find(
+    (known) => known.id === activeTabIdOf(view, view.focusedWorkspaceId),
+  );
+
+  if (tab === undefined) {
+    return new Set();
+  }
+
+  return new Set(tab.zoomedPaneId === undefined ? layoutPaneIds(tab.layout) : [tab.zoomedPaneId]);
+};

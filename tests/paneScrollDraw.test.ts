@@ -9,8 +9,8 @@ import { connectAttach } from '../src/client/client.ts';
 import type { AttachSession } from '../src/client/client.ts';
 import { paneId } from '../src/ids.ts';
 import { mountPanes } from '../src/ui/paneLayer.ts';
-import { buildVersion, cliTestTimeoutMs } from './cliHarness.ts';
-import { setup } from './paneHarness.ts';
+import { buildVersion, cliTestTimeoutMs, temporaryDirectory } from './cliHarness.ts';
+import { setup, waitForText } from './paneHarness.ts';
 
 const terminalSize = { columns: 100, rows: 30 };
 
@@ -170,6 +170,41 @@ it(
 
     await phi('pane', 'scroll', first, '--to', 'bottom');
     await until((rows) => rows.includes('out later'));
+  },
+  cliTestTimeoutMs,
+);
+
+it(
+  'draws the current content of a history row that changed while its tab was hidden',
+  async () => {
+    const once = join(await temporaryDirectory(), 'once');
+
+    const body = `mkdir ${once} 2>/dev/null || { printf other; exec sleep 3600; }
+stty -echo
+printf 'old'
+read line
+printf '\\r\\033[2Knew\\n'
+seq 1 60 | sed 's/^/n/'
+read more`;
+
+    const { directory, phi, first } = await setup(body);
+    const shown = await attachAndDraw(directory);
+
+    await shown.until((rows) => rows[0] === 'old');
+
+    const { session, until } = shown;
+
+    session.focusTab({ kind: 'create' });
+    await until((rows) => rows[0] === 'other');
+    await phi('pane', 'send', '\n', '--pane', first);
+    await waitForText(phi, first, 'n60');
+    session.focusTab({ kind: 'number', number: 1 });
+    await until((rows) => rows.includes('n60'));
+    await phi('pane', 'scroll', first, '--to', 'top');
+
+    await until((rows) => {
+      return rows[0] === 'new';
+    });
   },
   cliTestTimeoutMs,
 );

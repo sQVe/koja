@@ -16,7 +16,7 @@ import type { PaneMoveDestination, ResizeDirection, SplitDirection } from './pan
 import { createRowCache } from './rowCache.ts';
 import type { RowCache, RowRange } from './rowCache.ts';
 import { createRowFetcher } from './rowFetch.ts';
-import { activeTabIdOf, applyChange, viewedPane, shownView } from './snapshot.ts';
+import { activeTabIdOf, applyChange, shownPaneIds, viewedPane, shownView } from './snapshot.ts';
 import type { StoreChange, StoreSnapshot } from './snapshot.ts';
 import { tabRequest } from './tabRequest.ts';
 import { workspaceRequest } from './workspaceRequest.ts';
@@ -273,11 +273,14 @@ export const connectAttach = async (
     },
   });
 
+  // A pane the server stopped sending rows for keeps no cache: rows that changed meanwhile would
+  // never be repaired, because the server sends only the screen when it sends again.
   const dropRowCaches = (snapshot: StoreSnapshot): void => {
     const known = new Set(snapshot.panes.map((pane) => pane.id));
+    const shown = shownPaneIds(snapshot);
 
     for (const pane of rowCaches.keys()) {
-      if (!known.has(pane)) {
+      if (!known.has(pane) || !shown.has(pane)) {
         rowCaches.delete(pane);
         newestSequences.delete(pane);
         rowFetcher.forget(pane);
