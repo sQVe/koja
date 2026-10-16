@@ -24,6 +24,8 @@ export type {
   WorkspaceReply,
 } from './clientAttach.ts';
 
+export { runPaneCopy } from './paneCopy.ts';
+export type { PaneCopyCommand } from './paneCopy.ts';
 export { createClipboardQueue } from './clipboardWrite.ts';
 export type { ClipboardQueue } from './clipboardWrite.ts';
 export { createRowCache } from './rowCache.ts';

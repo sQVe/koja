@@ -640,3 +640,59 @@ it.each([
 ])('refuses pane scroll with %s', (_name, argv) => {
   expect(typeof parseCommand(argv)).toBe('string');
 });
+
+it('parses pane copy with a range and print', () => {
+  expect(parseCommand(['pane', 'copy', 'pane-1', '--from', '4:2', '--to', '5:0'])).toEqual({
+    kind: 'pane',
+    pane: {
+      action: 'copy',
+      pane: paneId(1),
+      start: { row: 4, column: 2 },
+      end: { row: 5, column: 0 },
+      print: false,
+    },
+    json: false,
+    socket: undefined,
+  });
+
+  expect(
+    parseCommand(['pane', 'copy', 'pane-1', '--from', '0:0', '--to', '0:0', '--print', '--json']),
+  ).toMatchObject({ json: true, pane: { action: 'copy', print: true } });
+});
+
+it.each([
+  ['no --to', ['pane', 'copy', 'pane-1', '--from', '4:2']],
+  ['no --from', ['pane', 'copy', 'pane-1', '--to', '4:2']],
+  ['a value without a column', ['pane', 'copy', 'pane-1', '--from', '4', '--to', '5:0']],
+  ['a negative column', ['pane', 'copy', 'pane-1', '--from', '4:-1', '--to', '5:0']],
+  ['a fractional row', ['pane', 'copy', 'pane-1', '--from', '1.5:0', '--to', '5:0']],
+  ['three parts', ['pane', 'copy', 'pane-1', '--from', '1:2:3', '--to', '5:0']],
+  ['a start after the end row', ['pane', 'copy', 'pane-1', '--from', '5:0', '--to', '4:9']],
+  ['a start after the end column', ['pane', 'copy', 'pane-1', '--from', '4:3', '--to', '4:2']],
+  ['no id', ['pane', 'copy', '--from', '4:2', '--to', '5:0']],
+  ['--pane', ['pane', 'copy', 'pane-1', '--pane', '1', '--from', '4:2', '--to', '5:0']],
+  ['--client', ['pane', 'copy', 'pane-1', '--from', '4:2', '--to', '5:0', '--client', 'client-1']],
+  ['--lines', ['pane', 'copy', 'pane-1', '--from', '4:2', '--to', '5:0', '--lines', '3']],
+  ['--tab', ['pane', 'copy', 'pane-1', '--from', '4:2', '--to', '5:0', '--tab', 'tab-1']],
+  ['--new-tab', ['pane', 'copy', 'pane-1', '--from', '4:2', '--to', '5:0', '--new-tab']],
+  [
+    '--new-workspace',
+    ['pane', 'copy', 'pane-1', '--from', '4:2', '--to', '5:0', '--new-workspace'],
+  ],
+  [
+    '--direction',
+    ['pane', 'copy', 'pane-1', '--from', '4:2', '--to', '5:0', '--direction', 'below'],
+  ],
+  ['--cwd', ['pane', 'copy', 'pane-1', '--from', '4:2', '--to', '5:0', '--cwd', '/tmp']],
+  ['--cells', ['pane', 'copy', 'pane-1', '--from', '4:2', '--to', '5:0', '--cells', '2']],
+  ['--print on pane read', ['pane', 'read', 'pane-1', '--print']],
+  ['--print on tab list', ['tab', 'list', '--print']],
+])('refuses pane copy with %s', (_name, argv) => {
+  expect(typeof parseCommand(argv)).toBe('string');
+});
+
+it('keeps a start equal to the end', () => {
+  expect(parseCommand(['pane', 'copy', 'pane-1', '--from', '4:2', '--to', '4:2'])).toMatchObject({
+    pane: { start: { row: 4, column: 2 }, end: { row: 4, column: 2 } },
+  });
+});

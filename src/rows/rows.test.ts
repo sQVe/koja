@@ -16,6 +16,7 @@ import {
   PaneRowsSource,
   RowFlag,
   rowHeaderWords,
+  rowsRangeText,
   rowsToLines,
   rowUpdateBytes,
   rowWords,
@@ -128,6 +129,98 @@ it('skips wide-character spacer cells when joining wrapped rows', () => {
   const range = { rowCount: 2, cells: joinRows([first, second]), graphemes: new Uint32Array() };
 
   expect(rowsToLines(range, columns, true)).toEqual([`中a${' '.repeat(columns - 4)}b`]);
+});
+
+const textRange = (rows: Uint32Array[]) => ({
+  rowCount: rows.length,
+  cells: joinRows(rows),
+  graphemes: new Uint32Array(),
+});
+
+it('returns one word split across a soft wrap with no line feed', () => {
+  const range = textRange([wrappedRow(0, `${' '.repeat(columns - 3)}hel`), textRow(1, 'lo there')]);
+
+  const text = rowsRangeText(
+    range,
+    columns,
+    { row: 0, column: columns - 3 },
+    { row: 1, column: 1 },
+  );
+
+  expect(text).toBe('hello');
+});
+
+it('ends a copied line with a line feed at a hard line end and trims its trailing spaces', () => {
+  const range = textRange([wrappedRow(0, 'one', false), textRow(1, 'two')]);
+
+  const text = rowsRangeText(range, columns, { row: 0, column: 1 }, { row: 1, column: 1 });
+
+  expect(text).toBe('ne\ntw');
+});
+
+it('trims the trailing spaces of a wrapped row when the next row is blank and ends the line', () => {
+  const range = textRange([wrappedRow(0, 'a'.padEnd(columns, ' ')), textRow(1, '')]);
+
+  const text = rowsRangeText(
+    range,
+    columns,
+    { row: 0, column: 0 },
+    { row: 1, column: columns - 1 },
+  );
+
+  expect(text).toBe('a');
+});
+
+it('trims the spaces of a range that ends inside a row on blank cells', () => {
+  const range = textRange([textRow(0, 'alpha beta gamma')]);
+
+  expect(rowsRangeText(range, columns, { row: 0, column: 4 }, { row: 0, column: 5 })).toBe('a');
+
+  expect(rowsRangeText(range, columns, { row: 0, column: 0 }, { row: 0, column: 40 })).toBe(
+    'alpha beta gamma',
+  );
+
+  expect(rowsRangeText(range, columns, { row: 0, column: 0 }, { row: 0, column: columns })).toBe(
+    'alpha beta gamma',
+  );
+});
+
+it('keeps the spaces inside a range that ends inside a row', () => {
+  const range = textRange([textRow(0, 'a  b')]);
+
+  expect(rowsRangeText(range, columns, { row: 0, column: 0 }, { row: 0, column: 3 })).toBe('a  b');
+});
+
+it('keeps the trailing spaces of a wrapped row that joins the next row in the range', () => {
+  const range = textRange([wrappedRow(0, 'ab  '), textRow(1, 'cd  ')]);
+  const padded = 'ab  '.padEnd(columns, ' ');
+
+  expect(rowsRangeText(range, columns, { row: 0, column: 0 }, { row: 1, column: 5 })).toBe(
+    `${padded}cd`,
+  );
+});
+
+const wideRange = () => {
+  const row = textRow(0, 'a中 b');
+
+  row[rowHeaderWords + cellWords + 3] = CellWidth.wide;
+  row[rowHeaderWords + 2 * cellWords + 3] = CellWidth.spacerTail;
+
+  return textRange([row]);
+};
+
+it('copies a wide character whole when the range starts on either of its cells', () => {
+  const range = wideRange();
+
+  expect(rowsRangeText(range, columns, { row: 0, column: 1 }, { row: 0, column: 3 })).toBe('中b');
+  expect(rowsRangeText(range, columns, { row: 0, column: 2 }, { row: 0, column: 3 })).toBe('中b');
+});
+
+it('copies a wide character whole when the range ends on either of its cells', () => {
+  const range = wideRange();
+
+  expect(rowsRangeText(range, columns, { row: 0, column: 0 }, { row: 0, column: 1 })).toBe('a中');
+  expect(rowsRangeText(range, columns, { row: 0, column: 0 }, { row: 0, column: 2 })).toBe('a中');
 });
 
 it('round-trips the wrapped flag of a row', () => {
