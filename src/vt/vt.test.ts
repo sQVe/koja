@@ -5,6 +5,7 @@ import {
   CellWidth,
   cellWidthMask,
   cellWords,
+  CursorShape,
   defaultBackgroundSlot,
   defaultForegroundSlot,
   kittyFlags,
@@ -424,6 +425,9 @@ it.each([
   ['italic', '\u001B[3m', CellFlag.italic],
   ['underline', '\u001B[4m', CellFlag.underline],
   ['inverse', '\u001B[7m', CellFlag.inverse],
+  ['strikethrough', '\u001B[9m', CellFlag.strikethrough],
+  ['blink', '\u001B[5m', CellFlag.blink],
+  ['invisible', '\u001B[8m', CellFlag.invisible],
 ])('returns a %s cell with its style flag', (_name, style, flag) => {
   using terminal = openTerminal();
 
@@ -523,11 +527,27 @@ it('returns the cursor position and visibility', () => {
 
   writeChunks(terminal, ['\u001B[5;10Habc']);
 
-  expect(terminal.frame().cursor).toEqual({ x: 12, y: 4, visible: true });
+  expect(terminal.frame().cursor).toMatchObject({ x: 12, y: 4, visible: true });
 
   writeChunks(terminal, ['\u001B[?25l']);
 
-  expect(terminal.frame().cursor).toEqual({ x: 12, y: 4, visible: false });
+  expect(terminal.frame().cursor).toMatchObject({ x: 12, y: 4, visible: false });
+});
+
+it.each([
+  [0, CursorShape.default, false],
+  [1, CursorShape.block, true],
+  [2, CursorShape.block, false],
+  [3, CursorShape.underline, true],
+  [4, CursorShape.underline, false],
+  [5, CursorShape.bar, true],
+  [6, CursorShape.bar, false],
+])('gives DECSCUSR %i the cursor shape %i and blinking %p', (value, shape, blinking) => {
+  using terminal = openTerminal();
+
+  writeChunks(terminal, [value === 0 ? '\u001B[6 q' : '\u001B[0 q', `\u001B[${value} q`]);
+
+  expect(terminal.frame().cursor).toMatchObject({ shape, blinking });
 });
 
 describe.each([
@@ -657,7 +677,7 @@ describe('a render hold', () => {
 
     expect(rowText(decodeRows(frame, 80).get(0) ?? [])).toBe('old');
     expect(rowTexts(frame)).not.toContain('half');
-    expect(frame.cursor).toEqual({ x: 3, y: 0, visible: true });
+    expect(frame.cursor).toMatchObject({ x: 3, y: 0, visible: true });
   });
 
   it.each([
@@ -1045,6 +1065,27 @@ it('reads a row from history with the cells the frame returned while it was on s
   expect(terminal.stableRows().first).toBe(activeTop);
   expect(rowText(onScreen ?? [])).toBe(`red 漢 ${cluster}e\u0301`);
   expect(fromHistory).toEqual(onScreen);
+});
+
+it.each([
+  ['strikethrough', '\u001B[9m', CellFlag.strikethrough],
+  ['blink', '\u001B[5m', CellFlag.blink],
+  ['invisible', '\u001B[8m', CellFlag.invisible],
+])('reads a %s cell from history with its style flag', (_name, style, flag) => {
+  using terminal = openTerminal();
+
+  terminal.write(encoder.encode(`${style}S\u001B[0mT\r\n`));
+
+  const { epoch, activeTop } = terminal.stableRows();
+
+  terminal.write(encoder.encode(numberedLines(0, 40)));
+
+  const read = terminal.readRows(epoch, activeTop, 1);
+  const [styled, plain] = (read.ok ? decodeRows(read.rows, 80).get(0) : undefined) ?? [];
+
+  expect(terminal.stableRows().first).toBe(activeTop);
+  expect(styled?.flags).toBe(flag);
+  expect(plain?.flags).toBe(0);
 });
 
 it('refuses a read with an epoch from before a resize and reads with the new epoch', () => {

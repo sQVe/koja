@@ -2,6 +2,7 @@ import { expect, it } from 'bun:test';
 
 import {
   cellWords,
+  CursorShape,
   decodeRowUpdate,
   encodeRowUpdate,
   ModeFlag,
@@ -33,7 +34,7 @@ const rowUpdate = (rows: [number, string][], overrides: Partial<RowUpdate> = {})
     pane: 1,
     sequence: 1,
     size: { columns, rows: 3 },
-    cursor: { x: 0, y: 0, visible: true },
+    cursor: { x: 0, y: 0, visible: true, shape: CursorShape.default, blinking: false },
     modes: 0,
     epoch: 1,
     first: 0,
@@ -115,14 +116,14 @@ it('keeps the latest size, cursor, and modes', () => {
 
   const next = rowUpdate([], {
     size: { columns, rows: 5 },
-    cursor: { x: 2, y: 1, visible: false },
+    cursor: { x: 2, y: 1, visible: false, shape: CursorShape.default, blinking: false },
     modes: ModeFlag.bracketedPaste,
   });
 
   cache.apply(next);
 
   expect(cache.size()).toEqual({ columns, rows: 5 });
-  expect(cache.cursor()).toEqual({ x: 2, y: 1, visible: false });
+  expect(cache.cursor()).toMatchObject({ x: 2, y: 1, visible: false });
   expect(cache.modes()).toBe(ModeFlag.bracketedPaste);
   expect(firstWord(cache, 0)).toBe(97);
 });

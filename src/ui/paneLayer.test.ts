@@ -8,7 +8,7 @@ import { createRowCache } from '../client/client.ts';
 import type { StoreSnapshot } from '../client/client.ts';
 import { paneId, tabId, workspaceId } from '../ids.ts';
 import type { Layout } from '../layout.ts';
-import { cellWords, rowHeaderWords, rowWords } from '../rows/rows.ts';
+import { cellWords, CursorShape, rowHeaderWords, rowWords } from '../rows/rows.ts';
 import type { RowUpdate } from '../rows/rows.ts';
 import { mountPanes } from './paneLayer.ts';
 import type { PaneLayerSession } from './paneLayer.ts';
@@ -88,7 +88,7 @@ const textAtColumn = (column: number): RowUpdate => {
     pane: 1,
     sequence: 1,
     size: { columns, rows: 1 },
-    cursor: { x: 0, y: 0, visible: false },
+    cursor: { x: 0, y: 0, visible: false, shape: CursorShape.default, blinking: false },
     modes: 0,
     epoch: 1,
     first: 0,

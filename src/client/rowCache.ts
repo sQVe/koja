@@ -1,5 +1,5 @@
 import { cellWords, ModeFlag, RowFlag, rowHeaderWords, rowWords } from '../rows/rows.ts';
-import type { PaneRows, RowUpdate } from '../rows/rows.ts';
+import type { Cursor, PaneRows, RowUpdate } from '../rows/rows.ts';
 
 interface CachedRow {
   // Whether the row soft-wraps into the next row.
@@ -33,7 +33,7 @@ export interface RowCache {
   // alternate screen shows, which have no place among the rows held.
   storeRange: (rows: PaneRows) => boolean;
   size: () => { columns: number; rows: number } | undefined;
-  cursor: () => { x: number; y: number; visible: boolean } | undefined;
+  cursor: () => Cursor | undefined;
   // The ModeFlag bits that are on.
   modes: () => number;
   // The colors the program set, by slot. Each color is 0x1000000 plus the 0xRRGGBB value.
@@ -101,7 +101,7 @@ export const createRowCache = ({ rowLimit }: RowCacheOptions): RowCache => {
   let activeTop = 0;
   let pinned: readonly RowRange[] | undefined;
   let size: { columns: number; rows: number } | undefined;
-  let cursor: { x: number; y: number; visible: boolean } | undefined;
+  let cursor: Cursor | undefined;
   let modes = 0;
   let colors: ReadonlyMap<number, number> = new Map();
 

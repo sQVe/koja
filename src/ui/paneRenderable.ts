@@ -1,12 +1,14 @@
 import { FrameBufferRenderable, RGBA, TextAttributes } from '@opentui/core';
-import type { OptimizedBuffer, RenderContext } from '@opentui/core';
+import type { CursorStyle, OptimizedBuffer, RenderContext } from '@opentui/core';
 
 import type { RowCache } from '../client/client.ts';
+import type { Cursor } from '../rows/rows.ts';
 import {
   CellFlag,
   CellWidth,
   cellWidthMask,
   cellWords,
+  CursorShape,
   defaultBackgroundSlot,
   defaultForegroundSlot,
 } from '../rows/rows.ts';
@@ -27,7 +29,7 @@ interface ScrollCell {
   col: number;
 }
 
-interface Cursor {
+interface CursorCell {
   x: number;
   y: number;
   visible: boolean;
@@ -53,6 +55,9 @@ const flagAttributes: [CellFlag, number][] = [
   [CellFlag.italic, TextAttributes.ITALIC],
   [CellFlag.underline, TextAttributes.UNDERLINE],
   [CellFlag.inverse, TextAttributes.INVERSE],
+  [CellFlag.strikethrough, TextAttributes.STRIKETHROUGH],
+  [CellFlag.blink, TextAttributes.BLINK],
+  [CellFlag.invisible, TextAttributes.HIDDEN],
 ];
 
 const rgbaOf = (word: number): RGBA => {
@@ -97,20 +102,29 @@ const attributesOf = (flags: number): number => {
 
 const isSpacer = (flags: number): boolean => spacerWidths.has(flags & cellWidthMask);
 
-const sameCursor = (left: Cursor | undefined, right: Cursor | undefined): boolean =>
+const nativeCursorStyles: Record<CursorShape, CursorStyle> = {
+  [CursorShape.bar]: 'line',
+  [CursorShape.block]: 'block',
+  [CursorShape.underline]: 'underline',
+  [CursorShape.default]: 'default',
+};
+
+const sameCursor = (left: CursorCell | undefined, right: CursorCell | undefined): boolean =>
   left?.x === right?.x && left?.y === right?.y && left?.visible === right?.visible;
 
 // Draws the rows of one pane from its row cache. The frame buffer keeps the rows that did not
-// change, so each frame draws only the rows named by draw.
+// change, so each frame draws only the rows named by draw. The terminal has one native cursor, so
+// only the focused pane shows its cursor there; other panes draw it as an inverse cell.
 export class PaneRenderable extends FrameBufferRenderable {
   private readonly cache: RowCache;
   private readonly pending = new Set<number>();
   private readonly onDrawn: ((sequence: number) => void) | undefined;
-  private drawnCursor: Cursor | undefined;
+  private drawnCursor: CursorCell | undefined;
   private drawnColors: ReadonlyMap<number, number> | undefined;
   private viewTop: number | undefined;
   private scrollCursor: ScrollCell | undefined;
   private pendingSequence: number | undefined;
+  private paneFocused = false;
 
   public constructor(
     context: RenderContext,
@@ -163,6 +177,16 @@ export class PaneRenderable extends FrameBufferRenderable {
     }
   }
 
+  // Moves the pane's cursor to the terminal's native cursor, or back to an inverse cell.
+  public setFocused(focused: boolean): void {
+    if (focused === this.paneFocused) {
+      return;
+    }
+
+    this.paneFocused = focused;
+    this.requestRender();
+  }
+
   // Marks every row for drawing, such as after the cache received rows the pane showed blank.
   public drawAll(sequence?: number): void {
     if (sequence !== undefined) {
@@ -190,6 +214,10 @@ export class PaneRenderable extends FrameBufferRenderable {
     this.drawPending();
     super.renderSelf(buffer);
 
+    if (this.paneFocused) {
+      this.showNativeCursor();
+    }
+
     const sequence = this.pendingSequence;
 
     this.pendingSequence = undefined;
@@ -211,19 +239,41 @@ export class PaneRenderable extends FrameBufferRenderable {
   }
 
   // A cursor outside the shown rows waits there for the view to catch up, at the nearest edge.
-  private scrollCursorCell(cursor: ScrollCell): Cursor {
+  private scrollCursorCell(cursor: ScrollCell): CursorCell {
     const top = this.viewTop ?? this.cache.bounds()?.activeTop ?? 0;
     const y = Math.min(Math.max(cursor.row - top, 0), this.height - 1);
 
     return { x: cursor.col, y, visible: true };
   }
 
-  private shownCursor(): Cursor | undefined {
+  // The program's cursor, while the pane shows the active screen without a scroll mode cursor.
+  private paneCursor(): Cursor | undefined {
+    const scrolled = this.scrollCursor !== undefined || this.viewTop !== undefined;
+
+    return scrolled ? undefined : this.cache.cursor();
+  }
+
+  // The cursor drawn as an inverse cell.
+  private shownCursor(): CursorCell | undefined {
     if (this.scrollCursor !== undefined) {
       return this.scrollCursorCell(this.scrollCursor);
     }
 
-    return this.viewTop === undefined ? this.cache.cursor() : undefined;
+    return this.paneFocused ? undefined : this.paneCursor();
+  }
+
+  private showNativeCursor(): void {
+    const cursor = this.paneCursor();
+
+    if (cursor?.visible !== true) {
+      this.ctx.setCursorPosition(0, 0, false);
+
+      return;
+    }
+
+    this.ctx.setCursorStyle({ style: nativeCursorStyles[cursor.shape], blinking: cursor.blinking });
+    // The native cursor position counts from 1.
+    this.ctx.setCursorPosition(this.x + cursor.x + 1, this.y + cursor.y + 1, true);
   }
 
   private drawPending(): void {

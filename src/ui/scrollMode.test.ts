@@ -4,7 +4,7 @@ import { createRowCache } from '../client/client.ts';
 import type { InputMode, StoreSnapshot } from '../client/client.ts';
 import { paneId, tabId, workspaceId } from '../ids.ts';
 import type { PaneId } from '../ids.ts';
-import { cellWords, rowHeaderWords, rowWords } from '../rows/rows.ts';
+import { cellWords, CursorShape, rowHeaderWords, rowWords } from '../rows/rows.ts';
 import type { RowUpdate } from '../rows/rows.ts';
 import { createScrollMode } from './scrollMode.ts';
 import type { ScrollModeSession } from './scrollMode.ts';
@@ -36,7 +36,7 @@ const updateOf = (shown: readonly number[]): RowUpdate => {
     pane: 1,
     sequence: 1,
     size: { columns, rows: height },
-    cursor: { x: 1, y: 2, visible: true },
+    cursor: { x: 1, y: 2, visible: true, shape: CursorShape.default, blinking: false },
     modes: 0,
     epoch: 1,
     first: oldest,

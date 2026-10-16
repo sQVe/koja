@@ -12,7 +12,7 @@ import {
   parseControl,
 } from '../src/protocol/protocol.ts';
 import type { ControlMessage } from '../src/protocol/protocol.ts';
-import { decodePaneInput, encodeRowUpdate, rowWords } from '../src/rows/rows.ts';
+import { CursorShape, decodePaneInput, encodeRowUpdate, rowWords } from '../src/rows/rows.ts';
 import { createTerminal } from '../src/vt/vt.ts';
 
 export interface AttachHarness {
@@ -102,7 +102,7 @@ const paneRows = (pane: number, sequence: number, modes: number) => {
       pane,
       sequence,
       size: { columns, rows: 23 },
-      cursor: { x: 0, y: 0, visible: true },
+      cursor: { x: 0, y: 0, visible: true, shape: CursorShape.default, blinking: false },
       modes,
       epoch: 1,
       first: 0,

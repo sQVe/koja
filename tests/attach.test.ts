@@ -13,7 +13,7 @@ import {
   FrameKind,
   parseControl,
 } from '../src/protocol/protocol.ts';
-import { CellFlag, cellWords, rowHeaderWords, rowWords } from '../src/rows/rows.ts';
+import { CursorShape } from '../src/rows/rows.ts';
 import { createTerminal } from '../src/vt/vt.ts';
 import { createWorkspaceAt, endServersIn, serverProcessesIn, waitFor } from './serverProcesses.ts';
 
@@ -170,17 +170,16 @@ it('shows the shell screen and cursor', async () => {
 
   expect(rows[outputRow + 1]).toContain('attach-prompt>');
   expect(screen.text()).toContain('INSERT');
-  screen.markAllDirty();
 
-  const frame = screen.frame();
-
-  const stride = rowWords(80);
   const promptColumn = sideListColumns + 'attach-prompt> '.length;
 
-  const cursorFlags =
-    frame.cells[(outputRow + 1) * stride + rowHeaderWords + promptColumn * cellWords + 3] ?? 0;
-
-  expect(cursorFlags & CellFlag.inverse).toBe(CellFlag.inverse);
+  expect(screen.frame().cursor).toEqual({
+    x: promptColumn,
+    y: outputRow + 1,
+    visible: true,
+    shape: CursorShape.default,
+    blinking: false,
+  });
 });
 
 it('resizes the pane to the client size less the side list and the status bar', async () => {
@@ -595,7 +594,7 @@ it('shows the first tab again after H and 1 without resizing a pane', async () =
   expect(await waitFor(() => lastLine(screen.text()) === 'NORMAL 1 [2]')).toBe(true);
   client.terminal?.write('1');
   expect(await waitFor(() => lastLine(screen.text()) === 'NORMAL [1] 2')).toBe(true);
-  expect(screen.text()).toContain('tab-one-marker');
+  expect(await waitFor(() => screen.text().includes('tab-one-marker'))).toBe(true);
   expect((await readPaneSizes(socketPath)).slice(0, sizes.length)).toEqual(sizes);
 });
 

@@ -5,6 +5,7 @@ import {
   concatRows,
   CellWidth,
   cellWords,
+  CursorShape,
   decodePaneInput,
   decodePaneRows,
   decodeRowUpdate,
@@ -51,7 +52,7 @@ const rowUpdate = (overrides: Partial<RowUpdate> = {}): RowUpdate => ({
   pane: 3,
   sequence: 41,
   size: { columns, rows: 24 },
-  cursor: { x: 5, y: 0, visible: true },
+  cursor: { x: 5, y: 0, visible: true, shape: CursorShape.default, blinking: false },
   modes: ModeFlag.bracketedPaste | ModeFlag.sgrMouse,
   epoch: 2,
   first: 0,
@@ -142,6 +143,14 @@ it('round-trips a row update with one row, a cursor, and modes', () => {
   expect(roundTrip(update)).toEqual({ ok: true, update });
 });
 
+it('round-trips a row update with a cursor shape and blinking', () => {
+  const update = rowUpdate({
+    cursor: { x: 2, y: 7, visible: true, shape: CursorShape.underline, blinking: true },
+  });
+
+  expect(roundTrip(update)).toEqual({ ok: true, update });
+});
+
 it('round-trips a row update with changed colors', () => {
   const update = rowUpdate({ colors: Uint32Array.of(1, 0x1_12_34_56, 257, 0x1_00_00_00) });
 
@@ -222,35 +231,40 @@ it.each([
   ['bytes that end inside the header', encodeRowUpdate(rowUpdate()).subarray(0, 40), 'wrongLength'],
   [
     'a row count larger than the payload',
-    corrupted(rowUpdate(), (words) => words.with(13, 2)),
+    corrupted(rowUpdate(), (words) => words.with(15, 2)),
     'rowCountMismatch',
   ],
   ['rows cut short', corrupted(rowUpdate(), (words) => words.subarray(0, -1)), 'rowCountMismatch'],
   [
     'a row number of 2^53 or more',
-    corrupted(rowUpdate(), (words) => words.with(12, 2 ** 21)),
+    corrupted(rowUpdate(), (words) => words.with(14, 2 ** 21)),
     'rowNumberTooLarge',
   ],
   [
+    'a cursor shape past the default shape',
+    corrupted(rowUpdate(), (words) => words.with(7, 4)),
+    'unknownCursorShape',
+  ],
+  [
     'a color count larger than the payload',
-    corrupted(rowUpdate(), (words) => words.with(14, 1000)),
+    corrupted(rowUpdate(), (words) => words.with(16, 1000)),
     'colorPastEnd',
   ],
   [
     'an odd color count',
-    corrupted(rowUpdate({ colors: Uint32Array.of(1, 0x1_00_00_00) }), (words) => words.with(14, 1)),
+    corrupted(rowUpdate({ colors: Uint32Array.of(1, 0x1_00_00_00) }), (words) => words.with(16, 1)),
     'colorPastEnd',
   ],
   [
     'a color slot past the default background',
     corrupted(rowUpdate({ colors: Uint32Array.of(1, 0x1_00_00_00) }), (words) =>
-      words.with(15, 258),
+      words.with(17, 258),
     ),
     'colorSlotInvalid',
   ],
   [
     'a color word without the marker bit',
-    corrupted(rowUpdate({ colors: Uint32Array.of(1, 0x1_00_00_00) }), (words) => words.with(16, 5)),
+    corrupted(rowUpdate({ colors: Uint32Array.of(1, 0x1_00_00_00) }), (words) => words.with(18, 5)),
     'colorInvalid',
   ],
   [

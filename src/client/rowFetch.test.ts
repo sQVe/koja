@@ -2,7 +2,7 @@ import { expect, it } from 'bun:test';
 
 import { paneId } from '../ids.ts';
 import type { ControlMessage } from '../protocol/protocol.ts';
-import { PaneRowsSource, rowHeaderWords, rowWords } from '../rows/rows.ts';
+import { CursorShape, PaneRowsSource, rowHeaderWords, rowWords } from '../rows/rows.ts';
 import type { PaneRows, RowUpdate } from '../rows/rows.ts';
 import { createRowCache } from './rowCache.ts';
 import { createRowFetcher } from './rowFetch.ts';
@@ -15,7 +15,7 @@ const heldUpdate: RowUpdate = {
   pane: 1,
   sequence: 1,
   size: { columns, rows: 2 },
-  cursor: { x: 0, y: 0, visible: true },
+  cursor: { x: 0, y: 0, visible: true, shape: CursorShape.default, blinking: false },
   modes: 0,
   epoch: 1,
   first: 0,

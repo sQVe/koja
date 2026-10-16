@@ -15,6 +15,7 @@ import {
 } from '../src/protocol/protocol.ts';
 import type { ControlMessage } from '../src/protocol/protocol.ts';
 import {
+  CursorShape,
   decodePaneInput,
   encodeRowUpdate,
   ModeFlag,
@@ -339,7 +340,7 @@ const rowUpdate = (overrides: Partial<RowUpdate> = {}): RowUpdate => {
     pane: 7,
     sequence: 1,
     size: { columns, rows: 2 },
-    cursor: { x: 1, y: 0, visible: true },
+    cursor: { x: 1, y: 0, visible: true, shape: CursorShape.default, blinking: false },
     modes: 0,
     epoch: 1,
     first: 0,
@@ -361,7 +362,7 @@ it('fills the row cache from row updates', async () => {
   const cache = session.rowCache(paneId(7));
 
   expect(cache?.size()).toEqual({ columns: 3, rows: 2 });
-  expect(cache?.cursor()).toEqual({ x: 1, y: 0, visible: true });
+  expect(cache?.cursor()).toMatchObject({ x: 1, y: 0, visible: true });
   expect(cache?.row(0)?.cells[0]).toBe('h'.codePointAt(0));
   expect(cache?.row(1)).toBeUndefined();
 });
