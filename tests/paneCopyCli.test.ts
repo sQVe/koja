@@ -7,6 +7,12 @@ import { setup, waitForText } from './paneHarness.ts';
 
 const failureSchema = z.object({ copied: z.literal(false), reason: z.string() });
 
+const prunedSchema = z.object({
+  copied: z.literal(false),
+  reason: z.literal('pruned'),
+  oldest: z.number(),
+});
+
 const printedSchema = z.object({ text: z.string() });
 
 const digits = '0123456789'.repeat(10);
@@ -115,6 +121,35 @@ it(
     );
 
     expect(printedSchema.parse(JSON.parse(json.stdout))).toEqual({ text: 'alpha' });
+  },
+  cliTestTimeoutMs,
+);
+
+it(
+  'names the oldest kept row in json when the range starts below it',
+  async () => {
+    const { phi, first } = await setup('seq 1 120000\nprintf done');
+
+    await waitForText(phi, first, 'done');
+
+    const copy = await phi(
+      'pane',
+      'copy',
+      first,
+      '--from',
+      '0:0',
+      '--to',
+      '0:4',
+      '--print',
+      '--json',
+    );
+
+    expect(copy.exitCode).not.toBe(0);
+
+    const failure = prunedSchema.parse(JSON.parse(copy.stdout));
+
+    expect(failure.oldest).toBeGreaterThan(0);
+    expect(copy.stderr).toContain(`${failure.oldest}`);
   },
   cliTestTimeoutMs,
 );

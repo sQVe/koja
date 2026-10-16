@@ -18,7 +18,7 @@ type CopyFailure =
 type CopyOutput =
   | { copied: true; client: ClientId; text: string }
   | { text: string }
-  | { copied: false; reason: CopyFailure };
+  | { copied: false; reason: CopyFailure; oldest?: number };
 
 type CopyResult = Awaited<ReturnType<typeof runPaneCopy>>;
 
@@ -69,7 +69,12 @@ export const runPaneCopyCommand = async (
     const message = failureMessage(request, result, socketPath);
 
     if (json) {
-      print<CopyOutput>(true, { json: { copied: false, reason: result.reason }, text: message });
+      const output: CopyOutput =
+        result.reason === 'pruned'
+          ? { copied: false, reason: result.reason, oldest: result.oldest }
+          : { copied: false, reason: result.reason };
+
+      print<CopyOutput>(true, { json: output, text: message });
     }
 
     return { ok: false, message };
