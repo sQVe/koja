@@ -1,7 +1,7 @@
 import { expect, it } from 'bun:test';
 
 import { clientId, paneId, tabId, workspaceId } from '../ids.ts';
-import { activeTabOf, applyIntent, savedSessionOf } from './store.ts';
+import { activeTabOf, applyIntent, createState, savedSessionOf } from './store.ts';
 import type { Applied, State } from './store.ts';
 import {
   attachLarge,
@@ -14,6 +14,7 @@ import {
   noFolders,
   run,
   twoClients,
+  unknownWorkspace,
   viewShowing,
   withViews,
 } from './storeFixtures.ts';
@@ -456,4 +457,46 @@ it('returns each view a failed tab start moved to its own earlier tab', () => {
   expect(activeIn(keeps, 1, 1)).toBe(tabId(1));
   expect(activeIn(keeps, 2, 1)).toBe(tabId(1));
   expect(activeTabOf(keeps.defaultView, workspaceId(1))).toBe(tabId(1));
+});
+
+it('finds no active tab of a workspace that a view does not list', () => {
+  expect(activeTabOf(createState().defaultView, workspaceId(1))).toBeUndefined();
+  expect(activeTabOf(run([createPhi]).defaultView, unknownWorkspace)).toBeUndefined();
+});
+
+it('reports the view of a client that gains the active tab of a new unfocused workspace', () => {
+  const state = run([createPhi, attachLarge]);
+
+  const result = intent(state, {
+    type: 'createWorkspace',
+    root: '/work/docs',
+    label: 'docs',
+    focus: false,
+  });
+
+  expect(result.changes).toContainEqual({
+    type: 'clientViewChanged',
+    clientId: clientId(1),
+    view: result.state.defaultView,
+  });
+});
+
+it('reports the view of a client when only one of its active tabs changes', () => {
+  const state = run([
+    createPhi,
+    createDocs,
+    { type: 'focusWorkspace', workspaceId: workspaceId(1) },
+    attachLarge,
+  ]);
+
+  const result = intent(state, createTab);
+
+  expect(activeIn(result.state, 1, 1)).toBe(tabId(3));
+  expect(activeIn(result.state, 1, 2)).toBe(tabId(2));
+
+  expect(result.changes).toContainEqual({
+    type: 'clientViewChanged',
+    clientId: clientId(1),
+    view: result.state.defaultView,
+  });
 });

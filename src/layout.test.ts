@@ -3,12 +3,15 @@ import { expect, it } from 'bun:test';
 import { paneId } from './ids.ts';
 import {
   canSplit,
+  firstPaneId,
   layoutPanes,
   paneSize,
+  removePane,
   resizeLayout,
   shownLayout,
   sideListColumns,
   sideListWidth,
+  splitLayout,
 } from './layout.ts';
 import type { Layout, PaneRectangle, TerminalSize } from './layout.ts';
 
@@ -92,6 +95,29 @@ it('keeps every terminal at least 1x1 when the area is too small to split', () =
     { x: 1, y: 1, columns: 1, rows: 1 },
     { x: 5, y: 1, columns: 1, rows: 1 },
   ]);
+});
+
+const ratioSplit = (
+  direction: 'below' | 'right',
+  ratio: number,
+  first: Layout,
+  second: Layout,
+): Layout => ({ kind: 'split', direction, ratio, first, second });
+
+it('keeps the second pane at its minimum when the ratio would take its cells', () => {
+  const placed = layoutPanes(ratioSplit('right', 0.99, leaf(1), leaf(2)), {
+    columns: 81,
+    rows: 24,
+  });
+
+  expect(placed.map((pane) => pane.columns)).toEqual([77, 3]);
+});
+
+it('gives a subtree the larger minimum of its children on the other axis', () => {
+  const stacked = split('below', leaf(2), split('right', leaf(3), leaf(4)));
+  const placed = layoutPanes(ratioSplit('right', 0.9, leaf(1), stacked), { columns: 40, rows: 24 });
+
+  expect(placed.map((pane) => pane.columns)).toEqual([32, 7, 3, 3]);
 });
 
 const frameCellPositions = (placed: PaneRectangle[]): string[] =>
@@ -243,4 +269,108 @@ it('gives nothing when the pane has no split on the axis', () => {
   expect(resizeLayout(leaf(1), paneId(1), 'left', 1, area)).toBeUndefined();
   expect(resizeLayout(split('right', leaf(1), leaf(2)), paneId(1), 'up', 1, area)).toBeUndefined();
   expect(resizeLayout(nested, paneId(3), 'down', 1, area)).toBeUndefined();
+});
+
+it('gives nothing to move when the area cannot hold both subtrees', () => {
+  const pair = split('right', leaf(1), leaf(2));
+
+  expect(resizeLayout(pair, paneId(1), 'right', 1, { columns: 6, rows: 25 })).toBe(pair);
+});
+
+it('keeps the far end clear for the second subtree when the edge moves past it', () => {
+  const pair = split('right', leaf(1), leaf(2));
+  const moved = resizeLayout(pair, paneId(1), 'right', 500, area) as Layout;
+  const wider = layoutPanes(moved, { columns: 161, rows: 25 });
+
+  expect(wider.map((pane) => pane.columns)).toEqual([154, 6]);
+});
+
+it('gives the same layout when a nested edge cannot move', () => {
+  const inner = split('right', leaf(1), leaf(2));
+  const outer = split('below', inner, leaf(3));
+  const clamped = resizeLayout(outer, paneId(1), 'left', 500, area) as Layout;
+
+  expect(resizeLayout(clamped, paneId(1), 'left', 1, area)).toBe(clamped);
+});
+
+it('gives the same layout when resizing by no cells', () => {
+  const pair = split('right', leaf(1), leaf(2));
+
+  expect(resizeLayout(pair, paneId(1), 'right', 0, area)).toBe(pair);
+});
+
+it('finds the first pane of a layout', () => {
+  expect(firstPaneId(leaf(4))).toBe(paneId(4));
+  expect(firstPaneId(split('right', split('below', leaf(2), leaf(3)), leaf(1)))).toBe(paneId(2));
+});
+
+it('splits only the target pane in half and puts the new pane second', () => {
+  const layout = split('right', leaf(1), leaf(2));
+  const result = splitLayout(layout, paneId(2), 'below', paneId(3));
+
+  expect(result).toEqual(split('right', leaf(1), split('below', leaf(2), leaf(3))));
+});
+
+it('splits a lone pane', () => {
+  expect(splitLayout(leaf(1), paneId(1), 'right', paneId(2))).toEqual(
+    split('right', leaf(1), leaf(2)),
+  );
+});
+
+it('keeps the ratio of the splits around the target when it splits', () => {
+  const layout = ratioSplit('right', 0.3, leaf(1), leaf(2));
+  const result = splitLayout(layout, paneId(1), 'below', paneId(3));
+
+  expect(result).toEqual(ratioSplit('right', 0.3, split('below', leaf(1), leaf(3)), leaf(2)));
+});
+
+it('gives nothing to remove from a lone pane', () => {
+  expect(removePane(leaf(1), paneId(1))).toBeUndefined();
+});
+
+it('gives the second child back when the first child is removed', () => {
+  const layout = split('right', leaf(1), split('below', leaf(2), leaf(3)));
+  const second = split('below', leaf(2), leaf(3));
+
+  expect(removePane(layout, paneId(1))).toEqual({ layout: second, sibling: second });
+});
+
+it('gives the first child back when the second child is removed', () => {
+  const layout = split('right', split('below', leaf(1), leaf(2)), leaf(3));
+  const first = split('below', leaf(1), leaf(2));
+
+  expect(removePane(layout, paneId(3))).toEqual({ layout: first, sibling: first });
+});
+
+it('removes a pane from the first subtree and keeps the rest', () => {
+  const layout = ratioSplit('right', 0.3, split('below', leaf(1), leaf(2)), leaf(3));
+
+  expect(removePane(layout, paneId(2))).toEqual({
+    layout: ratioSplit('right', 0.3, leaf(1), leaf(3)),
+    sibling: leaf(1),
+  });
+});
+
+it('removes a pane from the second subtree and keeps the rest', () => {
+  const layout = ratioSplit('right', 0.3, leaf(1), split('below', leaf(2), leaf(3)));
+
+  expect(removePane(layout, paneId(3))).toEqual({
+    layout: ratioSplit('right', 0.3, leaf(1), leaf(2)),
+    sibling: leaf(2),
+  });
+});
+
+it('removes a pane from a split of two splits', () => {
+  const layout = split('right', split('below', leaf(1), leaf(2)), split('below', leaf(3), leaf(4)));
+
+  expect(removePane(layout, paneId(4))).toEqual({
+    layout: split('right', split('below', leaf(1), leaf(2)), leaf(3)),
+    sibling: leaf(3),
+  });
+});
+
+it('gives nothing to remove when the pane is not in the layout', () => {
+  const layout = split('right', split('below', leaf(1), leaf(2)), leaf(3));
+
+  expect(removePane(layout, paneId(9))).toBeUndefined();
 });

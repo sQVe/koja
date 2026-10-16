@@ -161,3 +161,12 @@ it('follows the bottom when a reset removes the history', () => {
 
   expect(scrollOfClient(result.state, 1, 1)).toBeUndefined();
 });
+
+it('drops the position of a closed pane with the next scroll', () => {
+  const state = twoClients(createPhi, createDocs);
+  const scrolled = scroll(state, 1, 1, 7).state;
+  const closed = intent(scrolled, { type: 'closePane', paneId: paneId(1) }).state;
+  const result = scroll(closed, 1, 2, 3);
+
+  expect(result.state.clients[0]?.view.scrolls).toEqual([{ paneId: paneId(2), topRow: 3 }]);
+});

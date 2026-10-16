@@ -8,6 +8,7 @@ import {
   createDocs,
   createPhi,
   createTab,
+  defined,
   fact,
   intent,
   run,
@@ -170,4 +171,178 @@ it('does not bring the destination zoom back when a moved running pane exits', (
 
   expect(exited.state.panes.some((pane) => pane.id === paneId(3))).toBe(false);
   expect(exited.state.tabs.find((tab) => tab.id === tabId(1))?.zoomedPaneId).toBeUndefined();
+});
+
+const tabOf = (state: State, id: number) => state.tabs.find((tab) => tab.id === tabId(id));
+
+it('moves only the pane it names', () => {
+  const state = run([attachLarge, createPhi, splitFirst('right'), createTab]);
+  const result = intent(state, move(3, toTab(1)));
+
+  expect(result.state.panes.map((pane) => pane.tabId)).toEqual([tabId(1), tabId(1), tabId(1)]);
+
+  const other = intent(state, move(1, toTab(2)));
+
+  expect(other.state.panes.map((pane) => pane.tabId)).toEqual([tabId(2), tabId(1), tabId(2)]);
+});
+
+it('adds the new tab only to the workspace of the pane', () => {
+  const state = run([attachLarge, createPhi, splitFirst('right'), createDocs]);
+  const result = intent(state, move(2, { kind: 'newTab' }));
+
+  expect(result.state.workspaces.map((workspace) => workspace.tabIds)).toEqual([
+    [tabId(1), tabId(3)],
+    [tabId(2)],
+  ]);
+});
+
+it('reports the layout, focus, and move of a pane that joins a tab', () => {
+  const state = run([attachLarge, createPhi, splitFirst('right'), createTab]);
+  const result = intent(state, move(3, toTab(1)));
+  const destination = tabOf(result.state, 1);
+
+  expect(destination).toBeDefined();
+  expect(result.changes).toContainEqual({ type: 'paneMoved', paneId: paneId(3), tabId: tabId(1) });
+
+  expect(result.changes).toContainEqual({
+    type: 'tabLayoutChanged',
+    tabId: tabId(1),
+    layout: defined(destination).layout,
+  });
+
+  expect(result.changes).toContainEqual({
+    type: 'paneFocused',
+    tabId: tabId(1),
+    paneId: paneId(3),
+  });
+});
+
+it('reports the new tab and the move of a pane that leaves for a new tab', () => {
+  const state = run([attachLarge, createPhi, splitFirst('right')]);
+  const result = intent(state, move(2, { kind: 'newTab' }));
+  const created = tabOf(result.state, 2);
+
+  expect(result.changes).toContainEqual({ type: 'tabAdded', tab: defined(created) });
+  expect(result.changes).toContainEqual({ type: 'paneMoved', paneId: paneId(2), tabId: tabId(2) });
+});
+
+it('adds a workspace with its tab, counters, and changes when a pane moves to a new workspace', () => {
+  const state = run([attachLarge, createPhi, splitFirst('below')]);
+  const result = intent(state, move(2, { kind: 'newWorkspace', root: '/work/moved' }));
+  const created = tabOf(result.state, 2);
+
+  expect(result.state.tabs.map((tab) => tab.id)).toEqual([tabId(1), tabId(2)]);
+  expect(result.state.nextWorkspaceNumber).toBe(3);
+  expect(result.state.nextTabNumber).toBe(3);
+
+  expect(result.changes).toContainEqual({
+    type: 'workspaceAdded',
+    workspace: defined(result.state.workspaces[1]),
+    activeTabId: tabId(2),
+    focusedWorkspaceId: workspaceId(1),
+  });
+
+  expect(result.changes).toContainEqual({ type: 'tabAdded', tab: defined(created) });
+  expect(result.changes).toContainEqual({ type: 'paneMoved', paneId: paneId(2), tabId: tabId(2) });
+});
+
+it('drops the split record of a moved pane', () => {
+  const state = run([attachLarge, createPhi, splitFirst('right')]);
+  const result = intent(state, move(2, { kind: 'newTab' }));
+
+  expect(state.stateBeforeSplit.has(paneId(2))).toBe(true);
+  expect(result.state.stateBeforeSplit.has(paneId(2))).toBe(false);
+});
+
+it('restores the destination focus and zoom when a moved starting pane fails to start', () => {
+  const state = run([attachLarge, createPhi, splitFirst('right'), zoom(1), createTab]);
+  const moved = intent(state, move(3, toTab(1))).state;
+
+  const result = fact(moved, {
+    type: 'paneFailedToStart',
+    paneId: paneId(3),
+    generation: 3,
+    message: 'no shell',
+  });
+
+  expect(tabOf(moved, 1)?.zoomedPaneId).toBeUndefined();
+  expect(tabOf(result.state, 1)?.focusedPaneId).toBe(paneId(1));
+  expect(tabOf(result.state, 1)?.zoomedPaneId).toBe(paneId(1));
+});
+
+it('refuses a move when the focused pane of the destination is too small', () => {
+  const small: Intent = { type: 'attachClient', size: { columns: 40, rows: 9 } };
+
+  const state = run([
+    small,
+    createPhi,
+    splitFirst('right'),
+    { type: 'splitPane', paneId: paneId(2), direction: 'below', folder: undefined },
+    { type: 'splitPane', paneId: paneId(3), direction: 'right', folder: undefined },
+    { type: 'splitPane', paneId: paneId(4), direction: 'right', folder: undefined },
+    createTab,
+  ]);
+
+  expect(refusalOf(state, move(6, toTab(1)))).toBe('paneTooSmall');
+});
+
+const threePaneTab = (...more: readonly Intent[]) =>
+  run([
+    attachLarge,
+    createPhi,
+    splitFirst('right'),
+    { type: 'splitPane', paneId: paneId(2), direction: 'below', folder: undefined },
+    ...more,
+  ]);
+
+it('keeps the focus and reports no focus change when an unfocused pane leaves a tab', () => {
+  const state = threePaneTab({ type: 'focusPane', paneId: paneId(3) });
+  const result = intent(state, move(1, { kind: 'newTab' }));
+
+  expect(tabOf(result.state, 1)?.focusedPaneId).toBe(paneId(3));
+
+  expect(result.changes).not.toContainEqual(
+    expect.objectContaining({ type: 'paneFocused', tabId: tabId(1) }),
+  );
+});
+
+it('moves the focus to the sibling and reports the source layout when the focused pane leaves', () => {
+  const state = threePaneTab();
+  const result = intent(state, move(3, { kind: 'newTab' }));
+  const source = tabOf(result.state, 1);
+
+  expect(source?.focusedPaneId).toBe(paneId(2));
+
+  expect(result.changes).toContainEqual({
+    type: 'tabLayoutChanged',
+    tabId: tabId(1),
+    layout: defined(source).layout,
+  });
+
+  expect(result.changes).toContainEqual({
+    type: 'paneFocused',
+    tabId: tabId(1),
+    paneId: paneId(2),
+  });
+});
+
+it('unzooms the source tab and reports it when the zoomed pane leaves', () => {
+  const state = threePaneTab(zoom(3));
+  const result = intent(state, move(3, { kind: 'newTab' }));
+
+  expect(tabOf(result.state, 1)?.zoomedPaneId).toBeUndefined();
+
+  expect(result.changes).toContainEqual({
+    type: 'tabZoomChanged',
+    tabId: tabId(1),
+    zoomedPaneId: undefined,
+  });
+});
+
+it('keeps the zoom of the source tab when another pane leaves', () => {
+  const state = threePaneTab(zoom(3));
+  const result = intent(state, move(1, { kind: 'newTab' }));
+
+  expect(tabOf(result.state, 1)?.zoomedPaneId).toBe(paneId(3));
+  expect(changeTypes(result.changes)).not.toContain('tabZoomChanged');
 });

@@ -2,15 +2,24 @@ import { expect, it } from 'bun:test';
 
 import { clientId, paneId, tabId, workspaceId } from '../ids.ts';
 import type { PaneId } from '../ids.ts';
-import { activeTabOf, applyFact, applyIntent, focusedPane } from './store.ts';
+import {
+  activeTabOf,
+  applyFact,
+  applyIntent,
+  createState,
+  focusedPane,
+  savedSessionOf,
+} from './store.ts';
 import type { Fact, Ignored, Intent, State } from './store.ts';
 import {
   attachLarge,
   createDocs,
   createPhi,
   createTab,
+  defined,
   fact,
   intent,
+  noFolders,
   resize,
   run,
   splitFirst,
@@ -831,4 +840,144 @@ it('records the folder of a splitPane intent on the new pane', () => {
 
   expect(result.state.panes.find((pane) => pane.id === paneId(2))?.startFolder).toBe('/srv/source');
   expect(result.state.panes.find((pane) => pane.id === paneId(1))?.startFolder).toBeUndefined();
+});
+
+it('refuses to split a pane that is too small while the first pane has room', () => {
+  const state = run([
+    createPhi,
+    attachLarge,
+    splitFirst('below'),
+    splitPaneOf(2, 'below'),
+    splitPaneOf(3, 'below'),
+  ]);
+
+  expect(applyIntent(state, splitPaneOf(4, 'below'))).toEqual({
+    kind: 'rejected',
+    state,
+    reason: 'paneTooSmall',
+  });
+});
+
+it('gives the new pane of a split the size of its own area', () => {
+  const state = run([createPhi, attachLarge, splitFirst('right')]);
+  const result = intent(state, splitPaneOf(2, 'below'));
+
+  const added = result.changes.flatMap((change) =>
+    change.type === 'paneAdded' ? [change.pane] : [],
+  );
+
+  expect(added.map((pane) => pane.size)).toEqual([{ columns: 38, rows: 10 }]);
+});
+
+it('focuses the sibling when the pane recorded before a split has closed', () => {
+  const state = run([
+    createPhi,
+    attachLarge,
+    splitFirst('right'),
+    splitPaneOf(2, 'below'),
+    { type: 'closePane', paneId: paneId(1) },
+    { type: 'focusPane', paneId: paneId(2) },
+  ]);
+
+  const result = intent(state, { type: 'closePane', paneId: paneId(2) });
+
+  expect(result.state.tabs[0]?.focusedPaneId).toBe(paneId(3));
+
+  expect(result.changes).toContainEqual({
+    type: 'paneFocused',
+    tabId: tabId(1),
+    paneId: paneId(3),
+  });
+});
+
+it('drops the record of a split when its pane closes', () => {
+  const state = run([createPhi, attachLarge, splitFirst('right')]);
+  const result = intent(state, { type: 'closePane', paneId: paneId(2) });
+
+  expect(state.stateBeforeSplit.has(paneId(2))).toBe(true);
+  expect(result.state.stateBeforeSplit.has(paneId(2))).toBe(false);
+});
+
+it('changes only its own tab when a pane closes', () => {
+  const state = run([createPhi, attachLarge, createTab, splitFirst('right')]);
+  const result = intent(state, { type: 'closePane', paneId: paneId(3) });
+
+  expect(result.state.tabs[1]).toEqual(state.tabs[1]);
+  expect(result.state.tabs[0]?.layout).toEqual({ kind: 'pane', paneId: paneId(1) });
+});
+
+it('changes only its own tab when a pane resizes', () => {
+  const state = run([createPhi, attachLarge, createTab, splitFirst('right')]);
+  const result = intent(state, resize(1, 'right', 2));
+
+  expect(result.state.tabs[1]).toEqual(state.tabs[1]);
+  expect(result.state.tabs[0]?.layout).not.toEqual(state.tabs[0]?.layout);
+});
+
+it('keeps a closing pane in state as exited when the server stops', () => {
+  const stopped = run([createPhi, attachLarge, splitFirst('right'), { type: 'stopServer' }]);
+
+  const result = fact(stopped, {
+    type: 'paneExited',
+    paneId: paneId(2),
+    generation: 2,
+    exitCode: 4,
+  });
+
+  expect(result.state.stopping).toBe(true);
+  expect(result.state.tabs).toEqual(stopped.tabs);
+  expect(result.state.panes[0]).toEqual(stopped.panes[0]);
+
+  expect(result.state.panes[1]).toEqual({
+    ...defined(stopped.panes[1]),
+    lifecycle: 'exited',
+    exitCode: 4,
+  });
+});
+
+const fallbackPaneIds = (state: State): PaneId[] =>
+  state.startFallbacks.map((fallback) => fallback.paneId);
+
+it('keeps the start fallback of another pane when a pane starts', () => {
+  const state = run([createPhi, createDocs]);
+  const result = fact(state, startedPane(2, 2));
+
+  expect(fallbackPaneIds(state)).toEqual([paneId(1), paneId(2)]);
+  expect(fallbackPaneIds(result.state)).toEqual([paneId(1)]);
+});
+
+it.each([
+  ['exits', { type: 'paneExited', paneId: paneId(2), generation: 2, exitCode: 0 }],
+  [
+    'fails to start',
+    { type: 'paneFailedToStart', paneId: paneId(2), generation: 2, message: 'no shell' },
+  ],
+] as const)('keeps the start fallback of another pane when a pane %s', (_name, ending) => {
+  const state = run([createPhi, createDocs]);
+  const result = fact(state, ending);
+
+  expect(fallbackPaneIds(result.state)).toEqual([paneId(1)]);
+});
+
+it('marks a restored pane running when it starts, not failed', () => {
+  const saved = savedSessionOf(run([createPhi]), noFolders);
+  const restored = intent(createState(), { type: 'restoreSession', session: saved }).state;
+  const result = fact(restored, startedPane(1, restored.panes[0]?.generation ?? 0));
+
+  expect(result.state.panes[0]?.lifecycle).toBe('running');
+  expect(result.state.panes[0]?.error).toBeUndefined();
+});
+
+it('focuses the sibling when the pane recorded before a split moved to another tab', () => {
+  const state = run([
+    createPhi,
+    attachLarge,
+    splitFirst('right'),
+    splitPaneOf(2, 'below'),
+    { type: 'movePane', paneId: paneId(2), destination: { kind: 'newTab' } },
+  ]);
+
+  const result = intent(state, { type: 'closePane', paneId: paneId(3) });
+
+  expect(result.state.tabs[0]?.focusedPaneId).toBe(paneId(1));
 });
