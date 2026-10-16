@@ -232,7 +232,7 @@ export const setupAttach = async (
       data: (terminal, bytes) => {
         output.push(bytes.slice());
 
-        const reply = screen.write(bytes);
+        const { reply } = screen.write(bytes);
 
         if (reply !== undefined) {
           replies.push(reply);

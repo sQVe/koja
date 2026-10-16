@@ -48,6 +48,8 @@ export type CloseReason =
   | 'takenOver'
   | 'detached';
 
+export type PaneNotice = { kind: 'bell'; count: number } | { kind: 'clipboardWrite'; text: string };
+
 interface RowsChanged {
   pane: PaneId;
   // The indexes of the active screen rows that changed.
@@ -69,6 +71,9 @@ export interface AttachSession {
   getState: () => AttachState;
   setInputMode: (mode: InputMode) => void;
   subscribeRows: (listener: (changed: RowsChanged) => void) => () => void;
+  // Calls back for a bell or a clipboard write a pane program made while this client was in the
+  // foreground.
+  subscribeNotices: (listener: (notice: PaneNotice) => void) => () => void;
   rowCache: (pane: PaneId) => RowCache | undefined;
   // The sequence of the newest row update applied to the pane's cache, drawn or not.
   newestSequence: (pane: PaneId) => number | undefined;
@@ -112,6 +117,10 @@ export type AttachResult =
 
 const rowCacheLimit = 10_000;
 
+// Startup is short, so a few notices cover it. The limit stops a client that never subscribes from
+// growing without bound.
+const unheardNoticeLimit = 32;
+
 const layoutAnswerTimeoutMs = 2000;
 
 const handshakeTimeoutMs = 10_000;
@@ -151,6 +160,8 @@ export const connectAttach = async (
   const newestSequences = new Map<PaneId, number>();
   const stateListeners = new Set<() => void>();
   const rowListeners = new Set<(changed: RowsChanged) => void>();
+  const noticeListeners = new Set<(notice: PaneNotice) => void>();
+  const unheardNotices: PaneNotice[] = [];
   // The server answers workspace requests in the order it receives them.
   const replyQueue: ((reply: WorkspaceReply) => void)[] = [];
   let pending: Uint8Array = new Uint8Array();
@@ -382,6 +393,22 @@ export const connectAttach = async (
     noteFreshRows(pane);
   };
 
+  const announce = (notice: PaneNotice): void => {
+    if (noticeListeners.size === 0) {
+      unheardNotices.push(notice);
+
+      if (unheardNotices.length > unheardNoticeLimit) {
+        unheardNotices.shift();
+      }
+
+      return;
+    }
+
+    for (const listener of noticeListeners) {
+      listener(notice);
+    }
+  };
+
   const takeHandshake = (message: ControlMessage): void => {
     if (message.type === 'refused') {
       handshake.resolve({
@@ -422,6 +449,23 @@ export const connectAttach = async (
     return false;
   };
 
+  // Returns whether the message was a bell or a clipboard write.
+  const takePaneNotice = (message: ControlMessage): boolean => {
+    if (message.type === 'bell') {
+      announce({ kind: 'bell', count: message.count });
+
+      return true;
+    }
+
+    if (message.type === 'clipboardWrite') {
+      announce({ kind: 'clipboardWrite', text: message.text });
+
+      return true;
+    }
+
+    return false;
+  };
+
   const takeControl = (message: ControlMessage): void => {
     if (!welcomed) {
       takeHandshake(message);
@@ -441,7 +485,7 @@ export const connectAttach = async (
       return;
     }
 
-    if (takeRequestAnswer(message)) {
+    if (takeRequestAnswer(message) || takePaneNotice(message)) {
       return;
     }
 
@@ -515,6 +559,17 @@ export const connectAttach = async (
 
       return () => {
         rowListeners.delete(listener);
+      };
+    },
+    subscribeNotices: (listener) => {
+      noticeListeners.add(listener);
+
+      for (const notice of unheardNotices.splice(0)) {
+        listener(notice);
+      }
+
+      return () => {
+        noticeListeners.delete(listener);
       };
     },
     rowCache: (pane) => rowCaches.get(pane),

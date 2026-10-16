@@ -27,6 +27,8 @@ interface SpawnPaneOptions {
   // Defaults to 10 MiB.
   scrollbackBytes?: number;
   onOutput: () => void;
+  onBell: (count: number) => void;
+  onClipboard: (text: string) => void;
 }
 
 export interface PaneRuntime {
@@ -145,10 +147,18 @@ export const spawnPane = (options: SpawnPaneOptions): SpawnPaneResult => {
       return;
     }
 
-    const reply = terminal.write(bytes);
+    const { reply, bells, clipboard } = terminal.write(bytes);
 
     if (reply !== undefined) {
       pty.write(reply);
+    }
+
+    if (bells > 0) {
+      options.onBell(bells);
+    }
+
+    for (const text of clipboard) {
+      options.onClipboard(text);
     }
 
     terminal.stableRows();

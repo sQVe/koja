@@ -12,6 +12,11 @@ typedef struct {
   size_t reply_len;
   size_t reply_capacity;
   bool reply_lost;
+  uint32_t bells;
+  // Clipboard writes since the last pane_clear_events, each a 32-bit native-endian length then its bytes.
+  uint8_t *clipboard;
+  size_t clipboard_len;
+  size_t clipboard_capacity;
   // Stable row numbers, see pane_stable_rows.
   GhosttyTrackedGridRef anchor;
   uint64_t anchor_number;
@@ -44,6 +49,50 @@ static void write_pty(GhosttyTerminal terminal, void *userdata, const uint8_t *d
   }
   memcpy(pane->reply + pane->reply_len, data, len);
   pane->reply_len = needed;
+}
+
+static void bell(GhosttyTerminal terminal, void *userdata) {
+  (void)terminal;
+  Pane *pane = userdata;
+  if (pane->bells < UINT32_MAX) pane->bells++;
+}
+
+static bool append_clipboard(Pane *pane, const uint8_t *data, uint32_t len) {
+  size_t needed = pane->clipboard_len + sizeof(len) + len;
+  if (needed > pane->clipboard_capacity) {
+    size_t capacity = pane->clipboard_capacity * 2;
+    if (capacity < needed) capacity = needed;
+    uint8_t *grown = realloc(pane->clipboard, capacity);
+    if (!grown) return false;
+    pane->clipboard = grown;
+    pane->clipboard_capacity = capacity;
+  }
+  memcpy(pane->clipboard + pane->clipboard_len, &len, sizeof(len));
+  if (len > 0) memcpy(pane->clipboard + pane->clipboard_len + sizeof(len), data, len);
+  pane->clipboard_len = needed;
+  return true;
+}
+
+// The text travels to the client as JSON, where escaping can make one byte six. At this size the
+// message stays within the server's 1 MiB queue for each client connection.
+static const size_t clipboard_max_bytes = 128 * 1024;
+
+// Only the standard clipboard's non-empty text is kept. The request is borrowed, so the text is
+// copied before returning. Returning without a reply denies the write.
+static void clipboard_write(GhosttyTerminal terminal, void *userdata, const GhosttyClipboardWrite *write) {
+  (void)terminal;
+  Pane *pane = userdata;
+  if (write->location != GHOSTTY_CLIPBOARD_LOCATION_STANDARD) return;
+  for (size_t index = 0; index < write->contents_len; index++) {
+    const GhosttyClipboardContent *content = &write->contents[index];
+    if (content->mime.len != 10 || memcmp(content->mime.ptr, "text/plain", 10) != 0) continue;
+    if (content->data.len == 0 || content->data.len > clipboard_max_bytes) return;
+    if (!append_clipboard(pane, content->data.ptr, (uint32_t)content->data.len)) return;
+    GhosttyClipboardWriteReply reply = GHOSTTY_INIT_SIZED(GhosttyClipboardWriteReply);
+    reply.result = GHOSTTY_CLIPBOARD_WRITE_RESULT_SUCCESS;
+    write->reply(write, &reply);
+    return;
+  }
 }
 
 static void full_reset(GhosttyTerminal terminal, void *userdata) {
@@ -81,6 +130,7 @@ void pane_free(Pane *pane) {
   ghostty_render_state_free(pane->state);
   ghostty_terminal_free(pane->terminal);
   free(pane->reply);
+  free(pane->clipboard);
   free(pane);
 }
 
@@ -105,6 +155,8 @@ Pane *pane_new(uint16_t cols, uint16_t rows, uint64_t scrollback_bytes) {
   ghostty_terminal_set(terminal, GHOSTTY_TERMINAL_OPT_USERDATA, pane);
   ghostty_terminal_set(terminal, GHOSTTY_TERMINAL_OPT_WRITE_PTY, (const void *)write_pty);
   ghostty_terminal_set(terminal, GHOSTTY_TERMINAL_OPT_DEVICE_ATTRIBUTES, (const void *)device_attributes);
+  ghostty_terminal_set(terminal, GHOSTTY_TERMINAL_OPT_BELL, (const void *)bell);
+  ghostty_terminal_set(terminal, GHOSTTY_TERMINAL_OPT_CLIPBOARD_WRITE, (const void *)clipboard_write);
   ghostty_terminal_set(terminal, GHOSTTY_TERMINAL_OPT_RESET, (const void *)full_reset);
   ghostty_terminal_set(terminal, GHOSTTY_TERMINAL_OPT_RENDER_HOLD, (const void *)render_hold);
   // OSC 10 and 11 queries only get a reply when default colors are set.
@@ -140,6 +192,17 @@ const uint8_t *pane_reply(Pane *pane) { return pane->reply; }
 void pane_clear_reply(Pane *pane) {
   pane->reply_len = 0;
   pane->reply_lost = false;
+}
+
+uint32_t pane_bells(Pane *pane) { return pane->bells; }
+
+const uint8_t *pane_clipboard(Pane *pane) { return pane->clipboard; }
+
+uint64_t pane_clipboard_len(Pane *pane) { return pane->clipboard_len; }
+
+void pane_clear_events(Pane *pane) {
+  pane->bells = 0;
+  pane->clipboard_len = 0;
 }
 
 // Returns waiting_reply_len, since a resize can send an in-band size report, or -2 when

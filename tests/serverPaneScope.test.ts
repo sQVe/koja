@@ -89,6 +89,8 @@ it.skipIf(!scopesAvailable)('ends the pane scope when the pane is disposed', asy
     identity: testIdentity,
     useScope: true,
     onOutput: () => undefined,
+    onBell: () => undefined,
+    onClipboard: () => undefined,
   });
 
   if (!result.ok) {
@@ -226,6 +228,8 @@ it.skipIf(!scopesAvailable)(
       identity: testIdentity,
       useScope: true,
       onOutput: () => undefined,
+      onBell: () => undefined,
+      onClipboard: () => undefined,
     });
 
     if (!result.ok) {
@@ -286,6 +290,8 @@ it.skipIf(!scopesAvailable)(
       identity: testIdentity,
       useScope: true,
       onOutput: () => undefined,
+      onBell: () => undefined,
+      onClipboard: () => undefined,
     });
 
     if (!result.ok) {
@@ -344,6 +350,8 @@ it.skipIf(!scopesAvailable)(
       identity: testIdentity,
       useScope: true,
       onOutput: () => undefined,
+      onBell: () => undefined,
+      onClipboard: () => undefined,
     });
 
     if (!result.ok) {

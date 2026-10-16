@@ -44,7 +44,7 @@ const openTerminal = (cols = 80, rows = 24, scrollbackBytes = defaultScrollbackB
 const writeChunks = (terminal: Terminal, chunks: string[]) =>
   chunks
     .map((chunk) => terminal.write(encoder.encode(chunk)))
-    .map((reply) => (reply === undefined ? '' : decoder.decode(reply)))
+    .map(({ reply }) => (reply === undefined ? '' : decoder.decode(reply)))
     .join('');
 
 const splits = (input: string) =>
@@ -125,7 +125,65 @@ const cursorAtBottomRight = '\u001B[999;999H\u001B[6n';
 it('replies to a cursor position query on a new terminal', () => {
   using terminal = openTerminal();
 
-  expect(decoder.decode(terminal.write(encoder.encode('\u001B[6n')))).toBe('\u001B[1;1R');
+  expect(decoder.decode(terminal.write(encoder.encode('\u001B[6n')).reply)).toBe('\u001B[1;1R');
+});
+
+it('counts a bell and ignores the BEL that ends an OSC sequence', () => {
+  using terminal = openTerminal();
+
+  expect(terminal.write(encoder.encode('\u0007')).bells).toBe(1);
+  expect(terminal.write(encoder.encode('\u001B]0;title\u0007')).bells).toBe(0);
+  expect(terminal.write(encoder.encode('\u0007\u0007')).bells).toBe(2);
+});
+
+it('reports the text of an OSC 52 clipboard write', () => {
+  using terminal = openTerminal();
+
+  const written = terminal.write(encoder.encode('\u001B]52;c;aGk=\u0007'));
+
+  expect(written.clipboard).toEqual(['hi']);
+  expect(terminal.write(encoder.encode('x')).clipboard).toEqual([]);
+});
+
+it('reports no clipboard text and no reply for invalid base64', () => {
+  using terminal = openTerminal();
+
+  const written = terminal.write(encoder.encode('\u001B]52;c;!!!\u0007'));
+
+  expect(written.clipboard).toEqual([]);
+  expect(written.reply).toBeUndefined();
+});
+
+const osc52 = (text: string) => `\u001B]52;c;${Buffer.from(text).toString('base64')}\u0007`;
+
+it('reports clipboard text up to 128 KiB and drops a longer write', () => {
+  using terminal = openTerminal();
+  const limit = 128 * 1024;
+
+  const atLimit = terminal.write(encoder.encode(osc52('x'.repeat(limit))));
+  const overLimit = terminal.write(encoder.encode(osc52('x'.repeat(limit + 1))));
+
+  expect(atLimit.clipboard).toEqual(['x'.repeat(limit)]);
+  expect(overLimit.clipboard).toEqual([]);
+});
+
+it('reports every clipboard write in one chunk and ignores the selection', () => {
+  using terminal = openTerminal();
+
+  const written = terminal.write(
+    encoder.encode('\u001B]52;c;aGk=\u0007\u001B]52;p;bm8=\u0007\u001B]52;c;eW8=\u0007'),
+  );
+
+  expect(written.clipboard).toEqual(['hi', 'yo']);
+});
+
+it('sends no reply to a clipboard read', () => {
+  using terminal = openTerminal();
+
+  const written = terminal.write(encoder.encode('\u001B]52;c;?\u0007'));
+
+  expect(written.reply).toBeUndefined();
+  expect(written.clipboard).toEqual([]);
 });
 
 describe.each([

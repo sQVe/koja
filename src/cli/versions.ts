@@ -26,7 +26,7 @@ export const readVersions = (): VersionsResult => {
   }
 
   using terminal = created.terminal;
-  const reply = terminal.write(statusQuery);
+  const { reply } = terminal.write(statusQuery);
   const replyText = reply === undefined ? '' : new TextDecoder().decode(reply);
 
   if (replyText !== statusReply) {

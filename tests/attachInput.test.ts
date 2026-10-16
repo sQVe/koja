@@ -121,7 +121,7 @@ const setupServer = async (terminalRows = 24, terminalColumns = 80) => {
         cols: terminalColumns,
         rows: terminalRows,
         data: (terminal, bytes) => {
-          const reply = screen.write(bytes);
+          const { reply } = screen.write(bytes);
 
           if (reply !== undefined) {
             terminal.write(reply);

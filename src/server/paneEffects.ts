@@ -9,6 +9,8 @@ import type { Log } from './log.ts';
 import { spawnPane } from './pane.ts';
 import type { PaneRuntime } from './pane.ts';
 import type { PaneIdentity } from './paneEnvironment.ts';
+import { sendToForeground } from './paneNotice.ts';
+import type { ForegroundContext } from './paneNotice.ts';
 import { readFollowFolder } from './processInfo.ts';
 import { createRowPublisher } from './rowPublisher.ts';
 import { scheduleRows } from './rowSubscriptions.ts';
@@ -26,7 +28,7 @@ export interface PaneEffectContext {
     scrollbackBytes?: number;
   };
   state: State;
-  runtime: {
+  runtime: ForegroundContext['runtime'] & {
     panes: Map<PaneId, PaneRuntime>;
     rowPublishers: Map<PaneId, RowPublication>;
     // Whether panes start in a systemd user scope. Decided when the first pane starts.
@@ -198,6 +200,12 @@ export const startPane = (context: PaneEffectContext, pane: Pane, report: Report
       : { scrollbackBytes: context.options.scrollbackBytes }),
     onOutput: () => {
       scheduleRows(context, id, generation);
+    },
+    onBell: (count) => {
+      sendToForeground(context, { type: 'bell', count });
+    },
+    onClipboard: (text) => {
+      sendToForeground(context, { type: 'clipboardWrite', text });
     },
   });
 
