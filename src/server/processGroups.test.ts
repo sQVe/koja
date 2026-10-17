@@ -3,6 +3,30 @@ import { readFileSync } from 'node:fs';
 
 import { parseStat, sessionGroups } from './processGroups.ts';
 
+// Starts a shell whose background job leads a new process group in the session of this process.
+// Job control gives the job a group of its own. The shell prints the group and waits.
+const startGroupLeader = async () => {
+  const shell = Bun.spawn(['bash', '-c', 'set -m; sleep 60 & echo $!; wait'], {
+    stdout: 'pipe',
+    stderr: 'ignore',
+  });
+
+  const reader = shell.stdout.getReader();
+  const { value } = await reader.read();
+
+  reader.releaseLock();
+
+  const group = Number(new TextDecoder().decode(value).trim());
+
+  return {
+    group,
+    stop: () => {
+      process.kill(group);
+      shell.kill();
+    },
+  };
+};
+
 it('reads the process group and session after the command name', () => {
   expect(parseStat('4242 (sleep) S 4200 4242 4200 34817 4242 4194304 99 0')).toEqual({
     group: 4242,
@@ -20,7 +44,15 @@ it('reads a command name that holds spaces and parentheses', () => {
 });
 
 it('refuses a line without a command name', () => {
-  expect(parseStat('17 R 1 23 19')).toBeUndefined();
+  expect(parseStat('17 R 1 23 19 0 5')).toBeUndefined();
+});
+
+it.each([
+  ['process group', '17 (sh) R 1 abc 19 0 5'],
+  ['session', '17 (sh) R 1 23 abc 0 5'],
+  ['terminal group', '17 (sh) R 1 23 19 0 abc'],
+])('refuses a line with a %s that is not a number', (_name, line) => {
+  expect(parseStat(line)).toBeUndefined();
 });
 
 it('refuses a line cut off before the session', () => {
@@ -43,4 +75,21 @@ it('finds the process group of this process in its session', () => {
 
 it('finds no process group in a session that has no processes', () => {
   expect(sessionGroups(0x7f_ff_ff_ff)).toEqual([]);
+});
+
+it('finds the process group of another process in the session', async () => {
+  const own = parseStat(readFileSync('/proc/self/stat', 'utf8'));
+
+  if (own === undefined) {
+    throw new Error('Cannot read this process.');
+  }
+
+  const leader = await startGroupLeader();
+
+  try {
+    expect(leader.group).not.toBe(own.group);
+    expect(sessionGroups(own.session)).toContain(leader.group);
+  } finally {
+    leader.stop();
+  }
 });

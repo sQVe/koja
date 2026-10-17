@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'bun:test';
+import { readFileSync } from 'node:fs';
 
 import {
   CellFlag,
@@ -16,7 +17,7 @@ import {
   rowWords,
 } from '../rows/rows.ts';
 import type { Frame, StableRows, Terminal } from './vt.ts';
-import { createTerminal } from './vt.ts';
+import { createTerminal, ghosttyCommit } from './vt.ts';
 
 type DecodedRows = Pick<Frame, 'cells' | 'graphemes' | 'rowCount'>;
 
@@ -1527,4 +1528,96 @@ describe('colors', () => {
 
     expect([...terminal.colors()]).toEqual([1, colorKey(0x12_34_56)]);
   });
+});
+
+describe('the render hold query', () => {
+  it('reports whether synchronized output holds the frame', () => {
+    using terminal = openTerminal();
+
+    expect(terminal.renderHeld()).toBe(false);
+
+    writeChunks(terminal, ['\u001B[?2026h']);
+
+    expect(terminal.renderHeld()).toBe(true);
+
+    writeChunks(terminal, ['\u001B[?2026l']);
+
+    expect(terminal.renderHeld()).toBe(false);
+
+    writeChunks(terminal, ['\u001B[?2026h']);
+    terminal.endRenderHold();
+
+    expect(terminal.renderHeld()).toBe(false);
+  });
+});
+
+describe('the cursor row query', () => {
+  it('returns the row of the cursor in the active screen', () => {
+    using terminal = openTerminal();
+
+    expect(terminal.cursorRow()).toBe(0);
+
+    writeChunks(terminal, ['a\r\nb\r\n\r\nc']);
+
+    expect(terminal.cursorRow()).toBe(3);
+
+    writeChunks(terminal, ['\u001B[2;1H']);
+
+    expect(terminal.cursorRow()).toBe(1);
+  });
+
+  it('leaves dirty rows for the next frame', () => {
+    using terminal = openTerminal();
+
+    writeChunks(terminal, ['a']);
+    terminal.frame();
+    writeChunks(terminal, ['b']);
+    terminal.cursorRow();
+
+    expect(terminal.frame().rowCount).toBe(1);
+  });
+});
+
+it('returns the Ghostty commit the library was built from', () => {
+  const script = readFileSync('scripts/buildVt.sh', 'utf8');
+  const pinned = /^ghostty_commit=([0-9a-f]{40})$/m.exec(script)?.[1] ?? 'no pin in buildVt.sh';
+
+  const result = ghosttyCommit();
+
+  expect(result.ok && result.commit).toBe(pinned);
+});
+
+it('keeps a reply after a later write replaced the reply buffer of the terminal', () => {
+  using terminal = openTerminal();
+
+  const first = terminal.write(encoder.encode('ab\u001B[6n')).reply;
+
+  terminal.write(encoder.encode('\r\n\r\n\u001B[6n'));
+
+  expect(decoder.decode(first)).toBe('\u001B[1;3R');
+});
+
+it('reads no cluster words when a smaller read follows a read that held clusters', () => {
+  using terminal = openTerminal();
+
+  terminal.write(encoder.encode('e\u0301\r\nplain'));
+
+  const { epoch, activeTop } = terminal.stableRows();
+  const withCluster = terminal.readRows(epoch, activeTop, 1);
+  const without = terminal.readRows(epoch, activeTop + 1, 1);
+
+  expect(withCluster.ok && withCluster.rows.graphemes).toHaveLength(4);
+  expect(without.ok && without.rows.graphemes).toHaveLength(0);
+});
+
+it('frees the native terminal once and refuses use after dispose', () => {
+  const terminal = openTerminal();
+
+  terminal[Symbol.dispose]();
+
+  expect(() => {
+    terminal[Symbol.dispose]();
+  }).not.toThrow();
+
+  expect(() => terminal.frame()).toThrow();
 });

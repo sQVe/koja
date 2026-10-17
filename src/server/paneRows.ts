@@ -169,23 +169,6 @@ const spanOf = (
   return recentSpan(terminal, stable, size, selection.lines ?? defaultRecentRows);
 };
 
-const emptyRows = (
-  stable: StableRows,
-  size: TerminalSize,
-  selection: PaneReadSelection,
-  span: Span,
-): SelectedRows => ({
-  source: sourceOf(selection),
-  columns: size.columns,
-  epoch: stable.epoch,
-  screen: stable.screen,
-  oldest: stable.first,
-  first: span.first,
-  rowCount: 0,
-  cells: new Uint32Array(),
-  graphemes: new Uint32Array(),
-});
-
 const selected = (stable: StableRows, span: Span) => ({
   epoch: stable.epoch,
   screen: stable.screen,
@@ -226,10 +209,6 @@ export const selectPaneRows = (
       ok: false,
       failure: { reason: 'tooManyBytes', limitBytes: maxSnapshotBytes, ...selected(stable, span) },
     };
-  }
-
-  if (span.count === 0) {
-    return { ok: true, rows: emptyRows(stable, size, selection, span) };
   }
 
   const read = terminal.readRows(stable.epoch, span.first, span.count);

@@ -200,3 +200,74 @@ it('forgets the snapshot and the read generation of an owner that closed', () =>
   expect(store.has('one')).toBe(false);
   expect(store.isCurrent('one', generation)).toBe(false);
 });
+
+// Rows that each hold one cluster of the given length, or none for a length of 0.
+const longClusterRows = (lengths: number[]): SelectedRows => {
+  const rows = snapshotRows(lengths.map(() => ''));
+  const graphemes: number[] = [];
+
+  lengths.forEach((length, row) => {
+    if (length > 0) {
+      graphemes.push(row * rowWords(columns) + rowHeaderWords, length);
+      graphemes.push(0x65, ...Array.from({ length: length - 1 }, () => 0x3_01));
+    }
+  });
+
+  return { ...rows, graphemes: Uint32Array.from(graphemes) };
+};
+
+it('fills each part with as many rows as fit one reply when the rows hold long clusters', () => {
+  // Six rows with these clusters make a reply of exactly maxReplyBytes.
+  const lengths = [20_000, 20_000, 20_000, 20_000, 20_000, 26_236, 20_000, 0, 0];
+  const parts = takeAll(longClusterRows(lengths));
+
+  expect(parts.map((part) => part.rowCount)).toEqual([6, 3]);
+  expect(encodePaneRows(parts[0] as PaneRows).length).toBe(maxReplyBytes);
+  expect(parts[1]?.graphemes).toHaveLength(20_002);
+});
+
+it('splits before a row whose clusters would pass the reply limit', () => {
+  const parts = takeAll(longClusterRows([60_000, 60_000, 60_000, 0]));
+
+  expect(parts.map((part) => part.rowCount)).toEqual([2, 2]);
+
+  for (const part of parts) {
+    expect(encodePaneRows(part).length).toBeLessThanOrEqual(maxReplyBytes);
+  }
+});
+
+it('drops the snapshot of an owner that begins a new read', () => {
+  const store = createSnapshotStore<string>();
+
+  store.keep('one', createSnapshot(paneId(1), 1, snapshotRows(['a'])));
+  store.begin('one');
+
+  expect(store.has('one')).toBe(false);
+  expect(store.find('one', paneId(1), 1)).toBeUndefined();
+});
+
+it('counts only the new snapshot when an owner keeps another one', () => {
+  const rows = snapshotRows(['a']);
+  const bytes = paneRowsBytes(rows.rowCount, rows.columns, rows.graphemes.length);
+  const store = createSnapshotStore<string>({ budgetBytes: bytes * 2 });
+
+  store.keep('other', createSnapshot(paneId(1), 1, rows));
+  store.keep('owner', createSnapshot(paneId(1), 2, rows));
+  store.keep('owner', createSnapshot(paneId(1), 3, rows));
+
+  expect(store.find('other', paneId(1), 1)).toBeDefined();
+  expect(store.find('owner', paneId(1), 3)).toBeDefined();
+});
+
+it('drops an idle snapshot when another owner keeps one', () => {
+  let time = 0;
+
+  const store = createSnapshotStore<string>({ now: () => time, idleMs: 100 });
+
+  store.keep('idle', createSnapshot(paneId(1), 1, snapshotRows(['a'])));
+  time = 100;
+  store.keep('other', createSnapshot(paneId(1), 2, snapshotRows(['b'])));
+
+  expect(store.has('idle')).toBe(false);
+  expect(store.has('other')).toBe(true);
+});

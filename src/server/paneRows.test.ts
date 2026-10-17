@@ -1,6 +1,6 @@
 import { expect, it } from 'bun:test';
 
-import { PaneRowsSource, rowsToLines } from '../rows/rows.ts';
+import { paneRowsBytes, PaneRowsSource, rowsToLines } from '../rows/rows.ts';
 import { createTerminal } from '../vt/vt.ts';
 import { maxReplyBytes, maxReplyRows, maxSnapshotBytes, selectPaneRows } from './paneRows.ts';
 import type { PaneReadSelection } from './paneRows.ts';
@@ -408,4 +408,152 @@ it('refuses a selection holding a row that cannot fit one part with its clusters
     ok: false,
     failure: { reason: 'tooManyBytes', limitBytes: maxReplyBytes },
   });
+});
+
+it.each([
+  [{ source: 'visible', lines: undefined }, PaneRowsSource.visible],
+  [{ source: 'recent', lines: undefined }, PaneRowsSource.recent],
+  [{ source: 'recentUnwrapped', lines: undefined }, PaneRowsSource.recentUnwrapped],
+] as const)('names the source of a %o read in its reply', (selection, source) => {
+  using terminal = openTerminal(80, 5);
+
+  feed(terminal, numbered(1, 3));
+
+  expect(read(terminal, 5, selection).source).toBe(source);
+});
+
+it.each([
+  ['a recent read of no lines', recent(0)],
+  ['a visible read of no lines', { source: 'visible', lines: 0 }],
+] as const)('starts %s on the row after the bottom of the screen', (_name, selection) => {
+  using terminal = openTerminal(80, 5);
+
+  feed(terminal, numbered(1, 3));
+
+  const { activeTop } = terminal.stableRows();
+  const rows = read(terminal, 5, selection);
+
+  expect(rows.rowCount).toBe(0);
+  expect(rows.first).toBe(activeTop + 5);
+});
+
+it('starts a counted visible read of a blank screen on the row after the bottom of the screen', () => {
+  using terminal = openTerminal(80, 5);
+
+  const { activeTop } = terminal.stableRows();
+  const rows = read(terminal, 5, { source: 'visible', lines: 3 });
+
+  expect(rows.rowCount).toBe(0);
+  expect(rows.first).toBe(activeTop + 5);
+});
+
+it('ends a counted read at the last row with text when a soft-wrapped row is above it', () => {
+  using terminal = openTerminal(80, 5);
+
+  feed(terminal, `${'x'.repeat(100)}\r\nend\u001B[1;1H`);
+
+  const { activeTop } = terminal.stableRows();
+  const visible = read(terminal, 5, { source: 'visible', lines: 1 });
+  const lastRecent = read(terminal, 5, recent(1));
+
+  expect(linesOf(visible)).toEqual(['end']);
+  expect(visible.first).toBe(activeTop + 2);
+  expect(linesOf(lastRecent)).toEqual(['end']);
+  expect(lastRecent.first).toBe(activeTop + 2);
+});
+
+it('refuses an empty range below the oldest kept row', () => {
+  using terminal = openTerminal(80, 24, 1);
+
+  for (let line = 0; line < 20_000; line += 100) {
+    feed(terminal, `${numbered(line, line + 99)}\r\n`);
+  }
+
+  const { first } = terminal.stableRows();
+
+  expect(
+    selectPaneRows(
+      terminal,
+      { columns: 80, rows: 24 },
+      { source: 'range', from: first - 1, to: first - 2, epoch: undefined, screen: undefined },
+    ),
+  ).toEqual({ ok: false, failure: { reason: 'pruned', oldest: first } });
+});
+
+it('refuses a reply wider than one reply holds before it checks the snapshot size', () => {
+  const columns = 40_000;
+  const rows = 30;
+
+  using terminal = openTerminal(columns, rows, 1);
+
+  const { activeTop, epoch, screen } = terminal.stableRows();
+
+  expect(
+    selectPaneRows(terminal, { columns, rows }, { source: 'visible', lines: undefined }),
+  ).toEqual({
+    ok: false,
+    failure: {
+      reason: 'tooManyBytes',
+      limitBytes: maxReplyBytes,
+      epoch,
+      screen,
+      first: activeTop,
+      count: rows,
+    },
+  });
+});
+
+it('refuses rows whose clusters push the snapshot over its limit', () => {
+  const columns = 4000;
+  const rows = 262;
+
+  using terminal = openTerminal(columns, rows, 1);
+
+  feed(terminal, Array.from({ length: rows }, () => 'e\u0301'.repeat(9)).join('\r\n'));
+
+  const { activeTop, epoch, screen } = terminal.stableRows();
+
+  expect(
+    selectPaneRows(terminal, { columns, rows }, { source: 'visible', lines: undefined }),
+  ).toEqual({
+    ok: false,
+    failure: {
+      reason: 'tooManyBytes',
+      limitBytes: maxSnapshotBytes,
+      epoch,
+      screen,
+      first: activeTop,
+      count: rows,
+    },
+  });
+});
+
+it('selects a row that fills one reply to the last byte', () => {
+  const columns = 32_763;
+
+  using terminal = openTerminal(columns, 1, 1);
+
+  feed(terminal, 'e\u0301\u0302\u0303');
+
+  const rows = read(terminal, 1, { source: 'visible', lines: undefined }, columns);
+
+  expect(rows.rowCount).toBe(1);
+  expect(paneRowsBytes(1, columns, rows.graphemes.length)).toBe(maxReplyBytes);
+});
+
+it('selects rows whose cells and clusters take the snapshot exactly to its limit', () => {
+  const columns = 4000;
+  const rows = 262;
+
+  using terminal = openTerminal(columns, rows, 1);
+
+  // 262 rows of cells leave room for 442 clusters of two code points, four words each.
+  const clusterCounts = Array.from({ length: rows }, (_, row) => (row < 180 ? 2 : 1));
+
+  feed(terminal, clusterCounts.map((count) => 'e\u0301'.repeat(count)).join('\r\n'));
+
+  const selected = read(terminal, rows, { source: 'visible', lines: undefined }, columns);
+
+  expect(selected.rowCount).toBe(rows);
+  expect(paneRowsBytes(rows, columns, selected.graphemes.length)).toBe(maxSnapshotBytes);
 });

@@ -373,13 +373,36 @@ it('logs and closes a connection that sends a frame of an unknown kind', () => {
 
 it('logs and closes a connection that sends an invalid message', () => {
   const socket = createSocket();
-  const { connection, entries } = open(socket);
+  const received: ControlMessage[] = [];
+  const { connection, entries } = open(socket, (message) => received.push(message));
 
   connection.receive(frameOf(hello));
   connection.receive(encodeFrame(FrameKind.control, new TextEncoder().encode('{"type":"shout"}')));
 
   expect(socket.isEnded()).toBe(true);
   expect(entries.map((entry) => entry.level)).toContain('warn');
+  expect(received).toHaveLength(0);
+});
+
+it('ignores a frame of a known kind the server does not handle and stays open', () => {
+  const socket = createSocket();
+  const received: ControlMessage[] = [];
+  const inputs: Uint8Array[] = [];
+
+  const { connection } = open(
+    socket,
+    (message) => received.push(message),
+    undefined,
+    (bytes) => inputs.push(bytes),
+  );
+
+  connection.receive(frameOf(hello));
+  connection.receive(encodeFrame(FrameKind.rowUpdate, Uint8Array.of(1, 2, 3, 4)));
+  connection.receive(frameOf({ type: 'stop' }));
+
+  expect(connection.isClosed()).toBe(false);
+  expect(received).toEqual([{ type: 'stop' }]);
+  expect(inputs).toHaveLength(0);
 });
 
 it('closes only the connection whose handler throws, and logs the error', () => {

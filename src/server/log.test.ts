@@ -1,4 +1,5 @@
 import { expect, it, onTestFinished } from 'bun:test';
+import { readdirSync } from 'node:fs';
 import { mkdtemp, readdir, readFile, rm, stat, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -99,4 +100,56 @@ it('refuses a log path it cannot write under', async () => {
 
   expect(result).toMatchObject({ ok: false, reason: 'logUnavailable' });
   expect(await readFile(blocker, 'utf8')).toBe('not a directory');
+});
+
+it('does not rotate an empty log for one line over the limit', async () => {
+  const directory = await temporaryDirectory();
+  const path = join(directory, 'server.log');
+  const log = openLog(path, () => 0, 10);
+
+  log.info('a line longer than the limit');
+
+  expect(await readdir(directory)).toEqual(['server.log']);
+  expect(await readMessages(path)).toEqual(['a line longer than the limit']);
+});
+
+it('keeps a line that takes the log exactly to the limit', async () => {
+  const directory = await temporaryDirectory();
+  const path = join(directory, 'server.log');
+  const log = openLog(path, () => 0, 164);
+
+  log.info('line 1');
+  log.info('line 2');
+
+  expect((await stat(path)).size).toBe(164);
+  expect(await readdir(directory)).toEqual(['server.log']);
+
+  log.info('line 3');
+
+  expect(await readMessages(`${path}.1`)).toEqual(['line 1', 'line 2']);
+  expect(await readMessages(path)).toEqual(['line 3']);
+});
+
+it('creates the log and its rotated successor readable by the owner only', async () => {
+  const path = join(await temporaryDirectory(), 'server.log');
+  const log = openLog(path, () => 0, 100);
+
+  expect((await stat(path)).mode & 0o777).toBe(0o600);
+
+  log.info('line 1');
+  log.info('line 2');
+
+  expect(await readMessages(`${path}.1`)).toEqual(['line 1']);
+  expect((await stat(path)).mode & 0o777).toBe(0o600);
+});
+
+it('leaves no file descriptor open after it creates the log', async () => {
+  const path = join(await temporaryDirectory(), 'server.log');
+  const before = readdirSync('/proc/self/fd').length;
+
+  for (let attempt = 0; attempt < 20; attempt += 1) {
+    openLog(path, () => 0);
+  }
+
+  expect(readdirSync('/proc/self/fd')).toHaveLength(before);
 });
