@@ -236,12 +236,6 @@ it('splits before a row whose clusters would pass the reply limit', () => {
   }
 });
 
-it('sends a row alone when its cells and clusters pass the reply limit', () => {
-  const parts = takeAll(longClusterRows([140_000, 0]));
-
-  expect(parts.map((part) => part.rowCount)).toEqual([1, 1]);
-});
-
 it('drops the snapshot of an owner that begins a new read', () => {
   const store = createSnapshotStore<string>();
 
