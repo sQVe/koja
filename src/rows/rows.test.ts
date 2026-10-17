@@ -734,3 +734,11 @@ it('clamps positions past the last row and the last column', () => {
 
   expect(rowsRangeText(range, columns, { row: 0, column: 500 }, { row: 0, column: 900 })).toBe('z');
 });
+
+it('round-trips a bar cursor', () => {
+  const update = rowUpdate({
+    cursor: { x: 1, y: 2, visible: true, shape: CursorShape.bar, blinking: false },
+  });
+
+  expect(roundTrip(update)).toEqual({ ok: true, update });
+});

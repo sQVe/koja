@@ -691,6 +691,23 @@ it.each([
   expect(typeof parseCommand(argv)).toBe('string');
 });
 
+it.each([
+  ['a second pane id', ['pane', 'copy', 'pane-1', 'extra', '--from', '4:2', '--to', '5:0']],
+  ['a malformed pane id', ['pane', 'copy', 'pane-x', '--from', '4:2', '--to', '5:0']],
+  ['text after a row number', ['pane', 'copy', 'pane-1', '--from', '1e3:0', '--to', '2000:0']],
+  ['text after a column number', ['pane', 'copy', 'pane-1', '--from', '0:0', '--to', '1:2x']],
+])('refuses pane copy given %s', (_name, argv) => {
+  expect(typeof parseCommand(argv)).toBe('string');
+});
+
+it('parses pane copy positions with several digits', () => {
+  expect(
+    parseCommand(['pane', 'copy', 'pane-1', '--from', '12:30', '--to', '100:7']),
+  ).toMatchObject({
+    pane: { start: { row: 12, column: 30 }, end: { row: 100, column: 7 } },
+  });
+});
+
 it('keeps a start equal to the end', () => {
   expect(parseCommand(['pane', 'copy', 'pane-1', '--from', '4:2', '--to', '4:2'])).toMatchObject({
     pane: { start: { row: 4, column: 2 }, end: { row: 4, column: 2 } },

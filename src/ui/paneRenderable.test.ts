@@ -771,3 +771,53 @@ it('draws the rows where the pane was moved to', async () => {
 
   expect(frameLines(created)).toEqual(['', '  a', '', '']);
 });
+
+const cursorUpdate = (
+  cursor: { x: number; y: number },
+  shape = CursorShape.default,
+  blinking = false,
+): RowUpdate => ({
+  ...rowUpdate([]),
+  cursor: { ...cursor, visible: true, shape, blinking },
+});
+
+it('keeps the native cursor hidden for a pane that is not focused', async () => {
+  const { show, created } = await startPane();
+
+  created.renderer.setCursorPosition(0, 0, false);
+  await show(rowUpdate([], [], true));
+
+  expect(created.renderer.getCursorState().visible).toBe(false);
+});
+
+it('puts the native cursor on the cell of the pane cursor, counting from 1', async () => {
+  const { show, created, pane } = await startPane(4);
+
+  pane.move(2, 1);
+  pane.setFocused(true);
+  await show(cursorUpdate({ x: 3, y: 2 }));
+
+  const state = created.renderer.getCursorState();
+
+  expect(state.visible).toBe(true);
+  expect({ x: state.x, y: state.y }).toEqual({ x: 2 + 3 + 1, y: 1 + 2 + 1 });
+});
+
+it.each([
+  [CursorShape.bar, 'line', true],
+  [CursorShape.block, 'block', false],
+  [CursorShape.underline, 'underline', true],
+  [CursorShape.default, 'default', false],
+] as const)(
+  'gives the native cursor the program shape %#, with blinking',
+  async (shape, style, blinking) => {
+    const { show, created, pane } = await startPane();
+
+    pane.setFocused(true);
+    await show(cursorUpdate({ x: 0, y: 0 }, shape, blinking));
+
+    const state = created.renderer.getCursorState();
+
+    expect({ style: state.style, blinking: state.blinking }).toEqual({ style, blinking });
+  },
+);
