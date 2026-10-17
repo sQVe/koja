@@ -34,7 +34,7 @@ const isFocusFlag = (token: ParsedToken): boolean =>
   token.name === 'focus' || token.name === 'no-focus';
 
 export const lastFocusFlag = (tokens: ParsedToken[]): boolean | undefined => {
-  const flags = tokens.filter((token) => token.kind === 'option' && isFocusFlag(token));
+  const flags = tokens.filter(isFocusFlag);
 
   const last = flags.at(-1);
 

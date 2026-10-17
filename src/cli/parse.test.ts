@@ -696,3 +696,132 @@ it('keeps a start equal to the end', () => {
     pane: { start: { row: 4, column: 2 }, end: { row: 4, column: 2 } },
   });
 });
+
+it('parses phi attach with an optional socket', () => {
+  expect(parseCommand(['attach'])).toEqual({ kind: 'attach', socket: undefined });
+
+  expect(parseCommand(['attach', '--socket', '/tmp/phi.sock'])).toEqual({
+    kind: 'attach',
+    socket: '/tmp/phi.sock',
+  });
+});
+
+it.each([
+  ['an argument', ['attach', 'extra']],
+  ['--json', ['attach', '--json']],
+])('refuses phi attach with %s', (_name, argv) => {
+  expect(typeof parseCommand(argv)).toBe('string');
+});
+
+it('parses phi --version with an optional --json', () => {
+  expect(parseCommand(['--version'])).toEqual({ kind: 'version', json: false });
+  expect(parseCommand(['--version', '--json'])).toEqual({ kind: 'version', json: true });
+});
+
+it.each([
+  ['an argument', ['--version', 'extra']],
+  ['a command', ['--version', 'pane', 'list']],
+  ['--socket', ['--version', '--socket', '/tmp/phi.sock']],
+])('refuses phi --version with %s', (_name, argv) => {
+  expect(typeof parseCommand(argv)).toBe('string');
+});
+
+it.each(['run', 'start', 'stop'] as const)('parses server %s', (action) => {
+  expect(parseCommand(['server', action])).toEqual({
+    kind: 'server',
+    action,
+    json: false,
+    socket: undefined,
+  });
+
+  expect(parseCommand(['server', action, '--json', '--socket', '/tmp/p.sock'])).toEqual({
+    kind: 'server',
+    action,
+    json: true,
+    socket: '/tmp/p.sock',
+  });
+});
+
+it.each([
+  ['an unknown group with an action', ['nope', 'start']],
+  ['an unknown group', ['nope']],
+  ['an unknown server action', ['server', 'restart']],
+  ['no server action', ['server']],
+  ['an argument for a server action', ['server', 'start', 'extra']],
+])('refuses %s', (_name, argv) => {
+  expect(typeof parseCommand(argv)).toBe('string');
+});
+
+it.each([
+  ['detach', ['detach', 'extra']],
+  ['tab create', ['tab', 'create', 'extra']],
+  ['tab list', ['tab', 'list', 'extra']],
+  ['tab focus', ['tab', 'focus', 'tab-1', 'tab-2']],
+  ['tab rename', ['tab', 'rename', 'tab-1', 'a', 'b']],
+  ['workspace focus', ['workspace', 'focus', 'workspace-1', 'workspace-2']],
+  ['workspace rename', ['workspace', 'rename', 'workspace-1', 'a', 'b']],
+  ['pane move', ['pane', 'move', 'pane-1', 'pane-2', '--new-tab']],
+])('refuses an extra argument for %s', (_name, argv) => {
+  expect(typeof parseCommand(argv)).toBe('string');
+});
+
+it.each([
+  ['tab', ['tab', 'open', 'tab-1']],
+  ['workspace', ['workspace', 'open', 'workspace-1', 'x']],
+  ['pane', ['pane', 'open', 'ls']],
+])('refuses an unknown %s action that has arguments', (_name, argv) => {
+  expect(typeof parseCommand(argv)).toBe('string');
+});
+
+it.each([
+  ['--cells on pane move', ['pane', 'move', 'pane-1', '--new-tab', '--cells', '2']],
+  ['--cwd on pane move', ['pane', 'move', 'pane-1', '--new-tab', '--cwd', '/srv']],
+  ['--tab on a workspace command', ['workspace', 'list', '--tab', 'tab-1']],
+  ['--tab on a tab command', ['tab', 'list', '--tab', 'tab-1']],
+])('refuses %s', (_name, argv) => {
+  expect(typeof parseCommand(argv)).toBe('string');
+});
+
+it.each([
+  ['a signed cell count', ['--cells=-3']],
+  ['a cell count with a leading zero', ['--cells', '01']],
+  ['a cell count with an exponent', ['--cells=1e3']],
+  ['a cell count in hexadecimal', ['--cells=0x10']],
+])('refuses pane resize with %s', (_name, flags) => {
+  expect(typeof parseCommand(['pane', 'resize', 'pane-1', '--direction', 'left', ...flags])).toBe(
+    'string',
+  );
+});
+
+it.each([
+  ['a signed row', ['--to=-1']],
+  ['a row with an exponent', ['--to', '1e3']],
+  ['a row in hexadecimal', ['--to', '0x10']],
+  ['a row with a sign', ['--to=+5']],
+])('refuses pane scroll with %s', (_name, flags) => {
+  expect(typeof parseCommand(['pane', 'scroll', 'pane-1', ...flags])).toBe('string');
+});
+
+it.each([
+  ['a signed line count', ['--lines=-1']],
+  ['a line count with an exponent', ['--lines=1e3']],
+  ['a signed row range end', ['--from', '1', '--to=-1']],
+  ['a row range end with an exponent', ['--from', '1', '--to', '1e3']],
+  ['a row range start in hexadecimal', ['--from', '0x1', '--to', '5']],
+])('refuses pane read with %s', (_name, flags) => {
+  expect(typeof readCommand(...flags)).toBe('string');
+});
+
+it('parses pane read with the recent source named', () => {
+  expect(readCommand('--source', 'recent')).toMatchObject({ pane: { source: 'recent' } });
+});
+
+it('refuses a row range with a bad end', () => {
+  expect(typeof readCommand('--from', '1', '--to', 'x')).toBe('string');
+});
+
+it('reads a one-row range', () => {
+  expect(readCommand('--from', '5', '--to', '5')).toMatchObject({
+    pane: { source: 'recent', range: { from: 5, to: 5 } },
+  });
+});

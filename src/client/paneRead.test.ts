@@ -401,3 +401,115 @@ it('fails the read when the server no longer holds the snapshot', () => {
     failure: { reason: 'noSnapshot' },
   });
 });
+
+it.each(['recent', 'visible'] as const)(
+  'keeps a wrapped row of a %s read as its own line',
+  (source) => {
+    const reader = createPaneReader(command({ source }));
+
+    reader.start();
+
+    expect(reader.takeRows(pageOf(5, ['abc+', 'd']))).toMatchObject({
+      output: { lines: ['abc', 'd'] },
+    });
+  },
+);
+
+it('leaves the bounds alone for a page of a range that has no rows', () => {
+  const reader = createPaneReader(command({ range: { from: 0, to: 3 } }));
+
+  reader.start();
+  reader.takeFailure(tooManyBytes(0, 4));
+  reader.takeRows(pageOf(0, ['a', 'b']));
+
+  expect(reader.takeRows(pageOf(50, []))).toEqual({
+    kind: 'done',
+    output: { epoch: 3, oldest: 10, from: 0, to: 1, lines: ['a', 'b'] },
+  });
+});
+
+it('reports no bounds when the first page of a range has no rows', () => {
+  const reader = createPaneReader(command({ range: { from: 0, to: 3 } }));
+
+  reader.start();
+  reader.takeFailure(tooManyBytes(0, 4));
+
+  expect(reader.takeRows(pageOf(50, []))).toEqual({
+    kind: 'done',
+    output: { epoch: 3, oldest: 10, from: undefined, to: undefined, lines: [] },
+  });
+});
+
+it('reads a range to its end over three pages', () => {
+  const reader = createPaneReader(command({ range: { from: 0, to: 8 } }));
+
+  reader.start();
+
+  expect(reader.takeFailure(tooManyBytes(0, 9))).toMatchObject({
+    selection: { from: 0, to: 3 },
+  });
+
+  expect(reader.takeRows(pageOf(0, ['a', 'b', 'c', 'd']))).toMatchObject({
+    selection: { from: 4, to: 7 },
+  });
+
+  expect(reader.takeRows(pageOf(4, ['e', 'f', 'g', 'h']))).toMatchObject({
+    selection: { from: 8, to: 8 },
+  });
+
+  expect(reader.takeRows(pageOf(8, ['i']))).toEqual({
+    kind: 'done',
+    output: {
+      epoch: 3,
+      oldest: 10,
+      from: 0,
+      to: 8,
+      lines: ['a', 'b', 'c', 'd', 'e', 'f', 'g', 'h', 'i'],
+    },
+  });
+});
+
+it('asks for the last row of a range after a page that ends one row before it', () => {
+  const reader = createPaneReader(command({ range: { from: 0, to: 4 } }));
+
+  reader.start();
+  reader.takeFailure(tooManyBytes(0, 5));
+  reader.takeRows(pageOf(0, ['a', 'b']));
+
+  expect(reader.takeRows(pageOf(2, ['c', 'd']))).toMatchObject({
+    kind: 'send',
+    selection: { from: 4, to: 4 },
+  });
+});
+
+it('ends a range at a page that has one row fewer than it asked for', () => {
+  const reader = createPaneReader(command({ range: { from: 0, to: 8 } }));
+
+  reader.start();
+  reader.takeFailure(tooManyBytes(0, 9));
+  reader.takeRows(pageOf(0, ['a', 'b', 'c', 'd']));
+
+  expect(reader.takeRows(pageOf(4, ['e', 'f', 'g']))).toEqual({
+    kind: 'done',
+    output: {
+      epoch: 3,
+      oldest: 10,
+      from: 0,
+      to: 6,
+      lines: ['a', 'b', 'c', 'd', 'e', 'f', 'g'],
+    },
+  });
+});
+
+it('fails the read when a single row is over the byte limit', () => {
+  const reader = createPaneReader(command({ range: { from: 0, to: 3 } }));
+
+  reader.start();
+  reader.takeFailure(tooManyBytes(0, 4));
+  reader.takeFailure(tooManyBytes(0, 2));
+
+  expect(reader.takeFailure(tooManyBytes(0, 1))).toEqual({
+    kind: 'failed',
+    failure: tooManyBytes(0, 1),
+  });
+});

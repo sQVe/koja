@@ -1,7 +1,15 @@
-import { expect, it } from 'bun:test';
+import { describe, expect, it } from 'bun:test';
 
 import { clientId, paneId, tabId, workspaceId } from '../ids.ts';
-import { applyChange, focusedPane, viewedPane } from './snapshot.ts';
+import type { WorkspaceId } from '../ids.ts';
+import {
+  activeTabIdOf,
+  applyChange,
+  focusedPane,
+  scrollTopOf,
+  shownPaneIds,
+  viewedPane,
+} from './snapshot.ts';
 import type { StoreSnapshot } from './snapshot.ts';
 
 const size = { columns: 80, rows: 24 };
@@ -305,4 +313,260 @@ it('shows the pane of the attached client view, and the default view without a c
   expect(viewedPane(next)?.id).toBe(paneId(1));
   expect(focusedPane(next)?.id).toBe(paneId(2));
   expect(viewedPane({ ...next, attachedClientId: undefined })?.id).toBe(paneId(2));
+});
+
+it('activates the tab only in the workspace the change names', () => {
+  const next = applyChange(withSecond, {
+    type: 'tabFocused',
+    workspaceId: secondWorkspace.id,
+    tabId: tabId(5),
+  });
+
+  expect(next.defaultView.activeTabs).toEqual([
+    { workspaceId: workspaceId(1), tabId: tabId(1) },
+    { workspaceId: secondWorkspace.id, tabId: tabId(5) },
+  ]);
+});
+
+it('records the state of only the pane the change names', () => {
+  const next = applyChange(withSecond, {
+    type: 'paneStateChanged',
+    paneId: paneId(2),
+    lifecycle: 'exited',
+    exitCode: 3,
+    error: undefined,
+  });
+
+  expect(next.panes).toEqual([
+    snapshot.panes[0]!,
+    { ...secondPane, lifecycle: 'exited', exitCode: 3 },
+  ]);
+});
+
+it('moves only the pane the change names', () => {
+  const next = applyChange(withSecond, { type: 'paneMoved', paneId: paneId(2), tabId: tabId(1) });
+
+  expect(next.panes).toEqual([snapshot.panes[0]!, { ...secondPane, tabId: tabId(1) }]);
+  expect(next.tabs).toEqual(withSecond.tabs);
+});
+
+it('adds the pane the change names', () => {
+  const next = applyChange(snapshot, { type: 'paneAdded', pane: secondPane });
+
+  expect(next.panes).toEqual([...snapshot.panes, secondPane]);
+  expect(next.tabs).toEqual(snapshot.tabs);
+});
+
+it('resizes only the pane the change names and keeps the rest of it', () => {
+  const resized = { columns: 100, rows: 30 };
+
+  const next = applyChange(withSecond, { type: 'paneResized', paneId: paneId(2), size: resized });
+
+  expect(next.panes).toEqual([snapshot.panes[0]!, { ...secondPane, size: resized }]);
+});
+
+it('adds a second tab to its workspace and to the tabs', () => {
+  const added = { ...secondTab, id: tabId(3), workspaceId: workspaceId(1) };
+
+  const next = applyChange(withSecond, { type: 'tabAdded', tab: added });
+
+  expect(next.tabs).toEqual([...withSecond.tabs, added]);
+
+  expect(next.workspaces.map((workspace) => workspace.tabIds)).toEqual([
+    [tabId(1), tabId(3)],
+    [tabId(2)],
+  ]);
+});
+
+it('sets the zoom of only the tab the change names', () => {
+  const zoomed = applyChange(withSecond, {
+    type: 'tabZoomChanged',
+    tabId: tabId(2),
+    zoomedPaneId: paneId(2),
+  });
+
+  expect(zoomed.tabs.map((tab) => tab.zoomedPaneId)).toEqual([undefined, paneId(2)]);
+  expect(zoomed.tabs[1]).toEqual({ ...secondTab, zoomedPaneId: paneId(2) });
+
+  const restored = applyChange(zoomed, {
+    type: 'tabZoomChanged',
+    tabId: tabId(2),
+    zoomedPaneId: undefined,
+  });
+
+  expect(restored.tabs).toEqual(withSecond.tabs);
+});
+
+it('renames only the tab the change names', () => {
+  const next = applyChange(withSecond, { type: 'tabRenamed', tabId: tabId(2), label: 'logs' });
+
+  expect(next.tabs).toEqual([snapshot.tabs[0]!, { ...secondTab, label: 'logs' }]);
+});
+
+it('drops a removed tab from its workspace and keeps the other tabs', () => {
+  const added = { ...secondTab, workspaceId: workspaceId(1) };
+
+  const withTwoTabs: StoreSnapshot = {
+    ...snapshot,
+    workspaces: [{ ...snapshot.workspaces[0]!, tabIds: [tabId(1), tabId(2)] }],
+    tabs: [...snapshot.tabs, added],
+  };
+
+  const next = applyChange(withTwoTabs, { type: 'tabRemoved', tabId: tabId(2) });
+
+  expect(next.tabs).toEqual(snapshot.tabs);
+  expect(next.workspaces).toEqual(snapshot.workspaces);
+});
+
+it('keeps the clients that stay when the attached client detaches', () => {
+  const both: StoreSnapshot = {
+    ...snapshot,
+    clients: [first, second],
+    attachedClientId: first.id,
+    foregroundClientId: second.id,
+  };
+
+  const next = applyChange(both, {
+    type: 'clientDetached',
+    clientId: first.id,
+    reason: 'requested',
+  });
+
+  expect(next.clients).toEqual([second]);
+  expect(next.attachedClientId).toBeUndefined();
+  expect(next.foregroundClientId).toBe(second.id);
+});
+
+it('keeps the attached client when the foreground client detaches', () => {
+  const both: StoreSnapshot = {
+    ...snapshot,
+    clients: [first, second],
+    attachedClientId: first.id,
+    foregroundClientId: second.id,
+  };
+
+  const next = applyChange(both, {
+    type: 'clientDetached',
+    clientId: second.id,
+    reason: 'requested',
+  });
+
+  expect(next.clients).toEqual([first]);
+  expect(next.attachedClientId).toBe(first.id);
+  expect(next.foregroundClientId).toBeUndefined();
+});
+
+it('finds no pane while no tab is active', () => {
+  const noWorkspace: StoreSnapshot = {
+    ...snapshot,
+    defaultView: { focusedWorkspaceId: undefined, activeTabs: [], scrolls: [] },
+    clients: [],
+    attachedClientId: undefined,
+  };
+
+  const unknownTab: StoreSnapshot = {
+    ...noWorkspace,
+    defaultView: {
+      focusedWorkspaceId: workspaceId(1),
+      activeTabs: [{ workspaceId: workspaceId(1), tabId: tabId(9) }],
+      scrolls: [],
+    },
+  };
+
+  for (const empty of [noWorkspace, unknownTab]) {
+    expect(focusedPane(empty)).toBeUndefined();
+    expect(viewedPane(empty)).toBeUndefined();
+  }
+});
+
+it('gives the scroll row of the pane it names', () => {
+  const scrolled = {
+    ...view,
+    scrolls: [
+      { paneId: paneId(1), topRow: 7 },
+      { paneId: paneId(2), topRow: 9 },
+    ],
+  };
+
+  expect(scrollTopOf(scrolled, paneId(1))).toBe(7);
+  expect(scrollTopOf(scrolled, paneId(2))).toBe(9);
+  expect(scrollTopOf(scrolled, paneId(3))).toBeUndefined();
+});
+
+it('gives the active tab of the workspace it names', () => {
+  expect(activeTabIdOf(withSecond.defaultView, workspaceId(1))).toBe(tabId(1));
+  expect(activeTabIdOf(withSecond.defaultView, secondWorkspace.id)).toBe(tabId(2));
+  expect(activeTabIdOf(withSecond.defaultView, workspaceId(3))).toBeUndefined();
+  expect(activeTabIdOf(withSecond.defaultView, undefined)).toBeUndefined();
+});
+
+describe('shownPaneIds', () => {
+  const splitTab = {
+    ...snapshot.tabs[0]!,
+    layout: {
+      kind: 'split' as const,
+      direction: 'right' as const,
+      ratio: 0.5,
+      first: { kind: 'pane' as const, paneId: paneId(1) },
+      second: {
+        kind: 'split' as const,
+        direction: 'below' as const,
+        ratio: 0.5,
+        first: { kind: 'pane' as const, paneId: paneId(3) },
+        second: { kind: 'pane' as const, paneId: paneId(4) },
+      },
+    },
+  };
+
+  const placed: StoreSnapshot = {
+    ...withSecond,
+    tabs: [splitTab, secondTab],
+    clients: [],
+    attachedClientId: undefined,
+  };
+
+  const focusing = (id: WorkspaceId): StoreSnapshot => ({
+    ...placed,
+    defaultView: { ...placed.defaultView, focusedWorkspaceId: id },
+  });
+
+  it('lists every pane the layout of the shown tab places', () => {
+    expect(shownPaneIds(focusing(workspaceId(1)))).toEqual(
+      new Set([paneId(1), paneId(3), paneId(4)]),
+    );
+  });
+
+  it('lists the one pane of a single-pane layout', () => {
+    expect(shownPaneIds(focusing(secondWorkspace.id))).toEqual(new Set([paneId(2)]));
+  });
+
+  it('lists only the zoomed pane', () => {
+    const zoomed = {
+      ...focusing(workspaceId(1)),
+      tabs: [{ ...splitTab, zoomedPaneId: paneId(3) }, secondTab],
+    };
+
+    expect(shownPaneIds(zoomed)).toEqual(new Set([paneId(3)]));
+  });
+
+  it('lists the tab the attached client shows', () => {
+    const ownView = {
+      ...first,
+      view: { ...placed.defaultView, focusedWorkspaceId: workspaceId(1) },
+    };
+
+    const attached = { ...placed, clients: [ownView], attachedClientId: ownView.id };
+
+    expect(shownPaneIds(attached)).toEqual(new Set([paneId(1), paneId(3), paneId(4)]));
+  });
+
+  it('lists no pane while no tab is shown', () => {
+    expect(shownPaneIds(focusing(workspaceId(3)))).toEqual(new Set());
+  });
+});
+
+it('keeps every pane as it is when a pane is focused', () => {
+  const next = applyChange(withSecond, { type: 'paneFocused', tabId: tabId(2), paneId: paneId(2) });
+
+  expect(next.panes).toEqual(withSecond.panes);
 });

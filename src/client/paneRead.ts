@@ -59,7 +59,7 @@ export const createPaneReader = (command: PaneReadCommand): PaneReader => {
   const unwrap = command.source === 'recentUnwrapped';
   const pages: PaneRows[] = [];
   let pageRows = wholeRange;
-  let pageStart = command.range?.from ?? 0;
+  let pageStart = 0;
   let received = 0;
   let next = command.range?.from ?? 0;
   let last = command.range?.to ?? 0;
@@ -155,17 +155,7 @@ export const createPaneReader = (command: PaneReadCommand): PaneReader => {
 
       return { kind: 'send', selection: { source: command.source, lines: command.lines } };
     },
-    takeRows: (rows) => {
-      if (!paging) {
-        if (rows.rowCount > 0) {
-          pages.push(rows);
-        }
-
-        return rows.remaining > 0 ? { kind: 'next' } : finish(rows);
-      }
-
-      return takePage(rows);
-    },
+    takeRows: takePage,
     takeFailure: (failure) => {
       if (paging) {
         return failPaging(failure);

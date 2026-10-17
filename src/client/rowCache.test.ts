@@ -413,3 +413,184 @@ it('reports a changed row that left the active screen as a negative index', () =
   expect(changed).toContain(-1);
   expect(cache.rowAt(100)?.cells[0]).toBe(122);
 });
+
+it('reports every held active row when a color slot changes its value', () => {
+  const cache = createRowCache({ rowLimit: 50 });
+
+  cache.apply(
+    rowUpdate(
+      [
+        [0, 'a'],
+        [1, 'b'],
+      ],
+      { colors: Uint32Array.of(1, 0x1_12_34_56) },
+    ),
+  );
+
+  const changed = cache.apply(
+    rowUpdate([], { colors: Uint32Array.of(1, 0x1_65_43_21), sequence: 2 }),
+  );
+
+  expect(changed).toEqual([0, 1]);
+  expect(cache.colors()).toEqual(new Map([[1, 0x1_65_43_21]]));
+});
+
+it('keeps a grapheme cluster with the row of its cell only', () => {
+  const cache = createRowCache({ rowLimit: 50 });
+  const family = [0x1_f4_68, 0x20_0d, 0x1_f4_69];
+  const first = rowHeaderWords + cellWords;
+
+  const update = rowUpdate(
+    [
+      [0, 'ab'],
+      [1, 'cd'],
+    ],
+    { graphemes: Uint32Array.of(first, family.length, ...family) },
+  );
+
+  cache.apply(update);
+
+  expect([...(cache.row(0)?.clusters ?? [])]).toEqual([[1, String.fromCodePoint(...family)]]);
+  expect(cache.row(1)?.clusters.size).toBe(0);
+});
+
+it('drops rows that no pinned range keeps', () => {
+  const cache = createRowCache({ rowLimit: 3 });
+
+  cache.apply(
+    rowUpdate([
+      [0, 'a'],
+      [1, 'b'],
+      [2, 'c'],
+    ]),
+  );
+
+  cache.pin([
+    { from: 100, to: 100 },
+    { from: 102, to: 102 },
+  ]);
+
+  cache.apply(
+    rowUpdate(
+      [
+        [0, 'd'],
+        [1, 'e'],
+        [2, 'f'],
+      ],
+      { activeTop: 103, sequence: 2 },
+    ),
+  );
+
+  expect(cache.rowAt(100)?.cells[0]).toBe(97);
+  expect(cache.rowAt(101)).toBeUndefined();
+  expect(cache.rowAt(102)?.cells[0]).toBe(99);
+  expect(cache.rowAt(103)).toBeUndefined();
+  expect(cache.rowAt(105)?.cells[0]).toBe(102);
+  expect(cache.heldRowCount()).toBe(3);
+});
+
+it('drops no row while the cache holds fewer rows than rowLimit', () => {
+  const cache = createRowCache({ rowLimit: 4 });
+
+  cache.apply(
+    rowUpdate([
+      [0, 'a'],
+      [1, 'b'],
+      [2, 'c'],
+    ]),
+  );
+
+  expect(cache.heldRowCount()).toBe(3);
+  expect(cache.rowAt(100)?.cells[0]).toBe(97);
+});
+
+it('drops the numerically lowest rows when their numbers differ in digit count', () => {
+  const cache = createRowCache({ rowLimit: 2 });
+
+  cache.apply(
+    rowUpdate([
+      [0, 'a'],
+      [-1, 'b'],
+      [1, 'c'],
+    ]),
+  );
+
+  expect(cache.rowAt(99)).toBeUndefined();
+  expect(cache.rowAt(100)?.cells[0]).toBe(97);
+  expect(cache.rowAt(101)?.cells[0]).toBe(99);
+});
+
+it('keeps the wrapped flag of rows a range read stored', () => {
+  const cache = createRowCache({ rowLimit: 50 });
+  const rows = paneRows(96, ['x', 'y', 'z']);
+
+  rows.cells[1] = RowFlag.wrapped;
+  rows.cells[2 * stride + 1] = RowFlag.wrapped;
+
+  cache.apply(rowUpdate([[0, 'a']]));
+  cache.storeRange(rows);
+
+  expect(cache.rowAt(96)?.wrapped).toBe(true);
+  expect(cache.rowAt(97)?.wrapped).toBe(false);
+  expect(cache.rowAt(98)?.wrapped).toBe(true);
+});
+
+it('keeps the cache within rowLimit when a range read stores more rows', () => {
+  const cache = createRowCache({ rowLimit: 3 });
+
+  cache.apply(
+    rowUpdate([
+      [0, 'a'],
+      [1, 'b'],
+      [2, 'c'],
+    ]),
+  );
+
+  expect(cache.storeRange(paneRows(110, ['x', 'y']))).toBe(true);
+  expect(cache.heldRowCount()).toBe(3);
+  expect(cache.rowAt(100)).toBeUndefined();
+  expect(cache.rowAt(101)).toBeUndefined();
+  expect(cache.rowAt(110)?.cells[0]).toBe(120);
+});
+
+it('reports changed history rows from the lowest row number up', () => {
+  const cache = createRowCache({ rowLimit: 50 });
+
+  const changed = cache.apply(
+    rowUpdate(
+      [
+        [-5, 'a'],
+        [-6, 'b'],
+        [-10, 'c'],
+      ],
+      { activeTop: 105 },
+    ),
+  );
+
+  expect(changed).toEqual([-10, -6, -5]);
+});
+
+it('reports only the active rows that changed while the active top and colors stay', () => {
+  const cache = createRowCache({ rowLimit: 50 });
+
+  cache.apply(
+    rowUpdate([
+      [0, 'a'],
+      [1, 'b'],
+      [2, 'c'],
+    ]),
+  );
+
+  expect(cache.apply(rowUpdate([[2, 'd']], { sequence: 2 }))).toEqual([2]);
+});
+
+it('has no bounds before the first update', () => {
+  expect(createRowCache({ rowLimit: 50 }).bounds()).toBeUndefined();
+});
+
+it('does not report a held row just below the active screen', () => {
+  const cache = createRowCache({ rowLimit: 50 });
+
+  expect(cache.apply(rowUpdate([[3, 'a']]))).toEqual([]);
+  expect(cache.rowAt(103)?.cells[0]).toBe(97);
+});

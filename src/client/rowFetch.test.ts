@@ -1,6 +1,7 @@
 import { expect, it } from 'bun:test';
 
 import { paneId } from '../ids.ts';
+import { encodeControl, parseControl } from '../protocol/protocol.ts';
 import type { ControlMessage } from '../protocol/protocol.ts';
 import { CursorShape, PaneRowsSource, rowHeaderWords, rowWords } from '../rows/rows.ts';
 import type { PaneRows, RowUpdate } from '../rows/rows.ts';
@@ -220,6 +221,165 @@ it('draws the rows already fetched when a wish is dropped after its retries', ()
   for (let attempt = 0; attempt < 10; attempt++) {
     fail(fetcher, sent, 'noSnapshot');
   }
+
+  expect(fetched).toEqual([pane]);
+});
+
+const requestIdOf = (message: ControlMessage | undefined): number =>
+  message?.type === 'paneRead' ? message.requestId : -1;
+
+it.each([
+  ['a stale epoch', { reason: 'staleEpoch', epoch: 2 }],
+  ['a changed screen', { reason: 'screenChanged', screen: 2 }],
+] as const)('reads the range again after %s', (_name, failure) => {
+  const { sent, fetched, fetcher } = setup();
+
+  fetcher.want(pane, { from: 10, to: 12 });
+  fetcher.takeFailure(pane, requestIdOf(sent[0]), failure);
+
+  expect(sent.map(rangeOf)).toEqual([
+    [10, 12],
+    [10, 12],
+  ]);
+
+  expect(fetched).toEqual([]);
+});
+
+it('sends request IDs that the protocol accepts', () => {
+  const { sent, fetcher } = setup();
+
+  fetcher.want(pane, { from: 10, to: 12 });
+  fetcher.takeFailure(pane, requestIdOf(sent[0]), { reason: 'noSnapshot' });
+  fetcher.takeFailure(pane, requestIdOf(sent[1]), { reason: 'noSnapshot' });
+
+  expect(sent).toHaveLength(3);
+
+  for (const message of sent) {
+    expect(parseControl(encodeControl(message))).toEqual({ ok: true, message });
+  }
+});
+
+it('sends nothing for a pane that has no row cache', () => {
+  const sent: ControlMessage[] = [];
+  const fetched: string[] = [];
+
+  const fetcher = createRowFetcher({
+    send: (message) => sent.push(message),
+    cacheOf: () => undefined,
+    onFetched: (fetchedPane) => fetched.push(fetchedPane),
+  });
+
+  fetcher.want(pane, { from: 10, to: 12 });
+  fetcher.want(paneId(2), { from: 10, to: 12 });
+
+  expect(sent).toEqual([]);
+  expect(fetched).toEqual([]);
+});
+
+it('finishes a read whose pane lost its row cache', () => {
+  const cache = createRowCache({ rowLimit: 100 });
+  const sent: ControlMessage[] = [];
+  const fetched: string[] = [];
+  let held: typeof cache | undefined = cache;
+
+  cache.apply(heldUpdate);
+
+  const fetcher = createRowFetcher({
+    send: (message) => sent.push(message),
+    cacheOf: () => held,
+    onFetched: (fetchedPane) => fetched.push(fetchedPane),
+  });
+
+  fetcher.want(pane, { from: 10, to: 12 });
+  held = undefined;
+  fetcher.takeRows(rowsFor(requestIdOf(sent[0]), 10, 3));
+
+  expect(fetched).toEqual([pane]);
+  expect(cache.missing({ from: 10, to: 12 })).toEqual({ from: 10, to: 12 });
+});
+
+it('reads a pane that is wanted again after the panes wanted before it', () => {
+  const { sent, fetcher } = setup();
+  const other = paneId(2);
+
+  fetcher.want(pane, { from: 10, to: 12 });
+  fetcher.want(other, { from: 20, to: 22 });
+  fetcher.want(pane, { from: 30, to: 32 });
+  fetcher.takeRows(rowsFor(requestIdOf(sent[0]), 10, 3));
+
+  expect(sent).toHaveLength(2);
+  expect(sent[1]).toMatchObject({ type: 'paneRead', paneId: other });
+});
+
+it('drops the read of a forgotten pane and ignores its rows', () => {
+  const { cache, sent, fetched, fetcher } = setup();
+
+  fetcher.want(pane, { from: 10, to: 12 });
+  fetcher.forget(pane);
+  fetcher.takeRows(rowsFor(requestIdOf(sent[0]), 10, 3));
+
+  expect(fetched).toEqual([]);
+  expect(cache.missing({ from: 10, to: 12 })).toEqual({ from: 10, to: 12 });
+});
+
+it('starts the next wish when the read in flight is forgotten', () => {
+  const { sent, fetcher } = setup();
+  const other = paneId(2);
+
+  fetcher.want(pane, { from: 10, to: 12 });
+  fetcher.want(other, { from: 20, to: 22 });
+  fetcher.forget(pane);
+
+  expect(sent).toHaveLength(2);
+  expect(sent[1]).toMatchObject({ type: 'paneRead', paneId: other });
+});
+
+it('keeps the read in flight when another pane is forgotten', () => {
+  const { cache, sent, fetched, fetcher } = setup();
+
+  fetcher.want(pane, { from: 10, to: 12 });
+  fetcher.forget(paneId(2));
+  fetcher.takeRows(rowsFor(requestIdOf(sent[0]), 10, 3));
+
+  expect(fetched).toEqual([pane]);
+  expect(cache.missing({ from: 10, to: 12 })).toBeUndefined();
+});
+
+it('forgets a pane that has no read without error', () => {
+  const { sent, fetcher } = setup();
+
+  fetcher.forget(pane);
+  fetcher.want(pane, { from: 10, to: 12 });
+
+  expect(sent).toHaveLength(1);
+});
+
+it('ignores rows of an older request', () => {
+  const { cache, sent, fetched, fetcher } = setup();
+
+  fetcher.want(pane, { from: 10, to: 12 });
+  fetcher.takeRows(rowsFor(requestIdOf(sent[0]) + 1, 10, 3));
+
+  expect(fetched).toEqual([]);
+  expect(cache.missing({ from: 10, to: 12 })).toEqual({ from: 10, to: 12 });
+});
+
+it.each([
+  ['another pane', paneId(2), 0],
+  ['an older request', pane, 1],
+])('ignores a failure for %s', (_name, failedPane, requestOffset) => {
+  const { sent, fetched, fetcher } = setup();
+
+  fetcher.want(pane, { from: 10, to: 12 });
+
+  fetcher.takeFailure(failedPane, requestIdOf(sent[0]) + requestOffset, {
+    reason: 'pruned',
+    oldest: 11,
+  });
+
+  expect(fetched).toEqual([]);
+
+  fetcher.takeRows(rowsFor(requestIdOf(sent[0]), 10, 3));
 
   expect(fetched).toEqual([pane]);
 });
