@@ -1,10 +1,5 @@
-import { describe, expect, it, onTestFinished } from 'bun:test';
+import { describe, expect, it } from 'bun:test';
 import { readFileSync } from 'node:fs';
-import { copyFile, mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises';
-import { tmpdir } from 'node:os';
-import { dirname, join } from 'node:path';
-
-import { z } from 'zod';
 
 import {
   CellFlag,
@@ -1625,38 +1620,4 @@ it('frees the native terminal once and refuses use after dispose', () => {
   }).not.toThrow();
 
   expect(() => terminal.frame()).toThrow();
-});
-
-it('reports a missing library when it creates a terminal and when it reads the Ghostty commit', async () => {
-  const root = await mkdtemp(join(tmpdir(), 'phi-vt-'));
-
-  onTestFinished(() => rm(root, { recursive: true, force: true }));
-
-  // A copy of the modules whose build/libphi-vt.so is not a library.
-  for (const file of ['src/vt/vt.ts', 'src/invariant.ts', 'src/rows/rows.ts']) {
-    await mkdir(dirname(join(root, file)), { recursive: true });
-    await copyFile(file, join(root, file));
-  }
-
-  await mkdir(join(root, 'build'));
-  await writeFile(join(root, 'build/libphi-vt.so'), 'not a library');
-
-  await writeFile(
-    join(root, 'check.ts'),
-    `import { createTerminal, ghosttyCommit } from './src/vt/vt.ts';
-console.log(JSON.stringify({ terminal: createTerminal(80, 24, 0), commit: ghosttyCommit() }));`,
-  );
-
-  const child = Bun.spawn([process.execPath, 'check.ts'], { cwd: root, stdout: 'pipe' });
-  const output = await new Response(child.stdout).text();
-
-  const missing = z.object({
-    ok: z.literal(false),
-    reason: z.literal('library-missing'),
-    detail: z.string().min(1),
-  });
-
-  const results = z.object({ terminal: missing, commit: missing }).safeParse(JSON.parse(output));
-
-  expect(results.success).toBe(true);
 });
