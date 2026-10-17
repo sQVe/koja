@@ -257,3 +257,31 @@ it('keeps the workspace that was focused when the pane of a new workspace fails 
     workspaceId(2),
   ]);
 });
+
+it.each(['/work/phi/', '/work/phi//', '/work/phi'])(
+  'labels a workspace by the last folder of %s',
+  (root) => {
+    const result = intent(createState(), {
+      type: 'createWorkspace',
+      root,
+      label: undefined,
+      focus: true,
+    });
+
+    expect(result.state.workspaces[0]?.label).toBe('phi');
+  },
+);
+
+it('changes nothing when a workspace gets the label it has', () => {
+  const state = run([createPhi]);
+
+  const result = intent(state, {
+    type: 'renameWorkspace',
+    workspaceId: workspaceId(1),
+    label: 'phi',
+  });
+
+  expect(result.changes).toEqual([]);
+  expect(result.state.workspaces).toEqual(state.workspaces);
+  expect(result.state.revision).toBe(state.revision);
+});

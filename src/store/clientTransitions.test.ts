@@ -1,9 +1,20 @@
 import { expect, it } from 'bun:test';
 
 import { clientId, paneId } from '../ids.ts';
-import { applyIntent, paneTheme } from './store.ts';
+import { applyIntent, createState, paneTheme, savedSessionOf } from './store.ts';
 import type { State, Theme } from './store.ts';
-import { attachLarge, createPhi, intent, run, splitFirst, withClient } from './storeFixtures.ts';
+import {
+  attachLarge,
+  createDocs,
+  createPhi,
+  defined,
+  fact,
+  intent,
+  noFolders,
+  run,
+  splitFirst,
+  withClient,
+} from './storeFixtures.ts';
 
 const lightTheme: Theme = {
   foreground: 0x11_22_33,
@@ -300,4 +311,99 @@ it('refuses activity from an unknown client and changes nothing', () => {
   const result = applyIntent(state, { type: 'markClientActive', clientId: clientId(7) });
 
   expect(result).toEqual({ kind: 'rejected', state, reason: 'unknownClient' });
+});
+
+const setTheme = (state: State, theme: Theme) =>
+  intent(state, { type: 'setClientTheme', clientId: clientId(1), theme });
+
+it('reports a theme that differs from the client theme only in its background', () => {
+  const themed = setTheme(attachedState(), lightTheme).state;
+  const result = setTheme(themed, darkTheme);
+
+  expect(result.changes).toEqual([
+    { type: 'clientThemeChanged', clientId: clientId(1), theme: darkTheme },
+  ]);
+
+  expect(paneTheme(result.state)).toEqual(darkTheme);
+});
+
+it('reports a theme that differs from the client theme in one palette color', () => {
+  const themed = setTheme(attachedState(), lightTheme).state;
+  const palette = lightTheme.palette.map((color, index) => (index === 5 ? 0xff_00_ff : color));
+  const result = setTheme(themed, { ...lightTheme, palette });
+
+  expect(result.changes).toHaveLength(1);
+  expect(paneTheme(result.state)?.palette).toEqual(palette);
+});
+
+it('stores the new size of a client that resizes', () => {
+  const state = run([createPhi, attachLarge]);
+  const size = { columns: 60, rows: 15 };
+  const result = intent(state, { type: 'resizeClient', clientId: clientId(1), size });
+
+  expect(result.state.clients[0]).toEqual({ ...defined(state.clients[0]), size });
+
+  const again = intent(result.state, { type: 'resizeClient', clientId: clientId(1), size });
+
+  expect(again.changes).toEqual([]);
+});
+
+it('forgets the activity of the client that a new client takes over from', () => {
+  const state = run([attachLarge]);
+  const result = intent(state, attachLarge);
+
+  expect([...result.state.clientActivity.keys()]).toEqual([clientId(2)]);
+});
+
+it('forgets the activity of a client that detaches', () => {
+  const state = run([attachLarge]);
+  const result = intent(state, { type: 'detachClient', clientId: clientId(1) });
+
+  expect([...result.state.clientActivity.keys()]).toEqual([]);
+});
+
+it('resizes a running pane when the client resizes', () => {
+  const started = fact(run([createPhi, attachLarge]), {
+    type: 'paneStarted',
+    paneId: paneId(1),
+    generation: 1,
+  });
+
+  const result = intent(started.state, {
+    type: 'resizeClient',
+    clientId: clientId(1),
+    size: { columns: 60, rows: 15 },
+  });
+
+  expect(result.changes).toContainEqual({
+    type: 'paneResized',
+    paneId: paneId(1),
+    size: { columns: 40, rows: 14 },
+  });
+});
+
+it('keeps the size of a failed pane when the client resizes', () => {
+  const session = savedSessionOf(run([createPhi, createDocs]), noFolders);
+  const restored = intent(createState(), { type: 'restoreSession', session }).state;
+  const attached = intent(restored, attachLarge).state;
+
+  const failed = fact(attached, {
+    type: 'paneFailedToStart',
+    paneId: paneId(2),
+    generation: 2,
+    message: 'no shell',
+  }).state;
+
+  const result = intent(failed, {
+    type: 'resizeClient',
+    clientId: clientId(1),
+    size: { columns: 60, rows: 15 },
+  });
+
+  const resized = result.changes.flatMap((change) =>
+    change.type === 'paneResized' ? [change.paneId] : [],
+  );
+
+  expect(resized).toEqual([paneId(1)]);
+  expect(result.state.panes[1]?.size).toEqual(failed.panes[1]?.size);
 });

@@ -1,7 +1,15 @@
 import { expect, it } from 'bun:test';
 
 import { clientId, paneId, tabId, workspaceId } from '../ids.ts';
-import { applyIntent, createState, savedSessionOf, shownFocusedPaneId, snapshot } from './store.ts';
+import {
+  applyIntent,
+  createState,
+  focusedPane,
+  paneTheme,
+  savedSessionOf,
+  shownFocusedPaneId,
+  snapshot,
+} from './store.ts';
 import {
   attachedEmpty,
   createDocs,
@@ -98,4 +106,25 @@ it('finds the focused pane of the tab the source client shows, or the default vi
   expect(shownFocusedPaneId(state, workspaceId(1), clientId(1))).toBe(paneId(2));
   expect(shownFocusedPaneId(state, workspaceId(1), clientId(2))).toBe(paneId(1));
   expect(shownFocusedPaneId(state, workspaceId(1), undefined)).toBe(paneId(1));
+});
+
+it('finds no focused pane for an unknown workspace', () => {
+  const state = run([createPhi]);
+
+  expect(shownFocusedPaneId(state, unknownWorkspace, undefined)).toBeUndefined();
+});
+
+it('finds no focused pane in a state without workspaces', () => {
+  expect(focusedPane(createState())).toBeUndefined();
+});
+
+it('finds no focused pane when the default view shows no tab', () => {
+  const state = run([createPhi]);
+  const lost = { ...state.defaultView, focusedWorkspaceId: unknownWorkspace };
+
+  expect(focusedPane({ ...state, defaultView: lost })).toBeUndefined();
+});
+
+it('finds no pane colors without an attached client', () => {
+  expect(paneTheme(createState())).toBeUndefined();
 });

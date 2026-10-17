@@ -1,6 +1,6 @@
 import { expect, it } from 'bun:test';
 
-import { paneId, tabId, workspaceId } from '../ids.ts';
+import { clientId, paneId, tabId, workspaceId } from '../ids.ts';
 import { applyIntent, createState, savedSessionOf } from './store.ts';
 import type { Intent, State } from './store.ts';
 import {
@@ -8,6 +8,7 @@ import {
   createApi,
   createDocs,
   createPhi,
+  defined,
   fact,
   intent,
   noFolders,
@@ -124,4 +125,64 @@ it('removes a failed pane when it is closed, and saves it until then', () => {
 
   expect(closed.state.panes.map((pane) => pane.id)).toEqual([paneId(1)]);
   expect(closed.changes.map((change) => change.type)).toContain('paneRemoved');
+});
+
+it('gives restored panes consecutive generations and moves the counter past them', () => {
+  const result = intent(attachedEmpty(), restoreIntent(run(richSession)));
+
+  expect(result.state.panes.map((pane) => pane.generation)).toEqual([1, 2, 3, 4]);
+  expect(result.state.nextGeneration).toBe(5);
+});
+
+it('reports every restored workspace, tab, and pane, and the view of the attached client', () => {
+  const saved = run([createPhi, createDocs]);
+  const result = intent(attachedEmpty(), restoreIntent(saved));
+  const { workspaces, tabs, panes, defaultView } = result.state;
+
+  expect(workspaces).toEqual(saved.workspaces);
+
+  expect(result.changes).toEqual([
+    {
+      type: 'workspaceAdded',
+      workspace: defined(saved.workspaces[0]),
+      activeTabId: tabId(1),
+      focusedWorkspaceId: workspaceId(2),
+    },
+    {
+      type: 'workspaceAdded',
+      workspace: defined(saved.workspaces[1]),
+      activeTabId: tabId(2),
+      focusedWorkspaceId: workspaceId(2),
+    },
+    { type: 'tabAdded', tab: defined(tabs[0]) },
+    { type: 'tabAdded', tab: defined(tabs[1]) },
+    { type: 'paneAdded', pane: defined(panes[0]) },
+    { type: 'paneAdded', pane: defined(panes[1]) },
+    { type: 'clientViewChanged', clientId: clientId(1), view: defaultView },
+  ]);
+});
+
+it('starts the default view and the view of an attached client without scrolls', () => {
+  const result = intent(attachedEmpty(), restoreIntent(run([createPhi, createDocs])));
+
+  expect(result.state.defaultView.scrolls).toEqual([]);
+  expect(result.state.clients[0]?.view).toEqual(result.state.defaultView);
+});
+
+it('stops the server without touching a restored pane that failed to start', () => {
+  const { result } = failRestoredSecondPane();
+  const stopped = intent(result.state, { type: 'stopServer' });
+
+  expect(stopped.state.panes.map((pane) => pane.lifecycle)).toEqual(['closing', 'failed']);
+
+  expect(stopped.changes).toEqual([
+    {
+      type: 'paneStateChanged',
+      paneId: paneId(1),
+      lifecycle: 'closing',
+      exitCode: undefined,
+      error: undefined,
+    },
+    { type: 'serverStopping' },
+  ]);
 });

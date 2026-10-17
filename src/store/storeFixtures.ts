@@ -126,3 +126,9 @@ export const withViews = (state: State, views: readonly [View, View, View]): Sta
     })),
   };
 };
+
+export const defined = <Value>(value: Value | undefined): Value => {
+  invariant(value !== undefined, 'Expected a value.');
+
+  return value;
+};

@@ -4,9 +4,12 @@ import { clientId, paneId, tabId, workspaceId } from '../ids.ts';
 import { activeTabOf, applyIntent, focusedPane } from './store.ts';
 import type { Intent, Pane, State, Tab, WorkspaceRecord } from './store.ts';
 import {
+  attachLarge,
+  createApi,
   createDocs,
   createPhi,
   createTab,
+  defined,
   fact,
   intent,
   run,
@@ -292,4 +295,130 @@ it('refuses to rename a tab while the server stops and leaves state unchanged', 
     state,
     reason: 'serverStopping',
   });
+});
+
+const failStart = (state: State, id: number): State =>
+  fact(state, {
+    type: 'paneFailedToStart',
+    paneId: paneId(id),
+    generation: state.panes.find((pane) => pane.id === paneId(id))?.generation ?? 0,
+    message: 'no shell',
+  }).state;
+
+const closeWorkspaceOf = (id: number): Intent => ({
+  type: 'closeWorkspace',
+  workspaceId: workspaceId(id),
+});
+
+const focusWorkspaceOf = (id: number): Intent => ({
+  type: 'focusWorkspace',
+  workspaceId: workspaceId(id),
+});
+
+it('keeps the focused workspace of every view when its active tab closes', () => {
+  const state = run([attachLarge, createPhi, createTab]);
+  const result = intent(state, { type: 'closeTab', tabId: tabId(2) });
+
+  expect(result.state.defaultView.focusedWorkspaceId).toBe(workspaceId(1));
+  expect(result.state.clients[0]?.view.focusedWorkspaceId).toBe(workspaceId(1));
+});
+
+it('keeps the focused workspace when a new tab fails to start after the workspace it came from closed', () => {
+  const state = run([createPhi, createDocs, createTab, closeWorkspaceOf(2)]);
+  const result = failStart(state, 3);
+
+  expect(result.defaultView.focusedWorkspaceId).toBe(workspaceId(1));
+});
+
+it('keeps the workspace a view moved to when a new tab fails to start', () => {
+  const state = run([
+    createPhi,
+    createDocs,
+    createApi,
+    focusWorkspaceOf(2),
+    createTab,
+    focusWorkspaceOf(3),
+  ]);
+
+  const result = failStart(state, 4);
+
+  expect(result.defaultView.focusedWorkspaceId).toBe(workspaceId(3));
+});
+
+it('focuses the next workspace when the only tab of a new workspace fails after the earlier one closed', () => {
+  const state = run([createPhi, createDocs, closeWorkspaceOf(1)]);
+  const result = failStart(state, 2);
+
+  expect(result.workspaces).toEqual([]);
+  expect(result.defaultView.focusedWorkspaceId).toBeUndefined();
+});
+
+it('focuses the next workspace when the last tab of a workspace fails after its earlier tabs closed', () => {
+  const state = run([
+    createPhi,
+    createDocs,
+    focusWorkspaceOf(1),
+    createTab,
+    { type: 'closeTab', tabId: tabId(1) },
+  ]);
+
+  const result = failStart(state, 3);
+
+  expect(result.workspaces.map((workspace) => workspace.id)).toEqual([workspaceId(2)]);
+  expect(result.defaultView.focusedWorkspaceId).toBe(workspaceId(2));
+});
+
+it('reports the client views that move when the last tab of a workspace closes', () => {
+  const state = run([attachLarge, createPhi, createDocs]);
+  const result = intent(state, { type: 'closeTab', tabId: tabId(2) });
+  const view = result.state.clients[0]?.view;
+
+  expect(view?.focusedWorkspaceId).toBe(workspaceId(1));
+
+  expect(result.changes).toContainEqual({
+    type: 'clientViewChanged',
+    clientId: clientId(1),
+    view: defined(view),
+  });
+});
+
+it('adds a new tab only to the workspace that owns it', () => {
+  const state = run([createPhi, createDocs]);
+  const result = intent(state, createTab);
+
+  expect(result.state.workspaces.map((workspace) => workspace.tabIds)).toEqual([
+    [tabId(1), tabId(3)],
+    [tabId(2)],
+  ]);
+});
+
+it('removes a closed tab only from the workspace that owns it', () => {
+  const state = run([createPhi, createTab, createDocs]);
+  const result = intent(state, { type: 'closeTab', tabId: tabId(2) });
+
+  expect(result.state.workspaces.map((workspace) => workspace.tabIds)).toEqual([
+    [tabId(1)],
+    [tabId(3)],
+  ]);
+});
+
+it('focuses the workspace that owns the tab', () => {
+  const state = run([createPhi, createDocs, focusWorkspaceOf(1)]);
+  const result = intent(state, { type: 'focusTab', tabId: tabId(2) });
+
+  expect(result.state.defaultView.focusedWorkspaceId).toBe(workspaceId(2));
+});
+
+it('renames only the tab it names', () => {
+  const state = run([createPhi, createTab]);
+  const result = intent(state, { type: 'renameTab', tabId: tabId(2), label: 'logs' });
+
+  expect(result.state.tabs.map((tab) => tab.label)).toEqual([undefined, 'logs']);
+});
+
+it('reports no tab focus change when a workspace closes with its active tab first', () => {
+  const state = run([createPhi, createTab, createTab, { type: 'focusTab', tabId: tabId(1) }]);
+  const result = intent(state, closeWorkspaceOf(1));
+
+  expect(result.changes.map((change) => change.type)).not.toContain('tabFocused');
 });
