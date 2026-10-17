@@ -196,10 +196,6 @@ const indexOfPasteEnd = (bytes: Uint8Array, from: number): number => {
 const scanCharacter = (input: Uint8Array, start: number): number | undefined => {
   const length = characterLength(input[start] ?? 0);
 
-  if (length === 0) {
-    return 0;
-  }
-
   for (let offset = 1; offset < length; offset += 1) {
     const next = input[start + offset];
 
@@ -354,7 +350,7 @@ const scanAlt = (input: Uint8Array, start: number): Scanned | undefined => {
     return undefined;
   }
 
-  return { kind: 'key', end: character === 0 ? start + 1 : start + 1 + character };
+  return { kind: 'key', end: start + 1 + character };
 };
 
 const scanEscape = (input: Uint8Array, start: number): Scanned | undefined => {
@@ -425,7 +421,7 @@ export const createInputTokenizer = (): InputTokenizer => {
     const end = indexOfPasteEnd(window, 0);
 
     if (end === -1) {
-      open.parts.push(input.slice());
+      open.parts.push(input);
       open.length += input.length;
 
       return undefined;
@@ -461,7 +457,7 @@ export const createInputTokenizer = (): InputTokenizer => {
     }
 
     if (scanned.kind === 'response') {
-      tokens.push({ kind: 'response', bytes: text.slice() });
+      tokens.push({ kind: 'response', bytes: text });
     }
 
     if (scanned.kind === 'pasteStart') {
@@ -505,17 +501,13 @@ export const createInputTokenizer = (): InputTokenizer => {
 
       if (scanned === undefined && !mustRelease) {
         held = input.slice(index);
-        heldEscapeSent = escapeSent && index === 0;
+        heldEscapeSent = escapeSent;
         heldAt = nowMs;
 
         break;
       }
 
-      const token =
-        scanned ??
-        (mustRelease
-          ? releaseFirst(input, index)
-          : { kind: 'response' as const, end: input.length });
+      const token = scanned ?? releaseFirst(input, index);
 
       emit(
         tokens,
@@ -547,13 +539,7 @@ export const createInputTokenizer = (): InputTokenizer => {
       return tokens;
     }
 
-    const stamp = heldAt;
-
     run(held, heldEscapeSent, nowMs, true, tokens);
-
-    if (held.length > 0) {
-      heldAt = stamp === heldAt ? nowMs : heldAt;
-    }
 
     return tokens;
   };
@@ -561,7 +547,7 @@ export const createInputTokenizer = (): InputTokenizer => {
   const push = (bytes: Uint8Array, nowMs: number): InputToken[] => {
     const tokens = expire(nowMs);
     const continues = continuesSentEscape(bytes, nowMs);
-    const resumes = held.length > 0 && heldEscapeSent;
+    const resumes = heldEscapeSent;
     const previousHeldAt = heldAt;
     const wasHolding = held.length > 0;
     const input = continues ? concat(Uint8Array.of(escape), bytes) : concat(held, bytes);
@@ -575,7 +561,7 @@ export const createInputTokenizer = (): InputTokenizer => {
     }
 
     // A terminal reply can arrive between a lone Escape and the rest of its key.
-    if (onlyReplies(tokens.slice(before)) && held.length === 0) {
+    if (onlyReplies(tokens.slice(before))) {
       escapeSentAt = sentEscapeAt;
     }
 

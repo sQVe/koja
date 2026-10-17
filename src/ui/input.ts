@@ -90,8 +90,7 @@ const nothing = new Uint8Array();
 const escapeKey = '\x1b';
 
 // Only a bare Escape can be completed by a continuation. A kitty Escape event is already whole.
-const isBareEscape = (bytes: Uint8Array): boolean =>
-  bytes.length === 1 && decoder.decode(bytes) === escapeKey;
+const isBareEscape = (bytes: Uint8Array): boolean => decoder.decode(bytes) === escapeKey;
 
 const pasteStart = encoder.encode('\x1b[200~');
 
@@ -376,7 +375,7 @@ export const createInputRouter = (host: TokenRouterHost): ((token: RoutedToken) 
     }
 
     const current = host.workspaces();
-    const stillListed = pendingFocus !== undefined && current.ids.includes(pendingFocus);
+    const stillListed = current.ids.some((id) => id === pendingFocus);
     const focused = stillListed ? pendingFocus : current.focused;
 
     if (key === 'create') {
@@ -467,7 +466,7 @@ export const createInputRouter = (host: TokenRouterHost): ((token: RoutedToken) 
   const rememberTarget = (event: MouseEvent, target: PaneTarget | undefined): void => {
     const ownsGesture = isButtonGesture(event) && target?.paneId === captured?.pane;
 
-    if (target !== undefined && captured !== undefined && ownsGesture) {
+    if (captured !== undefined && ownsGesture) {
       captured.last = target;
     }
   };
@@ -562,10 +561,6 @@ export const createInputRouter = (host: TokenRouterHost): ((token: RoutedToken) 
     }
 
     forwardMouse(event, target);
-
-    if (placedTarget === undefined) {
-      return undefined;
-    }
 
     const unfocused = target.paneId !== host.focusedPane();
 
