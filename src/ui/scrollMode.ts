@@ -344,10 +344,7 @@ export const createScrollMode = (session: ScrollModeSession): ScrollMode => {
       return;
     }
 
-    if (state !== undefined) {
-      stop(true);
-    }
-
+    stop(true);
     begin();
   };
 

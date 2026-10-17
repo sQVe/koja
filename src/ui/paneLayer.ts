@@ -66,7 +66,6 @@ export const mountPanes = (
     const terminal = panes.get(id);
 
     if (terminal !== undefined) {
-      box.remove(terminal);
       terminal.destroy();
       panes.delete(id);
     }
@@ -76,7 +75,6 @@ export const mountPanes = (
     const failed = paneFailures.get(id);
 
     if (failed !== undefined) {
-      box.remove(failed);
       failed.destroy();
       paneFailures.delete(id);
     }
@@ -166,7 +164,6 @@ export const mountPanes = (
 
     for (const [id, pane] of panes) {
       if (!present.has(id)) {
-        box.remove(pane);
         pane.destroy();
         panes.delete(id);
       }
@@ -174,7 +171,6 @@ export const mountPanes = (
 
     for (const [id, pane] of paneFailures) {
       if (!present.has(id)) {
-        box.remove(pane);
         pane.destroy();
         paneFailures.delete(id);
       }
@@ -249,19 +245,14 @@ export const mountPanes = (
     unsubscribeScroll();
 
     for (const pane of panes.values()) {
-      box.remove(pane);
       pane.destroy();
     }
 
     for (const pane of paneFailures.values()) {
-      box.remove(pane);
       pane.destroy();
     }
 
-    panes.clear();
-    paneFailures.clear();
     renderer.setCursorPosition(0, 0, false);
-    box.remove(borders);
     borders.destroy();
   };
 };

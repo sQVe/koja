@@ -43,3 +43,46 @@ it('wraps a long error inside the pane width', async () => {
     '',
   ]);
 });
+
+it('splits a word longer than the width into full lines', async () => {
+  const frame = await drawFailedPane('abcdefghij', 4, 4);
+
+  expect(frame.split('\n').map((line) => line.trimEnd())).toEqual(['abcd', 'efgh', 'ij', '', '']);
+});
+
+it('fills a line exactly to the pane width before it wraps', async () => {
+  const frame = await drawFailedPane('abc def ghi', 7, 3);
+
+  expect(frame.split('\n').map((line) => line.trimEnd())).toEqual(['abc def', 'ghi', '', '']);
+});
+
+it('collapses a double space into one', async () => {
+  const frame = await drawFailedPane('a  b', 10, 1);
+
+  expect(frame.split('\n')[0]?.trimEnd()).toBe('a b');
+});
+
+it('moves and resizes with the layout', async () => {
+  const created = await createTestRenderer({ width: 12, height: 5 });
+
+  const pane = new FailedPaneRenderable(created.renderer, {
+    message: 'abc def ghi',
+    width: 12,
+    height: 1,
+    left: 0,
+    top: 0,
+  });
+
+  setup = created;
+  created.renderer.root.add(pane);
+  pane.move(2, 2);
+  pane.resize(5, 3);
+  await created.renderOnce();
+
+  expect(
+    created
+      .captureCharFrame()
+      .split('\n')
+      .map((line) => line.trimEnd()),
+  ).toEqual(['', '', '  abc', '  def', '  ghi', '']);
+});

@@ -10,6 +10,7 @@ import {
   tabLabelsOf,
   targetAt,
   targetNear,
+  visibleStart,
   workspaceAt,
 } from './screenTargets.ts';
 import type { Placement } from './screenTargets.ts';
@@ -203,4 +204,98 @@ it('shows a labeled tab as number and label, in brackets when active', () => {
 it('shows an unlabeled tab as its number only', () => {
   expect(tabEntry(1, undefined, true)).toBe('[1]');
   expect(tabEntry(4, undefined, false)).toBe('4');
+});
+
+const twoTabSnapshot = (activeTab: number | undefined, clients: unknown[] = []) =>
+  ({
+    revision: 1,
+    workspaces: [
+      { id: workspaceId(1), root: '/work', label: 'work', tabIds: [tabId(1), tabId(2)] },
+    ],
+    tabs: [1, 2].map((number) => ({
+      id: tabId(number),
+      workspaceId: workspaceId(1),
+      layout: pane(number),
+      focusedPaneId: paneId(number),
+      zoomedPaneId: undefined,
+    })),
+    panes: [],
+    defaultView: {
+      focusedWorkspaceId: workspaceId(1),
+      activeTabs:
+        activeTab === undefined ? [] : [{ workspaceId: workspaceId(1), tabId: tabId(activeTab) }],
+    },
+    attachedClientId: clientId(1),
+    foregroundClientId: undefined,
+    clients,
+  }) as unknown as StoreSnapshot;
+
+it('places panes by the size the server knows for this client', () => {
+  const clients = [
+    { id: clientId(2), size: { columns: 50, rows: 12 } },
+    { id: clientId(1), size: { columns: 100, rows: 30 } },
+  ];
+
+  const placed = placementOf(twoTabSnapshot(1, clients), { columns: 80, rows: 24 });
+
+  expect(placed.size).toEqual({ columns: 80, rows: 29 });
+  expect(placed.offset).toBe(20);
+});
+
+it('places the panes of the active tab, not the first tab', () => {
+  const placed = placementOf(twoTabSnapshot(2), { columns: 80, rows: 24 });
+
+  expect(placed.rectangles.map((rectangle) => rectangle.paneId)).toEqual([paneId(2)]);
+  expect(placed.focusedPaneId).toBe(paneId(2));
+});
+
+it('places no panes and no focus when the workspace has no active tab', () => {
+  const placed = placementOf(twoTabSnapshot(undefined), { columns: 80, rows: 24 });
+
+  expect(placed.rectangles).toEqual([]);
+  expect(placed.focusedPaneId).toBeUndefined();
+});
+
+it('keeps the side list offset when mapping a drag outside the pane to a column', () => {
+  expect(targetNear(placement, paneId(1), 25, 3)).toEqual({
+    paneId: paneId(1),
+    column: 4,
+    row: 2,
+  });
+});
+
+it('scrolls the side list only as far as the focus needs', () => {
+  expect(visibleStart(10, 2, 4)).toBe(0);
+  expect(visibleStart(10, 5, 4)).toBe(2);
+  expect(visibleStart(10, 9, 4)).toBe(6);
+});
+
+it('hits no workspace on rows above the list or on the status bar row of a long list', () => {
+  const short = { columns: 80, rows: 4 };
+
+  expect(workspaceAt(listSnapshot(8, 1, 1), short, { x: 0, y: 3 })).toBeUndefined();
+  expect(workspaceAt(listSnapshot(8, 8, 1), short, { x: 0, y: -1 })).toBeUndefined();
+  expect(workspaceAt(listSnapshot(8, 8, 1), short, { x: -1, y: 0 })).toBeUndefined();
+  expect(workspaceAt(listSnapshot(8, 1, 1), short, { x: 0, y: 2 })).toBe(workspaceId(3));
+});
+
+it('shows the tabs of the focused workspace only', () => {
+  const snapshot = {
+    ...listSnapshot(2, 2, 1),
+    workspaces: [
+      { id: workspaceId(1), root: '/a', label: 'a', tabIds: [tabId(1)] },
+      { id: workspaceId(2), root: '/b', label: 'b', tabIds: [tabId(2), tabId(3)] },
+    ],
+  } as unknown as StoreSnapshot;
+
+  expect(tabLabelsOf(snapshot, 'insert').map((label) => label.text)).toEqual(['[1]', '2']);
+});
+
+it('shows no tabs when no workspace is focused', () => {
+  const snapshot = {
+    ...listSnapshot(2, 1, 2),
+    defaultView: { focusedWorkspaceId: workspaceId(9), activeTabs: [] },
+  } as unknown as StoreSnapshot;
+
+  expect(tabLabelsOf(snapshot, 'insert')).toEqual([]);
 });
