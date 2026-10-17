@@ -139,6 +139,10 @@ export const focusPane = (state: State, id: PaneId, source: ClientId | undefined
 
   const focused: State = { ...shown, tabs };
 
+  if (keepsZoom) {
+    return propose(focused, changes);
+  }
+
   const fitted = fitPanes(focused);
 
   return propose({ ...focused, panes: fitted.panes }, [...changes, ...fitted.changes]);
