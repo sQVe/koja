@@ -393,6 +393,14 @@ const startLayer = async (initial: StoreSnapshot, caches: Map<PaneId, RowCache>)
 
   await created.renderOnce();
 
+  const notify = (next: StoreSnapshot): void => {
+    snapshot = next;
+
+    for (const listener of stateListeners) {
+      listener();
+    }
+  };
+
   const layer = {
     created,
     box,
@@ -404,12 +412,9 @@ const startLayer = async (initial: StoreSnapshot, caches: Map<PaneId, RowCache>)
     listenerCount: () =>
       stateListeners.size + rowListeners.size + fetchedListeners.size + scrollListeners.size,
     lines: (): string[] => created.captureCharFrame().split('\n'),
+    notify,
     show: async (next: StoreSnapshot): Promise<void> => {
-      snapshot = next;
-
-      for (const listener of stateListeners) {
-        listener();
-      }
+      notify(next);
 
       await created.renderOnce();
     },
@@ -867,4 +872,88 @@ it('removes its renderables and stops listening when unmounted', async () => {
   expect(layer.listenerCount()).toBe(0);
   expect(layer.box.getChildren()).toHaveLength(0);
   expect(before.every((child) => child.isDestroyed)).toBe(true);
+});
+
+const cursorScreen = (): RowUpdate => ({
+  ...screenOf(['ab']),
+  cursor: { x: 0, y: 0, visible: true, shape: CursorShape.default, blinking: false },
+});
+
+const nativeCursor = (created: TestRendererSetup) => {
+  const { visible, x, y } = created.renderer.getCursorState();
+
+  return { visible, x, y };
+};
+
+const bothCursors = (): Map<PaneId, RowCache> =>
+  new Map([
+    [firstPane, cacheWith(cursorScreen())],
+    [secondPane, cacheWith({ ...cursorScreen(), pane: 2 })],
+  ]);
+
+it('gives the native cursor to the focused pane only and draws an inverse cell in the other', async () => {
+  const split = snapshotOf(rightSplit, twoRunning, 1);
+  const layer = await startLayer(split, bothCursors());
+
+  const firstInverted = invertedAt(layer.created);
+  const firstCursor = nativeCursor(layer.created);
+
+  await layer.show(focusing(split, 2));
+
+  const secondInverted = invertedAt(layer.created);
+  const secondCursor = nativeCursor(layer.created);
+
+  expect(firstInverted).toHaveLength(1);
+  expect(secondInverted).toHaveLength(1);
+  expect(firstInverted).not.toEqual(secondInverted);
+  expect(firstCursor.visible).toBe(true);
+  expect(secondCursor.visible).toBe(true);
+
+  const [firstRow, firstColumn] = secondInverted[0]?.split(':').map(Number) ?? [];
+  const [secondRow, secondColumn] = firstInverted[0]?.split(':').map(Number) ?? [];
+
+  expect(firstCursor).toEqual({ visible: true, x: (firstColumn ?? 0) + 1, y: (firstRow ?? 0) + 1 });
+
+  expect(secondCursor).toEqual({
+    visible: true,
+    x: (secondColumn ?? 0) + 1,
+    y: (secondRow ?? 0) + 1,
+  });
+});
+
+it('hides the native cursor as soon as focus moves to a failed pane', async () => {
+  const split = snapshotOf(rightSplit, [pane(1, 'running'), pane(2, 'failed')], 1);
+  const layer = await startLayer(split, new Map([[firstPane, cacheWith(cursorScreen())]]));
+
+  expect(nativeCursor(layer.created).visible).toBe(true);
+
+  layer.notify(focusing(split, 2));
+
+  expect(nativeCursor(layer.created).visible).toBe(false);
+
+  await layer.created.renderOnce();
+
+  expect(nativeCursor(layer.created).visible).toBe(false);
+});
+
+it('keeps the native cursor of the focused pane when the layer syncs without a frame', async () => {
+  const split = snapshotOf(rightSplit, twoRunning, 1);
+  const layer = await startLayer(split, bothCursors());
+
+  layer.notify({ ...split, revision: 2 });
+
+  expect(nativeCursor(layer.created).visible).toBe(true);
+});
+
+it('hides the native cursor when unmounted', async () => {
+  const layer = await startLayer(
+    snapshotOf(single, [pane(1, 'running')], 1),
+    new Map([[firstPane, cacheWith(cursorScreen())]]),
+  );
+
+  expect(nativeCursor(layer.created).visible).toBe(true);
+
+  layer.unmount();
+
+  expect(nativeCursor(layer.created).visible).toBe(false);
 });
