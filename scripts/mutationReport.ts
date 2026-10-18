@@ -146,7 +146,7 @@ const outcome = (
 });
 
 const unmutatedMessage = (unmutated: string[]) =>
-  `${unmutated.length} file(s) were not mutated: the mutant cap left them out, or Stryker selected none of their mutants.`;
+  `${unmutated.length} file(s) were not mutated: the --max-mutants cap left them out, or Stryker selected none of their mutants.`;
 
 const survivorsStatus = (mode: MutationMode) => ({
   status: 'survivors' as const,

@@ -6,7 +6,7 @@ export interface Command {
   mode: 'changed' | 'audit';
   base?: string;
   paths: readonly string[];
-  maxMutants: number;
+  maxMutants?: number;
   configPath?: string;
 }
 
@@ -197,11 +197,12 @@ export const mutatePatterns = ({ path, ranges }: FileScope): string[] => {
 };
 
 // Gives each file its budget in order. A file that does not fit is left out, and a later file
-// that fits still runs.
+// that fits still runs. Without a cap, every file with a mutant runs.
 export const fitCap = (
   counts: readonly { path: string; mutants: number }[],
-  cap: number,
+  cap: number | undefined,
 ): { run: string[]; unmutated: string[] } => {
+  const limit = cap ?? Number.POSITIVE_INFINITY;
   const run: string[] = [];
   const unmutated: string[] = [];
   let used = 0;
@@ -211,7 +212,7 @@ export const fitCap = (
       continue;
     }
 
-    if (used + mutants > cap) {
+    if (used + mutants > limit) {
       unmutated.push(path);
 
       continue;
@@ -248,8 +249,6 @@ export const unitTestFiles = (folder: string, entries: readonly string[]): strin
     .toSorted()
     .map((entry) => posix.join(folder, entry));
 
-const defaultMaxMutants = 500;
-
 const usageText = 'Usage: mutation changed <base> | mutation audit <path>...';
 
 const takeOptions = (argv: readonly string[]) => {
@@ -282,11 +281,7 @@ const takeOptions = (argv: readonly string[]) => {
   return { positionals, options };
 };
 
-const parseMaxMutants = (text: string | undefined) => {
-  if (text === undefined) {
-    return defaultMaxMutants;
-  }
-
+const parseMaxMutants = (text: string) => {
   const maxMutants = Number(text);
 
   if (text.trim() === '' || !Number.isInteger(maxMutants) || maxMutants < 1) {
@@ -300,9 +295,13 @@ const parseMaxMutants = (text: string | undefined) => {
 export const parseCommand = (argv: readonly string[]): Command => {
   const { positionals, options } = takeOptions(argv);
   const [mode, ...rest] = positionals;
-  const maxMutants = parseMaxMutants(options.get('--max-mutants'));
+  const maxMutantsText = options.get('--max-mutants');
   const configPath = options.get('--config');
-  const extra = configPath === undefined ? {} : { configPath };
+
+  const extra = {
+    ...(maxMutantsText === undefined ? {} : { maxMutants: parseMaxMutants(maxMutantsText) }),
+    ...(configPath === undefined ? {} : { configPath }),
+  };
 
   if (mode === 'changed') {
     const [base] = rest;
@@ -315,7 +314,7 @@ export const parseCommand = (argv: readonly string[]): Command => {
       throw new Error('changed takes one base only.');
     }
 
-    return { mode, base, paths: [], maxMutants, ...extra };
+    return { mode, base, paths: [], ...extra };
   }
 
   if (mode === 'audit') {
@@ -323,7 +322,7 @@ export const parseCommand = (argv: readonly string[]): Command => {
       throw new Error('audit needs at least one path. Usage: mutation audit <path>...');
     }
 
-    return { mode, paths: rest, maxMutants, ...extra };
+    return { mode, paths: rest, ...extra };
   }
 
   throw new Error(`Unknown mode "${mode ?? ''}". ${usageText}`);
