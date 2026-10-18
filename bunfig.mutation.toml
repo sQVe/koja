@@ -1,0 +1,10 @@
+[install]
+exact = true
+
+[test]
+pathIgnorePatterns = [
+  "src/server/processInfo.test.ts",
+  "src/server/socketPath.test.ts",
+  "src/server/rowPublisher.test.ts",
+  "src/client/clipboardWrite.test.ts",
+]
