@@ -9,9 +9,9 @@ survivors of each commit, and the reason for each setting. Usage is in
 For each commit, a detached worktree held the commit. The mutation scripts, `stryker.config.json`,
 and `bunfig.mutation.toml` were copied in, `build/libphi-vt.so` was built there, and `node_modules`
 was a symlink to the main checkout. Each run was
-`bun scripts/mutation.ts changed <sha>~1 --max-mutants 5000`. The cap is raised because the default
-500 leaves files unmutated on large commits, and an unmutated file ends the run with exit 1. The
-worktrees are removed.
+`bun scripts/mutation.ts changed <sha>~1 --max-mutants 5000`. The cap was raised because the
+script's default cap at the time, 500, left files unmutated on large commits, and an unmutated file
+ends the run with exit 1. The script now has no default cap. The worktrees are removed.
 
 Kinds, in the table columns:
 

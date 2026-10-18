@@ -73,8 +73,8 @@ bun run mutation audit src/layout.ts
 - `changed <base>` mutates the lines that `git diff -U0 <base>` adds, and every line of an untracked
   file. It exits 2 when a mutant survives or has no coverage.
 - `audit <path>...` mutates whole files and exits 0 on survivors.
-- `--max-mutants <n>` sets the cap, 500 by default. A file that does not fit is listed in
-  `unmutated`, and the run exits 1.
+- Every mutant runs by default. `--max-mutants <n>` sets a cap for a local run. A file that does not
+  fit is listed in `unmutated`, and the run exits 1.
 - The script prints one JSON report on stdout. Stryker's own output goes to stderr. Each survivor
   has `file`, `line`, `column`, `endLine`, `endColumn`, `mutator`, `original`, `replacement`, and
   `covered`. `covered: false` means no test reaches the line.
@@ -88,8 +88,10 @@ modules it leaves out.
 Mark a mutant that no test can tell apart from the original with
 `// Stryker disable next-line <mutator>: <reason>` above the line. Use a block comment before the
 token when the mutant sits inside a `catch` or in the middle of an expression. The pull request job
-`Mutation` in [ci.yml](../.github/workflows/ci.yml) runs the same command against the merge base.
-[scripts/mutation-tuning.md](../scripts/mutation-tuning.md) records how the config was tuned.
+`Mutation` in [ci.yml](../.github/workflows/ci.yml) runs the same command against the merge base,
+with no cap. It is advisory: it lists survivors on the pull request, it is not a required check, and
+`timeout-minutes` bounds its time. [scripts/mutation-tuning.md](../scripts/mutation-tuning.md)
+records how the config was tuned.
 
 ## Versioning
 

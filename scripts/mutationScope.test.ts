@@ -147,6 +147,13 @@ describe('fitCap', () => {
       run: ['b'],
       unmutated: [],
     },
+    {
+      name: 'there is no cap',
+      counts: [600, 0, 900],
+      cap: undefined,
+      run: ['a', 'c'],
+      unmutated: [],
+    },
   ])('splits files when $name', ({ counts, cap, run, unmutated }) => {
     const paths = ['a', 'b', 'c'];
     const input = counts.map((mutants, index) => ({ path: paths[index] ?? '', mutants }));
@@ -210,7 +217,7 @@ describe('parseCommand', () => {
     {
       name: 'changed with a base',
       argv: ['changed', 'main'],
-      command: { mode: 'changed', base: 'main', paths: [], maxMutants: 500 },
+      command: { mode: 'changed', base: 'main', paths: [] },
     },
     {
       name: 'audit with paths, a cap, and a config',
