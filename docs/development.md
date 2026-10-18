@@ -79,8 +79,9 @@ bun run mutation audit src/layout.ts
   has `file`, `line`, `column`, `endLine`, `endColumn`, `mutator`, `original`, `replacement`, and
   `covered`. `covered: false` means no test reaches the line.
 
-The gate mutates production files under `src/` and runs only the unit tests in the same folder as
-the mutated file, never `tests/`. A file with no unit test next to it reports no coverage. See
+The gate mutates production files under `src/` and starts Stryker once per folder. It runs only the
+unit tests directly in that folder, never those of another folder or `tests/`. A file in a folder
+with no unit test reports no coverage. See
 [ADR 0017](./adr/0017-mutation-gate-runs-same-folder-unit-tests.md) for the reasons and the four
 modules it leaves out.
 

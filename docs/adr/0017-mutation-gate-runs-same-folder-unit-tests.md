@@ -15,12 +15,14 @@ their behavior is covered only from `tests/`.
 
 ## Decision
 
-The mutation gate runs only the `*.test.ts` files under `src/`, never `tests/`. A changed line in a
-file with no unit test next to it fails the gate as no coverage until the change adds one.
+The mutation gate runs only the unit tests in the same folder as the mutated file, never those of
+another folder or `tests/`. The script starts Stryker once per folder and lists that folder's
+`*.test.ts` files. A changed line in a file with no unit test next to it fails the gate as no
+coverage until the change adds one.
 
 The gate also leaves out `src/server/processInfo.ts`, `src/server/socketPath.ts`,
 `src/server/rowPublisher.ts`, and `src/client/clipboardWrite.ts`. Their tests start processes, open
-sockets, or wait on real time, so each mutant costs seconds. The mutation config skips their test
+sockets, or wait on real time, so each mutant costs seconds. The mutation bunfig skips their test
 files too.
 
 ## Consequences
