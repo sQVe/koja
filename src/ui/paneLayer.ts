@@ -205,6 +205,7 @@ export const mountPanes = (
 
     const signature = JSON.stringify([rectangles, size, focusedPaneId]);
 
+    // Stryker disable next-line ConditionalExpression: A render shortcut that only saves redraw work.
     if (signature !== drawnBorders) {
       drawnBorders = signature;
       borders.update(size, borderCells(rectangles, focusedPaneId));

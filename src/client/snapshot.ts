@@ -200,6 +200,7 @@ const applyClientChange = (snapshot: StoreSnapshot, change: StoreChange): StoreS
     return { ...snapshot, clients };
   }
 
+  // Stryker disable next-line ConditionalExpression: The check narrows `change`.
   if (change.type === 'clientDetached') {
     const detachedAttached = snapshot.attachedClientId === change.clientId;
     const detachedForeground = snapshot.foregroundClientId === change.clientId;

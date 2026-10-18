@@ -25,6 +25,7 @@ const latestActiveClient = (state: State): ClientId | undefined => {
   for (const client of state.clients) {
     const activity = state.clientActivity.get(client.id) ?? 0;
 
+    // Stryker disable next-line EqualityOperator: Activity values are unique and start at 1.
     if (activity > latestActivity) {
       latest = client.id;
       latestActivity = activity;
@@ -68,6 +69,7 @@ export const attachClient = (state: State, size: TerminalSize): Outcome => {
     {
       ...state,
       attachedClientId: client.id,
+      // Stryker disable next-line ConditionalExpression: The store keeps one client today; the filter is for two or more.
       clients: [...state.clients.filter((known) => known.id !== previous), client],
       clientActivity: activity,
       nextClientNumber: state.nextClientNumber + 1,

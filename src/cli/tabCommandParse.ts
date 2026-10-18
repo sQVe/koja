@@ -78,6 +78,7 @@ const parseTabTarget = (action: 'focus' | 'close', rest: string[]): TabAction | 
 const parseTabRename = (rest: string[]): TabAction | string => {
   const [id, label] = rest;
 
+  // Stryker disable next-line ConditionalExpression: The `label === undefined` check narrows `label`.
   if (rest.length !== 2 || label === undefined) {
     return 'tab rename takes a tab id and a label.';
   }

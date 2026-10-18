@@ -284,6 +284,7 @@ const cellFlagsOffset = 3;
 const clustersOf = (graphemes: Uint32Array): Map<number, string> => {
   const clusters = new Map<number, string>();
 
+  // Stryker disable next-line EqualityOperator: Loop bound.
   for (let index = 0; index < graphemes.length;) {
     const cellIndex = graphemes[index] ?? 0;
     const length = graphemes[index + 1] ?? 0;

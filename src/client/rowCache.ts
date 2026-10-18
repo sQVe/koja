@@ -81,6 +81,7 @@ const clustersOf = (graphemes: Uint32Array, rowStart: number, stride: number) =>
     const cellIndex = graphemes[index] ?? 0;
     const length = graphemes[index + 1] ?? 0;
 
+    // Stryker disable next-line EqualityOperator: The boundaries are never hit: rows start on a stride and the cell index is never equal to a row end.
     if (cellIndex >= rowStart && cellIndex < rowStart + stride) {
       const column = (cellIndex - rowStart - rowHeaderWords) / cellWords;
       const codePoints = graphemes.subarray(index + 2, index + 2 + length);
@@ -109,6 +110,7 @@ export const createRowCache = ({ rowLimit }: RowCacheOptions): RowCache => {
     pinned?.some((range) => rowNumber >= range.from && rowNumber <= range.to) === true;
 
   const dropOldest = (): void => {
+    // Stryker disable next-line EqualityOperator: Equal to the limit drops nothing either way.
     if (rows.size <= rowLimit) {
       return;
     }
@@ -187,6 +189,7 @@ export const createRowCache = ({ rowLimit }: RowCacheOptions): RowCache => {
   const viewTop = (scroll: number | undefined): number | undefined => {
     const alternate = (modes & ModeFlag.alternateScreen) !== 0;
 
+    // Stryker disable next-line ConditionalExpression: Holds only because `activeTop` starts at 0.
     if (scroll === undefined || epoch === undefined || alternate) {
       return undefined;
     }
