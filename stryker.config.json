@@ -2,7 +2,6 @@
   "$schema": "./node_modules/@stryker-mutator/core/schema/stryker-schema.json",
   "testRunner": "bun",
   "bun": {
-    "testFiles": ["src"],
     "bunArgs": ["--config=bunfig.mutation.toml"],
     "env": { "PHI_MUTATION": "1" },
     "timeout": 120000

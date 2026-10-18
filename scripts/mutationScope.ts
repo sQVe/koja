@@ -1,3 +1,5 @@
+import { posix } from 'node:path';
+
 export type GlobMatcher = (path: string, glob: string) => boolean;
 
 export interface Command {
@@ -225,6 +227,26 @@ export const fitCap = (
 // Mutants that a disable comment or `excludedMutations` ignores never run, so they use no cap.
 export const countedMutants = (mutants: readonly { status?: string }[]): number =>
   mutants.filter(({ status }) => status !== 'Ignored').length;
+
+// Groups scopes by the folder of their file, in path order.
+export const groupByFolder = (scopes: readonly FileScope[]): Map<string, FileScope[]> => {
+  const groups = new Map<string, FileScope[]>();
+
+  for (const scope of scopes.toSorted((left, right) => (left.path < right.path ? -1 : 1))) {
+    const folder = posix.dirname(scope.path);
+
+    groups.set(folder, [...(groups.get(folder) ?? []), scope]);
+  }
+
+  return groups;
+};
+
+// The unit tests of a folder are the test files directly in it, never those of another folder.
+export const unitTestFiles = (folder: string, entries: readonly string[]): string[] =>
+  entries
+    .filter((entry) => entry.endsWith('.test.ts'))
+    .toSorted()
+    .map((entry) => posix.join(folder, entry));
 
 const defaultMaxMutants = 500;
 

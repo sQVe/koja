@@ -13,12 +13,14 @@ import {
   changedScope,
   countedMutants,
   fitCap,
+  groupByFolder,
   isProductionFile,
   mergedConfig,
   mutateConfigError,
   mutatePatterns,
   parseCommand,
   rejectedAuditPaths,
+  unitTestFiles,
   unreportedFiles,
 } from './mutationScope.ts';
 
@@ -480,5 +482,32 @@ describe('unreportedFiles', () => {
     },
   ])('lists $expected for $name', ({ ran, reported, expected }) => {
     expect(unreportedFiles(ran, reported)).toEqual([...expected]);
+  });
+});
+
+describe('groupByFolder', () => {
+  it('groups scopes by the folder of their file, in path order', () => {
+    const groups = groupByFolder([
+      { path: 'src/b/z.ts' },
+      { path: 'src/a.ts' },
+      { path: 'src/b/y.ts', ranges: [{ start: 1, end: 2 }] },
+    ]);
+
+    expect([...groups]).toEqual([
+      ['src', [{ path: 'src/a.ts' }]],
+      ['src/b', [{ path: 'src/b/y.ts', ranges: [{ start: 1, end: 2 }] }, { path: 'src/b/z.ts' }]],
+    ]);
+  });
+});
+
+describe('unitTestFiles', () => {
+  it('keeps only the test files directly in the folder, sorted, with the folder prefix', () => {
+    const entries = ['b.test.ts', 'a.ts', 'a.test.ts', 'fixtures', 'c.test.tsx'];
+
+    expect(unitTestFiles('src/x', entries)).toEqual(['src/x/a.test.ts', 'src/x/b.test.ts']);
+  });
+
+  it('gives no test for a folder with only sources', () => {
+    expect(unitTestFiles('src/x', ['a.ts'])).toEqual([]);
   });
 });
