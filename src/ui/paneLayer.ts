@@ -46,6 +46,7 @@ export const mountPanes = (
   // the rows it shows so they stay in the cache.
   const showScroll = (pane: PaneRenderable, id: PaneId, rows: number): void => {
     const view = shownView(session.getState().snapshot);
+    // Stryker disable next-line OptionalChaining: Scroll mode shows only panes that have a row cache.
     const top = session.rowCache(id)?.viewTop(scrollTopOf(view, id));
 
     const shown = top === undefined ? undefined : { from: top, to: top + rows - 1 };
@@ -109,6 +110,7 @@ export const mountPanes = (
     const { x, y, columns, rows } = terminal;
     const known = session.getState().snapshot.panes.find((pane) => pane.id === id);
 
+    // Stryker disable next-line OptionalChaining: The client only draws panes that the snapshot lists.
     if (known?.lifecycle === 'failed') {
       removeTerminal(id);
       placeFailed(rectangle, known.error ?? '');

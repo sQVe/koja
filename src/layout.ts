@@ -198,10 +198,12 @@ export const removePane = (layout: Layout, target: PaneId): PaneRemoval | undefi
     return undefined;
   }
 
+  // Stryker disable next-line ConditionalExpression: The kind check narrows `first` to a pane.
   if (layout.first.kind === 'pane' && layout.first.paneId === target) {
     return { layout: layout.second, sibling: layout.second };
   }
 
+  // Stryker disable next-line ConditionalExpression: The kind check narrows `second` to a pane.
   if (layout.second.kind === 'pane' && layout.second.paneId === target) {
     return { layout: layout.first, sibling: layout.first };
   }
@@ -243,6 +245,7 @@ const moveEdge = (layout: Layout & { kind: 'split' }, area: Area, movement: numb
   const firstMinimum = minimumOf(layout.first, axis);
   const secondMinimum = minimumOf(layout.second, axis);
 
+  // Stryker disable next-line EqualityOperator: At equal sizes both branches give the same layout.
   if (available < firstMinimum + secondMinimum) {
     return layout;
   }
