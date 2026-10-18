@@ -141,3 +141,23 @@ it('treats a tsx production file as in scope and a tsx test file as out of scope
   expect(inScope('src/ui/workspaceList.tsx')).toBe(true);
   expect(inScope('src/ui/workspaceList.test.tsx')).toBe(false);
 });
+
+it('mutates an untracked production file in changed mode and reports it as uncovered', async () => {
+  const repository = await createProject(baseConfig, { 'README.md': 'base\n' });
+
+  const git = (...args: string[]) => spawnSync('git', args, { cwd: repository, encoding: 'utf8' });
+
+  git('add', 'README.md');
+  git('commit', '--quiet', '-m', 'base');
+  await writeFiles(repository, { 'src/a/a.ts': adder });
+
+  const { status, report } = runScript(repository, ['changed', 'HEAD']);
+
+  expect(status).toBe(2);
+  expect(report.status).toBe('survivors');
+  expect(report.survivors.length).toBeGreaterThan(0);
+
+  expect(report.survivors.every(({ file, covered }) => file === 'src/a/a.ts' && !covered)).toBe(
+    true,
+  );
+});
