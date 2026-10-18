@@ -54,6 +54,7 @@ export const splitPane = (state: State, intent: SplitPaneIntent): Outcome => {
   const area = state.layoutArea;
   const rectangle = layoutPanes(tab.layout, area).find((placed) => placed.paneId === id);
 
+  // Stryker disable next-line ConditionalExpression: The focused pane is in its layout.
   if (rectangle === undefined || !canSplit(rectangle, direction)) {
     return refuse('paneTooSmall');
   }
@@ -158,6 +159,7 @@ const closePaneIn = (state: State, tab: Tab, id: PaneId): Proposal => {
 
   const before = state.stateBeforeSplit.get(id);
   const previous = before?.focusedPaneId;
+  // Stryker disable next-line ConditionalExpression,LogicalOperator: Split and move records never name their own pane, and the first check narrows `previous`.
   const previousStays = previous !== undefined && previous !== id && isInTab(state, previous, tab);
   const successor = previousStays ? previous : firstPaneId(removal.sibling);
   const focusedPaneId = tab.focusedPaneId === id ? successor : tab.focusedPaneId;

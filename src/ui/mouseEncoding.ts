@@ -85,6 +85,7 @@ const wantsEvent = (event: MouseEvent, modes: number): boolean => {
   const { kind } = event;
 
   if (isX10Only(modes)) {
+    // Stryker disable next-line ConditionalExpression: The SGR press bits make the button check redundant.
     return kind === 'press' && event.button <= 2;
   }
 

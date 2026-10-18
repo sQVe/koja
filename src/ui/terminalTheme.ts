@@ -11,6 +11,7 @@ const paletteSize = 16;
 const hexColor = /^#[0-9a-f]{6}$/i;
 
 const parseHex = (hex: string | null): number | undefined =>
+  // Stryker disable next-line ConditionalExpression: The check is needed for the type of `hex`.
   hex !== null && hexColor.test(hex) ? Number.parseInt(hex.slice(1), 16) : undefined;
 
 // Returns undefined unless the terminal answered every color a theme needs.
@@ -19,6 +20,7 @@ export const themeFromDetectedColors = (colors: DetectedColors): TerminalTheme |
   const background = parseHex(colors.defaultBackground);
   const palette: number[] = [];
 
+  // Stryker disable next-line MethodExpression: OpenTUI gives at most `paletteSize` palette colors.
   for (const hex of colors.palette.slice(0, paletteSize)) {
     const color = parseHex(hex);
 

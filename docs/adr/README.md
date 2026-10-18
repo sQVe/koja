@@ -39,3 +39,4 @@ line that links to the replacement.
 - [0014: Stop ends pane processes through a systemd scope per pane](./0014-pane-scope-stop.md)
 - [0015: Save the session after every change and start empty on a file it cannot use](./0015-save-session-after-every-change.md)
 - [0016: Family files inside modules, thin coordinators, and owner-first file names](./0016-family-files-and-owner-first-names.md)
+- [0017: The mutation gate runs only the unit tests next to the mutated file](./0017-mutation-gate-runs-same-folder-unit-tests.md)

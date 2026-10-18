@@ -410,27 +410,33 @@ it('releases an unfinished reply body once it is over the length limit', () => {
   expect(holding()).toBe(false);
 });
 
-it('keeps a large paste that arrives in many reads, in time linear in its size', () => {
-  const tokenizer = createInputTokenizer();
-  const chunk = new Uint8Array(4096).fill(byteOfA);
-  const reads = (16 * 1024 * 1024) / chunk.length;
-  const started = performance.now();
+// Mutation runs would repeat this 1 s test for every mutant, so they skip it.
+const itUnlessMutating = process.env['PHI_MUTATION'] === '1' ? it.skip : it;
 
-  tokenizer.push(encoder.encode('\x1b[200~'), 0);
+itUnlessMutating(
+  'keeps a large paste that arrives in many reads, in time linear in its size',
+  () => {
+    const tokenizer = createInputTokenizer();
+    const chunk = new Uint8Array(4096).fill(byteOfA);
+    const reads = (16 * 1024 * 1024) / chunk.length;
+    const started = performance.now();
 
-  for (let read = 0; read < reads; read += 1) {
-    tokenizer.push(chunk, 0);
-  }
+    tokenizer.push(encoder.encode('\x1b[200~'), 0);
 
-  const tokens = tokenizer.push(encoder.encode('\x1b[201~'), 0);
-  const elapsedMs = performance.now() - started;
-  const [token] = tokens;
+    for (let read = 0; read < reads; read += 1) {
+      tokenizer.push(chunk, 0);
+    }
 
-  expect(tokens).toHaveLength(1);
-  expect(token?.kind === 'paste' ? token.bytes.length : 0).toBe(reads * chunk.length);
-  // Copying the open paste on every read takes several seconds for this size.
-  expect(elapsedMs).toBeLessThan(3000);
-});
+    const tokens = tokenizer.push(encoder.encode('\x1b[201~'), 0);
+    const elapsedMs = performance.now() - started;
+    const [token] = tokens;
+
+    expect(tokens).toHaveLength(1);
+    expect(token?.kind === 'paste' ? token.bytes.length : 0).toBe(reads * chunk.length);
+    // Copying the open paste on every read takes several seconds for this size.
+    expect(elapsedMs).toBeLessThan(3000);
+  },
+);
 
 it('emits an SGR mouse report as one mouse token and a key after it as a key', () => {
   const { read } = setup();

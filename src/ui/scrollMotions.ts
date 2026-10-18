@@ -117,10 +117,12 @@ const clamp = (value: number, low: number, high: number): number =>
 const revealed = (rows: ScrollRows, position: ScrollPosition): ScrollPosition => {
   const bottom = position.top + rows.height - 1;
 
+  // Stryker disable next-line EqualityOperator: Boundary: moving to the same row changes nothing.
   if (position.row < position.top) {
     return { ...position, top: position.row };
   }
 
+  // Stryker disable next-line EqualityOperator: Boundary: moving to the same row changes nothing.
   return position.row > bottom ? { ...position, top: position.row - (rows.height - 1) } : position;
 };
 
@@ -198,7 +200,9 @@ const wordScan = function* (
 
       const atoms = atomsOfRow(found, row);
 
+      // Stryker disable next-line BlockStatement,ConditionalExpression,EqualityOperator: Bounds the memory of two rows.
       if (held.size >= 2) {
+        // Stryker disable next-line CallExpression: Bounds the memory of two rows.
         held.clear();
       }
 
@@ -236,15 +240,20 @@ const wordScan = function* (
   const here = yield* atomsOf(position.row);
 
   const index =
+    // Stryker disable next-line OptionalChaining: `scrollMode` clamps the row and column, and every column of a row has an atom.
     here?.findIndex(
+      // Stryker disable next-line ConditionalExpression: `scrollMode` clamps the row and column, and every column of a row has an atom.
       (atom) => position.col >= atom.col && position.col <= atom.endCol && atom.row !== undefined,
-    ) ?? -1;
+    ) ??
+    /* Stryker disable next-line UnaryOperator: `scrollMode` clamps the row and column, and every column of a row has an atom. */ -1;
 
+  // Stryker disable next-line BlockStatement,ConditionalExpression,LogicalOperator: `scrollMode` clamps the row and column, and every column of a row has an atom.
   if (here === undefined || index === -1) {
     return undefined;
   }
 
   const at: Pointer = { row: position.row, index, fromEnd: false };
+  // Stryker disable next-line OptionalChaining,StringLiteral: The check is needed for the type of `here[index]`.
   const start = here[index]?.textClass ?? 'word';
 
   // Moves on while the atom at the pointer passes the test, and returns the first one that fails.

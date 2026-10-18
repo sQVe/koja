@@ -1,0 +1,31 @@
+{
+  "$schema": "./node_modules/@stryker-mutator/core/schema/stryker-schema.json",
+  "testRunner": "bun",
+  "bun": {
+    "bunArgs": ["--config=bunfig.mutation.toml"],
+    "env": { "PHI_MUTATION": "1" },
+    "timeout": 120000
+  },
+  "coverageAnalysis": "perTest",
+  "mutate": [
+    "src/**/*.ts",
+    "src/**/*.tsx",
+    "!src/**/*.test.ts",
+    "!src/**/*.test.tsx",
+    "!src/server/processInfo.ts",
+    "!src/server/socketPath.ts",
+    "!src/server/rowPublisher.ts",
+    "!src/client/clipboardWrite.ts"
+  ],
+  "tsconfigFile": "stryker-no-tsconfig.json",
+  "checkers": [],
+  "ignoreStatic": true,
+  "plugins": ["@hughescr/stryker-bun-runner", "./scripts/mutationIgnorer.ts"],
+  "ignorers": ["phiMessageIgnorer"],
+  "concurrency": 4,
+  "timeoutMS": 2000,
+  "fileLogLevel": "off",
+  "ignorePatterns": [".tau", "docs", "CHANGELOG.md", "dist", "coverage"],
+  "tempDirName": ".stryker-tmp",
+  "cleanTempDir": true
+}

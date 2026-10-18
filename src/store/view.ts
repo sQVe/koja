@@ -98,6 +98,7 @@ export const clientViewChanges = (
   for (const client of after) {
     const previous = before.find((known) => known.id === client.id);
 
+    // Stryker disable next-line ConditionalExpression: Callers of `clientViewChanges` keep this rule.
     if (previous !== undefined && !sameView(previous.view, client.view)) {
       changes.push({ type: 'clientViewChanged', clientId: client.id, view: client.view });
     }

@@ -68,6 +68,7 @@ export class FailedPaneRenderable extends FrameBufferRenderable {
 
     this.frameBuffer.fillRect(0, 0, width, height, RGBA.defaultBackground());
 
+    // Stryker disable next-line MethodExpression: The frame buffer drops drawing outside it.
     const lines = wrapMessage(this.message, width).slice(0, height);
 
     lines.forEach((line, index) => {
