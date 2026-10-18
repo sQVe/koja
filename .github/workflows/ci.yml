@@ -48,3 +48,30 @@ jobs:
           key: vt-${{ runner.os }}-${{ hashFiles('scripts/buildVt.sh', 'patches/**', 'src/vt/shim.c') }}
       - run: bun run build
       - run: bun run --bun test
+
+  mutation:
+    name: Mutation
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+      - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2.2.0
+        with:
+          bun-version: 1.4.2
+      - run: bun install --frozen-lockfile
+      - uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ~/.cache/phi
+          key: vt-${{ runner.os }}-${{ hashFiles('scripts/buildVt.sh', 'patches/**', 'src/vt/shim.c') }}
+      - run: bun run build:vt
+      - name: Mutate the changed lines
+        env:
+          BASE_REF: ${{ github.base_ref }}
+        run: |
+          base="$(git merge-base HEAD "origin/${BASE_REF}")"
+          status=0
+          bun run mutation changed "$base" > mutation.json || status=$?
+          cat mutation.json
+          exit "$status"
