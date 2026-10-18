@@ -9,7 +9,9 @@
   "coverageAnalysis": "perTest",
   "mutate": [
     "src/**/*.ts",
+    "src/**/*.tsx",
     "!src/**/*.test.ts",
+    "!src/**/*.test.tsx",
     "!src/server/processInfo.ts",
     "!src/server/socketPath.ts",
     "!src/server/rowPublisher.ts",

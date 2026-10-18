@@ -244,7 +244,7 @@ export const groupByFolder = (scopes: readonly FileScope[]): Map<string, FileSco
 // The unit tests of a folder are the test files directly in it, never those of another folder.
 export const unitTestFiles = (folder: string, entries: readonly string[]): string[] =>
   entries
-    .filter((entry) => entry.endsWith('.test.ts'))
+    .filter((entry) => entry.endsWith('.test.ts') || entry.endsWith('.test.tsx'))
     .toSorted()
     .map((entry) => posix.join(folder, entry));
 

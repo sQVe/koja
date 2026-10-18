@@ -502,9 +502,13 @@ describe('groupByFolder', () => {
 
 describe('unitTestFiles', () => {
   it('keeps only the test files directly in the folder, sorted, with the folder prefix', () => {
-    const entries = ['b.test.ts', 'a.ts', 'a.test.ts', 'fixtures', 'c.test.tsx'];
+    const entries = ['b.test.ts', 'a.ts', 'a.test.ts', 'fixtures', 'c.test.tsx', 'd.tsx'];
 
-    expect(unitTestFiles('src/x', entries)).toEqual(['src/x/a.test.ts', 'src/x/b.test.ts']);
+    expect(unitTestFiles('src/x', entries)).toEqual([
+      'src/x/a.test.ts',
+      'src/x/b.test.ts',
+      'src/x/c.test.tsx',
+    ]);
   });
 
   it('gives no test for a folder with only sources', () => {

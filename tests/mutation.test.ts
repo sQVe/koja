@@ -1,11 +1,12 @@
 import { expect, it, onTestFinished } from 'bun:test';
 import { spawnSync } from 'node:child_process';
-import { mkdir, mkdtemp, readdir, rm, symlink, writeFile } from 'node:fs/promises';
+import { mkdir, mkdtemp, readdir, readFile, rm, symlink, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
-import { dirname, join } from 'node:path';
+import { dirname, join, matchesGlob } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 import type { MutationOutcome } from '../scripts/mutationReport.ts';
+import { isProductionFile } from '../scripts/mutationScope.ts';
 import { createTemporaryRepository } from './gitRepository.ts';
 
 const root = fileURLToPath(new URL('../', import.meta.url));
@@ -128,4 +129,15 @@ it('does not let a test in another folder kill a mutant of a folder that has a w
 
   expect(report.totals.killed).toBe(0);
   expect(report.survivors.some(({ covered }) => covered)).toBe(true);
+});
+
+it('treats a tsx production file as in scope and a tsx test file as out of scope in the repository config', async () => {
+  const config = JSON.parse(await readFile(join(root, 'stryker.config.json'), 'utf8')) as {
+    mutate: string[];
+  };
+
+  const inScope = (path: string) => isProductionFile(path, config.mutate, matchesGlob);
+
+  expect(inScope('src/ui/workspaceList.tsx')).toBe(true);
+  expect(inScope('src/ui/workspaceList.test.tsx')).toBe(false);
 });
