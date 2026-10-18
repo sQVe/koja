@@ -885,14 +885,15 @@ const nativeCursor = (created: TestRendererSetup) => {
   return { visible, x, y };
 };
 
-const bothCursors = new Map([
-  [firstPane, cacheWith(cursorScreen())],
-  [secondPane, cacheWith({ ...cursorScreen(), pane: 2 })],
-]);
+const bothCursors = (): Map<PaneId, RowCache> =>
+  new Map([
+    [firstPane, cacheWith(cursorScreen())],
+    [secondPane, cacheWith({ ...cursorScreen(), pane: 2 })],
+  ]);
 
 it('gives the native cursor to the focused pane only and draws an inverse cell in the other', async () => {
   const split = snapshotOf(rightSplit, twoRunning, 1);
-  const layer = await startLayer(split, bothCursors);
+  const layer = await startLayer(split, bothCursors());
 
   const firstInverted = invertedAt(layer.created);
   const firstCursor = nativeCursor(layer.created);
@@ -937,7 +938,7 @@ it('hides the native cursor as soon as focus moves to a failed pane', async () =
 
 it('keeps the native cursor of the focused pane when the layer syncs without a frame', async () => {
   const split = snapshotOf(rightSplit, twoRunning, 1);
-  const layer = await startLayer(split, bothCursors);
+  const layer = await startLayer(split, bothCursors());
 
   layer.notify({ ...split, revision: 2 });
 
