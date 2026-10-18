@@ -59,6 +59,37 @@ Configure linting, formatting, and staged checks in [vite.config.ts](../vite.con
 installed command-line tools with `bunx --bun`, as the scripts do. The tools start with a Node
 shebang, so without `--bun` they run on Node instead of Bun.
 
+## Mutation testing
+
+The mutation gate runs StrykerJS on the lines a change touches. It reports a mutant that no test
+detects, and a changed line that no test reaches. Build the VT library first, then run:
+
+```sh
+bun run build:vt
+bun run mutation changed origin/main
+bun run mutation audit src/layout.ts
+```
+
+- `changed <base>` mutates the lines that `git diff -U0 <base>` adds, and every line of an untracked
+  file. It exits 2 when a mutant survives or has no coverage.
+- `audit <path>...` mutates whole files and exits 0 on survivors.
+- `--max-mutants <n>` sets the cap, 500 by default. A file that does not fit is listed in
+  `unmutated`, and the run exits 1.
+- The script prints one JSON report on stdout. Stryker's own output goes to stderr. Each survivor
+  has `file`, `line`, `column`, `endLine`, `endColumn`, `mutator`, `original`, `replacement`, and
+  `covered`. `covered: false` means no test reaches the line.
+
+The gate mutates production files under `src/` and runs only the unit tests in the same folder as
+the mutated file, never `tests/`. A file with no unit test next to it reports no coverage. See
+[ADR 0017](./adr/0017-mutation-gate-runs-same-folder-unit-tests.md) for the reasons and the four
+modules it leaves out.
+
+Mark a mutant that no test can tell apart from the original with
+`// Stryker disable next-line <mutator>: <reason>` above the line. Use a block comment before the
+token when the mutant sits inside a `catch` or in the middle of an expression. The pull request job
+`Mutation` in [ci.yml](../.github/workflows/ci.yml) runs the same command against the merge base.
+[scripts/mutation-tuning.md](../scripts/mutation-tuning.md) records how the config was tuned.
+
 ## Versioning
 
 Add a changeset for user-facing changes:
