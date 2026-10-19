@@ -16,7 +16,7 @@ const setup = async () => {
   const environment = { ...environmentFor(directory), SHELL: '/bin/sh', PS1: '' };
 
   const startServerAt = async (name: string): Promise<string> => {
-    const socketPath = join(directory, name, 'phi.sock');
+    const socketPath = join(directory, name, 'koja.sock');
 
     const started = await runCli(
       ['server', 'start', '--socket', socketPath],
@@ -29,22 +29,22 @@ const setup = async () => {
     return socketPath;
   };
 
-  const phi = (extra: Record<string, string>, ...commandArguments: string[]) =>
+  const koja = (extra: Record<string, string>, ...commandArguments: string[]) =>
     runCli(commandArguments, directory, { ...environment, ...extra });
 
   const listed = async (extra: Record<string, string>, ...commandArguments: string[]) => {
-    const result = await phi(extra, ...commandArguments, '--json');
+    const result = await koja(extra, ...commandArguments, '--json');
 
     expect(result.exitCode).toBe(0);
 
     return listSchema.parse(JSON.parse(result.stdout));
   };
 
-  return { directory, startServerAt, phi, listed };
+  return { directory, startServerAt, koja, listed };
 };
 
 it(
-  'PHI_SOCKET_PATH picks the server when --socket is absent, and --socket wins',
+  'KOJA_SOCKET_PATH picks the server when --socket is absent, and --socket wins',
   async () => {
     const { directory, startServerAt, listed } = await setup();
     const first = await startServerAt('first');
@@ -54,19 +54,19 @@ it(
     await createWorkspaceAt(second, directory);
     await createWorkspaceAt(second, directory);
 
-    expect(await listed({ PHI_SOCKET_PATH: second }, 'pane', 'list')).toHaveLength(2);
+    expect(await listed({ KOJA_SOCKET_PATH: second }, 'pane', 'list')).toHaveLength(2);
 
     expect(
-      await listed({ PHI_SOCKET_PATH: second }, 'pane', 'list', '--socket', first),
+      await listed({ KOJA_SOCKET_PATH: second }, 'pane', 'list', '--socket', first),
     ).toHaveLength(1);
   },
   cliTestTimeoutMs,
 );
 
 it(
-  'PHI_PANE_ID and PHI_WORKSPACE_ID are not defaults for pane read and tab create',
+  'KOJA_PANE_ID and KOJA_WORKSPACE_ID are not defaults for pane read and tab create',
   async () => {
-    const { directory, startServerAt, phi } = await setup();
+    const { directory, startServerAt, koja } = await setup();
     const socketPath = await startServerAt('run');
     const other = join(directory, 'other');
 
@@ -75,30 +75,30 @@ it(
     await createWorkspaceAt(socketPath, other);
 
     const inPane = {
-      PHI_SOCKET_PATH: socketPath,
-      PHI_PANE_ID: 'pane-1',
-      PHI_WORKSPACE_ID: 'workspace-1',
+      KOJA_SOCKET_PATH: socketPath,
+      KOJA_PANE_ID: 'pane-1',
+      KOJA_WORKSPACE_ID: 'workspace-1',
     };
 
-    const refused = await phi(inPane, 'pane', 'read', '--json');
+    const refused = await koja(inPane, 'pane', 'read', '--json');
 
     expect({ exitCode: refused.exitCode, stdout: refused.stdout }).toEqual({
       exitCode: 2,
       stdout: '',
     });
 
-    const read = await phi(inPane, 'pane', 'read', 'pane-2', '--json');
+    const read = await koja(inPane, 'pane', 'read', 'pane-2', '--json');
 
     expect(read.exitCode).toBe(0);
     expect(readSchema.parse(JSON.parse(read.stdout)).pane).toBe('pane-2');
 
-    const created = await phi(inPane, 'tab', 'create', '--json');
+    const created = await koja(inPane, 'tab', 'create', '--json');
 
     expect(created.exitCode).toBe(0);
 
     const tabs = z
       .array(z.object({ workspace: z.string() }))
-      .parse(JSON.parse((await phi(inPane, 'tab', 'list', '--json')).stdout));
+      .parse(JSON.parse((await koja(inPane, 'tab', 'list', '--json')).stdout));
 
     expect(tabs.map((tab) => tab.workspace)).toEqual(['workspace-1', 'workspace-2', 'workspace-2']);
   },

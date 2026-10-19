@@ -44,11 +44,11 @@ export const lastFocusFlag = (tokens: ParsedToken[]): boolean | undefined => {
 export const strayFocusMessage =
   '--focus and --no-focus belong to workspace create and tab create.';
 
-export const workspaceUsage = `  phi workspace list [--socket <path>] [--json]
-  phi workspace create <dir> [--label <label>] [--focus | --no-focus] [--socket <path>] [--json]
-  phi workspace focus <id> [--socket <path>] [--json]
-  phi workspace rename <id> <label> [--socket <path>] [--json]
-  phi workspace close <id> [--socket <path>] [--json]`;
+export const workspaceUsage = `  koja workspace list [--socket <path>] [--json]
+  koja workspace create <dir> [--label <label>] [--focus | --no-focus] [--socket <path>] [--json]
+  koja workspace focus <id> [--socket <path>] [--json]
+  koja workspace rename <id> <label> [--socket <path>] [--json]
+  koja workspace close <id> [--socket <path>] [--json]`;
 
 export const strayWorkspaceOptionMessage = (
   group: string | undefined,

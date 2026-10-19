@@ -14,11 +14,11 @@ them without processes ([ADR 0006](./0006-server-state-store.md)).
 Renderer code must stay out of the server, so a UI change cannot stop the panes
 ([ADR 0003](./0003-session-server-and-client.md)).
 
-Written import rules drift unless a check enforces them. Zeta enforces its table in lint.
+Written import rules drift unless a check enforces them. Mergit enforces its table in lint.
 
 ## Decision
 
-`src/` holds capability modules. A lint rule, `phi/module-boundaries`, enforces which module may
+`src/` holds capability modules. A lint rule, `koja/module-boundaries`, enforces which module may
 import which. Modules name their owner, and lint refuses imports that cross the table.
 
 ### Modules
@@ -53,7 +53,7 @@ import which. Modules name their owner, and lint refuses imports that cross the 
 - Only `ui` and `index` import React or OpenTUI packages.
 - Type imports count as dependencies. Dynamic imports must use a literal path.
 - A module may import a file outside `src/` only when the binary embeds it and the rule lists it:
-  `vt` imports `build/libphi-vt.so`, and `cli` imports `package.json`.
+  `vt` imports `build/libkoja-vt.so`, and `cli` imports `package.json`.
 
 The rule holds the exact table. A change that keeps these directions updates the rule. A new module,
 such as the command catalog or config, joins the table with the ADR that introduces it. A change

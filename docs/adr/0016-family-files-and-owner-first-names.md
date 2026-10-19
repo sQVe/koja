@@ -56,7 +56,7 @@ fails.
 - A file may use the owner noun alone when that noun names what the file holds, such as
   `server/log.ts`. A plural noun alone names a collection, such as `protocol/messages.ts`.
 - A plural job names a collection, such as `paneCommands.ts`; a singular job names one thing, such
-  as `attachCommand.ts` for `phi attach`. A CLI file uses the command group as its owner.
+  as `attachCommand.ts` for `koja attach`. A CLI file uses the command group as its owner.
 - A test file keeps its source name with `.test`. An integration test in `tests/` is named for its
   family and behavior, such as `paneHistoryCli.test.ts`, and shares setup through a
   `tests/<owner>Harness.ts` file.
@@ -98,8 +98,8 @@ slice already edits the same blocks of the store, server, and parser.
 
 Let lint refuse files over 500 lines. Rejected because a count does not show ownership: it would
 force splits of cohesive files such as the libghostty-vt bindings and the input tokenizer, while a
-coordinator under the limit could still hold every family's code. Phi's lint fails on warnings, so a
-warning level would block too.
+coordinator under the limit could still hold every family's code. Koja's lint fails on warnings, so
+a warning level would block too.
 
 ### A line limit on entry files only
 

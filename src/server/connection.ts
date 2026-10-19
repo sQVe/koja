@@ -131,7 +131,7 @@ export const createConnection = (options: ConnectionOptions): Connection => {
   };
 
   const greet = (message: ControlMessage): void => {
-    // A stop needs no handshake, so `phi server stop` of any build can end this server.
+    // A stop needs no handshake, so `koja server stop` of any build can end this server.
     if (message.type === 'stop') {
       options.onMessage(message, connection);
 

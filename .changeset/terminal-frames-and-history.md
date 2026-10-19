@@ -1,5 +1,5 @@
 ---
-'phi': minor
+'koja': minor
 ---
 
 The terminal library reads the rows that changed, the cursor, and the terminal modes as one frame.

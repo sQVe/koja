@@ -5,7 +5,7 @@ import { z } from 'zod';
 
 import { cliTestTimeoutMs, environmentFor, root } from './cliHarness.ts';
 import { pollUntil, readJson, setup, waitForText } from './paneHarness.ts';
-import type { PhiRunner } from './paneHarness.ts';
+import type { KojaRunner } from './paneHarness.ts';
 
 const clientListSchema = z.array(
   z.object({ id: z.string(), view: z.object({ scrolls: z.record(z.string(), z.number()) }) }),
@@ -17,8 +17,8 @@ const rowSchema = z.object({ row: z.number().nullable() });
 
 const failureSchema = z.object({ scrolled: z.literal(false), reason: z.string() });
 
-const listClients = async (phi: PhiRunner) => {
-  const listed = await phi('client', 'list', '--json');
+const listClients = async (koja: KojaRunner) => {
+  const listed = await koja('client', 'list', '--json');
 
   expect(listed.exitCode).toBe(0);
 
@@ -26,7 +26,7 @@ const listClients = async (phi: PhiRunner) => {
 };
 
 const attach = (directory: string): void => {
-  const socketPath = join(directory, 'run', 'phi.sock');
+  const socketPath = join(directory, 'run', 'koja.sock');
 
   const child = Bun.spawn(['bun', join(root, 'src/index.ts'), 'attach', '--socket', socketPath], {
     env: { ...environmentFor(directory), TERM: 'xterm' },
@@ -43,40 +43,40 @@ const attach = (directory: string): void => {
 it(
   'scrolls the view of the attached client to the oldest row of a pane',
   async () => {
-    const { directory, phi, first } = await setup('seq 1 200\nprintf done');
+    const { directory, koja, first } = await setup('seq 1 200\nprintf done');
 
     attach(directory);
 
     const attached = await pollUntil(
-      () => listClients(phi),
+      () => listClients(koja),
       (clients) => clients.length === 1,
     );
 
     const client = attached[0]?.id ?? '';
-    const oldest = (await readJson(phi, first, '--lines', '1')).oldest;
+    const oldest = (await readJson(koja, first, '--lines', '1')).oldest;
 
-    const result = await phi('pane', 'scroll', first, '--to', 'top');
+    const result = await koja('pane', 'scroll', first, '--to', 'top');
 
     expect(result.exitCode).toBe(0);
     expect(scrollSchema.parse(JSON.parse(result.stdout))).toEqual({ scrolled: true, client });
 
-    const [scrolled] = await listClients(phi);
+    const [scrolled] = await listClients(koja);
 
     expect(scrolled?.view.scrolls).toEqual({ [first]: oldest });
 
-    const row = await phi('pane', 'scroll', first, '--to', '5');
+    const row = await koja('pane', 'scroll', first, '--to', '5');
 
     expect(row.exitCode).toBe(0);
 
-    const [atRow] = await listClients(phi);
+    const [atRow] = await listClients(koja);
 
     expect(atRow?.view.scrolls).toEqual({ [first]: 5 });
 
-    const back = await phi('pane', 'scroll', first, '--to', 'bottom');
+    const back = await koja('pane', 'scroll', first, '--to', 'bottom');
 
     expect(back.exitCode).toBe(0);
 
-    const [followed] = await listClients(phi);
+    const [followed] = await listClients(koja);
 
     expect(followed?.view.scrolls).toEqual({});
   },
@@ -86,22 +86,22 @@ it(
 it(
   'keeps following the bottom when scrolled to the top of a pane with no history',
   async () => {
-    const { directory, phi, first } = await setup('printf done');
+    const { directory, koja, first } = await setup('printf done');
 
     attach(directory);
 
     await pollUntil(
-      () => listClients(phi),
+      () => listClients(koja),
       (clients) => clients.length === 1,
     );
 
-    await waitForText(phi, first, 'done');
+    await waitForText(koja, first, 'done');
 
-    const result = await phi('pane', 'scroll', first, '--to', 'top', '--json');
+    const result = await koja('pane', 'scroll', first, '--to', 'top', '--json');
 
     expect(result.exitCode).toBe(0);
     expect(rowSchema.parse(JSON.parse(result.stdout)).row).toBeNull();
-    expect((await listClients(phi))[0]?.view.scrolls).toEqual({});
+    expect((await listClients(koja))[0]?.view.scrolls).toEqual({});
   },
   cliTestTimeoutMs,
 );
@@ -109,9 +109,9 @@ it(
 it(
   'fails with noClient when no client is attached',
   async () => {
-    const { phi, first } = await setup();
+    const { koja, first } = await setup();
 
-    const result = await phi('pane', 'scroll', first, '--to', 'top');
+    const result = await koja('pane', 'scroll', first, '--to', 'top');
 
     expect(result.exitCode).toBe(1);
 
@@ -126,34 +126,34 @@ it(
 it(
   'stores no scroll row for a row at the bottom, and clamps a row below the oldest row',
   async () => {
-    const { directory, phi, first } = await setup('seq 1 120000\nprintf done');
+    const { directory, koja, first } = await setup('seq 1 120000\nprintf done');
 
     attach(directory);
 
     await pollUntil(
-      () => listClients(phi),
+      () => listClients(koja),
       (clients) => clients.length === 1,
     );
 
-    await waitForText(phi, first, 'done');
+    await waitForText(koja, first, 'done');
 
-    const { oldest } = await readJson(phi, first, '--lines', '1');
+    const { oldest } = await readJson(koja, first, '--lines', '1');
 
     expect(oldest).toBeGreaterThan(0);
 
-    const past = await phi('pane', 'scroll', first, '--to', '1000000', '--json');
+    const past = await koja('pane', 'scroll', first, '--to', '1000000', '--json');
 
     expect(past.exitCode).toBe(0);
     expect(rowSchema.parse(JSON.parse(past.stdout)).row).toBeNull();
-    expect((await listClients(phi))[0]?.view.scrolls).toEqual({});
+    expect((await listClients(koja))[0]?.view.scrolls).toEqual({});
 
-    await phi('pane', 'scroll', first, '--to', '1000', '--json');
+    await koja('pane', 'scroll', first, '--to', '1000', '--json');
 
-    const clamped = await phi('pane', 'scroll', first, '--to', '0', '--json');
+    const clamped = await koja('pane', 'scroll', first, '--to', '0', '--json');
 
     expect(clamped.exitCode).toBe(0);
     expect(rowSchema.parse(JSON.parse(clamped.stdout)).row).toBe(oldest);
-    expect((await listClients(phi))[0]?.view.scrolls).toEqual({ [first]: oldest });
+    expect((await listClients(koja))[0]?.view.scrolls).toEqual({ [first]: oldest });
   },
   cliTestTimeoutMs,
 );

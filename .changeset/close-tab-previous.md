@@ -1,5 +1,5 @@
 ---
-'phi': patch
+'koja': patch
 ---
 
 Closing the focused tab now shows the previous tab, or the next one when the first tab closed, as

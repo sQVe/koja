@@ -21,7 +21,7 @@ it(
   'brings the same workspaces, tabs, splits, zoom, and focus back after stop and start',
   async () => {
     const { serverAt } = await setup();
-    const server = serverAt('phi');
+    const server = serverAt('koja');
 
     await server.start();
     await buildSetup(server);
@@ -31,7 +31,7 @@ it(
     expect(before).toContain('"label":"Renamed"');
     expect(before).toContain('"zoomed":true');
 
-    await server.phi(['server', 'stop']);
+    await server.koja(['server', 'stop']);
     await server.start();
 
     expect(await server.described()).toBe(before);
@@ -43,11 +43,11 @@ it(
   'restores the setup as of the last change after the server is killed',
   async () => {
     const { serverAt } = await setup();
-    const server = serverAt('phi');
+    const server = serverAt('koja');
     const pid = await server.start();
 
     await buildSetup(server);
-    await server.phi(['workspace', 'rename', 'workspace-2', 'Last']);
+    await server.koja(['workspace', 'rename', 'workspace-2', 'Last']);
 
     const before = await server.described();
     const path = await server.sessionPath();
@@ -70,11 +70,11 @@ it(
   'logs a broken save file and one with version 2, and starts with no workspace',
   async () => {
     const { serverAt, logText } = await setup();
-    const server = serverAt('phi');
+    const server = serverAt('koja');
 
     await server.start();
     await server.createWorkspace('one');
-    await server.phi(['server', 'stop']);
+    await server.koja(['server', 'stop']);
 
     const path = await server.sessionPath();
 
@@ -84,7 +84,7 @@ it(
     expect(await server.workspaceIds()).toEqual([]);
     expect(await logText()).toContain(path);
 
-    await server.phi(['server', 'stop']);
+    await server.koja(['server', 'stop']);
     await writeFile(path, '{"version":2,"session":{}}');
     await server.start();
 
@@ -115,8 +115,8 @@ it(
 
     expect(await alpha.sessionPath()).not.toBe(await beta.sessionPath());
 
-    await alpha.phi(['server', 'stop']);
-    await beta.phi(['server', 'stop']);
+    await alpha.koja(['server', 'stop']);
+    await beta.koja(['server', 'stop']);
     await alpha.start();
     await beta.start();
 
@@ -130,16 +130,16 @@ it(
   'starts with no workspace after every workspace was closed',
   async () => {
     const { serverAt } = await setup();
-    const server = serverAt('phi');
+    const server = serverAt('koja');
 
     await server.start();
 
     const first = await server.createWorkspace('one');
     const second = await server.createWorkspace('two');
 
-    await server.phi(['workspace', 'close', first]);
-    await server.phi(['workspace', 'close', second]);
-    await server.phi(['server', 'stop']);
+    await server.koja(['workspace', 'close', first]);
+    await server.koja(['workspace', 'close', second]);
+    await server.koja(['server', 'stop']);
     await server.start();
 
     expect(await server.workspaceIds()).toEqual([]);
@@ -183,7 +183,7 @@ it(
   'shows the workspace a CLI focus chose with no client attached, and restores it after a restart',
   async () => {
     const { serverAt } = await setup();
-    const server = serverAt('phi');
+    const server = serverAt('koja');
 
     await server.start();
 
@@ -192,11 +192,11 @@ it(
 
     expect(await attachedFocus(server.socketPath)).toBe(second);
 
-    await server.phi(['workspace', 'focus', first]);
+    await server.koja(['workspace', 'focus', first]);
 
     expect(await attachedFocus(server.socketPath)).toBe(first);
 
-    await server.phi(['server', 'stop']);
+    await server.koja(['server', 'stop']);
     await server.start();
 
     expect(await attachedFocus(server.socketPath)).toBe(first);

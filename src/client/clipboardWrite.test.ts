@@ -75,7 +75,7 @@ it('writes OSC 52 when no display is set', async () => {
 });
 
 const toolDirectory = async (scripts: Record<string, string>): Promise<string> => {
-  const directory = await mkdtemp(join(tmpdir(), 'phi-clipboard-'));
+  const directory = await mkdtemp(join(tmpdir(), 'koja-clipboard-'));
 
   for (const [name, body] of Object.entries(scripts)) {
     const path = join(directory, name);

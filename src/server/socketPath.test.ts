@@ -28,7 +28,7 @@ const isRoot = userId === 0;
 const canUseForeignDirectory = isRoot || statSync('/').uid !== userId;
 
 const temporaryDirectory = async (): Promise<string> => {
-  const directory = await mkdtemp(join(tmpdir(), 'phi-socket-'));
+  const directory = await mkdtemp(join(tmpdir(), 'koja-socket-'));
   onTestFinished(() => rm(directory, { recursive: true, force: true }));
 
   return directory;
@@ -79,24 +79,24 @@ const placeStaleSocket = async (path: string): Promise<void> => {
 const modeOf = async (path: string): Promise<number> => (await stat(path)).mode & 0o777;
 
 it('places the default socket in the runtime directory', () => {
-  expect(socketPathFor(undefined, '/run/user/1000', 1000)).toBe('/run/user/1000/phi/phi.sock');
+  expect(socketPathFor(undefined, '/run/user/1000', 1000)).toBe('/run/user/1000/koja/koja.sock');
 });
 
 it('places the default socket in a per-user tmp directory without a runtime directory', () => {
-  expect(socketPathFor(undefined, undefined, 1000)).toBe('/tmp/phi-1000/phi.sock');
-  expect(socketPathFor(undefined, 'relative', 1000)).toBe('/tmp/phi-1000/phi.sock');
+  expect(socketPathFor(undefined, undefined, 1000)).toBe('/tmp/koja-1000/koja.sock');
+  expect(socketPathFor(undefined, 'relative', 1000)).toBe('/tmp/koja-1000/koja.sock');
 });
 
 it('uses the requested socket path over the default', () => {
-  expect(socketPathFor('/srv/phi.sock', '/run/user/1000', 1000)).toBe('/srv/phi.sock');
+  expect(socketPathFor('/srv/koja.sock', '/run/user/1000', 1000)).toBe('/srv/koja.sock');
 });
 
 it('creates a missing socket directory with mode 0700', async () => {
-  const directory = join(await temporaryDirectory(), 'phi');
+  const directory = join(await temporaryDirectory(), 'koja');
 
-  const result = await claim(join(directory, 'phi.sock'));
+  const result = await claim(join(directory, 'koja.sock'));
 
-  expect(result).toMatchObject({ ok: true, path: join(directory, 'phi.sock') });
+  expect(result).toMatchObject({ ok: true, path: join(directory, 'koja.sock') });
   expect(await modeOf(directory)).toBe(0o700);
 });
 
@@ -106,7 +106,7 @@ it('refuses a socket directory that is a symlink', async () => {
   await mkdir(join(base, 'real'), { mode: 0o700 });
   await symlink(join(base, 'real'), directory);
 
-  const result = await claim(join(directory, 'phi.sock'));
+  const result = await claim(join(directory, 'koja.sock'));
 
   expect(result).toMatchObject({ ok: false, reason: 'directorySymlink' });
 });
@@ -116,29 +116,29 @@ it.skipIf(!canUseForeignDirectory)(
   async () => {
     const directory = await foreignDirectory();
 
-    const result = await claim(join(directory, 'phi.sock'));
+    const result = await claim(join(directory, 'koja.sock'));
 
     expect(result).toMatchObject({ ok: false, reason: 'directoryOwner' });
   },
 );
 
 it('refuses a group-writable socket directory and leaves its mode', async () => {
-  const directory = join(await temporaryDirectory(), 'phi');
+  const directory = join(await temporaryDirectory(), 'koja');
   await mkdir(directory);
   await chmod(directory, 0o720);
 
-  const result = await claim(join(directory, 'phi.sock'));
+  const result = await claim(join(directory, 'koja.sock'));
 
   expect(result).toMatchObject({ ok: false, reason: 'directoryMode' });
   expect(await modeOf(directory)).toBe(0o720);
 });
 
 it('refuses a socket directory that others can enter and leaves its mode', async () => {
-  const directory = join(await temporaryDirectory(), 'phi');
+  const directory = join(await temporaryDirectory(), 'koja');
   await mkdir(directory);
   await chmod(directory, 0o711);
 
-  const result = await claim(join(directory, 'phi.sock'));
+  const result = await claim(join(directory, 'koja.sock'));
 
   expect(result).toMatchObject({ ok: false, reason: 'directoryMode' });
   expect(await modeOf(directory)).toBe(0o711);
@@ -146,7 +146,7 @@ it('refuses a socket directory that others can enter and leaves its mode', async
 
 it('refuses a regular file at the socket path and leaves it in place', async () => {
   const directory = await temporaryDirectory();
-  const path = join(directory, 'phi.sock');
+  const path = join(directory, 'koja.sock');
   await writeFile(path, 'keep');
 
   const result = await claim(path);
@@ -157,7 +157,7 @@ it('refuses a regular file at the socket path and leaves it in place', async () 
 
 it('refuses a symlink at the socket path and leaves it in place', async () => {
   const directory = await temporaryDirectory();
-  const path = join(directory, 'phi.sock');
+  const path = join(directory, 'koja.sock');
   const target = join(directory, 'target');
   await writeFile(target, 'keep');
   await symlink(target, path);
@@ -171,7 +171,7 @@ it('refuses a symlink at the socket path and leaves it in place', async () => {
 
 it('removes a stale socket and claims its path', async () => {
   const directory = await temporaryDirectory();
-  const path = join(directory, 'phi.sock');
+  const path = join(directory, 'koja.sock');
   await placeStaleSocket(path);
 
   const result = await claim(path);
@@ -182,7 +182,7 @@ it('removes a stale socket and claims its path', async () => {
 
 it('refuses a socket that a server answers on and leaves it in place', async () => {
   const directory = await temporaryDirectory();
-  const path = join(directory, 'phi.sock');
+  const path = join(directory, 'koja.sock');
   listen(path);
 
   const result = await claim(path);
@@ -193,7 +193,7 @@ it('refuses a socket that a server answers on and leaves it in place', async () 
 
 it.skipIf(isRoot)('refuses a socket it cannot connect to and leaves it in place', async () => {
   const directory = await temporaryDirectory();
-  const path = join(directory, 'phi.sock');
+  const path = join(directory, 'koja.sock');
   listen(path);
   await chmod(path, 0o000);
 
@@ -205,7 +205,7 @@ it.skipIf(isRoot)('refuses a socket it cannot connect to and leaves it in place'
 
 it.skipIf(!isRoot)('refuses a stale socket that another user owns and leaves it', async () => {
   const directory = await temporaryDirectory();
-  const path = join(directory, 'phi.sock');
+  const path = join(directory, 'koja.sock');
   await placeStaleSocket(path);
   await chown(path, 65_534, 65_534);
 
@@ -217,11 +217,11 @@ it.skipIf(!isRoot)('refuses a stale socket that another user owns and leaves it'
 
 it('refuses a socket directory under a directory that others can write to', async () => {
   const shared = join(await temporaryDirectory(), 'shared');
-  const directory = join(shared, 'phi');
+  const directory = join(shared, 'koja');
   await mkdir(shared);
   await chmod(shared, 0o777);
 
-  const result = await claim(join(directory, 'phi.sock'));
+  const result = await claim(join(directory, 'koja.sock'));
 
   expect(result).toMatchObject({ ok: false, reason: 'ancestorMode' });
   expect(lstatSync(directory, { throwIfNoEntry: false })).toBeUndefined();
@@ -232,9 +232,9 @@ it('accepts a socket directory under a sticky directory that others can write to
   await mkdir(shared);
   await chmod(shared, 0o1777);
 
-  const result = await claim(join(shared, 'phi', 'phi.sock'));
+  const result = await claim(join(shared, 'koja', 'koja.sock'));
 
-  expect(result).toMatchObject({ ok: true, path: join(shared, 'phi', 'phi.sock') });
+  expect(result).toMatchObject({ ok: true, path: join(shared, 'koja', 'koja.sock') });
 });
 
 it('accepts a socket directory under a symlink to a safe directory', async () => {
@@ -242,10 +242,10 @@ it('accepts a socket directory under a symlink to a safe directory', async () =>
   await mkdir(join(base, 'real'), { mode: 0o700 });
   await symlink(join(base, 'real'), join(base, 'link'));
 
-  const result = await claim(join(base, 'link', 'phi', 'phi.sock'));
+  const result = await claim(join(base, 'link', 'koja', 'koja.sock'));
 
-  expect(result).toMatchObject({ ok: true, path: join(base, 'real', 'phi', 'phi.sock') });
-  expect(await modeOf(join(base, 'real', 'phi'))).toBe(0o700);
+  expect(result).toMatchObject({ ok: true, path: join(base, 'real', 'koja', 'koja.sock') });
+  expect(await modeOf(join(base, 'real', 'koja'))).toBe(0o700);
 });
 
 it('refuses a symlink route through a directory that others can write to', async () => {
@@ -256,10 +256,10 @@ it('refuses a symlink route through a directory that others can write to', async
   await chmod(shared, 0o777);
   await symlink(join(base, 'real'), join(shared, 'alias'));
 
-  const result = await claim(join(shared, 'alias', 'phi', 'phi.sock'));
+  const result = await claim(join(shared, 'alias', 'koja', 'koja.sock'));
 
   expect(result).toMatchObject({ ok: false, reason: 'ancestorMode' });
-  expect(lstatSync(join(base, 'real', 'phi'), { throwIfNoEntry: false })).toBeUndefined();
+  expect(lstatSync(join(base, 'real', 'koja'), { throwIfNoEntry: false })).toBeUndefined();
 });
 
 it.skipIf(!isRoot)('refuses a socket directory under a directory another user owns', async () => {
@@ -267,14 +267,14 @@ it.skipIf(!isRoot)('refuses a socket directory under a directory another user ow
   await mkdir(foreign, { mode: 0o755 });
   await chown(foreign, 65_534, 65_534);
 
-  const result = await claim(join(foreign, 'phi', 'phi.sock'));
+  const result = await claim(join(foreign, 'koja', 'koja.sock'));
 
   expect(result).toMatchObject({ ok: false, reason: 'ancestorOwner' });
 });
 
 it('refuses a second claim while the first holds the lock, and leaves the socket in place', async () => {
   const directory = await temporaryDirectory();
-  const path = join(directory, 'phi.sock');
+  const path = join(directory, 'koja.sock');
   const first = await claim(path);
   // The first server's socket refuses connections between its bind and its listen.
   await placeStaleSocket(path);
@@ -313,7 +313,7 @@ const firstLineOf = async (stream: ReadableStream<Uint8Array>): Promise<string> 
 
 it('claims the path once the process that held the lock exits', async () => {
   const directory = await temporaryDirectory();
-  const path = join(directory, 'phi.sock');
+  const path = join(directory, 'koja.sock');
 
   const holder = Bun.spawn([process.execPath, '--eval', holderScript(path)], {
     stdout: 'pipe',
@@ -339,7 +339,7 @@ it('claims the path once the process that held the lock exits', async () => {
 
 it('refuses a symlink at the lock path and leaves it in place', async () => {
   const directory = await temporaryDirectory();
-  const path = join(directory, 'phi.sock');
+  const path = join(directory, 'koja.sock');
   const target = join(directory, 'target');
   await writeFile(target, 'keep');
   await symlink(target, `${path}.lock`);
@@ -352,8 +352,8 @@ it('refuses a symlink at the lock path and leaves it in place', async () => {
 });
 
 it.skipIf(isRoot)('releases the lock when it cannot remove a stale socket', async () => {
-  const directory = join(await temporaryDirectory(), 'phi');
-  const path = join(directory, 'phi.sock');
+  const directory = join(await temporaryDirectory(), 'koja');
+  const path = join(directory, 'koja.sock');
   await mkdir(directory, { mode: 0o700 });
   await placeStaleSocket(path);
   // The lock file exists already, so the claim takes the lock and then fails to remove.
@@ -378,7 +378,7 @@ it('refuses a socket path whose directory above the socket directory is missing'
   const base = await temporaryDirectory();
   const missing = join(base, 'missing');
 
-  const result = await claim(join(missing, 'phi', 'phi.sock'));
+  const result = await claim(join(missing, 'koja', 'koja.sock'));
 
   expect(result).toMatchObject({ ok: false, reason: 'ancestorMissing' });
   expect(lstatSync(missing, { throwIfNoEntry: false })).toBeUndefined();
@@ -392,8 +392,8 @@ it('refuses a symlink route that passes a missing directory before a shared one'
   // A literal target, since join would drop the missing directory.
   await symlink('missing/../shared', join(base, 'alias'));
 
-  const result = await claim(join(base, 'alias', 'phi', 'phi.sock'));
+  const result = await claim(join(base, 'alias', 'koja', 'koja.sock'));
 
   expect(result).toMatchObject({ ok: false, reason: 'ancestorMissing' });
-  expect(lstatSync(join(shared, 'phi'), { throwIfNoEntry: false })).toBeUndefined();
+  expect(lstatSync(join(shared, 'koja'), { throwIfNoEntry: false })).toBeUndefined();
 });

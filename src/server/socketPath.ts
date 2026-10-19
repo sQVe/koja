@@ -102,10 +102,10 @@ export const socketPathFor = (
   const runtime = usableRuntimeDirectory(runtimeDirectory);
 
   if (runtime === undefined) {
-    return join('/tmp', `phi-${userId}`, 'phi.sock');
+    return join('/tmp', `koja-${userId}`, 'koja.sock');
   }
 
-  return join(runtime, 'phi', 'phi.sock');
+  return join(runtime, 'koja', 'koja.sock');
 };
 
 const describeError = (error: unknown): string =>

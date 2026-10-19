@@ -29,7 +29,7 @@ const inactiveExitCode = 3;
 const unknownUnitExitCode = 4;
 
 export const scopeUnitName = (serverProcessId: number): string =>
-  `phi-pane-${serverProcessId}-${randomUUID()}.scope`;
+  `koja-pane-${serverProcessId}-${randomUUID()}.scope`;
 
 // The command runs the shell inside a new scope. systemd-run executes the shell in place, so the
 // shell keeps the process id that the server spawned. systemd-run expands `$` in arguments, so

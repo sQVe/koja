@@ -10,9 +10,9 @@ export default defineConfig({
     rules: {
       // The automatic JSX runtime imports from @opentui/react, not React.createElement.
       'react/react-in-jsx-scope': 'off',
-      'phi/module-boundaries': 'error',
-      'phi/throw-only-in-invariant': 'error',
-      'phi/class-owns-resource': 'error',
+      'koja/module-boundaries': 'error',
+      'koja/throw-only-in-invariant': 'error',
+      'koja/class-owns-resource': 'error',
       'eslint/no-restricted-imports': [
         'error',
         {

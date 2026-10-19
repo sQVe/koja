@@ -9,7 +9,7 @@ export const resolveSocketPath = (
   requested: string | undefined,
   environment: Environment,
 ): string => {
-  const inPaneSocket = environment.PHI_SOCKET_PATH;
+  const inPaneSocket = environment.KOJA_SOCKET_PATH;
 
   if (requested === undefined && inPaneSocket !== undefined) {
     return resolve(inPaneSocket);

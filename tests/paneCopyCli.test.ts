@@ -20,13 +20,13 @@ const digits = '0123456789'.repeat(10);
 it(
   'prints only the word between the columns, also when the word wraps',
   async () => {
-    const { phi, list, first } = await setup(
+    const { koja, list, first } = await setup(
       `echo alpha bravo charlie\necho ${digits}\nprintf done`,
     );
 
-    await waitForText(phi, first, 'done');
+    await waitForText(koja, first, 'done');
 
-    const word = await phi('pane', 'copy', first, '--from', '0:6', '--to', '0:10', '--print');
+    const word = await koja('pane', 'copy', first, '--from', '0:6', '--to', '0:10', '--print');
 
     expect({ exitCode: word.exitCode, stdout: word.stdout, stderr: word.stderr }).toEqual({
       exitCode: 0,
@@ -39,7 +39,7 @@ it(
 
     expect(columns).toBeLessThan(digits.length);
 
-    const wrapped = await phi(
+    const wrapped = await koja(
       'pane',
       'copy',
       first,
@@ -61,9 +61,9 @@ it(
 it(
   'never prints half of a wide character',
   async () => {
-    const { phi, first } = await setup('echo 漢字ab\nprintf done');
+    const { koja, first } = await setup('echo 漢字ab\nprintf done');
 
-    await waitForText(phi, first, 'done');
+    await waitForText(koja, first, 'done');
 
     const ranges = [
       ['0:1', '0:2'],
@@ -74,7 +74,7 @@ it(
 
     const printed = await Promise.all(
       ranges.map(async ([from, to]) => {
-        const run = await phi('pane', 'copy', first, '--from', from, '--to', to, '--print');
+        const run = await koja('pane', 'copy', first, '--from', from, '--to', to, '--print');
 
         return run.stdout;
       }),
@@ -88,11 +88,11 @@ it(
 it(
   'fails with noClient in json and exits non-zero when no client is attached, and print still prints',
   async () => {
-    const { phi, first } = await setup('echo alpha bravo\nprintf done');
+    const { koja, first } = await setup('echo alpha bravo\nprintf done');
 
-    await waitForText(phi, first, 'done');
+    await waitForText(koja, first, 'done');
 
-    const copy = await phi('pane', 'copy', first, '--from', '0:0', '--to', '0:4', '--json');
+    const copy = await koja('pane', 'copy', first, '--from', '0:0', '--to', '0:4', '--json');
 
     expect(copy.exitCode).not.toBe(0);
 
@@ -101,14 +101,14 @@ it(
       reason: 'noClient',
     });
 
-    const printed = await phi('pane', 'copy', first, '--from', '0:0', '--to', '0:4', '--print');
+    const printed = await koja('pane', 'copy', first, '--from', '0:0', '--to', '0:4', '--print');
 
     expect({ exitCode: printed.exitCode, stdout: printed.stdout }).toEqual({
       exitCode: 0,
       stdout: 'alpha',
     });
 
-    const json = await phi(
+    const json = await koja(
       'pane',
       'copy',
       first,
@@ -128,11 +128,11 @@ it(
 it(
   'names the oldest kept row in json when the range starts below it',
   async () => {
-    const { phi, first } = await setup('seq 1 120000\nprintf done');
+    const { koja, first } = await setup('seq 1 120000\nprintf done');
 
-    await waitForText(phi, first, 'done');
+    await waitForText(koja, first, 'done');
 
-    const copy = await phi(
+    const copy = await koja(
       'pane',
       'copy',
       first,

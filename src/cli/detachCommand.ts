@@ -34,7 +34,7 @@ export const runDetachCommand = async (
         command.json,
         'refused',
         `CLI ${client.version} (ghostty ${client.ghostty}) cannot connect to server ` +
-          `${server.version} (ghostty ${server.ghostty}). Run phi server stop followed by phi ` +
+          `${server.version} (ghostty ${server.ghostty}). Run koja server stop followed by koja ` +
           'to restart the server. This ends every pane.',
       );
     }

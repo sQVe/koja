@@ -60,7 +60,7 @@ const withSleepIn = (folder: string, run: (pid: number) => void): void => {
 };
 
 it('saves the original path of a deleted folder', () => {
-  const root = realpathSync(mkdtempSync(join(tmpdir(), 'phi-saved-')));
+  const root = realpathSync(mkdtempSync(join(tmpdir(), 'koja-saved-')));
 
   try {
     mkdirSync(join(root, 'work'));
@@ -77,7 +77,7 @@ it('saves the original path of a deleted folder', () => {
 });
 
 it('saves a live folder whose name ends in (deleted) as it is', () => {
-  const root = realpathSync(mkdtempSync(join(tmpdir(), 'phi-saved-')));
+  const root = realpathSync(mkdtempSync(join(tmpdir(), 'koja-saved-')));
   const live = join(root, 'live (deleted)');
 
   try {

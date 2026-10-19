@@ -16,9 +16,9 @@ const glyphsAt = (lines: string[], row: number, columns: number[]): string[] =>
 it(
   'draws a lone pane with no frame and lists the full area',
   async () => {
-    const { phi, list, lines, until, first } = await setup();
+    const { koja, list, lines, until, first } = await setup();
 
-    await phi('pane', 'send', 'echo LONETEXT\n', '--pane', first);
+    await koja('pane', 'send', 'echo LONETEXT\n', '--pane', first);
     await until(() => lines().some((line) => line.startsWith('echo LONETEXT')));
 
     const frameGlyphs = /[┌┐└┘│─]/;
@@ -35,11 +35,11 @@ it(
 it(
   'draws split panes in two frames and sizes each terminal to the inside of its frame',
   async () => {
-    const { phi, list, act, lines, until, first } = await setup();
+    const { koja, list, act, lines, until, first } = await setup();
     const second = await act('split', first, '--direction', 'right');
 
-    await phi('pane', 'send', 'echo LEFTTEXT\n', '--pane', first);
-    await phi('pane', 'send', 'echo RIGHTTEXT\n', '--pane', second);
+    await koja('pane', 'send', 'echo LEFTTEXT\n', '--pane', first);
+    await koja('pane', 'send', 'echo RIGHTTEXT\n', '--pane', second);
 
     await until(() => lines().some((line) => line.includes('echo RIGHTTEXT')));
 
@@ -98,10 +98,10 @@ it(
 it(
   'sends typed keys only to the focused pane after pane focus',
   async () => {
-    const { phi, act, lines, foreground, until, type, first } = await setup();
+    const { koja, act, lines, foreground, until, type, first } = await setup();
     const second = await act('split', first, '--direction', 'right');
 
-    await phi('pane', 'send', 'echo RIGHTTEXT\n', '--pane', second);
+    await koja('pane', 'send', 'echo RIGHTTEXT\n', '--pane', second);
     await until(() => lines().some((line) => line.includes('echo RIGHTTEXT')));
 
     expect(await act('focus', first)).toBe(first);
@@ -185,7 +185,7 @@ it(
 );
 
 it(
-  'moves the split edge by one cell on > in Phi mode',
+  'moves the split edge by one cell on > in Koja mode',
   async () => {
     const { list, act, lines, until, type, first } = await setup();
     const second = await act('split', first, '--direction', 'right');
@@ -209,12 +209,12 @@ it(
 it(
   'starts the pane of the split key in the folder of the focused pane',
   async () => {
-    const { phi, list, type, first } = await setup();
-    const target = await realpath(await mkdtemp(join(tmpdir(), 'phi-split-key-')));
+    const { koja, list, type, first } = await setup();
+    const target = await realpath(await mkdtemp(join(tmpdir(), 'koja-split-key-')));
 
     onTestFinished(() => rm(target, { recursive: true, force: true }));
 
-    await phi('pane', 'send', `cd ${target}\n`, '--pane', first);
+    await koja('pane', 'send', `cd ${target}\n`, '--pane', first);
 
     let panes = await list();
 
@@ -238,9 +238,9 @@ it(
 it(
   'starts the tab of the new-tab key in the folder of the pane the client view shows',
   async () => {
-    const { phi, list, type, first } = await setup();
-    const shown = await realpath(await mkdtemp(join(tmpdir(), 'phi-tab-shown-')));
-    const hidden = await realpath(await mkdtemp(join(tmpdir(), 'phi-tab-hidden-')));
+    const { koja, list, type, first } = await setup();
+    const shown = await realpath(await mkdtemp(join(tmpdir(), 'koja-tab-shown-')));
+    const hidden = await realpath(await mkdtemp(join(tmpdir(), 'koja-tab-hidden-')));
 
     onTestFinished(() => rm(shown, { recursive: true, force: true }));
     onTestFinished(() => rm(hidden, { recursive: true, force: true }));
@@ -256,7 +256,7 @@ it(
       return panes;
     };
 
-    await phi('pane', 'send', `cd ${shown}\n`, '--pane', first);
+    await koja('pane', 'send', `cd ${shown}\n`, '--pane', first);
     await untilPanes((panes) => panes[0]?.cwd === shown);
 
     type('\x02t');
@@ -265,10 +265,10 @@ it(
 
     expect(second?.cwd).toBe(shown);
 
-    await phi('pane', 'send', `cd ${hidden}\n`, '--pane', second?.id ?? '');
+    await koja('pane', 'send', `cd ${hidden}\n`, '--pane', second?.id ?? '');
     await untilPanes((panes) => panes[1]?.cwd === hidden);
 
-    // Phi mode stays on after the prefix, so the next keys need no prefix.
+    // Koja mode stays on after the prefix, so the next keys need no prefix.
     type('H');
     await untilPanes((panes) => panes.find((pane) => pane.focused)?.id === first);
     type('t');

@@ -33,12 +33,12 @@ export const tabOptions = {
   cwd: { type: 'string' },
 } as const;
 
-export const tabUsage = `  phi tab list [--socket <path>] [--json]
-  phi tab create [--workspace <id>] [--cwd <dir>] [--focus | --no-focus]
+export const tabUsage = `  koja tab list [--socket <path>] [--json]
+  koja tab create [--workspace <id>] [--cwd <dir>] [--focus | --no-focus]
     [--socket <path>] [--json]
-  phi tab focus <id> [--socket <path>] [--json]
-  phi tab rename <id> <label> [--socket <path>] [--json]
-  phi tab close <id> [--socket <path>] [--json]`;
+  koja tab focus <id> [--socket <path>] [--json]
+  koja tab rename <id> <label> [--socket <path>] [--json]
+  koja tab close <id> [--socket <path>] [--json]`;
 
 const parseTabId = (value: string | undefined): IdResult<TabId> => {
   const number = parseId(value ?? '', 'tab');

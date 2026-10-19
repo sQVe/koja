@@ -28,7 +28,7 @@ export const accentWord = 0x1_00_00_00 + 0x5f_af_ff;
 const failureTimeoutMs = 20_000;
 
 interface PaneAttachHarness {
-  phi: (...commandArguments: string[]) => Promise<string>;
+  koja: (...commandArguments: string[]) => Promise<string>;
   list: () => Promise<z.infer<typeof paneListSchema>>;
   act: (...commandArguments: string[]) => Promise<string>;
   lines: () => string[];
@@ -41,10 +41,10 @@ interface PaneAttachHarness {
 
 export const setup = async (): Promise<PaneAttachHarness> => {
   const directory = await temporaryDirectory();
-  const socketPath = join(directory, 'run', 'phi.sock');
+  const socketPath = join(directory, 'run', 'koja.sock');
   const environment = { ...environmentFor(directory), SHELL: '/bin/sh', PS1: '' };
 
-  const phi = async (...commandArguments: string[]): Promise<string> => {
+  const koja = async (...commandArguments: string[]): Promise<string> => {
     const child = Bun.spawn(
       ['bun', join(root, 'src/index.ts'), ...commandArguments, '--socket', socketPath],
       { cwd: directory, env: environment, stdin: 'ignore', stdout: 'pipe', stderr: 'pipe' },
@@ -57,17 +57,17 @@ export const setup = async (): Promise<PaneAttachHarness> => {
     return stdout;
   };
 
-  await phi('server', 'start');
+  await koja('server', 'start');
 
   const workspaceRoot = join(directory, 'work');
 
   await mkdir(workspaceRoot);
-  await phi('workspace', 'create', workspaceRoot, '--focus');
+  await koja('workspace', 'create', workspaceRoot, '--focus');
 
-  const list = async () => paneListSchema.parse(JSON.parse(await phi('pane', 'list', '--json')));
+  const list = async () => paneListSchema.parse(JSON.parse(await koja('pane', 'list', '--json')));
 
   const act = async (...commandArguments: string[]): Promise<string> =>
-    paneDoneSchema.parse(JSON.parse(await phi('pane', ...commandArguments, '--json'))).pane;
+    paneDoneSchema.parse(JSON.parse(await koja('pane', ...commandArguments, '--json'))).pane;
 
   const created = createTerminal(80 + sideListColumns, 24, 0);
 
@@ -167,5 +167,5 @@ export const setup = async (): Promise<PaneAttachHarness> => {
 
   const [first] = await list();
 
-  return { phi, list, act, lines, foreground, until, resize, type, first: first?.id ?? '' };
+  return { koja, list, act, lines, foreground, until, resize, type, first: first?.id ?? '' };
 };

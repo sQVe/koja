@@ -54,7 +54,7 @@ interface ServerOptions {
   socketPath: string;
   version: BuildVersion;
   log: Log;
-  // The command that runs Phi. Panes receive it as PHI_BIN_PATH.
+  // The command that runs Koja. Panes receive it as KOJA_BIN_PATH.
   binaryPath: string;
   // The environment the server started in. Each pane's shell starts with it.
   environment: Record<string, string | undefined>;

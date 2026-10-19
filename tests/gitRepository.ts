@@ -11,15 +11,15 @@ const runGit = (directory: string, args: string[]) =>
 
 export const createTemporaryRepository = async (
   registerCleanup: RegisterCleanup,
-  prefix = 'phi-repository-',
+  prefix = 'koja-repository-',
 ): Promise<string> => {
   const directory = await mkdtemp(join(tmpdir(), prefix));
 
   registerCleanup(() => rm(directory, { recursive: true, force: true }));
 
   await runGit(directory, ['init', '--quiet', '--initial-branch=main']);
-  await runGit(directory, ['config', 'user.name', 'Phi Test']);
-  await runGit(directory, ['config', 'user.email', 'phi@example.com']);
+  await runGit(directory, ['config', 'user.name', 'Koja Test']);
+  await runGit(directory, ['config', 'user.email', 'koja@example.com']);
   await runGit(directory, ['config', 'commit.gpgsign', 'false']);
 
   return directory;

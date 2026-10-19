@@ -12,7 +12,7 @@ import {
 } from '../src/protocol/protocol.ts';
 import type { ControlMessage } from '../src/protocol/protocol.ts';
 
-const runPhi = async (...commandArguments: string[]) => {
+const runKoja = async (...commandArguments: string[]) => {
   const child = Bun.spawn([process.execPath, 'src/index.ts', ...commandArguments], {
     stdout: 'pipe',
     stderr: 'pipe',
@@ -25,8 +25,8 @@ const runPhi = async (...commandArguments: string[]) => {
 };
 
 const listen = async (respond: (message: ControlMessage) => ControlMessage[] | undefined) => {
-  const directory = await mkdtemp(join(tmpdir(), 'phi-detach-cli-'));
-  const socketPath = join(directory, 'phi.sock');
+  const directory = await mkdtemp(join(tmpdir(), 'koja-detach-cli-'));
+  const socketPath = join(directory, 'koja.sock');
   const decoder = createFrameDecoder();
 
   const listener = Bun.listen({
@@ -63,7 +63,7 @@ const listen = async (respond: (message: ControlMessage) => ControlMessage[] | u
 const welcome: ControlMessage = { type: 'welcome' };
 
 it('prints a JSON failure and exits 1 when no server listens', async () => {
-  const result = await runPhi('detach', '--json', '--socket', '/nonexistent/phi.sock');
+  const result = await runKoja('detach', '--json', '--socket', '/nonexistent/koja.sock');
 
   expect(result.code).toBe(1);
   expect(JSON.parse(result.stdout)).toEqual({ detached: false, reason: 'noServer' });
@@ -83,7 +83,7 @@ it('prints a JSON failure and exits 1 when the server refuses the version', asyn
       : [],
   );
 
-  const result = await runPhi('detach', '--json', '--socket', socketPath);
+  const result = await runKoja('detach', '--json', '--socket', socketPath);
 
   expect(result.code).toBe(1);
   expect(JSON.parse(result.stdout)).toEqual({ detached: false, reason: 'refused' });
@@ -92,7 +92,7 @@ it('prints a JSON failure and exits 1 when the server refuses the version', asyn
 
 it('prints a JSON failure and exits 1 when the server drops the connection', async () => {
   const socketPath = await listen(() => undefined);
-  const result = await runPhi('detach', '--json', '--socket', socketPath);
+  const result = await runKoja('detach', '--json', '--socket', socketPath);
 
   expect(result.code).toBe(1);
   expect(JSON.parse(result.stdout)).toEqual({ detached: false, reason: 'connectionFailed' });
@@ -110,7 +110,7 @@ it('prints a JSON failure when no client is attached', async () => {
       : [];
   });
 
-  const result = await runPhi('detach', '--json', '--socket', socketPath);
+  const result = await runKoja('detach', '--json', '--socket', socketPath);
 
   expect(result.code).toBe(1);
   expect(JSON.parse(result.stdout)).toEqual({ detached: false, reason: 'noClient' });
@@ -126,7 +126,7 @@ it('prints JSON success and exits 0 when a client detaches', async () => {
     return message.type === 'detach' ? [{ type: 'detachResult', result: { ok: true } }] : [];
   });
 
-  const result = await runPhi('detach', '--json', '--socket', socketPath);
+  const result = await runKoja('detach', '--json', '--socket', socketPath);
 
   expect(result.code).toBe(0);
   expect(JSON.parse(result.stdout)).toEqual({ detached: true });

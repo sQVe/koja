@@ -10,7 +10,7 @@ import type { Log } from './log.ts';
 import { createSessionWriter, readSessionFile, sessionPathFor } from './sessionFile.ts';
 
 const temporaryDirectory = async (): Promise<string> => {
-  const directory = await mkdtemp(join(tmpdir(), 'phi-session-'));
+  const directory = await mkdtemp(join(tmpdir(), 'koja-session-'));
   onTestFinished(() => rm(directory, { recursive: true, force: true }));
 
   return directory;
@@ -400,20 +400,20 @@ it('accepts the unmodified session as written by hand', async () => {
 });
 
 it('gives each socket path its own file', () => {
-  const first = sessionPathFor('/state', '/home/user', '/run/phi/one.sock');
-  const second = sessionPathFor('/state', '/home/user', '/run/phi/two.sock');
+  const first = sessionPathFor('/state', '/home/user', '/run/koja/one.sock');
+  const second = sessionPathFor('/state', '/home/user', '/run/koja/two.sock');
 
   expect(first).not.toBe(second);
-  expect(sessionPathFor('/state', '/home/user', '/run/phi/one.sock')).toBe(first);
-  expect(first.startsWith('/state/phi/sessions/')).toBe(true);
+  expect(sessionPathFor('/state', '/home/user', '/run/koja/one.sock')).toBe(first);
+  expect(first.startsWith('/state/koja/sessions/')).toBe(true);
   expect(first.endsWith('.json')).toBe(true);
 });
 
 it('falls back to ~/.local/state without a usable state home', () => {
-  const socketPath = '/run/phi/one.sock';
+  const socketPath = '/run/koja/one.sock';
   const fallback = sessionPathFor(undefined, '/home/user', socketPath);
 
-  expect(fallback.startsWith('/home/user/.local/state/phi/sessions/')).toBe(true);
+  expect(fallback.startsWith('/home/user/.local/state/koja/sessions/')).toBe(true);
   expect(sessionPathFor('relative/state', '/home/user', socketPath)).toBe(fallback);
 });
 

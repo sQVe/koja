@@ -51,8 +51,8 @@ const tab = {
 
 const workspace = {
   id: workspaceId(1),
-  root: '/work/phi',
-  label: 'phi',
+  root: '/work/koja',
+  label: 'koja',
   tabIds: [tab.id],
 };
 
@@ -346,8 +346,8 @@ const messages: ControlMessage[] = [
     foregroundGroup: undefined,
     processes: [],
   },
-  { type: 'workspaceCreate', root: '/work/phi', label: 'phi', focus: true },
-  { type: 'workspaceCreate', root: '/work/phi', label: undefined, focus: false },
+  { type: 'workspaceCreate', root: '/work/koja', label: 'koja', focus: true },
+  { type: 'workspaceCreate', root: '/work/koja', label: undefined, focus: false },
   { type: 'workspaceFocus', workspaceId: workspace.id },
   { type: 'workspaceRename', workspaceId: workspace.id, label: 'renamed' },
   { type: 'workspaceClose', workspaceId: workspace.id },

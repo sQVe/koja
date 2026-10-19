@@ -3,7 +3,7 @@ import { expect, it } from 'bun:test';
 import { clientId, paneId } from '../ids.ts';
 import { applyFact, applyIntent } from './store.ts';
 import type { State } from './store.ts';
-import { createDocs, createPhi, fact, intent, twoClients } from './storeFixtures.ts';
+import { createDocs, createKoja, fact, intent, twoClients } from './storeFixtures.ts';
 import { scrollOf } from './view.ts';
 
 const scroll = (state: State, client: number, pane: number, row: number | undefined) =>
@@ -16,7 +16,7 @@ const scrollOfClient = (state: State, client: number, pane: number): number | un
 };
 
 it('scrolls the view of the target client only and reports it', () => {
-  const state = twoClients(createPhi, createDocs);
+  const state = twoClients(createKoja, createDocs);
   const result = scroll(state, 1, 1, 7);
 
   expect(scrollOfClient(result.state, 1, 1)).toBe(7);
@@ -33,7 +33,7 @@ it('scrolls the view of the target client only and reports it', () => {
 });
 
 it('keeps a position for each pane', () => {
-  const state = twoClients(createPhi, createDocs);
+  const state = twoClients(createKoja, createDocs);
   const first = scroll(state, 1, 1, 7);
   const second = scroll(first.state, 1, 2, 3);
 
@@ -42,7 +42,7 @@ it('keeps a position for each pane', () => {
 });
 
 it('clears the position when the view follows the bottom again', () => {
-  const state = twoClients(createPhi, createDocs);
+  const state = twoClients(createKoja, createDocs);
   const scrolled = scroll(state, 1, 1, 7).state;
   const result = scroll(scrolled, 1, 1, undefined);
 
@@ -54,7 +54,7 @@ it('clears the position when the view follows the bottom again', () => {
 });
 
 it('reports nothing when the position does not change', () => {
-  const state = twoClients(createPhi, createDocs);
+  const state = twoClients(createKoja, createDocs);
   const scrolled = scroll(state, 1, 1, 7).state;
 
   expect(scroll(scrolled, 1, 1, 7).changes).toEqual([]);
@@ -62,7 +62,7 @@ it('reports nothing when the position does not change', () => {
 });
 
 it('refuses an unknown client and an unknown pane without changing the state', () => {
-  const state = twoClients(createPhi, createDocs);
+  const state = twoClients(createKoja, createDocs);
 
   const unknownClient = applyIntent(state, {
     type: 'scrollPane',
@@ -90,7 +90,7 @@ const renumbered = (
 ) => fact(state, { type: 'paneRowsRenumbered', paneId: paneId(1), generation: 1, ...fields });
 
 it('keeps the distance from the bottom when the rows are renumbered', () => {
-  const state = twoClients(createPhi, createDocs);
+  const state = twoClients(createKoja, createDocs);
   const scrolled = scroll(scroll(state, 1, 1, 70).state, 1, 2, 5).state;
 
   const result = renumbered(scrolled, { oldActiveTop: 100, first: 1000, newActiveTop: 1200 });
@@ -115,14 +115,14 @@ it('keeps the distance from the bottom when the rows are renumbered', () => {
 });
 
 it('stops at the oldest row when the distance is longer than the history', () => {
-  const state = scroll(twoClients(createPhi, createDocs), 1, 1, 10).state;
+  const state = scroll(twoClients(createKoja, createDocs), 1, 1, 10).state;
   const result = renumbered(state, { oldActiveTop: 100, first: 1150, newActiveTop: 1200 });
 
   expect(scrollOfClient(result.state, 1, 1)).toBe(1150);
 });
 
 it('follows the bottom when the row reaches the active top', () => {
-  const state = scroll(twoClients(createPhi, createDocs), 1, 1, 100).state;
+  const state = scroll(twoClients(createKoja, createDocs), 1, 1, 100).state;
   const result = renumbered(state, { oldActiveTop: 100, first: 1000, newActiveTop: 1200 });
 
   expect(scrollOfClient(result.state, 1, 1)).toBeUndefined();
@@ -133,7 +133,7 @@ it('follows the bottom when the row reaches the active top', () => {
 });
 
 it('ignores renumbering from an old pane generation', () => {
-  const state = scroll(twoClients(createPhi, createDocs), 1, 1, 70).state;
+  const state = scroll(twoClients(createKoja, createDocs), 1, 1, 70).state;
 
   const result = applyFact(state, {
     type: 'paneRowsRenumbered',
@@ -149,21 +149,21 @@ it('ignores renumbering from an old pane generation', () => {
 });
 
 it('reports nothing when no view scrolls the pane', () => {
-  const state = twoClients(createPhi, createDocs);
+  const state = twoClients(createKoja, createDocs);
   const result = renumbered(state, { oldActiveTop: 100, first: 1000, newActiveTop: 1200 });
 
   expect(result).toMatchObject({ kind: 'applied', changes: [] });
 });
 
 it('follows the bottom when a reset removes the history', () => {
-  const state = scroll(twoClients(createPhi, createDocs), 1, 1, 70).state;
+  const state = scroll(twoClients(createKoja, createDocs), 1, 1, 70).state;
   const result = renumbered(state, { oldActiveTop: 100, first: 1000, newActiveTop: 1000 });
 
   expect(scrollOfClient(result.state, 1, 1)).toBeUndefined();
 });
 
 it('drops the position of a closed pane with the next scroll', () => {
-  const state = twoClients(createPhi, createDocs);
+  const state = twoClients(createKoja, createDocs);
   const scrolled = scroll(state, 1, 1, 7).state;
   const closed = intent(scrolled, { type: 'closePane', paneId: paneId(1) }).state;
   const result = scroll(closed, 1, 2, 3);

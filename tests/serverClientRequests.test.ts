@@ -236,11 +236,11 @@ it('writes input from the attached client to the pane', async () => {
 
   terminal.send({ type: 'hello', version: build, size: { columns: 100, rows: 30 } });
   await nextPaneResize(terminal);
-  terminal.sendInput(1, new TextEncoder().encode('echo phi-input\r'));
+  terminal.sendInput(1, new TextEncoder().encode('echo koja-input\r'));
 
-  await receiveText(terminal, rows, 'phi-input');
+  await receiveText(terminal, rows, 'koja-input');
 
-  expect([...rows.values()].some((row) => row.includes('phi-input'))).toBe(true);
+  expect([...rows.values()].some((row) => row.includes('koja-input'))).toBe(true);
 });
 
 it('ignores input from a welcomed connection that is not attached', async () => {
@@ -251,13 +251,13 @@ it('ignores input from a welcomed connection that is not attached', async () => 
   cli.send({ type: 'hello', version: build, size: undefined });
   await cli.nextMessage();
   await cli.nextMessage();
-  cli.sendInput(1, new TextEncoder().encode('echo phi-ignored\r'));
+  cli.sendInput(1, new TextEncoder().encode('echo koja-ignored\r'));
   await afterResync(cli);
-  server.writeToPane('echo phi-marker\r');
+  server.writeToPane('echo koja-marker\r');
 
-  await waitFor(() => server.paneText()?.includes('phi-marker') === true);
+  await waitFor(() => server.paneText()?.includes('koja-marker') === true);
 
-  expect(server.paneText()).not.toContain('phi-ignored');
+  expect(server.paneText()).not.toContain('koja-ignored');
 });
 
 it('ignores input for a pane other than the current one', async () => {
@@ -267,13 +267,13 @@ it('ignores input for a pane other than the current one', async () => {
 
   terminal.send({ type: 'hello', version: build, size: { columns: 100, rows: 30 } });
   await nextPaneResize(terminal);
-  terminal.sendInput(2, new TextEncoder().encode('echo phi-other\r'));
+  terminal.sendInput(2, new TextEncoder().encode('echo koja-other\r'));
   await afterResync(terminal);
-  server.writeToPane('echo phi-marker\r');
+  server.writeToPane('echo koja-marker\r');
 
-  await waitFor(() => server.paneText()?.includes('phi-marker') === true);
+  await waitFor(() => server.paneText()?.includes('koja-marker') === true);
 
-  expect(server.paneText()).not.toContain('phi-other');
+  expect(server.paneText()).not.toContain('koja-other');
 });
 
 it('closes a connection whose input payload cannot be decoded', async () => {
@@ -296,8 +296,8 @@ it('keeps a scrolled view at its distance from the bottom after a resize renumbe
 
   terminal.send({ type: 'hello', version: build, size: { columns: 100, rows: 30 } });
   await nextPaneResize(terminal);
-  terminal.sendInput(1, new TextEncoder().encode("seq -f '%070g' 1 300; echo phi-done\r"));
-  await receiveText(terminal, rows, 'phi-done');
+  terminal.sendInput(1, new TextEncoder().encode("seq -f '%070g' 1 300; echo koja-done\r"));
+  await receiveText(terminal, rows, 'koja-done');
   await waitFor(() => (terminal.updates.at(-1)?.activeTop ?? 0) > 100);
 
   const before = terminal.updates.at(-1);

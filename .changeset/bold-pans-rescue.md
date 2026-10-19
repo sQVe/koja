@@ -1,5 +1,5 @@
 ---
-'phi': patch
+'koja': patch
 ---
 
 The focused pane shows its cursor with the terminal's own cursor, in the shape and blink the program

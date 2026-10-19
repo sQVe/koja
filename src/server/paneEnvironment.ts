@@ -33,7 +33,7 @@ const removedNames = new Set([
   'CLAUDE_CODE_MESSAGING_TOKEN',
 ]);
 
-const removedPrefixes = ['HERDR_', 'PHI_'];
+const removedPrefixes = ['HERDR_', 'KOJA_'];
 
 const isRemoved = (name: string): boolean =>
   removedNames.has(name) || removedPrefixes.some((prefix) => name.startsWith(prefix));
@@ -52,14 +52,14 @@ export const buildPaneEnvironment = (
 
   built.TERM = 'xterm-256color';
   built.COLORTERM = 'truecolor';
-  built.TERM_PROGRAM = 'phi';
+  built.TERM_PROGRAM = 'koja';
   built.TERM_PROGRAM_VERSION = identity.version;
-  built.PHI_ENV = '1';
-  built.PHI_WORKSPACE_ID = identity.workspaceId;
-  built.PHI_TAB_ID = identity.tabId;
-  built.PHI_PANE_ID = identity.paneId;
-  built.PHI_SOCKET_PATH = identity.socketPath;
-  built.PHI_BIN_PATH = identity.binaryPath;
+  built.KOJA_ENV = '1';
+  built.KOJA_WORKSPACE_ID = identity.workspaceId;
+  built.KOJA_TAB_ID = identity.tabId;
+  built.KOJA_PANE_ID = identity.paneId;
+  built.KOJA_SOCKET_PATH = identity.socketPath;
+  built.KOJA_BIN_PATH = identity.binaryPath;
 
   built.fish_handle_reflow ??= '0';
 

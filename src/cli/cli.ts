@@ -21,7 +21,7 @@ interface VersionOutput {
 }
 
 const writeError = (message: string, suffix = ''): void => {
-  process.stderr.write(`phi: ${message}${suffix}\n`);
+  process.stderr.write(`koja: ${message}${suffix}\n`);
 };
 
 const runRequestCommand = (
@@ -75,7 +75,7 @@ export const runCli = async (argv: string[], environment: Environment): Promise<
 
     print<VersionOutput>(command.json, {
       json: { version, ghostty },
-      text: `phi ${version} (ghostty ${ghostty})`,
+      text: `koja ${version} (ghostty ${ghostty})`,
     });
 
     return 0;

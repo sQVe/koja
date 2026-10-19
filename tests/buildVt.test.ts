@@ -3,7 +3,7 @@ import { expect, it } from 'bun:test';
 import { existsSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 
-const library = fileURLToPath(new URL('../build/libphi-vt.so', import.meta.url));
+const library = fileURLToPath(new URL('../build/libkoja-vt.so', import.meta.url));
 
 it('builds a shim library that creates and frees a pane', () => {
   expect(existsSync(library)).toBe(true);

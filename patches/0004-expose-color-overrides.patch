@@ -1,6 +1,6 @@
 Add terminal data keys for the colors a program set, with or without a change of value.
 
-Phi needs these because it tells clients which colors a program changed with OSC 4, 10, and 11,
+Koja needs these because it tells clients which colors a program changed with OSC 4, 10, and 11,
 and a client shows its own theme for the rest. A program can set a color to its default value,
 for example OSC 11 to black on a terminal whose background default is black. Comparing a current
 color with its default drops that color. Ghostty already tracks the palette override mask and

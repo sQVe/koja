@@ -52,8 +52,8 @@ it.skipIf(!scopesAvailable)('runs a shell whose path holds a dollar sign', async
 
   const { server } = await startServer(directory, shell);
 
-  server.writeToPane('echo phi-$((6 * 7))\n');
-  await waitFor(() => server.paneText()?.includes('phi-42') === true);
+  server.writeToPane('echo koja-$((6 * 7))\n');
+  await waitFor(() => server.paneText()?.includes('koja-42') === true);
 });
 
 it('starts the pane and ends its session when no user scope is available', async () => {

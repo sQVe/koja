@@ -10,7 +10,7 @@ import { environmentFor, runCli, temporaryDirectory } from './cliHarness.ts';
 
 export interface TestServer {
   socketPath: string;
-  phi: (commandArguments: string[]) => Promise<string>;
+  koja: (commandArguments: string[]) => Promise<string>;
   start: () => Promise<number>;
   createWorkspace: (folder: string) => Promise<string>;
   split: (pane: string) => Promise<string>;
@@ -53,7 +53,7 @@ export const setup = async (): Promise<TestSetup> => {
   const serverAt = (name: string) => {
     const socketPath = join(directory, 'run', `${name}.sock`);
 
-    const phi = async (commandArguments: string[]): Promise<string> => {
+    const koja = async (commandArguments: string[]): Promise<string> => {
       const run = await runCli(
         [...commandArguments, '--socket', socketPath],
         directory,
@@ -67,7 +67,7 @@ export const setup = async (): Promise<TestSetup> => {
     };
 
     const start = async (): Promise<number> =>
-      startedSchema.parse(JSON.parse(await phi(['server', 'start', '--json']))).pid;
+      startedSchema.parse(JSON.parse(await koja(['server', 'start', '--json']))).pid;
 
     const createWorkspace = async (folder: string): Promise<string> => {
       const root = join(directory, folder);
@@ -75,25 +75,25 @@ export const setup = async (): Promise<TestSetup> => {
       await mkdir(root, { recursive: true });
 
       return workspaceSchema.parse(
-        JSON.parse(await phi(['workspace', 'create', root, '--focus', '--json'])),
+        JSON.parse(await koja(['workspace', 'create', root, '--focus', '--json'])),
       ).workspace;
     };
 
     const split = async (pane: string): Promise<string> =>
       paneSchema.parse(
-        JSON.parse(await phi(['pane', 'split', pane, '--direction', 'right', '--json'])),
+        JSON.parse(await koja(['pane', 'split', pane, '--direction', 'right', '--json'])),
       ).pane;
 
     const described = async (): Promise<string> => {
-      const workspaces = await phi(['workspace', 'list', '--json']);
-      const tabs = await phi(['tab', 'list', '--json']);
-      const panes = await phi(['pane', 'list', '--json']);
+      const workspaces = await koja(['workspace', 'list', '--json']);
+      const tabs = await koja(['tab', 'list', '--json']);
+      const panes = await koja(['pane', 'list', '--json']);
 
       return [workspaces, tabs, panes].join('\n');
     };
 
     const folders = async (): Promise<Record<string, string | null>> => {
-      const listed = paneListSchema.parse(JSON.parse(await phi(['pane', 'list', '--json'])));
+      const listed = paneListSchema.parse(JSON.parse(await koja(['pane', 'list', '--json'])));
 
       return Object.fromEntries(listed.map((pane) => [pane.id, pane.cwd]));
     };
@@ -101,7 +101,7 @@ export const setup = async (): Promise<TestSetup> => {
     const states = async (): Promise<
       Record<string, { lifecycle: string; error: string | null }>
     > => {
-      const listed = paneStatesSchema.parse(JSON.parse(await phi(['pane', 'list', '--json'])));
+      const listed = paneStatesSchema.parse(JSON.parse(await koja(['pane', 'list', '--json'])));
 
       return Object.fromEntries(
         listed.map((pane) => [pane.id, { lifecycle: pane.lifecycle, error: pane.restore_error }]),
@@ -110,7 +110,7 @@ export const setup = async (): Promise<TestSetup> => {
 
     const workspaceIds = async (): Promise<string[]> => {
       const listed = workspaceListSchema.parse(
-        JSON.parse(await phi(['workspace', 'list', '--json'])),
+        JSON.parse(await koja(['workspace', 'list', '--json'])),
       );
 
       return listed.map((workspace) => workspace.id);
@@ -125,7 +125,7 @@ export const setup = async (): Promise<TestSetup> => {
 
     return {
       socketPath,
-      phi,
+      koja,
       start,
       createWorkspace,
       split,
@@ -138,7 +138,7 @@ export const setup = async (): Promise<TestSetup> => {
   };
 
   const logText = (): Promise<string> =>
-    readFile(join(directory, 'state', 'phi', 'server.log'), 'utf8');
+    readFile(join(directory, 'state', 'koja', 'server.log'), 'utf8');
 
   return { serverAt, logText, environment };
 };
@@ -147,12 +147,12 @@ export const buildSetup = async (server: TestServer): Promise<void> => {
   const first = await server.createWorkspace('one');
   const second = await server.createWorkspace('two');
 
-  await server.phi(['workspace', 'rename', first, 'Renamed']);
-  await server.phi(['tab', 'create', '--workspace', first]);
+  await server.koja(['workspace', 'rename', first, 'Renamed']);
+  await server.koja(['tab', 'create', '--workspace', first]);
 
   const added = await server.split('pane-1');
 
-  await server.phi(['pane', 'zoom', added]);
-  await server.phi(['workspace', 'focus', second]);
-  await server.phi(['workspace', 'focus', first]);
+  await server.koja(['pane', 'zoom', added]);
+  await server.koja(['workspace', 'focus', second]);
+  await server.koja(['workspace', 'focus', first]);
 };

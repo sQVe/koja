@@ -21,23 +21,23 @@ TUI in a pane has no protocol on its stdin, because the PTY carries keystrokes.
 
 ## Decision
 
-Phi is a terminal multiplexer built around pi: any command can run in a pane, and pi panes are a
-first-class pane type. Phi owns the layout, navigation, and the views around the panes. pi owns the
+Koja is a terminal multiplexer built around pi: any command can run in a pane, and pi panes are a
+first-class pane type. Koja owns the layout, navigation, and the views around the panes. pi owns the
 chat inside its pane.
 
 ### pi in a pane
 
-- pi runs with its normal TUI in a PTY, as any other command does. Phi does not draw a chat UI and
+- pi runs with its normal TUI in a PTY, as any other command does. Koja does not draw a chat UI and
   does not run pi in RPC mode.
-- Tau and pi-claude-bridge work in a Phi pane exactly as they do in a plain terminal. A change that
+- Tau and pi-claude-bridge work in a Koja pane exactly as they do in a plain terminal. A change that
   breaks either one is a regression.
 - Other agent types may become first-class pane types later, in the same way.
 
 ### Channel to pi
 
-- A small pi extension connects to the Phi server over a socket. It reports pi's state (idle,
-  working, waiting for user input, finished) and its session file, and it delivers messages from Phi
-  as steer or follow-up messages.
+- A small pi extension connects to the Koja server over a socket. It reports pi's state (idle,
+  working, waiting for user input, finished) and its session file, and it delivers messages from
+  Koja as steer or follow-up messages.
 - The channel is a side channel. The server still parses pane output only from the PTY.
 - pi refuses a message during compaction and gives the extension no error for it. So the extension
   holds messages while compaction runs and delivers them after it ends.
@@ -65,18 +65,18 @@ pane output. The attention view and the pi pane actions need CLI equals under
 
 ### Positive
 
-- The user's pi setup, Tau, and the Claude subscription work in Phi without porting.
-- Phi controls the views the user cannot change in herdr.
+- The user's pi setup, Tau, and the Claude subscription work in Koja without porting.
+- Koja controls the views the user cannot change in herdr.
 - pi panes stay ordinary panes, so detach, attach, scrollback, and selection work for them as for a
   shell.
 
 ### Negative
 
-- Phi depends on pi's extension API and events. A pi release can change them.
+- Koja depends on pi's extension API and events. A pi release can change them.
 - pi's events carry no request ID, so the extension matches a delivered message by its content.
 - A message in flight when pi dies is reported as uncertain and never sent again. Delivery is not
   exactly once across a crash.
-- Phi cannot restyle the chat itself, because pi draws it.
+- Koja cannot restyle the chat itself, because pi draws it.
 
 ## Alternatives considered
 
@@ -91,11 +91,11 @@ them.
 Fork herdr and change its UI. Rejected because it is a large, fast-moving Rust codebase, and its UI
 design is what the user wants to replace.
 
-### pi in RPC mode with a chat UI in Phi
+### pi in RPC mode with a chat UI in Koja
 
-Run pi in RPC mode, or embed it with the SDK, and draw the chat in Phi. RPC gives request IDs and
+Run pi in RPC mode, or embed it with the SDK, and draw the chat in Koja. RPC gives request IDs and
 error responses that the extension channel lacks. Rejected because pi then has no TUI: Tau's custom
-dialogs and editor hooks stop working, and Phi takes on a chat UI it does not need.
+dialogs and editor hooks stop working, and Koja takes on a chat UI it does not need.
 
 ### Pi Durable as the host
 

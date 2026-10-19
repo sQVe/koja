@@ -14,7 +14,7 @@ it(
   'starts each restored shell in its last folder',
   async () => {
     const { serverAt } = await setup();
-    const server = serverAt('phi');
+    const server = serverAt('koja');
 
     await server.start();
 
@@ -25,10 +25,10 @@ it(
     const firstFolder = await realpath(await temporaryDirectory());
     const secondFolder = await realpath(await temporaryDirectory());
 
-    await server.phi(['pane', 'focus', 'pane-1']);
-    await server.phi(['pane', 'send', `cd ${firstFolder}\n`]);
-    await server.phi(['pane', 'focus', second]);
-    await server.phi(['pane', 'send', `cd ${secondFolder}\n`]);
+    await server.koja(['pane', 'focus', 'pane-1']);
+    await server.koja(['pane', 'send', `cd ${firstFolder}\n`]);
+    await server.koja(['pane', 'focus', second]);
+    await server.koja(['pane', 'send', `cd ${secondFolder}\n`]);
 
     const deadline = performance.now() + 10_000;
     let folders = await server.folders();
@@ -39,7 +39,7 @@ it(
       folders = await server.folders();
     }
 
-    await server.phi(['server', 'stop']);
+    await server.koja(['server', 'stop']);
     await server.start();
 
     expect(await server.folders()).toEqual({ 'pane-1': firstFolder, [second]: secondFolder });
@@ -50,14 +50,14 @@ it(
 const foregroundFolders = async (server: TestServer): Promise<Record<string, string | null>> => {
   const listed = z
     .array(z.object({ id: z.string(), foreground_cwd: z.string().nullable() }))
-    .parse(JSON.parse(await server.phi(['pane', 'list', '--json'])));
+    .parse(JSON.parse(await server.koja(['pane', 'list', '--json'])));
 
   return Object.fromEntries(listed.map((pane) => [pane.id, pane.foreground_cwd]));
 };
 
 const layoutOf = async (server: TestServer): Promise<string> => {
-  const workspaces = await server.phi(['workspace', 'list', '--json']);
-  const tabs = await server.phi(['tab', 'list', '--json']);
+  const workspaces = await server.koja(['workspace', 'list', '--json']);
+  const tabs = await server.koja(['tab', 'list', '--json']);
 
   return `${workspaces}\n${tabs}`;
 };
@@ -66,7 +66,7 @@ it(
   'keeps a pane whose saved folder is gone',
   async () => {
     const { serverAt } = await setup();
-    const server = serverAt('phi');
+    const server = serverAt('koja');
 
     await server.start();
     await server.createWorkspace('one');
@@ -74,8 +74,8 @@ it(
     const second = await server.split('pane-1');
     const gone = await realpath(await temporaryDirectory());
 
-    await server.phi(['pane', 'focus', second]);
-    await server.phi(['pane', 'send', `cd ${gone}\n`]);
+    await server.koja(['pane', 'focus', second]);
+    await server.koja(['pane', 'send', `cd ${gone}\n`]);
 
     const deadline = performance.now() + 10_000;
 
@@ -86,7 +86,7 @@ it(
 
     const layoutBefore = await layoutOf(server);
 
-    await server.phi(['server', 'stop']);
+    await server.koja(['server', 'stop']);
     await rm(gone, { recursive: true, force: true });
     await server.start();
 
@@ -96,7 +96,7 @@ it(
     expect(states[second]?.lifecycle).toBe('failed');
 
     expect(states[second]?.error).toBe(
-      `Saved folder ${gone} is unavailable. Restore the folder and restart the Phi server.`,
+      `Saved folder ${gone} is unavailable. Restore the folder and restart the Koja server.`,
     );
 
     expect(await layoutOf(server)).toBe(layoutBefore);
@@ -110,7 +110,7 @@ it(
   'keeps every pane when the shell cannot start after a restart',
   async () => {
     const { serverAt, environment } = await setup();
-    const server = serverAt('phi');
+    const server = serverAt('koja');
 
     await server.start();
     await buildSetup(server);
@@ -118,9 +118,9 @@ it(
     const layoutBefore = await layoutOf(server);
     const paneIds = Object.keys(await server.states());
 
-    await server.phi(['server', 'stop']);
+    await server.koja(['server', 'stop']);
 
-    environment.SHELL = '/bin/phi-missing-shell';
+    environment.SHELL = '/bin/koja-missing-shell';
     await server.start();
 
     const states = await server.states();
@@ -130,8 +130,8 @@ it(
     for (const state of Object.values(states)) {
       expect(state.lifecycle).toBe('failed');
       expect(state.error).toStartWith('Could not start the saved shell: ');
-      expect(state.error).toContain('/bin/phi-missing-shell');
-      expect(state.error).toEndWith('Fix the shell configuration and restart the Phi server.');
+      expect(state.error).toContain('/bin/koja-missing-shell');
+      expect(state.error).toEndWith('Fix the shell configuration and restart the Koja server.');
       expect(state.error).not.toContain('..');
     }
 
@@ -144,7 +144,7 @@ it(
   'restores a failed pane once its folder is back, and closes it on request',
   async () => {
     const { serverAt } = await setup();
-    const server = serverAt('phi');
+    const server = serverAt('koja');
 
     await server.start();
     await server.createWorkspace('one');
@@ -152,8 +152,8 @@ it(
     const second = await server.split('pane-1');
     const folder = await realpath(await temporaryDirectory());
 
-    await server.phi(['pane', 'focus', second]);
-    await server.phi(['pane', 'send', `cd ${folder}\n`]);
+    await server.koja(['pane', 'focus', second]);
+    await server.koja(['pane', 'send', `cd ${folder}\n`]);
 
     const deadline = performance.now() + 10_000;
 
@@ -162,23 +162,23 @@ it(
       await Bun.sleep(20);
     }
 
-    await server.phi(['server', 'stop']);
+    await server.koja(['server', 'stop']);
     await rename(folder, `${folder}-away`);
     await server.start();
 
     expect((await server.states())[second]?.lifecycle).toBe('failed');
 
-    await server.phi(['server', 'stop']);
+    await server.koja(['server', 'stop']);
     await rename(`${folder}-away`, folder);
     await server.start();
 
     expect((await server.states())[second]).toEqual({ lifecycle: 'running', error: null });
     expect((await server.folders())[second]).toBe(folder);
 
-    await server.phi(['server', 'stop']);
+    await server.koja(['server', 'stop']);
     await rename(folder, `${folder}-away`);
     await server.start();
-    await server.phi(['pane', 'close', second]);
+    await server.koja(['pane', 'close', second]);
 
     expect(Object.keys(await server.states())).toEqual(['pane-1']);
   },
@@ -196,7 +196,7 @@ it.skipIf(!scopesAvailable)(
   'keeps a restored pane failed when its scoped shell cannot execute',
   async () => {
     const { serverAt, environment } = await setup();
-    const server = serverAt('phi');
+    const server = serverAt('koja');
     const shell = join(await temporaryDirectory(), 'shell');
 
     environment.SHELL = shell;
@@ -204,8 +204,8 @@ it.skipIf(!scopesAvailable)(
     await writeShell(shell, '#!/bin/sh\nexec /bin/sh\n');
     await server.start();
     await server.createWorkspace('one');
-    await server.phi(['server', 'stop']);
-    await writeShell(shell, '#!/nonexistent/phi-interpreter\n');
+    await server.koja(['server', 'stop']);
+    await writeShell(shell, '#!/nonexistent/koja-interpreter\n');
     await server.start();
 
     const states = await server.states();
@@ -217,7 +217,7 @@ it.skipIf(!scopesAvailable)(
     );
 
     expect(states['pane-1']?.error).toEndWith(
-      'Fix the shell configuration and restart the Phi server.',
+      'Fix the shell configuration and restart the Koja server.',
     );
   },
   cliTestTimeoutMs,
@@ -236,7 +236,7 @@ it.skipIf(!scopesAvailable)(
   'keeps a narrow restored pane failed, and releases its terminal',
   async () => {
     const { serverAt, environment } = await setup();
-    const server = serverAt('phi');
+    const server = serverAt('koja');
     const shell = join(await temporaryDirectory(), 'shell');
 
     environment.SHELL = shell;
@@ -251,8 +251,8 @@ it.skipIf(!scopesAvailable)(
       last = await server.split(last);
     }
 
-    await server.phi(['server', 'stop']);
-    await writeShell(shell, '#!/nonexistent/phi-interpreter\n');
+    await server.koja(['server', 'stop']);
+    await writeShell(shell, '#!/nonexistent/koja-interpreter\n');
 
     const pid = await server.start();
     const states = await server.states();
@@ -263,11 +263,11 @@ it.skipIf(!scopesAvailable)(
       expect(state.lifecycle).toBe('failed');
 
       expect(state.error).toBe(
-        'Could not start the saved shell: Failed to execute: No such file or directory. Fix the shell configuration and restart the Phi server.',
+        'Could not start the saved shell: Failed to execute: No such file or directory. Fix the shell configuration and restart the Koja server.',
       );
     }
 
-    const columns = JSON.parse(await server.phi(['pane', 'list', '--json'])) as {
+    const columns = JSON.parse(await server.koja(['pane', 'list', '--json'])) as {
       columns: number;
     }[];
 
@@ -281,7 +281,7 @@ it.skipIf(!scopesAvailable)(
   'closes a restored scoped pane whose shell exits 1 without an exec failure message',
   async () => {
     const { serverAt, environment } = await setup();
-    const server = serverAt('phi');
+    const server = serverAt('koja');
     const shell = join(await temporaryDirectory(), 'shell');
 
     environment.SHELL = shell;
@@ -289,7 +289,7 @@ it.skipIf(!scopesAvailable)(
     await writeShell(shell, '#!/bin/sh\nexec /bin/sh\n');
     await server.start();
     await server.createWorkspace('one');
-    await server.phi(['server', 'stop']);
+    await server.koja(['server', 'stop']);
     await writeShell(shell, '#!/bin/sh\nexit 1\n');
     await server.start();
 
@@ -307,7 +307,7 @@ it.skipIf(!scopesAvailable)(
 
 const restartWithShell = async (script: string, panes: number) => {
   const { serverAt, environment } = await setup();
-  const server = serverAt('phi');
+  const server = serverAt('koja');
   const shell = join(await temporaryDirectory(), 'shell');
 
   environment.SHELL = shell;
@@ -320,7 +320,7 @@ const restartWithShell = async (script: string, panes: number) => {
     await server.split('pane-1');
   }
 
-  await server.phi(['server', 'stop']);
+  await server.koja(['server', 'stop']);
   await writeShell(shell, script);
   await server.start();
 
@@ -355,7 +355,7 @@ it.skipIf(!scopesAvailable)(
       2,
     );
 
-    await server.phi(['pane', 'resize', 'pane-1', '--direction', 'left', '--cells', '100']);
+    await server.koja(['pane', 'resize', 'pane-1', '--direction', 'left', '--cells', '100']);
 
     const deadline = performance.now() + 10_000;
     let states = await server.states();
@@ -367,7 +367,7 @@ it.skipIf(!scopesAvailable)(
     }
 
     expect(states['pane-1'].error).toBe(
-      'Could not start the saved shell: Failed to execute: No such file or directory. Fix the shell configuration and restart the Phi server.',
+      'Could not start the saved shell: Failed to execute: No such file or directory. Fix the shell configuration and restart the Koja server.',
     );
   },
   cliTestTimeoutMs,

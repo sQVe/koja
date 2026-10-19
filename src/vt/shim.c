@@ -697,5 +697,5 @@ int64_t pane_read_rows(Pane *pane, uint64_t epoch, uint64_t first, uint32_t coun
   return rows;
 }
 
-// buildVt.sh defines PHI_GHOSTTY_COMMIT from its pin, so the library reports the Ghostty it links.
-const char *shim_ghostty_commit(void) { return PHI_GHOSTTY_COMMIT; }
+// buildVt.sh defines KOJA_GHOSTTY_COMMIT from its pin, so the library reports the Ghostty it links.
+const char *shim_ghostty_commit(void) { return KOJA_GHOSTTY_COMMIT; }

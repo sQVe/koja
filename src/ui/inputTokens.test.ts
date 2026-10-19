@@ -411,7 +411,7 @@ it('releases an unfinished reply body once it is over the length limit', () => {
 });
 
 // Mutation runs would repeat this 1 s test for every mutant, so they skip it.
-const itUnlessMutating = process.env['PHI_MUTATION'] === '1' ? it.skip : it;
+const itUnlessMutating = process.env['KOJA_MUTATION'] === '1' ? it.skip : it;
 
 itUnlessMutating(
   'keeps a large paste that arrives in many reads, in time linear in its size',

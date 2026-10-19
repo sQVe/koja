@@ -1,6 +1,6 @@
 Add GHOSTTY_TERMINAL_DATA_PRIMARY_SCROLLBACK_ROWS.
 
-Phi numbers primary screen rows with a tracked grid ref on the active
+Koja numbers primary screen rows with a tracked grid ref on the active
 area's top row. One write can scroll the primary screen and then enter
 the alternate screen. The ref still resolves against the primary screen,
 but scrolling moves rows in below it, so its screen y does not show how

@@ -1,5 +1,5 @@
 ---
-'phi': patch
+'koja': patch
 ---
 
 Fix a black box that showed below a pane for a moment after it grew, such as on zoom or when a

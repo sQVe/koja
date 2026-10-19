@@ -943,7 +943,7 @@ it('keeps normal mode and sends nothing while Ctrl+B is held and released', () =
   }
 });
 
-it('does not send the release of a key that Phi took to the pane', () => {
+it('does not send the release of a key that Koja took to the pane', () => {
   const { input, sent, mode } = router('normal', withKittyFlags(31));
 
   input({ kind: 'key', raw: '\x1b[105u', escapeSent: false });
@@ -1540,7 +1540,7 @@ it('sends the release of a key to the pane when its press reached the pane', () 
   expect(sent).toEqual(['\x1b[97u', '\x1b[97;1:3u']);
 });
 
-it('sends the release of a key to the pane after Phi took an earlier press of it', () => {
+it('sends the release of a key to the pane after Koja took an earlier press of it', () => {
   const { press, sent, mode } = harness('normal', {}, withKittyFlags(0b1011));
 
   press('\x1b[105;1:1u');

@@ -32,7 +32,7 @@ export const usableStateHome = (stateHome: string | undefined): string | undefin
 export const logPathFor = (stateHome: string | undefined, home: string): string => {
   const state = usableStateHome(stateHome) ?? join(home, '.local', 'state');
 
-  return join(state, 'phi', 'server.log');
+  return join(state, 'koja', 'server.log');
 };
 
 const describeError = (error: unknown): string =>

@@ -59,4 +59,4 @@ save most, would leave no file or an old one.
 ### Refuse to start on a file it cannot use
 
 The server exits with an error when the file is broken or newer. Rejected because the user then
-cannot use Phi until they delete a file by hand.
+cannot use Koja until they delete a file by hand.

@@ -59,8 +59,8 @@ const attachClient = (
 };
 
 const setup = async () => {
-  const directory = await mkdtemp(join(tmpdir(), 'phi-attach-'));
-  const socketPath = join(directory, 'phi.sock');
+  const directory = await mkdtemp(join(tmpdir(), 'koja-attach-'));
+  const socketPath = join(directory, 'koja.sock');
 
   const command = async (...commandArguments: string[]) => {
     const child = Bun.spawn(
@@ -161,12 +161,12 @@ const lastLine = (text: string) => text.split('\n').findLast((line) => line.trim
 it('shows the shell screen and cursor', async () => {
   const { command, screen } = await setup();
 
-  await command('pane', 'send', 'echo phi-attach-ok\r');
+  await command('pane', 'send', 'echo koja-attach-ok\r');
 
-  expect(await waitFor(() => /^phi-attach-ok *$/m.test(paneText(screen)), 3000)).toBe(true);
+  expect(await waitFor(() => /^koja-attach-ok *$/m.test(paneText(screen)), 3000)).toBe(true);
 
   const rows = paneText(screen).split('\n');
-  const outputRow = rows.findIndex((row) => row.startsWith('phi-attach-ok'));
+  const outputRow = rows.findIndex((row) => row.startsWith('koja-attach-ok'));
 
   expect(rows[outputRow + 1]).toContain('attach-prompt>');
   expect(screen.text()).toContain('INSERT');
@@ -216,8 +216,8 @@ it.each(['SIGTERM', 'SIGINT', 'SIGHUP'] as const)(
 );
 
 it('exits with code one and reports a connection failure after the handshake', async () => {
-  const directory = await mkdtemp(join(tmpdir(), 'phi-attach-failure-'));
-  const socketPath = join(directory, 'phi.sock');
+  const directory = await mkdtemp(join(tmpdir(), 'koja-attach-failure-'));
+  const socketPath = join(directory, 'koja.sock');
   const stderrPath = join(directory, 'stderr');
   const decoder = createFrameDecoder();
   let receivedResize = false;
@@ -280,7 +280,7 @@ it('exits with code one and reports a connection failure after the handshake', a
       '/bin/sh',
       '-c',
       'exec "$1" src/index.ts attach --socket "$2" 2>"$3"',
-      'phi-attach-test',
+      'koja-attach-test',
       process.execPath,
       socketPath,
       stderrPath,
@@ -361,7 +361,7 @@ it('shows the same screen text when a new client attaches after a detach', async
   expect(next.screen.text().split('\n').slice(0, -1).join('\n')).toBe(before);
 });
 
-it('detaches the attached client when phi detach runs in another process', async () => {
+it('detaches the attached client when koja detach runs in another process', async () => {
   const { client, screen, command } = await setup();
 
   expect(await waitFor(() => screen.text().includes('INSERT'))).toBe(true);
@@ -385,7 +385,7 @@ it('lets a second client take over and tells the first one', async () => {
   expect(await waitFor(() => second.screen.text().includes('INSERT'))).toBe(true);
 });
 
-const runPhi = async (...commandArguments: string[]) => {
+const runKoja = async (...commandArguments: string[]) => {
   const child = Bun.spawn([process.execPath, 'src/index.ts', ...commandArguments], {
     stdout: 'pipe',
     stderr: 'pipe',
@@ -397,27 +397,27 @@ const runPhi = async (...commandArguments: string[]) => {
   return { code: await child.exited, stdout, stderr };
 };
 
-it('reports when no client is attached to phi detach', async () => {
+it('reports when no client is attached to koja detach', async () => {
   const { client, screen, command, socketPath } = await setup();
 
   expect(await waitFor(() => screen.text().includes('INSERT'))).toBe(true);
   await command('detach');
   expect(await client.exited).toBe(0);
 
-  const plain = await runPhi('detach', '--socket', socketPath);
+  const plain = await runKoja('detach', '--socket', socketPath);
 
   expect(plain.code).toBe(1);
   expect(plain.stderr).toContain('No client is attached');
 
-  const json = await runPhi('detach', '--json', '--socket', socketPath);
+  const json = await runKoja('detach', '--json', '--socket', socketPath);
 
   expect(json.code).toBe(1);
   expect(JSON.parse(json.stdout)).toEqual({ detached: false, reason: 'noClient' });
 });
 
 const setupWithoutServer = async () => {
-  const directory = await mkdtemp(join(tmpdir(), 'phi-default-'));
-  const socketPath = join(directory, 'phi.sock');
+  const directory = await mkdtemp(join(tmpdir(), 'koja-default-'));
+  const socketPath = join(directory, 'koja.sock');
 
   const environment = {
     SHELL: '/bin/sh',
@@ -433,7 +433,7 @@ const setupWithoutServer = async () => {
   return { directory, socketPath, environment };
 };
 
-it('starts a server and attaches when phi runs with no server', async () => {
+it('starts a server and attaches when koja runs with no server', async () => {
   const { directory, socketPath, environment } = await setupWithoutServer();
   const { screen } = attachClient(socketPath, [], environment);
 
@@ -470,7 +470,7 @@ it('attaches to the running server without starting another', async () => {
   expect(serverProcessesIn(directory)).toEqual(before);
 });
 
-it('attaches both phi runs to one server when they start together', async () => {
+it('attaches both koja runs to one server when they start together', async () => {
   const { directory, socketPath, environment } = await setupWithoutServer();
   const first = attachClient(socketPath, [], environment);
   const second = attachClient(socketPath, [], environment);
@@ -488,13 +488,13 @@ it('attaches both phi runs to one server when they start together', async () => 
   await Bun.sleep(300);
   expect(serverProcessesIn(directory)).toHaveLength(1);
 
-  const running = () => [first, second].filter((phi) => phi.client.exitCode === null);
+  const running = () => [first, second].filter((koja) => koja.client.exitCode === null);
 
   expect(await waitFor(() => running().length === 1)).toBe(true);
 
-  expect([first, second].map((phi) => phi.client.exitCode).filter((code) => code !== null)).toEqual(
-    [0],
-  );
+  expect(
+    [first, second].map((koja) => koja.client.exitCode).filter((code) => code !== null),
+  ).toEqual([0]);
 });
 
 it('keeps the server running after the only shell exits', async () => {
@@ -513,9 +513,9 @@ it('keeps the server running after the only shell exits', async () => {
   expect(serverProcessesIn(directory)).toHaveLength(1);
 });
 
-const emptyHint = 'phi workspace create <dir>';
+const emptyHint = 'koja workspace create <dir>';
 
-it('switches to the pane of the workspace that phi workspace focus names', async () => {
+it('switches to the pane of the workspace that koja workspace focus names', async () => {
   const { directory, screen, command } = await setup();
 
   expect(await waitFor(() => screen.text().includes('attach-prompt>'))).toBe(true);
@@ -549,7 +549,7 @@ it('shows the empty screen when the only pane exits and the server keeps running
   expect(serverProcessesIn(directory)).toHaveLength(1);
 });
 
-it('shows the empty screen when phi starts with no server', async () => {
+it('shows the empty screen when koja starts with no server', async () => {
   const { socketPath, environment } = await setupWithoutServer();
   const { screen } = attachClient(socketPath, [], environment);
 
@@ -625,7 +625,7 @@ it('sends text typed in the same read as a tab key to the newly shown pane', asy
   expect(screen.text()).not.toContain('same-read-text');
 });
 
-it('shows the tab from the new-tab key and keeps the view on a tab from phi tab create', async () => {
+it('shows the tab from the new-tab key and keeps the view on a tab from koja tab create', async () => {
   const { client, screen, command } = await setup();
 
   expect(await waitFor(() => lastLine(screen.text()) === 'INSERT [1]')).toBe(true);

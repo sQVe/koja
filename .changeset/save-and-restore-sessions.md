@@ -1,5 +1,5 @@
 ---
-'phi': minor
+'koja': minor
 ---
 
 The server saves its workspaces, tabs, splits, zoom, and focus after every change and on stop, and

@@ -1,4 +1,4 @@
-# Phi
+# Koja
 
 Terminal multiplexer with a session server and a terminal client. Read
 [the development guide](docs/development.md) for local setup and verification.
@@ -6,7 +6,7 @@ Terminal multiplexer with a session server and a terminal client. Read
 - Run `bun run check` before finishing changes. It runs typechecking, lint with house style,
   formatting, Knip, and tests.
 - Format with `bun run format`, and fix style with `bun run style:fix`. House style comes from
-  `@sqve/seam`; Phi's own lint rules live in `scripts/lintRules.ts`.
+  `@sqve/seam`; Koja's own lint rules live in `scripts/lintRules.ts`.
 - Follow the decisions in [docs/adr](docs/adr/README.md), and record new decisions there. Read that
   guide before adding an ADR. Do not write documents that explain how a feature works; see
   [ADR 0001](docs/adr/0001-documentation-scope.md).
@@ -35,7 +35,7 @@ Terminal multiplexer with a session server and a terminal client. Read
   outside system needs a disable comment with its reason. See
   [ADR 0005](docs/adr/0005-opentui-react-ui.md).
 - Give every UI feature a CLI command that sends the same intent, in the same change, so an agent
-  can drive all of Phi from a shell. Commands never prompt, and their output has a parseable form.
+  can drive all of Koja from a shell. Commands never prompt, and their output has a parseable form.
   See [ADR 0010](docs/adr/0010-cli-parity.md).
 - Change server state only through the store's pure transitions. Run effects outside the store and
   report results as generation-tagged facts. Keep PTYs, parsers, sockets, and terminal cells out of
@@ -49,8 +49,9 @@ Terminal multiplexer with a session server and a terminal client. Read
   `store/store.ts`. Other files in the folder are private to code in `src/`. Tests and scripts
   outside `src/` may import any module file. Flat modules are `ids.ts`, `invariant.ts`, `layout.ts`,
   and `index.ts`. See [ADR 0008](docs/adr/0008-capability-modules.md).
-- Imports follow the table in ADR 0008. `phi/module-boundaries` enforces it in ordinary lint. Do not
-  silence it; change the table in `scripts/lintRules.ts` when a new edge keeps the ADR's directions.
+- Imports follow the table in ADR 0008. `koja/module-boundaries` enforces it in ordinary lint. Do
+  not silence it; change the table in `scripts/lintRules.ts` when a new edge keeps the ADR's
+  directions.
 - Put family code in private files inside each module. Coordinators such as `store/store.ts`,
   `server/server.ts`, and `cli/parse.ts` hold only dispatch and ordering. A feature edits a
   coordinator only to register an intent, request, or command. See

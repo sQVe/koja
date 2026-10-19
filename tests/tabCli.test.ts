@@ -29,20 +29,20 @@ const tabDoneSchema = z.object({ tab: z.string() });
 
 const setup = async () => {
   const directory = await temporaryDirectory();
-  const socketPath = join(directory, 'run', 'phi.sock');
+  const socketPath = join(directory, 'run', 'koja.sock');
   const environment = { ...environmentFor(directory), SHELL: '/bin/sh', PS1: '' };
 
-  const phi = (...commandArguments: string[]) =>
+  const koja = (...commandArguments: string[]) =>
     runCli([...commandArguments, '--socket', socketPath], directory, environment);
 
-  expect((await phi('server', 'start')).exitCode).toBe(0);
+  expect((await koja('server', 'start')).exitCode).toBe(0);
 
   const createWorkspace = async (name: string): Promise<string> => {
     const path = join(directory, name);
 
     await mkdir(path);
 
-    const created = await phi('workspace', 'create', path, '--focus', '--json');
+    const created = await koja('workspace', 'create', path, '--focus', '--json');
 
     expect(created.exitCode).toBe(0);
 
@@ -50,7 +50,7 @@ const setup = async () => {
   };
 
   const tabs = async () => {
-    const listed = await phi('tab', 'list', '--json');
+    const listed = await koja('tab', 'list', '--json');
 
     expect(listed.exitCode).toBe(0);
 
@@ -58,7 +58,7 @@ const setup = async () => {
   };
 
   const workspaces = async () => {
-    const listed = await phi('workspace', 'list', '--json');
+    const listed = await koja('workspace', 'list', '--json');
 
     expect(listed.exitCode).toBe(0);
 
@@ -66,25 +66,25 @@ const setup = async () => {
   };
 
   const panes = async () => {
-    const listed = await phi('pane', 'list', '--json');
+    const listed = await koja('pane', 'list', '--json');
 
     expect(listed.exitCode).toBe(0);
 
     return paneListSchema.parse(JSON.parse(listed.stdout));
   };
 
-  return { directory, phi, createWorkspace, tabs, workspaces, panes };
+  return { directory, koja, createWorkspace, tabs, workspaces, panes };
 };
 
 it(
   'tab create adds a tab with a running pane and leaves the active tab alone',
   async () => {
-    const { phi, createWorkspace, tabs, workspaces, panes } = await setup();
+    const { koja, createWorkspace, tabs, workspaces, panes } = await setup();
     const workspace = await createWorkspace('alpha');
     const [original] = await tabs();
 
     for (const flags of [[], ['--no-focus']]) {
-      const created = await phi('tab', 'create', ...flags, '--json');
+      const created = await koja('tab', 'create', ...flags, '--json');
 
       expect(created.exitCode).toBe(0);
     }
@@ -117,14 +117,14 @@ it(
 it(
   'tab create --focus makes the new tab active and focuses its workspace',
   async () => {
-    const { phi, createWorkspace, tabs, workspaces } = await setup();
+    const { koja, createWorkspace, tabs, workspaces } = await setup();
     const first = await createWorkspace('alpha');
     const second = await createWorkspace('beta');
     const focusedBefore = (await workspaces()).filter((known) => known.focused);
 
     expect(focusedBefore.map((known) => known.id)).toEqual([second]);
 
-    const created = await phi('tab', 'create', '--workspace', first, '--focus', '--json');
+    const created = await koja('tab', 'create', '--workspace', first, '--focus', '--json');
 
     expect(created.exitCode).toBe(0);
 
@@ -148,7 +148,7 @@ it(
 it(
   'tab create and --no-focus keep the active tab and the focused workspace',
   async () => {
-    const { phi, createWorkspace, tabs, workspaces } = await setup();
+    const { koja, createWorkspace, tabs, workspaces } = await setup();
     const first = await createWorkspace('alpha');
     const second = await createWorkspace('beta');
     const activeBefore = (await tabs()).filter((known) => known.active);
@@ -164,7 +164,7 @@ it(
     ];
 
     for (const flags of variants) {
-      const created = await phi('tab', 'create', ...flags);
+      const created = await koja('tab', 'create', ...flags);
 
       expect(created.exitCode).toBe(0);
       expect((await tabs()).filter((known) => known.active)).toEqual(activeBefore);
@@ -179,12 +179,12 @@ it(
 it(
   'tab create --workspace targets a workspace that is not focused',
   async () => {
-    const { phi, createWorkspace, tabs } = await setup();
+    const { koja, createWorkspace, tabs } = await setup();
     const first = await createWorkspace('alpha');
 
     await createWorkspace('beta');
 
-    const created = await phi('tab', 'create', '--workspace', first);
+    const created = await koja('tab', 'create', '--workspace', first);
 
     expect(created.exitCode).toBe(0);
     expect((await tabs()).filter((tab) => tab.workspace === first)).toHaveLength(2);
@@ -195,8 +195,8 @@ it(
 it(
   'tab create exits 1 when there is no workspace to add to',
   async () => {
-    const { phi, tabs } = await setup();
-    const failed = await phi('tab', 'create');
+    const { koja, tabs } = await setup();
+    const failed = await koja('tab', 'create');
 
     expect(failed.exitCode).toBe(1);
     expect(failed.stdout).toBe('');
@@ -209,13 +209,13 @@ it(
 it(
   'tab focus makes an earlier tab active again',
   async () => {
-    const { phi, createWorkspace, tabs } = await setup();
+    const { koja, createWorkspace, tabs } = await setup();
 
     await createWorkspace('alpha');
-    await phi('tab', 'create');
+    await koja('tab', 'create');
 
     const [first] = await tabs();
-    const focused = await phi('tab', 'focus', first?.id ?? '', '--json');
+    const focused = await koja('tab', 'focus', first?.id ?? '', '--json');
 
     expect(focused.exitCode).toBe(0);
     expect(JSON.parse(focused.stdout)).toEqual({ tab: first?.id });
@@ -227,12 +227,12 @@ it(
 it(
   'tab close on the only tab of a workspace removes the workspace',
   async () => {
-    const { phi, createWorkspace, tabs, workspaces } = await setup();
+    const { koja, createWorkspace, tabs, workspaces } = await setup();
 
     await createWorkspace('alpha');
 
     const [only] = await tabs();
-    const closed = await phi('tab', 'close', only?.id ?? '');
+    const closed = await koja('tab', 'close', only?.id ?? '');
 
     expect(closed.exitCode).toBe(0);
     expect(await workspaces()).toEqual([]);
@@ -244,13 +244,13 @@ it(
 it(
   'tab close on the active tab activates its neighbor',
   async () => {
-    const { phi, createWorkspace, tabs } = await setup();
+    const { koja, createWorkspace, tabs } = await setup();
 
     await createWorkspace('alpha');
-    await phi('tab', 'create');
+    await koja('tab', 'create');
 
     const [first, second] = await tabs();
-    const closed = await phi('tab', 'close', second?.id ?? '');
+    const closed = await koja('tab', 'close', second?.id ?? '');
 
     expect(closed.exitCode).toBe(0);
     const remaining = await tabs();
@@ -265,12 +265,12 @@ it(
 it.each(['focus', 'close'])(
   'tab %s exits 1 for an unknown id and changes nothing',
   async (action) => {
-    const { phi, createWorkspace, tabs } = await setup();
+    const { koja, createWorkspace, tabs } = await setup();
 
     await createWorkspace('alpha');
 
     const before = await tabs();
-    const failed = await phi('tab', action, 'tab-99');
+    const failed = await koja('tab', action, 'tab-99');
 
     expect(failed.exitCode).toBe(1);
     expect(failed.stdout).toBe('');
@@ -283,7 +283,7 @@ it.each(['focus', 'close'])(
 it(
   'tab create starts the new pane in the folder of the focused pane of the active tab',
   async () => {
-    const { directory, phi, createWorkspace, tabs, panes } = await setup();
+    const { directory, koja, createWorkspace, tabs, panes } = await setup();
 
     await createWorkspace('alpha');
 
@@ -293,7 +293,7 @@ it(
 
     const [first] = await panes();
 
-    expect((await phi('pane', 'send', `cd ${target}\n`)).exitCode).toBe(0);
+    expect((await koja('pane', 'send', `cd ${target}\n`)).exitCode).toBe(0);
 
     for (let attempt = 0; attempt < 100; attempt += 1) {
       if ((await panes()).find((pane) => pane.id === first?.id)?.cwd === target) {
@@ -303,7 +303,7 @@ it(
       await Bun.sleep(100);
     }
 
-    const created = await phi('tab', 'create', '--json');
+    const created = await koja('tab', 'create', '--json');
 
     expect(created.exitCode).toBe(0);
 
@@ -318,7 +318,7 @@ it(
 it(
   'tab create --cwd starts the new pane in that folder, resolving a relative path against the CLI folder',
   async () => {
-    const { directory, phi, createWorkspace, tabs, panes } = await setup();
+    const { directory, koja, createWorkspace, tabs, panes } = await setup();
 
     await createWorkspace('alpha');
 
@@ -329,7 +329,7 @@ it(
     await mkdir(moved);
     await mkdir(target);
 
-    expect((await phi('pane', 'send', `cd ${moved}\n`)).exitCode).toBe(0);
+    expect((await koja('pane', 'send', `cd ${moved}\n`)).exitCode).toBe(0);
 
     for (let attempt = 0; attempt < 100; attempt += 1) {
       if ((await panes()).find((pane) => pane.id === first?.id)?.cwd === moved) {
@@ -339,8 +339,8 @@ it(
       await Bun.sleep(100);
     }
 
-    expect((await phi('tab', 'create', '--cwd', target)).exitCode).toBe(0);
-    expect((await phi('tab', 'create', '--cwd', 'target')).exitCode).toBe(0);
+    expect((await koja('tab', 'create', '--cwd', target)).exitCode).toBe(0);
+    expect((await koja('tab', 'create', '--cwd', 'target')).exitCode).toBe(0);
 
     const created = new Set((await tabs()).filter((tab) => tab.number > 1).map((tab) => tab.pane));
     const folders = (await panes()).filter((pane) => created.has(pane.id));
@@ -353,16 +353,16 @@ it(
 it(
   'prints JSON for tab list and tab create without --json',
   async () => {
-    const { phi, createWorkspace, tabs } = await setup();
+    const { koja, createWorkspace, tabs } = await setup();
 
     await createWorkspace('alpha');
 
-    const created = await phi('tab', 'create');
+    const created = await koja('tab', 'create');
 
     expect(created.exitCode).toBe(0);
     expect(tabDoneSchema.parse(JSON.parse(created.stdout)).tab).toBeString();
 
-    const listed = await phi('tab', 'list');
+    const listed = await koja('tab', 'list');
 
     expect(listed.exitCode).toBe(0);
     expect(tabListSchema.parse(JSON.parse(listed.stdout))).toEqual(await tabs());
@@ -373,13 +373,13 @@ it(
 it(
   'tab create --cwd refuses a folder that is not a directory and creates no tab',
   async () => {
-    const { directory, phi, createWorkspace, tabs } = await setup();
+    const { directory, koja, createWorkspace, tabs } = await setup();
 
     await createWorkspace('alpha');
 
     const missing = join(directory, 'missing');
     const before = await tabs();
-    const failed = await phi('tab', 'create', '--cwd', missing);
+    const failed = await koja('tab', 'create', '--cwd', missing);
 
     expect(failed.exitCode).toBe(1);
     expect(failed.stdout).toBe('');
@@ -392,7 +392,7 @@ it(
 it(
   'tab rename prints JSON by default and shows the label in tab list',
   async () => {
-    const { phi, createWorkspace, tabs } = await setup();
+    const { koja, createWorkspace, tabs } = await setup();
 
     await createWorkspace('alpha');
 
@@ -400,12 +400,12 @@ it(
 
     expect(original?.label).toBeNull();
 
-    const renamed = await phi('tab', 'rename', original?.id ?? '', 'build');
+    const renamed = await koja('tab', 'rename', original?.id ?? '', 'build');
 
     expect(renamed.exitCode).toBe(0);
     expect(tabDoneSchema.parse(JSON.parse(renamed.stdout))).toEqual({ tab: original?.id ?? '' });
 
-    const listed = await phi('tab', 'list');
+    const listed = await koja('tab', 'list');
 
     expect(listed.exitCode).toBe(0);
 

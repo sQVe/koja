@@ -15,7 +15,7 @@ import type {
   WorkspaceRecord,
 } from '../store/store.ts';
 
-// The package.json version and the Ghostty commit, as `phi --version` prints them.
+// The package.json version and the Ghostty commit, as `koja --version` prints them.
 export interface BuildVersion {
   version: string;
   ghostty: string;

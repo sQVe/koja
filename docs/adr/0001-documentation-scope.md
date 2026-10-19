@@ -8,12 +8,12 @@
 Feature pages duplicate behavior defined in code and tests. Maintaining both lets prose drift from
 behavior.
 
-Code shows what a feature does, but not always why it was designed that way. Phi records those
+Code shows what a feature does, but not always why it was designed that way. Koja records those
 lasting reasons in ADRs.
 
 ## Decision
 
-Phi documents decisions, not features. Phi writes no feature pages, because ADRs record decisions,
+Koja documents decisions, not features. Koja writes no feature pages, because ADRs record decisions,
 and code states behavior.
 
 ### Where content lives

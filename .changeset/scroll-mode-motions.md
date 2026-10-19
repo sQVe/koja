@@ -1,5 +1,5 @@
 ---
-'phi': minor
+'koja': minor
 ---
 
 Add scroll mode. `[` in normal mode enters it on the focused pane, and `q` or Escape leaves it. The

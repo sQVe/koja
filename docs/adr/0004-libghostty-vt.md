@@ -13,25 +13,25 @@ Parsing must be synchronous, so a key's echo can be drawn in the next frame.
 libghostty-vt is Ghostty's terminal parser as a C library. It has no stable release, so its API and
 behavior can change between commits.
 
-Phi needs some behavior that differs from Ghostty's. For example, only the layout sets a pane's
+Koja needs some behavior that differs from Ghostty's. For example, only the layout sets a pane's
 size, so DECCOLM must not resize a pane.
 
 ## Decision
 
-Phi uses libghostty-vt through `bun:ffi` and a thin C shim. Phi builds it from one pinned Ghostty
-commit, with local patches. This gives one FFI call per write and one per frame, with behavior Phi
+Koja uses libghostty-vt through `bun:ffi` and a thin C shim. Koja builds it from one pinned Ghostty
+commit, with local patches. This gives one FFI call per write and one per frame, with behavior Koja
 controls.
 
 ### Shim
 
 - The shim batches work so that TypeScript makes one FFI call per write and one per frame, not one
   per cell.
-- The shim holds no Phi logic beyond batching and copying data.
+- The shim holds no Koja logic beyond batching and copying data.
 
 ### Pin and patches
 
-- Phi pins one Ghostty commit and builds libghostty-vt from it.
-- Local patches live in `patches/`. Each patch states why Phi needs it and links to the upstream
+- Koja pins one Ghostty commit and builds libghostty-vt from it.
+- Local patches live in `patches/`. Each patch states why Koja needs it and links to the upstream
   issue, pull request, or discussion.
 - The first patch makes DECCOLM never resize a pane.
 - A pin bump is its own PR. It reapplies or drops each patch and runs the full test suite.
@@ -40,12 +40,12 @@ controls.
 
 ### Positive
 
-- Phi gets Ghostty's terminal emulation with synchronous parsing.
-- The pin keeps Ghostty's behavior fixed until Phi chooses to move.
+- Koja gets Ghostty's terminal emulation with synchronous parsing.
+- The pin keeps Ghostty's behavior fixed until Koja chooses to move.
 
 ### Negative
 
-- Phi builds native code with Zig and links a C shim, which the release build must do for each
+- Koja builds native code with Zig and links a C shim, which the release build must do for each
   platform.
 - An unstable upstream API can break the shim on a pin bump.
 - Each local patch is upkeep until upstream accepts or replaces it.
@@ -66,7 +66,7 @@ send query replies back to the PTY.
 
 ### Write a parser
 
-Write Phi's own terminal parser. Rejected because terminal emulation is large, and libghostty-vt
+Write Koja's own terminal parser. Rejected because terminal emulation is large, and libghostty-vt
 already does it well.
 
 ### libghostty-vt from `bun:ffi` without a shim

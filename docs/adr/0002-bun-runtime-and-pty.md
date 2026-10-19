@@ -6,20 +6,20 @@
 
 ## Context
 
-Phi runs shells in pseudo-terminals (PTYs) and draws its UI with OpenTUI. OpenTUI's native renderer
+Koja runs shells in pseudo-terminals (PTYs) and draws its UI with OpenTUI. OpenTUI's native renderer
 needs Bun. On Node it needs an experimental FFI flag.
 
 The spike tested PTYs under Bun. `Bun.spawn` with the `terminal` option spawned, read, wrote, and
 resized a PTY. node-pty got no output under Bun, and its resize failed with `EBADF`.
 
-Phi ships as one program that users download, not as a package on npm.
+Koja ships as one program that users download, not as a package on npm.
 
-Phi is for Linux first. macOS may follow, so Linux-only calls are worth avoiding where that is
+Koja is for Linux first. macOS may follow, so Linux-only calls are worth avoiding where that is
 cheap.
 
 ## Decision
 
-Phi uses Bun as its runtime, package manager, test runner, and PTY layer, and ships as one binary
+Koja uses Bun as its runtime, package manager, test runner, and PTY layer, and ships as one binary
 built with `bun build --compile`. One runtime covers the tooling, the app, the PTYs, and every test.
 
 ### Toolchain
@@ -33,7 +33,7 @@ built with `bun build --compile`. One runtime covers the tooling, the app, the P
 
 ### PTYs
 
-Phi spawns each pane's process with `Bun.spawn` and its `terminal` option. Do not add node-pty or
+Koja spawns each pane's process with `Bun.spawn` and its `terminal` option. Do not add node-pty or
 another PTY package. Lint refuses imports of node-pty and its forks.
 
 ### Platforms and releases
@@ -51,7 +51,7 @@ another PTY package. Lint refuses imports of node-pty and its forks.
 
 ### Negative
 
-- Phi depends on Bun's PTY support. A bug there has no Node fallback.
+- Koja depends on Bun's PTY support. A bug there has no Node fallback.
 - GitHub's dependency graph does not read `bun.lock`, so dependency review does not cover locked
   package versions. A scheduled `bun audit` covers them instead.
 - Tools that assume Node need `bunx --bun`.
@@ -62,10 +62,10 @@ another PTY package. Lint refuses imports of node-pty and its forks.
 
 ### Node with node-pty and Vitest
 
-Run Phi on Node, with node-pty for PTYs and Vitest for tests. Rejected because OpenTUI needs an
+Run Koja on Node, with node-pty for PTYs and Vitest for tests. Rejected because OpenTUI needs an
 experimental flag on Node, and the app would need a second runtime next to the Bun tooling.
 
 ### Bun with node-pty
 
-Run Phi on Bun, with node-pty for PTYs. Rejected because node-pty did not work under Bun in the
+Run Koja on Bun, with node-pty for PTYs. Rejected because node-pty did not work under Bun in the
 spike.

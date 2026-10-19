@@ -83,7 +83,7 @@ it('exits 1 with an error report and removes its temporary directory when Stryke
     },
   );
 
-  const temporaryDirectory = await mkdtemp(join(tmpdir(), 'phi-mutation-tmp-'));
+  const temporaryDirectory = await mkdtemp(join(tmpdir(), 'koja-mutation-tmp-'));
   onTestFinished(() => rm(temporaryDirectory, { recursive: true, force: true }));
 
   const { status, report } = runScript(repository, ['audit', 'src/a.ts'], temporaryDirectory);

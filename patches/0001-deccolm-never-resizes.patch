@@ -1,6 +1,6 @@
 Make DECCOLM never resize the terminal.
 
-Phi needs this because only the layout sets a pane's size. A program in a
+Koja needs this because only the layout sets a pane's size. A program in a
 pane must not change it. With DEC mode 40 off, DECCOLM still does nothing,
 as upstream. With mode 40 on, DECCOLM sets mode 3 and resets the margins,
 erases the display, and homes the cursor, but keeps the size. The removed
@@ -27,7 +27,7 @@ Upstream: https://github.com/ghostty-org/ghostty/discussions/14540
 -        },
 -        .rows = self.rows,
 -    });
-+    // phi: the pane size belongs to the layout, so DECCOLM never resizes.
++    // koja: the pane size belongs to the layout, so DECCOLM never resizes.
 +    // Reset the margins as resize does.
 +    _ = alloc;
 +    self.scrolling_region = .{

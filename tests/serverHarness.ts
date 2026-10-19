@@ -69,13 +69,13 @@ export const testIdentity: PaneIdentity = {
   paneId: paneId(1),
   tabId: tabId(1),
   workspaceId: workspaceId(1),
-  socketPath: '/tmp/phi-test.sock',
+  socketPath: '/tmp/koja-test.sock',
   binaryPath: process.execPath,
   version: build.version,
 };
 
 export const temporaryDirectory = async (): Promise<string> => {
-  const directory = await mkdtemp(join(tmpdir(), 'phi-server-'));
+  const directory = await mkdtemp(join(tmpdir(), 'koja-server-'));
   onTestFinished(() => rm(directory, { recursive: true, force: true }));
 
   return directory;
@@ -134,8 +134,8 @@ export const startEmptyServer = async (
   scrollbackBytes?: number,
   extraEnvironment: Record<string, string> = {},
 ): Promise<{ server: Server; socketPath: string; logPath: string }> => {
-  const socketPath = join(directory, 'run', 'phi.sock');
-  const logPath = join(directory, 'state', 'phi', 'server.log');
+  const socketPath = join(directory, 'run', 'koja.sock');
+  const logPath = join(directory, 'state', 'koja', 'server.log');
   const log = openLog(logPath);
 
   const result = await runServer({
