@@ -74,7 +74,8 @@ jobs:
           BASE_REF: ${{ github.base_ref }}
         run: |
           base="$(git merge-base HEAD "origin/${BASE_REF}")"
+          mapfile -t command < <(jq --raw-output '.mutation.argv[]' .pi/tau.json)
           status=0
-          bun run mutation changed "$base" > mutation.json || status=$?
+          "${command[@]}" changed "$base" > mutation.json || status=$?
           cat mutation.json
           exit "$status"

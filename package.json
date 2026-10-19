@@ -23,7 +23,7 @@
     "prepare": "bunx --bun vp config",
     "test": "bun test",
     "test:changed": "bun test --changed",
-    "mutation": "bun scripts/mutation.ts",
+    "mutation": "bunx --bun mutation --same-folder-tests",
     "typecheck": "bunx --bun tsc --noEmit",
     "release:github": "bunx --bun changeset tag"
   },
@@ -38,6 +38,7 @@
     "@changesets/cli": "3.0.2",
     "@hughescr/stryker-bun-runner": "1.6.0",
     "@oxlint/plugins": "1.79.0",
+    "@sqve/mutation": "0.1.0",
     "@sqve/seam": "0.2.0",
     "@stryker-mutator/api": "10.0.0",
     "@stryker-mutator/core": "10.0.0",
@@ -46,7 +47,6 @@
     "@types/bun": "1.4.2",
     "@types/react": "19.2.14",
     "knip": "6.37.0",
-    "minimatch": "10.2.6",
     "typescript": "7.0.2",
     "vite-plus": "0.3.0"
   },
