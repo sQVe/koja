@@ -3,7 +3,7 @@
   "changelog": [
     "@changesets/changelog-github",
     {
-      "repo": "sqve/koja"
+      "repo": "sqve/phi"
     }
   ],
   "commit": false,
