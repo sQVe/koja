@@ -163,12 +163,10 @@ const joinParts = (parts: Uint8Array[], length: number): Uint8Array => {
 
 // The last bytes of the open paste that could start an end marker the next read finishes.
 const pasteTail = (open: Paste): Uint8Array => {
-  // Stryker disable next-line ArithmeticOperator: Loop bound.
   const tailLength = Math.min(open.length, pasteEnd.length - 1);
   const tail = new Uint8Array(tailLength);
   let filled = 0;
 
-  // Stryker disable next-line ArithmeticOperator: Loop bound.
   for (let index = open.parts.length - 1; filled < tailLength; index -= 1) {
     const part = open.parts[index] ?? new Uint8Array();
     const taken = Math.min(part.length, tailLength - filled);
@@ -184,7 +182,6 @@ const onlyReplies = (tokens: InputToken[]): boolean =>
   tokens.length > 0 && tokens.every((token) => token.kind === 'response');
 
 const indexOfPasteEnd = (bytes: Uint8Array, from: number): number => {
-  // Stryker disable next-line ArithmeticOperator: Loop bound.
   for (let index = from; index + pasteEnd.length <= bytes.length; index += 1) {
     if (pasteEnd.every((expected, offset) => bytes[index + offset] === expected)) {
       return index;
@@ -217,13 +214,11 @@ const scanCharacter = (input: Uint8Array, start: number): number | undefined => 
 // Whether the body so far can still become a reply: it is a prefix of a known reply start, or it
 // starts with one.
 const matchesReplyPrefix = (introducer: number, body: string): boolean =>
-  // Stryker disable next-line ArrayDeclaration: `?? []` is for the type.
   (stringReplyPrefixes.get(introducer) ?? []).some(
     (prefix) => prefix.startsWith(body) || body.startsWith(prefix),
   );
 
 const isCompleteReply = (introducer: number, body: string): boolean =>
-  // Stryker disable next-line ArrayDeclaration: `?? []` is for the type.
   (stringReplyBodies.get(introducer) ?? []).some((shape) => shape.test(body));
 
 // The end of the string terminator at index, or undefined when there is none.
@@ -240,7 +235,6 @@ const scanStringSequence = (input: Uint8Array, start: number): Scanned | undefin
   const notReply: Scanned = { kind: 'key', end: start + 2 };
   const decoder = new TextDecoder();
 
-  // Stryker disable next-line EqualityOperator: Loop bound.
   for (let index = start + 2; index < input.length; index += 1) {
     const body = decoder.decode(input.subarray(start + 2, index));
 
@@ -311,7 +305,6 @@ const scanBracket = (input: Uint8Array, start: number): Scanned | undefined => {
 
   const final = input[start + linuxFunctionLength];
 
-  // Stryker disable next-line BlockStatement,ConditionalExpression: The check is needed for the type of `final`.
   if (final === undefined) {
     return undefined;
   }
@@ -325,7 +318,6 @@ const scanBracket = (input: Uint8Array, start: number): Scanned | undefined => {
 // character dropped.
 const releaseFirst = (input: Uint8Array, start: number): Scanned => {
   if (input[start] !== escape) {
-    // Stryker disable next-line ObjectLiteral,StringLiteral: The skip result is needed for the type.
     return { kind: 'skip', end: input.length };
   }
 
@@ -410,7 +402,6 @@ export const createInputTokenizer = (): InputTokenizer => {
     const startsSequence =
       first === leftBracket || first === upperO || stringReplyPrefixes.has(first ?? 0);
 
-    // Stryker disable next-line ConditionalExpression: The check is needed for the type of `escapeSentAt`.
     const inWindow = escapeSentAt !== undefined && nowMs - escapeSentAt < escapeWindowMs;
 
     return held.length === 0 && startsSequence && inWindow;

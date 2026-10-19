@@ -101,7 +101,6 @@ export const targetNear = (
 
 // Shows the entries that fit, scrolled only as far as needed to keep the focused one in view.
 export const visibleStart = (count: number, focusedIndex: number, rows: number): number => {
-  // Stryker disable next-line ArithmeticOperator: The clamp states the contract of `visibleStart`.
   const lastStart = Math.max(0, count - rows);
 
   return Math.min(lastStart, Math.max(0, focusedIndex - rows + 1));

@@ -185,7 +185,6 @@ export const selectPaneRows = (
 ): SelectRowsResult => {
   const stable = terminal.stableRows();
 
-  // Stryker disable next-line ConditionalExpression: The check narrows the selection to a range.
   if (selection.source === 'range') {
     const failure = rangeFailure(selection, stable);
 
@@ -205,7 +204,6 @@ export const selectPaneRows = (
 
   const cellBytes = paneRowsBytes(span.count, size.columns, 0);
 
-  // Stryker disable next-line BlockStatement,ConditionalExpression,EqualityOperator: Stops a read of an oversized span early.
   if (cellBytes > maxSnapshotBytes) {
     return {
       ok: false,
@@ -215,15 +213,11 @@ export const selectPaneRows = (
 
   const read = terminal.readRows(stable.epoch, span.first, span.count);
 
-  // Stryker disable next-line BlockStatement,BooleanLiteral,ConditionalExpression,EqualityOperator,LogicalOperator,StringLiteral: `readRows` runs right after `stableRows`.
   if (!read.ok && read.reason === 'staleEpoch') {
-    // Stryker disable next-line BooleanLiteral,ObjectLiteral,StringLiteral: `readRows` runs right after `stableRows`.
     return { ok: false, failure: { reason: 'staleEpoch', epoch: stable.epoch } };
   }
 
-  // Stryker disable next-line BlockStatement,ConditionalExpression: `readRows` runs right after `stableRows`.
   if (!read.ok) {
-    // Stryker disable next-line BooleanLiteral,ObjectLiteral,StringLiteral: `readRows` runs right after `stableRows`.
     return { ok: false, failure: { reason: 'pruned', oldest: stable.first } };
   }
 

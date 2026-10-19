@@ -79,7 +79,6 @@ const parseWorkspaceTarget = (
 const parseWorkspaceRename = (rest: string[]): WorkspaceAction | string => {
   const [id, label] = rest;
 
-  // Stryker disable next-line ConditionalExpression: The `label === undefined` check narrows `label`.
   if (rest.length !== 2 || label === undefined) {
     return 'workspace rename takes a workspace id and a label.';
   }
@@ -100,7 +99,6 @@ const parseWorkspaceCreate = (
 ): WorkspaceAction | string => {
   const [directory] = rest;
 
-  // Stryker disable next-line ConditionalExpression: The `directory === undefined` check narrows `directory`.
   if (rest.length !== 1 || directory === undefined || directory === '') {
     return 'workspace create takes one directory.';
   }

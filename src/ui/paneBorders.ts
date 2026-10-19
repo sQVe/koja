@@ -21,13 +21,11 @@ const frameCellsOf = (rectangle: PaneRectangle, focused: boolean): BorderCell[] 
     cells.push({ x: cellX, y: cellY, glyph, focused });
   };
 
-  // Stryker disable next-line EqualityOperator: The corner is drawn after the edge.
   for (let cellX = x + 1; cellX < right; cellX++) {
     put(cellX, y, '─');
     put(cellX, bottom, '─');
   }
 
-  // Stryker disable next-line EqualityOperator: The corner is drawn after the edge.
   for (let cellY = y + 1; cellY < bottom; cellY++) {
     put(x, cellY, '│');
     put(right, cellY, '│');
@@ -65,7 +63,6 @@ export const frameColor = (cell: BorderCell): RGBA => (cell.focused ? accentColo
 // Draws the borders between panes under them, over the whole pane area.
 export class BorderRenderable extends FrameBufferRenderable {
   private size: TerminalSize;
-  // Stryker disable next-line ArrayDeclaration: Initial value.
   private cells: readonly BorderCell[] = [];
 
   public constructor(context: RenderContext, size: TerminalSize) {

@@ -59,12 +59,10 @@ const maxMisses = 3;
 const waitsOutside = (current: ScrollState, oldest: number, last: number): boolean => {
   const { waiting } = current;
 
-  // Stryker disable next-line BlockStatement,ConditionalExpression: `rowCache.ts` and the snapshot keep this rule.
   if (waiting === undefined) {
     return false;
   }
 
-  // Stryker disable next-line ConditionalExpression,EqualityOperator: `rowCache.ts` and the snapshot keep this rule.
   const outside = waiting < oldest || waiting > last;
 
   return outside;
@@ -106,7 +104,6 @@ const rowsOf = (cache: RowCache): ScrollRows | undefined => {
   const bounds = cache.bounds();
   const size = cache.size();
 
-  // Stryker disable next-line ConditionalExpression,LogicalOperator: The checks narrow `bounds` and `size`, and the client keeps the rule.
   if (bounds === undefined || size === undefined) {
     return undefined;
   }
@@ -129,7 +126,6 @@ const rowsOf = (cache: RowCache): ScrollRows | undefined => {
 const entryCursor = (cache: RowCache, rows: ScrollRows, top: number | undefined) => {
   const cursor = cache.cursor();
 
-  // Stryker disable next-line OptionalChaining: `rowCache.ts`, the client, and the snapshot keep this rule.
   if (top === undefined && cursor?.visible === true) {
     return { row: rows.activeTop + cursor.y, col: cursor.x };
   }
@@ -154,14 +150,12 @@ export const createScrollMode = (session: ScrollModeSession): ScrollMode => {
 
     const { snapshot } = session.getState();
 
-    // Stryker disable next-line OptionalChaining: The same function proved the cache.
     return session.rowCache(current.pane)?.viewTop(scrollTopOf(shownView(snapshot), current.pane));
   };
 
   const align = (current: ScrollState): void => {
     const cache = session.rowCache(current.pane);
     const bounds = cache?.bounds();
-    // Stryker disable next-line OptionalChaining: The same function proved the cache.
     const columns = cache?.size()?.columns;
 
     if (columns !== undefined) {
@@ -182,7 +176,6 @@ export const createScrollMode = (session: ScrollModeSession): ScrollMode => {
   const scrollTo = (current: ScrollState, to: number | 'bottom'): void => {
     const cache = session.rowCache(current.pane);
 
-    // Stryker disable next-line OptionalChaining: The same function proved the cache.
     current.pending = { top: to === 'bottom' ? undefined : cache?.viewTop(to) };
     current.unanswered += 1;
 
@@ -209,7 +202,6 @@ export const createScrollMode = (session: ScrollModeSession): ScrollMode => {
         ? undefined
         : Math.max(bounds.activeTop - current.entryOffset, bounds.oldest);
 
-    // Stryker disable next-line ConditionalExpression: `top` is `undefined` either way when `wanted` is `undefined`.
     const top = wanted === undefined || wanted >= bounds.activeTop ? undefined : wanted;
 
     if (viewTopOf(current) !== top) {
@@ -230,7 +222,6 @@ export const createScrollMode = (session: ScrollModeSession): ScrollMode => {
   };
 
   const isFocused = (current: ScrollState): boolean =>
-    // Stryker disable next-line OptionalChaining: The same function proved the viewed pane.
     viewedPane(session.getState().snapshot)?.id === current.pane;
 
   const step = (current: ScrollState, motion: ScrollMotion): 'done' | 'waiting' | 'lost' => {
@@ -287,7 +278,6 @@ export const createScrollMode = (session: ScrollModeSession): ScrollMode => {
       const outcome = step(current, motion);
 
       if (outcome === 'lost') {
-        // Stryker disable next-line BooleanLiteral: `stop(true)` and `stop(false)` give the same result after a lost step.
         stop(true);
         session.setInputMode('insert');
 
@@ -317,7 +307,6 @@ export const createScrollMode = (session: ScrollModeSession): ScrollMode => {
     const cache = pane === undefined ? undefined : session.rowCache(pane.id);
     const rows = cache === undefined ? undefined : rowsOf(cache);
 
-    // Stryker disable next-line ConditionalExpression,LogicalOperator: `rowCache.ts` and the client keep these rules.
     if (pane === undefined || cache === undefined || rows === undefined) {
       session.setInputMode('normal');
 
@@ -348,7 +337,6 @@ export const createScrollMode = (session: ScrollModeSession): ScrollMode => {
   const enter = (): void => {
     const pane = viewedPane(session.getState().snapshot);
 
-    // Stryker disable next-line OptionalChaining: The same function proved `pane`.
     if (state !== undefined && state.pane === pane?.id) {
       state.focused = true;
       run(state);
@@ -368,7 +356,6 @@ export const createScrollMode = (session: ScrollModeSession): ScrollMode => {
     if (!snapshot.panes.some((pane) => pane.id === current.pane)) {
       const wasShown = current.focused;
 
-      // Stryker disable next-line BooleanLiteral: `rowCache.ts` and the client keep this rule.
       stop(false);
 
       if (wasShown && session.getState().inputMode === 'scroll') {
@@ -410,7 +397,6 @@ export const createScrollMode = (session: ScrollModeSession): ScrollMode => {
       return;
     }
 
-    // Stryker disable next-line OptionalChaining: The same function proved the cache.
     const held = session.rowCache(pane)?.rowAt(current.waiting) !== undefined;
 
     if (!held) {
@@ -464,15 +450,12 @@ export const createScrollMode = (session: ScrollModeSession): ScrollMode => {
       return { pane: state.pane, row: state.row, col: state.col };
     },
     reach: (pane) => {
-      // Stryker disable next-line OptionalChaining: The same function proved the cache.
       const bounds = session.rowCache(pane)?.bounds();
 
-      // Stryker disable next-line ConditionalExpression: `rowCache.ts` and the client keep this rule.
       if (state?.pane !== pane || bounds === undefined) {
         return undefined;
       }
 
-      // Stryker disable next-line OptionalChaining: The same function proved the cache.
       const last = bounds.activeTop + (session.rowCache(pane)?.size()?.rows ?? 1) - 1;
 
       // Output pruned the row the motion waits for. Its fetch can never end, so run the motion

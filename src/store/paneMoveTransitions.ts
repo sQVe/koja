@@ -45,7 +45,6 @@ const placeInTab = (state: State, pane: Pane, destination: Tab): Placement | Ref
     (placed) => placed.paneId === target,
   );
 
-  // Stryker disable next-line ConditionalExpression: The focused pane is in its layout.
   const direction = rectangle === undefined ? undefined : splitDirectionOf(rectangle);
 
   if (direction === undefined) {
@@ -240,7 +239,6 @@ export const movePane = (state: State, intent: MovePaneIntent): Outcome => {
   const pane = state.panes.find((known) => known.id === id);
   const source = state.tabs.find((known) => known.id === pane?.tabId);
 
-  // Stryker disable next-line ConditionalExpression,LogicalOperator: A pane always has a tab, and a tab always has a workspace; the first check narrows `pane`.
   if (pane === undefined || source === undefined) {
     return refuse('unknownPane');
   }

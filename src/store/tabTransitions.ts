@@ -58,11 +58,9 @@ export const removeTab = (state: State, tab: Tab, restore?: StartFallback): Prop
 
   const tabs = state.tabs.filter((known) => known.id !== tab.id);
   const owner = state.workspaces.find((workspace) => workspace.id === tab.workspaceId);
-  // Stryker disable next-line ArrayDeclaration,OptionalChaining: A tab always has a workspace.
   const tabIds = owner?.tabIds.filter((id) => id !== tab.id) ?? [];
   const next: State = { ...state, panes: remaining, tabs };
 
-  // Stryker disable next-line BlockStatement,ConditionalExpression: A tab always has a workspace.
   if (owner === undefined) {
     return propose(next, changes);
   }

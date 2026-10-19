@@ -121,12 +121,10 @@ const controlSymbolCount = controlSymbols.length;
 
 const hasFlag = (flags: number, flag: number): boolean => (flags & flag) !== 0;
 
-// Stryker disable next-line ConditionalExpression: Edge code points.
 const isCodePoint = (code: number): boolean => code >= 0 && code <= unicodeLimit;
 
 const isSurrogate = (code: number): boolean => code >= firstSurrogate && code <= lastSurrogate;
 
-// Stryker disable next-line EqualityOperator: Edge code points.
 const isPrivateUse = (code: number): boolean => code >= firstPrivateUse && code <= lastPrivateUse;
 
 const isControlText = (text: string): boolean =>
@@ -138,7 +136,6 @@ const isControlText = (text: string): boolean =>
     return code <= lastC0Control || isC1;
   });
 
-// Stryker disable next-line Regex: The anchors state a full-body match.
 const isAsciiLetter = (character: string): boolean => /^[a-z]$/i.test(character);
 
 const isCharacterKey = (key: string): boolean => Array.from(key).length === 1;
@@ -167,11 +164,9 @@ const makeEvent = (raw: string, key: string, legacy: boolean): KeyEvent => ({
   legacy,
 });
 
-// Stryker disable next-line BooleanLiteral: The `legacy` flag does not change what is sent for this event.
 const opaqueEvent = (raw: string): KeyEvent => makeEvent(raw, 'opaque', true);
 
 const keyOfCode = (code: number | undefined): string => {
-  // Stryker disable next-line ConditionalExpression,LogicalOperator: The checks are for the type of `code`.
   if (code === undefined || !isCodePoint(code) || isSurrogate(code)) {
     return 'unsupported';
   }
@@ -188,7 +183,6 @@ const keyOfCode = (code: number | undefined): string => {
 };
 
 const isTextCode = (code: number | undefined): boolean =>
-  // Stryker disable next-line ConditionalExpression: The checks are for the type of `code`.
   code !== undefined && isCodePoint(code) && !isSurrogate(code);
 
 const textOfCodes = (field: string | undefined): string | undefined => {
@@ -258,14 +252,12 @@ const parseControl = (raw: string): KeyEvent | undefined => {
   const name = keysOfCode.get(code);
 
   if (name !== undefined) {
-    // Stryker disable next-line BooleanLiteral: The `legacy` flag does not change what is sent for this event.
     return makeEvent(raw, name, true);
   }
 
   if (code >= 1 && code <= lastControlLetter) {
     const letter = controlLetters.charAt(code - 1);
 
-    // Stryker disable next-line BooleanLiteral: The `legacy` flag does not change what is sent for this event.
     return { ...makeEvent(raw, letter, true), modifiers: keyModifier.ctrl };
   }
 
@@ -274,12 +266,10 @@ const parseControl = (raw: string): KeyEvent | undefined => {
   if (symbolIndex >= 0 && symbolIndex < controlSymbolCount) {
     const symbol = controlSymbols.charAt(symbolIndex);
 
-    // Stryker disable next-line BooleanLiteral: The `legacy` flag does not change what is sent for this event.
     return { ...makeEvent(raw, symbol, true), modifiers: keyModifier.ctrl };
   }
 
   if (code === 0) {
-    // Stryker disable next-line BooleanLiteral: The `legacy` flag does not change what is sent for this event.
     return { ...makeEvent(raw, ' ', true), modifiers: keyModifier.ctrl };
   }
 
@@ -290,12 +280,10 @@ const parseCharacter = (raw: string): KeyEvent => {
   const isUpperLetter = isAsciiLetter(raw) && raw !== raw.toLowerCase();
 
   if (!isUpperLetter) {
-    // Stryker disable next-line BooleanLiteral: The `legacy` flag does not change what is sent for this event.
     return { ...makeEvent(raw, raw, true), text: raw };
   }
 
   return {
-    // Stryker disable next-line BooleanLiteral: The `legacy` flag does not change what is sent for this event.
     ...makeEvent(raw, raw.toLowerCase(), true),
     modifiers: keyModifier.shift,
     shifted: raw.charCodeAt(0),
@@ -327,11 +315,9 @@ export const parseKey = (raw: string): KeyEvent => {
   }
 
   if (raw.startsWith(escape) && raw.length > 1) {
-    // Stryker disable next-line ConditionalExpression: The tokenizer only passes sequences of this shape.
     return Array.from(raw).length === 2 ? parseAlt(raw, parseKey(raw.slice(1))) : opaqueEvent(raw);
   }
 
-  // Stryker disable next-line BlockStatement,ConditionalExpression: The tokenizer only passes sequences of this shape.
   if (Array.from(raw).length !== 1) {
     return opaqueEvent(raw);
   }
@@ -401,7 +387,6 @@ const controlCharacters = new Map<string, string>([
 const controlOf = (character: string): string => {
   const letterIndex = controlLetters.indexOf(character.toLowerCase());
 
-  // Stryker disable next-line ConditionalExpression: A rule on the exported `KeyEvent`.
   if (character.length === 1 && letterIndex !== -1) {
     return String.fromCharCode(letterIndex + 1);
   }
@@ -524,7 +509,6 @@ const codeField = (event: KeyEvent, flags: number): string => {
     parts.push(String(event.base));
   }
 
-  // Stryker disable next-line Regex: The joined parts never end in two colons.
   return parts.join(':').replace(/:+$/, '');
 };
 
@@ -590,7 +574,6 @@ const encodeKitty = (event: KeyEvent, flags: number, applicationCursor: boolean)
 
   const isPlainEditingKey = isEditingKey(event.key) && event.key !== 'escape';
   const isPlain = isPlainEditingKey && typedModifiers(event) === 0;
-  // Stryker disable next-line ConditionalExpression: A rule on the exported `KeyEvent`.
   const isRelease = event.kind === 'release';
   const isPlainEditingRelease = isRelease && isPlain && !hasFlag(flags, kittyFlag.allKeys);
 
@@ -612,7 +595,6 @@ const encodeText = (event: KeyEvent, flags: number, applicationCursor: boolean):
   }
 
   if (event.key === 'opaque') {
-    // Stryker disable next-line ConditionalExpression,StringLiteral: A rule on the exported `KeyEvent`.
     return event.kind === 'release' ? '' : withCursorMode(event.raw, applicationCursor);
   }
 

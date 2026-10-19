@@ -317,7 +317,6 @@ export const createSessionWriter = (path: string, log: Log): SessionWriter => {
   const write = async (session: SavedSession): Promise<void> => {
     try {
       await mkdir(dirname(path), { recursive: true, mode: directoryMode });
-      // Stryker disable next-line ObjectLiteral: `chmod` below closes the window: it sets the mode before the file holds data.
       await writeFile(temporaryPath, serialized(session), { mode: fileMode });
       // The mode applies only when writeFile creates the file, not to one a crash left behind.
       await chmod(temporaryPath, fileMode);

@@ -75,7 +75,6 @@ export const takePart = (snapshot: PaneSnapshot): Part => {
     const words = graphemeWords + (snapshot.graphemeWords[start + count] ?? 0);
     const fits = paneRowsBytes(count + 1, rows.columns, words) <= maxReplyBytes;
 
-    // Stryker disable next-line ConditionalExpression,EqualityOperator: The first row always fits in a reply.
     if (count > 0 && !fits) {
       break;
     }
@@ -179,7 +178,6 @@ export const createSnapshotStore = <Owner>(options: StoreOptions = {}): Snapshot
     },
     has: (owner) => stored.has(owner),
     begin: (owner) => {
-      // Stryker disable next-line ArithmeticOperator: Generations only have to differ from each other.
       const generation = (generations.get(owner) ?? 0) + 1;
 
       stored.delete(owner);

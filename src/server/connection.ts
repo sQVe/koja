@@ -56,7 +56,6 @@ export const createConnection = (options: ConnectionOptions): Connection => {
   let flushTimer: ReturnType<typeof setTimeout> | undefined;
 
   const close = (): void => {
-    // Stryker disable next-line BlockStatement,ConditionalExpression: The socket `end()` and `clearTimeout` can run twice.
     if (closed) {
       return;
     }

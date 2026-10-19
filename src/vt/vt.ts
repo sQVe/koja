@@ -153,7 +153,6 @@ const assertRowNumber = (value: number, name: string) => {
 };
 
 const grown = (buffer: Uint32Array<ArrayBuffer>, wordsNeeded: number) =>
-  // Stryker disable next-line ConditionalExpression,EqualityOperator: Buffer sizing: a new buffer of the same size gives the same words.
   wordsNeeded > buffer.length ? new Uint32Array(wordsNeeded) : buffer;
 
 // info starts with the cell words a read needed.
