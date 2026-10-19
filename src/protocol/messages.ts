@@ -499,7 +499,7 @@ export const encodeControl = (message: ControlMessage): Uint8Array =>
 const decodeText = (bytes: Uint8Array): string | undefined => {
   try {
     return textDecoder.decode(bytes);
-  } /* Stryker disable next-line BlockStatement: An empty catch body returns `undefined` too. */ catch {
+  } catch {
     return undefined;
   }
 };
@@ -508,7 +508,6 @@ const parseJson = (text: string): { ok: true; value: unknown } | { ok: false } =
   try {
     return { ok: true, value: JSON.parse(text) };
   } catch {
-    // Stryker disable next-line ObjectLiteral: The failed result needs its shape for the type.
     return { ok: false };
   }
 };

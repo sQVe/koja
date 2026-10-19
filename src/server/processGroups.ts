@@ -38,7 +38,7 @@ export const parseStat = (line: string): ProcessStat | undefined => {
 export const readStat = (processId: string): ProcessStat | undefined => {
   try {
     return parseStat(readFileSync(`/proc/${processId}/stat`, 'utf8'));
-  } /* Stryker disable next-line BlockStatement: An empty catch body returns `undefined` too. */ catch {
+  } catch {
     // The process ended during the scan.
     return undefined;
   }
@@ -49,7 +49,6 @@ export const sessionGroups = (session: number): number[] => {
   const groups = new Set<number>();
 
   for (const name of readdirSync('/proc')) {
-    // Stryker disable next-line BlockStatement,ConditionalExpression: The `/proc` layout holds only numeric process entries.
     if (!numericName.test(name)) {
       continue;
     }

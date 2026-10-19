@@ -316,7 +316,6 @@ const neighborCommand = (
   const index = focused === undefined ? -1 : ids.indexOf(focused);
   const target = ids[(index + step + ids.length) % ids.length];
 
-  // Stryker disable next-line ConditionalExpression: The check narrows `target`.
   if (index === -1 || target === undefined) {
     return undefined;
   }
@@ -328,7 +327,6 @@ const isButtonGesture = (event: MouseEvent): boolean =>
   event.kind === 'press' || event.kind === 'drag' || event.kind === 'release';
 
 export const createInputRouter = (host: TokenRouterHost): ((token: RoutedToken) => void) => {
-  // Stryker disable next-line BooleanLiteral: `escapeInPane` resets before it is read; the tokenizer sends `escapeSent` only after a lone Escape.
   let escapeInPane = false;
   // Keys whose press Phi took. Their release must not reach the pane, which never saw the press.
   const consumedKeys = new Set<string>();
@@ -346,7 +344,6 @@ export const createInputRouter = (host: TokenRouterHost): ((token: RoutedToken) 
   let clickFocusing = false;
 
   const notifyWorkspaceWaiters = (): void => {
-    // Stryker disable next-line BlockStatement,ConditionalExpression: Only one workspace request is open at a time.
     if (workspacePending()) {
       return;
     }
@@ -427,7 +424,6 @@ export const createInputRouter = (host: TokenRouterHost): ((token: RoutedToken) 
     escapeSent && escapeInPane ? bytes.subarray(1) : bytes;
 
   const trackConsumed = (event: KeyEvent, bytes: Uint8Array): void => {
-    // Stryker disable next-line BlockStatement,ConditionalExpression,StringLiteral: A press comes before each release.
     if (event.kind === 'release') {
       return;
     }
@@ -526,7 +522,6 @@ export const createInputRouter = (host: TokenRouterHost): ((token: RoutedToken) 
 
   // Captures the button and pane of a press that starts a gesture, and returns whether it did.
   const beginPress = (event: MouseEvent): boolean => {
-    // Stryker disable next-line ConditionalExpression: The terminal never loses a release.
     if (captured !== undefined || event.kind !== 'press') {
       return false;
     }
@@ -576,7 +571,6 @@ export const createInputRouter = (host: TokenRouterHost): ((token: RoutedToken) 
     if (token.kind === 'mouse') {
       const settled = routeMouse(token.raw);
 
-      // Stryker disable next-line BooleanLiteral: `escapeInPane` resets before it is read.
       escapeInPane = false;
 
       return settled;
@@ -587,7 +581,6 @@ export const createInputRouter = (host: TokenRouterHost): ((token: RoutedToken) 
       const wrapped = routed.length > token.bytes.length;
 
       host.send(wrapped ? withoutSentEscape(routed, token.escapeSent) : routed);
-      // Stryker disable next-line BooleanLiteral: `escapeInPane` resets before it is read.
       escapeInPane = false;
 
       return undefined;
@@ -621,7 +614,6 @@ export const createInputRouter = (host: TokenRouterHost): ((token: RoutedToken) 
       host.tab(routed.tab);
     }
 
-    // Stryker disable next-line ConditionalExpression: The tokenizer sends `escapeSent` only after a lone Escape.
     escapeInPane = token.raw === escapeKey && isBareEscape(routed.bytes);
 
     return routed.paneAction === undefined ? undefined : host.paneAction(routed.paneAction);
@@ -648,7 +640,6 @@ export const createInputRouter = (host: TokenRouterHost): ((token: RoutedToken) 
   const waitsForWorkspace = (): boolean => {
     const next = queue[0];
 
-    // Stryker disable next-line ConditionalExpression: The check narrows `next`, and the queue is not empty here.
     if (next === undefined || !workspacePending()) {
       return false;
     }
@@ -671,7 +662,6 @@ export const createInputRouter = (host: TokenRouterHost): ((token: RoutedToken) 
 
     while (!held && queue.length > 0 && !mustWait()) {
       const next = queue.shift();
-      // Stryker disable next-line ConditionalExpression: The check narrows `next`, and the queue is not empty here.
       const settled = next === undefined ? undefined : route(next);
 
       if (settled !== undefined) {

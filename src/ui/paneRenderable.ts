@@ -61,7 +61,6 @@ const flagAttributes: [CellFlag, number][] = [
 ];
 
 const rgbaOf = (word: number): RGBA => {
-  // Stryker disable next-line ArithmeticOperator: The color base sits in bit 24.
   const rgb = word - rgbColorBase;
 
   return RGBA.fromInts(
@@ -111,7 +110,6 @@ const nativeCursorStyles: Record<CursorShape, CursorStyle> = {
 };
 
 const sameCursor = (left: CursorCell | undefined, right: CursorCell | undefined): boolean =>
-  // Stryker disable next-line ConditionalExpression: A render shortcut that only saves redraw work.
   left?.x === right?.x && left?.y === right?.y && left?.visible === right?.visible;
 
 // Draws the rows of one pane from its row cache. The frame buffer keeps the rows that did not
@@ -158,7 +156,6 @@ export class PaneRenderable extends FrameBufferRenderable {
   // Scrolls the pane to start at a stable row, or back to the active screen when undefined. The
   // cursor belongs to the active screen, so it shows only there.
   public setTop(top: number | undefined): void {
-    // Stryker disable next-line BlockStatement,ConditionalExpression: A render shortcut that only saves redraw work.
     if (top === this.viewTop) {
       return;
     }
@@ -196,7 +193,6 @@ export class PaneRenderable extends FrameBufferRenderable {
       this.pendingSequence = sequence;
     }
 
-    // Stryker disable next-line EqualityOperator: The frame buffer drops drawing outside it.
     for (let index = 0; index < this.height; index++) {
       this.pending.add(index);
     }
@@ -227,28 +223,23 @@ export class PaneRenderable extends FrameBufferRenderable {
     this.pendingSequence = undefined;
 
     if (sequence !== undefined) {
-      // Stryker disable next-line OptionalChaining: The pane layer always passes `onDrawn`.
       this.onDrawn?.(sequence);
     }
   }
 
   private viewIndexOf(activeRow: number): number | undefined {
     if (this.viewTop === undefined) {
-      // Stryker disable next-line ConditionalExpression: The frame buffer drops drawing outside it.
       return activeRow >= 0 ? activeRow : undefined;
     }
 
-    // Stryker disable next-line OptionalChaining: The pane layer always passes these.
     const activeTop = this.cache.bounds()?.activeTop ?? 0;
     const index = activeTop + activeRow - this.viewTop;
 
-    // Stryker disable next-line ConditionalExpression,EqualityOperator,LogicalOperator: The frame buffer drops drawing outside it.
     return index >= 0 && index < this.height ? index : undefined;
   }
 
   // A cursor outside the shown rows waits there for the view to catch up, at the nearest edge.
   private scrollCursorCell(cursor: ScrollCell): CursorCell {
-    // Stryker disable next-line OptionalChaining: A cache has bounds here.
     const top = this.viewTop ?? this.cache.bounds()?.activeTop ?? 0;
     const y = Math.min(Math.max(cursor.row - top, 0), this.height - 1);
 
@@ -288,11 +279,9 @@ export class PaneRenderable extends FrameBufferRenderable {
   private drawPending(): void {
     const colors = this.cache.colors();
 
-    // Stryker disable next-line ConditionalExpression: A render shortcut that only saves redraw work.
     if (colors !== this.drawnColors) {
       this.drawnColors = colors;
 
-      // Stryker disable next-line EqualityOperator: The frame buffer drops drawing outside it.
       for (let index = 0; index < this.height; index++) {
         this.pending.add(index);
       }
@@ -300,13 +289,9 @@ export class PaneRenderable extends FrameBufferRenderable {
 
     const cursor = this.shownCursor();
 
-    // Stryker disable next-line ConditionalExpression: A render shortcut that only saves redraw work.
     if (!sameCursor(cursor, this.drawnCursor)) {
-      // Stryker disable next-line UnaryOperator: A render shortcut that only saves redraw work.
       this.pending.add(this.drawnCursor?.y ?? -1);
-      // Stryker disable next-line UnaryOperator: A render shortcut that only saves redraw work.
       this.pending.add(cursor?.y ?? -1);
-      // Stryker disable next-line ConditionalExpression: A render shortcut that only saves redraw work.
       this.drawnCursor = cursor === undefined ? undefined : { ...cursor };
     }
 
@@ -314,7 +299,6 @@ export class PaneRenderable extends FrameBufferRenderable {
       this.drawRow(index);
     }
 
-    // Stryker disable next-line CallExpression: A render shortcut that only saves redraw work.
     this.pending.clear();
   }
 
@@ -325,7 +309,6 @@ export class PaneRenderable extends FrameBufferRenderable {
   }
 
   private drawRow(index: number): void {
-    // Stryker disable next-line BlockStatement,ConditionalExpression,EqualityOperator: The frame buffer drops drawing outside it.
     if (index >= this.frameBuffer.height) {
       return;
     }
@@ -343,10 +326,8 @@ export class PaneRenderable extends FrameBufferRenderable {
 
     const cursor = this.shownCursor();
     const cursorColumn = cursor?.visible === true && cursor.y === index ? cursor.x : undefined;
-    // Stryker disable next-line ArithmeticOperator,MethodExpression: The frame buffer drops drawing outside it.
     const columns = Math.min(row.cells.length / cellWords, this.frameBuffer.width);
 
-    // Stryker disable next-line EqualityOperator: The frame buffer drops drawing outside it.
     for (let column = 0; column < columns; column++) {
       this.drawCell(row, column, index, column === cursorColumn);
     }

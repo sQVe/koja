@@ -91,8 +91,8 @@ builds its own.
 The config used to name `testFiles: ["src"]`. With per-test coverage a test in another folder could
 cover and kill a mutant. The script now sets `testFiles` for each folder. An audit of all of `src/`
 before the change listed no survivor in `src/layout.ts`. The audit after it lists 7, three of them
-on pilot lines with disable comments. The `e4401f8` run changed from 1075 to 1072 killed mutants.
-The sample runs take 6 to 45 s.
+on pilot lines that disable comments silenced at the time. The `e4401f8` run changed from 1075 to
+1072 killed mutants. The sample runs take 6 to 45 s.
 
 The bunfig `pathIgnorePatterns` still apply to explicit file lists: the server folder ran 140 tests
 in 8 of its 11 test files. The large paste test still skips through `PHI_MUTATION`.
@@ -153,6 +153,5 @@ would refuse this install with `ERESOLVE`, but Phi installs with Bun only.
   ME-701 to ME-705 are out of scope here. The largest groups are `vt/vt.ts`,
   `server/sessionFile.ts`, `server/connection.ts`, `store/paneTransitions.ts`, and
   `store/clientTransitions.ts` (the `activity > latestActivity` condition changed to `true`).
-- A comment `// Stryker disable next-line` works only as a leading comment of a node on the target
-  line. Before `} catch {` and before the closing `)` of a call the instrumenter does not attach it,
-  so the three such lines use a block comment in front of the token.
+- `src/` has no disable comments. A mutant that no test can tell apart from the original stays in
+  the survivor list of the advisory `Mutation` job as known noise.

@@ -85,13 +85,10 @@ with no unit test reports no coverage. See
 [ADR 0017](./adr/0017-mutation-gate-runs-same-folder-unit-tests.md) for the reasons and the four
 modules it leaves out.
 
-Mark a mutant that no test can tell apart from the original with
-`// Stryker disable next-line <mutator>: <reason>` above the line. Use a block comment before the
-token when the mutant sits inside a `catch` or in the middle of an expression. The pull request job
-`Mutation` in [ci.yml](../.github/workflows/ci.yml) runs the same command against the merge base,
-with no cap. It is advisory: it lists survivors on the pull request, it is not a required check, and
-`timeout-minutes` bounds its time. [scripts/mutation-tuning.md](../scripts/mutation-tuning.md)
-records how the config was tuned.
+The pull request job `Mutation` in [ci.yml](../.github/workflows/ci.yml) runs the same command
+against the merge base, with no cap. It is advisory: it lists survivors on the pull request, it is
+not a required check, and `timeout-minutes` bounds its time.
+[scripts/mutation-tuning.md](../scripts/mutation-tuning.md) records how the config was tuned.
 
 ## Versioning
 

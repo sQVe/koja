@@ -162,7 +162,6 @@ const parseResizeDirection = (value: string | undefined): ResizeDirection | unde
   resizeDirections.find((direction) => direction === value);
 
 const parseCells = (value: string | undefined): number | undefined => {
-  // Stryker disable next-line ConditionalExpression: The check is needed for the type of `value`.
   if (value === undefined || !/^[1-9][0-9]*$/.test(value)) {
     return undefined;
   }
