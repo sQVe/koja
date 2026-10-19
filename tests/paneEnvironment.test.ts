@@ -12,7 +12,7 @@ it('starts a pane shell with the Koja environment and none of the server markers
     '/bin/sh',
     process.env.PATH,
     undefined,
-    { TMUX: '/tmp/tmux-1/default,1,0', HERDR_ENV: '1' },
+    { TMUX: '/tmp/tmux-1/default,1,0' },
   );
 
   const dumpPath = join(directory, 'env.txt');
@@ -35,5 +35,4 @@ it('starts a pane shell with the Koja environment and none of the server markers
   expect(lines).toContain('TERM_PROGRAM=koja');
   expect(lines).toContain('TERM_PROGRAM_VERSION=1.2.3');
   expect(lines.some((line) => line.startsWith('TMUX'))).toBe(false);
-  expect(lines.some((line) => line.startsWith('HERDR_'))).toBe(false);
 });

@@ -33,10 +33,7 @@ const removedNames = new Set([
   'CLAUDE_CODE_MESSAGING_TOKEN',
 ]);
 
-const removedPrefixes = ['HERDR_', 'KOJA_'];
-
-const isRemoved = (name: string): boolean =>
-  removedNames.has(name) || removedPrefixes.some((prefix) => name.startsWith(prefix));
+const isRemoved = (name: string): boolean => removedNames.has(name) || name.startsWith('KOJA_');
 
 export const buildPaneEnvironment = (
   serverEnvironment: Environment,

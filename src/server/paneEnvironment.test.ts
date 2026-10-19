@@ -18,8 +18,6 @@ it('removes markers of other terminals and sessions', () => {
       HOME: '/home/user',
       TMUX: '/tmp/tmux-1/default,1,0',
       TMUX_PANE: '%1',
-      HERDR_PANE_ID: 'p1',
-      HERDR_ENV: '1',
       KOJA_PANE_ID: 'pane-9',
       KOJA_EXTRA: 'x',
       TERM_PROGRAM: 'WezTerm',
@@ -34,8 +32,6 @@ it('removes markers of other terminals and sessions', () => {
   expect(built.HOME).toBe('/home/user');
   expect(built.TMUX).toBeUndefined();
   expect(built.TMUX_PANE).toBeUndefined();
-  expect(built.HERDR_PANE_ID).toBeUndefined();
-  expect(built.HERDR_ENV).toBeUndefined();
   expect(built.KOJA_EXTRA).toBeUndefined();
   expect(built.WEZTERM_PANE).toBeUndefined();
   expect(built.LC_TERMINAL).toBeUndefined();
