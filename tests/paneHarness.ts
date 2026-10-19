@@ -7,7 +7,7 @@ import { z } from 'zod';
 import { environmentFor, runCli, temporaryDirectory } from './cliHarness.ts';
 import type { CliRun } from './cliHarness.ts';
 
-export type PhiRunner = (...commandArguments: string[]) => Promise<CliRun>;
+export type KojaRunner = (...commandArguments: string[]) => Promise<CliRun>;
 
 export const paneListSchema = z.array(
   z.object({
@@ -50,7 +50,7 @@ const scriptedShell = async (directory: string, body: string): Promise<string> =
 
 export interface PaneSetup {
   directory: string;
-  phi: PhiRunner;
+  koja: KojaRunner;
   list: () => Promise<z.infer<typeof paneListSchema>>;
   act: (...commandArguments: string[]) => Promise<string>;
   first: string;
@@ -58,14 +58,14 @@ export interface PaneSetup {
 
 export const setup = async (shellBody?: string): Promise<PaneSetup> => {
   const directory = await temporaryDirectory();
-  const socketPath = join(directory, 'run', 'phi.sock');
+  const socketPath = join(directory, 'run', 'koja.sock');
   const shell = shellBody === undefined ? '/bin/sh' : await scriptedShell(directory, shellBody);
   const environment = { ...environmentFor(directory), SHELL: shell, PS1: '' };
 
-  const phi = (...commandArguments: string[]) =>
+  const koja = (...commandArguments: string[]) =>
     runCli([...commandArguments, '--socket', socketPath], directory, environment);
 
-  const started = await phi('server', 'start');
+  const started = await koja('server', 'start');
 
   expect(started.exitCode).toBe(0);
 
@@ -73,13 +73,13 @@ export const setup = async (shellBody?: string): Promise<PaneSetup> => {
 
   await mkdir(workspaceRoot);
 
-  const created = await phi('workspace', 'create', workspaceRoot, '--focus', '--json');
+  const created = await koja('workspace', 'create', workspaceRoot, '--focus', '--json');
 
   expect(created.exitCode).toBe(0);
   workspaceDoneSchema.parse(JSON.parse(created.stdout));
 
   const list = async () => {
-    const listed = await phi('pane', 'list', '--json');
+    const listed = await koja('pane', 'list', '--json');
 
     expect(listed.exitCode).toBe(0);
 
@@ -87,7 +87,7 @@ export const setup = async (shellBody?: string): Promise<PaneSetup> => {
   };
 
   const act = async (...commandArguments: string[]): Promise<string> => {
-    const result = await phi('pane', ...commandArguments, '--json');
+    const result = await koja('pane', ...commandArguments, '--json');
 
     expect({ exitCode: result.exitCode, stderr: result.stderr }).toEqual({
       exitCode: 0,
@@ -99,7 +99,7 @@ export const setup = async (shellBody?: string): Promise<PaneSetup> => {
 
   const [first] = await list();
 
-  return { directory, phi, list, act, first: first?.id ?? '' };
+  return { directory, koja, list, act, first: first?.id ?? '' };
 };
 
 export const pollUntil = async <Value>(
@@ -117,11 +117,11 @@ export const pollUntil = async <Value>(
 };
 
 export const readJson = async (
-  phi: PhiRunner,
+  koja: KojaRunner,
   pane: string,
   ...flags: string[]
 ): Promise<z.infer<typeof paneReadSchema>> => {
-  const result = await phi('pane', 'read', pane, ...flags, '--json');
+  const result = await koja('pane', 'read', pane, ...flags, '--json');
 
   expect({ exitCode: result.exitCode, stderr: result.stderr }).toEqual({
     exitCode: 0,
@@ -132,13 +132,13 @@ export const readJson = async (
 };
 
 export const waitForText = async (
-  phi: PhiRunner,
+  koja: KojaRunner,
   pane: string,
   text: string,
   source = 'visible',
 ): Promise<void> => {
   for (let attempt = 0; attempt < 100; attempt += 1) {
-    const read = await readJson(phi, pane, '--source', source, '--lines', '30');
+    const read = await readJson(koja, pane, '--source', source, '--lines', '30');
 
     if (read.lines.includes(text)) {
       return;

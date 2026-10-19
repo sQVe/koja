@@ -20,7 +20,7 @@ from the program that started it, such as the terminal's scope, which systemd do
 systemd's rules forbid creating cgroups below a cgroup that is not delegated, and do not promise to
 leave such cgroups alone.
 
-Phi runs on Linux, and macOS may follow. macOS has no cgroups and no public way to keep a process
+Koja runs on Linux, and macOS may follow. macOS has no cgroups and no public way to keep a process
 inside a group after `setsid`.
 
 ## Decision
@@ -42,7 +42,7 @@ gets the cgroup boundary while following systemd's rules.
   session stop: SIGHUP to every process group in the shell's session, then SIGKILL after the grace
   time.
 - The server logs which boundary it uses, so a user can see why a `setsid` process survived.
-- macOS will need its own way to find the shell's session when Phi supports it, and it keeps the
+- macOS will need its own way to find the shell's session when Koja supports it, and it keeps the
   session stop's limits.
 
 ## Consequences

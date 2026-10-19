@@ -13,7 +13,7 @@ const directories: string[] = [];
 const shells: Bun.Subprocess[] = [];
 
 const startShell = (): Bun.Subprocess => {
-  const directory = mkdtempSync(join(tmpdir(), 'phi-pane-processes-'));
+  const directory = mkdtempSync(join(tmpdir(), 'koja-pane-processes-'));
   directories.push(directory);
 
   const shell = Bun.spawn(['/bin/sh', '-i'], {
@@ -144,7 +144,7 @@ it('reads the folder of a foreground process when the group leader has exited', 
 
 it('does not follow a real folder named like the deleted folder of the pane', async () => {
   const shell = startShell();
-  const parent = realpathSync(mkdtempSync(join(tmpdir(), 'phi-deleted-')));
+  const parent = realpathSync(mkdtempSync(join(tmpdir(), 'koja-deleted-')));
   directories.push(parent);
 
   const gone = join(parent, 'A');
@@ -163,7 +163,7 @@ it('does not follow a real folder named like the deleted folder of the pane', as
 
 it('follows a real folder whose name ends in (deleted)', async () => {
   const shell = startShell();
-  const parent = realpathSync(mkdtempSync(join(tmpdir(), 'phi-named-')));
+  const parent = realpathSync(mkdtempSync(join(tmpdir(), 'koja-named-')));
   directories.push(parent);
 
   const folder = join(parent, 'A (deleted)');

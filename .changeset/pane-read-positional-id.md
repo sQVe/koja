@@ -1,6 +1,6 @@
 ---
-'phi': minor
+'koja': minor
 ---
 
-Take the pane id of `phi pane read` as an argument: `phi pane read <id>`. The command no longer
-reads the focused pane when it has no id, and it refuses `--pane`. `phi pane send` keeps `--pane`.
+Take the pane id of `koja pane read` as an argument: `koja pane read <id>`. The command no longer
+reads the focused pane when it has no id, and it refuses `--pane`. `koja pane send` keeps `--pane`.

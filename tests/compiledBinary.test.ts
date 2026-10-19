@@ -29,10 +29,10 @@ const compileFromCopy = async () => {
   await cp(join(root, 'package.json'), join(source, 'package.json'));
   await symlink(join(root, 'node_modules'), join(source, 'node_modules'));
   await mkdir(join(source, 'build'));
-  await cp(join(root, 'build/libphi-vt.so'), join(source, 'build/libphi-vt.so'));
+  await cp(join(root, 'build/libkoja-vt.so'), join(source, 'build/libkoja-vt.so'));
 
   const build = Bun.spawnSync(
-    ['bun', 'build', '--compile', 'src/index.ts', '--outfile', join(directory, 'phi')],
+    ['bun', 'build', '--compile', 'src/index.ts', '--outfile', join(directory, 'koja')],
     { cwd: source, stdout: 'pipe', stderr: 'pipe' },
   );
 
@@ -44,8 +44,8 @@ const compileFromCopy = async () => {
 };
 
 beforeAll(async () => {
-  source = await mkdtemp(join(tmpdir(), 'phi-binary-source-'));
-  directory = await mkdtemp(join(tmpdir(), 'phi-binary-'));
+  source = await mkdtemp(join(tmpdir(), 'koja-binary-source-'));
+  directory = await mkdtemp(join(tmpdir(), 'koja-binary-'));
 
   await compileFromCopy();
 });
@@ -56,7 +56,7 @@ afterAll(async () => {
 });
 
 it('prints the version and the pinned Ghostty commit without the library it was compiled from', async () => {
-  const run = Bun.spawnSync([join(directory, 'phi'), '--version', '--json'], {
+  const run = Bun.spawnSync([join(directory, 'koja'), '--version', '--json'], {
     cwd: directory,
     stdin: 'ignore',
     stdout: 'pipe',
@@ -88,11 +88,11 @@ it('prints the version and the pinned Ghostty commit when run from source', asyn
   });
 
   expect(run.stdout.toString()).toMatch(
-    new RegExp(`^phi \\S+ \\(ghostty ${await pinnedGhosttyCommit()}\\)\\n$`),
+    new RegExp(`^koja \\S+ \\(ghostty ${await pinnedGhosttyCommit()}\\)\\n$`),
   );
 });
 
-it('runs the source entry file directly, as panes run PHI_BIN_PATH', () => {
+it('runs the source entry file directly, as panes run KOJA_BIN_PATH', () => {
   const run = Bun.spawnSync([join(root, 'src/index.ts'), '--version'], {
     cwd: root,
     stdin: 'ignore',
@@ -107,17 +107,20 @@ it('runs the source entry file directly, as panes run PHI_BIN_PATH', () => {
 });
 
 it('starts and stops a server', async () => {
-  const state = await mkdtemp(join(tmpdir(), 'phi-binary-server-'));
-  const socketPath = join(state, 'run', 'phi.sock');
+  const state = await mkdtemp(join(tmpdir(), 'koja-binary-server-'));
+  const socketPath = join(state, 'run', 'koja.sock');
 
   const runBinary = (commandArguments: string[]) =>
-    Bun.spawnSync([join(directory, 'phi'), 'server', ...commandArguments, '--socket', socketPath], {
-      cwd: state,
-      env: { ...process.env, XDG_STATE_HOME: join(state, 'state') },
-      stdin: 'ignore',
-      stdout: 'pipe',
-      stderr: 'pipe',
-    });
+    Bun.spawnSync(
+      [join(directory, 'koja'), 'server', ...commandArguments, '--socket', socketPath],
+      {
+        cwd: state,
+        env: { ...process.env, XDG_STATE_HOME: join(state, 'state') },
+        stdin: 'ignore',
+        stdout: 'pipe',
+        stderr: 'pipe',
+      },
+    );
 
   onTestFinished(async () => {
     await endServersIn(state);

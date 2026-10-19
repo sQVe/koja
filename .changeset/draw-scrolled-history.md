@@ -1,5 +1,5 @@
 ---
-'phi': minor
+'koja': minor
 ---
 
 Draw a pane from its scroll position. The client fetches history rows it lacks from the server,

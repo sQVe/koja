@@ -35,8 +35,8 @@ const snapshot = (live: boolean): ControlMessage => ({
       ? [
           {
             id: workspaceId(1),
-            root: '/work/phi',
-            label: 'phi',
+            root: '/work/koja',
+            label: 'koja',
             tabIds: [tabId(1)],
           },
         ]
@@ -112,8 +112,8 @@ const rowsReply = (text: string, requestId: number): PaneRows => {
 };
 
 const listen = async (respond: (message: ControlMessage) => Reply[] | undefined) => {
-  const directory = await mkdtemp(join(tmpdir(), 'phi-pane-client-'));
-  const socketPath = join(directory, 'phi.sock');
+  const directory = await mkdtemp(join(tmpdir(), 'koja-pane-client-'));
+  const socketPath = join(directory, 'koja.sock');
   const received: ControlMessage[] = [];
   const failures: string[] = [];
   const decoder = createFrameDecoder();
@@ -258,7 +258,7 @@ it.each([
 });
 
 it('returns noServer from detach when no server listens', async () => {
-  expect(await runDetach('/nonexistent/phi.sock', version, undefined)).toEqual({
+  expect(await runDetach('/nonexistent/koja.sock', version, undefined)).toEqual({
     ok: false,
     reason: 'noServer',
   });

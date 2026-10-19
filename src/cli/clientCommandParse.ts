@@ -27,9 +27,9 @@ export const clientOptions = {
   client: { type: 'string' },
 } as const;
 
-export const clientUsage = `  phi attach [--socket <path>]
-  phi detach [--client <id>] [--socket <path>] [--json]
-  phi client list [--socket <path>] [--json]`;
+export const clientUsage = `  koja attach [--socket <path>]
+  koja detach [--client <id>] [--socket <path>] [--json]
+  koja client list [--socket <path>] [--json]`;
 
 export const parseClientId = (value: string | undefined): IdResult<ClientId | undefined> => {
   if (value === undefined) {

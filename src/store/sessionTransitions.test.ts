@@ -7,7 +7,7 @@ import {
   attachedEmpty,
   createApi,
   createDocs,
-  createPhi,
+  createKoja,
   defined,
   fact,
   intent,
@@ -22,7 +22,7 @@ const restoreIntent = (state: State): Intent => ({
 });
 
 const failRestoredSecondPane = () => {
-  const restored = intent(createState(), restoreIntent(run([createPhi, createDocs]))).state;
+  const restored = intent(createState(), restoreIntent(run([createKoja, createDocs]))).state;
   const [, second] = restored.panes;
 
   const result = fact(restored, {
@@ -58,7 +58,7 @@ it('adds one paneAdded change per restored pane', () => {
 });
 
 it('refuses to restore into a state that has a workspace', () => {
-  const state = run([createPhi]);
+  const state = run([createKoja]);
 
   expect(applyIntent(state, restoreIntent(run(richSession)))).toEqual({
     kind: 'rejected',
@@ -135,7 +135,7 @@ it('gives restored panes consecutive generations and moves the counter past them
 });
 
 it('reports every restored workspace, tab, and pane, and the view of the attached client', () => {
-  const saved = run([createPhi, createDocs]);
+  const saved = run([createKoja, createDocs]);
   const result = intent(attachedEmpty(), restoreIntent(saved));
   const { workspaces, tabs, panes, defaultView } = result.state;
 
@@ -163,7 +163,7 @@ it('reports every restored workspace, tab, and pane, and the view of the attache
 });
 
 it('starts the default view and the view of an attached client without scrolls', () => {
-  const result = intent(attachedEmpty(), restoreIntent(run([createPhi, createDocs])));
+  const result = intent(attachedEmpty(), restoreIntent(run([createKoja, createDocs])));
 
   expect(result.state.defaultView.scrolls).toEqual([]);
   expect(result.state.clients[0]?.view).toEqual(result.state.defaultView);

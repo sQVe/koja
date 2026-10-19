@@ -14,7 +14,7 @@ const unixFormat = ['--format', 'unix'];
 it.each(['lint', 'style:check'])(
   'refuses node-pty and its forks through %s',
   async (script) => {
-    const directory = await mkdtemp(join(tmpdir(), 'phi-pty-'));
+    const directory = await mkdtemp(join(tmpdir(), 'koja-pty-'));
     onTestFinished(() => rm(directory, { recursive: true, force: true }));
 
     const fixtures: [string, string[], number][] = [

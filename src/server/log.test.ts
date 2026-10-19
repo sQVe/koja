@@ -12,7 +12,7 @@ import type { Log } from './log.ts';
 const messageSchema = z.object({ message: z.string() });
 
 const temporaryDirectory = async (): Promise<string> => {
-  const directory = await mkdtemp(join(tmpdir(), 'phi-log-'));
+  const directory = await mkdtemp(join(tmpdir(), 'koja-log-'));
   onTestFinished(() => rm(directory, { recursive: true, force: true }));
 
   return directory;
@@ -44,19 +44,19 @@ const readMessages = async (path: string): Promise<string[]> => {
 };
 
 it('places the log in the XDG state directory', () => {
-  expect(logPathFor('/home/user/state', '/home/user')).toBe('/home/user/state/phi/server.log');
+  expect(logPathFor('/home/user/state', '/home/user')).toBe('/home/user/state/koja/server.log');
 });
 
 it('places the log in ~/.local/state without an XDG state directory', () => {
-  expect(logPathFor(undefined, '/home/user')).toBe('/home/user/.local/state/phi/server.log');
-  expect(logPathFor('relative', '/home/user')).toBe('/home/user/.local/state/phi/server.log');
+  expect(logPathFor(undefined, '/home/user')).toBe('/home/user/.local/state/koja/server.log');
+  expect(logPathFor('relative', '/home/user')).toBe('/home/user/.local/state/koja/server.log');
 });
 
 it('writes each entry as a JSON line with its time, level, message, and fields', async () => {
-  const path = join(await temporaryDirectory(), 'phi', 'server.log');
+  const path = join(await temporaryDirectory(), 'koja', 'server.log');
   const log = openLog(path, () => Date.UTC(2026, 9, 5, 8, 0, 0));
 
-  log.info('server started', { socket: '/run/phi.sock' });
+  log.info('server started', { socket: '/run/koja.sock' });
   log.error('pane failed', { pane: 'pane-1', code: 2 });
 
   expect(await readLines(path)).toEqual([
@@ -64,7 +64,7 @@ it('writes each entry as a JSON line with its time, level, message, and fields',
       time: '2026-10-05T08:00:00.000Z',
       level: 'info',
       message: 'server started',
-      fields: { socket: '/run/phi.sock' },
+      fields: { socket: '/run/koja.sock' },
     },
     {
       time: '2026-10-05T08:00:00.000Z',
@@ -96,7 +96,7 @@ it('refuses a log path it cannot write under', async () => {
   const blocker = join(await temporaryDirectory(), 'state');
   await writeFile(blocker, 'not a directory');
 
-  const result = createLog(join(blocker, 'phi', 'server.log'), Date.now);
+  const result = createLog(join(blocker, 'koja', 'server.log'), Date.now);
 
   expect(result).toMatchObject({ ok: false, reason: 'logUnavailable' });
   expect(await readFile(blocker, 'utf8')).toBe('not a directory');

@@ -18,7 +18,7 @@ build, the user has to end the server by hand.
 ## Decision
 
 The server accepts `stop` as the first frame of a connection, from a client of any build, and stops.
-`phi server stop` sends it without a handshake. The CLI reaches the server it names by socket, and
+`koja server stop` sends it without a handshake. The CLI reaches the server it names by socket, and
 only a small part of the protocol must stay stable.
 
 ### Stable admin surface
@@ -32,7 +32,7 @@ only a small part of the protocol must stay stable.
 
 ### Positive
 
-- After an upgrade, `phi server stop` and then `phi server start` move the user to the new build.
+- After an upgrade, `koja server stop` and then `koja server start` move the user to the new build.
 
 ### Negative
 

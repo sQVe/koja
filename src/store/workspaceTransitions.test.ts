@@ -6,7 +6,7 @@ import type { Intent, Pane, Tab, WorkspaceRecord } from './store.ts';
 import {
   createApi,
   createDocs,
-  createPhi,
+  createKoja,
   fact,
   intent,
   run,
@@ -14,7 +14,7 @@ import {
 } from './storeFixtures.ts';
 
 it('creates a workspace with one tab and one starting pane', () => {
-  const result = intent(createState(), createPhi);
+  const result = intent(createState(), createKoja);
 
   const pane: Pane = {
     id: paneId(1),
@@ -39,8 +39,8 @@ it('creates a workspace with one tab and one starting pane', () => {
 
   const workspace: WorkspaceRecord = {
     id: workspaceId(1),
-    root: '/work/phi',
-    label: 'phi',
+    root: '/work/koja',
+    label: 'koja',
     tabIds: [tabId(1)],
   };
 
@@ -73,22 +73,22 @@ it('creates a workspace with one tab and one starting pane', () => {
 it('starts a pane at the layout size of the attached client', () => {
   const state = run([{ type: 'attachClient', size: { columns: 120, rows: 40 } }]);
 
-  expect(intent(state, createPhi).state.panes[0]?.size).toEqual({
+  expect(intent(state, createKoja).state.panes[0]?.size).toEqual({
     columns: 100,
     rows: 39,
   });
 });
 
 it('adds a second workspace with its own tab and pane, and focuses it', () => {
-  const state = run([createPhi, createDocs]);
+  const state = run([createKoja, createDocs]);
 
   expect(state.workspaces.map((workspace) => workspace.id)).toEqual([
     workspaceId(1),
     workspaceId(2),
   ]);
 
-  expect(state.workspaces.map((workspace) => workspace.root)).toEqual(['/work/phi', '/work/docs']);
-  expect(state.workspaces.map((workspace) => workspace.label)).toEqual(['phi', 'docs']);
+  expect(state.workspaces.map((workspace) => workspace.root)).toEqual(['/work/koja', '/work/docs']);
+  expect(state.workspaces.map((workspace) => workspace.label)).toEqual(['koja', 'docs']);
   expect(state.tabs.map((tab) => tab.id)).toEqual([tabId(1), tabId(2)]);
   expect(state.panes.map((pane) => pane.id)).toEqual([paneId(1), paneId(2)]);
   expect(state.panes.map((pane) => pane.generation)).toEqual([1, 2]);
@@ -96,7 +96,7 @@ it('adds a second workspace with its own tab and pane, and focuses it', () => {
 });
 
 it('focuses a workspace', () => {
-  const state = run([createPhi, createDocs]);
+  const state = run([createKoja, createDocs]);
   const result = intent(state, { type: 'focusWorkspace', workspaceId: workspaceId(1) });
 
   expect(result.state.defaultView.focusedWorkspaceId).toBe(workspaceId(1));
@@ -105,7 +105,7 @@ it('focuses a workspace', () => {
 });
 
 it('renames a workspace', () => {
-  const state = run([createPhi, createDocs]);
+  const state = run([createKoja, createDocs]);
 
   const result = intent(state, {
     type: 'renameWorkspace',
@@ -121,7 +121,7 @@ it('renames a workspace', () => {
 });
 
 it('closes a workspace with its tab and pane', () => {
-  const state = run([createPhi, createDocs]);
+  const state = run([createKoja, createDocs]);
   const result = intent(state, { type: 'closeWorkspace', workspaceId: workspaceId(1) });
 
   expect(result.state.workspaces.map((workspace) => workspace.id)).toEqual([workspaceId(2)]);
@@ -138,7 +138,7 @@ it('closes a workspace with its tab and pane', () => {
 });
 
 it('refuses a workspace intent for an unknown workspace and leaves state unchanged', () => {
-  const state = run([createPhi]);
+  const state = run([createKoja]);
 
   const intents: Intent[] = [
     { type: 'focusWorkspace', workspaceId: unknownWorkspace },
@@ -156,7 +156,7 @@ it('refuses a workspace intent for an unknown workspace and leaves state unchang
 });
 
 it('refuses a workspace intent while the server stops and leaves state unchanged', () => {
-  const state = run([createPhi, { type: 'stopServer' }]);
+  const state = run([createKoja, { type: 'stopServer' }]);
 
   const intents: Intent[] = [
     { type: 'focusWorkspace', workspaceId: workspaceId(1) },
@@ -171,7 +171,7 @@ it('refuses a workspace intent while the server stops and leaves state unchanged
 
 it('focuses the next workspace when the focused middle one closes', () => {
   const state = run([
-    createPhi,
+    createKoja,
     createDocs,
     createApi,
     { type: 'focusWorkspace', workspaceId: workspaceId(2) },
@@ -183,21 +183,21 @@ it('focuses the next workspace when the focused middle one closes', () => {
 });
 
 it('focuses the previous workspace when the focused last one closes', () => {
-  const state = run([createPhi, createDocs, createApi]);
+  const state = run([createKoja, createDocs, createApi]);
   const result = intent(state, { type: 'closeWorkspace', workspaceId: workspaceId(3) });
 
   expect(result.state.defaultView.focusedWorkspaceId).toBe(workspaceId(2));
 });
 
 it('keeps the focus when an unfocused workspace closes', () => {
-  const state = run([createPhi, createDocs]);
+  const state = run([createKoja, createDocs]);
   const result = intent(state, { type: 'closeWorkspace', workspaceId: workspaceId(1) });
 
   expect(result.state.defaultView.focusedWorkspaceId).toBe(workspaceId(2));
 });
 
 it('keeps the earlier focus when a workspace is created without focus or a label', () => {
-  const state = run([createPhi]);
+  const state = run([createKoja]);
 
   const result = intent(state, {
     type: 'createWorkspace',
@@ -210,7 +210,7 @@ it('keeps the earlier focus when a workspace is created without focus or a label
 
   expect(result.state.defaultView.focusedWorkspaceId).toBe(workspaceId(1));
   expect(added?.focusedWorkspaceId).toBe(workspaceId(1));
-  expect(result.state.workspaces.map((workspace) => workspace.label)).toEqual(['phi', 'docs']);
+  expect(result.state.workspaces.map((workspace) => workspace.label)).toEqual(['koja', 'docs']);
 });
 
 it('focuses a workspace created without focus when no workspace is focused', () => {
@@ -237,7 +237,7 @@ it('labels a workspace with the whole root when the root has no base name', () =
 
 it('keeps the workspace that was focused when the pane of a new workspace fails to start', () => {
   const state = run([
-    createPhi,
+    createKoja,
     createDocs,
     { type: 'focusWorkspace', workspaceId: workspaceId(1) },
     { type: 'createWorkspace', root: '/work/api', label: 'api', focus: true },
@@ -258,7 +258,7 @@ it('keeps the workspace that was focused when the pane of a new workspace fails 
   ]);
 });
 
-it.each(['/work/phi/', '/work/phi//', '/work/phi'])(
+it.each(['/work/koja/', '/work/koja//', '/work/koja'])(
   'labels a workspace by the last folder of %s',
   (root) => {
     const result = intent(createState(), {
@@ -268,17 +268,17 @@ it.each(['/work/phi/', '/work/phi//', '/work/phi'])(
       focus: true,
     });
 
-    expect(result.state.workspaces[0]?.label).toBe('phi');
+    expect(result.state.workspaces[0]?.label).toBe('koja');
   },
 );
 
 it('changes nothing when a workspace gets the label it has', () => {
-  const state = run([createPhi]);
+  const state = run([createKoja]);
 
   const result = intent(state, {
     type: 'renameWorkspace',
     workspaceId: workspaceId(1),
-    label: 'phi',
+    label: 'koja',
   });
 
   expect(result.changes).toEqual([]);

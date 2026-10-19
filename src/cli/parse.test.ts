@@ -6,9 +6,9 @@ import { parseCommand, usage } from './parse.ts';
 it('parses no command as the default command, with an optional socket', () => {
   expect(parseCommand([])).toEqual({ kind: 'default', socket: undefined });
 
-  expect(parseCommand(['--socket', '/tmp/phi.sock'])).toEqual({
+  expect(parseCommand(['--socket', '/tmp/koja.sock'])).toEqual({
     kind: 'default',
-    socket: '/tmp/phi.sock',
+    socket: '/tmp/koja.sock',
   });
 });
 
@@ -16,12 +16,12 @@ it('refuses --json on the default command', () => {
   expect(typeof parseCommand(['--json'])).toBe('string');
 });
 
-it('lists phi, phi attach, and phi detach in the usage', () => {
+it('lists koja, koja attach, and koja detach in the usage', () => {
   const lines = usage.split('\n').map((line) => line.trim());
 
-  expect(lines).toContain('phi [--socket <path>]');
-  expect(lines).toContain('phi attach [--socket <path>]');
-  expect(lines).toContain('phi detach [--client <id>] [--socket <path>] [--json]');
+  expect(lines).toContain('koja [--socket <path>]');
+  expect(lines).toContain('koja attach [--socket <path>]');
+  expect(lines).toContain('koja detach [--client <id>] [--socket <path>] [--json]');
 });
 
 it('parses the workspace commands', () => {
@@ -395,29 +395,29 @@ it.each([
 it('lists the workspace and pane commands in the usage', () => {
   const lines = usage.split('\n').map((line) => line.trim());
 
-  expect(lines).toContain('phi workspace list [--socket <path>] [--json]');
-  expect(lines).toContain('phi pane list [--socket <path>] [--json]');
+  expect(lines).toContain('koja workspace list [--socket <path>] [--json]');
+  expect(lines).toContain('koja pane list [--socket <path>] [--json]');
 
   expect(lines).toContain(
-    'phi pane read <id> [--source visible|recent|recent-unwrapped] [--lines <n>]',
+    'koja pane read <id> [--source visible|recent|recent-unwrapped] [--lines <n>]',
   );
 
   expect(lines).toContain('[--from <row> --to <row>] [--socket <path>] [--json]');
 
   expect(lines).toContain(
-    'phi pane split <id> --direction below|right [--cwd <dir>] [--socket <path>] [--json]',
+    'koja pane split <id> --direction below|right [--cwd <dir>] [--socket <path>] [--json]',
   );
 
-  expect(lines).toContain('phi pane focus <id> [--socket <path>] [--json]');
-  expect(lines).toContain('phi pane close <id> [--socket <path>] [--json]');
-  expect(lines).toContain('phi pane zoom <id> [--socket <path>] [--json]');
+  expect(lines).toContain('koja pane focus <id> [--socket <path>] [--json]');
+  expect(lines).toContain('koja pane close <id> [--socket <path>] [--json]');
+  expect(lines).toContain('koja pane zoom <id> [--socket <path>] [--json]');
 
   expect(lines).toContain(
-    'phi pane scroll <id> --to top|bottom|<row> [--client <id>] [--socket <path>] [--json]',
+    'koja pane scroll <id> --to top|bottom|<row> [--client <id>] [--socket <path>] [--json]',
   );
 
   expect(lines).toContain(
-    'phi pane resize <id> --direction left|right|up|down --cells <n> [--socket <path>] [--json]',
+    'koja pane resize <id> --direction left|right|up|down --cells <n> [--socket <path>] [--json]',
   );
 });
 
@@ -714,23 +714,23 @@ it('keeps a start equal to the end', () => {
   });
 });
 
-it('parses phi attach with an optional socket', () => {
+it('parses koja attach with an optional socket', () => {
   expect(parseCommand(['attach'])).toEqual({ kind: 'attach', socket: undefined });
 
-  expect(parseCommand(['attach', '--socket', '/tmp/phi.sock'])).toEqual({
+  expect(parseCommand(['attach', '--socket', '/tmp/koja.sock'])).toEqual({
     kind: 'attach',
-    socket: '/tmp/phi.sock',
+    socket: '/tmp/koja.sock',
   });
 });
 
 it.each([
   ['an argument', ['attach', 'extra']],
   ['--json', ['attach', '--json']],
-])('refuses phi attach with %s', (_name, argv) => {
+])('refuses koja attach with %s', (_name, argv) => {
   expect(typeof parseCommand(argv)).toBe('string');
 });
 
-it('parses phi --version with an optional --json', () => {
+it('parses koja --version with an optional --json', () => {
   expect(parseCommand(['--version'])).toEqual({ kind: 'version', json: false });
   expect(parseCommand(['--version', '--json'])).toEqual({ kind: 'version', json: true });
 });
@@ -738,8 +738,8 @@ it('parses phi --version with an optional --json', () => {
 it.each([
   ['an argument', ['--version', 'extra']],
   ['a command', ['--version', 'pane', 'list']],
-  ['--socket', ['--version', '--socket', '/tmp/phi.sock']],
-])('refuses phi --version with %s', (_name, argv) => {
+  ['--socket', ['--version', '--socket', '/tmp/koja.sock']],
+])('refuses koja --version with %s', (_name, argv) => {
   expect(typeof parseCommand(argv)).toBe('string');
 });
 

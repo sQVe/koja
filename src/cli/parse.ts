@@ -73,8 +73,8 @@ export type Command =
   | DetachCommand;
 
 export const usage = `Usage:
-  phi [--socket <path>]
-  phi --version [--json]
+  koja [--socket <path>]
+  koja --version [--json]
 ${clientUsage}
 ${serverUsage}
 ${workspaceUsage}
@@ -92,7 +92,7 @@ const parseVersionCommand = (
 };
 
 const parseDefaultCommand = (options: CommandOptions): DefaultCommand | string =>
-  options.json ? 'phi takes only --socket.' : { kind: 'default', socket: options.socket };
+  options.json ? 'koja takes only --socket.' : { kind: 'default', socket: options.socket };
 
 const parseSessionCommand = ({ positionals, values, options }: GroupInput, group: string) =>
   group === 'attach'

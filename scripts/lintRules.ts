@@ -38,7 +38,7 @@ const typeOnlyImports = new Map([['protocol', new Set(['store'])]]);
 
 // Files outside src/ that a module may import, relative to the package root. The binary embeds them.
 const outsideImports = new Map([
-  ['vt', new Set([join('build', 'libphi-vt.so')])],
+  ['vt', new Set([join('build', 'libkoja-vt.so')])],
   ['cli', new Set(['package.json'])],
 ]);
 
@@ -279,7 +279,7 @@ const importSourceOf = (variable: Variable | undefined): string | undefined => {
 };
 
 const lintRules: Plugin = {
-  meta: { name: 'phi' },
+  meta: { name: 'koja' },
   rules: {
     'module-boundaries': {
       meta: {

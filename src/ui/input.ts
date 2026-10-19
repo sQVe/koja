@@ -328,7 +328,7 @@ const isButtonGesture = (event: MouseEvent): boolean =>
 
 export const createInputRouter = (host: TokenRouterHost): ((token: RoutedToken) => void) => {
   let escapeInPane = false;
-  // Keys whose press Phi took. Their release must not reach the pane, which never saw the press.
+  // Keys whose press Koja took. Their release must not reach the pane, which never saw the press.
   const consumedKeys = new Set<string>();
   // The focus the last j or k asked for, kept until the server answers the latest focus request.
   let pendingFocus: WorkspaceId | undefined;

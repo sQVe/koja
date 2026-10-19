@@ -74,7 +74,7 @@ const readUntil = async (stream: ReadableStream<Uint8Array>, text: string): Prom
 };
 
 const startServerProcess = async (directory: string) => {
-  const socketPath = join(directory, 'run', 'phi.sock');
+  const socketPath = join(directory, 'run', 'koja.sock');
 
   const child = Bun.spawn([process.execPath, '--eval', serverScript(socketPath)], {
     cwd: directory,
@@ -106,9 +106,9 @@ it('removes the socket it bound even when its symlink route changes', async () =
   await symlink(real, link);
 
   const result = await runServer({
-    socketPath: join(link, 'phi', 'phi.sock'),
+    socketPath: join(link, 'koja', 'koja.sock'),
     version: build,
-    log: openLog(join(directory, 'state', 'phi', 'server.log')),
+    log: openLog(join(directory, 'state', 'koja', 'server.log')),
     environment: { ...process.env, SHELL: '/bin/sh' },
     binaryPath: process.execPath,
   });
@@ -122,7 +122,7 @@ it('removes the socket it bound even when its symlink route changes', async () =
   result.server.stop();
   await result.server.stopped;
 
-  expect(existsSync(join(real, 'phi', 'phi.sock'))).toBe(false);
+  expect(existsSync(join(real, 'koja', 'koja.sock'))).toBe(false);
 });
 
 it('creates the socket for its owner only, whatever the umask', async () => {
@@ -174,11 +174,11 @@ it('parses what the shell writes to its PTY', async () => {
   const directory = await temporaryDirectory();
   const { server } = await startServer(directory);
 
-  server.writeToPane('echo phi-$((6 * 7))\n');
+  server.writeToPane('echo koja-$((6 * 7))\n');
 
   // The PTY echoes the command, and a shell without line editing prints its prompt before the
   // output, so look for text only the command's output holds.
-  await waitFor(() => server.paneText()?.includes('phi-42') === true);
+  await waitFor(() => server.paneText()?.includes('koja-42') === true);
 });
 
 it('ends a pane job that ignores SIGHUP within the bounded wait and removes the socket', async () => {

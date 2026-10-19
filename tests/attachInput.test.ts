@@ -70,13 +70,13 @@ const eventually = async (condition: () => boolean | Promise<boolean>): Promise<
 
 const setupServer = async (terminalRows = 24, terminalColumns = 80) => {
   const directory = await temporaryDirectory();
-  const socketPath = join(directory, 'run', 'phi.sock');
+  const socketPath = join(directory, 'run', 'koja.sock');
   const environment = { ...environmentFor(directory), SHELL: '/bin/sh', PS1: '' };
 
-  const phi = (...commandArguments: string[]) =>
+  const koja = (...commandArguments: string[]) =>
     runCli([...commandArguments, '--socket', socketPath], directory, environment);
 
-  const started = await phi('server', 'start');
+  const started = await koja('server', 'start');
 
   expect(started.exitCode).toBe(0);
 
@@ -85,13 +85,13 @@ const setupServer = async (terminalRows = 24, terminalColumns = 80) => {
 
     await mkdir(path);
 
-    const created = await phi('workspace', 'create', path, '--focus', '--json');
+    const created = await koja('workspace', 'create', path, '--focus', '--json');
 
     expect(created.exitCode).toBe(0);
   };
 
   const list = async () => {
-    const listed = await phi('workspace', 'list', '--json');
+    const listed = await koja('workspace', 'list', '--json');
 
     expect(listed.exitCode).toBe(0);
 
@@ -145,7 +145,7 @@ const setupServer = async (terminalRows = 24, terminalColumns = 80) => {
       .findLast((line) => line.trim() !== '');
 
   return {
-    phi,
+    koja,
     list,
     createWorkspace,
     screen,
@@ -243,8 +243,8 @@ it(
 it(
   'moves the focused pane alone into a new tab on Ctrl+B !',
   async () => {
-    const { phi, list, lines, foreground, until, type, first } = await setup();
-    const second = await phi('pane', 'split', first, '--direction', 'right', '--json');
+    const { koja, list, lines, foreground, until, type, first } = await setup();
+    const second = await koja('pane', 'split', first, '--direction', 'right', '--json');
     const secondId = z.object({ pane: z.string() }).parse(JSON.parse(second)).pane;
 
     await until(() => lines()[0]?.charAt(41) === '┌' && foreground(0, 41) === accentWord);
@@ -292,9 +292,9 @@ it(
 it(
   'moves focus on Ctrl+B h and Ctrl+B l so typed keys reach the focused pane only',
   async () => {
-    const { phi, list, lines, until, type, first } = await setup();
+    const { koja, list, lines, until, type, first } = await setup();
 
-    await phi('pane', 'split', first, '--direction', 'right');
+    await koja('pane', 'split', first, '--direction', 'right');
     await until(() => lines()[0]?.charAt(41) === '┌');
 
     const focusedId = async () => (await list()).find((pane) => pane.focused)?.id;
@@ -392,12 +392,12 @@ it(
 it(
   'hides the side list in a 40-column client and gives the pane the full width',
   async () => {
-    const { phi, createWorkspace, screen, statusBar } = await setupServer(10, 40);
+    const { koja, createWorkspace, screen, statusBar } = await setupServer(10, 40);
 
     await createWorkspace('alpha');
     await eventually(() => statusBar() === 'INSERT [1]');
 
-    const sent = await phi('pane', 'send', 'echo narrow-ok\r');
+    const sent = await koja('pane', 'send', 'echo narrow-ok\r');
 
     expect(sent.exitCode).toBe(0);
 
@@ -410,9 +410,9 @@ it(
 it(
   'runs a command typed in the same write as Ctrl+B h in the newly focused pane only',
   async () => {
-    const { phi, lines, until, type, first } = await setup();
+    const { koja, lines, until, type, first } = await setup();
 
-    await phi('pane', 'split', first, '--direction', 'right');
+    await koja('pane', 'split', first, '--direction', 'right');
     await until(() => lines()[0]?.charAt(41) === '┌');
 
     type('\x02hiecho LEFTRACE\r');
@@ -428,10 +428,10 @@ it(
 it(
   'runs a command typed in the same write as Ctrl+B l in the newly focused pane only',
   async () => {
-    const { phi, lines, foreground, until, type, first } = await setup();
+    const { koja, lines, foreground, until, type, first } = await setup();
 
-    await phi('pane', 'split', first, '--direction', 'right');
-    await phi('pane', 'focus', first);
+    await koja('pane', 'split', first, '--direction', 'right');
+    await koja('pane', 'focus', first);
     await until(() => foreground(0, 0) === accentWord && foreground(0, 41) !== accentWord);
 
     type('\x02liecho RIGHTRACE\r');

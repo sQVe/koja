@@ -56,7 +56,7 @@ the same shape.
 
 ### Negative
 
-- Phi owns a row protocol with stable row numbers, epochs, and flow control.
+- Koja owns a row protocol with stable row numbers, epochs, and flow control.
 - Each keystroke echo adds one row encode and decode, so echo is a little slower than raw
   forwarding.
 - The client must receive input modes from the server to encode keys and mouse events.

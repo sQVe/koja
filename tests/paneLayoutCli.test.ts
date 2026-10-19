@@ -60,14 +60,14 @@ it(
 it(
   'prints JSON for pane list and pane split without --json',
   async () => {
-    const { phi, list, first } = await setup();
+    const { koja, list, first } = await setup();
 
-    const listed = await phi('pane', 'list');
+    const listed = await koja('pane', 'list');
 
     expect(listed.exitCode).toBe(0);
     expect(paneListSchema.parse(JSON.parse(listed.stdout))).toEqual(await list());
 
-    const split = await phi('pane', 'split', first, '--direction', 'below');
+    const split = await koja('pane', 'split', first, '--direction', 'below');
 
     expect(split.exitCode).toBe(0);
     expect(splitDoneSchema.parse(JSON.parse(split.stdout)).pane).toBeString();
@@ -115,7 +115,7 @@ const columnsOf = (panes: z.infer<typeof paneListSchema>, id: string) =>
 it(
   'resizes a split by cells, and keeps the other pane at one cell past the minimum',
   async () => {
-    const { phi, list, act, first } = await setup();
+    const { koja, list, act, first } = await setup();
     const second = await act('split', first, '--direction', 'right');
     const before = await list();
 
@@ -140,7 +140,7 @@ it(
     expect(columnsOf(squeezed, second)).toBe(1);
     expect(columnsOf(squeezed, first)).toBeGreaterThan(columnsOf(before, first));
 
-    const vertical = await phi('pane', 'resize', first, '--direction', 'down', '--cells', '1');
+    const vertical = await koja('pane', 'resize', first, '--direction', 'down', '--cells', '1');
 
     expect(vertical.exitCode).toBe(1);
     expect(vertical.stderr).toContain(first);
@@ -152,7 +152,7 @@ it(
 it(
   'moves focus with pane focus, and pane send reaches only the focused pane',
   async () => {
-    const { directory, phi, list, act, first } = await setup();
+    const { directory, koja, list, act, first } = await setup();
     const second = await act('split', first, '--direction', 'right');
 
     expect((await list()).find((pane) => pane.focused)?.id).toBe(second);
@@ -161,13 +161,13 @@ it(
     expect((await list()).find((pane) => pane.focused)?.id).toBe(first);
 
     const marker = join(directory, 'marker');
-    const sent = await phi('pane', 'send', `echo reached > ${marker}\n`);
+    const sent = await koja('pane', 'send', `echo reached > ${marker}\n`);
 
     expect(sent.exitCode).toBe(0);
     expect(await waitForFile(marker)).toBe('reached');
 
     const read = async (id: string): Promise<string> => {
-      const result = await phi('pane', 'read', id, '--json');
+      const result = await koja('pane', 'read', id, '--json');
 
       return paneReadSchema.parse(JSON.parse(result.stdout)).lines.join('\n');
     };
@@ -187,11 +187,11 @@ it(
 it(
   'closes a pane, ends its process, and gives its area to the sibling',
   async () => {
-    const { directory, phi, list, act, first } = await setup();
+    const { directory, koja, list, act, first } = await setup();
     const [whole] = await list();
     const second = await act('split', first, '--direction', 'below');
     const pidFile = join(directory, 'pid');
-    const sent = await phi('pane', 'send', `echo $$ > ${pidFile}\n`);
+    const sent = await koja('pane', 'send', `echo $$ > ${pidFile}\n`);
 
     expect(sent.exitCode).toBe(0);
 
@@ -228,9 +228,9 @@ it.each([
 ])(
   'pane %s exits 1 for an unknown pane and changes nothing',
   async (action, extra) => {
-    const { phi, list } = await setup();
+    const { koja, list } = await setup();
     const before = await list();
-    const failed = await phi('pane', action, 'pane-99', ...extra);
+    const failed = await koja('pane', action, 'pane-99', ...extra);
 
     expect(failed.exitCode).toBe(1);
     expect(failed.stdout).toBe('');
@@ -246,7 +246,7 @@ const withoutFolders = (panes: z.infer<typeof paneListSchema>) =>
 it(
   'leaves the focus where it was when a split pane fails to start',
   async () => {
-    const { directory, phi, list, act, first } = await setup();
+    const { directory, koja, list, act, first } = await setup();
 
     await act('split', first, '--direction', 'right');
 
@@ -254,7 +254,7 @@ it(
 
     await rm(join(directory, 'work'), { recursive: true });
 
-    const failure = await phi('pane', 'split', first, '--direction', 'below');
+    const failure = await koja('pane', 'split', first, '--direction', 'below');
 
     expect(failure.exitCode).toBe(1);
 

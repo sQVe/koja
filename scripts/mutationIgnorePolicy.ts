@@ -135,7 +135,7 @@ const reasonOf = (path: BabelPath) => {
   return undefined;
 };
 
-export const ignorerName = 'phiMessageIgnorer';
+export const ignorerName = 'kojaMessageIgnorer';
 
 export const enabledIgnorers = <Ignorer>(
   names: readonly string[] | undefined,

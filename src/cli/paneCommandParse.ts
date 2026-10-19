@@ -80,19 +80,19 @@ export const paneOptions = {
   to: { type: 'string' },
 } as const;
 
-export const paneUsage = `  phi pane list [--socket <path>] [--json]
-  phi pane read <id> [--source visible|recent|recent-unwrapped] [--lines <n>]
+export const paneUsage = `  koja pane list [--socket <path>] [--json]
+  koja pane read <id> [--source visible|recent|recent-unwrapped] [--lines <n>]
     [--from <row> --to <row>] [--socket <path>] [--json]
-  phi pane send <text> [--pane <id>] [--socket <path>] [--json]
-  phi pane split <id> --direction below|right [--cwd <dir>] [--socket <path>] [--json]
-  phi pane move <id> --tab <id> | --new-tab | --new-workspace [--socket <path>] [--json]
-  phi pane focus <id> [--socket <path>] [--json]
-  phi pane close <id> [--socket <path>] [--json]
-  phi pane zoom <id> [--socket <path>] [--json]
-  phi pane resize <id> --direction left|right|up|down --cells <n> [--socket <path>] [--json]
-  phi pane scroll <id> --to top|bottom|<row> [--client <id>] [--socket <path>] [--json]
-  phi pane copy <id> --from <row>:<col> --to <row>:<col> [--print] [--socket <path>] [--json]
-  phi pane process-info <id> [--socket <path>] [--json]`;
+  koja pane send <text> [--pane <id>] [--socket <path>] [--json]
+  koja pane split <id> --direction below|right [--cwd <dir>] [--socket <path>] [--json]
+  koja pane move <id> --tab <id> | --new-tab | --new-workspace [--socket <path>] [--json]
+  koja pane focus <id> [--socket <path>] [--json]
+  koja pane close <id> [--socket <path>] [--json]
+  koja pane zoom <id> [--socket <path>] [--json]
+  koja pane resize <id> --direction left|right|up|down --cells <n> [--socket <path>] [--json]
+  koja pane scroll <id> --to top|bottom|<row> [--client <id>] [--socket <path>] [--json]
+  koja pane copy <id> --from <row>:<col> --to <row>:<col> [--print] [--socket <path>] [--json]
+  koja pane process-info <id> [--socket <path>] [--json]`;
 
 const parsePaneId = (value: string | undefined): IdResult<PaneId | undefined> => {
   if (value === undefined) {

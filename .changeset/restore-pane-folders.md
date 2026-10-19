@@ -1,5 +1,5 @@
 ---
-'phi': minor
+'koja': minor
 ---
 
 Save the folder of each pane's shell with the session. After a restart, each restored shell starts

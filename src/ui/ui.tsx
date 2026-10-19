@@ -21,7 +21,7 @@ import { createTerminalMouse } from './terminalMouse.ts';
 import { themeFromDetectedColors } from './terminalTheme.ts';
 import { SideList } from './workspaceList.tsx';
 
-const emptyHint = 'No workspace is open. Run `phi workspace create <dir>` to start one.';
+const emptyHint = 'No workspace is open. Run `koja workspace create <dir>` to start one.';
 
 const Screen = ({
   session,
@@ -196,7 +196,7 @@ const showNotice = (notice: PaneNotice, clipboard: ClipboardQueue): void => {
 };
 
 export const runAttach = async (session: AttachSession): Promise<CloseReason> => {
-  // OpenTUI turns on Kitty key reporting for a null setting too. Phi asks for its own flags below,
+  // OpenTUI turns on Kitty key reporting for a null setting too. Koja asks for its own flags below,
   // so OpenTUI's stay off.
   const renderer = await createCliRenderer({
     exitOnCtrlC: false,

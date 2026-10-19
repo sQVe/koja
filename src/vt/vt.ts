@@ -2,7 +2,7 @@ import { dlopen, FFIType, toArrayBuffer } from 'bun:ffi';
 
 // A compiled binary embeds the library and dlopen reads the embedded path. From source this is the
 // path of the built file.
-import libraryPath from '../../build/libphi-vt.so' with { type: 'file' };
+import libraryPath from '../../build/libkoja-vt.so' with { type: 'file' };
 import { invariant } from '../invariant.ts';
 import { rowWords } from '../rows/rows.ts';
 import type { Cursor } from '../rows/rows.ts';

@@ -96,7 +96,7 @@ export interface AttachSession {
   tabPending: () => boolean;
   // Calls back once, when no tab request is pending any more.
   afterTabAnswer: (callback: () => void) => void;
-  // Ask the server to change the pane layout, like `phi pane split|focus|close`. Each promise
+  // Ask the server to change the pane layout, like `koja pane split|focus|close`. Each promise
   // settles once the server has answered and the state changes it caused are applied. It also
   // settles when the session ends or the answer takes too long.
   splitPane: (pane: PaneId, direction: SplitDirection) => Promise<void>;
@@ -106,7 +106,7 @@ export interface AttachSession {
   zoomPane: (pane: PaneId) => Promise<void>;
   resizePane: (pane: PaneId, direction: ResizeDirection, cells: number) => Promise<void>;
   // Moves this client's view of the pane to a stable row, or back to the bottom, like
-  // `phi pane scroll --client`.
+  // `koja pane scroll --client`.
   // The promise settles once the server has answered and its change is in the snapshot, when the
   // session ends, or when the answer takes too long.
   scrollPane: (pane: PaneId, to: 'bottom' | number) => Promise<void>;

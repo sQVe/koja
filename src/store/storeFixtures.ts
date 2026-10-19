@@ -18,10 +18,10 @@ export const fact = (state: State, next: Fact): Applied => expectApplied(applyFa
 export const run = (intents: readonly Intent[]): State =>
   intents.reduce((state, next) => intent(state, next).state, createState());
 
-export const createPhi = {
+export const createKoja = {
   type: 'createWorkspace',
-  root: '/work/phi',
-  label: 'phi',
+  root: '/work/koja',
+  label: 'koja',
   focus: true,
 } satisfies Intent;
 
@@ -71,7 +71,7 @@ const zoomedPaneNumber = 4;
 
 export const richSession: readonly Intent[] = [
   attachLarge,
-  createPhi,
+  createKoja,
   createDocs,
   createTab,
   splitFirst('right'),

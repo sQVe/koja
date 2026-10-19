@@ -29,8 +29,8 @@ const snapshot: StoreSnapshot = {
   workspaces: [
     {
       id: workspaceId(1),
-      root: '/work/phi',
-      label: 'phi',
+      root: '/work/koja',
+      label: 'koja',
       tabIds: [tabId(1)],
     },
   ],
@@ -168,7 +168,7 @@ it('renames only the workspace the change names', () => {
     label: 'notes',
   });
 
-  expect(next.workspaces.map((workspace) => workspace.label)).toEqual(['phi', 'notes']);
+  expect(next.workspaces.map((workspace) => workspace.label)).toEqual(['koja', 'notes']);
 });
 
 it('removes a workspace with its tab and pane and takes the focus the change names', () => {

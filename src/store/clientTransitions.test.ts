@@ -6,7 +6,7 @@ import type { State, Theme } from './store.ts';
 import {
   attachLarge,
   createDocs,
-  createPhi,
+  createKoja,
   defined,
   fact,
   intent,
@@ -27,7 +27,7 @@ const darkTheme: Theme = { ...lightTheme, background: 0x00_00_10 };
 const attachedState = (): State => run([{ type: 'attachClient', size: { columns: 80, rows: 24 } }]);
 
 it('resizes the pane to the layout size of a client that attaches', () => {
-  const state = run([createPhi]);
+  const state = run([createKoja]);
   const result = intent(state, { type: 'attachClient', size: { columns: 100, rows: 30 } });
 
   const client = {
@@ -47,7 +47,7 @@ it('resizes the pane to the layout size of a client that attaches', () => {
 });
 
 it('takes over from the attached client when a second client attaches', () => {
-  const state = run([createPhi, { type: 'attachClient', size: { columns: 100, rows: 30 } }]);
+  const state = run([createKoja, { type: 'attachClient', size: { columns: 100, rows: 30 } }]);
 
   const result = intent(state, { type: 'attachClient', size: { columns: 90, rows: 20 } });
 
@@ -69,7 +69,7 @@ it('takes over from the attached client when a second client attaches', () => {
 });
 
 it('reports the client size and the pane size when the attached client resizes', () => {
-  const state = run([createPhi, { type: 'attachClient', size: { columns: 100, rows: 30 } }]);
+  const state = run([createKoja, { type: 'attachClient', size: { columns: 100, rows: 30 } }]);
 
   const result = intent(state, {
     type: 'resizeClient',
@@ -86,7 +86,7 @@ it('reports the client size and the pane size when the attached client resizes',
 });
 
 it('reports a client resize that keeps the pane size, and raises the revision', () => {
-  const state = run([createPhi, { type: 'attachClient', size: { columns: 80, rows: 1 } }]);
+  const state = run([createKoja, { type: 'attachClient', size: { columns: 80, rows: 1 } }]);
 
   const result = intent(state, {
     type: 'resizeClient',
@@ -104,7 +104,7 @@ it('reports a client resize that keeps the pane size, and raises the revision', 
 });
 
 it('treats a client resize to its current size as no change', () => {
-  const state = run([createPhi, { type: 'attachClient', size: { columns: 100, rows: 30 } }]);
+  const state = run([createKoja, { type: 'attachClient', size: { columns: 100, rows: 30 } }]);
 
   const result = intent(state, {
     type: 'resizeClient',
@@ -117,7 +117,7 @@ it('treats a client resize to its current size as no change', () => {
 });
 
 it('refuses to resize an unknown client and leaves state unchanged', () => {
-  const state = run([createPhi]);
+  const state = run([createKoja]);
 
   const result = applyIntent(state, {
     type: 'resizeClient',
@@ -129,7 +129,7 @@ it('refuses to resize an unknown client and leaves state unchanged', () => {
 });
 
 it('detaches a client on request and keeps the pane size', () => {
-  const state = run([createPhi, { type: 'attachClient', size: { columns: 100, rows: 30 } }]);
+  const state = run([createKoja, { type: 'attachClient', size: { columns: 100, rows: 30 } }]);
 
   const result = intent(state, { type: 'detachClient', clientId: clientId(1) });
 
@@ -143,7 +143,7 @@ it('detaches a client on request and keeps the pane size', () => {
 });
 
 it('refuses to detach an unknown client and leaves state unchanged', () => {
-  const state = run([createPhi]);
+  const state = run([createKoja]);
 
   const result = applyIntent(state, { type: 'detachClient', clientId: clientId(7) });
 
@@ -222,7 +222,7 @@ it('refuses a theme from an unknown client and leaves state unchanged', () => {
 });
 
 it('resizes every live pane by the layout when the client resizes', () => {
-  const state = run([createPhi, attachLarge, splitFirst('right')]);
+  const state = run([createKoja, attachLarge, splitFirst('right')]);
 
   const result = intent(state, {
     type: 'resizeClient',
@@ -337,7 +337,7 @@ it('reports a theme that differs from the client theme in one palette color', ()
 });
 
 it('stores the new size of a client that resizes', () => {
-  const state = run([createPhi, attachLarge]);
+  const state = run([createKoja, attachLarge]);
   const size = { columns: 60, rows: 15 };
   const result = intent(state, { type: 'resizeClient', clientId: clientId(1), size });
 
@@ -363,7 +363,7 @@ it('forgets the activity of a client that detaches', () => {
 });
 
 it('resizes a running pane when the client resizes', () => {
-  const started = fact(run([createPhi, attachLarge]), {
+  const started = fact(run([createKoja, attachLarge]), {
     type: 'paneStarted',
     paneId: paneId(1),
     generation: 1,
@@ -383,7 +383,7 @@ it('resizes a running pane when the client resizes', () => {
 });
 
 it('keeps the size of a failed pane when the client resizes', () => {
-  const session = savedSessionOf(run([createPhi, createDocs]), noFolders);
+  const session = savedSessionOf(run([createKoja, createDocs]), noFolders);
   const restored = intent(createState(), { type: 'restoreSession', session }).state;
   const attached = intent(restored, attachLarge).state;
 

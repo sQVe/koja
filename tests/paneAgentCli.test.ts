@@ -30,8 +30,8 @@ it(
   'reads 24 visible rows and the shell prompt without a terminal client',
   async () => {
     const directory = await temporaryDirectory();
-    const socketPath = join(directory, 'run', 'phi.sock');
-    const environment = { ...environmentFor(directory), SHELL: '/bin/sh', PS1: 'phi-test> ' };
+    const socketPath = join(directory, 'run', 'koja.sock');
+    const environment = { ...environmentFor(directory), SHELL: '/bin/sh', PS1: 'koja-test> ' };
 
     const started = await runCli(
       ['server', 'start', '--socket', socketPath],
@@ -47,7 +47,7 @@ it(
     for (let attempt = 0; attempt < 30; attempt += 1) {
       text = await runCli(['pane', 'read', 'pane-1', '--socket', socketPath], directory);
 
-      if (text.stdout.includes('phi-test>')) {
+      if (text.stdout.includes('koja-test>')) {
         break;
       }
     }
@@ -62,16 +62,16 @@ it(
 
     expect(output.pane).toBe('pane-1');
     expect(output.source).toBe('recent');
-    expect(output.lines).toEqual(['phi-test>']);
+    expect(output.lines).toEqual(['koja-test>']);
     expect(text.exitCode).toBe(0);
-    expect(text.stdout).toBe('phi-test>\n');
+    expect(text.stdout).toBe('koja-test>\n');
 
     const visible = await runCli(
       ['pane', 'read', 'pane-1', '--source', 'visible', '--socket', socketPath, '--json'],
       directory,
     );
 
-    expect(paneOutputSchema.parse(JSON.parse(visible.stdout)).lines).toEqual(['phi-test>']);
+    expect(paneOutputSchema.parse(JSON.parse(visible.stdout)).lines).toEqual(['koja-test>']);
   },
   cliTestTimeoutMs,
 );
@@ -80,7 +80,7 @@ it(
   'refuses pane read without a pane id, with the usage on stderr and nothing on stdout',
   async () => {
     const directory = await temporaryDirectory();
-    const socketPath = join(directory, 'run', 'phi.sock');
+    const socketPath = join(directory, 'run', 'koja.sock');
 
     await startServer(directory, socketPath);
     await createWorkspaceAt(socketPath, directory);
@@ -106,7 +106,7 @@ it(
   'sends text to the pane without a terminal client and reads the result',
   async () => {
     const directory = await temporaryDirectory();
-    const socketPath = join(directory, 'run', 'phi.sock');
+    const socketPath = join(directory, 'run', 'koja.sock');
 
     await startServer(directory, socketPath);
 
@@ -138,7 +138,7 @@ it(
   'reads the active screen rather than history after scrolling and on the alternate screen',
   async () => {
     const directory = await temporaryDirectory();
-    const socketPath = join(directory, 'run', 'phi.sock');
+    const socketPath = join(directory, 'run', 'koja.sock');
     const environment = { ...environmentFor(directory), SHELL: '/bin/sh', PS1: '' };
 
     const started = await runCli(
@@ -246,7 +246,7 @@ it(
   'keeps publishing every changed row to a connected terminal during repeated agent reads',
   async () => {
     const directory = await temporaryDirectory();
-    const socketPath = join(directory, 'run', 'phi.sock');
+    const socketPath = join(directory, 'run', 'koja.sock');
     const environment = { ...environmentFor(directory), SHELL: '/bin/sh', PS1: '' };
 
     expect(

@@ -5,7 +5,7 @@ Set up a checkout and check changes before release.
 ## Local setup
 
 Use the Bun version specified by `packageManager` in [package.json](../package.json). Bun is the
-runtime, package manager, and test runner. Run these commands from the Phi checkout:
+runtime, package manager, and test runner. Run these commands from the Koja checkout:
 
 ```sh
 bun install --frozen-lockfile
@@ -13,22 +13,22 @@ bun run build:vt
 bun run check
 ```
 
-`bun run build:vt` builds `build/libphi-vt.so` on Linux x86_64. It downloads Zig and the pinned
-Ghostty source to `${XDG_CACHE_HOME:-$HOME/.cache}/phi` and applies the patches in `patches/`. Run
+`bun run build:vt` builds `build/libkoja-vt.so` on Linux x86_64. It downloads Zig and the pinned
+Ghostty source to `${XDG_CACHE_HOME:-$HOME/.cache}/koja` and applies the patches in `patches/`. Run
 it again after you change `src/vt/shim.c`. After you change a patch, delete the cached Ghostty
 directory first.
 
-Run Phi locally with one command:
+Run Koja locally with one command:
 
 ```sh
 bun run start
 ```
 
-`bun run start` builds `build/libphi-vt.so` when it is missing, then runs the server in the
-foreground on `/tmp/phi-dev/phi.sock`. Point other commands at it with
-`--socket /tmp/phi-dev/phi.sock`, for example
-`bun src/index.ts server stop --socket /tmp/phi-dev/phi.sock`. It builds only a missing library, so
-run `bun run build:vt` yourself after a change to `src/vt/shim.c` or a patch.
+`bun run start` builds `build/libkoja-vt.so` when it is missing, then runs the server in the
+foreground on `/tmp/koja-dev/koja.sock`. Point other commands at it with
+`--socket /tmp/koja-dev/koja.sock`, for example
+`bun src/index.ts server stop --socket /tmp/koja-dev/koja.sock`. It builds only a missing library,
+so run `bun run build:vt` yourself after a change to `src/vt/shim.c` or a patch.
 
 `bun install` also installs the Git hooks. The pre-commit hook runs the house-style and format
 checks on staged files.
@@ -49,7 +49,7 @@ checks on staged files.
 
 House style comes from the [`@sqve/seam`](https://www.npmjs.com/package/@sqve/seam) package. Its
 `seam` command turns on the house rules for its own lint run, so editors and `bun run lint` show the
-ordinary rules only. Phi adds one local rule, `phi/module-boundaries`, from
+ordinary rules only. Koja adds one local rule, `koja/module-boundaries`, from
 [scripts/lintRules.ts](../scripts/lintRules.ts). It runs in every lint command.
 
 Style commands accept file paths, for example `bun run style:fix tests/lint.test.ts`. Rename
@@ -105,4 +105,4 @@ The [changeset check](../.github/workflows/changeset.yml) requires a changeset w
 `src/`, but not for changes only to docs, tooling, or dependencies.
 
 The [release workflow](../.github/workflows/release.yml) opens version PRs and creates Git tags and
-GitHub releases. Phi is public on GitHub and is not published to npm.
+GitHub releases. Koja is public on GitHub and is not published to npm.

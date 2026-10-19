@@ -11,7 +11,7 @@ const root = fileURLToPath(new URL('../', import.meta.url));
 // the paths readable.
 const unixFormat = ['--format', 'unix'];
 
-const conventionRules = ['phi(throw-only-in-invariant)', 'phi(class-owns-resource)'];
+const conventionRules = ['koja(throw-only-in-invariant)', 'koja(class-owns-resource)'];
 
 const fixtures: [string, string[], number][] = [
   [
@@ -70,7 +70,7 @@ const fixtures: [string, string[], number][] = [
 it.each(['lint', 'style:check'])(
   'refuses throws outside invariant and classes without a resource through %s',
   async (script) => {
-    const directory = await mkdtemp(join(tmpdir(), 'phi-conventions-'));
+    const directory = await mkdtemp(join(tmpdir(), 'koja-conventions-'));
     onTestFinished(() => rm(directory, { recursive: true, force: true }));
 
     await writeFile(join(directory, 'package.json'), '{}\n');

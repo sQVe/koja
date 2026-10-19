@@ -26,13 +26,13 @@ const paneReadSchema = z.object({ pane: z.string(), lines: z.array(z.string()) }
 
 const setup = async () => {
   const directory = await temporaryDirectory();
-  const socketPath = join(directory, 'run', 'phi.sock');
+  const socketPath = join(directory, 'run', 'koja.sock');
   const environment = { ...environmentFor(directory), SHELL: '/bin/sh', PS1: '' };
 
-  const phi = (...commandArguments: string[]) =>
+  const koja = (...commandArguments: string[]) =>
     runCli([...commandArguments, '--socket', socketPath], directory, environment);
 
-  const started = await phi('server', 'start');
+  const started = await koja('server', 'start');
 
   expect(started.exitCode).toBe(0);
 
@@ -45,7 +45,7 @@ const setup = async () => {
   };
 
   const create = async (name: string): Promise<string> => {
-    const created = await phi(
+    const created = await koja(
       'workspace',
       'create',
       await createDirectory(name),
@@ -62,20 +62,20 @@ const setup = async () => {
   };
 
   const list = async () => {
-    const listed = await phi('workspace', 'list', '--json');
+    const listed = await koja('workspace', 'list', '--json');
 
     expect(listed.exitCode).toBe(0);
 
     return workspaceListSchema.parse(JSON.parse(listed.stdout));
   };
 
-  return { directory, phi, create, list };
+  return { directory, koja, create, list };
 };
 
 it(
   'lists the workspaces that workspace create made, with root, label, and focus',
   async () => {
-    const { directory, phi, create, list } = await setup();
+    const { directory, koja, create, list } = await setup();
 
     expect(await list()).toEqual([]);
 
@@ -87,7 +87,7 @@ it(
       { id: second, root: join(directory, 'beta'), label: 'beta', focused: true },
     ]);
 
-    const withoutFlag = await phi('workspace', 'list');
+    const withoutFlag = await koja('workspace', 'list');
 
     expect(withoutFlag.exitCode).toBe(0);
     expect(workspaceListSchema.parse(JSON.parse(withoutFlag.stdout))).toEqual(await list());
@@ -98,13 +98,13 @@ it(
 it(
   'workspace create leaves the earlier workspace focused',
   async () => {
-    const { directory, phi, create, list } = await setup();
+    const { directory, koja, create, list } = await setup();
 
     const first = await create('alpha');
 
     await mkdir(join(directory, 'beta'));
 
-    const created = await phi('workspace', 'create', join(directory, 'beta'));
+    const created = await koja('workspace', 'create', join(directory, 'beta'));
 
     expect(created.exitCode).toBe(0);
 
@@ -119,14 +119,14 @@ it(
 it(
   'workspace create --focus focuses the new workspace and the last of --focus and --no-focus wins',
   async () => {
-    const { directory, phi, create, list } = await setup();
+    const { directory, koja, create, list } = await setup();
 
     const first = await create('alpha');
 
     await mkdir(join(directory, 'beta'));
     await mkdir(join(directory, 'gamma'));
 
-    const focused = await phi('workspace', 'create', join(directory, 'beta'), '--focus');
+    const focused = await koja('workspace', 'create', join(directory, 'beta'), '--focus');
 
     expect(focused.exitCode).toBe(0);
 
@@ -136,7 +136,7 @@ it(
     expect(afterFocus.find((workspace) => workspace.focused)?.id).toBe(beta?.id);
     expect(beta?.id).not.toBe(first);
 
-    const kept = await phi(
+    const kept = await koja(
       'workspace',
       'create',
       join(directory, 'gamma'),
@@ -157,11 +157,11 @@ it(
 it(
   'workspace create refuses --background and creates no workspace',
   async () => {
-    const { directory, phi, list } = await setup();
+    const { directory, koja, list } = await setup();
 
     await mkdir(join(directory, 'beta'));
 
-    const refused = await phi('workspace', 'create', join(directory, 'beta'), '--background');
+    const refused = await koja('workspace', 'create', join(directory, 'beta'), '--background');
 
     expect(refused.exitCode).not.toBe(0);
     expect(refused.stderr).toContain('Usage');
@@ -173,11 +173,11 @@ it(
 it(
   'uses --label and resolves a relative directory against the working directory',
   async () => {
-    const { directory, phi, list } = await setup();
+    const { directory, koja, list } = await setup();
 
     await mkdir(join(directory, 'nested'));
 
-    const created = await phi('workspace', 'create', 'nested', '--label', 'Custom');
+    const created = await koja('workspace', 'create', 'nested', '--label', 'Custom');
 
     expect(created.exitCode).toBe(0);
 
@@ -191,13 +191,13 @@ it(
 it(
   'runs a command in a workspace that is not focused and reads its output by pane id',
   async () => {
-    const { phi, create } = await setup();
+    const { koja, create } = await setup();
 
     const hidden = await create('hidden');
 
     await create('shown');
 
-    const panes = paneListSchema.parse(JSON.parse((await phi('pane', 'list', '--json')).stdout));
+    const panes = paneListSchema.parse(JSON.parse((await koja('pane', 'list', '--json')).stdout));
 
     const hiddenPane = panes.find((pane) => pane.workspace === hidden);
 
@@ -206,14 +206,14 @@ it(
     expect(hiddenPane?.focused).toBe(false);
 
     const hiddenId = hiddenPane?.id ?? '';
-    const sent = await phi('pane', 'send', 'echo hidden-$((20+22))\n', '--pane', hiddenId);
+    const sent = await koja('pane', 'send', 'echo hidden-$((20+22))\n', '--pane', hiddenId);
 
     expect(sent.exitCode).toBe(0);
 
     let output = '';
 
     for (let attempt = 0; attempt < 50 && !output.includes('hidden-42'); attempt += 1) {
-      const read = await phi('pane', 'read', hiddenId, '--json');
+      const read = await koja('pane', 'read', hiddenId, '--json');
 
       output = paneReadSchema.parse(JSON.parse(read.stdout)).lines.join('\n');
     }
@@ -226,23 +226,23 @@ it(
 it(
   'focus, rename, and close change the workspace list',
   async () => {
-    const { phi, create, list } = await setup();
+    const { koja, create, list } = await setup();
 
     const first = await create('alpha');
     const second = await create('beta');
 
-    const focused = await phi('workspace', 'focus', first, '--json');
+    const focused = await koja('workspace', 'focus', first, '--json');
 
     expect(focused.exitCode).toBe(0);
     expect(JSON.parse(focused.stdout)).toEqual({ workspace: first });
     expect((await list()).map((workspace) => workspace.focused)).toEqual([true, false]);
 
-    const renamed = await phi('workspace', 'rename', second, 'renamed');
+    const renamed = await koja('workspace', 'rename', second, 'renamed');
 
     expect(renamed.exitCode).toBe(0);
     expect((await list()).map((workspace) => workspace.label)).toEqual(['alpha', 'renamed']);
 
-    const closed = await phi('workspace', 'close', first);
+    const closed = await koja('workspace', 'close', first);
 
     expect(closed.exitCode).toBe(0);
 
@@ -257,12 +257,12 @@ it(
 it.each(['focus', 'close'])(
   'workspace %s exits 1 for an unknown id and changes nothing',
   async (action) => {
-    const { phi, create, list } = await setup();
+    const { koja, create, list } = await setup();
 
     await create('alpha');
 
     const before = await list();
-    const failed = await phi('workspace', action, 'workspace-99');
+    const failed = await koja('workspace', action, 'workspace-99');
 
     expect(failed.exitCode).toBe(1);
     expect(failed.stdout).toBe('');
@@ -275,12 +275,12 @@ it.each(['focus', 'close'])(
 it(
   'workspace rename exits 1 for an unknown id and changes nothing',
   async () => {
-    const { phi, create, list } = await setup();
+    const { koja, create, list } = await setup();
 
     await create('alpha');
 
     const before = await list();
-    const failed = await phi('workspace', 'rename', 'workspace-99', 'x');
+    const failed = await koja('workspace', 'rename', 'workspace-99', 'x');
 
     expect(failed.exitCode).toBe(1);
     expect(failed.stderr).toContain('workspace-99');
@@ -292,9 +292,9 @@ it(
 it(
   'workspace create exits 1 for a missing directory and creates no workspace',
   async () => {
-    const { directory, phi, list } = await setup();
+    const { directory, koja, list } = await setup();
     const missing = join(directory, 'missing');
-    const failed = await phi('workspace', 'create', missing);
+    const failed = await koja('workspace', 'create', missing);
 
     expect(failed.exitCode).toBe(1);
     expect(failed.stdout).toBe('');
@@ -308,7 +308,7 @@ it(
   'exits 1 with a message when no server listens',
   async () => {
     const directory = await temporaryDirectory();
-    const socketPath = join(directory, 'run', 'phi.sock');
+    const socketPath = join(directory, 'run', 'koja.sock');
     const failed = await runCli(['workspace', 'list', '--socket', socketPath], directory);
 
     expect(failed.exitCode).toBe(1);

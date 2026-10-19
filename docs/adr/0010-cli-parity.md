@@ -6,7 +6,7 @@
 
 ## Context
 
-Coding agents run in Phi's panes, and they should be able to drive the whole Phi experience, not
+Coding agents run in Koja's panes, and they should be able to drive the whole Koja experience, not
 only the shell inside one pane. An agent works through commands and text output. It cannot press
 keys in the client or read what the client draws.
 
@@ -43,7 +43,7 @@ and the CLI stay equal by rule, and an agent can use any feature from a shell.
 ### Positive
 
 - An agent can do anything a user can do in the UI, from any shell.
-- The CLI gives scripts and tests a way to drive Phi without a client.
+- The CLI gives scripts and tests a way to drive Koja without a client.
 - Keeping behavior in server intents keeps it out of the UI, which supports
   [ADR 0005](./0005-opentui-react-ui.md).
 

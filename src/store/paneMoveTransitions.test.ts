@@ -6,7 +6,7 @@ import type { Change, Intent, State } from './store.ts';
 import {
   attachLarge,
   createDocs,
-  createPhi,
+  createKoja,
   createTab,
   defined,
   fact,
@@ -35,7 +35,7 @@ const refusalOf = (state: State, next: Intent) => {
 };
 
 it('moves the only pane of a tab to another tab and keeps its identity', () => {
-  const state = run([attachLarge, createPhi, createTab]);
+  const state = run([attachLarge, createKoja, createTab]);
   const before = paneOf(state, 1);
   const result = intent(state, move(1, toTab(2)));
   const moved = paneOf(result.state, 1);
@@ -51,7 +51,7 @@ it('moves the only pane of a tab to another tab and keeps its identity', () => {
 });
 
 it('splits next to the focused pane of the destination tab and focuses the moved pane', () => {
-  const state = run([attachLarge, createPhi, splitFirst('right'), createTab]);
+  const state = run([attachLarge, createKoja, splitFirst('right'), createTab]);
   const result = intent(state, move(3, toTab(1)));
   const destination = result.state.tabs.find((tab) => tab.id === tabId(1));
 
@@ -69,7 +69,7 @@ it('splits next to the focused pane of the destination tab and focuses the moved
 });
 
 it('moves a pane to a new tab of its workspace and repairs the source tab', () => {
-  const state = run([attachLarge, createPhi, splitFirst('right')]);
+  const state = run([attachLarge, createKoja, splitFirst('right')]);
   const result = intent(state, move(2, { kind: 'newTab' }));
   const source = result.state.tabs.find((tab) => tab.id === tabId(1));
   const created = result.state.tabs.find((tab) => tab.id === tabId(2));
@@ -90,7 +90,7 @@ it('moves a pane to a new tab of its workspace and repairs the source tab', () =
 });
 
 it('moves a pane to a new workspace and focuses it', () => {
-  const state = run([attachLarge, createPhi, splitFirst('below')]);
+  const state = run([attachLarge, createKoja, splitFirst('below')]);
   const result = intent(state, move(2, { kind: 'newWorkspace', root: '/work/moved' }));
 
   expect(result.state.workspaces.map((workspace) => workspace.id)).toEqual([
@@ -113,7 +113,7 @@ it('moves a pane to a new workspace and focuses it', () => {
 });
 
 it('closes the source workspace when the move empties it', () => {
-  const state = run([attachLarge, createPhi, createDocs]);
+  const state = run([attachLarge, createKoja, createDocs]);
   const result = intent(state, move(2, toTab(1)));
 
   expect(result.state.workspaces.map((workspace) => workspace.id)).toEqual([workspaceId(1)]);
@@ -131,7 +131,7 @@ it('closes the source workspace when the move empties it', () => {
 });
 
 it('refuses an unknown pane, an unknown tab, and the pane own tab', () => {
-  const state = run([attachLarge, createPhi, createTab]);
+  const state = run([attachLarge, createKoja, createTab]);
 
   expect(refusalOf(state, move(9, toTab(1)))).toBe('unknownPane');
   expect(refusalOf(state, move(1, toTab(9)))).toBe('unknownTab');
@@ -140,20 +140,20 @@ it('refuses an unknown pane, an unknown tab, and the pane own tab', () => {
 
 it('refuses a split target that is too small', () => {
   const tiny: Intent = { type: 'attachClient', size: { columns: 2, rows: 3 } };
-  const state = run([tiny, createPhi, createTab]);
+  const state = run([tiny, createKoja, createTab]);
 
   expect(refusalOf(state, move(1, toTab(2)))).toBe('paneTooSmall');
 });
 
 it('refuses a move while the server stops', () => {
-  const state = run([attachLarge, createPhi, createTab, { type: 'stopServer' }]);
+  const state = run([attachLarge, createKoja, createTab, { type: 'stopServer' }]);
 
   expect(refusalOf(state, move(1, toTab(2)))).toBe('serverStopping');
 });
 
 it('does not bring the destination zoom back when a moved running pane closes', () => {
   const closeThird: Intent = { type: 'closePane', paneId: paneId(3) };
-  const base = run([attachLarge, createPhi, splitFirst('right'), createTab, zoom(1)]);
+  const base = run([attachLarge, createKoja, splitFirst('right'), createTab, zoom(1)]);
   const running = fact(base, { type: 'paneStarted', paneId: paneId(3), generation: 3 }).state;
   const moved = intent(running, move(3, toTab(1))).state;
   const closed = intent(moved, closeThird).state;
@@ -164,7 +164,7 @@ it('does not bring the destination zoom back when a moved running pane closes', 
 });
 
 it('does not bring the destination zoom back when a moved running pane exits', () => {
-  const base = run([attachLarge, createPhi, splitFirst('right'), createTab, zoom(1)]);
+  const base = run([attachLarge, createKoja, splitFirst('right'), createTab, zoom(1)]);
   const running = fact(base, { type: 'paneStarted', paneId: paneId(3), generation: 3 }).state;
   const moved = intent(running, move(3, toTab(1))).state;
   const exited = fact(moved, { type: 'paneExited', paneId: paneId(3), generation: 3, exitCode: 0 });
@@ -176,7 +176,7 @@ it('does not bring the destination zoom back when a moved running pane exits', (
 const tabOf = (state: State, id: number) => state.tabs.find((tab) => tab.id === tabId(id));
 
 it('moves only the pane it names', () => {
-  const state = run([attachLarge, createPhi, splitFirst('right'), createTab]);
+  const state = run([attachLarge, createKoja, splitFirst('right'), createTab]);
   const result = intent(state, move(3, toTab(1)));
 
   expect(result.state.panes.map((pane) => pane.tabId)).toEqual([tabId(1), tabId(1), tabId(1)]);
@@ -187,7 +187,7 @@ it('moves only the pane it names', () => {
 });
 
 it('adds the new tab only to the workspace of the pane', () => {
-  const state = run([attachLarge, createPhi, splitFirst('right'), createDocs]);
+  const state = run([attachLarge, createKoja, splitFirst('right'), createDocs]);
   const result = intent(state, move(2, { kind: 'newTab' }));
 
   expect(result.state.workspaces.map((workspace) => workspace.tabIds)).toEqual([
@@ -197,7 +197,7 @@ it('adds the new tab only to the workspace of the pane', () => {
 });
 
 it('reports the layout, focus, and move of a pane that joins a tab', () => {
-  const state = run([attachLarge, createPhi, splitFirst('right'), createTab]);
+  const state = run([attachLarge, createKoja, splitFirst('right'), createTab]);
   const result = intent(state, move(3, toTab(1)));
   const destination = tabOf(result.state, 1);
 
@@ -218,7 +218,7 @@ it('reports the layout, focus, and move of a pane that joins a tab', () => {
 });
 
 it('reports the new tab and the move of a pane that leaves for a new tab', () => {
-  const state = run([attachLarge, createPhi, splitFirst('right')]);
+  const state = run([attachLarge, createKoja, splitFirst('right')]);
   const result = intent(state, move(2, { kind: 'newTab' }));
   const created = tabOf(result.state, 2);
 
@@ -227,7 +227,7 @@ it('reports the new tab and the move of a pane that leaves for a new tab', () =>
 });
 
 it('adds a workspace with its tab, counters, and changes when a pane moves to a new workspace', () => {
-  const state = run([attachLarge, createPhi, splitFirst('below')]);
+  const state = run([attachLarge, createKoja, splitFirst('below')]);
   const result = intent(state, move(2, { kind: 'newWorkspace', root: '/work/moved' }));
   const created = tabOf(result.state, 2);
 
@@ -247,7 +247,7 @@ it('adds a workspace with its tab, counters, and changes when a pane moves to a 
 });
 
 it('drops the split record of a moved pane', () => {
-  const state = run([attachLarge, createPhi, splitFirst('right')]);
+  const state = run([attachLarge, createKoja, splitFirst('right')]);
   const result = intent(state, move(2, { kind: 'newTab' }));
 
   expect(state.stateBeforeSplit.has(paneId(2))).toBe(true);
@@ -255,7 +255,7 @@ it('drops the split record of a moved pane', () => {
 });
 
 it('restores the destination focus and zoom when a moved starting pane fails to start', () => {
-  const state = run([attachLarge, createPhi, splitFirst('right'), zoom(1), createTab]);
+  const state = run([attachLarge, createKoja, splitFirst('right'), zoom(1), createTab]);
   const moved = intent(state, move(3, toTab(1))).state;
 
   const result = fact(moved, {
@@ -275,7 +275,7 @@ it('refuses a move when the focused pane of the destination is too small', () =>
 
   const state = run([
     small,
-    createPhi,
+    createKoja,
     splitFirst('right'),
     { type: 'splitPane', paneId: paneId(2), direction: 'below', folder: undefined },
     { type: 'splitPane', paneId: paneId(3), direction: 'right', folder: undefined },
@@ -289,7 +289,7 @@ it('refuses a move when the focused pane of the destination is too small', () =>
 const threePaneTab = (...more: readonly Intent[]) =>
   run([
     attachLarge,
-    createPhi,
+    createKoja,
     splitFirst('right'),
     { type: 'splitPane', paneId: paneId(2), direction: 'below', folder: undefined },
     ...more,

@@ -15,8 +15,8 @@ const workspaceListSchema = z.array(z.object({ id: z.string(), root: z.string() 
 
 const processInfoSchema = z.object({ shell_pid: z.number() });
 
-const latestCount = async (phi: PaneSetup['phi'], pane: string): Promise<number> => {
-  const read = await readJson(phi, pane, '--source', 'visible');
+const latestCount = async (koja: PaneSetup['koja'], pane: string): Promise<number> => {
+  const read = await readJson(koja, pane, '--source', 'visible');
 
   const counts = read.lines.flatMap((line) => {
     const match = /^count (\d+)$/.exec(line);
@@ -27,16 +27,16 @@ const latestCount = async (phi: PaneSetup['phi'], pane: string): Promise<number>
   return Math.max(-1, ...counts);
 };
 
-const expectKeepsCounting = async (phi: PaneSetup['phi'], pane: string): Promise<void> => {
+const expectKeepsCounting = async (koja: PaneSetup['koja'], pane: string): Promise<void> => {
   const before = await pollUntil(
-    () => latestCount(phi, pane),
+    () => latestCount(koja, pane),
     (count) => count >= 0,
   );
 
   expect(before).toBeGreaterThanOrEqual(0);
 
   const after = await pollUntil(
-    () => latestCount(phi, pane),
+    () => latestCount(koja, pane),
     (count) => count > before,
   );
 
@@ -48,7 +48,7 @@ const createWorkspace = async (setupResult: PaneSetup, name: string): Promise<vo
 
   await mkdir(folder);
 
-  const created = await setupResult.phi('workspace', 'create', folder, '--json');
+  const created = await setupResult.koja('workspace', 'create', folder, '--json');
 
   expect({ exitCode: created.exitCode, stderr: created.stderr }).toEqual({
     exitCode: 0,
@@ -56,8 +56,8 @@ const createWorkspace = async (setupResult: PaneSetup, name: string): Promise<vo
   });
 };
 
-const listWorkspaces = async (phi: PaneSetup['phi']) => {
-  const listed = await phi('workspace', 'list', '--json');
+const listWorkspaces = async (koja: PaneSetup['koja']) => {
+  const listed = await koja('workspace', 'list', '--json');
 
   expect(listed.exitCode).toBe(0);
 
@@ -67,7 +67,7 @@ const listWorkspaces = async (phi: PaneSetup['phi']) => {
 it(
   'moves a running pane into a new tab and keeps its output arriving under the same id',
   async () => {
-    const { phi, list, act, first } = await setup(counterShell);
+    const { koja, list, act, first } = await setup(counterShell);
     const [before] = await list();
 
     expect(await act('move', first, '--new-tab')).toBe(first);
@@ -79,7 +79,7 @@ it(
     expect(moved?.workspace).toBe(before?.workspace);
     expect(moved?.focused).toBe(true);
 
-    await expectKeepsCounting(phi, first);
+    await expectKeepsCounting(koja, first);
   },
   cliTestTimeoutMs,
 );
@@ -87,13 +87,13 @@ it(
 it(
   'moves a running pane into another tab and keeps its output arriving under the same id',
   async () => {
-    const { phi, list, first } = await setup(counterShell);
-    const created = await phi('tab', 'create', '--json');
+    const { koja, list, first } = await setup(counterShell);
+    const created = await koja('tab', 'create', '--json');
 
     expect(created.exitCode).toBe(0);
 
     const { tab } = z.object({ tab: z.string() }).parse(JSON.parse(created.stdout));
-    const moved = await phi('pane', 'move', first, '--tab', tab, '--json');
+    const moved = await koja('pane', 'move', first, '--tab', tab, '--json');
 
     expect({ exitCode: moved.exitCode, stderr: moved.stderr }).toEqual({
       exitCode: 0,
@@ -107,7 +107,7 @@ it(
     expect(panes.find((pane) => pane.id === first)?.tab).toBe(tab);
     expect(panes.filter((pane) => pane.tab === tab)).toHaveLength(2);
 
-    await expectKeepsCounting(phi, first);
+    await expectKeepsCounting(koja, first);
   },
   cliTestTimeoutMs,
 );
@@ -115,7 +115,7 @@ it(
 it(
   'moves a running pane into a new workspace rooted at its folder',
   async () => {
-    const { phi, list, act, first } = await setup(counterShell);
+    const { koja, list, act, first } = await setup(counterShell);
     const [before] = await list();
 
     await act('split', first, '--direction', 'below');
@@ -124,7 +124,7 @@ it(
 
     const after = await list();
     const moved = after.find((pane) => pane.id === first);
-    const workspaces = await listWorkspaces(phi);
+    const workspaces = await listWorkspaces(koja);
 
     expect(moved?.workspace).not.toBe(before?.workspace);
     expect(workspaces).toHaveLength(2);
@@ -133,36 +133,36 @@ it(
       before?.cwd ?? '',
     );
 
-    await expectKeepsCounting(phi, first);
+    await expectKeepsCounting(koja, first);
   },
   cliTestTimeoutMs,
 );
 
 it(
-  'shows the moved shell its own screen when it reads its pane through PHI_PANE_ID',
+  'shows the moved shell its own screen when it reads its pane through KOJA_PANE_ID',
   async () => {
     const harness = await setup();
-    const { phi, list, first, directory } = harness;
+    const { koja, list, first, directory } = harness;
 
     await createWorkspace(harness, 'other');
 
     const panes = await list();
     const other = panes.find((pane) => pane.id !== first);
 
-    expect((await phi('pane', 'send', 'echo marker-first\n', '--pane', first)).exitCode).toBe(0);
+    expect((await koja('pane', 'send', 'echo marker-first\n', '--pane', first)).exitCode).toBe(0);
 
     expect(
-      (await phi('pane', 'send', 'echo marker-other\n', '--pane', other?.id ?? '')).exitCode,
+      (await koja('pane', 'send', 'echo marker-other\n', '--pane', other?.id ?? '')).exitCode,
     ).toBe(0);
 
-    const moved = await phi('pane', 'move', first, '--tab', other?.tab ?? '');
+    const moved = await koja('pane', 'move', first, '--tab', other?.tab ?? '');
 
     expect(moved.exitCode).toBe(0);
 
     const output = join(directory, 'read.json');
-    const command = `bun "$PHI_BIN_PATH" pane read "$PHI_PANE_ID" --json > ${output}.tmp && mv ${output}.tmp ${output}\n`;
+    const command = `bun "$KOJA_BIN_PATH" pane read "$KOJA_PANE_ID" --json > ${output}.tmp && mv ${output}.tmp ${output}\n`;
 
-    expect((await phi('pane', 'send', command, '--pane', first)).exitCode).toBe(0);
+    expect((await koja('pane', 'send', command, '--pane', first)).exitCode).toBe(0);
 
     const read = await pollUntil(
       async () => readFile(output, 'utf8').catch(() => ''),
@@ -184,51 +184,51 @@ it(
   'removes the workspace of the only pane that moves out, and ends the pane with the server',
   async () => {
     const harness = await setup(counterShell);
-    const { phi, list, first } = harness;
+    const { koja, list, first } = harness;
     const [source] = await list();
 
     await createWorkspace(harness, 'other');
 
     const panes = await list();
     const other = panes.find((pane) => pane.id !== first);
-    const moved = await phi('pane', 'move', first, '--tab', other?.tab ?? '');
+    const moved = await koja('pane', 'move', first, '--tab', other?.tab ?? '');
 
     expect(moved.exitCode).toBe(0);
 
-    const workspaces = await listWorkspaces(phi);
+    const workspaces = await listWorkspaces(koja);
 
     expect(workspaces.map((workspace) => workspace.id)).not.toContain(source?.workspace);
     expect(workspaces).toHaveLength(1);
 
-    const info = await phi('pane', 'process-info', first, '--json');
+    const info = await koja('pane', 'process-info', first, '--json');
     const { shell_pid: shellPid } = processInfoSchema.parse(JSON.parse(info.stdout));
 
     expect(isRunning(shellPid)).toBe(true);
-    expect((await phi('server', 'stop')).exitCode).toBe(0);
+    expect((await koja('server', 'stop')).exitCode).toBe(0);
     expect(await waitFor(() => !isRunning(shellPid))).toBe(true);
   },
   cliTestTimeoutMs,
 );
 
-const structureOf = async (phi: PaneSetup['phi'], list: PaneSetup['list']) => {
-  const tabs = await phi('tab', 'list', '--json');
+const structureOf = async (koja: PaneSetup['koja'], list: PaneSetup['list']) => {
+  const tabs = await koja('tab', 'list', '--json');
 
   expect(tabs.exitCode).toBe(0);
 
-  return { panes: await list(), tabs: tabs.stdout, workspaces: await listWorkspaces(phi) };
+  return { panes: await list(), tabs: tabs.stdout, workspaces: await listWorkspaces(koja) };
 };
 
 it(
   'refuses a move into the tab the pane is already in and changes nothing',
   async () => {
-    const { phi, list, first } = await setup();
+    const { koja, list, first } = await setup();
     const [pane] = await list();
-    const before = await structureOf(phi, list);
-    const same = await phi('pane', 'move', first, '--tab', pane?.tab ?? '');
+    const before = await structureOf(koja, list);
+    const same = await koja('pane', 'move', first, '--tab', pane?.tab ?? '');
 
     expect(same.exitCode).not.toBe(0);
     expect(same.stderr).toContain('already in');
-    expect(await structureOf(phi, list)).toEqual(before);
+    expect(await structureOf(koja, list)).toEqual(before);
   },
   cliTestTimeoutMs,
 );
@@ -236,13 +236,13 @@ it(
 it(
   'refuses a move of an unknown pane and changes nothing',
   async () => {
-    const { phi, list } = await setup();
-    const before = await structureOf(phi, list);
-    const missing = await phi('pane', 'move', 'pane-99', '--new-tab');
+    const { koja, list } = await setup();
+    const before = await structureOf(koja, list);
+    const missing = await koja('pane', 'move', 'pane-99', '--new-tab');
 
     expect(missing.exitCode).not.toBe(0);
     expect(missing.stderr).toContain('There is no pane pane-99.');
-    expect(await structureOf(phi, list)).toEqual(before);
+    expect(await structureOf(koja, list)).toEqual(before);
   },
   cliTestTimeoutMs,
 );

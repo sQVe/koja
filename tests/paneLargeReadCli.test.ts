@@ -56,8 +56,8 @@ const connectLargeTerminal = async (
 it(
   'reads the whole visible screen of a pane too large for one reply',
   async () => {
-    const { directory, phi, list, first } = await setup();
-    const socketPath = join(directory, 'run', 'phi.sock');
+    const { directory, koja, list, first } = await setup();
+    const socketPath = join(directory, 'run', 'koja.sock');
 
     await connectLargeTerminal(socketPath, { columns: 340, rows: 131 });
 
@@ -74,19 +74,19 @@ it(
     expect(columns).toBeGreaterThanOrEqual(300);
     expect(rowWords(columns) * 4 * rows).toBeGreaterThan(512 * 1024);
 
-    const sent = await phi('pane', 'send', "seq 1 400 | sed 's/^/v/'; printf done\n");
+    const sent = await koja('pane', 'send', "seq 1 400 | sed 's/^/v/'; printf done\n");
 
     expect(sent.exitCode).toBe(0);
-    await waitForText(phi, first, 'done');
+    await waitForText(koja, first, 'done');
 
-    const full = await readJson(phi, first, '--source', 'visible');
+    const full = await readJson(koja, first, '--source', 'visible');
 
     expect(full.lines).toHaveLength(rows);
     expect(full.lines.at(-1)).toBe('done');
     expect(full.lines.at(-2)).toBe('v400');
     expect(full.to).toBe((full.from ?? 0) + rows - 1);
 
-    const counted = await readJson(phi, first, '--source', 'visible', '--lines', '120');
+    const counted = await readJson(koja, first, '--source', 'visible', '--lines', '120');
 
     expect(counted.lines).toEqual(full.lines.slice(-120));
   },
@@ -96,9 +96,9 @@ it(
 it(
   'reads every row of a visible screen taller than one reply, and clamps a count to 1000',
   async () => {
-    const { directory, phi, list, first } = await setup();
+    const { directory, koja, list, first } = await setup();
 
-    await connectLargeTerminal(join(directory, 'run', 'phi.sock'), { columns: 100, rows: 1006 });
+    await connectLargeTerminal(join(directory, 'run', 'koja.sock'), { columns: 100, rows: 1006 });
 
     let pane = (await list())[0];
 
@@ -109,18 +109,18 @@ it(
 
     expect(pane?.rows).toBe(1005);
 
-    const sent = await phi('pane', 'send', "printf '\\033[2J\\033[H'; seq 1 1004; printf done\n");
+    const sent = await koja('pane', 'send', "printf '\\033[2J\\033[H'; seq 1 1004; printf done\n");
 
     expect(sent.exitCode).toBe(0);
-    await waitForText(phi, first, 'done');
+    await waitForText(koja, first, 'done');
 
-    const full = await readJson(phi, first, '--source', 'visible');
+    const full = await readJson(koja, first, '--source', 'visible');
 
     expect(full.lines.slice(0, 3)).toEqual(['1', '2', '3']);
     expect(full.lines.at(-1)).toBe('done');
     expect(full.to).toBe((full.from ?? 0) + 1004);
 
-    const counted = await readJson(phi, first, '--source', 'visible', '--lines', '2000');
+    const counted = await readJson(koja, first, '--source', 'visible', '--lines', '2000');
 
     expect(counted.lines).toHaveLength(1000);
     expect(counted.lines.at(-1)).toBe('done');
@@ -222,8 +222,8 @@ const holdFirstPage = async (upstreamPath: string, proxyPath: string) => {
 // Starts a visible read of a pane too large for one reply through a proxy that holds its first
 // part, runs the pane's switching steps, and returns the finished read.
 const readAcrossSwitch = async (switchSteps: string[], waitFor: string) => {
-  const { directory, phi, list, first } = await setup();
-  const socketPath = join(directory, 'run', 'phi.sock');
+  const { directory, koja, list, first } = await setup();
+  const socketPath = join(directory, 'run', 'koja.sock');
 
   await connectLargeTerminal(socketPath, { columns: 340, rows: 131 });
 
@@ -242,8 +242,8 @@ const readAcrossSwitch = async (switchSteps: string[], waitFor: string) => {
     ...switchSteps,
   ].join('; ');
 
-  expect((await phi('pane', 'send', `${script}\n`)).exitCode).toBe(0);
-  await waitForText(phi, first, 'ready');
+  expect((await koja('pane', 'send', `${script}\n`)).exitCode).toBe(0);
+  await waitForText(koja, first, 'ready');
 
   const proxyPath = join(directory, 'proxy.sock');
   const proxy = await holdFirstPage(socketPath, proxyPath);
@@ -256,7 +256,7 @@ const readAcrossSwitch = async (switchSteps: string[], waitFor: string) => {
 
   await proxy.held;
   await writeFile(join(directory, 'work', 'switch'), '');
-  await waitForText(phi, first, waitFor);
+  await waitForText(koja, first, waitFor);
   proxy.release();
 
   return read;
@@ -305,7 +305,7 @@ it(
 const largePane = async (columns: number, rows: number) => {
   const harness = await setup();
 
-  await connectLargeTerminal(join(harness.directory, 'run', 'phi.sock'), { columns, rows });
+  await connectLargeTerminal(join(harness.directory, 'run', 'koja.sock'), { columns, rows });
 
   let pane = (await harness.list())[0];
 
@@ -320,24 +320,24 @@ const largePane = async (columns: number, rows: number) => {
 it(
   'returns every row of a read that needs several parts once, joining a wrapped line across the part edges',
   async () => {
-    const { phi, first } = await largePane(340, 131);
+    const { koja, first } = await largePane(340, 131);
 
-    const sent = await phi(
+    const sent = await koja(
       'pane',
       'send',
       "printf '\\033[2J\\033[H'; head -c 51000 /dev/zero | tr '\\0' x; printf '\\nsecond\\n'; printf done\n",
     );
 
     expect(sent.exitCode).toBe(0);
-    await waitForText(phi, first, 'done');
+    await waitForText(koja, first, 'done');
 
-    const unwrapped = await readJson(phi, first, '--source', 'recent-unwrapped', '--lines', '200');
+    const unwrapped = await readJson(koja, first, '--source', 'recent-unwrapped', '--lines', '200');
 
     expect(unwrapped.lines).toHaveLength(3);
     expect(unwrapped.lines[0]).toBe('x'.repeat(51_000));
     expect(unwrapped.lines.slice(1)).toEqual(['second', 'done']);
 
-    const rows = await readJson(phi, first, '--source', 'recent', '--lines', '200');
+    const rows = await readJson(koja, first, '--source', 'recent', '--lines', '200');
 
     expect(rows.lines.length).toBeGreaterThan(150);
     expect(rows.lines.join('')).toBe(`${'x'.repeat(51_000)}seconddone`);
@@ -349,7 +349,7 @@ it(
 it(
   'pages a read larger than one snapshot by range and fails without output when the screen changes',
   async () => {
-    const { directory, phi, first } = await largePane(1100, 40);
+    const { directory, koja, first } = await largePane(1100, 40);
 
     const script = [
       "printf '\\033[2J\\033[H'",
@@ -359,13 +359,13 @@ it(
       "printf '\\033[?1049h\\033[HAGAIN'",
     ].join('; ');
 
-    expect((await phi('pane', 'send', `${script}\n`)).exitCode).toBe(0);
-    await waitForText(phi, first, 'ready');
+    expect((await koja('pane', 'send', `${script}\n`)).exitCode).toBe(0);
+    await waitForText(koja, first, 'ready');
 
-    const kept = await readJson(phi, first, '--lines', '1');
+    const kept = await readJson(koja, first, '--lines', '1');
     const last = kept.to ?? 0;
     const proxyPath = join(directory, 'proxy.sock');
-    const proxy = await holdFirstPage(join(directory, 'run', 'phi.sock'), proxyPath);
+    const proxy = await holdFirstPage(join(directory, 'run', 'koja.sock'), proxyPath);
 
     const read = runCli(
       [
@@ -385,7 +385,7 @@ it(
 
     await proxy.held;
     await writeFile(join(directory, 'work', 'switch'), '');
-    await waitForText(phi, first, 'AGAIN');
+    await waitForText(koja, first, 'AGAIN');
     proxy.release();
 
     const result = await read;

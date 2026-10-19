@@ -9,9 +9,9 @@ const serverActions = ['run', 'start', 'stop'] as const;
 
 type ServerAction = (typeof serverActions)[number];
 
-export const serverUsage = `  phi server run [--socket <path>] [--json]
-  phi server start [--socket <path>] [--json]
-  phi server stop [--socket <path>] [--json]`;
+export const serverUsage = `  koja server run [--socket <path>] [--json]
+  koja server start [--socket <path>] [--json]
+  koja server stop [--socket <path>] [--json]`;
 
 const isServerAction = (action: string | undefined): action is ServerAction =>
   serverActions.some((serverAction) => serverAction === action);

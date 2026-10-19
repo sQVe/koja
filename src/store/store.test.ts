@@ -13,7 +13,7 @@ import {
 import {
   attachedEmpty,
   createDocs,
-  createPhi,
+  createKoja,
   createTab,
   intent,
   noFolders,
@@ -26,7 +26,7 @@ import {
 } from './storeFixtures.ts';
 
 it('raises the revision by one per change, and snapshots the last revision', () => {
-  const started = intent(createState(), createPhi).state;
+  const started = intent(createState(), createKoja).state;
 
   const refused = applyIntent(started, {
     type: 'closeWorkspace',
@@ -53,7 +53,7 @@ it('raises the revision by one per change, and snapshots the last revision', () 
 });
 
 it('saves the default view through the workspace fields and no client', () => {
-  const state = twoClients(createPhi, createDocs);
+  const state = twoClients(createKoja, createDocs);
 
   const moved = intent(state, {
     type: 'focusTab',
@@ -97,7 +97,7 @@ it('saves a folder that was read, and keeps the restored folder for a pane with 
 });
 
 it('finds the focused pane of the tab the source client shows, or the default view shows', () => {
-  const state = withViews(twoClients(createPhi, createTab), [
+  const state = withViews(twoClients(createKoja, createTab), [
     viewShowing(1, [[1, 1]]),
     viewShowing(1, [[1, 2]]),
     viewShowing(1, [[1, 1]]),
@@ -109,7 +109,7 @@ it('finds the focused pane of the tab the source client shows, or the default vi
 });
 
 it('finds no focused pane for an unknown workspace', () => {
-  const state = run([createPhi]);
+  const state = run([createKoja]);
 
   expect(shownFocusedPaneId(state, unknownWorkspace, undefined)).toBeUndefined();
 });
@@ -119,7 +119,7 @@ it('finds no focused pane in a state without workspaces', () => {
 });
 
 it('finds no focused pane when the default view shows no tab', () => {
-  const state = run([createPhi]);
+  const state = run([createKoja]);
   const lost = { ...state.defaultView, focusedWorkspaceId: unknownWorkspace };
 
   expect(focusedPane({ ...state, defaultView: lost })).toBeUndefined();

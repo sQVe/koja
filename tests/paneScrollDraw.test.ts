@@ -32,7 +32,7 @@ const history = 'seq 1 5000 | sed \'s/^/a/\'\nwhile read line; do echo "out $lin
 // Attaches in this process and draws the panes of the attached client into a test renderer.
 const attachAndDraw = async (directory: string) => {
   const result = await connectAttach(
-    join(directory, 'run', 'phi.sock'),
+    join(directory, 'run', 'koja.sock'),
     buildVersion(),
     terminalSize,
   );
@@ -94,12 +94,12 @@ const attachAndDraw = async (directory: string) => {
 it(
   'draws the oldest row of a pane scrolled to the top, and the newest at the bottom',
   async () => {
-    const { directory, phi, first } = await setup(history);
+    const { directory, koja, first } = await setup(history);
     const { until } = await attachAndDraw(directory);
 
     await until((rows) => rows.includes('a5000'));
 
-    const scrolled = await phi('pane', 'scroll', first, '--to', 'top');
+    const scrolled = await koja('pane', 'scroll', first, '--to', 'top');
 
     expect(scrolled.exitCode).toBe(0);
 
@@ -107,7 +107,7 @@ it(
 
     expect(top.slice(0, 3)).toEqual(['a1', 'a2', 'a3']);
 
-    const followed = await phi('pane', 'scroll', first, '--to', 'bottom');
+    const followed = await koja('pane', 'scroll', first, '--to', 'bottom');
 
     expect(followed.exitCode).toBe(0);
     await until((rows) => rows.includes('a5000'));
@@ -118,7 +118,7 @@ it(
 it(
   'draws history rows the same when fetched from the server and when read from the cache',
   async () => {
-    const { directory, phi, first } = await setup(history);
+    const { directory, koja, first } = await setup(history);
     const { session, until } = await attachAndDraw(directory);
 
     await until((rows) => rows.includes('a5000'));
@@ -127,18 +127,18 @@ it(
 
     expect(cache?.rowAt(2000)).toBeUndefined();
 
-    await phi('pane', 'scroll', first, '--to', '2000');
+    await koja('pane', 'scroll', first, '--to', '2000');
 
     const fetched = await until((rows) => rows[0] === 'a2001');
 
     expect(cache?.rowAt(2000)).toBeDefined();
 
-    await phi('pane', 'scroll', first, '--to', 'bottom');
+    await koja('pane', 'scroll', first, '--to', 'bottom');
     await until((rows) => rows.includes('a5000'));
 
     const heldRows = cache?.heldRowCount();
 
-    await phi('pane', 'scroll', first, '--to', '2000');
+    await koja('pane', 'scroll', first, '--to', '2000');
 
     const cached = await until((rows) => rows[0] === 'a2001');
 
@@ -151,7 +151,7 @@ it(
 it(
   'keeps the drawn rows while output arrives in scrolled history, and follows output at the bottom',
   async () => {
-    const { directory, phi, first } = await setup(history);
+    const { directory, koja, first } = await setup(history);
     const { session, until } = await attachAndDraw(directory);
 
     await until((rows) => rows.includes('a5000'));
@@ -159,16 +159,16 @@ it(
     const cache = session.rowCache(paneId(Number(first.slice('pane-'.length))));
     const before = cache?.bounds()?.activeTop ?? 0;
 
-    await phi('pane', 'scroll', first, '--to', '1000');
+    await koja('pane', 'scroll', first, '--to', '1000');
 
     const scrolled = await until((rows) => rows[0] === 'a1001');
 
-    await phi('pane', 'send', 'later\n', '--pane', first);
+    await koja('pane', 'send', 'later\n', '--pane', first);
     await until(() => (cache?.bounds()?.activeTop ?? 0) > before);
 
     expect(await until(() => true)).toEqual(scrolled);
 
-    await phi('pane', 'scroll', first, '--to', 'bottom');
+    await koja('pane', 'scroll', first, '--to', 'bottom');
     await until((rows) => rows.includes('out later'));
   },
   cliTestTimeoutMs,
@@ -187,7 +187,7 @@ printf '\\r\\033[2Knew\\n'
 seq 1 60 | sed 's/^/n/'
 read more`;
 
-    const { directory, phi, first } = await setup(body);
+    const { directory, koja, first } = await setup(body);
     const shown = await attachAndDraw(directory);
 
     await shown.until((rows) => rows[0] === 'old');
@@ -196,11 +196,11 @@ read more`;
 
     session.focusTab({ kind: 'create' });
     await until((rows) => rows[0] === 'other');
-    await phi('pane', 'send', '\n', '--pane', first);
-    await waitForText(phi, first, 'n60');
+    await koja('pane', 'send', '\n', '--pane', first);
+    await waitForText(koja, first, 'n60');
     session.focusTab({ kind: 'number', number: 1 });
     await until((rows) => rows.includes('n60'));
-    await phi('pane', 'scroll', first, '--to', 'top');
+    await koja('pane', 'scroll', first, '--to', 'top');
 
     await until((rows) => {
       return rows[0] === 'new';

@@ -16,7 +16,7 @@ const effectRules = ['eslint(no-restricted-imports)', 'eslint(no-restricted-prop
 it.each(['lint', 'style:check'])(
   'refuses React effects through %s',
   async (script) => {
-    const directory = await mkdtemp(join(tmpdir(), 'phi-effects-'));
+    const directory = await mkdtemp(join(tmpdir(), 'koja-effects-'));
     onTestFinished(() => rm(directory, { recursive: true, force: true }));
 
     const fixtures: [string, string[], number][] = [

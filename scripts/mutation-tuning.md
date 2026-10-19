@@ -1,13 +1,13 @@
 # Mutation tuning note
 
-This note records how `stryker.config.json` was tuned for Phi. It lists the sample commits, the
+This note records how `stryker.config.json` was tuned for Koja. It lists the sample commits, the
 survivors of each commit, and the reason for each setting. Usage is in
 [the development guide](../docs/development.md#mutation-testing).
 
 ## Method
 
 For each commit, a detached worktree held the commit. The mutation scripts, `stryker.config.json`,
-and `bunfig.mutation.toml` were copied in, `build/libphi-vt.so` was built there, and `node_modules`
+and `bunfig.mutation.toml` were copied in, `build/libkoja-vt.so` was built there, and `node_modules`
 was a symlink to the main checkout. Each run was
 `bun scripts/mutation.ts changed <sha>~1 --max-mutants 5000`. The cap was raised because the
 script's default cap at the time, 500, left files unmutated on large commits, and an unmutated file
@@ -41,7 +41,7 @@ the pilot commit.
 | ------- | --------------------------------------------------------------- | ------- | ------ | -------- | ----------- | ------- | ----------------- | -------------- | ---------- | ----- |
 | 5d99475 | feat: forward the mouse to panes and click to focus (#59)       | 535     | 481    | 44       | 10          | 0       | 0                 | 40             | 14         | 0     |
 | f7a9779 | feat: forward pane bells and clipboard writes from panes (#60)  | 106     | 24     | 7        | 72          | 3       | 72                | 7              | 0          | 0     |
-| e4401f8 | feat: scroll pane history in Phi mode (#61)                     | 1664    | 1072   | 239      | 318         | 35      | 248               | 197            | 97         | 15    |
+| e4401f8 | feat: scroll pane history in Koja mode (#61)                    | 1664    | 1072   | 239      | 318         | 35      | 248               | 197            | 97         | 15    |
 | cf2c278 | feat: draw the remaining cell styles and the cursor shape (#63) | 81      | 56     | 23       | 2           | 0       | 0                 | 25             | 0          | 0     |
 | acbfad2 | feat: copy any range of pane history (#62)                      | 414     | 161    | 29       | 222         | 2       | 226               | 10             | 0          | 15    |
 | 119eae8 | feat: move panes between tabs and workspaces (#58)              | 445     | 230    | 59       | 156         | 0       | 153               | 48             | 4          | 10    |
@@ -64,7 +64,7 @@ ended with exit code 2, which means survivors in changed mode.
 
 Two earlier attempts at `5d99475` ended at the dry run and led to two settings below. The first
 failed in `src/server/rowPublisher.test.ts`, which waits on real time. The second failed because the
-`build/libphi-vt.so` of the current checkout did not match the old `src/vt/` code, so each worktree
+`build/libkoja-vt.so` of the current checkout did not match the old `src/vt/` code, so each worktree
 builds its own.
 
 ## What the survivors show
@@ -95,7 +95,7 @@ on pilot lines that disable comments silenced at the time. The `e4401f8` run cha
 1072 killed mutants. The sample runs take 6 to 45 s.
 
 The bunfig `pathIgnorePatterns` still apply to explicit file lists: the server folder ran 140 tests
-in 8 of its 11 test files. The large paste test still skips through `PHI_MUTATION`.
+in 8 of its 11 test files. The large paste test still skips through `KOJA_MUTATION`.
 
 ## Settings
 
@@ -105,16 +105,16 @@ in 8 of its 11 test files. The large paste test still skips through `PHI_MUTATIO
 | `coverageAnalysis: "perTest"`                                 | A mutant runs only the tests that reach it, and a line no test reaches is `NoCoverage`. Without it a run takes the whole suite per mutant.                                                                                                                                                                                                                                                                 |
 | One Stryker run per folder, `bun.testFiles` set by the script | The script groups the files in scope by folder and starts Stryker once per folder. `bun.testFiles` lists only the `*.test.ts` and `*.test.tsx` files directly in that folder, so a test in another folder can neither cover nor kill a mutant (ADR 0017). A folder with no unit test gets no run, and the script reports all its mutants as no coverage. Merged runs add about 1 s of start-up per folder. |
 | `bun.bunArgs: ["--config=bunfig.mutation.toml"]`              | The mutation bunfig adds `pathIgnorePatterns` for the tests of the four left-out modules. `bun test` still reads `bunfig.toml` and runs them. The runner keeps `pathIgnorePatterns` from the bunfig it reads.                                                                                                                                                                                              |
-| `bun.env: { PHI_MUTATION: "1" }`                              | `src/ui/inputTokens.test.ts` skips the large paste timing test when this is set. The test takes 1 s per mutant. `bun test` does not set it, so the test still runs there. `-t` filters are rejected by the runner.                                                                                                                                                                                         |
+| `bun.env: { KOJA_MUTATION: "1" }`                             | `src/ui/inputTokens.test.ts` skips the large paste timing test when this is set. The test takes 1 s per mutant. `bun test` does not set it, so the test still runs there. `-t` filters are rejected by the runner.                                                                                                                                                                                         |
 | `bun.timeout: 120000`                                         | Bounds only the dry run. The dry run of `src/` takes about 2 s. The runner warns above 80% of this value, so there is room under load.                                                                                                                                                                                                                                                                     |
 | `mutate`                                                      | `src/**/*.ts` and `src/**/*.tsx` without tests, minus `src/server/processInfo.ts`, `src/server/socketPath.ts`, `src/server/rowPublisher.ts`, and `src/client/clipboardWrite.ts`. Their tests start processes, open sockets, or wait on real time, so they are slow and fail under load.                                                                                                                    |
-| `tsconfigFile: "stryker-no-tsconfig.json"`                    | Stryker reads `tsconfig.json` with the `typescript` package, and TypeScript 7 has no `parseConfigFileTextToJson`, so a run stops with `ts.parseConfigFileTextToJson is not a function`. Naming a file that does not exist skips the read. The file is not created. Phi has no checker, so nothing needs the config.                                                                                        |
+| `tsconfigFile: "stryker-no-tsconfig.json"`                    | Stryker reads `tsconfig.json` with the `typescript` package, and TypeScript 7 has no `parseConfigFileTextToJson`, so a run stops with `ts.parseConfigFileTextToJson is not a function`. Naming a file that does not exist skips the read. The file is not created. Koja has no checker, so nothing needs the config.                                                                                       |
 | `checkers: []`                                                | No type checker. A checker needs the `typescript` package, which TypeScript 7 breaks for Stryker (see the `tsconfigFile` row).                                                                                                                                                                                                                                                                             |
 | `ignoreStatic: true`                                          | A static mutant lives in module-level code, which runs once at load. Stryker would run the whole suite for each of them. With the setting it ignores them, so the run is faster and the cap counts them anyway.                                                                                                                                                                                            |
-| `plugins` and `ignorers`                                      | Load the bun runner and `scripts/mutationIgnorer.ts`, and turn on `phiMessageIgnorer`. It skips the text of error messages, `invariant` messages, and the `error` of a failed result. That wording is not behavior.                                                                                                                                                                                        |
+| `plugins` and `ignorers`                                      | Load the bun runner and `scripts/mutationIgnorer.ts`, and turn on `kojaMessageIgnorer`. It skips the text of error messages, `invariant` messages, and the `error` of a failed result. That wording is not behavior.                                                                                                                                                                                       |
 | `timeoutMS: 2000`                                             | The pilot's loop mutants in `rowCache.ts` waited 10 s each. With this value `src/client/rowCache.ts` ends in 12 s with 10 timeouts. The runner kills a hung `bun test` shortly before the timeout.                                                                                                                                                                                                         |
 | `concurrency: 4`                                              | Four workers. Runs take seconds to about a minute at this value, so it was not tuned further.                                                                                                                                                                                                                                                                                                              |
-| `ignorePatterns`                                              | Leaves `.tau`, `docs`, `dist`, `coverage`, and `CHANGELOG.md` out of the sandbox. `build/` stays in, because the VT tests load `build/libphi-vt.so` from it. Run `bun run build:vt` first.                                                                                                                                                                                                                 |
+| `ignorePatterns`                                              | Leaves `.tau`, `docs`, `dist`, `coverage`, and `CHANGELOG.md` out of the sandbox. `build/` stays in, because the VT tests load `build/libkoja-vt.so` from it. Run `bun run build:vt` first.                                                                                                                                                                                                                |
 | `tempDirName: ".stryker-tmp"`, `cleanTempDir`                 | Keeps the sandbox inside the checkout. The folder is in `.gitignore`.                                                                                                                                                                                                                                                                                                                                      |
 | `fileLogLevel: "off"`                                         | Stryker writes `stryker.log` to the working directory otherwise. Its output goes to stderr.                                                                                                                                                                                                                                                                                                                |
 
@@ -128,15 +128,15 @@ in 8 of its 11 test files. The large paste test still skips through `PHI_MUTATIO
   column, and only the full range tells them apart.
 - The script starts Stryker with the runtime that runs the script, so `bun scripts/mutation.ts`
   needs no Node install.
-- The ignorer is named `phiMessageIgnorer`.
+- The ignorer is named `kojaMessageIgnorer`.
 
 ## TypeScript 7 and the runner peer dependency
 
-`@hughescr/stryker-bun-runner` declares the peer dependency `typescript <7`, and Phi uses TypeScript
-7.0.2. `bun add` prints `warn: incorrect peer dependency "typescript@7.0.2"`. Bun does not fail on
-it, and `bun install --frozen-lockfile` is silent and exits 0. Phi keeps TypeScript 7. The runner
-reads `typescript` only through Stryker's tsconfig step, which the `tsconfigFile` setting skips. npm
-would refuse this install with `ERESOLVE`, but Phi installs with Bun only.
+`@hughescr/stryker-bun-runner` declares the peer dependency `typescript <7`, and Koja uses
+TypeScript 7.0.2. `bun add` prints `warn: incorrect peer dependency "typescript@7.0.2"`. Bun does
+not fail on it, and `bun install --frozen-lockfile` is silent and exits 0. Koja keeps TypeScript 7.
+The runner reads `typescript` only through Stryker's tsconfig step, which the `tsconfigFile` setting
+skips. npm would refuse this install with `ERESOLVE`, but Koja installs with Bun only.
 
 ## Open points
 

@@ -5,7 +5,7 @@
 
 ## Context
 
-Phi checks changed lines with StrykerJS. Stryker runs tests for each mutant. The tests under
+Koja checks changed lines with StrykerJS. Stryker runs tests for each mutant. The tests under
 `tests/` start servers, open sockets, and spawn panes. On one machine they took 146 s, while the
 unit tests under `src/` took 2 s.
 

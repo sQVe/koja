@@ -121,10 +121,10 @@ const isDirectory = (path: string): boolean => {
 };
 
 const goneFolderMessage = (folder: string): string =>
-  `Saved folder ${folder} is unavailable. Restore the folder and restart the Phi server.`;
+  `Saved folder ${folder} is unavailable. Restore the folder and restart the Koja server.`;
 
 const savedShellMessage = (detail: string): string =>
-  `Could not start the saved shell: ${detail.replace(/\.$/, '')}. Fix the shell configuration and restart the Phi server.`;
+  `Could not start the saved shell: ${detail.replace(/\.$/, '')}. Fix the shell configuration and restart the Koja server.`;
 
 const execFailurePattern = /Failed to (?:execute|find executable)[^\n]*/;
 

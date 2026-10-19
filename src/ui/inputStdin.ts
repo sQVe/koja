@@ -6,7 +6,7 @@ import type { InputToken } from './inputTokens.ts';
 
 type StdinListener = (chunk: string | Buffer) => void;
 
-// The renderer's stdinListener is private in @opentui/core 0.5.17. Phi reads stdin itself so that
+// The renderer's stdinListener is private in @opentui/core 0.5.17. Koja reads stdin itself so that
 // OpenTUI's parser never sees a key or a paste: it splits Escape, Alt plus a multibyte character,
 // and keys cut across reads wrongly. OpenTUI's listener stays for terminal replies only.
 interface OpenTuiInternals {

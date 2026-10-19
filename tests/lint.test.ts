@@ -18,7 +18,7 @@ const root = fileURLToPath(new URL('../', import.meta.url));
 const unixFormat = ['--format', 'unix'];
 
 it('rejects lint warnings in project checks', async () => {
-  const directory = await mkdtemp(join(tmpdir(), 'phi-lint-'));
+  const directory = await mkdtemp(join(tmpdir(), 'koja-lint-'));
   onTestFinished(() => rm(directory, { recursive: true, force: true }));
 
   const fixture = join(directory, 'warning.js');
@@ -37,7 +37,7 @@ it('rejects lint warnings in project checks', async () => {
 }, 30_000);
 
 it('runs house style through the style command but not plain lint', async () => {
-  const directory = await mkdtemp(join(tmpdir(), 'phi-style-'));
+  const directory = await mkdtemp(join(tmpdir(), 'koja-style-'));
   onTestFinished(() => rm(directory, { recursive: true, force: true }));
 
   const fixture = join(directory, 'style.ts');
@@ -65,7 +65,7 @@ it('runs house style through the style command but not plain lint', async () => 
 it.each(['lint', 'style:check'])(
   'keeps imports inside module boundaries through %s',
   async (script) => {
-    const directory = await mkdtemp(join(tmpdir(), 'phi-boundaries-'));
+    const directory = await mkdtemp(join(tmpdir(), 'koja-boundaries-'));
     onTestFinished(() => rm(directory, { recursive: true, force: true }));
 
     // The `src` segment above the project root must not count as the application source.
@@ -397,7 +397,7 @@ it.each(['lint', 'style:check'])(
       [
         'src/vt/library.ts',
         [
-          "import library from '../../build/libphi-vt.so' with { type: 'file' };",
+          "import library from '../../build/libkoja-vt.so' with { type: 'file' };",
           "import packageJson from '../../package.json' with { type: 'json' };",
           "import other from '../../build/other.so' with { type: 'file' };",
           'export const files = [library, packageJson, other];',
@@ -519,7 +519,7 @@ it.each(['lint', 'style:check'])(
 
     const diagnostics = result.stdout
       .split('\n')
-      .filter((line) => line.includes('phi(module-boundaries)'));
+      .filter((line) => line.includes('koja(module-boundaries)'));
 
     // The linter prints a path relative to its working directory when the file sits below it.
     const reportedPath = (diagnostic: string) => {
@@ -624,7 +624,7 @@ const edgesOf = (importer: ModuleName): Edge[] =>
     });
 
 it('refuses every module edge outside the import table', async () => {
-  const directory = await mkdtemp(join(tmpdir(), 'phi-module-table-'));
+  const directory = await mkdtemp(join(tmpdir(), 'koja-module-table-'));
   onTestFinished(() => rm(directory, { recursive: true, force: true }));
 
   await writeFile(join(directory, 'package.json'), '{}\n');
@@ -658,7 +658,7 @@ it('refuses every module edge outside the import table', async () => {
 
   const refused = result.stdout
     .split('\n')
-    .filter((line) => line.includes('phi(module-boundaries)'))
+    .filter((line) => line.includes('koja(module-boundaries)'))
     .map(edgeOf);
 
   const expected = moduleNames.flatMap((importer) =>

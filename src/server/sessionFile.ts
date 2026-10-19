@@ -42,7 +42,7 @@ export const sessionPathFor = (
   const state = usableStateHome(stateHome) ?? join(home, '.local', 'state');
   const key = createHash('sha256').update(socketPath).digest('hex').slice(0, keyLength);
 
-  return join(state, 'phi', 'sessions', `${key}.json`);
+  return join(state, 'koja', 'sessions', `${key}.json`);
 };
 
 const describeError = (error: unknown): string =>

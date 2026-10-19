@@ -77,8 +77,8 @@ const makeTab = (panes: number, focused: number) => ({
 
 const workspace = {
   id: workspaceId(1),
-  root: '/work/phi',
-  label: 'phi',
+  root: '/work/koja',
+  label: 'koja',
   tabIds: [tabId(1)],
 } as const;
 
@@ -119,8 +119,8 @@ export const setupAttach = async (
   modes: number,
   options: AttachOptions = {},
 ): Promise<AttachHarness> => {
-  const directory = await mkdtemp(join(tmpdir(), 'phi-attach-input-'));
-  const socketPath = join(directory, 'phi.sock');
+  const directory = await mkdtemp(join(tmpdir(), 'koja-attach-input-'));
+  const socketPath = join(directory, 'koja.sock');
   const decoder = createFrameDecoder();
   const received: Uint8Array[] = [];
   const receivedPanes: number[] = [];

@@ -1,5 +1,5 @@
 ---
-'phi': minor
+'koja': minor
 ---
 
 Send a store snapshot after welcoming a connection, then publish each store change with its own

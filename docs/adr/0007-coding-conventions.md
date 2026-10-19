@@ -17,12 +17,12 @@ Agents write much of the code, so the conventions must be explicit and easy to c
 Some values own resources, such as a PTY or a libghostty-vt handle, that must be released exactly
 once. Everything else is data and functions over it.
 
-Phi ships one compiled binary, so every runtime dependency ships to every user. A version range
+Koja ships one compiled binary, so every runtime dependency ships to every user. A version range
 would let a rebuild pick up new dependency code that nobody reviewed.
 
 ## Decision
 
-Expected failures return typed results, and bugs throw. Phi parses untrusted data once, at the
+Expected failures return typed results, and bugs throw. Koja parses untrusted data once, at the
 boundary, with zod. Invariants are always on.
 
 Expected failures are part of each signature, and bugs fail where they happen.
@@ -48,7 +48,7 @@ Expected failures are part of each signature, and bugs fail where they happen.
 - Code is pure and immutable by default.
 - Hot-path modules may reuse buffers and mutate typed arrays: the libghostty-vt bindings, row
   encoding, the row cache, and pane drawing.
-- Use a class only for a resource Phi owns that needs a dispose step, such as a libghostty-vt
+- Use a class only for a resource Koja owns that needs a dispose step, such as a libghostty-vt
   handle, a PTY, a connection, or an OpenTUI renderable.
 - Do not use inheritance, except where OpenTUI requires it.
 - Lint refuses a class in `src/` without a dispose method. It also refuses `extends` unless the base

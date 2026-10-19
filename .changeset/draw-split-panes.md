@@ -1,5 +1,5 @@
 ---
-'phi': minor
+'koja': minor
 ---
 
 Draw every pane of the focused tab in the terminal client at its layout rectangle. When a tab has

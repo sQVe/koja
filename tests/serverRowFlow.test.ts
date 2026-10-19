@@ -102,8 +102,8 @@ it('closes a connection that never reads once its queue is full, and keeps parsi
 
   await waitFor(() => hasQueueWarning(logPath));
 
-  server.writeToPane('echo phi-$((6 * 7))\n');
-  await waitFor(() => server.paneText()?.includes('phi-42') === true);
+  server.writeToPane('echo koja-$((6 * 7))\n');
+  await waitFor(() => server.paneText()?.includes('koja-42') === true);
 
   socket.resume();
   await closed.promise;

@@ -56,8 +56,8 @@ const tab = {
 
 const workspace = {
   id: workspaceId(1),
-  root: '/work/phi',
-  label: 'phi',
+  root: '/work/koja',
+  label: 'koja',
   tabIds: [tab.id],
 } as const;
 
@@ -108,8 +108,8 @@ const toBytes = (reply: Uint8Array | ControlMessage): Uint8Array =>
   reply instanceof Uint8Array ? reply : control(reply);
 
 const listen = async (respond: (message: ControlMessage) => Reply) => {
-  const directory = await mkdtemp(join(tmpdir(), 'phi-attach-client-'));
-  const socketPath = join(directory, 'phi.sock');
+  const directory = await mkdtemp(join(tmpdir(), 'koja-attach-client-'));
+  const socketPath = join(directory, 'koja.sock');
   const received: ControlMessage[] = [];
   const inputs: Uint8Array[] = [];
   const inputArrived = Promise.withResolvers<undefined>();
@@ -392,7 +392,7 @@ it('sends a resize message', async () => {
 });
 
 it('sends input bytes for a pane as one input frame', async () => {
-  const bytes = new TextEncoder().encode('echo phi-input\r');
+  const bytes = new TextEncoder().encode('echo koja-input\r');
 
   const server = await listen((message) =>
     message.type === 'hello' ? [{ type: 'welcome' }, snapshotMessage(1)] : [],
@@ -443,7 +443,7 @@ it('returns both versions when the server refuses the build', async () => {
 });
 
 it('returns noServer when no server listens', async () => {
-  const result = await connectAttach('/nonexistent/phi.sock', version, size);
+  const result = await connectAttach('/nonexistent/koja.sock', version, size);
 
   expect(result).toEqual({ ok: false, reason: 'noServer' });
 });
@@ -586,7 +586,7 @@ const createWorkspace = async (socketPath: string, root: string): Promise<void> 
 };
 
 it('keeps receiving row updates from a real server past the in-flight limit', async () => {
-  const directory = await mkdtemp(join(tmpdir(), 'phi-attach-paced-'));
+  const directory = await mkdtemp(join(tmpdir(), 'koja-attach-paced-'));
   const created = createLog(join(directory, 'state', 'server.log'), Date.now);
 
   if (!created.ok) {
@@ -594,7 +594,7 @@ it('keeps receiving row updates from a real server past the in-flight limit', as
   }
 
   const started = await runServer({
-    socketPath: join(directory, 'run', 'phi.sock'),
+    socketPath: join(directory, 'run', 'koja.sock'),
     version,
     log: created.log,
     environment: { ...process.env, SHELL: '/bin/sh' },
@@ -614,9 +614,9 @@ it('keeps receiving row updates from a real server past the in-flight limit', as
     await rm(directory, { recursive: true, force: true });
   });
 
-  await createWorkspace(join(directory, 'run', 'phi.sock'), directory);
+  await createWorkspace(join(directory, 'run', 'koja.sock'), directory);
 
-  const session = await attach({ socketPath: join(directory, 'run', 'phi.sock') });
+  const session = await attach({ socketPath: join(directory, 'run', 'koja.sock') });
   let updates = 0;
 
   session.subscribeRows(({ pane: changedPane, sequence }) => {

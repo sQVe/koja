@@ -14,7 +14,7 @@ removal on the path are two steps, so another server can bind the path between t
 A listener's socket refuses connections between its bind and its listen. So for that moment it looks
 stale to a probe.
 
-Phi runs on Linux with glibc first, and Bun has no binding for `flock`.
+Koja runs on Linux with glibc first, and Bun has no binding for `flock`.
 
 ## Decision
 

@@ -29,15 +29,15 @@ const sortedCommands = (info: z.infer<typeof processInfoSchema>): string =>
 it(
   'lists the folder of the shell and of the foreground command',
   async () => {
-    const { phi, list, first } = await setup();
+    const { koja, list, first } = await setup();
 
-    expect((await phi('pane', 'send', 'cd /tmp\n')).exitCode).toBe(0);
+    expect((await koja('pane', 'send', 'cd /tmp\n')).exitCode).toBe(0);
 
     const moved = await pollUntil(list, (panes) => panes[0]?.cwd === '/tmp');
 
     expect(moved.find((pane) => pane.id === first)?.cwd).toBe('/tmp');
 
-    expect((await phi('pane', 'send', '(cd /var && sleep 60)\n')).exitCode).toBe(0);
+    expect((await koja('pane', 'send', '(cd /var && sleep 60)\n')).exitCode).toBe(0);
 
     const running = await pollUntil(list, (panes) => panes[0]?.foreground_cwd === '/var');
     const pane = running.find((known) => known.id === first);
@@ -51,12 +51,12 @@ it(
 it(
   'shows the shell and each foreground process of a pane',
   async () => {
-    const { phi, first } = await setup();
+    const { koja, first } = await setup();
 
-    expect((await phi('pane', 'send', 'sleep 60 | cat\n')).exitCode).toBe(0);
+    expect((await koja('pane', 'send', 'sleep 60 | cat\n')).exitCode).toBe(0);
 
     const read = async () => {
-      const result = await phi('pane', 'process-info', first);
+      const result = await koja('pane', 'process-info', first);
 
       expect({ exitCode: result.exitCode, stderr: result.stderr }).toEqual({
         exitCode: 0,
@@ -83,8 +83,8 @@ it(
 it(
   'pane process-info exits 1 for an unknown pane and prints nothing on stdout',
   async () => {
-    const { phi } = await setup();
-    const failed = await phi('pane', 'process-info', 'pane-99');
+    const { koja } = await setup();
+    const failed = await koja('pane', 'process-info', 'pane-99');
 
     expect(failed.exitCode).toBe(1);
     expect(failed.stdout).toBe('');

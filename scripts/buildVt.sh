@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
-# Build build/libphi-vt.so: src/vt/shim.c linked with libghostty-vt built from a pinned Ghostty
+# Build build/libkoja-vt.so: src/vt/shim.c linked with libghostty-vt built from a pinned Ghostty
 # commit with patches/*.patch applied. Zig and the Ghostty source are cached under
-# ${XDG_CACHE_HOME:-$HOME/.cache}/phi; nothing is installed system-wide.
+# ${XDG_CACHE_HOME:-$HOME/.cache}/koja; nothing is installed system-wide.
 set -euo pipefail
 cd "$(dirname "$0")/.."
 
@@ -13,7 +13,7 @@ fi
 zig_version=0.16.0
 zig_sha256=70e49664a74374b48b51e6f3fdfbf437f6395d42509050588bd49abe52ba3d00
 ghostty_commit=83edd491e3024ae5e50393d62877b8897da1cccd
-cache_dir="${XDG_CACHE_HOME:-$HOME/.cache}/phi"
+cache_dir="${XDG_CACHE_HOME:-$HOME/.cache}/koja"
 zig_dir="$cache_dir/zig-$zig_version"
 ghostty_dir="$cache_dir/ghostty-$ghostty_commit"
 # Zig fetches Ghostty's build dependencies into its global cache. Keeping it here lets one cache
@@ -58,6 +58,6 @@ done
 (cd "$ghostty_dir" && "$zig_dir/zig" build -Demit-lib-vt=true -Doptimize=ReleaseFast)
 mkdir -p build
 "$zig_dir/zig" cc -O2 -shared -fPIC -I"$ghostty_dir/include" \
-  -DPHI_GHOSTTY_COMMIT="\"$ghostty_commit\"" src/vt/shim.c \
-  "$ghostty_dir/zig-out/lib/libghostty-vt.a" -o build/libphi-vt.so
-echo "built build/libphi-vt.so"
+  -DKOJA_GHOSTTY_COMMIT="\"$ghostty_commit\"" src/vt/shim.c \
+  "$ghostty_dir/zig-out/lib/libghostty-vt.a" -o build/libkoja-vt.so
+echo "built build/libkoja-vt.so"

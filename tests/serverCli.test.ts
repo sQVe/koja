@@ -59,7 +59,7 @@ it(
   'starts a server in the background and stops it',
   async () => {
     const directory = await temporaryDirectory();
-    const socketPath = join(directory, 'run', 'phi.sock');
+    const socketPath = join(directory, 'run', 'koja.sock');
 
     const started = await startServer(directory, socketPath);
 
@@ -80,7 +80,7 @@ it(
   'refuses a second start on the same socket while the first server runs',
   async () => {
     const directory = await temporaryDirectory();
-    const socketPath = join(directory, 'run', 'phi.sock');
+    const socketPath = join(directory, 'run', 'koja.sock');
     const first = await startServer(directory, socketPath);
 
     const second = await runCli(['server', 'start', '--socket', socketPath, '--json'], directory);
@@ -101,7 +101,7 @@ it(
   'reports success to exactly one of several starts on one socket',
   async () => {
     const directory = await temporaryDirectory();
-    const socketPath = join(directory, 'run', 'phi.sock');
+    const socketPath = join(directory, 'run', 'koja.sock');
     const starts = 6;
 
     const runs = await Promise.all(
@@ -126,7 +126,7 @@ it.skipIf(process.getuid?.() === 0)(
   async () => {
     const directory = await temporaryDirectory();
     const socketDirectory = join(directory, 'run');
-    const socketPath = join(socketDirectory, 'phi.sock');
+    const socketPath = join(socketDirectory, 'koja.sock');
 
     const child = Bun.spawn(
       ['bun', join(root, 'src/index.ts'), 'server', 'run', '--socket', socketPath, '--json'],
@@ -165,7 +165,7 @@ it.skipIf(process.getuid?.() === 0)(
   async () => {
     const directory = await temporaryDirectory();
     const socketDirectory = join(directory, 'run');
-    const socketPath = join(socketDirectory, 'phi.sock');
+    const socketPath = join(socketDirectory, 'koja.sock');
 
     await startServer(directory, socketPath);
     await chmod(socketDirectory, 0o500);
@@ -196,7 +196,7 @@ it(
   async () => {
     const directory = await temporaryDirectory();
     const socketDirectory = join(directory, 'run');
-    const socketPath = join(socketDirectory, 'phi.sock');
+    const socketPath = join(socketDirectory, 'koja.sock');
 
     await mkdir(socketDirectory, { mode: 0o700 });
     // An earlier server left the lock file, and this server comes from a build without the lock.
@@ -233,7 +233,7 @@ it(
   'exits 1 with a message when start cannot write the log',
   async () => {
     const directory = await temporaryDirectory();
-    const socketPath = join(directory, 'run', 'phi.sock');
+    const socketPath = join(directory, 'run', 'koja.sock');
     const stateHome = join(directory, 'state');
     const environment = { ...environmentFor(directory), XDG_STATE_HOME: stateHome };
 
@@ -242,7 +242,7 @@ it(
     const run = await runCli(['server', 'start', '--socket', socketPath], directory, environment);
 
     expect({ exitCode: run.exitCode, stdout: run.stdout }).toEqual({ exitCode: 1, stdout: '' });
-    expect(run.stderr).toContain(join(stateHome, 'phi', 'server.log'));
+    expect(run.stderr).toContain(join(stateHome, 'koja', 'server.log'));
     expect(run.stderr).toContain('ENOTDIR');
     expect(existsSync(socketPath)).toBe(false);
     expect(serverProcessesIn(directory)).toEqual([]);
@@ -254,7 +254,7 @@ it(
   'replaces a stale socket',
   async () => {
     const directory = await temporaryDirectory();
-    const socketPath = join(directory, 'run', 'phi.sock');
+    const socketPath = join(directory, 'run', 'koja.sock');
     const listening = join(directory, 'run', 'listening.sock');
 
     await mkdir(join(directory, 'run'), { mode: 0o700 });
@@ -287,7 +287,7 @@ it.each([
   'refuses to start on %s and leaves it in place',
   async (_name, place) => {
     const directory = await temporaryDirectory();
-    const socketPath = join(directory, 'run', 'phi.sock');
+    const socketPath = join(directory, 'run', 'koja.sock');
 
     await mkdir(join(directory, 'run'), { mode: 0o700 });
     await place(socketPath, directory);
@@ -317,7 +317,7 @@ it(
   'keeps the contents of a regular file it refuses',
   async () => {
     const directory = await temporaryDirectory();
-    const socketPath = join(directory, 'run', 'phi.sock');
+    const socketPath = join(directory, 'run', 'koja.sock');
 
     await mkdir(join(directory, 'run'), { mode: 0o700 });
     await placeFile(socketPath);
@@ -347,7 +347,7 @@ it.each([
   'exits 1 when stop finds %s',
   async (_name, place) => {
     const directory = await temporaryDirectory();
-    const socketPath = join(directory, 'run', 'phi.sock');
+    const socketPath = join(directory, 'run', 'koja.sock');
 
     await mkdir(join(directory, 'run'), { mode: 0o700 });
     await place(socketPath, directory);
@@ -368,14 +368,14 @@ it(
   'uses the socket in XDG_RUNTIME_DIR and the log in XDG_STATE_HOME by default',
   async () => {
     const directory = await temporaryDirectory();
-    const socketPath = join(directory, 'runtime', 'phi', 'phi.sock');
+    const socketPath = join(directory, 'runtime', 'koja', 'koja.sock');
 
     await mkdir(join(directory, 'runtime'), { mode: 0o700 });
 
     const started = await runCli(['server', 'start', '--json'], directory);
 
     expect(startOutputSchema.parse(JSON.parse(started.stdout)).socket).toBe(socketPath);
-    expect(existsSync(join(directory, 'state', 'phi', 'server.log'))).toBe(true);
+    expect(existsSync(join(directory, 'state', 'koja', 'server.log'))).toBe(true);
 
     const stopped = await runCli(['server', 'stop'], directory);
 
@@ -413,10 +413,10 @@ it(
   'refuses pane commands from another build, then stops that server and removes its socket',
   async () => {
     const directory = await temporaryDirectory();
-    const socketPath = join(directory, 'run', 'phi.sock');
+    const socketPath = join(directory, 'run', 'koja.sock');
     const other = { version: '9.9.9-other', ghostty: 'other-commit' };
 
-    const created = createLog(join(directory, 'state', 'phi', 'server.log'), Date.now);
+    const created = createLog(join(directory, 'state', 'koja', 'server.log'), Date.now);
 
     if (!created.ok) {
       throw new Error(created.message);
@@ -456,8 +456,8 @@ it(
       expect(refused.stderr).toContain(local.ghostty);
       expect(refused.stderr).toContain(other.version);
       expect(refused.stderr).toContain(other.ghostty);
-      expect(refused.stderr).toContain('phi server stop');
-      expect(refused.stderr).toContain('followed by phi');
+      expect(refused.stderr).toContain('koja server stop');
+      expect(refused.stderr).toContain('followed by koja');
       expect(refused.stderr).toContain('ends every pane');
       expect(result.server.paneText()).not.toContain('must-not-be-written');
     }

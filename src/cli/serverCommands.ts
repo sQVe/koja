@@ -32,7 +32,7 @@ type ServerProcess = Bun.Subprocess<'ignore', 'pipe', 'pipe'>;
 
 const serverStartTimeoutMs = 10_000;
 
-// What `phi server run --json` prints once it listens, and what start reads as readiness.
+// What `koja server run --json` prints once it listens, and what start reads as readiness.
 const runningSchema = z.object({ socket: z.string(), pid: z.number().int().positive() });
 
 type RunningLine = z.infer<typeof runningSchema>;
