@@ -17,26 +17,52 @@ Use a title that names the choice, and state that choice in the first sentence o
 section. Give each rejected or deferred alternative its own heading under Alternatives considered.
 An ADR is not a feature summary, implementation plan, or acceptance checklist.
 
-A new ADR is Accepted. Merging its PR is the approval, so there is no Proposed stage. When a later
-decision replaces it, keep its reasoning, change its status to Superseded, and add a Superseded by
-line that links to the replacement.
+A new ADR is Accepted, and Accepted is the only status. Merging its PR is the approval, so there is
+no Proposed stage. When a decision's details change, edit its ADR in place. Write a new ADR that
+supersedes it only when the core choice reverses, and state the whole current rule in the new ADR.
+Delete the old file and add it to the Retired table below. Numbers are never reused. Git keeps the
+history, and `git show <commit>:docs/adr/<file>` restores a retired ADR.
 
 ## Index
 
+### Product
+
+- [0013: A terminal multiplexer built around pi](./0013-multiplexer-built-around-pi.md)
+
+### Documentation and tooling
+
 - [0001: Documentation scope](./0001-documentation-scope.md)
-- [0002: Bun as runtime, package manager, test runner, and PTY](./0002-bun-runtime-and-pty.md)
-- [0003: One parser per pane in the server, drawing in the client](./0003-session-server-and-client.md)
-- [0004: libghostty-vt through bun:ffi and a thin C shim](./0004-libghostty-vt.md)
-- [0005: OpenTUI with React for the UI, panes outside React](./0005-opentui-react-ui.md)
-- [0006: One server store with pure transitions and a typed change feed](./0006-server-state-store.md)
-- [0007: Results for expected failures, exceptions for bugs, and checked boundaries](./0007-coding-conventions.md)
-- [0008: Capability modules with an enforced import table](./0008-capability-modules.md)
 - [0009: One project base shared with Mergit](./0009-shared-project-base.md)
-- [0010: Every UI feature has a CLI equal](./0010-cli-parity.md)
+- [0017: The mutation gate runs only the unit tests next to the mutated file](./0017-mutation-gate-runs-same-folder-unit-tests.md)
+
+### Runtime and terminal
+
+- [0002: Bun as runtime, package manager, test runner, and PTY](./0002-bun-runtime-and-pty.md)
+- [0004: libghostty-vt through bun:ffi and a thin C shim](./0004-libghostty-vt.md)
+- [0014: Stop ends pane processes through a systemd scope per pane](./0014-pane-scope-stop.md)
+
+### Server and client
+
+- [0003: One parser per pane in the server, drawing in the client](./0003-session-server-and-client.md)
+- [0006: One server store with pure transitions and a typed change feed](./0006-server-state-store.md)
 - [0011: Any build can stop the server with a stop message](./0011-stop-across-builds.md)
 - [0012: One server per socket path through a flock lock file](./0012-socket-path-lock.md)
-- [0013: A terminal multiplexer built around pi](./0013-multiplexer-built-around-pi.md)
-- [0014: Stop ends pane processes through a systemd scope per pane](./0014-pane-scope-stop.md)
 - [0015: Save the session after every change and start empty on a file it cannot use](./0015-save-session-after-every-change.md)
+
+### UI and CLI
+
+- [0005: OpenTUI with React for the UI, panes outside React](./0005-opentui-react-ui.md)
+- [0010: Every UI feature has a CLI equal](./0010-cli-parity.md)
+
+### Code structure
+
+- [0007: Results for expected failures, exceptions for bugs, and checked boundaries](./0007-coding-conventions.md)
+- [0008: Capability modules with an enforced import table](./0008-capability-modules.md)
 - [0016: Family files inside modules, thin coordinators, and owner-first file names](./0016-family-files-and-owner-first-names.md)
-- [0017: The mutation gate runs only the unit tests next to the mutated file](./0017-mutation-gate-runs-same-folder-unit-tests.md)
+
+## Retired
+
+No ADR has been retired yet. Each retired ADR gets a row with the commit of its last version.
+
+| ADR | Title | Replaced by | Last commit |
+| --- | ----- | ----------- | ----------- |
