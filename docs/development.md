@@ -75,9 +75,14 @@ bun run mutation audit src/layout.ts
 - `audit <path>...` mutates whole files and exits 0 on survivors.
 - Every mutant runs by default. `--max-mutants <n>` sets a cap for a local run. A file that does not
   fit is listed in `unmutated`, and the run exits 1.
-- The script prints one JSON report on stdout. Stryker's own output goes to stderr. Each survivor
+- The command prints one JSON report on stdout. Stryker's own output goes to stderr. Each survivor
   has `file`, `line`, `column`, `endLine`, `endColumn`, `mutator`, `original`, `replacement`, and
   `covered`. `covered: false` means no test reaches the line.
+
+The gate runs the `mutation` command of the
+[`@sqve/mutation`](https://www.npmjs.com/package/@sqve/mutation) package, a pinned dev dependency,
+on Bun. Its README lists the report fields and the exit codes. `bun run mutation` and
+`mutation.argv` in [.pi/tau.json](../.pi/tau.json) both pass `--same-folder-tests`.
 
 The gate mutates production files under `src/` and starts Stryker once per folder. It runs only the
 unit tests directly in that folder, never those of another folder or `tests/`. A file in a folder
@@ -85,7 +90,12 @@ with no unit test reports no coverage. See
 [ADR 0017](./adr/0017-mutation-gate-runs-same-folder-unit-tests.md) for the reasons and the four
 modules it leaves out.
 
-The pull request job `Mutation` in [ci.yml](../.github/workflows/ci.yml) runs the same command
+The package always adds its `tauMessageIgnorer` ignorer, which skips the text of messages, and sets
+`ignoreStatic: true`. Koja's [stryker.config.json](../stryker.config.json) sets the rest: the
+`mutate` globs, the left-out modules, the timeouts, and the Bun runner. Bump the pinned package
+version to get a fix.
+
+The pull request job `Mutation` in [ci.yml](../.github/workflows/ci.yml) runs `mutation.argv`
 against the merge base, with no cap. It is advisory: it lists survivors on the pull request, it is
 not a required check, and `timeout-minutes` bounds its time.
 [scripts/mutation-tuning.md](../scripts/mutation-tuning.md) records how the config was tuned.

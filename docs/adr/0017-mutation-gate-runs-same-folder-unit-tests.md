@@ -16,7 +16,8 @@ their behavior is covered only from `tests/`.
 ## Decision
 
 The mutation gate runs only the unit tests in the same folder as the mutated file, never those of
-another folder or `tests/`. The script starts Stryker once per folder and lists that folder's
+another folder or `tests/`. The gate runs the `@sqve/mutation` command with its
+`--same-folder-tests` switch, which starts Stryker once per folder and lists that folder's
 `*.test.ts` and `*.test.tsx` files. A changed line in a file with no unit test next to it fails the
 gate as no coverage until the change adds one.
 
