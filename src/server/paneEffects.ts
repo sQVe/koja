@@ -15,6 +15,7 @@ import type { RunningPane } from './paneRecord.ts';
 import { readFollowFolder } from './processInfo.ts';
 import { createRowPublisher } from './rowPublisher.ts';
 import { scheduleRows } from './rowSubscriptions.ts';
+import type { RowPublication } from './rowSubscriptions.ts';
 import { scopeAvailable } from './scope.ts';
 
 export interface PaneEffectContext {
@@ -45,6 +46,7 @@ interface LivePaneContext {
 export interface LivePane {
   pane: Pane;
   runtime: PaneRuntime;
+  publication: RowPublication;
 }
 
 // Effects report facts with this.
@@ -415,7 +417,7 @@ export const findLivePane = (context: LivePaneContext, paneId: PaneId): LivePane
     return undefined;
   }
 
-  return { pane, runtime: running.runtime };
+  return { pane, runtime: running.runtime, publication: running.publication };
 };
 
 export const followFolderOf = (

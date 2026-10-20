@@ -119,15 +119,14 @@ export const handlePaneCopy = (
   connection: Connection,
 ): void => {
   const live = findLivePane(context, message.paneId);
-  const publication = context.runtime.panes.get(message.paneId)?.publication;
 
-  if (live === undefined || publication === undefined || !live.runtime.terminal.renderHeld()) {
+  if (live === undefined || !live.runtime.terminal.renderHeld()) {
     answerPaneCopy(context, message, connection);
 
     return;
   }
 
-  publication.publisher
+  live.publication.publisher
     .whenReleased()
     .then(() => {
       answerPaneCopy(context, message, connection);

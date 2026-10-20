@@ -260,22 +260,24 @@ export const handlePaneCommand = (
     return;
   }
 
-  const publication = context.runtime.panes.get(message.paneId)?.publication;
-
-  if (publication === undefined || !live.runtime.terminal.renderHeld()) {
+  if (!live.runtime.terminal.renderHeld()) {
     answerPaneRead(context, message, connection, generation);
 
     return;
   }
 
-  answerPaneReadAfterHold(context, message, connection, generation, publication.publisher).catch(
-    (error: unknown) => {
-      context.options.log.error('Reading the pane failed.', {
-        paneId: message.paneId,
-        error: describeError(error),
-      });
-    },
-  );
+  answerPaneReadAfterHold(
+    context,
+    message,
+    connection,
+    generation,
+    live.publication.publisher,
+  ).catch((error: unknown) => {
+    context.options.log.error('Reading the pane failed.', {
+      paneId: message.paneId,
+      error: describeError(error),
+    });
+  });
 };
 
 const paneLayoutRequestTypes: ReadonlySet<string> = new Set([

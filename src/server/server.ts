@@ -541,9 +541,9 @@ const handleSignals = (context: ServerContext): void => {
 };
 
 const currentPane = (context: ServerContext): PaneRuntime | undefined => {
-  const id = focusedPane(context.state)?.id;
+  const pane = focusedPane(context.state);
 
-  return id === undefined ? undefined : context.runtime.panes.get(id)?.runtime;
+  return pane === undefined ? undefined : context.runtime.panes.get(pane.id)?.runtime;
 };
 
 const serverOf = (context: ServerContext): Server => ({
