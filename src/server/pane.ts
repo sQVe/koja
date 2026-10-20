@@ -31,6 +31,9 @@ interface SpawnPaneOptions {
   onRenumbered: (renumbered: Renumbered) => void;
   onBell: (count: number) => void;
   onClipboard: (text: string) => void;
+  // Called once, with the error message, when handling the shell's output throws. The pane ignores
+  // later output.
+  onFailed: (message: string) => void;
 }
 
 interface Renumbered {
@@ -149,6 +152,7 @@ export const spawnPane = (options: SpawnPaneOptions): SpawnPaneResult => {
 
   const { terminal } = created;
   let disposed = false;
+  let outputFailed = false;
   let lastPrimary = terminal.stableRows();
 
   // The alternate screen keeps no history, so only primary-screen samples are compared. The primary
@@ -173,11 +177,7 @@ export const spawnPane = (options: SpawnPaneOptions): SpawnPaneResult => {
     }
   };
 
-  const onOutput: OnOutput = (pty, bytes) => {
-    if (disposed) {
-      return;
-    }
-
+  const handleOutput: OnOutput = (pty, bytes) => {
     const { reply, bells, clipboard } = terminal.write(bytes);
 
     if (reply !== undefined) {
@@ -194,6 +194,19 @@ export const spawnPane = (options: SpawnPaneOptions): SpawnPaneResult => {
 
     readStableRows();
     options.onOutput();
+  };
+
+  const onOutput: OnOutput = (pty, bytes) => {
+    if (disposed || outputFailed) {
+      return;
+    }
+
+    try {
+      handleOutput(pty, bytes);
+    } catch (error) {
+      outputFailed = true;
+      options.onFailed(describeError(error));
+    }
   };
 
   let shell: ReturnType<typeof spawnShell>;

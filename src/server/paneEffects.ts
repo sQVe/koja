@@ -56,7 +56,8 @@ const paneExitWaitMs = 1000;
 const describeError = (error: unknown): string =>
   error instanceof Error ? error.message : String(error);
 
-// A failed pane has no record. Only the record of this generation is released.
+// A failed pane has no record. Only the record of this generation is released. Every release step
+// runs even when an earlier one throws, and a failure is logged, never thrown.
 export const releasePane = (context: PaneEffectContext, id: PaneId, generation: number): void => {
   const running = context.runtime.panes.get(id);
 
@@ -65,8 +66,32 @@ export const releasePane = (context: PaneEffectContext, id: PaneId, generation: 
   }
 
   context.runtime.panes.delete(id);
-  running.publication.publisher[Symbol.dispose]();
-  running.runtime[Symbol.dispose]();
+
+  const steps = [
+    {
+      name: 'Disposing the row publisher',
+      run: () => {
+        running.publication.publisher[Symbol.dispose]();
+      },
+    },
+    {
+      name: 'Disposing the pane',
+      run: () => {
+        running.runtime[Symbol.dispose]();
+      },
+    },
+  ];
+
+  for (const step of steps) {
+    try {
+      step.run();
+    } catch (error) {
+      context.options.log.error(`${step.name} failed.`, {
+        paneId: id,
+        error: describeError(error),
+      });
+    }
+  }
 };
 
 const applyAttachedTheme = (context: PaneEffectContext, runtime: PaneRuntime): void => {
@@ -175,6 +200,8 @@ export const startPane = (context: PaneEffectContext, pane: Pane, report: Report
     return;
   }
 
+  let outputFailed = false;
+
   const spawned = spawnPane({
     generation,
     size: pane.size,
@@ -196,6 +223,14 @@ export const startPane = (context: PaneEffectContext, pane: Pane, report: Report
     },
     onClipboard: (text) => {
       sendToForeground(context, { type: 'clipboardWrite', text });
+    },
+    onFailed: (cause) => {
+      const message = `Pane output failed: ${cause}`;
+
+      outputFailed = true;
+      log.error('The pane output failed.', { paneId: id, message });
+      releasePane(context, id, generation);
+      report({ type: 'paneFailed', paneId: id, generation, message });
     },
   });
 
@@ -236,6 +271,10 @@ export const startPane = (context: PaneEffectContext, pane: Pane, report: Report
   spawned.pane.exited
     .then((exitCode) => {
       log.info('The pane exited.', { paneId: id, exitCode });
+
+      if (outputFailed) {
+        return;
+      }
 
       const message = context.state.stopping
         ? undefined

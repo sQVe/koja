@@ -92,6 +92,7 @@ it.skipIf(!scopesAvailable)('ends the pane scope when the pane is disposed', asy
     onRenumbered: () => undefined,
     onBell: () => undefined,
     onClipboard: () => undefined,
+    onFailed: () => undefined,
   });
 
   if (!result.ok) {
@@ -232,6 +233,7 @@ it.skipIf(!scopesAvailable)(
       onRenumbered: () => undefined,
       onBell: () => undefined,
       onClipboard: () => undefined,
+      onFailed: () => undefined,
     });
 
     if (!result.ok) {
@@ -295,6 +297,7 @@ it.skipIf(!scopesAvailable)(
       onRenumbered: () => undefined,
       onBell: () => undefined,
       onClipboard: () => undefined,
+      onFailed: () => undefined,
     });
 
     if (!result.ok) {
@@ -356,6 +359,7 @@ it.skipIf(!scopesAvailable)(
       onRenumbered: () => undefined,
       onBell: () => undefined,
       onClipboard: () => undefined,
+      onFailed: () => undefined,
     });
 
     if (!result.ok) {
