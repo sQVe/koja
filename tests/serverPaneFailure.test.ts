@@ -49,6 +49,10 @@ const failOnePane = async (scanFails: boolean): Promise<void> => {
     return write.call(this, bytes);
   });
 
+  onTestFinished(() => {
+    spy.mockRestore();
+  });
+
   const client = await connect(socketPath);
 
   client.send({ type: 'hello', version: build, size: undefined });
@@ -113,8 +117,6 @@ const failOnePane = async (scanFails: boolean): Promise<void> => {
       break;
     }
   }
-
-  spy.mockRestore();
 };
 
 it('fails only the pane whose output handling throws, and keeps serving the other pane', async () => {
