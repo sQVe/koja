@@ -9,7 +9,6 @@ import type { Change, Intent, RejectReason, State } from '../store/store.ts';
 import { sourceOf } from './clientRequests.ts';
 import type { Connection } from './connection.ts';
 import type { Log } from './log.ts';
-import type { PaneRuntime } from './pane.ts';
 import { handlePaneCopy } from './paneCopyRequests.ts';
 import {
   findLivePane,
@@ -18,19 +17,18 @@ import {
   startFolderOf,
   takePaneStartFailure,
 } from './paneEffects.ts';
+import type { RunningPane } from './paneRecord.ts';
 import { selectPaneRows } from './paneRows.ts';
 import { createSnapshot, hasMoreParts, takePart } from './paneSnapshot.ts';
 import type { PaneSnapshot, SnapshotStore } from './paneSnapshot.ts';
 import { readPaneFolders, readPaneProcesses } from './processInfo.ts';
 import type { RowPublisher } from './rowPublisher.ts';
-import type { RowPublication } from './rowSubscriptions.ts';
 
 interface PaneRequestContext {
   options: { log: Log };
   state: State;
   runtime: {
-    panes: Map<PaneId, PaneRuntime>;
-    rowPublishers: Map<PaneId, RowPublication>;
+    panes: Map<PaneId, RunningPane>;
     clientIds: Map<Connection, ClientId>;
     // The snapshot of the read a connection has parts left of, one per connection.
     readSnapshots: SnapshotStore<Connection>;
@@ -262,7 +260,7 @@ export const handlePaneCommand = (
     return;
   }
 
-  const publication = context.runtime.rowPublishers.get(message.paneId);
+  const publication = context.runtime.panes.get(message.paneId)?.publication;
 
   if (publication === undefined || !live.runtime.terminal.renderHeld()) {
     answerPaneRead(context, message, connection, generation);

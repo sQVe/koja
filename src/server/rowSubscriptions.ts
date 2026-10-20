@@ -6,7 +6,7 @@ import { activeTabOf } from '../store/store.ts';
 import type { State } from '../store/store.ts';
 import type { Connection } from './connection.ts';
 import type { Log } from './log.ts';
-import type { PaneRuntime } from './pane.ts';
+import type { RunningPane } from './paneRecord.ts';
 import type { RowPublisher, RowSubscription } from './rowPublisher.ts';
 
 export interface RowPublication {
@@ -24,7 +24,7 @@ export interface RowSubscriptions {
 interface PublicationContext {
   options: { log: Log };
   state: Pick<State, 'stopping'>;
-  runtime: { panes: Map<PaneId, PaneRuntime>; rowPublishers: Map<PaneId, RowPublication> };
+  runtime: { panes: Map<PaneId, RunningPane> };
 }
 
 interface SubscriptionContext extends PublicationContext {
@@ -39,7 +39,7 @@ const describeError = (error: unknown): string =>
   error instanceof Error ? error.message : String(error);
 
 export const scheduleRows = (context: PublicationContext, id: PaneId, generation: number): void => {
-  const publication = context.runtime.rowPublishers.get(id);
+  const publication = context.runtime.panes.get(id)?.publication;
 
   if (publication === undefined || publication.pending || context.state.stopping) {
     return;
@@ -50,7 +50,10 @@ export const scheduleRows = (context: PublicationContext, id: PaneId, generation
   setImmediate(() => {
     publication.pending = false;
 
-    if (context.state.stopping || context.runtime.panes.get(id)?.generation !== generation) {
+    if (
+      context.state.stopping ||
+      context.runtime.panes.get(id)?.runtime.generation !== generation
+    ) {
       return;
     }
 
@@ -73,13 +76,13 @@ export const subscribeRows = (
   const subscriptions = new Map<PaneId, RowSubscription>();
 
   for (const id of paneIds) {
-    const publication = context.runtime.rowPublishers.get(id);
+    const running = context.runtime.panes.get(id);
 
-    if (publication === undefined) {
+    if (running === undefined) {
       continue;
     }
 
-    const subscription = publication.publisher.subscribe((update) => {
+    const subscription = running.publication.publisher.subscribe((update) => {
       if (connection.isClosed()) {
         return;
       }
@@ -92,13 +95,8 @@ export const subscribeRows = (
       }
     });
 
-    const pane = context.runtime.panes.get(id);
-
     subscriptions.set(id, subscription);
-
-    if (pane !== undefined) {
-      scheduleRows(context, id, pane.generation);
-    }
+    scheduleRows(context, id, running.runtime.generation);
   }
 
   const acknowledge = (pane: PaneId, sequence: number): boolean =>
@@ -128,7 +126,7 @@ export const visiblePaneIds = (context: SubscriptionContext, connection: Connect
 
   const placed = layoutPanes(shownLayout(tab.layout, tab.zoomedPaneId), state.layoutArea);
 
-  return placed.map((rectangle) => rectangle.paneId).filter((id) => runtime.rowPublishers.has(id));
+  return placed.map((rectangle) => rectangle.paneId).filter((id) => runtime.panes.has(id));
 };
 
 const sameIds = (left: readonly PaneId[], right: readonly PaneId[]): boolean =>

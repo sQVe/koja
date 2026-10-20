@@ -4,15 +4,15 @@ import type { ControlMessage } from '../protocol/protocol.ts';
 import type { Change, DetachReason, Intent, State } from '../store/store.ts';
 import type { Connection } from './connection.ts';
 import type { Log } from './log.ts';
-import type { PaneRuntime } from './pane.ts';
 import { findLivePane } from './paneEffects.ts';
+import type { RunningPane } from './paneRecord.ts';
 import type { RowSubscriptions } from './rowSubscriptions.ts';
 
 interface ClientRequestContext {
   options: { log: Log };
   state: State;
   runtime: {
-    panes: Map<PaneId, PaneRuntime>;
+    panes: Map<PaneId, RunningPane>;
     clientIds: Map<Connection, ClientId>;
     rowSubscriptions: Map<Connection, RowSubscriptions>;
   };

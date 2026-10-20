@@ -11,10 +11,10 @@ import type { PaneRuntime } from './pane.ts';
 import type { PaneIdentity } from './paneEnvironment.ts';
 import { sendToForeground } from './paneNotice.ts';
 import type { ForegroundContext } from './paneNotice.ts';
+import type { RunningPane } from './paneRecord.ts';
 import { readFollowFolder } from './processInfo.ts';
 import { createRowPublisher } from './rowPublisher.ts';
 import { scheduleRows } from './rowSubscriptions.ts';
-import type { RowPublication } from './rowSubscriptions.ts';
 import { scopeAvailable } from './scope.ts';
 
 export interface PaneEffectContext {
@@ -29,8 +29,7 @@ export interface PaneEffectContext {
   };
   state: State;
   runtime: ForegroundContext['runtime'] & {
-    panes: Map<PaneId, PaneRuntime>;
-    rowPublishers: Map<PaneId, RowPublication>;
+    panes: Map<PaneId, RunningPane>;
     // Whether panes start in a systemd user scope. Decided when the first pane starts.
     paneScopes: boolean | undefined;
   };
@@ -40,7 +39,7 @@ export interface PaneEffectContext {
 
 interface LivePaneContext {
   state: Pick<State, 'panes'>;
-  runtime: { panes: Map<PaneId, PaneRuntime> };
+  runtime: { panes: Map<PaneId, RunningPane> };
 }
 
 export interface LivePane {
@@ -57,17 +56,17 @@ const paneExitWaitMs = 1000;
 const describeError = (error: unknown): string =>
   error instanceof Error ? error.message : String(error);
 
-export const disposePane = (context: PaneEffectContext, id: PaneId, generation: number): void => {
-  const pane = context.runtime.panes.get(id);
+// A failed pane has no record. Only the record of this generation is released.
+export const releasePane = (context: PaneEffectContext, id: PaneId, generation: number): void => {
+  const running = context.runtime.panes.get(id);
 
-  if (pane?.generation !== generation) {
+  if (running?.runtime.generation !== generation) {
     return;
   }
 
   context.runtime.panes.delete(id);
-  context.runtime.rowPublishers.get(id)?.publisher[Symbol.dispose]();
-  context.runtime.rowPublishers.delete(id);
-  pane[Symbol.dispose]();
+  running.publication.publisher[Symbol.dispose]();
+  running.runtime[Symbol.dispose]();
 };
 
 const applyAttachedTheme = (context: PaneEffectContext, runtime: PaneRuntime): void => {
@@ -79,8 +78,8 @@ const applyAttachedTheme = (context: PaneEffectContext, runtime: PaneRuntime): v
 };
 
 export const applyThemeToPane = (context: PaneEffectContext): void => {
-  for (const runtime of context.runtime.panes.values()) {
-    applyAttachedTheme(context, runtime);
+  for (const running of context.runtime.panes.values()) {
+    applyAttachedTheme(context, running.runtime);
   }
 };
 
@@ -143,18 +142,6 @@ const scopedExecFailure = (
   const line = execFailurePattern.exec(runtime.text({ unwrap: true }))?.[0].trim();
 
   return line === undefined ? undefined : savedShellMessage(line);
-};
-
-// A failed pane has no runtime. Only the runtime of this generation is released.
-const releaseRuntime = (context: PaneEffectContext, id: PaneId, runtime: PaneRuntime): void => {
-  if (context.runtime.panes.get(id) !== runtime) {
-    return;
-  }
-
-  context.runtime.rowPublishers.get(id)?.publisher[Symbol.dispose]();
-  context.runtime.rowPublishers.delete(id);
-  context.runtime.panes.delete(id);
-  runtime[Symbol.dispose]();
 };
 
 const paneIdentityOf = (context: PaneEffectContext, pane: Pane): PaneIdentity => {
@@ -238,8 +225,12 @@ export const startPane = (context: PaneEffectContext, pane: Pane, report: Report
   });
 
   applyAttachedTheme(context, spawned.pane);
-  context.runtime.panes.set(id, spawned.pane);
-  context.runtime.rowPublishers.set(id, { publisher, pending: false });
+
+  context.runtime.panes.set(id, {
+    runtime: spawned.pane,
+    publication: { publisher, pending: false },
+  });
+
   log.info('Started the pane.', { paneId: id });
 
   spawned.pane.exited
@@ -257,7 +248,7 @@ export const startPane = (context: PaneEffectContext, pane: Pane, report: Report
       }
 
       log.error('The restored pane failed to start.', { paneId: id, message });
-      releaseRuntime(context, id, spawned.pane);
+      releasePane(context, id, generation);
       report({ type: 'paneFailedToStart', paneId: id, generation, message });
     })
     .catch((error: unknown) => {
@@ -296,12 +287,13 @@ const exitedWithin = async (pane: PaneRuntime, waitMs: number): Promise<boolean>
 export const stopPane = async (
   context: PaneEffectContext,
   id: PaneId,
-  pane: PaneRuntime,
+  running: RunningPane,
 ): Promise<string[]> => {
   const { log } = context.options;
+  const { runtime: pane, publication } = running;
   const failures: string[] = [];
 
-  context.runtime.rowPublishers.get(id)?.publisher[Symbol.dispose]();
+  publication.publisher[Symbol.dispose]();
 
   try {
     const stopFailures = await pane.stop();
@@ -332,17 +324,16 @@ export const stopPane = async (
 // Sizes the PTY from the current state, not from the change. A transition nested in the same effect
 // batch, such as a failed pane start, may have replaced the size the change carries.
 export const resizePane = (context: PaneEffectContext, id: PaneId): void => {
-  const pane = context.runtime.panes.get(id);
-  const publication = context.runtime.rowPublishers.get(id);
+  const running = context.runtime.panes.get(id);
   const size = context.state.panes.find((known) => known.id === id)?.size;
 
-  if (pane === undefined || publication === undefined || size === undefined) {
+  if (running === undefined || size === undefined) {
     return;
   }
 
   try {
-    pane.resize(size);
-    publication.publisher.resize(size);
+    running.runtime.resize(size);
+    running.publication.publisher.resize(size);
   } catch (error) {
     context.options.log.error('Resizing the pane failed.', {
       paneId: id,
@@ -352,22 +343,21 @@ export const resizePane = (context: PaneEffectContext, id: PaneId): void => {
     return;
   }
 
-  scheduleRows(context, id, pane.generation);
+  scheduleRows(context, id, running.runtime.generation);
 };
 
 // Stops the process of a pane the store dropped. A pane that already exited has no runtime left.
 export const removePane = (context: PaneEffectContext, id: PaneId): void => {
-  const pane = context.runtime.panes.get(id);
+  const running = context.runtime.panes.get(id);
 
-  if (pane === undefined) {
+  if (running === undefined) {
     return;
   }
 
-  // stopPane disposes the row publisher it finds in the registry, which releases held pane reads.
-  const stopping = stopPane(context, id, pane);
+  // stopPane disposes the row publisher, which releases held pane reads.
+  const stopping = stopPane(context, id, running);
 
   context.runtime.panes.delete(id);
-  context.runtime.rowPublishers.delete(id);
 
   stopping.catch((error: unknown) => {
     context.options.log.error('Stopping the pane failed.', {
@@ -379,14 +369,14 @@ export const removePane = (context: PaneEffectContext, id: PaneId): void => {
 
 export const findLivePane = (context: LivePaneContext, paneId: PaneId): LivePane | undefined => {
   const pane = context.state.panes.find((known) => known.id === paneId);
-  const runtime = context.runtime.panes.get(paneId);
+  const running = context.runtime.panes.get(paneId);
   const isLive = pane?.lifecycle === 'running';
 
-  if (!isLive || runtime === undefined) {
+  if (!isLive || running === undefined) {
     return undefined;
   }
 
-  return { pane, runtime };
+  return { pane, runtime: running.runtime };
 };
 
 export const followFolderOf = (
