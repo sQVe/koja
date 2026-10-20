@@ -5,8 +5,8 @@ import { shownFocusedPaneId } from '../store/store.ts';
 import type { Change, Intent, State } from '../store/store.ts';
 import { sourceOf } from './clientRequests.ts';
 import type { Connection } from './connection.ts';
-import type { PaneRuntime } from './pane.ts';
 import { followFolderOf, takePaneStartFailure } from './paneEffects.ts';
+import type { RunningPane } from './paneRecord.ts';
 
 export type TabRequest = Extract<
   ControlMessage,
@@ -15,7 +15,7 @@ export type TabRequest = Extract<
 
 interface TabRequestContext {
   state: State;
-  runtime: { panes: Map<PaneId, PaneRuntime>; clientIds: Map<Connection, ClientId> };
+  runtime: { panes: Map<PaneId, RunningPane>; clientIds: Map<Connection, ClientId> };
   paneStartFailure: string | undefined;
 }
 

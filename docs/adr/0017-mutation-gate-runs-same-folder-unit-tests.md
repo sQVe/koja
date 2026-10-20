@@ -21,6 +21,10 @@ another folder or `tests/`. The gate runs the `@sqve/mutation` command with its
 `*.test.ts` and `*.test.tsx` files. A changed line in a file with no unit test next to it fails the
 gate as no coverage until the change adds one.
 
+Same-folder unit tests cover changed lines through pure code and fakes. A change that needs a PTY, a
+shell, or a server extracts a small pure function and tests it next to the source. Tests that spawn
+PTYs, shells, or servers stay in `tests/`, even when they are fast.
+
 The gate also leaves out `src/server/processInfo.ts`, `src/server/socketPath.ts`,
 `src/server/rowPublisher.ts`, and `src/client/clipboardWrite.ts`. Their tests start processes, open
 sockets, or wait on real time, so each mutant costs seconds. The mutation bunfig skips their test

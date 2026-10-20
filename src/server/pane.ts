@@ -3,6 +3,7 @@ import { createTerminal } from '../vt/vt.ts';
 import type { Terminal } from '../vt/vt.ts';
 import { buildPaneEnvironment } from './paneEnvironment.ts';
 import type { PaneIdentity } from './paneEnvironment.ts';
+import { guardOutput } from './paneOutput.ts';
 import { sessionGroups } from './processGroups.ts';
 import {
   killScopeDetached,
@@ -31,6 +32,9 @@ interface SpawnPaneOptions {
   onRenumbered: (renumbered: Renumbered) => void;
   onBell: (count: number) => void;
   onClipboard: (text: string) => void;
+  // Called once, with the error message, when handling the shell's output throws. The pane ignores
+  // later output.
+  onFailed: (message: string) => void;
 }
 
 interface Renumbered {
@@ -201,7 +205,7 @@ export const spawnPane = (options: SpawnPaneOptions): SpawnPaneResult => {
   const unit = scoped ? scopeUnitName(process.pid) : undefined;
 
   try {
-    shell = spawnShell(options, onOutput, unit);
+    shell = spawnShell(options, guardOutput(onOutput, options.onFailed), unit);
   } catch (error) {
     terminal[Symbol.dispose]();
 

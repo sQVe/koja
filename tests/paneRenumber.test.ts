@@ -19,6 +19,7 @@ it('reports the renumbering of the primary screen once it returns from the alter
     },
     onBell: () => undefined,
     onClipboard: () => undefined,
+    onFailed: () => undefined,
   });
 
   if (!result.ok) {

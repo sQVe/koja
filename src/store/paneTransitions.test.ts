@@ -981,3 +981,42 @@ it('focuses the sibling when the pane recorded before a split moved to another t
 
   expect(result.state.tabs[0]?.focusedPaneId).toBe(paneId(1));
 });
+
+it('marks a running pane failed with the message of a pane that failed while it ran', () => {
+  const started = fact(run([createKoja]), startedPane(1, 1)).state;
+
+  const result = fact(started, {
+    type: 'paneFailed',
+    ...firstPane,
+    message: 'Pane output failed: boom',
+  });
+
+  expect(result.state.panes[0]).toMatchObject({
+    lifecycle: 'failed',
+    error: 'Pane output failed: boom',
+    restored: false,
+  });
+
+  expect(result.changes).toEqual([
+    {
+      type: 'paneStateChanged',
+      paneId: paneId(1),
+      lifecycle: 'failed',
+      exitCode: undefined,
+      error: 'Pane output failed: boom',
+    },
+  ]);
+});
+
+it('ends a pane that failed while it ran when the server stops', () => {
+  const started = fact(run([createKoja]), startedPane(1, 1)).state;
+  const stopping = intent(started, { type: 'stopServer' }).state;
+
+  const result = fact(stopping, {
+    type: 'paneFailed',
+    ...firstPane,
+    message: 'Pane output failed: boom',
+  });
+
+  expect(result.state.panes[0]?.lifecycle).toBe('exited');
+});

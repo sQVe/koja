@@ -3,7 +3,7 @@ import { rmSync } from 'node:fs';
 import type { ClientId, PaneId } from '../ids.ts';
 import type { BuildVersion, ControlMessage } from '../protocol/protocol.ts';
 import { decodePaneInput } from '../rows/rows.ts';
-import { applyFact, applyIntent, createState, focusedPane, snapshot } from '../store/store.ts';
+import { applyFact, applyIntent, createState, snapshot } from '../store/store.ts';
 import type { Change, Fact, Intent, Snapshot, State } from '../store/store.ts';
 import {
   attachTerminal,
@@ -20,13 +20,15 @@ import type { Log } from './log.ts';
 import type { PaneRuntime } from './pane.ts';
 import {
   applyThemeToPane,
-  disposePane,
+  focusedRuntime,
+  releasePane,
   removePane,
   resizePane,
   runStep,
   startPane,
   stopPane,
 } from './paneEffects.ts';
+import type { RunningPane } from './paneRecord.ts';
 import {
   answerPaneFolders,
   answerPaneProcessInfo,
@@ -39,7 +41,7 @@ import {
 import { createSnapshotStore } from './paneSnapshot.ts';
 import type { SnapshotStore } from './paneSnapshot.ts';
 import { subscribeRows, syncRowSubscriptions, visiblePaneIds } from './rowSubscriptions.ts';
-import type { RowPublication, RowSubscriptions } from './rowSubscriptions.ts';
+import type { RowSubscriptions } from './rowSubscriptions.ts';
 import { createSessionWriter, readSessionFile } from './sessionFile.ts';
 import type { SessionWriter } from './sessionFile.ts';
 import { currentSession, restoreSession, savesSession } from './sessionState.ts';
@@ -97,8 +99,7 @@ type Listener = Bun.UnixSocketListener<ConnectionData>;
 
 // PTYs, parsers, and sockets. The store holds none of them.
 interface Runtime {
-  panes: Map<PaneId, PaneRuntime>;
-  rowPublishers: Map<PaneId, RowPublication>;
+  panes: Map<PaneId, RunningPane>;
   connections: Map<number, Connection>;
   // The client a terminal connection's sized hello attached.
   clientIds: Map<Connection, ClientId>;
@@ -165,7 +166,6 @@ const shutDown = async (context: ServerContext): Promise<StopResult> => {
   const failures = paneFailures.flat();
 
   runtime.panes.clear();
-  runtime.rowPublishers.clear();
 
   for (const connection of runtime.connections.values()) {
     runStep(context, failures, 'Closing a connection', () => {
@@ -268,7 +268,7 @@ const report = (context: ServerContext, fact: Fact): void => {
   context.state = result.state;
 
   if (result.kind === 'ignored') {
-    disposePane(context, result.dispose.paneId, result.dispose.generation);
+    releasePane(context, result.dispose.paneId, result.dispose.generation);
 
     return;
   }
@@ -541,11 +541,8 @@ const handleSignals = (context: ServerContext): void => {
   };
 };
 
-const currentPane = (context: ServerContext): PaneRuntime | undefined => {
-  const id = focusedPane(context.state)?.id;
-
-  return id === undefined ? undefined : context.runtime.panes.get(id);
-};
+const currentPane = (context: ServerContext): PaneRuntime | undefined =>
+  focusedRuntime(context.state, context.runtime.panes);
 
 const serverOf = (context: ServerContext): Server => ({
   stopped: context.stopped.promise,
@@ -577,7 +574,6 @@ export const runServer = async (options: ServerOptions): Promise<RunServerResult
     state: createState(),
     runtime: {
       panes: new Map(),
-      rowPublishers: new Map(),
       connections: new Map(),
       clientIds: new Map(),
       rowSubscriptions: new Map(),

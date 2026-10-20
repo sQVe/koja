@@ -364,6 +364,14 @@ export const transitionPaneFact = (state: State, pane: Pane, fact: Fact): Propos
     return endPane(settled, pane, fact.exitCode);
   }
 
+  if (fact.type === 'paneFailed' && !state.stopping) {
+    return markFailed(settled, pane, fact.message);
+  }
+
+  if (fact.type === 'paneFailed') {
+    return endPane(settled, pane, undefined, restore);
+  }
+
   if (fact.type === 'paneFailedToStart' && pane.restored && !state.stopping) {
     return markFailed(settled, pane, fact.message);
   }

@@ -86,7 +86,8 @@ export interface Pane {
   startFolder: string | undefined;
   // True for a pane the restore intent added. Only such a pane stays in the layout when it fails to start.
   restored: boolean;
-  // Why a restored pane failed to start. Set only while the lifecycle is failed.
+  // Why the pane failed: a restored pane that did not start, or a pane whose output handling threw.
+  // Set only while the lifecycle is failed.
   error: string | undefined;
 }
 
@@ -218,6 +219,8 @@ export type Fact =
   | { type: 'paneStarted'; paneId: PaneId; generation: number }
   | { type: 'paneFailedToStart'; paneId: PaneId; generation: number; message: string }
   | { type: 'paneExited'; paneId: PaneId; generation: number; exitCode: number }
+  // The pane's output handling threw while its shell ran.
+  | { type: 'paneFailed'; paneId: PaneId; generation: number; message: string }
   // The pane's stable row numbers restarted. Carries the active top before and after, and the
   // oldest row after.
   | {

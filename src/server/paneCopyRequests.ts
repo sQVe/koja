@@ -5,19 +5,17 @@ import { rowsRangeText } from '../rows/rows.ts';
 import type { State } from '../store/store.ts';
 import type { Connection } from './connection.ts';
 import type { Log } from './log.ts';
-import type { PaneRuntime } from './pane.ts';
 import { findLivePane } from './paneEffects.ts';
 import { sendToForeground } from './paneNotice.ts';
 import type { ForegroundContext } from './paneNotice.ts';
+import type { RunningPane } from './paneRecord.ts';
 import { maxReplyBytes, selectPaneRows } from './paneRows.ts';
-import type { RowPublication } from './rowSubscriptions.ts';
 
 interface PaneCopyContext extends ForegroundContext {
   options: { log: Log };
   state: State;
   runtime: ForegroundContext['runtime'] & {
-    panes: Map<PaneId, PaneRuntime>;
-    rowPublishers: Map<PaneId, RowPublication>;
+    panes: Map<PaneId, RunningPane>;
   };
 }
 
@@ -121,15 +119,14 @@ export const handlePaneCopy = (
   connection: Connection,
 ): void => {
   const live = findLivePane(context, message.paneId);
-  const publication = context.runtime.rowPublishers.get(message.paneId);
 
-  if (live === undefined || publication === undefined || !live.runtime.terminal.renderHeld()) {
+  if (live === undefined || !live.runtime.terminal.renderHeld()) {
     answerPaneCopy(context, message, connection);
 
     return;
   }
 
-  publication.publisher
+  live.publication.publisher
     .whenReleased()
     .then(() => {
       answerPaneCopy(context, message, connection);

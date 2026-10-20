@@ -2,13 +2,13 @@ import type { PaneId } from '../ids.ts';
 import { savedSessionOf } from '../store/store.ts';
 import type { Change, Intent, SavedSession, State } from '../store/store.ts';
 import type { Log } from './log.ts';
-import type { PaneRuntime } from './pane.ts';
+import type { RunningPane } from './paneRecord.ts';
 import { readSavedFolder } from './processInfo.ts';
 import type { readSessionFile } from './sessionFile.ts';
 
 interface SessionContext {
   state: State;
-  runtime: { panes: Map<PaneId, PaneRuntime> };
+  runtime: { panes: Map<PaneId, RunningPane> };
 }
 
 const sessionChangeTypes: ReadonlySet<Change['type']> = new Set([
@@ -34,8 +34,8 @@ export const savesSession = (changes: readonly Change[]): boolean =>
 const readSavedFolders = (context: SessionContext): Map<PaneId, string> => {
   const folders = new Map<PaneId, string>();
 
-  for (const [paneId, runtime] of context.runtime.panes) {
-    const folder = readSavedFolder(runtime.processId);
+  for (const [paneId, running] of context.runtime.panes) {
+    const folder = readSavedFolder(running.runtime.processId);
 
     if (folder !== undefined) {
       folders.set(paneId, folder);
