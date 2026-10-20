@@ -4,14 +4,14 @@
 **Status**: Accepted
 
 <!-- Draft only after you can name a choice, the lasting reason for it, and a credible
-alternative. Merging the PR is the approval, so a new ADR is Accepted. Use Superseded or Rejected
-when they apply. When a later ADR replaces this one, keep its reasoning, change the status, and add
-a Superseded by line. Put optional lines after Status. End every metadata line with a backslash
-except the last, so Markdown keeps the line breaks:
+alternative. Merging the PR is the approval, so the status is always Accepted. Add a Supersedes line
+only when this ADR reverses the core choice of an older one. The older ADR leaves the tree, so name
+it without a link. Add at most one Related line. Put optional lines after Status. End every metadata line with a backslash except the last, so Markdown
+keeps the line breaks:
 
 **Date**: YYYY-MM-DD\
-**Status**: Superseded\
-**Superseded by**: [ADR NNNN (Title)](./NNNN-file-name.md)\
+**Status**: Accepted\
+**Supersedes**: ADR NNNN (Title)\
 **Related**: [ADR NNNN (Title)](./NNNN-file-name.md), [Source](https://example.com) -->
 
 ## Context
