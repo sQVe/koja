@@ -7,6 +7,8 @@ import {
   connect,
   connectCli,
   nextOfType,
+  processesRunning,
+  waitFor,
   startServer,
   temporaryDirectory,
 } from './serverHarness.ts';
@@ -152,4 +154,29 @@ it('answers paneMove to the pane tab with sameTab and no paneDone', async () => 
   );
 
   expect(server.snapshot()).toEqual(before);
+});
+
+it('answers a pane request while the server stops with serverStopping and no paneDone', async () => {
+  const directory = await temporaryDirectory();
+  const { server, socketPath } = await startServer(directory);
+  const client = await connectCli(socketPath);
+  // A unique duration, so the test finds only its own sleep.
+  const command = `sleep 1000.${process.pid}${Date.now()}`;
+
+  // The job ignores SIGHUP, so the pane keeps the shutdown waiting before it closes connections.
+  server.writeToPane(`trap '' HUP; ${command}\n`);
+  await waitFor(() => processesRunning(command).length > 0);
+
+  server.stop();
+
+  const before = server.snapshot();
+
+  await expectRejected(
+    client,
+    { type: 'paneSplit', paneId: paneId(1), direction: 'right', cwd: undefined },
+    'serverStopping',
+  );
+
+  expect(server.snapshot().panes).toEqual(before.panes);
+  await server.stopped;
 });
