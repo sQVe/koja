@@ -3,7 +3,7 @@ import { rmSync } from 'node:fs';
 import type { ClientId, PaneId } from '../ids.ts';
 import type { BuildVersion, ControlMessage } from '../protocol/protocol.ts';
 import { decodePaneInput } from '../rows/rows.ts';
-import { applyFact, applyIntent, createState, focusedPane, snapshot } from '../store/store.ts';
+import { applyFact, applyIntent, createState, snapshot } from '../store/store.ts';
 import type { Change, Fact, Intent, Snapshot, State } from '../store/store.ts';
 import {
   attachTerminal,
@@ -20,6 +20,7 @@ import type { Log } from './log.ts';
 import type { PaneRuntime } from './pane.ts';
 import {
   applyThemeToPane,
+  focusedRuntime,
   releasePane,
   removePane,
   resizePane,
@@ -540,11 +541,8 @@ const handleSignals = (context: ServerContext): void => {
   };
 };
 
-const currentPane = (context: ServerContext): PaneRuntime | undefined => {
-  const pane = focusedPane(context.state);
-
-  return pane === undefined ? undefined : context.runtime.panes.get(pane.id)?.runtime;
-};
+const currentPane = (context: ServerContext): PaneRuntime | undefined =>
+  focusedRuntime(context.state, context.runtime.panes);
 
 const serverOf = (context: ServerContext): Server => ({
   stopped: context.stopped.promise,

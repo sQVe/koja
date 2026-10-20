@@ -3,7 +3,7 @@ import { statSync } from 'node:fs';
 import type { PaneId } from '../ids.ts';
 import { invariant } from '../invariant.ts';
 import type { BuildVersion } from '../protocol/protocol.ts';
-import { paneTheme } from '../store/store.ts';
+import { focusedPane, paneTheme } from '../store/store.ts';
 import type { Fact, Pane, State } from '../store/store.ts';
 import type { Log } from './log.ts';
 import { spawnPane } from './pane.ts';
@@ -14,6 +14,7 @@ import type { ForegroundContext } from './paneNotice.ts';
 import type { RunningPane } from './paneRecord.ts';
 import { readFollowFolder } from './processInfo.ts';
 import { createRowPublisher } from './rowPublisher.ts';
+import type { RowPublisher } from './rowPublisher.ts';
 import { scheduleRows } from './rowSubscriptions.ts';
 import type { RowPublication } from './rowSubscriptions.ts';
 import { scopeAvailable } from './scope.ts';
@@ -51,6 +52,14 @@ export interface LivePane {
 
 // Effects report facts with this.
 type Report = (fact: Fact) => void;
+
+interface PaneExit {
+  pane: Pane;
+  runtime: PaneRuntime;
+  exitCode: number;
+  // A pane whose output failed has reported its failure, so its exit reports nothing.
+  outputFailed: boolean;
+}
 
 // How long a pane whose stop failed gets to exit after it is killed.
 const paneExitWaitMs = 1000;
@@ -188,7 +197,63 @@ const paneIdentityOf = (context: PaneEffectContext, pane: Pane): PaneIdentity =>
 
 export const paneNumber = (id: PaneId): number => Number(id.slice('pane-'.length));
 
-export const startPane = (context: PaneEffectContext, pane: Pane, report: Report): void => {
+export const reportOutputFailure = (
+  context: PaneEffectContext,
+  pane: Pane,
+  cause: string,
+  report: Report,
+): void => {
+  const { id, generation } = pane;
+  const message = `Pane output failed: ${cause}`;
+
+  context.options.log.error('The pane output failed.', { paneId: id, message });
+  releasePane(context, id, generation);
+  report({ type: 'paneFailed', paneId: id, generation, message });
+};
+
+export const reportPaneExit = (
+  context: PaneEffectContext,
+  exit: PaneExit,
+  report: Report,
+): void => {
+  const { log } = context.options;
+  const { pane, runtime, exitCode } = exit;
+  const { id, generation } = pane;
+
+  log.info('The pane exited.', { paneId: id, exitCode });
+
+  if (exit.outputFailed) {
+    return;
+  }
+
+  const message = context.state.stopping ? undefined : scopedExecFailure(pane, runtime, exitCode);
+
+  if (message === undefined) {
+    report({ type: 'paneExited', paneId: id, generation, exitCode });
+
+    return;
+  }
+
+  log.error('The restored pane failed to start.', { paneId: id, message });
+  releasePane(context, id, generation);
+  report({ type: 'paneFailedToStart', paneId: id, generation, message });
+};
+
+export const recordPane = (
+  context: Pick<PaneEffectContext, 'runtime'>,
+  id: PaneId,
+  runtime: PaneRuntime,
+  publisher: RowPublisher,
+): void => {
+  context.runtime.panes.set(id, { runtime, publication: { publisher, pending: false } });
+};
+
+export const startPane = (
+  context: PaneEffectContext,
+  pane: Pane,
+  report: Report,
+  spawn: typeof spawnPane = spawnPane,
+): void => {
   const { log } = context.options;
   const { id, generation } = pane;
   const directory = startFolderOf(context, pane);
@@ -204,7 +269,7 @@ export const startPane = (context: PaneEffectContext, pane: Pane, report: Report
 
   let outputFailed = false;
 
-  const spawned = spawnPane({
+  const spawned = spawn({
     generation,
     size: pane.size,
     environment: context.options.environment,
@@ -227,12 +292,8 @@ export const startPane = (context: PaneEffectContext, pane: Pane, report: Report
       sendToForeground(context, { type: 'clipboardWrite', text });
     },
     onFailed: (cause) => {
-      const message = `Pane output failed: ${cause}`;
-
       outputFailed = true;
-      log.error('The pane output failed.', { paneId: id, message });
-      releasePane(context, id, generation);
-      report({ type: 'paneFailed', paneId: id, generation, message });
+      reportOutputFailure(context, pane, cause, report);
     },
   });
 
@@ -263,34 +324,13 @@ export const startPane = (context: PaneEffectContext, pane: Pane, report: Report
 
   applyAttachedTheme(context, spawned.pane);
 
-  context.runtime.panes.set(id, {
-    runtime: spawned.pane,
-    publication: { publisher, pending: false },
-  });
+  recordPane(context, id, spawned.pane, publisher);
 
   log.info('Started the pane.', { paneId: id });
 
   spawned.pane.exited
     .then((exitCode) => {
-      log.info('The pane exited.', { paneId: id, exitCode });
-
-      if (outputFailed) {
-        return;
-      }
-
-      const message = context.state.stopping
-        ? undefined
-        : scopedExecFailure(pane, spawned.pane, exitCode);
-
-      if (message === undefined) {
-        report({ type: 'paneExited', paneId: id, generation, exitCode });
-
-        return;
-      }
-
-      log.error('The restored pane failed to start.', { paneId: id, message });
-      releasePane(context, id, generation);
-      report({ type: 'paneFailedToStart', paneId: id, generation, message });
+      reportPaneExit(context, { pane, runtime: spawned.pane, exitCode, outputFailed }, report);
     })
     .catch((error: unknown) => {
       log.error('Handling the pane exit failed.', { paneId: id, error: describeError(error) });
@@ -406,6 +446,15 @@ export const removePane = (context: PaneEffectContext, id: PaneId): void => {
       error: describeError(error),
     });
   });
+};
+
+export const focusedRuntime = (
+  state: State,
+  panes: ReadonlyMap<PaneId, RunningPane>,
+): PaneRuntime | undefined => {
+  const pane = focusedPane(state);
+
+  return pane === undefined ? undefined : panes.get(pane.id)?.runtime;
 };
 
 export const findLivePane = (context: LivePaneContext, paneId: PaneId): LivePane | undefined => {

@@ -1,23 +1,23 @@
-import { expect, it, onTestFinished, spyOn } from 'bun:test';
-import { chmodSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
-import { tmpdir } from 'node:os';
-import { join } from 'node:path';
+import { expect, it } from 'bun:test';
 
 import { paneId } from '../ids.ts';
 import { invariant } from '../invariant.ts';
 import { applyIntent, createState } from '../store/store.ts';
 import type { Fact, Pane, Theme } from '../store/store.ts';
-import { Terminal } from '../vt/vt.ts';
-import type { Log } from './log.ts';
-import type { PaneRuntime } from './pane.ts';
+import { createTerminal } from '../vt/vt.ts';
+import type { PaneRuntime, spawnPane } from './pane.ts';
 import type { PaneEffectContext } from './paneEffects.ts';
 import {
   applyThemeToPane,
   findLivePane,
+  focusedRuntime,
+  recordPane,
   releasePane,
+  reportOutputFailure,
+  reportPaneExit,
+  startPane,
   removePane,
   resizePane,
-  startPane,
   stopPane,
 } from './paneEffects.ts';
 import type { RunningPane } from './paneRecord.ts';
@@ -38,16 +38,14 @@ interface Recording {
   errors: { message: string; fields: Record<string, unknown> | undefined }[];
 }
 
-interface Started {
-  context: PaneEffectContext;
-  pane: Pane;
-  facts: Fact[];
-  errors: { message: string; fields: Record<string, unknown> | undefined }[];
+interface Spawned {
+  spawn: typeof spawnPane;
+  options: () => Parameters<typeof spawnPane>[0];
+  exit: (code: number) => void;
+  runtime: PaneRuntime;
 }
 
 const id = paneId(1);
-
-const noop = (): void => {};
 
 const fixture = (generation: number, failing = false): Fixture => {
   const disposed: string[] = [];
@@ -319,31 +317,10 @@ it('finds no live pane for a pane that is not running or has no record', () => {
   expect(findLivePane(unrecorded.context, id)).toBeUndefined();
 });
 
-const started = (options: {
-  restored?: boolean;
-  theme?: Theme;
-  environment?: Record<string, string | undefined>;
-}): Started => {
-  const directory = mkdtempSync(join(tmpdir(), 'koja-pane-effects-'));
-
-  onTestFinished(() => {
-    rmSync(directory, { recursive: true, force: true });
-  });
-
-  const errors: Started['errors'] = [];
-
-  const log: Log = {
-    debug: noop,
-    info: noop,
-    warn: noop,
-    error: (message, fields) => {
-      errors.push({ message, fields });
-    },
-  };
-
+const themedContext = (theme: Theme): PaneEffectContext => {
   const created = applyIntent(createState(), {
     type: 'createWorkspace',
-    root: directory,
+    root: '/tmp',
     label: 'test',
     focus: true,
   });
@@ -354,84 +331,356 @@ const started = (options: {
 
   invariant(attached.kind === 'applied', 'The client was refused.');
 
-  let current = attached.state;
-  const client = current.clients[0];
+  const client = attached.state.clients[0];
 
   invariant(client !== undefined, 'The client is missing.');
 
-  if (options.theme !== undefined) {
-    const themed = applyIntent(current, {
-      type: 'setClientTheme',
-      clientId: client.id,
-      theme: options.theme,
-    });
+  const themed = applyIntent(attached.state, {
+    type: 'setClientTheme',
+    clientId: client.id,
+    theme,
+  });
 
-    invariant(themed.kind === 'applied', 'The theme was refused.');
-    current = themed.state;
+  invariant(themed.kind === 'applied', 'The theme was refused.');
+
+  return {
+    state: themed.state,
+    runtime: { panes: new Map() },
+  } as unknown as PaneEffectContext;
+};
+
+const paneWithTerminal = (generation: number, exited = Promise.resolve(0)): RunningPane => {
+  const created = createTerminal(size.columns, size.rows, 1_000_000);
+
+  invariant(created.ok, 'The terminal was refused.');
+
+  const { terminal } = created;
+
+  const runtime: PaneRuntime = {
+    generation,
+    processId: 1,
+    scoped: false,
+    terminal,
+    exited,
+    write: () => {},
+    resize: () => {},
+    text: () => '',
+    stop: () => Promise.resolve([]),
+    [Symbol.dispose]: () => {
+      terminal[Symbol.dispose]();
+    },
+  };
+
+  const publisher: RowPublisher = {
+    subscribe: () => {
+      throw new Error('Not used.');
+    },
+    publish: () => {},
+    resize: () => {},
+    whenReleased: () => Promise.resolve(),
+    [Symbol.dispose]: () => {},
+  };
+
+  return { runtime, publication: { publisher, pending: false } };
+};
+
+const backgroundReply = (running: RunningPane): string => {
+  const { reply } = running.runtime.terminal.write(new TextEncoder().encode('\u001B]11;?\u001B\\'));
+
+  return new TextDecoder().decode(reply);
+};
+
+it('gives every running pane the colors the attached client reported', () => {
+  const context = themedContext({
+    foreground: 0xaa_bb_cc,
+    background: 0x11_22_33,
+    palette: Array.from({ length: 16 }, (_, index) => index),
+  });
+
+  const panes = [paneWithTerminal(1), paneWithTerminal(2)];
+
+  for (const [index, running] of panes.entries()) {
+    context.runtime.panes.set(paneId(index + 1), running);
   }
 
-  const first = current.panes[0];
+  const before = panes.map(backgroundReply);
+
+  applyThemeToPane(context);
+
+  const after = panes.map(backgroundReply);
+
+  for (const running of panes) {
+    running.runtime[Symbol.dispose]();
+  }
+
+  expect(after.every((reply) => reply.includes('1111/2222/3333'))).toBe(true);
+  expect(before.some((reply) => reply.includes('1111/2222/3333'))).toBe(false);
+});
+
+const paneOf = (restored: boolean): Pane => {
+  const context = themedContext({ foreground: 0, background: 0, palette: [] });
+  const pane = context.state.panes[0];
+
+  invariant(pane !== undefined, 'The pane is missing.');
+
+  return { ...pane, id, generation: 4, restored };
+};
+
+const exitFixture = (
+  restored: boolean,
+  options: { scoped: boolean; text: string; stopping?: boolean },
+) => {
+  const { context, running, errors } = fakePane();
+  const facts: Fact[] = [];
+  const logged: { message: string; fields: Record<string, unknown> | undefined }[] = [];
+
+  const runtime: PaneRuntime = {
+    ...running.runtime,
+    scoped: options.scoped,
+    text: () => options.text,
+  };
+
+  context.runtime.panes.set(id, { ...running, runtime });
+  context.state.stopping = options.stopping ?? false;
+
+  context.options.log.info = (message, fields) => {
+    logged.push({ message, fields });
+  };
+
+  return { context, runtime, facts, errors, logged, pane: paneOf(restored) };
+};
+
+const failedStart = 'Failed to execute /missing: No such file';
+
+it('releases the pane and reports a failed pane when its output fails', () => {
+  const { context, errors, pane, running } = (() => {
+    const fake = fakePane();
+
+    return { ...fake, pane: paneOf(false) };
+  })();
+
+  const facts: Fact[] = [];
+
+  reportOutputFailure(context, pane, 'marker rejected', (fact) => facts.push(fact));
+
+  expect(facts).toEqual([
+    {
+      type: 'paneFailed',
+      paneId: id,
+      generation: 4,
+      message: expect.stringContaining('marker rejected') as string,
+    },
+  ]);
+
+  expect(context.runtime.panes.has(id)).toBe(false);
+  expect(errors).toHaveLength(1);
+  expect(errors[0]?.message).not.toBe('');
+
+  expect(errors[0]?.fields).toEqual({
+    paneId: id,
+    message: expect.stringContaining('marker rejected') as string,
+  });
+
+  expect(running.runtime.generation).toBe(4);
+});
+
+it('reports the exit code of a pane that exits', () => {
+  const { context, runtime, pane, logged } = exitFixture(false, { scoped: false, text: '' });
+  const facts: Fact[] = [];
+
+  reportPaneExit(context, { pane, runtime, exitCode: 3, outputFailed: false }, (fact) =>
+    facts.push(fact),
+  );
+
+  expect(facts).toEqual([{ type: 'paneExited', paneId: id, generation: 4, exitCode: 3 }]);
+  expect(logged).toHaveLength(1);
+  expect(logged[0]?.message).not.toBe('');
+  expect(logged[0]?.fields).toEqual({ paneId: id, exitCode: 3 });
+
+  expect(context.runtime.panes.has(id)).toBe(true);
+});
+
+it('reports no exit for a pane whose output failed', () => {
+  const { context, runtime, pane, logged } = exitFixture(false, { scoped: false, text: '' });
+  const facts: Fact[] = [];
+
+  reportPaneExit(context, { pane, runtime, exitCode: 0, outputFailed: true }, (fact) =>
+    facts.push(fact),
+  );
+
+  expect(facts).toEqual([]);
+  expect(logged).toHaveLength(1);
+  expect(logged[0]?.message).not.toBe('');
+  expect(logged[0]?.fields).toEqual({ paneId: id, exitCode: 0 });
+
+  expect(context.runtime.panes.has(id)).toBe(true);
+});
+
+it('releases a restored pane whose scoped shell cannot execute and reports a failed start', () => {
+  const { context, runtime, pane, errors } = exitFixture(true, {
+    scoped: true,
+    text: `systemd-run\n${failedStart}\n`,
+  });
+
+  const facts: Fact[] = [];
+
+  reportPaneExit(context, { pane, runtime, exitCode: 1, outputFailed: false }, (fact) =>
+    facts.push(fact),
+  );
+
+  expect(errors).toHaveLength(1);
+  expect(errors[0]?.message).not.toBe('');
+
+  expect(errors[0]?.fields).toEqual({
+    paneId: id,
+    message: expect.stringContaining(failedStart) as string,
+  });
+
+  expect(facts).toHaveLength(1);
+  expect(facts[0]).toMatchObject({ type: 'paneFailedToStart', paneId: id, generation: 4 });
+
+  expect(facts[0]).toMatchObject({
+    message: expect.stringContaining(failedStart) as string,
+  });
+
+  expect(context.runtime.panes.has(id)).toBe(false);
+});
+
+it('reports a plain exit when the server is stopping, a pane is not restored, or the code is not 1', () => {
+  const variants = [
+    { restored: true, scoped: true, stopping: true, exitCode: 1 },
+    { restored: false, scoped: true, stopping: false, exitCode: 1 },
+    { restored: true, scoped: false, stopping: false, exitCode: 1 },
+    { restored: true, scoped: true, stopping: false, exitCode: 2 },
+  ];
+
+  for (const variant of variants) {
+    const { context, runtime, pane } = exitFixture(variant.restored, {
+      scoped: variant.scoped,
+      text: failedStart,
+      stopping: variant.stopping,
+    });
+
+    const facts: Fact[] = [];
+
+    reportPaneExit(
+      context,
+      { pane, runtime, exitCode: variant.exitCode, outputFailed: false },
+      (fact) => facts.push(fact),
+    );
+
+    expect(facts).toEqual([
+      { type: 'paneExited', paneId: id, generation: 4, exitCode: variant.exitCode },
+    ]);
+
+    expect(context.runtime.panes.has(id)).toBe(true);
+  }
+});
+
+it('records a pane with a publication that is not pending', () => {
+  const { context, running } = fakePane();
+  const { publisher } = running.publication;
+
+  context.runtime.panes.clear();
+  recordPane(context, id, running.runtime, publisher);
+
+  const recorded = context.runtime.panes.get(id);
+
+  expect(recorded?.runtime).toBe(running.runtime);
+  expect(recorded?.publication.publisher).toBe(publisher);
+  expect(recorded?.publication.pending).toBe(false);
+});
+
+it('finds the runtime of the focused pane', () => {
+  const context = themedContext({ foreground: 0, background: 0, palette: [] });
+  const running = paneWithTerminal(1);
+  const focused = context.state.panes[0];
+
+  invariant(focused !== undefined, 'The pane is missing.');
+
+  context.runtime.panes.set(focused.id, running);
+  context.runtime.panes.set(paneId(9), paneWithTerminal(2));
+
+  expect(focusedRuntime(context.state, context.runtime.panes)).toBe(running.runtime);
+
+  running.runtime[Symbol.dispose]();
+});
+
+it('finds no runtime when no pane is focused or the focused pane has no record', () => {
+  const context = themedContext({ foreground: 0, background: 0, palette: [] });
+
+  expect(focusedRuntime(context.state, context.runtime.panes)).toBeUndefined();
+  expect(focusedRuntime(createState(), context.runtime.panes)).toBeUndefined();
+});
+
+const startContext = (): { context: PaneEffectContext; pane: Pane } => {
+  const themed = themedContext({
+    foreground: 0,
+    background: 0,
+    palette: Array.from({ length: 16 }, () => 0),
+  });
+
+  const first = themed.state.panes[0];
 
   invariant(first !== undefined, 'The pane is missing.');
 
-  const pane: Pane = { ...first, restored: options.restored ?? false };
-
   const context: PaneEffectContext = {
     options: {
-      log,
-      environment: options.environment ?? { SHELL: '/bin/sh', PATH: process.env.PATH },
-      socketPath: join(directory, 'koja.sock'),
+      log: { debug: () => {}, info: () => {}, warn: () => {}, error: () => {} },
+      environment: {},
+      socketPath: '/tmp/koja-test.sock',
       binaryPath: '/tmp/koja-test',
       version: { version: 'test', ghostty: 'test' },
     },
-    state: { ...current, panes: [pane] },
+    state: themed.state,
     runtime: { panes: new Map(), clientIds: new Map(), paneScopes: false },
     paneStartFailure: undefined,
   };
 
-  onTestFinished(() => {
-    for (const running of context.runtime.panes.values()) {
-      running.runtime[Symbol.dispose]();
-    }
-  });
-
-  return { context, pane, facts: [], errors };
+  return { context, pane: { ...first, restored: false } };
 };
 
-const waitFor = async (condition: () => boolean): Promise<void> => {
-  const deadline = performance.now() + 5000;
+const fakeSpawn = (generation: number): Spawned => {
+  const { promise, resolve } = Promise.withResolvers<number>();
+  const { runtime } = paneWithTerminal(generation, promise);
+  let given: Parameters<typeof spawnPane>[0] | undefined;
 
-  while (!condition()) {
-    invariant(performance.now() < deadline, 'The condition did not hold in time.');
-    await nextTurn();
-  }
+  return {
+    spawn: (options) => {
+      given = options;
+
+      return { ok: true, pane: runtime };
+    },
+    options: () => {
+      invariant(given !== undefined, 'No pane was spawned.');
+
+      return given;
+    },
+    exit: resolve,
+    runtime,
+  };
 };
 
-const send = (running: RunningPane | undefined, text: string): void => {
-  invariant(running !== undefined, 'The pane has no record.');
-  running.runtime.write(new TextEncoder().encode(text));
+const settle = async (): Promise<void> => {
+  await nextTurn();
+  await nextTurn();
 };
 
-it('records the running pane and reports it started', () => {
-  const { context, pane, facts } = started({});
+it('starts a pane, records it, and reports it started and later exited', async () => {
+  const { context, pane } = startContext();
+  const spawned = fakeSpawn(pane.generation);
+  const facts: Fact[] = [];
 
-  startPane(context, pane, (fact) => facts.push(fact));
+  startPane(context, pane, (fact) => facts.push(fact), spawned.spawn);
 
-  const running = context.runtime.panes.get(pane.id);
+  const recorded = context.runtime.panes.get(pane.id);
 
-  expect(running?.runtime.generation).toBe(pane.generation);
-  expect(running?.publication.pending).toBe(false);
-  expect(running?.publication.publisher).toBeDefined();
+  expect(recorded?.runtime).toBe(spawned.runtime);
+  expect(recorded?.publication.pending).toBe(false);
   expect(facts).toEqual([{ type: 'paneStarted', paneId: pane.id, generation: pane.generation }]);
-});
 
-it('reports the exit code of a pane that exits', async () => {
-  const { context, pane, facts } = started({});
-
-  startPane(context, pane, (fact) => facts.push(fact));
-  send(context.runtime.panes.get(pane.id), 'exit 3\n');
-
-  await waitFor(() => facts.some((fact) => fact.type === 'paneExited'));
+  spawned.exit(3);
+  await settle();
 
   expect(facts.at(-1)).toEqual({
     type: 'paneExited',
@@ -439,140 +688,29 @@ it('reports the exit code of a pane that exits', async () => {
     generation: pane.generation,
     exitCode: 3,
   });
+
+  spawned.runtime[Symbol.dispose]();
 });
 
-it('gives the new pane the colors the attached client reported', () => {
-  const theme = {
-    foreground: 0xaa_bb_cc,
-    background: 0x11_22_33,
-    palette: Array.from({ length: 16 }, (_, index) => index),
-  };
+it('releases a pane whose output fails and reports no exit for it', async () => {
+  const { context, pane } = startContext();
+  const spawned = fakeSpawn(pane.generation);
+  const facts: Fact[] = [];
 
-  const { context, pane } = started({ theme });
-  const colors = spyOn(Terminal.prototype, 'setDefaultColors');
+  startPane(context, pane, (fact) => facts.push(fact), spawned.spawn);
+  spawned.options().onFailed('marker rejected');
+  spawned.exit(137);
+  await settle();
 
-  onTestFinished(() => {
-    colors.mockRestore();
-  });
-
-  startPane(context, pane, () => {});
-
-  expect(colors).toHaveBeenCalledWith(theme.foreground, theme.background, theme.palette);
-});
-
-it('fails only a pane whose output handling throws, and reports no exit for it', async () => {
-  const { context, pane, facts, errors } = started({});
-  const write = Terminal.prototype.write;
-  const decoder = new TextDecoder();
-  let seen = '';
-
-  const spy = spyOn(Terminal.prototype, 'write').mockImplementation(function throwOnMarker(
-    this: Terminal,
-    bytes: Uint8Array,
-  ) {
-    seen += decoder.decode(bytes, { stream: true });
-
-    if (seen.includes('boom-marker')) {
-      throw new Error('marker rejected');
-    }
-
-    return write.call(this, bytes);
-  });
-
-  onTestFinished(() => {
-    spy.mockRestore();
-  });
-
-  startPane(context, pane, (fact) => facts.push(fact));
-
-  const running = context.runtime.panes.get(pane.id);
-
-  invariant(running !== undefined, 'The pane has no record.');
-  send(running, "printf 'boom-%s\\n' marker\n");
-
-  await waitFor(() => facts.some((fact) => fact.type === 'paneFailed'));
-
-  // The failure released the pane, which ends its shell. The exit handler was attached first, so it
-  // has run once this resolves.
-  await running.runtime.exited;
-
-  const failure = facts.find((fact) => fact.type === 'paneFailed');
-
-  invariant(failure?.type === 'paneFailed', 'The pane did not fail.');
-
-  expect(facts.filter((fact) => fact.type !== 'paneStarted')).toEqual([failure]);
-  expect(failure).toMatchObject({ paneId: pane.id, generation: pane.generation });
-  expect(failure.message).toContain('marker rejected');
-  expect(context.runtime.panes.has(pane.id)).toBe(false);
-
-  const logged = errors.find((error) => error.fields?.paneId === pane.id);
-
-  expect(logged?.message).not.toBe('');
-  expect(logged?.fields?.message).toContain('marker rejected');
-});
-
-it('releases a restored pane whose scoped shell cannot execute', async () => {
-  const bin = mkdtempSync(join(tmpdir(), 'koja-fake-systemd-'));
-
-  onTestFinished(() => {
-    rmSync(bin, { recursive: true, force: true });
-  });
-
-  const script = join(bin, 'systemd-run');
-
-  writeFileSync(
-    script,
-    '#!/bin/sh\ncase "$*" in *"-- true") exit 0;; esac\necho "Failed to execute /missing: No such file"\nexit 1\n',
-  );
-
-  chmodSync(script, 0o755);
-
-  const { context, pane, facts } = started({
-    restored: true,
-    environment: { SHELL: '/bin/sh', PATH: `${bin}:${process.env.PATH}` },
-  });
-
-  context.runtime.paneScopes = undefined;
-  startPane(context, pane, (fact) => facts.push(fact));
-
-  await waitFor(() => facts.some((fact) => fact.type === 'paneFailedToStart'));
-
-  expect(facts.at(-1)).toMatchObject({
-    type: 'paneFailedToStart',
-    paneId: pane.id,
-    generation: pane.generation,
-  });
-
-  expect(context.runtime.panes.has(pane.id)).toBe(false);
-});
-
-it('gives every running pane the colors the attached client reported', () => {
-  const theme = {
-    foreground: 0xaa_bb_cc,
-    background: 0x11_22_33,
-    palette: Array.from({ length: 16 }, (_, index) => index),
-  };
-
-  const { context } = started({ theme });
-  const painted: unknown[][] = [];
-
-  for (const [index, number] of [1, 2].entries()) {
-    const terminal = {
-      setDefaultColors: (...colors: unknown[]) => {
-        painted.push([index, ...colors]);
-      },
-    };
-
-    context.runtime.panes.set(paneId(number), {
-      runtime: { terminal, [Symbol.dispose]: () => {} } as unknown as PaneRuntime,
-      publication: undefined as unknown as RunningPane['publication'],
-    });
-  }
-
-  applyThemeToPane(context);
-
-  expect(painted).toEqual([
-    [0, theme.foreground, theme.background, theme.palette],
-    [1, theme.foreground, theme.background, theme.palette],
+  expect(facts).toEqual([
+    { type: 'paneStarted', paneId: pane.id, generation: pane.generation },
+    {
+      type: 'paneFailed',
+      paneId: pane.id,
+      generation: pane.generation,
+      message: expect.stringContaining('marker rejected') as string,
+    },
   ]);
+
+  expect(context.runtime.panes.has(pane.id)).toBe(false);
 });

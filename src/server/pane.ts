@@ -3,6 +3,7 @@ import { createTerminal } from '../vt/vt.ts';
 import type { Terminal } from '../vt/vt.ts';
 import { buildPaneEnvironment } from './paneEnvironment.ts';
 import type { PaneIdentity } from './paneEnvironment.ts';
+import { guardOutput } from './paneOutput.ts';
 import { sessionGroups } from './processGroups.ts';
 import {
   killScopeDetached,
@@ -152,7 +153,6 @@ export const spawnPane = (options: SpawnPaneOptions): SpawnPaneResult => {
 
   const { terminal } = created;
   let disposed = false;
-  let outputFailed = false;
   let lastPrimary = terminal.stableRows();
 
   // The alternate screen keeps no history, so only primary-screen samples are compared. The primary
@@ -177,7 +177,11 @@ export const spawnPane = (options: SpawnPaneOptions): SpawnPaneResult => {
     }
   };
 
-  const handleOutput: OnOutput = (pty, bytes) => {
+  const onOutput: OnOutput = (pty, bytes) => {
+    if (disposed) {
+      return;
+    }
+
     const { reply, bells, clipboard } = terminal.write(bytes);
 
     if (reply !== undefined) {
@@ -196,25 +200,12 @@ export const spawnPane = (options: SpawnPaneOptions): SpawnPaneResult => {
     options.onOutput();
   };
 
-  const onOutput: OnOutput = (pty, bytes) => {
-    if (disposed || outputFailed) {
-      return;
-    }
-
-    try {
-      handleOutput(pty, bytes);
-    } catch (error) {
-      outputFailed = true;
-      options.onFailed(describeError(error));
-    }
-  };
-
   let shell: ReturnType<typeof spawnShell>;
   const scoped = options.useScope && scopeCanRun(shellOf(options.environment));
   const unit = scoped ? scopeUnitName(process.pid) : undefined;
 
   try {
-    shell = spawnShell(options, onOutput, unit);
+    shell = spawnShell(options, guardOutput(onOutput, options.onFailed), unit);
   } catch (error) {
     terminal[Symbol.dispose]();
 
