@@ -96,7 +96,6 @@ const started = (options: {
     },
     state: { ...current, panes: [pane] },
     runtime: { panes: new Map(), clientIds: new Map(), paneScopes: false },
-    paneStartFailure: undefined,
   };
 
   onTestFinished(() => {

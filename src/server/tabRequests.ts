@@ -2,10 +2,11 @@ import type { ClientId, PaneId } from '../ids.ts';
 import { invariant } from '../invariant.ts';
 import type { ControlMessage } from '../protocol/protocol.ts';
 import { shownFocusedPaneId } from '../store/store.ts';
-import type { Change, Intent, State } from '../store/store.ts';
+import type { Intent, RejectReason, State } from '../store/store.ts';
 import { sourceOf } from './clientRequests.ts';
 import type { Connection } from './connection.ts';
-import { followFolderOf, takePaneStartFailure } from './paneEffects.ts';
+import type { Dispatch } from './dispatchResult.ts';
+import { followFolderOf } from './paneEffects.ts';
 import type { RunningPane } from './paneRecord.ts';
 
 export type TabRequest = Extract<
@@ -16,10 +17,9 @@ export type TabRequest = Extract<
 interface TabRequestContext {
   state: State;
   runtime: { panes: Map<PaneId, RunningPane>; clientIds: Map<Connection, ClientId> };
-  paneStartFailure: string | undefined;
 }
 
-type Dispatch = (intent: Intent) => readonly Change[];
+type TabFailureReason = Extract<ControlMessage, { type: 'tabFailed' }>['reason'];
 
 const tabRequestTypes: ReadonlySet<string> = new Set([
   'tabCreate',
@@ -60,28 +60,17 @@ const tabIntentOf = (
   return { type: 'closeTab', tabId: message.tabId };
 };
 
-// The store refuses a request for an unknown workspace or tab, or while the server stops.
-const tabRefusalOf = (
-  context: TabRequestContext,
-  message: TabRequest,
-): ControlMessage | undefined => {
-  if (context.state.stopping) {
-    return { type: 'tabFailed', reason: 'serverStopping', message: undefined };
-  }
-
-  if (message.type === 'tabCreate') {
-    const known = context.state.workspaces.some(
-      (workspace) => workspace.id === message.workspaceId,
-    );
-
-    return known
-      ? undefined
-      : { type: 'tabFailed', reason: 'unknownWorkspace', message: undefined };
-  }
-
-  const known = context.state.tabs.some((tab) => tab.id === message.tabId);
-
-  return known ? undefined : { type: 'tabFailed', reason: 'unknownTab', message: undefined };
+// A reason that maps to undefined means a server bug for this request.
+const failureReasons: Record<RejectReason, TabFailureReason | undefined> = {
+  serverStopping: 'serverStopping',
+  sessionNotEmpty: undefined,
+  unknownClient: undefined,
+  unknownWorkspace: 'unknownWorkspace',
+  unknownTab: 'unknownTab',
+  unknownPane: undefined,
+  paneTooSmall: undefined,
+  sameTab: undefined,
+  noSplit: undefined,
 };
 
 export const handleTabRequest = (
@@ -90,25 +79,35 @@ export const handleTabRequest = (
   connection: Connection,
   dispatch: Dispatch,
 ): void => {
-  const refusal = tabRefusalOf(context, message);
+  const result = dispatch(tabIntentOf(context, message, sourceOf(context, connection)));
 
-  if (refusal !== undefined) {
-    connection.send(refusal);
+  if (result.kind === 'rejected') {
+    const reason = failureReasons[result.reason];
+
+    invariant(reason !== undefined, `A tab request cannot be rejected as ${result.reason}.`);
+
+    connection.send({
+      type: 'tabFailed',
+      reason,
+      message: undefined,
+    });
 
     return;
   }
 
-  const changes = dispatch(tabIntentOf(context, message, sourceOf(context, connection)));
-  const added = changes.find((change) => change.type === 'tabAdded');
-  const startFailure = takePaneStartFailure(context);
-
-  if (startFailure !== undefined) {
-    connection.send({ type: 'tabFailed', reason: 'paneFailedToStart', message: startFailure });
+  if (result.startFailure !== undefined) {
+    connection.send({
+      type: 'tabFailed',
+      reason: 'paneFailedToStart',
+      message: result.startFailure,
+    });
 
     return;
   }
 
   if (message.type === 'tabCreate') {
+    const added = result.changes.find((change) => change.type === 'tabAdded');
+
     invariant(added !== undefined, 'A created tab must be added.');
     connection.send({ type: 'tabDone', tabId: added.tab.id });
 

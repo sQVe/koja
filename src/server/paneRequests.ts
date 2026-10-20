@@ -1,22 +1,17 @@
 import { paneId as paneIdFor } from '../ids.ts';
 import type { ClientId, PaneId } from '../ids.ts';
+import { invariant } from '../invariant.ts';
 import { FrameKind } from '../protocol/protocol.ts';
 import type { ControlMessage } from '../protocol/protocol.ts';
 import { encodePaneRows } from '../rows/rows.ts';
 import type { PaneInput } from '../rows/rows.ts';
-import { applyIntent } from '../store/store.ts';
-import type { Change, Intent, RejectReason, State } from '../store/store.ts';
+import type { Intent, RejectReason, State } from '../store/store.ts';
 import { sourceOf } from './clientRequests.ts';
 import type { Connection } from './connection.ts';
+import type { Dispatch } from './dispatchResult.ts';
 import type { Log } from './log.ts';
 import { handlePaneCopy } from './paneCopyRequests.ts';
-import {
-  findLivePane,
-  followFolderOf,
-  paneNumber,
-  startFolderOf,
-  takePaneStartFailure,
-} from './paneEffects.ts';
+import { findLivePane, followFolderOf, paneNumber, startFolderOf } from './paneEffects.ts';
 import type { RunningPane } from './paneRecord.ts';
 import { selectPaneRows } from './paneRows.ts';
 import { createSnapshot, hasMoreParts, takePart } from './paneSnapshot.ts';
@@ -33,10 +28,7 @@ interface PaneRequestContext {
     // The snapshot of the read a connection has parts left of, one per connection.
     readSnapshots: SnapshotStore<Connection>;
   };
-  paneStartFailure: string | undefined;
 }
-
-type Dispatch = (intent: Intent) => readonly Change[];
 
 type PaneReadMessage = Extract<ControlMessage, { type: 'paneRead' }>;
 
@@ -378,44 +370,17 @@ const paneIntentOf = (
     : { type: 'closePane', paneId: message.paneId };
 };
 
-const refusalReasonOf = (
-  message: PaneLayoutRequest,
-  reason: RejectReason,
-): PaneFailureReason | undefined => {
-  if (reason === 'noSplit') {
-    return reason;
-  }
-
-  const isMoveReason = reason === 'unknownTab' || reason === 'paneTooSmall' || reason === 'sameTab';
-
-  return message.type === 'paneMove' && isMoveReason ? reason : undefined;
-};
-
-const paneRefusalOf = (
-  context: PaneRequestContext,
-  message: PaneLayoutRequest,
-  connection: Connection,
-): ControlMessage | undefined => {
-  if (context.state.stopping) {
-    return { type: 'paneFailed', reason: 'serverStopping', message: undefined };
-  }
-
-  const known = context.state.panes.some((pane) => pane.id === message.paneId);
-
-  if (!known) {
-    return { type: 'paneFailed', reason: 'unknownPane', message: undefined };
-  }
-
-  const intent = paneIntentOf(message, sourceOf(context, connection), undefined);
-  const outcome = applyIntent(context.state, intent);
-
-  if (outcome.kind !== 'rejected') {
-    return undefined;
-  }
-
-  const reason = refusalReasonOf(message, outcome.reason);
-
-  return reason === undefined ? undefined : { type: 'paneFailed', reason, message: undefined };
+// A reason that maps to undefined means a server bug for this request.
+const failureReasons: Record<RejectReason, PaneFailureReason | undefined> = {
+  serverStopping: 'serverStopping',
+  sessionNotEmpty: undefined,
+  unknownClient: undefined,
+  unknownWorkspace: undefined,
+  unknownTab: 'unknownTab',
+  unknownPane: 'unknownPane',
+  paneTooSmall: 'paneTooSmall',
+  sameTab: 'sameTab',
+  noSplit: 'noSplit',
 };
 
 export const handlePaneLayoutRequest = (
@@ -424,31 +389,38 @@ export const handlePaneLayoutRequest = (
   connection: Connection,
   dispatch: Dispatch,
 ): void => {
-  const refusal = paneRefusalOf(context, message, connection);
+  const folder = paneFolderOf(context, message);
+  const result = dispatch(paneIntentOf(message, sourceOf(context, connection), folder));
 
-  if (refusal !== undefined) {
-    connection.send(refusal);
+  if (result.kind === 'rejected') {
+    const reason = failureReasons[result.reason];
+
+    invariant(reason !== undefined, `A pane request cannot be rejected as ${result.reason}.`);
+
+    connection.send({
+      type: 'paneFailed',
+      reason,
+      message: undefined,
+    });
 
     return;
   }
 
-  const folder = paneFolderOf(context, message);
-  const changes = dispatch(paneIntentOf(message, sourceOf(context, connection), folder));
-  const added = changes.find((change) => change.type === 'paneAdded');
-  const startFailure = takePaneStartFailure(context);
-
-  if (startFailure !== undefined) {
-    connection.send({ type: 'paneFailed', reason: 'paneFailedToStart', message: startFailure });
+  if (result.startFailure !== undefined) {
+    connection.send({
+      type: 'paneFailed',
+      reason: 'paneFailedToStart',
+      message: result.startFailure,
+    });
 
     return;
   }
 
   if (message.type === 'paneSplit') {
-    connection.send(
-      added === undefined
-        ? { type: 'paneFailed', reason: 'paneTooSmall', message: undefined }
-        : { type: 'paneDone', paneId: added.pane.id },
-    );
+    const added = result.changes.find((change) => change.type === 'paneAdded');
+
+    invariant(added !== undefined, 'A split pane must be added.');
+    connection.send({ type: 'paneDone', paneId: added.pane.id });
 
     return;
   }

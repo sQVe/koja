@@ -35,8 +35,6 @@ export interface PaneEffectContext {
     // Whether panes start in a systemd user scope. Decided when the first pane starts.
     paneScopes: boolean | undefined;
   };
-  // Why a pane failed to start during the current request, so the request can report it.
-  paneStartFailure: string | undefined;
 }
 
 interface LivePaneContext {
@@ -248,12 +246,13 @@ export const recordPane = (
   context.runtime.panes.set(id, { runtime, publication: { publisher, pending: false } });
 };
 
+// Returns the message of a new pane that failed to start. A restored pane reports no failure.
 export const startPane = (
   context: PaneEffectContext,
   pane: Pane,
   report: Report,
   spawn: typeof spawnPane = spawnPane,
-): void => {
+): string | undefined => {
   const { log } = context.options;
   const { id, generation } = pane;
   const directory = startFolderOf(context, pane);
@@ -264,7 +263,7 @@ export const startPane = (
     log.error('The restored pane has no folder.', { paneId: id, message });
     report({ type: 'paneFailedToStart', paneId: id, generation, message });
 
-    return;
+    return undefined;
   }
 
   let outputFailed = false;
@@ -300,15 +299,11 @@ export const startPane = (
   if (!spawned.ok) {
     log.error('The pane failed to start.', { paneId: id, message: spawned.message });
 
-    if (!pane.restored) {
-      context.paneStartFailure = spawned.message;
-    }
-
     const message = pane.restored ? savedShellMessage(spawned.message) : spawned.message;
 
     report({ type: 'paneFailedToStart', paneId: id, generation, message });
 
-    return;
+    return pane.restored ? undefined : spawned.message;
   }
 
   const number = paneNumber(id);
@@ -337,6 +332,8 @@ export const startPane = (
     });
 
   report({ type: 'paneStarted', paneId: id, generation });
+
+  return undefined;
 };
 
 // Runs one shutdown step, and logs and records its failure instead of throwing.
@@ -476,14 +473,4 @@ export const followFolderOf = (
   const live = id === undefined ? undefined : findLivePane(context, id);
 
   return live === undefined ? undefined : readFollowFolder(live.runtime.processId);
-};
-
-export const takePaneStartFailure = (
-  context: Pick<PaneEffectContext, 'paneStartFailure'>,
-): string | undefined => {
-  const failure = context.paneStartFailure;
-
-  context.paneStartFailure = undefined;
-
-  return failure;
 };
