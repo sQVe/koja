@@ -559,6 +559,14 @@ static void restart_numbers(Pane *pane) {
   pane->reset = false;
 }
 
+typedef struct {
+  uint64_t first;
+  uint64_t active_top;
+  uint64_t epoch;
+  uint64_t alternate;
+  uint64_t screen;
+} StableRows;
+
 // Gives each row of the primary screen a number that stays with the row while output scrolls it
 // into history and the oldest history is pruned, like WezTerm's StableRowIndex. libghostty-vt has
 // no such number, so a tracked grid ref marks the active area's top row with its number; the next
@@ -570,7 +578,7 @@ static void restart_numbers(Pane *pane) {
 // resolves against the primary screen, but it can only be moved to the active screen, so it stays
 // in place until the primary screen is active again. Without an anchor, only the reset callback
 // shows that a reset cleared the primary screen.
-// info receives the number of screen row 0 (the oldest history row), the number of the active
+// rows receives the number of screen row 0 (the oldest history row), the number of the active
 // area's top row, the epoch, 1 when the alternate screen is active, and the screen generation,
 // which grows each time a call finds the other screen active than the call before. Libghostty-vt
 // has no callback for a screen switch, so switches that happen between two calls and leave the
@@ -578,7 +586,7 @@ static void restart_numbers(Pane *pane) {
 // The alternate screen has
 // no history, so both numbers stay at the primary screen's active top. Returns false when
 // libghostty-vt cannot track the active top.
-static bool update_stable_rows(Pane *pane, uint64_t *info) {
+static bool update_stable_rows(Pane *pane, StableRows *rows) {
   size_t scrollback = 0;
   ghostty_terminal_get(pane->terminal, GHOSTTY_TERMINAL_DATA_PRIMARY_SCROLLBACK_ROWS, &scrollback);
   uint64_t anchor_y = 0;
@@ -589,8 +597,8 @@ static bool update_stable_rows(Pane *pane, uint64_t *info) {
     if (pane->anchor) restart_numbers(pane);
     pane->active_top = pane->restart_first + scrollback;
   }
-  info[1] = pane->active_top;
-  info[2] = pane->epoch;
+  rows->active_top = pane->active_top;
+  rows->epoch = pane->epoch;
   GhosttyTerminalScreen screen = GHOSTTY_TERMINAL_SCREEN_PRIMARY;
   ghostty_terminal_get(pane->terminal, GHOSTTY_TERMINAL_DATA_ACTIVE_SCREEN, &screen);
   bool alternate = screen != GHOSTTY_TERMINAL_SCREEN_PRIMARY;
@@ -598,20 +606,29 @@ static bool update_stable_rows(Pane *pane, uint64_t *info) {
     pane->screen++;
     pane->screen_alternate = alternate;
   }
-  info[4] = pane->screen;
+  rows->screen = pane->screen;
   if (alternate) {
-    info[0] = pane->active_top;
-    info[3] = 1;
+    rows->first = pane->active_top;
+    rows->alternate = 1;
     return true;
   }
   if (!track_active_top(pane)) return false;
   pane->anchor_number = pane->active_top;
-  info[0] = pane->active_top - scrollback;
-  info[3] = 0;
+  rows->first = pane->active_top - scrollback;
+  rows->alternate = 0;
   return true;
 }
 
-bool pane_stable_rows(Pane *pane, uint64_t *info) { return update_stable_rows(pane, info); }
+bool pane_stable_rows(Pane *pane, uint64_t *info) {
+  StableRows rows = {0};
+  bool tracked = update_stable_rows(pane, &rows);
+  info[0] = rows.first;
+  info[1] = rows.active_top;
+  info[2] = rows.epoch;
+  info[3] = rows.alternate;
+  info[4] = rows.screen;
+  return tracked;
+}
 
 // Returns the cluster length and writes the cluster to graphemes when it fits.
 static uint32_t read_ref_grapheme(const GhosttyGridRef *ref, FrameOutput *out) {
@@ -676,15 +693,15 @@ static bool read_screen_row(Pane *pane, uint64_t y, uint32_t offset, uint16_t co
 // first is gone, or -4 when libghostty-vt cannot track the active top or resolve a row.
 int64_t pane_read_rows(Pane *pane, uint64_t epoch, uint64_t first, uint32_t count, uint32_t *cells,
                        uint64_t cells_len, uint32_t *graphemes, uint64_t graphemes_len, uint64_t *info) {
-  uint64_t stable[4] = {0, 0, 0, 0};
-  if (!update_stable_rows(pane, stable)) return -4;
-  if (stable[2] != epoch) return -2;
-  if (first < stable[0]) return -3;
+  StableRows stable = {0};
+  if (!update_stable_rows(pane, &stable)) return -4;
+  if (stable.epoch != epoch) return -2;
+  if (first < stable.first) return -3;
   size_t total = 0;
   uint16_t cols = 0;
   ghostty_terminal_get(pane->terminal, GHOSTTY_TERMINAL_DATA_TOTAL_ROWS, &total);
   ghostty_terminal_get(pane->terminal, GHOSTTY_TERMINAL_DATA_COLS, &cols);
-  uint64_t y = first - stable[0];
+  uint64_t y = first - stable.first;
   uint64_t available = y < total ? total - y : 0;
   uint32_t rows = available < count ? (uint32_t)available : count;
   FrameOutput out = {.cells = cells, .cells_len = cells_len, .graphemes = graphemes, .graphemes_len = graphemes_len};
