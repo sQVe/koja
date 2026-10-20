@@ -125,9 +125,10 @@ const failOnePane = async (scanFails: boolean): Promise<void> => {
     () => server.snapshot().panes.find((p) => p.id === paneId(2))?.lifecycle === 'running',
   );
 
-  client.send(readRecent(paneId(2)));
-
+  // A read answers once, with the rows of that moment, so it repeats until pane 2 has printed.
   for (;;) {
+    client.send(readRecent(paneId(2)));
+
     const rows = await client.nextPaneRows();
 
     if (linesOf(rows).join('\n').includes('other-alive')) {
