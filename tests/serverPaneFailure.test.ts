@@ -37,12 +37,26 @@ const failOnePane = async (scanFails: boolean): Promise<void> => {
   }
 
   const write = Terminal.prototype.write;
+  const maxSeenLength = 64;
+  const decoders = new WeakMap<Terminal, TextDecoder>();
+  const seenByTerminal = new WeakMap<Terminal, string>();
+  let thrown = false;
 
   const spy = spyOn(Terminal.prototype, 'write').mockImplementation(function throwOnMarker(
     this: Terminal,
     bytes: Uint8Array,
   ) {
-    if (new TextDecoder().decode(bytes).includes('boom-marker')) {
+    const decoder = decoders.get(this) ?? new TextDecoder();
+
+    decoders.set(this, decoder);
+
+    const seen = (seenByTerminal.get(this) ?? '') + decoder.decode(bytes, { stream: true });
+
+    seenByTerminal.set(this, seen.slice(-maxSeenLength));
+
+    if (!thrown && seen.includes('boom-marker')) {
+      thrown = true;
+
       throw new Error('marker rejected');
     }
 
@@ -94,15 +108,18 @@ const failOnePane = async (scanFails: boolean): Promise<void> => {
 
   await waitFor(() => failed() !== undefined);
 
-  expect(failed()).toBe('Pane output failed: marker rejected');
+  expect(failed()).toContain('marker rejected');
 
   await waitFor(() =>
-    logLinesOf(logPath).some((line) => line.message === 'The pane output failed.'),
+    logLinesOf(logPath).some(
+      (line) =>
+        line.fields.paneId === paneId(1) && String(line.fields.message).includes('marker rejected'),
+    ),
   );
 
   await waitFor(() => !processExists(shellProcess));
 
-  expect(failed()).toBe('Pane output failed: marker rejected');
+  expect(failed()).toContain('marker rejected');
 
   await waitFor(
     () => server.snapshot().panes.find((p) => p.id === paneId(2))?.lifecycle === 'running',

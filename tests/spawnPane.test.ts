@@ -1,8 +1,8 @@
 import { expect, it, onTestFinished } from 'bun:test';
 
-import { paneId, tabId, workspaceId } from '../ids.ts';
-import { spawnPane } from './pane.ts';
-import type { PaneRuntime } from './pane.ts';
+import { paneId, tabId, workspaceId } from '../src/ids.ts';
+import { spawnPane } from '../src/server/pane.ts';
+import type { PaneRuntime } from '../src/server/pane.ts';
 
 interface Calls {
   outputs: number;

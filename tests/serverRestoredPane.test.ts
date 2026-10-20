@@ -3,12 +3,12 @@ import { mkdtemp, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
-import { paneId, tabId, workspaceId } from '../ids.ts';
-import type { SavedSession } from '../store/store.ts';
-import type { Log } from './log.ts';
-import { runServer } from './server.ts';
-import type { Server } from './server.ts';
-import { createSessionWriter } from './sessionFile.ts';
+import { paneId, tabId, workspaceId } from '../src/ids.ts';
+import type { Log } from '../src/server/log.ts';
+import { runServer } from '../src/server/server.ts';
+import type { Server } from '../src/server/server.ts';
+import { createSessionWriter } from '../src/server/sessionFile.ts';
+import type { SavedSession } from '../src/store/store.ts';
 
 const noop = (): void => {};
 
