@@ -1,7 +1,7 @@
 import type { PaneRuntime } from './pane.ts';
 import type { RowPublication } from './rowSubscriptions.ts';
 
-// What the server keeps for a pane that is running. Its generation is `runtime.generation`.
+// The record's generation is `runtime.generation`. Do not add a second generation field.
 export interface RunningPane {
   runtime: PaneRuntime;
   publication: RowPublication;
