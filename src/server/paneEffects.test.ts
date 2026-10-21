@@ -634,7 +634,6 @@ const startContext = (): { context: PaneEffectContext; pane: Pane } => {
     },
     state: themed.state,
     runtime: { panes: new Map(), clientIds: new Map(), paneScopes: false },
-    paneStartFailure: undefined,
   };
 
   return { context, pane: { ...first, restored: false } };

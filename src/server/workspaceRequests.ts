@@ -1,10 +1,10 @@
 import type { ClientId } from '../ids.ts';
 import { invariant } from '../invariant.ts';
 import type { ControlMessage } from '../protocol/protocol.ts';
-import type { Change, Intent, State } from '../store/store.ts';
+import type { Intent, RejectReason, State } from '../store/store.ts';
 import { sourceOf } from './clientRequests.ts';
 import type { Connection } from './connection.ts';
-import { takePaneStartFailure } from './paneEffects.ts';
+import type { Dispatch } from './dispatchResult.ts';
 
 export type WorkspaceRequest = Extract<
   ControlMessage,
@@ -14,10 +14,9 @@ export type WorkspaceRequest = Extract<
 interface WorkspaceRequestContext {
   state: State;
   runtime: { clientIds: Map<Connection, ClientId> };
-  paneStartFailure: string | undefined;
 }
 
-type Dispatch = (intent: Intent) => readonly Change[];
+type WorkspaceFailureReason = Extract<ControlMessage, { type: 'workspaceFailed' }>['reason'];
 
 const workspaceRequestTypes: ReadonlySet<string> = new Set([
   'workspaceCreate',
@@ -51,24 +50,17 @@ const workspaceIntentOf = (message: WorkspaceRequest, source: { clientId?: Clien
   return { type: 'closeWorkspace', workspaceId: message.workspaceId };
 };
 
-// The store refuses a request for an unknown workspace, or while the server stops.
-const workspaceRefusalOf = (
-  context: WorkspaceRequestContext,
-  message: WorkspaceRequest,
-): ControlMessage | undefined => {
-  if (context.state.stopping) {
-    return { type: 'workspaceFailed', reason: 'serverStopping', message: undefined };
-  }
-
-  if (message.type === 'workspaceCreate') {
-    return undefined;
-  }
-
-  const known = context.state.workspaces.some((workspace) => workspace.id === message.workspaceId);
-
-  return known
-    ? undefined
-    : { type: 'workspaceFailed', reason: 'unknownWorkspace', message: undefined };
+// A reason that maps to undefined means a server bug for this request.
+const failureReasons: Record<RejectReason, WorkspaceFailureReason | undefined> = {
+  serverStopping: 'serverStopping',
+  sessionNotEmpty: undefined,
+  unknownClient: undefined,
+  unknownWorkspace: 'unknownWorkspace',
+  unknownTab: undefined,
+  unknownPane: undefined,
+  paneTooSmall: undefined,
+  sameTab: undefined,
+  noSplit: undefined,
 };
 
 export const handleWorkspaceRequest = (
@@ -77,33 +69,37 @@ export const handleWorkspaceRequest = (
   connection: Connection,
   dispatch: Dispatch,
 ): void => {
-  const refusal = workspaceRefusalOf(context, message);
+  const result = dispatch(workspaceIntentOf(message, sourceOf(context, connection)));
 
-  if (refusal !== undefined) {
-    connection.send(refusal);
+  if (result.kind === 'rejected') {
+    const reason = failureReasons[result.reason];
 
-    return;
-  }
+    invariant(reason !== undefined, `A workspace request cannot be rejected as ${result.reason}.`);
 
-  const changes = dispatch(workspaceIntentOf(message, sourceOf(context, connection)));
-  const added = changes.find((change) => change.type === 'workspaceAdded');
-  const startFailure = takePaneStartFailure(context);
-
-  if (startFailure !== undefined) {
     connection.send({
       type: 'workspaceFailed',
-      reason: 'paneFailedToStart',
-      message: startFailure,
+      reason,
+      message: undefined,
     });
 
     return;
   }
 
-  const workspaceId = added === undefined ? undefined : added.workspace.id;
+  if (result.startFailure !== undefined) {
+    connection.send({
+      type: 'workspaceFailed',
+      reason: 'paneFailedToStart',
+      message: result.startFailure,
+    });
+
+    return;
+  }
 
   if (message.type === 'workspaceCreate') {
-    invariant(workspaceId !== undefined, 'A created workspace must be added.');
-    connection.send({ type: 'workspaceDone', workspaceId });
+    const added = result.changes.find((change) => change.type === 'workspaceAdded');
+
+    invariant(added !== undefined, 'A created workspace must be added.');
+    connection.send({ type: 'workspaceDone', workspaceId: added.workspace.id });
 
     return;
   }

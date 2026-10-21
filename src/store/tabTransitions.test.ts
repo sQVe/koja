@@ -422,3 +422,27 @@ it('reports no tab focus change when a workspace closes with its active tab firs
 
   expect(result.changes.map((change) => change.type)).not.toContain('tabFocused');
 });
+
+it('drops the startup records of the panes of a closed tab', () => {
+  const split: Intent = {
+    type: 'splitPane',
+    paneId: paneId(2),
+    direction: 'right',
+    folder: undefined,
+  };
+
+  const state = run([createKoja, createTab, split]);
+  const closedIds = [paneId(2), paneId(3)];
+
+  expect(state.stateBeforeSplit.has(paneId(3))).toBe(true);
+  expect(state.startFallbacks.some((known) => known.paneId === paneId(2))).toBe(true);
+
+  const result = intent(state, { type: 'closeTab', tabId: tabId(2) });
+
+  expect(result.state.panes.map((pane) => pane.id)).toEqual([paneId(1)]);
+
+  for (const id of closedIds) {
+    expect(result.state.stateBeforeSplit.has(id)).toBe(false);
+    expect(result.state.startFallbacks.some((known) => known.paneId === id)).toBe(false);
+  }
+});

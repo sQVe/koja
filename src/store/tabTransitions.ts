@@ -2,6 +2,7 @@ import { paneId, tabId } from '../ids.ts';
 import type { ClientId, TabId, WorkspaceId } from '../ids.ts';
 import { invariant } from '../invariant.ts';
 import { lonePaneSize } from './paneSizes.ts';
+import { withoutStartupRecords } from './paneStartupRecords.ts';
 import type {
   Change,
   Intent,
@@ -58,12 +59,15 @@ export const removeTab = (state: State, tab: Tab, restore?: StartFallback): Prop
 
   const tabs = state.tabs.filter((known) => known.id !== tab.id);
   const owner = state.workspaces.find((workspace) => workspace.id === tab.workspaceId);
-  const tabIds = owner?.tabIds.filter((id) => id !== tab.id) ?? [];
-  const next: State = { ...state, panes: remaining, tabs };
 
-  if (owner === undefined) {
-    return propose(next, changes);
-  }
+  invariant(owner !== undefined, `Tab ${tab.id} has no workspace.`);
+
+  const tabIds = owner.tabIds.filter((id) => id !== tab.id);
+
+  const next: State = withoutStartupRecords(
+    { ...state, panes: remaining, tabs },
+    removedPanes.map((pane) => pane.id),
+  );
 
   if (tabIds.length > 0) {
     const neighbor = tabAfterRemoval(owner, tab.id);

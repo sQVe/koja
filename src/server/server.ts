@@ -16,6 +16,8 @@ import {
 } from './clientRequests.ts';
 import { createConnection } from './connection.ts';
 import type { Connection } from './connection.ts';
+import { changesOf } from './dispatchResult.ts';
+import type { DispatchResult } from './dispatchResult.ts';
 import type { Log } from './log.ts';
 import type { PaneRuntime } from './pane.ts';
 import {
@@ -126,8 +128,6 @@ interface ServerContext {
   runtime: Runtime;
   stopped: PromiseWithResolvers<StopResult>;
   releaseSignals: () => void;
-  // Why a pane failed to start during the current request, so the request can report it.
-  paneStartFailure: string | undefined;
 }
 
 // Effects report facts with this, and report starts effects, so effects take it as an argument.
@@ -210,12 +210,21 @@ const stopServer = (context: ServerContext): void => {
     });
 };
 
-const runEffects = (context: ServerContext, changes: readonly Change[], report: Report): void => {
+// Returns the first message of a new pane that failed to start.
+const runEffects = (
+  context: ServerContext,
+  changes: readonly Change[],
+  report: Report,
+): string | undefined => {
+  let startFailure: string | undefined;
+
   for (const change of changes) {
     if (change.type === 'paneAdded') {
-      startPane(context, change.pane, (fact) => {
+      const failure = startPane(context, change.pane, (fact) => {
         report(context, fact);
       });
+
+      startFailure ??= failure;
     }
 
     if (change.type === 'paneRemoved') {
@@ -240,6 +249,8 @@ const runEffects = (context: ServerContext, changes: readonly Change[], report: 
   }
 
   syncRowSubscriptions(context);
+
+  return startFailure;
 };
 
 const publishChanges = (context: ServerContext, changes: readonly Change[]): void => {
@@ -278,8 +289,7 @@ const report = (context: ServerContext, fact: Fact): void => {
   saveSession(context, result.changes);
 };
 
-// Returns the changes the intent made, none when the store refuses it.
-const dispatch = (context: ServerContext, intent: Intent): readonly Change[] => {
+const dispatch = (context: ServerContext, intent: Intent): DispatchResult => {
   const result = applyIntent(context.state, intent);
 
   context.state = result.state;
@@ -287,15 +297,20 @@ const dispatch = (context: ServerContext, intent: Intent): readonly Change[] => 
   if (result.kind === 'rejected') {
     context.options.log.warn('Refused an intent.', { intent: intent.type, reason: result.reason });
 
-    return [];
+    return { kind: 'rejected', reason: result.reason };
   }
 
   publishChanges(context, result.changes);
-  runEffects(context, result.changes, report);
+
+  const startFailure = runEffects(context, result.changes, report);
+
   saveSession(context, result.changes);
 
-  return result.changes;
+  return { kind: 'applied', changes: result.changes, startFailure };
 };
+
+const dispatchChanges = (context: ServerContext, intent: Intent): readonly Change[] =>
+  changesOf(dispatch(context, intent));
 
 // Returns whether the message was a workspace, tab, or pane layout request.
 const handleLayoutRequest = (
@@ -303,7 +318,7 @@ const handleLayoutRequest = (
   message: ControlMessage,
   connection: Connection,
 ): boolean => {
-  const dispatchIntent = (intent: Intent): readonly Change[] => dispatch(context, intent);
+  const dispatchIntent = (intent: Intent): DispatchResult => dispatch(context, intent);
 
   if (isWorkspaceRequest(message)) {
     handleWorkspaceRequest(context, message, connection, dispatchIntent);
@@ -337,7 +352,7 @@ const handleMessage = (
     return;
   }
 
-  const dispatchIntent = (intent: Intent): readonly Change[] => dispatch(context, intent);
+  const dispatchIntent = (intent: Intent): readonly Change[] => dispatchChanges(context, intent);
 
   if (message.type === 'detach') {
     handleDetach(context, message, connection, dispatchIntent);
@@ -411,7 +426,7 @@ const handleInput = (context: ServerContext, payload: Uint8Array, connection: Co
     return;
   }
 
-  markActive(context, connection, (intent) => dispatch(context, intent));
+  markActive(context, connection, (intent) => dispatchChanges(context, intent));
   writePaneInput(context, connection, decoded.input);
 };
 
@@ -440,7 +455,7 @@ const openConnection = (context: ServerContext, socket: Bun.Socket<ConnectionDat
           context,
           welcomed,
           hello.size,
-          (intent) => dispatch(context, intent),
+          (intent) => dispatchChanges(context, intent),
           () => {
             syncRowSubscriptions(context);
           },
@@ -585,7 +600,6 @@ export const runServer = async (options: ServerOptions): Promise<RunServerResult
     },
     stopped: Promise.withResolvers(),
     releaseSignals: () => undefined,
-    paneStartFailure: undefined,
   };
 
   const sessionPath = options.sessionPathFor?.(socketPath);
@@ -609,7 +623,7 @@ export const runServer = async (options: ServerOptions): Promise<RunServerResult
 
   if (sessionPath !== undefined) {
     context.runtime.sessionWriter = createSessionWriter(sessionPath, options.log);
-    restoreSession(options.log, (intent) => dispatch(context, intent), sessionPath, saved);
+    restoreSession(options.log, (intent) => dispatchChanges(context, intent), sessionPath, saved);
   }
 
   return { ok: true, server: serverOf(context) };

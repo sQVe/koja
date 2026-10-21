@@ -285,3 +285,26 @@ it('changes nothing when a workspace gets the label it has', () => {
   expect(result.state.workspaces).toEqual(state.workspaces);
   expect(result.state.revision).toBe(state.revision);
 });
+
+it('drops the startup records of the panes of a closed workspace', () => {
+  const split: Intent = {
+    type: 'splitPane',
+    paneId: paneId(2),
+    direction: 'right',
+    folder: undefined,
+  };
+
+  const state = run([createKoja, createDocs, split]);
+
+  expect(state.stateBeforeSplit.has(paneId(3))).toBe(true);
+  expect(state.startFallbacks.some((known) => known.paneId === paneId(2))).toBe(true);
+
+  const result = intent(state, { type: 'closeWorkspace', workspaceId: workspaceId(2) });
+
+  expect(result.state.panes.map((pane) => pane.id)).toEqual([paneId(1)]);
+
+  for (const id of [paneId(2), paneId(3)]) {
+    expect(result.state.stateBeforeSplit.has(id)).toBe(false);
+    expect(result.state.startFallbacks.some((known) => known.paneId === id)).toBe(false);
+  }
+});

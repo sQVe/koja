@@ -280,13 +280,6 @@ export type Change =
   | { type: 'clientDetached'; clientId: ClientId; reason: DetachReason }
   | { type: 'serverStopping' };
 
-type TabIntent = Extract<Intent, { type: 'createTab' | 'focusTab' | 'renameTab' | 'closeTab' }>;
-
-type PaneIntent = Extract<
-  Intent,
-  { type: 'splitPane' | 'focusPane' | 'closePane' | 'movePane' | 'zoomPane' | 'resizePane' }
->;
-
 export type RejectReason =
   | 'serverStopping'
   | 'sessionNotEmpty'
@@ -332,13 +325,6 @@ export interface Snapshot {
   foregroundClientId: ClientId | undefined;
   clients: readonly Client[];
 }
-
-type ClientIntent = Extract<
-  Intent,
-  {
-    type: 'attachClient' | 'resizeClient' | 'markClientActive' | 'setClientTheme' | 'detachClient';
-  }
->;
 
 export { activeTabOf };
 
@@ -445,133 +431,56 @@ export const savedSessionOf = (
   nextPaneNumber: state.nextPaneNumber,
 });
 
-const tabIntentTypes: ReadonlySet<Intent['type']> = new Set<TabIntent['type']>([
-  'createTab',
-  'focusTab',
-  'renameTab',
-  'closeTab',
-]);
-
-const isTabIntent = (intent: Intent): intent is TabIntent => tabIntentTypes.has(intent.type);
-
-const paneIntentTypes: ReadonlySet<Intent['type']> = new Set<PaneIntent['type']>([
-  'splitPane',
-  'focusPane',
-  'closePane',
-  'movePane',
-  'zoomPane',
-  'resizePane',
-]);
-
-const isPaneIntent = (intent: Intent): intent is PaneIntent => paneIntentTypes.has(intent.type);
-
-const transitionTabIntent = (state: State, intent: TabIntent): Outcome => {
-  if (intent.type === 'createTab') {
-    return createTab(state, intent);
-  }
-
-  if (intent.type === 'renameTab') {
-    return renameTab(state, intent.tabId, intent.label);
-  }
-
-  return intent.type === 'focusTab'
-    ? focusTab(state, intent.tabId, intent.clientId)
-    : closeTab(state, intent.tabId);
-};
-
-const transitionPaneIntent = (state: State, intent: PaneIntent): Outcome => {
-  if (intent.type === 'splitPane') {
-    return splitPane(state, intent);
-  }
-
-  if (intent.type === 'focusPane') {
-    return focusPane(state, intent.paneId, intent.clientId);
-  }
-
-  if (intent.type === 'movePane') {
-    return movePane(state, intent);
-  }
-
-  if (intent.type === 'zoomPane') {
-    return zoomPane(state, intent.paneId);
-  }
-
-  if (intent.type === 'resizePane') {
-    return resizePane(state, intent);
-  }
-
-  return closePane(state, intent.paneId);
-};
-
-const clientIntentTypes: ReadonlySet<Intent['type']> = new Set<ClientIntent['type']>([
-  'attachClient',
-  'resizeClient',
-  'markClientActive',
-  'setClientTheme',
-  'detachClient',
-]);
-
-const isClientIntent = (intent: Intent): intent is ClientIntent =>
-  clientIntentTypes.has(intent.type);
-
-const transitionClientIntent = (state: State, intent: ClientIntent): Outcome => {
-  if (intent.type === 'attachClient') {
-    return attachClient(state, intent.size);
-  }
-
-  if (intent.type === 'resizeClient') {
-    return resizeClient(state, intent.clientId, intent.size);
-  }
-
-  if (intent.type === 'markClientActive') {
-    return markClientActive(state, intent.clientId);
-  }
-
-  if (intent.type === 'setClientTheme') {
-    return setClientTheme(state, intent.clientId, intent.theme);
-  }
-
-  return detachClient(state, intent.clientId);
-};
-
+// oxlint-disable-next-line complexity -- one case per intent type; the compiler checks the list is exhaustive.
 const transitionIntent = (state: State, intent: Intent): Outcome => {
-  if (intent.type === 'createWorkspace') {
-    return createWorkspace(state, intent);
+  switch (intent.type) {
+    case 'createWorkspace':
+      return createWorkspace(state, intent);
+    case 'focusWorkspace':
+      return focusWorkspace(state, intent.workspaceId, intent.clientId);
+    case 'renameWorkspace':
+      return renameWorkspace(state, intent.workspaceId, intent.label);
+    case 'closeWorkspace':
+      return closeWorkspace(state, intent.workspaceId);
+    case 'createTab':
+      return createTab(state, intent);
+    case 'focusTab':
+      return focusTab(state, intent.tabId, intent.clientId);
+    case 'renameTab':
+      return renameTab(state, intent.tabId, intent.label);
+    case 'closeTab':
+      return closeTab(state, intent.tabId);
+    case 'splitPane':
+      return splitPane(state, intent);
+    case 'focusPane':
+      return focusPane(state, intent.paneId, intent.clientId);
+    case 'movePane':
+      return movePane(state, intent);
+    case 'zoomPane':
+      return zoomPane(state, intent.paneId);
+    case 'resizePane':
+      return resizePane(state, intent);
+    case 'closePane':
+      return closePane(state, intent.paneId);
+    case 'attachClient':
+      return attachClient(state, intent.size);
+    case 'resizeClient':
+      return resizeClient(state, intent.clientId, intent.size);
+    case 'markClientActive':
+      return markClientActive(state, intent.clientId);
+    case 'setClientTheme':
+      return setClientTheme(state, intent.clientId, intent.theme);
+    case 'detachClient':
+      return detachClient(state, intent.clientId);
+    case 'scrollPane':
+      return scrollPaneView(state, intent.clientId, intent.paneId, intent.row);
+    case 'restoreSession':
+      return restoreSession(state, intent.session);
+    case 'stopServer':
+      return stopServer(state);
+    default:
+      return intent satisfies never;
   }
-
-  if (intent.type === 'focusWorkspace') {
-    return focusWorkspace(state, intent.workspaceId, intent.clientId);
-  }
-
-  if (intent.type === 'renameWorkspace') {
-    return renameWorkspace(state, intent.workspaceId, intent.label);
-  }
-
-  if (intent.type === 'closeWorkspace') {
-    return closeWorkspace(state, intent.workspaceId);
-  }
-
-  if (isTabIntent(intent)) {
-    return transitionTabIntent(state, intent);
-  }
-
-  if (isPaneIntent(intent)) {
-    return transitionPaneIntent(state, intent);
-  }
-
-  if (isClientIntent(intent)) {
-    return transitionClientIntent(state, intent);
-  }
-
-  if (intent.type === 'scrollPane') {
-    return scrollPaneView(state, intent.clientId, intent.paneId, intent.row);
-  }
-
-  if (intent.type === 'restoreSession') {
-    return restoreSession(state, intent.session);
-  }
-
-  return stopServer(state);
 };
 
 export const applyIntent = (state: State, intent: Intent): Applied | Rejected => {

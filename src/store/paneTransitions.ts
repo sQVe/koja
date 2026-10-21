@@ -10,6 +10,7 @@ import {
   splitLayout,
 } from '../layout.ts';
 import { fitPanes, fitPanesTo } from './paneSizes.ts';
+import { withoutStartupRecords } from './paneStartupRecords.ts';
 import type { Change, Fact, Intent, Pane, StartFallback, State, Tab } from './store.ts';
 import { removeTab, showTab } from './tabTransitions.ts';
 import { propose, refuse } from './transitionOutcome.ts';
@@ -163,13 +164,9 @@ const closePaneIn = (state: State, tab: Tab, id: PaneId): Proposal => {
   const focusedPaneId = tab.focusedPaneId === id ? successor : tab.focusedPaneId;
   const zoomedPaneId = restoredZoom(state, id, focusedPaneId);
   const closedTab: Tab = { ...tab, layout: removal.layout, focusedPaneId, zoomedPaneId };
-  const stateBeforeSplit = new Map(state.stateBeforeSplit);
-
-  stateBeforeSplit.delete(id);
 
   const closed: State = {
-    ...state,
-    stateBeforeSplit,
+    ...withoutStartupRecords(state, [id]),
     tabs: state.tabs.map((known) => (known.id === tab.id ? closedTab : known)),
     panes: state.panes.filter((pane) => pane.id !== id),
   };
@@ -326,15 +323,9 @@ const markFailed = (state: State, pane: Pane, message: string): Proposal =>
   );
 
 const markRunning = (state: State, pane: Pane): Proposal => {
-  const stateBeforeSplit = new Map(state.stateBeforeSplit);
-
-  stateBeforeSplit.delete(pane.id);
-
   const next: State = {
-    ...state,
-    stateBeforeSplit,
+    ...withoutStartupRecords(state, [pane.id]),
     panes: replacePane(state, { ...pane, lifecycle: 'running' }),
-    startFallbacks: state.startFallbacks.filter((known) => known.paneId !== pane.id),
   };
 
   return propose(next, [
