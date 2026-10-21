@@ -239,10 +239,11 @@ export const createScrollMode = (session: ScrollModeSession): ScrollMode => {
   // A shown cursor follows output while the view follows the bottom. A suspended one keeps its row
   // until the pane is focused again.
   const alignWhileFocused = (current: ScrollState): void => {
-    const activeTop = session.rowCache(current.pane)?.bounds()?.activeTop;
+    const cache = session.rowCache(current.pane);
+    const rows = cache === undefined ? undefined : rowsOf(cache);
 
-    if (activeTop !== undefined && isFocused(current)) {
-      align(current, activeTop);
+    if (rows !== undefined && isFocused(current)) {
+      align(current, rows.activeTop);
     }
   };
 

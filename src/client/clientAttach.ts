@@ -343,7 +343,7 @@ export const connectAttach = async (
   };
 
   const sendTabRequest = (message: ControlMessage): void => {
-    tabGate = tabRequestSent(tabGate, shownPane().id);
+    tabGate = tabRequestSent(tabGate, shownPane());
     send(message);
   };
 

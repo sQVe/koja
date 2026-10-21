@@ -17,7 +17,7 @@ const pane8 = { id: paneId(8), failed: false };
 const pane9 = { id: paneId(9), failed: false };
 
 it('waits for fresh rows of the pane a tab switch shows', () => {
-  const sent = tabRequestSent(emptyTabInputGate, pane7.id);
+  const sent = tabRequestSent(emptyTabInputGate, pane7);
   const answered = tabAnswered(sent, true, pane8);
 
   expect(answered.released).toBe(false);
@@ -29,9 +29,17 @@ it('waits for fresh rows of the pane a tab switch shows', () => {
   expect(tabInputPending(arrived.gate)).toBe(false);
 });
 
+it('waits for the rows of the pane a tab request shows when no pane was shown before', () => {
+  const sent = tabRequestSent(emptyTabInputGate, undefined);
+  const answered = tabAnswered(sent, true, pane8);
+
+  expect(answered.released).toBe(false);
+  expect(tabInputPending(answered.gate)).toBe(true);
+});
+
 it('releases once after both of two requests are answered', () => {
-  const first = tabRequestSent(emptyTabInputGate, pane7.id);
-  const second = tabRequestSent(first, pane7.id);
+  const first = tabRequestSent(emptyTabInputGate, pane7);
+  const second = tabRequestSent(first, pane7);
   const firstAnswer = tabAnswered(second, true, pane8);
 
   expect(firstAnswer.released).toBe(false);
@@ -44,7 +52,7 @@ it('releases once after both of two requests are answered', () => {
 });
 
 it('releases at once when the answer failed', () => {
-  const sent = tabRequestSent(emptyTabInputGate, pane7.id);
+  const sent = tabRequestSent(emptyTabInputGate, pane7);
   const answered = tabAnswered(sent, false, pane8);
 
   expect(answered.released).toBe(true);
@@ -52,7 +60,7 @@ it('releases at once when the answer failed', () => {
 });
 
 it('releases at once when the answer did not switch the shown pane', () => {
-  const sent = tabRequestSent(emptyTabInputGate, pane7.id);
+  const sent = tabRequestSent(emptyTabInputGate, pane7);
   const answered = tabAnswered(sent, true, pane7);
 
   expect(answered.released).toBe(true);
@@ -64,13 +72,13 @@ it('releases an answer that has no pending request', () => {
 
   expect(answered.released).toBe(true);
 
-  const sent = tabRequestSent(answered.gate, pane7.id);
+  const sent = tabRequestSent(answered.gate, pane7);
 
   expect(tabInputPending(sent)).toBe(true);
 });
 
 it('releases at once when the shown pane failed', () => {
-  const sent = tabRequestSent(emptyTabInputGate, pane7.id);
+  const sent = tabRequestSent(emptyTabInputGate, pane7);
   const answered = tabAnswered(sent, true, { id: pane8.id, failed: true });
 
   expect(answered.released).toBe(true);
@@ -78,7 +86,7 @@ it('releases at once when the shown pane failed', () => {
 });
 
 it('retargets the wait when focus moves to another pane', () => {
-  const sent = tabRequestSent(emptyTabInputGate, pane7.id);
+  const sent = tabRequestSent(emptyTabInputGate, pane7);
   const answered = tabAnswered(sent, true, pane8);
   const moved = tabSnapshotChanged(answered.gate, pane9);
 
@@ -95,7 +103,7 @@ it('retargets the wait when focus moves to another pane', () => {
 });
 
 it('releases when focus moves to a failed pane', () => {
-  const sent = tabRequestSent(emptyTabInputGate, pane7.id);
+  const sent = tabRequestSent(emptyTabInputGate, pane7);
   const answered = tabAnswered(sent, true, pane8);
   const moved = tabSnapshotChanged(answered.gate, { id: pane9.id, failed: true });
 
@@ -104,7 +112,7 @@ it('releases when focus moves to a failed pane', () => {
 });
 
 it('keeps waiting when the snapshot changes but the shown pane stays', () => {
-  const sent = tabRequestSent(emptyTabInputGate, pane7.id);
+  const sent = tabRequestSent(emptyTabInputGate, pane7);
   const answered = tabAnswered(sent, true, pane8);
   const same = tabSnapshotChanged(answered.gate, pane8);
 
@@ -114,7 +122,7 @@ it('keeps waiting when the snapshot changes but the shown pane stays', () => {
 
 it('does not count a cache from an earlier visit as fresh', () => {
   const early = tabRowsArrived(emptyTabInputGate, pane8.id);
-  const sent = tabRequestSent(early.gate, pane7.id);
+  const sent = tabRequestSent(early.gate, pane7);
   const answered = tabAnswered(sent, true, pane8);
 
   expect(answered.released).toBe(false);
@@ -122,7 +130,7 @@ it('does not count a cache from an earlier visit as fresh', () => {
 });
 
 it('counts rows that arrive while the request is pending as fresh', () => {
-  const sent = tabRequestSent(emptyTabInputGate, pane7.id);
+  const sent = tabRequestSent(emptyTabInputGate, pane7);
   const arrived = tabRowsArrived(sent, pane8.id);
   const answered = tabAnswered(arrived.gate, true, pane8);
 
@@ -132,15 +140,15 @@ it('counts rows that arrive while the request is pending as fresh', () => {
 });
 
 it('releases an answer that shows no pane', () => {
-  const sent = tabRequestSent(emptyTabInputGate, pane7.id);
-  const answered = tabAnswered(sent, true, { id: undefined, failed: false });
+  const sent = tabRequestSent(emptyTabInputGate, pane7);
+  const answered = tabAnswered(sent, true, undefined);
 
   expect(answered.released).toBe(true);
   expect(tabInputPending(answered.gate)).toBe(false);
 });
 
 it('leaves the gate alone on a snapshot change while no rows are awaited', () => {
-  const sent = tabRequestSent(emptyTabInputGate, pane7.id);
+  const sent = tabRequestSent(emptyTabInputGate, pane7);
   const changed = tabSnapshotChanged(sent, pane8);
 
   expect(changed.released).toBe(false);
@@ -148,9 +156,9 @@ it('leaves the gate alone on a snapshot change while no rows are awaited', () =>
 });
 
 it('releases when focus moves to no pane', () => {
-  const sent = tabRequestSent(emptyTabInputGate, pane7.id);
+  const sent = tabRequestSent(emptyTabInputGate, pane7);
   const answered = tabAnswered(sent, true, pane8);
-  const moved = tabSnapshotChanged(answered.gate, { id: undefined, failed: false });
+  const moved = tabSnapshotChanged(answered.gate, undefined);
 
   expect(moved.released).toBe(true);
   expect(tabInputPending(moved.gate)).toBe(false);
@@ -207,11 +215,11 @@ it('marks a shown pane that failed', () => {
 });
 
 it('shows no pane before a snapshot arrives', () => {
-  expect(shownPaneOf(undefined)).toEqual({ id: undefined, failed: false });
+  expect(shownPaneOf(undefined)).toEqual(undefined);
 });
 
 it('takes a stray answer after the awaited rows arrived', () => {
-  const sent = tabRequestSent(emptyTabInputGate, pane7.id);
+  const sent = tabRequestSent(emptyTabInputGate, pane7);
   const answered = tabAnswered(sent, true, pane8);
   const arrived = tabRowsArrived(answered.gate, pane8.id);
   const stray = tabAnswered(arrived.gate, false, pane8);
@@ -221,7 +229,7 @@ it('takes a stray answer after the awaited rows arrived', () => {
 });
 
 it('takes a stray answer after a snapshot change released the wait', () => {
-  const sent = tabRequestSent(emptyTabInputGate, pane7.id);
+  const sent = tabRequestSent(emptyTabInputGate, pane7);
   const answered = tabAnswered(sent, true, pane8);
   const moved = tabSnapshotChanged(answered.gate, { id: pane9.id, failed: true });
   const stray = tabAnswered(moved.gate, false, pane9);

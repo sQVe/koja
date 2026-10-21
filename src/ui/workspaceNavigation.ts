@@ -23,10 +23,10 @@ interface WorkspaceNavigation {
 
 const neighborCommand = (
   ids: readonly WorkspaceId[],
-  focused: WorkspaceId | undefined,
+  focused: WorkspaceId,
   step: 1 | -1,
 ): WorkspaceCommand | undefined => {
-  const index = focused === undefined ? -1 : ids.indexOf(focused);
+  const index = ids.indexOf(focused);
   const target = index === -1 ? undefined : ids[(index + step + ids.length) % ids.length];
 
   if (target === undefined) {
@@ -86,8 +86,12 @@ export const createWorkspaceNavigation = (host: WorkspaceNavigationHost): Worksp
       return { action: 'create', root: host.startDirectory, label: undefined, focus: true };
     }
 
+    if (focused === undefined) {
+      return undefined;
+    }
+
     if (key === 'close') {
-      return focused === undefined ? undefined : { action: 'close', workspaceId: focused };
+      return { action: 'close', workspaceId: focused };
     }
 
     return neighborCommand(current.ids, focused, key === 'next' ? 1 : -1);

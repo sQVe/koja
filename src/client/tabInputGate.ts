@@ -2,11 +2,14 @@ import type { PaneId } from '../ids.ts';
 import { viewedPane } from './snapshot.ts';
 import type { StoreSnapshot } from './snapshot.ts';
 
-export interface ShownPane {
-  id: PaneId | undefined;
-  // A failed pane has no process, so the server never sends it rows.
-  failed: boolean;
-}
+// Undefined when no pane is shown.
+export type ShownPane =
+  | {
+      id: PaneId;
+      // A failed pane has no process, so the server never sends it rows.
+      failed: boolean;
+    }
+  | undefined;
 
 export interface TabInputGate {
   pendingRequests: number;
@@ -24,7 +27,7 @@ export interface GateResult {
 export const shownPaneOf = (snapshot: StoreSnapshot | undefined): ShownPane => {
   const pane = snapshot && viewedPane(snapshot);
 
-  return { id: pane?.id, failed: pane?.lifecycle === 'failed' };
+  return pane && { id: pane.id, failed: pane.lifecycle === 'failed' };
 };
 
 export const emptyTabInputGate: TabInputGate = {
@@ -38,14 +41,14 @@ export const tabInputPending = (gate: TabInputGate): boolean =>
   gate.pendingRequests > 0 || gate.awaitingRows !== undefined;
 
 const paneToAwait = (gate: TabInputGate, shown: ShownPane): PaneId | undefined => {
-  if (shown.id === undefined || shown.failed || gate.freshRowPanes.has(shown.id)) {
+  if (shown === undefined || shown.failed || gate.freshRowPanes.has(shown.id)) {
     return undefined;
   }
 
   return shown.id;
 };
 
-export const tabRequestSent = (gate: TabInputGate, shownPane: PaneId | undefined): TabInputGate => {
+export const tabRequestSent = (gate: TabInputGate, shown: ShownPane): TabInputGate => {
   if (gate.pendingRequests > 0) {
     return { ...gate, pendingRequests: gate.pendingRequests + 1 };
   }
@@ -53,7 +56,7 @@ export const tabRequestSent = (gate: TabInputGate, shownPane: PaneId | undefined
   return {
     ...gate,
     pendingRequests: 1,
-    paneBeforeRequest: shownPane,
+    paneBeforeRequest: shown?.id,
     freshRowPanes: new Set(),
   };
 };

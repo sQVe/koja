@@ -1,7 +1,7 @@
 import { viewedPane } from '../client/client.ts';
 import type { AttachSession } from '../client/client.ts';
 import type { PaneId, TabId } from '../ids.ts';
-import { layoutPanes } from '../layout.ts';
+import { layoutPanes, paneSize } from '../layout.ts';
 
 export type PaneAction =
   | 'splitBelow'
@@ -32,7 +32,7 @@ const focusNeighbor = (
     return Promise.resolve();
   }
 
-  const order = layoutPanes(tab.layout, { columns: 1, rows: 1 }).map((place) => place.paneId);
+  const order = layoutPanes(tab.layout, paneSize(undefined)).map((place) => place.paneId);
   const target = order[order.indexOf(current.id) + offset];
 
   return target === undefined ? Promise.resolve() : session.focusPane(target);
