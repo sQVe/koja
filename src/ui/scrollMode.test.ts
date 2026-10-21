@@ -1196,6 +1196,55 @@ it('leaves the cursor of a suspended scroll mode where it was while output advan
   expect(scrolls).toEqual([]);
 });
 
+it('keeps the cursor on its text when output advances and the view is then scrolled from the CLI', () => {
+  const { mode, scrolls, arrive, show } = start();
+
+  mode.handle({ kind: 'enter' });
+  arrive({ ...updateOf([100, 101, 102]), activeTop: 110, sequence: 2 });
+
+  expect(mode.cursor()).toMatchObject({ row: 112 });
+
+  show({ topRow: 109 });
+
+  expect(mode.cursor()).toMatchObject({ row: 112 });
+
+  mode.handle({ kind: 'move', motion: 'up' });
+
+  expect(mode.cursor()).toMatchObject({ row: 111 });
+  expect(scrolls).toEqual([]);
+});
+
+it('keeps the cursor on its text when the pane is focused again and the view is then scrolled from the CLI', () => {
+  const { mode, scrolls, arrive, show } = start();
+
+  mode.handle({ kind: 'enter' });
+  show({ focused: 2 });
+  arrive({ ...updateOf([100, 101, 102]), activeTop: 110, sequence: 2 });
+  show({ focused: 1 });
+
+  expect(mode.cursor()).toMatchObject({ row: 112 });
+
+  show({ topRow: 109 });
+
+  expect(mode.cursor()).toMatchObject({ row: 112 });
+
+  mode.handle({ kind: 'move', motion: 'up' });
+
+  expect(mode.cursor()).toMatchObject({ row: 111 });
+  expect(scrolls).toEqual([]);
+});
+
+it('keeps the cursor when the state changes while the pane has no rows', () => {
+  const { mode, show, external } = start();
+
+  mode.handle({ kind: 'enter' });
+  external.cached = false;
+  show({});
+  external.cached = true;
+
+  expect(mode.cursor()).toEqual({ pane: paneId(1), row: 102, col: 1 });
+});
+
 it('restarts a motion that waits below a screen that shrank', () => {
   const { mode, arrive } = start([100, 102]);
 

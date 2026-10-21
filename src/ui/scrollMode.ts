@@ -236,6 +236,16 @@ export const createScrollMode = (session: ScrollModeSession): ScrollMode => {
   const isFocused = (current: ScrollState): boolean =>
     viewedPane(session.getState().snapshot)?.id === current.pane;
 
+  // A shown cursor follows output while the view follows the bottom. A suspended one keeps its row
+  // until the pane is focused again.
+  const alignWhileFocused = (current: ScrollState): void => {
+    const activeTop = session.rowCache(current.pane)?.bounds()?.activeTop;
+
+    if (activeTop !== undefined && isFocused(current)) {
+      align(current, activeTop);
+    }
+  };
+
   const step = (current: ScrollState, motion: ScrollMotion): 'done' | 'waiting' | 'lost' => {
     const cache = session.rowCache(current.pane);
     const rows = cache === undefined ? undefined : rowsOf(cache);
@@ -243,8 +253,6 @@ export const createScrollMode = (session: ScrollModeSession): ScrollMode => {
     if (rows === undefined) {
       return 'lost';
     }
-
-    align(current, rows.activeTop);
 
     const top = viewTopOf(current);
     const last = rows.activeTop + rows.height - 1;
@@ -400,6 +408,12 @@ export const createScrollMode = (session: ScrollModeSession): ScrollMode => {
     if (state !== undefined) {
       followFocus(state);
     }
+
+    const current = state;
+
+    if (current !== undefined) {
+      alignWhileFocused(current);
+    }
   });
 
   // Output pruned the row the motion waits for. Its fetch can never end, so run the motion again
@@ -430,6 +444,7 @@ export const createScrollMode = (session: ScrollModeSession): ScrollMode => {
       return;
     }
 
+    alignWhileFocused(current);
     restartPruned(current);
   });
 
