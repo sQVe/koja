@@ -8,7 +8,13 @@ import type { ScrollMotion, ScrollResult, ScrollRow, ScrollRows } from './scroll
 
 export type ScrollModeSession = Pick<
   AttachSession,
-  'getState' | 'rowCache' | 'scrollPane' | 'setInputMode' | 'subscribe' | 'subscribeFetched'
+  | 'getState'
+  | 'rowCache'
+  | 'scrollPane'
+  | 'setInputMode'
+  | 'subscribe'
+  | 'subscribeFetched'
+  | 'subscribeRows'
 >;
 
 interface ScrollCursor {
@@ -153,24 +159,34 @@ export const createScrollMode = (session: ScrollModeSession): ScrollMode => {
     return session.rowCache(current.pane)?.viewTop(scrollTopOf(shownView(snapshot), current.pane));
   };
 
-  const align = (current: ScrollState): void => {
+  // Where the cursor stands now, without moving it in the state.
+  const alignedCursor = (current: ScrollState): ScrollCursor => {
     const cache = session.rowCache(current.pane);
     const bounds = cache?.bounds();
     const columns = cache?.size()?.columns;
 
-    if (columns !== undefined) {
-      current.col = Math.min(current.col, Math.max(columns - 1, 0));
+    const col =
+      columns === undefined ? current.col : Math.min(current.col, Math.max(columns - 1, 0));
+
+    if (bounds === undefined || viewTopOf(current) !== undefined) {
+      return { pane: current.pane, row: current.row, col };
     }
 
-    if (bounds === undefined) {
-      return;
-    }
+    const row = Math.max(current.row + bounds.activeTop - current.alignedTop, bounds.oldest);
 
-    if (viewTopOf(current) === undefined) {
-      current.row = Math.max(current.row + bounds.activeTop - current.alignedTop, bounds.oldest);
-    }
+    return { pane: current.pane, row, col };
+  };
 
-    current.alignedTop = bounds.activeTop;
+  const align = (current: ScrollState): void => {
+    const { row, col } = alignedCursor(current);
+    const bounds = session.rowCache(current.pane)?.bounds();
+
+    current.row = row;
+    current.col = col;
+
+    if (bounds !== undefined) {
+      current.alignedTop = bounds.activeTop;
+    }
   };
 
   const scrollTo = (current: ScrollState, to: number | 'bottom'): void => {
@@ -390,10 +406,45 @@ export const createScrollMode = (session: ScrollModeSession): ScrollMode => {
     }
   });
 
+  // Output pruned the row the motion waits for. Its fetch can never end, so run the motion again
+  // from the cursor, which the scan clamps into the history.
+  const restartPruned = (current: ScrollState): boolean => {
+    const bounds = session.rowCache(current.pane)?.bounds();
+
+    if (bounds === undefined) {
+      return false;
+    }
+
+    const last = bounds.activeTop + (session.rowCache(current.pane)?.size()?.rows ?? 1) - 1;
+
+    if (!waitsOutside(current, bounds.oldest, last)) {
+      return false;
+    }
+
+    restartWaiting(current);
+
+    return true;
+  };
+
+  session.subscribeRows(({ pane }) => {
+    const current = state;
+
+    if (current === undefined || current.pane !== pane) {
+      return;
+    }
+
+    align(current);
+    restartPruned(current);
+  });
+
   session.subscribeFetched((pane) => {
     const current = state;
 
     if (current === undefined || current.pane !== pane || current.waiting === undefined) {
+      return;
+    }
+
+    if (restartPruned(current)) {
       return;
     }
 
@@ -445,9 +496,7 @@ export const createScrollMode = (session: ScrollModeSession): ScrollMode => {
         return undefined;
       }
 
-      align(state);
-
-      return { pane: state.pane, row: state.row, col: state.col };
+      return alignedCursor(state);
     },
     reach: (pane) => {
       const bounds = session.rowCache(pane)?.bounds();
@@ -457,12 +506,6 @@ export const createScrollMode = (session: ScrollModeSession): ScrollMode => {
       }
 
       const last = bounds.activeTop + (session.rowCache(pane)?.size()?.rows ?? 1) - 1;
-
-      // Output pruned the row the motion waits for. Its fetch can never end, so run the motion
-      // again from the cursor, which the scan clamps into the history.
-      if (waitsOutside(state, bounds.oldest, last)) {
-        restartWaiting(state);
-      }
 
       return reachOf(state, bounds.oldest, last);
     },

@@ -98,6 +98,7 @@ const start = (
   const scrolled: PaneId[] = [];
   const modes: InputMode[] = [];
   const fetched = new Set<(pane: PaneId) => void>();
+  const arrived = new Set<(changed: { pane: PaneId; rows: number[]; sequence: number }) => void>();
   const changed = new Set<() => void>();
   const answers: (() => void)[] = [];
 
@@ -138,6 +139,11 @@ const start = (
 
       return () => changed.delete(listener);
     },
+    subscribeRows: (listener) => {
+      arrived.add(listener);
+
+      return () => arrived.delete(listener);
+    },
     subscribeFetched: (listener) => {
       fetched.add(listener);
 
@@ -169,6 +175,15 @@ const start = (
     }
   };
 
+  // Rows arrive in the cache, then the rows event reports.
+  const arrive = (update: RowUpdate): void => {
+    cache.apply(update);
+
+    for (const listener of arrived) {
+      listener({ pane: paneId(update.pane), rows: [], sequence: update.sequence });
+    }
+  };
+
   const answer = async (): Promise<void> => {
     answers.shift()?.();
     await Promise.resolve();
@@ -177,14 +192,26 @@ const start = (
 
   // Rows arrive in the cache, then the fetch reports.
   const supply = (rows: readonly number[]): void => {
-    cache.apply(updateOf([...rows, 100, 101, 102]));
+    arrive(updateOf([...rows, 100, 101, 102]));
 
     for (const listener of fetched) {
       listener(paneId(1));
     }
   };
 
-  return { mode, scrolls, scrolled, modes, show, supply, cache, answer, external, fetchedNow };
+  return {
+    mode,
+    scrolls,
+    scrolled,
+    modes,
+    show,
+    supply,
+    cache,
+    arrive,
+    answer,
+    external,
+    fetchedNow,
+  };
 };
 
 it('enters at the pane cursor without moving the view', () => {
@@ -213,10 +240,10 @@ it('scrolls the view up only when the cursor leaves it, and keeps scrolling from
 });
 
 it('keeps the view still on k while output advances a following view after entry', () => {
-  const { mode, cache, scrolls } = start();
+  const { mode, arrive, scrolls } = start();
 
   mode.handle({ kind: 'enter' });
-  cache.apply({ ...updateOf([100, 101, 102]), activeTop: activeTop + 8 });
+  arrive({ ...updateOf([100, 101, 102]), activeTop: activeTop + 8 });
   mode.handle({ kind: 'move', motion: 'up' });
 
   expect(mode.cursor()).toEqual({ pane: paneId(1), row: 109, col: 1 });
@@ -351,13 +378,13 @@ it('follows a CLI scroll after the server normalized an earlier move to another 
 
 it('restores the entry distance from the bottom, not the entry row, after output advances', async () => {
   {
-    const { mode, cache, show, scrolls, answer } = start(undefined, 97);
+    const { mode, arrive, show, scrolls, answer } = start(undefined, 97);
 
     mode.handle({ kind: 'enter' });
     mode.handle({ kind: 'move', motion: 'historyTop' });
     show({ topRow: 95 });
     await answer();
-    cache.apply({ ...updateOf([100, 101, 102]), activeTop: 110 });
+    arrive({ ...updateOf([100, 101, 102]), activeTop: 110 });
     mode.handle({ kind: 'leave' });
 
     expect(scrolls.at(-1)).toBe(107);
@@ -413,9 +440,9 @@ it('gives up on a motion whose rows repeated fetches did not supply, and runs th
 });
 
 it('asks for a bounded range of rows however far the motion travels', () => {
-  const { mode, cache } = start();
+  const { mode, arrive } = start();
 
-  cache.apply({ ...updateOf([100, 101, 102]), first: 0, activeTop: 100_000 });
+  arrive({ ...updateOf([100, 101, 102]), first: 0, activeTop: 100_000 });
   mode.handle({ kind: 'enter' });
   mode.handle({ kind: 'move', motion: 'paragraphPrevious' });
 
@@ -457,9 +484,9 @@ const longUpdate = (shown: readonly number[]): RowUpdate => {
 };
 
 it('crosses a word longer than the row cache limit and then runs the queued motions', () => {
-  const { mode, cache, fetchedNow } = start([100, 101, 102], undefined, 300);
+  const { mode, arrive, fetchedNow } = start([100, 101, 102], undefined, 300);
 
-  cache.apply(longUpdate([12_100, 12_101, 12_102]));
+  arrive(longUpdate([12_100, 12_101, 12_102]));
   mode.handle({ kind: 'enter' });
   mode.handle({ kind: 'move', motion: 'historyTop' });
   mode.handle({ kind: 'move', motion: 'wordStart' });
@@ -473,7 +500,7 @@ it('crosses a word longer than the row cache limit and then runs the queued moti
       (_, offset) => (range?.from ?? 0) + offset,
     );
 
-    cache.apply(longUpdate([...supplied, 12_100, 12_101, 12_102]));
+    arrive(longUpdate([...supplied, 12_100, 12_101, 12_102]));
     fetchedNow();
   }
 
@@ -508,7 +535,7 @@ it('keeps the view still when a CLI scroll during the wait already shows the tar
 });
 
 it('keeps the view still when a CLI scroll during the wait shows the cursor and no word follows', () => {
-  const { mode, cache, show, fetchedNow, scrolls } = start([98], 96);
+  const { mode, arrive, show, fetchedNow, scrolls } = start([98], 96);
 
   mode.handle({ kind: 'enter' });
   mode.handle({ kind: 'move', motion: 'wordStart' });
@@ -522,7 +549,7 @@ it('keeps the view still when a CLI scroll during the wait shows the cursor and 
     blank.cells.fill(0, index * stride + rowHeaderWords, (index + 1) * stride);
   }
 
-  cache.apply(blank);
+  arrive(blank);
   fetchedNow();
 
   expect(mode.cursor()).toMatchObject({ row: 98, col: 0 });
@@ -552,9 +579,9 @@ const reflowUpdate = (width: number, epoch: number, rows: [number, string][]): R
 };
 
 it('starts a waiting word motion again when a reflow changes the epoch', () => {
-  const { mode, cache, fetchedNow } = start([95, 100, 101, 102], 95);
+  const { mode, arrive, fetchedNow } = start([95, 100, 101, 102], 95);
 
-  cache.apply(
+  arrive(
     reflowUpdate(8, 1, [
       [95, 'one'],
       [100, ''],
@@ -568,7 +595,7 @@ it('starts a waiting word motion again when a reflow changes the epoch', () => {
   mode.handle({ kind: 'move', motion: 'wordStart' });
   expect(mode.reach(paneId(1))).toMatchObject({ from: 96 });
 
-  cache.apply(
+  arrive(
     reflowUpdate(16, 2, [
       [95, 'one     two'],
       [96, 'three'],
@@ -584,13 +611,13 @@ it('starts a waiting word motion again when a reflow changes the epoch', () => {
 });
 
 it('keeps the cursor inside the pane when the pane narrows', () => {
-  const { mode, cache } = start([100, 101, 102]);
+  const { mode, arrive } = start([100, 101, 102]);
 
   mode.handle({ kind: 'enter' });
   mode.handle({ kind: 'move', motion: 'lineEnd' });
   expect(mode.cursor()).toMatchObject({ row: 102, col: 3 });
 
-  cache.apply(
+  arrive(
     reflowUpdate(2, 2, [
       [100, 'a1'],
       [101, 'a1'],
@@ -613,6 +640,7 @@ it('falls back to normal mode when there is no pane to scroll', () => {
       modes.push(next);
     },
     subscribe: () => () => undefined,
+    subscribeRows: () => () => undefined,
     subscribeFetched: () => () => undefined,
   });
 
@@ -623,18 +651,18 @@ it('falls back to normal mode when there is no pane to scroll', () => {
 });
 
 it('starts a waiting motion again when pruning removed the row it waits for', () => {
-  const { mode, cache, fetchedNow } = start([100, 101, 102]);
+  const { mode, arrive, fetchedNow } = start([100, 101, 102]);
 
   mode.handle({ kind: 'enter' });
   mode.handle({ kind: 'move', motion: 'historyTop' });
   mode.handle({ kind: 'move', motion: 'lineEnd' });
   expect(mode.reach(paneId(1))).toEqual({ from: 95, to: 95 });
 
-  cache.apply({ ...updateOf([100, 101, 102]), sequence: 2, first: 98 });
+  arrive({ ...updateOf([100, 101, 102]), sequence: 2, first: 98 });
 
   expect(mode.reach(paneId(1))).toMatchObject({ from: 98 });
 
-  cache.apply({ ...updateOf([98, 99, 100, 101, 102]), sequence: 3, first: 98 });
+  arrive({ ...updateOf([98, 99, 100, 101, 102]), sequence: 3, first: 98 });
   fetchedNow();
 
   expect(mode.cursor()).toMatchObject({ row: 98, col: 2 });
@@ -643,6 +671,31 @@ it('starts a waiting motion again when pruning removed the row it waits for', ()
   mode.handle({ kind: 'move', motion: 'lineStart' });
 
   expect(mode.cursor()).toMatchObject({ row: 98, col: 0 });
+});
+
+it('runs a subscriber that reads scroll state once per notice when output prunes the waiting row', () => {
+  const { mode, arrive, fetchedNow } = start([100, 101, 102]);
+  const calls = { count: 0, depth: 0, deepest: 0 };
+
+  mode.handle({ kind: 'enter' });
+  mode.handle({ kind: 'move', motion: 'historyTop' });
+  mode.handle({ kind: 'move', motion: 'lineEnd' });
+  expect(mode.reach(paneId(1))).toEqual({ from: 95, to: 95 });
+
+  mode.subscribe(() => {
+    calls.count += 1;
+    calls.depth += 1;
+    calls.deepest = Math.max(calls.deepest, calls.depth);
+    mode.reach(paneId(1));
+    mode.cursor();
+    calls.depth -= 1;
+  });
+
+  arrive({ ...updateOf([100, 101, 102]), sequence: 2, first: 98 });
+  fetchedNow();
+
+  expect(calls.deepest).toBe(1);
+  expect(mode.reach(paneId(1))).toEqual({ from: 98, to: 102 });
 });
 
 const counted = (mode: ReturnType<typeof start>['mode']) => {
@@ -745,9 +798,9 @@ it("restores the old pane's view when entering on another pane", () => {
 });
 
 it('enters at the bottom-left cell when the pane cursor is hidden', () => {
-  const { mode, cache } = start();
+  const { mode, arrive } = start();
 
-  cache.apply({
+  arrive({
     ...updateOf([95, 96, 97, 98, 99, 100, 101, 102]),
     cursor: { x: 1, y: 2, visible: false, shape: CursorShape.default, blinking: false },
   });
@@ -758,10 +811,10 @@ it('enters at the bottom-left cell when the pane cursor is hidden', () => {
 });
 
 it('keeps the cursor row while output advances a scrolled view', () => {
-  const { mode, cache } = start(undefined, 97);
+  const { mode, arrive } = start(undefined, 97);
 
   mode.handle({ kind: 'enter' });
-  cache.apply({ ...updateOf([100, 101, 102]), activeTop: activeTop + 8 });
+  arrive({ ...updateOf([100, 101, 102]), activeTop: activeTop + 8 });
 
   expect(mode.cursor()).toMatchObject({ row: 99 });
 });
@@ -840,20 +893,20 @@ it('falls back to normal mode when the focused pane is gone or has no row cache'
 });
 
 it('leaves to the bottom when no history is left above the active top', () => {
-  const { mode, cache, scrolls } = start(undefined, 97);
+  const { mode, arrive, scrolls } = start(undefined, 97);
 
   mode.handle({ kind: 'enter' });
-  cache.apply({ ...updateOf([100, 101, 102]), sequence: 2, first: activeTop });
+  arrive({ ...updateOf([100, 101, 102]), sequence: 2, first: activeTop });
   mode.handle({ kind: 'leave' });
 
   expect(scrolls).toEqual([]);
 });
 
 it('starts a motion from a row clamped into a pane that shrank', () => {
-  const { mode, cache } = start([100, 101, 102]);
+  const { mode, arrive } = start([100, 101, 102]);
 
   mode.handle({ kind: 'enter' });
-  cache.apply({ ...updateOf([100, 101]), sequence: 2, size: { columns, rows: 2 } });
+  arrive({ ...updateOf([100, 101]), sequence: 2, size: { columns, rows: 2 } });
   mode.handle({ kind: 'move', motion: 'lineStart' });
 
   expect(mode.cursor()).toMatchObject({ row: 101, col: 0 });
@@ -978,9 +1031,9 @@ it('asks for rows only for the pane being scrolled', () => {
 });
 
 it('asks for at most one chunk of rows below the cursor', () => {
-  const { mode, cache } = start();
+  const { mode, arrive } = start();
 
-  cache.apply({ ...updateOf([100, 101, 102]), first: 0, activeTop: 100_000 });
+  arrive({ ...updateOf([100, 101, 102]), first: 0, activeTop: 100_000 });
   mode.handle({ kind: 'enter' });
   mode.handle({ kind: 'move', motion: 'historyTop' });
   mode.handle({ kind: 'move', motion: 'paragraphNext' });
@@ -989,7 +1042,7 @@ it('asks for at most one chunk of rows below the cursor', () => {
 });
 
 it('ignores a fetch that ends before the mode, for another pane, or with no motion waiting', () => {
-  const { mode, cache, fetchedNow } = start([100, 101, 102]);
+  const { mode, arrive, fetchedNow } = start([100, 101, 102]);
   const { calls, notifiedBy } = counted(mode);
 
   expect(
@@ -1008,7 +1061,7 @@ it('ignores a fetch that ends before the mode, for another pane, or with no moti
 
   mode.handle({ kind: 'move', motion: 'historyTop' });
   mode.handle({ kind: 'move', motion: 'lineEnd' });
-  cache.apply(updateOf([95, 96, 97, 98, 99, 100, 101, 102]));
+  arrive(updateOf([95, 96, 97, 98, 99, 100, 101, 102]));
 
   const notified = calls.count;
 
@@ -1053,7 +1106,7 @@ it('counts only fetches that miss, and asks again after a miss', () => {
 });
 
 it('moves over a wide character as one cell of a word', () => {
-  const { mode, cache } = start();
+  const { mode, arrive } = start();
   const update = updateOf([100, 101, 102]);
   const rowStart = 2 * rowWords(columns) + rowHeaderWords;
 
@@ -1068,7 +1121,7 @@ it('moves over a wide character as one cell of a word', () => {
   put(3, '\0', CellWidth.spacerTail);
   put(4, 'c');
   put(5, 'd');
-  cache.apply(update);
+  arrive(update);
 
   mode.handle({ kind: 'enter' });
   mode.handle({ kind: 'move', motion: 'wordEnd' });
@@ -1079,12 +1132,12 @@ it('moves over a wide character as one cell of a word', () => {
 });
 
 it('keeps a motion waiting on its fetch when the focus changes after its rows arrived', () => {
-  const { mode, cache, show, fetchedNow } = start([100, 101, 102]);
+  const { mode, arrive, show, fetchedNow } = start([100, 101, 102]);
 
   mode.handle({ kind: 'enter' });
   mode.handle({ kind: 'move', motion: 'historyTop' });
   mode.handle({ kind: 'move', motion: 'lineEnd' });
-  cache.apply(updateOf([95, 96, 97, 98, 99, 100, 101, 102]));
+  arrive(updateOf([95, 96, 97, 98, 99, 100, 101, 102]));
   show({ focused: 2 });
   show({ focused: 1 });
 
