@@ -254,6 +254,8 @@ export const createScrollMode = (session: ScrollModeSession): ScrollMode => {
       return 'lost';
     }
 
+    align(current, rows.activeTop);
+
     const top = viewTopOf(current);
     const last = rows.activeTop + rows.height - 1;
     const row = Math.min(Math.max(current.row, rows.oldest), last);

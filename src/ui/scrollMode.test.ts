@@ -4,7 +4,14 @@ import { createRowCache } from '../client/client.ts';
 import type { InputMode, StoreSnapshot } from '../client/client.ts';
 import { paneId, tabId, workspaceId } from '../ids.ts';
 import type { PaneId } from '../ids.ts';
-import { CellWidth, cellWords, CursorShape, rowHeaderWords, rowWords } from '../rows/rows.ts';
+import {
+  CellWidth,
+  cellWords,
+  CursorShape,
+  PaneRowsSource,
+  rowHeaderWords,
+  rowWords,
+} from '../rows/rows.ts';
 import type { RowUpdate } from '../rows/rows.ts';
 import { createScrollMode } from './scrollMode.ts';
 import type { ScrollModeSession } from './scrollMode.ts';
@@ -154,7 +161,11 @@ const start = (
   const mode = createScrollMode(session);
 
   // The server's answer: the view the snapshot shows, and who is focused.
-  const show = (next: { topRow?: number; focused?: number; removePane?: number }): void => {
+  const show = (next: {
+    topRow?: number | undefined;
+    focused?: number;
+    removePane?: number;
+  }): void => {
     external.removed = next.removePane ?? external.removed;
 
     if ('topRow' in next) {
@@ -1232,6 +1243,48 @@ it('keeps the cursor on its text when the pane is focused again and the view is 
 
   expect(mode.cursor()).toMatchObject({ row: 111 });
   expect(scrolls).toEqual([]);
+});
+
+it('runs queued motions from the aligned cursor when focus returns in normal mode', async () => {
+  const { mode, arrive, show, scrolls, cache, fetchedNow, answer, external } = start([
+    100, 101, 102,
+  ]);
+
+  mode.handle({ kind: 'enter' });
+  mode.handle({ kind: 'move', motion: 'historyTop' });
+  mode.handle({ kind: 'move', motion: 'lineEnd' });
+  mode.handle({ kind: 'move', motion: 'up' });
+  show({ topRow: 95 });
+  await answer();
+  show({ focused: 2 });
+  show({ topRow: undefined });
+  arrive({ ...updateOf([100, 101, 102]), activeTop: 105, sequence: 2 });
+  arrive({ ...updateOf([100, 101, 102]), activeTop: 110, sequence: 3 });
+
+  const fetched = updateOf([95]);
+
+  cache.storeRange({
+    pane: 1,
+    requestId: 1,
+    source: PaneRowsSource.range,
+    columns,
+    epoch: 1,
+    screen: 1,
+    remaining: 0,
+    oldest,
+    first: 95,
+    rowCount: 1,
+    cells: fetched.cells,
+    graphemes: fetched.graphemes,
+  });
+
+  fetchedNow();
+  external.inputMode = 'normal';
+  show({});
+  show({ focused: 1 });
+
+  expect(mode.cursor()).toMatchObject({ row: 104 });
+  expect(scrolls).toEqual([95, 104]);
 });
 
 it('keeps the cursor when the state changes while the pane has no rows', () => {
