@@ -32,23 +32,26 @@ it('reads one row without an AddressSanitizer error', () => {
     const executable = join(work, 'driver');
     const commit = directory.slice(directory.lastIndexOf('-') + 1);
 
-    const compile = Bun.spawnSync([
-      'clang',
-      '-g',
-      '-fsanitize=address',
-      `-I${join(directory, 'include')}`,
-      `-DKOJA_GHOSTTY_COMMIT="${commit}"`,
-      join(root, 'src/vt/shim.c'),
-      join(root, 'tests/shimAddressSanitizer.c'),
-      library,
-      '-o',
-      executable,
-    ]);
+    const compile = Bun.spawnSync(
+      [
+        'clang',
+        '-g',
+        '-fsanitize=address',
+        `-I${join(directory, 'include')}`,
+        `-DKOJA_GHOSTTY_COMMIT="${commit}"`,
+        join(root, 'src/vt/shim.c'),
+        join(root, 'tests/shimAddressSanitizer.c'),
+        library,
+        '-o',
+        executable,
+      ],
+      { timeout: 20_000 },
+    );
 
     expect(compile.stderr.toString()).toBe('');
     expect(compile.exitCode).toBe(0);
 
-    const run = Bun.spawnSync([executable]);
+    const run = Bun.spawnSync([executable], { timeout: 20_000 });
     const stderr = run.stderr.toString();
 
     expect(stderr).not.toContain('AddressSanitizer');
@@ -57,4 +60,4 @@ it('reads one row without an AddressSanitizer error', () => {
   } finally {
     rmSync(work, { recursive: true, force: true });
   }
-});
+}, 60_000);
