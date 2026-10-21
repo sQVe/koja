@@ -68,12 +68,12 @@ interface KeyIntent extends Omit<KeyRoute, 'bytes'> {
   sends: boolean;
 }
 
-const workspaceKeys: Record<string, WorkspaceKey> = {
-  j: 'next',
-  k: 'previous',
-  c: 'create',
-  X: 'close',
-};
+const workspaceKeys = new Map<string, WorkspaceKey>([
+  ['j', 'next'],
+  ['k', 'previous'],
+  ['c', 'create'],
+  ['X', 'close'],
+]);
 
 const encoder = new TextEncoder();
 
@@ -227,7 +227,7 @@ const normalIntent = (event: KeyEvent): KeyIntent => {
     return { sends: false, mode: 'insert', detach: true };
   }
 
-  const workspace = workspaceKeys[raw];
+  const workspace = workspaceKeys.get(raw);
 
   if (workspace !== undefined) {
     return { sends: false, mode: 'normal', detach: false, workspace };
@@ -456,17 +456,15 @@ export const createInputRouter = (host: TokenRouterHost): ((token: RoutedToken) 
     return intent.paneAction !== undefined || intent.tab !== undefined || entersScroll;
   };
 
-  const waitsForWorkspace = (): boolean => {
-    const next = queue[0];
-
-    if (next === undefined || !navigation.pending()) {
+  const waitsForWorkspace = (next: RoutedToken): boolean => {
+    if (!navigation.pending()) {
       return false;
     }
 
     return navigation.clickFocusing() || readsSnapshot(next);
   };
 
-  const mustWait = (): boolean => host.tabPending() || waitsForWorkspace();
+  const mustWait = (next: RoutedToken): boolean => host.tabPending() || waitsForWorkspace(next);
 
   // The client's snapshot changes only when the server answers a tab request. A token after the
   // request waits, so it reaches the pane the request shows and later tab keys see the new tab. A
@@ -479,9 +477,16 @@ export const createInputRouter = (host: TokenRouterHost): ((token: RoutedToken) 
       drain();
     };
 
-    while (!held && queue.length > 0 && !mustWait()) {
-      const next = queue.shift();
-      const settled = next === undefined ? undefined : route(next);
+    while (!held) {
+      const next = queue[0];
+
+      if (next === undefined || mustWait(next)) {
+        break;
+      }
+
+      queue.shift();
+
+      const settled = route(next);
 
       if (settled !== undefined) {
         held = true;

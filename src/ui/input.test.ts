@@ -1532,6 +1532,18 @@ it('asks for no tab when the key text is more than one digit', () => {
   expect(routeKey('\x1b[49;1;49u', 'normal', 0).tab).toEqual({ kind: 'number', number: 1 });
 });
 
+it('asks for no workspace when the key text names a built-in object property', () => {
+  for (const text of ['constructor', 'toString', '__proto__']) {
+    const codePoints = Array.from(text, (character) => character.codePointAt(0)).join(':');
+
+    expect(routeKey(`\x1b[99;1;${codePoints}u`, 'normal', 0)).toEqual({
+      bytes: new Uint8Array(),
+      mode: 'normal',
+      detach: false,
+    });
+  }
+});
+
 it('sends the release of a key to the pane when its press reached the pane', () => {
   const { press, sent } = harness('insert', {}, withKittyFlags(0b1011));
 
