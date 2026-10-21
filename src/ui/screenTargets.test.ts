@@ -165,6 +165,19 @@ it('hits a named tab across its whole drawn label', () => {
   expect(tabAt(snapshot, 'insert', terminal, { x: 19, y: 5 })).toBe(3);
 });
 
+it('hits the second tab when the first tab label has wide characters', () => {
+  const snapshot = {
+    ...listSnapshot(1, 1, 3),
+    tabs: [{ id: tabId(1), label: '日本語' }],
+  } as unknown as StoreSnapshot;
+
+  expect(statusBarLine('insert', tabLabelsOf(snapshot, 'insert'))).toBe('INSERT 1:日本語 [2] 3');
+  expect(tabAt(snapshot, 'insert', terminal, { x: 14, y: 5 })).toBe(1);
+  expect(tabAt(snapshot, 'insert', terminal, { x: 16, y: 5 })).toBe(2);
+  expect(tabAt(snapshot, 'insert', terminal, { x: 18, y: 5 })).toBe(2);
+  expect(tabAt(snapshot, 'insert', terminal, { x: 20, y: 5 })).toBe(3);
+});
+
 it('hits no tab on the mode name, a gap, past the last label, or another row', () => {
   const snapshot = listSnapshot(1, 1, 3);
 
