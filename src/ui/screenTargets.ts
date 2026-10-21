@@ -143,7 +143,7 @@ export const tabLabelsOf = (snapshot: StoreSnapshot, inputMode: string): TabLabe
 
   const activeId = activeTabIdOf(view, workspace.id);
   const labels: TabLabel[] = [];
-  let column = inputMode.length + 1;
+  let column = Bun.stringWidth(inputMode) + 1;
 
   workspace.tabIds.forEach((id, index) => {
     const number = index + 1;
@@ -151,7 +151,7 @@ export const tabLabelsOf = (snapshot: StoreSnapshot, inputMode: string): TabLabe
     const text = tabEntry(number, label, id === activeId);
 
     labels.push({ number, text, column });
-    column += text.length + 1;
+    column += Bun.stringWidth(text) + 1;
   });
 
   return labels;
@@ -175,7 +175,7 @@ export const tabAt = (
   const labels = tabLabelsOf(snapshot, inputMode);
 
   const hit = labels.find(
-    (label) => cell.x >= label.column && cell.x < label.column + label.text.length,
+    (label) => cell.x >= label.column && cell.x < label.column + Bun.stringWidth(label.text),
   );
 
   return hit?.number;
