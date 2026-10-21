@@ -6,23 +6,11 @@ import type { KeyEvent } from './keyEncoding.ts';
 import { createMouseCapture } from './mouseCapture.ts';
 import { encodeMouse, parseMouse } from './mouseEncoding.ts';
 import type { MouseEvent } from './mouseEncoding.ts';
+import type { PaneAction } from './paneActions.ts';
 import type { PaneTarget } from './screenTargets.ts';
 import type { ScrollMotion } from './scrollMotions.ts';
 import { createWorkspaceNavigation } from './workspaceNavigation.ts';
 import type { WorkspaceKey } from './workspaceNavigation.ts';
-
-export type PaneAction =
-  | 'splitBelow'
-  | 'splitRight'
-  | 'focusPrevious'
-  | 'focusNext'
-  | 'close'
-  | 'breakPane'
-  | 'zoom'
-  | 'resizeLeft'
-  | 'resizeRight'
-  | 'resizeUp'
-  | 'resizeDown';
 
 export type ScrollAction =
   | { kind: 'enter' }

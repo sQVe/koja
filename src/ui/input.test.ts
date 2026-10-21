@@ -5,8 +5,9 @@ import { paneId, workspaceId } from '../ids.ts';
 import type { PaneId, WorkspaceId } from '../ids.ts';
 import { ModeFlag } from '../rows/rows.ts';
 import { createInputRouter, routeKey, routePaste } from './input.ts';
-import type { PaneAction, ScrollAction } from './input.ts';
+import type { ScrollAction } from './input.ts';
 import { createInputTokenizer } from './inputTokens.ts';
+import type { PaneAction } from './paneActions.ts';
 import type { ScrollMotion } from './scrollMotions.ts';
 
 type RouterHost = Parameters<typeof createInputRouter>[0];
