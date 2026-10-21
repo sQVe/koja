@@ -1,8 +1,10 @@
 import { expect, it } from 'bun:test';
 
-import { paneId } from '../ids.ts';
+import { clientId, paneId, tabId, workspaceId } from '../ids.ts';
+import type { StoreSnapshot } from './snapshot.ts';
 import {
   emptyTabInputGate,
+  shownPaneOf,
   tabAnswered,
   tabInputPending,
   tabRequestSent,
@@ -127,4 +129,103 @@ it('counts rows that arrive while the request is pending as fresh', () => {
   expect(arrived.released).toBe(false);
   expect(answered.released).toBe(true);
   expect(tabInputPending(answered.gate)).toBe(false);
+});
+
+it('releases an answer that shows no pane', () => {
+  const sent = tabRequestSent(emptyTabInputGate, pane7.id);
+  const answered = tabAnswered(sent, true, { id: undefined, failed: false });
+
+  expect(answered.released).toBe(true);
+  expect(tabInputPending(answered.gate)).toBe(false);
+});
+
+it('leaves the gate alone on a snapshot change while no rows are awaited', () => {
+  const sent = tabRequestSent(emptyTabInputGate, pane7.id);
+  const changed = tabSnapshotChanged(sent, pane8);
+
+  expect(changed.released).toBe(false);
+  expect(changed.gate).toEqual(sent);
+});
+
+it('releases when focus moves to no pane', () => {
+  const sent = tabRequestSent(emptyTabInputGate, pane7.id);
+  const answered = tabAnswered(sent, true, pane8);
+  const moved = tabSnapshotChanged(answered.gate, { id: undefined, failed: false });
+
+  expect(moved.released).toBe(true);
+  expect(tabInputPending(moved.gate)).toBe(false);
+});
+
+const size = { columns: 80, rows: 24 };
+
+const snapshotShowing = (lifecycle: 'running' | 'failed'): StoreSnapshot => {
+  const view = {
+    focusedWorkspaceId: workspaceId(1),
+    activeTabs: [{ workspaceId: workspaceId(1), tabId: tabId(1) }],
+    scrolls: [],
+  };
+
+  return {
+    revision: 1,
+    workspaces: [{ id: workspaceId(1), root: '/work', label: 'work', tabIds: [tabId(1)] }],
+    tabs: [
+      {
+        id: tabId(1),
+        workspaceId: workspaceId(1),
+        layout: { kind: 'pane', paneId: pane7.id },
+        focusedPaneId: pane7.id,
+        zoomedPaneId: undefined,
+        label: undefined,
+      },
+    ],
+    panes: [
+      {
+        id: pane7.id,
+        tabId: tabId(1),
+        lifecycle,
+        generation: 1,
+        size,
+        exitCode: undefined,
+        startFolder: undefined,
+        restored: false,
+        error: undefined,
+      },
+    ],
+    defaultView: view,
+    attachedClientId: clientId(1),
+    foregroundClientId: clientId(1),
+    clients: [{ id: clientId(1), size, theme: undefined, view }],
+  };
+};
+
+it('names the pane a snapshot shows', () => {
+  expect(shownPaneOf(snapshotShowing('running'))).toEqual({ id: pane7.id, failed: false });
+});
+
+it('marks a shown pane that failed', () => {
+  expect(shownPaneOf(snapshotShowing('failed'))).toEqual({ id: pane7.id, failed: true });
+});
+
+it('shows no pane before a snapshot arrives', () => {
+  expect(shownPaneOf(undefined)).toEqual({ id: undefined, failed: false });
+});
+
+it('takes a stray answer after the awaited rows arrived', () => {
+  const sent = tabRequestSent(emptyTabInputGate, pane7.id);
+  const answered = tabAnswered(sent, true, pane8);
+  const arrived = tabRowsArrived(answered.gate, pane8.id);
+  const stray = tabAnswered(arrived.gate, false, pane8);
+
+  expect(stray.released).toBe(true);
+  expect(tabInputPending(stray.gate)).toBe(false);
+});
+
+it('takes a stray answer after a snapshot change released the wait', () => {
+  const sent = tabRequestSent(emptyTabInputGate, pane7.id);
+  const answered = tabAnswered(sent, true, pane8);
+  const moved = tabSnapshotChanged(answered.gate, { id: pane9.id, failed: true });
+  const stray = tabAnswered(moved.gate, false, pane9);
+
+  expect(stray.released).toBe(true);
+  expect(tabInputPending(stray.gate)).toBe(false);
 });

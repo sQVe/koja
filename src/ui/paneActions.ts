@@ -1,5 +1,6 @@
 import { viewedPane } from '../client/client.ts';
 import type { AttachSession } from '../client/client.ts';
+import type { PaneId, TabId } from '../ids.ts';
 import { layoutPanes } from '../layout.ts';
 
 export type PaneAction =
@@ -20,12 +21,14 @@ type PaneSession = Pick<
   'getState' | 'splitPane' | 'focusPane' | 'closePane' | 'movePane' | 'zoomPane' | 'resizePane'
 >;
 
-const focusNeighbor = (session: PaneSession, offset: number): Promise<void> => {
-  const { snapshot } = session.getState();
-  const current = viewedPane(snapshot);
-  const tab = snapshot.tabs.find((known) => known.id === current?.tabId);
+const focusNeighbor = (
+  session: PaneSession,
+  current: { id: PaneId; tabId: TabId },
+  offset: number,
+): Promise<void> => {
+  const tab = session.getState().snapshot.tabs.find((known) => known.id === current.tabId);
 
-  if (current === undefined || tab === undefined) {
+  if (tab === undefined) {
     return Promise.resolve();
   }
 
@@ -75,5 +78,5 @@ export const runPaneAction = (session: PaneSession, action: PaneAction): Promise
     return session.resizePane(current.id, resizeDirection, 1);
   }
 
-  return focusNeighbor(session, action === 'focusPrevious' ? -1 : 1);
+  return focusNeighbor(session, current, action === 'focusPrevious' ? -1 : 1);
 };

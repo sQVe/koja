@@ -692,8 +692,12 @@ it('runs a subscriber that reads scroll state once per notice when output prunes
   });
 
   arrive({ ...updateOf([100, 101, 102]), sequence: 2, first: 98 });
+
+  expect(calls.count).toBe(1);
+
   fetchedNow();
 
+  expect(calls.count).toBe(2);
   expect(calls.deepest).toBe(1);
   expect(mode.reach(paneId(1))).toEqual({ from: 98, to: 102 });
 });
@@ -1146,4 +1150,113 @@ it('keeps a motion waiting on its fetch when the focus changes after its rows ar
   fetchedNow();
 
   expect(mode.cursor()).toMatchObject({ row: 95, col: 2 });
+});
+
+it('keeps the cursor when rows arrive for a pane without a cache', () => {
+  const { mode, arrive, external } = start();
+
+  mode.handle({ kind: 'enter' });
+
+  const before = mode.cursor();
+
+  external.cached = false;
+  arrive({ ...updateOf([100, 101, 102]), sequence: 2, first: 98 });
+
+  expect(before).toBeDefined();
+  expect(mode.cursor()).toBeDefined();
+});
+
+it('ignores rows of another pane while a motion waits', () => {
+  const { mode, arrive } = start([100, 101, 102]);
+
+  mode.handle({ kind: 'enter' });
+  mode.handle({ kind: 'move', motion: 'historyTop' });
+  mode.handle({ kind: 'move', motion: 'lineEnd' });
+  expect(mode.reach(paneId(1))).toEqual({ from: 95, to: 95 });
+
+  arrive({ ...updateOf([100, 101, 102]), pane: 2, sequence: 2, first: 98 });
+
+  expect(mode.reach(paneId(1))).toEqual({ from: 98, to: 95 });
+});
+
+it('leaves the cursor of a suspended scroll mode where it was while output advances', () => {
+  const { mode, scrolls, arrive, show } = start();
+
+  mode.handle({ kind: 'enter' });
+  show({ focused: 2 });
+  arrive({ ...updateOf([100, 101, 102]), activeTop: 110, sequence: 2 });
+  show({ topRow: 100 });
+  show({ focused: 1 });
+
+  expect(mode.cursor()).toMatchObject({ row: 102 });
+
+  mode.handle({ kind: 'move', motion: 'up' });
+
+  expect(mode.cursor()).toMatchObject({ row: 101 });
+  expect(scrolls).toEqual([]);
+});
+
+it('restarts a motion that waits below a screen that shrank', () => {
+  const { mode, arrive } = start([100, 102]);
+
+  mode.handle({ kind: 'enter' });
+  mode.handle({ kind: 'move', motion: 'up' });
+  mode.handle({ kind: 'move', motion: 'lineEnd' });
+  expect(mode.reach(paneId(1))).toEqual({ from: 95, to: 101 });
+
+  arrive({ ...updateOf([100]), sequence: 2, epoch: 2, size: { columns, rows: 1 } });
+
+  expect(mode.reach(paneId(1))).toBeUndefined();
+});
+
+it('stops a pruned wait when the fetch ends, before it counts a miss', () => {
+  const { mode, arrive, fetchedNow } = start([100, 101, 102]);
+
+  mode.handle({ kind: 'enter' });
+  mode.handle({ kind: 'move', motion: 'historyTop' });
+  mode.handle({ kind: 'move', motion: 'lineEnd' });
+
+  arrive({ ...updateOf([100, 101, 102]), sequence: 2, first: 98 });
+  fetchedNow();
+
+  expect(mode.reach(paneId(1))).toEqual({ from: 98, to: 102 });
+});
+
+it('restarts a pruned wait when the fetch ends without a rows notice', () => {
+  const { mode, cache, fetchedNow } = start([100, 101, 102]);
+
+  mode.handle({ kind: 'enter' });
+  mode.handle({ kind: 'move', motion: 'historyTop' });
+  mode.handle({ kind: 'move', motion: 'lineEnd' });
+  expect(mode.reach(paneId(1))).toEqual({ from: 95, to: 95 });
+
+  let notices = 0;
+
+  mode.subscribe(() => {
+    notices += 1;
+  });
+
+  cache.apply({ ...updateOf([100, 101, 102]), sequence: 2, first: 98 });
+  fetchedNow();
+
+  expect(notices).toBe(1);
+  expect(mode.reach(paneId(1))).toEqual({ from: 98, to: 102 });
+});
+
+it('counts a miss when the fetch ends after the cache is gone', () => {
+  const { mode, external, fetchedNow } = start([100, 101, 102]);
+  let notices = 0;
+
+  mode.handle({ kind: 'enter' });
+  mode.handle({ kind: 'move', motion: 'historyTop' });
+  mode.handle({ kind: 'move', motion: 'lineEnd' });
+
+  mode.subscribe(() => {
+    notices += 1;
+  });
+
+  external.cached = false;
+  fetchedNow();
+
+  expect(notices).toBe(1);
 });

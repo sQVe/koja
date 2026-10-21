@@ -1,4 +1,6 @@
 import type { PaneId } from '../ids.ts';
+import { viewedPane } from './snapshot.ts';
+import type { StoreSnapshot } from './snapshot.ts';
 
 export interface ShownPane {
   id: PaneId | undefined;
@@ -19,6 +21,12 @@ export interface GateResult {
   released: boolean;
 }
 
+export const shownPaneOf = (snapshot: StoreSnapshot | undefined): ShownPane => {
+  const pane = snapshot && viewedPane(snapshot);
+
+  return { id: pane?.id, failed: pane?.lifecycle === 'failed' };
+};
+
 export const emptyTabInputGate: TabInputGate = {
   pendingRequests: 0,
   paneBeforeRequest: undefined,
@@ -29,8 +37,14 @@ export const emptyTabInputGate: TabInputGate = {
 export const tabInputPending = (gate: TabInputGate): boolean =>
   gate.pendingRequests > 0 || gate.awaitingRows !== undefined;
 
-const needsFreshRows = (gate: TabInputGate, shown: ShownPane & { id: PaneId }): boolean =>
-  !shown.failed && !gate.freshRowPanes.has(shown.id);
+// The shown pane when input must wait for its rows, else undefined.
+const paneToAwait = (gate: TabInputGate, shown: ShownPane): PaneId | undefined => {
+  if (shown.id === undefined || shown.failed || gate.freshRowPanes.has(shown.id)) {
+    return undefined;
+  }
+
+  return shown.id;
+};
 
 export const tabRequestSent = (gate: TabInputGate, shownPane: PaneId | undefined): TabInputGate => {
   if (gate.pendingRequests > 0) {
@@ -55,10 +69,10 @@ export const tabAnswered = (gate: TabInputGate, done: boolean, shown: ShownPane)
     return { gate: next, released: false };
   }
 
-  const switched = done && shown.id !== undefined && shown.id !== gate.paneBeforeRequest;
+  const awaited = paneToAwait(gate, shown);
 
-  if (switched && shown.id !== undefined && needsFreshRows(gate, { ...shown, id: shown.id })) {
-    return { gate: { ...next, awaitingRows: shown.id }, released: false };
+  if (done && awaited !== undefined && awaited !== gate.paneBeforeRequest) {
+    return { gate: { ...next, awaitingRows: awaited }, released: false };
   }
 
   return { gate: next, released: true };
@@ -83,9 +97,11 @@ export const tabSnapshotChanged = (gate: TabInputGate, shown: ShownPane): GateRe
     return { gate, released: false };
   }
 
-  if (shown.id === undefined || !needsFreshRows(gate, { ...shown, id: shown.id })) {
+  const awaited = paneToAwait(gate, shown);
+
+  if (awaited === undefined) {
     return { gate: { ...gate, awaitingRows: undefined }, released: true };
   }
 
-  return { gate: { ...gate, awaitingRows: shown.id }, released: false };
+  return { gate: { ...gate, awaitingRows: awaited }, released: false };
 };

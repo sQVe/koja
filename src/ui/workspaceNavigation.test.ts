@@ -138,3 +138,38 @@ it('ignores a click on the workspace already shown', () => {
   expect(commands).toEqual([]);
   expect(navigation.clickFocusing()).toBe(false);
 });
+
+it('sends nothing for j or k when no workspace is focused', () => {
+  const { commands, navigation } = setup([first, second], undefined);
+
+  navigation.runKey('next');
+  navigation.runKey('previous');
+
+  expect(commands).toEqual([]);
+  expect(navigation.pending()).toBe(false);
+});
+
+it('sends nothing for j when the focused workspace is not listed', () => {
+  const { commands, navigation } = setup([first, second], third);
+
+  navigation.runKey('next');
+
+  expect(commands).toEqual([]);
+  expect(navigation.pending()).toBe(false);
+});
+
+it('sends nothing for j when there are no workspaces', () => {
+  const { commands, navigation } = setup([], first);
+
+  navigation.runKey('next');
+
+  expect(commands).toEqual([]);
+});
+
+it('wraps k from the first workspace to the last', () => {
+  const { commands, navigation } = setup([first, second, third], first);
+
+  navigation.runKey('previous');
+
+  expect(commands).toEqual([{ action: 'focus', workspaceId: third }]);
+});

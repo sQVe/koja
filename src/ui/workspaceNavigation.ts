@@ -27,9 +27,9 @@ const neighborCommand = (
   step: 1 | -1,
 ): WorkspaceCommand | undefined => {
   const index = focused === undefined ? -1 : ids.indexOf(focused);
-  const target = ids[(index + step + ids.length) % ids.length];
+  const target = index === -1 ? undefined : ids[(index + step + ids.length) % ids.length];
 
-  if (index === -1 || target === undefined) {
+  if (target === undefined) {
     return undefined;
   }
 

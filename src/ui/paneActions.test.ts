@@ -98,7 +98,61 @@ const run = async (snapshot: StoreSnapshot, action: PaneAction): Promise<readonl
 
 const pane = (id: number): PaneId => paneId(id);
 
+const secondTabSnapshot = (): StoreSnapshot => {
+  const base = snapshotWith(3, 3);
+  const [firstTab] = base.tabs;
+
+  if (firstTab === undefined) {
+    throw new Error('fixture has a tab');
+  }
+
+  const otherView = {
+    ...view,
+    activeTabs: [{ workspaceId: workspaceId(1), tabId: tabId(2) }],
+  };
+
+  return {
+    ...base,
+    workspaces: [
+      { id: workspaceId(1), root: '/work', label: 'koja', tabIds: [tabId(1), tabId(2)] },
+    ],
+    tabs: [
+      { ...firstTab, layout: { kind: 'pane', paneId: paneId(1) }, focusedPaneId: paneId(1) },
+      {
+        ...firstTab,
+        id: tabId(2),
+        layout: {
+          kind: 'split',
+          direction: 'right',
+          ratio: 0.5,
+          first: { kind: 'pane', paneId: paneId(2) },
+          second: { kind: 'pane', paneId: paneId(3) },
+        },
+        focusedPaneId: paneId(2),
+      },
+    ],
+    panes: [paneOf(1), { ...paneOf(2), tabId: tabId(2) }, { ...paneOf(3), tabId: tabId(2) }],
+    defaultView: otherView,
+    clients: [{ ...client, view: otherView }],
+  };
+};
+
 describe('runPaneAction', () => {
+  it('sends nothing when the tab of the viewed pane is unknown', async () => {
+    const base = snapshotWith(1, 2);
+
+    const orphaned = {
+      ...base,
+      panes: base.panes.map((known) => Object.assign({}, known, { tabId: tabId(9) })),
+    };
+
+    expect(await run(orphaned, 'focusNext')).toEqual([]);
+  });
+
+  it('moves focus within the tab of the viewed pane', async () => {
+    expect(await run(secondTabSnapshot(), 'focusNext')).toEqual([['focusPane', pane(3)]]);
+  });
+
   it('focuses the next pane in layout order', async () => {
     expect(await run(snapshotWith(1, 2), 'focusNext')).toEqual([['focusPane', pane(2)]]);
   });

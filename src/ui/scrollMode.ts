@@ -177,16 +177,12 @@ export const createScrollMode = (session: ScrollModeSession): ScrollMode => {
     return { pane: current.pane, row, col };
   };
 
-  const align = (current: ScrollState): void => {
+  const align = (current: ScrollState, activeTop: number): void => {
     const { row, col } = alignedCursor(current);
-    const bounds = session.rowCache(current.pane)?.bounds();
 
     current.row = row;
     current.col = col;
-
-    if (bounds !== undefined) {
-      current.alignedTop = bounds.activeTop;
-    }
+    current.alignedTop = activeTop;
   };
 
   const scrollTo = (current: ScrollState, to: number | 'bottom'): void => {
@@ -248,7 +244,7 @@ export const createScrollMode = (session: ScrollModeSession): ScrollMode => {
       return 'lost';
     }
 
-    align(current);
+    align(current, rows.activeTop);
 
     const top = viewTopOf(current);
     const last = rows.activeTop + rows.height - 1;
@@ -409,15 +405,16 @@ export const createScrollMode = (session: ScrollModeSession): ScrollMode => {
   // Output pruned the row the motion waits for. Its fetch can never end, so run the motion again
   // from the cursor, which the scan clamps into the history.
   const restartPruned = (current: ScrollState): boolean => {
-    const bounds = session.rowCache(current.pane)?.bounds();
+    const cache = session.rowCache(current.pane);
+    const rows = cache === undefined ? undefined : rowsOf(cache);
 
-    if (bounds === undefined) {
+    if (rows === undefined) {
       return false;
     }
 
-    const last = bounds.activeTop + (session.rowCache(current.pane)?.size()?.rows ?? 1) - 1;
+    const last = rows.activeTop + rows.height - 1;
 
-    if (!waitsOutside(current, bounds.oldest, last)) {
+    if (!waitsOutside(current, rows.oldest, last)) {
       return false;
     }
 
@@ -433,7 +430,6 @@ export const createScrollMode = (session: ScrollModeSession): ScrollMode => {
       return;
     }
 
-    align(current);
     restartPruned(current);
   });
 

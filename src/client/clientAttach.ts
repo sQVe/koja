@@ -16,10 +16,11 @@ import type { PaneMoveDestination, ResizeDirection, SplitDirection } from './pan
 import { createRowCache } from './rowCache.ts';
 import type { RowCache, RowRange } from './rowCache.ts';
 import { createRowFetcher } from './rowFetch.ts';
-import { activeTabIdOf, applyChange, shownPaneIds, viewedPane, shownView } from './snapshot.ts';
+import { activeTabIdOf, applyChange, shownPaneIds, shownView } from './snapshot.ts';
 import type { StoreChange, StoreSnapshot } from './snapshot.ts';
 import {
   emptyTabInputGate,
+  shownPaneOf,
   tabAnswered,
   tabInputPending,
   tabRequestSent,
@@ -305,11 +306,7 @@ export const connectAttach = async (
     }
   };
 
-  const shownPane = (): ShownPane => {
-    const pane = state && viewedPane(state.snapshot);
-
-    return { id: pane?.id, failed: pane?.lifecycle === 'failed' };
-  };
+  const shownPane = (): ShownPane => shownPaneOf(state?.snapshot);
 
   const applyGate = (result: GateResult): void => {
     tabGate = result.gate;
