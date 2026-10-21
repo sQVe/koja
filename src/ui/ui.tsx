@@ -6,11 +6,10 @@ import type { ReactNode } from 'react';
 
 import { createClipboardQueue, viewedPane, shownView } from '../client/client.ts';
 import type { AttachSession, ClipboardQueue, CloseReason, PaneNotice } from '../client/client.ts';
-import { layoutPanes } from '../layout.ts';
 import { kittyFlags } from '../rows/rows.ts';
 import { createInputRouter } from './input.ts';
-import type { PaneAction } from './input.ts';
 import { takeStdin } from './inputStdin.ts';
+import { runPaneAction } from './paneActions.ts';
 import { mountPanes } from './paneLayer.ts';
 import { placementOf, tabAt, targetAt, targetNear, workspaceAt } from './screenTargets.ts';
 import { createScrollMode } from './scrollMode.ts';
@@ -69,64 +68,6 @@ const sendToPane = (session: AttachSession, bytes: Uint8Array): void => {
   if (current !== undefined && bytes.length > 0) {
     session.sendInput(current.id, bytes);
   }
-};
-
-const focusNeighbor = (session: AttachSession, offset: number): Promise<void> => {
-  const { snapshot } = session.getState();
-  const current = viewedPane(snapshot);
-  const tab = snapshot.tabs.find((known) => known.id === current?.tabId);
-
-  if (current === undefined || tab === undefined) {
-    return Promise.resolve();
-  }
-
-  const order = layoutPanes(tab.layout, { columns: 1, rows: 1 }).map((place) => place.paneId);
-  const target = order[order.indexOf(current.id) + offset];
-
-  return target === undefined ? Promise.resolve() : session.focusPane(target);
-};
-
-const resizeDirections: Partial<Record<PaneAction, 'left' | 'right' | 'up' | 'down'>> = {
-  resizeLeft: 'left',
-  resizeRight: 'right',
-  resizeUp: 'up',
-  resizeDown: 'down',
-};
-
-const runPaneAction = (session: AttachSession, action: PaneAction): Promise<void> => {
-  const current = viewedPane(session.getState().snapshot);
-
-  if (current === undefined) {
-    return Promise.resolve();
-  }
-
-  if (action === 'splitBelow') {
-    return session.splitPane(current.id, 'below');
-  }
-
-  if (action === 'splitRight') {
-    return session.splitPane(current.id, 'right');
-  }
-
-  if (action === 'close') {
-    return session.closePane(current.id);
-  }
-
-  if (action === 'breakPane') {
-    return session.movePane(current.id, { kind: 'newTab' });
-  }
-
-  if (action === 'zoom') {
-    return session.zoomPane(current.id);
-  }
-
-  const resizeDirection = resizeDirections[action];
-
-  if (resizeDirection !== undefined) {
-    return session.resizePane(current.id, resizeDirection, 1);
-  }
-
-  return focusNeighbor(session, action === 'focusPrevious' ? -1 : 1);
 };
 
 const routeInput = (session: AttachSession, renderer: CliRenderer, scrollMode: ScrollMode) =>

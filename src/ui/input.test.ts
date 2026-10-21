@@ -5,8 +5,9 @@ import { paneId, workspaceId } from '../ids.ts';
 import type { PaneId, WorkspaceId } from '../ids.ts';
 import { ModeFlag } from '../rows/rows.ts';
 import { createInputRouter, routeKey, routePaste } from './input.ts';
-import type { PaneAction, ScrollAction } from './input.ts';
+import type { ScrollAction } from './input.ts';
 import { createInputTokenizer } from './inputTokens.ts';
+import type { PaneAction } from './paneActions.ts';
 import type { ScrollMotion } from './scrollMotions.ts';
 
 type RouterHost = Parameters<typeof createInputRouter>[0];
@@ -1529,6 +1530,18 @@ it('stays in scroll mode on q with Alt or Ctrl', () => {
 it('asks for no tab when the key text is more than one digit', () => {
   expect(routeKey('\x1b[49;1;49:50u', 'normal', 0).tab).toBeUndefined();
   expect(routeKey('\x1b[49;1;49u', 'normal', 0).tab).toEqual({ kind: 'number', number: 1 });
+});
+
+it('asks for no workspace when the key text names a built-in object property', () => {
+  for (const text of ['constructor', 'toString', '__proto__']) {
+    const codePoints = Array.from(text, (character) => character.codePointAt(0)).join(':');
+
+    expect(routeKey(`\x1b[99;1;${codePoints}u`, 'normal', 0)).toEqual({
+      bytes: new Uint8Array(),
+      mode: 'normal',
+      detach: false,
+    });
+  }
 });
 
 it('sends the release of a key to the pane when its press reached the pane', () => {

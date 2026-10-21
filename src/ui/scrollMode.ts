@@ -8,7 +8,13 @@ import type { ScrollMotion, ScrollResult, ScrollRow, ScrollRows } from './scroll
 
 export type ScrollModeSession = Pick<
   AttachSession,
-  'getState' | 'rowCache' | 'scrollPane' | 'setInputMode' | 'subscribe' | 'subscribeFetched'
+  | 'getState'
+  | 'rowCache'
+  | 'scrollPane'
+  | 'setInputMode'
+  | 'subscribe'
+  | 'subscribeFetched'
+  | 'subscribeRows'
 >;
 
 interface ScrollCursor {
@@ -153,24 +159,30 @@ export const createScrollMode = (session: ScrollModeSession): ScrollMode => {
     return session.rowCache(current.pane)?.viewTop(scrollTopOf(shownView(snapshot), current.pane));
   };
 
-  const align = (current: ScrollState): void => {
+  // Where the cursor stands now, without moving it in the state.
+  const alignedCursor = (current: ScrollState): ScrollCursor => {
     const cache = session.rowCache(current.pane);
     const bounds = cache?.bounds();
     const columns = cache?.size()?.columns;
 
-    if (columns !== undefined) {
-      current.col = Math.min(current.col, Math.max(columns - 1, 0));
+    const col =
+      columns === undefined ? current.col : Math.min(current.col, Math.max(columns - 1, 0));
+
+    if (bounds === undefined || viewTopOf(current) !== undefined) {
+      return { pane: current.pane, row: current.row, col };
     }
 
-    if (bounds === undefined) {
-      return;
-    }
+    const row = Math.max(current.row + bounds.activeTop - current.alignedTop, bounds.oldest);
 
-    if (viewTopOf(current) === undefined) {
-      current.row = Math.max(current.row + bounds.activeTop - current.alignedTop, bounds.oldest);
-    }
+    return { pane: current.pane, row, col };
+  };
 
-    current.alignedTop = bounds.activeTop;
+  const align = (current: ScrollState, activeTop: number): void => {
+    const { row, col } = alignedCursor(current);
+
+    current.row = row;
+    current.col = col;
+    current.alignedTop = activeTop;
   };
 
   const scrollTo = (current: ScrollState, to: number | 'bottom'): void => {
@@ -224,6 +236,17 @@ export const createScrollMode = (session: ScrollModeSession): ScrollMode => {
   const isFocused = (current: ScrollState): boolean =>
     viewedPane(session.getState().snapshot)?.id === current.pane;
 
+  // A shown cursor follows output while the view follows the bottom. A suspended one keeps its row
+  // until the pane is focused again.
+  const alignWhileFocused = (current: ScrollState): void => {
+    const cache = session.rowCache(current.pane);
+    const rows = cache === undefined ? undefined : rowsOf(cache);
+
+    if (rows !== undefined && isFocused(current)) {
+      align(current, rows.activeTop);
+    }
+  };
+
   const step = (current: ScrollState, motion: ScrollMotion): 'done' | 'waiting' | 'lost' => {
     const cache = session.rowCache(current.pane);
     const rows = cache === undefined ? undefined : rowsOf(cache);
@@ -232,7 +255,7 @@ export const createScrollMode = (session: ScrollModeSession): ScrollMode => {
       return 'lost';
     }
 
-    align(current);
+    align(current, rows.activeTop);
 
     const top = viewTopOf(current);
     const last = rows.activeTop + rows.height - 1;
@@ -388,12 +411,54 @@ export const createScrollMode = (session: ScrollModeSession): ScrollMode => {
     if (state !== undefined) {
       followFocus(state);
     }
+
+    const current = state;
+
+    if (current !== undefined) {
+      alignWhileFocused(current);
+    }
+  });
+
+  // Output pruned the row the motion waits for. Its fetch can never end, so run the motion again
+  // from the cursor, which the scan clamps into the history.
+  const restartPruned = (current: ScrollState): boolean => {
+    const cache = session.rowCache(current.pane);
+    const rows = cache === undefined ? undefined : rowsOf(cache);
+
+    if (rows === undefined) {
+      return false;
+    }
+
+    const last = rows.activeTop + rows.height - 1;
+
+    if (!waitsOutside(current, rows.oldest, last)) {
+      return false;
+    }
+
+    restartWaiting(current);
+
+    return true;
+  };
+
+  session.subscribeRows(({ pane }) => {
+    const current = state;
+
+    if (current === undefined || current.pane !== pane) {
+      return;
+    }
+
+    alignWhileFocused(current);
+    restartPruned(current);
   });
 
   session.subscribeFetched((pane) => {
     const current = state;
 
     if (current === undefined || current.pane !== pane || current.waiting === undefined) {
+      return;
+    }
+
+    if (restartPruned(current)) {
       return;
     }
 
@@ -445,9 +510,7 @@ export const createScrollMode = (session: ScrollModeSession): ScrollMode => {
         return undefined;
       }
 
-      align(state);
-
-      return { pane: state.pane, row: state.row, col: state.col };
+      return alignedCursor(state);
     },
     reach: (pane) => {
       const bounds = session.rowCache(pane)?.bounds();
@@ -457,12 +520,6 @@ export const createScrollMode = (session: ScrollModeSession): ScrollMode => {
       }
 
       const last = bounds.activeTop + (session.rowCache(pane)?.size()?.rows ?? 1) - 1;
-
-      // Output pruned the row the motion waits for. Its fetch can never end, so run the motion
-      // again from the cursor, which the scan clamps into the history.
-      if (waitsOutside(state, bounds.oldest, last)) {
-        restartWaiting(state);
-      }
 
       return reachOf(state, bounds.oldest, last);
     },

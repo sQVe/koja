@@ -3,23 +3,14 @@ import type { PaneId, WorkspaceId } from '../ids.ts';
 import { kittyFlags, ModeFlag } from '../rows/rows.ts';
 import { encodeKey, isKey, keyModifier, keyText, parseKey } from './keyEncoding.ts';
 import type { KeyEvent } from './keyEncoding.ts';
+import { createMouseCapture } from './mouseCapture.ts';
 import { encodeMouse, parseMouse } from './mouseEncoding.ts';
 import type { MouseEvent } from './mouseEncoding.ts';
+import type { PaneAction } from './paneActions.ts';
 import type { PaneTarget } from './screenTargets.ts';
 import type { ScrollMotion } from './scrollMotions.ts';
-
-export type PaneAction =
-  | 'splitBelow'
-  | 'splitRight'
-  | 'focusPrevious'
-  | 'focusNext'
-  | 'close'
-  | 'breakPane'
-  | 'zoom'
-  | 'resizeLeft'
-  | 'resizeRight'
-  | 'resizeUp'
-  | 'resizeDown';
+import { createWorkspaceNavigation } from './workspaceNavigation.ts';
+import type { WorkspaceKey } from './workspaceNavigation.ts';
 
 export type ScrollAction =
   | { kind: 'enter' }
@@ -57,8 +48,6 @@ type ChromeTarget =
   | { kind: 'workspace'; workspaceId: WorkspaceId }
   | { kind: 'tab'; number: number };
 
-type WorkspaceKey = 'next' | 'previous' | 'create' | 'close';
-
 type RoutedToken =
   | { kind: 'key'; raw: string; escapeSent: boolean }
   | { kind: 'paste'; bytes: Uint8Array; escapeSent: boolean }
@@ -74,12 +63,17 @@ interface KeyRoute {
   scroll?: ScrollAction;
 }
 
-const workspaceKeys: Record<string, WorkspaceKey> = {
-  j: 'next',
-  k: 'previous',
-  c: 'create',
-  X: 'close',
-};
+// What a key does, before any bytes are encoded. `sends` marks a key that reaches the pane.
+interface KeyIntent extends Omit<KeyRoute, 'bytes'> {
+  sends: boolean;
+}
+
+const workspaceKeys = new Map<string, WorkspaceKey>([
+  ['j', 'next'],
+  ['k', 'previous'],
+  ['c', 'create'],
+  ['X', 'close'],
+]);
 
 const encoder = new TextEncoder();
 
@@ -178,7 +172,7 @@ const isPrefix = (event: KeyEvent): boolean => isKey(event, 'b', keyModifier.ctr
 const commandBlockers =
   keyModifier.alt | keyModifier.ctrl | keyModifier.super | keyModifier.hyper | keyModifier.meta;
 
-const stayInScroll: KeyRoute = { bytes: nothing, mode: 'scroll', detach: false };
+const stayInScroll: KeyIntent = { sends: false, mode: 'scroll', detach: false };
 
 const scrollMotionOf = (event: KeyEvent): ScrollMotion | undefined => {
   if ((event.modifiers & commandBlockers) === keyModifier.ctrl) {
@@ -194,19 +188,19 @@ const scrollMotionOf = (event: KeyEvent): ScrollMotion | undefined => {
   return scrollNamedMotions.get(event.key) ?? scrollTextMotions.get(keyText(event) ?? '');
 };
 
-const routeScrollKey = (event: KeyEvent): KeyRoute => {
+const scrollIntent = (event: KeyEvent): KeyIntent => {
   if (event.kind === 'release') {
     return stayInScroll;
   }
 
   if (isPrefix(event)) {
-    return { bytes: nothing, mode: 'normal', detach: false, scroll: { kind: 'leave' } };
+    return { sends: false, mode: 'normal', detach: false, scroll: { kind: 'leave' } };
   }
 
   const leaves = keyText(event) === 'q' || isKey(event, 'escape');
 
   if (leaves && (event.modifiers & commandBlockers) === 0) {
-    return { bytes: nothing, mode: 'insert', detach: false, scroll: { kind: 'leave' } };
+    return { sends: false, mode: 'insert', detach: false, scroll: { kind: 'leave' } };
   }
 
   const motion = scrollMotionOf(event);
@@ -218,75 +212,77 @@ const routeScrollKey = (event: KeyEvent): KeyRoute => {
   return { ...stayInScroll, scroll: { kind: 'move', motion } };
 };
 
-const routeNormalKey = (event: KeyEvent, modes: number): KeyRoute => {
+const normalIntent = (event: KeyEvent): KeyIntent => {
   if (isPrefix(event)) {
-    const bytes = encodeKey(event, kittyFlags(modes), applicationCursor(modes));
-
-    return { bytes, mode: 'insert', detach: false };
+    return { sends: true, mode: 'insert', detach: false };
   }
 
   if ((event.modifiers & commandBlockers) !== 0) {
-    return { bytes: nothing, mode: 'normal', detach: false };
+    return { sends: false, mode: 'normal', detach: false };
   }
 
   const raw = keyText(event) ?? '';
 
   if (raw === 'd') {
-    return { bytes: nothing, mode: 'insert', detach: true };
+    return { sends: false, mode: 'insert', detach: true };
   }
 
-  const workspace = workspaceKeys[raw];
+  const workspace = workspaceKeys.get(raw);
 
   if (workspace !== undefined) {
-    return { bytes: nothing, mode: 'normal', detach: false, workspace };
+    return { sends: false, mode: 'normal', detach: false, workspace };
   }
 
   const tab = routeTabKey(raw);
 
   if (tab !== undefined) {
-    return { bytes: nothing, mode: 'normal', detach: false, tab };
+    return { sends: false, mode: 'normal', detach: false, tab };
   }
 
   const paneAction = paneActions.get(raw);
 
   if (paneAction !== undefined) {
-    return { bytes: nothing, mode: 'normal', detach: false, paneAction };
+    return { sends: false, mode: 'normal', detach: false, paneAction };
   }
 
   if (raw === '[') {
-    return { bytes: nothing, mode: 'scroll', detach: false, scroll: { kind: 'enter' } };
+    return { sends: false, mode: 'scroll', detach: false, scroll: { kind: 'enter' } };
   }
 
   const leavesNormal = raw === 'i' || isKey(event, 'escape');
 
-  return { bytes: nothing, mode: leavesNormal ? 'insert' : 'normal', detach: false };
+  return { sends: false, mode: leavesNormal ? 'insert' : 'normal', detach: false };
+};
+
+const keyIntentOf = (event: KeyEvent, mode: InputMode): KeyIntent => {
+  // Holding Ctrl+B repeats it. Only a new press may send a literal Ctrl+B or leave normal mode.
+  if (event.kind === 'repeat' && isPrefix(event)) {
+    return { sends: false, mode, detach: false };
+  }
+
+  if (mode === 'normal') {
+    return normalIntent(event);
+  }
+
+  if (mode === 'scroll') {
+    return scrollIntent(event);
+  }
+
+  if (isPrefix(event)) {
+    return { sends: false, mode: 'normal', detach: false };
+  }
+
+  return { sends: true, mode: 'insert', detach: false };
 };
 
 // raw is the bytes of one key token, legacy or kitty. A release is never routed to the pane in
 // normal mode.
 export const routeKey = (raw: string, mode: InputMode, modes: number): KeyRoute => {
   const event = parseKey(raw);
+  const { sends, ...intent } = keyIntentOf(event, mode);
+  const bytes = sends ? encodeKey(event, kittyFlags(modes), applicationCursor(modes)) : nothing;
 
-  // Holding Ctrl+B repeats it. Only a new press may send a literal Ctrl+B or leave normal mode.
-  if (event.kind === 'repeat' && isPrefix(event)) {
-    return { bytes: nothing, mode, detach: false };
-  }
-
-  if (mode === 'normal') {
-    return routeNormalKey(event, modes);
-  }
-
-  if (mode === 'scroll') {
-    return routeScrollKey(event);
-  }
-
-  if (isPrefix(event)) {
-    return { bytes: nothing, mode: 'normal', detach: false };
-  }
-
-  const bytes = encodeKey(event, kittyFlags(modes), applicationCursor(modes));
-
-  return { bytes, mode: 'insert', detach: false };
+  return { bytes, ...intent };
 };
 
 export const routePaste = (bytes: Uint8Array, modes: number): Uint8Array => {
@@ -308,113 +304,12 @@ export const routePaste = (bytes: Uint8Array, modes: number): Uint8Array => {
 // mode consumes an Escape. When the pane does not ask for bracketed paste, the pane keeps the stray
 // Escape and gets the bare paste. A terminal reply that arrives split after a lone Escape cannot
 // take that Escape back either.
-const neighborCommand = (
-  ids: readonly WorkspaceId[],
-  focused: WorkspaceId | undefined,
-  step: 1 | -1,
-): WorkspaceCommand | undefined => {
-  const index = focused === undefined ? -1 : ids.indexOf(focused);
-  const target = ids[(index + step + ids.length) % ids.length];
-
-  if (index === -1 || target === undefined) {
-    return undefined;
-  }
-
-  return { action: 'focus', workspaceId: target };
-};
-
-const isButtonGesture = (event: MouseEvent): boolean =>
-  event.kind === 'press' || event.kind === 'drag' || event.kind === 'release';
-
 export const createInputRouter = (host: TokenRouterHost): ((token: RoutedToken) => void) => {
   let escapeInPane = false;
   // Keys whose press Koja took. Their release must not reach the pane, which never saw the press.
   const consumedKeys = new Set<string>();
-  // The focus the last j or k asked for, kept until the server answers the latest focus request.
-  let pendingFocus: WorkspaceId | undefined;
-  let focusRequests = 0;
-  // After c or X the resulting focus is unknown until the server answers.
-  let awaitingResult = false;
-
-  let workspaceWaiters: (() => void)[] = [];
-
-  const workspacePending = (): boolean => focusRequests > 0 || awaitingResult;
-
-  // Set by a workspace click. Every later token waits for the answer, so it reaches the new pane.
-  let clickFocusing = false;
-
-  const notifyWorkspaceWaiters = (): void => {
-    if (workspacePending()) {
-      return;
-    }
-
-    clickFocusing = false;
-
-    const waiters = workspaceWaiters;
-
-    workspaceWaiters = [];
-
-    for (const waiter of waiters) {
-      waiter();
-    }
-  };
-
-  const settleFocus = (): void => {
-    focusRequests -= 1;
-
-    if (focusRequests === 0) {
-      pendingFocus = undefined;
-    }
-
-    notifyWorkspaceWaiters();
-  };
-
-  const workspaceCommandOf = (key: WorkspaceKey): WorkspaceCommand | undefined => {
-    if (awaitingResult) {
-      return undefined;
-    }
-
-    const current = host.workspaces();
-    const stillListed = current.ids.some((id) => id === pendingFocus);
-    const focused = stillListed ? pendingFocus : current.focused;
-
-    if (key === 'create') {
-      return { action: 'create', root: host.startDirectory, label: undefined, focus: true };
-    }
-
-    if (key === 'close') {
-      return focused === undefined ? undefined : { action: 'close', workspaceId: focused };
-    }
-
-    return neighborCommand(current.ids, focused, key === 'next' ? 1 : -1);
-  };
-
-  const focusWorkspace = (workspaceId: WorkspaceId): void => {
-    pendingFocus = workspaceId;
-    focusRequests += 1;
-    host.command({ action: 'focus', workspaceId }, settleFocus);
-  };
-
-  const runWorkspaceKey = (key: WorkspaceKey): void => {
-    const command = workspaceCommandOf(key);
-
-    if (command === undefined) {
-      return;
-    }
-
-    if (command.action === 'focus') {
-      focusWorkspace(command.workspaceId);
-
-      return;
-    }
-
-    awaitingResult = true;
-
-    host.command(command, () => {
-      awaitingResult = false;
-      notifyWorkspaceWaiters();
-    });
-  };
+  const navigation = createWorkspaceNavigation(host);
+  const mouseCapture = createMouseCapture(host);
 
   // Whether a pane action or a tab request keeps the queue from routing.
   let held = false;
@@ -435,67 +330,12 @@ export const createInputRouter = (host: TokenRouterHost): ((token: RoutedToken) 
     }
   };
 
-  // The first press fixes the pane that gets its button's drags and release. Other buttons'
-  // presses, drags, and releases are ignored until then.
-  // `last` is the latest target forwarded to the pane. A release that finds the pane no longer
-  // placed, such as after a tab switch or a zoom, goes there.
-  let captured:
-    | { button: number; pane: PaneId | undefined; last: PaneTarget | undefined }
-    | undefined;
-
-  const mouseTargetOf = (event: MouseEvent): PaneTarget | undefined => {
-    const followsPress = event.kind === 'drag' || event.kind === 'release';
-
-    if (captured === undefined || !followsPress) {
-      return host.mouseTarget(event.x, event.y);
-    }
-
-    return captured.pane === undefined
-      ? undefined
-      : host.mouseTarget(event.x, event.y, captured.pane);
-  };
-
   const forwardMouse = (event: MouseEvent, target: PaneTarget): void => {
     const bytes = encodeMouse(event, host.paneModes(target.paneId), target.column, target.row);
 
     if (bytes.length > 0) {
       host.sendToPane(target.paneId, bytes);
     }
-  };
-
-  const rememberTarget = (event: MouseEvent, target: PaneTarget | undefined): void => {
-    const ownsGesture = isButtonGesture(event) && target?.paneId === captured?.pane;
-
-    if (captured !== undefined && ownsGesture) {
-      captured.last = target;
-    }
-  };
-
-  const endGesture = (event: MouseEvent): void => {
-    if (event.kind === 'release') {
-      captured = undefined;
-    }
-  };
-
-  // The saved cell, kept inside the pane's current size, which changes while the pane is hidden.
-  const unplacedReleaseTarget = (event: MouseEvent): PaneTarget | undefined => {
-    const last = captured?.last;
-
-    if (event.kind !== 'release' || last === undefined) {
-      return undefined;
-    }
-
-    const size = host.paneSize(last.paneId);
-
-    if (size === undefined) {
-      return undefined;
-    }
-
-    return {
-      paneId: last.paneId,
-      column: Math.min(last.column, size.columns - 1),
-      row: Math.min(last.row, size.rows - 1),
-    };
   };
 
   const focusChromeAt = (x: number, y: number): void => {
@@ -511,26 +351,7 @@ export const createInputRouter = (host: TokenRouterHost): ((token: RoutedToken) 
       return;
     }
 
-    const current = host.workspaces();
-    const shown = pendingFocus ?? current.focused;
-
-    if (chrome.workspaceId !== shown) {
-      clickFocusing = true;
-      focusWorkspace(chrome.workspaceId);
-    }
-  };
-
-  // Captures the button and pane of a press that starts a gesture, and returns whether it did.
-  const beginPress = (event: MouseEvent): boolean => {
-    if (captured !== undefined || event.kind !== 'press') {
-      return false;
-    }
-
-    const pressed = host.mouseTarget(event.x, event.y);
-
-    captured = { button: event.button, pane: pressed?.paneId, last: pressed };
-
-    return true;
+    navigation.focusByClick(chrome.workspaceId);
   };
 
   const routeMouse = (raw: string): Promise<void> | undefined => {
@@ -540,21 +361,20 @@ export const createInputRouter = (host: TokenRouterHost): ((token: RoutedToken) 
       return undefined;
     }
 
-    if (captured !== undefined && isButtonGesture(event) && event.button !== captured.button) {
+    if (mouseCapture.ignores(event)) {
       return undefined;
     }
 
-    const startsLeftPress = beginPress(event) && event.button === 0;
+    const startsLeftPress = mouseCapture.begin(event) && event.button === 0;
 
     if (startsLeftPress) {
       focusChromeAt(event.x, event.y);
     }
 
-    const placedTarget = mouseTargetOf(event);
-    const target = placedTarget ?? unplacedReleaseTarget(event);
+    const placedTarget = mouseCapture.targetOf(event);
+    const target = placedTarget ?? mouseCapture.unplacedRelease(event);
 
-    rememberTarget(event, placedTarget);
-    endGesture(event);
+    mouseCapture.finish(event, placedTarget);
 
     if (target === undefined) {
       return undefined;
@@ -607,7 +427,7 @@ export const createInputRouter = (host: TokenRouterHost): ((token: RoutedToken) 
     }
 
     if (routed.workspace !== undefined) {
-      runWorkspaceKey(routed.workspace);
+      navigation.runKey(routed.workspace);
     }
 
     if (routed.tab !== undefined) {
@@ -630,24 +450,21 @@ export const createInputRouter = (host: TokenRouterHost): ((token: RoutedToken) 
       return false;
     }
 
-    const routed = routeKey(token.raw, host.mode(), host.modes());
+    const intent = keyIntentOf(parseKey(token.raw), host.mode());
+    const entersScroll = intent.scroll?.kind === 'enter';
 
-    const entersScroll = routed.scroll?.kind === 'enter';
-
-    return routed.paneAction !== undefined || routed.tab !== undefined || entersScroll;
+    return intent.paneAction !== undefined || intent.tab !== undefined || entersScroll;
   };
 
-  const waitsForWorkspace = (): boolean => {
-    const next = queue[0];
-
-    if (next === undefined || !workspacePending()) {
+  const waitsForWorkspace = (next: RoutedToken): boolean => {
+    if (!navigation.pending()) {
       return false;
     }
 
-    return clickFocusing || readsSnapshot(next);
+    return navigation.clickFocusing() || readsSnapshot(next);
   };
 
-  const mustWait = (): boolean => host.tabPending() || waitsForWorkspace();
+  const mustWait = (next: RoutedToken): boolean => host.tabPending() || waitsForWorkspace(next);
 
   // The client's snapshot changes only when the server answers a tab request. A token after the
   // request waits, so it reaches the pane the request shows and later tab keys see the new tab. A
@@ -660,9 +477,16 @@ export const createInputRouter = (host: TokenRouterHost): ((token: RoutedToken) 
       drain();
     };
 
-    while (!held && queue.length > 0 && !mustWait()) {
-      const next = queue.shift();
-      const settled = next === undefined ? undefined : route(next);
+    while (!held) {
+      const next = queue[0];
+
+      if (next === undefined || mustWait(next)) {
+        break;
+      }
+
+      queue.shift();
+
+      const settled = route(next);
 
       if (settled !== undefined) {
         held = true;
@@ -677,7 +501,7 @@ export const createInputRouter = (host: TokenRouterHost): ((token: RoutedToken) 
       if (host.tabPending()) {
         host.afterTabAnswer(release);
       } else {
-        workspaceWaiters.push(release);
+        navigation.afterSettled(release);
       }
     }
   };
