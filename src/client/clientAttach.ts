@@ -18,6 +18,15 @@ import type { RowCache, RowRange } from './rowCache.ts';
 import { createRowFetcher } from './rowFetch.ts';
 import { activeTabIdOf, applyChange, shownPaneIds, viewedPane, shownView } from './snapshot.ts';
 import type { StoreChange, StoreSnapshot } from './snapshot.ts';
+import {
+  emptyTabInputGate,
+  tabAnswered,
+  tabInputPending,
+  tabRequestSent,
+  tabRowsArrived,
+  tabSnapshotChanged,
+} from './tabInputGate.ts';
+import type { GateResult, ShownPane } from './tabInputGate.ts';
 import { tabRequest } from './tabRequest.ts';
 import { workspaceRequest } from './workspaceRequest.ts';
 import type { WorkspaceCommand } from './workspaceRequest.ts';
@@ -92,7 +101,8 @@ export interface AttachSession {
   // Creates a tab in the focused workspace, or focuses one of its tabs. A tab that does not exist
   // changes nothing.
   focusTab: (route: TabRoute) => void;
-  // Whether a tab request is sent and not yet answered. The snapshot lags behind it.
+  // Whether a tab request is sent and not yet answered, or input waits for the shown pane's fresh
+  // rows. The snapshot lags behind it.
   tabPending: () => boolean;
   // Calls back once, when no tab request is pending any more.
   afterTabAnswer: (callback: () => void) => void;
@@ -181,10 +191,7 @@ export const connectAttach = async (
   let welcomed = false;
   let waitingForSnapshot = false;
   let ended = false;
-  let pendingTabRequests = 0;
-  let paneBeforeTabRequest: PaneId | undefined;
-  let awaitingRows: PaneId | undefined;
-  const freshRowPanes = new Set<PaneId>();
+  let tabGate = emptyTabInputGate;
   let tabAnswerCallbacks: (() => void)[] = [];
   const layoutAnswers: (() => void)[] = [];
   const scrollAnswers: (() => void)[] = [];
@@ -298,56 +305,25 @@ export const connectAttach = async (
     }
   };
 
-  // A pane's rows carry its modes. Only rows that arrive after a tab request are fresh: a cache
-  // from an earlier visit can be stale.
-  const noteFreshRows = (pane: PaneId): void => {
-    if (pendingTabRequests > 0 || awaitingRows !== undefined) {
-      freshRowPanes.add(pane);
-    }
+  const shownPane = (): ShownPane => {
+    const pane = state && viewedPane(state.snapshot);
 
-    if (awaitingRows === pane) {
-      awaitingRows = undefined;
+    return { id: pane?.id, failed: pane?.lifecycle === 'failed' };
+  };
+
+  const applyGate = (result: GateResult): void => {
+    tabGate = result.gate;
+
+    if (result.released) {
       releaseTabCallbacks();
     }
-  };
-
-  const shownPane = (): PaneId | undefined => (state && viewedPane(state.snapshot))?.id;
-
-  // A failed pane has no process, so the server never sends it rows.
-  const needsFreshRows = (pane: PaneId): boolean => {
-    const known = state?.snapshot.panes.find((candidate) => candidate.id === pane);
-
-    return known?.lifecycle !== 'failed' && !freshRowPanes.has(pane);
-  };
-
-  // The server stops sending rows of a pane that is no longer shown, so held input waits for the
-  // pane shown now instead.
-  const retargetAwaitedRows = (): void => {
-    const shown = shownPane();
-
-    if (awaitingRows === undefined) {
-      return;
-    }
-
-    if (shown === awaitingRows && needsFreshRows(shown)) {
-      return;
-    }
-
-    if (shown !== undefined && needsFreshRows(shown)) {
-      awaitingRows = shown;
-
-      return;
-    }
-
-    awaitingRows = undefined;
-    releaseTabCallbacks();
   };
 
   const takeSnapshot = (snapshot: StoreSnapshot): void => {
     waitingForSnapshot = false;
     dropRowCaches(snapshot);
     setState({ snapshot, inputMode: state?.inputMode ?? 'insert' });
-    retargetAwaitedRows();
+    applyGate(tabSnapshotChanged(tabGate, shownPane()));
   };
 
   const takeChange = (revision: number, change: StoreChange): void => {
@@ -366,37 +342,11 @@ export const connectAttach = async (
 
     dropRowCaches(snapshot);
     setState({ ...state, snapshot });
-    retargetAwaitedRows();
-  };
-
-  // The server publishes a request's store changes before it answers, so the snapshot is current
-  // here. Input then waits for the rows of the pane the switch shows.
-  const takeTabAnswer = (done: boolean): void => {
-    pendingTabRequests = Math.max(pendingTabRequests - 1, 0);
-
-    if (pendingTabRequests > 0) {
-      return;
-    }
-
-    const shown = shownPane();
-    const switched = done && shown !== undefined && shown !== paneBeforeTabRequest;
-
-    if (switched && needsFreshRows(shown)) {
-      awaitingRows = shown;
-
-      return;
-    }
-
-    releaseTabCallbacks();
+    applyGate(tabSnapshotChanged(tabGate, shownPane()));
   };
 
   const sendTabRequest = (message: ControlMessage): void => {
-    if (pendingTabRequests === 0) {
-      paneBeforeTabRequest = shownPane();
-      freshRowPanes.clear();
-    }
-
-    pendingTabRequests += 1;
+    tabGate = tabRequestSent(tabGate, shownPane().id);
     send(message);
   };
 
@@ -422,7 +372,7 @@ export const connectAttach = async (
       listener({ pane, rows, sequence: decoded.update.sequence });
     }
 
-    noteFreshRows(pane);
+    applyGate(tabRowsArrived(tabGate, pane));
   };
 
   const announce = (notice: PaneNotice): void => {
@@ -479,7 +429,7 @@ export const connectAttach = async (
   // Returns whether the message answered a tab or workspace request this session sent.
   const takeRequestAnswer = (message: ControlMessage): boolean => {
     if (message.type === 'tabDone' || message.type === 'tabFailed') {
-      takeTabAnswer(message.type === 'tabDone');
+      applyGate(tabAnswered(tabGate, message.type === 'tabDone', shownPane()));
 
       return true;
     }
@@ -709,7 +659,7 @@ export const connectAttach = async (
         sendTabRequest(tabRequest({ action: 'focus', tabId: tab }));
       }
     },
-    tabPending: () => pendingTabRequests > 0 || awaitingRows !== undefined,
+    tabPending: () => tabInputPending(tabGate),
     afterTabAnswer: (callback) => {
       tabAnswerCallbacks.push(callback);
     },
