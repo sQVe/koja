@@ -37,7 +37,6 @@ export const emptyTabInputGate: TabInputGate = {
 export const tabInputPending = (gate: TabInputGate): boolean =>
   gate.pendingRequests > 0 || gate.awaitingRows !== undefined;
 
-// The shown pane when input must wait for its rows, else undefined.
 const paneToAwait = (gate: TabInputGate, shown: ShownPane): PaneId | undefined => {
   if (shown.id === undefined || shown.failed || gate.freshRowPanes.has(shown.id)) {
     return undefined;
