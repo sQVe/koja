@@ -57,9 +57,11 @@ fails.
   `server/log.ts`. A plural noun alone names a collection, such as `protocol/messages.ts`.
 - A plural job names a collection, such as `paneCommands.ts`; a singular job names one thing, such
   as `attachCommand.ts` for `koja attach`. A CLI file uses the command group as its owner.
-- A test file keeps its source name with `.test`. An integration test in `tests/` is named for its
-  family and behavior, such as `paneHistoryCli.test.ts`, and shares setup through a
-  `tests/<owner>Harness.ts` file.
+- A test file keeps its source name with `.test`. A large unit test may split into
+  `<source><Job>.test.ts` files next to the source, with shared setup in a `<source>Fixtures.ts`
+  file, such as `src/ui/input.test.ts` and `src/ui/inputTabs.test.ts`. An integration test in
+  `tests/` is named for its family and behavior, such as `paneHistoryCli.test.ts`, and shares setup
+  through a `tests/<owner>Harness.ts` file.
 - Functions start with a verb and types use PascalCase, as before. The owner-first order applies to
   file names only.
 

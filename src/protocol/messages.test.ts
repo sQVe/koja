@@ -406,114 +406,221 @@ it.each([
   expect(parseControl(encodeControl(message))).toStrictEqual({ ok: true, message });
 });
 
-const readTail = '"requestId":1,"selection":{"source":"recent","lines":null}';
+const helloMessage = { type: 'hello', version: build, size: { columns: 80, rows: 24 } };
+const resizeMessage = { type: 'resize', size: { columns: 80, rows: 24 } };
+const ackMessage = { type: 'ack', paneId: 'pane-1', sequence: 7 };
 
-const workspaceIdJson = (id: string): string =>
-  JSON.stringify({
-    type: 'change',
-    revision: 1,
-    change: {
-      type: 'workspaceAdded',
-      workspace: { ...workspace, id },
-      focusedWorkspaceId: id,
-    },
-  });
+const readMessage = {
+  type: 'paneRead',
+  paneId: 'pane-1',
+  requestId: 1,
+  selection: { source: 'recent', lines: null },
+};
 
-it.each([
-  ['a missing field', '{"type":"resize"}'],
-  ['a process info request without a pane', '{"type":"paneProcessInfo"}'],
+const rangeReadMessage = {
+  ...readMessage,
+  selection: { source: 'range', from: 0, to: 4, epoch: null, screen: null },
+};
+
+const paneResizeMessage = { type: 'paneResize', paneId: 'pane-1', direction: 'left', cells: 1 };
+const themeMessage = { type: 'theme', theme };
+
+const processInfoReplyMessage = {
+  type: 'paneProcessInfoReply',
+  paneId: 'pane-1',
+  shellPid: 1,
+  foregroundGroup: null,
+  processes: [{ pid: 1, name: 'a', argv: [], cmdline: '', folder: null }],
+};
+
+const foldersReplyMessage = {
+  type: 'paneFoldersReply',
+  panes: [{ paneId: 'pane-1', folder: null, foregroundFolder: null }],
+};
+
+const detachOkMessage = { type: 'detachResult', result: { ok: true } };
+const detachFailedMessage = { type: 'detachResult', result: { ok: false, reason: 'noClient' } };
+const scrollMessage = { type: 'paneScroll', paneId: 'pane-1', to: 3, clientId: null };
+
+const copyMessage = {
+  type: 'paneCopy',
+  paneId: 'pane-1',
+  start: { row: 4, column: 2 },
+  end: { row: 4, column: 3 },
+  print: false,
+};
+
+const laterRowCopyMessage = {
+  ...copyMessage,
+  start: { row: 4, column: 1 },
+  end: { row: 5, column: 2 },
+};
+
+const bellMessage = { type: 'bell', count: 1 };
+
+const workspaceAddedMessage = (id: string, focusedId: string) => ({
+  type: 'change',
+  revision: 1,
+  change: {
+    type: 'workspaceAdded',
+    workspace: { ...workspace, id },
+    activeTabId: tab.id,
+    focusedWorkspaceId: focusedId,
+  },
+});
+
+const withoutField = (message: Record<string, unknown>, field: string) => {
+  const { [field]: _removed, ...rest } = message;
+
+  return rest;
+};
+
+// Each case is a valid base message and the same message changed in the one field its name gives.
+const refusedCases: [string, Record<string, unknown>, unknown][] = [
+  ['a missing field', resizeMessage, withoutField(resizeMessage, 'size')],
+  [
+    'a process info request without a pane',
+    { type: 'paneProcessInfo', paneId: 'pane-1' },
+    { type: 'paneProcessInfo' },
+  ],
   [
     'a process info reply with a negative pid',
-    '{"type":"paneProcessInfoReply","paneId":"pane-1","shellPid":1,"foregroundGroup":null,"processes":[{"pid":-1,"name":"a","argv":[],"cmdline":"","folder":null}]}',
+    processInfoReplyMessage,
+    {
+      ...processInfoReplyMessage,
+      processes: [{ ...processInfoReplyMessage.processes[0], pid: -1 }],
+    },
   ],
   [
     'a folders reply with a malformed pane id',
-    '{"type":"paneFoldersReply","panes":[{"paneId":"x","folder":null,"foregroundFolder":null}]}',
+    foldersReplyMessage,
+    { ...foldersReplyMessage, panes: [{ ...foldersReplyMessage.panes[0], paneId: 'x' }] },
   ],
-  [
-    'a resize with zero cells',
-    '{"type":"paneResize","paneId":"pane-1","direction":"left","cells":0}',
-  ],
+  ['a resize with zero cells', paneResizeMessage, { ...paneResizeMessage, cells: 0 }],
   [
     'a resize with a fractional cell count',
-    '{"type":"paneResize","paneId":"pane-1","direction":"left","cells":1.5}',
+    paneResizeMessage,
+    { ...paneResizeMessage, cells: 1.5 },
   ],
   [
     'a resize with an unknown direction',
-    '{"type":"paneResize","paneId":"pane-1","direction":"in","cells":1}',
+    paneResizeMessage,
+    { ...paneResizeMessage, direction: 'in' },
   ],
   [
     'a theme palette with 15 colors',
-    JSON.stringify({ type: 'theme', theme: { ...theme, palette: theme.palette.slice(1) } }),
+    themeMessage,
+    { type: 'theme', theme: { ...theme, palette: theme.palette.slice(1) } },
   ],
   [
     'a theme palette with 17 colors',
-    JSON.stringify({ type: 'theme', theme: { ...theme, palette: [...theme.palette, 0] } }),
+    themeMessage,
+    { type: 'theme', theme: { ...theme, palette: [...theme.palette, 0] } },
   ],
   [
     'a theme color past 0xffffff',
-    JSON.stringify({ type: 'theme', theme: { ...theme, foreground: 0x1_00_00_00 } }),
+    themeMessage,
+    { type: 'theme', theme: { ...theme, foreground: 0x1_00_00_00 } },
   ],
-  ['a wrong type', '{"type":"ack","paneId":1,"sequence":"7"}'],
-  ['a fractional number', '{"type":"ack","paneId":1,"sequence":1.5}'],
-  ['an unknown type', '{"type":"shout"}'],
-  ['no type', '{"size":{"columns":80,"rows":24}}'],
-  ['a size of zero', '{"type":"resize","size":{"columns":0,"rows":24}}'],
-  ['more columns than 65535', '{"type":"resize","size":{"columns":65536,"rows":24}}'],
-  ['more rows than 65535', '{"type":"resize","size":{"columns":80,"rows":65536}}'],
+  ['a wrong type', ackMessage, { ...ackMessage, sequence: '7' }],
+  ['a fractional number', ackMessage, { ...ackMessage, sequence: 1.5 }],
+  ['an unknown type', resizeMessage, { ...resizeMessage, type: 'shout' }],
+  ['no type', resizeMessage, withoutField(resizeMessage, 'type')],
+  ['a size of zero', resizeMessage, { ...resizeMessage, size: { columns: 0, rows: 24 } }],
+  [
+    'more columns than 65535',
+    resizeMessage,
+    { ...resizeMessage, size: { columns: 65_536, rows: 24 } },
+  ],
+  [
+    'more rows than 65535',
+    resizeMessage,
+    { ...resizeMessage, size: { columns: 80, rows: 65_536 } },
+  ],
   [
     'a hello size past 65535',
-    '{"type":"hello","version":{"version":"1.2.3","ghostty":"abc123"},"size":{"columns":65536,"rows":24}}',
+    helloMessage,
+    { ...helloMessage, size: { columns: 65_536, rows: 24 } },
   ],
-  ['an ack sequence past 32 bits', '{"type":"ack","paneId":1,"sequence":4294967296}'],
-  ['a negative ack sequence', '{"type":"ack","paneId":1,"sequence":-1}'],
-  ['a malformed pane id', `{"type":"paneRead","paneId":"pane-01",${readTail}}`],
+  ['an ack sequence past 32 bits', ackMessage, { ...ackMessage, sequence: 4_294_967_296 }],
+  ['a negative ack sequence', ackMessage, { ...ackMessage, sequence: -1 }],
+  ['a malformed pane id', readMessage, { ...readMessage, paneId: 'pane-01' }],
   [
     'a pane id past the safe integers',
-    `{"type":"paneRead","paneId":"pane-9007199254740993",${readTail}}`,
+    readMessage,
+    { ...readMessage, paneId: 'pane-9007199254740993' },
   ],
-  [
-    'a request id past 32 bits',
-    '{"type":"paneRead","paneId":"pane-1","requestId":4294967296,"selection":{"source":"recent","lines":null}}',
-  ],
+  ['a request id past 32 bits', readMessage, { ...readMessage, requestId: 4_294_967_296 }],
   [
     'an unknown read source',
-    '{"type":"paneRead","paneId":"pane-1","requestId":1,"selection":{"source":"detection","lines":null}}',
+    readMessage,
+    { ...readMessage, selection: { source: 'detection', lines: null } },
   ],
   [
     'a negative range start',
-    '{"type":"paneRead","paneId":"pane-1","requestId":1,"selection":{"source":"range","from":-1,"to":4,"epoch":null}}',
+    rangeReadMessage,
+    { ...rangeReadMessage, selection: { ...rangeReadMessage.selection, from: -1 } },
   ],
-  ['a client id as a pane id', `{"type":"paneRead","paneId":"client-1",${readTail}}`],
-  ['a workspace id with a leading zero', workspaceIdJson('workspace-01')],
-  ['a workspace id without a number', workspaceIdJson('workspace-')],
-  ['a pane id as a workspace id', workspaceIdJson('pane-1')],
+  ['a client id as a pane id', readMessage, { ...readMessage, paneId: 'client-1' }],
+  [
+    'a workspace id with a leading zero',
+    workspaceAddedMessage('workspace-1', 'workspace-1'),
+    workspaceAddedMessage('workspace-01', 'workspace-1'),
+  ],
+  [
+    'a workspace id without a number',
+    workspaceAddedMessage('workspace-1', 'workspace-1'),
+    workspaceAddedMessage('workspace-', 'workspace-1'),
+  ],
+  [
+    'a pane id as a workspace id',
+    workspaceAddedMessage('workspace-1', 'workspace-1'),
+    workspaceAddedMessage('pane-1', 'workspace-1'),
+  ],
+  [
+    'a focused workspace id with a leading zero',
+    workspaceAddedMessage('workspace-1', 'workspace-1'),
+    workspaceAddedMessage('workspace-1', 'workspace-01'),
+  ],
   [
     'a detach result that succeeds and names a failure',
-    '{"type":"detachResult","result":{"ok":true,"reason":"unknownClient"}}',
+    detachOkMessage,
+    { type: 'detachResult', result: { ok: true, reason: 'unknownClient' } },
   ],
-  ['a detach result that fails without a reason', '{"type":"detachResult","result":{"ok":false}}'],
-  ['a scroll to a negative row', `{"type":"paneScroll","paneId":"pane-1","to":-1,"clientId":null}`],
   [
-    'a scroll to a word that is not a position',
-    `{"type":"paneScroll","paneId":"pane-1","to":"middle","clientId":null}`,
+    'a detach result that fails without a reason',
+    detachFailedMessage,
+    { type: 'detachResult', result: { ok: false } },
   ],
+  ['a scroll to a negative row', scrollMessage, { ...scrollMessage, to: -1 }],
+  ['a scroll to a word that is not a position', scrollMessage, { ...scrollMessage, to: 'middle' }],
   [
     'a copy that starts after its end',
-    '{"type":"paneCopy","paneId":"pane-1","start":{"row":4,"column":3},"end":{"row":4,"column":2},"print":false}',
+    copyMessage,
+    { ...copyMessage, start: { row: 4, column: 4 } },
   ],
-  [
-    'a copy with a negative column',
-    '{"type":"paneCopy","paneId":"pane-1","start":{"row":4,"column":-1},"end":{"row":5,"column":2},"print":false}',
-  ],
+  ['a copy with a negative column', copyMessage, { ...copyMessage, start: { row: 4, column: -1 } }],
   [
     'a copy that starts on a later row with an earlier column',
-    '{"type":"paneCopy","paneId":"pane-1","start":{"row":5,"column":1},"end":{"row":4,"column":2},"print":false}',
+    laterRowCopyMessage,
+    { ...laterRowCopyMessage, start: { row: 6, column: 1 } },
   ],
-  ['a bell with a count of 0', '{"type":"bell","count":0}'],
-  ['a JSON value that is not an object', '"hello"'],
-])('refuses a message with %s', (_name, json) => {
-  expect(parseControl(text(json))).toEqual({ ok: false, reason: 'invalidMessage' });
+  ['a bell with a count of 0', bellMessage, { ...bellMessage, count: 0 }],
+];
+
+it.each(refusedCases)('accepts the message before %s', (_name, base) => {
+  expect(parseControl(text(JSON.stringify(base)))).toMatchObject({ ok: true });
+});
+
+it.each(refusedCases)('refuses a message with %s', (_name, _base, changed) => {
+  expect(parseControl(text(JSON.stringify(changed)))).toEqual({
+    ok: false,
+    reason: 'invalidMessage',
+  });
+});
+
+it('refuses a JSON value that is not an object', () => {
+  expect(parseControl(text('"hello"'))).toEqual({ ok: false, reason: 'invalidMessage' });
 });
 
 it.each([
