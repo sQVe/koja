@@ -51,11 +51,6 @@ export const secondWorkspace = workspaceId(2);
 export const decoder = new TextDecoder();
 export const encoder = new TextEncoder();
 
-export const nextTick = (): Promise<void> =>
-  new Promise((resolve) => {
-    setTimeout(resolve, 0);
-  });
-
 const paneColumns = 10;
 const lastPaneColumn = paneColumns - 1;
 const screenColumns = paneColumns * 2;

@@ -1,7 +1,7 @@
 import { expect, it } from 'bun:test';
 
 import { paneId } from '../ids.ts';
-import { createInputHarness, nextTick } from './inputFixtures.ts';
+import { createInputHarness } from './inputFixtures.ts';
 
 it('sends a drag and the release to the pane where the press started', () => {
   const { toPane, mouse } = createInputHarness();
@@ -137,12 +137,12 @@ it('uses the current placement when the captured pane is placed again before the
 });
 
 it('focuses an unfocused pane on a left press and sends it the press', async () => {
-  const { toPane, focused, mouse } = createInputHarness();
+  const { toPane, focused, mouse, focusGate } = createInputHarness();
 
   mouse(0, 16, 3, 'M');
   mouse(32, 17, 3, 'M');
   mouse(0, 17, 3, 'm');
-  await nextTick();
+  await focusGate.current;
 
   expect(focused).toEqual([paneId(2)]);
   expect(toPane.map((entry) => entry.pane)).toEqual([paneId(2), paneId(2), paneId(2)]);
