@@ -12,6 +12,10 @@ import {
 
 const clipboardCommand = `printf '\\033]52;c;%s\\007' "$(printf hi | base64)"\n`;
 
+// Writes `hi` without running a program. Under dash in the full suite, the exec of base64 right
+// after a 600 KiB write fails with E2BIG, though the pane keeps working.
+const literalClipboardCommand = "printf '\\033]52;c;aGk=\\007'\n";
+
 const largeClipboardCommand = (kibibytes: number): string =>
   `printf '\\033]52;c;%s\\007' "$(head -c ${kibibytes * 1024} /dev/zero | tr '\\0' x | base64 -w0)"\n`;
 
@@ -116,7 +120,7 @@ it('drops a clipboard write of 600 KiB and keeps the next one', async () => {
   const terminal = await attachTerminal(socketPath, 100);
 
   server.writeToPane(largeClipboardCommand(600));
-  server.writeToPane(clipboardCommand);
+  server.writeToPane(literalClipboardCommand);
 
   expect(await nextOfType(terminal, 'clipboardWrite')).toEqual({
     type: 'clipboardWrite',
