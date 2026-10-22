@@ -6,11 +6,6 @@ import type { AttachHarness } from './attachHarness.ts';
 
 const escape = '\x1b';
 
-// The few milliseconds that make each PTY write a separate stdin read.
-const separateRead = async () => {
-  await Bun.sleep(5);
-};
-
 const startInInsert = async (modes: number) => {
   const attached = await setupAttach(modes);
 
@@ -125,30 +120,6 @@ it('sends Alt plus a multibyte character and the key after it unchanged', async 
   expect([...attached.receivedBytes()]).toEqual([0x1b, 0xc3, 0xa9, 0x78]);
 });
 
-it('sends a cursor key when the bracket and letter arrive in two reads', async () => {
-  const attached = await startInInsert(ModeFlag.applicationCursorKeys);
-
-  attached.type('\x1b[');
-  await separateRead();
-  attached.type('A');
-
-  await attached.until(() => attached.receivedText().length >= 3);
-  expect(attached.receivedText()).toBe('\x1bOA');
-});
-
-it('ends a bracketed paste whose end marker Escape arrives as its own read', async () => {
-  const attached = await startInInsert(ModeFlag.bracketedPaste);
-
-  attached.type('\x1b[200~hi');
-  await separateRead();
-  attached.type(escape);
-  await separateRead();
-  attached.type('[201~');
-
-  await attached.until(() => attached.receivedText().endsWith('\x1b[201~'));
-  expect(attached.receivedText()).toBe('\x1b[200~hi\x1b[201~');
-});
-
 it('keeps a bracketed paste whose start Escape arrives alone', async () => {
   const attached = await startInInsert(ModeFlag.bracketedPaste);
 
@@ -166,18 +137,6 @@ it('keeps Alt plus a multibyte character after a plain key in one read', async (
 
   await attached.until(() => attached.receivedText().endsWith('z'));
   expect(attached.receivedText()).toBe('x\x1béz');
-});
-
-it('sends an application arrow delivered in three reads as one key', async () => {
-  const attached = await startInInsert(ModeFlag.applicationCursorKeys);
-
-  await sendEscape(attached);
-  attached.type('[');
-  await separateRead();
-  attached.type('A');
-
-  await attached.until(() => attached.receivedText().length >= 3);
-  expect(attached.receivedText()).toBe('\x1bOA');
 });
 
 it('keeps palette color replies out of the pane when the terminal has no truecolor', async () => {

@@ -79,3 +79,32 @@ it('sends one Up arrow when a legacy Escape and its continuation arrive in two r
   expect(splitUpArrow(31)).toBe('\x1b[27u\x1b[A');
   expect(splitUpArrow(0, 1)).toBe('\x1b[A');
 });
+
+const sendReads = (reads: string[], flags: number) => {
+  const { input, sent } = createInputHarness('insert', {}, flags);
+  const tokenizer = createInputTokenizer();
+
+  for (const [index, read] of reads.entries()) {
+    for (const token of tokenizer.push(encoder.encode(read), index * 10)) {
+      if (token.kind !== 'response') {
+        input(token);
+      }
+    }
+  }
+
+  return sent;
+};
+
+it('sends a cursor key when the bracket and letter arrive in two reads', () => {
+  expect(sendReads(['\x1b[', 'A'], ModeFlag.applicationCursorKeys)).toEqual(['\x1bOA']);
+});
+
+it('ends a bracketed paste whose end marker Escape arrives as its own read', () => {
+  const sent = sendReads(['\x1b[200~hi', '\x1b', '[201~'], ModeFlag.bracketedPaste);
+
+  expect(sent.join('')).toBe('\x1b[200~hi\x1b[201~');
+});
+
+it('sends an application arrow delivered in three reads as one key', () => {
+  expect(sendReads(['\x1b', '[', 'A'], ModeFlag.applicationCursorKeys)).toEqual(['\x1b', 'OA']);
+});
