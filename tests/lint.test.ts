@@ -1,21 +1,17 @@
 import { expect, it, onTestFinished } from 'bun:test';
-import { spawnSync } from 'node:child_process';
-import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises';
+import { mkdtemp, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
-import { dirname, join, relative, resolve } from 'node:path';
-import { fileURLToPath, pathToFileURL } from 'node:url';
+import { dirname, join, relative } from 'node:path';
+import { pathToFileURL } from 'node:url';
+
+import { expectDiagnosticCounts, lintProject, runLint, temporaryProject } from './lintHarness.ts';
+import type { LintDiagnostic } from './lintHarness.ts';
 
 interface Edge {
   name: string;
   source: string;
   refused: boolean;
 }
-
-const root = fileURLToPath(new URL('../', import.meta.url));
-
-// The linter picks its default output format from the environment, such as GitHub Actions or an AI
-// agent. Tests that read paths from diagnostics need one line per diagnostic.
-const unixFormat = ['--format', 'unix'];
 
 it('rejects lint warnings in project checks', async () => {
   const directory = await mkdtemp(join(tmpdir(), 'koja-lint-'));
@@ -24,11 +20,7 @@ it('rejects lint warnings in project checks', async () => {
   const fixture = join(directory, 'warning.js');
   await writeFile(fixture, 'console.log("warning fixture");\n');
 
-  const result = spawnSync(process.execPath, ['run', 'lint', fixture], {
-    cwd: root,
-    encoding: 'utf8',
-    timeout: 20_000,
-  });
+  const result = runLint('lint', fixture);
 
   expect(result.error).toBeUndefined();
   expect(result.signal).toBeNull();
@@ -43,13 +35,7 @@ it('runs house style through the style command but not plain lint', async () => 
   const fixture = join(directory, 'style.ts');
   await writeFile(fixture, 'export const MAX_RETRIES = 3;\n');
 
-  const run = (script: string) =>
-    spawnSync(process.execPath, ['run', script, fixture], {
-      cwd: root,
-      env: { ...process.env, SEAM_STYLE: '0' },
-      encoding: 'utf8',
-      timeout: 20_000,
-    });
+  const run = (script: string) => runLint(script, fixture, { env: { SEAM_STYLE: '0' } });
 
   const ordinary = run('lint');
   const style = run('style:check');
@@ -65,11 +51,8 @@ it('runs house style through the style command but not plain lint', async () => 
 it.each(['lint', 'style:check'])(
   'keeps imports inside module boundaries through %s',
   async (script) => {
-    const directory = await mkdtemp(join(tmpdir(), 'koja-boundaries-'));
-    onTestFinished(() => rm(directory, { recursive: true, force: true }));
-
     // The `src` segment above the project root must not count as the application source.
-    const project = join(directory, 'src', 'project');
+    const project = await temporaryProject('src', 'project');
 
     const serverUrl = pathToFileURL(join(project, 'src', 'server', 'server.ts')).href;
     const privateBindingsUrl = pathToFileURL(join(project, 'src', 'vt', 'bindings.ts')).href;
@@ -501,46 +484,24 @@ it.each(['lint', 'style:check'])(
       ],
     ];
 
-    await mkdir(project, { recursive: true });
-    await writeFile(join(project, 'package.json'), '{}\n');
-
-    for (const [file, lines] of fixtures) {
-      const path = join(project, file);
-      await mkdir(dirname(path), { recursive: true });
-      await writeFile(path, `${lines.join('\n')}\n`);
-    }
-
-    const result = spawnSync(process.execPath, ['run', script, project, ...unixFormat], {
-      cwd: root,
-      env: { ...process.env, SEAM_STYLE: '0' },
-      encoding: 'utf8',
-      timeout: 20_000,
+    const run = await lintProject({
+      project,
+      script,
+      files: fixtures.map(([file, lines]) => ({ file, lines })),
+      rules: ['koja(module-boundaries)'],
+      env: { SEAM_STYLE: '0' },
     });
 
-    const diagnostics = result.stdout
-      .split('\n')
-      .filter((line) => line.includes('koja(module-boundaries)'));
+    expect(run.error).toBeUndefined();
+    expect(run.status).toBe(1);
 
-    // The linter prints a path relative to its working directory when the file sits below it.
-    const reportedPath = (diagnostic: string) => {
-      const [, path = ''] = diagnostic.match(/^(.+?):\d+:\d+:/) ?? [];
-
-      return resolve(root, path);
-    };
-
-    expect(result.error).toBeUndefined();
-    expect(result.status).toBe(1);
-
-    for (const [file, , count] of fixtures) {
-      const fileDiagnostics = diagnostics.filter(
-        (line) => reportedPath(line) === join(project, file),
-      );
-
-      expect({ file, diagnostics: fileDiagnostics.length }).toEqual({ file, diagnostics: count });
-    }
+    expectDiagnosticCounts(
+      run,
+      Object.fromEntries(fixtures.map(([file, , count]) => [file, count])),
+    );
 
     const expected = fixtures.reduce((total, fixture) => total + fixture[2], 0);
-    expect(diagnostics).toHaveLength(expected);
+    expect(run.diagnostics).toHaveLength(expected);
   },
   30_000,
 );
@@ -624,42 +585,30 @@ const edgesOf = (importer: ModuleName): Edge[] =>
     });
 
 it('refuses every module edge outside the import table', async () => {
-  const directory = await mkdtemp(join(tmpdir(), 'koja-module-table-'));
-  onTestFinished(() => rm(directory, { recursive: true, force: true }));
-
-  await writeFile(join(directory, 'package.json'), '{}\n');
-
-  for (const importer of moduleNames) {
-    const path = join(directory, moduleEntries[importer]);
+  const files = moduleNames.map((importer) => {
     const sources = edgesOf(importer).map((edge) => edge.source);
 
-    await mkdir(dirname(path), { recursive: true });
-    await writeFile(path, `${[...sources, 'export {};'].join('\n')}\n`);
-  }
-
-  const result = spawnSync(process.execPath, ['run', 'lint', directory, ...unixFormat], {
-    cwd: root,
-    encoding: 'utf8',
-    timeout: 20_000,
+    return { file: moduleEntries[importer], lines: [...sources, 'export {};'] };
   });
 
-  // The linter prints a path relative to its working directory when the file sits below it.
-  const edgeOf = (diagnostic: string): string => {
-    const [, path = '', line = '0'] = diagnostic.match(/^(.+?):(\d+):\d+:/) ?? [];
+  const run = await lintProject({
+    project: await temporaryProject(),
+    script: 'lint',
+    files,
+    rules: ['koja(module-boundaries)'],
+  });
 
+  const edgeOf = (diagnostic: LintDiagnostic): string => {
     const importer = moduleNames.find(
-      (name) => resolve(root, path) === join(directory, moduleEntries[name]),
+      (name) => diagnostic.path === join(run.project, moduleEntries[name]),
     );
 
     return importer === undefined
-      ? diagnostic
-      : (edgesOf(importer)[Number(line) - 1]?.name ?? diagnostic);
+      ? `${diagnostic.path}:${diagnostic.line}`
+      : (edgesOf(importer)[diagnostic.line - 1]?.name ?? `${diagnostic.path}:${diagnostic.line}`);
   };
 
-  const refused = result.stdout
-    .split('\n')
-    .filter((line) => line.includes('koja(module-boundaries)'))
-    .map(edgeOf);
+  const refused = run.diagnostics.map(edgeOf);
 
   const expected = moduleNames.flatMap((importer) =>
     edgesOf(importer)
@@ -667,7 +616,7 @@ it('refuses every module edge outside the import table', async () => {
       .map((edge) => edge.name),
   );
 
-  expect(result.error).toBeUndefined();
-  expect(result.status).toBe(1);
+  expect(run.error).toBeUndefined();
+  expect(run.status).toBe(1);
   expect(refused.toSorted()).toEqual(expected.toSorted());
 }, 30_000);
