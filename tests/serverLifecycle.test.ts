@@ -32,7 +32,7 @@ const serverScript = (socketPath: string): string => `
   import { createLog, logPathFor } from ${JSON.stringify(logModule)};
   import { runServer } from ${JSON.stringify(serverModule)};
 
-  const created = createLog(logPathFor(process.env.XDG_STATE_HOME, '/nonexistent'), Date.now);
+  const created = createLog(logPathFor(process.env.XDG_STATE_HOME, '/nonexistent', ${JSON.stringify(socketPath)}), Date.now);
 
   if (!created.ok) {
     console.error(created.message);

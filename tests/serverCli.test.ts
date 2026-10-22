@@ -1,12 +1,22 @@
 import { expect, it, onTestFinished } from 'bun:test';
 import { existsSync } from 'node:fs';
-import { chmod, link, lstat, mkdir, readFile, rm, symlink, writeFile } from 'node:fs/promises';
+import {
+  chmod,
+  link,
+  lstat,
+  mkdir,
+  readdir,
+  readFile,
+  rm,
+  symlink,
+  writeFile,
+} from 'node:fs/promises';
 import { join } from 'node:path';
 
 import { createFrameDecoder, encodeFrame, FrameKind } from '../src/protocol/frames.ts';
 import { encodeControl, parseControl } from '../src/protocol/messages.ts';
 import type { ControlMessage } from '../src/protocol/messages.ts';
-import { createLog } from '../src/server/log.ts';
+import { createLog, logPathFor } from '../src/server/log.ts';
 import { runServer } from '../src/server/server.ts';
 import {
   buildVersion,
@@ -242,7 +252,7 @@ it(
     const run = await runCli(['server', 'start', '--socket', socketPath], directory, environment);
 
     expect({ exitCode: run.exitCode, stdout: run.stdout }).toEqual({ exitCode: 1, stdout: '' });
-    expect(run.stderr).toContain(join(stateHome, 'koja', 'server.log'));
+    expect(run.stderr).toContain(join(stateHome, 'koja', 'logs'));
     expect(run.stderr).toContain('ENOTDIR');
     expect(existsSync(socketPath)).toBe(false);
     expect(serverProcessesIn(directory)).toEqual([]);
@@ -365,6 +375,51 @@ it.each([
 );
 
 it(
+  'writes one log file per server when two servers share a state directory',
+  async () => {
+    const directory = await temporaryDirectory();
+    const firstSocket = join(directory, 'run', 'one.sock');
+    const secondSocket = join(directory, 'run', 'two.sock');
+    const sockets = [firstSocket, secondSocket];
+
+    await mkdir(join(directory, 'run'), { mode: 0o700 });
+
+    for (const socketPath of sockets) {
+      const started = await runCli(['server', 'start', '--socket', socketPath], directory);
+
+      expect(started.exitCode).toBe(0);
+    }
+
+    const names = await readdir(join(directory, 'state', 'koja', 'logs'));
+
+    expect(names.filter((name) => name.endsWith('.log'))).toHaveLength(2);
+
+    const logOf = (socketPath: string): Promise<string> =>
+      readFile(logPathFor(join(directory, 'state'), directory, socketPath), 'utf8');
+
+    const [firstLog, secondLog] = await Promise.all([logOf(firstSocket), logOf(secondSocket)]);
+
+    // Each server logs its own socket when it listens, so a shared file would hold both.
+    expect([firstLog.includes(firstSocket), firstLog.includes(secondSocket)]).toEqual([
+      true,
+      false,
+    ]);
+
+    expect([secondLog.includes(secondSocket), secondLog.includes(firstSocket)]).toEqual([
+      true,
+      false,
+    ]);
+
+    for (const socketPath of sockets) {
+      const stopped = await runCli(['server', 'stop', '--socket', socketPath], directory);
+
+      expect(stopped.exitCode).toBe(0);
+    }
+  },
+  cliTestTimeoutMs,
+);
+
+it(
   'uses the socket in XDG_RUNTIME_DIR and the log in XDG_STATE_HOME by default',
   async () => {
     const directory = await temporaryDirectory();
@@ -375,7 +430,7 @@ it(
     const started = await runCli(['server', 'start', '--json'], directory);
 
     expect(startOutputSchema.parse(JSON.parse(started.stdout)).socket).toBe(socketPath);
-    expect(existsSync(join(directory, 'state', 'koja', 'server.log'))).toBe(true);
+    expect(await readdir(join(directory, 'state', 'koja', 'logs'))).toHaveLength(1);
 
     const stopped = await runCli(['server', 'stop'], directory);
 

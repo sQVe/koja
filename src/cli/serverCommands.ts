@@ -202,13 +202,17 @@ export const serverContextFor = (
   json: boolean,
   version: BuildVersion,
   environment: Environment,
-): ServerContext => ({
-  json,
-  socketPath: resolveSocketPath(socket, environment),
-  logPath: logPathFor(environment.XDG_STATE_HOME, homedir()),
-  version,
-  environment,
-});
+): ServerContext => {
+  const socketPath = resolveSocketPath(socket, environment);
+
+  return {
+    json,
+    socketPath,
+    logPath: logPathFor(environment.XDG_STATE_HOME, homedir(), socketPath),
+    version,
+    environment,
+  };
+};
 
 export const runServerAction = (
   command: ServerCommand,

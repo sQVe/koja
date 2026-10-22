@@ -43,17 +43,48 @@ const readMessages = async (path: string): Promise<string[]> => {
   return lines.map((line) => messageSchema.parse(line).message);
 };
 
-it('places the log in the XDG state directory', () => {
-  expect(logPathFor('/home/user/state', '/home/user')).toBe('/home/user/state/koja/server.log');
+it('places the log in the XDG state directory, named after the socket', () => {
+  const path = logPathFor('/home/user/state', '/home/user', '/run/koja.sock');
+
+  expect(path).toMatch(/^\/home\/user\/state\/koja\/logs\/[0-9a-f]{16}\.log$/);
+  expect(logPathFor('/home/user/state', '/home/user', '/run/other.sock')).not.toBe(path);
 });
 
 it('places the log in ~/.local/state without an XDG state directory', () => {
-  expect(logPathFor(undefined, '/home/user')).toBe('/home/user/.local/state/koja/server.log');
-  expect(logPathFor('relative', '/home/user')).toBe('/home/user/.local/state/koja/server.log');
+  const expected = logPathFor('/home/user/.local/state', '/home/user', '/run/koja.sock');
+
+  expect(logPathFor(undefined, '/home/user', '/run/koja.sock')).toBe(expected);
+  expect(logPathFor('relative', '/home/user', '/run/koja.sock')).toBe(expected);
+});
+
+it("keeps each server's log within its limit when two servers share a state directory", async () => {
+  const state = await temporaryDirectory();
+  const limitBytes = 200;
+  const firstPath = logPathFor(state, '/home/user', '/run/one.sock');
+  const secondPath = logPathFor(state, '/home/user', '/run/two.sock');
+  const first = openLog(firstPath, () => 0, limitBytes);
+  const second = openLog(secondPath, () => 0, limitBytes);
+
+  for (const number of [1, 2, 3, 4, 5]) {
+    first.info(`one ${number}`);
+    second.info(`two ${number}`);
+  }
+
+  expect(firstPath).not.toBe(secondPath);
+
+  for (const [path, name] of [
+    [firstPath, 'one'],
+    [secondPath, 'two'],
+  ] as const) {
+    expect((await stat(path)).size).toBeLessThanOrEqual(limitBytes);
+    expect((await stat(`${path}.1`)).size).toBeLessThanOrEqual(limitBytes);
+    expect(await readMessages(path)).toEqual([`${name} 5`]);
+    expect(await readMessages(`${path}.1`)).toEqual([`${name} 3`, `${name} 4`]);
+  }
 });
 
 it('writes each entry as a JSON line with its time, level, message, and fields', async () => {
-  const path = join(await temporaryDirectory(), 'koja', 'server.log');
+  const path = join(await temporaryDirectory(), 'koja', 'koja.log');
   const log = openLog(path, () => Date.UTC(2026, 9, 5, 8, 0, 0));
 
   log.info('server started', { socket: '/run/koja.sock' });
@@ -77,7 +108,7 @@ it('writes each entry as a JSON line with its time, level, message, and fields',
 
 it('rotates at the size limit and keeps exactly one old file', async () => {
   const directory = await temporaryDirectory();
-  const path = join(directory, 'server.log');
+  const path = join(directory, 'koja.log');
   // Each line is 82 bytes, so two lines fit under the limit and a third rotates the log.
   const limitBytes = 200;
   const log = openLog(path, () => 0, limitBytes);
@@ -86,7 +117,7 @@ it('rotates at the size limit and keeps exactly one old file', async () => {
     log.info(message);
   }
 
-  expect((await readdir(directory)).toSorted()).toEqual(['server.log', 'server.log.1']);
+  expect((await readdir(directory)).toSorted()).toEqual(['koja.log', 'koja.log.1']);
   expect(await readMessages(`${path}.1`)).toEqual(['line 3', 'line 4']);
   expect(await readMessages(path)).toEqual(['line 5']);
   expect((await stat(`${path}.1`)).size).toBeLessThanOrEqual(limitBytes);
@@ -96,7 +127,7 @@ it('refuses a log path it cannot write under', async () => {
   const blocker = join(await temporaryDirectory(), 'state');
   await writeFile(blocker, 'not a directory');
 
-  const result = createLog(join(blocker, 'koja', 'server.log'), Date.now);
+  const result = createLog(join(blocker, 'koja', 'koja.log'), Date.now);
 
   expect(result).toMatchObject({ ok: false, reason: 'logUnavailable' });
   expect(await readFile(blocker, 'utf8')).toBe('not a directory');
@@ -104,25 +135,25 @@ it('refuses a log path it cannot write under', async () => {
 
 it('does not rotate an empty log for one line over the limit', async () => {
   const directory = await temporaryDirectory();
-  const path = join(directory, 'server.log');
+  const path = join(directory, 'koja.log');
   const log = openLog(path, () => 0, 10);
 
   log.info('a line longer than the limit');
 
-  expect(await readdir(directory)).toEqual(['server.log']);
+  expect(await readdir(directory)).toEqual(['koja.log']);
   expect(await readMessages(path)).toEqual(['a line longer than the limit']);
 });
 
 it('keeps a line that takes the log exactly to the limit', async () => {
   const directory = await temporaryDirectory();
-  const path = join(directory, 'server.log');
+  const path = join(directory, 'koja.log');
   const log = openLog(path, () => 0, 164);
 
   log.info('line 1');
   log.info('line 2');
 
   expect((await stat(path)).size).toBe(164);
-  expect(await readdir(directory)).toEqual(['server.log']);
+  expect(await readdir(directory)).toEqual(['koja.log']);
 
   log.info('line 3');
 
@@ -131,7 +162,7 @@ it('keeps a line that takes the log exactly to the limit', async () => {
 });
 
 it('creates the log and its rotated successor readable by the owner only', async () => {
-  const path = join(await temporaryDirectory(), 'server.log');
+  const path = join(await temporaryDirectory(), 'koja.log');
   const log = openLog(path, () => 0, 100);
 
   expect((await stat(path)).mode & 0o777).toBe(0o600);
@@ -144,7 +175,7 @@ it('creates the log and its rotated successor readable by the owner only', async
 });
 
 it('leaves no file descriptor open after it creates the log', async () => {
-  const path = join(await temporaryDirectory(), 'server.log');
+  const path = join(await temporaryDirectory(), 'koja.log');
   const before = readdirSync('/proc/self/fd').length;
 
   for (let attempt = 0; attempt < 20; attempt += 1) {
