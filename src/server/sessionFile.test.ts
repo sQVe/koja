@@ -1,5 +1,6 @@
-import { expect, it, onTestFinished } from 'bun:test';
-import { mkdtemp, readdir, readFile, rm, stat, writeFile } from 'node:fs/promises';
+import { expect, it, onTestFinished, spyOn } from 'bun:test';
+import * as fsPromises from 'node:fs/promises';
+import { chmod, mkdtemp, readdir, readFile, rm, stat, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
@@ -417,15 +418,81 @@ it('falls back to ~/.local/state without a usable state home', () => {
   expect(sessionPathFor('relative/state', '/home/user', socketPath)).toBe(fallback);
 });
 
+// The umask can narrow the mode writeFile creates, so set the world-readable mode explicitly.
+const leaveTemporaryFile = async (temporaryPath: string): Promise<void> => {
+  await writeFile(temporaryPath, 'left by a crash');
+  await chmod(temporaryPath, 0o644);
+
+  expect((await stat(temporaryPath)).mode & 0o777).toBe(0o644);
+};
+
 it('writes an owner-only file over a leftover temporary file', async () => {
   const directory = await temporaryDirectory();
   const path = join(directory, 'session.json');
-  await writeFile(`${path}.tmp`, 'left by a crash', { mode: 0o644 });
+  await leaveTemporaryFile(`${path}.tmp`);
   const writer = createSessionWriter(path, recordingLog().log);
 
   await writer.stopSaving(sessionWith());
 
   expect((await stat(path)).mode & 0o777).toBe(0o600);
+});
+
+it('sets the owner-only mode on a leftover temporary file before writing data', async () => {
+  const directory = await temporaryDirectory();
+  const path = join(directory, 'session.json');
+  const temporaryPath = `${path}.tmp`;
+  await leaveTemporaryFile(temporaryPath);
+  const modesAtWrite: number[] = [];
+
+  const recordMode = async (): Promise<void> => {
+    modesAtWrite.push((await stat(temporaryPath)).mode & 0o777);
+  };
+
+  const realWriteFile = fsPromises.writeFile;
+  const realOpen = fsPromises.open;
+
+  const writeFileSpy = spyOn(fsPromises, 'writeFile').mockImplementation(
+    async (...args: Parameters<typeof realWriteFile>) => {
+      await recordMode();
+
+      return realWriteFile(...args);
+    },
+  );
+
+  const openSpy = spyOn(fsPromises, 'open').mockImplementation(
+    async (...args: Parameters<typeof realOpen>) => {
+      const handle = await realOpen(...args);
+      const realHandleWrite = handle.write.bind(handle);
+      const realHandleWriteFile = handle.writeFile.bind(handle);
+
+      Object.assign(handle, {
+        write: async (...writeArgs: unknown[]) => {
+          await recordMode();
+
+          return (realHandleWrite as (...rest: unknown[]) => unknown)(...writeArgs);
+        },
+        writeFile: async (...writeArgs: unknown[]) => {
+          await recordMode();
+
+          return (realHandleWriteFile as (...rest: unknown[]) => unknown)(...writeArgs);
+        },
+      });
+
+      return handle;
+    },
+  );
+
+  onTestFinished(() => {
+    writeFileSpy.mockRestore();
+    openSpy.mockRestore();
+  });
+
+  const writer = createSessionWriter(path, recordingLog().log);
+
+  await writer.stopSaving(sessionWith());
+
+  expect(modesAtWrite.length).toBeGreaterThan(0);
+  expect(modesAtWrite[0]).toBe(0o600);
 });
 
 it('writes the newest of the saves made during one write', async () => {

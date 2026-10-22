@@ -1,4 +1,4 @@
-import { chmod, mkdir, readFile, rename, writeFile } from 'node:fs/promises';
+import { mkdir, open, readFile, rename } from 'node:fs/promises';
 import { dirname, join } from 'node:path';
 
 import { z } from 'zod';
@@ -313,9 +313,16 @@ export const createSessionWriter = (path: string, log: Log): SessionWriter => {
   const write = async (session: SavedSession): Promise<void> => {
     try {
       await mkdir(dirname(path), { recursive: true, mode: directoryMode });
-      await writeFile(temporaryPath, serialized(session), { mode: fileMode });
-      // The mode applies only when writeFile creates the file, not to one a crash left behind.
-      await chmod(temporaryPath, fileMode);
+      const handle = await open(temporaryPath, 'w', fileMode);
+
+      try {
+        // The mode applies only when open creates the file, not to one a crash left behind.
+        await handle.chmod(fileMode);
+        await handle.writeFile(serialized(session));
+      } finally {
+        await handle.close();
+      }
+
       await rename(temporaryPath, path);
     } catch (error) {
       log.error('Cannot save the session.', { path, error: describeError(error) });
