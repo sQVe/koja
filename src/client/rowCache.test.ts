@@ -535,6 +535,20 @@ it('keeps the wrapped flag of rows a range read stored', () => {
   expect(cache.rowAt(98)?.wrapped).toBe(true);
 });
 
+it('keeps a grapheme cluster of a row a range read stored by the column of its cell', () => {
+  const cache = createRowCache({ rowLimit: 50 });
+  const family = [0x1_f4_68, 0x20_0d, 0x1_f4_69];
+  const rows = paneRows(96, ['x', 'y']);
+
+  rows.graphemes = Uint32Array.of(stride + rowHeaderWords + cellWords, family.length, ...family);
+
+  cache.apply(rowUpdate([[0, 'a']]));
+  cache.storeRange(rows);
+
+  expect(cache.rowAt(96)?.clusters.size).toBe(0);
+  expect([...(cache.rowAt(97)?.clusters ?? [])]).toEqual([[1, String.fromCodePoint(...family)]]);
+});
+
 it('keeps the cache within rowLimit when a range read stores more rows', () => {
   const cache = createRowCache({ rowLimit: 3 });
 
