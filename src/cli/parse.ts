@@ -126,7 +126,7 @@ const commandNameOf = (version: boolean, positionals: string[]): string => {
 
   const takesAction = group !== 'attach' && group !== 'detach';
 
-  return takesAction ? `${group} ${action ?? ''}`.trim() : group;
+  return takesAction ? [group, action].join(' ') : group;
 };
 
 export const parseCommand = (argv: string[]): Command | string => {

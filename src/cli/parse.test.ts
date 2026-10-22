@@ -858,3 +858,61 @@ it('reads a one-row range', () => {
     pane: { source: 'recent', range: { from: 5, to: 5 } },
   });
 });
+
+it('leaves an unknown pane command to its own parser', () => {
+  expect(parseCommand(['pane', 'bogus', '--cwd', 'x'])).toBe(parseCommand(['pane', 'bogus']));
+});
+
+it.each(['read', 'scroll', 'copy'])('hints at the pane id argument for pane %s', (action) => {
+  const message = parseCommand(['pane', action, '--pane', 'pane-3']);
+
+  expect(message).toContain(`pane ${action} takes the pane id as an argument.`);
+});
+
+it('gives no pane id hint for other stray options or commands', () => {
+  const otherOption = parseCommand(['pane', 'read', 'pane-3', '--cwd', 'x']);
+  const otherCommand = parseCommand(['pane', 'focus', '--pane', 'pane-3']);
+
+  expect(otherOption).not.toContain('takes the pane id');
+  expect(otherCommand).not.toContain('takes the pane id');
+  expect(typeof otherOption).toBe('string');
+  expect(typeof otherCommand).toBe('string');
+});
+
+it('refuses a stray option next to --version', () => {
+  const message = parseCommand(['--version', '--label', 'x']);
+
+  expect(message).toBe('--label belongs to workspace create.');
+});
+
+it.each(['attach', 'detach'])('refuses a stray option on %s', (command) => {
+  expect(parseCommand([command, '--label', 'x'])).toBe('--label belongs to workspace create.');
+});
+
+it('refuses --client on attach', () => {
+  expect(parseCommand(['attach', '--client', 'client-1'])).toBe(
+    '--client belongs to detach and pane scroll.',
+  );
+});
+
+it('checks options for koja --version before its arguments', () => {
+  const message = parseCommand(['--version', 'workspace', 'create', '--label', 'x']);
+
+  expect(message).toBe('--label belongs to workspace create.');
+});
+
+it.each(['attach', 'detach'])('checks options for %s even with an extra argument', (command) => {
+  const message = parseCommand([command, 'workspace', 'create', '--label', 'x']);
+
+  expect(message).toBe('--label belongs to workspace create.');
+});
+
+it('explains why pane list refuses extra arguments', () => {
+  const message = parseCommand(['pane', 'list', 'extra']);
+
+  expect(typeof message === 'string' && message.length > 0).toBe(true);
+});
+
+it('leaves an unknown command to its own parser even with an option', () => {
+  expect(parseCommand(['koja', '--label', 'x'])).toBe(parseCommand(['koja']));
+});
