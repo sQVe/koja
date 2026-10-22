@@ -1,5 +1,6 @@
 import { invariant } from '../invariant.ts';
 import type { TerminalSize } from '../layout.ts';
+import { encodeControl } from '../protocol/protocol.ts';
 import type { ControlMessage } from '../protocol/protocol.ts';
 import { graphemeWordsPerRow, paneRowsBytes, PaneRowsSource, rowsToLines } from '../rows/rows.ts';
 import type { PaneRows } from '../rows/rows.ts';
@@ -28,6 +29,9 @@ export const maxReplyRows = 1000;
 // reply of half that leaves room for updates already queued. A snapshot larger than this goes out
 // in parts of whole rows, each asked for by the client.
 export const maxReplyBytes = 0x08_00_00;
+
+export const fitsReply = (reply: ControlMessage): boolean =>
+  encodeControl(reply).length <= maxReplyBytes;
 
 // The most bytes of encoded rows one snapshot holds. A larger selection fails with its bounds, and
 // the caller reads it as several snapshots by range.

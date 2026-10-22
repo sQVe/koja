@@ -2,7 +2,7 @@ import { statSync } from 'node:fs';
 
 import type { PaneId } from '../ids.ts';
 import { invariant } from '../invariant.ts';
-import type { BuildVersion } from '../protocol/protocol.ts';
+import type { BuildVersion, ControlMessage } from '../protocol/protocol.ts';
 import { focusedPane, paneTheme } from '../store/store.ts';
 import type { Fact, Pane, State } from '../store/store.ts';
 import type { Log } from './log.ts';
@@ -12,6 +12,7 @@ import type { PaneIdentity } from './paneEnvironment.ts';
 import { sendToForeground } from './paneNotice.ts';
 import type { ForegroundContext } from './paneNotice.ts';
 import type { RunningPane } from './paneRecord.ts';
+import { fitsReply } from './paneRows.ts';
 import { readFollowFolder } from './processInfo.ts';
 import { createRowPublisher } from './rowPublisher.ts';
 import type { RowPublisher } from './rowPublisher.ts';
@@ -288,7 +289,11 @@ export const startPane = (
       sendToForeground(context, { type: 'bell', count });
     },
     onClipboard: (text) => {
-      sendToForeground(context, { type: 'clipboardWrite', text });
+      const message: ControlMessage = { type: 'clipboardWrite', text };
+
+      if (fitsReply(message)) {
+        sendToForeground(context, message);
+      }
     },
     onFailed: (cause) => {
       outputFailed = true;
