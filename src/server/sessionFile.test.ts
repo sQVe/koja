@@ -1,6 +1,6 @@
 import { expect, it, onTestFinished, spyOn } from 'bun:test';
 import * as fsPromises from 'node:fs/promises';
-import { chmod, mkdtemp, readdir, readFile, rm, stat, writeFile } from 'node:fs/promises';
+import { chmod, mkdtemp, open, readdir, readFile, rm, stat, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
@@ -437,62 +437,63 @@ it('writes an owner-only file over a leftover temporary file', async () => {
   expect((await stat(path)).mode & 0o777).toBe(0o600);
 });
 
-it('sets the owner-only mode on a leftover temporary file before writing data', async () => {
+it('reads back the session it saved under a umask that removes owner read', async () => {
+  const directory = await temporaryDirectory();
+  const path = join(directory, 'session.json');
+  const session = sessionWith();
+  const previousUmask = process.umask(0o477);
+  onTestFinished(() => process.umask(previousUmask));
+  const writer = createSessionWriter(path, recordingLog().log);
+
+  await writer.stopSaving(session);
+
+  expect(await readSessionFile(path)).toEqual({ kind: 'restored', session });
+});
+
+it('creates the temporary file owner-only before the session data lands in it', async () => {
   const directory = await temporaryDirectory();
   const path = join(directory, 'session.json');
   const temporaryPath = `${path}.tmp`;
-  await leaveTemporaryFile(temporaryPath);
-  const modesAtWrite: number[] = [];
-
-  const recordMode = async (): Promise<void> => {
-    modesAtWrite.push((await stat(temporaryPath)).mode & 0o777);
-  };
-
+  const previousUmask = process.umask(0o022);
+  onTestFinished(() => process.umask(previousUmask));
   const realWriteFile = fsPromises.writeFile;
-  const realOpen = fsPromises.open;
+  const modesWithData: number[] = [];
 
   const writeFileSpy = spyOn(fsPromises, 'writeFile').mockImplementation(
     async (...args: Parameters<typeof realWriteFile>) => {
-      await recordMode();
+      await realWriteFile(...args);
 
-      return realWriteFile(...args);
-    },
-  );
-
-  const openSpy = spyOn(fsPromises, 'open').mockImplementation(
-    async (...args: Parameters<typeof realOpen>) => {
-      const handle = await realOpen(...args);
-      const realHandleWrite = handle.write.bind(handle);
-      const realHandleWriteFile = handle.writeFile.bind(handle);
-
-      Object.assign(handle, {
-        write: async (...writeArgs: unknown[]) => {
-          await recordMode();
-
-          return (realHandleWrite as (...rest: unknown[]) => unknown)(...writeArgs);
-        },
-        writeFile: async (...writeArgs: unknown[]) => {
-          await recordMode();
-
-          return (realHandleWriteFile as (...rest: unknown[]) => unknown)(...writeArgs);
-        },
-      });
-
-      return handle;
+      if (args[0] === temporaryPath) {
+        modesWithData.push((await stat(temporaryPath)).mode & 0o777);
+      }
     },
   );
 
   onTestFinished(() => {
     writeFileSpy.mockRestore();
-    openSpy.mockRestore();
   });
 
   const writer = createSessionWriter(path, recordingLog().log);
 
   await writer.stopSaving(sessionWith());
 
-  expect(modesAtWrite.length).toBeGreaterThan(0);
-  expect(modesAtWrite[0]).toBe(0o600);
+  expect(modesWithData).toEqual([0o600]);
+});
+
+it('does not write the session into a leftover temporary file another reader holds open', async () => {
+  const directory = await temporaryDirectory();
+  const path = join(directory, 'session.json');
+  const temporaryPath = `${path}.tmp`;
+  await leaveTemporaryFile(temporaryPath);
+  const heldHandle = await open(temporaryPath, 'r');
+  onTestFinished(() => heldHandle.close());
+  const writer = createSessionWriter(path, recordingLog().log);
+
+  await writer.stopSaving(sessionWith());
+
+  const { bytesRead, buffer } = await heldHandle.read(Buffer.alloc(4096), 0, 4096, 0);
+
+  expect(buffer.subarray(0, bytesRead).toString('utf8')).toBe('left by a crash');
 });
 
 it('writes the newest of the saves made during one write', async () => {
