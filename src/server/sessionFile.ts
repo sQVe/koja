@@ -1,4 +1,4 @@
-import { chmod, mkdir, readFile, rename, writeFile } from 'node:fs/promises';
+import { chmod, mkdir, readFile, rename, rm, writeFile } from 'node:fs/promises';
 import { dirname, join } from 'node:path';
 
 import { z } from 'zod';
@@ -313,8 +313,9 @@ export const createSessionWriter = (path: string, log: Log): SessionWriter => {
   const write = async (session: SavedSession): Promise<void> => {
     try {
       await mkdir(dirname(path), { recursive: true, mode: directoryMode });
-      await writeFile(temporaryPath, serialized(session), { mode: fileMode });
-      // The mode applies only when writeFile creates the file, not to one a crash left behind.
+      await rm(temporaryPath, { force: true });
+      await writeFile(temporaryPath, serialized(session), { flag: 'wx', mode: fileMode });
+      // The umask can narrow the creation mode, and the owner must still read the file.
       await chmod(temporaryPath, fileMode);
       await rename(temporaryPath, path);
     } catch (error) {

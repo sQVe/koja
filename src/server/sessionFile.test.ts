@@ -1,5 +1,6 @@
-import { expect, it, onTestFinished } from 'bun:test';
-import { mkdtemp, readdir, readFile, rm, stat, writeFile } from 'node:fs/promises';
+import { expect, it, onTestFinished, spyOn } from 'bun:test';
+import * as fsPromises from 'node:fs/promises';
+import { chmod, mkdtemp, open, readdir, readFile, rm, stat, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
@@ -417,15 +418,82 @@ it('falls back to ~/.local/state without a usable state home', () => {
   expect(sessionPathFor('relative/state', '/home/user', socketPath)).toBe(fallback);
 });
 
+// The umask can narrow the mode writeFile creates, so set the world-readable mode explicitly.
+const leaveTemporaryFile = async (temporaryPath: string): Promise<void> => {
+  await writeFile(temporaryPath, 'left by a crash');
+  await chmod(temporaryPath, 0o644);
+
+  expect((await stat(temporaryPath)).mode & 0o777).toBe(0o644);
+};
+
 it('writes an owner-only file over a leftover temporary file', async () => {
   const directory = await temporaryDirectory();
   const path = join(directory, 'session.json');
-  await writeFile(`${path}.tmp`, 'left by a crash', { mode: 0o644 });
+  await leaveTemporaryFile(`${path}.tmp`);
   const writer = createSessionWriter(path, recordingLog().log);
 
   await writer.stopSaving(sessionWith());
 
   expect((await stat(path)).mode & 0o777).toBe(0o600);
+});
+
+it('reads back the session it saved under a umask that removes owner read', async () => {
+  const directory = await temporaryDirectory();
+  const path = join(directory, 'session.json');
+  const session = sessionWith();
+  const previousUmask = process.umask(0o477);
+  onTestFinished(() => process.umask(previousUmask));
+  const writer = createSessionWriter(path, recordingLog().log);
+
+  await writer.stopSaving(session);
+
+  expect(await readSessionFile(path)).toEqual({ kind: 'restored', session });
+});
+
+it('creates the temporary file owner-only before the session data lands in it', async () => {
+  const directory = await temporaryDirectory();
+  const path = join(directory, 'session.json');
+  const temporaryPath = `${path}.tmp`;
+  const previousUmask = process.umask(0o022);
+  onTestFinished(() => process.umask(previousUmask));
+  const realWriteFile = fsPromises.writeFile;
+  const modesWithData: number[] = [];
+
+  const writeFileSpy = spyOn(fsPromises, 'writeFile').mockImplementation(
+    async (...args: Parameters<typeof realWriteFile>) => {
+      await realWriteFile(...args);
+
+      if (args[0] === temporaryPath) {
+        modesWithData.push((await stat(temporaryPath)).mode & 0o777);
+      }
+    },
+  );
+
+  onTestFinished(() => {
+    writeFileSpy.mockRestore();
+  });
+
+  const writer = createSessionWriter(path, recordingLog().log);
+
+  await writer.stopSaving(sessionWith());
+
+  expect(modesWithData).toEqual([0o600]);
+});
+
+it('does not write the session into a leftover temporary file another reader holds open', async () => {
+  const directory = await temporaryDirectory();
+  const path = join(directory, 'session.json');
+  const temporaryPath = `${path}.tmp`;
+  await leaveTemporaryFile(temporaryPath);
+  const heldHandle = await open(temporaryPath, 'r');
+  onTestFinished(() => heldHandle.close());
+  const writer = createSessionWriter(path, recordingLog().log);
+
+  await writer.stopSaving(sessionWith());
+
+  const { bytesRead, buffer } = await heldHandle.read(Buffer.alloc(4096), 0, 4096, 0);
+
+  expect(buffer.subarray(0, bytesRead).toString('utf8')).toBe('left by a crash');
 });
 
 it('writes the newest of the saves made during one write', async () => {
