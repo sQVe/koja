@@ -15,14 +15,9 @@ const parseScrollTarget = (value: string): PaneScrollCommand['to'] | undefined =
 
 export const parsePaneScroll = (
   rest: string[],
-  pane: string | undefined,
   to: string | undefined,
   client: string | undefined,
 ): PaneScrollCommand | string => {
-  if (pane !== undefined) {
-    return '--pane belongs to pane send. pane scroll takes the pane id as an argument.';
-  }
-
   if (rest.length !== 1) {
     return 'pane scroll takes one pane id.';
   }

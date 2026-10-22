@@ -6,7 +6,6 @@ import {
   parseAttachCommand,
   parseClientCommand,
   parseDetachCommand,
-  strayClientOptionMessage,
 } from './clientCommandParse.ts';
 import type {
   AttachCommand,
@@ -14,28 +13,17 @@ import type {
   DetachCommand,
   RawClientOptions,
 } from './clientCommandParse.ts';
+import { strayOptionMessage } from './commandOptions.ts';
 import type { CommandOptions } from './commandOptions.ts';
-import {
-  paneOptions,
-  paneUsage,
-  parsePaneCommand,
-  strayPaneOptionMessage,
-} from './paneCommandParse.ts';
+import { paneOptions, paneUsage, parsePaneCommand } from './paneCommandParse.ts';
 import type { PaneCliCommand, RawPaneOptions } from './paneCommandParse.ts';
 import { parseServerCommand, serverUsage } from './serverCommandParse.ts';
 import type { ServerCommand } from './serverCommandParse.ts';
-import {
-  parseTabCommand,
-  strayFolderOptionMessage,
-  strayTabOptionMessage,
-  tabOptions,
-  tabUsage,
-} from './tabCommandParse.ts';
+import { parseTabCommand, tabOptions, tabUsage } from './tabCommandParse.ts';
 import type { RawTabOptions, TabCliCommand } from './tabCommandParse.ts';
 import {
   lastFocusFlag,
   parseWorkspaceCommand,
-  strayWorkspaceOptionMessage,
   workspaceOptions,
   workspaceUsage,
 } from './workspaceCommandParse.ts';
@@ -125,12 +113,21 @@ const parseGroupCommand = (group: string | undefined, input: GroupInput): Comman
   return group === 'server' ? parseServerCommand(action, rest, options) : 'Unknown command.';
 };
 
-const strayOptionMessage = (group: string | undefined, values: RawOptions): string | undefined =>
-  strayPaneOptionMessage(group, values) ??
-  strayFolderOptionMessage(group, values) ??
-  strayWorkspaceOptionMessage(group, values) ??
-  strayTabOptionMessage(group, values) ??
-  strayClientOptionMessage(group, values);
+const commandNameOf = (version: boolean, positionals: string[]): string => {
+  const [group, action] = positionals;
+
+  if (version) {
+    return 'koja --version';
+  }
+
+  if (group === undefined) {
+    return 'koja';
+  }
+
+  const takesAction = group !== 'attach' && group !== 'detach';
+
+  return takesAction ? [group, action].join(' ') : group;
+};
 
 export const parseCommand = (argv: string[]): Command | string => {
   try {
@@ -155,7 +152,8 @@ export const parseCommand = (argv: string[]): Command | string => {
     const json = values.json === true;
     const options = { json, socket: values.socket };
     const [group, action, ...rest] = positionals;
-    const stray = strayOptionMessage(group, values);
+    const commandName = commandNameOf(values.version === true, positionals);
+    const stray = strayOptionMessage(commandName, Object.keys(parsed.values));
 
     if (stray !== undefined) {
       return stray;

@@ -29,9 +29,6 @@ const parseWhole = (value: string): number | undefined => {
   return /^[0-9]+$/.test(value) && Number.isSafeInteger(number) ? number : undefined;
 };
 
-export const hasReadOptions = ({ source, lines, from, to }: Partial<RawReadOptions>): boolean =>
-  [source, lines, from, to].some((value) => value !== undefined);
-
 const parseRange = (
   from: string | undefined,
   to: string | undefined,

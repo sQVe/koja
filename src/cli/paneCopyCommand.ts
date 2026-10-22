@@ -3,7 +3,7 @@ import type { PaneCopyCommand } from '../client/client.ts';
 import type { ClientId } from '../ids.ts';
 import { invariant } from '../invariant.ts';
 import type { BuildVersion } from '../protocol/protocol.ts';
-import { connectionFailureMessage, print } from './output.ts';
+import { connectionFailureMessage, print, printJson } from './output.ts';
 import type { Outcome } from './output.ts';
 
 type CopyFailure =
@@ -74,7 +74,7 @@ export const runPaneCopyCommand = async (
           ? { copied: false, reason: result.reason, oldest: result.oldest }
           : { copied: false, reason: result.reason };
 
-      print<CopyOutput>(true, { json: output, text: message });
+      printJson(output);
     }
 
     return { ok: false, message };
@@ -82,7 +82,7 @@ export const runPaneCopyCommand = async (
 
   if (request.print) {
     if (json) {
-      print<CopyOutput>(true, { json: { text: result.text }, text: '' });
+      printJson({ text: result.text });
     } else {
       process.stdout.write(result.text);
     }

@@ -541,19 +541,35 @@ it.each([
 });
 
 it.each([
-  ['pane send', ['pane', 'send', 'ls', '--lines', '3'], '--lines'],
-  ['pane list', ['pane', 'list', '--lines', '3'], '--lines'],
-  ['pane list with --source', ['pane', 'list', '--source', 'recent'], '--source'],
-  ['pane focus', ['pane', 'focus', 'pane-1', '--from', '1', '--to', '2'], '--from'],
-  ['pane zoom', ['pane', 'zoom', 'pane-1', '--to', '2'], '--to'],
+  ['pane send', ['pane', 'send', 'ls', '--lines', '3'], '--lines belongs to pane read.'],
+  ['pane list', ['pane', 'list', '--lines', '3'], '--lines belongs to pane read.'],
+  [
+    'pane list with --source',
+    ['pane', 'list', '--source', 'recent'],
+    '--source belongs to pane read.',
+  ],
+  [
+    'pane focus',
+    ['pane', 'focus', 'pane-1', '--from', '1', '--to', '2'],
+    '--from belongs to pane read and pane copy.',
+  ],
+  [
+    'pane zoom',
+    ['pane', 'zoom', 'pane-1', '--to', '2'],
+    '--to belongs to pane read, pane scroll, and pane copy.',
+  ],
   [
     'a workspace command',
     ['workspace', 'list', '--from', '1', '--to', '2'],
-    '--source, --lines, --from, and --to belong to pane read.',
+    '--from belongs to pane read and pane copy.',
   ],
 ])('refuses read flags on %s with its own error', (_name, argv, message) => {
-  expect(parseCommand(argv)).toBe(
-    message.startsWith('--source,') ? message : `${message} belongs to pane read.`,
+  expect(parseCommand(argv)).toBe(message);
+});
+
+it('names only the commands that accept --pane when pane move gets it', () => {
+  expect(parseCommand(['pane', 'move', 'pane-1', '--tab', 'tab-2', '--pane', 'pane-1'])).toBe(
+    '--pane belongs to pane send.',
   );
 });
 
@@ -841,4 +857,62 @@ it('reads a one-row range', () => {
   expect(readCommand('--from', '5', '--to', '5')).toMatchObject({
     pane: { source: 'recent', range: { from: 5, to: 5 } },
   });
+});
+
+it('leaves an unknown pane command to its own parser', () => {
+  expect(parseCommand(['pane', 'bogus', '--cwd', 'x'])).toBe(parseCommand(['pane', 'bogus']));
+});
+
+it.each(['read', 'scroll', 'copy'])('hints at the pane id argument for pane %s', (action) => {
+  const message = parseCommand(['pane', action, '--pane', 'pane-3']);
+
+  expect(message).toContain(`pane ${action} takes the pane id as an argument.`);
+});
+
+it('gives no pane id hint for other stray options or commands', () => {
+  const otherOption = parseCommand(['pane', 'read', 'pane-3', '--cwd', 'x']);
+  const otherCommand = parseCommand(['pane', 'focus', '--pane', 'pane-3']);
+
+  expect(otherOption).not.toContain('takes the pane id');
+  expect(otherCommand).not.toContain('takes the pane id');
+  expect(typeof otherOption).toBe('string');
+  expect(typeof otherCommand).toBe('string');
+});
+
+it('refuses a stray option next to --version', () => {
+  const message = parseCommand(['--version', '--label', 'x']);
+
+  expect(message).toBe('--label belongs to workspace create.');
+});
+
+it.each(['attach', 'detach'])('refuses a stray option on %s', (command) => {
+  expect(parseCommand([command, '--label', 'x'])).toBe('--label belongs to workspace create.');
+});
+
+it('refuses --client on attach', () => {
+  expect(parseCommand(['attach', '--client', 'client-1'])).toBe(
+    '--client belongs to detach and pane scroll.',
+  );
+});
+
+it('checks options for koja --version before its arguments', () => {
+  const message = parseCommand(['--version', 'workspace', 'create', '--label', 'x']);
+
+  expect(message).toBe('--label belongs to workspace create.');
+});
+
+it.each(['attach', 'detach'])('checks options for %s even with an extra argument', (command) => {
+  const message = parseCommand([command, 'workspace', 'create', '--label', 'x']);
+
+  expect(message).toBe('--label belongs to workspace create.');
+});
+
+it('explains why pane list refuses extra arguments', () => {
+  const message = parseCommand(['pane', 'list', 'extra']);
+
+  expect(typeof message === 'string' && message.length > 0).toBe(true);
+});
+
+it('leaves an unknown command to its own parser even with an option', () => {
+  expect(parseCommand(['koja', '--label', 'x'])).toBe(parseCommand(['koja']));
 });

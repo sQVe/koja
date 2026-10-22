@@ -6,7 +6,7 @@ import type { BuildVersion } from '../protocol/protocol.ts';
 import { isDirectory } from './directory.ts';
 import { resolveSocketPath } from './environment.ts';
 import type { Environment } from './environment.ts';
-import { connectionFailureMessage, print } from './output.ts';
+import { connectionFailureMessage, printJson } from './output.ts';
 import type { Outcome } from './output.ts';
 import type { WorkspaceAction, WorkspaceCliCommand } from './workspaceCommandParse.ts';
 
@@ -23,11 +23,7 @@ interface WorkspaceActionOutput {
 
 type RequestAction = Exclude<WorkspaceAction, { action: 'list' | 'create' }>;
 
-const runWorkspaceList = async (
-  command: WorkspaceCliCommand,
-  version: BuildVersion,
-  socketPath: string,
-): Promise<Outcome> => {
+const runWorkspaceList = async (version: BuildVersion, socketPath: string): Promise<Outcome> => {
   const result = await runSnapshot(socketPath, version);
 
   if (!result.ok) {
@@ -43,31 +39,14 @@ const runWorkspaceList = async (
     focused: workspace.id === snapshot.defaultView.focusedWorkspaceId,
   }));
 
-  const lines = workspaces.map(
-    (workspace) =>
-      `${workspace.focused ? '*' : ' '} ${workspace.id}\t${workspace.label}\t${workspace.root}`,
-  );
-
-  print<WorkspaceEntry[]>(command.json, { json: workspaces, text: lines.join('\n') });
+  printJson(workspaces satisfies WorkspaceEntry[]);
 
   return { ok: true };
 };
 
 const requestFor = (action: RequestAction): WorkspaceCommand => action;
 
-const doneText = (action: WorkspaceCommand['action'], id: string): string => {
-  const verbs = {
-    create: 'Created',
-    focus: 'Focused',
-    rename: 'Renamed',
-    close: 'Closed',
-  };
-
-  return `${verbs[action]} ${id}.`;
-};
-
 const runWorkspaceRequest = async (
-  command: WorkspaceCliCommand,
   request: WorkspaceCommand,
   version: BuildVersion,
   socketPath: string,
@@ -75,10 +54,7 @@ const runWorkspaceRequest = async (
   const result = await runWorkspaceCommand(socketPath, version, request);
 
   if (result.ok) {
-    print<WorkspaceActionOutput>(command.json, {
-      json: { workspace: result.workspaceId },
-      text: doneText(request.action, result.workspaceId),
-    });
+    printJson({ workspace: result.workspaceId } satisfies WorkspaceActionOutput);
 
     return { ok: true };
   }
@@ -104,7 +80,6 @@ const runWorkspaceRequest = async (
 };
 
 const runWorkspaceCreate = async (
-  command: WorkspaceCliCommand,
   action: Extract<WorkspaceAction, { action: 'create' }>,
   version: BuildVersion,
   socketPath: string,
@@ -122,7 +97,7 @@ const runWorkspaceCreate = async (
     focus: action.focus,
   };
 
-  return runWorkspaceRequest(command, request, version, socketPath);
+  return runWorkspaceRequest(request, version, socketPath);
 };
 
 export const runWorkspaceAction = (
@@ -134,12 +109,12 @@ export const runWorkspaceAction = (
   const { workspace } = command;
 
   if (workspace.action === 'list') {
-    return runWorkspaceList(command, version, socketPath);
+    return runWorkspaceList(version, socketPath);
   }
 
   if (workspace.action === 'create') {
-    return runWorkspaceCreate(command, workspace, version, socketPath);
+    return runWorkspaceCreate(workspace, version, socketPath);
   }
 
-  return runWorkspaceRequest(command, requestFor(workspace), version, socketPath);
+  return runWorkspaceRequest(requestFor(workspace), version, socketPath);
 };
