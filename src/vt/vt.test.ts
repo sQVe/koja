@@ -158,15 +158,13 @@ it('reports no clipboard text and no reply for invalid base64', () => {
 
 const osc52 = (text: string) => `\u001B]52;c;${Buffer.from(text).toString('base64')}\u0007`;
 
-it('reports clipboard text up to 128 KiB and drops a longer write', () => {
+it('reports a 600 KiB clipboard write in full', () => {
   using terminal = openTerminal();
-  const limit = 128 * 1024;
+  const text = 'x'.repeat(600 * 1024);
 
-  const atLimit = terminal.write(encoder.encode(osc52('x'.repeat(limit))));
-  const overLimit = terminal.write(encoder.encode(osc52('x'.repeat(limit + 1))));
+  const written = terminal.write(encoder.encode(osc52(text)));
 
-  expect(atLimit.clipboard).toEqual(['x'.repeat(limit)]);
-  expect(overLimit.clipboard).toEqual([]);
+  expect(written.clipboard).toEqual([text]);
 });
 
 it('reports every clipboard write in one chunk and ignores the selection', () => {

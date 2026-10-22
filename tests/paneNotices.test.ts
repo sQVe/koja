@@ -12,6 +12,13 @@ import {
 
 const clipboardCommand = `printf '\\033]52;c;%s\\007' "$(printf hi | base64)"\n`;
 
+// Writes `hi` without running a program. Under dash in the full suite, the exec of base64 right
+// after a 600 KiB write fails with E2BIG, though the pane keeps working.
+const literalClipboardCommand = "printf '\\033]52;c;aGk=\\007'\n";
+
+const largeClipboardCommand = (kibibytes: number): string =>
+  `printf '\\033]52;c;%s\\007' "$(head -c ${kibibytes * 1024} /dev/zero | tr '\\0' x | base64 -w0)"\n`;
+
 // The server sends a client its messages in order, so once the answer to a resync arrives, every
 // notice the pane made before it has arrived too.
 const settle = async (
@@ -93,6 +100,32 @@ it('sends a clipboard write to the foreground client only', async () => {
   await settle(server, cli);
 
   expect(cli.messages.some((message) => message.type === 'clipboardWrite')).toBe(false);
+});
+
+it('sends a clipboard write of 200 KiB to the foreground client', async () => {
+  const directory = await temporaryDirectory();
+  const { server, socketPath } = await startServer(directory);
+  const terminal = await attachTerminal(socketPath, 100);
+
+  server.writeToPane(largeClipboardCommand(200));
+
+  const message = await nextOfType(terminal, 'clipboardWrite');
+
+  expect(message).toEqual({ type: 'clipboardWrite', text: 'x'.repeat(200 * 1024) });
+});
+
+it('drops a clipboard write of 600 KiB and keeps the next one', async () => {
+  const directory = await temporaryDirectory();
+  const { server, socketPath } = await startServer(directory);
+  const terminal = await attachTerminal(socketPath, 100);
+
+  server.writeToPane(largeClipboardCommand(600));
+  server.writeToPane(literalClipboardCommand);
+
+  expect(await nextOfType(terminal, 'clipboardWrite')).toEqual({
+    type: 'clipboardWrite',
+    text: 'hi',
+  });
 });
 
 it('drops a bell and a clipboard write when no client is in the foreground', async () => {

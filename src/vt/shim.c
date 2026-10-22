@@ -73,10 +73,6 @@ static bool append_clipboard(Pane *pane, const uint8_t *data, uint32_t len) {
   return true;
 }
 
-// The text travels to the client as JSON, where escaping can make one byte six. At this size the
-// message stays within the server's 1 MiB queue for each client connection.
-static const size_t clipboard_max_bytes = 128 * 1024;
-
 // Only the standard clipboard's non-empty text is kept. The request is borrowed, so the text is
 // copied before returning. Returning without a reply denies the write.
 static void clipboard_write(GhosttyTerminal terminal, void *userdata, const GhosttyClipboardWrite *write) {
@@ -86,7 +82,7 @@ static void clipboard_write(GhosttyTerminal terminal, void *userdata, const Ghos
   for (size_t index = 0; index < write->contents_len; index++) {
     const GhosttyClipboardContent *content = &write->contents[index];
     if (content->mime.len != 10 || memcmp(content->mime.ptr, "text/plain", 10) != 0) continue;
-    if (content->data.len == 0 || content->data.len > clipboard_max_bytes) return;
+    if (content->data.len == 0 || content->data.len > UINT32_MAX) return;
     if (!append_clipboard(pane, content->data.ptr, (uint32_t)content->data.len)) return;
     GhosttyClipboardWriteReply reply = GHOSTTY_INIT_SIZED(GhosttyClipboardWriteReply);
     reply.result = GHOSTTY_CLIPBOARD_WRITE_RESULT_SUCCESS;
@@ -206,6 +202,12 @@ uint64_t pane_clipboard_len(Pane *pane) { return pane->clipboard_len; }
 
 void pane_clear_events(Pane *pane) {
   pane->bells = 0;
+  // A clipboard write can hold megabytes, so its buffer is freed instead of kept for the pane's life.
+  if (pane->clipboard_len > 0) {
+    free(pane->clipboard);
+    pane->clipboard = NULL;
+    pane->clipboard_capacity = 0;
+  }
   pane->clipboard_len = 0;
 }
 

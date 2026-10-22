@@ -1,5 +1,4 @@
 import type { PaneId } from '../ids.ts';
-import { encodeControl } from '../protocol/protocol.ts';
 import type { ControlMessage } from '../protocol/protocol.ts';
 import { rowsRangeText } from '../rows/rows.ts';
 import type { State } from '../store/store.ts';
@@ -9,7 +8,7 @@ import { findLivePane } from './paneEffects.ts';
 import { sendToForeground } from './paneNotice.ts';
 import type { ForegroundContext } from './paneNotice.ts';
 import type { RunningPane } from './paneRecord.ts';
-import { maxReplyBytes, selectPaneRows } from './paneRows.ts';
+import { fitsReply, selectPaneRows } from './paneRows.ts';
 
 interface PaneCopyContext extends ForegroundContext {
   options: { log: Log };
@@ -65,10 +64,6 @@ const copyTextOf = (context: PaneCopyContext, message: PaneCopyMessage): PaneCop
 
 const tooLarge: PaneCopyResult = { ok: false, reason: 'tooLarge', oldest: undefined };
 
-// The reply carries the text and more than the clipboardWrite does, so the reply's encoded size
-// bounds both.
-const fitsReply = (reply: ControlMessage): boolean => encodeControl(reply).length <= maxReplyBytes;
-
 const answerPaneCopy = (
   context: PaneCopyContext,
   message: PaneCopyMessage,
@@ -99,6 +94,8 @@ const answerPaneCopy = (
     result: { ok: true, text: copied.text, clientId },
   };
 
+  // The reply carries the text and more than the clipboardWrite does, so the reply's encoded size
+  // bounds both.
   if (!fitsReply(reply)) {
     connection.send({ type: 'paneCopyResult', result: tooLarge });
 

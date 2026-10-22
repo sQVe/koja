@@ -1,10 +1,12 @@
 import { expect, it } from 'bun:test';
 
-import { paneId } from '../ids.ts';
+import { clientId, paneId } from '../ids.ts';
 import { invariant } from '../invariant.ts';
+import type { ControlMessage } from '../protocol/protocol.ts';
 import { applyIntent, createState } from '../store/store.ts';
 import type { Fact, Pane, Theme } from '../store/store.ts';
 import { createTerminal } from '../vt/vt.ts';
+import type { Connection } from './connection.ts';
 import type { PaneRuntime, spawnPane } from './pane.ts';
 import type { PaneEffectContext } from './paneEffects.ts';
 import {
@@ -21,6 +23,7 @@ import {
   stopPane,
 } from './paneEffects.ts';
 import type { RunningPane } from './paneRecord.ts';
+import { maxReplyBytes } from './paneRows.ts';
 import type { RowPublisher } from './rowPublisher.ts';
 
 interface Fixture {
@@ -712,4 +715,53 @@ it('releases a pane whose output fails and reports no exit for it', async () => 
   ]);
 
   expect(context.runtime.panes.has(pane.id)).toBe(false);
+});
+
+const foregroundConnection = (context: PaneEffectContext): ControlMessage[] => {
+  const sent: ControlMessage[] = [];
+  const foreground = clientId(1);
+
+  const connection: Connection = {
+    receive: () => {},
+    drain: () => {},
+    send: (message) => {
+      sent.push(message);
+    },
+    sendBinary: () => {},
+    close: () => {},
+    closeWhenFlushed: () => {},
+    isClosed: () => false,
+    isWelcomed: () => true,
+  };
+
+  context.runtime.clientIds.set(connection, foreground);
+  context.state = { ...context.state, foregroundClientId: foreground };
+
+  return sent;
+};
+
+it('sends a clipboard write from a pane to the foreground client', () => {
+  const { context, pane } = startContext();
+  const spawned = fakeSpawn(pane.generation);
+  const sent = foregroundConnection(context);
+
+  startPane(context, pane, () => {}, spawned.spawn);
+  spawned.options().onClipboard('copied text');
+
+  expect(sent).toEqual([{ type: 'clipboardWrite', text: 'copied text' }]);
+
+  spawned.runtime[Symbol.dispose]();
+});
+
+it('drops a clipboard write whose message is over the reply limit', () => {
+  const { context, pane } = startContext();
+  const spawned = fakeSpawn(pane.generation);
+  const sent = foregroundConnection(context);
+
+  startPane(context, pane, () => {}, spawned.spawn);
+  spawned.options().onClipboard('a'.repeat(maxReplyBytes + 1));
+
+  expect(sent).toEqual([]);
+
+  spawned.runtime[Symbol.dispose]();
 });

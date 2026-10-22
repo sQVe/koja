@@ -1,8 +1,15 @@
 import { expect, it } from 'bun:test';
 
+import { encodeControl } from '../protocol/protocol.ts';
 import { paneRowsBytes, PaneRowsSource, rowsToLines } from '../rows/rows.ts';
 import { createTerminal } from '../vt/vt.ts';
-import { maxReplyBytes, maxReplyRows, maxSnapshotBytes, selectPaneRows } from './paneRows.ts';
+import {
+  fitsReply,
+  maxReplyBytes,
+  maxReplyRows,
+  maxSnapshotBytes,
+  selectPaneRows,
+} from './paneRows.ts';
 import type { PaneReadSelection } from './paneRows.ts';
 
 const encoder = new TextEncoder();
@@ -556,4 +563,15 @@ it('selects rows whose cells and clusters take the snapshot exactly to its limit
 
   expect(selected.rowCount).toBe(rows);
   expect(paneRowsBytes(rows, columns, selected.graphemes.length)).toBe(maxSnapshotBytes);
+});
+
+const clipboardOf = (length: number) =>
+  ({ type: 'clipboardWrite', text: 'a'.repeat(length) }) as const;
+
+it('fits a reply of exactly the byte limit and not one byte more', () => {
+  const exact = maxReplyBytes - encodeControl(clipboardOf(0)).length;
+
+  expect(encodeControl(clipboardOf(exact)).length).toBe(maxReplyBytes);
+  expect(fitsReply(clipboardOf(exact))).toBe(true);
+  expect(fitsReply(clipboardOf(exact + 1))).toBe(false);
 });
