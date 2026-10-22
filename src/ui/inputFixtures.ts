@@ -74,7 +74,7 @@ const chromeAtColumn = (x: number): ReturnType<RouterHost['chromeAt']> => {
 };
 
 // Pane 1 holds columns 0 to 9 and pane 2 holds columns 10 to 19. A workspace row sits at columns 50
-// to 59 and a tab label at columns 60 to 69. Each host part can be overridden.
+// to 59 and a tab label at columns 60 to 69.
 export const createInputHarness = (
   initial: InputMode = 'insert',
   overrides: Partial<RouterHost> = {},
