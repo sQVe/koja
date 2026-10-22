@@ -202,6 +202,12 @@ uint64_t pane_clipboard_len(Pane *pane) { return pane->clipboard_len; }
 
 void pane_clear_events(Pane *pane) {
   pane->bells = 0;
+  // A clipboard write can hold megabytes, so its buffer is freed instead of kept for the pane's life.
+  if (pane->clipboard_len > 0) {
+    free(pane->clipboard);
+    pane->clipboard = NULL;
+    pane->clipboard_capacity = 0;
+  }
   pane->clipboard_len = 0;
 }
 
