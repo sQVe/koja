@@ -1,9 +1,9 @@
 import type { PaneId } from '../ids.ts';
 import type { ControlMessage } from '../protocol/protocol.ts';
 import type { PaneRows } from '../rows/rows.ts';
-import { createPaneReader } from './paneRead.ts';
-import type { PaneReadFailure, PaneReader, ReadStep } from './paneRead.ts';
 import type { RowCache, RowRange } from './rowCache.ts';
+import { createRowPager } from './rowPaging.ts';
+import type { PaneReadFailure, PagerStep, RowPager } from './rowPaging.ts';
 
 interface RowFetcherOptions {
   send: (message: ControlMessage) => void;
@@ -21,7 +21,7 @@ interface Wish {
 interface Read {
   pane: PaneId;
   wish: Wish;
-  reader: PaneReader;
+  pager: RowPager;
   requestId: number;
 }
 
@@ -48,7 +48,7 @@ export const createRowFetcher = (options: RowFetcherOptions): RowFetcher => {
   let current: Read | undefined;
   let lastRequestId = 0;
 
-  const follow = (read: Read, step: ReadStep): void => {
+  const follow = (read: Read, step: PagerStep): void => {
     if (step.kind === 'next') {
       options.send({ type: 'paneReadNext', paneId: read.pane, requestId: read.requestId });
 
@@ -85,16 +85,14 @@ export const createRowFetcher = (options: RowFetcherOptions): RowFetcher => {
   };
 
   const startRead = (pane: PaneId, wish: Wish, range: RowRange): void => {
-    const reader = createPaneReader({
-      action: 'read',
-      pane,
+    const pager = createRowPager({
       source: 'recent',
       lines: undefined,
       range,
     });
 
-    current = { pane, wish, reader, requestId: 0 };
-    follow(current, reader.start());
+    current = { pane, wish, pager, requestId: 0 };
+    follow(current, pager.start());
   };
 
   // Starts the next wish that still lacks rows, unless a read is in flight. A wish stays until its
@@ -140,7 +138,7 @@ export const createRowFetcher = (options: RowFetcherOptions): RowFetcher => {
       }
 
       options.cacheOf(read.pane)?.storeRange(rows);
-      follow(read, read.reader.takeRows(rows));
+      follow(read, read.pager.takeRows(rows));
       pump();
     },
     takeFailure: (pane, requestId, failure) => {
@@ -150,7 +148,7 @@ export const createRowFetcher = (options: RowFetcherOptions): RowFetcher => {
         return;
       }
 
-      follow(read, read.reader.takeFailure(failure));
+      follow(read, read.pager.takeFailure(failure));
       pump();
     },
   };

@@ -3,9 +3,10 @@ import type { BuildVersion, ControlMessage } from '../protocol/protocol.ts';
 import { runPaneRequest, runRequest, sendStop } from './clientRequest.ts';
 import type { Request, RequestFailure } from './clientRequest.ts';
 import { createPaneReader } from './paneRead.ts';
-import type { PaneReadCommand, PaneReadFailure, PaneReadOutput, ReadStep } from './paneRead.ts';
+import type { PaneReadCommand, PaneReadOutput, ReadStep } from './paneRead.ts';
 import { paneLayoutRequest } from './paneRequest.ts';
 import type { PaneLayoutCommand } from './paneRequest.ts';
+import type { PaneReadFailure } from './rowPaging.ts';
 import type { StoreSnapshot } from './snapshot.ts';
 import { tabRequest } from './tabRequest.ts';
 import type { TabCommand } from './tabRequest.ts';
@@ -116,7 +117,8 @@ export type { PaneLayoutCommand, TabCommand };
 export type { PaneMoveDestination } from './paneRequest.ts';
 export type { WorkspaceCommand } from './workspaceRequest.ts';
 
-export type { PaneReadCommand, PaneReadSource } from './paneRead.ts';
+export type { PaneReadCommand } from './paneRead.ts';
+export type { PaneReadSource } from './rowPaging.ts';
 
 const missingPane: PaneMissing = { ok: false, reason: 'paneMissing' };
 
