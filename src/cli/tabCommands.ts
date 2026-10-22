@@ -5,7 +5,7 @@ import type { BuildVersion } from '../protocol/protocol.ts';
 import { resolveFolder } from './directory.ts';
 import { resolveSocketPath } from './environment.ts';
 import type { Environment } from './environment.ts';
-import { connectionFailureMessage, print } from './output.ts';
+import { connectionFailureMessage, printJson } from './output.ts';
 import type { Outcome } from './output.ts';
 import type { TabAction, TabCliCommand } from './tabCommandParse.ts';
 
@@ -38,11 +38,7 @@ const listTabs = (snapshot: StoreSnapshot) =>
     };
   });
 
-const runTabList = async (
-  command: TabCliCommand,
-  version: BuildVersion,
-  socketPath: string,
-): Promise<Outcome> => {
+const runTabList = async (version: BuildVersion, socketPath: string): Promise<Outcome> => {
   const result = await runSnapshot(socketPath, version);
 
   if (!result.ok) {
@@ -51,23 +47,12 @@ const runTabList = async (
 
   const tabs = listTabs(result.snapshot);
 
-  const lines = tabs.map(
-    (tab) => `${tab.active ? '*' : ' '} ${tab.id}\t${tab.workspace}\t${tab.number}\t${tab.pane}`,
-  );
-
-  print<TabEntry[]>(command.json, { json: tabs, text: lines.join('\n') });
+  printJson(tabs satisfies TabEntry[]);
 
   return { ok: true };
 };
 
-const doneText = (action: TabCommand['action'], id: string): string => {
-  const verbs = { create: 'Created', focus: 'Focused', rename: 'Renamed', close: 'Closed' };
-
-  return `${verbs[action]} ${id}.`;
-};
-
 const runTabRequest = async (
-  command: TabCliCommand,
   request: TabCommand,
   version: BuildVersion,
   socketPath: string,
@@ -75,10 +60,7 @@ const runTabRequest = async (
   const result = await runTabCommand(socketPath, version, request);
 
   if (result.ok) {
-    print<TabActionOutput>(command.json, {
-      json: { tab: result.tabId },
-      text: doneText(request.action, result.tabId),
-    });
+    printJson({ tab: result.tabId } satisfies TabActionOutput);
 
     return { ok: true };
   }
@@ -127,7 +109,6 @@ const focusedWorkspaceOf = async (
 };
 
 const runTabCreate = async (
-  command: TabCliCommand,
   action: Extract<TabAction, { action: 'create' }>,
   version: BuildVersion,
   socketPath: string,
@@ -148,7 +129,7 @@ const runTabCreate = async (
       focus: action.focus,
     } as const;
 
-    return runTabRequest(command, request, version, socketPath);
+    return runTabRequest(request, version, socketPath);
   }
 
   const focused = await focusedWorkspaceOf(version, socketPath);
@@ -158,7 +139,6 @@ const runTabCreate = async (
   }
 
   return runTabRequest(
-    command,
     { action: 'create', workspaceId: focused.id, cwd, focus: action.focus },
     version,
     socketPath,
@@ -176,12 +156,12 @@ export const runTabAction = (
   const { tab } = command;
 
   if (tab.action === 'list') {
-    return runTabList(command, version, socketPath);
+    return runTabList(version, socketPath);
   }
 
   if (tab.action === 'create') {
-    return runTabCreate(command, tab, version, socketPath);
+    return runTabCreate(tab, version, socketPath);
   }
 
-  return runTabRequest(command, requestFor(tab), version, socketPath);
+  return runTabRequest(requestFor(tab), version, socketPath);
 };

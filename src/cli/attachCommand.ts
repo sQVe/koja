@@ -4,6 +4,7 @@ import type { BuildVersion } from '../protocol/protocol.ts';
 import type { AttachCommand } from './clientCommandParse.ts';
 import { resolveSocketPath } from './environment.ts';
 import type { Environment } from './environment.ts';
+import { connectionFailureMessage } from './output.ts';
 import type { Outcome } from './output.ts';
 
 type ConnectResult = Awaited<ReturnType<typeof connectAttach>>;
@@ -31,22 +32,7 @@ export const connectWithTerminalSize = (
 
 export const runConnected = async (result: ConnectResult, socketPath: string): Promise<Outcome> => {
   if (!result.ok) {
-    if (result.reason === 'refused') {
-      const { client, server } = result;
-
-      return {
-        ok: false,
-        message:
-          `CLI ${client.version} (ghostty ${client.ghostty}) cannot connect to server ` +
-          `${server.version} (ghostty ${server.ghostty}). Run koja server stop followed by koja ` +
-          'to restart the server. This ends every pane.',
-      };
-    }
-
-    const message =
-      result.reason === 'noServer'
-        ? `No server is listening on ${socketPath}.`
-        : `The server on ${socketPath} did not complete the attach handshake.`;
+    const message = connectionFailureMessage(result, socketPath, 'attach handshake');
 
     return { ok: false, message };
   }

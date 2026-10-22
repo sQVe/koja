@@ -3,7 +3,7 @@ import type { BuildVersion } from '../protocol/protocol.ts';
 import type { DetachCommand } from './clientCommandParse.ts';
 import { resolveSocketPath } from './environment.ts';
 import type { Environment } from './environment.ts';
-import { print } from './output.ts';
+import { connectionFailureMessage, print, printJson } from './output.ts';
 import type { Outcome } from './output.ts';
 
 type DetachFailure = 'noServer' | 'refused' | 'connectionFailed' | 'noClient' | 'unknownClient';
@@ -12,7 +12,7 @@ type DetachOutput = { detached: true } | { detached: false; reason: DetachFailur
 
 const failed = (json: boolean, reason: DetachFailure, message: string): Outcome => {
   if (json) {
-    print<DetachOutput>(true, { json: { detached: false, reason }, text: message });
+    printJson({ detached: false, reason } satisfies DetachOutput);
   }
 
   return { ok: false, message };
@@ -28,14 +28,10 @@ export const runDetachCommand = async (
 
   if (!result.ok) {
     if (result.reason === 'refused') {
-      const { client, server } = result;
-
       return failed(
         command.json,
         'refused',
-        `CLI ${client.version} (ghostty ${client.ghostty}) cannot connect to server ` +
-          `${server.version} (ghostty ${server.ghostty}). Run koja server stop followed by koja ` +
-          'to restart the server. This ends every pane.',
+        connectionFailureMessage(result, socketPath, 'detach'),
       );
     }
 
@@ -51,10 +47,7 @@ export const runDetachCommand = async (
       );
     }
 
-    const message =
-      result.reason === 'noServer'
-        ? `No server is listening on ${socketPath}.`
-        : `The server on ${socketPath} did not complete the detach.`;
+    const message = connectionFailureMessage({ reason: result.reason }, socketPath, 'detach');
 
     return failed(command.json, result.reason, message);
   }

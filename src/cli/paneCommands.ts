@@ -12,7 +12,7 @@ import type { BuildVersion } from '../protocol/protocol.ts';
 import { resolveFolder } from './directory.ts';
 import { resolveSocketPath } from './environment.ts';
 import type { Environment } from './environment.ts';
-import { connectionFailureMessage, print } from './output.ts';
+import { connectionFailureMessage, printJson } from './output.ts';
 import type { Outcome } from './output.ts';
 import type { PaneCliCommand } from './paneCommandParse.ts';
 import { runPaneCopyCommand } from './paneCopyCommand.ts';
@@ -68,11 +68,7 @@ const listPanes = (snapshot: StoreSnapshot, folders: PaneFolders) => {
   });
 };
 
-const runPaneList = async (
-  command: PaneCliCommand,
-  version: BuildVersion,
-  socketPath: string,
-): Promise<Outcome> => {
+const runPaneList = async (version: BuildVersion, socketPath: string): Promise<Outcome> => {
   const result = await runSnapshot(socketPath, version);
 
   if (!result.ok) {
@@ -87,18 +83,12 @@ const runPaneList = async (
 
   const panes = listPanes(result.snapshot, folders.panes);
 
-  const lines = panes.map(
-    (pane) =>
-      `${pane.focused ? '*' : ' '} ${pane.id}\t${pane.workspace}\t${pane.tab}\t${pane.lifecycle}\t${pane.columns}x${pane.rows}\t${pane.cwd ?? ''}${pane.zoomed ? '\tzoomed' : ''}${pane.restore_error === null ? '' : `\t${pane.restore_error}`}`,
-  );
-
-  print<PaneEntry[]>(command.json, { json: panes, text: lines.join('\n') });
+  printJson(panes satisfies PaneEntry[]);
 
   return { ok: true };
 };
 
 const runPaneProcessInfoCommand = async (
-  command: PaneCliCommand,
   pane: PaneId,
   version: BuildVersion,
   socketPath: string,
@@ -114,16 +104,11 @@ const runPaneProcessInfoCommand = async (
       cwd: process.folder ?? null,
     }));
 
-    print(command.json, {
-      json: {
-        pane: result.paneId,
-        shell_pid: result.shellPid,
-        foreground_process_group_id: result.foregroundGroup ?? null,
-        foreground_processes: processes,
-      },
-      text: processes
-        .map((process) => `${process.pid}\t${process.cwd ?? ''}\t${process.cmdline}`)
-        .join('\n'),
+    printJson({
+      pane: result.paneId,
+      shell_pid: result.shellPid,
+      foreground_process_group_id: result.foregroundGroup ?? null,
+      foreground_processes: processes,
     });
 
     return { ok: true };
@@ -141,19 +126,6 @@ const runPaneProcessInfoCommand = async (
     ok: false,
     message: connectionFailureMessage(result, socketPath, 'pane process-info'),
   };
-};
-
-const layoutDoneText = (action: PaneLayoutCommand['action'], id: string): string => {
-  const verbs = {
-    split: 'Split into',
-    focus: 'Focused',
-    close: 'Closed',
-    move: 'Moved',
-    zoom: 'Toggled zoom of',
-    resize: 'Resized',
-  };
-
-  return `${verbs[action]} ${id}.`;
 };
 
 const isMoveTooSmall = (request: PaneLayoutCommand, reason: string): boolean =>
@@ -203,7 +175,6 @@ const layoutFailure = (
 };
 
 const runPaneLayout = async (
-  command: PaneCliCommand,
   request: PaneLayoutCommand,
   version: BuildVersion,
   socketPath: string,
@@ -221,10 +192,7 @@ const runPaneLayout = async (
     return layoutFailure(request, result, socketPath);
   }
 
-  print<PaneActionOutput>(command.json, {
-    json: { pane: result.paneId },
-    text: layoutDoneText(request.action, result.paneId),
-  });
+  printJson({ pane: result.paneId } satisfies PaneActionOutput);
 
   return { ok: true };
 };
@@ -258,7 +226,7 @@ const runPaneSendCommand = async (
   }
 
   if (command.json) {
-    print<PaneSendOutput>(true, { json: { sent: true }, text: '' });
+    printJson({ sent: true } satisfies PaneSendOutput);
   }
 
   return { ok: true };
@@ -272,19 +240,19 @@ export const runPaneAction = async (
   const socketPath = resolveSocketPath(command.socket, environment);
 
   if (command.pane.action === 'list') {
-    return runPaneList(command, version, socketPath);
+    return runPaneList(version, socketPath);
   }
 
   if (command.pane.action === 'process-info') {
-    return runPaneProcessInfoCommand(command, command.pane.pane, version, socketPath);
+    return runPaneProcessInfoCommand(command.pane.pane, version, socketPath);
   }
 
   if (isLayoutAction(command.pane)) {
-    return runPaneLayout(command, command.pane, version, socketPath);
+    return runPaneLayout(command.pane, version, socketPath);
   }
 
   if (command.pane.action === 'scroll') {
-    return runPaneScrollCommand(command.json, command.pane, version, socketPath);
+    return runPaneScrollCommand(command.pane, version, socketPath);
   }
 
   if (command.pane.action === 'copy') {

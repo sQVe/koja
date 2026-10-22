@@ -2,7 +2,7 @@ import { runPaneScroll } from '../client/client.ts';
 import type { PaneScrollCommand } from '../client/client.ts';
 import type { ClientId } from '../ids.ts';
 import type { BuildVersion } from '../protocol/protocol.ts';
-import { connectionFailureMessage, print } from './output.ts';
+import { connectionFailureMessage, printJson } from './output.ts';
 import type { Outcome } from './output.ts';
 
 type ScrollFailure =
@@ -19,10 +19,8 @@ type ScrollOutput =
 
 type RefusedReason = 'noClient' | 'unknownClient' | 'unknownPane';
 
-const failed = (json: boolean, reason: ScrollFailure, message: string): Outcome => {
-  if (json) {
-    print<ScrollOutput>(true, { json: { scrolled: false, reason }, text: message });
-  }
+const failed = (reason: ScrollFailure, message: string): Outcome => {
+  printJson({ scrolled: false, reason } satisfies ScrollOutput);
 
   return { ok: false, message };
 };
@@ -49,7 +47,6 @@ const isRefused = (
   result.reason === 'unknownPane';
 
 export const runPaneScrollCommand = async (
-  json: boolean,
   request: PaneScrollCommand,
   version: BuildVersion,
   socketPath: string,
@@ -58,20 +55,19 @@ export const runPaneScrollCommand = async (
 
   if (!result.ok) {
     if (isRefused(result)) {
-      return failed(json, result.reason, refusedMessage(request, result.reason, socketPath));
+      return failed(result.reason, refusedMessage(request, result.reason, socketPath));
     }
 
     const message = connectionFailureMessage(result, socketPath, 'pane scroll');
 
-    return failed(json, result.reason, message);
+    return failed(result.reason, message);
   }
 
-  const position = result.topRow === undefined ? 'the bottom' : `row ${result.topRow}`;
-
-  print<ScrollOutput>(json, {
-    json: { scrolled: true, client: result.clientId, row: result.topRow ?? null },
-    text: `Scrolled ${request.pane} in ${result.clientId} to ${position}.`,
-  });
+  printJson({
+    scrolled: true,
+    client: result.clientId,
+    row: result.topRow ?? null,
+  } satisfies ScrollOutput);
 
   return { ok: true };
 };

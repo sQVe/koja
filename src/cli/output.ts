@@ -22,6 +22,10 @@ export const print = <Json>(json: boolean, output: Output<Json>): void => {
   process.stdout.write(`${line}\n`);
 };
 
+export const printJson = (json: unknown): void => {
+  process.stdout.write(`${JSON.stringify(json)}\n`);
+};
+
 export const connectionFailureMessage = (
   failure: ConnectionFailure,
   socketPath: string,
