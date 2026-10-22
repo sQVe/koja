@@ -198,7 +198,10 @@ const createReader = <Item>(
   };
 };
 
-export const connect = async (socketPath: string): Promise<TestClient> => {
+export const connect = async (
+  socketPath: string,
+  options: { acknowledgeUpdates?: boolean } = {},
+): Promise<TestClient> => {
   const decoder = createFrameDecoder();
   const messages: ControlMessage[] = [];
   const updates: RowUpdate[] = [];
@@ -210,7 +213,7 @@ export const connect = async (socketPath: string): Promise<TestClient> => {
   const socket = await Bun.connect({
     unix: socketPath,
     socket: {
-      data: (_socket, bytes) => {
+      data: (connection, bytes) => {
         const decoded = decoder.push(bytes);
 
         if (!decoded.ok) {
@@ -226,6 +229,16 @@ export const connect = async (socketPath: string): Promise<TestClient> => {
             }
 
             updates.push(parsed.update);
+
+            if (options.acknowledgeUpdates === true) {
+              const acknowledgement = encodeControl({
+                type: 'ack',
+                paneId: paneId(parsed.update.pane),
+                sequence: parsed.update.sequence,
+              });
+
+              connection.write(encodeFrame(FrameKind.control, acknowledgement));
+            }
 
             continue;
           }

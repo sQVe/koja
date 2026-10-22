@@ -288,15 +288,56 @@ it('closes a connection whose input payload cannot be decoded', async () => {
   await terminal.closed;
 });
 
+it('receives the ninth resize row update when harness acknowledgements are enabled', async () => {
+  const directory = await temporaryDirectory();
+  // cat has no startup output, so each resize supplies one update.
+  const { server, socketPath } = await startServer(directory, '/bin/cat');
+  const client = await connect(socketPath, { acknowledgeUpdates: true });
+
+  client.send({ type: 'hello', version: build, size: { columns: 100, rows: 30 } });
+  await nextPaneResize(client);
+
+  for (let index = 0; index < 8; index += 1) {
+    if (index > 0) {
+      client.send({ type: 'resize', size: { columns: 100 + index, rows: 30 } });
+      await nextPaneResize(client);
+    }
+
+    const update = await client.nextUpdate();
+
+    expect(update.size.columns).toBe(100 + index - sideListColumns);
+    expect(client.updates).toHaveLength(index + 1);
+
+    // The response follows all earlier row updates and acknowledges socket processing.
+    client.send(readRecent(paneId(1)));
+    await client.nextPaneRows();
+  }
+
+  client.send({ type: 'resize', size: { columns: 108, rows: 30 } });
+
+  const resized = await nextPaneResize(client);
+
+  client.send(readRecent(paneId(1)));
+
+  const read = await client.nextPaneRows();
+  const expectedColumns = 108 - sideListColumns;
+
+  expect(resized.size.columns).toBe(expectedColumns);
+  expect(server.snapshot().panes[0]?.size.columns).toBe(expectedColumns);
+  expect(read.columns).toBe(expectedColumns);
+  expect(client.updates.at(-1)?.size.columns).toBe(expectedColumns);
+  expect(client.updates).toHaveLength(9);
+});
+
 it('keeps a scrolled view at its distance from the bottom after a resize renumbers the rows', async () => {
   const directory = await temporaryDirectory();
   const { server, socketPath } = await startServer(directory);
-  const terminal = await connect(socketPath);
+  const terminal = await connect(socketPath, { acknowledgeUpdates: true });
   const rows = new Map<number, string>();
 
   terminal.send({ type: 'hello', version: build, size: { columns: 100, rows: 30 } });
   await nextPaneResize(terminal);
-  terminal.sendInput(1, new TextEncoder().encode("seq -f '%070g' 1 300; echo koja-done\r"));
+  terminal.sendInput(1, new TextEncoder().encode("seq -f '%070g' 1 300; echo koja-do''ne\r"));
   await receiveText(terminal, rows, 'koja-done');
   await waitFor(() => (terminal.updates.at(-1)?.activeTop ?? 0) > 100);
 
