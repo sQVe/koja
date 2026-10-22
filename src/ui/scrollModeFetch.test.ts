@@ -2,7 +2,42 @@ import { expect, it } from 'bun:test';
 
 import { paneId } from '../ids.ts';
 import { CellWidth, cellWords, rowHeaderWords, rowWords } from '../rows/rows.ts';
-import { columns, updateOf, start, longUpdate, counted } from './scrollModeFixtures.ts';
+import type { RowUpdate } from '../rows/rows.ts';
+import { columns, updateOf, start, counted } from './scrollModeFixtures.ts';
+
+const longWordEnd = 12_000;
+
+const longWordStart = 11_999;
+
+// Rows 0 to 11999 are one soft-wrapped word and row 12000 starts the next. The screen starts at row
+// 12100.
+const textOfLongRow = (row: number): string => {
+  if (row < longWordEnd) {
+    return 'abcdefgh';
+  }
+
+  return row === longWordEnd ? 'zz' : '';
+};
+
+const longUpdate = (shown: readonly number[]): RowUpdate => {
+  const longTop = 12_100;
+  const base = updateOf([]);
+  const stride = rowWords(columns);
+  const cells = new Uint32Array(shown.length * stride);
+
+  for (const [index, row] of shown.entries()) {
+    const text = textOfLongRow(row);
+
+    cells[index * stride] = (row - longTop) >>> 0;
+    cells[index * stride + 1] = row < longWordStart ? 1 : 0;
+
+    for (const [column, character] of text.split('').entries()) {
+      cells[index * stride + rowHeaderWords + column * cellWords] = character.codePointAt(0) ?? 0;
+    }
+  }
+
+  return { ...base, first: 0, activeTop: longTop, rowCount: shown.length, cells };
+};
 
 it('waits for the rows a motion needs, then reaches the target a full cache gives', () => {
   const { mode, supply } = start([100, 101, 102]);

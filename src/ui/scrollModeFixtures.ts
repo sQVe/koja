@@ -37,7 +37,7 @@ interface Counted {
 
 export const columns = 8;
 
-const height = 3;
+export const height = 3;
 
 export const activeTop = 100;
 
@@ -49,12 +49,6 @@ const allRows = Array.from(
   { length: activeTop + screenRows.length - oldest },
   (_, index) => oldest + index,
 );
-
-const longWordEnd = 12_000;
-
-const longWordStart = 11_999;
-
-const wrappedRow = 95;
 
 // One row per line, from the oldest history row to the last row of the screen.
 const lines = ['p95', 'p96', 'p97', 'p98', 'p99', 'a100', 'a101', 'a102'];
@@ -254,58 +248,6 @@ export const start = (
     answer,
     external,
     fetchedNow,
-  };
-};
-
-// Rows 0 to 11999 are one soft-wrapped word and row 12000 starts the next. The screen starts at row
-// 12100.
-const textOfLongRow = (row: number): string => {
-  if (row < longWordEnd) {
-    return 'abcdefgh';
-  }
-
-  return row === longWordEnd ? 'zz' : '';
-};
-
-export const longUpdate = (shown: readonly number[]): RowUpdate => {
-  const longTop = 12_100;
-  const base = updateOf([]);
-  const stride = rowWords(columns);
-  const cells = new Uint32Array(shown.length * stride);
-
-  for (const [index, row] of shown.entries()) {
-    const text = textOfLongRow(row);
-
-    cells[index * stride] = (row - longTop) >>> 0;
-    cells[index * stride + 1] = row < longWordStart ? 1 : 0;
-
-    for (const [column, character] of text.split('').entries()) {
-      cells[index * stride + rowHeaderWords + column * cellWords] = character.codePointAt(0) ?? 0;
-    }
-  }
-
-  return { ...base, first: 0, activeTop: longTop, rowCount: shown.length, cells };
-};
-
-export const reflowUpdate = (width: number, epoch: number, rows: [number, string][]): RowUpdate => {
-  const stride = rowWords(width);
-  const cells = new Uint32Array(rows.length * stride);
-
-  for (const [index, [number, text]] of rows.entries()) {
-    cells[index * stride] = (number - activeTop) >>> 0;
-    cells[index * stride + 1] = number === wrappedRow ? 1 : 0;
-
-    for (const [column, character] of Array.from(text).entries()) {
-      cells[index * stride + rowHeaderWords + column * cellWords] = character.codePointAt(0) ?? 0;
-    }
-  }
-
-  return {
-    ...updateOf([]),
-    epoch,
-    size: { columns: width, rows: height },
-    rowCount: rows.length,
-    cells,
   };
 };
 

@@ -1,7 +1,33 @@
 import { expect, it } from 'bun:test';
 
 import { paneId } from '../ids.ts';
-import { activeTop, columns, updateOf, start, reflowUpdate } from './scrollModeFixtures.ts';
+import { cellWords, rowHeaderWords, rowWords } from '../rows/rows.ts';
+import type { RowUpdate } from '../rows/rows.ts';
+import { activeTop, columns, height, updateOf, start } from './scrollModeFixtures.ts';
+
+const wrappedRow = 95;
+
+const reflowUpdate = (width: number, epoch: number, rows: [number, string][]): RowUpdate => {
+  const stride = rowWords(width);
+  const cells = new Uint32Array(rows.length * stride);
+
+  for (const [index, [number, text]] of rows.entries()) {
+    cells[index * stride] = (number - activeTop) >>> 0;
+    cells[index * stride + 1] = number === wrappedRow ? 1 : 0;
+
+    for (const [column, character] of Array.from(text).entries()) {
+      cells[index * stride + rowHeaderWords + column * cellWords] = character.codePointAt(0) ?? 0;
+    }
+  }
+
+  return {
+    ...updateOf([]),
+    epoch,
+    size: { columns: width, rows: height },
+    rowCount: rows.length,
+    cells,
+  };
+};
 
 it('keeps the view still on k while output advances a following view after entry', () => {
   const { mode, arrive, scrolls } = start();
