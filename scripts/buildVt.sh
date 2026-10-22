@@ -15,7 +15,6 @@ zig_sha256=70e49664a74374b48b51e6f3fdfbf437f6395d42509050588bd49abe52ba3d00
 ghostty_commit=83edd491e3024ae5e50393d62877b8897da1cccd
 cache_dir="${XDG_CACHE_HOME:-$HOME/.cache}/koja"
 zig_dir="$cache_dir/zig-$zig_version"
-ghostty_dir="$cache_dir/ghostty-$ghostty_commit"
 # Zig fetches Ghostty's build dependencies into its global cache. Keeping it here lets one cache
 # directory hold every download.
 export ZIG_GLOBAL_CACHE_DIR="$cache_dir/zig-cache"
@@ -33,30 +32,42 @@ if [[ ! -x "$zig_dir/zig" ]]; then
   mv "$zig_dir.tmp" "$zig_dir"
 fi
 
-if [[ ! -d "$ghostty_dir" ]]; then
-  rm -rf "$ghostty_dir.tmp"
-  git init -q "$ghostty_dir.tmp"
-  git -C "$ghostty_dir.tmp" fetch -q --depth 1 https://github.com/ghostty-org/ghostty.git "$ghostty_commit"
-  git -C "$ghostty_dir.tmp" checkout -q FETCH_HEAD
-  mv "$ghostty_dir.tmp" "$ghostty_dir"
+source_dir="$cache_dir/ghostty-$ghostty_commit-source"
+
+if [[ ! -d "$source_dir" ]]; then
+  rm -rf "$source_dir.tmp"
+  git init -q "$source_dir.tmp"
+  git -C "$source_dir.tmp" fetch -q --depth 1 https://github.com/ghostty-org/ghostty.git "$ghostty_commit"
+  git -C "$source_dir.tmp" checkout -q FETCH_HEAD
+  mv "$source_dir.tmp" "$source_dir"
 fi
 
-# git apply --reverse --check succeeds only when a patch is already applied, so a second run skips
-# it. A patch that is neither applied nor applies cleanly fails the build.
-for patch in "$PWD"/patches/*.patch; do
-  if git -C "$ghostty_dir" apply --reverse --check "$patch" 2>/dev/null; then
-    continue
+# The tree name holds the ordered patch names and contents, so a changed or removed patch selects a
+# different tree instead of leaving an old patch applied.
+patch_digest="$(sha256sum patches/*.patch | sha256sum | cut -c1-16)"
+ghostty_dir="$cache_dir/ghostty-$ghostty_commit-$patch_digest"
+
+if [[ ! -d "$ghostty_dir" ]]; then
+  scratch_dir="$(mktemp -d "$ghostty_dir.XXXXXX")"
+  cp -a "$source_dir/." "$scratch_dir"
+  for patch in "$PWD"/patches/*.patch; do
+    if ! git -C "$scratch_dir" apply "$patch"; then
+      rm -rf "$scratch_dir"
+      echo "$(basename "$patch") does not apply to Ghostty $ghostty_commit." >&2
+      exit 1
+    fi
+    echo "applied $(basename "$patch")"
+  done
+  # mv -T fails when another build created the target first; that build's tree is used instead.
+  if ! mv -T "$scratch_dir" "$ghostty_dir" 2>/dev/null; then
+    rm -rf "$scratch_dir"
   fi
-  if ! git -C "$ghostty_dir" apply "$patch"; then
-    echo "$(basename "$patch") does not apply to Ghostty $ghostty_commit." >&2
-    echo "If you changed an applied patch, delete $ghostty_dir and rebuild." >&2
-    exit 1
-  fi
-  echo "applied $(basename "$patch")"
-done
+fi
+
+mkdir -p build
+ln -sfn "$ghostty_dir" "$PWD/build/ghostty"
 
 (cd "$ghostty_dir" && "$zig_dir/zig" build -Demit-lib-vt=true -Doptimize=ReleaseFast)
-mkdir -p build
 "$zig_dir/zig" cc -O2 -shared -fPIC -I"$ghostty_dir/include" \
   -DKOJA_GHOSTTY_COMMIT="\"$ghostty_commit\"" src/vt/shim.c \
   "$ghostty_dir/zig-out/lib/libghostty-vt.a" -o build/libkoja-vt.so

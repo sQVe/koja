@@ -15,8 +15,8 @@ bun run check
 
 `bun run build:vt` builds `build/libkoja-vt.so` on Linux x86_64. It downloads Zig and the pinned
 Ghostty source to `${XDG_CACHE_HOME:-$HOME/.cache}/koja` and applies the patches in `patches/`. Run
-it again after you change `src/vt/shim.c`. After you change a patch, delete the cached Ghostty
-directory first.
+it again after you change `src/vt/shim.c` or a patch. Each patch set builds in its own cached
+Ghostty tree, and `build/ghostty` links to the tree in use.
 
 Run Koja locally with one command:
 

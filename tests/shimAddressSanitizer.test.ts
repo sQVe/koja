@@ -1,12 +1,12 @@
 import { expect, it } from 'bun:test';
 import { existsSync, mkdtempSync, readFileSync, rmSync } from 'node:fs';
-import { homedir, tmpdir } from 'node:os';
+import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const root = fileURLToPath(new URL('..', import.meta.url));
 
-const ghosttyDirectory = (): string => {
+const ghosttyCommit = (): string => {
   const script = readFileSync(join(root, 'scripts/buildVt.sh'), 'utf8');
   const commit = /^ghostty_commit=(\w+)$/m.exec(script)?.[1];
 
@@ -14,13 +14,11 @@ const ghosttyDirectory = (): string => {
     throw new Error('scripts/buildVt.sh has no ghostty_commit line.');
   }
 
-  const cache = process.env['XDG_CACHE_HOME'] ?? join(homedir(), '.cache');
-
-  return join(cache, 'koja', `ghostty-${commit}`);
+  return commit;
 };
 
 it('reads one row without an AddressSanitizer error', () => {
-  const directory = ghosttyDirectory();
+  const directory = join(root, 'build/ghostty');
   const library = join(directory, 'zig-out/lib/libghostty-vt.a');
 
   expect(Bun.which('clang'), 'clang is missing from PATH').not.toBeNull();
@@ -30,7 +28,7 @@ it('reads one row without an AddressSanitizer error', () => {
 
   try {
     const executable = join(work, 'driver');
-    const commit = directory.slice(directory.lastIndexOf('-') + 1);
+    const commit = ghosttyCommit();
 
     const compile = Bun.spawnSync(
       [
