@@ -333,7 +333,7 @@ const probeSocket = async (path: string): Promise<Probe> => {
 
 // The socket path with every symlink above the socket directory resolved, after checking that only
 // trusted users can change the route.
-const resolveSocketPath = (requested: string): RouteResult => {
+export const socketRouteFor = (requested: string): RouteResult => {
   const absolute = resolve(requested);
   const socketDirectory = dirname(absolute);
   const route = resolveTrustedRoute(dirname(socketDirectory));
@@ -530,7 +530,7 @@ const claimResolvedPath = async (path: string): Promise<ClaimResult> => {
 // resolved: use it for everything after, so a later symlink swap cannot redirect the server. Call
 // release once the server has removed its socket. Removes only a socket that no server answers on.
 export const claimSocketPath = async (requested: string): Promise<ClaimResult> => {
-  const resolved = resolveSocketPath(requested);
+  const resolved = socketRouteFor(requested);
 
   if (!resolved.ok) {
     return resolved;

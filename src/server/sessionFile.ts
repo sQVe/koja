@@ -1,4 +1,3 @@
-import { createHash } from 'node:crypto';
 import { chmod, mkdir, readFile, rename, writeFile } from 'node:fs/promises';
 import { dirname, join } from 'node:path';
 
@@ -8,7 +7,7 @@ import { paneId, tabId, workspaceId } from '../ids.ts';
 import type { PaneId, TabId, WorkspaceId } from '../ids.ts';
 import type { Layout } from '../layout.ts';
 import type { SavedSession } from '../store/store.ts';
-import { usableStateHome } from './log.ts';
+import { socketKeyFor, usableStateHome } from './log.ts';
 import type { Log } from './log.ts';
 
 type ReadSessionResult =
@@ -28,8 +27,6 @@ export interface SessionWriter {
 
 const currentVersion = 1;
 
-const keyLength = 16;
-
 const directoryMode = 0o700;
 
 const fileMode = 0o600;
@@ -40,9 +37,8 @@ export const sessionPathFor = (
   socketPath: string,
 ): string => {
   const state = usableStateHome(stateHome) ?? join(home, '.local', 'state');
-  const key = createHash('sha256').update(socketPath).digest('hex').slice(0, keyLength);
 
-  return join(state, 'koja', 'sessions', `${key}.json`);
+  return join(state, 'koja', 'sessions', `${socketKeyFor(socketPath)}.json`);
 };
 
 const describeError = (error: unknown): string =>

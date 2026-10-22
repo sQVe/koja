@@ -4,7 +4,13 @@ import { resolve } from 'node:path';
 import { z } from 'zod';
 
 import type { BuildVersion } from '../protocol/protocol.ts';
-import { createLog, logPathFor, runServer, sessionPathFor } from '../server/server.ts';
+import {
+  createLog,
+  logPathFor,
+  runServer,
+  sessionPathFor,
+  socketRouteFor,
+} from '../server/server.ts';
 import { resolveSocketPath } from './environment.ts';
 import type { Environment } from './environment.ts';
 import { print } from './output.ts';
@@ -202,13 +208,19 @@ export const serverContextFor = (
   json: boolean,
   version: BuildVersion,
   environment: Environment,
-): ServerContext => ({
-  json,
-  socketPath: resolveSocketPath(socket, environment),
-  logPath: logPathFor(environment.XDG_STATE_HOME, homedir()),
-  version,
-  environment,
-});
+): ServerContext => {
+  const socketPath = resolveSocketPath(socket, environment);
+  const route = socketRouteFor(socketPath);
+  const logKeyPath = route.ok ? route.path : socketPath;
+
+  return {
+    json,
+    socketPath,
+    logPath: logPathFor(environment.XDG_STATE_HOME, homedir(), logKeyPath),
+    version,
+    environment,
+  };
+};
 
 export const runServerAction = (
   command: ServerCommand,

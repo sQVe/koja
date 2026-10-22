@@ -1,3 +1,4 @@
+import { createHash } from 'node:crypto';
 import { appendFileSync, closeSync, fstatSync, mkdirSync, openSync, renameSync } from 'node:fs';
 import { dirname, isAbsolute, join } from 'node:path';
 
@@ -29,10 +30,20 @@ const encoder = new TextEncoder();
 export const usableStateHome = (stateHome: string | undefined): string | undefined =>
   stateHome !== undefined && isAbsolute(stateHome) ? stateHome : undefined;
 
-export const logPathFor = (stateHome: string | undefined, home: string): string => {
+const keyLength = 16;
+
+export const socketKeyFor = (socketPath: string): string =>
+  createHash('sha256').update(socketPath).digest('hex').slice(0, keyLength);
+
+// One file per socket, so each server alone rotates its own log.
+export const logPathFor = (
+  stateHome: string | undefined,
+  home: string,
+  socketPath: string,
+): string => {
   const state = usableStateHome(stateHome) ?? join(home, '.local', 'state');
 
-  return join(state, 'koja', 'server.log');
+  return join(state, 'koja', 'logs', `${socketKeyFor(socketPath)}.log`);
 };
 
 const describeError = (error: unknown): string =>

@@ -1,5 +1,5 @@
 import { expect } from 'bun:test';
-import { mkdir, readFile, realpath } from 'node:fs/promises';
+import { mkdir, readdir, readFile, realpath } from 'node:fs/promises';
 import { homedir } from 'node:os';
 import { join } from 'node:path';
 
@@ -137,8 +137,17 @@ export const setup = async (): Promise<TestSetup> => {
     };
   };
 
-  const logText = (): Promise<string> =>
-    readFile(join(directory, 'state', 'koja', 'server.log'), 'utf8');
+  const logText = async (): Promise<string> => {
+    const logDirectory = join(directory, 'state', 'koja', 'logs');
+    const names = await readdir(logDirectory);
+    const logNames = names.filter((name) => name.endsWith('.log')).toSorted();
+
+    const texts = await Promise.all(
+      logNames.map((name) => readFile(join(logDirectory, name), 'utf8')),
+    );
+
+    return texts.join('');
+  };
 
   return { serverAt, logText, environment };
 };
