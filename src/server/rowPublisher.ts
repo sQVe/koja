@@ -1,6 +1,5 @@
-import { invariant } from '../invariant.ts';
 import type { TerminalSize } from '../layout.ts';
-import { ModeFlag, rowUpdateBytes, rowWords } from '../rows/rows.ts';
+import { concatRows, ModeFlag, rowUpdateBytes, rowWords, splitRange } from '../rows/rows.ts';
 import type { RowUpdate } from '../rows/rows.ts';
 import type { Frame, RowRange, StableRows, Terminal } from '../vt/vt.ts';
 
@@ -46,7 +45,7 @@ interface Subscriber {
 interface Row {
   offset: number;
   cells: Uint32Array;
-  graphemes: number[];
+  graphemes: Uint32Array;
   hash: bigint;
 }
 
@@ -75,62 +74,28 @@ const sentRows = (subscriber: Subscriber, alternate: boolean): Map<number, bigin
 
 const splitRows = (source: RowRange, columns: number): Row[] => {
   const stride = rowWords(columns);
-  const rows: Row[] = [];
 
-  for (let start = 0; start < source.cells.length; start += stride) {
-    rows.push({
-      offset: source.cells[start] ?? 0,
-      cells: source.cells.subarray(start, start + stride),
-      graphemes: [],
-      hash: 0n,
-    });
-  }
+  return splitRange(source, columns).map((part, index) => {
+    const cellsHash = Bun.hash.xxHash64(part.cells.subarray(1));
 
-  for (let index = 0; index < source.graphemes.length;) {
-    const cellIndex = source.graphemes[index] ?? 0;
-    const length = source.graphemes[index + 1] ?? 0;
-    const rowIndex = Math.floor(cellIndex / stride);
-    const row = rows[rowIndex];
-
-    invariant(row !== undefined, 'A terminal grapheme must belong to a returned row.');
-
-    row.graphemes.push(cellIndex % stride, length);
-    row.graphemes.push(...source.graphemes.subarray(index + 2, index + 2 + length));
-    index += 2 + length;
-  }
-
-  for (const row of rows) {
-    const cellsHash = Bun.hash.xxHash64(row.cells.subarray(1));
-
-    row.hash = Bun.hash.xxHash64(Uint32Array.from(row.graphemes), cellsHash);
-  }
-
-  return rows;
+    return {
+      offset: source.cells[index * stride] ?? 0,
+      cells: part.cells,
+      graphemes: part.graphemes,
+      hash: Bun.hash.xxHash64(part.graphemes, cellsHash),
+    };
+  });
 };
 
 const joinRows = (rows: readonly Row[], columns: number): RowRange => {
   const stride = rowWords(columns);
-  const cells = new Uint32Array(rows.length * stride);
-  const graphemes: number[] = [];
-  let start = 0;
+  const range = concatRows(rows.map((row) => ({ rowCount: 1, ...row })));
 
-  for (const row of rows) {
-    cells.set(row.cells, start);
-    cells[start] = row.offset;
+  rows.forEach((row, index) => {
+    range.cells[index * stride] = row.offset;
+  });
 
-    for (let index = 0; index < row.graphemes.length;) {
-      const cellIndex = row.graphemes[index] ?? 0;
-      const length = row.graphemes[index + 1] ?? 0;
-
-      graphemes.push(start + cellIndex, length);
-      graphemes.push(...row.graphemes.slice(index + 2, index + 2 + length));
-      index += 2 + length;
-    }
-
-    start += stride;
-  }
-
-  return { rowCount: rows.length, cells, graphemes: Uint32Array.from(graphemes) };
+  return range;
 };
 
 const departedRows = (

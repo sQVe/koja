@@ -449,6 +449,56 @@ export const graphemeWordsPerRow = (range: TextRows, columns: number): number[] 
   return words;
 };
 
+// Splits a range into one-row ranges in one pass over the graphemes. Each row's cells are a view of
+// the range's cells, and its cluster cell indexes are relative to the row.
+export const splitRange = (range: TextRows, columns: number): TextRows[] => {
+  const width = rowWords(columns);
+  const words: number[][] = Array.from({ length: range.rowCount }, () => []);
+
+  for (let index = 0; index < range.graphemes.length;) {
+    const cellIndex = range.graphemes[index] ?? 0;
+    const length = range.graphemes[index + 1] ?? 0;
+    const rowWordsOfCluster = words[Math.floor(cellIndex / width)];
+
+    invariant(
+      rowWordsOfCluster !== undefined,
+      'A terminal grapheme must belong to a returned row.',
+    );
+
+    rowWordsOfCluster.push(cellIndex % width, length);
+    rowWordsOfCluster.push(...range.graphemes.subarray(index + 2, index + 2 + length));
+    index += 2 + length;
+  }
+
+  return words.map((graphemes, row) => ({
+    rowCount: 1,
+    cells: range.cells.subarray(row * width, (row + 1) * width),
+    graphemes: Uint32Array.from(graphemes),
+  }));
+};
+
+// The text of each cluster longer than one code point, by column, for every row of a range.
+export const collectClusters = (range: TextRows, columns: number): Map<number, string>[] => {
+  const width = rowWords(columns);
+  const clusters = Array.from({ length: range.rowCount }, () => new Map<number, string>());
+
+  for (let index = 0; index < range.graphemes.length;) {
+    const cellIndex = range.graphemes[index] ?? 0;
+    const length = range.graphemes[index + 1] ?? 0;
+    const rowClusters = clusters[Math.floor(cellIndex / width)];
+
+    invariant(rowClusters !== undefined, 'A terminal grapheme must belong to a returned row.');
+
+    const column = ((cellIndex % width) - rowHeaderWords) / cellWords;
+    const codePoints = range.graphemes.subarray(index + 2, index + 2 + length);
+
+    rowClusters.set(column, String.fromCodePoint(...codePoints));
+    index += 2 + length;
+  }
+
+  return clusters;
+};
+
 // Returns count rows of the range from row start, with their clusters moved to the new cell
 // indexes. The inverse of concatRows.
 export const sliceRows = (

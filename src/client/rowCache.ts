@@ -1,4 +1,4 @@
-import { cellWords, ModeFlag, RowFlag, rowHeaderWords, rowWords } from '../rows/rows.ts';
+import { collectClusters, ModeFlag, RowFlag, rowHeaderWords, rowWords } from '../rows/rows.ts';
 import type { Cursor, PaneRows, RowUpdate } from '../rows/rows.ts';
 
 interface CachedRow {
@@ -74,26 +74,6 @@ const sameColors = (left: ReadonlyMap<number, number>, right: ReadonlyMap<number
   return true;
 };
 
-const clustersOf = (graphemes: Uint32Array, rowStart: number, stride: number) => {
-  const clusters = new Map<number, string>();
-
-  for (let index = 0; index < graphemes.length;) {
-    const cellIndex = graphemes[index] ?? 0;
-    const length = graphemes[index + 1] ?? 0;
-
-    if (cellIndex >= rowStart && cellIndex < rowStart + stride) {
-      const column = (cellIndex - rowStart - rowHeaderWords) / cellWords;
-      const codePoints = graphemes.subarray(index + 2, index + 2 + length);
-
-      clusters.set(column, String.fromCodePoint(...codePoints));
-    }
-
-    index += 2 + length;
-  }
-
-  return clusters;
-};
-
 export const createRowCache = ({ rowLimit }: RowCacheOptions): RowCache => {
   const rows = new Map<number, CachedRow>();
   let epoch: number | undefined;
@@ -130,6 +110,7 @@ export const createRowCache = ({ rowLimit }: RowCacheOptions): RowCache => {
   const storeRows = (update: RowUpdate): Set<number> => {
     const stride = rowWords(update.size.columns);
     const stored = new Set<number>();
+    const clusters = collectClusters(update, update.size.columns);
 
     for (let index = 0; index < update.rowCount; index++) {
       const start = index * stride;
@@ -139,7 +120,7 @@ export const createRowCache = ({ rowLimit }: RowCacheOptions): RowCache => {
       rows.set(rowNumber, {
         wrapped: ((update.cells[start + 1] ?? 0) & RowFlag.wrapped) !== 0,
         cells: update.cells.slice(start + rowHeaderWords, start + stride),
-        clusters: clustersOf(update.graphemes, start, stride),
+        clusters: clusters[index] ?? new Map(),
       });
 
       stored.add(rowNumber);
@@ -156,6 +137,7 @@ export const createRowCache = ({ rowLimit }: RowCacheOptions): RowCache => {
     }
 
     const stride = rowWords(read.columns);
+    const clusters = collectClusters(read, read.columns);
 
     for (let index = 0; index < read.rowCount; index++) {
       const start = index * stride;
@@ -163,7 +145,7 @@ export const createRowCache = ({ rowLimit }: RowCacheOptions): RowCache => {
       rows.set(read.first + index, {
         wrapped: ((read.cells[start + 1] ?? 0) & RowFlag.wrapped) !== 0,
         cells: read.cells.slice(start + rowHeaderWords, start + stride),
-        clusters: clustersOf(read.graphemes, start, stride),
+        clusters: clusters[index] ?? new Map(),
       });
     }
 

@@ -2,6 +2,7 @@ import { expect, it } from 'bun:test';
 
 import {
   CellFlag,
+  collectClusters,
   concatRows,
   graphemeWordsPerRow,
   CellWidth,
@@ -22,6 +23,7 @@ import {
   rowsRangeText,
   rowsToLines,
   sliceRows,
+  splitRange,
   rowUpdateBytes,
   rowWords,
 } from './rows.ts';
@@ -741,4 +743,42 @@ it('round-trips a bar cursor', () => {
   });
 
   expect(roundTrip(update)).toEqual({ ok: true, update });
+});
+
+it('splits a range into one-row ranges that join back to the range', () => {
+  const range = clusterRows();
+  const parts = splitRange(range, columns);
+
+  expect(parts).toHaveLength(3);
+
+  const joined = concatRows(parts);
+
+  expect(joined.rowCount).toBe(range.rowCount);
+  expect(joined.cells).toEqual(range.cells);
+  expect(joined.graphemes).toEqual(range.graphemes);
+
+  expect(parts.map((part) => rowsToLines(part, columns, false)[0])).toEqual([
+    'ab\u0301c',
+    'def',
+    'g\u0301\u0302hij\u0308',
+  ]);
+});
+
+it('makes the cell indexes of a split row relative to the row', () => {
+  const parts = splitRange(clusterRows(), columns);
+
+  expect(parts[2]?.graphemes).toEqual(
+    Uint32Array.of(cellIndex(0, 0), 3, 0x67, 0x3_01, 0x3_02, cellIndex(0, 3), 2, 0x6a, 0x3_08),
+  );
+});
+
+it('reads the clusters of each row by column', () => {
+  expect(collectClusters(clusterRows(), columns)).toEqual([
+    new Map([[1, 'b\u0301']]),
+    new Map<number, string>(),
+    new Map([
+      [0, 'g\u0301\u0302'],
+      [3, 'j\u0308'],
+    ]),
+  ]);
 });
