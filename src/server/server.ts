@@ -52,7 +52,7 @@ import { handleTabRequest, isTabRequest } from './tabRequests.ts';
 import { handleWorkspaceRequest, isWorkspaceRequest } from './workspaceRequests.ts';
 export { createLog, logPathFor } from './log.ts';
 export { sessionPathFor } from './sessionFile.ts';
-export { socketPathFor } from './socketPath.ts';
+export { socketPathFor, socketRouteFor } from './socketPath.ts';
 
 interface ServerOptions {
   socketPath: string;
