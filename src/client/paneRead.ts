@@ -60,10 +60,7 @@ export const createPaneReader = (command: PaneReadCommand): PaneReader => {
     start: () => withLines(pager.start()),
     takeRows: (rows) => {
       columns = rows.columns;
-
-      if (rows.rowCount > 0) {
-        pages.push(rows);
-      }
+      pages.push(rows);
 
       return withLines(pager.takeRows(rows));
     },
