@@ -21,45 +21,60 @@ export ZIG_GLOBAL_CACHE_DIR="$cache_dir/zig-cache"
 
 mkdir -p "$cache_dir"
 
-# Each download goes to a temporary path first, so an interrupted run leaves no partial directory.
+temporary_paths=()
+trap 'rm -rf "${temporary_paths[@]}"' EXIT
+
+publish() {
+  local temporary="$1" target="$2"
+  # mv -T fails when another build published the target first; that build's copy is used instead.
+  if ! mv -T "$temporary" "$target" 2>/dev/null; then
+    if [[ ! -d "$target" ]]; then
+      echo "Could not move $temporary to $target." >&2
+      exit 1
+    fi
+    rm -rf "$temporary"
+  fi
+}
+
 if [[ ! -x "$zig_dir/zig" ]]; then
-  rm -rf "$zig_dir.tmp" "$zig_dir.tar.xz"
-  curl -fsSL "https://ziglang.org/download/$zig_version/zig-x86_64-linux-$zig_version.tar.xz" -o "$zig_dir.tar.xz"
-  echo "$zig_sha256  $zig_dir.tar.xz" | sha256sum -c --quiet
-  mkdir -p "$zig_dir.tmp"
-  tar -xJf "$zig_dir.tar.xz" -C "$zig_dir.tmp" --strip-components=1
-  rm "$zig_dir.tar.xz"
-  mv "$zig_dir.tmp" "$zig_dir"
+  zig_archive="$(mktemp --suffix=.tar.xz "$zig_dir.XXXXXX")"
+  zig_scratch="$(mktemp -d "$zig_dir.XXXXXX")"
+  temporary_paths+=("$zig_archive" "$zig_scratch")
+  curl -fsSL "https://ziglang.org/download/$zig_version/zig-x86_64-linux-$zig_version.tar.xz" -o "$zig_archive"
+  echo "$zig_sha256  $zig_archive" | sha256sum -c --quiet
+  tar -xJf "$zig_archive" -C "$zig_scratch" --strip-components=1
+  publish "$zig_scratch" "$zig_dir"
 fi
 
 source_dir="$cache_dir/ghostty-$ghostty_commit-source"
 
 if [[ ! -d "$source_dir" ]]; then
-  rm -rf "$source_dir.tmp"
-  git init -q "$source_dir.tmp"
-  git -C "$source_dir.tmp" fetch -q --depth 1 https://github.com/ghostty-org/ghostty.git "$ghostty_commit"
-  git -C "$source_dir.tmp" checkout -q FETCH_HEAD
-  mv "$source_dir.tmp" "$source_dir"
+  source_scratch="$(mktemp -d "$source_dir.XXXXXX")"
+  temporary_paths+=("$source_scratch")
+  git init -q "$source_scratch"
+  git -C "$source_scratch" fetch -q --depth 1 https://github.com/ghostty-org/ghostty.git "$ghostty_commit"
+  git -C "$source_scratch" checkout -q FETCH_HEAD
+  publish "$source_scratch" "$source_dir"
 fi
 
-patch_digest="$(sha256sum patches/*.patch | sha256sum | cut -c1-16)"
+shopt -s nullglob
+patches=(patches/*.patch)
+shopt -u nullglob
+patch_digest="$(for patch in "${patches[@]}"; do sha256sum "$patch"; done | sha256sum | cut -c1-16)"
 ghostty_dir="$cache_dir/ghostty-$ghostty_commit-$patch_digest"
 
 if [[ ! -d "$ghostty_dir" ]]; then
-  scratch_dir="$(mktemp -d "$ghostty_dir.XXXXXX")"
-  cp -a "$source_dir/." "$scratch_dir"
-  for patch in "$PWD"/patches/*.patch; do
-    if ! git -C "$scratch_dir" apply "$patch"; then
-      rm -rf "$scratch_dir"
+  ghostty_scratch="$(mktemp -d "$ghostty_dir.XXXXXX")"
+  temporary_paths+=("$ghostty_scratch")
+  cp -a "$source_dir/." "$ghostty_scratch"
+  for patch in "${patches[@]}"; do
+    if ! git -C "$ghostty_scratch" apply "$PWD/$patch"; then
       echo "$(basename "$patch") does not apply to Ghostty $ghostty_commit." >&2
       exit 1
     fi
     echo "applied $(basename "$patch")"
   done
-  # mv -T fails when another build created the target first; that build's tree is used instead.
-  if ! mv -T "$scratch_dir" "$ghostty_dir" 2>/dev/null; then
-    rm -rf "$scratch_dir"
-  fi
+  publish "$ghostty_scratch" "$ghostty_dir"
 fi
 
 mkdir -p build
