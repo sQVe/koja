@@ -12,7 +12,7 @@ import type { CommandOptions } from './commandOptions.ts';
 import { parseId } from './idParse.ts';
 import type { IdResult } from './idParse.ts';
 import { parsePaneCopy } from './paneCopyParse.ts';
-import { hasReadOptions, parseReadOptions } from './paneReadOptions.ts';
+import { parseReadOptions } from './paneReadOptions.ts';
 import type { RawReadOptions } from './paneReadOptions.ts';
 import { parsePaneScroll } from './paneScrollParse.ts';
 
@@ -106,53 +106,6 @@ const parsePaneId = (value: string | undefined): IdResult<PaneId | undefined> =>
     : { ok: true, id: paneId(number) };
 };
 
-const printMessage = '--print belongs to pane copy.';
-
-const moveOptionsMessage = '--tab, --new-tab, and --new-workspace belong to pane move.';
-
-const hasMoveOptions = ({ tab, newTab, newWorkspace }: MoveOptions): boolean =>
-  tab !== undefined || newTab !== undefined || newWorkspace !== undefined;
-
-export const strayPaneOptionMessage = (
-  group: string | undefined,
-  {
-    pane,
-    print,
-    direction,
-    cells,
-    tab,
-    'new-tab': newTab,
-    'new-workspace': newWorkspace,
-    ...read
-  }: RawPaneOptions,
-): string | undefined => {
-  if (group === 'pane') {
-    return undefined;
-  }
-
-  if (print !== undefined) {
-    return printMessage;
-  }
-
-  if (hasMoveOptions({ tab, newTab, newWorkspace })) {
-    return moveOptionsMessage;
-  }
-
-  if (direction !== undefined) {
-    return '--direction belongs to pane split and pane resize.';
-  }
-
-  if (cells !== undefined) {
-    return '--cells belongs to pane resize.';
-  }
-
-  if (hasReadOptions(read)) {
-    return '--source, --lines, --from, and --to belong to pane read.';
-  }
-
-  return pane === undefined ? undefined : '--pane belongs to pane send.';
-};
-
 const parseSplitDirection = (value: string | undefined): SplitDirection | undefined =>
   value === 'below' || value === 'right' ? value : undefined;
 
@@ -220,24 +173,12 @@ const parsePaneLayoutCommand = (
     return `'${rest[0] ?? ''}' is not a pane id, such as pane-1.`;
   }
 
-  if (action !== 'resize' && cells !== undefined) {
-    return '--cells belongs to pane resize.';
-  }
-
-  if (action !== 'split' && cwd !== undefined) {
-    return '--cwd belongs to pane split and tab create.';
-  }
-
   if (action === 'split') {
     return parseSplitCommand(paneId(target), direction, cwd);
   }
 
   if (action === 'resize') {
     return parseResizeCommand(paneId(target), direction, cells);
-  }
-
-  if (direction !== undefined) {
-    return '--direction belongs to pane split and pane resize.';
   }
 
   return { action, pane: paneId(target) };
@@ -269,15 +210,7 @@ const moveDestinationOf = ({
     : { kind: 'tab', tabId: tabId(number) };
 };
 
-const parseMoveCommand = (
-  rest: string[],
-  pane: string | undefined,
-  options: PaneOptions,
-): PaneLayoutCommand | string => {
-  if (pane !== undefined) {
-    return '--pane belongs to pane read and pane send.';
-  }
-
+const parseMoveCommand = (rest: string[], move: MoveOptions): PaneLayoutCommand | string => {
   if (rest.length !== 1) {
     return 'pane move takes one pane id.';
   }
@@ -288,19 +221,7 @@ const parseMoveCommand = (
     return `'${rest[0] ?? ''}' is not a pane id, such as pane-1.`;
   }
 
-  if (options.direction !== undefined) {
-    return '--direction belongs to pane split and pane resize.';
-  }
-
-  if (options.cells !== undefined) {
-    return '--cells belongs to pane resize.';
-  }
-
-  if (options.cwd !== undefined) {
-    return '--cwd belongs to pane split and tab create.';
-  }
-
-  const destination = moveDestinationOf(options.move);
+  const destination = moveDestinationOf(move);
 
   return typeof destination === 'string'
     ? destination
@@ -319,14 +240,7 @@ const isPaneLayoutAction = (
   action: string | undefined,
 ): action is 'split' | 'focus' | 'close' | 'zoom' | 'resize' => paneLayoutActions.has(action);
 
-const parseProcessInfoCommand = (
-  rest: string[],
-  pane: string | undefined,
-): PaneCliAction | string => {
-  if (pane !== undefined) {
-    return '--pane belongs to pane send.';
-  }
-
+const parseProcessInfoCommand = (rest: string[]): PaneCliAction | string => {
   if (rest.length !== 1) {
     return 'pane process-info takes one pane id.';
   }
@@ -338,15 +252,7 @@ const parseProcessInfoCommand = (
     : { action: 'process-info', pane: paneId(target) };
 };
 
-const parsePaneRead = (
-  rest: string[],
-  pane: string | undefined,
-  read: RawReadOptions,
-): PaneReadCommand | string => {
-  if (pane !== undefined) {
-    return '--pane belongs to pane send. pane read takes the pane id as an argument.';
-  }
-
+const parsePaneRead = (rest: string[], read: RawReadOptions): PaneReadCommand | string => {
   if (rest.length !== 1) {
     return 'pane read takes one pane id.';
   }
@@ -377,13 +283,11 @@ const parsePaneTargetCommand = (
   read: RawReadOptions,
 ): PaneCliAction | string => {
   if (action === 'list') {
-    return rest.length === 0 && pane === undefined
-      ? { action }
-      : 'pane list takes no arguments and no --pane.';
+    return rest.length === 0 ? { action } : 'pane list takes no arguments.';
   }
 
   if (action === 'read') {
-    return parsePaneRead(rest, pane, read);
+    return parsePaneRead(rest, read);
   }
 
   if (action !== 'send') {
@@ -399,81 +303,32 @@ const parsePaneTargetCommand = (
   return parsePaneSend(rest, target.id);
 };
 
-const strayReadFlagMessage = ({ source, lines, from, to }: RawReadOptions): string | undefined => {
-  const flags = { '--source': source, '--lines': lines, '--from': from, '--to': to };
-  const stray = Object.entries(flags).find(([, value]) => value !== undefined);
-
-  return stray === undefined ? undefined : `${stray[0]} belongs to pane read.`;
-};
-
-// pane scroll takes its position in --to, and pane copy takes its range in --from and --to.
-const strayReadMessage = (action: string | undefined, read: RawReadOptions): string | undefined => {
-  if (action === 'read') {
-    return undefined;
-  }
-
-  if (action === 'copy') {
-    return strayReadFlagMessage({ ...read, from: undefined, to: undefined });
-  }
-
-  return strayReadFlagMessage(action === 'scroll' ? { ...read, to: undefined } : read);
-};
-
-const strayFlagMessage = (action: string | undefined, options: PaneOptions): string | undefined =>
-  options.print !== undefined && action !== 'copy'
-    ? printMessage
-    : strayReadMessage(action, options.read);
-
 const parsePaneAction = (
   action: string | undefined,
   rest: string[],
   pane: string | undefined,
   options: PaneOptions,
 ): PaneCliAction | string => {
-  const stray = strayFlagMessage(action, options);
-
-  if (stray !== undefined) {
-    return stray;
-  }
-
   if (action === 'move') {
-    return parseMoveCommand(rest, pane, options);
-  }
-
-  if (hasMoveOptions(options.move)) {
-    return moveOptionsMessage;
+    return parseMoveCommand(rest, options.move);
   }
 
   if (isPaneLayoutAction(action)) {
-    return pane === undefined
-      ? parsePaneLayoutCommand(action, rest, options)
-      : '--pane belongs to pane send.';
-  }
-
-  if (options.direction !== undefined) {
-    return '--direction belongs to pane split and pane resize.';
-  }
-
-  if (options.cwd !== undefined) {
-    return '--cwd belongs to pane split and tab create.';
-  }
-
-  if (options.cells !== undefined) {
-    return '--cells belongs to pane resize.';
+    return parsePaneLayoutCommand(action, rest, options);
   }
 
   if (action === 'copy') {
     const { from, to } = options.read;
 
-    return parsePaneCopy(rest, pane, from, to, options.print === true);
+    return parsePaneCopy(rest, from, to, options.print === true);
   }
 
   if (action === 'process-info') {
-    return parseProcessInfoCommand(rest, pane);
+    return parseProcessInfoCommand(rest);
   }
 
   if (action === 'scroll') {
-    return parsePaneScroll(rest, pane, options.read.to, options.client);
+    return parsePaneScroll(rest, options.read.to, options.client);
   }
 
   return parsePaneTargetCommand(action, rest, pane, options.read);
@@ -503,10 +358,6 @@ export const parsePaneCommand = (
   }: RawPaneOptions,
   options: CommandOptions,
 ): PaneCliCommand | string => {
-  if (client !== undefined && action !== 'scroll') {
-    return '--client belongs to detach and pane scroll.';
-  }
-
   const parsed = parsePaneAction(action, rest, pane, {
     direction,
     cells,

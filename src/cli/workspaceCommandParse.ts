@@ -41,27 +41,11 @@ export const lastFocusFlag = (tokens: ParsedToken[]): boolean | undefined => {
   return last === undefined ? undefined : last.name === 'focus';
 };
 
-export const strayFocusMessage =
-  '--focus and --no-focus belong to workspace create and tab create.';
-
 export const workspaceUsage = `  koja workspace list [--socket <path>] [--json]
   koja workspace create <dir> [--label <label>] [--focus | --no-focus] [--socket <path>] [--json]
   koja workspace focus <id> [--socket <path>] [--json]
   koja workspace rename <id> <label> [--socket <path>] [--json]
   koja workspace close <id> [--socket <path>] [--json]`;
-
-export const strayWorkspaceOptionMessage = (
-  group: string | undefined,
-  { label, focus }: RawWorkspaceOptions,
-): string | undefined => {
-  if (label !== undefined && group !== 'workspace') {
-    return '--label belongs to workspace create.';
-  }
-
-  const takesFocus = group === 'workspace' || group === 'tab';
-
-  return focus === undefined || takesFocus ? undefined : strayFocusMessage;
-};
 
 const parseWorkspaceTarget = (
   action: 'focus' | 'close',
@@ -118,14 +102,6 @@ const parseWorkspaceAction = (
 ): WorkspaceAction | string => {
   if (action === 'create') {
     return parseWorkspaceCreate(rest, label, focus === true);
-  }
-
-  if (label !== undefined) {
-    return '--label belongs to workspace create.';
-  }
-
-  if (focus !== undefined) {
-    return strayFocusMessage;
   }
 
   if (action === 'list') {

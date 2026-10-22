@@ -541,19 +541,35 @@ it.each([
 });
 
 it.each([
-  ['pane send', ['pane', 'send', 'ls', '--lines', '3'], '--lines'],
-  ['pane list', ['pane', 'list', '--lines', '3'], '--lines'],
-  ['pane list with --source', ['pane', 'list', '--source', 'recent'], '--source'],
-  ['pane focus', ['pane', 'focus', 'pane-1', '--from', '1', '--to', '2'], '--from'],
-  ['pane zoom', ['pane', 'zoom', 'pane-1', '--to', '2'], '--to'],
+  ['pane send', ['pane', 'send', 'ls', '--lines', '3'], '--lines belongs to pane read.'],
+  ['pane list', ['pane', 'list', '--lines', '3'], '--lines belongs to pane read.'],
+  [
+    'pane list with --source',
+    ['pane', 'list', '--source', 'recent'],
+    '--source belongs to pane read.',
+  ],
+  [
+    'pane focus',
+    ['pane', 'focus', 'pane-1', '--from', '1', '--to', '2'],
+    '--from belongs to pane read and pane copy.',
+  ],
+  [
+    'pane zoom',
+    ['pane', 'zoom', 'pane-1', '--to', '2'],
+    '--to belongs to pane read, pane scroll, and pane copy.',
+  ],
   [
     'a workspace command',
     ['workspace', 'list', '--from', '1', '--to', '2'],
-    '--source, --lines, --from, and --to belong to pane read.',
+    '--from belongs to pane read and pane copy.',
   ],
 ])('refuses read flags on %s with its own error', (_name, argv, message) => {
-  expect(parseCommand(argv)).toBe(
-    message.startsWith('--source,') ? message : `${message} belongs to pane read.`,
+  expect(parseCommand(argv)).toBe(message);
+});
+
+it('names only the commands that accept --pane when pane move gets it', () => {
+  expect(parseCommand(['pane', 'move', 'pane-1', '--tab', 'tab-2', '--pane', 'pane-1'])).toBe(
+    '--pane belongs to pane send.',
   );
 });
 

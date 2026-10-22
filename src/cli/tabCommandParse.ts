@@ -3,7 +3,6 @@ import type { TabId, WorkspaceId } from '../ids.ts';
 import type { CommandOptions } from './commandOptions.ts';
 import type { IdResult } from './idParse.ts';
 import { parseId, parseWorkspaceId } from './idParse.ts';
-import { strayFocusMessage } from './workspaceCommandParse.ts';
 
 export type TabAction =
   | { action: 'list' }
@@ -47,23 +46,6 @@ const parseTabId = (value: string | undefined): IdResult<TabId> => {
     ? { ok: false, message: `'${value ?? ''}' is not a tab id, such as tab-1.` }
     : { ok: true, id: tabId(number) };
 };
-
-export const strayFolderOptionMessage = (
-  group: string | undefined,
-  { cwd }: RawTabOptions,
-): string | undefined => {
-  const takesFolder = group === 'pane' || group === 'tab';
-
-  return cwd === undefined || takesFolder
-    ? undefined
-    : '--cwd belongs to pane split and tab create.';
-};
-
-export const strayTabOptionMessage = (
-  group: string | undefined,
-  { workspace }: RawTabOptions,
-): string | undefined =>
-  workspace !== undefined && group !== 'tab' ? '--workspace belongs to tab create.' : undefined;
 
 const parseTabTarget = (action: 'focus' | 'close', rest: string[]): TabAction | string => {
   if (rest.length !== 1) {
@@ -121,18 +103,6 @@ const parseTabAction = (
 ): TabAction | string => {
   if (action === 'create') {
     return parseTabCreate(rest, workspace, cwd, focus === true);
-  }
-
-  if (cwd !== undefined) {
-    return '--cwd belongs to pane split and tab create.';
-  }
-
-  if (workspace !== undefined) {
-    return '--workspace belongs to tab create.';
-  }
-
-  if (focus !== undefined) {
-    return strayFocusMessage;
   }
 
   if (action === 'list') {

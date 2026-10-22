@@ -43,14 +43,6 @@ export const parseClientId = (value: string | undefined): IdResult<ClientId | un
     : { ok: true, id: clientId(number) };
 };
 
-export const strayClientOptionMessage = (
-  group: string | undefined,
-  { client }: RawClientOptions,
-): string | undefined =>
-  client !== undefined && group !== 'detach' && group !== 'pane'
-    ? '--client belongs to detach and pane scroll.'
-    : undefined;
-
 export const parseAttachCommand = (
   positionals: string[],
   options: CommandOptions,

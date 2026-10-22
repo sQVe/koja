@@ -33,15 +33,10 @@ const startsAfter = (start: Position, end: Position): boolean => {
 
 export const parsePaneCopy = (
   rest: string[],
-  pane: string | undefined,
   from: string | undefined,
   to: string | undefined,
   print: boolean,
 ): PaneCopyCommand | string => {
-  if (pane !== undefined) {
-    return '--pane belongs to pane send. pane copy takes the pane id as an argument.';
-  }
-
   if (rest.length !== 1) {
     return 'pane copy takes one pane id.';
   }
