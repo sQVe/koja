@@ -42,8 +42,6 @@ if [[ ! -d "$source_dir" ]]; then
   mv "$source_dir.tmp" "$source_dir"
 fi
 
-# The tree name holds the ordered patch names and contents, so a changed or removed patch selects a
-# different tree instead of leaving an old patch applied.
 patch_digest="$(sha256sum patches/*.patch | sha256sum | cut -c1-16)"
 ghostty_dir="$cache_dir/ghostty-$ghostty_commit-$patch_digest"
 
