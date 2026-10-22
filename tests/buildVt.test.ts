@@ -7,6 +7,7 @@ import {
   mkdtempSync,
   readdirSync,
   readFileSync,
+  realpathSync,
   rmSync,
   writeFileSync,
 } from 'node:fs';
@@ -18,7 +19,7 @@ interface BuildFixture {
   cache: string;
   project: string;
   source: string;
-  build: (path?: string) => { stdout: string; tree: string };
+  build: (path?: string) => { tree: string };
 }
 
 const root = fileURLToPath(new URL('..', import.meta.url));
@@ -75,7 +76,7 @@ const createFixture = (work: string, patches: Record<string, string>): BuildFixt
     writeFileSync(join(project, 'patches', name), patch);
   }
 
-  const build = (path = process.env.PATH ?? ''): { stdout: string; tree: string } => {
+  const build = (path = process.env.PATH ?? ''): { tree: string } => {
     const run = Bun.spawnSync(['bash', join(project, 'scripts/buildVt.sh')], {
       cwd: project,
       env: { ...process.env, PATH: path, XDG_CACHE_HOME: join(work, 'cache') },
@@ -84,7 +85,9 @@ const createFixture = (work: string, patches: Record<string, string>): BuildFixt
     expect(run.stderr.toString()).toBe('');
     expect(run.exitCode).toBe(0);
 
-    return { stdout: run.stdout.toString(), tree: join(project, 'build/ghostty') };
+    const tree = realpathSync(join(project, 'build/ghostty'));
+
+    return { tree };
   };
 
   return { cache, project, source, build };
@@ -137,7 +140,6 @@ it('builds in a tree that holds only the current patches', () => {
 
     const first = fixture.build();
 
-    expect(first.stdout).toContain('applied 0001-one.patch');
     expect(read(first.tree, 'one.txt')).toBe('ONE\n');
     expect(read(first.tree, 'two.txt')).toBe('TWO\n');
 
@@ -145,12 +147,16 @@ it('builds in a tree that holds only the current patches', () => {
 
     const second = fixture.build();
 
+    expect(second.tree).not.toBe(first.tree);
     expect(read(second.tree, 'one.txt')).toBe('ONE\n');
     expect(read(second.tree, 'two.txt')).toBe('two\n');
 
+    writeFileSync(join(second.tree, 'sentinel'), 'cached tree\n');
+
     const third = fixture.build();
 
-    expect(third.stdout).not.toContain('applied');
+    expect(third.tree).toBe(second.tree);
+    expect(read(third.tree, 'sentinel')).toBe('cached tree\n');
     expect(read(third.tree, 'two.txt')).toBe('two\n');
   } finally {
     rmSync(work, { recursive: true, force: true });
@@ -164,12 +170,15 @@ it('builds an unpatched tree when the last patch is removed', () => {
     const fixture = createFixture(work, { '0001-one.patch': patchFor('one.txt', 'one', 'ONE') });
 
     writeSource(fixture.source);
-    fixture.build();
+
+    const patched = fixture.build();
+
+    expect(read(patched.tree, 'one.txt')).toBe('ONE\n');
     rmSync(join(fixture.project, 'patches/0001-one.patch'));
 
     const unpatched = fixture.build();
 
-    expect(unpatched.stdout).not.toContain('applied');
+    expect(unpatched.tree).not.toBe(patched.tree);
     expect(read(unpatched.tree, 'one.txt')).toBe('one\n');
   } finally {
     rmSync(work, { recursive: true, force: true });
