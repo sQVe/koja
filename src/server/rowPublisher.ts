@@ -333,7 +333,6 @@ export const createRowPublisher = (
     return released;
   };
 
-  // Leave forgotten promises unresolved so their read continuations never run.
   const forgetReads = (owner: Connection): void => {
     for (const [resolve, registeredOwner] of readWaiters) {
       if (registeredOwner === owner) {
