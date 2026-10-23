@@ -11,6 +11,7 @@ import {
 import type { RowUpdate } from '../rows/rows.ts';
 import { createTerminal } from '../vt/vt.ts';
 import type { Terminal } from '../vt/vt.ts';
+import type { Connection } from './connection.ts';
 import { createRowPublisher } from './rowPublisher.ts';
 
 const encoder = new TextEncoder();
@@ -390,6 +391,85 @@ it('sends a changed palette slot with no rows, and an empty list after a reset',
   publisher.publish();
 
   expect([...lastUpdate(updates).colors]).toEqual([]);
+});
+
+it.each(['release', 'dispose'] as const)(
+  'releases all read registrations once on %s',
+  async (action) => {
+    const terminal = terminalForTest();
+    const publisher = publisherForTest(terminal);
+    const owner = {} as Connection;
+    const completed: number[] = [];
+    const completions: Promise<number>[] = [];
+
+    terminal.write(encoder.encode('\u001B[?2026hheld'));
+
+    for (let index = 0; index < 64; index += 1) {
+      const released = publisher.waitForRead(owner);
+
+      if (released === undefined) {
+        throw new Error('The read was refused before reaching capacity');
+      }
+
+      completions.push(released.then(() => completed.push(index)));
+    }
+
+    expect(publisher.waitForRead(owner)).toBeUndefined();
+
+    if (action === 'release') {
+      terminal.endRenderHold();
+      publisher.publish();
+    } else {
+      publisher[Symbol.dispose]();
+    }
+
+    await Promise.all(completions);
+    expect(completed).toHaveLength(64);
+
+    publisher.publish();
+    publisher[Symbol.dispose]();
+    await Promise.resolve();
+    expect(completed).toHaveLength(64);
+  },
+);
+
+it('gives each pane independent read capacity and reuses capacity after release', async () => {
+  const terminal = terminalForTest();
+  const publisher = publisherForTest(terminal);
+  const otherTerminal = terminalForTest();
+  const otherPublisher = publisherForTest(otherTerminal);
+  const owner = {} as Connection;
+
+  terminal.write(encoder.encode('\u001B[?2026hheld'));
+  otherTerminal.write(encoder.encode('\u001B[?2026hheld'));
+
+  for (let index = 0; index < 64; index += 1) {
+    expect(publisher.waitForRead(owner)).toBeDefined();
+  }
+
+  expect(publisher.waitForRead(owner)).toBeUndefined();
+  expect(otherPublisher.waitForRead(owner)).toBeDefined();
+
+  terminal.endRenderHold();
+  publisher.publish();
+  terminal.write(encoder.encode('\u001B[?2026hagain'));
+
+  const released = publisher.waitForRead(owner);
+  let completed = false;
+
+  const completion = released?.then(() => {
+    completed = true;
+
+    return completed;
+  });
+
+  await Promise.resolve();
+  expect(completed).toBe(false);
+
+  terminal.endRenderHold();
+  publisher.publish();
+  await completion;
+  expect(completed).toBe(true);
 });
 
 const settled = async (promise: Promise<void>): Promise<boolean> =>

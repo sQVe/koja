@@ -1,7 +1,7 @@
 import { paneId as paneIdFor } from '../ids.ts';
 import type { ClientId, PaneId } from '../ids.ts';
 import { invariant } from '../invariant.ts';
-import { FrameKind } from '../protocol/protocol.ts';
+import { FrameKind, pendingPaneReadLimit } from '../protocol/protocol.ts';
 import type { ControlMessage } from '../protocol/protocol.ts';
 import { encodePaneRows } from '../rows/rows.ts';
 import type { PaneInput } from '../rows/rows.ts';
@@ -17,7 +17,6 @@ import { selectPaneRows } from './paneRows.ts';
 import { createSnapshot, hasMoreParts, takePart } from './paneSnapshot.ts';
 import type { PaneSnapshot, SnapshotStore } from './paneSnapshot.ts';
 import { readPaneFolders, readPaneProcesses } from './processInfo.ts';
-import type { RowPublisher } from './rowPublisher.ts';
 
 interface PaneRequestContext {
   options: { log: Log };
@@ -140,9 +139,9 @@ const answerPaneReadAfterHold = async (
   message: PaneReadMessage,
   connection: Connection,
   generation: number,
-  publisher: RowPublisher,
+  released: Promise<void>,
 ): Promise<void> => {
-  await publisher.whenReleased();
+  await released;
 
   answerPaneRead(context, message, connection, generation);
 };
@@ -236,10 +235,11 @@ export const handlePaneCommand = (
     return;
   }
 
-  const generation =
-    message.type === 'paneRead' ? context.runtime.readSnapshots.begin(connection) : 0;
-
   if (live === undefined) {
+    if (message.type === 'paneRead') {
+      context.runtime.readSnapshots.begin(connection);
+    }
+
     connection.send({ type: 'paneMissing', paneId: message.paneId });
 
     return;
@@ -253,23 +253,44 @@ export const handlePaneCommand = (
   }
 
   if (!live.runtime.terminal.renderHeld()) {
+    const generation = context.runtime.readSnapshots.begin(connection);
+
     answerPaneRead(context, message, connection, generation);
 
     return;
   }
 
-  answerPaneReadAfterHold(
-    context,
-    message,
-    connection,
-    generation,
-    live.publication.publisher,
-  ).catch((error: unknown) => {
-    context.options.log.error('Reading the pane failed.', {
+  const released = live.publication.publisher.waitForRead(connection);
+
+  if (released === undefined) {
+    connection.send({
+      type: 'paneReadFailed',
       paneId: message.paneId,
-      error: describeError(error),
+      requestId: message.requestId,
+      failure: { reason: 'tooManyPendingReads', limit: pendingPaneReadLimit },
     });
-  });
+
+    return;
+  }
+
+  const generation = context.runtime.readSnapshots.begin(connection);
+
+  answerPaneReadAfterHold(context, message, connection, generation, released).catch(
+    (error: unknown) => {
+      context.options.log.error('Reading the pane failed.', {
+        paneId: message.paneId,
+        error: describeError(error),
+      });
+    },
+  );
+};
+
+export const forgetPaneReads = (context: PaneRequestContext, connection: Connection): void => {
+  context.runtime.readSnapshots.forget(connection);
+
+  for (const pane of context.runtime.panes.values()) {
+    pane.publication.publisher.forgetReads(connection);
+  }
 };
 
 const paneLayoutRequestTypes: ReadonlySet<string> = new Set([

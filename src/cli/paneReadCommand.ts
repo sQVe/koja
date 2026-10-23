@@ -7,7 +7,15 @@ import type { PaneCliCommand } from './paneCommandParse.ts';
 
 type ReadFailure = Extract<
   Awaited<ReturnType<typeof runPaneRead>>,
-  { reason: 'pruned' | 'staleEpoch' | 'screenChanged' | 'tooManyBytes' | 'noSnapshot' }
+  {
+    reason:
+      | 'pruned'
+      | 'staleEpoch'
+      | 'screenChanged'
+      | 'tooManyBytes'
+      | 'noSnapshot'
+      | 'tooManyPendingReads';
+  }
 >;
 
 interface PaneReadOutput {
@@ -26,6 +34,7 @@ const readFailureReasons: ReadonlySet<string> = new Set([
   'screenChanged',
   'tooManyBytes',
   'noSnapshot',
+  'tooManyPendingReads',
 ]);
 
 const isReadFailure = (
@@ -47,6 +56,10 @@ const readFailureMessage = (failure: ReadFailure): string => {
 
   if (failure.reason === 'tooManyBytes') {
     return `A read holds at most ${failure.limitBytes} bytes. Read fewer rows.`;
+  }
+
+  if (failure.reason === 'tooManyPendingReads') {
+    return `The pane already has ${failure.limit} reads waiting for output. Try again later.`;
   }
 
   return 'The server no longer holds the rows of this read. Read again.';

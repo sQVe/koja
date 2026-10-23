@@ -316,6 +316,12 @@ const messages: ControlMessage[] = [
     requestId: 7,
     failure: { reason: 'noSnapshot' },
   },
+  {
+    type: 'paneReadFailed',
+    paneId: pane.id,
+    requestId: 8,
+    failure: { reason: 'tooManyPendingReads', limit: 64 },
+  },
   { type: 'paneReadNext', paneId: pane.id, requestId: 7 },
   { type: 'paneSend', paneId: pane.id, text: 'ls\r' },
   { type: 'paneSent', paneId: pane.id },

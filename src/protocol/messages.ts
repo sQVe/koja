@@ -86,6 +86,8 @@ const paneReadSelectionSchema = z.discriminatedUnion('source', [
 // epoch, the screen generation, the first stable row number, and the row count, so a client can
 // read them as a range in several snapshots. noSnapshot: the connection holds no snapshot for
 // the request a part was asked for.
+export const pendingPaneReadLimit = 64;
+
 const paneReadFailureSchema = z.discriminatedUnion('reason', [
   z.object({ reason: z.literal('pruned'), oldest: z.number().int().nonnegative() }),
   z.object({ reason: z.literal('staleEpoch'), epoch: wordSchema }),
@@ -99,6 +101,7 @@ const paneReadFailureSchema = z.discriminatedUnion('reason', [
     count,
   }),
   z.object({ reason: z.literal('noSnapshot') }),
+  z.object({ reason: z.literal('tooManyPendingReads'), limit: z.literal(pendingPaneReadLimit) }),
 ]);
 
 // The terminal passes sizes as 16-bit numbers.

@@ -1,7 +1,9 @@
 import type { TerminalSize } from '../layout.ts';
+import { pendingPaneReadLimit } from '../protocol/protocol.ts';
 import { concatRows, ModeFlag, rowUpdateBytes, rowWords, splitRange } from '../rows/rows.ts';
 import type { RowUpdate } from '../rows/rows.ts';
 import type { Frame, RowRange, StableRows, Terminal } from '../vt/vt.ts';
+import type { Connection } from './connection.ts';
 
 export interface RowSubscription {
   // Returns false, and changes nothing, for a sequence this subscriber was never sent or has
@@ -16,6 +18,8 @@ export interface RowPublisher {
   // Later updates use the size, and every subscriber gets the full screen again.
   resize: (size: TerminalSize) => void;
   whenReleased: () => Promise<void>;
+  waitForRead: (owner: Connection) => Promise<void> | undefined;
+  forgetReads: (owner: Connection) => void;
   [Symbol.dispose]: () => void;
 }
 
@@ -212,6 +216,7 @@ export const createRowPublisher = (
   let holdExpired = false;
   let disposed = false;
   let waiters: (() => void)[] = [];
+  const readWaiters = new Map<() => void, Connection>();
 
   const clearHold = (): void => {
     clearTimeout(holdTimer);
@@ -220,9 +225,10 @@ export const createRowPublisher = (
   };
 
   const releaseWaiters = (): void => {
-    const released = waiters;
+    const released = [...waiters, ...readWaiters.keys()];
 
     waiters = [];
+    readWaiters.clear();
 
     for (const resolve of released) {
       resolve();
@@ -313,6 +319,29 @@ export const createRowPublisher = (
     await released;
   };
 
+  const waitForRead = (owner: Connection): Promise<void> | undefined => {
+    if (readWaiters.size >= pendingPaneReadLimit) {
+      return undefined;
+    }
+
+    const released = new Promise<void>((resolve) => {
+      readWaiters.set(resolve, owner);
+    });
+
+    watchHold();
+
+    return released;
+  };
+
+  // Leave forgotten promises unresolved so their read continuations never run.
+  const forgetReads = (owner: Connection): void => {
+    for (const [resolve, registeredOwner] of readWaiters) {
+      if (registeredOwner === owner) {
+        readWaiters.delete(resolve);
+      }
+    }
+  };
+
   const publish = (): void => {
     if (disposed) {
       return;
@@ -401,5 +430,13 @@ export const createRowPublisher = (
     subscribers.clear();
   };
 
-  return { subscribe, publish, resize, whenReleased, [Symbol.dispose]: dispose };
+  return {
+    subscribe,
+    publish,
+    resize,
+    whenReleased,
+    waitForRead,
+    forgetReads,
+    [Symbol.dispose]: dispose,
+  };
 };
