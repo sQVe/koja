@@ -100,18 +100,16 @@ const sessionShape = z.object({
     }),
   ),
   tabs: z.array(
-    z.object({
-      id: tabIdSchema,
-      workspaceId: workspaceIdSchema,
-      layout: layoutSchema,
-      focusedPaneId: paneIdSchema,
-      zoomedPaneId: absent(paneIdSchema),
-      // A session file may have no label key on a tab, and must still load.
-      label: z
-        .string()
-        .nullish()
-        .transform((value) => value ?? undefined),
-    }),
+    z
+      .object({
+        id: tabIdSchema,
+        workspaceId: workspaceIdSchema,
+        layout: layoutSchema,
+        focusedPaneId: paneIdSchema,
+        zoomedPaneId: absent(paneIdSchema),
+        label: z.string().nullish(),
+      })
+      .transform((tab) => ({ ...tab, label: tab.label ?? undefined })),
   ),
   panes: z.array(
     z.object({
