@@ -102,17 +102,18 @@ not a required check, and `timeout-minutes` bounds its time.
 
 ## Versioning
 
-Add a changeset for user-facing changes:
+Add a changeset when a PR changes `src/**`, including internal changes:
 
 ```sh
 bun run changeset
 ```
 
-Describe the behavior change for users. Commit the generated file under `.changeset/` with the
-change it describes.
+Describe the change for users. Commit the generated file under `.changeset/` with the change it
+describes.
 
-The [changeset check](../.github/workflows/changeset.yml) requires a changeset when a PR touches
-`src/`, but not for changes only to docs, tooling, or dependencies.
+The [changeset check](../.github/workflows/changeset.yml) applies to PRs targeting `main` that
+change `src/**`. It skips PRs titled `chore: release version packages` or whose head branch is
+`changeset-release/main`. Changes outside `src/**` alone do not trigger this gate.
 
 The [release workflow](../.github/workflows/release.yml) opens version PRs and creates Git tags and
 GitHub releases. Koja is public on GitHub and is not published to npm.
