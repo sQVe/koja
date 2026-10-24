@@ -1,7 +1,8 @@
 # ADR 0003: One parser per pane in the server, drawing in the client
 
 **Date**: 2026-10-02\
-**Status**: Accepted
+**Status**: Accepted\
+**Related**: [ADR 0018 (Each client has its own view, and one client is the foreground client)](./0018-client-views-and-foreground-client.md)
 
 ## Context
 
@@ -14,6 +15,9 @@ content to agents, and restores the screen when a client attaches.
 The UI changes often. A UI change or UI crash must not restart the server or stop the panes.
 
 Scrolling and selection need the same rows the server holds, scrollback included.
+
+A pane program can also ring the bell and write clipboard text. Those effects must reach the user's
+terminal without giving the server access to the host clipboard.
 
 ## Decision
 
@@ -38,6 +42,18 @@ the same shape.
 - Each pane has an explicit scrollback limit.
 - The server keeps running, and keeps every pane running, when no client is attached.
 
+### Terminal effects
+
+- The server extracts each bell and clipboard write while it parses pane output. Only the server can
+  extract them, because only the server parses that output.
+- Each effect goes to the foreground client alone. With no foreground client, the server drops it
+  and keeps no copy to replay.
+- The client owns delivery to the host clipboard. Program clipboard writes and Koja's copy actions
+  use the same client path, so the server never writes the host clipboard.
+- A clipboard read from a pane gets no reply, matching herdr.
+- The server's reply limit bounds a clipboard write. A write over that limit is dropped, and the
+  parser shim applies no smaller clipboard limit.
+
 ### Client
 
 - The client keeps a row cache per pane and draws from it.
@@ -53,6 +69,8 @@ the same shape.
 - UI code, including OpenTUI's native renderer, runs only in the client. A UI crash or update does
   not stop the panes.
 - Agents, attach, scrolling, and selection read the same rows.
+- Bell and clipboard effects reach the foreground terminal, and the server never needs access to the
+  host clipboard.
 
 ### Negative
 
@@ -60,6 +78,8 @@ the same shape.
 - Each keystroke echo adds one row encode and decode, so echo is a little slower than raw
   forwarding.
 - The client must receive input modes from the server to encode keys and mouse events.
+- A bell or clipboard write made with no foreground client is lost, with no replay.
+- Clipboard delivery depends on the client's environment and its available tools.
 
 ## Alternatives considered
 

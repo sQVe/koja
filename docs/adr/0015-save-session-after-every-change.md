@@ -8,7 +8,8 @@
 ## Context
 
 The server holds workspaces, tabs, and splits only in memory, so a stop, a crash, or a reboot loses
-the setup. Panes are processes, and they cannot come back. Only the layout around them can.
+the setup. Panes are processes, and they cannot come back. Only the layout around them and each
+shell's folder can.
 
 A server can die with no warning, such as on SIGKILL or a power loss. A save that runs only on stop
 loses the setup in exactly those cases. One state folder can also serve several servers, one per
@@ -25,6 +26,16 @@ file. The writer replaces the file in one rename, and a write that waits is repl
 so the file is always whole and at most one write is queued. The final save runs before any pane
 ends, because pane exits during the stop would otherwise change the file.
 
+When the server builds a save, it reads each running pane's shell folder. A restored pane whose
+folder cannot be read keeps the folder it was restored with, so a pane whose shell never started
+does not lose that folder.
+
+On restore, each pane starts a shell in its saved folder. It uses the workspace root only when no
+folder was saved. If the saved folder is gone, or the saved shell cannot start, the pane stays in
+the layout as failed with an error, and nothing starts in it. A later save keeps its saved folder.
+The rest of the layout restores, and repairing the missing folder or shell and restarting the server
+brings the pane back.
+
 A file that is broken or has a newer version is logged with its path, and the server starts with no
 workspace. The file stays as it is until the next save replaces it.
 
@@ -32,16 +43,21 @@ workspace. The file stays as it is until the next save replaces it.
 
 ### Positive
 
-- A killed server loses at most the write in flight.
+- Recovery uses the last completed save.
 - Servers on different socket paths never read each other's setup.
 - A bad file never stops the server from starting.
+- A restored shell starts where the user left it, not in the workspace root.
+- A missing folder or shell costs one pane, not the saved layout.
 
 ### Negative
 
+- A killed server can lose changes in the write in flight and the queued save.
 - Every change that touches the setup costs one small file write.
 - The next save replaces a file that was unreadable, so a newer build's file is lost if an older
   build starts and then changes anything.
-- A restored pane starts a new shell in the workspace root, not in its last folder.
+- The server reads the filesystem on every save to find each running pane's shell folder.
+- A restored pane whose folder is gone or whose shell cannot start stays failed until the user
+  repairs it and restarts the server.
 
 ## Alternatives considered
 
