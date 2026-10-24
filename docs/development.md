@@ -49,8 +49,8 @@ checks on staged files.
 
 House style comes from the [`@sqve/seam`](https://www.npmjs.com/package/@sqve/seam) package. Its
 `seam` command turns on the house rules for its own lint run, so editors and `bun run lint` show the
-ordinary rules only. Koja adds one local rule, `koja/module-boundaries`, from
-[scripts/lintRules.ts](../scripts/lintRules.ts). It runs in every lint command.
+ordinary rules only. Koja adds local rules from [scripts/lintRules.ts](../scripts/lintRules.ts).
+They run in every lint command.
 
 Style commands accept file paths, for example `bun run style:fix tests/lint.test.ts`. Rename
 bindings and move helpers manually.
