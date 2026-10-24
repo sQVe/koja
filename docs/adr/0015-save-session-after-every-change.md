@@ -43,7 +43,7 @@ workspace. The file stays as it is until the next save replaces it.
 
 ### Positive
 
-- A killed server loses at most the write in flight.
+- Recovery uses the last completed save.
 - Servers on different socket paths never read each other's setup.
 - A bad file never stops the server from starting.
 - A restored shell starts where the user left it, not in the workspace root.
@@ -51,6 +51,7 @@ workspace. The file stays as it is until the next save replaces it.
 
 ### Negative
 
+- A killed server can lose changes in the write in flight and the queued save.
 - Every change that touches the setup costs one small file write.
 - The next save replaces a file that was unreadable, so a newer build's file is lost if an older
   build starts and then changes anything.
