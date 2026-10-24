@@ -153,6 +153,89 @@ const turn = async (): Promise<void> => {
   });
 };
 
+it.each(['paneRead', 'paneSend'] as const)(
+  'handles an existing snapshot when a missing-pane %s arrives',
+  (type) => {
+    const test = fixture(false);
+    const selected = selectPaneRows(test.terminal, size, read.selection);
+
+    if (!selected.ok) {
+      throw new Error('Rows were not selected');
+    }
+
+    const snapshots = test.context.runtime.readSnapshots;
+    const generation = snapshots.begin(test.connection);
+    const snapshot = createSnapshot(id, 500, selected.rows);
+
+    snapshots.keep(test.connection, snapshot);
+
+    const missing = paneId(99);
+
+    const message: ControlMessage =
+      type === 'paneRead'
+        ? { ...read, paneId: missing }
+        : { type, paneId: missing, text: 'must not be written' };
+
+    handlePaneCommand(test.context, message, test.connection);
+    expect(test.sent).toEqual([{ type: 'paneMissing', paneId: missing }]);
+    expect(snapshots.isCurrent(test.connection, generation)).toBe(type === 'paneSend');
+
+    handlePaneCommand(
+      test.context,
+      { type: 'paneReadNext', paneId: id, requestId: 500 },
+      test.connection,
+    );
+
+    if (type === 'paneRead') {
+      expect(test.binary).toBe(0);
+
+      expect(test.sent[1]).toEqual({
+        type: 'paneReadFailed',
+        paneId: id,
+        requestId: 500,
+        failure: { reason: 'noSnapshot' },
+      });
+    } else {
+      expect(test.binary).toBe(1);
+      expect(test.sent).toEqual([{ type: 'paneMissing', paneId: missing }]);
+    }
+  },
+);
+
+it.each(['paneRead', 'paneSend'] as const)(
+  'handles an accepted held read when a missing-pane %s arrives',
+  async (type) => {
+    const test = fixture(true);
+    const missing = paneId(99);
+
+    const message: ControlMessage =
+      type === 'paneRead'
+        ? { ...read, paneId: missing, requestId: 2 }
+        : { type, paneId: missing, text: 'must not be written' };
+
+    handlePaneCommand(test.context, read, test.connection);
+    handlePaneCommand(test.context, message, test.connection);
+    expect(test.sent).toEqual([{ type: 'paneMissing', paneId: missing }]);
+
+    test.release('resolve');
+    await turn();
+
+    if (type === 'paneRead') {
+      expect(test.binary).toBe(0);
+
+      expect(test.sent[1]).toEqual({
+        type: 'paneReadFailed',
+        paneId: id,
+        requestId: 1,
+        failure: { reason: 'noSnapshot' },
+      });
+    } else {
+      expect(test.binary).toBe(1);
+      expect(test.sent).toEqual([{ type: 'paneMissing', paneId: missing }]);
+    }
+  },
+);
+
 it('answers a read at once when the pane holds no frame', () => {
   const test = fixture(false);
 
