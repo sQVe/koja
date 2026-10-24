@@ -49,8 +49,8 @@ checks on staged files.
 
 House style comes from the [`@sqve/seam`](https://www.npmjs.com/package/@sqve/seam) package. Its
 `seam` command turns on the house rules for its own lint run, so editors and `bun run lint` show the
-ordinary rules only. Koja adds one local rule, `koja/module-boundaries`, from
-[scripts/lintRules.ts](../scripts/lintRules.ts). It runs in every lint command.
+ordinary rules only. Koja adds local rules from [scripts/lintRules.ts](../scripts/lintRules.ts).
+They run in every lint command.
 
 Style commands accept file paths, for example `bun run style:fix tests/lint.test.ts`. Rename
 bindings and move helpers manually.
@@ -102,17 +102,18 @@ not a required check, and `timeout-minutes` bounds its time.
 
 ## Versioning
 
-Add a changeset for user-facing changes:
+Add a changeset when a PR changes `src/**`, including internal changes:
 
 ```sh
 bun run changeset
 ```
 
-Describe the behavior change for users. Commit the generated file under `.changeset/` with the
-change it describes.
+Describe the change for users. Commit the generated file under `.changeset/` with the change it
+describes.
 
-The [changeset check](../.github/workflows/changeset.yml) requires a changeset when a PR touches
-`src/`, but not for changes only to docs, tooling, or dependencies.
+The [changeset check](../.github/workflows/changeset.yml) applies to PRs targeting `main` that
+change `src/**`. It skips PRs titled `chore: release version packages` or whose head branch is
+`changeset-release/main`. Changes outside `src/**` alone do not trigger this gate.
 
 The [release workflow](../.github/workflows/release.yml) opens version PRs and creates Git tags and
 GitHub releases. Koja is public on GitHub and is not published to npm.

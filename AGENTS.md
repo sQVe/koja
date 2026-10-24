@@ -11,15 +11,17 @@ Terminal multiplexer with a session server and a terminal client. Read
   guide before adding an ADR. When a decision's details change, edit its ADR in place. Supersede it
   with a new ADR only when its core choice reverses. Do not write documents that explain how a
   feature works; see [ADR 0001](docs/adr/0001-documentation-scope.md).
-- Name values in camelCase and types in PascalCase. Never SCREAMING_CASE, not even for module
-  constants.
-- Declare a helper before the code that uses it. Join at most three checks in one condition, and do
-  not mix `&&` with `||`; name the inner group instead.
 - Comment only what the code cannot say, such as a constraint or a workaround. Do not describe the
   code's history.
-- Add a changeset with `bun run changeset` for user-facing changes.
+- Add a changeset with `bun run changeset` when a PR changes `src/**`, including internal changes.
+  See [Versioning](docs/development.md#versioning) for the CI gate and release-PR exceptions.
 - Before finishing a document, check its local links and verify the commands it gives against the
   repository.
+
+- Before changing `src/vt/`, `patches/`, or `scripts/buildVt.sh`, read the development guide's
+  [native rebuild and cache instructions](docs/development.md#local-setup) and the
+  [shim contract](docs/adr/0004-libghostty-vt.md). Rebuild native artifacts after native input
+  changes; `bun run check` does not rebuild them, and `bun run start` builds only a missing library.
 
 ## Architecture
 
