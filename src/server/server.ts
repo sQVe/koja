@@ -38,6 +38,7 @@ import {
   handlePaneLayoutRequest,
   isPaneCommand,
   isPaneLayoutRequest,
+  forgetPaneReads,
   writePaneInput,
 } from './paneRequests.ts';
 import { createSnapshotStore } from './paneSnapshot.ts';
@@ -487,7 +488,7 @@ const closeConnection = (context: ServerContext, id: number): void => {
   context.runtime.clientIds.delete(connection);
   context.runtime.rowSubscriptions.get(connection)?.unsubscribe();
   context.runtime.rowSubscriptions.delete(connection);
-  context.runtime.readSnapshots.forget(connection);
+  forgetPaneReads(context, connection);
   connection.close();
 
   if (clientId !== undefined) {

@@ -22,6 +22,7 @@ import {
   rowWords,
 } from '../src/rows/rows.ts';
 import type { PaneRows } from '../src/rows/rows.ts';
+import { runCli, temporaryDirectory } from './cliHarness.ts';
 
 type Reply = ControlMessage | PaneRows;
 
@@ -351,6 +352,37 @@ it('reports a read the server refuses with its reason', async () => {
   });
 
   expect(result).toEqual({ ok: false, reason: 'pruned', oldest: 40 });
+});
+
+it('prints read overload on stderr and exits without retrying', async () => {
+  const server = await listen((message) => {
+    if (message.type === 'hello') {
+      return [{ type: 'welcome' }];
+    }
+
+    if (message.type === 'paneRead') {
+      return [
+        {
+          type: 'paneReadFailed',
+          paneId: message.paneId,
+          requestId: message.requestId,
+          failure: { reason: 'tooManyPendingReads', limit: 64 },
+        },
+      ];
+    }
+
+    return [];
+  });
+
+  const directory = await temporaryDirectory();
+  const result = await runCli(['pane', 'read', 'pane-9', '--socket', server.socketPath], directory);
+
+  expect(result.exitCode).toBe(1);
+  expect(result.stdout).toBe('');
+  expect(result.stderr).toContain('64');
+  expect(result.stderr).toContain('waiting');
+  expect(server.received.filter((message) => message.type === 'paneRead')).toHaveLength(1);
+  expect(server.failures).toEqual([]);
 });
 
 it('reports the workspace the server answers a request with', async () => {

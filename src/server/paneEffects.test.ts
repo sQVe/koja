@@ -381,6 +381,8 @@ const paneWithTerminal = (generation: number, exited = Promise.resolve(0)): Runn
     publish: () => {},
     resize: () => {},
     whenReleased: () => Promise.resolve(),
+    waitForRead: () => Promise.resolve(),
+    forgetReads: () => {},
     [Symbol.dispose]: () => {},
   };
 

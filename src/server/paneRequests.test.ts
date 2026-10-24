@@ -6,8 +6,10 @@ import { createTerminal } from '../vt/vt.ts';
 import type { Terminal } from '../vt/vt.ts';
 import type { Connection } from './connection.ts';
 import type { PaneRuntime } from './pane.ts';
-import { handlePaneCommand } from './paneRequests.ts';
-import { createSnapshotStore } from './paneSnapshot.ts';
+import { forgetPaneReads, handlePaneCommand } from './paneRequests.ts';
+import { selectPaneRows } from './paneRows.ts';
+import { createSnapshot, createSnapshotStore } from './paneSnapshot.ts';
+import { createRowPublisher } from './rowPublisher.ts';
 
 interface Fixture {
   context: Parameters<typeof handlePaneCommand>[0];
@@ -83,7 +85,7 @@ const fixture = (held: boolean): Fixture => {
             runtime: { terminal, generation: 1 } as unknown as PaneRuntime,
             publication: {
               pending: false,
-              publisher: { whenReleased: () => released },
+              publisher: { whenReleased: () => released, waitForRead: () => released },
             },
           },
         ],
@@ -113,6 +115,23 @@ const fixture = (held: boolean): Fixture => {
   };
 };
 
+const usePublisher = (test: Fixture) => {
+  const publisher = createRowPublisher(test.terminal, 1, size, { requestPublication: noop });
+  const record = test.context.runtime.panes.get(id);
+
+  if (record === undefined) {
+    throw new Error('Missing pane');
+  }
+
+  record.publication.publisher = publisher;
+
+  onTestFinished(() => {
+    publisher[Symbol.dispose]();
+  });
+
+  return publisher;
+};
+
 const read = {
   type: 'paneRead',
   paneId: id,
@@ -133,6 +152,89 @@ const turn = async (): Promise<void> => {
     setImmediate(resolve);
   });
 };
+
+it.each(['paneRead', 'paneSend'] as const)(
+  'handles an existing snapshot when a missing-pane %s arrives',
+  (type) => {
+    const test = fixture(false);
+    const selected = selectPaneRows(test.terminal, size, read.selection);
+
+    if (!selected.ok) {
+      throw new Error('Rows were not selected');
+    }
+
+    const snapshots = test.context.runtime.readSnapshots;
+    const generation = snapshots.begin(test.connection);
+    const snapshot = createSnapshot(id, 500, selected.rows);
+
+    snapshots.keep(test.connection, snapshot);
+
+    const missing = paneId(99);
+
+    const message: ControlMessage =
+      type === 'paneRead'
+        ? { ...read, paneId: missing }
+        : { type, paneId: missing, text: 'must not be written' };
+
+    handlePaneCommand(test.context, message, test.connection);
+    expect(test.sent).toEqual([{ type: 'paneMissing', paneId: missing }]);
+    expect(snapshots.isCurrent(test.connection, generation)).toBe(type === 'paneSend');
+
+    handlePaneCommand(
+      test.context,
+      { type: 'paneReadNext', paneId: id, requestId: 500 },
+      test.connection,
+    );
+
+    if (type === 'paneRead') {
+      expect(test.binary).toBe(0);
+
+      expect(test.sent[1]).toEqual({
+        type: 'paneReadFailed',
+        paneId: id,
+        requestId: 500,
+        failure: { reason: 'noSnapshot' },
+      });
+    } else {
+      expect(test.binary).toBe(1);
+      expect(test.sent).toEqual([{ type: 'paneMissing', paneId: missing }]);
+    }
+  },
+);
+
+it.each(['paneRead', 'paneSend'] as const)(
+  'handles an accepted held read when a missing-pane %s arrives',
+  async (type) => {
+    const test = fixture(true);
+    const missing = paneId(99);
+
+    const message: ControlMessage =
+      type === 'paneRead'
+        ? { ...read, paneId: missing, requestId: 2 }
+        : { type, paneId: missing, text: 'must not be written' };
+
+    handlePaneCommand(test.context, read, test.connection);
+    handlePaneCommand(test.context, message, test.connection);
+    expect(test.sent).toEqual([{ type: 'paneMissing', paneId: missing }]);
+
+    test.release('resolve');
+    await turn();
+
+    if (type === 'paneRead') {
+      expect(test.binary).toBe(0);
+
+      expect(test.sent[1]).toEqual({
+        type: 'paneReadFailed',
+        paneId: id,
+        requestId: 1,
+        failure: { reason: 'noSnapshot' },
+      });
+    } else {
+      expect(test.binary).toBe(1);
+      expect(test.sent).toEqual([{ type: 'paneMissing', paneId: missing }]);
+    }
+  },
+);
 
 it('answers a read at once when the pane holds no frame', () => {
   const test = fixture(false);
@@ -168,6 +270,152 @@ it('logs a read whose wait for the hold fails and sends no answer', async () => 
   expect(test.errors).toHaveLength(1);
   expect(test.errors[0]?.fields).toEqual({ paneId: id, error: 'hold broke' });
   expect(test.errors[0]?.message.length).toBeGreaterThan(0);
+});
+
+it('limits held reads across connections without superseding the accepted generation', async () => {
+  const test = fixture(true);
+  const publisher = usePublisher(test);
+  const other = { ...test.connection };
+
+  for (let requestId = 1; requestId <= 64; requestId += 1) {
+    handlePaneCommand(
+      test.context,
+      { ...read, requestId },
+      requestId % 2 === 0 ? test.connection : other,
+    );
+  }
+
+  expect(test.sent).toEqual([]);
+  handlePaneCommand(test.context, { ...read, requestId: 65 }, test.connection);
+
+  expect(test.sent).toEqual([
+    {
+      type: 'paneReadFailed',
+      paneId: id,
+      requestId: 65,
+      failure: { reason: 'tooManyPendingReads', limit: 64 },
+    },
+  ]);
+
+  test.terminal.endRenderHold();
+  publisher.publish();
+  await turn();
+
+  expect(test.binary).toBe(2);
+
+  expect(
+    test.sent.filter(
+      (message) => message.type === 'paneReadFailed' && message.failure.reason === 'noSnapshot',
+    ),
+  ).toHaveLength(62);
+});
+
+it('removes disconnected read waiters without resuming them and frees capacity', async () => {
+  const test = fixture(true);
+  const publisher = usePublisher(test);
+  let resumed = 0;
+
+  const disconnected = {
+    ...test.connection,
+    isClosed: () => {
+      resumed += 1;
+
+      return true;
+    },
+  };
+
+  const retained = { ...test.connection };
+
+  for (let requestId = 1; requestId <= 64; requestId += 1) {
+    const owner = requestId % 2 === 0 ? disconnected : retained;
+
+    handlePaneCommand(test.context, { ...read, requestId }, owner);
+  }
+
+  forgetPaneReads(test.context, disconnected);
+  forgetPaneReads(test.context, disconnected);
+
+  for (let requestId = 65; requestId <= 96; requestId += 1) {
+    handlePaneCommand(test.context, { ...read, requestId }, test.connection);
+  }
+
+  expect(test.sent).toEqual([]);
+
+  test.terminal.endRenderHold();
+  publisher.publish();
+  await turn();
+
+  expect(resumed).toBe(0);
+  expect(test.binary).toBe(2);
+  expect(test.sent).toHaveLength(62);
+});
+
+it('keeps an existing snapshot readable when a held read is refused', () => {
+  const test = fixture(false);
+  const publisher = usePublisher(test);
+  const selected = selectPaneRows(test.terminal, size, read.selection);
+
+  if (!selected.ok) {
+    throw new Error('Rows were not selected');
+  }
+
+  const snapshot = createSnapshot(id, 500, selected.rows);
+
+  test.context.runtime.readSnapshots.keep(test.connection, snapshot);
+  test.terminal.write(new TextEncoder().encode(holdOutput));
+
+  const other = { ...test.connection };
+
+  for (let requestId = 1; requestId <= 64; requestId += 1) {
+    handlePaneCommand(test.context, { ...read, requestId }, other);
+  }
+
+  handlePaneCommand(test.context, read, test.connection);
+  expect(test.context.runtime.readSnapshots.find(test.connection, id, 500)).toBe(snapshot);
+
+  handlePaneCommand(
+    test.context,
+    { type: 'paneReadNext', paneId: id, requestId: 500 },
+    test.connection,
+  );
+
+  expect(test.binary).toBe(1);
+
+  expect(test.sent).toEqual([
+    {
+      type: 'paneReadFailed',
+      paneId: id,
+      requestId: 1,
+      failure: { reason: 'tooManyPendingReads', limit: 64 },
+    },
+  ]);
+
+  publisher.forgetReads(other);
+});
+
+it('does not limit copy or unheld reads when held read capacity is full', async () => {
+  const test = fixture(true);
+  const publisher = usePublisher(test);
+
+  for (let requestId = 1; requestId <= 64; requestId += 1) {
+    handlePaneCommand(test.context, { ...read, requestId }, test.connection);
+  }
+
+  handlePaneCommand(test.context, copy, test.connection);
+  expect(test.sent).toEqual([]);
+
+  test.terminal.endRenderHold();
+  handlePaneCommand(test.context, { ...read, requestId: 65 }, test.connection);
+  expect(test.binary).toBe(1);
+
+  publisher.publish();
+  await turn();
+
+  expect(test.sent.filter((message) => message.type === 'paneCopyResult')).toEqual([
+    { type: 'paneCopyResult', result: { ok: true, text: 'hel', clientId: undefined } },
+  ]);
+
+  expect(test.binary).toBe(1);
 });
 
 it('answers a copy at once when the pane holds no frame', () => {

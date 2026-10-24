@@ -140,6 +140,28 @@ it('asks for the next part of a snapshot and finishes when none remain', () => {
   expect(fetched).toEqual([pane]);
 });
 
+it('does not retry or notify a range refused for pending read overload until wanted again', () => {
+  const { sent, fetched, fetcher } = setup();
+
+  fetcher.want(pane, { from: 10, to: 12 });
+
+  const requestId = sent[0]?.type === 'paneRead' ? sent[0].requestId : -1;
+
+  fetcher.takeFailure(pane, requestId, { reason: 'tooManyPendingReads', limit: 64 });
+  expect(sent).toHaveLength(1);
+  expect(fetched).toEqual([]);
+
+  fetcher.want(pane, { from: 10, to: 12 });
+
+  expect(sent).toHaveLength(2);
+
+  const nextRequestId = sent[1]?.type === 'paneRead' ? sent[1].requestId : -1;
+
+  fetcher.takeRows(rowsFor(nextRequestId, 10, 3));
+  expect(fetched).toEqual([pane]);
+  expect(sent).toHaveLength(2);
+});
+
 it('gives up on a range the server refuses and moves to the next wish', () => {
   const { sent, fetcher } = setup();
 

@@ -81,6 +81,10 @@ export const createRowFetcher = (options: RowFetcherOptions): RowFetcher => {
       wanted.delete(read.pane);
     }
 
+    if (step.kind === 'failed' && step.failure.reason === 'tooManyPendingReads') {
+      return;
+    }
+
     options.onFetched(read.pane);
   };
 

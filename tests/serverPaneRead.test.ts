@@ -90,6 +90,73 @@ it('answers paneRead during a synchronized-output hold only after the hold ends'
   expect(text).not.toContain('half-drawn');
 });
 
+const visibleRead = (requestId: number): ControlMessage => ({
+  type: 'paneRead',
+  paneId: paneId(1),
+  requestId,
+  selection: { source: 'visible', lines: undefined },
+});
+
+it('frees held read capacity when a socket disconnects before release', async () => {
+  const directory = await temporaryDirectory();
+  const { server, socketPath } = await startServer(directory);
+  const departed = await connect(socketPath);
+  const retained = await connect(socketPath);
+
+  departed.send({ type: 'hello', version: build, size: { columns: 80, rows: 24 } });
+  retained.send({ type: 'hello', version: build, size: undefined });
+  await waitFor(() => server.snapshot().clients.length === 1);
+
+  server.writeToPane('printf \'\\033[?2026hhalf-\'"drawn"\n');
+  await waitFor(() => server.paneText()?.includes('half-drawn') === true);
+
+  const barrier = { type: 'paneSend', paneId: paneId(1), text: '' } as const;
+
+  departed.sendTogether([
+    ...Array.from({ length: 32 }, (_, index) => visibleRead(index + 1)),
+    barrier,
+  ]);
+
+  retained.sendTogether([
+    ...Array.from({ length: 32 }, (_, index) => visibleRead(index + 33)),
+    barrier,
+  ]);
+
+  await waitFor(() => departed.messages.some((message) => message.type === 'paneSent'));
+  await waitFor(() => retained.messages.some((message) => message.type === 'paneSent'));
+  expect(departed.paneRows).toHaveLength(0);
+  expect(retained.paneRows).toHaveLength(0);
+
+  departed.close();
+  await waitFor(() => server.snapshot().clients.length === 0);
+
+  retained.sendTogether([
+    ...Array.from({ length: 32 }, (_, index) => visibleRead(index + 65)),
+    barrier,
+  ]);
+
+  await waitFor(
+    () => retained.messages.filter((message) => message.type === 'paneSent').length === 2,
+  );
+
+  expect(retained.messages.filter((message) => message.type === 'paneReadFailed')).toEqual([]);
+
+  server.writeToPane("printf '\\033[?2026l'\n");
+  const rows = await retained.nextPaneRows();
+
+  expect(rows.requestId).toBe(96);
+
+  await waitFor(
+    () => retained.messages.filter((message) => message.type === 'paneReadFailed').length === 63,
+  );
+
+  expect(
+    retained.messages
+      .filter((message) => message.type === 'paneReadFailed')
+      .every((message) => message.failure.reason === 'noSnapshot'),
+  ).toBe(true);
+});
+
 it('leaves the snapshot of a newer read alone when an older held read resumes after it', async () => {
   const directory = await temporaryDirectory();
   const { socketPath } = await startServer(directory);
