@@ -38,10 +38,14 @@ brings the pane back.
 
 A pane that ran pi saves the exact session file that pi reported for it. On restore, that pane
 starts its shell, and the shell starts pi on that session file. Quitting pi leaves the shell, as it
-did before the restart. Koja sends pi no prompt, so the conversation waits for the user. A session
-file that is missing, or that another live pane owns, makes the pane fail with an error; Koja never
-starts a different conversation in its place. No other program restarts: Koja does not replay shell
-history or rerun commands.
+did before the restart. Koja sends pi no prompt, so the conversation waits for the user. Pi opens
+the file at its newest saved entry.
+
+Pi writes the session file only at the conversation's first message. Each save therefore records
+whether the file existed. A file that never existed starts pi on the same path, since no
+conversation was lost. A file that existed and is now missing, or that another live pane owns, makes
+the pane fail with an error; Koja never starts a different conversation in its place. No other
+program restarts: Koja does not replay shell history or rerun commands.
 
 A file that is broken or has a newer version is logged with its path, and the server starts with no
 workspace. The file stays as it is until the next save replaces it.
@@ -54,7 +58,7 @@ workspace. The file stays as it is until the next save replaces it.
 - Servers on different socket paths never read each other's setup.
 - A bad file never stops the server from starting.
 - A restored shell starts where the user left it, not in the workspace root.
-- A pi pane returns to its exact conversation, and quitting pi still leaves a shell.
+- A pi pane returns to its saved conversation, and quitting pi still leaves a shell.
 - A missing folder or shell costs one pane, not the saved layout.
 
 ### Negative
@@ -69,6 +73,8 @@ workspace. The file stays as it is until the next save replaces it.
 - Other programs, such as an editor or a build, do not come back. The user starts them again.
 - A conversation's saved history returns, but not work in flight: a running tool, a partial reply,
   or an unsent draft is lost.
+- Pi keeps its current branch point only in memory. A move to an earlier branch with `/tree` that no
+  later message extends is lost, and pi reopens at the newest saved entry.
 
 ## Alternatives considered
 

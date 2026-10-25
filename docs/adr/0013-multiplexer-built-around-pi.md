@@ -50,7 +50,7 @@ compaction, which the rule above covers.
 The first usable version is a keyboard-first workspace that replaces herdr for daily work. It has
 one persistent normal mode plus insert, a master layout, searchable actions, and scrollback copy.
 The only pi integration it needs is session identity: the extension reports each pi's session file,
-so a reboot reopens every pi on its exact conversation.
+so a reboot reopens every pi on its saved conversation.
 
 Later versions add the views this channel makes possible: an attention view that lists what needs
 the user's action or input, message delivery from it, fuzzy finding of earlier pi sessions, and
