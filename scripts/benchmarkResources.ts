@@ -24,7 +24,6 @@ export interface ResourceSampler {
 interface ProcessSnapshot {
   ticks: number;
   rssKb: number;
-  highWaterKb: number;
 }
 
 interface ProcessTracking {
@@ -96,15 +95,21 @@ const readProcessTicks = (stat: string): number | undefined => {
     : undefined;
 };
 
-const readProcessMemory = (status: string): { rssKb: number; highWaterKb: number } | undefined => {
+const readProcessMemory = (status: string): { rssKb: number } | undefined => {
   const rssKb = Number(/^VmRSS:\s+(\d+) kB$/m.exec(status)?.[1] ?? '');
-  const highWaterKb = Number(/^VmHWM:\s+(\d+) kB$/m.exec(status)?.[1] ?? '');
 
   if (!Number.isFinite(rssKb)) {
     return undefined;
   }
 
-  return { rssKb, highWaterKb: Number.isFinite(highWaterKb) ? highWaterKb : rssKb };
+  return { rssKb };
+};
+
+export const processSnapshot = (stat: string, status: string): ProcessSnapshot | undefined => {
+  const ticks = readProcessTicks(stat);
+  const memory = readProcessMemory(status);
+
+  return ticks === undefined || memory === undefined ? undefined : { ticks, ...memory };
 };
 
 const readProcessSnapshot = (processId: number): ProcessSnapshot | undefined => {
@@ -115,10 +120,7 @@ const readProcessSnapshot = (processId: number): ProcessSnapshot | undefined => 
     return undefined;
   }
 
-  const ticks = readProcessTicks(stat);
-  const memory = readProcessMemory(status);
-
-  return ticks === undefined || memory === undefined ? undefined : { ticks, ...memory };
+  return processSnapshot(stat, status);
 };
 
 const processReport = (tracking: ProcessTracking | undefined): ProcessResources | undefined =>
@@ -245,14 +247,14 @@ export const nextProcessTracking = (
     return {
       start: snapshot,
       last: snapshot,
-      peakRssKb: Math.max(snapshot.rssKb, snapshot.highWaterKb),
+      peakRssKb: snapshot.rssKb,
     };
   }
 
   return {
     start: tracking.start,
     last: snapshot,
-    peakRssKb: Math.max(tracking.peakRssKb, snapshot.rssKb, snapshot.highWaterKb),
+    peakRssKb: Math.max(tracking.peakRssKb, snapshot.rssKb),
   };
 };
 

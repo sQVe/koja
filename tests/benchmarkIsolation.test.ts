@@ -6,6 +6,7 @@ import { join } from 'node:path';
 import {
   nextGuestTracking,
   nextProcessTracking,
+  processSnapshot,
   resourceReport,
   runScopePath,
 } from '../scripts/benchmarkResources.ts';
@@ -95,7 +96,7 @@ it('links only the systemd manager socket of the user runtime folder into the ru
   }
 });
 
-const snapshot = { ticks: 10, rssKb: 2000, highWaterKb: 2500 };
+const snapshot = { ticks: 10, rssKb: 2000 };
 
 const tracking = { start: snapshot, last: { ...snapshot, rssKb: 2200 }, peakRssKb: 2500 };
 
@@ -143,15 +144,15 @@ it('leaves out each unreadable resource and names it in a gap', () => {
 it('keeps earlier process samples when a later read fails, and adds readable ones', () => {
   const first = nextProcessTracking(undefined, snapshot);
   const missed = nextProcessTracking(first, undefined);
-  const later = nextProcessTracking(missed, { ticks: 30, rssKb: 3000, highWaterKb: 3100 });
+  const later = nextProcessTracking(missed, { ticks: 30, rssKb: 3000 });
 
   expect(nextProcessTracking(undefined, undefined)).toBeUndefined();
-  expect(missed).toEqual({ start: snapshot, last: snapshot, peakRssKb: 2500 });
+  expect(missed).toEqual({ start: snapshot, last: snapshot, peakRssKb: 2000 });
 
   expect(later).toEqual({
     start: snapshot,
-    last: { ticks: 30, rssKb: 3000, highWaterKb: 3100 },
-    peakRssKb: 3100,
+    last: { ticks: 30, rssKb: 3000 },
+    peakRssKb: 3000,
   });
 });
 
@@ -168,4 +169,31 @@ it('keeps earlier guest samples when a later read fails, and adds readable ones'
     lastBytes: 2048,
     peakBytes: 8192,
   });
+});
+
+const statWithTicks = (ticks: number): string =>
+  `42 (bun) S 1 42 42 0 -1 4194560 100 0 0 0 ${ticks} 0 0 0 20 0 8 0 100 1000000 500`;
+
+const statusWith = (rssKb: number, highWaterKb: number): string =>
+  `Name:\tbun\nVmHWM:\t${highWaterKb} kB\nVmRSS:\t${rssKb} kB\nThreads:\t8\n`;
+
+it('reports the highest RSS sampled in a scenario, not the lifetime high-water mark', () => {
+  const earlierScenario = nextProcessTracking(
+    undefined,
+    processSnapshot(statWithTicks(10), statusWith(9000, 9000)),
+  );
+
+  const scenarioStart = nextProcessTracking(
+    undefined,
+    processSnapshot(statWithTicks(20), statusWith(2000, 9000)),
+  );
+
+  const scenarioEnd = nextProcessTracking(
+    scenarioStart,
+    processSnapshot(statWithTicks(30), statusWith(2500, 9000)),
+  );
+
+  expect(earlierScenario?.peakRssKb).toBe(9000);
+  expect(scenarioEnd?.peakRssKb).toBe(2500);
+  expect(scenarioEnd?.last).toEqual({ ticks: 30, rssKb: 2500 });
 });
