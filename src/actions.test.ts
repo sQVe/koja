@@ -178,6 +178,17 @@ describe('action availability', () => {
     expect(isAvailable('workspace.previous', twoWorkspaces)).toBe(true);
   });
 
+  it('needs a shown workspace for workspace close and tab create', () => {
+    expect(isAvailable('workspace.close', noPanes)).toBe(false);
+    expect(isAvailable('tab.create', noPanes)).toBe(false);
+    expect(isAvailable('workspace.close', onePane)).toBe(true);
+    expect(isAvailable('tab.create', onePane)).toBe(true);
+  });
+
+  it('offers workspace create without a workspace', () => {
+    expect(isAvailable('workspace.create', noPanes)).toBe(true);
+  });
+
   it('needs tab N in the shown workspace for tab focus N', () => {
     expect(isAvailable('tab.focus-1', onePane)).toBe(true);
     expect(isAvailable('tab.focus-2', onePane)).toBe(false);

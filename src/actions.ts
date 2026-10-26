@@ -64,11 +64,13 @@ export const defaultTargetOf = (snapshot: StoreSnapshot): ActionTarget => ({
   paneId: focusedPane(snapshot)?.id,
 });
 
+const workspaceOf = (snapshot: StoreSnapshot, workspaceId: WorkspaceId | undefined) =>
+  snapshot.workspaces.find((workspace) => workspace.id === workspaceId);
+
 const tabIdsOf = (
   snapshot: StoreSnapshot,
   workspaceId: WorkspaceId | undefined,
-): readonly TabId[] =>
-  snapshot.workspaces.find((workspace) => workspace.id === workspaceId)?.tabIds ?? [];
+): readonly TabId[] => workspaceOf(snapshot, workspaceId)?.tabIds ?? [];
 
 const focusNeighborOf = (
   snapshot: StoreSnapshot,
@@ -143,6 +145,9 @@ const hasPreviousPane = (snapshot: StoreSnapshot, target: ActionTarget): boolean
 const hasNextPane = (snapshot: StoreSnapshot, target: ActionTarget): boolean =>
   focusNeighborOf(snapshot, target.paneId, 1) !== undefined;
 
+const hasTargetWorkspace = (snapshot: StoreSnapshot, target: ActionTarget): boolean =>
+  workspaceOf(snapshot, target.workspaceId) !== undefined;
+
 const hasSeveralWorkspaces = (snapshot: StoreSnapshot): boolean => snapshot.workspaces.length > 1;
 
 const hasSeveralTabs = (snapshot: StoreSnapshot, target: ActionTarget): boolean =>
@@ -213,7 +218,7 @@ export const actionCatalog: ActionCatalog = [
     keys: ['X'],
     intent: { kind: 'workspace', key: 'close' },
     cli: true,
-    available: alwaysAvailable,
+    available: hasTargetWorkspace,
   },
   {
     id: 'tab.create',
@@ -221,7 +226,7 @@ export const actionCatalog: ActionCatalog = [
     keys: ['t'],
     intent: { kind: 'tab', route: { kind: 'create' } },
     cli: true,
-    available: alwaysAvailable,
+    available: hasTargetWorkspace,
   },
   {
     id: 'tab.previous',
