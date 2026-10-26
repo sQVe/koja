@@ -23,5 +23,12 @@
     "allowUnusedLabels": false,
     "types": ["bun"]
   },
-  "include": ["src/**/*.ts", "src/**/*.tsx", "tests/**/*.ts", "scripts/**/*.ts", "vite.config.ts"]
+  "include": [
+    "extensions/**/*.ts",
+    "src/**/*.ts",
+    "src/**/*.tsx",
+    "tests/**/*.ts",
+    "scripts/**/*.ts",
+    "vite.config.ts"
+  ]
 }
