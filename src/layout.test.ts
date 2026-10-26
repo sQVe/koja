@@ -344,7 +344,6 @@ const expectFramesAtLeastThreeByThree = (panes: PaneRectangle[]): void => {
   }
 };
 
-// Every cell outside the frames is a gap column, so it has a frame on both sides in its row.
 const expectGapsBetweenFrames = (panes: PaneRectangle[], size: TerminalSize): void => {
   const covered = new Set(panes.flatMap(cellKeys));
 

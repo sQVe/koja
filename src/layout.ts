@@ -172,7 +172,6 @@ const framed = (paneId: PaneId, area: Area): PaneRectangle => ({
   terminal: terminalOf(area),
 });
 
-// Right panes stack at full width up to this count. More of them pair up in rows of two.
 const stackingLimit = 3;
 
 const isStacked = (rightCount: number): boolean => rightCount <= stackingLimit;
@@ -183,13 +182,11 @@ const rightRowCount = (rightCount: number): number =>
 const rightColumnsNeeded = (rightCount: number): number =>
   isStacked(rightCount) ? minimumExtent : 2 * minimumExtent + gapOf('right');
 
-// The master and the right side each need the same width, with a gap column between them.
 const masterRequiredSize = (rightCount: number): TerminalSize => ({
   columns: 2 * rightColumnsNeeded(rightCount) + gapOf('right'),
   rows: rightRowCount(rightCount) * minimumExtent,
 });
 
-// The rows split the height evenly. The earlier rows take the leftover rows.
 const rowBand = (area: Area, rowCount: number, row: number): Area => {
   const base = Math.floor(area.rows / rowCount);
   const leftover = area.rows % rowCount;
@@ -198,10 +195,8 @@ const rowBand = (area: Area, rowCount: number, row: number): Area => {
   return { ...area, y: area.y + row * base + Math.min(row, leftover), rows: base + extra };
 };
 
-// In a pair, the left pane takes the odd column.
 const leftPairColumns = (width: number): number => Math.ceil((width - gapOf('right')) / 2);
 
-// The area of the right pane at `index`. An odd last pane takes the full width of its row.
 const rightPaneArea = (index: number, rightCount: number, right: Area): Area => {
   const row = isStacked(rightCount) ? index : Math.floor(index / 2);
   const band = rowBand(right, rightRowCount(rightCount), row);
@@ -224,8 +219,6 @@ const isPositiveWhole = (extent: number): boolean => Number.isInteger(extent) &&
 
 const hasUniqueIds = (order: readonly PaneId[]): boolean => new Set(order).size === order.length;
 
-// The master is the first pane. It keeps exactly half the width, and the right side keeps the rest.
-// An area too small for a framed 1x1 in every pane returns the size it needs instead.
 export const masterPanes = (order: readonly PaneId[], size: TerminalSize): MasterPanesResult => {
   invariant(isPositiveWhole(size.columns), `Cannot place panes in ${size.columns} columns.`);
   invariant(isPositiveWhole(size.rows), `Cannot place panes in ${size.rows} rows.`);
