@@ -10,6 +10,7 @@ import { setupAttach } from './attachHarness.ts';
 import {
   cliTestTimeoutMs,
   environmentFor,
+  launchServer,
   root,
   runCli,
   temporaryDirectory,
@@ -76,9 +77,7 @@ const setupServer = async (terminalRows = 24, terminalColumns = 80) => {
   const koja = (...commandArguments: string[]) =>
     runCli([...commandArguments, '--socket', socketPath], directory, environment);
 
-  const started = await koja('server', 'start');
-
-  expect(started.exitCode).toBe(0);
+  await launchServer(socketPath, directory, environment);
 
   const createWorkspace = async (name: string): Promise<void> => {
     const path = join(directory, name);

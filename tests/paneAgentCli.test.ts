@@ -13,6 +13,7 @@ import {
   buildVersion,
   cliTestTimeoutMs,
   environmentFor,
+  launchServer,
   runCli,
   runCliProcess,
   startServer,
@@ -34,13 +35,7 @@ it(
     const socketPath = join(directory, 'run', 'koja.sock');
     const environment = { ...environmentFor(directory), SHELL: '/bin/sh', PS1: 'koja-test> ' };
 
-    const started = await runCli(
-      ['server', 'start', '--socket', socketPath],
-      directory,
-      environment,
-    );
-
-    expect(started.exitCode).toBe(0);
+    await launchServer(socketPath, directory, environment);
     await createWorkspaceAt(socketPath, directory);
 
     let text: CliRun = { exitCode: -1, stdout: '', stderr: '' };
@@ -142,13 +137,7 @@ it(
     const socketPath = join(directory, 'run', 'koja.sock');
     const environment = { ...environmentFor(directory), SHELL: '/bin/sh', PS1: '' };
 
-    const started = await runCli(
-      ['server', 'start', '--socket', socketPath],
-      directory,
-      environment,
-    );
-
-    expect(started.exitCode).toBe(0);
+    await launchServer(socketPath, directory, environment);
     await createWorkspaceAt(socketPath, directory);
 
     const lines = Array.from({ length: 35 }, (_, row) => `line-${row}`);
@@ -250,9 +239,7 @@ it(
     const socketPath = join(directory, 'run', 'koja.sock');
     const environment = { ...environmentFor(directory), SHELL: '/bin/sh', PS1: '' };
 
-    expect(
-      (await runCli(['server', 'start', '--socket', socketPath], directory, environment)).exitCode,
-    ).toBe(0);
+    await launchServer(socketPath, directory, environment);
 
     await createWorkspaceAt(socketPath, directory);
 

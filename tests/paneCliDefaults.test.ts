@@ -7,6 +7,7 @@ import { z } from 'zod';
 import {
   cliTestTimeoutMs,
   environmentFor,
+  launchServer,
   runCliProcess,
   temporaryDirectory,
 } from './cliHarness.ts';
@@ -23,13 +24,7 @@ const setup = async () => {
   const startServerAt = async (name: string): Promise<string> => {
     const socketPath = join(directory, name, 'koja.sock');
 
-    const started = await runCliProcess(
-      ['server', 'start', '--socket', socketPath],
-      directory,
-      environment,
-    );
-
-    expect(started.exitCode).toBe(0);
+    await launchServer(socketPath, directory, environment);
 
     return socketPath;
   };

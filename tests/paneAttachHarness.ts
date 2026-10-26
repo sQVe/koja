@@ -7,7 +7,7 @@ import { z } from 'zod';
 import { sideListColumns } from '../src/layout.ts';
 import { cellWords, rowHeaderWords } from '../src/rows/rows.ts';
 import { createTerminal } from '../src/vt/vt.ts';
-import { environmentFor, root, runCli, temporaryDirectory } from './cliHarness.ts';
+import { environmentFor, launchServer, root, runCli, temporaryDirectory } from './cliHarness.ts';
 
 const paneListSchema = z.array(
   z.object({
@@ -53,7 +53,7 @@ export const setup = async (): Promise<PaneAttachHarness> => {
     return run.stdout;
   };
 
-  await koja('server', 'start');
+  await launchServer(socketPath, directory, environment);
 
   const workspaceRoot = join(directory, 'work');
 

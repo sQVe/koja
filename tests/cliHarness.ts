@@ -1,4 +1,4 @@
-import { expect, onTestFinished } from 'bun:test';
+import { onTestFinished } from 'bun:test';
 import { mkdtemp, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { isAbsolute, join } from 'node:path';
@@ -189,18 +189,112 @@ export const buildVersion = (): { version: string; ghostty: string } => {
   return { version: packageJson.version, ghostty: commit.commit };
 };
 
+const firstLine = async (stream: ReadableStream<Uint8Array>): Promise<string | undefined> => {
+  const reader = stream.getReader();
+  const decoder = new TextDecoder();
+  let text = '';
+
+  while (!text.includes('\n')) {
+    const chunk = await reader.read();
+
+    if (chunk.done) {
+      return undefined;
+    }
+
+    text += decoder.decode(chunk.value, { stream: true });
+  }
+
+  await reader.cancel();
+
+  return text.slice(0, text.indexOf('\n'));
+};
+
+// Matches the ready timeout of server start, and stays well below the test timeout.
+const serverReadyTimeoutMs = cliTestTimeoutMs / 3;
+
+const reportedPid = (line: string): number | undefined => {
+  try {
+    const parsed = startOutputSchema.safeParse(JSON.parse(line));
+
+    return parsed.success ? parsed.data.pid : undefined;
+  } catch {
+    return undefined;
+  }
+};
+
+// A line from this child, and not an answer on the socket, proves this child started.
+const readinessFailure = async (
+  server: Bun.Subprocess<'ignore', 'pipe', 'pipe'>,
+): Promise<string | undefined> => {
+  const timedOut = Promise.withResolvers<string>();
+
+  const timer = setTimeout(() => {
+    timedOut.resolve(`did not become ready within ${serverReadyTimeoutMs} ms`);
+  }, serverReadyTimeoutMs);
+
+  const ready = firstLine(server.stdout).then((line): string | undefined => {
+    if (line === undefined) {
+      return 'exited before it was ready';
+    }
+
+    return reportedPid(line) === server.pid
+      ? undefined
+      : `reported readiness of another process: ${line}`;
+  });
+
+  try {
+    return await Promise.race([ready, timedOut.promise]);
+  } finally {
+    clearTimeout(timer);
+  }
+};
+
+// Launches a detached server the way server start does, without a Bun process for start itself.
+// endServersIn finds the server by the `server run --socket` command line.
+export const launchServer = async (
+  socketPath: string,
+  directory: string,
+  environment = environmentFor(directory),
+): Promise<number> => {
+  const server = Bun.spawn(
+    [
+      process.execPath,
+      join(root, 'src/index.ts'),
+      'server',
+      'run',
+      '--socket',
+      socketPath,
+      '--json',
+    ],
+    { cwd: directory, detached: true, stdio: ['ignore', 'pipe', 'pipe'], env: environment },
+  );
+
+  const failure = await readinessFailure(server);
+
+  if (failure !== undefined) {
+    server.kill('SIGKILL');
+
+    const [exitCode, detail] = await Promise.all([
+      server.exited,
+      new Response(server.stderr).text(),
+    ]);
+
+    throw new Error(`The server ${failure}. It ended with code ${exitCode}:\n${detail}`);
+  }
+
+  await server.stderr.cancel();
+  server.unref();
+
+  return server.pid;
+};
+
 export const startServer = async (
   directory: string,
   socketPath: string,
 ): Promise<z.infer<typeof startOutputSchema>> => {
-  const started = await runCli(['server', 'start', '--socket', socketPath, '--json'], directory);
-
-  expect({ exitCode: started.exitCode, stderr: started.stderr }).toEqual({
-    exitCode: 0,
-    stderr: '',
-  });
+  const pid = await launchServer(socketPath, directory);
 
   await createWorkspaceAt(socketPath, directory);
 
-  return startOutputSchema.parse(JSON.parse(started.stdout));
+  return { socket: socketPath, pid };
 };

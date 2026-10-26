@@ -4,7 +4,13 @@ import { join } from 'node:path';
 
 import { z } from 'zod';
 
-import { cliTestTimeoutMs, environmentFor, runCli, temporaryDirectory } from './cliHarness.ts';
+import {
+  cliTestTimeoutMs,
+  environmentFor,
+  launchServer,
+  runCli,
+  temporaryDirectory,
+} from './cliHarness.ts';
 
 const workspaceListSchema = z.array(
   z.object({ id: z.string(), root: z.string(), label: z.string(), focused: z.boolean() }),
@@ -32,9 +38,7 @@ const setup = async () => {
   const koja = (...commandArguments: string[]) =>
     runCli([...commandArguments, '--socket', socketPath], directory, environment);
 
-  const started = await koja('server', 'start');
-
-  expect(started.exitCode).toBe(0);
+  await launchServer(socketPath, directory, environment);
 
   const createDirectory = async (name: string): Promise<string> => {
     const path = join(directory, name);

@@ -15,7 +15,13 @@ import {
 } from '../src/protocol/protocol.ts';
 import { CursorShape } from '../src/rows/rows.ts';
 import { createTerminal } from '../src/vt/vt.ts';
-import { cliTestTimeoutMs, environmentFor, runCli, runCliProcess } from './cliHarness.ts';
+import {
+  cliTestTimeoutMs,
+  environmentFor,
+  launchServer,
+  runCli,
+  runCliProcess,
+} from './cliHarness.ts';
 import { createWorkspaceAt, endServersIn, serverProcessesIn, waitFor } from './serverProcesses.ts';
 
 const attachClient = (
@@ -88,7 +94,7 @@ const setup = async () => {
     await rm(directory, { recursive: true, force: true });
   });
 
-  await command('server', 'start');
+  await launchServer(socketPath, directory, environment);
   await createWorkspaceAt(socketPath, directory);
 
   const { client, screen } = attachClient(socketPath);
@@ -206,9 +212,9 @@ it.each(['SIGTERM', 'SIGINT', 'SIGHUP'] as const)(
     expect(screen.frame().cursor.visible).toBe(true);
     await command('pane', 'send', 'echo still-running\r');
 
-    const rows = await command('pane', 'read', 'pane-1');
+    const echoed = async () => (await command('pane', 'read', 'pane-1')).includes('still-running');
 
-    expect(rows).toContain('still-running');
+    expect(await waitFor(echoed)).toBe(true);
   },
 );
 

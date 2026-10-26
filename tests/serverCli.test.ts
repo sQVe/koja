@@ -66,13 +66,27 @@ const helloAnswer = async (socketPath: string): Promise<ControlMessage> => {
   }
 };
 
+// Runs server start as its own process, for tests whose subject is start.
+const startWithCli = async (directory: string, socketPath: string) => {
+  const started = await runCli(['server', 'start', '--socket', socketPath, '--json'], directory);
+
+  expect({ exitCode: started.exitCode, stderr: started.stderr }).toEqual({
+    exitCode: 0,
+    stderr: '',
+  });
+
+  await createWorkspaceAt(socketPath, directory);
+
+  return startOutputSchema.parse(JSON.parse(started.stdout));
+};
+
 it(
   'starts a server in the background and stops it',
   async () => {
     const directory = await temporaryDirectory();
     const socketPath = join(directory, 'run', 'koja.sock');
 
-    const started = await startServer(directory, socketPath);
+    const started = await startWithCli(directory, socketPath);
 
     expect(started.socket).toBe(socketPath);
     expect(isRunning(started.pid)).toBe(true);
@@ -279,7 +293,7 @@ it(
     await link(listening, socketPath);
     listener.stop(true);
 
-    await startServer(directory, socketPath);
+    await startWithCli(directory, socketPath);
 
     expect(await helloAnswer(socketPath)).toEqual({ type: 'welcome' });
   },

@@ -4,7 +4,7 @@ import { join } from 'node:path';
 
 import { z } from 'zod';
 
-import { environmentFor, runCli, temporaryDirectory } from './cliHarness.ts';
+import { environmentFor, launchServer, runCli, temporaryDirectory } from './cliHarness.ts';
 import type { CliRun } from './cliHarness.ts';
 
 export type KojaRunner = (...commandArguments: string[]) => Promise<CliRun>;
@@ -65,9 +65,7 @@ export const setup = async (shellBody?: string): Promise<PaneSetup> => {
   const koja = (...commandArguments: string[]) =>
     runCli([...commandArguments, '--socket', socketPath], directory, environment);
 
-  const started = await koja('server', 'start');
-
-  expect(started.exitCode).toBe(0);
+  await launchServer(socketPath, directory, environment);
 
   const workspaceRoot = join(directory, 'work');
 
