@@ -16,7 +16,7 @@
         "@earendil-works/pi-coding-agent": "1.4.0",
         "@hughescr/stryker-bun-runner": "1.6.0",
         "@oxlint/plugins": "1.79.0",
-        "@sqve/mutation": "0.1.0",
+        "@sqve/mutation": "0.1.2",
         "@sqve/seam": "0.2.0",
         "@stryker-mutator/api": "10.0.0",
         "@stryker-mutator/core": "10.0.0",
@@ -524,7 +524,7 @@
 
     "@smithy/types": ["@smithy/types@4.19.0", "", { "dependencies": { "tslib": "^2.6.2" } }, "sha512-r7jh49VJxGerfAcTQA6gXcKc+98zOp/tqRwzYjgOE+iSQsP6cEU1hq2QzbuipmP68QtYdY9wKEhiCQZIzHgZ4Q=="],
 
-    "@sqve/mutation": ["@sqve/mutation@0.1.0", "", { "dependencies": { "minimatch": "10.2.6", "zod": "4.6.5" }, "peerDependencies": { "@hughescr/stryker-bun-runner": "^1.6.0", "@stryker-mutator/api": "^10.0.0", "@stryker-mutator/core": "^10.0.0", "@stryker-mutator/instrumenter": "^10.0.0", "@stryker-mutator/util": "^10.0.0", "@stryker-mutator/vitest-runner": "^10.0.0" }, "optionalPeers": ["@hughescr/stryker-bun-runner", "@stryker-mutator/vitest-runner"], "bin": { "mutation": "./dist/cli.js" } }, "sha512-h7KrqUtTFgsch5gt5DuWb5dfviqyP/Aw9pyncZsIsgTMwm1B+V/Cd+FAmKykcb7QZpvZKQNL6LT9//ThDKVtLg=="],
+    "@sqve/mutation": ["@sqve/mutation@0.1.2", "", { "dependencies": { "minimatch": "10.2.6", "zod": "4.6.5" }, "peerDependencies": { "@hughescr/stryker-bun-runner": "^1.6.0", "@stryker-mutator/api": "^10.0.0", "@stryker-mutator/core": "^10.0.0", "@stryker-mutator/instrumenter": "^10.0.0", "@stryker-mutator/util": "^10.0.0", "@stryker-mutator/vitest-runner": "^10.0.0" }, "optionalPeers": ["@hughescr/stryker-bun-runner", "@stryker-mutator/vitest-runner"], "bin": { "mutation": "./dist/cli.js" } }, "sha512-nDE9DYbBS9Ur/3YAY+dxuwpTCKAoNE+EkLHmtr8cmR1dS3Sz8tVxeoyO9WRLp4HcHQOaoIAARq5JQsFprD7GLg=="],
 
     "@sqve/seam": ["@sqve/seam@0.2.0", "", { "dependencies": { "@oxlint/plugins": "1.79.0", "@stylistic/eslint-plugin": "5.10.0" }, "peerDependencies": { "vite-plus": "0.3.0" }, "bin": { "seam": "./dist/cli.js" } }, "sha512-C0snUqzf6I8ECxEaa2Dp6PoQlkGeRNzamcR+sZKMcDjN9uWtmMpQV6F2Yo5mPml0LdGFMWU7E7J42E7Qmm69mw=="],
 
