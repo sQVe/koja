@@ -1,10 +1,12 @@
 import { expect, it } from 'bun:test';
 
 import { paneId } from './ids.ts';
+import type { PaneId } from './ids.ts';
 import {
   canSplit,
   firstPaneId,
   layoutPanes,
+  masterPanes,
   paneSize,
   removePane,
   resizeLayout,
@@ -162,6 +164,265 @@ it('allows a split only when both panes fit, and a right split also fits its gap
   expect(canSplit({ columns: 6, rows: 3 }, 'right')).toBe(false);
   expect(canSplit({ columns: 3, rows: 6 }, 'below')).toBe(true);
   expect(canSplit({ columns: 3, rows: 5 }, 'below')).toBe(false);
+});
+
+it('places the master on the left half and stacks two panes on the right', () => {
+  const result = masterPanes([paneId(1), paneId(2), paneId(3)], { columns: 81, rows: 24 });
+
+  expect(result).toEqual({
+    ok: true,
+    panes: [
+      rectangle(1, [0, 0, 40, 24], [1, 1, 38, 22]),
+      rectangle(2, [41, 0, 40, 12], [42, 1, 38, 10]),
+      rectangle(3, [41, 12, 40, 12], [42, 13, 38, 10]),
+    ],
+  });
+});
+
+const framed = (id: number, frame: [number, number, number, number]): PaneRectangle =>
+  rectangle(id, frame, [frame[0] + 1, frame[1] + 1, frame[2] - 2, frame[3] - 2]);
+
+const orderOf = (count: number): PaneId[] =>
+  Array.from({ length: count }, (_, index) => paneId(index + 1));
+
+const range = (first: number, last: number): number[] =>
+  Array.from({ length: last - first + 1 }, (_, index) => first + index);
+
+const masterFrame = framed(1, [0, 0, 40, 24]);
+
+it.each<[number, PaneRectangle[]]>([
+  [0, []],
+  [1, [rectangle(1, [0, 0, 81, 24], [0, 0, 81, 24])]],
+  [2, [masterFrame, framed(2, [41, 0, 40, 24])]],
+  [3, [masterFrame, framed(2, [41, 0, 40, 12]), framed(3, [41, 12, 40, 12])]],
+  [
+    4,
+    [masterFrame, framed(2, [41, 0, 40, 8]), framed(3, [41, 8, 40, 8]), framed(4, [41, 16, 40, 8])],
+  ],
+  [
+    5,
+    [
+      masterFrame,
+      framed(2, [41, 0, 20, 12]),
+      framed(3, [62, 0, 19, 12]),
+      framed(4, [41, 12, 20, 12]),
+      framed(5, [62, 12, 19, 12]),
+    ],
+  ],
+  [
+    6,
+    [
+      masterFrame,
+      framed(2, [41, 0, 20, 8]),
+      framed(3, [62, 0, 19, 8]),
+      framed(4, [41, 8, 20, 8]),
+      framed(5, [62, 8, 19, 8]),
+      framed(6, [41, 16, 40, 8]),
+    ],
+  ],
+  [
+    7,
+    [
+      masterFrame,
+      framed(2, [41, 0, 20, 8]),
+      framed(3, [62, 0, 19, 8]),
+      framed(4, [41, 8, 20, 8]),
+      framed(5, [62, 8, 19, 8]),
+      framed(6, [41, 16, 20, 8]),
+      framed(7, [62, 16, 19, 8]),
+    ],
+  ],
+  [
+    8,
+    [
+      masterFrame,
+      framed(2, [41, 0, 20, 6]),
+      framed(3, [62, 0, 19, 6]),
+      framed(4, [41, 6, 20, 6]),
+      framed(5, [62, 6, 19, 6]),
+      framed(6, [41, 12, 20, 6]),
+      framed(7, [62, 12, 19, 6]),
+      framed(8, [41, 18, 40, 6]),
+    ],
+  ],
+  [
+    9,
+    [
+      masterFrame,
+      framed(2, [41, 0, 20, 6]),
+      framed(3, [62, 0, 19, 6]),
+      framed(4, [41, 6, 20, 6]),
+      framed(5, [62, 6, 19, 6]),
+      framed(6, [41, 12, 20, 6]),
+      framed(7, [62, 12, 19, 6]),
+      framed(8, [41, 18, 20, 6]),
+      framed(9, [62, 18, 19, 6]),
+    ],
+  ],
+])('places %i panes at 81x24 with exact rectangles', (count, expected) => {
+  expect(masterPanes(orderOf(count), { columns: 81, rows: 24 })).toEqual({
+    ok: true,
+    panes: expected,
+  });
+});
+
+it('gives the earlier rows the leftover height when the height does not split evenly', () => {
+  expect(masterPanes(orderOf(4), { columns: 81, rows: 25 })).toEqual({
+    ok: true,
+    panes: [
+      rectangle(1, [0, 0, 40, 25], [1, 1, 38, 23]),
+      framed(2, [41, 0, 40, 9]),
+      framed(3, [41, 9, 40, 8]),
+      framed(4, [41, 17, 40, 8]),
+    ],
+  });
+});
+
+it('gives the left pair pane the odd column when the right side has an even width', () => {
+  expect(masterPanes(orderOf(5), { columns: 81, rows: 24 })).toEqual({
+    ok: true,
+    panes: [
+      masterFrame,
+      framed(2, [41, 0, 20, 12]),
+      framed(3, [62, 0, 19, 12]),
+      framed(4, [41, 12, 20, 12]),
+      framed(5, [62, 12, 19, 12]),
+    ],
+  });
+});
+
+it('splits the pair columns evenly when the right side has an odd width', () => {
+  expect(masterPanes(orderOf(5), { columns: 80, rows: 24 })).toEqual({
+    ok: true,
+    panes: [
+      framed(1, [0, 0, 40, 24]),
+      framed(2, [41, 0, 19, 12]),
+      framed(3, [61, 0, 19, 12]),
+      framed(4, [41, 12, 19, 12]),
+      framed(5, [61, 12, 19, 12]),
+    ],
+  });
+});
+
+it('reports the rows needed when only the height is too small', () => {
+  expect(masterPanes(orderOf(4), { columns: 7, rows: 8 })).toEqual({
+    ok: false,
+    reason: 'insufficientSpace',
+    required: { columns: 7, rows: 9 },
+  });
+});
+
+const cellKeys = (pane: PaneRectangle): string[] =>
+  Array.from({ length: pane.columns * pane.rows }, (_, index) => {
+    const column = pane.x + (index % pane.columns);
+    const row = pane.y + Math.floor(index / pane.columns);
+
+    return `${column},${row}`;
+  });
+
+const expectPlacedInside = (panes: PaneRectangle[], order: PaneId[], size: TerminalSize): void => {
+  expect(panes.map((pane) => pane.paneId)).toEqual(order);
+
+  for (const pane of panes) {
+    expect(pane.x).toBeGreaterThanOrEqual(0);
+    expect(pane.y).toBeGreaterThanOrEqual(0);
+    expect(pane.x + pane.columns).toBeLessThanOrEqual(size.columns);
+    expect(pane.y + pane.rows).toBeLessThanOrEqual(size.rows);
+    expect(pane.terminal.columns).toBeGreaterThanOrEqual(1);
+    expect(pane.terminal.rows).toBeGreaterThanOrEqual(1);
+  }
+
+  const cells = panes.flatMap(cellKeys);
+
+  expect(new Set(cells).size).toBe(cells.length);
+};
+
+const expectFramesAtLeastThreeByThree = (panes: PaneRectangle[]): void => {
+  for (const pane of panes) {
+    expect(pane.columns).toBeGreaterThanOrEqual(3);
+    expect(pane.rows).toBeGreaterThanOrEqual(3);
+  }
+};
+
+// Every cell outside the frames is a gap column, so it has a frame on both sides in its row.
+const expectGapsBetweenFrames = (panes: PaneRectangle[], size: TerminalSize): void => {
+  const covered = new Set(panes.flatMap(cellKeys));
+
+  for (let row = 0; row < size.rows; row++) {
+    for (let column = 0; column < size.columns; column++) {
+      if (covered.has(`${column},${row}`)) {
+        continue;
+      }
+
+      expect(covered.has(`${column - 1},${row}`)).toBe(true);
+      expect(covered.has(`${column + 1},${row}`)).toBe(true);
+    }
+  }
+};
+
+it('places every pane of each size in the sweep inside the area without overlap', () => {
+  for (const columns of range(1, 30)) {
+    for (const rows of range(1, 20)) {
+      for (const count of range(0, 9)) {
+        const size = { columns, rows };
+        const order = orderOf(count);
+        const result = masterPanes(order, size);
+
+        expect(masterPanes(order, size)).toEqual(result);
+
+        if (result.ok) {
+          expectPlacedInside(result.panes, order, size);
+        }
+
+        if (result.ok && result.panes.length >= 2) {
+          expectFramesAtLeastThreeByThree(result.panes);
+          expectGapsBetweenFrames(result.panes, size);
+        }
+      }
+    }
+  }
+});
+
+it('reports a required size above the area and accepts exactly that size', () => {
+  for (const columns of range(1, 30)) {
+    for (const rows of range(1, 20)) {
+      for (const count of range(0, 9)) {
+        const order = orderOf(count);
+        const result = masterPanes(order, { columns, rows });
+
+        if (!result.ok) {
+          const isLarger = result.required.columns > columns || result.required.rows > rows;
+
+          expect(isLarger).toBe(true);
+          expect(masterPanes(order, result.required).ok).toBe(true);
+        }
+      }
+    }
+  }
+});
+
+it('reports the size nine panes need when the area is too small', () => {
+  expect(masterPanes(orderOf(9), { columns: 14, rows: 12 })).toEqual({
+    ok: false,
+    reason: 'insufficientSpace',
+    required: { columns: 15, rows: 12 },
+  });
+});
+
+it.each([
+  [{ columns: 0, rows: 24 }],
+  [{ columns: 81, rows: 0 }],
+  [{ columns: 81, rows: 9.5 }],
+  [{ columns: 80.5, rows: 24 }],
+])('refuses a size that is not a positive whole number of cells: %o', (size) => {
+  expect(() => masterPanes(orderOf(4), size)).toThrow();
+  expect(() => masterPanes(orderOf(1), size)).toThrow();
+  expect(() => masterPanes([], size)).toThrow();
+});
+
+it('refuses a list that names the same pane twice', () => {
+  expect(() => masterPanes([paneId(1), paneId(1)], { columns: 81, rows: 24 })).toThrow();
+  expect(() => masterPanes([paneId(1), paneId(2), paneId(1)], { columns: 81, rows: 24 })).toThrow();
 });
 
 it('gives the pane 80x24 without a client', () => {
