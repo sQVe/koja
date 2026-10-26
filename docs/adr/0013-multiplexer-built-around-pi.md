@@ -35,9 +35,11 @@ chat inside its pane.
 
 ### Channel to pi
 
-- A small pi extension connects to the Koja server over a socket. It reports pi's state (idle,
-  working, waiting for user input, finished) and its session file, and it delivers messages from
-  Koja as steer or follow-up messages.
+- A small pi extension talks to the Koja server through the `koja` command its pane names. It
+  reports pi's state (idle, working, waiting for user input, finished) and its session file, and it
+  delivers messages from Koja as steer or follow-up messages.
+- The server accepts a report only from the pi it can tie to the pane, as
+  [ADR 0019](./0019-pi-reports-bound-to-pane-pass-and-process.md) sets out.
 - The channel is a side channel. The server still parses pane output only from the PTY.
 - pi refuses a message during compaction and gives the extension no error for it. So the extension
   holds messages while compaction runs and delivers them after it ends.

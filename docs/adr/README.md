@@ -28,6 +28,7 @@ history, and `git show <commit>:docs/adr/<file>` restores a retired ADR.
 ### Product
 
 - [0013: A terminal multiplexer built around pi](./0013-multiplexer-built-around-pi.md)
+- [0019: A pi report counts only with its pane's pass and from a live process in that pane](./0019-pi-reports-bound-to-pane-pass-and-process.md)
 
 ### Documentation and tooling
 
