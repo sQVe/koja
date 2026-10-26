@@ -358,7 +358,6 @@ it('lets a key pass at once after a workspace click was answered and j was press
   expect(mode()).toBe('insert');
 });
 
-// The first workspace shows one pane in one tab. The second shows two panes and has two tabs.
 const growingWorkspaces = () => {
   const shown = { ids: [firstWorkspace, secondWorkspace], focused: firstWorkspace };
 

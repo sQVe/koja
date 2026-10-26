@@ -32,7 +32,6 @@ interface PaneAttachHarness {
   list: () => Promise<z.infer<typeof paneListSchema>>;
   act: (...commandArguments: string[]) => Promise<string>;
   lines: () => string[];
-  // The whole screen, side list included.
   screenText: () => string;
   foreground: (row: number, column: number) => number | undefined;
   until: (condition: () => boolean) => Promise<undefined>;

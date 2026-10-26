@@ -53,7 +53,6 @@ interface InputHarness {
 interface TabFixture {
   id: number;
   workspaceId: WorkspaceId;
-  // Panes in layout order, so the first sits left of the second.
   panes: readonly PaneId[];
   focused: PaneId;
 }
@@ -81,7 +80,6 @@ const rowLayout = (panes: readonly PaneId[]): TabLayout => {
   };
 };
 
-// Pane 1 sits between panes 2 and 3, so both focus neighbors exist.
 const thirdPaneNumber = 3;
 const fourthPaneNumber = 4;
 const fifthPaneNumber = 5;

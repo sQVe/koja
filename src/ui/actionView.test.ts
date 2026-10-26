@@ -7,7 +7,6 @@ import type { ActionView } from './actionView.ts';
 import { firstWorkspace, secondWorkspace, storeSnapshotOf } from './inputFixtures.ts';
 import { parseKey } from './keyEncoding.ts';
 
-// A 24-row terminal.
 const rows = actionViewRowsOf(24);
 
 const snapshot = storeSnapshotOf({
@@ -147,7 +146,6 @@ it('scrolls help one entry per Down and Up within the entries a 24-row terminal 
 it('keeps the selected search result drawn while Down and Up move past the drawn rows', () => {
   const view = openView('search');
 
-  // Whether the selected result is drawn after each of as many presses as there are actions.
   const drawnAfterEachPress = (raw: string): boolean[] =>
     actionCatalog.map(() => {
       press(view, raw);
@@ -160,7 +158,6 @@ it('keeps the selected search result drawn while Down and Up move past the drawn
   expect(drawnIds(view)[0]).toBe('workspace.next');
 });
 
-// Opens search in a terminal of the given height, types a query, and presses Enter.
 const searchAtHeight = (height: { rows: number }, query: string) => {
   const view = createActionView(() => actionViewRowsOf(height.rows));
 

@@ -17,8 +17,6 @@ export interface ActionView {
   subscribe: (listener: () => void) => () => void;
   getState: () => ActionViewState;
   open: (kind: ActionViewKind) => void;
-  // Applies a key or a paste to the open view. Returns the intent of the search result that Enter
-  // ran, after the view has closed.
   interact: (
     input: ActionViewInput,
     catalog: ActionCatalog,
@@ -47,17 +45,13 @@ const decoder = new TextDecoder();
 const clampIndex = (index: number, count: number): number =>
   Math.min(Math.max(index, 0), Math.max(count - 1, 0));
 
-// The overlay's heading and the status bar below it each take one terminal row.
-// Below three rows no entry is drawn.
 export const actionViewRowsOf = (terminalRows: number): number => Math.max(terminalRows - 2, 0);
 
 const isSearchQuery = (
   state: ActionViewState,
 ): state is Extract<ActionViewState, { kind: 'search' }> => state.kind === 'search';
 
-// Each typed word must appear, in any letter case, in the title or the id.
 const searchEntries = (catalog: ActionCatalog, query: string): ActionCatalog => {
-  // An empty word from extra spaces matches every entry, so it needs no filtering.
   const words = query.toLowerCase().split(/\s+/);
 
   return catalog.filter((entry) => {
@@ -88,7 +82,6 @@ const lineOf = (
   selected,
 });
 
-// The first drawn entry. It keeps the last rows filled and, in search, the selected entry drawn.
 const topOf = (state: ActionViewState, count: number, rows: number): number => {
   if (state.kind === 'closed') {
     return 0;
@@ -103,7 +96,6 @@ const topOf = (state: ActionViewState, count: number, rows: number): number => {
   return Math.min(Math.max(top, state.selected - rows + 1), state.selected);
 };
 
-// The lines drawn in the given number of entry rows.
 export const actionViewLines = (
   catalog: ActionCatalog,
   snapshot: StoreSnapshot,
@@ -120,7 +112,6 @@ export const actionViewLines = (
     .slice(top, top + rows);
 };
 
-// The entry Enter runs, or undefined when no search result is selected.
 const selectedEntry = (catalog: ActionCatalog, state: ActionViewState): ActionEntry | undefined => {
   if (!isSearchQuery(state)) {
     return undefined;
@@ -159,11 +150,9 @@ export const viewKeyOf = (event: KeyEvent): ViewKey => {
   return text === undefined ? { kind: 'ignore' } : { kind: 'type', text };
 };
 
-// A paste becomes query text on one line, so each control character turns into a space.
 const pastedQueryText = (bytes: Uint8Array): string =>
   decoder.decode(bytes).replace(/\p{Cc}/gu, ' ');
 
-// entryRows is the number of entry rows the overlay draws.
 export const createActionView = (entryRows: () => number): ActionView => {
   let state: ActionViewState = { kind: 'closed' };
   const listeners = new Set<() => void>();
@@ -190,7 +179,6 @@ export const createActionView = (entryRows: () => number): ActionView => {
     }
   };
 
-  // Moves the selection in search, and scrolls the entries in help.
   const move = (offset: 1 | -1, catalog: ActionCatalog): void => {
     if (state.kind === 'closed') {
       return;
@@ -207,9 +195,6 @@ export const createActionView = (entryRows: () => number): ActionView => {
     setState({ ...next, top: topOf(next, count, rows) });
   };
 
-  // An unavailable result stays selected and the view stays open, so Enter does nothing. The
-  // viewport keeps the selection drawn whenever an entry row exists, so Enter runs nothing only
-  // when no entry is drawn.
   const runSelected = (
     catalog: ActionCatalog,
     snapshot: StoreSnapshot,

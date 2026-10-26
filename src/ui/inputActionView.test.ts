@@ -178,7 +178,6 @@ it('does nothing on Enter for an unavailable search result and keeps search open
   });
 });
 
-// Feeds each read through the real tokenizer, 5 ms apart, so a read can continue a lone Escape.
 const feedReads = (harness: Harness, reads: string[]): void => {
   const tokenizer = createInputTokenizer();
 

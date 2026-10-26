@@ -18,7 +18,6 @@ interface MouseCapture {
   unplacedRelease: (event: MouseEvent) => PaneTarget | undefined;
   // Remembers the forwarded target and ends the gesture on a release.
   finish: (event: MouseEvent, placed: PaneTarget | undefined) => void;
-  // Ends the gesture on a release of the captured button that is not forwarded.
   drop: (event: MouseEvent) => void;
 }
 

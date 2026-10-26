@@ -9,12 +9,10 @@ type Layout = StoreSnapshot['tabs'][number]['layout'];
 interface TabShape {
   id: number;
   workspace: number;
-  // Pane numbers in layout order, so the first sits left of the second.
   panes: number[];
   focused: number;
 }
 
-// The first workspace is the one the attached client shows.
 interface Shape {
   workspaces: number[];
   tabs: TabShape[];

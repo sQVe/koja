@@ -227,7 +227,6 @@ const runIntent = (entry: ActionEntry, context: RunContext): Promise<Outcome> =>
     return runDetachIntent(context);
   }
 
-  // The CLI refuses attached-only entries before it reaches an intent.
   return Promise.resolve(attachedOnlyOutcome(entry.id));
 };
 

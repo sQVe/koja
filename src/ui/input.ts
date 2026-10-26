@@ -67,7 +67,6 @@ type RoutedToken =
   | { kind: 'paste'; bytes: Uint8Array; escapeSent: boolean }
   | { kind: 'mouse'; raw: string; escapeSent: boolean };
 
-// What a key asks for besides its bytes and mode: a catalog action, or a step in scroll mode.
 type KeyEffect = ActionIntent | { kind: 'scroll'; action: ScrollAction };
 
 interface KeyRoute {
@@ -206,7 +205,6 @@ const viewInputOf = (token: Exclude<RoutedToken, { kind: 'mouse' }>): ActionView
     ? { kind: 'paste', bytes: token.bytes }
     : { kind: 'key', event: parseKey(token.raw) };
 
-// The mode an action leaves the input in.
 const modeAfter = (intent: ActionIntent): InputMode => {
   if (intent.kind === 'detach') {
     return 'insert';
@@ -301,14 +299,11 @@ export const routePaste = (bytes: Uint8Array, modes: number): Uint8Array => {
 // take that Escape back either.
 export const createInputRouter = (host: TokenRouterHost): ((token: RoutedToken) => void) => {
   let escapeInPane = false;
-  // Whether the last token was a bare Escape that an open view took. A token that continues it is
-  // the rest of input typed into the view, so it never reaches the pane after the view closes.
   let escapeInView = false;
   // Keys whose press Koja took. Their release must not reach the pane, which never saw the press.
   const consumedKeys = new Set<string>();
   const navigation = createWorkspaceNavigation(host);
   const mouseCapture = createMouseCapture(host);
-  // A key bound to an action the snapshot does not make available falls through as an unbound key.
   const availableCatalog = (): ActionCatalog => availableActions(host.catalog, host.snapshot());
 
   // Whether a pane action or a tab request keeps the queue from routing.
@@ -387,7 +382,6 @@ export const createInputRouter = (host: TokenRouterHost): ((token: RoutedToken) 
     return startsLeftPress && unfocused ? host.focusPane(target.paneId) : undefined;
   };
 
-  // Runs what a key or a chosen search result asks for. The pane action's answer is returned.
   const runEffect = (effect: KeyEffect): Promise<void> | undefined => {
     if (effect.kind === 'scroll') {
       host.scroll(effect.action);
@@ -416,8 +410,6 @@ export const createInputRouter = (host: TokenRouterHost): ((token: RoutedToken) 
     return effect.kind === 'pane' ? host.paneAction(effect.action) : undefined;
   };
 
-  // Keeps a token from the pane. A held mouse button's release still ends its capture, so later
-  // mouse input routes as usual.
   const keepFromPane = (token: RoutedToken): void => {
     if (token.kind === 'key') {
       trackConsumed(parseKey(token.raw), nothing);
@@ -430,7 +422,6 @@ export const createInputRouter = (host: TokenRouterHost): ((token: RoutedToken) 
     }
   };
 
-  // While a view is open, no key, paste, or mouse event reaches the pane.
   const routeWhileViewOpen = (token: RoutedToken): Promise<void> | undefined => {
     escapeInPane = false;
     escapeInView = token.kind === 'key' && token.raw === escapeKey;
@@ -520,8 +511,6 @@ export const createInputRouter = (host: TokenRouterHost): ((token: RoutedToken) 
       return viewKeyOf(parseKey(token.raw)).kind === 'run';
     }
 
-    // A pending workspace focus changes what is available, so availability is checked only when
-    // the key routes.
     const { effect } = keyIntentOf(parseKey(token.raw), host.mode(), host.catalog);
 
     return effect?.kind === 'pane' || effect?.kind === 'tab' || effect?.kind === 'scrollEnter';

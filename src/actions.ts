@@ -29,7 +29,6 @@ export type ActionIntent =
   | { kind: 'detach' }
   | { kind: 'view'; view: ActionViewKind };
 
-// The workspace and pane an action acts on. Either may be undefined when the view has none.
 export interface ActionTarget {
   workspaceId: WorkspaceId | undefined;
   paneId: PaneId | undefined;
@@ -38,10 +37,8 @@ export interface ActionTarget {
 export interface ActionEntry {
   id: string;
   title: string;
-  // The plain normal-mode key text, such as `z`.
   keys: readonly string[];
   intent: ActionIntent;
-  // Whether the CLI can run the action by name.
   cli: boolean;
   available: (snapshot: StoreSnapshot, target: ActionTarget) => boolean;
 }
@@ -57,13 +54,11 @@ const resizeDirections: Partial<Record<PaneAction, ResizeDirection>> = {
   resizeDown: 'down',
 };
 
-// The target of what the user sees, which the UI acts on.
 export const shownTargetOf = (snapshot: StoreSnapshot): ActionTarget => ({
   workspaceId: shownView(snapshot).focusedWorkspaceId,
   paneId: viewedPane(snapshot)?.id,
 });
 
-// The target a CLI command acts on when its flags name none.
 export const defaultTargetOf = (snapshot: StoreSnapshot): ActionTarget => ({
   workspaceId: snapshot.defaultView.focusedWorkspaceId,
   paneId: focusedPane(snapshot)?.id,
@@ -75,7 +70,6 @@ const tabIdsOf = (
 ): readonly TabId[] =>
   snapshot.workspaces.find((workspace) => workspace.id === workspaceId)?.tabIds ?? [];
 
-// The pane that focus moves to, in layout order, or undefined when the pane has none.
 const focusNeighborOf = (
   snapshot: StoreSnapshot,
   paneId: PaneId | undefined,
@@ -93,7 +87,6 @@ const focusNeighborOf = (
   return order[order.indexOf(current.id) + offset];
 };
 
-// The layout command a pane action sends for a pane, or undefined when focus has no pane to move to.
 export const paneCommandOf = (
   snapshot: StoreSnapshot,
   pane: PaneId,
@@ -131,7 +124,6 @@ export const paneCommandOf = (
   return { action: 'resize', pane, direction, cells: 1 };
 };
 
-// The workspace one step away, wrapping at either end, or undefined when the workspace is unknown.
 export const workspaceNeighborOf = (
   ids: readonly WorkspaceId[],
   workspaceId: WorkspaceId,
