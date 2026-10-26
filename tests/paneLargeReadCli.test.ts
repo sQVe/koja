@@ -248,7 +248,6 @@ const readAcrossSwitch = async (switchSteps: string[], waitFor: string) => {
   const proxyPath = join(directory, 'proxy.sock');
   const proxy = await holdFirstPage(socketPath, proxyPath);
 
-  // The held read must run alongside the commands below, and in-process commands take turns.
   const read = runCliProcess(
     ['pane', 'read', first, '--source', 'visible', '--json', '--socket', proxyPath],
     directory,
@@ -368,7 +367,6 @@ it(
     const proxyPath = join(directory, 'proxy.sock');
     const proxy = await holdFirstPage(join(directory, 'run', 'koja.sock'), proxyPath);
 
-    // The held read must run alongside the commands below, and in-process commands take turns.
     const read = runCliProcess(
       [
         'pane',

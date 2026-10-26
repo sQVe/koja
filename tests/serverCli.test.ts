@@ -66,7 +66,6 @@ const helloAnswer = async (socketPath: string): Promise<ControlMessage> => {
   }
 };
 
-// Runs server start as its own process, for tests whose subject is start.
 const startWithCli = async (directory: string, socketPath: string) => {
   const started = await runCli(['server', 'start', '--socket', socketPath, '--json'], directory);
 

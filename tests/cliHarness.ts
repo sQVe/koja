@@ -41,8 +41,6 @@ export const environmentFor = (directory: string): Record<string, string | undef
   XDG_RUNTIME_DIR: join(directory, 'runtime'),
 });
 
-// Starts a real Koja process. Use it where startup, exit status, or the process cwd is what the
-// test proves.
 export const runCliProcess = async (
   commandArguments: string[],
   directory: string,
@@ -76,8 +74,6 @@ const recorderFor =
 // The in-process CLI writes to the shared process streams, so runs take turns.
 let previousRun: Promise<unknown> = Promise.resolve();
 
-// A run that never settles would hold the streams and every later run, so it fails its own test
-// well before the test times out.
 const inProcessRunTimeoutMs = cliTestTimeoutMs / 2;
 
 const settleWithin = async <Value>(
@@ -166,8 +162,6 @@ const needsOwnProcess = (commandArguments: string[]): boolean => {
   return startsServer || attaches || passesRelativePath(commandArguments);
 };
 
-// Runs the command in the test process when it does not need its own process, since each process
-// starts Bun and loads the terminal library.
 export const runCli = (
   commandArguments: string[],
   directory: string,
@@ -209,7 +203,6 @@ const firstLine = async (stream: ReadableStream<Uint8Array>): Promise<string | u
   return text.slice(0, text.indexOf('\n'));
 };
 
-// Matches the ready timeout of server start, and stays well below the test timeout.
 const serverReadyTimeoutMs = cliTestTimeoutMs / 3;
 
 const reportedPid = (line: string): number | undefined => {

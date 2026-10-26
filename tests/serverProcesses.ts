@@ -50,7 +50,6 @@ export const waitFor = async (
     const remainingMs = Math.max(deadline - performance.now(), 0);
     let timer: ReturnType<typeof setTimeout> | undefined;
 
-    // An async condition that settles after the deadline counts as false.
     const expired = new Promise<false>((resolve) => {
       timer = setTimeout(() => {
         resolve(false);
