@@ -293,6 +293,34 @@ it.each([
   expect(typeof parseCommand(argv)).toBe('string');
 });
 
+it('parses pi report and pi status', () => {
+  expect(parseCommand(['pi', 'report', '--json'])).toEqual({
+    kind: 'pi',
+    pi: { action: 'report' },
+    json: true,
+    socket: undefined,
+  });
+
+  expect(parseCommand(['pi', 'status', 'pane-3', '--socket', '/tmp/p.sock'])).toEqual({
+    kind: 'pi',
+    pi: { action: 'status', pane: paneId(3) },
+    json: false,
+    socket: '/tmp/p.sock',
+  });
+});
+
+it.each([
+  ['an unknown pi action', ['pi', 'resume', 'pane-1']],
+  ['no pi action', ['pi']],
+  ['an argument for pi report', ['pi', 'report', 'pane-1']],
+  ['no id for pi status', ['pi', 'status']],
+  ['a malformed id for pi status', ['pi', 'status', 'tab-1']],
+  ['two ids for pi status', ['pi', 'status', 'pane-1', 'pane-2']],
+  ['--pane on pi status', ['pi', 'status', 'pane-1', '--pane', 'pane-1']],
+])('refuses %s', (_name, argv) => {
+  expect(typeof parseCommand(argv)).toBe('string');
+});
+
 it('parses pane zoom and pane resize', () => {
   expect(parseCommand(['pane', 'zoom', 'pane-2', '--json'])).toEqual({
     kind: 'pane',

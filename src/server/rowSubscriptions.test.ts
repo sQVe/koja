@@ -22,6 +22,7 @@ const record = (generation: number): Recorded => {
   const recorded = { published: 0, subscribed: 0 } as Recorded;
 
   recorded.runningPane = {
+    reportPass: 'a'.repeat(64),
     runtime: { generation } as unknown as RunningPane['runtime'],
     publication: {
       pending: false,

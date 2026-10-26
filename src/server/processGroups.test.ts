@@ -27,20 +27,48 @@ const startGroupLeader = async () => {
   };
 };
 
-it('reads the process group and session after the command name', () => {
-  expect(parseStat('4242 (sleep) S 4200 4242 4200 34817 4242 4194304 99 0')).toEqual({
+it.each(['S', 'R', 'Z', 'X'])('reads process state %s from field 3', (state) => {
+  const line = `4242 (sleep) ${state} 4200 4242 4200 34817 4242 0 0 0 0 0 0 0 0 0 0 0 0 0 987654 0`;
+
+  expect(parseStat(line)).toMatchObject({ state });
+});
+
+it('reads the process start time from field 22', () => {
+  const line = '4242 (sleep) S 4200 4242 4200 34817 4242 0 0 0 0 0 0 0 0 0 0 0 0 0 987654 0';
+
+  expect(parseStat(line)).toEqual({
     group: 4242,
     session: 4200,
     terminalGroup: 4242,
+    startTime: 987654,
+    state: 'S',
+  });
+});
+
+it('reads the process group and session after the command name', () => {
+  expect(
+    parseStat('4242 (sleep) S 4200 4242 4200 34817 4242 4194304 99 0 0 0 0 0 0 0 0 0 0 0 123'),
+  ).toEqual({
+    group: 4242,
+    session: 4200,
+    terminalGroup: 4242,
+    startTime: 123,
+    state: 'S',
   });
 });
 
 it('reads a command name that holds spaces and parentheses', () => {
-  expect(parseStat('17 (a) b (c)) R 1 23 19 0 -1 0')).toEqual({
+  expect(parseStat('17 (a) b (c)) R 1 23 19 0 -1 0 0 0 0 0 0 0 0 0 0 0 0 0 456')).toEqual({
     group: 23,
     session: 19,
     terminalGroup: -1,
+    startTime: 456,
+    state: 'R',
   });
+});
+
+it('refuses a process state longer than one character', () => {
+  expect(parseStat('17 (sh) invalid 1 23 19 0 -1 0 0 0 0 0 0 0 0 0 0 0 0 0 456')).toBeUndefined();
 });
 
 it('refuses a line without a command name', () => {
@@ -62,6 +90,15 @@ it('refuses a line cut off before the session', () => {
 it('refuses a line cut off before the terminal group', () => {
   expect(parseStat('17 (sh) R 1 23 19 0')).toBeUndefined();
 });
+
+it.each(['', 'abc', '-1', '1.5', '9007199254740992'])(
+  'refuses an invalid start time %s',
+  (startTime) => {
+    expect(
+      parseStat(`17 (sh) R 1 23 19 0 -1 0 0 0 0 0 0 0 0 0 0 0 0 0 ${startTime}`),
+    ).toBeUndefined();
+  },
+);
 
 it('finds the process group of this process in its session', () => {
   const own = parseStat(readFileSync('/proc/self/stat', 'utf8'));

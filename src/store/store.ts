@@ -19,6 +19,7 @@ import {
   transitionPaneFact,
   zoomPane,
 } from './paneTransitions.ts';
+import type { PiRecord } from './piReportTransitions.ts';
 import { restoreSession, stopServer } from './sessionTransitions.ts';
 import { closeTab, createTab, focusTab, renameTab } from './tabTransitions.ts';
 import type { Outcome, Proposal } from './transitionOutcome.ts';
@@ -30,6 +31,9 @@ import {
   focusWorkspace,
   renameWorkspace,
 } from './workspaceTransitions.ts';
+
+export { applyPiReport, piRecordOf } from './piReportTransitions.ts';
+export type { PiProcess, PiReport } from './piReportTransitions.ts';
 
 type PaneLifecycle = 'starting' | 'running' | 'exited' | 'closing' | 'failed';
 
@@ -137,6 +141,7 @@ export interface State {
   layoutArea: TerminalSize;
   // For each split pane that has not started yet, the focus and zoom the tab had before the split.
   stateBeforeSplit: ReadonlyMap<PaneId, StateBeforeSplit>;
+  piReports: ReadonlyMap<PaneId, PiRecord>;
   revision: number;
 }
 
@@ -289,7 +294,8 @@ export type RejectReason =
   | 'unknownPane'
   | 'paneTooSmall'
   | 'sameTab'
-  | 'noSplit';
+  | 'noSplit'
+  | 'staleGeneration';
 
 // Whatever an effect still holds for this pane generation, such as its process and PTY.
 interface PaneProcess {
@@ -347,6 +353,7 @@ export const createState = (): State => ({
   startFallbacks: [],
   layoutArea: paneSize(undefined),
   stateBeforeSplit: new Map(),
+  piReports: new Map(),
   revision: 0,
 });
 

@@ -31,6 +31,8 @@ const acceptedOptions = new Map<string, readonly string[]>([
   ['pane scroll', ['to', 'client']],
   ['pane copy', ['from', 'to', 'print']],
   ['pane process-info', []],
+  ['pi report', []],
+  ['pi status', []],
   ['tab list', []],
   ['tab create', ['workspace', 'cwd', 'focus', 'no-focus']],
   ['tab focus', []],

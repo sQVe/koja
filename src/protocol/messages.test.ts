@@ -2,6 +2,7 @@ import { expect, it } from 'bun:test';
 
 import { clientId, paneId, tabId, workspaceId } from '../ids.ts';
 import type { Snapshot } from '../store/store.ts';
+import { piReportSchema } from './messages.ts';
 import { answerHello, encodeControl, parseControl } from './protocol.ts';
 import type { ControlMessage } from './protocol.ts';
 
@@ -97,6 +98,31 @@ const nested = {
   },
 };
 
+const piReport = {
+  processId: 100,
+  piVersion: '1.4.0',
+  sessionId: 'session-a',
+  sessionFile: '/sessions/a.jsonl',
+  leafId: 'leaf-1',
+  provider: 'anthropic',
+  model: 'sonnet',
+  thinkingLevel: 'off',
+  ownership: 'interactive' as const,
+};
+
+const piStatusFields = {
+  piVersion: '1.4.0',
+  sessionId: undefined,
+  sessionFile: undefined,
+  leafId: undefined,
+  provider: undefined,
+  model: undefined,
+  thinkingLevel: 'off',
+  ownership: 'tauWorker' as const,
+};
+
+const piReportWithoutOptionals = { processId: 100, ...piStatusFields };
+
 const messages: ControlMessage[] = [
   { type: 'hello', version: build, size: undefined },
   { type: 'welcome' },
@@ -129,6 +155,28 @@ const messages: ControlMessage[] = [
   },
   { type: 'paneCopyResult', result: { ok: true, text: 'hi', clientId: client.id } },
   { type: 'paneCopyResult', result: { ok: false, reason: 'pruned', oldest: 3 } },
+  { type: 'piReport', paneId: pane.id, token: 'a'.repeat(64), report: piReport },
+  {
+    type: 'piReport',
+    paneId: pane.id,
+    token: 'a'.repeat(64),
+    report: piReportWithoutOptionals,
+  },
+  { type: 'piReportResult', result: { ok: true, status: 'recorded' } },
+  { type: 'piReportResult', result: { ok: true, status: 'unchanged' } },
+  { type: 'piReportResult', result: { ok: true, status: 'changed' } },
+  { type: 'piReportResult', result: { ok: false, reason: 'unauthorized' } },
+  { type: 'piReportResult', result: { ok: false, reason: 'processNotInPane' } },
+  { type: 'piReportResult', result: { ok: false, reason: 'unknownPane' } },
+  { type: 'piReportResult', result: { ok: false, reason: 'staleGeneration' } },
+  { type: 'piStatus', paneId: pane.id },
+  { type: 'piStatusReply', paneId: pane.id, pi: null },
+  { type: 'piStatusReply', paneId: pane.id, pi: { state: 'changed' } },
+  {
+    type: 'piStatusReply',
+    paneId: pane.id,
+    pi: { state: 'reported', ...piStatusFields },
+  },
   { type: 'stop' },
   { type: 'resize', size: { columns: 120, rows: 40 } },
   { type: 'theme', theme },
@@ -482,6 +530,34 @@ const withoutField = (message: Record<string, unknown>, field: string) => {
 };
 
 // Each case is a valid base message and the same message changed in the one field its name gives.
+const piReportMessage = {
+  type: 'piReport',
+  paneId: 'pane-1',
+  token: 'a'.repeat(64),
+  report: {
+    processId: 100,
+    piVersion: '1.4.0',
+    sessionId: null,
+    sessionFile: null,
+    leafId: null,
+    provider: null,
+    model: null,
+    thinkingLevel: 'off',
+    ownership: 'interactive',
+  },
+};
+
+const withReport = (changes: Record<string, unknown>) => ({
+  ...piReportMessage,
+  report: { ...piReportMessage.report, ...changes },
+});
+
+const piStatusReplyMessage = { type: 'piStatusReply', paneId: 'pane-1', pi: null };
+
+const piReportResultMessage = { type: 'piReportResult', result: { ok: true, status: 'recorded' } };
+
+const piStatusMessage = { type: 'piStatus', paneId: 'pane-1' };
+
 const refusedCases: [string, Record<string, unknown>, unknown][] = [
   ['a missing field', resizeMessage, withoutField(resizeMessage, 'size')],
   [
@@ -612,6 +688,55 @@ const refusedCases: [string, Record<string, unknown>, unknown][] = [
     { ...laterRowCopyMessage, start: { row: 6, column: 1 } },
   ],
   ['a bell with a count of 0', bellMessage, { ...bellMessage, count: 0 }],
+  ['a pi report with an unknown key', piReportMessage, withReport({ extra: 'x' })],
+  [
+    'a pi report with a piVersion one over its limit',
+    piReportMessage,
+    withReport({ piVersion: 'v'.repeat(65) }),
+  ],
+  ['a pi report with an empty sessionId', piReportMessage, withReport({ sessionId: '' })],
+  [
+    'a pi report with a sessionFile one over its limit',
+    piReportMessage,
+    withReport({ sessionFile: '/'.repeat(4097) }),
+  ],
+  [
+    'a pi report with a processId that is not an integer',
+    piReportMessage,
+    withReport({ processId: 1.5 }),
+  ],
+  ['a pi report with a processId of 0', piReportMessage, withReport({ processId: 0 })],
+  ['a pi report with an unknown ownership', piReportMessage, withReport({ ownership: 'worker' })],
+  [
+    'a pi report with an uppercase token',
+    piReportMessage,
+    { ...piReportMessage, token: 'A'.repeat(64) },
+  ],
+  [
+    'a pi status reply with an unknown state',
+    piStatusReplyMessage,
+    { ...piStatusReplyMessage, pi: { state: 'exited' } },
+  ],
+  [
+    'a pi report with an unknown top-level key',
+    piReportMessage,
+    { ...piReportMessage, extra: 'x' },
+  ],
+  [
+    'a pi report result with an unknown top-level key',
+    piReportResultMessage,
+    { ...piReportResultMessage, extra: 'x' },
+  ],
+  [
+    'a pi status with an unknown top-level key',
+    piStatusMessage,
+    { ...piStatusMessage, extra: 'x' },
+  ],
+  [
+    'a pi status reply with an unknown top-level key',
+    piStatusReplyMessage,
+    { ...piStatusReplyMessage, extra: 'x' },
+  ],
 ];
 
 it.each(refusedCases)('accepts the message before %s', (_name, base) => {
@@ -623,6 +748,33 @@ it.each(refusedCases)('refuses a message with %s', (_name, _base, changed) => {
     ok: false,
     reason: 'invalidMessage',
   });
+});
+
+it('reads the absent optional fields of a pi report as undefined', () => {
+  expect(parseControl(text(JSON.stringify(piReportMessage)))).toStrictEqual({
+    ok: true,
+    message: {
+      type: 'piReport',
+      paneId: paneId(1),
+      token: 'a'.repeat(64),
+      report: {
+        processId: 100,
+        piVersion: '1.4.0',
+        sessionId: undefined,
+        sessionFile: undefined,
+        leafId: undefined,
+        provider: undefined,
+        model: undefined,
+        thinkingLevel: 'off',
+        ownership: 'interactive',
+      },
+    },
+  });
+});
+
+it('checks a pi report on its own, so the CLI can refuse it before it sends', () => {
+  expect(piReportSchema.safeParse(piReportMessage.report).success).toBe(true);
+  expect(piReportSchema.safeParse({ ...piReportMessage.report, extra: 'x' }).success).toBe(false);
 });
 
 it('refuses a JSON value that is not an object', () => {

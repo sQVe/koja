@@ -1,10 +1,12 @@
 import { readdirSync, readFileSync } from 'node:fs';
 
 export interface ProcessStat {
+  state: string;
   group: number;
   session: number;
   // The foreground process group of the controlling terminal.
   terminalGroup: number;
+  startTime: number;
 }
 
 const numericName = /^\d+$/;
@@ -24,6 +26,12 @@ export const parseStat = (line: string): ProcessStat | undefined => {
     .trim()
     .split(' ');
 
+  const state = fields[0];
+
+  if (state?.length !== 1) {
+    return undefined;
+  }
+
   const group = Number(fields[2]);
   const session = Number(fields[3]);
   const terminalGroup = Number(fields[5]);
@@ -32,7 +40,13 @@ export const parseStat = (line: string): ProcessStat | undefined => {
     return undefined;
   }
 
-  return { group, session, terminalGroup };
+  const startTime = Number(fields[19]);
+
+  if (!Number.isSafeInteger(startTime) || startTime < 0) {
+    return undefined;
+  }
+
+  return { state, group, session, terminalGroup, startTime };
 };
 
 export const readStat = (processId: string): ProcessStat | undefined => {
