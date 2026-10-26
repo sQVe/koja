@@ -314,7 +314,6 @@ const dispatch = (context: ServerContext, intent: Intent): DispatchResult => {
 const dispatchChanges = (context: ServerContext, intent: Intent): readonly Change[] =>
   changesOf(dispatch(context, intent));
 
-// Returns whether a family handled the request.
 const handleFamilyRequest = (
   context: ServerContext,
   message: ControlMessage,

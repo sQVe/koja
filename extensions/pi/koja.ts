@@ -19,14 +19,12 @@ interface Report {
   ownership: Ownership;
 }
 
-// Tau marks its worker panes with a non-empty TAU_WORKER_RECORD.
 const ownershipOf = (workerRecord: string | undefined): Ownership =>
   workerRecord === undefined || workerRecord === '' ? 'interactive' : 'tauWorker';
 
 const nonEmpty = (value: string | null | undefined): string | null =>
   value === undefined || value === '' ? null : value;
 
-// `koja pi report` refuses a missing key, so every absent value is null.
 const reportOf = (
   pi: ExtensionAPI,
   context: ExtensionContext,
@@ -83,7 +81,6 @@ export default function koja(pi: ExtensionAPI): void {
     report(context);
   });
 
-  // `/tree` moves to another branch of the same session without a new session_start.
   pi.on('session_tree', (_event, context) => {
     report(context);
   });

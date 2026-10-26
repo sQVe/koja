@@ -28,7 +28,6 @@ interface ScreenRead {
   unchanged: boolean;
 }
 
-// Each test starts a Koja server and one or two pi processes in a pane.
 const piTestTimeoutMs = 60_000;
 
 const piBinary = join(root, 'node_modules/.bin/pi');
@@ -67,7 +66,6 @@ const processInfoSchema = z.object({
 
 const sessionLineSchema = z.object({ type: z.string(), id: z.string() });
 
-// The provider points at a closed port, and no test sends a prompt, so pi never calls it.
 const piDirectories = async (
   directory: string,
   settings: Record<string, unknown> = {},
@@ -108,7 +106,6 @@ const extensionFlags = (start: PiStart): string[] =>
 const sessionFlags = (start: PiStart): string[] =>
   start.sessionFile === undefined ? [] : ['--session', quote(start.sessionFile)];
 
-// The pane inherits the test's environment, which may come from a Tau worker or a user's pi.
 const piCommand = (directories: PiDirectories, start: PiStart): string => {
   const environment = [
     'env',
@@ -174,8 +171,6 @@ const onlyShellRuns = (info: z.infer<typeof processInfoSchema>): boolean =>
 const visibleLines = async (pane: PaneSetup): Promise<string[]> =>
   (await readJson(pane.koja, pane.first, '--lines', '30')).lines;
 
-// Pi has drawn its editor and footer once the footer shows the model, and two equal reads show
-// that nothing else is still drawing.
 const isSettledReady = ({ current, unchanged }: ScreenRead): boolean =>
   unchanged && (current.at(-1)?.endsWith(footerEnd) ?? false);
 
@@ -213,8 +208,6 @@ const headerIdOf = async (sessionFile: string): Promise<string | undefined> => {
   return first === undefined ? undefined : sessionLineSchema.parse(JSON.parse(first)).id;
 };
 
-// Pi writes a session file only once it holds a message, so the test writes one with pi's own
-// session manager and opens it.
 const savedConversation = (pane: PaneSetup, directories: PiDirectories): string => {
   const session = SessionManager.create(join(pane.directory, 'work'), directories.sessions);
 
@@ -227,7 +220,6 @@ const savedConversation = (pane: PaneSetup, directories: PiDirectories): string 
   return sessionFile ?? '';
 };
 
-// Two user replies to one first message give pi's tree two branches, with the second selected.
 const branchedConversation = (pane: PaneSetup, directories: PiDirectories): string => {
   const session = SessionManager.create(join(pane.directory, 'work'), directories.sessions);
   const first = session.appendMessage({ role: 'user', content: 'first', timestamp: Date.now() });
@@ -299,7 +291,6 @@ it(
   async () => {
     const pane = await setup();
 
-    // Without quiet startup, pi itself lists each loaded extension's file name.
     const directories = await piDirectories(pane.directory, { quietStartup: true });
 
     await send(pane, piCommand(directories, { extension: false }));
@@ -323,7 +314,6 @@ it(
   async () => {
     const pane = await setup();
 
-    // Without this setting, pi asks whether to summarize the branch it leaves.
     const directories = await piDirectories(pane.directory, {
       branchSummary: { skipPrompt: true },
     });

@@ -12,7 +12,6 @@ import { pollUntil, setup } from './paneHarness.ts';
 import type { PaneSetup } from './paneHarness.ts';
 
 interface PaneReportOptions {
-  // A shell expression for the reported process id.
   processId: string;
   json: boolean;
 }
@@ -44,8 +43,6 @@ const shellPassOf = async (pane: PaneSetup): Promise<string> => {
 
 const selfReport: PaneReportOptions = { processId: '$$', json: true };
 
-// By default the pane's shell sends the report with its own process id, so a live process in the
-// pane's session reports itself.
 const reportFromPane = async (
   pane: PaneSetup,
   fields: Record<string, unknown>,
@@ -146,7 +143,6 @@ it(
 
     const before = await statusJson(pane);
 
-    // The test runner is alive but outside the pane's session.
     const outside = { processId: String(process.pid), json: false };
     const refused = await reportFromPane(pane, report, 'outside', outside);
 
@@ -202,7 +198,6 @@ it(
 
 const validPass = 'a'.repeat(64);
 
-// A listener in place of the server shows whether the command connected at all.
 const listenerAt = (socketPath: string) => {
   const connections = { count: 0 };
 

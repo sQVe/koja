@@ -189,7 +189,6 @@ it('hides a record of another generation of the pane', () => {
   const [pane] = reported.panes;
   const generation = reported.nextGeneration;
 
-  // A pane that starts again keeps its id under a new generation.
   const restarted: State = {
     ...reported,
     panes: [{ ...defined(pane), generation }],

@@ -141,7 +141,6 @@ export interface State {
   layoutArea: TerminalSize;
   // For each split pane that has not started yet, the focus and zoom the tab had before the split.
   stateBeforeSplit: ReadonlyMap<PaneId, StateBeforeSplit>;
-  // The pi process each pane last reported, if any. Clients and saved sessions never read it.
   piReports: ReadonlyMap<PaneId, PiRecord>;
   revision: number;
 }

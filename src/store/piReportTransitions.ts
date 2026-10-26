@@ -7,7 +7,6 @@ export interface PiProcess {
   startTime: number;
 }
 
-// The conversation a pi process reported. Absent optional values are undefined.
 export interface PiReport {
   processId: number;
   piVersion: string;
@@ -25,7 +24,6 @@ interface PiRecordBase {
   process: PiProcess;
 }
 
-// A changed record drops the report, so it shows no conversation.
 export type PiRecord =
   | (PiRecordBase & { state: 'reported'; report: PiReport })
   | (PiRecordBase & { state: 'changed' });
@@ -75,7 +73,6 @@ const applied = (state: State, status: PiReportStatus): PiReportApplied => ({
   status,
 });
 
-// Drops the records of panes the state no longer has.
 const withRecord = (
   state: State,
   paneId: PaneId,
@@ -141,7 +138,6 @@ export const applyPiReport = (state: State, input: PiReportInput): PiReportAppli
   return withRecord(state, input.paneId, reportRecord(input), 'recorded');
 };
 
-// A record of another generation is not the pane's record, so it reads as no record.
 export const piRecordOf = (state: State, paneId: PaneId): PiRecord | undefined => {
   const pane = state.panes.find((known) => known.id === paneId);
   const record = state.piReports.get(paneId);

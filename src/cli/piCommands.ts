@@ -24,7 +24,6 @@ type PiOutput =
       piVersion: string;
       sessionId: string | null;
       sessionFile: string | null;
-      // Where pi's conversation stood when pi reported. Later messages move pi past it.
       reportedLeafId: string | null;
       provider: string | null;
       model: string | null;
@@ -139,7 +138,6 @@ const readReport = async (): Promise<
   return { ok: true, report: parsed.data };
 };
 
-// The pass comes only from the environment and never appears in a message.
 const buildReport = async (environment: Environment): Promise<ReportBuilt> => {
   const paneValue = environment.KOJA_PANE_ID;
 

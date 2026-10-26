@@ -327,7 +327,6 @@ const piReportText = (maxLength: number) => z.string().min(1).max(maxLength);
 
 export const reportPassSchema = z.string().regex(/^[0-9a-f]{64}$/);
 
-// The longest text each pi report field may hold.
 const piReportLimits = {
   shortText: 64,
   identifier: 256,
@@ -359,7 +358,6 @@ const piReportOutcomeSchema = z.discriminatedUnion('ok', [
   }),
 ]);
 
-// The state is the one the store keeps. A reported pi has no process id on the wire.
 const piStatusSchema = z.union([
   z.null(),
   z.strictObject({ state: z.literal('changed') }),
