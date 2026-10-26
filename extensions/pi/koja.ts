@@ -71,11 +71,20 @@ export default function koja(pi: ExtensionAPI): void {
     return;
   }
 
-  pi.on('session_start', (_event, context) => {
+  const report = (context: ExtensionContext): void => {
     try {
       send(binaryPath, reportOf(pi, context, environment));
     } catch {
       // Reading pi's state must not affect pi.
     }
+  };
+
+  pi.on('session_start', (_event, context) => {
+    report(context);
+  });
+
+  // `/tree` moves to another branch of the same session without a new session_start.
+  pi.on('session_tree', (_event, context) => {
+    report(context);
   });
 }

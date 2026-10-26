@@ -11,6 +11,12 @@ import type { CliRun } from './cliHarness.ts';
 import { pollUntil, setup } from './paneHarness.ts';
 import type { PaneSetup } from './paneHarness.ts';
 
+interface PaneReportOptions {
+  // A shell expression for the reported process id.
+  processId: string;
+  json: boolean;
+}
+
 const report = {
   processId: 0,
   piVersion: '1.4.0',
@@ -36,21 +42,26 @@ const shellPassOf = async (pane: PaneSetup): Promise<string> => {
   return pass ?? '';
 };
 
-// The pane's shell sends the report with its own process id, so a live process in the pane's
-// session reports itself.
+const selfReport: PaneReportOptions = { processId: '$$', json: true };
+
+// By default the pane's shell sends the report with its own process id, so a live process in the
+// pane's session reports itself.
 const reportFromPane = async (
   pane: PaneSetup,
   fields: Record<string, unknown>,
   name: string,
+  { processId, json }: PaneReportOptions = selfReport,
 ): Promise<CliRun> => {
   const template = join(pane.directory, `${name}.json`);
   const output = join(pane.directory, name);
 
   await writeFile(template, JSON.stringify({ ...fields, processId: 'PROCESS_ID' }));
 
+  const jsonFlag = json ? ' --json' : '';
+
   const command =
-    `sed 's/"PROCESS_ID"/'$$'/' '${template}' | '${process.execPath}' '${root}src/index.ts' ` +
-    `pi report --json > '${output}.out' 2> '${output}.err'; echo $? > '${output}.exit'\n`;
+    `sed 's/"PROCESS_ID"/'${processId}'/' '${template}' | '${process.execPath}' '${root}src/index.ts' ` +
+    `pi report${jsonFlag} > '${output}.out' 2> '${output}.err'; echo $? > '${output}.exit'\n`;
 
   expect((await pane.koja('pane', 'send', command)).exitCode).toBe(0);
 
@@ -121,6 +132,42 @@ it(
       pane: pane.first,
       pi: { state: 'changed', recoveryEligible: false },
     });
+  },
+  cliTestTimeoutMs,
+);
+
+it(
+  'prints the server refusal for a process outside the pane and keeps the record',
+  async () => {
+    const pane = await setup();
+    const reported = await reportFromPane(pane, report, 'first');
+
+    expect(reported.exitCode).toBe(0);
+
+    const before = await statusJson(pane);
+
+    // The test runner is alive but outside the pane's session.
+    const outside = { processId: String(process.pid), json: false };
+    const refused = await reportFromPane(pane, report, 'outside', outside);
+
+    expect({ exitCode: refused.exitCode, stdout: refused.stdout }).toEqual({
+      exitCode: 1,
+      stdout: '',
+    });
+
+    expect(refused.stderr).toContain('does not run in pane');
+
+    const refusedJson = await reportFromPane(pane, report, 'outside-json', {
+      ...outside,
+      json: true,
+    });
+
+    expect({ exitCode: refusedJson.exitCode, stdout: refusedJson.stdout }).toEqual({
+      exitCode: 1,
+      stdout: '{"ok":false,"reason":"processNotInPane"}\n',
+    });
+
+    expect(await statusJson(pane)).toEqual(before);
   },
   cliTestTimeoutMs,
 );

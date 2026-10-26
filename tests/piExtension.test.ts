@@ -227,6 +227,31 @@ const savedConversation = (pane: PaneSetup, directories: PiDirectories): string 
   return sessionFile ?? '';
 };
 
+// Two user replies to one first message give pi's tree two branches, with the second selected.
+const branchedConversation = (pane: PaneSetup, directories: PiDirectories): string => {
+  const session = SessionManager.create(join(pane.directory, 'work'), directories.sessions);
+  const first = session.appendMessage({ role: 'user', content: 'first', timestamp: Date.now() });
+
+  session.appendMessage({ role: 'user', content: 'branch one', timestamp: Date.now() });
+  session.branch(first);
+  session.appendMessage({ role: 'user', content: 'branch two', timestamp: Date.now() });
+
+  const sessionFile = session.getSessionFile();
+
+  expect(sessionFile).toBeDefined();
+
+  return sessionFile ?? '';
+};
+
+const showsLine = async (pane: PaneSetup, line: string): Promise<boolean> => {
+  const shown = await pollUntil(
+    () => visibleLines(pane),
+    (lines) => lines.includes(line),
+  );
+
+  return shown.includes(line);
+};
+
 it(
   'reports the exact conversation of pi in the pane until pi switches it and quits',
   async () => {
@@ -289,6 +314,40 @@ it(
 
     expect(pi?.ownership).toBe('tauWorker');
     expect(await settledScreen(pane)).toEqual(withoutExtension);
+  },
+  piTestTimeoutMs,
+);
+
+it(
+  'shows a changed conversation after pi selects another branch in its tree',
+  async () => {
+    const pane = await setup();
+
+    // Without this setting, pi asks whether to summarize the branch it leaves.
+    const directories = await piDirectories(pane.directory, {
+      branchSummary: { skipPrompt: true },
+    });
+
+    const conversation = branchedConversation(pane, directories);
+
+    await send(pane, piCommand(directories, { extension: true, sessionFile: conversation }));
+
+    expect((await waitForPi(pane, 'reported')).pi?.leafId).toBe(await lastEntryIdOf(conversation));
+
+    await send(pane, '/tree\r');
+
+    expect(await showsLine(pane, '› ├─ • user: branch two')).toBe(true);
+
+    await send(pane, '\u001B[B');
+
+    expect(await showsLine(pane, '› └─ user: branch one')).toBe(true);
+
+    await send(pane, '\r');
+
+    expect((await waitForPi(pane, 'changed')).pi).toEqual({
+      state: 'changed',
+      recoveryEligible: false,
+    });
   },
   piTestTimeoutMs,
 );
