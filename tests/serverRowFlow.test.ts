@@ -319,16 +319,18 @@ it('keeps a connection open when full-screen repaints of a large terminal outrun
   socket.write(encodeFrame(FrameKind.control, encodeControl(hello)));
   await waitFor(() => server.snapshot().clients.length === 1);
 
-  server.writeToPane('stty -echo\n');
-  await Bun.sleep(30);
+  server.writeToPane('stty -echo; echo koja-$((6 * 7))\n');
+  await waitFor(() => server.paneText()?.includes('koja-42') === true);
 
   for (const character of 'abcdefghijklmnopqrst') {
     const command = `printf '\\033[?2026h\\033[2J\\033[H'; printf '%19200s' '' | tr ' ' '${character}'; printf '\\033[?2026l'\n`;
 
     server.writeToPane(command);
     await waitFor(() => server.paneText()?.includes(character.repeat(200)) === true);
-    await Bun.sleep(60);
   }
+
+  // Gives the last repaint's rows time to reach the queue and a close time to arrive.
+  await Bun.sleep(60);
 
   expect(hasQueueWarning(logPath)).toBe(false);
   expect(closed).toBe(false);

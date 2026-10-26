@@ -7,7 +7,7 @@ import { z } from 'zod';
 import { sideListColumns } from '../src/layout.ts';
 import { cellWords, rowHeaderWords } from '../src/rows/rows.ts';
 import { createTerminal } from '../src/vt/vt.ts';
-import { environmentFor, root, temporaryDirectory } from './cliHarness.ts';
+import { environmentFor, launchServer, root, runCli, temporaryDirectory } from './cliHarness.ts';
 
 const paneListSchema = z.array(
   z.object({
@@ -46,19 +46,14 @@ export const setup = async (): Promise<PaneAttachHarness> => {
   const environment = { ...environmentFor(directory), SHELL: '/bin/sh', PS1: '' };
 
   const koja = async (...commandArguments: string[]): Promise<string> => {
-    const child = Bun.spawn(
-      ['bun', join(root, 'src/index.ts'), ...commandArguments, '--socket', socketPath],
-      { cwd: directory, env: environment, stdin: 'ignore', stdout: 'pipe', stderr: 'pipe' },
-    );
+    const run = await runCli([...commandArguments, '--socket', socketPath], directory, environment);
 
-    const [exitCode, stdout] = await Promise.all([child.exited, new Response(child.stdout).text()]);
+    expect(run.exitCode).toBe(0);
 
-    expect(exitCode).toBe(0);
-
-    return stdout;
+    return run.stdout;
   };
 
-  await koja('server', 'start');
+  await launchServer(socketPath, directory, environment);
 
   const workspaceRoot = join(directory, 'work');
 

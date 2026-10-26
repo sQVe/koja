@@ -24,6 +24,7 @@ import {
   environmentFor,
   root,
   runCli,
+  runCliProcess,
   startOutputSchema,
   startServer,
   temporaryDirectory,
@@ -65,19 +66,35 @@ const helloAnswer = async (socketPath: string): Promise<ControlMessage> => {
   }
 };
 
+const startWithCli = async (directory: string, socketPath: string) => {
+  const started = await runCli(['server', 'start', '--socket', socketPath, '--json'], directory);
+
+  expect({ exitCode: started.exitCode, stderr: started.stderr }).toEqual({
+    exitCode: 0,
+    stderr: '',
+  });
+
+  await createWorkspaceAt(socketPath, directory);
+
+  return startOutputSchema.parse(JSON.parse(started.stdout));
+};
+
 it(
   'starts a server in the background and stops it',
   async () => {
     const directory = await temporaryDirectory();
     const socketPath = join(directory, 'run', 'koja.sock');
 
-    const started = await startServer(directory, socketPath);
+    const started = await startWithCli(directory, socketPath);
 
     expect(started.socket).toBe(socketPath);
     expect(isRunning(started.pid)).toBe(true);
     expect(await helloAnswer(socketPath)).toEqual({ type: 'welcome' });
 
-    const stopped = await runCli(['server', 'stop', '--socket', socketPath, '--json'], directory);
+    const stopped = await runCliProcess(
+      ['server', 'stop', '--socket', socketPath, '--json'],
+      directory,
+    );
 
     expect(stopped).toEqual({ exitCode: 0, stdout: '{"stopped":true}\n', stderr: '' });
     expect(existsSync(socketPath)).toBe(false);
@@ -185,7 +202,7 @@ it.skipIf(process.getuid?.() === 0)(
     const started = performance.now();
 
     try {
-      stopped = await runCli(['server', 'stop', '--socket', socketPath], directory);
+      stopped = await runCliProcess(['server', 'stop', '--socket', socketPath], directory);
     } finally {
       await chmod(socketDirectory, 0o700);
     }
@@ -228,7 +245,7 @@ it(
       listener.stop(true);
     });
 
-    const stopped = await runCli(['server', 'stop', '--socket', socketPath], directory);
+    const stopped = await runCliProcess(['server', 'stop', '--socket', socketPath], directory);
 
     expect(stopped).toEqual({
       exitCode: 0,
@@ -275,7 +292,7 @@ it(
     await link(listening, socketPath);
     listener.stop(true);
 
-    await startServer(directory, socketPath);
+    await startWithCli(directory, socketPath);
 
     expect(await helloAnswer(socketPath)).toEqual({ type: 'welcome' });
   },
@@ -362,7 +379,10 @@ it.each([
     await mkdir(join(directory, 'run'), { mode: 0o700 });
     await place(socketPath, directory);
 
-    const stopped = await runCli(['server', 'stop', '--socket', socketPath, '--json'], directory);
+    const stopped = await runCliProcess(
+      ['server', 'stop', '--socket', socketPath, '--json'],
+      directory,
+    );
 
     expect({ exitCode: stopped.exitCode, stdout: stopped.stdout }).toEqual({
       exitCode: 1,
@@ -411,7 +431,7 @@ it(
     ]);
 
     for (const socketPath of sockets) {
-      const stopped = await runCli(['server', 'stop', '--socket', socketPath], directory);
+      const stopped = await runCliProcess(['server', 'stop', '--socket', socketPath], directory);
 
       expect(stopped.exitCode).toBe(0);
     }
@@ -432,7 +452,7 @@ it(
     expect(startOutputSchema.parse(JSON.parse(started.stdout)).socket).toBe(socketPath);
     expect(await readdir(join(directory, 'state', 'koja', 'logs'))).toHaveLength(1);
 
-    const stopped = await runCli(['server', 'stop'], directory);
+    const stopped = await runCliProcess(['server', 'stop'], directory);
 
     expect(stopped.exitCode).toBe(0);
     expect(existsSync(socketPath)).toBe(false);
@@ -517,7 +537,10 @@ it(
       expect(result.server.paneText()).not.toContain('must-not-be-written');
     }
 
-    const stopped = await runCli(['server', 'stop', '--socket', socketPath, '--json'], directory);
+    const stopped = await runCliProcess(
+      ['server', 'stop', '--socket', socketPath, '--json'],
+      directory,
+    );
 
     expect(stopped).toEqual({ exitCode: 0, stdout: '{"stopped":true}\n', stderr: '' });
     await result.server.stopped;

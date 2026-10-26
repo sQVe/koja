@@ -4,7 +4,13 @@ import { join } from 'node:path';
 
 import { z } from 'zod';
 
-import { cliTestTimeoutMs, environmentFor, runCli, temporaryDirectory } from './cliHarness.ts';
+import {
+  cliTestTimeoutMs,
+  environmentFor,
+  launchServer,
+  runCliProcess,
+  temporaryDirectory,
+} from './cliHarness.ts';
 import { createWorkspaceAt } from './serverProcesses.ts';
 
 const readSchema = z.object({ pane: z.string() });
@@ -18,19 +24,14 @@ const setup = async () => {
   const startServerAt = async (name: string): Promise<string> => {
     const socketPath = join(directory, name, 'koja.sock');
 
-    const started = await runCli(
-      ['server', 'start', '--socket', socketPath],
-      directory,
-      environment,
-    );
-
-    expect(started.exitCode).toBe(0);
+    await launchServer(socketPath, directory, environment);
 
     return socketPath;
   };
 
+  // The environment enters at the process boundary, so these commands run in their own process.
   const koja = (extra: Record<string, string>, ...commandArguments: string[]) =>
-    runCli(commandArguments, directory, { ...environment, ...extra });
+    runCliProcess(commandArguments, directory, { ...environment, ...extra });
 
   const listed = async (extra: Record<string, string>, ...commandArguments: string[]) => {
     const result = await koja(extra, ...commandArguments, '--json');

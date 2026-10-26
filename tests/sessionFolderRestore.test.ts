@@ -1,6 +1,6 @@
 import { expect, it } from 'bun:test';
 import { readdirSync, readlinkSync } from 'node:fs';
-import { chmod, realpath, rename, rm, writeFile } from 'node:fs/promises';
+import { chmod, mkdir, realpath, rename, rm, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 
 import { z } from 'zod';
@@ -150,8 +150,10 @@ it(
     await server.createWorkspace('one');
 
     const second = await server.split('pane-1');
-    const folder = await realpath(await temporaryDirectory());
+    // The folder moves to a sibling, so it sits inside a directory that cleanup removes.
+    const folder = join(await realpath(await temporaryDirectory()), 'moving');
 
+    await mkdir(folder);
     await server.koja(['pane', 'focus', second]);
     await server.koja(['pane', 'send', `cd ${folder}\n`]);
 
@@ -208,7 +210,14 @@ it.skipIf(!scopesAvailable)(
     await writeShell(shell, '#!/nonexistent/koja-interpreter\n');
     await server.start();
 
-    const states = await server.states();
+    const deadline = performance.now() + 10_000;
+    let states = await server.states();
+
+    while (states['pane-1']?.lifecycle === 'running') {
+      expect(performance.now()).toBeLessThan(deadline);
+      await Bun.sleep(20);
+      states = await server.states();
+    }
 
     expect(states['pane-1']?.lifecycle).toBe('failed');
 
@@ -255,7 +264,14 @@ it.skipIf(!scopesAvailable)(
     await writeShell(shell, '#!/nonexistent/koja-interpreter\n');
 
     const pid = await server.start();
-    const states = await server.states();
+    const deadline = performance.now() + 10_000;
+    let states = await server.states();
+
+    while (Object.values(states).some((state) => state.lifecycle === 'running')) {
+      expect(performance.now()).toBeLessThan(deadline);
+      await Bun.sleep(20);
+      states = await server.states();
+    }
 
     expect(Object.keys(states)).toHaveLength(4);
 

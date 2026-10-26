@@ -1,12 +1,13 @@
-import { expect, onTestFinished } from 'bun:test';
+import { onTestFinished } from 'bun:test';
 import { mkdtemp, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
-import { join } from 'node:path';
+import { isAbsolute, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 import { z } from 'zod';
 
 import packageJson from '../package.json' with { type: 'json' };
+import { runCli as runCliInTestProcess } from '../src/cli/cli.ts';
 import { ghosttyCommit } from '../src/vt/vt.ts';
 import { createWorkspaceAt, endServersIn } from './serverProcesses.ts';
 
@@ -40,7 +41,7 @@ export const environmentFor = (directory: string): Record<string, string | undef
   XDG_RUNTIME_DIR: join(directory, 'runtime'),
 });
 
-export const runCli = async (
+export const runCliProcess = async (
   commandArguments: string[],
   directory: string,
   environment = environmentFor(directory),
@@ -62,6 +63,121 @@ export const runCli = async (
   return { exitCode, stdout, stderr };
 };
 
+const recorderFor =
+  (chunks: string[]) =>
+  (chunk: string | Uint8Array): boolean => {
+    chunks.push(typeof chunk === 'string' ? chunk : Buffer.from(chunk).toString('utf8'));
+
+    return true;
+  };
+
+// The in-process CLI writes to the shared process streams, so runs take turns.
+let previousRun: Promise<unknown> = Promise.resolve();
+
+const inProcessRunTimeoutMs = cliTestTimeoutMs / 2;
+
+const settleWithin = async <Value>(
+  running: Promise<Value>,
+  commandArguments: string[],
+): Promise<Value> => {
+  let timer: ReturnType<typeof setTimeout> | undefined;
+
+  const timedOut = new Promise<never>((_resolve, reject) => {
+    timer = setTimeout(() => {
+      reject(
+        new Error(
+          `koja ${commandArguments.join(' ')} did not finish in ${inProcessRunTimeoutMs} ms.`,
+        ),
+      );
+    }, inProcessRunTimeoutMs);
+  });
+
+  try {
+    return await Promise.race([running, timedOut]);
+  } finally {
+    clearTimeout(timer);
+  }
+};
+
+const runCliInProcess = async (
+  commandArguments: string[],
+  environment: Record<string, string | undefined>,
+): Promise<CliRun> => {
+  const stdout: string[] = [];
+  const stderr: string[] = [];
+  const writeStdout = process.stdout.write;
+  const writeStderr = process.stderr.write;
+
+  process.stdout.write = recorderFor(stdout);
+  process.stderr.write = recorderFor(stderr);
+
+  try {
+    const exitCode = await settleWithin(
+      runCliInTestProcess(commandArguments, environment),
+      commandArguments,
+    );
+
+    return { exitCode, stdout: stdout.join(''), stderr: stderr.join('') };
+  } finally {
+    process.stdout.write = writeStdout;
+    process.stderr.write = writeStderr;
+  }
+};
+
+const takeTurn = (run: () => Promise<CliRun>): Promise<CliRun> => {
+  const turn = previousRun.then(run, run);
+
+  previousRun = turn.catch(() => undefined);
+
+  return turn;
+};
+
+const pathOptions = new Set(['--cwd', '--socket']);
+
+const isRelativePath = (path: string | undefined): boolean =>
+  path !== undefined && path !== '' && !isAbsolute(path);
+
+const passesRelativePath = (commandArguments: string[]): boolean => {
+  const [family, action, directory] = commandArguments;
+
+  const createsRelativeWorkspace =
+    family === 'workspace' && action === 'create' && isRelativePath(directory);
+
+  const passesRelativeOption = commandArguments.some(
+    (argument, index) => pathOptions.has(argument) && isRelativePath(commandArguments[index + 1]),
+  );
+
+  return createsRelativeWorkspace || passesRelativeOption;
+};
+
+const createsWorkspaceAtCwd = (commandArguments: string[]): boolean => {
+  const [family, action, actionId] = commandArguments;
+
+  return family === 'action' && action === 'run' && actionId === 'workspace.create';
+};
+
+// Server start spawns Bun.main, which is the test file under bun test. Attach and the default
+// command need a terminal. Relative paths and the workspace.create action resolve against the
+// process cwd, which the test process does not share with the command.
+const needsOwnProcess = (commandArguments: string[]): boolean => {
+  const [family, action] = commandArguments;
+  const serverLaunch = action === 'start' || action === 'run';
+  const startsServer = family === 'server' && serverLaunch;
+  const attaches = family === undefined || family === 'attach' || family.startsWith('--socket');
+  const usesCwd = passesRelativePath(commandArguments) || createsWorkspaceAtCwd(commandArguments);
+
+  return startsServer || attaches || usesCwd;
+};
+
+export const runCli = (
+  commandArguments: string[],
+  directory: string,
+  environment = environmentFor(directory),
+): Promise<CliRun> =>
+  needsOwnProcess(commandArguments)
+    ? runCliProcess(commandArguments, directory, environment)
+    : takeTurn(() => runCliInProcess(commandArguments, environment));
+
 export const startOutputSchema = z.object({ socket: z.string(), pid: z.number().int().positive() });
 
 export const buildVersion = (): { version: string; ghostty: string } => {
@@ -74,18 +190,111 @@ export const buildVersion = (): { version: string; ghostty: string } => {
   return { version: packageJson.version, ghostty: commit.commit };
 };
 
+const firstLine = async (stream: ReadableStream<Uint8Array>): Promise<string | undefined> => {
+  const reader = stream.getReader();
+  const decoder = new TextDecoder();
+  let text = '';
+
+  while (!text.includes('\n')) {
+    const chunk = await reader.read();
+
+    if (chunk.done) {
+      return undefined;
+    }
+
+    text += decoder.decode(chunk.value, { stream: true });
+  }
+
+  await reader.cancel();
+
+  return text.slice(0, text.indexOf('\n'));
+};
+
+const serverReadyTimeoutMs = cliTestTimeoutMs / 3;
+
+const reportedPid = (line: string): number | undefined => {
+  try {
+    const parsed = startOutputSchema.safeParse(JSON.parse(line));
+
+    return parsed.success ? parsed.data.pid : undefined;
+  } catch {
+    return undefined;
+  }
+};
+
+// A line from this child, and not an answer on the socket, proves this child started.
+const readinessFailure = async (
+  server: Bun.Subprocess<'ignore', 'pipe', 'pipe'>,
+): Promise<string | undefined> => {
+  const timedOut = Promise.withResolvers<string>();
+
+  const timer = setTimeout(() => {
+    timedOut.resolve(`did not become ready within ${serverReadyTimeoutMs} ms`);
+  }, serverReadyTimeoutMs);
+
+  const ready = firstLine(server.stdout).then((line): string | undefined => {
+    if (line === undefined) {
+      return 'exited before it was ready';
+    }
+
+    return reportedPid(line) === server.pid
+      ? undefined
+      : `reported readiness of another process: ${line}`;
+  });
+
+  try {
+    return await Promise.race([ready, timedOut.promise]);
+  } finally {
+    clearTimeout(timer);
+  }
+};
+
+// Launches a detached server the way server start does, without a Bun process for start itself.
+// endServersIn finds the server by the `server run --socket` command line.
+export const launchServer = async (
+  socketPath: string,
+  directory: string,
+  environment = environmentFor(directory),
+): Promise<number> => {
+  const server = Bun.spawn(
+    [
+      process.execPath,
+      join(root, 'src/index.ts'),
+      'server',
+      'run',
+      '--socket',
+      socketPath,
+      '--json',
+    ],
+    { cwd: directory, detached: true, stdio: ['ignore', 'pipe', 'pipe'], env: environment },
+  );
+
+  const failure = await readinessFailure(server);
+
+  if (failure !== undefined) {
+    server.kill('SIGKILL');
+
+    const [exitCode, detail] = await Promise.all([
+      server.exited,
+      new Response(server.stderr).text(),
+    ]);
+
+    throw new Error(`The server ${failure}. It ended with code ${exitCode}:\n${detail}`);
+  }
+
+  await server.stderr.cancel();
+  server.unref();
+
+  return server.pid;
+};
+
 export const startServer = async (
   directory: string,
   socketPath: string,
 ): Promise<z.infer<typeof startOutputSchema>> => {
-  const started = await runCli(['server', 'start', '--socket', socketPath, '--json'], directory);
-
-  expect({ exitCode: started.exitCode, stderr: started.stderr }).toEqual({
-    exitCode: 0,
-    stderr: '',
-  });
+  const pid = await launchServer(socketPath, directory);
 
   await createWorkspaceAt(socketPath, directory);
 
-  return startOutputSchema.parse(JSON.parse(started.stdout));
+  return { socket: socketPath, pid };
 };

@@ -4,6 +4,7 @@ import { mkdir, rm } from 'node:fs/promises';
 import { join } from 'node:path';
 
 import { paneId, workspaceId } from '../src/ids.ts';
+import type { PaneId } from '../src/ids.ts';
 import type { TestClient } from './serverHarness.ts';
 import {
   readRecent,
@@ -127,6 +128,12 @@ it('focuses, renames, and closes a workspace and answers with its id', async () 
   expect(server.snapshot().defaultView.focusedWorkspaceId).toBe(workspaceId(2));
 });
 
+const readRecentOf = async (cli: TestClient, pane: PaneId) => {
+  cli.send(readRecent(pane));
+
+  return cli.nextPaneRows();
+};
+
 it('sends rows only for the focused workspace and the other screen after workspaceFocus', async () => {
   const directory = await temporaryDirectory();
   const { server, socketPath } = await startServer(directory);
@@ -146,9 +153,14 @@ it('sends rows only for the focused workspace and the other screen after workspa
   const rows = new Map<number, string>();
 
   await receiveText(terminal, rows, 'visible-marker');
-  cli.send(readRecent(paneId(1)));
 
-  const hidden = await cli.nextPaneRows();
+  const deadline = performance.now() + 5000;
+  let hidden = await readRecentOf(cli, paneId(1));
+
+  while (!linesOf(hidden).join('\n').includes('hidden-marker') && performance.now() < deadline) {
+    await Bun.sleep(20);
+    hidden = await readRecentOf(cli, paneId(1));
+  }
 
   expect(linesOf(hidden).join('\n')).toContain('hidden-marker');
   expect(terminal.updates.every((update) => update.pane === 2)).toBe(true);

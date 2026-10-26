@@ -6,7 +6,7 @@ import { join } from 'node:path';
 import { z } from 'zod';
 
 import { sessionPathFor } from '../src/server/sessionFile.ts';
-import { environmentFor, runCli, temporaryDirectory } from './cliHarness.ts';
+import { environmentFor, launchServer, runCli, temporaryDirectory } from './cliHarness.ts';
 
 export interface TestServer {
   socketPath: string;
@@ -26,8 +26,6 @@ export interface TestSetup {
   logText: () => Promise<string>;
   environment: Record<string, string | undefined>;
 }
-
-const startedSchema = z.object({ socket: z.string(), pid: z.number() });
 
 const workspaceListSchema = z.array(z.object({ id: z.string() }));
 
@@ -66,8 +64,7 @@ export const setup = async (): Promise<TestSetup> => {
       return run.stdout;
     };
 
-    const start = async (): Promise<number> =>
-      startedSchema.parse(JSON.parse(await koja(['server', 'start', '--json']))).pid;
+    const start = (): Promise<number> => launchServer(socketPath, directory, environment);
 
     const createWorkspace = async (folder: string): Promise<string> => {
       const root = join(directory, folder);

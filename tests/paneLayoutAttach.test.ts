@@ -41,7 +41,10 @@ it(
     await koja('pane', 'send', 'echo LEFTTEXT\n', '--pane', first);
     await koja('pane', 'send', 'echo RIGHTTEXT\n', '--pane', second);
 
-    await until(() => lines().some((line) => line.includes('echo RIGHTTEXT')));
+    const shows = (text: string) => lines().some((line) => line.includes(text));
+    const bottomFramesDrawn = () => lines()[22]?.includes('┘') === true;
+
+    await until(() => shows('echo LEFTTEXT') && shows('echo RIGHTTEXT') && bottomFramesDrawn());
 
     const rows = lines();
     const leftRow = rows.find((line) => line.includes('echo LEFTTEXT')) ?? '';

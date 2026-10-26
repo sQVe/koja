@@ -40,18 +40,42 @@ export const isRunning = (processId: number): boolean => {
   }
 };
 
-export const waitFor = async (condition: () => boolean, timeoutMs = 10_000): Promise<boolean> => {
+export const waitFor = async (
+  condition: () => boolean | Promise<boolean>,
+  timeoutMs = 10_000,
+): Promise<boolean> => {
   const deadline = performance.now() + timeoutMs;
 
-  while (!condition()) {
-    if (performance.now() > deadline) {
+  for (;;) {
+    const remainingMs = Math.max(deadline - performance.now(), 0);
+    let timer: ReturnType<typeof setTimeout> | undefined;
+
+    const expired = new Promise<false>((resolve) => {
+      timer = setTimeout(() => {
+        resolve(false);
+      }, remainingMs);
+    });
+
+    let met: boolean;
+
+    try {
+      met = await Promise.race([condition(), expired]);
+    } finally {
+      clearTimeout(timer);
+    }
+
+    const late = performance.now() > deadline;
+
+    if (met && !late) {
+      return true;
+    }
+
+    if (late) {
       return false;
     }
 
     await Bun.sleep(20);
   }
-
-  return true;
 };
 
 // Ends every server with a socket in the directory and waits for it to exit, since a stopping server

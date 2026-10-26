@@ -8,7 +8,7 @@ import { createFrameDecoder, encodeFrame, FrameKind } from '../src/protocol/fram
 import { encodeControl } from '../src/protocol/messages.ts';
 import { decodeRowUpdate, rowWords } from '../src/rows/rows.ts';
 import { ghosttyCommit } from '../src/vt/vt.ts';
-import { cliTestTimeoutMs, environmentFor, runCli } from './cliHarness.ts';
+import { cliTestTimeoutMs, environmentFor, runCliProcess } from './cliHarness.ts';
 import { paneReadSchema, readJson, setup, waitForText } from './paneHarness.ts';
 
 const connectLargeTerminal = async (
@@ -248,7 +248,7 @@ const readAcrossSwitch = async (switchSteps: string[], waitFor: string) => {
   const proxyPath = join(directory, 'proxy.sock');
   const proxy = await holdFirstPage(socketPath, proxyPath);
 
-  const read = runCli(
+  const read = runCliProcess(
     ['pane', 'read', first, '--source', 'visible', '--json', '--socket', proxyPath],
     directory,
     environmentFor(directory),
@@ -367,7 +367,7 @@ it(
     const proxyPath = join(directory, 'proxy.sock');
     const proxy = await holdFirstPage(join(directory, 'run', 'koja.sock'), proxyPath);
 
-    const read = runCli(
+    const read = runCliProcess(
       [
         'pane',
         'read',
