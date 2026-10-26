@@ -174,11 +174,13 @@ it(
     }));
 
     expect(created).toEqual([{ root: startDirectory, label: 'start-here', focused: true }]);
+    await eventually(() => statusBar() === 'NORMAL [1]');
     expect(statusBar()).toBe('NORMAL [1]');
 
     type('X');
 
     await eventually(async () => (await list()).length === 0);
+    await eventually(() => statusBar() === 'NORMAL');
     expect(statusBar()).toBe('NORMAL');
   },
   cliTestTimeoutMs,

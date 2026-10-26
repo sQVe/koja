@@ -14,6 +14,7 @@ import {
   cliTestTimeoutMs,
   environmentFor,
   runCli,
+  runCliProcess,
   startServer,
   temporaryDirectory,
 } from './cliHarness.ts';
@@ -265,10 +266,11 @@ it(
       const screen = expected.join('\\r\\n');
       const command = `printf '\\033[2J\\033[H${screen}'\n`;
       const start = terminal.updates.length;
-      const sent = runCli(['pane', 'send', command, '--socket', socketPath], directory);
+      // The send and reads must overlap, and in-process commands take turns.
+      const sent = runCliProcess(['pane', 'send', command, '--socket', socketPath], directory);
 
       const reads = Array.from({ length: 5 }, () =>
-        runCli(
+        runCliProcess(
           ['pane', 'read', 'pane-1', '--source', 'visible', '--socket', socketPath, '--json'],
           directory,
         ),

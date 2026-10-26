@@ -11,17 +11,12 @@ import {
   parseControl,
 } from '../src/protocol/protocol.ts';
 import type { ControlMessage } from '../src/protocol/protocol.ts';
+import { runCli, temporaryDirectory } from './cliHarness.ts';
 
 const runKoja = async (...commandArguments: string[]) => {
-  const child = Bun.spawn([process.execPath, 'src/index.ts', ...commandArguments], {
-    stdout: 'pipe',
-    stderr: 'pipe',
-  });
+  const run = await runCli(commandArguments, await temporaryDirectory());
 
-  const stdout = await new Response(child.stdout).text();
-  const stderr = await new Response(child.stderr).text();
-
-  return { code: await child.exited, stdout, stderr };
+  return { code: run.exitCode, stdout: run.stdout, stderr: run.stderr };
 };
 
 const listen = async (respond: (message: ControlMessage) => ControlMessage[] | undefined) => {

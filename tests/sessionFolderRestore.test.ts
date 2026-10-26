@@ -208,7 +208,14 @@ it.skipIf(!scopesAvailable)(
     await writeShell(shell, '#!/nonexistent/koja-interpreter\n');
     await server.start();
 
-    const states = await server.states();
+    const deadline = performance.now() + 10_000;
+    let states = await server.states();
+
+    while (states['pane-1']?.lifecycle === 'running') {
+      expect(performance.now()).toBeLessThan(deadline);
+      await Bun.sleep(20);
+      states = await server.states();
+    }
 
     expect(states['pane-1']?.lifecycle).toBe('failed');
 
@@ -255,7 +262,14 @@ it.skipIf(!scopesAvailable)(
     await writeShell(shell, '#!/nonexistent/koja-interpreter\n');
 
     const pid = await server.start();
-    const states = await server.states();
+    const deadline = performance.now() + 10_000;
+    let states = await server.states();
+
+    while (Object.values(states).some((state) => state.lifecycle === 'running')) {
+      expect(performance.now()).toBeLessThan(deadline);
+      await Bun.sleep(20);
+      states = await server.states();
+    }
 
     expect(Object.keys(states)).toHaveLength(4);
 

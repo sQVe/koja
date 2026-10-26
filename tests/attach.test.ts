@@ -15,6 +15,7 @@ import {
 } from '../src/protocol/protocol.ts';
 import { CursorShape } from '../src/rows/rows.ts';
 import { createTerminal } from '../src/vt/vt.ts';
+import { environmentFor, runCli, runCliProcess } from './cliHarness.ts';
 import { createWorkspaceAt, endServersIn, serverProcessesIn, waitFor } from './serverProcesses.ts';
 
 const attachClient = (
@@ -62,29 +63,25 @@ const setup = async () => {
   const directory = await mkdtemp(join(tmpdir(), 'koja-attach-'));
   const socketPath = join(directory, 'koja.sock');
 
-  const command = async (...commandArguments: string[]) => {
-    const child = Bun.spawn(
-      [process.execPath, 'src/index.ts', ...commandArguments, '--socket', socketPath],
-      {
-        env: {
-          ...process.env,
-          SHELL: '/bin/sh',
-          PS1: 'attach-prompt> ',
-          XDG_STATE_HOME: join(directory, 'state'),
-        },
-        stdout: 'pipe',
-        stderr: 'pipe',
-      },
-    );
+  const environment = { ...environmentFor(directory), SHELL: '/bin/sh', PS1: 'attach-prompt> ' };
 
-    const text = await new Response(child.stdout).text();
-    const error = await new Response(child.stderr).text();
+  const commandWith =
+    (runner: typeof runCli) =>
+    async (...commandArguments: string[]) => {
+      const run = await runner(
+        [...commandArguments, '--socket', socketPath],
+        directory,
+        environment,
+      );
 
-    expect(await child.exited).toBe(0);
-    expect(error).toBe('');
+      expect(run.exitCode).toBe(0);
+      expect(run.stderr).toBe('');
 
-    return text;
-  };
+      return run.stdout;
+    };
+
+  const command = commandWith(runCli);
+  const processCommand = commandWith(runCliProcess);
 
   onTestFinished(async () => {
     await endServersIn(directory);
@@ -96,7 +93,7 @@ const setup = async () => {
 
   const { client, screen } = attachClient(socketPath);
 
-  return { command, client, screen, socketPath, directory };
+  return { command, processCommand, client, screen, socketPath, directory };
 };
 
 // The pane area, without the side list columns.
@@ -362,10 +359,10 @@ it('shows the same screen text when a new client attaches after a detach', async
 });
 
 it('detaches the attached client when koja detach runs in another process', async () => {
-  const { client, screen, command } = await setup();
+  const { client, screen, processCommand } = await setup();
 
   expect(await waitFor(() => screen.text().includes('INSERT'))).toBe(true);
-  expect(await command('detach')).toContain('Detached');
+  expect(await processCommand('detach')).toContain('Detached');
 
   expect(await client.exited).toBe(0);
   expect(await waitFor(() => !screen.stableRows().alternate)).toBe(true);
@@ -385,31 +382,25 @@ it('lets a second client take over and tells the first one', async () => {
   expect(await waitFor(() => second.screen.text().includes('INSERT'))).toBe(true);
 });
 
-const runKoja = async (...commandArguments: string[]) => {
-  const child = Bun.spawn([process.execPath, 'src/index.ts', ...commandArguments], {
-    stdout: 'pipe',
-    stderr: 'pipe',
-  });
+const runKoja = async (directory: string, ...commandArguments: string[]) => {
+  const run = await runCli(commandArguments, directory);
 
-  const stdout = await new Response(child.stdout).text();
-  const stderr = await new Response(child.stderr).text();
-
-  return { code: await child.exited, stdout, stderr };
+  return { code: run.exitCode, stdout: run.stdout, stderr: run.stderr };
 };
 
 it('reports when no client is attached to koja detach', async () => {
-  const { client, screen, command, socketPath } = await setup();
+  const { client, screen, command, socketPath, directory } = await setup();
 
   expect(await waitFor(() => screen.text().includes('INSERT'))).toBe(true);
   await command('detach');
   expect(await client.exited).toBe(0);
 
-  const plain = await runKoja('detach', '--socket', socketPath);
+  const plain = await runKoja(directory, 'detach', '--socket', socketPath);
 
   expect(plain.code).toBe(1);
   expect(plain.stderr).toContain('No client is attached');
 
-  const json = await runKoja('detach', '--json', '--socket', socketPath);
+  const json = await runKoja(directory, 'detach', '--json', '--socket', socketPath);
 
   expect(json.code).toBe(1);
   expect(JSON.parse(json.stdout)).toEqual({ detached: false, reason: 'noClient' });
@@ -442,16 +433,13 @@ it('starts a server and attaches when koja runs with no server', async () => {
   await createWorkspaceAt(socketPath, directory);
   expect(await waitFor(() => screen.text().includes('attach-prompt>'))).toBe(true);
 
-  const read = Bun.spawn(
-    [process.execPath, 'src/index.ts', 'pane', 'read', 'pane-1', '--socket', socketPath],
-    {
-      env: { ...process.env, ...environment },
-      stdout: 'pipe',
-    },
-  );
+  const read = await runCli(['pane', 'read', 'pane-1', '--socket', socketPath], directory, {
+    ...environmentFor(directory),
+    ...environment,
+  });
 
-  expect(await read.exited).toBe(0);
-  expect(await new Response(read.stdout).text()).toContain('attach-prompt>');
+  expect(read.exitCode).toBe(0);
+  expect(read.stdout).toContain('attach-prompt>');
 });
 
 it('attaches to the running server without starting another', async () => {
