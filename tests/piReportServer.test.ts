@@ -5,6 +5,7 @@ import { join } from 'node:path';
 import { paneId } from '../src/ids.ts';
 import type { PaneId } from '../src/ids.ts';
 import type { ControlMessage } from '../src/protocol/protocol.ts';
+import { readStat } from '../src/server/processGroups.ts';
 import { runServer } from '../src/server/server.ts';
 import type { Server } from '../src/server/server.ts';
 import type { PiReport } from '../src/store/store.ts';
@@ -205,7 +206,14 @@ it('hides a record once its process exits while the shell keeps running', async 
   expect(await statusOf(client, target)).toMatchObject({ state: 'reported' });
 
   process.kill(processId, 'SIGTERM');
-  await waitFor(() => !existsSync(`/proc/${processId}`));
+
+  // dash reaps a background child only when it reads its next command, so the child can stay a
+  // zombie until then.
+  await waitFor(() => {
+    const stat = readStat(String(processId));
+
+    return stat === undefined || stat.state === 'Z';
+  });
 
   expect(await statusOf(client, target)).toBeNull();
   await expectShellAnswers(server, client, target);
