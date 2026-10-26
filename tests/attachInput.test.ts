@@ -237,6 +237,9 @@ const sizes = (panes: { columns: number; rows: number }[]) =>
 const region = (lines: string[], from: number, to: number): string[] =>
   lines.slice(0, 23).map((line) => line.slice(from, to).trimEnd());
 
+// A pane runs input in order, so once it shows this marker's output it has shown any earlier text.
+const shownMarker = 'echo shown-$((1+1))\r';
+
 it(
   'splits the focused pane below on Ctrl+B s and right on Ctrl+B v',
   async () => {
@@ -434,15 +437,16 @@ it(
 it(
   'runs a command typed in the same write as Ctrl+B h in the newly focused pane only',
   async () => {
-    const { koja, lines, until, type, first } = await setup();
+    const { koja, act, lines, until, type, first } = await setup();
+    const second = await act('split', first, '--direction', 'right');
 
-    await koja('pane', 'split', first, '--direction', 'right');
     await until(() => lines()[0]?.charAt(41) === '┌');
 
     type('\x02hiecho LEFTRACE\r');
 
-    await until(() => lines().some((line) => line.slice(0, 40).includes('echo LEFTRACE')));
-    await Bun.sleep(300);
+    await until(() => region(lines(), 1, 39).includes('LEFTRACE'));
+    await koja('pane', 'send', shownMarker, '--pane', second);
+    await until(() => region(lines(), 42, 79).includes('shown-2'));
 
     expect(region(lines(), 42, 79).join('')).not.toContain('LEFTRACE');
   },
@@ -460,8 +464,9 @@ it(
 
     type('\x02liecho RIGHTRACE\r');
 
-    await until(() => lines().some((line) => line.slice(42).includes('echo RIGHTRACE')));
-    await Bun.sleep(300);
+    await until(() => region(lines(), 42, 79).includes('RIGHTRACE'));
+    await koja('pane', 'send', shownMarker, '--pane', first);
+    await until(() => region(lines(), 1, 39).includes('shown-2'));
 
     expect(region(lines(), 1, 39).join('')).not.toContain('RIGHTRACE');
   },
@@ -471,17 +476,13 @@ it(
 it(
   'sends text typed in the same write as Ctrl+B s to the new pane',
   async () => {
-    const { lines, until, type } = await setup();
+    const { koja, lines, until, type, first } = await setup();
 
     type('\x02siecho BELOWRACE\r');
 
-    await until(() =>
-      lines()
-        .slice(12, 23)
-        .some((line) => line.includes('echo BELOWRACE')),
-    );
-
-    await Bun.sleep(300);
+    await until(() => region(lines(), 1, 79).slice(12, 23).includes('BELOWRACE'));
+    await koja('pane', 'send', shownMarker, '--pane', first);
+    await until(() => region(lines(), 1, 79).slice(0, 11).includes('shown-2'));
 
     expect(lines().slice(0, 11).join('')).not.toContain('BELOWRACE');
   },
