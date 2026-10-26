@@ -49,7 +49,7 @@ const piStatusSchema = z.object({
       piVersion: z.string().optional(),
       sessionId: z.string().nullable().optional(),
       sessionFile: z.string().nullable().optional(),
-      leafId: z.string().nullable().optional(),
+      reportedLeafId: z.string().nullable().optional(),
       provider: z.string().nullable().optional(),
       model: z.string().nullable().optional(),
       thinkingLevel: z.string().optional(),
@@ -271,7 +271,7 @@ it(
       piVersion: pinnedPiVersion,
       sessionId: await headerIdOf(conversation),
       sessionFile: conversation,
-      leafId: await lastEntryIdOf(conversation),
+      reportedLeafId: await lastEntryIdOf(conversation),
       provider: testProvider,
       model: testModel,
       thinkingLevel: testThinkingLevel,
@@ -332,7 +332,9 @@ it(
 
     await send(pane, piCommand(directories, { extension: true, sessionFile: conversation }));
 
-    expect((await waitForPi(pane, 'reported')).pi?.leafId).toBe(await lastEntryIdOf(conversation));
+    expect((await waitForPi(pane, 'reported')).pi?.reportedLeafId).toBe(
+      await lastEntryIdOf(conversation),
+    );
 
     await send(pane, '/tree\r');
 

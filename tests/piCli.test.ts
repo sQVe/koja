@@ -113,11 +113,11 @@ it(
       stderr: '',
     });
 
-    const { processId: _processId, ...identity } = report;
+    const { processId: _processId, leafId, ...identity } = report;
 
     expect(await statusJson(pane)).toEqual({
       pane: pane.first,
-      pi: { state: 'reported', recoveryEligible: false, ...identity },
+      pi: { state: 'reported', recoveryEligible: false, ...identity, reportedLeafId: leafId },
     });
 
     const switched = { ...report, sessionId: 'conversation-2', leafId: 'leaf-2' };

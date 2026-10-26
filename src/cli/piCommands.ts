@@ -24,7 +24,8 @@ type PiOutput =
       piVersion: string;
       sessionId: string | null;
       sessionFile: string | null;
-      leafId: string | null;
+      // Where pi's conversation stood when pi reported. Later messages move pi past it.
+      reportedLeafId: string | null;
       provider: string | null;
       model: string | null;
       thinkingLevel: string;
@@ -53,7 +54,7 @@ const piOutputOf = (pi: PiStatus): PiOutput => {
     piVersion: pi.piVersion,
     sessionId: pi.sessionId ?? null,
     sessionFile: pi.sessionFile ?? null,
-    leafId: pi.leafId ?? null,
+    reportedLeafId: pi.leafId ?? null,
     provider: pi.provider ?? null,
     model: pi.model ?? null,
     thinkingLevel: pi.thinkingLevel,
