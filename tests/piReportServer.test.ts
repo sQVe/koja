@@ -38,8 +38,17 @@ const identityOf = async (client: TestClient, target: PaneId) => {
   client.send({ type: 'paneProcessInfo', paneId: target });
 
   const { shellPid } = await nextOfType(client, 'paneProcessInfoReply');
-  const environment = readFileSync(`/proc/${shellPid}/environ`, 'utf8').split('\0');
-  const pass = environment.find((entry) => entry.startsWith('KOJA_REPORT_TOKEN='))?.split('=')[1];
+
+  const passOf = (): string | undefined =>
+    readFileSync(`/proc/${shellPid}/environ`, 'utf8')
+      .split('\0')
+      .find((entry) => entry.startsWith('KOJA_REPORT_TOKEN='))
+      ?.split('=')[1];
+
+  // Until the forked server execs the shell, its environment is still the server's.
+  await waitFor(() => passOf() !== undefined);
+
+  const pass = passOf();
 
   expect(pass).toMatch(/^[0-9a-f]{64}$/);
 
