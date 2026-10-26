@@ -48,9 +48,7 @@ const parseOptionalWorkspace = (value: string | undefined): IdResult<WorkspaceId
     return { ok: true, id: undefined };
   }
 
-  const parsed = parseWorkspaceId(value);
-
-  return parsed.ok ? { ok: true, id: parsed.id } : parsed;
+  return parseWorkspaceId(value);
 };
 
 const acceptsPane = (entry: ActionEntry): boolean => entry.intent.kind === 'pane';

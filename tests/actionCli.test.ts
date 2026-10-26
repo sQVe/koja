@@ -4,6 +4,7 @@ import { z } from 'zod';
 
 import { cliTestTimeoutMs } from './cliHarness.ts';
 import { pollUntil, setup } from './paneHarness.ts';
+import type { KojaRunner } from './paneHarness.ts';
 
 const workspaceListSchema = z.array(z.object({ id: z.string(), focused: z.boolean() }));
 
@@ -13,6 +14,17 @@ const ranCleanly = (ran: { exitCode: number; stderr: string }) => ({
   exitCode: ran.exitCode,
   stderr: ran.stderr,
 });
+
+const cleanRun = { exitCode: 0, stderr: '' };
+
+const listWorkspaces = async (koja: KojaRunner) => {
+  const listed = await koja('workspace', 'list', '--json');
+
+  return workspaceListSchema.parse(JSON.parse(listed.stdout));
+};
+
+const focusedOf = (workspaces: z.infer<typeof workspaceListSchema>) =>
+  workspaces.find((workspace) => workspace.focused)?.id;
 
 const actionListSchema = z.array(
   z.object({
@@ -127,34 +139,59 @@ it(
 );
 
 it(
-  'creates a workspace and steps to the next one through action run',
+  'steps to the next and previous workspace through action run without closing any',
   async () => {
     const { koja } = await setup();
 
-    const workspaces = async () => {
-      const listed = await koja('workspace', 'list', '--json');
+    expect(ranCleanly(await koja('action', 'run', 'workspace.create'))).toEqual(cleanRun);
+    expect(ranCleanly(await koja('action', 'run', 'workspace.create'))).toEqual(cleanRun);
 
-      return workspaceListSchema.parse(JSON.parse(listed.stdout));
-    };
+    const created = await listWorkspaces(koja);
+    const ids = created.map((workspace) => workspace.id);
+    const [first, , third] = ids;
 
-    const [first] = await workspaces();
+    expect(ids).toHaveLength(3);
+    expect(focusedOf(created)).toBe(third);
 
-    expect(ranCleanly(await koja('action', 'run', 'workspace.create'))).toEqual({
-      exitCode: 0,
-      stderr: '',
-    });
+    expect(ranCleanly(await koja('action', 'run', 'workspace.next'))).toEqual(cleanRun);
 
-    const created = await workspaces();
+    const afterNext = await listWorkspaces(koja);
+
+    expect(focusedOf(afterNext)).toBe(first);
+    expect(afterNext.map((workspace) => workspace.id)).toEqual(ids);
+
+    expect(ranCleanly(await koja('action', 'run', 'workspace.next'))).toEqual(cleanRun);
+    expect(ranCleanly(await koja('action', 'run', 'workspace.previous'))).toEqual(cleanRun);
+    expect(ranCleanly(await koja('action', 'run', 'workspace.previous'))).toEqual(cleanRun);
+
+    const afterPrevious = await listWorkspaces(koja);
+
+    expect(focusedOf(afterPrevious)).toBe(third);
+    expect(afterPrevious.map((workspace) => workspace.id)).toEqual(ids);
+  },
+  cliTestTimeoutMs,
+);
+
+it(
+  'closes the focused workspace through action run',
+  async () => {
+    const { koja } = await setup();
+
+    expect(ranCleanly(await koja('action', 'run', 'workspace.create'))).toEqual(cleanRun);
+
+    const created = await listWorkspaces(koja);
+    const other = created.find((workspace) => !workspace.focused)?.id;
 
     expect(created).toHaveLength(2);
-    expect(created.find((workspace) => workspace.focused)?.id).not.toBe(first?.id);
 
-    expect(ranCleanly(await koja('action', 'run', 'workspace.next'))).toEqual({
-      exitCode: 0,
-      stderr: '',
-    });
+    expect(ranCleanly(await koja('action', 'run', 'workspace.close'))).toEqual(cleanRun);
 
-    expect((await workspaces()).find((workspace) => workspace.focused)?.id).toBe(first?.id);
+    const remaining = await pollUntil(
+      async () => listWorkspaces(koja),
+      (workspaces) => workspaces.length === 1,
+    );
+
+    expect(remaining.map((workspace) => workspace.id)).toEqual([other ?? 'no other workspace']);
   },
   cliTestTimeoutMs,
 );

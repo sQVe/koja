@@ -939,6 +939,18 @@ it('parses action run with the pane or workspace it names', () => {
   });
 });
 
+it('refuses an action run with a malformed --workspace', () => {
+  const parsed = parseCommand(['action', 'run', 'workspace.next', '--workspace', 'workspace']);
+
+  expect(typeof parsed).toBe('string');
+});
+
+it('refuses an action run with a malformed --pane', () => {
+  const parsed = parseCommand(['action', 'run', 'pane.zoom', '--pane', 'pane']);
+
+  expect(typeof parsed).toBe('string');
+});
+
 it('refuses an unknown action id, so the caller prints usage', () => {
   expect(typeof parseCommand(['action', 'run', 'pane.unknown'])).toBe('string');
 });
