@@ -58,7 +58,9 @@ const defaultFloodBytes = 8_000_000;
 
 const defaultResizeCount = 8;
 
-const signalExitCode = 130;
+const signalExitCodes = { SIGINT: 130, SIGTERM: 143, SIGHUP: 129 } as const;
+
+const signals = ['SIGINT', 'SIGTERM', 'SIGHUP'] as const;
 
 const commandOptions = {
   output: { type: 'string' },
@@ -359,16 +361,18 @@ const main = async (): Promise<number> => {
     await removeRunFolder(folder.folder);
   };
 
-  const onSignal = (): void => {
+  const onSignal = (signal: (typeof signals)[number]): void => {
     const finish = async (): Promise<void> => {
       await cleanup().catch(() => undefined);
-      process.exit(signalExitCode);
+      process.exit(signalExitCodes[signal]);
     };
 
     finish().catch(() => undefined);
   };
 
-  process.once('SIGINT', onSignal);
+  for (const signal of signals) {
+    process.once(signal, onSignal);
+  }
 
   try {
     const result = await runBenchmark(folder, parsed.options, placement, revision, (next) => {
@@ -385,7 +389,9 @@ const main = async (): Promise<number> => {
 
     return 1;
   } finally {
-    process.removeListener('SIGINT', onSignal);
+    for (const signal of signals) {
+      process.removeListener(signal, onSignal);
+    }
   }
 };
 

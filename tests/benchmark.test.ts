@@ -522,39 +522,48 @@ const startingServerOf = (
   return undefined;
 };
 
-it('stops the server and removes the run folder on an interrupt before the server is ready', async () => {
-  const benchmark = Bun.spawn(
-    [process.execPath, join(root, 'scripts/benchmark.ts'), '--samples', '1', '--duration-ms', '10'],
-    { cwd: root, env: process.env, stdin: 'ignore', stdout: 'ignore', stderr: 'pipe' },
-  );
+for (const signal of ['SIGINT', 'SIGTERM', 'SIGHUP'] as const) {
+  it(`stops the server and removes the run folder on ${signal} before the server is ready`, async () => {
+    const benchmark = Bun.spawn(
+      [
+        process.execPath,
+        join(root, 'scripts/benchmark.ts'),
+        '--samples',
+        '1',
+        '--duration-ms',
+        '10',
+      ],
+      { cwd: root, env: process.env, stdin: 'ignore', stdout: 'ignore', stderr: 'pipe' },
+    );
 
-  let server: { pid: number; folder: string } | undefined;
+    let server: { pid: number; folder: string } | undefined;
 
-  try {
-    const found = await waitFor(() => {
-      server = startingServerOf(benchmark.pid);
+    try {
+      const found = await waitFor(() => {
+        server = startingServerOf(benchmark.pid);
 
-      return server !== undefined;
-    }, 30_000);
+        return server !== undefined;
+      }, 30_000);
 
-    expect(found).toBe(true);
+      expect(found).toBe(true);
 
-    process.kill(server?.pid ?? 0, 'SIGSTOP');
-    benchmark.kill('SIGINT');
+      process.kill(server?.pid ?? 0, 'SIGSTOP');
+      benchmark.kill(signal);
 
-    expect(await benchmark.exited).not.toBe(0);
-    expect(isRunning(server?.pid ?? 0)).toBe(false);
-    expect(existsSync(server?.folder ?? '')).toBe(false);
-  } finally {
-    benchmark.kill('SIGKILL');
+      expect(await benchmark.exited).not.toBe(0);
+      expect(isRunning(server?.pid ?? 0)).toBe(false);
+      expect(existsSync(server?.folder ?? '')).toBe(false);
+    } finally {
+      benchmark.kill('SIGKILL');
 
-    if (server !== undefined && isRunning(server.pid)) {
-      process.kill(server.pid, 'SIGKILL');
-      process.kill(server.pid, 'SIGCONT');
+      if (server !== undefined && isRunning(server.pid)) {
+        process.kill(server.pid, 'SIGKILL');
+        process.kill(server.pid, 'SIGCONT');
+      }
+
+      if (server !== undefined) {
+        await rm(server.folder, { recursive: true, force: true });
+      }
     }
-
-    if (server !== undefined) {
-      await rm(server.folder, { recursive: true, force: true });
-    }
-  }
-}, 60_000);
+  }, 60_000);
+}

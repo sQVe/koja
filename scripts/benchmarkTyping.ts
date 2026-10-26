@@ -9,7 +9,6 @@ import {
   readTimeoutMs,
   sendPaneCommand,
   startSiblingFlood,
-  floodSentinelName,
   unboundedFloodCommand,
 } from './benchmarkMeasure.ts';
 import type {
@@ -111,7 +110,13 @@ export const runTypingUnderFlood = (context: ScenarioContext): Promise<ScenarioR
     }
 
     const flood = await startSiblingFlood(context, floodPane, 'TYPING');
-    const latencyMs = await sampleTyping(context, flood, gaps);
+    const latencyMs: number[] = [];
+
+    if (flood.startFailure === undefined) {
+      latencyMs.push(...(await sampleTyping(context, flood, gaps)));
+    } else {
+      gaps.push({ metric: 'latencyMs', reason: flood.startFailure });
+    }
 
     await flood.stop(gaps);
 
@@ -124,7 +129,7 @@ export const runTypingUnderFlood = (context: ScenarioContext): Promise<ScenarioR
 
 export const typingGuestCommands = (floodBytes: number): Record<string, string> => ({
   flood: floodCommand(floodBytes, '<FLOOD-END-MARKER>'),
-  typingFlood: unboundedFloodCommand(`<run>/${floodSentinelName('TYPING')}`),
+  typingFlood: unboundedFloodCommand('<run>', 'TYPING'),
   typingStop: printMarkerCommand('<TYPING-STOP-MARKER>'),
 });
 

@@ -3,7 +3,12 @@ import { lstat, mkdir, mkdtemp, readlink, rm, writeFile } from 'node:fs/promises
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
-import { resourceReport, runScopePath } from '../scripts/benchmarkResources.ts';
+import {
+  nextGuestTracking,
+  nextProcessTracking,
+  resourceReport,
+  runScopePath,
+} from '../scripts/benchmarkResources.ts';
 import { isolatedEnvironment } from '../scripts/benchmarkServer.ts';
 
 const setVariables = ['KOJA_SOCKET_PATH', 'KOJA_BENCH_TEST', 'BENCH_ISOLATION_KEEP'];
@@ -133,4 +138,34 @@ it('leaves out each unreadable resource and names it in a gap', () => {
   expect(report.server).toBeUndefined();
   expect(report.guests).toBeUndefined();
   expect(report.gaps.map((gap) => gap.metric)).toEqual(['client', 'server', 'guests']);
+});
+
+it('keeps earlier process samples when a later read fails, and adds readable ones', () => {
+  const first = nextProcessTracking(undefined, snapshot);
+  const missed = nextProcessTracking(first, undefined);
+  const later = nextProcessTracking(missed, { ticks: 30, rssKb: 3000, highWaterKb: 3100 });
+
+  expect(nextProcessTracking(undefined, undefined)).toBeUndefined();
+  expect(missed).toEqual({ start: snapshot, last: snapshot, peakRssKb: 2500 });
+
+  expect(later).toEqual({
+    start: snapshot,
+    last: { ticks: 30, rssKb: 3000, highWaterKb: 3100 },
+    peakRssKb: 3100,
+  });
+});
+
+it('keeps earlier guest samples when a later read fails, and adds readable ones', () => {
+  const later = { usageUsec: 9000, lastUsec: 9000, lastBytes: 2048, peakBytes: 4096 };
+
+  expect(nextGuestTracking(undefined, undefined)).toBeUndefined();
+  expect(nextGuestTracking(undefined, guestTracking)).toEqual(guestTracking);
+  expect(nextGuestTracking(guestTracking, undefined)).toEqual(guestTracking);
+
+  expect(nextGuestTracking(guestTracking, later)).toEqual({
+    usageUsec: 1000,
+    lastUsec: 9000,
+    lastBytes: 2048,
+    peakBytes: 8192,
+  });
 });

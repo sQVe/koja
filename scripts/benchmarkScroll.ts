@@ -8,7 +8,6 @@ import {
   readTimeoutMs,
   sendPaneCommand,
   startSiblingFlood,
-  floodSentinelName,
   unboundedFloodCommand,
 } from './benchmarkMeasure.ts';
 import type {
@@ -144,7 +143,13 @@ export const runBusyScroll = (context: ScenarioContext): Promise<ScenarioResult>
     }
 
     const flood = await startSiblingFlood(context, floodPane, 'SCROLL');
-    const latencyMs = await sampleScrolling(context, flood, gaps);
+    const latencyMs: number[] = [];
+
+    if (flood.startFailure === undefined) {
+      latencyMs.push(...(await sampleScrolling(context, flood, gaps)));
+    } else {
+      gaps.push({ metric: 'latencyMs', reason: flood.startFailure });
+    }
 
     if (!lastLine(context).startsWith('INSERT')) {
       await leaveScrollMode(context);
@@ -156,7 +161,7 @@ export const runBusyScroll = (context: ScenarioContext): Promise<ScenarioResult>
   });
 
 export const scrollGuestCommands = (): Record<string, string> => ({
-  scrollFlood: unboundedFloodCommand(`<run>/${floodSentinelName('SCROLL')}`),
+  scrollFlood: unboundedFloodCommand('<run>', 'SCROLL'),
   scrollHistory: scrollHistoryCommand('<HISTORY-END-MARKER>'),
   scrollStop: printMarkerCommand('<SCROLL-STOP-MARKER>'),
 });

@@ -4,8 +4,10 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
 import type { BenchmarkClient } from '../scripts/benchmarkClient.ts';
+import { runHiddenOutput } from '../scripts/benchmarkHidden.ts';
 import { unboundedFloodCommand } from '../scripts/benchmarkMeasure.ts';
 import type { ScenarioContext } from '../scripts/benchmarkMeasure.ts';
+import { runResizeBurst } from '../scripts/benchmarkResize.ts';
 import { guestCommandTemplates } from '../scripts/benchmarkScenarios.ts';
 import { runBusyScroll } from '../scripts/benchmarkScroll.ts';
 import type { CliResult } from '../scripts/benchmarkServer.ts';
@@ -18,6 +20,12 @@ type ClientEvent =
 interface FakeScreen {
   client: BenchmarkClient;
   show: (rows: string[], status?: string) => void;
+}
+
+interface FloodTiming {
+  floodEnds: (typedSamples: number) => boolean;
+  showEnd?: boolean;
+  startDelayMs?: number | 'never';
 }
 
 const shellOutput = (command: string): string[] => {
@@ -128,18 +136,27 @@ const echoDelayMs = 30;
 const endedShellOutput = (command: string): string[] =>
   shellOutput(command.replace('< /dev/zero', '< /dev/null'));
 
+const startFlood = (command: string): void => {
+  shellOutput(command.slice(0, command.indexOf('; tr ')));
+};
+
 const typingScreen = (
   events: ClientEvent[],
-  floodEnds: (typedSamples: number) => boolean,
-  showEnd = true,
+  { floodEnds, showEnd = true, startDelayMs = 0 }: FloodTiming,
 ) => {
   let output: string[] = [];
   let typedLine = '';
   let typedSamples = 0;
   let unboundedFlood: string | undefined;
+  let floodStarted = false;
+  const typedBeforeStart: string[] = [];
 
   const screen = fakeScreen((input) => {
     events.push({ kind: 'type', input });
+
+    if (!floodStarted) {
+      typedBeforeStart.push(input);
+    }
 
     if (input === '\u0015') {
       typedLine = '';
@@ -170,6 +187,13 @@ const typingScreen = (
     if (command.includes('< /dev/zero')) {
       unboundedFlood = command;
 
+      if (startDelayMs !== 'never') {
+        setTimeout(() => {
+          startFlood(command);
+          floodStarted = true;
+        }, startDelayMs);
+      }
+
       return;
     }
 
@@ -185,12 +209,12 @@ const typingScreen = (
     }, floodOutputDelayMs);
   };
 
-  return { screen, onSend };
+  return { screen, onSend, typedBeforeStart };
 };
 
 it('times flood completion from a fixed flood before typing, then types under an unbounded flood', async () => {
   const events: ClientEvent[] = [];
-  const { screen, onSend } = typingScreen(events, () => false);
+  const { screen, onSend } = typingScreen(events, { floodEnds: () => false });
 
   const result = await runTypingUnderFlood(scenarioContext(screen.client, onSend, 5));
 
@@ -217,7 +241,10 @@ it('times flood completion from a fixed flood before typing, then types under an
 
 it('refuses typing samples once the sibling flood has ended and records a gap', async () => {
   const events: ClientEvent[] = [];
-  const { screen, onSend } = typingScreen(events, (typedSamples) => typedSamples >= 2);
+
+  const { screen, onSend } = typingScreen(events, {
+    floodEnds: (typedSamples) => typedSamples >= 2,
+  });
 
   const result = await runTypingUnderFlood(scenarioContext(screen.client, onSend, 5));
 
@@ -231,7 +258,11 @@ it('refuses typing samples once the sibling flood has ended and records a gap', 
 
 it('refuses typing samples after the flood ended even when the screen cannot show its end', async () => {
   const events: ClientEvent[] = [];
-  const { screen, onSend } = typingScreen(events, (typedSamples) => typedSamples >= 2, false);
+
+  const { screen, onSend } = typingScreen(events, {
+    floodEnds: (typedSamples) => typedSamples >= 2,
+    showEnd: false,
+  });
 
   const result = await runTypingUnderFlood(scenarioContext(screen.client, onSend, 5));
 
@@ -243,15 +274,52 @@ it('refuses typing samples after the flood ended even when the screen cannot sho
   );
 });
 
+const floodStartDelayMs = 100;
+
+it('types the first sample only after the sibling flood has started', async () => {
+  const events: ClientEvent[] = [];
+
+  const { screen, onSend, typedBeforeStart } = typingScreen(events, {
+    floodEnds: () => false,
+    startDelayMs: floodStartDelayMs,
+  });
+
+  const result = await runTypingUnderFlood(scenarioContext(screen.client, onSend, 3));
+
+  expect(typedBeforeStart).toEqual([]);
+  expect(result.latencyMs).toHaveLength(3);
+});
+
+it('takes no typing sample and records a gap when the sibling flood never starts', async () => {
+  const events: ClientEvent[] = [];
+
+  const { screen, onSend } = typingScreen(events, {
+    floodEnds: () => false,
+    startDelayMs: 'never',
+  });
+
+  const result = await runTypingUnderFlood(scenarioContext(screen.client, onSend, 3));
+
+  expect(result.latencyMs).toEqual([]);
+  expect(result.gaps.map((gap) => gap.metric)).toContain('latencyMs');
+  expect(events.filter((event) => event.kind === 'type')).toEqual([]);
+}, 15_000);
+
 const historyTailRows = 10;
 
 const scrollDrawDelayMs = 15;
 
-const scrollScreen = (events: ClientEvent[]) => {
+const scrollScreen = (events: ClientEvent[], startDelayMs = 0) => {
   let history: string[] = [];
+  let floodStarted = false;
+  const typedBeforeStart: string[] = [];
 
   const screen = fakeScreen((input) => {
     events.push({ kind: 'type', input });
+
+    if (!floodStarted) {
+      typedBeforeStart.push(input);
+    }
 
     setTimeout(() => {
       if (input.endsWith('g')) {
@@ -266,6 +334,13 @@ const scrollScreen = (events: ClientEvent[]) => {
     events.push({ kind: 'send', pane, command });
 
     const floods = command === '\u0003' || command.includes('/dev/zero');
+
+    if (command.includes('< /dev/zero')) {
+      setTimeout(() => {
+        startFlood(command);
+        floodStarted = true;
+      }, startDelayMs);
+    }
 
     if (pane !== 'pane-1' && !floods) {
       screen.show([...screen.client.text().split('\n').slice(0, -1), ...shellOutput(command)]);
@@ -283,8 +358,18 @@ const scrollScreen = (events: ClientEvent[]) => {
     }, scrollDrawDelayMs);
   };
 
-  return { screen, onSend };
+  return { screen, onSend, typedBeforeStart };
 };
+
+it('scrolls for the first sample only after the sibling flood has started', async () => {
+  const events: ClientEvent[] = [];
+  const { screen, onSend, typedBeforeStart } = scrollScreen(events, floodStartDelayMs);
+
+  const result = await runBusyScroll(scenarioContext(screen.client, onSend, 2));
+
+  expect(typedBeforeStart).toEqual([]);
+  expect(result.latencyMs).toHaveLength(2);
+});
 
 it('times each scroll sample from a new scroll-mode frame after the history is written', async () => {
   const events: ClientEvent[] = [];
@@ -345,7 +430,7 @@ it('writes the flood sentinel when the flood ends, even in a folder whose name h
   const sentinel = join(folder, 'typing-flood.ended');
 
   try {
-    const shell = Bun.spawn(['sh', '-c', unboundedFloodCommand(sentinel)], {
+    const shell = Bun.spawn(['sh', '-c', unboundedFloodCommand(folder, 'TYPING')], {
       stdout: 'ignore',
       stderr: 'ignore',
     });
@@ -355,8 +440,79 @@ it('writes the flood sentinel when the flood ends, even in a folder whose name h
 
     expect(await shell.exited).toBe(0);
     expect(existsSync(sentinel)).toBe(true);
+    expect(existsSync(join(folder, 'typing-flood.started'))).toBe(true);
   } finally {
     rmSync(folder, { recursive: true, force: true });
+  }
+});
+
+const readsBeforeMarker = 3;
+
+it('completes a hidden sample only once a pane read shows the end marker', async () => {
+  const screen = fakeScreen(() => undefined);
+  const context = scenarioContext(screen.client, () => undefined, 2);
+  const reads: number[] = [];
+  let endMarker = '';
+
+  context.koja = async (...commandArguments: string[]): Promise<CliResult> => {
+    const [, action, command = ''] = commandArguments;
+
+    if (action === 'send') {
+      endMarker = shellOutput(command.replace(/^head .*; printf/, 'printf')).join('');
+      reads.push(0);
+    }
+
+    if (action === 'read') {
+      const count = (reads.at(-1) ?? 0) + 1;
+
+      reads[reads.length - 1] = count;
+
+      const stdout = count > readsBeforeMarker ? `hhhh\n${endMarker}\n` : 'hhhh\n';
+
+      return { exitCode: 0, stdout, stderr: '' };
+    }
+
+    return { exitCode: 0, stdout: '', stderr: '' };
+  };
+
+  const result = await runHiddenOutput(context);
+
+  expect(reads).toEqual([readsBeforeMarker + 1, readsBeforeMarker + 1]);
+  expect(result.completionMs).toHaveLength(2);
+});
+
+const resizeDrawDelayMs = 20;
+
+const frameRows = (columns: number, rows: number): string[] => [
+  ...Array.from({ length: rows - 2 }, () => `│${' '.repeat(columns - 2)}│`),
+  `└${'─'.repeat(columns - 2)}┘`,
+];
+
+it('ends a resize sample only on a whole frame drawn at the final size', async () => {
+  const screen = fakeScreen(() => undefined);
+  const context = scenarioContext(screen.client, () => undefined, 3);
+  const { columns, rows } = context.configuration;
+
+  screen.show(frameRows(columns, rows));
+
+  context.client = {
+    ...screen.client,
+    resize: (nextColumns, nextRows) => {
+      screen.show(frameRows(nextColumns, nextRows), '');
+
+      setTimeout(() => {
+        screen.show(frameRows(nextColumns, nextRows));
+      }, resizeDrawDelayMs);
+    },
+  };
+
+  const result = await runResizeBurst(context);
+
+  expect(result.gaps.filter((gap) => gap.metric === 'latencyMs')).toEqual([]);
+  expect(result.latencyMs).toHaveLength(3);
+
+  for (const latency of result.latencyMs ?? []) {
+    expect(latency).toBeGreaterThanOrEqual(resizeDrawDelayMs - 2);
   }
 });
 

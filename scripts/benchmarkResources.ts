@@ -233,6 +233,49 @@ export const resourceReport = (tracked: TrackedResources): ResourceReport => {
   };
 };
 
+export const nextProcessTracking = (
+  tracking: ProcessTracking | undefined,
+  snapshot: ProcessSnapshot | undefined,
+): ProcessTracking | undefined => {
+  if (snapshot === undefined) {
+    return tracking;
+  }
+
+  if (tracking === undefined) {
+    return {
+      start: snapshot,
+      last: snapshot,
+      peakRssKb: Math.max(snapshot.rssKb, snapshot.highWaterKb),
+    };
+  }
+
+  return {
+    start: tracking.start,
+    last: snapshot,
+    peakRssKb: Math.max(tracking.peakRssKb, snapshot.rssKb, snapshot.highWaterKb),
+  };
+};
+
+export const nextGuestTracking = (
+  known: GuestTracking | undefined,
+  current: GuestTracking | undefined,
+): GuestTracking | undefined => {
+  if (current === undefined) {
+    return known;
+  }
+
+  if (known === undefined) {
+    return current;
+  }
+
+  return {
+    usageUsec: known.usageUsec,
+    lastUsec: current.usageUsec,
+    lastBytes: current.lastBytes,
+    peakBytes: Math.max(known.peakBytes, current.peakBytes),
+  };
+};
+
 export const startResourceSampler = (
   clientProcessId: number,
   serverProcessId: number,
@@ -246,42 +289,14 @@ export const startResourceSampler = (
   const sampleProcess = (
     tracking: ProcessTracking | undefined,
     processId: number,
-  ): ProcessTracking | undefined => {
-    const snapshot = readProcessSnapshot(processId);
-
-    if (snapshot === undefined) {
-      return tracking;
-    }
-
-    if (tracking === undefined) {
-      return {
-        start: snapshot,
-        last: snapshot,
-        peakRssKb: Math.max(snapshot.rssKb, snapshot.highWaterKb),
-      };
-    }
-
-    tracking.last = snapshot;
-    tracking.peakRssKb = Math.max(tracking.peakRssKb, snapshot.rssKb, snapshot.highWaterKb);
-
-    return tracking;
-  };
+  ): ProcessTracking | undefined => nextProcessTracking(tracking, readProcessSnapshot(processId));
 
   const sampleGuests = (): void => {
     for (const [scope, path] of guestScopes(serverProcessId)) {
-      const known = guests.get(scope);
-      const current = readGuestTracking(path);
+      const next = nextGuestTracking(guests.get(scope), readGuestTracking(path));
 
-      if (current === undefined) {
-        continue;
-      }
-
-      if (known === undefined) {
-        guests.set(scope, current);
-      } else {
-        known.lastUsec = current.usageUsec;
-        known.lastBytes = current.lastBytes;
-        known.peakBytes = Math.max(known.peakBytes, current.peakBytes);
+      if (next !== undefined) {
+        guests.set(scope, next);
       }
     }
 

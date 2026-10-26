@@ -45,6 +45,7 @@ export interface ScenarioResult {
 export type Sample = { ok: true; latencyMs: number } | { ok: false; reason: string };
 
 export interface SiblingFlood {
+  startFailure: string | undefined;
   running: () => boolean;
   stop: (gaps: ScenarioGap[]) => Promise<void>;
 }
@@ -61,6 +62,10 @@ export const readTimeoutMs = 30_000;
 const markerSuffixLength = 8;
 
 const floodBytesPerTimeoutMs = 200;
+
+const floodStartTimeoutMs = 5_000;
+
+const floodStartPollMs = 20;
 
 export const marker = (label: string): string =>
   `KOJA-BENCH-${label}-${randomUUID().slice(0, markerSuffixLength)}`;
@@ -82,10 +87,16 @@ const shellQuoted = (text: string): string => `'${text.replaceAll("'", "'\\''")}
 export const floodCommand = (bytes: number, endMarker: string): string =>
   `head -c ${bytes} /dev/zero | tr '\\0' f; ${printMarkerCommand(endMarker)}`;
 
-export const unboundedFloodCommand = (sentinelPath: string): string =>
-  `tr '\\0' f < /dev/zero; : > ${shellQuoted(sentinelPath)}`;
+const floodSentinels = (folder: string, label: string): { started: string; ended: string } => ({
+  started: join(folder, `${label.toLowerCase()}-flood.started`),
+  ended: join(folder, `${label.toLowerCase()}-flood.ended`),
+});
 
-export const floodSentinelName = (label: string): string => `${label.toLowerCase()}-flood.ended`;
+export const unboundedFloodCommand = (folder: string, label: string): string => {
+  const { started, ended } = floodSentinels(folder, label);
+
+  return `: > ${shellQuoted(started)}; tr '\\0' f < /dev/zero; : > ${shellQuoted(ended)}`;
+};
 
 export const paneAt = (context: ScenarioContext, index: number): string =>
   context.panes.visible[index] ?? context.panes.focused;
@@ -137,18 +148,37 @@ export const measure = async (
   return combine(timing, sampler.stop());
 };
 
+const waitForFloodStart = async (started: string): Promise<string | undefined> => {
+  const deadline = performance.now() + floodStartTimeoutMs;
+
+  while (!existsSync(started)) {
+    if (performance.now() > deadline) {
+      return `The sibling flood did not start within ${floodStartTimeoutMs} ms.`;
+    }
+
+    // oxlint-disable-next-line eslint/no-await-in-loop -- one poll finishes before the next starts.
+    await Bun.sleep(floodStartPollMs);
+  }
+
+  return undefined;
+};
+
 export const startSiblingFlood = async (
   context: ScenarioContext,
   pane: string,
   label: string,
 ): Promise<SiblingFlood> => {
-  const sentinelPath = join(context.folder, floodSentinelName(label));
+  const sentinels = floodSentinels(context.folder, label);
 
-  if (existsSync(sentinelPath)) {
-    throw new Error(`The flood sentinel ${sentinelPath} already exists.`);
+  for (const sentinel of [sentinels.started, sentinels.ended]) {
+    if (existsSync(sentinel)) {
+      throw new Error(`The flood sentinel ${sentinel} already exists.`);
+    }
   }
 
-  await sendPaneCommand(context, pane, unboundedFloodCommand(sentinelPath));
+  await sendPaneCommand(context, pane, unboundedFloodCommand(context.folder, label));
+
+  const startFailure = await waitForFloodStart(sentinels.started);
 
   const stop = async (gaps: ScenarioGap[]): Promise<void> => {
     const stopMarker = marker(`${label}-STOP`);
@@ -163,5 +193,5 @@ export const startSiblingFlood = async (
     }
   };
 
-  return { running: () => !existsSync(sentinelPath), stop };
+  return { startFailure, running: () => !existsSync(sentinels.ended), stop };
 };
