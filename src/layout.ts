@@ -37,6 +37,10 @@ export interface PaneRemoval {
   sibling: Layout;
 }
 
+type MasterPanesResult =
+  | { ok: true; panes: PaneRectangle[] }
+  | { ok: false; reason: 'insufficientSpace'; required: TerminalSize };
+
 const detachedSize: TerminalSize = { columns: 80, rows: 24 };
 
 export const statusBarRows = 1;
@@ -160,6 +164,94 @@ export const layoutPanes = (layout: Layout, size: TerminalSize): PaneRectangle[]
   placeLayout(layout, area, placed);
 
   return placed;
+};
+
+const framed = (paneId: PaneId, area: Area): PaneRectangle => ({
+  paneId,
+  ...area,
+  terminal: terminalOf(area),
+});
+
+const stackingLimit = 3;
+
+const isStacked = (rightCount: number): boolean => rightCount <= stackingLimit;
+
+const rightRowCount = (rightCount: number): number =>
+  isStacked(rightCount) ? rightCount : Math.ceil(rightCount / 2);
+
+const rightColumnsNeeded = (rightCount: number): number =>
+  isStacked(rightCount) ? minimumExtent : 2 * minimumExtent + gapOf('right');
+
+const masterRequiredSize = (rightCount: number): TerminalSize => ({
+  columns: 2 * rightColumnsNeeded(rightCount) + gapOf('right'),
+  rows: rightRowCount(rightCount) * minimumExtent,
+});
+
+const rowBand = (area: Area, rowCount: number, row: number): Area => {
+  const base = Math.floor(area.rows / rowCount);
+  const leftover = area.rows % rowCount;
+  const extra = row < leftover ? 1 : 0;
+
+  return { ...area, y: area.y + row * base + Math.min(row, leftover), rows: base + extra };
+};
+
+const leftPairColumns = (width: number): number => Math.ceil((width - gapOf('right')) / 2);
+
+const rightPaneArea = (index: number, rightCount: number, right: Area): Area => {
+  const row = isStacked(rightCount) ? index : Math.floor(index / 2);
+  const band = rowBand(right, rightRowCount(rightCount), row);
+
+  const isLastOddRow = rightCount % 2 === 1 && row === rightRowCount(rightCount) - 1;
+
+  if (isStacked(rightCount) || isLastOddRow) {
+    return band;
+  }
+
+  const leftColumns = leftPairColumns(right.columns);
+  const isLeft = index % 2 === 0;
+  const x = isLeft ? right.x : right.x + leftColumns + gapOf('right');
+  const columns = isLeft ? leftColumns : right.columns - leftColumns - gapOf('right');
+
+  return { ...band, x, columns };
+};
+
+const isPositiveWhole = (extent: number): boolean => Number.isInteger(extent) && extent > 0;
+
+const hasUniqueIds = (order: readonly PaneId[]): boolean => new Set(order).size === order.length;
+
+export const masterPanes = (order: readonly PaneId[], size: TerminalSize): MasterPanesResult => {
+  invariant(isPositiveWhole(size.columns), `Cannot place panes in ${size.columns} columns.`);
+  invariant(isPositiveWhole(size.rows), `Cannot place panes in ${size.rows} rows.`);
+  invariant(hasUniqueIds(order), 'Cannot place the same pane twice.');
+
+  const [masterId, ...rightIds] = order;
+
+  if (masterId === undefined) {
+    return { ok: true, panes: [] };
+  }
+
+  if (rightIds.length === 0) {
+    return { ok: true, panes: layoutPanes({ kind: 'pane', paneId: masterId }, size) };
+  }
+
+  const required = masterRequiredSize(rightIds.length);
+  const isTooSmall = size.columns < required.columns || size.rows < required.rows;
+
+  if (isTooSmall) {
+    return { ok: false, reason: 'insufficientSpace', required };
+  }
+
+  const available = size.columns - gapOf('right');
+  const masterColumns = Math.round(available / 2);
+  const rightX = masterColumns + gapOf('right');
+  const master = { x: 0, y: 0, columns: masterColumns, rows: size.rows };
+  const right = { x: rightX, y: 0, columns: size.columns - rightX, rows: size.rows };
+
+  const rightPanes = rightIds.map((paneId, index) =>
+    framed(paneId, rightPaneArea(index, rightIds.length, right)),
+  );
+
+  return { ok: true, panes: [framed(masterId, master), ...rightPanes] };
 };
 
 // A split needs room for two framed panes, and a gap column for a right split.

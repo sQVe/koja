@@ -24,7 +24,7 @@
   "concurrency": 4,
   "timeoutMS": 2000,
   "fileLogLevel": "off",
-  "ignorePatterns": [".tau", "docs", "CHANGELOG.md", "dist", "coverage"],
+  "ignorePatterns": [".tau", "docs", "CHANGELOG.md", "dist", "coverage", "build/ghostty"],
   "tempDirName": ".stryker-tmp",
   "cleanTempDir": true
 }
