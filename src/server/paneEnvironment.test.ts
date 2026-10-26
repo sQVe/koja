@@ -1,7 +1,7 @@
 import { expect, it } from 'bun:test';
 
 import { paneId, tabId, workspaceId } from '../ids.ts';
-import { buildPaneEnvironment } from './paneEnvironment.ts';
+import { buildPaneEnvironment, createReportPass } from './paneEnvironment.ts';
 
 const identity = {
   paneId: paneId(3),
@@ -10,6 +10,7 @@ const identity = {
   socketPath: '/run/koja.sock',
   binaryPath: '/usr/bin/koja',
   version: '1.2.3',
+  reportPass: 'a'.repeat(64),
 };
 
 it('removes markers of other terminals and sessions', () => {
@@ -54,8 +55,20 @@ it('sets the Koja values for the pane', () => {
     KOJA_PANE_ID: 'pane-3',
     KOJA_SOCKET_PATH: '/run/koja.sock',
     KOJA_BIN_PATH: '/usr/bin/koja',
+    KOJA_REPORT_TOKEN: identity.reportPass,
     fish_handle_reflow: '0',
   });
+});
+
+it('gives two starts different passes instead of an inherited pass', () => {
+  const inherited = { KOJA_REPORT_TOKEN: 'old-pass' };
+  const first = buildPaneEnvironment(inherited, { ...identity, reportPass: createReportPass() });
+  const second = buildPaneEnvironment(inherited, { ...identity, reportPass: createReportPass() });
+
+  expect(first.KOJA_REPORT_TOKEN).toMatch(/^[0-9a-f]{64}$/);
+  expect(second.KOJA_REPORT_TOKEN).toMatch(/^[0-9a-f]{64}$/);
+  expect(first.KOJA_REPORT_TOKEN).not.toBe(second.KOJA_REPORT_TOKEN);
+  expect(first.KOJA_REPORT_TOKEN).not.toBe(inherited.KOJA_REPORT_TOKEN);
 });
 
 it('keeps an inherited fish_handle_reflow', () => {

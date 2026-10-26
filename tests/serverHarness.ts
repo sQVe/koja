@@ -72,6 +72,7 @@ export const testIdentity: PaneIdentity = {
   socketPath: '/tmp/koja-test.sock',
   binaryPath: process.execPath,
   version: build.version,
+  reportPass: 'a'.repeat(64),
 };
 
 export const temporaryDirectory = async (): Promise<string> => {

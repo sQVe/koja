@@ -8,6 +8,7 @@ import type { Fact, Pane, State } from '../store/store.ts';
 import type { Log } from './log.ts';
 import { spawnPane } from './pane.ts';
 import type { PaneRuntime } from './pane.ts';
+import { createReportPass } from './paneEnvironment.ts';
 import type { PaneIdentity } from './paneEnvironment.ts';
 import { sendToForeground } from './paneNotice.ts';
 import type { ForegroundContext } from './paneNotice.ts';
@@ -15,7 +16,6 @@ import type { RunningPane } from './paneRecord.ts';
 import { fitsReply } from './paneRows.ts';
 import { readFollowFolder } from './processInfo.ts';
 import { createRowPublisher } from './rowPublisher.ts';
-import type { RowPublisher } from './rowPublisher.ts';
 import { scheduleRows } from './rowSubscriptions.ts';
 import type { RowPublication } from './rowSubscriptions.ts';
 import { scopeAvailable } from './scope.ts';
@@ -191,6 +191,7 @@ const paneIdentityOf = (context: PaneEffectContext, pane: Pane): PaneIdentity =>
     socketPath: context.options.socketPath,
     binaryPath: context.options.binaryPath,
     version: context.options.version.version,
+    reportPass: createReportPass(),
   };
 };
 
@@ -241,10 +242,9 @@ export const reportPaneExit = (
 export const recordPane = (
   context: Pick<PaneEffectContext, 'runtime'>,
   id: PaneId,
-  runtime: PaneRuntime,
-  publisher: RowPublisher,
+  running: RunningPane,
 ): void => {
-  context.runtime.panes.set(id, { runtime, publication: { publisher, pending: false } });
+  context.runtime.panes.set(id, running);
 };
 
 // Returns the message of a new pane that failed to start. A restored pane reports no failure.
@@ -269,11 +269,13 @@ export const startPane = (
 
   let outputFailed = false;
 
+  const identity = paneIdentityOf(context, pane);
+
   const spawned = spawn({
     generation,
     size: pane.size,
     environment: context.options.environment,
-    identity: paneIdentityOf(context, pane),
+    identity,
     directory,
     useScope: paneScopesEnabled(context),
     ...(context.options.scrollbackBytes === undefined
@@ -324,7 +326,11 @@ export const startPane = (
 
   applyAttachedTheme(context, spawned.pane);
 
-  recordPane(context, id, spawned.pane, publisher);
+  recordPane(context, id, {
+    runtime: spawned.pane,
+    reportPass: identity.reportPass,
+    publication: { publisher, pending: false },
+  });
 
   log.info('Started the pane.', { paneId: id });
 

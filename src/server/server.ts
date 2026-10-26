@@ -43,6 +43,7 @@ import {
 } from './paneRequests.ts';
 import { createSnapshotStore } from './paneSnapshot.ts';
 import type { SnapshotStore } from './paneSnapshot.ts';
+import { answerPiStatus, handlePiReport } from './piReports.ts';
 import { subscribeRows, syncRowSubscriptions, visiblePaneIds } from './rowSubscriptions.ts';
 import type { RowSubscriptions } from './rowSubscriptions.ts';
 import { createSessionWriter, readSessionFile } from './sessionFile.ts';
@@ -313,13 +314,25 @@ const dispatch = (context: ServerContext, intent: Intent): DispatchResult => {
 const dispatchChanges = (context: ServerContext, intent: Intent): readonly Change[] =>
   changesOf(dispatch(context, intent));
 
-// Returns whether the message was a workspace, tab, or pane layout request.
-const handleLayoutRequest = (
+// Returns whether a family handled the request.
+const handleFamilyRequest = (
   context: ServerContext,
   message: ControlMessage,
   connection: Connection,
 ): boolean => {
   const dispatchIntent = (intent: Intent): DispatchResult => dispatch(context, intent);
+
+  if (message.type === 'piReport') {
+    handlePiReport(context, message, connection);
+
+    return true;
+  }
+
+  if (message.type === 'piStatus') {
+    answerPiStatus(context, message.paneId, connection);
+
+    return true;
+  }
 
   if (isWorkspaceRequest(message)) {
     handleWorkspaceRequest(context, message, connection, dispatchIntent);
@@ -405,7 +418,7 @@ const handleMessage = (
     return;
   }
 
-  if (handleLayoutRequest(context, message, connection)) {
+  if (handleFamilyRequest(context, message, connection)) {
     return;
   }
 

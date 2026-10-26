@@ -78,6 +78,7 @@ const fixture = (generation: number, failing = false): Fixture => {
 
   const running: RunningPane = {
     runtime,
+    reportPass: 'a'.repeat(64),
     publication: { publisher, pending: false },
   };
 
@@ -170,7 +171,11 @@ const fakePane = (resizeFails = false): Recording => {
     },
   } as unknown as RowPublisher;
 
-  const running: RunningPane = { runtime, publication: { publisher, pending: false } };
+  const running: RunningPane = {
+    runtime,
+    reportPass: 'a'.repeat(64),
+    publication: { publisher, pending: false },
+  };
 
   const context = {
     options: {
@@ -386,7 +391,7 @@ const paneWithTerminal = (generation: number, exited = Promise.resolve(0)): Runn
     [Symbol.dispose]: () => {},
   };
 
-  return { runtime, publication: { publisher, pending: false } };
+  return { runtime, reportPass: 'a'.repeat(64), publication: { publisher, pending: false } };
 };
 
 const backgroundReply = (running: RunningPane): string => {
@@ -587,7 +592,7 @@ it('records a pane with a publication that is not pending', () => {
   const { publisher } = running.publication;
 
   context.runtime.panes.clear();
-  recordPane(context, id, running.runtime, publisher);
+  recordPane(context, id, { ...running, publication: { publisher, pending: false } });
 
   const recorded = context.runtime.panes.get(id);
 
@@ -680,6 +685,8 @@ it('starts a pane, records it, and reports it started and later exited', async (
   const recorded = context.runtime.panes.get(pane.id);
 
   expect(recorded?.runtime).toBe(spawned.runtime);
+  expect(recorded?.reportPass).toBe(spawned.options().identity.reportPass);
+  expect(recorded?.reportPass).toMatch(/^[0-9a-f]{64}$/);
   expect(recorded?.publication.pending).toBe(false);
   expect(facts).toEqual([{ type: 'paneStarted', paneId: pane.id, generation: pane.generation }]);
 

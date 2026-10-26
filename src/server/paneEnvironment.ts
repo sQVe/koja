@@ -1,3 +1,5 @@
+import { randomBytes } from 'node:crypto';
+
 import type { PaneId, TabId, WorkspaceId } from '../ids.ts';
 
 type Environment = Record<string, string | undefined>;
@@ -9,7 +11,12 @@ export interface PaneIdentity {
   socketPath: string;
   binaryPath: string;
   version: string;
+  reportPass: string;
 }
+
+const reportPassBytes = 32;
+
+export const createReportPass = (): string => randomBytes(reportPassBytes).toString('hex');
 
 const removedNames = new Set([
   'TERM_PROGRAM',
@@ -57,6 +64,7 @@ export const buildPaneEnvironment = (
   built.KOJA_PANE_ID = identity.paneId;
   built.KOJA_SOCKET_PATH = identity.socketPath;
   built.KOJA_BIN_PATH = identity.binaryPath;
+  built.KOJA_REPORT_TOKEN = identity.reportPass;
 
   built.fish_handle_reflow ??= '0';
 

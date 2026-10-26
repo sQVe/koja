@@ -27,6 +27,7 @@ const spawn = (onOutput: () => void, onFailed: () => void, calls: Calls): PaneRu
       socketPath: '/tmp/koja-test.sock',
       binaryPath: '/tmp/koja-test',
       version: 'test',
+      reportPass: 'a'.repeat(64),
     },
     directory: process.cwd(),
     useScope: false,
