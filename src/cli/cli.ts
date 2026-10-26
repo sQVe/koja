@@ -11,6 +11,7 @@ import type { Outcome } from './output.ts';
 import { runPaneAction } from './paneCommands.ts';
 import { parseCommand, usage } from './parse.ts';
 import type { Command, DefaultCommand, VersionCommand } from './parse.ts';
+import { runPiAction } from './piCommands.ts';
 import { runServerAction } from './serverCommands.ts';
 import { runTabAction } from './tabCommands.ts';
 import { readVersions } from './versions.ts';
@@ -32,6 +33,10 @@ const runRequestCommand = (
 ): Promise<Outcome> => {
   if (command.kind === 'pane') {
     return runPaneAction(command, versions, environment);
+  }
+
+  if (command.kind === 'pi') {
+    return runPiAction(command, versions, environment);
   }
 
   if (command.kind === 'workspace') {

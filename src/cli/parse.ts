@@ -19,6 +19,8 @@ import { strayOptionMessage } from './commandOptions.ts';
 import type { CommandOptions } from './commandOptions.ts';
 import { paneOptions, paneUsage, parsePaneCommand } from './paneCommandParse.ts';
 import type { PaneCliCommand, RawPaneOptions } from './paneCommandParse.ts';
+import { parsePiCommand, piUsage } from './piCommandParse.ts';
+import type { PiCliCommand } from './piCommandParse.ts';
 import { parseServerCommand, serverUsage } from './serverCommandParse.ts';
 import type { ServerCommand } from './serverCommandParse.ts';
 import { parseTabCommand, tabOptions, tabUsage } from './tabCommandParse.ts';
@@ -54,6 +56,7 @@ export interface DefaultCommand {
 export type Command =
   | VersionCommand
   | PaneCliCommand
+  | PiCliCommand
   | WorkspaceCliCommand
   | TabCliCommand
   | ClientCliCommand
@@ -71,7 +74,8 @@ ${serverUsage}
 ${workspaceUsage}
 ${tabUsage}
 ${paneUsage}
-${actionUsage}`;
+${actionUsage}
+${piUsage}`;
 
 const parseVersionCommand = (
   positionals: string[],
@@ -108,6 +112,10 @@ const parseGroupCommand = (group: string | undefined, input: GroupInput): Comman
 
   if (group === 'pane') {
     return parsePaneCommand(action, rest, values, options);
+  }
+
+  if (group === 'pi') {
+    return parsePiCommand(action, rest, options);
   }
 
   if (group === 'client') {

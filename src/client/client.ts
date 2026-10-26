@@ -26,6 +26,8 @@ export type {
 } from './clientAttach.ts';
 
 export { runPaneCopy } from './paneCopy.ts';
+export { runPiReport, runPiStatus } from './piRequest.ts';
+export type { PiReportMessage, PiReportResult, PiStatus } from './piRequest.ts';
 export type { PaneCopyCommand } from './paneCopy.ts';
 export { createClipboardQueue } from './clipboardWrite.ts';
 export type { ClipboardQueue } from './clipboardWrite.ts';

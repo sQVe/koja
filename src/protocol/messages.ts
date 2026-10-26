@@ -325,7 +325,7 @@ const paneCopyOutcomeSchema = z.discriminatedUnion('ok', [
 
 const piReportText = (maxLength: number) => z.string().min(1).max(maxLength);
 
-const passSchema = z.string().regex(/^[0-9a-f]{64}$/);
+export const reportPassSchema = z.string().regex(/^[0-9a-f]{64}$/);
 
 // The longest text each pi report field may hold.
 const piReportLimits = {
@@ -535,7 +535,7 @@ const controlSchema = z.discriminatedUnion('type', [
   z.strictObject({
     type: z.literal('piReport'),
     paneId: paneIdSchema,
-    token: passSchema,
+    token: reportPassSchema,
     report: piReportSchema,
   }),
   z.strictObject({ type: z.literal('piReportResult'), result: piReportOutcomeSchema }),
