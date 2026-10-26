@@ -1,0 +1,323 @@
+{
+  "version": 1,
+  "run": {
+    "root": "/home/sqve/code/personal/koja/me-963/",
+    "runFolder": "/tmp/koja-bench-lH2sCN",
+    "startTime": "2026-10-26T18:35:02.336Z",
+    "endTime": "2026-10-26T18:35:18.565Z",
+    "bunVersion": "1.4.4"
+  },
+  "configuration": {
+    "columns": 200,
+    "rows": 50,
+    "samples": 20,
+    "idleDurationMs": 2000,
+    "floodBytes": 8000000,
+    "resizeCount": 8,
+    "visiblePanes": 4,
+    "hiddenPanes": 1,
+    "ghosttyCommit": "83edd491e3024ae5e50393d62877b8897da1cccd",
+    "commands": {
+      "server": "bun <root>/src/index.ts server run --socket <run>/run/koja.sock --json",
+      "attach": "bun <root>/src/index.ts attach --socket <run>/run/koja.sock",
+      "workspaceCreate": "bun <root>/src/index.ts workspace create <run>/work --focus --json --socket <run>/run/koja.sock",
+      "paneSplit": [
+        "bun <root>/src/index.ts pane split <first-pane> --direction below --json --socket <run>/run/koja.sock",
+        "bun <root>/src/index.ts pane split <second-pane> --direction right --json --socket <run>/run/koja.sock",
+        "bun <root>/src/index.ts pane split <first-pane> --direction right --json --socket <run>/run/koja.sock"
+      ],
+      "paneFocus": "bun <root>/src/index.ts pane focus <first-pane> --json --socket <run>/run/koja.sock",
+      "tabCreate": "bun <root>/src/index.ts tab create --no-focus --json --socket <run>/run/koja.sock",
+      "paneList": "bun <root>/src/index.ts pane list --json --socket <run>/run/koja.sock",
+      "version": "bun <root>/src/index.ts --version",
+      "paneRead": "bun <root>/src/index.ts pane read <hidden-pane> --lines 1000 --socket <run>/run/koja.sock"
+    },
+    "attachTerminal": {
+      "columns": 200,
+      "rows": 50
+    },
+    "guestPlacement": "inherited-from-server",
+    "guestCommands": {
+      "flood": "head -c 8000000 /dev/zero | tr '\\0' f; printf '\\n%s%s\\n' '<FLOOD-EN' 'D-MARKER>'",
+      "typingFlood": ": > '<run>/typing-flood.started'; tr '\\0' f < /dev/zero; : > '<run>/typing-flood.ended'",
+      "typingStop": "printf '\\n%s%s\\n' '<TYPING-ST' 'OP-MARKER>'",
+      "scrollFlood": ": > '<run>/scroll-flood.started'; tr '\\0' f < /dev/zero; : > '<run>/scroll-flood.ended'",
+      "scrollHistory": "printf '\\033[2J\\033[3J\\033[H'; seq -f 'scrollrow-%06g' 1 4000; printf '\\n%s%s\\n' '<HISTORY-E' 'ND-MARKER>'",
+      "scrollStop": "printf '\\n%s%s\\n' '<SCROLL-ST' 'OP-MARKER>'",
+      "hidden": "head -c 8000000 /dev/zero | tr '\\0' h; printf '\\n%s%s\\n' '<HIDDEN-E' 'ND-MARKER>'",
+      "control": "bun <root>/src/index.ts --version"
+    },
+    "typedInput": {
+      "typing": "<TYPED-MARKER> then ctrl+u, never submitted"
+    },
+    "panes": {
+      "visible": ["pane-1", "pane-2", "pane-3", "pane-4"],
+      "focused": "pane-1",
+      "hidden": "pane-5",
+      "visibleTab": "tab-1"
+    }
+  },
+  "revision": {
+    "head": "ff52d363161332ece053fa7e1c31a731be56c73e",
+    "runtimeRevision": "4031ff01fc642aa05e3b7618a94a5aa8cc527816",
+    "treeHashes": {
+      "src": "84965c10d02d1f076b20849502dd6cdeea359275",
+      "patches": "ad0fc820879e348e8491682e26ce8a4c840d6d0d",
+      "buildVt": "58e44aaded8c7d9a753fa3ab1266c7c5e39729df",
+      "bunLock": "d4d07535de2c878e5aa8fdc65df835517242b2c5"
+    },
+    "dirty": false,
+    "packageJsonDigest": "a8317ed67f04334bf9a96086e1fb5595dfdd57881b266c04a66df3712d7da52c"
+  },
+  "machine": {
+    "cpuModel": "13th Gen Intel(R) Core(TM) i9-13900HX",
+    "cores": 32,
+    "governor": "powersave",
+    "kernel": "6.18.58-1-lts",
+    "memoryTotalKb": 32624228
+  },
+  "placement": {
+    "cpus": [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15],
+    "source": "hybrid-cpu-core",
+    "pinned": true,
+    "tasksetPath": "/usr/bin/taskset"
+  },
+  "scenarios": {
+    "idle": {
+      "client": {
+        "cpuMs": 80,
+        "rssKb": {
+          "start": 111724,
+          "end": 92164,
+          "peak": 113692
+        }
+      },
+      "server": {
+        "cpuMs": 40,
+        "rssKb": {
+          "start": 67600,
+          "end": 67000,
+          "peak": 68440
+        }
+      },
+      "guests": {
+        "scopes": [
+          "koja-pane-22704-1f719a3f-3510-4585-8267-ff8d56a0db3f.scope",
+          "koja-pane-22704-563c5d64-15a9-457c-a79a-1a7a9b0c1e30.scope",
+          "koja-pane-22704-656ba1c2-8d8f-4484-bea6-43afc3220015.scope",
+          "koja-pane-22704-c8178727-5469-4412-9d41-01e0bcde2443.scope",
+          "koja-pane-22704-f0263b53-fec6-48f3-9e65-77becc6ed526.scope"
+        ],
+        "cpuMs": 0,
+        "memoryBytes": {
+          "lifetimePeak": 16072704,
+          "end": 16072704
+        }
+      }
+    },
+    "typingUnderFlood": {
+      "latencyMs": [
+        20.27309000000014, 16.98447699999997, 15.373325000000023, 16.962240000000293,
+        16.082580000000235, 17.871920000000046, 14.455417000000125, 16.2214469999999,
+        19.139963999999964, 13.685245000000123, 15.68590899999981, 16.435275000000274,
+        19.08621600000015, 13.485695999999734, 16.781582999999955, 18.098333999999795,
+        13.386946999999964, 16.72828699999991, 16.754413999999997, 18.559377999999924
+      ],
+      "completionMs": [134.107939],
+      "client": {
+        "cpuMs": 380,
+        "rssKb": {
+          "start": 92164,
+          "end": 124848,
+          "peak": 131628
+        }
+      },
+      "server": {
+        "cpuMs": 470,
+        "rssKb": {
+          "start": 67000,
+          "end": 101556,
+          "peak": 102136
+        }
+      },
+      "guests": {
+        "scopes": [
+          "koja-pane-22704-1f719a3f-3510-4585-8267-ff8d56a0db3f.scope",
+          "koja-pane-22704-563c5d64-15a9-457c-a79a-1a7a9b0c1e30.scope",
+          "koja-pane-22704-656ba1c2-8d8f-4484-bea6-43afc3220015.scope",
+          "koja-pane-22704-c8178727-5469-4412-9d41-01e0bcde2443.scope",
+          "koja-pane-22704-f0263b53-fec6-48f3-9e65-77becc6ed526.scope"
+        ],
+        "cpuMs": 196.608,
+        "memoryBytes": {
+          "lifetimePeak": 17162240,
+          "end": 16449536
+        }
+      }
+    },
+    "busyScroll": {
+      "latencyMs": [
+        20.244382000000314, 15.847081999999773, 18.293793000000278, 16.891671999999744,
+        13.938615000000027, 12.679705999999896, 12.676158999999643, 12.528864999999769,
+        12.752415999999812, 15.820298999999977, 18.80165500000021, 16.5657470000001,
+        15.664987999999994, 30.66432799999984, 16.89381000000003, 21.596574000000146,
+        16.636428999999225, 17.40190799999982, 16.385645999999724, 32.36767200000031
+      ],
+      "client": {
+        "cpuMs": 800,
+        "rssKb": {
+          "start": 124848,
+          "end": 197452,
+          "peak": 202420
+        }
+      },
+      "server": {
+        "cpuMs": 800,
+        "rssKb": {
+          "start": 101556,
+          "end": 105784,
+          "peak": 111520
+        }
+      },
+      "guests": {
+        "scopes": [
+          "koja-pane-22704-1f719a3f-3510-4585-8267-ff8d56a0db3f.scope",
+          "koja-pane-22704-563c5d64-15a9-457c-a79a-1a7a9b0c1e30.scope",
+          "koja-pane-22704-656ba1c2-8d8f-4484-bea6-43afc3220015.scope",
+          "koja-pane-22704-c8178727-5469-4412-9d41-01e0bcde2443.scope",
+          "koja-pane-22704-f0263b53-fec6-48f3-9e65-77becc6ed526.scope"
+        ],
+        "cpuMs": 366.933,
+        "memoryBytes": {
+          "lifetimePeak": 17686528,
+          "end": 16936960
+        }
+      }
+    },
+    "hiddenOutput": {
+      "completionMs": [
+        254.39184599999953, 254.58855700000004, 245.9061619999993, 256.2623400000002,
+        247.92399900000055, 245.46485399999983, 244.06355299999996, 247.57072599999992,
+        239.6652899999999, 248.8666320000002, 262.1979339999998, 256.61359600000014,
+        261.6552300000003, 270.3733509999993, 252.24034099999972, 243.1257969999997,
+        253.96725800000058, 266.7198840000001, 249.71656500000063, 247.09431199999926
+      ],
+      "client": {
+        "cpuMs": 20,
+        "rssKb": {
+          "start": 197452,
+          "end": 135016,
+          "peak": 201132
+        }
+      },
+      "server": {
+        "cpuMs": 1790,
+        "rssKb": {
+          "start": 105784,
+          "end": 127192,
+          "peak": 143436
+        }
+      },
+      "guests": {
+        "scopes": [
+          "koja-pane-22704-1f719a3f-3510-4585-8267-ff8d56a0db3f.scope",
+          "koja-pane-22704-563c5d64-15a9-457c-a79a-1a7a9b0c1e30.scope",
+          "koja-pane-22704-656ba1c2-8d8f-4484-bea6-43afc3220015.scope",
+          "koja-pane-22704-c8178727-5469-4412-9d41-01e0bcde2443.scope",
+          "koja-pane-22704-f0263b53-fec6-48f3-9e65-77becc6ed526.scope"
+        ],
+        "cpuMs": 477.07,
+        "memoryBytes": {
+          "lifetimePeak": 20639744,
+          "end": 18546688
+        }
+      }
+    },
+    "resizeBurst": {
+      "latencyMs": [
+        140.58498800000052, 136.8421870000002, 140.21162100000038, 140.70612900000015,
+        143.54354299999977, 139.64997200000107, 135.94673800000055, 137.11385399999926,
+        144.29344300000048, 138.69173500000034, 141.88707299999987, 138.04457299999922,
+        137.6868369999993, 139.46040699999867, 137.83727499999986, 134.32634400000097,
+        139.8735680000009, 146.51554399999986, 148.93707299999915, 139.28841199999988
+      ],
+      "client": {
+        "cpuMs": 2100,
+        "rssKb": {
+          "start": 135016,
+          "end": 142276,
+          "peak": 210608
+        }
+      },
+      "server": {
+        "cpuMs": 440,
+        "rssKb": {
+          "start": 127192,
+          "end": 116576,
+          "peak": 142192
+        }
+      },
+      "guests": {
+        "scopes": [
+          "koja-pane-22704-1f719a3f-3510-4585-8267-ff8d56a0db3f.scope",
+          "koja-pane-22704-563c5d64-15a9-457c-a79a-1a7a9b0c1e30.scope",
+          "koja-pane-22704-656ba1c2-8d8f-4484-bea6-43afc3220015.scope",
+          "koja-pane-22704-c8178727-5469-4412-9d41-01e0bcde2443.scope",
+          "koja-pane-22704-f0263b53-fec6-48f3-9e65-77becc6ed526.scope"
+        ],
+        "cpuMs": 15.312,
+        "memoryBytes": {
+          "lifetimePeak": 20639744,
+          "end": 17944576
+        }
+      }
+    },
+    "paneList": {
+      "latencyMs": [
+        60.176377000001594, 57.69463300000098, 54.59281200000078, 52.21443499999987,
+        51.034732000000076, 57.17461899999944, 51.29632499999934, 59.04148600000008,
+        51.244738999999754, 50.5403380000007, 50.14672099999916, 57.69024899999931,
+        51.19161699999859, 51.14481100000012, 58.20881100000042, 50.98394299999927,
+        51.20959199999925, 51.82540499999959, 61.106597000001784, 50.69019499999922
+      ],
+      "controlMs": [
+        44.915225000000646, 48.947792000000845, 45.11753300000055, 43.46354900000006,
+        43.9955030000001, 43.83319799999845, 44.24833899999976, 48.2967179999996,
+        43.002371000000494, 43.39024100000097, 51.37984000000142, 44.86864200000127,
+        44.18115899999975, 53.38499199999933, 43.668619000000035, 52.15732200000275,
+        46.90983200000119, 51.31773599999724, 49.652548999998544, 43.01862400000027
+      ],
+      "client": {
+        "cpuMs": 20,
+        "rssKb": {
+          "start": 142276,
+          "end": 112120,
+          "peak": 208508
+        }
+      },
+      "server": {
+        "cpuMs": 20,
+        "rssKb": {
+          "start": 116576,
+          "end": 113196,
+          "peak": 142192
+        }
+      },
+      "guests": {
+        "scopes": [
+          "koja-pane-22704-1f719a3f-3510-4585-8267-ff8d56a0db3f.scope",
+          "koja-pane-22704-563c5d64-15a9-457c-a79a-1a7a9b0c1e30.scope",
+          "koja-pane-22704-656ba1c2-8d8f-4484-bea6-43afc3220015.scope",
+          "koja-pane-22704-c8178727-5469-4412-9d41-01e0bcde2443.scope",
+          "koja-pane-22704-f0263b53-fec6-48f3-9e65-77becc6ed526.scope"
+        ],
+        "cpuMs": 0,
+        "memoryBytes": {
+          "lifetimePeak": 20639744,
+          "end": 17719296
+        }
+      }
+    }
+  },
+  "gaps": []
+}
