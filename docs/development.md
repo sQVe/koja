@@ -35,17 +35,19 @@ checks on staged files.
 
 ## Check changes
 
-| Command                           | Use                                                                       |
-| --------------------------------- | ------------------------------------------------------------------------- |
-| `bun run check`                   | Run typechecking, house style, formatting, Knip, and the full test suite. |
-| `bun run test`                    | Run the full test suite.                                                  |
-| `bun run test tests/lint.test.ts` | Run one test file.                                                        |
-| `bun run test:changed`            | Run tests affected by uncommitted changes.                                |
-| `bun run style:check`             | Check all lint rules, including house style, with `seam`.                 |
-| `bun run style:fix`               | Apply safe lint fixes with `seam --fix`, then format.                     |
-| `bun run lint`                    | Run ordinary lint diagnostics, as editors do.                             |
-| `bun run format`                  | Format files.                                                             |
-| `bun run knip`                    | Find unused files, exports, and dependencies.                             |
+| Command                           | Use                                                                                                          |
+| --------------------------------- | ------------------------------------------------------------------------------------------------------------ |
+| `bun run bench --output <file>`   | Run the terminal responsiveness benchmark and write its JSON result.                                         |
+| `bun run bench --compare <a> <b>` | Check that two benchmark results share one shape and summarize both runs. Add `--json` for parseable output. |
+| `bun run check`                   | Run typechecking, house style, formatting, Knip, and the full test suite.                                    |
+| `bun run test`                    | Run the full test suite.                                                                                     |
+| `bun run test tests/lint.test.ts` | Run one test file.                                                                                           |
+| `bun run test:changed`            | Run tests affected by uncommitted changes.                                                                   |
+| `bun run style:check`             | Check all lint rules, including house style, with `seam`.                                                    |
+| `bun run style:fix`               | Apply safe lint fixes with `seam --fix`, then format.                                                        |
+| `bun run lint`                    | Run ordinary lint diagnostics, as editors do.                                                                |
+| `bun run format`                  | Format files.                                                                                                |
+| `bun run knip`                    | Find unused files, exports, and dependencies.                                                                |
 
 House style comes from the [`@sqve/seam`](https://www.npmjs.com/package/@sqve/seam) package. Its
 `seam` command turns on the house rules for its own lint run, so editors and `bun run lint` show the

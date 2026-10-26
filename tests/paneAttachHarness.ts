@@ -4,9 +4,9 @@ import { join } from 'node:path';
 
 import { z } from 'zod';
 
+import { startAttachTerminal } from '../scripts/attachTerminal.ts';
 import { sideListColumns } from '../src/layout.ts';
 import { cellWords, rowHeaderWords } from '../src/rows/rows.ts';
-import { createTerminal } from '../src/vt/vt.ts';
 import { environmentFor, launchServer, root, runCli, temporaryDirectory } from './cliHarness.ts';
 
 const paneListSchema = z.array(
@@ -65,41 +65,17 @@ export const setup = async (): Promise<PaneAttachHarness> => {
   const act = async (...commandArguments: string[]): Promise<string> =>
     paneDoneSchema.parse(JSON.parse(await koja('pane', ...commandArguments, '--json'))).pane;
 
-  const created = createTerminal(80 + sideListColumns, 24, 0);
-
-  if (!created.ok) {
-    throw new Error(created.reason);
-  }
-
-  const screen = created.terminal;
-  const waiters = new Set<() => void>();
-
-  const client = Bun.spawn([process.execPath, 'src/index.ts', 'attach', '--socket', socketPath], {
+  const terminal = startAttachTerminal({
+    command: [process.execPath, 'src/index.ts', 'attach', '--socket', socketPath],
     cwd: root,
-    env: { ...environment, COLORTERM: 'truecolor', TERM: 'xterm-256color' },
-    terminal: {
-      cols: 80 + sideListColumns,
-      rows: 24,
-      data: (terminal, bytes) => {
-        const { reply } = screen.write(bytes);
-
-        if (reply !== undefined) {
-          terminal.write(reply);
-        }
-
-        for (const waiter of waiters) {
-          waiter();
-        }
-      },
-    },
+    environment,
+    columns: 80 + sideListColumns,
+    rows: 24,
   });
 
-  onTestFinished(async () => {
-    client.kill();
-    await client.exited;
-    client.terminal?.close();
-    screen[Symbol.dispose]();
-  });
+  const { screen } = terminal;
+
+  onTestFinished(terminal.stop);
 
   // The rows of the pane area, without the side list. The status bar row keeps its full width.
   const lines = (): string[] => {
@@ -120,46 +96,22 @@ export const setup = async (): Promise<PaneAttachHarness> => {
     return read.rows.cells[rowHeaderWords + (column + sideListColumns) * cellWords + 1];
   };
 
-  const until = (condition: () => boolean): Promise<undefined> => {
-    const done = Promise.withResolvers<undefined>();
+  const until = async (condition: () => boolean): Promise<undefined> => {
+    await terminal.waitFor(
+      condition,
+      failureTimeoutMs,
+      () =>
+        `The condition did not hold in time. Screen:\n${screen
+          .text()
+          .split('\n')
+          .map((l, i) => `${i}|${l}`)
+          .join('\n')}`,
+    );
 
-    const check = () => {
-      if (condition()) {
-        waiters.delete(check);
-        done.resolve(undefined);
-      }
-    };
-
-    const timer = setTimeout(() => {
-      waiters.delete(check);
-
-      done.reject(
-        new Error(
-          `The condition did not hold in time. Screen:\n${screen
-            .text()
-            .split('\n')
-            .map((l, i) => `${i}|${l}`)
-            .join('\n')}`,
-        ),
-      );
-    }, failureTimeoutMs);
-
-    waiters.add(check);
-    check();
-
-    return done.promise.finally(() => {
-      clearTimeout(timer);
-    });
+    return undefined;
   };
 
-  const resize = (columns: number, rows: number): void => {
-    screen.resize(columns, rows);
-    client.terminal?.resize(columns, rows);
-  };
-
-  const type = (input: string): void => {
-    client.terminal?.write(input);
-  };
+  const { resize, type } = terminal;
 
   const [first] = await list();
 
