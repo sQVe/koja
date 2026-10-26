@@ -1,4 +1,5 @@
 import { expect, it } from 'bun:test';
+import { join } from 'node:path';
 
 import { z } from 'zod';
 
@@ -6,7 +7,9 @@ import { cliTestTimeoutMs } from './cliHarness.ts';
 import { pollUntil, setup } from './paneHarness.ts';
 import type { KojaRunner } from './paneHarness.ts';
 
-const workspaceListSchema = z.array(z.object({ id: z.string(), focused: z.boolean() }));
+const workspaceListSchema = z.array(
+  z.object({ id: z.string(), focused: z.boolean(), root: z.string() }),
+);
 
 const tabListSchema = z.array(z.object({ id: z.string(), active: z.boolean() }));
 
@@ -141,7 +144,7 @@ it(
 it(
   'steps to the next and previous workspace through action run without closing any',
   async () => {
-    const { koja } = await setup();
+    const { koja, directory } = await setup();
 
     expect(ranCleanly(await koja('action', 'run', 'workspace.create'))).toEqual(cleanRun);
     expect(ranCleanly(await koja('action', 'run', 'workspace.create'))).toEqual(cleanRun);
@@ -151,6 +154,13 @@ it(
     const [first, , third] = ids;
 
     expect(ids).toHaveLength(3);
+
+    expect(created.map((workspace) => workspace.root)).toEqual([
+      join(directory, 'work'),
+      directory,
+      directory,
+    ]);
+
     expect(focusedOf(created)).toBe(third);
 
     expect(ranCleanly(await koja('action', 'run', 'workspace.next'))).toEqual(cleanRun);

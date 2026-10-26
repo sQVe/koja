@@ -150,16 +150,23 @@ const passesRelativePath = (commandArguments: string[]): boolean => {
   return createsRelativeWorkspace || passesRelativeOption;
 };
 
+const createsWorkspaceAtCwd = (commandArguments: string[]): boolean => {
+  const [family, action, actionId] = commandArguments;
+
+  return family === 'action' && action === 'run' && actionId === 'workspace.create';
+};
+
 // Server start spawns Bun.main, which is the test file under bun test. Attach and the default
-// command need a terminal. Relative paths resolve against the process cwd, which the test process
-// does not share with the command.
+// command need a terminal. Relative paths and the workspace.create action resolve against the
+// process cwd, which the test process does not share with the command.
 const needsOwnProcess = (commandArguments: string[]): boolean => {
   const [family, action] = commandArguments;
   const serverLaunch = action === 'start' || action === 'run';
   const startsServer = family === 'server' && serverLaunch;
   const attaches = family === undefined || family === 'attach' || family.startsWith('--socket');
+  const usesCwd = passesRelativePath(commandArguments) || createsWorkspaceAtCwd(commandArguments);
 
-  return startsServer || attaches || passesRelativePath(commandArguments);
+  return startsServer || attaches || usesCwd;
 };
 
 export const runCli = (
