@@ -54,6 +54,7 @@ history, and `git show <commit>:docs/adr/<file>` restores a retired ADR.
 
 - [0005: OpenTUI with React for the UI, panes outside React](./0005-opentui-react-ui.md)
 - [0010: Every UI feature has a CLI equal](./0010-cli-parity.md)
+- [0019: One action catalog drives keys, help, search, and the CLI](./0019-action-catalog.md)
 
 ### Code structure
 

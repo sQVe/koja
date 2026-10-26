@@ -4,9 +4,13 @@ import { createRoot } from '@opentui/react';
 import { useSyncExternalStore } from 'react';
 import type { ReactNode } from 'react';
 
+import { actionCatalog } from '../actions.ts';
 import { createClipboardQueue, viewedPane, shownView } from '../client/client.ts';
 import type { AttachSession, ClipboardQueue, CloseReason, PaneNotice } from '../client/client.ts';
 import { kittyFlags } from '../rows/rows.ts';
+import { ActionOverlay } from './actionOverlay.tsx';
+import { actionViewRowsOf, createActionView } from './actionView.ts';
+import type { ActionView } from './actionView.ts';
 import { createInputRouter } from './input.ts';
 import { takeStdin } from './inputStdin.ts';
 import { runPaneAction } from './paneActions.ts';
@@ -70,9 +74,17 @@ const sendToPane = (session: AttachSession, bytes: Uint8Array): void => {
   }
 };
 
-const routeInput = (session: AttachSession, renderer: CliRenderer, scrollMode: ScrollMode) =>
+const routeInput = (
+  session: AttachSession,
+  renderer: CliRenderer,
+  scrollMode: ScrollMode,
+  view: ActionView,
+) =>
   createInputRouter({
     mode: () => session.getState().inputMode,
+    snapshot: () => session.getState().snapshot,
+    catalog: actionCatalog,
+    view,
     setMode: (mode) => {
       session.setInputMode(mode);
     },
@@ -102,7 +114,7 @@ const routeInput = (session: AttachSession, renderer: CliRenderer, scrollMode: S
 
       return number === undefined ? undefined : { kind: 'tab', number };
     },
-    focusPane: (pane) => session.focusPane(pane),
+    focusPane: (pane) => session.changePaneLayout({ action: 'focus', pane }),
     paneModes: (pane) => session.rowCache(pane)?.modes() ?? 0,
     paneSize: (pane) => session.getState().snapshot.panes.find((known) => known.id === pane)?.size,
     sendToPane: (pane, bytes) => {
@@ -147,6 +159,7 @@ export const runAttach = async (session: AttachSession): Promise<CloseReason> =>
   });
 
   const scrollMode = createScrollMode(session);
+  const actionView = createActionView(() => actionViewRowsOf(renderer.terminalHeight));
   const keyboard = createTerminalKeyboard((text) => process.stdout.write(text));
   const mouse = createTerminalMouse((text) => process.stdout.write(text));
   const signals = ['SIGTERM', 'SIGINT', 'SIGHUP'] as const;
@@ -187,7 +200,7 @@ export const runAttach = async (session: AttachSession): Promise<CloseReason> =>
 
   // Cleanup runs after any step of the setup, so each step it undoes is optional here.
   try {
-    releaseStdin = takeStdin(renderer, routeInput(session, renderer, scrollMode));
+    releaseStdin = takeStdin(renderer, routeInput(session, renderer, scrollMode, actionView));
     unsubscribeState = session.subscribe(followPaneKeys);
     unsubscribeRows = session.subscribeRows(followPaneKeys);
 
@@ -215,6 +228,7 @@ export const runAttach = async (session: AttachSession): Promise<CloseReason> =>
         <box flexDirection="row" flexGrow={1}>
           <SideList session={session} />
           <Screen session={session} placePane={placePane} />
+          <ActionOverlay session={session} view={actionView} />
         </box>
         <StatusBar session={session} />
       </box>,

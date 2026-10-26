@@ -1,7 +1,7 @@
+import { workspaceNeighborOf } from '../actions.ts';
+import type { WorkspaceKey } from '../actions.ts';
 import type { WorkspaceCommand, WorkspaceReply } from '../client/client.ts';
 import type { WorkspaceId } from '../ids.ts';
-
-export type WorkspaceKey = 'next' | 'previous' | 'create' | 'close';
 
 interface WorkspaceNavigationHost {
   workspaces: () => { ids: readonly WorkspaceId[]; focused: WorkspaceId | undefined };
@@ -26,8 +26,7 @@ const neighborCommand = (
   focused: WorkspaceId,
   step: 1 | -1,
 ): WorkspaceCommand | undefined => {
-  const index = ids.indexOf(focused);
-  const target = index === -1 ? undefined : ids[(index + step + ids.length) % ids.length];
+  const target = workspaceNeighborOf(ids, focused, step);
 
   if (target === undefined) {
     return undefined;

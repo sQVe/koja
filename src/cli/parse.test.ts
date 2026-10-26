@@ -569,7 +569,7 @@ it.each([
 
 it('names only the commands that accept --pane when pane move gets it', () => {
   expect(parseCommand(['pane', 'move', 'pane-1', '--tab', 'tab-2', '--pane', 'pane-1'])).toBe(
-    '--pane belongs to pane send.',
+    '--pane belongs to pane send and action run.',
   );
 });
 
@@ -915,4 +915,61 @@ it('explains why pane list refuses extra arguments', () => {
 
 it('leaves an unknown command to its own parser even with an option', () => {
   expect(parseCommand(['koja', '--label', 'x'])).toBe(parseCommand(['koja']));
+});
+
+it('parses action list with --json', () => {
+  expect(parseCommand(['action', 'list', '--json'])).toEqual({
+    kind: 'action',
+    action: { action: 'list' },
+    json: true,
+    socket: undefined,
+  });
+});
+
+it('parses action run with the pane or workspace it names', () => {
+  expect(parseCommand(['action', 'run', 'pane.zoom', '--pane', 'pane-2'])).toMatchObject({
+    kind: 'action',
+    action: { action: 'run', entry: { id: 'pane.zoom' }, pane: paneId(2) },
+    json: false,
+  });
+
+  expect(parseCommand(['action', 'run', 'tab.next', '--workspace', 'workspace-3'])).toMatchObject({
+    kind: 'action',
+    action: { action: 'run', entry: { id: 'tab.next' }, workspace: workspaceId(3) },
+  });
+});
+
+it('refuses an unknown action id, so the caller prints usage', () => {
+  expect(typeof parseCommand(['action', 'run', 'pane.unknown'])).toBe('string');
+});
+
+it('refuses an action run without exactly one action id', () => {
+  expect(typeof parseCommand(['action', 'run'])).toBe('string');
+  expect(typeof parseCommand(['action', 'run', 'pane.zoom', 'pane.close'])).toBe('string');
+});
+
+it('refuses --pane on an action that is not a pane action', () => {
+  expect(typeof parseCommand(['action', 'run', 'tab.next', '--pane', 'pane-1'])).toBe('string');
+});
+
+it('refuses --workspace on a pane action', () => {
+  expect(typeof parseCommand(['action', 'run', 'pane.zoom', '--workspace', 'workspace-1'])).toBe(
+    'string',
+  );
+});
+
+it('refuses --pane and --workspace together', () => {
+  const both = ['action', 'run', 'pane.zoom', '--pane', 'pane-1', '--workspace', 'workspace-1'];
+
+  expect(typeof parseCommand(both)).toBe('string');
+});
+
+it('refuses target flags on action list', () => {
+  expect(typeof parseCommand(['action', 'list', '--pane', 'pane-1'])).toBe('string');
+});
+
+it('refuses --workspace on workspace.create, which makes a new workspace', () => {
+  expect(
+    typeof parseCommand(['action', 'run', 'workspace.create', '--workspace', 'workspace-1']),
+  ).toBe('string');
 });

@@ -36,6 +36,8 @@ const acceptedOptions = new Map<string, readonly string[]>([
   ['tab focus', []],
   ['tab rename', []],
   ['tab close', []],
+  ['action list', []],
+  ['action run', ['pane', 'workspace']],
 ]);
 
 const sharedOptions: ReadonlySet<string> = new Set(['json', 'socket', 'version']);

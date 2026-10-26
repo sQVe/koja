@@ -1,7 +1,10 @@
 import { expect, it } from 'bun:test';
 
-import { createInputHarness } from './inputFixtures.ts';
-import type { PaneAction } from './paneActions.ts';
+import { actionCatalog } from '../actions.ts';
+import type { PaneAction } from '../actions.ts';
+import { paneId } from '../ids.ts';
+import { invariant } from '../invariant.ts';
+import { createInputHarness, firstWorkspace, storeSnapshotOf } from './inputFixtures.ts';
 
 const paneKeys: [string, PaneAction][] = [
   ['s', 'splitBelow'],
@@ -86,4 +89,38 @@ it('sends held tokens when the action fails to settle normally', async () => {
   await Promise.resolve();
 
   expect(sent).toEqual(['q']);
+});
+
+it('routes a key from the catalog it is given and sends nothing for the replaced key', () => {
+  const zoom = actionCatalog.find((entry) => entry.id === 'pane.zoom');
+  invariant(zoom !== undefined, 'the catalog has pane.zoom');
+  const catalog = [...actionCatalog.filter((entry) => entry !== zoom), { ...zoom, keys: ['Z'] }];
+  const { press, sent, actions } = createInputHarness('insert', { catalog });
+
+  press('\x02');
+  press('Z');
+
+  expect(actions).toEqual(['zoom']);
+
+  press('z');
+
+  expect(actions).toEqual(['zoom']);
+  expect(sent).toEqual([]);
+});
+
+it('sends no pane action and no bytes for a key whose action is unavailable', () => {
+  const onePane = storeSnapshotOf({ ids: [firstWorkspace], focused: firstWorkspace }, [
+    { id: 1, workspaceId: firstWorkspace, panes: [paneId(1)], focused: paneId(1) },
+  ]);
+
+  const { press, sent, actions, mode } = createInputHarness('insert', {
+    snapshot: () => onePane,
+  });
+
+  press('\x02');
+  press('l');
+
+  expect(actions).toEqual([]);
+  expect(sent).toEqual([]);
+  expect(mode()).toBe('normal');
 });

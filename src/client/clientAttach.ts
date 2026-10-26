@@ -12,7 +12,7 @@ import {
 import type { BuildVersion, ControlMessage } from '../protocol/protocol.ts';
 import { decodePaneRows, decodeRowUpdate, encodePaneInput } from '../rows/rows.ts';
 import { paneLayoutRequest } from './paneRequest.ts';
-import type { PaneMoveDestination, ResizeDirection, SplitDirection } from './paneRequest.ts';
+import type { PaneLayoutCommand } from './paneRequest.ts';
 import { createRowCache } from './rowCache.ts';
 import type { RowCache, RowRange } from './rowCache.ts';
 import { createRowFetcher } from './rowFetch.ts';
@@ -107,15 +107,10 @@ export interface AttachSession {
   tabPending: () => boolean;
   // Calls back once, when no tab request is pending any more.
   afterTabAnswer: (callback: () => void) => void;
-  // Ask the server to change the pane layout, like `koja pane split|focus|close`. Each promise
+  // Ask the server to change the pane layout, like `koja pane split|focus|close`. The promise
   // settles once the server has answered and the state changes it caused are applied. It also
   // settles when the session ends or the answer takes too long.
-  splitPane: (pane: PaneId, direction: SplitDirection) => Promise<void>;
-  focusPane: (pane: PaneId) => Promise<void>;
-  closePane: (pane: PaneId) => Promise<void>;
-  movePane: (pane: PaneId, destination: PaneMoveDestination) => Promise<void>;
-  zoomPane: (pane: PaneId) => Promise<void>;
-  resizePane: (pane: PaneId, direction: ResizeDirection, cells: number) => Promise<void>;
+  changePaneLayout: (command: PaneLayoutCommand) => Promise<void>;
   // Moves this client's view of the pane to a stable row, or back to the bottom, like
   // `koja pane scroll --client`.
   // The promise settles once the server has answered and its change is in the snapshot, when the
@@ -135,7 +130,12 @@ export interface AttachSession {
 export type AttachResult =
   | { ok: true; session: AttachSession }
   | { ok: false; reason: 'noServer' | 'connectionFailed' }
-  | { ok: false; reason: 'refused'; client: BuildVersion; server: BuildVersion };
+  | {
+      ok: false;
+      reason: 'refused';
+      client: BuildVersion;
+      server: BuildVersion;
+    };
 
 const rowCacheLimit = 10_000;
 
@@ -152,11 +152,11 @@ const paneNumberBytes = 4;
 
 const inputBytesPerFrame = maxFramePayloadBytes - paneNumberBytes;
 
-const tabToFocus = (
+export const tabToFocus = (
   workspace: StoreSnapshot['workspaces'][number],
   activeId: TabId | undefined,
   route: TabRoute,
-) => {
+): TabId | undefined => {
   const index = activeId === undefined ? -1 : workspace.tabIds.indexOf(activeId);
 
   if (route.kind === 'previous') {
@@ -643,7 +643,12 @@ export const connectAttach = async (
 
       if (route.kind === 'create') {
         sendTabRequest(
-          tabRequest({ action: 'create', workspaceId: workspace.id, cwd: undefined, focus: true }),
+          tabRequest({
+            action: 'create',
+            workspaceId: workspace.id,
+            cwd: undefined,
+            focus: true,
+          }),
         );
 
         return;
@@ -660,15 +665,7 @@ export const connectAttach = async (
     afterTabAnswer: (callback) => {
       tabAnswerCallbacks.push(callback);
     },
-    splitPane: (pane, direction) =>
-      requestLayout(paneLayoutRequest({ action: 'split', pane, direction, cwd: undefined })),
-    focusPane: (pane) => requestLayout(paneLayoutRequest({ action: 'focus', pane })),
-    closePane: (pane) => requestLayout(paneLayoutRequest({ action: 'close', pane })),
-    movePane: (pane, destination) =>
-      requestLayout(paneLayoutRequest({ action: 'move', pane, destination })),
-    zoomPane: (pane) => requestLayout(paneLayoutRequest({ action: 'zoom', pane })),
-    resizePane: (pane, direction, cells) =>
-      requestLayout(paneLayoutRequest({ action: 'resize', pane, direction, cells })),
+    changePaneLayout: (command) => requestLayout(paneLayoutRequest(command)),
     scrollPane: (pane, to) => {
       invariant(state !== undefined, 'The attach session is only handed out after a snapshot.');
 
@@ -678,7 +675,12 @@ export const connectAttach = async (
         return Promise.resolve();
       }
 
-      return requestAnswered(scrollAnswers, { type: 'paneScroll', paneId: pane, to, clientId });
+      return requestAnswered(scrollAnswers, {
+        type: 'paneScroll',
+        paneId: pane,
+        to,
+        clientId,
+      });
     },
     detach: () => {
       send({ type: 'detach', clientId: undefined });

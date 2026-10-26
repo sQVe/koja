@@ -1,10 +1,10 @@
 import { describe, expect, it } from 'bun:test';
 
-import type { StoreSnapshot } from '../client/client.ts';
+import type { PaneAction } from '../actions.ts';
+import type { PaneLayoutCommand, StoreSnapshot } from '../client/client.ts';
 import { clientId, paneId, tabId, workspaceId } from '../ids.ts';
 import type { PaneId } from '../ids.ts';
 import { runPaneAction } from './paneActions.ts';
-import type { PaneAction } from './paneActions.ts';
 
 const size = { columns: 80, rows: 24 };
 
@@ -29,7 +29,10 @@ const paneOf = (id: number): StoreSnapshot['panes'][number] => ({
 });
 
 const snapshotWith = (focused: number, paneCount: number): StoreSnapshot => {
-  let layout: StoreSnapshot['tabs'][number]['layout'] = { kind: 'pane', paneId: paneId(1) };
+  let layout: StoreSnapshot['tabs'][number]['layout'] = {
+    kind: 'pane',
+    paneId: paneId(1),
+  };
 
   for (let id = 2; id <= paneCount; id += 1) {
     layout = {
@@ -43,7 +46,14 @@ const snapshotWith = (focused: number, paneCount: number): StoreSnapshot => {
 
   return {
     revision: 1,
-    workspaces: [{ id: workspaceId(1), root: '/work/koja', label: 'koja', tabIds: [tabId(1)] }],
+    workspaces: [
+      {
+        id: workspaceId(1),
+        root: '/work/koja',
+        label: 'koja',
+        tabIds: [tabId(1)],
+      },
+    ],
     tabs: [
       {
         id: tabId(1),
@@ -62,38 +72,37 @@ const snapshotWith = (focused: number, paneCount: number): StoreSnapshot => {
   };
 };
 
-const emptySnapshot: StoreSnapshot = { ...snapshotWith(1, 1), workspaces: [], tabs: [], panes: [] };
+const emptySnapshot: StoreSnapshot = {
+  ...snapshotWith(1, 1),
+  workspaces: [],
+  tabs: [],
+  panes: [],
+};
 
 const fakeSession = (snapshot: StoreSnapshot) => {
-  const calls: unknown[][] = [];
-
-  const record =
-    (name: string) =>
-    (...args: unknown[]): Promise<void> => {
-      calls.push([name, ...args]);
-
-      return Promise.resolve();
-    };
+  const commands: PaneLayoutCommand[] = [];
 
   const session = {
     getState: () => ({ snapshot, inputMode: 'normal' as const }),
-    splitPane: record('splitPane'),
-    focusPane: record('focusPane'),
-    closePane: record('closePane'),
-    movePane: record('movePane'),
-    zoomPane: record('zoomPane'),
-    resizePane: record('resizePane'),
+    changePaneLayout: (command: PaneLayoutCommand): Promise<void> => {
+      commands.push(command);
+
+      return Promise.resolve();
+    },
   };
 
-  return { session, calls };
+  return { session, commands };
 };
 
-const run = async (snapshot: StoreSnapshot, action: PaneAction): Promise<readonly unknown[][]> => {
-  const { session, calls } = fakeSession(snapshot);
+const run = async (
+  snapshot: StoreSnapshot,
+  action: PaneAction,
+): Promise<readonly PaneLayoutCommand[]> => {
+  const { session, commands } = fakeSession(snapshot);
 
   await runPaneAction(session, action);
 
-  return calls;
+  return commands;
 };
 
 const pane = (id: number): PaneId => paneId(id);
@@ -114,10 +123,19 @@ const secondTabSnapshot = (): StoreSnapshot => {
   return {
     ...base,
     workspaces: [
-      { id: workspaceId(1), root: '/work', label: 'koja', tabIds: [tabId(1), tabId(2)] },
+      {
+        id: workspaceId(1),
+        root: '/work',
+        label: 'koja',
+        tabIds: [tabId(1), tabId(2)],
+      },
     ],
     tabs: [
-      { ...firstTab, layout: { kind: 'pane', paneId: paneId(1) }, focusedPaneId: paneId(1) },
+      {
+        ...firstTab,
+        layout: { kind: 'pane', paneId: paneId(1) },
+        focusedPaneId: paneId(1),
+      },
       {
         ...firstTab,
         id: tabId(2),
@@ -150,15 +168,21 @@ describe('runPaneAction', () => {
   });
 
   it('moves focus within the tab of the viewed pane', async () => {
-    expect(await run(secondTabSnapshot(), 'focusNext')).toEqual([['focusPane', pane(3)]]);
+    expect(await run(secondTabSnapshot(), 'focusNext')).toEqual([
+      { action: 'focus', pane: pane(3) },
+    ]);
   });
 
   it('focuses the next pane in layout order', async () => {
-    expect(await run(snapshotWith(1, 2), 'focusNext')).toEqual([['focusPane', pane(2)]]);
+    expect(await run(snapshotWith(1, 2), 'focusNext')).toEqual([
+      { action: 'focus', pane: pane(2) },
+    ]);
   });
 
   it('focuses the previous pane in layout order', async () => {
-    expect(await run(snapshotWith(2, 2), 'focusPrevious')).toEqual([['focusPane', pane(1)]]);
+    expect(await run(snapshotWith(2, 2), 'focusPrevious')).toEqual([
+      { action: 'focus', pane: pane(1) },
+    ]);
   });
 
   it('sends nothing past the last pane', async () => {
@@ -170,25 +194,29 @@ describe('runPaneAction', () => {
   });
 
   it('splits the viewed pane below', async () => {
-    expect(await run(snapshotWith(1, 1), 'splitBelow')).toEqual([['splitPane', pane(1), 'below']]);
+    expect(await run(snapshotWith(1, 1), 'splitBelow')).toEqual([
+      { action: 'split', pane: pane(1), direction: 'below', cwd: undefined },
+    ]);
   });
 
   it('splits the viewed pane to the right', async () => {
-    expect(await run(snapshotWith(1, 1), 'splitRight')).toEqual([['splitPane', pane(1), 'right']]);
+    expect(await run(snapshotWith(1, 1), 'splitRight')).toEqual([
+      { action: 'split', pane: pane(1), direction: 'right', cwd: undefined },
+    ]);
   });
 
   it('closes the viewed pane', async () => {
-    expect(await run(snapshotWith(1, 1), 'close')).toEqual([['closePane', pane(1)]]);
+    expect(await run(snapshotWith(1, 1), 'close')).toEqual([{ action: 'close', pane: pane(1) }]);
   });
 
   it('breaks the viewed pane into a new tab', async () => {
     expect(await run(snapshotWith(1, 1), 'breakPane')).toEqual([
-      ['movePane', pane(1), { kind: 'newTab' }],
+      { action: 'move', pane: pane(1), destination: { kind: 'newTab' } },
     ]);
   });
 
   it('zooms the viewed pane', async () => {
-    expect(await run(snapshotWith(1, 1), 'zoom')).toEqual([['zoomPane', pane(1)]]);
+    expect(await run(snapshotWith(1, 1), 'zoom')).toEqual([{ action: 'zoom', pane: pane(1) }]);
   });
 
   it.each([
@@ -197,7 +225,9 @@ describe('runPaneAction', () => {
     ['resizeUp', 'up'],
     ['resizeDown', 'down'],
   ] as const)('resizes the viewed pane by one cell for %s', async (action, direction) => {
-    expect(await run(snapshotWith(1, 1), action)).toEqual([['resizePane', pane(1), direction, 1]]);
+    expect(await run(snapshotWith(1, 1), action)).toEqual([
+      { action: 'resize', pane: pane(1), direction, cells: 1 },
+    ]);
   });
 
   it.each([

@@ -184,6 +184,28 @@ it(
   cliTestTimeoutMs,
 );
 
+it(
+  'draws the shortcut help over the panes on ? and removes it on Escape, staying in normal mode',
+  async () => {
+    const { createWorkspace, screen, statusBar, type } = await setupServer();
+
+    await createWorkspace('alpha');
+    await eventually(() => statusBar() === 'INSERT [1]');
+
+    type('\x02');
+    await eventually(() => statusBar() === 'NORMAL [1]');
+
+    type('?');
+    await eventually(() => screen.text().includes('Shortcuts'));
+    expect(screen.text()).toContain('Next workspace');
+
+    type('\x1b');
+    await eventually(() => !screen.text().includes('Shortcuts'));
+    expect(statusBar()).toBe('NORMAL [1]');
+  },
+  cliTestTimeoutMs,
+);
+
 const pollTimeoutMs = 10_000;
 
 const pollIntervalMs = 50;

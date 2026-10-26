@@ -26,7 +26,7 @@ import which. Modules name their owner, and lint refuses imports that cross the 
 - Folder modules: `vt/`, `rows/`, `store/`, `protocol/`, `server/`, `client/`, `ui/`, `cli/`. Each
   has one public entry file named after the folder, such as `store/store.ts`. Other files in the
   folder are private to the module.
-- Flat modules: `ids.ts`, `invariant.ts`, `layout.ts`, `index.ts`.
+- Flat modules: `actions.ts`, `ids.ts`, `invariant.ts`, `layout.ts`, `index.ts`.
 - The import table and file privacy apply only to files in `src/`. Tests and scripts outside `src/`
   may import any module file.
 - A file outside these modules is an error. A new module starts as a flat file. It becomes a folder
@@ -45,8 +45,9 @@ import which. Modules name their owner, and lint refuses imports that cross the 
 | `protocol`  | `ids`, `invariant`, `rows`, and types from `store`                          |
 | `server`    | `ids`, `invariant`, `vt`, `rows`, `layout`, `store`, `protocol`             |
 | `client`    | `ids`, `invariant`, `rows`, `protocol`                                      |
-| `ui`        | `ids`, `invariant`, `rows`, `layout`, `client`                              |
-| `cli`       | `ids`, `invariant`, `protocol`, `server`, `client`, `vt`, `ui`              |
+| `actions`   | `ids`, `invariant`, `layout`, `client`                                      |
+| `ui`        | `ids`, `invariant`, `rows`, `layout`, `client`, `actions`                   |
+| `cli`       | `ids`, `invariant`, `protocol`, `server`, `client`, `vt`, `ui`, `actions`   |
 | `index`     | any module. It is the binary's entry and calls `cli`. No module imports it. |
 
 - `ids`, `invariant`, `rows`, `layout`, and `store` import no Node or Bun built-ins.

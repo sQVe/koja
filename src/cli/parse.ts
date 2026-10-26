@@ -1,5 +1,7 @@
 import { parseArgs } from 'node:util';
 
+import { actionUsage, parseActionCommand } from './actionCommandParse.ts';
+import type { ActionCliCommand } from './actionCommandParse.ts';
 import {
   clientOptions,
   clientUsage,
@@ -58,7 +60,8 @@ export type Command =
   | ServerCommand
   | AttachCommand
   | DefaultCommand
-  | DetachCommand;
+  | DetachCommand
+  | ActionCliCommand;
 
 export const usage = `Usage:
   koja [--socket <path>]
@@ -67,7 +70,8 @@ ${clientUsage}
 ${serverUsage}
 ${workspaceUsage}
 ${tabUsage}
-${paneUsage}`;
+${paneUsage}
+${actionUsage}`;
 
 const parseVersionCommand = (
   positionals: string[],
@@ -108,6 +112,10 @@ const parseGroupCommand = (group: string | undefined, input: GroupInput): Comman
 
   if (group === 'client') {
     return parseClientCommand(action, rest, options);
+  }
+
+  if (group === 'action') {
+    return parseActionCommand(action, rest, values, options);
   }
 
   return group === 'server' ? parseServerCommand(action, rest, options) : 'Unknown command.';

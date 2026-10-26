@@ -1,7 +1,12 @@
 import { expect, it } from 'bun:test';
 
-import { workspaceId } from '../ids.ts';
-import { createInputHarness, firstWorkspace, secondWorkspace } from './inputFixtures.ts';
+import { paneId, workspaceId } from '../ids.ts';
+import {
+  createInputHarness,
+  firstWorkspace,
+  secondWorkspace,
+  storeSnapshotOf,
+} from './inputFixtures.ts';
 
 const one = workspaceId(1);
 const two = workspaceId(2);
@@ -351,4 +356,47 @@ it('lets a key pass at once after a workspace click was answered and j was press
   press('i');
 
   expect(mode()).toBe('insert');
+});
+
+// The first workspace shows one pane in one tab. The second shows two panes and has two tabs.
+const growingWorkspaces = () => {
+  const shown = { ids: [firstWorkspace, secondWorkspace], focused: firstWorkspace };
+
+  const tabs = [
+    { id: 1, workspaceId: firstWorkspace, panes: [paneId(1)], focused: paneId(1) },
+    { id: 2, workspaceId: secondWorkspace, panes: [paneId(2), paneId(3)], focused: paneId(2) },
+    { id: 3, workspaceId: secondWorkspace, panes: [paneId(4)], focused: paneId(4) },
+  ];
+
+  const harness = createInputHarness('normal', { snapshot: () => storeSnapshotOf(shown, tabs) });
+
+  const answerFocus = (): void => {
+    shown.focused = secondWorkspace;
+    harness.replies[0]?.();
+  };
+
+  return { ...harness, answerFocus };
+};
+
+it('runs l after j once the workspace it moved to makes l available', () => {
+  const { press, actions, answerFocus } = growingWorkspaces();
+
+  press('j');
+  press('l');
+
+  expect(actions).toEqual([]);
+
+  answerFocus();
+
+  expect(actions).toEqual(['focusNext']);
+});
+
+it('runs L after j once the workspace it moved to makes L available', () => {
+  const { press, tabs, answerFocus } = growingWorkspaces();
+
+  press('j');
+  press('L');
+  answerFocus();
+
+  expect(tabs).toEqual([{ kind: 'next' }]);
 });
