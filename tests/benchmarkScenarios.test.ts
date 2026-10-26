@@ -7,6 +7,7 @@ import type { BenchmarkClient } from '../scripts/benchmarkClient.ts';
 import { runHiddenOutput } from '../scripts/benchmarkHidden.ts';
 import { unboundedFloodCommand } from '../scripts/benchmarkMeasure.ts';
 import type { ScenarioContext } from '../scripts/benchmarkMeasure.ts';
+import { runPaneList } from '../scripts/benchmarkPaneList.ts';
 import { runResizeBurst } from '../scripts/benchmarkResize.ts';
 import { guestCommandTemplates } from '../scripts/benchmarkScenarios.ts';
 import { runBusyScroll } from '../scripts/benchmarkScroll.ts';
@@ -112,6 +113,7 @@ const scenarioContext = (
 
     return { exitCode: 0, stdout: '', stderr: '' };
   },
+  cli: async (): Promise<CliResult> => ({ exitCode: 0, stdout: '', stderr: '' }),
   client,
   panes: {
     visible: ['pane-1', 'pane-2'],
@@ -514,6 +516,23 @@ it('ends a resize sample only on a whole frame drawn at the final size', async (
   for (const latency of result.latencyMs ?? []) {
     expect(latency).toBeGreaterThanOrEqual(resizeDrawDelayMs - 2);
   }
+});
+
+it('times the start-up control through the run CLI runner, which applies the CPU placement', async () => {
+  const screen = fakeScreen(() => undefined);
+  const context = scenarioContext(screen.client, () => undefined, 3);
+  const controls: string[][] = [];
+
+  context.cli = async (...commandArguments: string[]): Promise<CliResult> => {
+    controls.push(commandArguments);
+
+    return { exitCode: 0, stdout: '', stderr: '' };
+  };
+
+  const result = await runPaneList(context);
+
+  expect(controls).toEqual([['--version'], ['--version'], ['--version']]);
+  expect(result.controlMs).toHaveLength(3);
 });
 
 it('prints every searched marker from guest output, never from the typed command line', () => {

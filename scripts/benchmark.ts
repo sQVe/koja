@@ -22,6 +22,7 @@ import type { ScenarioName } from './benchmarkScenarios.ts';
 import {
   attachArguments,
   createBenchmarkPanes,
+  createCliRunner,
   createKojaRunner,
   createRunFolder,
   isolatedEnvironment,
@@ -246,7 +247,14 @@ const runBenchmark = async (
   setStop: (stop: () => Promise<void>) => void,
 ): Promise<BenchmarkResult> => {
   const environment = isolatedEnvironment(folder.folder);
-  const koja: KojaRunner = createKojaRunner(folder.folder, folder.socketPath, environment);
+
+  const koja: KojaRunner = createKojaRunner(
+    folder.folder,
+    folder.socketPath,
+    environment,
+    placement,
+  );
+
   const server = startBenchmarkServer(folder, environment, placement);
   let client: BenchmarkClient | undefined;
 
@@ -279,6 +287,7 @@ const runBenchmark = async (
       environment,
       serverProcessId,
       koja,
+      cli: createCliRunner(folder.folder, environment, placement),
       client,
       panes,
       configuration: options,

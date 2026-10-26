@@ -142,18 +142,29 @@ export const serverArguments = (socketPath: string): string[] => [
 
 export const attachArguments = (socketPath: string): string[] => ['attach', '--socket', socketPath];
 
-export const createKojaRunner =
-  (folder: string, socketPath: string, environment: Record<string, string | undefined>) =>
+export const createCliRunner =
+  (folder: string, environment: Record<string, string | undefined>, placement: Placement) =>
   (...commandArguments: string[]): Promise<CliResult> =>
     runProcess(
-      [
+      placementCommand(placement, [
         process.execPath,
         join(repositoryRoot, 'src/index.ts'),
-        ...kojaArguments(commandArguments, socketPath),
-      ],
+        ...commandArguments,
+      ]),
       folder,
       environment,
     );
+
+export const createKojaRunner = (
+  folder: string,
+  socketPath: string,
+  environment: Record<string, string | undefined>,
+  placement: Placement,
+): KojaRunner => {
+  const cli = createCliRunner(folder, environment, placement);
+
+  return (...commandArguments) => cli(...kojaArguments(commandArguments, socketPath));
+};
 
 const failOnCli = (result: CliResult, description: string): void => {
   if (result.exitCode !== 0) {

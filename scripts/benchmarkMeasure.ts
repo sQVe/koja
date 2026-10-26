@@ -22,6 +22,7 @@ export interface ScenarioContext {
   environment: Record<string, string | undefined>;
   serverProcessId: number;
   koja: KojaRunner;
+  cli: KojaRunner;
   client: BenchmarkClient;
   panes: BenchmarkPanes;
   configuration: ScenarioConfiguration;
