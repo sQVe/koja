@@ -25,10 +25,8 @@ interface Completion {
   gap?: ScenarioGap;
 }
 
-// Ctrl+U makes the line discipline drop the typed marker.
 const eraseLine = '\u0015';
 
-// Starts watching before the flood is sent, so typing samples cannot delay the observation.
 const watchCompletion = (
   context: ScenarioContext,
   text: string,
@@ -40,7 +38,6 @@ const watchCompletion = (
     (error: unknown) => ({ gap: { metric: 'completionMs', reason: messageOf(error) } }),
   );
 
-// Times one fixed flood until its end marker appears; the watch starts before the flood is sent.
 const timeCompletion = async (context: ScenarioContext, pane: string): Promise<Completion> => {
   const endMarker = marker('FLOOD-END');
   const bytes = context.configuration.floodBytes;
@@ -60,7 +57,6 @@ const typingSample = async (context: ScenarioContext, flood: SiblingFlood): Prom
   const typedAt = performance.now();
   let latencyMs: number;
 
-  // The marker is never submitted, so only the echo of the typed keys can show it.
   context.client.type(typedMarker);
 
   try {

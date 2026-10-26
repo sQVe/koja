@@ -105,7 +105,6 @@ const hasGap = (result: BenchmarkResult, scenario: string, metric: string): bool
 
 type MetricName = (typeof sampleNames)[number] | (typeof resourceNames)[number];
 
-// Every result must measure these or name them in its gaps, whatever the other result holds.
 const requiredMetrics: Record<ScenarioName, readonly MetricName[]> = {
   idle: resourceNames,
   typingUnderFlood: ['latencyMs', 'completionMs', ...resourceNames],
@@ -115,7 +114,6 @@ const requiredMetrics: Record<ScenarioName, readonly MetricName[]> = {
   paneList: ['latencyMs', 'controlMs', ...resourceNames],
 };
 
-// An empty sample array holds no measurement, so it counts as missing.
 const hasMetric = (
   result: BenchmarkResult,
   scenario: ScenarioName,

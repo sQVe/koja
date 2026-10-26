@@ -72,7 +72,6 @@ export const removeRunFolder = async (folder: string): Promise<void> => {
   await rm(folder, { recursive: true, force: true });
 };
 
-// Inside a Koja pane an inherited KOJA_SOCKET_PATH would reach the enclosing server.
 export const isolatedEnvironment = (folder: string): Record<string, string | undefined> => {
   const environment: Record<string, string | undefined> = {};
 
@@ -92,8 +91,6 @@ export const isolatedEnvironment = (folder: string): Record<string, string | und
   environment.SHELL = '/bin/sh';
   environment.PS1 = '';
 
-  // systemd-run --user finds its manager through XDG_RUNTIME_DIR. Link that one socket so pane
-  // scopes start while every other runtime file stays inside the run folder.
   const managerSocket =
     userRuntimeDirectory === undefined
       ? undefined
@@ -240,7 +237,6 @@ export const readServerReadiness = async (
   return buffered.slice(0, buffered.indexOf('\n'));
 };
 
-// Returns at spawn, so the caller owns the server before it is ready and can stop it at any point.
 export const startBenchmarkServer = (
   folder: RunFolder,
   environment: Record<string, string | undefined>,
@@ -328,7 +324,6 @@ export const startBenchmarkServer = (
 
   let stopping: Promise<void> | undefined;
 
-  // Every caller waits for the same stop, so no caller removes the folder while the server runs.
   const stop = (): Promise<void> => {
     stopping ??= terminate();
 

@@ -26,7 +26,6 @@ const shellOutput = (command: string): string[] => {
   return new TextDecoder().decode(ran.stdout).split('\n');
 };
 
-// A client whose screen the test scripts, with the waiter rules of the real attach driver.
 const fakeScreen = (onType: (input: string) => void): FakeScreen => {
   const waiters = new Set<() => void>();
   let text = 'INSERT [1]';
@@ -82,7 +81,6 @@ const fakeScreen = (onType: (input: string) => void): FakeScreen => {
   };
 };
 
-// Guest commands write their sentinel files here, as they would in the run folder.
 const testFolder = mkdtempSync(join(tmpdir(), 'koja-bench-scenarios-'));
 
 afterAll(() => {
@@ -127,14 +125,9 @@ const floodOutputDelayMs = 20;
 
 const echoDelayMs = 30;
 
-// Runs a command the way the guest shell would, with an unbounded flood reading empty input so
-// it ends at once.
 const endedShellOutput = (command: string): string[] =>
   shellOutput(command.replace('< /dev/zero', '< /dev/null'));
 
-// The focused pane echoes typed keys and Ctrl+U erases the typed line. The sibling pane prints
-// the output of fixed floods and markers; its unbounded flood ends only when floodEnds says so.
-// With showEnd false the flood ends without any output the client can read, as in a narrow pane.
 const typingScreen = (
   events: ClientEvent[],
   floodEnds: (typedSamples: number) => boolean,
@@ -254,8 +247,6 @@ const historyTailRows = 10;
 
 const scrollDrawDelayMs = 15;
 
-// The history command shows its first row at once and its last rows a moment later. Scroll mode
-// shows the first rows; leaving it shows the last rows again.
 const scrollScreen = (events: ClientEvent[]) => {
   let history: string[] = [];
 

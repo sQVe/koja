@@ -22,7 +22,6 @@ interface AttachTerminalOptions {
   rows: number;
 }
 
-// Runs a client in a PTY and feeds its output to a headless screen that answers terminal queries.
 export const startAttachTerminal = (options: AttachTerminalOptions): AttachTerminal => {
   const created = createTerminal(options.columns, options.rows, 0);
 

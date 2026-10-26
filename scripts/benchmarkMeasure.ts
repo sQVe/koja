@@ -71,21 +71,17 @@ export const messageOf = (error: unknown): string =>
 export const floodTimeoutMs = (bytes: number): number =>
   Math.max(readTimeoutMs, Math.ceil(bytes / floodBytesPerTimeoutMs));
 
-// The shell echoes a typed command, so the command holds the marker only in two parts.
 export const printMarkerCommand = (text: string): string => {
   const middle = Math.floor(text.length / 2);
 
   return `printf '\\n%s%s\\n' '${text.slice(0, middle)}' '${text.slice(middle)}'`;
 };
 
-// The run folder comes from the system temporary folder, whose name may hold any character.
 const shellQuoted = (text: string): string => `'${text.replaceAll("'", "'\\''")}'`;
 
 export const floodCommand = (bytes: number, endMarker: string): string =>
   `head -c ${bytes} /dev/zero | tr '\\0' f; ${printMarkerCommand(endMarker)}`;
 
-// The flood never ends on its own. When it ends anyway, the shell creates the sentinel file. The
-// screen cannot tell, because a narrow pane wraps any marker the shell prints.
 export const unboundedFloodCommand = (sentinelPath: string): string =>
   `tr '\\0' f < /dev/zero; : > ${shellQuoted(sentinelPath)}`;
 
@@ -141,7 +137,6 @@ export const measure = async (
   return combine(timing, sampler.stop());
 };
 
-// label names the sentinel file, the stop marker, and the stop gap, such as SCROLL for scrollStop.
 export const startSiblingFlood = async (
   context: ScenarioContext,
   pane: string,

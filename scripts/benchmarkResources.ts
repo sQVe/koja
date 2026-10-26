@@ -143,7 +143,6 @@ const childrenOf = (processId: number): number[] => {
     .filter((process) => Number.isInteger(process) && process > 0);
 };
 
-// Returns the cgroup path from /proc/<pid>/cgroup text when it is a pane scope of this server.
 export const runScopePath = (cgroup: string, serverProcessId: number): string | undefined => {
   const path = /^0::(.+)$/m.exec(cgroup)?.[1];
 
@@ -190,7 +189,6 @@ const guestScopes = (serverProcessId: number): Map<string, string> => {
   return scopes;
 };
 
-// A resource that was never readable is left out and named in a gap, never reported as zero.
 export const resourceReport = (tracked: TrackedResources): ResourceReport => {
   const { clientProcessId, serverProcessId, guests } = tracked;
   const gaps: ResourceGap[] = [];

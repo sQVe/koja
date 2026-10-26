@@ -50,7 +50,6 @@ const leaveScrollMode = async (
   }
 };
 
-// Returns why the history was not written, or undefined once its end marker is on screen.
 const writeHistory = async (
   context: ScenarioContext,
   pane: string,
@@ -68,7 +67,6 @@ const writeHistory = async (
   }
 };
 
-// Data events drive the wait, so with the row absent before the input only a new frame can match.
 const scrollSample = async (context: ScenarioContext, flood: SiblingFlood): Promise<Sample> => {
   if (!flood.running()) {
     return { ok: false, reason: 'The sibling flood ended before the scroll sample.' };

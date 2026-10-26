@@ -53,7 +53,6 @@ const parseCpuList = (text: string): number[] => {
   const numbers: number[] = [];
 
   for (const part of text.trim().split(',')) {
-    // Number('') is 0, so an empty list would otherwise name CPU 0.
     if (part === '') {
       continue;
     }
@@ -130,7 +129,6 @@ const frequencyGroup = (
     : { cpus: fastest[1].toSorted((a, b) => a - b), reason: undefined };
 };
 
-// hybrid is the text of /sys/devices/cpu_core/cpus; frequencies maps cpuinfo_max_freq to its CPUs.
 export const choosePlacement = ({
   hybrid,
   frequencies,

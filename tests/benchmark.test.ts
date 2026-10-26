@@ -539,7 +539,6 @@ it('stops the server and removes the run folder on an interrupt before the serve
 
     expect(found).toBe(true);
 
-    // A stopped server cannot report readiness, so the interrupt lands in start-up.
     process.kill(server?.pid ?? 0, 'SIGSTOP');
     benchmark.kill('SIGINT');
 

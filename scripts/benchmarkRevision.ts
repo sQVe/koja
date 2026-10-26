@@ -12,7 +12,6 @@ export interface Revision {
   packageJsonDigest: string;
 }
 
-// package.json is not a runtime path because the bench script line changes in the tooling change.
 export const runtimePaths = ['src', 'patches', 'scripts/buildVt.sh', 'bun.lock'] as const;
 
 const porcelainStatusLength = 3;
