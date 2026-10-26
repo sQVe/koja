@@ -1,6 +1,7 @@
 import { expect, it, onTestFinished, spyOn } from 'bun:test';
 
 import { paneId } from '../ids.ts';
+import type { PaneId } from '../ids.ts';
 import type { ControlMessage } from '../protocol/protocol.ts';
 import { applyFact, applyIntent, applyPiReport, createState } from '../store/store.ts';
 import type { PiReport } from '../store/store.ts';
@@ -74,7 +75,7 @@ const fixture = () => {
     },
   } as Connection;
 
-  return { context, connection, messages, warnings, running, processStat };
+  return { context, connection, messages, warnings, running, processStat, starting: created.state };
 };
 
 it('refuses a stale runtime generation without replacing state or releasing the runtime', () => {
@@ -172,4 +173,69 @@ it('records a live process and reports its identity without its process id or pa
     { type: 'piReportResult', result: { ok: true, status: 'recorded' } },
     { type: 'piStatusReply', paneId: target, pi: { state: 'reported', ...identity } },
   ]);
+});
+
+it('refuses a report whose pass does not match the pane pass', () => {
+  const { context, connection, messages, warnings, running } = fixture();
+  const before = context.state;
+
+  handlePiReport(
+    context,
+    { type: 'piReport', paneId: target, token: 'b'.repeat(64), report },
+    connection,
+  );
+
+  expect(messages).toEqual([
+    { type: 'piReportResult', result: { ok: false, reason: 'unauthorized' } },
+  ]);
+
+  expect(warnings).toEqual([{ paneId: target, reason: 'unauthorized' }]);
+  expect(context.state).toBe(before);
+  expect(context.runtime.panes.get(target)).toBe(running);
+});
+
+it('refuses a report for a pane that is not running yet', () => {
+  const { context, connection, messages, running, starting } = fixture();
+
+  context.state = starting;
+
+  expect(starting.panes[0]?.lifecycle).toBe('starting');
+
+  handlePiReport(context, { type: 'piReport', paneId: target, token: pass, report }, connection);
+
+  expect(messages).toEqual([
+    { type: 'piReportResult', result: { ok: false, reason: 'unauthorized' } },
+  ]);
+
+  expect(context.state).toBe(starting);
+  expect(context.runtime.panes.get(target)).toBe(running);
+});
+
+it('refuses a report for a pane without a runtime entry', () => {
+  const { context, connection, messages } = fixture();
+  const before = context.state;
+  const panes = new Map<PaneId, RunningPane>();
+
+  const unregistered = { ...context, runtime: { panes } };
+
+  handlePiReport(
+    unregistered,
+    { type: 'piReport', paneId: target, token: pass, report },
+    connection,
+  );
+
+  expect(messages).toEqual([
+    { type: 'piReportResult', result: { ok: false, reason: 'unauthorized' } },
+  ]);
+
+  expect(unregistered.state).toBe(before);
+  expect(panes.size).toBe(0);
+});
+
+it('replies unknownPane to a status request for a pane the store does not know', () => {
+  const { context, connection, messages } = fixture();
+
+  answerPiStatus(context, paneId(9), connection);
+
+  expect(messages).toEqual([{ type: 'paneFailed', reason: 'unknownPane', message: undefined }]);
 });

@@ -159,3 +159,53 @@ it('drops the record of a pane the state no longer has when another pane reports
   expect(next.piReports.has(paneId(1))).toBe(false);
   expect(piRecordOf(next, paneId(2))).toMatchObject({ state: 'reported', process: secondProcess });
 });
+
+it.each([
+  ['a reused process id with a different start time', { id: firstProcess.id, startTime: 5001 }],
+  ['another process id with the same start time', { id: 101, startTime: firstProcess.startTime }],
+])('replaces the record when %s reports for the same pane', (_name, process: PiProcess) => {
+  const state = startedState();
+  const recorded = applyPiReport(state, inputFor(state, firstProcess));
+  const reported = defined(recorded.kind === 'applied' ? recorded.state : undefined);
+
+  const result = applyPiReport(reported, inputFor(reported, process, { sessionId: 'session-b' }));
+  const replaced = defined(result.kind === 'applied' ? result.state : undefined);
+
+  expect(result).toMatchObject({ kind: 'applied', status: 'recorded' });
+
+  expect(piRecordOf(replaced, paneId(1))).toStrictEqual({
+    state: 'reported',
+    generation: 1,
+    process,
+    report: reportOf(process, { sessionId: 'session-b' }),
+  });
+});
+
+it('hides a record of another generation of the pane', () => {
+  const state = startedState();
+  const recorded = applyPiReport(state, inputFor(state, firstProcess));
+  const reported = defined(recorded.kind === 'applied' ? recorded.state : undefined);
+
+  const [pane] = reported.panes;
+  const generation = reported.nextGeneration;
+
+  // A pane that starts again keeps its id under a new generation.
+  const restarted: State = {
+    ...reported,
+    panes: [{ ...defined(pane), generation }],
+    nextGeneration: generation + 1,
+  };
+
+  expect(restarted.piReports.has(paneId(1))).toBe(true);
+  expect(piRecordOf(restarted, paneId(1))).toBeUndefined();
+});
+
+it('hides the record of a pane the state no longer has', () => {
+  const split = run([attachLarge, createKoja, splitFirst('right')]);
+  const reported = applyPiReport(split, inputFor(split, firstProcess));
+  const recorded = defined(reported.kind === 'applied' ? reported.state : undefined);
+  const closed = applyIntent(recorded, { type: 'closePane', paneId: paneId(1) }).state;
+
+  expect(closed.piReports.has(paneId(1))).toBe(true);
+  expect(piRecordOf(closed, paneId(1))).toBeUndefined();
+});
