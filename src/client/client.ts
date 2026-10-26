@@ -13,7 +13,7 @@ import type { TabCommand } from './tabRequest.ts';
 import { workspaceRequest } from './workspaceRequest.ts';
 import type { WorkspaceCommand } from './workspaceRequest.ts';
 
-export { connectAttach } from './clientAttach.ts';
+export { connectAttach, tabToFocus } from './clientAttach.ts';
 
 export type {
   AttachSession,

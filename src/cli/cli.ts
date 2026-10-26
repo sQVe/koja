@@ -1,4 +1,5 @@
 import type { BuildVersion } from '../protocol/protocol.ts';
+import { runActionCommand } from './actionCommands.ts';
 import { runAttachCommand } from './attachCommand.ts';
 import type { AttachCommand } from './clientCommandParse.ts';
 import { runClientAction } from './clientCommands.ts';
@@ -47,6 +48,10 @@ const runRequestCommand = (
 
   if (command.kind === 'detach') {
     return runDetachCommand(command, versions, environment);
+  }
+
+  if (command.kind === 'action') {
+    return runActionCommand(command, versions, environment);
   }
 
   return runServerAction(command, versions, environment);

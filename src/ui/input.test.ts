@@ -25,7 +25,10 @@ it('sends a cursor key as an application key in insert mode when the pane asks f
 
 it('keeps a cursor key as it is when the pane does not ask for application keys', () => {
   for (const tail of ['A', 'B', 'C', 'D', 'H', 'F']) {
-    expect(key(`\x1b[${tail}`, 'insert')).toEqual({ text: `\x1b[${tail}`, mode: 'insert' });
+    expect(key(`\x1b[${tail}`, 'insert')).toEqual({
+      text: `\x1b[${tail}`,
+      mode: 'insert',
+    });
   }
 });
 
@@ -66,13 +69,13 @@ it('asks to detach on d in normal mode, sends nothing, and returns to insert mod
   expect(routeKey('d', 'normal', 0)).toEqual({
     bytes: new Uint8Array(),
     mode: 'insert',
-    detach: true,
+    effect: { kind: 'detach' },
   });
 });
 
 it('does not ask to detach for d in insert mode or other keys in normal mode', () => {
-  expect(routeKey('d', 'insert', 0).detach).toBe(false);
-  expect(routeKey('i', 'normal', 0).detach).toBe(false);
+  expect(routeKey('d', 'insert', 0).effect).toBeUndefined();
+  expect(routeKey('i', 'normal', 0).effect).toBeUndefined();
 });
 
 it('enters scroll mode on [ in normal mode and returns to insert mode on q', () => {
@@ -81,15 +84,13 @@ it('enters scroll mode on [ in normal mode and returns to insert mode on q', () 
   expect(entered).toEqual({
     bytes: new Uint8Array(),
     mode: 'scroll',
-    detach: false,
-    scroll: { kind: 'enter' },
+    effect: { kind: 'scrollEnter' },
   });
 
   expect(routeKey('q', 'scroll', 0)).toEqual({
     bytes: new Uint8Array(),
     mode: 'insert',
-    detach: false,
-    scroll: { kind: 'leave' },
+    effect: { kind: 'scroll', action: { kind: 'leave' } },
   });
 });
 
@@ -97,12 +98,12 @@ it('leaves scroll mode on Escape and sends nothing', () => {
   expect(routeKey('\x1b', 'scroll', 0)).toMatchObject({
     bytes: new Uint8Array(),
     mode: 'insert',
-    scroll: { kind: 'leave' },
+    effect: { kind: 'scroll', action: { kind: 'leave' } },
   });
 
   expect(routeKey('\x1b[27u', 'scroll', 0)).toMatchObject({
     mode: 'insert',
-    scroll: { kind: 'leave' },
+    effect: { kind: 'scroll', action: { kind: 'leave' } },
   });
 });
 
@@ -111,8 +112,7 @@ it('treats Ctrl+B in scroll mode as the prefix, which leaves scroll mode', () =>
     expect(routeKey(raw, 'scroll', 0)).toEqual({
       bytes: new Uint8Array(),
       mode: 'normal',
-      detach: false,
-      scroll: { kind: 'leave' },
+      effect: { kind: 'scroll', action: { kind: 'leave' } },
     });
   }
 });
@@ -153,8 +153,7 @@ for (const [raw, motion] of scrollKeys) {
     expect(routeKey(raw, 'scroll', 0)).toEqual({
       bytes: new Uint8Array(),
       mode: 'scroll',
-      detach: false,
-      scroll: { kind: 'move', motion },
+      effect: { kind: 'scroll', action: { kind: 'move', motion } },
     });
   });
 }
@@ -164,7 +163,7 @@ it('ignores other keys, Alt keys, and releases in scroll mode', () => {
     expect(routeKey(raw, 'scroll', 0)).toEqual({
       bytes: new Uint8Array(),
       mode: 'scroll',
-      detach: false,
+      effect: undefined,
     });
   }
 });
@@ -199,14 +198,21 @@ it('routes t to a new tab and sends nothing to the pane', () => {
   expect(routeKey('t', 'normal', 0)).toEqual({
     bytes: new Uint8Array(),
     mode: 'normal',
-    detach: false,
-    tab: { kind: 'create' },
+    effect: { kind: 'tab', route: { kind: 'create' } },
   });
 });
 
 it('routes H and L to the previous and next tab', () => {
-  expect(routeKey('H', 'normal', 0).tab).toEqual({ kind: 'previous' });
-  expect(routeKey('L', 'normal', 0).tab).toEqual({ kind: 'next' });
+  expect(routeKey('H', 'normal', 0).effect).toEqual({
+    kind: 'tab',
+    route: { kind: 'previous' },
+  });
+
+  expect(routeKey('L', 'normal', 0).effect).toEqual({
+    kind: 'tab',
+    route: { kind: 'next' },
+  });
+
   expect(routeKey('L', 'normal', 0).bytes).toEqual(new Uint8Array());
 });
 
@@ -214,11 +220,15 @@ it('routes 1 to 9 to a tab by number and leaves 0 alone', () => {
   for (let number = 1; number <= 9; number += 1) {
     const routed = routeKey(String(number), 'normal', 0);
 
-    expect(routed.tab).toEqual({ kind: 'number', number });
+    expect(routed.effect).toEqual({
+      kind: 'tab',
+      route: { kind: 'number', number },
+    });
+
     expect(routed.bytes).toEqual(new Uint8Array());
   }
 
-  expect(routeKey('0', 'normal', 0).tab).toBeUndefined();
+  expect(routeKey('0', 'normal', 0).effect).toBeUndefined();
 });
 
 it('sends t, H, L, and digits to the pane in insert mode', () => {
@@ -226,7 +236,7 @@ it('sends t, H, L, and digits to the pane in insert mode', () => {
     expect(routeKey(raw, 'insert', 0)).toEqual({
       bytes: encoder.encode(raw),
       mode: 'insert',
-      detach: false,
+      effect: undefined,
     });
   }
 });
@@ -247,17 +257,37 @@ it('reads normal-mode keys from kitty input', () => {
 
   expect(routeKey('\x1b[105u', 'normal', modes).mode).toBe('insert');
   expect(routeKey('\x1b[27u', 'normal', modes).mode).toBe('insert');
-  expect(routeKey('\x1b[100u', 'normal', modes).detach).toBe(true);
-  expect(routeKey('\x1b[104;2:1;72u', 'normal', modes).tab).toEqual({ kind: 'previous' });
-  expect(routeKey('\x1b[104;5u', 'normal', modes).tab).toBeUndefined();
-  expect(routeKey('\x1b[108;2;76u', 'normal', modes).tab).toEqual({ kind: 'next' });
-  expect(routeKey('\x1b[115u', 'normal', modes).paneAction).toBe('splitBelow');
+
+  expect(routeKey('\x1b[100u', 'normal', modes).effect).toEqual({
+    kind: 'detach',
+  });
+
+  expect(routeKey('\x1b[104;2:1;72u', 'normal', modes).effect).toEqual({
+    kind: 'tab',
+    route: { kind: 'previous' },
+  });
+
+  expect(routeKey('\x1b[104;5u', 'normal', modes).effect).toBeUndefined();
+
+  expect(routeKey('\x1b[108;2;76u', 'normal', modes).effect).toEqual({
+    kind: 'tab',
+    route: { kind: 'next' },
+  });
+
+  expect(routeKey('\x1b[115u', 'normal', modes).effect).toEqual({
+    kind: 'pane',
+    action: 'splitBelow',
+  });
 });
 
 it('ignores a kitty release in normal mode', () => {
   const routed = routeKey('\x1b[100;1:3u', 'normal', withKittyFlags(3));
 
-  expect(routed).toEqual({ bytes: new Uint8Array(), mode: 'normal', detach: false });
+  expect(routed).toEqual({
+    bytes: new Uint8Array(),
+    mode: 'normal',
+    effect: undefined,
+  });
 });
 
 it('sends a kitty release to a pane with event types, and not to one without', () => {
@@ -278,7 +308,11 @@ it('sends a literal kitty Ctrl+B in the pane encoding after Ctrl+B Ctrl+B', () =
 });
 
 it('ignores Alt keys in normal mode, in legacy and kitty form', () => {
-  const ignored = { bytes: new Uint8Array(), mode: 'normal' as const, detach: false };
+  const ignored = {
+    bytes: new Uint8Array(),
+    mode: 'normal' as const,
+    effect: undefined,
+  };
 
   for (const raw of [
     '\x1bx',
@@ -312,7 +346,7 @@ it('asks to detach only for d', () => {
     routeKey('\x1b[98;5:2u', 'normal', 0),
   ];
 
-  expect(taken.map((routed) => routed.detach)).toEqual(taken.map(() => false));
+  expect(taken.map((routed) => routed.effect?.kind === 'detach')).toEqual(taken.map(() => false));
 });
 
 it('ignores the release of a scroll key', () => {
@@ -320,11 +354,14 @@ it('ignores the release of a scroll key', () => {
     expect(routeKey(raw, 'scroll', 0)).toEqual({
       bytes: new Uint8Array(),
       mode: 'scroll',
-      detach: false,
+      effect: undefined,
     });
   }
 
-  expect(routeKey('\x1b[1;1:1A', 'scroll', 0).scroll).toEqual({ kind: 'move', motion: 'up' });
+  expect(routeKey('\x1b[1;1:1A', 'scroll', 0).effect).toEqual({
+    kind: 'scroll',
+    action: { kind: 'move', motion: 'up' },
+  });
 });
 
 it('stays in scroll mode on q with Alt or Ctrl', () => {
@@ -332,13 +369,17 @@ it('stays in scroll mode on q with Alt or Ctrl', () => {
     const routed = routeKey(raw, 'scroll', 0);
 
     expect(routed.mode).toBe('scroll');
-    expect(routed.scroll).toBeUndefined();
+    expect(routed.effect).toBeUndefined();
   }
 });
 
 it('asks for no tab when the key text is more than one digit', () => {
-  expect(routeKey('\x1b[49;1;49:50u', 'normal', 0).tab).toBeUndefined();
-  expect(routeKey('\x1b[49;1;49u', 'normal', 0).tab).toEqual({ kind: 'number', number: 1 });
+  expect(routeKey('\x1b[49;1;49:50u', 'normal', 0).effect).toBeUndefined();
+
+  expect(routeKey('\x1b[49;1;49u', 'normal', 0).effect).toEqual({
+    kind: 'tab',
+    route: { kind: 'number', number: 1 },
+  });
 });
 
 it('asks for no workspace when the key text names a built-in object property', () => {
@@ -348,7 +389,7 @@ it('asks for no workspace when the key text names a built-in object property', (
     expect(routeKey(`\x1b[99;1;${codePoints}u`, 'normal', 0)).toEqual({
       bytes: new Uint8Array(),
       mode: 'normal',
-      detach: false,
+      effect: undefined,
     });
   }
 });

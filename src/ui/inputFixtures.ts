@@ -1,10 +1,14 @@
-import type { InputMode, TabRoute, WorkspaceCommand } from '../client/client.ts';
-import { paneId, workspaceId } from '../ids.ts';
+import { actionCatalog } from '../actions.ts';
+import type { PaneAction } from '../actions.ts';
+import type { InputMode, StoreSnapshot, TabRoute, WorkspaceCommand } from '../client/client.ts';
+import { clientId, paneId, tabId, workspaceId } from '../ids.ts';
 import type { PaneId, WorkspaceId } from '../ids.ts';
+import { invariant } from '../invariant.ts';
 import { ModeFlag } from '../rows/rows.ts';
+import { actionViewRowsOf, createActionView } from './actionView.ts';
+import type { ActionView } from './actionView.ts';
 import { createInputRouter } from './input.ts';
 import type { ScrollAction } from './input.ts';
-import type { PaneAction } from './paneActions.ts';
 
 type RouterHost = Parameters<typeof createInputRouter>[0];
 
@@ -36,6 +40,7 @@ interface InputHarness {
   focusGate: { current: Promise<undefined> };
   snapshot: WorkspaceSnapshot;
   gone: GonePanes;
+  view: ActionView;
   modeChanges: InputMode[];
   mode: () => InputMode;
   detaches: () => number;
@@ -45,8 +50,112 @@ interface InputHarness {
   answerPaneAction: () => Promise<void>;
 }
 
+interface TabFixture {
+  id: number;
+  workspaceId: WorkspaceId;
+  panes: readonly PaneId[];
+  focused: PaneId;
+}
+
+type TabLayout = StoreSnapshot['tabs'][number]['layout'];
+
 export const firstWorkspace = workspaceId(1);
 export const secondWorkspace = workspaceId(2);
+
+const rowLayout = (panes: readonly PaneId[]): TabLayout => {
+  const [first, ...rest] = panes;
+
+  invariant(first !== undefined, 'a tab holds a pane');
+
+  if (rest.length === 0) {
+    return { kind: 'pane', paneId: first };
+  }
+
+  return {
+    kind: 'split',
+    direction: 'right',
+    ratio: 0.5,
+    first: { kind: 'pane', paneId: first },
+    second: rowLayout(rest),
+  };
+};
+
+const thirdPaneNumber = 3;
+const fourthPaneNumber = 4;
+const fifthPaneNumber = 5;
+
+const harnessTabs: readonly TabFixture[] = [
+  {
+    id: 1,
+    workspaceId: firstWorkspace,
+    panes: [paneId(2), paneId(1), paneId(thirdPaneNumber)],
+    focused: paneId(1),
+  },
+  {
+    id: 2,
+    workspaceId: firstWorkspace,
+    panes: [paneId(fourthPaneNumber)],
+    focused: paneId(fourthPaneNumber),
+  },
+  {
+    id: 3,
+    workspaceId: secondWorkspace,
+    panes: [paneId(fifthPaneNumber)],
+    focused: paneId(fifthPaneNumber),
+  },
+];
+
+const size = { columns: 80, rows: 24 };
+
+export const storeSnapshotOf = (
+  workspaces: WorkspaceSnapshot,
+  tabs: readonly TabFixture[] = harnessTabs,
+): StoreSnapshot => {
+  const view = {
+    focusedWorkspaceId: workspaces.focused,
+    activeTabs: workspaces.ids.flatMap((id) => {
+      const tab = tabs.find((known) => known.workspaceId === id);
+
+      return tab === undefined ? [] : [{ workspaceId: id, tabId: tabId(tab.id) }];
+    }),
+    scrolls: [],
+  };
+
+  return {
+    revision: 1,
+    workspaces: workspaces.ids.map((id) => ({
+      id,
+      root: '/work',
+      label: 'koja',
+      tabIds: tabs.filter((tab) => tab.workspaceId === id).map((tab) => tabId(tab.id)),
+    })),
+    tabs: tabs.map((tab) => ({
+      id: tabId(tab.id),
+      workspaceId: tab.workspaceId,
+      layout: rowLayout(tab.panes),
+      focusedPaneId: tab.focused,
+      zoomedPaneId: undefined,
+      label: undefined,
+    })),
+    panes: tabs.flatMap((tab) =>
+      tab.panes.map((pane) => ({
+        id: pane,
+        tabId: tabId(tab.id),
+        lifecycle: 'running' as const,
+        generation: 1,
+        size,
+        exitCode: undefined,
+        startFolder: undefined,
+        restored: false,
+        error: undefined,
+      })),
+    ),
+    defaultView: view,
+    attachedClientId: clientId(1),
+    foregroundClientId: clientId(1),
+    clients: [{ id: clientId(1), size, theme: undefined, view }],
+  };
+};
 
 export const decoder = new TextDecoder();
 export const encoder = new TextEncoder();
@@ -96,6 +205,7 @@ export const createInputHarness = (
   const failures: (() => void)[] = [];
   const tabCallbacks: (() => void)[] = [];
   const focused: PaneId[] = [];
+  const view = createActionView(() => actionViewRowsOf(size.rows));
   const focusGate: { current: Promise<undefined> } = { current: Promise.resolve(undefined) };
 
   const snapshot: WorkspaceSnapshot = {
@@ -182,6 +292,9 @@ export const createInputHarness = (
     scroll: (action) => {
       scrolls.push(action);
     },
+    catalog: actionCatalog,
+    view,
+    snapshot: () => storeSnapshotOf(snapshot),
     ...overrides,
   });
 
@@ -222,6 +335,7 @@ export const createInputHarness = (
     focusGate,
     snapshot,
     gone,
+    view,
     modeChanges,
     mode: () => mode,
     detaches: () => detaches,

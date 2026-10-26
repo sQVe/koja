@@ -1,11 +1,11 @@
 import type { PaneId } from '../ids.ts';
 import type { ControlMessage } from '../protocol/protocol.ts';
 
-export type SplitDirection = Extract<ControlMessage, { type: 'paneSplit' }>['direction'];
+type SplitDirection = Extract<ControlMessage, { type: 'paneSplit' }>['direction'];
 
 export type PaneMoveDestination = Extract<ControlMessage, { type: 'paneMove' }>['destination'];
 
-export type ResizeDirection = Extract<ControlMessage, { type: 'paneResize' }>['direction'];
+type ResizeDirection = Extract<ControlMessage, { type: 'paneResize' }>['direction'];
 
 export type PaneLayoutCommand =
   | { action: 'split'; pane: PaneId; direction: SplitDirection; cwd: string | undefined }

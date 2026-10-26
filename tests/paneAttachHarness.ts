@@ -32,6 +32,7 @@ interface PaneAttachHarness {
   list: () => Promise<z.infer<typeof paneListSchema>>;
   act: (...commandArguments: string[]) => Promise<string>;
   lines: () => string[];
+  screenText: () => string;
   foreground: (row: number, column: number) => number | undefined;
   until: (condition: () => boolean) => Promise<undefined>;
   resize: (columns: number, rows: number) => void;
@@ -167,5 +168,18 @@ export const setup = async (): Promise<PaneAttachHarness> => {
 
   const [first] = await list();
 
-  return { koja, list, act, lines, foreground, until, resize, type, first: first?.id ?? '' };
+  const screenText = (): string => screen.text();
+
+  return {
+    koja,
+    list,
+    act,
+    lines,
+    screenText,
+    foreground,
+    until,
+    resize,
+    type,
+    first: first?.id ?? '',
+  };
 };

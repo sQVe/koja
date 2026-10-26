@@ -17,7 +17,7 @@ type ImportSource =
   | ESTree.ExportAllDeclaration;
 
 const folderModules = new Set(['vt', 'rows', 'store', 'protocol', 'server', 'client', 'ui', 'cli']);
-const flatModules = new Set(['ids', 'invariant', 'layout', 'index']);
+const flatModules = new Set(['ids', 'invariant', 'layout', 'actions', 'index']);
 
 const allowedImports = new Map<string, Set<string>>([
   ['ids', new Set()],
@@ -29,8 +29,9 @@ const allowedImports = new Map<string, Set<string>>([
   ['protocol', new Set(['ids', 'invariant', 'rows'])],
   ['server', new Set(['ids', 'invariant', 'vt', 'rows', 'layout', 'store', 'protocol'])],
   ['client', new Set(['ids', 'invariant', 'rows', 'protocol'])],
-  ['ui', new Set(['ids', 'invariant', 'rows', 'layout', 'client'])],
-  ['cli', new Set(['ids', 'invariant', 'protocol', 'server', 'client', 'vt', 'ui'])],
+  ['actions', new Set(['ids', 'invariant', 'layout', 'client'])],
+  ['ui', new Set(['ids', 'invariant', 'rows', 'layout', 'client', 'actions'])],
+  ['cli', new Set(['ids', 'invariant', 'protocol', 'server', 'client', 'vt', 'ui', 'actions'])],
   ['index', new Set([...folderModules, ...flatModules])],
 ]);
 
@@ -54,6 +55,7 @@ const rendererFreeModules = new Set([
   'protocol',
   'server',
   'client',
+  'actions',
   'cli',
 ]);
 

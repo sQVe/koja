@@ -1,16 +1,24 @@
-import type { InputMode, TabRoute, WorkspaceCommand, WorkspaceReply } from '../client/client.ts';
+import { actionCatalog, actionForKey, availableActions } from '../actions.ts';
+import type { ActionCatalog, ActionIntent, PaneAction } from '../actions.ts';
+import type {
+  InputMode,
+  StoreSnapshot,
+  TabRoute,
+  WorkspaceCommand,
+  WorkspaceReply,
+} from '../client/client.ts';
 import type { PaneId, WorkspaceId } from '../ids.ts';
 import { kittyFlags, ModeFlag } from '../rows/rows.ts';
+import type { ActionView, ActionViewInput } from './actionView.ts';
+import { viewKeyOf } from './actionView.ts';
 import { encodeKey, isKey, keyModifier, keyText, parseKey } from './keyEncoding.ts';
 import type { KeyEvent } from './keyEncoding.ts';
 import { createMouseCapture } from './mouseCapture.ts';
 import { encodeMouse, parseMouse } from './mouseEncoding.ts';
 import type { MouseEvent } from './mouseEncoding.ts';
-import type { PaneAction } from './paneActions.ts';
 import type { PaneTarget } from './screenTargets.ts';
 import type { ScrollMotion } from './scrollMotions.ts';
 import { createWorkspaceNavigation } from './workspaceNavigation.ts';
-import type { WorkspaceKey } from './workspaceNavigation.ts';
 
 export type ScrollAction =
   | { kind: 'enter' }
@@ -19,6 +27,9 @@ export type ScrollAction =
 
 interface TokenRouterHost {
   mode: () => InputMode;
+  snapshot: () => StoreSnapshot;
+  catalog: ActionCatalog;
+  view: ActionView;
   setMode: (mode: InputMode) => void;
   modes: () => number;
   send: (bytes: Uint8Array) => void;
@@ -33,7 +44,10 @@ interface TokenRouterHost {
   paneSize: (pane: PaneId) => { columns: number; rows: number } | undefined;
   sendToPane: (pane: PaneId, bytes: Uint8Array) => void;
   detach: () => void;
-  workspaces: () => { ids: readonly WorkspaceId[]; focused: WorkspaceId | undefined };
+  workspaces: () => {
+    ids: readonly WorkspaceId[];
+    focused: WorkspaceId | undefined;
+  };
   startDirectory: string;
   command: (command: WorkspaceCommand, onReply: (reply: WorkspaceReply) => void) => void;
   tab: (route: TabRoute) => void;
@@ -53,27 +67,20 @@ type RoutedToken =
   | { kind: 'paste'; bytes: Uint8Array; escapeSent: boolean }
   | { kind: 'mouse'; raw: string; escapeSent: boolean };
 
+type KeyEffect = ActionIntent | { kind: 'scroll'; action: ScrollAction };
+
 interface KeyRoute {
   bytes: Uint8Array;
   mode: InputMode;
-  detach: boolean;
-  workspace?: WorkspaceKey;
-  tab?: TabRoute;
-  paneAction?: PaneAction;
-  scroll?: ScrollAction;
+  effect: KeyEffect | undefined;
 }
 
 // What a key does, before any bytes are encoded. `sends` marks a key that reaches the pane.
-interface KeyIntent extends Omit<KeyRoute, 'bytes'> {
+interface KeyIntent {
   sends: boolean;
+  mode: InputMode;
+  effect: KeyEffect | undefined;
 }
-
-const workspaceKeys = new Map<string, WorkspaceKey>([
-  ['j', 'next'],
-  ['k', 'previous'],
-  ['c', 'create'],
-  ['X', 'close'],
-]);
 
 const encoder = new TextEncoder();
 
@@ -94,40 +101,6 @@ const hasMode = (modes: number, flag: ModeFlag): boolean => (modes & flag) !== 0
 
 const applicationCursor = (modes: number): boolean =>
   hasMode(modes, ModeFlag.applicationCursorKeys);
-
-const routeTabKey = (raw: string): TabRoute | undefined => {
-  if (raw === 't') {
-    return { kind: 'create' };
-  }
-
-  if (raw === 'H') {
-    return { kind: 'previous' };
-  }
-
-  if (raw === 'L') {
-    return { kind: 'next' };
-  }
-
-  if (raw.length === 1 && raw >= '1' && raw <= '9') {
-    return { kind: 'number', number: Number(raw) };
-  }
-
-  return undefined;
-};
-
-const paneActions = new Map<string, PaneAction>([
-  ['s', 'splitBelow'],
-  ['v', 'splitRight'],
-  ['h', 'focusPrevious'],
-  ['l', 'focusNext'],
-  ['x', 'close'],
-  ['!', 'breakPane'],
-  ['z', 'zoom'],
-  ['<', 'resizeLeft'],
-  ['>', 'resizeRight'],
-  ['-', 'resizeUp'],
-  ['+', 'resizeDown'],
-]);
 
 const scrollTextMotions = new Map<string, ScrollMotion>([
   ['h', 'left'],
@@ -172,7 +145,11 @@ const isPrefix = (event: KeyEvent): boolean => isKey(event, 'b', keyModifier.ctr
 const commandBlockers =
   keyModifier.alt | keyModifier.ctrl | keyModifier.super | keyModifier.hyper | keyModifier.meta;
 
-const stayInScroll: KeyIntent = { sends: false, mode: 'scroll', detach: false };
+const stayInScroll: KeyIntent = {
+  sends: false,
+  mode: 'scroll',
+  effect: undefined,
+};
 
 const scrollMotionOf = (event: KeyEvent): ScrollMotion | undefined => {
   if ((event.modifiers & commandBlockers) === keyModifier.ctrl) {
@@ -194,13 +171,21 @@ const scrollIntent = (event: KeyEvent): KeyIntent => {
   }
 
   if (isPrefix(event)) {
-    return { sends: false, mode: 'normal', detach: false, scroll: { kind: 'leave' } };
+    return {
+      sends: false,
+      mode: 'normal',
+      effect: { kind: 'scroll', action: { kind: 'leave' } },
+    };
   }
 
   const leaves = keyText(event) === 'q' || isKey(event, 'escape');
 
   if (leaves && (event.modifiers & commandBlockers) === 0) {
-    return { sends: false, mode: 'insert', detach: false, scroll: { kind: 'leave' } };
+    return {
+      sends: false,
+      mode: 'insert',
+      effect: { kind: 'scroll', action: { kind: 'leave' } },
+    };
   }
 
   const motion = scrollMotionOf(event);
@@ -209,59 +194,62 @@ const scrollIntent = (event: KeyEvent): KeyIntent => {
     return stayInScroll;
   }
 
-  return { ...stayInScroll, scroll: { kind: 'move', motion } };
+  return {
+    ...stayInScroll,
+    effect: { kind: 'scroll', action: { kind: 'move', motion } },
+  };
 };
 
-const normalIntent = (event: KeyEvent): KeyIntent => {
+const viewInputOf = (token: Exclude<RoutedToken, { kind: 'mouse' }>): ActionViewInput =>
+  token.kind === 'paste'
+    ? { kind: 'paste', bytes: token.bytes }
+    : { kind: 'key', event: parseKey(token.raw) };
+
+const modeAfter = (intent: ActionIntent): InputMode => {
+  if (intent.kind === 'detach') {
+    return 'insert';
+  }
+
+  return intent.kind === 'scrollEnter' ? 'scroll' : 'normal';
+};
+
+const normalIntent = (event: KeyEvent, catalog: ActionCatalog): KeyIntent => {
   if (isPrefix(event)) {
-    return { sends: true, mode: 'insert', detach: false };
+    return { sends: true, mode: 'insert', effect: undefined };
   }
 
   if ((event.modifiers & commandBlockers) !== 0) {
-    return { sends: false, mode: 'normal', detach: false };
+    return { sends: false, mode: 'normal', effect: undefined };
   }
 
   const raw = keyText(event) ?? '';
+  const action = actionForKey(catalog, raw);
 
-  if (raw === 'd') {
-    return { sends: false, mode: 'insert', detach: true };
-  }
-
-  const workspace = workspaceKeys.get(raw);
-
-  if (workspace !== undefined) {
-    return { sends: false, mode: 'normal', detach: false, workspace };
-  }
-
-  const tab = routeTabKey(raw);
-
-  if (tab !== undefined) {
-    return { sends: false, mode: 'normal', detach: false, tab };
-  }
-
-  const paneAction = paneActions.get(raw);
-
-  if (paneAction !== undefined) {
-    return { sends: false, mode: 'normal', detach: false, paneAction };
-  }
-
-  if (raw === '[') {
-    return { sends: false, mode: 'scroll', detach: false, scroll: { kind: 'enter' } };
+  if (action !== undefined) {
+    return {
+      sends: false,
+      mode: modeAfter(action.intent),
+      effect: action.intent,
+    };
   }
 
   const leavesNormal = raw === 'i' || isKey(event, 'escape');
 
-  return { sends: false, mode: leavesNormal ? 'insert' : 'normal', detach: false };
+  return {
+    sends: false,
+    mode: leavesNormal ? 'insert' : 'normal',
+    effect: undefined,
+  };
 };
 
-const keyIntentOf = (event: KeyEvent, mode: InputMode): KeyIntent => {
+const keyIntentOf = (event: KeyEvent, mode: InputMode, catalog: ActionCatalog): KeyIntent => {
   // Holding Ctrl+B repeats it. Only a new press may send a literal Ctrl+B or leave normal mode.
   if (event.kind === 'repeat' && isPrefix(event)) {
-    return { sends: false, mode, detach: false };
+    return { sends: false, mode, effect: undefined };
   }
 
   if (mode === 'normal') {
-    return normalIntent(event);
+    return normalIntent(event, catalog);
   }
 
   if (mode === 'scroll') {
@@ -269,17 +257,22 @@ const keyIntentOf = (event: KeyEvent, mode: InputMode): KeyIntent => {
   }
 
   if (isPrefix(event)) {
-    return { sends: false, mode: 'normal', detach: false };
+    return { sends: false, mode: 'normal', effect: undefined };
   }
 
-  return { sends: true, mode: 'insert', detach: false };
+  return { sends: true, mode: 'insert', effect: undefined };
 };
 
 // raw is the bytes of one key token, legacy or kitty. A release is never routed to the pane in
 // normal mode.
-export const routeKey = (raw: string, mode: InputMode, modes: number): KeyRoute => {
+export const routeKey = (
+  raw: string,
+  mode: InputMode,
+  modes: number,
+  catalog: ActionCatalog = actionCatalog,
+): KeyRoute => {
   const event = parseKey(raw);
-  const { sends, ...intent } = keyIntentOf(event, mode);
+  const { sends, ...intent } = keyIntentOf(event, mode, catalog);
   const bytes = sends ? encodeKey(event, kittyFlags(modes), applicationCursor(modes)) : nothing;
 
   return { bytes, ...intent };
@@ -306,10 +299,12 @@ export const routePaste = (bytes: Uint8Array, modes: number): Uint8Array => {
 // take that Escape back either.
 export const createInputRouter = (host: TokenRouterHost): ((token: RoutedToken) => void) => {
   let escapeInPane = false;
+  let escapeInView = false;
   // Keys whose press Koja took. Their release must not reach the pane, which never saw the press.
   const consumedKeys = new Set<string>();
   const navigation = createWorkspaceNavigation(host);
   const mouseCapture = createMouseCapture(host);
+  const availableCatalog = (): ActionCatalog => availableActions(host.catalog, host.snapshot());
 
   // Whether a pane action or a tab request keeps the queue from routing.
   let held = false;
@@ -387,7 +382,82 @@ export const createInputRouter = (host: TokenRouterHost): ((token: RoutedToken) 
     return startsLeftPress && unfocused ? host.focusPane(target.paneId) : undefined;
   };
 
+  const runEffect = (effect: KeyEffect): Promise<void> | undefined => {
+    if (effect.kind === 'scroll') {
+      host.scroll(effect.action);
+    }
+
+    if (effect.kind === 'scrollEnter') {
+      host.scroll({ kind: 'enter' });
+    }
+
+    if (effect.kind === 'detach') {
+      host.detach();
+    }
+
+    if (effect.kind === 'workspace') {
+      navigation.runKey(effect.key);
+    }
+
+    if (effect.kind === 'tab') {
+      host.tab(effect.route);
+    }
+
+    if (effect.kind === 'view') {
+      host.view.open(effect.view);
+    }
+
+    return effect.kind === 'pane' ? host.paneAction(effect.action) : undefined;
+  };
+
+  const keepFromPane = (token: RoutedToken): void => {
+    if (token.kind === 'key') {
+      trackConsumed(parseKey(token.raw), nothing);
+    }
+
+    const event = token.kind === 'mouse' ? parseMouse(token.raw) : undefined;
+
+    if (event !== undefined) {
+      mouseCapture.drop(event);
+    }
+  };
+
+  const routeWhileViewOpen = (token: RoutedToken): Promise<void> | undefined => {
+    escapeInPane = false;
+    escapeInView = token.kind === 'key' && token.raw === escapeKey;
+    keepFromPane(token);
+
+    if (token.kind === 'mouse') {
+      return undefined;
+    }
+
+    const intent = host.view.interact(viewInputOf(token), host.catalog, host.snapshot());
+
+    if (intent === undefined) {
+      return undefined;
+    }
+
+    host.setMode(modeAfter(intent));
+
+    return runEffect(intent);
+  };
+
   const route = (token: RoutedToken): Promise<void> | undefined => {
+    const continuesViewEscape = token.escapeSent && escapeInView;
+
+    if (continuesViewEscape) {
+      escapeInView = false;
+      keepFromPane(token);
+
+      return undefined;
+    }
+
+    if (host.view.getState().kind !== 'closed') {
+      return routeWhileViewOpen(token);
+    }
+
+    escapeInView = false;
+
     if (token.kind === 'mouse') {
       const settled = routeMouse(token.raw);
 
@@ -407,7 +477,7 @@ export const createInputRouter = (host: TokenRouterHost): ((token: RoutedToken) 
     }
 
     const event = parseKey(token.raw);
-    const routed = routeKey(token.raw, host.mode(), host.modes());
+    const routed = routeKey(token.raw, host.mode(), host.modes(), availableCatalog());
 
     if (event.kind === 'release' && consumedKeys.delete(event.key)) {
       return undefined;
@@ -416,27 +486,14 @@ export const createInputRouter = (host: TokenRouterHost): ((token: RoutedToken) 
     trackConsumed(event, routed.bytes);
 
     host.send(withoutSentEscape(routed.bytes, token.escapeSent));
+
     host.setMode(routed.mode);
 
-    if (routed.scroll !== undefined) {
-      host.scroll(routed.scroll);
-    }
-
-    if (routed.detach) {
-      host.detach();
-    }
-
-    if (routed.workspace !== undefined) {
-      navigation.runKey(routed.workspace);
-    }
-
-    if (routed.tab !== undefined) {
-      host.tab(routed.tab);
-    }
+    const settled = routed.effect === undefined ? undefined : runEffect(routed.effect);
 
     escapeInPane = token.raw === escapeKey && isBareEscape(routed.bytes);
 
-    return routed.paneAction === undefined ? undefined : host.paneAction(routed.paneAction);
+    return settled;
   };
 
   // Whether the token acts on the pane or tab the snapshot shows. Workspace keys do not: they
@@ -450,10 +507,13 @@ export const createInputRouter = (host: TokenRouterHost): ((token: RoutedToken) 
       return false;
     }
 
-    const intent = keyIntentOf(parseKey(token.raw), host.mode());
-    const entersScroll = intent.scroll?.kind === 'enter';
+    if (host.view.getState().kind !== 'closed') {
+      return viewKeyOf(parseKey(token.raw)).kind === 'run';
+    }
 
-    return intent.paneAction !== undefined || intent.tab !== undefined || entersScroll;
+    const { effect } = keyIntentOf(parseKey(token.raw), host.mode(), host.catalog);
+
+    return effect?.kind === 'pane' || effect?.kind === 'tab' || effect?.kind === 'scrollEnter';
   };
 
   const waitsForWorkspace = (next: RoutedToken): boolean => {

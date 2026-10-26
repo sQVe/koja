@@ -18,6 +18,7 @@ interface MouseCapture {
   unplacedRelease: (event: MouseEvent) => PaneTarget | undefined;
   // Remembers the forwarded target and ends the gesture on a release.
   finish: (event: MouseEvent, placed: PaneTarget | undefined) => void;
+  drop: (event: MouseEvent) => void;
 }
 
 const isButtonGesture = (event: MouseEvent): boolean =>
@@ -92,5 +93,11 @@ export const createMouseCapture = (host: MouseCaptureHost): MouseCapture => {
     }
   };
 
-  return { begin, ignores, targetOf, unplacedRelease, finish };
+  const drop = (event: MouseEvent): void => {
+    if (event.kind === 'release' && !ignores(event)) {
+      captured = undefined;
+    }
+  };
+
+  return { begin, ignores, targetOf, unplacedRelease, finish, drop };
 };
