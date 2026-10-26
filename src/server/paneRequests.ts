@@ -402,6 +402,7 @@ const failureReasons: Record<RejectReason, PaneFailureReason | undefined> = {
   paneTooSmall: 'paneTooSmall',
   sameTab: 'sameTab',
   noSplit: 'noSplit',
+  staleGeneration: undefined,
 };
 
 export const handlePaneLayoutRequest = (

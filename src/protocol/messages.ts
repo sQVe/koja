@@ -12,6 +12,7 @@ import type {
   Tab,
   Theme,
   View,
+  PiReport,
   WorkspaceRecord,
 } from '../store/store.ts';
 
@@ -322,6 +323,49 @@ const paneCopyOutcomeSchema = z.discriminatedUnion('ok', [
   }),
 ]);
 
+const piReportText = (maxLength: number) => z.string().min(1).max(maxLength);
+
+const passSchema = z.string().regex(/^[0-9a-f]{64}$/);
+
+// The longest text each pi report field may hold.
+const piReportLimits = {
+  shortText: 64,
+  identifier: 256,
+  path: 4096,
+};
+
+const piReportFieldsSchema = z.strictObject({
+  processId: z.number().int().positive(),
+  piVersion: piReportText(piReportLimits.shortText),
+  sessionId: absent(piReportText(piReportLimits.identifier)),
+  sessionFile: absent(piReportText(piReportLimits.path)),
+  leafId: absent(piReportText(piReportLimits.identifier)),
+  provider: absent(piReportText(piReportLimits.identifier)),
+  model: absent(piReportText(piReportLimits.identifier)),
+  thinkingLevel: piReportText(piReportLimits.shortText),
+  ownership: z.enum(['interactive', 'tauWorker']),
+});
+
+export const piReportSchema: z.ZodType<PiReport> = piReportFieldsSchema;
+
+const piReportOutcomeSchema = z.discriminatedUnion('ok', [
+  z.strictObject({
+    ok: z.literal(true),
+    status: z.enum(['recorded', 'unchanged', 'changed']),
+  }),
+  z.strictObject({
+    ok: z.literal(false),
+    reason: z.enum(['unauthorized', 'processNotInPane', 'unknownPane', 'staleGeneration']),
+  }),
+]);
+
+// The state is the one the store keeps. A reported pi has no process id on the wire.
+const piStatusSchema = z.union([
+  z.null(),
+  z.strictObject({ state: z.literal('changed') }),
+  piReportFieldsSchema.omit({ processId: true }).extend({ state: z.literal('reported') }),
+]);
+
 const controlSchema = z.discriminatedUnion('type', [
   // A CLI client has no terminal, so it sends no size.
   z.object({ type: z.literal('hello'), version: buildVersionSchema, size: absent(sizeSchema) }),
@@ -488,6 +532,15 @@ const controlSchema = z.discriminatedUnion('type', [
     reason: tabFailureSchema,
     message: absent(z.string()),
   }),
+  z.strictObject({
+    type: z.literal('piReport'),
+    paneId: paneIdSchema,
+    token: passSchema,
+    report: piReportSchema,
+  }),
+  z.strictObject({ type: z.literal('piReportResult'), result: piReportOutcomeSchema }),
+  z.strictObject({ type: z.literal('piStatus'), paneId: paneIdSchema }),
+  z.strictObject({ type: z.literal('piStatusReply'), paneId: paneIdSchema, pi: piStatusSchema }),
 ]);
 
 export type ControlMessage = z.output<typeof controlSchema>;

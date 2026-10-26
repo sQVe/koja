@@ -71,6 +71,7 @@ const failureReasons: Record<RejectReason, TabFailureReason | undefined> = {
   paneTooSmall: undefined,
   sameTab: undefined,
   noSplit: undefined,
+  staleGeneration: undefined,
 };
 
 export const handleTabRequest = (
