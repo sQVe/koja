@@ -9,6 +9,7 @@
     "changeset": "bunx --bun changeset",
     "changeset:check": "bunx --bun changeset status --since=origin/main",
     "changeset:version": "bunx --bun changeset version && bunx --bun vp fmt",
+    "bench": "bun scripts/benchmark.ts",
     "build": "bun run build:vt && bun build --compile src/index.ts --outfile dist/koja",
     "build:vt": "bash scripts/buildVt.sh",
     "start": "(test -f build/libkoja-vt.so || bun run build:vt) && bun src/index.ts server run --socket /tmp/koja-dev/koja.sock",
