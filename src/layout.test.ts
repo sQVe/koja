@@ -5,8 +5,12 @@ import type { PaneId } from './ids.ts';
 import {
   canSplit,
   firstPaneId,
+  layoutForOrder,
+  layoutPaneIds,
   layoutPanes,
+  legacyArrangement,
   masterPanes,
+  orderForLayout,
   paneSize,
   removePane,
   resizeLayout,
@@ -633,4 +637,150 @@ it('gives nothing to remove when the pane is not in the layout', () => {
   const layout = split('right', split('below', leaf(1), leaf(2)), leaf(3));
 
   expect(removePane(layout, paneId(9))).toBeUndefined();
+});
+
+const ids = (...numbers: number[]): PaneId[] => numbers.map((number) => paneId(number));
+
+const sorted = (order: readonly PaneId[]): PaneId[] => order.toSorted();
+
+it('lists the panes of a layout in tree order', () => {
+  const layout = split('right', split('below', leaf(3), leaf(1)), leaf(2));
+
+  expect(layoutPaneIds(layout)).toEqual(ids(3, 1, 2));
+});
+
+it('keeps an old layout and orders its panes as the tree does', () => {
+  const layout = split('right', leaf(2), split('below', leaf(1), leaf(3)));
+
+  expect(legacyArrangement(layout)).toEqual({ choice: 'legacy', order: ids(2, 1, 3) });
+});
+
+it('removes a closed pane from the remembered tree and keeps every other split ratio', () => {
+  const layout = ratioSplit(
+    'right',
+    0.3,
+    ratioSplit('below', 0.6, leaf(1), ratioSplit('right', 0.7, leaf(2), leaf(3))),
+    ratioSplit('below', 0.2, leaf(4), leaf(5)),
+  );
+
+  expect(layoutForOrder(layout, ids(1, 3, 4, 5))).toEqual(
+    ratioSplit(
+      'right',
+      0.3,
+      ratioSplit('below', 0.6, leaf(1), leaf(3)),
+      ratioSplit('below', 0.2, leaf(4), leaf(5)),
+    ),
+  );
+});
+
+it('splits the pane of the nearest earlier id to add a pane to the remembered tree', () => {
+  const layout = ratioSplit('right', 0.3, leaf(1), ratioSplit('below', 0.7, leaf(2), leaf(3)));
+
+  expect(layoutForOrder(layout, ids(1, 2, 4, 3))).toEqual(
+    ratioSplit(
+      'right',
+      0.3,
+      leaf(1),
+      ratioSplit('below', 0.7, split('right', leaf(2), leaf(4)), leaf(3)),
+    ),
+  );
+});
+
+it('puts a new first pane before the whole remembered tree', () => {
+  const layout = ratioSplit('below', 0.7, leaf(1), leaf(2));
+
+  expect(layoutForOrder(layout, ids(3, 1, 2))).toEqual(
+    split('right', leaf(3), ratioSplit('below', 0.7, leaf(1), leaf(2))),
+  );
+});
+
+it('keeps the same remembered tree when the panes only change order', () => {
+  const layout = ratioSplit('right', 0.3, leaf(1), ratioSplit('below', 0.7, leaf(2), leaf(3)));
+
+  expect(layoutForOrder(layout, ids(3, 1, 2))).toBe(layout);
+});
+
+it('adds and closes panes in one step and keeps the untouched splits', () => {
+  const layout = ratioSplit(
+    'right',
+    0.3,
+    ratioSplit('below', 0.6, leaf(1), leaf(2)),
+    ratioSplit('below', 0.2, leaf(3), leaf(4)),
+  );
+
+  expect(layoutForOrder(layout, ids(5, 1, 2, 3, 6))).toEqual(
+    split(
+      'right',
+      leaf(5),
+      ratioSplit(
+        'right',
+        0.3,
+        ratioSplit('below', 0.6, leaf(1), leaf(2)),
+        split('right', leaf(3), leaf(6)),
+      ),
+    ),
+  );
+});
+
+it('starts a new remembered tree from the first id when every pane closes', () => {
+  const layout = ratioSplit('right', 0.3, leaf(1), leaf(2));
+
+  expect(layoutForOrder(layout, ids(3, 4))).toEqual(split('right', leaf(3), leaf(4)));
+});
+
+it('gives no remembered tree for an empty order', () => {
+  expect(layoutForOrder(split('right', leaf(1), leaf(2)), [])).toBeUndefined();
+});
+
+it('gives the same remembered tree for the same inputs', () => {
+  const layout = ratioSplit('right', 0.3, leaf(1), ratioSplit('below', 0.7, leaf(2), leaf(3)));
+  const cases: PaneId[][] = [ids(4, 1, 3), ids(5, 6), ids(2, 7, 1), []];
+
+  for (const order of cases) {
+    expect(layoutForOrder(layout, order)).toEqual(layoutForOrder(layout, order));
+  }
+});
+
+it('refuses an order that names a pane twice when it builds the remembered tree', () => {
+  expect(() => layoutForOrder(leaf(1), ids(1, 2, 1))).toThrow();
+});
+
+it('places a split pane directly after the pane it split', () => {
+  const layout = split('right', leaf(1), split('below', leaf(2), leaf(3)));
+  const order = ids(3, 2, 1);
+
+  const result = orderForLayout(order, splitLayout(layout, paneId(2), 'right', paneId(4)));
+
+  expect(result).toEqual(ids(3, 2, 4, 1));
+});
+
+it('drops a removed pane from the order and keeps the rest in their order', () => {
+  const layout = split('right', leaf(1), split('below', leaf(2), leaf(3)));
+  const removal = removePane(layout, paneId(2));
+
+  expect(removal).toBeDefined();
+  expect(orderForLayout(ids(3, 2, 1), removal?.layout ?? layout)).toEqual(ids(3, 1));
+});
+
+it('puts a new first pane of the tree at the front of the order', () => {
+  const layout = split('right', leaf(4), split('below', leaf(1), leaf(2)));
+
+  expect(orderForLayout(ids(2, 1), layout)).toEqual(ids(4, 2, 1));
+});
+
+it('holds each pane of the tree exactly once in the repaired order', () => {
+  const layout = split('right', split('below', leaf(5), leaf(1)), split('below', leaf(6), leaf(2)));
+  const cases: PaneId[][] = [ids(2, 1), ids(9, 8), [], ids(6, 7, 5, 1, 2)];
+
+  for (const order of cases) {
+    const result = orderForLayout(order, layout);
+
+    expect(sorted(result)).toEqual(sorted(layoutPaneIds(layout)));
+    expect(new Set(result).size).toBe(result.length);
+    expect(orderForLayout(order, layout)).toEqual(result);
+  }
+});
+
+it('refuses an order that names a pane twice when it repairs the order', () => {
+  expect(() => orderForLayout(ids(1, 1), leaf(1))).toThrow();
 });

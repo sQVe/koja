@@ -28,7 +28,7 @@ const allowedImports = new Map<string, Set<string>>([
   ['store', new Set(['ids', 'invariant', 'layout'])],
   ['protocol', new Set(['ids', 'invariant', 'rows'])],
   ['server', new Set(['ids', 'invariant', 'vt', 'rows', 'layout', 'store', 'protocol'])],
-  ['client', new Set(['ids', 'invariant', 'rows', 'protocol'])],
+  ['client', new Set(['ids', 'invariant', 'rows', 'layout', 'protocol'])],
   ['actions', new Set(['ids', 'invariant', 'layout', 'client'])],
   ['ui', new Set(['ids', 'invariant', 'rows', 'layout', 'client', 'actions'])],
   ['cli', new Set(['ids', 'invariant', 'protocol', 'server', 'client', 'vt', 'ui', 'actions'])],

@@ -44,7 +44,7 @@ import which. Modules name their owner, and lint refuses imports that cross the 
 | `store`     | `ids`, `invariant`, `layout`                                                |
 | `protocol`  | `ids`, `invariant`, `rows`, and types from `store`                          |
 | `server`    | `ids`, `invariant`, `vt`, `rows`, `layout`, `store`, `protocol`             |
-| `client`    | `ids`, `invariant`, `rows`, `protocol`                                      |
+| `client`    | `ids`, `invariant`, `rows`, `layout`, `protocol`                            |
 | `actions`   | `ids`, `invariant`, `layout`, `client`                                      |
 | `ui`        | `ids`, `invariant`, `rows`, `layout`, `client`, `actions`                   |
 | `cli`       | `ids`, `invariant`, `protocol`, `server`, `client`, `vt`, `ui`, `actions`   |

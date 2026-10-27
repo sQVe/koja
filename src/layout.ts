@@ -20,6 +20,13 @@ export type Layout =
       second: Layout;
     };
 
+type LayoutChoice = 'legacy' | 'master';
+
+export interface Arrangement {
+  choice: LayoutChoice;
+  order: readonly PaneId[];
+}
+
 interface Area extends TerminalSize {
   x: number;
   y: number;
@@ -319,13 +326,90 @@ export const removePane = (layout: Layout, target: PaneId): PaneRemoval | undefi
   return undefined;
 };
 
-export const shownLayout = (layout: Layout, zoomedPaneId: PaneId | undefined): Layout =>
-  zoomedPaneId === undefined ? layout : { kind: 'pane', paneId: zoomedPaneId };
-
 const containsPane = (layout: Layout, target: PaneId): boolean =>
   layout.kind === 'pane'
     ? layout.paneId === target
     : containsPane(layout.first, target) || containsPane(layout.second, target);
+
+export const layoutPaneIds = (layout: Layout): PaneId[] =>
+  layout.kind === 'pane'
+    ? [layout.paneId]
+    : [...layoutPaneIds(layout.first), ...layoutPaneIds(layout.second)];
+
+export const legacyArrangement = (layout: Layout): Arrangement => ({
+  choice: 'legacy',
+  order: layoutPaneIds(layout),
+});
+
+// Each pane the tree gained goes directly after the pane before it in tree order, so a split pane
+// follows the pane it split.
+export const orderForLayout = (order: readonly PaneId[], layout: Layout): PaneId[] => {
+  invariant(hasUniqueIds(order), 'Cannot order the same pane twice.');
+
+  const leaves = layoutPaneIds(layout);
+  const repaired = order.filter((id) => leaves.includes(id));
+
+  let previous: PaneId | undefined;
+
+  for (const id of leaves) {
+    if (!repaired.includes(id)) {
+      const at = previous === undefined ? 0 : repaired.indexOf(previous) + 1;
+
+      repaired.splice(at, 0, id);
+    }
+
+    previous = id;
+  }
+
+  return repaired;
+};
+
+const withPane = (
+  layout: Layout | undefined,
+  previous: PaneId | undefined,
+  added: PaneId,
+): Layout => {
+  const pane: Layout = { kind: 'pane', paneId: added };
+
+  if (layout === undefined) {
+    return pane;
+  }
+
+  if (previous === undefined) {
+    return { kind: 'split', direction: 'right', ratio: 0.5, first: pane, second: layout };
+  }
+
+  return splitLayout(layout, previous, 'right', added);
+};
+
+// Keeps every surviving split and its ratio. A pane the order gained splits the pane of the id
+// before it, so a reorder alone gives the same tree. An empty order removes every pane.
+export const layoutForOrder = (layout: Layout, order: readonly PaneId[]): Layout | undefined => {
+  invariant(hasUniqueIds(order), 'Cannot place the same pane twice.');
+
+  let repaired: Layout | undefined = layout;
+
+  for (const id of layoutPaneIds(layout)) {
+    if (repaired !== undefined && !order.includes(id)) {
+      repaired = removePane(repaired, id)?.layout;
+    }
+  }
+
+  let previous: PaneId | undefined;
+
+  for (const id of order) {
+    if (repaired === undefined || !containsPane(repaired, id)) {
+      repaired = withPane(repaired, previous, id);
+    }
+
+    previous = id;
+  }
+
+  return repaired;
+};
+
+export const shownLayout = (layout: Layout, zoomedPaneId: PaneId | undefined): Layout =>
+  zoomedPaneId === undefined ? layout : { kind: 'pane', paneId: zoomedPaneId };
 
 // Moves the first child's edge by whole cells, within what both subtrees need. Gives the same
 // layout when nothing moves.

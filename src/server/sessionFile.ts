@@ -5,6 +5,7 @@ import { z } from 'zod';
 
 import { paneId, tabId, workspaceId } from '../ids.ts';
 import type { PaneId, TabId, WorkspaceId } from '../ids.ts';
+import { layoutPaneIds } from '../layout.ts';
 import type { Layout } from '../layout.ts';
 import type { SavedSession } from '../store/store.ts';
 import { socketKeyFor, usableStateHome } from './log.ts';
@@ -76,11 +77,6 @@ const layoutSchema: z.ZodType<Layout> = z.lazy(() =>
     }),
   ]),
 );
-
-const layoutPaneIds = (layout: Layout): PaneId[] =>
-  layout.kind === 'pane'
-    ? [layout.paneId]
-    : [...layoutPaneIds(layout.first), ...layoutPaneIds(layout.second)];
 
 const hasDuplicate = (ids: readonly string[]): boolean => new Set(ids).size !== ids.length;
 
