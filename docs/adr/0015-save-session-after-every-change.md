@@ -26,10 +26,10 @@ file. The writer replaces the file in one rename, and a write that waits is repl
 so the file is always whole and at most one write is queued. The final save runs before any pane
 ends, because pane exits during the stop would otherwise change the file.
 
-Each save syncs the temporary file, renames it over the session file, and then syncs the folder. A
-crash before the rename keeps the old file. Once the folder sync finishes, the new file survives a
-power loss. That durability depends on the filesystem honoring `fsync`. The tests do not establish
-that.
+Each save syncs the temporary file, renames it over the session file, and then syncs the folder.
+When the save creates missing folders, it also syncs the folder that holds each new one. A crash
+before the rename keeps the old file. Once the folder sync finishes, the new file survives a power
+loss. That durability depends on the filesystem honoring `fsync`. The tests do not establish that.
 
 A file that is broken or has a newer version is not replaced on start. Before the first save that
 would replace it, the writer copies its bytes to the lowest free `<session file>.broken-<n>` or
@@ -80,6 +80,8 @@ workspace. The next save copies it to a preserved file first.
 - Preserved files accumulate. The server never deletes them, so the user removes them by hand.
 - A save is refused while a preserved copy cannot be written, so no change is saved until the copy
   succeeds.
+- The copy is written under its final name. A crash during the copy can leave a partial preserved
+  file. The original stays as it was, and the next start copies it again under the next number.
 - The server reads the filesystem on every save to find each running pane's shell folder.
 - A restored pane whose folder is gone or whose shell cannot start stays failed until the user
   repairs it and restarts the server.

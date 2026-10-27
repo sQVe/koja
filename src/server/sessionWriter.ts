@@ -57,6 +57,25 @@ const syncFolder = async (folder: string): Promise<void> => {
   }
 };
 
+// Lists each folder from the first one mkdir created down to the innermost one.
+const createdFolders = (firstCreated: string, innermost: string): string[] =>
+  innermost === firstCreated
+    ? [firstCreated]
+    : [...createdFolders(firstCreated, dirname(innermost)), innermost];
+
+// A new folder lasts through a power loss only once the folder that holds it is synced.
+const createFolder = async (folder: string): Promise<void> => {
+  const firstCreated = await mkdir(folder, { recursive: true, mode: directoryMode });
+
+  if (firstCreated === undefined) {
+    return;
+  }
+
+  const parents = createdFolders(firstCreated, folder).map((created) => dirname(created));
+
+  await Promise.all(parents.map(syncFolder));
+};
+
 const attempt = async (step: () => Promise<unknown>): Promise<SaveResult> => {
   try {
     await step();
@@ -73,7 +92,7 @@ const replaceFile = async (path: string, text: string): Promise<SaveResult> => {
   const temporaryPath = `${path}.tmp`;
 
   const placed = await attempt(async () => {
-    await mkdir(dirname(path), { recursive: true, mode: directoryMode });
+    await createFolder(dirname(path));
     await rm(temporaryPath, { force: true });
     await writeTemporaryFile(temporaryPath, text);
     await rename(temporaryPath, path);

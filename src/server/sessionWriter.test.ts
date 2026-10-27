@@ -221,6 +221,44 @@ it('syncs the temporary file before the rename and the folder after it', async (
   expect(calls).toEqual([`sync ${path}.tmp`, 'rename', `sync ${directory}`]);
 });
 
+it('syncs the parent of each folder it creates before the session lands in it', async () => {
+  const directory = await temporaryDirectory();
+  const outer = join(directory, 'koja');
+  const inner = join(outer, 'sessions');
+  const path = join(inner, 'session.json');
+  const calls: string[] = [];
+  const realRename = fsPromises.rename;
+
+  changeHandles((opened, handle) => {
+    const realSync = handle.sync.bind(handle);
+
+    handle.sync = async () => {
+      await realSync();
+      calls.push(`sync ${opened}`);
+    };
+  });
+
+  const renameSpy = spyOn(fsPromises, 'rename').mockImplementation(
+    async (...args: Parameters<typeof realRename>) => {
+      await realRename(...args);
+      calls.push('rename');
+    },
+  );
+
+  onTestFinished(() => {
+    renameSpy.mockRestore();
+  });
+
+  const result = await createSessionWriter(path, recordingLog().log, undefined).stopSaving(
+    sessionWith(),
+  );
+
+  expect(result).toEqual({ ok: true });
+
+  expect(calls.slice(0, 2).toSorted()).toEqual([`sync ${directory}`, `sync ${outer}`]);
+  expect(calls.slice(2)).toEqual([`sync ${path}.tmp`, 'rename', `sync ${inner}`]);
+});
+
 // The umask can narrow the mode writeFile creates, so set the world-readable mode explicitly.
 const leaveTemporaryFile = async (temporaryPath: string): Promise<void> => {
   await writeFile(temporaryPath, 'left by a crash');
