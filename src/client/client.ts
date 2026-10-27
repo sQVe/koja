@@ -33,6 +33,8 @@ export { runPanePaste } from './panePaste.ts';
 export type { PanePasteCommand, PanePasteResult } from './panePaste.ts';
 export { createClipboardQueue } from './clipboardWrite.ts';
 export type { ClipboardQueue } from './clipboardWrite.ts';
+export { readClipboard } from './clipboardRead.ts';
+export type { ClipboardReadResult } from './clipboardRead.ts';
 export { createRowCache } from './rowCache.ts';
 export type { RowCache, RowRange } from './rowCache.ts';
 export { activeTabIdOf, focusedPane, scrollTopOf, viewedPane, shownView } from './snapshot.ts';

@@ -1,4 +1,14 @@
-type Environment = Record<string, string | undefined>;
+import {
+  hasWayland,
+  hasX11,
+  overSsh,
+  stopTool,
+  toolEnvironment,
+  toolExists,
+  toolTimeoutMs,
+  waitForOutcome,
+} from './clipboardTool.ts';
+import type { Environment } from './clipboardTool.ts';
 
 interface ClipboardDependencies {
   environment: Environment;
@@ -19,8 +29,6 @@ interface CommandLimits {
   toolTimeoutMs: number;
 }
 
-type Outcome = number | 'timeout' | 'aborted';
-
 export interface ClipboardQueue {
   // Copies run one at a time in call order, so the newest text ends on the clipboard.
   copy: (text: string) => void;
@@ -37,21 +45,16 @@ const x11Commands = [
   ['xsel', '--clipboard', '--input'],
 ];
 
-const defaultLimits: CommandLimits = { wlCopyStartupMs: 100, toolTimeoutMs: 2000 };
-
-const isSet = (value: string | undefined): boolean => value !== undefined && value !== '';
-
-const overSsh = (environment: Environment): boolean =>
-  isSet(environment.SSH_CONNECTION) || isSet(environment.SSH_TTY);
+const defaultLimits: CommandLimits = { wlCopyStartupMs: 100, toolTimeoutMs };
 
 const nativeCommands = (environment: Environment): string[][] => {
   const commands: string[][] = [];
 
-  if (isSet(environment.WAYLAND_DISPLAY)) {
+  if (hasWayland(environment)) {
     commands.push(waylandCommand);
   }
 
-  if (isSet(environment.DISPLAY)) {
+  if (hasX11(environment)) {
     commands.push(...x11Commands);
   }
 
@@ -60,39 +63,11 @@ const nativeCommands = (environment: Environment): string[][] => {
 
 const osc52 = (text: string): string => `\u001B]52;c;${Buffer.from(text).toString('base64')}\u0007`;
 
-const waitForOutcome = async (
-  child: ReturnType<typeof Bun.spawn>,
-  waitMs: number,
-  signal: AbortSignal | undefined,
-): Promise<Outcome> => {
-  const gate = Promise.withResolvers<Outcome>();
-
-  const timer = setTimeout(() => {
-    gate.resolve('timeout');
-  }, waitMs);
-
-  const abort = (): void => {
-    gate.resolve('aborted');
-  };
-
-  signal?.addEventListener('abort', abort);
-
-  child.exited.then(gate.resolve).catch(() => {
-    gate.resolve(-1);
-  });
-
-  try {
-    return await gate.promise;
-  } finally {
-    clearTimeout(timer);
-    signal?.removeEventListener('abort', abort);
-  }
-};
-
 const spawnTool = (command: string[], text: string, searchPath: string | undefined) => {
   try {
     return Bun.spawn(command, {
-      ...(searchPath === undefined ? {} : { env: { ...Bun.env, PATH: searchPath } }),
+      ...toolEnvironment(searchPath),
+      detached: true,
       stdin: new Blob([text]),
       stdout: 'ignore',
       stderr: 'ignore',
@@ -105,13 +80,8 @@ const spawnTool = (command: string[], text: string, searchPath: string | undefin
 export const createCommandRunner =
   (limits: CommandLimits = defaultLimits) =>
   async (command: string[], text: string, signal?: AbortSignal): Promise<boolean> => {
-    const found = Bun.which(
-      command[0] ?? '',
-      limits.searchPath === undefined ? {} : { PATH: limits.searchPath },
-    );
-
     const child =
-      found === null || signal?.aborted === true
+      !toolExists(command, limits.searchPath) || signal?.aborted === true
         ? undefined
         : spawnTool(command, text, limits.searchPath);
 
@@ -122,7 +92,7 @@ export const createCommandRunner =
     const keepsOwning = command[0] === 'wl-copy';
 
     const outcome = await waitForOutcome(
-      child,
+      child.exited.catch(() => -1),
       keepsOwning ? limits.wlCopyStartupMs : limits.toolTimeoutMs,
       signal,
     );
@@ -134,7 +104,7 @@ export const createCommandRunner =
     }
 
     if (outcome === 'timeout' || outcome === 'aborted') {
-      child.kill();
+      await stopTool(child);
     }
 
     return outcome === 0;
