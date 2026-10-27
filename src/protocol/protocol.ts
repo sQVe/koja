@@ -1,4 +1,10 @@
-export { createFrameDecoder, encodeFrame, FrameKind, maxFramePayloadBytes } from './frames.ts';
+export {
+  createFrameDecoder,
+  encodeFrame,
+  FrameKind,
+  maxFramePayloadBytes,
+  payloadFitsFrame,
+} from './frames.ts';
 
 export {
   answerHello,

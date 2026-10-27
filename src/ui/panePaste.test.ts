@@ -286,6 +286,18 @@ const pasteFailures: [PanePasteResult, string][] = [
   [{ ok: false, reason: 'connectionFailed' }, 'Paste failed: the server did not answer.'],
 ];
 
+it('shows the too-large notice and sends no bytes when the server layer refuses the paste as too large', async () => {
+  const harness = createInputHarness('normal');
+
+  harness.press('p');
+  await harness.clipboardReads[0]?.settle({ ok: true, text: 'echo hi' });
+  await harness.answerPaste({ ok: false, reason: 'tooLarge' });
+
+  expect(harness.pasteFlow.getStatus()).toBe('Nothing pasted: the text is too large.');
+  expect(harness.sent).toEqual([]);
+  expect(harness.toPane).toEqual([]);
+});
+
 for (const [result, notice] of pasteFailures) {
   it(`shows a notice when the server answers the paste with ${result.ok ? '' : result.reason}`, async () => {
     const harness = createInputHarness('normal');

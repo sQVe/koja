@@ -2,6 +2,7 @@ import { afterEach, expect, it, jest, spyOn } from 'bun:test';
 
 import { clientId, paneId } from '../ids.ts';
 import type { ControlMessage } from '../protocol/protocol.ts';
+import { maxFramePayloadBytes } from '../protocol/protocol.ts';
 import { createPaneRequestQueue } from './paneRequestQueue.ts';
 
 const pane = paneId(1);
@@ -50,6 +51,25 @@ it('answers pastes in the order they were sent', async () => {
 
   expect(await first).toEqual({ ok: true, paneId: pane, generation: 1 });
   expect(await second).toEqual({ ok: false, reason: 'authorizationMismatch' });
+});
+
+it('resolves a paste too large for one frame without sending it, and answers the next paste', async () => {
+  const { queue, sent } = queueWithLog();
+  const tooLarge = queue.paste(pasteOf('a'.repeat(maxFramePayloadBytes)));
+
+  expect(await tooLarge).toEqual({ ok: false, reason: 'tooLarge' });
+  expect(sent).toEqual([]);
+
+  const next = queue.paste(pasteOf('two'));
+
+  expect(sent).toEqual([pasteOf('two')]);
+
+  queue.takeAnswer({
+    type: 'panePasteResult',
+    result: { kind: 'sent', paneId: pane, generation: 1 },
+  });
+
+  expect(await next).toEqual({ ok: true, paneId: pane, generation: 1 });
 });
 
 it('answers a paste with paneReplaced and the generation that runs now', async () => {

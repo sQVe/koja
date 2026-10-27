@@ -4,6 +4,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
 import { runPaneAction } from '../src/cli/paneCommands.ts';
+import { runPanePasteCommand } from '../src/cli/panePasteCommand.ts';
 import {
   runDetach,
   runPanePaste,
@@ -18,6 +19,7 @@ import {
   encodeControl,
   encodeFrame,
   FrameKind,
+  maxFramePayloadBytes,
   parseControl,
 } from '../src/protocol/protocol.ts';
 import type { ControlMessage } from '../src/protocol/protocol.ts';
@@ -264,6 +266,40 @@ it('pastes into the pane the first snapshot focuses when a second snapshot arriv
   ]);
 
   expect(server.failures).toEqual([]);
+});
+
+it('returns tooLarge without sending a paste whose frame passes the limit', async () => {
+  const server = await listen((message) =>
+    message.type === 'hello' ? [{ type: 'welcome' }, snapshot(true)] : undefined,
+  );
+
+  const result = await runPanePaste(server.socketPath, version, {
+    action: 'paste',
+    text: 'a'.repeat(maxFramePayloadBytes),
+    authorization: undefined,
+  });
+
+  expect(result).toEqual({ ok: false, reason: 'tooLarge' });
+  expect(server.received.filter((message) => message.type === 'panePaste')).toEqual([]);
+  expect(server.failures).toEqual([]);
+});
+
+it('tells the user that too large text was not sent', async () => {
+  const server = await listen((message) =>
+    message.type === 'hello' ? [{ type: 'welcome' }, snapshot(true)] : undefined,
+  );
+
+  const outcome = await runPanePasteCommand(
+    false,
+    { action: 'paste', text: 'a'.repeat(maxFramePayloadBytes), authorization: undefined },
+    version,
+    server.socketPath,
+  );
+
+  expect(outcome).toEqual({
+    ok: false,
+    message: 'The text is too large to send. Nothing was sent.',
+  });
 });
 
 it('returns a connection failure when the server closes before answering', async () => {

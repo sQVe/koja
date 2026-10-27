@@ -20,7 +20,8 @@ type PasteOutput =
       authorization: string;
     }
   | { status: 'paneMissing'; pane: PaneId | null }
-  | { status: 'authorizationMismatch' };
+  | { status: 'authorizationMismatch' }
+  | { status: 'tooLarge' };
 
 const connectionFailures: ReadonlySet<string> = new Set([
   'noServer',
@@ -54,6 +55,10 @@ const refusalMessage = (refusal: PasteRefusal): string => {
 
   if (refusal.reason === 'paneMissing') {
     return 'The pane is no longer running.';
+  }
+
+  if (refusal.reason === 'tooLarge') {
+    return 'The text is too large to send. Nothing was sent.';
   }
 
   return 'The authorization does not match this text and pane. Nothing was sent.';

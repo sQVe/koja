@@ -39,8 +39,10 @@ const frameKinds = new Set<number>([
 
 const isFrameKind = (value: number): value is FrameKind => frameKinds.has(value);
 
+export const payloadFitsFrame = (length: number): boolean => length <= maxFramePayloadBytes;
+
 export const encodeFrame = (kind: FrameKind, payload: Uint8Array): Uint8Array => {
-  invariant(payload.length <= maxFramePayloadBytes, 'The frame payload is over the limit.');
+  invariant(payloadFitsFrame(payload.length), 'The frame payload is over the limit.');
 
   const frame = new Uint8Array(headerBytes + payload.length);
 
@@ -82,7 +84,7 @@ export const createFrameDecoder = (): FrameDecoder => {
 
     const length = new DataView(header.buffer).getUint32(1, true);
 
-    if (length > maxFramePayloadBytes) {
+    if (!payloadFitsFrame(length)) {
       error = { ok: false, reason: 'tooLarge' };
 
       return taken;

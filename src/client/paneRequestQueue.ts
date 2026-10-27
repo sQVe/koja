@@ -1,10 +1,8 @@
 import type { ControlMessage } from '../protocol/protocol.ts';
-import { pasteResultOf } from './panePaste.ts';
-import type { PanePasteResult } from './panePaste.ts';
+import { pasteFitsFrame, pasteResultOf } from './panePaste.ts';
+import type { PanePasteMessage, PanePasteResult } from './panePaste.ts';
 
 type PaneScrollMessage = Extract<ControlMessage, { type: 'paneScroll' }>;
-
-type PanePasteMessage = Extract<ControlMessage, { type: 'panePaste' }>;
 
 interface PaneRequestQueueOptions {
   send: (message: ControlMessage) => void;
@@ -53,6 +51,10 @@ export const createPaneRequestQueue = (options: PaneRequestQueueOptions): PaneRe
     paste: (message) => {
       if (closed) {
         return Promise.resolve({ ok: false, reason: 'connectionFailed' });
+      }
+
+      if (!pasteFitsFrame(message)) {
+        return Promise.resolve({ ok: false, reason: 'tooLarge' });
       }
 
       const answer = Promise.withResolvers<PanePasteResult>();

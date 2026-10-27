@@ -74,6 +74,7 @@ const pasteNotices: Record<Exclude<PasteFailure, 'confirmationRequired'>, string
   noServer: 'Paste failed: the server did not answer.',
   connectionFailed: 'Paste failed: the server did not answer.',
   refused: 'Paste failed: the server did not answer.',
+  tooLarge: 'Nothing pasted: the text is too large.',
 };
 
 const promptOf = (lines: number): string => {

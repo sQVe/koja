@@ -1,8 +1,11 @@
 import type { PaneId } from '../ids.ts';
 import { invariant } from '../invariant.ts';
 import type { BuildVersion, ControlMessage } from '../protocol/protocol.ts';
+import { encodeControl, payloadFitsFrame } from '../protocol/protocol.ts';
 import { runPaneTargetRequest } from './clientRequest.ts';
 import type { Request, RequestFailure } from './clientRequest.ts';
+
+export type PanePasteMessage = Extract<ControlMessage, { type: 'panePaste' }>;
 
 export interface PanePasteCommand {
   action: 'paste';
@@ -24,6 +27,7 @@ export type PanePasteResult =
   | { ok: false; reason: 'paneMissing'; paneId: PaneId | undefined }
   | { ok: false; reason: 'paneReplaced'; paneId: PaneId; generation: number }
   | { ok: false; reason: 'authorizationMismatch' }
+  | { ok: false; reason: 'tooLarge' }
   | RequestFailure;
 
 export type PanePasteCommandResult = Exclude<PanePasteResult, { reason: 'paneReplaced' }>;
@@ -32,6 +36,10 @@ type PasteOutcome = Extract<ControlMessage, { type: 'panePasteResult' }>['result
 
 const isCommandResult = (result: PanePasteResult): result is PanePasteCommandResult =>
   result.ok || result.reason !== 'paneReplaced';
+
+// The frame limit applies to the whole control message, so the check encodes it as it will be sent.
+export const pasteFitsFrame = (message: PanePasteMessage): boolean =>
+  payloadFitsFrame(encodeControl(message).length);
 
 export const pasteResultOf = (outcome: PasteOutcome): PanePasteResult => {
   if (outcome.kind === 'sent') {
@@ -61,13 +69,21 @@ export const runPanePaste = (
   command: PanePasteCommand,
 ): Promise<PanePasteCommandResult> => {
   const send = (request: Request<PanePasteCommandResult>, paneId: PaneId): void => {
-    request.send({
+    const message: PanePasteMessage = {
       type: 'panePaste',
       paneId,
       generation: undefined,
       text: command.text,
       authorization: command.authorization,
-    });
+    };
+
+    if (!pasteFitsFrame(message)) {
+      request.finish({ ok: false, reason: 'tooLarge' });
+
+      return;
+    }
+
+    request.send(message);
   };
 
   return runPaneTargetRequest<PanePasteCommandResult>(socketPath, version, command.pane, {
