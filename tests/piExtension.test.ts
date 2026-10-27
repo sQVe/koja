@@ -10,11 +10,14 @@ import packageJson from '../package.json' with { type: 'json' };
 import { root } from './cliHarness.ts';
 import { pollUntil, readJson, setup } from './paneHarness.ts';
 import type { PaneSetup } from './paneHarness.ts';
+import { recordedReportsOf, writeRecordingBinary } from './piReportHarness.ts';
+import type { RecordedReport } from './piReportHarness.ts';
 
 interface PiStart {
   extension: boolean;
   workerRecord?: string;
   sessionFile?: string;
+  binaryPath?: string;
 }
 
 interface PiDirectories {
@@ -101,6 +104,9 @@ const quote = (value: string): string => `'${value.replaceAll("'", "'\\''")}'`;
 const workerRecordAssignment = (start: PiStart): string[] =>
   start.workerRecord === undefined ? [] : [`TAU_WORKER_RECORD=${quote(start.workerRecord)}`];
 
+const binaryPathAssignment = (start: PiStart): string[] =>
+  start.binaryPath === undefined ? [] : [`KOJA_BIN_PATH=${quote(start.binaryPath)}`];
+
 const extensionFlags = (start: PiStart): string[] =>
   start.extension ? ['-e', quote(extension)] : [];
 
@@ -115,6 +121,7 @@ const piCommand = (directories: PiDirectories, start: PiStart): string => {
     `HOME=${quote(directories.home)}`,
     `PI_CODING_AGENT_DIR=${quote(directories.agent)}`,
     ...workerRecordAssignment(start),
+    ...binaryPathAssignment(start),
   ];
 
   const flags = [
@@ -280,6 +287,19 @@ const showsLine = async (pane: PaneSetup, line: string): Promise<boolean> => {
   return shown.includes(line);
 };
 
+const paneBinaryPathOf = async (pane: PaneSetup): Promise<string> => {
+  const { shell_pid: shellPid } = await processInfo(pane);
+  const environment = (await readFile(`/proc/${shellPid}/environ`, 'utf8')).split('\0');
+  const entry = environment.find((item) => item.startsWith('KOJA_BIN_PATH='));
+
+  expect(entry).toBeDefined();
+
+  return entry?.slice('KOJA_BIN_PATH='.length) ?? '';
+};
+
+const isReloadStart = (recorded: RecordedReport): boolean =>
+  recorded.report.event.kind === 'start' && recorded.report.event.reason === 'reload';
+
 it(
   'reports the exact conversation of pi in the pane, the one it switches to, and its quit',
   async () => {
@@ -346,8 +366,21 @@ it(
     const directories = await piDirectories(pane.directory);
     const conversation = savedConversation(pane, directories);
     const other = savedConversation(pane, directories, ['resumable first', 'resumable second']);
+    const reportsDirectory = join(pane.directory, 'reports');
+    const recordingBinary = join(pane.directory, 'koja-recording');
 
-    await send(pane, piCommand(directories, { extension: true, sessionFile: conversation }));
+    await mkdir(reportsDirectory);
+    await writeRecordingBinary(recordingBinary, await paneBinaryPathOf(pane), reportsDirectory);
+
+    await send(
+      pane,
+      piCommand(directories, {
+        extension: true,
+        sessionFile: conversation,
+        binaryPath: recordingBinary,
+      }),
+    );
+
     await waitForPi(pane, 'reported');
     await send(pane, '/resume\r');
     await send(pane, 'resumable');
@@ -363,6 +396,24 @@ it(
     await send(pane, '/reload\r');
 
     expect(await showsText(pane, 'Reloaded keybindings')).toBe(true);
+
+    const recorded = await pollUntil(
+      () => recordedReportsOf(reportsDirectory),
+      (all) => all.some(isReloadStart),
+    );
+
+    const reloadReport = recorded.find(isReloadStart);
+    const earlier = recorded.filter((item) => item !== reloadReport);
+
+    expect(reloadReport).toMatchObject({
+      report: { event: { kind: 'start', reason: 'reload' } },
+      stdout: 'updated\n',
+      exitCode: 0,
+    });
+
+    expect(reloadReport?.report.sequence).toBeGreaterThan(
+      Math.max(...earlier.map((item) => item.report.sequence)),
+    );
 
     const reloaded = await waitForReported(pane, (next) => next.sessionFile === other);
 

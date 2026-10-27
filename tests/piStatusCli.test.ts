@@ -209,6 +209,29 @@ it(
 );
 
 it(
+  'prints the server refusal for a live process that sent no start report, and keeps no record',
+  async () => {
+    const pane = await setup();
+    const shellPid = await shellPidOf(pane);
+
+    const model = reportOf(pane, { event: { kind: 'model' } });
+    const refused = await reportFromPane(pane, model, 'model', { processId: '$$', json: false });
+
+    expect({ exitCode: refused.exitCode, stdout: refused.stdout }).toEqual({
+      exitCode: 1,
+      stdout: '',
+    });
+
+    expect(refused.stderr).toContain(
+      `process ${shellPid} has not started a pi session in pane ${pane.first}.`,
+    );
+
+    expect(await statusJson(pane)).toEqual({ pane: pane.first, pi: null });
+  },
+  cliTestTimeoutMs,
+);
+
+it(
   'keeps the pane pass out of status output and the server log',
   async () => {
     const pane = await setup();
