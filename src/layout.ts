@@ -347,16 +347,14 @@ export const orderForLayout = (order: readonly PaneId[], layout: Layout): PaneId
   const leaves = layoutPaneIds(layout);
   const repaired = order.filter((id) => leaves.includes(id));
 
-  let previous: PaneId | undefined;
+  let at = 0;
 
   for (const id of leaves) {
     if (!repaired.includes(id)) {
-      const at = previous === undefined ? 0 : repaired.indexOf(previous) + 1;
-
       repaired.splice(at, 0, id);
     }
 
-    previous = id;
+    at = repaired.indexOf(id) + 1;
   }
 
   return repaired;
@@ -385,16 +383,27 @@ const withPane = (
   return splitLayout(layout, previous, 'right', added);
 };
 
+const keptLayout = (layout: Layout, order: readonly PaneId[]): Layout | undefined => {
+  if (layout.kind === 'pane') {
+    return order.includes(layout.paneId) ? layout : undefined;
+  }
+
+  const first = keptLayout(layout.first, order);
+  const second = keptLayout(layout.second, order);
+
+  if (first === undefined || second === undefined) {
+    return first ?? second;
+  }
+
+  const isUnchanged = first === layout.first && second === layout.second;
+
+  return isUnchanged ? layout : { ...layout, first, second };
+};
+
 export const layoutForOrder = (layout: Layout, order: readonly PaneId[]): Layout | undefined => {
   invariant(hasUniqueIds(order), 'Cannot place the same pane twice.');
 
-  let repaired: Layout | undefined = layout;
-
-  for (const id of layoutPaneIds(layout)) {
-    if (repaired !== undefined && !order.includes(id)) {
-      repaired = removePane(repaired, id)?.layout;
-    }
-  }
+  let repaired = keptLayout(layout, order);
 
   let previous: PaneId | undefined;
 
