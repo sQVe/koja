@@ -274,7 +274,7 @@ it('reads back a legacy tab and a master tab whose order differs from tree order
     ],
   });
 
-  await createSessionWriter(path, recordingLog().log).stopSaving(session);
+  await createSessionWriter(path, recordingLog().log, undefined).stopSaving(session);
 
   expect(await readSessionFile(path)).toEqual({ kind: 'restored', session });
 });

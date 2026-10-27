@@ -22,6 +22,7 @@ const oldSession: SavedSession = {
       id: tabId(1),
       workspaceId: workspaceId(1),
       layout: { kind: 'pane', paneId: paneId(1) },
+      arrangement: { choice: 'legacy', order: [paneId(1)] },
       focusedPaneId: paneId(1),
       zoomedPaneId: undefined,
       label: undefined,
