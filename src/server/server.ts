@@ -46,9 +46,10 @@ import type { SnapshotStore } from './paneSnapshot.ts';
 import { answerPiStatus, handlePiReport } from './piReports.ts';
 import { subscribeRows, syncRowSubscriptions, visiblePaneIds } from './rowSubscriptions.ts';
 import type { RowSubscriptions } from './rowSubscriptions.ts';
-import { createSessionWriter, readSessionFile } from './sessionFile.ts';
-import type { SessionWriter } from './sessionFile.ts';
+import { readSessionFile } from './sessionFile.ts';
 import { currentSession, restoreSession, savesSession } from './sessionState.ts';
+import { createSessionWriter } from './sessionWriter.ts';
+import type { SessionWriter } from './sessionWriter.ts';
 import { claimSocketPath } from './socketPath.ts';
 import { handleTabRequest, isTabRequest } from './tabRequests.ts';
 import { handleWorkspaceRequest, isWorkspaceRequest } from './workspaceRequests.ts';
@@ -161,11 +162,15 @@ const shutDown = async (context: ServerContext): Promise<StopResult> => {
   const { runtime, options } = context;
 
   // Pane exits during the stop must not change the saved session, so it is final before any pane ends.
-  await runtime.sessionWriter?.stopSaving(currentSession(context));
+  const saved = await runtime.sessionWriter?.stopSaving(currentSession(context));
 
   const panes = [...runtime.panes.entries()];
   const paneFailures = await Promise.all(panes.map(([id, pane]) => stopPane(context, id, pane)));
   const failures = paneFailures.flat();
+
+  if (saved?.ok === false) {
+    failures.unshift(saved.message);
+  }
 
   runtime.panes.clear();
 

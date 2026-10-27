@@ -1,5 +1,5 @@
-import { chmod, mkdir, readFile, rename, rm, writeFile } from 'node:fs/promises';
-import { dirname, join } from 'node:path';
+import { readFile } from 'node:fs/promises';
+import { join } from 'node:path';
 
 import { z } from 'zod';
 
@@ -9,7 +9,6 @@ import { layoutPaneIds, legacyArrangement } from '../layout.ts';
 import type { Arrangement, Layout } from '../layout.ts';
 import type { SavedSession } from '../store/store.ts';
 import { socketKeyFor, usableStateHome } from './log.ts';
-import type { Log } from './log.ts';
 
 type ReadSessionResult =
   | { kind: 'missing' }
@@ -17,20 +16,7 @@ type ReadSessionResult =
   | { kind: 'newer'; version: number }
   | { kind: 'broken'; message: string };
 
-export interface SessionWriter {
-  // Writes the session after the running write, unless a newer save replaces it first.
-  save: (session: SavedSession) => void;
-  // Waits for the running write, writes the session, and ignores every later save.
-  stopSaving: (session: SavedSession) => Promise<void>;
-  // Resolves once no write runs or waits.
-  settled: () => Promise<void>;
-}
-
 const currentVersion = 1;
-
-const directoryMode = 0o700;
-
-const fileMode = 0o600;
 
 export const sessionPathFor = (
   stateHome: string | undefined,
@@ -324,64 +310,7 @@ export const readSessionFile = async (path: string): Promise<ReadSessionResult> 
   return parsedFile(text);
 };
 
-const serialized = (session: SavedSession): string =>
+export const serialized = (session: SavedSession): string =>
   JSON.stringify({ version: currentVersion, session }, (_key, value: unknown) =>
     value === undefined ? null : value,
   );
-
-// Writes one file at a time and keeps only the newest session that waits.
-export const createSessionWriter = (path: string, log: Log): SessionWriter => {
-  const temporaryPath = `${path}.tmp`;
-  let running: Promise<void> | undefined;
-  let waiting: SavedSession | undefined;
-  let stopped = false;
-
-  const write = async (session: SavedSession): Promise<void> => {
-    try {
-      await mkdir(dirname(path), { recursive: true, mode: directoryMode });
-      await rm(temporaryPath, { force: true });
-      await writeFile(temporaryPath, serialized(session), { flag: 'wx', mode: fileMode });
-      // The umask can narrow the creation mode, and the owner must still read the file.
-      await chmod(temporaryPath, fileMode);
-      await rename(temporaryPath, path);
-    } catch (error) {
-      log.error('Cannot save the session.', { path, error: describeError(error) });
-    }
-  };
-
-  const drain = async (): Promise<void> => {
-    const next = waiting;
-
-    if (next === undefined) {
-      running = undefined;
-
-      return;
-    }
-
-    waiting = undefined;
-    await write(next);
-    await drain();
-  };
-
-  const save = (session: SavedSession): void => {
-    if (stopped) {
-      return;
-    }
-
-    waiting = session;
-    running ??= drain();
-  };
-
-  const stopSaving = async (session: SavedSession): Promise<void> => {
-    stopped = true;
-    waiting = undefined;
-    await running;
-    await write(session);
-  };
-
-  const settled = async (): Promise<void> => {
-    await running;
-  };
-
-  return { save, stopSaving, settled };
-};

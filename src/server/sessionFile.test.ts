@@ -1,6 +1,5 @@
-import { expect, it, onTestFinished, spyOn } from 'bun:test';
-import * as fsPromises from 'node:fs/promises';
-import { chmod, mkdtemp, open, readdir, readFile, rm, stat, writeFile } from 'node:fs/promises';
+import { expect, it, onTestFinished } from 'bun:test';
+import { mkdtemp, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
@@ -8,7 +7,8 @@ import { paneId, tabId, workspaceId } from '../ids.ts';
 import type { PaneId, TabId } from '../ids.ts';
 import type { SavedSession, Tab, Workspace } from '../store/store.ts';
 import type { Log } from './log.ts';
-import { createSessionWriter, readSessionFile, sessionPathFor } from './sessionFile.ts';
+import { readSessionFile, sessionPathFor } from './sessionFile.ts';
+import { createSessionWriter } from './sessionWriter.ts';
 
 const temporaryDirectory = async (): Promise<string> => {
   const directory = await mkdtemp(join(tmpdir(), 'koja-session-'));
@@ -512,148 +512,4 @@ it('falls back to ~/.local/state without a usable state home', () => {
 
   expect(fallback.startsWith('/home/user/.local/state/koja/sessions/')).toBe(true);
   expect(sessionPathFor('relative/state', '/home/user', socketPath)).toBe(fallback);
-});
-
-// The umask can narrow the mode writeFile creates, so set the world-readable mode explicitly.
-const leaveTemporaryFile = async (temporaryPath: string): Promise<void> => {
-  await writeFile(temporaryPath, 'left by a crash');
-  await chmod(temporaryPath, 0o644);
-
-  expect((await stat(temporaryPath)).mode & 0o777).toBe(0o644);
-};
-
-it('writes an owner-only file over a leftover temporary file', async () => {
-  const directory = await temporaryDirectory();
-  const path = join(directory, 'session.json');
-  await leaveTemporaryFile(`${path}.tmp`);
-  const writer = createSessionWriter(path, recordingLog().log);
-
-  await writer.stopSaving(sessionWith());
-
-  expect((await stat(path)).mode & 0o777).toBe(0o600);
-});
-
-it('reads back the session it saved under a umask that removes owner read', async () => {
-  const directory = await temporaryDirectory();
-  const path = join(directory, 'session.json');
-  const session = sessionWith();
-  const previousUmask = process.umask(0o477);
-  onTestFinished(() => process.umask(previousUmask));
-  const writer = createSessionWriter(path, recordingLog().log);
-
-  await writer.stopSaving(session);
-
-  expect(await readSessionFile(path)).toEqual({ kind: 'restored', session });
-});
-
-it('creates the temporary file owner-only before the session data lands in it', async () => {
-  const directory = await temporaryDirectory();
-  const path = join(directory, 'session.json');
-  const temporaryPath = `${path}.tmp`;
-  const previousUmask = process.umask(0o022);
-  onTestFinished(() => process.umask(previousUmask));
-  const realWriteFile = fsPromises.writeFile;
-  const modesWithData: number[] = [];
-
-  const writeFileSpy = spyOn(fsPromises, 'writeFile').mockImplementation(
-    async (...args: Parameters<typeof realWriteFile>) => {
-      await realWriteFile(...args);
-
-      if (args[0] === temporaryPath) {
-        modesWithData.push((await stat(temporaryPath)).mode & 0o777);
-      }
-    },
-  );
-
-  onTestFinished(() => {
-    writeFileSpy.mockRestore();
-  });
-
-  const writer = createSessionWriter(path, recordingLog().log);
-
-  await writer.stopSaving(sessionWith());
-
-  expect(modesWithData).toEqual([0o600]);
-});
-
-it('does not write the session into a leftover temporary file another reader holds open', async () => {
-  const directory = await temporaryDirectory();
-  const path = join(directory, 'session.json');
-  const temporaryPath = `${path}.tmp`;
-  await leaveTemporaryFile(temporaryPath);
-  const heldHandle = await open(temporaryPath, 'r');
-  onTestFinished(() => heldHandle.close());
-  const writer = createSessionWriter(path, recordingLog().log);
-
-  await writer.stopSaving(sessionWith());
-
-  const { bytesRead, buffer } = await heldHandle.read(Buffer.alloc(4096), 0, 4096, 0);
-
-  expect(buffer.subarray(0, bytesRead).toString('utf8')).toBe('left by a crash');
-});
-
-it('writes the newest of the saves made during one write', async () => {
-  const directory = await temporaryDirectory();
-  const path = join(directory, 'session.json');
-  const writer = createSessionWriter(path, recordingLog().log);
-  const sessions = [1, 2, 3, 4].map((number) => sessionWith({ nextPaneNumber: 3 + number }));
-  const newest = sessions.at(-1) ?? sessionWith();
-
-  for (const session of sessions) {
-    writer.save(session);
-  }
-
-  await writer.settled();
-
-  expect(await readSessionFile(path)).toEqual({ kind: 'restored', session: newest });
-  expect(await readdir(directory)).toEqual(['session.json']);
-
-  await writer.stopSaving(newest);
-});
-
-it('does not write the saves a newer save replaced', async () => {
-  const directory = await temporaryDirectory();
-  const path = join(directory, 'session.json');
-  const writer = createSessionWriter(path, recordingLog().log);
-  const running = sessionWith({ nextPaneNumber: 10 });
-  const replaced = sessionWith({ nextPaneNumber: 11 });
-  const newest = sessionWith({ nextPaneNumber: 12 });
-
-  writer.save(running);
-  writer.save(replaced);
-  writer.save(newest);
-
-  await writer.stopSaving(running);
-
-  expect(await readSessionFile(path)).toEqual({ kind: 'restored', session: running });
-});
-
-it('logs a failed write and does not throw', async () => {
-  const directory = await temporaryDirectory();
-  const blocker = join(directory, 'blocker');
-  await writeFile(blocker, 'a file');
-  const { log, errors } = recordingLog();
-  const writer = createSessionWriter(join(blocker, 'session.json'), log);
-
-  writer.save(sessionWith());
-  await writer.stopSaving(sessionWith());
-
-  expect(errors.length).toBe(2);
-});
-
-it('ignores a save after stopSaving', async () => {
-  const directory = await temporaryDirectory();
-  const path = join(directory, 'session.json');
-  const writer = createSessionWriter(path, recordingLog().log);
-  const final = sessionWith();
-
-  await writer.stopSaving(final);
-  writer.save(sessionWith({ nextPaneNumber: 50 }));
-  await writer.settled();
-
-  expect(await readFile(path, 'utf8')).toBe(
-    JSON.stringify({ version: 1, session: await savedJson(final) }),
-  );
-
-  expect(await readdir(directory)).toEqual(['session.json']);
 });
