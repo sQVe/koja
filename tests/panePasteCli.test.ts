@@ -43,7 +43,7 @@ const recordingShell = async (directory: string, received: string): Promise<stri
 };
 
 it(
-  'asks to confirm multiline text, sends it only with its authorization, and refuses it after a restart',
+  'asks to confirm multiline text, sends it only with its authorization, and refuses it after a restart or for a missing pane',
   async () => {
     const directory = await temporaryDirectory();
     const socketPath = join(directory, 'run', 'koja.sock');
@@ -107,6 +107,12 @@ it(
     expect(afterRestart.exitCode).not.toBe(0);
     expect(JSON.parse(afterRestart.stdout)).toEqual({ status: 'authorizationMismatch' });
     await expectReceivedAfterMarker('za\rbzz');
+
+    const missing = await koja('pane', 'paste', 'a', '--pane', 'pane-9', '--json');
+
+    expect(missing.exitCode).not.toBe(0);
+    expect(JSON.parse(missing.stdout)).toEqual({ status: 'paneMissing', pane: 'pane-9' });
+    expect(missing.stderr).toContain('The pane is no longer running.');
   },
   cliTestTimeoutMs,
 );

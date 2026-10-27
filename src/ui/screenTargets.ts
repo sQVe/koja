@@ -133,11 +133,16 @@ export const tabEntry = (number: number, label: string | undefined, active: bool
   return active ? `[${name}]` : name;
 };
 
-export const tabLabelsOf = (snapshot: StoreSnapshot, inputMode: string): TabLabel[] => {
+// A message hides the labels: the status bar has one row, and labels can fill it.
+export const tabLabelsOf = (
+  snapshot: StoreSnapshot,
+  inputMode: string,
+  message: string | undefined,
+): TabLabel[] => {
   const view = shownView(snapshot);
   const workspace = snapshot.workspaces.find((known) => known.id === view.focusedWorkspaceId);
 
-  if (workspace === undefined) {
+  if (workspace === undefined || message !== undefined) {
     return [];
   }
 
@@ -157,8 +162,7 @@ export const tabLabelsOf = (snapshot: StoreSnapshot, inputMode: string): TabLabe
   return labels;
 };
 
-// The text of the status bar: the mode name, the tab labels at their columns, then a message after
-// them, so the labels keep their columns.
+// The text of the status bar: the mode name, the tab labels at their columns, then a message.
 export const statusBarLine = (
   inputMode: string,
   labels: readonly TabLabel[],
@@ -173,18 +177,15 @@ export const statusBarLine = (
   return parts.join(' ');
 };
 
-// The number of the tab whose label holds the outer cell, in the status bar's row.
+// The number of the tab whose shown label holds the outer cell, in the status bar's row.
 export const tabAt = (
-  snapshot: StoreSnapshot,
-  inputMode: string,
+  labels: readonly TabLabel[],
   terminal: TerminalSize,
   cell: Cell,
 ): number | undefined => {
   if (cell.y !== terminal.rows - statusBarRows) {
     return undefined;
   }
-
-  const labels = tabLabelsOf(snapshot, inputMode);
 
   const hit = labels.find(
     (label) => cell.x >= label.column && cell.x < label.column + Bun.stringWidth(label.text),

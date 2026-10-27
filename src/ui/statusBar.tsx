@@ -14,7 +14,7 @@ export const StatusBar = ({
 }): ReactNode => {
   const state = useSyncExternalStore(session.subscribe, session.getState);
   const pasteStatus = useSyncExternalStore(pasteFlow.subscribe, pasteFlow.getStatus);
-  const labels = tabLabelsOf(state.snapshot, state.inputMode);
+  const labels = tabLabelsOf(state.snapshot, state.inputMode, pasteStatus);
 
   return (
     <text height={1} flexShrink={0}>

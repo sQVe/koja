@@ -6,7 +6,6 @@ import type {
   StoreSnapshot,
 } from '../client/client.ts';
 import type { PaneId, TabId, WorkspaceId } from '../ids.ts';
-import { ModeFlag } from '../rows/rows.ts';
 import type { ActionView } from './actionView.ts';
 import { keyText } from './keyEncoding.ts';
 import type { KeyEvent } from './keyEncoding.ts';
@@ -24,10 +23,14 @@ export interface PanePaste {
   // The prompt or notice for the status bar.
   getStatus: () => string | undefined;
   fromClipboard: () => void;
-  // Returns whether the paste goes through the confirmation flow. Otherwise the caller sends it.
-  fromHost: (text: string, modes: number) => boolean;
+  // Returns whether the flow takes the paste. Otherwise the caller sends it. Multiline text always
+  // goes to the server, which encodes it or asks to confirm it from the pane's live modes and
+  // state: what the client last saw can be older. Without a viewed pane it is dropped.
+  fromHost: (text: string) => boolean;
   // Returns whether the key answered a prompt. Any other press clears the notice.
   takeKey: (event: KeyEvent) => boolean;
+  // Stops a pending read or prompt without sending it.
+  close: () => void;
 }
 
 // The pane a paste was asked for, as the client showed it then.
@@ -36,6 +39,9 @@ interface PasteTarget {
   generation: number;
   workspaceId: WorkspaceId | undefined;
   tabId: TabId | undefined;
+  // Whether the pane runs or is about to: the client can see a pane as starting after the server
+  // already runs it.
+  live: boolean;
 }
 
 interface PromptStage {
@@ -59,6 +65,8 @@ type PasteFailure = Exclude<PanePasteResult, { ok: true }>['reason'];
 const canceledNotice = 'Paste canceled.';
 
 const changedNotice = 'Paste canceled: the pane changed.';
+
+const noPaneNotice = 'Nothing pasted: no pane is shown.';
 
 const readNotices: Record<ReadFailure, string> = {
   unsupported: 'Paste failed: no clipboard is available here.',
@@ -85,12 +93,13 @@ const promptOf = (lines: number): string => {
 
 const isMultiline = (text: string): boolean => /[\r\n]/.test(text);
 
-const hasBracketedPaste = (modes: number): boolean => (modes & ModeFlag.bracketedPaste) !== 0;
+const livePhases: ReadonlySet<string> = new Set(['starting', 'running']);
 
+// The viewed pane in any lifecycle state.
 const targetOf = (snapshot: StoreSnapshot): PasteTarget | undefined => {
   const pane = viewedPane(snapshot);
 
-  if (pane?.lifecycle !== 'running') {
+  if (pane === undefined) {
     return undefined;
   }
 
@@ -102,6 +111,7 @@ const targetOf = (snapshot: StoreSnapshot): PasteTarget | undefined => {
     generation: pane.generation,
     workspaceId,
     tabId: activeTabIdOf(view, workspaceId),
+    live: livePhases.has(pane.lifecycle),
   };
 };
 
@@ -112,7 +122,7 @@ const samePlace = (bound: PasteTarget, shown: PasteTarget): boolean =>
   bound.workspaceId === shown.workspaceId && bound.tabId === shown.tabId;
 
 const sameTarget = (bound: PasteTarget, shown: PasteTarget | undefined): boolean =>
-  shown !== undefined && samePane(bound, shown) && samePlace(bound, shown);
+  shown?.live === true && samePane(bound, shown) && samePlace(bound, shown);
 
 // One paste is pending at a time: starting another cancels it without sending. A paste stays bound
 // to the pane, generation, workspace, and tab shown when it started, and cancels when they change
@@ -282,7 +292,7 @@ export const createPanePaste = (host: PanePasteHost): PanePaste => {
 
       const target = targetOf(host.snapshot());
 
-      if (target === undefined) {
+      if (target?.live !== true) {
         return;
       }
 
@@ -298,13 +308,20 @@ export const createPanePaste = (host: PanePasteHost): PanePaste => {
           readSettled(attempt, { ok: false, reason: 'failed' });
         });
     },
-    fromHost: (text, modes) => {
+    fromHost: (text) => {
       interrupt();
+
+      if (!isMultiline(text)) {
+        return false;
+      }
 
       const target = targetOf(host.snapshot());
 
-      if (target === undefined || !isMultiline(text) || hasBracketedPaste(modes)) {
-        return false;
+      // Multiline text never reaches a pane without the server's paste check.
+      if (target === undefined) {
+        setStatus(noPaneNotice);
+
+        return true;
       }
 
       send(begin(target, { kind: 'sending' }), text, undefined);
@@ -329,5 +346,6 @@ export const createPanePaste = (host: PanePasteHost): PanePaste => {
 
       return true;
     },
+    close: interrupt,
   };
 };

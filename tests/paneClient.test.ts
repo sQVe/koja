@@ -4,8 +4,15 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
 import { runPaneAction } from '../src/cli/paneCommands.ts';
-import { runDetach, runPaneRead, runPaneSend, runWorkspaceCommand } from '../src/client/client.ts';
+import {
+  runDetach,
+  runPanePaste,
+  runPaneRead,
+  runPaneSend,
+  runWorkspaceCommand,
+} from '../src/client/client.ts';
 import { paneId, tabId, workspaceId } from '../src/ids.ts';
+import { invariant } from '../src/invariant.ts';
 import {
   createFrameDecoder,
   encodeControl,
@@ -208,6 +215,55 @@ it.each(['read', 'send'] as const)('reports a pane lost before %s', async (actio
 
   expect(result).toEqual({ ok: false, reason: 'paneMissing' });
   expect(server.received).toEqual([{ type: 'hello', version, size: undefined }, expected]);
+  expect(server.failures).toEqual([]);
+});
+
+it('pastes into the pane the first snapshot focuses when a second snapshot arrives before the answer', async () => {
+  // The second snapshot focuses pane 8 in place of pane 7.
+  const moved = structuredClone(snapshot(true));
+
+  invariant(moved.type === 'snapshot', 'the fixture is a snapshot');
+  moved.snapshot.panes = moved.snapshot.panes.map((pane) => ({ ...pane, id: paneId(8) }));
+
+  moved.snapshot.tabs = moved.snapshot.tabs.map((tab) => ({
+    ...tab,
+    layout: { kind: 'pane', paneId: paneId(8) },
+    focusedPaneId: paneId(8),
+  }));
+
+  const server = await listen((message) => {
+    if (message.type === 'hello') {
+      return [{ type: 'welcome' }, snapshot(true), moved];
+    }
+
+    return message.type === 'panePaste'
+      ? [
+          {
+            type: 'panePasteResult',
+            result: { kind: 'sent', paneId: message.paneId, generation: 1 },
+          },
+        ]
+      : [];
+  });
+
+  const result = await runPanePaste(server.socketPath, version, {
+    action: 'paste',
+    text: 'hello',
+    authorization: undefined,
+  });
+
+  expect(result).toEqual({ ok: true, paneId: paneId(7), generation: 1 });
+
+  expect(server.received.filter((message) => message.type === 'panePaste')).toEqual([
+    {
+      type: 'panePaste',
+      paneId: paneId(7),
+      generation: undefined,
+      text: 'hello',
+      authorization: undefined,
+    },
+  ]);
+
   expect(server.failures).toEqual([]);
 });
 

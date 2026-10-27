@@ -52,6 +52,18 @@ it('answers pastes in the order they were sent', async () => {
   expect(await second).toEqual({ ok: false, reason: 'authorizationMismatch' });
 });
 
+it('answers a paste with paneReplaced and the generation that runs now', async () => {
+  const { queue } = queueWithLog();
+  const pasted = queue.paste(pasteOf('one'));
+
+  queue.takeAnswer({
+    type: 'panePasteResult',
+    result: { kind: 'paneReplaced', paneId: pane, generation: 2 },
+  });
+
+  expect(await pasted).toEqual({ ok: false, reason: 'paneReplaced', paneId: pane, generation: 2 });
+});
+
 it('settles only the oldest request of the kind the answer belongs to', () => {
   const { queue, sent } = queueWithLog();
   const layoutOne = queue.changeLayout({ type: 'resync' });

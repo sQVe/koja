@@ -1,15 +1,15 @@
 import type { PaneId } from '../ids.ts';
+import { invariant } from '../invariant.ts';
 import type { BuildVersion, ControlMessage } from '../protocol/protocol.ts';
 import { runPaneTargetRequest } from './clientRequest.ts';
 import type { Request, RequestFailure } from './clientRequest.ts';
 
-// Without a pane id, the command targets the focused pane. Without a generation, it pastes into
-// whichever generation of the pane runs.
+// Without a pane id, the command targets the focused pane. It pastes into whichever generation of
+// the pane runs.
 export interface PanePasteCommand {
   action: 'paste';
   text: string;
   pane?: PaneId | undefined;
-  generation?: number | undefined;
   authorization: string | undefined;
 }
 
@@ -29,7 +29,13 @@ export type PanePasteResult =
   | { ok: false; reason: 'authorizationMismatch' }
   | RequestFailure;
 
+// A paste that names no generation is never replaced.
+export type PanePasteCommandResult = Exclude<PanePasteResult, { reason: 'paneReplaced' }>;
+
 type PasteOutcome = Extract<ControlMessage, { type: 'panePasteResult' }>['result'];
+
+const isCommandResult = (result: PanePasteResult): result is PanePasteCommandResult =>
+  result.ok || result.reason !== 'paneReplaced';
 
 export const pasteResultOf = (outcome: PasteOutcome): PanePasteResult => {
   if (outcome.kind === 'sent') {
@@ -59,24 +65,30 @@ export const runPanePaste = (
   socketPath: string,
   version: BuildVersion,
   command: PanePasteCommand,
-): Promise<PanePasteResult> => {
-  const send = (request: Request<PanePasteResult>, paneId: PaneId): void => {
+): Promise<PanePasteCommandResult> => {
+  const send = (request: Request<PanePasteCommandResult>, paneId: PaneId): void => {
     request.send({
       type: 'panePaste',
       paneId,
-      generation: command.generation,
+      generation: undefined,
       text: command.text,
       authorization: command.authorization,
     });
   };
 
-  return runPaneTargetRequest<PanePasteResult>(socketPath, version, command.pane, {
+  return runPaneTargetRequest<PanePasteCommandResult>(socketPath, version, command.pane, {
     missing: { ok: false, reason: 'paneMissing', paneId: undefined },
     begin: send,
     onMessage: (request, message) => {
-      if (message.type === 'panePasteResult') {
-        request.finish(pasteResultOf(message.result));
+      if (message.type !== 'panePasteResult') {
+        return;
       }
+
+      const result = pasteResultOf(message.result);
+
+      invariant(isCommandResult(result), 'A paste without a generation is never replaced.');
+
+      request.finish(result);
     },
   });
 };

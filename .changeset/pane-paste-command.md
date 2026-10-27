@@ -15,4 +15,4 @@ In normal mode, `p` pastes the clipboard into the pane shown when you press it, 
 in normal mode. Multiline text for a program without bracketed paste, from `p` or from the
 terminal's own paste, asks `y/n` in the status bar first. The paste is canceled when the pane, its
 process, the tab, or the workspace changes before it is sent. The status bar shows why a paste
-failed or was canceled.
+failed or was canceled, and hides the tab labels while it shows a paste prompt or message.

@@ -456,24 +456,34 @@ export const createInputRouter = (host: TokenRouterHost): ((token: RoutedToken) 
     return runEffect(intent);
   };
 
-  // A key that answers a paste prompt reaches no pane and runs no action.
+  // A normal-mode paste key replaces an open prompt instead of answering it.
+  const startsPaste = (event: KeyEvent): boolean =>
+    host.mode() === 'normal' &&
+    keyIntentOf(event, 'normal', availableCatalog()).effect?.kind === 'paste';
+
+  // A key that answers a paste prompt reaches no pane and runs no action. The rest of a split key
+  // whose Escape answered it stays away from the pane too.
   const answersPrompt = (token: RoutedToken): boolean => {
-    if (token.kind !== 'key' || !host.pasteFlow.takeKey(parseKey(token.raw))) {
+    if (token.kind !== 'key') {
+      return false;
+    }
+
+    const event = parseKey(token.raw);
+
+    if (startsPaste(event) || !host.pasteFlow.takeKey(event)) {
       return false;
     }
 
     keepFromPane(token);
     escapeInPane = false;
-    escapeInView = false;
+    escapeInView = token.raw === escapeKey;
 
     return true;
   };
 
   const routePasteToken = (bytes: Uint8Array, escapeSent: boolean): void => {
-    const modes = host.modes();
-
-    if (!host.pasteFlow.fromHost(decoder.decode(bytes), modes)) {
-      const routed = routePaste(bytes, modes);
+    if (!host.pasteFlow.fromHost(decoder.decode(bytes))) {
+      const routed = routePaste(bytes, host.modes());
       const wrapped = routed.length > bytes.length;
 
       host.send(wrapped ? withoutSentEscape(routed, escapeSent) : routed);
@@ -483,16 +493,16 @@ export const createInputRouter = (host: TokenRouterHost): ((token: RoutedToken) 
   };
 
   const route = (token: RoutedToken): Promise<void> | undefined => {
-    if (answersPrompt(token)) {
-      return undefined;
-    }
-
     const continuesViewEscape = token.escapeSent && escapeInView;
 
     if (continuesViewEscape) {
       escapeInView = false;
       keepFromPane(token);
 
+      return undefined;
+    }
+
+    if (answersPrompt(token)) {
       return undefined;
     }
 

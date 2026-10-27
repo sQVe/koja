@@ -31,7 +31,7 @@ export { runPiReport, runPiStatus } from './piRequest.ts';
 export type { PiReportMessage, PiReportResult, PiStatus } from './piRequest.ts';
 export type { PaneCopyCommand } from './paneCopy.ts';
 export { runPanePaste } from './panePaste.ts';
-export type { PanePasteCommand, PanePasteResult } from './panePaste.ts';
+export type { PanePasteCommand, PanePasteCommandResult, PanePasteResult } from './panePaste.ts';
 export { createClipboardQueue } from './clipboardWrite.ts';
 export type { ClipboardQueue } from './clipboardWrite.ts';
 export { createReadRunner, readClipboard } from './clipboardRead.ts';

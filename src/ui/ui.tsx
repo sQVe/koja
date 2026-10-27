@@ -23,7 +23,14 @@ import { runPaneAction } from './paneActions.ts';
 import { mountPanes } from './paneLayer.ts';
 import { createPanePaste } from './panePaste.ts';
 import type { PanePaste } from './panePaste.ts';
-import { placementOf, tabAt, targetAt, targetNear, workspaceAt } from './screenTargets.ts';
+import {
+  placementOf,
+  tabAt,
+  tabLabelsOf,
+  targetAt,
+  targetNear,
+  workspaceAt,
+} from './screenTargets.ts';
 import { createScrollMode } from './scrollMode.ts';
 import type { ScrollMode } from './scrollMode.ts';
 import { StatusBar } from './statusBar.tsx';
@@ -119,7 +126,8 @@ const routeInput = (
         return { kind: 'workspace', workspaceId };
       }
 
-      const number = tabAt(snapshot, inputMode, terminal, { x, y });
+      const labels = tabLabelsOf(snapshot, inputMode, pasteFlow.getStatus());
+      const number = tabAt(labels, terminal, { x, y });
 
       return number === undefined ? undefined : { kind: 'tab', number };
     },
@@ -278,6 +286,7 @@ export const runAttach = async (session: AttachSession): Promise<CloseReason> =>
     keyboard.restore();
     mouse.restore();
     releaseStdin?.();
+    pasteFlow.close();
     releasePane();
     root?.unmount();
     renderer.destroy();

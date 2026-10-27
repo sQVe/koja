@@ -1,12 +1,12 @@
 import { runPanePaste } from '../client/client.ts';
-import type { PanePasteCommand, PanePasteResult } from '../client/client.ts';
+import type { PanePasteCommand, PanePasteCommandResult } from '../client/client.ts';
 import type { PaneId } from '../ids.ts';
 import type { BuildVersion } from '../protocol/protocol.ts';
 import { connectionFailureMessage, printJson } from './output.ts';
 import type { Outcome } from './output.ts';
 
 type PasteRefusal = Exclude<
-  PanePasteResult,
+  PanePasteCommandResult,
   { ok: true } | { reason: 'noServer' | 'connectionFailed' | 'refused' }
 >;
 
@@ -20,7 +20,6 @@ type PasteOutput =
       authorization: string;
     }
   | { status: 'paneMissing'; pane: PaneId | null }
-  | { status: 'paneReplaced'; pane: PaneId; generation: number }
   | { status: 'authorizationMismatch' };
 
 const connectionFailures: ReadonlySet<string> = new Set([
@@ -29,7 +28,7 @@ const connectionFailures: ReadonlySet<string> = new Set([
   'refused',
 ]);
 
-const isRefusal = (result: PanePasteResult): result is PasteRefusal =>
+const isRefusal = (result: PanePasteCommandResult): result is PasteRefusal =>
   !result.ok && !connectionFailures.has(result.reason);
 
 const refusalOutput = (refusal: PasteRefusal): PasteOutput => {
@@ -37,10 +36,6 @@ const refusalOutput = (refusal: PasteRefusal): PasteOutput => {
     const { generation, lines, authorization } = refusal;
 
     return { status: refusal.reason, pane: refusal.paneId, generation, lines, authorization };
-  }
-
-  if (refusal.reason === 'paneReplaced') {
-    return { status: refusal.reason, pane: refusal.paneId, generation: refusal.generation };
   }
 
   return refusal.reason === 'paneMissing'
@@ -55,10 +50,6 @@ const refusalMessage = (refusal: PasteRefusal): string => {
       `so each line may run as a command. To send it, run the same command with --authorize ` +
       `${refusal.authorization}.`
     );
-  }
-
-  if (refusal.reason === 'paneReplaced') {
-    return `Pane ${refusal.paneId} restarted. Nothing was sent.`;
   }
 
   if (refusal.reason === 'paneMissing') {

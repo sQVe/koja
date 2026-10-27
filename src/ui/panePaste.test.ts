@@ -385,12 +385,29 @@ it('sends a one-line host paste straight to a pane without bracketed paste', () 
   expect(harness.pasteRequests).toEqual([]);
 });
 
-it('sends a multiline host paste straight to a pane with bracketed paste, wrapped in markers', () => {
+it('sends a multiline host paste through the server even when the cached modes say bracketed paste is on', async () => {
   const harness = createInputHarness('insert', {}, ModeFlag.bracketedPaste);
 
   harness.pastes('one\ntwo');
 
-  expect(harness.sent).toEqual(['\x1b[200~one\ntwo\x1b[201~']);
+  expect(harness.sent).toEqual([]);
+
+  expect(harness.pasteRequests).toEqual([
+    { pane: paneId(1), generation: 1, text: 'one\ntwo', authorization: undefined },
+  ]);
+
+  await harness.answerPaste(confirmation);
+
+  expect(harness.pasteFlow.getStatus()).toBe(promptOfTwoLines);
+  expect(harness.sent).toEqual([]);
+});
+
+it('sends a one-line host paste straight to a pane with bracketed paste, wrapped in markers', () => {
+  const harness = createInputHarness('insert', {}, ModeFlag.bracketedPaste);
+
+  harness.pastes('echo hi');
+
+  expect(harness.sent).toEqual(['\x1b[200~echo hi\x1b[201~']);
   expect(harness.pasteRequests).toEqual([]);
 });
 
@@ -445,4 +462,182 @@ it('keeps the press and release of the key that answers a prompt in insert mode 
 
   expect(harness.pasteRequests).toHaveLength(2);
   expect(harness.sent).toEqual([]);
+});
+
+const openHostPrompt = async (initial: 'insert' | 'normal') => {
+  const harness = createInputHarness(initial);
+
+  harness.pastes('one\ntwo');
+  await harness.answerPaste(confirmation);
+
+  return harness;
+};
+
+it('keeps a split escape key away from the pane when its Escape cancels a prompt in insert mode', async () => {
+  const harness = await openHostPrompt('insert');
+
+  harness.input({ kind: 'key', raw: '\x1b', escapeSent: false });
+  harness.input({ kind: 'key', raw: '\x1b[A', escapeSent: true });
+
+  expect(harness.pasteFlow.getStatus()).toBe(canceledNotice);
+  expect(harness.sent).toEqual([]);
+  expect(harness.toPane).toEqual([]);
+  expect(harness.pasteRequests).toHaveLength(1);
+  expect(harness.mode()).toBe('insert');
+});
+
+it('cancels an open prompt without sending and starts a new clipboard read on p in normal mode', async () => {
+  const harness = await openHostPrompt('normal');
+
+  harness.press('p');
+
+  expect(harness.clipboardReads).toHaveLength(1);
+  expect(harness.pasteFlow.getStatus()).toBeUndefined();
+
+  await harness.clipboardReads[0]?.settle({ ok: true, text: 'new' });
+
+  expect(harness.pasteRequests.map((request) => request.text)).toEqual(['one\ntwo', 'new']);
+  expect(harness.pasteRequests[1]?.authorization).toBeUndefined();
+  expect(harness.sent).toEqual([]);
+  expect(harness.mode()).toBe('normal');
+});
+
+it('only cancels an open prompt on p in insert mode, and keeps the p from the pane', async () => {
+  const harness = await openHostPrompt('insert');
+
+  harness.press('p');
+
+  expect(harness.clipboardReads).toEqual([]);
+  expect(harness.pasteRequests).toHaveLength(1);
+  expect(harness.pasteFlow.getStatus()).toBe(canceledNotice);
+  expect(harness.sent).toEqual([]);
+  expect(harness.mode()).toBe('insert');
+});
+
+it('aborts a pending clipboard read on close and sends nothing when the read ends', async () => {
+  const harness = createInputHarness('normal');
+
+  harness.press('p');
+  harness.pasteFlow.close();
+
+  expect(harness.clipboardReads[0]?.signal.aborted).toBe(true);
+
+  await harness.clipboardReads[0]?.settle({ ok: true, text: 'echo hi' });
+
+  expect(harness.pasteRequests).toEqual([]);
+  expect(harness.sent).toEqual([]);
+  expect(harness.toPane).toEqual([]);
+});
+
+it('cancels an open prompt on close, so a later y sends nothing', async () => {
+  const harness = await openHostPrompt('normal');
+
+  harness.pasteFlow.close();
+  harness.press('y');
+
+  expect(harness.pasteRequests).toHaveLength(1);
+  expect(harness.pasteFlow.getStatus()).toBeUndefined();
+});
+
+it('binds a p held behind a workspace request to the pane the new workspace shows', async () => {
+  const harness = createInputHarness('normal');
+
+  harness.press('j');
+  harness.press('p');
+
+  expect(harness.clipboardReads).toEqual([]);
+
+  harness.snapshot.focused = secondWorkspace;
+  harness.replies[0]?.();
+  await harness.clipboardReads[0]?.settle({ ok: true, text: 'echo hi' });
+
+  expect(harness.pasteRequests).toEqual([
+    { pane: paneId(5), generation: 1, text: 'echo hi', authorization: undefined },
+  ]);
+});
+
+const startingFirstPane = (snapshot: StoreSnapshot): StoreSnapshot => ({
+  ...snapshot,
+  panes: snapshot.panes.map((pane) =>
+    pane.id === paneId(1) ? { ...pane, lifecycle: 'starting' as const } : pane,
+  ),
+});
+
+it('sends a multiline host paste through the server while the client still sees the pane starting', async () => {
+  const harness = createInputHarness('insert');
+  const running = harness.store();
+
+  // The running-state change is still on its way: the server may already run the pane.
+  harness.changeStore(startingFirstPane(running));
+  harness.pastes('one\ntwo');
+
+  expect(harness.sent).toEqual([]);
+
+  expect(harness.pasteRequests).toEqual([
+    { pane: paneId(1), generation: 1, text: 'one\ntwo', authorization: undefined },
+  ]);
+
+  await harness.answerPaste(confirmation);
+  harness.changeStore(running);
+
+  expect(harness.pasteFlow.getStatus()).toBe(promptOfTwoLines);
+
+  harness.press('y');
+
+  expect(harness.pasteRequests[1]?.authorization).toBe('1.token');
+  expect(harness.sent).toEqual([]);
+});
+
+it('sends a multiline host paste for an exited pane through the server and shows its refusal', async () => {
+  const harness = createInputHarness('insert');
+
+  harness.changeStore(exitedFirstPane(harness.store()));
+  harness.pastes('one\ntwo');
+
+  expect(harness.sent).toEqual([]);
+  expect(harness.pasteRequests).toHaveLength(1);
+
+  await harness.answerPaste({ ok: false, reason: 'paneMissing', paneId: paneId(1) });
+
+  expect(harness.pasteFlow.getStatus()).toBe('Paste failed: the pane is gone.');
+  expect(harness.sent).toEqual([]);
+});
+
+it('drops a multiline host paste with a notice when no pane is shown', () => {
+  const harness = createInputHarness('insert');
+
+  harness.changeStore(
+    withViews(harness.store(), (view) => ({ ...view, focusedWorkspaceId: undefined })),
+  );
+
+  harness.pastes('one\ntwo');
+
+  expect(harness.sent).toEqual([]);
+  expect(harness.toPane).toEqual([]);
+  expect(harness.pasteRequests).toEqual([]);
+  expect(harness.pasteFlow.getStatus()).toBe('Nothing pasted: no pane is shown.');
+});
+
+it('cancels a pending clipboard read with a notice when the view shows no pane any more', async () => {
+  const harness = createInputHarness('normal');
+
+  harness.press('p');
+
+  harness.changeStore(
+    withViews(harness.store(), (view) => ({ ...view, focusedWorkspaceId: undefined })),
+  );
+
+  await harness.clipboardReads[0]?.settle({ ok: true, text: 'echo hi' });
+
+  expect(harness.pasteRequests).toEqual([]);
+  expect(harness.pasteFlow.getStatus()).toBe(changedNotice);
+});
+
+it('reads no clipboard when the paste flow is asked to paste into an exited pane', () => {
+  const harness = createInputHarness('normal');
+
+  harness.changeStore(exitedFirstPane(harness.store()));
+  harness.pasteFlow.fromClipboard();
+
+  expect(harness.clipboardReads).toEqual([]);
 });
