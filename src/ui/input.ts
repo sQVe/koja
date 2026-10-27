@@ -16,6 +16,7 @@ import type { KeyEvent } from './keyEncoding.ts';
 import { createMouseCapture } from './mouseCapture.ts';
 import { encodeMouse, parseMouse } from './mouseEncoding.ts';
 import type { MouseEvent } from './mouseEncoding.ts';
+import type { PanePaste } from './panePaste.ts';
 import type { PaneTarget } from './screenTargets.ts';
 import type { ScrollMotion } from './scrollMotions.ts';
 import { createWorkspaceNavigation } from './workspaceNavigation.ts';
@@ -56,6 +57,7 @@ interface TokenRouterHost {
   // The promise settles once the action's effect on the state has arrived.
   paneAction: (action: PaneAction) => Promise<void>;
   scroll: (action: ScrollAction) => void;
+  pasteFlow: PanePaste;
 }
 
 type ChromeTarget =
@@ -92,6 +94,13 @@ const escapeKey = '\x1b';
 
 // Only a bare Escape can be completed by a continuation. A kitty Escape event is already whole.
 const isBareEscape = (bytes: Uint8Array): boolean => decoder.decode(bytes) === escapeKey;
+
+const snapshotEffects: ReadonlySet<KeyEffect['kind']> = new Set([
+  'pane',
+  'tab',
+  'scrollEnter',
+  'paste',
+]);
 
 const pasteStart = encoder.encode('\x1b[200~');
 
@@ -407,6 +416,10 @@ export const createInputRouter = (host: TokenRouterHost): ((token: RoutedToken) 
       host.view.open(effect.view);
     }
 
+    if (effect.kind === 'paste') {
+      host.pasteFlow.fromClipboard();
+    }
+
     return effect.kind === 'pane' ? host.paneAction(effect.action) : undefined;
   };
 
@@ -442,6 +455,39 @@ export const createInputRouter = (host: TokenRouterHost): ((token: RoutedToken) 
     return runEffect(intent);
   };
 
+  const startsPaste = (event: KeyEvent): boolean =>
+    host.mode() === 'normal' &&
+    keyIntentOf(event, 'normal', availableCatalog()).effect?.kind === 'paste';
+
+  const answersPrompt = (token: RoutedToken): boolean => {
+    if (token.kind !== 'key') {
+      return false;
+    }
+
+    const event = parseKey(token.raw);
+
+    if (startsPaste(event) || !host.pasteFlow.takeKey(event)) {
+      return false;
+    }
+
+    keepFromPane(token);
+    escapeInPane = false;
+    escapeInView = token.raw === escapeKey;
+
+    return true;
+  };
+
+  const routePasteToken = (bytes: Uint8Array, escapeSent: boolean): void => {
+    if (!host.pasteFlow.fromHost(decoder.decode(bytes))) {
+      const routed = routePaste(bytes, host.modes());
+      const wrapped = routed.length > bytes.length;
+
+      host.send(wrapped ? withoutSentEscape(routed, escapeSent) : routed);
+    }
+
+    escapeInPane = false;
+  };
+
   const route = (token: RoutedToken): Promise<void> | undefined => {
     const continuesViewEscape = token.escapeSent && escapeInView;
 
@@ -449,6 +495,10 @@ export const createInputRouter = (host: TokenRouterHost): ((token: RoutedToken) 
       escapeInView = false;
       keepFromPane(token);
 
+      return undefined;
+    }
+
+    if (answersPrompt(token)) {
       return undefined;
     }
 
@@ -467,11 +517,7 @@ export const createInputRouter = (host: TokenRouterHost): ((token: RoutedToken) 
     }
 
     if (token.kind === 'paste') {
-      const routed = routePaste(token.bytes, host.modes());
-      const wrapped = routed.length > token.bytes.length;
-
-      host.send(wrapped ? withoutSentEscape(routed, token.escapeSent) : routed);
-      escapeInPane = false;
+      routePasteToken(token.bytes, token.escapeSent);
 
       return undefined;
     }
@@ -513,7 +559,7 @@ export const createInputRouter = (host: TokenRouterHost): ((token: RoutedToken) 
 
     const { effect } = keyIntentOf(parseKey(token.raw), host.mode(), host.catalog);
 
-    return effect?.kind === 'pane' || effect?.kind === 'tab' || effect?.kind === 'scrollEnter';
+    return effect !== undefined && snapshotEffects.has(effect.kind);
   };
 
   const waitsForWorkspace = (next: RoutedToken): boolean => {

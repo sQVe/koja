@@ -16,6 +16,7 @@ import { connectionFailureMessage, printJson } from './output.ts';
 import type { Outcome } from './output.ts';
 import type { PaneCliCommand } from './paneCommandParse.ts';
 import { runPaneCopyCommand } from './paneCopyCommand.ts';
+import { runPanePasteCommand } from './panePasteCommand.ts';
 import { runPaneReadCommand } from './paneReadCommand.ts';
 import { runPaneScrollCommand } from './paneScrollCommand.ts';
 
@@ -261,6 +262,10 @@ export const runPaneAction = async (
 
   if (command.pane.action === 'read') {
     return runPaneReadCommand(command, command.pane, version, socketPath);
+  }
+
+  if (command.pane.action === 'paste') {
+    return runPanePasteCommand(command.json, command.pane, version, socketPath);
   }
 
   return runPaneSendCommand(command, command.pane, version, socketPath);

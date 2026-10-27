@@ -208,6 +208,24 @@ it('parses pane list, and the pane target of read and send', () => {
   });
 });
 
+it('parses pane paste with an optional pane and authorization', () => {
+  expect(parseCommand(['pane', 'paste', 'a\nb'])).toEqual({
+    kind: 'pane',
+    pane: { action: 'paste', text: 'a\nb', pane: undefined, authorization: undefined },
+    json: false,
+    socket: undefined,
+  });
+
+  expect(
+    parseCommand(['pane', 'paste', 'a\nb', '--pane', 'pane-3', '--authorize', '1.ab', '--json']),
+  ).toEqual({
+    kind: 'pane',
+    pane: { action: 'paste', text: 'a\nb', pane: paneId(3), authorization: '1.ab' },
+    json: true,
+    socket: undefined,
+  });
+});
+
 it('parses pane split, focus, and close with the pane id as an argument', () => {
   expect(parseCommand(['pane', 'split', 'pane-2', '--direction', 'below', '--json'])).toEqual({
     kind: 'pane',
@@ -415,6 +433,10 @@ it.each([
   ['--pane on pane list', ['pane', 'list', '--pane', 'pane-1']],
   ['arguments for pane list', ['pane', 'list', 'extra']],
   ['no text for pane send', ['pane', 'send', '--pane', 'pane-1']],
+  ['no text for pane paste', ['pane', 'paste']],
+  ['two texts for pane paste', ['pane', 'paste', 'a', 'b']],
+  ['a malformed pane id for paste', ['pane', 'paste', 'a', '--pane', 'tab-1']],
+  ['--authorize on pane send', ['pane', 'send', 'a', '--authorize', '1.ab']],
   ['--pane on a workspace command', ['workspace', 'list', '--pane', 'pane-1']],
 ])('refuses %s', (_name, argv) => {
   expect(typeof parseCommand(argv)).toBe('string');
@@ -597,7 +619,7 @@ it.each([
 
 it('names only the commands that accept --pane when pane move gets it', () => {
   expect(parseCommand(['pane', 'move', 'pane-1', '--tab', 'tab-2', '--pane', 'pane-1'])).toBe(
-    '--pane belongs to pane send and action run.',
+    '--pane belongs to pane send, pane paste, and action run.',
   );
 });
 

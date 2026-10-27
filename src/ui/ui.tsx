@@ -5,7 +5,13 @@ import { useSyncExternalStore } from 'react';
 import type { ReactNode } from 'react';
 
 import { actionCatalog } from '../actions.ts';
-import { createClipboardQueue, viewedPane, shownView } from '../client/client.ts';
+import {
+  createClipboardQueue,
+  createReadRunner,
+  readClipboard,
+  viewedPane,
+  shownView,
+} from '../client/client.ts';
 import type { AttachSession, ClipboardQueue, CloseReason, PaneNotice } from '../client/client.ts';
 import { kittyFlags } from '../rows/rows.ts';
 import { ActionOverlay } from './actionOverlay.tsx';
@@ -15,7 +21,16 @@ import { createInputRouter } from './input.ts';
 import { takeStdin } from './inputStdin.ts';
 import { runPaneAction } from './paneActions.ts';
 import { mountPanes } from './paneLayer.ts';
-import { placementOf, tabAt, targetAt, targetNear, workspaceAt } from './screenTargets.ts';
+import { createPanePaste } from './panePaste.ts';
+import type { PanePaste } from './panePaste.ts';
+import {
+  placementOf,
+  tabAt,
+  tabLabelsOf,
+  targetAt,
+  targetNear,
+  workspaceAt,
+} from './screenTargets.ts';
 import { createScrollMode } from './scrollMode.ts';
 import type { ScrollMode } from './scrollMode.ts';
 import { StatusBar } from './statusBar.tsx';
@@ -79,6 +94,7 @@ const routeInput = (
   renderer: CliRenderer,
   scrollMode: ScrollMode,
   view: ActionView,
+  pasteFlow: PanePaste,
 ) =>
   createInputRouter({
     mode: () => session.getState().inputMode,
@@ -110,7 +126,8 @@ const routeInput = (
         return { kind: 'workspace', workspaceId };
       }
 
-      const number = tabAt(snapshot, inputMode, terminal, { x, y });
+      const labels = tabLabelsOf(snapshot, inputMode, pasteFlow.getStatus());
+      const number = tabAt(labels, terminal, { x, y });
 
       return number === undefined ? undefined : { kind: 'tab', number };
     },
@@ -136,6 +153,22 @@ const routeInput = (
     afterTabAnswer: session.afterTabAnswer,
     paneAction: (action) => runPaneAction(session, action),
     scroll: scrollMode.handle,
+    pasteFlow,
+  });
+
+const createSessionPaste = (session: AttachSession, view: ActionView): PanePaste =>
+  createPanePaste({
+    snapshot: () => session.getState().snapshot,
+    subscribe: session.subscribe,
+    view,
+    readClipboard: (signal) =>
+      readClipboard({
+        // oxlint-disable-next-line node/no-process-env -- the client's terminal environment decides how to paste.
+        environment: process.env,
+        runCommand: createReadRunner(),
+        signal,
+      }),
+    paste: session.pastePane,
   });
 
 const showNotice = (notice: PaneNotice, clipboard: ClipboardQueue): void => {
@@ -160,6 +193,7 @@ export const runAttach = async (session: AttachSession): Promise<CloseReason> =>
 
   const scrollMode = createScrollMode(session);
   const actionView = createActionView(() => actionViewRowsOf(renderer.terminalHeight));
+  const pasteFlow = createSessionPaste(session, actionView);
   const keyboard = createTerminalKeyboard((text) => process.stdout.write(text));
   const mouse = createTerminalMouse((text) => process.stdout.write(text));
   const signals = ['SIGTERM', 'SIGINT', 'SIGHUP'] as const;
@@ -200,7 +234,11 @@ export const runAttach = async (session: AttachSession): Promise<CloseReason> =>
 
   // Cleanup runs after any step of the setup, so each step it undoes is optional here.
   try {
-    releaseStdin = takeStdin(renderer, routeInput(session, renderer, scrollMode, actionView));
+    releaseStdin = takeStdin(
+      renderer,
+      routeInput(session, renderer, scrollMode, actionView, pasteFlow),
+    );
+
     unsubscribeState = session.subscribe(followPaneKeys);
     unsubscribeRows = session.subscribeRows(followPaneKeys);
 
@@ -230,7 +268,7 @@ export const runAttach = async (session: AttachSession): Promise<CloseReason> =>
           <Screen session={session} placePane={placePane} />
           <ActionOverlay session={session} view={actionView} />
         </box>
-        <StatusBar session={session} />
+        <StatusBar session={session} pasteFlow={pasteFlow} />
       </box>,
     );
 
@@ -248,6 +286,7 @@ export const runAttach = async (session: AttachSession): Promise<CloseReason> =>
     keyboard.restore();
     mouse.restore();
     releaseStdin?.();
+    pasteFlow.close();
     releasePane();
     root?.unmount();
     renderer.destroy();

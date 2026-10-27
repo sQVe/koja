@@ -341,6 +341,20 @@ const paneCopyOutcomeSchema = z.discriminatedUnion('ok', [
   }),
 ]);
 
+const panePasteOutcomeSchema = z.discriminatedUnion('kind', [
+  z.strictObject({ kind: z.literal('sent'), paneId: paneIdSchema, generation: count }),
+  z.strictObject({
+    kind: z.literal('confirmationRequired'),
+    paneId: paneIdSchema,
+    generation: count,
+    lines: count,
+    authorization: z.string(),
+  }),
+  z.strictObject({ kind: z.literal('paneMissing'), paneId: paneIdSchema }),
+  z.strictObject({ kind: z.literal('paneReplaced'), paneId: paneIdSchema, generation: count }),
+  z.strictObject({ kind: z.literal('authorizationMismatch') }),
+]);
+
 const piReportText = (maxLength: number) => z.string().min(1).max(maxLength);
 
 export const reportPassSchema = z.string().regex(/^[0-9a-f]{64}$/);
@@ -512,6 +526,14 @@ const controlSchema = z.discriminatedUnion('type', [
   }),
   z.object({ type: z.literal('paneSend'), paneId: paneIdSchema, text: z.string() }),
   z.object({ type: z.literal('paneSent'), paneId: paneIdSchema }),
+  z.object({
+    type: z.literal('panePaste'),
+    paneId: paneIdSchema,
+    generation: absent(count),
+    text: z.string(),
+    authorization: absent(z.string()),
+  }),
+  z.object({ type: z.literal('panePasteResult'), result: panePasteOutcomeSchema }),
   z.object({ type: z.literal('paneMissing'), paneId: paneIdSchema }),
   z.object({
     type: z.literal('paneSplit'),

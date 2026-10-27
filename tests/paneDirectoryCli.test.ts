@@ -65,6 +65,10 @@ it(
 
 const restoreAccess = (path: string) => chmod(path, 0o755).catch(() => undefined);
 
+// The shell enters the folder before it makes the folder unusable, so a split must wait for the
+// marker the shell writes after that step.
+const waitForMarker = (marker: string) => pollUntil(() => Bun.file(marker).exists(), Boolean);
+
 const unusableSetups = [
   { name: 'deleted', prepare: 'rmdir ../command' },
   { name: 'not enterable', prepare: 'chmod 000 .' },
@@ -77,14 +81,16 @@ for (const unusable of unusableSetups) {
       const { directory, koja, list, act, first } = await setup();
       const shellFolder = await makeFolder(directory, 'shell');
       const commandFolder = await makeFolder(directory, 'command');
+      const marker = join(directory, 'prepared');
 
       try {
         expect((await koja('pane', 'send', `cd ${shellFolder}\n`)).exitCode).toBe(0);
         await pollUntil(list, (panes) => folderOf(panes, first) === shellFolder);
 
-        const command = `sh -c 'cd ${commandFolder}; ${unusable.prepare}; sleep 600'\n`;
+        const command = `sh -c 'cd ${commandFolder}; ${unusable.prepare}; touch ${marker}; sleep 600'\n`;
 
         expect((await koja('pane', 'send', command)).exitCode).toBe(0);
+        await waitForMarker(marker);
 
         await pollUntil(list, (panes) => {
           const foreground = panes.find((pane) => pane.id === first)?.foreground_cwd;
@@ -109,11 +115,13 @@ for (const unusable of unusableSetups) {
       const { directory, koja, list, act, first } = await setup();
       const root = await realpath(join(directory, 'work'));
       const commandFolder = await makeFolder(directory, 'command');
+      const marker = join(directory, 'prepared');
 
       try {
-        const command = `cd ${commandFolder} && ${unusable.prepare}\n`;
+        const command = `cd ${commandFolder} && ${unusable.prepare} && touch ${marker}\n`;
 
         expect((await koja('pane', 'send', command)).exitCode).toBe(0);
+        await waitForMarker(marker);
 
         await pollUntil(list, (panes) => {
           const cwd = folderOf(panes, first);

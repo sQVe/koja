@@ -26,6 +26,7 @@ export type ActionIntent =
   | { kind: 'workspace'; key: WorkspaceKey }
   | { kind: 'tab'; route: TabRoute }
   | { kind: 'scrollEnter' }
+  | { kind: 'paste' }
   | { kind: 'detach' }
   | { kind: 'view'; view: ActionViewKind };
 
@@ -138,6 +139,9 @@ export const workspaceNeighborOf = (
 
 const hasTargetPane = (snapshot: StoreSnapshot, target: ActionTarget): boolean =>
   snapshot.panes.some((pane) => pane.id === target.paneId);
+
+const hasRunningTargetPane = (snapshot: StoreSnapshot, target: ActionTarget): boolean =>
+  snapshot.panes.some((pane) => pane.id === target.paneId && pane.lifecycle === 'running');
 
 const hasPreviousPane = (snapshot: StoreSnapshot, target: ActionTarget): boolean =>
   focusNeighborOf(snapshot, target.paneId, -1) !== undefined;
@@ -256,6 +260,15 @@ export const actionCatalog: ActionCatalog = [
   paneEntry('Resize pane right', '>', 'resizeRight', hasTargetPane),
   paneEntry('Resize pane up', '-', 'resizeUp', hasTargetPane),
   paneEntry('Resize pane down', '+', 'resizeDown', hasTargetPane),
+  {
+    id: 'pane.paste',
+    title: 'Paste clipboard into pane',
+    keys: ['p'],
+    intent: { kind: 'paste' },
+    // The CLI pastes given text with `koja pane paste`; only a client reads its own clipboard.
+    cli: false,
+    available: hasRunningTargetPane,
+  },
   {
     id: 'scroll.enter',
     title: 'Enter scroll mode',

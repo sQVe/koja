@@ -317,6 +317,17 @@ it('reports the 132 column mode a program asked for with mode 40 on', () => {
   expect(writeChunks(terminal, ['\u001B[?3l\u001B[?3$p'])).toBe('\u001B[?3;2$y');
 });
 
+it('reports the modes a program set and keeps the rows the next frame returns', () => {
+  using terminal = openTerminal();
+
+  expect(terminal.modes() & ModeFlag.bracketedPaste).toBe(0);
+
+  writeChunks(terminal, ['hello\u001B[?2004h']);
+
+  expect(terminal.modes() & ModeFlag.bracketedPaste).toBe(ModeFlag.bracketedPaste);
+  expect(terminal.frame().rowCount).toBeGreaterThan(0);
+});
+
 it('resizes the terminal', () => {
   using terminal = openTerminal();
 

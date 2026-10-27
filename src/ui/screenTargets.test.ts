@@ -147,10 +147,33 @@ it('hits the tab whose status bar label is under the cell', () => {
   const snapshot = listSnapshot(1, 1, 3);
 
   // INSERT [2] 3 reads: "INSERT 1 [2] 3" with the labels at columns 7, 9, and 13.
-  expect(statusBarLine('insert', tabLabelsOf(snapshot, 'insert'))).toBe('INSERT 1 [2] 3');
-  expect(tabAt(snapshot, 'insert', terminal, { x: 7, y: 5 })).toBe(1);
-  expect(tabAt(snapshot, 'insert', terminal, { x: 10, y: 5 })).toBe(2);
-  expect(tabAt(snapshot, 'insert', terminal, { x: 13, y: 5 })).toBe(3);
+  expect(statusBarLine('insert', tabLabelsOf(snapshot, 'insert', undefined), undefined)).toBe(
+    'INSERT 1 [2] 3',
+  );
+
+  expect(tabAt(tabLabelsOf(snapshot, 'insert', undefined), terminal, { x: 7, y: 5 })).toBe(1);
+  expect(tabAt(tabLabelsOf(snapshot, 'insert', undefined), terminal, { x: 10, y: 5 })).toBe(2);
+  expect(tabAt(tabLabelsOf(snapshot, 'insert', undefined), terminal, { x: 13, y: 5 })).toBe(3);
+});
+
+it('shows the mode and a paste message without the tab labels, even when the labels are wider than the terminal', () => {
+  const snapshot = {
+    ...listSnapshot(1, 1, 3),
+    tabs: [{ id: tabId(1), label: 'x'.repeat(terminal.columns * 2) }],
+  } as unknown as StoreSnapshot;
+
+  for (const message of [
+    'y/n: paste 2 lines without bracketed paste?',
+    'Paste failed: no clipboard is available here.',
+  ]) {
+    const labels = tabLabelsOf(snapshot, 'normal', message);
+
+    expect(statusBarLine('normal', labels, message)).toBe(`NORMAL  ${message}`);
+    expect(tabAt(labels, terminal, { x: 7, y: 5 })).toBeUndefined();
+    expect(tabAt(labels, terminal, { x: terminal.columns + 7, y: 5 })).toBeUndefined();
+  }
+
+  expect(tabAt(tabLabelsOf(snapshot, 'normal', undefined), terminal, { x: 7, y: 5 })).toBe(1);
 });
 
 it('hits a named tab across its whole drawn label', () => {
@@ -159,10 +182,13 @@ it('hits a named tab across its whole drawn label', () => {
     tabs: [{ id: tabId(1), label: 'build' }],
   } as unknown as StoreSnapshot;
 
-  expect(statusBarLine('insert', tabLabelsOf(snapshot, 'insert'))).toBe('INSERT 1:build [2] 3');
-  expect(tabAt(snapshot, 'insert', terminal, { x: 13, y: 5 })).toBe(1);
-  expect(tabAt(snapshot, 'insert', terminal, { x: 15, y: 5 })).toBe(2);
-  expect(tabAt(snapshot, 'insert', terminal, { x: 19, y: 5 })).toBe(3);
+  expect(statusBarLine('insert', tabLabelsOf(snapshot, 'insert', undefined), undefined)).toBe(
+    'INSERT 1:build [2] 3',
+  );
+
+  expect(tabAt(tabLabelsOf(snapshot, 'insert', undefined), terminal, { x: 13, y: 5 })).toBe(1);
+  expect(tabAt(tabLabelsOf(snapshot, 'insert', undefined), terminal, { x: 15, y: 5 })).toBe(2);
+  expect(tabAt(tabLabelsOf(snapshot, 'insert', undefined), terminal, { x: 19, y: 5 })).toBe(3);
 });
 
 it('hits the second tab when the first tab label has wide characters', () => {
@@ -171,20 +197,34 @@ it('hits the second tab when the first tab label has wide characters', () => {
     tabs: [{ id: tabId(1), label: '日本語' }],
   } as unknown as StoreSnapshot;
 
-  expect(statusBarLine('insert', tabLabelsOf(snapshot, 'insert'))).toBe('INSERT 1:日本語 [2] 3');
-  expect(tabAt(snapshot, 'insert', terminal, { x: 14, y: 5 })).toBe(1);
-  expect(tabAt(snapshot, 'insert', terminal, { x: 16, y: 5 })).toBe(2);
-  expect(tabAt(snapshot, 'insert', terminal, { x: 18, y: 5 })).toBe(2);
-  expect(tabAt(snapshot, 'insert', terminal, { x: 20, y: 5 })).toBe(3);
+  expect(statusBarLine('insert', tabLabelsOf(snapshot, 'insert', undefined), undefined)).toBe(
+    'INSERT 1:日本語 [2] 3',
+  );
+
+  expect(tabAt(tabLabelsOf(snapshot, 'insert', undefined), terminal, { x: 14, y: 5 })).toBe(1);
+  expect(tabAt(tabLabelsOf(snapshot, 'insert', undefined), terminal, { x: 16, y: 5 })).toBe(2);
+  expect(tabAt(tabLabelsOf(snapshot, 'insert', undefined), terminal, { x: 18, y: 5 })).toBe(2);
+  expect(tabAt(tabLabelsOf(snapshot, 'insert', undefined), terminal, { x: 20, y: 5 })).toBe(3);
 });
 
 it('hits no tab on the mode name, a gap, past the last label, or another row', () => {
   const snapshot = listSnapshot(1, 1, 3);
 
-  expect(tabAt(snapshot, 'insert', terminal, { x: 2, y: 5 })).toBeUndefined();
-  expect(tabAt(snapshot, 'insert', terminal, { x: 8, y: 5 })).toBeUndefined();
-  expect(tabAt(snapshot, 'insert', terminal, { x: 14, y: 5 })).toBeUndefined();
-  expect(tabAt(snapshot, 'insert', terminal, { x: 7, y: 4 })).toBeUndefined();
+  expect(
+    tabAt(tabLabelsOf(snapshot, 'insert', undefined), terminal, { x: 2, y: 5 }),
+  ).toBeUndefined();
+
+  expect(
+    tabAt(tabLabelsOf(snapshot, 'insert', undefined), terminal, { x: 8, y: 5 }),
+  ).toBeUndefined();
+
+  expect(
+    tabAt(tabLabelsOf(snapshot, 'insert', undefined), terminal, { x: 14, y: 5 }),
+  ).toBeUndefined();
+
+  expect(
+    tabAt(tabLabelsOf(snapshot, 'insert', undefined), terminal, { x: 7, y: 4 }),
+  ).toBeUndefined();
 });
 
 it('hits chrome by the live terminal size, not the size the server last heard', () => {
@@ -196,8 +236,8 @@ it('hits chrome by the live terminal size, not the size the server last heard', 
   const live = { columns: 40, rows: 10 };
 
   expect(workspaceAt(snapshot, live, { x: 0, y: 0 })).toBeUndefined();
-  expect(tabAt(snapshot, 'insert', live, { x: 7, y: 9 })).toBe(1);
-  expect(tabAt(snapshot, 'insert', live, { x: 7, y: 5 })).toBeUndefined();
+  expect(tabAt(tabLabelsOf(snapshot, 'insert', undefined), live, { x: 7, y: 9 })).toBe(1);
+  expect(tabAt(tabLabelsOf(snapshot, 'insert', undefined), live, { x: 7, y: 5 })).toBeUndefined();
 });
 
 it('hits the side list rows of a live terminal taller than the server size', () => {
@@ -301,7 +341,10 @@ it('shows the tabs of the focused workspace only', () => {
     ],
   } as unknown as StoreSnapshot;
 
-  expect(tabLabelsOf(snapshot, 'insert').map((label) => label.text)).toEqual(['[1]', '2']);
+  expect(tabLabelsOf(snapshot, 'insert', undefined).map((label) => label.text)).toEqual([
+    '[1]',
+    '2',
+  ]);
 });
 
 it('shows no tabs when no workspace is focused', () => {
@@ -310,5 +353,5 @@ it('shows no tabs when no workspace is focused', () => {
     defaultView: { focusedWorkspaceId: workspaceId(9), activeTabs: [] },
   } as unknown as StoreSnapshot;
 
-  expect(tabLabelsOf(snapshot, 'insert')).toEqual([]);
+  expect(tabLabelsOf(snapshot, 'insert', undefined)).toEqual([]);
 });

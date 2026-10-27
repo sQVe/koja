@@ -44,6 +44,17 @@ export interface PaneHandlers<Result> {
   onPaneRows?: (request: Request<Result>, rows: PaneRows) => void;
 }
 
+interface PaneTargetHandlers<Result> {
+  missing: Result;
+  begin: (request: Request<Result>, paneId: PaneId) => void;
+  onMessage: (
+    request: Request<Result>,
+    message: ControlMessage,
+    paneId: PaneId | undefined,
+  ) => void;
+  onPaneRows?: (request: Request<Result>, rows: PaneRows) => void;
+}
+
 const requestTimeoutMs = 10_000;
 
 // Sends hello, waits for welcome, and hands each later message to the handlers. Bytes the socket
@@ -181,12 +192,11 @@ export const runRequest = async <Result>(
   }
 };
 
-// Runs a request against one pane: the given one, or the focused one from the snapshot.
-export const runPaneRequest = <Result>(
+export const runPaneTargetRequest = <Result>(
   socketPath: string,
   version: BuildVersion,
   pane: PaneId | undefined,
-  handlers: PaneHandlers<Result>,
+  handlers: PaneTargetHandlers<Result>,
 ): Promise<Result | RequestFailure> => {
   let paneId: PaneId | undefined = pane;
 
@@ -224,6 +234,22 @@ export const runPaneRequest = <Result>(
         return;
       }
 
+      handlers.onMessage(request, message, paneId);
+    },
+  });
+};
+
+export const runPaneRequest = <Result>(
+  socketPath: string,
+  version: BuildVersion,
+  pane: PaneId | undefined,
+  handlers: PaneHandlers<Result>,
+): Promise<Result | RequestFailure> =>
+  runPaneTargetRequest<Result>(socketPath, version, pane, {
+    missing: handlers.missing,
+    begin: handlers.begin,
+    ...(handlers.onPaneRows === undefined ? {} : { onPaneRows: handlers.onPaneRows }),
+    onMessage: (request, message, paneId) => {
       if (!('paneId' in message) || message.paneId !== paneId) {
         return;
       }
@@ -237,7 +263,6 @@ export const runPaneRequest = <Result>(
       handlers.onPaneMessage(request, message);
     },
   });
-};
 
 export const stopReplyIn = (frames: readonly ReceivedFrame[]): StopReply | undefined => {
   for (const frame of frames) {

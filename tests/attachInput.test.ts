@@ -31,15 +31,15 @@ it('shows the input mode in the status bar as the keys change it', async () => {
   await until(() => statusBar() === 'INSERT [1]');
 });
 
-it('sends a bracketed paste with markers when the pane asks for them', async () => {
+it('sends a one-line bracketed paste with markers when the pane asks for them', async () => {
   const { statusBar, type, receivedText, until } = await setupAttach(ModeFlag.bracketedPaste);
 
   await until(() => statusBar() === 'INSERT [1]');
 
-  type('\x1b[200~one\ntwo\x1b[201~');
+  type('\x1b[200~one two\x1b[201~');
 
   await until(() => receivedText().endsWith('\x1b[201~'));
-  expect(receivedText()).toBe('\x1b[200~one\ntwo\x1b[201~');
+  expect(receivedText()).toBe('\x1b[200~one two\x1b[201~');
 });
 
 it('sends a paste without markers when the pane does not ask for them', async () => {
@@ -47,10 +47,10 @@ it('sends a paste without markers when the pane does not ask for them', async ()
 
   await until(() => statusBar() === 'INSERT [1]');
 
-  type('\x1b[200~one\ntwo\x1b[201~');
+  type('\x1b[200~one two\x1b[201~');
 
-  await until(() => receivedText().length >= 'one\ntwo'.length);
-  expect(receivedText()).toBe('one\ntwo');
+  await until(() => receivedText().length >= 'one two'.length);
+  expect(receivedText()).toBe('one two');
 });
 
 const workspaceListSchema = z.array(

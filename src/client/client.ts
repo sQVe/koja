@@ -20,6 +20,7 @@ export type {
   CloseReason,
   InputMode,
   PaneNotice,
+  PasteRequest,
   TabRoute,
   TerminalTheme,
   WorkspaceReply,
@@ -29,8 +30,12 @@ export { runPaneCopy } from './paneCopy.ts';
 export { runPiReport, runPiStatus } from './piRequest.ts';
 export type { PiReportMessage, PiReportResult, PiStatus } from './piRequest.ts';
 export type { PaneCopyCommand } from './paneCopy.ts';
+export { runPanePaste } from './panePaste.ts';
+export type { PanePasteCommand, PanePasteCommandResult, PanePasteResult } from './panePaste.ts';
 export { createClipboardQueue } from './clipboardWrite.ts';
 export type { ClipboardQueue } from './clipboardWrite.ts';
+export { createReadRunner, readClipboard } from './clipboardRead.ts';
+export type { ClipboardReadResult } from './clipboardRead.ts';
 export { createRowCache } from './rowCache.ts';
 export type { RowCache, RowRange } from './rowCache.ts';
 export { activeTabIdOf, focusedPane, scrollTopOf, viewedPane, shownView } from './snapshot.ts';
