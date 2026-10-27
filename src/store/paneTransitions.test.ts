@@ -2,6 +2,7 @@ import { expect, it } from 'bun:test';
 
 import { clientId, paneId, tabId, workspaceId } from '../ids.ts';
 import type { PaneId } from '../ids.ts';
+import type { Arrangement } from '../layout.ts';
 import {
   activeTabOf,
   applyFact,
@@ -1019,4 +1020,79 @@ it('ends a pane that failed while it ran when the server stops', () => {
   });
 
   expect(result.state.panes[0]?.lifecycle).toBe('exited');
+});
+
+const orderOf = (state: State): PaneId[] => [...defined(state.tabs[0]).arrangement.order];
+
+it('puts a split pane in the order after the pane it split', () => {
+  const state = nestedState();
+
+  expect(state.tabs[0]?.arrangement).toEqual({
+    choice: 'legacy',
+    order: [paneId(1), paneId(3), paneId(2)],
+  });
+});
+
+it('keeps a master choice and its order when a pane splits', () => {
+  const opened = run([createKoja, attachLarge, splitFirst('right')]);
+  const tab = defined(opened.tabs[0]);
+
+  const master: State = {
+    ...opened,
+    tabs: [{ ...tab, arrangement: { choice: 'master', order: [paneId(2), paneId(1)] } }],
+  };
+
+  const result = intent(master, splitFirst('below'));
+
+  const arrangement: Arrangement = {
+    choice: 'master',
+    order: [paneId(2), paneId(1), paneId(3)],
+  };
+
+  expect(result.state.tabs[0]?.arrangement).toEqual(arrangement);
+
+  expect(result.changes).toContainEqual({
+    type: 'tabLayoutChanged',
+    tabId: tabId(1),
+    layout: defined(result.state.tabs[0]).layout,
+    arrangement,
+  });
+});
+
+it('drops a closed pane from the order', () => {
+  const result = intent(nestedState(), { type: 'closePane', paneId: paneId(3) });
+
+  expect(orderOf(result.state)).toEqual([paneId(1), paneId(2)]);
+
+  expect(result.changes).toContainEqual({
+    type: 'tabLayoutChanged',
+    tabId: tabId(1),
+    layout: defined(result.state.tabs[0]).layout,
+    arrangement: { choice: 'legacy', order: [paneId(1), paneId(2)] },
+  });
+});
+
+it('drops a pane that fails to start from the order', () => {
+  const result = fact(nestedState(), {
+    type: 'paneFailedToStart',
+    paneId: paneId(3),
+    generation: 3,
+    message: 'no shell',
+  });
+
+  expect(orderOf(result.state)).toEqual([paneId(1), paneId(2)]);
+});
+
+it('keeps the order when a pane resizes', () => {
+  const state = nestedState();
+  const result = intent(state, resize(2, 'left', 2));
+
+  expect(result.changes).toContainEqual({
+    type: 'tabLayoutChanged',
+    tabId: tabId(1),
+    layout: defined(result.state.tabs[0]).layout,
+    arrangement: defined(state.tabs[0]).arrangement,
+  });
+
+  expect(result.state.tabs[0]?.arrangement).toEqual(state.tabs[0]?.arrangement);
 });

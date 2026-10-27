@@ -93,6 +93,7 @@ export const snapshotWith = (
       id: tabId(1),
       workspaceId: workspaceId(1),
       layout: { kind: 'pane', paneId: paneId(1) },
+      arrangement: { choice: 'legacy', order: [paneId(1)] },
       focusedPaneId: paneId(focused),
       zoomedPaneId: undefined,
       label: undefined,

@@ -56,7 +56,9 @@ const applyLayoutChange = (snapshot: StoreSnapshot, change: StoreChange): StoreS
 
   if (change.type === 'tabLayoutChanged') {
     const tabs = snapshot.tabs.map((tab) =>
-      tab.id === change.tabId ? { ...tab, layout: change.layout } : tab,
+      tab.id === change.tabId
+        ? { ...tab, layout: change.layout, arrangement: change.arrangement }
+        : tab,
     );
 
     return { ...snapshot, tabs };

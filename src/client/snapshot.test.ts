@@ -39,6 +39,7 @@ const snapshot: StoreSnapshot = {
       id: tabId(1),
       workspaceId: workspaceId(1),
       layout: { kind: 'pane', paneId: paneId(1) },
+      arrangement: { choice: 'legacy', order: [paneId(1)] },
       focusedPaneId: paneId(1),
       zoomedPaneId: undefined,
       label: undefined,
@@ -122,6 +123,7 @@ const secondTab = {
   id: tabId(2),
   workspaceId: workspaceId(2),
   layout: { kind: 'pane' as const, paneId: paneId(2) },
+  arrangement: { choice: 'legacy' as const, order: [paneId(2)] },
   focusedPaneId: paneId(2),
   zoomedPaneId: undefined,
   label: undefined,
@@ -258,9 +260,18 @@ it('replaces the layout of the tab the change names', () => {
     second: { kind: 'pane' as const, paneId: paneId(3) },
   };
 
-  const next = applyChange(withSecond, { type: 'tabLayoutChanged', tabId: tabId(1), layout });
+  const arrangement = { choice: 'master' as const, order: [paneId(3), paneId(1)] };
+
+  const next = applyChange(withSecond, {
+    type: 'tabLayoutChanged',
+    tabId: tabId(1),
+    layout,
+    arrangement,
+  });
 
   expect(next.tabs.map((tab) => tab.layout)).toEqual([layout, secondTab.layout]);
+
+  expect(next.tabs.map((tab) => tab.arrangement)).toEqual([arrangement, secondTab.arrangement]);
 });
 
 it('moves the focus of the tab the change names', () => {

@@ -1,11 +1,17 @@
 import { expect, it } from 'bun:test';
 import { readFileSync } from 'node:fs';
-import { writeFile } from 'node:fs/promises';
+import { mkdir, writeFile } from 'node:fs/promises';
+import { dirname, join } from 'node:path';
+
+import { z } from 'zod';
 
 import packageJson from '../package.json' with { type: 'json' };
 import { connectAttach, shownView } from '../src/client/client.ts';
+import { paneId } from '../src/ids.ts';
+import { layoutPanes, paneSize } from '../src/layout.ts';
+import type { Layout } from '../src/layout.ts';
 import { ghosttyCommit } from '../src/vt/vt.ts';
-import { cliTestTimeoutMs } from './cliHarness.ts';
+import { cliTestTimeoutMs, temporaryDirectory } from './cliHarness.ts';
 import { isRunning, waitFor } from './serverProcesses.ts';
 import { setup, buildSetup } from './sessionHarness.ts';
 
@@ -200,6 +206,113 @@ it(
     await server.start();
 
     expect(await attachedFocus(server.socketPath)).toBe(first);
+  },
+  cliTestTimeoutMs,
+);
+
+const savedSplits = {
+  kind: 'split',
+  direction: 'right',
+  ratio: 0.3,
+  first: { kind: 'pane', paneId: 'pane-2' },
+  second: {
+    kind: 'split',
+    direction: 'below',
+    ratio: 0.7,
+    first: { kind: 'pane', paneId: 'pane-3' },
+    second: { kind: 'pane', paneId: 'pane-1' },
+  },
+};
+
+const paneListSchema = z.array(
+  z.object({
+    id: z.string(),
+    lifecycle: z.string(),
+    focused: z.boolean(),
+    columns: z.number(),
+    rows: z.number(),
+  }),
+);
+
+it(
+  'restores the splits, panes, focus, and sizes of a version 1 file saved without arrangements',
+  async () => {
+    const { serverAt, environment } = await setup();
+    const server = serverAt('koja');
+    const folder = await temporaryDirectory();
+    const starts = join(folder, 'starts.txt');
+    const startScript = join(folder, 'start.sh');
+    const path = await server.sessionPath();
+
+    // An interactive sh runs the file ENV names, so each shell start adds one line.
+    await writeFile(startScript, `echo "$KOJA_PANE_ID" >> ${starts}\n`);
+    environment['ENV'] = startScript;
+    await mkdir(dirname(path), { recursive: true });
+
+    await writeFile(
+      path,
+      JSON.stringify({
+        version: 1,
+        session: {
+          workspaces: [
+            {
+              id: 'workspace-1',
+              root: folder,
+              label: 'old',
+              tabIds: ['tab-1'],
+              activeTabId: 'tab-1',
+            },
+          ],
+          tabs: [
+            {
+              id: 'tab-1',
+              workspaceId: 'workspace-1',
+              layout: savedSplits,
+              focusedPaneId: 'pane-3',
+              zoomedPaneId: null,
+              label: null,
+            },
+          ],
+          panes: ['pane-1', 'pane-2', 'pane-3'].map((id) => ({
+            id,
+            tabId: 'tab-1',
+            startFolder: null,
+          })),
+          focusedWorkspaceId: 'workspace-1',
+          nextWorkspaceNumber: 2,
+          nextTabNumber: 2,
+          nextPaneNumber: 4,
+        },
+      }),
+    );
+
+    await server.start();
+
+    const expected = layoutPanes(savedSplits as Layout, paneSize(undefined))
+      .map(({ paneId: id, terminal }) => ({
+        id: id as string,
+        lifecycle: 'running',
+        focused: id === paneId(3),
+        columns: terminal.columns,
+        rows: terminal.rows,
+      }))
+      .toSorted((first, second) => first.id.localeCompare(second.id));
+
+    const listed = async () =>
+      paneListSchema.parse(JSON.parse(await server.koja(['pane', 'list', '--json'])));
+
+    const restored = await waitFor(async () =>
+      (await listed()).every((pane) => pane.lifecycle === 'running'),
+    );
+
+    expect(restored).toBe(true);
+    expect(await listed()).toEqual(expected);
+    expect(await server.workspaceIds()).toEqual(['workspace-1']);
+
+    const started = await waitFor(() => readText(starts).split('\n').length > 3);
+
+    expect(started).toBe(true);
+    expect(readText(starts).split('\n').toSorted()).toEqual(['', 'pane-1', 'pane-2', 'pane-3']);
   },
   cliTestTimeoutMs,
 );

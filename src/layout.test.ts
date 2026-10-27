@@ -3,6 +3,7 @@ import { expect, it } from 'bun:test';
 import { paneId } from './ids.ts';
 import type { PaneId } from './ids.ts';
 import {
+  arrangementForLayout,
   canSplit,
   firstPaneId,
   layoutForOrder,
@@ -779,6 +780,15 @@ it('holds each pane of the tree exactly once in the repaired order', () => {
     expect(new Set(result).size).toBe(result.length);
     expect(orderForLayout(order, layout)).toEqual(result);
   }
+});
+
+it('keeps the layout choice and repairs the order for a new tree', () => {
+  const layout = split('right', leaf(1), split('below', leaf(2), leaf(4)));
+
+  expect(arrangementForLayout({ choice: 'master', order: ids(3, 2, 1) }, layout)).toEqual({
+    choice: 'master',
+    order: ids(2, 4, 1),
+  });
 });
 
 it('refuses an order that names a pane twice when it repairs the order', () => {

@@ -4,6 +4,7 @@ import type { InputMode, StoreSnapshot, TabRoute, WorkspaceCommand } from '../cl
 import { clientId, paneId, tabId, workspaceId } from '../ids.ts';
 import type { PaneId, WorkspaceId } from '../ids.ts';
 import { invariant } from '../invariant.ts';
+import { legacyArrangement } from '../layout.ts';
 import { ModeFlag } from '../rows/rows.ts';
 import { actionViewRowsOf, createActionView } from './actionView.ts';
 import type { ActionView } from './actionView.ts';
@@ -133,6 +134,7 @@ export const storeSnapshotOf = (
       id: tabId(tab.id),
       workspaceId: tab.workspaceId,
       layout: rowLayout(tab.panes),
+      arrangement: legacyArrangement(rowLayout(tab.panes)),
       focusedPaneId: tab.focused,
       zoomedPaneId: undefined,
       label: undefined,

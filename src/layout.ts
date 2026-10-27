@@ -364,6 +364,11 @@ export const orderForLayout = (order: readonly PaneId[], layout: Layout): PaneId
   return repaired;
 };
 
+export const arrangementForLayout = (arrangement: Arrangement, layout: Layout): Arrangement => ({
+  choice: arrangement.choice,
+  order: orderForLayout(arrangement.order, layout),
+});
+
 const withPane = (
   layout: Layout | undefined,
   previous: PaneId | undefined,

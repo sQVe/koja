@@ -4,6 +4,7 @@ import type { PaneAction } from '../actions.ts';
 import type { PaneLayoutCommand, StoreSnapshot } from '../client/client.ts';
 import { clientId, paneId, tabId, workspaceId } from '../ids.ts';
 import type { PaneId } from '../ids.ts';
+import { legacyArrangement } from '../layout.ts';
 import { runPaneAction } from './paneActions.ts';
 
 const size = { columns: 80, rows: 24 };
@@ -59,6 +60,7 @@ const snapshotWith = (focused: number, paneCount: number): StoreSnapshot => {
         id: tabId(1),
         workspaceId: workspaceId(1),
         layout,
+        arrangement: legacyArrangement(layout),
         focusedPaneId: paneId(focused),
         zoomedPaneId: undefined,
         label: undefined,

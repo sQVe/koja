@@ -34,6 +34,8 @@ type HelloAnswer = Extract<ControlMessage, { type: 'welcome' | 'refused' }>;
 
 type Layout = Tab['layout'];
 
+type Arrangement = Tab['arrangement'];
+
 type ResizeDirection = Extract<Intent, { type: 'resizePane' }>['direction'];
 
 type SplitDirection = Extract<Layout, { kind: 'split' }>['direction'];
@@ -157,10 +159,16 @@ const layoutSchema: z.ZodType<Layout> = z.lazy(() =>
   ]),
 );
 
+const arrangementSchema: z.ZodType<Arrangement> = z.object({
+  choice: z.enum(['legacy', 'master']),
+  order: z.array(paneIdSchema),
+});
+
 const tabSchema: z.ZodType<Tab> = z.object({
   id: tabIdSchema,
   workspaceId: workspaceIdSchema,
   layout: layoutSchema,
+  arrangement: arrangementSchema,
   focusedPaneId: paneIdSchema,
   zoomedPaneId: absent(paneIdSchema),
   label: absent(z.string()),
@@ -229,7 +237,12 @@ const changeSchema: z.ZodType<Change> = z.discriminatedUnion('type', [
   z.object({ type: z.literal('tabRemoved'), tabId: tabIdSchema }),
   z.object({ type: z.literal('paneRemoved'), paneId: paneIdSchema }),
   z.object({ type: z.literal('paneMoved'), paneId: paneIdSchema, tabId: tabIdSchema }),
-  z.object({ type: z.literal('tabLayoutChanged'), tabId: tabIdSchema, layout: layoutSchema }),
+  z.object({
+    type: z.literal('tabLayoutChanged'),
+    tabId: tabIdSchema,
+    layout: layoutSchema,
+    arrangement: arrangementSchema,
+  }),
   z.object({ type: z.literal('paneFocused'), tabId: tabIdSchema, paneId: paneIdSchema }),
   z.object({
     type: z.literal('tabZoomChanged'),

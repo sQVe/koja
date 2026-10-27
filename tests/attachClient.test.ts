@@ -49,6 +49,7 @@ const tab = {
   id: tabId(1),
   workspaceId: workspaceId(1),
   layout: { kind: 'pane', paneId: pane.id },
+  arrangement: { choice: 'legacy', order: [pane.id] },
   focusedPaneId: pane.id,
   zoomedPaneId: undefined,
   label: undefined,
@@ -695,6 +696,7 @@ const twoTabSnapshot = (): ControlMessage => {
     ...tab,
     id: tabId(2),
     layout: { kind: 'pane', paneId: second.id },
+    arrangement: { choice: 'legacy', order: [second.id] },
     focusedPaneId: second.id,
   } as const;
 

@@ -50,6 +50,7 @@ const firstTab = {
   id: tabId(1),
   workspaceId: workspaceId(1),
   layout: { kind: 'pane', paneId: firstPane.id },
+  arrangement: { choice: 'legacy', order: [firstPane.id] },
   focusedPaneId: firstPane.id,
   zoomedPaneId: undefined,
   label: undefined,
@@ -59,6 +60,7 @@ const secondTab = {
   ...firstTab,
   id: tabId(2),
   layout: { kind: 'pane', paneId: secondPane.id },
+  arrangement: { choice: 'legacy', order: [secondPane.id] },
   focusedPaneId: secondPane.id,
 } as const;
 

@@ -45,6 +45,7 @@ const tab = {
   id: tabId(1),
   workspaceId: workspaceId(1),
   layout: { kind: 'pane' as const, paneId: pane.id },
+  arrangement: { choice: 'legacy' as const, order: [pane.id] },
   focusedPaneId: pane.id,
   zoomedPaneId: undefined,
   label: undefined,
@@ -235,7 +236,12 @@ const messages: ControlMessage[] = [
   {
     type: 'change',
     revision: 5,
-    change: { type: 'tabLayoutChanged', tabId: tab.id, layout: nested },
+    change: {
+      type: 'tabLayoutChanged',
+      tabId: tab.id,
+      layout: nested,
+      arrangement: { choice: 'master', order: [paneId(3), pane.id, paneId(2)] },
+    },
   },
   {
     type: 'change',
@@ -558,7 +564,26 @@ const piReportResultMessage = { type: 'piReportResult', result: { ok: true, stat
 
 const piStatusMessage = { type: 'piStatus', paneId: 'pane-1' };
 
+const layoutChangeMessage = {
+  type: 'change',
+  revision: 1,
+  change: {
+    type: 'tabLayoutChanged',
+    tabId: 'tab-1',
+    layout: { kind: 'pane', paneId: 'pane-1' },
+    arrangement: { choice: 'legacy', order: ['pane-1'] },
+  },
+};
+
 const refusedCases: [string, Record<string, unknown>, unknown][] = [
+  [
+    'a layout change with an unknown layout choice',
+    layoutChangeMessage,
+    {
+      ...layoutChangeMessage,
+      change: { ...layoutChangeMessage.change, arrangement: { choice: 'grid', order: ['pane-1'] } },
+    },
+  ],
   ['a missing field', resizeMessage, withoutField(resizeMessage, 'size')],
   [
     'a process info request without a pane',
@@ -840,7 +865,14 @@ it('round trips a snapshot with a split layout', () => {
   const sent: Snapshot = {
     ...emptySnapshot,
     workspaces: [workspace],
-    tabs: [{ ...tab, layout: nested, focusedPaneId: paneId(3) }],
+    tabs: [
+      {
+        ...tab,
+        layout: nested,
+        arrangement: { choice: 'master', order: [paneId(3), pane.id, paneId(2)] },
+        focusedPaneId: paneId(3),
+      },
+    ],
   };
 
   const message = parseMessage(encodeControl({ type: 'snapshot', snapshot: sent }));
@@ -856,6 +888,7 @@ it.each([0, 1, 1.5])('refuses a split with ratio %d', (ratio) => {
       type: 'tabLayoutChanged',
       tabId: 'tab-1',
       layout: { ...nested, ratio },
+      arrangement: { choice: 'legacy', order: ['pane-1', 'pane-2', 'pane-3'] },
     },
   });
 

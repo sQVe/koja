@@ -208,6 +208,7 @@ it('reports the layout, focus, and move of a pane that joins a tab', () => {
     type: 'tabLayoutChanged',
     tabId: tabId(1),
     layout: defined(destination).layout,
+    arrangement: defined(destination).arrangement,
   });
 
   expect(result.changes).toContainEqual({
@@ -317,6 +318,7 @@ it('moves the focus to the sibling and reports the source layout when the focuse
     type: 'tabLayoutChanged',
     tabId: tabId(1),
     layout: defined(source).layout,
+    arrangement: defined(source).arrangement,
   });
 
   expect(result.changes).toContainEqual({
@@ -345,4 +347,51 @@ it('keeps the zoom of the source tab when another pane leaves', () => {
 
   expect(tabOf(result.state, 1)?.zoomedPaneId).toBe(paneId(3));
   expect(changeTypes(result.changes)).not.toContain('tabZoomChanged');
+});
+
+const arrangementOf = (state: State, id: number) => tabOf(state, id)?.arrangement;
+
+it('keeps each tab order in step with its tree when a pane moves to another tab', () => {
+  const state = run([attachLarge, createKoja, splitFirst('right'), createTab]);
+  const result = intent(state, move(2, toTab(2)));
+
+  expect(arrangementOf(result.state, 1)).toEqual({ choice: 'legacy', order: [paneId(1)] });
+
+  expect(arrangementOf(result.state, 2)).toEqual({
+    choice: 'legacy',
+    order: [paneId(3), paneId(2)],
+  });
+
+  expect(result.changes).toContainEqual({
+    type: 'tabLayoutChanged',
+    tabId: tabId(1),
+    layout: defined(tabOf(result.state, 1)).layout,
+    arrangement: defined(arrangementOf(result.state, 1)),
+  });
+
+  expect(result.changes).toContainEqual({
+    type: 'tabLayoutChanged',
+    tabId: tabId(2),
+    layout: defined(tabOf(result.state, 2)).layout,
+    arrangement: defined(arrangementOf(result.state, 2)),
+  });
+});
+
+it('keeps each tab order in step with its tree when a pane moves to a new tab', () => {
+  const result = intent(threePaneTab(), move(2, { kind: 'newTab' }));
+
+  expect(arrangementOf(result.state, 1)).toEqual({
+    choice: 'legacy',
+    order: [paneId(1), paneId(3)],
+  });
+
+  expect(arrangementOf(result.state, 2)).toEqual({ choice: 'legacy', order: [paneId(2)] });
+});
+
+it('starts the tab of a pane moved to a new workspace as legacy with that pane', () => {
+  const state = run([attachLarge, createKoja, splitFirst('right')]);
+  const result = intent(state, move(2, { kind: 'newWorkspace', root: '/work/docs' }));
+
+  expect(arrangementOf(result.state, 1)).toEqual({ choice: 'legacy', order: [paneId(1)] });
+  expect(arrangementOf(result.state, 2)).toEqual({ choice: 'legacy', order: [paneId(2)] });
 });

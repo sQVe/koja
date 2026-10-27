@@ -4,6 +4,8 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
 import { clientId, paneId, tabId, workspaceId } from '../src/ids.ts';
+import { legacyArrangement } from '../src/layout.ts';
+import type { Layout } from '../src/layout.ts';
 import {
   createFrameDecoder,
   encodeControl,
@@ -57,19 +59,22 @@ const makePane = (number: number) => ({
   error: undefined,
 });
 
+const makeLayout = (panes: number): Layout =>
+  panes === 1
+    ? { kind: 'pane', paneId: paneId(1) }
+    : {
+        kind: 'split',
+        direction: 'right',
+        ratio: 0.5,
+        first: { kind: 'pane', paneId: paneId(1) },
+        second: { kind: 'pane', paneId: paneId(2) },
+      };
+
 const makeTab = (panes: number, focused: number) => ({
   id: tabId(1),
   workspaceId: workspaceId(1),
-  layout:
-    panes === 1
-      ? { kind: 'pane' as const, paneId: paneId(1) }
-      : {
-          kind: 'split' as const,
-          direction: 'right' as const,
-          ratio: 0.5,
-          first: { kind: 'pane' as const, paneId: paneId(1) },
-          second: { kind: 'pane' as const, paneId: paneId(2) },
-        },
+  layout: makeLayout(panes),
+  arrangement: legacyArrangement(makeLayout(panes)),
   focusedPaneId: paneId(focused),
   zoomedPaneId: undefined,
   label: undefined,
