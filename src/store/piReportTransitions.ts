@@ -30,8 +30,6 @@ export interface PiReport {
   sequence: number;
 }
 
-// `sequence` is the last accepted sequence of the process. An exited record stays so that a delayed
-// report from the same process cannot bring its identity back.
 export interface PiRecord {
   state: 'reported' | 'switching' | 'exited';
   generation: number;
@@ -187,8 +185,6 @@ export const applyPiReport = (state: State, input: PiReportInput): PiReportResul
   return withRecord(state, input.paneId, record, 'recorded');
 };
 
-// pi can exit before its quit report reaches the server, so a quit may name a process that is gone.
-// It can only end the record it names.
 export const applyGonePiQuit = (state: State, input: GonePiQuitInput): PiReportResult => {
   const refusal = generationRefusal(state, input.paneId, input.generation);
 

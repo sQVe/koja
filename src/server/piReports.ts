@@ -93,8 +93,6 @@ export const handlePiReport = (
   connection.send({ type: 'piReportResult', result });
 };
 
-// Content checks belong to session saving. Here a session counts as saved once pi has written its
-// file, and pi writes a new session only after its first message.
 const isSavedSessionFile = (path: string): boolean => {
   if (!isAbsolute(path)) {
     return false;

@@ -30,8 +30,6 @@ interface Report {
   sequence: number;
 }
 
-// pi loads this module again for each new session and reload inside the same process, so the
-// sequence lives on the process's global object, where it keeps increasing.
 const sequenceKey = Symbol.for('koja.piReportSequence');
 
 const nextSequence = (): number => {

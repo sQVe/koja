@@ -33,7 +33,6 @@ const reportOf = (
 const saveConversation = (pane: PaneSetup): Promise<void> =>
   writeFile(conversationFileOf(pane), '{"type":"session"}\n');
 
-// The identity fields that status shows for a reported or lost pi.
 const piFieldsOf = (fields: Record<string, unknown>) => {
   const { processId: _processId, event: _event, sequence: _sequence, leafId, ...identity } = fields;
 

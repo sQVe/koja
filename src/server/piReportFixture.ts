@@ -71,7 +71,6 @@ const fixture = (): PiReportFixture => {
   const messages: ControlMessage[] = [];
   const warnings: unknown[] = [];
 
-  // SAFETY: the report handlers read only reportPass and runtime, so the other RunningPane fields are not built here.
   // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- the fixture omits the terminal, PTY, and row publisher.
   const running = {
     reportPass: pass,
@@ -93,7 +92,6 @@ const fixture = (): PiReportFixture => {
     },
   };
 
-  // SAFETY: the report handlers call only send on a connection.
   // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- the fixture omits the other Connection methods.
   const connection = {
     send: (message: ControlMessage) => {
