@@ -812,6 +812,23 @@ const refusedCases: [string, Record<string, unknown>, unknown][] = [
     { ...switchingReplyMessage, pi: { ...switchingReplyMessage.pi, ineligibleReasons: ['busy'] } },
   ],
   [
+    'a pi status reply with more ineligible reasons than exist',
+    switchingReplyMessage,
+    {
+      ...switchingReplyMessage,
+      pi: {
+        ...switchingReplyMessage.pi,
+        ineligibleReasons: [
+          'tauWorker',
+          'switchPending',
+          'noSessionFile',
+          'sessionNotSaved',
+          'tauWorker',
+        ],
+      },
+    },
+  ],
+  [
     'a pi status reply without ineligible reasons',
     lostReplyMessage,
     { ...lostReplyMessage, pi: withoutField(lostReplyMessage.pi, 'ineligibleReasons') },
