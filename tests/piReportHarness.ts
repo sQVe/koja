@@ -31,16 +31,19 @@ export interface RecordedReport {
 const quote = (value: string): string => `'${value.replaceAll("'", "'\\''")}'`;
 
 // Each run saves the report it reads, runs the real command on it, and saves the command's stdout
-// and exit status. The exit status is written last, so a record that has it is complete.
+// and exit status. The exit status is written last, so a record that has it is complete. A quit
+// delay holds only the quit report back for that many seconds before the real command runs.
 export const writeRecordingBinary = async (
   path: string,
   realBinaryPath: string,
   reportsDirectory: string,
+  quitDelaySeconds = 0,
 ): Promise<void> => {
   const script = [
     '#!/bin/sh',
     `record=${quote(reportsDirectory)}/"$$"`,
     'cat > "$record.json"',
+    `grep -q '"reason":"quit"' "$record.json" && sleep ${String(quitDelaySeconds)}`,
     `${quote(realBinaryPath)} "$@" < "$record.json" > "$record.out"`,
     'status=$?',
     'echo "$status" > "$record.exit"',

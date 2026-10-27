@@ -5,6 +5,7 @@ import { join } from 'node:path';
 
 import { z } from 'zod';
 
+import { quitReportWaitMs } from '../extensions/pi/koja.ts';
 import { pollUntil, readJson, setup } from './paneHarness.ts';
 import type { PaneSetup } from './paneHarness.ts';
 import { recordedReportsOf, writeRecordingBinary } from './piReportHarness.ts';
@@ -161,6 +162,27 @@ const paneBinaryPathOf = async (pane: PaneSetup): Promise<string> => {
 const isReloadStart = (recorded: RecordedReport): boolean =>
   recorded.report.event.kind === 'start' && recorded.report.event.reason === 'reload';
 
+const startPiWithSlowQuitReport = async (
+  pane: PaneSetup,
+  quitDelaySeconds: number,
+): Promise<void> => {
+  const directories = await piDirectories(pane.directory);
+  const reportsDirectory = join(pane.directory, 'reports');
+  const recordingBinary = join(pane.directory, 'koja-recording');
+
+  await mkdir(reportsDirectory);
+
+  await writeRecordingBinary(
+    recordingBinary,
+    await paneBinaryPathOf(pane),
+    reportsDirectory,
+    quitDelaySeconds,
+  );
+
+  await send(pane, piCommand(directories, { extension: true, binaryPath: recordingBinary }));
+  await waitForPi(pane, 'reported');
+};
+
 it(
   'reports the exact conversation of pi in the pane, the one it switches to, and its quit',
   async () => {
@@ -309,6 +331,41 @@ it(
 
     expect(lost.pi).toMatchObject(await savedIdentityOf(forkedFile));
     expect(onlyShellRuns(await pollUntil(() => processInfo(pane), onlyShellRuns))).toBe(true);
+  },
+  piTestTimeoutMs,
+);
+
+it(
+  'shows no pi, not a lost one, once pi quits while its quit report is slow',
+  async () => {
+    const pane = await setup();
+
+    await startPiWithSlowQuitReport(pane, 1);
+    await send(pane, '/quit\r');
+
+    expect(onlyShellRuns(await pollUntil(() => processInfo(pane), onlyShellRuns))).toBe(true);
+    expect((await piStatus(pane)).pi).toBeNull();
+  },
+  piTestTimeoutMs,
+);
+
+it(
+  'lets pi exit within the quit wait when its quit report hangs',
+  async () => {
+    const pane = await setup();
+    const exitMarginMs = 2500;
+
+    await startPiWithSlowQuitReport(pane, 6);
+
+    const quitAt = performance.now();
+
+    await send(pane, '/quit\r');
+
+    const exited = onlyShellRuns(await pollUntil(() => processInfo(pane), onlyShellRuns));
+    const elapsedMs = performance.now() - quitAt;
+
+    expect(exited).toBe(true);
+    expect(elapsedMs).toBeLessThan(quitReportWaitMs + exitMarginMs);
   },
   piTestTimeoutMs,
 );

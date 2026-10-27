@@ -1,4 +1,5 @@
 import { spawn } from 'node:child_process';
+import type { ChildProcess } from 'node:child_process';
 
 import { VERSION } from '@earendil-works/pi-coding-agent';
 import type { ExtensionAPI, ExtensionContext } from '@earendil-works/pi-coding-agent';
@@ -29,6 +30,8 @@ interface Report {
   event: ReportEvent;
   sequence: number;
 }
+
+export const quitReportWaitMs = 2000;
 
 const sequenceKey = Symbol.for('koja.piReportSequence');
 
@@ -67,20 +70,40 @@ const reportOf = (
   sequence: nextSequence(),
 });
 
-// The report must never draw on pi's screen or keep pi waiting, so the command gets no terminal,
-// pi does not wait for it, and every failure is dropped.
-const send = (binaryPath: string, report: Report): void => {
+// The report must never draw on pi's screen, so the command gets no terminal and every failure is
+// dropped.
+const send = (binaryPath: string, report: Report): ChildProcess | undefined => {
   try {
     const child = spawn(binaryPath, ['pi', 'report'], { stdio: ['pipe', 'ignore', 'ignore'] });
 
     child.on('error', () => undefined);
     child.stdin.on('error', () => undefined);
     child.stdin.end(JSON.stringify(report));
-    child.unref();
+
+    return child;
   } catch {
     // A missing or broken Koja binary must not affect pi.
+    return undefined;
   }
 };
+
+// pi exits right after its quit handlers, so the server would see the process gone before its quit
+// report and show a crash. The wait is bounded so a slow report never keeps pi open.
+const waitForExit = (child: ChildProcess): Promise<void> =>
+  new Promise((resolve) => {
+    const timer = setTimeout(() => {
+      child.unref();
+      resolve();
+    }, quitReportWaitMs);
+
+    const finish = (): void => {
+      clearTimeout(timer);
+      resolve();
+    };
+
+    child.on('exit', finish);
+    child.on('error', finish);
+  });
 
 export default function koja(pi: ExtensionAPI): void {
   // oxlint-disable-next-line node/no-process-env -- pi's environment is where the pane's Koja identity enters.
@@ -95,31 +118,48 @@ export default function koja(pi: ExtensionAPI): void {
     return;
   }
 
-  const report = (context: ExtensionContext, event: ReportEvent): void => {
+  const report = (context: ExtensionContext, event: ReportEvent): ChildProcess | undefined => {
     try {
-      send(binaryPath, reportOf(pi, context, environment, event));
+      return send(binaryPath, reportOf(pi, context, environment, event));
     } catch {
       // Reading pi's state must not affect pi.
+      return undefined;
     }
   };
 
+  const reportWithoutWaiting = (context: ExtensionContext, event: ReportEvent): void => {
+    report(context, event)?.unref();
+  };
+
   pi.on('session_start', (event, context) => {
-    report(context, { kind: 'start', reason: event.reason });
+    reportWithoutWaiting(context, { kind: 'start', reason: event.reason });
   });
 
   pi.on('session_tree', (_event, context) => {
-    report(context, { kind: 'tree' });
+    reportWithoutWaiting(context, { kind: 'tree' });
   });
 
   pi.on('model_select', (_event, context) => {
-    report(context, { kind: 'model' });
+    reportWithoutWaiting(context, { kind: 'model' });
   });
 
   pi.on('thinking_level_select', (_event, context) => {
-    report(context, { kind: 'thinking' });
+    reportWithoutWaiting(context, { kind: 'thinking' });
   });
 
-  pi.on('session_shutdown', (event, context) => {
-    report(context, { kind: 'shutdown', reason: event.reason });
+  pi.on('session_shutdown', async (event, context) => {
+    const shutdown: ReportEvent = { kind: 'shutdown', reason: event.reason };
+
+    if (event.reason !== 'quit') {
+      reportWithoutWaiting(context, shutdown);
+
+      return;
+    }
+
+    const child = report(context, shutdown);
+
+    if (child !== undefined) {
+      await waitForExit(child);
+    }
   });
 }

@@ -52,6 +52,8 @@ pi process sends, including across pi's extension reloads in that process.
   next start report. Only a start report completes a switch.
 - A shutdown for quit makes the record exited, and status shows no record. The server keeps the
   process and sequence, so a delayed report from that process never brings the identity back.
+- On quit, pi waits up to 2 seconds for its quit report command to finish, so a clean quit is not
+  shown as a crash. Every other report runs without pi waiting for it.
 - pi can exit before its quit report arrives. The server accepts a quit report from a gone process
   only when it names the process id of the current record in the same pane generation, with a
   greater sequence. It can only make that record exited.
@@ -87,6 +89,7 @@ A refused report changes no record and never ends the pane's shell or its other 
 - A program the user runs inside a pane can set that pane's record. Koja does not defend against the
   user's own programs.
 - Each report starts a short `koja` process.
+- Quitting pi can take up to 2 seconds longer when the quit report is slow.
 - A pi started in a new session, such as through `setsid`, cannot report to its pane.
 - A lost quit report leaves an exited pi shown as lost.
 
