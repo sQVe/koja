@@ -22,6 +22,7 @@ const acceptedOptions = new Map<string, readonly string[]>([
   ['pane list', []],
   ['pane read', ['source', 'lines', 'from', 'to']],
   ['pane send', ['pane']],
+  ['pane paste', ['pane', 'authorize']],
   ['pane split', ['direction', 'cwd']],
   ['pane move', ['tab', 'new-tab', 'new-workspace']],
   ['pane focus', []],

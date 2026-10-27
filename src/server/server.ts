@@ -30,6 +30,7 @@ import {
   startPane,
   stopPane,
 } from './paneEffects.ts';
+import { createPasteSecret } from './panePaste.ts';
 import type { RunningPane } from './paneRecord.ts';
 import {
   answerPaneFolders,
@@ -112,6 +113,8 @@ interface Runtime {
   rowSubscriptions: Map<Connection, RowSubscriptions>;
   // The snapshot of the read a connection has parts left of, one per connection.
   readSnapshots: SnapshotStore<Connection>;
+  // Keys paste authorizations. A new server makes a new one, so earlier authorizations fail.
+  pasteSecret: Uint8Array;
   listener: Listener | undefined;
   nextConnectionId: number;
   // Whether panes start in a systemd user scope. Decided when the first pane starts.
@@ -606,6 +609,7 @@ export const runServer = async (options: ServerOptions): Promise<RunServerResult
       clientIds: new Map(),
       rowSubscriptions: new Map(),
       readSnapshots: createSnapshotStore(),
+      pasteSecret: createPasteSecret(),
       listener: undefined,
       nextConnectionId: 1,
       paneScopes: undefined,

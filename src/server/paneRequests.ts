@@ -12,6 +12,7 @@ import type { Dispatch } from './dispatchResult.ts';
 import type { Log } from './log.ts';
 import { handlePaneCopy } from './paneCopyRequests.ts';
 import { findLivePane, followFolderOf, paneNumber, startFolderOf } from './paneEffects.ts';
+import { handlePanePaste } from './panePaste.ts';
 import type { RunningPane } from './paneRecord.ts';
 import { selectPaneRows } from './paneRows.ts';
 import { createSnapshot, hasMoreParts, takePart } from './paneSnapshot.ts';
@@ -26,6 +27,7 @@ interface PaneRequestContext {
     clientIds: Map<Connection, ClientId>;
     // The snapshot of the read a connection has parts left of, one per connection.
     readSnapshots: SnapshotStore<Connection>;
+    pasteSecret: Uint8Array;
   };
 }
 
@@ -40,7 +42,7 @@ type PaneFailureReason = Extract<ControlMessage, { type: 'paneFailed' }>['reason
 
 type PaneCommandMessage = Extract<
   ControlMessage,
-  { type: 'paneRead' | 'paneReadNext' | 'paneSend' | 'paneCopy' }
+  { type: 'paneRead' | 'paneReadNext' | 'paneSend' | 'paneCopy' | 'panePaste' }
 >;
 
 const describeError = (error: unknown): string =>
@@ -211,6 +213,7 @@ const paneCommandTypes: ReadonlySet<string> = new Set([
   'paneReadNext',
   'paneSend',
   'paneCopy',
+  'panePaste',
 ]);
 
 export const isPaneCommand = (message: ControlMessage): message is PaneCommandMessage =>
@@ -223,6 +226,12 @@ export const handlePaneCommand = (
 ): void => {
   if (message.type === 'paneCopy') {
     handlePaneCopy(context, message, connection);
+
+    return;
+  }
+
+  if (message.type === 'panePaste') {
+    handlePanePaste(context, message, connection);
 
     return;
   }

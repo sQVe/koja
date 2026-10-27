@@ -50,6 +50,7 @@ history, and `git show <commit>:docs/adr/<file>` restores a retired ADR.
 - [0012: One server per socket path through a flock lock file](./0012-socket-path-lock.md)
 - [0015: Save the session after every change and start empty on a file it cannot use](./0015-save-session-after-every-change.md)
 - [0018: Each client has its own view, and one client is the foreground client](./0018-client-views-and-foreground-client.md)
+- [0020: A paste goes only to the running pane generation and the text it was confirmed for](./0020-paste-bound-to-pane-generation-and-content.md)
 
 ### UI and CLI
 

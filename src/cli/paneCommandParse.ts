@@ -2,6 +2,7 @@ import type {
   PaneCopyCommand,
   PaneLayoutCommand,
   PaneMoveDestination,
+  PanePasteCommand,
   PaneReadCommand,
   PaneScrollCommand,
   PaneSendCommand,
@@ -23,6 +24,7 @@ type ResizeDirection = Extract<PaneLayoutCommand, { action: 'resize' }>['directi
 type PaneCliAction =
   | PaneReadCommand
   | PaneSendCommand
+  | PanePasteCommand
   | PaneLayoutCommand
   | PaneScrollCommand
   | PaneCopyCommand
@@ -44,6 +46,7 @@ export interface RawPaneOptions extends Partial<RawReadOptions> {
   tab?: string | undefined;
   'new-tab'?: boolean | undefined;
   'new-workspace'?: boolean | undefined;
+  authorize?: string | undefined;
 }
 
 interface MoveOptions {
@@ -60,6 +63,7 @@ interface LayoutOptions {
 
 interface PaneOptions extends LayoutOptions {
   client: string | undefined;
+  authorize: string | undefined;
   print: boolean | undefined;
   read: RawReadOptions;
   move: MoveOptions;
@@ -78,12 +82,14 @@ export const paneOptions = {
   lines: { type: 'string' },
   from: { type: 'string' },
   to: { type: 'string' },
+  authorize: { type: 'string' },
 } as const;
 
 export const paneUsage = `  koja pane list [--socket <path>] [--json]
   koja pane read <id> [--source visible|recent|recent-unwrapped] [--lines <n>]
     [--from <row> --to <row>] [--socket <path>] [--json]
   koja pane send <text> [--pane <id>] [--socket <path>] [--json]
+  koja pane paste <text> [--pane <id>] [--authorize <token>] [--socket <path>] [--json]
   koja pane split <id> --direction below|right [--cwd <dir>] [--socket <path>] [--json]
   koja pane move <id> --tab <id> | --new-tab | --new-workspace [--socket <path>] [--json]
   koja pane focus <id> [--socket <path>] [--json]
@@ -276,6 +282,22 @@ const parsePaneSend = (rest: string[], pane: PaneId | undefined): PaneSendComman
     : 'pane send takes one text argument.';
 };
 
+const parsePanePaste = (
+  rest: string[],
+  pane: string | undefined,
+  authorization: string | undefined,
+): PanePasteCommand | string => {
+  if (rest.length !== 1) {
+    return 'pane paste takes one text argument.';
+  }
+
+  const target = parsePaneId(pane);
+
+  return target.ok
+    ? { action: 'paste', text: rest[0] ?? '', pane: target.id, authorization }
+    : target.message;
+};
+
 const parsePaneTargetCommand = (
   action: string | undefined,
   rest: string[],
@@ -327,6 +349,10 @@ const parsePaneAction = (
     return parseProcessInfoCommand(rest);
   }
 
+  if (action === 'paste') {
+    return parsePanePaste(rest, pane, options.authorize);
+  }
+
   if (action === 'scroll') {
     return parsePaneScroll(rest, options.read.to, options.client);
   }
@@ -334,7 +360,7 @@ const parsePaneAction = (
   return parsePaneTargetCommand(action, rest, pane, options.read);
 };
 
-const textByDefaultActions: ReadonlySet<string> = new Set(['read', 'send', 'copy']);
+const textByDefaultActions: ReadonlySet<string> = new Set(['read', 'send', 'paste', 'copy']);
 
 const printsJsonByDefault = (action: string): boolean => !textByDefaultActions.has(action);
 
@@ -355,6 +381,7 @@ export const parsePaneCommand = (
     lines,
     from,
     to,
+    authorize,
   }: RawPaneOptions,
   options: CommandOptions,
 ): PaneCliCommand | string => {
@@ -364,6 +391,7 @@ export const parsePaneCommand = (
     cwd,
     client,
     print,
+    authorize,
     read: { source, lines, from, to },
     move: { tab, newTab, newWorkspace },
   });
