@@ -1,8 +1,7 @@
 import type { PaneId } from '../ids.ts';
 import type { BuildVersion, ControlMessage } from '../protocol/protocol.ts';
-import { runRequest } from './clientRequest.ts';
+import { runPaneTargetRequest } from './clientRequest.ts';
 import type { Request, RequestFailure } from './clientRequest.ts';
-import { focusedPane } from './snapshot.ts';
 
 // Without a pane id, the command targets the focused pane. Without a generation, it pastes into
 // whichever generation of the pane runs.
@@ -71,29 +70,12 @@ export const runPanePaste = (
     });
   };
 
-  return runRequest<PanePasteResult>(socketPath, version, {
-    onWelcome: (request) => {
-      if (command.pane !== undefined) {
-        send(request, command.pane);
-      }
-    },
+  return runPaneTargetRequest<PanePasteResult>(socketPath, version, command.pane, {
+    missing: { ok: false, reason: 'paneMissing', paneId: undefined },
+    begin: send,
     onMessage: (request, message) => {
       if (message.type === 'panePasteResult') {
         request.finish(pasteResultOf(message.result));
-
-        return;
-      }
-
-      if (message.type !== 'snapshot' || command.pane !== undefined) {
-        return;
-      }
-
-      const focused = focusedPane(message.snapshot);
-
-      if (focused?.lifecycle === 'running') {
-        send(request, focused.id);
-      } else {
-        request.finish({ ok: false, reason: 'paneMissing', paneId: undefined });
       }
     },
   });

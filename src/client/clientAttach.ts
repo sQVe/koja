@@ -11,10 +11,10 @@ import {
 } from '../protocol/protocol.ts';
 import type { BuildVersion, ControlMessage } from '../protocol/protocol.ts';
 import { decodePaneRows, decodeRowUpdate, encodePaneInput } from '../rows/rows.ts';
-import { pasteResultOf } from './panePaste.ts';
 import type { PanePasteResult } from './panePaste.ts';
 import { paneLayoutRequest } from './paneRequest.ts';
 import type { PaneLayoutCommand } from './paneRequest.ts';
+import { createPaneRequestQueue } from './paneRequestQueue.ts';
 import { createRowCache } from './rowCache.ts';
 import type { RowCache, RowRange } from './rowCache.ts';
 import { createRowFetcher } from './rowFetch.ts';
@@ -156,8 +156,6 @@ const rowCacheLimit = 10_000;
 // growing without bound.
 const unheardNoticeLimit = 32;
 
-const layoutAnswerTimeoutMs = 2000;
-
 const handshakeTimeoutMs = 10_000;
 
 // An input payload starts with the pane number as one 32-bit word.
@@ -207,9 +205,6 @@ export const connectAttach = async (
   let ended = false;
   let tabGate = emptyTabInputGate;
   let tabAnswerCallbacks: (() => void)[] = [];
-  const layoutAnswers: (() => void)[] = [];
-  const scrollAnswers: (() => void)[] = [];
-  const pasteAnswers: ((result: PanePasteResult) => void)[] = [];
   let socket: Bun.Socket | undefined;
 
   const drain = (): void => {
@@ -235,6 +230,8 @@ export const connectAttach = async (
     enqueue(encodeFrame(FrameKind.control, encodeControl(message)));
   };
 
+  const paneRequests = createPaneRequestQueue({ send });
+
   const end = (reason: CloseReason): void => {
     if (ended) {
       return;
@@ -242,42 +239,11 @@ export const connectAttach = async (
 
     ended = true;
     socket?.end();
-
-    for (const answered of [...layoutAnswers.splice(0), ...scrollAnswers.splice(0)]) {
-      answered();
-    }
-
-    for (const answered of pasteAnswers.splice(0)) {
-      answered({ ok: false, reason: 'connectionFailed' });
-    }
+    paneRequests.close();
 
     handshake.resolve({ ok: false, reason: 'connectionFailed' });
     closedSignal.resolve(reason);
   };
-
-  const requestAnswered = (answers: (() => void)[], message: ControlMessage): Promise<void> => {
-    if (ended) {
-      return Promise.resolve();
-    }
-
-    const answer = Promise.withResolvers<undefined>();
-
-    const timer = setTimeout(() => {
-      answer.resolve(undefined);
-    }, layoutAnswerTimeoutMs);
-
-    answers.push(() => {
-      clearTimeout(timer);
-      answer.resolve(undefined);
-    });
-
-    send(message);
-
-    return answer.promise;
-  };
-
-  const requestLayout = (message: ControlMessage): Promise<void> =>
-    requestAnswered(layoutAnswers, message);
 
   const setState = (next: AttachState): void => {
     state = next;
@@ -449,18 +415,6 @@ export const connectAttach = async (
       return true;
     }
 
-    if (message.type === 'paneScrollResult') {
-      scrollAnswers.shift()?.();
-
-      return true;
-    }
-
-    if (message.type === 'panePasteResult') {
-      pasteAnswers.shift()?.(pasteResultOf(message.result));
-
-      return true;
-    }
-
     if (message.type === 'workspaceDone' || message.type === 'workspaceFailed') {
       replyQueue.shift()?.(message.type === 'workspaceDone' ? 'done' : 'failed');
 
@@ -516,7 +470,7 @@ export const connectAttach = async (
       return;
     }
 
-    if (takeRequestAnswer(message) || takePaneNotice(message)) {
+    if (paneRequests.takeAnswer(message) || takeRequestAnswer(message) || takePaneNotice(message)) {
       return;
     }
 
@@ -524,10 +478,6 @@ export const connectAttach = async (
 
     if (message.type === 'change') {
       takeChange(message.revision, message.change);
-    }
-
-    if (message.type === 'paneDone' || message.type === 'paneFailed') {
-      layoutAnswers.shift()?.();
     }
 
     if (message.type === 'takenOver' || message.type === 'detached') {
@@ -689,7 +639,7 @@ export const connectAttach = async (
     afterTabAnswer: (callback) => {
       tabAnswerCallbacks.push(callback);
     },
-    changePaneLayout: (command) => requestLayout(paneLayoutRequest(command)),
+    changePaneLayout: (command) => paneRequests.changeLayout(paneLayoutRequest(command)),
     scrollPane: (pane, to) => {
       invariant(state !== undefined, 'The attach session is only handed out after a snapshot.');
 
@@ -699,32 +649,21 @@ export const connectAttach = async (
         return Promise.resolve();
       }
 
-      return requestAnswered(scrollAnswers, {
+      return paneRequests.scroll({
         type: 'paneScroll',
         paneId: pane,
         to,
         clientId,
       });
     },
-    pastePane: (request) => {
-      if (ended) {
-        return Promise.resolve({ ok: false, reason: 'connectionFailed' });
-      }
-
-      const answer = Promise.withResolvers<PanePasteResult>();
-
-      pasteAnswers.push(answer.resolve);
-
-      send({
+    pastePane: (request) =>
+      paneRequests.paste({
         type: 'panePaste',
         paneId: request.pane,
         generation: request.generation,
         text: request.text,
         authorization: request.authorization,
-      });
-
-      return answer.promise;
-    },
+      }),
     detach: () => {
       send({ type: 'detach', clientId: undefined });
     },
