@@ -516,6 +516,48 @@ it.each(preservationFailures)(
   },
 );
 
+it('refuses the save without trying another name when creating the preserved file fails', async () => {
+  const directory = await temporaryDirectory();
+  const path = join(directory, 'session.json');
+  await writeFile(path, brokenText);
+  const realOpen = fsPromises.open;
+  const preservedAttempts: string[] = [];
+
+  const openSpy = spyOn(fsPromises, 'open').mockImplementation(
+    async (...args: Parameters<typeof realOpen>) => {
+      const opened = String(args[0]);
+
+      if (!opened.startsWith(`${path}.broken-`)) {
+        return realOpen(...args);
+      }
+
+      preservedAttempts.push(opened);
+
+      if (opened === `${path}.broken-1`) {
+        throw Object.assign(new Error('Input/output error.'), { code: 'EIO' });
+      }
+
+      return realOpen(...args);
+    },
+  );
+
+  onTestFinished(() => {
+    openSpy.mockRestore();
+  });
+
+  const result = await createSessionWriter(path, recordingLog().log, 'broken').stopSaving(
+    sessionWith(),
+  );
+
+  expect(result).toEqual({
+    ok: false,
+    message: expect.stringContaining('Input/output error.') as string,
+  });
+
+  expect(preservedAttempts).toEqual([`${path}.broken-1`]);
+  expect(await readFile(path, 'utf8')).toBe(brokenText);
+});
+
 it('retries the preservation on the next save after a failed one', async () => {
   const directory = await temporaryDirectory();
   const path = join(directory, 'session.json');
