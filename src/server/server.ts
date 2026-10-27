@@ -46,7 +46,8 @@ import type { SnapshotStore } from './paneSnapshot.ts';
 import { answerPiStatus, handlePiReport } from './piReports.ts';
 import { subscribeRows, syncRowSubscriptions, visiblePaneIds } from './rowSubscriptions.ts';
 import type { RowSubscriptions } from './rowSubscriptions.ts';
-import { flushStopResults, publishStopResults, stopOutcomeOf } from './serverStopResult.ts';
+import { createStopResults, stopOutcomeOf } from './serverStopResult.ts';
+import type { StopResults } from './serverStopResult.ts';
 import { readSessionFile } from './sessionFile.ts';
 import { currentSession, restoreSession, savesSession, unusableKindOf } from './sessionState.ts';
 import { createSessionWriter } from './sessionWriter.ts';
@@ -107,7 +108,7 @@ type Listener = Bun.UnixSocketListener<ConnectionData>;
 interface Runtime {
   panes: Map<PaneId, RunningPane>;
   connections: Map<number, Connection>;
-  stopConnections: Set<Connection>;
+  stopResults: StopResults;
   // The client a terminal connection's sized hello attached.
   clientIds: Map<Connection, ClientId>;
   // The row subscriptions of each terminal connection. Their ack records an ack on the named
@@ -175,15 +176,8 @@ const shutDown = async (context: ServerContext): Promise<StopResult> => {
   }
 
   runtime.panes.clear();
-  publishStopResults(runtime.stopConnections, failures, options.log);
-
-  await flushStopResults(runtime.stopConnections, {
-    timeoutMs: stopFlushTimeoutMs,
-    failures,
-    log: options.log,
-  });
-
-  runtime.stopConnections.clear();
+  runtime.stopResults.publish(failures);
+  await runtime.stopResults.flush({ timeoutMs: stopFlushTimeoutMs, failures });
 
   for (const connection of runtime.connections.values()) {
     runStep(context, failures, 'Closing a connection', () => {
@@ -376,7 +370,7 @@ const handleMessage = (
   connection: Connection,
 ): void => {
   if (message.type === 'stop') {
-    context.runtime.stopConnections.add(connection);
+    context.runtime.stopResults.add(connection);
     dispatch(context, { type: 'stopServer' });
 
     return;
@@ -620,7 +614,7 @@ export const runServer = async (options: ServerOptions): Promise<RunServerResult
     runtime: {
       panes: new Map(),
       connections: new Map(),
-      stopConnections: new Set(),
+      stopResults: createStopResults(options.log),
       clientIds: new Map(),
       rowSubscriptions: new Map(),
       readSnapshots: createSnapshotStore(),

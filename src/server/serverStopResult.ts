@@ -18,8 +18,13 @@ interface FlushClock {
 interface FlushOptions {
   timeoutMs: number;
   failures: string[];
-  log: Log;
   clock?: FlushClock;
+}
+
+export interface StopResults {
+  add: (connection: StopConnection) => void;
+  publish: (failures: string[]) => void;
+  flush: (options: FlushOptions) => Promise<void>;
 }
 
 const flushPollMs = 10;
@@ -42,32 +47,29 @@ export const stopOutcomeOf = (failures: readonly string[]): StopOutcome =>
     ? { ok: true }
     : { ok: false, message: `The server stopped, but its cleanup failed. ${failures.join('. ')}.` };
 
-export const publishStopResults = (
-  connections: Iterable<StopConnection>,
+const sendStopResult = (
+  connection: StopConnection,
+  result: StopOutcome,
   failures: string[],
   log: Log,
 ): void => {
-  const result = stopOutcomeOf(failures);
-
-  for (const connection of connections) {
-    try {
-      connection.send({ type: 'stopResult', result });
-    } catch (error) {
-      recordFailure(failures, log, 'Sending the stop result', error);
-    }
+  try {
+    connection.send({ type: 'stopResult', result });
+  } catch (error) {
+    recordFailure(failures, log, 'Sending the stop result', error);
   }
 };
 
 const flushWithin = async (
-  connections: Iterable<StopConnection>,
-  { timeoutMs, failures, log, clock = realClock }: FlushOptions,
+  connections: ReadonlySet<StopConnection>,
+  log: Log,
+  { timeoutMs, failures, clock = realClock }: FlushOptions,
 ): Promise<void> => {
-  const stopConnections = [...connections];
   const broken = new Set<StopConnection>();
   const deadline = clock.now() + timeoutMs;
 
   const waitingOn = (): StopConnection[] =>
-    stopConnections.filter(
+    [...connections].filter(
       (connection) => !broken.has(connection) && !connection.isClosed() && !connection.isFlushed(),
     );
 
@@ -90,13 +92,35 @@ const flushWithin = async (
   }
 };
 
-export const flushStopResults = async (
-  connections: Iterable<StopConnection>,
-  options: FlushOptions,
-): Promise<void> => {
-  try {
-    await flushWithin(connections, options);
-  } catch (error) {
-    recordFailure(options.failures, options.log, 'Flushing the stop result', error);
-  }
+// A connection added after the publication gets the published outcome at once, and the flush
+// waits for it too, because the flush may yield while a stop request arrives.
+export const createStopResults = (log: Log): StopResults => {
+  const connections = new Set<StopConnection>();
+  let published: { result: StopOutcome; failures: string[] } | undefined;
+
+  return {
+    add: (connection) => {
+      connections.add(connection);
+
+      if (published !== undefined) {
+        sendStopResult(connection, published.result, published.failures, log);
+      }
+    },
+    publish: (failures) => {
+      const result = stopOutcomeOf(failures);
+
+      published = { result, failures };
+
+      for (const connection of connections) {
+        sendStopResult(connection, result, failures, log);
+      }
+    },
+    flush: async (options) => {
+      try {
+        await flushWithin(connections, log, options);
+      } catch (error) {
+        recordFailure(options.failures, log, 'Flushing the stop result', error);
+      }
+    },
+  };
 };

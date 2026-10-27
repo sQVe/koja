@@ -4,7 +4,7 @@ import { createFrameDecoder, parseControl } from '../protocol/protocol.ts';
 import type { ControlMessage } from '../protocol/protocol.ts';
 import { createConnection } from './connection.ts';
 import type { Log } from './log.ts';
-import { flushStopResults, publishStopResults } from './serverStopResult.ts';
+import { createStopResults } from './serverStopResult.ts';
 import type { StopConnection } from './serverStopResult.ts';
 
 const build = { version: '1.2.3', ghostty: 'abc123' };
@@ -110,13 +110,24 @@ const createFakeConnection = (failing: boolean) => {
   return { connection, sent };
 };
 
+const stopResultsFor = (connections: StopConnection[], log: Log) => {
+  const results = createStopResults(log);
+
+  for (const connection of connections) {
+    results.add(connection);
+  }
+
+  return results;
+};
+
 it('publishes the stop result to every connection, even when one send throws', () => {
   const failing = createFakeConnection(true);
   const healthy = createFakeConnection(false);
   const { log, errors } = createRecordingLog();
   const failures: string[] = [];
 
-  publishStopResults([failing.connection, healthy.connection], failures, log);
+  const results = stopResultsFor([failing.connection, healthy.connection], log);
+  results.publish(failures);
 
   expect(healthy.sent).toEqual([{ type: 'stopResult', result: { ok: true } }]);
   expect(failures).toEqual(['Sending the stop result: write failed']);
@@ -128,7 +139,8 @@ it('publishes the failures known before the send as a failed stop result', () =>
   const { log } = createRecordingLog();
   const failures = ['Stopping pane pane-1 failed'];
 
-  publishStopResults([healthy.connection], failures, log);
+  const results = stopResultsFor([healthy.connection], log);
+  results.publish(failures);
 
   expect(healthy.sent).toEqual([
     {
@@ -147,7 +159,8 @@ it('writes the queued stop result before the flush returns', async () => {
   const { log } = createRecordingLog();
   const failures: string[] = [];
 
-  publishStopResults([connection], failures, log);
+  const results = stopResultsFor([connection], log);
+  results.publish(failures);
 
   expect(connection.isFlushed()).toBe(false);
 
@@ -155,7 +168,11 @@ it('writes the queued stop result before the flush returns', async () => {
     socket.grow(1024);
   });
 
-  await flushStopResults([connection], { timeoutMs: 1000, failures, log, clock });
+  await results.flush({
+    timeoutMs: 1000,
+    failures,
+    clock,
+  });
 
   expect(connection.isFlushed()).toBe(true);
   expect(controlMessagesIn(socket.written)).toEqual([{ type: 'stopResult', result: { ok: true } }]);
@@ -167,11 +184,15 @@ it('stops waiting for a connection that never reads once the bound passes', asyn
   const { log } = createRecordingLog();
   const failures: string[] = [];
 
-  publishStopResults([connection], failures, log);
+  const results = stopResultsFor([connection], log);
+  results.publish(failures);
 
   const started = performance.now();
 
-  await flushStopResults([connection], { timeoutMs: 50, failures, log });
+  await results.flush({
+    timeoutMs: 50,
+    failures,
+  });
 
   expect(performance.now() - started).toBeLessThan(2000);
   expect(connection.isFlushed()).toBe(false);
@@ -185,13 +206,13 @@ it('does not wait for a connection that has already closed', async () => {
   const failures: string[] = [];
   let waits = 0;
 
-  publishStopResults([connection], failures, log);
+  const results = stopResultsFor([connection], log);
+  results.publish(failures);
   connection.close();
 
-  await flushStopResults([connection], {
+  await results.flush({
     timeoutMs: 2000,
     failures,
-    log,
     clock: createFakeClock(() => {
       waits += 1;
     }),
@@ -220,9 +241,14 @@ it('records a drain failure, stops waiting for that connection, and still flushe
     socket.grow(1024);
   });
 
-  publishStopResults([failing, healthy], failures, log);
+  const results = stopResultsFor([failing, healthy], log);
+  results.publish(failures);
 
-  await flushStopResults([failing, healthy], { timeoutMs: 1000, failures, log, clock });
+  await results.flush({
+    timeoutMs: 1000,
+    failures,
+    clock,
+  });
 
   expect(failures).toEqual(['Flushing the stop result: drain write failed']);
   expect(errors).toEqual(['Flushing the stop result failed.']);
@@ -243,13 +269,73 @@ it('records a failure it did not foresee and still resolves', async () => {
 
   const { log } = createRecordingLog();
   const failures: string[] = [];
+  const results = stopResultsFor([broken], log);
 
-  await flushStopResults([broken], {
+  await results.flush({
     timeoutMs: 1000,
     failures,
-    log,
     clock: createFakeClock(),
   });
 
   expect(failures).toEqual(['Flushing the stop result: state lost']);
+});
+
+it('sends the published result to a stop connection added during the flush and waits for it', async () => {
+  const earlySocket = createSocket(0);
+  const early = createStopConnection(earlySocket);
+  const lateSocket = createSocket(0);
+  const late = createStopConnection(lateSocket);
+  const { log } = createRecordingLog();
+  const failures = ['Stopping pane pane-1 failed'];
+  const results = stopResultsFor([early], log);
+  let waits = 0;
+
+  const clock = createFakeClock(() => {
+    waits += 1;
+
+    if (waits === 1) {
+      results.add(late);
+      earlySocket.grow(1024);
+
+      return;
+    }
+
+    lateSocket.grow(1024);
+  });
+
+  results.publish(failures);
+  await results.flush({ timeoutMs: 1000, failures, clock });
+
+  const published = controlMessagesIn(earlySocket.written);
+
+  expect(published).toEqual([
+    {
+      type: 'stopResult',
+      result: {
+        ok: false,
+        message: 'The server stopped, but its cleanup failed. Stopping pane pane-1 failed.',
+      },
+    },
+  ]);
+
+  expect(controlMessagesIn(lateSocket.written)).toEqual(published);
+  expect(late.isFlushed()).toBe(true);
+  expect(clock.now()).toBeLessThan(1000);
+});
+
+it('records a failed send to a stop connection added after the publication and does not throw', async () => {
+  const failing = createFakeConnection(true);
+  const healthy = createFakeConnection(false);
+  const { log, errors } = createRecordingLog();
+  const failures: string[] = [];
+  const results = stopResultsFor([], log);
+
+  results.publish(failures);
+  results.add(failing.connection);
+  results.add(healthy.connection);
+  await results.flush({ timeoutMs: 1000, failures, clock: createFakeClock() });
+
+  expect(healthy.sent).toEqual([{ type: 'stopResult', result: { ok: true } }]);
+  expect(failures).toEqual(['Sending the stop result: write failed']);
+  expect(errors).toEqual(['Sending the stop result failed.']);
 });
