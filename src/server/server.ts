@@ -46,6 +46,7 @@ import type { SnapshotStore } from './paneSnapshot.ts';
 import { answerPiStatus, handlePiReport } from './piReports.ts';
 import { subscribeRows, syncRowSubscriptions, visiblePaneIds } from './rowSubscriptions.ts';
 import type { RowSubscriptions } from './rowSubscriptions.ts';
+import { flushStopResults, publishStopResults, stopOutcomeOf } from './serverStopResult.ts';
 import { readSessionFile } from './sessionFile.ts';
 import { currentSession, restoreSession, savesSession, unusableKindOf } from './sessionState.ts';
 import { createSessionWriter } from './sessionWriter.ts';
@@ -106,6 +107,8 @@ type Listener = Bun.UnixSocketListener<ConnectionData>;
 interface Runtime {
   panes: Map<PaneId, RunningPane>;
   connections: Map<number, Connection>;
+  // The connections that sent stop. Each gets the stop result before it closes.
+  stopConnections: Set<Connection>;
   // The client a terminal connection's sized hello attached.
   clientIds: Map<Connection, ClientId>;
   // The row subscriptions of each terminal connection. Their ack records an ack on the named
@@ -142,19 +145,20 @@ const connectionQueueLimitBytes = 0x10_00_00;
 // How long a detached client gets to read its last message before the server closes it.
 const connectionFlushTimeoutMs = 5000;
 
+// How long a stop connection gets to read its stopResult before shutdown goes on without it.
+const stopFlushTimeoutMs = 1000;
+
 const describeError = (error: unknown): string =>
   error instanceof Error ? error.message : String(error);
 
 const stopResultOf = (failures: readonly string[]): StopResult => {
-  if (failures.length === 0) {
+  const outcome = stopOutcomeOf(failures);
+
+  if (outcome.ok) {
     return { ok: true };
   }
 
-  return {
-    ok: false,
-    reason: 'cleanupFailed',
-    message: `The server stopped, but its cleanup failed. ${failures.join('. ')}.`,
-  };
+  return { ok: false, reason: 'cleanupFailed', message: outcome.message };
 };
 
 // Every step runs even when an earlier one fails. The lock and the signal handlers go last.
@@ -173,6 +177,15 @@ const shutDown = async (context: ServerContext): Promise<StopResult> => {
   }
 
   runtime.panes.clear();
+  publishStopResults(runtime.stopConnections, failures, options.log);
+
+  await flushStopResults(runtime.stopConnections, {
+    timeoutMs: stopFlushTimeoutMs,
+    failures,
+    log: options.log,
+  });
+
+  runtime.stopConnections.clear();
 
   for (const connection of runtime.connections.values()) {
     runStep(context, failures, 'Closing a connection', () => {
@@ -365,6 +378,7 @@ const handleMessage = (
   connection: Connection,
 ): void => {
   if (message.type === 'stop') {
+    context.runtime.stopConnections.add(connection);
     dispatch(context, { type: 'stopServer' });
 
     return;
@@ -608,6 +622,7 @@ export const runServer = async (options: ServerOptions): Promise<RunServerResult
     runtime: {
       panes: new Map(),
       connections: new Map(),
+      stopConnections: new Set(),
       clientIds: new Map(),
       rowSubscriptions: new Map(),
       readSnapshots: createSnapshotStore(),

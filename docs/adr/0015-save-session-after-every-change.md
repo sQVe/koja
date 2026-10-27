@@ -24,7 +24,8 @@ one store intent.
 The file name comes from the socket path, with its symlinks resolved, so each server has its own
 file. The writer replaces the file in one rename, and a write that waits is replaced by a newer one,
 so the file is always whole and at most one write is queued. The final save runs before any pane
-ends, because pane exits during the stop would otherwise change the file.
+ends, because pane exits during the stop would otherwise change the file. A failed final save is
+reported by `koja server stop`, which exits nonzero.
 
 Each save syncs the temporary file, renames it over the session file, and then syncs the folder.
 When the save creates missing folders, it also syncs the folder that holds each new one. A crash

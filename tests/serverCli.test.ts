@@ -256,6 +256,78 @@ it(
   cliTestTimeoutMs,
 );
 
+it.skipIf(process.getuid?.() === 0)(
+  'exits 1 with the save failure and no stopped output when the final save fails',
+  async () => {
+    const directory = await temporaryDirectory();
+    const socketPath = join(directory, 'run', 'koja.sock');
+    const sessionsFolder = join(directory, 'state', 'koja', 'sessions');
+
+    await startWithCli(directory, socketPath);
+
+    const saved = await waitFor(
+      async () => existsSync(sessionsFolder) && (await readdir(sessionsFolder)).length > 0,
+    );
+
+    expect(saved).toBe(true);
+
+    await chmod(sessionsFolder, 0o500);
+
+    let stopped: CliRun;
+
+    try {
+      stopped = await runCliProcess(
+        ['server', 'stop', '--socket', socketPath, '--json'],
+        directory,
+      );
+    } finally {
+      await chmod(sessionsFolder, 0o700);
+    }
+
+    expect({ exitCode: stopped.exitCode, stdout: stopped.stdout }).toEqual({
+      exitCode: 1,
+      stdout: '',
+    });
+
+    expect(stopped.stderr).toContain(`Cannot save the session to ${sessionsFolder}`);
+  },
+  cliTestTimeoutMs,
+);
+
+it(
+  'reports a stop as done when the server closes the stop connection without a stopResult, as an older build does',
+  async () => {
+    const directory = await temporaryDirectory();
+    const socketDirectory = join(directory, 'run');
+    const socketPath = join(socketDirectory, 'koja.sock');
+
+    await mkdir(socketDirectory, { mode: 0o700 });
+
+    const listener = Bun.listen({
+      unix: socketPath,
+      socket: {
+        // An older build ends the stop connection without a stopResult, then removes its path.
+        data: (socket) => {
+          socket.end();
+          listener.stop(true);
+        },
+      },
+    });
+
+    onTestFinished(() => {
+      listener.stop(true);
+    });
+
+    const stopped = await runCliProcess(
+      ['server', 'stop', '--socket', socketPath, '--json'],
+      directory,
+    );
+
+    expect(stopped).toEqual({ exitCode: 0, stdout: '{"stopped":true}\n', stderr: '' });
+  },
+  cliTestTimeoutMs,
+);
+
 it(
   'exits 1 with a message when start cannot write the log',
   async () => {

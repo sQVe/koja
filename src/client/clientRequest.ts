@@ -11,7 +11,16 @@ import { decodePaneRows } from '../rows/rows.ts';
 import type { PaneRows } from '../rows/rows.ts';
 import { focusedPane } from './snapshot.ts';
 
-export type StopResult = { ok: true; close: () => void } | { ok: false; reason: 'noServer' };
+type StopReply = { ok: true } | { ok: false; message: string };
+
+interface ReceivedFrame {
+  kind: FrameKind;
+  payload: Uint8Array;
+}
+
+export type StopResult =
+  | { ok: true; close: () => void; isClosed: () => boolean; reply: () => StopReply }
+  | { ok: false; reason: 'noServer' };
 
 export type RequestFailure =
   | { ok: false; reason: 'noServer' | 'connectionFailed' }
@@ -230,12 +239,49 @@ export const runPaneRequest = <Result>(
   });
 };
 
-// Sends stop without a handshake, so it reaches a server of any build.
+// Returns the stopResult among the frames of a stop connection. Other frames are ignored.
+export const stopReplyIn = (frames: readonly ReceivedFrame[]): StopReply | undefined => {
+  for (const frame of frames) {
+    const parsed = frame.kind === FrameKind.control ? parseControl(frame.payload) : undefined;
+
+    if (parsed?.ok === true && parsed.message.type === 'stopResult') {
+      return parsed.message.result;
+    }
+  }
+
+  return undefined;
+};
+
+// Sends stop without a handshake, so it reaches a server of any build. A server that predates
+// stopResult sends none, so the reply stays ok until a stopResult says otherwise.
 export const sendStop = async (socketPath: string): Promise<StopResult> => {
+  const decoder = createFrameDecoder();
+  let reply: StopReply = { ok: true };
+  let closed = false;
   let socket: Bun.Socket;
 
+  const receive = (bytes: Uint8Array): void => {
+    const decoded = decoder.push(bytes);
+
+    if (!decoded.ok) {
+      return;
+    }
+
+    reply = stopReplyIn(decoded.frames) ?? reply;
+  };
+
   try {
-    socket = await Bun.connect({ unix: socketPath, socket: { data: () => undefined } });
+    socket = await Bun.connect({
+      unix: socketPath,
+      socket: {
+        data: (_socket, bytes) => {
+          receive(bytes);
+        },
+        close: () => {
+          closed = true;
+        },
+      },
+    });
   } catch {
     return { ok: false, reason: 'noServer' };
   }
@@ -247,5 +293,7 @@ export const sendStop = async (socketPath: string): Promise<StopResult> => {
     close: () => {
       socket.end();
     },
+    isClosed: () => closed,
+    reply: () => reply,
   };
 };

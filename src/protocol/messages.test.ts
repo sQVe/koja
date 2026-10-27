@@ -179,6 +179,8 @@ const messages: ControlMessage[] = [
     pi: { state: 'reported', ...piStatusFields },
   },
   { type: 'stop' },
+  { type: 'stopResult', result: { ok: true } },
+  { type: 'stopResult', result: { ok: false, message: 'Cannot save the session to a file.' } },
   { type: 'resize', size: { columns: 120, rows: 40 } },
   { type: 'theme', theme },
   { type: 'ack', paneId: paneId(1), sequence: 7 },
