@@ -178,6 +178,14 @@ const processInfo = async (pane: PaneSetup) => {
 const onlyShellRuns = (info: z.infer<typeof processInfoSchema>): boolean =>
   info.foreground_processes.map((process) => process.pid).join(',') === String(info.shell_pid);
 
+const killForegroundProcesses = (info: z.infer<typeof processInfoSchema>): void => {
+  for (const { pid } of info.foreground_processes) {
+    if (pid !== info.shell_pid) {
+      process.kill(pid, 'SIGKILL');
+    }
+  }
+};
+
 const visibleLines = async (pane: PaneSetup): Promise<string[]> =>
   (await readJson(pane.koja, pane.first, '--lines', '30')).lines;
 
@@ -218,10 +226,22 @@ const headerIdOf = async (sessionFile: string): Promise<string | undefined> => {
   return first === undefined ? undefined : sessionLineSchema.parse(JSON.parse(first)).id;
 };
 
-const savedConversation = (pane: PaneSetup, directories: PiDirectories): string => {
+const savedIdentityOf = async (sessionFile: string) => ({
+  sessionId: await headerIdOf(sessionFile),
+  sessionFile,
+  reportedLeafId: await lastEntryIdOf(sessionFile),
+});
+
+const savedConversation = (
+  pane: PaneSetup,
+  directories: PiDirectories,
+  messages: string[] = ['hello'],
+): string => {
   const session = SessionManager.create(join(pane.directory, 'work'), directories.sessions);
 
-  session.appendMessage({ role: 'user', content: 'hello', timestamp: Date.now() });
+  for (const message of messages) {
+    session.appendMessage({ role: 'user', content: message, timestamp: Date.now() });
+  }
 
   const sessionFile = session.getSessionFile();
 
@@ -243,6 +263,12 @@ const branchedConversation = (pane: PaneSetup, directories: PiDirectories) => {
   expect(sessionFile).toBeDefined();
 
   return { sessionFile: sessionFile ?? '', firstId: first };
+};
+
+const showsText = async (pane: PaneSetup, text: string): Promise<boolean> => {
+  const hasText = (lines: string[]): boolean => lines.some((line) => line.includes(text));
+
+  return hasText(await pollUntil(() => visibleLines(pane), hasText));
 };
 
 const showsLine = async (pane: PaneSetup, line: string): Promise<boolean> => {
@@ -314,6 +340,68 @@ it(
 );
 
 it(
+  'reports the conversation pi resumes, reloads, and forks to, and keeps a killed pi as lost',
+  async () => {
+    const pane = await setup();
+    const directories = await piDirectories(pane.directory);
+    const conversation = savedConversation(pane, directories);
+    const other = savedConversation(pane, directories, ['resumable first', 'resumable second']);
+
+    await send(pane, piCommand(directories, { extension: true, sessionFile: conversation }));
+    await waitForPi(pane, 'reported');
+    await send(pane, '/resume\r');
+    await send(pane, 'resumable');
+
+    expect(await showsText(pane, '› resumable first')).toBe(true);
+
+    await send(pane, '\r');
+
+    const resumed = await waitForReported(pane, (next) => next.sessionFile === other);
+
+    expect(resumed.pi).toMatchObject({ ...(await savedIdentityOf(other)), recoveryEligible: true });
+
+    await send(pane, '/reload\r');
+
+    expect(await showsText(pane, 'Reloaded keybindings')).toBe(true);
+
+    const reloaded = await waitForReported(pane, (next) => next.sessionFile === other);
+
+    expect(reloaded.pi).toMatchObject({
+      ...(await savedIdentityOf(other)),
+      recoveryEligible: true,
+    });
+
+    await send(pane, '/fork\r');
+
+    expect(await showsText(pane, '› resumable second')).toBe(true);
+
+    await send(pane, '\r');
+
+    const forked = await waitForReported(
+      pane,
+      (next) => next.sessionFile !== other && next.sessionFile !== conversation,
+    );
+
+    const forkedFile = forked.pi?.sessionFile ?? '';
+
+    expect(existsSync(forkedFile)).toBe(true);
+
+    expect(forked.pi).toMatchObject({
+      ...(await savedIdentityOf(forkedFile)),
+      recoveryEligible: true,
+    });
+
+    killForegroundProcesses(await processInfo(pane));
+
+    const lost = await waitForPi(pane, 'lost');
+
+    expect(lost.pi).toMatchObject(await savedIdentityOf(forkedFile));
+    expect(onlyShellRuns(await pollUntil(() => processInfo(pane), onlyShellRuns))).toBe(true);
+  },
+  piTestTimeoutMs,
+);
+
+it(
   'reports a pi in a Tau worker pane and draws nothing on its screen',
   async () => {
     const pane = await setup();
@@ -331,13 +419,14 @@ it(
     const { pi } = await waitForPi(pane, 'reported');
 
     expect(pi?.ownership).toBe('tauWorker');
+    expect(pi?.ineligibleReasons).toContain('tauWorker');
     expect(await settledScreen(pane)).toEqual(withoutExtension);
   },
   piTestTimeoutMs,
 );
 
 it(
-  'reports the selected leaf after pi selects another branch in its tree',
+  'reports the thinking level and the selected leaf after pi changes them in one conversation',
   async () => {
     const pane = await setup();
 
@@ -353,6 +442,18 @@ it(
 
     expect(pi?.reportedLeafId).toBe(await lastEntryIdOf(conversation));
 
+    await send(pane, '/thinking high\r');
+
+    const thought = await waitForReported(pane, (next) => next.thinkingLevel === 'high');
+
+    expect(thought.pi).toEqual(
+      pi === null
+        ? null
+        : { ...pi, thinkingLevel: 'high', reportedLeafId: await lastEntryIdOf(conversation) },
+    );
+
+    expect(thought.pi?.reportedLeafId).not.toBe(pi?.reportedLeafId);
+
     await send(pane, '/tree\r');
 
     expect(await showsLine(pane, '› ├─ • user: branch two')).toBe(true);
@@ -365,10 +466,12 @@ it(
 
     const selected = await waitForReported(
       pane,
-      (next) => next.reportedLeafId !== pi?.reportedLeafId,
+      (next) => next.reportedLeafId !== thought.pi?.reportedLeafId,
     );
 
-    expect(selected.pi).toEqual(pi === null ? null : { ...pi, reportedLeafId: firstId });
+    expect(selected.pi).toEqual(
+      thought.pi === null ? null : { ...thought.pi, reportedLeafId: firstId },
+    );
   },
   piTestTimeoutMs,
 );
