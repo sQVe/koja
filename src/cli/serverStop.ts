@@ -15,6 +15,8 @@ type SocketRelease = 'removed' | 'leftSocket';
 // Covers the server's wait for pane processes that ignore SIGHUP.
 const serverStopTimeoutMs = 10_000;
 
+const stopCloseTimeoutMs = 1000;
+
 const socketInode = (socketPath: string): bigint | undefined =>
   lstatSync(socketPath, { bigint: true, throwIfNoEntry: false })?.ino;
 
@@ -51,18 +53,11 @@ const releasedPath = async (socketPath: string): Promise<SocketRelease | undefin
   return socketInode(socketPath) === probed ? 'leftSocket' : 'removed';
 };
 
-export const stopServer = async (context: ServerContext): Promise<Outcome> => {
-  const { socketPath } = context;
-  const sent = await sendStop(socketPath);
-
-  if (!sent.ok) {
-    return { ok: false, message: `No server runs on ${socketPath}.` };
-  }
-
-  const released = await poll(() => releasedPath(socketPath), serverStopTimeoutMs);
-
-  sent.close();
-
+export const stopVerdictOf = (
+  socketPath: string,
+  released: SocketRelease | undefined,
+  reply: Outcome,
+): Outcome => {
   if (released === undefined) {
     return {
       ok: false,
@@ -75,6 +70,34 @@ export const stopServer = async (context: ServerContext): Promise<Outcome> => {
       ok: false,
       message: `The server stopped, but left its socket at ${socketPath}. The next start removes it.`,
     };
+  }
+
+  if (!reply.ok) {
+    return { ok: false, message: reply.message };
+  }
+
+  return { ok: true };
+};
+
+export const stopServer = async (context: ServerContext): Promise<Outcome> => {
+  const { socketPath } = context;
+  const sent = await sendStop(socketPath);
+
+  if (!sent.ok) {
+    return { ok: false, message: `No server runs on ${socketPath}.` };
+  }
+
+  const released = await poll(() => releasedPath(socketPath), serverStopTimeoutMs);
+
+  // Waits for the close so that every byte the server sent on this connection has been read.
+  await poll(() => (sent.isClosed() ? true : undefined), stopCloseTimeoutMs);
+
+  const verdict = stopVerdictOf(socketPath, released, sent.reply());
+
+  sent.close();
+
+  if (!verdict.ok) {
+    return verdict;
   }
 
   print<ServerStopOutput>(context.json, {

@@ -23,9 +23,11 @@ only a small part of the protocol must stay stable.
 
 ### Stable admin surface
 
-- The frame format and the `hello`, `refused`, and `stop` messages keep their encoding in every
-  build. A change to any of them is a breaking change across builds.
+- The frame format and the `hello`, `refused`, `stop`, and `stopResult` messages keep their encoding
+  in every build. A change to any of them is a breaking change across builds.
 - `stop` carries no fields, so later builds can still decode it.
+- `stopResult` carries the stop's outcome, either `{ ok: true }` or `{ ok: false, message }`. A
+  build that predates it sends none, so a client takes a missing one as success.
 - Every other message needs a welcome from a matching build first.
 
 ## Consequences
@@ -36,7 +38,7 @@ only a small part of the protocol must stay stable.
 
 ### Negative
 
-- The frame format and three messages can no longer change freely.
+- The frame format and four messages can no longer change freely.
 - Any process that can open the socket can stop the server without a handshake. The socket is
   private to its owner, so this does not reach other users.
 

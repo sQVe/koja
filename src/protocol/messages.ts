@@ -305,6 +305,11 @@ const detachOutcomeSchema = z.discriminatedUnion('ok', [
   z.strictObject({ ok: z.literal(false), reason: z.enum(['noClient', 'unknownClient']) }),
 ]);
 
+const stopOutcomeSchema = z.discriminatedUnion('ok', [
+  z.strictObject({ ok: z.literal(true) }),
+  z.strictObject({ ok: z.literal(false), message: z.string() }),
+]);
+
 const paneScrollTargetSchema = z.union([z.literal('top'), z.literal('bottom'), count]);
 
 const paneScrollOutcomeSchema = z.discriminatedUnion('ok', [
@@ -408,6 +413,9 @@ const controlSchema = z.discriminatedUnion('type', [
   z.object({ type: z.literal('paneCopyResult'), result: paneCopyOutcomeSchema }),
   // Builds stop each other's servers with this frame, so it must keep this shape in every build.
   z.object({ type: z.literal('stop') }),
+  // The server sends this to each stop connection before it closes it. Builds that predate it send
+  // none, so a missing one still means success. It must keep this shape in every build.
+  z.object({ type: z.literal('stopResult'), result: stopOutcomeSchema }),
   z.object({ type: z.literal('resize'), size: sizeSchema }),
   z.object({ type: z.literal('theme'), theme: themeSchema }),
   z.object({

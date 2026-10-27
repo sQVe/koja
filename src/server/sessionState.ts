@@ -11,6 +11,8 @@ interface SessionContext {
   runtime: { panes: Map<PaneId, RunningPane> };
 }
 
+type SessionRead = Awaited<ReturnType<typeof readSessionFile>>;
+
 const sessionChangeTypes: ReadonlySet<Change['type']> = new Set([
   'workspaceAdded',
   'tabAdded',
@@ -48,28 +50,41 @@ const readSavedFolders = (context: SessionContext): Map<PaneId, string> => {
 export const currentSession = (context: SessionContext): SavedSession =>
   savedSessionOf(context.state, readSavedFolders(context));
 
-// Leaves a file that is broken or newer as it is, until the next save replaces it.
+export const unusableKindOf = (saved: SessionRead | undefined): 'broken' | 'newer' | undefined => {
+  if (saved?.kind === 'broken' || saved?.kind === 'newer') {
+    return saved.kind;
+  }
+
+  return undefined;
+};
+
 export const restoreSession = (
   log: Log,
   dispatch: (intent: Intent) => readonly Change[],
   path: string,
-  saved: Awaited<ReturnType<typeof readSessionFile>> | undefined,
+  saved: SessionRead | undefined,
 ): void => {
   if (saved?.kind === 'restored') {
     dispatch({ type: 'restoreSession', session: saved.session });
   }
 
   if (saved?.kind === 'broken') {
-    log.warn('Cannot read the saved session, so the server starts empty.', {
-      path,
-      message: saved.message,
-    });
+    log.warn(
+      'Cannot read the saved session, so the server starts empty. The next save keeps a copy of it first.',
+      {
+        path,
+        message: saved.message,
+      },
+    );
   }
 
   if (saved?.kind === 'newer') {
-    log.warn('The saved session is from a newer version, so the server starts empty.', {
-      path,
-      version: saved.version,
-    });
+    log.warn(
+      'The saved session is from a newer version, so the server starts empty. The next save keeps a copy of it first.',
+      {
+        path,
+        version: saved.version,
+      },
+    );
   }
 };

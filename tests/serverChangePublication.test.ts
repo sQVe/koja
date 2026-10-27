@@ -141,7 +141,7 @@ it('broadcasts changes to every welcomed client but not a connection waiting for
   expect(waiting.messages).toEqual([]);
 });
 
-it('sends no snapshot or changes to a stop-only connection', async () => {
+it('sends a stop-only connection its stop result and no snapshot or changes', async () => {
   const directory = await temporaryDirectory();
   const { server, socketPath } = await startServer(directory);
   const client = await connect(socketPath);
@@ -150,7 +150,7 @@ it('sends no snapshot or changes to a stop-only connection', async () => {
   await server.stopped;
   await client.closed;
 
-  expect(client.messages).toEqual([]);
+  expect(client.messages).toEqual([{ type: 'stopResult', result: { ok: true } }]);
 });
 
 it('keeps change revisions consecutive when a stalled terminal overflows its write queue', async () => {

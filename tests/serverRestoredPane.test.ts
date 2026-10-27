@@ -1,4 +1,5 @@
-import { expect, it, onTestFinished } from 'bun:test';
+import { expect, it, onTestFinished, spyOn } from 'bun:test';
+import * as fsPromises from 'node:fs/promises';
 import { mkdtemp, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -7,7 +8,7 @@ import { paneId, tabId, workspaceId } from '../src/ids.ts';
 import type { Log } from '../src/server/log.ts';
 import { runServer } from '../src/server/server.ts';
 import type { Server } from '../src/server/server.ts';
-import { createSessionWriter } from '../src/server/sessionFile.ts';
+import { createSessionWriter } from '../src/server/sessionWriter.ts';
 import type { SavedSession } from '../src/store/store.ts';
 
 const noop = (): void => {};
@@ -81,7 +82,7 @@ const restoredServer = async (shell: string): Promise<Server> => {
   const directory = await temporaryDirectory();
   const sessionPath = join(directory, 'session.json');
 
-  await createSessionWriter(sessionPath, log).stopSaving(savedSession(directory));
+  await createSessionWriter(sessionPath, log, undefined).stopSaving(savedSession(directory));
 
   return startServer(directory, shell, sessionPath);
 };
@@ -134,4 +135,21 @@ it('ignores a write and a read when the focused pane has no running shell', asyn
   }).not.toThrow();
 
   expect(server.paneText()).toBeUndefined();
+});
+
+it('reports cleanupFailed with the save message when the final save fails', async () => {
+  const server = await restoredServer('/nonexistent/shell');
+  const renameSpy = spyOn(fsPromises, 'rename').mockRejectedValue(new Error('The disk is gone.'));
+
+  onTestFinished(() => {
+    renameSpy.mockRestore();
+  });
+
+  server.stop();
+
+  expect(await server.stopped).toEqual({
+    ok: false,
+    reason: 'cleanupFailed',
+    message: expect.stringContaining('The disk is gone.') as string,
+  });
 });

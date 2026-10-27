@@ -1,6 +1,6 @@
 import { expect, it } from 'bun:test';
 import { readFileSync } from 'node:fs';
-import { mkdir, writeFile } from 'node:fs/promises';
+import { mkdir, readFile, writeFile } from 'node:fs/promises';
 import { dirname, join } from 'node:path';
 
 import { z } from 'zod';
@@ -73,7 +73,7 @@ it(
 );
 
 it(
-  'logs a broken save file and one with version 2, and starts with no workspace',
+  'preserves a broken save file and one with version 2, and starts with no workspace',
   async () => {
     const { serverAt, logText } = await setup();
     const server = serverAt('koja');
@@ -83,23 +83,33 @@ it(
     await server.koja(['server', 'stop']);
 
     const path = await server.sessionPath();
+    const brokenText = '{"version":1,"session":';
+    const newerText = '{"version":2,"session":{}}';
 
-    await writeFile(path, '{"version":1,"session":');
+    await writeFile(path, brokenText);
     await server.start();
 
     expect(await server.workspaceIds()).toEqual([]);
     expect(await logText()).toContain(path);
 
     await server.koja(['server', 'stop']);
-    await writeFile(path, '{"version":2,"session":{}}');
+
+    expect(await readFile(`${path}.broken-1`, 'utf8')).toBe(brokenText);
+
+    await writeFile(path, newerText);
     await server.start();
 
     expect(await server.workspaceIds()).toEqual([]);
 
+    await server.koja(['server', 'stop']);
+
+    expect(await readFile(`${path}.newer-1`, 'utf8')).toBe(newerText);
+    expect(await readFile(`${path}.broken-1`, 'utf8')).toBe(brokenText);
+
     const lines = (await logText()).split('\n').filter((line) => line.includes(path));
 
-    expect(lines).toHaveLength(2);
-    expect(lines.at(-1)).toContain('"version":2');
+    expect(lines).toHaveLength(4);
+    expect(lines[2]).toContain('"version":2');
   },
   cliTestTimeoutMs,
 );

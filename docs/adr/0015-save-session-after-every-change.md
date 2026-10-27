@@ -24,7 +24,19 @@ one store intent.
 The file name comes from the socket path, with its symlinks resolved, so each server has its own
 file. The writer replaces the file in one rename, and a write that waits is replaced by a newer one,
 so the file is always whole and at most one write is queued. The final save runs before any pane
-ends, because pane exits during the stop would otherwise change the file.
+ends, because pane exits during the stop would otherwise change the file. A failed final save is
+reported by `koja server stop`, which exits nonzero.
+
+Each save syncs the temporary file, renames it over the session file, and then syncs the folder.
+When the save creates missing folders, it also syncs the folder that holds each new one. A crash
+before the rename keeps the old file. Once the folder sync finishes, the new file survives a power
+loss. That durability depends on the filesystem honoring `fsync`. The tests do not establish that.
+
+A file that is broken or has a newer version is not replaced on start. Before the first save that
+would replace it, the writer copies its bytes to the lowest free `<session file>.broken-<n>` or
+`<session file>.newer-<n>`. The copy is owner-only, and the writer syncs it and its folder.
+Preserved files are never deleted automatically. A save is refused while the copy fails, and the
+next save tries again. After a copy succeeds, later saves do not copy again.
 
 When the server builds a save, it reads each running pane's shell folder. A restored pane whose
 folder cannot be read keeps the folder it was restored with, so a pane whose shell never started
@@ -48,7 +60,7 @@ the pane fail with an error; Koja never starts a different conversation in its p
 program restarts: Koja does not replay shell history or rerun commands.
 
 A file that is broken or has a newer version is logged with its path, and the server starts with no
-workspace. The file stays as it is until the next save replaces it.
+workspace. The next save copies it to a preserved file first.
 
 ## Consequences
 
@@ -57,6 +69,7 @@ workspace. The file stays as it is until the next save replaces it.
 - Recovery uses the last completed save.
 - Servers on different socket paths never read each other's setup.
 - A bad file never stops the server from starting.
+- A file the server cannot use keeps its bytes in a preserved file.
 - A restored shell starts where the user left it, not in the workspace root.
 - A pi pane returns to its saved conversation, and quitting pi still leaves a shell.
 - A missing folder or shell costs one pane, not the saved layout.
@@ -65,8 +78,11 @@ workspace. The file stays as it is until the next save replaces it.
 
 - A killed server can lose changes in the write in flight and the queued save.
 - Every change that touches the setup costs one small file write.
-- The next save replaces a file that was unreadable, so a newer build's file is lost if an older
-  build starts and then changes anything.
+- Preserved files accumulate. The server never deletes them, so the user removes them by hand.
+- A save is refused while a preserved copy cannot be written, so no change is saved until the copy
+  succeeds.
+- The copy is written under its final name. A crash during the copy can leave a partial preserved
+  file. The original stays as it was, and the next start copies it again under the next number.
 - The server reads the filesystem on every save to find each running pane's shell folder.
 - A restored pane whose folder is gone or whose shell cannot start stays failed until the user
   repairs it and restarts the server.

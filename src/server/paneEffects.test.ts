@@ -740,6 +740,7 @@ const foregroundConnection = (context: PaneEffectContext): ControlMessage[] => {
     close: () => {},
     closeWhenFlushed: () => {},
     isClosed: () => false,
+    isFlushed: () => true,
     isWelcomed: () => true,
   };
 

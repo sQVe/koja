@@ -38,6 +38,7 @@ export interface Connection {
   close: () => void;
   // Closes once every queued byte has been written, so a last message reaches the client.
   closeWhenFlushed: () => void;
+  isFlushed: () => boolean;
   isClosed: () => boolean;
   isWelcomed: () => boolean;
 }
@@ -234,6 +235,7 @@ export const createConnection = (options: ConnectionOptions): Connection => {
     close,
     closeWhenFlushed,
     isClosed: () => closed,
+    isFlushed: () => queue.isEmpty(),
     isWelcomed: () => welcomed,
   };
 
