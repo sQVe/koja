@@ -45,6 +45,7 @@ const piStatusSchema = z.object({
     .object({
       state: z.string(),
       recoveryEligible: z.boolean(),
+      ineligibleReasons: z.array(z.string()),
       piVersion: z.string().optional(),
       sessionId: z.string().nullable().optional(),
       sessionFile: z.string().nullable().optional(),
@@ -269,6 +270,7 @@ it(
     expect(pi).toEqual({
       state: 'reported',
       recoveryEligible: true,
+      ineligibleReasons: [],
       piVersion: pinnedPiVersion,
       sessionId: await headerIdOf(conversation),
       sessionFile: conversation,
@@ -287,6 +289,7 @@ it(
     expect(switched).toEqual({
       state: 'reported',
       recoveryEligible: false,
+      ineligibleReasons: ['sessionNotSaved'],
       piVersion: pinnedPiVersion,
       sessionId: expect.any(String) as string,
       sessionFile: expect.stringContaining(directories.sessions) as string,

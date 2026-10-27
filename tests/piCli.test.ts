@@ -6,9 +6,10 @@ import { join } from 'node:path';
 import { z } from 'zod';
 
 import { logPathFor } from '../src/server/log.ts';
+import { readStat } from '../src/server/processGroups.ts';
 import { cliTestTimeoutMs, environmentFor, root, temporaryDirectory } from './cliHarness.ts';
 import type { CliRun } from './cliHarness.ts';
-import { pollUntil, setup } from './paneHarness.ts';
+import { pollUntil, readJson, setup } from './paneHarness.ts';
 import type { PaneSetup } from './paneHarness.ts';
 
 interface PaneReportOptions {
@@ -20,7 +21,7 @@ const report = {
   processId: 0,
   piVersion: '1.4.0',
   sessionId: 'conversation-1',
-  sessionFile: '/tmp/conversation-1.jsonl',
+  sessionFile: null,
   leafId: 'leaf-1',
   provider: 'anthropic',
   model: 'claude-opus',
@@ -30,17 +31,54 @@ const report = {
   sequence: 1,
 };
 
+const conversationFileOf = (pane: PaneSetup): string =>
+  join(pane.directory, 'conversation-1.jsonl');
+
+const reportOf = (
+  pane: PaneSetup,
+  fields: Record<string, unknown> = {},
+): Record<string, unknown> => ({
+  ...report,
+  sessionFile: conversationFileOf(pane),
+  ...fields,
+});
+
+const saveConversation = (pane: PaneSetup): Promise<void> =>
+  writeFile(conversationFileOf(pane), '{"type":"session"}\n');
+
+// The identity fields that status shows for a reported or lost pi.
+const piFieldsOf = (fields: Record<string, unknown>) => {
+  const { processId: _processId, event: _event, sequence: _sequence, leafId, ...identity } = fields;
+
+  return { ...identity, reportedLeafId: leafId };
+};
+
 const processInfoSchema = z.object({ shell_pid: z.number() });
 
-const shellPassOf = async (pane: PaneSetup): Promise<string> => {
+const shellPidOf = async (pane: PaneSetup): Promise<number> => {
   const info = await pane.koja('pane', 'process-info', pane.first);
-  const { shell_pid: shellPid } = processInfoSchema.parse(JSON.parse(info.stdout));
+
+  return processInfoSchema.parse(JSON.parse(info.stdout)).shell_pid;
+};
+
+const shellPassOf = async (pane: PaneSetup): Promise<string> => {
+  const shellPid = await shellPidOf(pane);
   const environment = (await readFile(`/proc/${shellPid}/environ`, 'utf8')).split('\0');
   const pass = environment.find((entry) => entry.startsWith('KOJA_REPORT_TOKEN='))?.slice(18);
 
   expect(pass).toMatch(/^[0-9a-f]{64}$/);
 
   return pass ?? '';
+};
+
+// rchar counts the bytes the shell has read, so it rises when the pane receives input.
+const inputBytesOf = async (processId: number): Promise<number> => {
+  const io = await readFile(`/proc/${processId}/io`, 'utf8');
+  const rchar = io.match(/^rchar: (\d+)$/m)?.[1];
+
+  expect(rchar).toBeDefined();
+
+  return Number(rchar);
 };
 
 const selfReport: PaneReportOptions = { processId: '$$', json: true };
@@ -86,6 +124,11 @@ const statusJson = async (pane: PaneSetup): Promise<unknown> => {
   return JSON.parse(status.stdout);
 };
 
+const piStateSchema = z.object({ pi: z.object({ state: z.string() }).nullable() });
+
+const stateOf = async (pane: PaneSetup): Promise<string | null> =>
+  piStateSchema.parse(await statusJson(pane)).pi?.state ?? null;
+
 it(
   'prints no pi for a pane without a report',
   async () => {
@@ -106,26 +149,23 @@ it(
   async () => {
     const pane = await setup();
 
-    expect(await reportFromPane(pane, report, 'first')).toEqual({
+    expect(await reportFromPane(pane, reportOf(pane), 'first')).toEqual({
       exitCode: 0,
       stdout: '{"ok":true,"status":"recorded"}\n',
       stderr: '',
     });
 
-    const {
-      processId: _processId,
-      event: _event,
-      sequence: _sequence,
-      leafId,
-      ...identity
-    } = report;
-
     expect(await statusJson(pane)).toEqual({
       pane: pane.first,
-      pi: { state: 'reported', recoveryEligible: false, ...identity, reportedLeafId: leafId },
+      pi: {
+        state: 'reported',
+        recoveryEligible: false,
+        ineligibleReasons: ['sessionNotSaved'],
+        ...piFieldsOf(reportOf(pane)),
+      },
     });
 
-    const switched = { ...report, sessionId: 'conversation-2', leafId: 'leaf-2', sequence: 2 };
+    const switched = reportOf(pane, { sessionId: 'conversation-2', leafId: 'leaf-2', sequence: 2 });
 
     expect(await reportFromPane(pane, switched, 'second')).toEqual({
       exitCode: 0,
@@ -138,9 +178,8 @@ it(
       pi: {
         state: 'reported',
         recoveryEligible: false,
-        ...identity,
-        sessionId: 'conversation-2',
-        reportedLeafId: 'leaf-2',
+        ineligibleReasons: ['sessionNotSaved'],
+        ...piFieldsOf(switched),
       },
     });
   },
@@ -151,14 +190,14 @@ it(
   'prints the server refusal for a process outside the pane and keeps the record',
   async () => {
     const pane = await setup();
-    const reported = await reportFromPane(pane, report, 'first');
+    const reported = await reportFromPane(pane, reportOf(pane), 'first');
 
     expect(reported.exitCode).toBe(0);
 
     const before = await statusJson(pane);
 
     const outside = { processId: String(process.pid), json: false };
-    const refused = await reportFromPane(pane, report, 'outside', outside);
+    const refused = await reportFromPane(pane, reportOf(pane), 'outside', outside);
 
     expect({ exitCode: refused.exitCode, stdout: refused.stdout }).toEqual({
       exitCode: 1,
@@ -167,7 +206,7 @@ it(
 
     expect(refused.stderr).toContain('does not run in pane');
 
-    const refusedJson = await reportFromPane(pane, report, 'outside-json', {
+    const refusedJson = await reportFromPane(pane, reportOf(pane), 'outside-json', {
       ...outside,
       json: true,
     });
@@ -187,7 +226,7 @@ it(
   async () => {
     const pane = await setup();
     const pass = await shellPassOf(pane);
-    const reported = await reportFromPane(pane, report, 'first');
+    const reported = await reportFromPane(pane, reportOf(pane), 'first');
 
     expect(reported.exitCode).toBe(0);
 
@@ -198,7 +237,9 @@ it(
 
     expect(text).toEqual({
       exitCode: 0,
-      stdout: `${pane.first}  pi  /tmp/conversation-1.jsonl  anthropic/claude-opus\n`,
+      stdout:
+        `${pane.first}  pi  reported  ${conversationFileOf(pane)}  anthropic/claude-opus\n` +
+        'recovery  not eligible: the session file is not saved yet\n',
       stderr: '',
     });
 
@@ -206,6 +247,193 @@ it(
 
     expect(log).toContain(socketPath);
     expect(outputs.filter((output) => output.includes(pass))).toEqual([]);
+  },
+  cliTestTimeoutMs,
+);
+
+it(
+  'prints an eligible reported pi as JSON and text',
+  async () => {
+    const pane = await setup();
+
+    await saveConversation(pane);
+
+    expect((await reportFromPane(pane, reportOf(pane), 'first')).exitCode).toBe(0);
+
+    expect(await statusJson(pane)).toEqual({
+      pane: pane.first,
+      pi: {
+        state: 'reported',
+        recoveryEligible: true,
+        ineligibleReasons: [],
+        ...piFieldsOf(reportOf(pane)),
+      },
+    });
+
+    expect(await pane.koja('pi', 'status', pane.first)).toEqual({
+      exitCode: 0,
+      stdout:
+        `${pane.first}  pi  reported  ${conversationFileOf(pane)}  anthropic/claude-opus\n` +
+        'recovery  eligible\n',
+      stderr: '',
+    });
+  },
+  cliTestTimeoutMs,
+);
+
+it(
+  'prints a Tau worker pi as not eligible with the tauWorker reason',
+  async () => {
+    const pane = await setup();
+
+    await saveConversation(pane);
+
+    const worker = reportOf(pane, { ownership: 'tauWorker' });
+
+    expect((await reportFromPane(pane, worker, 'first')).exitCode).toBe(0);
+
+    expect(await statusJson(pane)).toEqual({
+      pane: pane.first,
+      pi: {
+        state: 'reported',
+        recoveryEligible: false,
+        ineligibleReasons: ['tauWorker'],
+        ...piFieldsOf(worker),
+      },
+    });
+
+    expect(await pane.koja('pi', 'status', pane.first)).toEqual({
+      exitCode: 0,
+      stdout:
+        `${pane.first}  pi  reported  ${conversationFileOf(pane)}  anthropic/claude-opus\n` +
+        'recovery  not eligible: a Tau worker owns this pi\n',
+      stderr: '',
+    });
+  },
+  cliTestTimeoutMs,
+);
+
+it(
+  'prints a pi whose session file is not saved as not eligible',
+  async () => {
+    const pane = await setup();
+
+    expect((await reportFromPane(pane, reportOf(pane), 'first')).exitCode).toBe(0);
+
+    expect(await statusJson(pane)).toEqual({
+      pane: pane.first,
+      pi: {
+        state: 'reported',
+        recoveryEligible: false,
+        ineligibleReasons: ['sessionNotSaved'],
+        ...piFieldsOf(reportOf(pane)),
+      },
+    });
+
+    expect(await pane.koja('pi', 'status', pane.first)).toEqual({
+      exitCode: 0,
+      stdout:
+        `${pane.first}  pi  reported  ${conversationFileOf(pane)}  anthropic/claude-opus\n` +
+        'recovery  not eligible: the session file is not saved yet\n',
+      stderr: '',
+    });
+  },
+  cliTestTimeoutMs,
+);
+
+it(
+  'prints a switching pi without identity and with the switchPending reason',
+  async () => {
+    const pane = await setup();
+
+    await saveConversation(pane);
+
+    expect((await reportFromPane(pane, reportOf(pane), 'first')).exitCode).toBe(0);
+
+    const shutdown = reportOf(pane, { event: { kind: 'shutdown', reason: 'new' }, sequence: 2 });
+
+    expect((await reportFromPane(pane, shutdown, 'second')).exitCode).toBe(0);
+
+    expect(await statusJson(pane)).toEqual({
+      pane: pane.first,
+      pi: { state: 'switching', recoveryEligible: false, ineligibleReasons: ['switchPending'] },
+    });
+
+    expect(await pane.koja('pi', 'status', pane.first)).toEqual({
+      exitCode: 0,
+      stdout: `${pane.first}  pi  switching\nrecovery  not eligible: the conversation is switching\n`,
+      stderr: '',
+    });
+  },
+  cliTestTimeoutMs,
+);
+
+it(
+  'prints a lost pi with its last identity after its process ends without quit',
+  async () => {
+    const pane = await setup();
+
+    await saveConversation(pane);
+    await pane.koja('pane', 'send', 'sleep 300 & sleepPid=$!\n');
+
+    const sleeper = { processId: '$sleepPid', json: true };
+
+    expect((await reportFromPane(pane, reportOf(pane), 'first', sleeper)).exitCode).toBe(0);
+    expect(await stateOf(pane)).toBe('reported');
+
+    await pane.koja('pane', 'send', 'kill $sleepPid\n');
+
+    expect(
+      await pollUntil(
+        () => stateOf(pane),
+        (state) => state === 'lost',
+      ),
+    ).toBe('lost');
+
+    expect(await statusJson(pane)).toEqual({
+      pane: pane.first,
+      pi: {
+        state: 'lost',
+        recoveryEligible: true,
+        ineligibleReasons: [],
+        ...piFieldsOf(reportOf(pane)),
+      },
+    });
+
+    expect(await pane.koja('pi', 'status', pane.first)).toEqual({
+      exitCode: 0,
+      stdout: `${pane.first}  pi  lost  ${conversationFileOf(pane)}  anthropic/claude-opus\nrecovery  eligible\n`,
+      stderr: '',
+    });
+  },
+  cliTestTimeoutMs,
+);
+
+const paneSnapshotOf = async (pane: PaneSetup, shellPid: number) => ({
+  startTime: readStat(String(shellPid))?.startTime,
+  rows: (await readJson(pane.koja, pane.first, '--lines', '30')).lines,
+  inputBytes: await inputBytesOf(shellPid),
+});
+
+it(
+  'reads pi status twice without starting, changing, or typing into the live pi pane',
+  async () => {
+    const pane = await setup();
+    const shellPid = await shellPidOf(pane);
+
+    expect((await reportFromPane(pane, reportOf(pane), 'first')).exitCode).toBe(0);
+
+    const before = await paneSnapshotOf(pane, shellPid);
+
+    expect(await stateOf(pane)).toBe('reported');
+    expect(await stateOf(pane)).toBe('reported');
+
+    const after = await paneSnapshotOf(pane, shellPid);
+
+    expect(before.startTime).toBeDefined();
+    expect(after.startTime).toBe(before.startTime);
+    expect(after.rows).toEqual(before.rows);
+    expect(after.inputBytes).toBe(before.inputBytes);
   },
   cliTestTimeoutMs,
 );
