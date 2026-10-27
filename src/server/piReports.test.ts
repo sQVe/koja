@@ -1,108 +1,14 @@
 import { expect, it, onTestFinished, spyOn } from 'bun:test';
-import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises';
-import { tmpdir } from 'node:os';
-import { join, relative } from 'node:path';
 
-import { paneId } from '../ids.ts';
 import type { PaneId } from '../ids.ts';
-import type { ControlMessage } from '../protocol/protocol.ts';
-import { applyFact, applyIntent, applyPiReport, createState } from '../store/store.ts';
-import type { PiReport } from '../store/store.ts';
-import type { Connection } from './connection.ts';
+import { applyPiReport } from '../store/store.ts';
 import type { RunningPane } from './paneRecord.ts';
+import { fixture, identity, pass, report, target } from './piReportFixture.ts';
 import { answerPiStatus, handlePiReport } from './piReports.ts';
 import * as processGroups from './processGroups.ts';
-import { parseStat, readStat } from './processGroups.ts';
-
-const target = paneId(1);
-const pass = 'a'.repeat(64);
-
-const report: PiReport = {
-  processId: process.pid,
-  piVersion: '1.4.0',
-  sessionId: undefined,
-  sessionFile: undefined,
-  leafId: undefined,
-  provider: undefined,
-  model: undefined,
-  thinkingLevel: 'off',
-  ownership: 'tauWorker',
-  event: { kind: 'start', reason: 'startup' },
-  sequence: 1,
-};
-
-const { processId: _processId, event: _event, sequence: _sequence, ...identity } = report;
+import { parseStat } from './processGroups.ts';
 
 const quit = { event: { kind: 'shutdown', reason: 'quit' }, sequence: 2 } as const;
-
-const fixture = () => {
-  const created = applyIntent(createState(), {
-    type: 'createWorkspace',
-    root: '/tmp',
-    label: undefined,
-    focus: true,
-  });
-
-  const processStat = readStat(String(process.pid));
-
-  if (processStat === undefined) {
-    throw new Error('Cannot read this process.');
-  }
-
-  const { state } = applyFact(created.state, {
-    type: 'paneStarted',
-    paneId: target,
-    generation: created.state.panes[0]!.generation,
-  });
-
-  const messages: ControlMessage[] = [];
-  const warnings: unknown[] = [];
-
-  const running = {
-    reportPass: pass,
-    runtime: { generation: state.panes[0]!.generation, processId: processStat.session },
-  } as RunningPane;
-
-  const context = {
-    state,
-    runtime: { panes: new Map([[target, running]]) },
-    options: {
-      log: {
-        debug: () => {},
-        info: () => {},
-        error: () => {},
-        warn: (_message: string, fields: unknown) => {
-          warnings.push(fields);
-        },
-      },
-    },
-  };
-
-  const connection = {
-    send: (message: ControlMessage) => {
-      messages.push(message);
-    },
-  } as Connection;
-
-  const sendReport = (changes: Partial<PiReport> = {}): void => {
-    handlePiReport(
-      context,
-      { type: 'piReport', paneId: target, token: pass, report: { ...report, ...changes } },
-      connection,
-    );
-  };
-
-  return {
-    context,
-    connection,
-    messages,
-    warnings,
-    running,
-    processStat,
-    starting: created.state,
-    sendReport,
-  };
-};
 
 const goneProcessId = async (): Promise<number> => {
   const child = Bun.spawn(['/bin/true']);
@@ -118,14 +24,6 @@ const hideProcesses = (): void => {
   onTestFinished(() => {
     statReader.mockRestore();
   });
-};
-
-const sessionDirectory = async (): Promise<string> => {
-  const directory = await mkdtemp(join(tmpdir(), 'koja-pi-reports-'));
-
-  onTestFinished(() => rm(directory, { recursive: true, force: true }));
-
-  return directory;
 };
 
 it('refuses a stale runtime generation without replacing state or releasing the runtime', () => {
@@ -370,66 +268,6 @@ it('ignores a report from the recorded process with an older sequence', () => {
   expect(context.state).toBe(before);
 });
 
-it.each([
-  ['a Tau worker', { ownership: 'tauWorker' }, 'saved', ['tauWorker']],
-  ['a pi without a session file', { ownership: 'interactive' }, undefined, ['noSessionFile']],
-  ['a session file not on disk', { ownership: 'interactive' }, 'missing', ['sessionNotSaved']],
-  ['a session path that is a folder', { ownership: 'interactive' }, 'folder', ['sessionNotSaved']],
-  ['a relative session path', { ownership: 'interactive' }, 'relative', ['sessionNotSaved']],
-  ['a saved interactive session', { ownership: 'interactive' }, 'saved', []],
-] as const)(
-  'gives the recovery reasons of %s',
-  async (_name, changes, sessionFileKind, ineligibleReasons) => {
-    const directory = await sessionDirectory();
-    const saved = join(directory, 'saved.jsonl');
-    const folder = join(directory, 'folder.jsonl');
-
-    await writeFile(saved, '{}\n');
-    await mkdir(folder);
-
-    const sessionFiles = {
-      saved,
-      folder,
-      missing: join(directory, 'missing.jsonl'),
-      relative: relative(process.cwd(), saved),
-    };
-
-    const sessionFile = sessionFileKind === undefined ? undefined : sessionFiles[sessionFileKind];
-    const { connection, context, messages, sendReport } = fixture();
-
-    sendReport({ ...changes, sessionFile });
-    answerPiStatus(context, target, connection);
-
-    expect(messages.at(-1)).toEqual({
-      type: 'piStatusReply',
-      paneId: target,
-      pi: {
-        state: 'reported',
-        ...identity,
-        ...changes,
-        sessionFile,
-        ineligibleReasons: [...ineligibleReasons],
-      },
-    });
-  },
-);
-
-it('records a live process and reports its identity without its process id or pass', () => {
-  const { context, connection, messages, sendReport } = fixture();
-
-  sendReport();
-  answerPiStatus(context, target, connection);
-
-  expect(messages).toEqual([
-    { type: 'piReportResult', result: { ok: true, status: 'recorded' } },
-    {
-      type: 'piStatusReply',
-      paneId: target,
-      pi: { state: 'reported', ...identity, ineligibleReasons: ['tauWorker', 'noSessionFile'] },
-    },
-  ]);
-});
-
 it('refuses a report whose pass does not match the pane pass', () => {
   const { context, connection, messages, warnings, running } = fixture();
   const before = context.state;
@@ -485,42 +323,4 @@ it('refuses a report for a pane without a runtime entry', () => {
 
   expect(unregistered.state).toBe(before);
   expect(panes.size).toBe(0);
-});
-
-it('shows the record of a pane without a runtime entry as lost', () => {
-  const { context, connection, messages, sendReport } = fixture();
-
-  sendReport();
-
-  const unregistered = { ...context, runtime: { panes: new Map<PaneId, RunningPane>() } };
-
-  answerPiStatus(unregistered, target, connection);
-
-  expect(messages.at(-1)).toEqual({
-    type: 'piStatusReply',
-    paneId: target,
-    pi: { state: 'lost', ...identity, ineligibleReasons: ['tauWorker', 'noSessionFile'] },
-  });
-});
-
-it('shows a record as lost when its process has left the pane shell session', () => {
-  const { context, connection, messages, running, sendReport } = fixture();
-
-  sendReport();
-  running.runtime.processId += 1;
-  answerPiStatus(context, target, connection);
-
-  expect(messages.at(-1)).toEqual({
-    type: 'piStatusReply',
-    paneId: target,
-    pi: { state: 'lost', ...identity, ineligibleReasons: ['tauWorker', 'noSessionFile'] },
-  });
-});
-
-it('replies unknownPane to a status request for a pane the store does not know', () => {
-  const { context, connection, messages } = fixture();
-
-  answerPiStatus(context, paneId(9), connection);
-
-  expect(messages).toEqual([{ type: 'paneFailed', reason: 'unknownPane', message: undefined }]);
 });

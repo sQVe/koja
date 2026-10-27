@@ -1,4 +1,4 @@
-import { expect, it, onTestFinished } from 'bun:test';
+import { expect, it } from 'bun:test';
 import { existsSync } from 'node:fs';
 import { readFile, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
@@ -7,29 +7,16 @@ import { z } from 'zod';
 
 import { logPathFor } from '../src/server/log.ts';
 import { readStat } from '../src/server/processGroups.ts';
-import { cliTestTimeoutMs, environmentFor, root, temporaryDirectory } from './cliHarness.ts';
+import { cliTestTimeoutMs, root } from './cliHarness.ts';
 import type { CliRun } from './cliHarness.ts';
 import { pollUntil, readJson, setup } from './paneHarness.ts';
 import type { PaneSetup } from './paneHarness.ts';
+import { report } from './piReportHarness.ts';
 
 interface PaneReportOptions {
   processId: string;
   json: boolean;
 }
-
-const report = {
-  processId: 0,
-  piVersion: '1.4.0',
-  sessionId: 'conversation-1',
-  sessionFile: null,
-  leafId: 'leaf-1',
-  provider: 'anthropic',
-  model: 'claude-opus',
-  thinkingLevel: 'high',
-  ownership: 'interactive',
-  event: { kind: 'start', reason: 'startup' },
-  sequence: 1,
-};
 
 const conversationFileOf = (pane: PaneSetup): string =>
   join(pane.directory, 'conversation-1.jsonl');
@@ -251,90 +238,54 @@ it(
   cliTestTimeoutMs,
 );
 
-it(
-  'prints an eligible reported pi as JSON and text',
-  async () => {
-    const pane = await setup();
-
-    await saveConversation(pane);
-
-    expect((await reportFromPane(pane, reportOf(pane), 'first')).exitCode).toBe(0);
-
-    expect(await statusJson(pane)).toEqual({
-      pane: pane.first,
-      pi: {
-        state: 'reported',
-        recoveryEligible: true,
-        ineligibleReasons: [],
-        ...piFieldsOf(reportOf(pane)),
-      },
-    });
-
-    expect(await pane.koja('pi', 'status', pane.first)).toEqual({
-      exitCode: 0,
-      stdout:
-        `${pane.first}  pi  reported  ${conversationFileOf(pane)}  anthropic/claude-opus\n` +
-        'recovery  eligible\n',
-      stderr: '',
-    });
+it.each([
+  {
+    name: 'an eligible reported pi',
+    saveSession: true,
+    changes: {},
+    recoveryEligible: true,
+    ineligibleReasons: [],
+    recoveryLine: 'recovery  eligible\n',
   },
-  cliTestTimeoutMs,
-);
-
-it(
-  'prints a Tau worker pi as not eligible with the tauWorker reason',
-  async () => {
-    const pane = await setup();
-
-    await saveConversation(pane);
-
-    const worker = reportOf(pane, { ownership: 'tauWorker' });
-
-    expect((await reportFromPane(pane, worker, 'first')).exitCode).toBe(0);
-
-    expect(await statusJson(pane)).toEqual({
-      pane: pane.first,
-      pi: {
-        state: 'reported',
-        recoveryEligible: false,
-        ineligibleReasons: ['tauWorker'],
-        ...piFieldsOf(worker),
-      },
-    });
-
-    expect(await pane.koja('pi', 'status', pane.first)).toEqual({
-      exitCode: 0,
-      stdout:
-        `${pane.first}  pi  reported  ${conversationFileOf(pane)}  anthropic/claude-opus\n` +
-        'recovery  not eligible: a Tau worker owns this pi\n',
-      stderr: '',
-    });
+  {
+    name: 'a Tau worker pi',
+    saveSession: true,
+    changes: { ownership: 'tauWorker' },
+    recoveryEligible: false,
+    ineligibleReasons: ['tauWorker'],
+    recoveryLine: 'recovery  not eligible: a Tau worker owns this pi\n',
   },
-  cliTestTimeoutMs,
-);
-
-it(
-  'prints a pi whose session file is not saved as not eligible',
-  async () => {
+  {
+    name: 'a pi whose session file is not saved',
+    saveSession: false,
+    changes: {},
+    recoveryEligible: false,
+    ineligibleReasons: ['sessionNotSaved'],
+    recoveryLine: 'recovery  not eligible: the session file is not saved yet\n',
+  },
+])(
+  'prints $name as JSON and text',
+  async ({ saveSession, changes, recoveryEligible, ineligibleReasons, recoveryLine }) => {
     const pane = await setup();
 
-    expect((await reportFromPane(pane, reportOf(pane), 'first')).exitCode).toBe(0);
+    if (saveSession) {
+      await saveConversation(pane);
+    }
+
+    const sent = reportOf(pane, changes);
+
+    expect((await reportFromPane(pane, sent, 'first')).exitCode).toBe(0);
 
     expect(await statusJson(pane)).toEqual({
       pane: pane.first,
-      pi: {
-        state: 'reported',
-        recoveryEligible: false,
-        ineligibleReasons: ['sessionNotSaved'],
-        ...piFieldsOf(reportOf(pane)),
-      },
+      pi: { state: 'reported', recoveryEligible, ineligibleReasons, ...piFieldsOf(sent) },
     });
 
     expect(await pane.koja('pi', 'status', pane.first)).toEqual({
       exitCode: 0,
       stdout:
         `${pane.first}  pi  reported  ${conversationFileOf(pane)}  anthropic/claude-opus\n` +
-        'recovery  not eligible: the session file is not saved yet\n',
+        recoveryLine,
       stderr: '',
     });
   },
@@ -434,115 +385,6 @@ it(
     expect(after.startTime).toBe(before.startTime);
     expect(after.rows).toEqual(before.rows);
     expect(after.inputBytes).toBe(before.inputBytes);
-  },
-  cliTestTimeoutMs,
-);
-
-const validPass = 'a'.repeat(64);
-
-const listenerAt = (socketPath: string) => {
-  const connections = { count: 0 };
-
-  const listener = Bun.listen({
-    unix: socketPath,
-    socket: {
-      open: () => {
-        connections.count += 1;
-      },
-      data: () => undefined,
-    },
-  });
-
-  onTestFinished(() => {
-    listener.stop(true);
-  });
-
-  return connections;
-};
-
-const startReport = (
-  directory: string,
-  input: string,
-  environment: Record<string, string | undefined>,
-) =>
-  Bun.spawn(['bun', join(root, 'src/index.ts'), 'pi', 'report'], {
-    cwd: directory,
-    env: environment,
-    stdin: new TextEncoder().encode(input),
-    stdout: 'pipe',
-    stderr: 'pipe',
-  });
-
-const reportEnvironment = (directory: string, socketPath: string) => ({
-  ...environmentFor(directory),
-  KOJA_PANE_ID: 'pane-1',
-  KOJA_REPORT_TOKEN: validPass,
-  KOJA_SOCKET_PATH: socketPath,
-});
-
-it(
-  'connects to the pane socket for a valid report',
-  async () => {
-    const directory = await temporaryDirectory();
-    const socketPath = join(directory, 'koja.sock');
-    const connections = listenerAt(socketPath);
-
-    const child = startReport(
-      directory,
-      JSON.stringify({ ...report, processId: 1 }),
-      reportEnvironment(directory, socketPath),
-    );
-
-    onTestFinished(() => {
-      child.kill();
-    });
-
-    const connected = await pollUntil(
-      () => Promise.resolve(connections.count),
-      (count) => count > 0,
-    );
-
-    expect(connected).toBe(1);
-  },
-  cliTestTimeoutMs,
-);
-
-it.each([
-  ['invalid JSON', '{"processId":', {}, 'The report on stdin is not valid JSON.'],
-  [
-    'an oversized field',
-    JSON.stringify({ ...report, processId: 1, piVersion: 'x'.repeat(65) }),
-    {},
-    'The report on stdin is not a valid pi report. piVersion:',
-  ],
-  [
-    'a missing KOJA_REPORT_TOKEN',
-    JSON.stringify({ ...report, processId: 1 }),
-    { KOJA_REPORT_TOKEN: undefined },
-    'KOJA_REPORT_TOKEN is not set. pi report runs only inside a Koja pane.',
-  ],
-])(
-  'refuses %s before it connects',
-  async (_name, input, overrides, message) => {
-    const directory = await temporaryDirectory();
-    const socketPath = join(directory, 'koja.sock');
-    const connections = listenerAt(socketPath);
-
-    const child = startReport(directory, input, {
-      ...reportEnvironment(directory, socketPath),
-      ...overrides,
-    });
-
-    const [exitCode, stdout, stderr] = await Promise.all([
-      child.exited,
-      new Response(child.stdout).text(),
-      new Response(child.stderr).text(),
-    ]);
-
-    expect({ exitCode, stdout }).toEqual({ exitCode: 1, stdout: '' });
-    expect(stderr).toContain(message);
-    expect(stderr).not.toContain(validPass);
-    expect(connections.count).toBe(0);
   },
   cliTestTimeoutMs,
 );
