@@ -163,7 +163,7 @@ it('shows the mode and a paste message without the tab labels, even when the lab
   } as unknown as StoreSnapshot;
 
   for (const message of [
-    'Paste 2 lines into a pane without bracketed paste? y/n',
+    'y/n: paste 2 lines without bracketed paste?',
     'Paste failed: no clipboard is available here.',
   ]) {
     const labels = tabLabelsOf(snapshot, 'normal', message);

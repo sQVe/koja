@@ -88,7 +88,7 @@ const pasteNotices: Record<Exclude<PasteFailure, 'confirmationRequired'>, string
 const promptOf = (lines: number): string => {
   const noun = lines === 1 ? 'line' : 'lines';
 
-  return `Paste ${lines} ${noun} into a pane without bracketed paste? y/n`;
+  return `y/n: paste ${lines} ${noun} without bracketed paste?`;
 };
 
 const isMultiline = (text: string): boolean => /[\r\n]/.test(text);

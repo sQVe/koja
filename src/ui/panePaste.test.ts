@@ -13,7 +13,7 @@ const changedNotice = 'Paste canceled: the pane changed.';
 
 const canceledNotice = 'Paste canceled.';
 
-const promptOfTwoLines = 'Paste 2 lines into a pane without bracketed paste? y/n';
+const promptOfTwoLines = 'y/n: paste 2 lines without bracketed paste?';
 
 const sentTo = (pane: PaneId, generation = 1): PanePasteResult => ({
   ok: true,

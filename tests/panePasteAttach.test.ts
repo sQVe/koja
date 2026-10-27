@@ -160,7 +160,7 @@ it(
     const { type, statusBar, until, received } = await setupPaste({ clipboardText: 'one\ntwo' });
 
     type('\x02p');
-    await until(() => statusBar().includes('Paste 2 lines') && statusBar().endsWith('y/n'));
+    await until(() => statusBar().includes('y/n: paste 2 lines'));
 
     expect(await received()).toBe('');
 
@@ -213,7 +213,7 @@ it(
     expect(JSON.parse(asked.stdout)).toMatchObject({ status: 'confirmationRequired' });
 
     type('\x1b[200~host\npaste\x1b[201~');
-    await until(() => statusBar().includes('Paste 2 lines') && statusBar().endsWith('y/n'));
+    await until(() => statusBar().includes('y/n: paste 2 lines'));
 
     expect(await received()).toBe('');
 
@@ -409,7 +409,7 @@ it(
 
     await until(() => statusBar().startsWith('INSERT [1]'));
     terminal.type('\x1b[200~host\npaste\x1b[201~');
-    await until(() => statusBar().includes('Paste 2 lines') && statusBar().endsWith('y/n'));
+    await until(() => statusBar().includes('y/n: paste 2 lines'));
 
     expect(await readReceived(received)).toBe('');
 
