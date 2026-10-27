@@ -1,3 +1,4 @@
+import { existsSync } from 'node:fs';
 import { chmod, readdir, readFile, writeFile } from 'node:fs/promises';
 import { basename, join } from 'node:path';
 
@@ -26,6 +27,7 @@ export interface RecordedReport {
   report: z.infer<typeof recordedReportSchema>;
   stdout: string;
   exitCode: number;
+  delayed: boolean;
 }
 
 const quote = (value: string): string => `'${value.replaceAll("'", "'\\''")}'`;
@@ -43,7 +45,7 @@ export const writeRecordingBinary = async (
     '#!/bin/sh',
     `record=${quote(reportsDirectory)}/"$$"`,
     'cat > "$record.json"',
-    `grep -q '"reason":"quit"' "$record.json" && sleep ${String(quitDelaySeconds)}`,
+    `grep -q '"reason":"quit"' "$record.json" && : > "$record.delayed" && sleep ${String(quitDelaySeconds)}`,
     `${quote(realBinaryPath)} "$@" < "$record.json" > "$record.out"`,
     'status=$?',
     'echo "$status" > "$record.exit"',
@@ -74,6 +76,7 @@ export const recordedReportsOf = async (reportsDirectory: string): Promise<Recor
         report: recordedReportSchema.parse(JSON.parse(saved)),
         stdout,
         exitCode: Number(exitStatus.trim()),
+        delayed: existsSync(`${base}.delayed`),
       };
     }),
   );

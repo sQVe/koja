@@ -165,7 +165,7 @@ const isReloadStart = (recorded: RecordedReport): boolean =>
 const startPiWithSlowQuitReport = async (
   pane: PaneSetup,
   quitDelaySeconds: number,
-): Promise<void> => {
+): Promise<string> => {
   const directories = await piDirectories(pane.directory);
   const reportsDirectory = join(pane.directory, 'reports');
   const recordingBinary = join(pane.directory, 'koja-recording');
@@ -181,6 +181,8 @@ const startPiWithSlowQuitReport = async (
 
   await send(pane, piCommand(directories, { extension: true, binaryPath: recordingBinary }));
   await waitForPi(pane, 'reported');
+
+  return reportsDirectory;
 };
 
 it(
@@ -340,10 +342,20 @@ it(
   async () => {
     const pane = await setup();
 
-    await startPiWithSlowQuitReport(pane, 1);
+    const reportsDirectory = await startPiWithSlowQuitReport(pane, 1);
+
     await send(pane, '/quit\r');
 
     expect(onlyShellRuns(await pollUntil(() => processInfo(pane), onlyShellRuns))).toBe(true);
+
+    const delayed = (await recordedReportsOf(reportsDirectory)).filter(
+      (recorded) => recorded.delayed,
+    );
+
+    expect(delayed.map((recorded) => [recorded.report.event, recorded.exitCode])).toEqual([
+      [{ kind: 'shutdown', reason: 'quit' }, 0],
+    ]);
+
     expect((await piStatus(pane)).pi).toBeNull();
   },
   piTestTimeoutMs,
