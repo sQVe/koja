@@ -17,10 +17,10 @@ type ReportBuilt = { ok: true; message: PiReportMessage } | { ok: false; message
 
 type PiOutput =
   | null
-  | { state: 'changed'; recoveryEligible: false }
+  | { state: 'switching'; recoveryEligible: false }
   | {
-      state: 'reported';
-      recoveryEligible: false;
+      state: 'reported' | 'lost';
+      recoveryEligible: boolean;
       piVersion: string;
       sessionId: string | null;
       sessionFile: string | null;
@@ -43,13 +43,13 @@ const piOutputOf = (pi: PiStatus): PiOutput => {
     return null;
   }
 
-  if (pi.state === 'changed') {
-    return { state: 'changed', recoveryEligible: false };
+  if (pi.state === 'switching') {
+    return { state: 'switching', recoveryEligible: false };
   }
 
   return {
-    state: 'reported',
-    recoveryEligible: false,
+    state: pi.state,
+    recoveryEligible: pi.ineligibleReasons.length === 0,
     piVersion: pi.piVersion,
     sessionId: pi.sessionId ?? null,
     sessionFile: pi.sessionFile ?? null,
@@ -66,11 +66,13 @@ const piTextOf = (pi: PiStatus): string => {
     return 'none';
   }
 
-  if (pi.state === 'changed') {
-    return 'conversation changed, not tracked yet';
+  if (pi.state === 'switching') {
+    return 'switching conversation';
   }
 
-  const parts = [pi.sessionFile ?? 'no session file'];
+  const parts = pi.state === 'lost' ? ['lost'] : [];
+
+  parts.push(pi.sessionFile ?? 'no session file');
 
   if (pi.provider !== undefined && pi.model !== undefined) {
     parts.push(`${pi.provider}/${pi.model}`);
@@ -180,6 +182,10 @@ const refusalMessage = (reason: PiReportRefusal, report: PiReportMessage): strin
 
   if (reason === 'processNotInPane') {
     return `The server refused the report: process ${report.report.processId} does not run in pane ${report.paneId}.`;
+  }
+
+  if (reason === 'processNotRecorded') {
+    return `The server refused the report: process ${report.report.processId} has not started a pi session in pane ${report.paneId}.`;
   }
 
   return reason === 'unknownPane'

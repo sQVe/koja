@@ -1,4 +1,7 @@
 import { expect, it, onTestFinished, spyOn } from 'bun:test';
+import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
+import { join, relative } from 'node:path';
 
 import { paneId } from '../ids.ts';
 import type { PaneId } from '../ids.ts';
@@ -24,7 +27,13 @@ const report: PiReport = {
   model: undefined,
   thinkingLevel: 'off',
   ownership: 'tauWorker',
+  event: { kind: 'start', reason: 'startup' },
+  sequence: 1,
 };
+
+const { processId: _processId, event: _event, sequence: _sequence, ...identity } = report;
+
+const quit = { event: { kind: 'shutdown', reason: 'quit' }, sequence: 2 } as const;
 
 const fixture = () => {
   const created = applyIntent(createState(), {
@@ -75,7 +84,48 @@ const fixture = () => {
     },
   } as Connection;
 
-  return { context, connection, messages, warnings, running, processStat, starting: created.state };
+  const sendReport = (changes: Partial<PiReport> = {}): void => {
+    handlePiReport(
+      context,
+      { type: 'piReport', paneId: target, token: pass, report: { ...report, ...changes } },
+      connection,
+    );
+  };
+
+  return {
+    context,
+    connection,
+    messages,
+    warnings,
+    running,
+    processStat,
+    starting: created.state,
+    sendReport,
+  };
+};
+
+const goneProcessId = async (): Promise<number> => {
+  const child = Bun.spawn(['/bin/true']);
+
+  await child.exited;
+
+  return child.pid;
+};
+
+const hideProcesses = (): void => {
+  const statReader = spyOn(processGroups, 'readStat').mockReturnValue(undefined);
+
+  onTestFinished(() => {
+    statReader.mockRestore();
+  });
+};
+
+const sessionDirectory = async (): Promise<string> => {
+  const directory = await mkdtemp(join(tmpdir(), 'koja-pi-reports-'));
+
+  onTestFinished(() => rm(directory, { recursive: true, force: true }));
+
+  return directory;
 };
 
 it('refuses a stale runtime generation without replacing state or releasing the runtime', () => {
@@ -96,7 +146,7 @@ it('refuses a stale runtime generation without replacing state or releasing the 
   expect(context.runtime.panes.get(target)).toBe(running);
 });
 
-it('hides a record when a reused process id has a different start time', () => {
+it('shows a record as lost with its last identity when a reused process id has a different start time', () => {
   const { context, connection, messages, processStat, running } = fixture();
 
   const recorded = applyPiReport(context.state, {
@@ -109,15 +159,21 @@ it('hides a record when a reused process id has a different start time', () => {
   context.state = recorded.state;
   answerPiStatus(context, target, connection);
 
-  expect(messages).toEqual([{ type: 'piStatusReply', paneId: target, pi: null }]);
+  expect(messages).toEqual([
+    {
+      type: 'piStatusReply',
+      paneId: target,
+      pi: { state: 'lost', ...identity, ineligibleReasons: ['tauWorker', 'noSessionFile'] },
+    },
+  ]);
 });
 
 it.each(['Z', 'X'])(
-  'refuses an unreaped process in state %s and hides its earlier record',
+  'refuses a non-quit report from an unreaped process in state %s and shows its record as lost',
   (state) => {
-    const { context, connection, messages, warnings, running, processStat } = fixture();
+    const { context, connection, messages, warnings, running, processStat, sendReport } = fixture();
 
-    handlePiReport(context, { type: 'piReport', paneId: target, token: pass, report }, connection);
+    sendReport();
 
     const before = context.state;
     const line = `${process.pid} (pi) ${state} 1 ${processStat.group} ${processStat.session} 0 -1 0 0 0 0 0 0 0 0 0 0 0 0 0 ${processStat.startTime}`;
@@ -135,23 +191,17 @@ it.each(['Z', 'X'])(
       statReader.mockRestore();
     });
 
-    handlePiReport(
-      context,
-      {
-        type: 'piReport',
-        paneId: target,
-        token: pass,
-        report: { ...report, sessionId: 'late-report' },
-      },
-      connection,
-    );
-
+    sendReport({ event: { kind: 'tree' }, sequence: 2, sessionId: 'late-report' });
     answerPiStatus(context, target, connection);
 
     expect(messages).toEqual([
       { type: 'piReportResult', result: { ok: true, status: 'recorded' } },
       { type: 'piReportResult', result: { ok: false, reason: 'processNotInPane' } },
-      { type: 'piStatusReply', paneId: target, pi: null },
+      {
+        type: 'piStatusReply',
+        paneId: target,
+        pi: { state: 'lost', ...identity, ineligibleReasons: ['tauWorker', 'noSessionFile'] },
+      },
     ]);
 
     expect(context.state).toBe(before);
@@ -161,17 +211,222 @@ it.each(['Z', 'X'])(
   },
 );
 
-it('records a live process and reports its identity without its process id or pass', () => {
-  const { context, connection, messages } = fixture();
+it('shows a gone process that sent no quit as lost with its last identity', () => {
+  const { connection, context, messages, sendReport } = fixture();
 
-  handlePiReport(context, { type: 'piReport', paneId: target, token: pass, report }, connection);
+  sendReport({ event: { kind: 'model' }, sequence: 2, model: 'opus' });
+  sendReport({ event: { kind: 'start', reason: 'resume' }, sequence: 3, sessionId: 'session-b' });
+  hideProcesses();
   answerPiStatus(context, target, connection);
 
-  const { processId: _processId, ...identity } = report;
+  expect(messages.at(-1)).toEqual({
+    type: 'piStatusReply',
+    paneId: target,
+    pi: {
+      state: 'lost',
+      ...identity,
+      sessionId: 'session-b',
+      ineligibleReasons: ['tauWorker', 'noSessionFile'],
+    },
+  });
+});
+
+it('clears the record on a quit report from its process after that process is gone', () => {
+  const { connection, context, messages, running, sendReport } = fixture();
+
+  sendReport();
+  hideProcesses();
+  sendReport(quit);
+  answerPiStatus(context, target, connection);
 
   expect(messages).toEqual([
     { type: 'piReportResult', result: { ok: true, status: 'recorded' } },
-    { type: 'piStatusReply', paneId: target, pi: { state: 'reported', ...identity } },
+    { type: 'piReportResult', result: { ok: true, status: 'updated' } },
+    { type: 'piStatusReply', paneId: target, pi: null },
+  ]);
+
+  expect(context.runtime.panes.get(target)).toBe(running);
+  expect(context.state.panes[0]?.lifecycle).toBe('running');
+});
+
+it('refuses a quit report from a gone process whose id is not the recorded process', async () => {
+  const { connection, context, messages, running, sendReport, warnings } = fixture();
+
+  sendReport();
+
+  const before = context.state;
+
+  sendReport({ ...quit, processId: await goneProcessId() });
+  answerPiStatus(context, target, connection);
+
+  expect(messages).toEqual([
+    { type: 'piReportResult', result: { ok: true, status: 'recorded' } },
+    { type: 'piReportResult', result: { ok: false, reason: 'processNotInPane' } },
+    {
+      type: 'piStatusReply',
+      paneId: target,
+      pi: { state: 'reported', ...identity, ineligibleReasons: ['tauWorker', 'noSessionFile'] },
+    },
+  ]);
+
+  expect(warnings).toEqual([{ paneId: target, reason: 'processNotInPane' }]);
+  expect(context.state).toBe(before);
+  expect(context.runtime.panes.get(target)).toBe(running);
+  expect(context.state.panes[0]?.lifecycle).toBe('running');
+});
+
+it('refuses a quit report from a gone process when the pane has no record', async () => {
+  const { connection, context, messages, running, sendReport } = fixture();
+  const before = context.state;
+
+  sendReport({ ...quit, processId: await goneProcessId() });
+  answerPiStatus(context, target, connection);
+
+  expect(messages).toEqual([
+    { type: 'piReportResult', result: { ok: false, reason: 'processNotInPane' } },
+    { type: 'piStatusReply', paneId: target, pi: null },
+  ]);
+
+  expect(context.state).toBe(before);
+  expect(context.runtime.panes.get(target)).toBe(running);
+});
+
+it('refuses a non-start report from a live process the pane has not recorded', () => {
+  const { connection, context, messages, running, sendReport, warnings } = fixture();
+  const before = context.state;
+
+  sendReport({ event: { kind: 'model' } });
+  answerPiStatus(context, target, connection);
+
+  expect(messages).toEqual([
+    { type: 'piReportResult', result: { ok: false, reason: 'processNotRecorded' } },
+    { type: 'piStatusReply', paneId: target, pi: null },
+  ]);
+
+  expect(warnings).toEqual([{ paneId: target, reason: 'processNotRecorded' }]);
+  expect(context.state).toBe(before);
+  expect(context.runtime.panes.get(target)).toBe(running);
+});
+
+it('shows a pending switch as switching with no identity', () => {
+  const { connection, context, messages, sendReport } = fixture();
+
+  sendReport({ ownership: 'interactive' });
+  sendReport({ ownership: 'interactive', event: { kind: 'shutdown', reason: 'new' }, sequence: 2 });
+  answerPiStatus(context, target, connection);
+
+  expect(messages.at(-1)).toEqual({
+    type: 'piStatusReply',
+    paneId: target,
+    pi: { state: 'switching', ineligibleReasons: ['switchPending'] },
+  });
+});
+
+it('shows a lost record that was switching with its last identity and the pending switch', () => {
+  const { connection, context, messages, sendReport } = fixture();
+
+  sendReport({ ownership: 'interactive' });
+
+  sendReport({
+    ownership: 'interactive',
+    event: { kind: 'shutdown', reason: 'fork' },
+    sequence: 2,
+  });
+
+  hideProcesses();
+  answerPiStatus(context, target, connection);
+
+  expect(messages.at(-1)).toEqual({
+    type: 'piStatusReply',
+    paneId: target,
+    pi: {
+      state: 'lost',
+      ...identity,
+      ownership: 'interactive',
+      ineligibleReasons: ['switchPending'],
+    },
+  });
+});
+
+it('ignores a report from the recorded process with an older sequence', () => {
+  const { connection, context, messages, sendReport } = fixture();
+
+  sendReport({ sequence: 5 });
+
+  const before = context.state;
+
+  sendReport({ event: { kind: 'tree' }, sequence: 4, leafId: 'old-leaf' });
+  answerPiStatus(context, target, connection);
+
+  expect(messages.slice(1)).toEqual([
+    { type: 'piReportResult', result: { ok: true, status: 'ignored' } },
+    {
+      type: 'piStatusReply',
+      paneId: target,
+      pi: { state: 'reported', ...identity, ineligibleReasons: ['tauWorker', 'noSessionFile'] },
+    },
+  ]);
+
+  expect(context.state).toBe(before);
+});
+
+it.each([
+  ['a Tau worker', { ownership: 'tauWorker' }, 'saved', ['tauWorker']],
+  ['a pi without a session file', { ownership: 'interactive' }, undefined, ['noSessionFile']],
+  ['a session file not on disk', { ownership: 'interactive' }, 'missing', ['sessionNotSaved']],
+  ['a session path that is a folder', { ownership: 'interactive' }, 'folder', ['sessionNotSaved']],
+  ['a relative session path', { ownership: 'interactive' }, 'relative', ['sessionNotSaved']],
+  ['a saved interactive session', { ownership: 'interactive' }, 'saved', []],
+] as const)(
+  'gives the recovery reasons of %s',
+  async (_name, changes, sessionFileKind, ineligibleReasons) => {
+    const directory = await sessionDirectory();
+    const saved = join(directory, 'saved.jsonl');
+    const folder = join(directory, 'folder.jsonl');
+
+    await writeFile(saved, '{}\n');
+    await mkdir(folder);
+
+    const sessionFiles = {
+      saved,
+      folder,
+      missing: join(directory, 'missing.jsonl'),
+      relative: relative(process.cwd(), saved),
+    };
+
+    const sessionFile = sessionFileKind === undefined ? undefined : sessionFiles[sessionFileKind];
+    const { connection, context, messages, sendReport } = fixture();
+
+    sendReport({ ...changes, sessionFile });
+    answerPiStatus(context, target, connection);
+
+    expect(messages.at(-1)).toEqual({
+      type: 'piStatusReply',
+      paneId: target,
+      pi: {
+        state: 'reported',
+        ...identity,
+        ...changes,
+        sessionFile,
+        ineligibleReasons: [...ineligibleReasons],
+      },
+    });
+  },
+);
+
+it('records a live process and reports its identity without its process id or pass', () => {
+  const { context, connection, messages, sendReport } = fixture();
+
+  sendReport();
+  answerPiStatus(context, target, connection);
+
+  expect(messages).toEqual([
+    { type: 'piReportResult', result: { ok: true, status: 'recorded' } },
+    {
+      type: 'piStatusReply',
+      paneId: target,
+      pi: { state: 'reported', ...identity, ineligibleReasons: ['tauWorker', 'noSessionFile'] },
+    },
   ]);
 });
 
@@ -230,6 +485,36 @@ it('refuses a report for a pane without a runtime entry', () => {
 
   expect(unregistered.state).toBe(before);
   expect(panes.size).toBe(0);
+});
+
+it('shows the record of a pane without a runtime entry as lost', () => {
+  const { context, connection, messages, sendReport } = fixture();
+
+  sendReport();
+
+  const unregistered = { ...context, runtime: { panes: new Map<PaneId, RunningPane>() } };
+
+  answerPiStatus(unregistered, target, connection);
+
+  expect(messages.at(-1)).toEqual({
+    type: 'piStatusReply',
+    paneId: target,
+    pi: { state: 'lost', ...identity, ineligibleReasons: ['tauWorker', 'noSessionFile'] },
+  });
+});
+
+it('shows a record as lost when its process has left the pane shell session', () => {
+  const { context, connection, messages, running, sendReport } = fixture();
+
+  sendReport();
+  running.runtime.processId += 1;
+  answerPiStatus(context, target, connection);
+
+  expect(messages.at(-1)).toEqual({
+    type: 'piStatusReply',
+    paneId: target,
+    pi: { state: 'lost', ...identity, ineligibleReasons: ['tauWorker', 'noSessionFile'] },
+  });
 });
 
 it('replies unknownPane to a status request for a pane the store does not know', () => {

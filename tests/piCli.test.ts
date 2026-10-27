@@ -26,6 +26,8 @@ const report = {
   model: 'claude-opus',
   thinkingLevel: 'high',
   ownership: 'interactive',
+  event: { kind: 'start', reason: 'startup' },
+  sequence: 1,
 };
 
 const processInfoSchema = z.object({ shell_pid: z.number() });
@@ -100,7 +102,7 @@ it(
 );
 
 it(
-  'shows the reported pi, then only a changed conversation after a different report',
+  'shows the reported pi, then the conversation a later start report names',
   async () => {
     const pane = await setup();
 
@@ -110,24 +112,36 @@ it(
       stderr: '',
     });
 
-    const { processId: _processId, leafId, ...identity } = report;
+    const {
+      processId: _processId,
+      event: _event,
+      sequence: _sequence,
+      leafId,
+      ...identity
+    } = report;
 
     expect(await statusJson(pane)).toEqual({
       pane: pane.first,
       pi: { state: 'reported', recoveryEligible: false, ...identity, reportedLeafId: leafId },
     });
 
-    const switched = { ...report, sessionId: 'conversation-2', leafId: 'leaf-2' };
+    const switched = { ...report, sessionId: 'conversation-2', leafId: 'leaf-2', sequence: 2 };
 
     expect(await reportFromPane(pane, switched, 'second')).toEqual({
       exitCode: 0,
-      stdout: '{"ok":true,"status":"changed"}\n',
+      stdout: '{"ok":true,"status":"updated"}\n',
       stderr: '',
     });
 
     expect(await statusJson(pane)).toEqual({
       pane: pane.first,
-      pi: { state: 'changed', recoveryEligible: false },
+      pi: {
+        state: 'reported',
+        recoveryEligible: false,
+        ...identity,
+        sessionId: 'conversation-2',
+        reportedLeafId: 'leaf-2',
+      },
     });
   },
   cliTestTimeoutMs,

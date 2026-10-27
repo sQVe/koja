@@ -157,6 +157,15 @@ const waitForPi = (pane: PaneSetup, state: string | null): Promise<PiStatus> =>
     (status) => (status.pi?.state ?? null) === state,
   );
 
+const waitForReported = (
+  pane: PaneSetup,
+  done: (pi: NonNullable<PiStatus['pi']>) => boolean,
+): Promise<PiStatus> =>
+  pollUntil(
+    () => piStatus(pane),
+    (status) => status.pi?.state === 'reported' && done(status.pi),
+  );
+
 const processInfo = async (pane: PaneSetup) => {
   const info = await pane.koja('pane', 'process-info', pane.first);
 
@@ -220,7 +229,7 @@ const savedConversation = (pane: PaneSetup, directories: PiDirectories): string 
   return sessionFile ?? '';
 };
 
-const branchedConversation = (pane: PaneSetup, directories: PiDirectories): string => {
+const branchedConversation = (pane: PaneSetup, directories: PiDirectories) => {
   const session = SessionManager.create(join(pane.directory, 'work'), directories.sessions);
   const first = session.appendMessage({ role: 'user', content: 'first', timestamp: Date.now() });
 
@@ -232,7 +241,7 @@ const branchedConversation = (pane: PaneSetup, directories: PiDirectories): stri
 
   expect(sessionFile).toBeDefined();
 
-  return sessionFile ?? '';
+  return { sessionFile: sessionFile ?? '', firstId: first };
 };
 
 const showsLine = async (pane: PaneSetup, line: string): Promise<boolean> => {
@@ -245,7 +254,7 @@ const showsLine = async (pane: PaneSetup, line: string): Promise<boolean> => {
 };
 
 it(
-  'reports the exact conversation of pi in the pane until pi switches it and quits',
+  'reports the exact conversation of pi in the pane, the one it switches to, and its quit',
   async () => {
     const pane = await setup();
     const directories = await piDirectories(pane.directory);
@@ -259,7 +268,7 @@ it(
 
     expect(pi).toEqual({
       state: 'reported',
-      recoveryEligible: false,
+      recoveryEligible: true,
       piVersion: pinnedPiVersion,
       sessionId: await headerIdOf(conversation),
       sessionFile: conversation,
@@ -272,10 +281,25 @@ it(
 
     await send(pane, '/new\r');
 
-    expect((await waitForPi(pane, 'changed')).pi).toEqual({
-      state: 'changed',
+    const switched = (await waitForReported(pane, (next) => next.sessionId !== pi?.sessionId)).pi;
+    const newSessionFile = switched?.sessionFile ?? '';
+
+    expect(switched).toEqual({
+      state: 'reported',
       recoveryEligible: false,
+      piVersion: pinnedPiVersion,
+      sessionId: expect.any(String) as string,
+      sessionFile: expect.stringContaining(directories.sessions) as string,
+      reportedLeafId: expect.any(String) as string,
+      provider: testProvider,
+      model: testModel,
+      thinkingLevel: testThinkingLevel,
+      ownership: 'interactive',
     });
+
+    expect(switched?.sessionId).not.toBe(pi?.sessionId);
+    expect(newSessionFile).not.toBe(conversation);
+    expect(existsSync(newSessionFile)).toBe(false);
 
     await send(pane, '/quit\r');
 
@@ -310,7 +334,7 @@ it(
 );
 
 it(
-  'shows a changed conversation after pi selects another branch in its tree',
+  'reports the selected leaf after pi selects another branch in its tree',
   async () => {
     const pane = await setup();
 
@@ -318,13 +342,13 @@ it(
       branchSummary: { skipPrompt: true },
     });
 
-    const conversation = branchedConversation(pane, directories);
+    const { sessionFile: conversation, firstId } = branchedConversation(pane, directories);
 
     await send(pane, piCommand(directories, { extension: true, sessionFile: conversation }));
 
-    expect((await waitForPi(pane, 'reported')).pi?.reportedLeafId).toBe(
-      await lastEntryIdOf(conversation),
-    );
+    const { pi } = await waitForPi(pane, 'reported');
+
+    expect(pi?.reportedLeafId).toBe(await lastEntryIdOf(conversation));
 
     await send(pane, '/tree\r');
 
@@ -336,10 +360,12 @@ it(
 
     await send(pane, '\r');
 
-    expect((await waitForPi(pane, 'changed')).pi).toEqual({
-      state: 'changed',
-      recoveryEligible: false,
-    });
+    const selected = await waitForReported(
+      pane,
+      (next) => next.reportedLeafId !== pi?.reportedLeafId,
+    );
+
+    expect(selected.pi).toEqual(pi === null ? null : { ...pi, reportedLeafId: firstId });
   },
   piTestTimeoutMs,
 );

@@ -1,10 +1,11 @@
 import { timingSafeEqual } from 'node:crypto';
+import { statSync } from 'node:fs';
+import { isAbsolute } from 'node:path';
 
 import type { PaneId } from '../ids.ts';
-import { invariant } from '../invariant.ts';
 import type { ControlMessage } from '../protocol/protocol.ts';
-import { applyPiReport, piRecordOf } from '../store/store.ts';
-import type { State } from '../store/store.ts';
+import { applyGonePiQuit, applyPiReport, piRecordOf } from '../store/store.ts';
+import type { PiRecord, State } from '../store/store.ts';
 import type { Connection } from './connection.ts';
 import type { Log } from './log.ts';
 import type { RunningPane } from './paneRecord.ts';
@@ -20,6 +21,7 @@ interface PiContext {
 type PiReportRequest = Extract<ControlMessage, { type: 'piReport' }>;
 type PiReportResult = Extract<ControlMessage, { type: 'piReportResult' }>['result'];
 type PiStatus = Extract<ControlMessage, { type: 'piStatusReply' }>['pi'];
+type PiIneligibleReason = NonNullable<PiStatus>['ineligibleReasons'][number];
 
 const readLiveProcess = (processId: number): ProcessStat | undefined => {
   const stat = readStat(String(processId));
@@ -29,6 +31,24 @@ const readLiveProcess = (processId: number): ProcessStat | undefined => {
   }
 
   return stat;
+};
+
+const applyReport = (
+  state: State,
+  running: RunningPane,
+  message: PiReportRequest,
+): ReturnType<typeof applyPiReport> => {
+  const { paneId, report } = message;
+  const { generation } = running.runtime;
+  const processStat = readLiveProcess(report.processId);
+
+  if (processStat?.session !== running.runtime.processId) {
+    return applyGonePiQuit(state, { paneId, generation, report });
+  }
+
+  const process = { id: report.processId, startTime: processStat.startTime };
+
+  return applyPiReport(state, { paneId, generation, process, report });
 };
 
 const recordReport = (context: PiContext, message: PiReportRequest): PiReportResult => {
@@ -45,25 +65,9 @@ const recordReport = (context: PiContext, message: PiReportRequest): PiReportRes
     return { ok: false, reason: 'unauthorized' };
   }
 
-  const processStat = readLiveProcess(message.report.processId);
-
-  if (processStat?.session !== running.runtime.processId) {
-    return { ok: false, reason: 'processNotInPane' };
-  }
-
-  const result = applyPiReport(context.state, {
-    paneId: message.paneId,
-    generation: running.runtime.generation,
-    process: { id: message.report.processId, startTime: processStat.startTime },
-    report: message.report,
-  });
+  const result = applyReport(context.state, running, message);
 
   if (result.kind === 'rejected') {
-    invariant(
-      result.reason === 'unknownPane' || result.reason === 'staleGeneration',
-      'Unexpected pi report refusal.',
-    );
-
     return { ok: false, reason: result.reason };
   }
 
@@ -89,31 +93,70 @@ export const handlePiReport = (
   connection.send({ type: 'piReportResult', result });
 };
 
-const livePiStatus = (context: PiContext, paneId: PaneId): PiStatus => {
-  const record = piRecordOf(context.state, paneId);
-  const running = context.runtime.panes.get(paneId);
+// Content checks belong to session saving. Here a session counts as saved once pi has written its
+// file, and pi writes a new session only after its first message.
+const isSavedSessionFile = (path: string): boolean => {
+  if (!isAbsolute(path)) {
+    return false;
+  }
 
-  if (record === undefined || running === undefined) {
-    return null;
+  try {
+    return statSync(path).isFile();
+  } catch {
+    return false;
+  }
+};
+
+const ineligibleReasonsOf = (record: PiRecord): PiIneligibleReason[] => {
+  const reasons: PiIneligibleReason[] = [];
+  const { ownership, sessionFile } = record.report;
+
+  if (ownership === 'tauWorker') {
+    reasons.push('tauWorker');
+  }
+
+  if (record.state === 'switching') {
+    reasons.push('switchPending');
+  } else if (sessionFile === undefined) {
+    reasons.push('noSessionFile');
+  } else if (!isSavedSessionFile(sessionFile)) {
+    reasons.push('sessionNotSaved');
+  }
+
+  return reasons;
+};
+
+const runsInPane = (record: PiRecord, running: RunningPane | undefined): boolean => {
+  if (running === undefined) {
+    return false;
   }
 
   const processStat = readLiveProcess(record.process.id);
 
   if (processStat?.startTime !== record.process.startTime) {
+    return false;
+  }
+
+  return processStat.session === running.runtime.processId;
+};
+
+const piStatusOf = (context: PiContext, paneId: PaneId): PiStatus => {
+  const record = piRecordOf(context.state, paneId);
+
+  if (record === undefined || record.state === 'exited') {
     return null;
   }
 
-  if (processStat.session !== running.runtime.processId) {
-    return null;
+  const ineligibleReasons = ineligibleReasonsOf(record);
+  const live = runsInPane(record, context.runtime.panes.get(paneId));
+
+  if (live && record.state === 'switching') {
+    return { state: 'switching', ineligibleReasons };
   }
 
-  if (record.state === 'changed') {
-    return { state: 'changed' };
-  }
+  const { processId: _processId, event: _event, sequence: _sequence, ...identity } = record.report;
 
-  const { processId: _processId, ...report } = record.report;
-
-  return { state: 'reported', ...report };
+  return { state: live ? 'reported' : 'lost', ...identity, ineligibleReasons };
 };
 
 export const answerPiStatus = (
@@ -127,5 +170,5 @@ export const answerPiStatus = (
     return;
   }
 
-  connection.send({ type: 'piStatusReply', paneId, pi: livePiStatus(context, paneId) });
+  connection.send({ type: 'piStatusReply', paneId, pi: piStatusOf(context, paneId) });
 };

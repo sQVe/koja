@@ -16,6 +16,8 @@ const report: PiReport = {
   model: 'sonnet',
   thinkingLevel: 'off',
   ownership: 'interactive',
+  event: { kind: 'start', reason: 'startup' },
+  sequence: 1,
 };
 
 const contextOf = (state: State) => ({ state, runtime: { panes: new Map() } });

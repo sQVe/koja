@@ -23,17 +23,28 @@ import type { TestClient } from './serverHarness.ts';
 
 type PiStatus = Extract<ControlMessage, { type: 'piStatusReply' }>['pi'];
 
-const reportFor = (processId: number): PiReport => ({
+const unsavedSessionFile = join(import.meta.dir, 'unsaved', 'conversation.jsonl');
+
+const reportFor = (processId: number, changes: Partial<PiReport> = {}): PiReport => ({
   processId,
   piVersion: '1.4.0',
   sessionId: 'conversation',
-  sessionFile: '/tmp/conversation.jsonl',
+  sessionFile: unsavedSessionFile,
   leafId: 'leaf',
   provider: 'provider',
   model: 'model',
   thinkingLevel: 'high',
-  ownership: 'interactive',
+  ownership: 'tauWorker',
+  event: { kind: 'start', reason: 'startup' },
+  sequence: 1,
+  ...changes,
 });
+
+const identityFieldsOf = (report: PiReport) => {
+  const { processId: _processId, event: _event, sequence: _sequence, ...fields } = report;
+
+  return fields;
+};
 
 const identityOf = async (client: TestClient, target: PaneId) => {
   client.send({ type: 'paneProcessInfo', paneId: target });
@@ -92,8 +103,11 @@ const recordShell = async (client: TestClient, target: PaneId) => {
     status: 'recorded',
   });
 
-  const { processId: _processId, ...fields } = report;
-  const expected = { state: 'reported' as const, ...fields };
+  const expected = {
+    state: 'reported' as const,
+    ...identityFieldsOf(report),
+    ineligibleReasons: ['tauWorker' as const, 'sessionNotSaved' as const],
+  };
 
   expect(await statusOf(client, target)).toEqual(expected);
 
@@ -153,7 +167,11 @@ it.each(['wrong pass', 'another pane pass', 'outside process', 'dead process'] a
       expect(existsSync(`/proc/${processId}`)).toBe(false);
     }
 
-    const changed = { ...reportFor(processId), sessionId: 'must-not-replace' };
+    const changed = reportFor(processId, {
+      event: { kind: 'tree' },
+      sequence: 2,
+      sessionId: 'must-not-replace',
+    });
 
     expect(await sendReport(client, target, pass, changed)).toEqual({ ok: false, reason });
     await expectShellAnswers(server, client, target);
@@ -161,7 +179,7 @@ it.each(['wrong pass', 'another pane pass', 'outside process', 'dead process'] a
   },
 );
 
-it('records a process inside the pane and hides identity after its conversation changes', async () => {
+it('follows the reports of a process inside the pane through a switch', async () => {
   const directory = await temporaryDirectory();
   const { socketPath } = await startServer(directory);
   const client = await connectCli(socketPath);
@@ -170,25 +188,42 @@ it('records a process inside the pane and hides identity after its conversation 
 
   expect(await sendReport(client, target, recorded.pass, recorded.report)).toEqual({
     ok: true,
-    status: 'unchanged',
+    status: 'ignored',
   });
 
-  expect(await statusOf(client, target)).toEqual(recorded.expected);
+  const tree = { event: { kind: 'tree' }, sequence: 2, leafId: 'other-leaf' } as const;
 
-  const changed = { ...recorded.report, leafId: 'other-leaf' };
-
-  expect(await sendReport(client, target, recorded.pass, changed)).toEqual({
+  expect(await sendReport(client, target, recorded.pass, { ...recorded.report, ...tree })).toEqual({
     ok: true,
-    status: 'changed',
+    status: 'updated',
   });
 
-  expect(await statusOf(client, target)).toEqual({ state: 'changed' });
+  expect(await statusOf(client, target)).toEqual({ ...recorded.expected, leafId: 'other-leaf' });
+
+  const shutdown = { event: { kind: 'shutdown', reason: 'new' }, sequence: 3 } as const;
+
+  await sendReport(client, target, recorded.pass, { ...recorded.report, ...shutdown });
+
+  expect(await statusOf(client, target)).toEqual({
+    state: 'switching',
+    ineligibleReasons: ['tauWorker', 'switchPending'],
+  });
+
+  const started = reportFor(recorded.processId, {
+    event: { kind: 'start', reason: 'new' },
+    sequence: 4,
+    sessionId: 'new-conversation',
+  });
+
+  await sendReport(client, target, recorded.pass, started);
+
+  expect(await statusOf(client, target)).toEqual({
+    ...recorded.expected,
+    sessionId: 'new-conversation',
+  });
 });
 
-it('hides a record once its process exits while the shell keeps running', async () => {
-  const directory = await temporaryDirectory();
-  const { server, socketPath } = await startServer(directory);
-  const client = await connectCli(socketPath);
+const recordBackgroundProcess = async (server: Server, client: TestClient, directory: string) => {
   const target = paneId(1);
   const identity = await identityOf(client, target);
   const processFile = join(directory, 'child.pid');
@@ -197,15 +232,16 @@ it('hides a record once its process exits while the shell keeps running', async 
   await waitFor(() => existsSync(processFile) && readFileSync(processFile, 'utf8').length > 0);
 
   const processId = Number(readFileSync(processFile, 'utf8'));
+  const report = reportFor(processId, { ownership: 'interactive' });
 
-  expect(await sendReport(client, target, identity.pass, reportFor(processId))).toEqual({
+  expect(await sendReport(client, target, identity.pass, report)).toEqual({
     ok: true,
     status: 'recorded',
   });
 
   expect(await statusOf(client, target)).toMatchObject({ state: 'reported' });
 
-  process.kill(processId, 'SIGTERM');
+  process.kill(processId, 'SIGKILL');
 
   // dash reaps a background child only when it reads its next command, so the child can stay a
   // zombie until then.
@@ -213,6 +249,36 @@ it('hides a record once its process exits while the shell keeps running', async 
     const stat = readStat(String(processId));
 
     return stat === undefined || stat.state === 'Z';
+  });
+
+  return { target, pass: identity.pass, report };
+};
+
+it('shows a killed process as lost with its last identity while the shell keeps running', async () => {
+  const directory = await temporaryDirectory();
+  const { server, socketPath } = await startServer(directory);
+  const client = await connectCli(socketPath);
+  const { target, report } = await recordBackgroundProcess(server, client, directory);
+
+  expect(await statusOf(client, target)).toEqual({
+    state: 'lost',
+    ...identityFieldsOf(report),
+    ineligibleReasons: ['sessionNotSaved'],
+  });
+
+  await expectShellAnswers(server, client, target);
+});
+
+it('clears the record on a quit report that arrives after its process is gone', async () => {
+  const directory = await temporaryDirectory();
+  const { server, socketPath } = await startServer(directory);
+  const client = await connectCli(socketPath);
+  const { target, pass, report } = await recordBackgroundProcess(server, client, directory);
+  const quit = { event: { kind: 'shutdown', reason: 'quit' }, sequence: 2 } as const;
+
+  expect(await sendReport(client, target, pass, { ...report, ...quit })).toEqual({
+    ok: true,
+    status: 'updated',
   });
 
   expect(await statusOf(client, target)).toBeNull();

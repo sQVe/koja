@@ -32,8 +32,8 @@ import {
   renameWorkspace,
 } from './workspaceTransitions.ts';
 
-export { applyPiReport, piRecordOf } from './piReportTransitions.ts';
-export type { PiProcess, PiReport } from './piReportTransitions.ts';
+export { applyGonePiQuit, applyPiReport, piRecordOf } from './piReportTransitions.ts';
+export type { PiEvent, PiProcess, PiRecord, PiReport } from './piReportTransitions.ts';
 
 type PaneLifecycle = 'starting' | 'running' | 'exited' | 'closing' | 'failed';
 

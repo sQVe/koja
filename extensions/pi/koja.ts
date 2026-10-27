@@ -7,6 +7,15 @@ type Environment = Record<string, string | undefined>;
 
 type Ownership = 'interactive' | 'tauWorker';
 
+type SwitchReason = 'reload' | 'new' | 'resume' | 'fork';
+
+type ReportEvent =
+  | { kind: 'start'; reason: 'startup' | SwitchReason }
+  | { kind: 'tree' }
+  | { kind: 'model' }
+  | { kind: 'thinking' }
+  | { kind: 'shutdown'; reason: 'quit' | SwitchReason };
+
 interface Report {
   processId: number;
   piVersion: string;
@@ -17,7 +26,23 @@ interface Report {
   model: string | null;
   thinkingLevel: string;
   ownership: Ownership;
+  event: ReportEvent;
+  sequence: number;
 }
+
+// pi loads this module again for each new session and reload inside the same process, so the
+// sequence lives on the process's global object, where it keeps increasing.
+const sequenceKey = Symbol.for('koja.piReportSequence');
+
+const nextSequence = (): number => {
+  // SAFETY: only this extension uses the registered symbol key, and it stores only numbers there.
+  const holder = globalThis as Record<symbol, number | undefined>;
+  const next = (holder[sequenceKey] ?? 0) + 1;
+
+  holder[sequenceKey] = next;
+
+  return next;
+};
 
 const ownershipOf = (workerRecord: string | undefined): Ownership =>
   workerRecord === undefined || workerRecord === '' ? 'interactive' : 'tauWorker';
@@ -29,6 +54,7 @@ const reportOf = (
   pi: ExtensionAPI,
   context: ExtensionContext,
   environment: Environment,
+  event: ReportEvent,
 ): Report => ({
   processId: process.pid,
   piVersion: VERSION,
@@ -39,6 +65,8 @@ const reportOf = (
   model: nonEmpty(context.model?.id),
   thinkingLevel: pi.getThinkingLevel(),
   ownership: ownershipOf(environment.TAU_WORKER_RECORD),
+  event,
+  sequence: nextSequence(),
 });
 
 // The report must never draw on pi's screen or keep pi waiting, so the command gets no terminal,
@@ -69,19 +97,31 @@ export default function koja(pi: ExtensionAPI): void {
     return;
   }
 
-  const report = (context: ExtensionContext): void => {
+  const report = (context: ExtensionContext, event: ReportEvent): void => {
     try {
-      send(binaryPath, reportOf(pi, context, environment));
+      send(binaryPath, reportOf(pi, context, environment, event));
     } catch {
       // Reading pi's state must not affect pi.
     }
   };
 
-  pi.on('session_start', (_event, context) => {
-    report(context);
+  pi.on('session_start', (event, context) => {
+    report(context, { kind: 'start', reason: event.reason });
   });
 
   pi.on('session_tree', (_event, context) => {
-    report(context);
+    report(context, { kind: 'tree' });
+  });
+
+  pi.on('model_select', (_event, context) => {
+    report(context, { kind: 'model' });
+  });
+
+  pi.on('thinking_level_select', (_event, context) => {
+    report(context, { kind: 'thinking' });
+  });
+
+  pi.on('session_shutdown', (event, context) => {
+    report(context, { kind: 'shutdown', reason: event.reason });
   });
 }
