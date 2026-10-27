@@ -115,7 +115,7 @@ it('reads back the session it saved', async () => {
   const directory = await temporaryDirectory();
   const path = join(directory, 'sessions', 'session.json');
   const session = sessionWith();
-  const writer = createSessionWriter(path, recordingLog().log);
+  const writer = createSessionWriter(path, recordingLog().log, undefined);
 
   writer.save(session);
   await writer.stopSaving(session);
@@ -127,7 +127,7 @@ it('reads back the label of a tab', async () => {
   const directory = await temporaryDirectory();
   const path = join(directory, 'session.json');
   const session = sessionWith({ tabs: sessionWith().tabs.map(tabWith({ label: 'build' })) });
-  const writer = createSessionWriter(path, recordingLog().log);
+  const writer = createSessionWriter(path, recordingLog().log, undefined);
 
   await writer.stopSaving(session);
 
@@ -163,7 +163,7 @@ it('reads back a session with no workspaces', async () => {
     focusedWorkspaceId: undefined,
   });
 
-  const writer = createSessionWriter(path, recordingLog().log);
+  const writer = createSessionWriter(path, recordingLog().log, undefined);
 
   await writer.stopSaving(session);
 
@@ -179,7 +179,7 @@ it('reads back the folder of a pane and a pane with no folder', async () => {
     panes: [{ ...base.panes[0]!, startFolder: '/work/one' }, ...base.panes.slice(1)],
   });
 
-  await createSessionWriter(path, recordingLog().log).stopSaving(session);
+  await createSessionWriter(path, recordingLog().log, undefined).stopSaving(session);
 
   const result = await readSessionFile(path);
 

@@ -51,7 +51,7 @@ const killedAt = async (directory: string, boundary: string) => {
   const path = join(folder, 'session.json');
 
   await mkdir(folder);
-  await createSessionWriter(path, log).stopSaving(oldSession);
+  await createSessionWriter(path, log, undefined).stopSaving(oldSession);
 
   const child = Bun.spawn(['bun', join(import.meta.dir, 'sessionWriterChild.ts'), path, boundary], {
     stdout: 'pipe',

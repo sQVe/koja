@@ -47,7 +47,7 @@ import { answerPiStatus, handlePiReport } from './piReports.ts';
 import { subscribeRows, syncRowSubscriptions, visiblePaneIds } from './rowSubscriptions.ts';
 import type { RowSubscriptions } from './rowSubscriptions.ts';
 import { readSessionFile } from './sessionFile.ts';
-import { currentSession, restoreSession, savesSession } from './sessionState.ts';
+import { currentSession, restoreSession, savesSession, unusableKindOf } from './sessionState.ts';
 import { createSessionWriter } from './sessionWriter.ts';
 import type { SessionWriter } from './sessionWriter.ts';
 import { claimSocketPath } from './socketPath.ts';
@@ -640,7 +640,12 @@ export const runServer = async (options: ServerOptions): Promise<RunServerResult
   options.log.info('Listening.', { socketPath });
 
   if (sessionPath !== undefined) {
-    context.runtime.sessionWriter = createSessionWriter(sessionPath, options.log);
+    context.runtime.sessionWriter = createSessionWriter(
+      sessionPath,
+      options.log,
+      unusableKindOf(saved),
+    );
+
     restoreSession(options.log, (intent) => dispatchChanges(context, intent), sessionPath, saved);
   }
 

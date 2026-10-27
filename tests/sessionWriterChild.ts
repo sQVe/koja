@@ -69,6 +69,6 @@ if (saved.kind !== 'restored') {
 
 const session = { ...saved.session, nextPaneNumber: saved.session.nextPaneNumber + 1 };
 
-await createSessionWriter(path, log).stopSaving(session);
+await createSessionWriter(path, log, undefined).stopSaving(session);
 
 throw new Error(`The write never reached the boundary ${boundary}.`);

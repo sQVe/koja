@@ -1,11 +1,18 @@
-import { mkdir, open, rename, rm } from 'node:fs/promises';
+import { mkdir, open, readFile, rename, rm } from 'node:fs/promises';
+import type { FileHandle } from 'node:fs/promises';
 import { dirname } from 'node:path';
 
 import type { SavedSession } from '../store/store.ts';
 import type { Log } from './log.ts';
-import { serialized } from './sessionFile.ts';
+import { isMissing, serialized } from './sessionFile.ts';
 
 type SaveResult = { ok: true } | { ok: false; message: string };
+
+type UnusableKind = 'broken' | 'newer';
+
+type Preservation =
+  | { ok: true; preservedPath: string | undefined }
+  | { ok: false; message: string };
 
 export interface SessionWriter {
   // Writes the session after the running write, unless a newer save replaces it first.
@@ -22,6 +29,9 @@ const fileMode = 0o600;
 
 const describeError = (error: unknown): string =>
   error instanceof Error ? error.message : String(error);
+
+const isExisting = (error: unknown): boolean =>
+  error instanceof Error && 'code' in error && error.code === 'EEXIST';
 
 const writeTemporaryFile = async (temporaryPath: string, text: string): Promise<void> => {
   const handle = await open(temporaryPath, 'wx', fileMode);
@@ -79,14 +89,129 @@ const replaceFile = async (path: string, text: string): Promise<SaveResult> => {
   return attempt(() => syncFolder(dirname(path)));
 };
 
-// Writes one file at a time and keeps only the newest session that waits.
-export const createSessionWriter = (path: string, log: Log): SessionWriter => {
+// Writes the copy into a new owner-only file. A file that is not created here is never removed.
+const writePreservedFile = async (
+  preservedPath: string,
+  original: Buffer,
+): Promise<SaveResult | 'taken'> => {
+  let handle: FileHandle;
+
+  try {
+    handle = await open(preservedPath, 'wx', fileMode);
+  } catch (error) {
+    if (isExisting(error)) {
+      return 'taken';
+    }
+
+    return { ok: false, message: describeError(error) };
+  }
+
+  const copied = await attempt(async () => {
+    try {
+      await handle.writeFile(original);
+      // The umask can narrow the creation mode, and the owner must still read the file.
+      await handle.chmod(fileMode);
+      await handle.sync();
+    } finally {
+      await handle.close();
+    }
+
+    await syncFolder(dirname(preservedPath));
+  });
+
+  if (!copied.ok) {
+    // The attempt created this file, so a partial copy must not stay under its name.
+    await attempt(() => rm(preservedPath, { force: true }));
+  }
+
+  return copied;
+};
+
+// Tries each number from the given one up, so an earlier preserved file is never replaced.
+const copyToFreeName = async (
+  path: string,
+  kind: UnusableKind,
+  original: Buffer,
+  number: number,
+): Promise<Preservation> => {
+  const preservedPath = `${path}.${kind}-${number}`;
+  const written = await writePreservedFile(preservedPath, original);
+
+  if (written === 'taken') {
+    return copyToFreeName(path, kind, original, number + 1);
+  }
+
+  if (!written.ok) {
+    return written;
+  }
+
+  return { ok: true, preservedPath };
+};
+
+// A file that is gone when the first save runs has nothing to preserve.
+const preserveUnusableFile = async (path: string, kind: UnusableKind): Promise<Preservation> => {
+  let original: Buffer;
+
+  try {
+    original = await readFile(path);
+  } catch (error) {
+    if (isMissing(error)) {
+      return { ok: true, preservedPath: undefined };
+    }
+
+    return { ok: false, message: describeError(error) };
+  }
+
+  return copyToFreeName(path, kind, original, 1);
+};
+
+// Writes one file at a time and keeps only the newest session that waits. A file the startup read
+// found broken or newer is copied before the first save replaces it.
+export const createSessionWriter = (
+  path: string,
+  log: Log,
+  unusableKind: UnusableKind | undefined,
+): SessionWriter => {
   let running: Promise<void> | undefined;
   let waiting: SavedSession | undefined;
   let stopped = false;
+  let unpreserved = unusableKind;
+
+  const preserve = async (): Promise<SaveResult> => {
+    if (unpreserved === undefined) {
+      return { ok: true };
+    }
+
+    const preservation = await preserveUnusableFile(path, unpreserved);
+
+    if (!preservation.ok) {
+      return preservation;
+    }
+
+    unpreserved = undefined;
+
+    if (preservation.preservedPath !== undefined) {
+      log.warn('Preserved the unusable session file.', {
+        path,
+        preservedPath: preservation.preservedPath,
+      });
+    }
+
+    return { ok: true };
+  };
+
+  const saveSession = async (session: SavedSession): Promise<SaveResult> => {
+    const preserved = await preserve();
+
+    if (!preserved.ok) {
+      return preserved;
+    }
+
+    return replaceFile(path, serialized(session));
+  };
 
   const write = async (session: SavedSession): Promise<SaveResult> => {
-    const result = await replaceFile(path, serialized(session));
+    const result = await saveSession(session);
 
     if (result.ok) {
       return result;

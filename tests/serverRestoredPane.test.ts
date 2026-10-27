@@ -82,7 +82,7 @@ const restoredServer = async (shell: string): Promise<Server> => {
   const directory = await temporaryDirectory();
   const sessionPath = join(directory, 'session.json');
 
-  await createSessionWriter(sessionPath, log).stopSaving(savedSession(directory));
+  await createSessionWriter(sessionPath, log, undefined).stopSaving(savedSession(directory));
 
   return startServer(directory, shell, sessionPath);
 };

@@ -267,7 +267,7 @@ const versionSchema = z.object({ version: z.number() });
 
 const fileSchema = z.object({ version: z.literal(currentVersion), session: sessionSchema });
 
-const isMissing = (error: unknown): boolean =>
+export const isMissing = (error: unknown): boolean =>
   error instanceof Error && 'code' in error && error.code === 'ENOENT';
 
 const parsedFile = (text: string): ReadSessionResult => {
