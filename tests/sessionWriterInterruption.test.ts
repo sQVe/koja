@@ -34,7 +34,6 @@ const oldSession: SavedSession = {
   nextPaneNumber: 2,
 };
 
-// The child saves the session one pane number later.
 const newSession: SavedSession = { ...oldSession, nextPaneNumber: 3 };
 
 const boundaries: [string, SavedSession][] = [
@@ -44,8 +43,6 @@ const boundaries: [string, SavedSession][] = [
   ['beforeFolderSync', newSession],
 ];
 
-// Saves the old session, then kills a child with SIGKILL while its save of the new session pauses
-// at the boundary. Returns what the child printed and what the session file then holds.
 const killedAt = async (directory: string, boundary: string) => {
   const folder = join(directory, boundary);
   const path = join(folder, 'session.json');

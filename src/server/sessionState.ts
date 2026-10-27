@@ -50,7 +50,6 @@ const readSavedFolders = (context: SessionContext): Map<PaneId, string> => {
 export const currentSession = (context: SessionContext): SavedSession =>
   savedSessionOf(context.state, readSavedFolders(context));
 
-// The writer copies a file that is broken or newer before its first save replaces it.
 export const unusableKindOf = (saved: SessionRead | undefined): 'broken' | 'newer' | undefined => {
   if (saved?.kind === 'broken' || saved?.kind === 'newer') {
     return saved.kind;
@@ -59,7 +58,6 @@ export const unusableKindOf = (saved: SessionRead | undefined): 'broken' | 'newe
   return undefined;
 };
 
-// Leaves a file that is broken or newer in place. The writer copies it before the next save.
 export const restoreSession = (
   log: Log,
   dispatch: (intent: Intent) => readonly Change[],

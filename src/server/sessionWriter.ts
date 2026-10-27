@@ -15,11 +15,8 @@ type Preservation =
   | { ok: false; message: string };
 
 export interface SessionWriter {
-  // Writes the session after the running write, unless a newer save replaces it first.
   save: (session: SavedSession) => void;
-  // Waits for the running write, writes the session, and ignores every later save.
   stopSaving: (session: SavedSession) => Promise<SaveResult>;
-  // Resolves once no write runs or waits.
   settled: () => Promise<void>;
 }
 
@@ -38,7 +35,6 @@ const writeTemporaryFile = async (temporaryPath: string, text: string): Promise<
 
   try {
     await handle.writeFile(text);
-    // The umask can narrow the creation mode, and the owner must still read the file.
     await handle.chmod(fileMode);
     await handle.sync();
   } finally {
@@ -46,7 +42,6 @@ const writeTemporaryFile = async (temporaryPath: string, text: string): Promise<
   }
 };
 
-// The rename lasts through a power loss only once the folder that holds the file is synced.
 const syncFolder = async (folder: string): Promise<void> => {
   const handle = await open(folder, 'r');
 
@@ -57,13 +52,11 @@ const syncFolder = async (folder: string): Promise<void> => {
   }
 };
 
-// Lists each folder from the first one mkdir created down to the innermost one.
 const createdFolders = (firstCreated: string, innermost: string): string[] =>
   innermost === firstCreated
     ? [firstCreated]
     : [...createdFolders(firstCreated, dirname(innermost)), innermost];
 
-// A new folder lasts through a power loss only once the folder that holds it is synced.
 const createFolder = async (folder: string): Promise<void> => {
   const firstCreated = await mkdir(folder, { recursive: true, mode: directoryMode });
 
@@ -86,8 +79,6 @@ const attempt = async (step: () => Promise<unknown>): Promise<SaveResult> => {
   }
 };
 
-// The session file always holds a complete session, the old one until the rename and the new one
-// after it.
 const replaceFile = async (path: string, text: string): Promise<SaveResult> => {
   const temporaryPath = `${path}.tmp`;
 
@@ -99,7 +90,6 @@ const replaceFile = async (path: string, text: string): Promise<SaveResult> => {
   });
 
   if (!placed.ok) {
-    // The next save removes a temporary file this removal leaves behind.
     await attempt(() => rm(temporaryPath));
 
     return placed;
@@ -108,7 +98,6 @@ const replaceFile = async (path: string, text: string): Promise<SaveResult> => {
   return attempt(() => syncFolder(dirname(path)));
 };
 
-// Writes the copy into a new owner-only file. A file that is not created here is never removed.
 const writePreservedFile = async (
   preservedPath: string,
   original: Buffer,
@@ -139,14 +128,12 @@ const writePreservedFile = async (
   });
 
   if (!copied.ok) {
-    // The attempt created this file, so a partial copy must not stay under its name.
     await attempt(() => rm(preservedPath, { force: true }));
   }
 
   return copied;
 };
 
-// Tries each number from the given one up, so an earlier preserved file is never replaced.
 const copyToFreeName = async (
   path: string,
   kind: UnusableKind,
@@ -167,7 +154,6 @@ const copyToFreeName = async (
   return { ok: true, preservedPath };
 };
 
-// A file that is gone when the first save runs has nothing to preserve.
 const preserveUnusableFile = async (path: string, kind: UnusableKind): Promise<Preservation> => {
   let original: Buffer;
 
@@ -184,8 +170,6 @@ const preserveUnusableFile = async (path: string, kind: UnusableKind): Promise<P
   return copyToFreeName(path, kind, original, 1);
 };
 
-// Writes one file at a time and keeps only the newest session that waits. A file the startup read
-// found broken or newer is copied before the first save replaces it.
 export const createSessionWriter = (
   path: string,
   log: Log,

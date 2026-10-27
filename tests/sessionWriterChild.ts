@@ -1,5 +1,3 @@
-// Saves the session one pane number later, and pauses at a boundary of the write so the parent can
-// kill it there. Usage: bun tests/sessionWriterChild.ts <session path> <boundary>
 import { spyOn } from 'bun:test';
 import * as fsPromises from 'node:fs/promises';
 import { dirname } from 'node:path';
@@ -18,7 +16,6 @@ const ignore = (): void => {};
 
 const log: Log = { debug: ignore, info: ignore, warn: ignore, error: ignore };
 
-// Never resolves, and keeps the process alive until the parent kills it.
 const pause = async (at: string): Promise<never> => {
   setInterval(ignore, 60_000);
   process.stdout.write(`paused ${at}\n`);

@@ -75,7 +75,6 @@ const recordingLog = (): {
 const savedJson = async (session: SavedSession): Promise<unknown> =>
   JSON.parse(JSON.stringify(session, (_key, value: unknown) => value ?? null));
 
-// Lets a test change each file handle the writer opens, by the path it opened.
 const changeHandles = (change: (opened: string, handle: FileHandle) => void): void => {
   const realOpen = fsPromises.open;
 
@@ -259,7 +258,6 @@ it('syncs the parent of each folder it creates before the session lands in it', 
   expect(calls.slice(2)).toEqual([`sync ${path}.tmp`, 'rename', `sync ${inner}`]);
 });
 
-// The umask can narrow the mode writeFile creates, so set the world-readable mode explicitly.
 const leaveTemporaryFile = async (temporaryPath: string): Promise<void> => {
   await writeFile(temporaryPath, 'left by a crash');
   await chmod(temporaryPath, 0o644);
@@ -428,7 +426,6 @@ const failCreate = (path: string, message: string): void => {
   });
 };
 
-// Fails the next read only, so the test can still read the file it checks afterwards.
 const failNextRead = (message: string): void => {
   const readSpy = spyOn(fsPromises, 'readFile').mockImplementationOnce(failing(message));
 
