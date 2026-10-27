@@ -70,8 +70,6 @@ const reportOf = (
   sequence: nextSequence(),
 });
 
-// The report must never draw on pi's screen, so the command gets no terminal and every failure is
-// dropped.
 const send = (binaryPath: string, report: Report): ChildProcess | undefined => {
   try {
     const child = spawn(binaryPath, ['pi', 'report'], { stdio: ['pipe', 'ignore', 'ignore'] });
@@ -87,8 +85,6 @@ const send = (binaryPath: string, report: Report): ChildProcess | undefined => {
   }
 };
 
-// pi exits right after its quit handlers, so the server would see the process gone before its quit
-// report and show a crash. The wait is bounded so a slow report never keeps pi open.
 const waitForExit = (child: ChildProcess): Promise<void> =>
   new Promise((resolve) => {
     const timer = setTimeout(() => {
