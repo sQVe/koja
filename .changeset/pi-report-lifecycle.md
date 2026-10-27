@@ -7,4 +7,4 @@ Follow pi through session switches, tree moves, model and thinking changes, and 
 switch is in progress it shows `switching`. After pi quits it shows no pi, and after pi stops
 without quitting it shows `lost` with its last conversation. `recoveryEligible` is true for a saved
 interactive session. The server ignores reports that arrive out of order. On quit, pi waits up to 2
-seconds for its last report, so a clean quit never shows as `lost`.
+seconds for its last report, so a slow report no longer makes a clean quit show as `lost`.
