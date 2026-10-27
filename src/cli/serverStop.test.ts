@@ -13,7 +13,6 @@ it('reports the server message when the server stopped but its reply fails', () 
   expect(verdict).toEqual({ ok: false, message: 'Cannot save the session to a file.' });
 });
 
-// A server of an older build sends no stopResult, and the stop reads as an ok reply.
 it('reports success when the socket is removed and the reply is ok', () => {
   expect(stopVerdictOf(socketPath, 'removed', { ok: true })).toEqual({ ok: true });
 });

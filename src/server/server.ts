@@ -107,7 +107,6 @@ type Listener = Bun.UnixSocketListener<ConnectionData>;
 interface Runtime {
   panes: Map<PaneId, RunningPane>;
   connections: Map<number, Connection>;
-  // The connections that sent stop. Each gets the stop result before it closes.
   stopConnections: Set<Connection>;
   // The client a terminal connection's sized hello attached.
   clientIds: Map<Connection, ClientId>;
@@ -145,7 +144,6 @@ const connectionQueueLimitBytes = 0x10_00_00;
 // How long a detached client gets to read its last message before the server closes it.
 const connectionFlushTimeoutMs = 5000;
 
-// How long a stop connection gets to read its stopResult before shutdown goes on without it.
 const stopFlushTimeoutMs = 1000;
 
 const describeError = (error: unknown): string =>

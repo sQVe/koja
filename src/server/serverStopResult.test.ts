@@ -26,7 +26,6 @@ const createRecordingLog = () => {
   return { log, errors };
 };
 
-// A socket that takes `room` bytes, or none until it grows.
 const createSocket = (room: number) => {
   const written: number[] = [];
   let available = room;
@@ -48,7 +47,6 @@ const createSocket = (room: number) => {
   };
 };
 
-// Moves only when the flush waits, so a test does not read the real clock. onWait runs before each wait.
 const createFakeClock = (onWait: () => void = ignore) => {
   let time = 0;
 
@@ -93,7 +91,6 @@ const controlMessagesIn = (bytes: number[]): ControlMessage[] => {
   });
 };
 
-// Records each message it gets. Throws instead when `failing` is set, as a closed or full socket can.
 const createFakeConnection = (failing: boolean) => {
   const sent: ControlMessage[] = [];
 
@@ -164,7 +161,6 @@ it('writes the queued stop result before the flush returns', async () => {
   expect(controlMessagesIn(socket.written)).toEqual([{ type: 'stopResult', result: { ok: true } }]);
 });
 
-// The bound is the behavior here, so this test uses real time with a generous upper limit.
 it('stops waiting for a connection that never reads once the bound passes', async () => {
   const socket = createSocket(0);
   const connection = createStopConnection(socket);

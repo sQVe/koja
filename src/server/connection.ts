@@ -38,7 +38,6 @@ export interface Connection {
   close: () => void;
   // Closes once every queued byte has been written, so a last message reaches the client.
   closeWhenFlushed: () => void;
-  // True once every queued byte has been written to the socket.
   isFlushed: () => boolean;
   isClosed: () => boolean;
   isWelcomed: () => boolean;

@@ -239,7 +239,6 @@ export const runPaneRequest = <Result>(
   });
 };
 
-// Returns the stopResult among the frames of a stop connection. Other frames are ignored.
 export const stopReplyIn = (frames: readonly ReceivedFrame[]): StopReply | undefined => {
   for (const frame of frames) {
     const parsed = frame.kind === FrameKind.control ? parseControl(frame.payload) : undefined;

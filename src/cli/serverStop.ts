@@ -15,7 +15,6 @@ type SocketRelease = 'removed' | 'leftSocket';
 // Covers the server's wait for pane processes that ignore SIGHUP.
 const serverStopTimeoutMs = 10_000;
 
-// Covers the server closing the stop connection after it sends stopResult.
 const stopCloseTimeoutMs = 1000;
 
 const socketInode = (socketPath: string): bigint | undefined =>
@@ -54,7 +53,6 @@ const releasedPath = async (socketPath: string): Promise<SocketRelease | undefin
   return socketInode(socketPath) === probed ? 'leftSocket' : 'removed';
 };
 
-// Decides the outcome from what the server did. A missing reply counts as success, as an older build sends none.
 export const stopVerdictOf = (
   socketPath: string,
   released: SocketRelease | undefined,

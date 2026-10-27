@@ -306,7 +306,6 @@ it(
     const listener = Bun.listen({
       unix: socketPath,
       socket: {
-        // An older build ends the stop connection without a stopResult, then removes its path.
         data: (socket) => {
           socket.end();
           listener.stop(true);

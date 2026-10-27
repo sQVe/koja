@@ -42,8 +42,6 @@ export const stopOutcomeOf = (failures: readonly string[]): StopOutcome =>
     ? { ok: true }
     : { ok: false, message: `The server stopped, but its cleanup failed. ${failures.join('. ')}.` };
 
-// A send that throws is recorded as a failure and does not stop the other connections from getting
-// their result. The outcome is built before any send, so a send failure cannot change it.
 export const publishStopResults = (
   connections: Iterable<StopConnection>,
   failures: string[],
@@ -92,9 +90,6 @@ const flushWithin = async (
   }
 };
 
-// Returns once every connection has written its queued bytes, or once the bound passes. A
-// connection that never reads stays unflushed, so it cannot hold the stop past the bound. A failure
-// is recorded and never thrown, so the shutdown steps after the flush always run.
 export const flushStopResults = async (
   connections: Iterable<StopConnection>,
   options: FlushOptions,
