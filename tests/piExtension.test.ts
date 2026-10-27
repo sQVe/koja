@@ -1,27 +1,28 @@
 import { expect, it } from 'bun:test';
 import { existsSync } from 'node:fs';
-import { mkdir, readFile, writeFile } from 'node:fs/promises';
+import { mkdir, readFile } from 'node:fs/promises';
 import { join } from 'node:path';
 
-import { SessionManager } from '@earendil-works/pi-coding-agent';
 import { z } from 'zod';
 
-import packageJson from '../package.json' with { type: 'json' };
-import { root } from './cliHarness.ts';
+import { quitReportWaitMs } from '../extensions/pi/koja.ts';
 import { pollUntil, readJson, setup } from './paneHarness.ts';
 import type { PaneSetup } from './paneHarness.ts';
-
-interface PiStart {
-  extension: boolean;
-  workerRecord?: string;
-  sessionFile?: string;
-}
-
-interface PiDirectories {
-  agent: string;
-  sessions: string;
-  home: string;
-}
+import { recordedReportsOf, writeRecordingBinary } from './piReportHarness.ts';
+import type { RecordedReport } from './piReportHarness.ts';
+import {
+  branchedConversation,
+  headerIdOf,
+  lastEntryIdOf,
+  piCommand,
+  piDirectories,
+  pinnedPiVersion,
+  savedConversation,
+  savedIdentityOf,
+  testModel,
+  testProvider,
+  testThinkingLevel,
+} from './piSessionHarness.ts';
 
 interface ScreenRead {
   current: string[];
@@ -30,13 +31,6 @@ interface ScreenRead {
 
 const piTestTimeoutMs = 60_000;
 
-const piBinary = join(root, 'node_modules/.bin/pi');
-const extension = join(root, 'extensions/pi/koja.ts');
-const pinnedPiVersion = packageJson.devDependencies['@earendil-works/pi-coding-agent'];
-
-const testProvider = 'koja-test';
-const testModel = 'fake-model';
-const testThinkingLevel = 'low';
 const footerEnd = `${testModel} • ${testThinkingLevel}`;
 
 const piStatusSchema = z.object({
@@ -45,6 +39,7 @@ const piStatusSchema = z.object({
     .object({
       state: z.string(),
       recoveryEligible: z.boolean(),
+      ineligibleReasons: z.array(z.string()),
       piVersion: z.string().optional(),
       sessionId: z.string().nullable().optional(),
       sessionFile: z.string().nullable().optional(),
@@ -63,79 +58,6 @@ const processInfoSchema = z.object({
   shell_pid: z.number(),
   foreground_processes: z.array(z.object({ pid: z.number() })),
 });
-
-const sessionLineSchema = z.object({ type: z.string(), id: z.string() });
-
-const piDirectories = async (
-  directory: string,
-  settings: Record<string, unknown> = {},
-): Promise<PiDirectories> => {
-  const directories = {
-    agent: join(directory, 'pi-agent'),
-    sessions: join(directory, 'pi-sessions'),
-    home: join(directory, 'home'),
-  };
-
-  await Promise.all(Object.values(directories).map((path) => mkdir(path)));
-
-  const models = {
-    providers: {
-      [testProvider]: {
-        baseUrl: 'http://127.0.0.1:9/v1',
-        api: 'openai-completions',
-        apiKey: 'unused',
-        models: [{ id: testModel, reasoning: true }],
-      },
-    },
-  };
-
-  await writeFile(join(directories.agent, 'models.json'), JSON.stringify(models));
-  await writeFile(join(directories.agent, 'settings.json'), JSON.stringify(settings));
-
-  return directories;
-};
-
-const quote = (value: string): string => `'${value.replaceAll("'", "'\\''")}'`;
-
-const workerRecordAssignment = (start: PiStart): string[] =>
-  start.workerRecord === undefined ? [] : [`TAU_WORKER_RECORD=${quote(start.workerRecord)}`];
-
-const extensionFlags = (start: PiStart): string[] =>
-  start.extension ? ['-e', quote(extension)] : [];
-
-const sessionFlags = (start: PiStart): string[] =>
-  start.sessionFile === undefined ? [] : ['--session', quote(start.sessionFile)];
-
-const piCommand = (directories: PiDirectories, start: PiStart): string => {
-  const environment = [
-    'env',
-    '-u',
-    'TAU_WORKER_RECORD',
-    `HOME=${quote(directories.home)}`,
-    `PI_CODING_AGENT_DIR=${quote(directories.agent)}`,
-    ...workerRecordAssignment(start),
-  ];
-
-  const flags = [
-    '--offline',
-    '-ne',
-    ...extensionFlags(start),
-    '-ns',
-    '-np',
-    '-nc',
-    '-na',
-    '--no-mcp',
-    '--session-dir',
-    quote(directories.sessions),
-    ...sessionFlags(start),
-    '--model',
-    `${testProvider}/${testModel}`,
-    '--thinking',
-    testThinkingLevel,
-  ];
-
-  return `clear; ${environment.join(' ')} ${quote(piBinary)} ${flags.join(' ')}\n`;
-};
 
 const send = async (pane: PaneSetup, text: string): Promise<void> => {
   const sent = await pane.koja('pane', 'send', text);
@@ -157,6 +79,15 @@ const waitForPi = (pane: PaneSetup, state: string | null): Promise<PiStatus> =>
     (status) => (status.pi?.state ?? null) === state,
   );
 
+const waitForReported = (
+  pane: PaneSetup,
+  done: (pi: NonNullable<PiStatus['pi']>) => boolean,
+): Promise<PiStatus> =>
+  pollUntil(
+    () => piStatus(pane),
+    (status) => status.pi?.state === 'reported' && done(status.pi),
+  );
+
 const processInfo = async (pane: PaneSetup) => {
   const info = await pane.koja('pane', 'process-info', pane.first);
 
@@ -167,6 +98,14 @@ const processInfo = async (pane: PaneSetup) => {
 
 const onlyShellRuns = (info: z.infer<typeof processInfoSchema>): boolean =>
   info.foreground_processes.map((process) => process.pid).join(',') === String(info.shell_pid);
+
+const killForegroundProcesses = (info: z.infer<typeof processInfoSchema>): void => {
+  for (const { pid } of info.foreground_processes) {
+    if (pid !== info.shell_pid) {
+      process.kill(pid, 'SIGKILL');
+    }
+  }
+};
 
 const visibleLines = async (pane: PaneSetup): Promise<string[]> =>
   (await readJson(pane.koja, pane.first, '--lines', '30')).lines;
@@ -195,44 +134,10 @@ const settledScreen = async (pane: PaneSetup): Promise<string[]> => {
   return settled.current;
 };
 
-const lastEntryIdOf = async (sessionFile: string): Promise<string | undefined> => {
-  const lines = (await readFile(sessionFile, 'utf8')).trim().split('\n');
-  const last = lines.at(-1);
+const showsText = async (pane: PaneSetup, text: string): Promise<boolean> => {
+  const hasText = (lines: string[]): boolean => lines.some((line) => line.includes(text));
 
-  return last === undefined ? undefined : sessionLineSchema.parse(JSON.parse(last)).id;
-};
-
-const headerIdOf = async (sessionFile: string): Promise<string | undefined> => {
-  const [first] = (await readFile(sessionFile, 'utf8')).split('\n');
-
-  return first === undefined ? undefined : sessionLineSchema.parse(JSON.parse(first)).id;
-};
-
-const savedConversation = (pane: PaneSetup, directories: PiDirectories): string => {
-  const session = SessionManager.create(join(pane.directory, 'work'), directories.sessions);
-
-  session.appendMessage({ role: 'user', content: 'hello', timestamp: Date.now() });
-
-  const sessionFile = session.getSessionFile();
-
-  expect(sessionFile).toBeDefined();
-
-  return sessionFile ?? '';
-};
-
-const branchedConversation = (pane: PaneSetup, directories: PiDirectories): string => {
-  const session = SessionManager.create(join(pane.directory, 'work'), directories.sessions);
-  const first = session.appendMessage({ role: 'user', content: 'first', timestamp: Date.now() });
-
-  session.appendMessage({ role: 'user', content: 'branch one', timestamp: Date.now() });
-  session.branch(first);
-  session.appendMessage({ role: 'user', content: 'branch two', timestamp: Date.now() });
-
-  const sessionFile = session.getSessionFile();
-
-  expect(sessionFile).toBeDefined();
-
-  return sessionFile ?? '';
+  return hasText(await pollUntil(() => visibleLines(pane), hasText));
 };
 
 const showsLine = async (pane: PaneSetup, line: string): Promise<boolean> => {
@@ -244,8 +149,44 @@ const showsLine = async (pane: PaneSetup, line: string): Promise<boolean> => {
   return shown.includes(line);
 };
 
+const paneBinaryPathOf = async (pane: PaneSetup): Promise<string> => {
+  const { shell_pid: shellPid } = await processInfo(pane);
+  const environment = (await readFile(`/proc/${shellPid}/environ`, 'utf8')).split('\0');
+  const entry = environment.find((item) => item.startsWith('KOJA_BIN_PATH='));
+
+  expect(entry).toBeDefined();
+
+  return entry?.slice('KOJA_BIN_PATH='.length) ?? '';
+};
+
+const isReloadStart = (recorded: RecordedReport): boolean =>
+  recorded.report.event.kind === 'start' && recorded.report.event.reason === 'reload';
+
+const startPiWithSlowQuitReport = async (
+  pane: PaneSetup,
+  quitDelaySeconds: number,
+): Promise<string> => {
+  const directories = await piDirectories(pane.directory);
+  const reportsDirectory = join(pane.directory, 'reports');
+  const recordingBinary = join(pane.directory, 'koja-recording');
+
+  await mkdir(reportsDirectory);
+
+  await writeRecordingBinary(
+    recordingBinary,
+    await paneBinaryPathOf(pane),
+    reportsDirectory,
+    quitDelaySeconds,
+  );
+
+  await send(pane, piCommand(directories, { extension: true, binaryPath: recordingBinary }));
+  await waitForPi(pane, 'reported');
+
+  return reportsDirectory;
+};
+
 it(
-  'reports the exact conversation of pi in the pane until pi switches it and quits',
+  'reports the exact conversation of pi in the pane, the one it switches to, and its quit',
   async () => {
     const pane = await setup();
     const directories = await piDirectories(pane.directory);
@@ -259,7 +200,8 @@ it(
 
     expect(pi).toEqual({
       state: 'reported',
-      recoveryEligible: false,
+      recoveryEligible: true,
+      ineligibleReasons: [],
       piVersion: pinnedPiVersion,
       sessionId: await headerIdOf(conversation),
       sessionFile: conversation,
@@ -272,16 +214,170 @@ it(
 
     await send(pane, '/new\r');
 
-    expect((await waitForPi(pane, 'changed')).pi).toEqual({
-      state: 'changed',
+    const switched = (await waitForReported(pane, (next) => next.sessionId !== pi?.sessionId)).pi;
+    const newSessionFile = switched?.sessionFile ?? '';
+
+    expect(switched).toEqual({
+      state: 'reported',
       recoveryEligible: false,
+      ineligibleReasons: ['sessionNotSaved'],
+      piVersion: pinnedPiVersion,
+      sessionId: expect.any(String) as string,
+      sessionFile: expect.stringContaining(directories.sessions) as string,
+      reportedLeafId: expect.any(String) as string,
+      provider: testProvider,
+      model: testModel,
+      thinkingLevel: testThinkingLevel,
+      ownership: 'interactive',
     });
+
+    expect(switched?.sessionId).not.toBe(pi?.sessionId);
+    expect(newSessionFile).not.toBe(conversation);
+    expect(existsSync(newSessionFile)).toBe(false);
 
     await send(pane, '/quit\r');
 
     expect((await waitForPi(pane, null)).pi).toBeNull();
     expect(onlyShellRuns(await pollUntil(() => processInfo(pane), onlyShellRuns))).toBe(true);
     expect((await pane.list()).map((listed) => listed.lifecycle)).toEqual(['running']);
+  },
+  piTestTimeoutMs,
+);
+
+it(
+  'reports the conversation pi resumes, reloads, and forks to, and keeps a killed pi as lost',
+  async () => {
+    const pane = await setup();
+    const directories = await piDirectories(pane.directory);
+    const conversation = savedConversation(pane, directories);
+    const other = savedConversation(pane, directories, ['resumable first', 'resumable second']);
+    const reportsDirectory = join(pane.directory, 'reports');
+    const recordingBinary = join(pane.directory, 'koja-recording');
+
+    await mkdir(reportsDirectory);
+    await writeRecordingBinary(recordingBinary, await paneBinaryPathOf(pane), reportsDirectory);
+
+    await send(
+      pane,
+      piCommand(directories, {
+        extension: true,
+        sessionFile: conversation,
+        binaryPath: recordingBinary,
+      }),
+    );
+
+    await waitForPi(pane, 'reported');
+    await send(pane, '/resume\r');
+    await send(pane, 'resumable');
+
+    expect(await showsText(pane, '› resumable first')).toBe(true);
+
+    await send(pane, '\r');
+
+    const resumed = await waitForReported(pane, (next) => next.sessionFile === other);
+
+    expect(resumed.pi).toMatchObject({ ...(await savedIdentityOf(other)), recoveryEligible: true });
+
+    await send(pane, '/reload\r');
+
+    expect(await showsText(pane, 'Reloaded keybindings')).toBe(true);
+
+    const recorded = await pollUntil(
+      () => recordedReportsOf(reportsDirectory),
+      (all) => all.some(isReloadStart),
+    );
+
+    const reloadReport = recorded.find(isReloadStart);
+    const earlier = recorded.filter((item) => item !== reloadReport);
+
+    expect(reloadReport).toMatchObject({
+      report: { event: { kind: 'start', reason: 'reload' } },
+      stdout: 'updated\n',
+      exitCode: 0,
+    });
+
+    expect(reloadReport?.report.sequence).toBeGreaterThan(
+      Math.max(...earlier.map((item) => item.report.sequence)),
+    );
+
+    const reloaded = await waitForReported(pane, (next) => next.sessionFile === other);
+
+    expect(reloaded.pi).toMatchObject({
+      ...(await savedIdentityOf(other)),
+      recoveryEligible: true,
+    });
+
+    await send(pane, '/fork\r');
+
+    expect(await showsText(pane, '› resumable second')).toBe(true);
+
+    await send(pane, '\r');
+
+    const forked = await waitForReported(
+      pane,
+      (next) => next.sessionFile !== other && next.sessionFile !== conversation,
+    );
+
+    const forkedFile = forked.pi?.sessionFile ?? '';
+
+    expect(existsSync(forkedFile)).toBe(true);
+
+    expect(forked.pi).toMatchObject({
+      ...(await savedIdentityOf(forkedFile)),
+      recoveryEligible: true,
+    });
+
+    killForegroundProcesses(await processInfo(pane));
+
+    const lost = await waitForPi(pane, 'lost');
+
+    expect(lost.pi).toMatchObject(await savedIdentityOf(forkedFile));
+    expect(onlyShellRuns(await pollUntil(() => processInfo(pane), onlyShellRuns))).toBe(true);
+  },
+  piTestTimeoutMs,
+);
+
+it(
+  'shows no pi, not a lost one, once pi quits while its quit report is slow',
+  async () => {
+    const pane = await setup();
+
+    const reportsDirectory = await startPiWithSlowQuitReport(pane, 1);
+
+    await send(pane, '/quit\r');
+
+    expect(onlyShellRuns(await pollUntil(() => processInfo(pane), onlyShellRuns))).toBe(true);
+
+    const delayed = (await recordedReportsOf(reportsDirectory)).filter(
+      (recorded) => recorded.delayed,
+    );
+
+    expect(delayed.map((recorded) => [recorded.report.event, recorded.exitCode])).toEqual([
+      [{ kind: 'shutdown', reason: 'quit' }, 0],
+    ]);
+
+    expect((await piStatus(pane)).pi).toBeNull();
+  },
+  piTestTimeoutMs,
+);
+
+it(
+  'lets pi exit within the quit wait when its quit report hangs',
+  async () => {
+    const pane = await setup();
+    const exitMarginMs = 2500;
+
+    await startPiWithSlowQuitReport(pane, 6);
+
+    const quitAt = performance.now();
+
+    await send(pane, '/quit\r');
+
+    const exited = onlyShellRuns(await pollUntil(() => processInfo(pane), onlyShellRuns));
+    const elapsedMs = performance.now() - quitAt;
+
+    expect(exited).toBe(true);
+    expect(elapsedMs).toBeLessThan(quitReportWaitMs + exitMarginMs);
   },
   piTestTimeoutMs,
 );
@@ -304,13 +400,14 @@ it(
     const { pi } = await waitForPi(pane, 'reported');
 
     expect(pi?.ownership).toBe('tauWorker');
+    expect(pi?.ineligibleReasons).toContain('tauWorker');
     expect(await settledScreen(pane)).toEqual(withoutExtension);
   },
   piTestTimeoutMs,
 );
 
 it(
-  'shows a changed conversation after pi selects another branch in its tree',
+  'reports the thinking level and the selected leaf after pi changes them in one conversation',
   async () => {
     const pane = await setup();
 
@@ -318,13 +415,25 @@ it(
       branchSummary: { skipPrompt: true },
     });
 
-    const conversation = branchedConversation(pane, directories);
+    const { sessionFile: conversation, firstId } = branchedConversation(pane, directories);
 
     await send(pane, piCommand(directories, { extension: true, sessionFile: conversation }));
 
-    expect((await waitForPi(pane, 'reported')).pi?.reportedLeafId).toBe(
-      await lastEntryIdOf(conversation),
+    const { pi } = await waitForPi(pane, 'reported');
+
+    expect(pi?.reportedLeafId).toBe(await lastEntryIdOf(conversation));
+
+    await send(pane, '/thinking high\r');
+
+    const thought = await waitForReported(pane, (next) => next.thinkingLevel === 'high');
+
+    expect(thought.pi).toEqual(
+      pi === null
+        ? null
+        : { ...pi, thinkingLevel: 'high', reportedLeafId: await lastEntryIdOf(conversation) },
     );
+
+    expect(thought.pi?.reportedLeafId).not.toBe(pi?.reportedLeafId);
 
     await send(pane, '/tree\r');
 
@@ -336,10 +445,14 @@ it(
 
     await send(pane, '\r');
 
-    expect((await waitForPi(pane, 'changed')).pi).toEqual({
-      state: 'changed',
-      recoveryEligible: false,
-    });
+    const selected = await waitForReported(
+      pane,
+      (next) => next.reportedLeafId !== thought.pi?.reportedLeafId,
+    );
+
+    expect(selected.pi).toEqual(
+      thought.pi === null ? null : { ...thought.pi, reportedLeafId: firstId },
+    );
   },
   piTestTimeoutMs,
 );

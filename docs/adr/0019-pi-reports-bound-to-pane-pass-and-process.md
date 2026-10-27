@@ -35,10 +35,33 @@ programs the user runs: a program inside the pane that pretends to be pi can set
 - A report names the pi process. The server accepts it only when that process is in the pane's shell
   session, and identifies it by its process id together with its start time, so a reused process id
   never matches an older record.
-- A record is shown only while its process still runs with the same start time.
-- A later report from the same process that differs in anything marks the record as changed and
-  drops its identity. Koja shows that the conversation changed instead of an identity it cannot
-  confirm.
+- Only a report that starts a pi session can make a record for a process other than the recorded
+  one, and the new record never inherits the earlier identity. Any other report from another process
+  is refused.
+
+### The lifecycle
+
+Each report names the pi event behind it and carries a sequence that increases with every report one
+pi process sends, including across pi's extension reloads in that process.
+
+- Ordering: the server ignores a report from the recorded process whose sequence is not greater than
+  the last one it accepted. Reports travel through separate short processes, so they can arrive out
+  of order.
+- A start, tree, model, or thinking report replaces the record's fields.
+- A shutdown for a session switch makes the record switching, and status shows no identity until the
+  next start report. Only a start report completes a switch.
+- A shutdown for quit makes the record exited, and status shows no record. The server keeps the
+  process and sequence, so a delayed report from that process never brings the identity back.
+- On quit, pi waits up to 2 seconds for its quit report command to finish, so a clean quit is not
+  shown as a crash. Every other report runs without pi waiting for it.
+- pi can exit before its quit report arrives. The server accepts a quit report from a gone process
+  only when it names the process id of the current record in the same pane generation, with a
+  greater sequence. It can only make that record exited.
+- A record whose process is gone without a quit is shown as lost with its last identity, so a crash
+  keeps what recovery needs.
+- Status lists the reasons a record cannot be recovered: a Tau worker owns the pi, a switch is
+  pending, pi reported no session file, or the session file is not on disk as a regular file.
+  Computing the reasons never changes pi or the pane.
 
 ### The path
 
@@ -57,6 +80,8 @@ A refused report changes no record and never ends the pane's shell or its other 
 - Late, misdirected, and pre-restart reports cannot label a pane.
 - Quitting pi and starting another in the same shell never leaves the first pi's identity on the
   pane.
+- A session switch, a tree move, or a model change keeps the record current, and a crashed pi keeps
+  its last identity for recovery.
 - The extension stays small and never depends on the protocol's version.
 
 ### Negative
@@ -64,7 +89,9 @@ A refused report changes no record and never ends the pane's shell or its other 
 - A program the user runs inside a pane can set that pane's record. Koja does not defend against the
   user's own programs.
 - Each report starts a short `koja` process.
+- Quitting pi can take up to 2 seconds longer when the quit report is slow.
 - A pi started in a new session, such as through `setsid`, cannot report to its pane.
+- A lost quit report leaves an exited pi shown as lost.
 
 ## Alternatives considered
 

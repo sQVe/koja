@@ -15,12 +15,18 @@ type PiReportRefusal = Extract<PiReportResult, { ok: false }>['reason'];
 
 type ReportBuilt = { ok: true; message: PiReportMessage } | { ok: false; message: string };
 
+type PiIneligibleReason = NonNullable<PiStatus>['ineligibleReasons'][number];
+
+interface PiEligibilityOutput {
+  recoveryEligible: boolean;
+  ineligibleReasons: PiIneligibleReason[];
+}
+
 type PiOutput =
   | null
-  | { state: 'changed'; recoveryEligible: false }
-  | {
-      state: 'reported';
-      recoveryEligible: false;
+  | ({ state: 'switching' } & PiEligibilityOutput)
+  | ({
+      state: 'reported' | 'lost';
       piVersion: string;
       sessionId: string | null;
       sessionFile: string | null;
@@ -29,7 +35,7 @@ type PiOutput =
       model: string | null;
       thinkingLevel: string;
       ownership: 'interactive' | 'tauWorker';
-    };
+    } & PiEligibilityOutput);
 
 interface PiStatusOutput {
   pane: string;
@@ -38,18 +44,30 @@ interface PiStatusOutput {
 
 const outsidePane = 'pi report runs only inside a Koja pane.';
 
+const reasonTextOf: Record<PiIneligibleReason, string> = {
+  tauWorker: 'a Tau worker owns this pi',
+  switchPending: 'the conversation is switching',
+  noSessionFile: 'pi reported no session file',
+  sessionNotSaved: 'the session file is not saved yet',
+};
+
 const piOutputOf = (pi: PiStatus): PiOutput => {
   if (pi === null) {
     return null;
   }
 
-  if (pi.state === 'changed') {
-    return { state: 'changed', recoveryEligible: false };
+  const eligibility = {
+    recoveryEligible: pi.ineligibleReasons.length === 0,
+    ineligibleReasons: pi.ineligibleReasons,
+  };
+
+  if (pi.state === 'switching') {
+    return { state: 'switching', ...eligibility };
   }
 
   return {
-    state: 'reported',
-    recoveryEligible: false,
+    state: pi.state,
+    ...eligibility,
     piVersion: pi.piVersion,
     sessionId: pi.sessionId ?? null,
     sessionFile: pi.sessionFile ?? null,
@@ -61,13 +79,17 @@ const piOutputOf = (pi: PiStatus): PiOutput => {
   };
 };
 
-const piTextOf = (pi: PiStatus): string => {
-  if (pi === null) {
-    return 'none';
+const recoveryTextOf = (reasons: PiIneligibleReason[]): string => {
+  if (reasons.length === 0) {
+    return 'recovery  eligible';
   }
 
-  if (pi.state === 'changed') {
-    return 'conversation changed, not tracked yet';
+  return `recovery  not eligible: ${reasons.map((reason) => reasonTextOf[reason]).join(', ')}`;
+};
+
+const identityTextOf = (pi: NonNullable<PiStatus>): string[] => {
+  if (pi.state === 'switching') {
+    return [];
   }
 
   const parts = [pi.sessionFile ?? 'no session file'];
@@ -76,7 +98,17 @@ const piTextOf = (pi: PiStatus): string => {
     parts.push(`${pi.provider}/${pi.model}`);
   }
 
-  return parts.join('  ');
+  return parts;
+};
+
+const piTextOf = (pane: PaneId, pi: PiStatus): string => {
+  if (pi === null) {
+    return `${pane}  pi  none`;
+  }
+
+  const summary = [pane, 'pi', pi.state, ...identityTextOf(pi)].join('  ');
+
+  return `${summary}\n${recoveryTextOf(pi.ineligibleReasons)}`;
 };
 
 const runPiStatusCommand = async (
@@ -98,7 +130,7 @@ const runPiStatusCommand = async (
 
   print<PiStatusOutput>(command.json, {
     json: { pane, pi: piOutputOf(result.pi) },
-    text: `${pane}  pi  ${piTextOf(result.pi)}`,
+    text: piTextOf(pane, result.pi),
   });
 
   return { ok: true };
@@ -180,6 +212,10 @@ const refusalMessage = (reason: PiReportRefusal, report: PiReportMessage): strin
 
   if (reason === 'processNotInPane') {
     return `The server refused the report: process ${report.report.processId} does not run in pane ${report.paneId}.`;
+  }
+
+  if (reason === 'processNotRecorded') {
+    return `The server refused the report: process ${report.report.processId} has not started a pi session in pane ${report.paneId}.`;
   }
 
   return reason === 'unknownPane'

@@ -109,6 +109,8 @@ const piReport = {
   model: 'sonnet',
   thinkingLevel: 'off',
   ownership: 'interactive' as const,
+  event: { kind: 'start' as const, reason: 'startup' as const },
+  sequence: 1,
 };
 
 const piStatusFields = {
@@ -122,7 +124,12 @@ const piStatusFields = {
   ownership: 'tauWorker' as const,
 };
 
-const piReportWithoutOptionals = { processId: 100, ...piStatusFields };
+const piReportWithoutOptionals = {
+  processId: 100,
+  ...piStatusFields,
+  event: { kind: 'shutdown' as const, reason: 'quit' as const },
+  sequence: Number.MAX_SAFE_INTEGER,
+};
 
 const messages: ControlMessage[] = [
   { type: 'hello', version: build, size: undefined },
@@ -164,19 +171,34 @@ const messages: ControlMessage[] = [
     report: piReportWithoutOptionals,
   },
   { type: 'piReportResult', result: { ok: true, status: 'recorded' } },
-  { type: 'piReportResult', result: { ok: true, status: 'unchanged' } },
-  { type: 'piReportResult', result: { ok: true, status: 'changed' } },
+  { type: 'piReportResult', result: { ok: true, status: 'updated' } },
+  { type: 'piReportResult', result: { ok: true, status: 'ignored' } },
   { type: 'piReportResult', result: { ok: false, reason: 'unauthorized' } },
   { type: 'piReportResult', result: { ok: false, reason: 'processNotInPane' } },
+  { type: 'piReportResult', result: { ok: false, reason: 'processNotRecorded' } },
   { type: 'piReportResult', result: { ok: false, reason: 'unknownPane' } },
   { type: 'piReportResult', result: { ok: false, reason: 'staleGeneration' } },
   { type: 'piStatus', paneId: pane.id },
   { type: 'piStatusReply', paneId: pane.id, pi: null },
-  { type: 'piStatusReply', paneId: pane.id, pi: { state: 'changed' } },
   {
     type: 'piStatusReply',
     paneId: pane.id,
-    pi: { state: 'reported', ...piStatusFields },
+    pi: { state: 'switching', ineligibleReasons: ['tauWorker', 'switchPending'] },
+  },
+  {
+    type: 'piStatusReply',
+    paneId: pane.id,
+    pi: { state: 'reported', ...piStatusFields, ineligibleReasons: ['tauWorker', 'noSessionFile'] },
+  },
+  {
+    type: 'piStatusReply',
+    paneId: pane.id,
+    pi: { state: 'lost', ...piStatusFields, ownership: 'interactive', ineligibleReasons: [] },
+  },
+  {
+    type: 'piStatusReply',
+    paneId: pane.id,
+    pi: { state: 'reported', ...piStatusFields, ineligibleReasons: ['sessionNotSaved'] },
   },
   { type: 'stop' },
   { type: 'stopResult', result: { ok: true } },
@@ -552,6 +574,8 @@ const piReportMessage = {
     model: null,
     thinkingLevel: 'off',
     ownership: 'interactive',
+    event: { kind: 'tree' },
+    sequence: 3,
   },
 };
 
@@ -561,6 +585,29 @@ const withReport = (changes: Record<string, unknown>) => ({
 });
 
 const piStatusReplyMessage = { type: 'piStatusReply', paneId: 'pane-1', pi: null };
+
+const switchingReplyMessage = {
+  type: 'piStatusReply',
+  paneId: 'pane-1',
+  pi: { state: 'switching', ineligibleReasons: ['switchPending'] },
+};
+
+const {
+  processId: _processId,
+  event: _event,
+  sequence: _sequence,
+  ...piIdentity
+} = piReportMessage.report;
+
+const lostReplyMessage = {
+  type: 'piStatusReply',
+  paneId: 'pane-1',
+  pi: {
+    ...piIdentity,
+    state: 'lost',
+    ineligibleReasons: ['noSessionFile'],
+  },
+};
 
 const piReportResultMessage = { type: 'piReportResult', result: { ok: true, status: 'recorded' } };
 
@@ -734,6 +781,43 @@ const refusedCases: [string, Record<string, unknown>, unknown][] = [
   ],
   ['a pi report with a processId of 0', piReportMessage, withReport({ processId: 0 })],
   ['a pi report with an unknown ownership', piReportMessage, withReport({ ownership: 'worker' })],
+  ['a pi report without an event', piReportMessage, withoutField(piReportMessage.report, 'event')],
+  [
+    'a pi report with an unknown event kind',
+    piReportMessage,
+    withReport({ event: { kind: 'compact' } }),
+  ],
+  [
+    'a pi report with a start event of an unknown reason',
+    piReportMessage,
+    withReport({ event: { kind: 'start', reason: 'quit' } }),
+  ],
+  [
+    'a pi report with a shutdown event of an unknown reason',
+    piReportMessage,
+    withReport({ event: { kind: 'shutdown', reason: 'startup' } }),
+  ],
+  [
+    'a pi report with a shutdown event without a reason',
+    piReportMessage,
+    withReport({ event: { kind: 'shutdown' } }),
+  ],
+  [
+    'a pi report with an event key it does not know',
+    piReportMessage,
+    withReport({ event: { kind: 'tree', leafId: 'x' } }),
+  ],
+  ['a pi report with a sequence of 0', piReportMessage, withReport({ sequence: 0 })],
+  [
+    'a pi report with a sequence that is not an integer',
+    piReportMessage,
+    withReport({ sequence: 1.5 }),
+  ],
+  [
+    'a pi report with a sequence over the safe integers',
+    piReportMessage,
+    withReport({ sequence: Number.MAX_SAFE_INTEGER + 1 }),
+  ],
   [
     'a pi report with an uppercase token',
     piReportMessage,
@@ -741,8 +825,45 @@ const refusedCases: [string, Record<string, unknown>, unknown][] = [
   ],
   [
     'a pi status reply with an unknown state',
-    piStatusReplyMessage,
-    { ...piStatusReplyMessage, pi: { state: 'exited' } },
+    switchingReplyMessage,
+    { ...switchingReplyMessage, pi: { ...switchingReplyMessage.pi, state: 'exited' } },
+  ],
+  [
+    'a switching pi status with an identity',
+    switchingReplyMessage,
+    { ...switchingReplyMessage, pi: { ...switchingReplyMessage.pi, sessionId: 'session-a' } },
+  ],
+  [
+    'a pi status reply with an unknown ineligible reason',
+    switchingReplyMessage,
+    { ...switchingReplyMessage, pi: { ...switchingReplyMessage.pi, ineligibleReasons: ['busy'] } },
+  ],
+  [
+    'a pi status reply with more ineligible reasons than exist',
+    switchingReplyMessage,
+    {
+      ...switchingReplyMessage,
+      pi: {
+        ...switchingReplyMessage.pi,
+        ineligibleReasons: [
+          'tauWorker',
+          'switchPending',
+          'noSessionFile',
+          'sessionNotSaved',
+          'tauWorker',
+        ],
+      },
+    },
+  ],
+  [
+    'a pi status reply without ineligible reasons',
+    lostReplyMessage,
+    { ...lostReplyMessage, pi: withoutField(lostReplyMessage.pi, 'ineligibleReasons') },
+  ],
+  [
+    'a lost pi status with the reported sequence',
+    lostReplyMessage,
+    { ...lostReplyMessage, pi: { ...lostReplyMessage.pi, sequence: 3 } },
   ],
   [
     'a pi report with an unknown top-level key',
@@ -794,6 +915,8 @@ it('reads the absent optional fields of a pi report as undefined', () => {
         model: undefined,
         thinkingLevel: 'off',
         ownership: 'interactive',
+        event: { kind: 'tree' },
+        sequence: 3,
       },
     },
   });

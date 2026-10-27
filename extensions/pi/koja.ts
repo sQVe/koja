@@ -1,4 +1,5 @@
 import { spawn } from 'node:child_process';
+import type { ChildProcess } from 'node:child_process';
 
 import { VERSION } from '@earendil-works/pi-coding-agent';
 import type { ExtensionAPI, ExtensionContext } from '@earendil-works/pi-coding-agent';
@@ -6,6 +7,15 @@ import type { ExtensionAPI, ExtensionContext } from '@earendil-works/pi-coding-a
 type Environment = Record<string, string | undefined>;
 
 type Ownership = 'interactive' | 'tauWorker';
+
+type SwitchReason = 'reload' | 'new' | 'resume' | 'fork';
+
+type ReportEvent =
+  | { kind: 'start'; reason: 'startup' | SwitchReason }
+  | { kind: 'tree' }
+  | { kind: 'model' }
+  | { kind: 'thinking' }
+  | { kind: 'shutdown'; reason: 'quit' | SwitchReason };
 
 interface Report {
   processId: number;
@@ -17,7 +27,23 @@ interface Report {
   model: string | null;
   thinkingLevel: string;
   ownership: Ownership;
+  event: ReportEvent;
+  sequence: number;
 }
+
+export const quitReportWaitMs = 2000;
+
+const sequenceKey = Symbol.for('koja.piReportSequence');
+
+const nextSequence = (): number => {
+  // SAFETY: only this extension uses the registered symbol key, and it stores only numbers there.
+  const holder = globalThis as Record<symbol, number | undefined>;
+  const next = (holder[sequenceKey] ?? 0) + 1;
+
+  holder[sequenceKey] = next;
+
+  return next;
+};
 
 const ownershipOf = (workerRecord: string | undefined): Ownership =>
   workerRecord === undefined || workerRecord === '' ? 'interactive' : 'tauWorker';
@@ -29,6 +55,7 @@ const reportOf = (
   pi: ExtensionAPI,
   context: ExtensionContext,
   environment: Environment,
+  event: ReportEvent,
 ): Report => ({
   processId: process.pid,
   piVersion: VERSION,
@@ -39,22 +66,40 @@ const reportOf = (
   model: nonEmpty(context.model?.id),
   thinkingLevel: pi.getThinkingLevel(),
   ownership: ownershipOf(environment.TAU_WORKER_RECORD),
+  event,
+  sequence: nextSequence(),
 });
 
-// The report must never draw on pi's screen or keep pi waiting, so the command gets no terminal,
-// pi does not wait for it, and every failure is dropped.
-const send = (binaryPath: string, report: Report): void => {
+const send = (binaryPath: string, report: Report): ChildProcess | undefined => {
   try {
     const child = spawn(binaryPath, ['pi', 'report'], { stdio: ['pipe', 'ignore', 'ignore'] });
 
     child.on('error', () => undefined);
     child.stdin.on('error', () => undefined);
     child.stdin.end(JSON.stringify(report));
-    child.unref();
+
+    return child;
   } catch {
     // A missing or broken Koja binary must not affect pi.
+    return undefined;
   }
 };
+
+const waitForExit = (child: ChildProcess): Promise<void> =>
+  new Promise((resolve) => {
+    const timer = setTimeout(() => {
+      child.unref();
+      resolve();
+    }, quitReportWaitMs);
+
+    const finish = (): void => {
+      clearTimeout(timer);
+      resolve();
+    };
+
+    child.on('exit', finish);
+    child.on('error', finish);
+  });
 
 export default function koja(pi: ExtensionAPI): void {
   // oxlint-disable-next-line node/no-process-env -- pi's environment is where the pane's Koja identity enters.
@@ -69,19 +114,48 @@ export default function koja(pi: ExtensionAPI): void {
     return;
   }
 
-  const report = (context: ExtensionContext): void => {
+  const report = (context: ExtensionContext, event: ReportEvent): ChildProcess | undefined => {
     try {
-      send(binaryPath, reportOf(pi, context, environment));
+      return send(binaryPath, reportOf(pi, context, environment, event));
     } catch {
       // Reading pi's state must not affect pi.
+      return undefined;
     }
   };
 
-  pi.on('session_start', (_event, context) => {
-    report(context);
+  const reportWithoutWaiting = (context: ExtensionContext, event: ReportEvent): void => {
+    report(context, event)?.unref();
+  };
+
+  pi.on('session_start', (event, context) => {
+    reportWithoutWaiting(context, { kind: 'start', reason: event.reason });
   });
 
   pi.on('session_tree', (_event, context) => {
-    report(context);
+    reportWithoutWaiting(context, { kind: 'tree' });
+  });
+
+  pi.on('model_select', (_event, context) => {
+    reportWithoutWaiting(context, { kind: 'model' });
+  });
+
+  pi.on('thinking_level_select', (_event, context) => {
+    reportWithoutWaiting(context, { kind: 'thinking' });
+  });
+
+  pi.on('session_shutdown', async (event, context) => {
+    const shutdown: ReportEvent = { kind: 'shutdown', reason: event.reason };
+
+    if (event.reason !== 'quit') {
+      reportWithoutWaiting(context, shutdown);
+
+      return;
+    }
+
+    const child = report(context, shutdown);
+
+    if (child !== undefined) {
+      await waitForExit(child);
+    }
   });
 }

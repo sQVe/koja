@@ -351,8 +351,17 @@ const piReportLimits = {
   path: 4096,
 };
 
-const piReportFieldsSchema = z.strictObject({
-  processId: z.number().int().positive(),
+const piSwitchReasons = ['reload', 'new', 'resume', 'fork'] as const;
+
+const piEventSchema = z.discriminatedUnion('kind', [
+  z.strictObject({ kind: z.literal('start'), reason: z.enum(['startup', ...piSwitchReasons]) }),
+  z.strictObject({ kind: z.literal('tree') }),
+  z.strictObject({ kind: z.literal('model') }),
+  z.strictObject({ kind: z.literal('thinking') }),
+  z.strictObject({ kind: z.literal('shutdown'), reason: z.enum(['quit', ...piSwitchReasons]) }),
+]);
+
+const piIdentitySchema = z.strictObject({
   piVersion: piReportText(piReportLimits.shortText),
   sessionId: absent(piReportText(piReportLimits.identifier)),
   sessionFile: absent(piReportText(piReportLimits.path)),
@@ -363,23 +372,47 @@ const piReportFieldsSchema = z.strictObject({
   ownership: z.enum(['interactive', 'tauWorker']),
 });
 
-export const piReportSchema: z.ZodType<PiReport> = piReportFieldsSchema;
+export const piReportSchema: z.ZodType<PiReport> = piIdentitySchema.extend({
+  processId: z.number().int().positive(),
+  event: piEventSchema,
+  sequence: z.number().int().positive().max(Number.MAX_SAFE_INTEGER),
+});
 
 const piReportOutcomeSchema = z.discriminatedUnion('ok', [
   z.strictObject({
     ok: z.literal(true),
-    status: z.enum(['recorded', 'unchanged', 'changed']),
+    status: z.enum(['recorded', 'updated', 'ignored']),
   }),
   z.strictObject({
     ok: z.literal(false),
-    reason: z.enum(['unauthorized', 'processNotInPane', 'unknownPane', 'staleGeneration']),
+    reason: z.enum([
+      'unauthorized',
+      'processNotInPane',
+      'processNotRecorded',
+      'unknownPane',
+      'staleGeneration',
+    ]),
   }),
 ]);
 
+const piIneligibleReasons = [
+  'tauWorker',
+  'switchPending',
+  'noSessionFile',
+  'sessionNotSaved',
+] as const;
+
+const piIneligibleReasonsSchema = z
+  .array(z.enum(piIneligibleReasons))
+  .max(piIneligibleReasons.length);
+
 const piStatusSchema = z.union([
   z.null(),
-  z.strictObject({ state: z.literal('changed') }),
-  piReportFieldsSchema.omit({ processId: true }).extend({ state: z.literal('reported') }),
+  z.strictObject({ state: z.literal('switching'), ineligibleReasons: piIneligibleReasonsSchema }),
+  piIdentitySchema.extend({
+    state: z.enum(['reported', 'lost']),
+    ineligibleReasons: piIneligibleReasonsSchema,
+  }),
 ]);
 
 const controlSchema = z.discriminatedUnion('type', [

@@ -1,11 +1,20 @@
 import type { PaneId } from '../ids.ts';
 import { invariant } from '../invariant.ts';
-import type { Rejected, RejectReason, State } from './store.ts';
+import type { State } from './store.ts';
 
 export interface PiProcess {
   id: number;
   startTime: number;
 }
+
+type PiSwitchReason = 'reload' | 'new' | 'resume' | 'fork';
+
+export type PiEvent =
+  | { kind: 'start'; reason: 'startup' | PiSwitchReason }
+  | { kind: 'tree' }
+  | { kind: 'model' }
+  | { kind: 'thinking' }
+  | { kind: 'shutdown'; reason: 'quit' | PiSwitchReason };
 
 export interface PiReport {
   processId: number;
@@ -17,23 +26,36 @@ export interface PiReport {
   model: string | undefined;
   thinkingLevel: string;
   ownership: 'interactive' | 'tauWorker';
+  event: PiEvent;
+  sequence: number;
 }
 
-interface PiRecordBase {
+export interface PiRecord {
+  state: 'reported' | 'switching' | 'exited';
   generation: number;
   process: PiProcess;
+  sequence: number;
+  report: PiReport;
 }
 
-export type PiRecord =
-  | (PiRecordBase & { state: 'reported'; report: PiReport })
-  | (PiRecordBase & { state: 'changed' });
+type PiReportStatus = 'recorded' | 'updated' | 'ignored';
 
-type PiReportStatus = 'recorded' | 'unchanged' | 'changed';
+type PiReportRefusal =
+  | 'unknownPane'
+  | 'staleGeneration'
+  | 'processNotRecorded'
+  | 'processNotInPane';
 
 interface PiReportInput {
   paneId: PaneId;
   generation: number;
   process: PiProcess;
+  report: PiReport;
+}
+
+interface GonePiQuitInput {
+  paneId: PaneId;
+  generation: number;
   report: PiReport;
 }
 
@@ -43,25 +65,20 @@ interface PiReportApplied {
   status: PiReportStatus;
 }
 
-const reportFields: readonly (keyof PiReport)[] = [
-  'processId',
-  'piVersion',
-  'sessionId',
-  'sessionFile',
-  'leafId',
-  'provider',
-  'model',
-  'thinkingLevel',
-  'ownership',
-];
+interface PiReportRejected {
+  kind: 'rejected';
+  state: State;
+  reason: PiReportRefusal;
+}
 
-const sameReport = (left: PiReport, right: PiReport): boolean =>
-  reportFields.every((field) => left[field] === right[field]);
+type PiReportResult = PiReportApplied | PiReportRejected;
 
 const sameProcess = (left: PiProcess, right: PiProcess): boolean =>
   left.id === right.id && left.startTime === right.startTime;
 
-const refuse = (state: State, reason: RejectReason): Rejected => ({
+const isQuit = (event: PiEvent): boolean => event.kind === 'shutdown' && event.reason === 'quit';
+
+const refuse = (state: State, reason: PiReportRefusal): PiReportRejected => ({
   kind: 'rejected',
   state,
   reason,
@@ -86,56 +103,49 @@ const withRecord = (
   return applied({ ...state, piReports }, status);
 };
 
-const reportRecord = (input: PiReportInput): PiRecord => ({
-  state: 'reported',
-  generation: input.generation,
-  process: input.process,
-  report: input.report,
-});
+const nextRecordState = (current: PiRecord['state'], event: PiEvent): PiRecord['state'] => {
+  if (event.kind === 'start') {
+    return 'reported';
+  }
 
-const reportFromSameProcess = (
+  if (event.kind === 'shutdown') {
+    return event.reason === 'quit' ? 'exited' : 'switching';
+  }
+
+  return current;
+};
+
+const reportFromRecordedProcess = (
   state: State,
   current: PiRecord,
   input: PiReportInput,
 ): PiReportApplied => {
-  if (current.state === 'changed') {
-    return applied(state, 'changed');
+  if (input.report.sequence <= current.sequence) {
+    return applied(state, 'ignored');
   }
 
-  if (sameReport(current.report, input.report)) {
-    return applied(state, 'unchanged');
-  }
-
-  const changed: PiRecord = {
-    state: 'changed',
-    generation: current.generation,
-    process: current.process,
+  const record: PiRecord = {
+    ...current,
+    state: nextRecordState(current.state, input.report.event),
+    sequence: input.report.sequence,
+    report: input.report,
   };
 
-  return withRecord(state, input.paneId, changed, 'changed');
+  return withRecord(state, input.paneId, record, 'updated');
 };
 
-export const applyPiReport = (state: State, input: PiReportInput): PiReportApplied | Rejected => {
-  const pane = state.panes.find((known) => known.id === input.paneId);
+const generationRefusal = (
+  state: State,
+  paneId: PaneId,
+  generation: number,
+): PiReportRefusal | undefined => {
+  const pane = state.panes.find((known) => known.id === paneId);
 
   if (pane === undefined) {
-    return refuse(state, 'unknownPane');
+    return 'unknownPane';
   }
 
-  if (pane.generation !== input.generation) {
-    return refuse(state, 'staleGeneration');
-  }
-
-  invariant(input.report.processId === input.process.id, 'A pi report names its own process.');
-
-  const current = state.piReports.get(input.paneId);
-  const sameGeneration = current?.generation === input.generation;
-
-  if (current !== undefined && sameGeneration && sameProcess(current.process, input.process)) {
-    return reportFromSameProcess(state, current, input);
-  }
-
-  return withRecord(state, input.paneId, reportRecord(input), 'recorded');
+  return pane.generation === generation ? undefined : 'staleGeneration';
 };
 
 export const piRecordOf = (state: State, paneId: PaneId): PiRecord | undefined => {
@@ -143,4 +153,56 @@ export const piRecordOf = (state: State, paneId: PaneId): PiRecord | undefined =
   const record = state.piReports.get(paneId);
 
   return pane !== undefined && record?.generation === pane.generation ? record : undefined;
+};
+
+export const applyPiReport = (state: State, input: PiReportInput): PiReportResult => {
+  const refusal = generationRefusal(state, input.paneId, input.generation);
+
+  if (refusal !== undefined) {
+    return refuse(state, refusal);
+  }
+
+  invariant(input.report.processId === input.process.id, 'A pi report names its own process.');
+
+  const current = piRecordOf(state, input.paneId);
+
+  if (current !== undefined && sameProcess(current.process, input.process)) {
+    return reportFromRecordedProcess(state, current, input);
+  }
+
+  if (input.report.event.kind !== 'start') {
+    return refuse(state, 'processNotRecorded');
+  }
+
+  const record: PiRecord = {
+    state: 'reported',
+    generation: input.generation,
+    process: input.process,
+    sequence: input.report.sequence,
+    report: input.report,
+  };
+
+  return withRecord(state, input.paneId, record, 'recorded');
+};
+
+export const applyGonePiQuit = (state: State, input: GonePiQuitInput): PiReportResult => {
+  const refusal = generationRefusal(state, input.paneId, input.generation);
+
+  if (refusal !== undefined) {
+    return refuse(state, refusal);
+  }
+
+  const current = piRecordOf(state, input.paneId);
+
+  if (!isQuit(input.report.event) || current?.process.id !== input.report.processId) {
+    return refuse(state, 'processNotInPane');
+  }
+
+  if (input.report.sequence <= current.sequence) {
+    return applied(state, 'ignored');
+  }
+
+  const record: PiRecord = { ...current, state: 'exited', sequence: input.report.sequence };
+
+  return withRecord(state, input.paneId, record, 'updated');
 };
