@@ -106,7 +106,6 @@ const sessionShape = z.object({
         id: tabIdSchema,
         workspaceId: workspaceIdSchema,
         layout: layoutSchema,
-        // A file from before arrangements has none, and its tabs keep their splits.
         arrangement: arrangementSchema.nullish(),
         focusedPaneId: paneIdSchema,
         zoomedPaneId: absent(paneIdSchema),

@@ -244,7 +244,6 @@ it(
     const startScript = join(folder, 'start.sh');
     const path = await server.sessionPath();
 
-    // An interactive sh runs the file ENV names, so each shell start adds one line.
     await writeFile(startScript, `echo "$KOJA_PANE_ID" >> ${starts}\n`);
     environment['ENV'] = startScript;
     await mkdir(dirname(path), { recursive: true });

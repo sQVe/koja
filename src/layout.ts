@@ -341,8 +341,6 @@ export const legacyArrangement = (layout: Layout): Arrangement => ({
   order: layoutPaneIds(layout),
 });
 
-// Each pane the tree gained goes directly after the pane before it in tree order, so a split pane
-// follows the pane it split.
 export const orderForLayout = (order: readonly PaneId[], layout: Layout): PaneId[] => {
   invariant(hasUniqueIds(order), 'Cannot order the same pane twice.');
 
@@ -387,8 +385,6 @@ const withPane = (
   return splitLayout(layout, previous, 'right', added);
 };
 
-// Keeps every surviving split and its ratio. A pane the order gained splits the pane of the id
-// before it, so a reorder alone gives the same tree. An empty order removes every pane.
 export const layoutForOrder = (layout: Layout, order: readonly PaneId[]): Layout | undefined => {
   invariant(hasUniqueIds(order), 'Cannot place the same pane twice.');
 
