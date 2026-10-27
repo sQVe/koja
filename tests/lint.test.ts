@@ -316,12 +316,12 @@ it.each(['lint', 'style:check'])(
       [
         'src/client/refusedModules.ts',
         [
-          "import { layout } from '../layout.ts';",
+          "import { cli } from '../cli/cli.ts';",
           "import type { State } from '../store/store.ts';",
           "import { server } from '../server/server.ts';",
           "import { ui } from '../ui/ui.tsx';",
           "import { vt } from '../vt/vt.ts';",
-          'export const refused: [unknown, State?] = [layout, server, ui, vt];',
+          'export const refused: [unknown, State?] = [cli, server, ui, vt];',
         ],
         5,
       ],
@@ -535,7 +535,7 @@ const allowedEdges: Record<ModuleName, ModuleName[]> = {
   store: ['ids', 'invariant', 'layout'],
   protocol: ['ids', 'invariant', 'rows'],
   server: ['ids', 'invariant', 'vt', 'rows', 'layout', 'store', 'protocol'],
-  client: ['ids', 'invariant', 'rows', 'protocol'],
+  client: ['ids', 'invariant', 'rows', 'layout', 'protocol'],
   ui: ['ids', 'invariant', 'rows', 'layout', 'client'],
   cli: ['ids', 'invariant', 'protocol', 'server', 'client', 'vt', 'ui'],
   index: [

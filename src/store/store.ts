@@ -1,7 +1,13 @@
 import type { ClientId, PaneId, TabId, WorkspaceId } from '../ids.ts';
 import { invariant } from '../invariant.ts';
 import { paneSize } from '../layout.ts';
-import type { Layout, ResizeDirection, SplitDirection, TerminalSize } from '../layout.ts';
+import type {
+  Arrangement,
+  Layout,
+  ResizeDirection,
+  SplitDirection,
+  TerminalSize,
+} from '../layout.ts';
 import {
   attachClient,
   detachClient,
@@ -74,6 +80,7 @@ export interface Tab {
   id: TabId;
   workspaceId: WorkspaceId;
   layout: Layout;
+  arrangement: Arrangement;
   focusedPaneId: PaneId;
   zoomedPaneId: PaneId | undefined;
   label: string | undefined;
@@ -264,7 +271,7 @@ export type Change =
   | { type: 'paneRemoved'; paneId: PaneId }
   // The pane keeps its process and moves to the tab. Its old tab, if emptied, arrives as tabRemoved.
   | { type: 'paneMoved'; paneId: PaneId; tabId: TabId }
-  | { type: 'tabLayoutChanged'; tabId: TabId; layout: Layout }
+  | { type: 'tabLayoutChanged'; tabId: TabId; layout: Layout; arrangement: Arrangement }
   | { type: 'paneFocused'; tabId: TabId; paneId: PaneId }
   | { type: 'tabZoomChanged'; tabId: TabId; zoomedPaneId: PaneId | undefined }
   | {

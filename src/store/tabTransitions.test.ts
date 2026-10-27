@@ -46,6 +46,7 @@ it('creates a second tab with a starting pane, last in the list and active', () 
     id: tabId(2),
     workspaceId: workspaceId(1),
     layout: { kind: 'pane', paneId: paneId(2) },
+    arrangement: { choice: 'legacy', order: [paneId(2)] },
     focusedPaneId: paneId(2),
     zoomedPaneId: undefined,
     label: undefined,

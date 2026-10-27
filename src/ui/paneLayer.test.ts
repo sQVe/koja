@@ -8,6 +8,7 @@ import { createRowCache } from '../client/client.ts';
 import type { RowCache, StoreSnapshot } from '../client/client.ts';
 import { paneId, tabId, workspaceId } from '../ids.ts';
 import type { PaneId } from '../ids.ts';
+import { legacyArrangement } from '../layout.ts';
 import type { Layout } from '../layout.ts';
 import { cellWords, CursorShape, rowHeaderWords, rowWords } from '../rows/rows.ts';
 import type { RowUpdate } from '../rows/rows.ts';
@@ -66,6 +67,7 @@ const snapshotOf = (
       id: tabId(1),
       workspaceId: workspaceId(1),
       layout,
+      arrangement: legacyArrangement(layout),
       focusedPaneId: paneId(1),
       zoomedPaneId: undefined,
       label: undefined,

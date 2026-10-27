@@ -1,8 +1,16 @@
 import { tabId, workspaceId } from '../ids.ts';
 import type { PaneId } from '../ids.ts';
 import { invariant } from '../invariant.ts';
-import { canSplit, firstPaneId, layoutPanes, removePane, splitLayout } from '../layout.ts';
-import type { PaneRectangle } from '../layout.ts';
+import {
+  arrangementForLayout,
+  canSplit,
+  firstPaneId,
+  layoutPanes,
+  legacyArrangement,
+  removePane,
+  splitLayout,
+} from '../layout.ts';
+import type { Layout, PaneRectangle } from '../layout.ts';
 import { fitPanes } from './paneSizes.ts';
 import { unzoomChanges } from './paneTransitions.ts';
 import type { Change, Intent, Pane, State, Tab, WorkspaceRecord } from './store.ts';
@@ -52,7 +60,16 @@ const placeInTab = (state: State, pane: Pane, destination: Tab): Placement | Ref
   }
 
   const layout = splitLayout(destination.layout, target, direction, id);
-  const tab: Tab = { ...destination, layout, focusedPaneId: id, zoomedPaneId: undefined };
+  const arrangement = arrangementForLayout(destination.arrangement, layout);
+
+  const tab: Tab = {
+    ...destination,
+    layout,
+    arrangement,
+    focusedPaneId: id,
+    zoomedPaneId: undefined,
+  };
+
   const joined = withPaneIn(state, id, destination);
 
   // Only a pane that has not started gets its startup cleanup, which consumes this entry.
@@ -77,7 +94,7 @@ const placeInTab = (state: State, pane: Pane, destination: Tab): Placement | Ref
     tab,
     changes: [
       { type: 'paneMoved', paneId: id, tabId: tab.id },
-      { type: 'tabLayoutChanged', tabId: tab.id, layout },
+      { type: 'tabLayoutChanged', tabId: tab.id, layout, arrangement },
       { type: 'paneFocused', tabId: tab.id, paneId: id },
       ...unzoomChanges(destination),
     ],
@@ -85,10 +102,13 @@ const placeInTab = (state: State, pane: Pane, destination: Tab): Placement | Ref
 };
 
 const placeInNewTab = (state: State, id: PaneId, source: Tab): Placement => {
+  const layout: Layout = { kind: 'pane', paneId: id };
+
   const tab: Tab = {
     id: tabId(state.nextTabNumber),
     workspaceId: source.workspaceId,
-    layout: { kind: 'pane', paneId: id },
+    layout,
+    arrangement: legacyArrangement(layout),
     focusedPaneId: id,
     zoomedPaneId: undefined,
     label: undefined,
@@ -119,10 +139,13 @@ const placeInNewTab = (state: State, id: PaneId, source: Tab): Placement => {
 };
 
 const placeInNewWorkspace = (state: State, id: PaneId, root: string): Placement => {
+  const layout: Layout = { kind: 'pane', paneId: id };
+
   const tab: Tab = {
     id: tabId(state.nextTabNumber),
     workspaceId: workspaceId(state.nextWorkspaceNumber),
-    layout: { kind: 'pane', paneId: id },
+    layout,
+    arrangement: legacyArrangement(layout),
     focusedPaneId: id,
     zoomedPaneId: undefined,
     label: undefined,
@@ -207,11 +230,11 @@ const detachFrom = (state: State, source: Tab, id: PaneId): Proposal => {
     source.focusedPaneId === id ? firstPaneId(removal.sibling) : source.focusedPaneId;
 
   const zoomedPaneId = source.zoomedPaneId === id ? undefined : source.zoomedPaneId;
-  const detached: Tab = { ...source, layout: removal.layout, focusedPaneId, zoomedPaneId };
+  const { layout } = removal;
+  const arrangement = arrangementForLayout(source.arrangement, layout);
+  const detached: Tab = { ...source, layout, arrangement, focusedPaneId, zoomedPaneId };
 
-  const changes: Change[] = [
-    { type: 'tabLayoutChanged', tabId: source.id, layout: removal.layout },
-  ];
+  const changes: Change[] = [{ type: 'tabLayoutChanged', tabId: source.id, layout, arrangement }];
 
   if (focusedPaneId !== source.focusedPaneId) {
     changes.push({ type: 'paneFocused', tabId: source.id, paneId: focusedPaneId });

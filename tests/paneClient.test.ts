@@ -48,6 +48,7 @@ const snapshot = (live: boolean): ControlMessage => ({
             id: tabId(1),
             workspaceId: workspaceId(1),
             layout: { kind: 'pane', paneId: paneId(7) },
+            arrangement: { choice: 'legacy', order: [paneId(7)] },
             focusedPaneId: paneId(7),
             zoomedPaneId: undefined,
             label: undefined,

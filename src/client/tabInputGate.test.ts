@@ -181,6 +181,7 @@ const snapshotShowing = (lifecycle: 'running' | 'failed'): StoreSnapshot => {
         id: tabId(1),
         workspaceId: workspaceId(1),
         layout: { kind: 'pane', paneId: pane7.id },
+        arrangement: { choice: 'legacy', order: [pane7.id] },
         focusedPaneId: pane7.id,
         zoomedPaneId: undefined,
         label: undefined,

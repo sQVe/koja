@@ -3,6 +3,7 @@ import { describe, expect, it } from 'bun:test';
 import { actionCatalog, availableActions } from './actions.ts';
 import type { StoreSnapshot } from './client/client.ts';
 import { clientId, paneId, tabId, workspaceId } from './ids.ts';
+import { legacyArrangement } from './layout.ts';
 
 type Layout = StoreSnapshot['tabs'][number]['layout'];
 
@@ -67,6 +68,7 @@ const snapshotOf = (shape: Shape): StoreSnapshot => {
       id: tabId(tab.id),
       workspaceId: workspaceId(tab.workspace),
       layout: rowLayout(tab.panes),
+      arrangement: legacyArrangement(rowLayout(tab.panes)),
       focusedPaneId: paneId(tab.focused),
       zoomedPaneId: undefined,
       label: undefined,

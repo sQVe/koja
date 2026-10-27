@@ -5,7 +5,8 @@ import { z } from 'zod';
 
 import { paneId, tabId, workspaceId } from '../ids.ts';
 import type { PaneId, TabId, WorkspaceId } from '../ids.ts';
-import type { Layout } from '../layout.ts';
+import { layoutPaneIds, legacyArrangement } from '../layout.ts';
+import type { Arrangement, Layout } from '../layout.ts';
 import type { SavedSession } from '../store/store.ts';
 import { socketKeyFor, usableStateHome } from './log.ts';
 import type { Log } from './log.ts';
@@ -77,10 +78,10 @@ const layoutSchema: z.ZodType<Layout> = z.lazy(() =>
   ]),
 );
 
-const layoutPaneIds = (layout: Layout): PaneId[] =>
-  layout.kind === 'pane'
-    ? [layout.paneId]
-    : [...layoutPaneIds(layout.first), ...layoutPaneIds(layout.second)];
+const arrangementSchema: z.ZodType<Arrangement> = z.object({
+  choice: z.enum(['legacy', 'master'], { error: 'The layout choice is unknown.' }),
+  order: z.array(paneIdSchema),
+});
 
 const hasDuplicate = (ids: readonly string[]): boolean => new Set(ids).size !== ids.length;
 
@@ -105,11 +106,16 @@ const sessionShape = z.object({
         id: tabIdSchema,
         workspaceId: workspaceIdSchema,
         layout: layoutSchema,
+        arrangement: arrangementSchema.nullish(),
         focusedPaneId: paneIdSchema,
         zoomedPaneId: absent(paneIdSchema),
         label: z.string().nullish(),
       })
-      .transform((tab) => ({ ...tab, label: tab.label ?? undefined })),
+      .transform((tab) => ({
+        ...tab,
+        arrangement: tab.arrangement ?? legacyArrangement(tab.layout),
+        label: tab.label ?? undefined,
+      })),
   ),
   panes: z.array(
     z.object({
@@ -184,6 +190,26 @@ const workspaceProblems = (session: Session): string[] => {
   return problems;
 };
 
+const arrangementProblems = (tab: Session['tabs'][number]): string[] => {
+  const problems: string[] = [];
+  const { order } = tab.arrangement;
+  const inLayout = layoutPaneIds(tab.layout);
+
+  if (hasDuplicate(order)) {
+    problems.push(`The arrangement of ${tab.id} lists a pane twice.`);
+  }
+
+  if (inLayout.some((id) => !order.includes(id))) {
+    problems.push(`The arrangement of ${tab.id} misses a pane of its layout.`);
+  }
+
+  if (order.some((id) => !inLayout.includes(id))) {
+    problems.push(`The arrangement of ${tab.id} lists a pane that is not in its layout.`);
+  }
+
+  return problems;
+};
+
 const tabProblems = (session: Session): string[] => {
   const problems: string[] = [];
 
@@ -202,6 +228,8 @@ const tabProblems = (session: Session): string[] => {
     if (tab.zoomedPaneId !== undefined && !inLayout.includes(tab.zoomedPaneId)) {
       problems.push(`The zoomed pane of ${tab.id} is not in its layout.`);
     }
+
+    problems.push(...arrangementProblems(tab));
   }
 
   return problems;

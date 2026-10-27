@@ -2,6 +2,7 @@ import { paneId } from '../ids.ts';
 import type { ClientId, PaneId } from '../ids.ts';
 import { invariant } from '../invariant.ts';
 import {
+  arrangementForLayout,
   canSplit,
   firstPaneId,
   layoutPanes,
@@ -77,7 +78,15 @@ export const splitPane = (state: State, intent: SplitPaneIntent): Outcome => {
     error: undefined,
   };
 
-  const splitTab: Tab = { ...tab, layout, focusedPaneId: added.id, zoomedPaneId: undefined };
+  const arrangement = arrangementForLayout(tab.arrangement, layout);
+
+  const splitTab: Tab = {
+    ...tab,
+    layout,
+    arrangement,
+    focusedPaneId: added.id,
+    zoomedPaneId: undefined,
+  };
 
   const split: State = {
     ...state,
@@ -95,7 +104,7 @@ export const splitPane = (state: State, intent: SplitPaneIntent): Outcome => {
 
   return propose({ ...split, panes: fitted.panes }, [
     { type: 'paneAdded', pane: added },
-    { type: 'tabLayoutChanged', tabId: tab.id, layout },
+    { type: 'tabLayoutChanged', tabId: tab.id, layout, arrangement },
     { type: 'paneFocused', tabId: tab.id, paneId: added.id },
     ...unzoomChanges(tab),
     ...fitted.changes,
@@ -163,7 +172,9 @@ const closePaneIn = (state: State, tab: Tab, id: PaneId): Proposal => {
   const successor = previousStays ? previous : firstPaneId(removal.sibling);
   const focusedPaneId = tab.focusedPaneId === id ? successor : tab.focusedPaneId;
   const zoomedPaneId = restoredZoom(state, id, focusedPaneId);
-  const closedTab: Tab = { ...tab, layout: removal.layout, focusedPaneId, zoomedPaneId };
+  const { layout } = removal;
+  const arrangement = arrangementForLayout(tab.arrangement, layout);
+  const closedTab: Tab = { ...tab, layout, arrangement, focusedPaneId, zoomedPaneId };
 
   const closed: State = {
     ...withoutStartupRecords(state, [id]),
@@ -173,7 +184,7 @@ const closePaneIn = (state: State, tab: Tab, id: PaneId): Proposal => {
 
   const changes: Change[] = [
     { type: 'paneRemoved', paneId: id },
-    { type: 'tabLayoutChanged', tabId: tab.id, layout: removal.layout },
+    { type: 'tabLayoutChanged', tabId: tab.id, layout, arrangement },
   ];
 
   if (focusedPaneId !== tab.focusedPaneId) {
@@ -262,7 +273,7 @@ export const resizePane = (state: State, intent: ResizePaneIntent): Outcome => {
   const changes = unzoomChanges(tab);
 
   if (layout !== tab.layout) {
-    changes.push({ type: 'tabLayoutChanged', tabId: tab.id, layout });
+    changes.push({ type: 'tabLayoutChanged', tabId: tab.id, layout, arrangement: tab.arrangement });
   }
 
   const resizedTab: Tab = { ...tab, layout, zoomedPaneId: undefined };

@@ -45,6 +45,7 @@ const sessionWith = (overrides: Partial<SavedSession> = {}): SavedSession => ({
         first: { kind: 'pane', paneId: paneId(1) },
         second: { kind: 'pane', paneId: paneId(2) },
       },
+      arrangement: { choice: 'legacy', order: [paneId(1), paneId(2)] },
       focusedPaneId: paneId(1),
       zoomedPaneId: paneId(2),
       label: undefined,
@@ -53,6 +54,7 @@ const sessionWith = (overrides: Partial<SavedSession> = {}): SavedSession => ({
       id: tabId(2),
       workspaceId: workspaceId(2),
       layout: { kind: 'pane', paneId: paneId(3) },
+      arrangement: { choice: 'legacy', order: [paneId(3)] },
       focusedPaneId: paneId(3),
       zoomedPaneId: undefined,
       label: undefined,
@@ -203,6 +205,98 @@ it('restores a version 1 file whose panes have no folder', async () => {
   expect(await readSessionFile(path)).toEqual({ kind: 'restored', session });
 });
 
+it('restores a version 1 file with no arrangement as legacy in tree order', async () => {
+  const directory = await temporaryDirectory();
+  const path = join(directory, 'session.json');
+
+  const layout = {
+    kind: 'split',
+    direction: 'right',
+    ratio: 0.3,
+    first: { kind: 'pane', paneId: 'pane-2' },
+    second: {
+      kind: 'split',
+      direction: 'below',
+      ratio: 0.7,
+      first: { kind: 'pane', paneId: 'pane-3' },
+      second: { kind: 'pane', paneId: 'pane-1' },
+    },
+  };
+
+  await writeSession(path, {
+    workspaces: [
+      { id: 'workspace-1', root: '/work', label: 'work', tabIds: ['tab-1'], activeTabId: 'tab-1' },
+    ],
+    tabs: [
+      {
+        id: 'tab-1',
+        workspaceId: 'workspace-1',
+        layout,
+        focusedPaneId: 'pane-3',
+        zoomedPaneId: 'pane-1',
+        label: null,
+      },
+    ],
+    panes: [
+      { id: 'pane-1', tabId: 'tab-1', startFolder: null },
+      { id: 'pane-2', tabId: 'tab-1', startFolder: null },
+      { id: 'pane-3', tabId: 'tab-1', startFolder: null },
+    ],
+    focusedWorkspaceId: 'workspace-1',
+    nextWorkspaceNumber: 2,
+    nextTabNumber: 2,
+    nextPaneNumber: 4,
+  });
+
+  const result = await readSessionFile(path);
+  const tab = result.kind === 'restored' ? result.session.tabs[0] : undefined;
+
+  expect(tab).toEqual({
+    id: tabId(1),
+    workspaceId: workspaceId(1),
+    layout: layout as Tab['layout'],
+    arrangement: { choice: 'legacy', order: [paneId(2), paneId(3), paneId(1)] },
+    focusedPaneId: paneId(3),
+    zoomedPaneId: paneId(1),
+    label: undefined,
+  });
+});
+
+it('reads back a legacy tab and a master tab whose order differs from tree order', async () => {
+  const directory = await temporaryDirectory();
+  const path = join(directory, 'session.json');
+  const base = sessionWith();
+
+  const session = sessionWith({
+    tabs: [
+      { ...base.tabs[0]!, arrangement: { choice: 'master', order: [paneId(2), paneId(1)] } },
+      base.tabs[1]!,
+    ],
+  });
+
+  await createSessionWriter(path, recordingLog().log).stopSaving(session);
+
+  expect(await readSessionFile(path)).toEqual({ kind: 'restored', session });
+});
+
+const badArrangements: [string, unknown][] = [
+  ['an unknown layout choice', { choice: 'grid', order: ['pane-1', 'pane-2'] }],
+  ['a pane listed twice', { choice: 'legacy', order: ['pane-1', 'pane-2', 'pane-1'] }],
+  ['a missing pane', { choice: 'master', order: ['pane-1'] }],
+  ['a pane from another layout', { choice: 'master', order: ['pane-1', 'pane-2', 'pane-3'] }],
+];
+
+it.each(badArrangements)('reports an arrangement with %s as broken', async (_name, arrangement) => {
+  const directory = await temporaryDirectory();
+  const path = join(directory, 'session.json');
+  const saved = (await savedJson(sessionWith())) as { tabs: Record<string, unknown>[] };
+
+  saved.tabs[0]!['arrangement'] = arrangement;
+  await writeSession(path, saved);
+
+  await expectBroken(path);
+});
+
 it('reports a missing file', async () => {
   const directory = await temporaryDirectory();
 
@@ -323,6 +417,7 @@ const splitTab = (tab: Tab): Tab => ({
     first: { kind: 'pane', paneId: paneId(3) },
     second: { kind: 'pane', paneId: paneId(1) },
   },
+  arrangement: { choice: 'legacy', order: [paneId(3), paneId(1)] },
 });
 
 const isolated: [string, Partial<SavedSession>][] = [
@@ -353,6 +448,7 @@ const isolated: [string, Partial<SavedSession>][] = [
           id: tabId(4),
           workspaceId: workspaceId(2),
           layout: { kind: 'pane', paneId: paneId(4) },
+          arrangement: { choice: 'legacy', order: [paneId(4)] },
           focusedPaneId: paneId(4),
           zoomedPaneId: undefined,
           label: undefined,
