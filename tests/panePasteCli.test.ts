@@ -32,7 +32,6 @@ const readReceived = async (path: string): Promise<string> => {
   }
 };
 
-// The shell copies every byte the pane gets, untranslated, to a file.
 const recordingShell = async (directory: string, received: string): Promise<string> => {
   const path = join(directory, 'recording-shell.sh');
 

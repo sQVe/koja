@@ -567,7 +567,6 @@ it('sends a multiline host paste through the server while the client still sees 
   const harness = createInputHarness('insert');
   const running = harness.store();
 
-  // The running-state change is still on its way: the server may already run the pane.
   harness.changeStore(startingFirstPane(running));
   harness.pastes('one\ntwo');
 

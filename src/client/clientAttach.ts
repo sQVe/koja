@@ -61,7 +61,6 @@ export type CloseReason =
   | 'takenOver'
   | 'detached';
 
-// A paste into one generation of a pane, like `koja pane paste --pane --generation`.
 export interface PasteRequest {
   pane: PaneId;
   generation: number;
@@ -126,8 +125,6 @@ export interface AttachSession {
   // The promise settles once the server has answered and its change is in the snapshot, when the
   // session ends, or when the answer takes too long.
   scrollPane: (pane: PaneId, to: 'bottom' | number) => Promise<void>;
-  // Asks the server to paste text into the pane. The promise settles with the server's answer, or
-  // with connectionFailed when the session ends first.
   pastePane: (request: PasteRequest) => Promise<PanePasteResult>;
   // Asks the server to detach this client. The session closes with `detached`.
   detach: () => void;

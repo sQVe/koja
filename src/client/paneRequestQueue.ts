@@ -11,23 +11,15 @@ interface PaneRequestQueueOptions {
 }
 
 export interface PaneRequestQueue {
-  // The promise settles once the server answers, when the queue closes, or when the answer takes
-  // too long.
   changeLayout: (message: ControlMessage) => Promise<void>;
-  // The promise settles like a layout change.
   scroll: (message: PaneScrollMessage) => Promise<void>;
-  // The promise settles with the server's answer, or with connectionFailed when the queue closes
-  // first.
   paste: (message: PanePasteMessage) => Promise<PanePasteResult>;
-  // Returns whether the message answered a pane request.
   takeAnswer: (message: ControlMessage) => boolean;
-  // Settles every request still waiting, and every later one without sending it.
   close: () => void;
 }
 
 const answerTimeoutMs = 2000;
 
-// The server answers each kind of pane request in the order it receives them.
 export const createPaneRequestQueue = (options: PaneRequestQueueOptions): PaneRequestQueue => {
   const layoutAnswers: (() => void)[] = [];
   const scrollAnswers: (() => void)[] = [];

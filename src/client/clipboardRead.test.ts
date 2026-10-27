@@ -358,8 +358,6 @@ it('ends the tool group when the tool exits and returns its text', async () => {
   });
 });
 
-// setsid moves the holder out of the tool's group, so killing the group cannot close the pipe. The
-// tool exits only after the holder has left the group.
 const leavesEscapedHolder = [
   'setsid sh -c \'echo $$ > "$1"; exec sleep 30\' holder "$0.holder" &',
   'while [ ! -s "$0.holder" ]; do sleep 0.01; done',

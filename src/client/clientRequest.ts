@@ -38,8 +38,6 @@ export interface PaneHandlers<Result> {
 interface PaneTargetHandlers<Result> {
   missing: Result;
   begin: (request: Request<Result>, paneId: PaneId) => void;
-  // Gets every message except the snapshot that names the target. paneId is undefined until the
-  // target is known.
   onMessage: (
     request: Request<Result>,
     message: ControlMessage,
@@ -185,7 +183,6 @@ export const runRequest = async <Result>(
   }
 };
 
-// Runs a request against one pane: the given one, or the focused running one from the snapshot.
 export const runPaneTargetRequest = <Result>(
   socketPath: string,
   version: BuildVersion,
@@ -233,7 +230,6 @@ export const runPaneTargetRequest = <Result>(
   });
 };
 
-// Runs a request against one pane and hands it only the messages about that pane.
 export const runPaneRequest = <Result>(
   socketPath: string,
   version: BuildVersion,

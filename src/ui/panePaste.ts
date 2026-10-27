@@ -20,27 +20,18 @@ interface PanePasteHost {
 
 export interface PanePaste {
   subscribe: (listener: () => void) => () => void;
-  // The prompt or notice for the status bar.
   getStatus: () => string | undefined;
   fromClipboard: () => void;
-  // Returns whether the flow takes the paste. Otherwise the caller sends it. Multiline text always
-  // goes to the server, which encodes it or asks to confirm it from the pane's live modes and
-  // state: what the client last saw can be older. Without a viewed pane it is dropped.
   fromHost: (text: string) => boolean;
-  // Returns whether the key answered a prompt. Any other press clears the notice.
   takeKey: (event: KeyEvent) => boolean;
-  // Stops a pending read or prompt without sending it.
   close: () => void;
 }
 
-// The pane a paste was asked for, as the client showed it then.
 interface PasteTarget {
   paneId: PaneId;
   generation: number;
   workspaceId: WorkspaceId | undefined;
   tabId: TabId | undefined;
-  // Whether the pane runs or is about to: the client can see a pane as starting after the server
-  // already runs it.
   live: boolean;
 }
 
@@ -95,7 +86,6 @@ const isMultiline = (text: string): boolean => /[\r\n]/.test(text);
 
 const livePhases: ReadonlySet<string> = new Set(['starting', 'running']);
 
-// The viewed pane in any lifecycle state.
 const targetOf = (snapshot: StoreSnapshot): PasteTarget | undefined => {
   const pane = viewedPane(snapshot);
 
@@ -124,9 +114,6 @@ const samePlace = (bound: PasteTarget, shown: PasteTarget): boolean =>
 const sameTarget = (bound: PasteTarget, shown: PasteTarget | undefined): boolean =>
   shown?.live === true && samePane(bound, shown) && samePlace(bound, shown);
 
-// One paste is pending at a time: starting another cancels it without sending. A paste stays bound
-// to the pane, generation, workspace, and tab shown when it started, and cancels when they change
-// or an action view opens before it sends.
 export const createPanePaste = (host: PanePasteHost): PanePaste => {
   const listeners = new Set<() => void>();
   let status: string | undefined;
@@ -164,7 +151,6 @@ export const createPanePaste = (host: PanePasteHost): PanePaste => {
     setStatus(notice);
   };
 
-  // A sent request is not canceled: the server may already have written it.
   const watch = (attempt: Attempt): (() => void) => {
     const check = (): void => {
       const waiting = current === attempt && attempt.stage.kind !== 'sending';
@@ -317,7 +303,6 @@ export const createPanePaste = (host: PanePasteHost): PanePaste => {
 
       const target = targetOf(host.snapshot());
 
-      // Multiline text never reaches a pane without the server's paste check.
       if (target === undefined) {
         setStatus(noPaneNotice);
 

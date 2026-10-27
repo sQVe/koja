@@ -58,7 +58,6 @@ interface InputHarness {
   startTab: () => void;
   answerTab: () => void;
   answerPaneAction: () => Promise<void>;
-  // Replaces the store snapshot the router and the paste flow read, and tells their listeners.
   changeStore: (next: StoreSnapshot) => void;
   store: () => StoreSnapshot;
   clipboardReads: ClipboardReadFake[];
@@ -191,7 +190,6 @@ const tabLabelEnd = 70;
 const chromeWorkspaceNumber = 7;
 const chromeWorkspace = workspaceId(chromeWorkspaceNumber);
 
-// Lets every promise callback that a settled fake started run to its end.
 const afterSettled = (): Promise<void> => {
   const done = Promise.withResolvers<undefined>();
 

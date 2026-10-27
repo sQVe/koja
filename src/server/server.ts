@@ -113,7 +113,6 @@ interface Runtime {
   rowSubscriptions: Map<Connection, RowSubscriptions>;
   // The snapshot of the read a connection has parts left of, one per connection.
   readSnapshots: SnapshotStore<Connection>;
-  // Keys paste authorizations. A new server makes a new one, so earlier authorizations fail.
   pasteSecret: Uint8Array;
   listener: Listener | undefined;
   nextConnectionId: number;

@@ -113,7 +113,6 @@ it('settles a layout change the server does not answer in time', () => {
   jest.useFakeTimers();
   jest.setSystemTime(1_000_000);
 
-  // Timers and Date share one fake clock, and performance follows it.
   const clock = spyOn(performance, 'now').mockImplementation(() => Date.now() - 1_000_000);
 
   try {

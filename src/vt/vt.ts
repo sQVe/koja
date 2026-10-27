@@ -393,7 +393,6 @@ export class Terminal {
     return this.symbols.pane_render_held(this.live());
   }
 
-  // The ModeFlag bits that are on. Does not consume dirty rows.
   modes(): number {
     return this.symbols.pane_modes(this.live());
   }

@@ -219,7 +219,6 @@ it.each(['read', 'send'] as const)('reports a pane lost before %s', async (actio
 });
 
 it('pastes into the pane the first snapshot focuses when a second snapshot arrives before the answer', async () => {
-  // The second snapshot focuses pane 8 in place of pane 7.
   const moved = structuredClone(snapshot(true));
 
   invariant(moved.type === 'snapshot', 'the fixture is a snapshot');

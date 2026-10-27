@@ -95,7 +95,6 @@ const escapeKey = '\x1b';
 // Only a bare Escape can be completed by a continuation. A kitty Escape event is already whole.
 const isBareEscape = (bytes: Uint8Array): boolean => decoder.decode(bytes) === escapeKey;
 
-// Effects that act on the pane or tab the snapshot shows.
 const snapshotEffects: ReadonlySet<KeyEffect['kind']> = new Set([
   'pane',
   'tab',
@@ -456,13 +455,10 @@ export const createInputRouter = (host: TokenRouterHost): ((token: RoutedToken) 
     return runEffect(intent);
   };
 
-  // A normal-mode paste key replaces an open prompt instead of answering it.
   const startsPaste = (event: KeyEvent): boolean =>
     host.mode() === 'normal' &&
     keyIntentOf(event, 'normal', availableCatalog()).effect?.kind === 'paste';
 
-  // A key that answers a paste prompt reaches no pane and runs no action. The rest of a split key
-  // whose Escape answered it stays away from the pane too.
   const answersPrompt = (token: RoutedToken): boolean => {
     if (token.kind !== 'key') {
       return false;

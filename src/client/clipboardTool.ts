@@ -7,7 +7,6 @@ interface ToolProcess {
   exited: Promise<number>;
 }
 
-// xclip, xsel, and wl-paste finish quickly. A tool that runs longer is hung.
 export const toolTimeoutMs = 2000;
 
 const isSet = (value: string | undefined): boolean => value !== undefined && value !== '';
@@ -19,7 +18,6 @@ export const hasWayland = (environment: Environment): boolean => isSet(environme
 
 export const hasX11 = (environment: Environment): boolean => isSet(environment.DISPLAY);
 
-// The spawn environment that finds tools in searchPath, or the client's own when it is unset.
 export const toolEnvironment = (
   searchPath: string | undefined,
 ): { env?: Record<string, string | undefined> } =>

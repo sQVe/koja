@@ -455,7 +455,6 @@ void pane_end_render_hold(Pane *pane) {
 // Whether a render hold is active. Current right after each pane_write.
 bool pane_render_held(Pane *pane) { return pane->held; }
 
-// The mode bits pane_frame reports, without updating the render state.
 uint32_t pane_modes(Pane *pane) { return mode_bits(pane); }
 
 // Fills info with the scrollback rows the active screen retains, the byte limit, and the bytes

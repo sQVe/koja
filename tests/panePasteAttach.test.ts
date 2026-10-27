@@ -22,14 +22,12 @@ import { createWorkspaceAt, waitFor } from './serverProcesses.ts';
 
 interface PasteSetup {
   clipboardText: string;
-  // Shell lines that run before the shell prints ready, and before it starts recording.
   beforeReady?: string;
   afterReady?: string;
   environment?: Record<string, string | undefined>;
 }
 
 interface HeldProxy {
-  // Whether the proxy holds the server's frames, from the pane's running-state change on.
   holding: () => boolean;
 }
 
@@ -52,8 +50,6 @@ const executable = async (path: string, script: string): Promise<string> => {
 
 const bracketedOn = "printf '\\033[?2004h'\n";
 
-// The pane's shell copies every byte it gets, untranslated, to a file. The clipboard is a fake
-// wl-paste that prints a file.
 const setupPaste = async (setup: PasteSetup) => {
   const directory = await temporaryDirectory();
   const socketPath = join(directory, 'run', 'koja.sock');
@@ -207,7 +203,6 @@ it(
       true,
     );
 
-    // The server's own answer shows that it has seen the mode change.
     const asked = await koja('pane', 'paste', 'server\ncheck', '--pane', 'pane-1', '--json');
 
     expect(JSON.parse(asked.stdout)).toMatchObject({ status: 'confirmationRequired' });
@@ -235,7 +230,6 @@ it(
     const renamed = await koja('tab', 'rename', 'tab-1', 'x'.repeat(120));
 
     expect(renamed.exitCode).toBe(0);
-    // The label does not fit, so the status bar shows only its start.
     await until(() => statusBar().startsWith('INSERT [1:'));
 
     type('\x02p');
@@ -259,9 +253,6 @@ const isRunningChange = (frame: { kind: FrameKind; payload: Uint8Array }): boole
   return change?.type === 'paneStateChanged' && change.lifecycle === 'running';
 };
 
-// Sits between one client and the server. It holds the server's frames from the pane's
-// running-state change on, so the client keeps seeing the pane as starting while the server runs
-// it. The first paste request from the client releases them.
 const holdRunningChange = (proxyPath: string, socketPath: string): HeldProxy => {
   const held: Uint8Array[] = [];
   const early: Uint8Array[] = [];
@@ -398,7 +389,6 @@ it(
 
     expect(await waitFor(proxy.holding)).toBe(true);
 
-    // The server's own answer shows that it already runs the pane.
     const asked = await runCli(
       ['pane', 'paste', 'server\ncheck', '--pane', 'pane-1', '--json', '--socket', socketPath],
       directory,

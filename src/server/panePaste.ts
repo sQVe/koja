@@ -31,8 +31,6 @@ const textEncoder = new TextEncoder();
 
 export const createPasteSecret = (): Uint8Array => randomBytes(pasteSecretBytes);
 
-// Removing one marker can join the text around it into another, so removal repeats until none is
-// left.
 const withoutPasteMarkers = (text: string): string => {
   let remaining = text;
   let previous;
@@ -109,7 +107,6 @@ const needsConfirmation = (live: LivePane, message: PanePasteMessage): boolean =
   return isMultiline(message.text) && !bracketed && message.authorization === undefined;
 };
 
-// Writes only for a sent result. Every other result leaves the pane untouched.
 const pasteInto = (context: PanePasteContext, message: PanePasteMessage): PanePasteResult => {
   const { paneId, text, authorization } = message;
   const live = findLivePane(context, paneId);

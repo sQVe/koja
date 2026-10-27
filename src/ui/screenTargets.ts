@@ -133,7 +133,6 @@ export const tabEntry = (number: number, label: string | undefined, active: bool
   return active ? `[${name}]` : name;
 };
 
-// A message hides the labels: the status bar has one row, and labels can fill it.
 export const tabLabelsOf = (
   snapshot: StoreSnapshot,
   inputMode: string,
@@ -162,7 +161,6 @@ export const tabLabelsOf = (
   return labels;
 };
 
-// The text of the status bar: the mode name, the tab labels at their columns, then a message.
 export const statusBarLine = (
   inputMode: string,
   labels: readonly TabLabel[],
@@ -177,7 +175,6 @@ export const statusBarLine = (
   return parts.join(' ');
 };
 
-// The number of the tab whose shown label holds the outer cell, in the status bar's row.
 export const tabAt = (
   labels: readonly TabLabel[],
   terminal: TerminalSize,

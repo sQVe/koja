@@ -4,8 +4,6 @@ import type { BuildVersion, ControlMessage } from '../protocol/protocol.ts';
 import { runPaneTargetRequest } from './clientRequest.ts';
 import type { Request, RequestFailure } from './clientRequest.ts';
 
-// Without a pane id, the command targets the focused pane. It pastes into whichever generation of
-// the pane runs.
 export interface PanePasteCommand {
   action: 'paste';
   text: string;
@@ -13,7 +11,6 @@ export interface PanePasteCommand {
   authorization: string | undefined;
 }
 
-// paneId is undefined for paneMissing when no pane was given and no running pane has focus.
 export type PanePasteResult =
   | { ok: true; paneId: PaneId; generation: number }
   | {
@@ -29,7 +26,6 @@ export type PanePasteResult =
   | { ok: false; reason: 'authorizationMismatch' }
   | RequestFailure;
 
-// A paste that names no generation is never replaced.
 export type PanePasteCommandResult = Exclude<PanePasteResult, { reason: 'paneReplaced' }>;
 
 type PasteOutcome = Extract<ControlMessage, { type: 'panePasteResult' }>['result'];
@@ -59,8 +55,6 @@ export const pasteResultOf = (outcome: PasteOutcome): PanePasteResult => {
     : { ok: false, reason: 'authorizationMismatch' };
 };
 
-// Multiline text for a program without bracketed paste fails with confirmationRequired and
-// reaches the pane only when sent again with the authorization that result holds.
 export const runPanePaste = (
   socketPath: string,
   version: BuildVersion,

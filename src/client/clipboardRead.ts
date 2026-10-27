@@ -21,14 +21,11 @@ export type ClipboardReadResult =
 
 interface ClipboardReadDependencies {
   environment: Environment;
-  // A missing command or a nonzero exit is `failed`.
   runCommand: (command: string[], signal?: AbortSignal) => Promise<ToolResult>;
-  // Stops the read: the running tool is killed and no later tool runs.
   signal?: AbortSignal;
 }
 
 interface ReadLimits {
-  // Where to look for the tools. Defaults to the client's PATH.
   searchPath?: string;
   toolTimeoutMs: number;
 }
@@ -64,8 +61,6 @@ const spawnTool = (command: string[], searchPath: string | undefined) => {
       stdin: 'ignore',
       stdout: 'pipe',
       stderr: 'ignore',
-      // The read is over once the tool exits. Ending its group closes stdout for any child that
-      // still holds it.
       onExit: (tool) => {
         killToolGroup(tool.pid);
       },
@@ -114,8 +109,6 @@ const defaults = (): ClipboardReadDependencies => ({
   runCommand: createReadRunner(),
 });
 
-// Reads text from the system clipboard with the first native tool that succeeds. Over SSH the
-// clipboard belongs to the user's machine, which this host cannot read.
 export const readClipboard = async (
   dependencies: ClipboardReadDependencies = defaults(),
 ): Promise<ClipboardReadResult> => {
