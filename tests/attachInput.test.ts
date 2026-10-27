@@ -47,10 +47,10 @@ it('sends a paste without markers when the pane does not ask for them', async ()
 
   await until(() => statusBar() === 'INSERT [1]');
 
-  type('\x1b[200~one\ntwo\x1b[201~');
+  type('\x1b[200~one two\x1b[201~');
 
-  await until(() => receivedText().length >= 'one\ntwo'.length);
-  expect(receivedText()).toBe('one\ntwo');
+  await until(() => receivedText().length >= 'one two'.length);
+  expect(receivedText()).toBe('one two');
 });
 
 const workspaceListSchema = z.array(

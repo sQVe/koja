@@ -157,9 +157,21 @@ export const tabLabelsOf = (snapshot: StoreSnapshot, inputMode: string): TabLabe
   return labels;
 };
 
-// The text of the status bar: the mode name, then the tab labels at their columns.
-export const statusBarLine = (inputMode: string, labels: readonly TabLabel[]): string =>
-  [inputMode.toUpperCase(), ...labels.map((label) => label.text)].join(' ');
+// The text of the status bar: the mode name, the tab labels at their columns, then a message after
+// them, so the labels keep their columns.
+export const statusBarLine = (
+  inputMode: string,
+  labels: readonly TabLabel[],
+  message: string | undefined,
+): string => {
+  const parts = [inputMode.toUpperCase(), ...labels.map((label) => label.text)];
+
+  if (message !== undefined) {
+    parts.push(` ${message}`);
+  }
+
+  return parts.join(' ');
+};
 
 // The number of the tab whose label holds the outer cell, in the status bar's row.
 export const tabAt = (

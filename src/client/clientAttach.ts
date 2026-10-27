@@ -11,6 +11,8 @@ import {
 } from '../protocol/protocol.ts';
 import type { BuildVersion, ControlMessage } from '../protocol/protocol.ts';
 import { decodePaneRows, decodeRowUpdate, encodePaneInput } from '../rows/rows.ts';
+import { pasteResultOf } from './panePaste.ts';
+import type { PanePasteResult } from './panePaste.ts';
 import { paneLayoutRequest } from './paneRequest.ts';
 import type { PaneLayoutCommand } from './paneRequest.ts';
 import { createRowCache } from './rowCache.ts';
@@ -58,6 +60,14 @@ export type CloseReason =
   | 'requested'
   | 'takenOver'
   | 'detached';
+
+// A paste into one generation of a pane, like `koja pane paste --pane --generation`.
+export interface PasteRequest {
+  pane: PaneId;
+  generation: number;
+  text: string;
+  authorization: string | undefined;
+}
 
 export type PaneNotice = { kind: 'bell'; count: number } | { kind: 'clipboardWrite'; text: string };
 
@@ -116,6 +126,9 @@ export interface AttachSession {
   // The promise settles once the server has answered and its change is in the snapshot, when the
   // session ends, or when the answer takes too long.
   scrollPane: (pane: PaneId, to: 'bottom' | number) => Promise<void>;
+  // Asks the server to paste text into the pane. The promise settles with the server's answer, or
+  // with connectionFailed when the session ends first.
+  pastePane: (request: PasteRequest) => Promise<PanePasteResult>;
   // Asks the server to detach this client. The session closes with `detached`.
   detach: () => void;
   // The snapshot changes show the result, so the replies are ignored.
@@ -196,6 +209,7 @@ export const connectAttach = async (
   let tabAnswerCallbacks: (() => void)[] = [];
   const layoutAnswers: (() => void)[] = [];
   const scrollAnswers: (() => void)[] = [];
+  const pasteAnswers: ((result: PanePasteResult) => void)[] = [];
   let socket: Bun.Socket | undefined;
 
   const drain = (): void => {
@@ -231,6 +245,10 @@ export const connectAttach = async (
 
     for (const answered of [...layoutAnswers.splice(0), ...scrollAnswers.splice(0)]) {
       answered();
+    }
+
+    for (const answered of pasteAnswers.splice(0)) {
+      answered({ ok: false, reason: 'connectionFailed' });
     }
 
     handshake.resolve({ ok: false, reason: 'connectionFailed' });
@@ -433,6 +451,12 @@ export const connectAttach = async (
 
     if (message.type === 'paneScrollResult') {
       scrollAnswers.shift()?.();
+
+      return true;
+    }
+
+    if (message.type === 'panePasteResult') {
+      pasteAnswers.shift()?.(pasteResultOf(message.result));
 
       return true;
     }
@@ -681,6 +705,25 @@ export const connectAttach = async (
         to,
         clientId,
       });
+    },
+    pastePane: (request) => {
+      if (ended) {
+        return Promise.resolve({ ok: false, reason: 'connectionFailed' });
+      }
+
+      const answer = Promise.withResolvers<PanePasteResult>();
+
+      pasteAnswers.push(answer.resolve);
+
+      send({
+        type: 'panePaste',
+        paneId: request.pane,
+        generation: request.generation,
+        text: request.text,
+        authorization: request.authorization,
+      });
+
+      return answer.promise;
     },
     detach: () => {
       send({ type: 'detach', clientId: undefined });

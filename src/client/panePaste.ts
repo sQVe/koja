@@ -32,7 +32,7 @@ export type PanePasteResult =
 
 type PasteOutcome = Extract<ControlMessage, { type: 'panePasteResult' }>['result'];
 
-const pasteResultOf = (outcome: PasteOutcome): PanePasteResult => {
+export const pasteResultOf = (outcome: PasteOutcome): PanePasteResult => {
   if (outcome.kind === 'sent') {
     return { ok: true, paneId: outcome.paneId, generation: outcome.generation };
   }

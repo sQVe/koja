@@ -1,6 +1,14 @@
 import { actionCatalog } from '../actions.ts';
 import type { PaneAction } from '../actions.ts';
-import type { InputMode, StoreSnapshot, TabRoute, WorkspaceCommand } from '../client/client.ts';
+import type {
+  ClipboardReadResult,
+  InputMode,
+  PanePasteResult,
+  PasteRequest,
+  StoreSnapshot,
+  TabRoute,
+  WorkspaceCommand,
+} from '../client/client.ts';
 import { clientId, paneId, tabId, workspaceId } from '../ids.ts';
 import type { PaneId, WorkspaceId } from '../ids.ts';
 import { invariant } from '../invariant.ts';
@@ -9,6 +17,8 @@ import { actionViewRowsOf, createActionView } from './actionView.ts';
 import type { ActionView } from './actionView.ts';
 import { createInputRouter } from './input.ts';
 import type { ScrollAction } from './input.ts';
+import { createPanePaste } from './panePaste.ts';
+import type { PanePaste } from './panePaste.ts';
 
 type RouterHost = Parameters<typeof createInputRouter>[0];
 
@@ -48,6 +58,18 @@ interface InputHarness {
   startTab: () => void;
   answerTab: () => void;
   answerPaneAction: () => Promise<void>;
+  // Replaces the store snapshot the router and the paste flow read, and tells their listeners.
+  changeStore: (next: StoreSnapshot) => void;
+  store: () => StoreSnapshot;
+  clipboardReads: ClipboardReadFake[];
+  pasteRequests: PasteRequest[];
+  answerPaste: (result: PanePasteResult) => Promise<void>;
+  pasteFlow: PanePaste;
+}
+
+interface ClipboardReadFake {
+  signal: AbortSignal;
+  settle: (result: ClipboardReadResult) => Promise<void>;
 }
 
 interface TabFixture {
@@ -169,6 +191,17 @@ const tabLabelEnd = 70;
 const chromeWorkspaceNumber = 7;
 const chromeWorkspace = workspaceId(chromeWorkspaceNumber);
 
+// Lets every promise callback that a settled fake started run to its end.
+const afterSettled = (): Promise<void> => {
+  const done = Promise.withResolvers<undefined>();
+
+  setImmediate(() => {
+    done.resolve(undefined);
+  });
+
+  return done.promise.then(() => undefined);
+};
+
 const clamp = (value: number, low: number, high: number): number =>
   Math.min(Math.max(value, low), high);
 
@@ -214,6 +247,46 @@ export const createInputHarness = (
   };
 
   const gone: GonePanes = { unplaced: new Set(), missing: new Set(), sizes: new Map() };
+  const storeListeners = new Set<() => void>();
+  let changedStore: StoreSnapshot | undefined;
+  const store = (): StoreSnapshot => changedStore ?? storeSnapshotOf(snapshot);
+  const clipboardReads: ClipboardReadFake[] = [];
+  const pasteRequests: PasteRequest[] = [];
+  const pasteAnswers: ((result: PanePasteResult) => void)[] = [];
+
+  const pasteFlow = createPanePaste({
+    snapshot: overrides.snapshot ?? store,
+    subscribe: (listener) => {
+      storeListeners.add(listener);
+
+      return () => {
+        storeListeners.delete(listener);
+      };
+    },
+    view,
+    readClipboard: (signal) => {
+      const read = Promise.withResolvers<ClipboardReadResult>();
+
+      clipboardReads.push({
+        signal,
+        settle: async (result) => {
+          read.resolve(result);
+          await afterSettled();
+        },
+      });
+
+      return read.promise;
+    },
+    paste: (request) => {
+      pasteRequests.push(request);
+
+      const answer = Promise.withResolvers<PanePasteResult>();
+
+      pasteAnswers.push(answer.resolve);
+
+      return answer.promise;
+    },
+  });
 
   const input = createInputRouter({
     mode: () => mode,
@@ -294,7 +367,8 @@ export const createInputHarness = (
     },
     catalog: actionCatalog,
     view,
-    snapshot: () => storeSnapshotOf(snapshot),
+    snapshot: store,
+    pasteFlow,
     ...overrides,
   });
 
@@ -350,5 +424,20 @@ export const createInputHarness = (
       paneAnswers.shift()?.();
       await Promise.resolve();
     },
+    changeStore: (next) => {
+      changedStore = next;
+
+      for (const listener of storeListeners) {
+        listener();
+      }
+    },
+    store,
+    clipboardReads,
+    pasteRequests,
+    answerPaste: async (result) => {
+      pasteAnswers.shift()?.(result);
+      await afterSettled();
+    },
+    pasteFlow,
   };
 };

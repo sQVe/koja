@@ -147,10 +147,21 @@ it('hits the tab whose status bar label is under the cell', () => {
   const snapshot = listSnapshot(1, 1, 3);
 
   // INSERT [2] 3 reads: "INSERT 1 [2] 3" with the labels at columns 7, 9, and 13.
-  expect(statusBarLine('insert', tabLabelsOf(snapshot, 'insert'))).toBe('INSERT 1 [2] 3');
+  expect(statusBarLine('insert', tabLabelsOf(snapshot, 'insert'), undefined)).toBe(
+    'INSERT 1 [2] 3',
+  );
+
   expect(tabAt(snapshot, 'insert', terminal, { x: 7, y: 5 })).toBe(1);
   expect(tabAt(snapshot, 'insert', terminal, { x: 10, y: 5 })).toBe(2);
   expect(tabAt(snapshot, 'insert', terminal, { x: 13, y: 5 })).toBe(3);
+});
+
+it('shows a paste message after the tab labels and keeps the labels at their columns', () => {
+  const snapshot = listSnapshot(1, 1, 3);
+  const line = statusBarLine('normal', tabLabelsOf(snapshot, 'normal'), 'Paste canceled.');
+
+  expect(line).toBe('NORMAL 1 [2] 3  Paste canceled.');
+  expect(tabAt(snapshot, 'normal', terminal, { x: 10, y: 5 })).toBe(2);
 });
 
 it('hits a named tab across its whole drawn label', () => {
@@ -159,7 +170,10 @@ it('hits a named tab across its whole drawn label', () => {
     tabs: [{ id: tabId(1), label: 'build' }],
   } as unknown as StoreSnapshot;
 
-  expect(statusBarLine('insert', tabLabelsOf(snapshot, 'insert'))).toBe('INSERT 1:build [2] 3');
+  expect(statusBarLine('insert', tabLabelsOf(snapshot, 'insert'), undefined)).toBe(
+    'INSERT 1:build [2] 3',
+  );
+
   expect(tabAt(snapshot, 'insert', terminal, { x: 13, y: 5 })).toBe(1);
   expect(tabAt(snapshot, 'insert', terminal, { x: 15, y: 5 })).toBe(2);
   expect(tabAt(snapshot, 'insert', terminal, { x: 19, y: 5 })).toBe(3);
@@ -171,7 +185,10 @@ it('hits the second tab when the first tab label has wide characters', () => {
     tabs: [{ id: tabId(1), label: '日本語' }],
   } as unknown as StoreSnapshot;
 
-  expect(statusBarLine('insert', tabLabelsOf(snapshot, 'insert'))).toBe('INSERT 1:日本語 [2] 3');
+  expect(statusBarLine('insert', tabLabelsOf(snapshot, 'insert'), undefined)).toBe(
+    'INSERT 1:日本語 [2] 3',
+  );
+
   expect(tabAt(snapshot, 'insert', terminal, { x: 14, y: 5 })).toBe(1);
   expect(tabAt(snapshot, 'insert', terminal, { x: 16, y: 5 })).toBe(2);
   expect(tabAt(snapshot, 'insert', terminal, { x: 18, y: 5 })).toBe(2);
