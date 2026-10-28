@@ -20,6 +20,9 @@ export interface MalformedPiRecord {
   kind: 'malformed';
   raw: unknown;
   message: string;
+  // Absent, so code can read the session of any saved record without first checking its kind.
+  sessionFile?: undefined;
+  sessionId?: undefined;
 }
 
 export type SavedPi = SavedPiRecord | MalformedPiRecord | undefined;
@@ -57,8 +60,8 @@ type OpenPiRecord = PiRecord & { state: SavedPiRecord['state'] };
 
 const sessionFileWasSaved = (
   sessionFile: string | undefined,
-  savedSessionFiles: ReadonlySet<string>,
-): boolean => sessionFile !== undefined && savedSessionFiles.has(sessionFile);
+  savedSessionFiles: ReadonlySet<string | undefined>,
+): boolean => savedSessionFiles.has(sessionFile);
 
 const savedRecordOf = (
   record: OpenPiRecord,

@@ -24,7 +24,7 @@ const blocked = (reason: PiRecoveryBlock): PiRecovery => ({ status: 'blocked', r
 
 const isMalformed = (record: RestoredPiRecord): record is MalformedPiRecord => 'kind' in record;
 
-const sessionKeysOf = (record: SavedPiRecord): string[] => {
+const sessionKeysOf = (record: RestoredPiRecord): string[] => {
   const keys: string[] = [];
 
   if (record.sessionFile !== undefined) {
@@ -42,9 +42,7 @@ const duplicatePanesOf = (records: ReadonlyMap<PaneId, RestoredPiRecord>): Set<P
   const panesByKey = new Map<string, PaneId[]>();
 
   for (const [paneId, record] of records) {
-    const keys = isMalformed(record) ? [] : sessionKeysOf(record);
-
-    for (const key of keys) {
+    for (const key of sessionKeysOf(record)) {
       panesByKey.set(key, [...(panesByKey.get(key) ?? []), paneId]);
     }
   }

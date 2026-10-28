@@ -6,6 +6,7 @@ import type {
   PiProcess,
   PiRecovery,
   PiReport,
+  SavedPi,
   SavedPiRecord,
   SavedSession,
   State,
@@ -51,7 +52,7 @@ const liveReport: PiReport = {
   sequence: 1,
 };
 
-const restoredWithPi = (): State => {
+const restoredWithPi = (pi: SavedPi = restoredRecord): State => {
   const saved = savedSessionOf(run([createKoja, splitFirst('right')]), noReads);
 
   const session: SavedSession = {
@@ -60,7 +61,7 @@ const restoredWithPi = (): State => {
       id,
       tabId,
       startFolder,
-      pi: restoredRecord,
+      pi,
     })),
   };
 
@@ -247,4 +248,29 @@ it('drops the recovery result with the restored record when a live pi reports', 
 
   expect(piRecoveryOf(started, paneId(1))).toEqual({ status: 'ready' });
   expect(piRecoveryOf(reported(started), paneId(1))).toBeUndefined();
+});
+
+it('saves a malformed restored record as it is', () => {
+  const malformed: SavedPi = {
+    kind: 'malformed',
+    raw: { piVersion: 7 },
+    message: 'Not a pi record.',
+  };
+
+  expect(savedPiOf(restoredWithPi(malformed), new Set(['/sessions/restored.jsonl']))).toEqual([
+    malformed,
+    malformed,
+  ]);
+});
+
+it('saves a restored record as saved once a save sees its session file', () => {
+  const unsaved = { ...restoredRecord, sessionFileSaved: false };
+  const restored = restoredWithPi(unsaved);
+
+  expect(savedPiOf(restored)).toEqual([unsaved, unsaved]);
+
+  expect(savedPiOf(restored, new Set(['/sessions/restored.jsonl']))).toEqual([
+    restoredRecord,
+    restoredRecord,
+  ]);
 });

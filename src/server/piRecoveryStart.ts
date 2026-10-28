@@ -39,11 +39,8 @@ export const checkSavedPi = async (
   return checkPiRecoveries(records, { readSessionFile: readPiSessionFile, readLiveProcess });
 };
 
-const sessionFileOf = (state: State, id: PaneId): string | undefined => {
-  const pi = state.restoredPi.get(id)?.pi;
-
-  return pi === undefined || 'kind' in pi ? undefined : pi.sessionFile;
-};
+const sessionFileOf = (state: State, id: PaneId): string | undefined =>
+  state.restoredPi.get(id)?.pi.sessionFile;
 
 export const admitRestoredPane = (
   context: PiRecoveryStartContext,

@@ -70,11 +70,9 @@ export const restoreSession = (state: State, session: SavedSession): Outcome => 
 
   const restoredPi = new Map<PaneId, RestoredPi>();
 
-  for (const [index, { pi }] of session.panes.entries()) {
-    const pane = panes[index];
-
-    if (pi !== undefined && pane !== undefined) {
-      restoredPi.set(pane.id, { generation: pane.generation, pi, recovery: undefined });
+  for (const [index, { id, pi }] of session.panes.entries()) {
+    if (pi !== undefined) {
+      restoredPi.set(id, { generation: state.nextGeneration + index, pi, recovery: undefined });
     }
   }
 
