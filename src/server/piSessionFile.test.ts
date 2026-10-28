@@ -1,10 +1,10 @@
 import { expect, it } from 'bun:test';
 import { mkdir, writeFile } from 'node:fs/promises';
-import { join } from 'node:path';
+import { join, relative } from 'node:path';
 
-import { readPiSessionFile } from './piSessionFile.ts';
+import { isSavedSessionFile, readPiSessionFile } from './piSessionFile.ts';
 import type { PiSessionFile } from './piSessionFile.ts';
-import { sessionDirectory, snapshotsAround, writePiSession } from './piSessionFixture.ts';
+import { sessionDirectory, snapshotsAround, writePiSession } from './piSessionFixtures.ts';
 
 const readInDirectory = async (directory: string, sessionFile: string): Promise<PiSessionFile> => {
   const { result, before, after } = await snapshotsAround(directory, () =>
@@ -127,4 +127,24 @@ it.each([
   const read = await readInDirectory(directory, sessionFile);
 
   expect(read).toEqual({ status: 'failed', reason: 'notPiSession' });
+});
+
+it('fails a path below a regular file as unreadable', async () => {
+  const directory = await sessionDirectory();
+  const { sessionFile } = writePiSession(directory);
+
+  const read = await readInDirectory(directory, join(sessionFile, 'child.jsonl'));
+
+  expect(read).toEqual({ status: 'failed', reason: 'unreadable' });
+});
+
+it('counts only an existing regular file at an absolute path as a saved session file', async () => {
+  const directory = await sessionDirectory();
+  const { sessionFile } = writePiSession(directory);
+
+  expect(isSavedSessionFile(sessionFile)).toBe(true);
+  expect(isSavedSessionFile(relative(process.cwd(), sessionFile))).toBe(false);
+  expect(isSavedSessionFile(directory)).toBe(false);
+  expect(isSavedSessionFile(join(directory, 'missing.jsonl'))).toBe(false);
+  expect(isSavedSessionFile(join(sessionFile, 'child.jsonl'))).toBe(false);
 });

@@ -1,4 +1,6 @@
+import { statSync } from 'node:fs';
 import { readFile, stat } from 'node:fs/promises';
+import { isAbsolute } from 'node:path';
 
 import { z } from 'zod';
 
@@ -7,11 +9,6 @@ type PiSessionFileFailure = 'missing' | 'empty' | 'unreadable' | 'notPiSession';
 export type PiSessionFile =
   | { status: 'read'; sessionId: string; entryIds: ReadonlySet<string> }
   | { status: 'failed'; reason: PiSessionFileFailure };
-
-interface NextEntry {
-  entry: unknown;
-  next: number;
-}
 
 const headerSchema = z.object({ type: z.literal('session'), id: z.string() });
 const entrySchema = z.object({ id: z.string() });
@@ -38,57 +35,43 @@ const readText = async (
 
 const falsyValues = new Set<unknown>([null, false, 0, '']);
 
+// A line that is not JSON reads as null, so it is skipped like a falsy entry.
 const parsedLine = (line: string): unknown => {
   try {
-    const value: unknown = JSON.parse(line);
-
-    return falsyValues.has(value) ? undefined : value;
+    return JSON.parse(line);
   } catch {
-    return undefined;
+    return null;
   }
 };
 
-// Finds the first parsed entry at or after start. It skips blank lines before parsing and walks
-// the text without an array of its lines, so a file of mostly blank lines stays cheap.
-const nextEntryOf = (text: string, start: number): NextEntry | undefined => {
-  let lineStart = start;
+// Walks the lines one at a time, so a large file never becomes an array of its lines.
+const entriesOf = function* (text: string): Generator {
+  for (const [line] of text.matchAll(/[^\n]+/g)) {
+    const entry = parsedLine(line);
 
-  while (lineStart <= text.length) {
-    const newline = text.indexOf('\n', lineStart);
-    const lineEnd = newline === -1 ? text.length : newline;
-    const line = text.slice(lineStart, lineEnd);
-    const entry = line.trim() === '' ? undefined : parsedLine(line);
-
-    lineStart = lineEnd + 1;
-
-    if (entry !== undefined) {
-      return { entry, next: lineStart };
+    if (!falsyValues.has(entry)) {
+      yield entry;
     }
   }
-
-  return undefined;
 };
 
 // Keeps only the header and the entry ids, so each message body is dropped once it parses.
 const piSessionOf = (text: string): PiSessionFile => {
-  const first = nextEntryOf(text, 0);
-  const header = headerSchema.safeParse(first?.entry);
+  const entries = entriesOf(text);
+  const header = headerSchema.safeParse(entries.next().value);
 
-  if (first === undefined || !header.success) {
+  if (!header.success) {
     return { status: 'failed', reason: 'notPiSession' };
   }
 
   const entryIds = new Set<string>();
-  let current = nextEntryOf(text, first.next);
 
-  while (current !== undefined) {
-    const parsed = entrySchema.safeParse(current.entry);
+  for (const entry of entries) {
+    const parsed = entrySchema.safeParse(entry);
 
     if (parsed.success) {
       entryIds.add(parsed.data.id);
     }
-
-    current = nextEntryOf(text, current.next);
   }
 
   return { status: 'read', sessionId: header.data.id, entryIds };
@@ -106,4 +89,16 @@ export const readPiSessionFile = async (sessionFile: string): Promise<PiSessionF
   }
 
   return piSessionOf(read.text);
+};
+
+export const isSavedSessionFile = (path: string): boolean => {
+  if (!isAbsolute(path)) {
+    return false;
+  }
+
+  try {
+    return statSync(path).isFile();
+  } catch {
+    return false;
+  }
 };
