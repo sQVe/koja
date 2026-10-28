@@ -240,7 +240,6 @@ const masterPaneOf = (id: PaneId): StoreSnapshot['panes'][number] => ({
   error: undefined,
 });
 
-// A master tab with two panes, shown by a client of the given size.
 const snapshotShowingMasterTab = (clientSize: typeof size): StoreSnapshot => {
   const view = {
     focusedWorkspaceId: workspaceId(1),

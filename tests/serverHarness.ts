@@ -165,8 +165,6 @@ export const startEmptyServer = async (
   return { server, socketPath, logPath };
 };
 
-// The server restores from and saves to session.json in the directory, so a second start restores
-// what the first saved.
 export const startSavedServer = async (
   directory: string,
   extraEnvironment: Record<string, string> = {},
@@ -470,7 +468,6 @@ export const nextOfType = async <Type extends ControlMessage['type']>(
   }
 };
 
-// Switches a tab to legacy layout from a CLI connection, so its panes split and resize.
 export const useLegacyLayout = async (socketPath: string, tab: TabId = tabId(1)): Promise<void> => {
   const client = await connectCli(socketPath);
 

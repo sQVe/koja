@@ -12,7 +12,6 @@ interface TabShape {
   workspace: number;
   panes: number[];
   focused: number;
-  // Without it the tab is legacy with the order of its tree.
   arrangement?: { choice: 'legacy' | 'master'; order: number[] };
 }
 

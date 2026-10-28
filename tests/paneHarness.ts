@@ -70,7 +70,6 @@ export interface PaneSetup {
   act: (...commandArguments: string[]) => Promise<string>;
   tabs: () => Promise<z.infer<typeof tabLayoutListSchema>>;
   shellPid: (pane: string) => Promise<number>;
-  // Switches the tab of the first pane to legacy layout, so its panes split and resize.
   useLegacy: () => Promise<void>;
   first: string;
 }

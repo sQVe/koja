@@ -51,7 +51,6 @@ const isSearchQuery = (
   state: ActionViewState,
 ): state is Extract<ActionViewState, { kind: 'search' }> => state.kind === 'search';
 
-// Titles that start with the query come first, so Enter on a typed title runs that action.
 const searchEntries = (catalog: ActionCatalog, query: string): ActionCatalog => {
   const lowered = query.toLowerCase();
   const words = lowered.split(/\s+/);

@@ -47,7 +47,6 @@ const configurationSchema = z.strictObject({
     server: z.string(),
     attach: z.string(),
     workspaceCreate: z.string(),
-    // Absent in results recorded before new tabs started in master layout.
     tabLayout: z.string().optional(),
     paneSplit: z.array(z.string()),
     paneFocus: z.string(),

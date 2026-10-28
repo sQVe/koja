@@ -234,7 +234,6 @@ const savedSplits = {
   },
 };
 
-// A version 1 file from before tabs had arrangements, with one split tab.
 const savedSession = (folder: string) => ({
   version: 1,
   session: {

@@ -45,7 +45,6 @@ const withPaneIn = (state: State, id: PaneId, destination: Tab): State => {
   };
 };
 
-// A master tab appends the pane to its order. A legacy tab splits its focused pane.
 const layoutWithPane = (
   state: State,
   id: PaneId,

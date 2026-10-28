@@ -10,7 +10,6 @@ export interface Placement {
   focusedPaneId: PaneId | undefined;
   // The columns the side list takes before the first pane column.
   offset: number;
-  // The pane area size the active tab needs when the area is too small for it. Then no rectangles.
   requiredSize: TerminalSize | undefined;
 }
 

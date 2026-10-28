@@ -14,7 +14,6 @@ export interface TestServer {
   start: () => Promise<number>;
   createWorkspace: (folder: string) => Promise<string>;
   split: (pane: string) => Promise<string>;
-  // Switches a tab to legacy layout, so its panes split.
   useLegacy: (tab: string) => Promise<void>;
   described: () => Promise<string>;
   folders: () => Promise<Record<string, string | null>>;

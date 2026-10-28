@@ -10,7 +10,6 @@ export const sameSize = (left: TerminalSize, right: TerminalSize): boolean =>
 export const isLive = (pane: Pane): boolean =>
   pane.lifecycle === 'starting' || pane.lifecycle === 'running';
 
-// A tab without room for its panes has no sizes, so its panes keep the sizes they have.
 export const tabPaneSizes = (
   tabs: readonly Tab[],
   area: TerminalSize,

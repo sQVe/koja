@@ -185,7 +185,6 @@ export const mountPanes = (
     warningMessage = undefined;
   };
 
-  // Shows the size a tab needs in place of its panes. Its processes keep running, so no pane fails.
   const placeWarning = (size: TerminalSize, required: TerminalSize | undefined): void => {
     if (required === undefined) {
       removeWarning();

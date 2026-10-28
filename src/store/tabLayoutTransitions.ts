@@ -7,7 +7,6 @@ import type { State, Tab } from './store.ts';
 import { propose, refuse } from './transitionOutcome.ts';
 import type { Outcome } from './transitionOutcome.ts';
 
-// Appends the pane to the order of a master tab and repairs its tree to hold it.
 export const masterPlacement = (tab: Tab, id: PaneId): Pick<Tab, 'layout' | 'arrangement'> => {
   const order = [...tab.arrangement.order, id];
   const layout = layoutForOrder(tab.layout, order);
@@ -17,7 +16,6 @@ export const masterPlacement = (tab: Tab, id: PaneId): Pick<Tab, 'layout' | 'arr
   return { layout, arrangement: { choice: 'master', order } };
 };
 
-// The tab keeps its tree and order, so switching back gives the same layout.
 export const setTabLayout = (state: State, id: TabId, choice: LayoutChoice): Outcome => {
   if (state.stopping) {
     return refuse('serverStopping');

@@ -43,7 +43,6 @@ const restoredZoom = (state: State, id: PaneId, focusedPaneId: PaneId): PaneId |
 const replacePane = (state: State, replacement: Pane): readonly Pane[] =>
   state.panes.map((pane) => (pane.id === replacement.id ? replacement : pane));
 
-// The added pane gets its place in the tab, or a lone pane's size when the tab has no room.
 const addedPaneSize = (state: State, tab: Tab, id: PaneId): TerminalSize => {
   const placed = tabPanes(tab, state.layoutArea);
   const rectangle = placed.ok ? placed.panes.find((known) => known.paneId === id) : undefined;
@@ -53,8 +52,6 @@ const addedPaneSize = (state: State, tab: Tab, id: PaneId): TerminalSize => {
     : { columns: rectangle.terminal.columns, rows: rectangle.terminal.rows };
 };
 
-// Starts the next pane in the tab with the given layout and arrangement, which must hold it, and
-// focuses it.
 const addPaneIn = (
   state: State,
   tab: Tab,

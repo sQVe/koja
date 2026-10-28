@@ -25,7 +25,6 @@ export interface GateResult {
   released: boolean;
 }
 
-// A tab too small for its arrangement shows a warning and no pane, so the server sends it no rows.
 const fitsShownTab = (snapshot: StoreSnapshot): boolean => {
   const tab = shownTabOf(snapshot);
   const client = snapshot.clients.find((known) => known.id === snapshot.attachedClientId);

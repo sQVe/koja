@@ -51,7 +51,6 @@ export const restoreSession = (state: State, session: SavedSession): Outcome => 
   ]);
 
   const panes = session.panes.map((saved, index): Pane => {
-    // A tab without room for its panes gives them no size.
     const size = sizes.get(saved.id) ?? lonePaneSize(state, saved.id);
 
     return {

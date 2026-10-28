@@ -115,7 +115,6 @@ export interface AttachSession {
   // Whether a tab request is sent and not yet answered, or input waits for the shown pane's fresh
   // rows. The snapshot lags behind it.
   tabPending: () => boolean;
-  // Switches the shown tab's layout, like `koja tab layout`.
   setTabLayout: (choice: LayoutChoice) => void;
   // Calls back once, when no tab request is pending any more.
   afterTabAnswer: (callback: () => void) => void;

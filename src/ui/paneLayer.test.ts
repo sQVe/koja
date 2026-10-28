@@ -999,7 +999,6 @@ const withClient = (snapshot: StoreSnapshot, clientSize: TerminalSize): StoreSna
   clients: [{ id: clientId(1), size: clientSize, theme: undefined, view: snapshot.defaultView }],
 });
 
-// The client size sets the pane area: 20 side list columns and one status bar row are taken away.
 const threePaneMaster = (revision: number, clientSize: TerminalSize): StoreSnapshot =>
   withClient(
     snapshotOf(

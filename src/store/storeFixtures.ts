@@ -27,7 +27,6 @@ const withLegacyTabs = (applied: Applied): State =>
     applied.state,
   );
 
-// Like run, but switches every tab an intent adds to legacy layout right after that intent.
 export const runLegacy = (intents: readonly Intent[]): State =>
   intents.reduce((state, next) => withLegacyTabs(intent(state, next)), createState());
 

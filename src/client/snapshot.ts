@@ -257,7 +257,6 @@ export const shownTabOf = (snapshot: StoreSnapshot): StoreSnapshot['tabs'][numbe
   return snapshot.tabs.find((known) => known.id === activeTabIdOf(view, view.focusedWorkspaceId));
 };
 
-// The panes the shown tab places, which the server sends rows for. A zoomed tab shows one.
 export const shownPaneIds = (snapshot: StoreSnapshot): Set<PaneId> => {
   const tab = shownTabOf(snapshot);
 

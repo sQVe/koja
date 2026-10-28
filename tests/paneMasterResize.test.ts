@@ -73,7 +73,6 @@ const savedMasterSession = (root: string): SavedSession => ({
   nextPaneNumber: 4,
 });
 
-// The terminal size of each master pane for a pane area, in the order of the master tab.
 const masterTerminals = (area: TerminalSize): TerminalSize[] => {
   const placed = masterPanes(order, area);
 
@@ -108,7 +107,6 @@ const readingSchema = z.tuple([z.number(), z.number(), z.number()]);
 const isWritten = (path: string): boolean =>
   existsSync(path) && readFileSync(path, 'utf8').endsWith('\n');
 
-// Asks each pane's shell for its process id and its PTY size, through the pane's own input.
 const readPanes = async (
   client: TestClient,
   directory: string,

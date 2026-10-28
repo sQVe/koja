@@ -231,7 +231,6 @@ it(
     const invoked = await makeFolder(directory, 'invoked');
     const target = await makeFolder(invoked, 'relative');
 
-    // The server runs in `directory`, so only the CLI's folder, `invoked`, names `target`.
     const run = await runCliProcess(
       ['pane', 'add', first, '--cwd', 'relative', '--socket', socketPath, '--json'],
       invoked,

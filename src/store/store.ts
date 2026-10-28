@@ -209,7 +209,6 @@ export type Intent =
   | { type: 'renameTab'; tabId: TabId; label: string }
   | { type: 'closeTab'; tabId: TabId }
   | { type: 'setTabLayout'; tabId: TabId; choice: LayoutChoice }
-  // A master tab appends the pane to its order. A legacy tab splits the pane to the right.
   | { type: 'addPane'; paneId: PaneId; folder: string | undefined }
   | {
       type: 'splitPane';

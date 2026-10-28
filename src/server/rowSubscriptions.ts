@@ -111,9 +111,6 @@ export const subscribeRows = (
   return { paneIds, acknowledge, unsubscribe };
 };
 
-// The panes the tab of the connection's own view shows that have a row publisher. A zoomed tab
-// shows one pane, and a tab with too little room for its arrangement shows none. A connection that
-// is no client yet, such as one that is attaching, follows the default view.
 export const visiblePaneIds = (context: SubscriptionContext, connection: Connection): PaneId[] => {
   const { state, runtime } = context;
   const owner = runtime.clientIds.get(connection);

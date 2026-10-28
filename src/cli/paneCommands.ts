@@ -161,7 +161,6 @@ const layoutFailure = (
     return { ok: false, message: `Pane ${request.pane} has no split to resize.` };
   }
 
-  // Failure replies carry no tab, so the command names a placeholder for it.
   if (result.reason === 'requiresLegacyLayout') {
     return {
       ok: false,
