@@ -118,14 +118,15 @@ export const createMouseCapture = (host: MouseCaptureHost): MouseCapture => {
   const advance = (event: MouseEvent, modeSends: boolean): MouseStep => {
     const gesture = captured;
 
-    if (gesture === undefined || !isButtonGesture(event)) {
-      if (event.kind === 'press') {
-        return press(event, modeSends);
-      }
+    if (gesture === undefined && event.kind === 'press') {
+      return press(event, modeSends);
+    }
 
+    // A drag or release reaches a pane only in a gesture whose press reached it.
+    if (gesture === undefined || !isButtonGesture(event)) {
       const target = host.mouseTarget(event.x, event.y);
 
-      send(event, target, modeSends);
+      send(event, target, modeSends && !isButtonGesture(event));
 
       return notPress;
     }

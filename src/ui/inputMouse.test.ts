@@ -187,6 +187,18 @@ it('sends motion without a button only in insert mode', () => {
   expect(insert.toPane).toEqual([{ pane: paneId(1), text: '\x1b[<35;6;3M' }]);
 });
 
+it('sends no drag or release without a press, but sends motion, in insert mode', () => {
+  const { toPane, mouse } = createInputHarness('insert', {
+    paneModes: () => ModeFlag.anyMouse | ModeFlag.sgrMouse,
+  });
+
+  mouse(32, 6, 3, 'M');
+  mouse(0, 6, 3, 'm');
+  mouse(35, 7, 3, 'M');
+
+  expect(toPane).toEqual([{ pane: paneId(1), text: '\x1b[<35;7;3M' }]);
+});
+
 it('sends the release of an insert gesture while the action view is open', () => {
   const { toPane, mouse, press, view } = createInputHarness('insert');
 

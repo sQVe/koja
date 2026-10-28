@@ -655,27 +655,30 @@ it('sends a click in legacy encoding when the pane does not ask for SGR', async 
   ]);
 });
 
+const press = '\x1b[<0;25;5M';
 const drag = '\x1b[<32;25;5M';
 const motion = '\x1b[<35;25;5M';
+const release = '\x1b[<0;25;5m';
 
 it('sends a drag only to a pane with mode 1002, and plain motion only with 1003', async () => {
+  const gesture = press + drag + motion + release + 'x';
   const buttons = await setupAttach(ModeFlag.normalMouse | ModeFlag.sgrMouse);
 
-  buttons.type(drag + motion + 'x');
+  buttons.type(gesture);
   await buttons.until(() => buttons.receivedText().endsWith('x'));
-  expect(buttons.receivedText()).toBe('x');
+  expect(buttons.receivedText()).toBe('\x1b[<0;5;5M\x1b[<0;5;5mx');
 
   const drags = await setupAttach(ModeFlag.buttonMouse | ModeFlag.sgrMouse);
 
-  drags.type(drag + motion + 'x');
+  drags.type(gesture);
   await drags.until(() => drags.receivedText().endsWith('x'));
-  expect(drags.receivedText()).toBe('\x1b[<32;5;5Mx');
+  expect(drags.receivedText()).toBe('\x1b[<0;5;5M\x1b[<32;5;5M\x1b[<0;5;5mx');
 
   const everything = await setupAttach(ModeFlag.anyMouse | ModeFlag.sgrMouse);
 
-  everything.type(drag + motion + 'x');
+  everything.type(gesture);
   await everything.until(() => everything.receivedText().endsWith('x'));
-  expect(everything.receivedText()).toBe('\x1b[<32;5;5M\x1b[<35;5;5Mx');
+  expect(everything.receivedText()).toBe('\x1b[<0;5;5M\x1b[<32;5;5M\x1b[<35;5;5M\x1b[<0;5;5mx');
 });
 
 it('sends nothing for a click or the wheel to a pane without a mouse mode', async () => {
