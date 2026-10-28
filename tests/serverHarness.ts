@@ -165,6 +165,37 @@ export const startEmptyServer = async (
   return { server, socketPath, logPath };
 };
 
+// The server restores from and saves to session.json in the directory, so a second start restores
+// what the first saved.
+export const startSavedServer = async (
+  directory: string,
+  extraEnvironment: Record<string, string> = {},
+): Promise<{ server: Server; socketPath: string }> => {
+  const socketPath = join(directory, 'run', 'koja.sock');
+
+  const result = await runServer({
+    socketPath,
+    version: build,
+    log: openLog(join(directory, 'server.log')),
+    environment: { ...process.env, SHELL: '/bin/sh', ...extraEnvironment },
+    binaryPath: process.execPath,
+    sessionPathFor: () => join(directory, 'session.json'),
+  });
+
+  if (!result.ok) {
+    throw new Error(result.message);
+  }
+
+  const { server } = result;
+
+  onTestFinished(async () => {
+    server.stop();
+    await server.stopped;
+  });
+
+  return { server, socketPath };
+};
+
 const createReader = <Item>(
   items: Item[],
   waiting: (() => void)[],

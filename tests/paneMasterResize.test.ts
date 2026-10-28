@@ -8,12 +8,11 @@ import { paneId, tabId, workspaceId } from '../src/ids.ts';
 import { masterPanes } from '../src/layout.ts';
 import type { Layout, TerminalSize } from '../src/layout.ts';
 import type { Log } from '../src/server/log.ts';
-import { runServer } from '../src/server/server.ts';
 import type { Server } from '../src/server/server.ts';
 import { createSessionWriter } from '../src/server/sessionWriter.ts';
 import type { SavedSession } from '../src/store/store.ts';
 import { cliTestTimeoutMs } from './cliHarness.ts';
-import { build, connect, temporaryDirectory, waitFor } from './serverHarness.ts';
+import { build, connect, startSavedServer, temporaryDirectory, waitFor } from './serverHarness.ts';
 import type { TestClient } from './serverHarness.ts';
 
 interface PaneReading {
@@ -63,30 +62,6 @@ const savedMasterSession = (root: string): SavedSession => ({
   nextTabNumber: 2,
   nextPaneNumber: 4,
 });
-
-const startServer = async (directory: string, sessionPath: string): Promise<Server> => {
-  const result = await runServer({
-    socketPath: join(directory, 'run', 'koja.sock'),
-    version: build,
-    log,
-    environment: { ...process.env, SHELL: '/bin/sh', PS1: '' },
-    binaryPath: process.execPath,
-    sessionPathFor: () => sessionPath,
-  });
-
-  if (!result.ok) {
-    throw new Error(result.message);
-  }
-
-  const { server } = result;
-
-  onTestFinished(async () => {
-    server.stop();
-    await server.stopped;
-  });
-
-  return server;
-};
 
 // The terminal size of each master pane for a pane area, in the order of the master tab.
 const masterTerminals = (area: TerminalSize): TerminalSize[] => {
@@ -158,14 +133,12 @@ it(
   'keeps the panes of a master tab running at their rectangle sizes across a resize below its need and back',
   async () => {
     const directory = await temporaryDirectory();
-    const socketPath = join(directory, 'run', 'koja.sock');
-    const sessionPath = join(directory, 'session.json');
 
-    await createSessionWriter(sessionPath, log, undefined).stopSaving(
+    await createSessionWriter(join(directory, 'session.json'), log, undefined).stopSaving(
       savedMasterSession(directory),
     );
 
-    const server = await startServer(directory, sessionPath);
+    const { server, socketPath } = await startSavedServer(directory, { PS1: '' });
     const client = await connect(socketPath);
 
     onTestFinished(() => {
