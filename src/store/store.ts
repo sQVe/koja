@@ -158,7 +158,6 @@ export interface State {
   // For each split pane that has not started yet, the focus and zoom the tab had before the split.
   stateBeforeSplit: ReadonlyMap<PaneId, StateBeforeSplit>;
   piReports: ReadonlyMap<PaneId, PiRecord>;
-  // The pi record each restored pane was saved with, until the pane gets a live one or is removed.
   restoredPi: ReadonlyMap<PaneId, RestoredPi>;
   revision: number;
 }
@@ -246,7 +245,6 @@ export type Fact =
   | { type: 'paneExited'; paneId: PaneId; generation: number; exitCode: number }
   // The pane's output handling threw while its shell ran.
   | { type: 'paneFailed'; paneId: PaneId; generation: number; message: string }
-  // The restore checked whether the pane's saved pi conversation can reopen.
   | { type: 'piRecoveryChecked'; paneId: PaneId; generation: number; recovery: PiRecovery }
   // The pane's stable row numbers restarted. Carries the active top before and after, and the
   // oldest row after.
@@ -355,8 +353,6 @@ export interface Snapshot {
   clients: readonly Client[];
 }
 
-// What the server read outside the store: each running pane's folder, and which recorded pi
-// session files exist as regular files.
 export interface SessionReads {
   folders: ReadonlyMap<PaneId, string>;
   savedSessionFiles: ReadonlySet<string>;

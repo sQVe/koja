@@ -27,7 +27,6 @@ export const sessionDirectory = async (): Promise<string> => {
   return directory;
 };
 
-// Writes a conversation with the pinned pi, so the fixture matches the format pi saves.
 export const writePiSession = (directory: string, messages = ['first', 'second']): PiSession => {
   const session = SessionManager.create(directory, directory);
 
@@ -55,7 +54,6 @@ const snapshotOf = async (directory: string): Promise<FileSnapshot[]> => {
   );
 };
 
-// Runs the action and returns the directory's file names, sizes, and mtimes before and after it.
 export const snapshotsAround = async <Result>(
   directory: string,
   action: () => Promise<Result>,

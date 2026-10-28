@@ -37,7 +37,6 @@ const noLiveProcess: PiRecoveryReads = {
 
 const liveProcesses: PiRecoveryReads = { readSessionFile: readPiSessionFile, readLiveProcess };
 
-// The test process stands in for a recorded pi, since it is live while the test runs.
 const thisProcess = (): SavedPiRecord['process'] => {
   const stat = readLiveProcess(process.pid);
 
@@ -46,7 +45,6 @@ const thisProcess = (): SavedPiRecord['process'] => {
   return { id: process.pid, startTime: stat.startTime };
 };
 
-// Checks the records against a real pi session directory and expects the directory unchanged.
 const checkAllInDirectory = async (
   directory: string,
   records: ReadonlyMap<PaneId, SavedPiRecord | MalformedPiRecord>,
@@ -68,7 +66,6 @@ const checkInDirectory = async (
 ): Promise<PiRecovery | undefined> =>
   (await checkAllInDirectory(directory, new Map([[target, record]]), reads)).get(target);
 
-// A record that would be ready: it names a real pi session at its newest entry.
 const savedRecordIn = (directory: string, changes: Partial<SavedPiRecord> = {}): SavedPiRecord => {
   const { sessionFile, sessionId, entryIds } = writePiSession(directory);
 

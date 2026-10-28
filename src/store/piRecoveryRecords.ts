@@ -2,8 +2,6 @@ import type { PaneId } from '../ids.ts';
 import type { PiProcess, PiRecord } from './piReportTransitions.ts';
 import type { State } from './store.ts';
 
-// What a restore needs to reopen a pane's pi conversation. The ownership stays a string, so a
-// value this version does not know survives to the recovery check.
 export interface SavedPiRecord {
   piVersion: string;
   sessionId: string | undefined;
@@ -18,8 +16,6 @@ export interface SavedPiRecord {
   sessionFileSaved: boolean;
 }
 
-// A saved pi value that did not parse. The writer saves raw back, so a later version can still
-// read it.
 export interface MalformedPiRecord {
   kind: 'malformed';
   raw: unknown;
@@ -54,7 +50,6 @@ export type PiRecovery =
 export interface RestoredPi {
   generation: number;
   pi: SavedPiRecord | MalformedPiRecord;
-  // Absent until the restore checks the record.
   recovery: PiRecovery | undefined;
 }
 
@@ -87,7 +82,6 @@ const savedRecordOf = (
   };
 };
 
-// A restored record keeps its saved flag, and a session file seen since counts as saved too.
 const restoredRecordOf = (pi: SavedPi, savedSessionFiles: ReadonlySet<string>): SavedPi => {
   if (pi === undefined || 'kind' in pi) {
     return pi;
@@ -101,8 +95,6 @@ const restoredRecordOf = (pi: SavedPi, savedSessionFiles: ReadonlySet<string>): 
 const isOpen = (record: PiRecord | undefined): record is OpenPiRecord =>
   record !== undefined && record.state !== 'exited';
 
-// A pane's live record wins. Without one, the pane keeps the record it was restored with, so a
-// pane that failed to start or has not reopened pi yet does not lose it.
 export const savedPiOf = (
   live: PiRecord | undefined,
   restored: RestoredPi | undefined,
@@ -124,7 +116,6 @@ export const withoutPiRecords = (state: State, removed: readonly PaneId[]): Stat
   return { ...state, restoredPi, piReports };
 };
 
-// The fact names a current pane generation. A pane restored without a record keeps none.
 export const recordPiRecovery = (state: State, paneId: PaneId, recovery: PiRecovery): State => {
   const restored = state.restoredPi.get(paneId);
 

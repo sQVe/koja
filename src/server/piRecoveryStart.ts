@@ -21,7 +21,6 @@ interface PiRecoveryStartContext {
   runtime: { piRecoveries: Map<PaneId, PiRecovery> };
 }
 
-// Checks every saved pi record of a session read from disk, before any of its panes starts.
 export const checkSavedPi = async (
   saved: SessionRead | undefined,
 ): Promise<Map<PaneId, PiRecovery>> => {
@@ -46,9 +45,6 @@ const sessionFileOf = (state: State, id: PaneId): string | undefined => {
   return pi === undefined || 'kind' in pi ? undefined : pi.sessionFile;
 };
 
-// Reports the check result of a restored pane, and fails the pane when its pi conversation cannot
-// reopen. Returns whether the pane may start its shell. A result is used once, for the pane
-// generation the restore added.
 export const admitRestoredPane = (
   context: PiRecoveryStartContext,
   pane: Pane,

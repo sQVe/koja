@@ -28,7 +28,6 @@ const record: SavedPiRecord = {
   model: 'opus',
   thinkingLevel: 'low',
   ownership: 'interactive',
-  // No process has this id, so the saved pi never survives.
   process: { id: 0x7f_ff_ff_ff, startTime: 1 },
   state: 'reported',
   sessionFileSaved: true,

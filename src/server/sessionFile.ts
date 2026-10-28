@@ -68,7 +68,6 @@ const piRecordSchema: z.ZodType<SavedPiRecord> = z.object({
   sessionFileSaved: z.boolean(),
 });
 
-// A bad pi value costs only that pane its record, so the rest of the session still restores.
 const piOf = (raw: unknown): SavedPi => {
   if (raw === undefined || raw === null) {
     return undefined;

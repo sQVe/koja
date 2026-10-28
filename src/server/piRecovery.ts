@@ -38,8 +38,6 @@ const sessionKeysOf = (record: SavedPiRecord): string[] => {
   return keys;
 };
 
-// Every record that shares a session file or session id with another record, whatever else
-// blocks either of them.
 const duplicatePanesOf = (records: ReadonlyMap<PaneId, RestoredPiRecord>): Set<PaneId> => {
   const panesByKey = new Map<string, PaneId[]>();
 
@@ -109,7 +107,6 @@ const sessionFileRecoveryOf = (
   file: PiSessionFile,
 ): PiRecovery => {
   if (file.status === 'failed') {
-    // Pi starts on the same path, so a file it never saved holds no conversation to lose.
     const neverSaved = file.reason === 'missing' && !record.sessionFileSaved;
 
     return neverSaved ? ready : failed(sessionFileFailures[file.reason]);
@@ -152,8 +149,6 @@ const recoveryOf = async (
   return sessionFileRecoveryOf({ ...record, sessionId }, file);
 };
 
-// Decides whether each restored pi conversation can reopen. It only reads session files and
-// process stats, so it never changes a conversation pi saved.
 export const checkPiRecoveries = async (
   records: ReadonlyMap<PaneId, RestoredPiRecord>,
   reads: PiRecoveryReads,

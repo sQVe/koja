@@ -44,7 +44,7 @@ type SplitDirection = Extract<Layout, { kind: 'split' }>['direction'];
 const absent = <Schema extends z.ZodType>(schema: Schema) =>
   schema.nullable().transform((value) => value ?? undefined);
 
-// Accepts only the form the id constructor writes, so a parsed id equals the id that was written.
+// Accepts only the form the id constructor writes, so a parsed id equals the id that was sent.
 const idNumber = (prefix: string) =>
   z
     .string()
@@ -647,7 +647,6 @@ const controlSchema = z.discriminatedUnion('type', [
   }),
   z.strictObject({ type: z.literal('piReportResult'), result: piReportOutcomeSchema }),
   z.strictObject({ type: z.literal('piStatus'), paneId: paneIdSchema }),
-  // The recovery is the restore's check of the pane's saved pi record, until a live pi reports.
   z.strictObject({
     type: z.literal('piStatusReply'),
     paneId: paneIdSchema,

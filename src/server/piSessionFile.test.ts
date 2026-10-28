@@ -6,7 +6,6 @@ import { readPiSessionFile } from './piSessionFile.ts';
 import type { PiSessionFile } from './piSessionFile.ts';
 import { sessionDirectory, snapshotsAround, writePiSession } from './piSessionFixture.ts';
 
-// Reads the file and expects its directory unchanged.
 const readInDirectory = async (directory: string, sessionFile: string): Promise<PiSessionFile> => {
   const { result, before, after } = await snapshotsAround(directory, () =>
     readPiSessionFile(sessionFile),

@@ -12,7 +12,6 @@ import type { CliRun } from './cliHarness.ts';
 export interface TestServer {
   socketPath: string;
   koja: (commandArguments: string[]) => Promise<string>;
-  // Runs a command that may fail and returns its whole result.
   attempt: (commandArguments: string[]) => Promise<CliRun>;
   start: () => Promise<number>;
   createWorkspace: (folder: string) => Promise<string>;
@@ -183,7 +182,6 @@ export const savedPiRecord = (fields: Record<string, unknown> = {}): Record<stri
   model: 'claude-opus',
   thinkingLevel: 'low',
   ownership: 'interactive',
-  // No process has this id, so the saved pi never survives the restart.
   process: { id: 0x7f_ff_ff_ff, startTime: 1 },
   state: 'reported',
   sessionFileSaved: true,
@@ -194,7 +192,6 @@ const savedFileSchema = z.looseObject({
   session: z.looseObject({ panes: z.array(z.looseObject({ id: z.string() })) }),
 });
 
-// Gives each named pane of the saved session a pi record, and every other pane none.
 export const savePiRecords = async (
   path: string,
   records: Record<string, Record<string, unknown>>,

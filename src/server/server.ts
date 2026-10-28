@@ -130,9 +130,7 @@ interface Runtime {
   nextConnectionId: number;
   // Whether panes start in a systemd user scope. Decided when the first pane starts.
   paneScopes: boolean | undefined;
-  // The pi check results of restored panes that have not started yet.
   piRecoveries: Map<PaneId, PiRecovery>;
-  // Recorded pi session files that existed as files at a save or restore, while a record names them.
   seenSessionFiles: Set<string>;
   sessionWriter: SessionWriter | undefined;
 }

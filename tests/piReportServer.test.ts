@@ -337,7 +337,6 @@ it('refuses the old pass after restoring the pane with a new shell generation', 
   first.client.send({ type: 'paneClose', paneId: paneId(1) });
   await nextOfType(first.client, 'paneDone');
 
-  // A Tau worker's record would block the restored pane, so this pi is interactive.
   const recorded = await recordShell(first.client, target, { ownership: 'interactive' }, [
     'sessionNotSaved',
   ]);

@@ -228,7 +228,6 @@ it('keeps a restored session file saved after it is deleted, once its pi reopens
   expect(currentSession(context).panes[0]?.pi).toMatchObject({ sessionFileSaved: true });
 });
 
-// Restores one pane whose saved pi record names the session file, with the given saved flag.
 const restoredStateWith = (sessionFile: string, sessionFileSaved: boolean): State => {
   const created = applyIntent(createState(), {
     type: 'createWorkspace',

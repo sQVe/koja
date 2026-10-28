@@ -22,7 +22,6 @@ const readText = async (
   sessionFile: string,
 ): Promise<{ text: string } | { failure: 'missing' | 'unreadable' }> => {
   try {
-    // Opening a FIFO waits for a writer, so a path that is not a regular file is never opened.
     const stats = await stat(sessionFile);
 
     if (!stats.isFile()) {
@@ -37,10 +36,8 @@ const readText = async (
   }
 };
 
-// The JSON values pi skips because they are not truthy.
 const falsyValues = new Set<unknown>([null, false, 0, '']);
 
-// Pi skips malformed lines and falsy JSON values.
 const parsedLine = (line: string): unknown => {
   try {
     const value: unknown = JSON.parse(line);
@@ -97,8 +94,6 @@ const piSessionOf = (text: string): PiSessionFile => {
   return { status: 'read', sessionId: header.data.id, entryIds };
 };
 
-// Reads a pi session file the way pi 1.4.0's loader does, without the newline that loader appends
-// to a file whose last line is unterminated.
 export const readPiSessionFile = async (sessionFile: string): Promise<PiSessionFile> => {
   const read = await readText(sessionFile);
 

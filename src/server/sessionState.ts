@@ -48,7 +48,6 @@ const readSavedFolders = (context: SessionContext): Map<PaneId, string> => {
   return folders;
 };
 
-// The session files that a live or restored record names.
 const namedSessionFilesOf = (state: State): Set<string> => {
   const files = new Set<string>();
 
@@ -69,8 +68,6 @@ const namedSessionFilesOf = (state: State): Set<string> => {
   return files;
 };
 
-// A session file stays saved once it has existed, so deleting it does not make a later save look
-// like a conversation that was never saved. Only the files a record still names are kept.
 const readSavedSessionFiles = (context: SessionContext): ReadonlySet<string> => {
   const { seenSessionFiles } = context.runtime;
   const named = namedSessionFilesOf(context.state);
@@ -98,8 +95,6 @@ const existingFileOf = (pi: SavedPi): string | undefined => {
   return pi.sessionFileSaved || isSavedSessionFile(pi.sessionFile) ? pi.sessionFile : undefined;
 };
 
-// Remembers the restored session files that were saved or exist now, so a later deletion keeps
-// them saved. Runs at startup, before any save.
 export const rememberSavedSessionFiles = (
   seenSessionFiles: Set<string>,
   saved: SessionRead | undefined,
