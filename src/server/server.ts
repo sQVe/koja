@@ -51,7 +51,13 @@ import type { RowSubscriptions } from './rowSubscriptions.ts';
 import { createStopResults, stopOutcomeOf } from './serverStopResult.ts';
 import type { StopResults } from './serverStopResult.ts';
 import { readSessionFile } from './sessionFile.ts';
-import { currentSession, restoreSession, savesSession, unusableKindOf } from './sessionState.ts';
+import {
+  currentSession,
+  rememberSavedSessionFiles,
+  restoreSession,
+  savesSession,
+  unusableKindOf,
+} from './sessionState.ts';
 import { createSessionWriter } from './sessionWriter.ts';
 import type { SessionWriter } from './sessionWriter.ts';
 import { claimSocketPath } from './socketPath.ts';
@@ -126,6 +132,8 @@ interface Runtime {
   paneScopes: boolean | undefined;
   // The pi check results of restored panes that have not started yet.
   piRecoveries: Map<PaneId, PiRecovery>;
+  // Recorded pi session files that existed as files at a save or restore, while a record names them.
+  seenSessionFiles: Set<string>;
   sessionWriter: SessionWriter | undefined;
 }
 
@@ -631,6 +639,7 @@ export const runServer = async (options: ServerOptions): Promise<RunServerResult
       nextConnectionId: 1,
       paneScopes: undefined,
       piRecoveries: new Map(),
+      seenSessionFiles: new Set(),
       sessionWriter: undefined,
     },
     stopped: Promise.withResolvers(),
@@ -640,6 +649,7 @@ export const runServer = async (options: ServerOptions): Promise<RunServerResult
   const sessionPath = options.sessionPathFor?.(socketPath);
   const saved = sessionPath === undefined ? undefined : await readSessionFile(sessionPath);
 
+  rememberSavedSessionFiles(context.runtime.seenSessionFiles, saved);
   context.runtime.piRecoveries = await checkSavedPi(saved);
 
   const listener = listen(context, socketPath);
