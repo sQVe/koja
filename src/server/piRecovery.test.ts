@@ -1,5 +1,5 @@
 import { expect, it } from 'bun:test';
-import { mkdir, writeFile } from 'node:fs/promises';
+import { appendFile, mkdir, writeFile } from 'node:fs/promises';
 import { join, relative } from 'node:path';
 
 import { paneId } from '../ids.ts';
@@ -10,7 +10,12 @@ import { checkPiRecoveries } from './piRecovery.ts';
 import type { PiRecoveryReads } from './piRecovery.ts';
 import { readLiveProcess } from './piReports.ts';
 import { readPiSessionFile } from './piSessionFile.ts';
-import { sessionDirectory, snapshotsAround, writePiSession } from './piSessionFixtures.ts';
+import {
+  sessionDirectory,
+  snapshotsAround,
+  writeBranchedPiSession,
+  writePiSession,
+} from './piSessionFixtures.ts';
 
 const recordWith = (changes: Partial<SavedPiRecord> = {}): SavedPiRecord => ({
   piVersion: '1.4.0',
@@ -73,6 +78,28 @@ const savedRecordIn = (directory: string, changes: Partial<SavedPiRecord> = {}):
 };
 
 const isAbsent = async (path: string): Promise<boolean> => !(await Bun.file(path).exists());
+
+// Line 0 is the session header, so entry lines start at 1.
+const editLine = async (
+  sessionFile: string,
+  lineNumber: number,
+  edit: (line: string) => string,
+): Promise<void> => {
+  const lines = (await Bun.file(sessionFile).text()).split('\n');
+  const line = lines[lineNumber];
+
+  invariant(line !== undefined, 'The session file has the line.');
+
+  lines[lineNumber] = edit(line);
+
+  await writeFile(sessionFile, lines.join('\n'));
+};
+
+const withParentId = (line: string, parentId: unknown): string => {
+  const entry = JSON.parse(line) as Record<string, unknown>;
+
+  return JSON.stringify({ ...entry, parentId });
+};
 
 it('reopens a record whose session file holds its conversation', async () => {
   const directory = await sessionDirectory();
@@ -405,4 +432,163 @@ it('fails a record whose leaf is not in its session file', async () => {
   const recovery = await checkInDirectory(directory, savedRecordIn(directory, { leafId: 'gone' }));
 
   expect(recovery).toEqual({ status: 'failed', reason: 'branchMissing' });
+});
+
+it('fails a record whose newest entry lost an ancestor line on disk', async () => {
+  const directory = await sessionDirectory();
+  const { sessionFile, sessionId, entryIds } = writePiSession(directory);
+
+  await editLine(sessionFile, 1, () => '{oops');
+
+  const recovery = await checkInDirectory(
+    directory,
+    recordWith({ sessionFile, sessionId, leafId: entryIds.at(-1) }),
+  );
+
+  expect(recovery).toEqual({ status: 'failed', reason: 'branchMissing' });
+});
+
+it('reopens a record whose other branch lost a line on disk', async () => {
+  const directory = await sessionDirectory();
+  const { sessionFile, sessionId, entryIds } = writeBranchedPiSession(directory);
+
+  await editLine(sessionFile, 2, () => '{oops');
+
+  const recovery = await checkInDirectory(
+    directory,
+    recordWith({ sessionFile, sessionId, leafId: entryIds.at(-1) }),
+  );
+
+  expect(recovery).toEqual({ status: 'ready' });
+});
+
+it('fails a record whose ancestor names a parent that is not in the file', async () => {
+  const directory = await sessionDirectory();
+  const { sessionFile, sessionId, entryIds } = writePiSession(directory);
+
+  await editLine(sessionFile, 1, (line) => withParentId(line, 'gone'));
+
+  const recovery = await checkInDirectory(
+    directory,
+    recordWith({ sessionFile, sessionId, leafId: entryIds.at(-1) }),
+  );
+
+  expect(recovery).toEqual({ status: 'failed', reason: 'branchMissing' });
+});
+
+it('fails a record whose parent links form a cycle', async () => {
+  const directory = await sessionDirectory();
+  const { sessionFile, sessionId, entryIds } = writePiSession(directory);
+  const second = entryIds[1];
+
+  invariant(second !== undefined, 'The session has a second entry.');
+
+  await editLine(sessionFile, 1, (line) => withParentId(line, second));
+
+  const recovery = await checkInDirectory(
+    directory,
+    recordWith({ sessionFile, sessionId, leafId: entryIds.at(-1) }),
+  );
+
+  expect(recovery).toEqual({ status: 'failed', reason: 'branchMissing' });
+});
+
+it('fails a record whose newest entry names a parent that is not a string', async () => {
+  const directory = await sessionDirectory();
+  const { sessionFile, sessionId, entryIds } = writePiSession(directory);
+
+  await editLine(sessionFile, 2, (line) => withParentId(line, 7));
+
+  const recovery = await checkInDirectory(
+    directory,
+    recordWith({ sessionFile, sessionId, leafId: entryIds[0] }),
+  );
+
+  expect(recovery).toEqual({ status: 'failed', reason: 'branchMissing' });
+});
+
+it('fails a record whose broken newest entry is followed by a second session header', async () => {
+  const directory = await sessionDirectory();
+  const { sessionFile, sessionId, entryIds } = writePiSession(directory);
+
+  await editLine(sessionFile, 2, (line) => withParentId(line, 'gone'));
+  await appendFile(sessionFile, '{"type":"session","id":"other"}\n');
+
+  const recovery = await checkInDirectory(
+    directory,
+    recordWith({ sessionFile, sessionId, leafId: entryIds[0] }),
+  );
+
+  expect(recovery).toEqual({ status: 'failed', reason: 'branchMissing' });
+});
+
+it('fails a record whose newest line is a JSON value that is not an object', async () => {
+  const directory = await sessionDirectory();
+  const { sessionFile, sessionId, entryIds } = writePiSession(directory);
+
+  await appendFile(sessionFile, '7\n');
+
+  const recovery = await checkInDirectory(
+    directory,
+    recordWith({ sessionFile, sessionId, leafId: entryIds[0] }),
+  );
+
+  expect(recovery).toEqual({ status: 'failed', reason: 'branchMissing' });
+});
+
+it('fails a record whose newest entry has an id that is not a string', async () => {
+  const directory = await sessionDirectory();
+  const { sessionFile, sessionId, entryIds } = writePiSession(directory);
+
+  await appendFile(sessionFile, `${JSON.stringify({ id: 7, parentId: entryIds[0] })}\n`);
+
+  const recovery = await checkInDirectory(
+    directory,
+    recordWith({ sessionFile, sessionId, leafId: entryIds[0] }),
+  );
+
+  expect(recovery).toEqual({ status: 'failed', reason: 'branchMissing' });
+});
+
+it('reopens a version 1 file without parent links, which pi relinks when it opens it', async () => {
+  const directory = await sessionDirectory();
+  const sessionFile = join(directory, 'version-1.jsonl');
+  const lines = ['{"type":"session","id":"old"}', '{"type":"message"}', '{"type":"message"}'];
+
+  await writeFile(sessionFile, `${lines.join('\n')}\n`);
+
+  const recovery = await checkInDirectory(
+    directory,
+    recordWith({ sessionFile, sessionId: 'old', leafId: undefined }),
+  );
+
+  expect(recovery).toEqual({ status: 'ready' });
+});
+
+it('fails a record whose newest entry has an empty id', async () => {
+  const directory = await sessionDirectory();
+  const { sessionFile, sessionId, entryIds } = writePiSession(directory);
+
+  await appendFile(sessionFile, `${JSON.stringify({ id: '', parentId: entryIds.at(-1) })}\n`);
+
+  const recovery = await checkInDirectory(
+    directory,
+    recordWith({ sessionFile, sessionId, leafId: entryIds[0] }),
+  );
+
+  expect(recovery).toEqual({ status: 'failed', reason: 'branchMissing' });
+});
+
+it('reopens a session file that holds only its header', async () => {
+  const directory = await sessionDirectory();
+  const sessionFile = join(directory, 'header-only.jsonl');
+
+  await writeFile(sessionFile, '{"type":"session","version":3,"id":"only"}\n');
+
+  const recovery = await checkInDirectory(
+    directory,
+    recordWith({ sessionFile, sessionId: 'only', leafId: undefined }),
+  );
+
+  expect(recovery).toEqual({ status: 'ready' });
 });

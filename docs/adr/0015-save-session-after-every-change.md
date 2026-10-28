@@ -70,8 +70,10 @@ different conversation in its place. `koja pi status` shows each pane's result.
   still runs.
 - The pane fails when its record does not parse, it names no session file or session id, it lacks a
   provider, model, or thinking level, or the session file is missing, empty, unreadable, not a pi
-  session, holds another session id, or lacks the saved leaf. The model check reads only the record,
-  not pi's list of models.
+  session, holds another session id, or lacks the saved leaf. Pi opens the file at its newest entry,
+  so the file also fails when that entry has no string id, or when its parent chain has a parent
+  that is not a string, names no entry, or loops. The model check reads only the record, not pi's
+  list of models.
 
 Pi writes the session file only at the conversation's first message. A file the save recorded as
 never existing is ready when it is still missing, since no conversation was lost. A bad `pi` value

@@ -27,6 +27,14 @@ export const sessionDirectory = async (): Promise<string> => {
   return directory;
 };
 
+const piSessionFrom = (session: SessionManager, entryIds: string[]): PiSession => {
+  const sessionFile = session.getSessionFile();
+
+  invariant(sessionFile !== undefined, 'pi saves a session file.');
+
+  return { sessionFile, sessionId: session.getSessionId(), entryIds };
+};
+
 export const writePiSession = (directory: string, messages = ['first', 'second']): PiSession => {
   const session = SessionManager.create(directory, directory);
 
@@ -34,11 +42,28 @@ export const writePiSession = (directory: string, messages = ['first', 'second']
     session.appendMessage({ role: 'user', content, timestamp: Date.now() }),
   );
 
-  const sessionFile = session.getSessionFile();
+  return piSessionFrom(session, entryIds);
+};
 
-  invariant(sessionFile !== undefined, 'pi saves a session file.');
+export const writeBranchedPiSession = (directory: string): PiSession => {
+  const session = SessionManager.create(directory, directory);
+  const first = session.appendMessage({ role: 'user', content: 'first', timestamp: Date.now() });
 
-  return { sessionFile, sessionId: session.getSessionId(), entryIds };
+  const branchOne = session.appendMessage({
+    role: 'user',
+    content: 'branch one',
+    timestamp: Date.now(),
+  });
+
+  session.branch(first);
+
+  const branchTwo = session.appendMessage({
+    role: 'user',
+    content: 'branch two',
+    timestamp: Date.now(),
+  });
+
+  return piSessionFrom(session, [first, branchOne, branchTwo]);
 };
 
 const snapshotOf = async (directory: string): Promise<FileSnapshot[]> => {

@@ -2,12 +2,16 @@ import { resolve } from 'node:path';
 
 import type { PaneId } from '../ids.ts';
 import type { MalformedPiRecord, PiRecovery, SavedPiRecord } from '../store/store.ts';
-import type { PiSessionFile } from './piSessionFile.ts';
+import type { PiSessionEntry, PiSessionFile } from './piSessionFile.ts';
 import type { ProcessStat } from './processGroups.ts';
 
 type PiRecoveryFailure = Extract<PiRecovery, { status: 'failed' }>['reason'];
 
 type PiRecoveryBlock = Extract<PiRecovery, { status: 'blocked' }>['reason'];
+
+type PiSessionRead = Extract<PiSessionFile, { status: 'read' }>;
+
+type PiSessionEntries = PiSessionRead['entries'];
 
 export interface PiRecoveryReads {
   readSessionFile: (sessionFile: string) => Promise<PiSessionFile>;
@@ -97,8 +101,45 @@ const sessionFileFailures = {
   notPiSession: 'notPiSession',
 } as const;
 
-const branchMissing = (leafId: string | undefined, entryIds: ReadonlySet<string>): boolean =>
-  leafId !== undefined && !entryIds.has(leafId);
+// Keys each entry by its id, as pi's index does, so a later entry replaces an earlier one. Entries
+// without an id share the undefined key, which no parent link names.
+const entriesById = (entries: PiSessionEntries): ReadonlyMap<string | undefined, PiSessionEntry> =>
+  new Map(entries.map((entry) => [entry.id, entry] as const));
+
+// Pi opens a file at its newest entry and rebuilds the history by following parent links, so a
+// broken link silently shortens that history. The walk fails it.
+const chainBroken = (
+  newest: PiSessionEntry,
+  byId: ReadonlyMap<string | undefined, PiSessionEntry>,
+): boolean => {
+  const visited = new Set<string>();
+  let entry: PiSessionEntry | undefined = newest;
+
+  while (entry !== undefined) {
+    if (entry.id === undefined || visited.has(entry.id)) {
+      return true;
+    }
+
+    visited.add(entry.id);
+
+    if (entry.parent.kind !== 'entry') {
+      return entry.parent.kind !== 'root';
+    }
+
+    entry = byId.get(entry.parent.id);
+  }
+
+  return true;
+};
+
+const branchMissing = (leafId: string | undefined, file: PiSessionRead): boolean => {
+  const byId = entriesById(file.entries);
+  const leafMissing = leafId !== undefined && !byId.has(leafId);
+  const newest = file.entries.at(-1);
+  const newestChainBroken = file.linked && newest !== undefined && chainBroken(newest, byId);
+
+  return leafMissing || newestChainBroken;
+};
 
 const sessionFileRecoveryOf = (
   record: SavedPiRecord & { sessionId: string },
@@ -114,7 +155,7 @@ const sessionFileRecoveryOf = (
     return failed('sessionIdMismatch');
   }
 
-  return branchMissing(record.leafId, file.entryIds) ? failed('branchMissing') : ready;
+  return branchMissing(record.leafId, file) ? failed('branchMissing') : ready;
 };
 
 const recoveryOf = async (

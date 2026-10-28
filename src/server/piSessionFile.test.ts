@@ -2,6 +2,7 @@ import { expect, it } from 'bun:test';
 import { mkdir, writeFile } from 'node:fs/promises';
 import { join, relative } from 'node:path';
 
+import { invariant } from '../invariant.ts';
 import { isSavedSessionFile, readPiSessionFile } from './piSessionFile.ts';
 import type { PiSessionFile } from './piSessionFile.ts';
 import { sessionDirectory, snapshotsAround, writePiSession } from './piSessionFixtures.ts';
@@ -24,16 +25,90 @@ const writeLines = async (directory: string, text: string): Promise<string> => {
   return sessionFile;
 };
 
-it('reads the session id and entry ids of a pi session', async () => {
+it('reads the session id, and the id and parent link of each entry, of a pi session', async () => {
   const directory = await sessionDirectory();
   const { sessionFile, sessionId, entryIds } = writePiSession(directory);
+  const [first, second] = entryIds;
+
+  invariant(first !== undefined && second !== undefined, 'The session has two entries.');
 
   const read = await readInDirectory(directory, sessionFile);
 
-  expect(read).toEqual({ status: 'read', sessionId, entryIds: new Set(entryIds) });
+  expect(read).toEqual({
+    status: 'read',
+    sessionId,
+    linked: true,
+    entries: [
+      { id: first, parent: { kind: 'root' } },
+      { id: second, parent: { kind: 'entry', id: first } },
+    ],
+  });
 });
 
-it('skips blank and malformed lines before and after the header', async () => {
+it('keeps an entry whose parent id is neither a string nor absent with a malformed link', async () => {
+  const directory = await sessionDirectory();
+  const lines = ['{"type":"session","id":"s"}', '{"id":"b","parentId":7}', '{"id":"a"}'];
+
+  const sessionFile = await writeLines(directory, lines.join('\n'));
+
+  const read = await readInDirectory(directory, sessionFile);
+
+  expect(read).toEqual({
+    status: 'read',
+    sessionId: 's',
+    linked: false,
+    entries: [
+      { id: 'b', parent: { kind: 'malformed' } },
+      { id: 'a', parent: { kind: 'root' } },
+    ],
+  });
+});
+
+it.each([
+  ['no version', '{"type":"session","id":"s"}', false],
+  ['version 1', '{"type":"session","version":1,"id":"s"}', false],
+  ['version 2', '{"type":"session","version":2,"id":"s"}', true],
+  ['a null version', '{"type":"session","version":null,"id":"s"}', false],
+  ['version "1" as text', '{"type":"session","version":"1","id":"s"}', false],
+  ['version "3" as text', '{"type":"session","version":"3","id":"s"}', true],
+  ['a version that is not a number', '{"type":"session","version":"oops","id":"s"}', true],
+  ['an object as its version', '{"type":"session","version":{},"id":"s"}', true],
+])(
+  'reads a header with %s as linked unless pi relinks it below version 2',
+  async (_name, header, linked) => {
+    const directory = await sessionDirectory();
+    const sessionFile = await writeLines(directory, `${header}\n{"id":"a"}`);
+
+    expect(await readInDirectory(directory, sessionFile)).toMatchObject({ status: 'read', linked });
+  },
+);
+
+it('reads an empty entry id as no id, as pi does', async () => {
+  const directory = await sessionDirectory();
+  const sessionFile = await writeLines(directory, '{"type":"session","id":"s"}\n{"id":""}');
+
+  expect(await readInDirectory(directory, sessionFile)).toMatchObject({
+    entries: [{ id: undefined }],
+  });
+});
+
+it('reads an empty parent id as a root, as pi does', async () => {
+  const directory = await sessionDirectory();
+  const lines = ['{"type":"session","id":"s"}', '{"id":"a","parentId":""}'];
+
+  const sessionFile = await writeLines(directory, lines.join('\n'));
+
+  const read = await readInDirectory(directory, sessionFile);
+
+  expect(read).toEqual({
+    status: 'read',
+    sessionId: 's',
+    linked: false,
+    entries: [{ id: 'a', parent: { kind: 'root' } }],
+  });
+});
+
+it('skips blank, unparsable, and falsy lines, and a later session header', async () => {
   const directory = await sessionDirectory();
 
   const lines = [
@@ -45,8 +120,7 @@ it('skips blank and malformed lines before and after the header', async () => {
     '""',
     '{"type":"session","id":"s"}',
     '  ',
-    '7',
-    '{"type":"label"}',
+    '{"type":"session","id":"t"}',
     '{"id":"a"}',
     '{"id":',
   ];
@@ -55,7 +129,32 @@ it('skips blank and malformed lines before and after the header', async () => {
 
   const read = await readInDirectory(directory, sessionFile);
 
-  expect(read).toEqual({ status: 'read', sessionId: 's', entryIds: new Set(['a']) });
+  expect(read).toEqual({
+    status: 'read',
+    sessionId: 's',
+    linked: false,
+    entries: [{ id: 'a', parent: { kind: 'root' } }],
+  });
+});
+
+it('keeps a truthy value without an id as an entry without an id, as pi indexes it', async () => {
+  const directory = await sessionDirectory();
+  const lines = ['{"type":"session","id":"s"}', '7', '{"type":"label"}', '{"id":"a"}'];
+
+  const sessionFile = await writeLines(directory, lines.join('\n'));
+
+  const read = await readInDirectory(directory, sessionFile);
+
+  expect(read).toEqual({
+    status: 'read',
+    sessionId: 's',
+    linked: false,
+    entries: [
+      { id: undefined, parent: { kind: 'root' } },
+      { id: undefined, parent: { kind: 'root' } },
+      { id: 'a', parent: { kind: 'root' } },
+    ],
+  });
 });
 
 it('leaves an unterminated last line as it is', async () => {
@@ -65,7 +164,13 @@ it('leaves an unterminated last line as it is', async () => {
 
   const read = await readInDirectory(directory, sessionFile);
 
-  expect(read).toEqual({ status: 'read', sessionId: 's', entryIds: new Set(['a']) });
+  expect(read).toEqual({
+    status: 'read',
+    sessionId: 's',
+    linked: false,
+    entries: [{ id: 'a', parent: { kind: 'root' } }],
+  });
+
   expect(await Bun.file(sessionFile).text()).toBe(text);
 });
 
