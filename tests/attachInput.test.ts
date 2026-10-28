@@ -724,6 +724,69 @@ it('focuses a pane without a mouse mode, sends it nothing, and sends later keys 
   expect(receivedBy(1)).toBe('');
 });
 
+// Pane 1's first cell is outer column 22 and row 2, inside a one-cell frame.
+it('keeps a drag and release that cross into another pane on the pressed pane', async () => {
+  const { type, receivedBy, until } = await setupAttach(ModeFlag.buttonMouse | ModeFlag.sgrMouse, {
+    secondPane: true,
+  });
+
+  type('\x1b[<0;25;5M\x1b[<32;60;6M\x1b[<0;60;6mx');
+
+  await until(() => receivedBy(1).endsWith('x'));
+  expect(receivedBy(1)).toBe('\x1b[<0;4;4M\x1b[<32;28;5M\x1b[<0;28;5mx');
+  expect(receivedBy(2)).toBe('');
+});
+
+it('sends the drag and release of a press made in insert after Ctrl+B', async () => {
+  const { type, receivedBy, statusBar, until } = await setupAttach(
+    ModeFlag.buttonMouse | ModeFlag.sgrMouse,
+    { secondPane: true },
+  );
+
+  type('\x1b[<0;25;5M');
+  await until(() => receivedBy(1) === '\x1b[<0;4;4M');
+
+  type('\x02');
+  await until(() => statusBar() === 'NORMAL [1]');
+
+  type('\x1b[<32;26;5M\x1b[<0;26;5m');
+
+  await until(() => receivedBy(1).endsWith('m'));
+  expect(receivedBy(1)).toBe('\x1b[<0;4;4M\x1b[<32;5;4M\x1b[<0;5;4m');
+  expect(receivedBy(2)).toBe('');
+});
+
+it('focuses an unfocused pane on a normal-mode click and sends neither pane the click', async () => {
+  const { type, receivedBy, statusBar, until } = await setupAttach(
+    ModeFlag.normalMouse | ModeFlag.sgrMouse,
+    { secondPane: true },
+  );
+
+  type('\x02');
+  await until(() => statusBar() === 'NORMAL [1]');
+
+  // An `i` that reached the pane would show the click had left normal mode.
+  type(sgrClick(54, 4) + 'ix');
+
+  await until(() => receivedBy(2).endsWith('x'));
+  expect(receivedBy(2)).toBe('x');
+  expect(receivedBy(1)).toBe('');
+});
+
+it('sends the wheel in normal mode to a pane with mouse mode 1000', async () => {
+  const { type, receivedText, statusBar, until } = await setupAttach(
+    ModeFlag.normalMouse | ModeFlag.sgrMouse,
+  );
+
+  type('\x02');
+  await until(() => statusBar() === 'NORMAL [1]');
+
+  type('\x1b[<64;25;5M');
+
+  await until(() => receivedText() !== '');
+  expect(receivedText()).toBe('\x1b[<64;5;5M');
+});
+
 it('turns the outer mouse modes on at attach and off after detach', async () => {
   const { outputText, hangUp, until } = await setupAttach(0);
   const on = '\x1b[?1000h\x1b[?1002h\x1b[?1003h\x1b[?1006h';
