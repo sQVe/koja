@@ -49,6 +49,14 @@ const selectedId = (view: ActionView): string | undefined =>
 const up = '\x1b[A';
 const down = '\x1b[B';
 
+it('selects the action whose title starts with the query before other matches', () => {
+  const view = openView('search');
+
+  typeQuery(view, 'new pane');
+
+  expect(selectedId(view)).toBe('pane.add');
+});
+
 it('moves the search selection with Down and Up and stops at both ends', () => {
   const view = openView('search');
 
