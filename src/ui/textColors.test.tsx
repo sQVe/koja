@@ -37,7 +37,6 @@ const pasteFlow = {
   getStatus: () => undefined,
 } as unknown as PanePaste;
 
-// The intents of the colors behind each drawn character on the row.
 const textIntents = async (node: ReactNode, row: number) => {
   const created = await testRender(node, { width: 60, height: 6 });
 
