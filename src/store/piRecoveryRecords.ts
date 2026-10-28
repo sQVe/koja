@@ -20,7 +20,7 @@ export interface SavedPiRecord {
 
 // A saved pi value that did not parse. The writer saves raw back, so a later version can still
 // read it.
-interface MalformedPiRecord {
+export interface MalformedPiRecord {
   kind: 'malformed';
   raw: unknown;
   message: string;

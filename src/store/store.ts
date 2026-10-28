@@ -46,7 +46,7 @@ import {
 
 export { applyGonePiQuit, applyPiReport, piRecordOf } from './piReportTransitions.ts';
 export type { PiEvent, PiProcess, PiRecord, PiReport } from './piReportTransitions.ts';
-export type { SavedPi, SavedPiRecord } from './piRecoveryRecords.ts';
+export type { MalformedPiRecord, SavedPi, SavedPiRecord } from './piRecoveryRecords.ts';
 
 type PaneLifecycle = 'starting' | 'running' | 'exited' | 'closing' | 'failed';
 

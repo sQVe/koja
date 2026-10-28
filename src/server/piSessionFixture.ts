@@ -1,0 +1,68 @@
+import { onTestFinished } from 'bun:test';
+import { mkdtemp, readdir, rm, stat } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+
+import { SessionManager } from '@earendil-works/pi-coding-agent';
+
+import { invariant } from '../invariant.ts';
+
+interface PiSession {
+  sessionFile: string;
+  sessionId: string;
+  entryIds: string[];
+}
+
+interface FileSnapshot {
+  name: string;
+  size: number;
+  modified: number;
+}
+
+export const sessionDirectory = async (): Promise<string> => {
+  const directory = await mkdtemp(join(tmpdir(), 'koja-pi-sessions-'));
+
+  onTestFinished(() => rm(directory, { recursive: true, force: true }));
+
+  return directory;
+};
+
+// Writes a conversation with the pinned pi, so the fixture matches the format pi saves.
+export const writePiSession = (directory: string, messages = ['first', 'second']): PiSession => {
+  const session = SessionManager.create(directory, directory);
+
+  const entryIds = messages.map((content) =>
+    session.appendMessage({ role: 'user', content, timestamp: Date.now() }),
+  );
+
+  const sessionFile = session.getSessionFile();
+
+  invariant(sessionFile !== undefined, 'pi saves a session file.');
+
+  return { sessionFile, sessionId: session.getSessionId(), entryIds };
+};
+
+const snapshotOf = async (directory: string): Promise<FileSnapshot[]> => {
+  const entries = await readdir(directory);
+  const names = entries.toSorted();
+
+  return Promise.all(
+    names.map(async (name) => {
+      const stats = await stat(join(directory, name));
+
+      return { name, size: stats.size, modified: stats.mtimeMs };
+    }),
+  );
+};
+
+// Runs the action and returns the directory's file names, sizes, and mtimes before and after it.
+export const snapshotsAround = async <Result>(
+  directory: string,
+  action: () => Promise<Result>,
+): Promise<{ result: Result; before: FileSnapshot[]; after: FileSnapshot[] }> => {
+  const before = await snapshotOf(directory);
+  const result = await action();
+  const after = await snapshotOf(directory);
+
+  return { result, before, after };
+};

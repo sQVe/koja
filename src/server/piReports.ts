@@ -23,7 +23,7 @@ type PiReportResult = Extract<ControlMessage, { type: 'piReportResult' }>['resul
 type PiStatus = Extract<ControlMessage, { type: 'piStatusReply' }>['pi'];
 type PiIneligibleReason = NonNullable<PiStatus>['ineligibleReasons'][number];
 
-const readLiveProcess = (processId: number): ProcessStat | undefined => {
+export const readLiveProcess = (processId: number): ProcessStat | undefined => {
   const stat = readStat(String(processId));
 
   if (stat === undefined || stat.state === 'Z' || stat.state === 'X') {
