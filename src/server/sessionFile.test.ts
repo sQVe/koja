@@ -5,9 +5,9 @@ import { join } from 'node:path';
 
 import { paneId, tabId, workspaceId } from '../ids.ts';
 import type { PaneId, TabId } from '../ids.ts';
-import type { SavedSession, Tab, Workspace } from '../store/store.ts';
+import type { SavedPi, SavedSession, Tab, Workspace } from '../store/store.ts';
 import type { Log } from './log.ts';
-import { readSessionFile, sessionPathFor } from './sessionFile.ts';
+import { readSessionFile, serialized, sessionPathFor } from './sessionFile.ts';
 import { createSessionWriter } from './sessionWriter.ts';
 
 const temporaryDirectory = async (): Promise<string> => {
@@ -61,9 +61,9 @@ const sessionWith = (overrides: Partial<SavedSession> = {}): SavedSession => ({
     },
   ],
   panes: [
-    { id: paneId(1), tabId: tabId(1), startFolder: undefined },
-    { id: paneId(2), tabId: tabId(1), startFolder: undefined },
-    { id: paneId(3), tabId: tabId(2), startFolder: undefined },
+    { id: paneId(1), tabId: tabId(1), startFolder: undefined, pi: undefined },
+    { id: paneId(2), tabId: tabId(1), startFolder: undefined, pi: undefined },
+    { id: paneId(3), tabId: tabId(2), startFolder: undefined, pi: undefined },
   ],
   focusedWorkspaceId: workspaceId(2),
   nextWorkspaceNumber: 3,
@@ -205,6 +205,100 @@ it('restores a version 1 file whose panes have no folder', async () => {
   expect(await readSessionFile(path)).toEqual({ kind: 'restored', session });
 });
 
+const piRecord = {
+  piVersion: '1.4.0',
+  sessionId: 'conversation-1',
+  sessionFile: '/home/user/.pi/sessions/conversation-1.jsonl',
+  leafId: undefined,
+  provider: 'anthropic',
+  model: 'claude-opus',
+  thinkingLevel: 'high',
+  ownership: 'interactive',
+  process: { id: 4242, startTime: 987_654 },
+  state: 'switching',
+  sessionFileSaved: true,
+} as const;
+
+const sessionWithPi = (pi: SavedPi): SavedSession => {
+  const session = sessionWith();
+  const [first, ...rest] = session.panes;
+
+  return { ...session, panes: [{ ...first!, pi }, ...rest] };
+};
+
+it("round-trips a pane's pi record", async () => {
+  const directory = await temporaryDirectory();
+  const path = join(directory, 'session.json');
+  const session = sessionWithPi(piRecord);
+
+  await writeFile(path, serialized(session));
+
+  const result = await readSessionFile(path);
+
+  expect(result).toEqual({ kind: 'restored', session });
+  expect(result.kind === 'restored' && result.session.panes[0]?.pi).toStrictEqual(piRecord);
+});
+
+it('restores a version 1 file without pi with no pi record on any pane', async () => {
+  const directory = await temporaryDirectory();
+  const path = join(directory, 'session.json');
+  const saved = (await savedJson(sessionWith())) as { panes: Record<string, unknown>[] };
+
+  for (const pane of saved.panes) {
+    delete pane.pi;
+  }
+
+  await writeSession(path, saved);
+
+  const result = await readSessionFile(path);
+
+  expect(result.kind).toBe('restored');
+
+  expect(result.kind === 'restored' && result.session.panes.map((pane) => pane.pi)).toEqual([
+    undefined,
+    undefined,
+    undefined,
+  ]);
+});
+
+const { process: _process, ...piWithoutProcess } = { ...piRecord, leafId: null };
+
+const badPiValues: [string, unknown][] = [
+  ['a string', 'pi'],
+  ['a missing process', piWithoutProcess],
+  ['an unknown state', { ...piWithoutProcess, process: piRecord.process, state: 'exited' }],
+];
+
+it.each(badPiValues)(
+  'restores the layout with %s as a malformed pi and saves it back unchanged',
+  async (_name, raw) => {
+    const directory = await temporaryDirectory();
+    const path = join(directory, 'session.json');
+    const saved = (await savedJson(sessionWith())) as { panes: Record<string, unknown>[] };
+
+    saved.panes[0]!.pi = raw;
+    await writeSession(path, saved);
+
+    const result = await readSessionFile(path);
+
+    if (result.kind !== 'restored') {
+      throw new Error(`Expected a restored session, got ${result.kind}.`);
+    }
+
+    const [first, ...rest] = result.session.panes;
+
+    expect(first?.pi).toMatchObject({ kind: 'malformed', raw });
+    expect(rest.map((pane) => pane.pi)).toEqual([undefined, undefined]);
+    expect(result.session.tabs).toEqual(sessionWith().tabs);
+
+    const written = JSON.parse(serialized(result.session)) as {
+      session: { panes: { pi: unknown }[] };
+    };
+
+    expect(written.session.panes[0]?.pi).toEqual(raw);
+  },
+);
+
 it('restores a version 1 file with no arrangement as legacy in tree order', async () => {
   const directory = await temporaryDirectory();
   const path = join(directory, 'session.json');
@@ -338,12 +432,22 @@ const disagreeing: [string, Partial<SavedSession>][] = [
   ['an unknown focused workspace', { focusedWorkspaceId: workspaceId(9) }],
   [
     'a pane in no layout',
-    { panes: [...sessionWith().panes, { id: paneId(4), tabId: tabId(2), startFolder: undefined }] },
+    {
+      panes: [
+        ...sessionWith().panes,
+        { id: paneId(4), tabId: tabId(2), startFolder: undefined, pi: undefined },
+      ],
+    },
   ],
   ['a pane missing from the list', { panes: sessionWith().panes.slice(1) }],
   [
     'a duplicate pane',
-    { panes: [...sessionWith().panes, { id: paneId(3), tabId: tabId(2), startFolder: undefined }] },
+    {
+      panes: [
+        ...sessionWith().panes,
+        { id: paneId(3), tabId: tabId(2), startFolder: undefined, pi: undefined },
+      ],
+    },
   ],
   ['a counter at an existing id', { nextPaneNumber: 3 }],
   [
@@ -454,7 +558,10 @@ const isolated: [string, Partial<SavedSession>][] = [
           label: undefined,
         },
       ],
-      panes: [...sessionWith().panes, { id: paneId(4), tabId: tabId(4), startFolder: undefined }],
+      panes: [
+        ...sessionWith().panes,
+        { id: paneId(4), tabId: tabId(4), startFolder: undefined, pi: undefined },
+      ],
       nextTabNumber: 5,
       nextPaneNumber: 5,
     },

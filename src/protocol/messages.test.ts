@@ -179,26 +179,43 @@ const messages: ControlMessage[] = [
   { type: 'piReportResult', result: { ok: false, reason: 'unknownPane' } },
   { type: 'piReportResult', result: { ok: false, reason: 'staleGeneration' } },
   { type: 'piStatus', paneId: pane.id },
-  { type: 'piStatusReply', paneId: pane.id, pi: null },
+  { type: 'piStatusReply', paneId: pane.id, pi: null, recovery: null },
+  { type: 'piStatusReply', paneId: pane.id, pi: null, recovery: { status: 'ready' } },
+  {
+    type: 'piStatusReply',
+    paneId: pane.id,
+    pi: null,
+    recovery: { status: 'failed', reason: 'sessionFileMissing' },
+  },
+  {
+    type: 'piStatusReply',
+    paneId: pane.id,
+    pi: null,
+    recovery: { status: 'blocked', reason: 'duplicateSession' },
+  },
   {
     type: 'piStatusReply',
     paneId: pane.id,
     pi: { state: 'switching', ineligibleReasons: ['tauWorker', 'switchPending'] },
+    recovery: null,
   },
   {
     type: 'piStatusReply',
     paneId: pane.id,
     pi: { state: 'reported', ...piStatusFields, ineligibleReasons: ['tauWorker', 'noSessionFile'] },
+    recovery: null,
   },
   {
     type: 'piStatusReply',
     paneId: pane.id,
     pi: { state: 'lost', ...piStatusFields, ownership: 'interactive', ineligibleReasons: [] },
+    recovery: null,
   },
   {
     type: 'piStatusReply',
     paneId: pane.id,
     pi: { state: 'reported', ...piStatusFields, ineligibleReasons: ['sessionNotSaved'] },
+    recovery: null,
   },
   { type: 'stop' },
   { type: 'stopResult', result: { ok: true } },
@@ -587,12 +604,18 @@ const withReport = (changes: Record<string, unknown>) => ({
   report: { ...piReportMessage.report, ...changes },
 });
 
-const piStatusReplyMessage = { type: 'piStatusReply', paneId: 'pane-1', pi: null };
+const piStatusReplyMessage = { type: 'piStatusReply', paneId: 'pane-1', pi: null, recovery: null };
+
+const blockedReplyMessage = {
+  ...piStatusReplyMessage,
+  recovery: { status: 'blocked', reason: 'duplicateSession' },
+};
 
 const switchingReplyMessage = {
   type: 'piStatusReply',
   paneId: 'pane-1',
   pi: { state: 'switching', ineligibleReasons: ['switchPending'] },
+  recovery: null,
 };
 
 const {
@@ -610,6 +633,7 @@ const lostReplyMessage = {
     state: 'lost',
     ineligibleReasons: ['noSessionFile'],
   },
+  recovery: null,
 };
 
 const piReportResultMessage = { type: 'piReportResult', result: { ok: true, status: 'recorded' } };
@@ -887,6 +911,21 @@ const refusedCases: [string, Record<string, unknown>, unknown][] = [
     'a pi status reply with an unknown top-level key',
     piStatusReplyMessage,
     { ...piStatusReplyMessage, extra: 'x' },
+  ],
+  [
+    'a pi status reply whose blocked recovery names a failure reason',
+    blockedReplyMessage,
+    { ...blockedReplyMessage, recovery: { status: 'blocked', reason: 'sessionFileMissing' } },
+  ],
+  [
+    'a pi status reply whose ready recovery has a reason',
+    { ...piStatusReplyMessage, recovery: { status: 'ready' } },
+    { ...piStatusReplyMessage, recovery: { status: 'ready', reason: 'duplicateSession' } },
+  ],
+  [
+    'a pi status reply without a recovery',
+    piStatusReplyMessage,
+    { type: 'piStatusReply', paneId: 'pane-1', pi: null },
   ],
 ];
 

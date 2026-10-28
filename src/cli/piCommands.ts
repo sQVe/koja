@@ -1,9 +1,15 @@
 import { runPiReport, runPiStatus } from '../client/client.ts';
-import type { PiReportMessage, PiReportResult, PiStatus } from '../client/client.ts';
+import type {
+  PiRecoveryStatus,
+  PiReportMessage,
+  PiReportResult,
+  PiStatus,
+} from '../client/client.ts';
 import { paneId } from '../ids.ts';
 import type { PaneId } from '../ids.ts';
 import { piReportSchema, reportPassSchema } from '../protocol/protocol.ts';
 import type { BuildVersion } from '../protocol/protocol.ts';
+import { piRecoveryReasonText } from '../server/server.ts';
 import { resolveSocketPath } from './environment.ts';
 import type { Environment } from './environment.ts';
 import { parseId } from './idParse.ts';
@@ -37,9 +43,15 @@ type PiOutput =
       ownership: 'interactive' | 'tauWorker';
     } & PiEligibilityOutput);
 
+type PiRecoveryReason = Exclude<NonNullable<PiRecoveryStatus>, { status: 'ready' }>['reason'];
+
 interface PiStatusOutput {
   pane: string;
   pi: PiOutput;
+  recovery: {
+    status: NonNullable<PiRecoveryStatus>['status'];
+    reason: PiRecoveryReason | null;
+  } | null;
 }
 
 const outsidePane = 'pi report runs only inside a Koja pane.';
@@ -111,6 +123,31 @@ const piTextOf = (pane: PaneId, pi: PiStatus): string => {
   return `${summary}\n${recoveryTextOf(pi.ineligibleReasons)}`;
 };
 
+const restoreOutputOf = (recovery: PiRecoveryStatus): PiStatusOutput['recovery'] => {
+  if (recovery === null) {
+    return null;
+  }
+
+  return recovery.status === 'ready'
+    ? { status: 'ready', reason: null }
+    : { status: recovery.status, reason: recovery.reason };
+};
+
+const restoreTextOf = (recovery: PiRecoveryStatus): string[] => {
+  if (recovery === null) {
+    return [];
+  }
+
+  if (recovery.status === 'ready') {
+    return ['restore  ready'];
+  }
+
+  return [`restore  ${recovery.status}: ${piRecoveryReasonText[recovery.reason]}`];
+};
+
+const statusTextOf = (pane: PaneId, pi: PiStatus, recovery: PiRecoveryStatus): string =>
+  [piTextOf(pane, pi), ...restoreTextOf(recovery)].join('\n');
+
 const runPiStatusCommand = async (
   command: PiCliCommand,
   pane: PaneId,
@@ -129,8 +166,8 @@ const runPiStatusCommand = async (
   }
 
   print<PiStatusOutput>(command.json, {
-    json: { pane, pi: piOutputOf(result.pi) },
-    text: piTextOf(pane, result.pi),
+    json: { pane, pi: piOutputOf(result.pi), recovery: restoreOutputOf(result.recovery) },
+    text: statusTextOf(pane, result.pi, result.recovery),
   });
 
   return { ok: true };

@@ -4,7 +4,7 @@ import type { PaneId } from '../ids.ts';
 import { invariant } from '../invariant.ts';
 import type { BuildVersion, ControlMessage } from '../protocol/protocol.ts';
 import { focusedPane, paneTheme } from '../store/store.ts';
-import type { Fact, Pane, State } from '../store/store.ts';
+import type { Fact, Pane, PiRecovery, State } from '../store/store.ts';
 import type { Log } from './log.ts';
 import { spawnPane } from './pane.ts';
 import type { PaneRuntime } from './pane.ts';
@@ -14,6 +14,7 @@ import { sendToForeground } from './paneNotice.ts';
 import type { ForegroundContext } from './paneNotice.ts';
 import type { RunningPane } from './paneRecord.ts';
 import { fitsReply } from './paneRows.ts';
+import { admitRestoredPane } from './piRecoveryStart.ts';
 import { readFollowFolder } from './processInfo.ts';
 import { createRowPublisher } from './rowPublisher.ts';
 import { scheduleRows } from './rowSubscriptions.ts';
@@ -35,6 +36,7 @@ export interface PaneEffectContext {
     panes: Map<PaneId, RunningPane>;
     // Whether panes start in a systemd user scope. Decided when the first pane starts.
     paneScopes: boolean | undefined;
+    piRecoveries: Map<PaneId, PiRecovery>;
   };
 }
 
@@ -256,6 +258,11 @@ export const startPane = (
 ): string | undefined => {
   const { log } = context.options;
   const { id, generation } = pane;
+
+  if (!admitRestoredPane(context, pane, report)) {
+    return undefined;
+  }
+
   const directory = startFolderOf(context, pane);
 
   if (pane.restored && !isDirectory(directory)) {

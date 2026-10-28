@@ -643,7 +643,7 @@ const startContext = (): { context: PaneEffectContext; pane: Pane } => {
       version: { version: 'test', ghostty: 'test' },
     },
     state: themed.state,
-    runtime: { panes: new Map(), clientIds: new Map(), paneScopes: false },
+    runtime: { panes: new Map(), clientIds: new Map(), paneScopes: false, piRecoveries: new Map() },
   };
 
   return { context, pane: { ...first, restored: false } };
@@ -674,6 +674,41 @@ const settle = async (): Promise<void> => {
   await nextTurn();
   await nextTurn();
 };
+
+it('spawns no shell for a restored pane whose saved pi conversation cannot reopen', () => {
+  const { context, pane } = startContext();
+  const restored = { ...pane, restored: true };
+  const recovery = { status: 'blocked', reason: 'duplicateSession' } as const;
+  const spawns: unknown[] = [];
+  const facts: Fact[] = [];
+
+  context.runtime.piRecoveries.set(pane.id, recovery);
+
+  const failure = startPane(
+    context,
+    restored,
+    (fact) => facts.push(fact),
+    (options) => {
+      spawns.push(options);
+
+      return { ok: false, message: 'spawned' };
+    },
+  );
+
+  expect(failure).toBeUndefined();
+  expect(spawns).toEqual([]);
+  expect(context.runtime.panes.has(pane.id)).toBe(false);
+
+  expect(facts).toEqual([
+    { type: 'piRecoveryChecked', paneId: pane.id, generation: pane.generation, recovery },
+    {
+      type: 'paneFailedToStart',
+      paneId: pane.id,
+      generation: pane.generation,
+      message: expect.stringContaining('another pane names this session file') as string,
+    },
+  ]);
+});
 
 it('starts a pane, records it, and reports it started and later exited', async () => {
   const { context, pane } = startContext();

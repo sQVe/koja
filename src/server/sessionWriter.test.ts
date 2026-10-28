@@ -39,7 +39,7 @@ const sessionWith = (overrides: Partial<SavedSession> = {}): SavedSession => ({
       label: undefined,
     },
   ],
-  panes: [{ id: paneId(1), tabId: tabId(1), startFolder: undefined }],
+  panes: [{ id: paneId(1), tabId: tabId(1), startFolder: undefined, pi: undefined }],
   focusedWorkspaceId: workspaceId(1),
   nextWorkspaceNumber: 2,
   nextTabNumber: 2,

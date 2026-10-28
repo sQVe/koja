@@ -21,7 +21,7 @@ import {
   defined,
   fact,
   intent,
-  noFolders,
+  noReads,
   resize,
   run,
   runLegacy,
@@ -967,7 +967,7 @@ it.each([
 });
 
 it('marks a restored pane running when it starts, not failed', () => {
-  const saved = savedSessionOf(run([createKoja]), noFolders);
+  const saved = savedSessionOf(run([createKoja]), noReads);
   const restored = intent(createState(), { type: 'restoreSession', session: saved }).state;
   const result = fact(restored, startedPane(1, restored.panes[0]?.generation ?? 0));
 

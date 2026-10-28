@@ -10,7 +10,7 @@ import {
   defined,
   fact,
   intent,
-  noFolders,
+  noReads,
   run,
   runLegacy,
   splitFirst,
@@ -384,7 +384,7 @@ it('resizes a running pane when the client resizes', () => {
 });
 
 it('keeps the size of a failed pane when the client resizes', () => {
-  const session = savedSessionOf(run([createKoja, createDocs]), noFolders);
+  const session = savedSessionOf(run([createKoja, createDocs]), noReads);
   const restored = intent(createState(), { type: 'restoreSession', session }).state;
   const attached = intent(restored, attachLarge).state;
 

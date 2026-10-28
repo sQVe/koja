@@ -79,7 +79,11 @@ const fixture = (): PiReportFixture => {
 
   const context: PiReportContext = {
     state,
-    runtime: { panes: new Map([[target, running]]) },
+    runtime: {
+      panes: new Map([[target, running]]),
+      seenSessionFiles: new Set(),
+      sessionWriter: undefined,
+    },
     options: {
       log: {
         debug: () => undefined,

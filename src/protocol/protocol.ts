@@ -10,9 +10,12 @@ export {
   answerHello,
   encodeControl,
   parseControl,
+  paneIdSchema,
   pendingPaneReadLimit,
   piReportSchema,
   reportPassSchema,
+  tabIdSchema,
+  workspaceIdSchema,
 } from './messages.ts';
 
 export type { BuildVersion, ControlMessage } from './messages.ts';

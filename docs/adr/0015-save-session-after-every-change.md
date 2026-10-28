@@ -48,16 +48,37 @@ the layout as failed with an error, and nothing starts in it. A later save keeps
 The rest of the layout restores, and repairing the missing folder or shell and restarting the server
 brings the pane back.
 
-A pane that ran pi saves the exact session file that pi reported for it. On restore, that pane
-starts its shell, and the shell starts pi on that session file. Quitting pi leaves the shell, as it
-did before the restart. Koja sends pi no prompt, so the conversation waits for the user. Pi opens
-the file at its newest saved entry.
+A pane that ran pi saves a record of it: the pi version, the session id and the exact session file
+pi reported, the last reported leaf, the provider, model, and thinking level, who owns the pi, its
+process id and start time, whether a conversation switch was pending, and whether the session file
+existed at the save. The pane's report pass and the conversation text are never saved; pi keeps the
+conversation in its own session file. A pane keeps the record it was restored with until a live pi
+reports, so a pane that failed or has not reopened pi yet keeps it for the next restart.
 
-Pi writes the session file only at the conversation's first message. Each save therefore records
-whether the file existed. A file that never existed starts pi on the same path, since no
-conversation was lost. A file that existed and is now missing, or that another live pane owns, makes
-the pane fail with an error; Koja never starts a different conversation in its place. No other
-program restarts: Koja does not replay shell history or rerun commands.
+On restore, a ready pane starts its shell, and the shell starts pi on that session file. Quitting pi
+leaves the shell, as it did before the restart. Koja sends pi no prompt, so the conversation waits
+for the user. Pi opens the file at its newest saved entry.
+
+Before any restored pane starts, the server checks every saved record once. The check only reads
+session files and process stats; it never writes a session file or starts pi. A pane whose check
+does not pass stays in the layout as failed with an error that names the reason and the session
+file, gets no shell and no input, and keeps its record for the next restart. Koja never starts a
+different conversation in its place. `koja pi status` shows each pane's result.
+
+- The pane is blocked when a Tau worker owns its pi, the owner is unknown, a conversation switch was
+  pending, another saved pane names the same session file or session id, or the saved pi process
+  still runs.
+- The pane fails when its record does not parse, it names no session file or session id, it lacks a
+  provider, model, or thinking level, or the session file is missing, empty, unreadable, not a pi
+  session, holds another session id, or lacks the saved leaf. Pi opens the file at its newest entry,
+  so the file also fails when that entry has no string id, or when its parent chain has a parent
+  that is not a string, names no entry, or loops. The model check reads only the record, not pi's
+  list of models.
+
+Pi writes the session file only at the conversation's first message. A file the save recorded as
+never existing is ready when it is still missing, since no conversation was lost. A bad `pi` value
+in the file fails only its pane, and the rest of the session restores. No other program restarts:
+Koja does not replay shell history or rerun commands.
 
 A file that is broken or has a newer version is logged with its path, and the server starts with no
 workspace. The next save copies it to a preserved file first.
@@ -84,8 +105,8 @@ workspace. The next save copies it to a preserved file first.
 - The copy is written under its final name. A crash during the copy can leave a partial preserved
   file. The original stays as it was, and the next start copies it again under the next number.
 - The server reads the filesystem on every save to find each running pane's shell folder.
-- A restored pane whose folder is gone or whose shell cannot start stays failed until the user
-  repairs it and restarts the server.
+- A restored pane whose folder is gone, whose shell cannot start, or whose pi conversation cannot
+  reopen stays failed until the user repairs it and restarts the server.
 - Other programs, such as an editor or a build, do not come back. The user starts them again.
 - A conversation's saved history returns, but not work in flight: a running tool, a partial reply,
   or an unsent draft is lost.

@@ -1,16 +1,18 @@
 import { timingSafeEqual } from 'node:crypto';
-import { statSync } from 'node:fs';
-import { isAbsolute } from 'node:path';
 
 import type { PaneId } from '../ids.ts';
 import type { ControlMessage } from '../protocol/protocol.ts';
-import { applyGonePiQuit, applyPiReport, piRecordOf } from '../store/store.ts';
+import { applyGonePiQuit, applyPiReport, piRecordOf, piRecoveryOf } from '../store/store.ts';
 import type { PiRecord, State } from '../store/store.ts';
 import type { Connection } from './connection.ts';
 import type { Log } from './log.ts';
 import type { RunningPane } from './paneRecord.ts';
+import { isSavedSessionFile } from './piSessionFile.ts';
 import { readStat } from './processGroups.ts';
 import type { ProcessStat } from './processGroups.ts';
+import { currentSession } from './sessionState.ts';
+import type { SessionContext } from './sessionState.ts';
+import type { SessionWriter } from './sessionWriter.ts';
 
 interface PiContext {
   state: State;
@@ -18,12 +20,15 @@ interface PiContext {
   options: { log: Log };
 }
 
+type PiReportContext = PiContext &
+  SessionContext & { runtime: { sessionWriter: SessionWriter | undefined } };
+
 type PiReportRequest = Extract<ControlMessage, { type: 'piReport' }>;
 type PiReportResult = Extract<ControlMessage, { type: 'piReportResult' }>['result'];
 type PiStatus = Extract<ControlMessage, { type: 'piStatusReply' }>['pi'];
 type PiIneligibleReason = NonNullable<PiStatus>['ineligibleReasons'][number];
 
-const readLiveProcess = (processId: number): ProcessStat | undefined => {
+export const readLiveProcess = (processId: number): ProcessStat | undefined => {
   const stat = readStat(String(processId));
 
   if (stat === undefined || stat.state === 'Z' || stat.state === 'X') {
@@ -77,7 +82,7 @@ const recordReport = (context: PiContext, message: PiReportRequest): PiReportRes
 };
 
 export const handlePiReport = (
-  context: PiContext,
+  context: PiReportContext,
   message: PiReportRequest,
   connection: Connection,
 ): void => {
@@ -91,17 +96,9 @@ export const handlePiReport = (
   }
 
   connection.send({ type: 'piReportResult', result });
-};
 
-const isSavedSessionFile = (path: string): boolean => {
-  if (!isAbsolute(path)) {
-    return false;
-  }
-
-  try {
-    return statSync(path).isFile();
-  } catch {
-    return false;
+  if (result.ok && result.status !== 'ignored') {
+    context.runtime.sessionWriter?.save(currentSession(context));
   }
 };
 
@@ -168,5 +165,10 @@ export const answerPiStatus = (
     return;
   }
 
-  connection.send({ type: 'piStatusReply', paneId, pi: piStatusOf(context, paneId) });
+  connection.send({
+    type: 'piStatusReply',
+    paneId,
+    pi: piStatusOf(context, paneId),
+    recovery: piRecoveryOf(context.state, paneId) ?? null,
+  });
 };

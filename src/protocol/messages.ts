@@ -52,11 +52,12 @@ const idNumber = (prefix: string) =>
     .transform((id) => Number(id.slice(prefix.length + 1)))
     .refine((number) => Number.isSafeInteger(number));
 
-const paneIdSchema: z.ZodType<PaneId> = idNumber('pane').transform(paneId);
+export const paneIdSchema: z.ZodType<PaneId> = idNumber('pane').transform(paneId);
 
-const workspaceIdSchema: z.ZodType<WorkspaceId> = idNumber('workspace').transform(workspaceId);
+export const workspaceIdSchema: z.ZodType<WorkspaceId> =
+  idNumber('workspace').transform(workspaceId);
 
-const tabIdSchema: z.ZodType<TabId> = idNumber('tab').transform(tabId);
+export const tabIdSchema: z.ZodType<TabId> = idNumber('tab').transform(tabId);
 
 const clientIdSchema: z.ZodType<ClientId> = idNumber('client').transform(clientId);
 
@@ -432,6 +433,35 @@ const piStatusSchema = z.union([
   }),
 ]);
 
+const piRecoverySchema = z.union([
+  z.null(),
+  z.strictObject({ status: z.literal('ready') }),
+  z.strictObject({
+    status: z.literal('failed'),
+    reason: z.enum([
+      'recordMalformed',
+      'noSessionFile',
+      'modelMissing',
+      'sessionFileMissing',
+      'sessionFileEmpty',
+      'sessionFileUnreadable',
+      'notPiSession',
+      'sessionIdMismatch',
+      'branchMissing',
+    ]),
+  }),
+  z.strictObject({
+    status: z.literal('blocked'),
+    reason: z.enum([
+      'externalWorker',
+      'ownershipUnknown',
+      'switchPending',
+      'duplicateSession',
+      'processSurvives',
+    ]),
+  }),
+]);
+
 const controlSchema = z.discriminatedUnion('type', [
   // A CLI client has no terminal, so it sends no size.
   z.object({ type: z.literal('hello'), version: buildVersionSchema, size: absent(sizeSchema) }),
@@ -617,7 +647,12 @@ const controlSchema = z.discriminatedUnion('type', [
   }),
   z.strictObject({ type: z.literal('piReportResult'), result: piReportOutcomeSchema }),
   z.strictObject({ type: z.literal('piStatus'), paneId: paneIdSchema }),
-  z.strictObject({ type: z.literal('piStatusReply'), paneId: paneIdSchema, pi: piStatusSchema }),
+  z.strictObject({
+    type: z.literal('piStatusReply'),
+    paneId: paneIdSchema,
+    pi: piStatusSchema,
+    recovery: piRecoverySchema,
+  }),
 ]);
 
 export type ControlMessage = z.output<typeof controlSchema>;

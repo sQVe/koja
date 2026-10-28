@@ -66,7 +66,7 @@ const savedMasterSession = (root: string): SavedSession => ({
       label: undefined,
     },
   ],
-  panes: order.map((id) => ({ id, tabId: tabId(1), startFolder: undefined })),
+  panes: order.map((id) => ({ id, tabId: tabId(1), startFolder: undefined, pi: undefined })),
   focusedWorkspaceId: workspaceId(1),
   nextWorkspaceNumber: 2,
   nextTabNumber: 2,
