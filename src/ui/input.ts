@@ -13,9 +13,8 @@ import type { ActionView, ActionViewInput } from './actionView.ts';
 import { viewKeyOf } from './actionView.ts';
 import { encodeKey, isKey, keyModifier, keyText, parseKey } from './keyEncoding.ts';
 import type { KeyEvent } from './keyEncoding.ts';
-import { createMouseCapture } from './mouseCapture.ts';
-import { encodeMouse, parseMouse } from './mouseEncoding.ts';
-import type { MouseEvent } from './mouseEncoding.ts';
+import { createMouseRouting } from './mouseRouting.ts';
+import type { ChromeTarget } from './mouseRouting.ts';
 import type { PanePaste } from './panePaste.ts';
 import type { PaneTarget } from './screenTargets.ts';
 import type { ScrollMotion } from './scrollMotions.ts';
@@ -59,10 +58,6 @@ interface TokenRouterHost {
   scroll: (action: ScrollAction) => void;
   pasteFlow: PanePaste;
 }
-
-type ChromeTarget =
-  | { kind: 'workspace'; workspaceId: WorkspaceId }
-  | { kind: 'tab'; number: number };
 
 type RoutedToken =
   | { kind: 'key'; raw: string; escapeSent: boolean }
@@ -312,7 +307,7 @@ export const createInputRouter = (host: TokenRouterHost): ((token: RoutedToken) 
   // Keys whose press Koja took. Their release must not reach the pane, which never saw the press.
   const consumedKeys = new Set<string>();
   const navigation = createWorkspaceNavigation(host);
-  const mouseCapture = createMouseCapture(host);
+  const mouse = createMouseRouting(host, navigation);
   const availableCatalog = (): ActionCatalog => availableActions(host.catalog, host.snapshot());
 
   // Whether a pane action or a tab request keeps the queue from routing.
@@ -334,63 +329,6 @@ export const createInputRouter = (host: TokenRouterHost): ((token: RoutedToken) 
     }
   };
 
-  const forwardMouse = (event: MouseEvent, target: PaneTarget): void => {
-    const bytes = encodeMouse(event, host.paneModes(target.paneId), target.column, target.row);
-
-    if (bytes.length > 0) {
-      host.sendToPane(target.paneId, bytes);
-    }
-  };
-
-  const focusChromeAt = (x: number, y: number): void => {
-    const chrome = host.chromeAt(x, y);
-
-    if (chrome === undefined) {
-      return;
-    }
-
-    if (chrome.kind === 'tab') {
-      host.tab({ kind: 'number', number: chrome.number });
-
-      return;
-    }
-
-    navigation.focusByClick(chrome.workspaceId);
-  };
-
-  const routeMouse = (raw: string): Promise<void> | undefined => {
-    const event = parseMouse(raw);
-
-    if (event === undefined) {
-      return undefined;
-    }
-
-    if (mouseCapture.ignores(event)) {
-      return undefined;
-    }
-
-    const startsLeftPress = mouseCapture.begin(event) && event.button === 0;
-
-    if (startsLeftPress) {
-      focusChromeAt(event.x, event.y);
-    }
-
-    const placedTarget = mouseCapture.targetOf(event);
-    const target = placedTarget ?? mouseCapture.unplacedRelease(event);
-
-    mouseCapture.finish(event, placedTarget);
-
-    if (target === undefined) {
-      return undefined;
-    }
-
-    forwardMouse(event, target);
-
-    const unfocused = target.paneId !== host.focusedPane();
-
-    return startsLeftPress && unfocused ? host.focusPane(target.paneId) : undefined;
-  };
-
   const runEffect = (effect: KeyEffect): Promise<void> | undefined => {
     if (effect.kind === 'scroll') {
       host.scroll(effect.action);
@@ -401,6 +339,7 @@ export const createInputRouter = (host: TokenRouterHost): ((token: RoutedToken) 
     }
 
     if (effect.kind === 'detach') {
+      mouse.releaseGesture();
       host.detach();
     }
 
@@ -428,10 +367,8 @@ export const createInputRouter = (host: TokenRouterHost): ((token: RoutedToken) 
       trackConsumed(parseKey(token.raw), nothing);
     }
 
-    const event = token.kind === 'mouse' ? parseMouse(token.raw) : undefined;
-
-    if (event !== undefined) {
-      mouseCapture.drop(event);
+    if (token.kind === 'mouse') {
+      mouse.keep(token.raw);
     }
   };
 
@@ -509,7 +446,7 @@ export const createInputRouter = (host: TokenRouterHost): ((token: RoutedToken) 
     escapeInView = false;
 
     if (token.kind === 'mouse') {
-      const settled = routeMouse(token.raw);
+      const settled = mouse.route(token.raw);
 
       escapeInPane = false;
 

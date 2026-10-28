@@ -32,6 +32,7 @@ interface GonePanes {
   unplaced: Set<PaneId>;
   missing: Set<PaneId>;
   sizes: Map<PaneId, { columns: number; rows: number }>;
+  replacedBy: Map<PaneId, PaneId>;
 }
 
 interface InputHarness {
@@ -61,6 +62,7 @@ interface InputHarness {
   answerPaneAction: () => Promise<void>;
   changeStore: (next: StoreSnapshot) => void;
   store: () => StoreSnapshot;
+  replacePane: (pane: PaneId, replacement: PaneId | undefined) => void;
   clipboardReads: ClipboardReadFake[];
   pasteRequests: PasteRequest[];
   answerPaste: (result: PanePasteResult) => Promise<void>;
@@ -246,7 +248,13 @@ export const createInputHarness = (
     focused: firstWorkspace,
   };
 
-  const gone: GonePanes = { unplaced: new Set(), missing: new Set(), sizes: new Map() };
+  const gone: GonePanes = {
+    unplaced: new Set(),
+    missing: new Set(),
+    sizes: new Map(),
+    replacedBy: new Map(),
+  };
+
   const storeListeners = new Set<() => void>();
   let changedStore: StoreSnapshot | undefined;
   const store = (): StoreSnapshot => changedStore ?? storeSnapshotOf(snapshot);
@@ -317,7 +325,9 @@ export const createInputHarness = (
         return undefined;
       }
 
-      return { paneId: paneId(x < paneColumns ? 1 : 2), column: x % paneColumns, row: y };
+      const under = paneId(x < paneColumns ? 1 : 2);
+
+      return { paneId: gone.replacedBy.get(under) ?? under, column: x % paneColumns, row: y };
     },
     focusedPane: () => paneId(1),
     chromeAt: chromeAtColumn,
@@ -384,6 +394,42 @@ export const createInputHarness = (
     input({ kind: 'paste', bytes: encoder.encode(text), escapeSent: false });
   };
 
+  const changeStore = (next: StoreSnapshot): void => {
+    changedStore = next;
+
+    for (const listener of storeListeners) {
+      listener();
+    }
+  };
+
+  const replacePane = (pane: PaneId, replacement: PaneId | undefined): void => {
+    const kept = (known: PaneId): PaneId[] => {
+      if (known !== pane) {
+        return [known];
+      }
+
+      return replacement === undefined ? [] : [replacement];
+    };
+
+    const remaining = harnessTabs.map((tab): TabFixture => {
+      const panes = tab.panes.flatMap(kept);
+      const focusedPane = panes.includes(tab.focused) ? tab.focused : panes[0];
+
+      invariant(focusedPane !== undefined, 'a tab keeps a pane');
+
+      return { id: tab.id, workspaceId: tab.workspaceId, panes, focused: focusedPane };
+    });
+
+    gone.unplaced.add(pane);
+    gone.missing.add(pane);
+
+    if (replacement !== undefined) {
+      gone.replacedBy.set(pane, replacement);
+    }
+
+    changeStore(storeSnapshotOf(snapshot, remaining));
+  };
+
   const answerTab = () => {
     tabIsPending = false;
 
@@ -424,14 +470,9 @@ export const createInputHarness = (
       paneAnswers.shift()?.();
       await Promise.resolve();
     },
-    changeStore: (next) => {
-      changedStore = next;
-
-      for (const listener of storeListeners) {
-        listener();
-      }
-    },
+    changeStore,
     store,
+    replacePane,
     clipboardReads,
     pasteRequests,
     answerPaste: async (result) => {
