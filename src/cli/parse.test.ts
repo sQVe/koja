@@ -129,6 +129,12 @@ it('parses the tab commands', () => {
     tab: { action: 'layout', tabId: tabId(3), choice: 'legacy' },
     ...options,
   });
+
+  expect(parseCommand(['tab', 'layout', 'tab-3', 'master'])).toEqual({
+    kind: 'tab',
+    tab: { action: 'layout', tabId: tabId(3), choice: 'master' },
+    ...options,
+  });
 });
 
 it.each([
