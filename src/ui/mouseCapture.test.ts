@@ -3,6 +3,7 @@ import { expect, it } from 'bun:test';
 import type { StoreSnapshot } from '../client/client.ts';
 import { paneId } from '../ids.ts';
 import type { PaneId } from '../ids.ts';
+import { ModeFlag } from '../rows/rows.ts';
 import { firstWorkspace, storeSnapshotOf } from './inputFixtures.ts';
 import { createMouseCapture } from './mouseCapture.ts';
 import type { MouseEvent } from './mouseEncoding.ts';
@@ -53,6 +54,7 @@ const setup = () => {
         : { paneId: bound, column: 0, row: y };
     },
     paneSize: (known) => sizes.get(known),
+    paneModes: () => 0,
     forward: (event, target) => {
       if (pane.accepts) {
         forwarded.push({ kind: event.kind, button: event.button, target });
@@ -264,4 +266,32 @@ it('releases nothing now once the pane runs another generation', () => {
   capture.releaseNow();
 
   expect(forwarded.map((entry) => entry.kind)).toEqual(['press']);
+});
+
+it('sends the drag and release with the modes the press started with, once the pane has none', () => {
+  const modesSent: number[] = [];
+  const paneModes = { current: ModeFlag.buttonMouse | ModeFlag.sgrMouse };
+
+  const capture = createMouseCapture({
+    snapshot: () => storeSnapshotOf({ ids: [firstWorkspace], focused: firstWorkspace }),
+    mouseTarget: (x, y) => ({ paneId: left, column: x, row: y }),
+    paneSize: () => ({ columns: 10, rows: 5 }),
+    paneModes: () => paneModes.current,
+    forward: (_event, _target, modes) => {
+      modesSent.push(modes);
+
+      return true;
+    },
+  });
+
+  capture.advance(mouse('press', 0, 2, 1), true);
+  paneModes.current = 0;
+  capture.advance(mouse('drag', 0, 3, 1), true);
+  capture.advance(mouse('release', 0, 3, 1), true);
+
+  expect(modesSent).toEqual([
+    ModeFlag.buttonMouse | ModeFlag.sgrMouse,
+    ModeFlag.buttonMouse | ModeFlag.sgrMouse,
+    ModeFlag.buttonMouse | ModeFlag.sgrMouse,
+  ]);
 });

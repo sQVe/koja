@@ -9,7 +9,8 @@ interface MouseCaptureHost {
   mouseTarget: (x: number, y: number, pane?: PaneId) => PaneTarget | undefined;
   // The pane's current size, or undefined once the pane is gone.
   paneSize: (pane: PaneId) => { columns: number; rows: number } | undefined;
-  forward: (event: MouseEvent, target: PaneTarget) => boolean;
+  paneModes: (pane: PaneId) => number;
+  forward: (event: MouseEvent, target: PaneTarget, modes: number) => boolean;
 }
 
 interface MouseStep {
@@ -26,6 +27,7 @@ interface Capture {
   button: number;
   pane: PaneId | undefined;
   generation: number | undefined;
+  modes: number;
   delivered: boolean;
   last: PaneTarget | undefined;
 }
@@ -50,6 +52,8 @@ export const createMouseCapture = (host: MouseCaptureHost): MouseCapture => {
   // presses, drags, and releases are ignored until then.
   // `last` is the latest target forwarded to the pane. A release that finds the pane no longer
   // placed, such as after a tab switch or a zoom, goes there.
+  // `modes` are the pane's mouse modes at the press. The pane's rows may be gone by the release,
+  // so the gesture is encoded with these.
   let captured: Capture | undefined;
 
   const generationOf = (pane: PaneId | undefined): number | undefined =>
@@ -79,17 +83,25 @@ export const createMouseCapture = (host: MouseCaptureHost): MouseCapture => {
     };
   };
 
-  const send = (event: MouseEvent, target: PaneTarget | undefined, sends: boolean): boolean =>
-    sends && target !== undefined && host.forward(event, target);
+  const modesOf = (target: PaneTarget | undefined): number =>
+    target === undefined ? 0 : host.paneModes(target.paneId);
+
+  const send = (
+    event: MouseEvent,
+    target: PaneTarget | undefined,
+    sends: boolean,
+    modes: number,
+  ): boolean => sends && target !== undefined && host.forward(event, target, modes);
 
   const press = (event: MouseEvent, modeSends: boolean): MouseStep => {
     const pressed = host.mouseTarget(event.x, event.y);
     const pane = pressed?.paneId;
     const generation = generationOf(pane);
+    const modes = modesOf(pressed);
 
-    const delivered = send(event, pressed, modeSends);
+    const delivered = send(event, pressed, modeSends, modes);
 
-    captured = { button: event.button, pane, generation, delivered, last: pressed };
+    captured = { button: event.button, pane, generation, modes, delivered, last: pressed };
 
     return { startsPress: true, pressed };
   };
@@ -110,7 +122,9 @@ export const createMouseCapture = (host: MouseCaptureHost): MouseCapture => {
       captured = undefined;
     }
 
-    send(event, target, gesture.delivered);
+    const modes = target?.paneId === gesture.pane ? gesture.modes : modesOf(target);
+
+    send(event, target, gesture.delivered, modes);
 
     return notPress;
   };
@@ -126,7 +140,7 @@ export const createMouseCapture = (host: MouseCaptureHost): MouseCapture => {
     if (gesture === undefined || !isButtonGesture(event)) {
       const target = host.mouseTarget(event.x, event.y);
 
-      send(event, target, modeSends && !isButtonGesture(event));
+      send(event, target, modeSends && !isButtonGesture(event), modesOf(target));
 
       return notPress;
     }
@@ -144,7 +158,7 @@ export const createMouseCapture = (host: MouseCaptureHost): MouseCapture => {
     captured = undefined;
 
     if (gesture !== undefined && stillDelivered(gesture)) {
-      send(releaseOf(gesture.button), lastCell(gesture), true);
+      send(releaseOf(gesture.button), lastCell(gesture), true, gesture.modes);
     }
   };
 
