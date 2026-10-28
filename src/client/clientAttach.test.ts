@@ -3,7 +3,7 @@ import { mkdtemp, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
-import { paneId, tabId, workspaceId } from '../ids.ts';
+import { clientId, paneId, tabId, workspaceId } from '../ids.ts';
 import {
   createFrameDecoder,
   encodeControl,
@@ -70,6 +70,42 @@ const workspace = {
   label: 'koja',
   tabIds: [firstTab.id, secondTab.id],
 } as const;
+
+const masterPane = { ...firstPane, id: paneId(9) } as const;
+
+const masterTab = {
+  ...firstTab,
+  layout: {
+    kind: 'split',
+    direction: 'right',
+    ratio: 0.5,
+    first: { kind: 'pane', paneId: firstPane.id },
+    second: { kind: 'pane', paneId: masterPane.id },
+  },
+  arrangement: { choice: 'master', order: [firstPane.id, masterPane.id] },
+} as const;
+
+const masterSnapshotMessage = (revision: number, clientSize: typeof size): ControlMessage => {
+  const view = {
+    focusedWorkspaceId: workspace.id,
+    activeTabs: [{ workspaceId: workspace.id, tabId: firstTab.id }],
+    scrolls: [],
+  };
+
+  return {
+    type: 'snapshot',
+    snapshot: {
+      revision,
+      workspaces: [workspace],
+      tabs: [masterTab, secondTab],
+      panes: [firstPane, masterPane],
+      defaultView: view,
+      attachedClientId: clientId(1),
+      foregroundClientId: clientId(1),
+      clients: [{ id: clientId(1), size: clientSize, theme: undefined, view }],
+    },
+  };
+};
 
 const snapshotMessage = (
   revision: number,
@@ -313,6 +349,41 @@ it('does not release held input for rows of a pane that is not shown', async () 
   expect(session.rowCache(paneId(7))).toBeDefined();
   expect(session.tabPending()).toBe(true);
   expect(releaseCount()).toBe(0);
+});
+
+it('drops the row caches of a master tab that becomes too small to draw', async () => {
+  let resizes = 0;
+
+  const tooSmall: ControlMessage = {
+    type: 'change',
+    revision: 2,
+    change: { type: 'clientResized', clientId: clientId(1), size: { columns: 6, rows: 4 } },
+  };
+
+  const peer = defaultPeer({
+    onHello: () => [{ type: 'welcome' }, masterSnapshotMessage(1, size)],
+    onResize: () => {
+      resizes += 1;
+
+      return resizes === 1 ? [rowsFrame(7)] : [tooSmall];
+    },
+  });
+
+  const session = await attach(peer);
+  const arrived = Promise.withResolvers<undefined>();
+
+  session.subscribeRows(() => {
+    arrived.resolve(undefined);
+  });
+
+  session.resize({ columns: 90, rows: 20 });
+  await arrived.promise;
+  expect(session.rowCache(paneId(7))).toBeDefined();
+
+  session.resize({ columns: 90, rows: 20 });
+  await untilRevision(session, 2);
+
+  expect(session.rowCache(paneId(7))).toBeUndefined();
 });
 
 it('releases held input at once when the tab request fails', async () => {

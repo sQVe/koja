@@ -1,6 +1,5 @@
 import type { PaneId } from '../ids.ts';
-import { paneSize, tabPanes } from '../layout.ts';
-import { shownTabOf, viewedPane } from './snapshot.ts';
+import { shownPaneIds, viewedPane } from './snapshot.ts';
 import type { StoreSnapshot } from './snapshot.ts';
 
 // Undefined when no pane is shown.
@@ -25,15 +24,8 @@ export interface GateResult {
   released: boolean;
 }
 
-const fitsShownTab = (snapshot: StoreSnapshot): boolean => {
-  const tab = shownTabOf(snapshot);
-  const client = snapshot.clients.find((known) => known.id === snapshot.attachedClientId);
-
-  return tab === undefined || tabPanes(tab, paneSize(client?.size)).ok;
-};
-
 export const shownPaneOf = (snapshot: StoreSnapshot | undefined): ShownPane => {
-  if (snapshot === undefined || !fitsShownTab(snapshot)) {
+  if (snapshot === undefined || shownPaneIds(snapshot).size === 0) {
     return undefined;
   }
 

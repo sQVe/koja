@@ -574,6 +574,45 @@ describe('shownPaneIds', () => {
   it('lists no pane while no tab is shown', () => {
     expect(shownPaneIds(focusing(workspaceId(3)))).toEqual(new Set());
   });
+
+  describe('of a master tab', () => {
+    const masterTab = {
+      ...splitTab,
+      layout: {
+        kind: 'split' as const,
+        direction: 'right' as const,
+        ratio: 0.5,
+        first: { kind: 'pane' as const, paneId: paneId(1) },
+        second: { kind: 'pane' as const, paneId: paneId(3) },
+      },
+      arrangement: { choice: 'master' as const, order: [paneId(1), paneId(3)] },
+    };
+
+    const attachedAt = (clientSize: { columns: number; rows: number }): StoreSnapshot => {
+      const ownView = {
+        ...first,
+        size: clientSize,
+        view: { ...placed.defaultView, focusedWorkspaceId: workspaceId(1) },
+      };
+
+      return {
+        ...placed,
+        tabs: [masterTab, secondTab],
+        clients: [ownView],
+        attachedClientId: ownView.id,
+      };
+    };
+
+    it('lists the panes the master tab places when the attached client fits it', () => {
+      expect(shownPaneIds(attachedAt({ columns: 80, rows: 24 }))).toEqual(
+        new Set([paneId(1), paneId(3)]),
+      );
+    });
+
+    it('lists no pane when the attached client is too small for the master tab', () => {
+      expect(shownPaneIds(attachedAt({ columns: 6, rows: 4 }))).toEqual(new Set());
+    });
+  });
 });
 
 it('keeps every pane as it is when a pane is focused', () => {
