@@ -188,6 +188,7 @@ const commands = (): BenchmarkConfiguration['commands'] => ({
   server: recordedCommand(serverArguments(recordedSocket)),
   attach: recordedCommand(attachArguments(recordedSocket)),
   workspaceCreate: recordedKoja('workspace', 'create', '<run>/work', '--focus', '--json'),
+  tabLayout: recordedKoja('tab', 'layout', '<visible-tab>', 'legacy', '--json'),
   paneSplit: [
     recordedKoja('pane', 'split', '<first-pane>', '--direction', 'below', '--json'),
     recordedKoja('pane', 'split', '<second-pane>', '--direction', 'right', '--json'),

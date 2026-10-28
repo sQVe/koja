@@ -375,6 +375,11 @@ export const createBenchmarkPanes = async (
     throw new Error('The workspace reported no pane.');
   }
 
+  // The saved baseline measured split panes, and a new tab starts in master layout.
+  const legacy = await koja('tab', 'layout', first.tab, 'legacy', '--json');
+
+  failOnCli(legacy, 'tab layout');
+
   const second = await splitPane(koja, first.id, 'below');
   const third = await splitPane(koja, second, 'right');
   const fourth = await splitPane(koja, first.id, 'right');
