@@ -44,7 +44,7 @@ type SplitDirection = Extract<Layout, { kind: 'split' }>['direction'];
 const absent = <Schema extends z.ZodType>(schema: Schema) =>
   schema.nullable().transform((value) => value ?? undefined);
 
-// Accepts only the form the id constructor writes, so a parsed id equals the id that was sent.
+// Accepts only the form the id constructor writes, so a parsed id equals the id that was written.
 const idNumber = (prefix: string) =>
   z
     .string()
@@ -52,11 +52,12 @@ const idNumber = (prefix: string) =>
     .transform((id) => Number(id.slice(prefix.length + 1)))
     .refine((number) => Number.isSafeInteger(number));
 
-const paneIdSchema: z.ZodType<PaneId> = idNumber('pane').transform(paneId);
+export const paneIdSchema: z.ZodType<PaneId> = idNumber('pane').transform(paneId);
 
-const workspaceIdSchema: z.ZodType<WorkspaceId> = idNumber('workspace').transform(workspaceId);
+export const workspaceIdSchema: z.ZodType<WorkspaceId> =
+  idNumber('workspace').transform(workspaceId);
 
-const tabIdSchema: z.ZodType<TabId> = idNumber('tab').transform(tabId);
+export const tabIdSchema: z.ZodType<TabId> = idNumber('tab').transform(tabId);
 
 const clientIdSchema: z.ZodType<ClientId> = idNumber('client').transform(clientId);
 

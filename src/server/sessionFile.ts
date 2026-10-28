@@ -3,10 +3,9 @@ import { join } from 'node:path';
 
 import { z } from 'zod';
 
-import { paneId, tabId, workspaceId } from '../ids.ts';
-import type { PaneId, TabId, WorkspaceId } from '../ids.ts';
 import { layoutPaneIds, legacyArrangement } from '../layout.ts';
 import type { Arrangement, Layout } from '../layout.ts';
+import { paneIdSchema, tabIdSchema, workspaceIdSchema } from '../protocol/protocol.ts';
 import type { SavedPi, SavedPiRecord, SavedSession } from '../store/store.ts';
 import { socketKeyFor, usableStateHome } from './log.ts';
 
@@ -30,20 +29,6 @@ export const sessionPathFor = (
 
 const describeError = (error: unknown): string =>
   error instanceof Error ? error.message : String(error);
-
-// Accepts only the form the id constructor writes, so a parsed id equals the id that was saved.
-const idNumber = (prefix: string) =>
-  z
-    .string()
-    .regex(new RegExp(`^${prefix}-(0|[1-9][0-9]*)$`))
-    .transform((id) => Number(id.slice(prefix.length + 1)))
-    .refine((number) => Number.isSafeInteger(number));
-
-const paneIdSchema: z.ZodType<PaneId> = idNumber('pane').transform(paneId);
-
-const workspaceIdSchema: z.ZodType<WorkspaceId> = idNumber('workspace').transform(workspaceId);
-
-const tabIdSchema: z.ZodType<TabId> = idNumber('tab').transform(tabId);
 
 // JSON has no undefined, so the writer saves an absent id as null.
 const absent = <Schema extends z.ZodType>(schema: Schema) =>
