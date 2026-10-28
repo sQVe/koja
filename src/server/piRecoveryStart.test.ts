@@ -74,8 +74,8 @@ const admitted = (state: State, recoveries: [PaneId, PiRecovery][], pane = first
         debug: () => {},
         info: () => {},
         warn: () => {},
-        error: (_message: string, fields?: Record<string, unknown>) => {
-          errors.push(fields);
+        error: (text: string, fields?: Record<string, unknown>) => {
+          errors.push({ logged: text !== '', ...fields });
         },
       },
     },
@@ -148,7 +148,7 @@ it('reports a ready result once and lets the restored pane start', () => {
   });
 });
 
-it('fails a restored pane whose pi cannot reopen, naming the reason and the session file', () => {
+it('fails and logs a restored pane whose pi cannot reopen, naming the reason and the session file', () => {
   const state = restoredWith(record);
   const { generation } = firstPane(state);
   const recovery: PiRecovery = { status: 'failed', reason: 'sessionIdMismatch' };
@@ -162,7 +162,7 @@ it('fails a restored pane whose pi cannot reopen, naming the reason and the sess
       { type: 'piRecoveryChecked', paneId: paneId(1), generation, recovery },
       { type: 'paneFailedToStart', paneId: paneId(1), generation, message },
     ],
-    errors: [{ paneId: paneId(1), message }],
+    errors: [{ logged: true, paneId: paneId(1), message }],
     left: [],
   });
 });
