@@ -14,6 +14,7 @@ import {
 import type { TerminalSize } from '../layout.ts';
 import { fitPanes, lonePaneSize } from './paneSizes.ts';
 import { withoutStartupRecords } from './paneStartupRecords.ts';
+import { withoutRestoredPi } from './piRecoveryRecords.ts';
 import type { Change, Fact, Intent, Pane, StartFallback, State, Tab } from './store.ts';
 import { masterPlacement } from './tabLayoutTransitions.ts';
 import { removeTab, showTab } from './tabTransitions.ts';
@@ -225,7 +226,7 @@ const closePaneIn = (state: State, tab: Tab, id: PaneId): Proposal => {
   const closedTab: Tab = { ...tab, layout, arrangement, focusedPaneId, zoomedPaneId };
 
   const closed: State = {
-    ...withoutStartupRecords(state, [id]),
+    ...withoutRestoredPi(withoutStartupRecords(state, [id]), [id]),
     tabs: state.tabs.map((known) => (known.id === tab.id ? closedTab : known)),
     panes: state.panes.filter((pane) => pane.id !== id),
   };

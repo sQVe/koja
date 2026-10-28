@@ -1,8 +1,9 @@
 import type { PaneId } from '../ids.ts';
-import { savedSessionOf } from '../store/store.ts';
+import { piRecordOf, savedSessionOf } from '../store/store.ts';
 import type { Change, Intent, SavedSession, State } from '../store/store.ts';
 import type { Log } from './log.ts';
 import type { RunningPane } from './paneRecord.ts';
+import { isSavedSessionFile } from './piReports.ts';
 import { readSavedFolder } from './processInfo.ts';
 import type { readSessionFile } from './sessionFile.ts';
 
@@ -47,8 +48,25 @@ const readSavedFolders = (context: SessionContext): Map<PaneId, string> => {
   return folders;
 };
 
+const readSavedSessionFiles = (state: State): Set<string> => {
+  const files = new Set<string>();
+
+  for (const pane of state.panes) {
+    const sessionFile = piRecordOf(state, pane.id)?.report.sessionFile;
+
+    if (sessionFile !== undefined && isSavedSessionFile(sessionFile)) {
+      files.add(sessionFile);
+    }
+  }
+
+  return files;
+};
+
 export const currentSession = (context: SessionContext): SavedSession =>
-  savedSessionOf(context.state, readSavedFolders(context));
+  savedSessionOf(context.state, {
+    folders: readSavedFolders(context),
+    savedSessionFiles: readSavedSessionFiles(context.state),
+  });
 
 export const unusableKindOf = (saved: SessionRead | undefined): 'broken' | 'newer' | undefined => {
   if (saved?.kind === 'broken' || saved?.kind === 'newer') {

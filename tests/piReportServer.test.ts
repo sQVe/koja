@@ -289,6 +289,35 @@ const startSavedClient = async (directory: string) => {
   return { ...started, client: await connectCli(started.socketPath) };
 };
 
+it('saves the pi record of an accepted report without the report pass', async () => {
+  const directory = await temporaryDirectory();
+  const { server, client, socketPath } = await startSavedServer(directory);
+  const sessionPath = join(directory, 'session.json');
+
+  await createWorkspace(socketPath, directory, 'test');
+
+  const recorded = await recordShell(client, paneId(1));
+
+  const savedText = (): string =>
+    existsSync(sessionPath) ? readFileSync(sessionPath, 'utf8') : '';
+
+  await waitFor(() => savedText().includes('"pi":{'));
+
+  const saved = JSON.parse(savedText()) as { session: { panes: { pi: unknown }[] } };
+  const { startTime } = readStat(String(recorded.processId))!;
+
+  expect(saved.session.panes[0]?.pi).toEqual({
+    ...identityFieldsOf(recorded.report),
+    leafId: 'leaf',
+    process: { id: recorded.processId, startTime },
+    state: 'reported',
+    sessionFileSaved: false,
+  });
+
+  expect(savedText()).not.toContain(recorded.pass);
+  expect(server.snapshot().panes[0]?.lifecycle).toBe('running');
+});
+
 it('refuses the old pass after restoring the pane with a new shell generation', async () => {
   const directory = await temporaryDirectory();
   const first = await startSavedClient(directory);

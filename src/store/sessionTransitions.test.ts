@@ -13,7 +13,7 @@ import {
   defined,
   fact,
   intent,
-  noFolders,
+  noReads,
   richSession,
   run,
   runLegacy,
@@ -23,7 +23,7 @@ import {
 
 const restoreIntent = (state: State): Intent => ({
   type: 'restoreSession',
-  session: savedSessionOf(state, noFolders),
+  session: savedSessionOf(state, noReads),
 });
 
 const failRestoredSecondPane = () => {
@@ -44,7 +44,7 @@ it('restores a saved session with its ids, focus, and zoom', () => {
   const saved = runLegacy(richSession);
   const result = intent(attachedEmpty(), restoreIntent(saved));
 
-  expect(savedSessionOf(result.state, noFolders)).toEqual(savedSessionOf(saved, noFolders));
+  expect(savedSessionOf(result.state, noReads)).toEqual(savedSessionOf(saved, noReads));
   expect(result.state.panes).toHaveLength(4);
   expect(result.state.panes.every((pane) => pane.lifecycle === 'starting')).toBe(true);
   expect(result.state.tabs.some((tab) => tab.zoomedPaneId === paneId(4))).toBe(true);
@@ -122,7 +122,7 @@ it('keeps a restored pane that fails to start, with its error', () => {
 
 it('removes a failed pane when it is closed, and saves it until then', () => {
   const { result } = failRestoredSecondPane();
-  const saved = savedSessionOf(result.state, noFolders);
+  const saved = savedSessionOf(result.state, noReads);
 
   expect(saved.panes.map((pane) => pane.id)).toEqual([paneId(1), paneId(2)]);
 

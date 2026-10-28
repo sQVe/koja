@@ -2,6 +2,7 @@ import { expect, it, onTestFinished, spyOn } from 'bun:test';
 
 import type { PaneId } from '../ids.ts';
 import { applyPiReport } from '../store/store.ts';
+import type { PiReport } from '../store/store.ts';
 import type { RunningPane } from './paneRecord.ts';
 import { fixture, identity, pass, report, target } from './piReportFixture.ts';
 import { answerPiStatus, handlePiReport } from './piReports.ts';
@@ -266,6 +267,26 @@ it('ignores a report from the recorded process with an older sequence', () => {
   ]);
 
   expect(context.state).toBe(before);
+});
+
+it('asks for a session save only for a report that records or updates the pane record', () => {
+  const { context, connection } = fixture();
+
+  const send = (token: string, changes: Partial<PiReport> = {}): boolean =>
+    handlePiReport(
+      context,
+      { type: 'piReport', paneId: target, token, report: { ...report, ...changes } },
+      connection,
+    );
+
+  const tree = { event: { kind: 'tree' }, sequence: 2 } as const;
+
+  expect([send('b'.repeat(64)), send(pass), send(pass, tree), send(pass, tree)]).toEqual([
+    false,
+    true,
+    true,
+    false,
+  ]);
 });
 
 it('refuses a report whose pass does not match the pane pass', () => {

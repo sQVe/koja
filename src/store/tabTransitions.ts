@@ -5,6 +5,7 @@ import { masterArrangement } from '../layout.ts';
 import type { Layout } from '../layout.ts';
 import { lonePaneSize } from './paneSizes.ts';
 import { withoutStartupRecords } from './paneStartupRecords.ts';
+import { withoutRestoredPi } from './piRecoveryRecords.ts';
 import type {
   Change,
   Intent,
@@ -66,9 +67,11 @@ export const removeTab = (state: State, tab: Tab, restore?: StartFallback): Prop
 
   const tabIds = owner.tabIds.filter((id) => id !== tab.id);
 
-  const next: State = withoutStartupRecords(
-    { ...state, panes: remaining, tabs },
-    removedPanes.map((pane) => pane.id),
+  const removedIds = removedPanes.map((pane) => pane.id);
+
+  const next: State = withoutRestoredPi(
+    withoutStartupRecords({ ...state, panes: remaining, tabs }, removedIds),
+    removedIds,
   );
 
   if (tabIds.length > 0) {

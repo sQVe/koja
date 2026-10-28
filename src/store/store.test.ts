@@ -16,7 +16,7 @@ import {
   createKoja,
   createTab,
   intent,
-  noFolders,
+  noReads,
   richSession,
   run,
   runLegacy,
@@ -62,7 +62,7 @@ it('saves the default view through the workspace fields and no client', () => {
     clientId: clientId(1),
   }).state;
 
-  const saved = savedSessionOf(moved, noFolders);
+  const saved = savedSessionOf(moved, noReads);
 
   expect(saved.focusedWorkspaceId).toBe(workspaceId(1));
   expect(saved.workspaces.map((workspace) => workspace.activeTabId)).toEqual([tabId(1), tabId(2)]);
@@ -70,7 +70,7 @@ it('saves the default view through the workspace fields and no client', () => {
 });
 
 it('saves a folder that was read, and keeps the restored folder for a pane with none read', () => {
-  const saved = savedSessionOf(runLegacy(richSession), noFolders);
+  const saved = savedSessionOf(runLegacy(richSession), noReads);
 
   const withFolders = {
     ...saved,
@@ -78,12 +78,13 @@ it('saves a folder that was read, and keeps the restored folder for a pane with 
       id: pane.id,
       tabId: pane.tabId,
       startFolder: `/restored/${pane.id}`,
+      pi: undefined,
     })),
   };
 
   const restored = intent(attachedEmpty(), { type: 'restoreSession', session: withFolders }).state;
   const read = new Map([[paneId(1), '/read/one']]);
-  const next = savedSessionOf(restored, read);
+  const next = savedSessionOf(restored, { ...noReads, folders: read });
 
   expect(next.panes.map((pane) => pane.startFolder)).toEqual([
     '/read/one',
@@ -93,7 +94,7 @@ it('saves a folder that was read, and keeps the restored folder for a pane with 
   ]);
 
   expect(
-    savedSessionOf(runLegacy(richSession), noFolders).panes.map((pane) => pane.startFolder),
+    savedSessionOf(runLegacy(richSession), noReads).panes.map((pane) => pane.startFolder),
   ).toEqual([undefined, undefined, undefined, undefined]);
 });
 

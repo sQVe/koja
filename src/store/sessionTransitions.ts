@@ -1,5 +1,7 @@
+import type { PaneId } from '../ids.ts';
 import { invariant } from '../invariant.ts';
 import { isLive, lonePaneSize, tabPaneSizes } from './paneSizes.ts';
+import type { RestoredPi } from './piRecoveryRecords.ts';
 import type { Change, Pane, SavedSession, State, View, WorkspaceRecord } from './store.ts';
 import { propose, refuse } from './transitionOutcome.ts';
 import type { Outcome } from './transitionOutcome.ts';
@@ -66,6 +68,16 @@ export const restoreSession = (state: State, session: SavedSession): Outcome => 
     };
   });
 
+  const restoredPi = new Map<PaneId, RestoredPi>();
+
+  for (const [index, { pi }] of session.panes.entries()) {
+    const pane = panes[index];
+
+    if (pi !== undefined && pane !== undefined) {
+      restoredPi.set(pane.id, { generation: pane.generation, pi });
+    }
+  }
+
   const defaultView: View = {
     focusedWorkspaceId: session.focusedWorkspaceId,
     activeTabs: session.workspaces.map((workspace) => ({
@@ -98,6 +110,7 @@ export const restoreSession = (state: State, session: SavedSession): Outcome => 
     nextTabNumber: Math.max(state.nextTabNumber, session.nextTabNumber),
     nextPaneNumber: Math.max(state.nextPaneNumber, session.nextPaneNumber),
     nextGeneration: state.nextGeneration + panes.length,
+    restoredPi,
   };
 
   for (const tab of session.tabs) {

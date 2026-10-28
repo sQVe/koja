@@ -76,11 +76,12 @@ const recordReport = (context: PiContext, message: PiReportRequest): PiReportRes
   return { ok: true, status: result.status };
 };
 
+// Returns whether the report changed the pane's record, so the caller saves the session.
 export const handlePiReport = (
   context: PiContext,
   message: PiReportRequest,
   connection: Connection,
-): void => {
+): boolean => {
   const result = recordReport(context, message);
 
   if (!result.ok) {
@@ -91,9 +92,11 @@ export const handlePiReport = (
   }
 
   connection.send({ type: 'piReportResult', result });
+
+  return result.ok && result.status !== 'ignored';
 };
 
-const isSavedSessionFile = (path: string): boolean => {
+export const isSavedSessionFile = (path: string): boolean => {
   if (!isAbsolute(path)) {
     return false;
   }

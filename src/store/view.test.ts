@@ -11,7 +11,7 @@ import {
   createTab,
   fact,
   intent,
-  noFolders,
+  noReads,
   run,
   twoClients,
   unknownWorkspace,
@@ -49,7 +49,7 @@ it('shows the workspace a CLI focus chose when no client is attached, after a re
 
   expect(focus.changes).toEqual([{ type: 'workspaceFocused', workspaceId: workspaceId(1) }]);
   expect(reattached.clients[0]?.view.focusedWorkspaceId).toBe(workspaceId(1));
-  expect(savedSessionOf(reattached, noFolders).focusedWorkspaceId).toBe(workspaceId(1));
+  expect(savedSessionOf(reattached, noReads).focusedWorkspaceId).toBe(workspaceId(1));
 });
 
 it('starts a new client from the default view', () => {

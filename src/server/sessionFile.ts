@@ -7,7 +7,7 @@ import { paneId, tabId, workspaceId } from '../ids.ts';
 import type { PaneId, TabId, WorkspaceId } from '../ids.ts';
 import { layoutPaneIds, legacyArrangement } from '../layout.ts';
 import type { Arrangement, Layout } from '../layout.ts';
-import type { SavedSession } from '../store/store.ts';
+import type { SavedPi, SavedPiRecord, SavedSession } from '../store/store.ts';
 import { socketKeyFor, usableStateHome } from './log.ts';
 
 type ReadSessionResult =
@@ -69,6 +69,35 @@ const arrangementSchema: z.ZodType<Arrangement> = z.object({
   order: z.array(paneIdSchema),
 });
 
+const piRecordSchema: z.ZodType<SavedPiRecord> = z.object({
+  piVersion: z.string(),
+  sessionId: absent(z.string()),
+  sessionFile: absent(z.string()),
+  leafId: absent(z.string()),
+  provider: absent(z.string()),
+  model: absent(z.string()),
+  thinkingLevel: z.string(),
+  ownership: z.string(),
+  process: z.object({ id: z.number().int().positive(), startTime: z.number().nonnegative() }),
+  state: z.enum(['reported', 'switching']),
+  sessionFileSaved: z.boolean(),
+});
+
+// A bad pi value costs only that pane its record, so the rest of the session still restores.
+const piOf = (raw: unknown): SavedPi => {
+  if (raw === undefined || raw === null) {
+    return undefined;
+  }
+
+  const parsed = piRecordSchema.safeParse(raw);
+
+  if (!parsed.success) {
+    return { kind: 'malformed', raw, message: z.prettifyError(parsed.error) };
+  }
+
+  return parsed.data;
+};
+
 const hasDuplicate = (ids: readonly string[]): boolean => new Set(ids).size !== ids.length;
 
 const idNumberOf = (id: string): number => Number(id.slice(id.lastIndexOf('-') + 1));
@@ -111,6 +140,7 @@ const sessionShape = z.object({
         .string()
         .nullish()
         .transform((value) => value ?? undefined),
+      pi: z.unknown().optional().transform(piOf),
     }),
   ),
   focusedWorkspaceId: absent(workspaceIdSchema),
@@ -310,7 +340,13 @@ export const readSessionFile = async (path: string): Promise<ReadSessionResult> 
   return parsedFile(text);
 };
 
-export const serialized = (session: SavedSession): string =>
-  JSON.stringify({ version: currentVersion, session }, (_key, value: unknown) =>
-    value === undefined ? null : value,
+const savedPiValue = (pi: SavedPi): unknown => (pi !== undefined && 'kind' in pi ? pi.raw : pi);
+
+export const serialized = (session: SavedSession): string => {
+  const panes = session.panes.map((pane) => ({ ...pane, pi: savedPiValue(pane.pi) }));
+
+  return JSON.stringify(
+    { version: currentVersion, session: { ...session, panes } },
+    (_key, value: unknown) => (value === undefined ? null : value),
   );
+};

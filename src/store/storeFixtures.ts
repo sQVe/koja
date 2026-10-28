@@ -1,8 +1,17 @@
 import { clientId, paneId, tabId, workspaceId } from '../ids.ts';
-import type { PaneId } from '../ids.ts';
 import { invariant } from '../invariant.ts';
 import { applyFact, applyIntent, createState } from './store.ts';
-import type { Applied, Client, Fact, Ignored, Intent, Rejected, State, View } from './store.ts';
+import type {
+  Applied,
+  Client,
+  Fact,
+  Ignored,
+  Intent,
+  Rejected,
+  SessionReads,
+  State,
+  View,
+} from './store.ts';
 
 const expectApplied = (result: Applied | Ignored | Rejected): Applied => {
   invariant(result.kind === 'applied', `Expected an applied transition, got ${result.kind}.`);
@@ -104,7 +113,7 @@ export const richSession: readonly Intent[] = [
   { type: 'focusWorkspace', workspaceId: workspaceId(1) },
 ];
 
-export const noFolders: ReadonlyMap<PaneId, string> = new Map();
+export const noReads: SessionReads = { folders: new Map(), savedSessionFiles: new Set() };
 
 export const attachedEmpty = (): State => intent(createState(), attachLarge).state;
 

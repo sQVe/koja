@@ -334,7 +334,9 @@ const handleFamilyRequest = (
   const dispatchIntent = (intent: Intent): DispatchResult => dispatch(context, intent);
 
   if (message.type === 'piReport') {
-    handlePiReport(context, message, connection);
+    if (handlePiReport(context, message, connection)) {
+      context.runtime.sessionWriter?.save(currentSession(context));
+    }
 
     return true;
   }

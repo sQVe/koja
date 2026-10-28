@@ -27,6 +27,9 @@ import {
   transitionPaneFact,
   zoomPane,
 } from './paneTransitions.ts';
+import { savedPiOf } from './piRecoveryRecords.ts';
+import type { RestoredPi, SavedPi } from './piRecoveryRecords.ts';
+import { piRecordOf } from './piReportTransitions.ts';
 import type { PiRecord } from './piReportTransitions.ts';
 import { restoreSession, stopServer } from './sessionTransitions.ts';
 import { setTabLayout } from './tabLayoutTransitions.ts';
@@ -43,6 +46,7 @@ import {
 
 export { applyGonePiQuit, applyPiReport, piRecordOf } from './piReportTransitions.ts';
 export type { PiEvent, PiProcess, PiRecord, PiReport } from './piReportTransitions.ts';
+export type { SavedPi, SavedPiRecord } from './piRecoveryRecords.ts';
 
 type PaneLifecycle = 'starting' | 'running' | 'exited' | 'closing' | 'failed';
 
@@ -152,6 +156,8 @@ export interface State {
   // For each split pane that has not started yet, the focus and zoom the tab had before the split.
   stateBeforeSplit: ReadonlyMap<PaneId, StateBeforeSplit>;
   piReports: ReadonlyMap<PaneId, PiRecord>;
+  // The pi record each restored pane was saved with, until the pane gets a live one or is removed.
+  restoredPi: ReadonlyMap<PaneId, RestoredPi>;
   revision: number;
 }
 
@@ -171,7 +177,7 @@ export interface StartFallback {
 export interface SavedSession {
   workspaces: readonly Workspace[];
   tabs: readonly Tab[];
-  panes: readonly { id: PaneId; tabId: TabId; startFolder: string | undefined }[];
+  panes: readonly { id: PaneId; tabId: TabId; startFolder: string | undefined; pi: SavedPi }[];
   focusedWorkspaceId: WorkspaceId | undefined;
   nextWorkspaceNumber: number;
   nextTabNumber: number;
@@ -345,6 +351,13 @@ export interface Snapshot {
   clients: readonly Client[];
 }
 
+// What the server read outside the store: each running pane's folder, and which recorded pi
+// session files exist as regular files.
+export interface SessionReads {
+  folders: ReadonlyMap<PaneId, string>;
+  savedSessionFiles: ReadonlySet<string>;
+}
+
 export { activeTabOf };
 
 export const createState = (): State => ({
@@ -367,6 +380,7 @@ export const createState = (): State => ({
   layoutArea: paneSize(undefined),
   stateBeforeSplit: new Map(),
   piReports: new Map(),
+  restoredPi: new Map(),
   revision: 0,
 });
 
@@ -428,10 +442,7 @@ export const focusedPane = (
 export const paneTheme = (state: State): Theme | undefined => attachedClientOf(state)?.theme;
 
 // A pane without a folder read keeps the folder it was restored with.
-export const savedSessionOf = (
-  state: State,
-  readFolders: ReadonlyMap<PaneId, string>,
-): SavedSession => ({
+export const savedSessionOf = (state: State, reads: SessionReads): SavedSession => ({
   workspaces: state.workspaces.map((workspace) => {
     const activeTabId = activeTabOf(state.defaultView, workspace.id);
 
@@ -443,7 +454,12 @@ export const savedSessionOf = (
   panes: state.panes.map((pane) => ({
     id: pane.id,
     tabId: pane.tabId,
-    startFolder: readFolders.get(pane.id) ?? pane.startFolder,
+    startFolder: reads.folders.get(pane.id) ?? pane.startFolder,
+    pi: savedPiOf(
+      piRecordOf(state, pane.id),
+      state.restoredPi.get(pane.id),
+      reads.savedSessionFiles,
+    ),
   })),
   focusedWorkspaceId: state.defaultView.focusedWorkspaceId,
   nextWorkspaceNumber: state.nextWorkspaceNumber,
