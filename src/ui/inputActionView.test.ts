@@ -229,11 +229,11 @@ it('routes a right click to the pane after a view swallowed the left release', (
   harness.press('?');
   harness.mouse(0, 6, 3, 'm');
   harness.press('\x1b');
+  harness.press('i');
   harness.mouse(2, 7, 4, 'M');
   harness.mouse(2, 7, 4, 'm');
 
   expect(harness.toPane).toEqual([
-    { pane: paneId(1), text: '\x1b[<0;6;3M' },
     { pane: paneId(1), text: '\x1b[<2;7;4M' },
     { pane: paneId(1), text: '\x1b[<2;7;4m' },
   ]);

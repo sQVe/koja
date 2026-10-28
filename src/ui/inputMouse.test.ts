@@ -1,7 +1,9 @@
 import { expect, it } from 'bun:test';
 
 import { paneId } from '../ids.ts';
-import { createInputHarness } from './inputFixtures.ts';
+import { invariant } from '../invariant.ts';
+import { ModeFlag } from '../rows/rows.ts';
+import { createInputHarness, decoder } from './inputFixtures.ts';
 
 it('sends a drag and the release to the pane where the press started', () => {
   const { toPane, mouse } = createInputHarness();
@@ -37,14 +39,198 @@ it('sends nothing for a press outside every pane or the drag that follows it', (
   expect(toPane).toEqual([]);
 });
 
-it('keeps the input mode and the key order when a mouse report arrives between keys', () => {
+it('keeps the input mode when a mouse report arrives between keys', () => {
   const { toPane, mouse, mode, press } = createInputHarness();
 
   press('\x02');
   mouse(0, 6, 3, 'M');
 
   expect(mode()).toBe('normal');
-  expect(toPane.map((entry) => entry.pane)).toEqual([paneId(1)]);
+  expect(toPane).toEqual([]);
+});
+
+it('focuses another pane on a normal-mode click, keeps the mode, and sends the guest nothing', async () => {
+  const { toPane, focused, mouse, mode, focusGate } = createInputHarness('normal');
+
+  mouse(0, 16, 3, 'M');
+  mouse(0, 16, 3, 'm');
+  await focusGate.current;
+
+  expect(focused).toEqual([paneId(2)]);
+  expect(toPane).toEqual([]);
+  expect(mode()).toBe('normal');
+});
+
+it('focuses another pane on an insert-mode click, keeps the mode, and sends press and release', async () => {
+  const { toPane, focused, mouse, mode, focusGate } = createInputHarness('insert');
+
+  mouse(0, 16, 3, 'M');
+  mouse(0, 16, 3, 'm');
+  await focusGate.current;
+
+  expect(focused).toEqual([paneId(2)]);
+
+  expect(toPane).toEqual([
+    { pane: paneId(2), text: '\x1b[<0;6;3M' },
+    { pane: paneId(2), text: '\x1b[<0;6;3m' },
+  ]);
+
+  expect(mode()).toBe('insert');
+});
+
+it('sends nothing for a scroll-mode click', () => {
+  const { toPane, mouse, mode } = createInputHarness('scroll');
+
+  mouse(0, 6, 3, 'M');
+  mouse(32, 7, 3, 'M');
+  mouse(0, 7, 3, 'm');
+
+  expect(toPane).toEqual([]);
+  expect(mode()).toBe('scroll');
+});
+
+it('sends the drag and release of an insert press to its pane after a switch to normal mode', () => {
+  const { toPane, mouse, press, mode } = createInputHarness('insert');
+
+  mouse(0, 6, 3, 'M');
+  press('\x02');
+  mouse(32, 16, 3, 'M');
+  mouse(0, 16, 3, 'm');
+
+  expect(mode()).toBe('normal');
+
+  expect(toPane).toEqual([
+    { pane: paneId(1), text: '\x1b[<0;6;3M' },
+    { pane: paneId(1), text: '\x1b[<32;10;3M' },
+    { pane: paneId(1), text: '\x1b[<0;10;3m' },
+  ]);
+});
+
+it('sends no drag or release of a normal press after a switch to insert mode', () => {
+  const { toPane, mouse, press, mode } = createInputHarness('normal');
+
+  mouse(0, 6, 3, 'M');
+  press('i');
+  mouse(32, 7, 3, 'M');
+  mouse(0, 7, 3, 'm');
+
+  expect(mode()).toBe('insert');
+  expect(toPane).toEqual([]);
+});
+
+it('sends nothing more for a gesture once its pane shows a new generation', () => {
+  const { toPane, mouse, store, changeStore } = createInputHarness('insert');
+
+  mouse(0, 6, 3, 'M');
+
+  const next = structuredClone(store());
+  const pressed = next.panes.find((pane) => pane.id === paneId(1));
+
+  invariant(pressed !== undefined, 'the store shows the pressed pane');
+  pressed.generation += 1;
+  changeStore(next);
+
+  mouse(32, 7, 3, 'M');
+  mouse(0, 7, 3, 'm');
+
+  expect(toPane).toEqual([{ pane: paneId(1), text: '\x1b[<0;6;3M' }]);
+});
+
+it('sends a release to neither pane once another pane takes the place of the pressed pane', () => {
+  const { toPane, mouse, replacePane } = createInputHarness('insert');
+
+  mouse(0, 6, 3, 'M');
+  replacePane(paneId(1), paneId(6));
+  mouse(0, 6, 3, 'm');
+  mouse(0, 6, 3, 'M');
+
+  expect(toPane).toEqual([
+    { pane: paneId(1), text: '\x1b[<0;6;3M' },
+    { pane: paneId(6), text: '\x1b[<0;6;3M' },
+  ]);
+});
+
+it('sends the wheel to the pane under the pointer in normal mode', () => {
+  const { toPane, mouse } = createInputHarness('normal');
+
+  mouse(65, 16, 3, 'M');
+
+  expect(toPane).toEqual([{ pane: paneId(2), text: '\x1b[<65;6;3M' }]);
+});
+
+it('sends motion without a button only in insert mode', () => {
+  const normal = createInputHarness('normal', {
+    paneModes: () => ModeFlag.anyMouse | ModeFlag.sgrMouse,
+  });
+
+  const insert = createInputHarness('insert', {
+    paneModes: () => ModeFlag.anyMouse | ModeFlag.sgrMouse,
+  });
+
+  normal.mouse(35, 6, 3, 'M');
+  insert.mouse(35, 6, 3, 'M');
+
+  expect(normal.toPane).toEqual([]);
+  expect(insert.toPane).toEqual([{ pane: paneId(1), text: '\x1b[<35;6;3M' }]);
+});
+
+it('sends the release of an insert gesture while the action view is open', () => {
+  const { toPane, mouse, press, view } = createInputHarness('insert');
+
+  mouse(0, 6, 3, 'M');
+  press('\x02');
+  press('?');
+  mouse(32, 7, 3, 'M');
+  mouse(0, 7, 3, 'm');
+
+  expect(view.getState().kind).not.toBe('closed');
+
+  expect(toPane).toEqual([
+    { pane: paneId(1), text: '\x1b[<0;6;3M' },
+    { pane: paneId(1), text: '\x1b[<0;7;3m' },
+  ]);
+});
+
+it('keeps other buttons and unreadable reports from the pane while the action view is open', () => {
+  const { toPane, mouse, press } = createInputHarness('insert');
+
+  mouse(0, 6, 3, 'M');
+  press('\x02');
+  press('?');
+  mouse(2, 16, 3, 'M');
+  mouse(2, 16, 3, 'm');
+  mouse(0, 0, 1, 'm');
+  mouse(0, 7, 3, 'm');
+
+  expect(toPane).toEqual([
+    { pane: paneId(1), text: '\x1b[<0;6;3M' },
+    { pane: paneId(1), text: '\x1b[<0;7;3m' },
+  ]);
+});
+
+it('sends the release of an insert gesture at its last cell before detaching', () => {
+  const order: string[] = [];
+
+  const { mouse, press } = createInputHarness('insert', {
+    sendToPane: (pane, bytes) => {
+      order.push(`${String(pane)} ${decoder.decode(bytes)}`);
+    },
+    detach: () => {
+      order.push('detach');
+    },
+  });
+
+  mouse(0, 6, 3, 'M');
+  mouse(32, 8, 4, 'M');
+  press('\x02');
+  press('d');
+
+  expect(order).toEqual([
+    `${String(paneId(1))} \x1b[<0;6;3M`,
+    `${String(paneId(1))} \x1b[<32;8;4M`,
+    `${String(paneId(1))} \x1b[<0;8;4m`,
+    'detach',
+  ]);
 });
 
 it('keeps the first press capture while another button presses and releases elsewhere', () => {
@@ -89,11 +275,10 @@ it('sends the release to the captured pane at its last cell once the pane is not
 });
 
 it('sends nothing and clears the capture when the captured pane no longer exists', () => {
-  const { toPane, mouse, gone } = createInputHarness();
+  const { toPane, mouse, replacePane } = createInputHarness();
 
   mouse(0, 6, 3, 'M');
-  gone.unplaced.add(paneId(1));
-  gone.missing.add(paneId(1));
+  replacePane(paneId(1), undefined);
   mouse(0, 6, 3, 'm');
   mouse(0, 16, 3, 'M');
 

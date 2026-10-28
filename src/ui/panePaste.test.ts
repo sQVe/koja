@@ -498,6 +498,34 @@ it('keeps a split escape key away from the pane when its Escape cancels a prompt
   expect(harness.mode()).toBe('insert');
 });
 
+it('sends no pane a split mouse release without a press when its Escape cancels a prompt', async () => {
+  const harness = await openHostPrompt('insert');
+
+  harness.input({ kind: 'key', raw: '\x1b', escapeSent: false });
+  harness.input({ kind: 'mouse', raw: '\x1b[<0;6;3m', escapeSent: true });
+
+  expect(harness.pasteFlow.getStatus()).toBe(canceledNotice);
+  expect(harness.toPane).toEqual([]);
+  expect(harness.sent).toEqual([]);
+});
+
+it('sends the split release of a delivered gesture to its pane when its Escape cancels a prompt', async () => {
+  const harness = createInputHarness('insert');
+
+  harness.mouse(0, 6, 3, 'M');
+  harness.pastes('one\ntwo');
+  await harness.answerPaste(confirmation);
+  harness.input({ kind: 'key', raw: '\x1b', escapeSent: false });
+  harness.input({ kind: 'mouse', raw: '\x1b[<0;7;3m', escapeSent: true });
+
+  expect(harness.pasteFlow.getStatus()).toBe(canceledNotice);
+
+  expect(harness.toPane).toEqual([
+    { pane: paneId(1), text: '\x1b[<0;6;3M' },
+    { pane: paneId(1), text: '\x1b[<0;7;3m' },
+  ]);
+});
+
 it('cancels an open prompt without sending and starts a new clipboard read on p in normal mode', async () => {
   const harness = await openHostPrompt('normal');
 

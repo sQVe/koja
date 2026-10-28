@@ -295,7 +295,7 @@ it('holds each kind of snapshot token alone behind a workspace request', () => {
   const mouseHeld = createInputHarness('normal');
 
   mouseHeld.press('j');
-  mouseHeld.mouse(0, 6, 3, 'M');
+  mouseHeld.mouse(65, 6, 3, 'M');
 
   expect(mouseHeld.toPane).toEqual([]);
 
