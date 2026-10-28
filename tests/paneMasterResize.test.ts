@@ -4,6 +4,7 @@ import { join } from 'node:path';
 
 import { z } from 'zod';
 
+import { connectAttach } from '../src/client/client.ts';
 import { paneId, tabId, workspaceId } from '../src/ids.ts';
 import { masterPanes } from '../src/layout.ts';
 import type { Layout, TerminalSize } from '../src/layout.ts';
@@ -12,7 +13,16 @@ import type { Server } from '../src/server/server.ts';
 import { createSessionWriter } from '../src/server/sessionWriter.ts';
 import type { SavedSession } from '../src/store/store.ts';
 import { cliTestTimeoutMs } from './cliHarness.ts';
-import { build, connect, startSavedServer, temporaryDirectory, waitFor } from './serverHarness.ts';
+import {
+  build,
+  connect,
+  connectCli,
+  nextOfType,
+  startSavedServer,
+  startServer,
+  temporaryDirectory,
+  waitFor,
+} from './serverHarness.ts';
 import type { TestClient } from './serverHarness.ts';
 
 interface PaneReading {
@@ -190,6 +200,49 @@ it(
 
     expect(pidsOf(restored)).toEqual(pidsOf(before));
     expect(sizesOf(restored)).toEqual(fullTerminals);
+  },
+  cliTestTimeoutMs,
+);
+
+it(
+  'releases tab input when a switch shows a master tab too small to draw',
+  async () => {
+    const directory = await temporaryDirectory();
+    const { socketPath } = await startServer(directory);
+    const cli = await connectCli(socketPath);
+
+    onTestFinished(() => {
+      cli.close();
+    });
+
+    cli.send({ type: 'tabCreate', workspaceId: workspaceId(1), cwd: undefined, focus: false });
+    await nextOfType(cli, 'tabDone');
+    cli.send({ type: 'paneAdd', paneId: paneId(2), cwd: undefined });
+    await nextOfType(cli, 'paneDone');
+
+    const result = await connectAttach(socketPath, build, { columns: 6, rows: 4 });
+
+    if (!result.ok) {
+      throw new Error(result.reason);
+    }
+
+    const { session } = result;
+
+    onTestFinished(() => {
+      session.close();
+    });
+
+    const released = Promise.withResolvers<undefined>();
+
+    session.afterTabAnswer(() => {
+      released.resolve(undefined);
+    });
+
+    session.focusTab({ kind: 'number', number: 2 });
+
+    await released.promise;
+
+    expect(session.tabPending()).toBe(false);
   },
   cliTestTimeoutMs,
 );

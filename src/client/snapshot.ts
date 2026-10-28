@@ -251,13 +251,15 @@ export const focusedPane = (snapshot: StoreSnapshot): StoreSnapshot['panes'][num
 export const viewedPane = (snapshot: StoreSnapshot): StoreSnapshot['panes'][number] | undefined =>
   paneOfView(snapshot, shownView(snapshot));
 
-// The panes the shown tab places, which the server sends rows for. A zoomed tab shows one.
-export const shownPaneIds = (snapshot: StoreSnapshot): Set<PaneId> => {
+export const shownTabOf = (snapshot: StoreSnapshot): StoreSnapshot['tabs'][number] | undefined => {
   const view = shownView(snapshot);
 
-  const tab = snapshot.tabs.find(
-    (known) => known.id === activeTabIdOf(view, view.focusedWorkspaceId),
-  );
+  return snapshot.tabs.find((known) => known.id === activeTabIdOf(view, view.focusedWorkspaceId));
+};
+
+// The panes the shown tab places, which the server sends rows for. A zoomed tab shows one.
+export const shownPaneIds = (snapshot: StoreSnapshot): Set<PaneId> => {
+  const tab = shownTabOf(snapshot);
 
   if (tab === undefined) {
     return new Set();

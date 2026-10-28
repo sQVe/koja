@@ -64,6 +64,7 @@ const scriptedShell = async (directory: string, body: string): Promise<string> =
 
 export interface PaneSetup {
   directory: string;
+  socketPath: string;
   koja: KojaRunner;
   list: () => Promise<z.infer<typeof paneListSchema>>;
   act: (...commandArguments: string[]) => Promise<string>;
@@ -140,7 +141,17 @@ export const setup = async (shellBody?: string): Promise<PaneSetup> => {
     });
   };
 
-  return { directory, koja, list, act, tabs, shellPid, useLegacy, first: first?.id ?? '' };
+  return {
+    directory,
+    socketPath,
+    koja,
+    list,
+    act,
+    tabs,
+    shellPid,
+    useLegacy,
+    first: first?.id ?? '',
+  };
 };
 
 export const pollUntil = async <Value>(

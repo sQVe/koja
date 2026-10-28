@@ -4,7 +4,7 @@ import { join } from 'node:path';
 
 import type { z } from 'zod';
 
-import { cliTestTimeoutMs } from './cliHarness.ts';
+import { cliTestTimeoutMs, runCliProcess } from './cliHarness.ts';
 import { pollUntil, setup } from './paneHarness.ts';
 import type { paneListSchema } from './paneHarness.ts';
 
@@ -194,6 +194,66 @@ it(
     const before = await list();
 
     const failed = await koja('pane', 'split', first, '--direction', 'right', '--cwd', missing);
+
+    expect(failed.exitCode).toBe(1);
+    expect(failed.stdout).toBe('');
+    expect(failed.stderr).toContain(`${missing} is not a directory.`);
+    expect(await list()).toEqual(before);
+  },
+  cliTestTimeoutMs,
+);
+
+it(
+  'starts an added pane in the folder its target pane moved to',
+  async () => {
+    const { directory, koja, list, act, first, useLegacy } = await setup();
+
+    await useLegacy();
+    const target = await makeFolder(directory, 'elsewhere');
+
+    expect((await koja('pane', 'send', `cd ${target}\n`)).exitCode).toBe(0);
+    await pollUntil(list, (panes) => folderOf(panes, first) === target);
+
+    const added = await act('add', first);
+    const panes = await pollUntil(list, (known) => folderOf(known, added) !== undefined);
+
+    expect(folderOf(panes, added)).toBe(target);
+  },
+  cliTestTimeoutMs,
+);
+
+it(
+  'resolves a relative --cwd for an added pane against the folder the CLI runs in',
+  async () => {
+    const { directory, socketPath, list, first, useLegacy } = await setup();
+
+    await useLegacy();
+    const invoked = await makeFolder(directory, 'invoked');
+    const target = await makeFolder(invoked, 'relative');
+
+    // The server runs in `directory`, so only the CLI's folder, `invoked`, names `target`.
+    const run = await runCliProcess(
+      ['pane', 'add', first, '--cwd', 'relative', '--socket', socketPath, '--json'],
+      invoked,
+    );
+
+    expect({ exitCode: run.exitCode, stderr: run.stderr }).toEqual({ exitCode: 0, stderr: '' });
+
+    const panes = await pollUntil(list, (known) => known.some((pane) => pane.cwd === target));
+
+    expect(panes.some((pane) => pane.cwd === target)).toBe(true);
+  },
+  cliTestTimeoutMs,
+);
+
+it(
+  'refuses an add --cwd that is not a directory and adds no pane',
+  async () => {
+    const { directory, koja, list, first } = await setup();
+    const missing = join(directory, 'missing');
+    const before = await list();
+
+    const failed = await koja('pane', 'add', first, '--cwd', missing);
 
     expect(failed.exitCode).toBe(1);
     expect(failed.stdout).toBe('');
