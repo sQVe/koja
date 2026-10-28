@@ -10,7 +10,7 @@ import { checkPiRecoveries } from './piRecovery.ts';
 import type { PiRecoveryReads } from './piRecovery.ts';
 import { readLiveProcess } from './piReports.ts';
 import { readPiSessionFile } from './piSessionFile.ts';
-import { sessionDirectory, snapshotsAround, writePiSession } from './piSessionFixture.ts';
+import { sessionDirectory, snapshotsAround, writePiSession } from './piSessionFixtures.ts';
 
 const recordWith = (changes: Partial<SavedPiRecord> = {}): SavedPiRecord => ({
   piVersion: '1.4.0',
