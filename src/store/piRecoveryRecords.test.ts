@@ -163,6 +163,24 @@ it('drops the restored pi record of a closed pane and of a closed tab', () => {
   expect(closedTab.restoredPi.size).toBe(0);
 });
 
+it('drops the live pi report record of a closed pane and of a closed tab', () => {
+  const restored = restoredWithPi();
+
+  const started = fact(restored, {
+    type: 'paneStarted',
+    paneId: paneId(1),
+    generation: paneOf(restored, 1).generation,
+  }).state;
+
+  const live = reported(started);
+  const closedPane = intent(live, { type: 'closePane', paneId: paneId(1) }).state;
+  const closedTab = intent(live, { type: 'closeTab', tabId: defined(live.tabs[0]).id }).state;
+
+  expect([...live.piReports.keys()]).toEqual([paneId(1)]);
+  expect(closedPane.piReports.size).toBe(0);
+  expect(closedTab.piReports.size).toBe(0);
+});
+
 it('keeps a restored record, under its new generation, only for a pane saved with one', () => {
   const saved = savedSessionOf(run([createKoja, splitFirst('right')]), noReads);
   const [first, second] = saved.panes;

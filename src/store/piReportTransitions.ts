@@ -1,6 +1,6 @@
 import type { PaneId } from '../ids.ts';
 import { invariant } from '../invariant.ts';
-import { withoutRestoredPi } from './piRecoveryRecords.ts';
+import { withoutPiRecords } from './piRecoveryRecords.ts';
 import type { State } from './store.ts';
 
 export interface PiProcess {
@@ -97,11 +97,9 @@ const withRecord = (
   record: PiRecord,
   status: PiReportStatus,
 ): PiReportApplied => {
-  const livePaneIds = new Set(state.panes.map((pane) => pane.id));
-  const kept = [...state.piReports].filter(([id]) => livePaneIds.has(id));
-  const piReports = new Map<PaneId, PiRecord>([...kept, [paneId, record]]);
+  const piReports = new Map<PaneId, PiRecord>([...state.piReports, [paneId, record]]);
 
-  return applied({ ...withoutRestoredPi(state, [paneId]), piReports }, status);
+  return applied({ ...withoutPiRecords(state, [paneId]), piReports }, status);
 };
 
 const nextRecordState = (current: PiRecord['state'], event: PiEvent): PiRecord['state'] => {

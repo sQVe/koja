@@ -93,14 +93,16 @@ export const savedPiOf = (
   savedSessionFiles: ReadonlySet<string>,
 ): SavedPi => (isOpen(live) ? savedRecordOf(live, savedSessionFiles) : restored?.pi);
 
-export const withoutRestoredPi = (state: State, removed: readonly PaneId[]): State => {
+export const withoutPiRecords = (state: State, removed: readonly PaneId[]): State => {
   const restoredPi = new Map(state.restoredPi);
+  const piReports = new Map(state.piReports);
 
   for (const id of removed) {
     restoredPi.delete(id);
+    piReports.delete(id);
   }
 
-  return { ...state, restoredPi };
+  return { ...state, restoredPi, piReports };
 };
 
 // The fact names a current pane generation. A pane restored without a record keeps none.

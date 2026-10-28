@@ -2,9 +2,9 @@ import { expect, it } from 'bun:test';
 
 import { paneId } from '../ids.ts';
 import type { PaneId } from '../ids.ts';
-import { applyGonePiQuit, applyIntent, applyPiReport, piRecordOf } from './store.ts';
+import { applyGonePiQuit, applyPiReport, piRecordOf } from './store.ts';
 import type { PiEvent, PiProcess, PiReport, State } from './store.ts';
-import { attachLarge, createKoja, defined, run, runLegacy, splitFirst } from './storeFixtures.ts';
+import { createKoja, defined, run } from './storeFixtures.ts';
 
 const firstProcess: PiProcess = { id: 100, startTime: 5000 };
 
@@ -327,24 +327,6 @@ it('refuses a quit from a gone process for a pane the state does not know', () =
   expect(result.state).toBe(reported);
 });
 
-it('drops the record of a pane the state no longer has when another pane reports', () => {
-  const split = runLegacy([attachLarge, createKoja, splitFirst('right')]);
-  const recorded = after(split, firstProcess);
-  const closed = applyIntent(recorded, { type: 'closePane', paneId: paneId(1) }).state;
-
-  const result = applyPiReport(closed, {
-    paneId: paneId(2),
-    generation: generationOf(closed, paneId(2)),
-    process: secondProcess,
-    report: reportOf(secondProcess),
-  });
-
-  const next = appliedState(result);
-
-  expect(next.piReports.has(paneId(1))).toBe(false);
-  expect(piRecordOf(next, paneId(2))).toMatchObject({ state: 'reported', process: secondProcess });
-});
-
 it('hides a record of another generation of the pane', () => {
   const reported = reportedState();
   const [pane] = reported.panes;
@@ -379,13 +361,4 @@ it('ignores a record of an earlier generation when a process of the new generati
     sequence: 1,
     report: { sessionId: 'session-b' },
   });
-});
-
-it('hides the record of a pane the state no longer has', () => {
-  const split = runLegacy([attachLarge, createKoja, splitFirst('right')]);
-  const recorded = after(split, firstProcess);
-  const closed = applyIntent(recorded, { type: 'closePane', paneId: paneId(1) }).state;
-
-  expect(closed.piReports.has(paneId(1))).toBe(true);
-  expect(piRecordOf(closed, paneId(1))).toBeUndefined();
 });
