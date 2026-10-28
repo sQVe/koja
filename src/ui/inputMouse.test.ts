@@ -106,6 +106,19 @@ it('sends the drag and release of an insert press to its pane after a switch to 
   ]);
 });
 
+it('sends no drag or release of an insert press the pane did not report', () => {
+  let reporting = 0;
+
+  const { toPane, mouse } = createInputHarness('insert', { paneModes: () => reporting });
+
+  mouse(0, 6, 3, 'M');
+  reporting = ModeFlag.buttonMouse | ModeFlag.sgrMouse;
+  mouse(32, 7, 3, 'M');
+  mouse(0, 7, 3, 'm');
+
+  expect(toPane).toEqual([]);
+});
+
 it('sends no drag or release of a normal press after a switch to insert mode', () => {
   const { toPane, mouse, press, mode } = createInputHarness('normal');
 

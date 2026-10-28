@@ -42,15 +42,22 @@ export const createMouseRouting = (
   host: MouseRoutingHost,
   navigation: WorkspaceClicks,
 ): MouseRouting => {
-  const capture = createMouseCapture(host);
-
-  const forwardMouse = (event: MouseEvent, target: PaneTarget): void => {
+  const forwardMouse = (event: MouseEvent, target: PaneTarget): boolean => {
     const bytes = encodeMouse(event, host.paneModes(target.paneId), target.column, target.row);
 
     if (bytes.length > 0) {
       host.sendToPane(target.paneId, bytes);
     }
+
+    return bytes.length > 0;
   };
+
+  const capture = createMouseCapture({
+    snapshot: host.snapshot,
+    mouseTarget: host.mouseTarget,
+    paneSize: host.paneSize,
+    forward: forwardMouse,
+  });
 
   const focusChromeAt = (x: number, y: number): void => {
     const chrome = host.chromeAt(x, y);
@@ -68,79 +75,39 @@ export const createMouseRouting = (
     navigation.focusByClick(chrome.workspaceId);
   };
 
-  const reachesPane = (event: MouseEvent): boolean => {
-    const delivery = capture.deliveryOf(event);
+  const modeSends = (event: MouseEvent): boolean =>
+    event.kind === 'wheel' || host.mode() === 'insert';
 
-    if (delivery === 'none') {
-      return event.kind === 'wheel' || host.mode() === 'insert';
+  const route = (raw: string): Promise<void> | undefined => {
+    const event = parseMouse(raw);
+
+    if (event === undefined) {
+      return undefined;
     }
 
-    return delivery === 'delivered';
-  };
-
-  // Sends the event to its pane when it reaches the pane, and returns the pane cell it is over.
-  const forwardEvent = (event: MouseEvent): PaneTarget | undefined => {
-    const sends = reachesPane(event);
-    const placedTarget = capture.targetOf(event);
-    const target = placedTarget ?? capture.unplacedRelease(event);
-
-    capture.finish(event, placedTarget);
-
-    if (sends && target !== undefined) {
-      forwardMouse(event, target);
-    }
-
-    return target;
-  };
-
-  const routeEvent = (event: MouseEvent): Promise<void> | undefined => {
-    const startsLeftPress = capture.begin(event, host.mode() === 'insert') && event.button === 0;
+    const step = capture.advance(event, modeSends(event));
+    const startsLeftPress = step.startsPress && event.button === 0;
 
     if (startsLeftPress) {
       focusChromeAt(event.x, event.y);
     }
 
-    const target = forwardEvent(event);
+    const pressed = startsLeftPress ? step.pressed : undefined;
 
-    if (target === undefined) {
+    if (pressed === undefined || pressed.paneId === host.focusedPane()) {
       return undefined;
     }
 
-    const unfocused = target.paneId !== host.focusedPane();
-
-    return startsLeftPress && unfocused ? host.focusPane(target.paneId) : undefined;
-  };
-
-  const route = (raw: string): Promise<void> | undefined => {
-    const event = parseMouse(raw);
-
-    if (event === undefined || capture.ignores(event)) {
-      return undefined;
-    }
-
-    return routeEvent(event);
+    return host.focusPane(pressed.paneId);
   };
 
   const keep = (raw: string): void => {
     const event = parseMouse(raw);
-    const release = event?.kind === 'release' ? event : undefined;
 
-    if (release === undefined || capture.ignores(release)) {
-      return;
-    }
-
-    if (capture.deliveryOf(release) !== 'none') {
-      forwardEvent(release);
+    if (event?.kind === 'release') {
+      capture.advance(event, false);
     }
   };
 
-  const releaseGesture = (): void => {
-    const release = capture.releaseNow();
-
-    if (release !== undefined) {
-      forwardMouse(release.event, release.target);
-    }
-  };
-
-  return { route, keep, releaseGesture };
+  return { route, keep, releaseGesture: capture.releaseNow };
 };

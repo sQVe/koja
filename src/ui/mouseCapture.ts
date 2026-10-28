@@ -9,26 +9,24 @@ interface MouseCaptureHost {
   mouseTarget: (x: number, y: number, pane?: PaneId) => PaneTarget | undefined;
   // The pane's current size, or undefined once the pane is gone.
   paneSize: (pane: PaneId) => { columns: number; rows: number } | undefined;
+  // Sends the event to the pane cell and returns whether any bytes reached the pane.
+  forward: (event: MouseEvent, target: PaneTarget) => boolean;
 }
 
-// Whether an event belongs to no gesture, to a gesture whose events reach its pane, or to a
-// gesture whose events reach no pane.
-type GestureDelivery = 'none' | 'delivered' | 'withheld';
+interface MouseStep {
+  // Whether the event is the press that starts a gesture.
+  startsPress: boolean;
+  // The pane cell of that press, or undefined when it is over no pane.
+  pressed: PaneTarget | undefined;
+}
 
 interface MouseCapture {
-  // Captures the button, pane, and delivery of a press that starts a gesture, and returns whether
-  // it did.
-  begin: (event: MouseEvent, delivered: boolean) => boolean;
-  // Whether the event is a press, drag, or release of a button other than the captured one.
-  ignores: (event: MouseEvent) => boolean;
-  deliveryOf: (event: MouseEvent) => GestureDelivery;
-  targetOf: (event: MouseEvent) => PaneTarget | undefined;
-  unplacedRelease: (event: MouseEvent) => PaneTarget | undefined;
-  // The release of the delivered gesture at its last cell, which ends the gesture.
-  releaseNow: () => { event: MouseEvent; target: PaneTarget } | undefined;
-  // Remembers the forwarded target and ends the gesture on a release.
-  finish: (event: MouseEvent, placed: PaneTarget | undefined) => void;
-  drop: (event: MouseEvent) => void;
+  // Applies one event. `modeSends` tells whether the current mode sends the event to its pane. It
+  // decides a press and every event outside a gesture. A gesture's drags and release follow
+  // whether its press reached the pane.
+  advance: (event: MouseEvent, modeSends: boolean) => MouseStep;
+  // Ends the gesture, and sends its release at the last cell when its press reached the pane.
+  releaseNow: () => void;
 }
 
 interface Capture {
@@ -42,6 +40,18 @@ interface Capture {
 const isButtonGesture = (event: MouseEvent): boolean =>
   event.kind === 'press' || event.kind === 'drag' || event.kind === 'release';
 
+const releaseOf = (button: number): MouseEvent => ({
+  kind: 'release',
+  button,
+  shift: false,
+  alt: false,
+  ctrl: false,
+  x: 0,
+  y: 0,
+});
+
+const notPress: MouseStep = { startsPress: false, pressed: undefined };
+
 export const createMouseCapture = (host: MouseCaptureHost): MouseCapture => {
   // The first press fixes the pane that gets its button's drags and release. Other buttons'
   // presses, drags, and releases are ignored until then.
@@ -52,58 +62,13 @@ export const createMouseCapture = (host: MouseCaptureHost): MouseCapture => {
   const generationOf = (pane: PaneId | undefined): number | undefined =>
     host.snapshot().panes.find((known) => known.id === pane)?.generation;
 
-  const begin = (event: MouseEvent, delivered: boolean): boolean => {
-    if (captured !== undefined || event.kind !== 'press') {
-      return false;
-    }
-
-    const pressed = host.mouseTarget(event.x, event.y);
-    const pane = pressed?.paneId;
-
-    captured = {
-      button: event.button,
-      pane,
-      generation: generationOf(pane),
-      delivered,
-      last: pressed,
-    };
-
-    return true;
-  };
-
-  const ignores = (event: MouseEvent): boolean =>
-    captured !== undefined && isButtonGesture(event) && event.button !== captured.button;
-
   // A gesture whose pane is gone or runs another generation sends nothing more until its release.
-  const deliveryOf = (event: MouseEvent): GestureDelivery => {
-    if (captured === undefined || !isButtonGesture(event)) {
-      return 'none';
-    }
-
-    const replaced = generationOf(captured.pane) !== captured.generation;
-
-    if (replaced) {
-      captured.delivered = false;
-    }
-
-    return captured.delivered ? 'delivered' : 'withheld';
-  };
-
-  const targetOf = (event: MouseEvent): PaneTarget | undefined => {
-    const followsPress = event.kind === 'drag' || event.kind === 'release';
-
-    if (captured === undefined || !followsPress) {
-      return host.mouseTarget(event.x, event.y);
-    }
-
-    return captured.pane === undefined
-      ? undefined
-      : host.mouseTarget(event.x, event.y, captured.pane);
-  };
+  const stillDelivered = (gesture: Capture): boolean =>
+    gesture.delivered && generationOf(gesture.pane) === gesture.generation;
 
   // The saved cell, kept inside the pane's current size, which changes while the pane is hidden.
-  const lastCell = (): PaneTarget | undefined => {
-    const last = captured?.last;
+  const lastCell = (gesture: Capture): PaneTarget | undefined => {
+    const { last } = gesture;
 
     if (last === undefined) {
       return undefined;
@@ -122,48 +87,75 @@ export const createMouseCapture = (host: MouseCaptureHost): MouseCapture => {
     };
   };
 
-  const unplacedRelease = (event: MouseEvent): PaneTarget | undefined =>
-    event.kind === 'release' ? lastCell() : undefined;
+  const send = (event: MouseEvent, target: PaneTarget | undefined, sends: boolean): boolean =>
+    sends && target !== undefined && host.forward(event, target);
 
-  const releaseNow = (): { event: MouseEvent; target: PaneTarget } | undefined => {
-    if (captured === undefined) {
-      return undefined;
-    }
+  const press = (event: MouseEvent, modeSends: boolean): MouseStep => {
+    const pressed = host.mouseTarget(event.x, event.y);
+    const pane = pressed?.paneId;
+    const generation = generationOf(pane);
 
-    const event: MouseEvent = {
-      kind: 'release',
-      button: captured.button,
-      shift: false,
-      alt: false,
-      ctrl: false,
-      x: 0,
-      y: 0,
-    };
+    const delivered = send(event, pressed, modeSends);
 
-    const target = deliveryOf(event) === 'delivered' ? lastCell() : undefined;
+    captured = { button: event.button, pane, generation, delivered, last: pressed };
 
-    captured = undefined;
-
-    return target === undefined ? undefined : { event, target };
+    return { startsPress: true, pressed };
   };
 
-  const finish = (event: MouseEvent, placed: PaneTarget | undefined): void => {
-    const ownsGesture = isButtonGesture(event) && placed?.paneId === captured?.pane;
+  // A drag or release acts on the cell of the gesture's pane nearest to the pointer. A gesture
+  // without a pane sent no press, so it sends nothing more.
+  const follow = (event: MouseEvent, gesture: Capture): MouseStep => {
+    const bound = event.kind === 'press' ? undefined : gesture.pane;
+    const placed = host.mouseTarget(event.x, event.y, bound);
+    const unplacedRelease = event.kind === 'release' ? lastCell(gesture) : undefined;
+    const target = placed ?? unplacedRelease;
 
-    if (captured !== undefined && ownsGesture) {
-      captured.last = placed;
+    gesture.delivered = stillDelivered(gesture);
+
+    if (placed?.paneId === gesture.pane) {
+      gesture.last = placed;
     }
 
     if (event.kind === 'release') {
       captured = undefined;
     }
+
+    send(event, target, gesture.delivered);
+
+    return notPress;
   };
 
-  const drop = (event: MouseEvent): void => {
-    if (event.kind === 'release' && !ignores(event)) {
-      captured = undefined;
+  const advance = (event: MouseEvent, modeSends: boolean): MouseStep => {
+    const gesture = captured;
+
+    if (gesture === undefined || !isButtonGesture(event)) {
+      if (event.kind === 'press') {
+        return press(event, modeSends);
+      }
+
+      const target = host.mouseTarget(event.x, event.y);
+
+      send(event, target, modeSends);
+
+      return notPress;
+    }
+
+    if (event.button !== gesture.button) {
+      return notPress;
+    }
+
+    return follow(event, gesture);
+  };
+
+  const releaseNow = (): void => {
+    const gesture = captured;
+
+    captured = undefined;
+
+    if (gesture !== undefined && stillDelivered(gesture)) {
+      send(releaseOf(gesture.button), lastCell(gesture), true);
     }
   };
 
-  return { begin, ignores, deliveryOf, targetOf, unplacedRelease, releaseNow, finish, drop };
+  return { advance, releaseNow };
 };
