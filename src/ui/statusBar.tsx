@@ -1,3 +1,4 @@
+import { RGBA } from '@opentui/core';
 import { useSyncExternalStore } from 'react';
 import type { ReactNode } from 'react';
 
@@ -17,7 +18,7 @@ export const StatusBar = ({
   const labels = tabLabelsOf(state.snapshot, state.inputMode, pasteStatus);
 
   return (
-    <text height={1} flexShrink={0}>
+    <text height={1} flexShrink={0} fg={RGBA.defaultForeground()}>
       {statusBarLine(state.inputMode, labels, pasteStatus)}
     </text>
   );

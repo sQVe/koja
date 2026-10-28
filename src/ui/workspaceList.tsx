@@ -1,3 +1,4 @@
+import { RGBA } from '@opentui/core';
 import { useTerminalDimensions } from '@opentui/react';
 import { useSyncExternalStore } from 'react';
 import type { ReactNode } from 'react';
@@ -26,7 +27,7 @@ export const SideList = ({ session }: { session: AttachSession }): ReactNode => 
         const marker = workspace.id === focusedWorkspaceId ? '>' : ' ';
 
         return (
-          <text key={workspace.id} height={1} wrapMode="none">
+          <text key={workspace.id} height={1} wrapMode="none" fg={RGBA.defaultForeground()}>
             {`${marker} ${workspace.label}`}
           </text>
         );

@@ -1,4 +1,4 @@
-import { createCliRenderer } from '@opentui/core';
+import { createCliRenderer, RGBA } from '@opentui/core';
 import type { BoxRenderable, CliRenderer } from '@opentui/core';
 import { createRoot } from '@opentui/react';
 import { useSyncExternalStore } from 'react';
@@ -53,7 +53,7 @@ const Screen = ({
   if (viewedPane(state.snapshot) === undefined) {
     return (
       <box flexGrow={1} alignItems="center" justifyContent="center">
-        <text>{emptyHint}</text>
+        <text fg={RGBA.defaultForeground()}>{emptyHint}</text>
       </box>
     );
   }

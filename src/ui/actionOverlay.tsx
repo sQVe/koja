@@ -1,3 +1,4 @@
+import { RGBA } from '@opentui/core';
 import { useTerminalDimensions } from '@opentui/react';
 import { useSyncExternalStore } from 'react';
 import type { ReactNode } from 'react';
@@ -46,14 +47,14 @@ export const ActionOverlay = ({
       right={0}
       bottom={0}
       flexDirection="column"
-      backgroundColor="#000000"
+      backgroundColor={RGBA.defaultBackground()}
       overflow="hidden"
     >
-      <text height={1} wrapMode="none">
+      <text height={1} wrapMode="none" fg={RGBA.defaultForeground()}>
         {headingOf(state)}
       </text>
       {lines.map((line) => (
-        <text key={line.id} height={1} wrapMode="none">
+        <text key={line.id} height={1} wrapMode="none" fg={RGBA.defaultForeground()}>
           {lineTextOf(line)}
         </text>
       ))}
