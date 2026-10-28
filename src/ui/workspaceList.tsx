@@ -1,3 +1,4 @@
+import { RGBA } from '@opentui/core';
 import { useTerminalDimensions } from '@opentui/react';
 import { useSyncExternalStore } from 'react';
 import type { ReactNode } from 'react';
@@ -7,7 +8,11 @@ import type { AttachSession } from '../client/client.ts';
 import { sideListWidth, statusBarRows } from '../layout.ts';
 import { visibleStart } from './screenTargets.ts';
 
-export const SideList = ({ session }: { session: AttachSession }): ReactNode => {
+export const SideList = ({
+  session,
+}: {
+  session: Pick<AttachSession, 'subscribe' | 'getState'>;
+}): ReactNode => {
   const { snapshot } = useSyncExternalStore(session.subscribe, session.getState);
   const { height, width } = useTerminalDimensions();
   const rows = Math.max(1, height - statusBarRows);
@@ -26,7 +31,7 @@ export const SideList = ({ session }: { session: AttachSession }): ReactNode => 
         const marker = workspace.id === focusedWorkspaceId ? '>' : ' ';
 
         return (
-          <text key={workspace.id} height={1} wrapMode="none">
+          <text key={workspace.id} height={1} wrapMode="none" fg={RGBA.defaultForeground()}>
             {`${marker} ${workspace.label}`}
           </text>
         );
