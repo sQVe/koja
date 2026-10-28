@@ -60,6 +60,11 @@ export interface RestoredPi {
 
 type OpenPiRecord = PiRecord & { state: SavedPiRecord['state'] };
 
+const sessionFileWasSaved = (
+  sessionFile: string | undefined,
+  savedSessionFiles: ReadonlySet<string>,
+): boolean => sessionFile !== undefined && savedSessionFiles.has(sessionFile);
+
 const savedRecordOf = (
   record: OpenPiRecord,
   savedSessionFiles: ReadonlySet<string>,
@@ -78,8 +83,19 @@ const savedRecordOf = (
     ownership,
     process: { id: record.process.id, startTime: record.process.startTime },
     state: record.state,
-    sessionFileSaved: sessionFile !== undefined && savedSessionFiles.has(sessionFile),
+    sessionFileSaved: sessionFileWasSaved(sessionFile, savedSessionFiles),
   };
+};
+
+// A restored record keeps its saved flag, and a session file seen since counts as saved too.
+const restoredRecordOf = (pi: SavedPi, savedSessionFiles: ReadonlySet<string>): SavedPi => {
+  if (pi === undefined || 'kind' in pi) {
+    return pi;
+  }
+
+  const seen = sessionFileWasSaved(pi.sessionFile, savedSessionFiles);
+
+  return { ...pi, sessionFileSaved: pi.sessionFileSaved || seen };
 };
 
 const isOpen = (record: PiRecord | undefined): record is OpenPiRecord =>
@@ -91,7 +107,10 @@ export const savedPiOf = (
   live: PiRecord | undefined,
   restored: RestoredPi | undefined,
   savedSessionFiles: ReadonlySet<string>,
-): SavedPi => (isOpen(live) ? savedRecordOf(live, savedSessionFiles) : restored?.pi);
+): SavedPi =>
+  isOpen(live)
+    ? savedRecordOf(live, savedSessionFiles)
+    : restoredRecordOf(restored?.pi, savedSessionFiles);
 
 export const withoutPiRecords = (state: State, removed: readonly PaneId[]): State => {
   const restoredPi = new Map(state.restoredPi);

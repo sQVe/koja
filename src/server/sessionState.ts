@@ -90,15 +90,16 @@ const readSavedSessionFiles = (context: SessionContext): ReadonlySet<string> => 
   return seenSessionFiles;
 };
 
-const savedFileOf = (pi: SavedPi): string | undefined => {
-  if (pi === undefined || 'kind' in pi || !pi.sessionFileSaved) {
+const existingFileOf = (pi: SavedPi): string | undefined => {
+  if (pi === undefined || 'kind' in pi || pi.sessionFile === undefined) {
     return undefined;
   }
 
-  return pi.sessionFile;
+  return pi.sessionFileSaved || isSavedSessionFile(pi.sessionFile) ? pi.sessionFile : undefined;
 };
 
-// Remembers the session files that restored records saved, before the server sees them on disk.
+// Remembers the restored session files that were saved or exist now, so a later deletion keeps
+// them saved. Runs at startup, before any save.
 export const rememberSavedSessionFiles = (
   seenSessionFiles: Set<string>,
   saved: SessionRead | undefined,
@@ -108,7 +109,7 @@ export const rememberSavedSessionFiles = (
   }
 
   for (const { pi } of saved.session.panes) {
-    const sessionFile = savedFileOf(pi);
+    const sessionFile = existingFileOf(pi);
 
     if (sessionFile !== undefined) {
       seenSessionFiles.add(sessionFile);

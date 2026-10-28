@@ -227,3 +227,115 @@ it('keeps a restored session file saved after it is deleted, once its pi reopens
 
   expect(currentSession(context).panes[0]?.pi).toMatchObject({ sessionFileSaved: true });
 });
+
+// Restores one pane whose saved pi record names the session file, with the given saved flag.
+const restoredStateWith = (sessionFile: string, sessionFileSaved: boolean): State => {
+  const created = applyIntent(createState(), {
+    type: 'createWorkspace',
+    root: '/work/koja',
+    label: 'koja',
+    focus: true,
+  }).state;
+
+  const saved = savedSessionOf(created, { folders: new Map(), savedSessionFiles: new Set() });
+
+  const restoredRecord: SavedPiRecord = {
+    piVersion: '1.4.0',
+    sessionId: 'session-a',
+    sessionFile,
+    leafId: undefined,
+    provider: 'anthropic',
+    model: 'sonnet',
+    thinkingLevel: 'off',
+    ownership: 'interactive',
+    process: { id: report.processId, startTime: 5000 },
+    state: 'reported',
+    sessionFileSaved,
+  };
+
+  const session = {
+    ...saved,
+    panes: saved.panes.map(({ id, tabId, startFolder }) => ({
+      id,
+      tabId,
+      startFolder,
+      pi: restoredRecord,
+    })),
+  };
+
+  const restored = applyIntent(createState(), { type: 'restoreSession', session });
+
+  invariant(restored.kind === 'applied', 'The restore must apply.');
+
+  return restored.state;
+};
+
+it('keeps a restored record saved after its file is seen by a save and then deleted', async () => {
+  const directory = await mkdtemp(join(tmpdir(), 'koja-session-state-'));
+  onTestFinished(() => rm(directory, { recursive: true, force: true }));
+
+  const sessionFile = join(directory, 'a.jsonl');
+
+  await writeFile(sessionFile, '');
+
+  const context = contextOf(restoredStateWith(sessionFile, false));
+
+  expect(currentSession(context).panes[0]?.pi).toMatchObject({ sessionFileSaved: true });
+
+  await rm(sessionFile);
+
+  const savedPi = currentSession(context).panes[0]?.pi;
+
+  expect(savedPi).toMatchObject({ sessionFile, sessionFileSaved: true });
+
+  invariant(savedPi !== undefined, 'The pane keeps its pi record.');
+
+  const recoveries = await checkPiRecoveries(new Map([[paneId(1), savedPi]]), {
+    readSessionFile: readPiSessionFile,
+    readLiveProcess: noLiveProcess,
+  });
+
+  expect(recoveries).toEqual(
+    new Map([[paneId(1), { status: 'failed', reason: 'sessionFileMissing' }]]),
+  );
+});
+
+it('keeps a restored record saved after its file is found at startup and then deleted', async () => {
+  const directory = await mkdtemp(join(tmpdir(), 'koja-session-state-'));
+  onTestFinished(() => rm(directory, { recursive: true, force: true }));
+
+  const sessionFile = join(directory, 'a.jsonl');
+
+  await writeFile(sessionFile, '');
+
+  const restored = restoredStateWith(sessionFile, false);
+  const context = contextOf(restored);
+  const session = savedSessionOf(restored, { folders: new Map(), savedSessionFiles: new Set() });
+
+  rememberSavedSessionFiles(context.runtime.seenSessionFiles, { kind: 'restored', session });
+
+  await rm(sessionFile);
+
+  expect(currentSession(context).panes[0]?.pi).toMatchObject({ sessionFileSaved: true });
+});
+
+it('saves a restored record whose file never existed as not saved, and reopens it', async () => {
+  const directory = await mkdtemp(join(tmpdir(), 'koja-session-state-'));
+  onTestFinished(() => rm(directory, { recursive: true, force: true }));
+
+  const sessionFile = join(directory, 'never.jsonl');
+  const context = contextOf(restoredStateWith(sessionFile, false));
+
+  const savedPi = currentSession(context).panes[0]?.pi;
+
+  expect(savedPi).toMatchObject({ sessionFile, sessionFileSaved: false });
+
+  invariant(savedPi !== undefined, 'The pane keeps its pi record.');
+
+  const recoveries = await checkPiRecoveries(new Map([[paneId(1), savedPi]]), {
+    readSessionFile: readPiSessionFile,
+    readLiveProcess: noLiveProcess,
+  });
+
+  expect(recoveries).toEqual(new Map([[paneId(1), { status: 'ready' }]]));
+});
