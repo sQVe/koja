@@ -7,9 +7,15 @@ export type PiReportMessage = Extract<ControlMessage, { type: 'piReport' }>;
 
 export type PiReportResult = Extract<ControlMessage, { type: 'piReportResult' }>['result'];
 
-export type PiStatus = Extract<ControlMessage, { type: 'piStatusReply' }>['pi'];
+type PiStatusReply = Extract<ControlMessage, { type: 'piStatusReply' }>;
 
-type PiStatusResult = { ok: true; pi: PiStatus } | { ok: false; reason: 'unknownPane' };
+export type PiStatus = PiStatusReply['pi'];
+
+export type PiRecoveryStatus = PiStatusReply['recovery'];
+
+type PiStatusResult =
+  | { ok: true; pi: PiStatus; recovery: PiRecoveryStatus }
+  | { ok: false; reason: 'unknownPane' };
 
 export const runPiReport = (
   socketPath: string,
@@ -38,7 +44,7 @@ export const runPiStatus = (
     },
     onMessage: (request, message) => {
       if (message.type === 'piStatusReply' && message.paneId === paneId) {
-        request.finish({ ok: true, pi: message.pi });
+        request.finish({ ok: true, pi: message.pi, recovery: message.recovery });
       }
 
       if (message.type === 'paneFailed' && message.reason === 'unknownPane') {

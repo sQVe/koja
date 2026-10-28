@@ -4,7 +4,7 @@ import type { ClientId, PaneId } from '../ids.ts';
 import type { BuildVersion, ControlMessage } from '../protocol/protocol.ts';
 import { decodePaneInput } from '../rows/rows.ts';
 import { applyFact, applyIntent, createState, snapshot } from '../store/store.ts';
-import type { Change, Fact, Intent, Snapshot, State } from '../store/store.ts';
+import type { Change, Fact, Intent, PiRecovery, Snapshot, State } from '../store/store.ts';
 import {
   attachTerminal,
   closeDetachedClient,
@@ -44,6 +44,7 @@ import {
 } from './paneRequests.ts';
 import { createSnapshotStore } from './paneSnapshot.ts';
 import type { SnapshotStore } from './paneSnapshot.ts';
+import { checkSavedPi } from './piRecoveryStart.ts';
 import { answerPiStatus, handlePiReport } from './piReports.ts';
 import { subscribeRows, syncRowSubscriptions, visiblePaneIds } from './rowSubscriptions.ts';
 import type { RowSubscriptions } from './rowSubscriptions.ts';
@@ -57,6 +58,7 @@ import { claimSocketPath } from './socketPath.ts';
 import { handleTabRequest, isTabRequest } from './tabRequests.ts';
 import { handleWorkspaceRequest, isWorkspaceRequest } from './workspaceRequests.ts';
 export { createLog, logPathFor } from './log.ts';
+export { piRecoveryReasonText } from './piRecovery.ts';
 export { sessionPathFor } from './sessionFile.ts';
 export { socketPathFor, socketRouteFor } from './socketPath.ts';
 
@@ -122,6 +124,8 @@ interface Runtime {
   nextConnectionId: number;
   // Whether panes start in a systemd user scope. Decided when the first pane starts.
   paneScopes: boolean | undefined;
+  // The pi check results of restored panes that have not started yet.
+  piRecoveries: Map<PaneId, PiRecovery>;
   sessionWriter: SessionWriter | undefined;
 }
 
@@ -626,6 +630,7 @@ export const runServer = async (options: ServerOptions): Promise<RunServerResult
       listener: undefined,
       nextConnectionId: 1,
       paneScopes: undefined,
+      piRecoveries: new Map(),
       sessionWriter: undefined,
     },
     stopped: Promise.withResolvers(),
@@ -634,6 +639,8 @@ export const runServer = async (options: ServerOptions): Promise<RunServerResult
 
   const sessionPath = options.sessionPathFor?.(socketPath);
   const saved = sessionPath === undefined ? undefined : await readSessionFile(sessionPath);
+
+  context.runtime.piRecoveries = await checkSavedPi(saved);
 
   const listener = listen(context, socketPath);
 

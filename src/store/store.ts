@@ -27,13 +27,14 @@ import {
   transitionPaneFact,
   zoomPane,
 } from './paneTransitions.ts';
-import { savedPiOf } from './piRecoveryRecords.ts';
-import type { RestoredPi, SavedPi } from './piRecoveryRecords.ts';
+import { recordPiRecovery, savedPiOf } from './piRecoveryRecords.ts';
+import type { PiRecovery, RestoredPi, SavedPi } from './piRecoveryRecords.ts';
 import { piRecordOf } from './piReportTransitions.ts';
 import type { PiRecord } from './piReportTransitions.ts';
 import { restoreSession, stopServer } from './sessionTransitions.ts';
 import { setTabLayout } from './tabLayoutTransitions.ts';
 import { closeTab, createTab, focusTab, renameTab } from './tabTransitions.ts';
+import { propose } from './transitionOutcome.ts';
 import type { Outcome, Proposal } from './transitionOutcome.ts';
 import { activeTabOf } from './view.ts';
 import { renumberPaneScrolls, scrollPaneView } from './viewScrollTransitions.ts';
@@ -46,7 +47,8 @@ import {
 
 export { applyGonePiQuit, applyPiReport, piRecordOf } from './piReportTransitions.ts';
 export type { PiEvent, PiProcess, PiRecord, PiReport } from './piReportTransitions.ts';
-export type { MalformedPiRecord, SavedPi, SavedPiRecord } from './piRecoveryRecords.ts';
+export { piRecoveryOf } from './piRecoveryRecords.ts';
+export type { MalformedPiRecord, PiRecovery, SavedPi, SavedPiRecord } from './piRecoveryRecords.ts';
 
 type PaneLifecycle = 'starting' | 'running' | 'exited' | 'closing' | 'failed';
 
@@ -244,6 +246,8 @@ export type Fact =
   | { type: 'paneExited'; paneId: PaneId; generation: number; exitCode: number }
   // The pane's output handling threw while its shell ran.
   | { type: 'paneFailed'; paneId: PaneId; generation: number; message: string }
+  // The restore checked whether the pane's saved pi conversation can reopen.
+  | { type: 'piRecoveryChecked'; paneId: PaneId; generation: number; recovery: PiRecovery }
   // The pane's stable row numbers restarted. Carries the active top before and after, and the
   // oldest row after.
   | {
@@ -551,6 +555,10 @@ export const applyFact = (state: State, fact: Fact): Applied | Ignored => {
 
   if (fact.type === 'paneRowsRenumbered') {
     return commit(renumberPaneScrolls(state, fact));
+  }
+
+  if (fact.type === 'piRecoveryChecked') {
+    return commit(propose(recordPiRecovery(state, fact.paneId, fact.recovery), []));
   }
 
   const proposal = transitionPaneFact(state, pane, fact);

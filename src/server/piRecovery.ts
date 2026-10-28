@@ -1,32 +1,13 @@
 import { resolve } from 'node:path';
 
 import type { PaneId } from '../ids.ts';
-import type { MalformedPiRecord, SavedPiRecord } from '../store/store.ts';
+import type { MalformedPiRecord, PiRecovery, SavedPiRecord } from '../store/store.ts';
 import type { PiSessionFile } from './piSessionFile.ts';
 import type { ProcessStat } from './processGroups.ts';
 
-type PiRecoveryFailure =
-  | 'recordMalformed'
-  | 'noSessionFile'
-  | 'modelMissing'
-  | 'sessionFileMissing'
-  | 'sessionFileEmpty'
-  | 'sessionFileUnreadable'
-  | 'notPiSession'
-  | 'sessionIdMismatch'
-  | 'branchMissing';
+type PiRecoveryFailure = Extract<PiRecovery, { status: 'failed' }>['reason'];
 
-type PiRecoveryBlock =
-  | 'externalWorker'
-  | 'ownershipUnknown'
-  | 'switchPending'
-  | 'duplicateSession'
-  | 'processSurvives';
-
-export type PiRecovery =
-  | { status: 'ready' }
-  | { status: 'failed'; reason: PiRecoveryFailure }
-  | { status: 'blocked'; reason: PiRecoveryBlock };
+type PiRecoveryBlock = Extract<PiRecovery, { status: 'blocked' }>['reason'];
 
 export interface PiRecoveryReads {
   readSessionFile: (sessionFile: string) => Promise<PiSessionFile>;
@@ -183,4 +164,34 @@ export const checkPiRecoveries = async (
   );
 
   return new Map(await Promise.all(checks));
+};
+
+export const piRecoveryReasonText: Record<PiRecoveryFailure | PiRecoveryBlock, string> = {
+  recordMalformed: 'the saved pi record is malformed',
+  noSessionFile: 'pi reported no session file',
+  modelMissing: 'the saved pi record names no model',
+  sessionFileMissing: 'the session file is missing',
+  sessionFileEmpty: 'the session file is empty',
+  sessionFileUnreadable: 'the session file cannot be read',
+  notPiSession: 'the file is not a pi session',
+  sessionIdMismatch: 'the file holds another conversation',
+  branchMissing: 'the file lacks the saved branch',
+  externalWorker: 'a Tau worker owns this pi',
+  ownershipUnknown: 'the saved pi record names an unknown owner',
+  switchPending: 'the conversation was switching',
+  duplicateSession: 'another pane names this session file',
+  processSurvives: 'the saved pi process still runs',
+};
+
+export const piRecoveryMessage = (
+  recovery: Exclude<PiRecovery, { status: 'ready' }>,
+  sessionFile: string | undefined,
+): string => {
+  const conversation =
+    sessionFile === undefined ? 'Saved pi conversation' : `Saved pi conversation ${sessionFile}`;
+
+  const verdict = recovery.status === 'failed' ? 'cannot reopen' : 'is blocked';
+  const reason = piRecoveryReasonText[recovery.reason];
+
+  return `${conversation} ${verdict}: ${reason}. Resolve it and restart the Koja server.`;
 };

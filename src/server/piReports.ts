@@ -4,7 +4,7 @@ import { isAbsolute } from 'node:path';
 
 import type { PaneId } from '../ids.ts';
 import type { ControlMessage } from '../protocol/protocol.ts';
-import { applyGonePiQuit, applyPiReport, piRecordOf } from '../store/store.ts';
+import { applyGonePiQuit, applyPiReport, piRecordOf, piRecoveryOf } from '../store/store.ts';
 import type { PiRecord, State } from '../store/store.ts';
 import type { Connection } from './connection.ts';
 import type { Log } from './log.ts';
@@ -171,5 +171,10 @@ export const answerPiStatus = (
     return;
   }
 
-  connection.send({ type: 'piStatusReply', paneId, pi: piStatusOf(context, paneId) });
+  connection.send({
+    type: 'piStatusReply',
+    paneId,
+    pi: piStatusOf(context, paneId),
+    recovery: piRecoveryOf(context.state, paneId) ?? null,
+  });
 };

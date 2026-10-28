@@ -28,9 +28,34 @@ export interface MalformedPiRecord {
 
 export type SavedPi = SavedPiRecord | MalformedPiRecord | undefined;
 
+type PiRecoveryFailure =
+  | 'recordMalformed'
+  | 'noSessionFile'
+  | 'modelMissing'
+  | 'sessionFileMissing'
+  | 'sessionFileEmpty'
+  | 'sessionFileUnreadable'
+  | 'notPiSession'
+  | 'sessionIdMismatch'
+  | 'branchMissing';
+
+type PiRecoveryBlock =
+  | 'externalWorker'
+  | 'ownershipUnknown'
+  | 'switchPending'
+  | 'duplicateSession'
+  | 'processSurvives';
+
+export type PiRecovery =
+  | { status: 'ready' }
+  | { status: 'failed'; reason: PiRecoveryFailure }
+  | { status: 'blocked'; reason: PiRecoveryBlock };
+
 export interface RestoredPi {
   generation: number;
   pi: SavedPiRecord | MalformedPiRecord;
+  // Absent until the restore checks the record.
+  recovery: PiRecovery | undefined;
 }
 
 type OpenPiRecord = PiRecord & { state: SavedPiRecord['state'] };
@@ -77,3 +102,19 @@ export const withoutRestoredPi = (state: State, removed: readonly PaneId[]): Sta
 
   return { ...state, restoredPi };
 };
+
+// The fact names a current pane generation. A pane restored without a record keeps none.
+export const recordPiRecovery = (state: State, paneId: PaneId, recovery: PiRecovery): State => {
+  const restored = state.restoredPi.get(paneId);
+
+  if (restored === undefined) {
+    return state;
+  }
+
+  const restoredPi = new Map([...state.restoredPi, [paneId, { ...restored, recovery }]]);
+
+  return { ...state, restoredPi };
+};
+
+export const piRecoveryOf = (state: State, paneId: PaneId): PiRecovery | undefined =>
+  state.restoredPi.get(paneId)?.recovery;

@@ -1,8 +1,15 @@
 import { expect, it } from 'bun:test';
 
 import { paneId } from '../ids.ts';
-import { applyPiReport, savedSessionOf } from './store.ts';
-import type { PiProcess, PiReport, SavedPiRecord, SavedSession, State } from './store.ts';
+import { applyPiReport, piRecoveryOf, savedSessionOf } from './store.ts';
+import type {
+  PiProcess,
+  PiRecovery,
+  PiReport,
+  SavedPiRecord,
+  SavedSession,
+  State,
+} from './store.ts';
 import {
   attachedEmpty,
   createKoja,
@@ -168,6 +175,58 @@ it('keeps a restored record, under its new generation, only for a pane saved wit
   const restored = intent(attachedEmpty(), { type: 'restoreSession', session }).state;
 
   expect([...restored.restoredPi]).toEqual([
-    [paneId(2), { generation: paneOf(restored, 2).generation, pi: restoredRecord }],
+    [
+      paneId(2),
+      { generation: paneOf(restored, 2).generation, pi: restoredRecord, recovery: undefined },
+    ],
   ]);
+});
+
+const blockedRecovery: PiRecovery = { status: 'blocked', reason: 'duplicateSession' };
+
+const checked = (state: State, id: number, recovery: PiRecovery = blockedRecovery): State =>
+  fact(state, {
+    type: 'piRecoveryChecked',
+    paneId: paneId(id),
+    generation: paneOf(state, id).generation,
+    recovery,
+  }).state;
+
+it('keeps the recovery result of a restored pane and still saves its record', () => {
+  const before = restoredWithPi();
+
+  const result = fact(before, {
+    type: 'piRecoveryChecked',
+    paneId: paneId(2),
+    generation: paneOf(before, 2).generation,
+    recovery: blockedRecovery,
+  });
+
+  expect(result.changes).toEqual([]);
+
+  const restored = result.state;
+
+  expect(piRecoveryOf(restored, paneId(1))).toBeUndefined();
+  expect(piRecoveryOf(restored, paneId(2))).toEqual(blockedRecovery);
+  expect(savedPiOf(restored)).toEqual([restoredRecord, restoredRecord]);
+});
+
+it('records no recovery result for a pane restored without a pi record', () => {
+  const saved = savedSessionOf(run([createKoja]), noReads);
+  const restored = intent(attachedEmpty(), { type: 'restoreSession', session: saved }).state;
+
+  expect(piRecoveryOf(checked(restored, 1), paneId(1))).toBeUndefined();
+});
+
+it('drops the recovery result with the restored record when a live pi reports', () => {
+  const restored = checked(restoredWithPi(), 1, { status: 'ready' });
+
+  const started = fact(restored, {
+    type: 'paneStarted',
+    paneId: paneId(1),
+    generation: paneOf(restored, 1).generation,
+  }).state;
+
+  expect(piRecoveryOf(started, paneId(1))).toEqual({ status: 'ready' });
+  expect(piRecoveryOf(reported(started), paneId(1))).toBeUndefined();
 });

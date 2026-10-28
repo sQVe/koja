@@ -7,11 +7,12 @@ import { z } from 'zod';
 
 import { logPathFor } from '../src/server/log.ts';
 import { readStat } from '../src/server/processGroups.ts';
-import { cliTestTimeoutMs, root } from './cliHarness.ts';
+import { cliTestTimeoutMs, root, temporaryDirectory } from './cliHarness.ts';
 import type { CliRun } from './cliHarness.ts';
 import { pollUntil, readJson, setup } from './paneHarness.ts';
 import type { PaneSetup } from './paneHarness.ts';
 import { report } from './piReportHarness.ts';
+import { savedPiRecord, savePiRecords, setup as sessionSetup } from './sessionHarness.ts';
 
 interface PaneReportOptions {
   processId: string;
@@ -123,7 +124,7 @@ it(
 
     expect(status).toEqual({
       exitCode: 0,
-      stdout: `${JSON.stringify({ pane: first, pi: null })}\n`,
+      stdout: `${JSON.stringify({ pane: first, pi: null, recovery: null })}\n`,
       stderr: '',
     });
   },
@@ -143,6 +144,7 @@ it(
 
     expect(await statusJson(pane)).toEqual({
       pane: pane.first,
+      recovery: null,
       pi: {
         state: 'reported',
         recoveryEligible: false,
@@ -161,6 +163,7 @@ it(
 
     expect(await statusJson(pane)).toEqual({
       pane: pane.first,
+      recovery: null,
       pi: {
         state: 'reported',
         recoveryEligible: false,
@@ -225,7 +228,7 @@ it(
       `process ${shellPid} has not started a pi session in pane ${pane.first}.`,
     );
 
-    expect(await statusJson(pane)).toEqual({ pane: pane.first, pi: null });
+    expect(await statusJson(pane)).toEqual({ pane: pane.first, pi: null, recovery: null });
   },
   cliTestTimeoutMs,
 );
@@ -300,6 +303,7 @@ it.each([
 
     expect(await statusJson(pane)).toEqual({
       pane: pane.first,
+      recovery: null,
       pi: { state: 'reported', recoveryEligible, ineligibleReasons, ...piFieldsOf(sent) },
     });
 
@@ -329,6 +333,7 @@ it(
 
     expect(await statusJson(pane)).toEqual({
       pane: pane.first,
+      recovery: null,
       pi: { state: 'switching', recoveryEligible: false, ineligibleReasons: ['switchPending'] },
     });
 
@@ -365,6 +370,7 @@ it(
 
     expect(await statusJson(pane)).toEqual({
       pane: pane.first,
+      recovery: null,
       pi: {
         state: 'lost',
         recoveryEligible: true,
@@ -407,6 +413,57 @@ it(
     expect(after.startTime).toBe(before.startTime);
     expect(after.rows).toEqual(before.rows);
     expect(after.inputBytes).toBe(before.inputBytes);
+  },
+  cliTestTimeoutMs,
+);
+
+it(
+  'prints the restore check result of each restored pane, and none for a pane without a record',
+  async () => {
+    const { serverAt } = await sessionSetup();
+    const server = serverAt('koja');
+
+    await server.start();
+    await server.createWorkspace('one');
+
+    const failed = await server.split('pane-1');
+    const blocked = await server.split(failed);
+    const none = await server.split(blocked);
+    const folder = await temporaryDirectory();
+    const readyFile = join(folder, 'ready.jsonl');
+
+    await writeFile(readyFile, '{"type":"session","id":"ready"}\n');
+    await server.koja(['server', 'stop']);
+
+    await savePiRecords(await server.sessionPath(), {
+      'pane-1': savedPiRecord({ sessionId: 'ready', sessionFile: readyFile }),
+      [failed]: savedPiRecord({ sessionId: 'failed', sessionFile: join(folder, 'gone.jsonl') }),
+      [blocked]: savedPiRecord({ sessionId: 'blocked', ownership: 'tauWorker' }),
+    });
+
+    await server.start();
+
+    const expected = [
+      ['pane-1', { status: 'ready', reason: null }, 'restore  ready\n'],
+      [
+        failed,
+        { status: 'failed', reason: 'sessionFileMissing' },
+        'restore  failed: the session file is missing\n',
+      ],
+      [
+        blocked,
+        { status: 'blocked', reason: 'externalWorker' },
+        'restore  blocked: a Tau worker owns this pi\n',
+      ],
+      [none, null, ''],
+    ] as const;
+
+    for (const [pane, recovery, line] of expected) {
+      const json: unknown = JSON.parse(await server.koja(['pi', 'status', pane, '--json']));
+
+      expect(json).toEqual({ pane, pi: null, recovery });
+      expect(await server.koja(['pi', 'status', pane])).toBe(`${pane}  pi  none\n${line}`);
+    }
   },
   cliTestTimeoutMs,
 );

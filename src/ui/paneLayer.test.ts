@@ -549,6 +549,22 @@ it('shows the error of a pane that failed and no cells of a terminal', async () 
   expect(layer.lines()[1]?.slice(1, 13)).toBe('Cannot start');
 });
 
+it('draws the whole pi recovery message of a restored pane that failed', async () => {
+  const message =
+    'Saved pi conversation is blocked: a Tau worker owns this pi. Resolve it and restart the Koja server.';
+
+  const failed = { ...pane(1, 'failed'), error: message };
+  const layer = await startLayer(snapshotOf(single, [failed], 1), new Map());
+
+  const drawn = layer
+    .lines()
+    .map((line) => line.trim())
+    .filter((line) => line !== '')
+    .join(' ');
+
+  expect(drawn).toBe(message);
+});
+
 it('moves and resizes the error of a failed pane with the layout', async () => {
   const failed = [pane(1, 'running'), pane(2, 'failed')];
   const layer = await startLayer(snapshotOf(rightSplit, failed, 1), new Map());

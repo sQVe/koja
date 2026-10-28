@@ -74,7 +74,7 @@ export const restoreSession = (state: State, session: SavedSession): Outcome => 
     const pane = panes[index];
 
     if (pi !== undefined && pane !== undefined) {
-      restoredPi.set(pane.id, { generation: pane.generation, pi });
+      restoredPi.set(pane.id, { generation: pane.generation, pi, recovery: undefined });
     }
   }
 

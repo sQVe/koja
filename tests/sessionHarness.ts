@@ -1,5 +1,5 @@
 import { expect } from 'bun:test';
-import { mkdir, readdir, readFile, realpath } from 'node:fs/promises';
+import { mkdir, readdir, readFile, realpath, writeFile } from 'node:fs/promises';
 import { homedir } from 'node:os';
 import { join } from 'node:path';
 
@@ -7,10 +7,13 @@ import { z } from 'zod';
 
 import { sessionPathFor } from '../src/server/sessionFile.ts';
 import { environmentFor, launchServer, runCli, temporaryDirectory } from './cliHarness.ts';
+import type { CliRun } from './cliHarness.ts';
 
 export interface TestServer {
   socketPath: string;
   koja: (commandArguments: string[]) => Promise<string>;
+  // Runs a command that may fail and returns its whole result.
+  attempt: (commandArguments: string[]) => Promise<CliRun>;
   start: () => Promise<number>;
   createWorkspace: (folder: string) => Promise<string>;
   split: (pane: string) => Promise<string>;
@@ -52,12 +55,11 @@ export const setup = async (): Promise<TestSetup> => {
   const serverAt = (name: string) => {
     const socketPath = join(directory, 'run', `${name}.sock`);
 
+    const attempt = (commandArguments: string[]): Promise<CliRun> =>
+      runCli([...commandArguments, '--socket', socketPath], directory, environment);
+
     const koja = async (commandArguments: string[]): Promise<string> => {
-      const run = await runCli(
-        [...commandArguments, '--socket', socketPath],
-        directory,
-        environment,
-      );
+      const run = await attempt(commandArguments);
 
       expect(run.stderr).toBe('');
       expect(run.exitCode).toBe(0);
@@ -128,6 +130,7 @@ export const setup = async (): Promise<TestSetup> => {
     return {
       socketPath,
       koja,
+      attempt,
       start,
       createWorkspace,
       split,
@@ -169,4 +172,35 @@ export const buildSetup = async (server: TestServer): Promise<void> => {
   await server.koja(['pane', 'zoom', added]);
   await server.koja(['workspace', 'focus', second]);
   await server.koja(['workspace', 'focus', first]);
+};
+
+export const savedPiRecord = (fields: Record<string, unknown> = {}): Record<string, unknown> => ({
+  piVersion: '1.4.0',
+  sessionId: 'conversation-1',
+  sessionFile: null,
+  leafId: null,
+  provider: 'anthropic',
+  model: 'claude-opus',
+  thinkingLevel: 'low',
+  ownership: 'interactive',
+  // No process has this id, so the saved pi never survives the restart.
+  process: { id: 0x7f_ff_ff_ff, startTime: 1 },
+  state: 'reported',
+  sessionFileSaved: true,
+  ...fields,
+});
+
+const savedFileSchema = z.looseObject({
+  session: z.looseObject({ panes: z.array(z.looseObject({ id: z.string() })) }),
+});
+
+// Gives each named pane of the saved session a pi record, and every other pane none.
+export const savePiRecords = async (
+  path: string,
+  records: Record<string, Record<string, unknown>>,
+): Promise<void> => {
+  const saved = savedFileSchema.parse(JSON.parse(await readFile(path, 'utf8')));
+  const panes = saved.session.panes.map((pane) => ({ ...pane, pi: records[pane.id] ?? null }));
+
+  await writeFile(path, JSON.stringify({ ...saved, session: { ...saved.session, panes } }));
 };

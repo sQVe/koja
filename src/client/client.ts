@@ -28,7 +28,7 @@ export type {
 
 export { runPaneCopy } from './paneCopy.ts';
 export { runPiReport, runPiStatus } from './piRequest.ts';
-export type { PiReportMessage, PiReportResult, PiStatus } from './piRequest.ts';
+export type { PiRecoveryStatus, PiReportMessage, PiReportResult, PiStatus } from './piRequest.ts';
 export type { PaneCopyCommand } from './paneCopy.ts';
 export { runPanePaste } from './panePaste.ts';
 export type { PanePasteCommand, PanePasteCommandResult, PanePasteResult } from './panePaste.ts';

@@ -432,6 +432,35 @@ const piStatusSchema = z.union([
   }),
 ]);
 
+const piRecoverySchema = z.union([
+  z.null(),
+  z.strictObject({ status: z.literal('ready') }),
+  z.strictObject({
+    status: z.literal('failed'),
+    reason: z.enum([
+      'recordMalformed',
+      'noSessionFile',
+      'modelMissing',
+      'sessionFileMissing',
+      'sessionFileEmpty',
+      'sessionFileUnreadable',
+      'notPiSession',
+      'sessionIdMismatch',
+      'branchMissing',
+    ]),
+  }),
+  z.strictObject({
+    status: z.literal('blocked'),
+    reason: z.enum([
+      'externalWorker',
+      'ownershipUnknown',
+      'switchPending',
+      'duplicateSession',
+      'processSurvives',
+    ]),
+  }),
+]);
+
 const controlSchema = z.discriminatedUnion('type', [
   // A CLI client has no terminal, so it sends no size.
   z.object({ type: z.literal('hello'), version: buildVersionSchema, size: absent(sizeSchema) }),
@@ -617,7 +646,13 @@ const controlSchema = z.discriminatedUnion('type', [
   }),
   z.strictObject({ type: z.literal('piReportResult'), result: piReportOutcomeSchema }),
   z.strictObject({ type: z.literal('piStatus'), paneId: paneIdSchema }),
-  z.strictObject({ type: z.literal('piStatusReply'), paneId: paneIdSchema, pi: piStatusSchema }),
+  // The recovery is the restore's check of the pane's saved pi record, until a live pi reports.
+  z.strictObject({
+    type: z.literal('piStatusReply'),
+    paneId: paneIdSchema,
+    pi: piStatusSchema,
+    recovery: piRecoverySchema,
+  }),
 ]);
 
 export type ControlMessage = z.output<typeof controlSchema>;

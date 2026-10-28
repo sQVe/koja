@@ -21,6 +21,8 @@ import type { TestClient } from './serverHarness.ts';
 
 type PiStatus = Extract<ControlMessage, { type: 'piStatusReply' }>['pi'];
 
+type PiIneligibleReason = NonNullable<PiStatus>['ineligibleReasons'][number];
+
 const unsavedSessionFile = join(import.meta.dir, 'unsaved', 'conversation.jsonl');
 
 const reportFor = (processId: number, changes: Partial<PiReport> = {}): PiReport => ({
@@ -92,9 +94,14 @@ const sendReport = async (client: TestClient, target: PaneId, pass: string, repo
   return (await nextOfType(client, 'piReportResult')).result;
 };
 
-const recordShell = async (client: TestClient, target: PaneId) => {
+const recordShell = async (
+  client: TestClient,
+  target: PaneId,
+  changes: Partial<PiReport> = {},
+  ineligibleReasons: PiIneligibleReason[] = ['tauWorker', 'sessionNotSaved'],
+) => {
   const identity = await identityOf(client, target);
-  const report = reportFor(identity.processId);
+  const report = reportFor(identity.processId, changes);
 
   expect(await sendReport(client, target, identity.pass, report)).toEqual({
     ok: true,
@@ -104,7 +111,7 @@ const recordShell = async (client: TestClient, target: PaneId) => {
   const expected = {
     state: 'reported' as const,
     ...identityFieldsOf(report),
-    ineligibleReasons: ['tauWorker' as const, 'sessionNotSaved' as const],
+    ineligibleReasons,
   };
 
   expect(await statusOf(client, target)).toEqual(expected);
@@ -330,7 +337,11 @@ it('refuses the old pass after restoring the pane with a new shell generation', 
   first.client.send({ type: 'paneClose', paneId: paneId(1) });
   await nextOfType(first.client, 'paneDone');
 
-  const recorded = await recordShell(first.client, target);
+  // A Tau worker's record would block the restored pane, so this pi is interactive.
+  const recorded = await recordShell(first.client, target, { ownership: 'interactive' }, [
+    'sessionNotSaved',
+  ]);
+
   const generation = first.server.snapshot().panes[0]!.generation;
 
   first.server.stop();

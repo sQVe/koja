@@ -57,6 +57,7 @@ it.each([
         sessionFile,
         ineligibleReasons: [...ineligibleReasons],
       },
+      recovery: null,
     });
   },
 );
@@ -73,6 +74,7 @@ it('records a live process and reports its identity without its process id or pa
       type: 'piStatusReply',
       paneId: target,
       pi: { state: 'reported', ...identity, ineligibleReasons: ['tauWorker', 'noSessionFile'] },
+      recovery: null,
     },
   ]);
 });
@@ -90,6 +92,7 @@ it('shows the record of a pane without a runtime entry as lost', () => {
     type: 'piStatusReply',
     paneId: target,
     pi: { state: 'lost', ...identity, ineligibleReasons: ['tauWorker', 'noSessionFile'] },
+    recovery: null,
   });
 });
 
@@ -104,6 +107,7 @@ it('shows a record as lost when its process has left the pane shell session', ()
     type: 'piStatusReply',
     paneId: target,
     pi: { state: 'lost', ...identity, ineligibleReasons: ['tauWorker', 'noSessionFile'] },
+    recovery: null,
   });
 });
 

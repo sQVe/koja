@@ -95,7 +95,7 @@ const started = (options: {
       version: { version: 'test', ghostty: 'test' },
     },
     state: { ...current, panes: [pane] },
-    runtime: { panes: new Map(), clientIds: new Map(), paneScopes: false },
+    runtime: { panes: new Map(), clientIds: new Map(), paneScopes: false, piRecoveries: new Map() },
   };
 
   onTestFinished(() => {
