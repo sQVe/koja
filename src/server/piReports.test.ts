@@ -2,9 +2,9 @@ import { expect, it, onTestFinished, spyOn } from 'bun:test';
 
 import type { PaneId } from '../ids.ts';
 import { applyPiReport } from '../store/store.ts';
-import type { PiReport } from '../store/store.ts';
+import type { PiReport, SavedSession } from '../store/store.ts';
 import type { RunningPane } from './paneRecord.ts';
-import { fixture, identity, pass, report, target } from './piReportFixture.ts';
+import { fixture, identity, pass, report, target } from './piReportFixtures.ts';
 import { answerPiStatus, handlePiReport } from './piReports.ts';
 import * as processGroups from './processGroups.ts';
 import { parseStat } from './processGroups.ts';
@@ -276,23 +276,37 @@ it('ignores a report from the recorded process with an older sequence', () => {
   expect(context.state).toBe(before);
 });
 
-it('asks for a session save only for a report that records or updates the pane record', () => {
+it('saves the session only after a report that records or updates the pane record', () => {
   const { context, connection } = fixture();
+  const saves: SavedSession[] = [];
 
-  const send = (token: string, changes: Partial<PiReport> = {}): boolean =>
+  context.runtime.sessionWriter = {
+    save: (session) => {
+      saves.push(session);
+    },
+    stopSaving: () => Promise.resolve({ ok: true }),
+    settled: () => Promise.resolve(),
+  };
+
+  const send = (token: string, changes: Partial<PiReport> = {}): number => {
     handlePiReport(
       context,
       { type: 'piReport', paneId: target, token, report: { ...report, ...changes } },
       connection,
     );
 
+    return saves.length;
+  };
+
   const tree = { event: { kind: 'tree' }, sequence: 2 } as const;
 
   expect([send('b'.repeat(64)), send(pass), send(pass, tree), send(pass, tree)]).toEqual([
-    false,
-    true,
-    true,
-    false,
+    0, 1, 2, 2,
+  ]);
+
+  expect(saves.map((session) => session.panes[0]?.pi)).toMatchObject([
+    { piVersion: report.piVersion, state: 'reported' },
+    { piVersion: report.piVersion, state: 'reported' },
   ]);
 });
 
@@ -337,7 +351,7 @@ it('refuses a report for a pane without a runtime entry', () => {
   const before = context.state;
   const panes = new Map<PaneId, RunningPane>();
 
-  const unregistered = { ...context, runtime: { panes } };
+  const unregistered = { ...context, runtime: { ...context.runtime, panes } };
 
   handlePiReport(
     unregistered,

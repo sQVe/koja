@@ -6,7 +6,7 @@ import { join, relative } from 'node:path';
 import { paneId } from '../ids.ts';
 import type { PaneId } from '../ids.ts';
 import type { RunningPane } from './paneRecord.ts';
-import { fixture, identity, target } from './piReportFixture.ts';
+import { fixture, identity, target } from './piReportFixtures.ts';
 import { answerPiStatus } from './piReports.ts';
 
 const sessionDirectory = async (): Promise<string> => {

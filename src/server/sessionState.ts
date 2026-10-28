@@ -3,11 +3,11 @@ import { piRecordOf, savedSessionOf } from '../store/store.ts';
 import type { Change, Intent, SavedPi, SavedSession, State } from '../store/store.ts';
 import type { Log } from './log.ts';
 import type { RunningPane } from './paneRecord.ts';
-import { isSavedSessionFile } from './piReports.ts';
+import { isSavedSessionFile } from './piSessionFile.ts';
 import { readSavedFolder } from './processInfo.ts';
 import type { readSessionFile } from './sessionFile.ts';
 
-interface SessionContext {
+export interface SessionContext {
   state: State;
   runtime: { panes: Map<PaneId, RunningPane>; seenSessionFiles: Set<string> };
 }
@@ -60,7 +60,7 @@ const namedSessionFilesOf = (state: State): Set<string> => {
   }
 
   for (const { pi } of state.restoredPi.values()) {
-    if (!('kind' in pi) && pi.sessionFile !== undefined) {
+    if (pi.sessionFile !== undefined) {
       files.add(pi.sessionFile);
     }
   }
@@ -88,28 +88,29 @@ const readSavedSessionFiles = (context: SessionContext): ReadonlySet<string> => 
 };
 
 const existingFileOf = (pi: SavedPi): string | undefined => {
-  if (pi === undefined || 'kind' in pi || pi.sessionFile === undefined) {
+  if (pi?.sessionFile === undefined) {
     return undefined;
   }
 
   return pi.sessionFileSaved || isSavedSessionFile(pi.sessionFile) ? pi.sessionFile : undefined;
 };
 
-export const rememberSavedSessionFiles = (
-  seenSessionFiles: Set<string>,
-  saved: SessionRead | undefined,
-): void => {
+export const savedSessionFilesOf = (saved: SessionRead | undefined): Set<string> => {
+  const files = new Set<string>();
+
   if (saved?.kind !== 'restored') {
-    return;
+    return files;
   }
 
   for (const { pi } of saved.session.panes) {
     const sessionFile = existingFileOf(pi);
 
     if (sessionFile !== undefined) {
-      seenSessionFiles.add(sessionFile);
+      files.add(sessionFile);
     }
   }
+
+  return files;
 };
 
 export const currentSession = (context: SessionContext): SavedSession =>

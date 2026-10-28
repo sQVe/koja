@@ -53,8 +53,8 @@ import type { StopResults } from './serverStopResult.ts';
 import { readSessionFile } from './sessionFile.ts';
 import {
   currentSession,
-  rememberSavedSessionFiles,
   restoreSession,
+  savedSessionFilesOf,
   savesSession,
   unusableKindOf,
 } from './sessionState.ts';
@@ -344,9 +344,7 @@ const handleFamilyRequest = (
   const dispatchIntent = (intent: Intent): DispatchResult => dispatch(context, intent);
 
   if (message.type === 'piReport') {
-    if (handlePiReport(context, message, connection)) {
-      context.runtime.sessionWriter?.save(currentSession(context));
-    }
+    handlePiReport(context, message, connection);
 
     return true;
   }
@@ -647,7 +645,7 @@ export const runServer = async (options: ServerOptions): Promise<RunServerResult
   const sessionPath = options.sessionPathFor?.(socketPath);
   const saved = sessionPath === undefined ? undefined : await readSessionFile(sessionPath);
 
-  rememberSavedSessionFiles(context.runtime.seenSessionFiles, saved);
+  context.runtime.seenSessionFiles = savedSessionFilesOf(saved);
   context.runtime.piRecoveries = await checkSavedPi(saved);
 
   const listener = listen(context, socketPath);

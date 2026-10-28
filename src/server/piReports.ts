@@ -1,6 +1,4 @@
 import { timingSafeEqual } from 'node:crypto';
-import { statSync } from 'node:fs';
-import { isAbsolute } from 'node:path';
 
 import type { PaneId } from '../ids.ts';
 import type { ControlMessage } from '../protocol/protocol.ts';
@@ -9,14 +7,21 @@ import type { PiRecord, State } from '../store/store.ts';
 import type { Connection } from './connection.ts';
 import type { Log } from './log.ts';
 import type { RunningPane } from './paneRecord.ts';
+import { isSavedSessionFile } from './piSessionFile.ts';
 import { readStat } from './processGroups.ts';
 import type { ProcessStat } from './processGroups.ts';
+import { currentSession } from './sessionState.ts';
+import type { SessionContext } from './sessionState.ts';
+import type { SessionWriter } from './sessionWriter.ts';
 
 interface PiContext {
   state: State;
   runtime: { panes: ReadonlyMap<PaneId, RunningPane> };
   options: { log: Log };
 }
+
+type PiReportContext = PiContext &
+  SessionContext & { runtime: { sessionWriter: SessionWriter | undefined } };
 
 type PiReportRequest = Extract<ControlMessage, { type: 'piReport' }>;
 type PiReportResult = Extract<ControlMessage, { type: 'piReportResult' }>['result'];
@@ -77,10 +82,10 @@ const recordReport = (context: PiContext, message: PiReportRequest): PiReportRes
 };
 
 export const handlePiReport = (
-  context: PiContext,
+  context: PiReportContext,
   message: PiReportRequest,
   connection: Connection,
-): boolean => {
+): void => {
   const result = recordReport(context, message);
 
   if (!result.ok) {
@@ -92,18 +97,8 @@ export const handlePiReport = (
 
   connection.send({ type: 'piReportResult', result });
 
-  return result.ok && result.status !== 'ignored';
-};
-
-export const isSavedSessionFile = (path: string): boolean => {
-  if (!isAbsolute(path)) {
-    return false;
-  }
-
-  try {
-    return statSync(path).isFile();
-  } catch {
-    return false;
+  if (result.ok && result.status !== 'ignored') {
+    context.runtime.sessionWriter?.save(currentSession(context));
   }
 };
 

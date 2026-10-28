@@ -6,10 +6,10 @@ import { join } from 'node:path';
 import { paneId } from '../ids.ts';
 import { invariant } from '../invariant.ts';
 import { applyIntent, applyPiReport, createState, savedSessionOf } from '../store/store.ts';
-import type { PiReport, SavedPiRecord, State } from '../store/store.ts';
+import type { PiReport, SavedPi, SavedPiRecord, SavedSession, State } from '../store/store.ts';
 import { checkPiRecoveries } from './piRecovery.ts';
 import { readPiSessionFile } from './piSessionFile.ts';
-import { currentSession, rememberSavedSessionFiles } from './sessionState.ts';
+import { currentSession, savedSessionFilesOf } from './sessionState.ts';
 
 const report: PiReport = {
   processId: 100,
@@ -221,7 +221,7 @@ it('keeps a restored session file saved after it is deleted, once its pi reopens
 
   const context = contextOf(reopened.state);
 
-  rememberSavedSessionFiles(context.runtime.seenSessionFiles, { kind: 'restored', session });
+  context.runtime.seenSessionFiles = savedSessionFilesOf({ kind: 'restored', session });
 
   await rm(sessionFile);
 
@@ -311,7 +311,7 @@ it('keeps a restored record saved after its file is found at startup and then de
   const context = contextOf(restored);
   const session = savedSessionOf(restored, { folders: new Map(), savedSessionFiles: new Set() });
 
-  rememberSavedSessionFiles(context.runtime.seenSessionFiles, { kind: 'restored', session });
+  context.runtime.seenSessionFiles = savedSessionFilesOf({ kind: 'restored', session });
 
   await rm(sessionFile);
 
@@ -337,4 +337,79 @@ it('saves a restored record whose file never existed as not saved, and reopens i
   });
 
   expect(recoveries).toEqual(new Map([[paneId(1), { status: 'ready' }]]));
+});
+
+const sessionWithPis = (pis: SavedPi[]): SavedSession => {
+  const created = applyIntent(createState(), {
+    type: 'createWorkspace',
+    root: '/work/koja',
+    label: 'koja',
+    focus: true,
+  }).state;
+
+  const saved = savedSessionOf(created, { folders: new Map(), savedSessionFiles: new Set() });
+  const [pane] = saved.panes;
+
+  invariant(pane !== undefined, 'The created workspace has a pane.');
+
+  return { ...saved, panes: pis.map((pi) => ({ ...pane, pi })) };
+};
+
+const restoredRecordOf = (
+  sessionFile: string | undefined,
+  sessionFileSaved: boolean,
+): SavedPiRecord => ({
+  piVersion: '1.4.0',
+  sessionId: 'session-a',
+  sessionFile,
+  leafId: undefined,
+  provider: 'anthropic',
+  model: 'sonnet',
+  thinkingLevel: 'off',
+  ownership: 'interactive',
+  process: { id: report.processId, startTime: 5000 },
+  state: 'reported',
+  sessionFileSaved,
+});
+
+it('finds at startup only the saved session files that were saved or still exist', async () => {
+  const directory = await mkdtemp(join(tmpdir(), 'koja-session-state-'));
+  onTestFinished(() => rm(directory, { recursive: true, force: true }));
+
+  const existing = join(directory, 'existing.jsonl');
+  const savedBefore = join(directory, 'saved-before.jsonl');
+  const neverSaved = join(directory, 'never.jsonl');
+
+  await writeFile(existing, '');
+
+  const session = sessionWithPis([
+    undefined,
+    { kind: 'malformed', raw: {}, message: 'Not a pi record.' },
+    restoredRecordOf(undefined, true),
+    restoredRecordOf(existing, false),
+    restoredRecordOf(savedBefore, true),
+    restoredRecordOf(neverSaved, false),
+  ]);
+
+  expect(savedSessionFilesOf({ kind: 'restored', session })).toEqual(
+    new Set([existing, savedBefore]),
+  );
+});
+
+it('finds no saved session file at startup without a restored session', () => {
+  expect(savedSessionFilesOf(undefined)).toEqual(new Set());
+  expect(savedSessionFilesOf({ kind: 'missing' })).toEqual(new Set());
+  expect(savedSessionFilesOf({ kind: 'broken', message: 'Not JSON.' })).toEqual(new Set());
+});
+
+it.each<[string, SavedPi]>([
+  ['a malformed record', { kind: 'malformed', raw: { piVersion: 7 }, message: 'Not a pi record.' }],
+  ['a record without a session file', restoredRecordOf(undefined, false)],
+])('saves %s restored without a session file as it is', (_name, pi) => {
+  const session = sessionWithPis([pi]);
+  const restored = applyIntent(createState(), { type: 'restoreSession', session });
+
+  invariant(restored.kind === 'applied', 'The restore must apply.');
+
+  expect(currentSession(contextOf(restored.state)).panes[0]?.pi).toEqual(pi);
 });
