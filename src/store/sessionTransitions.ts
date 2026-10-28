@@ -1,5 +1,5 @@
 import { invariant } from '../invariant.ts';
-import { isLive, tabPaneSizes } from './paneSizes.ts';
+import { isLive, lonePaneSize, tabPaneSizes } from './paneSizes.ts';
 import type { Change, Pane, SavedSession, State, View, WorkspaceRecord } from './store.ts';
 import { propose, refuse } from './transitionOutcome.ts';
 import type { Outcome } from './transitionOutcome.ts';
@@ -51,9 +51,8 @@ export const restoreSession = (state: State, session: SavedSession): Outcome => 
   ]);
 
   const panes = session.panes.map((saved, index): Pane => {
-    const size = sizes.get(saved.id);
-
-    invariant(size !== undefined, `Saved pane ${saved.id} is not in the layout of its tab.`);
+    // A tab without room for its panes gives them no size.
+    const size = sizes.get(saved.id) ?? lonePaneSize(state, saved.id);
 
     return {
       id: saved.id,

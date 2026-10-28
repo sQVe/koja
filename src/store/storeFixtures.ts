@@ -61,6 +61,18 @@ export const splitFirst = (direction: 'below' | 'right'): Intent => ({
 
 export const zoom = (id: number): Intent => ({ type: 'zoomPane', paneId: paneId(id) });
 
+export const switchLayout = (id: number, choice: 'legacy' | 'master'): Intent => ({
+  type: 'setTabLayout',
+  tabId: tabId(id),
+  choice,
+});
+
+export const addPane = (id: number): Intent => ({
+  type: 'addPane',
+  paneId: paneId(id),
+  folder: undefined,
+});
+
 export const resize = (
   id: number,
   direction: 'left' | 'right' | 'up' | 'down',

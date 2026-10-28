@@ -13,6 +13,7 @@ import {
   intent,
   run,
   splitFirst,
+  switchLayout,
   zoom,
 } from './storeFixtures.ts';
 
@@ -394,4 +395,25 @@ it('starts the tab of a pane moved to a new workspace as legacy with that pane',
 
   expect(arrangementOf(result.state, 1)).toEqual({ choice: 'legacy', order: [paneId(1)] });
   expect(arrangementOf(result.state, 2)).toEqual({ choice: 'legacy', order: [paneId(2)] });
+});
+
+it('appends a pane moved into a master tab to its order and focuses it', () => {
+  const state = run([
+    attachLarge,
+    createKoja,
+    splitFirst('right'),
+    switchLayout(1, 'master'),
+    { type: 'focusPane', paneId: paneId(1) },
+    createTab,
+  ]);
+
+  const result = intent(state, move(3, toTab(1)));
+  const destination = defined(result.state.tabs.find((tab) => tab.id === tabId(1)));
+
+  expect(destination.arrangement).toEqual({
+    choice: 'master',
+    order: [paneId(1), paneId(2), paneId(3)],
+  });
+
+  expect(destination.focusedPaneId).toBe(paneId(3));
 });

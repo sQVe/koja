@@ -4,6 +4,8 @@ import { clientId, paneId, tabId, workspaceId } from '../ids.ts';
 import { applyIntent, createState, savedSessionOf } from './store.ts';
 import type { Intent, State } from './store.ts';
 import {
+  addPane,
+  attachLarge,
   attachedEmpty,
   createApi,
   createDocs,
@@ -14,6 +16,8 @@ import {
   noFolders,
   richSession,
   run,
+  splitFirst,
+  switchLayout,
 } from './storeFixtures.ts';
 
 const restoreIntent = (state: State): Intent => ({
@@ -184,5 +188,26 @@ it('stops the server without touching a restored pane that failed to start', () 
       error: undefined,
     },
     { type: 'serverStopping' },
+  ]);
+});
+
+it('restores a master tab without room with lone pane sizes', () => {
+  const saved = run([
+    createKoja,
+    attachLarge,
+    splitFirst('right'),
+    addPane(1),
+    switchLayout(1, 'master'),
+  ]);
+
+  const tiny = run([{ type: 'attachClient', size: { columns: 6, rows: 3 } }]);
+  const result = intent(tiny, restoreIntent(saved));
+
+  expect(result.state.tabs[0]?.arrangement.choice).toBe('master');
+
+  expect(result.state.panes.map((pane) => pane.size)).toEqual([
+    { columns: 6, rows: 2 },
+    { columns: 6, rows: 2 },
+    { columns: 6, rows: 2 },
   ]);
 });

@@ -161,6 +161,10 @@ const layoutFailure = (
     return { ok: false, message: `Pane ${request.pane} has no split to resize.` };
   }
 
+  if (result.reason === 'requiresLegacyLayout') {
+    return { ok: false, message: `Pane ${request.pane} is in a master layout tab.` };
+  }
+
   if (result.reason === 'serverStopping') {
     return { ok: false, message: 'The server is stopping.' };
   }

@@ -287,6 +287,7 @@ const paneFailureSchema = z.enum([
   'paneTooSmall',
   'sameTab',
   'noSplit',
+  'requiresLegacyLayout',
   'serverStopping',
   'paneFailedToStart',
 ]);

@@ -411,6 +411,7 @@ const failureReasons: Record<RejectReason, PaneFailureReason | undefined> = {
   paneTooSmall: 'paneTooSmall',
   sameTab: 'sameTab',
   noSplit: 'noSplit',
+  requiresLegacyLayout: 'requiresLegacyLayout',
   staleGeneration: undefined,
 };
 

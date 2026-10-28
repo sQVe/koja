@@ -2,7 +2,7 @@ import { expect, it } from 'bun:test';
 
 import { clientId, paneId, tabId, workspaceId } from '../ids.ts';
 import type { PaneId } from '../ids.ts';
-import type { Arrangement } from '../layout.ts';
+import { layoutPaneIds, masterPanes } from '../layout.ts';
 import {
   activeTabOf,
   applyFact,
@@ -13,6 +13,7 @@ import {
 } from './store.ts';
 import type { Fact, Ignored, Intent, State } from './store.ts';
 import {
+  addPane,
   attachLarge,
   createDocs,
   createKoja,
@@ -24,6 +25,7 @@ import {
   resize,
   run,
   splitFirst,
+  switchLayout,
   zoom,
 } from './storeFixtures.ts';
 
@@ -1033,29 +1035,25 @@ it('puts a split pane in the order after the pane it split', () => {
   });
 });
 
-it('keeps a master choice and its order when a pane splits', () => {
-  const opened = run([createKoja, attachLarge, splitFirst('right')]);
-  const tab = defined(opened.tabs[0]);
+it('refuses to split a pane in a master tab and leaves state unchanged', () => {
+  const state = run([createKoja, attachLarge, splitFirst('right'), switchLayout(1, 'master')]);
+  const result = applyIntent(state, splitFirst('below'));
 
-  const master: State = {
-    ...opened,
-    tabs: [{ ...tab, arrangement: { choice: 'master', order: [paneId(2), paneId(1)] } }],
-  };
+  expect(result).toEqual({
+    kind: 'rejected',
+    state,
+    reason: 'requiresLegacyLayout',
+  });
+});
 
-  const result = intent(master, splitFirst('below'));
+it('refuses to resize a pane in a master tab and leaves state unchanged', () => {
+  const state = run([createKoja, attachLarge, splitFirst('right'), switchLayout(1, 'master')]);
+  const result = applyIntent(state, resize(1, 'right', 2));
 
-  const arrangement: Arrangement = {
-    choice: 'master',
-    order: [paneId(2), paneId(1), paneId(3)],
-  };
-
-  expect(result.state.tabs[0]?.arrangement).toEqual(arrangement);
-
-  expect(result.changes).toContainEqual({
-    type: 'tabLayoutChanged',
-    tabId: tabId(1),
-    layout: defined(result.state.tabs[0]).layout,
-    arrangement,
+  expect(result).toEqual({
+    kind: 'rejected',
+    state,
+    reason: 'requiresLegacyLayout',
   });
 });
 
@@ -1095,4 +1093,170 @@ it('keeps the order when a pane resizes', () => {
   });
 
   expect(result.state.tabs[0]?.arrangement).toEqual(state.tabs[0]?.arrangement);
+});
+
+const masterState = (): State =>
+  run([createKoja, attachLarge, splitFirst('right'), switchLayout(1, 'master')]);
+
+const masterSizes = (state: State): Map<PaneId, string> => {
+  const tab = defined(state.tabs[0]);
+  const placed = masterPanes(tab.arrangement.order, state.layoutArea);
+
+  expect(placed.ok).toBe(true);
+
+  const rectangles = placed.ok ? placed.panes : [];
+
+  return new Map(
+    rectangles.map(({ paneId: id, terminal }) => [id, `${terminal.columns}x${terminal.rows}`]),
+  );
+};
+
+it('appends an added pane to the master order, focuses it, and clears the zoom', () => {
+  const state = intent(masterState(), zoom(1)).state;
+  const result = intent(state, addPane(1));
+  const tab = defined(result.state.tabs[0]);
+
+  expect(tab.arrangement).toEqual({
+    choice: 'master',
+    order: [paneId(1), paneId(2), paneId(3)],
+  });
+
+  expect(tab.focusedPaneId).toBe(paneId(3));
+  expect(tab.zoomedPaneId).toBeUndefined();
+  expect(result.state.panes.map((pane) => pane.id)).toEqual([paneId(1), paneId(2), paneId(3)]);
+  expect(sizes(result.state)).toEqual(masterSizes(result.state));
+
+  expect(result.changes).toContainEqual({
+    type: 'paneFocused',
+    tabId: tabId(1),
+    paneId: paneId(3),
+  });
+
+  expect(result.changes).toContainEqual({
+    type: 'tabZoomChanged',
+    tabId: tabId(1),
+    zoomedPaneId: undefined,
+  });
+});
+
+it('returns the focus and zoom from before a master add when the added pane closes', () => {
+  const state = intent(masterState(), zoom(1)).state;
+  const added = intent(state, addPane(1)).state;
+  const closed = intent(added, { type: 'closePane', paneId: paneId(3) }).state;
+
+  expect(closed.tabs[0]?.focusedPaneId).toBe(paneId(1));
+  expect(closed.tabs[0]?.zoomedPaneId).toBe(paneId(1));
+});
+
+it('adds a pane to a legacy tab as a split to the right of the pane', () => {
+  const state = nestedState();
+  const added = intent(state, addPane(2));
+  const split = intent(state, splitPaneOf(2, 'right'));
+
+  expect(added).toEqual(split);
+});
+
+it('gives a pane added to a master tab without room a lone pane size and keeps the others', () => {
+  const narrow: Intent = {
+    type: 'attachClient',
+    size: { columns: 20, rows: 4 },
+  };
+
+  const state = run([createKoja, narrow, splitFirst('right'), switchLayout(1, 'master')]);
+  const result = intent(state, addPane(1));
+  const before = sizes(state);
+
+  expect(sizes(result.state)).toEqual(new Map([...before, [paneId(3), '20x3']]));
+});
+
+it('keeps every surviving pane once and untouched splits after master adds and closes', () => {
+  const legacy = nestedState();
+  const before = defined(legacy.tabs[0]).layout;
+
+  const steps: Intent[] = [
+    switchLayout(1, 'master'),
+    addPane(1),
+    addPane(1),
+    { type: 'closePane', paneId: paneId(4) },
+    { type: 'closePane', paneId: paneId(2) },
+    switchLayout(1, 'legacy'),
+  ];
+
+  const result = steps.reduce((state, next) => intent(state, next).state, legacy);
+
+  const { layout } = defined(result.tabs[0]);
+
+  expect(layoutPaneIds(layout).toSorted()).toEqual([paneId(1), paneId(3), paneId(5)]);
+
+  expect(layout).toEqual({
+    kind: 'split',
+    direction: 'right',
+    ratio: 0.5,
+    first: before.kind === 'split' ? before.first : before,
+    second: { kind: 'pane', paneId: paneId(5) },
+  });
+});
+
+it('keeps pane sizes while a master tab has no room and fits the order again when it grows', () => {
+  const state = run([
+    createKoja,
+    attachLarge,
+    splitFirst('right'),
+    addPane(1),
+    switchLayout(1, 'master'),
+  ]);
+
+  const before = sizes(state);
+
+  const shrink = {
+    type: 'resizeClient',
+    clientId: clientId(1),
+    size: { columns: 6, rows: 3 },
+  } as const;
+
+  const shrunk = intent(state, shrink).state;
+
+  expect(sizes(shrunk)).toEqual(before);
+  expect(shrunk.panes.every((pane) => pane.size.columns >= 1 && pane.size.rows >= 1)).toBe(true);
+
+  const grow = {
+    type: 'resizeClient',
+    clientId: clientId(1),
+    size: { columns: 90, rows: 30 },
+  } as const;
+
+  const grown = intent(shrunk, grow).state;
+
+  expect(sizes(grown)).toEqual(masterSizes(grown));
+  expect(sizes(grown)).not.toEqual(before);
+});
+
+it('refuses to add a pane next to a pane that does not exist and leaves state unchanged', () => {
+  const state = masterState();
+
+  expect(applyIntent(state, addPane(9))).toEqual({
+    kind: 'rejected',
+    state,
+    reason: 'unknownPane',
+  });
+});
+
+it('refuses to add a pane while the server stops and leaves state unchanged', () => {
+  const state = intent(masterState(), { type: 'stopServer' }).state;
+
+  expect(applyIntent(state, addPane(1))).toEqual({
+    kind: 'rejected',
+    state,
+    reason: 'serverStopping',
+  });
+});
+
+it('adds a pane to the master tab of the given pane', () => {
+  const state = run([createKoja, attachLarge, createTab, switchLayout(2, 'master')]);
+  const result = intent(state, addPane(2));
+
+  expect(result.state.tabs.map((tab) => tab.arrangement.order)).toEqual([
+    [paneId(1)],
+    [paneId(2), paneId(3)],
+  ]);
 });

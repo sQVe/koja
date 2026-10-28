@@ -4,6 +4,7 @@ import { paneSize } from '../layout.ts';
 import type {
   Arrangement,
   Layout,
+  LayoutChoice,
   ResizeDirection,
   SplitDirection,
   TerminalSize,
@@ -18,6 +19,7 @@ import {
 } from './clientTransitions.ts';
 import { movePane } from './paneMoveTransitions.ts';
 import {
+  addPane,
   closePane,
   focusPane,
   resizePane,
@@ -27,6 +29,7 @@ import {
 } from './paneTransitions.ts';
 import type { PiRecord } from './piReportTransitions.ts';
 import { restoreSession, stopServer } from './sessionTransitions.ts';
+import { setTabLayout } from './tabLayoutTransitions.ts';
 import { closeTab, createTab, focusTab, renameTab } from './tabTransitions.ts';
 import type { Outcome, Proposal } from './transitionOutcome.ts';
 import { activeTabOf } from './view.ts';
@@ -205,6 +208,9 @@ export type Intent =
   | { type: 'focusTab'; tabId: TabId; clientId?: ClientId }
   | { type: 'renameTab'; tabId: TabId; label: string }
   | { type: 'closeTab'; tabId: TabId }
+  | { type: 'setTabLayout'; tabId: TabId; choice: LayoutChoice }
+  // A master tab appends the pane to its order. A legacy tab splits the pane to the right.
+  | { type: 'addPane'; paneId: PaneId; folder: string | undefined }
   | {
       type: 'splitPane';
       paneId: PaneId;
@@ -302,6 +308,7 @@ export type RejectReason =
   | 'paneTooSmall'
   | 'sameTab'
   | 'noSplit'
+  | 'requiresLegacyLayout'
   | 'staleGeneration';
 
 // Whatever an effect still holds for this pane generation, such as its process and PTY.
@@ -464,6 +471,10 @@ const transitionIntent = (state: State, intent: Intent): Outcome => {
       return renameTab(state, intent.tabId, intent.label);
     case 'closeTab':
       return closeTab(state, intent.tabId);
+    case 'setTabLayout':
+      return setTabLayout(state, intent.tabId, intent.choice);
+    case 'addPane':
+      return addPane(state, intent);
     case 'splitPane':
       return splitPane(state, intent);
     case 'focusPane':

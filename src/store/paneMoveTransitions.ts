@@ -14,6 +14,7 @@ import type { Layout, PaneRectangle } from '../layout.ts';
 import { fitPanes } from './paneSizes.ts';
 import { unzoomChanges } from './paneTransitions.ts';
 import type { Change, Intent, Pane, State, Tab, WorkspaceRecord } from './store.ts';
+import { masterPlacement } from './tabLayoutTransitions.ts';
 import { removeTab, showTab } from './tabTransitions.ts';
 import { propose, refuse } from './transitionOutcome.ts';
 import type { Outcome, Proposal, Refusal } from './transitionOutcome.ts';
@@ -44,12 +45,19 @@ const withPaneIn = (state: State, id: PaneId, destination: Tab): State => {
   };
 };
 
-const placeInTab = (state: State, pane: Pane, destination: Tab): Placement | Refusal => {
-  const id = pane.id;
-  const area = state.layoutArea;
+// A master tab appends the pane to its order. A legacy tab splits its focused pane.
+const layoutWithPane = (
+  state: State,
+  id: PaneId,
+  destination: Tab,
+): Pick<Tab, 'layout' | 'arrangement'> | Refusal => {
+  if (destination.arrangement.choice === 'master') {
+    return masterPlacement(destination, id);
+  }
+
   const target = destination.focusedPaneId;
 
-  const rectangle = layoutPanes(destination.layout, area).find(
+  const rectangle = layoutPanes(destination.layout, state.layoutArea).find(
     (placed) => placed.paneId === target,
   );
 
@@ -60,7 +68,19 @@ const placeInTab = (state: State, pane: Pane, destination: Tab): Placement | Ref
   }
 
   const layout = splitLayout(destination.layout, target, direction, id);
-  const arrangement = arrangementForLayout(destination.arrangement, layout);
+
+  return { layout, arrangement: arrangementForLayout(destination.arrangement, layout) };
+};
+
+const placeInTab = (state: State, pane: Pane, destination: Tab): Placement | Refusal => {
+  const id = pane.id;
+  const placement = layoutWithPane(state, id, destination);
+
+  if ('kind' in placement) {
+    return placement;
+  }
+
+  const { layout, arrangement } = placement;
 
   const tab: Tab = {
     ...destination,
