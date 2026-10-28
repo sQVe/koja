@@ -10,7 +10,7 @@ export const StatusBar = ({
   session,
   pasteFlow,
 }: {
-  session: AttachSession;
+  session: Pick<AttachSession, 'subscribe' | 'getState'>;
   pasteFlow: PanePaste;
 }): ReactNode => {
   const state = useSyncExternalStore(session.subscribe, session.getState);

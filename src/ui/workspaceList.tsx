@@ -8,7 +8,11 @@ import type { AttachSession } from '../client/client.ts';
 import { sideListWidth, statusBarRows } from '../layout.ts';
 import { visibleStart } from './screenTargets.ts';
 
-export const SideList = ({ session }: { session: AttachSession }): ReactNode => {
+export const SideList = ({
+  session,
+}: {
+  session: Pick<AttachSession, 'subscribe' | 'getState'>;
+}): ReactNode => {
   const { snapshot } = useSyncExternalStore(session.subscribe, session.getState);
   const { height, width } = useTerminalDimensions();
   const rows = Math.max(1, height - statusBarRows);

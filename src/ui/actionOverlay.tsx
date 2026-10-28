@@ -26,7 +26,7 @@ export const ActionOverlay = ({
   session,
   view,
 }: {
-  session: AttachSession;
+  session: Pick<AttachSession, 'subscribe' | 'getState'>;
   view: ActionView;
 }): ReactNode => {
   const state = useSyncExternalStore(view.subscribe, view.getState);
