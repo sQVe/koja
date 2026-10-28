@@ -101,6 +101,19 @@ it('fails a path it cannot read', async () => {
   expect(read).toEqual({ status: 'failed', reason: 'unreadable' });
 });
 
+it('fails a path that is a FIFO without opening it', async () => {
+  const directory = await sessionDirectory();
+  const sessionFile = join(directory, 'pipe.jsonl');
+
+  const mkfifo = Bun.spawn(['mkfifo', sessionFile]);
+
+  expect(await mkfifo.exited).toBe(0);
+
+  const read = await readInDirectory(directory, sessionFile);
+
+  expect(read).toEqual({ status: 'failed', reason: 'unreadable' });
+});
+
 it.each([
   ['no parsed entry', '\n{oops\n\n'],
   [

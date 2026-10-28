@@ -1,4 +1,4 @@
-import { readFile } from 'node:fs/promises';
+import { readFile, stat } from 'node:fs/promises';
 
 import { z } from 'zod';
 
@@ -22,6 +22,13 @@ const readText = async (
   sessionFile: string,
 ): Promise<{ text: string } | { failure: 'missing' | 'unreadable' }> => {
   try {
+    // Opening a FIFO waits for a writer, so a path that is not a regular file is never opened.
+    const stats = await stat(sessionFile);
+
+    if (!stats.isFile()) {
+      return { failure: 'unreadable' };
+    }
+
     return { text: await readFile(sessionFile, 'utf8') };
   } catch (error) {
     const missing = missingFileSchema.safeParse(error).success;

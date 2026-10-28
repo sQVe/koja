@@ -345,6 +345,19 @@ it('fails a record whose session file cannot be read', async () => {
   expect(recovery).toEqual({ status: 'failed', reason: 'sessionFileUnreadable' });
 });
 
+it('fails a record whose session file is a FIFO without waiting for a writer', async () => {
+  const directory = await sessionDirectory();
+  const sessionFile = join(directory, 'pipe.jsonl');
+
+  const mkfifo = Bun.spawn(['mkfifo', sessionFile]);
+
+  expect(await mkfifo.exited).toBe(0);
+
+  const recovery = await checkInDirectory(directory, recordWith({ sessionFile }));
+
+  expect(recovery).toEqual({ status: 'failed', reason: 'sessionFileUnreadable' });
+});
+
 it('fails a record whose session file is not a pi session', async () => {
   const directory = await sessionDirectory();
   const sessionFile = join(directory, 'notes.jsonl');
