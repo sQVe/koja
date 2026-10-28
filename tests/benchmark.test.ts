@@ -169,6 +169,10 @@ it('runs every scenario twice with one structured and stable configuration', asy
       .record(z.string(), z.union([z.string(), z.array(z.string())]))
       .parse(first.configuration.commands);
 
+    expect(recordedCommands['tabLayout']).toBe(
+      'bun <root>/src/index.ts tab layout <visible-tab> legacy --json --socket <run>/run/koja.sock',
+    );
+
     const kojaCommands = Object.entries(recordedCommands).filter(([name]) => name !== 'version');
 
     for (const [name, recorded] of kojaCommands) {

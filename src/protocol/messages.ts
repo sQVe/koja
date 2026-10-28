@@ -159,8 +159,10 @@ const layoutSchema: z.ZodType<Layout> = z.lazy(() =>
   ]),
 );
 
+const layoutChoiceSchema: z.ZodType<Arrangement['choice']> = z.enum(['legacy', 'master']);
+
 const arrangementSchema: z.ZodType<Arrangement> = z.object({
-  choice: z.enum(['legacy', 'master']),
+  choice: layoutChoiceSchema,
   order: z.array(paneIdSchema),
 });
 
@@ -287,6 +289,7 @@ const paneFailureSchema = z.enum([
   'paneTooSmall',
   'sameTab',
   'noSplit',
+  'requiresLegacyLayout',
   'serverStopping',
   'paneFailedToStart',
 ]);
@@ -541,6 +544,7 @@ const controlSchema = z.discriminatedUnion('type', [
     direction: splitDirectionSchema,
     cwd: absent(z.string()),
   }),
+  z.object({ type: z.literal('paneAdd'), paneId: paneIdSchema, cwd: absent(z.string()) }),
   z.object({
     type: z.literal('paneMove'),
     paneId: paneIdSchema,
@@ -559,8 +563,6 @@ const controlSchema = z.discriminatedUnion('type', [
     direction: resizeDirectionSchema,
     cells: z.number().int().positive(),
   }),
-  // Answers a pane split, focus, close, move, zoom, or resize that worked, with the pane it acted on.
-  // For a split, that is the new pane.
   z.object({ type: z.literal('paneDone'), paneId: paneIdSchema }),
   // Answers a pane request that changed nothing. The message is present for paneFailedToStart.
   z.object({
@@ -598,6 +600,7 @@ const controlSchema = z.discriminatedUnion('type', [
   z.object({ type: z.literal('tabFocus'), tabId: tabIdSchema }),
   z.object({ type: z.literal('tabRename'), tabId: tabIdSchema, label: z.string() }),
   z.object({ type: z.literal('tabClose'), tabId: tabIdSchema }),
+  z.object({ type: z.literal('tabLayout'), tabId: tabIdSchema, choice: layoutChoiceSchema }),
   // Answers a tab request that worked, with the tab it acted on.
   z.object({ type: z.literal('tabDone'), tabId: tabIdSchema }),
   // Answers a tab request that changed nothing. The message is present for paneFailedToStart.

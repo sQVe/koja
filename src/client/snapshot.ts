@@ -1,5 +1,5 @@
 import type { PaneId, TabId, WorkspaceId } from '../ids.ts';
-import { layoutPaneIds } from '../layout.ts';
+import { paneSize, tabPanes } from '../layout.ts';
 import type { ControlMessage } from '../protocol/protocol.ts';
 
 export type StoreSnapshot = Extract<ControlMessage, { type: 'snapshot' }>['snapshot'];
@@ -251,17 +251,22 @@ export const focusedPane = (snapshot: StoreSnapshot): StoreSnapshot['panes'][num
 export const viewedPane = (snapshot: StoreSnapshot): StoreSnapshot['panes'][number] | undefined =>
   paneOfView(snapshot, shownView(snapshot));
 
-// The panes the shown tab places, which the server sends rows for. A zoomed tab shows one.
-export const shownPaneIds = (snapshot: StoreSnapshot): Set<PaneId> => {
+const shownTabOf = (snapshot: StoreSnapshot): StoreSnapshot['tabs'][number] | undefined => {
   const view = shownView(snapshot);
 
-  const tab = snapshot.tabs.find(
-    (known) => known.id === activeTabIdOf(view, view.focusedWorkspaceId),
-  );
+  return snapshot.tabs.find((known) => known.id === activeTabIdOf(view, view.focusedWorkspaceId));
+};
+
+// The panes the attached client draws. A tab too small for that client draws none.
+export const shownPaneIds = (snapshot: StoreSnapshot): Set<PaneId> => {
+  const tab = shownTabOf(snapshot);
+  const client = snapshot.clients.find((known) => known.id === snapshot.attachedClientId);
 
   if (tab === undefined) {
     return new Set();
   }
 
-  return new Set(tab.zoomedPaneId === undefined ? layoutPaneIds(tab.layout) : [tab.zoomedPaneId]);
+  const placed = tabPanes(tab, paneSize(client?.size));
+
+  return new Set(placed.ok ? placed.panes.map((rectangle) => rectangle.paneId) : []);
 };

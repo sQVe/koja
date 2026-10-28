@@ -1,5 +1,6 @@
 import { expect, it } from 'bun:test';
 
+import type { PaneId } from '../ids.ts';
 import { clientId, paneId, tabId, workspaceId } from '../ids.ts';
 import type { StoreSnapshot } from './snapshot.ts';
 import {
@@ -217,6 +218,91 @@ it('marks a shown pane that failed', () => {
 
 it('shows no pane before a snapshot arrives', () => {
   expect(shownPaneOf(undefined)).toEqual(undefined);
+});
+
+const twoPaneMasterSplit = {
+  kind: 'split',
+  direction: 'right',
+  ratio: 0.5,
+  first: { kind: 'pane', paneId: pane7.id },
+  second: { kind: 'pane', paneId: pane8.id },
+} as const;
+
+const masterPaneOf = (id: PaneId): StoreSnapshot['panes'][number] => ({
+  id,
+  tabId: tabId(1),
+  lifecycle: 'running',
+  generation: 1,
+  size,
+  exitCode: undefined,
+  startFolder: undefined,
+  restored: false,
+  error: undefined,
+});
+
+const snapshotShowingMasterTab = (clientSize: typeof size): StoreSnapshot => {
+  const view = {
+    focusedWorkspaceId: workspaceId(1),
+    activeTabs: [{ workspaceId: workspaceId(1), tabId: tabId(1) }],
+    scrolls: [],
+  };
+
+  return {
+    revision: 1,
+    workspaces: [{ id: workspaceId(1), root: '/work', label: 'work', tabIds: [tabId(1)] }],
+    tabs: [
+      {
+        id: tabId(1),
+        workspaceId: workspaceId(1),
+        layout: twoPaneMasterSplit,
+        arrangement: { choice: 'master', order: [pane7.id, pane8.id] },
+        focusedPaneId: pane7.id,
+        zoomedPaneId: undefined,
+        label: undefined,
+      },
+    ],
+    panes: [masterPaneOf(pane7.id), masterPaneOf(pane8.id)],
+    defaultView: view,
+    attachedClientId: clientId(1),
+    foregroundClientId: clientId(1),
+    clients: [{ id: clientId(1), size: clientSize, theme: undefined, view }],
+  };
+};
+
+it('names the pane of a master tab that fits the client', () => {
+  expect(shownPaneOf(snapshotShowingMasterTab(size))).toEqual({ id: pane7.id, failed: false });
+});
+
+it('names no pane for a master tab too small to draw', () => {
+  expect(shownPaneOf(snapshotShowingMasterTab({ columns: 6, rows: 4 }))).toBeUndefined();
+});
+
+it('sizes a master tab by the attached client, not by another client', () => {
+  const snapshot = snapshotShowingMasterTab(size);
+
+  const other = {
+    id: clientId(2),
+    size: { columns: 6, rows: 4 },
+    theme: undefined,
+    view: snapshot.defaultView,
+  };
+
+  const crowded = { ...snapshot, clients: [other, ...snapshot.clients] };
+
+  expect(shownPaneOf(crowded)).toEqual({ id: pane7.id, failed: false });
+});
+
+it('names no pane when the shown view has no tab', () => {
+  expect(shownPaneOf({ ...snapshotShowing('running'), tabs: [] })).toBeUndefined();
+});
+
+it('releases at once when a tab switch shows a master tab too small to draw', () => {
+  const sent = tabRequestSent(emptyTabInputGate, pane9);
+  const shown = shownPaneOf(snapshotShowingMasterTab({ columns: 6, rows: 4 }));
+  const answered = tabAnswered(sent, true, shown);
+
+  expect(answered.released).toBe(true);
+  expect(tabInputPending(answered.gate)).toBe(false);
 });
 
 it('takes a stray answer after the awaited rows arrived', () => {

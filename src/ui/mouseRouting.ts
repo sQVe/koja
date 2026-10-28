@@ -35,8 +35,8 @@ export const createMouseRouting = (
   host: MouseRoutingHost,
   navigation: WorkspaceClicks,
 ): MouseRouting => {
-  const forwardMouse = (event: MouseEvent, target: PaneTarget): boolean => {
-    const bytes = encodeMouse(event, host.paneModes(target.paneId), target.column, target.row);
+  const forwardMouse = (event: MouseEvent, target: PaneTarget, modes: number): boolean => {
+    const bytes = encodeMouse(event, modes, target.column, target.row);
 
     if (bytes.length > 0) {
       host.sendToPane(target.paneId, bytes);
@@ -49,6 +49,7 @@ export const createMouseRouting = (
     snapshot: host.snapshot,
     mouseTarget: host.mouseTarget,
     paneSize: host.paneSize,
+    paneModes: host.paneModes,
     forward: forwardMouse,
   });
 

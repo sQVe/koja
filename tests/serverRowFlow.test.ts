@@ -25,6 +25,7 @@ import {
   nextOfType,
   logLinesOf,
   sizedHello,
+  useLegacyLayout,
 } from './serverHarness.ts';
 
 it('publishes ordered rows to terminal clients but not CLI clients', async () => {
@@ -197,6 +198,9 @@ const updatesOf = (client: TestClient, pane: number): RowUpdate[] =>
 it('counts an ack only for the pane it names', async () => {
   const directory = await temporaryDirectory();
   const { socketPath } = await startServer(directory);
+
+  await useLegacyLayout(socketPath);
+
   const cli = await connectCli(socketPath);
 
   cli.send({ type: 'paneSplit', paneId: paneId(1), direction: 'right', cwd: undefined });

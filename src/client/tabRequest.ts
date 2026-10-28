@@ -1,11 +1,14 @@
 import type { TabId, WorkspaceId } from '../ids.ts';
 import type { ControlMessage } from '../protocol/protocol.ts';
 
+type LayoutChoice = Extract<ControlMessage, { type: 'tabLayout' }>['choice'];
+
 export type TabCommand =
   | { action: 'create'; workspaceId: WorkspaceId; cwd: string | undefined; focus: boolean }
   | { action: 'focus'; tabId: TabId }
   | { action: 'rename'; tabId: TabId; label: string }
-  | { action: 'close'; tabId: TabId };
+  | { action: 'close'; tabId: TabId }
+  | { action: 'layout'; tabId: TabId; choice: LayoutChoice };
 
 export const tabRequest = (command: TabCommand): ControlMessage => {
   if (command.action === 'create') {
@@ -15,6 +18,10 @@ export const tabRequest = (command: TabCommand): ControlMessage => {
       cwd: command.cwd,
       focus: command.focus,
     };
+  }
+
+  if (command.action === 'layout') {
+    return { type: 'tabLayout', tabId: command.tabId, choice: command.choice };
   }
 
   if (command.action === 'rename') {

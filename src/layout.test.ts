@@ -19,6 +19,7 @@ import {
   sideListColumns,
   sideListWidth,
   splitLayout,
+  tabPanes,
 } from './layout.ts';
 import type { Layout, PaneRectangle, TerminalSize } from './layout.ts';
 
@@ -469,6 +470,58 @@ const nested = split('right', split('below', leaf(1), leaf(2)), leaf(3));
 it('shows the zoomed pane alone, or the whole layout', () => {
   expect(shownLayout(nested, paneId(2))).toEqual(leaf(2));
   expect(shownLayout(nested, undefined)).toBe(nested);
+});
+
+it('places a legacy tab by its tree and a master tab by its order', () => {
+  const order = [paneId(3), paneId(1), paneId(2)];
+
+  const legacy = {
+    layout: nested,
+    arrangement: { choice: 'legacy', order },
+    zoomedPaneId: undefined,
+  } as const;
+
+  const master = {
+    ...legacy,
+    arrangement: { choice: 'master', order },
+  } as const;
+
+  expect(tabPanes(legacy, area)).toEqual({
+    ok: true,
+    panes: layoutPanes(nested, area),
+  });
+
+  expect(tabPanes(master, area)).toEqual(masterPanes(order, area));
+});
+
+it('places only the zoomed pane of a master tab', () => {
+  const order = [paneId(1), paneId(2), paneId(3)];
+
+  const zoomed = {
+    layout: nested,
+    arrangement: { choice: 'master', order },
+    zoomedPaneId: paneId(2),
+  } as const;
+
+  expect(tabPanes(zoomed, area)).toEqual({
+    ok: true,
+    panes: layoutPanes(leaf(2), area),
+  });
+});
+
+it('reports a master tab that has no room for its panes', () => {
+  const order = [paneId(1), paneId(2), paneId(3)];
+
+  const master = {
+    layout: nested,
+    arrangement: { choice: 'master', order },
+    zoomedPaneId: undefined,
+  } as const;
+
+  expect(tabPanes(master, { columns: 7, rows: 5 })).toMatchObject({
+    ok: false,
+    reason: 'insufficientSpace',
+  });
 });
 
 it('grows the left pane of a right split by one column per cell with right', () => {

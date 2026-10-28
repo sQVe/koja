@@ -13,6 +13,7 @@ import { clientId, paneId, tabId, workspaceId } from '../ids.ts';
 import type { PaneId, WorkspaceId } from '../ids.ts';
 import { invariant } from '../invariant.ts';
 import { legacyArrangement } from '../layout.ts';
+import type { LayoutChoice } from '../layout.ts';
 import { ModeFlag } from '../rows/rows.ts';
 import { actionViewRowsOf, createActionView } from './actionView.ts';
 import type { ActionView } from './actionView.ts';
@@ -44,6 +45,7 @@ interface InputHarness {
   toPane: { pane: PaneId; text: string }[];
   scrolls: ScrollAction[];
   tabs: TabRoute[];
+  layouts: LayoutChoice[];
   actions: PaneAction[];
   commands: WorkspaceCommand[];
   replies: (() => void)[];
@@ -233,6 +235,7 @@ export const createInputHarness = (
   const toPane: { pane: PaneId; text: string }[] = [];
   const scrolls: ScrollAction[] = [];
   const tabs: TabRoute[] = [];
+  const layouts: LayoutChoice[] = [];
   const actions: PaneAction[] = [];
   const paneAnswers: (() => void)[] = [];
   const commands: WorkspaceCommand[] = [];
@@ -362,6 +365,9 @@ export const createInputHarness = (
       tabs.push(route);
     },
     tabPending: () => tabIsPending,
+    tabLayout: (choice) => {
+      layouts.push(choice);
+    },
     afterTabAnswer: (callback) => {
       tabCallbacks.push(callback);
     },
@@ -447,6 +453,7 @@ export const createInputHarness = (
     toPane,
     scrolls,
     tabs,
+    layouts,
     actions,
     commands,
     replies,

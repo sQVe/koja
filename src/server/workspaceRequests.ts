@@ -61,6 +61,7 @@ const failureReasons: Record<RejectReason, WorkspaceFailureReason | undefined> =
   paneTooSmall: undefined,
   sameTab: undefined,
   noSplit: undefined,
+  requiresLegacyLayout: undefined,
   staleGeneration: undefined,
 };
 

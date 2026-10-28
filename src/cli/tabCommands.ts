@@ -9,6 +9,8 @@ import { connectionFailureMessage, printJson } from './output.ts';
 import type { Outcome } from './output.ts';
 import type { TabAction, TabCliCommand } from './tabCommandParse.ts';
 
+type Tab = StoreSnapshot['tabs'][number];
+
 interface TabEntry {
   id: string;
   workspace: string;
@@ -16,6 +18,8 @@ interface TabEntry {
   active: boolean;
   pane: string;
   label: string | null;
+  layout: Tab['layout'];
+  arrangement: Tab['arrangement'];
 }
 
 interface TabActionOutput {
@@ -35,6 +39,8 @@ const listTabs = (snapshot: StoreSnapshot) =>
       active: activeTabIdOf(snapshot.defaultView, tab.workspaceId) === tab.id,
       pane: tab.focusedPaneId,
       label: tab.label ?? null,
+      layout: tab.layout,
+      arrangement: tab.arrangement,
     };
   });
 

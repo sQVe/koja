@@ -1,8 +1,9 @@
 import { expect, it } from 'bun:test';
 
-import { paneId } from '../ids.ts';
+import { clientId, paneId, tabId } from '../ids.ts';
 import type { PaneId } from '../ids.ts';
 import { invariant } from '../invariant.ts';
+import type { TerminalSize } from '../layout.ts';
 import { applyIntent, createState } from '../store/store.ts';
 import type { Intent, State } from '../store/store.ts';
 import type { Connection } from './connection.ts';
@@ -144,6 +145,7 @@ const splitState = (): State =>
   run([
     { type: 'attachClient', size: { columns: 80, rows: 24 } },
     { type: 'createWorkspace', root: '/work', label: 'work', focus: true },
+    { type: 'setTabLayout', tabId: tabId(1), choice: 'legacy' },
     { type: 'splitPane', paneId: id, direction: 'right', folder: undefined },
   ]);
 
@@ -161,4 +163,31 @@ it('lists the visible panes that have a record', () => {
 
   expect(visiblePaneIds(contextOf(both), connection).toSorted()).toEqual([id, paneId(2)]);
   expect(visiblePaneIds(contextOf(onlyFirst), connection)).toEqual([id]);
+});
+
+const masterState = (size: TerminalSize): State =>
+  run([
+    { type: 'attachClient', size: { columns: 80, rows: 24 } },
+    { type: 'createWorkspace', root: '/work', label: 'work', focus: true },
+    { type: 'setTabLayout', tabId: tabId(1), choice: 'legacy' },
+    { type: 'splitPane', paneId: id, direction: 'right', folder: undefined },
+    { type: 'setTabLayout', tabId: tabId(1), choice: 'master' },
+    { type: 'resizeClient', clientId: clientId(1), size },
+  ]);
+
+it('lists the panes of a master tab that fits the area and none of one too small for it', () => {
+  const both = new Map([id, paneId(2)].map((known) => [known, record(1).runningPane]));
+
+  const contextOf = (state: State) =>
+    ({
+      ...publicationContext(both),
+      state,
+      runtime: { panes: both, clientIds: new Map(), rowSubscriptions: new Map() },
+    }) as Parameters<typeof visiblePaneIds>[0];
+
+  const fits = masterState({ columns: 80, rows: 24 });
+  const tooSmall = masterState({ columns: 6, rows: 4 });
+
+  expect(visiblePaneIds(contextOf(fits), connection).toSorted()).toEqual([id, paneId(2)]);
+  expect(visiblePaneIds(contextOf(tooSmall), connection)).toEqual([]);
 });

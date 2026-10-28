@@ -13,6 +13,7 @@ import {
   fact,
   intent,
   run,
+  runLegacy,
   twoClients,
   unknownWorkspace,
 } from './storeFixtures.ts';
@@ -46,7 +47,7 @@ it('creates a second tab with a starting pane, last in the list and active', () 
     id: tabId(2),
     workspaceId: workspaceId(1),
     layout: { kind: 'pane', paneId: paneId(2) },
-    arrangement: { choice: 'legacy', order: [paneId(2)] },
+    arrangement: { choice: 'master', order: [paneId(2)] },
     focusedPaneId: paneId(2),
     zoomedPaneId: undefined,
     label: undefined,
@@ -432,7 +433,7 @@ it('drops the startup records of the panes of a closed tab', () => {
     folder: undefined,
   };
 
-  const state = run([createKoja, createTab, split]);
+  const state = runLegacy([createKoja, createTab, split]);
   const closedIds = [paneId(2), paneId(3)];
 
   expect(state.stateBeforeSplit.has(paneId(3))).toBe(true);

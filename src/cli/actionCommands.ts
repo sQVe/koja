@@ -1,5 +1,11 @@
 import { actionCatalog, defaultTargetOf, paneCommandOf, workspaceNeighborOf } from '../actions.ts';
-import type { ActionEntry, ActionTarget, PaneAction, WorkspaceKey } from '../actions.ts';
+import type {
+  ActionEntry,
+  ActionIntent,
+  ActionTarget,
+  PaneAction,
+  WorkspaceKey,
+} from '../actions.ts';
 import { activeTabIdOf, runSnapshot, tabToFocus } from '../client/client.ts';
 import type { StoreSnapshot, TabRoute } from '../client/client.ts';
 import { invariant } from '../invariant.ts';
@@ -18,6 +24,8 @@ import type { WorkspaceAction } from './workspaceCommandParse.ts';
 import { runWorkspaceAction } from './workspaceCommands.ts';
 
 type RunAction = Extract<ActionCliAction, { action: 'run' }>;
+
+type LayoutChoice = Extract<ActionIntent, { kind: 'layout' }>['choice'];
 
 interface ActionEntryOutput {
   id: string;
@@ -201,6 +209,19 @@ const runTabIntent = async (route: TabRoute, context: RunContext): Promise<Outco
   );
 };
 
+const runLayoutIntent = (choice: LayoutChoice, context: RunContext): Promise<Outcome> => {
+  const { options, snapshot, version, environment } = context;
+  const pane = snapshot.panes.find((known) => known.id === context.target.paneId);
+
+  invariant(pane !== undefined, 'A layout action is only available with a pane.');
+
+  return runTabAction(
+    { kind: 'tab', tab: { action: 'layout', tabId: pane.tabId, choice }, ...options },
+    version,
+    environment,
+  );
+};
+
 const runDetachIntent = (context: RunContext): Promise<Outcome> =>
   runDetachCommand(
     { kind: 'detach', client: undefined, ...context.options },
@@ -221,6 +242,10 @@ const runIntent = (entry: ActionEntry, context: RunContext): Promise<Outcome> =>
 
   if (intent.kind === 'tab') {
     return runTabIntent(intent.route, context);
+  }
+
+  if (intent.kind === 'layout') {
+    return runLayoutIntent(intent.choice, context);
   }
 
   if (intent.kind === 'detach') {

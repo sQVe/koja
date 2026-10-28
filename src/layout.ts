@@ -20,11 +20,17 @@ export type Layout =
       second: Layout;
     };
 
-type LayoutChoice = 'legacy' | 'master';
+export type LayoutChoice = 'legacy' | 'master';
 
 export interface Arrangement {
   choice: LayoutChoice;
   order: readonly PaneId[];
+}
+
+interface TabShape {
+  layout: Layout;
+  arrangement: Arrangement;
+  zoomedPaneId: PaneId | undefined;
 }
 
 interface Area extends TerminalSize {
@@ -341,6 +347,11 @@ export const legacyArrangement = (layout: Layout): Arrangement => ({
   order: layoutPaneIds(layout),
 });
 
+export const masterArrangement = (layout: Layout): Arrangement => ({
+  choice: 'master',
+  order: layoutPaneIds(layout),
+});
+
 export const orderForLayout = (order: readonly PaneId[], layout: Layout): PaneId[] => {
   invariant(hasUniqueIds(order), 'Cannot order the same pane twice.');
 
@@ -420,6 +431,14 @@ export const layoutForOrder = (layout: Layout, order: readonly PaneId[]): Layout
 
 export const shownLayout = (layout: Layout, zoomedPaneId: PaneId | undefined): Layout =>
   zoomedPaneId === undefined ? layout : { kind: 'pane', paneId: zoomedPaneId };
+
+export const tabPanes = (tab: TabShape, size: TerminalSize): MasterPanesResult => {
+  const isMaster = tab.arrangement.choice === 'master' && tab.zoomedPaneId === undefined;
+
+  return isMaster
+    ? masterPanes(tab.arrangement.order, size)
+    : { ok: true, panes: layoutPanes(shownLayout(tab.layout, tab.zoomedPaneId), size) };
+};
 
 // Moves the first child's edge by whole cells, within what both subtrees need. Gives the same
 // layout when nothing moves.

@@ -1,7 +1,7 @@
 import { paneId, tabId } from '../ids.ts';
 import type { ClientId, TabId, WorkspaceId } from '../ids.ts';
 import { invariant } from '../invariant.ts';
-import { legacyArrangement } from '../layout.ts';
+import { masterArrangement } from '../layout.ts';
 import type { Layout } from '../layout.ts';
 import { lonePaneSize } from './paneSizes.ts';
 import { withoutStartupRecords } from './paneStartupRecords.ts';
@@ -188,7 +188,7 @@ export const createTab = (state: State, intent: CreateTabIntent): Outcome => {
     id: pane.tabId,
     workspaceId: id,
     layout,
-    arrangement: legacyArrangement(layout),
+    arrangement: masterArrangement(layout),
     focusedPaneId: pane.id,
     zoomedPaneId: undefined,
     label: undefined,

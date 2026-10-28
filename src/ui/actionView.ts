@@ -52,14 +52,19 @@ const isSearchQuery = (
 ): state is Extract<ActionViewState, { kind: 'search' }> => state.kind === 'search';
 
 const searchEntries = (catalog: ActionCatalog, query: string): ActionCatalog => {
-  const words = query.toLowerCase().split(/\s+/);
+  const lowered = query.toLowerCase();
+  const words = lowered.split(/\s+/);
 
-  return catalog.filter((entry) => {
+  const matches = catalog.filter((entry) => {
     const title = entry.title.toLowerCase();
     const id = entry.id.toLowerCase();
 
     return words.every((word) => title.includes(word) || id.includes(word));
   });
+
+  const isPrefix = (entry: ActionEntry): boolean => entry.title.toLowerCase().startsWith(lowered);
+
+  return [...matches.filter(isPrefix), ...matches.filter((entry) => !isPrefix(entry))];
 };
 
 const shownEntries = (catalog: ActionCatalog, state: ActionViewState): ActionCatalog => {

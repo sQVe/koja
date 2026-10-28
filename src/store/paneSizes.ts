@@ -1,6 +1,6 @@
 import type { PaneId } from '../ids.ts';
 import { invariant } from '../invariant.ts';
-import { layoutPanes, shownLayout } from '../layout.ts';
+import { layoutPanes, tabPanes } from '../layout.ts';
 import type { TerminalSize } from '../layout.ts';
 import type { Change, Pane, State, Tab } from './store.ts';
 
@@ -17,10 +17,10 @@ export const tabPaneSizes = (
   const sizes = new Map<PaneId, TerminalSize>();
 
   for (const tab of tabs) {
-    for (const { paneId: id, terminal } of layoutPanes(
-      shownLayout(tab.layout, tab.zoomedPaneId),
-      area,
-    )) {
+    const placed = tabPanes(tab, area);
+    const rectangles = placed.ok ? placed.panes : [];
+
+    for (const { paneId: id, terminal } of rectangles) {
       sizes.set(id, { columns: terminal.columns, rows: terminal.rows });
     }
   }
@@ -28,11 +28,8 @@ export const tabPaneSizes = (
   return sizes;
 };
 
-export const fitPanesTo = (
-  state: State,
-  area: TerminalSize,
-): { panes: readonly Pane[]; changes: Change[] } => {
-  const sizes = tabPaneSizes(state.tabs, area);
+export const fitPanes = (state: State): { panes: readonly Pane[]; changes: Change[] } => {
+  const sizes = tabPaneSizes(state.tabs, state.layoutArea);
   const changes: Change[] = [];
 
   const panes = state.panes.map((pane) => {
@@ -57,6 +54,3 @@ export const lonePaneSize = (state: State, id: PaneId): TerminalSize => {
 
   return { columns: lone.terminal.columns, rows: lone.terminal.rows };
 };
-
-export const fitPanes = (state: State): { panes: readonly Pane[]; changes: Change[] } =>
-  fitPanesTo(state, state.layoutArea);

@@ -123,6 +123,18 @@ it('parses the tab commands', () => {
     tab: { action: 'close', tabId: tabId(3) },
     ...options,
   });
+
+  expect(parseCommand(['tab', 'layout', 'tab-3', 'legacy'])).toEqual({
+    kind: 'tab',
+    tab: { action: 'layout', tabId: tabId(3), choice: 'legacy' },
+    ...options,
+  });
+
+  expect(parseCommand(['tab', 'layout', 'tab-3', 'master'])).toEqual({
+    kind: 'tab',
+    tab: { action: 'layout', tabId: tabId(3), choice: 'master' },
+    ...options,
+  });
 });
 
 it.each([
@@ -150,6 +162,10 @@ it.each([
   ['an empty label for tab rename', ['tab', 'rename', 'tab-1', '']],
   ['a bad tab id for tab rename', ['tab', 'rename', '1', 'build']],
   ['an unknown action', ['tab', 'open']],
+  ['no layout for tab layout', ['tab', 'layout', 'tab-1']],
+  ['an extra argument for tab layout', ['tab', 'layout', 'tab-1', 'master', 'more']],
+  ['an unknown layout', ['tab', 'layout', 'tab-1', 'grid']],
+  ['a bad tab id for tab layout', ['tab', 'layout', '1', 'master']],
   ['--workspace on tab focus', ['tab', 'focus', 'tab-1', '--workspace', 'workspace-1']],
   ['--workspace on another group', ['workspace', 'list', '--workspace', 'workspace-1']],
   ['a bad workspace id', ['tab', 'create', '--workspace', 'tab-1']],
@@ -244,6 +260,13 @@ it('parses pane split, focus, and close with the pane id as an argument', () => 
   expect(parseCommand(['pane', 'focus', 'pane-3'])).toEqual({
     kind: 'pane',
     pane: { action: 'focus', pane: paneId(3) },
+    json: true,
+    socket: undefined,
+  });
+
+  expect(parseCommand(['pane', 'add', 'pane-3', '--cwd', 'work'])).toEqual({
+    kind: 'pane',
+    pane: { action: 'add', pane: paneId(3), cwd: 'work' },
     json: true,
     socket: undefined,
   });
@@ -530,6 +553,8 @@ it.each([
     ['pane', 'split', 'pane-1', '--direction', 'below', '--cwd', ''],
   ],
   ['an empty folder on tab create', ['tab', 'create', '--cwd', '']],
+  ['an empty folder on pane add', ['pane', 'add', 'pane-1', '--cwd', '']],
+  ['tab layout', ['tab', 'layout', 'tab-1', 'master', '--cwd', '/srv']],
 ])('refuses --cwd on %s', (_name, argv) => {
   expect(typeof parseCommand(argv)).toBe('string');
 });

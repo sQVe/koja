@@ -19,6 +19,7 @@ import {
   attachTerminal,
   connectCli,
   nextOfType,
+  useLegacyLayout,
 } from './serverHarness.ts';
 
 it('starts with no workspace and adds one focused workspace for each workspaceCreate', async () => {
@@ -190,6 +191,9 @@ it('sends rows only for the focused workspace and the other screen after workspa
 it('sends rows for every pane of the active tab after a split', async () => {
   const directory = await temporaryDirectory();
   const { socketPath } = await startServer(directory);
+
+  await useLegacyLayout(socketPath);
+
   const cli = await connectCli(socketPath);
   const terminal = await attachTerminal(socketPath, 100);
 
@@ -228,6 +232,9 @@ const receiveShownText = async (
 it('sends no rows for a hidden pane while its tab is zoomed and its current screen after unzoom', async () => {
   const directory = await temporaryDirectory();
   const { socketPath } = await startServer(directory);
+
+  await useLegacyLayout(socketPath);
+
   const cli = await connectCli(socketPath);
   const terminal = await attachTerminal(socketPath, 100);
 
@@ -303,6 +310,8 @@ it('keeps the existing pane at its full size when the split pane fails to start'
   const { server, socketPath } = await startEmptyServer(directory);
 
   await createWorkspace(socketPath, root, 'root');
+
+  await useLegacyLayout(socketPath);
 
   const before = server.snapshot().panes[0]?.size ?? { columns: 0, rows: 0 };
 

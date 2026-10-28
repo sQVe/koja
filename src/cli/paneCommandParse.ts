@@ -21,6 +21,8 @@ type SplitDirection = Extract<PaneLayoutCommand, { action: 'split' }>['direction
 
 type ResizeDirection = Extract<PaneLayoutCommand, { action: 'resize' }>['direction'];
 
+type PaneLayoutAction = 'split' | 'add' | 'focus' | 'close' | 'zoom' | 'resize';
+
 type PaneCliAction =
   | PaneReadCommand
   | PaneSendCommand
@@ -91,6 +93,7 @@ export const paneUsage = `  koja pane list [--socket <path>] [--json]
   koja pane send <text> [--pane <id>] [--socket <path>] [--json]
   koja pane paste <text> [--pane <id>] [--authorize <token>] [--socket <path>] [--json]
   koja pane split <id> --direction below|right [--cwd <dir>] [--socket <path>] [--json]
+  koja pane add <id> [--cwd <dir>] [--socket <path>] [--json]
   koja pane move <id> --tab <id> | --new-tab | --new-workspace [--socket <path>] [--json]
   koja pane focus <id> [--socket <path>] [--json]
   koja pane close <id> [--socket <path>] [--json]
@@ -165,7 +168,7 @@ const parseSplitCommand = (
 };
 
 const parsePaneLayoutCommand = (
-  action: 'split' | 'focus' | 'close' | 'zoom' | 'resize',
+  action: PaneLayoutAction,
   rest: string[],
   { direction, cells, cwd }: LayoutOptions,
 ): PaneLayoutCommand | string => {
@@ -181,6 +184,10 @@ const parsePaneLayoutCommand = (
 
   if (action === 'split') {
     return parseSplitCommand(paneId(target), direction, cwd);
+  }
+
+  if (action === 'add') {
+    return cwd === '' ? 'The --cwd folder cannot be empty.' : { action, pane: paneId(target), cwd };
   }
 
   if (action === 'resize') {
@@ -236,15 +243,15 @@ const parseMoveCommand = (rest: string[], move: MoveOptions): PaneLayoutCommand 
 
 const paneLayoutActions: ReadonlySet<string | undefined> = new Set([
   'split',
+  'add',
   'focus',
   'close',
   'zoom',
   'resize',
 ]);
 
-const isPaneLayoutAction = (
-  action: string | undefined,
-): action is 'split' | 'focus' | 'close' | 'zoom' | 'resize' => paneLayoutActions.has(action);
+const isPaneLayoutAction = (action: string | undefined): action is PaneLayoutAction =>
+  paneLayoutActions.has(action);
 
 const parseProcessInfoCommand = (rest: string[]): PaneCliAction | string => {
   if (rest.length !== 1) {

@@ -18,6 +18,18 @@ export const fact = (state: State, next: Fact): Applied => expectApplied(applyFa
 export const run = (intents: readonly Intent[]): State =>
   intents.reduce((state, next) => intent(state, next).state, createState());
 
+const withLegacyTabs = (applied: Applied): State =>
+  applied.changes.reduce(
+    (state, change) =>
+      change.type === 'tabAdded'
+        ? intent(state, { type: 'setTabLayout', tabId: change.tab.id, choice: 'legacy' }).state
+        : state,
+    applied.state,
+  );
+
+export const runLegacy = (intents: readonly Intent[]): State =>
+  intents.reduce((state, next) => withLegacyTabs(intent(state, next)), createState());
+
 export const createKoja = {
   type: 'createWorkspace',
   root: '/work/koja',
@@ -60,6 +72,18 @@ export const splitFirst = (direction: 'below' | 'right'): Intent => ({
 });
 
 export const zoom = (id: number): Intent => ({ type: 'zoomPane', paneId: paneId(id) });
+
+export const switchLayout = (id: number, choice: 'legacy' | 'master'): Intent => ({
+  type: 'setTabLayout',
+  tabId: tabId(id),
+  choice,
+});
+
+export const addPane = (id: number): Intent => ({
+  type: 'addPane',
+  paneId: paneId(id),
+  folder: undefined,
+});
 
 export const resize = (
   id: number,

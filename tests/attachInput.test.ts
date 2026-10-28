@@ -242,7 +242,9 @@ const shownMarker = 'echo shown-$((1+1))\r';
 it(
   'splits the focused pane below on Ctrl+B s and right on Ctrl+B v',
   async () => {
-    const { list, type } = await setup();
+    const { list, type, useLegacy } = await setup();
+
+    await useLegacy();
 
     type('\x02s');
 
@@ -269,7 +271,9 @@ it(
 it(
   'moves the focused pane alone into a new tab on Ctrl+B !',
   async () => {
-    const { koja, list, lines, foreground, until, type, first } = await setup();
+    const { koja, list, lines, foreground, until, type, first, useLegacy } = await setup();
+
+    await useLegacy();
     const second = await koja('pane', 'split', first, '--direction', 'right', '--json');
     const secondId = z.object({ pane: z.string() }).parse(JSON.parse(second)).pane;
 
@@ -318,7 +322,9 @@ it(
 it(
   'moves focus on Ctrl+B h and Ctrl+B l so typed keys reach the focused pane only',
   async () => {
-    const { koja, list, lines, until, type, first } = await setup();
+    const { koja, list, lines, until, type, first, useLegacy } = await setup();
+
+    await useLegacy();
 
     await koja('pane', 'split', first, '--direction', 'right');
     await until(() => lines()[0]?.charAt(41) === '┌');
@@ -400,7 +406,9 @@ it(
 it(
   'closes the focused pane on Ctrl+B x so its sibling fills the area',
   async () => {
-    const { list, type, first } = await setup();
+    const { list, type, first, useLegacy } = await setup();
+
+    await useLegacy();
 
     type('\x02s');
     await listUntil(list, (panes) => panes.length === 2);
@@ -436,7 +444,9 @@ it(
 it(
   'runs a command typed in the same write as Ctrl+B h in the newly focused pane only',
   async () => {
-    const { koja, act, lines, until, type, first } = await setup();
+    const { koja, act, lines, until, type, first, useLegacy } = await setup();
+
+    await useLegacy();
     const second = await act('split', first, '--direction', 'right');
 
     await until(() => lines()[0]?.charAt(41) === '┌');
@@ -455,7 +465,9 @@ it(
 it(
   'runs a command typed in the same write as Ctrl+B l in the newly focused pane only',
   async () => {
-    const { koja, lines, foreground, until, type, first } = await setup();
+    const { koja, lines, foreground, until, type, first, useLegacy } = await setup();
+
+    await useLegacy();
 
     await koja('pane', 'split', first, '--direction', 'right');
     await koja('pane', 'focus', first);
@@ -475,7 +487,9 @@ it(
 it(
   'sends text typed in the same write as Ctrl+B s to the new pane',
   async () => {
-    const { koja, lines, until, type, first } = await setup();
+    const { koja, lines, until, type, first, useLegacy } = await setup();
+
+    await useLegacy();
 
     type('\x02siecho BELOWRACE\r');
 

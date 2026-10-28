@@ -12,6 +12,7 @@ import {
   intent,
   noFolders,
   run,
+  runLegacy,
   splitFirst,
   withClient,
 } from './storeFixtures.ts';
@@ -222,7 +223,7 @@ it('refuses a theme from an unknown client and leaves state unchanged', () => {
 });
 
 it('resizes every live pane by the layout when the client resizes', () => {
-  const state = run([createKoja, attachLarge, splitFirst('right')]);
+  const state = runLegacy([createKoja, attachLarge, splitFirst('right')]);
 
   const result = intent(state, {
     type: 'resizeClient',

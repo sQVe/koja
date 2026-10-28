@@ -4,7 +4,7 @@ import { scrollTopOf, shownView } from '../client/client.ts';
 import type { AttachSession } from '../client/client.ts';
 import type { PaneId } from '../ids.ts';
 import { paneSize } from '../layout.ts';
-import type { PaneRectangle } from '../layout.ts';
+import type { PaneRectangle, TerminalSize } from '../layout.ts';
 import { BorderRenderable, borderCells } from './paneBorders.ts';
 import { FailedPaneRenderable } from './paneFailure.ts';
 import { PaneRenderable } from './paneRenderable.ts';
@@ -35,6 +35,8 @@ export const mountPanes = (
   const paneFailures = new Map<PaneId, FailedPaneRenderable>();
   const borders = new BorderRenderable(renderer, paneSize(undefined));
   let drawnBorders = '';
+  let warning: FailedPaneRenderable | undefined;
+  let warningMessage: string | undefined;
 
   box.add(borders);
 
@@ -177,6 +179,41 @@ export const mountPanes = (
     }
   };
 
+  const removeWarning = (): void => {
+    warning?.destroy();
+    warning = undefined;
+    warningMessage = undefined;
+  };
+
+  const placeWarning = (size: TerminalSize, required: TerminalSize | undefined): void => {
+    if (required === undefined) {
+      removeWarning();
+
+      return;
+    }
+
+    const message = `Pane area too small: layout needs at least ${required.columns} columns x ${required.rows} rows`;
+
+    if (message !== warningMessage) {
+      removeWarning();
+
+      warning = new FailedPaneRenderable(renderer, {
+        message,
+        width: size.columns,
+        height: size.rows,
+        left: 0,
+        top: 0,
+      });
+
+      warningMessage = message;
+      box.add(warning);
+
+      return;
+    }
+
+    warning?.resize(size.columns, size.rows);
+  };
+
   // Only the focused pane draws its cursor with the terminal's native cursor. Without a focused
   // pane renderable, such as on a failed pane, nothing shows it.
   const focusPane = (focusedPaneId: PaneId | undefined): void => {
@@ -193,7 +230,11 @@ export const mountPanes = (
 
   const sync = (): void => {
     const terminal = { columns: renderer.terminalWidth, rows: renderer.terminalHeight };
-    const { rectangles, size, focusedPaneId } = placementOf(session.getState().snapshot, terminal);
+
+    const { rectangles, size, focusedPaneId, requiredSize } = placementOf(
+      session.getState().snapshot,
+      terminal,
+    );
 
     removeDeparted(rectangles);
 
@@ -202,6 +243,8 @@ export const mountPanes = (
     }
 
     focusPane(focusedPaneId);
+
+    placeWarning(size, requiredSize);
 
     const signature = JSON.stringify([rectangles, size, focusedPaneId]);
 
@@ -252,6 +295,7 @@ export const mountPanes = (
       pane.destroy();
     }
 
+    removeWarning();
     renderer.setCursorPosition(0, 0, false);
     borders.destroy();
   };

@@ -9,10 +9,13 @@ import {
   removePane,
   resizeLayout,
   splitLayout,
+  tabPanes,
 } from '../layout.ts';
-import { fitPanes, fitPanesTo } from './paneSizes.ts';
+import type { TerminalSize } from '../layout.ts';
+import { fitPanes, lonePaneSize } from './paneSizes.ts';
 import { withoutStartupRecords } from './paneStartupRecords.ts';
 import type { Change, Fact, Intent, Pane, StartFallback, State, Tab } from './store.ts';
+import { masterPlacement } from './tabLayoutTransitions.ts';
 import { removeTab, showTab } from './tabTransitions.ts';
 import { propose, refuse } from './transitionOutcome.ts';
 import type { Outcome, Proposal } from './transitionOutcome.ts';
@@ -20,6 +23,7 @@ import { viewChanges } from './view.ts';
 
 type SplitPaneIntent = Extract<Intent, { type: 'splitPane' }>;
 type ResizePaneIntent = Extract<Intent, { type: 'resizePane' }>;
+type AddPaneIntent = Extract<Intent, { type: 'addPane' }>;
 
 export const unzoomChanges = (tab: Tab): Change[] =>
   tab.zoomedPaneId === undefined
@@ -39,6 +43,69 @@ const restoredZoom = (state: State, id: PaneId, focusedPaneId: PaneId): PaneId |
 const replacePane = (state: State, replacement: Pane): readonly Pane[] =>
   state.panes.map((pane) => (pane.id === replacement.id ? replacement : pane));
 
+const addedPaneSize = (state: State, tab: Tab, id: PaneId): TerminalSize => {
+  const placed = tabPanes(tab, state.layoutArea);
+  const rectangle = placed.ok ? placed.panes.find((known) => known.paneId === id) : undefined;
+
+  return rectangle === undefined
+    ? lonePaneSize(state, id)
+    : { columns: rectangle.terminal.columns, rows: rectangle.terminal.rows };
+};
+
+const addPaneIn = (
+  state: State,
+  tab: Tab,
+  placement: Pick<Tab, 'layout' | 'arrangement'>,
+  folder: string | undefined,
+): Proposal => {
+  const { layout, arrangement } = placement;
+  const addedId = paneId(state.nextPaneNumber);
+
+  const addedTab: Tab = {
+    ...tab,
+    layout,
+    arrangement,
+    focusedPaneId: addedId,
+    zoomedPaneId: undefined,
+  };
+
+  const added: Pane = {
+    id: addedId,
+    tabId: tab.id,
+    lifecycle: 'starting',
+    size: addedPaneSize(state, addedTab, addedId),
+    generation: state.nextGeneration,
+    exitCode: undefined,
+    startFolder: folder,
+    restored: false,
+    error: undefined,
+  };
+
+  const next: State = {
+    ...state,
+    tabs: state.tabs.map((known) => (known.id === tab.id ? addedTab : known)),
+    panes: [...state.panes, added],
+    nextPaneNumber: state.nextPaneNumber + 1,
+    nextGeneration: state.nextGeneration + 1,
+    stateBeforeSplit: new Map(state.stateBeforeSplit).set(added.id, {
+      focusedPaneId: tab.focusedPaneId,
+      zoomedPaneId: tab.zoomedPaneId,
+    }),
+  };
+
+  const fitted = fitPanes(next);
+
+  return propose({ ...next, panes: fitted.panes }, [
+    { type: 'paneAdded', pane: added },
+    { type: 'tabLayoutChanged', tabId: tab.id, layout, arrangement },
+    { type: 'paneFocused', tabId: tab.id, paneId: added.id },
+    ...unzoomChanges(tab),
+    ...fitted.changes,
+  ]);
+};
+
+const isMaster = (tab: Tab): boolean => tab.arrangement.choice === 'master';
+
 export const splitPane = (state: State, intent: SplitPaneIntent): Outcome => {
   const { paneId: id, direction, folder } = intent;
 
@@ -53,62 +120,43 @@ export const splitPane = (state: State, intent: SplitPaneIntent): Outcome => {
     return refuse('unknownPane');
   }
 
-  const area = state.layoutArea;
-  const rectangle = layoutPanes(tab.layout, area).find((placed) => placed.paneId === id);
+  if (isMaster(tab)) {
+    return refuse('requiresLegacyLayout');
+  }
+
+  const rectangle = layoutPanes(tab.layout, state.layoutArea).find(
+    (placed) => placed.paneId === id,
+  );
 
   if (rectangle === undefined || !canSplit(rectangle, direction)) {
     return refuse('paneTooSmall');
   }
 
-  const addedId = paneId(state.nextPaneNumber);
-  const layout = splitLayout(tab.layout, id, direction, addedId);
-  const addedRectangle = layoutPanes(layout, area).find((placed) => placed.paneId === addedId);
-
-  invariant(addedRectangle !== undefined, `Split layout has no pane ${addedId}.`);
-
-  const added: Pane = {
-    id: addedId,
-    tabId: tab.id,
-    lifecycle: 'starting',
-    size: { columns: addedRectangle.terminal.columns, rows: addedRectangle.terminal.rows },
-    generation: state.nextGeneration,
-    exitCode: undefined,
-    startFolder: folder,
-    restored: false,
-    error: undefined,
-  };
-
+  const layout = splitLayout(tab.layout, id, direction, paneId(state.nextPaneNumber));
   const arrangement = arrangementForLayout(tab.arrangement, layout);
 
-  const splitTab: Tab = {
-    ...tab,
-    layout,
-    arrangement,
-    focusedPaneId: added.id,
-    zoomedPaneId: undefined,
-  };
+  return addPaneIn(state, tab, { layout, arrangement }, folder);
+};
 
-  const split: State = {
-    ...state,
-    tabs: state.tabs.map((known) => (known.id === tab.id ? splitTab : known)),
-    panes: [...state.panes, added],
-    nextPaneNumber: state.nextPaneNumber + 1,
-    nextGeneration: state.nextGeneration + 1,
-    stateBeforeSplit: new Map(state.stateBeforeSplit).set(added.id, {
-      focusedPaneId: tab.focusedPaneId,
-      zoomedPaneId: tab.zoomedPaneId,
-    }),
-  };
+export const addPane = (state: State, intent: AddPaneIntent): Outcome => {
+  const { paneId: id, folder } = intent;
 
-  const fitted = fitPanesTo(split, area);
+  if (state.stopping) {
+    return refuse('serverStopping');
+  }
 
-  return propose({ ...split, panes: fitted.panes }, [
-    { type: 'paneAdded', pane: added },
-    { type: 'tabLayoutChanged', tabId: tab.id, layout, arrangement },
-    { type: 'paneFocused', tabId: tab.id, paneId: added.id },
-    ...unzoomChanges(tab),
-    ...fitted.changes,
-  ]);
+  const target = state.panes.find((pane) => pane.id === id);
+  const tab = state.tabs.find((known) => known.id === target?.tabId);
+
+  if (tab === undefined) {
+    return refuse('unknownPane');
+  }
+
+  if (!isMaster(tab)) {
+    return splitPane(state, { type: 'splitPane', paneId: id, direction: 'right', folder });
+  }
+
+  return addPaneIn(state, tab, masterPlacement(tab, paneId(state.nextPaneNumber)), folder);
 };
 
 export const focusPane = (state: State, id: PaneId, source: ClientId | undefined): Outcome => {
@@ -262,6 +310,10 @@ export const resizePane = (state: State, intent: ResizePaneIntent): Outcome => {
 
   if (tab === undefined) {
     return refuse('unknownPane');
+  }
+
+  if (isMaster(tab)) {
+    return refuse('requiresLegacyLayout');
   }
 
   const layout = resizeLayout(tab.layout, id, direction, cells, state.layoutArea);

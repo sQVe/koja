@@ -1,5 +1,5 @@
 import type { PaneId } from '../ids.ts';
-import { viewedPane } from './snapshot.ts';
+import { shownPaneIds, viewedPane } from './snapshot.ts';
 import type { StoreSnapshot } from './snapshot.ts';
 
 // Undefined when no pane is shown.
@@ -25,7 +25,11 @@ export interface GateResult {
 }
 
 export const shownPaneOf = (snapshot: StoreSnapshot | undefined): ShownPane => {
-  const pane = snapshot && viewedPane(snapshot);
+  if (snapshot === undefined || shownPaneIds(snapshot).size === 0) {
+    return undefined;
+  }
+
+  const pane = viewedPane(snapshot);
 
   return pane && { id: pane.id, failed: pane.lifecycle === 'failed' };
 };

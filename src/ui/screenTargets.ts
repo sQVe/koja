@@ -1,7 +1,7 @@
 import { activeTabIdOf, shownView } from '../client/client.ts';
 import type { StoreSnapshot } from '../client/client.ts';
 import type { PaneId, WorkspaceId } from '../ids.ts';
-import { layoutPanes, paneSize, shownLayout, sideListWidth, statusBarRows } from '../layout.ts';
+import { paneSize, sideListWidth, statusBarRows, tabPanes } from '../layout.ts';
 import type { PaneRectangle, TerminalSize } from '../layout.ts';
 
 export interface Placement {
@@ -10,6 +10,7 @@ export interface Placement {
   focusedPaneId: PaneId | undefined;
   // The columns the side list takes before the first pane column.
   offset: number;
+  requiredSize: TerminalSize | undefined;
 }
 
 // A cell inside a pane, counted from the pane's own top left cell.
@@ -45,13 +46,14 @@ export const placementOf = (snapshot: StoreSnapshot, terminal: TerminalSize): Pl
   const tab = snapshot.tabs.find((known) => known.id === activeId);
   const screen = screenOf(snapshot, terminal);
   const size = paneSize(screen);
+  const placed = tab === undefined ? undefined : tabPanes(tab, size);
 
   return {
-    rectangles:
-      tab === undefined ? [] : layoutPanes(shownLayout(tab.layout, tab.zoomedPaneId), size),
+    rectangles: placed?.ok === true ? placed.panes : [],
     size,
     focusedPaneId: tab?.focusedPaneId,
     offset: sideListWidth(screen.columns),
+    requiredSize: placed?.ok === false ? placed.required : undefined,
   };
 };
 

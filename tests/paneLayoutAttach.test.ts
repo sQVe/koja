@@ -35,7 +35,9 @@ it(
 it(
   'draws split panes in two frames and sizes each terminal to the inside of its frame',
   async () => {
-    const { koja, list, act, lines, until, first } = await setup();
+    const { koja, list, act, lines, until, first, useLegacy } = await setup();
+
+    await useLegacy();
     const second = await act('split', first, '--direction', 'right');
 
     await koja('pane', 'send', 'echo LEFTTEXT\n', '--pane', first);
@@ -76,7 +78,9 @@ it(
 it(
   'draws stacked panes with touching frames and sizes each terminal to the inside of its frame',
   async () => {
-    const { list, act, lines, until, first } = await setup();
+    const { list, act, lines, until, first, useLegacy } = await setup();
+
+    await useLegacy();
     const second = await act('split', first, '--direction', 'below');
 
     await until(() => lines()[12]?.charAt(0) === '┌');
@@ -101,7 +105,9 @@ it(
 it(
   'sends typed keys only to the focused pane after pane focus',
   async () => {
-    const { koja, act, lines, foreground, until, type, first } = await setup();
+    const { koja, act, lines, foreground, until, type, first, useLegacy } = await setup();
+
+    await useLegacy();
     const second = await act('split', first, '--direction', 'right');
 
     await koja('pane', 'send', 'echo RIGHTTEXT\n', '--pane', second);
@@ -125,7 +131,9 @@ it(
 it(
   'sizes every pane to its framed rectangle on resize and fills the area of a closed pane',
   async () => {
-    const { list, act, lines, until, resize, first } = await setup();
+    const { list, act, lines, until, resize, first, useLegacy } = await setup();
+
+    await useLegacy();
     const second = await act('split', first, '--direction', 'right');
 
     await until(() => lines()[0]?.charAt(41) === '┌');
@@ -158,7 +166,9 @@ it(
 it(
   'draws only the focused pane over the whole area while zoomed and both panes after a second zoom',
   async () => {
-    const { list, act, lines, until, type, first } = await setup();
+    const { list, act, lines, until, type, first, useLegacy } = await setup();
+
+    await useLegacy();
     const second = await act('split', first, '--direction', 'right');
 
     await until(() => lines()[0]?.charAt(41) === '┌');
@@ -190,7 +200,9 @@ it(
 it(
   'moves the split edge by one cell on > in Koja mode',
   async () => {
-    const { list, act, lines, until, type, first } = await setup();
+    const { list, act, lines, until, type, first, useLegacy } = await setup();
+
+    await useLegacy();
     const second = await act('split', first, '--direction', 'right');
 
     await until(() => lines()[0]?.charAt(41) === '┌');
@@ -212,7 +224,9 @@ it(
 it(
   'starts the pane of the split key in the folder of the focused pane',
   async () => {
-    const { koja, list, type, first } = await setup();
+    const { koja, list, type, first, useLegacy } = await setup();
+
+    await useLegacy();
     const target = await realpath(await mkdtemp(join(tmpdir(), 'koja-split-key-')));
 
     onTestFinished(() => rm(target, { recursive: true, force: true }));

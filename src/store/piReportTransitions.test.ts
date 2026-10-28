@@ -4,7 +4,7 @@ import { paneId } from '../ids.ts';
 import type { PaneId } from '../ids.ts';
 import { applyGonePiQuit, applyIntent, applyPiReport, piRecordOf } from './store.ts';
 import type { PiEvent, PiProcess, PiReport, State } from './store.ts';
-import { attachLarge, createKoja, defined, run, splitFirst } from './storeFixtures.ts';
+import { attachLarge, createKoja, defined, run, runLegacy, splitFirst } from './storeFixtures.ts';
 
 const firstProcess: PiProcess = { id: 100, startTime: 5000 };
 
@@ -328,7 +328,7 @@ it('refuses a quit from a gone process for a pane the state does not know', () =
 });
 
 it('drops the record of a pane the state no longer has when another pane reports', () => {
-  const split = run([attachLarge, createKoja, splitFirst('right')]);
+  const split = runLegacy([attachLarge, createKoja, splitFirst('right')]);
   const recorded = after(split, firstProcess);
   const closed = applyIntent(recorded, { type: 'closePane', paneId: paneId(1) }).state;
 
@@ -382,7 +382,7 @@ it('ignores a record of an earlier generation when a process of the new generati
 });
 
 it('hides the record of a pane the state no longer has', () => {
-  const split = run([attachLarge, createKoja, splitFirst('right')]);
+  const split = runLegacy([attachLarge, createKoja, splitFirst('right')]);
   const recorded = after(split, firstProcess);
   const closed = applyIntent(recorded, { type: 'closePane', paneId: paneId(1) }).state;
 

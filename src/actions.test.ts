@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'bun:test';
 
-import { actionCatalog, availableActions } from './actions.ts';
+import { actionCatalog, availableActions, paneCommandOf } from './actions.ts';
 import type { StoreSnapshot } from './client/client.ts';
 import { clientId, paneId, tabId, workspaceId } from './ids.ts';
 import { legacyArrangement } from './layout.ts';
@@ -12,6 +12,7 @@ interface TabShape {
   workspace: number;
   panes: number[];
   focused: number;
+  arrangement?: { choice: 'legacy' | 'master'; order: number[] };
 }
 
 interface Shape {
@@ -68,7 +69,10 @@ const snapshotOf = (shape: Shape): StoreSnapshot => {
       id: tabId(tab.id),
       workspaceId: workspaceId(tab.workspace),
       layout: rowLayout(tab.panes),
-      arrangement: legacyArrangement(rowLayout(tab.panes)),
+      arrangement:
+        tab.arrangement === undefined
+          ? legacyArrangement(rowLayout(tab.panes))
+          : { choice: tab.arrangement.choice, order: tab.arrangement.order.map(paneId) },
       focusedPaneId: paneId(tab.focused),
       zoomedPaneId: undefined,
       label: undefined,
@@ -122,6 +126,7 @@ const isAvailable = (id: string, shape: Shape): boolean =>
   availableActions(actionCatalog, snapshotOf(shape)).some((entry) => entry.id === id);
 
 const paneActionIds = [
+  'pane.add',
   'pane.splitBelow',
   'pane.splitRight',
   'pane.close',
@@ -166,6 +171,44 @@ describe('action availability', () => {
     expect(isAvailable('pane.focusPrevious', secondPaneShown)).toBe(true);
   });
 
+  it('offers each layout switch only to a tab in the other layout', () => {
+    const master: Shape = {
+      workspaces: [1],
+      tabs: [
+        {
+          id: 1,
+          workspace: 1,
+          panes: [1],
+          focused: 1,
+          arrangement: { choice: 'master', order: [1] },
+        },
+      ],
+    };
+
+    const masterShownAfterLegacy: Shape = {
+      workspaces: [2, 1],
+      tabs: [
+        { id: 1, workspace: 1, panes: [1], focused: 1 },
+        {
+          id: 2,
+          workspace: 2,
+          panes: [2],
+          focused: 2,
+          arrangement: { choice: 'master', order: [2] },
+        },
+      ],
+    };
+
+    expect(isAvailable('layout.master', onePane)).toBe(true);
+    expect(isAvailable('layout.legacy', onePane)).toBe(false);
+    expect(isAvailable('layout.master', master)).toBe(false);
+    expect(isAvailable('layout.legacy', master)).toBe(true);
+    expect(isAvailable('layout.master', masterShownAfterLegacy)).toBe(false);
+    expect(isAvailable('layout.legacy', masterShownAfterLegacy)).toBe(true);
+    expect(isAvailable('layout.master', noPanes)).toBe(false);
+    expect(isAvailable('layout.legacy', noPanes)).toBe(false);
+  });
+
   it('needs more than one tab for tab next and previous', () => {
     expect(isAvailable('tab.next', onePane)).toBe(false);
     expect(isAvailable('tab.previous', onePane)).toBe(false);
@@ -196,5 +239,66 @@ describe('action availability', () => {
     expect(isAvailable('tab.focus-2', onePane)).toBe(false);
     expect(isAvailable('tab.focus-2', twoTabs)).toBe(true);
     expect(isAvailable('tab.focus-3', twoTabs)).toBe(false);
+  });
+});
+
+describe('pane focus order', () => {
+  const masterTab: Shape = {
+    workspaces: [1],
+    tabs: [
+      {
+        id: 1,
+        workspace: 1,
+        panes: [1, 2, 3],
+        focused: 3,
+        arrangement: { choice: 'master', order: [3, 1, 2] },
+      },
+    ],
+  };
+
+  it('steps through the arrangement order in a master tab', () => {
+    const snapshot = snapshotOf(masterTab);
+
+    expect(paneCommandOf(snapshot, paneId(3), 'focusNext')).toEqual({
+      action: 'focus',
+      pane: paneId(1),
+    });
+
+    expect(paneCommandOf(snapshot, paneId(3), 'focusPrevious')).toBeUndefined();
+
+    expect(paneCommandOf(snapshot, paneId(2), 'focusPrevious')).toEqual({
+      action: 'focus',
+      pane: paneId(1),
+    });
+  });
+
+  it('steps through the split tree order in a legacy tab, whatever its saved order', () => {
+    const snapshot = snapshotOf({
+      workspaces: [1],
+      tabs: [
+        {
+          id: 1,
+          workspace: 1,
+          panes: [1, 2, 3],
+          focused: 3,
+          arrangement: { choice: 'legacy', order: [3, 1, 2] },
+        },
+      ],
+    });
+
+    expect(paneCommandOf(snapshot, paneId(1), 'focusNext')).toEqual({
+      action: 'focus',
+      pane: paneId(2),
+    });
+
+    expect(paneCommandOf(snapshot, paneId(3), 'focusNext')).toBeUndefined();
+  });
+
+  it('adds a pane next to the given pane with the new pane action', () => {
+    expect(paneCommandOf(snapshotOf(masterTab), paneId(1), 'add')).toEqual({
+      action: 'add',
+      pane: paneId(1),
+      cwd: undefined,
+    });
   });
 });

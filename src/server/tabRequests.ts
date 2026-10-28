@@ -11,7 +11,7 @@ import type { RunningPane } from './paneRecord.ts';
 
 export type TabRequest = Extract<
   ControlMessage,
-  { type: 'tabCreate' | 'tabFocus' | 'tabRename' | 'tabClose' }
+  { type: 'tabCreate' | 'tabFocus' | 'tabRename' | 'tabClose' | 'tabLayout' }
 >;
 
 interface TabRequestContext {
@@ -26,6 +26,7 @@ const tabRequestTypes: ReadonlySet<string> = new Set([
   'tabFocus',
   'tabRename',
   'tabClose',
+  'tabLayout',
 ]);
 
 export const isTabRequest = (message: ControlMessage): message is TabRequest =>
@@ -57,6 +58,10 @@ const tabIntentOf = (
     return { type: 'renameTab', tabId: message.tabId, label: message.label };
   }
 
+  if (message.type === 'tabLayout') {
+    return { type: 'setTabLayout', tabId: message.tabId, choice: message.choice };
+  }
+
   return { type: 'closeTab', tabId: message.tabId };
 };
 
@@ -71,6 +76,7 @@ const failureReasons: Record<RejectReason, TabFailureReason | undefined> = {
   paneTooSmall: undefined,
   sameTab: undefined,
   noSplit: undefined,
+  requiresLegacyLayout: undefined,
   staleGeneration: undefined,
 };
 

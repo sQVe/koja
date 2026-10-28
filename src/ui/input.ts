@@ -8,6 +8,7 @@ import type {
   WorkspaceReply,
 } from '../client/client.ts';
 import type { PaneId, WorkspaceId } from '../ids.ts';
+import type { LayoutChoice } from '../layout.ts';
 import { kittyFlags, ModeFlag } from '../rows/rows.ts';
 import type { ActionView, ActionViewInput } from './actionView.ts';
 import { viewKeyOf } from './actionView.ts';
@@ -52,6 +53,7 @@ interface TokenRouterHost {
   command: (command: WorkspaceCommand, onReply: (reply: WorkspaceReply) => void) => void;
   tab: (route: TabRoute) => void;
   tabPending: () => boolean;
+  tabLayout: (choice: LayoutChoice) => void;
   afterTabAnswer: (callback: () => void) => void;
   // The promise settles once the action's effect on the state has arrived.
   paneAction: (action: PaneAction) => Promise<void>;
@@ -93,6 +95,7 @@ const isBareEscape = (bytes: Uint8Array): boolean => decoder.decode(bytes) === e
 const snapshotEffects: ReadonlySet<KeyEffect['kind']> = new Set([
   'pane',
   'tab',
+  'layout',
   'scrollEnter',
   'paste',
 ]);
@@ -349,6 +352,10 @@ export const createInputRouter = (host: TokenRouterHost): ((token: RoutedToken) 
 
     if (effect.kind === 'tab') {
       host.tab(effect.route);
+    }
+
+    if (effect.kind === 'layout') {
+      host.tabLayout(effect.choice);
     }
 
     if (effect.kind === 'view') {

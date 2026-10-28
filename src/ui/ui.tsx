@@ -150,6 +150,7 @@ const routeInput = (
     command: session.sendWorkspaceCommand,
     tab: session.focusTab,
     tabPending: session.tabPending,
+    tabLayout: session.setTabLayout,
     afterTabAnswer: session.afterTabAnswer,
     paneAction: (action) => runPaneAction(session, action),
     scroll: scrollMode.handle,

@@ -19,6 +19,7 @@ import {
   noFolders,
   richSession,
   run,
+  runLegacy,
   twoClients,
   unknownWorkspace,
   viewShowing,
@@ -69,7 +70,7 @@ it('saves the default view through the workspace fields and no client', () => {
 });
 
 it('saves a folder that was read, and keeps the restored folder for a pane with none read', () => {
-  const saved = savedSessionOf(run(richSession), noFolders);
+  const saved = savedSessionOf(runLegacy(richSession), noFolders);
 
   const withFolders = {
     ...saved,
@@ -91,9 +92,9 @@ it('saves a folder that was read, and keeps the restored folder for a pane with 
     '/restored/pane-4',
   ]);
 
-  expect(savedSessionOf(run(richSession), noFolders).panes.map((pane) => pane.startFolder)).toEqual(
-    [undefined, undefined, undefined, undefined],
-  );
+  expect(
+    savedSessionOf(runLegacy(richSession), noFolders).panes.map((pane) => pane.startFolder),
+  ).toEqual([undefined, undefined, undefined, undefined]);
 });
 
 it('finds the focused pane of the tab the source client shows, or the default view shows', () => {

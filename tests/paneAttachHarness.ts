@@ -37,6 +37,7 @@ interface PaneAttachHarness {
   until: (condition: () => boolean) => Promise<undefined>;
   resize: (columns: number, rows: number) => void;
   type: (input: string) => void;
+  useLegacy: () => Promise<void>;
   first: string;
 }
 
@@ -117,6 +118,10 @@ export const setup = async (): Promise<PaneAttachHarness> => {
 
   const screenText = (): string => screen.text();
 
+  const useLegacy = async (): Promise<void> => {
+    await koja('tab', 'layout', first?.tab ?? '', 'legacy');
+  };
+
   return {
     koja,
     list,
@@ -127,6 +132,7 @@ export const setup = async (): Promise<PaneAttachHarness> => {
     until,
     resize,
     type,
+    useLegacy,
     first: first?.id ?? '',
   };
 };

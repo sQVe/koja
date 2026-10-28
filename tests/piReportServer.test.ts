@@ -1,4 +1,4 @@
-import { expect, it, onTestFinished } from 'bun:test';
+import { expect, it } from 'bun:test';
 import { existsSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 
@@ -6,15 +6,13 @@ import { paneId } from '../src/ids.ts';
 import type { PaneId } from '../src/ids.ts';
 import type { ControlMessage } from '../src/protocol/protocol.ts';
 import { readStat } from '../src/server/processGroups.ts';
-import { runServer } from '../src/server/server.ts';
 import type { Server } from '../src/server/server.ts';
 import type { PiReport } from '../src/store/store.ts';
 import {
-  build,
   connectCli,
   createWorkspace,
   nextOfType,
-  openLog,
+  startSavedServer,
   startServer,
   temporaryDirectory,
   waitFor,
@@ -145,7 +143,7 @@ it.each(['wrong pass', 'another pane pass', 'outside process', 'dead process'] a
     }
 
     if (failure === 'another pane pass') {
-      client.send({ type: 'paneSplit', paneId: target, direction: 'right', cwd: undefined });
+      client.send({ type: 'paneAdd', paneId: target, cwd: undefined });
 
       const split = await nextOfType(client, 'paneDone');
 
@@ -285,38 +283,18 @@ it('clears the record on a quit report that arrives after its process is gone', 
   await expectShellAnswers(server, client, target);
 });
 
-const startSavedServer = async (directory: string) => {
-  const socketPath = join(directory, 'run', 'koja.sock');
+const startSavedClient = async (directory: string) => {
+  const started = await startSavedServer(directory);
 
-  const result = await runServer({
-    socketPath,
-    version: build,
-    log: openLog(join(directory, 'server.log')),
-    environment: { ...process.env, SHELL: '/bin/sh' },
-    binaryPath: process.execPath,
-    sessionPathFor: () => join(directory, 'session.json'),
-  });
-
-  if (!result.ok) {
-    throw new Error(result.message);
-  }
-
-  const { server } = result;
-
-  onTestFinished(async () => {
-    server.stop();
-    await server.stopped;
-  });
-
-  return { server, client: await connectCli(socketPath), socketPath };
+  return { ...started, client: await connectCli(started.socketPath) };
 };
 
 it('refuses the old pass after restoring the pane with a new shell generation', async () => {
   const directory = await temporaryDirectory();
-  const first = await startSavedServer(directory);
+  const first = await startSavedClient(directory);
 
   await createWorkspace(first.socketPath, directory, 'test');
-  first.client.send({ type: 'paneSplit', paneId: paneId(1), direction: 'right', cwd: undefined });
+  first.client.send({ type: 'paneAdd', paneId: paneId(1), cwd: undefined });
 
   const { paneId: target } = await nextOfType(first.client, 'paneDone');
 
@@ -329,7 +307,7 @@ it('refuses the old pass after restoring the pane with a new shell generation', 
   first.server.stop();
   expect(await first.server.stopped).toEqual({ ok: true });
 
-  const restored = await startSavedServer(directory);
+  const restored = await startSavedClient(directory);
   const identity = await identityOf(restored.client, target);
 
   expect(restored.server.snapshot().panes[0]!.generation).not.toBe(generation);

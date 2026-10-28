@@ -47,6 +47,7 @@ const configurationSchema = z.strictObject({
     server: z.string(),
     attach: z.string(),
     workspaceCreate: z.string(),
+    tabLayout: z.string().optional(),
     paneSplit: z.array(z.string()),
     paneFocus: z.string(),
     tabCreate: z.string(),

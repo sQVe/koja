@@ -7,7 +7,7 @@ import { basename, join } from 'node:path';
 import { z } from 'zod';
 
 import { paneId, tabId, workspaceId } from '../src/ids.ts';
-import type { PaneId } from '../src/ids.ts';
+import type { PaneId, TabId } from '../src/ids.ts';
 import { createFrameDecoder, encodeFrame, FrameKind } from '../src/protocol/frames.ts';
 import { encodeControl, parseControl } from '../src/protocol/messages.ts';
 import type { BuildVersion, ControlMessage } from '../src/protocol/messages.ts';
@@ -163,6 +163,35 @@ export const startEmptyServer = async (
   });
 
   return { server, socketPath, logPath };
+};
+
+export const startSavedServer = async (
+  directory: string,
+  extraEnvironment: Record<string, string> = {},
+): Promise<{ server: Server; socketPath: string }> => {
+  const socketPath = join(directory, 'run', 'koja.sock');
+
+  const result = await runServer({
+    socketPath,
+    version: build,
+    log: openLog(join(directory, 'server.log')),
+    environment: { ...process.env, SHELL: '/bin/sh', ...extraEnvironment },
+    binaryPath: process.execPath,
+    sessionPathFor: () => join(directory, 'session.json'),
+  });
+
+  if (!result.ok) {
+    throw new Error(result.message);
+  }
+
+  const { server } = result;
+
+  onTestFinished(async () => {
+    server.stop();
+    await server.stopped;
+  });
+
+  return { server, socketPath };
 };
 
 const createReader = <Item>(
@@ -437,6 +466,14 @@ export const nextOfType = async <Type extends ControlMessage['type']>(
       return message as Extract<ControlMessage, { type: Type }>;
     }
   }
+};
+
+export const useLegacyLayout = async (socketPath: string, tab: TabId = tabId(1)): Promise<void> => {
+  const client = await connectCli(socketPath);
+
+  client.send({ type: 'tabLayout', tabId: tab, choice: 'legacy' });
+  expect(await nextOfType(client, 'tabDone')).toEqual({ type: 'tabDone', tabId: tab });
+  client.close();
 };
 
 export const logLinesOf = (logPath: string): z.output<typeof logLineSchema>[] => {
