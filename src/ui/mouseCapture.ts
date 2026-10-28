@@ -9,23 +9,16 @@ interface MouseCaptureHost {
   mouseTarget: (x: number, y: number, pane?: PaneId) => PaneTarget | undefined;
   // The pane's current size, or undefined once the pane is gone.
   paneSize: (pane: PaneId) => { columns: number; rows: number } | undefined;
-  // Sends the event to the pane cell and returns whether any bytes reached the pane.
   forward: (event: MouseEvent, target: PaneTarget) => boolean;
 }
 
 interface MouseStep {
-  // Whether the event is the press that starts a gesture.
   startsPress: boolean;
-  // The pane cell of that press, or undefined when it is over no pane.
   pressed: PaneTarget | undefined;
 }
 
 interface MouseCapture {
-  // Applies one event. `modeSends` tells whether the current mode sends the event to its pane. It
-  // decides a press and every event outside a gesture. A gesture's drags and release follow
-  // whether its press reached the pane.
   advance: (event: MouseEvent, modeSends: boolean) => MouseStep;
-  // Ends the gesture, and sends its release at the last cell when its press reached the pane.
   releaseNow: () => void;
 }
 
@@ -62,7 +55,6 @@ export const createMouseCapture = (host: MouseCaptureHost): MouseCapture => {
   const generationOf = (pane: PaneId | undefined): number | undefined =>
     host.snapshot().panes.find((known) => known.id === pane)?.generation;
 
-  // A gesture whose pane is gone or runs another generation sends nothing more until its release.
   const stillDelivered = (gesture: Capture): boolean =>
     gesture.delivered && generationOf(gesture.pane) === gesture.generation;
 
@@ -102,8 +94,6 @@ export const createMouseCapture = (host: MouseCaptureHost): MouseCapture => {
     return { startsPress: true, pressed };
   };
 
-  // A drag or release acts on the cell of the gesture's pane nearest to the pointer. A gesture
-  // without a pane sent no press, so it sends nothing more.
   const follow = (event: MouseEvent, gesture: Capture): MouseStep => {
     const bound = event.kind === 'press' ? undefined : gesture.pane;
     const placed = host.mouseTarget(event.x, event.y, bound);

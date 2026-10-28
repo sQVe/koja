@@ -724,7 +724,6 @@ it('focuses a pane without a mouse mode, sends it nothing, and sends later keys 
   expect(receivedBy(1)).toBe('');
 });
 
-// Pane 1's first cell is outer column 22 and row 2, inside a one-cell frame.
 it('keeps a drag and release that cross into another pane on the pressed pane', async () => {
   const { type, receivedBy, until } = await setupAttach(ModeFlag.buttonMouse | ModeFlag.sgrMouse, {
     secondPane: true,
@@ -765,7 +764,6 @@ it('focuses an unfocused pane on a normal-mode click and sends neither pane the 
   type('\x02');
   await until(() => statusBar() === 'NORMAL [1]');
 
-  // An `i` that reached the pane would show the click had left normal mode.
   type(sgrClick(54, 4) + 'ix');
 
   await until(() => receivedBy(2).endsWith('x'));

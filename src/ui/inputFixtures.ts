@@ -62,7 +62,6 @@ interface InputHarness {
   answerPaneAction: () => Promise<void>;
   changeStore: (next: StoreSnapshot) => void;
   store: () => StoreSnapshot;
-  // Removes the pane from the store and puts the replacement, if any, at its place.
   replacePane: (pane: PaneId, replacement: PaneId | undefined) => void;
   clipboardReads: ClipboardReadFake[];
   pasteRequests: PasteRequest[];

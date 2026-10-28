@@ -13,9 +13,7 @@ export type ChromeTarget =
 interface MouseRoutingHost {
   mode: () => InputMode;
   snapshot: () => StoreSnapshot;
-  // The pane cell under an outer cell, or the cell of the given pane nearest to it.
   mouseTarget: (x: number, y: number, pane?: PaneId) => PaneTarget | undefined;
-  // The pane's current size, or undefined once the pane is gone.
   paneSize: (pane: PaneId) => { columns: number; rows: number } | undefined;
   paneModes: (pane: PaneId) => number;
   sendToPane: (pane: PaneId, bytes: Uint8Array) => void;
@@ -28,16 +26,11 @@ interface MouseRoutingHost {
 type WorkspaceClicks = Pick<ReturnType<typeof createWorkspaceNavigation>, 'focusByClick'>;
 
 interface MouseRouting {
-  // The promise settles once a click has focused its pane.
   route: (raw: string) => Promise<void> | undefined;
-  // Handles a report Koja keeps from the panes. Only the release of a delivered gesture gets through.
   keep: (raw: string) => void;
-  // Sends the release of a delivered gesture to its pane, so the pane keeps no pressed button.
   releaseGesture: () => void;
 }
 
-// The press decides whether a gesture reaches its pane: only an insert-mode press does. Events
-// outside a gesture follow the current mode, except the wheel, which reaches the pane in every mode.
 export const createMouseRouting = (
   host: MouseRoutingHost,
   navigation: WorkspaceClicks,
