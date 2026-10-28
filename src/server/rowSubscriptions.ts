@@ -1,5 +1,5 @@
 import type { ClientId, PaneId } from '../ids.ts';
-import { layoutPanes, shownLayout } from '../layout.ts';
+import { tabPanes } from '../layout.ts';
 import { FrameKind } from '../protocol/protocol.ts';
 import { encodeRowUpdate } from '../rows/rows.ts';
 import { activeTabOf } from '../store/store.ts';
@@ -112,8 +112,8 @@ export const subscribeRows = (
 };
 
 // The panes the tab of the connection's own view shows that have a row publisher. A zoomed tab
-// shows one pane. A connection that is no client yet, such as one that is attaching, follows the
-// default view.
+// shows one pane, and a tab with too little room for its arrangement shows none. A connection that
+// is no client yet, such as one that is attaching, follows the default view.
 export const visiblePaneIds = (context: SubscriptionContext, connection: Connection): PaneId[] => {
   const { state, runtime } = context;
   const owner = runtime.clientIds.get(connection);
@@ -124,9 +124,13 @@ export const visiblePaneIds = (context: SubscriptionContext, connection: Connect
     return [];
   }
 
-  const placed = layoutPanes(shownLayout(tab.layout, tab.zoomedPaneId), state.layoutArea);
+  const placed = tabPanes(tab, state.layoutArea);
 
-  return placed.map((rectangle) => rectangle.paneId).filter((id) => runtime.panes.has(id));
+  if (!placed.ok) {
+    return [];
+  }
+
+  return placed.panes.map((rectangle) => rectangle.paneId).filter((id) => runtime.panes.has(id));
 };
 
 const sameIds = (left: readonly PaneId[], right: readonly PaneId[]): boolean =>

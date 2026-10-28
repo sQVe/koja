@@ -6,10 +6,10 @@ import type { TestRendererSetup } from '@opentui/core/testing';
 
 import { createRowCache } from '../client/client.ts';
 import type { RowCache, StoreSnapshot } from '../client/client.ts';
-import { paneId, tabId, workspaceId } from '../ids.ts';
+import { clientId, paneId, tabId, workspaceId } from '../ids.ts';
 import type { PaneId } from '../ids.ts';
 import { legacyArrangement } from '../layout.ts';
-import type { Layout } from '../layout.ts';
+import type { Arrangement, Layout, TerminalSize } from '../layout.ts';
 import { cellWords, CursorShape, rowHeaderWords, rowWords } from '../rows/rows.ts';
 import type { RowUpdate } from '../rows/rows.ts';
 import { mountPanes } from './paneLayer.ts';
@@ -52,6 +52,7 @@ const snapshotOf = (
   layout: Layout,
   panes: StoreSnapshot['panes'],
   revision: number,
+  arrangement: Arrangement = legacyArrangement(layout),
 ): StoreSnapshot => ({
   revision,
   workspaces: [
@@ -67,7 +68,7 @@ const snapshotOf = (
       id: tabId(1),
       workspaceId: workspaceId(1),
       layout,
-      arrangement: legacyArrangement(layout),
+      arrangement,
       focusedPaneId: paneId(1),
       zoomedPaneId: undefined,
       label: undefined,
@@ -333,12 +334,16 @@ const rightSplit: Layout = {
 
 const single: Layout = { kind: 'pane', paneId: paneId(1) };
 
-const startLayer = async (initial: StoreSnapshot, caches: Map<PaneId, RowCache>) => {
-  const created = await createTestRenderer({ width: layerWidth, height: layerHeight });
+const startLayer = async (
+  initial: StoreSnapshot,
+  caches: Map<PaneId, RowCache>,
+  width = layerWidth,
+) => {
+  const created = await createTestRenderer({ width, height: layerHeight });
 
   setup = created;
 
-  const box = new BoxRenderable(created.renderer, { width: layerWidth, height: layerHeight });
+  const box = new BoxRenderable(created.renderer, { width, height: layerHeight });
   const stateListeners = new Set<() => void>();
   const rowListeners = new Set<RowsListener>();
   const fetchedListeners = new Set<(pane: PaneId) => void>();
@@ -958,4 +963,130 @@ it('hides the native cursor when unmounted', async () => {
   layer.unmount();
 
   expect(nativeCursor(layer.created).visible).toBe(false);
+});
+
+const threePaneLayout: Layout = {
+  kind: 'split',
+  direction: 'right',
+  ratio: 0.5,
+  first: { kind: 'pane', paneId: paneId(1) },
+  second: {
+    kind: 'split',
+    direction: 'below',
+    ratio: 0.5,
+    first: { kind: 'pane', paneId: paneId(2) },
+    second: { kind: 'pane', paneId: paneId(3) },
+  },
+};
+
+const fourPaneLayout: Layout = {
+  kind: 'split',
+  direction: 'right',
+  ratio: 0.5,
+  first: { kind: 'pane', paneId: paneId(1) },
+  second: {
+    kind: 'split',
+    direction: 'below',
+    ratio: 0.5,
+    first: { kind: 'pane', paneId: paneId(2) },
+    second: { kind: 'pane', paneId: paneId(3) },
+  },
+};
+
+const withClient = (snapshot: StoreSnapshot, clientSize: TerminalSize): StoreSnapshot => ({
+  ...snapshot,
+  attachedClientId: clientId(1),
+  clients: [{ id: clientId(1), size: clientSize, theme: undefined, view: snapshot.defaultView }],
+});
+
+// The client size sets the pane area: 20 side list columns and one status bar row are taken away.
+const threePaneMaster = (revision: number, clientSize: TerminalSize): StoreSnapshot =>
+  withClient(
+    snapshotOf(
+      threePaneLayout,
+      [pane(1, 'running'), pane(2, 'running'), pane(3, 'running')],
+      revision,
+      { choice: 'master', order: [paneId(1), paneId(2), paneId(3)] },
+    ),
+    clientSize,
+  );
+
+const fourPaneMaster = (revision: number, clientSize: TerminalSize): StoreSnapshot =>
+  withClient(
+    snapshotOf(
+      fourPaneLayout,
+      [pane(1, 'running'), pane(2, 'running'), pane(3, 'running'), pane(4, 'running')],
+      revision,
+      { choice: 'master', order: [paneId(1), paneId(2), paneId(3), paneId(4)] },
+    ),
+    clientSize,
+  );
+
+const wideLayer = 100;
+
+const fitting: TerminalSize = { columns: 100, rows: 8 };
+
+const tooSmall: TerminalSize = { columns: 100, rows: 6 };
+
+it('shows the pane area size a master tab needs in place of its panes when the area is too small', async () => {
+  const layer = await startLayer(threePaneMaster(1, tooSmall), new Map(), wideLayer);
+
+  expect(layer.lines()[0]).toStartWith(
+    'Pane area too small: layout needs at least 7 columns x 6 rows',
+  );
+});
+
+it('hides the borders and the native cursor while the warning shows', async () => {
+  const layer = await startLayer(
+    threePaneMaster(1, fitting),
+    new Map([[firstPane, cacheWith(cursorScreen())]]),
+    wideLayer,
+  );
+
+  expect(layer.lines()[0]).toStartWith('┌');
+  expect(nativeCursor(layer.created).visible).toBe(true);
+
+  await layer.show(threePaneMaster(2, tooSmall));
+
+  expect(layer.lines().join('\n')).not.toMatch(/[┌┐└┘│─]/);
+  expect(nativeCursor(layer.created).visible).toBe(false);
+});
+
+it('replaces the warning text when the required size changes', async () => {
+  const layer = await startLayer(threePaneMaster(1, tooSmall), new Map(), wideLayer);
+
+  await layer.show(fourPaneMaster(2, tooSmall));
+
+  expect(layer.lines()[0]).toStartWith(
+    'Pane area too small: layout needs at least 7 columns x 9 rows',
+  );
+
+  expect(layer.lines().join('\n')).not.toContain('x 6 rows');
+});
+
+it('removes the warning and draws the panes again once the area grows to fit', async () => {
+  const layer = await startLayer(
+    threePaneMaster(1, tooSmall),
+    new Map([[firstPane, cacheWith(cursorScreen())]]),
+    wideLayer,
+  );
+
+  expect(layer.lines()[0]).toStartWith('Pane area too small');
+
+  await layer.show(threePaneMaster(2, fitting));
+
+  expect(layer.lines().join('\n')).not.toContain('Pane area too small');
+  expect(layer.lines()[0]).toStartWith('┌');
+  expect(nativeCursor(layer.created).visible).toBe(true);
+});
+
+it('removes the warning when unmounted', async () => {
+  const layer = await startLayer(threePaneMaster(1, tooSmall), new Map(), wideLayer);
+
+  expect(layer.lines()[0]).toStartWith('Pane area too small');
+
+  layer.unmount();
+  await layer.created.renderOnce();
+
+  expect(layer.lines().join('\n')).not.toContain('Pane area too small');
 });

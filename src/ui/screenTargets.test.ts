@@ -2,6 +2,7 @@ import { expect, it } from 'bun:test';
 
 import type { StoreSnapshot } from '../client/client.ts';
 import { clientId, paneId, tabId, workspaceId } from '../ids.ts';
+import type { Layout, TerminalSize } from '../layout.ts';
 import {
   placementOf,
   statusBarLine,
@@ -26,6 +27,7 @@ const placement: Placement = {
   size: { columns: 60, rows: 10 },
   focusedPaneId: paneId(1),
   offset: 20,
+  requiredSize: undefined,
 };
 
 it('maps an outer cell to the pane under it and its local cell', () => {
@@ -74,6 +76,7 @@ it('hits only the zoomed pane, over the whole pane area', () => {
           first: pane(1),
           second: pane(2),
         },
+        arrangement: { choice: 'legacy', order: [paneId(1), paneId(2)] },
         focusedPaneId: paneId(2),
         zoomedPaneId: paneId(2),
       },
@@ -269,6 +272,7 @@ const twoTabSnapshot = (activeTab: number | undefined, clients: unknown[] = []) 
       id: tabId(number),
       workspaceId: workspaceId(1),
       layout: pane(number),
+      arrangement: { choice: 'legacy', order: [paneId(number)] },
       focusedPaneId: paneId(number),
       zoomedPaneId: undefined,
     })),
@@ -354,4 +358,77 @@ it('shows no tabs when no workspace is focused', () => {
   } as unknown as StoreSnapshot;
 
   expect(tabLabelsOf(snapshot, 'insert', undefined)).toEqual([]);
+});
+
+// The tree puts pane 1 on the right, so only the master order can place it on the left.
+const threePaneLayout: Layout = {
+  kind: 'split',
+  direction: 'right',
+  ratio: 0.5,
+  first: { kind: 'split', direction: 'below', ratio: 0.5, first: pane(2), second: pane(3) },
+  second: pane(1),
+};
+
+const masterSnapshot = (clientSize: TerminalSize) =>
+  ({
+    revision: 1,
+    workspaces: [{ id: workspaceId(1), root: '/work', label: 'work', tabIds: [tabId(1)] }],
+    tabs: [
+      {
+        id: tabId(1),
+        workspaceId: workspaceId(1),
+        layout: threePaneLayout,
+        arrangement: { choice: 'master', order: [paneId(1), paneId(2), paneId(3)] },
+        focusedPaneId: paneId(2),
+        zoomedPaneId: undefined,
+      },
+    ],
+    panes: [],
+    defaultView: {
+      focusedWorkspaceId: workspaceId(1),
+      activeTabs: [{ workspaceId: workspaceId(1), tabId: tabId(1) }],
+    },
+    attachedClientId: clientId(1),
+    foregroundClientId: undefined,
+    clients: [{ id: clientId(1), size: clientSize }],
+  }) as unknown as StoreSnapshot;
+
+it('places a master tab with its first pane on the left half and the others stacked on the right', () => {
+  const placed = placementOf(masterSnapshot({ columns: 40, rows: 11 }), { columns: 80, rows: 24 });
+
+  expect(placed.rectangles).toEqual([
+    {
+      paneId: paneId(1),
+      x: 0,
+      y: 0,
+      columns: 20,
+      rows: 10,
+      terminal: { x: 1, y: 1, columns: 18, rows: 8 },
+    },
+    {
+      paneId: paneId(2),
+      x: 21,
+      y: 0,
+      columns: 19,
+      rows: 5,
+      terminal: { x: 22, y: 1, columns: 17, rows: 3 },
+    },
+    {
+      paneId: paneId(3),
+      x: 21,
+      y: 5,
+      columns: 19,
+      rows: 5,
+      terminal: { x: 22, y: 6, columns: 17, rows: 3 },
+    },
+  ]);
+
+  expect(placed.requiredSize).toBeUndefined();
+});
+
+it('places no panes and reports the size a master tab needs when the area is too small', () => {
+  const placed = placementOf(masterSnapshot({ columns: 40, rows: 6 }), { columns: 80, rows: 24 });
+
+  expect(placed.rectangles).toEqual([]);
+  expect(placed.requiredSize).toEqual({ columns: 7, rows: 6 });
 });
