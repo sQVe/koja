@@ -11,7 +11,7 @@ import type { RunningPane } from './paneRecord.ts';
 
 export type TabRequest = Extract<
   ControlMessage,
-  { type: 'tabCreate' | 'tabFocus' | 'tabRename' | 'tabClose' }
+  { type: 'tabCreate' | 'tabFocus' | 'tabRename' | 'tabClose' | 'tabLayout' }
 >;
 
 interface TabRequestContext {
@@ -26,6 +26,7 @@ const tabRequestTypes: ReadonlySet<string> = new Set([
   'tabFocus',
   'tabRename',
   'tabClose',
+  'tabLayout',
 ]);
 
 export const isTabRequest = (message: ControlMessage): message is TabRequest =>
@@ -55,6 +56,10 @@ const tabIntentOf = (
 
   if (message.type === 'tabRename') {
     return { type: 'renameTab', tabId: message.tabId, label: message.label };
+  }
+
+  if (message.type === 'tabLayout') {
+    return { type: 'setTabLayout', tabId: message.tabId, choice: message.choice };
   }
 
   return { type: 'closeTab', tabId: message.tabId };

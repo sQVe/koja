@@ -234,6 +234,41 @@ const savedSplits = {
   },
 };
 
+// A version 1 file from before tabs had arrangements, with one split tab.
+const savedSession = (folder: string) => ({
+  version: 1,
+  session: {
+    workspaces: [
+      {
+        id: 'workspace-1',
+        root: folder,
+        label: 'old',
+        tabIds: ['tab-1'],
+        activeTabId: 'tab-1',
+      },
+    ],
+    tabs: [
+      {
+        id: 'tab-1',
+        workspaceId: 'workspace-1',
+        layout: savedSplits,
+        focusedPaneId: 'pane-3',
+        zoomedPaneId: null,
+        label: null,
+      },
+    ],
+    panes: ['pane-1', 'pane-2', 'pane-3'].map((id) => ({
+      id,
+      tabId: 'tab-1',
+      startFolder: null,
+    })),
+    focusedWorkspaceId: 'workspace-1',
+    nextWorkspaceNumber: 2,
+    nextTabNumber: 2,
+    nextPaneNumber: 4,
+  },
+});
+
 const paneListSchema = z.array(
   z.object({
     id: z.string(),
@@ -258,42 +293,7 @@ it(
     environment['ENV'] = startScript;
     await mkdir(dirname(path), { recursive: true });
 
-    await writeFile(
-      path,
-      JSON.stringify({
-        version: 1,
-        session: {
-          workspaces: [
-            {
-              id: 'workspace-1',
-              root: folder,
-              label: 'old',
-              tabIds: ['tab-1'],
-              activeTabId: 'tab-1',
-            },
-          ],
-          tabs: [
-            {
-              id: 'tab-1',
-              workspaceId: 'workspace-1',
-              layout: savedSplits,
-              focusedPaneId: 'pane-3',
-              zoomedPaneId: null,
-              label: null,
-            },
-          ],
-          panes: ['pane-1', 'pane-2', 'pane-3'].map((id) => ({
-            id,
-            tabId: 'tab-1',
-            startFolder: null,
-          })),
-          focusedWorkspaceId: 'workspace-1',
-          nextWorkspaceNumber: 2,
-          nextTabNumber: 2,
-          nextPaneNumber: 4,
-        },
-      }),
-    );
+    await writeFile(path, JSON.stringify(savedSession(folder)));
 
     await server.start();
 
@@ -322,6 +322,54 @@ it(
 
     expect(started).toBe(true);
     expect(readText(starts).split('\n').toSorted()).toEqual(['', 'pane-1', 'pane-2', 'pane-3']);
+  },
+  cliTestTimeoutMs,
+);
+
+const tabListSchema = z.array(
+  z.object({
+    id: z.string(),
+    layout: z.unknown(),
+    arrangement: z.object({ choice: z.string(), order: z.array(z.string()) }),
+  }),
+);
+
+it(
+  'keeps a restored tab saved without an arrangement legacy, and brings a new master tab back the same',
+  async () => {
+    const { serverAt } = await setup();
+    const server = serverAt('koja');
+    const folder = await temporaryDirectory();
+    const path = await server.sessionPath();
+
+    await mkdir(dirname(path), { recursive: true });
+    await writeFile(path, JSON.stringify(savedSession(folder)));
+    await server.start();
+
+    const tabs = async () =>
+      tabListSchema.parse(JSON.parse(await server.koja(['tab', 'list', '--json'])));
+
+    expect(await tabs()).toEqual([
+      {
+        id: 'tab-1',
+        layout: savedSplits,
+        arrangement: { choice: 'legacy', order: ['pane-2', 'pane-3', 'pane-1'] },
+      },
+    ]);
+
+    await server.koja(['tab', 'create', '--workspace', 'workspace-1']);
+    await server.koja(['pane', 'add', 'pane-4']);
+    await server.koja(['pane', 'add', 'pane-4']);
+    await server.koja(['pane', 'close', 'pane-5']);
+
+    const before = await tabs();
+
+    expect(before[1]?.arrangement).toEqual({ choice: 'master', order: ['pane-4', 'pane-6'] });
+
+    await server.koja(['server', 'stop']);
+    await server.start();
+
+    expect(await tabs()).toEqual(before);
   },
   cliTestTimeoutMs,
 );

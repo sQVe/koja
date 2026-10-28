@@ -14,6 +14,8 @@ export interface TestServer {
   start: () => Promise<number>;
   createWorkspace: (folder: string) => Promise<string>;
   split: (pane: string) => Promise<string>;
+  // Switches a tab to legacy layout, so its panes split.
+  useLegacy: (tab: string) => Promise<void>;
   described: () => Promise<string>;
   folders: () => Promise<Record<string, string | null>>;
   states: () => Promise<Record<string, { lifecycle: string; error: string | null }>>;
@@ -81,6 +83,10 @@ export const setup = async (): Promise<TestSetup> => {
         JSON.parse(await koja(['pane', 'split', pane, '--direction', 'right', '--json'])),
       ).pane;
 
+    const useLegacy = async (tab: string): Promise<void> => {
+      await koja(['tab', 'layout', tab, 'legacy']);
+    };
+
     const described = async (): Promise<string> => {
       const workspaces = await koja(['workspace', 'list', '--json']);
       const tabs = await koja(['tab', 'list', '--json']);
@@ -126,6 +132,7 @@ export const setup = async (): Promise<TestSetup> => {
       start,
       createWorkspace,
       split,
+      useLegacy,
       described,
       folders,
       states,
@@ -155,6 +162,8 @@ export const buildSetup = async (server: TestServer): Promise<void> => {
 
   await server.koja(['workspace', 'rename', first, 'Renamed']);
   await server.koja(['tab', 'create', '--workspace', first]);
+  await server.koja(['pane', 'add', 'pane-3']);
+  await server.useLegacy('tab-1');
 
   const added = await server.split('pane-1');
 

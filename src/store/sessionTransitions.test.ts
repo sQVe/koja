@@ -16,6 +16,7 @@ import {
   noFolders,
   richSession,
   run,
+  runLegacy,
   splitFirst,
   switchLayout,
 } from './storeFixtures.ts';
@@ -40,7 +41,7 @@ const failRestoredSecondPane = () => {
 };
 
 it('restores a saved session with its ids, focus, and zoom', () => {
-  const saved = run(richSession);
+  const saved = runLegacy(richSession);
   const result = intent(attachedEmpty(), restoreIntent(saved));
 
   expect(savedSessionOf(result.state, noFolders)).toEqual(savedSessionOf(saved, noFolders));
@@ -50,7 +51,7 @@ it('restores a saved session with its ids, focus, and zoom', () => {
 });
 
 it('adds one paneAdded change per restored pane', () => {
-  const result = intent(attachedEmpty(), restoreIntent(run(richSession)));
+  const result = intent(attachedEmpty(), restoreIntent(runLegacy(richSession)));
 
   const added = result.changes.flatMap((change) =>
     change.type === 'paneAdded' ? [change.pane] : [],
@@ -62,9 +63,9 @@ it('adds one paneAdded change per restored pane', () => {
 });
 
 it('refuses to restore into a state that has a workspace', () => {
-  const state = run([createKoja]);
+  const state = runLegacy([createKoja]);
 
-  expect(applyIntent(state, restoreIntent(run(richSession)))).toEqual({
+  expect(applyIntent(state, restoreIntent(runLegacy(richSession)))).toEqual({
     kind: 'rejected',
     state,
     reason: 'sessionNotEmpty',
@@ -72,9 +73,9 @@ it('refuses to restore into a state that has a workspace', () => {
 });
 
 it('refuses to restore while the server stops', () => {
-  const state = run([{ type: 'stopServer' }]);
+  const state = runLegacy([{ type: 'stopServer' }]);
 
-  expect(applyIntent(state, restoreIntent(run(richSession)))).toEqual({
+  expect(applyIntent(state, restoreIntent(runLegacy(richSession)))).toEqual({
     kind: 'rejected',
     state,
     reason: 'serverStopping',
@@ -82,7 +83,7 @@ it('refuses to restore while the server stops', () => {
 });
 
 it('gives ids above the restored ones to a workspace created after a restore', () => {
-  const restored = intent(createState(), restoreIntent(run(richSession))).state;
+  const restored = intent(createState(), restoreIntent(runLegacy(richSession))).state;
   const result = intent(restored, createApi);
 
   const added = result.changes.flatMap((change) =>
@@ -132,7 +133,7 @@ it('removes a failed pane when it is closed, and saves it until then', () => {
 });
 
 it('gives restored panes consecutive generations and moves the counter past them', () => {
-  const result = intent(attachedEmpty(), restoreIntent(run(richSession)));
+  const result = intent(attachedEmpty(), restoreIntent(runLegacy(richSession)));
 
   expect(result.state.panes.map((pane) => pane.generation)).toEqual([1, 2, 3, 4]);
   expect(result.state.nextGeneration).toBe(5);
@@ -192,7 +193,7 @@ it('stops the server without touching a restored pane that failed to start', () 
 });
 
 it('restores a master tab without room with lone pane sizes', () => {
-  const saved = run([
+  const saved = runLegacy([
     createKoja,
     attachLarge,
     splitFirst('right'),
@@ -200,7 +201,7 @@ it('restores a master tab without room with lone pane sizes', () => {
     switchLayout(1, 'master'),
   ]);
 
-  const tiny = run([{ type: 'attachClient', size: { columns: 6, rows: 3 } }]);
+  const tiny = runLegacy([{ type: 'attachClient', size: { columns: 6, rows: 3 } }]);
   const result = intent(tiny, restoreIntent(saved));
 
   expect(result.state.tabs[0]?.arrangement.choice).toBe('master');

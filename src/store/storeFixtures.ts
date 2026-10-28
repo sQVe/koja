@@ -18,6 +18,19 @@ export const fact = (state: State, next: Fact): Applied => expectApplied(applyFa
 export const run = (intents: readonly Intent[]): State =>
   intents.reduce((state, next) => intent(state, next).state, createState());
 
+const withLegacyTabs = (applied: Applied): State =>
+  applied.changes.reduce(
+    (state, change) =>
+      change.type === 'tabAdded'
+        ? intent(state, { type: 'setTabLayout', tabId: change.tab.id, choice: 'legacy' }).state
+        : state,
+    applied.state,
+  );
+
+// Like run, but switches every tab an intent adds to legacy layout right after that intent.
+export const runLegacy = (intents: readonly Intent[]): State =>
+  intents.reduce((state, next) => withLegacyTabs(intent(state, next)), createState());
+
 export const createKoja = {
   type: 'createWorkspace',
   root: '/work/koja',

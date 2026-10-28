@@ -22,7 +22,9 @@ const makeFolder = async (parent: string, name: string): Promise<string> => {
 it(
   'starts a split pane in the folder its source pane moved to',
   async () => {
-    const { directory, koja, list, act, first } = await setup();
+    const { directory, koja, list, act, first, useLegacy } = await setup();
+
+    await useLegacy();
     const target = await makeFolder(directory, 'elsewhere');
 
     expect((await koja('pane', 'send', `cd ${target}\n`)).exitCode).toBe(0);
@@ -39,7 +41,9 @@ it(
 it(
   'starts a split pane in the folder of the foreground command',
   async () => {
-    const { directory, koja, list, act, first } = await setup();
+    const { directory, koja, list, act, first, useLegacy } = await setup();
+
+    await useLegacy();
     const shellFolder = await makeFolder(directory, 'shell');
     const commandFolder = await makeFolder(directory, 'command');
 
@@ -78,7 +82,9 @@ for (const unusable of unusableSetups) {
   it(
     `falls back to the shell folder when the foreground folder is ${unusable.name}`,
     async () => {
-      const { directory, koja, list, act, first } = await setup();
+      const { directory, koja, list, act, first, useLegacy } = await setup();
+
+      await useLegacy();
       const shellFolder = await makeFolder(directory, 'shell');
       const commandFolder = await makeFolder(directory, 'command');
       const marker = join(directory, 'prepared');
@@ -112,7 +118,9 @@ for (const unusable of unusableSetups) {
   it(
     `falls back to the workspace root when the shell folder is ${unusable.name}`,
     async () => {
-      const { directory, koja, list, act, first } = await setup();
+      const { directory, koja, list, act, first, useLegacy } = await setup();
+
+      await useLegacy();
       const root = await realpath(join(directory, 'work'));
       const commandFolder = await makeFolder(directory, 'command');
       const marker = join(directory, 'prepared');
@@ -144,7 +152,9 @@ for (const unusable of unusableSetups) {
 it(
   'starts a split pane in --cwd even when the source pane is in another folder',
   async () => {
-    const { directory, koja, list, act, first } = await setup();
+    const { directory, koja, list, act, first, useLegacy } = await setup();
+
+    await useLegacy();
     const moved = await makeFolder(directory, 'moved');
     const target = await makeFolder(directory, 'target');
 
@@ -162,7 +172,9 @@ it(
 it(
   'resolves a relative --cwd against the folder the CLI runs in',
   async () => {
-    const { directory, list, act, first } = await setup();
+    const { directory, list, act, first, useLegacy } = await setup();
+
+    await useLegacy();
     const target = await makeFolder(directory, 'relative');
 
     // The CLI runs in `directory`, so `relative` names `target`.

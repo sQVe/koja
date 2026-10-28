@@ -145,7 +145,7 @@ it.each(['wrong pass', 'another pane pass', 'outside process', 'dead process'] a
     }
 
     if (failure === 'another pane pass') {
-      client.send({ type: 'paneSplit', paneId: target, direction: 'right', cwd: undefined });
+      client.send({ type: 'paneAdd', paneId: target, cwd: undefined });
 
       const split = await nextOfType(client, 'paneDone');
 
@@ -316,7 +316,7 @@ it('refuses the old pass after restoring the pane with a new shell generation', 
   const first = await startSavedServer(directory);
 
   await createWorkspace(first.socketPath, directory, 'test');
-  first.client.send({ type: 'paneSplit', paneId: paneId(1), direction: 'right', cwd: undefined });
+  first.client.send({ type: 'paneAdd', paneId: paneId(1), cwd: undefined });
 
   const { paneId: target } = await nextOfType(first.client, 'paneDone');
 

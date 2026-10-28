@@ -24,6 +24,7 @@ import {
   noFolders,
   resize,
   run,
+  runLegacy,
   splitFirst,
   switchLayout,
   zoom,
@@ -50,7 +51,7 @@ const splitPaneOf = (id: number, direction: 'below' | 'right'): Intent => ({
 });
 
 const nestedState = (): State =>
-  run([createKoja, attachLarge, splitFirst('right'), splitPaneOf(1, 'below')]);
+  runLegacy([createKoja, attachLarge, splitFirst('right'), splitPaneOf(1, 'below')]);
 
 it('ignores the exit of a pane that a closed workspace removed, and names it for disposal', () => {
   const state = run([createKoja, { type: 'closeWorkspace', workspaceId: workspaceId(1) }]);
@@ -178,7 +179,7 @@ it('marks a closing pane exited without removing it while the server stops', () 
 });
 
 it('splits a pane at half its area, starts the new pane, and focuses it', () => {
-  const state = run([createKoja, attachLarge]);
+  const state = runLegacy([createKoja, attachLarge]);
   const result = intent(state, splitFirst('right'));
   const added = result.state.panes[1];
 
@@ -214,7 +215,7 @@ it('splits a pane at half its area, starts the new pane, and focuses it', () => 
 });
 
 it('splits the focused pane below and gives each pane half the rows', () => {
-  const result = intent(run([createKoja, attachLarge]), splitFirst('below'));
+  const result = intent(runLegacy([createKoja, attachLarge]), splitFirst('below'));
 
   expect(result.state.panes.map((pane) => pane.size)).toEqual([
     { columns: 79, rows: 10 },
@@ -223,7 +224,7 @@ it('splits the focused pane below and gives each pane half the rows', () => {
 });
 
 it('splits a pane inside a split at half the area of that pane', () => {
-  const state = run([createKoja, attachLarge, splitFirst('right')]);
+  const state = runLegacy([createKoja, attachLarge, splitFirst('right')]);
 
   const result = intent(state, {
     type: 'splitPane',
@@ -240,7 +241,7 @@ it('splits a pane inside a split at half the area of that pane', () => {
 });
 
 it('gives the area and the focus of a closed pane to its sibling', () => {
-  const state = run([createKoja, attachLarge, splitFirst('right')]);
+  const state = runLegacy([createKoja, attachLarge, splitFirst('right')]);
   const result = intent(state, { type: 'closePane', paneId: paneId(2) });
 
   expect(result.state.tabs[0]?.layout).toEqual({ kind: 'pane', paneId: paneId(1) });
@@ -257,7 +258,7 @@ it('gives the area and the focus of a closed pane to its sibling', () => {
 });
 
 it('focuses the first pane of a sibling split when its neighbor closes', () => {
-  const state = run([
+  const state = runLegacy([
     createKoja,
     attachLarge,
     splitFirst('right'),
@@ -276,7 +277,7 @@ it('focuses the first pane of a sibling split when its neighbor closes', () => {
 });
 
 it('keeps the focus when an unfocused pane closes', () => {
-  const state = run([createKoja, attachLarge, splitFirst('right')]);
+  const state = runLegacy([createKoja, attachLarge, splitFirst('right')]);
   const result = intent(state, { type: 'closePane', paneId: paneId(1) });
 
   expect(result.state.tabs[0]?.focusedPaneId).toBe(paneId(2));
@@ -292,7 +293,7 @@ it('removes the tab and workspace when the last pane of a tab closes', () => {
 });
 
 it('focuses another pane of the tab', () => {
-  const state = run([createKoja, attachLarge, splitFirst('right')]);
+  const state = runLegacy([createKoja, attachLarge, splitFirst('right')]);
   const result = intent(state, { type: 'focusPane', paneId: paneId(1) });
 
   expect(result.state.tabs[0]?.focusedPaneId).toBe(paneId(1));
@@ -300,7 +301,7 @@ it('focuses another pane of the tab', () => {
 });
 
 it('makes the tab of the focused pane active when that tab is inactive', () => {
-  const state = run([createKoja, attachLarge, splitFirst('right'), createTab]);
+  const state = runLegacy([createKoja, attachLarge, splitFirst('right'), createTab]);
   const result = intent(state, { type: 'focusPane', paneId: paneId(1) });
 
   expect(activeTabOf(result.state.defaultView, workspaceId(1))).toBe(tabId(1));
@@ -324,7 +325,7 @@ it('focuses the workspace of the focused pane when that workspace is unfocused',
 });
 
 it('focuses the tab and workspace of a pane in an inactive tab of an unfocused workspace', () => {
-  const state = run([createKoja, attachLarge, splitFirst('right'), createTab, createDocs]);
+  const state = runLegacy([createKoja, attachLarge, splitFirst('right'), createTab, createDocs]);
 
   const result = intent(state, { type: 'focusPane', paneId: paneId(1) });
 
@@ -341,7 +342,7 @@ it('focuses the tab and workspace of a pane in an inactive tab of an unfocused w
 });
 
 it('closes only the pane that exits in a tab with two panes', () => {
-  const state = run([createKoja, attachLarge, splitFirst('right')]);
+  const state = runLegacy([createKoja, attachLarge, splitFirst('right')]);
 
   const started = fact(state, startedPane(2, 2)).state;
 
@@ -370,13 +371,13 @@ it.each([
   ['split a pane too narrow for two frames', splitFirst('right'), 'paneTooSmall'],
   ['split a pane too short for two frames', splitFirst('below'), 'paneTooSmall'],
 ] as const)('refuses to %s and leaves state unchanged', (_name, refused, reason) => {
-  const state = run([createKoja, tinyClient]);
+  const state = runLegacy([createKoja, tinyClient]);
 
   expect(applyIntent(state, refused)).toEqual({ kind: 'rejected', state, reason });
 });
 
 it('splits a pane that has room for exactly two framed 1x1 terminals and a gap', () => {
-  const state = run([createKoja, { type: 'attachClient', size: { columns: 7, rows: 7 } }]);
+  const state = runLegacy([createKoja, { type: 'attachClient', size: { columns: 7, rows: 7 } }]);
   const result = intent(state, splitFirst('right'));
 
   expect(result.state.panes.map((pane) => pane.size)).toEqual([
@@ -395,7 +396,7 @@ it('splits a pane that has room for exactly two framed 1x1 terminals and a gap',
 });
 
 it('splits a pane by rows with no gap and refuses one row fewer', () => {
-  const fits = run([createKoja, { type: 'attachClient', size: { columns: 3, rows: 7 } }]);
+  const fits = runLegacy([createKoja, { type: 'attachClient', size: { columns: 3, rows: 7 } }]);
   const result = intent(fits, splitFirst('below'));
 
   expect(result.state.panes.map((pane) => pane.size)).toEqual([
@@ -403,7 +404,7 @@ it('splits a pane by rows with no gap and refuses one row fewer', () => {
     { columns: 1, rows: 1 },
   ]);
 
-  const short = run([createKoja, { type: 'attachClient', size: { columns: 3, rows: 6 } }]);
+  const short = runLegacy([createKoja, { type: 'attachClient', size: { columns: 3, rows: 6 } }]);
 
   expect(applyIntent(short, splitFirst('below'))).toMatchObject({
     kind: 'rejected',
@@ -412,7 +413,7 @@ it('splits a pane by rows with no gap and refuses one row fewer', () => {
 });
 
 it('refuses a right split one column short of two frames and a gap', () => {
-  const short = run([createKoja, { type: 'attachClient', size: { columns: 6, rows: 4 } }]);
+  const short = runLegacy([createKoja, { type: 'attachClient', size: { columns: 6, rows: 4 } }]);
 
   expect(applyIntent(short, splitFirst('right'))).toMatchObject({
     kind: 'rejected',
@@ -435,7 +436,7 @@ it.each([
 });
 
 it('gives the area of a closed pane to its sibling without an attached client', () => {
-  const state = run([createKoja, splitFirst('right')]);
+  const state = runLegacy([createKoja, splitFirst('right')]);
   const result = intent(state, { type: 'closePane', paneId: paneId(2) });
 
   expect(result.state.panes[0]?.size).toEqual({ columns: 80, rows: 24 });
@@ -448,7 +449,7 @@ it('gives the area of a closed pane to its sibling without an attached client', 
 });
 
 it('gives the area of an exited pane to its sibling without an attached client', () => {
-  const state = run([createKoja, splitFirst('right')]);
+  const state = runLegacy([createKoja, splitFirst('right')]);
   const result = fact(state, { type: 'paneExited', paneId: paneId(2), generation: 2, exitCode: 0 });
 
   expect(result.state.panes[0]?.size).toEqual({ columns: 80, rows: 24 });
@@ -461,7 +462,7 @@ it('gives the area of an exited pane to its sibling without an attached client',
 });
 
 it('splits by the area of the last client after it detaches', () => {
-  const state = run([
+  const state = runLegacy([
     createKoja,
     { type: 'attachClient', size: { columns: 2, rows: 26 } },
     { type: 'detachClient', clientId: clientId(1) },
@@ -475,7 +476,7 @@ it('splits by the area of the last client after it detaches', () => {
 });
 
 it('keeps the focus on an unfocused pane when its neighbor closes, and gives it the area', () => {
-  const state = run([
+  const state = runLegacy([
     createKoja,
     attachLarge,
     splitFirst('right'),
@@ -494,7 +495,7 @@ it('keeps the focus on an unfocused pane when its neighbor closes, and gives it 
 });
 
 it('returns the focus to the earlier pane when a split pane fails to start', () => {
-  const opened = run([createKoja, attachLarge, splitFirst('right')]);
+  const opened = runLegacy([createKoja, attachLarge, splitFirst('right')]);
   const state = fact(opened, startedPane(2, 2)).state;
   const split = intent(state, splitFirst('below'));
 
@@ -518,7 +519,7 @@ it('returns the focus to the earlier pane when a split pane fails to start', () 
 });
 
 it('gives the focus to the sibling when the focused pane of a split fails to start', () => {
-  const state = run([createKoja, attachLarge, splitFirst('right')]);
+  const state = runLegacy([createKoja, attachLarge, splitFirst('right')]);
 
   const result = fact(state, {
     type: 'paneFailedToStart',
@@ -531,7 +532,7 @@ it('gives the focus to the sibling when the focused pane of a split fails to sta
 });
 
 it('zooms a pane over the whole area and keeps the size of the hidden pane', () => {
-  const split = run([createKoja, attachLarge, splitFirst('right')]);
+  const split = runLegacy([createKoja, attachLarge, splitFirst('right')]);
   const result = intent(split, zoom(1));
 
   expect(result.state.tabs[0]?.zoomedPaneId).toBe(paneId(1));
@@ -557,7 +558,7 @@ it('zooms a pane over the whole area and keeps the size of the hidden pane', () 
 });
 
 it('zooms and focuses a pane that is not focused', () => {
-  const split = run([createKoja, attachLarge, splitFirst('right')]);
+  const split = runLegacy([createKoja, attachLarge, splitFirst('right')]);
   const result = intent(split, zoom(1));
 
   expect(split.tabs[0]?.focusedPaneId).toBe(paneId(2));
@@ -573,7 +574,7 @@ it('does not zoom a tab with one pane', () => {
 });
 
 it('keeps the size of a hidden pane while the client resizes, and refits it on unzoom', () => {
-  const zoomed = run([createKoja, attachLarge, splitFirst('right'), zoom(1)]);
+  const zoomed = runLegacy([createKoja, attachLarge, splitFirst('right'), zoom(1)]);
   const client = zoomed.attachedClientId;
 
   if (client === undefined) {
@@ -592,7 +593,7 @@ it('keeps the size of a hidden pane while the client resizes, and refits it on u
 });
 
 it('unzooms when the zoomed pane is split', () => {
-  const state = run([createKoja, attachLarge, splitFirst('right'), zoom(1)]);
+  const state = runLegacy([createKoja, attachLarge, splitFirst('right'), zoom(1)]);
   const result = intent(state, splitPaneOf(1, 'below'));
 
   expect(result.state.tabs[0]?.zoomedPaneId).toBeUndefined();
@@ -607,7 +608,7 @@ it('unzooms when the zoomed pane is split', () => {
 });
 
 it('restores the zoom and focus when a split pane of a zoomed tab fails to start', () => {
-  const zoomed = run([createKoja, attachLarge, splitFirst('right'), zoom(1)]);
+  const zoomed = runLegacy([createKoja, attachLarge, splitFirst('right'), zoom(1)]);
   const split = intent(zoomed, splitPaneOf(1, 'below'));
 
   const result = fact(split.state, {
@@ -630,7 +631,7 @@ it('restores the zoom and focus when a split pane of a zoomed tab fails to start
 });
 
 it('does not report a zoom change when a failed split leaves the zoom as it was', () => {
-  const split = run([createKoja, attachLarge, splitFirst('right')]);
+  const split = runLegacy([createKoja, attachLarge, splitFirst('right')]);
 
   const result = fact(split, {
     type: 'paneFailedToStart',
@@ -644,7 +645,7 @@ it('does not report a zoom change when a failed split leaves the zoom as it was'
 });
 
 it('unzooms when a started split pane closes', () => {
-  const opened = run([createKoja, attachLarge, splitFirst('right')]);
+  const opened = runLegacy([createKoja, attachLarge, splitFirst('right')]);
   const started = fact(opened, startedPane(2, 2)).state;
   const zoomed = intent(started, zoom(1)).state;
   const split = intent(zoomed, splitPaneOf(1, 'below')).state;
@@ -655,7 +656,7 @@ it('unzooms when a started split pane closes', () => {
 });
 
 it('leaves the tab unzoomed when the focus moved before a split pane failed to start', () => {
-  const zoomed = run([createKoja, attachLarge, splitFirst('right'), zoom(1)]);
+  const zoomed = runLegacy([createKoja, attachLarge, splitFirst('right'), zoom(1)]);
   const split = intent(zoomed, splitPaneOf(1, 'below')).state;
   const refocused = intent(split, { type: 'focusPane', paneId: paneId(2) }).state;
 
@@ -671,7 +672,7 @@ it('leaves the tab unzoomed when the focus moved before a split pane failed to s
 });
 
 it('unzooms when a pane closes', () => {
-  const state = run([createKoja, attachLarge, splitFirst('right'), zoom(1)]);
+  const state = runLegacy([createKoja, attachLarge, splitFirst('right'), zoom(1)]);
   const result = intent(state, { type: 'closePane', paneId: paneId(2) });
 
   expect(result.state.tabs[0]?.zoomedPaneId).toBeUndefined();
@@ -685,7 +686,7 @@ it('unzooms when a pane closes', () => {
 });
 
 it('unzooms when another pane takes the focus, but not when the zoomed pane does', () => {
-  const state = run([createKoja, attachLarge, splitFirst('right'), zoom(1)]);
+  const state = runLegacy([createKoja, attachLarge, splitFirst('right'), zoom(1)]);
   const same = intent(state, { type: 'focusPane', paneId: paneId(1) });
   const other = intent(state, { type: 'focusPane', paneId: paneId(2) });
 
@@ -693,7 +694,10 @@ it('unzooms when another pane takes the focus, but not when the zoomed pane does
   expect(same.changes).toEqual([]);
   expect(other.state.tabs[0]?.zoomedPaneId).toBeUndefined();
   expect(other.state.tabs[0]?.focusedPaneId).toBe(paneId(2));
-  expect(sizes(other.state)).toEqual(sizes(run([createKoja, attachLarge, splitFirst('right')])));
+
+  expect(sizes(other.state)).toEqual(
+    sizes(runLegacy([createKoja, attachLarge, splitFirst('right')])),
+  );
 
   expect(other.changes).toEqual([
     { type: 'paneFocused', tabId: tabId(1), paneId: paneId(2) },
@@ -740,7 +744,7 @@ it('reports the new layout and the resized panes of a resize', () => {
 });
 
 it('unzooms a zoomed tab before it resizes', () => {
-  const state = run([createKoja, attachLarge, splitFirst('right'), zoom(1)]);
+  const state = runLegacy([createKoja, attachLarge, splitFirst('right'), zoom(1)]);
   const result = intent(state, resize(1, 'right', 2));
 
   expect(result.state.tabs[0]?.zoomedPaneId).toBeUndefined();
@@ -754,7 +758,7 @@ it('unzooms a zoomed tab before it resizes', () => {
 });
 
 it('clamps a resize at a framed 1x1 terminal and applies no changes when nothing moves', () => {
-  const state = run([createKoja, attachLarge, splitFirst('right')]);
+  const state = runLegacy([createKoja, attachLarge, splitFirst('right')]);
   const shrunk = intent(state, resize(1, 'left', 500));
 
   expect(sizes(shrunk.state).get(paneId(1))).toBe('1x22');
@@ -777,8 +781,8 @@ it('applies no changes when a nested resize is stopped at the minimum', () => {
 });
 
 it('rejects a resize with no split on that axis and changes nothing', () => {
-  const lone = run([createKoja, attachLarge]);
-  const sideBySide = run([createKoja, attachLarge, splitFirst('right'), zoom(1)]);
+  const lone = runLegacy([createKoja, attachLarge]);
+  const sideBySide = runLegacy([createKoja, attachLarge, splitFirst('right'), zoom(1)]);
 
   expect(applyIntent(lone, resize(1, 'left', 1))).toEqual({
     kind: 'rejected',
@@ -806,7 +810,7 @@ it.each([
   ['zoom', zoom(1)],
   ['resize', resize(1, 'left', 1)],
 ] as const)('refuses to %s a pane while the server stops', (_name, refused) => {
-  const state = run([createKoja, splitFirst('right'), { type: 'stopServer' }]);
+  const state = runLegacy([createKoja, splitFirst('right'), { type: 'stopServer' }]);
 
   expect(applyIntent(state, refused)).toEqual({
     kind: 'rejected',
@@ -832,7 +836,7 @@ it('closes a new pane that fails to start through the usual cascade', () => {
 });
 
 it('records the folder of a splitPane intent on the new pane', () => {
-  const state = run([createKoja, attachLarge]);
+  const state = runLegacy([createKoja, attachLarge]);
 
   const result = intent(state, {
     type: 'splitPane',
@@ -846,7 +850,7 @@ it('records the folder of a splitPane intent on the new pane', () => {
 });
 
 it('refuses to split a pane that is too small while the first pane has room', () => {
-  const state = run([
+  const state = runLegacy([
     createKoja,
     attachLarge,
     splitFirst('below'),
@@ -862,7 +866,7 @@ it('refuses to split a pane that is too small while the first pane has room', ()
 });
 
 it('gives the new pane of a split the size of its own area', () => {
-  const state = run([createKoja, attachLarge, splitFirst('right')]);
+  const state = runLegacy([createKoja, attachLarge, splitFirst('right')]);
   const result = intent(state, splitPaneOf(2, 'below'));
 
   const added = result.changes.flatMap((change) =>
@@ -873,7 +877,7 @@ it('gives the new pane of a split the size of its own area', () => {
 });
 
 it('focuses the sibling when the pane recorded before a split has closed', () => {
-  const state = run([
+  const state = runLegacy([
     createKoja,
     attachLarge,
     splitFirst('right'),
@@ -894,7 +898,7 @@ it('focuses the sibling when the pane recorded before a split has closed', () =>
 });
 
 it('drops the record of a split when its pane closes', () => {
-  const state = run([createKoja, attachLarge, splitFirst('right')]);
+  const state = runLegacy([createKoja, attachLarge, splitFirst('right')]);
   const result = intent(state, { type: 'closePane', paneId: paneId(2) });
 
   expect(state.stateBeforeSplit.has(paneId(2))).toBe(true);
@@ -902,7 +906,7 @@ it('drops the record of a split when its pane closes', () => {
 });
 
 it('changes only its own tab when a pane closes', () => {
-  const state = run([createKoja, attachLarge, createTab, splitFirst('right')]);
+  const state = runLegacy([createKoja, attachLarge, createTab, splitFirst('right')]);
   const result = intent(state, { type: 'closePane', paneId: paneId(3) });
 
   expect(result.state.tabs[1]).toEqual(state.tabs[1]);
@@ -910,7 +914,7 @@ it('changes only its own tab when a pane closes', () => {
 });
 
 it('changes only its own tab when a pane resizes', () => {
-  const state = run([createKoja, attachLarge, createTab, splitFirst('right')]);
+  const state = runLegacy([createKoja, attachLarge, createTab, splitFirst('right')]);
   const result = intent(state, resize(1, 'right', 2));
 
   expect(result.state.tabs[1]).toEqual(state.tabs[1]);
@@ -918,7 +922,7 @@ it('changes only its own tab when a pane resizes', () => {
 });
 
 it('keeps a closing pane in state as exited when the server stops', () => {
-  const stopped = run([createKoja, attachLarge, splitFirst('right'), { type: 'stopServer' }]);
+  const stopped = runLegacy([createKoja, attachLarge, splitFirst('right'), { type: 'stopServer' }]);
 
   const result = fact(stopped, {
     type: 'paneExited',
@@ -972,7 +976,7 @@ it('marks a restored pane running when it starts, not failed', () => {
 });
 
 it('focuses the sibling when the pane recorded before a split moved to another tab', () => {
-  const state = run([
+  const state = runLegacy([
     createKoja,
     attachLarge,
     splitFirst('right'),
@@ -1036,7 +1040,13 @@ it('puts a split pane in the order after the pane it split', () => {
 });
 
 it('refuses to split a pane in a master tab and leaves state unchanged', () => {
-  const state = run([createKoja, attachLarge, splitFirst('right'), switchLayout(1, 'master')]);
+  const state = runLegacy([
+    createKoja,
+    attachLarge,
+    splitFirst('right'),
+    switchLayout(1, 'master'),
+  ]);
+
   const result = applyIntent(state, splitFirst('below'));
 
   expect(result).toEqual({
@@ -1047,7 +1057,13 @@ it('refuses to split a pane in a master tab and leaves state unchanged', () => {
 });
 
 it('refuses to resize a pane in a master tab and leaves state unchanged', () => {
-  const state = run([createKoja, attachLarge, splitFirst('right'), switchLayout(1, 'master')]);
+  const state = runLegacy([
+    createKoja,
+    attachLarge,
+    splitFirst('right'),
+    switchLayout(1, 'master'),
+  ]);
+
   const result = applyIntent(state, resize(1, 'right', 2));
 
   expect(result).toEqual({
@@ -1096,7 +1112,7 @@ it('keeps the order when a pane resizes', () => {
 });
 
 const masterState = (): State =>
-  run([createKoja, attachLarge, splitFirst('right'), switchLayout(1, 'master')]);
+  runLegacy([createKoja, attachLarge, splitFirst('right'), switchLayout(1, 'master')]);
 
 const masterSizes = (state: State): Map<PaneId, string> => {
   const tab = defined(state.tabs[0]);
@@ -1162,7 +1178,7 @@ it('gives a pane added to a master tab without room a lone pane size and keeps t
     size: { columns: 20, rows: 4 },
   };
 
-  const state = run([createKoja, narrow, splitFirst('right'), switchLayout(1, 'master')]);
+  const state = runLegacy([createKoja, narrow, splitFirst('right'), switchLayout(1, 'master')]);
   const result = intent(state, addPane(1));
   const before = sizes(state);
 
@@ -1198,7 +1214,7 @@ it('keeps every surviving pane once and untouched splits after master adds and c
 });
 
 it('keeps pane sizes while a master tab has no room and fits the order again when it grows', () => {
-  const state = run([
+  const state = runLegacy([
     createKoja,
     attachLarge,
     splitFirst('right'),

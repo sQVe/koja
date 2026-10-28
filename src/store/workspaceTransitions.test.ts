@@ -10,6 +10,7 @@ import {
   fact,
   intent,
   run,
+  runLegacy,
   unknownWorkspace,
 } from './storeFixtures.ts';
 
@@ -32,7 +33,7 @@ it('creates a workspace with one tab and one starting pane', () => {
     id: tabId(1),
     workspaceId: workspaceId(1),
     layout: { kind: 'pane', paneId: paneId(1) },
-    arrangement: { choice: 'legacy', order: [paneId(1)] },
+    arrangement: { choice: 'master', order: [paneId(1)] },
     focusedPaneId: paneId(1),
     zoomedPaneId: undefined,
     label: undefined,
@@ -295,7 +296,7 @@ it('drops the startup records of the panes of a closed workspace', () => {
     folder: undefined,
   };
 
-  const state = run([createKoja, createDocs, split]);
+  const state = runLegacy([createKoja, createDocs, split]);
 
   expect(state.stateBeforeSplit.has(paneId(3))).toBe(true);
   expect(state.startFallbacks.some((known) => known.paneId === paneId(2))).toBe(true);

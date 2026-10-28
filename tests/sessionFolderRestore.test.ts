@@ -19,6 +19,7 @@ it(
     await server.start();
 
     await server.createWorkspace('one');
+    await server.useLegacy('tab-1');
 
     const second = await server.split('pane-1');
 
@@ -70,6 +71,7 @@ it(
 
     await server.start();
     await server.createWorkspace('one');
+    await server.useLegacy('tab-1');
 
     const second = await server.split('pane-1');
     const gone = await realpath(await temporaryDirectory());
@@ -148,6 +150,7 @@ it(
 
     await server.start();
     await server.createWorkspace('one');
+    await server.useLegacy('tab-1');
 
     const second = await server.split('pane-1');
     // The folder moves to a sibling, so it sits inside a directory that cleanup removes.
@@ -253,6 +256,7 @@ it.skipIf(!scopesAvailable)(
     await writeShell(shell, '#!/bin/sh\nexec /bin/sh\n');
     await server.start();
     await server.createWorkspace('one');
+    await server.useLegacy('tab-1');
 
     let last = 'pane-1';
 
@@ -331,6 +335,7 @@ const restartWithShell = async (script: string, panes: number) => {
   await writeShell(shell, '#!/bin/sh\nexec /bin/sh\n');
   await server.start();
   await server.createWorkspace('one');
+  await server.useLegacy('tab-1');
 
   for (let count = 1; count < panes; count++) {
     await server.split('pane-1');

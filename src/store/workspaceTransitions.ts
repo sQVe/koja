@@ -1,7 +1,7 @@
 import { paneId, tabId, workspaceId } from '../ids.ts';
 import type { ClientId, WorkspaceId } from '../ids.ts';
 import { invariant } from '../invariant.ts';
-import { legacyArrangement } from '../layout.ts';
+import { masterArrangement } from '../layout.ts';
 import type { Layout } from '../layout.ts';
 import { lonePaneSize } from './paneSizes.ts';
 import type { Change, Intent, Pane, State, Tab, WorkspaceRecord } from './store.ts';
@@ -58,7 +58,7 @@ export const createWorkspace = (state: State, intent: CreateWorkspaceIntent): Ou
     id: pane.tabId,
     workspaceId: workspaceId(state.nextWorkspaceNumber),
     layout,
-    arrangement: legacyArrangement(layout),
+    arrangement: masterArrangement(layout),
     focusedPaneId: pane.id,
     zoomedPaneId: undefined,
     label: undefined,

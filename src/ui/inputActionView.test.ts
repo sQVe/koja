@@ -67,6 +67,19 @@ it('runs the zoom action found by search on Enter and leaves normal mode in plac
   expect(mode()).toBe('normal');
 });
 
+it('asks for the shown tab to use master layout from search and stays in normal mode', () => {
+  const { press, sent, layouts, mode } = createInputHarness('insert');
+
+  press('\x02');
+  press('/');
+  typeText(press, 'master layout');
+  press('\r');
+
+  expect(layouts).toEqual(['master']);
+  expect(sent).toEqual([]);
+  expect(mode()).toBe('normal');
+});
+
 const equalEffectCases: [string, string, string][] = [
   ['creates a workspace', 'c', 'create workspace'],
   ['creates a tab', 't', 'create tab'],

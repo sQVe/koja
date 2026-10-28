@@ -118,7 +118,7 @@ it(
     const { koja, list, act, first } = await setup(counterShell);
     const [before] = await list();
 
-    await act('split', first, '--direction', 'below');
+    await act('add', first);
 
     expect(await act('move', first, '--new-workspace')).toBe(first);
 

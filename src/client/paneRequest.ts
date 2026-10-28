@@ -9,6 +9,7 @@ type ResizeDirection = Extract<ControlMessage, { type: 'paneResize' }>['directio
 
 export type PaneLayoutCommand =
   | { action: 'split'; pane: PaneId; direction: SplitDirection; cwd: string | undefined }
+  | { action: 'add'; pane: PaneId; cwd: string | undefined }
   | { action: 'focus'; pane: PaneId }
   | { action: 'close'; pane: PaneId }
   | { action: 'move'; pane: PaneId; destination: PaneMoveDestination }
@@ -23,6 +24,10 @@ export const paneLayoutRequest = (command: PaneLayoutCommand): ControlMessage =>
       direction: command.direction,
       cwd: command.cwd,
     };
+  }
+
+  if (command.action === 'add') {
+    return { type: 'paneAdd', paneId: command.pane, cwd: command.cwd };
   }
 
   if (command.action === 'resize') {

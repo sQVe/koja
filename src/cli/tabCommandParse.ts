@@ -14,7 +14,8 @@ export type TabAction =
     }
   | { action: 'focus'; tabId: TabId }
   | { action: 'rename'; tabId: TabId; label: string }
-  | { action: 'close'; tabId: TabId };
+  | { action: 'close'; tabId: TabId }
+  | { action: 'layout'; tabId: TabId; choice: 'legacy' | 'master' };
 
 export interface TabCliCommand extends CommandOptions {
   kind: 'tab';
@@ -37,7 +38,8 @@ export const tabUsage = `  koja tab list [--socket <path>] [--json]
     [--socket <path>] [--json]
   koja tab focus <id> [--socket <path>] [--json]
   koja tab rename <id> <label> [--socket <path>] [--json]
-  koja tab close <id> [--socket <path>] [--json]`;
+  koja tab close <id> [--socket <path>] [--json]
+  koja tab layout <id> master|legacy [--socket <path>] [--json]`;
 
 const parseTabId = (value: string | undefined): IdResult<TabId> => {
   const number = parseId(value ?? '', 'tab');
@@ -71,6 +73,22 @@ const parseTabRename = (rest: string[]): TabAction | string => {
   }
 
   return target.ok ? { action: 'rename', tabId: target.id, label } : target.message;
+};
+
+const parseTabLayout = (rest: string[]): TabAction | string => {
+  const [id, choice] = rest;
+
+  if (rest.length !== 2) {
+    return 'tab layout takes a tab id and master or legacy.';
+  }
+
+  if (choice !== 'master' && choice !== 'legacy') {
+    return `'${choice ?? ''}' is not a layout. Use master or legacy.`;
+  }
+
+  const target = parseTabId(id);
+
+  return target.ok ? { action: 'layout', tabId: target.id, choice } : target.message;
 };
 
 const parseTabCreate = (
@@ -111,6 +129,10 @@ const parseTabAction = (
 
   if (action === 'rename') {
     return parseTabRename(rest);
+  }
+
+  if (action === 'layout') {
+    return parseTabLayout(rest);
   }
 
   if (action === 'focus' || action === 'close') {

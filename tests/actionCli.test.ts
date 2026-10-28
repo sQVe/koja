@@ -42,7 +42,9 @@ const actionListSchema = z.array(
 it(
   'runs a catalog action by name and splits the focused pane',
   async () => {
-    const { koja, list } = await setup();
+    const { koja, list, useLegacy } = await setup();
+
+    await useLegacy();
 
     expect(await list()).toHaveLength(1);
 
@@ -50,6 +52,34 @@ it(
 
     expect({ exitCode: ran.exitCode, stderr: ran.stderr }).toEqual({ exitCode: 0, stderr: '' });
     expect(await list()).toHaveLength(2);
+  },
+  cliTestTimeoutMs,
+);
+
+it(
+  'switches the tab layout by action name and adds a pane with pane.add',
+  async () => {
+    const { koja, list, tabs, shellPid, first } = await setup();
+    const pid = await shellPid(first);
+
+    expect(ranCleanly(await koja('action', 'run', 'layout.legacy'))).toEqual(cleanRun);
+    expect((await tabs()).map((tab) => tab.arrangement.choice)).toEqual(['legacy']);
+
+    const again = await koja('action', 'run', 'layout.legacy');
+
+    expect(again.exitCode).toBe(1);
+    expect(again.stderr).toContain('layout.legacy is not available here.');
+
+    expect(ranCleanly(await koja('action', 'run', 'layout.master'))).toEqual(cleanRun);
+    expect((await tabs()).map((tab) => tab.arrangement.choice)).toEqual(['master']);
+    expect(await shellPid(first)).toBe(pid);
+
+    expect(ranCleanly(await koja('action', 'run', 'pane.add'))).toEqual(cleanRun);
+
+    const added = await list();
+
+    expect(added).toHaveLength(2);
+    expect((await tabs())[0]?.arrangement.order).toEqual(added.map((pane) => pane.id));
   },
   cliTestTimeoutMs,
 );
@@ -244,7 +274,7 @@ it(
   async () => {
     const { koja, list, act, first } = await setup();
 
-    await act('split', first, '--direction', 'right');
+    await act('add', first);
 
     const split = await list();
     const unfocused = split.find((pane) => !pane.focused);

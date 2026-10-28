@@ -1,6 +1,7 @@
 import { paneId } from '../ids.ts';
 import type { PaneId, TabId } from '../ids.ts';
 import { invariant } from '../invariant.ts';
+import type { LayoutChoice } from '../layout.ts';
 import {
   createFrameDecoder,
   encodeControl,
@@ -114,6 +115,8 @@ export interface AttachSession {
   // Whether a tab request is sent and not yet answered, or input waits for the shown pane's fresh
   // rows. The snapshot lags behind it.
   tabPending: () => boolean;
+  // Switches the shown tab's layout, like `koja tab layout`.
+  setTabLayout: (choice: LayoutChoice) => void;
   // Calls back once, when no tab request is pending any more.
   afterTabAnswer: (callback: () => void) => void;
   // Ask the server to change the pane layout, like `koja pane split|focus|close`. The promise
@@ -633,6 +636,16 @@ export const connectAttach = async (
       }
     },
     tabPending: () => tabInputPending(tabGate),
+    setTabLayout: (choice) => {
+      invariant(state !== undefined, 'The attach session is only handed out after a snapshot.');
+
+      const view = shownView(state.snapshot);
+      const tab = activeTabIdOf(view, view.focusedWorkspaceId);
+
+      if (tab !== undefined) {
+        sendTabRequest(tabRequest({ action: 'layout', tabId: tab, choice }));
+      }
+    },
     afterTabAnswer: (callback) => {
       tabAnswerCallbacks.push(callback);
     },

@@ -1,5 +1,7 @@
 import { expect, it } from 'bun:test';
 
+import { z } from 'zod';
+
 import { actionCatalog } from '../src/actions.ts';
 import { cliTestTimeoutMs } from './cliHarness.ts';
 import { setup } from './paneAttachHarness.ts';
@@ -11,6 +13,10 @@ const pollTimeoutMs = 10_000;
 const pollIntervalMs = 50;
 
 const down = '\x1b[B';
+
+const tabChoicesSchema = z.array(z.object({ arrangement: z.object({ choice: z.string() }) }));
+
+const processInfoSchema = z.object({ shell_pid: z.number() });
 
 const listUntil = async (list: () => Promise<PaneList>, count: number): Promise<PaneList> => {
   const deadline = Date.now() + pollTimeoutMs;
@@ -32,11 +38,15 @@ it(
   async () => {
     const byKey = await setup();
 
+    await byKey.useLegacy();
+
     byKey.type('\x02v');
 
     const keyPanes = await listUntil(byKey.list, 2);
 
     const bySearch = await setup();
+
+    await bySearch.useLegacy();
 
     bySearch.type('\x02/');
     await bySearch.until(() => bySearch.screenText().includes('Next workspace'));
@@ -96,6 +106,76 @@ it(
 
     expect(drawn('Next workspace')).toBe(false);
     expect(lineOf(last?.title ?? '')?.startsWith('>')).toBe(true);
+  },
+  cliTestTimeoutMs,
+);
+
+it(
+  'switches the shown tab to legacy and back from search and keeps panes, processes, selection, and mode',
+  async () => {
+    const { koja, list, act, lines, screenText, type, until, first } = await setup();
+
+    await act('add', first);
+    await act('focus', first);
+
+    const choices = async () =>
+      tabChoicesSchema
+        .parse(JSON.parse(await koja('tab', 'list', '--json')))
+        .map((tab) => tab.arrangement.choice);
+
+    const pids = async (panes: PaneList) =>
+      Promise.all(
+        panes.map(
+          async (pane) =>
+            processInfoSchema.parse(
+              JSON.parse(await koja('pane', 'process-info', pane.id, '--json')),
+            ).shell_pid,
+        ),
+      );
+
+    const shown = async () => {
+      const panes = await list();
+
+      return {
+        ids: panes.map((pane) => pane.id),
+        focused: panes.find((pane) => pane.focused)?.id,
+        pids: await pids(panes),
+      };
+    };
+
+    const isNormal = () => lines().at(-1)?.trim().startsWith('NORMAL') === true;
+
+    const runFromSearch = async (query: string, choice: string): Promise<void> => {
+      type('/');
+      await until(() => screenText().includes('Next workspace'));
+      type(query);
+      await until(() => !screenText().includes('Next workspace'));
+      type('\r');
+
+      for (let attempt = 0; attempt < 100 && (await choices())[0] !== choice; attempt += 1) {
+        await Bun.sleep(pollIntervalMs);
+      }
+    };
+
+    type('\x02');
+    await until(isNormal);
+
+    const before = await shown();
+
+    expect(await choices()).toEqual(['master']);
+    expect(before.focused).toBe(first);
+
+    await runFromSearch('legacy split layout', 'legacy');
+
+    expect(await choices()).toEqual(['legacy']);
+    expect(await shown()).toEqual(before);
+    expect(isNormal()).toBe(true);
+
+    await runFromSearch('master layout', 'master');
+
+    expect(await choices()).toEqual(['master']);
+    expect(await shown()).toEqual(before);
+    expect(isNormal()).toBe(true);
   },
   cliTestTimeoutMs,
 );

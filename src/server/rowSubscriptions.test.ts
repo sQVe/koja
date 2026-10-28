@@ -145,6 +145,7 @@ const splitState = (): State =>
   run([
     { type: 'attachClient', size: { columns: 80, rows: 24 } },
     { type: 'createWorkspace', root: '/work', label: 'work', focus: true },
+    { type: 'setTabLayout', tabId: tabId(1), choice: 'legacy' },
     { type: 'splitPane', paneId: id, direction: 'right', folder: undefined },
   ]);
 
@@ -168,6 +169,7 @@ const masterState = (size: TerminalSize): State =>
   run([
     { type: 'attachClient', size: { columns: 80, rows: 24 } },
     { type: 'createWorkspace', root: '/work', label: 'work', focus: true },
+    { type: 'setTabLayout', tabId: tabId(1), choice: 'legacy' },
     { type: 'splitPane', paneId: id, direction: 'right', folder: undefined },
     { type: 'setTabLayout', tabId: tabId(1), choice: 'master' },
     { type: 'resizeClient', clientId: clientId(1), size },

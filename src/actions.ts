@@ -2,9 +2,11 @@ import { focusedPane, shownView, viewedPane } from './client/client.ts';
 import type { PaneLayoutCommand, StoreSnapshot, TabRoute } from './client/client.ts';
 import type { PaneId, TabId, WorkspaceId } from './ids.ts';
 import { invariant } from './invariant.ts';
-import { layoutPanes, paneSize } from './layout.ts';
+import { layoutPaneIds } from './layout.ts';
+import type { LayoutChoice } from './layout.ts';
 
 export type PaneAction =
+  | 'add'
   | 'splitBelow'
   | 'splitRight'
   | 'focusPrevious'
@@ -25,6 +27,7 @@ export type ActionIntent =
   | { kind: 'pane'; action: PaneAction }
   | { kind: 'workspace'; key: WorkspaceKey }
   | { kind: 'tab'; route: TabRoute }
+  | { kind: 'layout'; choice: LayoutChoice }
   | { kind: 'scrollEnter' }
   | { kind: 'paste' }
   | { kind: 'detach' }
@@ -73,19 +76,27 @@ const tabIdsOf = (
   workspaceId: WorkspaceId | undefined,
 ): readonly TabId[] => workspaceOf(snapshot, workspaceId)?.tabIds ?? [];
 
+const tabOfPane = (snapshot: StoreSnapshot, paneId: PaneId | undefined) => {
+  const pane = snapshot.panes.find((known) => known.id === paneId);
+
+  return snapshot.tabs.find((known) => known.id === pane?.tabId);
+};
+
+// Visits every pane of the tab, including a zoomed tab's hidden panes and panes too small to draw.
 const focusNeighborOf = (
   snapshot: StoreSnapshot,
   paneId: PaneId | undefined,
   offset: 1 | -1,
 ): PaneId | undefined => {
   const current = snapshot.panes.find((known) => known.id === paneId);
-  const tab = snapshot.tabs.find((known) => known.id === current?.tabId);
+  const tab = tabOfPane(snapshot, paneId);
 
   if (current === undefined || tab === undefined) {
     return undefined;
   }
 
-  const order = layoutPanes(tab.layout, paneSize(undefined)).map((place) => place.paneId);
+  const isMaster = tab.arrangement.choice === 'master';
+  const order = isMaster ? tab.arrangement.order : layoutPaneIds(tab.layout);
 
   return order[order.indexOf(current.id) + offset];
 };
@@ -95,6 +106,10 @@ export const paneCommandOf = (
   pane: PaneId,
   action: PaneAction,
 ): PaneLayoutCommand | undefined => {
+  if (action === 'add') {
+    return { action: 'add', pane, cwd: undefined };
+  }
+
   if (action === 'splitBelow' || action === 'splitRight') {
     const direction = action === 'splitBelow' ? 'below' : 'right';
 
@@ -148,6 +163,14 @@ const hasPreviousPane = (snapshot: StoreSnapshot, target: ActionTarget): boolean
 
 const hasNextPane = (snapshot: StoreSnapshot, target: ActionTarget): boolean =>
   focusNeighborOf(snapshot, target.paneId, 1) !== undefined;
+
+const usesOtherLayout =
+  (choice: LayoutChoice) =>
+  (snapshot: StoreSnapshot, target: ActionTarget): boolean => {
+    const tab = tabOfPane(snapshot, target.paneId);
+
+    return tab !== undefined && tab.arrangement.choice !== choice;
+  };
 
 const hasTargetWorkspace = (snapshot: StoreSnapshot, target: ActionTarget): boolean =>
   workspaceOf(snapshot, target.workspaceId) !== undefined;
@@ -260,6 +283,23 @@ export const actionCatalog: ActionCatalog = [
   paneEntry('Resize pane right', '>', 'resizeRight', hasTargetPane),
   paneEntry('Resize pane up', '-', 'resizeUp', hasTargetPane),
   paneEntry('Resize pane down', '+', 'resizeDown', hasTargetPane),
+  {
+    id: 'layout.master',
+    title: 'Use master layout',
+    keys: [],
+    intent: { kind: 'layout', choice: 'master' },
+    cli: true,
+    available: usesOtherLayout('master'),
+  },
+  {
+    id: 'layout.legacy',
+    title: 'Use legacy split layout',
+    keys: [],
+    intent: { kind: 'layout', choice: 'legacy' },
+    cli: true,
+    available: usesOtherLayout('legacy'),
+  },
+  paneEntry('New pane', 'n', 'add', hasTargetPane),
   {
     id: 'pane.paste',
     title: 'Paste clipboard into pane',

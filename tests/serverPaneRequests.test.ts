@@ -11,6 +11,7 @@ import {
   waitFor,
   startServer,
   temporaryDirectory,
+  useLegacyLayout,
 } from './serverHarness.ts';
 import type { TestClient } from './serverHarness.ts';
 
@@ -70,6 +71,7 @@ it('answers paneSplit in a terminal too small to split with paneTooSmall and no 
   const { server, socketPath } = await startServer(directory);
 
   await attachTinyTerminal(socketPath);
+  await useLegacyLayout(socketPath);
 
   const before = server.snapshot();
   const client = await connectCli(socketPath);
@@ -99,6 +101,9 @@ it('answers paneMove into a tab with no room with paneTooSmall and no paneDone',
   });
 
   const created = await nextOfType(client, 'tabDone');
+
+  await useLegacyLayout(socketPath, created.tabId);
+
   const before = server.snapshot();
 
   await expectRejected(
@@ -113,6 +118,8 @@ it('answers paneMove into a tab with no room with paneTooSmall and no paneDone',
 it('answers paneResize of a pane with no neighbor with noSplit and no paneDone', async () => {
   const directory = await temporaryDirectory();
   const { server, socketPath } = await startServer(directory);
+
+  await useLegacyLayout(socketPath);
   const before = server.snapshot();
   const client = await connectCli(socketPath);
 

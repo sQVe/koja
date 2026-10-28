@@ -35,7 +35,16 @@ type PaneReadMessage = Extract<ControlMessage, { type: 'paneRead' }>;
 
 type PaneLayoutRequest = Extract<
   ControlMessage,
-  { type: 'paneSplit' | 'paneFocus' | 'paneClose' | 'paneMove' | 'paneZoom' | 'paneResize' }
+  {
+    type:
+      | 'paneSplit'
+      | 'paneAdd'
+      | 'paneFocus'
+      | 'paneClose'
+      | 'paneMove'
+      | 'paneZoom'
+      | 'paneResize';
+  }
 >;
 
 type PaneFailureReason = Extract<ControlMessage, { type: 'paneFailed' }>['reason'];
@@ -304,6 +313,7 @@ export const forgetPaneReads = (context: PaneRequestContext, connection: Connect
 
 const paneLayoutRequestTypes: ReadonlySet<string> = new Set([
   'paneSplit',
+  'paneAdd',
   'paneFocus',
   'paneClose',
   'paneMove',
@@ -341,7 +351,7 @@ const paneFolderOf = (
       : undefined;
   }
 
-  if (message.type !== 'paneSplit') {
+  if (message.type !== 'paneSplit' && message.type !== 'paneAdd') {
     return undefined;
   }
 
@@ -371,6 +381,10 @@ const paneIntentOf = (
       direction: message.direction,
       folder,
     };
+  }
+
+  if (message.type === 'paneAdd') {
+    return { type: 'addPane', paneId: message.paneId, folder };
   }
 
   if (message.type === 'paneMove') {
@@ -448,10 +462,10 @@ export const handlePaneLayoutRequest = (
     return;
   }
 
-  if (message.type === 'paneSplit') {
+  if (message.type === 'paneSplit' || message.type === 'paneAdd') {
     const added = result.changes.find((change) => change.type === 'paneAdded');
 
-    invariant(added !== undefined, 'A split pane must be added.');
+    invariant(added !== undefined, 'A new pane must be added.');
     connection.send({ type: 'paneDone', paneId: added.pane.id });
 
     return;

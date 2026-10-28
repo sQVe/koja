@@ -161,8 +161,12 @@ const layoutFailure = (
     return { ok: false, message: `Pane ${request.pane} has no split to resize.` };
   }
 
+  // Failure replies carry no tab, so the command names a placeholder for it.
   if (result.reason === 'requiresLegacyLayout') {
-    return { ok: false, message: `Pane ${request.pane} is in a master layout tab.` };
+    return {
+      ok: false,
+      message: `Pane ${request.pane} is in a master layout tab. Switch the tab first with: koja tab layout <tab-id> legacy`,
+    };
   }
 
   if (result.reason === 'serverStopping') {
@@ -184,13 +188,14 @@ const runPaneLayout = async (
   version: BuildVersion,
   socketPath: string,
 ): Promise<Outcome> => {
-  const resolved = await resolveFolder(request.action === 'split' ? request.cwd : undefined);
+  const takesFolder = request.action === 'split' || request.action === 'add';
+  const resolved = await resolveFolder(takesFolder ? request.cwd : undefined);
 
   if (!resolved.ok) {
     return resolved;
   }
 
-  const sent = request.action === 'split' ? { ...request, cwd: resolved.folder } : request;
+  const sent = takesFolder ? { ...request, cwd: resolved.folder } : request;
   const result = await runPaneLayoutCommand(socketPath, version, sent);
 
   if (!result.ok) {
@@ -204,6 +209,7 @@ const runPaneLayout = async (
 
 const layoutActions: ReadonlySet<string> = new Set([
   'split',
+  'add',
   'focus',
   'close',
   'move',

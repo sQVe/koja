@@ -10,7 +10,7 @@ import {
   createTab,
   defined,
   intent,
-  run,
+  runLegacy,
   splitFirst,
   switchLayout,
   zoom,
@@ -20,7 +20,7 @@ const identities = (state: State) =>
   state.panes.map((pane) => ({ id: pane.id, generation: pane.generation }));
 
 const threePanes = (): State =>
-  run([createKoja, attachLarge, splitFirst('right'), splitFirst('below')]);
+  runLegacy([createKoja, attachLarge, splitFirst('right'), splitFirst('below')]);
 
 it('switches a tab to master and back with the same panes, focus, and zoom', () => {
   const legacy = intent(threePanes(), zoom(2)).state;
@@ -114,7 +114,7 @@ it('refuses to switch a tab while the server stops', () => {
 });
 
 it('switches only the given tab', () => {
-  const state = run([createKoja, attachLarge, createTab]);
+  const state = runLegacy([createKoja, attachLarge, createTab]);
   const result = intent(state, switchLayout(2, 'master'));
 
   expect(result.state.tabs.map((tab) => tab.arrangement.choice)).toEqual(['legacy', 'master']);

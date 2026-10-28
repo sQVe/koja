@@ -24,6 +24,20 @@ export const paneListSchema = z.array(
   }),
 );
 
+const tabLayoutListSchema = z.array(
+  z.object({
+    id: z.string(),
+    pane: z.string(),
+    layout: z.unknown(),
+    arrangement: z.object({
+      choice: z.enum(['legacy', 'master']),
+      order: z.array(z.string()),
+    }),
+  }),
+);
+
+const processInfoSchema = z.object({ shell_pid: z.number() });
+
 const paneDoneSchema = z.object({ pane: z.string() });
 
 export const paneReadSchema = z.object({
@@ -53,6 +67,10 @@ export interface PaneSetup {
   koja: KojaRunner;
   list: () => Promise<z.infer<typeof paneListSchema>>;
   act: (...commandArguments: string[]) => Promise<string>;
+  tabs: () => Promise<z.infer<typeof tabLayoutListSchema>>;
+  shellPid: (pane: string) => Promise<number>;
+  // Switches the tab of the first pane to legacy layout, so its panes split and resize.
+  useLegacy: () => Promise<void>;
   first: string;
 }
 
@@ -95,9 +113,34 @@ export const setup = async (shellBody?: string): Promise<PaneSetup> => {
     return paneDoneSchema.parse(JSON.parse(result.stdout)).pane;
   };
 
+  const tabs = async () => {
+    const listed = await koja('tab', 'list', '--json');
+
+    expect(listed.exitCode).toBe(0);
+
+    return tabLayoutListSchema.parse(JSON.parse(listed.stdout));
+  };
+
+  const shellPid = async (pane: string): Promise<number> => {
+    const info = await koja('pane', 'process-info', pane, '--json');
+
+    expect(info.exitCode).toBe(0);
+
+    return processInfoSchema.parse(JSON.parse(info.stdout)).shell_pid;
+  };
+
   const [first] = await list();
 
-  return { directory, koja, list, act, first: first?.id ?? '' };
+  const useLegacy = async (): Promise<void> => {
+    const switched = await koja('tab', 'layout', first?.tab ?? '', 'legacy');
+
+    expect({ exitCode: switched.exitCode, stderr: switched.stderr }).toEqual({
+      exitCode: 0,
+      stderr: '',
+    });
+  };
+
+  return { directory, koja, list, act, tabs, shellPid, useLegacy, first: first?.id ?? '' };
 };
 
 export const pollUntil = async <Value>(

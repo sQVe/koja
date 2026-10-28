@@ -347,6 +347,11 @@ export const legacyArrangement = (layout: Layout): Arrangement => ({
   order: layoutPaneIds(layout),
 });
 
+export const masterArrangement = (layout: Layout): Arrangement => ({
+  choice: 'master',
+  order: layoutPaneIds(layout),
+});
+
 export const orderForLayout = (order: readonly PaneId[], layout: Layout): PaneId[] => {
   invariant(hasUniqueIds(order), 'Cannot order the same pane twice.');
 

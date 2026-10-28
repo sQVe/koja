@@ -7,7 +7,7 @@ import { basename, join } from 'node:path';
 import { z } from 'zod';
 
 import { paneId, tabId, workspaceId } from '../src/ids.ts';
-import type { PaneId } from '../src/ids.ts';
+import type { PaneId, TabId } from '../src/ids.ts';
 import { createFrameDecoder, encodeFrame, FrameKind } from '../src/protocol/frames.ts';
 import { encodeControl, parseControl } from '../src/protocol/messages.ts';
 import type { BuildVersion, ControlMessage } from '../src/protocol/messages.ts';
@@ -437,6 +437,15 @@ export const nextOfType = async <Type extends ControlMessage['type']>(
       return message as Extract<ControlMessage, { type: Type }>;
     }
   }
+};
+
+// Switches a tab to legacy layout from a CLI connection, so its panes split and resize.
+export const useLegacyLayout = async (socketPath: string, tab: TabId = tabId(1)): Promise<void> => {
+  const client = await connectCli(socketPath);
+
+  client.send({ type: 'tabLayout', tabId: tab, choice: 'legacy' });
+  expect(await nextOfType(client, 'tabDone')).toEqual({ type: 'tabDone', tabId: tab });
+  client.close();
 };
 
 export const logLinesOf = (logPath: string): z.output<typeof logLineSchema>[] => {
