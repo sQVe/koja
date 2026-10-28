@@ -19,6 +19,7 @@ import {
   intent,
   noReads,
   run,
+  runLegacy,
   splitFirst,
 } from './storeFixtures.ts';
 
@@ -53,7 +54,7 @@ const liveReport: PiReport = {
 };
 
 const restoredWithPi = (pi: SavedPi = restoredRecord): State => {
-  const saved = savedSessionOf(run([createKoja, splitFirst('right')]), noReads);
+  const saved = savedSessionOf(runLegacy([createKoja, splitFirst('right')]), noReads);
 
   const session: SavedSession = {
     ...saved,
@@ -183,7 +184,7 @@ it('drops the live pi report record of a closed pane and of a closed tab', () =>
 });
 
 it('keeps a restored record, under its new generation, only for a pane saved with one', () => {
-  const saved = savedSessionOf(run([createKoja, splitFirst('right')]), noReads);
+  const saved = savedSessionOf(runLegacy([createKoja, splitFirst('right')]), noReads);
   const [first, second] = saved.panes;
 
   const session: SavedSession = {

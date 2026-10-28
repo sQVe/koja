@@ -298,7 +298,7 @@ const startSavedClient = async (directory: string) => {
 
 it('saves the pi record of an accepted report without the report pass', async () => {
   const directory = await temporaryDirectory();
-  const { server, client, socketPath } = await startSavedServer(directory);
+  const { server, client, socketPath } = await startSavedClient(directory);
   const sessionPath = join(directory, 'session.json');
 
   await createWorkspace(socketPath, directory, 'test');

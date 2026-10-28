@@ -390,6 +390,7 @@ it(
 
     await server.start();
     await server.createWorkspace('one');
+    await server.useLegacy('tab-1');
 
     const second = await server.split('pane-1');
     const layoutBefore = await layoutOf(server);
@@ -420,6 +421,7 @@ it(
 
     await server.start();
     await server.createWorkspace('one');
+    await server.useLegacy('tab-1');
 
     const failed = await server.split('pane-1');
     const blocked = await server.split(failed);
