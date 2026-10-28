@@ -89,8 +89,10 @@ const recordBlockOf = (
   return processSurvives(record, reads) ? 'processSurvives' : undefined;
 };
 
+const hasText = (value: string | undefined): value is string => value !== undefined && value !== '';
+
 const modelMissing = (record: SavedPiRecord): boolean =>
-  record.provider === undefined || record.model === undefined || record.thinkingLevel === '';
+  !hasText(record.provider) || !hasText(record.model) || record.thinkingLevel === '';
 
 const sessionFileFailures = {
   missing: 'sessionFileMissing',
@@ -137,7 +139,7 @@ const recoveryOf = async (
 
   const { sessionFile, sessionId } = record;
 
-  if (sessionFile === undefined || sessionId === undefined) {
+  if (!hasText(sessionFile) || !hasText(sessionId)) {
     return failed('noSessionFile');
   }
 

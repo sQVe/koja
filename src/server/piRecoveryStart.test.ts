@@ -17,6 +17,7 @@ import type {
   State,
 } from '../store/store.ts';
 import { admitRestoredPane, checkSavedPi } from './piRecoveryStart.ts';
+import { readSessionFile, serialized } from './sessionFile.ts';
 
 const record: SavedPiRecord = {
   piVersion: '1.4.0',
@@ -108,6 +109,27 @@ it('checks each saved pi record of a restored session, and nothing for another r
     expect(await checkSavedPi(withoutPi)).toEqual(new Map());
     expect(await checkSavedPi({ kind: 'broken', message: 'bad' })).toEqual(new Map());
     expect(await checkSavedPi(undefined)).toEqual(new Map());
+  } finally {
+    await rm(directory, { recursive: true, force: true });
+  }
+});
+
+it('fails a saved record with an empty provider as naming no model, not as malformed', async () => {
+  const directory = await mkdtemp(join(tmpdir(), 'koja-pi-recovery-'));
+  const sessionPath = join(directory, 'koja.json');
+
+  try {
+    const sessionFile = join(directory, 'conversation.jsonl');
+
+    await writeFile(sessionPath, serialized(savedWith({ ...record, sessionFile, provider: '' })));
+
+    const read = await readSessionFile(sessionPath);
+
+    expect(read.kind).toBe('restored');
+
+    expect(await checkSavedPi(read)).toEqual(
+      new Map([[paneId(1), { status: 'failed', reason: 'modelMissing' }]]),
+    );
   } finally {
     await rm(directory, { recursive: true, force: true });
   }

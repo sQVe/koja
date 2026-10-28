@@ -297,6 +297,28 @@ it.each([
   expect(recovery).toEqual({ status: 'failed', reason: 'modelMissing' });
 });
 
+it.each([
+  ['session file', { sessionFile: '' }],
+  ['session id', { sessionId: '' }],
+])('fails a record whose %s is empty as having no session file', async (_name, changes) => {
+  const directory = await sessionDirectory();
+
+  const recovery = await checkInDirectory(directory, savedRecordIn(directory, changes));
+
+  expect(recovery).toEqual({ status: 'failed', reason: 'noSessionFile' });
+});
+
+it.each([
+  ['provider', { provider: '' }],
+  ['model', { model: '' }],
+])('fails a record whose %s is empty as naming no model', async (_name, changes) => {
+  const directory = await sessionDirectory();
+
+  const recovery = await checkInDirectory(directory, savedRecordIn(directory, changes));
+
+  expect(recovery).toEqual({ status: 'failed', reason: 'modelMissing' });
+});
+
 it('fails a record whose saved session file is gone', async () => {
   const directory = await sessionDirectory();
   const sessionFile = join(directory, 'gone.jsonl');
