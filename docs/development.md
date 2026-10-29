@@ -97,8 +97,13 @@ The package always adds its `tauMessageIgnorer` ignorer, which skips the text of
 `mutate` globs, the left-out modules, the timeouts, and the Bun runner. Bump the pinned package
 version to get a fix.
 
+`changed` runs reuse earlier results from `.tau/stryker-incremental.json` while the mutated code and
+its tests are unchanged. Stryker does not see a change to a fixture, a dependency, or unmutated
+production code, so delete the file to rerun every mutant.
+
 The pull request job `Mutation` in [ci.yml](../.github/workflows/ci.yml) runs `mutation.argv`
-against the merge base, with no cap. It is advisory: it lists survivors on the pull request, it is
+against the merge base, with no cap. It uses every CPU of the runner and keeps the incremental file
+per pull request in the Actions cache. It is advisory: it lists survivors on the pull request, it is
 not a required check, and `timeout-minutes` bounds its time.
 [scripts/mutation-tuning.md](../scripts/mutation-tuning.md) records how the config was tuned.
 

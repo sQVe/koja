@@ -2,6 +2,8 @@
 # Build build/libkoja-vt.so: src/vt/shim.c linked with libghostty-vt built from a pinned Ghostty
 # commit with patches/*.patch applied. Zig and the Ghostty source are cached under
 # ${XDG_CACHE_HOME:-$HOME/.cache}/koja; nothing is installed system-wide.
+# KOJA_VT_CPU names a Zig CPU model, such as x86_64_v3, to build for instead of the native CPU.
+# Zig keys its cache by CPU model, so CI sets it to reuse the cache across runner CPUs.
 set -euo pipefail
 cd "$(dirname "$0")/.."
 
@@ -80,8 +82,16 @@ fi
 mkdir -p build
 ln -sfn "$ghostty_dir" "$PWD/build/ghostty"
 
-(cd "$ghostty_dir" && "$zig_dir/zig" build -Demit-lib-vt=true -Doptimize=ReleaseFast)
-"$zig_dir/zig" cc -O2 -shared -fPIC -I"$ghostty_dir/include" \
+zig_build_cpu=()
+zig_cc_cpu=()
+
+if [[ -n "${KOJA_VT_CPU:-}" ]]; then
+  zig_build_cpu=("-Dcpu=$KOJA_VT_CPU")
+  zig_cc_cpu=("-mcpu=$KOJA_VT_CPU")
+fi
+
+(cd "$ghostty_dir" && "$zig_dir/zig" build -Demit-lib-vt=true -Doptimize=ReleaseFast "${zig_build_cpu[@]}")
+"$zig_dir/zig" cc -O2 "${zig_cc_cpu[@]}" -shared -fPIC -I"$ghostty_dir/include" \
   -DKOJA_GHOSTTY_COMMIT="\"$ghostty_commit\"" src/vt/shim.c \
   "$ghostty_dir/zig-out/lib/libghostty-vt.a" -o build/libkoja-vt.so
 echo "built build/libkoja-vt.so"
