@@ -61,13 +61,14 @@ const addPaneIn = (
 ): Proposal => {
   const { layout, arrangement } = placement;
   const addedId = paneId(state.nextPaneNumber);
+  const zoomedPaneId = tab.zoomedPaneId === undefined ? undefined : addedId;
 
   const addedTab: Tab = {
     ...tab,
     layout,
     arrangement,
     focusedPaneId: addedId,
-    zoomedPaneId: undefined,
+    zoomedPaneId,
   };
 
   const added: Pane = {
@@ -96,11 +97,14 @@ const addPaneIn = (
 
   const fitted = fitPanes(next);
 
+  const zoomChanges: Change[] =
+    zoomedPaneId === undefined ? [] : [{ type: 'tabZoomChanged', tabId: tab.id, zoomedPaneId }];
+
   return propose({ ...next, panes: fitted.panes }, [
     { type: 'paneAdded', pane: added },
     { type: 'tabLayoutChanged', tabId: tab.id, layout, arrangement },
     { type: 'paneFocused', tabId: tab.id, paneId: added.id },
-    ...unzoomChanges(tab),
+    ...zoomChanges,
     ...fitted.changes,
   ]);
 };
@@ -185,12 +189,7 @@ export const focusPane = (state: State, id: PaneId, source: ClientId | undefined
 
   changes.push(...viewChanges(state, shown));
 
-  const keepsZoom = tab.zoomedPaneId === undefined || tab.zoomedPaneId === id;
-  const zoomedPaneId = keepsZoom ? tab.zoomedPaneId : undefined;
-
-  if (!keepsZoom) {
-    changes.push(...unzoomChanges(tab));
-  }
+  const zoomedPaneId = tab.zoomedPaneId === undefined ? undefined : id;
 
   const tabs = state.tabs.map((known) =>
     known.id === tab.id ? { ...known, focusedPaneId: id, zoomedPaneId } : known,
@@ -198,9 +197,11 @@ export const focusPane = (state: State, id: PaneId, source: ClientId | undefined
 
   const focused: State = { ...shown, tabs };
 
-  if (keepsZoom) {
+  if (zoomedPaneId === tab.zoomedPaneId) {
     return propose(focused, changes);
   }
+
+  changes.push({ type: 'tabZoomChanged', tabId: tab.id, zoomedPaneId });
 
   const fitted = fitPanes(focused);
 

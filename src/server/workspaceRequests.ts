@@ -62,6 +62,7 @@ const failureReasons: Record<RejectReason, WorkspaceFailureReason | undefined> =
   sameTab: undefined,
   noSplit: undefined,
   requiresLegacyLayout: undefined,
+  requiresMasterLayout: undefined,
   staleGeneration: undefined,
 };
 

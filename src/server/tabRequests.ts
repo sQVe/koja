@@ -77,6 +77,7 @@ const failureReasons: Record<RejectReason, TabFailureReason | undefined> = {
   sameTab: undefined,
   noSplit: undefined,
   requiresLegacyLayout: undefined,
+  requiresMasterLayout: undefined,
   staleGeneration: undefined,
 };
 
