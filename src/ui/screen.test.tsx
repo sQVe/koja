@@ -5,16 +5,20 @@ import { firstWorkspace, storeSnapshotOf } from './inputFixtures.ts';
 import { Screen } from './ui.tsx';
 import { drawnSpans, textSpans } from './uiFixtures.ts';
 
-const sessionOf = (snapshot: ReturnType<typeof storeSnapshotOf>): AttachSession => {
+const sessionOf = (
+  snapshot: ReturnType<typeof storeSnapshotOf>,
+): Pick<AttachSession, 'subscribe' | 'getState'> => {
   const state = { snapshot, inputMode: 'normal' as const };
 
   return {
     subscribe: () => () => undefined,
     getState: () => state,
-  } as unknown as AttachSession;
+  };
 };
 
-const screenText = async (session: AttachSession): Promise<string> =>
+const screenText = async (
+  session: Pick<AttachSession, 'subscribe' | 'getState'>,
+): Promise<string> =>
   textSpans(await drawnSpans(<Screen session={session} placePane={() => undefined} />))
     .map((span) => span.text)
     .join('');

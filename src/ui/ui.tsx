@@ -56,7 +56,7 @@ export const Screen = ({
   session,
   placePane,
 }: {
-  session: AttachSession;
+  session: Pick<AttachSession, 'subscribe' | 'getState'>;
   placePane: (box: BoxRenderable | null) => void;
 }): ReactNode => {
   const state = useSyncExternalStore(session.subscribe, session.getState);
