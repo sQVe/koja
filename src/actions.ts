@@ -17,7 +17,13 @@ export type PaneAction =
   | 'resizeLeft'
   | 'resizeRight'
   | 'resizeUp'
-  | 'resizeDown';
+  | 'resizeDown'
+  | 'rotateForward'
+  | 'rotateBackward'
+  | 'focusLeft'
+  | 'focusRight'
+  | 'focusUp'
+  | 'focusDown';
 
 export type WorkspaceKey = 'next' | 'previous' | 'create' | 'close';
 
@@ -51,11 +57,25 @@ export type ActionCatalog = readonly ActionEntry[];
 
 type ResizeDirection = Extract<PaneLayoutCommand, { action: 'resize' }>['direction'];
 
+type RotateDirection = Extract<PaneLayoutCommand, { action: 'rotate' }>['direction'];
+
 const resizeDirections: Partial<Record<PaneAction, ResizeDirection>> = {
   resizeLeft: 'left',
   resizeRight: 'right',
   resizeUp: 'up',
   resizeDown: 'down',
+};
+
+const focusDirections: Partial<Record<PaneAction, ResizeDirection>> = {
+  focusLeft: 'left',
+  focusRight: 'right',
+  focusUp: 'up',
+  focusDown: 'down',
+};
+
+const rotateDirections: Partial<Record<PaneAction, RotateDirection>> = {
+  rotateForward: 'forward',
+  rotateBackward: 'backward',
 };
 
 export const shownTargetOf = (snapshot: StoreSnapshot): ActionTarget => ({
@@ -101,6 +121,26 @@ const focusNeighborOf = (
   return order[order.indexOf(current.id) + offset];
 };
 
+const directionalCommandOf = (pane: PaneId, action: PaneAction): PaneLayoutCommand => {
+  const rotateDirection = rotateDirections[action];
+
+  if (rotateDirection !== undefined) {
+    return { action: 'rotate', pane, direction: rotateDirection };
+  }
+
+  const focusDirection = focusDirections[action];
+
+  if (focusDirection !== undefined) {
+    return { action: 'focusDirection', pane, direction: focusDirection };
+  }
+
+  const resizeDirection = resizeDirections[action];
+
+  invariant(resizeDirection !== undefined, `${action} is not a pane action.`);
+
+  return { action: 'resize', pane, direction: resizeDirection, cells: 1 };
+};
+
 export const paneCommandOf = (
   snapshot: StoreSnapshot,
   pane: PaneId,
@@ -135,11 +175,7 @@ export const paneCommandOf = (
     return { action: 'zoom', pane };
   }
 
-  const direction = resizeDirections[action];
-
-  invariant(direction !== undefined, `${action} is not a pane action.`);
-
-  return { action: 'resize', pane, direction, cells: 1 };
+  return directionalCommandOf(pane, action);
 };
 
 export const workspaceNeighborOf = (
@@ -157,6 +193,12 @@ const hasTargetPane = (snapshot: StoreSnapshot, target: ActionTarget): boolean =
 
 const hasRunningTargetPane = (snapshot: StoreSnapshot, target: ActionTarget): boolean =>
   snapshot.panes.some((pane) => pane.id === target.paneId && pane.lifecycle === 'running');
+
+const hasRotatablePane = (snapshot: StoreSnapshot, target: ActionTarget): boolean => {
+  const tab = tabOfPane(snapshot, target.paneId);
+
+  return tab?.arrangement.choice === 'master' && tab.arrangement.order.length >= 2;
+};
 
 const hasPreviousPane = (snapshot: StoreSnapshot, target: ActionTarget): boolean =>
   focusNeighborOf(snapshot, target.paneId, -1) !== undefined;
@@ -189,13 +231,13 @@ const alwaysAvailable = (): boolean => true;
 
 const paneEntry = (
   title: string,
-  key: string,
+  keys: readonly string[],
   action: PaneAction,
   available: ActionEntry['available'],
 ): ActionEntry => ({
   id: `pane.${action}`,
   title,
-  keys: [key],
+  keys,
   intent: { kind: 'pane', action },
   cli: true,
   available,
@@ -272,17 +314,23 @@ export const actionCatalog: ActionCatalog = [
     available: hasSeveralTabs,
   },
   ...tabFocusEntries,
-  paneEntry('Split pane below', 's', 'splitBelow', hasTargetPane),
-  paneEntry('Split pane right', 'v', 'splitRight', hasTargetPane),
-  paneEntry('Focus previous pane', 'h', 'focusPrevious', hasPreviousPane),
-  paneEntry('Focus next pane', 'l', 'focusNext', hasNextPane),
-  paneEntry('Close pane', 'x', 'close', hasTargetPane),
-  paneEntry('Break pane into new tab', '!', 'breakPane', hasTargetPane),
-  paneEntry('Zoom pane', 'z', 'zoom', hasTargetPane),
-  paneEntry('Resize pane left', '<', 'resizeLeft', hasTargetPane),
-  paneEntry('Resize pane right', '>', 'resizeRight', hasTargetPane),
-  paneEntry('Resize pane up', '-', 'resizeUp', hasTargetPane),
-  paneEntry('Resize pane down', '+', 'resizeDown', hasTargetPane),
+  paneEntry('Split pane below', ['s'], 'splitBelow', hasTargetPane),
+  paneEntry('Split pane right', ['v'], 'splitRight', hasTargetPane),
+  paneEntry('Focus previous pane', ['h'], 'focusPrevious', hasPreviousPane),
+  paneEntry('Focus next pane', ['l'], 'focusNext', hasNextPane),
+  paneEntry('Close pane', ['x'], 'close', hasTargetPane),
+  paneEntry('Break pane into new tab', ['!'], 'breakPane', hasTargetPane),
+  paneEntry('Zoom pane', ['z'], 'zoom', hasTargetPane),
+  paneEntry('Resize pane left', ['<'], 'resizeLeft', hasTargetPane),
+  paneEntry('Resize pane right', ['>'], 'resizeRight', hasTargetPane),
+  paneEntry('Resize pane up', ['-'], 'resizeUp', hasTargetPane),
+  paneEntry('Resize pane down', ['+'], 'resizeDown', hasTargetPane),
+  paneEntry('Rotate panes forward', [], 'rotateForward', hasRotatablePane),
+  paneEntry('Rotate panes backward', [], 'rotateBackward', hasRotatablePane),
+  paneEntry('Focus pane left', [], 'focusLeft', hasTargetPane),
+  paneEntry('Focus pane right', [], 'focusRight', hasTargetPane),
+  paneEntry('Focus pane up', [], 'focusUp', hasTargetPane),
+  paneEntry('Focus pane down', [], 'focusDown', hasTargetPane),
   {
     id: 'layout.master',
     title: 'Use master layout',
@@ -299,7 +347,7 @@ export const actionCatalog: ActionCatalog = [
     cli: true,
     available: usesOtherLayout('legacy'),
   },
-  paneEntry('New pane', 'n', 'add', hasTargetPane),
+  paneEntry('New pane', ['n'], 'add', hasTargetPane),
   {
     id: 'pane.paste',
     title: 'Paste clipboard into pane',

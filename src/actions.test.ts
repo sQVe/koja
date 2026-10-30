@@ -242,6 +242,78 @@ describe('action availability', () => {
   });
 });
 
+describe('pane rotation and directional focus', () => {
+  const masterThreePanes: Shape = {
+    workspaces: [1],
+    tabs: [
+      {
+        id: 1,
+        workspace: 1,
+        panes: [1, 2, 3],
+        focused: 1,
+        arrangement: { choice: 'master', order: [1, 2, 3] },
+      },
+    ],
+  };
+
+  const legacyThreePanes: Shape = {
+    workspaces: [1],
+    tabs: [
+      {
+        id: 1,
+        workspace: 1,
+        panes: [1, 2, 3],
+        focused: 1,
+        arrangement: { choice: 'legacy', order: [1, 2, 3] },
+      },
+    ],
+  };
+
+  it('offers rotation only in a master tab with at least two panes', () => {
+    expect(isAvailable('pane.rotateForward', masterThreePanes)).toBe(true);
+    expect(isAvailable('pane.rotateBackward', masterThreePanes)).toBe(true);
+    expect(isAvailable('pane.rotateForward', legacyThreePanes)).toBe(false);
+    expect(isAvailable('pane.rotateBackward', legacyThreePanes)).toBe(false);
+    expect(isAvailable('pane.rotateForward', onePane)).toBe(false);
+  });
+
+  it('offers directional focus for a pane in any layout', () => {
+    expect(isAvailable('pane.focusLeft', legacyThreePanes)).toBe(true);
+    expect(isAvailable('pane.focusDown', masterThreePanes)).toBe(true);
+    expect(isAvailable('pane.focusUp', onePane)).toBe(true);
+  });
+
+  it('lists the new pane actions with no default keys and CLI support', () => {
+    const rotate = actionCatalog.find((entry) => entry.id === 'pane.rotateForward');
+    const focus = actionCatalog.find((entry) => entry.id === 'pane.focusLeft');
+
+    expect(rotate).toMatchObject({ keys: [], cli: true });
+    expect(focus).toMatchObject({ keys: [], cli: true });
+  });
+
+  it('maps rotation and directional focus to their layout commands', () => {
+    const snapshot = snapshotOf(masterThreePanes);
+
+    expect(paneCommandOf(snapshot, paneId(2), 'rotateForward')).toEqual({
+      action: 'rotate',
+      pane: paneId(2),
+      direction: 'forward',
+    });
+
+    expect(paneCommandOf(snapshot, paneId(2), 'rotateBackward')).toEqual({
+      action: 'rotate',
+      pane: paneId(2),
+      direction: 'backward',
+    });
+
+    expect(paneCommandOf(snapshot, paneId(2), 'focusLeft')).toEqual({
+      action: 'focusDirection',
+      pane: paneId(2),
+      direction: 'left',
+    });
+  });
+});
+
 describe('pane focus order', () => {
   const masterTab: Shape = {
     workspaces: [1],

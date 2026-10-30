@@ -8,6 +8,13 @@ import { setup } from './paneAttachHarness.ts';
 
 type PaneList = Awaited<ReturnType<Awaited<ReturnType<typeof setup>>['list']>>;
 
+type AttachSetup = Awaited<ReturnType<typeof setup>>;
+
+interface LayoutSnapshot {
+  order: string[];
+  focused: string | undefined;
+}
+
 const pollTimeoutMs = 10_000;
 
 const pollIntervalMs = 50;
@@ -176,6 +183,118 @@ it(
     expect(await choices()).toEqual(['master']);
     expect(await shown()).toEqual(before);
     expect(isNormal()).toBe(true);
+  },
+  cliTestTimeoutMs,
+);
+
+const tabOrderSchema = z.array(z.object({ arrangement: z.object({ order: z.array(z.string()) }) }));
+
+const snapshotLayout = async (harness: AttachSetup): Promise<LayoutSnapshot> => {
+  const [tab] = tabOrderSchema.parse(JSON.parse(await harness.koja('tab', 'list', '--json')));
+  const panes = await harness.list();
+
+  return { order: tab?.arrangement.order ?? [], focused: panes.find((pane) => pane.focused)?.id };
+};
+
+const isNormalOf = (harness: AttachSetup): boolean =>
+  harness.lines().at(-1)?.trim().startsWith('NORMAL') === true;
+
+const runFromSearch = async (harness: AttachSetup, query: string): Promise<void> => {
+  harness.type('/');
+  await harness.until(() => harness.screenText().includes('Next workspace'));
+  harness.type(query);
+  await harness.until(() => !harness.screenText().includes('Next workspace'));
+  harness.type('\r');
+};
+
+const waitForLayout = async (
+  harness: AttachSetup,
+  expected: LayoutSnapshot,
+): Promise<LayoutSnapshot> => {
+  let layout = await snapshotLayout(harness);
+
+  for (
+    let attempt = 0;
+    attempt < 100 && JSON.stringify(layout) !== JSON.stringify(expected);
+    attempt += 1
+  ) {
+    await Bun.sleep(pollIntervalMs);
+    layout = await snapshotLayout(harness);
+  }
+
+  return layout;
+};
+
+const addMasterPanes = async (harness: AttachSetup): Promise<[string, string, string]> => {
+  const second = await harness.act('add', harness.first);
+  const third = await harness.act('add', second);
+
+  return [harness.first, second, third];
+};
+
+it(
+  'rotates and focuses right to the same layout from action search and from koja action run',
+  async () => {
+    const search = await setup();
+    const [first, second, third] = await addMasterPanes(search);
+
+    search.type('\x02');
+    await search.until(() => isNormalOf(search));
+
+    await runFromSearch(search, 'Rotate panes forward');
+
+    const searchRotated = await waitForLayout(search, {
+      order: [second, third, first],
+      focused: second,
+    });
+
+    await runFromSearch(search, 'Focus pane right');
+
+    const searchFocused = await waitForLayout(search, {
+      order: searchRotated.order,
+      focused: third,
+    });
+
+    const cli = await setup();
+    const [cliFirst, cliSecond, cliThird] = await addMasterPanes(cli);
+
+    await cli.koja('action', 'run', 'pane.rotateForward');
+
+    const cliRotated = await waitForLayout(cli, {
+      order: [cliSecond, cliThird, cliFirst],
+      focused: cliSecond,
+    });
+
+    await cli.koja('action', 'run', 'pane.focusRight');
+    const cliFocused = await waitForLayout(cli, { order: cliRotated.order, focused: cliThird });
+
+    expect([searchRotated, searchFocused]).toEqual([cliRotated, cliFocused]);
+  },
+  cliTestTimeoutMs,
+);
+
+it(
+  'keeps the status bar in NORMAL after rotating twice from action search and keeps typed text off the pane',
+  async () => {
+    const harness = await setup();
+    const [first, second, third] = await addMasterPanes(harness);
+
+    harness.type('\x02');
+    await harness.until(() => isNormalOf(harness));
+
+    await runFromSearch(harness, 'Rotate panes forward');
+    await waitForLayout(harness, { order: [second, third, first], focused: second });
+
+    await runFromSearch(harness, 'Rotate panes forward');
+    await waitForLayout(harness, { order: [third, first, second], focused: third });
+
+    expect(isNormalOf(harness)).toBe(true);
+
+    harness.type('qq');
+    await Bun.sleep(pollIntervalMs * 10);
+
+    expect(harness.screenText()).not.toContain('qq');
+    expect(isNormalOf(harness)).toBe(true);
   },
   cliTestTimeoutMs,
 );

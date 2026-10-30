@@ -386,6 +386,51 @@ it('parses pane zoom and pane resize', () => {
   }
 });
 
+it('parses pane rotate and pane focus with a direction', () => {
+  expect(parseCommand(['pane', 'rotate', 'pane-2', '--direction', 'forward', '--json'])).toEqual({
+    kind: 'pane',
+    pane: { action: 'rotate', pane: paneId(2), direction: 'forward' },
+    json: true,
+    socket: undefined,
+  });
+
+  expect(parseCommand(['pane', 'rotate', 'pane-2', '--direction', 'backward'])).toMatchObject({
+    pane: { action: 'rotate', direction: 'backward' },
+  });
+
+  for (const direction of ['left', 'right', 'up', 'down'] as const) {
+    expect(parseCommand(['pane', 'focus', 'pane-1', '--direction', direction])).toMatchObject({
+      pane: { action: 'focusDirection', pane: paneId(1), direction },
+    });
+  }
+
+  expect(parseCommand(['pane', 'focus', 'pane-1'])).toMatchObject({
+    pane: { action: 'focus', pane: paneId(1) },
+  });
+});
+
+it('names the directions that pane rotate and pane focus accept', () => {
+  expect(parseCommand(['pane', 'rotate', 'pane-1'])).toBe(
+    'pane rotate takes --direction forward or backward.',
+  );
+
+  expect(parseCommand(['pane', 'rotate', 'pane-1', '--direction', 'left'])).toBe(
+    'pane rotate takes --direction forward or backward.',
+  );
+
+  expect(parseCommand(['pane', 'focus', 'pane-1', '--direction', 'forward'])).toBe(
+    'pane focus takes --direction left, right, up, or down.',
+  );
+});
+
+it.each([
+  ['no id for rotate', ['pane', 'rotate', '--direction', 'forward']],
+  ['cells for rotate', ['pane', 'rotate', 'pane-1', '--direction', 'forward', '--cells', '2']],
+  ['cells for focus', ['pane', 'focus', 'pane-1', '--direction', 'left', '--cells', '2']],
+])('refuses %s', (_name, argv) => {
+  expect(typeof parseCommand(argv)).toBe('string');
+});
+
 it.each([
   ['no id for zoom', ['pane', 'zoom']],
   ['a malformed id for zoom', ['pane', 'zoom', 'tab-1']],
@@ -434,7 +479,6 @@ it.each([
   ['no direction for split', ['pane', 'split', 'pane-1']],
   ['an invalid direction', ['pane', 'split', 'pane-1', '--direction', 'left']],
   ['an empty direction', ['pane', 'split', 'pane-1', '--direction', '']],
-  ['a direction for focus', ['pane', 'focus', 'pane-1', '--direction', 'right']],
   ['a direction for pane read', ['pane', 'read', 'pane-1', '--direction', 'right']],
   ['a direction on a workspace command', ['workspace', 'list', '--direction', 'right']],
   ['--pane on pane split', ['pane', 'split', 'pane-1', '--direction', 'right', '--pane', 'pane-1']],
@@ -481,7 +525,14 @@ it('lists the workspace and pane commands in the usage', () => {
     'koja pane split <id> --direction below|right [--cwd <dir>] [--socket <path>] [--json]',
   );
 
-  expect(lines).toContain('koja pane focus <id> [--socket <path>] [--json]');
+  expect(lines).toContain(
+    'koja pane focus <id> [--direction left|right|up|down] [--socket <path>] [--json]',
+  );
+
+  expect(lines).toContain(
+    'koja pane rotate <id> --direction forward|backward [--socket <path>] [--json]',
+  );
+
   expect(lines).toContain('koja pane close <id> [--socket <path>] [--json]');
   expect(lines).toContain('koja pane zoom <id> [--socket <path>] [--json]');
 

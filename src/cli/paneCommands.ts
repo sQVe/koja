@@ -168,6 +168,17 @@ const layoutFailure = (
     };
   }
 
+  if (result.reason === 'requiresMasterLayout') {
+    return {
+      ok: false,
+      message: `Pane ${request.pane} is in a legacy split layout tab. Switch the tab first with: koja tab layout <tab-id> master`,
+    };
+  }
+
+  if (result.reason === 'noPaneInDirection') {
+    return { ok: false, message: `Pane ${request.pane} has no pane in that direction.` };
+  }
+
   if (result.reason === 'serverStopping') {
     return { ok: false, message: 'The server is stopping.' };
   }
@@ -210,6 +221,8 @@ const layoutActions: ReadonlySet<string> = new Set([
   'split',
   'add',
   'focus',
+  'focusDirection',
+  'rotate',
   'close',
   'move',
   'zoom',

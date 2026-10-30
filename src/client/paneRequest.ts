@@ -7,10 +7,14 @@ export type PaneMoveDestination = Extract<ControlMessage, { type: 'paneMove' }>[
 
 type ResizeDirection = Extract<ControlMessage, { type: 'paneResize' }>['direction'];
 
+type RotateDirection = Extract<ControlMessage, { type: 'paneRotate' }>['direction'];
+
 export type PaneLayoutCommand =
   | { action: 'split'; pane: PaneId; direction: SplitDirection; cwd: string | undefined }
   | { action: 'add'; pane: PaneId; cwd: string | undefined }
   | { action: 'focus'; pane: PaneId }
+  | { action: 'focusDirection'; pane: PaneId; direction: ResizeDirection }
+  | { action: 'rotate'; pane: PaneId; direction: RotateDirection }
   | { action: 'close'; pane: PaneId }
   | { action: 'move'; pane: PaneId; destination: PaneMoveDestination }
   | { action: 'zoom'; pane: PaneId }
@@ -37,6 +41,14 @@ export const paneLayoutRequest = (command: PaneLayoutCommand): ControlMessage =>
       direction: command.direction,
       cells: command.cells,
     };
+  }
+
+  if (command.action === 'rotate') {
+    return { type: 'paneRotate', paneId: command.pane, direction: command.direction };
+  }
+
+  if (command.action === 'focusDirection') {
+    return { type: 'paneFocusDirection', paneId: command.pane, direction: command.direction };
   }
 
   if (command.action === 'move') {

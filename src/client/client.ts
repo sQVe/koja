@@ -70,6 +70,8 @@ type PaneLayoutResult =
   | { ok: false; reason: 'sameTab' }
   | { ok: false; reason: 'noSplit' }
   | { ok: false; reason: 'requiresLegacyLayout' }
+  | { ok: false; reason: 'requiresMasterLayout' }
+  | { ok: false; reason: 'noPaneInDirection' }
   | { ok: false; reason: 'serverStopping' }
   | { ok: false; reason: 'paneFailedToStart'; message: string }
   | RequestFailure;

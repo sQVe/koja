@@ -291,6 +291,8 @@ const paneFailureSchema = z.enum([
   'sameTab',
   'noSplit',
   'requiresLegacyLayout',
+  'requiresMasterLayout',
+  'noPaneInDirection',
   'serverStopping',
   'paneFailedToStart',
 ]);
@@ -585,6 +587,16 @@ const controlSchema = z.discriminatedUnion('type', [
     ]),
   }),
   z.object({ type: z.literal('paneFocus'), paneId: paneIdSchema }),
+  z.object({
+    type: z.literal('paneFocusDirection'),
+    paneId: paneIdSchema,
+    direction: resizeDirectionSchema,
+  }),
+  z.object({
+    type: z.literal('paneRotate'),
+    paneId: paneIdSchema,
+    direction: z.enum(['forward', 'backward']),
+  }),
   z.object({ type: z.literal('paneClose'), paneId: paneIdSchema }),
   z.object({ type: z.literal('paneZoom'), paneId: paneIdSchema }),
   z.object({
