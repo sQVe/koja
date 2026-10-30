@@ -510,6 +510,21 @@ it.each([
   expect(parseControl(encodeControl(message))).toStrictEqual({ ok: true, message });
 });
 
+it('round-trips an empty workspace addition without an active tab', () => {
+  const message: ControlMessage = {
+    type: 'change',
+    revision: 1,
+    change: {
+      type: 'workspaceAdded',
+      workspace: { ...workspace, tabIds: [] },
+      activeTabId: undefined,
+      focusedWorkspaceId: workspace.id,
+    },
+  };
+
+  expect(parseControl(encodeControl(message))).toStrictEqual({ ok: true, message });
+});
+
 const helloMessage = { type: 'hello', version: build, size: { columns: 80, rows: 24 } };
 const resizeMessage = { type: 'resize', size: { columns: 80, rows: 24 } };
 const ackMessage = { type: 'ack', paneId: 'pane-1', sequence: 7 };

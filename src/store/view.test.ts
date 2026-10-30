@@ -307,7 +307,7 @@ it('moves every view off a closed workspace and drops its tabs from the views', 
   expect(result.changes.filter((change) => change.type === 'clientViewChanged')).toHaveLength(2);
 });
 
-it('moves every view off a workspace whose only pane exits', () => {
+it('keeps every view on a workspace whose only pane exits', () => {
   const state = twoClients(createKoja, createDocs);
   const second = state.panes[1];
 
@@ -318,8 +318,12 @@ it('moves every view off a workspace whose only pane exits', () => {
     exitCode: 0,
   });
 
-  expect(focusedIn(result.state, 1)).toBe(workspaceId(1));
-  expect(focusedIn(result.state, 2)).toBe(workspaceId(1));
+  expect(focusedIn(result.state, 1)).toBe(workspaceId(2));
+  expect(focusedIn(result.state, 2)).toBe(workspaceId(2));
+
+  expect(result.state.defaultView.activeTabs).toEqual([
+    { workspaceId: workspaceId(1), tabId: tabId(1) },
+  ]);
 });
 
 it('focuses the default tab of the workspace in every view for a CLI focus', () => {

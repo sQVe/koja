@@ -132,20 +132,23 @@ it('ignores a pane that starts after the server began to stop, and names it for 
   expect(result).toEqual({ kind: 'ignored', state, dispose: firstPane });
 });
 
-it('removes the pane, tab, and workspace of the only pane that exits, and keeps running', () => {
+it('removes the only pane and tab that exits, keeps its workspace, and keeps running', () => {
   const state = fact(run([createKoja]), { type: 'paneStarted', ...firstPane }).state;
   const result = fact(state, { type: 'paneExited', ...firstPane, exitCode: 3 });
 
   expect(result.state.panes).toEqual([]);
   expect(result.state.tabs).toEqual([]);
-  expect(result.state.workspaces).toEqual([]);
-  expect(result.state.defaultView.focusedWorkspaceId).toBeUndefined();
+
+  expect(result.state.workspaces).toEqual([
+    { id: workspaceId(1), root: '/work/koja', label: 'koja', tabIds: [] },
+  ]);
+
+  expect(result.state.defaultView.focusedWorkspaceId).toBe(workspaceId(1));
   expect(result.state.stopping).toBe(false);
 
   expect(result.changes).toEqual([
     { type: 'paneRemoved', paneId: paneId(1) },
     { type: 'tabRemoved', tabId: tabId(1) },
-    { type: 'workspaceRemoved', workspaceId: workspaceId(1), focusedWorkspaceId: undefined },
   ]);
 });
 
@@ -166,7 +169,11 @@ it('keeps the other workspaces when one pane exits', () => {
   const state = run([createKoja, createDocs]);
   const result = fact(state, { type: 'paneExited', ...firstPane, exitCode: 0 });
 
-  expect(result.state.workspaces.map((workspace) => workspace.id)).toEqual([workspaceId(2)]);
+  expect(result.state.workspaces.map((workspace) => workspace.id)).toEqual([
+    workspaceId(1),
+    workspaceId(2),
+  ]);
+
   expect(result.state.defaultView.focusedWorkspaceId).toBe(workspaceId(2));
 });
 
@@ -291,11 +298,11 @@ it('keeps the focus when an unfocused pane closes', () => {
   expect(result.changes.some((change) => change.type === 'paneFocused')).toBe(false);
 });
 
-it('removes the tab and workspace when the last pane of a tab closes', () => {
+it('removes the tab but keeps the workspace when its last pane closes', () => {
   const result = intent(run([createKoja]), { type: 'closePane', paneId: paneId(1) });
 
   expect(result.state.tabs).toEqual([]);
-  expect(result.state.workspaces).toEqual([]);
+  expect(result.state.workspaces[0]?.tabIds).toEqual([]);
   expect(result.state.panes).toEqual([]);
 });
 

@@ -78,10 +78,13 @@ export const restoreSession = (state: State, session: SavedSession): Outcome => 
 
   const defaultView: View = {
     focusedWorkspaceId: session.focusedWorkspaceId,
-    activeTabs: session.workspaces.map((workspace) => ({
-      workspaceId: workspace.id,
-      tabId: workspace.activeTabId,
-    })),
+    activeTabs: session.workspaces.flatMap((workspace) => {
+      if (workspace.activeTabId === undefined) {
+        return [];
+      }
+
+      return [{ workspaceId: workspace.id, tabId: workspace.activeTabId }];
+    }),
     scrolls: [],
   };
 

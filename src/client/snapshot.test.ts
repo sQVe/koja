@@ -64,6 +64,73 @@ const snapshot: StoreSnapshot = {
   clients: [first],
 };
 
+it('restores an empty workspace without an active tab', () => {
+  const empty = {
+    ...snapshot,
+    workspaces: [],
+    tabs: [],
+    panes: [],
+    defaultView: { ...view, activeTabs: [] },
+  };
+
+  const restored = applyChange(empty, {
+    type: 'workspaceAdded',
+    workspace: { id: workspaceId(1), root: '/work/koja', label: 'koja', tabIds: [] },
+    activeTabId: undefined,
+    focusedWorkspaceId: workspaceId(1),
+  });
+
+  expect(restored.workspaces).toHaveLength(1);
+  expect(restored.defaultView.activeTabs).toEqual([]);
+  expect(restored.defaultView.focusedWorkspaceId).toBe(workspaceId(1));
+  expect(focusedPane(restored)).toBeUndefined();
+});
+
+it('keeps workspace focus but drops the active tab when its last tab is removed', () => {
+  const withOtherWorkspace = {
+    ...snapshot,
+    workspaces: [
+      ...snapshot.workspaces,
+      { id: workspaceId(2), root: '/other', label: 'other', tabIds: [tabId(2)] },
+    ],
+    defaultView: {
+      ...view,
+      activeTabs: [...view.activeTabs, { workspaceId: workspaceId(2), tabId: tabId(2) }],
+    },
+  };
+
+  const removed = applyChange(withOtherWorkspace, { type: 'tabRemoved', tabId: tabId(1) });
+
+  expect(removed.workspaces[0]?.tabIds).toEqual([]);
+
+  expect(removed.defaultView.activeTabs).toEqual([
+    { workspaceId: workspaceId(2), tabId: tabId(2) },
+  ]);
+
+  expect(removed.defaultView.focusedWorkspaceId).toBe(workspaceId(1));
+});
+
+it('shows the first tab created again in an empty workspace', () => {
+  const removed = applyChange(snapshot, { type: 'tabRemoved', tabId: tabId(1) });
+  const tab = snapshot.tabs[0];
+
+  if (tab === undefined) {
+    throw new Error('Missing fixture tab.');
+  }
+
+  const added = applyChange(removed, { type: 'tabAdded', tab });
+
+  const focused = applyChange(added, {
+    type: 'tabFocused',
+    workspaceId: workspaceId(1),
+    tabId: tab.id,
+  });
+
+  expect(focused.workspaces[0]?.tabIds).toEqual([tab.id]);
+  expect(focused.defaultView.activeTabs).toEqual(view.activeTabs);
+  expect(focusedPane(focused)?.id).toBe(paneId(1));
+});
+
 it('replaces the attached client when a client takes over', () => {
   const detached = applyChange(snapshot, {
     type: 'clientDetached',

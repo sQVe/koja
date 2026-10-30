@@ -29,16 +29,25 @@ const updatePane = (
   panes: snapshot.panes.map((pane) => (pane.id === id ? update(pane) : pane)),
 });
 
+const addWorkspace = (
+  snapshot: StoreSnapshot,
+  change: Extract<StoreChange, { type: 'workspaceAdded' }>,
+): StoreSnapshot => {
+  const view =
+    change.activeTabId === undefined
+      ? snapshot.defaultView
+      : withActiveTab(snapshot.defaultView, change.workspace.id, change.activeTabId);
+
+  return {
+    ...snapshot,
+    workspaces: [...snapshot.workspaces, change.workspace],
+    defaultView: { ...view, focusedWorkspaceId: change.focusedWorkspaceId },
+  };
+};
+
 const applyLayoutChange = (snapshot: StoreSnapshot, change: StoreChange): StoreSnapshot => {
   if (change.type === 'workspaceAdded') {
-    return {
-      ...snapshot,
-      workspaces: [...snapshot.workspaces, change.workspace],
-      defaultView: {
-        ...withActiveTab(snapshot.defaultView, change.workspace.id, change.activeTabId),
-        focusedWorkspaceId: change.focusedWorkspaceId,
-      },
-    };
+    return addWorkspace(snapshot, change);
   }
 
   if (change.type === 'tabAdded') {
@@ -131,7 +140,16 @@ const applyLayoutChange = (snapshot: StoreSnapshot, change: StoreChange): StoreS
       tabIds: workspace.tabIds.filter((id) => id !== change.tabId),
     }));
 
-    return { ...snapshot, tabs, workspaces };
+    const defaultView = {
+      ...snapshot.defaultView,
+      activeTabs: snapshot.defaultView.activeTabs.filter((active) =>
+        workspaces.some(
+          (workspace) => workspace.id === active.workspaceId && workspace.tabIds.length > 0,
+        ),
+      ),
+    };
+
+    return { ...snapshot, tabs, workspaces, defaultView };
   }
 
   return snapshot;

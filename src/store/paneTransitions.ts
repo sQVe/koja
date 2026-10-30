@@ -235,7 +235,7 @@ const closePaneIn = (state: State, tab: Tab, id: PaneId): Proposal => {
   const removal = removePane(tab.layout, id);
 
   if (removal === undefined) {
-    return removeTab(state, tab);
+    return removeTab(state, tab, undefined, true);
   }
 
   const { layout } = removal;
@@ -393,7 +393,7 @@ const endPane = (
   invariant(tab !== undefined, `Pane ${pane.id} has no tab.`);
 
   if (removePane(tab.layout, pane.id) === undefined) {
-    return removeTab(state, tab, restore);
+    return removeTab(state, tab, restore, restore === undefined);
   }
 
   return closePaneIn(state, tab, pane.id);

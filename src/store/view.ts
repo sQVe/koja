@@ -75,7 +75,7 @@ const defaultViewChanges = (before: View, after: View): Change[] => {
   for (const { workspaceId: id, tabId: activeId } of after.activeTabs) {
     const previous = activeTabOf(before, id);
 
-    if (previous !== undefined && previous !== activeId) {
+    if (previous !== activeId) {
       changes.push({ type: 'tabFocused', workspaceId: id, tabId: activeId });
     }
   }

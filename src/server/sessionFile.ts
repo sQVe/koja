@@ -96,7 +96,7 @@ const sessionShape = z.object({
       root: z.string(),
       label: z.string(),
       tabIds: z.array(tabIdSchema),
-      activeTabId: tabIdSchema,
+      activeTabId: absent(tabIdSchema),
     }),
   ),
   tabs: z.array(
@@ -174,7 +174,12 @@ const workspaceProblems = (session: Session): string[] => {
   }
 
   for (const workspace of session.workspaces) {
-    if (!workspace.tabIds.includes(workspace.activeTabId)) {
+    const validActiveTab =
+      workspace.activeTabId === undefined
+        ? workspace.tabIds.length === 0
+        : workspace.tabIds.includes(workspace.activeTabId);
+
+    if (!validActiveTab) {
       problems.push(`The active tab of ${workspace.id} is not one of its tabs.`);
     }
 

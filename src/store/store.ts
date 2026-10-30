@@ -63,7 +63,7 @@ export interface WorkspaceRecord {
 
 // A workspace as the session file saves it, with the tab the default view shows.
 export interface Workspace extends WorkspaceRecord {
-  activeTabId: TabId;
+  activeTabId: TabId | undefined;
 }
 
 interface ActiveTab {
@@ -272,7 +272,7 @@ export type Change =
   | {
       type: 'workspaceAdded';
       workspace: WorkspaceRecord;
-      activeTabId: TabId;
+      activeTabId: TabId | undefined;
       focusedWorkspaceId: WorkspaceId;
     }
   | { type: 'tabAdded'; tab: Tab }
@@ -456,7 +456,10 @@ export const savedSessionOf = (state: State, reads: SessionReads): SavedSession 
   workspaces: state.workspaces.map((workspace) => {
     const activeTabId = activeTabOf(state.defaultView, workspace.id);
 
-    invariant(activeTabId !== undefined, `Workspace ${workspace.id} has no active tab.`);
+    invariant(
+      workspace.tabIds.length === 0 || activeTabId !== undefined,
+      `Workspace ${workspace.id} has no active tab.`,
+    );
 
     return { ...workspace, activeTabId };
   }),
