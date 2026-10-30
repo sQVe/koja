@@ -77,6 +77,20 @@ const masterWith = (count: number): State => {
 const focusedOf = (state: State): PaneId | undefined => defined(state.tabs[0]).focusedPaneId;
 
 describe('paneInDirection', () => {
+  it('ignores panes that touch only a corner or lie apart diagonally, even when nearer', () => {
+    const panes = [
+      rectangle(1, 0, 0, 10, 10),
+      rectangle(2, 15, 0, 10, 10),
+      rectangle(3, 10, 10, 10, 10),
+      rectangle(4, 12, 20, 10, 10),
+    ];
+
+    expect(paneInDirection(panes, paneId(1), 'right')).toBe(paneId(2));
+    const withoutValidNeighbor = panes.filter((pane) => pane.paneId !== paneId(2));
+
+    expect(paneInDirection(withoutValidNeighbor, paneId(1), 'right')).toBe(undefined);
+  });
+
   describe('a lone pane', () => {
     it.each(directions)('has no neighbor moving %s', (direction) => {
       expect(paneInDirection(masterGeometry(1), paneId(1), direction)).toBe(undefined);

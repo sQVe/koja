@@ -277,6 +277,40 @@ describe('pane rotation and directional focus', () => {
     expect(isAvailable('pane.rotateForward', onePane)).toBe(false);
   });
 
+  it.each(['pane.rotateForward', 'pane.rotateBackward'])(
+    'offers %s with two master panes and not with one',
+    (actionId) => {
+      const masterOnePane: Shape = {
+        workspaces: [1],
+        tabs: [
+          {
+            id: 1,
+            workspace: 1,
+            panes: [1],
+            focused: 1,
+            arrangement: { choice: 'master', order: [1] },
+          },
+        ],
+      };
+
+      const masterTwoPanes: Shape = {
+        workspaces: [1],
+        tabs: [
+          {
+            id: 1,
+            workspace: 1,
+            panes: [1, 2],
+            focused: 1,
+            arrangement: { choice: 'master', order: [1, 2] },
+          },
+        ],
+      };
+
+      expect(isAvailable(actionId, masterOnePane)).toBe(false);
+      expect(isAvailable(actionId, masterTwoPanes)).toBe(true);
+    },
+  );
+
   it('offers directional focus for a pane in any layout', () => {
     expect(isAvailable('pane.focusLeft', legacyThreePanes)).toBe(true);
     expect(isAvailable('pane.focusDown', masterThreePanes)).toBe(true);
