@@ -11,7 +11,7 @@ import {
   splitLayout,
   tabPanes,
 } from '../layout.ts';
-import type { TerminalSize } from '../layout.ts';
+import type { Layout, TerminalSize } from '../layout.ts';
 import { fitPanes, lonePaneSize } from './paneSizes.ts';
 import { withoutStartupRecords } from './paneStartupRecords.ts';
 import { withoutPiRecords } from './piRecoveryRecords.ts';
@@ -208,7 +208,29 @@ export const focusPane = (state: State, id: PaneId, source: ClientId | undefined
   return propose({ ...focused, panes: fitted.panes }, [...changes, ...fitted.changes]);
 };
 
-// The pane's area goes to its sibling. The focus moves to the sibling only when the pane had it.
+// The pane that takes the closed pane's place in the order gets the focus. The last pane hands it
+// to its predecessor.
+const masterSuccessor = (
+  before: readonly PaneId[],
+  id: PaneId,
+  after: readonly PaneId[],
+): PaneId => {
+  const index = before.indexOf(id);
+  const successor = after[index] ?? after[index - 1];
+
+  invariant(successor !== undefined, `Pane ${id} has no successor in its master tab.`);
+
+  return successor;
+};
+
+const legacySuccessor = (state: State, tab: Tab, id: PaneId, sibling: Layout): PaneId => {
+  const previous = state.stateBeforeSplit.get(id)?.focusedPaneId;
+  const previousStays = previous !== undefined && previous !== id && isInTab(state, previous, tab);
+
+  return previousStays ? previous : firstPaneId(sibling);
+};
+
+// The pane's area goes to its sibling. The focus moves to the successor only when the pane had it.
 const closePaneIn = (state: State, tab: Tab, id: PaneId): Proposal => {
   const removal = removePane(tab.layout, id);
 
@@ -216,14 +238,18 @@ const closePaneIn = (state: State, tab: Tab, id: PaneId): Proposal => {
     return removeTab(state, tab);
   }
 
-  const before = state.stateBeforeSplit.get(id);
-  const previous = before?.focusedPaneId;
-  const previousStays = previous !== undefined && previous !== id && isInTab(state, previous, tab);
-  const successor = previousStays ? previous : firstPaneId(removal.sibling);
-  const focusedPaneId = tab.focusedPaneId === id ? successor : tab.focusedPaneId;
-  const zoomedPaneId = restoredZoom(state, id, focusedPaneId);
   const { layout } = removal;
   const arrangement = arrangementForLayout(tab.arrangement, layout);
+
+  const successor = isMaster(tab)
+    ? masterSuccessor(tab.arrangement.order, id, arrangement.order)
+    : legacySuccessor(state, tab, id, removal.sibling);
+
+  const focusedPaneId = tab.focusedPaneId === id ? successor : tab.focusedPaneId;
+
+  const zoomedPaneId =
+    tab.zoomedPaneId === undefined ? restoredZoom(state, id, focusedPaneId) : focusedPaneId;
+
   const closedTab: Tab = { ...tab, layout, arrangement, focusedPaneId, zoomedPaneId };
 
   const closed: State = {

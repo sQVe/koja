@@ -683,18 +683,14 @@ it('leaves the tab unzoomed when the focus moved before a split pane failed to s
   expect(result.state.tabs[0]?.focusedPaneId).toBe(paneId(2));
 });
 
-it('unzooms when a pane closes', () => {
+it('keeps the zoom when an unselected pane closes', () => {
   const state = runLegacy([createKoja, attachLarge, splitFirst('right'), zoom(1)]);
   const result = intent(state, { type: 'closePane', paneId: paneId(2) });
 
-  expect(result.state.tabs[0]?.zoomedPaneId).toBeUndefined();
+  expect(result.state.tabs[0]?.zoomedPaneId).toBe(paneId(1));
   expect(result.state.panes.map((pane) => pane.size)).toEqual([{ columns: 81, rows: 24 }]);
 
-  expect(result.changes).toContainEqual({
-    type: 'tabZoomChanged',
-    tabId: tabId(1),
-    zoomedPaneId: undefined,
-  });
+  expect(result.changes.some((change) => change.type === 'tabZoomChanged')).toBe(false);
 });
 
 it('moves the zoom when another pane takes the focus, but not when the zoomed pane does', () => {
@@ -1165,13 +1161,13 @@ it('appends an added pane to the master order, focuses it, and zooms it', () => 
   });
 });
 
-it('returns the focus and zoom from before a master add when the added pane closes', () => {
+it('focuses the predecessor when the added last pane of a master tab closes', () => {
   const state = intent(masterState(), zoom(1)).state;
   const added = intent(state, addPane(1)).state;
   const closed = intent(added, { type: 'closePane', paneId: paneId(3) }).state;
 
-  expect(closed.tabs[0]?.focusedPaneId).toBe(paneId(1));
-  expect(closed.tabs[0]?.zoomedPaneId).toBe(paneId(1));
+  expect(closed.tabs[0]?.focusedPaneId).toBe(paneId(2));
+  expect(closed.tabs[0]?.zoomedPaneId).toBeUndefined();
 });
 
 it('zooms the pane that takes the focus in a zoomed master tab', () => {
