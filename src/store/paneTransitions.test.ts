@@ -53,7 +53,6 @@ const splitPaneOf = (id: number, direction: 'below' | 'right'): Intent => ({
 const nestedState = (): State =>
   runLegacy([createKoja, attachLarge, splitFirst('right'), splitPaneOf(1, 'below')]);
 
-// Removing the added pane must leave the layout tree as it was, so the pane is only a new leaf.
 const expectPaneInserted = (before: Tab, after: Tab, added: PaneId): void => {
   expect(removePane(after.layout, added)?.layout).toEqual(before.layout);
   const existing = after.arrangement.order.filter((id) => id !== added);

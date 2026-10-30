@@ -33,8 +33,6 @@ const verticalSpan = (pane: PaneRectangle): Span => ({ start: pane.y, end: pane.
 const sharedCells = (first: Span, second: Span): number =>
   Math.max(0, Math.min(first.end, second.end) - Math.max(first.start, second.start));
 
-// Cells between the pane's edge and the candidate's facing edge. Negative when the candidate is not
-// past the edge.
 const gapToward = (
   from: PaneRectangle,
   candidate: PaneRectangle,
@@ -78,9 +76,6 @@ const compareNeighbors = (first: Neighbor, second: Neighbor, direction: ResizeDi
   second.overlap - first.overlap ||
   tieStart(first.pane, direction) - tieStart(second.pane, direction);
 
-// The neighbor is the nearest pane that lies wholly past the pane's edge in the direction and
-// overlaps it on the other axis by at least one cell. Ties go to the larger overlap, then to the
-// smaller y for left and right or the smaller x for up and down. Nothing wraps around an edge.
 export const paneInDirection = (
   panes: readonly PaneRectangle[],
   from: PaneId,
@@ -100,8 +95,6 @@ export const paneInDirection = (
   return neighbors[0]?.pane.paneId;
 };
 
-// A zoomed tab moves through the layout it hides. A master tab too small for its panes moves
-// through the panes at the smallest size it accepts.
 const navigablePanes = (tab: Tab, size: TerminalSize): PaneRectangle[] => {
   const placed = tabPanes({ ...tab, zoomedPaneId: undefined }, size);
 

@@ -46,7 +46,6 @@ const paneLayoutRequestTypes: ReadonlySet<string> = new Set([
 export const isPaneLayoutRequest = (message: ControlMessage): message is PaneLayoutRequest =>
   paneLayoutRequestTypes.has(message.type);
 
-// A new workspace takes the folder the pane is in, or the root of the workspace it leaves.
 const workspaceRootOfMove = (
   context: PaneLayoutRequestContext,
   message: Extract<PaneLayoutRequest, { type: 'paneMove' }>,
@@ -149,7 +148,6 @@ const paneIntentOf = (
     : { type: 'closePane', paneId: message.paneId };
 };
 
-// A reason that maps to undefined means a server bug for this request.
 const failureReasons: Record<RejectReason, PaneFailureReason | undefined> = {
   serverStopping: 'serverStopping',
   sessionNotEmpty: undefined,
