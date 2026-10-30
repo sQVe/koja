@@ -359,7 +359,9 @@ it(
     await eventually(() => statusBar() === 'INSERT [1]');
     type('\x02jx');
 
-    await eventually(() => screen.text().includes('Press t to create a tab'));
+    await eventually(
+      () => screen.text().includes('Press t to create a tab') && statusBar() === 'NORMAL',
+    );
 
     const remaining = (await list()).map((workspace) => ({
       label: workspace.label,

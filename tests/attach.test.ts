@@ -161,6 +161,9 @@ const readPaneSize = async (socketPath: string) => (await readPaneSizes(socketPa
 
 const lastLine = (text: string) => text.split('\n').findLast((line) => line.trim() !== '');
 
+const showsEmptyWorkspace = (text: string): boolean =>
+  text.includes('Press t to create a tab') && lastLine(text) === 'NORMAL';
+
 it('shows the shell screen and cursor', async () => {
   const { command, screen } = await setup();
 
@@ -539,7 +542,7 @@ it('shows the empty workspace when the only pane exits and the server keeps runn
   expect(await waitFor(() => screen.text().includes('attach-prompt>'))).toBe(true);
   await command('pane', 'send', 'exit\r');
 
-  expect(await waitFor(() => screen.text().includes('Press t to create a tab'))).toBe(true);
+  expect(await waitFor(() => showsEmptyWorkspace(screen.text()))).toBe(true);
   expect(screen.text()).not.toContain('attach-prompt>');
   expect(lastLine(screen.text())).toBe('NORMAL');
 
@@ -606,7 +609,7 @@ it('retains the workspace and shows its empty screen when the only pane of the o
   expect(await waitFor(() => screen.text().includes('attach-prompt>'))).toBe(true);
   client.terminal?.write('exit\r');
 
-  expect(await waitFor(() => screen.text().includes('Press t to create a tab'))).toBe(true);
+  expect(await waitFor(() => showsEmptyWorkspace(screen.text()))).toBe(true);
   expect(lastLine(screen.text())).toBe('NORMAL');
 
   expect(JSON.parse(await command('workspace', 'list', '--json'))).toMatchObject([
