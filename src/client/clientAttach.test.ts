@@ -136,7 +136,6 @@ const snapshotMessage = (
   };
 };
 
-// A snapshot that keeps only one tab and its pane, as the server sends after the other is removed.
 const onlyTabSnapshot = (
   revision: number,
   tab: typeof firstTab | typeof secondTab,

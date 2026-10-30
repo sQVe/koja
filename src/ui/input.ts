@@ -261,7 +261,6 @@ const keyIntentOf = (event: KeyEvent, mode: InputMode, catalog: ActionCatalog): 
     return { sends: false, mode, effect: undefined };
   }
 
-  // Holding the close key repeats it. Only a new press may close a pane.
   if (event.kind === 'repeat' && mode === 'normal' && isCloseKey(event, catalog)) {
     return { sends: false, mode, effect: undefined };
   }

@@ -17,7 +17,6 @@ const idsOf = (panes: Panes): string[] => panes.map((pane) => pane.id).toSorted(
 const focusedIdsOf = (panes: Panes): string[] =>
   panes.filter((pane) => pane.focused).map((pane) => pane.id);
 
-// A master tab whose order is first, second, third.
 const masterWithThreePanes = async () => {
   const session = await setup();
   const second = await session.act('add', session.first);

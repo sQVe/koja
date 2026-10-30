@@ -190,7 +190,6 @@ it('a child exit keeps the shell pane and a root exit removes it', async () => {
 
   expect((await createWorkspace(socketPath, directory, 'shell')).type).toBe('workspaceDone');
 
-  // The server stops sending after eight unacknowledged updates, so the terminal acknowledges each one.
   const terminal = await connect(socketPath, { acknowledgeUpdates: true });
   const rows = new Map<number, string>();
 

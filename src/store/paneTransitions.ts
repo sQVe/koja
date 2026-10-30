@@ -208,8 +208,6 @@ export const focusPane = (state: State, id: PaneId, source: ClientId | undefined
   return propose({ ...focused, panes: fitted.panes }, [...changes, ...fitted.changes]);
 };
 
-// The pane that takes the closed pane's place in the order gets the focus. The last pane hands it
-// to its predecessor.
 const masterSuccessor = (
   before: readonly PaneId[],
   id: PaneId,
@@ -233,7 +231,6 @@ const previousFocus = (state: State, tab: Tab, id: PaneId): PaneId | undefined =
 const legacySuccessor = (state: State, tab: Tab, id: PaneId, sibling: Layout): PaneId =>
   previousFocus(state, tab, id) ?? firstPaneId(sibling);
 
-// The pane's area goes to its sibling. The focus moves to the successor only when the pane had it.
 const closePaneIn = (state: State, tab: Tab, id: PaneId, restoreSelection = false): Proposal => {
   const removal = removePane(tab.layout, id);
 
