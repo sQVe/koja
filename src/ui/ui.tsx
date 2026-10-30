@@ -12,7 +12,13 @@ import {
   viewedPane,
   shownView,
 } from '../client/client.ts';
-import type { AttachSession, ClipboardQueue, CloseReason, PaneNotice } from '../client/client.ts';
+import type {
+  AttachSession,
+  ClipboardQueue,
+  CloseReason,
+  PaneNotice,
+  StoreSnapshot,
+} from '../client/client.ts';
 import { kittyFlags } from '../rows/rows.ts';
 import { ActionOverlay } from './actionOverlay.tsx';
 import { actionViewRowsOf, createActionView } from './actionView.ts';
@@ -41,7 +47,12 @@ import { SideList } from './workspaceList.tsx';
 
 const emptyHint = 'No workspace is open. Run `koja workspace create <dir>` to start one.';
 
-const Screen = ({
+const emptyWorkspaceHint = 'This workspace has no tabs. Press t to create a tab.';
+
+const emptyScreenHintOf = (snapshot: StoreSnapshot): string =>
+  shownView(snapshot).focusedWorkspaceId === undefined ? emptyHint : emptyWorkspaceHint;
+
+export const Screen = ({
   session,
   placePane,
 }: {
@@ -53,7 +64,7 @@ const Screen = ({
   if (viewedPane(state.snapshot) === undefined) {
     return (
       <box flexGrow={1} alignItems="center" justifyContent="center">
-        <text fg={RGBA.defaultForeground()}>{emptyHint}</text>
+        <text fg={RGBA.defaultForeground()}>{emptyScreenHintOf(state.snapshot)}</text>
       </box>
     );
   }

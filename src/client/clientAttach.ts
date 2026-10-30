@@ -12,6 +12,7 @@ import {
 } from '../protocol/protocol.ts';
 import type { BuildVersion, ControlMessage } from '../protocol/protocol.ts';
 import { decodePaneRows, decodeRowUpdate, encodePaneInput } from '../rows/rows.ts';
+import { inputModeAfter } from './clientModeRepair.ts';
 import type { PanePasteResult } from './panePaste.ts';
 import { paneLayoutRequest } from './paneRequest.ts';
 import type { PaneLayoutCommand } from './paneRequest.ts';
@@ -302,7 +303,12 @@ export const connectAttach = async (
   const takeSnapshot = (snapshot: StoreSnapshot): void => {
     waitingForSnapshot = false;
     dropRowCaches(snapshot);
-    setState({ snapshot, inputMode: state?.inputMode ?? 'insert' });
+
+    setState({
+      snapshot,
+      inputMode: inputModeAfter(state?.inputMode ?? 'insert', state?.snapshot, snapshot),
+    });
+
     applyGate(tabSnapshotChanged(tabGate, shownPane()));
   };
 
@@ -321,7 +327,13 @@ export const connectAttach = async (
     const snapshot = { ...applyChange(state.snapshot, change), revision };
 
     dropRowCaches(snapshot);
-    setState({ ...state, snapshot });
+
+    setState({
+      ...state,
+      snapshot,
+      inputMode: inputModeAfter(state.inputMode, state.snapshot, snapshot),
+    });
+
     applyGate(tabSnapshotChanged(tabGate, shownPane()));
   };
 

@@ -249,9 +249,20 @@ const normalIntent = (event: KeyEvent, catalog: ActionCatalog): KeyIntent => {
   };
 };
 
+const isCloseKey = (event: KeyEvent, catalog: ActionCatalog): boolean => {
+  const action = actionForKey(catalog, keyText(event) ?? '');
+
+  return action?.intent.kind === 'pane' && action.intent.action === 'close';
+};
+
 const keyIntentOf = (event: KeyEvent, mode: InputMode, catalog: ActionCatalog): KeyIntent => {
   // Holding Ctrl+B repeats it. Only a new press may send a literal Ctrl+B or leave normal mode.
   if (event.kind === 'repeat' && isPrefix(event)) {
+    return { sends: false, mode, effect: undefined };
+  }
+
+  // Holding the close key repeats it. Only a new press may close a pane.
+  if (event.kind === 'repeat' && mode === 'normal' && isCloseKey(event, catalog)) {
     return { sends: false, mode, effect: undefined };
   }
 
