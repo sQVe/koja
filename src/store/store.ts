@@ -18,6 +18,7 @@ import {
   setClientTheme,
 } from './clientTransitions.ts';
 import { movePane } from './paneMoveTransitions.ts';
+import { focusPaneInDirection } from './paneNavigationTransitions.ts';
 import {
   addPane,
   closePane,
@@ -225,6 +226,12 @@ export type Intent =
       folder: string | undefined;
     }
   | { type: 'focusPane'; paneId: PaneId; clientId?: ClientId }
+  | {
+      type: 'focusPaneInDirection';
+      paneId: PaneId;
+      direction: ResizeDirection;
+      clientId?: ClientId;
+    }
   | { type: 'closePane'; paneId: PaneId }
   | { type: 'movePane'; paneId: PaneId; destination: PaneDestination; clientId?: ClientId }
   | { type: 'zoomPane'; paneId: PaneId }
@@ -316,6 +323,7 @@ export type RejectReason =
   | 'paneTooSmall'
   | 'sameTab'
   | 'noSplit'
+  | 'noPaneInDirection'
   | 'requiresLegacyLayout'
   | 'requiresMasterLayout'
   | 'staleGeneration';
@@ -498,6 +506,8 @@ const transitionIntent = (state: State, intent: Intent): Outcome => {
       return splitPane(state, intent);
     case 'focusPane':
       return focusPane(state, intent.paneId, intent.clientId);
+    case 'focusPaneInDirection':
+      return focusPaneInDirection(state, intent);
     case 'movePane':
       return movePane(state, intent);
     case 'zoomPane':

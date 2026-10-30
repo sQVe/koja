@@ -425,6 +425,7 @@ const failureReasons: Record<RejectReason, PaneFailureReason | undefined> = {
   paneTooSmall: 'paneTooSmall',
   sameTab: 'sameTab',
   noSplit: 'noSplit',
+  noPaneInDirection: undefined,
   requiresLegacyLayout: 'requiresLegacyLayout',
   requiresMasterLayout: undefined,
   staleGeneration: undefined,

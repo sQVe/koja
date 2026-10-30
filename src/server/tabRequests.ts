@@ -76,6 +76,7 @@ const failureReasons: Record<RejectReason, TabFailureReason | undefined> = {
   paneTooSmall: undefined,
   sameTab: undefined,
   noSplit: undefined,
+  noPaneInDirection: undefined,
   requiresLegacyLayout: undefined,
   requiresMasterLayout: undefined,
   staleGeneration: undefined,
