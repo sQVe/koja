@@ -84,6 +84,12 @@ it('mirrors the exit of the only pane in the client snapshot', () => {
   ]);
 
   expectSameLayout(result);
-  expect(result.mirror.workspaces).toEqual([]);
-  expect(result.mirror.defaultView.focusedWorkspaceId).toBeUndefined();
+
+  expect(result.mirror.workspaces).toEqual([
+    { id: workspaceId(1), root: 'a', label: 'a', tabIds: [] },
+  ]);
+
+  expect(result.mirror.tabs).toEqual([]);
+  expect(result.mirror.panes).toEqual([]);
+  expect(result.mirror.defaultView.focusedWorkspaceId).toBe(workspaceId(1));
 });

@@ -2,7 +2,7 @@ import { expect, it, onTestFinished } from 'bun:test';
 import { once } from 'node:events';
 import { createConnection } from 'node:net';
 
-import { paneId, tabId, workspaceId } from '../src/ids.ts';
+import { paneId, tabId } from '../src/ids.ts';
 import { encodeFrame, FrameKind } from '../src/protocol/frames.ts';
 import { encodeControl } from '../src/protocol/messages.ts';
 import {
@@ -34,7 +34,7 @@ it('sends a snapshot after welcome and each later change in revision order', asy
   expect(initial.snapshot.panes[0]?.id).toBe(paneId(1));
 
   server.writeToPane('exit\n');
-  await waitFor(() => client.messages.length >= 5);
+  await waitFor(() => client.messages.length >= 4);
 
   expect(client.messages.slice(2)).toEqual([
     {
@@ -46,15 +46,6 @@ it('sends a snapshot after welcome and each later change in revision order', asy
       type: 'change',
       revision: initial.snapshot.revision + 2,
       change: { type: 'tabRemoved', tabId: tabId(1) },
-    },
-    {
-      type: 'change',
-      revision: initial.snapshot.revision + 3,
-      change: {
-        type: 'workspaceRemoved',
-        workspaceId: workspaceId(1),
-        focusedWorkspaceId: undefined,
-      },
     },
   ]);
 
@@ -126,15 +117,14 @@ it('broadcasts changes to every welcomed client but not a connection waiting for
   expect(await second.nextMessage()).toEqual(initial);
 
   server.writeToPane('exit\n');
-  await waitFor(() => first.messages.length >= 5 && second.messages.length >= 5);
+  await waitFor(() => first.messages.length >= 4 && second.messages.length >= 4);
   server.stop();
   await server.stopped;
   await Promise.all([first.closed, second.closed, waiting.closed]);
 
-  expect(first.messages.slice(2, 5).map((message) => message.type)).toEqual([
-    'change',
-    'change',
-    'change',
+  expect(first.messages.slice(2, 4)).toMatchObject([
+    { type: 'change', change: { type: 'paneRemoved', paneId: paneId(1) } },
+    { type: 'change', change: { type: 'tabRemoved', tabId: tabId(1) } },
   ]);
 
   expect(second.messages).toEqual(first.messages);

@@ -56,23 +56,35 @@ it('starts with no workspace and adds one focused workspace for each workspaceCr
   expect(panes.map((pane) => pane.lifecycle)).toEqual(['running', 'running']);
 });
 
-it('removes the workspace when its only shell exits and keeps serving', async () => {
+it('retains the empty workspace when its only shell exits and keeps serving', async () => {
   const directory = await temporaryDirectory();
   const { server, socketPath } = await startServer(directory);
 
+  const original = server.snapshot().workspaces[0];
+
+  if (original === undefined) {
+    throw new Error('Expected the initial workspace.');
+  }
+
   server.writeToPane('exit\n');
-  await waitFor(() => server.snapshot().workspaces.length === 0);
+  await waitFor(() => server.snapshot().panes.length === 0);
 
   expect(server.snapshot()).toMatchObject({
+    workspaces: [{ ...original, tabIds: [] }],
     tabs: [],
     panes: [],
-    defaultView: { focusedWorkspaceId: undefined },
+    defaultView: { focusedWorkspaceId: original.id },
   });
 
   const answer = await createWorkspace(socketPath, directory, 'again');
 
   expect(answer.type).toBe('workspaceDone');
-  expect(server.snapshot().workspaces.map((workspace) => workspace.label)).toEqual(['again']);
+
+  expect(server.snapshot().workspaces.map((workspace) => workspace.label)).toEqual([
+    original.label,
+    'again',
+  ]);
+
   expect(server.snapshot().panes.map((pane) => pane.lifecycle)).toEqual(['running']);
 });
 

@@ -454,7 +454,7 @@ it('attaches to the running server without starting another', async () => {
 
   expect(await waitFor(() => existsSync(socketPath))).toBe(true);
   await createWorkspaceAt(socketPath, directory);
-  expect(await waitFor(() => first.screen.text().includes('INSERT'))).toBe(true);
+  expect(await waitFor(() => first.screen.text().includes('attach-prompt>'))).toBe(true);
 
   const before = serverProcessesIn(directory);
   const second = attachClient(socketPath, [], environment);
@@ -474,7 +474,9 @@ it('attaches both koja runs to one server when they start together', async () =>
 
   expect(
     await waitFor(
-      () => first.screen.text().includes('INSERT') || second.screen.text().includes('INSERT'),
+      () =>
+        first.screen.text().includes('attach-prompt>') ||
+        second.screen.text().includes('attach-prompt>'),
     ),
   ).toBe(true);
 
@@ -531,15 +533,21 @@ it('switches to the pane of the workspace that koja workspace focus names', asyn
   expect(screen.text()).not.toContain('second-5');
 });
 
-it('shows the empty screen when the only pane exits and the server keeps running', async () => {
+it('shows the empty workspace when the only pane exits and the server keeps running', async () => {
   const { directory, screen, command } = await setup();
 
   expect(await waitFor(() => screen.text().includes('attach-prompt>'))).toBe(true);
   await command('pane', 'send', 'exit\r');
 
-  expect(await waitFor(() => screen.text().includes(emptyHint))).toBe(true);
+  expect(await waitFor(() => screen.text().includes('Press t to create a tab'))).toBe(true);
   expect(screen.text()).not.toContain('attach-prompt>');
-  expect(JSON.parse(await command('workspace', 'list', '--json'))).toEqual([]);
+  expect(lastLine(screen.text())).toBe('NORMAL');
+
+  expect(JSON.parse(await command('workspace', 'list', '--json'))).toMatchObject([
+    { id: 'workspace-1', focused: true },
+  ]);
+
+  expect(JSON.parse(await command('tab', 'list', '--json'))).toEqual([]);
   expect(serverProcessesIn(directory)).toHaveLength(1);
 });
 
@@ -592,14 +600,19 @@ it('shows the first tab again after H and 1 without resizing a pane', async () =
   expect((await readPaneSizes(socketPath)).slice(0, sizes.length)).toEqual(sizes);
 });
 
-it('closes the workspace and shows the empty screen when the only pane of the only tab exits', async () => {
+it('retains the workspace and shows its empty screen when the only pane of the only tab exits', async () => {
   const { client, screen, command } = await setup();
 
   expect(await waitFor(() => screen.text().includes('attach-prompt>'))).toBe(true);
   client.terminal?.write('exit\r');
 
-  expect(await waitFor(() => screen.text().includes(emptyHint))).toBe(true);
-  expect(JSON.parse(await command('workspace', 'list', '--json'))).toEqual([]);
+  expect(await waitFor(() => screen.text().includes('Press t to create a tab'))).toBe(true);
+  expect(lastLine(screen.text())).toBe('NORMAL');
+
+  expect(JSON.parse(await command('workspace', 'list', '--json'))).toMatchObject([
+    { id: 'workspace-1', focused: true },
+  ]);
+
   expect(JSON.parse(await command('tab', 'list', '--json'))).toEqual([]);
 });
 

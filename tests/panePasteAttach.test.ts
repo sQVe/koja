@@ -397,6 +397,8 @@ it(
 
     expect(JSON.parse(asked.stdout)).toMatchObject({ status: 'confirmationRequired' });
 
+    await until(() => statusBar().startsWith('NORMAL [1]'));
+    terminal.type('i');
     await until(() => statusBar().startsWith('INSERT [1]'));
     terminal.type('\x1b[200~host\npaste\x1b[201~');
     await until(() => statusBar().includes('y/n: paste 2 lines'));
