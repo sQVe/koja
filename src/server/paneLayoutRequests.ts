@@ -1,12 +1,12 @@
-import type { ClientId } from '../ids.ts';
+import type { ClientId, PaneId } from '../ids.ts';
 import { invariant } from '../invariant.ts';
 import type { ControlMessage } from '../protocol/protocol.ts';
-import type { Intent, RejectReason } from '../store/store.ts';
+import type { Intent, RejectReason, State } from '../store/store.ts';
 import { sourceOf } from './clientRequests.ts';
 import type { Connection } from './connection.ts';
 import type { Dispatch } from './dispatchResult.ts';
 import { followFolderOf } from './paneEffects.ts';
-import type { PaneRequestContext } from './paneRequests.ts';
+import type { RunningPane } from './paneRecord.ts';
 
 type PaneLayoutRequest = Extract<
   ControlMessage,
@@ -26,6 +26,11 @@ type PaneLayoutRequest = Extract<
 
 type PaneFailureReason = Extract<ControlMessage, { type: 'paneFailed' }>['reason'];
 
+interface PaneLayoutRequestContext {
+  state: State;
+  runtime: { panes: Map<PaneId, RunningPane>; clientIds: Map<Connection, ClientId> };
+}
+
 const paneLayoutRequestTypes: ReadonlySet<string> = new Set([
   'paneSplit',
   'paneAdd',
@@ -43,7 +48,7 @@ export const isPaneLayoutRequest = (message: ControlMessage): message is PaneLay
 
 // A new workspace takes the folder the pane is in, or the root of the workspace it leaves.
 const workspaceRootOfMove = (
-  context: PaneRequestContext,
+  context: PaneLayoutRequestContext,
   message: Extract<PaneLayoutRequest, { type: 'paneMove' }>,
 ): string | undefined => {
   const followed = followFolderOf(context, message.paneId);
@@ -59,7 +64,7 @@ const workspaceRootOfMove = (
 };
 
 const paneFolderOf = (
-  context: PaneRequestContext,
+  context: PaneLayoutRequestContext,
   message: PaneLayoutRequest,
 ): string | undefined => {
   if (message.type === 'paneMove') {
@@ -162,7 +167,7 @@ const failureReasons: Record<RejectReason, PaneFailureReason | undefined> = {
 };
 
 export const handlePaneLayoutRequest = (
-  context: PaneRequestContext,
+  context: PaneLayoutRequestContext,
   message: PaneLayoutRequest,
   connection: Connection,
   dispatch: Dispatch,

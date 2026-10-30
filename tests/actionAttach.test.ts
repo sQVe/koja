@@ -5,6 +5,7 @@ import { z } from 'zod';
 import { actionCatalog } from '../src/actions.ts';
 import { cliTestTimeoutMs } from './cliHarness.ts';
 import { setup } from './paneAttachHarness.ts';
+import { pollUntil } from './paneHarness.ts';
 
 type PaneList = Awaited<ReturnType<Awaited<ReturnType<typeof setup>>['list']>>;
 
@@ -15,8 +16,6 @@ interface LayoutSnapshot {
   focused: string | undefined;
 }
 
-const pollTimeoutMs = 10_000;
-
 const pollIntervalMs = 50;
 
 const down = '\x1b[B';
@@ -25,17 +24,8 @@ const tabChoicesSchema = z.array(z.object({ arrangement: z.object({ choice: z.st
 
 const processInfoSchema = z.object({ shell_pid: z.number() });
 
-const listUntil = async (list: () => Promise<PaneList>, count: number): Promise<PaneList> => {
-  const deadline = Date.now() + pollTimeoutMs;
-  let panes = await list();
-
-  while (panes.length !== count && Date.now() < deadline) {
-    await Bun.sleep(pollIntervalMs);
-    panes = await list();
-  }
-
-  return panes;
-};
+const listUntil = (list: () => Promise<PaneList>, count: number): Promise<PaneList> =>
+  pollUntil(list, (panes) => panes.length === count);
 
 const layoutOf = (panes: PaneList) =>
   panes.map(({ id, tab, focused, columns, rows }) => ({ id, tab, focused, columns, rows }));
@@ -207,23 +197,11 @@ const runFromSearch = async (harness: AttachSetup, query: string): Promise<void>
   harness.type('\r');
 };
 
-const waitForLayout = async (
-  harness: AttachSetup,
-  expected: LayoutSnapshot,
-): Promise<LayoutSnapshot> => {
-  let layout = await snapshotLayout(harness);
-
-  for (
-    let attempt = 0;
-    attempt < 100 && JSON.stringify(layout) !== JSON.stringify(expected);
-    attempt += 1
-  ) {
-    await Bun.sleep(pollIntervalMs);
-    layout = await snapshotLayout(harness);
-  }
-
-  return layout;
-};
+const waitForLayout = (harness: AttachSetup, expected: LayoutSnapshot): Promise<LayoutSnapshot> =>
+  pollUntil(
+    () => snapshotLayout(harness),
+    (layout) => JSON.stringify(layout) === JSON.stringify(expected),
+  );
 
 const addMasterPanes = async (harness: AttachSetup): Promise<[string, string, string]> => {
   const second = await harness.act('add', harness.first);
@@ -282,19 +260,26 @@ it(
     harness.type('\x02');
     await harness.until(() => isNormalOf(harness));
 
-    await runFromSearch(harness, 'Rotate panes forward');
-    await waitForLayout(harness, { order: [second, third, first], focused: second });
+    const once = { order: [second, third, first], focused: second };
 
     await runFromSearch(harness, 'Rotate panes forward');
-    await waitForLayout(harness, { order: [third, first, second], focused: third });
+    expect(await waitForLayout(harness, once)).toEqual(once);
+
+    const twice = { order: [third, first, second], focused: third };
+
+    await runFromSearch(harness, 'Rotate panes forward');
+    expect(await waitForLayout(harness, twice)).toEqual(twice);
 
     expect(isNormalOf(harness)).toBe(true);
 
     harness.type('qq');
-    await Bun.sleep(pollIntervalMs * 10);
+    expect(isNormalOf(harness)).toBe(true);
+
+    // Keys reach the client in order, so the echoed marker shows only after the client handled qq.
+    harness.type('iecho marker-$((40 + 2))\r');
+    await harness.until(() => harness.screenText().includes('marker-42'));
 
     expect(harness.screenText()).not.toContain('qq');
-    expect(isNormalOf(harness)).toBe(true);
   },
   cliTestTimeoutMs,
 );
