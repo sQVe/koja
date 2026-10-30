@@ -1,0 +1,624 @@
+# koja
+
+## 0.1.0
+
+### Minor Changes
+
+- [#38](https://github.com/sQVe/koja/pull/38)
+  [`f48654c`](https://github.com/sQVe/koja/commit/f48654ca3559ca9a2fcfba1edb5e8e4016220215) Thanks
+  [@sQVe](https://github.com/sQVe)! - Add tab keys to `koja attach`. In normal mode, `t` creates a
+  tab, `H` and `L` focus the previous and next tab, and `1` to `9` focus a tab by number. Each of
+  these keys stays in normal mode. The status bar lists the focused workspace's tabs by number and
+  marks the active one, such as `1 [2] 3`.
+
+- [#29](https://github.com/sQVe/koja/pull/29)
+  [`d997d30`](https://github.com/sQVe/koja/commit/d997d30443e4aad56f16e1a4147c4e2ad7980982) Thanks
+  [@sQVe](https://github.com/sQVe)! - Add `koja attach` to show the running pane and input mode in a
+  terminal client. Resize the pane with the terminal and detach on SIGTERM, SIGINT, or SIGHUP
+  without stopping the server.
+
+- [#39](https://github.com/sQVe/koja/pull/39)
+  [`1784dd4`](https://github.com/sQVe/koja/commit/1784dd415afc63c36d4940e12faf60333fff4fb0) Thanks
+  [@sQVe](https://github.com/sQVe)! - Add `koja pane split <id> --direction below|right`,
+  `koja pane focus <id>`, and `koja pane close <id>` to split a pane, move focus, and close a pane
+  with its process. Each command supports `--socket` and `--json`, and fails with a message and exit
+  code 1 for an unknown pane. `koja pane list` now shows each pane's `columns` and `rows`.
+
+- [#42](https://github.com/sQVe/koja/pull/42)
+  [`8f9be3e`](https://github.com/sQVe/koja/commit/8f9be3efe51dca03f9020beb41004fa71584a3a3) Thanks
+  [@sQVe](https://github.com/sQVe)! - Add `koja pane process-info <id>`. It shows the pane's shell
+  process id, its foreground process group, and each process in that group with its arguments and
+  folder. `koja pane list` now shows each pane's `cwd` and `foreground_cwd`. A folder that cannot be
+  read prints as `null` in `--json`. Both support `--socket` and `--json`, and the key names match
+  herdr.
+
+- [#56](https://github.com/sQVe/koja/pull/56)
+  [`f56b4e2`](https://github.com/sQVe/koja/commit/f56b4e29fd6a78b272f2c8255922b64a80875e0a) Thanks
+  [@sQVe](https://github.com/sQVe)! - Take the pane id of `koja pane read` as an argument:
+  `koja pane read <id>`. The command no longer reads the focused pane when it has no id, and it
+  refuses `--pane`. `koja pane send` keeps `--pane`.
+
+- [#53](https://github.com/sQVe/koja/pull/53)
+  [`6df463d`](https://github.com/sQVe/koja/commit/6df463d24ea1d78e210044e69a9aac7bf2a07ab7) Thanks
+  [@sQVe](https://github.com/sQVe)! - Pass the kitty keyboard protocol to panes. `koja attach` asks
+  the outer terminal for kitty keys and sends each key to the focused pane in the encoding that pane
+  asked for. A pane that does not ask for kitty flags still gets legacy keys. Releases reach only
+  panes that ask for event types. Ctrl+B enters normal mode under any pane flags. A terminal without
+  kitty support keeps working as before.
+
+- [#43](https://github.com/sQVe/koja/pull/43)
+  [`59376c8`](https://github.com/sQVe/koja/commit/59376c86b710c42499db33d3311408541e656cd1) Thanks
+  [@sQVe](https://github.com/sQVe)! - Add `koja client list`, which lists the attached clients,
+  their views, and the foreground client. Add `koja detach --client <id>` to detach one client.
+  Without `--client`, `koja detach` detaches the foreground client, and an unknown id fails with
+  `unknownClient`. Both commands support `--socket` and `--json`.
+
+- [#103](https://github.com/sQVe/koja/pull/103)
+  [`622809b`](https://github.com/sQVe/koja/commit/622809b5da465a2b38d93095b2bfb0c3925fd5d5) Thanks
+  [@sQVe](https://github.com/sQVe)! - Add `koja pane paste <text>` to paste text into a pane,
+  encoded for the bracketed paste mode the pane's program asked for. Multiline text for a program
+  without bracketed paste is not sent. The command prints `confirmationRequired` with an
+  authorization and exits nonzero, and `--authorize` sends the same text to the same running pane.
+  Text too large for one message is refused with `tooLarge`, and nothing is sent.
+
+  The client can read the system clipboard with `wl-paste`, `xclip`, or `xsel`, and reports why a
+  read failed: no local clipboard (over SSH or without a display), an empty clipboard, failed tools,
+  a timeout, or a cancel.
+
+  In normal mode, `p` pastes the clipboard into the pane shown when you press it, and the client
+  stays in normal mode. Multiline text for a program without bracketed paste, from `p` or from the
+  terminal's own paste, asks `y/n` in the status bar first. The paste is canceled when the pane, its
+  process, the tab, or the workspace changes before it is sent. The status bar shows why a paste
+  failed or was canceled, and hides the tab labels while it shows a paste prompt or message.
+
+- [#40](https://github.com/sQVe/koja/pull/40)
+  [`16da8dc`](https://github.com/sQVe/koja/commit/16da8dc79b762a5e64815ea123c8ba9ca17126f7) Thanks
+  [@sQVe](https://github.com/sQVe)! - Add `koja pane zoom <id>` and
+  `koja pane resize <id> --direction left|right|up|down --cells <n>`. Zoom shows one pane over the
+  whole tab, and a second zoom restores the split. Resize moves the nearest split edge in that
+  direction. Both support `--socket` and `--json`. `koja pane list` now shows which pane is zoomed,
+  as `zoomed` in `--json`.
+
+  In Koja mode, `z` zooms the focused pane, and `<`, `>`, `-`, and `+` move the nearest split edge
+  one cell left, right, up, or down.
+
+- [#46](https://github.com/sQVe/koja/pull/46)
+  [`cbcbe4c`](https://github.com/sQVe/koja/commit/cbcbe4c67f345804c033c5ebbfdeb6fa088ca806) Thanks
+  [@sQVe](https://github.com/sQVe)! - Save the folder of each pane's shell with the session. After a
+  restart, each restored shell starts in its last folder, or in its workspace root when no folder
+  was saved.
+
+- [#73](https://github.com/sQVe/koja/pull/73)
+  [`b74d453`](https://github.com/sQVe/koja/commit/b74d453cb14d3e76679119f82050576e38e451a9) Thanks
+  [@sQVe](https://github.com/sQVe)! - Rename the app from Phi to Koja. Run it as `koja`. The server
+  socket is now `$XDG_RUNTIME_DIR/koja/koja.sock`, or `/tmp/koja-<uid>/koja.sock` without
+  `XDG_RUNTIME_DIR`. The log and saved sessions are now in `$XDG_STATE_HOME/koja`, or
+  `~/.local/state/koja`. Panes get `KOJA_*` variables, such as `KOJA_SOCKET_PATH` and
+  `KOJA_PANE_ID`, and `TERM_PROGRAM=koja`. Koja does not read the old `PHI_*` variables, socket, or
+  saved sessions, so it starts with fresh sessions. Panes no longer remove inherited `HERDR_*`
+  variables. Stop the old server with `phi server stop` before you start Koja.
+
+- [#18](https://github.com/sQVe/koja/pull/18)
+  [`564eeb4`](https://github.com/sQVe/koja/commit/564eeb4775af85ab755e42bbcfb109884b2fa41c) Thanks
+  [@sQVe](https://github.com/sQVe)! - The terminal library reads the rows that changed, the cursor,
+  and the terminal modes as one frame. Rows keep a stable number while output scrolls them into
+  history, the history keeps to a memory limit, and a range of rows can be read again by number,
+  also from history.
+
+  New terminals turn on grapheme clustering (mode 2027), so an emoji sequence joined with zero-width
+  joiners stays in one cell.
+
+  While a program holds output with synchronized output (mode 2026), frames keep showing the last
+  finished screen, so a redraw split across several writes never shows half drawn.
+
+- [#36](https://github.com/sQVe/koja/pull/36)
+  [`a2a6420`](https://github.com/sQVe/koja/commit/a2a642011f3ae7065ae9670ca47f8b8757791e20) Thanks
+  [@sQVe](https://github.com/sQVe)! - Run several workspaces from the CLI. The server now starts
+  with no workspace. `koja workspace list|create|focus|rename|close` and `koja pane list` manage
+  workspaces and panes, and every command has a `--json` form. `koja pane read` and `koja pane send`
+  take `--pane <id>` to reach a pane in a workspace that is not focused. A pane that exits closes
+  its tab and workspace, and the server keeps running with none. A terminal client gets rows only
+  from the focused workspace's pane. The terminal client draws the focused workspace's pane,
+  switches to another pane's current screen when focus changes, and shows an empty screen with a
+  `koja workspace create <dir>` hint when no workspace is open.
+
+- [#37](https://github.com/sQVe/koja/pull/37)
+  [`1bafad4`](https://github.com/sQVe/koja/commit/1bafad4fa611fa0436d691f549a7406d4c4087a8) Thanks
+  [@sQVe](https://github.com/sQVe)! - `koja workspace create` no longer focuses the new workspace,
+  unless no workspace is focused. Add `--focus` to focus it. `--no-focus` keeps the default, and the
+  last of the two flags wins. Without `--label`, the server names the workspace after the base name
+  of its directory.
+
+- [#38](https://github.com/sQVe/koja/pull/38)
+  [`f48654c`](https://github.com/sQVe/koja/commit/f48654ca3559ca9a2fcfba1edb5e8e4016220215) Thanks
+  [@sQVe](https://github.com/sQVe)! - Add `koja tab list`, `koja tab create [--workspace <id>]`,
+  `koja tab focus <id>`, and `koja tab close <id>`. A new tab starts one pane in the workspace root
+  and becomes the active tab. Closing the active tab activates its neighbor, and closing the last
+  tab closes the workspace. All commands support `--socket` and `--json`.
+
+- [#46](https://github.com/sQVe/koja/pull/46)
+  [`cbcbe4c`](https://github.com/sQVe/koja/commit/cbcbe4c67f345804c033c5ebbfdeb6fa088ca806) Thanks
+  [@sQVe](https://github.com/sQVe)! - Keep a restored pane in the layout when its saved folder is
+  gone or its shell fails to start. The pane shows its error where the terminal would be, and
+  `koja pane list` shows the lifecycle `failed` and a `restore_error`. Close it with
+  `koja pane close`. Restore the folder and restart the server to start it again.
+
+- [#109](https://github.com/sQVe/koja/pull/109)
+  [`0f60258`](https://github.com/sQVe/koja/commit/0f60258be846636d69d7c2b955029590da0d5f55) Thanks
+  [@sQVe](https://github.com/sQVe)! - Start new tabs in a master layout: one pane fills the tab, and
+  with more panes the first one takes the left half while the rest stack on the right. Switch a tab
+  between master and its remembered split layout with `koja tab layout <tab> master|legacy` or the
+  "Use master layout" and "Use legacy split layout" actions, without restarting its panes. Add a
+  pane with `koja pane add <pane>` or the "New pane" action (`n`): a master tab appends it on the
+  right, and a split tab splits the pane to the right. Saved split tabs stay split.
+  `koja pane split` and `koja pane resize` fail in a master tab and name the switch to the legacy
+  layout. When the window is too small for a master tab, Koja shows a warning, keeps the panes
+  running, and draws them again once the window fits. `koja tab list` shows each tab's layout.
+
+- [#61](https://github.com/sQVe/koja/pull/61)
+  [`e4401f8`](https://github.com/sQVe/koja/commit/e4401f8a976d6fa9112be58dae81cdf8b5cf960c) Thanks
+  [@sQVe](https://github.com/sQVe)! - Add scroll mode. `[` in normal mode enters it on the focused
+  pane, and `q` or Escape leaves it. The status bar shows `SCROLL`, and a cursor marks the position
+  in the pane's history. The cursor moves as in herdr's copy mode: `h j k l` and the arrow keys,
+  `w b e`, `W B E`, `0 ^ $`, `{ }`, Home and End, PageUp and PageDown, Ctrl+U, Ctrl+D, Ctrl+F, and
+  `g` and `G`. The view scrolls when the cursor leaves it, and `G` returns it to the bottom. `q`,
+  Escape, and Ctrl+B restore the view from when scroll mode started. Ctrl+B still leaves scroll mode
+  for normal mode. A motion that needs history rows the client has not fetched yet waits for them.
+  Moving focus to another pane leaves scroll mode.
+
+- [#108](https://github.com/sQVe/koja/pull/108)
+  [`66ed31c`](https://github.com/sQVe/koja/commit/66ed31c7e5a676ad399ea9b663217859ccc3bc2d) Thanks
+  [@sQVe](https://github.com/sQVe)! - Save each pane's pi record with the session, and check it
+  before a restored pane starts. A pane whose saved pi conversation cannot reopen, such as one whose
+  session file is gone or that another pane also names, stays in the layout as a failed pane that
+  names the reason and gets no shell or input. A pane whose conversation can reopen starts its shell
+  as before.
+
+  `koja pi status` adds `recovery` to its JSON output, with the restore check's `status` and
+  `reason`, or `null` for a pane restored without a record or whose pi has reported since. Text
+  output adds a `restore` line for such a pane.
+
+- [#21](https://github.com/sQVe/koja/pull/21)
+  [`49d4cca`](https://github.com/sQVe/koja/commit/49d4ccac2a54dcd8ff87df9056849a2f8b609d1a) Thanks
+  [@sQVe](https://github.com/sQVe)! - Add `koja server start`, `koja server stop`, and
+  `koja server run`. `koja server start` runs the server in the background with one shell, and
+  `koja server stop` ends the shell and removes the socket. Each command takes `--socket` for
+  another socket path and `--json` for a parseable form, and none prompts. The server refuses a
+  symlink or another file at the socket path, a socket path under a directory other users can
+  change, a socket directory other users can read, write, or enter, a socket path whose parent
+  directories do not exist, and a socket another user owns. It replaces only a socket that refuses
+  connections. The server locks a `.lock` file next to its socket, so only one server runs on a
+  socket path. `koja server start` succeeds only when the server it started is ready, and it prints
+  that server's error when the server cannot start its shell or write its log. `koja server stop`
+  also stops a server from another Koja build, so a restart moves the server to the new build.
+  `koja server run` exits with code 1 and a message when the server cannot clean up as it stops,
+  such as when it cannot remove its socket. `koja server stop` then exits with code 1 at once and
+  names the socket the server left.
+
+- [#39](https://github.com/sQVe/koja/pull/39)
+  [`1784dd4`](https://github.com/sQVe/koja/commit/1784dd415afc63c36d4940e12faf60333fff4fb0) Thanks
+  [@sQVe](https://github.com/sQVe)! - Draw every pane of the focused tab in the terminal client at
+  its layout rectangle. When a tab has two or more panes, each pane gets its own thin frame with one
+  blank column between side-by-side frames, and the focused pane's frame is drawn in an accent
+  color. A tab with one pane has no frame and fills the whole area. Resizing the terminal redraws
+  each pane at its new size.
+
+- [#59](https://github.com/sQVe/koja/pull/59)
+  [`5d99475`](https://github.com/sQVe/koja/commit/5d99475ce29ac7b1fa97694804bdeebf252cd4af) Thanks
+  [@sQVe](https://github.com/sQVe)! - Forward the mouse from `koja attach` to the pane under the
+  pointer. The client turns on mouse reporting in the outer terminal and turns it off on detach. A
+  pane gets clicks, drags, motion, and the wheel at its own coordinates when it asked for them. A
+  drag and the release go to the pane where the press started. A left click focuses the pane,
+  workspace, or tab under the pointer. A click on an unfocused pane that asked for the mouse also
+  reaches that pane. Keys typed after a click on a pane or workspace wait until the focus changes.
+
+- [#41](https://github.com/sQVe/koja/pull/41)
+  [`1636cde`](https://github.com/sQVe/koja/commit/1636cdea3dc2a78d2a354dc1d1865892860de018) Thanks
+  [@sQVe](https://github.com/sQVe)! - The server saves its workspaces, tabs, splits, zoom, and focus
+  after every change and on stop, and restores them on its next start on the same socket path. Each
+  pane starts a new shell in its workspace root. A save file that is broken or from a newer version
+  is logged, and the server starts with no workspace.
+
+- [#44](https://github.com/sQVe/koja/pull/44)
+  [`6effe17`](https://github.com/sQVe/koja/commit/6effe179e81e0f7e317bb182b1bad7c1c7e13d9a) Thanks
+  [@sQVe](https://github.com/sQVe)! - Start a new split pane or tab in the folder of the pane it
+  comes from. The folder is the running command's folder, else the shell's folder. When that folder
+  is deleted or cannot be entered, the pane starts in the workspace root. This applies to the `s`,
+  `v`, and `t` keys, `koja pane split`, and `koja tab create`.
+
+  Add `--cwd <dir>` to `koja pane split` and `koja tab create` to start the new pane in a chosen
+  folder. A relative path resolves against the folder the command runs in. A path that is not a
+  directory is refused, and nothing is created.
+
+- [#73](https://github.com/sQVe/koja/pull/73)
+  [`b74d453`](https://github.com/sQVe/koja/commit/b74d453cb14d3e76679119f82050576e38e451a9) Thanks
+  [@sQVe](https://github.com/sQVe)! - Add Koja mode keys for panes. After `Ctrl-b`, `s` splits the
+  focused pane below, `v` splits it to the right, `h` and `l` focus the previous and next pane in
+  the tab, and `x` closes the focused pane.
+
+- [#45](https://github.com/sQVe/koja/pull/45)
+  [`7c2f7c5`](https://github.com/sQVe/koja/commit/7c2f7c5839a78d22c20ce2e75924f9d60acdc934) Thanks
+  [@sQVe](https://github.com/sQVe)! - `koja pane read` reads pane history. Choose rows with
+  `--source visible|recent|recent-unwrapped` and `--lines <n>`, or read a stable row range with
+  `--from <row> --to <row>`. The default source is `recent`, the last 80 rows, where it was the
+  visible screen. `recent-unwrapped` joins lines that the terminal wrapped. A read comes from one
+  snapshot of the pane, sent in parts, so it stays whole while the pane writes. A selection over 16
+  MiB of encoded rows is read in several snapshots, and fails if the pane switches between its
+  primary and alternate screens between them. A range below the oldest kept row fails with that row
+  number. `--json` now prints `pane`, `source`, `epoch`, `oldest`, `from`, `to`, and `lines`, where
+  it printed `pane` and `rows`.
+
+- [#61](https://github.com/sQVe/koja/pull/61)
+  [`e4401f8`](https://github.com/sQVe/koja/commit/e4401f8a976d6fa9112be58dae81cdf8b5cf960c) Thanks
+  [@sQVe](https://github.com/sQVe)! - Add `koja pane scroll <id> --to top|bottom|<row>` to scroll a
+  client's view of a pane's history. It moves the foreground client, or the client named by
+  `--client`. `koja client list` shows each client's scrolled panes.
+
+- [#20](https://github.com/sQVe/koja/pull/20)
+  [`a1a26be`](https://github.com/sQVe/koja/commit/a1a26be1f5a9c4afabe4c9c30567ad126b2fb5b4) Thanks
+  [@sQVe](https://github.com/sQVe)! - Add the socket protocol. Rows and input use a binary codec,
+  and control messages are checked JSON. Every connection starts with a version handshake, and a
+  client and server from different builds refuse each other with an error that names both versions.
+
+- [#34](https://github.com/sQVe/koja/pull/34)
+  [`7f3c695`](https://github.com/sQVe/koja/commit/7f3c695d961d49fcd5f1b9c06ced98267ca5fe01) Thanks
+  [@sQVe](https://github.com/sQVe)! - `koja server stop` now ends every process a pane started, even
+  one that called `setsid`. Koja starts each pane's shell in its own systemd user scope and ends the
+  scope when the server stops. Without a systemd user manager, stop ends the shell's session as
+  before, and a process that called `setsid` can survive. The server log says which of the two it
+  uses. A process you detach in a pane now ends when the server stops. To keep one, start it outside
+  the pane, such as with `systemd-run --user`.
+
+- [#24](https://github.com/sQVe/koja/pull/24)
+  [`be1f1b9`](https://github.com/sQVe/koja/commit/be1f1b9b6d448420af05e8aa4bc92e0045ba20b5) Thanks
+  [@sQVe](https://github.com/sQVe)! - Add `koja pane read` to print the pane's visible rows and
+  `koja pane send <text>` to send text to its shell. Both commands support `--socket` and `--json`,
+  and work without a terminal client attached. Agent reads leave pending row updates available to
+  terminal clients.
+
+  Send binary row updates to terminal clients after the welcome and store snapshot. Connections
+  without a terminal size receive the state feed but no row updates.
+
+  Refuse pane commands from another build with both Koja versions and Ghostty commits. The error
+  explains that `koja server stop` followed by `koja` restarts the server and ends every pane.
+
+- [#14](https://github.com/sQVe/koja/pull/14)
+  [`e225fe0`](https://github.com/sQVe/koja/commit/e225fe0376430ac8601b47b5ba6b68d64e23b1aa) Thanks
+  [@sQVe](https://github.com/sQVe)! - Add the server store. It holds one pane and the attached
+  client, changes them only through pure transitions, and reports each change in a revisioned feed.
+
+- [#24](https://github.com/sQVe/koja/pull/24)
+  [`065f32f`](https://github.com/sQVe/koja/commit/065f32f41757b30921112f6d81ba29826ca2d2f3) Thanks
+  [@sQVe](https://github.com/sQVe)! - Send a store snapshot after welcoming a connection, then
+  publish each store change with its own revision. Connections can request a fresh snapshot with
+  `resync` after a missed change.
+
+- [#58](https://github.com/sQVe/koja/pull/58)
+  [`119eae8`](https://github.com/sQVe/koja/commit/119eae85bd654d1f6959edf9697a6d554af22f21) Thanks
+  [@sQVe](https://github.com/sQVe)! - Add `koja pane move <id>` with one of `--tab <id>`,
+  `--new-tab`, or `--new-workspace`. The pane keeps its process and its id, and takes the focus at
+  its destination. `--new-workspace` roots the workspace at the pane's current folder. In Koja mode,
+  `!` moves the focused pane to a new tab in its workspace.
+
+- [#57](https://github.com/sQVe/koja/pull/57)
+  [`fa6fa3d`](https://github.com/sQVe/koja/commit/fa6fa3d53f8d4dfb8c8ce3175b3e5856dfdee647) Thanks
+  [@sQVe](https://github.com/sQVe)! - Add `koja tab rename <id> <label>`. A tab label shows in
+  `koja tab list` as `label`, and in the status bar of `koja attach` as `<number>:<label>`, such as
+  `[2:build]`. The label survives a server restart.
+
+- [#57](https://github.com/sQVe/koja/pull/57)
+  [`fa6fa3d`](https://github.com/sQVe/koja/commit/fa6fa3d53f8d4dfb8c8ce3175b3e5856dfdee647) Thanks
+  [@sQVe](https://github.com/sQVe)! - Print JSON by default for
+  `koja workspace list|create|focus|rename|close`, `koja tab list|create|focus|close`, and
+  `koja pane list|split|focus|zoom|resize|close|process-info`. `--json` is still accepted and prints
+  the same JSON. `koja pane read` and `koja pane send` keep text output by default.
+
+- [#52](https://github.com/sQVe/koja/pull/52)
+  [`aada21b`](https://github.com/sQVe/koja/commit/aada21b19c08ad0b8ea59af98a7398be62c278a1) Thanks
+  [@sQVe](https://github.com/sQVe)! - Start each pane's shell with `KOJA_SOCKET_PATH`,
+  `KOJA_PANE_ID`, `KOJA_TAB_ID`, `KOJA_WORKSPACE_ID`, and related variables. Inside a pane, `koja`
+  commands reach that pane's server without `--socket`. `--socket` still wins. `koja` takes no
+  default pane or workspace from the pane it runs in.
+
+- [#73](https://github.com/sQVe/koja/pull/73)
+  [`b74d453`](https://github.com/sQVe/koja/commit/b74d453cb14d3e76679119f82050576e38e451a9) Thanks
+  [@sQVe](https://github.com/sQVe)! - Add `koja --version`, which prints the Koja version and the
+  Ghostty commit of the terminal library. Add `--json` for a parseable form. The `koja` binary
+  bundles the terminal library and runs without other files.
+
+- [#37](https://github.com/sQVe/koja/pull/37)
+  [`1bafad4`](https://github.com/sQVe/koja/commit/1bafad4fa611fa0436d691f549a7406d4c4087a8) Thanks
+  [@sQVe](https://github.com/sQVe)! - Show a side list of workspaces in the attached client, with
+  the focused one marked. Panes are now 20 columns narrower. In normal mode, `j` and `k` focus the
+  next and previous workspace and wrap at the ends, `c` creates a workspace in the directory `koja`
+  started in, and `X` closes the focused workspace.
+
+- [#73](https://github.com/sQVe/koja/pull/73)
+  [`b74d453`](https://github.com/sQVe/koja/commit/b74d453cb14d3e76679119f82050576e38e451a9) Thanks
+  [@sQVe](https://github.com/sQVe)! - Run `koja` with no command to attach to the server, and start
+  the server first when none runs. When two `koja` runs start at once, the one that loses the socket
+  lock attaches to the server that won. Press Ctrl+B then `d`, or run `koja detach`, to detach and
+  leave the shell running. A new `koja` reattaches and shows the same screen. A second client that
+  attaches takes over from the first, and the first exits with a message. Exiting the shell stops
+  the server and the client.
+
+- [#31](https://github.com/sQVe/koja/pull/31)
+  [`d0a4d9c`](https://github.com/sQVe/koja/commit/d0a4d9cfd45a0705cb40a7f0df164a4cf1758278) Thanks
+  [@sQVe](https://github.com/sQVe)! - Send keys and paste from `koja attach` to the pane. Insert
+  mode sends every key, and Ctrl+B enters normal mode, where `i` or Escape returns to insert and
+  Ctrl+B sends a literal Ctrl+B. The status bar shows `INSERT` or `NORMAL`. Escape reaches the pane
+  at once, and Alt plus a non-ASCII key arrives intact. Cursor keys follow the pane's application
+  cursor mode, and paste uses bracketed paste markers when the pane asks for them.
+
+- [#62](https://github.com/sQVe/koja/pull/62)
+  [`acbfad2`](https://github.com/sQVe/koja/commit/acbfad23c69f4078465fd0a83bad09671be1f3c5) Thanks
+  [@sQVe](https://github.com/sQVe)! - Add `koja pane copy <id> --from <row>:<col> --to <row>:<col>`
+  to copy a range of pane history to the foreground client's clipboard. Rows are stable row numbers
+  and columns start at 0. With `--print`, the command writes the text to stdout and needs no client.
+
+- [#61](https://github.com/sQVe/koja/pull/61)
+  [`e4401f8`](https://github.com/sQVe/koja/commit/e4401f8a976d6fa9112be58dae81cdf8b5cf960c) Thanks
+  [@sQVe](https://github.com/sQVe)! - Draw a pane from its scroll position. The client fetches
+  history rows it lacks from the server, keeps the rows on screen in its cache, and holds the view
+  in place while new output arrives.
+
+### Patch Changes
+
+- [#78](https://github.com/sQVe/koja/pull/78)
+  [`c4525e5`](https://github.com/sQVe/koja/commit/c4525e524ef23604a9de896d5611e77c8319bfdf) Thanks
+  [@sQVe](https://github.com/sQVe)! - Fail only one pane when handling its output throws. The pane
+  shows as `failed` with the error, and the server keeps serving the other panes instead of ending.
+
+- [#93](https://github.com/sQVe/koja/pull/93)
+  [`4031ff0`](https://github.com/sQVe/koja/commit/4031ff01fc642aa05e3b7618a94a5aa8cc527816) Thanks
+  [@sQVe](https://github.com/sQVe)! - Limit reads waiting for synchronized pane output to 64 per
+  pane across connections. Extra reads fail without replacing an accepted read or its snapshot.
+  Disconnecting frees waiting read capacity. The CLI reports overload without retrying. Attached
+  scroll reads wait for later activity after overload instead of requesting the same rows again
+  immediately.
+
+- [#88](https://github.com/sQVe/koja/pull/88)
+  [`7316dc9`](https://github.com/sQVe/koja/commit/7316dc991d6f7a7436725dd84c81598e3abfb9f0) Thanks
+  [@sQVe](https://github.com/sQVe)! - Pane programs can now copy more than 128 KiB of text with
+  OSC 52.
+
+- [#63](https://github.com/sQVe/koja/pull/63)
+  [`cf2c278`](https://github.com/sQVe/koja/commit/cf2c27898e914609935b9d3c9390e31ebce4e8fc) Thanks
+  [@sQVe](https://github.com/sQVe)! - The focused pane shows its cursor with the terminal's own
+  cursor, in the shape and blink the program set with DECSCUSR. It hides when the program hides its
+  cursor or the pane is scrolled. Unfocused panes still draw their cursor as an inverse cell.
+
+- [#96](https://github.com/sQVe/koja/pull/96)
+  [`bddea37`](https://github.com/sQVe/koja/commit/bddea37bc61e703ffd9d21e758c256f5e791623f) Thanks
+  [@sQVe](https://github.com/sQVe)! - Route normal-mode keys through one action catalog. A key bound
+  to an action that the current view cannot run, such as `j` with one workspace, now does nothing
+  instead of sending a request.
+
+  In normal mode, `/` opens action search and `?` opens the shortcut help. Typing filters the search
+  by title or id, Up and Down select a result, and Enter runs it. Up and Down scroll the help.
+  Unavailable results show as unavailable and do nothing. Escape closes either view. While a view is
+  open, typed text, paste, and mouse input do not reach the pane.
+
+  `koja action list` prints every action with its keys, whether the CLI can run it, and whether it
+  is available. `koja action run <id>` runs one action by name. Use `--pane` with a `pane.*` action,
+  and `--workspace` with a `workspace.*` or `tab.*` action other than `workspace.create`, to pick
+  the target. Both take `--json`.
+
+- [#40](https://github.com/sQVe/koja/pull/40)
+  [`16da8dc`](https://github.com/sQVe/koja/commit/16da8dc79b762a5e64815ea123c8ba9ca17126f7) Thanks
+  [@sQVe](https://github.com/sQVe)! - Fix a black box that showed below a pane for a moment after it
+  grew, such as on zoom or when a sibling pane closed. New rows now use the default background until
+  the server sends their content.
+
+- [#102](https://github.com/sQVe/koja/pull/102)
+  [`b7823fb`](https://github.com/sQVe/koja/commit/b7823fbc4065326161ea2f32b6bac8160ccae812) Thanks
+  [@sQVe](https://github.com/sQVe)! - Save the session durably. Each save syncs the temporary file,
+  renames it over the session file, and syncs the folder, so a crash or power loss leaves the
+  complete old or the complete new session. A failed save is logged, and a failed final save makes
+  the server's stop report a cleanup failure instead of success.
+
+- [#50](https://github.com/sQVe/koja/pull/50)
+  [`96730f7`](https://github.com/sQVe/koja/commit/96730f706bd91285e99afea7e326c90d4714f2d2) Thanks
+  [@sQVe](https://github.com/sQVe)! - A restored shell no longer starts in a folder that only shares
+  the name of its deleted folder.
+
+- [#101](https://github.com/sQVe/koja/pull/101)
+  [`ea3bfd5`](https://github.com/sQVe/koja/commit/ea3bfd5daaf2f515b283a97d2328fa708d738652) Thanks
+  [@sQVe](https://github.com/sQVe)! - Saved sessions now keep each tab's layout choice and pane
+  order. A session file saved by an older Koja still restores with the same splits, panes, focus,
+  and zoom, and an older Koja can still read the splits of a new save.
+
+- [#32](https://github.com/sQVe/koja/pull/32)
+  [`82052e8`](https://github.com/sQVe/koja/commit/82052e8cb4f3c875fd3c78070b0a736d01bcfd70) Thanks
+  [@sQVe](https://github.com/sQVe)! - Show the palette and default colors a program sets with OSC 4,
+  10, and 11 in `koja attach`.
+
+- [#104](https://github.com/sQVe/koja/pull/104)
+  [`f661883`](https://github.com/sQVe/koja/commit/f6618838591de5a6cac3a79cfea3ce7e8f5a6ac5) Thanks
+  [@sQVe](https://github.com/sQVe)! - `koja pi status` now lists why a pi cannot be recovered. JSON
+  adds `ineligibleReasons`, and text adds a `recovery` line that gives the reasons in plain words.
+  Text output names the state, so `reported`, `switching`, and `lost` each show their state.
+
+- [#112](https://github.com/sQVe/koja/pull/112)
+  [`421e07c`](https://github.com/sQVe/koja/commit/421e07c28b996a1d44b258554894be7298ad49c5) Thanks
+  [@sQVe](https://github.com/sQVe)! - Master tabs now rotate their panes forward or backward, and
+  the new master pane takes the focus. In a zoomed tab, focusing, adding, or splitting a pane moves
+  the zoom to the pane that takes the focus instead of unzooming the tab. Focus can also move to the
+  neighboring pane on the left, right, up, or down. Moving past the edge of the tab does nothing,
+  and a zoomed tab keeps its zoom on the new pane.
+
+  Use `koja pane rotate <id> --direction forward|backward` to rotate a master tab, and
+  `koja pane focus <id> --direction left|right|up|down` to move focus. The action search lists the
+  same actions as Rotate panes forward, Rotate panes backward, and Focus pane left, right, up, or
+  down.
+
+- [#87](https://github.com/sQVe/koja/pull/87)
+  [`4864417`](https://github.com/sQVe/koja/commit/4864417b9653cfc2c6e7cc27f2f642fd55dce502) Thanks
+  [@sQVe](https://github.com/sQVe)! - Name only the commands that accept an option when a command
+  refuses it, for example `--pane belongs to pane send.` for `pane move`. Report `pane list` extra
+  arguments with `pane list takes no arguments.`
+
+- [#60](https://github.com/sQVe/koja/pull/60)
+  [`f7a9779`](https://github.com/sQVe/koja/commit/f7a977932d7669e3cad287687c52841729da370b) Thanks
+  [@sQVe](https://github.com/sQVe)! - Pass a pane's bell to the terminal of the foreground client,
+  and pass a pane's clipboard write (OSC 52) to its clipboard. Koja copies with wl-copy, xclip, or
+  xsel when it can, and writes OSC 52 over SSH or when no tool works.
+
+- [#97](https://github.com/sQVe/koja/pull/97)
+  [`4a5ffe7`](https://github.com/sQVe/koja/commit/4a5ffe7f81a60b7aafd12ff8ba23bd77e54d142a) Thanks
+  [@sQVe](https://github.com/sQVe)! - Add a pi extension in `extensions/pi/koja.ts` that reports
+  each pi conversation to its Koja pane with `koja pi report`, so `koja pi status` shows it. Load it
+  with `pi -e extensions/pi/koja.ts`. It draws nothing and does nothing outside a Koja pane.
+
+- [#32](https://github.com/sQVe/koja/pull/32)
+  [`82052e8`](https://github.com/sQVe/koja/commit/82052e8cb4f3c875fd3c78070b0a736d01bcfd70) Thanks
+  [@sQVe](https://github.com/sQVe)! - Answer OSC 4, 10, and 11 color queries in the pane with the
+  colors of the attached client's terminal. Panes keep white on black until a client reports its
+  colors.
+
+- [#107](https://github.com/sQVe/koja/pull/107)
+  [`b476d6f`](https://github.com/sQVe/koja/commit/b476d6fa8cfe9c7167c428fce88d81fd249dd2d2) Thanks
+  [@sQVe](https://github.com/sQVe)! - Keep each mouse gesture bound to the input mode, pane, and
+  pane process of its press. In normal and scroll mode, a click selects the pane and keeps the mode,
+  and the program in the pane gets no click, drag, or release. The wheel still reaches it. In insert
+  mode, a press, its drags, and its release all go to the pressed pane, also when the mode, focus,
+  or an open view changes in between. A release never reaches a pane that did not get its press, or
+  a pane that was replaced. Detaching during a held click first sends the program its release.
+
+- [#97](https://github.com/sQVe/koja/pull/97)
+  [`4a5ffe7`](https://github.com/sQVe/koja/commit/4a5ffe7f81a60b7aafd12ff8ba23bd77e54d142a) Thanks
+  [@sQVe](https://github.com/sQVe)! - The server checks pi reports against a fresh pass for each
+  pane start and a live process in that pane. Refused reports leave the shell and earlier record
+  unchanged. Status replies show a pi identity only while its process still runs.
+
+- [#18](https://github.com/sQVe/koja/pull/18)
+  [`abd2870`](https://github.com/sQVe/koja/commit/abd287080ca18e643047042670bbebe3c71fdab5) Thanks
+  [@sQVe](https://github.com/sQVe)! - A program's DECCOLM sequence no longer clears the pane unless
+  the program turned on mode 40 first.
+
+- [#97](https://github.com/sQVe/koja/pull/97)
+  [`4a5ffe7`](https://github.com/sQVe/koja/commit/4a5ffe7f81a60b7aafd12ff8ba23bd77e54d142a) Thanks
+  [@sQVe](https://github.com/sQVe)! - The server can keep a pi report record for each pane, bound to
+  the pi process that sent it. The protocol carries pi reports and their replies. No screen or
+  command shows the records yet.
+
+- [#63](https://github.com/sQVe/koja/pull/63)
+  [`cf2c278`](https://github.com/sQVe/koja/commit/cf2c27898e914609935b9d3c9390e31ebce4e8fc) Thanks
+  [@sQVe](https://github.com/sQVe)! - Panes now draw strikethrough, blink, and invisible text.
+
+- [#106](https://github.com/sQVe/koja/pull/106)
+  [`58735df`](https://github.com/sQVe/koja/commit/58735df4c622f1b330ef2e0e4ab3bfb0f36dc94b) Thanks
+  [@sQVe](https://github.com/sQVe)! - Draw the status bar, the workspace list, the action overlay,
+  and the empty-workspace hint in the terminal's default text and background colors instead of fixed
+  white text on black.
+
+- [#81](https://github.com/sQVe/koja/pull/81)
+  [`0ae5c67`](https://github.com/sQVe/koja/commit/0ae5c67fa7faff7780d4462e28aad979708d261e) Thanks
+  [@sQVe](https://github.com/sQVe)! - Ignore a kitty key whose text is `constructor`, `toString`, or
+  another built-in object property name in normal mode. It moved to the previous workspace before.
+
+- [#77](https://github.com/sQVe/koja/pull/77)
+  [`eaed0ea`](https://github.com/sQVe/koja/commit/eaed0ea8ab21618259cebbadd5f95a4c4f4ce807) Thanks
+  [@sQVe](https://github.com/sQVe)! - Fix a stack buffer overflow in the terminal library each time
+  the server read pane rows, such as for `koja pane read` or a scrolled terminal client.
+
+- [#95](https://github.com/sQVe/koja/pull/95)
+  [`b7d64cc`](https://github.com/sQVe/koja/commit/b7d64cc58c1f4f2058e42e50790336a0b2bf8b19) Thanks
+  [@sQVe](https://github.com/sQVe)! - Add the master layout's pane geometry, which keeps the first
+  pane at half the width. The running app still uses its current layout, so nothing looks different
+  yet.
+
+- [#97](https://github.com/sQVe/koja/pull/97)
+  [`4a5ffe7`](https://github.com/sQVe/koja/commit/4a5ffe7f81a60b7aafd12ff8ba23bd77e54d142a) Thanks
+  [@sQVe](https://github.com/sQVe)! - Add `koja pi report` and `koja pi status <pane>`. Inside a
+  pane, `koja pi report` reads one JSON report from stdin and sends it with the pane's
+  `KOJA_REPORT_TOKEN`. It checks the report before it connects and never takes or prints the pass.
+  `koja pi status` prints the pane's pi conversation, or that it changed, in text or with `--json`.
+  Its `reportedLeafId` is where the conversation stood when pi reported, not its latest message.
+  Every pi is marked not eligible for recovery.
+
+- [#102](https://github.com/sQVe/koja/pull/102)
+  [`b7823fb`](https://github.com/sQVe/koja/commit/b7823fbc4065326161ea2f32b6bac8160ccae812) Thanks
+  [@sQVe](https://github.com/sQVe)! - `koja server stop` now reports a failed final save. It prints
+  the server message to stderr and exits 1 instead of printing `{"stopped":true}`. Stopping a server
+  of an older build works as before.
+
+- [#83](https://github.com/sQVe/koja/pull/83)
+  [`2d7ca9b`](https://github.com/sQVe/koja/commit/2d7ca9beaf1ebf26f394291053d197e4661be8af) Thanks
+  [@sQVe](https://github.com/sQVe)! - Fix log rotation when several servers share one state
+  directory. Each server now writes its own log at `$XDG_STATE_HOME/koja/logs/<key>.log`, one file
+  per socket, instead of the shared `koja/server.log`.
+
+- [#113](https://github.com/sQVe/koja/pull/113)
+  [`7c7f778`](https://github.com/sQVe/koja/commit/7c7f7786dd12ec422584a5c25a4d06ce459d34bb) Thanks
+  [@sQVe](https://github.com/sQVe)! - Keep a workspace when its last pane closes or exits. Empty
+  workspaces survive a server restart without starting a shell and accept new tabs. An empty
+  workspace shows how to create a tab, and holding the close key closes only one pane.
+
+- [#43](https://github.com/sQVe/koja/pull/43)
+  [`59376c8`](https://github.com/sQVe/koja/commit/59376c86b710c42499db33d3311408541e656cd1) Thanks
+  [@sQVe](https://github.com/sQVe)! - Closing the focused tab now shows the previous tab, or the
+  next one when the first tab closed, as herdr does. Client views on the closed tab follow the new
+  tab of the default view.
+
+- [#85](https://github.com/sQVe/koja/pull/85)
+  [`6971d1d`](https://github.com/sQVe/koja/commit/6971d1dbb9c18656df4a1ef0089a39a8a3707036) Thanks
+  [@sQVe](https://github.com/sQVe)! - Set the owner-only mode on the session's temporary file before
+  writing session data to it. A world-readable temporary file left by a crash no longer exposes the
+  session while it is saved.
+
+- [#55](https://github.com/sQVe/koja/pull/55)
+  [`4ce5547`](https://github.com/sQVe/koja/commit/4ce55476834d67fb0bf072605e5bcee428d5a36f) Thanks
+  [@sQVe](https://github.com/sQVe)! - `koja tab create` now adds the tab without moving focus, as
+  herdr does. Pass `--focus` to show the new tab. `--no-focus` is accepted and keeps the default.
+  The new-tab key in `koja attach` still shows the new tab.
+
+- [#104](https://github.com/sQVe/koja/pull/104)
+  [`f661883`](https://github.com/sQVe/koja/commit/f6618838591de5a6cac3a79cfea3ce7e8f5a6ac5) Thanks
+  [@sQVe](https://github.com/sQVe)! - Follow pi through session switches, tree moves, model and
+  thinking changes, and quit. `koja pi status` now shows the conversation pi switched to instead of
+  a changed state. While a switch is in progress it shows `switching`. After pi quits it shows no
+  pi, and after pi stops without quitting it shows `lost` with its last conversation.
+  `recoveryEligible` is true for a saved interactive session. The server ignores reports that arrive
+  out of order. On quit, pi waits up to 2 seconds for its last report, so a slow report no longer
+  makes a clean quit show as `lost`.
+
+- [#90](https://github.com/sQVe/koja/pull/90)
+  [`9e832ee`](https://github.com/sQVe/koja/commit/9e832ee856674eb9206de5775dba8fe724cce859) Thanks
+  [@sQVe](https://github.com/sQVe)! - Fix client attach and list commands after restoring sessions
+  saved without tab labels.
+
+- [#113](https://github.com/sQVe/koja/pull/113)
+  [`7c7f778`](https://github.com/sQVe/koja/commit/7c7f7786dd12ec422584a5c25a4d06ce459d34bb) Thanks
+  [@sQVe](https://github.com/sQVe)! - Keep an existing empty workspace when its first new tab fails
+  to start. Restore the previous focus and zoom when adding a master-layout pane fails.
+
+- [#102](https://github.com/sQVe/koja/pull/102)
+  [`b7823fb`](https://github.com/sQVe/koja/commit/b7823fbc4065326161ea2f32b6bac8160ccae812) Thanks
+  [@sQVe](https://github.com/sQVe)! - Preserve a session file the server cannot use. When the server
+  starts with a broken file or one from a newer version, the first save copies that file to a new
+  owner-only file next to it before it replaces the file. A save is refused while the copy fails,
+  and preserved files are never deleted automatically.
+
+- [#30](https://github.com/sQVe/koja/pull/30)
+  [`4c33782`](https://github.com/sQVe/koja/commit/4c3378270050c589abb5357984236f12e78063e7) Thanks
+  [@sQVe](https://github.com/sQVe)! - Pace row updates to a slow `koja attach` client. The client
+  acks each row update after it draws it, and the server stops sending to a client that falls too
+  far behind instead of buffering without limit.
+
+- [#80](https://github.com/sQVe/koja/pull/80)
+  [`9c19e24`](https://github.com/sQVe/koja/commit/9c19e245c9c51b006acfb353113749687c1dc081) Thanks
+  [@sQVe](https://github.com/sQVe)! - Fix tab clicks in the status bar when an earlier tab label has
+  wide characters or emoji. Koja now measures labels in terminal cells, so a click selects the tab
+  under the cursor.
+
+- [#97](https://github.com/sQVe/koja/pull/97)
+  [`4a5ffe7`](https://github.com/sQVe/koja/commit/4a5ffe7f81a60b7aafd12ff8ba23bd77e54d142a) Thanks
+  [@sQVe](https://github.com/sQVe)! - Report pi's conversation again when `/tree` selects another
+  branch, so `koja pi status` shows that the conversation changed instead of the old branch.
+
+- [#109](https://github.com/sQVe/koja/pull/109)
+  [`0f60258`](https://github.com/sQVe/koja/commit/0f60258be846636d69d7c2b955029590da0d5f55) Thanks
+  [@sQVe](https://github.com/sQVe)! - Send the mouse release to the pane that got the press, even
+  when you switch tabs while holding the button. The release used to be dropped, so a program could
+  think the button was still held.
