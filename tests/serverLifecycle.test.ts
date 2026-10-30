@@ -19,6 +19,9 @@ import {
   createWorkspace,
   startServer,
   logLinesOf,
+  startEmptyServer,
+  nextPaneResize,
+  receiveText,
 } from './serverHarness.ts';
 
 const isRoot = process.getuid?.() === 0;
@@ -179,6 +182,49 @@ it('parses what the shell writes to its PTY', async () => {
   // The PTY echoes the command, and a shell without line editing prints its prompt before the
   // output, so look for text only the command's output holds.
   await waitFor(() => server.paneText()?.includes('koja-42') === true);
+});
+
+it('a child exit keeps the shell pane and a root exit removes it', async () => {
+  const directory = await temporaryDirectory();
+  const { server, socketPath } = await startEmptyServer(directory);
+
+  expect((await createWorkspace(socketPath, directory, 'shell')).type).toBe('workspaceDone');
+
+  // The server stops sending after eight unacknowledged updates, so the terminal acknowledges each one.
+  const terminal = await connect(socketPath, { acknowledgeUpdates: true });
+  const rows = new Map<number, string>();
+
+  terminal.send({ type: 'hello', version: build, size: { columns: 100, rows: 30 } });
+  await nextPaneResize(terminal);
+
+  const identity = () => server.snapshot().panes.map(({ id, generation }) => ({ id, generation }));
+
+  // The echoed command holds `root-$$`, which has no digits, so the match is the shell's PID.
+  server.writeToPane('echo root-$$\n');
+  await waitFor(() => /root-\d+/.test(server.paneText() ?? ''));
+
+  const rootProcessId = Number(/root-(\d+)/.exec(server.paneText() ?? '')?.[1]);
+  const before = identity();
+
+  expect(before).toHaveLength(1);
+
+  server.writeToPane('sh -c \'sleep 0.2; printf "child-%s\\n" done\'\n');
+  await receiveText(terminal, rows, 'child-done');
+
+  server.writeToPane("printf 'shell-%s\\n' alive\n");
+  await receiveText(terminal, rows, 'shell-alive');
+
+  expect(identity()).toEqual(before);
+  expect(server.snapshot().panes[0]?.lifecycle).toBe('running');
+
+  server.writeToPane('exit\n');
+  await waitFor(() => server.snapshot().panes.length === 0);
+  await waitFor(() => !processExists(rootProcessId));
+
+  expect(server.snapshot().panes).toEqual([]);
+  expect(processExists(rootProcessId)).toBe(false);
+  expect(server.snapshot().workspaces).toMatchObject([{ tabIds: [] }]);
+  expect(server.snapshot().tabs).toEqual([]);
 });
 
 it('ends a pane job that ignores SIGHUP within the bounded wait and removes the socket', async () => {
