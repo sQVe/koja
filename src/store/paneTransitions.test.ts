@@ -2,7 +2,7 @@ import { expect, it } from 'bun:test';
 
 import { clientId, paneId, tabId, workspaceId } from '../ids.ts';
 import type { PaneId } from '../ids.ts';
-import { layoutPaneIds, masterPanes } from '../layout.ts';
+import { layoutPaneIds, masterPanes, removePane } from '../layout.ts';
 import {
   activeTabOf,
   applyFact,
@@ -11,7 +11,7 @@ import {
   focusedPane,
   savedSessionOf,
 } from './store.ts';
-import type { Fact, Ignored, Intent, State } from './store.ts';
+import type { Fact, Ignored, Intent, State, Tab } from './store.ts';
 import {
   addPane,
   attachLarge,
@@ -52,6 +52,13 @@ const splitPaneOf = (id: number, direction: 'below' | 'right'): Intent => ({
 
 const nestedState = (): State =>
   runLegacy([createKoja, attachLarge, splitFirst('right'), splitPaneOf(1, 'below')]);
+
+const expectPaneInserted = (before: Tab, after: Tab, added: PaneId): void => {
+  expect(removePane(after.layout, added)?.layout).toEqual(before.layout);
+  const existing = after.arrangement.order.filter((id) => id !== added);
+
+  expect(existing).toEqual([...before.arrangement.order]);
+};
 
 it('ignores the exit of a pane that a closed workspace removed, and names it for disposal', () => {
   const state = run([createKoja, { type: 'closeWorkspace', workspaceId: workspaceId(1) }]);
@@ -592,18 +599,21 @@ it('keeps the size of a hidden pane while the client resizes, and refits it on u
   expect(intent(resized.state, zoom(1)).state.panes[1]?.size).toEqual({ columns: 18, rows: 22 });
 });
 
-it('unzooms when the zoomed pane is split', () => {
+it('zooms the new pane when the zoomed pane is split', () => {
   const state = runLegacy([createKoja, attachLarge, splitFirst('right'), zoom(1)]);
+  const before = defined(state.tabs[0]);
   const result = intent(state, splitPaneOf(1, 'below'));
+  const tab = defined(result.state.tabs[0]);
 
-  expect(result.state.tabs[0]?.zoomedPaneId).toBeUndefined();
-  expect(result.state.tabs[0]?.focusedPaneId).toBe(paneId(3));
-  expect(result.state.panes.every((pane) => pane.size.columns <= 38)).toBe(true);
+  expect(tab.zoomedPaneId).toBe(paneId(3));
+  expect(tab.focusedPaneId).toBe(paneId(3));
+  expect(result.state.panes[2]?.size).toEqual({ columns: 81, rows: 24 });
+  expectPaneInserted(before, tab, paneId(3));
 
   expect(result.changes).toContainEqual({
     type: 'tabZoomChanged',
     tabId: tabId(1),
-    zoomedPaneId: undefined,
+    zoomedPaneId: paneId(3),
   });
 });
 
@@ -660,6 +670,8 @@ it('leaves the tab unzoomed when the focus moved before a split pane failed to s
   const split = intent(zoomed, splitPaneOf(1, 'below')).state;
   const refocused = intent(split, { type: 'focusPane', paneId: paneId(2) }).state;
 
+  expect(refocused.tabs[0]?.zoomedPaneId).toBe(paneId(2));
+
   const result = fact(refocused, {
     type: 'paneFailedToStart',
     paneId: paneId(3),
@@ -685,24 +697,22 @@ it('unzooms when a pane closes', () => {
   });
 });
 
-it('unzooms when another pane takes the focus, but not when the zoomed pane does', () => {
+it('moves the zoom when another pane takes the focus, but not when the zoomed pane does', () => {
   const state = runLegacy([createKoja, attachLarge, splitFirst('right'), zoom(1)]);
   const same = intent(state, { type: 'focusPane', paneId: paneId(1) });
   const other = intent(state, { type: 'focusPane', paneId: paneId(2) });
 
   expect(same.state.tabs[0]?.zoomedPaneId).toBe(paneId(1));
   expect(same.changes).toEqual([]);
-  expect(other.state.tabs[0]?.zoomedPaneId).toBeUndefined();
+  expect(other.state.tabs[0]?.zoomedPaneId).toBe(paneId(2));
   expect(other.state.tabs[0]?.focusedPaneId).toBe(paneId(2));
 
-  expect(sizes(other.state)).toEqual(
-    sizes(runLegacy([createKoja, attachLarge, splitFirst('right')])),
-  );
+  expect(sizes(other.state)).toEqual(sizes(intent(state, zoom(2)).state));
 
   expect(other.changes).toEqual([
     { type: 'paneFocused', tabId: tabId(1), paneId: paneId(2) },
-    { type: 'tabZoomChanged', tabId: tabId(1), zoomedPaneId: undefined },
-    { type: 'paneResized', paneId: paneId(1), size: { columns: 38, rows: 22 } },
+    { type: 'tabZoomChanged', tabId: tabId(1), zoomedPaneId: paneId(2) },
+    { type: 'paneResized', paneId: paneId(2), size: { columns: 81, rows: 24 } },
   ]);
 });
 
@@ -1127,7 +1137,7 @@ const masterSizes = (state: State): Map<PaneId, string> => {
   );
 };
 
-it('appends an added pane to the master order, focuses it, and clears the zoom', () => {
+it('appends an added pane to the master order, focuses it, and zooms it', () => {
   const state = intent(masterState(), zoom(1)).state;
   const result = intent(state, addPane(1));
   const tab = defined(result.state.tabs[0]);
@@ -1138,9 +1148,9 @@ it('appends an added pane to the master order, focuses it, and clears the zoom',
   });
 
   expect(tab.focusedPaneId).toBe(paneId(3));
-  expect(tab.zoomedPaneId).toBeUndefined();
+  expect(tab.zoomedPaneId).toBe(paneId(3));
   expect(result.state.panes.map((pane) => pane.id)).toEqual([paneId(1), paneId(2), paneId(3)]);
-  expect(sizes(result.state)).toEqual(masterSizes(result.state));
+  expect(result.state.panes[2]?.size).toEqual({ columns: 81, rows: 24 });
 
   expect(result.changes).toContainEqual({
     type: 'paneFocused',
@@ -1151,7 +1161,7 @@ it('appends an added pane to the master order, focuses it, and clears the zoom',
   expect(result.changes).toContainEqual({
     type: 'tabZoomChanged',
     tabId: tabId(1),
-    zoomedPaneId: undefined,
+    zoomedPaneId: paneId(3),
   });
 });
 
@@ -1162,6 +1172,93 @@ it('returns the focus and zoom from before a master add when the added pane clos
 
   expect(closed.tabs[0]?.focusedPaneId).toBe(paneId(1));
   expect(closed.tabs[0]?.zoomedPaneId).toBe(paneId(1));
+});
+
+it('zooms the pane that takes the focus in a zoomed master tab', () => {
+  const zoomed = intent(masterState(), zoom(1)).state;
+  const before = defined(zoomed.tabs[0]);
+  const result = intent(zoomed, { type: 'focusPane', paneId: paneId(2) });
+  const tab = defined(result.state.tabs[0]);
+
+  expect(tab.focusedPaneId).toBe(paneId(2));
+  expect(tab.zoomedPaneId).toBe(paneId(2));
+  expect(tab.layout).toEqual(before.layout);
+  expect(tab.arrangement.order).toEqual(before.arrangement.order);
+
+  expect(result.changes).toContainEqual({
+    type: 'tabZoomChanged',
+    tabId: tabId(1),
+    zoomedPaneId: paneId(2),
+  });
+});
+
+it('zooms the pane that takes the focus in a zoomed legacy tab', () => {
+  const zoomed = runLegacy([createKoja, attachLarge, splitFirst('right'), zoom(1)]);
+  const before = defined(zoomed.tabs[0]);
+  const result = intent(zoomed, { type: 'focusPane', paneId: paneId(2) });
+  const tab = defined(result.state.tabs[0]);
+
+  expect(tab.focusedPaneId).toBe(paneId(2));
+  expect(tab.zoomedPaneId).toBe(paneId(2));
+  expect(tab.layout).toEqual(before.layout);
+  expect(tab.arrangement.order).toEqual(before.arrangement.order);
+
+  expect(result.changes).toContainEqual({
+    type: 'tabZoomChanged',
+    tabId: tabId(1),
+    zoomedPaneId: paneId(2),
+  });
+});
+
+it('zooms the added pane when a zoomed master tab adds a pane', () => {
+  const zoomed = intent(masterState(), zoom(1)).state;
+  const before = defined(zoomed.tabs[0]);
+  const result = intent(zoomed, addPane(1));
+  const tab = defined(result.state.tabs[0]);
+
+  expect(tab.focusedPaneId).toBe(paneId(3));
+  expect(tab.zoomedPaneId).toBe(paneId(3));
+  expectPaneInserted(before, tab, paneId(3));
+
+  expect(result.changes).toContainEqual({
+    type: 'tabZoomChanged',
+    tabId: tabId(1),
+    zoomedPaneId: paneId(3),
+  });
+});
+
+it('zooms the added pane when a zoomed legacy tab adds a pane', () => {
+  const zoomed = runLegacy([createKoja, attachLarge, splitFirst('right'), zoom(1)]);
+  const before = defined(zoomed.tabs[0]);
+  const result = intent(zoomed, addPane(1));
+  const tab = defined(result.state.tabs[0]);
+
+  expect(tab.focusedPaneId).toBe(paneId(3));
+  expect(tab.zoomedPaneId).toBe(paneId(3));
+  expectPaneInserted(before, tab, paneId(3));
+
+  expect(result.changes).toContainEqual({
+    type: 'tabZoomChanged',
+    tabId: tabId(1),
+    zoomedPaneId: paneId(3),
+  });
+});
+
+it('zooms the split pane when a zoomed legacy tab splits a pane', () => {
+  const zoomed = runLegacy([createKoja, attachLarge, splitFirst('right'), zoom(1)]);
+  const before = defined(zoomed.tabs[0]);
+  const result = intent(zoomed, splitPaneOf(2, 'below'));
+  const tab = defined(result.state.tabs[0]);
+
+  expect(tab.focusedPaneId).toBe(paneId(3));
+  expect(tab.zoomedPaneId).toBe(paneId(3));
+  expectPaneInserted(before, tab, paneId(3));
+
+  expect(result.changes).toContainEqual({
+    type: 'tabZoomChanged',
+    tabId: tabId(1),
+    zoomedPaneId: paneId(3),
+  });
 });
 
 it('adds a pane to a legacy tab as a split to the right of the pane', () => {

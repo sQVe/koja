@@ -18,6 +18,7 @@ import {
   setClientTheme,
 } from './clientTransitions.ts';
 import { movePane } from './paneMoveTransitions.ts';
+import { focusPaneInDirection } from './paneNavigationTransitions.ts';
 import {
   addPane,
   closePane,
@@ -32,7 +33,7 @@ import type { PiRecovery, RestoredPi, SavedPi } from './piRecoveryRecords.ts';
 import { piRecordOf } from './piReportTransitions.ts';
 import type { PiRecord } from './piReportTransitions.ts';
 import { restoreSession, stopServer } from './sessionTransitions.ts';
-import { setTabLayout } from './tabLayoutTransitions.ts';
+import { rotatePanes, setTabLayout } from './tabLayoutTransitions.ts';
 import { closeTab, createTab, focusTab, renameTab } from './tabTransitions.ts';
 import { propose } from './transitionOutcome.ts';
 import type { Outcome, Proposal } from './transitionOutcome.ts';
@@ -216,6 +217,7 @@ export type Intent =
   | { type: 'renameTab'; tabId: TabId; label: string }
   | { type: 'closeTab'; tabId: TabId }
   | { type: 'setTabLayout'; tabId: TabId; choice: LayoutChoice }
+  | { type: 'rotatePanes'; paneId: PaneId; direction: 'forward' | 'backward' }
   | { type: 'addPane'; paneId: PaneId; folder: string | undefined }
   | {
       type: 'splitPane';
@@ -224,6 +226,12 @@ export type Intent =
       folder: string | undefined;
     }
   | { type: 'focusPane'; paneId: PaneId; clientId?: ClientId }
+  | {
+      type: 'focusPaneInDirection';
+      paneId: PaneId;
+      direction: ResizeDirection;
+      clientId?: ClientId;
+    }
   | { type: 'closePane'; paneId: PaneId }
   | { type: 'movePane'; paneId: PaneId; destination: PaneDestination; clientId?: ClientId }
   | { type: 'zoomPane'; paneId: PaneId }
@@ -315,7 +323,9 @@ export type RejectReason =
   | 'paneTooSmall'
   | 'sameTab'
   | 'noSplit'
+  | 'noPaneInDirection'
   | 'requiresLegacyLayout'
+  | 'requiresMasterLayout'
   | 'staleGeneration';
 
 // Whatever an effect still holds for this pane generation, such as its process and PTY.
@@ -488,12 +498,16 @@ const transitionIntent = (state: State, intent: Intent): Outcome => {
       return closeTab(state, intent.tabId);
     case 'setTabLayout':
       return setTabLayout(state, intent.tabId, intent.choice);
+    case 'rotatePanes':
+      return rotatePanes(state, intent);
     case 'addPane':
       return addPane(state, intent);
     case 'splitPane':
       return splitPane(state, intent);
     case 'focusPane':
       return focusPane(state, intent.paneId, intent.clientId);
+    case 'focusPaneInDirection':
+      return focusPaneInDirection(state, intent);
     case 'movePane':
       return movePane(state, intent);
     case 'zoomPane':

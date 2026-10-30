@@ -21,7 +21,9 @@ type SplitDirection = Extract<PaneLayoutCommand, { action: 'split' }>['direction
 
 type ResizeDirection = Extract<PaneLayoutCommand, { action: 'resize' }>['direction'];
 
-type PaneLayoutAction = 'split' | 'add' | 'focus' | 'close' | 'zoom' | 'resize';
+type PaneLayoutAction = 'split' | 'add' | 'focus' | 'close' | 'zoom' | 'resize' | 'rotate';
+
+type RotateDirection = Extract<PaneLayoutCommand, { action: 'rotate' }>['direction'];
 
 type PaneCliAction =
   | PaneReadCommand
@@ -95,7 +97,8 @@ export const paneUsage = `  koja pane list [--socket <path>] [--json]
   koja pane split <id> --direction below|right [--cwd <dir>] [--socket <path>] [--json]
   koja pane add <id> [--cwd <dir>] [--socket <path>] [--json]
   koja pane move <id> --tab <id> | --new-tab | --new-workspace [--socket <path>] [--json]
-  koja pane focus <id> [--socket <path>] [--json]
+  koja pane focus <id> [--direction left|right|up|down] [--socket <path>] [--json]
+  koja pane rotate <id> --direction forward|backward [--socket <path>] [--json]
   koja pane close <id> [--socket <path>] [--json]
   koja pane zoom <id> [--socket <path>] [--json]
   koja pane resize <id> --direction left|right|up|down --cells <n> [--socket <path>] [--json]
@@ -122,6 +125,37 @@ const resizeDirections: readonly ResizeDirection[] = ['left', 'right', 'up', 'do
 
 const parseResizeDirection = (value: string | undefined): ResizeDirection | undefined =>
   resizeDirections.find((direction) => direction === value);
+
+const rotateDirections: readonly RotateDirection[] = ['forward', 'backward'];
+
+const parseRotateDirection = (value: string | undefined): RotateDirection | undefined =>
+  rotateDirections.find((direction) => direction === value);
+
+const parseRotateCommand = (
+  pane: PaneId,
+  direction: string | undefined,
+): PaneLayoutCommand | string => {
+  const parsedDirection = parseRotateDirection(direction);
+
+  return parsedDirection === undefined
+    ? 'pane rotate takes --direction forward or backward.'
+    : { action: 'rotate', pane, direction: parsedDirection };
+};
+
+const parseFocusCommand = (
+  pane: PaneId,
+  direction: string | undefined,
+): PaneLayoutCommand | string => {
+  if (direction === undefined) {
+    return { action: 'focus', pane };
+  }
+
+  const parsedDirection = parseResizeDirection(direction);
+
+  return parsedDirection === undefined
+    ? 'pane focus takes --direction left, right, up, or down.'
+    : { action: 'focusDirection', pane, direction: parsedDirection };
+};
 
 const parseCells = (value: string | undefined): number | undefined => {
   if (value === undefined || !/^[1-9][0-9]*$/.test(value)) {
@@ -194,6 +228,14 @@ const parsePaneLayoutCommand = (
     return parseResizeCommand(paneId(target), direction, cells);
   }
 
+  if (action === 'rotate') {
+    return parseRotateCommand(paneId(target), direction);
+  }
+
+  if (action === 'focus') {
+    return parseFocusCommand(paneId(target), direction);
+  }
+
   return { action, pane: paneId(target) };
 };
 
@@ -248,6 +290,7 @@ const paneLayoutActions: ReadonlySet<string | undefined> = new Set([
   'close',
   'zoom',
   'resize',
+  'rotate',
 ]);
 
 const isPaneLayoutAction = (action: string | undefined): action is PaneLayoutAction =>

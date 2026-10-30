@@ -30,15 +30,14 @@ import {
   startPane,
   stopPane,
 } from './paneEffects.ts';
+import { handlePaneLayoutRequest, isPaneLayoutRequest } from './paneLayoutRequests.ts';
 import { createPasteSecret } from './panePaste.ts';
 import type { RunningPane } from './paneRecord.ts';
 import {
   answerPaneFolders,
   answerPaneProcessInfo,
   handlePaneCommand,
-  handlePaneLayoutRequest,
   isPaneCommand,
-  isPaneLayoutRequest,
   forgetPaneReads,
   writePaneInput,
 } from './paneRequests.ts';

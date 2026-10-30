@@ -312,3 +312,19 @@ it(
   },
   cliTestTimeoutMs,
 );
+
+it(
+  'rotates a master tab forward with pane.rotateForward and focuses the new master pane',
+  async () => {
+    const { koja, list, tabs, act, first } = await setup();
+    const second = await act('add', first);
+    const third = await act('add', second);
+
+    const ran = await koja('action', 'run', 'pane.rotateForward', '--json');
+
+    expect({ exitCode: ran.exitCode, stderr: ran.stderr }).toEqual({ exitCode: 0, stderr: '' });
+    expect((await tabs())[0]?.arrangement.order).toEqual([second, third, first]);
+    expect((await list()).find((pane) => pane.focused)?.id).toBe(second);
+  },
+  cliTestTimeoutMs,
+);
