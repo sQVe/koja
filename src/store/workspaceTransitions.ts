@@ -88,7 +88,7 @@ export const createWorkspace = (state: State, intent: CreateWorkspaceIntent): Ou
     panes: [...state.panes, pane],
     startFallbacks: [
       ...state.startFallbacks,
-      { paneId: pane.id, views: viewsBefore(state, source) },
+      { paneId: pane.id, existingEmptyWorkspaceId: undefined, views: viewsBefore(state, source) },
     ],
     nextWorkspaceNumber: state.nextWorkspaceNumber + 1,
     nextTabNumber: state.nextTabNumber + 1,

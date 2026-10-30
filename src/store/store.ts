@@ -171,6 +171,7 @@ export interface ViewBefore {
 
 export interface StartFallback {
   paneId: PaneId;
+  existingEmptyWorkspaceId: WorkspaceId | undefined;
   views: readonly ViewBefore[];
 }
 

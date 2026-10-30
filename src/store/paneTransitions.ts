@@ -223,15 +223,18 @@ const masterSuccessor = (
   return successor;
 };
 
-const legacySuccessor = (state: State, tab: Tab, id: PaneId, sibling: Layout): PaneId => {
+const previousFocus = (state: State, tab: Tab, id: PaneId): PaneId | undefined => {
   const previous = state.stateBeforeSplit.get(id)?.focusedPaneId;
   const previousStays = previous !== undefined && previous !== id && isInTab(state, previous, tab);
 
-  return previousStays ? previous : firstPaneId(sibling);
+  return previousStays ? previous : undefined;
 };
 
+const legacySuccessor = (state: State, tab: Tab, id: PaneId, sibling: Layout): PaneId =>
+  previousFocus(state, tab, id) ?? firstPaneId(sibling);
+
 // The pane's area goes to its sibling. The focus moves to the successor only when the pane had it.
-const closePaneIn = (state: State, tab: Tab, id: PaneId): Proposal => {
+const closePaneIn = (state: State, tab: Tab, id: PaneId, restoreSelection = false): Proposal => {
   const removal = removePane(tab.layout, id);
 
   if (removal === undefined) {
@@ -245,7 +248,9 @@ const closePaneIn = (state: State, tab: Tab, id: PaneId): Proposal => {
     ? masterSuccessor(tab.arrangement.order, id, arrangement.order)
     : legacySuccessor(state, tab, id, removal.sibling);
 
-  const focusedPaneId = tab.focusedPaneId === id ? successor : tab.focusedPaneId;
+  const restoredFocus = restoreSelection ? previousFocus(state, tab, id) : undefined;
+  const replacement = restoredFocus ?? successor;
+  const focusedPaneId = tab.focusedPaneId === id ? replacement : tab.focusedPaneId;
 
   const zoomedPaneId =
     tab.zoomedPaneId === undefined ? restoredZoom(state, id, focusedPaneId) : focusedPaneId;
@@ -372,7 +377,7 @@ const endPane = (
   state: State,
   pane: Pane,
   exitCode: number | undefined,
-  restore?: StartFallback,
+  failure?: { restore: StartFallback | undefined },
 ): Proposal => {
   if (state.stopping) {
     const exited = { ...pane, lifecycle: 'exited' as const, exitCode };
@@ -393,10 +398,15 @@ const endPane = (
   invariant(tab !== undefined, `Pane ${pane.id} has no tab.`);
 
   if (removePane(tab.layout, pane.id) === undefined) {
-    return removeTab(state, tab, restore, restore === undefined);
+    const restore = failure?.restore;
+
+    const keepWorkspace =
+      restore === undefined || restore.existingEmptyWorkspaceId === tab.workspaceId;
+
+    return removeTab(state, tab, restore, keepWorkspace);
   }
 
-  return closePaneIn(state, tab, pane.id);
+  return closePaneIn(state, tab, pane.id, failure !== undefined);
 };
 
 const markFailed = (state: State, pane: Pane, message: string): Proposal =>
@@ -451,7 +461,7 @@ export const transitionPaneFact = (state: State, pane: Pane, fact: Fact): Propos
   }
 
   if (fact.type === 'paneFailed') {
-    return endPane(settled, pane, undefined, restore);
+    return endPane(settled, pane, undefined, { restore });
   }
 
   if (fact.type === 'paneFailedToStart' && pane.restored && !state.stopping) {
@@ -459,7 +469,7 @@ export const transitionPaneFact = (state: State, pane: Pane, fact: Fact): Propos
   }
 
   if (fact.type === 'paneFailedToStart') {
-    return endPane(settled, pane, undefined, restore);
+    return endPane(settled, pane, undefined, { restore });
   }
 
   return pane.lifecycle === 'starting' ? markRunning(state, pane) : undefined;

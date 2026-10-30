@@ -157,7 +157,14 @@ export const removeTab = (
   }
 
   if (keepWorkspace) {
-    const repaired = repairViews(next, (view) => withoutWorkspace(view, owner.id));
+    const repaired = repairViews(next, (view, viewOwner) => {
+      const cleared = withoutWorkspace(view, owner.id);
+      const earlier = viewBeforeOf(restore, viewOwner)?.focusedWorkspaceId;
+      const isKnown = state.workspaces.some((workspace) => workspace.id === earlier);
+      const returns = isKnown && view.focusedWorkspaceId === owner.id;
+
+      return returns ? { ...cleared, focusedWorkspaceId: earlier } : cleared;
+    });
 
     const workspaces = state.workspaces.map((workspace) =>
       workspace.id === owner.id ? { ...workspace, tabIds } : workspace,
@@ -241,7 +248,11 @@ export const createTab = (state: State, intent: CreateTabIntent): Outcome => {
     panes: [...state.panes, pane],
     startFallbacks: [
       ...state.startFallbacks,
-      { paneId: pane.id, views: viewsBefore(state, source) },
+      {
+        paneId: pane.id,
+        existingEmptyWorkspaceId: owner.tabIds.length === 0 ? owner.id : undefined,
+        views: viewsBefore(state, source),
+      },
     ],
     nextTabNumber: state.nextTabNumber + 1,
     nextPaneNumber: state.nextPaneNumber + 1,
