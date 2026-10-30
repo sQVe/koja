@@ -40,6 +40,16 @@ const failRestoredSecondPane = () => {
   return { restored, result };
 };
 
+it('restores an empty workspace without starting a pane', () => {
+  const empty = intent(run([createKoja]), { type: 'closePane', paneId: paneId(1) }).state;
+  const result = intent(attachedEmpty(), restoreIntent(empty));
+
+  expect(savedSessionOf(result.state, noReads)).toEqual(savedSessionOf(empty, noReads));
+  expect(result.state.defaultView.activeTabs).toEqual([]);
+  expect(result.state.panes).toEqual([]);
+  expect(result.changes.filter((change) => change.type === 'paneAdded')).toEqual([]);
+});
+
 it('restores a saved session with its ids, focus, and zoom', () => {
   const saved = runLegacy(richSession);
   const result = intent(attachedEmpty(), restoreIntent(saved));

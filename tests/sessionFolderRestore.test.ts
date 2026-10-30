@@ -315,12 +315,13 @@ it.skipIf(!scopesAvailable)(
 
     const deadline = performance.now() + 10_000;
 
-    while ((await server.workspaceIds()).length > 0) {
+    while (Object.keys(await server.states()).length > 0) {
       expect(performance.now()).toBeLessThan(deadline);
       await Bun.sleep(20);
     }
 
-    expect(await server.workspaceIds()).toEqual([]);
+    expect(await server.states()).toEqual({});
+    expect(await server.workspaceIds()).toEqual(['workspace-1']);
   },
   cliTestTimeoutMs,
 );
@@ -358,12 +359,13 @@ it.skipIf(!scopesAvailable)(
 
     const deadline = performance.now() + 10_000;
 
-    while ((await server.workspaceIds()).length > 0) {
+    while (Object.keys(await server.states()).length > 0) {
       expect(performance.now()).toBeLessThan(deadline);
       await Bun.sleep(20);
     }
 
-    expect(await server.workspaceIds()).toEqual([]);
+    expect(await server.states()).toEqual({});
+    expect(await server.workspaceIds()).toEqual(['workspace-1']);
   },
   cliTestTimeoutMs,
 );

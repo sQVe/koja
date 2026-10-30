@@ -48,6 +48,38 @@ it(
 );
 
 it(
+  'restores an empty workspace after its last pane closes and starts a new tab on request',
+  async () => {
+    const { serverAt } = await setup();
+    const server = serverAt('koja');
+
+    await server.start();
+
+    const id = await server.createWorkspace('empty');
+
+    await server.koja(['workspace', 'rename', id, 'Retained']);
+    await server.koja(['pane', 'close', 'pane-1']);
+
+    const before = await server.koja(['workspace', 'list', '--json']);
+
+    expect(before).toContain(id);
+    expect(before).toContain('Retained');
+    await server.koja(['server', 'stop']);
+    await server.start();
+
+    expect(await server.koja(['workspace', 'list', '--json'])).toBe(before);
+    expect(JSON.parse(await server.koja(['tab', 'list', '--json']))).toEqual([]);
+    expect(JSON.parse(await server.koja(['pane', 'list', '--json']))).toEqual([]);
+
+    await server.koja(['tab', 'create', '--workspace', id]);
+
+    expect(JSON.parse(await server.koja(['tab', 'list', '--json']))).toHaveLength(1);
+    expect(Object.values(await server.states())).toEqual([{ lifecycle: 'running', error: null }]);
+  },
+  cliTestTimeoutMs,
+);
+
+it(
   'restores the setup as of the last change after the server is killed',
   async () => {
     const { serverAt } = await setup();

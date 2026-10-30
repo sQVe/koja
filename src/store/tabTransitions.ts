@@ -53,7 +53,42 @@ const tabAfterRemoval = (owner: WorkspaceRecord, removedId: TabId): TabId | unde
   return owner.tabIds[index - 1] ?? owner.tabIds[index + 1];
 };
 
-export const removeTab = (state: State, tab: Tab, restore?: StartFallback): Proposal => {
+export const removeWorkspace = (
+  state: State,
+  id: WorkspaceId,
+  restore?: StartFallback,
+): Proposal => {
+  const ordinary = workspaceAfterRemoval(state, id);
+
+  const repaired = repairViews(state, (view, viewOwner) => {
+    const withoutOwner = withoutWorkspace(view, id);
+    const earlier = viewBeforeOf(restore, viewOwner)?.focusedWorkspaceId;
+    const isKnown = state.workspaces.some((workspace) => workspace.id === earlier);
+    const restored = isKnown && earlier !== id ? earlier : undefined;
+
+    return view.focusedWorkspaceId === id
+      ? { ...withoutOwner, focusedWorkspaceId: restored ?? ordinary }
+      : withoutOwner;
+  });
+
+  const workspaces = state.workspaces.filter((workspace) => workspace.id !== id);
+
+  return propose({ ...repaired, workspaces }, [
+    {
+      type: 'workspaceRemoved',
+      workspaceId: id,
+      focusedWorkspaceId: repaired.defaultView.focusedWorkspaceId,
+    },
+    ...clientViewChanges(state.clients, repaired.clients),
+  ]);
+};
+
+export const removeTab = (
+  state: State,
+  tab: Tab,
+  restore?: StartFallback,
+  keepWorkspace = false,
+): Proposal => {
   const remaining = state.panes.filter((pane) => pane.tabId !== tab.id);
   const removedPanes = state.panes.filter((pane) => pane.tabId === tab.id);
   const changes: Change[] = removedPanes.map((pane) => ({ type: 'paneRemoved', paneId: pane.id }));
@@ -121,30 +156,28 @@ export const removeTab = (state: State, tab: Tab, restore?: StartFallback): Prop
     return propose(repaired, changes);
   }
 
-  const ordinary = workspaceAfterRemoval(state, owner.id);
+  if (keepWorkspace) {
+    const repaired = repairViews(next, (view, viewOwner) => {
+      const cleared = withoutWorkspace(view, owner.id);
+      const earlier = viewBeforeOf(restore, viewOwner)?.focusedWorkspaceId;
+      const isKnown = state.workspaces.some((workspace) => workspace.id === earlier);
+      const returns = isKnown && view.focusedWorkspaceId === owner.id;
 
-  const repaired = repairViews(next, (view, viewOwner) => {
-    const withoutOwner = withoutWorkspace(view, owner.id);
-    const earlier = viewBeforeOf(restore, viewOwner)?.focusedWorkspaceId;
-    const isKnown = state.workspaces.some((workspace) => workspace.id === earlier);
-    const restored = isKnown && earlier !== owner.id ? earlier : undefined;
+      return returns ? { ...cleared, focusedWorkspaceId: earlier } : cleared;
+    });
 
-    return view.focusedWorkspaceId === owner.id
-      ? { ...withoutOwner, focusedWorkspaceId: restored ?? ordinary }
-      : withoutOwner;
-  });
+    const workspaces = state.workspaces.map((workspace) =>
+      workspace.id === owner.id ? { ...workspace, tabIds } : workspace,
+    );
 
-  const workspaces = state.workspaces.filter((workspace) => workspace.id !== owner.id);
+    changes.push(...viewChanges(state, repaired));
 
-  changes.push({
-    type: 'workspaceRemoved',
-    workspaceId: owner.id,
-    focusedWorkspaceId: repaired.defaultView.focusedWorkspaceId,
-  });
+    return propose({ ...repaired, workspaces }, changes);
+  }
 
-  changes.push(...clientViewChanges(state.clients, repaired.clients));
+  const removed = removeWorkspace(next, owner.id, restore);
 
-  return propose({ ...repaired, workspaces }, changes);
+  return propose(removed.state, [...changes, ...removed.changes]);
 };
 
 export const showTab = (
@@ -201,7 +234,12 @@ export const createTab = (state: State, intent: CreateTabIntent): Outcome => {
     workspace.id === id ? { ...workspace, tabIds: [...workspace.tabIds, tab.id] } : workspace,
   );
 
-  const shown = focus ? showTab(state, source, id, tab.id) : state;
+  const added =
+    owner.tabIds.length === 0
+      ? repairViews(state, (view) => withActiveTab(view, id, tab.id))
+      : state;
+
+  const shown = focus ? showTab(added, source, id, tab.id) : added;
 
   const next: State = {
     ...shown,
@@ -210,7 +248,11 @@ export const createTab = (state: State, intent: CreateTabIntent): Outcome => {
     panes: [...state.panes, pane],
     startFallbacks: [
       ...state.startFallbacks,
-      { paneId: pane.id, views: viewsBefore(state, source) },
+      {
+        paneId: pane.id,
+        existingEmptyWorkspaceId: owner.tabIds.length === 0 ? owner.id : undefined,
+        views: viewsBefore(state, source),
+      },
     ],
     nextTabNumber: state.nextTabNumber + 1,
     nextPaneNumber: state.nextPaneNumber + 1,

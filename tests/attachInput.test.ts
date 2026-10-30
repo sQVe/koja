@@ -159,8 +159,6 @@ it(
   async () => {
     const { list, statusBar, type, startDirectory } = await setupServer();
 
-    await eventually(() => statusBar() === 'INSERT');
-    type('\x02');
     await eventually(() => statusBar() === 'NORMAL');
     type('c');
 
@@ -353,7 +351,7 @@ it(
 it(
   'closes the pane of the workspace that j selected when x arrives in the same write',
   async () => {
-    const { createWorkspace, list, statusBar, type } = await setupServer();
+    const { createWorkspace, koja, list, screen, statusBar, type } = await setupServer();
 
     await createWorkspace('alpha');
     await createWorkspace('beta');
@@ -361,11 +359,27 @@ it(
     await eventually(() => statusBar() === 'INSERT [1]');
     type('\x02jx');
 
-    await eventually(async () => (await list()).length === 1);
+    await eventually(
+      () => screen.text().includes('Press t to create a tab') && statusBar() === 'NORMAL',
+    );
 
-    const remaining = (await list()).map((workspace) => workspace.label);
+    const remaining = (await list()).map((workspace) => ({
+      label: workspace.label,
+      focused: workspace.focused,
+    }));
 
-    expect(remaining).toEqual(['beta']);
+    expect(remaining).toEqual([
+      { label: 'alpha', focused: true },
+      { label: 'beta', focused: false },
+    ]);
+
+    expect(statusBar()).toBe('NORMAL');
+
+    const panes = await koja('pane', 'list', '--json');
+
+    expect(panes.exitCode).toBe(0);
+
+    expect(JSON.parse(panes.stdout)).toMatchObject([{ id: 'pane-2', workspace: 'workspace-2' }]);
   },
   cliTestTimeoutMs,
 );

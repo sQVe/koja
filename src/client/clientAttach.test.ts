@@ -136,6 +136,55 @@ const snapshotMessage = (
   };
 };
 
+const onlyTabSnapshot = (
+  revision: number,
+  tab: typeof firstTab | typeof secondTab,
+): ControlMessage => {
+  const pane = tab.id === firstTab.id ? firstPane : secondPane;
+
+  return {
+    type: 'snapshot',
+    snapshot: {
+      revision,
+      workspaces: [{ ...workspace, tabIds: [tab.id] }],
+      tabs: [tab],
+      panes: [pane],
+      defaultView: {
+        focusedWorkspaceId: workspace.id,
+        activeTabs: [{ workspaceId: workspace.id, tabId: tab.id }],
+        scrolls: [],
+      },
+      attachedClientId: undefined,
+      foregroundClientId: undefined,
+      clients: [],
+    },
+  };
+};
+
+const emptyWorkspaceSnapshotMessage: ControlMessage = {
+  type: 'snapshot',
+  snapshot: {
+    revision: 1,
+    workspaces: [{ ...workspace, tabIds: [] }],
+    tabs: [],
+    panes: [],
+    defaultView: {
+      focusedWorkspaceId: workspace.id,
+      activeTabs: [],
+      scrolls: [],
+    },
+    attachedClientId: undefined,
+    foregroundClientId: undefined,
+    clients: [],
+  },
+};
+
+const paneRemovedChange = (pane: typeof firstPane | typeof secondPane): ControlMessage => ({
+  type: 'change',
+  revision: 2,
+  change: { type: 'paneRemoved', paneId: pane.id },
+});
+
 const rowUpdate = (pane: number): RowUpdate => {
   const columns = 3;
   const cells = new Uint32Array(rowWords(columns));
@@ -490,6 +539,71 @@ it('releases held input when a resync snapshot shows a failed pane', async () =>
   await released;
 
   expect(session.tabPending()).toBe(false);
+});
+
+it('removing the viewed pane returns to normal mode', async () => {
+  const peer = defaultPeer({
+    onResize: () => [paneRemovedChange(firstPane)],
+  });
+
+  const session = await attach(peer);
+  expect(session.getState().inputMode).toBe('insert');
+
+  session.resize({ columns: 90, rows: 20 });
+  await untilRevision(session, 2);
+
+  expect(session.getState().inputMode).toBe('normal');
+});
+
+it('removing an unselected pane keeps insert mode', async () => {
+  const peer = defaultPeer({
+    onResize: () => [paneRemovedChange(secondPane)],
+  });
+
+  const session = await attach(peer);
+
+  session.resize({ columns: 90, rows: 20 });
+  await untilRevision(session, 2);
+
+  expect(session.getState().inputMode).toBe('insert');
+});
+
+it('removing the viewed pane in a resync snapshot returns to normal mode', async () => {
+  const peer = defaultPeer({
+    onResize: () => [gapChange],
+    onResync: () => [onlyTabSnapshot(10, secondTab)],
+  });
+
+  const session = await attach(peer);
+
+  session.resize({ columns: 90, rows: 20 });
+  await untilRevision(session, 10);
+
+  expect(session.getState().inputMode).toBe('normal');
+});
+
+it('removing an unselected pane in a resync snapshot keeps insert mode', async () => {
+  const peer = defaultPeer({
+    onResize: () => [gapChange],
+    onResync: () => [onlyTabSnapshot(10, firstTab)],
+  });
+
+  const session = await attach(peer);
+
+  session.resize({ columns: 90, rows: 20 });
+  await untilRevision(session, 10);
+
+  expect(session.getState().inputMode).toBe('insert');
+});
+
+it('attaching to an empty workspace starts in normal mode', async () => {
+  const session = await attach(
+    defaultPeer({
+      onHello: () => [{ type: 'welcome' }, emptyWorkspaceSnapshotMessage],
+    }),
+  );
+
+  expect(session.getState().inputMode).toBe('normal');
 });
 
 it('ignores a tab answer that arrives before the first snapshot', async () => {

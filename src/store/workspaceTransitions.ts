@@ -5,7 +5,7 @@ import { masterArrangement } from '../layout.ts';
 import type { Layout } from '../layout.ts';
 import { lonePaneSize } from './paneSizes.ts';
 import type { Change, Intent, Pane, State, Tab, WorkspaceRecord } from './store.ts';
-import { removeTab } from './tabTransitions.ts';
+import { removeTab, removeWorkspace } from './tabTransitions.ts';
 import { propose, refuse } from './transitionOutcome.ts';
 import type { Outcome } from './transitionOutcome.ts';
 import {
@@ -88,7 +88,7 @@ export const createWorkspace = (state: State, intent: CreateWorkspaceIntent): Ou
     panes: [...state.panes, pane],
     startFallbacks: [
       ...state.startFallbacks,
-      { paneId: pane.id, views: viewsBefore(state, source) },
+      { paneId: pane.id, existingEmptyWorkspaceId: undefined, views: viewsBefore(state, source) },
     ],
     nextWorkspaceNumber: state.nextWorkspaceNumber + 1,
     nextTabNumber: state.nextTabNumber + 1,
@@ -129,10 +129,8 @@ export const focusWorkspace = (
   const sourceView = state.clients.find((client) => client.id === source)?.view;
   const destination = activeTabOf(sourceView ?? state.defaultView, id);
 
-  invariant(destination !== undefined, `Workspace ${id} has no active tab.`);
-
   const focused = updateViews(state, source, (view) => ({
-    ...withActiveTab(view, id, destination),
+    ...(destination === undefined ? view : withActiveTab(view, id, destination)),
     focusedWorkspaceId: id,
   }));
 
@@ -170,6 +168,10 @@ export const closeWorkspace = (state: State, id: WorkspaceId): Outcome => {
 
   if (closing === undefined) {
     return refuse('unknownWorkspace');
+  }
+
+  if (closing.tabIds.length === 0) {
+    return removeWorkspace(state, id);
   }
 
   let current: State = state;

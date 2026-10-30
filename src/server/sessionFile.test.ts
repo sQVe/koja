@@ -123,6 +123,36 @@ it('reads back the session it saved', async () => {
   expect(await readSessionFile(path)).toEqual({ kind: 'restored', session });
 });
 
+it('round trips a workspace with zero tabs', async () => {
+  const directory = await temporaryDirectory();
+  const path = join(directory, 'session.json');
+
+  const session = sessionWith({
+    workspaces: [
+      { id: workspaceId(1), root: '/work/one', label: 'one', tabIds: [], activeTabId: undefined },
+    ],
+    tabs: [],
+    panes: [],
+    focusedWorkspaceId: workspaceId(1),
+  });
+
+  await writeFile(path, serialized(session));
+
+  expect(await readSessionFile(path)).toEqual({ kind: 'restored', session });
+});
+
+it('refuses a null active tab in a workspace with tabs', async () => {
+  const directory = await temporaryDirectory();
+  const path = join(directory, 'session.json');
+
+  const session = sessionWith({
+    workspaces: sessionWith().workspaces.map(workspaceWith({ activeTabId: undefined })),
+  });
+
+  await writeFile(path, serialized(session));
+  await expectBroken(path);
+});
+
 it('reads back the label of a tab', async () => {
   const directory = await temporaryDirectory();
   const path = join(directory, 'session.json');

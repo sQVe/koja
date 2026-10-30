@@ -132,20 +132,23 @@ it('ignores a pane that starts after the server began to stop, and names it for 
   expect(result).toEqual({ kind: 'ignored', state, dispose: firstPane });
 });
 
-it('removes the pane, tab, and workspace of the only pane that exits, and keeps running', () => {
+it('removes the only pane and tab that exits, keeps its workspace, and keeps running', () => {
   const state = fact(run([createKoja]), { type: 'paneStarted', ...firstPane }).state;
   const result = fact(state, { type: 'paneExited', ...firstPane, exitCode: 3 });
 
   expect(result.state.panes).toEqual([]);
   expect(result.state.tabs).toEqual([]);
-  expect(result.state.workspaces).toEqual([]);
-  expect(result.state.defaultView.focusedWorkspaceId).toBeUndefined();
+
+  expect(result.state.workspaces).toEqual([
+    { id: workspaceId(1), root: '/work/koja', label: 'koja', tabIds: [] },
+  ]);
+
+  expect(result.state.defaultView.focusedWorkspaceId).toBe(workspaceId(1));
   expect(result.state.stopping).toBe(false);
 
   expect(result.changes).toEqual([
     { type: 'paneRemoved', paneId: paneId(1) },
     { type: 'tabRemoved', tabId: tabId(1) },
-    { type: 'workspaceRemoved', workspaceId: workspaceId(1), focusedWorkspaceId: undefined },
   ]);
 });
 
@@ -166,7 +169,11 @@ it('keeps the other workspaces when one pane exits', () => {
   const state = run([createKoja, createDocs]);
   const result = fact(state, { type: 'paneExited', ...firstPane, exitCode: 0 });
 
-  expect(result.state.workspaces.map((workspace) => workspace.id)).toEqual([workspaceId(2)]);
+  expect(result.state.workspaces.map((workspace) => workspace.id)).toEqual([
+    workspaceId(1),
+    workspaceId(2),
+  ]);
+
   expect(result.state.defaultView.focusedWorkspaceId).toBe(workspaceId(2));
 });
 
@@ -291,11 +298,11 @@ it('keeps the focus when an unfocused pane closes', () => {
   expect(result.changes.some((change) => change.type === 'paneFocused')).toBe(false);
 });
 
-it('removes the tab and workspace when the last pane of a tab closes', () => {
+it('removes the tab but keeps the workspace when its last pane closes', () => {
   const result = intent(run([createKoja]), { type: 'closePane', paneId: paneId(1) });
 
   expect(result.state.tabs).toEqual([]);
-  expect(result.state.workspaces).toEqual([]);
+  expect(result.state.workspaces[0]?.tabIds).toEqual([]);
   expect(result.state.panes).toEqual([]);
 });
 
@@ -654,7 +661,7 @@ it('does not report a zoom change when a failed split leaves the zoom as it was'
   expect(result.changes.some((change) => change.type === 'tabZoomChanged')).toBe(false);
 });
 
-it('unzooms when a started split pane closes', () => {
+it('moves focus and zoom to the sibling when a started split pane closes', () => {
   const opened = runLegacy([createKoja, attachLarge, splitFirst('right')]);
   const started = fact(opened, startedPane(2, 2)).state;
   const zoomed = intent(started, zoom(1)).state;
@@ -662,10 +669,13 @@ it('unzooms when a started split pane closes', () => {
   const running = fact(split, startedPane(3, 3)).state;
   const result = intent(running, { type: 'closePane', paneId: paneId(3) });
 
-  expect(result.state.tabs[0]?.zoomedPaneId).toBeUndefined();
+  expect(result.state.tabs[0]?.focusedPaneId).toBe(paneId(1));
+  expect(result.state.tabs[0]?.zoomedPaneId).toBe(paneId(1));
+  expect(result.state.tabs[0]?.arrangement.order).toEqual([paneId(1), paneId(2)]);
+  expect(result.state.panes.map((pane) => pane.id)).toEqual([paneId(1), paneId(2)]);
 });
 
-it('leaves the tab unzoomed when the focus moved before a split pane failed to start', () => {
+it('keeps newer focus and zoom when an unselected split pane fails to start', () => {
   const zoomed = runLegacy([createKoja, attachLarge, splitFirst('right'), zoom(1)]);
   const split = intent(zoomed, splitPaneOf(1, 'below')).state;
   const refocused = intent(split, { type: 'focusPane', paneId: paneId(2) }).state;
@@ -679,22 +689,20 @@ it('leaves the tab unzoomed when the focus moved before a split pane failed to s
     message: 'no shell',
   });
 
-  expect(result.state.tabs[0]?.zoomedPaneId).toBeUndefined();
+  expect(result.state.tabs[0]?.zoomedPaneId).toBe(paneId(2));
   expect(result.state.tabs[0]?.focusedPaneId).toBe(paneId(2));
+  expect(result.state.tabs[0]?.arrangement.order).toEqual([paneId(1), paneId(2)]);
+  expect(result.state.panes.map((pane) => pane.id)).toEqual([paneId(1), paneId(2)]);
 });
 
-it('unzooms when a pane closes', () => {
+it('keeps the zoom when an unselected pane closes', () => {
   const state = runLegacy([createKoja, attachLarge, splitFirst('right'), zoom(1)]);
   const result = intent(state, { type: 'closePane', paneId: paneId(2) });
 
-  expect(result.state.tabs[0]?.zoomedPaneId).toBeUndefined();
+  expect(result.state.tabs[0]?.zoomedPaneId).toBe(paneId(1));
   expect(result.state.panes.map((pane) => pane.size)).toEqual([{ columns: 81, rows: 24 }]);
 
-  expect(result.changes).toContainEqual({
-    type: 'tabZoomChanged',
-    tabId: tabId(1),
-    zoomedPaneId: undefined,
-  });
+  expect(result.changes.some((change) => change.type === 'tabZoomChanged')).toBe(false);
 });
 
 it('moves the zoom when another pane takes the focus, but not when the zoomed pane does', () => {
@@ -1165,13 +1173,15 @@ it('appends an added pane to the master order, focuses it, and zooms it', () => 
   });
 });
 
-it('returns the focus and zoom from before a master add when the added pane closes', () => {
+it('focuses and zooms the predecessor when the added last pane of a zoomed master tab closes', () => {
   const state = intent(masterState(), zoom(1)).state;
   const added = intent(state, addPane(1)).state;
   const closed = intent(added, { type: 'closePane', paneId: paneId(3) }).state;
 
-  expect(closed.tabs[0]?.focusedPaneId).toBe(paneId(1));
-  expect(closed.tabs[0]?.zoomedPaneId).toBe(paneId(1));
+  expect(closed.tabs[0]?.focusedPaneId).toBe(paneId(2));
+  expect(closed.tabs[0]?.zoomedPaneId).toBe(paneId(2));
+  expect(closed.tabs[0]?.arrangement.order).toEqual([paneId(1), paneId(2)]);
+  expect(closed.panes.map((pane) => pane.id)).toEqual([paneId(1), paneId(2)]);
 });
 
 it('zooms the pane that takes the focus in a zoomed master tab', () => {

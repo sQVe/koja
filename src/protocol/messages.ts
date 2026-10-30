@@ -215,7 +215,7 @@ const changeSchema: z.ZodType<Change> = z.discriminatedUnion('type', [
   z.object({
     type: z.literal('workspaceAdded'),
     workspace: workspaceSchema,
-    activeTabId: tabIdSchema,
+    activeTabId: absent(tabIdSchema),
     focusedWorkspaceId: workspaceIdSchema,
   }),
   z.object({ type: z.literal('tabAdded'), tab: tabSchema }),

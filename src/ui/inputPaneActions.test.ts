@@ -108,6 +108,40 @@ it('routes a key from the catalog it is given and sends nothing for the replaced
   expect(sent).toEqual([]);
 });
 
+const onlyPaneSnapshot = () =>
+  storeSnapshotOf({ ids: [firstWorkspace], focused: firstWorkspace }, [
+    { id: 1, workspaceId: firstWorkspace, panes: [paneId(1)], focused: paneId(1) },
+  ]);
+
+it('closes the only pane once for one x press in normal mode, with no bytes to the pane', () => {
+  const { press, sent, actions, mode } = createInputHarness('insert', {
+    snapshot: onlyPaneSnapshot,
+  });
+
+  press('\x02');
+  press('x');
+
+  expect(actions).toEqual(['close']);
+  expect(sent).toEqual([]);
+  expect(mode()).toBe('normal');
+});
+
+it('closes the pane once for a held x, which sends press then repeat events', async () => {
+  const { press, sent, actions, answerPaneAction } = createInputHarness('insert', {
+    snapshot: onlyPaneSnapshot,
+  });
+
+  press('\x02');
+  press('x');
+  press('\x1b[120;1:2u');
+  press('\x1b[120;1:2u');
+
+  await answerPaneAction();
+
+  expect(actions).toEqual(['close']);
+  expect(sent).toEqual([]);
+});
+
 it('sends no pane action and no bytes for a key whose action is unavailable', () => {
   const onePane = storeSnapshotOf({ ids: [firstWorkspace], focused: firstWorkspace }, [
     { id: 1, workspaceId: firstWorkspace, panes: [paneId(1)], focused: paneId(1) },
