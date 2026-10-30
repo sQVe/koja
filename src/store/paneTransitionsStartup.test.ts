@@ -68,7 +68,7 @@ it('keeps a newer selection and zoom when an unselected master add fails', () =>
   expect(tab.arrangement.order).toEqual([paneId(1), paneId(2)]);
 });
 
-it('uses a surviving successor when the focus saved before a master add has closed', () => {
+it('focuses and zooms a surviving successor when the focus saved before a master add has closed', () => {
   const before = intent(runningPair(), zoom(1)).state;
   const added = intent(before, addPane(1)).state;
   const closed = intent(added, { type: 'closePane', paneId: paneId(1) }).state;
@@ -83,17 +83,19 @@ it('uses a surviving successor when the focus saved before a master add has clos
   const tab = defined(result.state.tabs[0]);
 
   expect(tab.focusedPaneId).toBe(paneId(2));
-  expect(tab.zoomedPaneId).toBeUndefined();
+  expect(tab.zoomedPaneId).toBe(paneId(2));
   expect(tab.arrangement.order).toEqual([paneId(2)]);
+  expect(result.state.panes.map((pane) => pane.id)).toEqual([paneId(2)]);
 });
 
-it('uses the close successor rather than startup rollback when a new master pane exits', () => {
+it('focuses and zooms the close successor rather than restoring saved focus when a new master pane exits', () => {
   const before = intent(runningPair(), zoom(1)).state;
   const added = intent(before, addPane(1)).state;
   const result = fact(added, { type: 'paneExited', paneId: paneId(3), generation: 3, exitCode: 0 });
   const tab = defined(result.state.tabs[0]);
 
   expect(tab.focusedPaneId).toBe(paneId(2));
-  expect(tab.zoomedPaneId).toBeUndefined();
+  expect(tab.zoomedPaneId).toBe(paneId(2));
   expect(tab.arrangement.order).toEqual([paneId(1), paneId(2)]);
+  expect(result.state.panes.map((pane) => pane.id)).toEqual([paneId(1), paneId(2)]);
 });
