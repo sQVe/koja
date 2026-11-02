@@ -1,9 +1,9 @@
 // Every kit component in every state, to compare the UI language with `herdr-app shot`.
 
-import type { AsyncContext, Element } from 'gpui-kit';
-import { div, View } from 'gpui-kit';
 import type { InputState } from 'gpui-base';
 import { h_flex, InputState as InputStates, v_flex } from 'gpui-base';
+import type { AsyncContext, Element } from 'gpui-kit';
+import { div, View } from 'gpui-kit';
 import type { Status } from 'herdr';
 
 import type { IconName, RowState } from '../../kit/index.ts';
@@ -45,21 +45,13 @@ const matchOf = (text: string, query: string): number[] => {
 };
 
 const sample = (label: string, content: Element): Element =>
-  v_flex()
-    .gap(spacing.xsmall)
-    .child(detailText(label))
-    .child(content);
+  v_flex().gap(spacing.xsmall).child(detailText(label)).child(content);
 
 const section = (title: string, content: Element[]): Element =>
   v_flex()
     .gap(spacing.small)
     .child(sectionHeader({ label: title, size: 'default' }))
-    .child(
-      v_flex()
-        .px(spacing.large)
-        .gap(spacing.medium)
-        .children(content),
-    );
+    .child(v_flex().px(spacing.large).gap(spacing.medium).children(content));
 
 const textSizes = (): Element[] =>
   (['xsmall', 'small', 'default'] as const).map((size) =>
@@ -67,11 +59,7 @@ const textSizes = (): Element[] =>
   );
 
 const iconTile = (name: IconName): Element =>
-  v_flex()
-    .gap(spacing.xsmall)
-    .items_center()
-    .child(icon(name, 'large'))
-    .child(detailText(name));
+  v_flex().gap(spacing.xsmall).items_center().child(icon(name, 'large')).child(detailText(name));
 
 const icons = (): Element[] => [
   h_flex().flex_wrap().gap(spacing.medium).children(iconNames.map(iconTile)),
@@ -95,7 +83,11 @@ const marks = (): Element[] => [
     .gap(spacing.large)
     .children(
       statuses.map((status) =>
-        h_flex().gap(spacing.xsmall).items_center().child(statusMark(status)).child(statusLabel(status)),
+        h_flex()
+          .gap(spacing.xsmall)
+          .items_center()
+          .child(statusMark(status))
+          .child(statusLabel(status)),
       ),
     ),
   sample(
@@ -126,21 +118,91 @@ const rowsInState = (inset: boolean): Element =>
 
 const treeRows = (): Element =>
   v_flex()
-    .child(listRow({ size: 'small', inset: false, state: 'normal', start: icon('folder-open', 'large'), label: 'repository' }))
-    .child(listRow({ size: 'small', inset: false, state: 'normal', depth: 1, guide: { first: true, last: false }, start: icon('folder', 'large'), label: 'first worktree' }))
-    .child(listRow({ size: 'small', inset: false, state: 'normal', depth: 1, guide: { first: false, last: true }, start: icon('folder', 'large'), label: 'last worktree' }));
+    .child(
+      listRow({
+        size: 'small',
+        inset: false,
+        state: 'normal',
+        start: icon('folder-open', 'large'),
+        label: 'repository',
+      }),
+    )
+    .child(
+      listRow({
+        size: 'small',
+        inset: false,
+        state: 'normal',
+        depth: 1,
+        guide: { first: true, last: false },
+        start: icon('folder', 'large'),
+        label: 'first worktree',
+      }),
+    )
+    .child(
+      listRow({
+        size: 'small',
+        inset: false,
+        state: 'normal',
+        depth: 1,
+        guide: { first: false, last: true },
+        start: icon('folder', 'large'),
+        label: 'last worktree',
+      }),
+    );
 
 const dragRows = (): Element =>
   v_flex()
-    .child(listRow({ size: 'small', inset: false, state: 'normal', dragged: true, label: 'dragged row' }))
-    .child(listRow({ size: 'small', inset: false, state: 'normal', dropLine: 'top', label: 'drop above' }))
-    .child(listRow({ size: 'small', inset: false, state: 'normal', dropLine: 'bottom', label: 'drop below' }));
+    .child(
+      listRow({
+        size: 'small',
+        inset: false,
+        state: 'normal',
+        dragged: true,
+        label: 'dragged row',
+      }),
+    )
+    .child(
+      listRow({
+        size: 'small',
+        inset: false,
+        state: 'normal',
+        dropLine: 'top',
+        label: 'drop above',
+      }),
+    )
+    .child(
+      listRow({
+        size: 'small',
+        inset: false,
+        state: 'normal',
+        dropLine: 'bottom',
+        label: 'drop below',
+      }),
+    );
 
 const otherRows = (): Element =>
   v_flex()
-    .child(listRow({ size: 'medium', inset: true, state: 'normal', muted: true, label: 'muted label' }))
-    .child(listRow({ size: 'medium', inset: false, state: 'selected', centered: true, label: '3', end: [statusMark('blocked')] }))
-    .child(listRow({ size: 'large', inset: true, state: 'normal', label: highlightedText('Split right', matchOf('Split right', 'Sp'), true) }));
+    .child(
+      listRow({ size: 'medium', inset: true, state: 'normal', muted: true, label: 'muted label' }),
+    )
+    .child(
+      listRow({
+        size: 'medium',
+        inset: false,
+        state: 'selected',
+        centered: true,
+        label: '3',
+        end: [statusMark('blocked')],
+      }),
+    )
+    .child(
+      listRow({
+        size: 'large',
+        inset: true,
+        state: 'normal',
+        label: highlightedText('Split right', matchOf('Split right', 'Sp'), true),
+      }),
+    );
 
 const rows = (): Element[] => [
   sample('Inset, large', rowsInState(true)),
@@ -178,7 +240,9 @@ const buttons = (): Element[] => [
     h_flex()
       .gap(spacing.xxsmall)
       .child(toggleButton({ label: 'Active', active: true, start: icon('file', 'small') }))
-      .child(toggleButton({ label: 'Normal', active: false, start: statusMark('blocked'), end: '2' }))
+      .child(
+        toggleButton({ label: 'Normal', active: false, start: statusMark('blocked'), end: '2' }),
+      )
       .child(toggleButton({ label: 'Hovered', active: false, state: 'hovered' }))
       .child(toggleButton({ label: 'Quiet', active: false, quiet: true })),
   ),
@@ -188,9 +252,34 @@ const tabs = (): Element[] => [
   h_flex()
     .h(spacing.xxlarge + spacing.large)
     .bg(colors().chrome)
-    .child(tab({ label: 'Active', active: true, icon: icon('terminal', 'small'), status: 'working', close: iconButton('x', 'small') }))
-    .child(tab({ label: 'Blocked', active: false, icon: icon('terminal', 'small'), status: 'blocked', close: null }))
-    .child(tab({ label: 'Hovered', active: false, icon: null, status: 'done', close: null, hovered: true }))
+    .child(
+      tab({
+        label: 'Active',
+        active: true,
+        icon: icon('terminal', 'small'),
+        status: 'working',
+        close: iconButton('x', 'small'),
+      }),
+    )
+    .child(
+      tab({
+        label: 'Blocked',
+        active: false,
+        icon: icon('terminal', 'small'),
+        status: 'blocked',
+        close: null,
+      }),
+    )
+    .child(
+      tab({
+        label: 'Hovered',
+        active: false,
+        icon: null,
+        status: 'done',
+        close: null,
+        hovered: true,
+      }),
+    )
     .child(tab({ label: 'Idle', active: false, icon: null, status: 'idle', close: null }))
     .child(tabBarEdge(div().flex_1())),
 ];

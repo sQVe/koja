@@ -2,9 +2,9 @@
 // props { tab: "pane" | "tab" | "space" | "global", target }.
 // Up and down move, Enter runs, Esc closes. The worktree items open Herdr's worktree dialog.
 
+import { v_flex } from 'gpui-base';
 import type { AsyncContext, Context, Element, FocusHandle, KeyEvent } from 'gpui-kit';
 import { View } from 'gpui-kit';
-import { v_flex } from 'gpui-base';
 import { closeOverlay, exec, panes, props, run, spaces, terminals } from 'herdr';
 
 import type { IconName, WorktreeAction } from '../../kit/index.ts';
@@ -255,7 +255,9 @@ const startsGroup = (items: MenuItem[], index: number): boolean => {
 // `pane.split:right` binds pane.split with { direction: "right" }.
 const itemShortcut = (item: MenuItem): string | null => {
   const value = Object.values(item.args)[0];
-  const actions = typeof value === 'string' ? [`${item.command}:${value}`, item.command] : [item.command];
+
+  const actions =
+    typeof value === 'string' ? [`${item.command}:${value}`, item.command] : [item.command];
 
   return shortcutFor(...actions);
 };

@@ -7,6 +7,14 @@
 // and down or ctrl+n and ctrl+p move, Enter goes, Esc closes. Holding ctrl+shift, k again moves
 // to the next space, and releasing ctrl goes there, like alt-tab.
 
+import type { InputState } from 'gpui-base';
+import {
+  h_flex,
+  InputState as InputStates,
+  v_flex,
+  v_virtual_list,
+  VirtualListScrollHandle,
+} from 'gpui-base';
 import type {
   AsyncContext,
   Context,
@@ -16,14 +24,6 @@ import type {
   ModifiersChangedEvent,
 } from 'gpui-kit';
 import { div, View } from 'gpui-kit';
-import type { InputState } from 'gpui-base';
-import {
-  h_flex,
-  InputState as InputStates,
-  v_flex,
-  v_virtual_list,
-  VirtualListScrollHandle,
-} from 'gpui-base';
 import type { Status } from 'herdr';
 import {
   appHome,
@@ -89,7 +89,12 @@ const focusAttempts = 40;
 
 const statusFilters: StatusFilter[] = [
   { label: 'All', statuses: null, mark: null, empty: 'No space matches.' },
-  { label: 'Needs you', statuses: ['blocked', 'done'], mark: 'blocked', empty: 'Nothing needs you.' },
+  {
+    label: 'Needs you',
+    statuses: ['blocked', 'done'],
+    mark: 'blocked',
+    empty: 'Nothing needs you.',
+  },
   { label: 'Blocked', statuses: ['blocked'], mark: 'blocked', empty: 'Nothing is blocked.' },
   { label: 'Done', statuses: ['done'], mark: 'done', empty: 'Nothing is done.' },
   { label: 'Working', statuses: ['working'], mark: 'working', empty: 'Nothing is working.' },
@@ -286,7 +291,9 @@ export default class Picker extends View {
     this.keepSearchFocused(cx);
 
     const rows = this.rows();
-    const previous = rows.find((row) => row.kind === 'space' && row.space.id !== current) ?? rows[0];
+
+    const previous =
+      rows.find((row) => row.kind === 'space' && row.space.id !== current) ?? rows[0];
 
     this.selectedKey = previous?.key ?? null;
     this.updatePreview(cx);
@@ -516,7 +523,9 @@ export default class Picker extends View {
   private spaceRow(row: PickerRow, selected: boolean): Element {
     const { space } = row;
     const nameMatch = this.query === '' ? null : fuzzyMatch(this.query, space.name);
-    const label = nameMatch === null ? space.name : highlightedText(space.name, nameMatch.positions, true);
+
+    const label =
+      nameMatch === null ? space.name : highlightedText(space.name, nameMatch.positions, true);
 
     return listRow({
       size: 'large',

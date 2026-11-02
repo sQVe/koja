@@ -68,11 +68,15 @@ export const fuzzyMatch = (query: string, text: string): Match | null => {
 };
 
 // The best match in any one field; letters never match across fields.
-export const bestFieldMatch = (query: string, fields: (string | null | undefined)[]): Match | null => {
+export const bestFieldMatch = (
+  query: string,
+  fields: (string | null | undefined)[],
+): Match | null => {
   let best: Match | null = null;
 
   for (const field of fields) {
-    const match = field === null || field === undefined || field === '' ? null : fuzzyMatch(query, field);
+    const match =
+      field === null || field === undefined || field === '' ? null : fuzzyMatch(query, field);
 
     if (match === null) {
       continue;

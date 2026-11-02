@@ -5,6 +5,8 @@
 // closes. Herdr's own palette is rewritten on every start and this one is not, so new app
 // commands need a name here.
 
+import type { InputState } from 'gpui-base';
+import { InputState as InputStates, v_flex } from 'gpui-base';
 import type {
   AsyncContext,
   Context,
@@ -14,8 +16,6 @@ import type {
   ScrollWheelEvent,
 } from 'gpui-kit';
 import { div, View } from 'gpui-kit';
-import type { InputState } from 'gpui-base';
-import { InputState as InputStates, v_flex } from 'gpui-base';
 import { closeOverlay, commands, layouts, openOverlay, props, run, shared } from 'herdr';
 
 import {
@@ -65,7 +65,13 @@ interface RowPlace {
   row: number;
 }
 
-type NamedEntry = [name: string, args: Record<string, unknown>, group: string, title: string, words: string];
+type NamedEntry = [
+  name: string,
+  args: Record<string, unknown>,
+  group: string,
+  title: string,
+  words: string,
+];
 
 // The list keeps one height while you move: rows and group titles have fixed heights, and the
 // list shows as many as fit in this many rows.
@@ -117,12 +123,20 @@ const namedEntries: NamedEntry[] = [
   ['pane.split', { direction: 'down' }, 'Pane', 'Split down', 'horizontal'],
   ['pane.close', {}, 'Pane', 'Close pane', 'kill'],
   ['pane.zoom', {}, 'Pane', 'Zoom pane', 'maximize fullscreen'],
-  ...directions.map(
-    (direction): NamedEntry => ['pane.go', { direction }, 'Pane', `Focus pane ${direction}`, 'move go'],
-  ),
-  ...directions.map(
-    (direction): NamedEntry => ['pane.swap', { direction }, 'Pane', `Swap pane ${direction}`, 'move'],
-  ),
+  ...directions.map((direction): NamedEntry => [
+    'pane.go',
+    { direction },
+    'Pane',
+    `Focus pane ${direction}`,
+    'move go',
+  ]),
+  ...directions.map((direction): NamedEntry => [
+    'pane.swap',
+    { direction },
+    'Pane',
+    `Swap pane ${direction}`,
+    'move',
+  ]),
   ['space.new', {}, 'Space', 'New space', 'workspace'],
   ['space.rename', {}, 'Space', 'Rename space', 'workspace'],
   ['space.close', {}, 'Space', 'Close space', 'workspace kill'],
@@ -150,15 +164,13 @@ const namedEntries: NamedEntry[] = [
   ['app.zoom_reset', {}, 'App', 'Reset zoom', 'font size'],
   ['app.quit', {}, 'App', 'Quit Herdr', 'exit'],
   ['mod.open', { name: 'koja-gallery' }, 'App', 'Kit gallery', 'koja ui components design'],
-  ...themeNames.map(
-    (name): NamedEntry => [
-      'app.theme',
-      { name },
-      'App',
-      `Theme: ${name.replaceAll('-', ' ')}`,
-      'colors look',
-    ],
-  ),
+  ...themeNames.map((name): NamedEntry => [
+    'app.theme',
+    { name },
+    'App',
+    `Theme: ${name.replaceAll('-', ' ')}`,
+    'colors look',
+  ]),
 ];
 
 // Commands that act on something you point at, such as ids and terminals: not for a list.
@@ -226,7 +238,14 @@ const otherEntries = (): Entry[] =>
     .map((command) => {
       const { group, title } = titleOf(command.name);
 
-      return { id: entryId(command.name, {}), name: command.name, args: {}, group, title, words: command.about };
+      return {
+        id: entryId(command.name, {}),
+        name: command.name,
+        args: {},
+        group,
+        title,
+        words: command.about,
+      };
     });
 
 // Every entry for the state the app is in now.
@@ -414,7 +433,9 @@ export default class Palette extends View {
           : { entry, head: entry.group, positions: match.positions, score: match.score };
       })
       .filter((row): row is RankedRow => row !== null)
-      .toSorted((first, second) => second.score - first.score || rank(first.entry) - rank(second.entry));
+      .toSorted(
+        (first, second) => second.score - first.score || rank(first.entry) - rank(second.entry),
+      );
   }
 
   private groupedRows(all: Entry[]): Row[] {
@@ -424,7 +445,11 @@ export default class Palette extends View {
       .slice(0, recentShown);
 
     const rest = all.filter((entry) => !recent.includes(entry));
-    const ordered = groups.slice(1).flatMap((group) => rest.filter((entry) => entry.group === group));
+
+    const ordered = groups
+      .slice(1)
+      .flatMap((group) => rest.filter((entry) => entry.group === group));
+
     const others = rest.filter((entry) => !groups.includes(entry.group));
 
     return [
@@ -563,7 +588,9 @@ export default class Palette extends View {
       }
 
       if (this.visible(place.row, place.row + rowSize, scrolls)) {
-        items.push(this.placed(this.rowElement(row, index), place.row, place.row + rowSize, scrolls));
+        items.push(
+          this.placed(this.rowElement(row, index), place.row, place.row + rowSize, scrolls),
+        );
       }
     }
 

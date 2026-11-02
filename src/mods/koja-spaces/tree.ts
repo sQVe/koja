@@ -52,10 +52,13 @@ const baseName = (path: string): string => path.replace(/\/+$/, '').split('/').a
 export const repoName = (gitFolder: string): string => {
   const inside = /\/\.(?:git|bare)$/.test(gitFolder);
 
-  return inside ? baseName(gitFolder.slice(0, -'/.git'.length)) : baseName(gitFolder).replace(/\.git$/, '');
+  return inside
+    ? baseName(gitFolder.slice(0, -'/.git'.length))
+    : baseName(gitFolder).replace(/\.git$/, '');
 };
 
-const countOf = (text: string | undefined): number => Math.abs(Number.parseInt(text ?? '', 10)) || 0;
+const countOf = (text: string | undefined): number =>
+  Math.abs(Number.parseInt(text ?? '', 10)) || 0;
 
 // The branch and its distance from upstream, from `git status --porcelain=v2 --branch`.
 export const parseBranchStatus = (stdout: string): BranchStatus => {

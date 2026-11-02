@@ -1,4 +1,5 @@
 import { describe, expect, test } from 'bun:test';
+
 import type { PaneInfo, Program, SpaceInfo, Status, TabInfo } from 'herdr';
 
 import type { PickerData } from './rows.ts';
@@ -64,7 +65,12 @@ const data = (overrides: Partial<PickerData> = {}): PickerData => ({
     spaceOf('s1', 1, 'koja', [tabOf('k1', 1, true), tabOf('k2', 2)]),
     spaceOf('s2', 2, 'notes', [tabOf('n1', 1, true)]),
   ],
-  panes: [paneOf('p1', 'k1'), paneOf('p2', 'k1', 'blocked'), paneOf('p3', 'k2'), paneOf('p4', 'n1')],
+  panes: [
+    paneOf('p1', 'k1'),
+    paneOf('p2', 'k1', 'blocked'),
+    paneOf('p3', 'k2'),
+    paneOf('p4', 'n1'),
+  ],
   recent: [],
   focus: {},
   ...overrides,

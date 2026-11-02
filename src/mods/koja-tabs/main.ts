@@ -1,9 +1,9 @@
 // The tab bar: the shown space's tabs, the + menu, the side panel buttons, and the mode mark.
 // Click to select, double-click to rename, drag to reorder, right-click for the tab's menu.
 
+import { h_flex } from 'gpui-base';
 import type { Context, Element } from 'gpui-kit';
 import { div, View } from 'gpui-kit';
-import { h_flex } from 'gpui-base';
 import type { PaneInfo, SpaceInfo, TabInfo } from 'herdr';
 import { layout, openOverlay, panes, run, settings, shared, spaces } from 'herdr';
 
@@ -56,7 +56,10 @@ const stopPress = (_event: unknown, cx: Context): void => {
 
 const readStoredPanels = (): Record<string, string | null> => {
   const stored: unknown = JSON.parse(localStorage.getItem(panelStorageKey) ?? '{}');
-  const entries = Object.entries(recordOf(stored)).map(([space, panel]) => [space, stringOf(panel)] as const);
+
+  const entries = Object.entries(recordOf(stored)).map(
+    ([space, panel]) => [space, stringOf(panel)] as const,
+  );
 
   return Object.fromEntries(entries);
 };
@@ -95,9 +98,7 @@ const enabledPanels = (): string[] => {
 
   const chosen = listOf(shared('workspace.panels') ?? ['files', 'changes']);
 
-  return chosen.filter(
-    (panel): panel is string => typeof panel === 'string' && offered.has(panel),
-  );
+  return chosen.filter((panel): panel is string => typeof panel === 'string' && offered.has(panel));
 };
 
 const showPanel = (panel: string | null): void => {
@@ -124,7 +125,10 @@ const windowButtonsPadding = (): number => {
   }
 
   const sidebar = findLayoutNode('sidebar');
-  const sidebarWidth = sidebar?.['hidden'] === true ? 0 : (numberOf(recordOf(sidebar?.['size'])['px']) ?? 0);
+
+  const sidebarWidth =
+    sidebar?.['hidden'] === true ? 0 : (numberOf(recordOf(sidebar?.['size'])['px']) ?? 0);
+
   const zoom = numberOf(settings()['zoom']) ?? 1;
 
   return Math.max(spacing.large, (lights + trafficLightsWidth) / zoom - sidebarWidth);
@@ -306,12 +310,20 @@ export default class Tabs extends View {
     // Red while the modal-pill overlay holds the keyboard (normal mode), else green (insert mode).
     const normalMode = Boolean(shared('modal.pill'));
 
-    return tabBarEdge(h_flex().flex_none().gap(spacing.xxsmall).pl(spacing.small).pr(spacing.xsmall).items_center())
+    return tabBarEdge(
+      h_flex().flex_none().gap(spacing.xxsmall).pl(spacing.small).pr(spacing.xsmall).items_center(),
+    )
       .child(newButton)
       .children(
-        panels.filter((panel) => enabled.includes(panel.id)).map((panel) => this.panelButton(panel)),
+        panels
+          .filter((panel) => enabled.includes(panel.id))
+          .map((panel) => this.panelButton(panel)),
       )
-      .child(h_flex().mx(spacing.small).child(indicator(normalMode ? 'blocked' : 'ansi2')));
+      .child(
+        h_flex()
+          .mx(spacing.small)
+          .child(indicator(normalMode ? 'blocked' : 'ansi2')),
+      );
   }
 
   private panelButton(panel: Panel): Element {

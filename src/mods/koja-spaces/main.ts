@@ -3,9 +3,9 @@
 // line, and a group per machine when more than one is known. A space's row shows its pull
 // request and its agents' status. Click to switch, right-click for its menu, drag to reorder.
 
+import { v_flex } from 'gpui-base';
 import type { AsyncContext, Context, Element } from 'gpui-kit';
 import { View } from 'gpui-kit';
-import { v_flex } from 'gpui-base';
 import type { PaneInfo, SpaceInfo } from 'herdr';
 import { exec, hc, machines, openOverlay, panes, run, spaces, watchFolder } from 'herdr';
 
@@ -144,7 +144,10 @@ const readPullCaches = (): Record<string, PullCache> => {
   const entries = Object.entries(recordOf(stored)).map(([repo, cache]) => {
     const fields = recordOf(cache);
 
-    return [repo, { fetchedAt: numberOf(fields['fetchedAt']) ?? 0, list: readPullList(fields['list']) }] as const;
+    return [
+      repo,
+      { fetchedAt: numberOf(fields['fetchedAt']) ?? 0, list: readPullList(fields['list']) },
+    ] as const;
   });
 
   return Object.fromEntries(entries);
@@ -154,7 +157,10 @@ const readMachines = (stdout: string): Machine[] =>
   listOf(recordOf(JSON.parse(stdout))['machines'])
     .map(recordOf)
     .filter((machine) => machine['temporary'] !== true)
-    .map((machine) => ({ name: stringOf(machine['name']) ?? '', state: stringOf(machine['state']) }));
+    .map((machine) => ({
+      name: stringOf(machine['name']) ?? '',
+      state: stringOf(machine['state']),
+    }));
 
 const toggled = (set: Set<string>, item: string): void => {
   if (set.has(item)) {
@@ -359,7 +365,9 @@ export default class Spaces extends View {
       const name = machine.name ?? '';
 
       if (ready && this.ready[name] === false) {
-        [...keys].filter((key) => parsePlace(key)[0] === machine.name).forEach((key) => due.add(key));
+        [...keys]
+          .filter((key) => parsePlace(key)[0] === machine.name)
+          .forEach((key) => due.add(key));
       }
 
       this.ready[name] = ready;
@@ -464,7 +472,14 @@ export default class Spaces extends View {
       // No optional locks and no fsmonitor: writes under .git would wake the watch again.
       const status = await exec(
         'git',
-        ['--no-optional-locks', '-c', 'core.fsmonitor=false', 'status', '--porcelain=v2', '--branch'],
+        [
+          '--no-optional-locks',
+          '-c',
+          'core.fsmonitor=false',
+          'status',
+          '--porcelain=v2',
+          '--branch',
+        ],
         options,
       );
 
@@ -476,7 +491,13 @@ export default class Spaces extends View {
 
       // The repository's own .git folder names it; a worktree's top differs from it.
       const top = await exec('git', ['rev-parse', '--show-toplevel'], options);
-      const common = await exec('git', ['rev-parse', '--path-format=absolute', '--git-common-dir'], options);
+
+      const common = await exec(
+        'git',
+        ['rev-parse', '--path-format=absolute', '--git-common-dir'],
+        options,
+      );
+
       const repo = common.stdout.trim();
       const linked = repo !== `${top.stdout.trim()}/.git`;
 
@@ -498,7 +519,12 @@ export default class Spaces extends View {
     }
   }
 
-  private async checkFailed(key: string, stderr: string, cwd: string, machine: string | null): Promise<void> {
+  private async checkFailed(
+    key: string,
+    stderr: string,
+    cwd: string,
+    machine: string | null,
+  ): Promise<void> {
     if (/must be run in a work tree/i.test(stderr)) {
       this.git[key] = await this.bareRepo(cwd, machine);
 
@@ -523,12 +549,25 @@ export default class Spaces extends View {
       return null;
     }
 
-    const common = await exec('git', ['rev-parse', '--path-format=absolute', '--git-common-dir'], options);
+    const common = await exec(
+      'git',
+      ['rev-parse', '--path-format=absolute', '--git-common-dir'],
+      options,
+    );
+
     const head = await exec('git', ['symbolic-ref', '--short', 'HEAD'], options);
     const repo = common.stdout.trim();
     const branch = head.code === 0 ? head.stdout.trim() : null;
 
-    return { name: repoName(repo), branch, ahead: 0, behind: 0, repo: JSON.stringify([machine, repo]), cwd, linked: false };
+    return {
+      name: repoName(repo),
+      branch,
+      ahead: 0,
+      behind: 0,
+      repo: JSON.stringify([machine, repo]),
+      cwd,
+      linked: false,
+    };
   }
 
   private watch(repo: string, cx: Context): void {
@@ -601,7 +640,11 @@ export default class Spaces extends View {
 
   private isLoading(machine: string | null): boolean {
     const layout = machines().find((candidate) => candidate.name === machine)?.layout;
-    const connected = this.machineList.some((known) => known.name === machine && known.state === 'connected');
+
+    const connected = this.machineList.some(
+      (known) => known.name === machine && known.state === 'connected',
+    );
+
     const waitingForLayout = layout === undefined && connected;
 
     const waitingForSpace = spaces().some(
@@ -622,7 +665,9 @@ export default class Spaces extends View {
 
     const remote = [
       ...new Set([
-        ...rows.map((row) => row.space.machine).filter((machine): machine is string => machine !== null),
+        ...rows
+          .map((row) => row.space.machine)
+          .filter((machine): machine is string => machine !== null),
         ...this.machineList.map((machine) => machine.name),
       ]),
     ].toSorted();
@@ -645,7 +690,10 @@ export default class Spaces extends View {
         return [header].concat(mine.map(draw));
       }
 
-      return [header, this.isLoading(machine) ? this.loadingRow(collapsed) : this.newSpaceRow(machine, collapsed)];
+      return [
+        header,
+        this.isLoading(machine) ? this.loadingRow(collapsed) : this.newSpaceRow(machine, collapsed),
+      ];
     });
   }
 
@@ -740,7 +788,11 @@ export default class Spaces extends View {
         const result = await exec('gh', args, { cwd, on: machine });
 
         if (result.code === 0) {
-          this.pulls[repo] = { fetchedAt: Date.now(), list: readPullList(JSON.parse(result.stdout)) };
+          this.pulls[repo] = {
+            fetchedAt: Date.now(),
+            list: readPullList(JSON.parse(result.stdout)),
+          };
+
           localStorage.setItem(pullsKey, JSON.stringify(this.pulls));
           taskCx.notify();
         }
@@ -758,7 +810,9 @@ export default class Spaces extends View {
       return null;
     }
 
-    const mine = (this.pulls[git.repo]?.list ?? []).filter((pull) => pull.headRefName === git.branch);
+    const mine = (this.pulls[git.repo]?.list ?? []).filter(
+      (pull) => pull.headRefName === git.branch,
+    );
 
     return mine.find((pull) => pull.state === 'OPEN') ?? mine[0] ?? null;
   }
@@ -872,7 +926,10 @@ export default class Spaces extends View {
   // A space moves only within its machine's group.
   private dragOver(space: SpaceInfo, index: number, cx: Context): void {
     const source = this.pressed === null ? undefined : spaces()[this.pressed];
-    const sameMachine = source !== undefined && (source.machine ?? null) === (space.machine ?? null);
+
+    const sameMachine =
+      source !== undefined && (source.machine ?? null) === (space.machine ?? null);
+
     const over = sameMachine ? index : null;
 
     if (this.pressed !== null && this.over !== over) {

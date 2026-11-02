@@ -1,4 +1,5 @@
 import { describe, expect, test } from 'bun:test';
+
 import type { SpaceInfo, Status } from 'herdr';
 
 import type { GitInfo, ListedSpace } from './tree.ts';
@@ -56,7 +57,9 @@ describe('nestSpaces', () => {
   test('keeps a worktree in place when its main checkout has no space', () => {
     const rows = nestSpaces([listed(spaceOf('lone'), gitOf('koja', true), 0)], new Set());
 
-    expect(rows).toEqual([{ ...listed(spaceOf('lone'), gitOf('koja', true), 0), tree: null, fold: null }]);
+    expect(rows).toEqual([
+      { ...listed(spaceOf('lone'), gitOf('koja', true), 0), tree: null, fold: null },
+    ]);
   });
 
   test('a folded repository hides its worktrees except those that need you', () => {

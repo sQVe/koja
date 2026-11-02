@@ -1,9 +1,9 @@
 // The + menu of the tab bar: a terminal, an agent from Herdr's program table, a space, or a
 // worktree. Digits 1 to 9 start the installed agent with that number.
 
+import { v_flex } from 'gpui-base';
 import type { AsyncContext, Element, FocusHandle, KeyEvent } from 'gpui-kit';
 import { View } from 'gpui-kit';
-import { v_flex } from 'gpui-base';
 import type { Program } from 'herdr';
 import { closeOverlay, knownAgents, panes, props, run, spaces } from 'herdr';
 

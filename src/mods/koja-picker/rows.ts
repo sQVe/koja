@@ -38,8 +38,7 @@ const statusWords: Record<Status, string> = {
   idle: 'idle',
 };
 
-const statusRank = (status: Status | null): number =>
-  status === null ? 0 : statusRanks[status];
+const statusRank = (status: Status | null): number => (status === null ? 0 : statusRanks[status]);
 
 const statusWord = (status: Status | null): string | null =>
   status === null ? null : statusWords[status];
@@ -66,7 +65,10 @@ export const tabPane = (tab: TabInfo, data: PickerData): PaneInfo | null => {
     return remembered;
   }
 
-  return tabPanes.toSorted((first, second) => statusRank(second.status) - statusRank(first.status))[0] ?? null;
+  return (
+    tabPanes.toSorted((first, second) => statusRank(second.status) - statusRank(first.status))[0] ??
+    null
+  );
 };
 
 export const rowPane = (row: PickerRow | undefined, data: PickerData): PaneInfo | null => {
@@ -179,8 +181,19 @@ const spaceRows = (
   const filteredPane = statuses === null ? null : (shownPanes[0] ?? null);
   const filteredTab = space.tabs.find((tab) => tab.id === filteredPane?.tab);
   const shownTab = filteredTab ?? space.tabs.find((tab) => tab.active) ?? space.tabs[0];
-  const spaceRow: PickerRow = { kind: 'space', key: `space:${space.id}`, space, tab: shownTab, pane: filteredPane };
-  const rows = [spaceRow, ...space.tabs.flatMap((tab) => tabChildRows(space, tab, statuses, paneList))];
+
+  const spaceRow: PickerRow = {
+    kind: 'space',
+    key: `space:${space.id}`,
+    space,
+    tab: shownTab,
+    pane: filteredPane,
+  };
+
+  const rows = [
+    spaceRow,
+    ...space.tabs.flatMap((tab) => tabChildRows(space, tab, statuses, paneList)),
+  ];
 
   if (query === '') {
     return { score: 0, rows };
@@ -197,12 +210,17 @@ const spaceRows = (
   return { score: spaceMatch.score + (nameMatch?.score ?? 0), rows };
 };
 
-export const buildRows = (query: string, statuses: Status[] | null, data: PickerData): PickerRow[] => {
+export const buildRows = (
+  query: string,
+  statuses: Status[] | null,
+  data: PickerData,
+): PickerRow[] => {
   const groups = recentOrder(data)
     .map((space) => spaceRows(space, query, statuses, data.panes))
     .filter((group): group is RowGroup => group !== null);
 
-  const ordered = query === '' ? groups : groups.toSorted((first, second) => second.score - first.score);
+  const ordered =
+    query === '' ? groups : groups.toSorted((first, second) => second.score - first.score);
 
   return ordered.flatMap((group) => group.rows);
 };
