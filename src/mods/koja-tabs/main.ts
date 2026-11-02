@@ -1,9 +1,11 @@
 import { h_flex } from 'gpui-base';
 import type { Context, Element } from 'gpui-kit';
 import { div, View } from 'gpui-kit';
-import type { PaneInfo, SpaceInfo, TabInfo } from 'herdr';
+import type { SpaceInfo, TabInfo } from 'herdr';
 import { openOverlay, panes, run, settings, shared, spaces } from 'herdr';
 
+import type { DragState } from '../../kit/drag.ts';
+import { noDrag, startDrag } from '../../kit/drag.ts';
 import type { IconName } from '../../kit/index.ts';
 import {
   colors,
@@ -27,6 +29,10 @@ import {
 } from '../../kit/index.ts';
 import type { PanelMemory } from './panelMemory.ts';
 import { initialPanelMemory, panelMemory } from './panelMemory.ts';
+import { tabDropAction } from './tabDrop.ts';
+import { tabLabel, tabProgram } from './tabLabel.ts';
+import type { WindowControl } from './windowControls.ts';
+import { windowControls } from './windowControls.ts';
 
 interface Panel {
   id: string;
@@ -55,17 +61,8 @@ const readStoredPanels = (): Record<string, string | null> => {
   return Object.fromEntries(entries);
 };
 
-const tabLabel = (tabInfo: TabInfo, program: PaneInfo['program'] | undefined): string => {
-  const name = /^tb\d+$/.test(tabInfo.name) ? (program?.name ?? 'Terminal') : tabInfo.name;
-
-  return tabInfo.zoomed ? `${name} Z` : name;
-};
-
-const tabProgram = (tabInfo: TabInfo, paneList: PaneInfo[]): PaneInfo['program'] | undefined => {
-  const tabPanes = paneList.filter((pane) => pane.tab === tabInfo.id);
-
-  return (tabPanes.find((pane) => pane.program.agent) ?? tabPanes[0])?.program;
-};
+const tabIds = (space: SpaceInfo | undefined): string[] =>
+  space?.tabs.map((tabInfo) => tabInfo.id) ?? [];
 
 const shownPanel = (): string | null => {
   const panel = findLayoutNode('panel');
@@ -116,7 +113,7 @@ const windowButtonsPadding = (): number => {
 };
 
 export default class Tabs extends View {
-  private pressed: number | null = null;
+  private drag: DragState = noDrag;
 
   private memory: PanelMemory = initialPanelMemory(readStoredPanels());
 
@@ -134,7 +131,7 @@ export default class Tabs extends View {
       .items_center()
       .bg(palette.chrome)
       .on_mouse_up('left', () => {
-        this.pressed = null;
+        this.drag = noDrag;
       })
       .on_scroll_wheel((event) => {
         if (Math.abs(event.delta.y) >= 1) {
@@ -196,14 +193,14 @@ export default class Tabs extends View {
       .id(`tab-${tabInfo.id}`)
       .on_mouse_down('left', (event, cx) => {
         cx.stop_propagation();
-        this.pressed = index;
+        this.drag = startDrag(tabIds(space), index);
 
         if (event.click_count === 2) {
           run('tab.rename', { id: tabInfo.id });
         }
       })
       .on_mouse_up('left', () => {
-        this.release(space, tabInfo, index);
+        this.release(tabInfo);
       })
       .on_mouse_down('right', (_event, cx) => {
         cx.stop_propagation();
@@ -217,19 +214,17 @@ export default class Tabs extends View {
       });
   }
 
-  private release(space: SpaceInfo | undefined, tabInfo: TabInfo, index: number): void {
-    const from = this.pressed;
-    const moved = from === null ? undefined : space?.tabs[from];
+  private release(tabInfo: TabInfo): void {
+    const liveSpace = spaces().find((candidate) => candidate.active);
+    const action = tabDropAction(this.drag, tabInfo.id, tabIds(liveSpace));
 
-    this.pressed = null;
+    this.drag = noDrag;
 
-    if (moved === undefined || from === index) {
-      run('tab.select', { id: tabInfo.id });
-
-      return;
+    if (action.kind === 'move') {
+      run('tab.move', { id: action.id, index: action.index });
+    } else {
+      run('tab.select', { id: action.id });
     }
-
-    run('tab.move', { id: moved.id, index: index + 1 });
   }
 
   private closeButton(tabInfo: TabInfo): Element {
@@ -270,7 +265,8 @@ export default class Tabs extends View {
         h_flex()
           .mx(spacing.small)
           .child(indicator(normalMode ? 'blocked' : 'ansi2')),
-      );
+      )
+      .children(windowControls(currentWindow()).map((control) => this.windowButton(control)));
   }
 
   private panelButton(panel: Panel): Element {
@@ -281,6 +277,15 @@ export default class Tabs extends View {
       .on_mouse_down('left', stopPress)
       .on_click(() => {
         showPanel(on ? null : panel.id);
+      });
+  }
+
+  private windowButton(control: WindowControl): Element {
+    return iconButton({ name: control.icon })
+      .id(control.id)
+      .on_mouse_down('left', stopPress)
+      .on_click(() => {
+        run(control.command);
       });
   }
 }
