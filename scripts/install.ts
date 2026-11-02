@@ -1,3 +1,4 @@
+import type { Stats } from 'node:fs';
 import { watch } from 'node:fs';
 import {
   chmod,
@@ -14,7 +15,7 @@ import {
 import { homedir } from 'node:os';
 import { dirname, isAbsolute, join, normalize, relative, sep } from 'node:path';
 
-import { buildMods } from './build.ts';
+import { buildMods, isMissing, outputDirectory, sourceDirectory } from './build.ts';
 
 export interface CheckResult {
   passed: boolean;
@@ -46,8 +47,14 @@ const permissionBits = 0o777;
 
 const watchDebounceMilliseconds = 200;
 
-const isMissing = (error: unknown): boolean =>
-  error instanceof Error && 'code' in error && error.code === 'ENOENT';
+const lstatOrNull = async (path: string): Promise<Stats | null> =>
+  lstat(path).catch((error: unknown) => {
+    if (isMissing(error)) {
+      return null;
+    }
+
+    throw error;
+  });
 
 const filesUnder = async (directory: string): Promise<string[]> => {
   try {
@@ -89,8 +96,15 @@ const isInsideHome = (path: string): boolean => {
 };
 
 const readRecord = async (home: string): Promise<string[]> => {
+  const path = join(home, recordName);
+  const existing = await lstatOrNull(path);
+
+  if (existing === null || existing.isSymbolicLink()) {
+    return [];
+  }
+
   try {
-    const record: unknown = JSON.parse(await readFile(join(home, recordName), 'utf8'));
+    const record: unknown = JSON.parse(await readFile(path, 'utf8'));
 
     const files =
       typeof record === 'object' && record !== null && 'files' in record ? record.files : [];
@@ -117,17 +131,20 @@ const refuseLinkedFolders = async (home: string, path: string): Promise<void> =>
     folder = join(folder, part);
 
     // eslint-disable-next-line no-await-in-loop -- each folder is checked before the next one under it
-    const entry = await lstat(folder).catch((error: unknown) => {
-      if (isMissing(error)) {
-        return null;
-      }
-
-      throw error;
-    });
+    const entry = await lstatOrNull(folder);
 
     if (entry?.isSymbolicLink() === true) {
       throw new Error(`Refusing to install through the symlinked folder ${folder}`);
     }
+  }
+};
+
+// A symlink at `destination` is removed, never written through.
+const removeSymlinkLeaf = async (destination: string): Promise<void> => {
+  const existing = await lstatOrNull(destination);
+
+  if (existing?.isSymbolicLink() === true) {
+    await unlink(destination);
   }
 };
 
@@ -150,11 +167,12 @@ const isSameFile = async (source: string, destination: string): Promise<boolean>
 // Answers whether it wrote the file. A symlink in the way is removed, never written through.
 const installFile = async (home: string, path: string, source: string): Promise<boolean> => {
   const destination = join(home, path);
-  const existing = await lstat(destination).catch(() => null);
 
-  if (existing?.isSymbolicLink() === true) {
-    await unlink(destination);
-  } else if (existing !== null && (await isSameFile(source, destination))) {
+  await removeSymlinkLeaf(destination);
+
+  const existing = await lstatOrNull(destination);
+
+  if (existing !== null && (await isSameFile(source, destination))) {
     return false;
   }
 
@@ -187,7 +205,7 @@ const removeEmptyFolders = async (home: string, path: string): Promise<void> => 
 
 const removeFile = async (home: string, path: string): Promise<boolean> => {
   const destination = join(home, path);
-  const existing = await lstat(destination).catch(() => null);
+  const existing = await lstatOrNull(destination);
 
   if (existing === null || existing.isDirectory()) {
     return false;
@@ -219,11 +237,12 @@ export const install = async (options: InstallOptions): Promise<InstallResult> =
   const { home } = options;
   const planned = await plannedFiles(options);
   const earlier = await readRecord(home);
+  const stale = earlier.filter((file) => !planned.has(file));
   const written: string[] = [];
   const removed: string[] = [];
 
-  for (const path of planned.keys()) {
-    // eslint-disable-next-line no-await-in-loop -- every folder is checked before anything is written
+  for (const path of [...planned.keys(), ...stale, recordName]) {
+    // eslint-disable-next-line no-await-in-loop -- every destination is checked before anything changes
     await refuseLinkedFolders(home, path);
   }
 
@@ -234,7 +253,7 @@ export const install = async (options: InstallOptions): Promise<InstallResult> =
     }
   }
 
-  for (const path of earlier.filter((file) => !planned.has(file))) {
+  for (const path of stale) {
     // eslint-disable-next-line no-await-in-loop -- removals go one at a time, so empty folders go too
     if (await removeFile(home, path)) {
       removed.push(path);
@@ -242,8 +261,10 @@ export const install = async (options: InstallOptions): Promise<InstallResult> =
   }
 
   const record = { version: recordVersion, files: [...planned.keys()].toSorted() };
+  const recordPath = join(home, recordName);
 
-  await writeFile(join(home, recordName), `${JSON.stringify(record, null, 2)}\n`);
+  await removeSymlinkLeaf(recordPath);
+  await writeFile(recordPath, `${JSON.stringify(record, null, 2)}\n`);
 
   const checks = await Promise.all(
     installedMods(planned.keys()).map(async (mod) => {
@@ -281,11 +302,11 @@ const report = (result: InstallResult): boolean => {
 };
 
 const buildAndInstall = async (home: string): Promise<boolean> => {
-  await buildMods('src/mods', 'dist/mods');
+  await buildMods(sourceDirectory, outputDirectory);
 
   const result = await install({
     home,
-    modsDirectory: 'dist/mods',
+    modsDirectory: outputDirectory,
     configDirectory: 'config',
     check: herdrCheck,
   });

@@ -1,10 +1,10 @@
 import { cp, readdir, rm } from 'node:fs/promises';
 import { join } from 'node:path';
 
-const sourceDirectory = 'src/mods';
-const outputDirectory = 'dist/mods';
+export const sourceDirectory = 'src/mods';
+export const outputDirectory = 'dist/mods';
 
-const isMissing = (error: unknown): boolean =>
+export const isMissing = (error: unknown): boolean =>
   error instanceof Error && 'code' in error && error.code === 'ENOENT';
 
 const listModNames = async (directory: string): Promise<string[]> => {

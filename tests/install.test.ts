@@ -158,6 +158,93 @@ describe('install', () => {
     expect(await readFile(outside, 'utf8')).toBe('keep\n');
   });
 
+  test('keeps a stale file when its parent folder is a symlink', async () => {
+    const elsewhere = join(root, 'elsewhere');
+    const outside = join(elsewhere, 'main.js');
+
+    await writeAt(outside, 'keep\n');
+    await mkdir(join(home, 'mods'), { recursive: true });
+    await symlink(elsewhere, join(home, 'mods', 'old'));
+
+    await writeFile(
+      join(home, '.koja-install.json'),
+      JSON.stringify({ version: 1, files: ['mods/old/main.js'] }),
+    );
+
+    const failure: unknown = await run().catch((error: unknown) => error);
+
+    expect(failure).toBeInstanceOf(Error);
+    expect(await readFile(outside, 'utf8')).toBe('keep\n');
+  });
+
+  test('keeps earlier destinations when a later destination is rejected', async () => {
+    const dotfile = join(root, 'dotfiles', 'keys.json');
+    const elsewhere = join(root, 'elsewhere');
+
+    await writeAt(dotfile, '{ "old": true }\n');
+    await mkdir(elsewhere);
+    await symlink(dotfile, join(home, 'keys.json'));
+    await mkdir(join(home, 'mods'), { recursive: true });
+    await symlink(elsewhere, join(home, 'mods', 'old'));
+
+    await writeFile(
+      join(home, '.koja-install.json'),
+      JSON.stringify({ version: 1, files: ['mods/old/main.js'] }),
+    );
+
+    const failure: unknown = await run().catch((error: unknown) => error);
+    const installed = await lstat(join(home, 'keys.json'));
+
+    expect(failure).toBeInstanceOf(Error);
+    expect(installed.isSymbolicLink()).toBe(true);
+    expect(await readFile(dotfile, 'utf8')).toBe('{ "old": true }\n');
+    expect(await exists(join(elsewhere, 'main.js'))).toBe(false);
+  });
+
+  test('removes a stale symlink, reports it, and cleans its folder', async () => {
+    const elsewhere = join(root, 'elsewhere');
+    const outside = join(elsewhere, 'main.js');
+
+    await writeAt(outside, 'keep\n');
+    await mkdir(join(home, 'mods', 'old'), { recursive: true });
+    await symlink(outside, join(home, 'mods', 'old', 'main.js'));
+
+    await writeFile(
+      join(home, '.koja-install.json'),
+      JSON.stringify({ version: 1, files: ['mods/old/main.js'] }),
+    );
+
+    const result = await run();
+
+    expect(result.removed).toContain('mods/old/main.js');
+    expect(await exists(join(home, 'mods', 'old', 'main.js'))).toBe(false);
+    expect(await exists(join(home, 'mods', 'old'))).toBe(false);
+    expect(await readFile(outside, 'utf8')).toBe('keep\n');
+  });
+
+  test('does not read or write through a symlinked record', async () => {
+    const externalRecord = join(root, 'external-record.json');
+    const externalText = `${JSON.stringify({ version: 1, files: ['mods/keep/main.js'] })}\n`;
+
+    await writeAt(join(home, 'mods', 'keep', 'main.js'), 'keep\n');
+    await writeFile(externalRecord, externalText);
+    await symlink(externalRecord, join(home, '.koja-install.json'));
+
+    await run();
+
+    expect(await readFile(join(home, 'mods', 'keep', 'main.js'), 'utf8')).toBe('keep\n');
+    expect(await readFile(externalRecord, 'utf8')).toBe(externalText);
+
+    const record = await lstat(join(home, '.koja-install.json'));
+
+    const written = JSON.parse(await readFile(join(home, '.koja-install.json'), 'utf8')) as {
+      files: string[];
+    };
+
+    expect(record.isSymbolicLink()).toBe(false);
+    expect(written.files).toContain('mods/koja-tabs/main.js');
+  });
+
   test('leaves an unchanged file in place', async () => {
     await run();
 
