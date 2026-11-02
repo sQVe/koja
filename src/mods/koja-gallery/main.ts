@@ -33,7 +33,12 @@ import {
 
 const statuses: (Status | null)[] = ['working', 'blocked', 'done', 'idle', null];
 
-const rowStates: RowState[] = ['normal', 'hovered', 'selected', 'disabled'];
+const rowStates: { state: RowState; hovered: boolean; label: string }[] = [
+  { state: 'normal', hovered: false, label: 'normal' },
+  { state: 'normal', hovered: true, label: 'hovered' },
+  { state: 'selected', hovered: false, label: 'selected' },
+  { state: 'disabled', hovered: false, label: 'disabled' },
+];
 
 const iconSizes = ['xsmall', 'small', 'default', 'large'] as const;
 
@@ -54,7 +59,7 @@ const section = (title: string, content: Element[]): Element =>
     .child(v_flex().px(spacing.large).gap(spacing.medium).children(content));
 
 const textSizes = (): Element[] =>
-  (['xsmall', 'small', 'default'] as const).map((size) =>
+  (['xsmall', 'small', 'default', 'large'] as const).map((size) =>
     div().text_size(textSize[size]).child(`${size}: The quick brown fox`),
   );
 
@@ -103,13 +108,14 @@ const marks = (): Element[] => [
 
 const rowsInState = (inset: boolean): Element =>
   v_flex().children(
-    rowStates.map((state) =>
+    rowStates.map((variant) =>
       listRow({
         size: inset ? 'large' : 'small',
         inset,
-        state,
+        state: variant.state,
+        hovered: variant.hovered,
         start: icon('terminal', 'large'),
-        label: `${state} row`,
+        label: `${variant.label} row`,
         detail: 'detail',
         end: [keyHint('ctrl-shift-t'), statusMark('done')],
       }),
@@ -214,7 +220,7 @@ const rows = (): Element[] => [
 
 const headers = (): Element[] => [
   sectionHeader({ label: 'Default header', size: 'default' }),
-  sectionHeader({ label: 'Bar header', size: 'bar', end: [iconButton('plus')] }),
+  sectionHeader({ label: 'Bar header', size: 'bar', end: [iconButton({ name: 'plus' })] }),
   sectionHeader({
     label: 'Interactive header',
     size: 'default',
@@ -230,10 +236,10 @@ const buttons = (): Element[] => [
     h_flex()
       .gap(spacing.medium)
       .items_center()
-      .child(iconButton('plus'))
-      .child(iconButton('plus', 'default', 'hovered'))
-      .child(iconButton('x', 'small'))
-      .child(iconButton('x', 'small', 'hovered')),
+      .child(iconButton({ name: 'plus' }))
+      .child(iconButton({ name: 'plus', hovered: true }))
+      .child(iconButton({ name: 'x', size: 'small' }))
+      .child(iconButton({ name: 'x', size: 'small', hovered: true })),
   ),
   sample(
     'Toggle buttons: active, normal, hovered, quiet',
@@ -243,7 +249,7 @@ const buttons = (): Element[] => [
       .child(
         toggleButton({ label: 'Normal', active: false, start: statusMark('blocked'), end: '2' }),
       )
-      .child(toggleButton({ label: 'Hovered', active: false, state: 'hovered' }))
+      .child(toggleButton({ label: 'Hovered', active: false, hovered: true }))
       .child(toggleButton({ label: 'Quiet', active: false, quiet: true })),
   ),
 ];
@@ -258,7 +264,7 @@ const tabs = (): Element[] => [
         active: true,
         icon: icon('terminal', 'small'),
         status: 'working',
-        close: iconButton('x', 'small'),
+        close: iconButton({ name: 'x', size: 'small' }),
       }),
     )
     .child(

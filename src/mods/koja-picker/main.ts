@@ -24,24 +24,10 @@ import type {
   ModifiersChangedEvent,
 } from 'gpui-kit';
 import { div, View } from 'gpui-kit';
-import type { Status } from 'herdr';
-import {
-  appHome,
-  closeOverlay,
-  exec,
-  focused,
-  hc,
-  home,
-  nextCommand,
-  panes,
-  props,
-  run,
-  setShared,
-  shared,
-  spaces,
-} from 'herdr';
+import { focused, nextCommand, panes, props, run, setShared, shared, spaces } from 'herdr';
 
 import {
+  closeOverlay,
   colors,
   emptyState,
   highlightedText,
@@ -49,8 +35,7 @@ import {
   iconSlot,
   listRow,
   modName,
-  openAtTop,
-  overlaySize,
+  overlayId,
   programIcon,
   radius,
   recordOf,
@@ -58,28 +43,28 @@ import {
   searchField,
   spacing,
   statusMark,
-  stringOf,
   textSize,
   toggleButton,
 } from '../../kit/index.ts';
+import type { StatusFilter } from './filters.ts';
+import { allFilter, statusFilters } from './filters.ts';
+import { createHistory } from './history.ts';
+import { launch } from './launch.ts';
 import { fuzzyMatch } from './match.ts';
-import type { PickerData, PickerRow } from './rows.ts';
+import { createPreviewSession } from './previewSession.ts';
+import type { PanePickerRow, PickerData, PickerRow, TabPickerRow } from './rows.ts';
 import { buildRows, folderName, rowPane, statusCount, tabLabel, tabPane } from './rows.ts';
 
-interface StatusFilter {
-  label: string;
-  statuses: Status[] | null;
-  mark: Status | null;
-  empty: string;
-}
-
-const previewName = `${modName}-preview`;
-
-const recentKey = `${modName}.recent`;
-
-const focusKey = `${modName}.focus`;
-
-const recentLimit = 50;
+const history = createHistory(
+  {
+    get: (key) => shared(key),
+    set: (key, value) => {
+      setShared(key, value);
+    },
+    liveTabs: () => new Set(spaces().flatMap((space) => space.tabs.map((tab) => tab.id))),
+  },
+  { recent: `${modName}.recent`, focus: `${modName}.focus` },
+);
 
 // The search input can't take the keyboard until the popup has drawn it, and a click on the
 // preview terminal takes the keyboard away; both need another try, this often, this many times.
@@ -87,147 +72,14 @@ const focusRetryMilliseconds = 50;
 
 const focusAttempts = 40;
 
-const statusFilters: StatusFilter[] = [
-  { label: 'All', statuses: null, mark: null, empty: 'No space matches.' },
-  {
-    label: 'Needs you',
-    statuses: ['blocked', 'done'],
-    mark: 'blocked',
-    empty: 'Nothing needs you.',
-  },
-  { label: 'Blocked', statuses: ['blocked'], mark: 'blocked', empty: 'Nothing is blocked.' },
-  { label: 'Done', statuses: ['done'], mark: 'done', empty: 'Nothing is done.' },
-  { label: 'Working', statuses: ['working'], mark: 'working', empty: 'Nothing is working.' },
-  { label: 'Idle', statuses: ['idle'], mark: 'idle', empty: 'Nothing is idle.' },
-];
-
-const allFilter = statusFilters[0] ?? { label: 'All', statuses: null, mark: null, empty: '' };
-
-const previewFifo = (): string => `${home()}/.cache/herdr-${modName}.fifo`;
-
-const previewScript = (): string => `${appHome()}/mods/${modName}/preview.sh`;
-
 const isList = (): boolean => recordOf(props())['part'] === 'list';
-
-const overlayId = (): string | null => stringOf(recordOf(props())['overlay']);
-
-const stringList = (value: unknown): string[] =>
-  Array.isArray(value) ? value.filter((item): item is string => typeof item === 'string') : [];
-
-const stringRecord = (value: unknown): Record<string, string> => {
-  const entries = Object.entries(recordOf(value)).flatMap(([key, item]) =>
-    typeof item === 'string' ? [[key, item] as const] : [],
-  );
-
-  return Object.fromEntries(entries);
-};
 
 const pickerData = (): PickerData => ({
   spaces: spaces(),
   panes: panes(),
-  recent: stringList(shared(recentKey)),
-  focus: stringRecord(shared(focusKey)),
+  recent: history.recent(),
+  focus: history.focus(),
 });
-
-// Herdr gives no history of pane focus, so the picker records the pane it was opened from and
-// every pane it goes to, by tab id. Tabs that are gone are dropped.
-const rememberPane = (tab: string, pane: string): void => {
-  const tabs = new Set(spaces().flatMap((space) => space.tabs.map((item) => item.id)));
-  const kept = Object.entries(stringRecord(shared(focusKey))).filter(([id]) => tabs.has(id));
-
-  setShared(focusKey, { ...Object.fromEntries(kept), [tab]: pane });
-};
-
-const rememberSpace = (space: string): void => {
-  const recent = stringList(shared(recentKey)).filter((saved) => saved !== space);
-
-  setShared(recentKey, [space, ...recent].slice(0, recentLimit));
-};
-
-const livePreviewAddress = async (): Promise<string | null> => {
-  const found = await hc(['get', '--json', previewName]).catch(() => null);
-
-  if (found?.code === 0) {
-    const terminal = recordOf(JSON.parse(found.stdout));
-
-    if (terminal['state'] === 'live') {
-      return stringOf(terminal['address']);
-    }
-
-    await hc(['rm', previewName]).catch(() => null);
-  }
-
-  const started = await hc([
-    'run',
-    '--bg',
-    '--json',
-    '--no-parent',
-    '--name',
-    previewName,
-    '--',
-    previewScript(),
-    'serve',
-    previewFifo(),
-  ]);
-
-  return started.code === 0 ? stringOf(recordOf(JSON.parse(started.stdout))['address']) : null;
-};
-
-const showInPreview = async (address: string | null): Promise<void> => {
-  await exec(previewScript(), ['show', previewFifo(), address ?? '-']).catch(() => null);
-};
-
-// Opens like the command palette and Zed's pickers: a popup near the top of the window that
-// leaves the window undimmed.
-const openPicker = (previewAddress: string): void => {
-  openAtTop(
-    {
-      width: overlaySize.pickerWidthShare,
-      height: overlaySize.pickerHeightShare,
-      layout: {
-        type: 'row',
-        divider: { width: spacing.hairline, color: 'border' },
-        children: [
-          {
-            type: 'block',
-            size: { px: overlaySize.pickerListWidth },
-            content: { mod: modName, props: { part: 'list' } },
-          },
-          {
-            type: 'block',
-            padding: overlaySize.pickerInset,
-            content: { terminal: previewAddress },
-          },
-        ],
-      },
-    },
-    overlaySize.topOffset,
-  );
-};
-
-// Without a preview terminal, Herdr's own picker still gets you somewhere.
-const launch = (cx: AsyncContext): void => {
-  const overlay = overlayId();
-  const here = focused();
-
-  if (here?.pane !== null && here?.pane !== undefined) {
-    rememberPane(here.tab, here.pane);
-  }
-
-  cx.spawn(async () => {
-    const previewAddress = await livePreviewAddress().catch(() => null);
-
-    if (overlay !== null) {
-      closeOverlay(overlay);
-    }
-
-    if (previewAddress === null) {
-      run('mod.open', { name: 'picker' });
-    } else {
-      openPicker(previewAddress);
-    }
-  });
-};
 
 const controlKey = (event: KeyEvent, letter: string): boolean =>
   event.modifiers.control && event.key === letter;
@@ -243,12 +95,7 @@ export default class Picker extends View {
 
   private selectedKey: string | null = null;
 
-  private wantedPreview: string | null = null;
-
-  // undefined until the first write, so the first selection always reaches the preview.
-  private shownPreview: string | null | undefined = undefined;
-
-  private writingPreview = false;
+  private readonly preview = createPreviewSession();
 
   private searchFocused = false;
 
@@ -265,7 +112,7 @@ export default class Picker extends View {
   override init(_props: unknown, cx: AsyncContext): void {
     if (!isList()) {
       if (overlayId() !== null) {
-        launch(cx);
+        launch(cx, history.rememberPane);
       }
 
       return;
@@ -274,7 +121,7 @@ export default class Picker extends View {
     const current = focused()?.space ?? null;
 
     if (current !== null) {
-      rememberSpace(current);
+      history.rememberSpace(current);
     }
 
     this.handle = cx.focus_handle();
@@ -285,24 +132,27 @@ export default class Picker extends View {
     });
 
     this.input.on('submit', () => {
-      this.go(this.selectedRow());
+      const data = pickerData();
+
+      this.go(this.selectedRow(this.rowsFrom(data)), data);
     });
 
     this.keepSearchFocused(cx);
 
-    const rows = this.rows();
+    const data = pickerData();
+    const rows = this.rowsFrom(data);
 
     const previous =
       rows.find((row) => row.kind === 'space' && row.space.id !== current) ?? rows[0];
 
     this.selectedKey = previous?.key ?? null;
-    this.updatePreview(cx);
+    this.updatePreview(previous, data);
     this.listenForCommands(cx);
   }
 
   override async close(): Promise<void> {
     if (isList()) {
-      await showInPreview(null);
+      await this.preview.close();
     }
   }
 
@@ -312,7 +162,8 @@ export default class Picker extends View {
     }
 
     const palette = colors();
-    const rows = this.rows();
+    const data = pickerData();
+    const rows = this.rowsFrom(data);
     const emptyText = this.query === '' ? this.filter().empty : 'No space matches.';
 
     const picker = v_flex()
@@ -329,8 +180,8 @@ export default class Picker extends View {
         this.onModifiersChanged(event);
       })
       .child(searchField(this.input, 'search'))
-      .child(rows.length > 0 ? this.list(rows) : div().flex_1().child(emptyState(emptyText)))
-      .child(this.footer());
+      .child(rows.length > 0 ? this.list(rows, data) : div().flex_1().child(emptyState(emptyText)))
+      .child(this.footer(data));
 
     return this.handle === null ? picker : picker.track_focus(this.handle);
   }
@@ -339,8 +190,8 @@ export default class Picker extends View {
     return statusFilters[this.filterIndex] ?? allFilter;
   }
 
-  private rows(): PickerRow[] {
-    return buildRows(this.query, this.filter().statuses, pickerData());
+  private rowsFrom(data: PickerData): PickerRow[] {
+    return buildRows(this.query, this.filter().statuses, data);
   }
 
   private keepSearchFocused(cx: AsyncContext): void {
@@ -374,11 +225,11 @@ export default class Picker extends View {
         // eslint-disable-next-line no-await-in-loop -- each key command is awaited in turn
         const command = await nextCommand();
 
-        if (command.endsWith('filter-next')) {
+        if (command === 'filter-next') {
           this.changeStatusFilter(this.filterIndex + 1, taskCx);
-        } else if (command.endsWith('filter-previous')) {
+        } else if (command === 'filter-previous') {
           this.changeStatusFilter(this.filterIndex - 1, taskCx);
-        } else if (command.endsWith('next')) {
+        } else if (command === 'next') {
           this.cycled = true;
           this.moveToNextSpace(taskCx);
         }
@@ -392,15 +243,16 @@ export default class Picker extends View {
   }
 
   private selectFirst(cx: Context): void {
-    this.selectedKey = this.rows()[0]?.key ?? null;
+    const data = pickerData();
+    const rows = this.rowsFrom(data);
+
+    this.selectedKey = rows[0]?.key ?? null;
     this.scroll.scroll_to_item(0);
-    this.updatePreview(cx);
+    this.updatePreview(rows[0], data);
     cx.notify();
   }
 
-  private selectedRow(): PickerRow | undefined {
-    const rows = this.rows();
-
+  private selectedRow(rows: PickerRow[]): PickerRow | undefined {
     return rows.find((row) => row.key === this.selectedKey) ?? rows[0];
   }
 
@@ -412,90 +264,79 @@ export default class Picker extends View {
   }
 
   private move(step: number, cx: Context): void {
-    const rows = this.rows();
+    const data = pickerData();
+    const rows = this.rowsFrom(data);
 
     if (rows.length === 0) {
       return;
     }
 
-    this.select(rows, (this.selectedIndex(rows) + step + rows.length) % rows.length, cx);
+    const index = (this.selectedIndex(rows) + step + rows.length) % rows.length;
+
+    this.select(rows, index, data, cx);
   }
 
   // Like alt-tab, cycling goes from space to space, past their tab and pane rows.
   private moveToNextSpace(cx: Context): void {
-    const rows = this.rows();
+    const data = pickerData();
+    const rows = this.rowsFrom(data);
     const index = this.selectedIndex(rows);
     const ordered = [...rows.slice(index + 1), ...rows.slice(0, index + 1)];
     const nextSpace = ordered.find((row) => row.kind === 'space');
 
     if (nextSpace !== undefined) {
-      this.select(rows, rows.indexOf(nextSpace), cx);
+      this.select(rows, rows.indexOf(nextSpace), data, cx);
     }
   }
 
-  private select(rows: PickerRow[], index: number, cx: Context): void {
+  private select(rows: PickerRow[], index: number, data: PickerData, cx: Context): void {
     this.selectedKey = rows[index]?.key ?? null;
     this.scroll.scroll_to_item(index);
-    this.updatePreview(cx);
+    this.updatePreview(rows[index], data);
     cx.notify();
   }
 
-  // One write at a time, always of the latest selection, so fast moves can't reach the preview
-  // out of order.
-  private updatePreview(cx: Context): void {
-    this.wantedPreview = rowPane(this.selectedRow(), pickerData())?.terminal ?? null;
-
-    if (this.writingPreview) {
-      return;
-    }
-
-    this.writingPreview = true;
-
-    cx.spawn(async () => {
-      while (this.shownPreview !== this.wantedPreview) {
-        const address = this.wantedPreview;
-
-        // eslint-disable-next-line no-await-in-loop -- writes go one at a time, in order
-        await showInPreview(address);
-        this.shownPreview = address;
-      }
-
-      this.writingPreview = false;
-    });
+  private updatePreview(row: PickerRow | undefined, data: PickerData): void {
+    this.preview.show(rowPane(row, data)?.terminal ?? null);
   }
 
   private closePicker(): void {
-    const overlay = overlayId();
-
     this.leaving = true;
-
-    if (overlay !== null) {
-      closeOverlay(overlay);
-    }
+    closeOverlay();
   }
 
-  private go(row: PickerRow | undefined): void {
+  private go(row: PickerRow | undefined, data: PickerData): void {
     if (row === undefined) {
       return;
     }
 
-    const pane = rowPane(row, pickerData());
+    const pane = rowPane(row, data);
 
     this.closePicker();
-    rememberSpace(row.space.id);
+    history.rememberSpace(row.space.id);
 
-    if (row.kind === 'space' || row.tab === undefined) {
+    if (row.kind === 'space') {
       run('space.select', { id: row.space.id });
-    } else {
-      run('tab.select', { id: row.tab.id });
-    }
 
-    if (pane === null || row.tab === undefined) {
+      if (row.tab === undefined || pane === null) {
+        return;
+      }
+
+      this.focusPane(row.tab.id, pane.pane);
+
       return;
     }
 
-    rememberPane(row.tab.id, pane.pane);
-    run('pane.focus', { pane: pane.pane });
+    run('tab.select', { id: row.tab.id });
+
+    if (pane !== null) {
+      this.focusPane(row.tab.id, pane.pane);
+    }
+  }
+
+  private focusPane(tab: string, pane: string): void {
+    history.rememberPane(tab, pane);
+    run('pane.focus', { pane });
   }
 
   private onKey(event: KeyEvent, cx: Context): void {
@@ -516,7 +357,9 @@ export default class Picker extends View {
 
   private onModifiersChanged(event: ModifiersChangedEvent): void {
     if (this.cycled && !event.modifiers.control) {
-      this.go(this.selectedRow());
+      const data = pickerData();
+
+      this.go(this.selectedRow(this.rowsFrom(data)), data);
     }
   }
 
@@ -538,12 +381,8 @@ export default class Picker extends View {
     });
   }
 
-  private tabRow(row: PickerRow, selected: boolean, data: PickerData): Element {
-    const tab = row.tab;
-
-    if (tab === undefined) {
-      return div();
-    }
+  private tabRow(row: TabPickerRow, selected: boolean, data: PickerData): Element {
+    const { tab } = row;
 
     const program = tabPane(tab, data)?.program ?? null;
 
@@ -559,12 +398,8 @@ export default class Picker extends View {
     });
   }
 
-  private paneRow(row: PickerRow, selected: boolean): Element {
-    const pane = row.pane;
-
-    if (pane === null) {
-      return div();
-    }
+  private paneRow(row: PanePickerRow, selected: boolean): Element {
+    const { pane } = row;
 
     const place = [folderName(pane.cwd), pane.branch ?? ''].filter(Boolean).join(' · ');
 
@@ -591,9 +426,7 @@ export default class Picker extends View {
     return row.kind === 'tab' ? this.tabRow(row, selected, data) : this.paneRow(row, selected);
   }
 
-  private list(rows: PickerRow[]): Element {
-    const data = pickerData();
-
+  private list(rows: PickerRow[], data: PickerData): Element {
     return v_virtual_list(
       `${modName}-rows`,
       rows.length,
@@ -605,13 +438,19 @@ export default class Picker extends View {
       .flex_1()
       .py(spacing.xsmall)
       .on_item_click((key) => {
-        this.go(rows.find((row) => row.key === key));
+        const fresh = pickerData();
+        const freshRows = this.rowsFrom(fresh);
+
+        this.go(
+          freshRows.find((row) => row.key === key),
+          fresh,
+        );
       });
   }
 
-  private filterChip(filter: StatusFilter, index: number): Element {
+  private filterChip(filter: StatusFilter, index: number, data: PickerData): Element {
     const active = index === this.filterIndex;
-    const count = filter.statuses === null ? null : statusCount(filter.statuses, panes());
+    const count = filter.statuses === null ? null : statusCount(filter.statuses, data.panes);
 
     return toggleButton({
       label: filter.label,
@@ -626,7 +465,7 @@ export default class Picker extends View {
       });
   }
 
-  private footer(): Element {
+  private footer(data: PickerData): Element {
     return h_flex()
       .flex_none()
       .p(spacing.xsmall)
@@ -634,6 +473,6 @@ export default class Picker extends View {
       .overflow_hidden()
       .border_t(spacing.hairline)
       .border_color(colors().border)
-      .children(statusFilters.map((filter, index) => this.filterChip(filter, index)));
+      .children(statusFilters.map((filter, index) => this.filterChip(filter, index, data)));
   }
 }

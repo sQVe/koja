@@ -4,10 +4,10 @@
 import { v_flex } from 'gpui-base';
 import type { AsyncContext, Element, FocusHandle, KeyEvent } from 'gpui-kit';
 import { View } from 'gpui-kit';
-import type { Program } from 'herdr';
-import { closeOverlay, knownAgents, panes, props, run, spaces } from 'herdr';
+import { knownAgents, panes, run, spaces } from 'herdr';
 
 import {
+  closeOverlay,
   colors,
   controlSize,
   detailText,
@@ -18,18 +18,16 @@ import {
   openWorktreeDialog,
   overlaySize,
   programIcon,
-  recordOf,
   rowHeight,
   sectionHeader,
   separator,
   separatorHeight,
   shortcutFor,
   spacing,
-  stringOf,
   textSize,
 } from '../../kit/index.ts';
-
-type Agent = Program & { run: string[]; installed: boolean };
+import type { Agent, AgentLoad } from './agents.ts';
+import { agentList, placeholderFor } from './agents.ts';
 
 interface MenuEntry {
   id: string;
@@ -54,11 +52,7 @@ const activeSpace = (): ReturnType<typeof spaces>[number] | undefined =>
 const focusedFolder = (): string | null => panes().find((pane) => pane.focused)?.cwd ?? null;
 
 const closeMenu = (): void => {
-  const overlay = stringOf(recordOf(props())['overlay']);
-
-  if (overlay !== null) {
-    closeOverlay(overlay);
-  }
+  closeOverlay();
 };
 
 const startAgent = (agent: Agent): void => {
@@ -88,9 +82,7 @@ const menuHeight = (agentRows: number): number => {
 };
 
 export default class NewMenu extends View {
-  private agents: Agent[] = [];
-
-  private failed = false;
+  private load: AgentLoad = { status: 'pending' };
 
   private handle: FocusHandle | null = null;
 
@@ -100,9 +92,11 @@ export default class NewMenu extends View {
 
     cx.spawn(async (taskCx) => {
       try {
-        this.agents = await knownAgents({ on: activeSpace()?.machine ?? null });
+        const agents = await knownAgents({ on: activeSpace()?.machine ?? null });
+
+        this.load = { status: 'loaded', agents };
       } catch {
-        this.failed = true;
+        this.load = { status: 'failed' };
       }
 
       taskCx.notify();
@@ -110,8 +104,9 @@ export default class NewMenu extends View {
   }
 
   override render(): Element {
-    const installed = this.agents.filter((agent) => agent.installed);
-    const missing = this.agents.filter((agent) => !agent.installed).slice(0, suggestedAgents);
+    const agents = agentList(this.load);
+    const installed = agents.filter((agent) => agent.installed);
+    const missing = agents.filter((agent) => !agent.installed).slice(0, suggestedAgents);
     const choices = [...installed, ...missing];
 
     const menu = v_flex()
@@ -127,7 +122,7 @@ export default class NewMenu extends View {
       })
       .child(this.row(this.terminalEntry()))
       .child(sectionHeader({ label: 'Start an agent', size: 'default' }))
-      .child(this.agentList(choices))
+      .child(this.agentRows(choices))
       .child(separator())
       .children(this.placeEntries().map((entry) => this.row(entry)));
 
@@ -199,13 +194,12 @@ export default class NewMenu extends View {
     ];
   }
 
-  private agentList(choices: Agent[]): Element {
+  private agentRows(choices: Agent[]): Element {
     const list = v_flex().flex_1().min_h(0).overflow_y_scrollbar();
+    const placeholder = placeholderFor(this.load);
 
-    if (this.agents.length === 0) {
-      return list.child(
-        emptyState(this.failed ? 'Could not load agents' : 'Checking installed agents…'),
-      );
+    if (placeholder !== null) {
+      return list.child(emptyState(placeholder));
     }
 
     return list.children(

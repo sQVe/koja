@@ -3,11 +3,13 @@ import type { Element } from 'gpui-kit';
 import { div } from 'gpui-kit';
 import type { Status } from 'herdr';
 
+import type { HoverOptions } from './hover.ts';
+import { withHover } from './hover.ts';
 import { controlSize, iconSize, spacing, textSize } from './size.ts';
 import { statusMark } from './statusMark.ts';
 import { colors } from './theme.ts';
 
-export interface TabOptions {
+export interface TabOptions extends HoverOptions {
   label: string;
   active: boolean;
   icon: Element | null;
@@ -15,7 +17,6 @@ export interface TabOptions {
   status: Status | null;
   // Shown on the active tab only, in the slot where other tabs show their status.
   close: Element | null;
-  hovered?: boolean;
 }
 
 const shownStatus = (status: Status | null): Status | null => (status === 'idle' ? null : status);
@@ -57,13 +58,9 @@ export const tab = (options: TabOptions): Element => {
       .border_r(spacing.hairline)
       .text_color(palette.foreground);
   } else {
-    const background = options.hovered === true ? palette.hover : palette.chrome;
+    element.bg(palette.chrome).border_b(spacing.hairline).text_color(palette.muted);
 
-    element
-      .bg(background)
-      .border_b(spacing.hairline)
-      .text_color(palette.muted)
-      .hover((style) => style.bg(palette.hover));
+    withHover(element, options.hovered === true, (styled) => styled.bg(palette.hover));
   }
 
   element

@@ -30,14 +30,11 @@ export { indicator, statusMark } from './statusMark.ts';
 
 export { tab, tabBarEdge } from './tab.ts';
 
-export {
-  detailText,
-  emptyState,
-  highlightedText,
-  keyHint,
-  separator,
-  shortcutFor,
-} from './text.ts';
+export { shortcutFor } from './shortcut.ts';
+
+export { themeChoices } from './themes.ts';
+
+export { detailText, emptyState, highlightedText, keyHint, separator } from './text.ts';
 
 export { colors } from './theme.ts';
 
@@ -45,7 +42,7 @@ export type { ThemeToken } from './palette.ts';
 
 export { listOf, numberOf, recordOf, stringOf } from './fields.ts';
 
-export { findLayoutNode } from './layout.ts';
+export { findLayoutNode, layoutRoot } from './layout.ts';
 
 export { currentWindow } from './window.ts';
 
@@ -53,10 +50,8 @@ export { spaceFolder } from './space.ts';
 
 export { openWorktreeDialog } from './worktree.ts';
 
-export type { WorktreeAction } from './worktree.ts';
-
 export { modName } from './modName.ts';
 
-export { openAtTop } from './overlay.ts';
+export { closeOverlay, openAtTop, overlayId } from './overlay.ts';
 
 export { repeat } from './timer.ts';

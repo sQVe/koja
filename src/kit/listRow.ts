@@ -2,6 +2,8 @@ import { h_flex } from 'gpui-base';
 import type { Element } from 'gpui-kit';
 import { div } from 'gpui-kit';
 
+import type { HoverOptions } from './hover.ts';
+import { withHover } from './hover.ts';
 import type { Palette } from './palette.ts';
 import {
   draggedOpacity,
@@ -15,8 +17,7 @@ import {
 import type { RowSize } from './size.ts';
 import { colors } from './theme.ts';
 
-// `hovered` draws the hover look without a pointer, for the gallery.
-export type RowState = 'normal' | 'hovered' | 'selected' | 'disabled';
+export type RowState = 'normal' | 'selected' | 'disabled';
 
 // Where a child row sits in its parent's guide line: the line stops short at both ends.
 interface TreeGuide {
@@ -24,7 +25,7 @@ interface TreeGuide {
   last: boolean;
 }
 
-export interface ListRowOptions {
+export interface ListRowOptions extends HoverOptions {
   size: RowSize;
   // Inset rows float inside a menu or picker with rounded corners; flush rows run edge to edge,
   // as in a sidebar.
@@ -50,20 +51,16 @@ const labelColor = (options: ListRowOptions, palette: Palette): Palette[keyof Pa
   return options.muted === true ? palette.muted : palette.foreground;
 };
 
-const withBackground = (row: Element, state: RowState, palette: Palette): Element => {
-  if (state === 'selected') {
+const withBackground = (row: Element, options: ListRowOptions, palette: Palette): Element => {
+  if (options.state === 'selected') {
     return row.bg(palette.selected);
   }
 
-  if (state === 'hovered') {
-    return row.bg(palette.hover);
-  }
-
-  if (state === 'disabled') {
+  if (options.state === 'disabled') {
     return row;
   }
 
-  return row.hover((style) => style.bg(palette.hover));
+  return withHover(row, options.hovered === true, (element) => element.bg(palette.hover));
 };
 
 // The guide runs under the middle of the parent's icon, one level to the left.
@@ -150,7 +147,7 @@ const decorate = (row: Element, options: ListRowOptions, palette: Palette): void
 // add the row's id and its handlers.
 export const listRow = (options: ListRowOptions): Element => {
   const palette = colors();
-  const row = withBackground(rowFrame(options, palette), options.state, palette);
+  const row = withBackground(rowFrame(options, palette), options, palette);
 
   decorate(row, options, palette);
 

@@ -5,7 +5,7 @@ import { h_flex } from 'gpui-base';
 import type { Context, Element } from 'gpui-kit';
 import { div, View } from 'gpui-kit';
 import type { PaneInfo, SpaceInfo, TabInfo } from 'herdr';
-import { layout, openOverlay, panes, run, settings, shared, spaces } from 'herdr';
+import { openOverlay, panes, run, settings, shared, spaces } from 'herdr';
 
 import type { IconName } from '../../kit/index.ts';
 import {
@@ -15,6 +15,7 @@ import {
   icon,
   iconButton,
   indicator,
+  layoutRoot,
   listOf,
   numberOf,
   overlaySize,
@@ -27,12 +28,8 @@ import {
   toggleButton,
   trafficLightsWidth,
 } from '../../kit/index.ts';
-
-interface PanelState {
-  // The panel the shown space should get back, until the layout shows it or a second passes.
-  pending: { want: string | null; until: number } | null;
-  space: string | undefined;
-}
+import type { PanelMemory } from './panelMemory.ts';
+import { initialPanelMemory, panelMemory } from './panelMemory.ts';
 
 interface Panel {
   id: string;
@@ -41,9 +38,6 @@ interface Panel {
 }
 
 const panelStorageKey = 'panels';
-
-// How long a restored panel waits for the layout to show it before a change counts as a choice.
-const restoreMilliseconds = 1000;
 
 const panels: Panel[] = [
   { id: 'files', label: 'Files', icon: 'file' },
@@ -81,20 +75,16 @@ const shownPanel = (): string | null => {
   const panel = findLayoutNode('panel');
   const body = findLayoutNode('panel-body');
 
-  if (panel === null || panel['hidden'] === true) {
+  if (panel === null || panel.hidden) {
     return null;
   }
 
-  return stringOf(body?.['active']);
+  return body?.active ?? null;
 };
 
 // Only panels the layout's "panel-body" stack offers get a button, so the layout file decides.
 const enabledPanels = (): string[] => {
-  const offered = new Set(
-    listOf(findLayoutNode('panel-body')?.['children']).map((child) =>
-      stringOf(recordOf(child)['id']),
-    ),
-  );
+  const offered = new Set((findLayoutNode('panel-body')?.children ?? []).map((child) => child.id));
 
   const chosen = listOf(shared('workspace.panels') ?? ['files', 'changes']);
 
@@ -116,8 +106,7 @@ const showPanel = (panel: string | null): void => {
 // sidebar is narrower than them.
 const windowButtonsPadding = (): number => {
   const shown = currentWindow();
-  const root = recordOf(layout());
-  const lights = numberOf(listOf(root['traffic_lights'])[0]);
+  const lights = layoutRoot().trafficLights;
   const drawsOwnTitleBar = shown?.platform === 'macos' && shown.titlebar === 'none';
 
   if (!drawsOwnTitleBar || shown.fullscreen || lights === null) {
@@ -126,8 +115,7 @@ const windowButtonsPadding = (): number => {
 
   const sidebar = findLayoutNode('sidebar');
 
-  const sidebarWidth =
-    sidebar?.['hidden'] === true ? 0 : (numberOf(recordOf(sidebar?.['size'])['px']) ?? 0);
+  const sidebarWidth = sidebar?.hidden === true ? 0 : (sidebar?.sizePx ?? 0);
 
   const zoom = numberOf(settings()['zoom']) ?? 1;
 
@@ -137,9 +125,7 @@ const windowButtonsPadding = (): number => {
 export default class Tabs extends View {
   private pressed: number | null = null;
 
-  private readonly stored = readStoredPanels();
-
-  private readonly panelState: PanelState = { pending: null, space: undefined };
+  private memory: PanelMemory = initialPanelMemory(readStoredPanels());
 
   override render(): Element {
     const palette = colors();
@@ -185,51 +171,22 @@ export default class Tabs extends View {
 
     const now = shownPanel();
 
-    if (space.id !== this.panelState.space && this.restorePanel(space, enabled, now)) {
-      return;
+    const result = panelMemory(this.memory, {
+      now,
+      space: space.id,
+      enabled,
+      time: Date.now(),
+    });
+
+    this.memory = result.memory;
+
+    if (result.effect.kind === 'show') {
+      showPanel(result.effect.panel);
     }
 
-    // Until the restore lands, or something else won, the old state isn't a choice.
-    const { pending } = this.panelState;
-
-    if (pending !== null) {
-      if (pending.want !== now && Date.now() < pending.until) {
-        return;
-      }
-
-      this.panelState.pending = null;
+    if (result.persisted) {
+      localStorage.setItem(panelStorageKey, JSON.stringify(this.memory.stored));
     }
-
-    if (this.stored[space.id] === now) {
-      return;
-    }
-
-    this.stored[space.id] = now;
-    localStorage.setItem(panelStorageKey, JSON.stringify(this.stored));
-  }
-
-  // Answers whether it asked the layout for another panel.
-  private restorePanel(space: SpaceInfo, enabled: string[], now: string | null): boolean {
-    const first = this.panelState.space === undefined;
-
-    this.panelState.space = space.id;
-    this.panelState.pending = null;
-
-    if (first && !(space.id in this.stored)) {
-      return false;
-    }
-
-    const stored = this.stored[space.id] ?? null;
-    const want = stored !== null && enabled.includes(stored) ? stored : null;
-
-    if (want === now) {
-      return false;
-    }
-
-    this.panelState.pending = { want, until: Date.now() + restoreMilliseconds };
-    showPanel(want);
-
-    return true;
   }
 
   private tabItem(space: SpaceInfo | undefined, tabInfo: TabInfo, index: number): Element {
@@ -285,7 +242,7 @@ export default class Tabs extends View {
   }
 
   private closeButton(tabInfo: TabInfo): Element {
-    return iconButton('x', 'small')
+    return iconButton({ name: 'x', size: 'small' })
       .id(`close-${tabInfo.id}`)
       .on_mouse_down('left', stopPress)
       .on_click((_event, cx) => {
@@ -295,7 +252,7 @@ export default class Tabs extends View {
   }
 
   private controls(enabled: string[]): Element {
-    const newButton = iconButton('plus')
+    const newButton = iconButton({ name: 'plus' })
       .id('tab-new')
       .on_mouse_down('left', stopPress)
       .on_click(() => {

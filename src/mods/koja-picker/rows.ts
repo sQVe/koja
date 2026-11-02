@@ -15,14 +15,33 @@ export interface PickerData {
   focus: Record<string, string>;
 }
 
-export interface PickerRow {
-  kind: 'space' | 'tab' | 'pane';
+interface PickerRowBase {
   key: string;
   space: SpaceInfo;
+}
+
+interface SpacePickerRow extends PickerRowBase {
+  kind: 'space';
+  // The tab the space stands for, or undefined when it has no tabs.
   tab: TabInfo | undefined;
-  // The pane the row stands for under a status filter, or a pane row's own pane.
+  // The pane the row stands for under a status filter.
   pane: PaneInfo | null;
 }
+
+export interface TabPickerRow extends PickerRowBase {
+  kind: 'tab';
+  tab: TabInfo;
+  // The pane the row stands for under a status filter.
+  pane: PaneInfo | null;
+}
+
+export interface PanePickerRow extends PickerRowBase {
+  kind: 'pane';
+  tab: TabInfo;
+  pane: PaneInfo;
+}
+
+export type PickerRow = SpacePickerRow | TabPickerRow | PanePickerRow;
 
 interface RowGroup {
   score: number;
@@ -72,11 +91,15 @@ export const tabPane = (tab: TabInfo, data: PickerData): PaneInfo | null => {
 };
 
 export const rowPane = (row: PickerRow | undefined, data: PickerData): PaneInfo | null => {
-  if (row?.pane !== null && row?.pane !== undefined) {
+  if (row === undefined) {
+    return null;
+  }
+
+  if (row.pane !== null) {
     return row.pane;
   }
 
-  return row?.tab === undefined ? null : tabPane(row.tab, data);
+  return row.tab === undefined ? null : tabPane(row.tab, data);
 };
 
 const tabName = (tab: TabInfo): string => (tab.named ? tab.name : `Tab ${tab.index}`);
