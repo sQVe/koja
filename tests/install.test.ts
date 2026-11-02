@@ -4,6 +4,7 @@ import {
   lstat,
   mkdir,
   mkdtemp,
+  readdir,
   readFile,
   rm,
   stat,
@@ -115,6 +116,61 @@ describe('install', () => {
     expect(failure).toBeInstanceOf(Error);
     expect(failure).toHaveProperty('message', expect.stringContaining(join(home, 'layouts')));
     expect(await exists(join(elsewhere, 'koja.json'))).toBe(false);
+  });
+
+  test('refuses a symlinked Herdr home and changes nothing inside or outside it', async () => {
+    const target = await mkdtemp(join(tmpdir(), 'koja-install-target-'));
+
+    try {
+      await writeAt(join(target, 'mods', 'old', 'main.js'), 'keep\n');
+
+      await writeFile(
+        join(target, '.koja-install.json'),
+        JSON.stringify({ version: 1, files: ['mods/old/main.js'] }),
+      );
+
+      await rm(home, { recursive: true });
+      await symlink(target, home);
+
+      const failure: unknown = await run().catch((error: unknown) => error);
+
+      expect(failure).toBeInstanceOf(Error);
+      expect(failure).toHaveProperty('message', expect.stringContaining(home));
+      expect(await readFile(join(target, 'mods', 'old', 'main.js'), 'utf8')).toBe('keep\n');
+      expect(await readdir(target)).toEqual(['.koja-install.json', 'mods']);
+    } finally {
+      await rm(target, { recursive: true, force: true });
+    }
+  });
+
+  test('refuses a symlinked Herdr home given with a trailing slash', async () => {
+    const target = await mkdtemp(join(tmpdir(), 'koja-install-target-'));
+
+    try {
+      await writeAt(join(target, 'mods', 'old', 'main.js'), 'keep\n');
+
+      await writeFile(
+        join(target, '.koja-install.json'),
+        JSON.stringify({ version: 1, files: ['mods/old/main.js'] }),
+      );
+
+      await rm(home, { recursive: true });
+      await symlink(target, home);
+
+      const failure: unknown = await install({
+        home: `${home}/`,
+        modsDirectory: mods,
+        configDirectory: config,
+        check: passingCheck,
+      }).catch((error: unknown) => error);
+
+      expect(failure).toBeInstanceOf(Error);
+      expect(failure).toHaveProperty('message', expect.stringContaining(home));
+      expect(await readFile(join(target, 'mods', 'old', 'main.js'), 'utf8')).toBe('keep\n');
+      expect(await readdir(target)).toEqual(['.koja-install.json', 'mods']);
+    } finally {
+      await rm(target, { recursive: true, force: true });
+    }
   });
 
   test('removes files an earlier install wrote that the current one lacks', async () => {

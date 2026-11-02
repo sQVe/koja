@@ -13,7 +13,7 @@ import {
   writeFile,
 } from 'node:fs/promises';
 import { homedir } from 'node:os';
-import { dirname, isAbsolute, join, normalize, relative, sep } from 'node:path';
+import { dirname, isAbsolute, join, normalize, relative, resolve, sep } from 'node:path';
 
 import { buildMods, isMissing, outputDirectory, sourceDirectory } from './build.ts';
 
@@ -112,6 +112,14 @@ const readRecord = async (home: string): Promise<string[]> => {
     }
 
     throw error;
+  }
+};
+
+const refuseLinkedHome = async (home: string): Promise<void> => {
+  const entry = await lstatOrNull(home);
+
+  if (entry?.isSymbolicLink() === true) {
+    throw new Error(`Refusing to install into the symlinked Herdr home ${home}`);
   }
 };
 
@@ -222,7 +230,10 @@ const installedMods = (paths: Iterable<string>): string[] => {
 };
 
 export const install = async (options: InstallOptions): Promise<InstallResult> => {
-  const { home } = options;
+  const home = resolve(options.home);
+
+  await refuseLinkedHome(home);
+
   const planned = await plannedFiles(options);
   const earlier = await readRecord(home);
   const stale = earlier.filter((file) => !planned.has(file));
