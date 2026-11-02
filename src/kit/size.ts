@@ -1,0 +1,64 @@
+// Koja's scale, after Zed's: text, icons, spacing, and corners. Mods use these names and never
+// a number of their own, so one change here reaches every surface.
+
+export const textSize = {
+  xsmall: 11,
+  small: 12,
+  default: 13,
+} as const;
+
+export const iconSize = {
+  xsmall: 10,
+  small: 12,
+  default: 14,
+  large: 16,
+} as const;
+
+export const spacing = {
+  none: 0,
+  hairline: 1,
+  xxsmall: 2,
+  xsmall: 4,
+  small: 6,
+  medium: 8,
+  large: 10,
+  xlarge: 14,
+  xxlarge: 20,
+} as const;
+
+export const radius = {
+  default: 4,
+  dialog: 8,
+} as const;
+
+export const rowHeight = {
+  small: 24,
+  medium: 26,
+  large: 28,
+} as const;
+
+export type RowSize = keyof typeof rowHeight;
+
+export const controlSize = {
+  button: 22,
+  searchField: 40,
+  sectionHeader: 26,
+  sidebarHeader: 31,
+  tabSlot: 14,
+  tabLabelMaxWidth: 170,
+} as const;
+
+export const markSize = {
+  slot: 12,
+  dot: 6,
+  quietDot: 4,
+} as const;
+
+// One level of a tree: the width a child row moves in by.
+export const indentWidth = 20;
+
+// A dragged row fades to this, so the drop line stands out.
+export const draggedOpacity = 0.5;
+
+// One turn of the working spinner, in milliseconds.
+export const spinnerPeriod = 900;
