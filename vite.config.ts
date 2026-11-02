@@ -6,12 +6,12 @@ export default defineConfig({
     extends: [lint],
     // Herdr's declarations are kept as Herdr wrote them, so an upgrade's diff shows only
     // Herdr's changes.
-    ignorePatterns: ['herdr/**'],
+    ignorePatterns: ['herdr/*.d.ts'],
   },
   fmt: {
     ...format,
     // Local agent state is not source and must not be reformatted.
-    ignorePatterns: ['bun.lock', '.tau/**', 'herdr/**'],
+    ignorePatterns: ['bun.lock', '.tau/**', 'herdr/*.d.ts'],
   },
   staged: {
     '*.{ts,tsx,js,jsx,mjs,cjs}': [
