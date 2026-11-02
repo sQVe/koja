@@ -49,7 +49,7 @@ herdr-app do layout.switch --name koja
 | `bun run test`         | Run the full test suite.                                                  |
 | `bun run test:changed` | Run tests affected by uncommitted changes.                                |
 | `bun run style:check`  | Check all lint rules, including house style, with `seam`.                 |
-| `bun run style:fix`    | Apply safe lint fixes with `seam --fix`, then format.                     |
+| `bun run style:fix`    | Apply safe house-style fixes with `seam --fix`.                           |
 | `bun run lint`         | Run ordinary lint diagnostics, as editors do.                             |
 | `bun run format`       | Format files.                                                             |
 | `bun run knip`         | Find unused files, exports, and dependencies.                             |
