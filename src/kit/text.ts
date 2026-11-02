@@ -1,6 +1,7 @@
 import { h_flex } from 'gpui-base';
 import type { Element } from 'gpui-kit';
 import { div } from 'gpui-kit';
+import { keys } from 'herdr';
 
 import { highlightRuns } from './highlight.ts';
 import { formatKeys } from './keys.ts';
@@ -41,6 +42,15 @@ export const highlightedText = (
   );
 
   return h_flex().min_w(0).overflow_hidden().children(runs);
+};
+
+// The global key bound to the first of `actions` that has one, such as "pane.split:right".
+export const shortcutFor = (...actions: string[]): string | null => {
+  const binding = keys().find(
+    (candidate) => candidate.section === 'global' && actions.includes(candidate.action),
+  );
+
+  return binding?.keys ?? null;
 };
 
 export const keyHint = (keysText: string): Element =>

@@ -57,6 +57,19 @@ export const markSize = {
 // One level of a tree: the width a child row moves in by.
 export const indentWidth = 20;
 
+export const overlaySize = {
+  menuWidth: 200,
+  menuHeight: 260,
+  wideMenuWidth: 250,
+  wideMenuHeight: 512,
+  worktreeFormWidth: 440,
+  worktreeFormHeight: 260,
+  worktreeListWidth: 560,
+  worktreeListHeight: 480,
+  pickerListWidth: 420,
+  pickerInset: 3,
+} as const;
+
 // A dragged row fades to this, so the drop line stands out.
 export const draggedOpacity = 0.5;
 

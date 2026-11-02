@@ -20,6 +20,21 @@ export { indicator, statusMark } from './statusMark.ts';
 
 export { tab, tabBarEdge } from './tab.ts';
 
-export { detailText, emptyState, highlightedText, keyHint, separator } from './text.ts';
+export {
+  detailText,
+  emptyState,
+  highlightedText,
+  keyHint,
+  separator,
+  shortcutFor,
+} from './text.ts';
 
 export { colors } from './theme.ts';
+
+export { recordOf, stringOf } from './fields.ts';
+
+export { spaceFolder } from './space.ts';
+
+export { openWorktreeDialog } from './worktree.ts';
+
+export type { WorktreeAction } from './worktree.ts';

@@ -13,7 +13,8 @@ interface SourceLine {
 const kitDirectory = 'src/kit';
 const modsDirectory = 'src/mods';
 
-// The style methods that set a size, a spacing, a corner radius, or a text size.
+// The style methods that set a size, a spacing, a corner radius, or a text size. Zero is no size,
+// such as `.min_h(0)`, which lets a flex child shrink.
 const sizedMethods = [
   'size',
   'w',
@@ -45,7 +46,7 @@ const sizedMethods = [
   'right',
 ];
 
-const sizedCallPattern = new RegExp(String.raw`\.(?:${sizedMethods.join('|')})\(\s*-?\d`);
+const sizedCallPattern = new RegExp(String.raw`\.(?:${sizedMethods.join('|')})\(\s*-?(?!0\b)\d`);
 
 const typeScriptFiles = async (directory: string): Promise<string[]> => {
   const entries = await readdir(directory, { recursive: true });
