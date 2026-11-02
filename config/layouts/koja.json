@@ -126,6 +126,7 @@
     }
   ],
   "background": "canvas",
+  "ui_font": "IBM Plex Sans",
   "terminal_padding": [14, 12],
   "divider": {
     "width": 1,
