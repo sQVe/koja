@@ -71,6 +71,7 @@ export const overlaySize = {
   worktreeFormHeight: 260,
   worktreeListWidth: 560,
   worktreeListHeight: 480,
+  promptWidth: 380,
   pickerListWidth: 420,
   pickerInset: 3,
 } as const;
