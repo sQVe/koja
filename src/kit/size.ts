@@ -1,10 +1,12 @@
 // Koja's scale, after Zed's: text, icons, spacing, and corners. Mods use these names and never
 // a number of their own, so one change here reaches every surface.
 
+// Zed's text scale at its default rem of 16 px.
 export const textSize = {
-  xsmall: 11,
+  xsmall: 10,
   small: 12,
-  default: 13,
+  default: 14,
+  large: 16,
 } as const;
 
 export const iconSize = {
