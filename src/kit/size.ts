@@ -81,6 +81,9 @@ export const overlaySize = {
   topOffset: 40,
 } as const;
 
+// Narrower than this, a sidebar draws a compact rail, as Herdr's own sidebar mods do.
+export const railWidthLimit = 160;
+
 // The width of macOS's window buttons, from the layout's traffic_lights position.
 export const trafficLightsWidth = 64;
 

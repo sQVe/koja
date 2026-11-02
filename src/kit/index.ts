@@ -18,6 +18,7 @@ export {
   controlSize,
   overlaySize,
   radius,
+  railWidthLimit,
   rowHeight,
   separatorHeight,
   spacing,
@@ -40,6 +41,8 @@ export {
 
 export { colors } from './theme.ts';
 
+export type { ThemeToken } from './palette.ts';
+
 export { listOf, numberOf, recordOf, stringOf } from './fields.ts';
 
 export { findLayoutNode } from './layout.ts';
@@ -55,3 +58,5 @@ export type { WorktreeAction } from './worktree.ts';
 export { modName } from './modName.ts';
 
 export { openAtTop } from './overlay.ts';
+
+export { repeat } from './timer.ts';
