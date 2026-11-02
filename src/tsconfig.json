@@ -1,0 +1,14 @@
+{
+  "extends": "../tsconfig.json",
+  "compilerOptions": {
+    "module": "ESNext",
+    "moduleResolution": "bundler",
+    "lib": ["ES2022"],
+    "types": [],
+    "paths": {
+      "herdr": ["../herdr/herdr.d.ts"]
+    }
+  },
+  "include": ["**/*.ts", "../herdr/gpui-kit.d.ts"],
+  "exclude": ["**/*.test.ts"]
+}

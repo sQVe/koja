@@ -21,7 +21,7 @@
     "prepare": "bunx --bun vp config",
     "test": "bun test",
     "test:changed": "bun test --changed",
-    "typecheck": "bunx --bun tsc --noEmit",
+    "typecheck": "bunx --bun tsc --noEmit && bunx --bun tsc --noEmit -p src",
     "release:github": "bunx --bun changeset tag"
   },
   "devDependencies": {
