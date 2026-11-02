@@ -75,6 +75,9 @@ export const overlaySize = {
   pickerInset: 3,
 } as const;
 
+// The width of macOS's window buttons, from the layout's traffic_lights position.
+export const trafficLightsWidth = 64;
+
 // A dragged row fades to this, so the drop line stands out.
 export const draggedOpacity = 0.5;
 

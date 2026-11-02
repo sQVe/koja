@@ -14,7 +14,15 @@ export { searchField } from './searchField.ts';
 
 export { sectionHeader } from './sectionHeader.ts';
 
-export { controlSize, overlaySize, rowHeight, separatorHeight, spacing, textSize } from './size.ts';
+export {
+  controlSize,
+  overlaySize,
+  rowHeight,
+  separatorHeight,
+  spacing,
+  textSize,
+  trafficLightsWidth,
+} from './size.ts';
 
 export { indicator, statusMark } from './statusMark.ts';
 
@@ -31,7 +39,11 @@ export {
 
 export { colors } from './theme.ts';
 
-export { recordOf, stringOf } from './fields.ts';
+export { listOf, numberOf, recordOf, stringOf } from './fields.ts';
+
+export { findLayoutNode } from './layout.ts';
+
+export { currentWindow } from './window.ts';
 
 export { spaceFolder } from './space.ts';
 
