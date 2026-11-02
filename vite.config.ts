@@ -14,7 +14,7 @@ export default defineConfig({
   },
   staged: {
     '*.{ts,tsx,js,jsx,mjs,cjs}': [
-      'bunx --bun seam',
+      'bunx --bun seam --no-error-on-unmatched-pattern',
       'bunx --bun vp fmt --check --no-error-on-unmatched-pattern',
     ],
     '*.{json,md,yaml,yml,css}': 'bunx --bun vp fmt --check --no-error-on-unmatched-pattern',
