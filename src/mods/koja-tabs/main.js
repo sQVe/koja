@@ -94,7 +94,7 @@ export default class Tabs extends View {
           if (from !== null && from !== i) run("tab.move", { id: shown[from].id, index: space.tabs.findIndex(x => x.id === c.id) + 1 });
           else run("tab.select", { id: c.id });
         })
-        .on_mouse_down("right", (_e, cx) => { cx.stop_propagation(); openOverlay({ mod: "my-menu", kind: "popup", width: 200, props: { tab: "tab", target: { id: c.id, space: space.id } } }); })
+        .on_mouse_down("right", (_e, cx) => { cx.stop_propagation(); openOverlay({ mod: "koja-menu", kind: "popup", width: 200, props: { tab: "tab", target: { id: c.id, space: space.id } } }); })
         .child(h_flex().size(START_SLOT).flex_none().items_center().justify_center().when(Boolean(icon), el => el.child(icon)))
         .child(div().max_w(170).truncate().child(c.zoomed ? `${name} Z` : name))
         .when(activeStatus, el => el.child(c.status === "working"
@@ -132,7 +132,7 @@ export default class Tabs extends View {
         .children(shown.map(item))
         .child(barEdge(div().flex_1().min_w(0))))
       .child(barEdge(h_flex().flex_none().gap(3).pl(6).pr(4).items_center())
-        .child(button("tab-new", "+", () => openOverlay({ mod: "my-new-menu", kind: "popup", width: 250, height: 512 })))
+        .child(button("tab-new", "+", () => openOverlay({ mod: "koja-new-menu", kind: "popup", width: 250, height: 512 })))
         .when(enabled.includes("files"), el => el.child(panelButton("files", "Files", "mods/files/file.svg")))
         .when(enabled.includes("changes"), el => el.child(panelButton("changes", "Changes", "mods/changes/changes.svg")))
         .child(this.modeDot(t)));

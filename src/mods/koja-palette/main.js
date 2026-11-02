@@ -30,7 +30,7 @@ const GROUPS = ["Recent", "Tab", "Pane", "Space", "Layout", "Terminal", "Agent",
 // The palette's names for commands: [command, args, group, title, keywords].
 const NAMED = [
   ["tab.new", {}, "Tab", "New tab", "tab agent new task"],
-  ["mod.open", { name: "my-picker" }, "Tab", "Go to space or tab…", "switch jump find"],
+  ["mod.open", { name: "koja-picker" }, "Tab", "Go to space or tab…", "switch jump find"],
   ["tab.rename", {}, "Tab", "Rename tab", "tab"],
   ["tab.close", {}, "Tab", "Close tab", "tab kill"],
   ["tab.next", {}, "Tab", "Next tab", "tab"],

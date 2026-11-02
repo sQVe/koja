@@ -47,8 +47,8 @@
     "ctrl-shift-b": "layout.toggle:sidebar",
     "ctrl-shift-n": "space.new",
     "ctrl-shift-t": "tab.new",
-    "ctrl-shift-k": "mod.open:my-picker",
-    "ctrl-shift-p": "mod.open:my-palette",
+    "ctrl-shift-k": "mod.open:koja-picker",
+    "ctrl-shift-p": "mod.open:koja-palette",
     "ctrl-,": "app.settings",
     "ctrl-shift-o": "pane.split:right",
     "ctrl-shift-e": "pane.split:down",
@@ -68,9 +68,9 @@
     "ctrl-shift-v": "terminal.paste",
     "ctrl-v": "terminal.paste_image"
   },
-  "mod:my-picker": {
-    "ctrl-shift-k": "my-picker.next",
-    "tab": "my-picker.filter-next",
-    "shift-tab": "my-picker.filter-previous"
+  "mod:koja-picker": {
+    "ctrl-shift-k": "koja-picker.next",
+    "tab": "koja-picker.filter-next",
+    "shift-tab": "koja-picker.filter-previous"
   }
 }

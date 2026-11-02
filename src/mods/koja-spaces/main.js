@@ -226,7 +226,7 @@ export default class Spaces extends View {
 
   menu(w) {
     // A popup is as tall as its items; height is only the most.
-    openOverlay({ mod: "my-menu", kind: "popup", width: 200, height: 260, props: { tab: "space", target: { id: w.id } } });
+    openOverlay({ mod: "koja-menu", kind: "popup", width: 200, height: 260, props: { tab: "space", target: { id: w.id } } });
   }
 
   // A folder holding a bare repo, with its worktrees beside it, has no checkout
@@ -371,7 +371,7 @@ export default class Spaces extends View {
   // or unfolds them; a click anywhere else on the row goes to the space.
   folderIcon(w, g, fold, t) {
     const open = Boolean(fold) && !fold.folded;
-    const file = open ? "mods/my-spaces/folder-open.svg" : "mods/my-spaces/folder.svg";
+    const file = open ? "mods/koja-spaces/folder-open.svg" : "mods/koja-spaces/folder.svg";
     const icon = h_flex().size(FOLDER_SIZE).flex_none().items_center().justify_center().text_color(t.dim).child(svg(file).size(FOLDER_ICON_SIZE));
     if (!fold) return icon;
 

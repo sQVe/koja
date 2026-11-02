@@ -14,7 +14,7 @@ import { View, div, svg, image } from "gpui-kit";
 import { v_flex, h_flex, InputState, Input, v_virtual_list, VirtualListScrollHandle } from "gpui-base";
 import { spaces, panes, focused, run, hc, exec, home, appHome, theme, props, closeOverlay, openOverlay, shared, setShared, nextCommand } from "herdr";
 
-const PREVIEW_NAME = "my-picker-preview";
+const PREVIEW_NAME = "koja-picker-preview";
 const LIST_WIDTH = 420;
 // The dialog frame's corner radius. Blocks inside don't clip to it: the list rounds
 // its own corners, and the preview terminal, which can't, sits inside them.
@@ -35,12 +35,12 @@ const TEXT_SIZE = 13;
 const DETAIL_TEXT_SIZE = 12;
 const STATUS_WIDTH = 12;
 const SEARCH_HEIGHT = 40;
-const FOLDER_ICON = "mods/my-spaces/folder.svg";
+const FOLDER_ICON = "mods/koja-spaces/folder.svg";
 // Folders are drawn smaller than the 16 px icon slot, as in the sidebar.
 const FOLDER_ICON_SIZE = 14;
 const TERMINAL_ICON = "mods/workspace-chrome/terminal.svg";
-const RECENT_KEY = "my-picker.recent";
-const FOCUS_KEY = "my-picker.focus";
+const RECENT_KEY = "koja-picker.recent";
+const FOCUS_KEY = "koja-picker.focus";
 const FOCUS_RETRY_MILLISECONDS = 50;
 const FOCUS_ATTEMPTS = 40;
 const STATUS_RANK = { blocked: 4, done: 3, working: 2, idle: 1 };
@@ -55,11 +55,11 @@ const STATUS_FILTERS = [
 ];
 
 function previewFifo() {
-  return `${home()}/.cache/herdr-my-picker.fifo`;
+  return `${home()}/.cache/herdr-koja-picker.fifo`;
 }
 
 function previewScript() {
-  return `${appHome()}/mods/my-picker/preview.sh`;
+  return `${appHome()}/mods/koja-picker/preview.sh`;
 }
 
 function isWordStart(text, index) {
@@ -117,7 +117,7 @@ function folderName(path) {
   return (path ?? "").split("/").filter(Boolean).pop() ?? "";
 }
 
-// The pane last focused in each tab, kept by tab id in shared "my-picker.focus".
+// The pane last focused in each tab, kept by tab id in shared "koja-picker.focus".
 // Herdr gives no history of pane focus, so the picker records the pane it was
 // opened from and every pane it goes to.
 function rememberPane(tabIdentifier, paneIdentifier) {
@@ -270,7 +270,7 @@ function openPicker(previewAddress) {
       type: "row",
       divider: { width: 1, color: "border" },
       children: [
-        { type: "block", size: { px: LIST_WIDTH }, content: { mod: "my-picker", props: { part: "list" } } },
+        { type: "block", size: { px: LIST_WIDTH }, content: { mod: "koja-picker", props: { part: "list" } } },
         { type: "block", padding: PREVIEW_INSET, content: { terminal: previewAddress } },
       ],
     },
@@ -570,7 +570,7 @@ export default class MyPicker extends View {
 
   renderRows(rows, colors) {
     return v_virtual_list(
-      "my-picker-rows",
+      "koja-picker-rows",
       rows.length,
       ROW_HEIGHT,
       (index) => rows[index].key,
@@ -591,7 +591,7 @@ export default class MyPicker extends View {
     else if (quiet) textColor = colors.dim;
 
     return h_flex()
-      .id(`my-picker-filter-${index}`)
+      .id(`koja-picker-filter-${index}`)
       .h(22)
       .px(ROW_PADDING)
       .gap(4)
@@ -643,7 +643,7 @@ export default class MyPicker extends View {
     const emptyText = this.query ? "No space matches." : statusFilter.empty;
 
     return v_flex()
-      .id("my-picker")
+      .id("koja-picker")
       .track_focus(this.handle)
       .size_full()
       .text_size(TEXT_SIZE)
