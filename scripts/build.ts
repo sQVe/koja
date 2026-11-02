@@ -1,0 +1,65 @@
+import { cp, readdir, rm } from 'node:fs/promises';
+import { join } from 'node:path';
+
+const sourceDirectory = 'src/mods';
+const outputDirectory = 'dist/mods';
+
+const listModNames = async (directory: string): Promise<string[]> => {
+  try {
+    const entries = await readdir(directory, { withFileTypes: true });
+
+    return entries.filter((entry) => entry.isDirectory()).map((entry) => entry.name);
+  } catch (error) {
+    const missing = error instanceof Error && 'code' in error && error.code === 'ENOENT';
+
+    if (missing) {
+      return [];
+    }
+
+    throw error;
+  }
+};
+
+const isTypeScript = (path: string): boolean => path.endsWith('.ts');
+
+// Herdr resolves a mod's imports only inside its own folder, so the kit and every other local
+// module are bundled into main.js. Bare imports such as `gpui-kit` and `herdr` are Herdr's own
+// modules and stay imports.
+const bundleMod = async (modSource: string, modOutput: string, name: string): Promise<void> => {
+  const result = await Bun.build({
+    entrypoints: [join(modSource, 'main.ts')],
+    outdir: modOutput,
+    naming: 'main.js',
+    format: 'esm',
+    target: 'browser',
+    packages: 'external',
+    throw: false,
+  });
+
+  if (!result.success) {
+    throw new AggregateError(result.logs, `Could not build mod ${name}`);
+  }
+};
+
+const buildMod = async (source: string, output: string, name: string): Promise<void> => {
+  const modSource = join(source, name);
+  const modOutput = join(output, name);
+
+  await cp(modSource, modOutput, { recursive: true, filter: (path) => !isTypeScript(path) });
+  await bundleMod(modSource, modOutput, name);
+};
+
+export const buildMods = async (source: string, output: string): Promise<string[]> => {
+  const names = await listModNames(source);
+
+  await rm(output, { recursive: true, force: true });
+  await Promise.all(names.map((name) => buildMod(source, output, name)));
+
+  return names;
+};
+
+if (import.meta.main) {
+  const names = await buildMods(sourceDirectory, outputDirectory);
+
+  process.stdout.write(`Built ${names.length} mods into ${outputDirectory}\n`);
+}
