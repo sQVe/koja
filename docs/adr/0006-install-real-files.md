@@ -18,8 +18,10 @@ mod folder.
 
 An installer copies real files into `~/.config/herdr-app`. It writes only the files Koja owns: its
 built mods, its layout, its theme, `keys.json`, and `settings.json`. It removes only files that an
-earlier install wrote and the current one no longer has. It runs `herdr-app check` on every
-installed mod. A watch mode builds and installs on every save, so edits stay in the repository.
+earlier install wrote and the current one no longer has, so it records the files it writes in
+Herdr's folder. It replaces a symlink in its way with a real file and never writes through one. It
+runs `herdr-app check` on every installed mod. A watch mode builds and installs on every save, so
+edits stay in the repository.
 
 `keys.json`, the layout, and `settings.json` live in the repository, because they name Koja's mods
 and theme, and a rename must change them in the same commit.
