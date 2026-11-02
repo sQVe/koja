@@ -14,7 +14,7 @@ export { searchField } from './searchField.ts';
 
 export { sectionHeader } from './sectionHeader.ts';
 
-export { spacing, textSize } from './size.ts';
+export { controlSize, overlaySize, rowHeight, separatorHeight, spacing, textSize } from './size.ts';
 
 export { indicator, statusMark } from './statusMark.ts';
 

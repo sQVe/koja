@@ -26,6 +26,9 @@ export const spacing = {
   xxlarge: 20,
 } as const;
 
+// A separator line with its margin above and below.
+export const separatorHeight = spacing.xsmall * 2 + spacing.hairline;
+
 export const radius = {
   default: 4,
   dialog: 8,
@@ -62,6 +65,8 @@ export const overlaySize = {
   menuHeight: 260,
   wideMenuWidth: 250,
   wideMenuHeight: 512,
+  // Leaves room for the popup's frame inside wideMenuHeight.
+  wideMenuContentHeight: 491,
   worktreeFormWidth: 440,
   worktreeFormHeight: 260,
   worktreeListWidth: 560,
