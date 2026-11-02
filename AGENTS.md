@@ -49,4 +49,5 @@ setup and verification.
 - Test behavior a caller can observe. Do not test wording, constants, types, or internal calls.
 - Keep tests next to source. Cross-module and tooling checks go in `tests/`.
 - Use temporary directories for fixtures and remove them when the test finishes.
-- Check a mod in Herdr with `herdr-app check` and `herdr-app shot`, never with synthetic keystrokes.
+- Check a mod in Herdr with `herdr-app check` and `herdr-app shot`. Open its views with
+  `herdr-app do`, and use synthetic input for what no command reaches, such as typing a query.
