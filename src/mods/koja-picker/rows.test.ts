@@ -59,7 +59,6 @@ const paneOf = (pane: string, tab: string, status: Status | null = null): PaneIn
   movable: true,
 });
 
-// koja has two tabs, the first split in two panes; notes has one tab with one pane.
 const data = (overrides: Partial<PickerData> = {}): PickerData => ({
   spaces: [
     spaceOf('s1', 1, 'koja', [tabOf('k1', 1, true), tabOf('k2', 2)]),

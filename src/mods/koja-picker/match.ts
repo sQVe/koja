@@ -11,7 +11,6 @@ const gapPenalty = 0.2;
 
 const longestCountedGap = 5;
 
-// Letters may spread over at most this many characters per letter, plus the slack below.
 const spreadPerLetter = 2;
 
 const spreadSlack = 4;
@@ -19,8 +18,6 @@ const spreadSlack = 4;
 const isWordStart = (text: string, index: number): boolean =>
   index === 0 || /[\s/_.\-~]/.test(text.charAt(index - 1));
 
-// Letters spread far apart match almost any long text, so a match must stay close together
-// unless every letter after the first starts a word or follows the one before.
 const isCompact = (text: string, positions: number[]): boolean => {
   const first = positions[0] ?? 0;
   const last = positions.at(-1) ?? 0;
@@ -36,8 +33,6 @@ const isCompact = (text: string, positions: number[]): boolean => {
     );
 };
 
-// Each query letter in order, case-insensitive. Runs of letters and letters at word starts
-// score higher, gaps lower. Null when the letters aren't all there, or too far apart.
 export const fuzzyMatch = (query: string, text: string): Match | null => {
   const lowerText = text.toLowerCase();
   const positions: number[] = [];
@@ -67,7 +62,6 @@ export const fuzzyMatch = (query: string, text: string): Match | null => {
   return { score, positions };
 };
 
-// The best match in any one field; letters never match across fields.
 export const bestFieldMatch = (
   query: string,
   fields: (string | null | undefined)[],

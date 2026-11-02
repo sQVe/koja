@@ -1,6 +1,3 @@
-// Opening the picker: start (or reuse) the preview terminal, then swap the picker's own overlay
-// for the split. Without a preview terminal, Herdr's own picker still gets you somewhere.
-
 import type { AsyncContext } from 'gpui-kit';
 import { focused, run } from 'herdr';
 
@@ -14,8 +11,6 @@ import {
 } from '../../kit/index.ts';
 import { livePreviewAddress } from './previewSession.ts';
 
-// Opens like the command palette and Zed's pickers: a popup near the top of the window that
-// leaves the window undimmed.
 const openPicker = (previewAddress: string): void => {
   openAtTop(
     {

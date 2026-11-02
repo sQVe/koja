@@ -1,6 +1,3 @@
-// The sidebar's fold state, kept in localStorage: which machines, and which repositories'
-// worktrees, are folded.
-
 export interface FoldedSet {
   has: (item: string) => boolean;
   toggle: (item: string) => void;

@@ -31,7 +31,6 @@ const listed = (space: SpaceInfo, git: GitInfo | null, index: number): ListedSpa
   git,
 });
 
-// A worktree listed before its repository, a plain folder, the repository, and another worktree.
 const list = (statuses: (Status | null)[] = [null, null]): ListedSpace[] => [
   listed(spaceOf('first-worktree', statuses[0] ?? null), gitOf('koja', true), 0),
   listed(spaceOf('notes'), null, 1),

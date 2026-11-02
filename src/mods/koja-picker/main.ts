@@ -1,12 +1,3 @@
-// Go to a space. Opened by key, this copy starts the preview terminal and opens the picker: the
-// list (this mod with props { part: "list" }) beside a live, watch-only view of the selected
-// space (preview.sh). Then it closes itself.
-//
-// Type to fuzzy-search names, branches, folders, tabs, pane titles, and agents. The chips in the
-// footer keep only what is in one state; Tab and shift+Tab cycle them, bound in keys.json. Up
-// and down or ctrl+n and ctrl+p move, Enter goes, Esc closes. Holding ctrl+shift, k again moves
-// to the next space, and releasing ctrl goes there, like alt-tab.
-
 import type { InputState } from 'gpui-base';
 import {
   h_flex,
@@ -276,7 +267,6 @@ export default class Picker extends View {
     this.select(rows, index, data, cx);
   }
 
-  // Like alt-tab, cycling goes from space to space, past their tab and pane rows.
   private moveToNextSpace(cx: Context): void {
     const data = pickerData();
     const rows = this.rowsFrom(data);

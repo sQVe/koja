@@ -1,8 +1,3 @@
-// Spaces as a folder tree, like Zed's project panel: a folder icon that opens and closes (click
-// it to fold a repository's worktrees), worktrees one level under their checkout with a guide
-// line, and a group per machine when more than one is known. A space's row shows its pull
-// request and its agents' status. Click to switch, right-click for its menu, drag to reorder.
-
 import { v_flex } from 'gpui-base';
 import type { AsyncContext, Context, Element } from 'gpui-kit';
 import { View } from 'gpui-kit';
@@ -39,14 +34,12 @@ import { needsYou, nestSpaces, placesOf } from './tree.ts';
 import type { VisibilityResult, VisibilityState } from './visibility.ts';
 import { advanceVisibility, initialVisibility } from './visibility.ts';
 
-// A repository's pull requests are fetched again after this long.
 const pullsMaxAge = 180_000;
 
 const machinesMilliseconds = 15_000;
 
 const pullsMilliseconds = 15_000;
 
-// Git is looked at this often for a place whose answer could have changed.
 const checkMilliseconds = 250;
 
 const pullColors: Record<string, ThemeToken> = {
@@ -62,7 +55,6 @@ const reposFoldedKey = 'repos.folded';
 
 const pullsKey = 'pulls';
 
-// The sidebar's rail goes by its width, not a flag: dragging its edge narrows it too.
 const isNarrow = (): boolean => {
   const sidebar = findLayoutNode('sidebar');
   const width = sidebar?.sizePx ?? null;
@@ -82,7 +74,6 @@ export default class Spaces extends View {
 
   private readonly pulls = readPullCaches(JSON.parse(localStorage.getItem(pullsKey) ?? '{}'));
 
-  // Repository to when a fetch of its pull requests last started.
   private readonly pullsTried: Record<string, number> = {};
 
   private readonly fetching = new Set<string>();
@@ -97,7 +88,6 @@ export default class Spaces extends View {
 
   private drag: DragState = noDrag;
 
-  // The repository row under the pointer.
   private hovered: string | null = null;
 
   override init(_props: unknown, cx: AsyncContext): void {
@@ -149,7 +139,6 @@ export default class Spaces extends View {
       );
   }
 
-  // The one place a space becomes visible: when git answered for it, or after the wait.
   private advance(): VisibilityResult {
     const spaceList = spaces();
     const paneList = panes();
@@ -246,7 +235,6 @@ export default class Spaces extends View {
     return isMachineLoading(layout, connected, waitingForSpace);
   }
 
-  // The rows, under a header per machine once one isn't this computer.
   private grouped(collapsed: boolean): Element[] {
     const rows = this.ordered();
     const ids = spaces().map((space) => space.id);
@@ -269,7 +257,6 @@ export default class Spaces extends View {
     );
   }
 
-  // One `gh pr list` per repository, at most every pullsMaxAge; a failure waits as long.
   private refreshPulls(cx: Context): void {
     const now = Date.now();
 
@@ -285,7 +272,6 @@ export default class Spaces extends View {
     }
   }
 
-  // A failed call, such as without gh, a GitHub remote, or a network, keeps the last list.
   private fetchPulls(repo: RepoRef, cwd: string, cx: Context): void {
     this.fetching.add(repo.key);
 
@@ -311,8 +297,6 @@ export default class Spaces extends View {
     });
   }
 
-  // The folder shows whether a repository's worktrees are open, and a click on it folds or
-  // unfolds them; a click anywhere else on the row goes to the space.
   private folderIcon(row: TreeRow): Element {
     const { fold, git } = row;
     const open = fold !== null && !fold.folded;
@@ -406,7 +390,6 @@ export default class Spaces extends View {
       });
   }
 
-  // A space moves only within its machine's group.
   private dragOver(space: SpaceInfo, cx: Context): void {
     const source = spaces().find((candidate) => candidate.id === this.drag.source);
 

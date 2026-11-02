@@ -1,6 +1,3 @@
-// Which spaces, tabs, and panes the picker lists, in which order. A space gets a row, its tabs
-// get rows when it has more than one, and a tab's panes get rows when it has more than one.
-
 import type { PaneInfo, SpaceInfo, Status, TabInfo } from 'herdr';
 
 import type { Match } from './match.ts';
@@ -9,9 +6,7 @@ import { bestFieldMatch, fuzzyMatch } from './match.ts';
 export interface PickerData {
   spaces: SpaceInfo[];
   panes: PaneInfo[];
-  // Space ids, most recent first.
   recent: string[];
-  // The pane last focused in each tab, by tab id.
   focus: Record<string, string>;
 }
 
@@ -22,16 +17,13 @@ interface PickerRowBase {
 
 interface SpacePickerRow extends PickerRowBase {
   kind: 'space';
-  // The tab the space stands for, or undefined when it has no tabs.
   tab: TabInfo | undefined;
-  // The pane the row stands for under a status filter.
   pane: PaneInfo | null;
 }
 
 export interface TabPickerRow extends PickerRowBase {
   kind: 'tab';
   tab: TabInfo;
-  // The pane the row stands for under a status filter.
   pane: PaneInfo | null;
 }
 
@@ -68,8 +60,6 @@ export const folderName = (path: string | null): string =>
 const terminalPanes = (tab: TabInfo, paneList: PaneInfo[]): PaneInfo[] =>
   paneList.filter((pane) => pane.tab === tab.id && pane.terminal !== null);
 
-// The tab's pane to preview and focus: the focused pane in the shown tab, else the one last
-// focused there, else its most urgent agent, else its first terminal.
 export const tabPane = (tab: TabInfo, data: PickerData): PaneInfo | null => {
   const tabPanes = terminalPanes(tab, data.panes);
   const focusedPane = tabPanes.find((pane) => pane.focused);
@@ -148,7 +138,6 @@ const hasStatus = (pane: PaneInfo, statuses: Status[]): boolean =>
 const inStatus = (pane: PaneInfo, statuses: Status[] | null): boolean =>
   statuses === null || hasStatus(pane, statuses);
 
-// With a status filter, only tabs and panes in it count.
 const tabChildRows = (
   space: SpaceInfo,
   tab: TabInfo,
@@ -185,8 +174,6 @@ const tabChildRows = (
   return rows;
 };
 
-// Under a status filter, a space row stands for its first pane in that state, so the preview
-// and Enter show that pane rather than the one last focused.
 const spaceRows = (
   space: SpaceInfo,
   query: string,

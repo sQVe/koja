@@ -6,7 +6,6 @@ describe('dropAction', () => {
   test('moves the dragged space when the live order changes during the drag', () => {
     const drag = setDragOver(startDrag(['a', 'b', 'c'], 0), 'c', true);
 
-    // Something else reorders the spaces while the pointer is held down.
     const action = dropAction(drag, 'c', ['b', 'c', 'a']);
 
     expect(action).toEqual({ kind: 'move', id: 'a', index: 2 });

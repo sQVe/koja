@@ -7,7 +7,6 @@ import type { IconName } from './iconNames.ts';
 import { controlSize, spacing, textSize } from './size.ts';
 import { colors } from './theme.ts';
 
-// The search line over a picker's list, its text where the row names start.
 export const searchField = (input: InputState, iconName: IconName): Element => {
   const palette = colors();
 

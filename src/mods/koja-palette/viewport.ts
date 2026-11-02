@@ -1,14 +1,11 @@
 import { controlSize, rowHeight } from '../../kit/size.ts';
 
-// Where a row, and the group title before it, sit in the list's strip, in pixels.
 export interface RowPlace {
   head: boolean;
   title: number;
   row: number;
 }
 
-// The list keeps one height while you move: rows and group titles have fixed heights, and the
-// list shows as many as fit in this many rows.
 export const shownRows = 12;
 
 export const rowSize = rowHeight.large;
@@ -42,11 +39,9 @@ export const maxScroll = (places: readonly RowPlace[]): number =>
 export const clampIndex = (index: number, count: number): number =>
   Math.min(index, Math.max(0, count - 1));
 
-// The row at `at`, or the last row when a shrinking list left the index past the end.
 export const rowAt = <T>(rows: readonly T[], at: number): T | undefined =>
   rows[clampIndex(at, rows.length)];
 
-// Scrolls only as far as it takes to keep the selected row, and the group title it opens, in view.
 export const scrollToShow = (
   places: readonly RowPlace[],
   at: number,
@@ -71,7 +66,6 @@ export const scrollToShow = (
   return Math.max(0, Math.min(next, max));
 };
 
-// `delta` is the pixels the device reported, whatever unit it used.
 export const wheel = (
   places: readonly RowPlace[],
   at: number,
@@ -82,7 +76,6 @@ export const wheel = (
   const next = Math.max(0, Math.min(scroll - delta, max));
   let nextAt = at;
 
-  // The selection stays on screen, so the next frame doesn't scroll back to it.
   while (nextAt < places.length - 1 && (places[nextAt]?.row ?? 0) < next) {
     nextAt += 1;
   }
@@ -102,7 +95,6 @@ export const visible = (start: number, end: number, scroll: number, scrolls: boo
   return end > scroll && start < scroll + listHeight;
 };
 
-// The wheel starts from the displayed scroll, not from one left by an earlier, longer list.
 export const wheelFrom = (
   places: readonly RowPlace[],
   at: number,

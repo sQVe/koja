@@ -2,7 +2,6 @@ import { layout } from 'herdr';
 
 import { listOf, numberOf, recordOf, stringOf } from './fields.ts';
 
-// The parts of a layout node a mod reads, with safe values for anything missing.
 export interface LayoutNode {
   id: string | null;
   hidden: boolean;
@@ -27,7 +26,6 @@ const nodeOf = (value: unknown): LayoutNode => {
   };
 };
 
-// The shown layout's root, read live on each call.
 export const layoutRoot = (): LayoutNode => nodeOf(layout());
 
 const findNode = (id: string, node: LayoutNode): LayoutNode | null => {
@@ -46,5 +44,4 @@ const findNode = (id: string, node: LayoutNode): LayoutNode | null => {
   return null;
 };
 
-// The node with this id in the shown layout's tree, or null.
 export const findLayoutNode = (id: string): LayoutNode | null => findNode(id, layoutRoot());

@@ -1,7 +1,3 @@
-// Context menus with Herdr's items. Opened as a popup with
-// props { tab: "pane" | "tab" | "space" | "global", target }.
-// Up and down move, Enter runs, Esc closes. The worktree items open Herdr's worktree dialog.
-
 import { v_flex } from 'gpui-base';
 import type { AsyncContext, Context, Element, FocusHandle, KeyEvent } from 'gpui-kit';
 import { View } from 'gpui-kit';

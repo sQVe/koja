@@ -1,6 +1,3 @@
-// Which spaces the sidebar shows: one that git answered for, or one that has waited long enough
-// that it is shown where it is rather than jumping under its repository later.
-
 export interface VisibilityState {
   shown: Set<string>;
   born: Record<string, number>;
@@ -8,7 +5,6 @@ export interface VisibilityState {
 
 interface VisibilitySpace {
   id: string;
-  // The space's place key, which git answers for.
   key: string;
 }
 
@@ -19,13 +15,10 @@ export interface VisibilityInput {
 }
 
 export interface VisibilityResult extends VisibilityState {
-  // True when this transition showed a space that was hidden, so another redraw is due.
   changed: boolean;
-  // True while some space has not been shown yet, so another redraw is due.
   waiting: boolean;
 }
 
-// A new space waits at most this long for its git before it shows anyway.
 export const newSpaceWait = 1500;
 
 export const initialVisibility = (ids: Iterable<string>): VisibilityState => ({
@@ -39,7 +32,6 @@ export const advanceVisibility = (
 ): VisibilityResult => {
   const live = new Set(input.spaces.map((space) => space.id));
 
-  // Spaces that are gone are pruned from both sets.
   const shown = new Set([...state.shown].filter((id) => live.has(id)));
   const born = Object.fromEntries(Object.entries(state.born).filter(([id]) => live.has(id)));
 

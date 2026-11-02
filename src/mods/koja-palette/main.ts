@@ -1,10 +1,3 @@
-// The command palette: everything you can do, by name, with its key. Places, such as spaces and
-// tabs, stay in the picker. Fuzzy: your letters in order, word starts and runs rank higher.
-// Empty, it shows recent entries first, then every group. Choices are entries of their own
-// ("Layout: Zen"); commands that need a name ask for it. Enter runs, up and down move, Esc
-// closes. Herdr's own palette is rewritten on every start and this one is not, so new app
-// commands need a name here.
-
 import type { InputState } from 'gpui-base';
 import { InputState as InputStates, v_flex } from 'gpui-base';
 import type {
@@ -76,7 +69,6 @@ export default class Palette extends View {
 
   private at = 0;
 
-  // How far the list is scrolled, in pixels.
   private scroll = 0;
 
   private recent = readRecent();
@@ -185,7 +177,6 @@ export default class Palette extends View {
       return;
     }
 
-    // Stops at the ends: wrapping would jump out of sight.
     if (event.key === 'down') {
       this.at = Math.min(at + 1, last);
     } else if (event.key === 'up') {

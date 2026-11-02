@@ -1,6 +1,3 @@
-// Removes cache entries whose key no longer names a shown place, so a closed space stops its
-// watcher and pull fetches.
-
 import type { GitInfo } from './tree.ts';
 
 export const pruneRecord = <T>(
@@ -8,7 +5,6 @@ export const pruneRecord = <T>(
   live: ReadonlySet<string>,
 ): Record<string, T> => Object.fromEntries(Object.entries(cache).filter(([key]) => live.has(key)));
 
-// Watchers whose repository no longer has a local place in the cache.
 export const retireUnusedWatches = (
   watching: ReadonlySet<string>,
   git: Readonly<Record<string, GitInfo | null>>,

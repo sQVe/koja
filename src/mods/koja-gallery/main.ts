@@ -1,5 +1,3 @@
-// Every kit component in every state, to compare the UI language with `herdr-app shot`.
-
 import type { InputState } from 'gpui-base';
 import { h_flex, InputState as InputStates, v_flex } from 'gpui-base';
 import type { AsyncContext, Element } from 'gpui-kit';
@@ -42,7 +40,6 @@ const rowStates: { state: RowState; hovered: boolean; label: string }[] = [
 
 const iconSizes = ['xsmall', 'small', 'default', 'large'] as const;
 
-// The letters a search for `query` would match, for the highlighted samples.
 const matchOf = (text: string, query: string): number[] => {
   const start = text.indexOf(query);
 

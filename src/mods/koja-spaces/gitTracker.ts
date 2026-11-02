@@ -1,7 +1,3 @@
-// Git tracking for the spaces sidebar: one cache of what git said about each place, looked at one
-// place at a time, with a watcher for each local repository. Places whose answer could have
-// changed are swept together; a failure keeps the last answer and is asked again later.
-
 import type { Context } from 'gpui-kit';
 import type { PaneInfo, SpaceInfo } from 'herdr';
 import { exec, machines, watchFolder } from 'herdr';
@@ -16,30 +12,22 @@ import { placeOf, repoOf } from './tree.ts';
 const fallbackMilliseconds = 60_000;
 
 export class GitTracker {
-  // Place key to its git facts; null when it is not a repository.
   private git: Record<string, GitInfo | null> = {};
 
-  // Place key to when git last looked at it.
   private checked: Record<string, number> = {};
 
-  // Places git couldn't answer for, such as on a machine that is away.
   private readonly unsure = new Set<string>();
 
-  // Queued places, one entry per place key, so a place asked for twice is looked at once.
   private readonly pending = new Map<string, Place>();
 
   private refreshing = false;
 
-  // Pane to whether an agent works or a program runs in front of its shell there.
   private busy: Record<string, boolean> = {};
 
-  // Machine to whether its layout was readable at the last look.
   private readonly ready: Record<string, boolean> = {};
 
-  // Space to its place at the last look.
   private at: Record<string, Place> = {};
 
-  // Local repositories' git folders being watched, by repository key.
   private watching = new Set<string>();
 
   entries(): Record<string, GitInfo | null> {
@@ -50,7 +38,6 @@ export class GitTracker {
     return this.git[key];
   }
 
-  // One entry per repository that has a local place, for the pull fetcher.
   repositories(): { repo: RepoRef; cwd: string }[] {
     const seen = new Set<string>();
     const repos: { repo: RepoRef; cwd: string }[] = [];
@@ -65,9 +52,6 @@ export class GitTracker {
     return repos;
   }
 
-  // Places whose git could have changed: new ones (a new space, a cd), where a command or an
-  // agent's turn just ended (a checkout, a commit, edits), those on a machine that is back, and
-  // repositories in view whose fallback look is due.
   sweep(
     now: number,
     at: Record<string, Place>,
@@ -84,7 +68,6 @@ export class GitTracker {
     const keys = new Set(placeByKey.keys());
     const due = new Set([...keys].filter((key) => !(key in this.git)));
 
-    // Moved there: what it knew of that place may be old.
     for (const [id, place] of Object.entries(at)) {
       const before = this.at[id];
 
@@ -104,8 +87,6 @@ export class GitTracker {
     return due;
   }
 
-  // Drops cache entries for places no longer among the live spaces, so a closed space stops its
-  // watcher and pull fetches.
   prune(live: ReadonlySet<string>): void {
     this.git = pruneRecord(this.git, live);
     this.checked = pruneRecord(this.checked, live);
@@ -125,7 +106,6 @@ export class GitTracker {
     this.forgetUnusedWatches();
   }
 
-  // One look at a time, each place once however often it was asked for meanwhile.
   refresh(places: Iterable<Place>, cx: Context): void {
     for (const place of places) {
       this.pending.set(place.key, place);
@@ -254,7 +234,6 @@ export class GitTracker {
     this.watching = retireUnusedWatches(this.watching, this.git);
   }
 
-  // One place's git: its branch, repository, and whether it is a linked worktree.
   private async check(place: Place, cx: Context): Promise<void> {
     const options = { cwd: place.folder, on: place.machine };
 
@@ -270,7 +249,6 @@ export class GitTracker {
         return;
       }
 
-      // The repository's own .git folder names it; a worktree's top differs from it.
       const common = await exec(
         'git',
         ['rev-parse', '--path-format=absolute', '--git-common-dir'],
@@ -292,7 +270,6 @@ export class GitTracker {
         this.watch(repo, cx);
       }
     } catch {
-      // Couldn't ask, such as when the machine is away: keep what it showed, look again later.
       this.git[place.key] ??= null;
       this.unsure.add(place.key);
     }

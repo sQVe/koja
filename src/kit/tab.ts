@@ -13,9 +13,7 @@ export interface TabOptions extends HoverOptions {
   label: string;
   active: boolean;
   icon: Element | null;
-  // Idle is the usual state, so a tab shows no mark for it.
   status: Status | null;
-  // Shown on the active tab only, in the slot where other tabs show their status.
   close: Element | null;
 }
 
@@ -37,8 +35,6 @@ const endSlot = (options: TabOptions): Element => {
   return slot.child(statusMark(shownStatus(options.status)));
 };
 
-// A tab the full height of its bar. The active one takes the pane's background and is open at
-// the bottom, so it joins the pane; the others sit on the bar's bottom border.
 export const tab = (options: TabOptions): Element => {
   const palette = colors();
 
@@ -76,6 +72,5 @@ export const tab = (options: TabOptions): Element => {
   return element.child(endSlot(options));
 };
 
-// The part of a tab bar beside the tabs, which carries the bar's bottom border.
 export const tabBarEdge = (element: Element): Element =>
   element.h_full().border_b(spacing.hairline).border_color(colors().border);

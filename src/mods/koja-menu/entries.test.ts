@@ -36,7 +36,6 @@ const terminal = (address: string, parent: string | null = null): TerminalFacts 
   toProgram: true,
 });
 
-// What the view shows: `shortcutFor` takes the first candidate with a binding.
 const hintOf = (menu: MenuProps, checkout: Checkout, label: string): string | null => {
   const entry: MenuEntry | undefined = menuEntries(menu, checkout, host).find(
     (candidate) => candidate.label === label,

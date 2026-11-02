@@ -23,11 +23,8 @@ export interface CheckResult {
 }
 
 export interface InstallOptions {
-  // Herdr's home, such as ~/.config/herdr-app.
   home: string;
-  // The built mods, one folder each.
   modsDirectory: string;
-  // Files that go to Herdr's home as they are: keys.json, settings.json, layouts, and themes.
   configDirectory: string;
   check: (modFolder: string) => Promise<CheckResult>;
 }
@@ -38,7 +35,6 @@ export interface InstallResult {
   checks: (CheckResult & { mod: string })[];
 }
 
-// The files the last install wrote, relative to Herdr's home. Herdr ignores hidden files.
 const recordName = '.koja-install.json';
 
 const recordVersion = 1;
@@ -72,7 +68,6 @@ const filesUnder = async (directory: string): Promise<string[]> => {
   }
 };
 
-// Each file to install, by its path in Herdr's home, with the file it comes from.
 const plannedFiles = async (options: InstallOptions): Promise<Map<string, string>> => {
   const planned = new Map<string, string>();
 
@@ -87,7 +82,6 @@ const plannedFiles = async (options: InstallOptions): Promise<Map<string, string
   return planned;
 };
 
-// A recorded path must stay inside Herdr's home, whatever the record says.
 const isInsideHome = (path: string): boolean => {
   const normalized = normalize(path);
   const escapes = normalized === '..' || normalized.startsWith(`..${sep}`);
@@ -121,7 +115,6 @@ const readRecord = async (home: string): Promise<string[]> => {
   }
 };
 
-// A write through a symlinked folder would land outside Herdr's home, such as in dotfiles.
 const refuseLinkedFolders = async (home: string, path: string): Promise<void> => {
   let folder = home;
 
@@ -139,7 +132,6 @@ const refuseLinkedFolders = async (home: string, path: string): Promise<void> =>
   }
 };
 
-// A symlink at `destination` is removed, never written through.
 const removeSymlinkLeaf = async (destination: string): Promise<void> => {
   const existing = await lstatOrNull(destination);
 
@@ -164,7 +156,6 @@ const isSameFile = async (source: string, destination: string): Promise<boolean>
   return sourceText.equals(destinationText);
 };
 
-// Answers whether it wrote the file. A symlink in the way is removed, never written through.
 const installFile = async (home: string, path: string, source: string): Promise<boolean> => {
   const destination = join(home, path);
 
@@ -185,7 +176,6 @@ const installFile = async (home: string, path: string, source: string): Promise<
   return true;
 };
 
-// Removes the folders a removed file leaves empty, up to Herdr's home.
 const removeEmptyFolders = async (home: string, path: string): Promise<void> => {
   let folder = dirname(join(home, path));
 
@@ -231,8 +221,6 @@ const installedMods = (paths: Iterable<string>): string[] => {
   return [...mods].toSorted();
 };
 
-// Copies Koja's files into Herdr's home as real files, removes the files an earlier install wrote
-// that this one no longer has, and checks every installed mod. Files Koja never wrote stay.
 export const install = async (options: InstallOptions): Promise<InstallResult> => {
   const { home } = options;
   const planned = await plannedFiles(options);
@@ -318,7 +306,6 @@ const reportError = (error: unknown): void => {
   process.stderr.write(`${String(error)}\n`);
 };
 
-// Builds and installs again after each save, one run at a time, with saves batched.
 const watchAndInstall = (home: string): void => {
   let running = false;
   let again = false;
@@ -335,7 +322,6 @@ const watchAndInstall = (home: string): void => {
     await buildAndInstall(home).catch(reportError);
     running = false;
 
-    // A save during the run starts one more.
     if (again) {
       again = false;
       await runOnce();

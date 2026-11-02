@@ -1,6 +1,5 @@
 import type { PaneInfo, SpaceInfo } from 'herdr';
 
-// Where a space is now: its first terminal's live folder, else where it was made.
 export const spaceFolder = (space: SpaceInfo, paneList: readonly PaneInfo[]): string => {
   const tabIdentifiers = new Set(space.tabs.map((tab) => tab.id));
 

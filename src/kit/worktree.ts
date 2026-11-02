@@ -4,8 +4,6 @@ import { overlaySize } from './size.ts';
 
 export type WorktreeAction = 'new' | 'open' | 'remove';
 
-// Opens Herdr's worktree dialog for a space. Opening one lists the repository's checkouts, so it
-// gets the larger dialog.
 export const openWorktreeDialog = (
   action: WorktreeAction,
   space: string | null,

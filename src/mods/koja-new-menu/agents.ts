@@ -10,7 +10,6 @@ export type AgentLoad =
 export const agentList = (load: AgentLoad): Agent[] =>
   load.status === 'loaded' ? load.agents : [];
 
-// What the list says while it has no agents to show; loaded-empty shows the rest of the menu.
 export const placeholderFor = (load: AgentLoad): string | null => {
   if (load.status === 'pending') {
     return 'Checking installed agents…';

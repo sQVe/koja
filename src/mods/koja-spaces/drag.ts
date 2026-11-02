@@ -1,7 +1,4 @@
-// The sidebar's drag gesture, kept pure so a live reorder under the pointer can be tested.
-
 export interface DragState {
-  // The dragged space's stable id, and the stable id of the row under the pointer.
   source: string | null;
   over: string | null;
 }
@@ -18,7 +15,6 @@ export const startDrag = (order: readonly string[], index: number): DragState =>
   return { source, over: source };
 };
 
-// A space moves only within its machine's group; `allowed` is that check.
 export const setDragOver = (state: DragState, over: string, allowed: boolean): DragState => {
   if (state.source === null) {
     return state;
@@ -57,7 +53,6 @@ export const dropAction = (
     return null;
   }
 
-  // A source that is gone must not move another space.
   if (!order.includes(state.source)) {
     return null;
   }

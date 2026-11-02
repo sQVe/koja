@@ -1,5 +1,3 @@
-// How a keys.json binding reads in a hint: "ctrl-shift-t" is "Ctrl+Shift+T", or "⌃⇧T" on macOS.
-
 export type Platform = 'linux' | 'macos' | 'windows';
 
 const modifierOrder = ['ctrl', 'alt', 'shift', 'cmd', 'fn'] as const;
@@ -36,7 +34,6 @@ const modifierAlias = (modifier: string, platform: Platform): string => {
   return isCommandKey ? 'cmd' : lower;
 };
 
-// "ctrl--" binds the minus key: the last part is empty and the dash before it is the key.
 const splitStroke = (stroke: string): { held: string[]; key: string } => {
   const parts = stroke.split('-');
   const last = parts.pop() ?? '';

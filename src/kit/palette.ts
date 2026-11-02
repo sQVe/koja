@@ -1,7 +1,3 @@
-// Theme colors by token. The kit holds no color values: Herdr's theme file sets every one, and
-// this only gives them the `#` form that elements expect.
-
-// The same shape as gpui-kit's `Color`, declared here so tests can load this module outside Herdr.
 export type Color = `#${string}`;
 
 export interface Palette {
@@ -52,8 +48,6 @@ const isColor = (value: string): value is Color => value.startsWith('#');
 
 const toColor = (value: string): Color => (isColor(value) ? value : `#${value}`);
 
-// Herdr's `theme()` types its colors as plain strings, so they are converted once here. A token
-// the theme lacks takes the foreground color, so it stays visible.
 export const toPalette = (theme: Record<string, string>): Palette => {
   const fallback = theme['foreground'] ?? '';
   const color = (token: ThemeToken): Color => toColor(theme[token] ?? fallback);

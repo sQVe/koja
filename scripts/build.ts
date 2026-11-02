@@ -23,10 +23,6 @@ const listModNames = async (directory: string): Promise<string[]> => {
 
 const isTypeScript = (path: string): boolean => path.endsWith('.ts');
 
-// Herdr resolves a mod's imports only inside its own folder, so the kit and every other local
-// module are bundled into main.js. Bare imports such as `gpui-kit` and `herdr` are Herdr's own
-// modules and stay imports. Herdr loads icons by their path under its home, so the kit learns the
-// mod's folder name from `kojaModName`.
 const bundleMod = async (modSource: string, modOutput: string, name: string): Promise<void> => {
   const result = await Bun.build({
     entrypoints: [join(modSource, 'main.ts')],

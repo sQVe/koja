@@ -9,16 +9,12 @@ import { iconSize, spinnerPeriod } from './size.ts';
 
 export type IconSize = keyof typeof iconSize;
 
-// Herdr loads an icon by its path under its home, and the build copies the kit's icons into
-// every mod's folder.
 export const icon = (name: IconName, size: IconSize = 'default'): Element =>
   svg(`mods/${modName}/icons/${name}.svg`).size(iconSize[size]).flex_none();
 
 export const spinner = (size: IconSize = 'xsmall'): Element =>
   icon('loader-circle', size).spin(spinnerPeriod);
 
-// A program's icon comes from Herdr's program table: a one-color glyph takes the text color,
-// anything else keeps its own colors.
 export const programIcon = (program: Program | null, size: IconSize = 'large'): Element => {
   const path = program?.icon ?? null;
 
@@ -31,6 +27,5 @@ export const programIcon = (program: Program | null, size: IconSize = 'large'): 
   return drawn.size(iconSize[size]).flex_none();
 };
 
-// A slot as wide as a large icon, so a smaller icon in it keeps names and guides in place.
 export const iconSlot = (content: Element): Element =>
   h_flex().size(iconSize.large).flex_none().items_center().justify_center().child(content);

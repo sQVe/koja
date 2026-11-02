@@ -1,6 +1,3 @@
-// The picker's persisted history: recent spaces, and the pane it last went to per tab. Herdr
-// keeps no pane-focus history, so this is the picker's own memory.
-
 export interface HistoryKeys {
   recent: string;
   focus: string;
@@ -44,7 +41,6 @@ export const createHistory = (store: HistoryStore, keys: HistoryKeys): PickerHis
 
     store.set(keys.recent, [space, ...recent].slice(0, recentLimit));
   },
-  // Tabs that are gone are dropped, so their remembered pane can't be focused later.
   rememberPane: (tab, pane) => {
     const live = store.liveTabs();
 

@@ -7,15 +7,12 @@ import { colors } from './theme.ts';
 
 export interface SectionHeaderOptions {
   label: string;
-  // `bar` matches the height of the tab bar beside the sidebar.
   size: 'default' | 'bar';
   start?: Element;
   end?: Element[];
-  // An interactive header shows the hover look; callers add its id and handlers.
   interactive?: boolean;
 }
 
-// The title over a group of rows: a sidebar's name, a machine, or a palette group.
 export const sectionHeader = (options: SectionHeaderOptions): Element => {
   const palette = colors();
   const height = options.size === 'bar' ? controlSize.sidebarHeader : controlSize.sectionHeader;

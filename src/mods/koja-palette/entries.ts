@@ -1,6 +1,3 @@
-// The palette's catalog and its row projection: what you can do, and which rows an input shows.
-// The view owns running a choice, storage, focus, and geometry.
-
 import { bindingAction } from '../../kit/binding.ts';
 import type { ThemeChoice } from '../../kit/themes.ts';
 import type { FuzzyMatch } from './fuzzy.ts';
@@ -12,7 +9,6 @@ interface Command {
   about: string;
 }
 
-// What the catalogue reads from the app, so it tests without the app.
 export interface PaletteHost {
   commands: () => Command[];
   layouts: () => string[];
@@ -53,7 +49,6 @@ const groups = ['Recent', 'Tab', 'Pane', 'Space', 'Layout', 'Terminal', 'Agent',
 
 const recentShown = 5;
 
-// A title match ranks above one in the group, name, or keywords by this much.
 const titleBonus = 4;
 
 const rankOfUnknown = 99;
@@ -210,7 +205,6 @@ const namedEntries: NamedEntry[] = [
   },
 ];
 
-// Commands that act on something you point at, such as ids and terminals: not for a list.
 const hiddenCommands = new Set([
   'space.move',
   'tab.move',
@@ -267,7 +261,6 @@ const layoutEntry = (name: string): Entry => {
   };
 };
 
-// Anything new in the app shows up too, until it gets a better name here.
 const otherEntries = (host: PaletteHost): Entry[] =>
   host
     .commands()
@@ -286,7 +279,6 @@ const otherEntries = (host: PaletteHost): Entry[] =>
       };
     });
 
-// The theme choices come from Herdr, so Koja's own theme file is always present.
 const themeEntries = (known: ReadonlySet<string>, host: PaletteHost): Entry[] => {
   if (!known.has('app.theme')) {
     return [];
@@ -302,7 +294,6 @@ const themeEntries = (known: ReadonlySet<string>, host: PaletteHost): Entry[] =>
   }));
 };
 
-// Every entry for the state the app is in now.
 export const allEntries = (host: PaletteHost): Entry[] => {
   const known = new Set(host.commands().map((command) => command.name));
   const onMacos = host.platform === 'macos';
@@ -327,7 +318,6 @@ export const allEntries = (host: PaletteHost): Entry[] => {
   ];
 };
 
-// The key bound to an entry: `name:value` with its first argument, else `name`.
 export const entryShortcut = (entry: Entry, shortcut: ShortcutLookup): string | null =>
   shortcut(bindingAction(entry.name, entry.args));
 
@@ -361,7 +351,6 @@ const groupedRows = (all: Entry[], recentIds: readonly string[]): Row[] => {
   ];
 };
 
-// The rows to show: grouped when the query is empty, ranked while typing.
 export const paletteRows = (all: Entry[], query: string, recentIds: readonly string[]): Row[] => {
   const normalized = query.trim().toLowerCase().replaceAll(/\s+/g, '');
 

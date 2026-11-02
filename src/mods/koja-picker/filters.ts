@@ -1,5 +1,3 @@
-// The picker's status chips, in order. Tab and shift+Tab cycle them.
-
 import type { Status } from 'herdr';
 
 export interface StatusFilter {

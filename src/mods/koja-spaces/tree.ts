@@ -1,17 +1,13 @@
-// The sidebar's tree: each worktree space nested under its repository's main checkout.
-
 import type { PaneInfo, SpaceInfo, Status } from 'herdr';
 
 import { spaceFolder } from '../../kit/space.ts';
 
-// A space's folder on a machine, with a key that names both.
 export interface Place {
   machine: string | null;
   folder: string;
   key: string;
 }
 
-// A repository's git folder on a machine, with a key that names both.
 export interface RepoRef {
   machine: string | null;
   path: string;
@@ -32,9 +28,7 @@ export interface ListedSpace {
 }
 
 export interface TreeRow extends ListedSpace {
-  // Where a nested worktree sits in its parent's guide line.
   tree: { first: boolean; last: boolean } | null;
-  // A main checkout with worktrees: whether they are folded, and how many the fold hides.
   fold: { folded: boolean; hidden: number } | null;
 }
 
@@ -59,7 +53,6 @@ export const repoOf = (machine: string | null, path: string): RepoRef => ({
   key: JSON.stringify([machine, path]),
 });
 
-// Space id to where it is now.
 export const placesOf = (spaceList: SpaceInfo[], paneList: PaneInfo[]): Record<string, Place> => {
   const at: Record<string, Place> = {};
 
@@ -75,7 +68,6 @@ export const needsYou = (status: Status | null): boolean =>
 
 const isMain = (row: ListedSpace): boolean => row.git !== null && !row.git.linked;
 
-// A folded repository still shows the space you are in and any that needs you.
 const shownWhenFolded = (row: ListedSpace): boolean =>
   row.space.active || needsYou(row.space.status);
 
@@ -106,8 +98,6 @@ const nestedRow = (kid: ListedSpace, position: number, count: number): TreeRow =
   fold: null,
 });
 
-// Spaces in order, each worktree space moved under its main checkout's, under the first of the
-// repository's spaces.
 export const nestSpaces = (list: ListedSpace[], foldedRepos: FoldedKeys): TreeRow[] => {
   const mains = new Set(list.filter(isMain).map((row) => row.git?.repo.key));
 

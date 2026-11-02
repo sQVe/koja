@@ -19,7 +19,6 @@ import { colors } from './theme.ts';
 
 export type RowState = 'normal' | 'selected' | 'disabled';
 
-// Where a child row sits in its parent's guide line: the line stops short at both ends.
 interface TreeGuide {
   first: boolean;
   last: boolean;
@@ -27,8 +26,6 @@ interface TreeGuide {
 
 export interface ListRowOptions extends HoverOptions {
   size: RowSize;
-  // Inset rows float inside a menu or picker with rounded corners; flush rows run edge to edge,
-  // as in a sidebar.
   inset: boolean;
   state: RowState;
   label: Element | string;
@@ -63,7 +60,6 @@ const withBackground = (row: Element, options: ListRowOptions, palette: Palette)
   return withHover(row, options.hovered === true, (element) => element.bg(palette.hover));
 };
 
-// The guide runs under the middle of the parent's icon, one level to the left.
 const guideLine = (guide: TreeGuide, palette: Palette): Element =>
   div()
     .absolute()
@@ -143,8 +139,6 @@ const decorate = (row: Element, options: ListRowOptions, palette: Palette): void
   }
 };
 
-// The one list row every surface draws: menus, pickers, the palette, and the sidebar. Callers
-// add the row's id and its handlers.
 export const listRow = (options: ListRowOptions): Element => {
   const palette = colors();
   const row = withBackground(rowFrame(options, palette), options, palette);

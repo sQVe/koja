@@ -3,10 +3,8 @@ import { closeOverlay as closeHerdrOverlay, openOverlay, props } from 'herdr';
 
 import { recordOf, stringOf } from './fields.ts';
 
-// The id Herdr gave the overlay this mod runs in, or null outside one.
 export const overlayId = (): string | null => stringOf(recordOf(props())['overlay']);
 
-// Closes this mod's overlay, or the captured one `id` names, and does nothing outside one.
 export const closeOverlay = (id: string | null = overlayId()): void => {
   if (id !== null) {
     closeHerdrOverlay(id);

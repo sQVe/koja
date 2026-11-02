@@ -1,5 +1,3 @@
-// A repository's pull requests, read from `gh pr list --json` and cached by repository.
-
 import { listOf, numberOf, recordOf, stringOf } from '../../kit/fields.ts';
 import type { GitInfo } from './tree.ts';
 
@@ -54,7 +52,6 @@ export const readPullCaches = (stored: unknown): Record<string, PullCache> => {
 export const pullState = (pull: Pull): string =>
   pull.isDraft && pull.state === 'OPEN' ? 'draft' : pull.state.toLowerCase();
 
-// The branch's open pull request, else its newest one; gh lists the newest first.
 export const pullOf = (git: GitInfo | null, caches: Record<string, PullCache>): Pull | null => {
   if (git?.branch === null || git?.branch === undefined) {
     return null;

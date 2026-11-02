@@ -1,6 +1,3 @@
-// The sidebar's machine groups: a header per machine, and a row per space under it. The view
-// supplies the space rows and the fold and loading state.
-
 import type { Element } from 'gpui-kit';
 
 import {
@@ -33,7 +30,6 @@ const connected = (machineList: Machine[], machine: string | null): boolean =>
 
 const loadingRow = (collapsed: boolean): Element => emptyState(collapsed ? '…' : 'Loading…');
 
-// A connected machine offers a new space there; another says why it is away.
 const machineState = (host: MachineRowsHost, machine: string | null): Element => {
   if (!connected(host.machineList, machine)) {
     const known = host.machineList.find((candidate) => candidate.name === machine);

@@ -1,6 +1,3 @@
-// The tab bar: the shown space's tabs, the + menu, the side panel buttons, and the mode mark.
-// Click to select, double-click to rename, drag to reorder, right-click for the tab's menu.
-
 import { h_flex } from 'gpui-base';
 import type { Context, Element } from 'gpui-kit';
 import { div, View } from 'gpui-kit';
@@ -58,7 +55,6 @@ const readStoredPanels = (): Record<string, string | null> => {
   return Object.fromEntries(entries);
 };
 
-// An unnamed tab Herdr calls by an id like "tb3" shows its program's name instead.
 const tabLabel = (tabInfo: TabInfo, program: PaneInfo['program'] | undefined): string => {
   const name = /^tb\d+$/.test(tabInfo.name) ? (program?.name ?? 'Terminal') : tabInfo.name;
 
@@ -82,7 +78,6 @@ const shownPanel = (): string | null => {
   return body?.active ?? null;
 };
 
-// Only panels the layout's "panel-body" stack offers get a button, so the layout file decides.
 const enabledPanels = (): string[] => {
   const offered = new Set((findLayoutNode('panel-body')?.children ?? []).map((child) => child.id));
 
@@ -102,8 +97,6 @@ const showPanel = (panel: string | null): void => {
   run('layout.show', { id: 'panel' });
 };
 
-// On macOS without a system title bar, the tabs leave room for the window buttons where the
-// sidebar is narrower than them.
 const windowButtonsPadding = (): number => {
   const shown = currentWindow();
   const lights = layoutRoot().trafficLights;
@@ -162,8 +155,6 @@ export default class Tabs extends View {
       .child(this.controls(enabled));
   }
 
-  // The side panel is remembered per space: switching shows that space's choice (closed if it
-  // never had one), and opening or closing it records it.
   private syncPanel(space: SpaceInfo | undefined, enabled: string[]): void {
     if (space === undefined || findLayoutNode('panel') === null) {
       return;
@@ -264,7 +255,6 @@ export default class Tabs extends View {
         });
       });
 
-    // Red while the modal-pill overlay holds the keyboard (normal mode), else green (insert mode).
     const normalMode = Boolean(shared('modal.pill'));
 
     return tabBarEdge(

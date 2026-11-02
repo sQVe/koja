@@ -1,6 +1,3 @@
-// The context menu's entries: what each kind shows, in order, with the keys it may be bound to.
-// The view runs an entry's action; the host supplies the app calls an action makes.
-
 import { bindingAction } from '../../kit/binding.ts';
 import { recordOf, stringOf } from '../../kit/fields.ts';
 import type { IconName } from '../../kit/iconNames.ts';
@@ -9,7 +6,6 @@ import type { WorktreeAction } from '../../kit/worktree.ts';
 
 type MenuKind = 'pane' | 'tab' | 'space' | 'global';
 
-// A space's checkout: a repository's own, a linked worktree, or none.
 export type Checkout = 'main' | 'linked' | null;
 
 export interface MenuTarget {
@@ -27,9 +23,7 @@ export interface MenuProps {
 export interface MenuEntry {
   label: string;
   icon: IconName;
-  // The actions `shortcutFor` tries, in order, such as "pane.split:right" then "pane.split".
   shortcuts: string[];
-  // A line goes above this entry.
   group: boolean;
   action: () => void;
 }
@@ -83,15 +77,12 @@ export const readTerminal = (value: unknown): TerminalFacts => {
   };
 };
 
-// The keys.json actions a menu entry tries: the derived action, then the bare command, as HEAD
-// did. The palette looks up only the derived action.
 const menuShortcuts = (command: string, args: Record<string, unknown>): string[] => {
   const action = bindingAction(command, args);
 
   return action === command ? [command] : [action, command];
 };
 
-// A run command as a menu entry: the label, its icon, and the keys it may be bound to.
 const commandEntry = (
   host: MenuHost,
   label: string,
@@ -109,8 +100,6 @@ const commandEntry = (
   },
 });
 
-// `to` comes first: `bindingAction` reads the first argument, so the hint is
-// `terminal.right_click:menu`, not the terminal's address.
 const rightClickEntry = (host: MenuHost, terminal: TerminalFacts): MenuEntry =>
   terminal.toProgram
     ? commandEntry(host, 'Use Herdr right-click menu', 'terminal', 'terminal.right_click', {
@@ -122,7 +111,6 @@ const rightClickEntry = (host: MenuHost, terminal: TerminalFacts): MenuEntry =>
         terminal: terminal.address,
       });
 
-// A kept sub-agent can go back under its parent, still running.
 const sendBackEntries = (
   host: MenuHost,
   terminal: TerminalFacts | null,

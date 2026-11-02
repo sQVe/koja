@@ -1,6 +1,3 @@
-// The preview terminal's process and FIFO lifecycle, with the app calls injected so it tests
-// without Herdr.
-
 import { recordOf, stringOf } from '../../kit/fields.ts';
 import { PreviewSession } from './previewQueue.ts';
 
@@ -19,7 +16,6 @@ export interface PreviewHost {
 
 const stateOf = (stdout: string): Record<string, unknown> => recordOf(JSON.parse(stdout));
 
-// Finds the running preview terminal or starts one; null when it cannot start.
 export const findPreviewAddress = async (host: PreviewHost): Promise<string | null> => {
   const found = await host.hc(['get', '--json', host.name]).catch(() => null);
 
@@ -49,7 +45,6 @@ export const findPreviewAddress = async (host: PreviewHost): Promise<string | nu
   return started.code === 0 ? stringOf(stateOf(started.stdout)['address']) : null;
 };
 
-// A failed write is not recorded as shown, so the next selection retries it.
 export const writePreview = async (host: PreviewHost, address: string | null): Promise<boolean> => {
   const result = await host
     .exec(host.script, ['show', host.fifo, address ?? '-'])

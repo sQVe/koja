@@ -1,5 +1,3 @@
-// The machines the sidebar groups by, read from `hc machine ls`.
-
 import { listOf, recordOf, stringOf } from '../../kit/fields.ts';
 
 export interface Machine {
@@ -16,7 +14,6 @@ export const readMachines = (stdout: string): Machine[] =>
       state: stringOf(machine['state']),
     }));
 
-// The group order: this computer first, then every named machine, sorted.
 export const machineGroupOrder = (
   remoteNames: Iterable<string>,
   known: Machine[],

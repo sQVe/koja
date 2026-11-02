@@ -11,7 +11,6 @@ import { colors } from './theme.ts';
 
 export interface IconButtonOptions extends HoverOptions {
   name: IconName;
-  // `small` fits the end slot of a tab.
   size?: 'default' | 'small';
 }
 
@@ -20,11 +19,9 @@ export interface ToggleButtonOptions extends HoverOptions {
   active: boolean;
   start?: Element;
   end?: string;
-  // A quiet button has nothing behind it, such as a filter that matches nothing.
   quiet?: boolean;
 }
 
-// A square button with one icon.
 export const iconButton = (options: IconButtonOptions): Element => {
   const palette = colors();
   const side = options.size === 'small' ? controlSize.tabSlot : controlSize.button;
@@ -53,7 +50,6 @@ const toggleTextColor = (options: ToggleButtonOptions): Color => {
   return options.quiet === true ? palette.dim : palette.muted;
 };
 
-// A button that stays on or off, such as a side panel's or a filter's.
 export const toggleButton = (options: ToggleButtonOptions): Element => {
   const palette = colors();
 

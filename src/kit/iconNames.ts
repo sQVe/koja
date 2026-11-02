@@ -1,4 +1,3 @@
-// Every icon the kit ships, each a file in src/kit/icons/. The icons are Lucide's.
 export const iconNames = [
   'chevron-down',
   'chevron-right',

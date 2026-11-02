@@ -1,5 +1,3 @@
-// The picker's preview terminal: its process and FIFO paths, and the queue that writes to it.
-
 import { appHome, exec, hc, home } from 'herdr';
 
 import { modName } from '../../kit/modName.ts';

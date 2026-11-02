@@ -1,11 +1,6 @@
-// The side panel's memory, per space: which panel a space should get back, and when a shown
-// panel counts as a choice. Pure so the timing and the transitions can be tested.
-
 export interface PanelMemory {
-  // The panel the shown space should get back, until the layout shows it or a second passes.
   pending: { want: string | null; until: number } | null;
   space: string | undefined;
-  // Space id to the panel it last showed, null when closed.
   stored: Record<string, string | null>;
 }
 
@@ -30,7 +25,6 @@ interface Restore {
   effect: PanelEffect;
 }
 
-// How long a restored panel waits for the layout to show it before a change counts as a choice.
 export const restoreMilliseconds = 1000;
 
 const noEffect: PanelEffect = { kind: 'none' };
@@ -41,7 +35,6 @@ export const initialPanelMemory = (stored: Record<string, string | null>): Panel
   stored,
 });
 
-// Answers whether it asked the layout for another panel.
 const restore = (memory: PanelMemory, view: PanelView): Restore => {
   const first = memory.space === undefined;
 

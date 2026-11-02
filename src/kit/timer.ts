@@ -1,6 +1,5 @@
 import type { AsyncContext, Context } from 'gpui-kit';
 
-// Calls `handler` every `milliseconds`, measured from the end of each call.
 export const repeat = (
   cx: Context,
   milliseconds: number,

@@ -1,6 +1,3 @@
-// The + menu of the tab bar: a terminal, an agent from Herdr's program table, a space, or a
-// worktree. Digits 1 to 9 start the installed agent with that number.
-
 import { v_flex } from 'gpui-base';
 import type { AsyncContext, Element, FocusHandle, KeyEvent } from 'gpui-kit';
 import { View } from 'gpui-kit';
@@ -38,10 +35,8 @@ interface MenuEntry {
   action: () => void;
 }
 
-// Not-installed agents shown after the installed ones, so people can find them.
 const suggestedAgents = 2;
 
-// Rows other than agents: Terminal, New space, and the two worktree rows.
 const fixedRows = 4;
 
 const digitKeys = 9;
@@ -73,7 +68,6 @@ const agentHint = (agent: Agent, index: number): Element | null => {
   return index < digitKeys ? detailText(String(index + 1)) : null;
 };
 
-// Without a separate scroll range, the agent list takes what the other rows leave.
 const menuHeight = (agentRows: number): number => {
   const chrome = controlSize.sectionHeader + separatorHeight + spacing.xsmall * 2;
   const content = (fixedRows + Math.max(1, agentRows)) * rowHeight.medium + chrome;
