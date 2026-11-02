@@ -2,5 +2,5 @@
   "$schema": "https://unpkg.com/knip@6/schema.json",
   "entry": ["src/mods/*/main.{js,ts}"],
   "ignore": ["herdr/**"],
-  "ignoreDependencies": ["gpui-base", "gpui-kit", "herdr"]
+  "ignoreDependencies": ["gpui-base", "gpui-kit"]
 }

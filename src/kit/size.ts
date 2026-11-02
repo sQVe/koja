@@ -74,6 +74,11 @@ export const overlaySize = {
   promptWidth: 380,
   pickerListWidth: 420,
   pickerInset: 3,
+  // Shares of the window.
+  pickerWidthShare: 0.6,
+  pickerHeightShare: 0.7,
+  // How far below the window's top a popup at the top opens.
+  topOffset: 40,
 } as const;
 
 // The width of macOS's window buttons, from the layout's traffic_lights position.

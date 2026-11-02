@@ -1,6 +1,6 @@
 export { iconButton, toggleButton } from './button.ts';
 
-export { icon, programIcon, spinner } from './icon.ts';
+export { icon, iconSlot, programIcon, spinner } from './icon.ts';
 
 export { iconNames } from './iconNames.ts';
 
@@ -17,6 +17,7 @@ export { sectionHeader } from './sectionHeader.ts';
 export {
   controlSize,
   overlaySize,
+  radius,
   rowHeight,
   separatorHeight,
   spacing,
@@ -50,3 +51,7 @@ export { spaceFolder } from './space.ts';
 export { openWorktreeDialog } from './worktree.ts';
 
 export type { WorktreeAction } from './worktree.ts';
+
+export { modName } from './modName.ts';
+
+export { openAtTop } from './overlay.ts';

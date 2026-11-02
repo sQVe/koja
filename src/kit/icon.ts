@@ -1,3 +1,4 @@
+import { h_flex } from 'gpui-base';
 import type { Element } from 'gpui-kit';
 import { image, svg } from 'gpui-kit';
 import type { Program } from 'herdr';
@@ -29,3 +30,7 @@ export const programIcon = (program: Program | null, size: IconSize = 'large'): 
 
   return drawn.size(iconSize[size]).flex_none();
 };
+
+// A slot as wide as a large icon, so a smaller icon in it keeps names and guides in place.
+export const iconSlot = (content: Element): Element =>
+  h_flex().size(iconSize.large).flex_none().items_center().justify_center().child(content);
