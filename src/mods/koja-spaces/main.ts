@@ -4,6 +4,8 @@ import { View } from 'gpui-kit';
 import type { SpaceInfo } from 'herdr';
 import { exec, hc, machines, openOverlay, panes, run, spaces } from 'herdr';
 
+import type { DragState } from '../../kit/drag.ts';
+import { dragLine, dropAction, noDrag, setDragOver, startDrag } from '../../kit/drag.ts';
 import type { ThemeToken } from '../../kit/index.ts';
 import {
   colors,
@@ -21,13 +23,12 @@ import {
   statusMark,
   textSize,
 } from '../../kit/index.ts';
-import type { DragState } from './drag.ts';
-import { dragLine, dropAction, noDrag, setDragOver, startDrag } from './drag.ts';
 import { foldedSet } from './folded.ts';
 import { GitTracker } from './gitTracker.ts';
 import { machineRows } from './machineRows.ts';
 import type { Machine } from './machines.ts';
 import { isMachineLoading, readMachines } from './machines.ts';
+import { newSpaceArguments } from './newSpace.ts';
 import { pullFields, pullOf, pullState, readPullCaches, readPullList } from './pulls.ts';
 import type { ListedSpace, RepoRef, TreeRow } from './tree.ts';
 import { needsYou, nestSpaces, placesOf } from './tree.ts';
@@ -247,7 +248,7 @@ export default class Spaces extends View {
         folded: (machine) => this.foldedMachines.has(machine ?? ''),
         loading: (machine) => this.isLoading(machine),
         addSpace: (machine) => {
-          run('space.new', machine === null ? {} : { machine });
+          run('space.new', newSpaceArguments(machine));
         },
         toggleFold: (machine) => {
           this.foldedMachines.toggle(machine ?? '');
