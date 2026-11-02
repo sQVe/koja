@@ -5,7 +5,6 @@ import { tabDropAction } from './tabDrop.ts';
 
 describe('tabDropAction', () => {
   test('moves the dragged tab after the live order changes during the drag', () => {
-    // Tab a is pressed at index 0. The live order becomes b, c, a. Release lands on c.
     const drag = startDrag(['a', 'b', 'c'], 0);
 
     expect(tabDropAction(drag, 'c', ['b', 'c', 'a'])).toEqual({ kind: 'move', id: 'a', index: 2 });
