@@ -100,12 +100,13 @@ export const tabLabel = (tab: TabInfo, paneList: PaneInfo[]): string => {
   return title === '' ? tabName(tab) : `${tabName(tab)} · ${title}`;
 };
 
-const paneSearchFields = (pane: PaneInfo): (string | null)[] => [
-  pane.title,
-  pane.program.name,
-  folderName(pane.cwd),
-  pane.branch,
-];
+const paneSearchFields = (pane: PaneInfo): (string | null)[] => {
+  if (pane.terminal === null) {
+    return [pane.title];
+  }
+
+  return [pane.title, pane.program.name, folderName(pane.cwd), pane.branch];
+};
 
 const tabSearchFields = (tab: TabInfo, paneList: PaneInfo[]): (string | null)[] => [
   tab.named ? tab.name : null,
@@ -147,7 +148,7 @@ const tabChildRows = (
   const tabPanes = terminalPanes(tab, paneList);
   const shownPanes = tabPanes.filter((pane) => inStatus(pane, statuses));
 
-  if (shownPanes.length === 0) {
+  if (statuses !== null && shownPanes.length === 0) {
     return [];
   }
 

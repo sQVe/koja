@@ -75,6 +75,21 @@ const data = (overrides: Partial<PickerData> = {}): PickerData => ({
   ...overrides,
 });
 
+// Herdr leaves program out of a mod pane, but its declaration still lists it.
+const modPaneOf = (pane: string, tab: string, title: string): PaneInfo =>
+  ({
+    pane,
+    terminal: null,
+    mod: 'koja-gallery',
+    tab,
+    title,
+    focused: false,
+    zoomed: false,
+  }) as unknown as PaneInfo;
+
+const withModOnlyTab = (): PickerData =>
+  data({ panes: [paneOf('p1', 'k1'), modPaneOf('m1', 'k2', 'Gallery')] });
+
 const keysOf = (rows: { key: string }[]): string[] => rows.map((row) => row.key);
 
 describe('buildRows', () => {
@@ -101,6 +116,23 @@ describe('buildRows', () => {
 
   test('keeps only spaces that match the query', () => {
     expect(keysOf(buildRows('nts', null, data()))).toEqual(['space:s2']);
+  });
+
+  test('lists a tab that holds only mod panes', () => {
+    expect(keysOf(buildRows('', null, withModOnlyTab()))).toEqual([
+      'space:s1',
+      'tab:k1',
+      'tab:k2',
+      'space:s2',
+    ]);
+  });
+
+  test('matches a query against the title of a mod pane', () => {
+    expect(keysOf(buildRows('gallery', null, withModOnlyTab()))).toEqual([
+      'space:s1',
+      'tab:k1',
+      'tab:k2',
+    ]);
   });
 });
 
