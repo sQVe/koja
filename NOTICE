@@ -42,3 +42,10 @@ Icons
 The icons in src/kit/icons are from Lucide (https://lucide.dev), lucide-static
 1.66.0, licensed under the ISC License. Some Lucide icons derive from Feather
 under the MIT License. Both license texts are in LICENSES/Lucide.txt.
+
+Fonts
+-----
+
+The fonts in config/fonts are Geist SemiBold and Geist Bold from Geist 1.8.0
+(https://github.com/vercel/geist-font), licensed under the SIL Open Font
+License, Version 1.1. The license text is in LICENSES/Geist-OFL.txt.
