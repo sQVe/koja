@@ -1,29 +1,27 @@
 import { v_flex } from 'gpui-base';
 import type { AsyncContext, Context, Element } from 'gpui-kit';
-import { View } from 'gpui-kit';
+import { div, View } from 'gpui-kit';
 import type { SpaceInfo } from 'herdr';
-import { exec, hc, machines, openOverlay, panes, run, settings, spaces } from 'herdr';
+import { exec, hc, machines, openOverlay, panes, run, spaces } from 'herdr';
 
 import type { DragState } from '../../kit/drag.ts';
 import { dragLine, dropAction, noDrag, setDragOver, startDrag } from '../../kit/drag.ts';
 import type { ThemeToken } from '../../kit/index.ts';
 import {
   colors,
-  currentWindow,
+  controlSize,
   detailText,
   findLayoutNode,
-  iconButton,
+  foldChevron,
   layoutRoot,
   listRow,
-  numberOf,
   overlaySize,
   railWidthLimit,
   repeat,
-  sectionHeader,
+  repoLabel,
   spacing,
   statusMark,
   textSize,
-  trafficLightsPadding,
 } from '../../kit/index.ts';
 import { foldedSet } from './folded.ts';
 import { GitTracker } from './gitTracker.ts';
@@ -32,7 +30,7 @@ import type { Machine } from './machines.ts';
 import { isMachineLoading, readMachines } from './machines.ts';
 import { newSpaceArguments } from './newSpace.ts';
 import { pullFields, pullOf, pullState, readPullCaches, readPullList } from './pulls.ts';
-import { compactRow, folderSlot, labelDetail } from './rows.ts';
+import { compactRow, labelDetail } from './rows.ts';
 import type { ListedSpace, RepoRef, RepoRow, SpaceRow, TreeRow } from './tree.ts';
 import { listedOf, nestSpaces, placesOf } from './tree.ts';
 import type { VisibilityResult, VisibilityState } from './visibility.ts';
@@ -66,20 +64,8 @@ const isNarrow = (): boolean => {
   return width !== null && width < railWidthLimit;
 };
 
-const spacesHeaderPadding = (): number => {
-  const shown = currentWindow();
-  const zoom = numberOf(settings()['zoom']) ?? 1;
-
-  return trafficLightsPadding({
-    platform: shown?.platform ?? 'linux',
-    titlebar: shown?.titlebar ?? 'system',
-    fullscreen: shown?.fullscreen ?? false,
-    lights: layoutRoot().trafficLights,
-    zoom,
-    offset: 0,
-    base: spacing.large,
-  });
-};
+const topStripHeight = (): number =>
+  layoutRoot().trafficLights === null ? spacing.small : controlSize.sidebarHeader;
 
 const storage = {
   get: (key: string): string | null => localStorage.getItem(key),
@@ -131,25 +117,12 @@ export default class Spaces extends View {
 
     this.visibility = this.advance();
 
-    const newSpace = iconButton({ name: 'plus' })
-      .id('space-new')
-      .on_click(() => {
-        run('space.new');
-      });
-
     return v_flex()
       .size_full()
       .min_h(0)
       .bg(palette.chrome)
       .text_size(textSize.default)
-      .child(
-        sectionHeader({
-          label: collapsed ? '' : 'Spaces',
-          size: 'bar',
-          paddingStart: spacesHeaderPadding(),
-          end: [newSpace],
-        }),
-      )
+      .child(div().flex_none().h(topStripHeight()))
       .child(
         v_flex()
           .flex_1()
@@ -331,16 +304,30 @@ export default class Spaces extends View {
     });
   }
 
-  private repoFolder(row: RepoRow): Element {
-    const { fold, repo, main } = row;
-    const open = fold !== null && !fold.folded;
-    const slot = folderSlot(open);
+  private foldControls(row: RepoRow): Element[] {
+    const { fold, main } = row;
 
     if (fold === null) {
-      return slot;
+      return [];
     }
 
-    return slot
+    const controls: Element[] = [];
+
+    if (fold.hidden > 0) {
+      controls.push(detailText(String(fold.hidden)));
+    }
+
+    if (this.hovered === main.space.id) {
+      controls.push(this.foldToggle(row));
+    }
+
+    return controls;
+  }
+
+  private foldToggle(row: RepoRow): Element {
+    const { fold, main, repo } = row;
+
+    return foldChevron(fold?.folded === true)
       .id(`fold-${main.space.id}`)
       .hover((style) => style.text_color(colors().foreground))
       .on_mouse_down('left', (_event, cx) => {
@@ -378,9 +365,8 @@ export default class Spaces extends View {
 
     const element = listRow({
       size: 'small',
-      inset: false,
+      inset: true,
       state: space.active ? 'selected' : 'normal',
-      start: folderSlot(false),
       label: this.rowTitle(row),
       ...(line === undefined ? {} : { dropLine: line }),
       dragged: this.drag.source === space.id && this.drag.over !== space.id,
@@ -396,19 +382,21 @@ export default class Spaces extends View {
     const { main, name, fold } = row;
     const { space } = main;
     const line = dragLine(this.drag, space.id, ids);
-    const hidden = fold?.folded === true && this.hovered === space.id ? fold.hidden : 0;
-    const detail = hidden > 0 ? String(hidden) : labelDetail(main);
+    const detail = labelDetail(main);
 
     const element = listRow({
       size: 'small',
-      inset: false,
+      inset: true,
       state: space.active ? 'selected' : 'normal',
-      start: this.repoFolder(row),
-      label: name,
-      ...(detail === undefined ? {} : { detail }),
+      label: repoLabel({
+        name,
+        ...(detail === undefined ? {} : { detail }),
+        folded: fold?.folded === true,
+        selected: space.active,
+      }),
       ...(line === undefined ? {} : { dropLine: line }),
       dragged: this.drag.source === space.id && this.drag.over !== space.id,
-      end: [statusMark(space.status)],
+      end: [...this.foldControls(row), statusMark(space.status)],
     }).id(`space-${space.id}`);
 
     this.addDragHandlers(element, space, ids);

@@ -89,10 +89,14 @@ const isMain = (row: ListedSpace): row is ListedSpace & { git: GitInfo } =>
 const shownWhenFolded = (row: ListedSpace): boolean =>
   row.space.active || needsYou(row.space.status);
 
-const repoName = (path: string): string => {
-  const folder = path.replace(/\/\.git$/, '');
+// A hidden git folder, such as `.git` or a bare `.bare`, sits inside the folder that names the
+// repository.
+export const repoName = (path: string): string => {
+  const parts = path.split('/').filter((part) => part !== '');
+  const last = parts.pop() ?? '';
+  const folder = last.startsWith('.') ? (parts.pop() ?? last) : last;
 
-  return folder.slice(folder.lastIndexOf('/') + 1);
+  return folder.replace(/\.git$/, '');
 };
 
 const spaceRow = (row: ListedSpace): SpaceRow => ({ kind: 'space', ...row });

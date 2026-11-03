@@ -11,6 +11,7 @@ import {
   controlSize,
   detailText,
   emptyState,
+  foldChevron,
   highlightedText,
   icon,
   iconButton,
@@ -18,8 +19,10 @@ import {
   indicator,
   keyHint,
   listRow,
+  overlaySize,
   popupSurface,
   programIcon,
+  repoLabel,
   searchField,
   sectionHeader,
   separator,
@@ -218,6 +221,62 @@ const rows = (): Element[] => [
   sample('Muted, centered, and highlighted', otherRows()),
 ];
 
+const sidebarFrame = (content: Element[]): Element =>
+  v_flex().w(overlaySize.menuWidth).children(content);
+
+const sidebarSamples = (): Element[] => [
+  sample(
+    'Open label, hovered with chevron',
+    sidebarFrame([
+      listRow({
+        size: 'small',
+        inset: true,
+        state: 'normal',
+        hovered: true,
+        label: repoLabel({ name: 'koja', detail: 'main · 4m', folded: false, selected: false }),
+        end: [foldChevron(false)],
+      }),
+      listRow({
+        size: 'small',
+        inset: true,
+        state: 'normal',
+        label: 'feature-login',
+        end: [statusMark('working')],
+      }),
+    ]),
+  ),
+  sample(
+    'Folded with count, then the blocked worktree it keeps',
+    sidebarFrame([
+      listRow({
+        size: 'small',
+        inset: true,
+        state: 'normal',
+        label: repoLabel({ name: 'herdr-app', detail: 'main · 3h', folded: true, selected: false }),
+        end: [detailText('2')],
+      }),
+      listRow({
+        size: 'small',
+        inset: true,
+        state: 'normal',
+        label: 'fix-login',
+        end: [statusMark('blocked')],
+      }),
+    ]),
+  ),
+  sample(
+    'Selected label',
+    sidebarFrame([
+      listRow({
+        size: 'small',
+        inset: true,
+        state: 'selected',
+        label: repoLabel({ name: 'design', detail: 'main · 1d', folded: false, selected: true }),
+      }),
+    ]),
+  ),
+];
+
 const headers = (): Element[] => [
   sectionHeader({ label: 'Default header', size: 'default' }),
   sectionHeader({ label: 'Bar header', size: 'bar', end: [iconButton({ name: 'plus' })] }),
@@ -340,6 +399,7 @@ export default class Gallery extends View {
       .child(section('Icons', icons()))
       .child(section('Status marks', marks()))
       .child(section('List rows', rows()))
+      .child(section('Sidebar', sidebarSamples()))
       .child(section('Section headers', headers()))
       .child(section('Buttons', buttons()))
       .child(section('Tabs', tabs()))

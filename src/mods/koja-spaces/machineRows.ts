@@ -78,7 +78,7 @@ const machineHeader = (
 const newSpaceRow = (host: MachineRowsHost, machine: string | null, collapsed: boolean): Element =>
   listRow({
     size: 'small',
-    inset: false,
+    inset: true,
     state: 'normal',
     muted: true,
     start: iconSlot(icon('plus', 'small')),

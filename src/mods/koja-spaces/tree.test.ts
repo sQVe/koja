@@ -3,7 +3,7 @@ import { describe, expect, test } from 'bun:test';
 import type { SpaceInfo, Status } from 'herdr';
 
 import type { GitInfo, ListedSpace, TreeRow } from './tree.ts';
-import { nestSpaces, repoOf } from './tree.ts';
+import { nestSpaces, repoName, repoOf } from './tree.ts';
 
 const repoPath = '/code/koja/.git';
 
@@ -47,6 +47,15 @@ const describeRow = (row: TreeRow): string =>
 const describeRows = (rows: TreeRow[]): string[] => rows.map(describeRow);
 
 const foldedKeys = (): Set<string> => new Set([repoOf(null, repoPath).key]);
+
+describe('repoName', () => {
+  test('names the folder that holds the git directory', () => {
+    expect(repoName('/code/koja/.git')).toBe('koja');
+    expect(repoName('/code/koja/.bare')).toBe('koja');
+    expect(repoName('/code/koja.git')).toBe('koja');
+    expect(repoName('/code/koja')).toBe('koja');
+  });
+});
 
 describe('nestSpaces', () => {
   test('moves worktrees under their repository label, in order', () => {

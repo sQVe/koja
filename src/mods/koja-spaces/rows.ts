@@ -1,14 +1,11 @@
 import type { Element } from 'gpui-kit';
 import { run } from 'herdr';
 
-import { colors, icon, iconSlot, listRow, shortAge, statusMark } from '../../kit/index.ts';
+import { listRow, shortAge, statusMark } from '../../kit/index.ts';
 import type { ListedSpace } from './tree.ts';
 import { needsYou } from './tree.ts';
 
 const millisecondsPerSecond = 1000;
-
-export const folderSlot = (open: boolean): Element =>
-  iconSlot(icon(open ? 'folder-open' : 'folder')).text_color(colors().dim);
 
 export const labelDetail = (main: ListedSpace): string | undefined => {
   const parts: string[] = [];
@@ -31,7 +28,7 @@ export const compactRow = (row: ListedSpace): Element => {
 
   return listRow({
     size: 'medium',
-    inset: false,
+    inset: true,
     state: space.active ? 'selected' : 'normal',
     centered: true,
     muted: !space.active,

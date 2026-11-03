@@ -118,7 +118,7 @@ const rowFrame = (options: ListRowOptions, palette: Palette): Element => {
     .text_size(textSize.default)
     .text_color(labelColor(options, palette));
 
-  return options.inset ? frame.mx(spacing.xsmall).rounded(radius.default) : frame;
+  return options.inset ? frame.mx(spacing.xsmall).rounded(radius.pill) : frame;
 };
 
 const decorate = (row: Element, options: ListRowOptions, palette: Palette): void => {

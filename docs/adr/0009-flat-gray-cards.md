@@ -33,6 +33,8 @@ border for focus. The frame, panes, terminals, sidebar, and tab bar all share th
 
 - The tab bar's tabs, the panel switcher, and the kit's toggle and icon buttons are pills. They
   round with the kit's `radius.pill`.
+- Inset list rows, such as sidebar rows, menu rows, and picker rows, also round with `radius.pill`.
+  A selected row is therefore a pill.
 - A pill sits inside the bar on its own, so it works with any gap between the bar and the pane
   cards.
 
