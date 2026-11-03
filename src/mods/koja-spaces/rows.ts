@@ -1,4 +1,4 @@
-import { shortAge } from '../../kit/index.ts';
+import { shortAge } from '../../kit/age.ts';
 import type { ListedSpace } from './tree.ts';
 
 const millisecondsPerSecond = 1000;
