@@ -10,6 +10,7 @@ import {
   keyHint,
   listRow,
   openWorktreeDialog,
+  popupSurface,
   separator,
   shortcutFor,
   spaceFolder,
@@ -18,7 +19,7 @@ import {
   themeChoices,
 } from '../../kit/index.ts';
 import type { Checkout, MenuEntry, MenuHost } from './entries.ts';
-import { menuEntries, readMenuProps } from './entries.ts';
+import { menuEntries, readMenuProps, selectedIndex, stepSelection } from './entries.ts';
 
 const menuHost: MenuHost = {
   run,
@@ -43,7 +44,7 @@ const checkoutOf = async (folder: string, machine: string | null): Promise<Check
 };
 
 export default class Menu extends View {
-  private at = 0;
+  private selected: string | null = null;
 
   private checkout: Checkout = null;
 
@@ -56,20 +57,16 @@ export default class Menu extends View {
   }
 
   override render(): Element {
-    const palette = colors();
     const items = menuEntries(readMenuProps(props()), this.checkout, menuHost);
+    const selected = selectedIndex(items, this.selected);
 
-    const menu = v_flex()
-      .id('menu')
-      .w_full()
-      .min_h(0)
+    const menu = popupSurface('menu')
       .py(spacing.xsmall)
-      .bg(palette.popover)
       .text_size(textSize.default)
       .on_key_down((event, cx) => {
         this.onKey(event, items, cx);
       })
-      .children(items.map((_item, index) => this.row(items, index)));
+      .children(items.map((_item, index) => this.row(items, index, selected)));
 
     return this.handle === null ? menu : menu.track_focus(this.handle);
   }
@@ -104,14 +101,12 @@ export default class Menu extends View {
   }
 
   private onKey(event: KeyEvent, items: MenuEntry[], cx: Context): void {
-    const count = items.length;
-
     if (event.key === 'down') {
-      this.at = (this.at + 1) % count;
+      this.selected = stepSelection(items, this.selected, 1);
     } else if (event.key === 'up') {
-      this.at = (this.at + count - 1) % count;
+      this.selected = stepSelection(items, this.selected, -1);
     } else if (event.key === 'enter') {
-      this.choose(items[this.at]);
+      this.choose(items[selectedIndex(items, this.selected)]);
     } else if (event.key === 'escape') {
       this.closeMenu();
     } else {
@@ -121,7 +116,7 @@ export default class Menu extends View {
     cx.notify();
   }
 
-  private row(items: MenuEntry[], index: number): Element {
+  private row(items: MenuEntry[], index: number, selected: number): Element {
     const item = items[index];
     const group = v_flex();
 
@@ -138,7 +133,7 @@ export default class Menu extends View {
     const row = listRow({
       size: 'medium',
       inset: true,
-      state: index === this.at ? 'selected' : 'normal',
+      state: index === selected ? 'selected' : 'normal',
       start: icon(item.icon).text_color(colors().muted),
       label: item.label,
       end: shortcut === null ? [] : [keyHint(shortcut)],

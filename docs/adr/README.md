@@ -45,6 +45,7 @@ the commit in its row.
 - [0004: Separate mods that share one UI kit](./0004-separate-mods-one-kit.md)
 - [0005: TypeScript mods bundled into one file each](./0005-typescript-bundled-per-mod.md)
 - [0007: One UI language through one kit](./0007-one-ui-language.md)
+- [0009: One flat base with rounded cards and accent focus](./0009-flat-gray-cards.md)
 
 ## Retired
 

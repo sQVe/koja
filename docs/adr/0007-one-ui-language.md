@@ -3,6 +3,7 @@
 **Date**: 2026-11-02\
 **Status**: Accepted\
 **Related**: [ADR 0004 (Separate mods that share one UI kit)](./0004-separate-mods-one-kit.md),
+[ADR 0009 (One flat base with rounded cards and accent focus)](./0009-flat-gray-cards.md),
 [Zed's UI components](https://github.com/zed-industries/zed/tree/main/crates/ui)
 
 ## Context

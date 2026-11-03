@@ -8,7 +8,13 @@ import type {
   MenuTarget,
   TerminalFacts,
 } from './entries.ts';
-import { menuEntries, readMenuProps, readTerminal } from './entries.ts';
+import {
+  menuEntries,
+  readMenuProps,
+  readTerminal,
+  selectedIndex,
+  stepSelection,
+} from './entries.ts';
 
 let bindings: Record<string, string> = {};
 let terminalList: unknown[] = [];
@@ -90,5 +96,43 @@ describe('menu entries', () => {
     const menu: MenuProps = { kind: 'global', target: target({}) };
 
     expect(hintOf(menu, null, 'Theme: catppuccin latte muted')).toBe('ctrl-alt-t');
+  });
+});
+
+describe('menu selection', () => {
+  const spaceMenu: MenuProps = { kind: 'space', target: target({ id: 'space-1' }) };
+
+  test('keep Close selected when Git rows load before it', () => {
+    terminalList = [];
+    bindings = {};
+
+    const before = menuEntries(spaceMenu, null, host);
+    const selectedLabel = before[selectedIndex(before, 'Close')]?.label ?? null;
+
+    expect(selectedLabel).toBe('Close');
+
+    const after = menuEntries(spaceMenu, 'linked', host);
+
+    expect(after[selectedIndex(after, selectedLabel)]?.label).toBe('Close');
+  });
+
+  test('fall back to the first entry when the selected entry is gone', () => {
+    terminalList = [];
+    bindings = {};
+
+    const entries = menuEntries(spaceMenu, null, host);
+
+    expect(entries[selectedIndex(entries, 'Remove worktree')]?.label).toBe('Rename');
+  });
+
+  test('step the selection by label and wrap around', () => {
+    terminalList = [];
+    bindings = {};
+
+    const entries = menuEntries(spaceMenu, 'linked', host);
+
+    expect(stepSelection(entries, 'Close', 1)).toBe('Rename');
+    expect(stepSelection(entries, 'New worktree', -1)).toBe('Rename');
+    expect(stepSelection(entries, 'Rename', -1)).toBe('Close');
   });
 });

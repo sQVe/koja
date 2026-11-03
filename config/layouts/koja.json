@@ -86,7 +86,7 @@
                   "gap": 6,
                   "border": {
                     "width": 1,
-                    "color": "border"
+                    "color": "hover"
                   },
                   "focus": {
                     "width": 1,
@@ -94,9 +94,7 @@
                   },
                   "lone": true
                 }
-              },
-              "background": "chrome",
-              "padding": 6
+              }
             },
             {
               "id": "panel",
@@ -122,13 +120,18 @@
               },
               "min": 280,
               "max": 900,
-              "hidden": true
+              "hidden": true,
+              "radius": 8,
+              "border": {
+                "width": 1,
+                "color": "hover"
+              },
+              "background": "background"
             }
           ],
-          "divider": {
-            "width": 1,
-            "color": "border"
-          }
+          "gap": 6,
+          "background": "chrome",
+          "padding": 6
         }
       ],
       "resizable": false
@@ -138,10 +141,6 @@
   "ui_font": "IBM Plex Sans",
   "terminal_padding": [4, 10],
   "terminal_opacity": 0,
-  "divider": {
-    "width": 1,
-    "color": "border"
-  },
   "titlebar": "none",
   "traffic_lights": [12, 16],
   "terminal_menu": "koja-menu"

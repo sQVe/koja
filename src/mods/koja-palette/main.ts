@@ -13,7 +13,6 @@ import { commands, layouts, openOverlay, run, shared } from 'herdr';
 
 import {
   closeOverlay,
-  colors,
   currentWindow,
   detailText,
   emptyState,
@@ -21,6 +20,7 @@ import {
   keyHint,
   listRow,
   overlaySize,
+  popupSurface,
   searchField,
   sectionHeader,
   shortcutFor,
@@ -111,11 +111,7 @@ export default class Palette extends View {
     const at = clampIndex(this.at, rows.length);
     const scroll = scrollToShow(places, at, this.scroll, max);
 
-    const palette = v_flex()
-      .id('palette')
-      .w_full()
-      .min_h(0)
-      .bg(colors().popover)
+    const palette = popupSurface('palette')
       .on_key_down((event, cx) => {
         this.onKey(event, rows, places, cx);
       })
