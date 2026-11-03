@@ -2,7 +2,7 @@ import type { AsyncContext, Context, Element, FocusHandle, KeyEvent } from 'gpui
 import { div, View } from 'gpui-kit';
 import { exec, focused, nextCommand, panes, run, setShared, shared, spaces } from 'herdr';
 
-import { closeOverlay, modName, overlayId, repeat } from '../../kit/index.ts';
+import { closeOverlay, modName, overlayCloseCount, overlayId, repeat } from '../../kit/index.ts';
 import type { NormalAction } from '../../kit/normalKeys.ts';
 import { createExecutor } from './execute.ts';
 import { createKeyboardHold, createStatusLookup } from './keyboardHold.ts';
@@ -30,6 +30,7 @@ export default class KojaModal extends View {
 
   private readonly hold = createKeyboardHold({
     isFocused: () => this.handle?.is_focused() ?? false,
+    overlayCloseCount,
     lookupStatus: createStatusLookup(exec),
     focus: () => {
       this.handle?.focus();

@@ -8,6 +8,7 @@ type StatusExec = (command: string, args?: string[]) => Promise<ExecResult>;
 
 export interface KeyboardHoldDeps {
   isFocused: () => boolean;
+  overlayCloseCount: () => number;
   lookupStatus: () => Promise<OverlayStatus>;
   focus: () => void;
   now?: () => number;
@@ -69,6 +70,7 @@ export const createKeyboardHold = (deps: KeyboardHoldDeps): KeyboardHold => {
   let closed = false;
   let pending = false;
   let selfCaused = false;
+  let seenCloseCount = deps.overlayCloseCount();
   let generation = 0;
   let backoff = 0;
   let nextLookupAt = 0;
@@ -76,6 +78,17 @@ export const createKeyboardHold = (deps: KeyboardHoldDeps): KeyboardHold => {
   const resetBackoff = (): void => {
     backoff = 0;
     nextLookupAt = 0;
+  };
+
+  const trackOverlayCloses = (): void => {
+    const closeCount = deps.overlayCloseCount();
+
+    if (closeCount === seenCloseCount) {
+      return;
+    }
+
+    seenCloseCount = closeCount;
+    resetBackoff();
   };
 
   const backOff = (): void => {
@@ -125,6 +138,8 @@ export const createKeyboardHold = (deps: KeyboardHoldDeps): KeyboardHold => {
     if (closed) {
       return;
     }
+
+    trackOverlayCloses();
 
     if (deps.isFocused()) {
       selfCaused = false;

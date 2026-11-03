@@ -73,3 +73,5 @@ export { modName } from './modName.ts';
 export { closeOverlay, openAtTop, overlayId } from './overlay.ts';
 
 export { repeat } from './timer.ts';
+
+export { overlayCloseCount, recordOverlayClose } from './overlayOpen.ts';

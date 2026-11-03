@@ -17,6 +17,7 @@ interface Deferred<T> {
 interface HoldHarness {
   hold: KeyboardHold;
   setFocused: (value: boolean) => void;
+  recordClose: () => void;
   advance: (milliseconds: number) => void;
   focusCalls: () => number;
   statusCalls: () => number;
@@ -37,14 +38,19 @@ const flush = (): Promise<void> =>
     setTimeout(resolve, 0);
   });
 
-const createHarness = (lookupStatus: () => Promise<OverlayStatus>): HoldHarness => {
+const createHarness = (
+  lookupStatus: () => Promise<OverlayStatus>,
+  initialCloseCount = 0,
+): HoldHarness => {
   let focused = false;
+  let closeCount = initialCloseCount;
   let focusCalls = 0;
   let statusCalls = 0;
   let currentTime = 0;
 
   const hold = createKeyboardHold({
     isFocused: () => focused,
+    overlayCloseCount: () => closeCount,
     lookupStatus: () => {
       statusCalls += 1;
 
@@ -61,6 +67,9 @@ const createHarness = (lookupStatus: () => Promise<OverlayStatus>): HoldHarness 
     hold,
     setFocused: (value) => {
       focused = value;
+    },
+    recordClose: () => {
+      closeCount += 1;
     },
     advance: (milliseconds) => {
       currentTime += milliseconds;
@@ -240,6 +249,117 @@ describe('keyboard hold', () => {
     await flush();
 
     expect(harness.statusCalls()).toBe(2);
+  });
+
+  test('looks up at once when an overlay closes, even while the backoff is at its cap', async () => {
+    let stdout = otherOverlay;
+    const harness = createHarness(statusLookup(async () => ({ code: 0, stdout, stderr: '' })));
+
+    for (let attempt = 0; attempt < 8; attempt += 1) {
+      harness.hold.check();
+      await flush();
+      harness.advance(1000);
+    }
+
+    harness.hold.check();
+    await flush();
+
+    const lookupsWhileOpen = harness.statusCalls();
+
+    stdout = noOverlay;
+    harness.recordClose();
+    harness.hold.check();
+
+    expect(harness.statusCalls()).toBe(lookupsWhileOpen + 1);
+
+    await flush();
+
+    expect(harness.focusCalls()).toBe(1);
+  });
+
+  test('looks up at once on the first tick after the last of two overlays closes, after the backoff capped', async () => {
+    let stdout = otherOverlay;
+    const harness = createHarness(statusLookup(async () => ({ code: 0, stdout, stderr: '' })));
+
+    for (let attempt = 0; attempt < 8; attempt += 1) {
+      harness.hold.check();
+      await flush();
+      harness.advance(1000);
+    }
+
+    harness.recordClose();
+
+    for (let attempt = 0; attempt < 8; attempt += 1) {
+      harness.hold.check();
+      await flush();
+      harness.advance(1000);
+    }
+
+    harness.hold.check();
+    await flush();
+
+    const lookupsWhileOpen = harness.statusCalls();
+
+    stdout = noOverlay;
+    harness.recordClose();
+    harness.hold.check();
+
+    expect(harness.statusCalls()).toBe(lookupsWhileOpen + 1);
+
+    await flush();
+
+    expect(harness.focusCalls()).toBe(1);
+  });
+
+  test('a close count left from an earlier session does not reset the backoff before a close', async () => {
+    const harness = createHarness(
+      statusLookup(async () => ({ code: 0, stdout: otherOverlay, stderr: '' })),
+      7,
+    );
+
+    harness.hold.check();
+    await flush();
+
+    harness.advance(50);
+    harness.hold.check();
+    await flush();
+
+    harness.advance(100);
+    harness.hold.check();
+    await flush();
+
+    const lookupsBeforeCheck = harness.statusCalls();
+
+    harness.advance(50);
+    harness.hold.check();
+
+    expect(harness.statusCalls()).toBe(lookupsBeforeCheck);
+  });
+
+  test('keeps the keyboard owner when the overlay closes but the status still lists another overlay', async () => {
+    const harness = createHarness(
+      statusLookup(async () => ({ code: 0, stdout: otherOverlay, stderr: '' })),
+    );
+
+    for (let attempt = 0; attempt < 8; attempt += 1) {
+      harness.hold.check();
+      await flush();
+      harness.advance(1000);
+    }
+
+    harness.hold.check();
+    await flush();
+
+    const lookupsWhileOpen = harness.statusCalls();
+
+    harness.recordClose();
+    harness.hold.check();
+
+    expect(harness.statusCalls()).toBe(lookupsWhileOpen + 1);
+
+    await flush();
+
+    expect(harness.focusCalls()).toBe(0);
   });
 
   test('consumes the self-caused authorization when the regain focus lands', async () => {

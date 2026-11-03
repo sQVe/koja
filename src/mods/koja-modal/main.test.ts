@@ -1,4 +1,13 @@
-import { afterAll, beforeEach, describe, expect, mock, test } from 'bun:test';
+import {
+  afterAll,
+  afterEach,
+  beforeEach,
+  describe,
+  expect,
+  mock,
+  setSystemTime,
+  test,
+} from 'bun:test';
 
 interface RunCall {
   command: string;
@@ -189,10 +198,13 @@ await mock.module('herdr', () => ({
   spaces: () => [],
 }));
 
+const { overlayCloseCount, recordOverlayClose } = await import('../../kit/overlayOpen.ts');
+
 await mock.module('../../kit/index.ts', () => ({
   closeOverlay: (id?: string | null) => {
     closeCalls.push(id ?? null);
   },
+  overlayCloseCount,
   modName: 'koja-modal',
   overlayId: () => 'overlay-1',
   repeat: (_cx: unknown, _milliseconds: number, handler: () => void) => {
@@ -237,6 +249,10 @@ const loadView = async (): Promise<FakeView> => {
 
 afterAll(() => {
   mock.restore();
+});
+
+afterEach(() => {
+  setSystemTime();
 });
 
 beforeEach(() => {
@@ -386,6 +402,111 @@ describe('koja modal view', () => {
     tickHandler?.();
 
     expect(sharedWrites).toEqual([]);
+  });
+
+  test('takes the keyboard back on the first tick after the palette closes, inside the backoff', async () => {
+    setSystemTime(0);
+    const view = await loadView();
+
+    view.render();
+    overlayFocused = false;
+    paletteOpen = true;
+
+    tickHandler?.();
+    await flush();
+
+    paletteOpen = false;
+    recordOverlayClose();
+    tickHandler?.();
+    await flush();
+
+    // The first lookup after the close is confirmed by a second one before focus moves.
+    expect(statusLookups).toBe(3);
+    expect(overlayFocused).toBe(true);
+  });
+
+  test('keeps the keyboard with the palette when the status still lists it after the shared state closes', async () => {
+    setSystemTime(0);
+    const view = await loadView();
+
+    view.render();
+    overlayFocused = false;
+    paletteOpen = true;
+
+    tickHandler?.();
+    await flush();
+
+    recordOverlayClose();
+    tickHandler?.();
+    await flush();
+
+    expect(statusLookups).toBe(2);
+    expect(overlayFocused).toBe(false);
+  });
+
+  test('takes the keyboard back on the first tick after the last of two overlays closes, after the backoff capped', async () => {
+    setSystemTime(0);
+    const view = await loadView();
+
+    view.render();
+    overlayFocused = false;
+    paletteOpen = true;
+
+    for (let attempt = 0; attempt < 8; attempt += 1) {
+      tickHandler?.();
+      await flush();
+      setSystemTime(Date.now() + 1000);
+    }
+
+    recordOverlayClose();
+
+    for (let attempt = 0; attempt < 8; attempt += 1) {
+      tickHandler?.();
+      await flush();
+      setSystemTime(Date.now() + 1000);
+    }
+
+    tickHandler?.();
+    await flush();
+
+    paletteOpen = false;
+    recordOverlayClose();
+
+    const lookupsBeforeLastClose = statusLookups;
+
+    tickHandler?.();
+
+    expect(statusLookups).toBe(lookupsBeforeLastClose + 1);
+  });
+
+  test('a close count left from an earlier session does not delay the lookup after the next close', async () => {
+    setSystemTime(0);
+    recordOverlayClose();
+    recordOverlayClose();
+    const view = await loadView();
+
+    view.render();
+    overlayFocused = false;
+    paletteOpen = true;
+
+    for (let attempt = 0; attempt < 8; attempt += 1) {
+      tickHandler?.();
+      await flush();
+      setSystemTime(Date.now() + 1000);
+    }
+
+    tickHandler?.();
+    await flush();
+
+    paletteOpen = false;
+    recordOverlayClose();
+
+    const lookupsBeforeClose = statusLookups;
+
+    tickHandler?.();
+
+    expect(overlayCloseCount()).toBe(3);
+    expect(statusLookups).toBe(lookupsBeforeClose + 1);
   });
 
   test('the hold command neither closes nor runs anything', async () => {

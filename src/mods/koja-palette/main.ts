@@ -21,6 +21,7 @@ import {
   listRow,
   overlaySize,
   popupSurface,
+  recordOverlayClose,
   searchField,
   sectionHeader,
   shortcutFor,
@@ -60,10 +61,6 @@ const readRecent = (): string[] => {
     : [];
 };
 
-const closePalette = (): void => {
-  closeOverlay();
-};
-
 export default class Palette extends View {
   private query = '';
 
@@ -95,6 +92,10 @@ export default class Palette extends View {
     cx.timer.after(refocusMilliseconds, () => {
       this.input.focus();
     });
+  }
+
+  override close(): void {
+    recordOverlayClose();
   }
 
   override render(): Element {
@@ -130,7 +131,7 @@ export default class Palette extends View {
 
     this.recent = [entry.id, ...this.recent.filter((id) => id !== entry.id)].slice(0, recentLimit);
     localStorage.setItem(recentStorageKey, JSON.stringify(this.recent));
-    closePalette();
+    this.closePalette();
 
     if (entry.name === 'mod.clone') {
       openOverlay({
@@ -152,6 +153,11 @@ export default class Palette extends View {
     run(entry.name, entry.name === 'layout.clone' ? { name: layoutName } : entry.args);
   }
 
+  private closePalette(): void {
+    recordOverlayClose();
+    closeOverlay();
+  }
+
   private rows(): Row[] {
     const host = {
       commands,
@@ -168,7 +174,7 @@ export default class Palette extends View {
     const at = clampIndex(this.at, rows.length);
 
     if (event.key === 'escape') {
-      closePalette();
+      this.closePalette();
 
       return;
     }
