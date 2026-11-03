@@ -2,11 +2,11 @@ import { v_flex } from 'gpui-base';
 import type { AsyncContext, Context, Element } from 'gpui-kit';
 import { div, View } from 'gpui-kit';
 import type { SpaceInfo } from 'herdr';
-import { exec, hc, machines, openOverlay, panes, run, spaces } from 'herdr';
+import { exec, hc, machines, openOverlay, panes, run, spaces, terminals } from 'herdr';
 
 import type { DragState } from '../../kit/drag.ts';
 import { dragLine, dropAction, noDrag, setDragOver, startDrag } from '../../kit/drag.ts';
-import type { ThemeToken } from '../../kit/index.ts';
+import type { StatusRollup, ThemeToken } from '../../kit/index.ts';
 import {
   colors,
   controlSize,
@@ -19,6 +19,7 @@ import {
   railWidthLimit,
   repeat,
   repoLabel,
+  rollupStatuses,
   spacing,
   statusMark,
   textSize,
@@ -96,6 +97,8 @@ export default class Spaces extends View {
 
   private hovered: string | null = null;
 
+  private statuses: StatusRollup = { spaces: {}, tabs: {} };
+
   override init(_props: unknown, cx: AsyncContext): void {
     repeat(cx, pullsMilliseconds, (timerCx) => {
       this.refreshPulls(timerCx);
@@ -116,6 +119,7 @@ export default class Spaces extends View {
     const palette = colors();
     const collapsed = isNarrow();
 
+    this.statuses = rollupStatuses(spaces(), panes(), terminals());
     this.visibility = this.advance();
 
     return v_flex()
@@ -214,6 +218,7 @@ export default class Spaces extends View {
       .map((space) => ({
         space,
         git: this.git.lookup(at[space.id]?.key ?? '') ?? null,
+        status: this.statuses.spaces[space.id] ?? null,
       }))
       .filter((row) => this.visibility.shown.has(row.space.id));
 
@@ -374,7 +379,7 @@ export default class Spaces extends View {
       size: 'small',
       inset: true,
       state: space.active ? 'selected' : 'normal',
-      start: statusMark(space.status),
+      start: statusMark(row.status),
       label: this.rowTitle(row),
       ...(line === undefined ? {} : { dropLine: line }),
       dragged: this.drag.source === space.id && this.drag.over !== space.id,
@@ -404,7 +409,7 @@ export default class Spaces extends View {
       }),
       ...(line === undefined ? {} : { dropLine: line }),
       dragged: this.drag.source === space.id && this.drag.over !== space.id,
-      end: [...this.foldControls(row), statusMark(space.status)],
+      end: [...this.foldControls(row), statusMark(main.status)],
     }).id(`space-${space.id}`);
 
     this.addDragHandlers(element, space, ids);

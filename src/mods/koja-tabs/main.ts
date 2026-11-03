@@ -1,8 +1,8 @@
 import { h_flex } from 'gpui-base';
 import type { Context, Element } from 'gpui-kit';
 import { div, View } from 'gpui-kit';
-import type { SpaceInfo, TabInfo } from 'herdr';
-import { openOverlay, panes, run, settings, shared, spaces } from 'herdr';
+import type { SpaceInfo, Status, TabInfo } from 'herdr';
+import { openOverlay, panes, run, settings, shared, spaces, terminals } from 'herdr';
 
 import type { DragState } from '../../kit/drag.ts';
 import { noDrag, startDrag } from '../../kit/drag.ts';
@@ -20,6 +20,7 @@ import {
   overlaySize,
   programIcon,
   recordOf,
+  rollupStatuses,
   spacing,
   stringOf,
   tab,
@@ -118,6 +119,7 @@ export default class Tabs extends View {
     const palette = colors();
     const space = spaces().find((candidate) => candidate.active);
     const shown = space?.tabs ?? [];
+    const statuses = rollupStatuses(spaces(), panes(), terminals());
     const enabled = enabledPanels();
 
     this.syncPanel(space, enabled);
@@ -148,7 +150,11 @@ export default class Tabs extends View {
           .items_center()
           .gap(spacing.xxsmall)
           .overflow_x_scrollbar()
-          .children(shown.map((tabInfo, index) => this.tabItem(space, tabInfo, index)))
+          .children(
+            shown.map((tabInfo, index) =>
+              this.tabItem(space, tabInfo, statuses.tabs[tabInfo.id] ?? null, index),
+            ),
+          )
           .child(div().flex_1().min_w(0)),
       )
       .child(this.controls(enabled));
@@ -179,7 +185,12 @@ export default class Tabs extends View {
     }
   }
 
-  private tabItem(space: SpaceInfo | undefined, tabInfo: TabInfo, index: number): Element {
+  private tabItem(
+    space: SpaceInfo | undefined,
+    tabInfo: TabInfo,
+    status: Status | null,
+    index: number,
+  ): Element {
     const palette = colors();
     const program = tabProgram(tabInfo, panes());
     const hasIcon = program?.icon !== null && program !== undefined;
@@ -189,7 +200,7 @@ export default class Tabs extends View {
       label: tabLabel(tabInfo, program),
       active: tabInfo.active,
       icon: hasIcon ? programIcon(program, 'small').text_color(iconColor) : null,
-      status: tabInfo.status,
+      status,
       close: this.closeButton(tabInfo),
     })
       .id(`tab-${tabInfo.id}`)

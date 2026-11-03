@@ -43,6 +43,7 @@ const gitOf = (linked: boolean): GitInfo => gitAt(repoPath, linked);
 const listed = (space: SpaceInfo, git: GitInfo | null): ListedSpace => ({
   space,
   git,
+  status: space.status,
 });
 
 const list = (statuses: (Status | null)[] = [null, null]): ListedSpace[] => [
