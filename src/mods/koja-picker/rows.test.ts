@@ -259,6 +259,21 @@ describe('rowPane', () => {
     expect(rowPane(spaceRow, data())?.pane).toBe('p2');
   });
 
+  test('targets the non-active tab whose background child matches the filter', () => {
+    const fixture = data(
+      {
+        spaces: [spaceOf('s1', 1, 'koja', [tabOf('k1', 1, true), tabOf('k2', 2)])],
+        panes: [paneOf('p1', 'k1'), paneOf('p2', 'k2')],
+      },
+      [{ address: 't-child', parent: 't-p2', status: 'working' }],
+    );
+
+    const [spaceRow] = buildRows('', ['working'], fixture);
+
+    expect(spaceRow?.tab?.id).toBe('k2');
+    expect(rowPane(spaceRow, fixture)?.pane).toBe('p2');
+  });
+
   test('prefers the pane last focused in the tab, then the most urgent one', () => {
     const [spaceRow] = buildRows('', null, data());
 

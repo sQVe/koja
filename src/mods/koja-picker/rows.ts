@@ -258,6 +258,13 @@ const spaceRowPane = (
   return own !== null && own.score >= best.score ? null : best.pane;
 };
 
+const statusMatchingTab = (
+  space: SpaceInfo,
+  statuses: Status[],
+  data: PickerData,
+): TabInfo | undefined =>
+  space.tabs.find((tab) => matchesStatus(data.statuses.tabs[tab.id] ?? null, statuses));
+
 const spaceRows = (
   space: SpaceInfo,
   query: string,
@@ -274,7 +281,10 @@ const spaceRows = (
 
   const filteredPane = spaceRowPane(query, statuses, space, data, shownPanes);
   const filteredTab = space.tabs.find((tab) => tab.id === filteredPane?.tab);
-  const shownTab = filteredTab ?? space.tabs.find((tab) => tab.active) ?? space.tabs[0];
+  const statusTab = statuses === null ? undefined : statusMatchingTab(space, statuses, data);
+
+  const shownTab =
+    filteredTab ?? statusTab ?? space.tabs.find((tab) => tab.active) ?? space.tabs[0];
 
   const spaceRow: PickerRow = {
     kind: 'space',
