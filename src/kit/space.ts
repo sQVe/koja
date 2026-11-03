@@ -4,7 +4,7 @@ export const spaceFolder = (space: SpaceInfo, paneList: readonly PaneInfo[]): st
   const tabIdentifiers = new Set(space.tabs.map((tab) => tab.id));
 
   const live = paneList.find(
-    (pane) => tabIdentifiers.has(pane.tab) && pane.cwd !== null && pane.cwd !== '',
+    (pane) => tabIdentifiers.has(pane.tab) && typeof pane.cwd === 'string' && pane.cwd !== '',
   );
 
   return live?.cwd ?? space.folder;
