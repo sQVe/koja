@@ -12,6 +12,11 @@ export interface ChangesSnapshot {
   limited: boolean;
 }
 
+export interface FilePreview {
+  lines: string[];
+  addedLines: number | null;
+}
+
 export interface ChangesResult {
   snapshot: ChangesSnapshot | null;
   error: string | null;
@@ -99,13 +104,13 @@ export const readChanges = async (
   };
 };
 
-export const loadFileLines = async (
-  file: ChangeFile,
-  root: string,
-  hasHead: boolean,
-  on: string | null,
-): Promise<string[]> => {
+export const loadFilePreview = async (
+  file: Readonly<ChangeFile>,
+  snapshot: ChangesSnapshot,
+): Promise<FilePreview> => {
+  const { root, on, hasHead } = snapshot;
   let lines: string[];
+  let addedLines: number | null = null;
   const addedWithoutHead = !hasHead && file.status === 'A';
 
   if (file.fresh || addedWithoutHead) {
@@ -116,10 +121,10 @@ export const loadFileLines = async (
     } else if (text.includes('\0')) {
       lines = ['Binary file · no text diff'];
     } else {
-      file.add = countLines(text);
+      addedLines = countLines(text);
 
       lines = [
-        `@@ -0,0 +1,${file.add} @@`,
+        `@@ -0,0 +1,${addedLines} @@`,
         ...text
           .slice(0, previewCharacterLimit)
           .replace(/\n$/, '')
@@ -157,13 +162,15 @@ export const loadFileLines = async (
         : all.slice(first);
   }
 
-  return lines
+  const shownLines = lines
     .slice(0, lineLimit)
     .map((line) =>
       line.length > lineCharacterLimit
         ? `${line.slice(0, lineCharacterLimit)}… (line truncated)`
         : line,
     );
+
+  return { lines: shownLines, addedLines };
 };
 
 export const commitAll = async (

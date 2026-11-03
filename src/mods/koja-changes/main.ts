@@ -17,7 +17,7 @@ import {
 } from '../../kit/index.ts';
 import type { DiffRow } from './diffRows.ts';
 import { diffRows } from './diffRows.ts';
-import { commitAll, loadFileLines, readChanges } from './git.ts';
+import { commitAll, loadFilePreview, readChanges } from './git.ts';
 import type { ChangesSnapshot } from './git.ts';
 import {
   diffArea,
@@ -74,7 +74,7 @@ const key = (): string => JSON.stringify(location());
 const hasText = (text: string): boolean => text.trim() !== '';
 
 export default class Changes extends View {
-  private files: ChangeFile[] = [];
+  private snapshot: ChangesSnapshot | null = null;
 
   private rows: DiffRow[] = [];
 
@@ -88,17 +88,11 @@ export default class Changes extends View {
 
   private input!: InputState;
 
-  private root: string | null = null;
-
-  private on: string | null = null;
-
   private context: string | null = null;
 
   private watched: string | null = null;
 
   private open: string | null = null;
-
-  private hasHead = false;
 
   private loading = false;
 
@@ -111,6 +105,10 @@ export default class Changes extends View {
   private error: string | null = null;
 
   private note: string | null = null;
+
+  private get files(): ChangeFile[] {
+    return this.snapshot?.files ?? [];
+  }
 
   override init(_props: unknown, cx: AsyncContext): void {
     this.handle = cx.focus_handle();
@@ -156,7 +154,7 @@ export default class Changes extends View {
     const add = this.files.reduce((total, file) => total + file.add, 0);
     const del = this.files.reduce((total, file) => total + file.del, 0);
     const idle = !this.busy && !this.loading;
-    const ready = this.root !== null && idle;
+    const ready = this.snapshot !== null && idle;
     const enabled = ready && hasText(this.message);
 
     const root = v_flex()
@@ -193,7 +191,7 @@ export default class Changes extends View {
       );
 
     if (this.files.length === 0) {
-      list.child(emptyState(emptyMessage(this.error, this.loading, this.root)));
+      list.child(emptyState(emptyMessage(this.error, this.loading, this.snapshot?.root ?? null)));
     }
 
     root.child(list);
@@ -245,8 +243,7 @@ export default class Changes extends View {
 
     if (context !== this.context) {
       this.context = context;
-      this.root = null;
-      this.files = [];
+      this.snapshot = null;
       this.open = null;
       this.setLines([]);
       this.message = '';
@@ -291,8 +288,7 @@ export default class Changes extends View {
   }
 
   private clearForError(error: string | null): void {
-    this.root = null;
-    this.files = [];
+    this.snapshot = null;
     this.setLines([]);
     this.open = null;
     this.error = error;
@@ -303,13 +299,10 @@ export default class Changes extends View {
     context: string,
     cx: Context,
   ): Promise<void> {
-    this.root = snapshot.root;
-    this.on = snapshot.on;
-    this.hasHead = snapshot.hasHead;
-    this.files = snapshot.files;
+    this.snapshot = snapshot;
     this.limited = snapshot.limited;
     this.error = null;
-    this.watch(snapshot.root, cx);
+    this.watch(snapshot, cx);
 
     if (this.open !== null && !this.files.some((file) => file.path === this.open)) {
       this.open = null;
@@ -333,8 +326,10 @@ export default class Changes extends View {
     }
   }
 
-  private watch(root: string, cx: Context): void {
-    if (this.on !== null || this.watched === root) {
+  private watch(snapshot: ChangesSnapshot, cx: Context): void {
+    const root = snapshot.root;
+
+    if (snapshot.on !== null || this.watched === root) {
       return;
     }
 
@@ -357,17 +352,21 @@ export default class Changes extends View {
   }
 
   private async load(path: string, context: string): Promise<void> {
-    const file = this.files.find((candidate) => candidate.path === path);
-    const root = this.root;
+    const snapshot = this.snapshot;
+    const file = snapshot?.files.find((candidate) => candidate.path === path);
 
-    if (file === undefined || root === null) {
+    if (snapshot === null || file === undefined) {
       return;
     }
 
-    const lines = await loadFileLines(file, root, this.hasHead, this.on);
+    const preview = await loadFilePreview(file, snapshot);
+
+    if (preview.addedLines !== null) {
+      file.add = preview.addedLines;
+    }
 
     if (key() === context && this.open === path) {
-      this.setLines(lines);
+      this.setLines(preview.lines);
     }
   }
 
@@ -422,12 +421,13 @@ export default class Changes extends View {
       return;
     }
 
-    if (this.root === null || this.context !== key()) {
+    const snapshot = this.snapshot;
+
+    if (snapshot === null || this.context !== key()) {
       return;
     }
 
-    const root = this.root;
-    const on = this.on;
+    const { root, on } = snapshot;
     const context = this.context;
 
     this.busy = true;
