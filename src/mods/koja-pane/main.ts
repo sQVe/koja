@@ -110,7 +110,8 @@ export default class PaneHeader extends View {
 
     element.child(
       div()
-        .flex_none()
+        .flex_initial()
+        .min_w(0)
         .max_w(controlSize.paneLabelMaxWidth)
         .truncate()
         .font_medium()
