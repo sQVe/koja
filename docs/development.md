@@ -32,8 +32,8 @@ bun run herdr:install
 
 `bun run herdr:install` builds the mods, copies them and the files in `config/` into
 `~/.config/herdr-app`, and runs `herdr-app check` on every installed mod. Set `HERDR_APP_HOME` to
-install into another Herdr home. Run `bun run herdr:watch` to build and install again on every save
-in `src/` or `config/`.
+install into another Herdr home, and `HERDR_APP_BIN` to check the mods with another herdr-app
+binary. Run `bun run herdr:watch` to build and install again on every save in `src/` or `config/`.
 
 Then switch Herdr to Koja's layout. This is the one-time real install step, not QA; try mods in the
 sandbox below instead:

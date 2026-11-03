@@ -21,7 +21,7 @@
 set -euo pipefail
 
 here=$(cd "$(dirname "$0")" && pwd)
-name=${HERDR_APP_SANDBOX-sandbox}
+name=${HERDR_APP_SANDBOX-koja}
 
 if [[ ! $name =~ ^[a-z0-9][a-z0-9-]*$ ]]; then
   echo "HERDR_APP_SANDBOX must be one name of lowercase letters, digits, and dashes, not '$name'" >&2
@@ -131,19 +131,12 @@ refuse_linked_paths() {
   local path
   for path in "$root/display" "$root/xpid" "$root/xwayland.pid" "$root/pid" \
     "$root/state" "$root/config" "$root/run" "$root/bin" "$root/home" "$root/opened" \
-    "$root/app.log" "$root/weston.log"; do
+    "$root/app.log" "$root/weston.log" "$root/run/core.sock"; do
     if [[ -L $path ]]; then
       echo "refusing the symlinked sandbox path $path" >&2
       exit 1
     fi
   done
-}
-
-refuse_linked_core_socket() {
-  if [[ -L $root/run/core.sock ]]; then
-    echo "refusing the symlinked core socket $root/run/core.sock" >&2
-    exit 1
-  fi
 }
 
 # Create the root and its state folders with private permissions. mkdir (not
@@ -173,7 +166,7 @@ require_up() {
     exit 1
   fi
 
-  refuse_linked_core_socket
+  refuse_linked_paths
 
   local display
   display=$(cat "$root/display")
@@ -254,14 +247,20 @@ stop_recorded() {
     if [[ $current == "$started" ]]; then
       kill "$pid" 2>/dev/null || true
       for _ in $(seq 50); do kill -0 "$pid" 2>/dev/null || break; sleep 0.1; done
+      if kill -0 "$pid" 2>/dev/null; then
+        echo "process $pid did not stop; keeping $file" >&2
+        return 1
+      fi
     fi
   fi
   rm -f "$file"
 }
 
 stop_display() {
-  stop_recorded "$root/xwayland.pid"
-  stop_recorded "$root/xpid"
+  local stopped=1
+  stop_recorded "$root/xwayland.pid" || stopped=0
+  stop_recorded "$root/xpid" || stopped=0
+  [[ $stopped == 1 ]] || return 1
   local display=''
   if [[ -f $root/display ]]; then display=$(cat "$root/display"); fi
   clean_display_files "$display"
@@ -276,9 +275,18 @@ stop_window() {
     if [[ $current == "$started" ]] && ours "$pid"; then
       kill "$pid" 2>/dev/null || true
       for _ in $(seq 50); do ours "$pid" || break; sleep 0.1; done
+      if ours "$pid"; then
+        echo "the sandbox window $pid did not stop; keeping $root/pid" >&2
+        return 1
+      fi
     fi
   fi
   rm -f "$root/pid"
+}
+
+# hc server status would start a core, so look for a listener on the socket.
+core_running() {
+  ss -Hxl 2>/dev/null | awk '{ print $5 }' | grep -qxF "$HC_SOCKET"
 }
 
 # Stop the sandbox core. A non-zero hc result means it may still run, so the
@@ -296,7 +304,9 @@ cleanup_start() {
   refuse_unsafe_root
   refuse_linked_paths
   stop_window || true
-  hc server stop >/dev/null 2>&1 || true
+  if [[ ${core_predates_start:-1} == 0 ]]; then
+    hc server stop >/dev/null 2>&1 || true
+  fi
   stop_display || true
 }
 
@@ -318,7 +328,7 @@ install_openers() {
 
 install_mods() {
   prepare_root
-  (cd "$here/.." && HERDR_APP_HOME=$HERDR_APP_HOME bun run herdr:install)
+  (cd "$here/.." && HERDR_APP_HOME=$HERDR_APP_HOME HERDR_APP_BIN=$bin bun run herdr:install)
 }
 
 # Koja's mods only draw in Koja's layout; switch the sandbox core to it.
@@ -329,6 +339,8 @@ switch_layout() {
 
 start_window() {
   prepare_root
+  core_predates_start=0
+  if core_running; then core_predates_start=1; fi
   start_ready=0
   trap 'if [[ ${start_ready:-0} == 0 ]]; then cleanup_start; fi' EXIT
   stop_window
@@ -389,12 +401,15 @@ case ${1:-} in
       exit 0
     fi
     refuse_linked_paths
-    refuse_linked_core_socket
-    stop_window
+    if ! stop_window; then
+      exit 1
+    fi
     if ! stop_core; then
       exit 1
     fi
-    stop_display
+    if ! stop_display; then
+      exit 1
+    fi
     remove_root
     echo "sandbox $name is gone"
     ;;
