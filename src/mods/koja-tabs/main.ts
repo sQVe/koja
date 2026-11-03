@@ -31,8 +31,6 @@ import type { PanelMemory } from './panelMemory.ts';
 import { initialPanelMemory, panelMemory } from './panelMemory.ts';
 import { tabDropAction } from './tabDrop.ts';
 import { tabLabel, tabProgram } from './tabLabel.ts';
-import type { WindowControl } from './windowControls.ts';
-import { windowControls } from './windowControls.ts';
 
 interface Panel {
   id: string;
@@ -107,6 +105,7 @@ const windowButtonsPadding = (): number => {
     lights: layoutRoot().trafficLights,
     zoom,
     offset: sidebarWidth,
+    base: spacing.none,
   });
 };
 
@@ -123,6 +122,8 @@ export default class Tabs extends View {
 
     this.syncPanel(space, enabled);
 
+    const startPadding = windowButtonsPadding();
+
     return h_flex()
       .size_full()
       .min_w(0)
@@ -136,7 +137,7 @@ export default class Tabs extends View {
           run(event.delta.y > 0 ? 'tab.prev' : 'tab.next');
         }
       })
-      .child(tabBarEdge(div().w(windowButtonsPadding()).flex_none()))
+      .child(tabBarEdge(div().w(startPadding).flex_none()))
       .child(
         h_flex()
           .id('tab-scroll')
@@ -144,7 +145,13 @@ export default class Tabs extends View {
           .min_w(0)
           .h_full()
           .overflow_x_scrollbar()
-          .children(shown.map((tabInfo, index) => this.tabItem(space, tabInfo, index)))
+          .children(
+            shown.map((tabInfo, index) => {
+              const atBarStart = index === 0 && startPadding === spacing.none;
+
+              return this.tabItem(space, tabInfo, index, atBarStart);
+            }),
+          )
           .child(tabBarEdge(div().flex_1().min_w(0))),
       )
       .child(this.controls(enabled));
@@ -175,7 +182,12 @@ export default class Tabs extends View {
     }
   }
 
-  private tabItem(space: SpaceInfo | undefined, tabInfo: TabInfo, index: number): Element {
+  private tabItem(
+    space: SpaceInfo | undefined,
+    tabInfo: TabInfo,
+    index: number,
+    atBarStart: boolean,
+  ): Element {
     const palette = colors();
     const program = tabProgram(tabInfo, panes());
     const hasIcon = program?.icon !== null && program !== undefined;
@@ -187,6 +199,7 @@ export default class Tabs extends View {
       icon: hasIcon ? programIcon(program, 'small').text_color(iconColor) : null,
       status: tabInfo.status,
       close: this.closeButton(tabInfo),
+      atBarStart,
     })
       .id(`tab-${tabInfo.id}`)
       .on_mouse_down('left', (event, cx) => {
@@ -263,8 +276,7 @@ export default class Tabs extends View {
         h_flex()
           .mx(spacing.small)
           .child(indicator(normalMode ? 'blocked' : 'ansi2')),
-      )
-      .children(windowControls(currentWindow()).map((control) => this.windowButton(control)));
+      );
   }
 
   private panelButton(panel: Panel): Element {
@@ -275,15 +287,6 @@ export default class Tabs extends View {
       .on_mouse_down('left', stopPress)
       .on_click(() => {
         showPanel(on ? null : panel.id);
-      });
-  }
-
-  private windowButton(control: WindowControl): Element {
-    return iconButton({ name: control.icon })
-      .id(control.id)
-      .on_mouse_down('left', stopPress)
-      .on_click(() => {
-        run(control.command);
       });
   }
 }

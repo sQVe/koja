@@ -40,10 +40,12 @@ export const rowHeight = {
 export type RowSize = keyof typeof rowHeight;
 
 export const controlSize = {
+  badge: 18,
   button: 22,
+  paneLabelMaxWidth: 260,
   searchField: 40,
   sectionHeader: 26,
-  sidebarHeader: 31,
+  sidebarHeader: 27,
   tabSlot: 14,
   tabLabelMaxWidth: 170,
 } as const;
