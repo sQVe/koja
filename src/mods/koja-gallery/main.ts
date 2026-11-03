@@ -4,14 +4,14 @@ import type { AsyncContext, Element } from 'gpui-kit';
 import { div, View } from 'gpui-kit';
 import type { Status } from 'herdr';
 
-import type { IconName, RowState } from '../../kit/index.ts';
+import type { FileStatus, IconName, RowState } from '../../kit/index.ts';
 import {
-  actionButton,
   attentionBadge,
   colors,
   controlSize,
   detailText,
   emptyState,
+  fileStatusMark,
   foldChevron,
   highlightedText,
   icon,
@@ -31,12 +31,15 @@ import {
   spinner,
   statusMark,
   tab,
-  textField,
   textSize,
   toggleButton,
 } from '../../kit/index.ts';
+import { actions } from './actions.ts';
+import { sample } from './sample.ts';
 
 const statuses: (Status | null)[] = ['working', 'blocked', 'done', 'idle', null];
+
+const fileStatuses: FileStatus[] = ['A', 'M', 'D', 'U'];
 
 const rowStates: { state: RowState; hovered: boolean; label: string }[] = [
   { state: 'normal', hovered: false, label: 'normal' },
@@ -52,9 +55,6 @@ const matchOf = (text: string, query: string): number[] => {
 
   return query.split('').map((_letter, offset) => start + offset);
 };
-
-const sample = (label: string, content: Element): Element =>
-  v_flex().gap(spacing.xsmall).child(detailText(label)).child(content);
 
 const section = (title: string, content: Element[]): Element =>
   v_flex()
@@ -99,6 +99,13 @@ const marks = (): Element[] => [
           .child(statusLabel(status)),
       ),
     ),
+  sample(
+    'File status letters: added, modified, deleted, unmerged',
+    h_flex()
+      .gap(spacing.medium)
+      .items_center()
+      .children(fileStatuses.map((status) => fileStatusMark(status))),
+  ),
   sample(
     'Indicators',
     h_flex()
@@ -366,26 +373,6 @@ const buttons = (): Element[] => [
       )
       .child(toggleButton({ label: 'Hovered', active: false, hovered: true }))
       .child(toggleButton({ label: 'Quiet', active: false, quiet: true })),
-  ),
-];
-
-const actions = (empty: InputState, focused: InputState, filled: InputState): Element[] => [
-  sample(
-    'Action buttons: enabled, hovered, disabled',
-    h_flex()
-      .gap(spacing.medium)
-      .items_center()
-      .child(actionButton({ label: 'Commit', enabled: true }))
-      .child(actionButton({ label: 'Commit', enabled: true, hovered: true }))
-      .child(actionButton({ label: 'Commit', enabled: false })),
-  ),
-  sample(
-    'Text fields: empty, focused, filled',
-    v_flex()
-      .gap(spacing.medium)
-      .child(textField(empty, false))
-      .child(textField(focused, true))
-      .child(textField(filled, false)),
   ),
 ];
 

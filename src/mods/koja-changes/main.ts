@@ -3,7 +3,7 @@ import { h_flex, InputState as InputStates, v_flex } from 'gpui-base';
 import type { AsyncContext, Context, Element, FocusHandle } from 'gpui-kit';
 import { View } from 'gpui-kit';
 import type { PaneInfo } from 'herdr';
-import { focused, panes, spaces, watchFolder } from 'herdr';
+import { exec, focused, panes, spaces, watchFolder } from 'herdr';
 
 import {
   actionButton,
@@ -15,10 +15,13 @@ import {
   textField,
   textSize,
 } from '../../kit/index.ts';
+import { canCommit, hasText } from './commit.ts';
 import type { DiffRow } from './diffRows.ts';
 import { diffRows } from './diffRows.ts';
-import { commitAll, loadFilePreview, readChanges } from './git.ts';
+import { commitAll, readChanges } from './git.ts';
 import type { ChangesSnapshot } from './git.ts';
+import { loadFilePreview } from './preview.ts';
+import type { FilePreview } from './preview.ts';
 import {
   diffArea,
   emptyMessage,
@@ -71,8 +74,6 @@ const location = (): Location => {
 
 const key = (): string => JSON.stringify(location());
 
-const hasText = (text: string): boolean => text.trim() !== '';
-
 export default class Changes extends View {
   private snapshot: ChangesSnapshot | null = null;
 
@@ -95,6 +96,8 @@ export default class Changes extends View {
   private open: string | null = null;
 
   private loading = false;
+
+  private previewRequest = 0;
 
   private busy = false;
 
@@ -184,8 +187,8 @@ export default class Changes extends View {
       .border_color(palette.border)
       .children(
         this.files.map((file) =>
-          fileRow(file, this.open === file.path, palette, (path) => {
-            this.pick(path, cx);
+          fileRow(file, this.open === file.path, palette, (path, clickCx) => {
+            this.pick(path, clickCx);
           }),
         ),
       );
@@ -265,7 +268,7 @@ export default class Changes extends View {
 
     cx.spawn(async (taskCx) => {
       try {
-        const result = await readChanges(cwd, where.on, () => key() === context);
+        const result = await readChanges(exec, cwd, where.on, () => key() === context);
 
         if (result === null || key() !== context) {
           return;
@@ -319,7 +322,7 @@ export default class Changes extends View {
       try {
         await this.load(openPath, context);
       } catch {
-        if (key() === context) {
+        if (key() === context && this.open === openPath) {
           this.setLines(['Cannot preview this diff (too large or unreadable)']);
         }
       }
@@ -359,10 +362,31 @@ export default class Changes extends View {
       return;
     }
 
-    const preview = await loadFilePreview(file, snapshot);
+    // Reopening the same file starts a second preview while the first may still run, so the path
+    // check alone cannot drop the older result.
+    const request = this.previewRequest + 1;
+
+    this.previewRequest = request;
+
+    const isLatest = (): boolean => request === this.previewRequest;
+    let preview: FilePreview;
+
+    try {
+      preview = await loadFilePreview(file, snapshot);
+    } catch (error) {
+      if (isLatest()) {
+        throw error;
+      }
+
+      return;
+    }
 
     if (preview.addedLines !== null) {
       file.add = preview.addedLines;
+    }
+
+    if (!isLatest()) {
+      return;
     }
 
     if (key() === context && this.open === path) {
@@ -411,22 +435,20 @@ export default class Changes extends View {
   }
 
   private commit(cx: Context): void {
-    const message = this.message.trim();
-
-    if (message === '') {
-      return;
-    }
-
-    if (this.busy || this.loading) {
-      return;
-    }
-
     const snapshot = this.snapshot;
 
-    if (snapshot === null || this.context !== key()) {
+    const request = {
+      message: this.message,
+      busy: this.busy,
+      loading: this.loading,
+      contextCurrent: this.context === key(),
+    };
+
+    if (snapshot === null || !canCommit(request)) {
       return;
     }
 
+    const message = this.message.trim();
     const { root, on } = snapshot;
     const context = this.context;
 
@@ -435,7 +457,7 @@ export default class Changes extends View {
 
     cx.spawn(async (taskCx) => {
       try {
-        await commitAll(root, on, message);
+        await commitAll(exec, root, on, message);
 
         if (key() === context) {
           this.message = '';

@@ -1,8 +1,7 @@
 import type { ExecResult } from 'herdr';
-import { exec, readTextFile } from 'herdr';
 
 import type { ChangeFile } from './status.ts';
-import { countLines, mergeNumstat, parseStatus } from './status.ts';
+import { mergeNumstat, parseStatus } from './status.ts';
 
 export interface ChangesSnapshot {
   root: string;
@@ -12,17 +11,18 @@ export interface ChangesSnapshot {
   limited: boolean;
 }
 
-export interface FilePreview {
-  lines: string[];
-  addedLines: number | null;
-}
-
 export interface ChangesResult {
   snapshot: ChangesSnapshot | null;
   error: string | null;
 }
 
-const readFlags = [
+export type RunCommand = (
+  command: string,
+  args: string[],
+  options: { cwd: string; on: string | null },
+) => Promise<ExecResult>;
+
+export const readFlags = [
   '--no-optional-locks',
   '-c',
   'core.fsmonitor=false',
@@ -32,18 +32,13 @@ const readFlags = [
 
 const fileLimit = 1000;
 
-const previewCharacterLimit = 400000;
-
-const lineLimit = 1500;
-
-const lineCharacterLimit = 4000;
-
 export const readChanges = async (
+  run: RunCommand,
   cwd: string,
   on: string | null,
   isCurrent: () => boolean,
 ): Promise<ChangesResult | null> => {
-  const top = await exec('git', ['rev-parse', '--show-toplevel'], { cwd, on });
+  const top = await run('git', ['rev-parse', '--show-toplevel'], { cwd, on });
 
   if (!isCurrent()) {
     return null;
@@ -56,7 +51,7 @@ export const readChanges = async (
   const root = top.stdout.trim();
 
   const git = (args: string[]): Promise<ExecResult> =>
-    exec('git', [...readFlags, ...args], { cwd: root, on });
+    run('git', [...readFlags, ...args], { cwd: root, on });
 
   const status = await git([
     'status',
@@ -104,87 +99,19 @@ export const readChanges = async (
   };
 };
 
-export const loadFilePreview = async (
-  file: Readonly<ChangeFile>,
-  snapshot: ChangesSnapshot,
-): Promise<FilePreview> => {
-  const { root, on, hasHead } = snapshot;
-  let lines: string[];
-  let addedLines: number | null = null;
-  const addedWithoutHead = !hasHead && file.status === 'A';
-
-  if (file.fresh || addedWithoutHead) {
-    const text = await readTextFile(`${root}/${file.path}`, { on }).catch(() => null);
-
-    if (text === null) {
-      lines = ['Cannot preview this file (binary, too large, or unreadable)'];
-    } else if (text.includes('\0')) {
-      lines = ['Binary file · no text diff'];
-    } else {
-      addedLines = countLines(text);
-
-      lines = [
-        `@@ -0,0 +1,${addedLines} @@`,
-        ...text
-          .slice(0, previewCharacterLimit)
-          .replace(/\n$/, '')
-          .split('\n')
-          .slice(0, lineLimit)
-          .map((line) => `+${line}`),
-      ];
-    }
-  } else {
-    const result = await exec(
-      'git',
-      [
-        ...readFlags,
-        'diff',
-        ...(hasHead ? ['HEAD'] : []),
-        '--no-ext-diff',
-        '--no-textconv',
-        '--no-color',
-        '--',
-        file.path,
-      ],
-      { cwd: root, on },
-    );
-
-    if (result.code !== 0) {
-      throw new Error(result.stderr);
-    }
-
-    const all = result.stdout.replace(/\n$/, '').split('\n');
-    const first = all.findIndex((line) => line.startsWith('@@'));
-
-    lines =
-      first === -1
-        ? [file.binary ? 'Binary file changed' : 'No text diff available']
-        : all.slice(first);
-  }
-
-  const shownLines = lines
-    .slice(0, lineLimit)
-    .map((line) =>
-      line.length > lineCharacterLimit
-        ? `${line.slice(0, lineCharacterLimit)}… (line truncated)`
-        : line,
-    );
-
-  return { lines: shownLines, addedLines };
-};
-
 export const commitAll = async (
+  run: RunCommand,
   root: string,
   on: string | null,
   message: string,
 ): Promise<void> => {
-  const add = await exec('git', ['add', '-A'], { cwd: root, on });
+  const add = await run('git', ['add', '-A'], { cwd: root, on });
 
   if (add.code !== 0) {
     throw new Error((add.stderr || add.stdout).trim());
   }
 
-  const commit = await exec('git', ['commit', '-m', message], { cwd: root, on });
+  const commit = await run('git', ['commit', '-m', message], { cwd: root, on });
 
   if (commit.code !== 0) {
     throw new Error((commit.stderr || commit.stdout).trim());

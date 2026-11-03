@@ -1,4 +1,4 @@
-export type FileStatus = 'A' | 'M' | 'D' | 'U';
+import type { FileStatus } from '../../kit/fileStatus.ts';
 
 export interface StatusFile {
   path: string;

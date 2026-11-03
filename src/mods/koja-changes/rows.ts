@@ -1,5 +1,5 @@
 import { h_flex, Scrollbar, v_virtual_list } from 'gpui-base';
-import type { Element } from 'gpui-kit';
+import type { Context, Element } from 'gpui-kit';
 import { div } from 'gpui-kit';
 import { settings } from 'herdr';
 
@@ -8,6 +8,7 @@ import {
   controlSize,
   diffSize,
   diffTints,
+  fileStatusMark,
   listRow,
   rowHeight,
   spacing,
@@ -15,31 +16,11 @@ import {
   textSize,
 } from '../../kit/index.ts';
 import type { DiffRow } from './diffRows.ts';
-import type { ChangeFile, FileStatus } from './status.ts';
+import type { ChangeFile } from './status.ts';
 
 const defaultFont = 'JetBrains Mono';
 
 const terminalFont = (): string => stringOf(settings()['font_family']) ?? defaultFont;
-
-const statusColor = (status: FileStatus, palette: Palette) => {
-  if (status === 'A') {
-    return palette.ansi2;
-  }
-
-  if (status === 'D' || status === 'U') {
-    return palette.ansi1;
-  }
-
-  return palette.blocked;
-};
-
-const statusLetter = (status: FileStatus, palette: Palette): Element =>
-  div()
-    .w(controlSize.tabSlot)
-    .flex_none()
-    .text_size(textSize.small)
-    .text_color(statusColor(status, palette))
-    .child(status);
 
 const fileLabel = (file: ChangeFile, palette: Palette): Element => {
   const parts = file.path.split('/');
@@ -100,7 +81,7 @@ export const fileRow = (
   file: ChangeFile,
   selected: boolean,
   palette: Palette,
-  onPick: (path: string) => void,
+  onPick: (path: string, cx: Context) => void,
 ): Element => {
   const end: Element[] = [];
 
@@ -116,13 +97,13 @@ export const fileRow = (
     size: 'medium',
     inset: true,
     state: selected ? 'selected' : 'normal',
-    start: statusLetter(file.status, palette),
+    start: fileStatusMark(file.status),
     label: fileLabel(file, palette),
     end,
   })
     .id(`change-${file.path}`)
-    .on_click(() => {
-      onPick(file.path);
+    .on_click((_event, clickCx) => {
+      onPick(file.path, clickCx);
     });
 };
 
