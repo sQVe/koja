@@ -23,12 +23,13 @@ export {
   separatorHeight,
   spacing,
   textSize,
-  trafficLightsWidth,
 } from './size.ts';
 
 export { indicator, statusMark } from './statusMark.ts';
 
 export { tab, tabBarEdge } from './tab.ts';
+
+export { trafficLightsPadding } from './trafficLights.ts';
 
 export { shortcutFor } from './shortcut.ts';
 

@@ -1,6 +1,6 @@
 import { describe, expect, test } from 'bun:test';
 
-import { pruneRecord, retireUnusedWatches } from './cache.ts';
+import { negativeEntryExpired, pruneRecord, retireUnusedWatches } from './cache.ts';
 import type { GitInfo } from './tree.ts';
 import { repoOf } from './tree.ts';
 
@@ -22,6 +22,16 @@ describe('pruneRecord', () => {
     const cache = { a: 1, b: 2 };
 
     expect(pruneRecord(cache, new Set(['a', 'b']))).toEqual(cache);
+  });
+});
+
+describe('negativeEntryExpired', () => {
+  test('keeps a negative entry until the retry time passes', () => {
+    expect(negativeEntryExpired(1_000, 61_000, 60_000)).toBe(false);
+  });
+
+  test('expires a negative entry after the retry time', () => {
+    expect(negativeEntryExpired(1_000, 61_001, 60_000)).toBe(true);
   });
 });
 

@@ -11,16 +11,19 @@ export interface SectionHeaderOptions {
   start?: Element;
   end?: Element[];
   interactive?: boolean;
+  paddingStart?: number;
 }
 
 export const sectionHeader = (options: SectionHeaderOptions): Element => {
   const palette = colors();
   const height = options.size === 'bar' ? controlSize.sidebarHeader : controlSize.sectionHeader;
+  const paddingStart = options.paddingStart ?? spacing.large;
 
   const header = h_flex()
     .flex_none()
     .h(height)
-    .px(spacing.large)
+    .pl(paddingStart)
+    .pr(spacing.large)
     .gap(spacing.small)
     .items_center()
     .text_size(textSize.small)

@@ -25,7 +25,7 @@ import {
   tab,
   tabBarEdge,
   toggleButton,
-  trafficLightsWidth,
+  trafficLightsPadding,
 } from '../../kit/index.ts';
 import type { PanelMemory } from './panelMemory.ts';
 import { initialPanelMemory, panelMemory } from './panelMemory.ts';
@@ -96,20 +96,18 @@ const showPanel = (panel: string | null): void => {
 
 const windowButtonsPadding = (): number => {
   const shown = currentWindow();
-  const lights = layoutRoot().trafficLights;
-  const drawsOwnTitleBar = shown?.platform === 'macos' && shown.titlebar === 'none';
-
-  if (!drawsOwnTitleBar || shown.fullscreen || lights === null) {
-    return spacing.large;
-  }
-
   const sidebar = findLayoutNode('sidebar');
-
   const sidebarWidth = sidebar?.hidden === true ? 0 : (sidebar?.sizePx ?? 0);
-
   const zoom = numberOf(settings()['zoom']) ?? 1;
 
-  return Math.max(spacing.large, (lights + trafficLightsWidth) / zoom - sidebarWidth);
+  return trafficLightsPadding({
+    platform: shown?.platform ?? 'linux',
+    titlebar: shown?.titlebar ?? 'system',
+    fullscreen: shown?.fullscreen ?? false,
+    lights: layoutRoot().trafficLights,
+    zoom,
+    offset: sidebarWidth,
+  });
 };
 
 export default class Tabs extends View {

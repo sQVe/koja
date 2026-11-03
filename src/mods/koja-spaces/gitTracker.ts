@@ -3,7 +3,7 @@ import type { PaneInfo, SpaceInfo } from 'herdr';
 import { exec, machines, watchFolder } from 'herdr';
 
 import { currentWindow } from '../../kit/index.ts';
-import { pruneRecord, retireUnusedWatches } from './cache.ts';
+import { negativeEntryExpired, pruneRecord, retireUnusedWatches } from './cache.ts';
 import type { GitInfo, Place, RepoRef } from './tree.ts';
 import { placeOf, repoOf } from './tree.ts';
 
@@ -209,7 +209,12 @@ export class GitTracker {
   ): void {
     for (const key of keys) {
       const asks = this.git[key] !== null && this.git[key] !== undefined;
-      const known = asks || this.unsure.has(key);
+      const noRepository = this.git[key] === null;
+
+      const expired =
+        noRepository && negativeEntryExpired(this.checked[key], now, fallbackMilliseconds);
+
+      const known = asks || this.unsure.has(key) || expired;
       const machine = placeByKey.get(key)?.machine ?? '';
       const stale = now - (this.checked[key] ?? 0) > fallbackMilliseconds;
 

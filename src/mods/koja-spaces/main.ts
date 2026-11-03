@@ -2,19 +2,22 @@ import { v_flex } from 'gpui-base';
 import type { AsyncContext, Context, Element } from 'gpui-kit';
 import { View } from 'gpui-kit';
 import type { SpaceInfo } from 'herdr';
-import { exec, hc, machines, openOverlay, panes, run, spaces } from 'herdr';
+import { exec, hc, machines, openOverlay, panes, run, settings, spaces } from 'herdr';
 
 import type { DragState } from '../../kit/drag.ts';
 import { dragLine, dropAction, noDrag, setDragOver, startDrag } from '../../kit/drag.ts';
 import type { ThemeToken } from '../../kit/index.ts';
 import {
   colors,
+  currentWindow,
   detailText,
   findLayoutNode,
   icon,
   iconButton,
   iconSlot,
+  layoutRoot,
   listRow,
+  numberOf,
   overlaySize,
   railWidthLimit,
   repeat,
@@ -22,6 +25,7 @@ import {
   spacing,
   statusMark,
   textSize,
+  trafficLightsPadding,
 } from '../../kit/index.ts';
 import { foldedSet } from './folded.ts';
 import { GitTracker } from './gitTracker.ts';
@@ -61,6 +65,20 @@ const isNarrow = (): boolean => {
   const width = sidebar?.sizePx ?? null;
 
   return width !== null && width < railWidthLimit;
+};
+
+const spacesHeaderPadding = (): number => {
+  const shown = currentWindow();
+  const zoom = numberOf(settings()['zoom']) ?? 1;
+
+  return trafficLightsPadding({
+    platform: shown?.platform ?? 'linux',
+    titlebar: shown?.titlebar ?? 'system',
+    fullscreen: shown?.fullscreen ?? false,
+    lights: layoutRoot().trafficLights,
+    zoom,
+    offset: 0,
+  });
 };
 
 const storage = {
@@ -124,7 +142,14 @@ export default class Spaces extends View {
       .min_h(0)
       .bg(palette.chrome)
       .text_size(textSize.default)
-      .child(sectionHeader({ label: collapsed ? '' : 'Spaces', size: 'bar', end: [newSpace] }))
+      .child(
+        sectionHeader({
+          label: collapsed ? '' : 'Spaces',
+          size: 'bar',
+          paddingStart: spacesHeaderPadding(),
+          end: [newSpace],
+        }),
+      )
       .child(
         v_flex()
           .flex_1()

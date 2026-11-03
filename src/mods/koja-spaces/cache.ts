@@ -5,6 +5,12 @@ export const pruneRecord = <T>(
   live: ReadonlySet<string>,
 ): Record<string, T> => Object.fromEntries(Object.entries(cache).filter(([key]) => live.has(key)));
 
+export const negativeEntryExpired = (
+  cachedAt: number | undefined,
+  now: number,
+  retryMilliseconds: number,
+): boolean => now - (cachedAt ?? 0) > retryMilliseconds;
+
 export const retireUnusedWatches = (
   watching: ReadonlySet<string>,
   git: Readonly<Record<string, GitInfo | null>>,
