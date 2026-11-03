@@ -9,7 +9,7 @@ import { listedOf } from './tree.ts';
 
 const insetLine = (): Element => div().px(spacing.small).child(separator());
 
-export const railRow = (row: TreeRow, lineAbove: boolean): Element => {
+export const railRow = (row: TreeRow, title: string, lineAbove: boolean): Element => {
   const { space } = listedOf(row);
 
   const element = listRow({
@@ -21,6 +21,8 @@ export const railRow = (row: TreeRow, lineAbove: boolean): Element => {
     end: [statusMark(space.status ?? 'idle')],
   })
     .id(`space-${space.id}`)
+    .tooltip(title)
+    .accessibility_label(title)
     .on_click(() => {
       run('space.select', { id: space.id });
     });

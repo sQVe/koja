@@ -241,7 +241,9 @@ export default class Spaces extends View {
     lineAbove: boolean,
   ): Element {
     if (collapsed) {
-      return railRow(row, lineAbove);
+      const title = row.kind === 'repo' ? row.name : this.rowTitle(row);
+
+      return railRow(row, title, lineAbove);
     }
 
     return row.kind === 'repo' ? this.labelRow(row, ids) : this.row(row, ids);
