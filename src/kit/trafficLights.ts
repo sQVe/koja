@@ -7,7 +7,6 @@ interface TrafficLightsContext {
   lights: number | null;
   zoom: number;
   offset: number;
-  // The padding where no traffic lights need room.
   base: number;
 }
 

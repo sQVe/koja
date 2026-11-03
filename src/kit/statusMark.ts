@@ -36,7 +36,6 @@ export const statusMark = (status: Status | null): Element => {
 
 export const indicator = (token: ThemeToken): Element => dot(markSize.dot, colors()[token]);
 
-// Two hex digits of alpha: 0x26 is about 15% opacity.
 const badgeFillAlpha = '26';
 
 const withAlpha = (color: Color, alpha: string): Color => `${color}${alpha}`;

@@ -1,6 +1,5 @@
 import type { PaneInfo, Program } from 'herdr';
 
-// Herdr declares a program on every pane, but a mod pane has no terminal and sets no program.
 export const paneProgram = (pane: PaneInfo): Program | null =>
   pane.terminal === null ? null : pane.program;
 
