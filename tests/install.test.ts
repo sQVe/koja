@@ -371,11 +371,19 @@ describe('install', () => {
 
   test('records the files it wrote so a retry can remove an orphan after a failed copy', async () => {
     await writeAt(join(config, 'extra.json'), 'orphan\n');
-    await mkdir(join(home, 'mods', 'koja-tabs', 'main.js'), { recursive: true });
 
-    await run().catch(() => undefined);
+    await install({
+      home,
+      modsDirectory: mods,
+      configDirectory: config,
+      check: passingCheck,
+      chmodFile: async (path) => {
+        if (path.endsWith('extra.json')) {
+          throw new Error('injected chmod failure');
+        }
+      },
+    }).catch(() => undefined);
 
-    await rm(join(home, 'mods', 'koja-tabs', 'main.js'), { recursive: true, force: true });
     await rm(join(config, 'extra.json'));
 
     const result = await run();

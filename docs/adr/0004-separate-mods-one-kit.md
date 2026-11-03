@@ -26,6 +26,11 @@ and each mod lives in `src/mods/<name>/`. The build puts the kit into every mod 
 A mod may open another of Koja's mods by name. These names are the coupling between mods, so a
 rename changes every mod, layout, and key that names it in the same change.
 
+Data that more than one mod reads, such as the normal-mode key table that `koja-modal` parses and
+other mods can show as shortcuts, lives in the kit as static data. The state and logic that act on
+it, such as pending keys, counts, and history, stay in the mod that owns them. A mod never imports
+from another mod's folder; code that two mods share belongs in the kit.
+
 ## Consequences
 
 ### Positive

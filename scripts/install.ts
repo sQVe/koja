@@ -291,6 +291,58 @@ const writeRecord = async (home: string, files: Iterable<string>): Promise<void>
   await writeFile(recordPath, `${JSON.stringify(record, null, 2)}\n`);
 };
 
+const isModFile = (path: string): boolean => path.split(sep)[0] === 'mods';
+
+const installFiles = async (
+  home: string,
+  files: [string, string][],
+  chmodFile: (path: string, mode: number) => Promise<void>,
+  onWritten: (path: string) => void,
+): Promise<string[]> => {
+  const written: string[] = [];
+
+  for (const [path, source] of files) {
+    // eslint-disable-next-line no-await-in-loop -- files are written one at a time, in order
+    if (await installFile(home, path, source, chmodFile, onWritten)) {
+      written.push(path);
+    }
+  }
+
+  return written;
+};
+
+const removeStale = async (
+  home: string,
+  stale: string[],
+  owned: Set<string>,
+): Promise<string[]> => {
+  const removed: string[] = [];
+
+  for (const path of stale) {
+    // eslint-disable-next-line no-await-in-loop -- removals go one at a time, so empty folders go too
+    if (await removeFile(home, path)) {
+      removed.push(path);
+    }
+
+    owned.delete(path);
+  }
+
+  return removed;
+};
+
+const checkMods = async (
+  home: string,
+  planned: Map<string, string>,
+  check: InstallOptions['check'],
+): Promise<InstallResult['checks']> =>
+  Promise.all(
+    installedMods(planned.keys()).map(async (mod) => {
+      const result = await check(join(home, 'mods', mod));
+
+      return { mod, passed: result.passed, output: result.output };
+    }),
+  );
+
 export const install = async (options: InstallOptions): Promise<InstallResult> => {
   const home = resolve(options.home);
   const roots = options.roots ?? { userHome: resolve(homedir()), temporary: resolve(tmpdir()) };
@@ -299,10 +351,13 @@ export const install = async (options: InstallOptions): Promise<InstallResult> =
   await refuseLinkedHome(home, roots);
 
   const planned = await plannedFiles(options);
+  const modFiles = [...planned].filter(([path]) => isModFile(path));
+  const configFiles = [...planned].filter(([path]) => !isModFile(path));
   const earlier = await readRecord(home);
   const stale = earlier.filter((file) => !planned.has(file));
   const written: string[] = [];
   const removed: string[] = [];
+  const checks: InstallResult['checks'] = [];
   const owned = new Set<string>();
 
   const recordOwned = (writtenPath: string): void => {
@@ -322,34 +377,22 @@ export const install = async (options: InstallOptions): Promise<InstallResult> =
   }
 
   try {
-    for (const [path, source] of planned) {
-      // eslint-disable-next-line no-await-in-loop -- files are written one at a time, in order
-      const wrote = await installFile(home, path, source, chmodFile, recordOwned);
+    const modsWritten = await installFiles(home, modFiles, chmodFile, recordOwned);
 
-      if (wrote) {
-        written.push(path);
-      }
-    }
+    written.push(...modsWritten);
+    checks.push(...(await checkMods(home, planned, options.check)));
 
-    for (const path of stale) {
-      // eslint-disable-next-line no-await-in-loop -- removals go one at a time, so empty folders go too
-      if (await removeFile(home, path)) {
-        removed.push(path);
-      }
+    const allChecksPassed = checks.every((check) => check.passed);
 
-      owned.delete(path);
+    if (allChecksPassed) {
+      const configWritten = await installFiles(home, configFiles, chmodFile, recordOwned);
+
+      written.push(...configWritten);
+      removed.push(...(await removeStale(home, stale, owned)));
     }
   } finally {
     await writeRecord(home, owned);
   }
-
-  const checks = await Promise.all(
-    installedMods(planned.keys()).map(async (mod) => {
-      const result = await options.check(join(home, 'mods', mod));
-
-      return { mod, passed: result.passed, output: result.output };
-    }),
-  );
 
   return { written, removed, checks };
 };

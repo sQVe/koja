@@ -23,6 +23,11 @@ Herdr's folder. It replaces a symlink in its way with a real file and never writ
 runs `herdr-app check` on every installed mod. A watch mode builds and installs on every save, so
 edits stay in the repository.
 
+The installer writes and checks the mods before it touches config. It copies `keys.json`, the
+layout, the theme, and `settings.json`, and removes stale files, only when every mod check passed. A
+failed check leaves the earlier config and stale files in place, so keys and layouts keep naming
+mods that worked. Mod files already copied stay; nothing is rolled back.
+
 `keys.json`, the layout, and `settings.json` live in the repository, because they name Koja's mods
 and theme, and a rename must change them in the same commit.
 
@@ -38,6 +43,7 @@ and theme, and a rename must change them in the same commit.
 - An edit made directly in `~/.config/herdr-app` is lost at the next install.
 - Live editing needs the watch mode running.
 - Settings are per person, so a second machine with other needs must split them out.
+- A failed check can leave new mod files beside the old config until the next install.
 
 ## Alternatives considered
 
@@ -45,6 +51,11 @@ and theme, and a rename must change them in the same commit.
 
 Link each file into Herdr's folder. Rejected because Herdr refuses assets and imports through
 symlinks and does not reload when the target changes.
+
+### Config first, then checks
+
+Copy every file, then check the mods. Rejected because a failed check then leaves `keys.json` or the
+layout pointing at a mod that does not work, such as a key that opens a broken overlay.
 
 ### A repository in Herdr's folder
 

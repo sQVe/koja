@@ -251,7 +251,7 @@ export default class Tabs extends View {
         });
       });
 
-    const normalMode = Boolean(shared('modal.pill'));
+    const normalMode = Boolean(shared('koja-modal'));
 
     return h_flex()
       .flex_none()
