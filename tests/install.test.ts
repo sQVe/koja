@@ -15,7 +15,7 @@ import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 
 import type { CheckResult } from '../scripts/install.ts';
-import { install } from '../scripts/install.ts';
+import { install, trustedRoot } from '../scripts/install.ts';
 
 let root: string;
 let home: string;
@@ -137,7 +137,7 @@ describe('install', () => {
       expect(failure).toBeInstanceOf(Error);
       expect(failure).toHaveProperty('message', expect.stringContaining(home));
       expect(await readFile(join(target, 'mods', 'old', 'main.js'), 'utf8')).toBe('keep\n');
-      expect(await readdir(target)).toEqual(['.koja-install.json', 'mods']);
+      expect((await readdir(target)).toSorted()).toEqual(['.koja-install.json', 'mods']);
     } finally {
       await rm(target, { recursive: true, force: true });
     }
@@ -167,10 +167,67 @@ describe('install', () => {
       expect(failure).toBeInstanceOf(Error);
       expect(failure).toHaveProperty('message', expect.stringContaining(home));
       expect(await readFile(join(target, 'mods', 'old', 'main.js'), 'utf8')).toBe('keep\n');
-      expect(await readdir(target)).toEqual(['.koja-install.json', 'mods']);
+      expect((await readdir(target)).toSorted()).toEqual(['.koja-install.json', 'mods']);
     } finally {
       await rm(target, { recursive: true, force: true });
     }
+  });
+
+  test('refuses a symlinked ancestor of Herdr home', async () => {
+    const actual = join(root, 'actual');
+    const linked = join(root, 'linked');
+
+    await mkdir(actual);
+    await symlink(actual, linked);
+
+    const linkedHome = join(linked, 'herdr-app');
+
+    await mkdir(join(actual, 'herdr-app'));
+
+    const failure: unknown = await install({
+      home: linkedHome,
+      modsDirectory: mods,
+      configDirectory: config,
+      check: passingCheck,
+    }).catch((error: unknown) => error);
+
+    expect(failure).toBeInstanceOf(Error);
+    expect(failure).toHaveProperty('message', expect.stringContaining(linkedHome));
+    expect(await exists(join(actual, 'herdr-app', 'keys.json'))).toBe(false);
+  });
+
+  test('records a file when chmod fails after its bytes are written', async () => {
+    const smallConfig = join(root, 'chmod-config');
+    const smallMods = join(root, 'chmod-mods');
+
+    await writeAt(join(smallConfig, 'extra.json'), 'written\n');
+    await mkdir(smallMods);
+
+    const base = {
+      home,
+      modsDirectory: smallMods,
+      configDirectory: smallConfig,
+      check: passingCheck,
+    };
+
+    await install({
+      ...base,
+      chmodFile: async () => {
+        throw new Error('injected chmod failure');
+      },
+    }).catch(() => undefined);
+
+    const record = JSON.parse(await readFile(join(home, '.koja-install.json'), 'utf8')) as {
+      files: string[];
+    };
+
+    expect(record.files).toContain('extra.json');
+
+    await rm(join(smallConfig, 'extra.json'));
+
+    const result = await install(base);
+
+    expect(result.removed).toContain('extra.json');
   });
 
   test('removes files an earlier install wrote that the current one lacks', async () => {
@@ -310,6 +367,98 @@ describe('install', () => {
 
     expect(result.written).toEqual([]);
     expect(after.mtimeMs).toBe(before.mtimeMs);
+  });
+
+  test('records the files it wrote so a retry can remove an orphan after a failed copy', async () => {
+    await writeAt(join(config, 'extra.json'), 'orphan\n');
+    await mkdir(join(home, 'mods', 'koja-tabs', 'main.js'), { recursive: true });
+
+    await run().catch(() => undefined);
+
+    await rm(join(home, 'mods', 'koja-tabs', 'main.js'), { recursive: true, force: true });
+    await rm(join(config, 'extra.json'));
+
+    const result = await run();
+
+    expect(result.removed).toContain('extra.json');
+    expect(await exists(join(home, 'extra.json'))).toBe(false);
+  });
+
+  test('keeps a user file at a plan the installer never reached', async () => {
+    const smallConfig = join(root, 'small-config');
+    const smallMods = join(root, 'small-mods');
+
+    await writeAt(join(smallConfig, 'a.json'), 'new a\n');
+    await writeAt(join(smallConfig, 'z.json'), 'new z\n');
+    await mkdir(smallMods);
+
+    const entries = (await readdir(smallConfig, { recursive: true, withFileTypes: true }))
+      .filter((entry) => entry.isFile())
+      .map((entry) => entry.name);
+
+    const first = entries[0];
+    const second = entries[1];
+
+    if (first === undefined || second === undefined) {
+      throw new Error('need two files');
+    }
+
+    await mkdir(join(home, first), { recursive: true });
+    await writeAt(join(home, second), 'user data\n');
+
+    const options = {
+      home,
+      modsDirectory: smallMods,
+      configDirectory: smallConfig,
+      check: passingCheck,
+    };
+
+    await install(options).catch(() => undefined);
+
+    await rm(join(home, first), { recursive: true, force: true });
+    await rm(join(smallConfig, second));
+
+    await install(options);
+
+    expect(await readFile(join(home, second), 'utf8')).toBe('user data\n');
+  });
+
+  test('prefers the user home root over a nested temporary folder', () => {
+    const userHome = '/home/me';
+    const temporary = '/home/me/linked/temporary';
+
+    expect(trustedRoot('/home/me/linked/temporary/herdr-app', userHome, temporary)).toBe(userHome);
+  });
+
+  test('uses the temporary root when the home is only inside it', () => {
+    expect(trustedRoot('/tmp/work/herdr-app', '/home/me', '/tmp/work')).toBe('/tmp/work');
+  });
+
+  test('uses the filesystem root when the home is outside both roots', () => {
+    expect(trustedRoot('/opt/herdr-app', '/home/me', '/tmp/work')).toBe('/');
+  });
+
+  test('refuses a linked folder inside the user home above a nested temporary folder', async () => {
+    const userHome = join(root, 'user');
+    const actual = join(root, 'actual');
+    const linked = join(userHome, 'linked');
+    const temporary = join(linked, 'temporary');
+
+    await mkdir(userHome);
+    await mkdir(join(actual, 'temporary', 'herdr-app'), { recursive: true });
+    await symlink(actual, linked);
+
+    const failure: unknown = await install({
+      home: join(temporary, 'herdr-app'),
+      roots: { userHome, temporary },
+      modsDirectory: mods,
+      configDirectory: config,
+      check: passingCheck,
+    }).catch((error: unknown) => error);
+
+    expect(failure).toBeInstanceOf(Error);
+    expect(failure).toHaveProperty('message', expect.stringContaining(linked));
+    expect(await exists(join(actual, 'temporary', 'herdr-app', 'keys.json'))).toBe(false);
   });
 
   test('checks every installed mod and reports each result', async () => {

@@ -12,8 +12,8 @@ import {
   unlink,
   writeFile,
 } from 'node:fs/promises';
-import { homedir } from 'node:os';
-import { dirname, isAbsolute, join, normalize, relative, resolve, sep } from 'node:path';
+import { homedir, tmpdir } from 'node:os';
+import { dirname, isAbsolute, join, normalize, parse, relative, resolve, sep } from 'node:path';
 
 import { buildMods, isMissing, outputDirectory, sourceDirectory } from './build.ts';
 
@@ -22,11 +22,18 @@ export interface CheckResult {
   output: string;
 }
 
+export interface InstallRoots {
+  userHome: string;
+  temporary: string;
+}
+
 export interface InstallOptions {
   home: string;
   modsDirectory: string;
   configDirectory: string;
   check: (modFolder: string) => Promise<CheckResult>;
+  roots?: InstallRoots;
+  chmodFile?: (path: string, mode: number) => Promise<void>;
 }
 
 export interface InstallResult {
@@ -115,11 +122,51 @@ const readRecord = async (home: string): Promise<string[]> => {
   }
 };
 
-const refuseLinkedHome = async (home: string): Promise<void> => {
-  const entry = await lstatOrNull(home);
+const isInside = (path: string, root: string): boolean =>
+  path === root || path.startsWith(`${root}${sep}`);
 
-  if (entry?.isSymbolicLink() === true) {
-    throw new Error(`Refusing to install into the symlinked Herdr home ${home}`);
+// /home and /var can be symlinks on some systems, so start at a root the user controls.
+// The user's home wins over a temporary folder nested inside it, so a linked ancestor
+// between the two is still checked.
+export const trustedRoot = (home: string, userHome: string, temporary: string): string => {
+  if (isInside(home, userHome)) {
+    return userHome;
+  }
+
+  return isInside(home, temporary) ? temporary : parse(home).root;
+};
+
+const pathChain = (root: string, path: string): string[] => {
+  const parts = relative(root, path)
+    .split(sep)
+    .filter((piece) => piece !== '');
+
+  const chain = [root];
+  let folder = root;
+
+  for (const part of parts) {
+    folder = join(folder, part);
+    chain.push(folder);
+  }
+
+  return chain;
+};
+
+const refuseLinkedHome = async (home: string, roots: InstallRoots): Promise<void> => {
+  const root = trustedRoot(home, roots.userHome, roots.temporary);
+
+  for (const folder of pathChain(root, home)) {
+    // eslint-disable-next-line no-await-in-loop -- each folder is checked before the next one under it
+    const entry = await lstatOrNull(folder);
+
+    if (entry?.isSymbolicLink() === true) {
+      const where =
+        folder === home
+          ? `the symlinked Herdr home ${home}`
+          : `the symlinked folder ${folder} on the path from ${root} to Herdr home ${home}`;
+
+      throw new Error(`Refusing to install into ${where}`);
+    }
   }
 };
 
@@ -164,7 +211,13 @@ const isSameFile = async (source: string, destination: string): Promise<boolean>
   return sourceText.equals(destinationText);
 };
 
-const installFile = async (home: string, path: string, source: string): Promise<boolean> => {
+const installFile = async (
+  home: string,
+  path: string,
+  source: string,
+  chmodFile: (path: string, mode: number) => Promise<void>,
+  onWritten: (path: string) => void,
+): Promise<boolean> => {
   const destination = join(home, path);
 
   await removeSymlinkLeaf(destination);
@@ -179,7 +232,8 @@ const installFile = async (home: string, path: string, source: string): Promise<
 
   await mkdir(dirname(destination), { recursive: true });
   await copyFile(source, destination);
-  await chmod(destination, sourceStat.mode & permissionBits);
+  onWritten(path);
+  await chmodFile(destination, sourceStat.mode & permissionBits);
 
   return true;
 };
@@ -229,41 +283,65 @@ const installedMods = (paths: Iterable<string>): string[] => {
   return [...mods].toSorted();
 };
 
+const writeRecord = async (home: string, files: Iterable<string>): Promise<void> => {
+  const record = { version: recordVersion, files: [...files].toSorted() };
+  const recordPath = join(home, recordName);
+
+  await removeSymlinkLeaf(recordPath);
+  await writeFile(recordPath, `${JSON.stringify(record, null, 2)}\n`);
+};
+
 export const install = async (options: InstallOptions): Promise<InstallResult> => {
   const home = resolve(options.home);
+  const roots = options.roots ?? { userHome: resolve(homedir()), temporary: resolve(tmpdir()) };
+  const chmodFile = options.chmodFile ?? chmod;
 
-  await refuseLinkedHome(home);
+  await refuseLinkedHome(home, roots);
 
   const planned = await plannedFiles(options);
   const earlier = await readRecord(home);
   const stale = earlier.filter((file) => !planned.has(file));
   const written: string[] = [];
   const removed: string[] = [];
+  const owned = new Set<string>();
+
+  const recordOwned = (writtenPath: string): void => {
+    owned.add(writtenPath);
+  };
+
+  for (const path of earlier) {
+    // eslint-disable-next-line no-await-in-loop -- earlier paths are checked before anything changes
+    if ((await lstatOrNull(join(home, path))) !== null) {
+      owned.add(path);
+    }
+  }
 
   for (const path of [...planned.keys(), ...stale, recordName]) {
     // eslint-disable-next-line no-await-in-loop -- every destination is checked before anything changes
     await refuseLinkedFolders(home, path);
   }
 
-  for (const [path, source] of planned) {
-    // eslint-disable-next-line no-await-in-loop -- files are written one at a time, in order
-    if (await installFile(home, path, source)) {
-      written.push(path);
+  try {
+    for (const [path, source] of planned) {
+      // eslint-disable-next-line no-await-in-loop -- files are written one at a time, in order
+      const wrote = await installFile(home, path, source, chmodFile, recordOwned);
+
+      if (wrote) {
+        written.push(path);
+      }
     }
-  }
 
-  for (const path of stale) {
-    // eslint-disable-next-line no-await-in-loop -- removals go one at a time, so empty folders go too
-    if (await removeFile(home, path)) {
-      removed.push(path);
+    for (const path of stale) {
+      // eslint-disable-next-line no-await-in-loop -- removals go one at a time, so empty folders go too
+      if (await removeFile(home, path)) {
+        removed.push(path);
+      }
+
+      owned.delete(path);
     }
+  } finally {
+    await writeRecord(home, owned);
   }
-
-  const record = { version: recordVersion, files: [...planned.keys()].toSorted() };
-  const recordPath = join(home, recordName);
-
-  await removeSymlinkLeaf(recordPath);
-  await writeFile(recordPath, `${JSON.stringify(record, null, 2)}\n`);
 
   const checks = await Promise.all(
     installedMods(planned.keys()).map(async (mod) => {
