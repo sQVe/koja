@@ -69,6 +69,12 @@ const observeFocus = (deps: ExecutorDeps): NormalModeHistory => {
     return previous;
   }
 
+  const unchanged = previous.current?.pane === focused.pane && previous.current.tab === focused.tab;
+
+  if (unchanged) {
+    return previous;
+  }
+
   const next: NormalModeHistory = {
     ...previous,
     current: { pane: focused.pane, tab: focused.tab },

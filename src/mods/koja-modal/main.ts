@@ -103,6 +103,7 @@ export default class KojaModal extends View {
 
   private keepKeyboard(cx: AsyncContext): void {
     repeat(cx, refocusIntervalMilliseconds, () => {
+      this.executor.observe();
       this.hold.check();
     });
   }

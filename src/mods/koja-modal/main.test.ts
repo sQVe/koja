@@ -55,6 +55,8 @@ let closeCalls: (string | null)[] = [];
 let focusCalls = 0;
 let keyDownHandler: ((event: unknown) => void) | null = null;
 let sharedValues: Record<string, unknown> = {};
+let sharedWrites: string[] = [];
+let tickHandler: (() => void) | null = null;
 const commandQueue: string[] = [];
 const commandWaiters: ((command: string) => void)[] = [];
 
@@ -145,6 +147,7 @@ await mock.module('herdr', () => ({
   },
   setShared: (key: string, value: unknown) => {
     sharedValues[key] = value;
+    sharedWrites.push(key);
 
     return null;
   },
@@ -157,7 +160,9 @@ await mock.module('../../kit/index.ts', () => ({
   },
   modName: 'koja-modal',
   overlayId: () => 'overlay-1',
-  repeat: (_cx: unknown, _milliseconds: number, _handler: () => void) => {},
+  repeat: (_cx: unknown, _milliseconds: number, handler: () => void) => {
+    tickHandler = handler;
+  },
 }));
 
 const loadView = async (): Promise<FakeView> => {
@@ -197,6 +202,8 @@ beforeEach(() => {
   focusCalls = 0;
   keyDownHandler = null;
   sharedValues = {};
+  sharedWrites = [];
+  tickHandler = null;
   commandQueue.length = 0;
   commandWaiters.length = 0;
 });
@@ -261,6 +268,31 @@ describe('koja modal view', () => {
     keyDownHandler?.(plain('p'));
 
     expect(runCalls).toEqual([{ command: 'pane.focus', args: { pane: 'p2' } }]);
+  });
+
+  test('ctrl-w p returns to the pane before a focus change made outside normal mode keys', async () => {
+    const view = await loadView();
+
+    view.render();
+    focusedPane = 'p2';
+    tickHandler?.();
+    focusedPane = 'p3';
+    tickHandler?.();
+    runCalls = [];
+
+    keyDownHandler?.(control('w', 'ctrl-w'));
+    keyDownHandler?.(plain('p'));
+
+    expect(runCalls).toEqual([{ command: 'pane.focus', args: { pane: 'p2' } }]);
+  });
+
+  test('a tick with unchanged focus writes no shared state', async () => {
+    await loadView();
+
+    sharedWrites = [];
+    tickHandler?.();
+
+    expect(sharedWrites).toEqual([]);
   });
 
   test('the hold command neither closes nor runs anything', async () => {
