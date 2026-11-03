@@ -152,6 +152,7 @@ await mock.module('herdr', () => ({
     return null;
   },
   shared: (key: string) => sharedValues[key],
+  spaces: () => [],
 }));
 
 await mock.module('../../kit/index.ts', () => ({

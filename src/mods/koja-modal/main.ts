@@ -1,6 +1,6 @@
 import type { AsyncContext, Context, Element, FocusHandle, KeyEvent } from 'gpui-kit';
 import { div, View } from 'gpui-kit';
-import { exec, focused, nextCommand, panes, run, setShared, shared } from 'herdr';
+import { exec, focused, nextCommand, panes, run, setShared, shared, spaces } from 'herdr';
 
 import { closeOverlay, modName, overlayId, repeat } from '../../kit/index.ts';
 import { runNormalModeCommand } from './commands.ts';
@@ -37,6 +37,7 @@ export default class KojaModal extends View {
     run,
     panes,
     focused,
+    spaces,
     store: {
       get: (key) => shared(key),
       set: (key, value) => {

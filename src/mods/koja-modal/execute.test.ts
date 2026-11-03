@@ -1,5 +1,6 @@
 import { describe, expect, test } from 'bun:test';
 
+import { writeSpaceOrder } from '../../kit/spaceOrder.ts';
 import type { Executor, PaneLike } from './execute.ts';
 import { createExecutor } from './execute.ts';
 import type { KeyModifiers, NormalKeyEvent } from './keyEvent.ts';
@@ -17,7 +18,10 @@ interface Session {
   press: (event: NormalKeyEvent) => void;
   reopen: () => void;
   setFocus: (pane: string | null, tab?: string) => void;
+  setSpace: (space: string) => void;
+  setLiveSpaces: (ids: string[]) => void;
   setPanes: (panes: PaneLike[]) => void;
+  publishOrder: (shown: string[], hidden?: string[]) => void;
 }
 
 const noModifiers: KeyModifiers = {
@@ -48,11 +52,20 @@ const named = (key: string, keystroke: string): NormalKeyEvent => ({
   modifiers: noModifiers,
 });
 
+const shiftTab = (): NormalKeyEvent => ({
+  key: 'tab',
+  keystroke: 'shift-tab',
+  key_char: '\t',
+  modifiers: { ...noModifiers, shift: true },
+});
+
 const historyKey = 'koja-modal.history';
 
 const createSession = (initialPanes: PaneLike[], startPane: string, startTab: string): Session => {
   let currentPane: string | null = startPane;
   let currentTab = startTab;
+  let currentSpace = 'space-1';
+  let liveSpaces: string[] = [];
   let panes = initialPanes;
   let state = initialParserState;
   const values: Record<string, unknown> = {};
@@ -79,7 +92,8 @@ const createSession = (initialPanes: PaneLike[], startPane: string, startTab: st
     createExecutor({
       run,
       panes: () => panes,
-      focused: () => ({ pane: currentPane, tab: currentTab }),
+      focused: () => ({ pane: currentPane, tab: currentTab, space: currentSpace }),
+      spaces: () => liveSpaces.map((id) => ({ id })),
       store,
       historyKey,
     });
@@ -96,8 +110,17 @@ const createSession = (initialPanes: PaneLike[], startPane: string, startTab: st
         currentTab = tab;
       }
     },
+    setSpace: (space) => {
+      currentSpace = space;
+    },
+    setLiveSpaces: (ids) => {
+      liveSpaces = ids;
+    },
     setPanes: (next) => {
       panes = next;
+    },
+    publishOrder: (shown, hidden = []) => {
+      writeSpaceOrder(store.set, { shown, hidden });
     },
     press: (event) => {
       const result = parseKey(state, normalizeKey(event));
@@ -400,6 +423,131 @@ describe('observed history', () => {
       { command: 'space.next', args: undefined },
       { command: 'tab.select', args: { id: 'tab-1' } },
       { command: 'pane.focus', args: { pane: 'p1' } },
+    ]);
+  });
+});
+
+describe('space navigation', () => {
+  // Herdr's list is main, notes, worktree; the sidebar nests the worktree under main.
+  const sidebarOrder = ['main', 'worktree', 'notes'];
+
+  const focusedSession = (space: string): Session => {
+    const session = createSession(twoPanes, 'p1', 'tab-1');
+
+    session.setSpace(space);
+    session.setLiveSpaces(sidebarOrder);
+
+    return session;
+  };
+
+  test('Tab falls back to space.next when a live space is in neither published list', () => {
+    const session = focusedSession('main');
+
+    session.setLiveSpaces(['main', 'notes', 'added']);
+    session.publishOrder(['main', 'notes']);
+    session.press(named('tab', 'tab'));
+
+    expect(session.calls).toEqual([{ command: 'space.next', args: undefined }]);
+  });
+
+  test('Shift-Tab falls back to space.prev when a live space is in neither published list', () => {
+    const session = focusedSession('main');
+
+    session.setLiveSpaces(['main', 'notes', 'added']);
+    session.publishOrder(['main', 'notes']);
+    session.press(shiftTab());
+
+    expect(session.calls).toEqual([{ command: 'space.prev', args: undefined }]);
+  });
+
+  test('Tab skips a folded space listed as hidden, without falling back', () => {
+    const session = focusedSession('main');
+
+    session.setLiveSpaces(['main', 'worktree', 'notes']);
+    session.publishOrder(['main', 'notes'], ['worktree']);
+    session.press(named('tab', 'tab'));
+
+    expect(session.calls).toEqual([{ command: 'space.select', args: { id: 'notes' } }]);
+  });
+
+  test('Tab skips a space that was removed after the order was published', () => {
+    const session = focusedSession('main');
+
+    session.setLiveSpaces(['main', 'notes']);
+    session.publishOrder(['main', 'removed', 'notes']);
+    session.press(named('tab', 'tab'));
+
+    expect(session.calls).toEqual([{ command: 'space.select', args: { id: 'notes' } }]);
+  });
+
+  test('Shift-Tab skips a space that was removed after the order was published', () => {
+    const session = focusedSession('notes');
+
+    session.setLiveSpaces(['main', 'notes']);
+    session.publishOrder(['main', 'removed', 'notes']);
+    session.press(shiftTab());
+
+    expect(session.calls).toEqual([{ command: 'space.select', args: { id: 'main' } }]);
+  });
+
+  test('Tab selects the next row of the sidebar, not the next space in Herdr order', () => {
+    const session = focusedSession('main');
+
+    session.publishOrder(sidebarOrder);
+    session.press(named('tab', 'tab'));
+
+    expect(session.calls).toEqual([{ command: 'space.select', args: { id: 'worktree' } }]);
+  });
+
+  test('Shift-Tab selects the row above in the sidebar', () => {
+    const session = focusedSession('worktree');
+
+    session.publishOrder(sidebarOrder);
+    session.press(shiftTab());
+
+    expect(session.calls).toEqual([{ command: 'space.select', args: { id: 'main' } }]);
+  });
+
+  test('Tab wraps from the last row to the first', () => {
+    const session = focusedSession('notes');
+
+    session.publishOrder(sidebarOrder);
+    session.press(named('tab', 'tab'));
+
+    expect(session.calls).toEqual([{ command: 'space.select', args: { id: 'main' } }]);
+  });
+
+  test('Shift-Tab wraps from the first row to the last', () => {
+    const session = focusedSession('main');
+
+    session.publishOrder(sidebarOrder);
+    session.press(shiftTab());
+
+    expect(session.calls).toEqual([{ command: 'space.select', args: { id: 'notes' } }]);
+  });
+
+  test('Tab and Shift-Tab run space.next and space.prev when no order is published', () => {
+    const session = focusedSession('main');
+
+    session.press(named('tab', 'tab'));
+    session.press(shiftTab());
+
+    expect(session.calls).toEqual([
+      { command: 'space.next', args: undefined },
+      { command: 'space.prev', args: undefined },
+    ]);
+  });
+
+  test('Tab and Shift-Tab run space.next and space.prev when the focused space is not in the order', () => {
+    const session = focusedSession('hidden');
+
+    session.publishOrder(sidebarOrder);
+    session.press(named('tab', 'tab'));
+    session.press(shiftTab());
+
+    expect(session.calls).toEqual([
+      { command: 'space.next', args: undefined },
+      { command: 'space.prev', args: undefined },
     ]);
   });
 });

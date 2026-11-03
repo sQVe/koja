@@ -1,5 +1,7 @@
 import { recordOf, stringOf } from '../../kit/fields.ts';
 import type { NormalAction, NormalIntent } from '../../kit/normalKeys.ts';
+import type { SpaceOrder } from '../../kit/spaceOrder.ts';
+import { readSpaceOrder } from '../../kit/spaceOrder.ts';
 
 export interface PaneLike {
   pane: string;
@@ -9,6 +11,11 @@ export interface PaneLike {
 interface FocusedPane {
   pane: string | null;
   tab: string | null;
+  space: string | null;
+}
+
+interface LiveSpace {
+  id: string;
 }
 
 interface ExecutorStore {
@@ -22,6 +29,7 @@ export interface ExecutorDeps {
   run: RunCommand;
   panes: () => PaneLike[];
   focused: () => FocusedPane | null;
+  spaces: () => LiveSpace[];
   store: ExecutorStore;
   historyKey: string;
 }
@@ -48,7 +56,11 @@ const readFocused = (value: unknown): FocusedPane | null => {
 
   const record = recordOf(value);
 
-  return { pane: stringOf(record['pane']), tab: stringOf(record['tab']) };
+  return {
+    pane: stringOf(record['pane']),
+    tab: stringOf(record['tab']),
+    space: stringOf(record['space']),
+  };
 };
 
 const readHistory = (value: unknown): NormalModeHistory => {
@@ -77,7 +89,7 @@ const observeFocus = (deps: ExecutorDeps): NormalModeHistory => {
 
   const next: NormalModeHistory = {
     ...previous,
-    current: { pane: focused.pane, tab: focused.tab },
+    current: { pane: focused.pane, tab: focused.tab, space: focused.space },
   };
 
   if (previous.current !== null) {
@@ -206,6 +218,55 @@ const focusLastTab = (previous: NormalModeHistory, deps: ExecutorDeps): void => 
   deps.run('tab.select', { id: target });
 };
 
+const spaceIndex = (order: string[] | null, current: string | null): number => {
+  if (order === null || current === null) {
+    return -1;
+  }
+
+  return order.indexOf(current);
+};
+
+const hasUnlistedSpace = (order: SpaceOrder, liveIds: string[]): boolean =>
+  liveIds.some((id) => !order.shown.includes(id) && !order.hidden.includes(id));
+
+const liveSpaceOrder = (deps: ExecutorDeps): string[] | null => {
+  const order = readSpaceOrder(deps.store.get);
+
+  if (order === null) {
+    return null;
+  }
+
+  const liveIds = deps.spaces().map((space) => space.id);
+
+  if (hasUnlistedSpace(order, liveIds)) {
+    return null;
+  }
+
+  const live = new Set(liveIds);
+
+  return order.shown.filter((id) => live.has(id));
+};
+
+const stepSpace = (step: number, fallback: string, deps: ExecutorDeps): void => {
+  const order = liveSpaceOrder(deps);
+  const current = deps.focused()?.space ?? null;
+  const index = spaceIndex(order, current);
+
+  if (order === null || index === -1) {
+    deps.run(fallback);
+
+    return;
+  }
+
+  const target = order[(index + step + order.length) % order.length];
+
+  if (target === undefined || target === current) {
+    return;
+  }
+
+  deps.run('space.select', { id: target });
+};
+
 const intentRunners: Record<NormalIntent, IntentRunner> = {
   closeOtherPanes: (_count, _previous, deps) => {
     closeOtherPanes(deps);
@@ -224,6 +285,12 @@ const intentRunners: Record<NormalIntent, IntentRunner> = {
   },
   lastTab: (_count, previous, deps) => {
     focusLastTab(previous, deps);
+  },
+  nextSpace: (_count, _previous, deps) => {
+    stepSpace(1, 'space.next', deps);
+  },
+  previousSpace: (_count, _previous, deps) => {
+    stepSpace(-1, 'space.prev', deps);
   },
 };
 
