@@ -25,6 +25,9 @@ and code states behavior.
   ADRs.
 - The root README introduces the project and links to the rest. Topic details go in `docs/` and are
   linked from the [documentation index](../README.md).
+- A tool's tuning record, such as `scripts/mutation-tuning.md`, lives next to the tool's setup. It
+  states why each setting has its value and the measured runs behind it, so a later change can be
+  measured the same way. It describes no feature.
 
 ### Adding and changing documents
 
@@ -38,8 +41,9 @@ never has to combine two ADRs.
 The only status is Accepted. A retired ADR leaves the tree. The metadata is Date, Status, and at
 most one Supersedes line and one Related line.
 
-Do not write ticket IDs, benchmark tables, version numbers, or file lists that go stale. Name a file
-only when the decision is about that file.
+In ADRs and `docs/`, do not write ticket IDs, benchmark tables, version numbers, or file lists that
+go stale. Name a file only when the decision is about that file. A tuning record may hold the
+benchmark tables of the runs it was tuned on.
 
 The [index](./README.md) groups current ADRs by area and ends with a Retired table. Numbers are
 never reused. Git keeps the history, and `git show <commit>:docs/adr/<file>` restores a retired ADR.
