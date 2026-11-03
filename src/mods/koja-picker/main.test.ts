@@ -78,6 +78,7 @@ await mock.module('herdr', () => ({
   },
   shared: (key: string) => sharedValues[key],
   spaces: () => [],
+  terminals: () => [],
   writeTextFile: () => null,
 }));
 
@@ -104,6 +105,7 @@ await mock.module('../../kit/index.ts', () => ({
   radius: {},
   recordOf,
   repeat: () => undefined,
+  rollupStatuses: () => ({ spaces: {}, tabs: {} }),
   rowHeight: {},
   searchField: () => chainable(),
   spacing: {},
