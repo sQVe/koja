@@ -15,6 +15,8 @@ export interface TabOptions extends HoverOptions {
   icon: Element | null;
   status: Status | null;
   close: Element | null;
+  // The tab touches the edge of the bar, where the neighbor already draws a line.
+  atBarStart?: boolean;
 }
 
 const shownStatus = (status: Status | null): Status | null => (status === 'idle' ? null : status);
@@ -48,11 +50,11 @@ export const tab = (options: TabOptions): Element => {
     .border_color(palette.border);
 
   if (options.active) {
-    element
-      .bg(palette.background)
-      .border_l(spacing.hairline)
-      .border_r(spacing.hairline)
-      .text_color(palette.foreground);
+    element.bg(palette.background).border_r(spacing.hairline).text_color(palette.foreground);
+
+    if (options.atBarStart !== true) {
+      element.border_l(spacing.hairline);
+    }
   } else {
     element.bg(palette.chrome).border_b(spacing.hairline).text_color(palette.muted);
 

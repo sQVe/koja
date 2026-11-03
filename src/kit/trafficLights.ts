@@ -1,4 +1,4 @@
-import { spacing, trafficLightsWidth } from './size.ts';
+import { trafficLightsWidth } from './size.ts';
 
 interface TrafficLightsContext {
   platform: 'linux' | 'macos' | 'windows';
@@ -7,16 +7,18 @@ interface TrafficLightsContext {
   lights: number | null;
   zoom: number;
   offset: number;
+  // The padding where no traffic lights need room.
+  base: number;
 }
 
 export const trafficLightsPadding = (context: TrafficLightsContext): number => {
   const ownTitleBar = context.platform === 'macos' && context.titlebar === 'none';
 
   if (!ownTitleBar || context.fullscreen || context.lights === null) {
-    return spacing.large;
+    return context.base;
   }
 
   const needed = (context.lights + trafficLightsWidth) / context.zoom - context.offset;
 
-  return Math.max(spacing.large, needed);
+  return Math.max(context.base, needed);
 };

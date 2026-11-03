@@ -59,7 +59,7 @@
             "mod": "koja-tabs"
           },
           "size": {
-            "px": 32
+            "px": 28
           },
           "window_drag": true
         },
@@ -127,7 +127,7 @@
   ],
   "background": "canvas",
   "ui_font": "IBM Plex Sans",
-  "terminal_padding": [14, 12],
+  "terminal_padding": [2, 0],
   "divider": {
     "width": 1,
     "color": "border"

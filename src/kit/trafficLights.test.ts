@@ -10,6 +10,7 @@ const macos = {
   lights: 12,
   zoom: 1,
   offset: 0,
+  base: spacing.large,
 };
 
 describe('trafficLightsPadding', () => {
@@ -23,6 +24,14 @@ describe('trafficLightsPadding', () => {
 
   test('scales the needed room by the zoom factor', () => {
     expect(trafficLightsPadding({ ...macos, zoom: 2 })).toBe((12 + trafficLightsWidth) / 2);
+  });
+
+  test('uses the given base padding where no traffic lights need room', () => {
+    expect(trafficLightsPadding({ ...macos, platform: 'linux', base: spacing.none })).toBe(
+      spacing.none,
+    );
+
+    expect(trafficLightsPadding({ ...macos, offset: 268, base: spacing.none })).toBe(spacing.none);
   });
 
   test('keeps the base padding on other systems', () => {

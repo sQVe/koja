@@ -78,6 +78,7 @@ const spacesHeaderPadding = (): number => {
     lights: layoutRoot().trafficLights,
     zoom,
     offset: 0,
+    base: spacing.large,
   });
 };
 
