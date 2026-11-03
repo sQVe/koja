@@ -319,7 +319,6 @@ describe('koja modal view', () => {
     keyDownHandler?.(control('w', 'ctrl-w'));
     keyDownHandler?.(plain('w'));
 
-    // The palette opens before the regain timer runs and takes the keyboard.
     paletteOpen = true;
     overlayFocused = false;
 

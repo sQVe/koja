@@ -102,8 +102,6 @@ export const createKeyboardHold = (deps: KeyboardHoldDeps): KeyboardHold => {
     }
 
     if (blocked === false) {
-      // An overlay can open while the lookup is in flight, so confirm the empty
-      // status right before taking the keyboard back.
       if (!confirmed) {
         pending = true;
 
