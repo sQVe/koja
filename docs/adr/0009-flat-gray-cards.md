@@ -25,7 +25,7 @@ border for focus. The frame, panes, terminals, sidebar, and tab bar all share th
 
 ### Panes and side panel
 
-- Panes and the side panel are rounded cards with a faint `hover` outline.
+- Panes and the side panel are rounded cards with a faint `selected` outline.
 - Focus shows as the `accent` border and a brighter header: the focused pane's title is `foreground`
   and its icon `muted`, while other panes use `muted` and `dim`. Koja adds no other focus mark.
 
