@@ -140,7 +140,7 @@
     }
   ],
   "background": "canvas",
-  "ui_font": "IBM Plex Sans",
+  "ui_font": "Geist",
   "terminal_padding": [4, 10],
   "terminal_opacity": 0,
   "titlebar": "none",

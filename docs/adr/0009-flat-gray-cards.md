@@ -23,6 +23,13 @@ Koja uses one flat base color for the whole window, with rounded cards on top of
 border for focus. The frame, panes, terminals, sidebar, and tab bar all share the base color of
 `catppuccin-latte-muted`, Koja's one theme.
 
+### Text
+
+- Mods draw their text in Geist, Herdr's bundled sans font, set as the layout's `ui_font`. Terminals
+  keep their own monospace font.
+- The kit's text sizes run 9, 11, 13, and 15 px. Geist is wider than most sans fonts, and the
+  smaller scale keeps the sidebar and tab titles about as dense as before.
+
 ### Panes and side panel
 
 - Panes and the side panel are rounded cards with a faint `selected` outline.
