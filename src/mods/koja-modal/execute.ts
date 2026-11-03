@@ -61,8 +61,6 @@ const readHistory = (value: unknown): NormalModeHistory => {
   };
 };
 
-// A command's effect on focus is only visible after Herdr applies it. Compare the focus seen now
-// with the last observation instead of guessing from the command name.
 const observeFocus = (deps: ExecutorDeps): NormalModeHistory => {
   const focused = deps.focused();
   const previous = readHistory(deps.store.get(deps.historyKey));
