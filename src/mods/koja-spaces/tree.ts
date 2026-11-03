@@ -46,8 +46,6 @@ export interface SpaceRow extends ListedSpace {
 
 export type TreeRow = RepoRow | SpaceRow;
 
-// A repository group keeps its label and the worktree rows its fold shows. A plain group is one
-// space. Groups are the unit the rail lines and the full sidebar gaps sit between.
 interface RepoGroup {
   kind: 'repo';
   repo: RepoRef;
@@ -105,8 +103,6 @@ const listedOfGroup = (group: TreeGroup): ListedSpace =>
 export const machineOfGroup = (group: TreeGroup): string | null =>
   listedOfGroup(group).space.machine ?? null;
 
-// A rail line sits between two groups of one machine when either of them is a repository. The
-// first group of a machine has none above it.
 const isRepository = (group: TreeGroup | null): boolean => group?.kind === 'repo';
 
 export const railLineBefore = (group: TreeGroup, previous: TreeGroup | null): boolean => {
@@ -117,7 +113,6 @@ export const railLineBefore = (group: TreeGroup, previous: TreeGroup | null): bo
   return isRepository(group) || isRepository(previous);
 };
 
-// The full sidebar leaves a gap above every repository group except the first of its machine.
 export const groupGapBefore = (group: TreeGroup, previous: TreeGroup | null): boolean =>
   previous !== null && group.kind === 'repo';
 
@@ -127,8 +122,6 @@ const isMain = (row: ListedSpace): row is ListedSpace & { git: GitInfo } =>
 const shownWhenFolded = (row: ListedSpace): boolean =>
   row.space.active || needsYou(row.space.status);
 
-// A hidden git folder, such as `.git` or a bare `.bare`, sits inside the folder that names the
-// repository.
 export const repoName = (path: string): string => {
   const parts = path.split('/').filter((part) => part !== '');
   const last = parts.pop() ?? '';

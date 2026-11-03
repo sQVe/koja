@@ -91,8 +91,6 @@ const newSpaceRow = (host: MachineRowsHost, machine: string | null, collapsed: b
 
 const groupGap = (): Element => div().h(spacing.medium);
 
-// A group draws its label and kept worktrees. The rail line and the full sidebar gap sit above its
-// first row, so nothing separates a repository from its own worktrees.
 const groupChildren = (
   host: MachineRowsHost,
   groups: TreeGroup[],
