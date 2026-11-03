@@ -197,6 +197,22 @@ const globalEntries = (host: MenuHost): MenuEntry[] => [
     ),
 ];
 
+export const selectedIndex = (items: MenuEntry[], label: string | null): number => {
+  const index = items.findIndex((item) => item.label === label);
+
+  return index === -1 ? 0 : index;
+};
+
+export const stepSelection = (
+  items: MenuEntry[],
+  label: string | null,
+  step: 1 | -1,
+): string | null => {
+  const next = (selectedIndex(items, label) + step + items.length) % items.length;
+
+  return items[next]?.label ?? null;
+};
+
 export const menuEntries = (menu: MenuProps, checkout: Checkout, host: MenuHost): MenuEntry[] => {
   if (menu.kind === 'pane') {
     return paneEntries(host, menu.target);
