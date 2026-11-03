@@ -32,7 +32,7 @@ export {
   textSize,
 } from './size.ts';
 
-export { attentionBadge, fileStatusMark, indicator, statusMark } from './statusMark.ts';
+export { attentionBadge, fileStatusMark, indicator, spaceMark, statusMark } from './statusMark.ts';
 
 export type { FileStatus } from './fileStatus.ts';
 

@@ -18,6 +18,14 @@ const dot = (size: number, color: Color): Element =>
     .flex_none()
     .bg(color);
 
+const ring = (size: number, color: Color): Element =>
+  div()
+    .size(size)
+    .rounded(size / 2)
+    .flex_none()
+    .border(spacing.hairline)
+    .border_color(color);
+
 export const statusMark = (status: Status | null): Element => {
   const slot = h_flex().w(markSize.slot).flex_none().items_center().justify_center();
   const palette = colors();
@@ -35,6 +43,14 @@ export const statusMark = (status: Status | null): Element => {
   }
 
   return slot.child(dot(markSize.dot, palette[status]));
+};
+
+export const spaceMark = (status: Status | null): Element => {
+  if (status !== null) {
+    return statusMark(status);
+  }
+
+  return statusMark(null).child(ring(markSize.dot, colors().border));
 };
 
 export const indicator = (token: ThemeToken): Element => dot(markSize.dot, colors()[token]);

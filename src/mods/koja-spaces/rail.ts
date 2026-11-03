@@ -3,7 +3,7 @@ import type { Element } from 'gpui-kit';
 import { div } from 'gpui-kit';
 import { run } from 'herdr';
 
-import { listRow, separator, spacing, statusMark } from '../../kit/index.ts';
+import { listRow, separator, spaceMark, spacing } from '../../kit/index.ts';
 import type { TreeRow } from './tree.ts';
 import { listedOf } from './tree.ts';
 
@@ -18,7 +18,7 @@ export const railRow = (row: TreeRow, title: string, lineAbove: boolean): Elemen
     state: space.active ? 'selected' : 'normal',
     centered: true,
     label: '',
-    end: [statusMark(status ?? 'idle')],
+    end: [spaceMark(status)],
   })
     .id(`space-${space.id}`)
     .tooltip(title)

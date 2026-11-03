@@ -45,6 +45,12 @@ border for focus. The frame, panes, terminals, sidebar, and tab bar all share th
 - A pill sits inside the bar on its own, so it works with any gap between the bar and the pane
   cards.
 
+### Status marks
+
+- A sidebar space with no agent shows a hollow ring in the `border` color, so every space row has a
+  mark and the list reads as one column. The ring is quieter than the filled idle dot, so it does
+  not read as a state. Rows outside the sidebar, such as tabs and picker rows, keep an empty slot.
+
 ### Popups
 
 - Popups keep Herdr's overlay frame, which draws on the `popover` color.
@@ -96,3 +102,12 @@ Koja would depend on a font the machine may lack.
 
 Draw the side panel flat, with a divider between it and the panes. Rejected because the work areas
 would then have two shapes: cards for panes and a flat area for the side panel.
+
+### Dimmed names for spaces with no agent
+
+Keep the empty slot and draw the names of spaces with no agent in `muted`. Rejected because the slot
+stays empty, so rows with and without a mark still do not read as one column.
+
+### A ring in the idle color
+
+Draw the ring in the `idle` color. Rejected because it then looked as heavy as the idle dot.
