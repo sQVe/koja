@@ -61,6 +61,8 @@
           "size": {
             "px": 28
           },
+          "padding": [0, 6],
+          "background": "chrome",
           "window_drag": true
         },
         {

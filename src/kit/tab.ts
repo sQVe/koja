@@ -5,7 +5,7 @@ import type { Status } from 'herdr';
 
 import type { HoverOptions } from './hover.ts';
 import { withHover } from './hover.ts';
-import { controlSize, iconSize, spacing, textSize } from './size.ts';
+import { controlSize, iconSize, radius, spacing, textSize } from './size.ts';
 import { statusMark } from './statusMark.ts';
 import { colors } from './theme.ts';
 
@@ -15,8 +15,6 @@ export interface TabOptions extends HoverOptions {
   icon: Element | null;
   status: Status | null;
   close: Element | null;
-  // The tab touches the edge of the bar, where the neighbor already draws a line.
-  atBarStart?: boolean;
 }
 
 const shownStatus = (status: Status | null): Status | null => (status === 'idle' ? null : status);
@@ -41,22 +39,18 @@ export const tab = (options: TabOptions): Element => {
   const palette = colors();
 
   const element = h_flex()
-    .h_full()
+    .h(controlSize.button)
     .px(spacing.medium)
     .gap(spacing.small)
     .flex_none()
     .items_center()
-    .text_size(textSize.default)
-    .border_color(palette.border);
+    .rounded(radius.pill)
+    .text_size(textSize.default);
 
   if (options.active) {
-    element.bg(palette.background).border_r(spacing.hairline).text_color(palette.foreground);
-
-    if (options.atBarStart !== true) {
-      element.border_l(spacing.hairline);
-    }
+    element.bg(palette.selected).text_color(palette.foreground);
   } else {
-    element.bg(palette.chrome).border_b(spacing.hairline).text_color(palette.muted);
+    element.text_color(palette.muted);
 
     withHover(element, options.hovered === true, (styled) => styled.bg(palette.hover));
   }
@@ -73,6 +67,3 @@ export const tab = (options: TabOptions): Element => {
 
   return element.child(endSlot(options));
 };
-
-export const tabBarEdge = (element: Element): Element =>
-  element.h_full().border_b(spacing.hairline).border_color(colors().border);

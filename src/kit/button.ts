@@ -31,7 +31,7 @@ export const iconButton = (options: IconButtonOptions): Element => {
     .flex_none()
     .items_center()
     .justify_center()
-    .rounded(radius.default)
+    .rounded(radius.pill)
     .text_color(palette.dim)
     .child(icon(options.name, 'small'));
 
@@ -59,7 +59,7 @@ export const toggleButton = (options: ToggleButtonOptions): Element => {
     .gap(spacing.xsmall)
     .flex_none()
     .items_center()
-    .rounded(radius.default)
+    .rounded(radius.pill)
     .cursor_pointer()
     .text_size(textSize.small)
     .text_color(toggleTextColor(options));

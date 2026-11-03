@@ -8,6 +8,7 @@ import type { IconName, RowState } from '../../kit/index.ts';
 import {
   attentionBadge,
   colors,
+  controlSize,
   detailText,
   emptyState,
   highlightedText,
@@ -26,7 +27,6 @@ import {
   spinner,
   statusMark,
   tab,
-  tabBarEdge,
   textSize,
   toggleButton,
 } from '../../kit/index.ts';
@@ -256,7 +256,9 @@ const buttons = (): Element[] => [
 
 const tabs = (): Element[] => [
   h_flex()
-    .h(spacing.xxlarge + spacing.large)
+    .h(controlSize.tabBar)
+    .items_center()
+    .gap(spacing.xxsmall)
     .bg(colors().chrome)
     .child(
       tab({
@@ -287,7 +289,7 @@ const tabs = (): Element[] => [
       }),
     )
     .child(tab({ label: 'Idle', active: false, icon: null, status: 'idle', close: null }))
-    .child(tabBarEdge(div().flex_1())),
+    .child(div().flex_1()),
 ];
 
 // The gallery itself paints `popover`, so the sample sits on `chrome` to show the surface's edge.

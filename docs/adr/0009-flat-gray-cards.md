@@ -29,6 +29,13 @@ border for focus. The frame, panes, terminals, sidebar, and tab bar all share th
 - Focus shows as the `accent` border and a brighter header: the focused pane's title is `foreground`
   and its icon `muted`, while other panes use `muted` and `dim`. Koja adds no other focus mark.
 
+### Tabs and controls
+
+- The tab bar's tabs, the panel switcher, and the kit's toggle and icon buttons are pills. They
+  round with the kit's `radius.pill`.
+- A pill sits inside the bar on its own, so it works with any gap between the bar and the pane
+  cards.
+
 ### Popups
 
 - Popups keep Herdr's overlay frame, which draws on the `popover` color.
@@ -55,6 +62,11 @@ looked too white.
 ### No outline on unfocused panes
 
 Leave unfocused panes without an outline. Rejected because two unfocused panes run together.
+
+### Joined tabs
+
+Draw the active tab in the pane color, open at the bottom so it runs into its pane. Rejected because
+it only works when the tab touches the pane, which breaks with the gap around the pane cards.
 
 ### Flat side panel with a divider
 

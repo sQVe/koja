@@ -23,7 +23,6 @@ import {
   spacing,
   stringOf,
   tab,
-  tabBarEdge,
   toggleButton,
   trafficLightsPadding,
 } from '../../kit/index.ts';
@@ -137,22 +136,18 @@ export default class Tabs extends View {
           run(event.delta.y > 0 ? 'tab.prev' : 'tab.next');
         }
       })
-      .child(tabBarEdge(div().w(startPadding).flex_none()))
+      .child(div().w(startPadding).flex_none())
       .child(
         h_flex()
           .id('tab-scroll')
           .flex_1()
           .min_w(0)
           .h_full()
+          .items_center()
+          .gap(spacing.xxsmall)
           .overflow_x_scrollbar()
-          .children(
-            shown.map((tabInfo, index) => {
-              const atBarStart = index === 0 && startPadding === spacing.none;
-
-              return this.tabItem(space, tabInfo, index, atBarStart);
-            }),
-          )
-          .child(tabBarEdge(div().flex_1().min_w(0))),
+          .children(shown.map((tabInfo, index) => this.tabItem(space, tabInfo, index)))
+          .child(div().flex_1().min_w(0)),
       )
       .child(this.controls(enabled));
   }
@@ -182,12 +177,7 @@ export default class Tabs extends View {
     }
   }
 
-  private tabItem(
-    space: SpaceInfo | undefined,
-    tabInfo: TabInfo,
-    index: number,
-    atBarStart: boolean,
-  ): Element {
+  private tabItem(space: SpaceInfo | undefined, tabInfo: TabInfo, index: number): Element {
     const palette = colors();
     const program = tabProgram(tabInfo, panes());
     const hasIcon = program?.icon !== null && program !== undefined;
@@ -199,7 +189,6 @@ export default class Tabs extends View {
       icon: hasIcon ? programIcon(program, 'small').text_color(iconColor) : null,
       status: tabInfo.status,
       close: this.closeButton(tabInfo),
-      atBarStart,
     })
       .id(`tab-${tabInfo.id}`)
       .on_mouse_down('left', (event, cx) => {
@@ -263,9 +252,12 @@ export default class Tabs extends View {
 
     const normalMode = Boolean(shared('modal.pill'));
 
-    return tabBarEdge(
-      h_flex().flex_none().gap(spacing.xxsmall).pl(spacing.small).pr(spacing.xsmall).items_center(),
-    )
+    return h_flex()
+      .flex_none()
+      .gap(spacing.xxsmall)
+      .pl(spacing.small)
+      .pr(spacing.xsmall)
+      .items_center()
       .child(newButton)
       .children(
         panels
