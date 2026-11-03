@@ -72,4 +72,17 @@ describe('tabLabel', () => {
 
     expect(tabLabel(unnamed, tabProgram(unnamed, [terminalPane('p1')]))).toBe('zsh');
   });
+
+  test('names an unnamed tab by its agent over an earlier shell', () => {
+    const unnamed = { ...tab, name: '2', named: false };
+    const agentPane = { ...terminalPane('p2'), program: { ...shell, name: 'claude', agent: true } };
+
+    expect(tabLabel(unnamed, tabProgram(unnamed, [terminalPane('p1'), agentPane]))).toBe('claude');
+  });
+
+  test('falls back to Terminal for an unnamed tab with no terminal', () => {
+    const unnamed = { ...tab, name: '2', named: false };
+
+    expect(tabLabel(unnamed, tabProgram(unnamed, [modPane]))).toBe('Terminal');
+  });
 });
