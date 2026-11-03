@@ -1,34 +1,16 @@
 import { describe, expect, test } from 'bun:test';
-import { mkdir, mkdtemp, readFile, rm, stat, symlink, writeFile } from 'node:fs/promises';
+import { chmod, mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
-import { PreviewSession } from './previewQueue.ts';
-
-interface RunResult {
-  code: number;
-  stdout: string;
-  stderr: string;
+interface FakeHc {
+  bin: string;
+  log: string;
+  pids: string;
 }
 
 const script = join(import.meta.dir, 'preview.sh');
 const bash = Bun.which('bash') ?? '/bin/bash';
-
-const run = async (args: string[], path?: string): Promise<RunResult> => {
-  const child = Bun.spawn([bash, script, ...args], {
-    ...(path === undefined ? {} : { env: { ...process.env, PATH: path } }),
-    stdout: 'pipe',
-    stderr: 'pipe',
-  });
-
-  const [stdout, stderr, code] = await Promise.all([
-    new Response(child.stdout).text(),
-    new Response(child.stderr).text(),
-    child.exited,
-  ]);
-
-  return { code, stdout, stderr };
-};
 
 const withTemp = async <T>(body: (root: string) => Promise<T>): Promise<T> => {
   const root = await mkdtemp(join(tmpdir(), 'koja-preview-'));
@@ -36,40 +18,64 @@ const withTemp = async <T>(body: (root: string) => Promise<T>): Promise<T> => {
   try {
     return await body(root);
   } finally {
-    await rm(root, { recursive: true, force: true });
+    await rm(root, { force: true, recursive: true });
   }
 };
 
-const makeFifo = async (path: string): Promise<void> => {
-  const child = Bun.spawn(['mkfifo', path], { stdout: 'pipe', stderr: 'pipe' });
-
-  if ((await child.exited) !== 0) {
-    throw new Error(`mkfifo failed: ${await new Response(child.stderr).text()}`);
-  }
-};
-
-// A PATH without GNU timeout, as on stock macOS. The script must use only POSIX tools.
-const withoutTimeout = async (root: string): Promise<string> => {
+// Every attach records its arguments and pid, then stays alive until serve stops it.
+const makeFakeHc = async (root: string): Promise<FakeHc> => {
   const bin = join(root, 'bin');
+  const log = join(root, 'hc.log');
+  const pids = join(root, 'hc.pids');
 
   await mkdir(bin);
 
-  const sleep = Bun.which('sleep');
+  await writeFile(
+    join(bin, 'hc'),
+    `#!/bin/sh\necho "$*" >> '${log}'\necho $$ >> '${pids}'\nexec sleep 300\n`,
+  );
 
-  if (sleep === null) {
-    throw new Error('sleep not found');
-  }
+  await chmod(join(bin, 'hc'), 0o755);
 
-  await symlink(sleep, join(bin, 'sleep'));
-
-  return bin;
+  return { bin, log, pids };
 };
 
-const exists = (path: string): Promise<boolean> =>
-  stat(path).then(
-    () => true,
-    () => false,
-  );
+const startServe = (state: string, bin: string, extraEnv: Record<string, string> = {}) =>
+  Bun.spawn([bash, script, 'serve', state], {
+    env: {
+      ...process.env,
+      KOJA_PREVIEW_INPUT: '/dev/null',
+      PATH: `${bin}:${process.env.PATH ?? ''}`,
+      ...extraEnv,
+    },
+    stderr: 'pipe',
+    stdout: 'pipe',
+  });
+
+const readText = (path: string): Promise<string> => readFile(path, 'utf8').catch(() => '');
+
+const attachCount = async (log: string, target: string): Promise<number> => {
+  const text = await readText(log);
+
+  return text.split('\n').filter((line) => line === `attach --observe ${target}`).length;
+};
+
+const lastPid = async (pids: string): Promise<number> => {
+  const text = await readText(pids);
+  const lines = text.split('\n').filter((line) => line !== '');
+
+  return Number(lines[lines.length - 1]);
+};
+
+const alive = (pid: number): boolean => {
+  try {
+    process.kill(pid, 0);
+
+    return true;
+  } catch {
+    return false;
+  }
+};
 
 const waitFor = async (ready: () => Promise<boolean>, milliseconds: number): Promise<boolean> => {
   const until = Date.now() + milliseconds;
@@ -85,226 +91,237 @@ const waitFor = async (ready: () => Promise<boolean>, milliseconds: number): Pro
   return ready();
 };
 
-describe('preview.sh show', () => {
-  test('writes the address to a FIFO without a GNU timeout command', async () => {
-    await withTemp(async (root) => {
-      const fifo = join(root, 'preview.fifo');
-
-      await makeFifo(fifo);
-
-      const path = await withoutTimeout(root);
-      const reader = Bun.spawn(['head', '-n', '1', fifo], { stdout: 'pipe', stderr: 'pipe' });
-      const result = await run(['show', fifo, 'testsession', '1', 'term-1'], path);
-
-      reader.kill();
-
-      const line = await new Response(reader.stdout).text();
-
-      expect(result.code).toBe(0);
-      expect(line.trim()).toBe('testsession 1 term-1');
-    });
-  });
-
-  test('leaves no child holding its output after a successful write', async () => {
-    await withTemp(async (root) => {
-      const fifo = join(root, 'preview.fifo');
-
-      await makeFifo(fifo);
-
-      const reader = Bun.spawn(['head', '-n', '1', fifo], { stdout: 'pipe', stderr: 'pipe' });
-
-      const child = Bun.spawn([bash, script, 'show', fifo, 'testsession', '1', 'term-1'], {
-        stdout: 'pipe',
-        stderr: 'pipe',
-      });
-
-      const started = Date.now();
-      const code = await child.exited;
-
-      await Promise.all([new Response(child.stdout).text(), new Response(child.stderr).text()]);
-
-      const elapsed = Date.now() - started;
-
-      reader.kill();
-      await reader.exited;
-
-      expect(code).toBe(0);
-      expect(elapsed).toBeLessThan(500);
-    });
-  });
-
-  test('bounds a write that has no reader', async () => {
-    await withTemp(async (root) => {
-      const fifo = join(root, 'preview.fifo');
-
-      await makeFifo(fifo);
-
-      const started = Date.now();
-      const result = await run(['show', fifo, 'testsession', '1', 'term-1']);
-
-      expect(result.code).not.toBe(0);
-      expect(Date.now() - started).toBeLessThan(3_000);
-    });
-  });
-
-  test('refuses a missing path without creating a file', async () => {
-    await withTemp(async (root) => {
-      const missing = join(root, 'missing.fifo');
-      const result = await run(['show', missing, 'testsession', '1', 'term-1']);
-
-      expect(result.code).not.toBe(0);
-      expect(await exists(missing)).toBe(false);
-    });
-  });
-});
-
-const writeToFifo =
-  (fifo: string) =>
-  async (session: string, sequence: number, address: string | null): Promise<boolean> => {
-    const result = await run(['show', fifo, session, String(sequence), address ?? '-']);
-
-    return result.code === 0;
-  };
-
 describe('preview.sh serve', () => {
-  test('accepts the first selection of a later session', async () => {
+  test('attaches on a change and not on an unchanged file', async () => {
     await withTemp(async (root) => {
-      const fifo = join(root, 'preview.fifo');
-      const log = join(root, 'accepted.log');
+      const state = join(root, 'state');
 
-      const child = Bun.spawn([bash, script, 'serve', fifo], {
-        env: { ...process.env, KOJA_PREVIEW_LOG: log },
-        stdout: 'pipe',
-        stderr: 'pipe',
+      await writeFile(state, 'term-1');
+
+      const { bin, log } = await makeFakeHc(root);
+      const child = startServe(state, bin);
+
+      try {
+        expect(await waitFor(async () => (await attachCount(log, 'term-1')) === 1, 2_000)).toBe(
+          true,
+        );
+
+        await writeFile(state, 'term-1');
+        await Bun.sleep(250);
+
+        expect(await attachCount(log, 'term-1')).toBe(1);
+
+        await writeFile(state, 'term-2');
+
+        expect(await waitFor(async () => (await attachCount(log, 'term-2')) === 1, 2_000)).toBe(
+          true,
+        );
+
+        expect(await attachCount(log, 'term-1')).toBe(1);
+      } finally {
+        child.kill();
+        await child.exited;
+      }
+    });
+  });
+
+  test('detaches on a dash', async () => {
+    await withTemp(async (root) => {
+      const state = join(root, 'state');
+
+      await writeFile(state, 'term-1');
+
+      const { bin, log, pids } = await makeFakeHc(root);
+      const child = startServe(state, bin);
+
+      try {
+        expect(await waitFor(async () => (await attachCount(log, 'term-1')) === 1, 2_000)).toBe(
+          true,
+        );
+
+        const pid = await lastPid(pids);
+
+        expect(pid).toBeGreaterThan(0);
+
+        await writeFile(state, '-');
+
+        expect(await waitFor(async () => !alive(pid), 2_000)).toBe(true);
+      } finally {
+        child.kill();
+        await child.exited;
+      }
+    });
+  });
+
+  test('stops when the state file goes away', async () => {
+    await withTemp(async (root) => {
+      const state = join(root, 'state');
+
+      await writeFile(state, 'term-1');
+
+      const { bin, log, pids } = await makeFakeHc(root);
+      const child = startServe(state, bin);
+
+      await waitFor(async () => (await attachCount(log, 'term-1')) === 1, 2_000);
+
+      const pid = await lastPid(pids);
+
+      expect(pid).toBeGreaterThan(0);
+
+      await rm(state);
+
+      expect(await child.exited).toBe(0);
+      expect(await waitFor(async () => !alive(pid), 2_000)).toBe(true);
+    });
+  });
+
+  test('TERM ends the viewer and leaves no child process', async () => {
+    await withTemp(async (root) => {
+      const state = join(root, 'state');
+
+      await writeFile(state, 'term-1');
+
+      const { bin, log, pids } = await makeFakeHc(root);
+      const child = startServe(state, bin);
+
+      await waitFor(async () => (await attachCount(log, 'term-1')) === 1, 2_000);
+
+      const pid = await lastPid(pids);
+
+      expect(pid).toBeGreaterThan(0);
+
+      child.kill('SIGTERM');
+
+      expect(await child.exited).toBe(0);
+      expect(await waitFor(async () => !alive(pid), 2_000)).toBe(true);
+    });
+  });
+
+  test('stops when the state folder goes away and leaves no child process', async () => {
+    await withTemp(async (root) => {
+      const state = join(root, 'state');
+
+      await writeFile(state, 'term-1');
+
+      const { bin, log, pids } = await makeFakeHc(root);
+      const child = startServe(state, bin);
+
+      expect(await waitFor(async () => (await attachCount(log, 'term-1')) === 1, 2_000)).toBe(true);
+
+      const pid = await lastPid(pids);
+
+      expect(pid).toBeGreaterThan(0);
+
+      await rm(root, { force: true, recursive: true });
+
+      expect(await child.exited).toBe(0);
+      expect(await waitFor(async () => !alive(pid), 2_000)).toBe(true);
+    });
+  });
+
+  test('stops when the heartbeat never changes, leaving no child process', async () => {
+    await withTemp(async (root) => {
+      const state = join(root, 'state');
+      const heartbeat = join(root, 'heartbeat');
+
+      await writeFile(state, 'term-1');
+      await writeFile(heartbeat, 'beat-1');
+
+      const { bin, log, pids } = await makeFakeHc(root);
+      const child = startServe(state, bin, { KOJA_PREVIEW_HEARTBEAT_LIMIT_POLLS: '20' });
+
+      expect(await waitFor(async () => (await attachCount(log, 'term-1')) === 1, 2_000)).toBe(true);
+
+      const pid = await lastPid(pids);
+
+      expect(pid).toBeGreaterThan(0);
+
+      expect(await child.exited).toBe(0);
+      expect(await waitFor(async () => !alive(pid), 2_000)).toBe(true);
+    });
+  });
+
+  test('keeps the default limit when the override is not a positive whole number', async () => {
+    for (const override of ['0', 'soon', '2.5']) {
+      await withTemp(async (root) => {
+        const state = join(root, 'state');
+        const heartbeat = join(root, 'heartbeat');
+
+        await writeFile(state, 'term-1');
+        await writeFile(heartbeat, 'beat-1');
+
+        const { bin, log } = await makeFakeHc(root);
+        const child = startServe(state, bin, { KOJA_PREVIEW_HEARTBEAT_LIMIT_POLLS: override });
+
+        expect(await waitFor(async () => (await attachCount(log, 'term-1')) === 1, 2_000)).toBe(
+          true,
+        );
+
+        await Bun.sleep(500);
+
+        expect(child.exitCode).toBeNull();
+
+        child.kill('SIGTERM');
+        await child.exited;
       });
+    }
+  });
 
-      await waitFor(() => exists(fifo), 2_000);
+  test('keeps the viewer when the heartbeat writer pauses past the old limit', async () => {
+    await withTemp(async (root) => {
+      const state = join(root, 'state');
+      const heartbeat = join(root, 'heartbeat');
 
-      const first = new PreviewSession(writeToFifo(fifo), () => 'sessionone');
+      await writeFile(state, 'term-1');
+      await writeFile(heartbeat, 'beat-1');
 
-      first.show('term-one');
-      await first.settled();
-      await first.close(async () => {});
+      const { bin, log, pids } = await makeFakeHc(root);
+      const child = startServe(state, bin);
 
-      const second = new PreviewSession(writeToFifo(fifo), () => 'sessiontwo');
+      expect(await waitFor(async () => (await attachCount(log, 'term-1')) === 1, 2_000)).toBe(true);
 
-      second.show('term-two');
-      await second.settled();
+      const pid = await lastPid(pids);
 
-      const accepted = await waitFor(async () => {
-        const text = await readFile(log, 'utf8').catch(() => '');
+      // Longer than the old 5 s wall-clock limit, shorter than the 1200-poll (~60 s) limit.
+      await Bun.sleep(6_200);
+      await writeFile(heartbeat, 'beat-2');
 
-        return text.includes('term-two');
-      }, 2_000);
+      expect(child.exitCode).toBeNull();
+      expect(alive(pid)).toBe(true);
+      expect(await attachCount(log, 'term-1')).toBe(1);
 
       child.kill();
       await child.exited;
-
-      const text = await readFile(log, 'utf8');
-
-      expect(accepted).toBe(true);
-      expect(text).toContain('term-one');
-      expect(text).toContain('term-two');
     });
-  });
+  }, 20_000);
 
-  test('creates the FIFO folder and the FIFO', async () => {
+  test('does not end when serve itself is suspended past the limit', async () => {
     await withTemp(async (root) => {
-      const fifo = join(root, 'cache', 'preview.fifo');
-      const child = Bun.spawn([bash, script, 'serve', fifo], { stdout: 'pipe', stderr: 'pipe' });
+      const state = join(root, 'state');
+      const heartbeat = join(root, 'heartbeat');
 
-      const made = await waitFor(() => exists(fifo), 2_000);
+      await writeFile(state, 'term-1');
+      await writeFile(heartbeat, 'beat-1');
+
+      const { bin, log, pids } = await makeFakeHc(root);
+      const child = startServe(state, bin, { KOJA_PREVIEW_HEARTBEAT_LIMIT_POLLS: '20' });
+
+      expect(await waitFor(async () => (await attachCount(log, 'term-1')) === 1, 2_000)).toBe(true);
+
+      const pid = await lastPid(pids);
+
+      expect(pid).toBeGreaterThan(0);
+
+      process.kill(child.pid, 'SIGSTOP');
+      await Bun.sleep(1_500);
+      process.kill(child.pid, 'SIGCONT');
+      await Bun.sleep(100);
+
+      expect(child.exitCode).toBeNull();
+      expect(alive(pid)).toBe(true);
 
       child.kill();
       await child.exited;
-
-      expect(made).toBe(true);
-      expect((await stat(fifo)).isFIFO()).toBe(true);
-    });
-  });
-
-  test('ignores a selection older than the clear', async () => {
-    await withTemp(async (root) => {
-      const fifo = join(root, 'preview.fifo');
-      const log = join(root, 'accepted.log');
-
-      const child = Bun.spawn([bash, script, 'serve', fifo], {
-        env: { ...process.env, KOJA_PREVIEW_LOG: log },
-        stdout: 'pipe',
-        stderr: 'pipe',
-      });
-
-      await waitFor(() => exists(fifo), 2_000);
-
-      // The clear carries a higher sequence than the selection that arrives after it.
-      await run(['show', fifo, 'testsession', '2', '-']);
-      await run(['show', fifo, 'testsession', '1', 'term-old']);
-      await run(['show', fifo, 'testsession', '3', 'term-new']);
-
-      const accepted = await waitFor(async () => {
-        const text = await readFile(log, 'utf8').catch(() => '');
-
-        return text.includes('term-new');
-      }, 2_000);
-
-      child.kill();
-      await child.exited;
-
-      const text = await readFile(log, 'utf8');
-
-      expect(accepted).toBe(true);
-      expect(text).toContain('-\n');
-      expect(text).toContain('term-new');
-      expect(text).not.toContain('term-old');
-    });
-  });
-
-  test('ignores a late write from a retired session', async () => {
-    await withTemp(async (root) => {
-      const fifo = join(root, 'preview.fifo');
-      const log = join(root, 'accepted.log');
-
-      const child = Bun.spawn([bash, script, 'serve', fifo], {
-        env: { ...process.env, KOJA_PREVIEW_LOG: log },
-        stdout: 'pipe',
-        stderr: 'pipe',
-      });
-
-      await waitFor(() => exists(fifo), 2_000);
-
-      await run(['show', fifo, 'sessionone', '1', 'term-one']);
-      await run(['show', fifo, 'sessionone', '2', '-']);
-      await run(['show', fifo, 'sessiontwo', '1', 'term-two']);
-      await run(['show', fifo, 'sessionone', '9', 'term-late']);
-
-      const accepted = await waitFor(async () => {
-        const text = await readFile(log, 'utf8').catch(() => '');
-
-        return text.includes('term-two');
-      }, 2_000);
-
-      child.kill();
-      await child.exited;
-
-      const text = await readFile(log, 'utf8');
-
-      expect(accepted).toBe(true);
-      expect(text).toContain('term-one');
-      expect(text).toContain('term-two');
-      expect(text).not.toContain('term-late');
-    });
-  });
-
-  test('refuses a plain file and leaves it alone', async () => {
-    await withTemp(async (root) => {
-      const path = join(root, 'plain.fifo');
-
-      await writeFile(path, 'keep\n');
-
-      const result = await run(['serve', path]);
-
-      expect(result.code).not.toBe(0);
-      expect(await readFile(path, 'utf8')).toBe('keep\n');
     });
   });
 });

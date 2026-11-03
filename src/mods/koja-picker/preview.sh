@@ -2,12 +2,25 @@
 # The picker's preview: one terminal shown at a time, watch-only. `hc attach --observe`
 # never types into or resizes the terminal it shows, so agents don't redraw.
 #
-#   preview.sh serve <fifo>                               runs in the preview terminal
-#   preview.sh show <fifo> <session> <sequence> <address>  shows <address>; "-" shows nothing
+#   preview.sh serve <state>   runs in the preview terminal; watches <state> for the
+#                              address to observe, "-" or empty to show nothing.
 set -u
 
-# How many closed session ids serve remembers; older ids fall off after many sessions.
-retiredLimit=32
+# How often serve checks the state file: short enough to feel live, cheap enough to ignore.
+pollSeconds=0.05
+
+# The picker rewrites the heartbeat about every second, and this limit is 60 times that:
+# 1200 polls at 0.05 s is about 60 s. Staleness is counted in serve's own poll ticks, not wall
+# time, so a suspended serve does not age and a stall or laptop sleep under a minute keeps a
+# live viewer; an orphan still ends within about a minute. Tests may shorten it through the
+# environment; anything but a positive whole number keeps the default.
+heartbeatLimitPolls=1200
+if [[ ${KOJA_PREVIEW_HEARTBEAT_LIMIT_POLLS-} =~ ^[1-9][0-9]*$ ]]; then
+  heartbeatLimitPolls=${KOJA_PREVIEW_HEARTBEAT_LIMIT_POLLS}
+fi
+
+# Where attach reads the terminal's replies (colors, cursor). Tests pass /dev/null.
+inputDevice=${KOJA_PREVIEW_INPUT:-/dev/tty}
 
 # Each attach leaves the shown program's modes (alternate screen, hidden cursor,
 # mouse tracking) on this terminal; reset them before the next one draws.
@@ -16,13 +29,16 @@ reset_screen() {
 }
 
 serve() {
-  local fifo=$1
-  local session_id=""
-  local session_sequence=0
-  local shown_target=""
-  local retired=""
+  local state=$1
+  local folder=${state%/*}
+  local heartbeat=${folder}/heartbeat
   local viewer=""
-  local message_session message_sequence target kept id count
+  local shown=""
+  local started=0
+  local target
+  local beat=""
+  local beatPolls=0
+  local current
 
   stop_viewer() {
     if [[ -n ${viewer} ]]; then
@@ -34,100 +50,48 @@ serve() {
 
   trap 'stop_viewer; exit 0' TERM INT HUP
 
-  if [[ ! -p ${fifo} ]]; then
-    mkdir -p "$(dirname "${fifo}")" || exit 1
-    mkfifo "${fifo}" || exit 1
-  fi
-
-  # Open read-write so the loop never sees end-of-file between writers.
-  exec 3<>"${fifo}" || exit 1
   reset_screen
 
-  while read -r message_session message_sequence target <&3; do
-    [[ ${message_session} =~ ^[A-Za-z0-9]+$ ]] || continue
-    [[ ${message_sequence} =~ ^[0-9]+$ ]] || continue
-    [[ -n ${target} ]] || continue
+  while [[ -f ${state} && -d ${folder} ]]; do
+    current=$(cat "${heartbeat}" 2>/dev/null) || current=""
 
-    if [[ ${message_session} == "${session_id}" ]]; then
-      # The current session may only move forward.
-      [[ ${message_sequence} -le ${session_sequence} ]] && continue
-      session_sequence=${message_sequence}
-    elif [[ " ${retired} " == *" ${message_session} "* ]]; then
-      # A retired session may never bring a preview back.
-      continue
+    # A changed heartbeat resets the count; unchanged content is one more silent poll. Counting
+    # poll ticks keeps a suspended serve from aging a live owner.
+    if [[ ${current} != "${beat}" ]]; then
+      beat=${current}
+      beatPolls=0
     else
-      # A new session retires the current one and takes over.
-      if [[ -n ${session_id} ]]; then
-        retired="${session_id} ${retired}"
-        kept=""
-        count=0
-        # The ids are space separated on purpose.
-        # shellcheck disable=SC2086
-        for id in ${retired}; do
-          count=$((count + 1))
-          [[ ${count} -le ${retiredLimit} ]] || break
-          kept="${kept}${kept:+ }${id}"
-        done
-        retired="${kept}"
+      beatPolls=$((beatPolls + 1))
+    fi
+
+    if (( beatPolls > heartbeatLimitPolls )); then
+      break
+    fi
+
+    target=$(cat "${state}" 2>/dev/null) || target=""
+
+    if [[ ${started} -eq 0 || ${target} != "${shown}" ]]; then
+      stop_viewer
+      reset_screen
+      shown=${target}
+      started=1
+
+      if [[ -n ${target} && ${target} != "-" ]]; then
+        hc attach --observe "${target}" <"${inputDevice}" &
+        viewer=$!
       fi
-      session_id=${message_session}
-      session_sequence=${message_sequence}
     fi
 
-    # A test can set KOJA_PREVIEW_LOG to record the accepted targets.
-    if [[ -n ${KOJA_PREVIEW_LOG:-} ]]; then
-      printf '%s\n' "${target}" >> "${KOJA_PREVIEW_LOG}"
-    fi
-
-    [[ ${target} == "${shown_target}" ]] && continue
-
-    stop_viewer
-    reset_screen
-    shown_target=${target}
-    [[ ${target} == "-" ]] && continue
-
-    # attach asks this terminal for its colors and waits for the answer on stdin;
-    # a background job would get /dev/null and stall for half a second.
-    hc attach --observe "${target}" </dev/tty &
-    viewer=$!
+    sleep "${pollSeconds}"
   done
-}
 
-show() {
-  local fifo=$1
-  local session=$2
-  local sequence=$3
-  local target=$4
-  local writer
-  local watchdog
-  local status=0
-
-  # Writing to a FIFO nobody reads would block, and to a missing path would
-  # create a plain file.
-  [[ -p ${fifo} ]] || exit 1
-
-  # A background writer blocks until a reader opens the FIFO; a timed kill bounds it.
-  # Job control gives the watchdog its own process group, so killing the group also stops
-  # its sleep child. Otherwise the sleep holds this command's output open for a second.
-  set -m
-  printf '%s %s %s\n' "${session}" "${sequence}" "${target}" > "${fifo}" &
-  writer=$!
-  ( sleep 1; kill "${writer}" 2>/dev/null ) &
-  watchdog=$!
-
-  wait "${writer}" || status=1
-
-  kill -- -"${watchdog}" 2>/dev/null
-  wait "${watchdog}" 2>/dev/null
-
-  return "${status}"
+  stop_viewer
 }
 
 case ${1-} in
-  serve) serve "$2" ;;
-  show) show "${2-}" "${3-}" "${4-}" "${5-}" ;;
+  serve) serve "${2-}" ;;
   *)
-    echo "usage: preview.sh serve <fifo> | show <fifo> <session> <sequence> <address>" >&2
+    echo "usage: preview.sh serve <state>" >&2
     exit 2
     ;;
 esac

@@ -30,10 +30,12 @@ import {
   programIcon,
   radius,
   recordOf,
+  repeat,
   rowHeight,
   searchField,
   spacing,
   statusMark,
+  stringOf,
   textSize,
   toggleButton,
 } from '../../kit/index.ts';
@@ -42,7 +44,9 @@ import { allFilter, statusFilters } from './filters.ts';
 import { createHistory } from './history.ts';
 import { launch } from './launch.ts';
 import { fuzzyMatch } from './match.ts';
-import { createPreviewSession } from './previewSession.ts';
+import type { PreviewSession } from './previewLifecycle.ts';
+import { heartbeatIntervalMilliseconds } from './previewLifecycle.ts';
+import { createPreviewSession, resumePreviewSession } from './previewSession.ts';
 import type { PanePickerRow, PickerData, PickerRow, TabPickerRow } from './rows.ts';
 import {
   buildRows,
@@ -85,6 +89,19 @@ const controlKey = (event: KeyEvent, letter: string): boolean =>
 
 const rowState = (selected: boolean): 'selected' | 'normal' => (selected ? 'selected' : 'normal');
 
+const previewFromProps = (): PreviewSession | null => {
+  const preview = recordOf(recordOf(props())['preview']);
+  const folder = stringOf(preview['folder']);
+  const statePath = stringOf(preview['state']);
+  const viewer = stringOf(preview['viewer']);
+
+  if (folder === null || statePath === null || viewer === null) {
+    return null;
+  }
+
+  return resumePreviewSession({ address: viewer, folder, statePath });
+};
+
 export default class Picker extends View {
   private query = '';
 
@@ -94,7 +111,7 @@ export default class Picker extends View {
 
   private selectedKey: string | null = null;
 
-  private readonly preview = createPreviewSession();
+  private preview: PreviewSession | null = null;
 
   private searchFocused = false;
 
@@ -111,11 +128,15 @@ export default class Picker extends View {
   override init(_props: unknown, cx: AsyncContext): void {
     if (!isList()) {
       if (overlayId() !== null) {
-        launch(cx, history.rememberPane);
+        this.preview = createPreviewSession();
+        launch(cx, this.preview, history.rememberPane);
       }
 
       return;
     }
+
+    this.preview = previewFromProps();
+    this.watchPreview(cx);
 
     const current = focused()?.space ?? null;
 
@@ -149,10 +170,22 @@ export default class Picker extends View {
     this.listenForCommands(cx);
   }
 
-  override async close(cx: AsyncContext): Promise<void> {
-    if (isList()) {
-      await this.preview.close((milliseconds) => cx.sleep(milliseconds));
+  override close(): void {
+    this.preview?.close();
+  }
+
+  private watchPreview(cx: AsyncContext): void {
+    const preview = this.preview;
+
+    if (preview === null) {
+      return;
     }
+
+    preview.beat().catch(() => undefined);
+
+    repeat(cx, heartbeatIntervalMilliseconds, () => {
+      preview.beat().catch(() => undefined);
+    });
   }
 
   override render(): Element {
@@ -295,7 +328,7 @@ export default class Picker extends View {
   }
 
   private updatePreview(row: PickerRow | undefined, data: PickerData): void {
-    this.preview.show(rowPane(row, data)?.terminal ?? null);
+    this.preview?.show(rowPane(row, data)?.terminal ?? null);
   }
 
   private closePicker(): void {

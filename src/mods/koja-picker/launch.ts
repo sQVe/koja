@@ -9,9 +9,9 @@ import {
   overlaySize,
   spacing,
 } from '../../kit/index.ts';
-import { livePreviewAddress } from './previewSession.ts';
+import type { PreviewSession } from './previewLifecycle.ts';
 
-const openPicker = (previewAddress: string): void => {
+const openPicker = (previewAddress: string, previewState: string, previewFolder: string): void => {
   openAtTop(
     {
       width: overlaySize.pickerWidthShare,
@@ -23,7 +23,13 @@ const openPicker = (previewAddress: string): void => {
           {
             type: 'block',
             size: { px: overlaySize.pickerListWidth },
-            content: { mod: modName, props: { part: 'list' } },
+            content: {
+              mod: modName,
+              props: {
+                part: 'list',
+                preview: { folder: previewFolder, state: previewState, viewer: previewAddress },
+              },
+            },
           },
           {
             type: 'block',
@@ -39,6 +45,7 @@ const openPicker = (previewAddress: string): void => {
 
 export const launch = (
   cx: AsyncContext,
+  session: PreviewSession,
   rememberPane: (tab: string, pane: string) => void,
 ): void => {
   const overlay = overlayId();
@@ -49,16 +56,19 @@ export const launch = (
   }
 
   cx.spawn(async () => {
-    const previewAddress = await livePreviewAddress((milliseconds) => cx.sleep(milliseconds)).catch(
-      () => null,
-    );
+    const started = await session.open(null).catch(() => null);
 
-    closeOverlay(overlay);
-
-    if (previewAddress === null) {
+    if (started === null) {
+      session.close();
+      closeOverlay(overlay);
       run('mod.open', { name: 'picker' });
-    } else {
-      openPicker(previewAddress);
+
+      return;
     }
+
+    // The list that opens next takes ownership; the launcher's close must not kill it.
+    session.handOff();
+    openPicker(started.address, started.statePath, started.folder);
+    closeOverlay(overlay);
   });
 };

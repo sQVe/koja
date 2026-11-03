@@ -1,24 +1,36 @@
-import { appHome, exec, hc, home } from 'herdr';
+import { appHome, exec, hc, readTextFile, run, writeTextFile } from 'herdr';
 
 import { modName } from '../../kit/modName.ts';
-import type { PreviewHost } from './previewLifecycle.ts';
-import { createPreviewSession as createSession, findPreviewAddress } from './previewLifecycle.ts';
-import type { PreviewSession } from './previewQueue.ts';
+import type { PreviewHost, PreviewStart } from './previewLifecycle.ts';
+import { PreviewSession } from './previewLifecycle.ts';
 
-// One wire format per serve lifetime; an older terminal is removed instead of reused.
-const protocol = 'v3';
-
-const host = (): PreviewHost => ({
-  hc,
-  exec,
-  name: `${modName}-preview-${protocol}`,
-  legacyNames: [`${modName}-preview-v2`, `${modName}-preview`],
-  fifo: `${home()}/.cache/herdr-${modName}-${protocol}.fifo`,
+const liveHost = (): PreviewHost => ({
   script: `${appHome()}/mods/${modName}/preview.sh`,
+  hc,
+  read: (path) => readTextFile(path),
+  write: async (path, text, expected) => {
+    await writeTextFile(path, text, expected);
+  },
+  newFolder: async () => {
+    const made = await exec('mktemp', ['-d', '-t', 'koja-picker.XXXXXX']).catch(() => null);
+
+    if (made?.code !== 0) {
+      return null;
+    }
+
+    const path = made.stdout.trim();
+
+    return path === '' ? null : path;
+  },
+  removeFolder: (path) => {
+    void exec('rm', ['-rf', path]).catch(() => undefined);
+  },
+  kill: (terminal) => {
+    run('terminal.kill', { terminal });
+  },
 });
 
-export const livePreviewAddress = (
-  sleep: (milliseconds: number) => Promise<void>,
-): Promise<string | null> => findPreviewAddress({ ...host(), sleep });
+export const createPreviewSession = (): PreviewSession => new PreviewSession(liveHost());
 
-export const createPreviewSession = (): PreviewSession => createSession(host());
+export const resumePreviewSession = (start: PreviewStart): PreviewSession =>
+  new PreviewSession(liveHost(), start);

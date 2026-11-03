@@ -1,134 +1,286 @@
-import { recordOf, stringOf } from '../../kit/fields.ts';
-import { PreviewSession } from './previewQueue.ts';
+import type { ExecResult } from 'herdr';
 
-export interface ExecResult {
-  code: number;
-  stdout: string;
-}
+import { recordOf, stringOf } from '../../kit/fields.ts';
+
+export type { ExecResult } from 'herdr';
 
 export interface PreviewHost {
   hc: (args: string[]) => Promise<ExecResult>;
-  exec: (command: string, args: string[]) => Promise<ExecResult>;
-  name: string;
-  legacyNames: string[];
-  fifo: string;
+  read: (path: string) => Promise<string | null>;
+  write: (path: string, text: string, expected: string | null) => Promise<void>;
+  newFolder: () => Promise<string | null>;
+  removeFolder: (path: string) => void;
+  kill: (terminal: string) => void;
   script: string;
 }
 
-export interface PreviewStartHost extends PreviewHost {
-  sleep: (milliseconds: number) => Promise<void>;
+export interface PreviewStart {
+  address: string;
+  folder: string;
+  statePath: string;
 }
 
-const stateOf = (stdout: string): Record<string, unknown> => recordOf(JSON.parse(stdout));
+const label = 'koja.preview=1';
 
-const isPreviewServe = (value: unknown): boolean => {
-  if (!Array.isArray(value)) {
-    return false;
+const stateName = 'state';
+
+const heartbeatName = 'heartbeat';
+
+// The picker writes the heartbeat this often; serve's 1200-poll limit spans 60 seconds, 60x
+// this interval, so a stall or sleep does not end a live viewer and an orphan ends in a minute.
+export const heartbeatIntervalMilliseconds = 1_000;
+
+export class PreviewSession {
+  private statePath: string | null = null;
+
+  private folder: string | null = null;
+
+  private viewer: string | null = null;
+
+  // undefined: the state file has not been read yet; null: it is absent.
+  private last: string | null | undefined = undefined;
+
+  // Empty and "-" both mean nothing is selected; the session writes one value.
+  private wanted = '';
+
+  private running: Promise<void> | null = null;
+
+  private blocked = false;
+
+  private closed = false;
+
+  private handedOff = false;
+
+  private beats = 0;
+
+  private heartbeat: string | null | undefined = undefined;
+
+  constructor(
+    private readonly host: PreviewHost,
+    start?: PreviewStart,
+  ) {
+    if (start !== undefined) {
+      this.statePath = start.statePath;
+      this.folder = start.folder;
+      this.viewer = start.address;
+    }
   }
 
-  const args = value.filter((part): part is string => typeof part === 'string');
+  async open(initial: string | null): Promise<PreviewStart | null> {
+    const folder = await this.host.newFolder();
 
-  return args.some((part, index) => part.endsWith('preview.sh') && args[index + 1] === 'serve');
-};
-
-const fifoPollMilliseconds = 50;
-
-const fifoPollAttempts = 20;
-
-const waitForFifo = async (host: PreviewStartHost): Promise<boolean> => {
-  for (let attempt = 0; attempt < fifoPollAttempts; attempt += 1) {
-    // eslint-disable-next-line no-await-in-loop -- the FIFO is polled until it appears
-    const probe = await host.exec('test', ['-p', host.fifo]).catch(() => null);
-
-    if (probe?.code === 0) {
-      return true;
+    if (folder === null) {
+      return null;
     }
 
-    if (attempt < fifoPollAttempts - 1) {
-      // eslint-disable-next-line no-await-in-loop -- a poll waits before its next try
-      await host.sleep(fifoPollMilliseconds);
+    if (this.closed) {
+      this.host.removeFolder(folder);
+
+      return null;
+    }
+
+    this.folder = folder;
+    this.statePath = `${folder}/${stateName}`;
+    this.last = null;
+
+    const written = await this.persist(initial ?? '');
+
+    if (!written || this.closedNow()) {
+      this.forget();
+
+      return null;
+    }
+
+    const address = await this.startViewer();
+
+    if (address === null) {
+      this.forget();
+
+      return null;
+    }
+
+    if (this.closedNow()) {
+      // Owner closed while the viewer started; the late address has no owner left.
+      this.host.kill(address);
+      this.viewer = null;
+      this.forget();
+
+      return null;
+    }
+
+    return { address, folder, statePath: this.statePath };
+  }
+
+  show(address: string | null): void {
+    if (this.closed) {
+      return;
+    }
+
+    this.wanted = address ?? '';
+    this.blocked = false;
+    this.start();
+  }
+
+  // The list that resumes this viewer calls this after taking ownership, so the
+  // launcher's own close() no longer kills the viewer.
+  handOff(): void {
+    this.handedOff = true;
+  }
+
+  close(): void {
+    if (this.handedOff) {
+      return;
+    }
+
+    this.closed = true;
+
+    if (this.viewer !== null) {
+      this.host.kill(this.viewer);
+      this.viewer = null;
+    }
+
+    if (this.folder !== null) {
+      // A fire-and-forget exec may still write to the file after this; the viewer is gone.
+      this.host.removeFolder(this.folder);
+      this.folder = null;
     }
   }
 
-  return false;
-};
-
-export const findPreviewAddress = async (host: PreviewStartHost): Promise<string | null> => {
-  for (const legacy of host.legacyNames) {
-    // A terminal from an older protocol cannot read the current wire format. Replace it only
-    // when it is Koja's own preview server, never a user terminal that shares the name.
-    // eslint-disable-next-line no-await-in-loop -- each legacy name is checked before the next
-    const existing = await host.hc(['get', '--json', legacy]).catch(() => null);
-
-    if (existing?.code !== 0) {
-      continue;
+  async beat(): Promise<void> {
+    if (this.closed || this.folder === null) {
+      return;
     }
 
-    const terminal = stateOf(existing.stdout);
+    this.beats += 1;
 
-    if (!isPreviewServe(terminal['argv'])) {
-      continue;
+    if (this.heartbeat === undefined) {
+      this.heartbeat = await this.host.read(`${this.folder}/${heartbeatName}`).catch(() => null);
     }
 
-    if (terminal['state'] === 'live') {
-      // eslint-disable-next-line no-await-in-loop -- the live server is killed before removal
-      await host.hc(['kill', legacy]).catch(() => null);
+    const text = String(this.beats);
+
+    try {
+      await this.host.write(`${this.folder}/${heartbeatName}`, text, this.heartbeat);
+    } catch {
+      this.heartbeat = undefined;
+
+      return;
     }
 
-    // eslint-disable-next-line no-await-in-loop -- the legacy terminal is removed before the next
-    await host.hc(['rm', legacy]).catch(() => null);
+    this.heartbeat = text;
   }
 
-  const found = await host.hc(['get', '--json', host.name]).catch(() => null);
+  settled(): Promise<void> {
+    return this.running ?? Promise.resolve();
+  }
 
-  if (found?.code === 0) {
-    const terminal = stateOf(found.stdout);
+  private closedNow(): boolean {
+    return this.closed;
+  }
 
-    if (terminal['state'] === 'live') {
-      const address = stringOf(terminal['address']);
-
-      return (await waitForFifo(host)) ? address : null;
+  private forget(): void {
+    if (this.folder !== null) {
+      this.host.removeFolder(this.folder);
     }
 
-    await host.hc(['rm', host.name]).catch(() => null);
+    this.folder = null;
+    this.statePath = null;
   }
 
-  const started = await host.hc([
-    'run',
-    '--bg',
-    '--json',
-    '--no-parent',
-    '--name',
-    host.name,
-    '--',
-    host.script,
-    'serve',
-    host.fifo,
-  ]);
+  private start(): void {
+    if (this.running !== null || this.statePath === null) {
+      return;
+    }
 
-  if (started.code !== 0) {
-    return null;
+    const running = this.drain();
+
+    this.running = running;
+
+    void running
+      .finally(() => {
+        this.running = null;
+
+        if (!this.closed && !this.blocked && this.wanted !== this.last) {
+          this.start();
+        }
+      })
+      .catch(() => undefined);
   }
 
-  const address = stringOf(stateOf(started.stdout)['address']);
+  private async drain(): Promise<void> {
+    while (!this.closed && !this.blocked && this.wanted !== this.last) {
+      const address = this.wanted;
 
-  return (await waitForFifo(host)) ? address : null;
-};
+      // eslint-disable-next-line no-await-in-loop -- writes go one at a time, newest last
+      const written = await this.persist(address);
 
-export const writePreview = async (
-  host: PreviewHost,
-  session: string,
-  sequence: number,
-  address: string | null,
-): Promise<boolean> => {
-  const result = await host
-    .exec(host.script, ['show', host.fifo, session, String(sequence), address ?? '-'])
-    .catch(() => null);
+      if (!written) {
+        this.blocked = true;
+      }
+    }
+  }
 
-  return result?.code === 0;
-};
+  private async persist(address: string): Promise<boolean> {
+    if (this.statePath === null) {
+      return false;
+    }
 
-export const createPreviewSession = (host: PreviewHost): PreviewSession =>
-  new PreviewSession((session, sequence, address) =>
-    writePreview(host, session, sequence, address),
-  );
+    if (this.last === undefined) {
+      this.last = await this.host.read(this.statePath).catch(() => null);
+    }
+
+    try {
+      await this.host.write(this.statePath, address, this.last);
+    } catch {
+      this.last = undefined;
+
+      return false;
+    }
+
+    this.last = address;
+
+    return true;
+  }
+
+  private async startViewer(): Promise<string | null> {
+    if (this.statePath === null) {
+      return null;
+    }
+
+    const command = [
+      'run',
+      '--bg',
+      '--rm',
+      '--json',
+      '--no-parent',
+      '--label',
+      label,
+      '--',
+      this.host.script,
+      'serve',
+      this.statePath,
+    ];
+
+    const started = await this.host.hc(command).catch(() => null);
+
+    if (started?.code !== 0) {
+      return null;
+    }
+
+    let address: string | null;
+
+    try {
+      address = stringOf(recordOf(JSON.parse(started.stdout))['address']);
+    } catch {
+      address = null;
+    }
+
+    if (address === null) {
+      return null;
+    }
+
+    this.viewer = address;
+
+    return address;
+  }
+}

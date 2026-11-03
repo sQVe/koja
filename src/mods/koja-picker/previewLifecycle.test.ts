@@ -1,277 +1,251 @@
 import { describe, expect, test } from 'bun:test';
 
-import type { ExecResult, PreviewStartHost } from './previewLifecycle.ts';
-import { createPreviewSession, findPreviewAddress, writePreview } from './previewLifecycle.ts';
+import type { ExecResult, PreviewHost } from './previewLifecycle.ts';
+import { PreviewSession } from './previewLifecycle.ts';
 
-interface Call {
-  command: string;
-  args: string[];
+interface RecordedWrite {
+  path: string;
+  text: string;
+  expected: string | null;
 }
 
 interface FakeHost {
-  host: PreviewStartHost;
+  host: PreviewHost;
   hcCalls: string[][];
-  execCalls: Call[];
+  writes: RecordedWrite[];
+  kills: string[];
+  removals: string[];
 }
 
-const name = 'koja-picker-preview-v2';
-const legacyName = 'koja-picker-preview';
-const fifo = '/home/u/.cache/herdr-koja-picker-v2.fifo';
-const script = '/home/u/.config/herdr-app/mods/koja-picker/preview.sh';
+const folder = '/tmp/koja-preview-session';
+const statePath = `${folder}/state`;
+const script = '/app/mods/koja-picker/preview.sh';
 
 const fakeHost = (
   respond: {
+    newFolder?: () => Promise<string | null>;
     hc?: (args: string[]) => Promise<ExecResult>;
-    exec?: (command: string, args: string[]) => Promise<ExecResult>;
+    read?: (path: string) => Promise<string | null>;
+    write?: (path: string, text: string, expected: string | null) => Promise<void>;
   } = {},
 ): FakeHost => {
   const hcCalls: string[][] = [];
-  const execCalls: Call[] = [];
+  const writes: RecordedWrite[] = [];
+  const kills: string[] = [];
+  const removals: string[] = [];
 
-  const host: PreviewStartHost = {
-    name,
-    legacyNames: [legacyName],
-    fifo,
-    script,
-    sleep: async () => {},
-    hc: (args) => {
-      hcCalls.push(args);
+  return {
+    hcCalls,
+    writes,
+    kills,
+    removals,
+    host: {
+      script,
+      newFolder: respond.newFolder ?? (async () => folder),
+      hc: (args) => {
+        hcCalls.push(args);
 
-      return respond.hc ? respond.hc(args) : Promise.resolve({ code: 1, stdout: '' });
-    },
-    exec: (command, args) => {
-      execCalls.push({ command, args });
+        return (
+          respond.hc?.(args) ??
+          Promise.resolve({
+            code: 0,
+            stderr: '',
+            stdout: JSON.stringify({ address: 'viewer-1' }),
+          })
+        );
+      },
+      read: (path) => respond.read?.(path) ?? Promise.resolve(null),
+      write: (path, text, expected) => {
+        writes.push({ expected, path, text });
 
-      return respond.exec ? respond.exec(command, args) : Promise.resolve({ code: 0, stdout: '' });
+        return respond.write?.(path, text, expected) ?? Promise.resolve();
+      },
+      removeFolder: (path) => {
+        removals.push(path);
+      },
+      kill: (terminal) => {
+        kills.push(terminal);
+      },
     },
   };
-
-  return { host, hcCalls, execCalls };
 };
 
-describe('findPreviewAddress', () => {
-  test('reuses a live preview terminal', async () => {
-    const { host, hcCalls } = fakeHost({
-      hc: async () => ({ code: 0, stdout: JSON.stringify({ state: 'live', address: 'term-1' }) }),
-    });
+describe('PreviewSession.open', () => {
+  test('starts one viewer with the state path and writes the first selection', async () => {
+    const { host, hcCalls, writes } = fakeHost();
 
-    expect(await findPreviewAddress(host)).toBe('term-1');
+    const started = await new PreviewSession(host).open('term-1');
+
+    expect(started).toEqual({ address: 'viewer-1', folder, statePath });
+    expect(writes).toEqual([{ expected: null, path: statePath, text: 'term-1' }]);
 
     expect(hcCalls).toEqual([
-      ['get', '--json', legacyName],
-      ['get', '--json', name],
+      [
+        'run',
+        '--bg',
+        '--rm',
+        '--json',
+        '--no-parent',
+        '--label',
+        'koja.preview=1',
+        '--',
+        script,
+        'serve',
+        statePath,
+      ],
     ]);
   });
 
-  test('removes a stale terminal and starts a new one', async () => {
-    const { host, hcCalls } = fakeHost({
-      hc: async (args) => {
-        if (args[0] === 'get') {
-          return { code: 0, stdout: JSON.stringify({ state: 'exited' }) };
-        }
+  test('answers null when the session folder cannot be made', async () => {
+    const { host, hcCalls, writes } = fakeHost({ newFolder: async () => null });
 
-        if (args[0] === 'rm') {
-          return { code: 0, stdout: '' };
-        }
-
-        return { code: 0, stdout: JSON.stringify({ address: 'term-2' }) };
-      },
-    });
-
-    expect(await findPreviewAddress(host)).toBe('term-2');
-    expect(hcCalls[2]).toEqual(['rm', name]);
-
-    expect(hcCalls[3]).toEqual([
-      'run',
-      '--bg',
-      '--json',
-      '--no-parent',
-      '--name',
-      name,
-      '--',
-      script,
-      'serve',
-      fifo,
-    ]);
+    expect(await new PreviewSession(host).open('term-1')).toBeNull();
+    expect(hcCalls).toEqual([]);
+    expect(writes).toEqual([]);
   });
 
-  test('kills and removes an older protocol terminal and starts the current one', async () => {
-    const { host, hcCalls } = fakeHost({
-      hc: async (args) => {
-        if (args[0] === 'get' && args[2] === legacyName) {
-          return {
-            code: 0,
-            stdout: JSON.stringify({
-              state: 'live',
-              address: 't2',
-              argv: ['/bin/bash', script, 'serve', fifo],
-            }),
-          };
-        }
-
-        if (args[0] === 'get') {
-          return { code: 1, stdout: '' };
-        }
-
-        if (args[0] === 'run') {
-          return { code: 0, stdout: JSON.stringify({ address: 'term-new' }) };
-        }
-
-        return { code: 0, stdout: '' };
-      },
+  test('answers null and removes the folder when the viewer cannot start', async () => {
+    const { host, removals } = fakeHost({
+      hc: async () => ({ code: 1, stderr: '', stdout: '' }),
     });
 
-    expect(await findPreviewAddress(host)).toBe('term-new');
-    expect(hcCalls).toContainEqual(['kill', legacyName]);
-    expect(hcCalls).toContainEqual(['rm', legacyName]);
-    expect(hcCalls.some((call) => call[0] === 'run')).toBe(true);
-  });
-
-  test('leaves a terminal with a legacy name but another command', async () => {
-    const { host, hcCalls } = fakeHost({
-      hc: async (args) => {
-        if (args[0] === 'get' && args[2] === legacyName) {
-          return {
-            code: 0,
-            stdout: JSON.stringify({
-              state: 'finished',
-              address: 't4',
-              argv: ['/bin/bash', '-c', 'printf user-output; exit 0'],
-            }),
-          };
-        }
-
-        if (args[0] === 'get') {
-          return { code: 1, stdout: '' };
-        }
-
-        return { code: 0, stdout: JSON.stringify({ address: 'term-new' }) };
-      },
-    });
-
-    await findPreviewAddress(host);
-
-    expect(hcCalls).not.toContainEqual(['kill', legacyName]);
-    expect(hcCalls).not.toContainEqual(['rm', legacyName]);
-  });
-
-  test('answers null when the terminal cannot start', async () => {
-    const { host } = fakeHost({ hc: async () => ({ code: 1, stdout: '' }) });
-
-    expect(await findPreviewAddress(host)).toBeNull();
-  });
-
-  test('waits for the FIFO before answering the started terminal', async () => {
-    let probes = 0;
-
-    const { host } = fakeHost({
-      hc: async (args) =>
-        args[0] === 'get'
-          ? { code: 1, stdout: '' }
-          : { code: 0, stdout: JSON.stringify({ address: 'term-3' }) },
-      exec: async () => {
-        probes += 1;
-
-        return { code: probes < 3 ? 1 : 0, stdout: '' };
-      },
-    });
-
-    expect(await findPreviewAddress(host)).toBe('term-3');
-    expect(probes).toBe(3);
-  });
-
-  test('answers null when the FIFO never appears', async () => {
-    const { host } = fakeHost({
-      hc: async (args) =>
-        args[0] === 'get'
-          ? { code: 1, stdout: '' }
-          : { code: 0, stdout: JSON.stringify({ address: 'term-4' }) },
-      exec: async () => ({ code: 1, stdout: '' }),
-    });
-
-    expect(await findPreviewAddress(host)).toBeNull();
-  });
-
-  test('waits for the FIFO when reusing a live terminal', async () => {
-    let probes = 0;
-
-    const { host } = fakeHost({
-      hc: async () => ({
-        code: 0,
-        stdout: JSON.stringify({ state: 'live', address: 'term-live' }),
-      }),
-      exec: async () => {
-        probes += 1;
-
-        return { code: probes < 3 ? 1 : 0, stdout: '' };
-      },
-    });
-
-    expect(await findPreviewAddress(host)).toBe('term-live');
-    expect(probes).toBe(3);
-  });
-
-  test('answers null when a reused live terminal never makes its FIFO', async () => {
-    const { host } = fakeHost({
-      hc: async () => ({
-        code: 0,
-        stdout: JSON.stringify({ state: 'live', address: 'term-live' }),
-      }),
-      exec: async () => ({ code: 1, stdout: '' }),
-    });
-
-    expect(await findPreviewAddress(host)).toBeNull();
+    expect(await new PreviewSession(host).open(null)).toBeNull();
+    expect(removals).toEqual([folder]);
   });
 });
 
-describe('writePreview', () => {
-  test('writes the sequencing address to the preview FIFO', async () => {
-    const { host, execCalls } = fakeHost();
+describe('PreviewSession.show', () => {
+  test('writes the newest address for each selection', async () => {
+    const { host, writes } = fakeHost();
+    const session = new PreviewSession(host, { address: 'viewer-1', folder, statePath });
 
-    expect(await writePreview(host, 'sessionone', 7, 'term-9')).toBe(true);
+    session.show('term-1');
+    await session.settled();
+    session.show('term-2');
+    await session.settled();
 
-    expect(execCalls).toEqual([
-      { command: script, args: ['show', fifo, 'sessionone', '7', 'term-9'] },
-    ]);
+    expect(writes.map((write) => write.text)).toEqual(['term-1', 'term-2']);
   });
 
-  test('writes a dash to show nothing', async () => {
-    const { host, execCalls } = fakeHost();
+  test('keeps one write in flight and coalesces a burst to the last address', async () => {
+    const gate = Promise.withResolvers<undefined>();
 
-    await writePreview(host, 'sessionone', 8, null);
-
-    expect(execCalls[0]?.args).toEqual(['show', fifo, 'sessionone', '8', '-']);
-  });
-
-  test('answers false when the write exits nonzero', async () => {
-    const { host } = fakeHost({ exec: async () => ({ code: 1, stdout: '' }) });
-
-    expect(await writePreview(host, 'sessionone', 1, 'term-9')).toBe(false);
-  });
-
-  test('answers false when the write rejects', async () => {
-    const { host } = fakeHost({
-      exec: async () => {
-        throw new Error('away');
+    const { host, writes } = fakeHost({
+      write: async (_path, text) => {
+        if (text === 'term-1') {
+          await gate.promise;
+        }
       },
     });
 
-    expect(await writePreview(host, 'sessionone', 1, 'term-9')).toBe(false);
+    const session = new PreviewSession(host);
+
+    await session.open('seed');
+    session.show('term-1');
+    session.show('term-2');
+    session.show('term-3');
+
+    expect(writes.map((write) => write.text)).toEqual(['seed', 'term-1']);
+
+    gate.resolve(undefined);
+    await session.settled();
+
+    expect(writes.map((write) => write.text)).toEqual(['seed', 'term-1', 'term-3']);
+  });
+
+  test('reads the existing state before the first resumed write', async () => {
+    const { host, writes } = fakeHost({ read: async () => 'term-1' });
+    const session = new PreviewSession(host, { address: 'viewer-1', folder, statePath });
+
+    session.show('term-2');
+    await session.settled();
+
+    expect(writes).toEqual([{ expected: 'term-1', path: statePath, text: 'term-2' }]);
+  });
+
+  test('writes an empty selection once and stops', async () => {
+    const { host, writes } = fakeHost({ read: async () => 'term-1' });
+    const session = new PreviewSession(host, { address: 'viewer-1', folder, statePath });
+
+    session.show(null);
+    await session.settled();
+    session.show(null);
+    await session.settled();
+
+    expect(writes).toEqual([{ expected: 'term-1', path: statePath, text: '' }]);
+  });
+
+  test('kills a viewer whose start result arrives after close', async () => {
+    const gate = Promise.withResolvers<ExecResult>();
+    const { host, kills } = fakeHost({ hc: () => gate.promise });
+    const session = new PreviewSession(host);
+
+    const opening = session.open(null);
+
+    await Bun.sleep(0);
+    session.close();
+    gate.resolve({ code: 0, stderr: '', stdout: JSON.stringify({ address: 'viewer-late' }) });
+
+    expect(await opening).toBeNull();
+    expect(kills).toEqual(['viewer-late']);
+  });
+
+  test('does not kill a viewer another owner has taken', async () => {
+    const { host, kills, removals } = fakeHost();
+    const session = new PreviewSession(host);
+
+    await session.open('term-1');
+    session.handOff();
+    session.close();
+
+    expect(kills).toEqual([]);
+    expect(removals).toEqual([]);
+  });
+
+  test('writes a heartbeat while open and stops after close', async () => {
+    const { host, writes } = fakeHost();
+    const session = new PreviewSession(host);
+
+    await session.open('term-1');
+    writes.length = 0;
+
+    await session.beat();
+    await session.beat();
+
+    expect(writes).toEqual([
+      { expected: null, path: `${folder}/heartbeat`, text: '1' },
+      { expected: '1', path: `${folder}/heartbeat`, text: '2' },
+    ]);
+
+    session.close();
+    await session.beat();
+
+    expect(writes).toHaveLength(2);
   });
 });
 
-describe('createPreviewSession', () => {
-  test('clears the preview on close', async () => {
-    const { host, execCalls } = fakeHost();
+describe('PreviewSession.close', () => {
+  test('kills its viewer, removes its folder and writes no clear', async () => {
+    const { host, kills, removals, writes } = fakeHost();
+    const session = new PreviewSession(host, { address: 'viewer-9', folder, statePath });
 
-    await createPreviewSession(host).close(async () => {});
+    session.show('term-1');
+    await session.settled();
+    session.close();
 
-    expect(execCalls).toHaveLength(1);
-    expect(execCalls[0]?.command).toBe(script);
-    expect(execCalls[0]?.args[0]).toBe('show');
-    expect(execCalls[0]?.args[1]).toBe(fifo);
-    expect(execCalls[0]?.args[2]).toMatch(/^[a-z0-9]+$/);
-    expect(execCalls[0]?.args[3]).toBe('1');
-    expect(execCalls[0]?.args[4]).toBe('-');
+    expect(kills).toEqual(['viewer-9']);
+    expect(removals).toEqual([folder]);
+    expect(writes.map((write) => write.text)).toEqual(['term-1']);
+  });
+
+  test('ignores selections after close', async () => {
+    const { host, writes } = fakeHost();
+    const session = new PreviewSession(host, { address: 'viewer-9', folder, statePath });
+
+    session.close();
+    session.show('term-1');
+    await session.settled();
+
+    expect(writes).toEqual([]);
   });
 });
