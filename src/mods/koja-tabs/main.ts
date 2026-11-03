@@ -31,8 +31,6 @@ import type { PanelMemory } from './panelMemory.ts';
 import { initialPanelMemory, panelMemory } from './panelMemory.ts';
 import { tabDropAction } from './tabDrop.ts';
 import { tabLabel, tabProgram } from './tabLabel.ts';
-import type { WindowControl } from './windowControls.ts';
-import { windowControls } from './windowControls.ts';
 
 interface Panel {
   id: string;
@@ -278,8 +276,7 @@ export default class Tabs extends View {
         h_flex()
           .mx(spacing.small)
           .child(indicator(normalMode ? 'blocked' : 'ansi2')),
-      )
-      .children(windowControls(currentWindow()).map((control) => this.windowButton(control)));
+      );
   }
 
   private panelButton(panel: Panel): Element {
@@ -290,15 +287,6 @@ export default class Tabs extends View {
       .on_mouse_down('left', stopPress)
       .on_click(() => {
         showPanel(on ? null : panel.id);
-      });
-  }
-
-  private windowButton(control: WindowControl): Element {
-    return iconButton({ name: control.icon })
-      .id(control.id)
-      .on_mouse_down('left', stopPress)
-      .on_click(() => {
-        run(control.command);
       });
   }
 }
