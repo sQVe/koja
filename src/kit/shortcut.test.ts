@@ -1,36 +1,26 @@
-import { describe, expect, mock, test } from 'bun:test';
+import { describe, expect, test } from 'bun:test';
 
-interface Binding {
-  section: string;
-  keys: string;
-  action: string;
-}
+import type { KeyBinding } from './shortcutBinding.ts';
+import { bindingFor } from './shortcutBinding.ts';
 
-let bindings: Binding[] = [];
+const binding = (action: string, keys: string, section = 'global'): KeyBinding => ({
+  section,
+  keys,
+  action,
+});
 
-await mock.module('herdr', () => ({ keys: (): Binding[] => bindings }));
-
-const { shortcutFor } = await import('./shortcut.ts');
-
-describe('shortcutFor', () => {
+describe('bindingFor', () => {
   test('returns the binding of the first action that has one', () => {
-    bindings = [
-      { section: 'global', keys: 'ctrl-shift-p', action: 'palette.open' },
-      { section: 'global', keys: 'ctrl-p', action: 'picker.open' },
-    ];
+    const bindings = [binding('palette.open', 'ctrl-shift-p'), binding('picker.open', 'ctrl-p')];
 
-    expect(shortcutFor('picker.open', 'palette.open')).toBe('ctrl-p');
+    expect(bindingFor(bindings, 'picker.open', 'palette.open')).toBe('ctrl-p');
   });
 
   test('ignores bindings outside the global section', () => {
-    bindings = [{ section: 'pane', keys: 'ctrl-p', action: 'picker.open' }];
-
-    expect(shortcutFor('picker.open')).toBeNull();
+    expect(bindingFor([binding('picker.open', 'ctrl-p', 'pane')], 'picker.open')).toBeNull();
   });
 
   test('answers null when no action has a binding', () => {
-    bindings = [{ section: 'global', keys: 'ctrl-p', action: 'other.open' }];
-
-    expect(shortcutFor('picker.open')).toBeNull();
+    expect(bindingFor([binding('other.open', 'ctrl-p')], 'picker.open')).toBeNull();
   });
 });

@@ -1,15 +1,5 @@
 import { keys } from 'herdr';
 
-export const shortcutFor = (...actions: string[]): string | null => {
-  const bindings = keys().filter((candidate) => candidate.section === 'global');
+import { bindingFor } from './shortcutBinding.ts';
 
-  for (const action of actions) {
-    const binding = bindings.find((candidate) => candidate.action === action);
-
-    if (binding !== undefined) {
-      return binding.keys;
-    }
-  }
-
-  return null;
-};
+export const shortcutFor = (...actions: string[]): string | null => bindingFor(keys(), ...actions);
