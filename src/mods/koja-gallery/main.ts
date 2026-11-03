@@ -27,6 +27,7 @@ import {
   searchField,
   sectionHeader,
   separator,
+  spaceMark,
   spacing,
   spinner,
   statusMark,
@@ -36,8 +37,6 @@ import {
 } from '../../kit/index.ts';
 import { actions } from './actions.ts';
 import { sample } from './sample.ts';
-
-const statuses: (Status | null)[] = ['working', 'blocked', 'done', 'idle', null];
 
 const fileStatuses: FileStatus[] = ['A', 'M', 'D', 'U'];
 
@@ -85,20 +84,20 @@ const icons = (): Element[] => [
   ),
 ];
 
-const statusLabel = (status: Status | null): string => status ?? 'none';
+const markWithLabel = (mark: Element, label: string): Element =>
+  h_flex().gap(spacing.xsmall).items_center().child(mark).child(label);
 
 const marks = (): Element[] => [
   h_flex()
     .gap(spacing.large)
-    .children(
-      statuses.map((status) =>
-        h_flex()
-          .gap(spacing.xsmall)
-          .items_center()
-          .child(statusMark(status))
-          .child(statusLabel(status)),
-      ),
-    ),
+    .children([
+      markWithLabel(statusMark('working'), 'working'),
+      markWithLabel(statusMark('blocked'), 'blocked'),
+      markWithLabel(statusMark('done'), 'done'),
+      markWithLabel(statusMark('idle'), 'idle'),
+      markWithLabel(spaceMark(null), 'no agent'),
+      markWithLabel(statusMark(null), 'none'),
+    ]),
   sample(
     'File status letters: added, modified, deleted, unmerged',
     h_flex()
