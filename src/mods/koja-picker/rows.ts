@@ -1,5 +1,6 @@
 import type { PaneInfo, SpaceInfo, Status, TabInfo } from 'herdr';
 
+import { tabLabel, tabProgram } from '../../kit/tabLabel.ts';
 import type { Match } from './match.ts';
 import { bestFieldMatch, fuzzyMatch } from './match.ts';
 
@@ -70,10 +71,7 @@ export const paneDetail = (pane: PaneInfo): string | null => {
 const panesOf = (tab: TabInfo, paneList: PaneInfo[]): PaneInfo[] =>
   paneList.filter((pane) => pane.tab === tab.id);
 
-const terminalPanes = (tab: TabInfo, paneList: PaneInfo[]): PaneInfo[] =>
-  panesOf(tab, paneList).filter((pane) => pane.terminal !== null);
-
-export const tabPane = (tab: TabInfo, data: PickerData): PaneInfo | null => {
+const tabPane = (tab: TabInfo, data: PickerData): PaneInfo | null => {
   const tabPanes = panesOf(tab, data.panes);
   const focusedPane = tabPanes.find((pane) => pane.focused);
 
@@ -105,12 +103,13 @@ export const rowPane = (row: PickerRow | undefined, data: PickerData): PaneInfo 
   return row.tab === undefined ? null : tabPane(row.tab, data);
 };
 
-const tabName = (tab: TabInfo): string => (tab.named ? tab.name : `Tab ${tab.index}`);
+export const tabRowDisplay = (
+  tab: TabInfo,
+  paneList: PaneInfo[],
+): { program: PaneInfo['program'] | undefined; label: string } => {
+  const program = tabProgram(tab, paneList);
 
-export const tabLabel = (tab: TabInfo, paneList: PaneInfo[]): string => {
-  const title = terminalPanes(tab, paneList)[0]?.title ?? '';
-
-  return title === '' ? tabName(tab) : `${tabName(tab)} · ${title}`;
+  return { program, label: tabLabel(tab, program) };
 };
 
 const paneSearchFields = (pane: PaneInfo): (string | null)[] => {

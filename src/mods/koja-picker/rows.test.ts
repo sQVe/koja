@@ -3,7 +3,7 @@ import { describe, expect, test } from 'bun:test';
 import type { PaneInfo, Program, SpaceInfo, Status, TabInfo } from 'herdr';
 
 import type { PickerData } from './rows.ts';
-import { buildRows, paneDetail, paneLabel, rowPane, statusCount } from './rows.ts';
+import { buildRows, paneDetail, paneLabel, rowPane, statusCount, tabRowDisplay } from './rows.ts';
 
 const shell: Program = {
   key: 'shell',
@@ -250,6 +250,35 @@ describe('paneDetail', () => {
 
   test('answers nothing for a mod pane', () => {
     expect(paneDetail(modPaneOf('m1', 'k1', 'Gallery'))).toBeNull();
+  });
+});
+
+describe('tabRowDisplay', () => {
+  const tuicr: Program = { ...shell, key: 'tuicr', name: 'tuicr', shell: false, agent: true };
+  const tuicrPane = { ...paneOf('p1', 'k1'), program: tuicr, title: 'review' };
+
+  test('labels an unnamed tab by the program it runs', () => {
+    expect(tabRowDisplay(tabOf('k1', 1), [tuicrPane]).label).toBe('tuicr');
+  });
+
+  test('takes the icon program from the same program as the label', () => {
+    expect(tabRowDisplay(tabOf('k1', 1), [tuicrPane]).program).toBe(tuicr);
+  });
+
+  test('keeps a custom tab name', () => {
+    const named = { ...tabOf('k1', 1), name: 'review', named: true };
+
+    expect(tabRowDisplay(named, [tuicrPane]).label).toBe('review');
+  });
+
+  test('adds the zoom marker to a zoomed tab', () => {
+    const zoomed = { ...tabOf('k1', 1), zoomed: true };
+
+    expect(tabRowDisplay(zoomed, [tuicrPane]).label).toBe('tuicr Z');
+  });
+
+  test('leaves the pane title out of the label', () => {
+    expect(tabRowDisplay(tabOf('k1', 1), [paneOf('p1', 'k1')]).label).toBe('zsh');
   });
 });
 

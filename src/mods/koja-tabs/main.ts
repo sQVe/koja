@@ -23,13 +23,14 @@ import {
   spacing,
   stringOf,
   tab,
+  tabLabel,
+  tabProgram,
   toggleButton,
   trafficLightsPadding,
 } from '../../kit/index.ts';
 import type { PanelMemory } from './panelMemory.ts';
 import { initialPanelMemory, panelMemory } from './panelMemory.ts';
 import { tabDropAction } from './tabDrop.ts';
-import { tabLabel, tabProgram } from './tabLabel.ts';
 
 interface Panel {
   id: string;
