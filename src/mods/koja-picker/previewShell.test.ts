@@ -32,7 +32,7 @@ const makeFakeHc = async (root: string): Promise<FakeHc> => {
 
   await writeFile(
     join(bin, 'hc'),
-    `#!/bin/sh\necho "$*" >> '${log}'\necho $$ >> '${pids}'\nexec sleep 300\n`,
+    `#!/bin/sh\necho $$ >> '${pids}'\necho "$*" >> '${log}'\nexec sleep 300\n`,
   );
 
   await chmod(join(bin, 'hc'), 0o755);
@@ -307,22 +307,27 @@ describe.concurrent('preview.sh serve', () => {
       const { bin, log, pids } = await makeFakeHc(root);
       const child = startServe(state, bin, { KOJA_PREVIEW_HEARTBEAT_LIMIT_POLLS: '20' });
 
-      expect(await waitFor(async () => (await attachCount(log, 'term-1')) === 1, 2_000)).toBe(true);
+      try {
+        expect(await waitFor(async () => (await attachCount(log, 'term-1')) === 1, 2_000)).toBe(
+          true,
+        );
 
-      const pid = await lastPid(pids);
+        const pid = await lastPid(pids);
 
-      expect(pid).toBeGreaterThan(0);
+        expect(pid).toBeGreaterThan(0);
 
-      process.kill(child.pid, 'SIGSTOP');
-      await Bun.sleep(1_500);
-      process.kill(child.pid, 'SIGCONT');
-      await Bun.sleep(100);
+        process.kill(child.pid, 'SIGSTOP');
+        await Bun.sleep(1_500);
+        process.kill(child.pid, 'SIGCONT');
+        await Bun.sleep(100);
 
-      expect(child.exitCode).toBeNull();
-      expect(alive(pid)).toBe(true);
-
-      child.kill();
-      await child.exited;
+        expect(child.exitCode).toBeNull();
+        expect(alive(pid)).toBe(true);
+      } finally {
+        process.kill(child.pid, 'SIGCONT');
+        child.kill();
+        await child.exited;
+      }
     });
   });
 });
