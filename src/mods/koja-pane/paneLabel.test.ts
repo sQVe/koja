@@ -2,7 +2,7 @@ import { describe, expect, test } from 'bun:test';
 
 import type { PaneInfo, Program } from 'herdr';
 
-import { paneName } from './paneLabel.ts';
+import { paneFolder, paneName } from './paneLabel.ts';
 
 const programOf = (overrides: Partial<Program>): Program => ({
   key: 'program',
@@ -30,6 +30,17 @@ const paneOf = (title: string, program: Partial<Program>): PaneInfo => ({
   zoomed: false,
   movable: true,
 });
+
+const modPaneOf = (title: string): PaneInfo =>
+  ({
+    pane: 'p2',
+    mod: 'koja-gallery',
+    terminal: null,
+    tab: 'tb1',
+    title,
+    focused: false,
+    zoomed: false,
+  }) as PaneInfo;
 
 describe('paneName', () => {
   test('shows the agent name over the terminal title', () => {
@@ -63,9 +74,18 @@ describe('paneName', () => {
   });
 
   test('shows the mod name for a mod pane, which has no program', () => {
-    const { program: _program, ...terminalPane } = paneOf('Gallery', {});
-    const modPane = { ...terminalPane, terminal: null, mod: 'koja-gallery' } as PaneInfo;
+    expect(paneName(modPaneOf('Gallery'))).toBe('Gallery');
+  });
+});
 
-    expect(paneName(modPane)).toBe('Gallery');
+describe('paneFolder', () => {
+  test('gives the folder of a terminal pane', () => {
+    const pane = { ...paneOf('zsh', { shell: true }), cwd: '/home/dev/code' };
+
+    expect(paneFolder(pane)).toBe('/home/dev/code');
+  });
+
+  test('gives no folder for a mod pane, which has none', () => {
+    expect(paneFolder(modPaneOf('Gallery'))).toBeNull();
   });
 });

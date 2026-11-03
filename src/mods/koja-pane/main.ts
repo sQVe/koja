@@ -18,7 +18,7 @@ import {
   textSize,
 } from '../../kit/index.ts';
 import { folderLabel } from './paneFolder.ts';
-import { paneName, paneProgram } from './paneLabel.ts';
+import { paneFolder, paneName, paneProgram } from './paneLabel.ts';
 
 const headerPane = (): PaneInfo | undefined => {
   const paneId = stringOf(recordOf(props()).pane);
@@ -124,7 +124,7 @@ export default class PaneHeader extends View {
         .min_w(0)
         .truncate()
         .text_color(palette.dim)
-        .child(folderLabel(pane.cwd, home())),
+        .child(folderLabel(paneFolder(pane), home())),
     );
 
     const status = statusElement(pane.status);

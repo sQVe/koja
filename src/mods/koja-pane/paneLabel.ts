@@ -3,6 +3,9 @@ import type { PaneInfo, Program } from 'herdr';
 export const paneProgram = (pane: PaneInfo): Program | null =>
   pane.terminal === null ? null : pane.program;
 
+export const paneFolder = (pane: PaneInfo): string | null =>
+  pane.terminal === null ? null : pane.cwd;
+
 const isNamedProgram = (program: Program): boolean => program.agent || program.shell;
 
 const programName = (program: Program | null): string => {
