@@ -114,12 +114,26 @@ describe('rollupStatuses', () => {
 
   test('a grandchild counts for its top pane tab and its space', () => {
     const result = roll([
-      terminalOf('t-child', 't-p1', 'working'),
+      terminalOf('t-child', 't-p1', 'idle'),
       terminalOf('t-grandchild', 't-child', 'working'),
     ]);
 
     expect(result.tabs['k1']).toBe('working');
     expect(result.spaces['s1']).toBe('working');
+  });
+
+  test('a parent cycle with no pane contributes nothing', () => {
+    const result = roll([terminalOf('t-a', 't-b', 'working'), terminalOf('t-b', 't-a', 'working')]);
+
+    expect(result.tabs['k1']).toBe('idle');
+    expect(result.spaces['s1']).toBe('idle');
+  });
+
+  test('a terminal that is its own parent contributes nothing', () => {
+    const result = roll([terminalOf('t-self', 't-self', 'working')]);
+
+    expect(result.tabs['k1']).toBe('idle');
+    expect(result.spaces['s1']).toBe('idle');
   });
 
   test('a blocked child beats a working one', () => {
