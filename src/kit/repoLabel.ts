@@ -32,7 +32,8 @@ export const repoLabel = (options: RepoLabelOptions): Element => {
     .flex_none()
     .max_w_full()
     .truncate()
-    .font_medium()
+    .text_size(textSize.small)
+    .font_semibold()
     .text_color(palette[nameToken(options)])
     .child(options.name);
 

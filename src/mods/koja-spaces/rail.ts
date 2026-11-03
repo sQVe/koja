@@ -9,7 +9,7 @@ import { listedOf } from './tree.ts';
 
 const insetLine = (): Element => div().px(spacing.small).child(separator());
 
-export const railRow = (row: TreeRow, lined: boolean): Element => {
+export const railRow = (row: TreeRow, lineAbove: boolean): Element => {
   const { space } = listedOf(row);
 
   const element = listRow({
@@ -25,7 +25,7 @@ export const railRow = (row: TreeRow, lined: boolean): Element => {
       run('space.select', { id: space.id });
     });
 
-  if (!lined) {
+  if (!lineAbove) {
     return element;
   }
 

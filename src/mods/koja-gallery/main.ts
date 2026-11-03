@@ -234,9 +234,42 @@ const railDot = (status: Status, selected: boolean): Element =>
 
 const insetLine = (): Element => div().px(spacing.small).child(separator());
 
+const sidebarGap = (): Element => div().h(spacing.medium);
+
 const sidebarSamples = (): Element[] => [
   sample(
-    'Open label, hovered with chevron',
+    'Gap between repository groups, then a dot-first row',
+    sidebarFrame([
+      listRow({
+        size: 'small',
+        inset: true,
+        state: 'normal',
+        label: repoLabel({
+          name: 'herdr-app',
+          detail: 'main · 3h',
+          folded: false,
+          selected: false,
+        }),
+      }),
+      sidebarGap(),
+      listRow({
+        size: 'small',
+        inset: true,
+        state: 'normal',
+        label: repoLabel({ name: 'koja', detail: 'main · 4m', folded: false, selected: false }),
+      }),
+      listRow({
+        size: 'small',
+        inset: true,
+        state: 'normal',
+        start: statusMark('working'),
+        label: 'feature-login',
+        end: [detailText('#42', colors().ansi2)],
+      }),
+    ]),
+  ),
+  sample(
+    'Open label, hovered with chevron, then a dot-first worktree',
     sidebarFrame([
       listRow({
         size: 'small',
@@ -250,8 +283,9 @@ const sidebarSamples = (): Element[] => [
         size: 'small',
         inset: true,
         state: 'normal',
+        start: statusMark('working'),
         label: 'feature-login',
-        end: [statusMark('working')],
+        end: [detailText('#42', colors().ansi2)],
       }),
     ]),
   ),
@@ -269,8 +303,8 @@ const sidebarSamples = (): Element[] => [
         size: 'small',
         inset: true,
         state: 'normal',
+        start: statusMark('blocked'),
         label: 'fix-login',
-        end: [statusMark('blocked')],
       }),
     ]),
   ),

@@ -31,9 +31,8 @@ import { isMachineLoading, readMachines } from './machines.ts';
 import { newSpaceArguments } from './newSpace.ts';
 import { pullFields, pullOf, pullState, readPullCaches, readPullList } from './pulls.ts';
 import { railRow } from './rail.ts';
-import { railLineRows } from './railLines.ts';
 import { labelDetail } from './rows.ts';
-import type { ListedSpace, RepoRef, RepoRow, SpaceRow, TreeRow } from './tree.ts';
+import type { ListedSpace, RepoRef, RepoRow, SpaceRow, TreeGroup, TreeRow } from './tree.ts';
 import { nestSpaces, placesOf } from './tree.ts';
 import type { VisibilityResult, VisibilityState } from './visibility.ts';
 import { advanceVisibility, initialVisibility } from './visibility.ts';
@@ -206,7 +205,7 @@ export default class Spaces extends View {
     });
   }
 
-  private ordered(): TreeRow[] {
+  private ordered(): TreeGroup[] {
     const spaceList = spaces();
     const paneList = panes();
     const at = placesOf(spaceList, paneList);
@@ -239,25 +238,24 @@ export default class Spaces extends View {
     row: TreeRow,
     ids: readonly string[],
     collapsed: boolean,
-    lined: ReadonlySet<TreeRow>,
+    lineAbove: boolean,
   ): Element {
     if (collapsed) {
-      return railRow(row, lined.has(row));
+      return railRow(row, lineAbove);
     }
 
     return row.kind === 'repo' ? this.labelRow(row, ids) : this.row(row, ids);
   }
 
   private grouped(collapsed: boolean): Element[] {
-    const rows = this.ordered();
+    const groups = this.ordered();
     const ids = spaces().map((space) => space.id);
-    const lined = railLineRows(rows);
 
     return machineRows(
       {
         machineList: this.machineList,
-        rows,
-        draw: (row) => this.draw(row, ids, collapsed, lined),
+        groups,
+        draw: (row, lineAbove) => this.draw(row, ids, collapsed, lineAbove),
         folded: (machine) => this.foldedMachines.has(machine ?? ''),
         loading: (machine) => this.isLoading(machine),
         addSpace: (machine) => {
@@ -374,10 +372,11 @@ export default class Spaces extends View {
       size: 'small',
       inset: true,
       state: space.active ? 'selected' : 'normal',
+      start: statusMark(space.status),
       label: this.rowTitle(row),
       ...(line === undefined ? {} : { dropLine: line }),
       dragged: this.drag.source === space.id && this.drag.over !== space.id,
-      end: [...this.pullDetail(row), statusMark(space.status)],
+      end: this.pullDetail(row),
     }).id(`space-${space.id}`);
 
     this.addDragHandlers(element, space, ids);

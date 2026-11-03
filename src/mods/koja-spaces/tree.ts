@@ -46,6 +46,24 @@ export interface SpaceRow extends ListedSpace {
 
 export type TreeRow = RepoRow | SpaceRow;
 
+// A repository group keeps its label and the worktree rows its fold shows. A plain group is one
+// space. Groups are the unit the rail lines and the full sidebar gaps sit between.
+interface RepoGroup {
+  kind: 'repo';
+  repo: RepoRef;
+  name: string;
+  main: ListedSpace;
+  fold: Fold | null;
+  children: SpaceRow[];
+}
+
+interface SpaceGroup {
+  kind: 'space';
+  listed: ListedSpace;
+}
+
+export type TreeGroup = RepoGroup | SpaceGroup;
+
 interface RepoChildren {
   shown: ListedSpace[];
   fold: Fold | null;
@@ -81,7 +99,27 @@ const needsYou = (status: Status | null): boolean => status === 'blocked' || sta
 
 export const listedOf = (row: TreeRow): ListedSpace => (row.kind === 'repo' ? row.main : row);
 
-export const machineOf = (row: TreeRow): string | null => listedOf(row).space.machine ?? null;
+const listedOfGroup = (group: TreeGroup): ListedSpace =>
+  group.kind === 'repo' ? group.main : group.listed;
+
+export const machineOfGroup = (group: TreeGroup): string | null =>
+  listedOfGroup(group).space.machine ?? null;
+
+// A rail line sits between two groups of one machine when either of them is a repository. The
+// first group of a machine has none above it.
+const isRepository = (group: TreeGroup | null): boolean => group?.kind === 'repo';
+
+export const railLineBefore = (group: TreeGroup, previous: TreeGroup | null): boolean => {
+  if (previous === null) {
+    return false;
+  }
+
+  return isRepository(group) || isRepository(previous);
+};
+
+// The full sidebar leaves a gap above every repository group except the first of its machine.
+export const groupGapBefore = (group: TreeGroup, previous: TreeGroup | null): boolean =>
+  previous !== null && group.kind === 'repo';
 
 const isMain = (row: ListedSpace): row is ListedSpace & { git: GitInfo } =>
   row.git !== null && !row.git.linked;
@@ -100,6 +138,17 @@ export const repoName = (path: string): string => {
 };
 
 const spaceRow = (row: ListedSpace): SpaceRow => ({ kind: 'space', ...row });
+
+const repoRow = (group: RepoGroup): RepoRow => ({
+  kind: 'repo',
+  repo: group.repo,
+  name: group.name,
+  main: group.main,
+  fold: group.fold,
+});
+
+export const groupRows = (group: TreeGroup): TreeRow[] =>
+  group.kind === 'space' ? [spaceRow(group.listed)] : [repoRow(group), ...group.children];
 
 const childrenOf = (
   row: ListedSpace,
@@ -120,14 +169,14 @@ const childrenOf = (
   return { shown, fold: { folded, hidden: kids.length - shown.length } };
 };
 
-export const nestSpaces = (list: ListedSpace[], foldedRepos: FoldedKeys): TreeRow[] => {
+export const nestSpaces = (list: ListedSpace[], foldedRepos: FoldedKeys): TreeGroup[] => {
   const mains = new Set(list.filter(isMain).map((row) => row.git.repo.key));
 
   const nested = (row: ListedSpace): boolean =>
     row.git?.linked === true && mains.has(row.git.repo.key);
 
   const placed = new Set<string>();
-  const rows: TreeRow[] = [];
+  const groups: TreeGroup[] = [];
 
   for (const row of list) {
     if (nested(row)) {
@@ -137,7 +186,7 @@ export const nestSpaces = (list: ListedSpace[], foldedRepos: FoldedKeys): TreeRo
     const repo = row.git?.repo.key ?? '';
 
     if (!isMain(row) || placed.has(repo)) {
-      rows.push(spaceRow(row));
+      groups.push({ kind: 'space', listed: row });
 
       continue;
     }
@@ -146,16 +195,15 @@ export const nestSpaces = (list: ListedSpace[], foldedRepos: FoldedKeys): TreeRo
 
     placed.add(repo);
 
-    rows.push({
+    groups.push({
       kind: 'repo',
       repo: row.git.repo,
       name: repoName(row.git.repo.path),
       main: row,
       fold: children.fold,
+      children: children.shown.map(spaceRow),
     });
-
-    rows.push(...children.shown.map(spaceRow));
   }
 
-  return rows;
+  return groups;
 };
