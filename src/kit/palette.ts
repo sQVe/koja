@@ -44,6 +44,15 @@ export interface Palette {
 
 export type ThemeToken = keyof Palette;
 
+export const withAlpha = (color: Color, alpha: string): Color => `${color}${alpha}`;
+
+const diffFillAlpha = '18';
+
+export const diffTints = (palette: Palette): { added: Color; removed: Color } => ({
+  added: withAlpha(palette.ansi2, diffFillAlpha),
+  removed: withAlpha(palette.ansi1, diffFillAlpha),
+});
+
 const isColor = (value: string): value is Color => value.startsWith('#');
 
 const toColor = (value: string): Color => (isColor(value) ? value : `#${value}`);

@@ -3,8 +3,11 @@ import type { Color, Element } from 'gpui-kit';
 import { div } from 'gpui-kit';
 import type { Status } from 'herdr';
 
+import type { FileStatus } from './fileStatus.ts';
+import { fileStatusColor } from './fileStatus.ts';
 import { spinner } from './icon.ts';
 import type { ThemeToken } from './palette.ts';
+import { withAlpha } from './palette.ts';
 import { controlSize, markSize, radius, spacing, textSize } from './size.ts';
 import { colors } from './theme.ts';
 
@@ -36,9 +39,15 @@ export const statusMark = (status: Status | null): Element => {
 
 export const indicator = (token: ThemeToken): Element => dot(markSize.dot, colors()[token]);
 
-const badgeFillAlpha = '26';
+export const fileStatusMark = (status: FileStatus): Element =>
+  div()
+    .w(controlSize.tabSlot)
+    .flex_none()
+    .text_size(textSize.small)
+    .text_color(fileStatusColor(status, colors()))
+    .child(status);
 
-const withAlpha = (color: Color, alpha: string): Color => `${color}${alpha}`;
+const badgeFillAlpha = '26';
 
 export const attentionBadge = (label: string): Element => {
   const palette = colors();

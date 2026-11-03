@@ -1,4 +1,4 @@
-export { iconButton, toggleButton } from './button.ts';
+export { actionButton, iconButton, toggleButton } from './button.ts';
 
 export { icon, iconSlot, programIcon, spinner } from './icon.ts';
 
@@ -16,10 +16,13 @@ export type { RowState } from './listRow.ts';
 
 export { searchField } from './searchField.ts';
 
+export { textField } from './textField.ts';
+
 export { sectionHeader } from './sectionHeader.ts';
 
 export {
   controlSize,
+  diffSize,
   overlaySize,
   radius,
   railWidthLimit,
@@ -29,7 +32,9 @@ export {
   textSize,
 } from './size.ts';
 
-export { attentionBadge, indicator, statusMark } from './statusMark.ts';
+export { attentionBadge, fileStatusMark, indicator, statusMark } from './statusMark.ts';
+
+export type { FileStatus } from './fileStatus.ts';
 
 export { rollupStatuses } from './statusRollup.ts';
 
@@ -49,7 +54,9 @@ export { detailText, emptyState, highlightedText, keyHint, separator } from './t
 
 export { colors } from './theme.ts';
 
-export type { ThemeToken } from './palette.ts';
+export { diffTints } from './palette.ts';
+
+export type { Palette, ThemeToken } from './palette.ts';
 
 export { listOf, numberOf, recordOf, stringOf } from './fields.ts';
 

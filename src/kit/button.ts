@@ -6,7 +6,7 @@ import { withHover } from './hover.ts';
 import { icon } from './icon.ts';
 import type { IconName } from './iconNames.ts';
 import type { Color } from './palette.ts';
-import { controlSize, radius, spacing, textSize } from './size.ts';
+import { actionHoverOpacity, controlSize, radius, spacing, textSize } from './size.ts';
 import { colors } from './theme.ts';
 
 export interface IconButtonOptions extends HoverOptions {
@@ -20,6 +20,11 @@ export interface ToggleButtonOptions extends HoverOptions {
   start?: Element;
   end?: string;
   quiet?: boolean;
+}
+
+export interface ActionButtonOptions extends HoverOptions {
+  label: string;
+  enabled: boolean;
 }
 
 export const iconButton = (options: IconButtonOptions): Element => {
@@ -48,6 +53,32 @@ const toggleTextColor = (options: ToggleButtonOptions): Color => {
   }
 
   return options.quiet === true ? palette.dim : palette.muted;
+};
+
+export const actionButton = (options: ActionButtonOptions): Element => {
+  const palette = colors();
+
+  const button = h_flex()
+    .h(controlSize.button)
+    .px(spacing.large)
+    .flex_none()
+    .items_center()
+    .rounded(radius.pill)
+    .text_size(textSize.small)
+    .child(options.label);
+
+  if (options.enabled) {
+    const enabledButton = button
+      .bg(palette.solid)
+      .text_color(palette.solid_foreground)
+      .cursor_pointer();
+
+    return withHover(enabledButton, options.hovered === true, (element) =>
+      element.opacity(actionHoverOpacity),
+    );
+  }
+
+  return button.bg(palette.raised).text_color(palette.dim);
 };
 
 export const toggleButton = (options: ToggleButtonOptions): Element => {

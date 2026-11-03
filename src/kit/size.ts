@@ -40,6 +40,17 @@ export const rowHeight = {
 
 export type RowSize = keyof typeof rowHeight;
 
+export const diffSize = {
+  headerHeight: 34,
+  rowHeight: 18,
+  lineNumberWidth: 30,
+  minimumWidth: 300,
+  characterWidth: 7,
+  widthPadding: 50,
+  fileListHeightLimit: 200,
+  fileListHeightMinimum: 44,
+} as const;
+
 export const controlSize = {
   badge: 18,
   button: 22,
@@ -84,5 +95,7 @@ export const railWidthLimit = 160;
 export const trafficLightsWidth = 64;
 
 export const draggedOpacity = 0.5;
+
+export const actionHoverOpacity = 0.88;
 
 export const spinnerPeriod = 900;

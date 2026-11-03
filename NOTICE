@@ -12,6 +12,7 @@ Apache License, Version 2.0. The license text is in LICENSES/Apache-2.0.txt.
 Koja changed each of them: they are ported to TypeScript, restyled, and draw
 through Koja's UI kit. herdr/upstream.json records the Herdr release of each.
 
+- src/mods/koja-changes, from defaults/mods/changes in Herdr 0.1.12
 - src/mods/koja-menu, from defaults/mods/menu in Herdr 0.1.11
 - src/mods/koja-new-menu, from defaults/mods/new-menu in Herdr 0.1.11
 - src/mods/koja-palette, from defaults/frame/palette in Herdr 0.1.11
