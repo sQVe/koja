@@ -23,8 +23,6 @@ set -euo pipefail
 here=$(cd "$(dirname "$0")" && pwd)
 name=${HERDR_APP_SANDBOX-sandbox}
 
-# One path component only: a name with a slash or `..` could leave /var/tmp,
-# and `down` removes the folder it names.
 if [[ ! $name =~ ^[a-z0-9][a-z0-9-]*$ ]]; then
   echo "HERDR_APP_SANDBOX must be one name of lowercase letters, digits, and dashes, not '$name'" >&2
   exit 2
@@ -59,7 +57,6 @@ export HC_SOCKET=$root/run/core.sock
 export XDG_CONFIG_HOME=$root/config
 export XDG_STATE_HOME=$root/state
 export XDG_RUNTIME_DIR=$root/run
-# The app's own folder, settings, keys, and layouts.
 export HERDR_APP_HOME=$root/home
 # Sounds would play on the real speakers.
 export HERDR_APP_NO_SOUND=1
@@ -73,8 +70,6 @@ process_start() {
   awk '{ print $20 }' <<<"$rest"
 }
 
-# A PID file holds "<pid> <starttime>". Compare both, so a stale file never
-# names a different process that reused the PID.
 record_matches() {
   local file=$1 pid started current
   [[ -f $file ]] || return 1
@@ -85,9 +80,6 @@ record_matches() {
   [[ $current == "$started" ]]
 }
 
-# Sample a just-started PID only after its start time is read and its command
-# line is confirmed to name the expected program. The file is written only
-# then, so a PID that exited or was reused is never recorded.
 record_program() {
   local file=$1 pid=$2 expected=$3 started cmdline
   started=$(process_start "$pid") || {
@@ -175,8 +167,6 @@ sandbox_up() {
   return 0
 }
 
-# Commands that touch the display, the window, or the core run only on a live,
-# owned sandbox.
 require_up() {
   if ! sandbox_up; then
     echo "sandbox $name is not up; run 'scripts/sandbox up' first" >&2
@@ -255,8 +245,6 @@ clean_display_files() {
   rm -f "$lock_file" "$socket"
 }
 
-# Read the record once and signal exactly the PID it names, and only when the
-# recorded start time still belongs to that process.
 stop_recorded() {
   local file=$1 pid started current
   [[ -f $file ]] || return 0
@@ -303,8 +291,6 @@ stop_core() {
   return 0
 }
 
-# Stop everything a failed up or restart started. Best effort, so the exit
-# status of the command that failed is what the caller sees.
 cleanup_start() {
   trap - EXIT
   refuse_unsafe_root
@@ -377,7 +363,6 @@ input() {
   uv run -q --with python-xlib python "$here/sandbox-input.py" --display "$DISPLAY" "$@"
 }
 
-# Delete only the folder the validated name produced under /var/tmp.
 remove_root() {
   local parent base
   parent=$(dirname "$root")

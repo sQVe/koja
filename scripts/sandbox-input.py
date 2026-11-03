@@ -1,12 +1,3 @@
-# Fake pointer input for the sandbox's private X display (XTest). Coordinates
-# are in the Herdr window, px. Run through `scripts/sandbox`, not directly.
-# --display <d> names the private display; it is required.
-#   move x0 y0 x1 y1        glide the pointer, no buttons
-#   click x y [button]      button: 1 left (default), 3 right
-#   drag x0 y0 x1 y1        press, glide, release
-#   hold|release <keysym>...   keep keys down across commands, e.g. `hold Control_L`
-#   type <text>             type it (keys of the X keymap; shift as needed)
-#   key <keysym> [mods...]  one key, e.g. `key Return`, `key l Control_L`
 import json
 import os
 from pathlib import Path
