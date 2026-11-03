@@ -261,7 +261,7 @@ export default class Tabs extends View {
         });
       });
 
-    const normalMode = Boolean(shared('modal.pill'));
+    const normalMode = Boolean(shared('koja-modal'));
 
     return tabBarEdge(
       h_flex().flex_none().gap(spacing.xxsmall).pl(spacing.small).pr(spacing.xsmall).items_center(),
