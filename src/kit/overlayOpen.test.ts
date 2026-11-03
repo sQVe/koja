@@ -1,15 +1,19 @@
 import { afterAll, beforeEach, describe, expect, mock, test } from 'bun:test';
 
+import { herdrFake } from '../../tests/moduleFakes.ts';
+
 let storedValue: unknown = undefined;
 
-await mock.module('herdr', () => ({
-  setShared: (_key: string, value: unknown) => {
-    storedValue = value;
+await mock.module('herdr', () =>
+  herdrFake({
+    setShared: (_key: string, value: unknown) => {
+      storedValue = value;
 
-    return null;
-  },
-  shared: () => storedValue,
-}));
+      return null;
+    },
+    shared: () => storedValue,
+  }),
+);
 
 const { overlayCloseCount, recordOverlayClose } = await import('./overlayOpen.ts');
 

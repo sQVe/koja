@@ -1,5 +1,7 @@
 import { afterAll, beforeEach, describe, expect, mock, test } from 'bun:test';
 
+import { gpuiBaseFake, gpuiKitFake, herdrFake, kitIndexFake } from '../../../tests/moduleFakes.ts';
+
 type KeyHandler = (event: { key: string; modifiers: { control: boolean } }, cx: unknown) => void;
 
 // The build defines this global for each mod; the picker's preview code reads it at load time.
@@ -40,80 +42,88 @@ const inputStub = {
   value: () => '',
 };
 
-await mock.module('gpui-base', () => ({
-  h_flex: () => chainable(),
-  InputState: { new: () => inputStub },
-  v_flex: () =>
-    chainable((handler) => {
-      keyDownHandler = handler;
-    }),
-  v_virtual_list: () => chainable(),
-  VirtualListScrollHandle: { new: () => chainable() },
-}));
+await mock.module('gpui-base', () =>
+  gpuiBaseFake({
+    h_flex: () => chainable(),
+    InputState: { new: () => inputStub },
+    v_flex: () =>
+      chainable((handler) => {
+        keyDownHandler = handler;
+      }),
+    v_virtual_list: () => chainable(),
+    VirtualListScrollHandle: { new: () => chainable() },
+  }),
+);
 
-await mock.module('gpui-kit', () => ({
-  div: () => chainable(),
-  View: class {
-    render(): unknown {
+await mock.module('gpui-kit', () =>
+  gpuiKitFake({
+    div: () => chainable(),
+    View: class {
+      render(): unknown {
+        return null;
+      }
+    },
+  }),
+);
+
+await mock.module('herdr', () =>
+  herdrFake({
+    appHome: () => '/tmp',
+    exec: async () => ({ code: 0, stdout: '', stderr: '' }),
+    focused: () => null,
+    hc: () => null,
+    nextCommand: () => new Promise<string>(() => {}),
+    panes: () => [],
+    props: () => props,
+    readTextFile: () => '',
+    run: () => null,
+    setShared: (key: string, value: unknown) => {
+      sharedValues[key] = value;
+      sharedWrites.push(key);
+
       return null;
-    }
-  },
-}));
-
-await mock.module('herdr', () => ({
-  appHome: () => '/tmp',
-  exec: async () => ({ code: 0, stdout: '', stderr: '' }),
-  focused: () => null,
-  hc: () => null,
-  nextCommand: () => new Promise<string>(() => {}),
-  panes: () => [],
-  props: () => props,
-  readTextFile: () => '',
-  run: () => null,
-  setShared: (key: string, value: unknown) => {
-    sharedValues[key] = value;
-    sharedWrites.push(key);
-
-    return null;
-  },
-  shared: (key: string) => sharedValues[key],
-  spaces: () => [],
-  terminals: () => [],
-  writeTextFile: () => null,
-}));
+    },
+    shared: (key: string) => sharedValues[key],
+    spaces: () => [],
+    terminals: () => [],
+    writeTextFile: () => null,
+  }),
+);
 
 const { overlayCloseCount, recordOverlayClose } = await import('../../kit/overlayOpen.ts');
 
 const { recordOf, stringOf } = await import('../../kit/fields.ts');
 
-await mock.module('../../kit/index.ts', () => ({
-  recordOverlayClose,
-  closeOverlay: () => {
-    closeOverlayCalls += 1;
-  },
-  colors: () => chainable(),
-  emptyState: () => chainable(),
-  highlightedText: () => chainable(),
-  icon: () => chainable(),
-  iconSlot: () => chainable(),
-  listRow: () => chainable(),
-  modName: 'koja-picker',
-  openAtTop: () => 'overlay-3',
-  overlayId: () => null,
-  overlaySize: {},
-  programIcon: () => chainable(),
-  radius: {},
-  recordOf,
-  repeat: () => undefined,
-  rollupStatuses: () => ({ spaces: {}, tabs: {} }),
-  rowHeight: {},
-  searchField: () => chainable(),
-  spacing: {},
-  statusMark: () => chainable(),
-  stringOf,
-  textSize: {},
-  toggleButton: () => chainable(),
-}));
+await mock.module('../../kit/index.ts', () =>
+  kitIndexFake({
+    recordOverlayClose,
+    closeOverlay: () => {
+      closeOverlayCalls += 1;
+    },
+    colors: () => chainable(),
+    emptyState: () => chainable(),
+    highlightedText: () => chainable(),
+    icon: () => chainable(),
+    iconSlot: () => chainable(),
+    listRow: () => chainable(),
+    modName: 'koja-picker',
+    openAtTop: () => 'overlay-3',
+    overlayId: () => null,
+    overlaySize: {},
+    programIcon: () => chainable(),
+    radius: {},
+    recordOf,
+    repeat: () => undefined,
+    rollupStatuses: () => ({ spaces: {}, tabs: {} }),
+    rowHeight: {},
+    searchField: () => chainable(),
+    spacing: {},
+    statusMark: () => chainable(),
+    stringOf,
+    textSize: {},
+    toggleButton: () => chainable(),
+  }),
+);
 
 const loadView = async (): Promise<{
   init: (props: unknown, cx: unknown) => void;

@@ -1,5 +1,7 @@
 import { afterAll, beforeEach, describe, expect, mock, test } from 'bun:test';
 
+import { gpuiBaseFake, gpuiKitFake, herdrFake, kitIndexFake } from '../../../tests/moduleFakes.ts';
+
 type KeyHandler = (
   event: { key: string },
   cx: { stop_propagation: () => void; notify: () => void },
@@ -52,56 +54,64 @@ const inputStub = {
   value: () => '',
 };
 
-await mock.module('gpui-base', () => ({
-  InputState: { new: () => inputStub },
-  v_flex: chainable,
-}));
+await mock.module('gpui-base', () =>
+  gpuiBaseFake({
+    InputState: { new: () => inputStub },
+    v_flex: chainable,
+  }),
+);
 
-await mock.module('gpui-kit', () => ({
-  div: surface,
-  View: class {
-    render(): unknown {
+await mock.module('gpui-kit', () =>
+  gpuiKitFake({
+    div: surface,
+    View: class {
+      render(): unknown {
+        return null;
+      }
+    },
+  }),
+);
+
+await mock.module('herdr', () =>
+  herdrFake({
+    commands: () => [],
+    layouts: () => [],
+    openOverlay: () => 'overlay-2',
+    run: () => null,
+    setShared: (key: string, value: unknown) => {
+      sharedValues[key] = value;
+      sharedWrites.push(key);
+
       return null;
-    }
-  },
-}));
-
-await mock.module('herdr', () => ({
-  commands: () => [],
-  layouts: () => [],
-  openOverlay: () => 'overlay-2',
-  run: () => null,
-  setShared: (key: string, value: unknown) => {
-    sharedValues[key] = value;
-    sharedWrites.push(key);
-
-    return null;
-  },
-  shared: (key: string) => sharedValues[key],
-}));
+    },
+    shared: (key: string) => sharedValues[key],
+  }),
+);
 
 const { overlayCloseCount, recordOverlayClose } = await import('../../kit/overlayOpen.ts');
 
-await mock.module('../../kit/index.ts', () => ({
-  recordOverlayClose,
-  closeOverlay: () => {
-    closeOverlayCalls += 1;
-  },
-  currentWindow: () => null,
-  detailText: chainable,
-  emptyState: chainable,
-  highlightedText: chainable,
-  keyHint: chainable,
-  listRow: chainable,
-  overlaySize: {},
-  popupSurface: surface,
-  searchField: chainable,
-  sectionHeader: chainable,
-  shortcutFor: () => null,
-  spacing: {},
-  stringOf: () => null,
-  themeChoices: [],
-}));
+await mock.module('../../kit/index.ts', () =>
+  kitIndexFake({
+    recordOverlayClose,
+    closeOverlay: () => {
+      closeOverlayCalls += 1;
+    },
+    currentWindow: () => null,
+    detailText: chainable,
+    emptyState: chainable,
+    highlightedText: chainable,
+    keyHint: chainable,
+    listRow: chainable,
+    overlaySize: {},
+    popupSurface: surface,
+    searchField: chainable,
+    sectionHeader: chainable,
+    shortcutFor: () => null,
+    spacing: {},
+    stringOf: () => null,
+    themeChoices: [],
+  }),
+);
 
 const loadView = async (): Promise<{
   init: (props: unknown, cx: unknown) => void;
