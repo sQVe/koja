@@ -15,7 +15,17 @@ import type {
   ModifiersChangedEvent,
 } from 'gpui-kit';
 import { div, View } from 'gpui-kit';
-import { focused, nextCommand, panes, props, run, setShared, shared, spaces } from 'herdr';
+import {
+  focused,
+  nextCommand,
+  panes,
+  props,
+  run,
+  setShared,
+  shared,
+  spaces,
+  terminals,
+} from 'herdr';
 
 import {
   closeOverlay,
@@ -31,6 +41,7 @@ import {
   radius,
   recordOf,
   repeat,
+  rollupStatuses,
   rowHeight,
   searchField,
   spacing,
@@ -69,12 +80,18 @@ const focusAttempts = 40;
 
 const isList = (): boolean => recordOf(props())['part'] === 'list';
 
-const pickerData = (): PickerData => ({
-  spaces: spaces(),
-  panes: panes(),
-  recent: history.recent(),
-  focus: history.focus(),
-});
+const pickerData = (): PickerData => {
+  const spaceList = spaces();
+  const paneList = panes();
+
+  return {
+    spaces: spaceList,
+    panes: paneList,
+    statuses: rollupStatuses(spaceList, paneList, terminals()),
+    recent: history.recent(),
+    focus: history.focus(),
+  };
+};
 
 const controlKey = (event: KeyEvent, letter: string): boolean =>
   event.modifiers.control && event.key === letter;
@@ -386,7 +403,7 @@ export default class Picker extends View {
     }
   }
 
-  private spaceRow(row: PickerRow, selected: boolean): Element {
+  private spaceRow(row: PickerRow, selected: boolean, data: PickerData): Element {
     const { space } = row;
     const nameMatch = this.query === '' ? null : fuzzyMatch(this.query, space.name);
 
@@ -400,7 +417,7 @@ export default class Picker extends View {
       start: iconSlot(icon('folder').text_color(colors().dim)),
       label,
       ...(space.branch === null || space.branch === '' ? {} : { detail: space.branch }),
-      end: [statusMark(space.status)],
+      end: [statusMark(data.statuses.spaces[space.id] ?? null)],
     });
   }
 
@@ -417,7 +434,7 @@ export default class Picker extends View {
       start: programIcon(program ?? null).text_color(colors().dim),
       label,
       muted: !tab.active,
-      end: [statusMark(tab.status)],
+      end: [statusMark(data.statuses.tabs[tab.id] ?? null)],
     });
   }
 
@@ -442,7 +459,7 @@ export default class Picker extends View {
     const selected = row.key === this.selectedKey;
 
     if (row.kind === 'space') {
-      return this.spaceRow(row, selected);
+      return this.spaceRow(row, selected, data);
     }
 
     return row.kind === 'tab' ? this.tabRow(row, selected, data) : this.paneRow(row, selected);
@@ -470,9 +487,17 @@ export default class Picker extends View {
       });
   }
 
+  private filterCount(filter: StatusFilter, data: PickerData): number | null {
+    if (filter.statuses === null) {
+      return null;
+    }
+
+    return statusCount(filter.statuses, data.spaces, data.statuses);
+  }
+
   private filterChip(filter: StatusFilter, index: number, data: PickerData): Element {
     const active = index === this.filterIndex;
-    const count = filter.statuses === null ? null : statusCount(filter.statuses, data.panes);
+    const count = this.filterCount(filter, data);
 
     return toggleButton({
       label: filter.label,

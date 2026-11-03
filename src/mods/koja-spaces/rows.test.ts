@@ -31,7 +31,7 @@ const mainCheckout = (branch: string | null, committedAt: number | null): Listed
     committedAt,
   };
 
-  return { space, git };
+  return { space, git, status: null };
 };
 
 const secondsAgo = (seconds: number): number => Math.floor(Date.now() / 1000) - seconds;

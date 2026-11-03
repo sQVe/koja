@@ -1,5 +1,7 @@
 import type { PaneInfo, SpaceInfo, Status, TabInfo } from 'herdr';
 
+import type { StatusRollup } from '../../kit/statusRollup.ts';
+import { statusRank } from '../../kit/statusRollup.ts';
 import { tabLabel, tabProgram } from '../../kit/tabLabel.ts';
 import type { Match } from './match.ts';
 import { bestFieldMatch, fuzzyMatch } from './match.ts';
@@ -7,6 +9,7 @@ import { bestFieldMatch, fuzzyMatch } from './match.ts';
 export interface PickerData {
   spaces: SpaceInfo[];
   panes: PaneInfo[];
+  statuses: StatusRollup;
   recent: string[];
   focus: Record<string, string>;
 }
@@ -41,17 +44,12 @@ interface RowGroup {
   rows: PickerRow[];
 }
 
-const statusRanks: Record<Status, number> = { blocked: 4, done: 3, working: 2, idle: 1 };
-
 const statusWords: Record<Status, string> = {
   blocked: 'needs you',
   done: 'finished',
   working: 'working',
   idle: 'idle',
 };
-
-const statusRank = (status: Status | null | undefined): number =>
-  status === null || status === undefined ? 0 : statusRanks[status];
 
 const statusWord = (status: Status | null): string | null =>
   status === null ? null : statusWords[status];
@@ -120,19 +118,25 @@ const paneSearchFields = (pane: PaneInfo): (string | null)[] => {
   return [pane.title, pane.program.name, folderName(pane.cwd), pane.branch];
 };
 
-const tabSearchFields = (tab: TabInfo, paneList: PaneInfo[]): (string | null)[] => [
+const tabSearchFields = (
+  tab: TabInfo,
+  status: Status | null,
+  paneList: PaneInfo[],
+): (string | null)[] => [
   tab.named ? tab.name : null,
-  statusWord(tab.status),
+  statusWord(status),
   ...paneList.filter((pane) => pane.tab === tab.id).flatMap(paneSearchFields),
 ];
 
-const spaceSearchFields = (space: SpaceInfo, paneList: PaneInfo[]): (string | null)[] => [
+const spaceSearchFields = (space: SpaceInfo, data: PickerData): (string | null)[] => [
   space.name,
   space.branch,
   folderName(space.folder),
   space.machine,
-  statusWord(space.status),
-  ...space.tabs.flatMap((tab) => tabSearchFields(tab, paneList)),
+  statusWord(data.statuses.spaces[space.id] ?? null),
+  ...space.tabs.flatMap((tab) =>
+    tabSearchFields(tab, data.statuses.tabs[tab.id] ?? null, data.panes),
+  ),
 ];
 
 const recentOrder = (data: PickerData): SpaceInfo[] => {
@@ -151,22 +155,29 @@ const hasStatus = (pane: PaneInfo, statuses: Status[]): boolean =>
 const inStatus = (pane: PaneInfo, statuses: Status[] | null): boolean =>
   statuses === null || hasStatus(pane, statuses);
 
+const statusInList = (status: Status | null, statuses: Status[]): boolean =>
+  status !== null && statuses.includes(status);
+
+const matchesStatus = (status: Status | null, statuses: Status[] | null): boolean =>
+  statuses === null || statusInList(status, statuses);
+
 const tabChildRows = (
   space: SpaceInfo,
   tab: TabInfo,
   statuses: Status[] | null,
-  paneList: PaneInfo[],
+  data: PickerData,
 ): PickerRow[] => {
-  const tabPanes = panesOf(tab, paneList);
+  const tabPanes = panesOf(tab, data.panes);
   const shownPanes = tabPanes.filter((pane) => inStatus(pane, statuses));
+  const tabMatches = matchesStatus(data.statuses.tabs[tab.id] ?? null, statuses);
 
-  if (statuses !== null && shownPanes.length === 0) {
+  if (statuses !== null && !tabMatches && shownPanes.length === 0) {
     return [];
   }
 
   const rows: PickerRow[] = [];
 
-  if (space.tabs.length > 1) {
+  if (space.tabs.length > 1 && tabMatches) {
     const pane = statuses === null ? null : (shownPanes[0] ?? null);
 
     rows.push({ kind: 'tab', key: `tab:${tab.id}`, space, tab, pane });
@@ -207,19 +218,19 @@ const matchedPanes = (
   return matches.toSorted((first, second) => second.score - first.score);
 };
 
-const spaceOwnFields = (space: SpaceInfo): (string | null)[] => [
+const spaceOwnFields = (space: SpaceInfo, data: PickerData): (string | null)[] => [
   space.name,
   space.branch,
   folderName(space.folder),
   space.machine,
-  statusWord(space.status),
+  statusWord(data.statuses.spaces[space.id] ?? null),
 ];
 
 const spaceRowPane = (
   query: string,
   statuses: Status[] | null,
   space: SpaceInfo,
-  paneList: PaneInfo[],
+  data: PickerData,
   shownPanes: PaneInfo[],
 ): PaneInfo | null => {
   if (statuses !== null) {
@@ -230,8 +241,8 @@ const spaceRowPane = (
     return null;
   }
 
-  const own = bestFieldMatch(query, spaceOwnFields(space));
-  const matches = matchedPanes(query, space, paneList);
+  const own = bestFieldMatch(query, spaceOwnFields(space, data));
+  const matches = matchedPanes(query, space, data.panes);
   const best = matches[0];
   const runnerUp = matches[1];
 
@@ -251,17 +262,17 @@ const spaceRows = (
   space: SpaceInfo,
   query: string,
   statuses: Status[] | null,
-  paneList: PaneInfo[],
+  data: PickerData,
 ): RowGroup | null => {
-  const shownPanes = space.tabs
-    .flatMap((tab) => panesOf(tab, paneList))
-    .filter((pane) => inStatus(pane, statuses));
-
-  if (statuses !== null && shownPanes.length === 0) {
+  if (!matchesStatus(data.statuses.spaces[space.id] ?? null, statuses)) {
     return null;
   }
 
-  const filteredPane = spaceRowPane(query, statuses, space, paneList, shownPanes);
+  const shownPanes = space.tabs
+    .flatMap((tab) => panesOf(tab, data.panes))
+    .filter((pane) => inStatus(pane, statuses));
+
+  const filteredPane = spaceRowPane(query, statuses, space, data, shownPanes);
   const filteredTab = space.tabs.find((tab) => tab.id === filteredPane?.tab);
   const shownTab = filteredTab ?? space.tabs.find((tab) => tab.active) ?? space.tabs[0];
 
@@ -273,16 +284,13 @@ const spaceRows = (
     pane: filteredPane,
   };
 
-  const rows = [
-    spaceRow,
-    ...space.tabs.flatMap((tab) => tabChildRows(space, tab, statuses, paneList)),
-  ];
+  const rows = [spaceRow, ...space.tabs.flatMap((tab) => tabChildRows(space, tab, statuses, data))];
 
   if (query === '') {
     return { score: 0, rows };
   }
 
-  const spaceMatch = bestFieldMatch(query, spaceSearchFields(space, paneList));
+  const spaceMatch = bestFieldMatch(query, spaceSearchFields(space, data));
 
   if (spaceMatch === null) {
     return null;
@@ -299,7 +307,7 @@ export const buildRows = (
   data: PickerData,
 ): PickerRow[] => {
   const groups = recentOrder(data)
-    .map((space) => spaceRows(space, query, statuses, data.panes))
+    .map((space) => spaceRows(space, query, statuses, data))
     .filter((group): group is RowGroup => group !== null);
 
   const ordered =
@@ -308,5 +316,9 @@ export const buildRows = (
   return ordered.flatMap((group) => group.rows);
 };
 
-export const statusCount = (statuses: Status[], paneList: PaneInfo[]): number =>
-  paneList.filter((pane) => pane.terminal !== null && inStatus(pane, statuses)).length;
+export const statusCount = (
+  statuses: Status[],
+  spaceList: SpaceInfo[],
+  rollup: StatusRollup,
+): number =>
+  spaceList.filter((space) => statusInList(rollup.spaces[space.id] ?? null, statuses)).length;

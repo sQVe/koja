@@ -2,6 +2,7 @@ import { describe, expect, test } from 'bun:test';
 
 import type { PaneInfo, Program, SpaceInfo, Status, TabInfo } from 'herdr';
 
+import { rollupStatuses } from '../../kit/statusRollup.ts';
 import type { PickerData } from './rows.ts';
 import { buildRows, paneDetail, paneLabel, rowPane, statusCount, tabRowDisplay } from './rows.ts';
 
@@ -59,21 +60,31 @@ const paneOf = (pane: string, tab: string, status: Status | null = null): PaneIn
   movable: true,
 });
 
-const data = (overrides: Partial<PickerData> = {}): PickerData => ({
-  spaces: [
-    spaceOf('s1', 1, 'koja', [tabOf('k1', 1, true), tabOf('k2', 2)]),
-    spaceOf('s2', 2, 'notes', [tabOf('n1', 1, true)]),
-  ],
-  panes: [
-    paneOf('p1', 'k1'),
-    paneOf('p2', 'k1', 'blocked'),
-    paneOf('p3', 'k2'),
-    paneOf('p4', 'n1'),
-  ],
-  recent: [],
-  focus: {},
-  ...overrides,
-});
+const defaultSpaces = (): SpaceInfo[] => [
+  spaceOf('s1', 1, 'koja', [tabOf('k1', 1, true), tabOf('k2', 2)]),
+  spaceOf('s2', 2, 'notes', [tabOf('n1', 1, true)]),
+];
+
+const defaultPanes = (): PaneInfo[] => [
+  paneOf('p1', 'k1'),
+  paneOf('p2', 'k1', 'blocked'),
+  paneOf('p3', 'k2'),
+  paneOf('p4', 'n1'),
+];
+
+const data = (overrides: Partial<PickerData> = {}, terminalList: unknown[] = []): PickerData => {
+  const spaces = overrides.spaces ?? defaultSpaces();
+  const panes = overrides.panes ?? defaultPanes();
+
+  return {
+    spaces,
+    panes,
+    statuses: rollupStatuses(spaces, panes, terminalList),
+    recent: [],
+    focus: {},
+    ...overrides,
+  };
+};
 
 // Herdr leaves program out of a mod pane, but its declaration still lists it.
 const modPaneOf = (pane: string, tab: string, title: string): PaneInfo =>
@@ -115,6 +126,31 @@ describe('buildRows', () => {
 
   test('keeps only spaces, tabs, and panes in the filtered status', () => {
     expect(keysOf(buildRows('', ['blocked'], data()))).toEqual(['space:s1', 'tab:k1', 'pane:p2']);
+  });
+
+  test('keeps an idle space when a background child is working', () => {
+    const fixture = data(
+      {
+        spaces: [spaceOf('s1', 1, 'koja', [tabOf('k1', 1, true), tabOf('k2', 2)])],
+        panes: [paneOf('p1', 'k1'), paneOf('p2', 'k2')],
+      },
+      [{ address: 't-child', parent: 't-p1', status: 'working' }],
+    );
+
+    expect(keysOf(buildRows('', ['working'], fixture))).toEqual(['space:s1', 'tab:k1']);
+  });
+
+  test('drops a done space from the done filter when a child works', () => {
+    const fixture = data(
+      {
+        spaces: [spaceOf('s1', 1, 'koja', [tabOf('k1', 1, true), tabOf('k2', 2)])],
+        panes: [paneOf('p1', 'k1', 'done'), paneOf('p2', 'k2')],
+      },
+      [{ address: 't-child', parent: 't-p1', status: 'working' }],
+    );
+
+    expect(keysOf(buildRows('', ['done'], fixture))).toEqual([]);
+    expect(keysOf(buildRows('', ['working'], fixture))).toEqual(['space:s1', 'tab:k1']);
   });
 
   test('keeps only spaces that match the query', () => {
@@ -283,7 +319,9 @@ describe('tabRowDisplay', () => {
 });
 
 describe('statusCount', () => {
-  test('counts terminal panes in any of the statuses', () => {
-    expect(statusCount(['blocked', 'done'], data().panes)).toBe(1);
+  test('counts spaces in any of the statuses', () => {
+    const fixture = data();
+
+    expect(statusCount(['blocked', 'done'], fixture.spaces, fixture.statuses)).toBe(1);
   });
 });

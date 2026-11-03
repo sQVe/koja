@@ -31,6 +31,10 @@ export {
 
 export { attentionBadge, indicator, statusMark } from './statusMark.ts';
 
+export { rollupStatuses } from './statusRollup.ts';
+
+export type { StatusRollup } from './statusRollup.ts';
+
 export { tab } from './tab.ts';
 
 export { tabLabel, tabProgram } from './tabLabel.ts';

@@ -26,6 +26,7 @@ export interface GitInfo {
 export interface ListedSpace {
   space: SpaceInfo;
   git: GitInfo | null;
+  status: Status | null;
 }
 
 interface Fold {
@@ -120,8 +121,7 @@ export const groupGapBefore = (group: TreeGroup, previous: TreeGroup | null): bo
 const isMain = (row: ListedSpace): row is ListedSpace & { git: GitInfo } =>
   row.git !== null && !row.git.linked;
 
-const shownWhenFolded = (row: ListedSpace): boolean =>
-  row.space.active || needsYou(row.space.status);
+const shownWhenFolded = (row: ListedSpace): boolean => row.space.active || needsYou(row.status);
 
 // The git folder can sit anywhere under any name, so the checkout folder names the repository.
 const repoName = (root: string): string => {
