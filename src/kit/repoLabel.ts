@@ -33,7 +33,7 @@ export const repoLabel = (options: RepoLabelOptions): Element => {
     .max_w_full()
     .truncate()
     .text_size(textSize.small)
-    .font_semibold()
+    .font_bold()
     .text_color(palette[nameToken(options)])
     .child(options.name);
 
