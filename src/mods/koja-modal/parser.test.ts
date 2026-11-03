@@ -117,6 +117,31 @@ describe('normal mode window chords', () => {
     expect(withControl).toEqual(withLetter);
   });
 
+  const arrows = [
+    ['left', 'h'],
+    ['down', 'j'],
+    ['up', 'k'],
+    ['right', 'l'],
+  ] as const;
+
+  test.each(arrows)('resolves ctrl-w %s like ctrl-w %s', (arrow, letter) => {
+    const withArrow = feed([ctrlW, named(arrow, arrow)]);
+
+    const withLetter = feed([ctrlW, plain(letter)]);
+
+    expect(withLetter.status).toBe('action');
+    expect(withArrow).toEqual(withLetter);
+  });
+
+  test.each(arrows)('resolves %s alone like ctrl-%s', (arrow, letter) => {
+    const withArrow = feed([named(arrow, arrow)]);
+
+    const withControl = feed([control(letter, `ctrl-${letter}`)]);
+
+    expect(withControl.status).toBe('action');
+    expect(withArrow).toEqual(withControl);
+  });
+
   test('clears pending on ctrl-w ctrl-c without an action', () => {
     const result = feed([ctrlW, control('c', 'ctrl-c')]);
 
