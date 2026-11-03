@@ -32,14 +32,39 @@ bun run herdr:install
 
 `bun run herdr:install` builds the mods, copies them and the files in `config/` into
 `~/.config/herdr-app`, and runs `herdr-app check` on every installed mod. Set `HERDR_APP_HOME` to
-install into another Herdr home. Run `bun run herdr:watch` to build and install again on every save
-in `src/` or `config/`.
+install into another Herdr home, and `HERDR_APP_BIN` to check the mods with another herdr-app
+binary. Run `bun run herdr:watch` to build and install again on every save in `src/` or `config/`.
 
-Then switch Herdr to Koja's layout:
+Then switch Herdr to Koja's layout. This is the one-time real install step, not QA; try mods in the
+sandbox below instead:
 
 ```sh
 herdr-app do layout.switch --name koja
 ```
+
+## Sandbox
+
+Try and QA mods in a throwaway Herdr window with its own core, home, and private headless display.
+`up` installs this checkout with the existing installer, so it shows the worktree's mods and
+`config/`.
+
+```sh
+bun run sandbox up
+bun run sandbox shot
+bun run sandbox click 941 137
+bun run sandbox type "pane"
+bun run sandbox key p Control_L Shift_L
+bun run sandbox install
+bun run sandbox down
+```
+
+`shot` writes the window at its own pixel size, so a coordinate read from a shot matches `click`.
+`bun run sandbox install` reinstalls after a mod edit without restarting the sandbox.
+`HERDR_APP_SANDBOX=<name>` runs a second sandbox side by side, and `HERDR_APP_BIN` runs another
+herdr-app binary instead of the installed one.
+
+Never use `ydotool`, and never run `herdr-app do`, `hc`, or synthetic input against the user's real
+window or core.
 
 ## Check changes
 

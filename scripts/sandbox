@@ -1,0 +1,428 @@
+#!/usr/bin/env bash
+# A throwaway Herdr app on its own core, home and display, so Koja mods get
+# tried without touching the real window. The display is a headless Weston
+# with Xwayland: nothing shows on the desktop, frames never stall, and
+# screenshots and fake input stay inside it (no portal prompt, the real
+# pointer never moves).
+#
+#   scripts/sandbox up            install this checkout, start the display, the core and the window
+#   scripts/sandbox restart       reinstall and restart the window (terminals live on)
+#   scripts/sandbox install       reinstall this checkout into a running sandbox
+#   scripts/sandbox do <action> [json]   / status   drive it (herdr-app do / status)
+#   scripts/sandbox shot [file]   screenshot of the window, in window pixels
+#   scripts/sandbox move|click|drag|type|key|hold|release ...   fake input (window px, see sandbox-input.py)
+#   scripts/sandbox log           the window's log
+#   scripts/sandbox opened        links the window asked to open (logged, never opened)
+#   scripts/sandbox hc <args>     hc against the sandbox core
+#   scripts/sandbox down          stop everything and delete it
+#
+# HERDR_APP_SANDBOX=<name> runs a second one side by side. HERDR_APP_BIN runs
+# another herdr-app (an installed copy, to try updates) instead of the default.
+set -euo pipefail
+
+here=$(cd "$(dirname "$0")" && pwd)
+name=${HERDR_APP_SANDBOX-koja}
+
+if [[ ! $name =~ ^[a-z0-9][a-z0-9-]*$ ]]; then
+  echo "HERDR_APP_SANDBOX must be one name of lowercase letters, digits, and dashes, not '$name'" >&2
+  exit 2
+fi
+
+root=/var/tmp/herdr-app-$name
+
+# The sandbox owns its display, core endpoint, and config. Never fall back to
+# the caller's desktop or core.
+unset DISPLAY WAYLAND_DISPLAY
+
+find_binary() {
+  if [[ -n ${HERDR_APP_BIN:-} ]]; then
+    printf '%s\n' "$HERDR_APP_BIN"
+    return 0
+  fi
+
+  if command -v herdr-app >/dev/null 2>&1; then
+    command -v herdr-app
+    return 0
+  fi
+
+  printf '%s\n' "$HOME/.local/share/herdr-app/herdr-app"
+}
+
+bin=$(find_binary)
+export HC_SESSION=herdr-app-$name
+# HC_SOCKET takes precedence over HC_SESSION and the caller's core config, so
+# name the sandbox socket explicitly. XDG_CONFIG_HOME keeps the caller's
+# config.toml `socket` setting away from the core.
+export HC_SOCKET=$root/run/core.sock
+export XDG_CONFIG_HOME=$root/config
+export XDG_STATE_HOME=$root/state
+export XDG_RUNTIME_DIR=$root/run
+export HERDR_APP_HOME=$root/home
+# Sounds would play on the real speakers.
+export HERDR_APP_NO_SOUND=1
+
+# Field 22 of /proc/<pid>/stat, after the command name, compared against the
+# value recorded when the process started. A reused PID must not match.
+process_start() {
+  local pid=$1 stat rest
+  stat=$(cat "/proc/$pid/stat" 2>/dev/null) || return 1
+  rest=${stat##*') '}
+  awk '{ print $20 }' <<<"$rest"
+}
+
+record_matches() {
+  local file=$1 pid started current
+  [[ -f $file ]] || return 1
+  read -r pid started <"$file" || return 1
+  [[ -n $pid ]] || return 1
+  [[ -n $started ]] || return 1
+  current=$(process_start "$pid") || return 1
+  [[ $current == "$started" ]]
+}
+
+record_program() {
+  local file=$1 pid=$2 expected=$3 started cmdline
+  started=$(process_start "$pid") || {
+    echo "the $expected process $pid is gone" >&2
+    return 1
+  }
+  cmdline=$( { tr '\0' ' ' <"/proc/$pid/cmdline"; } 2>/dev/null )
+  if [[ -z $cmdline ]]; then
+    echo "the $expected process $pid is gone" >&2
+    return 1
+  fi
+  if [[ $cmdline != *"$expected"* ]]; then
+    echo "the process $pid is not the expected $expected" >&2
+    return 1
+  fi
+  printf '%s %s\n' "$pid" "$started" >"$file"
+}
+
+ours() { { tr '\0' '\n' <"/proc/$1/environ"; } 2>/dev/null | grep -qx "HERDR_APP_HOME=$HERDR_APP_HOME"; }
+
+# The root must be a real directory owned by this user with mode 700. Only the
+# owner can then plant the state leaves inside it.
+refuse_unsafe_root() {
+  if [[ -L $root ]]; then
+    echo "refusing the symlinked sandbox folder $root" >&2
+    exit 1
+  fi
+  if [[ ! -e $root ]]; then
+    return 0
+  fi
+  if [[ ! -d $root ]]; then
+    echo "refusing $root: not a folder" >&2
+    exit 1
+  fi
+  local owner mode
+  owner=$(stat -c %u "$root")
+  if [[ $owner != "$(id -u)" ]]; then
+    echo "refusing $root: not owned by the current user" >&2
+    exit 1
+  fi
+  mode=$(stat -c %a "$root")
+  if [[ $mode != 700 ]]; then
+    echo "refusing $root: mode is $mode, not 700" >&2
+    exit 1
+  fi
+}
+
+refuse_linked_paths() {
+  local path
+  for path in "$root/display" "$root/xpid" "$root/xwayland.pid" "$root/pid" \
+    "$root/state" "$root/config" "$root/run" "$root/bin" "$root/home" "$root/opened" \
+    "$root/app.log" "$root/weston.log" "$root/run/core.sock"; do
+    if [[ -L $path ]]; then
+      echo "refusing the symlinked sandbox path $path" >&2
+      exit 1
+    fi
+  done
+}
+
+# Create the root and its state folders with private permissions. mkdir (not
+# -p) never follows a link the name points at.
+prepare_root() {
+  refuse_unsafe_root
+  if [[ ! -e $root ]]; then mkdir -m 700 "$root"; fi
+  refuse_unsafe_root
+  local folder
+  for folder in "$root/run" "$root/config" "$root/state"; do
+    if [[ ! -d $folder ]]; then mkdir -m 700 "$folder"; fi
+  done
+  refuse_linked_paths
+}
+
+sandbox_up() {
+  [[ -f $root/display && -f $root/xpid && -f $root/pid ]] || return 1
+  record_matches "$root/xpid" || return 1
+  record_matches "$root/pid" || return 1
+  ours "$(cut -d' ' -f1 "$root/pid")" || return 1
+  return 0
+}
+
+require_up() {
+  if ! sandbox_up; then
+    echo "sandbox $name is not up; run 'scripts/sandbox up' first" >&2
+    exit 1
+  fi
+
+  refuse_linked_paths
+
+  local display
+  display=$(cat "$root/display")
+
+  if [[ $display != :* ]]; then
+    echo "sandbox $name has no private display; run 'scripts/sandbox up' first" >&2
+    exit 1
+  fi
+
+  export DISPLAY=$display
+}
+
+start_display() {
+  prepare_root
+  if [[ -f $root/xpid && -f $root/display ]] && record_matches "$root/xpid"; then
+    export DISPLAY=$(cat "$root/display")
+    return 0
+  fi
+  rm -f "$root/weston.log" "$root/display" "$root/xpid" "$root/xwayland.pid"
+  weston --backend=headless --xwayland --socket="herdr-app-$name" --width=1400 --height=900 \
+    --log="$root/weston.log" >/dev/null 2>&1 &
+  local weston_pid=$! d
+  record_program "$root/xpid" "$weston_pid" weston || return 1
+  for _ in $(seq 50); do
+    d=$(grep -o 'xserver listening on display :[0-9]*' "$root/weston.log" 2>/dev/null | grep -o ':[0-9]*$' || true)
+    if [[ -n $d ]]; then
+      echo "$d" >"$root/display"
+      export DISPLAY=$d
+      return 0
+    fi
+    sleep 0.1
+  done
+  echo "the sandbox display did not start; see $root/weston.log" >&2
+  return 1
+}
+
+# Xwayland starts lazily, on the first X client, as a child of the weston we
+# started. Read its start time first, confirm the same process is still the
+# sandbox's Xwayland, then record both. Never a process by name for stopping.
+record_xwayland() {
+  local weston_pid=$1 child started cmdline
+  for _ in $(seq 50); do
+    for child in $(pgrep -P "$weston_pid" 2>/dev/null || true); do
+      started=$(process_start "$child") || continue
+      cmdline=$( { tr '\0' ' ' <"/proc/$child/cmdline"; } 2>/dev/null )
+      [[ -n $cmdline ]] || continue
+      if [[ $cmdline == *Xwayland* ]] && [[ $cmdline == *"$DISPLAY"* ]]; then
+        printf '%s %s\n' "$child" "$started" >"$root/xwayland.pid"
+        return 0
+      fi
+    done
+    sleep 0.1
+  done
+  return 0
+}
+
+# Xwayland leaves its lock and socket behind when the window closes. Remove
+# only the ones for the private display we started.
+clean_display_files() {
+  local display=$1
+  [[ $display == :* ]] || return 0
+  local number=${display#:} lock_file socket owner
+  lock_file="/tmp/.X${number}-lock"
+  socket="/tmp/.X11-unix/X${number}"
+  if [[ -f $lock_file ]]; then
+    owner=$(cat "$lock_file" 2>/dev/null || true)
+    if [[ -n ${owner:-} ]] && kill -0 "$owner" 2>/dev/null; then return 0; fi
+  fi
+  rm -f "$lock_file" "$socket"
+}
+
+stop_recorded() {
+  local file=$1 pid started current
+  [[ -f $file ]] || return 0
+  read -r pid started <"$file" || { rm -f "$file"; return 0; }
+  if [[ -n $pid && -n $started ]]; then
+    current=$(process_start "$pid" 2>/dev/null || true)
+    if [[ $current == "$started" ]]; then
+      kill "$pid" 2>/dev/null || true
+      for _ in $(seq 50); do kill -0 "$pid" 2>/dev/null || break; sleep 0.1; done
+      if kill -0 "$pid" 2>/dev/null; then
+        echo "process $pid did not stop; keeping $file" >&2
+        return 1
+      fi
+    fi
+  fi
+  rm -f "$file"
+}
+
+stop_display() {
+  local stopped=1
+  stop_recorded "$root/xwayland.pid" || stopped=0
+  stop_recorded "$root/xpid" || stopped=0
+  [[ $stopped == 1 ]] || return 1
+  local display=''
+  if [[ -f $root/display ]]; then display=$(cat "$root/display"); fi
+  clean_display_files "$display"
+}
+
+stop_window() {
+  local pid started current
+  [[ -f $root/pid ]] || return 0
+  read -r pid started <"$root/pid" || { rm -f "$root/pid"; return 0; }
+  if [[ -n $pid && -n $started ]]; then
+    current=$(process_start "$pid" 2>/dev/null || true)
+    if [[ $current == "$started" ]] && ours "$pid"; then
+      kill "$pid" 2>/dev/null || true
+      for _ in $(seq 50); do ours "$pid" || break; sleep 0.1; done
+      if ours "$pid"; then
+        echo "the sandbox window $pid did not stop; keeping $root/pid" >&2
+        return 1
+      fi
+    fi
+  fi
+  rm -f "$root/pid"
+}
+
+# hc server status would start a core, so look for a listener on the socket.
+core_running() {
+  ss -Hxl 2>/dev/null | awk '{ print $5 }' | grep -qxF "$HC_SOCKET"
+}
+
+# Stop the sandbox core. A non-zero hc result means it may still run, so the
+# caller must keep the state for a retry. No core running is success.
+stop_core() {
+  if ! hc server stop >/dev/null 2>&1; then
+    echo "the sandbox core did not stop; keeping $root" >&2
+    return 1
+  fi
+  return 0
+}
+
+cleanup_start() {
+  trap - EXIT
+  refuse_unsafe_root
+  refuse_linked_paths
+  stop_window || true
+  if [[ ${core_predates_start:-1} == 0 ]]; then
+    hc server stop >/dev/null 2>&1 || true
+  fi
+  stop_display || true
+}
+
+# Links would reach the real browser: log them instead (`scripts/sandbox opened`).
+install_openers() {
+  local opener
+  mkdir -p "$root/bin"
+  for opener in xdg-open open; do
+    if [[ -L "$root/bin/$opener" ]]; then
+      echo "refusing the symlinked opener $root/bin/$opener" >&2
+      exit 1
+    fi
+  done
+  for opener in xdg-open open; do
+    printf '#!/bin/sh\nprintf "%%s\\n" "$*" >>%q\n' "$root/opened" >"$root/bin/$opener"
+    chmod +x "$root/bin/$opener"
+  done
+}
+
+install_mods() {
+  prepare_root
+  (cd "$here/.." && HERDR_APP_HOME=$HERDR_APP_HOME HERDR_APP_BIN=$bin bun run herdr:install)
+}
+
+# Koja's mods only draw in Koja's layout; switch the sandbox core to it.
+switch_layout() {
+  sandbox_up || return 0
+  "$bin" do layout.switch --name koja >/dev/null 2>&1 || true
+}
+
+start_window() {
+  prepare_root
+  core_predates_start=0
+  if core_running; then core_predates_start=1; fi
+  start_ready=0
+  trap 'if [[ ${start_ready:-0} == 0 ]]; then cleanup_start; fi' EXIT
+  stop_window
+  start_display
+  install_openers
+  install_mods
+  PATH=$root/bin:$PATH WAYLAND_DISPLAY= setsid "$bin" >"$root/app.log" 2>&1 </dev/null &
+  local window_pid=$!
+  record_program "$root/pid" "$window_pid" "$bin" || return 1
+  for _ in $(seq 100); do
+    if record_matches "$root/pid" && "$bin" status >/dev/null 2>&1; then
+      record_xwayland "$(cut -d' ' -f1 "$root/xpid")"
+      switch_layout
+      start_ready=1
+      trap - EXIT
+      echo "sandbox $name is up on $DISPLAY (log: $root/app.log)"
+      return 0
+    fi
+    if ! record_matches "$root/pid"; then
+      cat "$root/app.log"
+      echo "sandbox $name died" >&2
+      return 1
+    fi
+    sleep 0.2
+  done
+  echo "sandbox $name did not answer; see $root/app.log" >&2
+  return 1
+}
+
+input() {
+  require_up
+  uv run -q --with python-xlib python "$here/sandbox-input.py" --display "$DISPLAY" "$@"
+}
+
+remove_root() {
+  local parent base
+  parent=$(dirname "$root")
+  base=$(basename "$root")
+  if [[ $parent != /var/tmp ]]; then
+    echo "refusing to remove $root: not under /var/tmp" >&2
+    return 1
+  fi
+  if [[ $base != herdr-app-?* ]]; then
+    echo "refusing to remove $root: not a sandbox folder" >&2
+    return 1
+  fi
+  rm -rf -- "$root"
+}
+
+refuse_unsafe_root
+
+case ${1:-} in
+  up | restart) start_window ;;
+  install) install_mods; switch_layout ;;
+  down)
+    if [[ ! -d $root ]]; then
+      echo "sandbox $name is not up"
+      exit 0
+    fi
+    refuse_linked_paths
+    if ! stop_window; then
+      exit 1
+    fi
+    if ! stop_core; then
+      exit 1
+    fi
+    if ! stop_display; then
+      exit 1
+    fi
+    remove_root
+    echo "sandbox $name is gone"
+    ;;
+  do | status) require_up; exec "$bin" "$@" ;;
+  shot)
+    require_up
+    out=${2:-$root/shot.png}
+    import -display "$DISPLAY" -window Herdr "$out"
+    echo "$out"
+    ;;
+  move | click | drag | type | key | hold | release | sequence) input "$@" ;;
+  log) cat "$root/app.log" ;;
+  opened) cat "$root/opened" 2>/dev/null || true ;;
+  hc) require_up; shift; exec hc "$@" ;;
+  *) sed -n '2,20p' "$0" | sed 's/^# \{0,1\}//'; exit 2 ;;
+esac

@@ -7,5 +7,15 @@
     "koja-pane": { "source": "defaults/mods/pane", "release": "0.1.12" },
     "koja-spaces": { "source": "defaults/mods/spaces", "release": "0.1.11" },
     "koja-tabs": { "source": "defaults/mods/tabs", "release": "0.1.11" }
+  },
+  "scripts": {
+    "sandbox": {
+      "source": "scripts/sandbox",
+      "commit": "65cd40a19d85f7c0044f89432285755ee0753a4e"
+    },
+    "sandbox-input.py": {
+      "source": "scripts/sandbox-input.py",
+      "commit": "65cd40a19d85f7c0044f89432285755ee0753a4e"
+    }
   }
 }

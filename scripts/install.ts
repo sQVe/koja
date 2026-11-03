@@ -398,7 +398,8 @@ export const install = async (options: InstallOptions): Promise<InstallResult> =
 };
 
 const herdrCheck = async (modFolder: string): Promise<CheckResult> => {
-  const child = Bun.spawn(['herdr-app', 'check', modFolder], { stdout: 'pipe', stderr: 'pipe' });
+  const binary = Bun.env['HERDR_APP_BIN'] ?? 'herdr-app';
+  const child = Bun.spawn([binary, 'check', modFolder], { stdout: 'pipe', stderr: 'pipe' });
 
   const [stdout, stderr, code] = await Promise.all([
     new Response(child.stdout).text(),

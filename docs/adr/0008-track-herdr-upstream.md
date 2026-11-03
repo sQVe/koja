@@ -27,6 +27,9 @@ Herdr's changes.
 `NOTICE` names each derived mod and its Herdr source, and the Apache-2.0 license text ships with
 them.
 
+A script derived from a Herdr script records its Herdr source and commit the same way, under
+`scripts` in `herdr/upstream.json`, and `NOTICE` names it.
+
 ## Consequences
 
 ### Positive
