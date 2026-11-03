@@ -1,4 +1,4 @@
-export { iconButton, toggleButton } from './button.ts';
+export { actionButton, iconButton, toggleButton } from './button.ts';
 
 export { icon, iconSlot, programIcon, spinner } from './icon.ts';
 
@@ -15,6 +15,8 @@ export { popupSurface } from './popupSurface.ts';
 export type { RowState } from './listRow.ts';
 
 export { searchField } from './searchField.ts';
+
+export { textField } from './textField.ts';
 
 export { sectionHeader } from './sectionHeader.ts';
 

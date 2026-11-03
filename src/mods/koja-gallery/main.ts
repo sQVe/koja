@@ -6,6 +6,7 @@ import type { Status } from 'herdr';
 
 import type { IconName, RowState } from '../../kit/index.ts';
 import {
+  actionButton,
   attentionBadge,
   colors,
   controlSize,
@@ -30,6 +31,7 @@ import {
   spinner,
   statusMark,
   tab,
+  textField,
   textSize,
   toggleButton,
 } from '../../kit/index.ts';
@@ -367,6 +369,26 @@ const buttons = (): Element[] => [
   ),
 ];
 
+const actions = (empty: InputState, focused: InputState, filled: InputState): Element[] => [
+  sample(
+    'Action buttons: enabled, hovered, disabled',
+    h_flex()
+      .gap(spacing.medium)
+      .items_center()
+      .child(actionButton({ label: 'Commit', enabled: true }))
+      .child(actionButton({ label: 'Commit', enabled: true, hovered: true }))
+      .child(actionButton({ label: 'Commit', enabled: false })),
+  ),
+  sample(
+    'Text fields: empty, focused, filled',
+    v_flex()
+      .gap(spacing.medium)
+      .child(textField(empty, false))
+      .child(textField(focused, true))
+      .child(textField(filled, false)),
+  ),
+];
+
 const tabs = (): Element[] => [
   h_flex()
     .h(controlSize.tabBar)
@@ -432,9 +454,13 @@ const text = (search: InputState): Element[] => [
 
 export default class Gallery extends View {
   private readonly search: InputState = InputStates.new({ placeholder: 'Search field' });
+  private readonly emptyField: InputState = InputStates.new({ placeholder: 'Commit message' });
+  private readonly focusedField: InputState = InputStates.new({ placeholder: 'Commit message' });
+  private readonly filledField: InputState = InputStates.new({ placeholder: 'Commit message' });
 
   override init(_props: unknown, _cx: AsyncContext): void {
     this.search.set_value('');
+    this.filledField.set_value('Fix the login redirect');
   }
 
   override render(): Element {
@@ -456,6 +482,12 @@ export default class Gallery extends View {
       .child(section('Sidebar', sidebarSamples()))
       .child(section('Section headers', headers()))
       .child(section('Buttons', buttons()))
+      .child(
+        section(
+          'Action button and text field',
+          actions(this.emptyField, this.focusedField, this.filledField),
+        ),
+      )
       .child(section('Tabs', tabs()))
       .child(section('Popup surface', popupSurfaces()))
       .child(section('Search and text', text(this.search)));
