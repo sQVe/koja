@@ -24,7 +24,6 @@ export interface GitInfo {
 
 export interface ListedSpace {
   space: SpaceInfo;
-  index: number;
   git: GitInfo | null;
 }
 
@@ -78,10 +77,11 @@ export const placesOf = (spaceList: SpaceInfo[], paneList: PaneInfo[]): Record<s
   return at;
 };
 
-export const needsYou = (status: Status | null): boolean =>
-  status === 'blocked' || status === 'done';
+const needsYou = (status: Status | null): boolean => status === 'blocked' || status === 'done';
 
 export const listedOf = (row: TreeRow): ListedSpace => (row.kind === 'repo' ? row.main : row);
+
+export const machineOf = (row: TreeRow): string | null => listedOf(row).space.machine ?? null;
 
 const isMain = (row: ListedSpace): row is ListedSpace & { git: GitInfo } =>
   row.git !== null && !row.git.linked;

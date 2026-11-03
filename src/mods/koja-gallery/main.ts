@@ -224,6 +224,18 @@ const rows = (): Element[] => [
 const sidebarFrame = (content: Element[]): Element =>
   v_flex().w(overlaySize.menuWidth).children(content);
 
+const railDot = (status: Status, selected: boolean): Element =>
+  listRow({
+    size: 'small',
+    inset: true,
+    state: selected ? 'selected' : 'normal',
+    centered: true,
+    label: '',
+    end: [statusMark(status)],
+  });
+
+const insetLine = (): Element => div().px(spacing.small).child(separator());
+
 const sidebarSamples = (): Element[] => [
   sample(
     'Open label, hovered with chevron',
@@ -273,6 +285,16 @@ const sidebarSamples = (): Element[] => [
         state: 'selected',
         label: repoLabel({ name: 'design', detail: 'main · 1d', folded: false, selected: true }),
       }),
+    ]),
+  ),
+  sample(
+    'Rail: one dot per repository, the active pill, lines between repositories',
+    sidebarFrame([
+      railDot('working', false),
+      insetLine(),
+      railDot('idle', true),
+      insetLine(),
+      railDot('blocked', false),
     ]),
   ),
 ];

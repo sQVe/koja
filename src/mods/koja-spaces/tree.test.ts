@@ -28,17 +28,16 @@ const gitOf = (linked: boolean): GitInfo => ({
   committedAt: null,
 });
 
-const listed = (space: SpaceInfo, git: GitInfo | null, index: number): ListedSpace => ({
+const listed = (space: SpaceInfo, git: GitInfo | null): ListedSpace => ({
   space,
-  index,
   git,
 });
 
 const list = (statuses: (Status | null)[] = [null, null]): ListedSpace[] => [
-  listed(spaceOf('first-worktree', statuses[0] ?? null), gitOf(true), 0),
-  listed(spaceOf('notes'), null, 1),
-  listed(spaceOf('koja'), gitOf(false), 2),
-  listed(spaceOf('second-worktree', statuses[1] ?? null), gitOf(true), 3),
+  listed(spaceOf('first-worktree', statuses[0] ?? null), gitOf(true)),
+  listed(spaceOf('notes'), null),
+  listed(spaceOf('koja'), gitOf(false)),
+  listed(spaceOf('second-worktree', statuses[1] ?? null), gitOf(true)),
 ];
 
 const describeRow = (row: TreeRow): string =>
@@ -77,7 +76,7 @@ describe('nestSpaces', () => {
       kind: 'repo',
       repo: repoOf(null, repoPath),
       name: 'koja',
-      main: listed(spaceOf('koja'), gitOf(false), 2),
+      main: listed(spaceOf('koja'), gitOf(false)),
       fold: { folded: false, hidden: 0 },
     });
 
@@ -85,18 +84,18 @@ describe('nestSpaces', () => {
   });
 
   test('keeps a worktree in place when its main checkout has no space', () => {
-    const rows = nestSpaces([listed(spaceOf('lone'), gitOf(true), 0)], new Set());
+    const rows = nestSpaces([listed(spaceOf('lone'), gitOf(true))], new Set());
 
-    expect(rows).toEqual([{ kind: 'space', ...listed(spaceOf('lone'), gitOf(true), 0) }]);
+    expect(rows).toEqual([{ kind: 'space', ...listed(spaceOf('lone'), gitOf(true)) }]);
   });
 
   test('a folded repository hides its worktrees except those that are active or need you', () => {
     const rows = nestSpaces(
       [
-        listed(spaceOf('koja'), gitOf(false), 0),
-        listed(spaceOf('active-worktree', null, true), gitOf(true), 1),
-        listed(spaceOf('blocked-worktree', 'blocked'), gitOf(true), 2),
-        listed(spaceOf('idle-worktree'), gitOf(true), 3),
+        listed(spaceOf('koja'), gitOf(false)),
+        listed(spaceOf('active-worktree', null, true), gitOf(true)),
+        listed(spaceOf('blocked-worktree', 'blocked'), gitOf(true)),
+        listed(spaceOf('idle-worktree'), gitOf(true)),
       ],
       foldedKeys(),
     );
@@ -111,7 +110,7 @@ describe('nestSpaces', () => {
   });
 
   test('a repository without worktree spaces has no fold state', () => {
-    const rows = nestSpaces([listed(spaceOf('koja'), gitOf(false), 0)], foldedKeys());
+    const rows = nestSpaces([listed(spaceOf('koja'), gitOf(false))], foldedKeys());
 
     expect(rows[0]).toMatchObject({ kind: 'repo', fold: null });
   });

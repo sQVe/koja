@@ -13,7 +13,7 @@ import {
 import type { Machine } from './machines.ts';
 import { machineGroupOrder } from './machines.ts';
 import type { TreeRow } from './tree.ts';
-import { listedOf } from './tree.ts';
+import { machineOf } from './tree.ts';
 
 export interface MachineRowsHost {
   machineList: Machine[];
@@ -24,8 +24,6 @@ export interface MachineRowsHost {
   addSpace: (machine: string | null) => void;
   toggleFold: (machine: string | null) => void;
 }
-
-const machineOf = (row: TreeRow): string | null => listedOf(row).space.machine ?? null;
 
 const connected = (machineList: Machine[], machine: string | null): boolean =>
   machine === null ||

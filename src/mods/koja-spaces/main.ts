@@ -30,9 +30,11 @@ import type { Machine } from './machines.ts';
 import { isMachineLoading, readMachines } from './machines.ts';
 import { newSpaceArguments } from './newSpace.ts';
 import { pullFields, pullOf, pullState, readPullCaches, readPullList } from './pulls.ts';
-import { compactRow, labelDetail } from './rows.ts';
+import { railRow } from './rail.ts';
+import { railLineRows } from './railLines.ts';
+import { labelDetail } from './rows.ts';
 import type { ListedSpace, RepoRef, RepoRow, SpaceRow, TreeRow } from './tree.ts';
-import { listedOf, nestSpaces, placesOf } from './tree.ts';
+import { nestSpaces, placesOf } from './tree.ts';
 import type { VisibilityResult, VisibilityState } from './visibility.ts';
 import { advanceVisibility, initialVisibility } from './visibility.ts';
 
@@ -210,9 +212,8 @@ export default class Spaces extends View {
     const at = placesOf(spaceList, paneList);
 
     const list: ListedSpace[] = spaceList
-      .map((space, index) => ({
+      .map((space) => ({
         space,
-        index,
         git: this.git.lookup(at[space.id]?.key ?? '') ?? null,
       }))
       .filter((row) => this.visibility.shown.has(row.space.id));
@@ -234,9 +235,14 @@ export default class Spaces extends View {
     return isMachineLoading(layout, connected, waitingForSpace);
   }
 
-  private draw(row: TreeRow, ids: readonly string[], collapsed: boolean): Element {
+  private draw(
+    row: TreeRow,
+    ids: readonly string[],
+    collapsed: boolean,
+    lined: ReadonlySet<TreeRow>,
+  ): Element {
     if (collapsed) {
-      return compactRow(listedOf(row));
+      return railRow(row, lined.has(row));
     }
 
     return row.kind === 'repo' ? this.labelRow(row, ids) : this.row(row, ids);
@@ -245,12 +251,13 @@ export default class Spaces extends View {
   private grouped(collapsed: boolean): Element[] {
     const rows = this.ordered();
     const ids = spaces().map((space) => space.id);
+    const lined = railLineRows(rows);
 
     return machineRows(
       {
         machineList: this.machineList,
         rows,
-        draw: (row) => this.draw(row, ids, collapsed),
+        draw: (row) => this.draw(row, ids, collapsed, lined),
         folded: (machine) => this.foldedMachines.has(machine ?? ''),
         loading: (machine) => this.isLoading(machine),
         addSpace: (machine) => {
