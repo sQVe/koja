@@ -1,8 +1,8 @@
 export const textSize = {
-  xsmall: 10,
-  small: 12,
-  default: 14,
-  large: 16,
+  xsmall: 9,
+  small: 11,
+  default: 13,
+  large: 15,
 } as const;
 
 export const iconSize = {

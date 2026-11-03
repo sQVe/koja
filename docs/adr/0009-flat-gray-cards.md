@@ -23,6 +23,13 @@ Koja uses one flat base color for the whole window, with rounded cards on top of
 border for focus. The frame, panes, terminals, sidebar, and tab bar all share the base color of
 `catppuccin-latte-muted`, Koja's one theme.
 
+### Text
+
+- Mods draw their text in Geist, Herdr's bundled sans font, set as the layout's `ui_font`. Terminals
+  keep their own monospace font.
+- The kit's text sizes run 9, 11, 13, and 15 px. Geist is wider than most sans fonts, and the
+  smaller scale keeps the sidebar and tab titles about as dense as before.
+
 ### Panes and side panel
 
 - Panes and the side panel are rounded cards with a faint `selected` outline.
@@ -33,6 +40,8 @@ border for focus. The frame, panes, terminals, sidebar, and tab bar all share th
 
 - The tab bar's tabs, the panel switcher, and the kit's toggle and icon buttons are pills. They
   round with the kit's `radius.pill`.
+- Inset list rows, such as sidebar rows, menu rows, and picker rows, also round with `radius.pill`.
+  A selected row is therefore a pill.
 - A pill sits inside the bar on its own, so it works with any gap between the bar and the pane
   cards.
 
@@ -67,6 +76,21 @@ Leave unfocused panes without an outline. Rejected because two unfocused panes r
 
 Draw the active tab in the pane color, open at the bottom so it runs into its pane. Rejected because
 it only works when the tab touches the pane, which breaks with the gap around the pane cards.
+
+### IBM Plex Sans as the mods' font
+
+Keep IBM Plex Sans, the earlier `ui_font`. Rejected because its letter shapes are busier than
+Geist's in the dense sidebar and tab rows.
+
+### Geist at the earlier text sizes
+
+Use Geist at 14 and 12 px. Rejected because Geist's wider letters then cut sidebar and tab titles
+short sooner than IBM Plex Sans did.
+
+### Inter or Roboto
+
+Use another installed sans font. Rejected because neither ships with Herdr, while Geist does, so
+Koja would depend on a font the machine may lack.
 
 ### Flat side panel with a divider
 

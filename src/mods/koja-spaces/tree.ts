@@ -17,24 +17,55 @@ export interface RepoRef {
 export interface GitInfo {
   branch: string | null;
   repo: RepoRef;
+  root: string;
   cwd: string;
   linked: boolean;
+  committedAt: number | null;
 }
 
 export interface ListedSpace {
   space: SpaceInfo;
-  index: number;
   git: GitInfo | null;
 }
 
-export interface TreeRow extends ListedSpace {
-  tree: { first: boolean; last: boolean } | null;
-  fold: { folded: boolean; hidden: number } | null;
+interface Fold {
+  folded: boolean;
+  hidden: number;
 }
+
+export interface RepoRow {
+  kind: 'repo';
+  repo: RepoRef;
+  name: string;
+  main: ListedSpace;
+  fold: Fold | null;
+}
+
+export interface SpaceRow extends ListedSpace {
+  kind: 'space';
+}
+
+export type TreeRow = RepoRow | SpaceRow;
+
+interface RepoGroup {
+  kind: 'repo';
+  repo: RepoRef;
+  name: string;
+  main: ListedSpace;
+  fold: Fold | null;
+  children: SpaceRow[];
+}
+
+interface SpaceGroup {
+  kind: 'space';
+  listed: ListedSpace;
+}
+
+export type TreeGroup = RepoGroup | SpaceGroup;
 
 interface RepoChildren {
   shown: ListedSpace[];
-  fold: TreeRow['fold'];
+  fold: Fold | null;
 }
 
 export interface FoldedKeys {
@@ -63,13 +94,54 @@ export const placesOf = (spaceList: SpaceInfo[], paneList: PaneInfo[]): Record<s
   return at;
 };
 
-export const needsYou = (status: Status | null): boolean =>
-  status === 'blocked' || status === 'done';
+const needsYou = (status: Status | null): boolean => status === 'blocked' || status === 'done';
 
-const isMain = (row: ListedSpace): boolean => row.git !== null && !row.git.linked;
+export const listedOf = (row: TreeRow): ListedSpace => (row.kind === 'repo' ? row.main : row);
+
+const listedOfGroup = (group: TreeGroup): ListedSpace =>
+  group.kind === 'repo' ? group.main : group.listed;
+
+export const machineOfGroup = (group: TreeGroup): string | null =>
+  listedOfGroup(group).space.machine ?? null;
+
+const isRepository = (group: TreeGroup | null): boolean => group?.kind === 'repo';
+
+export const railLineBefore = (group: TreeGroup, previous: TreeGroup | null): boolean => {
+  if (previous === null) {
+    return false;
+  }
+
+  return isRepository(group) || isRepository(previous);
+};
+
+export const groupGapBefore = (group: TreeGroup, previous: TreeGroup | null): boolean =>
+  previous !== null && group.kind === 'repo';
+
+const isMain = (row: ListedSpace): row is ListedSpace & { git: GitInfo } =>
+  row.git !== null && !row.git.linked;
 
 const shownWhenFolded = (row: ListedSpace): boolean =>
   row.space.active || needsYou(row.space.status);
+
+// The git folder can sit anywhere under any name, so the checkout folder names the repository.
+const repoName = (root: string): string => {
+  const folder = root.split('/').findLast((part) => part !== '') ?? root;
+
+  return folder.replace(/\.git$/, '');
+};
+
+const spaceRow = (row: ListedSpace): SpaceRow => ({ kind: 'space', ...row });
+
+const repoRow = (group: RepoGroup): RepoRow => ({
+  kind: 'repo',
+  repo: group.repo,
+  name: group.name,
+  main: group.main,
+  fold: group.fold,
+});
+
+export const groupRows = (group: TreeGroup): TreeRow[] =>
+  group.kind === 'space' ? [spaceRow(group.listed)] : [repoRow(group), ...group.children];
 
 const childrenOf = (
   row: ListedSpace,
@@ -90,22 +162,14 @@ const childrenOf = (
   return { shown, fold: { folded, hidden: kids.length - shown.length } };
 };
 
-const nestedRow = (kid: ListedSpace, position: number, count: number): TreeRow => ({
-  space: kid.space,
-  index: kid.index,
-  git: kid.git,
-  tree: { first: position === 0, last: position === count - 1 },
-  fold: null,
-});
-
-export const nestSpaces = (list: ListedSpace[], foldedRepos: FoldedKeys): TreeRow[] => {
-  const mains = new Set(list.filter(isMain).map((row) => row.git?.repo.key));
+export const nestSpaces = (list: ListedSpace[], foldedRepos: FoldedKeys): TreeGroup[] => {
+  const mains = new Set(list.filter(isMain).map((row) => row.git.repo.key));
 
   const nested = (row: ListedSpace): boolean =>
     row.git?.linked === true && mains.has(row.git.repo.key);
 
   const placed = new Set<string>();
-  const rows: TreeRow[] = [];
+  const groups: TreeGroup[] = [];
 
   for (const row of list) {
     if (nested(row)) {
@@ -113,21 +177,26 @@ export const nestSpaces = (list: ListedSpace[], foldedRepos: FoldedKeys): TreeRo
     }
 
     const repo = row.git?.repo.key ?? '';
-    const firstOfRepo = isMain(row) && !placed.has(repo);
 
-    if (!firstOfRepo) {
-      rows.push({ ...row, tree: null, fold: null });
+    if (!isMain(row) || placed.has(repo)) {
+      groups.push({ kind: 'space', listed: row });
 
       continue;
     }
 
     const children = childrenOf(row, list, nested, foldedRepos);
-    const count = children.shown.length;
 
     placed.add(repo);
-    rows.push({ ...row, tree: null, fold: children.fold });
-    rows.push(...children.shown.map((kid, position) => nestedRow(kid, position, count)));
+
+    groups.push({
+      kind: 'repo',
+      repo: row.git.repo,
+      name: repoName(row.git.root),
+      main: row,
+      fold: children.fold,
+      children: children.shown.map(spaceRow),
+    });
   }
 
-  return rows;
+  return groups;
 };

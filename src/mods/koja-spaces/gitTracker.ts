@@ -254,22 +254,22 @@ export class GitTracker {
         return;
       }
 
-      const common = await exec(
+      const { repo, branch } = await this.repoAndBranch(place);
+
+      // A main checkout's own git folder is the common one, wherever it lives, such as one made
+      // with `git clone --separate-git-dir`; a linked worktree's sits under it.
+      const gitDirectory = await exec(
         'git',
-        ['rev-parse', '--path-format=absolute', '--git-common-dir'],
+        ['rev-parse', '--path-format=absolute', '--git-dir'],
         options,
       );
 
-      const head = await exec('git', ['symbolic-ref', '--short', 'HEAD'], options);
-      const repo = repoOf(place.machine, common.stdout.trim());
-      const linked = repo.path !== `${top.stdout.trim()}/.git`;
+      const linked = gitDirectory.stdout.trim() !== repo.path;
+      const committedAt = linked ? null : await this.lastCommit(place);
 
-      this.git[place.key] = {
-        branch: head.code === 0 ? head.stdout.trim() : null,
-        repo,
-        cwd: place.folder,
-        linked,
-      };
+      const root = top.stdout.trim();
+
+      this.git[place.key] = { branch, repo, root, cwd: place.folder, linked, committedAt };
 
       if (place.machine === null) {
         this.watch(repo, cx);
@@ -277,6 +277,37 @@ export class GitTracker {
     } catch {
       this.git[place.key] ??= null;
       this.unsure.add(place.key);
+    }
+  }
+
+  private async repoAndBranch(place: Place): Promise<{ repo: RepoRef; branch: string | null }> {
+    const options = { cwd: place.folder, on: place.machine };
+
+    const common = await exec(
+      'git',
+      ['rev-parse', '--path-format=absolute', '--git-common-dir'],
+      options,
+    );
+
+    const head = await exec('git', ['symbolic-ref', '--short', 'HEAD'], options);
+
+    return {
+      repo: repoOf(place.machine, common.stdout.trim()),
+      branch: head.code === 0 ? head.stdout.trim() : null,
+    };
+  }
+
+  // The age is optional: a failed read must not drop the repository the other reads found.
+  private async lastCommit(place: Place): Promise<number | null> {
+    try {
+      const log = await exec('git', ['log', '-1', '--format=%ct', 'HEAD'], {
+        cwd: place.folder,
+        on: place.machine,
+      });
+
+      return log.code === 0 ? Number(log.stdout.trim()) : null;
+    } catch {
+      return null;
     }
   }
 
@@ -305,17 +336,10 @@ export class GitTracker {
       return null;
     }
 
-    const common = await exec(
-      'git',
-      ['rev-parse', '--path-format=absolute', '--git-common-dir'],
-      options,
-    );
+    const { repo, branch } = await this.repoAndBranch(place);
+    const committedAt = await this.lastCommit(place);
 
-    const head = await exec('git', ['symbolic-ref', '--short', 'HEAD'], options);
-    const repo = repoOf(place.machine, common.stdout.trim());
-    const branch = head.code === 0 ? head.stdout.trim() : null;
-
-    return { branch, repo, cwd: place.folder, linked: false };
+    return { branch, repo, root: place.folder, cwd: place.folder, linked: false, committedAt };
   }
 
   private watch(repo: RepoRef, cx: Context): void {

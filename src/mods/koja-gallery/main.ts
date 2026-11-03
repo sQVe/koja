@@ -11,6 +11,7 @@ import {
   controlSize,
   detailText,
   emptyState,
+  foldChevron,
   highlightedText,
   icon,
   iconButton,
@@ -18,8 +19,10 @@ import {
   indicator,
   keyHint,
   listRow,
+  overlaySize,
   popupSurface,
   programIcon,
+  repoLabel,
   searchField,
   sectionHeader,
   separator,
@@ -139,7 +142,6 @@ const treeRows = (): Element =>
         inset: false,
         state: 'normal',
         depth: 1,
-        guide: { first: true, last: false },
         start: icon('folder', 'large'),
         label: 'first worktree',
       }),
@@ -150,7 +152,6 @@ const treeRows = (): Element =>
         inset: false,
         state: 'normal',
         depth: 1,
-        guide: { first: false, last: true },
         start: icon('folder', 'large'),
         label: 'last worktree',
       }),
@@ -216,6 +217,118 @@ const rows = (): Element[] => [
   sample('Tree', treeRows()),
   sample('Reordering', dragRows()),
   sample('Muted, centered, and highlighted', otherRows()),
+];
+
+const sidebarFrame = (content: Element[]): Element =>
+  v_flex().w(overlaySize.menuWidth).children(content);
+
+const railDot = (status: Status, selected: boolean): Element =>
+  listRow({
+    size: 'small',
+    inset: true,
+    state: selected ? 'selected' : 'normal',
+    centered: true,
+    label: '',
+    end: [statusMark(status)],
+  });
+
+const insetLine = (): Element => div().px(spacing.small).child(separator());
+
+const sidebarGap = (): Element => div().h(spacing.medium);
+
+const sidebarSamples = (): Element[] => [
+  sample(
+    'Gap between repository groups, then a dot-first row',
+    sidebarFrame([
+      listRow({
+        size: 'small',
+        inset: true,
+        state: 'normal',
+        label: repoLabel({
+          name: 'herdr-app',
+          detail: 'main · 3h',
+          folded: false,
+          selected: false,
+        }),
+      }),
+      sidebarGap(),
+      listRow({
+        size: 'small',
+        inset: true,
+        state: 'normal',
+        label: repoLabel({ name: 'koja', detail: 'main · 4m', folded: false, selected: false }),
+      }),
+      listRow({
+        size: 'small',
+        inset: true,
+        state: 'normal',
+        start: statusMark('working'),
+        label: 'feature-login',
+        end: [detailText('#42', colors().ansi2)],
+      }),
+    ]),
+  ),
+  sample(
+    'Open label, hovered with chevron, then a dot-first worktree',
+    sidebarFrame([
+      listRow({
+        size: 'small',
+        inset: true,
+        state: 'normal',
+        hovered: true,
+        label: repoLabel({ name: 'koja', detail: 'main · 4m', folded: false, selected: false }),
+        end: [foldChevron(false)],
+      }),
+      listRow({
+        size: 'small',
+        inset: true,
+        state: 'normal',
+        start: statusMark('working'),
+        label: 'feature-login',
+        end: [detailText('#42', colors().ansi2)],
+      }),
+    ]),
+  ),
+  sample(
+    'Folded with count, then the blocked worktree it keeps',
+    sidebarFrame([
+      listRow({
+        size: 'small',
+        inset: true,
+        state: 'normal',
+        label: repoLabel({ name: 'herdr-app', detail: 'main · 3h', folded: true, selected: false }),
+        end: [detailText('2')],
+      }),
+      listRow({
+        size: 'small',
+        inset: true,
+        state: 'normal',
+        start: statusMark('blocked'),
+        label: 'fix-login',
+      }),
+    ]),
+  ),
+  sample(
+    'Selected label',
+    sidebarFrame([
+      listRow({
+        size: 'small',
+        inset: true,
+        state: 'selected',
+        label: repoLabel({ name: 'design', detail: 'main · 1d', folded: false, selected: true }),
+      }),
+    ]),
+  ),
+  sample(
+    'Rail: one dot per repository, the active pill, lines between repositories',
+    sidebarFrame([
+      railDot('working', false),
+      insetLine(),
+      railDot('idle', true),
+      insetLine(),
+      railDot('blocked', false),
+    ]),
+  ),
 ];
 
 const headers = (): Element[] => [
@@ -340,6 +453,7 @@ export default class Gallery extends View {
       .child(section('Icons', icons()))
       .child(section('Status marks', marks()))
       .child(section('List rows', rows()))
+      .child(section('Sidebar', sidebarSamples()))
       .child(section('Section headers', headers()))
       .child(section('Buttons', buttons()))
       .child(section('Tabs', tabs()))

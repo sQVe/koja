@@ -1,31 +1,27 @@
 import { v_flex } from 'gpui-base';
 import type { AsyncContext, Context, Element } from 'gpui-kit';
-import { View } from 'gpui-kit';
+import { div, View } from 'gpui-kit';
 import type { SpaceInfo } from 'herdr';
-import { exec, hc, machines, openOverlay, panes, run, settings, spaces } from 'herdr';
+import { exec, hc, machines, openOverlay, panes, run, spaces } from 'herdr';
 
 import type { DragState } from '../../kit/drag.ts';
 import { dragLine, dropAction, noDrag, setDragOver, startDrag } from '../../kit/drag.ts';
 import type { ThemeToken } from '../../kit/index.ts';
 import {
   colors,
-  currentWindow,
+  controlSize,
   detailText,
   findLayoutNode,
-  icon,
-  iconButton,
-  iconSlot,
+  foldChevron,
   layoutRoot,
   listRow,
-  numberOf,
   overlaySize,
   railWidthLimit,
   repeat,
-  sectionHeader,
+  repoLabel,
   spacing,
   statusMark,
   textSize,
-  trafficLightsPadding,
 } from '../../kit/index.ts';
 import { foldedSet } from './folded.ts';
 import { GitTracker } from './gitTracker.ts';
@@ -34,8 +30,10 @@ import type { Machine } from './machines.ts';
 import { isMachineLoading, readMachines } from './machines.ts';
 import { newSpaceArguments } from './newSpace.ts';
 import { pullFields, pullOf, pullState, readPullCaches, readPullList } from './pulls.ts';
-import type { ListedSpace, RepoRef, TreeRow } from './tree.ts';
-import { needsYou, nestSpaces, placesOf } from './tree.ts';
+import { railRow } from './rail.ts';
+import { labelDetail } from './rows.ts';
+import type { ListedSpace, RepoRef, RepoRow, SpaceRow, TreeGroup, TreeRow } from './tree.ts';
+import { nestSpaces, placesOf } from './tree.ts';
 import type { VisibilityResult, VisibilityState } from './visibility.ts';
 import { advanceVisibility, initialVisibility } from './visibility.ts';
 
@@ -67,20 +65,8 @@ const isNarrow = (): boolean => {
   return width !== null && width < railWidthLimit;
 };
 
-const spacesHeaderPadding = (): number => {
-  const shown = currentWindow();
-  const zoom = numberOf(settings()['zoom']) ?? 1;
-
-  return trafficLightsPadding({
-    platform: shown?.platform ?? 'linux',
-    titlebar: shown?.titlebar ?? 'system',
-    fullscreen: shown?.fullscreen ?? false,
-    lights: layoutRoot().trafficLights,
-    zoom,
-    offset: 0,
-    base: spacing.large,
-  });
-};
+const topStripHeight = (): number =>
+  layoutRoot().trafficLights === null ? spacing.small : controlSize.sidebarHeader;
 
 const storage = {
   get: (key: string): string | null => localStorage.getItem(key),
@@ -132,25 +118,12 @@ export default class Spaces extends View {
 
     this.visibility = this.advance();
 
-    const newSpace = iconButton({ name: 'plus' })
-      .id('space-new')
-      .on_click(() => {
-        run('space.new');
-      });
-
     return v_flex()
       .size_full()
       .min_h(0)
       .bg(palette.chrome)
       .text_size(textSize.default)
-      .child(
-        sectionHeader({
-          label: collapsed ? '' : 'Spaces',
-          size: 'bar',
-          paddingStart: spacesHeaderPadding(),
-          end: [newSpace],
-        }),
-      )
+      .child(div().flex_none().h(topStripHeight()))
       .child(
         v_flex()
           .flex_1()
@@ -232,15 +205,14 @@ export default class Spaces extends View {
     });
   }
 
-  private ordered(): TreeRow[] {
+  private ordered(): TreeGroup[] {
     const spaceList = spaces();
     const paneList = panes();
     const at = placesOf(spaceList, paneList);
 
     const list: ListedSpace[] = spaceList
-      .map((space, index) => ({
+      .map((space) => ({
         space,
-        index,
         git: this.git.lookup(at[space.id]?.key ?? '') ?? null,
       }))
       .filter((row) => this.visibility.shown.has(row.space.id));
@@ -262,15 +234,30 @@ export default class Spaces extends View {
     return isMachineLoading(layout, connected, waitingForSpace);
   }
 
+  private draw(
+    row: TreeRow,
+    ids: readonly string[],
+    collapsed: boolean,
+    lineAbove: boolean,
+  ): Element {
+    if (collapsed) {
+      const title = row.kind === 'repo' ? row.name : this.rowTitle(row);
+
+      return railRow(row, title, lineAbove);
+    }
+
+    return row.kind === 'repo' ? this.labelRow(row, ids) : this.row(row, ids);
+  }
+
   private grouped(collapsed: boolean): Element[] {
-    const rows = this.ordered();
+    const groups = this.ordered();
     const ids = spaces().map((space) => space.id);
 
     return machineRows(
       {
         machineList: this.machineList,
-        rows,
-        draw: (row) => (collapsed ? this.compact(row) : this.row(row, ids)),
+        groups,
+        draw: (row, lineAbove) => this.draw(row, ids, collapsed, lineAbove),
         folded: (machine) => this.foldedMachines.has(machine ?? ''),
         loading: (machine) => this.isLoading(machine),
         addSpace: (machine) => {
@@ -324,17 +311,31 @@ export default class Spaces extends View {
     });
   }
 
-  private folderIcon(row: TreeRow): Element {
-    const { fold, git } = row;
-    const open = fold !== null && !fold.folded;
-    const slot = iconSlot(icon(open ? 'folder-open' : 'folder')).text_color(colors().dim);
+  private foldControls(row: RepoRow): Element[] {
+    const { fold, main } = row;
 
-    if (fold === null || git === null) {
-      return slot;
+    if (fold === null) {
+      return [];
     }
 
-    return slot
-      .id(`fold-${row.space.id}`)
+    const controls: Element[] = [];
+
+    if (fold.hidden > 0) {
+      controls.push(detailText(String(fold.hidden)));
+    }
+
+    if (this.hovered === main.space.id) {
+      controls.push(this.foldToggle(row));
+    }
+
+    return controls;
+  }
+
+  private foldToggle(row: RepoRow): Element {
+    const { fold, main, repo } = row;
+
+    return foldChevron(fold?.folded === true)
+      .id(`fold-${main.space.id}`)
       .hover((style) => style.text_color(colors().foreground))
       .on_mouse_down('left', (_event, cx) => {
         cx.stop_propagation();
@@ -342,12 +343,12 @@ export default class Spaces extends View {
       .on_mouse_up('left', (_event, cx) => {
         cx.stop_propagation();
         this.drag = noDrag;
-        this.foldedRepos.toggle(git.repo.key);
+        this.foldedRepos.toggle(repo.key);
         cx.notify();
       });
   }
 
-  private pullDetail(row: TreeRow): Element[] {
+  private pullDetail(row: ListedSpace): Element[] {
     const pull = pullOf(row.git, this.pulls);
 
     if (pull === null) {
@@ -359,29 +360,51 @@ export default class Spaces extends View {
     return [detailText(`#${pull.number}`, colors()[token])];
   }
 
-  private rowTitle(row: TreeRow): string {
+  private rowTitle(row: ListedSpace): string {
     return row.space.named
       ? row.space.name
       : (pullOf(row.git, this.pulls)?.title ?? row.space.name);
   }
 
-  private row(row: TreeRow, ids: readonly string[]): Element {
-    const { space, tree, fold } = row;
+  private row(row: SpaceRow, ids: readonly string[]): Element {
+    const { space } = row;
     const line = dragLine(this.drag, space.id, ids);
-    const showsHidden = fold?.folded === true && this.hovered === space.id && fold.hidden > 0;
 
     const element = listRow({
       size: 'small',
-      inset: false,
+      inset: true,
       state: space.active ? 'selected' : 'normal',
-      depth: tree === null ? 0 : 1,
-      start: this.folderIcon(row),
+      start: statusMark(space.status),
       label: this.rowTitle(row),
-      ...(showsHidden ? { detail: String(fold.hidden) } : {}),
-      ...(tree === null ? {} : { guide: tree }),
       ...(line === undefined ? {} : { dropLine: line }),
       dragged: this.drag.source === space.id && this.drag.over !== space.id,
-      end: [...this.pullDetail(row), statusMark(space.status)],
+      end: this.pullDetail(row),
+    }).id(`space-${space.id}`);
+
+    this.addDragHandlers(element, space, ids);
+
+    return element;
+  }
+
+  private labelRow(row: RepoRow, ids: readonly string[]): Element {
+    const { main, name, fold } = row;
+    const { space } = main;
+    const line = dragLine(this.drag, space.id, ids);
+    const detail = labelDetail(main);
+
+    const element = listRow({
+      size: 'small',
+      inset: true,
+      state: space.active ? 'selected' : 'normal',
+      label: repoLabel({
+        name,
+        ...(detail === undefined ? {} : { detail }),
+        folded: fold?.folded === true,
+        selected: space.active,
+      }),
+      ...(line === undefined ? {} : { dropLine: line }),
+      dragged: this.drag.source === space.id && this.drag.over !== space.id,
+      end: [...this.foldControls(row), statusMark(space.status)],
     }).id(`space-${space.id}`);
 
     this.addDragHandlers(element, space, ids);
@@ -443,23 +466,5 @@ export default class Spaces extends View {
     }
 
     cx.notify();
-  }
-
-  private compact(row: TreeRow): Element {
-    const { space, index } = row;
-
-    return listRow({
-      size: 'medium',
-      inset: false,
-      state: space.active ? 'selected' : 'normal',
-      centered: true,
-      muted: !space.active,
-      label: String(index + 1),
-      end: [statusMark(needsYou(space.status) ? space.status : null)],
-    })
-      .id(`space-${space.id}`)
-      .on_click(() => {
-        run('space.select', { id: space.id });
-      });
   }
 }

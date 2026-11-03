@@ -1,4 +1,5 @@
 import type { Element } from 'gpui-kit';
+import { div } from 'gpui-kit';
 
 import {
   detailText,
@@ -9,15 +10,17 @@ import {
   indicator,
   listRow,
   sectionHeader,
+  spacing,
 } from '../../kit/index.ts';
 import type { Machine } from './machines.ts';
 import { machineGroupOrder } from './machines.ts';
-import type { TreeRow } from './tree.ts';
+import type { TreeGroup, TreeRow } from './tree.ts';
+import { groupGapBefore, groupRows, machineOfGroup, railLineBefore } from './tree.ts';
 
 export interface MachineRowsHost {
   machineList: Machine[];
-  rows: TreeRow[];
-  draw: (row: TreeRow) => Element;
+  groups: TreeGroup[];
+  draw: (row: TreeRow, lineAbove: boolean) => Element;
   folded: (machine: string | null) => boolean;
   loading: (machine: string | null) => boolean;
   addSpace: (machine: string | null) => void;
@@ -75,7 +78,7 @@ const machineHeader = (
 const newSpaceRow = (host: MachineRowsHost, machine: string | null, collapsed: boolean): Element =>
   listRow({
     size: 'small',
-    inset: false,
+    inset: true,
     state: 'normal',
     muted: true,
     start: iconSlot(icon('plus', 'small')),
@@ -86,21 +89,48 @@ const newSpaceRow = (host: MachineRowsHost, machine: string | null, collapsed: b
       host.addSpace(machine);
     });
 
+const groupGap = (): Element => div().h(spacing.medium);
+
+const groupChildren = (
+  host: MachineRowsHost,
+  groups: TreeGroup[],
+  collapsed: boolean,
+): Element[] => {
+  const elements: Element[] = [];
+
+  groups.forEach((group, index) => {
+    const previous = groups[index - 1] ?? null;
+
+    if (!collapsed && groupGapBefore(group, previous)) {
+      elements.push(groupGap());
+    }
+
+    const lineAbove = railLineBefore(group, previous);
+    const rows = groupRows(group);
+
+    rows.forEach((row, rowIndex) => {
+      elements.push(host.draw(row, lineAbove && rowIndex === 0));
+    });
+  });
+
+  return elements;
+};
+
 export const machineRows = (host: MachineRowsHost, collapsed: boolean): Element[] => {
-  const remote = host.rows
-    .map((row) => row.space.machine)
+  const remote = host.groups
+    .map((group) => machineOfGroup(group))
     .filter((machine): machine is string => machine !== null);
 
   const order = machineGroupOrder(remote, host.machineList);
 
   if (order.length === 1) {
-    const loading = host.loading(null) && host.rows.length === 0;
+    const loading = host.loading(null) && host.groups.length === 0;
 
-    return loading ? [loadingRow(collapsed)] : host.rows.map(host.draw);
+    return loading ? [loadingRow(collapsed)] : groupChildren(host, host.groups, collapsed);
   }
 
   return order.flatMap((machine) => {
-    const mine = host.rows.filter((row) => (row.space.machine ?? null) === machine);
+    const mine = host.groups.filter((group) => machineOfGroup(group) === machine);
     const header = machineHeader(host, machine, collapsed);
 
     if (host.folded(machine)) {
@@ -108,7 +138,7 @@ export const machineRows = (host: MachineRowsHost, collapsed: boolean): Element[
     }
 
     if (mine.length > 0) {
-      return [header].concat(mine.map(host.draw));
+      return [header].concat(groupChildren(host, mine, collapsed));
     }
 
     const row = host.loading(machine)
