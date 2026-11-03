@@ -77,6 +77,21 @@ Leave unfocused panes without an outline. Rejected because two unfocused panes r
 Draw the active tab in the pane color, open at the bottom so it runs into its pane. Rejected because
 it only works when the tab touches the pane, which breaks with the gap around the pane cards.
 
+### IBM Plex Sans as the mods' font
+
+Keep IBM Plex Sans, the earlier `ui_font`. Rejected because its letter shapes are busier than
+Geist's in the dense sidebar and tab rows.
+
+### Geist at the earlier text sizes
+
+Use Geist at 14 and 12 px. Rejected because Geist's wider letters then cut sidebar and tab titles
+short sooner than IBM Plex Sans did.
+
+### Inter or Roboto
+
+Use another installed sans font. Rejected because neither ships with Herdr, while Geist does, so
+Koja would depend on a font the machine may lack.
+
 ### Flat side panel with a divider
 
 Draw the side panel flat, with a divider between it and the panes. Rejected because the work areas
