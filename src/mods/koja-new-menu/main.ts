@@ -23,8 +23,8 @@ import {
   spacing,
   textSize,
 } from '../../kit/index.ts';
-import type { Agent, AgentLoad } from './agents.ts';
-import { agentList, placeholderFor } from './agents.ts';
+import type { Agent, AgentLoad, MenuTarget } from './agents.ts';
+import { agentList, menuActions, menuTarget, placeholderFor } from './agents.ts';
 
 interface MenuEntry {
   id: string;
@@ -48,10 +48,6 @@ const focusedFolder = (): string | null => panes().find((pane) => pane.focused)?
 
 const closeMenu = (): void => {
   closeOverlay();
-};
-
-const startAgent = (agent: Agent): void => {
-  run('tab.new', { name: agent.name, space: activeSpace()?.id, argv: agent.run });
 };
 
 const shortcutHint = (action: string): Element | null => {
@@ -78,15 +74,19 @@ const menuHeight = (agentRows: number): number => {
 export default class NewMenu extends View {
   private load: AgentLoad = { status: 'pending' };
 
+  private target: MenuTarget = { space: null, machine: null, folder: null };
+
   private handle: FocusHandle | null = null;
 
   override init(_props: unknown, cx: AsyncContext): void {
     this.handle = cx.focus_handle();
     this.handle.focus();
 
+    this.target = menuTarget(activeSpace(), focusedFolder());
+
     cx.spawn(async (taskCx) => {
       try {
-        const agents = await knownAgents({ on: activeSpace()?.machine ?? null });
+        const agents = await knownAgents({ on: this.target.machine });
 
         this.load = { status: 'loaded', agents };
       } catch {
@@ -95,6 +95,10 @@ export default class NewMenu extends View {
 
       taskCx.notify();
     });
+  }
+
+  private startAgent(agent: Agent): void {
+    run('tab.new', menuActions(this.target).agent(agent));
   }
 
   override render(): Element {
@@ -134,7 +138,7 @@ export default class NewMenu extends View {
 
     if (agent !== undefined) {
       closeMenu();
-      startAgent(agent);
+      this.startAgent(agent);
     }
   }
 
@@ -146,13 +150,13 @@ export default class NewMenu extends View {
       hint: shortcutHint('tab.new'),
       enabled: true,
       action: () => {
-        run('tab.new', { space: activeSpace()?.id });
+        run('tab.new', menuActions(this.target).terminal);
       },
     };
   }
 
   private placeEntries(): MenuEntry[] {
-    const space = activeSpace()?.id ?? null;
+    const { space: newSpace, worktree } = menuActions(this.target);
 
     return [
       {
@@ -162,7 +166,7 @@ export default class NewMenu extends View {
         hint: shortcutHint('space.new'),
         enabled: true,
         action: () => {
-          run('space.new');
+          run('space.new', newSpace);
         },
       },
       {
@@ -170,9 +174,9 @@ export default class NewMenu extends View {
         start: icon('git-branch'),
         label: 'New worktree…',
         hint: null,
-        enabled: space !== null,
+        enabled: worktree.space !== null,
         action: () => {
-          openWorktreeDialog('new', space, focusedFolder());
+          openWorktreeDialog('new', worktree.space, worktree.folder);
         },
       },
       {
@@ -180,9 +184,9 @@ export default class NewMenu extends View {
         start: icon('git-branch'),
         label: 'Open worktree…',
         hint: null,
-        enabled: space !== null,
+        enabled: worktree.space !== null,
         action: () => {
-          openWorktreeDialog('open', space, focusedFolder());
+          openWorktreeDialog('open', worktree.space, worktree.folder);
         },
       },
     ];
@@ -205,7 +209,7 @@ export default class NewMenu extends View {
           hint: agentHint(agent, index),
           enabled: agent.installed,
           action: () => {
-            startAgent(agent);
+            this.startAgent(agent);
           },
         }),
       ),
