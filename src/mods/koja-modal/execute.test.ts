@@ -470,6 +470,26 @@ describe('space navigation', () => {
     expect(session.calls).toEqual([{ command: 'space.select', args: { id: 'notes' } }]);
   });
 
+  test('Tab from a hidden space selects the first shown space', () => {
+    const session = focusedSession('remote-a');
+
+    session.setLiveSpaces(['local', 'remote-a', 'remote-b']);
+    session.publishOrder(['local'], ['remote-a', 'remote-b']);
+    session.press(named('tab', 'tab'));
+
+    expect(session.calls).toEqual([{ command: 'space.select', args: { id: 'local' } }]);
+  });
+
+  test('Shift-Tab from a hidden space selects the last shown space', () => {
+    const session = focusedSession('remote-a');
+
+    session.setLiveSpaces(['local', 'notes', 'remote-a', 'remote-b']);
+    session.publishOrder(['local', 'notes'], ['remote-a', 'remote-b']);
+    session.press(shiftTab());
+
+    expect(session.calls).toEqual([{ command: 'space.select', args: { id: 'notes' } }]);
+  });
+
   test('Tab skips a space that was removed after the order was published', () => {
     const session = focusedSession('main');
 

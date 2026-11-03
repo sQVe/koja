@@ -229,7 +229,7 @@ const spaceIndex = (order: string[] | null, current: string | null): number => {
 const hasUnlistedSpace = (order: SpaceOrder, liveIds: string[]): boolean =>
   liveIds.some((id) => !order.shown.includes(id) && !order.hidden.includes(id));
 
-const liveSpaceOrder = (deps: ExecutorDeps): string[] | null => {
+const liveSpaceOrder = (deps: ExecutorDeps): SpaceOrder | null => {
   const order = readSpaceOrder(deps.store.get);
 
   if (order === null) {
@@ -244,23 +244,38 @@ const liveSpaceOrder = (deps: ExecutorDeps): string[] | null => {
 
   const live = new Set(liveIds);
 
-  return order.shown.filter((id) => live.has(id));
+  return { shown: order.shown.filter((id) => live.has(id)), hidden: order.hidden };
+};
+
+const targetSpace = (order: SpaceOrder, current: string | null, step: number): string | null => {
+  const shown = order.shown;
+  const index = spaceIndex(shown, current);
+
+  if (index !== -1) {
+    return shown[(index + step + shown.length) % shown.length] ?? null;
+  }
+
+  const currentHidden = current !== null && order.hidden.includes(current);
+
+  if (!currentHidden) {
+    return null;
+  }
+
+  return (step > 0 ? shown[0] : shown.at(-1)) ?? null;
 };
 
 const stepSpace = (step: number, fallback: string, deps: ExecutorDeps): void => {
   const order = liveSpaceOrder(deps);
   const current = deps.focused()?.space ?? null;
-  const index = spaceIndex(order, current);
+  const target = order === null ? null : targetSpace(order, current, step);
 
-  if (order === null || index === -1) {
+  if (target === null) {
     deps.run(fallback);
 
     return;
   }
 
-  const target = order[(index + step + order.length) % order.length];
-
-  if (target === undefined || target === current) {
+  if (target === current) {
     return;
   }
 
