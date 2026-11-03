@@ -5,24 +5,11 @@ import { div } from 'gpui-kit';
 import type { HoverOptions } from './hover.ts';
 import { withHover } from './hover.ts';
 import type { Palette } from './palette.ts';
-import {
-  draggedOpacity,
-  iconSize,
-  indentWidth,
-  radius,
-  rowHeight,
-  spacing,
-  textSize,
-} from './size.ts';
+import { draggedOpacity, indentWidth, radius, rowHeight, spacing, textSize } from './size.ts';
 import type { RowSize } from './size.ts';
 import { colors } from './theme.ts';
 
 export type RowState = 'normal' | 'selected' | 'disabled';
-
-interface TreeGuide {
-  first: boolean;
-  last: boolean;
-}
 
 export interface ListRowOptions extends HoverOptions {
   size: RowSize;
@@ -35,7 +22,6 @@ export interface ListRowOptions extends HoverOptions {
   depth?: number;
   start?: Element;
   end?: Element[];
-  guide?: TreeGuide;
   dragged?: boolean;
   dropLine?: 'top' | 'bottom';
 }
@@ -59,15 +45,6 @@ const withBackground = (row: Element, options: ListRowOptions, palette: Palette)
 
   return withHover(row, options.hovered === true, (element) => element.bg(palette.hover));
 };
-
-const guideLine = (guide: TreeGuide, palette: Palette): Element =>
-  div()
-    .absolute()
-    .top(guide.first ? spacing.xsmall : spacing.none)
-    .bottom(guide.last ? spacing.xsmall : spacing.none)
-    .left(spacing.small + iconSize.large / 2)
-    .w(spacing.hairline)
-    .bg(palette.border);
 
 const dropLineAt = (edge: 'top' | 'bottom', palette: Palette): Element => {
   const line = div().absolute().left(spacing.none).right(spacing.none).h(spacing.xxsmall);
@@ -128,10 +105,6 @@ const decorate = (row: Element, options: ListRowOptions, palette: Palette): void
 
   if (options.dragged === true) {
     row.opacity(draggedOpacity);
-  }
-
-  if (options.guide !== undefined) {
-    row.child(guideLine(options.guide, palette));
   }
 
   if (options.dropLine !== undefined) {
