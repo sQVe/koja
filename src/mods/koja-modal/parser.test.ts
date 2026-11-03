@@ -89,7 +89,7 @@ describe('normal mode sequences', () => {
 
     expect(result).toMatchObject({
       status: 'action',
-      action: { kind: 'command', command: 'space.prev' },
+      action: { kind: 'intent', intent: 'previousSpace' },
     });
   });
 

@@ -2,7 +2,7 @@ import { v_flex } from 'gpui-base';
 import type { AsyncContext, Context, Element } from 'gpui-kit';
 import { div, View } from 'gpui-kit';
 import type { SpaceInfo } from 'herdr';
-import { exec, hc, machines, openOverlay, panes, run, spaces, terminals } from 'herdr';
+import { exec, hc, machines, openOverlay, panes, run, setShared, spaces, terminals } from 'herdr';
 
 import type { DragState } from '../../kit/drag.ts';
 import { dragLine, dropAction, noDrag, setDragOver, startDrag } from '../../kit/drag.ts';
@@ -33,6 +33,7 @@ import { newSpaceArguments } from './newSpace.ts';
 import { pullFields, pullOf, pullState, readPullCaches, readPullList } from './pulls.ts';
 import { railRow } from './rail.ts';
 import { labelDetail } from './rows.ts';
+import { createOrderPublisher } from './spaceOrder.ts';
 import type { ListedSpace, RepoRef, RepoRow, SpaceRow, TreeGroup, TreeRow } from './tree.ts';
 import { nestSpaces, placesOf } from './tree.ts';
 import type { VisibilityResult, VisibilityState } from './visibility.ts';
@@ -89,6 +90,8 @@ export default class Spaces extends View {
 
   private readonly foldedRepos = foldedSet(reposFoldedKey, storage);
 
+  private readonly order = createOrderPublisher(setShared);
+
   private machineList: Machine[] = [];
 
   private visibility: VisibilityState = initialVisibility(spaces().map((space) => space.id));
@@ -98,6 +101,10 @@ export default class Spaces extends View {
   private hovered: string | null = null;
 
   private statuses: StatusRollup = { spaces: {}, tabs: {} };
+
+  override close(): void {
+    this.order.clear();
+  }
 
   override init(_props: unknown, cx: AsyncContext): void {
     repeat(cx, pullsMilliseconds, (timerCx) => {
@@ -257,12 +264,18 @@ export default class Spaces extends View {
   private grouped(collapsed: boolean): Element[] {
     const groups = this.ordered();
     const ids = spaces().map((space) => space.id);
+    const shownRows: TreeRow[] = [];
 
-    return machineRows(
+    // machineRows draws only the shown rows, in sidebar order.
+    const elements = machineRows(
       {
         machineList: this.machineList,
         groups,
-        draw: (row, lineAbove) => this.draw(row, ids, collapsed, lineAbove),
+        draw: (row, lineAbove) => {
+          shownRows.push(row);
+
+          return this.draw(row, ids, collapsed, lineAbove);
+        },
         folded: (machine) => this.foldedMachines.has(machine ?? ''),
         loading: (machine) => this.isLoading(machine),
         addSpace: (machine) => {
@@ -274,6 +287,10 @@ export default class Spaces extends View {
       },
       collapsed,
     );
+
+    this.order.publish(shownRows, ids);
+
+    return elements;
   }
 
   private refreshPulls(cx: Context): void {
