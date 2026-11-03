@@ -1,6 +1,48 @@
 import { describe, expect, test } from 'bun:test';
 
-import { toPalette } from './palette.ts';
+import { diffTints, toPalette, withAlpha } from './palette.ts';
+
+const themeTokens = [
+  'background',
+  'canvas',
+  'chrome',
+  'surface',
+  'popover',
+  'raised',
+  'hover',
+  'selected',
+  'border',
+  'input',
+  'foreground',
+  'muted',
+  'dim',
+  'accent',
+  'accent_foreground',
+  'solid',
+  'solid_foreground',
+  'selection',
+  'working',
+  'blocked',
+  'done',
+  'idle',
+  'unknown',
+  'ansi0',
+  'ansi1',
+  'ansi2',
+  'ansi3',
+  'ansi4',
+  'ansi5',
+  'ansi6',
+  'ansi7',
+  'ansi8',
+  'ansi9',
+  'ansi10',
+  'ansi11',
+  'ansi12',
+  'ansi13',
+  'ansi14',
+  'ansi15',
+] as const;
 
 describe('toPalette', () => {
   test('gives every theme color the # form elements expect', () => {
@@ -15,5 +57,35 @@ describe('toPalette', () => {
 
     expect(palette.working).toBe('#1e2028');
     expect(palette.ansi15).toBe('#1e2028');
+  });
+
+  test('reads each palette field from its own theme token', () => {
+    const theme: Record<string, string> = {};
+
+    for (const [index, token] of themeTokens.entries()) {
+      theme[token] = `#${index}`;
+    }
+
+    const palette = toPalette(theme);
+
+    for (const [index, token] of themeTokens.entries()) {
+      expect(palette[token]).toBe(`#${index}`);
+    }
+  });
+
+  test('falls back to the bare # color when the theme is empty', () => {
+    expect(toPalette({}).foreground).toBe('#');
+  });
+});
+
+describe('color helpers', () => {
+  test('appends the alpha suffix to a color', () => {
+    expect(withAlpha('#102030', '18')).toBe('#10203018');
+  });
+
+  test('tints added and removed lines from the ansi colors', () => {
+    const palette = toPalette({ foreground: '#000000', ansi1: '#110000', ansi2: '#001100' });
+
+    expect(diffTints(palette)).toEqual({ added: '#00110018', removed: '#11000018' });
   });
 });

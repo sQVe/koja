@@ -15,8 +15,9 @@ interface Session {
   calls: RunCall[];
   act: (action: NormalAction) => void;
   reopen: () => void;
-  setFocus: (pane: string | null, tab?: string) => void;
-  setSpace: (space: string) => void;
+  setFocus: (pane: string | null, tab?: string | null) => void;
+  clearFocus: () => void;
+  setSpace: (space: string | null) => void;
   setLiveSpaces: (ids: string[]) => void;
   setPanes: (panes: PaneLike[]) => void;
   publishOrder: (shown: string[], hidden?: string[]) => void;
@@ -32,8 +33,9 @@ const historyKey = 'koja-modal.history';
 
 const createSession = (initialPanes: PaneLike[], startPane: string, startTab: string): Session => {
   let currentPane: string | null = startPane;
-  let currentTab = startTab;
-  let currentSpace = 'space-1';
+  let currentTab: string | null = startTab;
+  let currentSpace: string | null = 'space-1';
+  let hasFocus = true;
   let liveSpaces: string[] = [];
   let panes = initialPanes;
   const values: Record<string, unknown> = {};
@@ -60,7 +62,8 @@ const createSession = (initialPanes: PaneLike[], startPane: string, startTab: st
     createExecutor({
       run,
       panes: () => panes,
-      focused: () => ({ pane: currentPane, tab: currentTab, space: currentSpace }),
+      focused: () =>
+        hasFocus ? { pane: currentPane, tab: currentTab, space: currentSpace } : null,
       spaces: () => liveSpaces.map((id) => ({ id })),
       store,
       historyKey,
@@ -77,6 +80,9 @@ const createSession = (initialPanes: PaneLike[], startPane: string, startTab: st
       if (tab !== undefined) {
         currentTab = tab;
       }
+    },
+    clearFocus: () => {
+      hasFocus = false;
     },
     setSpace: (space) => {
       currentSpace = space;
@@ -531,5 +537,230 @@ describe('tabs and overlays', () => {
       { command: 'mod.open:koja-palette', args: undefined },
       { command: 'mod.open:koja-picker', args: undefined },
     ]);
+  });
+});
+
+describe('no focused pane', () => {
+  test('does nothing for pane and tab intents', () => {
+    const session = createSession(twoPanes, 'p1', 'tab-1');
+
+    session.clearFocus();
+    session.act(intent('closeOtherPanes'));
+    session.act(intent('nextPane'));
+    session.act(intent('previousPane'));
+    session.act(intent('lastPane'));
+    session.act(intent('lastTab'));
+
+    expect(session.calls).toEqual([]);
+  });
+
+  test('falls back for space intents', () => {
+    const session = createSession(twoPanes, 'p1', 'tab-1');
+
+    session.clearFocus();
+    session.act(intent('nextSpace'));
+    session.act(intent('previousSpace'));
+
+    expect(session.calls).toEqual([
+      { command: 'space.next', args: undefined },
+      { command: 'space.prev', args: undefined },
+    ]);
+  });
+
+  test('does nothing for the last pane and tab when no pane is focused', () => {
+    const session = createSession(twoPanes, 'p1', 'tab-1');
+
+    session.values[historyKey] = {
+      current: { pane: 'p1', tab: 'tab-1', space: 'space-1' },
+      lastPane: 'p2',
+      lastTab: 'tab-2',
+    };
+
+    session.clearFocus();
+    session.act(intent('lastPane'));
+    session.act(intent('lastTab'));
+
+    expect(session.calls).toEqual([]);
+  });
+});
+
+describe('pane move edges', () => {
+  test('moves forward from the middle of the tab', () => {
+    const panes: PaneLike[] = [
+      { pane: 'p1', tab: 'tab-1' },
+      { pane: 'p2', tab: 'tab-1' },
+      { pane: 'p3', tab: 'tab-1' },
+    ];
+
+    const session = createSession(panes, 'p2', 'tab-1');
+
+    session.act(intent('nextPane'));
+
+    expect(session.calls).toEqual([{ command: 'pane.focus', args: { pane: 'p3' } }]);
+  });
+
+  test('does nothing when the focused pane is not in the list', () => {
+    const session = createSession(twoPanes, 'gone', 'tab-1');
+
+    session.act(intent('nextPane'));
+
+    expect(session.calls).toEqual([]);
+  });
+
+  test('moves backward from the middle of the tab', () => {
+    const panes: PaneLike[] = [
+      { pane: 'p1', tab: 'tab-1' },
+      { pane: 'p2', tab: 'tab-1' },
+      { pane: 'p3', tab: 'tab-1' },
+    ];
+
+    const session = createSession(panes, 'p2', 'tab-1');
+
+    session.act(intent('previousPane'));
+
+    expect(session.calls).toEqual([{ command: 'pane.focus', args: { pane: 'p1' } }]);
+  });
+});
+
+describe('last pane guards', () => {
+  test('does nothing when the recorded last pane is the focused pane', () => {
+    const session = createSession(twoPanes, 'p1', 'tab-1');
+
+    session.values[historyKey] = {
+      current: { pane: 'p1', tab: 'tab-1', space: 'space-1' },
+      lastPane: 'p1',
+      lastTab: null,
+    };
+
+    session.act(intent('lastPane'));
+
+    expect(session.calls).toEqual([]);
+  });
+
+  test('does not focus the last pane when it left the focused tab', () => {
+    const panes: PaneLike[] = [
+      { pane: 'p1', tab: 'tab-1' },
+      { pane: 'p2', tab: 'tab-2' },
+    ];
+
+    const session = createSession(panes, 'p1', 'tab-1');
+
+    session.values[historyKey] = {
+      current: { pane: 'p1', tab: 'tab-1', space: 'space-1' },
+      lastPane: 'p2',
+      lastTab: null,
+    };
+
+    session.act(intent('lastPane'));
+
+    expect(session.calls).toEqual([]);
+  });
+
+  test('keeps the recorded last tab when the stored focus is not an object', () => {
+    const panes: PaneLike[] = [
+      { pane: 'p1', tab: 'tab-1' },
+      { pane: 'p3', tab: 'tab-2' },
+    ];
+
+    const session = createSession(panes, 'p1', 'tab-1');
+
+    session.values[historyKey] = { current: 'garbage', lastPane: null, lastTab: 'tab-2' };
+    session.act(intent('lastTab'));
+
+    expect(session.calls).toEqual([{ command: 'tab.select', args: { id: 'tab-2' } }]);
+  });
+
+  test('keeps the recorded last tab when the stored focus is null', () => {
+    const panes: PaneLike[] = [
+      { pane: 'p1', tab: 'tab-1' },
+      { pane: 'p3', tab: 'tab-2' },
+    ];
+
+    const session = createSession(panes, 'p1', 'tab-1');
+
+    session.values[historyKey] = { current: null, lastPane: null, lastTab: 'tab-2' };
+    session.act(intent('lastTab'));
+
+    expect(session.calls).toEqual([{ command: 'tab.select', args: { id: 'tab-2' } }]);
+  });
+});
+
+describe('last tab guards', () => {
+  test('does nothing when the recorded last tab is the focused tab', () => {
+    const session = createSession(twoPanes, 'p1', 'tab-1');
+
+    session.values[historyKey] = {
+      current: { pane: 'p1', tab: 'tab-1', space: 'space-1' },
+      lastPane: null,
+      lastTab: 'tab-1',
+    };
+
+    session.act(intent('lastTab'));
+
+    expect(session.calls).toEqual([]);
+  });
+
+  test('does not select the last tab after it closed', () => {
+    const session = createSession(twoPanes, 'p1', 'tab-1');
+
+    session.values[historyKey] = {
+      current: { pane: 'p1', tab: 'tab-1', space: 'space-1' },
+      lastPane: null,
+      lastTab: 'tab-2',
+    };
+
+    session.act(intent('lastTab'));
+
+    expect(session.calls).toEqual([]);
+  });
+});
+
+describe('space hidden edges', () => {
+  const hiddenSession = (space: string): Session => {
+    const session = createSession(twoPanes, 'p1', 'tab-1');
+
+    session.setSpace(space);
+    session.setLiveSpaces(['local', 'notes', 'extra', 'remote']);
+    session.publishOrder(['local', 'notes', 'extra'], ['remote']);
+
+    return session;
+  };
+
+  test('Tab from a hidden space selects the first shown space', () => {
+    const session = hiddenSession('remote');
+
+    session.act(intent('nextSpace'));
+
+    expect(session.calls).toEqual([{ command: 'space.select', args: { id: 'local' } }]);
+  });
+
+  test('Shift-Tab from a hidden space selects the last shown space', () => {
+    const session = hiddenSession('remote');
+
+    session.act(intent('previousSpace'));
+
+    expect(session.calls).toEqual([{ command: 'space.select', args: { id: 'extra' } }]);
+  });
+
+  test('falls back when no space is focused', () => {
+    const session = createSession(twoPanes, 'p1', 'tab-1');
+
+    session.setSpace(null);
+    session.setLiveSpaces(['main']);
+    session.publishOrder(['main']);
+    session.act(intent('nextSpace'));
+
+    expect(session.calls).toEqual([{ command: 'space.next', args: undefined }]);
+  });
+
+  test('does not select a single space again', () => {
+    const session = createSession(twoPanes, 'p1', 'tab-1');
+
+    session.setSpace('main');
+    session.setLiveSpaces(['main']);
+    session.publishOrder(['main']);
+    session.act(intent('nextSpace'));
+
+    expect(session.calls).toEqual([]);
   });
 });

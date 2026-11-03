@@ -83,6 +83,44 @@ describe('fuzzyMatch', () => {
 
     expect(together?.score ?? 0).toBeGreaterThan(apart?.score ?? 0);
   });
+
+  test('scores each letter that follows the one before it', () => {
+    expect(fuzzyMatch('abc', 'abc')).toEqual({ score: 23, positions: [0, 1, 2] });
+  });
+
+  test('refuses a spread match when a later letter is neither a word start nor a run', () => {
+    expect(fuzzyMatch('abc', `ab${'x'.repeat(20)}c`)).toBeNull();
+  });
+
+  test('accepts a spread match whose later letters start words or continue a run', () => {
+    expect(fuzzyMatch('abc', `xab${'x'.repeat(10)} c`)?.positions).toEqual([1, 2, 14]);
+  });
+
+  test('refuses a compact match one letter past the spread limit', () => {
+    expect(fuzzyMatch('ab', `a${'x'.repeat(7)}b`)).toBeNull();
+  });
+
+  test('accepts a compact match at the spread limit', () => {
+    expect(fuzzyMatch('ab', `a${'x'.repeat(6)}b`)?.positions).toEqual([0, 7]);
+  });
+
+  test('matches a repeated letter at its next occurrence', () => {
+    expect(fuzzyMatch('aa', 'aa')?.positions).toEqual([0, 1]);
+  });
+
+  test('refuses letters that appear only before the earlier ones', () => {
+    expect(fuzzyMatch('ab', 'ba')).toBeNull();
+  });
+
+  test('matches an empty query with no positions and no score', () => {
+    expect(fuzzyMatch('', 'koja')).toEqual({ score: 0, positions: [] });
+  });
+
+  test('keeps the first of two equal compact rescues', () => {
+    const text = `a${'x'.repeat(12)} ab ab`;
+
+    expect(fuzzyMatch('ab', text)?.positions).toEqual([14, 15]);
+  });
 });
 
 describe('bestFieldMatch', () => {
@@ -94,5 +132,21 @@ describe('bestFieldMatch', () => {
 
   test('never matches letters across fields', () => {
     expect(bestFieldMatch('ab', ['a', 'b'])).toBeNull();
+  });
+
+  test('keeps the first field when a later field scores the same', () => {
+    expect(bestFieldMatch('k', ['abcdef k', 'abcdefgh k'])?.positions).toEqual([7]);
+  });
+
+  test('answers the best field whatever its order', () => {
+    expect(bestFieldMatch('ko', ['koja', 'domain-ko'])?.positions).toEqual([0, 1]);
+  });
+
+  test('skips absent fields', () => {
+    expect(bestFieldMatch('ko', [undefined, 'koja'])?.positions).toEqual([0, 1]);
+  });
+
+  test('never matches an empty field, even for an empty query', () => {
+    expect(bestFieldMatch('', [''])).toBeNull();
   });
 });
