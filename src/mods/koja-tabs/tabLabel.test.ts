@@ -61,9 +61,15 @@ describe('tabLabel', () => {
     expect(tabLabel(tab, tabProgram(tab, [modPane]))).toBe('Board');
   });
 
-  test('labels a tab with a mod pane and a terminal by the terminal program', () => {
+  test('keeps the name someone gave a tab', () => {
     const renamed = { ...tab, name: 'tb3' };
 
-    expect(tabLabel(renamed, tabProgram(renamed, [modPane, terminalPane('p1')]))).toBe('zsh');
+    expect(tabLabel(renamed, tabProgram(renamed, [modPane, terminalPane('p1')]))).toBe('tb3');
+  });
+
+  test('names an unnamed tab by its terminal program', () => {
+    const unnamed = { ...tab, name: '2', named: false };
+
+    expect(tabLabel(unnamed, tabProgram(unnamed, [terminalPane('p1')]))).toBe('zsh');
   });
 });

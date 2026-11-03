@@ -1,7 +1,7 @@
 import type { PaneInfo, TabInfo } from 'herdr';
 
 export const tabLabel = (tabInfo: TabInfo, program: PaneInfo['program'] | undefined): string => {
-  const name = /^tb\d+$/.test(tabInfo.name) ? (program?.name ?? 'Terminal') : tabInfo.name;
+  const name = tabInfo.named ? tabInfo.name : (program?.name ?? 'Terminal');
 
   return tabInfo.zoomed ? `${name} Z` : name;
 };
