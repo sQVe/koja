@@ -23,6 +23,12 @@ mod. One runtime covers the tooling, the build, the installer, and every test.
 - `bun.lock` is the only lockfile. `packageManager` in `package.json` pins the Bun version, and CI
   installs that version.
 - Tests use `bun test` and import from `bun:test`.
+- `bun run test` spreads test files over worker processes with `--parallel --no-isolate`. Each
+  worker keeps one module registry across the files it runs, so a file must leave no state behind
+  for the next one. Every `mock.module()` of the same module must expose the same export names,
+  because Bun fixes them at the first mock. The mutation runner runs all files in one process the
+  same way.
+- `bun run check` runs typechecking, house style, formatting, and Knip at once, then the tests.
 - Vite+ stays for lint, formatting, and staged checks. TypeScript, Knip, and Changesets also stay.
 - Scripts and hooks run installed command-line tools with `bunx --bun`, so tools with a Node shebang
   run on Bun.
@@ -43,6 +49,12 @@ mod. One runtime covers the tooling, the build, the installer, and every test.
   engine lacks builds fine and fails only in Herdr.
 
 ## Alternatives considered
+
+### Isolated test files
+
+Run each test file in a fresh global with `--parallel` alone or `--isolate`. Rejected because every
+file then evaluates its imports again, which grows with the suite, and the mutation runner cannot
+isolate files, so a file that leaks state must be fixed anyway.
 
 ### esbuild or tsc for the build
 

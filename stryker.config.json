@@ -47,7 +47,15 @@
   "timeoutMS": 10000,
   "timeoutFactor": 4,
   "fileLogLevel": "info",
-  "ignorePatterns": [".tau", "docs", "herdr", "tests/*.test.ts", "dist", "CHANGELOG.md"],
+  "ignorePatterns": [
+    ".tau",
+    "docs",
+    "herdr",
+    "tests/*.test.ts",
+    "dist",
+    "CHANGELOG.md",
+    "src/mods/koja-picker/previewShell.test.ts"
+  ],
   "tempDirName": ".stryker-tmp",
   "cleanTempDir": true
 }

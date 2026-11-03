@@ -91,7 +91,8 @@ const waitFor = async (ready: () => Promise<boolean>, milliseconds: number): Pro
   return ready();
 };
 
-describe('preview.sh serve', () => {
+// These tests mostly wait on real timers, so they run at once. Keep each one in its own temp folder.
+describe.concurrent('preview.sh serve', () => {
   test('attaches on a change and not on an unchanged file', async () => {
     await withTemp(async (root) => {
       const state = join(root, 'state');
