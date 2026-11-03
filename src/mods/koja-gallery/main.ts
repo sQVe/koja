@@ -17,6 +17,7 @@ import {
   indicator,
   keyHint,
   listRow,
+  popupSurface,
   programIcon,
   searchField,
   sectionHeader,
@@ -289,6 +290,19 @@ const tabs = (): Element[] => [
     .child(tabBarEdge(div().flex_1())),
 ];
 
+// The gallery itself paints `popover`, so the sample sits on `chrome` to show the surface's edge.
+const popupSurfaces = (): Element[] => [
+  div()
+    .p(spacing.medium)
+    .bg(colors().chrome)
+    .child(
+      popupSurface('popup-surface-sample')
+        .py(spacing.xsmall)
+        .child(listRow({ size: 'medium', inset: true, state: 'normal', label: 'Normal row' }))
+        .child(listRow({ size: 'medium', inset: true, state: 'selected', label: 'Selected row' })),
+    ),
+];
+
 const text = (search: InputState): Element[] => [
   searchField(search, 'search'),
   separator(),
@@ -327,6 +341,7 @@ export default class Gallery extends View {
       .child(section('Section headers', headers()))
       .child(section('Buttons', buttons()))
       .child(section('Tabs', tabs()))
+      .child(section('Popup surface', popupSurfaces()))
       .child(section('Search and text', text(this.search)));
   }
 }

@@ -28,6 +28,7 @@ export const separatorHeight = spacing.xsmall * 2 + spacing.hairline;
 
 export const radius = {
   default: 4,
+  pill: 6,
   dialog: 8,
 } as const;
 

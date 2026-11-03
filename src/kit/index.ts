@@ -8,6 +8,8 @@ export type { IconName } from './iconNames.ts';
 
 export { listRow } from './listRow.ts';
 
+export { popupSurface } from './popupSurface.ts';
+
 export type { RowState } from './listRow.ts';
 
 export { searchField } from './searchField.ts';

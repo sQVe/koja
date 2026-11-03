@@ -5,7 +5,6 @@ import { knownAgents, panes, run, spaces } from 'herdr';
 
 import {
   closeOverlay,
-  colors,
   controlSize,
   detailText,
   emptyState,
@@ -14,6 +13,7 @@ import {
   listRow,
   openWorktreeDialog,
   overlaySize,
+  popupSurface,
   programIcon,
   rowHeight,
   sectionHeader,
@@ -107,13 +107,9 @@ export default class NewMenu extends View {
     const missing = agents.filter((agent) => !agent.installed).slice(0, suggestedAgents);
     const choices = [...installed, ...missing];
 
-    const menu = v_flex()
-      .id('new-menu')
-      .min_h(0)
-      .w_full()
+    const menu = popupSurface('new-menu')
       .h(menuHeight(choices.length))
       .py(spacing.xsmall)
-      .bg(colors().popover)
       .text_size(textSize.default)
       .on_key_down((event) => {
         this.onKey(event, installed);
