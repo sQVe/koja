@@ -5,6 +5,7 @@ import type { Status } from 'herdr';
 
 import { spinner } from './icon.ts';
 import type { ThemeToken } from './palette.ts';
+import { withAlpha } from './palette.ts';
 import { controlSize, markSize, radius, spacing, textSize } from './size.ts';
 import { colors } from './theme.ts';
 
@@ -37,8 +38,6 @@ export const statusMark = (status: Status | null): Element => {
 export const indicator = (token: ThemeToken): Element => dot(markSize.dot, colors()[token]);
 
 const badgeFillAlpha = '26';
-
-const withAlpha = (color: Color, alpha: string): Color => `${color}${alpha}`;
 
 export const attentionBadge = (label: string): Element => {
   const palette = colors();
