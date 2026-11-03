@@ -126,6 +126,7 @@ export default class Tabs extends View {
     return h_flex()
       .size_full()
       .min_w(0)
+      .pt(spacing.small)
       .items_center()
       .bg(palette.chrome)
       .on_mouse_up('left', () => {
