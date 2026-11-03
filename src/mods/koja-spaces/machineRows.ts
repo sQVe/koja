@@ -13,6 +13,7 @@ import {
 import type { Machine } from './machines.ts';
 import { machineGroupOrder } from './machines.ts';
 import type { TreeRow } from './tree.ts';
+import { listedOf } from './tree.ts';
 
 export interface MachineRowsHost {
   machineList: Machine[];
@@ -23,6 +24,8 @@ export interface MachineRowsHost {
   addSpace: (machine: string | null) => void;
   toggleFold: (machine: string | null) => void;
 }
+
+const machineOf = (row: TreeRow): string | null => listedOf(row).space.machine ?? null;
 
 const connected = (machineList: Machine[], machine: string | null): boolean =>
   machine === null ||
@@ -88,7 +91,7 @@ const newSpaceRow = (host: MachineRowsHost, machine: string | null, collapsed: b
 
 export const machineRows = (host: MachineRowsHost, collapsed: boolean): Element[] => {
   const remote = host.rows
-    .map((row) => row.space.machine)
+    .map((row) => machineOf(row))
     .filter((machine): machine is string => machine !== null);
 
   const order = machineGroupOrder(remote, host.machineList);
@@ -100,7 +103,7 @@ export const machineRows = (host: MachineRowsHost, collapsed: boolean): Element[
   }
 
   return order.flatMap((machine) => {
-    const mine = host.rows.filter((row) => (row.space.machine ?? null) === machine);
+    const mine = host.rows.filter((row) => machineOf(row) === machine);
     const header = machineHeader(host, machine, collapsed);
 
     if (host.folded(machine)) {

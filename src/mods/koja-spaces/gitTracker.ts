@@ -263,12 +263,14 @@ export class GitTracker {
       const head = await exec('git', ['symbolic-ref', '--short', 'HEAD'], options);
       const repo = repoOf(place.machine, common.stdout.trim());
       const linked = repo.path !== `${top.stdout.trim()}/.git`;
+      const committedAt = linked ? null : await this.lastCommit(place);
 
       this.git[place.key] = {
         branch: head.code === 0 ? head.stdout.trim() : null,
         repo,
         cwd: place.folder,
         linked,
+        committedAt,
       };
 
       if (place.machine === null) {
@@ -277,6 +279,20 @@ export class GitTracker {
     } catch {
       this.git[place.key] ??= null;
       this.unsure.add(place.key);
+    }
+  }
+
+  // The age is optional: a failed read must not drop the repository the other reads found.
+  private async lastCommit(place: Place): Promise<number | null> {
+    try {
+      const log = await exec('git', ['log', '-1', '--format=%ct', 'HEAD'], {
+        cwd: place.folder,
+        on: place.machine,
+      });
+
+      return log.code === 0 ? Number(log.stdout.trim()) : null;
+    } catch {
+      return null;
     }
   }
 
@@ -314,8 +330,9 @@ export class GitTracker {
     const head = await exec('git', ['symbolic-ref', '--short', 'HEAD'], options);
     const repo = repoOf(place.machine, common.stdout.trim());
     const branch = head.code === 0 ? head.stdout.trim() : null;
+    const committedAt = await this.lastCommit(place);
 
-    return { branch, repo, cwd: place.folder, linked: false };
+    return { branch, repo, cwd: place.folder, linked: false, committedAt };
   }
 
   private watch(repo: RepoRef, cx: Context): void {

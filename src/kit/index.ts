@@ -6,6 +6,8 @@ export { iconNames } from './iconNames.ts';
 
 export type { IconName } from './iconNames.ts';
 
+export { shortAge } from './age.ts';
+
 export { listRow } from './listRow.ts';
 
 export { popupSurface } from './popupSurface.ts';

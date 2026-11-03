@@ -9,6 +9,7 @@ const gitInfo = (repo: string): GitInfo => ({
   repo: repoOf(null, repo),
   cwd: '/',
   linked: false,
+  committedAt: null,
 });
 
 describe('pruneRecord', () => {

@@ -19,6 +19,7 @@ export interface GitInfo {
   repo: RepoRef;
   cwd: string;
   linked: boolean;
+  committedAt: number | null;
 }
 
 export interface ListedSpace {
@@ -27,14 +28,28 @@ export interface ListedSpace {
   git: GitInfo | null;
 }
 
-export interface TreeRow extends ListedSpace {
-  tree: { first: boolean; last: boolean } | null;
-  fold: { folded: boolean; hidden: number } | null;
+interface Fold {
+  folded: boolean;
+  hidden: number;
 }
+
+export interface RepoRow {
+  kind: 'repo';
+  repo: RepoRef;
+  name: string;
+  main: ListedSpace;
+  fold: Fold | null;
+}
+
+export interface SpaceRow extends ListedSpace {
+  kind: 'space';
+}
+
+export type TreeRow = RepoRow | SpaceRow;
 
 interface RepoChildren {
   shown: ListedSpace[];
-  fold: TreeRow['fold'];
+  fold: Fold | null;
 }
 
 export interface FoldedKeys {
@@ -66,10 +81,21 @@ export const placesOf = (spaceList: SpaceInfo[], paneList: PaneInfo[]): Record<s
 export const needsYou = (status: Status | null): boolean =>
   status === 'blocked' || status === 'done';
 
-const isMain = (row: ListedSpace): boolean => row.git !== null && !row.git.linked;
+export const listedOf = (row: TreeRow): ListedSpace => (row.kind === 'repo' ? row.main : row);
+
+const isMain = (row: ListedSpace): row is ListedSpace & { git: GitInfo } =>
+  row.git !== null && !row.git.linked;
 
 const shownWhenFolded = (row: ListedSpace): boolean =>
   row.space.active || needsYou(row.space.status);
+
+const repoName = (path: string): string => {
+  const folder = path.replace(/\/\.git$/, '');
+
+  return folder.slice(folder.lastIndexOf('/') + 1);
+};
+
+const spaceRow = (row: ListedSpace): SpaceRow => ({ kind: 'space', ...row });
 
 const childrenOf = (
   row: ListedSpace,
@@ -90,16 +116,8 @@ const childrenOf = (
   return { shown, fold: { folded, hidden: kids.length - shown.length } };
 };
 
-const nestedRow = (kid: ListedSpace, position: number, count: number): TreeRow => ({
-  space: kid.space,
-  index: kid.index,
-  git: kid.git,
-  tree: { first: position === 0, last: position === count - 1 },
-  fold: null,
-});
-
 export const nestSpaces = (list: ListedSpace[], foldedRepos: FoldedKeys): TreeRow[] => {
-  const mains = new Set(list.filter(isMain).map((row) => row.git?.repo.key));
+  const mains = new Set(list.filter(isMain).map((row) => row.git.repo.key));
 
   const nested = (row: ListedSpace): boolean =>
     row.git?.linked === true && mains.has(row.git.repo.key);
@@ -113,20 +131,26 @@ export const nestSpaces = (list: ListedSpace[], foldedRepos: FoldedKeys): TreeRo
     }
 
     const repo = row.git?.repo.key ?? '';
-    const firstOfRepo = isMain(row) && !placed.has(repo);
 
-    if (!firstOfRepo) {
-      rows.push({ ...row, tree: null, fold: null });
+    if (!isMain(row) || placed.has(repo)) {
+      rows.push(spaceRow(row));
 
       continue;
     }
 
     const children = childrenOf(row, list, nested, foldedRepos);
-    const count = children.shown.length;
 
     placed.add(repo);
-    rows.push({ ...row, tree: null, fold: children.fold });
-    rows.push(...children.shown.map((kid, position) => nestedRow(kid, position, count)));
+
+    rows.push({
+      kind: 'repo',
+      repo: row.git.repo,
+      name: repoName(row.git.repo.path),
+      main: row,
+      fold: children.fold,
+    });
+
+    rows.push(...children.shown.map(spaceRow));
   }
 
   return rows;
