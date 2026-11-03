@@ -37,7 +37,7 @@ export interface ExecutorDeps {
 type RunnableAction = Exclude<NormalAction, { kind: 'leave' }>;
 
 export interface Executor {
-  execute: (action: RunnableAction, count: number | null) => void;
+  execute: (action: RunnableAction) => void;
   observe: () => void;
 }
 
@@ -46,8 +46,6 @@ interface NormalModeHistory {
   lastPane: string | null;
   lastTab: string | null;
 }
-
-type IntentRunner = (count: number | null, previous: NormalModeHistory, deps: ExecutorDeps) => void;
 
 const readFocused = (value: unknown): FocusedPane | null => {
   if (typeof value !== 'object' || value === null) {
@@ -185,12 +183,8 @@ const focusLastPane = (previous: NormalModeHistory, deps: ExecutorDeps): void =>
   deps.run('pane.focus', { pane: target });
 };
 
-const selectTab = (count: number | null, deps: ExecutorDeps): void => {
-  if (count === null) {
-    return;
-  }
-
-  deps.run('tab.select', { index: count });
+const selectTab = (index: number, deps: ExecutorDeps): void => {
+  deps.run('tab.select', { index });
 };
 
 const focusLastTab = (previous: NormalModeHistory, deps: ExecutorDeps): void => {
@@ -282,51 +276,75 @@ const stepSpace = (step: number, fallback: string, deps: ExecutorDeps): void => 
   deps.run('space.select', { id: target });
 };
 
-const intentRunners: Record<NormalIntent, IntentRunner> = {
-  closeOtherPanes: (_count, _previous, deps) => {
-    closeOtherPanes(deps);
-  },
-  nextPane: (_count, _previous, deps) => {
-    movePane(1, deps);
-  },
-  previousPane: (_count, _previous, deps) => {
-    movePane(-1, deps);
-  },
-  lastPane: (_count, previous, deps) => {
-    focusLastPane(previous, deps);
-  },
-  nthTab: (count, _previous, deps) => {
-    selectTab(count, deps);
-  },
-  lastTab: (_count, previous, deps) => {
-    focusLastTab(previous, deps);
-  },
-  nextSpace: (_count, _previous, deps) => {
-    stepSpace(1, 'space.next', deps);
-  },
-  previousSpace: (_count, _previous, deps) => {
-    stepSpace(-1, 'space.prev', deps);
-  },
-};
+const runIntent = (intent: NormalIntent, previous: NormalModeHistory, deps: ExecutorDeps): void => {
+  switch (intent) {
+    case 'closeOtherPanes': {
+      closeOtherPanes(deps);
 
-const runAction = (
-  action: RunnableAction,
-  count: number | null,
-  history: NormalModeHistory,
-  deps: ExecutorDeps,
-): void => {
-  if (action.kind === 'command') {
-    deps.run(action.command);
+      break;
+    }
 
-    return;
+    case 'nextPane': {
+      movePane(1, deps);
+
+      break;
+    }
+
+    case 'previousPane': {
+      movePane(-1, deps);
+
+      break;
+    }
+
+    case 'lastPane': {
+      focusLastPane(previous, deps);
+
+      break;
+    }
+
+    case 'lastTab': {
+      focusLastTab(previous, deps);
+
+      break;
+    }
+
+    case 'nextSpace': {
+      stepSpace(1, 'space.next', deps);
+
+      break;
+    }
+
+    case 'previousSpace': {
+      stepSpace(-1, 'space.prev', deps);
+
+      break;
+    }
   }
-
-  intentRunners[action.intent](count, history, deps);
 };
 
 export const createExecutor = (deps: ExecutorDeps): Executor => {
-  const execute = (action: RunnableAction, count: number | null): void => {
-    runAction(action, count, observeFocus(deps), deps);
+  const execute = (action: RunnableAction): void => {
+    const history = observeFocus(deps);
+
+    switch (action.kind) {
+      case 'command': {
+        deps.run(action.command);
+
+        break;
+      }
+
+      case 'nthTab': {
+        selectTab(action.index, deps);
+
+        break;
+      }
+
+      case 'intent': {
+        runIntent(action.intent, history, deps);
+
+        break;
+      }
+    }
   };
 
   return {

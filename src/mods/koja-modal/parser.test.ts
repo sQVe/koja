@@ -58,13 +58,21 @@ describe('normal mode sequences', () => {
     expect(result.state).toEqual(initialParserState);
   });
 
+  test('resolves a plain pipe after ctrl-w to zoom', () => {
+    const result = feed([ctrlW, plain('|')]);
+
+    expect(result).toMatchObject({
+      status: 'action',
+      action: { kind: 'command', command: 'pane.zoom' },
+    });
+  });
+
   test('resolves 3gt to the nth tab with count three', () => {
     const result = feed([plain('3'), plain('g'), plain('t')]);
 
     expect(result).toMatchObject({
       status: 'action',
-      action: { kind: 'intent', intent: 'nthTab' },
-      count: 3,
+      action: { kind: 'nthTab', index: 3 },
     });
   });
 
@@ -161,7 +169,6 @@ describe('normal mode counts and chords', () => {
     expect(result).toMatchObject({
       status: 'action',
       action: { kind: 'command', command: 'tab.prev' },
-      count: null,
     });
   });
 
@@ -170,8 +177,7 @@ describe('normal mode counts and chords', () => {
 
     expect(result).toMatchObject({
       status: 'action',
-      action: { kind: 'intent', intent: 'nthTab' },
-      count: 999,
+      action: { kind: 'nthTab', index: 999 },
     });
   });
 

@@ -2,8 +2,8 @@ import type { AsyncContext, Context, Element, FocusHandle, KeyEvent } from 'gpui
 import { div, View } from 'gpui-kit';
 import { exec, focused, nextCommand, panes, run, setShared, shared, spaces } from 'herdr';
 
-import { closeOverlay, modName, overlayId, repeat } from '../../kit/index.ts';
-import { runNormalModeCommand } from './commands.ts';
+import { closeOverlay, modName, overlayCloseCount, overlayId, repeat } from '../../kit/index.ts';
+import type { NormalAction } from '../../kit/normalKeys.ts';
 import { createExecutor } from './execute.ts';
 import { createKeyboardHold, createStatusLookup } from './keyboardHold.ts';
 import { normalizeKey } from './keyEvent.ts';
@@ -20,6 +20,9 @@ const stopPress = (_event: unknown, cx: Context): void => {
   cx.stop_propagation();
 };
 
+const opensOverlay = (action: NormalAction): boolean =>
+  action.kind === 'command' && action.command.startsWith('mod.open');
+
 export default class KojaModal extends View {
   private handle: FocusHandle | null = null;
 
@@ -27,6 +30,7 @@ export default class KojaModal extends View {
 
   private readonly hold = createKeyboardHold({
     isFocused: () => this.handle?.is_focused() ?? false,
+    overlayCloseCount,
     lookupStatus: createStatusLookup(exec),
     focus: () => {
       this.handle?.focus();
@@ -76,15 +80,15 @@ export default class KojaModal extends View {
     const root = div()
       .id(modName)
       .size_full()
-      .on_key_down((event) => {
-        this.handleKey(event);
+      .on_key_down((event, cx) => {
+        this.handleKey(event, cx);
       })
       .on_mouse_down('left', stopPress);
 
     return handle === null ? root : root.track_focus(handle);
   }
 
-  private handleKey(event: KeyEvent): void {
+  private handleKey(event: KeyEvent, cx: Context): void {
     const result = parseKey(this.state, normalizeKey(event));
 
     this.state = result.state;
@@ -99,7 +103,23 @@ export default class KojaModal extends View {
       return;
     }
 
-    this.executor.execute(result.action, result.count);
+    this.executor.execute(result.action);
+
+    if (opensOverlay(result.action)) {
+      this.hold.yield();
+
+      return;
+    }
+
+    this.regainKeyboard(cx);
+  }
+
+  private regainKeyboard(cx: Context): void {
+    this.hold.regain();
+
+    cx.timer.after(0, () => {
+      this.hold.check();
+    });
   }
 
   private keepKeyboard(cx: AsyncContext): void {
@@ -115,11 +135,9 @@ export default class KojaModal extends View {
         // eslint-disable-next-line no-await-in-loop -- each key command is awaited in turn
         const command = await nextCommand();
 
-        runNormalModeCommand(command, {
-          holdKeyboard: () => {
-            this.hold.check();
-          },
-        });
+        if (command === 'hold') {
+          this.hold.check();
+        }
       }
     });
   }

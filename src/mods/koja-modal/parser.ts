@@ -8,7 +8,7 @@ export interface ParserState {
 
 export type ParseResult =
   | { status: 'pending'; state: ParserState }
-  | { status: 'action'; action: NormalAction; count: number | null; state: ParserState }
+  | { status: 'action'; action: NormalAction; state: ParserState }
   | { status: 'cleared'; state: ParserState };
 
 export const initialParserState: ParserState = { pending: [], count: null };
@@ -46,15 +46,12 @@ const countPending = (state: ParserState, key: string): ParseResult => {
   return { status: 'pending', state: { pending: [], count } };
 };
 
-const actionFor = (
-  entry: NormalKey,
-  count: number | null,
-): { action: NormalAction; count: number | null } => {
-  if (count !== null && entry.counted !== undefined) {
-    return { action: entry.counted, count };
+const actionFor = (entry: NormalKey, count: number | null): NormalAction => {
+  if (count !== null && entry.counted === 'nthTab') {
+    return { kind: 'nthTab', index: count };
   }
 
-  return { action: entry.action, count: null };
+  return entry.action;
 };
 
 export const parseKey = (state: ParserState, key: string): ParseResult => {
@@ -66,7 +63,7 @@ export const parseKey = (state: ParserState, key: string): ParseResult => {
   const exact = normalKeys.find((entry) => sameKeys(entry.keys, tokens));
 
   if (exact !== undefined) {
-    return { status: 'action', ...actionFor(exact, state.count), state: initialParserState };
+    return { status: 'action', action: actionFor(exact, state.count), state: initialParserState };
   }
 
   const isPrefix = normalKeys.some((entry) => startsWith(entry.keys, tokens));

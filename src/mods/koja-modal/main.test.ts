@@ -1,4 +1,13 @@
-import { afterAll, beforeEach, describe, expect, mock, test } from 'bun:test';
+import {
+  afterAll,
+  afterEach,
+  beforeEach,
+  describe,
+  expect,
+  mock,
+  setSystemTime,
+  test,
+} from 'bun:test';
 
 interface RunCall {
   command: string;
@@ -53,7 +62,13 @@ let focusedTab = 'tab-1';
 let runCalls: RunCall[] = [];
 let closeCalls: (string | null)[] = [];
 let focusCalls = 0;
+let overlayFocused = false;
+let terminalKeys: string[] = [];
+let afterHandlers: (() => void)[] = [];
+let statusLookups = 0;
+let paletteOpen = false;
 let keyDownHandler: ((event: unknown) => void) | null = null;
+let currentContext: unknown = null;
 let sharedValues: Record<string, unknown> = {};
 let sharedWrites: string[] = [];
 let tickHandler: (() => void) | null = null;
@@ -90,8 +105,10 @@ const createElement = (): Record<string, unknown> => {
   element['id'] = () => element;
   element['size_full'] = () => element;
 
-  element['on_key_down'] = (handler: (event: unknown) => void) => {
-    keyDownHandler = handler;
+  element['on_key_down'] = (handler: (event: unknown, cx: unknown) => void) => {
+    keyDownHandler = (event) => {
+      handler(event, currentContext);
+    };
 
     return element;
   };
@@ -118,13 +135,39 @@ class HostView {
   }
 }
 
+const press = (event: NormalKeyEvent): void => {
+  if (!overlayFocused) {
+    terminalKeys.push(event.keystroke);
+
+    return;
+  }
+
+  keyDownHandler?.(event);
+};
+
+const runAfterHandlers = (): void => {
+  const handlers = afterHandlers;
+
+  afterHandlers = [];
+
+  for (const handler of handlers) {
+    handler();
+  }
+};
+
 await mock.module('gpui-kit', () => ({
   div: createElement,
   View: HostView,
 }));
 
 await mock.module('herdr', () => ({
-  exec: async () => ({ code: 0, stdout: '{"overlays":[]}', stderr: '' }),
+  exec: async () => {
+    statusLookups += 1;
+
+    const overlays = paletteOpen ? [{ name: 'koja-palette' }] : [];
+
+    return { code: 0, stdout: JSON.stringify({ overlays }), stderr: '' };
+  },
   focused: () => ({
     space: 'space-1',
     tab: focusedTab,
@@ -155,10 +198,13 @@ await mock.module('herdr', () => ({
   spaces: () => [],
 }));
 
+const { overlayCloseCount, recordOverlayClose } = await import('../../kit/overlayOpen.ts');
+
 await mock.module('../../kit/index.ts', () => ({
   closeOverlay: (id?: string | null) => {
     closeCalls.push(id ?? null);
   },
+  overlayCloseCount,
   modName: 'koja-modal',
   overlayId: () => 'overlay-1',
   repeat: (_cx: unknown, _milliseconds: number, handler: () => void) => {
@@ -175,18 +221,28 @@ const loadView = async (): Promise<FakeView> => {
     focus_handle: () => ({
       focus: () => {
         focusCalls += 1;
+        overlayFocused = true;
       },
-      is_focused: () => false,
+      is_focused: () => overlayFocused,
       release: () => true,
     }),
     spawn: (body: () => Promise<void>) => {
       body().catch(() => undefined);
     },
     stop_propagation: () => {},
-    timer: { every: () => {} },
+    timer: {
+      every: () => {},
+      after: (_milliseconds: number, handler: (cx: unknown) => void) => {
+        afterHandlers.push(() => {
+          handler(undefined);
+        });
+      },
+    },
   };
 
   view.init(undefined, context);
+
+  currentContext = context;
 
   return view;
 };
@@ -195,13 +251,23 @@ afterAll(() => {
   mock.restore();
 });
 
+afterEach(() => {
+  setSystemTime();
+});
+
 beforeEach(() => {
   focusedPane = 'p1';
   focusedTab = 'tab-1';
   runCalls = [];
   closeCalls = [];
   focusCalls = 0;
+  overlayFocused = false;
+  terminalKeys = [];
+  afterHandlers = [];
+  statusLookups = 0;
+  paletteOpen = false;
   keyDownHandler = null;
+  currentContext = null;
   sharedValues = {};
   sharedWrites = [];
   tickHandler = null;
@@ -239,6 +305,48 @@ describe('koja modal view', () => {
     keyDownHandler?.(plain('i'));
 
     expect(closeCalls).toEqual(['overlay-1']);
+  });
+
+  test('after ctrl-w w, the next key reaches normal mode and no status lookup runs', async () => {
+    const view = await loadView();
+
+    view.render();
+
+    keyDownHandler?.(control('w', 'ctrl-w'));
+    keyDownHandler?.(plain('w'));
+
+    // The host applies the pane move after the handler, so the pane owns the keyboard.
+    overlayFocused = false;
+
+    runAfterHandlers();
+
+    press(plain('i'));
+
+    expect(terminalKeys).toEqual([]);
+    expect(closeCalls).toEqual(['overlay-1']);
+    expect(statusLookups).toBe(0);
+  });
+
+  test('yielding to a palette opened before a pending regain keeps the palette in front', async () => {
+    const view = await loadView();
+
+    view.render();
+
+    keyDownHandler?.(control('w', 'ctrl-w'));
+    keyDownHandler?.(plain('w'));
+
+    paletteOpen = true;
+    overlayFocused = false;
+
+    keyDownHandler?.(plain('backspace'));
+
+    const focusBefore = focusCalls;
+
+    runAfterHandlers();
+    await flush();
+
+    expect(focusCalls).toBe(focusBefore);
+    expect(overlayFocused).toBe(false);
   });
 
   test('closing with no focused pane issues no pane.focus', async () => {
@@ -296,6 +404,111 @@ describe('koja modal view', () => {
     expect(sharedWrites).toEqual([]);
   });
 
+  test('takes the keyboard back on the first tick after the palette closes, inside the backoff', async () => {
+    setSystemTime(0);
+    const view = await loadView();
+
+    view.render();
+    overlayFocused = false;
+    paletteOpen = true;
+
+    tickHandler?.();
+    await flush();
+
+    paletteOpen = false;
+    recordOverlayClose();
+    tickHandler?.();
+    await flush();
+
+    // The first lookup after the close is confirmed by a second one before focus moves.
+    expect(statusLookups).toBe(3);
+    expect(overlayFocused).toBe(true);
+  });
+
+  test('keeps the keyboard with the palette when the status still lists it after the shared state closes', async () => {
+    setSystemTime(0);
+    const view = await loadView();
+
+    view.render();
+    overlayFocused = false;
+    paletteOpen = true;
+
+    tickHandler?.();
+    await flush();
+
+    recordOverlayClose();
+    tickHandler?.();
+    await flush();
+
+    expect(statusLookups).toBe(2);
+    expect(overlayFocused).toBe(false);
+  });
+
+  test('takes the keyboard back on the first tick after the last of two overlays closes, after the backoff capped', async () => {
+    setSystemTime(0);
+    const view = await loadView();
+
+    view.render();
+    overlayFocused = false;
+    paletteOpen = true;
+
+    for (let attempt = 0; attempt < 8; attempt += 1) {
+      tickHandler?.();
+      await flush();
+      setSystemTime(Date.now() + 1000);
+    }
+
+    recordOverlayClose();
+
+    for (let attempt = 0; attempt < 8; attempt += 1) {
+      tickHandler?.();
+      await flush();
+      setSystemTime(Date.now() + 1000);
+    }
+
+    tickHandler?.();
+    await flush();
+
+    paletteOpen = false;
+    recordOverlayClose();
+
+    const lookupsBeforeLastClose = statusLookups;
+
+    tickHandler?.();
+
+    expect(statusLookups).toBe(lookupsBeforeLastClose + 1);
+  });
+
+  test('a close count left from an earlier session does not delay the lookup after the next close', async () => {
+    setSystemTime(0);
+    recordOverlayClose();
+    recordOverlayClose();
+    const view = await loadView();
+
+    view.render();
+    overlayFocused = false;
+    paletteOpen = true;
+
+    for (let attempt = 0; attempt < 8; attempt += 1) {
+      tickHandler?.();
+      await flush();
+      setSystemTime(Date.now() + 1000);
+    }
+
+    tickHandler?.();
+    await flush();
+
+    paletteOpen = false;
+    recordOverlayClose();
+
+    const lookupsBeforeClose = statusLookups;
+
+    tickHandler?.();
+
+    expect(overlayCloseCount()).toBe(3);
+    expect(statusLookups).toBe(lookupsBeforeClose + 1);
+  });
+
   test('the hold command neither closes nor runs anything', async () => {
     const view = await loadView();
 
@@ -303,11 +516,36 @@ describe('koja modal view', () => {
 
     const focusBefore = focusCalls;
 
+    overlayFocused = false;
     deliverCommand('hold');
     await flush();
 
     expect(runCalls).toEqual([]);
     expect(closeCalls).toEqual([]);
     expect(focusCalls).toBe(focusBefore + 1);
+  });
+
+  test('an unknown command does nothing', async () => {
+    const view = await loadView();
+
+    view.render();
+
+    deliverCommand('other');
+    await flush();
+
+    expect(runCalls).toEqual([]);
+    expect(closeCalls).toEqual([]);
+  });
+
+  test('3gt selects the third tab', async () => {
+    const view = await loadView();
+
+    view.render();
+
+    keyDownHandler?.(plain('3'));
+    keyDownHandler?.(plain('g'));
+    keyDownHandler?.(plain('t'));
+
+    expect(runCalls).toEqual([{ command: 'tab.select', args: { index: 3 } }]);
   });
 });

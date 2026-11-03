@@ -21,8 +21,8 @@
     "style:check": "bunx --bun seam",
     "style:fix": "bunx --bun seam --fix",
     "prepare": "bunx --bun vp config",
-    "test": "bun test",
-    "test:changed": "bun test --changed",
+    "test": "bun test --isolate",
+    "test:changed": "bun test --isolate --changed",
     "typecheck": "bunx --bun tsc --noEmit && bunx --bun tsc --noEmit -p src",
     "release:github": "bunx --bun changeset tag"
   },

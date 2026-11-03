@@ -40,6 +40,7 @@ import {
   programIcon,
   radius,
   recordOf,
+  recordOverlayClose,
   repeat,
   rollupStatuses,
   rowHeight,
@@ -180,6 +181,7 @@ export default class Picker extends View {
   }
 
   override close(): void {
+    recordOverlayClose();
     this.preview?.close();
   }
 
@@ -342,6 +344,7 @@ export default class Picker extends View {
 
   private closePicker(): void {
     this.leaving = true;
+    recordOverlayClose();
     closeOverlay();
   }
 
