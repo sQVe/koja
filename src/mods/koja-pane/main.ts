@@ -94,7 +94,7 @@ export default class PaneHeader extends View {
       .gap(spacing.medium)
       .items_center()
       .border_b(spacing.hairline)
-      .border_color(palette.border)
+      .border_color(palette.selected)
       .text_size(textSize.small)
       .on_hover((hovered, cx) => {
         this.hovered = hovered;

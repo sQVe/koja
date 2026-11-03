@@ -29,7 +29,7 @@ export {
 
 export { attentionBadge, indicator, statusMark } from './statusMark.ts';
 
-export { tab, tabBarEdge } from './tab.ts';
+export { tab } from './tab.ts';
 
 export { trafficLightsPadding } from './trafficLights.ts';
 

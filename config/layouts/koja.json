@@ -61,6 +61,8 @@
           "size": {
             "px": 28
           },
+          "padding": [0, 6],
+          "background": "chrome",
           "window_drag": true
         },
         {
@@ -78,7 +80,7 @@
                       "mod": "koja-pane"
                     },
                     "reveal": "always",
-                    "height": 30,
+                    "height": 26,
                     "position": "top"
                   },
                   "background": "background",
@@ -86,7 +88,7 @@
                   "gap": 6,
                   "border": {
                     "width": 1,
-                    "color": "hover"
+                    "color": "selected"
                   },
                   "focus": {
                     "width": 1,
@@ -124,7 +126,7 @@
               "radius": 8,
               "border": {
                 "width": 1,
-                "color": "hover"
+                "color": "selected"
               },
               "background": "background"
             }
