@@ -6,19 +6,19 @@ export type NormalIntent =
   | 'previousPane'
   | 'lastPane'
   | 'lastTab'
-  | 'nthTab'
   | 'nextSpace'
   | 'previousSpace';
 
 export type NormalAction =
   | { kind: 'command'; command: string }
   | { kind: 'intent'; intent: NormalIntent }
+  | { kind: 'nthTab'; index: number }
   | { kind: 'leave' };
 
 export interface NormalKey {
   keys: string[];
   action: NormalAction;
-  counted?: NormalAction;
+  counted?: 'nthTab';
 }
 
 const herdrCommand = (command: string, args: Record<string, unknown> = {}): NormalAction => ({
@@ -63,7 +63,7 @@ export const normalKeys: NormalKey[] = [
   { keys: ['ctrl-t', 'ctrl-p'], action: herdrCommand('tab.prev') },
   { keys: ['ctrl-t', 'q'], action: herdrCommand('tab.close') },
   { keys: ['ctrl-t', 'ctrl-q'], action: herdrCommand('tab.close') },
-  { keys: ['g', 't'], action: herdrCommand('tab.next'), counted: intentAction('nthTab') },
+  { keys: ['g', 't'], action: herdrCommand('tab.next'), counted: 'nthTab' },
   { keys: ['g', 'T'], action: herdrCommand('tab.prev') },
   { keys: ['g', 'tab'], action: intentAction('lastTab') },
   { keys: ['tab'], action: intentAction('nextSpace') },
