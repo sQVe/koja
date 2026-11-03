@@ -48,15 +48,7 @@ import type { PreviewSession } from './previewLifecycle.ts';
 import { heartbeatIntervalMilliseconds } from './previewLifecycle.ts';
 import { createPreviewSession, resumePreviewSession } from './previewSession.ts';
 import type { PanePickerRow, PickerData, PickerRow, TabPickerRow } from './rows.ts';
-import {
-  buildRows,
-  paneDetail,
-  paneLabel,
-  rowPane,
-  statusCount,
-  tabLabel,
-  tabPane,
-} from './rows.ts';
+import { buildRows, paneDetail, paneLabel, rowPane, statusCount, tabRowDisplay } from './rows.ts';
 
 const history = createHistory(
   {
@@ -415,15 +407,15 @@ export default class Picker extends View {
   private tabRow(row: TabPickerRow, selected: boolean, data: PickerData): Element {
     const { tab } = row;
 
-    const program = tabPane(tab, data)?.program ?? null;
+    const { program, label } = tabRowDisplay(tab, data.panes);
 
     return listRow({
       size: 'large',
       inset: true,
       state: rowState(selected),
       depth: 1,
-      start: programIcon(program).text_color(colors().dim),
-      label: tabLabel(tab, data.panes),
+      start: programIcon(program ?? null).text_color(colors().dim),
+      label,
       muted: !tab.active,
       end: [statusMark(tab.status)],
     });

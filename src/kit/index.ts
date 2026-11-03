@@ -33,6 +33,8 @@ export { attentionBadge, indicator, statusMark } from './statusMark.ts';
 
 export { tab } from './tab.ts';
 
+export { tabLabel, tabProgram } from './tabLabel.ts';
+
 export { trafficLightsPadding } from './trafficLights.ts';
 
 export { shortcutFor } from './shortcut.ts';
