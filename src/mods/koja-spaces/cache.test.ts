@@ -7,6 +7,7 @@ import { repoOf } from './tree.ts';
 const gitInfo = (repo: string): GitInfo => ({
   branch: null,
   repo: repoOf(null, repo),
+  root: '/',
   cwd: '/',
   linked: false,
   committedAt: null,

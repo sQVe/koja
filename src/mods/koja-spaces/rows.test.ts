@@ -25,6 +25,7 @@ const mainCheckout = (branch: string | null, committedAt: number | null): Listed
   const git: GitInfo = {
     branch,
     repo: repoOf(null, '/code/koja/.git'),
+    root: '/code/koja',
     cwd: '/code/koja',
     linked: false,
     committedAt,

@@ -9,7 +9,6 @@ import {
   machineOfGroup,
   nestSpaces,
   railLineBefore,
-  repoName,
   repoOf,
 } from './tree.ts';
 
@@ -30,9 +29,10 @@ const spaceOf = (id: string, status: Status | null = null, active = false): Spac
 
 const machineSpace = (id: string, machine: string): SpaceInfo => ({ ...spaceOf(id), machine });
 
-const gitAt = (path: string, linked: boolean): GitInfo => ({
+const gitAt = (path: string, linked: boolean, root = path.replace(/\/\.git$/, '')): GitInfo => ({
   branch: 'main',
   repo: repoOf(null, path),
+  root,
   cwd: '/',
   linked,
   committedAt: null,
@@ -93,12 +93,20 @@ const flagged = (
 
 const foldedKeys = (): Set<string> => new Set([repoOf(null, repoPath).key]);
 
-describe('repoName', () => {
-  test('names the folder that holds the git directory', () => {
-    expect(repoName('/code/koja/.git')).toBe('koja');
-    expect(repoName('/code/koja/.bare')).toBe('koja');
-    expect(repoName('/code/koja.git')).toBe('koja');
-    expect(repoName('/code/koja')).toBe('koja');
+const labelName = (root: string): string | undefined => {
+  const main = listed(spaceOf('main'), gitAt('/var/git/checkout-metadata', false, root));
+  const [group] = nestSpaces([main], new Set());
+
+  return group?.kind === 'repo' ? group.name : undefined;
+};
+
+describe('repository names', () => {
+  test('names a repository after its checkout folder, not its git folder', () => {
+    expect(labelName('/code/koja')).toBe('koja');
+  });
+
+  test('drops the .git ending of a bare repository folder', () => {
+    expect(labelName('/code/koja.git')).toBe('koja');
   });
 });
 

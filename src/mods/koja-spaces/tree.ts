@@ -17,6 +17,7 @@ export interface RepoRef {
 export interface GitInfo {
   branch: string | null;
   repo: RepoRef;
+  root: string;
   cwd: string;
   linked: boolean;
   committedAt: number | null;
@@ -122,10 +123,9 @@ const isMain = (row: ListedSpace): row is ListedSpace & { git: GitInfo } =>
 const shownWhenFolded = (row: ListedSpace): boolean =>
   row.space.active || needsYou(row.space.status);
 
-export const repoName = (path: string): string => {
-  const parts = path.split('/').filter((part) => part !== '');
-  const last = parts.pop() ?? '';
-  const folder = last.startsWith('.') ? (parts.pop() ?? last) : last;
+// The git folder can sit anywhere under any name, so the checkout folder names the repository.
+const repoName = (root: string): string => {
+  const folder = root.split('/').findLast((part) => part !== '') ?? root;
 
   return folder.replace(/\.git$/, '');
 };
@@ -191,7 +191,7 @@ export const nestSpaces = (list: ListedSpace[], foldedRepos: FoldedKeys): TreeGr
     groups.push({
       kind: 'repo',
       repo: row.git.repo,
-      name: repoName(row.git.repo.path),
+      name: repoName(row.git.root),
       main: row,
       fold: children.fold,
       children: children.shown.map(spaceRow),

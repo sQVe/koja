@@ -267,7 +267,9 @@ export class GitTracker {
       const linked = gitDirectory.stdout.trim() !== repo.path;
       const committedAt = linked ? null : await this.lastCommit(place);
 
-      this.git[place.key] = { branch, repo, cwd: place.folder, linked, committedAt };
+      const root = top.stdout.trim();
+
+      this.git[place.key] = { branch, repo, root, cwd: place.folder, linked, committedAt };
 
       if (place.machine === null) {
         this.watch(repo, cx);
@@ -337,7 +339,7 @@ export class GitTracker {
     const { repo, branch } = await this.repoAndBranch(place);
     const committedAt = await this.lastCommit(place);
 
-    return { branch, repo, cwd: place.folder, linked: false, committedAt };
+    return { branch, repo, root: place.folder, cwd: place.folder, linked: false, committedAt };
   }
 
   private watch(repo: RepoRef, cx: Context): void {

@@ -17,6 +17,7 @@ const pull = (fields: Partial<Pull>): Pull => ({
 const git = (branch: string): GitInfo => ({
   branch,
   repo: repoOf(null, '/repo'),
+  root: '/repo',
   cwd: '/repo',
   linked: false,
   committedAt: null,
