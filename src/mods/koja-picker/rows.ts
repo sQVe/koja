@@ -49,19 +49,32 @@ const statusWords: Record<Status, string> = {
   idle: 'idle',
 };
 
-const statusRank = (status: Status | null): number => (status === null ? 0 : statusRanks[status]);
+const statusRank = (status: Status | null | undefined): number =>
+  status === null || status === undefined ? 0 : statusRanks[status];
 
 const statusWord = (status: Status | null): string | null =>
   status === null ? null : statusWords[status];
 
-export const folderName = (path: string | null): string =>
+const folderName = (path: string | null): string =>
   (path ?? '').split('/').findLast((part) => part !== '') ?? '';
 
+export const paneLabel = (pane: PaneInfo): string =>
+  pane.terminal === null ? pane.title : `${pane.program.name} · ${pane.title}`;
+
+export const paneDetail = (pane: PaneInfo): string | null => {
+  const place = [folderName(pane.cwd), pane.branch ?? ''].filter(Boolean).join(' · ');
+
+  return place === '' ? null : place;
+};
+
+const panesOf = (tab: TabInfo, paneList: PaneInfo[]): PaneInfo[] =>
+  paneList.filter((pane) => pane.tab === tab.id);
+
 const terminalPanes = (tab: TabInfo, paneList: PaneInfo[]): PaneInfo[] =>
-  paneList.filter((pane) => pane.tab === tab.id && pane.terminal !== null);
+  panesOf(tab, paneList).filter((pane) => pane.terminal !== null);
 
 export const tabPane = (tab: TabInfo, data: PickerData): PaneInfo | null => {
-  const tabPanes = terminalPanes(tab, data.panes);
+  const tabPanes = panesOf(tab, data.panes);
   const focusedPane = tabPanes.find((pane) => pane.focused);
 
   if (focusedPane !== undefined) {
@@ -145,7 +158,7 @@ const tabChildRows = (
   statuses: Status[] | null,
   paneList: PaneInfo[],
 ): PickerRow[] => {
-  const tabPanes = terminalPanes(tab, paneList);
+  const tabPanes = panesOf(tab, paneList);
   const shownPanes = tabPanes.filter((pane) => inStatus(pane, statuses));
 
   if (statuses !== null && shownPanes.length === 0) {
@@ -175,6 +188,66 @@ const tabChildRows = (
   return rows;
 };
 
+const matchedPanes = (
+  query: string,
+  space: SpaceInfo,
+  paneList: PaneInfo[],
+): { pane: PaneInfo; score: number }[] => {
+  const matches: { pane: PaneInfo; score: number }[] = [];
+
+  for (const tab of space.tabs) {
+    for (const pane of panesOf(tab, paneList)) {
+      const match = bestFieldMatch(query, paneSearchFields(pane));
+
+      if (match !== null) {
+        matches.push({ pane, score: match.score });
+      }
+    }
+  }
+
+  return matches.toSorted((first, second) => second.score - first.score);
+};
+
+const spaceOwnFields = (space: SpaceInfo): (string | null)[] => [
+  space.name,
+  space.branch,
+  folderName(space.folder),
+  space.machine,
+  statusWord(space.status),
+];
+
+const spaceRowPane = (
+  query: string,
+  statuses: Status[] | null,
+  space: SpaceInfo,
+  paneList: PaneInfo[],
+  shownPanes: PaneInfo[],
+): PaneInfo | null => {
+  if (statuses !== null) {
+    return shownPanes[0] ?? null;
+  }
+
+  if (query === '') {
+    return null;
+  }
+
+  const own = bestFieldMatch(query, spaceOwnFields(space));
+  const matches = matchedPanes(query, space, paneList);
+  const best = matches[0];
+  const runnerUp = matches[1];
+
+  if (best === undefined) {
+    return null;
+  }
+
+  // Only a pane that uniquely beats the space and every other pane may move the target.
+  if (runnerUp !== undefined && runnerUp.score >= best.score) {
+    return null;
+  }
+
+  return own !== null && own.score >= best.score ? null : best.pane;
+};
+
 const spaceRows = (
   space: SpaceInfo,
   query: string,
@@ -182,14 +255,14 @@ const spaceRows = (
   paneList: PaneInfo[],
 ): RowGroup | null => {
   const shownPanes = space.tabs
-    .flatMap((tab) => terminalPanes(tab, paneList))
+    .flatMap((tab) => panesOf(tab, paneList))
     .filter((pane) => inStatus(pane, statuses));
 
   if (statuses !== null && shownPanes.length === 0) {
     return null;
   }
 
-  const filteredPane = statuses === null ? null : (shownPanes[0] ?? null);
+  const filteredPane = spaceRowPane(query, statuses, space, paneList, shownPanes);
   const filteredTab = space.tabs.find((tab) => tab.id === filteredPane?.tab);
   const shownTab = filteredTab ?? space.tabs.find((tab) => tab.active) ?? space.tabs[0];
 

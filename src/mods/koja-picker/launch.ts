@@ -49,7 +49,9 @@ export const launch = (
   }
 
   cx.spawn(async () => {
-    const previewAddress = await livePreviewAddress().catch(() => null);
+    const previewAddress = await livePreviewAddress((milliseconds) => cx.sleep(milliseconds)).catch(
+      () => null,
+    );
 
     closeOverlay(overlay);
 

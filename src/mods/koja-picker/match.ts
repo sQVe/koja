@@ -33,14 +33,49 @@ const isCompact = (text: string, positions: number[]): boolean => {
     );
 };
 
-export const fuzzyMatch = (query: string, text: string): Match | null => {
-  const lowerText = text.toLowerCase();
+// Each letter gets one occurrence table, so the rescue does not rescan the suffix per start.
+const positionsOf = (text: string, letter: string): number[] => {
+  const positions: number[] = [];
+  let at = text.indexOf(letter);
+
+  while (at !== -1) {
+    positions.push(at);
+    at = text.indexOf(letter, at + 1);
+  }
+
+  return positions;
+};
+
+const firstAtOrAfter = (positions: number[], from: number): number => {
+  let low = 0;
+  let high = positions.length;
+
+  while (low < high) {
+    const middle = (low + high) >> 1;
+
+    if ((positions[middle] ?? 0) < from) {
+      low = middle + 1;
+    } else {
+      high = middle;
+    }
+  }
+
+  return positions[low] ?? -1;
+};
+
+const matchFrom = (
+  lowerQuery: string,
+  tables: ReadonlyMap<string, number[]>,
+  text: string,
+  searchFrom: number,
+): Match | null => {
   const positions: number[] = [];
   let score = 0;
   let from = 0;
+  let searching = searchFrom;
 
-  for (const letter of query.toLowerCase()) {
-    const index = lowerText.indexOf(letter, from);
+  for (const letter of lowerQuery) {
+    const index = firstAtOrAfter(tables.get(letter) ?? [], searching);
 
     if (index === -1) {
       return null;
@@ -53,6 +88,7 @@ export const fuzzyMatch = (query: string, text: string): Match | null => {
     score -= Math.min(index - from, longestCountedGap) * gapPenalty;
     positions.push(index);
     from = index + 1;
+    searching = index + 1;
   }
 
   if (positions.length > 0 && !isCompact(text, positions)) {
@@ -60,6 +96,56 @@ export const fuzzyMatch = (query: string, text: string): Match | null => {
   }
 
   return { score, positions };
+};
+
+export const fuzzyMatch = (query: string, text: string): Match | null => {
+  const lowerQuery = query.toLowerCase();
+
+  if (lowerQuery === '') {
+    return { score: 0, positions: [] };
+  }
+
+  const lowerText = text.toLowerCase();
+  const tables = new Map<string, number[]>();
+  let missing = false;
+
+  for (const letter of new Set(lowerQuery)) {
+    const positions = positionsOf(lowerText, letter);
+
+    tables.set(letter, positions);
+
+    if (positions.length === 0) {
+      missing = true;
+    }
+  }
+
+  if (missing) {
+    return null;
+  }
+
+  const firstLetter = Array.from(lowerQuery)[0] ?? '';
+  const firstPositions = tables.get(firstLetter) ?? [];
+
+  // The first occurrence keeps today's ranking; later starts rescue a spread-out first match.
+  const first = matchFrom(lowerQuery, tables, text, firstPositions[0] ?? 0);
+
+  if (first !== null) {
+    return first;
+  }
+
+  let best: Match | null = null;
+  let bestScore = Number.NEGATIVE_INFINITY;
+
+  for (const start of firstPositions.slice(1)) {
+    const candidate = matchFrom(lowerQuery, tables, text, start);
+
+    if (candidate !== null && candidate.score > bestScore) {
+      best = candidate;
+      bestScore = candidate.score;
+    }
+  }
+
+  return best;
 };
 
 export const bestFieldMatch = (

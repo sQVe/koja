@@ -44,7 +44,15 @@ import { launch } from './launch.ts';
 import { fuzzyMatch } from './match.ts';
 import { createPreviewSession } from './previewSession.ts';
 import type { PanePickerRow, PickerData, PickerRow, TabPickerRow } from './rows.ts';
-import { buildRows, folderName, rowPane, statusCount, tabLabel, tabPane } from './rows.ts';
+import {
+  buildRows,
+  paneDetail,
+  paneLabel,
+  rowPane,
+  statusCount,
+  tabLabel,
+  tabPane,
+} from './rows.ts';
 
 const history = createHistory(
   {
@@ -141,9 +149,9 @@ export default class Picker extends View {
     this.listenForCommands(cx);
   }
 
-  override async close(): Promise<void> {
+  override async close(cx: AsyncContext): Promise<void> {
     if (isList()) {
-      await this.preview.close();
+      await this.preview.close((milliseconds) => cx.sleep(milliseconds));
     }
   }
 
@@ -390,8 +398,7 @@ export default class Picker extends View {
 
   private paneRow(row: PanePickerRow, selected: boolean): Element {
     const { pane } = row;
-
-    const place = [folderName(pane.cwd), pane.branch ?? ''].filter(Boolean).join(' · ');
+    const detail = paneDetail(pane);
 
     return listRow({
       size: 'large',
@@ -399,10 +406,10 @@ export default class Picker extends View {
       state: rowState(selected),
       depth: row.space.tabs.length > 1 ? 2 : 1,
       start: programIcon(pane.program).text_color(colors().dim),
-      label: `${pane.program.name} · ${pane.title}`,
+      label: paneLabel(pane),
       muted: !pane.focused,
-      ...(place === '' ? {} : { detail: place }),
-      end: [statusMark(pane.status)],
+      ...(detail === null ? {} : { detail }),
+      end: [statusMark(pane.status ?? null)],
     });
   }
 
