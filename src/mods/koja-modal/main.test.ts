@@ -9,6 +9,8 @@ import {
   test,
 } from 'bun:test';
 
+import { gpuiKitFake, herdrFake, kitIndexFake } from '../../../tests/moduleFakes.ts';
+
 interface RunCall {
   command: string;
   args: Record<string, unknown> | undefined;
@@ -155,62 +157,63 @@ const runAfterHandlers = (): void => {
   }
 };
 
-await mock.module('gpui-kit', () => ({
-  div: createElement,
-  View: HostView,
-}));
+await mock.module('gpui-kit', () => gpuiKitFake({ div: createElement, View: HostView }));
 
-await mock.module('herdr', () => ({
-  exec: async () => {
-    statusLookups += 1;
+await mock.module('herdr', () =>
+  herdrFake({
+    exec: async () => {
+      statusLookups += 1;
 
-    const overlays = paletteOpen ? [{ name: 'koja-palette' }] : [];
+      const overlays = paletteOpen ? [{ name: 'koja-palette' }] : [];
 
-    return { code: 0, stdout: JSON.stringify({ overlays }), stderr: '' };
-  },
-  focused: () => ({
-    space: 'space-1',
-    tab: focusedTab,
-    pane: focusedPane,
-    terminal: null,
-    shown: null,
-    agent: null,
-    cwd: null,
+      return { code: 0, stdout: JSON.stringify({ overlays }), stderr: '' };
+    },
+    focused: () => ({
+      space: 'space-1',
+      tab: focusedTab,
+      pane: focusedPane,
+      terminal: null,
+      shown: null,
+      agent: null,
+      cwd: null,
+    }),
+    nextCommand,
+    panes: () => [
+      { pane: 'p1', tab: 'tab-1' },
+      { pane: 'p2', tab: 'tab-1' },
+      { pane: 'p3', tab: 'tab-1' },
+    ],
+    run: (command: string, args?: Record<string, unknown>) => {
+      runCalls.push({ command, args });
+
+      return null;
+    },
+    setShared: (key: string, value: unknown) => {
+      sharedValues[key] = value;
+      sharedWrites.push(key);
+
+      return null;
+    },
+    shared: (key: string) => sharedValues[key],
+    spaces: () => [],
   }),
-  nextCommand,
-  panes: () => [
-    { pane: 'p1', tab: 'tab-1' },
-    { pane: 'p2', tab: 'tab-1' },
-    { pane: 'p3', tab: 'tab-1' },
-  ],
-  run: (command: string, args?: Record<string, unknown>) => {
-    runCalls.push({ command, args });
-
-    return null;
-  },
-  setShared: (key: string, value: unknown) => {
-    sharedValues[key] = value;
-    sharedWrites.push(key);
-
-    return null;
-  },
-  shared: (key: string) => sharedValues[key],
-  spaces: () => [],
-}));
+);
 
 const { overlayCloseCount, recordOverlayClose } = await import('../../kit/overlayOpen.ts');
 
-await mock.module('../../kit/index.ts', () => ({
-  closeOverlay: (id?: string | null) => {
-    closeCalls.push(id ?? null);
-  },
-  overlayCloseCount,
-  modName: 'koja-modal',
-  overlayId: () => 'overlay-1',
-  repeat: (_cx: unknown, _milliseconds: number, handler: () => void) => {
-    tickHandler = handler;
-  },
-}));
+await mock.module('../../kit/index.ts', () =>
+  kitIndexFake({
+    closeOverlay: (id?: string | null) => {
+      closeCalls.push(id ?? null);
+    },
+    overlayCloseCount,
+    modName: 'koja-modal',
+    overlayId: () => 'overlay-1',
+    repeat: (_cx: unknown, _milliseconds: number, handler: () => void) => {
+      tickHandler = handler;
+    },
+  }),
+);
 
 const loadView = async (): Promise<FakeView> => {
   const modulePath = './main.ts';
@@ -397,6 +400,8 @@ describe('koja modal view', () => {
 
   test('a tick with unchanged focus writes no shared state', async () => {
     await loadView();
+
+    expect(tickHandler).not.toBeNull();
 
     sharedWrites = [];
     tickHandler?.();

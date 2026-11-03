@@ -23,14 +23,17 @@ Koja lives in its own public repository and uses the same base as Tikk and Mergi
 
 ### What is shared
 
-- Tooling: vite-plus for lint and format, `@sqve/seam` for house style, Knip, and Changesets for
-  releases. Shared files match Tikk and Mergit, except for the project name and description.
+- Tooling: vite-plus for lint and format, `@sqve/seam` for house style, Knip, Changesets for
+  releases, and Stryker mutation testing through `@sqve/mutation`. Shared files match Tikk and
+  Mergit, except for the project name and description.
 - CI, Renovate, CodeRabbit, the Grove worktree setup, and the GitHub ruleset.
 
 ### What stays local
 
 - Koja has no TUI and ships no binary. It needs neither OpenTUI nor React.
-- Koja has no mutation testing until it holds logic worth mutating.
+- Mutation testing covers only modules that `bun test` can load. Herdr's modules, such as `herdr`
+  and `gpui-kit`, exist only inside the Herdr app, so mutants in modules that import them would
+  never meet a test.
 - ADRs after 0003 and the architecture section of `AGENTS.md` belong to Koja.
 
 ## Consequences
