@@ -255,7 +255,16 @@ export class GitTracker {
       }
 
       const { repo, branch } = await this.repoAndBranch(place);
-      const linked = repo.path !== `${top.stdout.trim()}/.git`;
+
+      // A main checkout's own git folder is the common one, wherever it lives, such as one made
+      // with `git clone --separate-git-dir`; a linked worktree's sits under it.
+      const gitDirectory = await exec(
+        'git',
+        ['rev-parse', '--path-format=absolute', '--git-dir'],
+        options,
+      );
+
+      const linked = gitDirectory.stdout.trim() !== repo.path;
       const committedAt = linked ? null : await this.lastCommit(place);
 
       this.git[place.key] = { branch, repo, cwd: place.folder, linked, committedAt };
