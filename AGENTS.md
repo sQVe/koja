@@ -35,8 +35,12 @@ setup and verification.
   [ADR 0007](docs/adr/0007-one-ui-language.md).
 - Never edit files in `~/.config/herdr-app` by hand. The installer writes them. See
   [ADR 0006](docs/adr/0006-install-real-files.md).
-- A mod derived from a Herdr mod records its Herdr source and release, and is listed in `NOTICE`.
-  See [ADR 0008](docs/adr/0008-track-herdr-upstream.md).
+- The files the installer copies as they are live in `config/`, laid out as in Herdr's home:
+  `keys.json`, `settings.json`, `layouts/`, and `themes/`.
+- `herdr/herdr.d.ts` and `herdr/gpui-kit.d.ts` are the declarations of the Herdr release Koja
+  targets, kept as Herdr wrote them. Replace them when moving to a new Herdr release.
+- A mod derived from a Herdr mod records its Herdr source and release in `herdr/upstream.json`, and
+  is listed in `NOTICE`. See [ADR 0008](docs/adr/0008-track-herdr-upstream.md).
 - Herdr's own manual is `~/.config/herdr-app/AGENTS.md`, rewritten by Herdr on every start. Read it
   before changing a mod.
 
@@ -45,4 +49,5 @@ setup and verification.
 - Test behavior a caller can observe. Do not test wording, constants, types, or internal calls.
 - Keep tests next to source. Cross-module and tooling checks go in `tests/`.
 - Use temporary directories for fixtures and remove them when the test finishes.
-- Check a mod in Herdr with `herdr-app check` and `herdr-app shot`, never with synthetic keystrokes.
+- Check a mod in Herdr with `herdr-app check` and `herdr-app shot`. Open its views with
+  `herdr-app do`, and use synthetic input for what no command reaches, such as typing a query.

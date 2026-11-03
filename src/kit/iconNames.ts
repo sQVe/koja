@@ -1,0 +1,28 @@
+export const iconNames = [
+  'chevron-down',
+  'chevron-right',
+  'command',
+  'copy',
+  'file',
+  'folder',
+  'folder-open',
+  'git-branch',
+  'git-compare',
+  'keyboard',
+  'loader-circle',
+  'maximize-2',
+  'minus',
+  'monitor',
+  'palette',
+  'panel-bottom',
+  'panel-right',
+  'plus',
+  'search',
+  'server',
+  'square',
+  'square-pen',
+  'terminal',
+  'x',
+] as const;
+
+export type IconName = (typeof iconNames)[number];

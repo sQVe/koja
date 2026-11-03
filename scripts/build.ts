@@ -1,8 +1,11 @@
 import { cp, readdir, rm } from 'node:fs/promises';
 import { join } from 'node:path';
 
-const sourceDirectory = 'src/mods';
-const outputDirectory = 'dist/mods';
+export const sourceDirectory = 'src/mods';
+export const outputDirectory = 'dist/mods';
+
+export const isMissing = (error: unknown): boolean =>
+  error instanceof Error && 'code' in error && error.code === 'ENOENT';
 
 const listModNames = async (directory: string): Promise<string[]> => {
   try {
@@ -10,9 +13,7 @@ const listModNames = async (directory: string): Promise<string[]> => {
 
     return entries.filter((entry) => entry.isDirectory()).map((entry) => entry.name);
   } catch (error) {
-    const missing = error instanceof Error && 'code' in error && error.code === 'ENOENT';
-
-    if (missing) {
+    if (isMissing(error)) {
       return [];
     }
 
@@ -22,9 +23,6 @@ const listModNames = async (directory: string): Promise<string[]> => {
 
 const isTypeScript = (path: string): boolean => path.endsWith('.ts');
 
-// Herdr resolves a mod's imports only inside its own folder, so the kit and every other local
-// module are bundled into main.js. Bare imports such as `gpui-kit` and `herdr` are Herdr's own
-// modules and stay imports.
 const bundleMod = async (modSource: string, modOutput: string, name: string): Promise<void> => {
   const result = await Bun.build({
     entrypoints: [join(modSource, 'main.ts')],
@@ -33,6 +31,7 @@ const bundleMod = async (modSource: string, modOutput: string, name: string): Pr
     format: 'esm',
     target: 'browser',
     packages: 'external',
+    define: { kojaModName: JSON.stringify(name) },
     throw: false,
   });
 
@@ -41,11 +40,22 @@ const bundleMod = async (modSource: string, modOutput: string, name: string): Pr
   }
 };
 
+const copyKitIcons = async (source: string, modOutput: string): Promise<void> => {
+  try {
+    await cp(join(source, '..', 'kit', 'icons'), join(modOutput, 'icons'), { recursive: true });
+  } catch (error) {
+    if (!isMissing(error)) {
+      throw error;
+    }
+  }
+};
+
 const buildMod = async (source: string, output: string, name: string): Promise<void> => {
   const modSource = join(source, name);
   const modOutput = join(output, name);
 
   await cp(modSource, modOutput, { recursive: true, filter: (path) => !isTypeScript(path) });
+  await copyKitIcons(source, modOutput);
   await bundleMod(modSource, modOutput, name);
 };
 

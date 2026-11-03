@@ -22,7 +22,24 @@ bun run build
 ```
 
 `bun run build` bundles each mod in `src/mods/<name>/` into `dist/mods/<name>/main.js` and copies
-the mod's other files beside it.
+the mod's other files and the kit's icons beside it.
+
+## Install into Herdr
+
+```sh
+bun run herdr:install
+```
+
+`bun run herdr:install` builds the mods, copies them and the files in `config/` into
+`~/.config/herdr-app`, and runs `herdr-app check` on every installed mod. Set `HERDR_APP_HOME` to
+install into another Herdr home. Run `bun run herdr:watch` to build and install again on every save
+in `src/` or `config/`.
+
+Then switch Herdr to Koja's layout:
+
+```sh
+herdr-app do layout.switch --name koja
+```
 
 ## Check changes
 
@@ -32,7 +49,7 @@ the mod's other files beside it.
 | `bun run test`         | Run the full test suite.                                                  |
 | `bun run test:changed` | Run tests affected by uncommitted changes.                                |
 | `bun run style:check`  | Check all lint rules, including house style, with `seam`.                 |
-| `bun run style:fix`    | Apply safe lint fixes with `seam --fix`, then format.                     |
+| `bun run style:fix`    | Apply safe house-style fixes with `seam --fix`.                           |
 | `bun run lint`         | Run ordinary lint diagnostics, as editors do.                             |
 | `bun run format`       | Format files.                                                             |
 | `bun run knip`         | Find unused files, exports, and dependencies.                             |

@@ -19,7 +19,10 @@
     "noUnusedParameters": true,
     "allowUnreachableCode": false,
     "allowUnusedLabels": false,
-    "types": ["bun"]
+    "types": ["bun"],
+    "paths": {
+      "herdr": ["./herdr/herdr.d.ts"]
+    }
   },
-  "include": ["tests/**/*.ts", "scripts/**/*.ts", "vite.config.ts"]
+  "include": ["tests/**/*.ts", "scripts/**/*.ts", "src/**/*.test.ts", "vite.config.ts"]
 }

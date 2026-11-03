@@ -53,7 +53,7 @@ describe('buildMods', () => {
     await writeSource('picker/main.ts', 'export const picker = 1;\n');
     await writeSource('picker/helper.ts', 'export const helper = 1;\n');
     await writeSource('picker/mod.json', '{ "place": "none" }\n');
-    await writeSource('picker/icons/folder.svg', '<svg/>\n');
+    await writeSource('picker/assets/folder.svg', '<svg/>\n');
     await writeSource('picker/preview.sh', '#!/bin/sh\n');
     await chmod(join(source, 'picker', 'preview.sh'), 0o755);
 
@@ -63,14 +63,52 @@ describe('buildMods', () => {
     const preview = await stat(join(output, 'picker', 'preview.sh'));
 
     expect(files.toSorted()).toEqual([
-      'icons',
-      'icons/folder.svg',
+      'assets',
+      'assets/folder.svg',
       'main.js',
       'mod.json',
       'preview.sh',
     ]);
 
     expect(preview.mode & 0o777).toBe(0o755);
+  });
+
+  test('copies the kit icons into every mod', async () => {
+    await writeSource('../kit/icons/plus.svg', '<svg id="plus"/>\n');
+    await writeSource('../kit/icons/x.svg', '<svg id="x"/>\n');
+    await writeSource('../kit/size.ts', 'export const iconSize = 14;\n');
+    await writeSource('menu/main.ts', 'export const menu = 1;\n');
+    await writeSource('tabs/main.ts', 'export const tabs = 1;\n');
+
+    await buildMods(source, output);
+
+    for (const name of ['menu', 'tabs']) {
+      expect((await readdir(join(output, name, 'icons'))).toSorted()).toEqual([
+        'plus.svg',
+        'x.svg',
+      ]);
+
+      expect(await readFile(join(output, name, 'icons', 'x.svg'), 'utf8')).toBe('<svg id="x"/>\n');
+    }
+  });
+
+  test('gives each bundle the name of its mod folder', async () => {
+    await writeSource(
+      '../kit/modName.ts',
+      'declare const kojaModName: string;\nexport const modName = kojaModName;\n',
+    );
+
+    await writeSource(
+      'koja-tabs/main.ts',
+      "import { modName } from '../../kit/modName.ts';\nexport const path = 'mods/' + modName;\n",
+    );
+
+    await buildMods(source, output);
+
+    const bundle = await readFile(join(output, 'koja-tabs', 'main.js'), 'utf8');
+
+    expect(bundle).toContain('"koja-tabs"');
+    expect(bundle).not.toContain('kojaModName');
   });
 
   test('removes mods left from an earlier build', async () => {

@@ -1,0 +1,10 @@
+{
+  "declarations": "0.1.11",
+  "mods": {
+    "koja-menu": { "source": "defaults/mods/menu", "release": "0.1.11" },
+    "koja-new-menu": { "source": "defaults/mods/new-menu", "release": "0.1.11" },
+    "koja-palette": { "source": "defaults/frame/palette", "release": "0.1.11" },
+    "koja-spaces": { "source": "defaults/mods/spaces", "release": "0.1.11" },
+    "koja-tabs": { "source": "defaults/mods/tabs", "release": "0.1.11" }
+  }
+}
