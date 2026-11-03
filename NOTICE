@@ -15,6 +15,7 @@ through Koja's UI kit. herdr/upstream.json records the Herdr release of each.
 - src/mods/koja-menu, from defaults/mods/menu in Herdr 0.1.11
 - src/mods/koja-new-menu, from defaults/mods/new-menu in Herdr 0.1.11
 - src/mods/koja-palette, from defaults/frame/palette in Herdr 0.1.11
+- src/mods/koja-pane, from defaults/mods/pane in Herdr 0.1.12
 - src/mods/koja-spaces, from defaults/mods/spaces in Herdr 0.1.11
 - src/mods/koja-tabs, from defaults/mods/tabs in Herdr 0.1.11
 

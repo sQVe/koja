@@ -6,6 +6,7 @@ import type { Status } from 'herdr';
 
 import type { IconName, RowState } from '../../kit/index.ts';
 import {
+  attentionBadge,
   colors,
   detailText,
   emptyState,
@@ -101,6 +102,7 @@ const marks = (): Element[] => [
       .child(indicator('blocked'))
       .child(indicator('dim')),
   ),
+  sample('Attention badge', attentionBadge('Needs you')),
 ];
 
 const rowsInState = (inset: boolean): Element =>

@@ -75,7 +75,7 @@
                 "pane": {
                   "header": {
                     "content": {
-                      "mod": "pane"
+                      "mod": "koja-pane"
                     },
                     "reveal": "always",
                     "height": 30,

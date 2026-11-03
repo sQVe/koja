@@ -25,7 +25,7 @@ export {
   textSize,
 } from './size.ts';
 
-export { indicator, statusMark } from './statusMark.ts';
+export { attentionBadge, indicator, statusMark } from './statusMark.ts';
 
 export { tab, tabBarEdge } from './tab.ts';
 
