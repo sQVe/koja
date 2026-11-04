@@ -61,14 +61,12 @@ const tabTarget = (
   return focusedSpace?.tabs.find((tab) => tab.id === focus?.tab);
 };
 
-// Herdr's own detail line for the close dialog, kept word for word.
 const spaceDetail = (space: SpaceFacts): string => {
   const terminals = space.tabs.reduce((total, tab) => total + tab.panes, 0);
 
   return `${space.name} — ${space.tabs.length} tabs, ${terminals} terminals`;
 };
 
-// An unnamed item shows an empty field, as in Herdr's own rename prompt.
 const currentName = (target: { name: string; named: boolean }): string =>
   target.named ? target.name : '';
 
@@ -189,7 +187,6 @@ const closeTabPlan = (
   };
 };
 
-// One entry per command that asks first. A command not listed runs as is.
 const planners = new Map<string, PlanFunction>([
   ['space.close', closeSpacePlan],
   ['space.rename', renameSpacePlan],

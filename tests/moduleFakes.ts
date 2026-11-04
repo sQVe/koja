@@ -2,7 +2,6 @@ type ModuleFake = Record<string, unknown>;
 
 const noop = (): undefined => undefined;
 
-// A stub that accepts any call and any property, so a kit element can be chained as in production.
 export const chainable = (): unknown =>
   new Proxy(() => undefined, {
     get: (_target, key) => (key === 'then' ? undefined : chainable()),

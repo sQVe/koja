@@ -207,8 +207,6 @@ await mock.module('../../kit/index.ts', () =>
     askFirst: (command: string, args?: Record<string, unknown>) => {
       askFirstCalls.push({ command, args });
 
-      // Production askFirst opens Koja's confirm for tab.close on the last tab, so this fake
-      // records that call without running it; every other command runs as Herdr would.
       if (command !== 'tab.close') {
         runCalls.push({ command, args });
       }
@@ -582,7 +580,6 @@ describe('koja modal view', () => {
 
     view.render();
 
-    // The confirm opens and takes the keyboard while normal mode still holds it.
     paletteOpen = true;
     overlayFocused = false;
 

@@ -27,8 +27,6 @@ const stopPress = (_event: unknown, cx: Context): void => {
   cx.stop_propagation();
 };
 
-// tab.close asks through Koja's confirm on the last tab, so normal mode must yield the keyboard
-// to that dialog as it does for an opened overlay.
 const mayOpenOverlay = (command: string): boolean =>
   command === 'mod.open' || command === 'tab.close';
 
