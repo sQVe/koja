@@ -28,11 +28,15 @@ describe('scene lookup', () => {
     expect(findScene('  sidebar  ')).toEqual(findScene('sidebar'));
   });
 
-  test('every calibration scene is found', () => {
-    for (let index = 1; index <= 12; index += 1) {
-      const name = `calibration-${String(index).padStart(2, '0')}`;
+  test('every smoke scene is found', () => {
+    for (let index = 1; index <= 4; index += 1) {
+      const name = `smoke-${index}`;
 
       expect(findScene(name)).toHaveProperty('scene.name', name);
     }
+  });
+
+  test('a name past the last smoke scene gives an error', () => {
+    expect('error' in findScene('smoke-5')).toBe(true);
   });
 });

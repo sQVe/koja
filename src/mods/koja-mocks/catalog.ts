@@ -18,30 +18,10 @@ export type SceneLookup = { scene: Scene } | { error: string };
 
 const sceneSizes = {
   sidebar: { width: overlaySize.wideMenuWidth, height: overlaySize.wideMenuHeight },
-  'calibration-01': { width: overlaySize.wideMenuWidth, height: overlaySize.wideMenuHeight },
-  'calibration-02': { width: overlaySize.pickerListWidth, height: overlaySize.wideMenuHeight },
-  'calibration-03': {
-    width: overlaySize.worktreeFormWidth,
-    height: overlaySize.worktreeFormHeight,
-  },
-  'calibration-04': { width: overlaySize.wideMenuWidth, height: overlaySize.wideMenuHeight },
-  'calibration-05': {
-    width: overlaySize.worktreeFormWidth,
-    height: overlaySize.worktreeFormHeight,
-  },
-  'calibration-06': { width: overlaySize.pickerListWidth, height: overlaySize.wideMenuHeight },
-  'calibration-07': { width: overlaySize.wideMenuWidth, height: overlaySize.wideMenuHeight },
-  'calibration-08': {
-    width: overlaySize.worktreeFormWidth,
-    height: overlaySize.worktreeFormHeight,
-  },
-  'calibration-09': { width: overlaySize.pickerListWidth, height: overlaySize.wideMenuHeight },
-  'calibration-10': { width: overlaySize.wideMenuWidth, height: overlaySize.wideMenuHeight },
-  'calibration-11': {
-    width: overlaySize.worktreeFormWidth,
-    height: overlaySize.worktreeFormHeight,
-  },
-  'calibration-12': { width: overlaySize.pickerListWidth, height: overlaySize.wideMenuHeight },
+  'smoke-1': { width: overlaySize.pickerListWidth, height: overlaySize.wideMenuHeight },
+  'smoke-2': { width: overlaySize.pickerListWidth, height: overlaySize.wideMenuHeight },
+  'smoke-3': { width: overlaySize.pickerListWidth, height: overlaySize.wideMenuHeight },
+  'smoke-4': { width: overlaySize.pickerListWidth, height: overlaySize.wideMenuHeight },
 } as const satisfies Record<string, SceneSize>;
 
 export type SceneName = keyof typeof sceneSizes;
