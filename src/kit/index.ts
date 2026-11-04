@@ -56,6 +56,12 @@ export { themeChoices } from './themes.ts';
 
 export { detailText, emptyState, highlightedText, keyHint, separator } from './text.ts';
 
+export { roleText, textRoles, withTextRole } from './textRole.ts';
+
+export type { TextRole } from './textRole.ts';
+
+export { stateLine } from './stateLine.ts';
+
 export { colors } from './theme.ts';
 
 export { diffTints } from './palette.ts';

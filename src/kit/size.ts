@@ -59,6 +59,7 @@ export const controlSize = {
   searchField: 40,
   sectionHeader: 26,
   sidebarHeader: 27,
+  smallButton: 16,
   tabBar: 28,
   tabSlot: 14,
   tabLabelMaxWidth: 170,

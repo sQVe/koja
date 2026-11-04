@@ -28,6 +28,7 @@ export const herdrFake = (overrides: ModuleFake = {}): ModuleFake => ({
   shared: () => undefined,
   spaces: () => [],
   terminals: () => [],
+  theme: () => ({}),
   writeTextFile: () => null,
   ...overrides,
 });
@@ -43,6 +44,8 @@ export const gpuiBaseFake = (overrides: ModuleFake = {}): ModuleFake => ({
 
 export const gpuiKitFake = (overrides: ModuleFake = {}): ModuleFake => ({
   div: noop,
+  image: noop,
+  svg: noop,
   View: class {
     render(): unknown {
       return null;
@@ -54,17 +57,22 @@ export const gpuiKitFake = (overrides: ModuleFake = {}): ModuleFake => ({
 export const kitIndexFake = (overrides: ModuleFake = {}): ModuleFake => ({
   actionButton: noop,
   askFirst: noop,
+  attentionBadge: noop,
   closeOverlay: noop,
   colors: noop,
+  controlSize: {},
   currentWindow: () => null,
   detailText: noop,
   dialogButton: chainable,
   dialogFrame: noop,
+  diffSize: {},
   emptyState: noop,
+  fileStatusMark: noop,
   highlightedText: noop,
   icon: noop,
   iconButton: noop,
   iconSlot: noop,
+  indicator: noop,
   keyHint: noop,
   listRow: noop,
   modName: 'koja',
@@ -80,6 +88,8 @@ export const kitIndexFake = (overrides: ModuleFake = {}): ModuleFake => ({
   recordOf: () => undefined,
   recordOverlayClose: noop,
   repeat: noop,
+  repoLabel: noop,
+  roleText: noop,
   rollupStatuses: () => ({ spaces: {}, tabs: {} }),
   rowHeight: {},
   searchField: noop,
@@ -87,11 +97,15 @@ export const kitIndexFake = (overrides: ModuleFake = {}): ModuleFake => ({
   shortcutFor: () => null,
   spaceMark: noop,
   spacing: {},
+  stateLine: noop,
   statusMark: noop,
   stringOf: () => null,
+  tab: noop,
   textField: chainable,
+  textRoles: {},
   textSize: {},
   themeChoices: [],
   toggleButton: noop,
+  withTextRole: noop,
   ...overrides,
 });

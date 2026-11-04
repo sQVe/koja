@@ -6,6 +6,7 @@ import { highlightRuns } from './highlight.ts';
 import { formatKeys } from './keys.ts';
 import type { Color } from './palette.ts';
 import { spacing, textSize } from './size.ts';
+import { withTextRole } from './textRole.ts';
 import { colors } from './theme.ts';
 import { currentPlatform } from './window.ts';
 
@@ -83,8 +84,4 @@ export const highlightedText = (
 };
 
 export const keyHint = (keysText: string): Element =>
-  div()
-    .flex_none()
-    .text_size(textSize.default)
-    .text_color(colors().dim)
-    .child(formatKeys(keysText, currentPlatform()));
+  withTextRole(div().flex_none(), 'detail').child(formatKeys(keysText, currentPlatform()));

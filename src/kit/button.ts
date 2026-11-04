@@ -36,7 +36,7 @@ export interface ActionButtonOptions extends HoverOptions {
 
 export const iconButton = (options: IconButtonOptions): Element => {
   const palette = colors();
-  const side = options.size === 'small' ? controlSize.tabSlot : controlSize.button;
+  const side = options.size === 'small' ? controlSize.smallButton : controlSize.button;
 
   const button = h_flex()
     .size(side)

@@ -9,6 +9,7 @@ import { spinner } from './icon.ts';
 import type { ThemeToken } from './palette.ts';
 import { withAlpha } from './palette.ts';
 import { controlSize, markSize, radius, spacing, textSize } from './size.ts';
+import { withTextRole } from './textRole.ts';
 import { colors } from './theme.ts';
 
 const dot = (size: number, color: Color): Element =>
@@ -68,15 +69,13 @@ const badgeFillAlpha = '26';
 export const attentionBadge = (label: string): Element => {
   const palette = colors();
 
-  return h_flex()
+  const badge = h_flex()
     .h(controlSize.badge)
     .px(spacing.small)
     .flex_none()
     .items_center()
     .rounded(radius.default)
-    .bg(withAlpha(palette.blocked, badgeFillAlpha))
-    .text_size(textSize.xsmall)
-    .font_semibold()
-    .text_color(palette.blocked)
-    .child(label);
+    .bg(withAlpha(palette.blocked, badgeFillAlpha));
+
+  return withTextRole(badge, 'badge').child(label);
 };

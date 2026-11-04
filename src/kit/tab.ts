@@ -26,7 +26,7 @@ const startSlot = (iconElement: Element | null): Element => {
 };
 
 const endSlot = (options: TabOptions): Element => {
-  const slot = h_flex().size(controlSize.tabSlot).flex_none().items_center().justify_center();
+  const slot = h_flex().size(controlSize.smallButton).flex_none().items_center().justify_center();
 
   if (options.active) {
     return options.close === null ? slot : slot.child(options.close);
