@@ -206,6 +206,7 @@ const rowPairs = (): ContrastPair[] => {
     pairs.push(contrastPair('working', surface, 3, `statusMark working on ${surface}`));
     pairs.push(contrastPair('done', surface, 3, `statusMark done on ${surface}`));
     pairs.push(contrastPair('idle', surface, 3, `statusMark idle on ${surface}`));
+    pairs.push(contrastPair('border', surface, 3, `spaceMark empty status ring on ${surface}`));
   });
 
   pairs.push(contrastPair('blocked', 'chrome', 3, 'statusMark blocked on chrome'));
@@ -294,6 +295,10 @@ const knownFailures = [
   'solid_foreground on solid',
   'selected on popover',
   'selected on chrome',
+  'border on chrome',
+  'border on popover',
+  'border on hover',
+  'border on selected',
 ];
 
 const contrastResult = (pair: ContrastPair, palette: Record<string, string>): ContrastResult => {
