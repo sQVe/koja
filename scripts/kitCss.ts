@@ -38,7 +38,6 @@ const sizeGroupNames: SizeGroupName[] = [
   'controlSize',
 ];
 
-// The URLs are relative to the stylesheet, which lives in eval/.
 const geistFaces: GeistFace[] = [
   { weight: 400, url: 'fonts/Geist-Regular.ttf' },
   { weight: 600, url: '../config/fonts/Geist-SemiBold.ttf' },
@@ -62,8 +61,7 @@ const readJson = async <Value>(path: string): Promise<Value> => {
 const loadSizes = async (root: string): Promise<SizeModule> => {
   const sizePath = pathToFileURL(resolve(root, 'src', 'kit', 'size.ts')).href;
 
-  // SAFETY: src/kit/size.ts exports one object of numbers for each SizeGroupName.
-  // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- the module namespace is typed any here; the export shape is the SAFETY claim above.
+  // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- the module namespace is typed any; src/kit/size.ts exports each size group as an object of numbers.
   return (await import(sizePath)) as SizeModule;
 };
 
