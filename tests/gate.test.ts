@@ -3,9 +3,8 @@ import { mkdtemp, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
-import type { Answer } from '../scripts/answer.ts';
-import { checkAnswer } from '../scripts/answer.ts';
-import { gate } from '../scripts/gate.ts';
+import type { Answer } from '../scripts/gate.ts';
+import { checkAnswer, gate } from '../scripts/gate.ts';
 
 const sceneCategories = [
   'visualHierarchy',
@@ -104,10 +103,31 @@ describe('checkAnswer', () => {
     expect(check.answer?.judge).toBe(gptJudge);
   });
 
-  test('keeps the not-assessed categories on the checked answer', () => {
-    const check = checkAnswer(answerJson());
+  test('rejects a scene answer that leaves a mod-only category out of notAssessed', () => {
+    const check = checkAnswer(answerJson({ notAssessed: ['efficiency'] }));
 
-    expect(check.answer?.notAssessed).toEqual(modOnlyCategories);
+    expect(check.answer).toBeUndefined();
+    expect(check.errors.some((error) => error.includes('notAssessed'))).toBe(true);
+  });
+
+  test('rejects a scene answer that lists a scored category as not assessed', () => {
+    const check = checkAnswer(answerJson({ notAssessed: [...modOnlyCategories, 'polish'] }));
+
+    expect(check.answer).toBeUndefined();
+    expect(check.errors.some((error) => error.includes('notAssessed'))).toBe(true);
+  });
+
+  test('accepts a mod answer that scores all twelve categories', () => {
+    const check = checkAnswer(
+      answerJson({
+        scope: 'mod',
+        categories: categoriesWithScore([...sceneCategories, ...modOnlyCategories], 9.5),
+        notAssessed: [],
+      }),
+    );
+
+    expect(check.errors).toEqual([]);
+    expect(check.answer?.scope).toBe('mod');
   });
 
   test('rejects a 9.5 in a category with an open severity 2 finding', () => {
@@ -170,6 +190,40 @@ describe('checkAnswer', () => {
 
     expect(check.answer).toBeUndefined();
     expect(check.errors.some((error) => error.includes('visualHierarchy'))).toBe(true);
+  });
+
+  test('rejects a score above 10', () => {
+    const check = checkAnswer(
+      answerJson({ categories: categoriesWithScore(sceneCategories, 10.5) }),
+    );
+
+    expect(check.answer).toBeUndefined();
+    expect(check.errors.some((error) => error.includes('score'))).toBe(true);
+  });
+
+  test('rejects an unknown scope', () => {
+    const check = checkAnswer(answerJson({ scope: 'page' }));
+
+    expect(check.answer).toBeUndefined();
+    expect(check.errors.some((error) => error.includes('scope'))).toBe(true);
+  });
+
+  test('rejects a severity of 5', () => {
+    const check = checkAnswer(answerJson({ findings: [finding('polish', 5)] }));
+
+    expect(check.answer).toBeUndefined();
+    expect(check.errors.some((error) => error.includes('severity'))).toBe(true);
+  });
+
+  test('rejects an unknown hard-failure kind', () => {
+    const check = checkAnswer(
+      answerJson({
+        hardFailures: [{ kind: 'blur', location: 'sidebar', evidence: 'Soft edges.' }],
+      }),
+    );
+
+    expect(check.answer).toBeUndefined();
+    expect(check.errors.some((error) => error.includes('kind'))).toBe(true);
   });
 
   test('rejects an unknown judge', () => {
@@ -296,7 +350,28 @@ describe('gate', () => {
     const result = gate([checkedAnswer(answerJson())]);
 
     expect(result.passed).toBe(false);
-    expect(result.failures.some((failure) => failure.includes(opusJudge))).toBe(true);
+    expect(result.failures).toEqual(['claude-opus-5-5 did not answer']);
+  });
+
+  test('fails when one judge answers twice', () => {
+    const result = gate([
+      checkedAnswer(answerJson()),
+      checkedAnswer(answerJson()),
+      checkedAnswer(answerJson({ judge: opusJudge })),
+    ]);
+
+    expect(result.passed).toBe(false);
+    expect(result.failures).toEqual(['openai/gpt-6.1-sol answered 2 times']);
+  });
+
+  test('fails when answers name different mocks', () => {
+    const result = gate([
+      checkedAnswer(answerJson()),
+      checkedAnswer(answerJson({ judge: opusJudge, mock: 'sidebar-b' })),
+    ]);
+
+    expect(result.passed).toBe(false);
+    expect(result.failures).toEqual(['answers name different mocks: sidebar-a, sidebar-b']);
   });
 
   test('fails when an answer lists a hard failure', () => {

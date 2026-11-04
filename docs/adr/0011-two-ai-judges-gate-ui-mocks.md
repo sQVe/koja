@@ -2,7 +2,7 @@
 
 **Date**: 2026-11-04\
 **Status**: Accepted\
-**Related**: [Judge rubric](../../eval/rubric.md)
+**Related**: [Judge rubric](../../.pi/skills/judge-mock/rubric.md)
 
 ## Context
 
@@ -27,7 +27,9 @@ families gate them. A mock passes only when `bun run check` passes, both judges 
 category, and no hard failure is open.
 
 The judges are `openai/gpt-6.1-sol` and `claude-opus-5-5`. They come from different model families,
-so they share fewer blind spots. Each judge works alone and does not see the other judge's answer.
+so they share fewer blind spots. Each judge works alone and does not see the other judge's answer. A
+project skill runs each round (capture, two fresh judge subagents, and the gate), and the gate
+script only checks answers, so the procedure can change without code.
 
 ### Mocks
 

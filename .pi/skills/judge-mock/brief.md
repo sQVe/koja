@@ -2,19 +2,18 @@
 
 This packet goes to both judges. Both judges get the same packet in the same order and work alone.
 
-The packet holds this brief, `eval/rubric.md`, the scene shot and its crop (section 5), and the
+The packet holds this brief, `rubric.md`, the scene shot and its crop (section 5), and the
 `bun run check` result (section 6). Include the rubric file exactly as it is. Do not edit it, and do
 not summarize it here.
 
 ## 1. Scope and evidence limits
 
-- Name the component, the states shown, the viewport, the input mode, and the kit revision.
+- Name the component, the states shown, the input mode, and the kit revision.
 - Say what is outside scope. A scene does not prove keyboard behavior, recovery, or resizing. The
   real mod in the part's last slice does.
 - The judge reviews the artifact, not the designer's intention.
-- The scene shot is the authoritative image. The crop is for detail. Record the shot's pixel size,
-  the intended logical viewport, the zoom, the device scale factor, and whether fonts finished
-  loading.
+- The scene shot is the authoritative image. The crop is for detail. Record the shot's pixel size
+  and the crop's box in shot pixels.
 - A failing `bun run check` result is never overruled by an opinion that it looks acceptable.
 - Unknown details stay unknown. Ask for better evidence instead of guessing.
 - Scope `scene` scores the first eight categories. The last four are listed in `notAssessed`.
@@ -33,7 +32,7 @@ line each. Examples:
 
 ## 3. Rubric
 
-Included as is: `eval/rubric.md`. Do not restate it in this brief.
+Included as is: `rubric.md`. Do not restate it in this brief.
 
 ## 4. Kit rules
 
@@ -64,9 +63,8 @@ These rules come from ADR 0007 and ADR 0009. They are rules, not preferences.
 The session attaches the images with this section. Provide:
 
 - The scene shot at full native resolution. It is the authoritative image.
-- One crop of the scene in native resolution, with its coordinates and scale. A crop must keep
-  enough neighboring edges to show alignment and grouping.
-- A 2x nearest-neighbor view of the crop for tiny glyphs or corner defects.
+- One crop of the scene in native resolution, with its box in shot pixels. A crop must keep enough
+  neighboring edges to show alignment and grouping.
 - The same crop rules for both judges.
 - No lossy compression and no change of aspect ratio.
 
