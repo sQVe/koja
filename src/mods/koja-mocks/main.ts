@@ -18,9 +18,41 @@ import {
 } from '../../kit/index.ts';
 import { findScene, sceneOrigin } from './catalog.ts';
 import type { SceneName } from './catalog.ts';
+import {
+  dialogClean,
+  dialogClearFail,
+  dialogNearFail,
+  dialogNearPass,
+} from './scenes/calibration/dialog.ts';
+import {
+  paletteClean,
+  paletteClearFail,
+  paletteNearFail,
+  paletteNearPass,
+} from './scenes/calibration/palette.ts';
+import {
+  spacesClean,
+  spacesClearFail,
+  spacesNearFail,
+  spacesNearPass,
+} from './scenes/calibration/spaces.ts';
 import { sidebarScene } from './scenes/sidebar.ts';
 
-const renderers: Record<SceneName, () => Element> = { sidebar: sidebarScene };
+const renderers: Record<SceneName, () => Element> = {
+  sidebar: sidebarScene,
+  'calibration-01': spacesNearFail,
+  'calibration-02': paletteClean,
+  'calibration-03': dialogNearPass,
+  'calibration-04': spacesClean,
+  'calibration-05': dialogClearFail,
+  'calibration-06': paletteNearPass,
+  'calibration-07': spacesNearPass,
+  'calibration-08': dialogNearFail,
+  'calibration-09': paletteClearFail,
+  'calibration-10': spacesClearFail,
+  'calibration-11': dialogClean,
+  'calibration-12': paletteNearFail,
+};
 
 // A refocus after the window has drawn, when its input or focus target can take the keyboard.
 const refocusMilliseconds = 600;

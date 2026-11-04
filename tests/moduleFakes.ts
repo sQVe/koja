@@ -46,6 +46,7 @@ export const gpuiKitFake = (overrides: ModuleFake = {}): ModuleFake => ({
 });
 
 export const kitIndexFake = (overrides: ModuleFake = {}): ModuleFake => ({
+  actionButton: noop,
   closeOverlay: noop,
   colors: noop,
   currentWindow: () => null,

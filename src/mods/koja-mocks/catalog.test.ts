@@ -27,4 +27,12 @@ describe('scene lookup', () => {
   test('spaces around a known name still find the scene', () => {
     expect(findScene('  sidebar  ')).toEqual(findScene('sidebar'));
   });
+
+  test('every calibration scene is found', () => {
+    for (let index = 1; index <= 12; index += 1) {
+      const name = `calibration-${String(index).padStart(2, '0')}`;
+
+      expect(findScene(name)).toHaveProperty('scene.name', name);
+    }
+  });
 });

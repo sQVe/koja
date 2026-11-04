@@ -1,0 +1,257 @@
+{
+  "version": 1,
+  "cases": [
+    {
+      "scene": "calibration-01",
+      "family": "sidebar",
+      "split": "anchor",
+      "tasks": ["Find the space that needs attention.", "Identify the selected space."],
+      "label": {
+        "pass": null,
+        "scores": {
+          "visualHierarchy": null,
+          "typeSpacingDensity": null,
+          "consistency": null,
+          "polish": null,
+          "informationArchitecture": null,
+          "affordances": null,
+          "stateVisibility": null,
+          "taskFit": null
+        },
+        "findings": [],
+        "hardFailures": []
+      }
+    },
+    {
+      "scene": "calibration-02",
+      "family": "palette",
+      "split": "tuning",
+      "tasks": ["Find the command you want.", "Read its keyboard shortcut."],
+      "label": {
+        "pass": null,
+        "scores": {
+          "visualHierarchy": null,
+          "typeSpacingDensity": null,
+          "consistency": null,
+          "polish": null,
+          "informationArchitecture": null,
+          "affordances": null,
+          "stateVisibility": null,
+          "taskFit": null
+        },
+        "findings": [],
+        "hardFailures": []
+      }
+    },
+    {
+      "scene": "calibration-03",
+      "family": "dialog",
+      "split": "heldOut",
+      "tasks": ["Understand what the dialog will do.", "Choose cancel or confirm."],
+      "label": {
+        "pass": null,
+        "scores": {
+          "visualHierarchy": null,
+          "typeSpacingDensity": null,
+          "consistency": null,
+          "polish": null,
+          "informationArchitecture": null,
+          "affordances": null,
+          "stateVisibility": null,
+          "taskFit": null
+        },
+        "findings": [],
+        "hardFailures": []
+      }
+    },
+    {
+      "scene": "calibration-04",
+      "family": "sidebar",
+      "split": "anchor",
+      "tasks": ["Find the space that needs attention.", "Identify the selected space."],
+      "label": {
+        "pass": null,
+        "scores": {
+          "visualHierarchy": null,
+          "typeSpacingDensity": null,
+          "consistency": null,
+          "polish": null,
+          "informationArchitecture": null,
+          "affordances": null,
+          "stateVisibility": null,
+          "taskFit": null
+        },
+        "findings": [],
+        "hardFailures": []
+      }
+    },
+    {
+      "scene": "calibration-05",
+      "family": "dialog",
+      "split": "heldOut",
+      "tasks": ["Understand what the dialog will do.", "Choose cancel or confirm."],
+      "label": {
+        "pass": null,
+        "scores": {
+          "visualHierarchy": null,
+          "typeSpacingDensity": null,
+          "consistency": null,
+          "polish": null,
+          "informationArchitecture": null,
+          "affordances": null,
+          "stateVisibility": null,
+          "taskFit": null
+        },
+        "findings": [],
+        "hardFailures": []
+      }
+    },
+    {
+      "scene": "calibration-06",
+      "family": "palette",
+      "split": "tuning",
+      "tasks": ["Find the command you want.", "Read its keyboard shortcut."],
+      "label": {
+        "pass": null,
+        "scores": {
+          "visualHierarchy": null,
+          "typeSpacingDensity": null,
+          "consistency": null,
+          "polish": null,
+          "informationArchitecture": null,
+          "affordances": null,
+          "stateVisibility": null,
+          "taskFit": null
+        },
+        "findings": [],
+        "hardFailures": []
+      }
+    },
+    {
+      "scene": "calibration-07",
+      "family": "sidebar",
+      "split": "anchor",
+      "tasks": ["Find the space that needs attention.", "Identify the selected space."],
+      "label": {
+        "pass": null,
+        "scores": {
+          "visualHierarchy": null,
+          "typeSpacingDensity": null,
+          "consistency": null,
+          "polish": null,
+          "informationArchitecture": null,
+          "affordances": null,
+          "stateVisibility": null,
+          "taskFit": null
+        },
+        "findings": [],
+        "hardFailures": []
+      }
+    },
+    {
+      "scene": "calibration-08",
+      "family": "dialog",
+      "split": "heldOut",
+      "tasks": ["Understand what the dialog will do.", "Choose cancel or confirm."],
+      "label": {
+        "pass": null,
+        "scores": {
+          "visualHierarchy": null,
+          "typeSpacingDensity": null,
+          "consistency": null,
+          "polish": null,
+          "informationArchitecture": null,
+          "affordances": null,
+          "stateVisibility": null,
+          "taskFit": null
+        },
+        "findings": [],
+        "hardFailures": []
+      }
+    },
+    {
+      "scene": "calibration-09",
+      "family": "palette",
+      "split": "tuning",
+      "tasks": ["Find the command you want.", "Read its keyboard shortcut."],
+      "label": {
+        "pass": null,
+        "scores": {
+          "visualHierarchy": null,
+          "typeSpacingDensity": null,
+          "consistency": null,
+          "polish": null,
+          "informationArchitecture": null,
+          "affordances": null,
+          "stateVisibility": null,
+          "taskFit": null
+        },
+        "findings": [],
+        "hardFailures": []
+      }
+    },
+    {
+      "scene": "calibration-10",
+      "family": "sidebar",
+      "split": "anchor",
+      "tasks": ["Find the space that needs attention.", "Identify the selected space."],
+      "label": {
+        "pass": null,
+        "scores": {
+          "visualHierarchy": null,
+          "typeSpacingDensity": null,
+          "consistency": null,
+          "polish": null,
+          "informationArchitecture": null,
+          "affordances": null,
+          "stateVisibility": null,
+          "taskFit": null
+        },
+        "findings": [],
+        "hardFailures": []
+      }
+    },
+    {
+      "scene": "calibration-11",
+      "family": "dialog",
+      "split": "heldOut",
+      "tasks": ["Understand what the dialog will do.", "Choose cancel or confirm."],
+      "label": {
+        "pass": null,
+        "scores": {
+          "visualHierarchy": null,
+          "typeSpacingDensity": null,
+          "consistency": null,
+          "polish": null,
+          "informationArchitecture": null,
+          "affordances": null,
+          "stateVisibility": null,
+          "taskFit": null
+        },
+        "findings": [],
+        "hardFailures": []
+      }
+    },
+    {
+      "scene": "calibration-12",
+      "family": "palette",
+      "split": "tuning",
+      "tasks": ["Find the command you want.", "Read its keyboard shortcut."],
+      "label": {
+        "pass": null,
+        "scores": {
+          "visualHierarchy": null,
+          "typeSpacingDensity": null,
+          "consistency": null,
+          "polish": null,
+          "informationArchitecture": null,
+          "affordances": null,
+          "stateVisibility": null,
+          "taskFit": null
+        },
+        "findings": [],
+        "hardFailures": []
+      }
+    }
+  ]
+}
