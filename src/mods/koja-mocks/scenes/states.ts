@@ -1,6 +1,5 @@
 import { h_flex, v_flex } from 'gpui-base';
 import type { Element } from 'gpui-kit';
-import { div } from 'gpui-kit';
 
 import type { FileStatus } from '../../../kit/index.ts';
 import {
@@ -10,6 +9,7 @@ import {
   listRow,
   radius,
   roleText,
+  shortAge,
   spacing,
   stateLine,
   toggleButton,
@@ -63,44 +63,30 @@ const panel = (count: string | null, content: Element[]): Element =>
     .child(panelHeader(count))
     .child(v_flex().py(spacing.xsmall).children(content));
 
-const example = (name: string, card: Element): Element =>
-  v_flex()
-    .flex_none()
-    .gap(spacing.xsmall)
-    .child(div().px(spacing.xxsmall).child(roleText('sectionHeading', name)))
-    .child(card);
+// The fake clock the stale card's age counts back from, in seconds.
+const fakeNow = 1_800_000_000;
+
+const lastGoodRead = 1_799_999_760;
+
+const staleText = `Could not refresh. Showing changes from ${shortAge(lastGoodRead, fakeNow)} ago.`;
 
 export const statesScene = (): Element =>
   v_flex()
     .flex_1()
     .min_h(0)
     .px(spacing.large)
-    .pt(spacing.small)
-    .pb(spacing.large)
-    .gap(spacing.medium)
+    .py(spacing.large)
+    .gap(spacing.large)
+    .child(panel('0 files', [stateLine({ kind: 'empty', text: 'No uncommitted changes' })]))
+    .child(panel(null, [stateLine({ kind: 'loading', text: 'Loading changes…' })]))
     .child(
-      example(
-        'Empty',
-        panel('0 files', [stateLine({ kind: 'empty', text: 'No uncommitted changes' })]),
-      ),
+      panel(null, [
+        stateLine({ kind: 'error', text: 'Could not read git status.', action: retry() }),
+      ]),
     )
     .child(
-      example('Loading', panel(null, [stateLine({ kind: 'loading', text: 'Loading changes…' })])),
-    )
-    .child(
-      example(
-        'Error',
-        panel(null, [
-          stateLine({ kind: 'error', text: 'Could not read git status.', action: retry() }),
-        ]),
-      ),
-    )
-    .child(
-      example(
-        'Stale',
-        panel(`${staleFiles.length} files`, [
-          stateLine({ kind: 'error', text: 'Could not read git status.', action: retry() }),
-          ...staleFiles.map(fileRow),
-        ]),
-      ),
+      panel(`${staleFiles.length} files`, [
+        stateLine({ kind: 'error', text: staleText, action: retry() }),
+        ...staleFiles.map(fileRow),
+      ]),
     );

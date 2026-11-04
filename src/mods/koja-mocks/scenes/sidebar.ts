@@ -15,6 +15,7 @@ import {
   radius,
   repoLabel,
   sectionHeader,
+  shortAge,
   spaceMark,
   spacing,
   stateLine,
@@ -44,40 +45,61 @@ interface FakeRepo {
   spaces: FakeSpace[];
 }
 
+// The fake clock the scene's ages count back from, in seconds.
+const fakeNow = 1_800_000_000;
+
+// When each repository's main branch last changed, in seconds.
+const kojaCommittedAt = 1_799_992_200;
+
+const tikkCommittedAt = 1_799_740_800;
+
+const ageOf = (thenSeconds: number): string => shortAge(thenSeconds, fakeNow);
+
 const fakeRepos: FakeRepo[] = [
   {
     name: 'koja',
-    detail: 'main · 2h',
+    detail: `main · ${ageOf(kojaCommittedAt)}`,
     status: 'blocked',
+    error: 'Could not read pull requests.',
     spaces: [
       {
-        label: 'Sidebar density',
+        label: 'me-1088-ui-foundation',
         status: 'working',
         state: 'normal',
         pull: { number: 24, token: 'ansi2' },
       },
       {
-        label: 'feature/a-branch-name-long-enough-to-run-past-the-sidebar-edge',
+        label: 'me-1104-judge-findings-only-and-a-name-long-enough-to-truncate',
         status: 'idle',
         state: 'selected',
       },
-      { label: 'Theme contrast', status: 'blocked', state: 'normal', badge: 'Needs you' },
-      { label: 'Scratch', status: null, state: 'normal', hovered: true },
+      {
+        label: 'fix-pr-badge',
+        status: 'blocked',
+        state: 'normal',
+        pull: { number: 27, token: 'dim' },
+        badge: 'Needs you',
+      },
+      { label: 'scratch', status: null, state: 'normal', hovered: true },
     ],
   },
   {
     name: 'tikk',
-    detail: 'main · 3d',
+    detail: `main · ${ageOf(tikkCommittedAt)}`,
     status: 'done',
-    error: 'Could not read pull requests.',
     spaces: [
       {
-        label: 'Ticket sync',
+        label: 'ticket-sync',
         status: 'done',
         state: 'normal',
         pull: { number: 12, token: 'ansi5' },
       },
-      { label: 'Release notes', status: null, state: 'normal' },
+      {
+        label: 'release-notes',
+        status: null,
+        state: 'normal',
+        pull: { number: 15, token: 'ansi2' },
+      },
     ],
   },
 ];
@@ -120,13 +142,13 @@ const errorLine = (text: string): Element =>
   stateLine({ kind: 'error', text, action: toggleButton({ label: 'Retry', active: false }) });
 
 const repoGroup = (repo: FakeRepo): Element => {
-  const group = v_flex();
+  const group = v_flex().child(repoRow(repo));
 
   if (repo.error !== undefined) {
     group.child(errorLine(repo.error));
   }
 
-  return group.child(repoRow(repo)).children(repo.spaces.map(spaceRow));
+  return group.children(repo.spaces.map(spaceRow));
 };
 
 const machineHeader = (): Element =>
