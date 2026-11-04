@@ -328,7 +328,7 @@ export const createExecutor = (deps: ExecutorDeps): Executor => {
 
     switch (action.kind) {
       case 'command': {
-        deps.run(action.command);
+        deps.run(action.command, action.args);
 
         break;
       }

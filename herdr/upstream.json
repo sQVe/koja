@@ -1,5 +1,5 @@
 {
-  "declarations": "0.1.11",
+  "declarations": "0.1.13",
   "mods": {
     "koja-changes": { "source": "defaults/mods/changes", "release": "0.1.12" },
     "koja-menu": { "source": "defaults/mods/menu", "release": "0.1.11" },

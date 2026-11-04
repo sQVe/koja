@@ -23,7 +23,11 @@ interface Session {
   publishOrder: (shown: string[], hidden?: string[]) => void;
 }
 
-const command = (name: string): NormalAction => ({ kind: 'command', command: name });
+const command = (name: string, args?: Record<string, unknown>): NormalAction => ({
+  kind: 'command',
+  command: name,
+  ...(args === undefined ? {} : { args }),
+});
 
 const intent = (name: NormalIntent): NormalAction => ({ kind: 'intent', intent: name });
 
@@ -288,13 +292,13 @@ describe('observed history', () => {
     const session = createSession(agentPanes, 'p1', 'tab-1');
 
     session.act(intent('nextPane'));
-    session.act(command('pane.go:right'));
+    session.act(command('pane.go', { direction: 'right' }));
 
     session.act(intent('lastPane'));
 
     expect(session.calls).toEqual([
       { command: 'pane.focus', args: { pane: 'p2' } },
-      { command: 'pane.go:right', args: undefined },
+      { command: 'pane.go', args: { direction: 'right' } },
       { command: 'pane.focus', args: { pane: 'p1' } },
     ]);
   });
@@ -530,12 +534,12 @@ describe('tabs and overlays', () => {
   test('Backspace opens the palette and Space Space opens the picker', () => {
     const session = createSession(twoPanes, 'p1', 'tab-1');
 
-    session.act(command('mod.open:koja-palette'));
-    session.act(command('mod.open:koja-picker'));
+    session.act(command('mod.open', { name: 'koja-palette' }));
+    session.act(command('mod.open', { name: 'koja-picker' }));
 
     expect(session.calls).toEqual([
-      { command: 'mod.open:koja-palette', args: undefined },
-      { command: 'mod.open:koja-picker', args: undefined },
+      { command: 'mod.open', args: { name: 'koja-palette' } },
+      { command: 'mod.open', args: { name: 'koja-picker' } },
     ]);
   });
 });

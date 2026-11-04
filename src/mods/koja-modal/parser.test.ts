@@ -52,7 +52,7 @@ describe('normal mode sequences', () => {
 
     expect(result).toMatchObject({
       status: 'action',
-      action: { kind: 'command', command: 'pane.split:right' },
+      action: { kind: 'command', command: 'pane.split', args: { direction: 'right' } },
     });
 
     expect(result.state).toEqual(initialParserState);
@@ -108,7 +108,25 @@ describe('normal mode sequences', () => {
 
     expect(result).toMatchObject({
       status: 'action',
-      action: { kind: 'command', command: 'mod.open:koja-palette' },
+      action: { kind: 'command', command: 'mod.open', args: { name: 'koja-palette' } },
+    });
+  });
+
+  test('resolves ctrl-u to half a page up in the terminal', () => {
+    const result = feed([control('u', 'ctrl-u')]);
+
+    expect(result).toMatchObject({
+      status: 'action',
+      action: { kind: 'command', command: 'terminal.scroll', args: { pages: -0.5 } },
+    });
+  });
+
+  test('resolves g g to the top of the terminal', () => {
+    const result = feed([plain('g'), plain('g')]);
+
+    expect(result).toMatchObject({
+      status: 'action',
+      action: { kind: 'command', command: 'terminal.scroll', args: { to: 'top' } },
     });
   });
 });
@@ -275,12 +293,12 @@ describe('normal mode agents and palette', () => {
   test('resolves Backspace and Space Space', () => {
     expect(feed([named('backspace', 'backspace')])).toMatchObject({
       status: 'action',
-      action: { kind: 'command', command: 'mod.open:koja-palette' },
+      action: { kind: 'command', command: 'mod.open', args: { name: 'koja-palette' } },
     });
 
     expect(feed([named('space', 'space'), named('space', 'space')])).toMatchObject({
       status: 'action',
-      action: { kind: 'command', command: 'mod.open:koja-picker' },
+      action: { kind: 'command', command: 'mod.open', args: { name: 'koja-picker' } },
     });
   });
 

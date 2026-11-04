@@ -21,7 +21,7 @@ const stopPress = (_event: unknown, cx: Context): void => {
 };
 
 const opensOverlay = (action: NormalAction): boolean =>
-  action.kind === 'command' && action.command.startsWith('mod.open');
+  action.kind === 'command' && action.command === 'mod.open';
 
 export default class KojaModal extends View {
   private handle: FocusHandle | null = null;
@@ -89,7 +89,11 @@ export default class KojaModal extends View {
   }
 
   private handleKey(event: KeyEvent, cx: Context): void {
-    const result = parseKey(this.state, normalizeKey(event));
+    this.handleKeyName(normalizeKey(event), cx);
+  }
+
+  private handleKeyName(key: string, cx: Context): void {
+    const result = parseKey(this.state, key);
 
     this.state = result.state;
 
@@ -136,6 +140,7 @@ export default class KojaModal extends View {
         const command = await nextCommand();
 
         if (command === 'hold') {
+          this.handleKeyName('ctrl-b', cx);
           this.hold.check();
         }
       }
