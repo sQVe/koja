@@ -27,4 +27,16 @@ describe('scene lookup', () => {
   test('spaces around a known name still find the scene', () => {
     expect(findScene('  sidebar  ')).toEqual(findScene('sidebar'));
   });
+
+  test('every smoke scene is found', () => {
+    for (let index = 1; index <= 4; index += 1) {
+      const name = `smoke-${index}`;
+
+      expect(findScene(name)).toHaveProperty('scene.name', name);
+    }
+  });
+
+  test('a name past the last smoke scene gives an error', () => {
+    expect('error' in findScene('smoke-5')).toBe(true);
+  });
 });

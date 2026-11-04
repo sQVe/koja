@@ -5,22 +5,34 @@ export interface Point {
   y: number;
 }
 
-export type SceneName = 'sidebar';
-
-interface Scene {
-  name: SceneName;
+interface SceneSize {
   width: number;
   height: number;
 }
 
+interface Scene extends SceneSize {
+  name: SceneName;
+}
+
 export type SceneLookup = { scene: Scene } | { error: string };
+
+const paletteSize: SceneSize = {
+  width: overlaySize.pickerListWidth,
+  height: overlaySize.wideMenuHeight,
+};
+
+const sceneSizes = {
+  sidebar: { width: overlaySize.wideMenuWidth, height: overlaySize.wideMenuHeight },
+  'smoke-1': paletteSize,
+  'smoke-2': paletteSize,
+  'smoke-3': paletteSize,
+  'smoke-4': paletteSize,
+} as const satisfies Record<string, SceneSize>;
+
+export type SceneName = keyof typeof sceneSizes;
 
 // Logical px from the top left of the window, where every scene window opens.
 export const sceneOrigin: Point = { x: spacing.xxlarge, y: overlaySize.topOffset };
-
-const sceneSizes: Record<SceneName, { width: number; height: number }> = {
-  sidebar: { width: overlaySize.wideMenuWidth, height: overlaySize.wideMenuHeight },
-};
 
 const sceneNames = Object.keys(sceneSizes);
 

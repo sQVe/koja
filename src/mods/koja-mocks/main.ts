@@ -17,10 +17,22 @@ import {
   stringOf,
 } from '../../kit/index.ts';
 import { findScene, sceneOrigin } from './catalog.ts';
-import type { SceneName } from './catalog.ts';
+import type { SceneLookup, SceneName } from './catalog.ts';
 import { sidebarScene } from './scenes/sidebar.ts';
+import {
+  paletteClean,
+  paletteClearFail,
+  paletteNearFail,
+  paletteNearPass,
+} from './scenes/smoke/palette.ts';
 
-const renderers: Record<SceneName, () => Element> = { sidebar: sidebarScene };
+const renderers: Record<SceneName, (sceneInput: InputState) => Element> = {
+  sidebar: sidebarScene,
+  'smoke-1': paletteNearFail,
+  'smoke-2': paletteClean,
+  'smoke-3': paletteClearFail,
+  'smoke-4': paletteNearPass,
+};
 
 // A refocus after the window has drawn, when its input or focus target can take the keyboard.
 const refocusMilliseconds = 600;
@@ -35,6 +47,8 @@ export default class Mocks extends View {
   private handle: FocusHandle | null = null;
 
   private readonly input: InputState = InputStates.new({ placeholder: 'Scene name…' });
+
+  private readonly sceneInput: InputState = InputStates.new({ placeholder: 'Type a command…' });
 
   override init(_props: unknown, cx: AsyncContext): void {
     this.handle = cx.focus_handle();
@@ -100,9 +114,16 @@ export default class Mocks extends View {
     );
   }
 
+  private sceneContent(lookup: SceneLookup): Element {
+    if ('error' in lookup) {
+      return emptyState(lookup.error);
+    }
+
+    return renderers[lookup.scene.name](this.sceneInput);
+  }
+
   private scene(name: string): Element {
-    const lookup = findScene(name);
-    const content = 'error' in lookup ? emptyState(lookup.error) : renderers[lookup.scene.name]();
+    const content = this.sceneContent(findScene(name));
 
     const header = h_flex()
       .flex_none()
