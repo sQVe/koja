@@ -150,6 +150,21 @@ describe('normal mode window chords', () => {
     expect(withArrow).toEqual(withControl);
   });
 
+  test.each(arrows)('resolves ctrl-%s alone like ctrl-%s', (arrow, letter) => {
+    const controlArrow = event({
+      key: arrow,
+      keystroke: `ctrl-${arrow}`,
+      modifiers: { ...noModifiers, control: true },
+    });
+
+    const withControlArrow = feed([controlArrow]);
+
+    const withControl = feed([control(letter, `ctrl-${letter}`)]);
+
+    expect(withControl.status).toBe('action');
+    expect(withControlArrow).toEqual(withControl);
+  });
+
   test('clears pending on ctrl-w ctrl-c without an action', () => {
     const result = feed([ctrlW, control('c', 'ctrl-c')]);
 
