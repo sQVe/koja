@@ -34,6 +34,7 @@
     "!src/mods/koja-changes/rows.ts",
     "!src/mods/koja-gallery/actions.ts",
     "!src/mods/koja-gallery/sample.ts",
+    "!src/mods/koja-mocks/scenes/*.ts",
     "!src/mods/koja-picker/launch.ts",
     "!src/mods/koja-picker/previewSession.ts",
     "!src/mods/koja-spaces/gitTracker.ts",
