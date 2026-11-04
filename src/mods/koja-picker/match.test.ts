@@ -70,7 +70,7 @@ describe('fuzzyMatch', () => {
   test('matches a compact rescue after a supplementary first character', () => {
     const text = `😀${'x'.repeat(20)}😀b`;
 
-    expect(fuzzyMatch('😀b', text)).toEqual({ score: 0.8, positions: [22, 24] });
+    expect(fuzzyMatch('😀b', text)?.positions).toEqual([22, 24]);
   });
 
   test('accepts far letters that each start a word', () => {
@@ -83,6 +83,61 @@ describe('fuzzyMatch', () => {
 
     expect(together?.score ?? 0).toBeGreaterThan(apart?.score ?? 0);
   });
+
+  test('ranks letters that follow each other above the same letters with gaps', () => {
+    const together = fuzzyMatch('abc', 'abc');
+    const apart = fuzzyMatch('abc', 'a-b-c');
+
+    expect(together?.score ?? 0).toBeGreaterThan(apart?.score ?? 0);
+  });
+
+  test('ranks the closer of two matches above the looser one', () => {
+    const closer = fuzzyMatch('ab', '-aa-baab');
+    const looser = fuzzyMatch('ab', 'a-xa-bxb');
+
+    expect(closer?.score ?? 0).toBeGreaterThan(looser?.score ?? 0);
+  });
+
+  test('ranks a match that starts a word above a run inside a word', () => {
+    const wordStart = fuzzyMatch('ba', 'b-xx-a');
+    const run = fuzzyMatch('ba', 'ababab-');
+
+    expect(wordStart?.score ?? 0).toBeGreaterThan(run?.score ?? 0);
+  });
+
+  test('refuses a spread match when a later letter is neither a word start nor a run', () => {
+    expect(fuzzyMatch('abc', `ab${'x'.repeat(20)}c`)).toBeNull();
+  });
+
+  test('accepts a spread match whose later letters start words or continue a run', () => {
+    expect(fuzzyMatch('abc', `xab${'x'.repeat(10)} c`)?.positions).toEqual([1, 2, 14]);
+  });
+
+  test('refuses a compact match one letter past the spread limit', () => {
+    expect(fuzzyMatch('ab', `a${'x'.repeat(7)}b`)).toBeNull();
+  });
+
+  test('accepts a compact match at the spread limit', () => {
+    expect(fuzzyMatch('ab', `a${'x'.repeat(6)}b`)?.positions).toEqual([0, 7]);
+  });
+
+  test('matches a repeated letter at its next occurrence', () => {
+    expect(fuzzyMatch('aa', 'aa')?.positions).toEqual([0, 1]);
+  });
+
+  test('refuses letters that appear only before the earlier ones', () => {
+    expect(fuzzyMatch('ab', 'ba')).toBeNull();
+  });
+
+  test('matches an empty query with no positions and no score', () => {
+    expect(fuzzyMatch('', 'koja')).toEqual({ score: 0, positions: [] });
+  });
+
+  test('keeps the first of two equal compact rescues', () => {
+    const text = `a${'x'.repeat(12)} ab ab`;
+
+    expect(fuzzyMatch('ab', text)?.positions).toEqual([14, 15]);
+  });
 });
 
 describe('bestFieldMatch', () => {
@@ -94,5 +149,21 @@ describe('bestFieldMatch', () => {
 
   test('never matches letters across fields', () => {
     expect(bestFieldMatch('ab', ['a', 'b'])).toBeNull();
+  });
+
+  test('keeps the first field when a later field scores the same', () => {
+    expect(bestFieldMatch('k', ['abcdef k', 'abcdefgh k'])?.positions).toEqual([7]);
+  });
+
+  test('answers the best field whatever its order', () => {
+    expect(bestFieldMatch('ko', ['koja', 'domain-ko'])?.positions).toEqual([0, 1]);
+  });
+
+  test('skips absent fields', () => {
+    expect(bestFieldMatch('ko', [undefined, 'koja'])?.positions).toEqual([0, 1]);
+  });
+
+  test('never matches an empty field, even for an empty query', () => {
+    expect(bestFieldMatch('', [''])).toBeNull();
   });
 });

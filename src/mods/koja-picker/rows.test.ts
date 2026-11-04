@@ -108,7 +108,7 @@ const keysOf = (rows: { key: string }[]): string[] => rows.map((row) => row.key)
 
 describe('buildRows', () => {
   test('lists tabs of spaces with several tabs, and panes of tabs with several panes', () => {
-    expect(keysOf(buildRows('', null, data()))).toEqual([
+    expect(keysOf(buildRows('', null, data()))).toStrictEqual([
       'space:s1',
       'tab:k1',
       'pane:p1',
@@ -125,7 +125,11 @@ describe('buildRows', () => {
   });
 
   test('keeps only spaces, tabs, and panes in the filtered status', () => {
-    expect(keysOf(buildRows('', ['blocked'], data()))).toEqual(['space:s1', 'tab:k1', 'pane:p2']);
+    expect(keysOf(buildRows('', ['blocked'], data()))).toStrictEqual([
+      'space:s1',
+      'tab:k1',
+      'pane:p2',
+    ]);
   });
 
   test('keeps an idle space when a background child is working', () => {
@@ -137,7 +141,7 @@ describe('buildRows', () => {
       [{ address: 't-child', parent: 't-p1', status: 'working' }],
     );
 
-    expect(keysOf(buildRows('', ['working'], fixture))).toEqual(['space:s1', 'tab:k1']);
+    expect(keysOf(buildRows('', ['working'], fixture))).toStrictEqual(['space:s1', 'tab:k1']);
   });
 
   test('drops a done space from the done filter when a child works', () => {
@@ -149,16 +153,16 @@ describe('buildRows', () => {
       [{ address: 't-child', parent: 't-p1', status: 'working' }],
     );
 
-    expect(keysOf(buildRows('', ['done'], fixture))).toEqual([]);
-    expect(keysOf(buildRows('', ['working'], fixture))).toEqual(['space:s1', 'tab:k1']);
+    expect(keysOf(buildRows('', ['done'], fixture))).toStrictEqual([]);
+    expect(keysOf(buildRows('', ['working'], fixture))).toStrictEqual(['space:s1', 'tab:k1']);
   });
 
   test('keeps only spaces that match the query', () => {
-    expect(keysOf(buildRows('nts', null, data()))).toEqual(['space:s2']);
+    expect(keysOf(buildRows('nts', null, data()))).toStrictEqual(['space:s2']);
   });
 
   test('lists a tab that holds only mod panes', () => {
-    expect(keysOf(buildRows('', null, withModOnlyTab()))).toEqual([
+    expect(keysOf(buildRows('', null, withModOnlyTab()))).toStrictEqual([
       'space:s1',
       'tab:k1',
       'tab:k2',
@@ -167,7 +171,7 @@ describe('buildRows', () => {
   });
 
   test('matches a query against the title of a mod pane', () => {
-    expect(keysOf(buildRows('gallery', null, withModOnlyTab()))).toEqual([
+    expect(keysOf(buildRows('gallery', null, withModOnlyTab()))).toStrictEqual([
       'space:s1',
       'tab:k1',
       'tab:k2',
@@ -175,7 +179,7 @@ describe('buildRows', () => {
   });
 
   test('gives a mod pane beside a terminal its own row', () => {
-    expect(keysOf(buildRows('', null, withMixedTab()))).toEqual([
+    expect(keysOf(buildRows('', null, withMixedTab()))).toStrictEqual([
       'space:s1',
       'tab:k1',
       'pane:p1',
@@ -183,6 +187,84 @@ describe('buildRows', () => {
       'tab:k2',
       'space:s2',
     ]);
+  });
+
+  test('labels each row with its kind', () => {
+    expect(buildRows('', null, data()).map((row) => row.kind)).toEqual([
+      'space',
+      'tab',
+      'pane',
+      'pane',
+      'tab',
+      'space',
+    ]);
+  });
+
+  test('matches a space by its status word', () => {
+    expect(keysOf(buildRows('needs you', null, data()))).toContain('space:s1');
+  });
+
+  test('matches a space by the status word of one of its tabs', () => {
+    const fixture = data({
+      spaces: [spaceOf('s1', 1, 'koja', [tabOf('k1', 1, true), tabOf('k2', 2)])],
+      panes: [paneOf('p1', 'k1', 'blocked'), paneOf('p3', 'k2', 'idle')],
+    });
+
+    expect(keysOf(buildRows('idle', null, fixture))).toContain('space:s1');
+  });
+
+  test('keeps only the panes in the filtered status', () => {
+    const fixture = data({
+      spaces: [spaceOf('s1', 1, 'koja', [tabOf('k1', 1, true), tabOf('k2', 2)])],
+      panes: [paneOf('p1', 'k1', 'done'), paneOf('p2', 'k1', 'blocked'), paneOf('p3', 'k2')],
+    });
+
+    expect(keysOf(buildRows('', ['blocked'], fixture))).toStrictEqual([
+      'space:s1',
+      'tab:k1',
+      'pane:p2',
+    ]);
+  });
+
+  test('lists a pane of a tab outside the filter when the pane matches', () => {
+    const fixture = data({
+      spaces: [spaceOf('s1', 1, 'koja', [tabOf('k1', 1, true), tabOf('k2', 2)])],
+      panes: [
+        paneOf('p1', 'k1', 'done'),
+        paneOf('p2', 'k1', 'working'),
+        paneOf('p3', 'k2', 'blocked'),
+      ],
+    });
+
+    expect(keysOf(buildRows('', ['done', 'blocked'], fixture))).toStrictEqual([
+      'space:s1',
+      'pane:p1',
+      'tab:k2',
+    ]);
+  });
+
+  test('lists the spaces by how well they match the query', () => {
+    const fixture = data({
+      spaces: [
+        spaceOf('a', 2, 'koja', [tabOf('a1', 1, true)]),
+        spaceOf('b', 1, 'xkoja', [tabOf('b1', 1, true)]),
+      ],
+      panes: [],
+    });
+
+    expect(keysOf(buildRows('koja', null, fixture))).toStrictEqual(['space:a', 'space:b']);
+  });
+
+  test('ranks a space whose name matches above one matched only by its branch', () => {
+    const fixture = data({
+      spaces: [
+        spaceOf('a', 2, 'koja', [tabOf('a1', 1, true)]),
+        { ...spaceOf('b', 1, 'xyz', [tabOf('b1', 1, true)]), branch: 'koja' },
+      ],
+      panes: [],
+    });
+
+    expect(keysOf(buildRows('koja', null, fixture))).toStrictEqual(['space:a', 'space:b']);
   });
 });
 
@@ -280,6 +362,136 @@ describe('rowPane', () => {
     expect(rowPane(spaceRow, data({ focus: { k1: 'p1' } }))?.pane).toBe('p1');
     expect(rowPane(spaceRow, data())?.pane).toBe('p2');
   });
+
+  test('answers no pane for a missing row', () => {
+    expect(rowPane(undefined, data())).toBeNull();
+  });
+
+  test('answers no pane for a space row without tabs', () => {
+    const fixture = data({ spaces: [spaceOf('s1', 1, 'koja', [])], panes: [paneOf('p1', 'k1')] });
+    const [row] = buildRows('', null, fixture);
+
+    expect(rowPane(row, fixture)).toBeNull();
+  });
+
+  test('targets the most urgent pane of an unfiltered tab row', () => {
+    const tabRow = buildRows('', null, data()).find((row) => row.key === 'tab:k1');
+
+    expect(rowPane(tabRow, data())?.pane).toBe('p2');
+  });
+
+  test('targets the first pane in the filter of a filtered tab row', () => {
+    const fixture = data({
+      spaces: [spaceOf('s1', 1, 'koja', [tabOf('k1', 1, true), tabOf('k2', 2)])],
+      panes: [paneOf('p1', 'k1', 'idle'), paneOf('p2', 'k1', 'blocked'), paneOf('p3', 'k2')],
+    });
+
+    const tabRow = buildRows('', ['idle', 'blocked'], fixture).find((row) => row.key === 'tab:k1');
+
+    expect(rowPane(tabRow, fixture)?.pane).toBe('p1');
+  });
+
+  test('prefers the pane focused in the tab over the most urgent one', () => {
+    const fixture = data({
+      spaces: [spaceOf('s1', 1, 'koja', [tabOf('k1', 1, true), tabOf('k2', 2)])],
+      panes: [
+        { ...paneOf('p1', 'k1'), focused: true },
+        paneOf('p2', 'k1', 'blocked'),
+        paneOf('p3', 'k2'),
+      ],
+    });
+
+    const tabRow = buildRows('', null, fixture).find((row) => row.key === 'tab:k1');
+
+    expect(rowPane(tabRow, fixture)?.pane).toBe('p1');
+  });
+
+  test('targets the pane in the filtered status over a focused pane', () => {
+    const fixture = data({
+      spaces: [spaceOf('s1', 1, 'koja', [tabOf('k1', 1, true), tabOf('k2', 2)])],
+      panes: [
+        { ...paneOf('p1', 'k1'), focused: true },
+        paneOf('p2', 'k1', 'blocked'),
+        paneOf('p3', 'k2'),
+      ],
+    });
+
+    const [spaceRow] = buildRows('', ['blocked'], fixture);
+
+    expect(rowPane(spaceRow, fixture)?.pane).toBe('p2');
+  });
+
+  test('targets the tab of a pane the query matches', () => {
+    const fixture = data({
+      spaces: [spaceOf('s1', 1, 'koja', [tabOf('k1', 1, true), tabOf('k2', 2)])],
+      panes: [paneOf('p1', 'k1'), { ...paneOf('p2', 'k2'), title: 'Gallery' }],
+    });
+
+    const [spaceRow] = buildRows('gallery', null, fixture);
+
+    expect(spaceRow?.tab?.id).toBe('k2');
+    expect(rowPane(spaceRow, fixture)?.pane).toBe('p2');
+  });
+
+  test('targets the best-scoring pane even when a weaker match comes first', () => {
+    const fixture = data({
+      spaces: [spaceOf('s1', 1, 'koja', [tabOf('k1', 1, true), tabOf('k2', 2)])],
+      panes: [
+        { ...paneOf('p1', 'k1'), title: 'x-gallery' },
+        { ...paneOf('p2', 'k1'), title: 'gallery' },
+        paneOf('p3', 'k2'),
+      ],
+    });
+
+    const [spaceRow] = buildRows('gallery', null, fixture);
+
+    expect(rowPane(spaceRow, fixture)?.pane).toBe('p2');
+  });
+
+  test('keeps the pane target empty when the space name scores as well as the pane', () => {
+    const fixture = data({
+      spaces: [spaceOf('s1', 1, 'koja', [tabOf('k1', 1, true), tabOf('k2', 2)])],
+      panes: [
+        { ...paneOf('p1', 'k1'), cwd: '/work/koja' },
+        paneOf('p2', 'k1', 'blocked'),
+        paneOf('p3', 'k2'),
+      ],
+    });
+
+    const [spaceRow] = buildRows('koja', null, fixture);
+
+    expect(rowPane(spaceRow, fixture)?.pane).toBe('p2');
+  });
+
+  test('targets a pane that scores above the space name', () => {
+    const fixture = data({
+      spaces: [spaceOf('s1', 1, 'my-koja', [tabOf('k1', 1, true), tabOf('k2', 2)])],
+      panes: [
+        { ...paneOf('p1', 'k1'), cwd: '/work/koja' },
+        paneOf('p2', 'k1', 'blocked'),
+        paneOf('p3', 'k2'),
+      ],
+    });
+
+    const [spaceRow] = buildRows('koja', null, fixture);
+
+    expect(rowPane(spaceRow, fixture)?.pane).toBe('p1');
+  });
+
+  test('keeps the pane target empty when the space status word scores as well', () => {
+    const fixture = data({
+      spaces: [spaceOf('s1', 1, 'koja', [tabOf('k1', 1, true), tabOf('k2', 2)])],
+      panes: [
+        { ...paneOf('p1', 'k1'), title: 'needs you' },
+        paneOf('p2', 'k1', 'blocked'),
+        paneOf('p3', 'k2'),
+      ],
+    });
+
+    const [spaceRow] = buildRows('needs you', null, fixture);
+
+    expect(rowPane(spaceRow, fixture)?.pane).toBe('p2');
+  });
 });
 
 describe('paneLabel', () => {
@@ -301,6 +513,14 @@ describe('paneDetail', () => {
 
   test('answers nothing for a mod pane', () => {
     expect(paneDetail(modPaneOf('m1', 'k1', 'Gallery'))).toBeNull();
+  });
+
+  test('takes the folder name from a path with a trailing slash', () => {
+    expect(paneDetail({ ...paneOf('p1', 'k1'), cwd: '/home/me/koja/' })).toBe('koja');
+  });
+
+  test('answers nothing for a terminal with no folder or branch', () => {
+    expect(paneDetail(paneOf('p1', 'k1'))).toBeNull();
   });
 });
 

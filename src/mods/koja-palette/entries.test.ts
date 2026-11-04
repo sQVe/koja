@@ -10,7 +10,7 @@ interface Command {
 }
 
 let commandList: Command[] = [];
-const layoutList: string[] = ['main'];
+let layoutList: string[] = ['main'];
 let platform: string | null = 'linux';
 let themeList: { name: string; label: string }[] = [];
 
@@ -93,6 +93,107 @@ describe('allEntries', () => {
 
     expect(allEntries(host()).some((item) => item.name === 'window.minimize')).toBe(true);
   });
+
+  test('keeps non-window commands on macOS', () => {
+    commandList = [commandOf('window.minimize'), commandOf('tab.new')];
+
+    platform = 'macos';
+
+    const names = allEntries(host()).map((item) => item.name);
+
+    expect(names).not.toContain('window.minimize');
+    expect(names).toContain('tab.new');
+
+    platform = 'linux';
+  });
+
+  test('builds an id from the command name and its arguments', () => {
+    commandList = [commandOf('tab.new')];
+
+    const item = allEntries(host()).find((entryItem) => entryItem.name === 'tab.new');
+
+    expect(item?.id).toBe('tab.new:{}');
+  });
+
+  test('finds an unknown command by its words, with underscores read as spaces', () => {
+    commandList = [commandOf('weird.some_thing')];
+
+    const rows = paletteRows(allEntries(host()), 'some thing', []);
+
+    expect(rows.map((row) => row.entry.name)).toEqual(['weird.some_thing']);
+  });
+
+  test('finds a command that has no verb by its name', () => {
+    commandList = [commandOf('weird')];
+
+    const rows = paletteRows(allEntries(host()), 'weird', []);
+
+    expect(rows.map((row) => row.entry.name)).toEqual(['weird']);
+  });
+
+  test('lists a known command once, from the named catalog', () => {
+    commandList = [commandOf('tab.new')];
+
+    const matches = allEntries(host()).filter((item) => item.name === 'tab.new');
+
+    expect(matches).toHaveLength(1);
+  });
+
+  test('hides a command that requires a named argument other than name', () => {
+    commandList = [
+      commandOf('keep.me'),
+      { name: 'drop.me', args: [{ name: 'pane', required: true }], about: '' },
+      { name: 'keep.name', args: [{ name: 'name', required: true }], about: '' },
+    ];
+
+    const names = allEntries(host()).map((item) => item.name);
+
+    expect(names).toContain('keep.me');
+    expect(names).not.toContain('drop.me');
+    expect(names).toContain('keep.name');
+  });
+
+  test('carries each layout name as an argument', () => {
+    commandList = [];
+    layoutList = ['main', 'win98', 'custom'];
+
+    const items = allEntries(host()).filter((item) => item.name === 'layout.switch');
+
+    expect(items.map((item) => item.args)).toEqual([
+      { name: 'main' },
+      { name: 'win98' },
+      { name: 'custom' },
+    ]);
+
+    expect(items.map((item) => item.id)).toEqual([
+      'layout.switch:{"name":"main"}',
+      'layout.switch:{"name":"win98"}',
+      'layout.switch:{"name":"custom"}',
+    ]);
+
+    expect(paletteRows(items, 'look', [])).toHaveLength(3);
+  });
+
+  test('finds layouts by the words of their friendly titles', () => {
+    commandList = [];
+    layoutList = ['main', 'win98', 'custom'];
+
+    const rows = paletteRows(allEntries(host()), 'herdr', []);
+
+    expect(rows.map((row) => row.entry.args)).toEqual([{ name: 'main' }, { name: 'win98' }]);
+  });
+
+  test('carries the theme name in each theme row', () => {
+    commandList = [commandOf('app.theme')];
+    themeList = [{ name: 'graphite', label: 'Theme: graphite' }];
+
+    const item = allEntries(host()).find((entryItem) => entryItem.name === 'app.theme');
+
+    expect(item?.args).toEqual({ name: 'graphite' });
+    expect(item?.id).toBe('app.theme:{"name":"graphite"}');
+    expect(item?.group).toBe('App');
+    expect(paletteRows(item === undefined ? [] : [item], 'colors look', [])).toHaveLength(1);
+  });
 });
 
 describe('paletteRows', () => {
@@ -112,10 +213,120 @@ describe('paletteRows', () => {
     expect(paletteRows(all, 'new', []).map((row) => row.entry.id)).toEqual(['a']);
   });
 
+  test('ranks the command whose words match a spaced query first', () => {
+    commandList = [commandOf('weird.some_thing'), commandOf('weird.something')];
+
+    const rows = paletteRows(allEntries(host()), 'some thing', []);
+
+    expect(rows.map((row) => ({ name: row.entry.name, args: row.entry.args }))).toEqual([
+      { name: 'weird.something', args: {} },
+      { name: 'weird.some_thing', args: {} },
+    ]);
+  });
+
+  test('lists a layout action before a terminal command in an empty search', () => {
+    commandList = [commandOf('terminal.open')];
+    layoutList = ['main'];
+
+    const rows = paletteRows(allEntries(host()), '', []);
+
+    expect(rows.map((row) => ({ name: row.entry.name, args: row.entry.args }))).toEqual([
+      { name: 'layout.switch', args: { name: 'main' } },
+      { name: 'terminal.open', args: {} },
+    ]);
+  });
+
+  test('finds a layout by the group word in its search text', () => {
+    commandList = [];
+    layoutList = ['main'];
+
+    const rows = paletteRows(allEntries(host()), 'layout layout herdr', []);
+
+    expect(rows.map((row) => ({ name: row.entry.name, args: row.entry.args }))).toEqual([
+      { name: 'layout.switch', args: { name: 'main' } },
+    ]);
+  });
+
+  test('ranks a command named without a verb ahead of its dotted sibling', () => {
+    commandList = [commandOf('weird'), commandOf('weird.run')];
+
+    const rows = paletteRows(allEntries(host()), 'weird', []);
+
+    expect(rows.map((row) => ({ name: row.entry.name, args: row.entry.args }))).toEqual([
+      { name: 'weird', args: {} },
+      { name: 'weird.run', args: {} },
+    ]);
+  });
+
   test('ranks a recent entry first when scores tie', () => {
     const all = [entry('a', 'a', 'Tab', 'Alpha'), entry('b', 'b', 'Tab', 'Alpha')];
 
     expect(paletteRows(all, 'alp', ['b']).map((row) => row.entry.id)).toEqual(['b', 'a']);
+  });
+
+  test('keeps the ranked order when the input already has it', () => {
+    const all = [entry('b', 'b', 'Tab', 'Alpha'), entry('a', 'a', 'Tab', 'Alpha')];
+
+    expect(paletteRows(all, 'alp', ['b']).map((row) => row.entry.id)).toEqual(['b', 'a']);
+  });
+
+  test('matches an entry through its extra words and reports no highlight positions', () => {
+    const all = [{ ...entry('a', 'a', 'Tab', 'Alpha'), words: 'zebra' }];
+    const rows = paletteRows(all, 'zebra', []);
+
+    expect(rows.map((row) => row.entry.id)).toEqual(['a']);
+    expect(rows[0]?.positions).toEqual([]);
+  });
+
+  test('reports the highlight positions of a title match', () => {
+    const all = [entry('a', 'a', 'Tab', 'Alpha')];
+
+    expect(paletteRows(all, 'alp', [])[0]?.positions).toEqual([0, 1, 2]);
+  });
+
+  test('ranks a title match above a words-only match', () => {
+    const wordsOnly = { ...entry('b', 'b', 'Tab', 'Alpha'), words: 'new' };
+    const titleOnly = entry('a', 'a', 'Tab', 'New tab');
+
+    expect(paletteRows([wordsOnly, titleOnly], 'new', []).map((row) => row.entry.id)).toEqual([
+      'a',
+      'b',
+    ]);
+  });
+
+  test('ignores a recent id that is no longer in the list', () => {
+    const all = [entry('a', 'a', 'Tab', 'A')];
+
+    expect(paletteRows(all, '', ['gone']).map((row) => row.head)).toEqual(['Tab']);
+  });
+
+  test('shows at most five recent entries', () => {
+    const all = Array.from({ length: 6 }, (_, index) =>
+      entry(`id-${index}`, `name-${index}`, 'Tab', `Title ${index}`),
+    );
+
+    const recentIds = all.map((item) => item.id);
+    const rows = paletteRows(all, '', recentIds);
+
+    expect(rows.filter((row) => row.head === 'Recent')).toHaveLength(5);
+  });
+
+  test('drops an entry that claims the Recent group but is not recent', () => {
+    const all = [entry('a', 'a', 'Recent', 'A')];
+
+    expect(paletteRows(all, '', []).map((row) => row.entry.id)).toEqual([]);
+  });
+
+  test('ignores the case and spacing a query uses', () => {
+    const all = [entry('a', 'a', 'Tab', 'New tab')];
+
+    expect(paletteRows(all, '  NEW   TAB ', []).map((row) => row.entry.id)).toEqual(['a']);
+  });
+
+  test('reports no highlight positions for a listing without a query', () => {
+    const all = [entry('a', 'a', 'Tab', 'A'), entry('b', 'b', 'Pane', 'B')];
+
+    expect(paletteRows(all, '', ['a']).map((row) => row.positions)).toEqual([[], []]);
   });
 });
 

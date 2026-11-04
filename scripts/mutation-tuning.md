@@ -75,3 +75,83 @@ when a test loads it through `mock.module()`.
 The `Mutation` job runs on pull requests, lists survivors, and is not a required check.
 `timeout-minutes: 60` is far above the 14 seconds the runs above took, and it bounds a large
 refactor, because the package has no mutant cap by default.
+
+## Accepted survivors
+
+These tables list the survivors that remain after the tests for each file. No test can kill them
+through behavior a caller can observe. Each file was audited with `bunx --bun mutation audit`.
+
+### src/kit/palette.ts
+
+| Line | Mutator       | Reason                                                                                                                                |
+| ---- | ------------- | ------------------------------------------------------------------------------------------------------------------------------------- |
+| 75   | StringLiteral | equivalent: the fallback token is the theme's `foreground`, so replacing the key `'foreground'` with `''` still reads the same value. |
+
+### src/mods/koja-menu/entries.ts
+
+| Line                                                      | Mutator               | Reason                                                                                                                  |
+| --------------------------------------------------------- | --------------------- | ----------------------------------------------------------------------------------------------------------------------- |
+| 105, 109, 128, 140-152, 162, 180, 183, 186, 191, 192, 196 | StringLiteral         | noise: label text and icon names only feed display. Actions and their arguments are unchanged.                          |
+| 121                                                       | ConditionalExpression | equivalent: when `terminal` is null, `parent` is undefined, so the `parent === undefined` check still returns no entry. |
+| 125                                                       | LogicalOperator       | noise: the parent's name only feeds the send-back label. The entry and its `terminal.park` call are unchanged.          |
+
+### src/mods/koja-modal/execute.ts
+
+| Line | Mutator                                                | Reason                                                                                                       |
+| ---- | ------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------ |
+| 60   | StringLiteral                                          | noise: the history's `space` field is stored but never read back.                                            |
+| 96   | ConditionalExpression                                  | equivalent: the unchanged check above already guarantees the pane changed when this branch runs.             |
+| 133  | ConditionalExpression, LogicalOperator, BlockStatement | equivalent: a null pane or tab makes `findIndex` return -1, so the function still returns without a command. |
+| 146  | ConditionalExpression, BlockStatement                  | equivalent: `inTab` is non-empty whenever the index is valid, so the modulo result is always defined.        |
+| 161  | ConditionalExpression, BlockStatement                  | equivalent: a null last pane matches no live pane, so the existence check returns without a command.         |
+| 169  | ConditionalExpression, BlockStatement                  | equivalent: no live pane has a null tab, so the existence check returns without a command.                   |
+| 194  | ConditionalExpression, BlockStatement                  | equivalent: no live pane has a null tab, so the existence check returns without a command.                   |
+| 216  | ConditionalExpression, LogicalOperator, BlockStatement | equivalent: `spaceIndex` runs only with a non-null order, and a null current already gives index -1.         |
+| 252  | ConditionalExpression                                  | equivalent: `current !== null` is already true whenever the hidden-space branch matters.                     |
+| 258  | EqualityOperator                                       | equivalent: `step` is only 1 or -1, so `step >= 0` and `step > 0` agree.                                     |
+
+### src/mods/koja-palette/entries.ts
+
+| Line | Mutator          | Reason                                                                                 |
+| ---- | ---------------- | -------------------------------------------------------------------------------------- |
+| 242  | StringLiteral    | equivalent: `split` always yields at least one part, so the `noun` default never runs. |
+| 355  | MethodExpression | equivalent: `replaceAll` strips all whitespace, so trimming first changes nothing.     |
+| 355  | Regex            | equivalent: the `g` flag already makes `/\s/` replace every whitespace character.      |
+
+### src/mods/koja-picker/match.ts
+
+| Line    | Mutator                         | Reason                                                                                                        |
+| ------- | ------------------------------- | ------------------------------------------------------------------------------------------------------------- |
+| 78      | ArrayDeclaration                | equivalent: every query letter has a table, so the `?? []` fallback never runs.                               |
+| 94      | EqualityOperator                | equivalent: `positions` is never empty here, because an empty query returns early, so `>= 0` and `> 0` agree. |
+| 104     | BlockStatement, StringLiteral   | equivalent: an empty query falls through to the same `{ score: 0, positions: [] }` result.                    |
+| 117     | BlockStatement                  | equivalent: the `missing` flag only skips a search, and the letter lookup still returns null.                 |
+| 118     | BooleanLiteral                  | equivalent: same as line 117.                                                                                 |
+| 122     | BlockStatement                  | equivalent: a missing letter already makes `matchFrom` return null.                                           |
+| 126-127 | StringLiteral, ArrayDeclaration | equivalent: the `?? ''` and `?? []` fallbacks never run for a non-empty query.                                |
+| 130     | LogicalOperator                 | equivalent: the first letter's lookup finds the same first occurrence from 0 or from that occurrence.         |
+| 139     | MethodExpression                | equivalent: retrying the first start gives the same null.                                                     |
+
+### src/mods/koja-picker/previewLifecycle.ts
+
+| Line | Mutator                               | Reason                                                                                     |
+| ---- | ------------------------------------- | ------------------------------------------------------------------------------------------ |
+| 44   | StringLiteral                         | equivalent: `show` sets `wanted` before any drain reads it.                                |
+| 48   | BooleanLiteral                        | equivalent: `show` clears `blocked` before any drain runs.                                 |
+| 106  | CallExpression                        | equivalent: `close` already removed the folder, so `forget` has no folder to remove.       |
+| 115  | ConditionalExpression, BlockStatement | equivalent: after `close`, the drain loop checks `closed` and writes nothing.              |
+| 191  | ConditionalExpression                 | equivalent: without a state path, the drain stops in `persist` before any host call.       |
+| 264  | ArrowFunction                         | equivalent: `undefined` and `null` both fail the `!== 0` check, so the result is the same. |
+
+### src/mods/koja-picker/rows.ts
+
+| Line | Mutator                                                 | Reason                                                                                                               |
+| ---- | ------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------- |
+| 55   | ConditionalExpression                                   | equivalent: `statusWords[null]` is `undefined`, which `bestFieldMatch` skips like `null`.                            |
+| 136  | LogicalOperator                                         | equivalent: a space's status is the best of its tabs, so the same status word is already a tab field.                |
+| 153  | ConditionalExpression                                   | equivalent: a null pane status is never in the filter list, so the null check changes nothing.                       |
+| 159  | ConditionalExpression                                   | equivalent: a null status is never in the filter list, so the null check changes nothing.                            |
+| 174  | BlockStatement, ConditionalExpression, EqualityOperator | equivalent: a tab with no matching pane and no matching tab has no rows anyway, so the early return only skips work. |
+| 240  | BlockStatement, ConditionalExpression, StringLiteral    | equivalent: for a space with a name, an empty query leaves the pane target empty, as before.                         |
+| 299  | BlockStatement, ConditionalExpression, StringLiteral    | equivalent: for a space with a name, an empty query scores 0 and keeps the same rows.                                |
+| 324  | ConditionalExpression, StringLiteral                    | equivalent: with an empty query every group scores 0, so sorting changes nothing.                                    |
