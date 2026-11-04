@@ -28,24 +28,39 @@ Keep each round's files in `.tau/judge/<mock>/`. Git ignores that folder.
    If the check fails, stop the round. Fix the failures first. No judge can overrule a failing
    check.
 
-2. Open the scene in the sandbox:
+2. Start the sandbox:
 
    ```sh
    bun run sandbox up
    ```
 
-   Open the scene in the sandbox window with `bun run sandbox click`, `type`, or `key`. Use only the
-   sandbox, never the real window.
+   For scope `mod`, open the mod in the sandbox window with `bun run sandbox click`, `type`, or
+   `key`. Use only the sandbox, never the real window. For scope `scene`, do not open the scene:
+   step 3 opens it, and fails when a `koja-mocks` overlay is already open.
 
-3. Capture the full window:
+3. Capture the scene for scope `scene`:
+
+   ```sh
+   bun run mock:capture <mock>
+   ```
+
+   The command opens the scene in the `koja-mocks` mod and writes `shot.png`, `crop.png`, and
+   `capture.json` to `.tau/judge/<mock>/`. The crop is exactly the scene window, and the full shot
+   gives the neighboring context.
+
+   For scope `mod`, capture the full window:
 
    ```sh
    bun run sandbox shot .tau/judge/<mock>/shot.png
    ```
 
-4. Cut a crop of the scene with ImageMagick. Keep the neighboring edges so alignment and grouping
-   show. The shot's pixel coordinates match the window's pixels. Record the shot's pixel size and
-   the crop box `<w>x<h>+<x>+<y>` in section 5 of the brief copy.
+4. For scope `scene`, read the shot's pixel size (`shot`) and `crop.geometry` (`<w>x<h>+<x>+<y>`)
+   from `.tau/judge/<mock>/capture.json`. Record both in section 5 of the brief copy. `<mock>` is
+   the scene name from `src/mods/koja-mocks/catalog.ts`.
+
+   For scope `mod`, cut a crop of the mod with ImageMagick. Keep the neighboring edges so alignment
+   and grouping show. The shot's pixel coordinates match the window's pixels. Record the shot's
+   pixel size and the crop box `<w>x<h>+<x>+<y>` in section 5 of the brief copy.
 
    ```sh
    magick .tau/judge/<mock>/shot.png -crop <w>x<h>+<x>+<y> .tau/judge/<mock>/crop.png
