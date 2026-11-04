@@ -55,6 +55,7 @@ bun run sandbox click 941 137
 bun run sandbox type "pane"
 bun run sandbox key p Control_L Shift_L
 bun run sandbox install
+bun run mock:capture <scene>
 bun run sandbox down
 ```
 
