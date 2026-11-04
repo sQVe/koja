@@ -2,7 +2,7 @@
 
 **Date**: 2026-11-04\
 **Status**: Accepted\
-**Related**: [Judge rubric](../../.pi/skills/judge-mock/rubric.md)
+**Related**: [Judge skill](../../.pi/skills/judge-mock/SKILL.md)
 
 ## Context
 
@@ -17,19 +17,18 @@ the part's last slice.
 Some faults are easier to check than to judge. Contrast, sizes, and color values are examples. Model
 judges read these values poorly, so `bun run check` tests them before any judge runs.
 
-Model judges also agree with people less on small differences. A score near the pass line is
-therefore not reliable on its own, and one lenient judge could pass a weak mock.
+Model judges also agree with people less on small differences, so one judge's view of a minor issue
+is not reliable on its own. One lenient judge could pass a weak mock.
 
 ## Decision
 
 Mocks are scenes built from real kit parts with fake data, and two AI judges from different model
-families gate them. A mock passes only when `bun run check` passes, both judges pass every scored
-category, and no hard failure is open.
+families gate them. A mock passes only when `bun run check` passes, and neither judge reports a
+finding of severity 2 or higher or an open hard failure.
 
 The judges are `openai/gpt-6.1-sol` and `claude-opus-5-5`. They come from different model families,
 so they share fewer blind spots. Each judge works alone and does not see the other judge's answer. A
-project skill runs each round (capture, two fresh judge subagents, and the gate), and the gate
-script only checks answers, so the procedure can change without code.
+project skill runs each round and holds the procedure, so the procedure can change without code.
 
 ### Mocks
 
@@ -37,30 +36,26 @@ script only checks answers, so the procedure can change without code.
 - The sandbox opens each scene. The scene is captured as a full shot and a crop.
 - The judges see the shot, the crop, and the `bun run check` result.
 
-### Scores
+### Findings
 
-- Each judge scores each category from 0 to 10, decimals allowed. A category passes at 9.0 or more.
+- Each judge gives findings only, with no scores.
 - Each finding has a severity from 0 to 4 on Nielsen's scale, and it names one category.
-- An open severity 3 or 4 finding keeps its category below 8.0.
-- An open severity 2 finding keeps its category below 9.0.
-- A score of 9.0 allows at most two severity 1 findings. A score of 9.5 allows one. A score of 10
-  allows none. Severity 0 findings never limit a score.
-- A script rejects an answer whose scores break these rules.
-- Missing evidence does not fail the gate. The judge lists what it lacked, and the session supplies
+- A finding of severity 2 or higher fails the mock. Severity 0 and 1 findings do not.
+- Missing evidence does not fail the mock. The judge lists what it lacked, and the session supplies
   it and judges again, so a gap in the packet leads to a better packet, not a failed mock.
 
 ### Categories
 
-- A scene scores the first eight categories: visual hierarchy, typography, spacing, and density,
-  visual consistency, polish, information architecture, discoverability and affordances, feedback
-  and state visibility, and task fit.
-- The real mod scores all twelve. The four usability categories are efficiency, control and error
-  recovery, accessibility and input, and adaptability. They are scored only on the real mod, in each
-  part's last slice, because a scene cannot show them.
+- A scene is judged on the first eight categories: visual hierarchy, typography, spacing, and
+  density, visual consistency, polish, information architecture, discoverability and affordances,
+  feedback and state visibility, and task fit.
+- The real mod is judged on all twelve. The four usability categories are efficiency, control and
+  error recovery, accessibility and input, and adaptability. They are judged only on the real mod,
+  in each part's last slice, because a scene cannot show them.
 
 ### Hard failures
 
-A hard failure fails the mock on its own, whatever its scores. There are five kinds:
+A hard failure fails the mock on its own, whatever the findings. There are five kinds:
 
 - `contrast`: text or control contrast below WCAG 2.2 AA. It comes from `bun run check`. The check
   lists the theme's current failing pairs as known failures, which pass until a theme change fixes
@@ -72,10 +67,11 @@ A hard failure fails the mock on its own, whatever its scores. There are five ki
   judges flag it.
 - `unreadableText`: required text cannot be read at the native display scale. The judges flag it.
 
-### Calibration
+### Smoke test
 
-Changing a judge model, the rubric, or the judge brief requires a new calibration against the user's
-labels. Until that calibration runs, the gate is not trusted.
+Four smoke scenes in `koja-mocks` (`smoke-1` to `smoke-4`) check the procedure. The skill lists the
+verdict each one must give. Changing a judge model or the judge instructions requires a smoke test
+run.
 
 ## Consequences
 
@@ -83,18 +79,17 @@ labels. Until that calibration runs, the gate is not trusted.
 
 - Two model families share fewer blind spots than two runs of one model.
 - One lenient judge cannot pass a mock.
-- A pass line of 9.0 lets a good mock pass. A gate of 10 would almost never pass.
-- Each score ties to findings, so a judge says what to fix.
+- Each finding names a location and a fix, so a judge says what to change.
 - `bun run check` stops clear faults before any model runs.
 
 ### Negative
 
 - Each mock costs two frontier-model runs per round.
-- A model update can change scores, so calibration must run again.
+- A model update can change findings, so the smoke test must run again.
 - A scene cannot show the four usability categories. They wait for the real mod in the part's last
   slice.
 - The `koja-mocks` mod must follow kit changes, or its scenes show old parts.
-- The score rules are strict. A judge must list findings to justify a high score.
+- The pass rule is strict. One severity 2 finding from either judge fails the mock.
 
 ## Alternatives considered
 
@@ -103,20 +98,11 @@ labels. Until that calibration runs, the gate is not trusted.
 Use a single model judge. Rejected because one model family shares its blind spots, and one judge's
 leniency or harshness would decide the result.
 
-### An average or overall score
+### Category scores with a 9.0 pass line
 
-Average the category scores and pass at one threshold. Rejected because a high average can hide one
-weak category, such as contrast or task fit. Each category must pass on its own.
-
-### A gate of 10
-
-Require every category at 10.0. Rejected because almost no mock would pass, so the gate would not
-separate good work from weak work.
-
-### Free scores not tied to findings
-
-Let judges give scores without listing findings. Rejected because a score alone does not say what to
-fix, and judges disagree more on bare numbers.
+Each judge scores each category from 0 to 10, and each category passes at 9.0. Rejected because a
+score near the pass line is not reliable on its own, as the context explains. Findings name the
+defect and its fix, so they decide the verdict.
 
 ### Pairwise A/B judging as the gate
 
@@ -140,4 +126,4 @@ exactly from the code and the theme file.
 
 Score efficiency, control and error recovery, accessibility and input, and adaptability on the
 scenes too. Rejected because a scene with fake data cannot show keyboard use, recovery from an
-error, or a narrow window, so the judges would guess those scores.
+error, or a narrow window, so the judges would guess at those findings.
