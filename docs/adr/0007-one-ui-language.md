@@ -26,6 +26,9 @@ from it where its own surfaces need something else. Koja does not try to look li
 - The kit owns its icons, so no mod depends on an icon from a shipped Herdr mod.
 - A gallery view renders every kit component in every state. It is the visual check of the UI
   language, compared with `herdr-app shot`.
+- HTML mocks take every size, color, and font from `eval/kit.css`. `bun run eval:css` generates it
+  from the kit's sizes and the theme file, and a test fails when the committed file is stale. Its
+  `--koja-*` property names stay stable, because the scripts that check mocks read them.
 
 Where a rule can be checked mechanically, a lint or test enforces it, so drift fails the check
 rather than showing up on screen.
@@ -50,6 +53,11 @@ rather than showing up on screen.
 Copy Zed's components as closely as Herdr allows. Rejected because Koja's surfaces, such as ticket
 and GitHub views, have no Zed counterpart, and copying Zed would decide their design by a product
 with other goals.
+
+### Hand-written CSS in each mock
+
+Each HTML mock sets its own fonts, sizes, and colors. Rejected because such mocks drifted from the
+kit and showed values the kit cannot draw, such as a font Koja does not use.
 
 ### A written style guide
 
