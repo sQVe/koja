@@ -131,7 +131,8 @@ refuse_linked_paths() {
   local path
   for path in "$root/display" "$root/xpid" "$root/xwayland.pid" "$root/pid" \
     "$root/state" "$root/config" "$root/run" "$root/bin" "$root/home" "$root/opened" \
-    "$root/app.log" "$root/weston.log" "$root/run/core.sock"; do
+    "$root/app.log" "$root/weston.log" "$root/run/core.sock" \
+    "$root/home/shared.json" "$root/home/update-notes.json"; do
     if [[ -L $path ]]; then
       echo "refusing the symlinked sandbox path $path" >&2
       exit 1
@@ -337,6 +338,23 @@ switch_layout() {
   "$bin" do layout.switch --name koja >/dev/null 2>&1 || true
 }
 
+# A fresh home makes Herdr show its welcome and an Updated pill, which would sit in every shot.
+# Setting the flag keeps other shared keys; a missing, empty, or broken file starts from {}.
+mark_first_start_done() {
+  local shared=$HERDR_APP_HOME/shared.json current='' version staged
+  mkdir -p "$HERDR_APP_HOME"
+  refuse_linked_paths
+  if [[ -f $shared ]]; then current=$(jq -c 'objects' "$shared" 2>/dev/null) || current=''; fi
+  if [[ -z $current ]]; then current='{}'; fi
+  staged=$(mktemp "$HERDR_APP_HOME/shared.XXXXXX")
+  jq '. + {"frame.welcomed": "finished"}' <<<"$current" >"$staged"
+  mv "$staged" "$shared"
+
+  version=$("$bin" --version | awk '{ print $2 }')
+  jq -n --arg version "$version" '{last_run: $version, presented: []}' \
+    >"$HERDR_APP_HOME/update-notes.json"
+}
+
 start_window() {
   prepare_root
   core_predates_start=0
@@ -347,6 +365,7 @@ start_window() {
   start_display
   install_openers
   install_mods
+  mark_first_start_done
   PATH=$root/bin:$PATH WAYLAND_DISPLAY= setsid "$bin" >"$root/app.log" 2>&1 </dev/null &
   local window_pid=$!
   record_program "$root/pid" "$window_pid" "$bin" || return 1
