@@ -113,6 +113,51 @@ describe('normal mode sequences', () => {
   });
 });
 
+describe('normal mode window chords', () => {
+  const twinKeys = ['h', 'j', 'k', 'l', 's', 'n', 'v', 'q', 'o', '_', 'w', 'p'];
+
+  test.each(twinKeys)('resolves ctrl-w ctrl-%s like the plain key after ctrl-w', (key) => {
+    const withControl = feed([ctrlW, control(key, `ctrl-${key}`)]);
+
+    const withLetter = feed([ctrlW, plain(key)]);
+
+    expect(withLetter.status).toBe('action');
+    expect(withControl).toEqual(withLetter);
+  });
+
+  const arrows = [
+    ['left', 'h'],
+    ['down', 'j'],
+    ['up', 'k'],
+    ['right', 'l'],
+  ] as const;
+
+  test.each(arrows)('resolves ctrl-w %s like ctrl-w %s', (arrow, letter) => {
+    const withArrow = feed([ctrlW, named(arrow, arrow)]);
+
+    const withLetter = feed([ctrlW, plain(letter)]);
+
+    expect(withLetter.status).toBe('action');
+    expect(withArrow).toEqual(withLetter);
+  });
+
+  test.each(arrows)('resolves %s alone like ctrl-%s', (arrow, letter) => {
+    const withArrow = feed([named(arrow, arrow)]);
+
+    const withControl = feed([control(letter, `ctrl-${letter}`)]);
+
+    expect(withControl.status).toBe('action');
+    expect(withArrow).toEqual(withControl);
+  });
+
+  test('clears pending on ctrl-w ctrl-c without an action', () => {
+    const result = feed([ctrlW, control('c', 'ctrl-c')]);
+
+    expect(result).toMatchObject({ status: 'cleared' });
+    expect(result.state).toEqual(initialParserState);
+  });
+});
+
 describe('normal mode clearing', () => {
   test('clears pending after ctrl-w then an unknown key, and the next gt resolves', () => {
     const afterCtrlW = step(initialParserState, ctrlW);
