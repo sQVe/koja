@@ -52,7 +52,7 @@ const fakeRepos: FakeRepo[] = [
     name: 'koja',
     detail: `main · ${ageOf(kojaCommittedAt)}`,
     status: 'blocked',
-    error: `Could not refresh PRs, ${ageOf(kojaPullsReadAt)} old.`,
+    error: `koja PRs are ${ageOf(kojaPullsReadAt)} old.`,
     spaces: [
       {
         label: 'me-1088-ui-foundation',
@@ -61,9 +61,9 @@ const fakeRepos: FakeRepo[] = [
         pull: 24,
       },
       {
-        label: 'me-1104-judge-findings-only-and-a-name-long-enough-to-truncate',
+        label: 'me-1104-judge-findings',
         status: 'idle',
-        state: 'selected',
+        state: 'normal',
       },
       {
         label: 'fix-pr-badge',
