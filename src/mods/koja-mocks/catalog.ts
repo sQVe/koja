@@ -16,12 +16,17 @@ interface Scene extends SceneSize {
 
 export type SceneLookup = { scene: Scene } | { error: string };
 
+const paletteSize: SceneSize = {
+  width: overlaySize.pickerListWidth,
+  height: overlaySize.wideMenuHeight,
+};
+
 const sceneSizes = {
   sidebar: { width: overlaySize.wideMenuWidth, height: overlaySize.wideMenuHeight },
-  'smoke-1': { width: overlaySize.pickerListWidth, height: overlaySize.wideMenuHeight },
-  'smoke-2': { width: overlaySize.pickerListWidth, height: overlaySize.wideMenuHeight },
-  'smoke-3': { width: overlaySize.pickerListWidth, height: overlaySize.wideMenuHeight },
-  'smoke-4': { width: overlaySize.pickerListWidth, height: overlaySize.wideMenuHeight },
+  'smoke-1': paletteSize,
+  'smoke-2': paletteSize,
+  'smoke-3': paletteSize,
+  'smoke-4': paletteSize,
 } as const satisfies Record<string, SceneSize>;
 
 export type SceneName = keyof typeof sceneSizes;
