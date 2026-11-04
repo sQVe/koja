@@ -3,7 +3,7 @@ import type { Element } from 'gpui-kit';
 import { div } from 'gpui-kit';
 import type { Status } from 'herdr';
 
-import type { RowState, ThemeToken } from '../../../kit/index.ts';
+import type { RowState } from '../../../kit/index.ts';
 import {
   attentionBadge,
   colors,
@@ -23,16 +23,11 @@ import {
   toggleButton,
 } from '../../../kit/index.ts';
 
-interface FakePull {
-  number: number;
-  token: ThemeToken;
-}
-
 interface FakeSpace {
   label: string;
   status: Status | null;
   state: RowState;
-  pull?: FakePull;
+  pull?: number;
   badge?: string;
 }
 
@@ -52,6 +47,9 @@ const kojaCommittedAt = 1_799_992_200;
 
 const tikkCommittedAt = 1_799_740_800;
 
+// When the last read of koja's pull requests worked, in seconds.
+const kojaPullsReadAt = 1_799_999_640;
+
 const ageOf = (thenSeconds: number): string => shortAge(thenSeconds, fakeNow);
 
 const fakeRepos: FakeRepo[] = [
@@ -59,13 +57,13 @@ const fakeRepos: FakeRepo[] = [
     name: 'koja',
     detail: `main · ${ageOf(kojaCommittedAt)}`,
     status: 'blocked',
-    error: 'Could not read pull requests.',
+    error: `Could not refresh PRs, ${ageOf(kojaPullsReadAt)} old.`,
     spaces: [
       {
         label: 'me-1088-ui-foundation',
         status: 'working',
         state: 'normal',
-        pull: { number: 24, token: 'ansi2' },
+        pull: 24,
       },
       {
         label: 'me-1104-judge-findings-only-and-a-name-long-enough-to-truncate',
@@ -76,7 +74,7 @@ const fakeRepos: FakeRepo[] = [
         label: 'fix-pr-badge',
         status: 'blocked',
         state: 'normal',
-        pull: { number: 27, token: 'dim' },
+        pull: 27,
         badge: 'Needs you',
       },
       { label: 'scratch', status: null, state: 'normal' },
@@ -91,13 +89,13 @@ const fakeRepos: FakeRepo[] = [
         label: 'ticket-sync',
         status: 'done',
         state: 'normal',
-        pull: { number: 12, token: 'ansi5' },
+        pull: 12,
       },
       {
         label: 'release-notes',
         status: null,
         state: 'normal',
-        pull: { number: 15, token: 'ansi2' },
+        pull: 15,
       },
     ],
   },
@@ -107,7 +105,7 @@ const spaceEnd = (space: FakeSpace): Element[] => {
   const end: Element[] = [];
 
   if (space.pull !== undefined) {
-    end.push(detailText(`#${space.pull.number}`, colors()[space.pull.token]));
+    end.push(detailText(`#${space.pull}`));
   }
 
   if (space.badge !== undefined) {
