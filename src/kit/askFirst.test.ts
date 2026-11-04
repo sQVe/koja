@@ -180,6 +180,44 @@ describe('dialogFor', () => {
     expect(plan).toEqual({ kind: 'skip' });
   });
 
+  test('closing the last tab of a space asks first, and the confirm runs it with confirmed', () => {
+    const plan = dialogFor('tab.close', { id: 't3' }, spaceValues, focusValue);
+
+    expect(plan).toMatchObject({
+      kind: 'confirm',
+      dialog: {
+        action: 'Close',
+        destroys: true,
+        command: { name: 'tab.close', args: { id: 't3', confirmed: true } },
+      },
+    });
+  });
+
+  test('closing a tab that has siblings runs as is', () => {
+    const plan = dialogFor('tab.close', { id: 't1' }, spaceValues, focusValue);
+
+    expect(plan).toEqual({ kind: 'run' });
+  });
+
+  test('closing the focused tab with no id asks only when it is the last tab', () => {
+    const onlyTabFocus = { space: 's2', tab: 't3' };
+
+    expect(dialogFor('tab.close', {}, spaceValues, onlyTabFocus).kind).toBe('confirm');
+    expect(dialogFor('tab.close', {}, spaceValues, focusValue)).toEqual({ kind: 'run' });
+  });
+
+  test('closing a last tab that is already confirmed runs as is', () => {
+    const plan = dialogFor('tab.close', { id: 't3', confirmed: true }, spaceValues, focusValue);
+
+    expect(plan).toEqual({ kind: 'run' });
+  });
+
+  test('closing a stale tab id skips', () => {
+    const plan = dialogFor('tab.close', { id: 'gone' }, spaceValues, focusValue);
+
+    expect(plan).toEqual({ kind: 'skip' });
+  });
+
   test('an unrelated command runs as is', () => {
     const plan = dialogFor('pane.split', { direction: 'right' }, spaceValues, focusValue);
 

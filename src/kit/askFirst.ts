@@ -151,10 +151,49 @@ const renameTabPlan = (
   };
 };
 
+// Closing the last tab closes its space, so it gets the space wording, as in Herdr.
+const closeTabPlan = (
+  args: Record<string, unknown>,
+  spaceList: SpaceFacts[],
+  focus: FocusFacts | null,
+): AskPlan => {
+  if (args['confirmed'] === true) {
+    return { kind: 'run' };
+  }
+
+  const tab = tabTarget(args, spaceList, focus);
+
+  if (tab === undefined) {
+    return { kind: 'skip' };
+  }
+
+  const space = spaceList.find((candidate) => candidate.tabs.includes(tab));
+
+  if (space === undefined) {
+    return { kind: 'skip' };
+  }
+
+  if (space.tabs.length > 1) {
+    return { kind: 'run' };
+  }
+
+  return {
+    kind: 'confirm',
+    dialog: {
+      title: 'Close space?',
+      detail: spaceDetail(space),
+      action: 'Close',
+      destroys: true,
+      command: { name: 'tab.close', args: { id: tab.id, confirmed: true } },
+    },
+  };
+};
+
 // One entry per command that asks first. A command not listed runs as is.
 const planners = new Map<string, PlanFunction>([
   ['space.close', closeSpacePlan],
   ['space.rename', renameSpacePlan],
+  ['tab.close', closeTabPlan],
   ['tab.rename', renameTabPlan],
 ]);
 

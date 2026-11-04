@@ -248,7 +248,7 @@ export default class Tabs extends View {
       .on_mouse_down('left', stopPress)
       .on_click((_event, cx) => {
         cx.stop_propagation();
-        run('tab.close', { id: tabInfo.id });
+        askFirst('tab.close', { id: tabInfo.id });
       });
   }
 

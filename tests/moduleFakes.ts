@@ -70,6 +70,7 @@ export const kitIndexFake = (overrides: ModuleFake = {}): ModuleFake => ({
   listRow: noop,
   modName: 'koja',
   openAtTop: () => null,
+  openPrompt: noop,
   overlayCloseCount: () => 0,
   overlayId: () => null,
   overlaySize: {},

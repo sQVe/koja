@@ -74,6 +74,8 @@ export { openWorktreeDialog } from './worktree.ts';
 
 export { askFirst } from './askFirst.ts';
 
+export { openPrompt } from './dialogOpen.ts';
+
 export type { ConfirmDialog, PromptDialog } from './dialogPayload.ts';
 
 export { readDialogCommand } from './dialogPayload.ts';
