@@ -208,8 +208,8 @@ export const dialogFor = (
   return planner === undefined ? { kind: 'run' } : planner(args, spaceList, focus);
 };
 
-export const askFirst = (command: string, args: Record<string, unknown>): void => {
-  const plan = dialogFor(command, args, spaces(), focused());
+export const askFirst = (command: string, args?: Record<string, unknown>): void => {
+  const plan = dialogFor(command, args ?? {}, spaces(), focused());
 
   if (plan.kind === 'confirm') {
     openConfirm(plan.dialog);

@@ -62,6 +62,7 @@ const plain = (key: string): NormalKeyEvent => ({
 let focusedPane: string | null = 'p1';
 let focusedTab = 'tab-1';
 let runCalls: RunCall[] = [];
+let askFirstCalls: RunCall[] = [];
 let closeCalls: (string | null)[] = [];
 let focusCalls = 0;
 let overlayFocused = false;
@@ -203,6 +204,15 @@ const { overlayCloseCount, recordOverlayClose } = await import('../../kit/overla
 
 await mock.module('../../kit/index.ts', () =>
   kitIndexFake({
+    askFirst: (command: string, args?: Record<string, unknown>) => {
+      askFirstCalls.push({ command, args });
+
+      // Production askFirst opens Koja's confirm for tab.close on the last tab, so this fake
+      // records that call without running it; every other command runs as Herdr would.
+      if (command !== 'tab.close') {
+        runCalls.push({ command, args });
+      }
+    },
     closeOverlay: (id?: string | null) => {
       closeCalls.push(id ?? null);
     },
@@ -262,6 +272,7 @@ beforeEach(() => {
   focusedPane = 'p1';
   focusedTab = 'tab-1';
   runCalls = [];
+  askFirstCalls = [];
   closeCalls = [];
   focusCalls = 0;
   overlayFocused = false;
@@ -552,5 +563,33 @@ describe('koja modal view', () => {
     keyDownHandler?.(plain('t'));
 
     expect(runCalls).toEqual([{ command: 'tab.select', args: { index: 3 } }]);
+  });
+
+  test('ctrl-t q routes tab.close through askFirst instead of Herdr run', async () => {
+    const view = await loadView();
+
+    view.render();
+
+    keyDownHandler?.(control('t', 'ctrl-t'));
+    keyDownHandler?.(plain('q'));
+
+    expect(askFirstCalls).toEqual([{ command: 'tab.close', args: undefined }]);
+    expect(runCalls).toEqual([]);
+  });
+
+  test('ctrl-t q yields the keyboard so the confirm keeps focus', async () => {
+    const view = await loadView();
+
+    view.render();
+
+    // The confirm opens and takes the keyboard while normal mode still holds it.
+    paletteOpen = true;
+    overlayFocused = false;
+
+    keyDownHandler?.(control('t', 'ctrl-t'));
+    keyDownHandler?.(plain('q'));
+    runAfterHandlers();
+
+    expect(overlayFocused).toBe(false);
   });
 });

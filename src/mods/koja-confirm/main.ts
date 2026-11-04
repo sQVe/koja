@@ -9,6 +9,7 @@ import {
   dialogFrame,
   readDialogCommand,
   recordOf,
+  recordOverlayClose,
   stringOf,
 } from '../../kit/index.ts';
 
@@ -40,8 +41,13 @@ export default class Confirm extends View {
     this.handle.focus();
   }
 
-  private confirm(): void {
+  private dismiss(): void {
+    recordOverlayClose();
     closeOverlay();
+  }
+
+  private confirm(): void {
+    this.dismiss();
     run(this.dialog.command.name, this.dialog.command.args);
   }
 
@@ -49,7 +55,7 @@ export default class Confirm extends View {
     if (event.key === 'enter') {
       this.confirm();
     } else if (event.key === 'escape') {
-      closeOverlay();
+      this.dismiss();
     } else {
       return;
     }
@@ -61,7 +67,7 @@ export default class Confirm extends View {
     const mainKind: DialogButtonKind = this.dialog.destroys ? 'danger' : 'solid';
 
     const cancel = dialogButton({ label: 'Cancel', kind: 'outline' }).on_click(() => {
-      closeOverlay();
+      this.dismiss();
     });
 
     const main = dialogButton({ label: this.dialog.action, kind: mainKind }).on_click(() => {

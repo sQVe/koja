@@ -28,7 +28,9 @@ let keyDownHandler: KeyHandler | null = null;
 let typedValue = '';
 let openedValue: string | null = null;
 let selectedRanges: { start: number; end: number }[] = [];
+let sharedValues: Record<string, unknown> = {};
 const inputHandlers = new Map<string, () => void>();
+const buttonHandlers = new Map<string, () => void>();
 
 const frameSurface = (): unknown => {
   const element: unknown = new Proxy(() => undefined, {
@@ -66,6 +68,18 @@ const inputStub = {
   value: () => typedValue,
 };
 
+const recordButton = (options: { kind: string }): unknown => {
+  const element: Record<string, unknown> = {
+    on_click: (handler: () => void) => {
+      buttonHandlers.set(options.kind, handler);
+
+      return element;
+    },
+  };
+
+  return element;
+};
+
 await mock.module('gpui-base', () =>
   gpuiBaseFake({
     InputState: {
@@ -89,17 +103,27 @@ await mock.module('herdr', () =>
 
       return null;
     },
+    setShared: (key: string, value: unknown) => {
+      sharedValues[key] = value;
+
+      return null;
+    },
+    shared: (key: string) => sharedValues[key],
   }),
 );
+
+const { overlayCloseCount, recordOverlayClose } = await import('../../kit/overlayOpen.ts');
 
 await mock.module('../../kit/index.ts', () =>
   kitIndexFake({
     closeOverlay: () => {
       calls.push('close');
     },
+    dialogButton: recordButton,
     dialogFrame: frameSurface,
     readDialogCommand,
     recordOf,
+    recordOverlayClose,
     stringOf,
   }),
 );
@@ -135,9 +159,11 @@ beforeEach(() => {
   calls = [];
   keyDownHandler = null;
   inputHandlers.clear();
+  buttonHandlers.clear();
   typedValue = '';
   openedValue = null;
   selectedRanges = [];
+  sharedValues = {};
 
   dialogProps = {
     title: 'rename tab',
@@ -158,6 +184,8 @@ describe('prompt saving', () => {
       'close',
       { name: 'tab.rename', args: { id: 'tab-1', name: 'New name' } },
     ]);
+
+    expect(overlayCloseCount()).toBe(1);
   });
 
   test('escape closes the overlay and runs nothing', async () => {
@@ -168,6 +196,34 @@ describe('prompt saving', () => {
     keyDownHandler?.({ key: 'escape' }, keyContext);
 
     expect(calls).toEqual(['close']);
+    expect(overlayCloseCount()).toBe(1);
+  });
+
+  test('cancel closes the overlay and runs nothing', async () => {
+    const view = await loadView();
+
+    view.init(undefined, asyncContext);
+    view.render();
+    buttonHandlers.get('outline')?.();
+
+    expect(calls).toEqual(['close']);
+    expect(overlayCloseCount()).toBe(1);
+  });
+
+  test('the save button closes the overlay, then runs the command with the typed name', async () => {
+    const view = await loadView();
+    typedValue = 'New name';
+
+    view.init(undefined, asyncContext);
+    view.render();
+    buttonHandlers.get('solid')?.();
+
+    expect(calls).toEqual([
+      'close',
+      { name: 'tab.rename', args: { id: 'tab-1', name: 'New name' } },
+    ]);
+
+    expect(overlayCloseCount()).toBe(1);
   });
 });
 

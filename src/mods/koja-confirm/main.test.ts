@@ -21,6 +21,8 @@ let dialogProps: Record<string, unknown> = {};
 let keyDownHandler: KeyHandler | null = null;
 let buttonKinds: string[] = [];
 let stopPropagationCount = 0;
+let sharedValues: Record<string, unknown> = {};
+const buttonHandlers = new Map<string, () => void>();
 
 const frameSurface = (): unknown => {
   const element: unknown = new Proxy(() => undefined, {
@@ -48,7 +50,15 @@ const frameSurface = (): unknown => {
 const recordButton = (options: { kind: string }): unknown => {
   buttonKinds.push(options.kind);
 
-  return chainable();
+  const element: Record<string, unknown> = {
+    on_click: (handler: () => void) => {
+      buttonHandlers.set(options.kind, handler);
+
+      return element;
+    },
+  };
+
+  return element;
 };
 
 await mock.module('gpui-kit', () => gpuiKitFake());
@@ -61,8 +71,16 @@ await mock.module('herdr', () =>
 
       return null;
     },
+    setShared: (key: string, value: unknown) => {
+      sharedValues[key] = value;
+
+      return null;
+    },
+    shared: (key: string) => sharedValues[key],
   }),
 );
+
+const { overlayCloseCount, recordOverlayClose } = await import('../../kit/overlayOpen.ts');
 
 await mock.module('../../kit/index.ts', () =>
   kitIndexFake({
@@ -73,6 +91,7 @@ await mock.module('../../kit/index.ts', () =>
     dialogFrame: frameSurface,
     readDialogCommand,
     recordOf,
+    recordOverlayClose,
     stringOf,
   }),
 );
@@ -114,6 +133,8 @@ beforeEach(() => {
   keyDownHandler = null;
   buttonKinds = [];
   stopPropagationCount = 0;
+  sharedValues = {};
+  buttonHandlers.clear();
 
   dialogProps = {
     title: 'Close space?',
@@ -137,6 +158,8 @@ describe('confirm', () => {
       { name: 'space.close', args: { id: 'space-1', confirmed: true } },
     ]);
 
+    expect(overlayCloseCount()).toBe(1);
+
     expect(stopPropagationCount).toBe(1);
   });
 
@@ -148,6 +171,33 @@ describe('confirm', () => {
     keyDownHandler?.({ key: 'escape' }, keyContext);
 
     expect(calls).toEqual(['close']);
+    expect(overlayCloseCount()).toBe(1);
+  });
+
+  test('cancel closes the overlay and runs nothing', async () => {
+    const view = await loadView();
+
+    view.init(undefined, asyncContext);
+    view.render();
+    buttonHandlers.get('outline')?.();
+
+    expect(calls).toEqual(['close']);
+    expect(overlayCloseCount()).toBe(1);
+  });
+
+  test('the action button closes the overlay, then runs the command', async () => {
+    const view = await loadView();
+
+    view.init(undefined, asyncContext);
+    view.render();
+    buttonHandlers.get('danger')?.();
+
+    expect(calls).toEqual([
+      'close',
+      { name: 'space.close', args: { id: 'space-1', confirmed: true } },
+    ]);
+
+    expect(overlayCloseCount()).toBe(1);
   });
 
   test('a destroying action is drawn as danger, next to an outlined cancel', async () => {

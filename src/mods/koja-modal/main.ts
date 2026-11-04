@@ -2,7 +2,14 @@ import type { AsyncContext, Context, Element, FocusHandle, KeyEvent } from 'gpui
 import { div, View } from 'gpui-kit';
 import { exec, focused, nextCommand, panes, run, setShared, shared, spaces } from 'herdr';
 
-import { closeOverlay, modName, overlayCloseCount, overlayId, repeat } from '../../kit/index.ts';
+import {
+  askFirst,
+  closeOverlay,
+  modName,
+  overlayCloseCount,
+  overlayId,
+  repeat,
+} from '../../kit/index.ts';
 import type { NormalAction } from '../../kit/normalKeys.ts';
 import { createExecutor } from './execute.ts';
 import { createKeyboardHold, createStatusLookup } from './keyboardHold.ts';
@@ -20,8 +27,13 @@ const stopPress = (_event: unknown, cx: Context): void => {
   cx.stop_propagation();
 };
 
+// tab.close asks through Koja's confirm on the last tab, so normal mode must yield the keyboard
+// to that dialog as it does for an opened overlay.
+const mayOpenOverlay = (command: string): boolean =>
+  command === 'mod.open' || command === 'tab.close';
+
 const opensOverlay = (action: NormalAction): boolean =>
-  action.kind === 'command' && action.command === 'mod.open';
+  action.kind === 'command' && mayOpenOverlay(action.command);
 
 export default class KojaModal extends View {
   private handle: FocusHandle | null = null;
@@ -38,7 +50,7 @@ export default class KojaModal extends View {
   });
 
   private readonly executor = createExecutor({
-    run,
+    run: askFirst,
     panes,
     focused,
     spaces,

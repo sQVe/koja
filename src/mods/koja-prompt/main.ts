@@ -12,6 +12,7 @@ import {
   dialogFrame,
   readDialogCommand,
   recordOf,
+  recordOverlayClose,
   spacing,
   stringOf,
   textField,
@@ -74,10 +75,15 @@ export default class Prompt extends View {
     this.handle = cx.focus_handle();
   }
 
+  private dismiss(): void {
+    recordOverlayClose();
+    closeOverlay();
+  }
+
   private save(): void {
     const name = this.input.value();
 
-    closeOverlay();
+    this.dismiss();
     run(this.dialog.command.name, { ...this.dialog.command.args, name });
   }
 
@@ -86,7 +92,7 @@ export default class Prompt extends View {
       return;
     }
 
-    closeOverlay();
+    this.dismiss();
     cx.stop_propagation();
   }
 
@@ -102,7 +108,7 @@ export default class Prompt extends View {
 
   private actions(): Element[] {
     const cancel = dialogButton({ label: 'Cancel', kind: 'outline' }).on_click(() => {
-      closeOverlay();
+      this.dismiss();
     });
 
     const save = dialogButton({ label: 'Save', kind: 'solid' }).on_click(() => {

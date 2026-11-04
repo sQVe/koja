@@ -4,7 +4,7 @@ import { herdrFake } from '../../tests/moduleFakes.ts';
 
 interface RunCall {
   name: string;
-  args: Record<string, unknown>;
+  args: Record<string, unknown> | undefined;
 }
 
 interface OpenedSpec {
@@ -42,7 +42,7 @@ await mock.module('herdr', () =>
 
       return 'overlay-1';
     },
-    run: (name: string, args: Record<string, unknown> = {}) => {
+    run: (name: string, args?: Record<string, unknown>) => {
       runCalls.push({ name, args });
 
       return null;
@@ -252,5 +252,21 @@ describe('askFirst', () => {
 
     expect(openedSpecs).toEqual([]);
     expect(runCalls).toEqual([]);
+  });
+
+  test('closing the focused last tab with no args opens the confirm and runs nothing', () => {
+    focusValue = { space: 's2', tab: 't3' };
+
+    askFirst('tab.close');
+
+    expect(openedSpecs.map((spec) => spec.mod)).toEqual(['koja-confirm']);
+    expect(runCalls).toEqual([]);
+  });
+
+  test('closing the focused tab with siblings and no args runs it with the absent args', () => {
+    askFirst('tab.close');
+
+    expect(openedSpecs).toEqual([]);
+    expect(runCalls).toEqual([{ name: 'tab.close', args: undefined }]);
   });
 });
