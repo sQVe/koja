@@ -339,7 +339,6 @@ switch_layout() {
 }
 
 # A fresh home makes Herdr show its welcome and an Updated pill, which would sit in every shot.
-# Setting the flag keeps other shared keys; a missing, empty, or broken file starts from {}.
 mark_first_start_done() {
   local shared=$HERDR_APP_HOME/shared.json current='' version staged
   mkdir -p "$HERDR_APP_HOME"
