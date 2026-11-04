@@ -17,7 +17,7 @@ interface InputStub {
 const openedSpecs: unknown[] = [];
 let closeCount = 0;
 const shownTexts: string[] = [];
-let input: InputStub;
+const createdInputs: InputStub[] = [];
 
 const createInput = (): InputStub => {
   const stub: InputStub = {
@@ -43,9 +43,11 @@ await mock.module('gpui-base', () =>
   gpuiBaseFake({
     InputState: {
       new: () => {
-        input = createInput();
+        const created = createInput();
 
-        return input;
+        createdInputs.push(created);
+
+        return created;
       },
     },
     h_flex: chainable,
@@ -115,8 +117,14 @@ const asyncContext = {
 };
 
 const submitTyped = (text: string): void => {
-  input.text = text;
-  input.handlers.submit?.({}, { notify: () => undefined });
+  const [picker] = createdInputs;
+
+  if (picker === undefined) {
+    throw new Error('The picker created no input.');
+  }
+
+  picker.text = text;
+  picker.handlers.submit?.({}, { notify: () => undefined });
 };
 
 afterAll(() => {
@@ -124,6 +132,7 @@ afterAll(() => {
 });
 
 beforeEach(() => {
+  createdInputs.length = 0;
   openedSpecs.length = 0;
   closeCount = 0;
   shownTexts.length = 0;

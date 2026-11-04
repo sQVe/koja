@@ -1,8 +1,16 @@
+import type { InputState } from 'gpui-base';
 import { v_flex } from 'gpui-base';
 import type { Element } from 'gpui-kit';
 
 import type { IconName } from '../../../../kit/index.ts';
-import { icon, keyHint, listRow, sectionHeader, spacing } from '../../../../kit/index.ts';
+import {
+  icon,
+  keyHint,
+  listRow,
+  searchField,
+  sectionHeader,
+  spacing,
+} from '../../../../kit/index.ts';
 
 type PaletteQuality = 'clean' | 'nearPass' | 'nearFail' | 'clearFail';
 
@@ -55,22 +63,24 @@ const commandRow = (command: FakeCommand, quality: PaletteQuality, index: number
     end: [keyHint(command.shortcut)],
   });
 
-const paletteScene = (quality: PaletteQuality): Element => {
-  const root = v_flex().flex_1().min_h(0).py(spacing.small);
+const paletteScene = (quality: PaletteQuality, input: InputState): Element => {
+  const body = v_flex().flex_1().min_h(0).py(spacing.small);
 
   if (quality !== 'nearFail') {
-    root.child(sectionHeader({ label: 'Commands', size: 'default' }));
+    body.child(sectionHeader({ label: 'Commands', size: 'default' }));
   }
 
-  return root.child(
+  body.child(
     v_flex().children(fakeCommands.map((command, index) => commandRow(command, quality, index))),
   );
+
+  return v_flex().flex_1().min_h(0).child(searchField(input, 'command')).child(body);
 };
 
-export const paletteClean = (): Element => paletteScene('clean');
+export const paletteClean = (input: InputState): Element => paletteScene('clean', input);
 
-export const paletteNearPass = (): Element => paletteScene('nearPass');
+export const paletteNearPass = (input: InputState): Element => paletteScene('nearPass', input);
 
-export const paletteNearFail = (): Element => paletteScene('nearFail');
+export const paletteNearFail = (input: InputState): Element => paletteScene('nearFail', input);
 
-export const paletteClearFail = (): Element => paletteScene('clearFail');
+export const paletteClearFail = (input: InputState): Element => paletteScene('clearFail', input);
