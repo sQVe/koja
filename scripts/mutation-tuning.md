@@ -93,6 +93,7 @@ through behavior a caller can observe. Each file was audited with `bunx --bun mu
 | --------------------------------------------------------- | --------------------- | ----------------------------------------------------------------------------------------------------------------------- |
 | 105, 109, 128, 140-152, 162, 180, 183, 186, 191, 192, 196 | StringLiteral         | noise: label text and icon names only feed display. Actions and their arguments are unchanged.                          |
 | 121                                                       | ConditionalExpression | equivalent: when `terminal` is null, `parent` is undefined, so the `parent === undefined` check still returns no entry. |
+| 125                                                       | LogicalOperator       | noise: the parent's name only feeds the send-back label. The entry and its `terminal.park` call are unchanged.          |
 
 ### src/mods/koja-modal/execute.ts
 

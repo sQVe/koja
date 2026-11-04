@@ -250,29 +250,37 @@ describe('menu commands', () => {
     ]);
   });
 
-  test('sends a pane back to the terminal named as its parent', () => {
+  test('send a pane back to its live parent terminal', () => {
     terminalList = [
       { address: 'decoy', labels: {} },
-      { address: 'terminal-0', name: 'Parent', labels: {} },
+      { address: 'terminal-0', labels: {} },
       { address: 'terminal-1', parent: 'terminal-0', labels: {} },
-      { address: 'terminal-2', name: 'Other', labels: {} },
     ];
 
     runCalls = [];
 
-    const menu: MenuProps = { kind: 'pane', target: target({ terminal: 'terminal-1' }) };
+    runEntries({ kind: 'pane', target: target({ terminal: 'terminal-1' }) }, null);
 
-    const sendBack = menuEntries(menu, null, host).find((item) =>
-      item.label.startsWith('Send back to '),
-    );
+    const parkCalls = runCalls.filter((call) => call.command === 'terminal.park');
 
-    sendBack?.action();
-
-    expect(sendBack?.label).toContain('Parent');
-
-    expect(runCalls).toStrictEqual([
+    expect(parkCalls).toStrictEqual([
       { command: 'terminal.park', args: { terminal: 'terminal-1' } },
     ]);
+  });
+
+  test('offer no send-back when the parent terminal is gone', () => {
+    terminalList = [
+      { address: 'decoy', labels: {} },
+      { address: 'terminal-1', parent: 'terminal-0', labels: {} },
+    ];
+
+    runCalls = [];
+
+    runEntries({ kind: 'pane', target: target({ terminal: 'terminal-1' }) }, null);
+
+    const parkCalls = runCalls.filter((call) => call.command === 'terminal.park');
+
+    expect(parkCalls).toStrictEqual([]);
   });
 
   test('run the tab commands', () => {
