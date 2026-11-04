@@ -6,6 +6,7 @@ import { View } from 'gpui-kit';
 import { colors, sectionHeader, spacing, textSize } from '../../kit/index.ts';
 import { actions } from './actions.ts';
 import { buttons } from './buttons.ts';
+import { dialogs } from './dialogs.ts';
 import { headers } from './headers.ts';
 import { icons } from './icons.ts';
 import { marks } from './marks.ts';
@@ -27,10 +28,12 @@ export default class Gallery extends View {
   private readonly emptyField: InputState = InputStates.new({ placeholder: 'Commit message' });
   private readonly focusedField: InputState = InputStates.new({ placeholder: 'Commit message' });
   private readonly filledField: InputState = InputStates.new({ placeholder: 'Commit message' });
+  private readonly renameField: InputState = InputStates.new({ placeholder: 'Tab name' });
 
   override init(_props: unknown, _cx: AsyncContext): void {
     this.search.set_value('');
     this.filledField.set_value('Fix the login redirect');
+    this.renameField.set_value('Build and test');
   }
 
   override render(): Element {
@@ -58,6 +61,7 @@ export default class Gallery extends View {
           actions(this.emptyField, this.focusedField, this.filledField),
         ),
       )
+      .child(section('Dialogs', dialogs(this.renameField)))
       .child(section('Tabs', tabs()))
       .child(section('Popup surface', popupSurfaces()))
       .child(section('Search and text', searchAndText(this.search)));

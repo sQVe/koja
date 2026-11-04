@@ -9,6 +9,13 @@ import type { Color } from './palette.ts';
 import { actionHoverOpacity, controlSize, radius, spacing, textSize } from './size.ts';
 import { colors } from './theme.ts';
 
+export type DialogButtonKind = 'solid' | 'danger' | 'outline';
+
+export interface DialogButtonOptions extends HoverOptions {
+  label: string;
+  kind: DialogButtonKind;
+}
+
 export interface IconButtonOptions extends HoverOptions {
   name: IconName;
   size?: 'default' | 'small';
@@ -79,6 +86,62 @@ export const actionButton = (options: ActionButtonOptions): Element => {
   }
 
   return button.bg(palette.raised).text_color(palette.dim);
+};
+
+const dialogButtonBase = (label: string): Element =>
+  h_flex()
+    .h(controlSize.dialogButton)
+    .px(spacing.large)
+    .flex_none()
+    .items_center()
+    .rounded(radius.pill)
+    .text_size(textSize.small)
+    .cursor_pointer()
+    .child(label);
+
+const solidDialogButton = (label: string, hovered: boolean): Element => {
+  const palette = colors();
+  const button = dialogButtonBase(label).bg(palette.solid).text_color(palette.solid_foreground);
+
+  return withHover(button, hovered, (element) => element.opacity(actionHoverOpacity));
+};
+
+// Dimming the fill would also dim the label below AA, so hover draws a ring instead.
+const dangerDialogButton = (label: string, hovered: boolean): Element => {
+  const palette = colors();
+
+  const button = dialogButtonBase(label)
+    .border(spacing.hairline)
+    .border_color(palette.ansi1)
+    .bg(palette.ansi1)
+    .text_color(palette.popover);
+
+  return withHover(button, hovered, (element) => element.border_color(palette.foreground));
+};
+
+const outlineDialogButton = (label: string, hovered: boolean): Element => {
+  const palette = colors();
+
+  const button = dialogButtonBase(label)
+    .border(spacing.hairline)
+    .border_color(palette.border)
+    .text_color(palette.foreground);
+
+  return withHover(button, hovered, (element) => element.bg(palette.hover));
+};
+
+export const dialogButton = (options: DialogButtonOptions): Element => {
+  const hovered = options.hovered === true;
+
+  if (options.kind === 'outline') {
+    return outlineDialogButton(options.label, hovered);
+  }
+
+  if (options.kind === 'danger') {
+    return dangerDialogButton(options.label, hovered);
+  }
+
+  return solidDialogButton(options.label, hovered);
 };
 
 export const toggleButton = (options: ToggleButtonOptions): Element => {

@@ -1,4 +1,8 @@
-export { actionButton, iconButton, toggleButton } from './button.ts';
+export { actionButton, dialogButton, iconButton, toggleButton } from './button.ts';
+
+export type { DialogButtonKind } from './button.ts';
+
+export { dialogFrame } from './dialog.ts';
 
 export { icon, iconSlot, programIcon, spinner } from './icon.ts';
 

@@ -262,6 +262,7 @@ const contrastPairs = (): ContrastPair[] => [
   contrastPair('dim', 'raised', 4.5, 'koja-changes diff hunk header on raised'),
   contrastPair('solid_foreground', 'solid', 4.5, 'actionButton label on solid'),
   contrastPair('solid', 'popover', 3, 'actionButton fill on popover'),
+  contrastPair('popover', 'ansi1', 4.5, 'dialogButton danger label on ansi1'),
   contrastPair('selected', 'popover', 3, 'active toggleButton fill on popover'),
   contrastPair('selected', 'chrome', 3, 'active toggleButton fill in koja-tabs on chrome'),
 ];
