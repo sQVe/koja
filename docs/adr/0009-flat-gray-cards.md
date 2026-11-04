@@ -27,6 +27,9 @@ border for focus. The frame, panes, terminals, sidebar, and tab bar all share th
 
 - Mods draw their text in Geist, Herdr's bundled sans font, set as the layout's `ui_font`. Terminals
   keep their own monospace font.
+- Herdr bundles only Geist Regular and thickens it for heavier weights, so semibold and bold look
+  the same. Koja installs Geist SemiBold and Bold into Herdr's `fonts/` folder so each weight draws
+  its real face.
 - The kit's text sizes run 9, 11, 13, and 15 px. Geist is wider than most sans fonts, and the
   smaller scale keeps the sidebar and tab titles about as dense as before.
 
