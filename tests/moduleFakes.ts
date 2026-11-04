@@ -2,6 +2,13 @@ type ModuleFake = Record<string, unknown>;
 
 const noop = (): undefined => undefined;
 
+// A stub that accepts any call and any property, so a kit element can be chained as in production.
+const chainable = (): unknown =>
+  new Proxy(() => undefined, {
+    get: (_target, key) => (key === 'then' ? undefined : chainable()),
+    apply: () => chainable(),
+  });
+
 // Bun fixes a mocked module's export names at the first mock.module call, so every mock of a
 // module must expose the same names. These helpers hold the union each test file needs; a file
 // passes its own behavior as overrides and gets the rest as defaults.
@@ -51,6 +58,8 @@ export const kitIndexFake = (overrides: ModuleFake = {}): ModuleFake => ({
   colors: noop,
   currentWindow: () => null,
   detailText: noop,
+  dialogButton: chainable,
+  dialogFrame: noop,
   emptyState: noop,
   highlightedText: noop,
   icon: noop,
@@ -78,6 +87,7 @@ export const kitIndexFake = (overrides: ModuleFake = {}): ModuleFake => ({
   spacing: {},
   statusMark: noop,
   stringOf: () => null,
+  textField: chainable,
   textSize: {},
   themeChoices: [],
   toggleButton: noop,
