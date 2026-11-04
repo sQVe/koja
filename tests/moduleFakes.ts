@@ -94,6 +94,7 @@ export const kitIndexFake = (overrides: ModuleFake = {}): ModuleFake => ({
   rowHeight: {},
   searchField: noop,
   sectionHeader: noop,
+  shortAge: () => '',
   shortcutFor: () => null,
   spaceMark: noop,
   spacing: {},

@@ -161,7 +161,9 @@ export const toggleButton = (options: ToggleButtonOptions): Element => {
   if (options.active) {
     button.bg(palette.selected);
   } else {
-    withHover(button, options.hovered === true, (element) => element.bg(palette.hover));
+    withHover(button, options.hovered === true, (element) =>
+      element.text_color(palette.foreground),
+    );
   }
 
   if (options.start !== undefined) {

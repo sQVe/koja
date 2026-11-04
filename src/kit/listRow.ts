@@ -5,6 +5,7 @@ import { div } from 'gpui-kit';
 import type { HoverOptions } from './hover.ts';
 import { withHover } from './hover.ts';
 import type { Palette } from './palette.ts';
+import { clearOf } from './palette.ts';
 import { draggedOpacity, indentWidth, radius, rowHeight, spacing, textSize } from './size.ts';
 import type { RowSize } from './size.ts';
 import { colors } from './theme.ts';
@@ -43,7 +44,9 @@ const withBackground = (row: Element, options: ListRowOptions, palette: Palette)
     return row;
   }
 
-  return withHover(row, options.hovered === true, (element) => element.bg(palette.hover));
+  return withHover(row, options.hovered === true, (element) =>
+    element.border_color(palette.selected),
+  );
 };
 
 const dropLineAt = (edge: 'top' | 'bottom', palette: Palette): Element => {
@@ -92,6 +95,9 @@ const rowFrame = (options: ListRowOptions, palette: Palette): Element => {
     .pr(spacing.small)
     .gap(spacing.small)
     .items_center()
+    // A clear border on every row, so the outline a hovered row draws never shifts its content.
+    .border(spacing.hairline)
+    .border_color(clearOf(palette.selected))
     .text_size(textSize.default)
     .text_color(labelColor(options, palette));
 

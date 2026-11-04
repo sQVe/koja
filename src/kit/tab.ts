@@ -52,7 +52,7 @@ export const tab = (options: TabOptions): Element => {
   } else {
     element.text_color(palette.muted);
 
-    withHover(element, options.hovered === true, (styled) => styled.bg(palette.hover));
+    withHover(element, options.hovered === true, (styled) => styled.text_color(palette.foreground));
   }
 
   element

@@ -12,6 +12,8 @@ export type { IconName } from './iconNames.ts';
 
 export { listRow } from './listRow.ts';
 
+export { shortAge } from './age.ts';
+
 export { foldChevron, repoLabel } from './repoLabel.ts';
 
 export { popupSurface } from './popupSurface.ts';
