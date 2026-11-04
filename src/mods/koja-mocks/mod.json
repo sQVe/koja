@@ -1,0 +1,5 @@
+{
+  "place": "none",
+  "title": "Mock scenes",
+  "overlay": { "kind": "dialog", "width": 380, "height": 0.5 }
+}
