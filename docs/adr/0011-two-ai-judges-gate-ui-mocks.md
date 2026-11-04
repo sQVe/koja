@@ -62,7 +62,9 @@ script only checks answers, so the procedure can change without code.
 
 A hard failure fails the mock on its own, whatever its scores. There are five kinds:
 
-- `contrast`: text or control contrast below WCAG 2.2 AA. It comes from `bun run check`.
+- `contrast`: text or control contrast below WCAG 2.2 AA. It comes from `bun run check`. The check
+  lists the theme's current failing pairs as known failures, which pass until a theme change fixes
+  them. A new failing pair, or a listed pair that starts to pass, fails the check.
 - `offKitValue`: a size, radius, text size, or color that is not from the kit or a Herdr theme
   token. It comes from `bun run check`.
 - `hiddenTaskInformation`: information the task needs is hidden or absent. The judges flag it.
