@@ -41,8 +41,10 @@ project skill runs each round and holds the procedure, so the procedure can chan
 - Each judge gives findings only, with no scores.
 - Each finding has a severity from 0 to 4 on Nielsen's scale, and it names one category.
 - A finding of severity 2 or higher fails the mock. Severity 0 and 1 findings do not.
-- Missing evidence does not fail the mock. The judge lists what it lacked, and the session supplies
-  it and judges again, so a gap in the packet leads to a better packet, not a failed mock.
+- Missing evidence does not fail the mock. When a judge cannot decide, it answers `needs evidence`,
+  and the session supplies what it lacked and judges again, so a gap in the packet leads to a better
+  packet, not a failed mock. Missing evidence listed beside a pass or fail, such as states a still
+  image cannot show, starts no new round.
 
 ### Categories
 
