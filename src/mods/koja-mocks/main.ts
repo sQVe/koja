@@ -17,7 +17,10 @@ import {
   stringOf,
 } from '../../kit/index.ts';
 import { findScene, sceneOrigin } from './catalog.ts';
-import type { SceneLookup, SceneName } from './catalog.ts';
+import type { SceneName } from './catalog.ts';
+import { controlsScene } from './scenes/controls.ts';
+import type { SceneInputs } from './scenes/inputs.ts';
+import { popupQuery, popupScene } from './scenes/popup.ts';
 import { sidebarScene } from './scenes/sidebar.ts';
 import {
   paletteClean,
@@ -25,13 +28,17 @@ import {
   paletteNearFail,
   paletteNearPass,
 } from './scenes/smoke/palette.ts';
+import { statesScene } from './scenes/states.ts';
 
-const renderers: Record<SceneName, (sceneInput: InputState) => Element> = {
+const renderers: Record<SceneName, (inputs: SceneInputs) => Element> = {
   sidebar: sidebarScene,
-  'smoke-1': paletteNearFail,
-  'smoke-2': paletteClean,
-  'smoke-3': paletteClearFail,
-  'smoke-4': paletteNearPass,
+  states: statesScene,
+  popup: popupScene,
+  controls: controlsScene,
+  'smoke-1': (inputs) => paletteNearFail(inputs.command),
+  'smoke-2': (inputs) => paletteClean(inputs.command),
+  'smoke-3': (inputs) => paletteClearFail(inputs.command),
+  'smoke-4': (inputs) => paletteNearPass(inputs.command),
 };
 
 // A refocus after the window has drawn, when its input or focus target can take the keyboard.
@@ -41,6 +48,13 @@ const pickerHint = 'Type a scene name and press Enter.';
 
 const sceneName = (): string | null => stringOf(recordOf(props())['scene']);
 
+const createSceneInputs = (): SceneInputs => ({
+  search: InputStates.new({ value: popupQuery }),
+  field: InputStates.new({ placeholder: 'Branch name…' }),
+  filledField: InputStates.new({ value: 'feature/ui-foundation' }),
+  command: InputStates.new({ placeholder: 'Type a command…' }),
+});
+
 export default class Mocks extends View {
   private error: string | null = null;
 
@@ -48,10 +62,14 @@ export default class Mocks extends View {
 
   private readonly input: InputState = InputStates.new({ placeholder: 'Scene name…' });
 
-  private readonly sceneInput: InputState = InputStates.new({ placeholder: 'Type a command…' });
+  private sceneInputs: SceneInputs | null = null;
 
   override init(_props: unknown, cx: AsyncContext): void {
     this.handle = cx.focus_handle();
+
+    if (sceneName() !== null) {
+      this.sceneInputs = createSceneInputs();
+    }
 
     this.input.on('change', (_event, changeCx) => {
       this.error = null;
@@ -114,16 +132,8 @@ export default class Mocks extends View {
     );
   }
 
-  private sceneContent(lookup: SceneLookup): Element {
-    if ('error' in lookup) {
-      return emptyState(lookup.error);
-    }
-
-    return renderers[lookup.scene.name](this.sceneInput);
-  }
-
   private scene(name: string): Element {
-    const content = this.sceneContent(findScene(name));
+    const content = this.sceneContent(name);
 
     const header = h_flex()
       .flex_none()
@@ -150,6 +160,20 @@ export default class Mocks extends View {
         .child(header)
         .child(content),
     );
+  }
+
+  private sceneContent(name: string): Element {
+    const lookup = findScene(name);
+
+    if ('error' in lookup) {
+      return emptyState(lookup.error);
+    }
+
+    if (this.sceneInputs === null) {
+      return emptyState('The scene opened without its inputs.');
+    }
+
+    return renderers[lookup.scene.name](this.sceneInputs);
   }
 
   private tracked(element: Element): Element {

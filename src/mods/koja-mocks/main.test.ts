@@ -2,7 +2,7 @@ import { afterAll, beforeEach, describe, expect, mock, test } from 'bun:test';
 
 import { gpuiBaseFake, gpuiKitFake, herdrFake, kitIndexFake } from '../../../tests/moduleFakes.ts';
 import { overlaySize } from '../../kit/size.ts';
-import { sceneOrigin } from './catalog.ts';
+import { findScene, sceneOrigin } from './catalog.ts';
 
 type SubmitHandler = (event: unknown, cx: { notify: () => void }) => void;
 
@@ -158,6 +158,21 @@ describe('scene picker', () => {
     ]);
 
     expect(closeCount).toBe(1);
+  });
+
+  const scenes = ['sidebar', 'states', 'popup', 'controls'];
+
+  test.each(scenes)('submitting %s opens its window at its catalog size', async (name) => {
+    const view = await loadView();
+    const lookup = findScene(name);
+    const size = 'scene' in lookup ? lookup.scene : { width: 0, height: 0 };
+
+    view.init(undefined, asyncContext);
+    submitTyped(name);
+
+    expect(openedSpecs).toEqual([
+      expect.objectContaining({ props: { scene: name }, width: size.width, height: size.height }),
+    ]);
   });
 
   test('submitting an unknown name opens nothing and keeps the picker with its error', async () => {

@@ -1,44 +1,165 @@
 import { v_flex } from 'gpui-base';
 import type { Element } from 'gpui-kit';
+import { div } from 'gpui-kit';
 import type { Status } from 'herdr';
 
-import type { RowState } from '../../../kit/index.ts';
-import { emptyState, listRow, sectionHeader, spaceMark, spacing } from '../../../kit/index.ts';
+import type { RowState, ThemeToken } from '../../../kit/index.ts';
+import {
+  attentionBadge,
+  colors,
+  detailText,
+  icon,
+  iconButton,
+  indicator,
+  listRow,
+  radius,
+  repoLabel,
+  sectionHeader,
+  spaceMark,
+  spacing,
+  stateLine,
+  statusMark,
+  toggleButton,
+} from '../../../kit/index.ts';
+
+interface FakePull {
+  number: number;
+  token: ThemeToken;
+}
 
 interface FakeSpace {
   label: string;
   status: Status | null;
   state: RowState;
+  hovered?: boolean;
+  pull?: FakePull;
+  badge?: string;
 }
 
-const fakeSpaces: FakeSpace[] = [
-  { label: 'koja', status: 'working', state: 'normal' },
+interface FakeRepo {
+  name: string;
+  detail: string;
+  status: Status | null;
+  error?: string;
+  spaces: FakeSpace[];
+}
+
+const fakeRepos: FakeRepo[] = [
   {
-    label: 'feature/a-branch-name-long-enough-to-run-past-the-sidebar-edge',
-    status: 'idle',
-    state: 'selected',
+    name: 'koja',
+    detail: 'main · 2h',
+    status: 'blocked',
+    spaces: [
+      {
+        label: 'Sidebar density',
+        status: 'working',
+        state: 'normal',
+        pull: { number: 24, token: 'ansi2' },
+      },
+      {
+        label: 'feature/a-branch-name-long-enough-to-run-past-the-sidebar-edge',
+        status: 'idle',
+        state: 'selected',
+      },
+      { label: 'Theme contrast', status: 'blocked', state: 'normal', badge: 'Needs you' },
+      { label: 'Scratch', status: null, state: 'normal', hovered: true },
+    ],
   },
-  { label: 'tikk', status: null, state: 'normal' },
+  {
+    name: 'tikk',
+    detail: 'main · 3d',
+    status: 'done',
+    error: 'Could not read pull requests.',
+    spaces: [
+      {
+        label: 'Ticket sync',
+        status: 'done',
+        state: 'normal',
+        pull: { number: 12, token: 'ansi5' },
+      },
+      { label: 'Release notes', status: null, state: 'normal' },
+    ],
+  },
 ];
+
+const spaceEnd = (space: FakeSpace): Element[] => {
+  const end: Element[] = [];
+
+  if (space.pull !== undefined) {
+    end.push(detailText(`#${space.pull.number}`, colors()[space.pull.token]));
+  }
+
+  if (space.badge !== undefined) {
+    end.push(attentionBadge(space.badge));
+  }
+
+  return end;
+};
 
 const spaceRow = (space: FakeSpace): Element =>
   listRow({
-    size: 'medium',
+    size: 'small',
     inset: true,
     state: space.state,
     label: space.label,
     start: spaceMark(space.status),
+    hovered: space.hovered === true,
+    end: spaceEnd(space),
   });
 
-const section = (title: string, content: Element): Element =>
-  v_flex()
-    .gap(spacing.small)
-    .child(sectionHeader({ label: title, size: 'default' }))
-    .child(content);
+const repoRow = (repo: FakeRepo): Element =>
+  listRow({
+    size: 'small',
+    inset: true,
+    state: 'normal',
+    label: repoLabel({ name: repo.name, detail: repo.detail, folded: false, selected: false }),
+    end: [statusMark(repo.status)],
+  });
+
+const errorLine = (text: string): Element =>
+  stateLine({ kind: 'error', text, action: toggleButton({ label: 'Retry', active: false }) });
+
+const repoGroup = (repo: FakeRepo): Element => {
+  const group = v_flex();
+
+  if (repo.error !== undefined) {
+    group.child(errorLine(repo.error));
+  }
+
+  return group.child(repoRow(repo)).children(repo.spaces.map(spaceRow));
+};
+
+const machineHeader = (): Element =>
+  sectionHeader({
+    label: 'This computer',
+    size: 'default',
+    interactive: true,
+    start: icon('monitor', 'small'),
+    end: [
+      iconButton({ name: 'plus', size: 'small' }),
+      indicator('ansi2'),
+      icon('chevron-down', 'small'),
+    ],
+  });
+
+const remoteHeader = (): Element =>
+  sectionHeader({
+    label: 'build-box',
+    size: 'default',
+    interactive: true,
+    start: icon('server', 'small'),
+    end: [detailText('asleep'), indicator('dim'), icon('chevron-right', 'small')],
+  });
 
 export const sidebarScene = (): Element =>
   v_flex()
-    .gap(spacing.xlarge)
+    .flex_1()
+    .min_h(0)
     .py(spacing.medium)
-    .child(section('Spaces', v_flex().children(fakeSpaces.map(spaceRow))))
-    .child(section('Agents', emptyState('No agents running.')));
+    .gap(spacing.medium)
+    .rounded(radius.dialog)
+    .bg(colors().chrome)
+    .child(machineHeader())
+    .children(fakeRepos.map(repoGroup))
+    .child(div().flex_1())
+    .child(remoteHeader());
