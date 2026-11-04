@@ -4,40 +4,24 @@ import type { AsyncContext, Context, Element, FocusHandle, KeyEvent } from 'gpui
 import { View } from 'gpui-kit';
 import { props, run } from 'herdr';
 
+import type { PromptDialog } from '../../kit/index.ts';
 import {
   closeOverlay,
   detailText,
   dialogButton,
   dialogFrame,
+  readDialogCommand,
   recordOf,
   spacing,
   stringOf,
   textField,
 } from '../../kit/index.ts';
 
-interface PromptCommand {
-  name: string;
-  args: Record<string, unknown>;
-}
-
-interface PromptDialog {
-  title: string;
-  value: string;
-  hint: string;
-  command: PromptCommand;
-}
-
 // A refocus after the dialog has drawn, when the input can take the keyboard.
 const refocusMilliseconds = 600;
 
 const capitalize = (text: string): string =>
   text.replace(/^./, (character) => character.toUpperCase());
-
-const readCommand = (value: unknown): PromptCommand => {
-  const record = recordOf(value);
-
-  return { name: stringOf(record['name']) ?? '', args: recordOf(record['args']) };
-};
 
 const readDialog = (value: unknown): PromptDialog => {
   const record = recordOf(value);
@@ -46,7 +30,7 @@ const readDialog = (value: unknown): PromptDialog => {
     title: capitalize(stringOf(record['title']) ?? ''),
     value: stringOf(record['value']) ?? '',
     hint: stringOf(record['hint']) ?? '',
-    command: readCommand(record['command']),
+    command: readDialogCommand(record['command']),
   };
 };
 

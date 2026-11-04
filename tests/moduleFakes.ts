@@ -3,7 +3,7 @@ type ModuleFake = Record<string, unknown>;
 const noop = (): undefined => undefined;
 
 // A stub that accepts any call and any property, so a kit element can be chained as in production.
-const chainable = (): unknown =>
+export const chainable = (): unknown =>
   new Proxy(() => undefined, {
     get: (_target, key) => (key === 'then' ? undefined : chainable()),
     apply: () => chainable(),
@@ -54,6 +54,7 @@ export const gpuiKitFake = (overrides: ModuleFake = {}): ModuleFake => ({
 
 export const kitIndexFake = (overrides: ModuleFake = {}): ModuleFake => ({
   actionButton: noop,
+  askFirst: noop,
   closeOverlay: noop,
   colors: noop,
   currentWindow: () => null,
@@ -75,6 +76,7 @@ export const kitIndexFake = (overrides: ModuleFake = {}): ModuleFake => ({
   popupSurface: noop,
   programIcon: noop,
   radius: {},
+  readDialogCommand: noop,
   recordOf: () => undefined,
   recordOverlayClose: noop,
   repeat: noop,

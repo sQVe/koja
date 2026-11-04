@@ -7,4 +7,8 @@ outline kinds, and a dialog frame on the rounded popup surface. The kit gallery 
 confirm and a sample prompt.
 
 Add the `koja-confirm` and `koja-prompt` mods, ports of Herdr's confirm and prompt dialogs drawn
-with those parts. Koja does not open them yet.
+with those parts.
+
+Closing a space and renaming a space or tab now ask first in these dialogs. The space and tab menus,
+the palette, and a tab double-click open them. F2 and Shift-F2 no longer open Herdr's rename prompt,
+so Rename has no shortcut.

@@ -9,9 +9,10 @@ import type {
   ScrollWheelEvent,
 } from 'gpui-kit';
 import { div, View } from 'gpui-kit';
-import { commands, layouts, openOverlay, run, shared } from 'herdr';
+import { commands, layouts, openOverlay, shared } from 'herdr';
 
 import {
+  askFirst,
   closeOverlay,
   currentWindow,
   detailText,
@@ -150,7 +151,7 @@ export default class Palette extends View {
 
     const layoutName = stringOf(shared('layout')) ?? 'main';
 
-    run(entry.name, entry.name === 'layout.clone' ? { name: layoutName } : entry.args);
+    askFirst(entry.name, entry.name === 'layout.clone' ? { name: layoutName } : entry.args);
   }
 
   private closePalette(): void {

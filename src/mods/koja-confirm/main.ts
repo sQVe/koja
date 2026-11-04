@@ -2,31 +2,19 @@ import type { AsyncContext, Context, Element, FocusHandle, KeyEvent } from 'gpui
 import { View } from 'gpui-kit';
 import { props, run } from 'herdr';
 
-import type { DialogButtonKind } from '../../kit/index.ts';
-import { closeOverlay, dialogButton, dialogFrame, recordOf, stringOf } from '../../kit/index.ts';
-
-interface ConfirmCommand {
-  name: string;
-  args: Record<string, unknown>;
-}
-
-interface ConfirmDialog {
-  title: string;
-  detail: string;
-  action: string;
-  destroys: boolean;
-  command: ConfirmCommand;
-}
+import type { ConfirmDialog, DialogButtonKind } from '../../kit/index.ts';
+import {
+  closeOverlay,
+  dialogButton,
+  dialogFrame,
+  readDialogCommand,
+  recordOf,
+  stringOf,
+} from '../../kit/index.ts';
 
 const defaultTitle = 'Are you sure?';
 
 const defaultAction = 'Confirm';
-
-const readCommand = (value: unknown): ConfirmCommand => {
-  const record = recordOf(value);
-
-  return { name: stringOf(record['name']) ?? '', args: recordOf(record['args']) };
-};
 
 const readDialog = (value: unknown): ConfirmDialog => {
   const record = recordOf(value);
@@ -36,7 +24,7 @@ const readDialog = (value: unknown): ConfirmDialog => {
     detail: stringOf(record['detail']) ?? '',
     action: stringOf(record['action']) ?? defaultAction,
     destroys: record['destroys'] === true,
-    command: readCommand(record['command']),
+    command: readDialogCommand(record['command']),
   };
 };
 

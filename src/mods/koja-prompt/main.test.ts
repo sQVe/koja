@@ -1,6 +1,13 @@
 import { afterAll, beforeEach, describe, expect, mock, test } from 'bun:test';
 
-import { gpuiBaseFake, gpuiKitFake, herdrFake, kitIndexFake } from '../../../tests/moduleFakes.ts';
+import {
+  chainable,
+  gpuiBaseFake,
+  gpuiKitFake,
+  herdrFake,
+  kitIndexFake,
+} from '../../../tests/moduleFakes.ts';
+import { readDialogCommand } from '../../kit/dialogPayload.ts';
 import { recordOf, stringOf } from '../../kit/fields.ts';
 
 type KeyHandler = (
@@ -19,13 +26,9 @@ let calls: Call[] = [];
 let dialogProps: Record<string, unknown> = {};
 let keyDownHandler: KeyHandler | null = null;
 let typedValue = '';
+let openedValue: string | null = null;
+let selectedRanges: { start: number; end: number }[] = [];
 const inputHandlers = new Map<string, () => void>();
-
-const chainable = (): unknown =>
-  new Proxy(() => undefined, {
-    get: (_target, key) => (key === 'then' ? undefined : chainable()),
-    apply: () => chainable(),
-  });
 
 const frameSurface = (): unknown => {
   const element: unknown = new Proxy(() => undefined, {
@@ -57,13 +60,21 @@ const inputStub = {
     return true;
   },
   focus: () => undefined,
-  set_selected_range: () => undefined,
+  set_selected_range: (range: { start: number; end: number }) => {
+    selectedRanges.push(range);
+  },
   value: () => typedValue,
 };
 
 await mock.module('gpui-base', () =>
   gpuiBaseFake({
-    InputState: { new: () => inputStub },
+    InputState: {
+      new: (options: { value: string }) => {
+        openedValue = options.value;
+
+        return inputStub;
+      },
+    },
     v_flex: chainable,
   }),
 );
@@ -87,6 +98,7 @@ await mock.module('../../kit/index.ts', () =>
       calls.push('close');
     },
     dialogFrame: frameSurface,
+    readDialogCommand,
     recordOf,
     stringOf,
   }),
@@ -124,6 +136,8 @@ beforeEach(() => {
   keyDownHandler = null;
   inputHandlers.clear();
   typedValue = '';
+  openedValue = null;
+  selectedRanges = [];
 
   dialogProps = {
     title: 'rename tab',
@@ -154,5 +168,26 @@ describe('prompt saving', () => {
     keyDownHandler?.({ key: 'escape' }, keyContext);
 
     expect(calls).toEqual(['close']);
+  });
+});
+
+describe('prompt initial selection', () => {
+  test('a prompt opened with a value starts with it, all selected', async () => {
+    const view = await loadView();
+
+    view.init(undefined, asyncContext);
+
+    expect(openedValue).toBe('Old name');
+    expect(selectedRanges).toEqual([{ start: 0, end: 'Old name'.length }]);
+  });
+
+  test('a prompt opened with no value starts empty and selects nothing', async () => {
+    dialogProps = { ...dialogProps, value: undefined };
+    const view = await loadView();
+
+    view.init(undefined, asyncContext);
+
+    expect(openedValue).toBe('');
+    expect(selectedRanges).toEqual([]);
   });
 });

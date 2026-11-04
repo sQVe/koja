@@ -1,6 +1,7 @@
 import { afterAll, beforeEach, describe, expect, mock, test } from 'bun:test';
 
-import { gpuiKitFake, herdrFake, kitIndexFake } from '../../../tests/moduleFakes.ts';
+import { chainable, gpuiKitFake, herdrFake, kitIndexFake } from '../../../tests/moduleFakes.ts';
+import { readDialogCommand } from '../../kit/dialogPayload.ts';
 import { recordOf, stringOf } from '../../kit/fields.ts';
 
 type KeyHandler = (
@@ -20,12 +21,6 @@ let dialogProps: Record<string, unknown> = {};
 let keyDownHandler: KeyHandler | null = null;
 let buttonKinds: string[] = [];
 let stopPropagationCount = 0;
-
-const chainable = (): unknown =>
-  new Proxy(() => undefined, {
-    get: (_target, key) => (key === 'then' ? undefined : chainable()),
-    apply: () => chainable(),
-  });
 
 const frameSurface = (): unknown => {
   const element: unknown = new Proxy(() => undefined, {
@@ -76,6 +71,7 @@ await mock.module('../../kit/index.ts', () =>
     },
     dialogButton: recordButton,
     dialogFrame: frameSurface,
+    readDialogCommand,
     recordOf,
     stringOf,
   }),

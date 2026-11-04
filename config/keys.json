@@ -56,8 +56,6 @@
     "ctrl-shift-x": "pane.close",
     "ctrl-shift-z": "pane.zoom",
     "ctrl-shift-l": "layout.switch",
-    "f2": "tab.rename",
-    "shift-f2": "space.rename",
     "ctrl-b": "mod.open:koja-modal"
   },
   "mod:koja-modal": {

@@ -72,6 +72,12 @@ export { spaceFolder } from './space.ts';
 
 export { openWorktreeDialog } from './worktree.ts';
 
+export { askFirst } from './askFirst.ts';
+
+export type { ConfirmDialog, PromptDialog } from './dialogPayload.ts';
+
+export { readDialogCommand } from './dialogPayload.ts';
+
 export { modName } from './modName.ts';
 
 export { closeOverlay, openAtTop, overlayId } from './overlay.ts';
