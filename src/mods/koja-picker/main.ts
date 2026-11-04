@@ -84,11 +84,13 @@ const isList = (): boolean => recordOf(props())['part'] === 'list';
 const pickerData = (): PickerData => {
   const spaceList = spaces();
   const paneList = panes();
+  const terminalList = terminals();
 
   return {
     spaces: spaceList,
     panes: paneList,
-    statuses: rollupStatuses(spaceList, paneList, terminals()),
+    terminals: terminalList,
+    statuses: rollupStatuses(spaceList, paneList, terminalList),
     recent: history.recent(),
     focus: history.focus(),
   };
@@ -427,7 +429,7 @@ export default class Picker extends View {
   private tabRow(row: TabPickerRow, selected: boolean, data: PickerData): Element {
     const { tab } = row;
 
-    const { program, label } = tabRowDisplay(tab, data.panes);
+    const { program, label } = tabRowDisplay(tab, data.panes, data.terminals);
 
     return listRow({
       size: 'large',

@@ -2,13 +2,14 @@ import type { PaneInfo, SpaceInfo, Status, TabInfo } from 'herdr';
 
 import type { StatusRollup } from '../../kit/statusRollup.ts';
 import { statusRank } from '../../kit/statusRollup.ts';
-import { tabLabel, tabProgram } from '../../kit/tabLabel.ts';
+import { tabLabel, tabName, tabProgram, taskOfPane } from '../../kit/tabLabel.ts';
 import type { Match } from './match.ts';
 import { bestFieldMatch, fuzzyMatch } from './match.ts';
 
 export interface PickerData {
   spaces: SpaceInfo[];
   panes: PaneInfo[];
+  terminals: unknown[];
   statuses: StatusRollup;
   recent: string[];
   focus: Record<string, string>;
@@ -104,28 +105,37 @@ export const rowPane = (row: PickerRow | undefined, data: PickerData): PaneInfo 
 export const tabRowDisplay = (
   tab: TabInfo,
   paneList: PaneInfo[],
+  terminalRecords: unknown[],
 ): { program: PaneInfo['program'] | undefined; label: string } => {
   const program = tabProgram(tab, paneList);
 
-  return { program, label: tabLabel(tab, program) };
+  return { program, label: tabLabel(tab, program, paneList, terminalRecords) };
 };
 
-const paneSearchFields = (pane: PaneInfo): (string | null)[] => {
+const paneSearchFields = (pane: PaneInfo, data: PickerData): (string | null)[] => {
   if (pane.terminal === null) {
     return [pane.title];
   }
 
-  return [pane.title, pane.program.name, folderName(pane.cwd), pane.branch];
+  return [
+    pane.title,
+    pane.program.name,
+    folderName(pane.cwd),
+    pane.branch,
+    taskOfPane(pane, data.terminals),
+  ];
 };
 
 const tabSearchFields = (
   tab: TabInfo,
   status: Status | null,
-  paneList: PaneInfo[],
+  data: PickerData,
 ): (string | null)[] => [
-  tab.named ? tab.name : null,
+  tabName(tab, tabProgram(tab, data.panes), data.panes, data.terminals),
   statusWord(status),
-  ...paneList.filter((pane) => pane.tab === tab.id).flatMap(paneSearchFields),
+  ...data.panes
+    .filter((pane) => pane.tab === tab.id)
+    .flatMap((pane) => paneSearchFields(pane, data)),
 ];
 
 const spaceSearchFields = (space: SpaceInfo, data: PickerData): (string | null)[] => [
@@ -134,9 +144,7 @@ const spaceSearchFields = (space: SpaceInfo, data: PickerData): (string | null)[
   folderName(space.folder),
   space.machine,
   statusWord(data.statuses.spaces[space.id] ?? null),
-  ...space.tabs.flatMap((tab) =>
-    tabSearchFields(tab, data.statuses.tabs[tab.id] ?? null, data.panes),
-  ),
+  ...space.tabs.flatMap((tab) => tabSearchFields(tab, data.statuses.tabs[tab.id] ?? null, data)),
 ];
 
 const recentOrder = (data: PickerData): SpaceInfo[] => {
@@ -201,13 +209,13 @@ const tabChildRows = (
 const matchedPanes = (
   query: string,
   space: SpaceInfo,
-  paneList: PaneInfo[],
+  data: PickerData,
 ): { pane: PaneInfo; score: number }[] => {
   const matches: { pane: PaneInfo; score: number }[] = [];
 
   for (const tab of space.tabs) {
-    for (const pane of panesOf(tab, paneList)) {
-      const match = bestFieldMatch(query, paneSearchFields(pane));
+    for (const pane of panesOf(tab, data.panes)) {
+      const match = bestFieldMatch(query, paneSearchFields(pane, data));
 
       if (match !== null) {
         matches.push({ pane, score: match.score });
@@ -242,7 +250,7 @@ const spaceRowPane = (
   }
 
   const own = bestFieldMatch(query, spaceOwnFields(space, data));
-  const matches = matchedPanes(query, space, data.panes);
+  const matches = matchedPanes(query, space, data);
   const best = matches[0];
   const runnerUp = matches[1];
 

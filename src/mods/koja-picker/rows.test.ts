@@ -79,6 +79,7 @@ const data = (overrides: Partial<PickerData> = {}, terminalList: unknown[] = [])
   return {
     spaces,
     panes,
+    terminals: terminalList,
     statuses: rollupStatuses(spaces, panes, terminalList),
     recent: [],
     focus: {},
@@ -159,6 +160,39 @@ describe('buildRows', () => {
 
   test('keeps only spaces that match the query', () => {
     expect(keysOf(buildRows('nts', null, data()))).toStrictEqual(['space:s2']);
+  });
+
+  test('targets the inactive worker tab when the query is its task', () => {
+    const fixture = data(
+      {
+        spaces: [spaceOf('s1', 1, 'koja', [tabOf('k1', 1, true), tabOf('k2', 2)])],
+        panes: [paneOf('p1', 'k1'), paneOf('p2', 'k2')],
+      },
+      [{ address: 't-p2', labels: { 'tau.task': 'Fix status counts' } }],
+    );
+
+    const [spaceRow] = buildRows('Fix status counts', null, fixture);
+
+    expect(spaceRow?.kind).toBe('space');
+    expect(spaceRow?.tab?.id).toBe('k2');
+    expect(spaceRow?.pane?.pane).toBe('p2');
+  });
+
+  test('targets the worker pane whose task matches among two workers in one tab', () => {
+    const fixture = data(
+      {
+        spaces: [spaceOf('s1', 1, 'koja', [tabOf('k1', 1, true)])],
+        panes: [paneOf('p1', 'k1'), paneOf('p2', 'k1')],
+      },
+      [
+        { address: 't-p1', labels: { 'tau.task': 'Fix status counts' } },
+        { address: 't-p2', labels: { 'tau.task': 'Write docs' } },
+      ],
+    );
+
+    const [spaceRow] = buildRows('Write docs', null, fixture);
+
+    expect(spaceRow?.pane?.pane).toBe('p2');
   });
 
   test('lists a tab that holds only mod panes', () => {
@@ -529,27 +563,35 @@ describe('tabRowDisplay', () => {
   const tuicrPane = { ...paneOf('p1', 'k1'), program: tuicr, title: 'review' };
 
   test('labels an unnamed tab by the program it runs', () => {
-    expect(tabRowDisplay(tabOf('k1', 1), [tuicrPane]).label).toBe('tuicr');
+    expect(tabRowDisplay(tabOf('k1', 1), [tuicrPane], []).label).toBe('tuicr');
   });
 
   test('takes the icon program from the same program as the label', () => {
-    expect(tabRowDisplay(tabOf('k1', 1), [tuicrPane]).program).toBe(tuicr);
+    expect(tabRowDisplay(tabOf('k1', 1), [tuicrPane], []).program).toBe(tuicr);
   });
 
   test('keeps a custom tab name', () => {
     const named = { ...tabOf('k1', 1), name: 'review', named: true };
 
-    expect(tabRowDisplay(named, [tuicrPane]).label).toBe('review');
+    expect(tabRowDisplay(named, [tuicrPane], []).label).toBe('review');
   });
 
   test('adds the zoom marker to a zoomed tab', () => {
     const zoomed = { ...tabOf('k1', 1), zoomed: true };
 
-    expect(tabRowDisplay(zoomed, [tuicrPane]).label).toBe('tuicr Z');
+    expect(tabRowDisplay(zoomed, [tuicrPane], []).label).toBe('tuicr Z');
   });
 
   test('leaves the pane title out of the label', () => {
-    expect(tabRowDisplay(tabOf('k1', 1), [paneOf('p1', 'k1')]).label).toBe('zsh');
+    expect(tabRowDisplay(tabOf('k1', 1), [paneOf('p1', 'k1')], []).label).toBe('zsh');
+  });
+
+  test('labels an unnamed worker tab by its task', () => {
+    const worker = [{ address: 't-p1', labels: { 'tau.task': 'Fix status counts' } }];
+
+    expect(tabRowDisplay(tabOf('k1', 1), [paneOf('p1', 'k1')], worker).label).toBe(
+      'Fix status counts',
+    );
   });
 });
 
