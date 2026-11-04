@@ -116,6 +116,12 @@ describe('tabLabel', () => {
     expect(labelOf(unnamedTab, [terminalPane('p1'), terminalPane('p2')], records)).toBe('zsh');
   });
 
+  test('names the tab by its program when a plain terminal follows a worker pane', () => {
+    const records = [terminalRecord('p1', 'Fix status counts')];
+
+    expect(labelOf(unnamedTab, [terminalPane('p1'), terminalPane('p2')], records)).toBe('zsh');
+  });
+
   test('keeps the name of a named tab whose panes are workers', () => {
     const records = [terminalRecord('p1', 'Fix status counts')];
 
@@ -126,6 +132,22 @@ describe('tabLabel', () => {
     const records = [terminalRecord('p1', 'Fix status counts')];
 
     expect(labelOf(unnamedTab, [modPane, terminalPane('p1')], records)).toBe('Fix status counts');
+  });
+
+  test('ignores a plain terminal in another tab when it checks a tab for workers', () => {
+    const otherTabShell = { ...terminalPane('p2'), tab: 't2' };
+    const records = [terminalRecord('p1', 'Fix status counts')];
+
+    expect(labelOf(unnamedTab, [terminalPane('p1'), otherTabShell], records)).toBe(
+      'Fix status counts',
+    );
+  });
+
+  test('ignores a worker terminal in another tab when it names a tab', () => {
+    const otherTabWorker = { ...terminalPane('p2'), tab: 't2' };
+    const records = [terminalRecord('p2', 'Fix status counts')];
+
+    expect(labelOf(unnamedTab, [terminalPane('p1'), otherTabWorker], records)).toBe('zsh');
   });
 
   test('treats an empty task label as no task', () => {

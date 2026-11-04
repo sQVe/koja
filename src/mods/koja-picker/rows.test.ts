@@ -162,6 +162,39 @@ describe('buildRows', () => {
     expect(keysOf(buildRows('nts', null, data()))).toStrictEqual(['space:s2']);
   });
 
+  test('targets the inactive worker tab when the query is its task', () => {
+    const fixture = data(
+      {
+        spaces: [spaceOf('s1', 1, 'koja', [tabOf('k1', 1, true), tabOf('k2', 2)])],
+        panes: [paneOf('p1', 'k1'), paneOf('p2', 'k2')],
+      },
+      [{ address: 't-p2', labels: { 'tau.task': 'Fix status counts' } }],
+    );
+
+    const [spaceRow] = buildRows('Fix status counts', null, fixture);
+
+    expect(spaceRow?.kind).toBe('space');
+    expect(spaceRow?.tab?.id).toBe('k2');
+    expect(spaceRow?.pane?.pane).toBe('p2');
+  });
+
+  test('targets the worker pane whose task matches among two workers in one tab', () => {
+    const fixture = data(
+      {
+        spaces: [spaceOf('s1', 1, 'koja', [tabOf('k1', 1, true)])],
+        panes: [paneOf('p1', 'k1'), paneOf('p2', 'k1')],
+      },
+      [
+        { address: 't-p1', labels: { 'tau.task': 'Fix status counts' } },
+        { address: 't-p2', labels: { 'tau.task': 'Write docs' } },
+      ],
+    );
+
+    const [spaceRow] = buildRows('Write docs', null, fixture);
+
+    expect(spaceRow?.pane?.pane).toBe('p2');
+  });
+
   test('lists a tab that holds only mod panes', () => {
     expect(keysOf(buildRows('', null, withModOnlyTab()))).toStrictEqual([
       'space:s1',
