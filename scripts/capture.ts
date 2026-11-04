@@ -157,7 +157,6 @@ const openScene = async (context: CaptureContext, sceneName: string): Promise<vo
   await Bun.sleep(sceneSettleMilliseconds);
 };
 
-// Escape closes the top popup, so it is sent only while this mod's overlay is open.
 const closeScene = async (context: CaptureContext): Promise<void> => {
   const { sandbox } = context;
 

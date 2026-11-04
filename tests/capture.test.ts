@@ -31,7 +31,6 @@ const fileExists = async (path: string): Promise<boolean> =>
 
 const outputFiles = ['shot.png', 'crop.png', 'capture.json'];
 
-// Resolves to the message of the error the run rejected with, or to 'no error'.
 const failureMessageOf = (run: Promise<void>): Promise<string> =>
   run.then(
     () => 'no error',
@@ -44,7 +43,6 @@ const anyOutputExists = async (folder: string): Promise<boolean> => {
   return existing.includes(true);
 };
 
-// Records every sandbox command. The overlays list stays as given.
 const fakeContext = (overlays: string[]) => {
   const commands: string[][] = [];
 
