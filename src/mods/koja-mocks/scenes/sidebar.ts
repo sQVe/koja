@@ -1,6 +1,5 @@
 import { v_flex } from 'gpui-base';
 import type { Element } from 'gpui-kit';
-import { div } from 'gpui-kit';
 import type { Status } from 'herdr';
 
 import type { RowState } from '../../../kit/index.ts';
@@ -8,13 +7,9 @@ import {
   attentionBadge,
   colors,
   detailText,
-  icon,
-  iconButton,
-  indicator,
   listRow,
   radius,
   repoLabel,
-  sectionHeader,
   shortAge,
   spaceMark,
   spacing,
@@ -121,6 +116,7 @@ const spaceRow = (space: FakeSpace): Element =>
     inset: true,
     state: space.state,
     label: space.label,
+    cut: 'middle',
     start: spaceMark(space.status),
     end: spaceEnd(space),
   });
@@ -147,28 +143,6 @@ const repoGroup = (repo: FakeRepo): Element => {
   return group.children(repo.spaces.map(spaceRow));
 };
 
-const machineHeader = (): Element =>
-  sectionHeader({
-    label: 'This computer',
-    size: 'default',
-    interactive: true,
-    start: icon('monitor', 'small'),
-    end: [
-      iconButton({ name: 'plus', size: 'small' }),
-      indicator('ansi2'),
-      icon('chevron-down', 'small'),
-    ],
-  });
-
-const remoteHeader = (): Element =>
-  sectionHeader({
-    label: 'build-box',
-    size: 'default',
-    interactive: true,
-    start: icon('server', 'small'),
-    end: [detailText('asleep'), indicator('dim'), icon('chevron-right', 'small')],
-  });
-
 export const sidebarScene = (): Element =>
   v_flex()
     .flex_1()
@@ -177,7 +151,4 @@ export const sidebarScene = (): Element =>
     .gap(spacing.medium)
     .rounded(radius.dialog)
     .bg(colors().chrome)
-    .child(machineHeader())
-    .children(fakeRepos.map(repoGroup))
-    .child(div().flex_1())
-    .child(remoteHeader());
+    .children(fakeRepos.map(repoGroup));
