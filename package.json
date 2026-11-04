@@ -11,6 +11,7 @@
     "herdr:install": "bun run scripts/install.ts",
     "herdr:watch": "bun run scripts/install.ts --watch",
     "sandbox": "scripts/sandbox",
+    "mock:capture": "bun run scripts/capture.ts",
     "changeset": "bunx --bun changeset",
     "changeset:check": "bunx --bun changeset status --since=origin/main",
     "changeset:version": "bunx --bun changeset version && bunx --bun vp fmt",
