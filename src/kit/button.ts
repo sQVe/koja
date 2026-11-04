@@ -6,6 +6,7 @@ import { withHover } from './hover.ts';
 import { icon } from './icon.ts';
 import type { IconName } from './iconNames.ts';
 import type { Color } from './palette.ts';
+import { clearOf } from './palette.ts';
 import { actionHoverOpacity, controlSize, radius, spacing, textSize } from './size.ts';
 import { colors } from './theme.ts';
 
@@ -155,6 +156,9 @@ export const toggleButton = (options: ToggleButtonOptions): Element => {
     .items_center()
     .rounded(radius.pill)
     .cursor_pointer()
+    // A clear border on every toggle, so the outline a hovered toggle draws never shifts its content.
+    .border(spacing.hairline)
+    .border_color(clearOf(palette.selected))
     .text_size(textSize.small)
     .text_color(toggleTextColor(options));
 
@@ -162,7 +166,7 @@ export const toggleButton = (options: ToggleButtonOptions): Element => {
     button.bg(palette.selected);
   } else {
     withHover(button, options.hovered === true, (element) =>
-      element.text_color(palette.foreground),
+      element.border_color(palette.selected).text_color(palette.foreground),
     );
   }
 
