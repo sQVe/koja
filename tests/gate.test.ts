@@ -159,6 +159,19 @@ describe('checkAnswer', () => {
     expect(check.errors.some((error) => error.includes('efficiency'))).toBe(true);
   });
 
+  test('rejects a category with no subchecks', () => {
+    const categories = categoriesWithScore(stillCategories, 9.5);
+
+    const check = checkAnswer(
+      answerJson({
+        categories: { ...categories, visualHierarchy: { ...scoreEntry(9.5), subchecks: [] } },
+      }),
+    );
+
+    expect(check.answer).toBeUndefined();
+    expect(check.errors.some((error) => error.includes('visualHierarchy'))).toBe(true);
+  });
+
   test('rejects an unknown judge', () => {
     const check = checkAnswer(answerJson({ judge: 'someone-else' }));
 

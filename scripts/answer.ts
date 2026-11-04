@@ -201,9 +201,19 @@ const parseSubcheck = (value: unknown, path: string): Parsed<Subcheck> =>
     return succeed({ check: check.value, result: result.value, evidence: evidence.value });
   });
 
+const parseSubchecks = (value: unknown, path: string): Parsed<Subcheck[]> => {
+  const subchecks = parseList(value, path, parseSubcheck);
+
+  if (subchecks.ok && subchecks.value.length === 0) {
+    return failed([`${path} must list at least one subcheck`]);
+  }
+
+  return subchecks;
+};
+
 const parseCategoryScore = (value: unknown, path: string): Parsed<CategoryScore> =>
   parseFields(value, path, (record) => {
-    const subchecks = parseList(record.subchecks, `${path}.subchecks`, parseSubcheck);
+    const subchecks = parseSubchecks(record.subchecks, `${path}.subchecks`);
     const score = parseNumberInRange(record.score, 0, limits.maximumScore, `${path}.score`);
     const reason = parseText(record.reason, `${path}.reason`);
 
