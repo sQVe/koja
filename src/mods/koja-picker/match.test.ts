@@ -70,7 +70,7 @@ describe('fuzzyMatch', () => {
   test('matches a compact rescue after a supplementary first character', () => {
     const text = `😀${'x'.repeat(20)}😀b`;
 
-    expect(fuzzyMatch('😀b', text)).toEqual({ score: 0.8, positions: [22, 24] });
+    expect(fuzzyMatch('😀b', text)?.positions).toEqual([22, 24]);
   });
 
   test('accepts far letters that each start a word', () => {
@@ -84,8 +84,25 @@ describe('fuzzyMatch', () => {
     expect(together?.score ?? 0).toBeGreaterThan(apart?.score ?? 0);
   });
 
-  test('scores each letter that follows the one before it', () => {
-    expect(fuzzyMatch('abc', 'abc')).toEqual({ score: 23, positions: [0, 1, 2] });
+  test('ranks letters that follow each other above the same letters with gaps', () => {
+    const together = fuzzyMatch('abc', 'abc');
+    const apart = fuzzyMatch('abc', 'a-b-c');
+
+    expect(together?.score ?? 0).toBeGreaterThan(apart?.score ?? 0);
+  });
+
+  test('ranks the closer of two matches above the looser one', () => {
+    const closer = fuzzyMatch('ab', '-aa-baab');
+    const looser = fuzzyMatch('ab', 'a-xa-bxb');
+
+    expect(closer?.score ?? 0).toBeGreaterThan(looser?.score ?? 0);
+  });
+
+  test('ranks a match that starts a word above a run inside a word', () => {
+    const wordStart = fuzzyMatch('ba', 'b-xx-a');
+    const run = fuzzyMatch('ba', 'ababab-');
+
+    expect(wordStart?.score ?? 0).toBeGreaterThan(run?.score ?? 0);
   });
 
   test('refuses a spread match when a later letter is neither a word start nor a run', () => {

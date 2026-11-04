@@ -114,23 +114,22 @@ through behavior a caller can observe. Each file was audited with `bunx --bun mu
 | Line | Mutator          | Reason                                                                                 |
 | ---- | ---------------- | -------------------------------------------------------------------------------------- |
 | 242  | StringLiteral    | equivalent: `split` always yields at least one part, so the `noun` default never runs. |
-| 251  | LogicalOperator  | noise: the fallback only changes the display title. Layout args and IDs are the same.  |
 | 355  | MethodExpression | equivalent: `replaceAll` strips all whitespace, so trimming first changes nothing.     |
 | 355  | Regex            | equivalent: the `g` flag already makes `/\s/` replace every whitespace character.      |
 
 ### src/mods/koja-picker/match.ts
 
-| Line    | Mutator                                              | Reason                                                                                                |
-| ------- | ---------------------------------------------------- | ----------------------------------------------------------------------------------------------------- |
-| 78      | ArrayDeclaration                                     | equivalent: every query letter has a table, so the `?? []` fallback never runs.                       |
-| 94      | ConditionalExpression, EqualityOperator              | equivalent: `positions` is empty only for an empty query, and `isCompact([])` is true anyway.         |
-| 104     | BlockStatement, ConditionalExpression, StringLiteral | equivalent: an empty query falls through to the same `{ score: 0, positions: [] }` result.            |
-| 117     | BlockStatement                                       | equivalent: the `missing` flag only skips a search, and the letter lookup still returns null.         |
-| 118     | BooleanLiteral                                       | equivalent: same as line 117.                                                                         |
-| 122     | BlockStatement                                       | equivalent: a missing letter already makes `matchFrom` return null.                                   |
-| 126-127 | StringLiteral, ArrayDeclaration                      | equivalent: the `?? ''` and `?? []` fallbacks never run for a non-empty query.                        |
-| 130     | LogicalOperator                                      | equivalent: the first letter's lookup finds the same first occurrence from 0 or from that occurrence. |
-| 139     | MethodExpression                                     | equivalent: retrying the first start gives the same null.                                             |
+| Line    | Mutator                         | Reason                                                                                                        |
+| ------- | ------------------------------- | ------------------------------------------------------------------------------------------------------------- |
+| 78      | ArrayDeclaration                | equivalent: every query letter has a table, so the `?? []` fallback never runs.                               |
+| 94      | EqualityOperator                | equivalent: `positions` is never empty here, because an empty query returns early, so `>= 0` and `> 0` agree. |
+| 104     | BlockStatement, StringLiteral   | equivalent: an empty query falls through to the same `{ score: 0, positions: [] }` result.                    |
+| 117     | BlockStatement                  | equivalent: the `missing` flag only skips a search, and the letter lookup still returns null.                 |
+| 118     | BooleanLiteral                  | equivalent: same as line 117.                                                                                 |
+| 122     | BlockStatement                  | equivalent: a missing letter already makes `matchFrom` return null.                                           |
+| 126-127 | StringLiteral, ArrayDeclaration | equivalent: the `?? ''` and `?? []` fallbacks never run for a non-empty query.                                |
+| 130     | LogicalOperator                 | equivalent: the first letter's lookup finds the same first occurrence from 0 or from that occurrence.         |
+| 139     | MethodExpression                | equivalent: retrying the first start gives the same null.                                                     |
 
 ### src/mods/koja-picker/previewLifecycle.ts
 

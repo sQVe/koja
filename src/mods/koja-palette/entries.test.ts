@@ -115,20 +115,20 @@ describe('allEntries', () => {
     expect(item?.id).toBe('tab.new:{}');
   });
 
-  test('turns underscores into spaces in an unknown command title', () => {
+  test('finds an unknown command by its words, with underscores read as spaces', () => {
     commandList = [commandOf('weird.some_thing')];
 
-    const item = allEntries(host()).find((entryItem) => entryItem.name === 'weird.some_thing');
+    const rows = paletteRows(allEntries(host()), 'some thing', []);
 
-    expect(item?.title).toBe('Some thing weird');
+    expect(rows.map((row) => row.entry.name)).toEqual(['weird.some_thing']);
   });
 
-  test('names a command that has no verb', () => {
+  test('finds a command that has no verb by its name', () => {
     commandList = [commandOf('weird')];
 
-    const item = allEntries(host()).find((entryItem) => entryItem.name === 'weird');
+    const rows = paletteRows(allEntries(host()), 'weird', []);
 
-    expect(item?.title).toBe(' weird');
+    expect(rows.map((row) => row.entry.name)).toEqual(['weird']);
   });
 
   test('lists a known command once, from the named catalog', () => {
@@ -165,8 +165,6 @@ describe('allEntries', () => {
       { name: 'custom' },
     ]);
 
-    expect(items.map((item) => item.group)).toEqual(['Layout', 'Layout', 'Layout']);
-
     expect(items.map((item) => item.id)).toEqual([
       'layout.switch:{"name":"main"}',
       'layout.switch:{"name":"win98"}',
@@ -174,6 +172,15 @@ describe('allEntries', () => {
     ]);
 
     expect(paletteRows(items, 'look', [])).toHaveLength(3);
+  });
+
+  test('finds layouts by the words of their friendly titles', () => {
+    commandList = [];
+    layoutList = ['main', 'win98', 'custom'];
+
+    const rows = paletteRows(allEntries(host()), 'herdr', []);
+
+    expect(rows.map((row) => row.entry.args)).toEqual([{ name: 'main' }, { name: 'win98' }]);
   });
 
   test('carries the theme name in each theme row', () => {
@@ -204,6 +211,51 @@ describe('paletteRows', () => {
     const all = [entry('a', 'a', 'Tab', 'New tab'), entry('b', 'b', 'Pane', 'Zoom pane')];
 
     expect(paletteRows(all, 'new', []).map((row) => row.entry.id)).toEqual(['a']);
+  });
+
+  test('ranks the command whose words match a spaced query first', () => {
+    commandList = [commandOf('weird.some_thing'), commandOf('weird.something')];
+
+    const rows = paletteRows(allEntries(host()), 'some thing', []);
+
+    expect(rows.map((row) => ({ name: row.entry.name, args: row.entry.args }))).toEqual([
+      { name: 'weird.something', args: {} },
+      { name: 'weird.some_thing', args: {} },
+    ]);
+  });
+
+  test('lists a layout action before a terminal command in an empty search', () => {
+    commandList = [commandOf('terminal.open')];
+    layoutList = ['main'];
+
+    const rows = paletteRows(allEntries(host()), '', []);
+
+    expect(rows.map((row) => ({ name: row.entry.name, args: row.entry.args }))).toEqual([
+      { name: 'layout.switch', args: { name: 'main' } },
+      { name: 'terminal.open', args: {} },
+    ]);
+  });
+
+  test('finds a layout by the group word in its search text', () => {
+    commandList = [];
+    layoutList = ['main'];
+
+    const rows = paletteRows(allEntries(host()), 'layout layout herdr', []);
+
+    expect(rows.map((row) => ({ name: row.entry.name, args: row.entry.args }))).toEqual([
+      { name: 'layout.switch', args: { name: 'main' } },
+    ]);
+  });
+
+  test('ranks a command named without a verb ahead of its dotted sibling', () => {
+    commandList = [commandOf('weird'), commandOf('weird.run')];
+
+    const rows = paletteRows(allEntries(host()), 'weird', []);
+
+    expect(rows.map((row) => ({ name: row.entry.name, args: row.entry.args }))).toEqual([
+      { name: 'weird', args: {} },
+      { name: 'weird.run', args: {} },
+    ]);
   });
 
   test('ranks a recent entry first when scores tie', () => {

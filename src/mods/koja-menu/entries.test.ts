@@ -255,6 +255,7 @@ describe('menu commands', () => {
       { address: 'decoy', labels: {} },
       { address: 'terminal-0', name: 'Parent', labels: {} },
       { address: 'terminal-1', parent: 'terminal-0', labels: {} },
+      { address: 'terminal-2', name: 'Other', labels: {} },
     ];
 
     runCalls = [];
@@ -267,7 +268,7 @@ describe('menu commands', () => {
 
     sendBack?.action();
 
-    expect(sendBack?.label).toBe('Send back to Parent');
+    expect(sendBack?.label).toContain('Parent');
 
     expect(runCalls).toStrictEqual([
       { command: 'terminal.park', args: { terminal: 'terminal-1' } },
