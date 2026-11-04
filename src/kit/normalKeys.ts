@@ -1,5 +1,3 @@
-import { bindingAction } from './binding.ts';
-
 export type NormalIntent =
   | 'closeOtherPanes'
   | 'nextPane'
@@ -10,7 +8,7 @@ export type NormalIntent =
   | 'previousSpace';
 
 export type NormalAction =
-  | { kind: 'command'; command: string }
+  | { kind: 'command'; command: string; args?: Record<string, unknown> }
   | { kind: 'intent'; intent: NormalIntent }
   | { kind: 'nthTab'; index: number }
   | { kind: 'leave' };
@@ -21,9 +19,10 @@ export interface NormalKey {
   counted?: 'nthTab';
 }
 
-const herdrCommand = (command: string, args: Record<string, unknown> = {}): NormalAction => ({
+const herdrCommand = (command: string, args?: Record<string, unknown>): NormalAction => ({
   kind: 'command',
-  command: bindingAction(command, args),
+  command,
+  ...(args === undefined ? {} : { args }),
 });
 
 const intentAction = (intent: NormalIntent): NormalAction => ({ kind: 'intent', intent });
@@ -96,6 +95,14 @@ export const normalKeys: NormalKey[] = [
   { keys: ['ctrl-q', 'ctrl-n'], action: herdrCommand('agent.next') },
   { keys: ['ctrl-q', 'p'], action: herdrCommand('agent.prev') },
   { keys: ['ctrl-q', 'ctrl-p'], action: herdrCommand('agent.prev') },
+  { keys: ['ctrl-u'], action: herdrCommand('terminal.scroll', { pages: -0.5 }) },
+  { keys: ['ctrl-d'], action: herdrCommand('terminal.scroll', { pages: 0.5 }) },
+  { keys: ['ctrl-b'], action: herdrCommand('terminal.scroll', { pages: -1 }) },
+  { keys: ['ctrl-f'], action: herdrCommand('terminal.scroll', { pages: 1 }) },
+  { keys: ['ctrl-y'], action: herdrCommand('terminal.scroll', { lines: -1 }) },
+  { keys: ['ctrl-e'], action: herdrCommand('terminal.scroll', { lines: 1 }) },
+  { keys: ['g', 'g'], action: herdrCommand('terminal.scroll', { to: 'top' }) },
+  { keys: ['G'], action: herdrCommand('terminal.scroll', { to: 'bottom' }) },
   { keys: ['backspace'], action: herdrCommand('mod.open', { name: 'koja-palette' }) },
   { keys: ['ö'], action: herdrCommand('mod.open', { name: 'koja-palette' }) },
   { keys: ['space', 'space'], action: herdrCommand('mod.open', { name: 'koja-picker' }) },

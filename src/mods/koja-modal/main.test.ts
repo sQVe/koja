@@ -514,7 +514,7 @@ describe('koja modal view', () => {
     expect(statusLookups).toBe(lookupsBeforeClose + 1);
   });
 
-  test('the hold command neither closes nor runs anything', async () => {
+  test('the hold command scrolls the terminal a page up like ctrl-b', async () => {
     const view = await loadView();
 
     view.render();
@@ -525,7 +525,7 @@ describe('koja modal view', () => {
     deliverCommand('hold');
     await flush();
 
-    expect(runCalls).toEqual([]);
+    expect(runCalls).toEqual([{ command: 'terminal.scroll', args: { pages: -1 } }]);
     expect(closeCalls).toEqual([]);
     expect(focusCalls).toBe(focusBefore + 1);
   });
