@@ -47,6 +47,7 @@ the commit in its row.
 - [0007: One UI language through one kit](./0007-one-ui-language.md)
 - [0009: One flat base with rounded cards and accent focus](./0009-flat-gray-cards.md)
 - [0010: Koja rolls up space and tab status itself](./0010-koja-rolls-up-agent-status.md)
+- [0011: Two AI judges from different model families gate UI mocks](./0011-two-ai-judges-gate-ui-mocks.md)
 
 ## Retired
 
