@@ -23,4 +23,8 @@ describe('scene lookup', () => {
       },
     });
   });
+
+  test('spaces around a known name still find the scene', () => {
+    expect(findScene('  sidebar  ')).toEqual(findScene('sidebar'));
+  });
 });
