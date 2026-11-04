@@ -1,0 +1,96 @@
+@font-face {
+  font-family: 'Geist';
+  src: url('fonts/Geist-Regular.ttf') format('truetype');
+  font-weight: 400;
+}
+
+@font-face {
+  font-family: 'Geist';
+  src: url('../config/fonts/Geist-SemiBold.ttf') format('truetype');
+  font-weight: 600;
+}
+
+@font-face {
+  font-family: 'Geist';
+  src: url('../config/fonts/Geist-Bold.ttf') format('truetype');
+  font-weight: 700;
+}
+
+:root {
+  --koja-text-size-xsmall: 9px;
+  --koja-text-size-small: 11px;
+  --koja-text-size-default: 13px;
+  --koja-text-size-large: 15px;
+  --koja-icon-size-xsmall: 10px;
+  --koja-icon-size-small: 12px;
+  --koja-icon-size-default: 14px;
+  --koja-icon-size-large: 16px;
+  --koja-spacing-none: 0px;
+  --koja-spacing-hairline: 1px;
+  --koja-spacing-xxsmall: 2px;
+  --koja-spacing-xsmall: 4px;
+  --koja-spacing-small: 6px;
+  --koja-spacing-medium: 8px;
+  --koja-spacing-large: 10px;
+  --koja-spacing-xlarge: 14px;
+  --koja-spacing-xxlarge: 20px;
+  --koja-radius-default: 4px;
+  --koja-radius-pill: 6px;
+  --koja-radius-dialog: 8px;
+  --koja-row-height-small: 24px;
+  --koja-row-height-medium: 26px;
+  --koja-row-height-large: 28px;
+  --koja-control-size-badge: 18px;
+  --koja-control-size-button: 22px;
+  --koja-control-size-pane-label-max-width: 260px;
+  --koja-control-size-search-field: 40px;
+  --koja-control-size-section-header: 26px;
+  --koja-control-size-sidebar-header: 27px;
+  --koja-control-size-tab-bar: 28px;
+  --koja-control-size-tab-slot: 14px;
+  --koja-control-size-tab-label-max-width: 170px;
+  --koja-color-canvas: #dcdee5;
+  --koja-color-chrome: #d4d6de;
+  --koja-color-surface: #d4d6de;
+  --koja-color-popover: #dcdee5;
+  --koja-color-raised: #adb0ba;
+  --koja-color-hover: #cacdd5;
+  --koja-color-selected: #c2c5cd;
+  --koja-color-border: #999ca7;
+  --koja-color-input: #868998;
+  --koja-color-foreground: #1e2028;
+  --koja-color-muted: #3e4152;
+  --koja-color-dim: #747787;
+  --koja-color-accent: #5858a0;
+  --koja-color-accent-foreground: #d4d6de;
+  --koja-color-solid: #5858a0;
+  --koja-color-solid-foreground: #d4d6de;
+  --koja-color-working: #a85820;
+  --koja-color-blocked: #b82530;
+  --koja-color-done: #287028;
+  --koja-color-idle: #747787;
+  --koja-color-unknown: #747787;
+  --koja-terminal-background: #d4d6de;
+  --koja-terminal-foreground: #1e2028;
+  --koja-terminal-selection: #adb0ba;
+  --koja-terminal-cursor: #1e2028;
+  --koja-terminal-ansi-0: #2d3040;
+  --koja-terminal-ansi-1: #b82530;
+  --koja-terminal-ansi-2: #287028;
+  --koja-terminal-ansi-3: #806010;
+  --koja-terminal-ansi-4: #2850a8;
+  --koja-terminal-ansi-5: #984080;
+  --koja-terminal-ansi-6: #207068;
+  --koja-terminal-ansi-7: #868998;
+  --koja-terminal-ansi-8: #3e4152;
+  --koja-terminal-ansi-9: #b82530;
+  --koja-terminal-ansi-10: #287028;
+  --koja-terminal-ansi-11: #806010;
+  --koja-terminal-ansi-12: #2850a8;
+  --koja-terminal-ansi-13: #984080;
+  --koja-terminal-ansi-14: #207068;
+  --koja-terminal-ansi-15: #999ca7;
+  --koja-font-ui: 'Geist', sans-serif;
+  --koja-font-terminal: 'Maple Mono', monospace;
+  --koja-font-terminal-size: 14px;
+}

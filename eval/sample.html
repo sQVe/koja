@@ -1,0 +1,127 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>Koja kit sample</title>
+    <link rel="stylesheet" href="kit.css" />
+    <style>
+      body {
+        margin: 0;
+        padding: var(--koja-spacing-large);
+        background: var(--koja-color-canvas);
+        color: var(--koja-color-foreground);
+        font-family: var(--koja-font-ui);
+        font-size: var(--koja-text-size-default);
+      }
+
+      .sidebar {
+        display: flex;
+        flex-direction: column;
+        gap: var(--koja-spacing-xxsmall);
+        width: var(--koja-control-size-pane-label-max-width);
+        padding: var(--koja-spacing-xsmall);
+        background: var(--koja-color-chrome);
+        border-radius: var(--koja-radius-dialog);
+      }
+
+      .row {
+        display: flex;
+        align-items: center;
+        gap: var(--koja-spacing-small);
+        height: var(--koja-row-height-medium);
+        padding: 0 var(--koja-spacing-medium);
+        border-radius: var(--koja-radius-pill);
+        color: var(--koja-color-muted);
+      }
+
+      .row.selected {
+        background: var(--koja-color-selected);
+        color: var(--koja-color-foreground);
+      }
+
+      .dot {
+        width: var(--koja-icon-size-xsmall);
+        height: var(--koja-icon-size-xsmall);
+        border-radius: 50%;
+        background: var(--koja-color-working);
+      }
+
+      .dot.done {
+        background: var(--koja-color-done);
+      }
+
+      .dot.idle {
+        background: var(--koja-color-idle);
+      }
+
+      .name {
+        font-weight: 600;
+      }
+
+      .meta {
+        margin-left: auto;
+        font-size: var(--koja-text-size-small);
+        color: var(--koja-color-dim);
+      }
+
+      .button {
+        display: inline-flex;
+        align-items: center;
+        height: var(--koja-control-size-button);
+        margin-top: var(--koja-spacing-large);
+        padding: 0 var(--koja-spacing-medium);
+        border-radius: var(--koja-radius-pill);
+        background: var(--koja-color-accent);
+        color: var(--koja-color-accent-foreground);
+        font-size: var(--koja-text-size-small);
+        font-weight: 600;
+      }
+
+      .terminal {
+        margin: var(--koja-spacing-large) 0 0;
+        padding: var(--koja-spacing-medium);
+        width: fit-content;
+        border-radius: var(--koja-radius-dialog);
+        background: var(--koja-terminal-background);
+        color: var(--koja-terminal-foreground);
+        font-family: var(--koja-font-terminal);
+        font-size: var(--koja-font-terminal-size);
+      }
+
+      .terminal .ok {
+        color: var(--koja-terminal-ansi-2);
+      }
+
+      .terminal .warn {
+        color: var(--koja-terminal-ansi-3);
+      }
+
+      .terminal .path {
+        color: var(--koja-terminal-ansi-4);
+      }
+    </style>
+  </head>
+  <body>
+    <nav class="sidebar">
+      <div class="row selected">
+        <span class="dot"></span>
+        <span class="name">koja</span>
+        <span class="meta">2 agents</span>
+      </div>
+      <div class="row">
+        <span class="dot done"></span>
+        <span>herdr-app</span>
+        <span class="meta">done</span>
+      </div>
+      <div class="row">
+        <span class="dot idle"></span>
+        <span>tikk</span>
+        <span class="meta">idle</span>
+      </div>
+      <span class="button">Open pane</span>
+    </nav>
+
+    <pre class="terminal"><span class="path">~/code/koja</span> <span class="ok">bun test</span>
+<span class="warn">1 warning</span> in tests/kitCss.test.ts</pre>
+  </body>
+</html>
