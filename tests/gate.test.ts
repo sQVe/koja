@@ -7,7 +7,7 @@ import type { Answer } from '../scripts/answer.ts';
 import { checkAnswer } from '../scripts/answer.ts';
 import { gate } from '../scripts/gate.ts';
 
-const stillCategories = [
+const sceneCategories = [
   'visualHierarchy',
   'typeSpacingDensity',
   'consistency',
@@ -18,7 +18,7 @@ const stillCategories = [
   'taskFit',
 ];
 
-const buildOnlyCategories = [
+const modOnlyCategories = [
   'efficiency',
   'controlAndRecovery',
   'accessibilityAndInput',
@@ -43,9 +43,9 @@ const answerJson = (overrides: Record<string, unknown> = {}) => ({
   version: 1,
   judge: gptJudge,
   mock: 'sidebar-a',
-  scope: 'still',
-  categories: categoriesWithScore(stillCategories, 9.5),
-  notAssessed: buildOnlyCategories,
+  scope: 'scene',
+  categories: categoriesWithScore(sceneCategories, 9.5),
+  notAssessed: modOnlyCategories,
   findings: [],
   hardFailures: [],
   missingEvidence: [],
@@ -97,7 +97,7 @@ afterEach(async () => {
 });
 
 describe('checkAnswer', () => {
-  test('accepts a valid still answer', () => {
+  test('accepts a valid scene answer', () => {
     const check = checkAnswer(answerJson());
 
     expect(check.errors).toEqual([]);
@@ -107,13 +107,13 @@ describe('checkAnswer', () => {
   test('keeps the not-assessed categories on the checked answer', () => {
     const check = checkAnswer(answerJson());
 
-    expect(check.answer?.notAssessed).toEqual(buildOnlyCategories);
+    expect(check.answer?.notAssessed).toEqual(modOnlyCategories);
   });
 
   test('rejects a 9.5 in a category with an open severity 2 finding', () => {
     const check = checkAnswer(
       answerJson({
-        categories: categoriesWithScore(stillCategories, 9.5),
+        categories: categoriesWithScore(sceneCategories, 9.5),
         findings: [finding('visualHierarchy', 2)],
       }),
     );
@@ -125,7 +125,7 @@ describe('checkAnswer', () => {
   test('rejects a 9.0 with three severity 1 findings', () => {
     const check = checkAnswer(
       answerJson({
-        categories: categoriesWithScore(stillCategories, 9),
+        categories: categoriesWithScore(sceneCategories, 9),
         findings: [finding('polish', 1), finding('polish', 1), finding('polish', 1)],
       }),
     );
@@ -137,7 +137,7 @@ describe('checkAnswer', () => {
   test('accepts a 9.0 with two severity 1 findings', () => {
     const check = checkAnswer(
       answerJson({
-        categories: categoriesWithScore(stillCategories, 9),
+        categories: categoriesWithScore(sceneCategories, 9),
         findings: [finding('polish', 1), finding('polish', 1)],
       }),
     );
@@ -145,11 +145,11 @@ describe('checkAnswer', () => {
     expect(check.errors).toEqual([]);
   });
 
-  test('rejects a still answer that scores a build-only category', () => {
+  test('rejects a scene answer that scores a mod-only category', () => {
     const check = checkAnswer(
       answerJson({
         categories: {
-          ...categoriesWithScore(stillCategories, 9.5),
+          ...categoriesWithScore(sceneCategories, 9.5),
           efficiency: scoreEntry(9.5),
         },
       }),
@@ -160,7 +160,7 @@ describe('checkAnswer', () => {
   });
 
   test('rejects a category with no subchecks', () => {
-    const categories = categoriesWithScore(stillCategories, 9.5);
+    const categories = categoriesWithScore(sceneCategories, 9.5);
 
     const check = checkAnswer(
       answerJson({
@@ -182,7 +182,7 @@ describe('checkAnswer', () => {
   test('rejects an 8.0 with a severity 3 finding', () => {
     const check = checkAnswer(
       answerJson({
-        categories: categoriesWithScore(stillCategories, 8),
+        categories: categoriesWithScore(sceneCategories, 8),
         findings: [finding('polish', 3)],
       }),
     );
@@ -194,7 +194,7 @@ describe('checkAnswer', () => {
   test('accepts a 7.9 with a severity 3 finding', () => {
     const check = checkAnswer(
       answerJson({
-        categories: categoriesWithScore(stillCategories, 7.9),
+        categories: categoriesWithScore(sceneCategories, 7.9),
         findings: [finding('polish', 3)],
       }),
     );
@@ -206,7 +206,7 @@ describe('checkAnswer', () => {
   test('rejects an 8.0 with a severity 4 finding', () => {
     const check = checkAnswer(
       answerJson({
-        categories: categoriesWithScore(stillCategories, 8),
+        categories: categoriesWithScore(sceneCategories, 8),
         findings: [finding('polish', 4)],
       }),
     );
@@ -218,7 +218,7 @@ describe('checkAnswer', () => {
   test('rejects a 9.5 with two severity 1 findings', () => {
     const check = checkAnswer(
       answerJson({
-        categories: categoriesWithScore(stillCategories, 9.5),
+        categories: categoriesWithScore(sceneCategories, 9.5),
         findings: [finding('polish', 1), finding('polish', 1)],
       }),
     );
@@ -230,7 +230,7 @@ describe('checkAnswer', () => {
   test('accepts a 9.5 with one severity 1 finding', () => {
     const check = checkAnswer(
       answerJson({
-        categories: categoriesWithScore(stillCategories, 9.5),
+        categories: categoriesWithScore(sceneCategories, 9.5),
         findings: [finding('polish', 1)],
       }),
     );
@@ -242,7 +242,7 @@ describe('checkAnswer', () => {
   test('rejects a 10 with one severity 1 finding', () => {
     const check = checkAnswer(
       answerJson({
-        categories: categoriesWithScore(stillCategories, 10),
+        categories: categoriesWithScore(sceneCategories, 10),
         findings: [finding('polish', 1)],
       }),
     );
@@ -254,7 +254,7 @@ describe('checkAnswer', () => {
   test('accepts an 8.9 with a severity 2 finding', () => {
     const check = checkAnswer(
       answerJson({
-        categories: categoriesWithScore(stillCategories, 8.9),
+        categories: categoriesWithScore(sceneCategories, 8.9),
         findings: [finding('polish', 2)],
       }),
     );
@@ -279,7 +279,7 @@ describe('gate', () => {
     const result = gate([
       checkedAnswer(
         answerJson({
-          categories: { ...categoriesWithScore(stillCategories, 9.5), taskFit: scoreEntry(8.9) },
+          categories: { ...categoriesWithScore(sceneCategories, 9.5), taskFit: scoreEntry(8.9) },
         }),
       ),
       checkedAnswer(answerJson({ judge: opusJudge })),
@@ -346,7 +346,7 @@ describe('eval:gate command', () => {
       await writeAnswerFile(
         'gpt.json',
         answerJson({
-          categories: categoriesWithScore(stillCategories, 9.5),
+          categories: categoriesWithScore(sceneCategories, 9.5),
           findings: [finding('visualHierarchy', 2)],
         }),
       ),

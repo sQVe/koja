@@ -4,11 +4,10 @@ This rubric scores a Koja design. Two judges use it: `openai/gpt-6.1-sol` and `c
 Each judge works alone and gives one answer.
 
 A mock passes only when both judges score every scored category at 9.0 or more, and no judge lists
-an open hard failure. Script-measured hard failures stop a mock before any judge runs.
+an open hard failure. A failing `bun run check` stops a mock before any judge runs.
 
-The first eight categories are scored on still mocks and on the sandbox build. The last four are
-scored on the sandbox build only. A still answer lists the last four in `notAssessed` and gives them
-no score.
+The first eight categories are scored on scene mocks and on the real mod. The last four are scored
+on the real mod only. A scene answer lists the last four in `notAssessed` and gives them no score.
 
 Every category has a definition, observable yes/no subchecks, and anchors at 6.0, 8.0, 9.0, and
 10.0. Each anchor names the finding severity that produces it.
@@ -26,7 +25,7 @@ separate, and the score rules below hold them consistent.
 | 3        | Major         | A major problem. It blocks a core task.           |
 | 4        | Catastrophe   | A usability catastrophe. The task cannot be done. |
 
-Severity weighs frequency, impact, and persistence. A still image cannot prove frequency. Mark the
+Severity weighs frequency, impact, and persistence. A scene image cannot prove frequency. Mark the
 frequency part of a finding as provisional.
 
 ## Score rules
@@ -63,13 +62,14 @@ An open hard failure blocks the mock, whatever the scores. A hard failure is a k
 | `offKitValue`           | A size, radius, or text size is not from the kit (`src/kit/size.ts`), or a color is not from a Herdr theme token. |
 | `unreadableText`        | Required text cannot be read at the native display scale.                                                         |
 
-A measured failure is never overruled.
+A failing `bun run check` result is never overruled. `contrast` and `offKitValue` come from
+`bun run check`, not from the judges. The judges report the other three kinds.
 
 ## Categories
 
 ### visualHierarchy: Visual hierarchy
 
-Scored on: still mocks and the sandbox build.
+Scored on: scene mocks and the real mod.
 
 Definition: the most important content reads first, and the layout shows what belongs together.
 
@@ -97,7 +97,7 @@ Anchors, each tied to findings:
 
 ### typeSpacingDensity: Typography, spacing, and density
 
-Scored on: still mocks and the sandbox build.
+Scored on: scene mocks and the real mod.
 
 Definition: text roles and grouping are readable and consistent at the intended display scale,
 without crowding or waste.
@@ -124,7 +124,7 @@ Anchors, each tied to findings:
 
 ### consistency: Visual consistency
 
-Scored on: still mocks and the sandbox build.
+Scored on: scene mocks and the real mod.
 
 Definition: the same part looks and behaves the same everywhere.
 
@@ -152,7 +152,7 @@ Anchors, each tied to findings:
 
 ### polish: Polish
 
-Scored on: still mocks and the sandbox build.
+Scored on: scene mocks and the real mod.
 
 Definition: the surface is free of visible defects, artifacts, and unfinished parts.
 
@@ -178,7 +178,7 @@ Anchors, each tied to findings:
 
 ### informationArchitecture: Information architecture
 
-Scored on: still mocks and the sandbox build.
+Scored on: scene mocks and the real mod.
 
 Definition: information is grouped and labeled so the task's questions are answered where the user
 looks.
@@ -205,7 +205,7 @@ Anchors, each tied to findings:
 
 ### affordances: Discoverability and affordances
 
-Scored on: still mocks and the sandbox build.
+Scored on: scene mocks and the real mod.
 
 Definition: controls look like controls, and their result is discoverable.
 
@@ -232,7 +232,7 @@ Anchors, each tied to findings:
 
 ### stateVisibility: Feedback and state visibility
 
-Scored on: still mocks and the sandbox build.
+Scored on: scene mocks and the real mod.
 
 Definition: the surface shows what is happening, what is selected, and what changed.
 
@@ -258,7 +258,7 @@ Anchors, each tied to findings:
 
 ### taskFit: Task fit
 
-Scored on: still mocks and the sandbox build.
+Scored on: scene mocks and the real mod.
 
 Definition: the surface supports the stated task with the information and actions it needs.
 
@@ -284,7 +284,7 @@ Anchors, each tied to findings:
 
 ### efficiency: Efficiency
 
-Scored on: the sandbox build only. A still answer lists this category in `notAssessed`.
+Scored on: the real mod only. A scene answer lists this category in `notAssessed`.
 
 Definition: the user reaches the task's result in few steps, without repeated work.
 
@@ -310,7 +310,7 @@ Anchors, each tied to findings:
 
 ### controlAndRecovery: Control and error recovery
 
-Scored on: the sandbox build only. A still answer lists this category in `notAssessed`.
+Scored on: the real mod only. A scene answer lists this category in `notAssessed`.
 
 Definition: the user can undo, cancel, and recover from a mistake.
 
@@ -336,10 +336,10 @@ Anchors, each tied to findings:
 
 ### accessibilityAndInput: Accessibility and input
 
-Scored on: the sandbox build only. A still answer lists this category in `notAssessed`.
+Scored on: the real mod only. A scene answer lists this category in `notAssessed`.
 
-Definition: the surface works with keyboard and other input, and meets WCAG 2.2 AA where the build
-allows measurement.
+Definition: the surface works with keyboard and other input, and meets WCAG 2.2 AA where the real
+mod allows checking.
 
 Subchecks:
 
@@ -365,7 +365,7 @@ Anchors, each tied to findings:
 
 ### adaptability: Adaptability
 
-Scored on: the sandbox build only. A still answer lists this category in `notAssessed`.
+Scored on: the real mod only. A scene answer lists this category in `notAssessed`.
 
 Definition: the surface holds up when the window, the content, or the theme changes.
 

@@ -2,20 +2,23 @@
 
 This packet goes to both judges. Both judges get the same packet in the same order and work alone.
 
-The packet has two files: this brief and `eval/rubric.md`. Include the rubric file exactly as it is.
-Do not edit it, and do not summarize it here.
+The packet holds this brief, `eval/rubric.md`, the scene shot and its crop (section 5), and the
+`bun run check` result (section 6). Include the rubric file exactly as it is. Do not edit it, and do
+not summarize it here.
 
 ## 1. Scope and evidence limits
 
 - Name the component, the states shown, the viewport, the input mode, and the kit revision.
-- Say what is outside scope. A still mock does not prove keyboard behavior, recovery, or resizing.
+- Say what is outside scope. A scene does not prove keyboard behavior, recovery, or resizing. The
+  real mod in the part's last slice does.
 - The judge reviews the artifact, not the designer's intention.
-- The full native PNG is the authoritative artifact. Record its pixel size, the intended logical
-  viewport, the zoom, the device scale factor, and whether fonts finished loading.
-- A measured failure is never overruled by an opinion that it looks acceptable.
-- Unknown measurements stay unknown. Ask for better evidence instead of guessing.
-- Scope `still` scores the first eight categories. The last four are listed in `notAssessed`.
-- Scope `build` scores all twelve categories.
+- The scene shot is the authoritative image. The crop is for detail. Record the shot's pixel size,
+  the intended logical viewport, the zoom, the device scale factor, and whether fonts finished
+  loading.
+- A failing `bun run check` result is never overruled by an opinion that it looks acceptable.
+- Unknown details stay unknown. Ask for better evidence instead of guessing.
+- Scope `scene` scores the first eight categories. The last four are listed in `notAssessed`.
+- Scope `mod` scores all twelve categories.
 
 ## 2. Tasks for this part
 
@@ -56,32 +59,28 @@ These rules come from ADR 0007 and ADR 0009. They are rules, not preferences.
 - Status mark sizes are a 12 px slot, a 6 px dot, and a 4 px quiet dot.
 - Do not add shadows, sizes, focus marks, or card shapes that the kit does not define.
 
-## 5. PNG and crops
+## 5. Scene shot and crop
 
 The session attaches the images with this section. Provide:
 
-- The full native-resolution PNG, named as authoritative for context.
-- Named component crops in native resolution, with their coordinates and scale. A crop must keep
+- The scene shot at full native resolution. It is the authoritative image.
+- One crop of the scene in native resolution, with its coordinates and scale. A crop must keep
   enough neighboring edges to show alignment and grouping.
-- A 2x nearest-neighbor detail crop for tiny glyphs or corner defects.
+- A 2x nearest-neighbor view of the crop for tiny glyphs or corner defects.
 - The same crop rules for both judges.
 - No lossy compression and no change of aspect ratio.
 
 Do not judge density from an enlarged crop alone. A zoom shows pixels; it does not prove readability
-at the native scale.
+at the native scale. If the crop and the shot disagree, the shot decides.
 
-## 6. Measurement file
+## 6. `bun run check` result
 
-The check script writes a measurement file. Attach it with this section. Give the same file to both
-judges. Each measured item names:
+The session attaches the output of `bun run check` for the mod that holds the scene. Give the same
+result to both judges. A mock is judged only when this check passes, so a judge always sees a
+passing result.
 
-- the element or region,
-- the measured value,
-- the expected rule, from `src/kit/size.ts`, a theme token, or WCAG 2.2 AA,
-- the state it was measured in,
-- and its status: pass, fail, or unknown.
-
-Keep unknown measurements unknown. Do not turn them into passing guesses.
+The result covers typechecking, lint, formatting, Knip, and tests. Its color, theme contrast, and
+size tests cover `contrast` and `offKitValue`. The judges report the other three hard failure kinds.
 
 ## 7. Bias rules
 
@@ -90,7 +89,7 @@ Keep unknown measurements unknown. Do not turn them into passing guesses.
 - Do not say a candidate was selected or improved.
 - Do not present a contact sheet and ask for a precise score for every mock. Review one candidate at
   a time.
-- A measured failure is never overruled by a model opinion.
+- A failing `bun run check` result is never overruled by a model opinion.
 - Fix the model identifiers, the packet, and the image settings. Record any setting you cannot get.
 - Do not rerun a failing candidate until it passes. An order-dependent comparison is inconclusive.
 
@@ -98,23 +97,23 @@ Keep unknown measurements unknown. Do not turn them into passing guesses.
 
 Write one JSON object. Field rules:
 
-| Field                                | Rule                                                                                                                          |
-| ------------------------------------ | ----------------------------------------------------------------------------------------------------------------------------- |
-| `version`                            | Always `1`.                                                                                                                   |
-| `judge`                              | `openai/gpt-6.1-sol` or `claude-opus-5-5`.                                                                                    |
-| `mock`                               | The mock name.                                                                                                                |
-| `scope`                              | `still` or `build`.                                                                                                           |
-| `categories`                         | One entry per scored category. `still` scores the first eight; `build` scores all twelve.                                     |
-| `categories.<id>.subchecks`          | The rubric subcheck text, a `result`, and short evidence.                                                                     |
-| `categories.<id>.subchecks[].result` | `yes`, `no`, `notApplicable`, or `notObservable`.                                                                             |
-| `categories.<id>.score`              | A number from 0 to 10. Decimals are allowed.                                                                                  |
-| `categories.<id>.reason`             | Why this score, and not the next anchor up or down.                                                                           |
-| `notAssessed`                        | For `still`, exactly `efficiency`, `controlAndRecovery`, `accessibilityAndInput`, `adaptability`. For `build`, an empty list. |
-| `findings`                           | One object per finding: `id`, `category`, `severity`, `location`, `evidence`, `task`.                                         |
-| `findings[].severity`                | A whole number from 0 to 4.                                                                                                   |
-| `hardFailures`                       | One object per hard failure: `kind`, `location`, `evidence`.                                                                  |
-| `hardFailures[].kind`                | `contrast`, `hiddenTaskInformation`, `unclearFocusOrMode`, `offKitValue`, or `unreadableText`.                                |
-| `missingEvidence`                    | What the judge needed and did not get. It does not change the gate.                                                           |
+| Field                                | Rule                                                                                                                        |
+| ------------------------------------ | --------------------------------------------------------------------------------------------------------------------------- |
+| `version`                            | Always `1`.                                                                                                                 |
+| `judge`                              | `openai/gpt-6.1-sol` or `claude-opus-5-5`.                                                                                  |
+| `mock`                               | The mock name.                                                                                                              |
+| `scope`                              | `scene` or `mod`.                                                                                                           |
+| `categories`                         | One entry per scored category. `scene` scores the first eight; `mod` scores all twelve.                                     |
+| `categories.<id>.subchecks`          | The rubric subcheck text, a `result`, and short evidence.                                                                   |
+| `categories.<id>.subchecks[].result` | `yes`, `no`, `notApplicable`, or `notObservable`.                                                                           |
+| `categories.<id>.score`              | A number from 0 to 10. Decimals are allowed.                                                                                |
+| `categories.<id>.reason`             | Why this score, and not the next anchor up or down.                                                                         |
+| `notAssessed`                        | For `scene`, exactly `efficiency`, `controlAndRecovery`, `accessibilityAndInput`, `adaptability`. For `mod`, an empty list. |
+| `findings`                           | One object per finding: `id`, `category`, `severity`, `location`, `evidence`, `task`.                                       |
+| `findings[].severity`                | A whole number from 0 to 4.                                                                                                 |
+| `hardFailures`                       | One object per hard failure: `kind`, `location`, `evidence`.                                                                |
+| `hardFailures[].kind`                | `contrast`, `hiddenTaskInformation`, `unclearFocusOrMode`, `offKitValue`, or `unreadableText`.                              |
+| `missingEvidence`                    | What the judge needed and did not get. It does not change the gate.                                                         |
 
 One complete example answer:
 
@@ -123,7 +122,7 @@ One complete example answer:
   "version": 1,
   "judge": "openai/gpt-6.1-sol",
   "mock": "sidebar-a",
-  "scope": "still",
+  "scope": "scene",
   "categories": {
     "visualHierarchy": {
       "subchecks": [

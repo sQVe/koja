@@ -45,13 +45,13 @@ type Parsed<Value> = { ok: true; value: Value } | { ok: false; errors: string[] 
 
 export const judges = ['openai/gpt-6.1-sol', 'claude-opus-5-5'] as const;
 
-const scopes = ['still', 'build'] as const;
+const scopes = ['scene', 'mod'] as const;
 
 type Scope = (typeof scopes)[number];
 
 export type Judge = (typeof judges)[number];
 
-const stillCategories = [
+const sceneCategories = [
   'visualHierarchy',
   'typeSpacingDensity',
   'consistency',
@@ -62,7 +62,7 @@ const stillCategories = [
   'taskFit',
 ] as const;
 
-const buildOnlyCategories = [
+const modOnlyCategories = [
   'efficiency',
   'controlAndRecovery',
   'accessibilityAndInput',
@@ -225,7 +225,7 @@ const parseCategoryScore = (value: unknown, path: string): Parsed<CategoryScore>
   });
 
 const scoredCategoriesOf = (scope: Scope): readonly string[] =>
-  scope === 'build' ? [...stillCategories, ...buildOnlyCategories] : stillCategories;
+  scope === 'mod' ? [...sceneCategories, ...modOnlyCategories] : sceneCategories;
 
 const parseCategories = (value: unknown, scope: Scope): Parsed<Record<string, CategoryScore>> => {
   if (!isRecord(value)) {
@@ -259,7 +259,7 @@ const parseCategories = (value: unknown, scope: Scope): Parsed<Record<string, Ca
 };
 
 const parseNotAssessed = (value: unknown, scope: Scope): Parsed<string[]> => {
-  const expected = scope === 'build' ? [] : buildOnlyCategories;
+  const expected = scope === 'mod' ? [] : modOnlyCategories;
 
   const isExpected =
     isStringList(value) &&
