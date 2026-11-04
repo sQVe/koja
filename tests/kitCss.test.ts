@@ -13,6 +13,9 @@ export const spacing = { none: 0, hairline: 1, xxsmall: 2, xsmall: 4 } as const;
 export const radius = { default: 4, pill: 6, dialog: 8 } as const;
 export const rowHeight = { small: 24, medium: 26, large: 28 } as const;
 export const controlSize = { badge: 18, paneLabelMaxWidth: 260 } as const;
+export const markSize = { slot: 12, dot: 6, quietDot: 4 } as const;
+export const diffSize = { headerHeight: 34, rowHeight: 18 } as const;
+export const overlaySize = { menuWidth: 200, pickerWidthShare: 0.6 } as const;
 `;
 
 let root: string;
@@ -50,6 +53,32 @@ describe('writeKitCss', () => {
     await writeKitCss(root, output);
 
     expect(await readFile(output, 'utf8')).toContain('--koja-text-size-default: 17px;');
+  });
+
+  test('writes status mark, diff, and overlay sizes', async () => {
+    await writeFakeRoot(sizeModule);
+
+    const output = join(root, 'kit.css');
+
+    await writeKitCss(root, output);
+
+    const css = await readFile(output, 'utf8');
+
+    expect(css).toContain('--koja-mark-size-dot: 6px;');
+    expect(css).toContain('--koja-diff-size-row-height: 18px;');
+    expect(css).toContain('--koja-overlay-size-menu-width: 200px;');
+  });
+
+  test('writes a fraction of the window without a unit', async () => {
+    await writeFakeRoot(sizeModule);
+
+    const output = join(root, 'kit.css');
+
+    await writeKitCss(root, output);
+
+    expect(await readFile(output, 'utf8')).toContain(
+      '--koja-overlay-size-picker-width-share: 0.6;',
+    );
   });
 
   test('keeps eval/kit.css in the checkout up to date with the generator', async () => {

@@ -39,9 +39,18 @@
         color: var(--koja-color-foreground);
       }
 
+      .mark {
+        display: flex;
+        flex: none;
+        align-items: center;
+        justify-content: center;
+        width: var(--koja-mark-size-slot);
+        height: var(--koja-mark-size-slot);
+      }
+
       .dot {
-        width: var(--koja-icon-size-xsmall);
-        height: var(--koja-icon-size-xsmall);
+        width: var(--koja-mark-size-dot);
+        height: var(--koja-mark-size-dot);
         border-radius: 50%;
         background: var(--koja-color-working);
       }
@@ -51,6 +60,8 @@
       }
 
       .dot.idle {
+        width: var(--koja-mark-size-quiet-dot);
+        height: var(--koja-mark-size-quiet-dot);
         background: var(--koja-color-idle);
       }
 
@@ -104,17 +115,17 @@
   <body>
     <nav class="sidebar">
       <div class="row selected">
-        <span class="dot"></span>
+        <span class="mark"><span class="dot"></span></span>
         <span class="name">koja</span>
         <span class="meta">2 agents</span>
       </div>
       <div class="row">
-        <span class="dot done"></span>
+        <span class="mark"><span class="dot done"></span></span>
         <span>herdr-app</span>
         <span class="meta">done</span>
       </div>
       <div class="row">
-        <span class="dot idle"></span>
+        <span class="mark"><span class="dot idle"></span></span>
         <span>tikk</span>
         <span class="meta">idle</span>
       </div>

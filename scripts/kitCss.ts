@@ -4,7 +4,16 @@ import { pathToFileURL } from 'node:url';
 
 type Declaration = [name: string, value: string];
 
-type SizeGroupName = 'textSize' | 'iconSize' | 'spacing' | 'radius' | 'rowHeight' | 'controlSize';
+type SizeGroupName =
+  | 'textSize'
+  | 'iconSize'
+  | 'spacing'
+  | 'radius'
+  | 'rowHeight'
+  | 'controlSize'
+  | 'markSize'
+  | 'diffSize'
+  | 'overlaySize';
 
 type SizeModule = Record<SizeGroupName, Record<string, number>>;
 
@@ -36,6 +45,9 @@ const sizeGroupNames: SizeGroupName[] = [
   'radius',
   'rowHeight',
   'controlSize',
+  'markSize',
+  'diffSize',
+  'overlaySize',
 ];
 
 const geistFaces: GeistFace[] = [
@@ -65,12 +77,16 @@ const loadSizes = async (root: string): Promise<SizeModule> => {
   return (await import(sizePath)) as SizeModule;
 };
 
+// Every length in the kit is a whole number of pixels. A fraction, such as a share of the window,
+// has no unit.
+const sizeValue = (value: number): string => (Number.isInteger(value) ? `${value}px` : `${value}`);
+
 const sizeDeclarations = (sizes: SizeModule): Declaration[] =>
   sizeGroupNames.flatMap((groupName) =>
     Object.entries(sizes[groupName]).map(([key, value]): Declaration => {
       const name = `--koja-${toKebabCase(groupName)}-${toKebabCase(key)}`;
 
-      return [name, `${value}px`];
+      return [name, sizeValue(value)];
     }),
   );
 
