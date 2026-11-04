@@ -10,6 +10,9 @@ shot is the authoritative image. The crop shows detail.
 - A scene does not show keyboard use, error recovery, or a narrow window. Do not report those for a
   scene.
 - Judge density from the shot, not from an enlarged crop alone.
+- For a scene, the top row of the crop, with the scene's name and a close button, belongs to the
+  mock viewer, not the design. Do not report it. The scene window's size is also the viewer's, so do
+  not report empty space below the content.
 - Unknown details stay unknown. Name the missing evidence instead of guessing.
 - Do not report contrast or off-kit sizes and colors. `bun run check` covers them.
 
@@ -23,6 +26,7 @@ shot is the authoritative image. The crop shows detail.
 - Tabs, toggles, icon buttons, and inset rows are pills.
 - A space with no agent shows a hollow ring. Rows outside the sidebar keep an empty mark slot.
 - Popups keep Herdr's overlay frame. Popup content rounds to the frame's radius.
+- Popups close with Esc and show no close control or Esc hint. Do not report their absence.
 - Mod text uses Geist. Terminals keep their own monospace font.
 - No shadows, extra focus marks, or card shapes outside the kit.
 
@@ -40,8 +44,8 @@ For scope `scene`, judge the first eight categories. For scope `mod`, judge all 
   absent? Are icons aligned with their labels? Are empty states drawn?
 - `informationArchitecture`: Can the user find the space that needs attention? Can the user read
   each space's repository, PR, and check status? Does a popup state its purpose?
-- `affordances`: Do buttons, tabs, and rows look clickable? Does a popup show its exit route? Does
-  the active row show without relying on color alone?
+- `affordances`: Do buttons, tabs, and rows look clickable? Does the active row show without relying
+  on color alone?
 - `stateVisibility`: Are focus, selection, running, idle, and hover states visible and distinct?
 - `taskFit`: Can each task in `context.md` be finished from the shown surface? Is information the
   task needs hidden or absent?
