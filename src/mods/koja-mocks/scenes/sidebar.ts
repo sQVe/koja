@@ -32,7 +32,6 @@ interface FakeSpace {
   label: string;
   status: Status | null;
   state: RowState;
-  hovered?: boolean;
   pull?: FakePull;
   badge?: string;
 }
@@ -80,7 +79,7 @@ const fakeRepos: FakeRepo[] = [
         pull: { number: 27, token: 'dim' },
         badge: 'Needs you',
       },
-      { label: 'scratch', status: null, state: 'normal', hovered: true },
+      { label: 'scratch', status: null, state: 'normal' },
     ],
   },
   {
@@ -125,7 +124,6 @@ const spaceRow = (space: FakeSpace): Element =>
     state: space.state,
     label: space.label,
     start: spaceMark(space.status),
-    hovered: space.hovered === true,
     end: spaceEnd(space),
   });
 
