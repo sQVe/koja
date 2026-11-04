@@ -17,6 +17,8 @@ export interface ListRowOptions extends HoverOptions {
   inset: boolean;
   state: RowState;
   label: Element | string;
+  // Identifiers such as branches and paths cut in the middle, so both ends stay visible.
+  cut?: 'middle' | 'end';
   muted?: boolean;
   centered?: boolean;
   detail?: string;
@@ -55,8 +57,19 @@ const dropLineAt = (edge: 'top' | 'bottom', palette: Palette): Element => {
   return (edge === 'top' ? line.top(spacing.none) : line.bottom(spacing.none)).bg(palette.accent);
 };
 
-const labelElement = (label: Element | string): Element =>
-  typeof label === 'string' ? div().min_w(0).truncate().child(label) : label;
+const labelElement = (options: ListRowOptions): Element => {
+  if (typeof options.label !== 'string') {
+    return options.label;
+  }
+
+  const label = div().min_w(0).truncate();
+
+  if (options.cut === 'middle') {
+    label.text_ellipsis_middle();
+  }
+
+  return label.child(options.label);
+};
 
 const detailElement = (detail: string, palette: Palette): Element =>
   div()
@@ -74,7 +87,7 @@ const labelGroup = (options: ListRowOptions, palette: Palette): Element => {
     group.flex_1();
   }
 
-  group.child(labelElement(options.label));
+  group.child(labelElement(options));
 
   if (options.detail !== undefined) {
     group.child(detailElement(options.detail, palette));
