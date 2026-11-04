@@ -100,9 +100,10 @@ Keep each round's files in `.tau/judge/<mock>/`. Git ignores that folder.
 
    Otherwise the mock fails. A verdict line that disagrees with the rule does not change the result.
 
-8. If either answer has a `needs evidence` verdict or lists missing evidence, add that evidence to
-   the packet, launch two fresh judges as in step 6, and apply the pass rule again before you
-   report.
+8. If either answer has a `needs evidence` verdict, add the evidence it names to the packet, launch
+   two fresh judges as in step 6, and apply the pass rule again before you report. Missing evidence
+   listed beside a `pass` or `fail` verdict, such as states a still image cannot show, does not
+   start a new round.
 
 9. Report the result:
    - On pass, report pass.
@@ -135,4 +136,4 @@ They are not results from a judge run.
 | `smoke-3` | fail             | Every command label is blank.                              |
 | `smoke-4` | pass             | One row is smaller than its neighbors.                     |
 
-Run the smoke test again when a judge model, this skill, or `judge.md` changes.
+Run the smoke test again when a judge model, `judge.md`, or what step 6 gives the judges changes.
