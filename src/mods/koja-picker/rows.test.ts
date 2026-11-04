@@ -79,6 +79,7 @@ const data = (overrides: Partial<PickerData> = {}, terminalList: unknown[] = [])
   return {
     spaces,
     panes,
+    terminals: terminalList,
     statuses: rollupStatuses(spaces, panes, terminalList),
     recent: [],
     focus: {},
@@ -529,27 +530,35 @@ describe('tabRowDisplay', () => {
   const tuicrPane = { ...paneOf('p1', 'k1'), program: tuicr, title: 'review' };
 
   test('labels an unnamed tab by the program it runs', () => {
-    expect(tabRowDisplay(tabOf('k1', 1), [tuicrPane]).label).toBe('tuicr');
+    expect(tabRowDisplay(tabOf('k1', 1), [tuicrPane], []).label).toBe('tuicr');
   });
 
   test('takes the icon program from the same program as the label', () => {
-    expect(tabRowDisplay(tabOf('k1', 1), [tuicrPane]).program).toBe(tuicr);
+    expect(tabRowDisplay(tabOf('k1', 1), [tuicrPane], []).program).toBe(tuicr);
   });
 
   test('keeps a custom tab name', () => {
     const named = { ...tabOf('k1', 1), name: 'review', named: true };
 
-    expect(tabRowDisplay(named, [tuicrPane]).label).toBe('review');
+    expect(tabRowDisplay(named, [tuicrPane], []).label).toBe('review');
   });
 
   test('adds the zoom marker to a zoomed tab', () => {
     const zoomed = { ...tabOf('k1', 1), zoomed: true };
 
-    expect(tabRowDisplay(zoomed, [tuicrPane]).label).toBe('tuicr Z');
+    expect(tabRowDisplay(zoomed, [tuicrPane], []).label).toBe('tuicr Z');
   });
 
   test('leaves the pane title out of the label', () => {
-    expect(tabRowDisplay(tabOf('k1', 1), [paneOf('p1', 'k1')]).label).toBe('zsh');
+    expect(tabRowDisplay(tabOf('k1', 1), [paneOf('p1', 'k1')], []).label).toBe('zsh');
+  });
+
+  test('labels an unnamed worker tab by its task', () => {
+    const worker = [{ address: 't-p1', labels: { 'tau.task': 'Fix status counts' } }];
+
+    expect(tabRowDisplay(tabOf('k1', 1), [paneOf('p1', 'k1')], worker).label).toBe(
+      'Fix status counts',
+    );
   });
 });
 

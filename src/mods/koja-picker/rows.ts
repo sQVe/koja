@@ -9,6 +9,7 @@ import { bestFieldMatch, fuzzyMatch } from './match.ts';
 export interface PickerData {
   spaces: SpaceInfo[];
   panes: PaneInfo[];
+  terminals: unknown[];
   statuses: StatusRollup;
   recent: string[];
   focus: Record<string, string>;
@@ -104,10 +105,11 @@ export const rowPane = (row: PickerRow | undefined, data: PickerData): PaneInfo 
 export const tabRowDisplay = (
   tab: TabInfo,
   paneList: PaneInfo[],
+  terminalRecords: unknown[],
 ): { program: PaneInfo['program'] | undefined; label: string } => {
   const program = tabProgram(tab, paneList);
 
-  return { program, label: tabLabel(tab, program) };
+  return { program, label: tabLabel(tab, program, paneList, terminalRecords) };
 };
 
 const paneSearchFields = (pane: PaneInfo): (string | null)[] => {

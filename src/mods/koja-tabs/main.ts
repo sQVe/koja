@@ -192,12 +192,13 @@ export default class Tabs extends View {
     index: number,
   ): Element {
     const palette = colors();
-    const program = tabProgram(tabInfo, panes());
+    const paneList = panes();
+    const program = tabProgram(tabInfo, paneList);
     const hasIcon = program?.icon !== null && program !== undefined;
     const iconColor = tabInfo.active ? palette.foreground : palette.dim;
 
     return tab({
-      label: tabLabel(tabInfo, program),
+      label: tabLabel(tabInfo, program, paneList, terminals()),
       active: tabInfo.active,
       icon: hasIcon ? programIcon(program, 'small').text_color(iconColor) : null,
       status,
