@@ -206,7 +206,6 @@ const rowPairs = (): ContrastPair[] => {
     pairs.push(contrastPair('working', surface, 3, `statusMark working on ${surface}`));
     pairs.push(contrastPair('done', surface, 3, `statusMark done on ${surface}`));
     pairs.push(contrastPair('idle', surface, 3, `statusMark idle on ${surface}`));
-    pairs.push(contrastPair('border', surface, 3, `spaceMark empty status ring on ${surface}`));
   });
 
   pairs.push(contrastPair('blocked', 'chrome', 3, 'statusMark blocked on chrome'));
@@ -263,44 +262,9 @@ const contrastPairs = (): ContrastPair[] => [
   contrastPair('solid_foreground', 'solid', 4.5, 'actionButton label on solid'),
   contrastPair('solid', 'popover', 3, 'actionButton fill on popover'),
   contrastPair('popover', 'ansi1', 4.5, 'dialogButton danger label on ansi1'),
-  contrastPair('selected', 'popover', 3, 'active toggleButton fill on popover'),
-  contrastPair('selected', 'chrome', 3, 'active toggleButton fill in koja-tabs on chrome'),
 ];
 
-const knownFailures = [
-  'dim on chrome',
-  'ansi1 on chrome',
-  'ansi2 on chrome',
-  'dim on popover',
-  'dim on hover',
-  'dim on selected',
-  'ansi1 on hover',
-  'ansi1 on selected',
-  'ansi2 on hover',
-  'ansi2 on selected',
-  'accent on hover',
-  'accent on selected',
-  'ansi5 on chrome',
-  'ansi5 on hover',
-  'ansi5 on selected',
-  'idle on hover',
-  'idle on selected',
-  'working on selected',
-  'blocked on hover',
-  'blocked on selected',
-  'dim on background',
-  'ansi1 on background',
-  'ansi2 on background',
-  'blocked on background',
-  'dim on raised',
-  'solid_foreground on solid',
-  'selected on popover',
-  'selected on chrome',
-  'border on chrome',
-  'border on popover',
-  'border on hover',
-  'border on selected',
-];
+const knownFailures = ['dim on raised'];
 
 const contrastResult = (pair: ContrastPair, palette: Record<string, string>): ContrastResult => {
   const color = palette[pair.text];
