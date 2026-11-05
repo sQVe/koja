@@ -16,7 +16,6 @@ const addChild = (parent: DrawnElement, child: unknown): void => {
   }
 };
 
-// Records what a drawn tree shows instead of the builder calls that made it.
 export const drawn = (path: string | null = null): DrawnElement => {
   const element: DrawnElement = {
     kids: [],

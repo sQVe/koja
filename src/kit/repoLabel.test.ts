@@ -26,7 +26,6 @@ await mock.module('gpui-kit', () => gpuiKitFake({ div: () => drawn() }));
 
 await mock.module('herdr', () => herdrFake({ theme: () => themeColors }));
 
-// A path in a variable keeps the typechecker of tests away from the gpui modules.
 const modulePath = './repoLabel.ts';
 
 const loaded = (await import(modulePath)) as {

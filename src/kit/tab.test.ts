@@ -31,7 +31,6 @@ await mock.module('gpui-kit', () => gpuiKitFake({ div: () => drawn() }));
 
 await mock.module('herdr', () => herdrFake({ theme: () => themeColors }));
 
-// A path in a variable keeps the typechecker of tests away from the gpui modules.
 const modulePath = './tab.ts';
 
 const loaded = (await import(modulePath)) as {
@@ -44,7 +43,6 @@ afterAll(() => {
 
 const iconName = 'terminal.svg';
 
-// The icon as the drawn tab shows it, so a tab that drops its icon fails the test.
 const drawnIcon = (active: boolean, hovered?: boolean): DrawnElement | null => {
   const drawnTab = loaded.tab({
     label: 'koja',
