@@ -1,4 +1,4 @@
-import type { Element } from 'gpui-kit';
+import type { Context, Element } from 'gpui-kit';
 import { div } from 'gpui-kit';
 
 import {
@@ -11,11 +11,13 @@ import {
   sectionHeader,
   spacing,
   stateLine,
+  toggleButton,
 } from '../../kit/index.ts';
 import type { Machine } from './machines.ts';
 import { machineGroupOrder } from './machines.ts';
-import type { TreeGroup, TreeRow } from './tree.ts';
-import { groupGapBefore, groupRows, machineOfGroup, railLineBefore } from './tree.ts';
+import { railErrorMark } from './rail.ts';
+import type { GitInfo, TreeGroup, TreeRow } from './tree.ts';
+import { gitOfGroup, groupGapBefore, groupRows, machineOfGroup, railLineBefore } from './tree.ts';
 
 export interface MachineRowsHost {
   machineList: Machine[];
@@ -25,6 +27,10 @@ export interface MachineRowsHost {
   loading: (machine: string | null) => boolean;
   addSpace: (machine: string | null) => void;
   toggleFold: (machine: string | null) => void;
+  machineError: () => string | null;
+  pullError: (git: GitInfo | null) => string | null;
+  retryMachines: (cx: Context) => void;
+  retryPull: (git: GitInfo | null, cx: Context) => void;
 }
 
 const connected = (machineList: Machine[], machine: string | null): boolean =>
@@ -34,7 +40,26 @@ const connected = (machineList: Machine[], machine: string | null): boolean =>
 const loadingRow = (collapsed: boolean): Element =>
   stateLine({ kind: 'loading', text: collapsed ? '…' : 'Loading…' });
 
-const machineState = (host: MachineRowsHost, machine: string | null): Element => {
+const errorRow = (id: string, text: string, retry: (cx: Context) => void): Element =>
+  stateLine({
+    kind: 'error',
+    text,
+    id,
+    action: toggleButton({ label: 'Retry', active: false }).on_click((_event, cx) => {
+      cx.stop_propagation();
+      retry(cx);
+    }),
+  });
+
+// A remote machine's state comes from the machine list, so a failed read leaves it unknown.
+const staleRemote = (host: MachineRowsHost, machine: string | null): boolean =>
+  machine !== null && host.machineError() !== null;
+
+const machineState = (host: MachineRowsHost, machine: string | null): Element | null => {
+  if (staleRemote(host, machine)) {
+    return null;
+  }
+
   if (!connected(host.machineList, machine)) {
     const known = host.machineList.find((candidate) => candidate.name === machine);
 
@@ -55,7 +80,7 @@ const machineHeader = (
   collapsed: boolean,
 ): Element => {
   const folded = host.folded(machine);
-  const state = collapsed ? [] : [machineState(host, machine)];
+  const state = collapsed ? null : machineState(host, machine);
   const label = collapsed ? '' : (machine ?? 'This computer');
 
   return sectionHeader({
@@ -64,7 +89,7 @@ const machineHeader = (
     interactive: true,
     start: icon(machine === null ? 'monitor' : 'server', 'small'),
     end: [
-      ...state,
+      ...(state === null ? [] : [state]),
       indicator(connected(host.machineList, machine) ? 'ansi2' : 'dim'),
       icon(folded ? 'chevron-right' : 'chevron-down', 'small'),
     ],
@@ -76,19 +101,30 @@ const machineHeader = (
     });
 };
 
-const newSpaceRow = (host: MachineRowsHost, machine: string | null, collapsed: boolean): Element =>
-  listRow({
+const newSpaceRow = (
+  host: MachineRowsHost,
+  machine: string | null,
+  collapsed: boolean,
+): Element => {
+  const stale = staleRemote(host, machine);
+
+  const row = listRow({
     size: 'small',
     inset: true,
-    state: 'normal',
+    state: stale ? 'disabled' : 'normal',
     muted: true,
     start: iconSlot(icon('plus', 'small')),
     label: collapsed ? '' : 'New space there',
-  })
-    .id(`machine-new-${machine ?? 'local'}`)
-    .on_click(() => {
+  }).id(`machine-new-${machine ?? 'local'}`);
+
+  if (!stale) {
+    row.on_click(() => {
       host.addSpace(machine);
     });
+  }
+
+  return row;
+};
 
 const groupGap = (): Element => div().h(spacing.medium);
 
@@ -98,6 +134,7 @@ const groupChildren = (
   collapsed: boolean,
 ): Element[] => {
   const elements: Element[] = [];
+  const reposWithError = new Set<string>();
 
   groups.forEach((group, index) => {
     const previous = groups[index - 1] ?? null;
@@ -108,14 +145,37 @@ const groupChildren = (
 
     const lineAbove = railLineBefore(group, previous);
     const rows = groupRows(group);
+    const git = gitOfGroup(group);
+    const repoKey = git?.repo.key ?? '';
+    const skipError = collapsed || reposWithError.has(repoKey);
+    const error = skipError ? null : host.pullError(git);
+
+    if (error !== null) {
+      reposWithError.add(repoKey);
+    }
 
     rows.forEach((row, rowIndex) => {
       elements.push(host.draw(row, lineAbove && rowIndex === 0));
+
+      if (rowIndex === 0 && error !== null) {
+        elements.push(
+          errorRow(`pulls-error-${repoKey}`, error, (cx) => {
+            host.retryPull(git, cx);
+          }),
+        );
+      }
     });
   });
 
   return elements;
 };
+
+const machineErrorRow = (
+  text: string,
+  collapsed: boolean,
+  retry: (cx: Context) => void,
+): Element =>
+  collapsed ? railErrorMark(text, retry) : errorRow('machines-error-line', text, retry);
 
 export const machineRows = (host: MachineRowsHost, collapsed: boolean): Element[] => {
   const remote = host.groups
@@ -123,14 +183,17 @@ export const machineRows = (host: MachineRowsHost, collapsed: boolean): Element[
     .filter((machine): machine is string => machine !== null);
 
   const order = machineGroupOrder(remote, host.machineList);
+  const error = host.machineError();
+  const head = error === null ? [] : [machineErrorRow(error, collapsed, host.retryMachines)];
 
   if (order.length === 1) {
     const loading = host.loading(null) && host.groups.length === 0;
+    const rows = loading ? [loadingRow(collapsed)] : groupChildren(host, host.groups, collapsed);
 
-    return loading ? [loadingRow(collapsed)] : groupChildren(host, host.groups, collapsed);
+    return head.concat(rows);
   }
 
-  return order.flatMap((machine) => {
+  const rows = order.flatMap((machine) => {
     const mine = host.groups.filter((group) => machineOfGroup(group) === machine);
     const header = machineHeader(host, machine, collapsed);
 
@@ -148,4 +211,6 @@ export const machineRows = (host: MachineRowsHost, collapsed: boolean): Element[
 
     return [header, row];
   });
+
+  return head.concat(rows);
 };

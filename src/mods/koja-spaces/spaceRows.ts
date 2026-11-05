@@ -15,7 +15,7 @@ import {
 } from '../../kit/index.ts';
 import type { Pull } from './pulls.ts';
 import { pullState } from './pulls.ts';
-import { labelDetail } from './rows.ts';
+import { labelDetail, rowCut } from './rows.ts';
 import type { GitInfo, ListedSpace, RepoRow, SpaceRow } from './tree.ts';
 
 export interface RowState {
@@ -34,9 +34,7 @@ const pullColors: Record<string, ThemeToken> = {
   closed: 'ansi1',
 };
 
-const pullDetail = (row: ListedSpace, lookup: RowState['lookup']): Element[] => {
-  const pull = lookup(row.git);
-
+const pullDetail = (pull: Pull | null): Element[] => {
   if (pull === null) {
     return [];
   }
@@ -46,8 +44,8 @@ const pullDetail = (row: ListedSpace, lookup: RowState['lookup']): Element[] => 
   return [detailText(`#${pull.number}`, colors()[token])];
 };
 
-export const rowTitle = (row: ListedSpace, lookup: RowState['lookup']): string => {
-  return row.space.named ? row.space.name : (lookup(row.git)?.title ?? row.space.name);
+export const rowTitle = (row: ListedSpace, pull: Pull | null): string => {
+  return row.space.named ? row.space.name : (pull?.title ?? row.space.name);
 };
 
 const foldToggle = (row: RepoRow, toggleFold: RowState['toggleFold']): Element => {
@@ -89,7 +87,6 @@ export const labelRow = (row: RepoRow, ids: readonly string[], state: RowState):
   const { main, name, fold } = row;
   const { space } = main;
   const line = dragLine(state.drag, space.id, ids);
-  const detail = labelDetail(main);
 
   const element = listRow({
     size: 'small',
@@ -97,7 +94,7 @@ export const labelRow = (row: RepoRow, ids: readonly string[], state: RowState):
     state: space.active ? 'selected' : 'normal',
     label: repoLabel({
       name,
-      ...(detail === undefined ? {} : { detail }),
+      ...labelDetail(main),
       folded: fold?.folded === true,
       selected: space.active,
     }),
@@ -120,16 +117,18 @@ export const labelRow = (row: RepoRow, ids: readonly string[], state: RowState):
 export const row = (spaceRow: SpaceRow, ids: readonly string[], state: RowState): Element => {
   const { space } = spaceRow;
   const line = dragLine(state.drag, space.id, ids);
+  const pull = state.lookup(spaceRow.git);
 
   const element = listRow({
     size: 'small',
     inset: true,
     state: space.active ? 'selected' : 'normal',
     start: spaceMark(spaceRow.status),
-    label: rowTitle(spaceRow, state.lookup),
+    label: rowTitle(spaceRow, pull),
+    cut: rowCut(space.named, pull),
     ...(line === undefined ? {} : { dropLine: line }),
     dragged: state.drag.source === space.id && state.drag.over !== space.id,
-    end: pullDetail(spaceRow, state.lookup),
+    end: pullDetail(pull),
   }).id(`space-${space.id}`);
 
   state.attachDrag(element, space, ids);

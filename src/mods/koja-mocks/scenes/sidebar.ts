@@ -28,7 +28,8 @@ interface FakeSpace {
 
 interface FakeRepo {
   name: string;
-  detail: string;
+  branch: string;
+  age: string;
   status: Status | null;
   error?: string;
   spaces: FakeSpace[];
@@ -47,7 +48,8 @@ const ageOf = (thenSeconds: number): string => shortAge(thenSeconds, fakeNow);
 const fakeRepos: FakeRepo[] = [
   {
     name: 'koja',
-    detail: `main · ${ageOf(kojaCommittedAt)}`,
+    branch: 'main',
+    age: ageOf(kojaCommittedAt),
     status: 'blocked',
     error: `koja PRs are ${ageOf(kojaPullsReadAt)} old.`,
     spaces: [
@@ -74,7 +76,8 @@ const fakeRepos: FakeRepo[] = [
   },
   {
     name: 'tikk',
-    detail: `main · ${ageOf(tikkCommittedAt)}`,
+    branch: 'main',
+    age: ageOf(tikkCommittedAt),
     status: 'done',
     spaces: [
       {
@@ -123,7 +126,13 @@ const repoRow = (repo: FakeRepo): Element =>
     size: 'small',
     inset: true,
     state: 'normal',
-    label: repoLabel({ name: repo.name, detail: repo.detail, folded: false, selected: false }),
+    label: repoLabel({
+      name: repo.name,
+      branch: repo.branch,
+      age: repo.age,
+      folded: false,
+      selected: false,
+    }),
     end: [statusMark(repo.status)],
   });
 

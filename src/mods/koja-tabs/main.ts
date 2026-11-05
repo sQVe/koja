@@ -12,6 +12,7 @@ import {
   colors,
   currentWindow,
   findLayoutNode,
+  hoveredAfter,
   icon,
   iconButton,
   indicator,
@@ -114,6 +115,8 @@ const windowButtonsPadding = (): number => {
 export default class Tabs extends View {
   private drag: DragState = noDrag;
 
+  private hoveredTab: string | null = null;
+
   private memory: PanelMemory = initialPanelMemory(readStoredPanels());
 
   override render(): Element {
@@ -192,20 +195,23 @@ export default class Tabs extends View {
     status: Status | null,
     index: number,
   ): Element {
-    const palette = colors();
     const paneList = panes();
     const program = tabProgram(tabInfo, paneList);
     const hasIcon = program?.icon !== null && program !== undefined;
-    const iconColor = tabInfo.active ? palette.foreground : palette.dim;
 
     return tab({
       label: tabLabel(tabInfo, program, paneList, terminals()),
       active: tabInfo.active,
-      icon: hasIcon ? programIcon(program, 'small').text_color(iconColor) : null,
+      hovered: this.hoveredTab === tabInfo.id,
+      icon: hasIcon ? programIcon(program, 'small') : null,
       status,
       close: this.closeButton(tabInfo),
     })
       .id(`tab-${tabInfo.id}`)
+      .on_hover((hovered, cx) => {
+        this.hoveredTab = hoveredAfter(this.hoveredTab, tabInfo.id, hovered);
+        cx.notify();
+      })
       .on_mouse_down('left', (event, cx) => {
         cx.stop_propagation();
         this.drag = startDrag(tabIds(space), index);

@@ -109,14 +109,10 @@ const paneHeader = (pane: FakePane): Element => {
 };
 
 const tabElement = (fakeTab: FakeTab): Element => {
-  const palette = colors();
-  const bright = fakeTab.active || fakeTab.hovered === true;
-  const iconColor = bright ? palette.foreground : palette.dim;
-
   return tab({
     label: fakeTab.label,
     active: fakeTab.active,
-    icon: programIcon(null, 'small').text_color(iconColor),
+    icon: programIcon(null, 'small'),
     status: fakeTab.status,
     close: iconButton({ name: 'x', size: 'small' }),
     hovered: fakeTab.hovered === true,

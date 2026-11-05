@@ -2,7 +2,7 @@ import { v_flex } from 'gpui-base';
 import type { AsyncContext, Context, Element } from 'gpui-kit';
 import { div, View } from 'gpui-kit';
 import type { SpaceInfo } from 'herdr';
-import { hc, machines, openOverlay, panes, run, setShared, spaces, terminals } from 'herdr';
+import { machines, openOverlay, panes, run, setShared, spaces, terminals } from 'herdr';
 
 import type { DragState } from '../../kit/drag.ts';
 import { dropAction, noDrag, setDragOver, startDrag } from '../../kit/drag.ts';
@@ -11,6 +11,7 @@ import {
   colors,
   controlSize,
   findLayoutNode,
+  hoveredAfter,
   layoutRoot,
   overlaySize,
   railWidthLimit,
@@ -22,15 +23,15 @@ import {
 import { foldedSet } from './folded.ts';
 import { GitTracker } from './gitTracker.ts';
 import { machineRows } from './machineRows.ts';
-import type { Machine } from './machines.ts';
-import { isMachineLoading, readMachines } from './machines.ts';
+import { isMachineLoading } from './machines.ts';
+import { MachineTracker } from './machineTracker.ts';
 import { newSpaceArguments } from './newSpace.ts';
 import { PullTracker } from './pullTracker.ts';
 import { railRow } from './rail.ts';
 import { createOrderPublisher } from './spaceOrder.ts';
 import type { RowState } from './spaceRows.ts';
 import { labelRow, row as spaceRow, rowTitle } from './spaceRows.ts';
-import type { ListedSpace, TreeGroup, TreeRow } from './tree.ts';
+import type { GitInfo, ListedSpace, TreeGroup, TreeRow } from './tree.ts';
 import { nestSpaces, placesOf } from './tree.ts';
 import type { VisibilityResult, VisibilityState } from './visibility.ts';
 import { advanceVisibility, initialVisibility } from './visibility.ts';
@@ -73,7 +74,7 @@ export default class Spaces extends View {
 
   private readonly order = createOrderPublisher(setShared);
 
-  private machineList: Machine[] = [];
+  private readonly machines = new MachineTracker();
 
   private visibility: VisibilityState = initialVisibility(spaces().map((space) => space.id));
 
@@ -92,10 +93,10 @@ export default class Spaces extends View {
       this.pulls.refresh(this.git.repositories(), timerCx);
     });
 
-    this.refreshMachines(cx);
+    this.machines.refresh(cx);
 
     repeat(cx, machinesMilliseconds, (timerCx) => {
-      this.refreshMachines(timerCx);
+      this.machines.refresh(timerCx);
     });
 
     repeat(cx, checkMilliseconds, (timerCx) => {
@@ -169,22 +170,6 @@ export default class Spaces extends View {
     }
   }
 
-  private refreshMachines(cx: Context): void {
-    cx.spawn(async (taskCx) => {
-      try {
-        const result = await hc(['machine', 'ls', '--json']);
-
-        if (result.code === 0) {
-          this.machineList = readMachines(result.stdout);
-        }
-      } catch {
-        // The core is away: keep the machines shown.
-      }
-
-      taskCx.notify();
-    });
-  }
-
   private openMenu(space: SpaceInfo): void {
     // A popup is as tall as its items; the height is only the most.
     openOverlay({
@@ -215,9 +200,9 @@ export default class Spaces extends View {
   private isLoading(machine: string | null): boolean {
     const layout = machines().find((candidate) => candidate.name === machine)?.layout;
 
-    const connected = this.machineList.some(
-      (known) => known.name === machine && known.state === 'connected',
-    );
+    const connected = this.machines
+      .lookup()
+      .some((known) => known.name === machine && known.state === 'connected');
 
     const waitingForSpace = spaces().some(
       (space) => (space.machine ?? null) === machine && !this.visibility.shown.has(space.id),
@@ -226,6 +211,14 @@ export default class Spaces extends View {
     return isMachineLoading(layout, connected, waitingForSpace);
   }
 
+  private readonly retryPull = (git: GitInfo | null, cx: Context): void => {
+    if (git === null) {
+      return;
+    }
+
+    this.pulls.retry(git.repo, git.cwd, cx);
+  };
+
   private draw(
     row: TreeRow,
     ids: readonly string[],
@@ -233,9 +226,13 @@ export default class Spaces extends View {
     lineAbove: boolean,
   ): Element {
     if (collapsed) {
-      const title = row.kind === 'repo' ? row.name : rowTitle(row, (git) => this.pulls.lookup(git));
+      const git = row.kind === 'repo' ? row.main.git : row.git;
 
-      return railRow(row, title, lineAbove);
+      const title = row.kind === 'repo' ? row.name : rowTitle(row, this.pulls.lookup(row.git));
+
+      return railRow(row, title, lineAbove, this.pulls.errorLine(git), (cx) => {
+        this.retryPull(git, cx);
+      });
     }
 
     const state: RowState = {
@@ -246,12 +243,7 @@ export default class Spaces extends View {
         this.addDragHandlers(element, space, rowIds);
       },
       onHover: (spaceId, hovered, cx) => {
-        if (hovered) {
-          this.hovered = spaceId;
-        } else if (this.hovered === spaceId) {
-          this.hovered = null;
-        }
-
+        this.hovered = hoveredAfter(this.hovered, spaceId, hovered);
         cx.notify();
       },
       toggleFold: (repoKey, cx) => {
@@ -272,7 +264,7 @@ export default class Spaces extends View {
     // machineRows draws only the shown rows, in sidebar order.
     const elements = machineRows(
       {
-        machineList: this.machineList,
+        machineList: this.machines.lookup(),
         groups,
         draw: (row, lineAbove) => {
           shownRows.push(row);
@@ -287,6 +279,12 @@ export default class Spaces extends View {
         toggleFold: (machine) => {
           this.foldedMachines.toggle(machine ?? '');
         },
+        machineError: () => this.machines.errorLine(),
+        pullError: (git) => this.pulls.errorLine(git),
+        retryMachines: (cx) => {
+          this.machines.retry(cx);
+        },
+        retryPull: this.retryPull,
       },
       collapsed,
     );

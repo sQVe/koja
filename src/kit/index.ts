@@ -10,6 +10,8 @@ export { iconNames } from './iconNames.ts';
 
 export type { IconName } from './iconNames.ts';
 
+export { hoveredAfter } from './hoverTarget.ts';
+
 export { listRow } from './listRow.ts';
 
 export { shortAge } from './age.ts';

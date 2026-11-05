@@ -1,21 +1,25 @@
 import { describe, expect, test } from 'bun:test';
 
-import { isMachineLoading, machineGroupOrder, readMachines } from './machines.ts';
+import { isMachineLoading, machineGroupOrder, readMachineList } from './machines.ts';
 
-describe('readMachines', () => {
+describe('readMachineList', () => {
   test('reads names and states, and drops temporary machines', () => {
-    const stdout = JSON.stringify({
+    const value = {
       machines: [
         { name: 'work', state: 'connected' },
         { name: 'sandbox', state: 'connected', temporary: true },
         { name: 'home' },
       ],
-    });
+    };
 
-    expect(readMachines(stdout)).toEqual([
+    expect(readMachineList(value)).toEqual([
       { name: 'work', state: 'connected' },
       { name: 'home', state: null },
     ]);
+  });
+
+  test('a machine list that is not an array is no list', () => {
+    expect(readMachineList({ machines: {} })).toBeNull();
   });
 });
 

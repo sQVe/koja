@@ -3,7 +3,9 @@ import { exec } from 'herdr';
 
 import type { Pull, PullCache } from './pulls.ts';
 import { pullFields, pullOf, readPullCaches, readPullList } from './pulls.ts';
+import { readErrorLine } from './readState.ts';
 import type { GitInfo, RepoRef } from './tree.ts';
+import { repoName } from './tree.ts';
 
 const pullsKey = 'pulls';
 
@@ -14,12 +16,24 @@ export class PullTracker {
     JSON.parse(localStorage.getItem(pullsKey) ?? '{}'),
   );
 
+  private readonly failed = new Set<string>();
+
   private readonly pullsTried: Record<string, number> = {};
 
   private readonly fetching = new Set<string>();
 
   lookup(git: GitInfo | null): Pull | null {
     return pullOf(git, this.pulls);
+  }
+
+  errorLine(git: GitInfo | null): string | null {
+    if (git === null || !this.failed.has(git.repo.key)) {
+      return null;
+    }
+
+    const goodAt = this.pulls[git.repo.key]?.fetchedAt ?? null;
+
+    return readErrorLine(`${repoName(git.root)} PRs`, goodAt, Date.now());
   }
 
   refresh(repositories: { repo: RepoRef; cwd: string }[], cx: Context): void {
@@ -37,27 +51,53 @@ export class PullTracker {
     }
   }
 
+  retry(repo: RepoRef, cwd: string, cx: Context): void {
+    if (this.fetching.has(repo.key)) {
+      return;
+    }
+
+    this.pullsTried[repo.key] = Date.now();
+    this.fetch(repo, cwd, cx);
+  }
+
+  private async read(repo: RepoRef, cwd: string): Promise<Pull[] | null> {
+    try {
+      const args = ['pr', 'list', '--state', 'all', '--limit', '100', '--json', pullFields];
+      const result = await exec('gh', args, { cwd, on: repo.machine });
+
+      if (result.code !== 0) {
+        return null;
+      }
+
+      const value: unknown = JSON.parse(result.stdout);
+
+      if (!Array.isArray(value)) {
+        return null;
+      }
+
+      return readPullList(value);
+    } catch {
+      return null;
+    }
+  }
+
   private fetch(repo: RepoRef, cwd: string, cx: Context): void {
     this.fetching.add(repo.key);
 
     cx.spawn(async (taskCx) => {
       try {
-        const args = ['pr', 'list', '--state', 'all', '--limit', '100', '--json', pullFields];
-        const result = await exec('gh', args, { cwd, on: repo.machine });
+        const list = await this.read(repo, cwd);
 
-        if (result.code === 0) {
-          this.pulls[repo.key] = {
-            fetchedAt: Date.now(),
-            list: readPullList(JSON.parse(result.stdout)),
-          };
-
+        if (list === null) {
+          this.failed.add(repo.key);
+        } else {
+          this.pulls[repo.key] = { fetchedAt: Date.now(), list };
+          this.failed.delete(repo.key);
           localStorage.setItem(pullsKey, JSON.stringify(this.pulls));
-          taskCx.notify();
         }
-      } catch {
-        // The machine is away: keep what the rows showed.
       } finally {
         this.fetching.delete(repo.key);
+        taskCx.notify();
       }
     });
   }
