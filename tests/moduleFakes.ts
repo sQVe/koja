@@ -13,10 +13,13 @@ export const chainable = (): unknown =>
 // passes its own behavior as overrides and gets the rest as defaults.
 export const herdrFake = (overrides: ModuleFake = {}): ModuleFake => ({
   appHome: () => '',
+  closeOverlay: () => null,
   commands: () => [],
   exec: async () => ({ code: 0, stdout: '', stderr: '' }),
   focused: () => null,
   hc: () => null,
+  keys: () => [],
+  layout: () => null,
   layouts: () => [],
   nextCommand: () => new Promise<string>(() => {}),
   openOverlay: () => null,
@@ -30,12 +33,15 @@ export const herdrFake = (overrides: ModuleFake = {}): ModuleFake => ({
   spaces: () => [],
   terminals: () => [],
   theme: () => ({}),
+  themes: () => [],
   watchFolder: async () => [],
+  window: () => null,
   writeTextFile: () => null,
   ...overrides,
 });
 
 export const gpuiBaseFake = (overrides: ModuleFake = {}): ModuleFake => ({
+  Input: { new: () => chainable() },
   InputState: { new: () => undefined },
   Scrollbar: { vertical: noop },
   h_flex: noop,

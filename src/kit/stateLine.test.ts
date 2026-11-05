@@ -1,14 +1,8 @@
 import { afterAll, describe, expect, mock, test } from 'bun:test';
 
+import type { DrawnElement } from '../../tests/drawn.ts';
+import { drawn, drawnIcons, drawnTexts, drawnTooltips, spinning } from '../../tests/drawn.ts';
 import { gpuiBaseFake, gpuiKitFake, herdrFake } from '../../tests/moduleFakes.ts';
-
-interface DrawnElement {
-  children: DrawnElement[];
-  path: string | null;
-  spins: boolean;
-  texts: string[];
-  tooltipText: string | null;
-}
 
 interface StateLineOptions {
   kind: 'empty' | 'loading' | 'error';
@@ -16,69 +10,6 @@ interface StateLineOptions {
   id?: string;
   action?: DrawnElement;
 }
-
-const addChild = (parent: DrawnElement, child: unknown): void => {
-  if (typeof child === 'string') {
-    parent.texts.push(child);
-  } else {
-    parent.children.push(child as DrawnElement);
-  }
-};
-
-const drawn = (path: string | null = null): DrawnElement => {
-  const element: DrawnElement = { children: [], path, spins: false, texts: [], tooltipText: null };
-
-  const handle: DrawnElement = new Proxy(element, {
-    get: (target, key) => {
-      if (key === 'then') {
-        return undefined;
-      }
-
-      if (key in target) {
-        return target[key as keyof DrawnElement];
-      }
-
-      return (...args: unknown[]) => {
-        if (key === 'child') {
-          addChild(target, args[0]);
-        }
-
-        if (key === 'tooltip') {
-          target.tooltipText = String(args[0]);
-        }
-
-        if (key === 'spin') {
-          target.spins = true;
-        }
-
-        return handle;
-      };
-    },
-  });
-
-  return handle;
-};
-
-const descendants = (element: DrawnElement): DrawnElement[] => [
-  element,
-  ...element.children.flatMap(descendants),
-];
-
-const drawnTexts = (element: DrawnElement): string[] =>
-  descendants(element).flatMap((part) => part.texts);
-
-const drawnIcons = (element: DrawnElement): string[] =>
-  descendants(element)
-    .map((part) => part.path?.split('/').at(-1) ?? null)
-    .filter((name): name is string => name !== null);
-
-const drawnTooltips = (element: DrawnElement): string[] =>
-  descendants(element)
-    .map((part) => part.tooltipText)
-    .filter((tooltip): tooltip is string => tooltip !== null);
-
-const spinning = (element: DrawnElement): boolean =>
-  descendants(element).some((part) => part.spins);
 
 Object.assign(globalThis, { kojaModName: 'koja' });
 
