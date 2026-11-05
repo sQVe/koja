@@ -124,7 +124,7 @@ describe('PullTracker', () => {
     await flush();
 
     expect(tracker.lookup(git)?.number).toBe(7);
-    expect(tracker.errorLine(git)).toBe('Could not read koja PRs. Last read 6m ago.');
+    expect(tracker.errorLine(git)).toBe('koja PRs are 6m old.');
   });
 
   test('Retry clears the error after a good read', async () => {

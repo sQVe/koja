@@ -2,22 +2,17 @@ import { shortAge } from '../../kit/age.ts';
 
 const millisecondsPerSecond = 1000;
 
-const lastRead = (goodAt: number, now: number): string => {
-  const age = shortAge(
-    Math.floor(goodAt / millisecondsPerSecond),
-    Math.floor(now / millisecondsPerSecond),
-  );
+const toSeconds = (milliseconds: number): number =>
+  Math.floor(milliseconds / millisecondsPerSecond);
 
-  return age === 'now' ? 'just now' : `${age} ago`;
-};
-
-// goodAt is the epoch milliseconds of the last good read, or null when none succeeded.
+// goodAt is the epoch milliseconds of the last good read, or null when none succeeded. The age
+// leads the stale text, so it survives when a narrow sidebar cuts the line.
 export const readErrorLine = (subject: string, goodAt: number | null, now: number): string => {
-  const line = `Could not read ${subject}.`;
-
   if (goodAt === null) {
-    return line;
+    return `Could not read ${subject}.`;
   }
 
-  return `${line} Last read ${lastRead(goodAt, now)}.`;
+  const age = shortAge(toSeconds(goodAt), toSeconds(now));
+
+  return age === 'now' ? `Could not refresh ${subject}.` : `${subject} are ${age} old.`;
 };

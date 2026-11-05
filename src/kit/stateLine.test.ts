@@ -7,11 +7,13 @@ interface DrawnElement {
   path: string | null;
   spins: boolean;
   texts: string[];
+  tooltipText: string | null;
 }
 
 interface StateLineOptions {
   kind: 'empty' | 'loading' | 'error';
   text: string;
+  id?: string;
   action?: DrawnElement;
 }
 
@@ -24,7 +26,7 @@ const addChild = (parent: DrawnElement, child: unknown): void => {
 };
 
 const drawn = (path: string | null = null): DrawnElement => {
-  const element: DrawnElement = { children: [], path, spins: false, texts: [] };
+  const element: DrawnElement = { children: [], path, spins: false, texts: [], tooltipText: null };
 
   const handle: DrawnElement = new Proxy(element, {
     get: (target, key) => {
@@ -39,6 +41,10 @@ const drawn = (path: string | null = null): DrawnElement => {
       return (...args: unknown[]) => {
         if (key === 'child') {
           addChild(target, args[0]);
+        }
+
+        if (key === 'tooltip') {
+          target.tooltipText = String(args[0]);
         }
 
         if (key === 'spin') {
@@ -65,6 +71,11 @@ const drawnIcons = (element: DrawnElement): string[] =>
   descendants(element)
     .map((part) => part.path?.split('/').at(-1) ?? null)
     .filter((name): name is string => name !== null);
+
+const drawnTooltips = (element: DrawnElement): string[] =>
+  descendants(element)
+    .map((part) => part.tooltipText)
+    .filter((tooltip): tooltip is string => tooltip !== null);
 
 const spinning = (element: DrawnElement): boolean =>
   descendants(element).some((part) => part.spins);
@@ -124,5 +135,18 @@ describe('stateLine', () => {
     const line = render({ kind: 'error', text: 'Could not read git status.', action });
 
     expect(drawnTexts(line)).toEqual(['Could not read git status.', 'Retry']);
+  });
+
+  test('a line with an id shows its whole text as a tooltip, so a cut line stays readable', () => {
+    const text = 'koja PRs are 6m old.';
+    const line = render({ kind: 'error', text, id: 'koja-pulls-error' });
+
+    expect(drawnTooltips(line)).toEqual([text]);
+  });
+
+  test('a line without an id shows no tooltip', () => {
+    const line = render({ kind: 'error', text: 'Could not read git status.' });
+
+    expect(drawnTooltips(line)).toEqual([]);
   });
 });

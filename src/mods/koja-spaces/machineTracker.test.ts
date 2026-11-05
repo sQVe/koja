@@ -62,7 +62,7 @@ describe('MachineTracker', () => {
     await flush();
 
     expect(tracker.lookup()).toEqual([{ name: 'work', state: 'connected' }]);
-    expect(tracker.errorLine()).toBe('Could not read machines. Last read just now.');
+    expect(tracker.errorLine()).toBe('Could not refresh machines.');
   });
 
   test('Retry clears the error after a good read', async () => {

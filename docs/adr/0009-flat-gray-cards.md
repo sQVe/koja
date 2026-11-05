@@ -133,11 +133,15 @@ preview inside one framed overlay, so the list rounds only its own two outer cor
 - The line says what is true and what to do next. Every read that fails shows an error line, so no
   read fails silently.
 - An error line names the resource that failed and sits with the part it affects. It carries its own
+  Retry. A line that a narrow list may cut shows its whole text as a tooltip.
+- Where a list has no room for a line, such as the sidebar rail, the failed part shows the alert
+  mark in `blocked` instead. The mark shows the line's text as a tooltip, and a click on it is the
   Retry.
 - Each mod keeps the pending, failed, stale, and fresh state of each resource apart, keyed by the
   repository or context it read. Retry reads that resource again at once, skipping the normal
   refresh delay. An error clears only when that same resource reads again.
-- A stale list keeps its rows below an error line with the age of the last good read.
+- A stale list keeps its rows below an error line with the age of the last good read. The age comes
+  early in the text, so a cut line still shows it.
 - A load longer than about 300 ms shows the spinner with its text; a shorter load shows nothing.
 - An action that changes state, such as Commit, stays disabled on stale data until the same resource
   reads again. Reading and navigation stay allowed.
