@@ -20,8 +20,6 @@ export const emptyReadState = (): ReadState => ({
 
 const repositoryName = (root: string): string => root.slice(root.lastIndexOf('/') + 1);
 
-// A missing snapshot has nothing to commit, and a read failure means the shown list may not match
-// the folder.
 export const isStale = (state: ReadState): boolean =>
   state.lastGood === null || state.failure !== null;
 
