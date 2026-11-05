@@ -11,6 +11,7 @@
     "!src/mods/*/main.ts",
     "!src/kit/askFirst.ts",
     "!src/kit/button.ts",
+    "!src/kit/dialog.ts",
     "!src/kit/dialogOpen.ts",
     "!src/kit/icon.ts",
     "!src/kit/index.ts",

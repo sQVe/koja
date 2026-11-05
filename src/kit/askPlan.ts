@@ -22,22 +22,39 @@ type AskPlan =
 
 type PlanFunction = (args: Record<string, unknown>, facts: AskFacts) => AskPlan;
 
+interface TabPlace {
+  space: SpaceInfo;
+  tab: TabInfo;
+}
+
 const spaceTarget = (args: Record<string, unknown>, facts: AskFacts): SpaceInfo | undefined => {
   const id = stringOf(args['id']) ?? facts.focus?.space;
 
   return facts.spaces.find((space) => space.id === id);
 };
 
-const tabTarget = (args: Record<string, unknown>, facts: AskFacts): TabInfo | undefined => {
+const placeOf = (spaceList: SpaceInfo[], tabId: string | undefined): TabPlace | undefined => {
+  for (const space of spaceList) {
+    const tab = space.tabs.find((candidate) => candidate.id === tabId);
+
+    if (tab !== undefined) {
+      return { space, tab };
+    }
+  }
+
+  return undefined;
+};
+
+const tabTarget = (args: Record<string, unknown>, facts: AskFacts): TabPlace | undefined => {
   const id = stringOf(args['id']);
 
   if (id !== null) {
-    return facts.spaces.flatMap((space) => space.tabs).find((tab) => tab.id === id);
+    return placeOf(facts.spaces, id);
   }
 
-  const focusedSpace = facts.spaces.find((space) => space.id === facts.focus?.space);
+  const focusedSpaces = facts.spaces.filter((space) => space.id === facts.focus?.space);
 
-  return focusedSpace?.tabs.find((tab) => tab.id === facts.focus?.tab);
+  return placeOf(focusedSpaces, facts.focus?.tab);
 };
 
 const terminalCount = (space: SpaceInfo, paneList: PaneInfo[]): number => {
@@ -102,11 +119,13 @@ const renameTabPlan = (args: Record<string, unknown>, facts: AskFacts): AskPlan 
     return { kind: 'run' };
   }
 
-  const tab = tabTarget(args, facts);
+  const place = tabTarget(args, facts);
 
-  if (tab === undefined) {
+  if (place === undefined) {
     return { kind: 'skip' };
   }
+
+  const { tab } = place;
 
   return {
     kind: 'prompt',
@@ -125,17 +144,13 @@ const closeTabPlan = (args: Record<string, unknown>, facts: AskFacts): AskPlan =
     return { kind: 'run' };
   }
 
-  const tab = tabTarget(args, facts);
+  const place = tabTarget(args, facts);
 
-  if (tab === undefined) {
+  if (place === undefined) {
     return { kind: 'skip' };
   }
 
-  const space = facts.spaces.find((candidate) => candidate.tabs.includes(tab));
-
-  if (space === undefined) {
-    return { kind: 'skip' };
-  }
+  const { space, tab } = place;
 
   if (space.tabs.length > 1) {
     return { kind: 'run' };

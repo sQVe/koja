@@ -152,6 +152,15 @@ describe('dialogFor', () => {
     });
   });
 
+  test('the space rename prompt says an empty name is named after its folder', () => {
+    const plan = dialogFor('space.rename', { id: 's2' }, facts(spaceValues(), [], focusValue));
+
+    expect(plan).toMatchObject({
+      kind: 'prompt',
+      dialog: { hint: 'empty: named after its folder' },
+    });
+  });
+
   test('renaming the focused tab opens a prompt with its current name', () => {
     const plan = dialogFor('tab.rename', {}, facts(spaceValues(), [], focusValue));
 
@@ -161,8 +170,24 @@ describe('dialogFor', () => {
     });
   });
 
+  test('the tab rename prompt says an empty name uses its number', () => {
+    const plan = dialogFor('tab.rename', {}, facts(spaceValues(), [], focusValue));
+
+    expect(plan).toMatchObject({ kind: 'prompt', dialog: { hint: 'empty: its number' } });
+  });
+
   test('renaming a tab by id finds it in any space', () => {
     const plan = dialogFor('tab.rename', { id: 't3' }, facts(spaceValues(), [], focusValue));
+
+    expect(plan).toMatchObject({
+      kind: 'prompt',
+      dialog: { value: 'build', command: { name: 'tab.rename', args: { id: 't3' } } },
+    });
+  });
+
+  test('renaming the focused tab in a later space uses that space', () => {
+    const laterFocus = { space: 's2', tab: 't3' };
+    const plan = dialogFor('tab.rename', {}, facts(spaceValues(), [], laterFocus));
 
     expect(plan).toMatchObject({
       kind: 'prompt',
@@ -220,6 +245,17 @@ describe('dialogFor', () => {
     expect(plan).toEqual({ kind: 'skip' });
   });
 
+  test('without a focused tab, a tab rename and close with no id open nothing and run nothing', () => {
+    const spaces = spaceValues();
+
+    const renamePlan = dialogFor('tab.rename', {}, facts(spaces));
+
+    const closePlan = dialogFor('tab.close', {}, facts(spaces));
+
+    expect(renamePlan).toEqual({ kind: 'skip' });
+    expect(closePlan).toEqual({ kind: 'skip' });
+  });
+
   test('closing the last tab of a space asks first, and the confirm runs it with confirmed', () => {
     const plan = dialogFor('tab.close', { id: 't3' }, facts(spaceValues(), [], focusValue));
 
@@ -259,6 +295,12 @@ describe('dialogFor', () => {
 
   test('closing a stale tab id skips', () => {
     const plan = dialogFor('tab.close', { id: 'gone' }, facts(spaceValues(), [], focusValue));
+
+    expect(plan).toEqual({ kind: 'skip' });
+  });
+
+  test('closing with no id skips when the focused tab is not in the focused space', () => {
+    const plan = dialogFor('tab.close', {}, facts(spaceValues(), [], { space: 's1', tab: 't3' }));
 
     expect(plan).toEqual({ kind: 'skip' });
   });
