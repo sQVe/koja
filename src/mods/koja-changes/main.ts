@@ -288,6 +288,10 @@ export default class Changes extends View {
 
     this.watchGeneration = generation;
 
+    if (this.loading) {
+      this.pendingRefresh = true;
+    }
+
     cx.spawn(async (taskCx) => {
       try {
         while (this.watchGeneration === generation) {
@@ -317,6 +321,7 @@ export default class Changes extends View {
 
     this.state = { ...this.state, watchFailed: false };
     this.watch(snapshot, cx);
+    this.refresh(cx);
     cx.notify();
   }
 

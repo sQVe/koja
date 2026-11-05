@@ -44,6 +44,8 @@ let statusText = ' M a.ts\0 M b.ts\0';
 
 let blockStatus = false;
 
+let blockAfterReads = 0;
+
 let statusGate: (() => void) | null = null;
 
 let inputValue = '';
@@ -128,7 +130,7 @@ await mock.module('herdr', () =>
 
         const text = statusText;
 
-        if (blockStatus) {
+        if (blockStatus && statusReads > blockAfterReads) {
           await new Promise<void>((resolve) => {
             statusGate = resolve;
           });
@@ -198,6 +200,7 @@ beforeEach(() => {
   statusReads = 0;
   statusText = ' M a.ts\0 M b.ts\0';
   blockStatus = false;
+  blockAfterReads = 0;
   statusGate = null;
   inputValue = '';
   notifications = 0;
@@ -321,6 +324,38 @@ describe('Changes view', () => {
     expect(watchers).toHaveLength(watchesAtFailure + 1);
   });
 
+  test('watch Retry runs a new status read that shows a file changed while the watch was down', async () => {
+    const view = await boot();
+
+    typeMessage();
+    watchers[0]?.reject(new Error('watch unavailable'));
+    await settle();
+    view.render(context);
+
+    expect(renderedList?.watchLine?.kind).toBe('error');
+
+    statusText = ' M a.ts\0?? hidden.ts\0';
+    blockStatus = true;
+    blockAfterReads = 2;
+    const readsBeforeRetry = statusReads;
+
+    renderedList?.onRetryWatch(context);
+    await settle();
+    view.render(context);
+
+    expect(statusReads).toBe(readsBeforeRetry + 1);
+    expect(renderedCommit?.enabled).toBe(false);
+
+    blockStatus = false;
+    statusGate?.();
+    await settle();
+    view.render(context);
+
+    expect(statusReads).toBe(readsBeforeRetry + 1);
+    expect(renderedList?.files.map((file) => file.path)).toEqual(['a.ts', 'hidden.ts']);
+    expect(renderedCommit?.enabled).toBe(true);
+  });
+
   test('a location change within one repository leaves one active watch loop', async () => {
     const view = await boot();
 
@@ -365,14 +400,14 @@ describe('Changes view', () => {
   test('an event on the current watch runs a new status read and shows the changed files', async () => {
     const view = await boot();
 
-    expect(statusReads).toBe(1);
+    expect(statusReads).toBe(2);
 
     statusText = ' M a.ts\0?? b.ts\0';
     watchers[0]?.resolve(['/repo/b.ts']);
     await settle();
     view.render(context);
 
-    expect(statusReads).toBe(2);
+    expect(statusReads).toBe(3);
     expect(renderedList?.files.map((file) => file.path)).toEqual(['a.ts', 'b.ts']);
   });
 
@@ -401,8 +436,32 @@ describe('Changes view', () => {
     await settle();
     view.render(context);
 
-    expect(statusReads).toBe(3);
+    expect(statusReads).toBe(4);
     expect(renderedList?.files.map((file) => file.path)).toEqual(['a.ts', 'b.ts']);
+    expect(renderedCommit?.enabled).toBe(true);
+  });
+
+  test('the first good read starts one more read after the watch and keeps Commit off until it ends', async () => {
+    blockStatus = true;
+    blockAfterReads = 1;
+
+    const view = await loadView();
+
+    view.init(null, context);
+    typeMessage();
+    await settle();
+    view.render(context);
+
+    expect(statusReads).toBe(2);
+    expect(watchers).toHaveLength(1);
+    expect(renderedCommit?.enabled).toBe(false);
+
+    blockStatus = false;
+    statusGate?.();
+    await settle();
+    view.render(context);
+
+    expect(statusReads).toBe(2);
     expect(renderedCommit?.enabled).toBe(true);
   });
 
@@ -429,7 +488,7 @@ describe('Changes view', () => {
     await settle();
     view.render(context);
 
-    expect(statusReads).toBe(2);
+    expect(statusReads).toBe(3);
     expect(renderedCommit?.enabled).toBe(true);
   });
 
