@@ -37,7 +37,8 @@ border for focus. The frame, panes, terminals, sidebar, and tab bar all share th
   - Body: 13 px Regular `foreground`, for row labels, tab names, menu items, and input text.
   - Section heading: 11 px SemiBold `muted`, for repository names and group headings.
   - Detail: 11 px Regular `dim`, for a branch, age, count, hint, or state line.
-  - Badge: 9 px SemiBold, in the status color.
+  - Badge: 9 px SemiBold `foreground`, on a fill tinted with its status color, because
+    status-colored text on that tint falls below 4.5:1.
 - A role fixes size and weight. A caller may change only its tone.
 - Key hints use the detail role, so a hint reads as a detail beside a 13 px label.
 - Line height stays Herdr's default. The kit adds no line-height value until a part needs wrapped
@@ -78,6 +79,8 @@ border for focus. The frame, panes, terminals, sidebar, and tab bar all share th
 - If people find a selected item hard to tell from a hovered one, the kit adds one second cue to
   selected rows and active toggles, not a second hover style.
 - An icon button has no selected state, so it keeps its hover fill.
+- A hovered solid or danger button keeps its fill and label and draws a 1 px `foreground` ring,
+  because fading would dim the label below AA.
 - A hover-only control, such as a pane header button or the sidebar fold chevron, keeps its space,
   so a row does not shift when it appears.
 

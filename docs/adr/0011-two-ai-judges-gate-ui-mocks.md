@@ -61,9 +61,8 @@ A hard failure fails the mock on its own, whatever the findings. There are five 
 
 - `contrast`: text below 4.5:1 or a status mark below 3:1 against a surface it draws on. It comes
   from `bun run check`. State fills, such as hover, selected, raised, and the active toggle fill,
-  are not checked, and neither is the decorative ring of a space with no agent. The check lists the
-  theme's current failing pairs as known failures, which pass until a theme change fixes them. A new
-  failing pair, or a listed pair that starts to pass, fails the check.
+  are not checked, and neither is the decorative ring of a space with no agent. Every checked pair
+  must pass, and a failing pair fails the check.
 - `offKitValue`: a size, radius, text size, or color that is not from the kit or a Herdr theme
   token. It comes from `bun run check`.
 - `hiddenTaskInformation`: information the task needs is hidden or absent. The judges flag it.

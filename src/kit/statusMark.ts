@@ -7,7 +7,7 @@ import type { FileStatus } from './fileStatus.ts';
 import { fileStatusColor } from './fileStatus.ts';
 import { spinner } from './icon.ts';
 import type { ThemeToken } from './palette.ts';
-import { withAlpha } from './palette.ts';
+import { badgeFillAlpha, withAlpha } from './palette.ts';
 import { controlSize, markSize, radius, spacing, textSize } from './size.ts';
 import { withTextRole } from './textRole.ts';
 import { colors } from './theme.ts';
@@ -63,8 +63,6 @@ export const fileStatusMark = (status: FileStatus): Element =>
     .text_size(textSize.small)
     .text_color(fileStatusColor(status, colors()))
     .child(status);
-
-const badgeFillAlpha = '26';
 
 export const attentionBadge = (label: string): Element => {
   const palette = colors();

@@ -100,6 +100,4 @@ export const trafficLightsWidth = 64;
 
 export const draggedOpacity = 0.5;
 
-export const actionHoverOpacity = 0.88;
-
 export const spinnerPeriod = 900;

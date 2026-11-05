@@ -66,7 +66,9 @@ export const clearOf = (color: Color): Color => {
   return `#${rgb}${clearAlpha}`;
 };
 
-const diffFillAlpha = '18';
+export const diffFillAlpha = '18';
+
+export const badgeFillAlpha = '26';
 
 export const diffTints = (palette: Palette): { added: Color; removed: Color } => ({
   added: withAlpha(palette.ansi2, diffFillAlpha),
