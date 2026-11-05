@@ -1,9 +1,10 @@
 import { v_flex } from 'gpui-base';
 import type { AsyncContext, Context, Element, FocusHandle, KeyEvent } from 'gpui-kit';
 import { View } from 'gpui-kit';
-import { exec, panes, props, run, spaces, terminals } from 'herdr';
+import { exec, panes, props, spaces, terminals } from 'herdr';
 
 import {
+  askFirst,
   closeOverlay,
   colors,
   icon,
@@ -22,7 +23,7 @@ import type { Checkout, MenuEntry, MenuHost } from './entries.ts';
 import { menuEntries, readMenuProps, selectedIndex, stepSelection } from './entries.ts';
 
 const menuHost: MenuHost = {
-  run,
+  run: askFirst,
   openWorktreeDialog,
   terminals,
   themes: themeChoices,

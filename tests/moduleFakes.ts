@@ -2,6 +2,12 @@ type ModuleFake = Record<string, unknown>;
 
 const noop = (): undefined => undefined;
 
+export const chainable = (): unknown =>
+  new Proxy(() => undefined, {
+    get: (_target, key) => (key === 'then' ? undefined : chainable()),
+    apply: () => chainable(),
+  });
+
 // Bun fixes a mocked module's export names at the first mock.module call, so every mock of a
 // module must expose the same names. These helpers hold the union each test file needs; a file
 // passes its own behavior as overrides and gets the rest as defaults.
@@ -47,10 +53,13 @@ export const gpuiKitFake = (overrides: ModuleFake = {}): ModuleFake => ({
 
 export const kitIndexFake = (overrides: ModuleFake = {}): ModuleFake => ({
   actionButton: noop,
+  askFirst: noop,
   closeOverlay: noop,
   colors: noop,
   currentWindow: () => null,
   detailText: noop,
+  dialogButton: chainable,
+  dialogFrame: noop,
   emptyState: noop,
   highlightedText: noop,
   icon: noop,
@@ -60,12 +69,14 @@ export const kitIndexFake = (overrides: ModuleFake = {}): ModuleFake => ({
   listRow: noop,
   modName: 'koja',
   openAtTop: () => null,
+  openPrompt: noop,
   overlayCloseCount: () => 0,
   overlayId: () => null,
   overlaySize: {},
   popupSurface: noop,
   programIcon: noop,
   radius: {},
+  readDialogCommand: noop,
   recordOf: () => undefined,
   recordOverlayClose: noop,
   repeat: noop,
@@ -78,6 +89,7 @@ export const kitIndexFake = (overrides: ModuleFake = {}): ModuleFake => ({
   spacing: {},
   statusMark: noop,
   stringOf: () => null,
+  textField: chainable,
   textSize: {},
   themeChoices: [],
   toggleButton: noop,

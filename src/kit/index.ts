@@ -1,4 +1,8 @@
-export { actionButton, iconButton, toggleButton } from './button.ts';
+export { actionButton, dialogButton, iconButton, toggleButton } from './button.ts';
+
+export type { DialogButtonKind } from './button.ts';
+
+export { dialogFrame } from './dialog.ts';
 
 export { icon, iconSlot, programIcon, spinner } from './icon.ts';
 
@@ -67,6 +71,14 @@ export { currentWindow } from './window.ts';
 export { spaceFolder } from './space.ts';
 
 export { openWorktreeDialog } from './worktree.ts';
+
+export { askFirst } from './askFirst.ts';
+
+export { openPrompt } from './dialogOpen.ts';
+
+export type { ConfirmDialog, PromptDialog } from './dialogPayload.ts';
+
+export { readDialogCommand } from './dialogPayload.ts';
 
 export { modName } from './modName.ts';
 

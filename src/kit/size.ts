@@ -54,6 +54,7 @@ export const diffSize = {
 export const controlSize = {
   badge: 18,
   button: 22,
+  dialogButton: 28,
   paneLabelMaxWidth: 260,
   searchField: 40,
   sectionHeader: 26,
@@ -82,7 +83,10 @@ export const overlaySize = {
   worktreeFormHeight: 260,
   worktreeListWidth: 560,
   worktreeListHeight: 480,
+  confirmWidth: 380,
+  confirmHeight: 120,
   promptWidth: 380,
+  promptHeight: 150,
   pickerListWidth: 420,
   pickerInset: 3,
   pickerWidthShare: 0.6,

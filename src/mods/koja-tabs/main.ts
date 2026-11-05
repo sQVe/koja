@@ -8,6 +8,7 @@ import type { DragState } from '../../kit/drag.ts';
 import { noDrag, startDrag } from '../../kit/drag.ts';
 import type { IconName } from '../../kit/index.ts';
 import {
+  askFirst,
   colors,
   currentWindow,
   findLayoutNode,
@@ -210,7 +211,7 @@ export default class Tabs extends View {
         this.drag = startDrag(tabIds(space), index);
 
         if (event.click_count === 2) {
-          run('tab.rename', { id: tabInfo.id });
+          askFirst('tab.rename', { id: tabInfo.id });
         }
       })
       .on_mouse_up('left', () => {
@@ -247,7 +248,7 @@ export default class Tabs extends View {
       .on_mouse_down('left', stopPress)
       .on_click((_event, cx) => {
         cx.stop_propagation();
-        run('tab.close', { id: tabInfo.id });
+        askFirst('tab.close', { id: tabInfo.id });
       });
   }
 

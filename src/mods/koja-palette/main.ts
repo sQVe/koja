@@ -9,9 +9,10 @@ import type {
   ScrollWheelEvent,
 } from 'gpui-kit';
 import { div, View } from 'gpui-kit';
-import { commands, layouts, openOverlay, run, shared } from 'herdr';
+import { commands, layouts, shared } from 'herdr';
 
 import {
+  askFirst,
   closeOverlay,
   currentWindow,
   detailText,
@@ -19,7 +20,7 @@ import {
   highlightedText,
   keyHint,
   listRow,
-  overlaySize,
+  openPrompt,
   popupSurface,
   recordOverlayClose,
   searchField,
@@ -134,15 +135,11 @@ export default class Palette extends View {
     this.closePalette();
 
     if (entry.name === 'mod.clone') {
-      openOverlay({
-        mod: 'prompt',
-        kind: 'dialog',
-        width: overlaySize.promptWidth,
-        props: {
-          title: 'Duplicate mod',
-          hint: 'Mod to copy; creates <name>-copy',
-          command: { name: 'mod.clone', args: {} },
-        },
+      openPrompt({
+        title: 'Duplicate mod',
+        value: '',
+        hint: 'Mod to copy; creates <name>-copy',
+        command: { name: 'mod.clone', args: {} },
       });
 
       return;
@@ -150,7 +147,7 @@ export default class Palette extends View {
 
     const layoutName = stringOf(shared('layout')) ?? 'main';
 
-    run(entry.name, entry.name === 'layout.clone' ? { name: layoutName } : entry.args);
+    askFirst(entry.name, entry.name === 'layout.clone' ? { name: layoutName } : entry.args);
   }
 
   private closePalette(): void {

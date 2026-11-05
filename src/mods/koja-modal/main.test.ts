@@ -62,6 +62,8 @@ const plain = (key: string): NormalKeyEvent => ({
 let focusedPane: string | null = 'p1';
 let focusedTab = 'tab-1';
 let runCalls: RunCall[] = [];
+let askFirstCalls: RunCall[] = [];
+let askFirstOpensDialog = false;
 let closeCalls: (string | null)[] = [];
 let focusCalls = 0;
 let overlayFocused = false;
@@ -203,6 +205,15 @@ const { overlayCloseCount, recordOverlayClose } = await import('../../kit/overla
 
 await mock.module('../../kit/index.ts', () =>
   kitIndexFake({
+    askFirst: (command: string, args?: Record<string, unknown>) => {
+      askFirstCalls.push({ command, args });
+
+      if (command !== 'tab.close') {
+        runCalls.push({ command, args });
+      }
+
+      return askFirstOpensDialog;
+    },
     closeOverlay: (id?: string | null) => {
       closeCalls.push(id ?? null);
     },
@@ -262,6 +273,8 @@ beforeEach(() => {
   focusedPane = 'p1';
   focusedTab = 'tab-1';
   runCalls = [];
+  askFirstCalls = [];
+  askFirstOpensDialog = false;
   closeCalls = [];
   focusCalls = 0;
   overlayFocused = false;
@@ -552,5 +565,53 @@ describe('koja modal view', () => {
     keyDownHandler?.(plain('t'));
 
     expect(runCalls).toEqual([{ command: 'tab.select', args: { index: 3 } }]);
+  });
+
+  test('ctrl-t q routes tab.close through askFirst instead of Herdr run', async () => {
+    const view = await loadView();
+
+    view.render();
+
+    keyDownHandler?.(control('t', 'ctrl-t'));
+    keyDownHandler?.(plain('q'));
+
+    expect(askFirstCalls).toEqual([{ command: 'tab.close', args: undefined }]);
+    expect(runCalls).toEqual([]);
+  });
+
+  test('ctrl-t q yields the keyboard so the confirm keeps focus', async () => {
+    const view = await loadView();
+
+    view.render();
+
+    askFirstOpensDialog = true;
+    paletteOpen = true;
+    overlayFocused = false;
+
+    keyDownHandler?.(control('t', 'ctrl-t'));
+    keyDownHandler?.(plain('q'));
+    runAfterHandlers();
+
+    expect(overlayFocused).toBe(false);
+  });
+
+  test('ctrl-t q regains the keyboard at once when no dialog opens', async () => {
+    const view = await loadView();
+
+    view.render();
+
+    askFirstOpensDialog = false;
+    paletteOpen = false;
+    overlayFocused = false;
+
+    const focusBefore = focusCalls;
+
+    keyDownHandler?.(control('t', 'ctrl-t'));
+    keyDownHandler?.(plain('q'));
+    runAfterHandlers();
+
+    expect(overlayFocused).toBe(true);
+    expect(focusCalls).toBe(focusBefore + 1);
+    expect(statusLookups).toBe(0);
   });
 });
