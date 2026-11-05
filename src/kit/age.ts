@@ -6,6 +6,8 @@ const daySeconds = 86_400;
 
 const weekSeconds = 604_800;
 
+const oldSeconds = 314_496_000;
+
 export const shortAge = (thenSeconds: number, nowSeconds: number): string => {
   const elapsed = Math.max(0, nowSeconds - thenSeconds);
 
@@ -23,6 +25,10 @@ export const shortAge = (thenSeconds: number, nowSeconds: number): string => {
 
   if (elapsed < weekSeconds) {
     return `${Math.floor(elapsed / daySeconds)}d`;
+  }
+
+  if (elapsed > oldSeconds) {
+    return 'old';
   }
 
   return `${Math.floor(elapsed / weekSeconds)}w`;
