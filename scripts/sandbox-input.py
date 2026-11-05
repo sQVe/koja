@@ -84,6 +84,14 @@ def button(n, down):
     d.sync()
 
 
+def notch_count(args):
+    if len(args) < 3:
+        return 1
+    if args[2] != int(args[2]):
+        sys.exit(f"scroll needs a whole number of notches, not {args[2]}")
+    return int(args[2])
+
+
 def wheel(notches):
     # X11 reports the wheel as buttons 4 (up) and 5 (down), one press per notch.
     wheel_button = 5 if notches > 0 else 4
@@ -132,9 +140,10 @@ if sys.argv[1] == "sequence":
                 xtest.fake_input(d, X.KeyPress if cmd == "hold" else X.KeyRelease, code)
             d.sync()
         elif cmd == "scroll":
+            notches = notch_count(args)
             to(args[0], args[1])
             time.sleep(0.1)
-            wheel(int(args[2]) if len(args) > 2 else 1)
+            wheel(notches)
         elif cmd in ("press", "lift"):
             cursor = "grab" if cmd == "press" else "arrow"
             publish_pointer()
@@ -178,9 +187,10 @@ elif cmd == "click":
     time.sleep(0.05)
     button(b, False)
 elif cmd == "scroll":
+    notches = notch_count(args)
     to(args[0], args[1])
     time.sleep(0.2)
-    wheel(int(args[2]) if len(args) > 2 else 1)
+    wheel(notches)
 elif cmd == "drag":
     to(args[0], args[1])
     time.sleep(0.2)
