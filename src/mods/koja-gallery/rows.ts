@@ -114,8 +114,32 @@ const otherRows = (): Element =>
       }),
     );
 
+const cutRows = (): Element =>
+  v_flex()
+    .child(
+      listRow({
+        size: 'small',
+        inset: true,
+        state: 'normal',
+        start: icon('git-branch', 'large'),
+        cut: 'middle',
+        label:
+          'feature/AI-1169-add-the-ui-foundation-rules-to-the-kit-and-adrs-with-a-very-long-descriptive-tail-for-the-middle-cut',
+      }),
+    )
+    .child(
+      listRow({
+        size: 'small',
+        inset: true,
+        state: 'normal',
+        label:
+          'A long title that keeps its start and is cut at the end of the row with an ellipsis, so its tail never shows at all and the reader only sees the beginning of it',
+      }),
+    );
+
 export const rows = (): Element[] => [
   sample('Inset, large', rowsInState(true)),
+  sample('Branch cut in the middle, title cut at the end', cutRows()),
   sample('Flush, small', rowsInState(false)),
   sample('Tree', treeRows()),
   sample('Reordering', dragRows()),

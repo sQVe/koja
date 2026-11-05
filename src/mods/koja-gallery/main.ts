@@ -14,6 +14,7 @@ import { popupSurfaces } from './popup.ts';
 import { rows } from './rows.ts';
 import { searchAndText } from './searchAndText.ts';
 import { sidebarSamples } from './sidebar.ts';
+import { states } from './states.ts';
 import { tabs } from './tabs.ts';
 import { textSizes } from './textSizes.ts';
 
@@ -46,13 +47,14 @@ export default class Gallery extends View {
       .py(spacing.medium)
       .gap(spacing.xlarge)
       .bg(palette.popover)
+      .child(section('States', states()))
+      .child(section('Buttons', buttons()))
+      .child(section('List rows', rows()))
       .child(section('Text roles', textSizes()))
       .child(section('Icons', icons()))
       .child(section('Status marks', marks()))
-      .child(section('List rows', rows()))
       .child(section('Sidebar', sidebarSamples()))
       .child(section('Section headers', headers()))
-      .child(section('Buttons', buttons()))
       .child(
         section(
           'Action button and text field',
