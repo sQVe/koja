@@ -93,6 +93,7 @@ export const kitIndexFake = (overrides: ModuleFake = {}): ModuleFake => ({
   overlayId: () => null,
   overlaySize: {},
   paneHeader: noop,
+  paneHeaderMenu: noop,
   popupSurface: noop,
   programIcon: noop,
   radius: {},

@@ -75,7 +75,7 @@ const fakeRepos: FakeRepo[] = [
     detail: 'main · 2h',
     status: 'blocked',
     spaces: [
-      { label: 'me-1089-window-shell', status: 'working', state: 'selected', pull: 31 },
+      { label: 'me-1089-window-shell', status: 'blocked', state: 'selected', pull: 31 },
       { label: 'me-1088-ui-foundation', status: 'idle', state: 'normal' },
       { label: 'fix-pr-badge', status: 'blocked', state: 'normal', badge: 'Needs you' },
     ],
@@ -92,9 +92,9 @@ const [kojaRepo, tikkRepo] = fakeRepos;
 
 const fakeTabs: FakeTab[] = [
   { label: 'Build window shell', active: true, status: 'working', program: agentProgram },
-  { label: 'me-1088-ui-foundation', active: false, status: 'working', program: agentProgram },
-  { label: 'fix-pr-badge', active: false, status: 'blocked', program: agentProgram },
-  { label: 'ticket-sync', active: false, status: 'done', program: shellProgram },
+  { label: 'Review judge findings', active: false, status: 'blocked', program: agentProgram },
+  { label: 'Wire the tab bar', active: false, status: 'done', program: agentProgram },
+  { label: 'zsh', active: false, status: null, program: shellProgram },
 ];
 
 const agentLines = [
@@ -104,7 +104,12 @@ const agentLines = [
   'tests          running',
 ];
 
-const shellLines = ['$ git status', 'On branch me-1089-window-shell', 'nothing to commit, clean'];
+const shellLines = [
+  '$ git log --oneline -3',
+  'a1b2c3d Wire the tab bar',
+  'e4f5a6b Review judge findings',
+  'c7d8e9f Build window shell',
+];
 
 const changeRows: { path: string; status: FileStatus; add: number; del: number }[] = [
   { path: 'src/kit/paneHeader.ts', status: 'A', add: 24, del: 0 },
@@ -203,7 +208,10 @@ const terminalBody = (lines: string[]): Element =>
 const paneCard = (header: PaneHeaderOptions, lines: string[], grow: number): Element => {
   const palette = colors();
 
-  const card = v_flex()
+  return v_flex()
+    .flex_grow(grow)
+    .flex_shrink(1)
+    .flex_basis(0)
     .min_w(0)
     .h_full()
     .rounded(radius.dialog)
@@ -213,12 +221,6 @@ const paneCard = (header: PaneHeaderOptions, lines: string[], grow: number): Ele
     .overflow_hidden()
     .child(paneHeader(header))
     .child(terminalBody(lines));
-
-  if (grow === 1) {
-    return card.flex_1();
-  }
-
-  return card.flex_grow(grow).flex_shrink(1).flex_basis(0);
 };
 
 const changeRow = (change: (typeof changeRows)[number]): Element =>
@@ -226,6 +228,7 @@ const changeRow = (change: (typeof changeRows)[number]): Element =>
     size: 'small',
     inset: true,
     state: 'normal',
+    cut: 'middle',
     start: fileStatusMark(change.status),
     label: change.path,
     end: [
@@ -312,7 +315,7 @@ const main = (): Element =>
               width: shellSize.shellPaneWidth,
             },
             shellLines,
-            1,
+            shellSize.shellPaneShare,
           ),
         )
         .child(sidePanel()),

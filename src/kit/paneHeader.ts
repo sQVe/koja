@@ -6,8 +6,9 @@ import type { Program, Status } from 'herdr';
 import { iconButton } from './button.ts';
 import { icon, programIcon } from './icon.ts';
 import type { IconName } from './iconNames.ts';
-import type { PaneHeaderFields } from './paneHeaderFields.ts';
+import type { PaneHeaderFields, PaneHeaderFieldState } from './paneHeaderFields.ts';
 import { paneHeaderFields } from './paneHeaderFields.ts';
+import { paneActions } from './paneHeaderMenuModel.ts';
 import { controlSize, paneHeaderWidth, radius, spacing } from './size.ts';
 import { attentionBadge, statusMark } from './statusMark.ts';
 import { withTextRole } from './textRole.ts';
@@ -42,33 +43,46 @@ const nameElement = (options: PaneHeaderOptions): Element =>
     options.focused ? 'foreground' : 'muted',
   ).child(options.name);
 
-// The task is the flexible field: it fills the leftover width and cuts at the end, so it gives up
-// text last, after the folder and the branch have left.
-const taskElement = (options: PaneHeaderOptions): Element => {
+// While a branch or folder is cut, that field takes the leftover width and the task keeps its own;
+// otherwise the task fills the leftover width and cuts at the end, after both fields have left.
+const taskElement = (options: PaneHeaderOptions, fieldCut: boolean): Element => {
   if (!isPresent(options.task)) {
-    return h_flex().flex_1();
+    return fieldCut ? h_flex() : h_flex().flex_1();
   }
 
-  return withTextRole(div().flex_1().min_w(0).truncate(), 'detail', 'muted')
-    .tooltip(options.task)
-    .child(options.task);
+  const label = div().min_w(0).truncate();
+
+  if (fieldCut) {
+    label.flex_none();
+  } else {
+    label.flex_1();
+  }
+
+  return withTextRole(label, 'detail', 'muted').tooltip(options.task).child(options.task);
 };
 
-const middleLabel = (text: string, maxWidth: number): Element =>
-  withTextRole(div().flex_none().min_w(0).max_w(maxWidth).truncate(), 'detail', 'dim')
+const fieldWidth = (element: Element, state: PaneHeaderFieldState): Element =>
+  state === 'cut' ? element.flex_1().min_w(paneHeaderWidth.fieldMinimum) : element.flex_none();
+
+const middleLabel = (text: string): Element =>
+  withTextRole(div().min_w(0).flex_1().truncate(), 'detail', 'dim')
     .text_ellipsis_middle()
     .tooltip(text)
     .child(text);
 
 // The branch icon and its text are one field, hidden whole, so the icon never shows without it.
-const branchElement = (branch: string): Element =>
-  h_flex()
-    .flex_none()
-    .min_w(0)
-    .items_center()
-    .gap(spacing.xsmall)
-    .child(icon('git-branch', 'small').text_color(colors().dim))
-    .child(middleLabel(branch, paneHeaderWidth.branchLabel));
+const branchElement = (branch: string, state: PaneHeaderFieldState): Element =>
+  fieldWidth(
+    h_flex()
+      .items_center()
+      .gap(spacing.xsmall)
+      .child(icon('git-branch', 'small').text_color(colors().dim))
+      .child(middleLabel(branch)),
+    state,
+  );
+
+const folderElement = (folder: string, state: PaneHeaderFieldState): Element =>
+  fieldWidth(h_flex().child(middleLabel(folder)), state);
 
 const statusElement = (status: Status | null): Element | null => {
   if (status === 'blocked') {
@@ -91,26 +105,19 @@ const headerAction = (name: IconName, label: string, action: (() => void) | unde
       action?.();
     });
 
-const headerButtons = (options: PaneHeaderOptions): Element[] => {
-  const zoomIcon: IconName = options.zoomed ? 'minimize-2' : 'maximize-2';
-  const zoomLabel = options.zoomed ? 'Restore pane' : 'Zoom pane';
+const headerButtons = (options: PaneHeaderOptions): Element[] =>
+  paneActions(options).map((entry) => headerAction(entry.icon, entry.label, entry.action));
 
-  return [
-    headerAction('columns-2', 'Split right', options.onSplitRight),
-    headerAction('rows-2', 'Split down', options.onSplitDown),
-    headerAction(zoomIcon, zoomLabel, options.onZoom),
-    headerAction('x', 'Close pane', options.onClose),
-  ];
-};
-
-// Below the compact width, one reserved overflow button replaces the four. Its callback opens the
-// pane menu in the live mod.
+// A drop, or a header below the compact width, replaces the four actions with one overflow
+// button that stays visible. Its callback opens the pane menu in the live mod.
 const actionRow = (fields: PaneHeaderFields, options: PaneHeaderOptions): Element => {
-  const buttons = fields.compact
-    ? [headerAction('ellipsis', 'Pane actions', options.onOverflow)]
-    : headerButtons(options);
+  if (fields.compact) {
+    return h_flex()
+      .flex_none()
+      .child(headerAction('ellipsis', 'Pane actions', options.onOverflow));
+  }
 
-  const row = h_flex().flex_none().gap(spacing.xxsmall).children(buttons);
+  const row = h_flex().flex_none().gap(spacing.xxsmall).children(headerButtons(options));
 
   return options.hovered === true ? row : row.invisible();
 };
@@ -143,14 +150,16 @@ export const paneHeader = (options: PaneHeaderOptions): Element => {
 
   header.child(programIcon(options.program, 'default').text_color(iconColor));
   header.child(nameElement(options));
-  header.child(taskElement(options));
+  const fieldCut = fields.branch === 'cut' || fields.folder === 'cut';
 
-  if (fields.branch && isPresent(options.branch)) {
-    header.child(branchElement(options.branch));
+  header.child(taskElement(options, fieldCut));
+
+  if (fields.branch !== 'dropped' && isPresent(options.branch)) {
+    header.child(branchElement(options.branch, fields.branch));
   }
 
-  if (fields.folder && isPresent(options.folder)) {
-    header.child(middleLabel(options.folder, paneHeaderWidth.folderLabel));
+  if (fields.folder !== 'dropped' && isPresent(options.folder)) {
+    header.child(folderElement(options.folder, fields.folder));
   }
 
   const status = statusElement(options.status);

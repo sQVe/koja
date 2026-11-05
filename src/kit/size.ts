@@ -71,35 +71,39 @@ export const shellSize = {
   panelWidth: 300,
   specimenBodyHeight: 28,
   wideSpecimenWidth: 884,
-  fullSpecimenWidth: 760,
-  folderGoneWidth: 640,
-  branchGoneWidth: 420,
+  folderCutWidth: 700,
+  branchCutWidth: 470,
+  taskCutWidth: 360,
   compactSpecimenWidth: 260,
-  focusedPaneShare: 2,
-  focusedPaneWidth: 462,
-  shellPaneWidth: 230,
+  focusedPaneShare: 7,
+  shellPaneShare: 3,
+  focusedPaneWidth: 487,
+  shellPaneWidth: 209,
 } as const;
 
-// The header drops a whole field when the estimated name, task, branch, folder, status, and
-// buttons do not fit, so the folder goes before the branch, and the branch before the task cuts.
+// The header budgets width from the glyph estimate, so a field shows in full while it fits; a
+// field leaves whole before the next one gives up any width, and any drop makes the header compact.
 // `glyph` is the average advance of a Detail-role glyph at 11 px Geist, read from a capture.
 const headerActionCount = 4;
 const headerActionGaps = 3;
 const headerGapCount = 6;
+const headerBranchIcon = iconSize.small + spacing.xsmall;
+const fieldMinimumWidth = 120;
 
 export const paneHeaderWidth = {
   compact: 280,
   glyph: 6,
   padding: spacing.large * 2,
   icon: iconSize.default,
-  branchIcon: iconSize.small + spacing.xsmall,
+  branchIcon: headerBranchIcon,
   gaps: spacing.medium * headerGapCount,
   // The widest status, the "Needs you" badge.
   status: 60,
   actions: controlSize.button * headerActionCount + spacing.xxsmall * headerActionGaps,
   overflowAction: controlSize.button,
-  branchLabel: 180,
-  folderLabel: 160,
+  menuWidth: 240,
+  // The width a cut field keeps, including the branch icon, before it drops whole.
+  fieldMinimum: fieldMinimumWidth,
 } as const;
 
 export const markSize = {
@@ -133,7 +137,7 @@ export const overlaySize = {
   shellWidth: 1260,
   shellHeight: 760,
   paneHeadersWidth: 900,
-  paneHeadersHeight: 620,
+  paneHeadersHeight: 760,
 } as const;
 
 export const railWidthLimit = 160;

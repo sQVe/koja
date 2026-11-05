@@ -154,10 +154,12 @@ export default class Mocks extends View {
       .px(spacing.large)
       .child(detailText(name))
       .child(
-        iconButton({ name: 'x', size: 'small' }).on_click((_event, clickCx) => {
-          clickCx.stop_propagation();
-          closeOverlay();
-        }),
+        iconButton({ name: 'x', size: 'small' })
+          .accessibility_label('Close scene')
+          .on_click((_event, clickCx) => {
+            clickCx.stop_propagation();
+            closeOverlay();
+          }),
       );
 
     return this.tracked(

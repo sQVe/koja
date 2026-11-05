@@ -3,7 +3,16 @@ import type { Element } from 'gpui-kit';
 import type { Program } from 'herdr';
 
 import type { PaneHeaderOptions } from '../../../kit/index.ts';
-import { colors, paneHeader, radius, roleText, shellSize, spacing } from '../../../kit/index.ts';
+import {
+  colors,
+  controlSize,
+  paneHeader,
+  paneHeaderMenu,
+  radius,
+  roleText,
+  shellSize,
+  spacing,
+} from '../../../kit/index.ts';
 
 const agentProgram: Program = {
   key: 'claude',
@@ -39,16 +48,6 @@ const focusedAgent: PaneHeaderOptions = {
   width: shellSize.wideSpecimenWidth,
 };
 
-const unfocusedShell: PaneHeaderOptions = {
-  program: shellProgram,
-  name: 'zsh',
-  folder: '~/code/tikk',
-  status: null,
-  focused: false,
-  zoomed: false,
-  width: shellSize.wideSpecimenWidth,
-};
-
 const hoveredAgent: PaneHeaderOptions = {
   program: agentProgram,
   name: 'Claude Code',
@@ -62,16 +61,44 @@ const hoveredAgent: PaneHeaderOptions = {
   width: shellSize.wideSpecimenWidth,
 };
 
-const workingAgent: PaneHeaderOptions = {
+const longTask = 'Move pane headers onto the shared kit part';
+const longBranch = 'me-1089-window-shell-layout-and-tab-bar';
+const longFolder = '~/code/koja/packages/desktop/src/mods/koja-mocks';
+
+const folderCutAgent: PaneHeaderOptions = {
   program: agentProgram,
-  name: 'Codex',
-  task: 'Wire the tab bar',
-  branch: 'me-1122-foundation-parts',
-  folder: '~/code/koja',
+  name: 'Claude Code',
+  task: 'Build window shell',
+  branch: 'me-1089-window-shell',
+  folder: longFolder,
   status: 'working',
   focused: false,
-  zoomed: true,
-  width: shellSize.wideSpecimenWidth,
+  zoomed: false,
+  width: shellSize.folderCutWidth,
+};
+
+const branchCutAgent: PaneHeaderOptions = {
+  program: agentProgram,
+  name: 'Claude Code',
+  task: 'Build window shell',
+  branch: longBranch,
+  folder: longFolder,
+  status: 'working',
+  focused: false,
+  zoomed: false,
+  width: shellSize.branchCutWidth,
+};
+
+const taskCutAgent: PaneHeaderOptions = {
+  program: agentProgram,
+  name: 'Claude Code',
+  task: longTask,
+  branch: longBranch,
+  folder: longFolder,
+  status: 'working',
+  focused: false,
+  zoomed: false,
+  width: shellSize.taskCutWidth,
 };
 
 const needsYouAgent: PaneHeaderOptions = {
@@ -82,39 +109,29 @@ const needsYouAgent: PaneHeaderOptions = {
   status: 'blocked',
   focused: false,
   zoomed: false,
-  width: shellSize.wideSpecimenWidth,
+  width: shellSize.folderCutWidth,
 };
 
-// The three narrow widths show the order: every field, the folder gone, then the branch gone and
-// the task cut.
-const fullAgent: PaneHeaderOptions = {
-  program: agentProgram,
-  name: 'Claude Code',
-  task: 'Header',
-  branch: 'me-1089-window-shell-layout-and-tab-bar',
-  folder: '~/code/koja/packages/desktop/src/mods/koja-mocks',
-  status: 'working',
-  focused: true,
+const shellAgent: PaneHeaderOptions = {
+  program: shellProgram,
+  name: 'zsh',
+  folder: '~/code/tikk',
+  status: null,
+  focused: false,
   zoomed: false,
-  width: shellSize.fullSpecimenWidth,
-};
-
-const folderGoneAgent: PaneHeaderOptions = {
-  ...fullAgent,
-  task: 'Build window shell',
-  width: shellSize.folderGoneWidth,
-};
-
-const branchGoneAgent: PaneHeaderOptions = {
-  ...fullAgent,
-  task: 'Move pane headers onto the shared kit part',
-  width: shellSize.branchGoneWidth,
+  width: shellSize.folderCutWidth,
 };
 
 const compactAgent: PaneHeaderOptions = {
-  ...branchGoneAgent,
+  program: agentProgram,
+  name: 'Claude Code',
+  task: 'Build window shell',
+  branch: 'me-1089-window-shell',
+  folder: '~/code/koja',
+  status: 'working',
+  focused: true,
+  zoomed: false,
   width: shellSize.compactSpecimenWidth,
-  hovered: true,
 };
 
 const specimen = (header: PaneHeaderOptions): Element => {
@@ -139,6 +156,36 @@ const specimen = (header: PaneHeaderOptions): Element => {
   return header.width == null ? card : card.w(header.width);
 };
 
+// The open menu hangs under the overflow button, at the right end of the compact header. Herdr
+// draws a real popup's outline itself, so the scene draws it here.
+const compactWithMenu = (header: PaneHeaderOptions): Element => {
+  const menuWidth = header.width ?? shellSize.compactSpecimenWidth;
+  const palette = colors();
+
+  return v_flex()
+    .relative()
+    .w(menuWidth)
+    .flex_none()
+    .child(specimen(header))
+    .child(
+      v_flex()
+        .absolute()
+        .top(controlSize.sectionHeader)
+        .right(spacing.none)
+        .rounded(radius.dialog)
+        .border(spacing.hairline)
+        .border_color(palette.border)
+        .child(
+          paneHeaderMenu({
+            task: header.task,
+            branch: header.branch,
+            folder: header.folder,
+            zoomed: header.zoomed,
+          }),
+        ),
+    );
+};
+
 export const paneHeadersScene = (): Element =>
   v_flex()
     .flex_1()
@@ -146,11 +193,10 @@ export const paneHeadersScene = (): Element =>
     .p(spacing.medium)
     .gap(spacing.medium)
     .child(specimen(focusedAgent))
-    .child(specimen(unfocusedShell))
     .child(specimen(hoveredAgent))
-    .child(specimen(workingAgent))
+    .child(specimen(folderCutAgent))
+    .child(specimen(branchCutAgent))
+    .child(specimen(taskCutAgent))
     .child(specimen(needsYouAgent))
-    .child(specimen(fullAgent))
-    .child(specimen(folderGoneAgent))
-    .child(specimen(branchGoneAgent))
-    .child(specimen(compactAgent));
+    .child(specimen(shellAgent))
+    .child(compactWithMenu(compactAgent));

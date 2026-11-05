@@ -25,6 +25,8 @@ export { paneHeader } from './paneHeader.ts';
 
 export type { PaneHeaderOptions } from './paneHeader.ts';
 
+export { paneHeaderMenu } from './paneHeaderMenu.ts';
+
 export { shortAge } from './age.ts';
 
 export { foldChevron, repoLabel } from './repoLabel.ts';
