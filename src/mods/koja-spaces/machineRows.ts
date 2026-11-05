@@ -51,7 +51,15 @@ const errorRow = (id: string, text: string, retry: (cx: Context) => void): Eleme
     }),
   });
 
-const machineState = (host: MachineRowsHost, machine: string | null): Element => {
+// A remote machine's state comes from the machine list, so a failed read leaves it unknown.
+const staleRemote = (host: MachineRowsHost, machine: string | null): boolean =>
+  machine !== null && host.machineError() !== null;
+
+const machineState = (host: MachineRowsHost, machine: string | null): Element | null => {
+  if (staleRemote(host, machine)) {
+    return null;
+  }
+
   if (!connected(host.machineList, machine)) {
     const known = host.machineList.find((candidate) => candidate.name === machine);
 
@@ -72,7 +80,7 @@ const machineHeader = (
   collapsed: boolean,
 ): Element => {
   const folded = host.folded(machine);
-  const state = collapsed ? [] : [machineState(host, machine)];
+  const state = collapsed ? null : machineState(host, machine);
   const label = collapsed ? '' : (machine ?? 'This computer');
 
   return sectionHeader({
@@ -81,7 +89,7 @@ const machineHeader = (
     interactive: true,
     start: icon(machine === null ? 'monitor' : 'server', 'small'),
     end: [
-      ...state,
+      ...(state === null ? [] : [state]),
       indicator(connected(host.machineList, machine) ? 'ansi2' : 'dim'),
       icon(folded ? 'chevron-right' : 'chevron-down', 'small'),
     ],
@@ -93,19 +101,30 @@ const machineHeader = (
     });
 };
 
-const newSpaceRow = (host: MachineRowsHost, machine: string | null, collapsed: boolean): Element =>
-  listRow({
+const newSpaceRow = (
+  host: MachineRowsHost,
+  machine: string | null,
+  collapsed: boolean,
+): Element => {
+  const stale = staleRemote(host, machine);
+
+  const row = listRow({
     size: 'small',
     inset: true,
-    state: 'normal',
+    state: stale ? 'disabled' : 'normal',
     muted: true,
     start: iconSlot(icon('plus', 'small')),
     label: collapsed ? '' : 'New space there',
-  })
-    .id(`machine-new-${machine ?? 'local'}`)
-    .on_click(() => {
+  }).id(`machine-new-${machine ?? 'local'}`);
+
+  if (!stale) {
+    row.on_click(() => {
       host.addSpace(machine);
     });
+  }
+
+  return row;
+};
 
 const groupGap = (): Element => div().h(spacing.medium);
 
@@ -115,6 +134,7 @@ const groupChildren = (
   collapsed: boolean,
 ): Element[] => {
   const elements: Element[] = [];
+  const reposWithError = new Set<string>();
 
   groups.forEach((group, index) => {
     const previous = groups[index - 1] ?? null;
@@ -126,14 +146,20 @@ const groupChildren = (
     const lineAbove = railLineBefore(group, previous);
     const rows = groupRows(group);
     const git = gitOfGroup(group);
-    const error = collapsed ? null : host.pullError(git);
+    const repoKey = git?.repo.key ?? '';
+    const skipError = collapsed || reposWithError.has(repoKey);
+    const error = skipError ? null : host.pullError(git);
+
+    if (error !== null) {
+      reposWithError.add(repoKey);
+    }
 
     rows.forEach((row, rowIndex) => {
       elements.push(host.draw(row, lineAbove && rowIndex === 0));
 
       if (rowIndex === 0 && error !== null) {
         elements.push(
-          errorRow(`pulls-error-${git?.repo.key ?? ''}`, error, (cx) => {
+          errorRow(`pulls-error-${repoKey}`, error, (cx) => {
             host.retryPull(git, cx);
           }),
         );

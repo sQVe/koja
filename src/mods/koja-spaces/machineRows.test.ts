@@ -10,10 +10,11 @@ import {
   drawnTooltips,
   drawnTree,
   elementWithText,
+  clickablesWithText,
   elementWithTooltip,
 } from '../../../tests/drawn.ts';
 import type { DrawnElement } from '../../../tests/drawn.ts';
-import { gpuiBaseFake, gpuiKitFake, herdrFake } from '../../../tests/moduleFakes.ts';
+import { gpuiBaseFake, gpuiKitFake, herdrFake, kitIndexFake } from '../../../tests/moduleFakes.ts';
 import type { GitInfo, ListedSpace, TreeGroup, TreeRow } from './tree.ts';
 import { repoOf } from './tree.ts';
 
@@ -48,6 +49,7 @@ interface HostOptions {
   pullError?: (git: GitInfo | null) => string | null;
   retryMachines?: (cx: unknown) => void;
   retryPull?: (git: GitInfo | null, cx: unknown) => void;
+  addSpace?: (machine: string | null) => void;
 }
 
 const themeColors = {
@@ -71,6 +73,35 @@ await mock.module('gpui-kit', () =>
 );
 
 await mock.module('herdr', () => herdrFake({ theme: () => themeColors }));
+
+const kitModule = async (name: string): Promise<Record<string, unknown>> =>
+  (await import(`../../kit/${name}.ts`)) as Record<string, unknown>;
+
+const kitParts = [
+  'button',
+  'icon',
+  'listRow',
+  'sectionHeader',
+  'size',
+  'stateLine',
+  'statusMark',
+  'text',
+  'theme',
+];
+
+const kitExports = Object.assign({}, ...(await Promise.all(kitParts.map(kitModule)))) as Record<
+  string,
+  unknown
+>;
+
+const sharedNames = new Set(Object.keys(kitIndexFake()));
+
+const realKit = Object.fromEntries(
+  Object.entries(kitExports).filter(([name]) => sharedNames.has(name)),
+);
+
+// Other test files mock the kit index with stand-ins, so this file mocks it with the real parts.
+await mock.module('../../kit/index.ts', () => kitIndexFake(realKit));
 
 const modulePath = './machineRows.ts';
 
@@ -139,7 +170,7 @@ const hostOf = (options: HostOptions): MachineRowsHostLike => ({
   draw: (row) => drawRow(row),
   folded: () => false,
   loading: () => false,
-  addSpace: () => undefined,
+  addSpace: options.addSpace ?? (() => undefined),
   toggleFold: () => undefined,
   machineError: () => options.machineError ?? null,
   pullError: options.pullError ?? (() => null),
@@ -152,6 +183,13 @@ afterAll(() => {
 });
 
 const machinesError = 'Could not read machines.';
+
+const addIcons = (tree: DrawnElement): number =>
+  drawnIcons(tree).filter((name) => name === 'plus.svg').length;
+
+// This computer comes first, so the last "New space there" row belongs to the remote machine.
+const remoteNewSpaceRow = (tree: DrawnElement): DrawnElement =>
+  clickablesWithText(tree, 'New space there').at(-1) as DrawnElement;
 
 describe('machineRows', () => {
   test('no error draws no machine error text', () => {
@@ -246,5 +284,60 @@ describe('machineRows', () => {
     click(button as DrawnElement);
     expect(retry).toHaveBeenCalledTimes(1);
     expect(retry).toHaveBeenCalledWith(repo.git, expect.anything());
+  });
+
+  test('worktrees of one repository shown apart get one PR error, under the first', () => {
+    const git = { ...gitInfo('/repo/.git'), linked: true };
+    const prError = 'Could not read repo PRs.';
+
+    const worktree = (id: string): TreeGroup => ({
+      kind: 'space',
+      listed: { space: space(id), git, status: null },
+    });
+
+    const rows = loaded.machineRows(
+      hostOf({ groups: [worktree('one'), worktree('two')], pullError: () => prError }),
+      false,
+    );
+
+    const texts = drawnTexts(drawnTree(rows));
+
+    expect(texts.filter((text) => text === prError)).toHaveLength(1);
+    expect(texts.indexOf(prError)).toBe(texts.indexOf('space-one') + 1);
+  });
+
+  test('a failed machine read keeps a remote machine from adding a space from the old list', () => {
+    const addSpace = mock(() => undefined);
+
+    const host = hostOf({
+      machineList: [{ name: 'work', state: 'connected' }],
+      machineError: machinesError,
+      addSpace,
+    });
+
+    const tree = drawnTree(loaded.machineRows(host, false));
+
+    for (const row of clickablesWithText(tree, 'New space there')) {
+      click(row);
+    }
+
+    expect(addSpace).not.toHaveBeenCalledWith('work');
+
+    const freshTree = drawnTree(
+      loaded.machineRows(hostOf({ machineList: [{ name: 'work', state: 'connected' }] }), false),
+    );
+
+    // The remote machine's header drops its add button; its row keeps a disabled plus.
+    expect(addIcons(tree)).toBe(addIcons(freshTree) - 1);
+  });
+
+  test('a remote machine adds a space while its read is fresh', () => {
+    const addSpace = mock(() => undefined);
+
+    const host = hostOf({ machineList: [{ name: 'work', state: 'connected' }], addSpace });
+    const tree = drawnTree(loaded.machineRows(host, false));
+
+    click(remoteNewSpaceRow(tree));
+    expect(addSpace).toHaveBeenCalledWith('work');
   });
 });

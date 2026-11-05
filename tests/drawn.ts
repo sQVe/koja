@@ -88,6 +88,11 @@ const descendants = (element: DrawnElement): DrawnElement[] => [
 export const drawnTexts = (element: DrawnElement): string[] =>
   descendants(element).flatMap((part) => part.texts);
 
+export const clickablesWithText = (element: DrawnElement, text: string): DrawnElement[] =>
+  descendants(element).filter(
+    (part) => part.clickHandlers.length > 0 && drawnTexts(part).includes(text),
+  );
+
 export const drawnIcons = (element: DrawnElement): string[] =>
   descendants(element)
     .map((part) => part.path?.split('/').at(-1) ?? null)
