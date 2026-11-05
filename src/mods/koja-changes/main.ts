@@ -1,85 +1,24 @@
 import type { InputState } from 'gpui-base';
-import { h_flex, InputState as InputStates, v_flex } from 'gpui-base';
+import { InputState as InputStates } from 'gpui-base';
 import type { AsyncContext, Context, Element, FocusHandle } from 'gpui-kit';
 import { View } from 'gpui-kit';
-import type { PaneInfo } from 'herdr';
-import { exec, focused, panes, spaces, watchFolder } from 'herdr';
+import { exec, watchFolder } from 'herdr';
 
-import {
-  actionButton,
-  colors,
-  diffSize,
-  emptyState,
-  repeat,
-  spacing,
-  textField,
-  textSize,
-} from '../../kit/index.ts';
+import { repeat } from '../../kit/index.ts';
 import { canCommit, hasText } from './commit.ts';
-import type { DiffRow } from './diffRows.ts';
-import { diffRows } from './diffRows.ts';
+import { DiffPreview } from './diffPreview.ts';
 import { commitAll, readChanges } from './git.ts';
 import type { ChangesSnapshot } from './git.ts';
-import { loadFilePreview } from './preview.ts';
-import type { FilePreview } from './preview.ts';
-import {
-  diffArea,
-  emptyMessage,
-  fileListHeight,
-  fileRow,
-  headerRow,
-  limitedNotice,
-  noteRow,
-} from './rows.ts';
-import { showsSelectionHint } from './selection.ts';
+import { location, locationKey } from './location.ts';
+import { changesPanel } from './rows.ts';
 import type { ChangeFile } from './status.ts';
 
-interface Location {
-  cwd: string | null;
-  on: string | null;
-}
-
 const refreshMilliseconds = 10000;
-
-const present = (value: string | null | undefined): value is string => Boolean(value);
-
-const paneFor = (paneId: string | null | undefined): PaneInfo | null => {
-  if (paneId === null || paneId === undefined) {
-    return null;
-  }
-
-  return panes().find((candidate) => candidate.pane === paneId) ?? null;
-};
-
-const remoteFor = (terminal: string | null): string | null => {
-  if (terminal?.includes('/') !== true) {
-    return null;
-  }
-
-  return terminal.split('/')[0] ?? null;
-};
-
-const location = (): Location => {
-  const activeSpace = spaces().find((space) => space.active);
-  const current = focused();
-  const pane = paneFor(current?.pane);
-  const terminal = current?.terminal ?? null;
-
-  const on = current?.pane === null ? remoteFor(terminal) : (activeSpace?.machine ?? null);
-
-  const cwd = [pane?.cwd, current?.cwd, activeSpace?.folder].find(present) ?? null;
-
-  return { cwd, on };
-};
-
-const key = (): string => JSON.stringify(location());
 
 export default class Changes extends View {
   private snapshot: ChangesSnapshot | null = null;
 
-  private rows: DiffRow[] = [];
-
-  private diffWidth: number = diffSize.minimumWidth;
+  private readonly preview = new DiffPreview();
 
   private message = '';
 
@@ -96,8 +35,6 @@ export default class Changes extends View {
   private open: string | null = null;
 
   private loading = false;
-
-  private previewRequest = 0;
 
   private busy = false;
 
@@ -149,89 +86,37 @@ export default class Changes extends View {
   }
 
   override render(cx: Context): Element {
-    if (key() !== this.context) {
+    if (locationKey() !== this.context) {
       this.refresh(cx);
     }
 
-    const palette = colors();
-    const add = this.files.reduce((total, file) => total + file.add, 0);
-    const del = this.files.reduce((total, file) => total + file.del, 0);
-    const idle = !this.busy && !this.loading;
-    const ready = this.snapshot !== null && idle;
-    const enabled = ready && hasText(this.message);
-
-    const root = v_flex()
-      .id('changes')
-      .size_full()
-      .min_h(0)
-      .overflow_hidden()
-      .text_color(palette.foreground)
-      .text_size(textSize.default)
-      .on_key_down((event, keyCx) => {
-        if (event.key === 'escape' && this.typing) {
-          this.typing = false;
-          this.handle?.focus();
-          keyCx.stop_propagation();
-          keyCx.notify();
-        }
-      })
-      .child(headerRow(this.files, add, del, palette));
-
-    const list = v_flex()
-      .id('changes-list')
-      .flex_none()
-      .h(fileListHeight(this.files.length))
-      .overflow_y_scrollbar()
-      .p(spacing.xsmall)
-      .border_b(spacing.hairline)
-      .border_color(palette.border)
-      .children(
-        this.files.map((file) =>
-          fileRow(file, this.open === file.path, palette, (path, clickCx) => {
-            this.pick(path, clickCx);
-          }),
-        ),
-      );
-
-    if (this.files.length === 0) {
-      list.child(emptyState(emptyMessage(this.error, this.loading, this.snapshot?.root ?? null)));
-    }
-
-    root.child(list);
-
-    if (this.limited) {
-      root.child(limitedNotice(palette));
-    }
-
-    root.child(
-      diffArea(
-        this.rows,
-        this.diffWidth,
-        showsSelectionHint(this.open, this.files.length),
-        palette,
-      ),
-    );
-
-    if (this.note !== null) {
-      root.child(noteRow(this.note, palette));
-    }
-
-    root.child(
-      h_flex()
-        .flex_none()
-        .p(spacing.large)
-        .gap(spacing.medium)
-        .border_t(spacing.hairline)
-        .border_color(palette.border)
-        .child(textField(this.input, this.typing).flex_1().min_w(0))
-        .child(
-          actionButton({ label: this.busy ? 'Committing…' : 'Commit', enabled })
-            .id('commit')
-            .on_click((_event, clickCx) => {
-              this.commit(clickCx);
-            }),
-        ),
-    );
+    const root = changesPanel({
+      files: this.files,
+      open: this.open,
+      error: this.error,
+      loading: this.loading,
+      folder: this.snapshot?.root ?? null,
+      limited: this.limited,
+      note: this.note,
+      busy: this.busy,
+      hasSnapshot: this.snapshot !== null,
+      messageHasText: hasText(this.message),
+      rows: this.preview.rows,
+      diffWidth: this.preview.diffWidth,
+      input: this.input,
+      typing: this.typing,
+      isTyping: () => this.typing,
+      onEscape: () => {
+        this.typing = false;
+        this.handle?.focus();
+      },
+      onPick: (path, clickCx) => {
+        this.pick(path, clickCx);
+      },
+      onCommit: (clickCx) => {
+        this.commit(clickCx);
+      },
+    });
 
     return this.handle === null ? root : root.track_focus(this.handle);
   }
@@ -242,13 +127,13 @@ export default class Changes extends View {
     }
 
     const where = location();
-    const context = key();
+    const context = locationKey();
 
     if (context !== this.context) {
       this.context = context;
       this.snapshot = null;
       this.open = null;
-      this.setLines([]);
+      this.preview.setLines([]);
       this.message = '';
       this.input.set_value('');
       this.error = null;
@@ -268,9 +153,9 @@ export default class Changes extends View {
 
     cx.spawn(async (taskCx) => {
       try {
-        const result = await readChanges(exec, cwd, where.on, () => key() === context);
+        const result = await readChanges(exec, cwd, where.on, () => locationKey() === context);
 
-        if (result === null || key() !== context) {
+        if (result === null || locationKey() !== context) {
           return;
         }
 
@@ -280,7 +165,7 @@ export default class Changes extends View {
           await this.applySnapshot(result.snapshot, context, taskCx);
         }
       } catch (error) {
-        if (key() === context) {
+        if (locationKey() === context) {
           this.error = String(error);
         }
       } finally {
@@ -292,7 +177,7 @@ export default class Changes extends View {
 
   private clearForError(error: string | null): void {
     this.snapshot = null;
-    this.setLines([]);
+    this.preview.setLines([]);
     this.open = null;
     this.error = error;
   }
@@ -309,7 +194,7 @@ export default class Changes extends View {
 
     if (this.open !== null && !this.files.some((file) => file.path === this.open)) {
       this.open = null;
-      this.setLines([]);
+      this.preview.setLines([]);
     }
 
     if (this.open === null && !this.closed && this.files.length > 0) {
@@ -320,10 +205,14 @@ export default class Changes extends View {
 
     if (openPath !== null) {
       try {
-        await this.load(openPath, context);
+        await this.preview.load(
+          openPath,
+          () => this.snapshot,
+          () => locationKey() === context && this.open === openPath,
+        );
       } catch {
-        if (key() === context && this.open === openPath) {
-          this.setLines(['Cannot preview this diff (too large or unreadable)']);
+        if (locationKey() === context && this.open === openPath) {
+          this.preview.setLines(['Cannot preview this diff (too large or unreadable)']);
         }
       }
     }
@@ -354,60 +243,11 @@ export default class Changes extends View {
     });
   }
 
-  private async load(path: string, context: string): Promise<void> {
-    const snapshot = this.snapshot;
-    const file = snapshot?.files.find((candidate) => candidate.path === path);
-
-    if (snapshot === null || file === undefined) {
-      return;
-    }
-
-    // Reopening the same file starts a second preview while the first may still run, so the path
-    // check alone cannot drop the older result.
-    const request = this.previewRequest + 1;
-
-    this.previewRequest = request;
-
-    const isLatest = (): boolean => request === this.previewRequest;
-    let preview: FilePreview;
-
-    try {
-      preview = await loadFilePreview(file, snapshot);
-    } catch (error) {
-      if (isLatest()) {
-        throw error;
-      }
-
-      return;
-    }
-
-    if (preview.addedLines !== null) {
-      file.add = preview.addedLines;
-    }
-
-    if (!isLatest()) {
-      return;
-    }
-
-    if (key() === context && this.open === path) {
-      this.setLines(preview.lines);
-    }
-  }
-
-  private setLines(lines: string[]): void {
-    this.rows = diffRows(lines);
-
-    this.diffWidth = Math.max(
-      diffSize.minimumWidth,
-      ...lines.map((line) => line.length * diffSize.characterWidth + diffSize.widthPadding),
-    );
-  }
-
   private pick(path: string, cx: Context): void {
     const openPath = this.open === path ? null : path;
 
     this.open = openPath;
-    this.setLines([]);
+    this.preview.setLines([]);
     this.note = null;
     this.closed = openPath === null;
 
@@ -421,9 +261,13 @@ export default class Changes extends View {
 
     cx.spawn(async (taskCx) => {
       try {
-        await this.load(openPath, context);
+        await this.preview.load(
+          openPath,
+          () => this.snapshot,
+          () => locationKey() === context && this.open === openPath,
+        );
       } catch (error) {
-        if (key() === context && this.open === openPath) {
+        if (locationKey() === context && this.open === openPath) {
           this.note = `Cannot preview this diff (too large or unreadable): ${String(error)}`;
         }
       }
@@ -441,7 +285,7 @@ export default class Changes extends View {
       message: this.message,
       busy: this.busy,
       loading: this.loading,
-      contextCurrent: this.context === key(),
+      contextCurrent: this.context === locationKey(),
     };
 
     if (snapshot === null || !canCommit(request)) {
@@ -459,12 +303,12 @@ export default class Changes extends View {
       try {
         await commitAll(exec, root, on, message);
 
-        if (key() === context) {
+        if (locationKey() === context) {
           this.message = '';
           this.input.set_value('');
         }
       } catch (error) {
-        if (key() === context) {
+        if (locationKey() === context) {
           this.note = `Commit failed: ${String(error)}`;
         }
       } finally {

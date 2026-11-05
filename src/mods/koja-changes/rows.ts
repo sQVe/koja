@@ -1,22 +1,68 @@
-import { h_flex, Scrollbar, v_virtual_list } from 'gpui-base';
+import type { InputState } from 'gpui-base';
+import { h_flex, Scrollbar, v_flex, v_virtual_list } from 'gpui-base';
 import type { Context, Element } from 'gpui-kit';
 import { div } from 'gpui-kit';
 import { settings } from 'herdr';
 
 import type { Palette } from '../../kit/index.ts';
 import {
+  actionButton,
+  colors,
   controlSize,
   diffSize,
   diffTints,
+  emptyState,
   fileStatusMark,
   listRow,
   rowHeight,
   spacing,
   stringOf,
+  textField,
   textSize,
 } from '../../kit/index.ts';
 import type { DiffRow } from './diffRows.ts';
+import { showsSelectionHint } from './selection.ts';
 import type { ChangeFile } from './status.ts';
+
+interface FileListState {
+  files: ChangeFile[];
+  open: string | null;
+  error: string | null;
+  loading: boolean;
+  root: string | null;
+  palette: Palette;
+  onPick: (path: string, cx: Context) => void;
+}
+
+interface CommitBarState {
+  input: InputState;
+  typing: boolean;
+  busy: boolean;
+  enabled: boolean;
+  palette: Palette;
+  onCommit: (cx: Context) => void;
+}
+
+interface PanelState {
+  files: ChangeFile[];
+  open: string | null;
+  error: string | null;
+  loading: boolean;
+  folder: string | null;
+  limited: boolean;
+  note: string | null;
+  busy: boolean;
+  hasSnapshot: boolean;
+  messageHasText: boolean;
+  rows: DiffRow[];
+  diffWidth: number;
+  input: InputState;
+  typing: boolean;
+  isTyping: () => boolean;
+  onEscape: () => void;
+  onPick: (path: string, cx: Context) => void;
+  onCommit: (cx: Context) => void;
+}
 
 const defaultFont = 'JetBrains Mono';
 
@@ -35,11 +81,7 @@ const fileLabel = (file: ChangeFile, palette: Palette): Element => {
   return label.child(div().max_w(controlSize.paneLabelMaxWidth).min_w(0).truncate().child(name));
 };
 
-export const emptyMessage = (
-  error: string | null,
-  loading: boolean,
-  root: string | null,
-): string => {
+const emptyMessage = (error: string | null, loading: boolean, root: string | null): string => {
   if (error !== null) {
     return error;
   }
@@ -51,18 +93,13 @@ export const emptyMessage = (
   return root !== null ? 'No uncommitted changes' : 'No folder';
 };
 
-export const fileListHeight = (count: number): number =>
+const fileListHeight = (count: number): number =>
   Math.min(
     diffSize.fileListHeightLimit,
     Math.max(diffSize.fileListHeightMinimum, count * rowHeight.medium + spacing.xlarge),
   );
 
-export const headerRow = (
-  files: ChangeFile[],
-  add: number,
-  del: number,
-  palette: Palette,
-): Element =>
+const headerRow = (files: ChangeFile[], add: number, del: number, palette: Palette): Element =>
   h_flex()
     .h(diffSize.headerHeight)
     .flex_none()
@@ -77,7 +114,7 @@ export const headerRow = (
     .child(div().text_size(textSize.small).text_color(palette.ansi2).child(`+${add}`))
     .child(div().text_size(textSize.small).text_color(palette.ansi1).child(`−${del}`));
 
-export const fileRow = (
+const fileRow = (
   file: ChangeFile,
   selected: boolean,
   palette: Palette,
@@ -107,7 +144,46 @@ export const fileRow = (
     });
 };
 
-export const limitedNotice = (palette: Palette): Element =>
+const fileList = (state: FileListState): Element => {
+  const { files, open, error, loading, root, palette, onPick } = state;
+
+  const list = v_flex()
+    .id('changes-list')
+    .flex_none()
+    .h(fileListHeight(files.length))
+    .overflow_y_scrollbar()
+    .p(spacing.xsmall)
+    .border_b(spacing.hairline)
+    .border_color(palette.border)
+    .children(files.map((file) => fileRow(file, open === file.path, palette, onPick)));
+
+  if (files.length === 0) {
+    list.child(emptyState(emptyMessage(error, loading, root)));
+  }
+
+  return list;
+};
+
+const commitBar = (state: CommitBarState): Element => {
+  const { input, typing, busy, enabled, palette, onCommit } = state;
+
+  return h_flex()
+    .flex_none()
+    .p(spacing.large)
+    .gap(spacing.medium)
+    .border_t(spacing.hairline)
+    .border_color(palette.border)
+    .child(textField(input, typing).flex_1().min_w(0))
+    .child(
+      actionButton({ label: busy ? 'Committing…' : 'Commit', enabled })
+        .id('commit')
+        .on_click((_event, clickCx) => {
+          onCommit(clickCx);
+        }),
+    );
+};
+
+const limitedNotice = (palette: Palette): Element =>
   div()
     .px(spacing.large)
     .py(spacing.xsmall)
@@ -115,7 +191,7 @@ export const limitedNotice = (palette: Palette): Element =>
     .text_color(palette.dim)
     .child('Showing the first 1,000 changed files');
 
-export const noteRow = (note: string, palette: Palette): Element =>
+const noteRow = (note: string, palette: Palette): Element =>
   div()
     .px(spacing.large)
     .pb(spacing.medium)
@@ -156,7 +232,7 @@ const diffRow = (row: DiffRow, palette: Palette): Element => {
     .child(div().flex_1().min_w(0).truncate().child(row.text));
 };
 
-export const diffArea = (
+const diffArea = (
   rows: DiffRow[],
   diffWidth: number,
   showHint: boolean,
@@ -203,4 +279,66 @@ export const diffArea = (
   }
 
   return area;
+};
+
+export const changesPanel = (state: PanelState): Element => {
+  const {
+    files,
+    open,
+    error,
+    loading,
+    folder,
+    limited,
+    note,
+    busy,
+    hasSnapshot,
+    messageHasText,
+    rows,
+    diffWidth,
+    input,
+    typing,
+    isTyping,
+    onEscape,
+    onPick,
+    onCommit,
+  } = state;
+
+  const palette = colors();
+  const add = files.reduce((total, file) => total + file.add, 0);
+  const del = files.reduce((total, file) => total + file.del, 0);
+  const idle = !busy && !loading;
+  const ready = hasSnapshot && idle;
+  const enabled = ready && messageHasText;
+
+  const root = v_flex()
+    .id('changes')
+    .size_full()
+    .min_h(0)
+    .overflow_hidden()
+    .text_color(palette.foreground)
+    .text_size(textSize.default)
+    .on_key_down((event, keyCx) => {
+      if (event.key === 'escape' && isTyping()) {
+        onEscape();
+        keyCx.stop_propagation();
+        keyCx.notify();
+      }
+    })
+    .child(headerRow(files, add, del, palette));
+
+  root.child(fileList({ files, open, error, loading, root: folder, palette, onPick }));
+
+  if (limited) {
+    root.child(limitedNotice(palette));
+  }
+
+  root.child(diffArea(rows, diffWidth, showsSelectionHint(open, files.length), palette));
+
+  if (note !== null) {
+    root.child(noteRow(note, palette));
+  }
+
+  root.child(commitBar({ input, typing, busy, enabled, palette, onCommit }));
+
+  return root;
 };
