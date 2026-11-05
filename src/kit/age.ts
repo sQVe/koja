@@ -28,7 +28,7 @@ export const shortAge = (thenSeconds: number, nowSeconds: number): string => {
   }
 
   if (elapsed > oldSeconds) {
-    return 'old';
+    return 'long ago';
   }
 
   return `${Math.floor(elapsed / weekSeconds)}w`;
