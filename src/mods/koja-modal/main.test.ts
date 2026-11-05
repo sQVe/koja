@@ -63,6 +63,7 @@ let focusedPane: string | null = 'p1';
 let focusedTab = 'tab-1';
 let runCalls: RunCall[] = [];
 let askFirstCalls: RunCall[] = [];
+let askFirstOpensDialog = false;
 let closeCalls: (string | null)[] = [];
 let focusCalls = 0;
 let overlayFocused = false;
@@ -210,6 +211,8 @@ await mock.module('../../kit/index.ts', () =>
       if (command !== 'tab.close') {
         runCalls.push({ command, args });
       }
+
+      return askFirstOpensDialog;
     },
     closeOverlay: (id?: string | null) => {
       closeCalls.push(id ?? null);
@@ -271,6 +274,7 @@ beforeEach(() => {
   focusedTab = 'tab-1';
   runCalls = [];
   askFirstCalls = [];
+  askFirstOpensDialog = false;
   closeCalls = [];
   focusCalls = 0;
   overlayFocused = false;
@@ -580,6 +584,7 @@ describe('koja modal view', () => {
 
     view.render();
 
+    askFirstOpensDialog = true;
     paletteOpen = true;
     overlayFocused = false;
 
@@ -588,5 +593,25 @@ describe('koja modal view', () => {
     runAfterHandlers();
 
     expect(overlayFocused).toBe(false);
+  });
+
+  test('ctrl-t q regains the keyboard at once when no dialog opens', async () => {
+    const view = await loadView();
+
+    view.render();
+
+    askFirstOpensDialog = false;
+    paletteOpen = false;
+    overlayFocused = false;
+
+    const focusBefore = focusCalls;
+
+    keyDownHandler?.(control('t', 'ctrl-t'));
+    keyDownHandler?.(plain('q'));
+    runAfterHandlers();
+
+    expect(overlayFocused).toBe(true);
+    expect(focusCalls).toBe(focusBefore + 1);
+    expect(statusLookups).toBe(0);
   });
 });

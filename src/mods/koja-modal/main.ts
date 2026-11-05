@@ -27,8 +27,7 @@ const stopPress = (_event: unknown, cx: Context): void => {
   cx.stop_propagation();
 };
 
-const mayOpenOverlay = (command: string): boolean =>
-  command === 'mod.open' || command === 'tab.close';
+const mayOpenOverlay = (command: string): boolean => command === 'mod.open';
 
 const opensOverlay = (action: NormalAction): boolean =>
   action.kind === 'command' && mayOpenOverlay(action.command);
@@ -37,6 +36,8 @@ export default class KojaModal extends View {
   private handle: FocusHandle | null = null;
 
   private state: ParserState = initialParserState;
+
+  private dialogOpened = false;
 
   private readonly hold = createKeyboardHold({
     isFocused: () => this.handle?.is_focused() ?? false,
@@ -48,7 +49,9 @@ export default class KojaModal extends View {
   });
 
   private readonly executor = createExecutor({
-    run: askFirst,
+    run: (command, args) => {
+      this.dialogOpened = askFirst(command, args);
+    },
     panes,
     focused,
     spaces,
@@ -117,15 +120,20 @@ export default class KojaModal extends View {
       return;
     }
 
+    this.dialogOpened = false;
     this.executor.execute(result.action);
 
-    if (opensOverlay(result.action)) {
+    if (opensOverlay(result.action) || this.openedDialog()) {
       this.hold.yield();
 
       return;
     }
 
     this.regainKeyboard(cx);
+  }
+
+  private openedDialog(): boolean {
+    return this.dialogOpened;
   }
 
   private regainKeyboard(cx: Context): void {
