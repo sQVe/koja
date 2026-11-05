@@ -1,0 +1,123 @@
+import { v_flex } from 'gpui-base';
+import type { Element } from 'gpui-kit';
+
+import type { RowState } from '../../kit/index.ts';
+import { highlightedText, icon, keyHint, listRow, statusMark } from '../../kit/index.ts';
+import { matchOf, sample } from './sample.ts';
+
+const rowStates: { state: RowState; hovered: boolean; label: string }[] = [
+  { state: 'normal', hovered: false, label: 'normal' },
+  { state: 'normal', hovered: true, label: 'hovered' },
+  { state: 'selected', hovered: false, label: 'selected' },
+  { state: 'disabled', hovered: false, label: 'disabled' },
+];
+
+const rowsInState = (inset: boolean): Element =>
+  v_flex().children(
+    rowStates.map((variant) =>
+      listRow({
+        size: inset ? 'large' : 'small',
+        inset,
+        state: variant.state,
+        hovered: variant.hovered,
+        start: icon('terminal', 'large'),
+        label: `${variant.label} row`,
+        detail: 'detail',
+        end: [keyHint('ctrl-shift-t'), statusMark('done')],
+      }),
+    ),
+  );
+
+const treeRows = (): Element =>
+  v_flex()
+    .child(
+      listRow({
+        size: 'small',
+        inset: false,
+        state: 'normal',
+        start: icon('folder-open', 'large'),
+        label: 'repository',
+      }),
+    )
+    .child(
+      listRow({
+        size: 'small',
+        inset: false,
+        state: 'normal',
+        depth: 1,
+        start: icon('folder', 'large'),
+        label: 'first worktree',
+      }),
+    )
+    .child(
+      listRow({
+        size: 'small',
+        inset: false,
+        state: 'normal',
+        depth: 1,
+        start: icon('folder', 'large'),
+        label: 'last worktree',
+      }),
+    );
+
+const dragRows = (): Element =>
+  v_flex()
+    .child(
+      listRow({
+        size: 'small',
+        inset: false,
+        state: 'normal',
+        dragged: true,
+        label: 'dragged row',
+      }),
+    )
+    .child(
+      listRow({
+        size: 'small',
+        inset: false,
+        state: 'normal',
+        dropLine: 'top',
+        label: 'drop above',
+      }),
+    )
+    .child(
+      listRow({
+        size: 'small',
+        inset: false,
+        state: 'normal',
+        dropLine: 'bottom',
+        label: 'drop below',
+      }),
+    );
+
+const otherRows = (): Element =>
+  v_flex()
+    .child(
+      listRow({ size: 'medium', inset: true, state: 'normal', muted: true, label: 'muted label' }),
+    )
+    .child(
+      listRow({
+        size: 'medium',
+        inset: false,
+        state: 'selected',
+        centered: true,
+        label: '3',
+        end: [statusMark('blocked')],
+      }),
+    )
+    .child(
+      listRow({
+        size: 'large',
+        inset: true,
+        state: 'normal',
+        label: highlightedText('Split right', matchOf('Split right', 'Sp'), true),
+      }),
+    );
+
+export const rows = (): Element[] => [
+  sample('Inset, large', rowsInState(true)),
+  sample('Flush, small', rowsInState(false)),
+  sample('Tree', treeRows()),
+  sample('Reordering', dragRows()),
+  sample('Muted, centered, and highlighted', otherRows()),
+];
