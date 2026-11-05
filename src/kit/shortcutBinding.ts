@@ -1,4 +1,5 @@
 import { bindingAction } from './binding.ts';
+import type { NormalKey } from './normalKeys.ts';
 import { normalKeys } from './normalKeys.ts';
 
 export interface KeyBinding {
@@ -7,33 +8,31 @@ export interface KeyBinding {
   action: string;
 }
 
+type ActionKeys = Pick<KeyBinding, 'action' | 'keys'>;
+
 const hasNonStringFirstArg = (args: Record<string, unknown> | undefined): boolean => {
   const values = Object.values(args ?? {});
 
   return values.length > 0 && typeof values[0] !== 'string';
 };
 
-const normalKeyFor = (action: string): string | null => {
-  for (const entry of normalKeys) {
-    const normalAction = entry.action;
+const normalBinding = (entry: NormalKey): ActionKeys[] => {
+  const normalAction = entry.action;
 
-    if (normalAction.kind !== 'command') {
-      continue;
-    }
-
-    if (hasNonStringFirstArg(normalAction.args)) {
-      continue;
-    }
-
-    const actionString = bindingAction(normalAction.command, normalAction.args ?? {});
-
-    if (actionString === action) {
-      return entry.keys.join(' ');
-    }
+  if (normalAction.kind !== 'command') {
+    return [];
   }
 
-  return null;
+  if (hasNonStringFirstArg(normalAction.args)) {
+    return [];
+  }
+
+  const action = bindingAction(normalAction.command, normalAction.args ?? {});
+
+  return [{ action, keys: entry.keys.join(' ') }];
 };
+
+const normalBindings = normalKeys.flatMap(normalBinding);
 
 export const bindingFor = (
   bindings: readonly KeyBinding[],
@@ -42,16 +41,12 @@ export const bindingFor = (
   const global = bindings.filter((candidate) => candidate.section === 'global');
 
   for (const action of actions) {
-    const binding = global.find((candidate) => candidate.action === action);
+    const binding =
+      global.find((candidate) => candidate.action === action) ??
+      normalBindings.find((candidate) => candidate.action === action);
 
     if (binding !== undefined) {
       return binding.keys;
-    }
-
-    const normalKey = normalKeyFor(action);
-
-    if (normalKey !== null) {
-      return normalKey;
     }
   }
 
