@@ -35,7 +35,8 @@ interface FakeSpace {
 
 interface FakeRepo {
   name: string;
-  detail: string;
+  branch: string;
+  age: string;
   status: Status | null;
   spaces: FakeSpace[];
 }
@@ -72,7 +73,8 @@ const shellProgram: Program = {
 const fakeRepos: FakeRepo[] = [
   {
     name: 'koja',
-    detail: 'main · 2h',
+    branch: 'main',
+    age: '2h',
     status: 'blocked',
     spaces: [
       { label: 'me-1089-window-shell', status: 'blocked', state: 'selected', pull: 31 },
@@ -82,7 +84,8 @@ const fakeRepos: FakeRepo[] = [
   },
   {
     name: 'tikk',
-    detail: 'main · 1d',
+    branch: 'main',
+    age: '1d',
     status: 'done',
     spaces: [{ label: 'ticket-sync', status: 'done', state: 'normal', pull: 12 }],
   },
@@ -147,7 +150,13 @@ const repoRow = (repo: FakeRepo): Element =>
     size: 'small',
     inset: true,
     state: 'normal',
-    label: repoLabel({ name: repo.name, detail: repo.detail, folded: false, selected: false }),
+    label: repoLabel({
+      name: repo.name,
+      branch: repo.branch,
+      age: repo.age,
+      folded: false,
+      selected: false,
+    }),
     end: [statusMark(repo.status)],
   });
 
