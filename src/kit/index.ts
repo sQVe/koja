@@ -63,6 +63,8 @@ export type { TextRole } from './textRole.ts';
 
 export { stateLine } from './stateLine.ts';
 
+export type { StateLineOptions } from './stateLine.ts';
+
 export { colors } from './theme.ts';
 
 export { diffTints } from './palette.ts';

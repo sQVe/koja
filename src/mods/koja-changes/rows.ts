@@ -4,11 +4,10 @@ import type { Context, Element } from 'gpui-kit';
 import { div } from 'gpui-kit';
 import { settings } from 'herdr';
 
-import type { Palette } from '../../kit/index.ts';
+import type { Palette, StateLineOptions } from '../../kit/index.ts';
 import {
   actionButton,
   colors,
-  controlSize,
   diffSize,
   diffTints,
   fileStatusMark,
@@ -19,29 +18,27 @@ import {
   stateLine,
   stringOf,
   textField,
+  toggleButton,
   withTextRole,
 } from '../../kit/index.ts';
 import type { DiffRow } from './diffRows.ts';
-import { emptyLine } from './emptyLine.ts';
 import { showsSelectionHint } from './selection.ts';
 import type { ChangeFile } from './status.ts';
+
+export interface FileListOptions {
+  files: ChangeFile[];
+  open: string | null;
+  line: StateLineOptions | null;
+  watchLine: StateLineOptions | null;
+  palette: Palette;
+  onRetry: (cx: Context) => void;
+  onRetryWatch: (cx: Context) => void;
+  onPick: (path: string, cx: Context) => void;
+}
 
 const defaultFont = 'JetBrains Mono';
 
 const terminalFont = (): string => stringOf(settings()['font_family']) ?? defaultFont;
-
-const fileLabel = (file: ChangeFile, palette: Palette): Element => {
-  const parts = file.path.split('/');
-  const name = parts.pop() ?? file.path;
-  const directory = parts.length > 0 ? `${parts.join('/')}/` : '';
-  const label = h_flex().min_w(0);
-
-  if (directory !== '') {
-    label.child(div().text_color(palette.dim).truncate().child(directory));
-  }
-
-  return label.child(div().max_w(controlSize.paneLabelMaxWidth).min_w(0).truncate().child(name));
-};
 
 const fileListHeight = (count: number): number =>
   Math.min(
@@ -64,7 +61,7 @@ export const headerRow = (
     .border_b(spacing.hairline)
     .border_color(palette.border)
     .child(roleText('title', 'Changes').flex_none())
-    .child(div().text_color(palette.dim).child(`${files.length} files`))
+    .child(roleText('detail', `${files.length} files`).flex_none())
     .child(div().flex_1())
     .child(roleText('detail', `+${add}`, 'ansi2').flex_none())
     .child(roleText('detail', `−${del}`, 'ansi1').flex_none());
@@ -72,7 +69,6 @@ export const headerRow = (
 const fileRow = (
   file: ChangeFile,
   selected: boolean,
-  palette: Palette,
   onPick: (path: string, cx: Context) => void,
 ): Element => {
   const end: Element[] = [];
@@ -89,8 +85,9 @@ const fileRow = (
     size: 'small',
     inset: true,
     state: selected ? 'selected' : 'normal',
+    cut: 'middle',
     start: fileStatusMark(file.status),
-    label: fileLabel(file, palette),
+    label: file.path,
     end,
   })
     .id(`change-${file.path}`)
@@ -99,30 +96,46 @@ const fileRow = (
     });
 };
 
-export const fileList = (
-  files: ChangeFile[],
-  open: string | null,
-  error: string | null,
-  loading: boolean,
-  root: string | null,
-  palette: Palette,
-  onPick: (path: string, cx: Context) => void,
-): Element => {
-  const list = v_flex()
+const retryButton = (id: string, onRetry: (cx: Context) => void): Element =>
+  toggleButton({ label: 'Retry', active: false })
+    .id(id)
+    .on_click((_event, clickCx) => {
+      onRetry(clickCx);
+    });
+
+const stateRow = (line: StateLineOptions, id: string, onRetry: (cx: Context) => void): Element => {
+  if (line.kind !== 'error') {
+    return stateLine(line);
+  }
+
+  return stateLine({ ...line, action: retryButton(id, onRetry) });
+};
+
+export const fileList = (options: FileListOptions): Element => {
+  const lines: Element[] = [];
+
+  if (options.line !== null) {
+    lines.push(stateRow(options.line, 'changes-retry', options.onRetry));
+  }
+
+  if (options.watchLine !== null) {
+    lines.push(stateRow(options.watchLine, 'changes-watch-retry', options.onRetryWatch));
+  }
+
+  const count = options.files.length + lines.length;
+
+  return v_flex()
     .id('changes-list')
     .flex_none()
-    .h(fileListHeight(files.length))
+    .h(fileListHeight(count))
     .overflow_y_scrollbar()
     .p(spacing.xsmall)
     .border_b(spacing.hairline)
-    .border_color(palette.border)
-    .children(files.map((file) => fileRow(file, open === file.path, palette, onPick)));
-
-  if (files.length === 0) {
-    list.child(stateLine(emptyLine(error, loading, root)));
-  }
-
-  return list;
+    .border_color(options.palette.border)
+    .children(lines)
+    .children(
+      options.files.map((file) => fileRow(file, options.open === file.path, options.onPick)),
+    );
 };
 
 export const commitBar = (
@@ -172,6 +185,12 @@ const diffRow = (row: DiffRow, palette: Palette): Element => {
 
   const tints = diffTints(palette);
 
+  const lineNumber = withTextRole(
+    div().w(diffSize.lineNumberWidth).flex_none().text_right(),
+    'detail',
+    'muted',
+  ).child(row.number === undefined ? '' : String(row.number));
+
   return h_flex()
     .w_full()
     .h(diffSize.rowHeight)
@@ -179,14 +198,7 @@ const diffRow = (row: DiffRow, palette: Palette): Element => {
     .gap(spacing.large)
     .when(row.kind === '+', (element) => element.bg(tints.added))
     .when(row.kind === '-', (element) => element.bg(tints.removed))
-    .child(
-      div()
-        .w(diffSize.lineNumberWidth)
-        .flex_none()
-        .text_right()
-        .text_color(palette.muted)
-        .child(row.number === undefined ? '' : String(row.number)),
-    )
+    .child(lineNumber)
     .child(div().flex_1().min_w(0).truncate().child(row.text));
 };
 
@@ -228,12 +240,9 @@ export const diffArea = (
 
   if (showsSelectionHint(open, fileCount)) {
     area.child(
-      div()
-        .absolute()
-        .top(spacing.small)
-        .px(spacing.large)
-        .text_color(palette.dim)
-        .child('Select a file to view its changes'),
+      withTextRole(div().absolute().top(spacing.small).px(spacing.large), 'detail').child(
+        'Select a file to view its changes',
+      ),
     );
   }
 

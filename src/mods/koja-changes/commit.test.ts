@@ -7,6 +7,7 @@ const ready = {
   busy: false,
   loading: false,
   contextCurrent: true,
+  stale: false,
 };
 
 describe('canCommit', () => {
@@ -28,5 +29,9 @@ describe('canCommit', () => {
 
   test('refuses after the folder changed', () => {
     expect(canCommit({ ...ready, contextCurrent: false })).toBe(false);
+  });
+
+  test('refuses while the shown list is stale', () => {
+    expect(canCommit({ ...ready, stale: true })).toBe(false);
   });
 });
