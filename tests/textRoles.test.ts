@@ -56,22 +56,29 @@ const lineAt = (source: string, index: number): number => {
   return line;
 };
 
-// A call whose callee is a member named one of the setters. The member name's start offset is the
-// position to report, so a call split over lines still points at the setter.
-const setterStart = (node: CallExpression): number | null => {
-  const callee = node.callee;
-
-  if (callee.type !== 'MemberExpression' || callee.computed) {
+const memberName = (callee: CallExpression['callee']): string | null => {
+  if (callee.type !== 'MemberExpression') {
     return null;
   }
 
   const property = callee.property;
 
-  if (property.type !== 'Identifier') {
-    return null;
+  if (!callee.computed) {
+    return property.type === 'Identifier' ? property.name : null;
   }
 
-  return rawTextMethods.has(property.name) ? property.start : null;
+  const isStringLiteral = property.type === 'Literal' && typeof property.value === 'string';
+
+  return isStringLiteral ? property.value : null;
+};
+
+// A call whose callee is a member named one of the setters, as `.name` or `['name']`. The member
+// name's start offset is the position to report, so a call split over lines still points at it.
+const setterStart = (node: CallExpression): number | null => {
+  const name = memberName(node.callee);
+  const named = name !== null && rawTextMethods.has(name);
+
+  return named && node.callee.type === 'MemberExpression' ? node.callee.property.start : null;
 };
 
 const rawTextFindings = async (directory: string): Promise<string[]> => {
@@ -134,6 +141,8 @@ describe('the UI language', () => {
       'export const l = div().font_bold();',
       'const other = /x.font_bold()/;',
       'export const m = div().font_bold();',
+      "export const n = div()['text_size'](17);",
+      'export const o = div()[setterName]();',
       '',
     ].join('\n');
 
@@ -155,6 +164,7 @@ describe('the UI language', () => {
       `${path}:15: export const k = \`\${div().font_bold()}\`;`,
       `${path}:17: export const l = div().font_bold();`,
       `${path}:19: export const m = div().font_bold();`,
+      `${path}:20: export const n = div()['text_size'](17);`,
     ];
 
     expect(failures.toSorted()).toEqual(expected.toSorted());
