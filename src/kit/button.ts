@@ -91,7 +91,11 @@ export const actionButton = (options: ActionButtonOptions): Element => {
     return withFillRing(enabledButton, palette.solid, options.hovered === true);
   }
 
-  return button.bg(palette.raised).text_color(palette.muted);
+  return button
+    .bg(palette.raised)
+    .text_color(palette.muted)
+    .border(spacing.hairline)
+    .border_color(palette.raised);
 };
 
 const dialogButtonBase = (label: string): Element =>
