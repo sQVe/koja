@@ -11,6 +11,7 @@ import {
   colors,
   controlSize,
   findLayoutNode,
+  hoveredAfter,
   layoutRoot,
   overlaySize,
   railWidthLimit,
@@ -246,12 +247,7 @@ export default class Spaces extends View {
         this.addDragHandlers(element, space, rowIds);
       },
       onHover: (spaceId, hovered, cx) => {
-        if (hovered) {
-          this.hovered = spaceId;
-        } else if (this.hovered === spaceId) {
-          this.hovered = null;
-        }
-
+        this.hovered = hoveredAfter(this.hovered, spaceId, hovered);
         cx.notify();
       },
       toggleFold: (repoKey, cx) => {

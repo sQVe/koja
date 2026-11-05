@@ -38,6 +38,7 @@ const endSlot = (options: TabOptions): Element => {
 
 export const tab = (options: TabOptions): Element => {
   const palette = colors();
+  const iconTone = options.active || options.hovered === true ? palette.foreground : palette.muted;
 
   const element = h_flex()
     .h(controlSize.button)
@@ -62,7 +63,7 @@ export const tab = (options: TabOptions): Element => {
   }
 
   element
-    .child(startSlot(options.icon))
+    .child(startSlot(options.icon === null ? null : options.icon.text_color(iconTone)))
     .child(div().max_w(controlSize.tabLabelMaxWidth).truncate().child(options.label));
 
   const status = shownStatus(options.status);

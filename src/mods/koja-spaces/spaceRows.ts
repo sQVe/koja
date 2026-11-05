@@ -15,7 +15,7 @@ import {
 } from '../../kit/index.ts';
 import type { Pull } from './pulls.ts';
 import { pullState } from './pulls.ts';
-import { labelDetail } from './rows.ts';
+import { labelDetail, rowCut } from './rows.ts';
 import type { GitInfo, ListedSpace, RepoRow, SpaceRow } from './tree.ts';
 
 export interface RowState {
@@ -89,7 +89,6 @@ export const labelRow = (row: RepoRow, ids: readonly string[], state: RowState):
   const { main, name, fold } = row;
   const { space } = main;
   const line = dragLine(state.drag, space.id, ids);
-  const detail = labelDetail(main);
 
   const element = listRow({
     size: 'small',
@@ -97,7 +96,7 @@ export const labelRow = (row: RepoRow, ids: readonly string[], state: RowState):
     state: space.active ? 'selected' : 'normal',
     label: repoLabel({
       name,
-      ...(detail === undefined ? {} : { detail }),
+      ...labelDetail(main),
       folded: fold?.folded === true,
       selected: space.active,
     }),
@@ -120,6 +119,7 @@ export const labelRow = (row: RepoRow, ids: readonly string[], state: RowState):
 export const row = (spaceRow: SpaceRow, ids: readonly string[], state: RowState): Element => {
   const { space } = spaceRow;
   const line = dragLine(state.drag, space.id, ids);
+  const pull = state.lookup(spaceRow.git);
 
   const element = listRow({
     size: 'small',
@@ -127,6 +127,7 @@ export const row = (spaceRow: SpaceRow, ids: readonly string[], state: RowState)
     state: space.active ? 'selected' : 'normal',
     start: spaceMark(spaceRow.status),
     label: rowTitle(spaceRow, state.lookup),
+    cut: rowCut(space.named, pull),
     ...(line === undefined ? {} : { dropLine: line }),
     dragged: state.drag.source === space.id && state.drag.over !== space.id,
     end: pullDetail(spaceRow, state.lookup),

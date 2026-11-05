@@ -2,7 +2,8 @@ import { describe, expect, test } from 'bun:test';
 
 import type { SpaceInfo } from 'herdr';
 
-import { labelDetail } from './rows.ts';
+import type { Pull } from './pulls.ts';
+import { labelDetail, rowCut } from './rows.ts';
 import type { GitInfo, ListedSpace } from './tree.ts';
 import { repoOf } from './tree.ts';
 
@@ -36,20 +37,49 @@ const mainCheckout = (branch: string | null, committedAt: number | null): Listed
 
 const secondsAgo = (seconds: number): number => Math.floor(Date.now() / 1000) - seconds;
 
+const pull = (title: string): Pull => ({
+  number: 1,
+  state: 'OPEN',
+  isDraft: false,
+  title,
+  headRefName: 'main',
+});
+
 describe('labelDetail', () => {
-  test('shows the branch and the age of the last commit', () => {
-    expect(labelDetail(mainCheckout('main', secondsAgo(twoMinutes)))).toBe('main · 2m');
+  test('returns the branch and the age of the last commit as separate parts', () => {
+    expect(labelDetail(mainCheckout('main', secondsAgo(twoMinutes)))).toEqual({
+      branch: 'main',
+      age: '2m',
+    });
   });
 
-  test('shows only the branch when the age is unknown', () => {
-    expect(labelDetail(mainCheckout('main', null))).toBe('main');
+  test('returns only the branch when the age is unknown', () => {
+    expect(labelDetail(mainCheckout('main', null))).toEqual({ branch: 'main' });
   });
 
-  test('shows only the age on a detached head', () => {
-    expect(labelDetail(mainCheckout(null, secondsAgo(twoMinutes)))).toBe('2m');
+  test('returns only the age on a detached head', () => {
+    expect(labelDetail(mainCheckout(null, secondsAgo(twoMinutes)))).toEqual({ age: '2m' });
   });
 
-  test('shows no detail without a branch or an age', () => {
-    expect(labelDetail(mainCheckout(null, null))).toBeUndefined();
+  test('returns no parts without a branch or an age', () => {
+    expect(labelDetail(mainCheckout(null, null))).toEqual({});
+  });
+});
+
+describe('rowCut', () => {
+  test('cuts a named space in the middle even when it has a pull title', () => {
+    expect(rowCut(true, pull('Fix the login redirect'))).toBe('middle');
+  });
+
+  test('cuts an unnamed space without a pull in the middle', () => {
+    expect(rowCut(false, null)).toBe('middle');
+  });
+
+  test('cuts an unnamed space whose pull has no title in the middle', () => {
+    expect(rowCut(false, pull(''))).toBe('middle');
+  });
+
+  test('cuts an unnamed space whose pull has a title at the end', () => {
+    expect(rowCut(false, pull('Fix the login redirect'))).toBe('end');
   });
 });
