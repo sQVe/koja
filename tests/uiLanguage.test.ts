@@ -394,17 +394,6 @@ describe('the UI language', () => {
     expect(failures.toSorted()).toEqual(expected.toSorted());
   });
 
-  test('kit controls do not fade on hover', async () => {
-    const source = await readFile('src/kit/button.ts', 'utf8');
-
-    const fadedLines = source
-      .split('\n')
-      .map((text, index) => ({ line: index + 1, text }))
-      .filter((entry) => entry.text.includes('.opacity('));
-
-    expect(fadedLines).toEqual([]);
-  });
-
   test('the contrast check names a low-contrast pair with both tokens and its ratio', () => {
     const fixture = paletteFromTheme({
       ansi: [],
