@@ -102,6 +102,8 @@ export const listedOf = (row: TreeRow): ListedSpace => (row.kind === 'repo' ? ro
 const listedOfGroup = (group: TreeGroup): ListedSpace =>
   group.kind === 'repo' ? group.main : group.listed;
 
+export const gitOfGroup = (group: TreeGroup): GitInfo | null => listedOfGroup(group).git;
+
 export const machineOfGroup = (group: TreeGroup): string | null =>
   listedOfGroup(group).space.machine ?? null;
 
@@ -124,7 +126,7 @@ const isMain = (row: ListedSpace): row is ListedSpace & { git: GitInfo } =>
 const shownWhenFolded = (row: ListedSpace): boolean => row.space.active || needsYou(row.status);
 
 // The git folder can sit anywhere under any name, so the checkout folder names the repository.
-const repoName = (root: string): string => {
+export const repoName = (root: string): string => {
   const folder = root.split('/').findLast((part) => part !== '') ?? root;
 
   return folder.replace(/\.git$/, '');

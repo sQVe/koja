@@ -1,4 +1,4 @@
-import type { Element } from 'gpui-kit';
+import type { Context, Element } from 'gpui-kit';
 import { div } from 'gpui-kit';
 
 import {
@@ -11,11 +11,14 @@ import {
   sectionHeader,
   spacing,
   stateLine,
+  toggleButton,
 } from '../../kit/index.ts';
+import { machineErrorPlacement } from './machineError.ts';
 import type { Machine } from './machines.ts';
 import { machineGroupOrder } from './machines.ts';
-import type { TreeGroup, TreeRow } from './tree.ts';
-import { groupGapBefore, groupRows, machineOfGroup, railLineBefore } from './tree.ts';
+import { railErrorMark } from './rail.ts';
+import type { GitInfo, TreeGroup, TreeRow } from './tree.ts';
+import { gitOfGroup, groupGapBefore, groupRows, machineOfGroup, railLineBefore } from './tree.ts';
 
 export interface MachineRowsHost {
   machineList: Machine[];
@@ -25,6 +28,10 @@ export interface MachineRowsHost {
   loading: (machine: string | null) => boolean;
   addSpace: (machine: string | null) => void;
   toggleFold: (machine: string | null) => void;
+  machineError: () => string | null;
+  pullError: (git: GitInfo | null) => string | null;
+  retryMachines: (cx: Context) => void;
+  retryPull: (git: GitInfo | null, cx: Context) => void;
 }
 
 const connected = (machineList: Machine[], machine: string | null): boolean =>
@@ -33,6 +40,16 @@ const connected = (machineList: Machine[], machine: string | null): boolean =>
 
 const loadingRow = (collapsed: boolean): Element =>
   stateLine({ kind: 'loading', text: collapsed ? '…' : 'Loading…' });
+
+const errorRow = (text: string, retry: (cx: Context) => void): Element =>
+  stateLine({
+    kind: 'error',
+    text,
+    action: toggleButton({ label: 'Retry', active: false }).on_click((_event, cx) => {
+      cx.stop_propagation();
+      retry(cx);
+    }),
+  });
 
 const machineState = (host: MachineRowsHost, machine: string | null): Element => {
   if (!connected(host.machineList, machine)) {
@@ -108,9 +125,19 @@ const groupChildren = (
 
     const lineAbove = railLineBefore(group, previous);
     const rows = groupRows(group);
+    const git = gitOfGroup(group);
+    const error = collapsed ? null : host.pullError(git);
 
     rows.forEach((row, rowIndex) => {
       elements.push(host.draw(row, lineAbove && rowIndex === 0));
+
+      if (rowIndex === 0 && error !== null) {
+        elements.push(
+          errorRow(error, (cx) => {
+            host.retryPull(git, cx);
+          }),
+        );
+      }
     });
   });
 
@@ -123,14 +150,25 @@ export const machineRows = (host: MachineRowsHost, collapsed: boolean): Element[
     .filter((machine): machine is string => machine !== null);
 
   const order = machineGroupOrder(remote, host.machineList);
+  const placement = machineErrorPlacement(host.machineError(), collapsed);
+
+  const head =
+    placement === null
+      ? []
+      : [
+          placement.kind === 'mark'
+            ? railErrorMark(placement.text, host.retryMachines)
+            : errorRow(placement.text, host.retryMachines),
+        ];
 
   if (order.length === 1) {
     const loading = host.loading(null) && host.groups.length === 0;
+    const rows = loading ? [loadingRow(collapsed)] : groupChildren(host, host.groups, collapsed);
 
-    return loading ? [loadingRow(collapsed)] : groupChildren(host, host.groups, collapsed);
+    return head.concat(rows);
   }
 
-  return order.flatMap((machine) => {
+  const rows = order.flatMap((machine) => {
     const mine = host.groups.filter((group) => machineOfGroup(group) === machine);
     const header = machineHeader(host, machine, collapsed);
 
@@ -148,4 +186,6 @@ export const machineRows = (host: MachineRowsHost, collapsed: boolean): Element[
 
     return [header, row];
   });
+
+  return head.concat(rows);
 };

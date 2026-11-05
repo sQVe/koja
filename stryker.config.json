@@ -48,6 +48,7 @@
     "!src/mods/koja-picker/rowElements.ts",
     "!src/mods/koja-spaces/gitTracker.ts",
     "!src/mods/koja-spaces/machineRows.ts",
+    "!src/mods/koja-spaces/machineTracker.ts",
     "!src/mods/koja-spaces/pullTracker.ts",
     "!src/mods/koja-spaces/rail.ts",
     "!src/mods/koja-spaces/spaceRows.ts"

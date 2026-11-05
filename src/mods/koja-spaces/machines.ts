@@ -1,18 +1,25 @@
-import { listOf, recordOf, stringOf } from '../../kit/fields.ts';
+import { recordOf, stringOf } from '../../kit/fields.ts';
 
 export interface Machine {
   name: string;
   state: string | null;
 }
 
-export const readMachines = (stdout: string): Machine[] =>
-  listOf(recordOf(JSON.parse(stdout))['machines'])
+export const readMachineList = (value: unknown): Machine[] | null => {
+  const listed = recordOf(value)['machines'];
+
+  if (!Array.isArray(listed)) {
+    return null;
+  }
+
+  return listed
     .map(recordOf)
     .filter((machine) => machine['temporary'] !== true)
     .map((machine) => ({
       name: stringOf(machine['name']) ?? '',
       state: stringOf(machine['state']),
     }));
+};
 
 export const machineGroupOrder = (
   remoteNames: Iterable<string>,
