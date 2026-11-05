@@ -103,6 +103,7 @@ export const kitIndexFake = (overrides: ModuleFake = {}): ModuleFake => ({
   rowHeight: {},
   searchField: noop,
   sectionHeader: noop,
+  separator: noop,
   shortAge: () => '',
   shortcutFor: () => null,
   spaceMark: noop,
