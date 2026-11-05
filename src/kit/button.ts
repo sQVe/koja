@@ -63,7 +63,6 @@ const toggleTextColor = (options: ToggleButtonOptions): Color => {
   return options.quiet === true ? palette.dim : palette.muted;
 };
 
-// Fading the fill would also dim the label below AA, so hover draws a ring instead.
 const withFillRing = (button: Element, fill: Color, hovered: boolean): Element => {
   const palette = colors();
   const ringed = button.border(spacing.hairline).border_color(fill);
