@@ -24,6 +24,12 @@ describe('scene lookup', () => {
       height: overlaySize.worktreeListHeight,
     },
     { name: 'controls', width: overlaySize.worktreeListWidth, height: overlaySize.wideMenuHeight },
+    { name: 'shell', width: overlaySize.shellWidth, height: overlaySize.shellHeight },
+    {
+      name: 'pane-headers',
+      width: overlaySize.paneHeadersWidth,
+      height: overlaySize.paneHeadersHeight,
+    },
   ];
 
   test.each(sceneSizes)('the $name scene gives its name and size', (scene) => {

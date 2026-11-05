@@ -4,6 +4,7 @@ export const iconNames = [
   'circle-alert',
   'columns-2',
   'command',
+  'ellipsis',
   'file',
   'folder',
   'folder-open',

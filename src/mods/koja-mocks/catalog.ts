@@ -26,6 +26,11 @@ const sceneSizes = {
   states: { width: overlaySize.promptWidth, height: overlaySize.worktreeListHeight },
   popup: { width: overlaySize.worktreeListWidth, height: overlaySize.worktreeListHeight },
   controls: { width: overlaySize.worktreeListWidth, height: overlaySize.wideMenuHeight },
+  shell: { width: overlaySize.shellWidth, height: overlaySize.shellHeight },
+  'pane-headers': {
+    width: overlaySize.paneHeadersWidth,
+    height: overlaySize.paneHeadersHeight,
+  },
   'smoke-1': paletteSize,
   'smoke-2': paletteSize,
   'smoke-3': paletteSize,

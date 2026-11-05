@@ -1,4 +1,11 @@
-export { actionButton, dialogButton, iconButton, toggleButton } from './button.ts';
+export {
+  actionButton,
+  dialogButton,
+  iconButton,
+  iconToggle,
+  modePill,
+  toggleButton,
+} from './button.ts';
 
 export type { DialogButtonKind } from './button.ts';
 
@@ -13,6 +20,10 @@ export type { IconName } from './iconNames.ts';
 export { hoveredAfter } from './hoverTarget.ts';
 
 export { listRow } from './listRow.ts';
+
+export { paneHeader } from './paneHeader.ts';
+
+export type { PaneHeaderOptions } from './paneHeader.ts';
 
 export { shortAge } from './age.ts';
 
@@ -36,6 +47,7 @@ export {
   railWidthLimit,
   rowHeight,
   separatorHeight,
+  shellSize,
   spacing,
 } from './size.ts';
 

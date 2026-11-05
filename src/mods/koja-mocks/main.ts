@@ -20,7 +20,9 @@ import { findScene, sceneOrigin } from './catalog.ts';
 import type { SceneName } from './catalog.ts';
 import { controlsScene } from './scenes/controls.ts';
 import type { SceneInputs } from './scenes/inputs.ts';
+import { paneHeadersScene } from './scenes/paneHeaders.ts';
 import { popupQuery, popupScene } from './scenes/popup.ts';
+import { shellScene } from './scenes/shell.ts';
 import { sidebarScene } from './scenes/sidebar.ts';
 import {
   paletteClean,
@@ -35,6 +37,8 @@ const renderers: Record<SceneName, (inputs: SceneInputs) => Element> = {
   states: statesScene,
   popup: popupScene,
   controls: controlsScene,
+  shell: shellScene,
+  'pane-headers': paneHeadersScene,
   'smoke-1': (inputs) => paletteNearFail(inputs.command),
   'smoke-2': (inputs) => paletteClean(inputs.command),
   'smoke-3': (inputs) => paletteClearFail(inputs.command),
