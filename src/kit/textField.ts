@@ -2,7 +2,8 @@ import type { InputState } from 'gpui-base';
 import { h_flex, Input } from 'gpui-base';
 import type { Element } from 'gpui-kit';
 
-import { controlSize, radius, spacing, textSize } from './size.ts';
+import { controlSize, radius, spacing } from './size.ts';
+import { withTextRole } from './textRole.ts';
 import { colors } from './theme.ts';
 
 export const textField = (input: InputState, focused: boolean): Element => {
@@ -19,7 +20,5 @@ export const textField = (input: InputState, focused: boolean): Element => {
     .on_mouse_down('left', (_event, cx) => {
       cx.stop_propagation();
     })
-    .child(
-      Input.new(input).flex_1().h_full().text_size(textSize.small).text_color(palette.foreground),
-    );
+    .child(withTextRole(Input.new(input).flex_1().h_full(), 'body'));
 };
