@@ -1,21 +1,27 @@
-import { h_flex, Scrollbar, v_virtual_list } from 'gpui-base';
+import type { InputState } from 'gpui-base';
+import { h_flex, Scrollbar, v_flex, v_virtual_list } from 'gpui-base';
 import type { Context, Element } from 'gpui-kit';
 import { div } from 'gpui-kit';
 import { settings } from 'herdr';
 
 import type { Palette } from '../../kit/index.ts';
 import {
+  actionButton,
+  colors,
   controlSize,
   diffSize,
   diffTints,
+  emptyState,
   fileStatusMark,
   listRow,
   rowHeight,
   spacing,
   stringOf,
+  textField,
   textSize,
 } from '../../kit/index.ts';
 import type { DiffRow } from './diffRows.ts';
+import { showsSelectionHint } from './selection.ts';
 import type { ChangeFile } from './status.ts';
 
 const defaultFont = 'JetBrains Mono';
@@ -35,11 +41,7 @@ const fileLabel = (file: ChangeFile, palette: Palette): Element => {
   return label.child(div().max_w(controlSize.paneLabelMaxWidth).min_w(0).truncate().child(name));
 };
 
-export const emptyMessage = (
-  error: string | null,
-  loading: boolean,
-  root: string | null,
-): string => {
+const emptyMessage = (error: string | null, loading: boolean, root: string | null): string => {
   if (error !== null) {
     return error;
   }
@@ -51,7 +53,7 @@ export const emptyMessage = (
   return root !== null ? 'No uncommitted changes' : 'No folder';
 };
 
-export const fileListHeight = (count: number): number =>
+const fileListHeight = (count: number): number =>
   Math.min(
     diffSize.fileListHeightLimit,
     Math.max(diffSize.fileListHeightMinimum, count * rowHeight.medium + spacing.xlarge),
@@ -77,7 +79,7 @@ export const headerRow = (
     .child(div().text_size(textSize.small).text_color(palette.ansi2).child(`+${add}`))
     .child(div().text_size(textSize.small).text_color(palette.ansi1).child(`−${del}`));
 
-export const fileRow = (
+const fileRow = (
   file: ChangeFile,
   selected: boolean,
   palette: Palette,
@@ -105,6 +107,56 @@ export const fileRow = (
     .on_click((_event, clickCx) => {
       onPick(file.path, clickCx);
     });
+};
+
+export const fileList = (
+  files: ChangeFile[],
+  open: string | null,
+  error: string | null,
+  loading: boolean,
+  root: string | null,
+  palette: Palette,
+  onPick: (path: string, cx: Context) => void,
+): Element => {
+  const list = v_flex()
+    .id('changes-list')
+    .flex_none()
+    .h(fileListHeight(files.length))
+    .overflow_y_scrollbar()
+    .p(spacing.xsmall)
+    .border_b(spacing.hairline)
+    .border_color(palette.border)
+    .children(files.map((file) => fileRow(file, open === file.path, palette, onPick)));
+
+  if (files.length === 0) {
+    list.child(emptyState(emptyMessage(error, loading, root)));
+  }
+
+  return list;
+};
+
+export const commitBar = (
+  input: InputState,
+  typing: boolean,
+  busy: boolean,
+  enabled: boolean,
+  palette: Palette,
+  onCommit: (cx: Context) => void,
+): Element => {
+  return h_flex()
+    .flex_none()
+    .p(spacing.large)
+    .gap(spacing.medium)
+    .border_t(spacing.hairline)
+    .border_color(palette.border)
+    .child(textField(input, typing).flex_1().min_w(0))
+    .child(
+      actionButton({ label: busy ? 'Committing…' : 'Commit', enabled })
+        .id('commit')
+        .on_click((_event, clickCx) => {
+          onCommit(clickCx);
+        }),
+    );
 };
 
 export const limitedNotice = (palette: Palette): Element =>
@@ -159,9 +211,11 @@ const diffRow = (row: DiffRow, palette: Palette): Element => {
 export const diffArea = (
   rows: DiffRow[],
   diffWidth: number,
-  showHint: boolean,
-  palette: Palette,
+  open: string | null,
+  fileCount: number,
 ): Element => {
+  const palette = colors();
+
   const area = div()
     .flex_1()
     .min_h(0)
@@ -191,7 +245,7 @@ export const diffArea = (
     )
     .child(Scrollbar.vertical('changes-diff').viewport_from_layout().absolute().inset_0());
 
-  if (showHint) {
+  if (showsSelectionHint(open, fileCount)) {
     area.child(
       div()
         .absolute()

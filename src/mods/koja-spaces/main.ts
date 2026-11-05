@@ -2,27 +2,21 @@ import { v_flex } from 'gpui-base';
 import type { AsyncContext, Context, Element } from 'gpui-kit';
 import { div, View } from 'gpui-kit';
 import type { SpaceInfo } from 'herdr';
-import { exec, hc, machines, openOverlay, panes, run, setShared, spaces, terminals } from 'herdr';
+import { hc, machines, openOverlay, panes, run, setShared, spaces, terminals } from 'herdr';
 
 import type { DragState } from '../../kit/drag.ts';
-import { dragLine, dropAction, noDrag, setDragOver, startDrag } from '../../kit/drag.ts';
-import type { StatusRollup, ThemeToken } from '../../kit/index.ts';
+import { dropAction, noDrag, setDragOver, startDrag } from '../../kit/drag.ts';
+import type { StatusRollup } from '../../kit/index.ts';
 import {
   colors,
   controlSize,
-  detailText,
   findLayoutNode,
-  foldChevron,
   layoutRoot,
-  listRow,
   overlaySize,
   railWidthLimit,
   repeat,
-  repoLabel,
   rollupStatuses,
-  spaceMark,
   spacing,
-  statusMark,
   textSize,
 } from '../../kit/index.ts';
 import { foldedSet } from './folded.ts';
@@ -31,16 +25,15 @@ import { machineRows } from './machineRows.ts';
 import type { Machine } from './machines.ts';
 import { isMachineLoading, readMachines } from './machines.ts';
 import { newSpaceArguments } from './newSpace.ts';
-import { pullFields, pullOf, pullState, readPullCaches, readPullList } from './pulls.ts';
+import { PullTracker } from './pullTracker.ts';
 import { railRow } from './rail.ts';
-import { labelDetail } from './rows.ts';
 import { createOrderPublisher } from './spaceOrder.ts';
-import type { ListedSpace, RepoRef, RepoRow, SpaceRow, TreeGroup, TreeRow } from './tree.ts';
+import type { RowState } from './spaceRows.ts';
+import { labelRow, row as spaceRow, rowTitle } from './spaceRows.ts';
+import type { ListedSpace, TreeGroup, TreeRow } from './tree.ts';
 import { nestSpaces, placesOf } from './tree.ts';
 import type { VisibilityResult, VisibilityState } from './visibility.ts';
 import { advanceVisibility, initialVisibility } from './visibility.ts';
-
-const pullsMaxAge = 180_000;
 
 const machinesMilliseconds = 15_000;
 
@@ -48,18 +41,9 @@ const pullsMilliseconds = 15_000;
 
 const checkMilliseconds = 250;
 
-const pullColors: Record<string, ThemeToken> = {
-  open: 'ansi2',
-  draft: 'dim',
-  merged: 'ansi5',
-  closed: 'ansi1',
-};
-
 const machinesFoldedKey = 'machines.folded';
 
 const reposFoldedKey = 'repos.folded';
-
-const pullsKey = 'pulls';
 
 const isNarrow = (): boolean => {
   const sidebar = findLayoutNode('sidebar');
@@ -81,11 +65,7 @@ const storage = {
 export default class Spaces extends View {
   private readonly git = new GitTracker();
 
-  private readonly pulls = readPullCaches(JSON.parse(localStorage.getItem(pullsKey) ?? '{}'));
-
-  private readonly pullsTried: Record<string, number> = {};
-
-  private readonly fetching = new Set<string>();
+  private readonly pulls = new PullTracker();
 
   private readonly foldedMachines = foldedSet(machinesFoldedKey, storage);
 
@@ -109,7 +89,7 @@ export default class Spaces extends View {
 
   override init(_props: unknown, cx: AsyncContext): void {
     repeat(cx, pullsMilliseconds, (timerCx) => {
-      this.refreshPulls(timerCx);
+      this.pulls.refresh(this.git.repositories(), timerCx);
     });
 
     this.refreshMachines(cx);
@@ -254,12 +234,35 @@ export default class Spaces extends View {
     lineAbove: boolean,
   ): Element {
     if (collapsed) {
-      const title = row.kind === 'repo' ? row.name : this.rowTitle(row);
+      const title = row.kind === 'repo' ? row.name : rowTitle(row, (git) => this.pulls.lookup(git));
 
       return railRow(row, title, lineAbove);
     }
 
-    return row.kind === 'repo' ? this.labelRow(row, ids) : this.row(row, ids);
+    const state: RowState = {
+      drag: this.drag,
+      hovered: this.hovered,
+      lookup: (git) => this.pulls.lookup(git),
+      attachDrag: (element, space, rowIds) => {
+        this.addDragHandlers(element, space, rowIds);
+      },
+      onHover: (spaceId, hovered, cx) => {
+        if (hovered) {
+          this.hovered = spaceId;
+        } else if (this.hovered === spaceId) {
+          this.hovered = null;
+        }
+
+        cx.notify();
+      },
+      toggleFold: (repoKey, cx) => {
+        this.drag = noDrag;
+        this.foldedRepos.toggle(repoKey);
+        cx.notify();
+      },
+    };
+
+    return row.kind === 'repo' ? labelRow(row, ids, state) : spaceRow(row, ids, state);
   }
 
   private grouped(collapsed: boolean): Element[] {
@@ -292,159 +295,6 @@ export default class Spaces extends View {
     this.order.publish(shownRows, ids);
 
     return elements;
-  }
-
-  private refreshPulls(cx: Context): void {
-    const now = Date.now();
-
-    for (const { repo, cwd } of this.git.repositories()) {
-      const last = Math.max(this.pulls[repo.key]?.fetchedAt ?? 0, this.pullsTried[repo.key] ?? 0);
-
-      if (this.fetching.has(repo.key) || now - last < pullsMaxAge) {
-        continue;
-      }
-
-      this.pullsTried[repo.key] = now;
-      this.fetchPulls(repo, cwd, cx);
-    }
-  }
-
-  private fetchPulls(repo: RepoRef, cwd: string, cx: Context): void {
-    this.fetching.add(repo.key);
-
-    cx.spawn(async (taskCx) => {
-      try {
-        const args = ['pr', 'list', '--state', 'all', '--limit', '100', '--json', pullFields];
-        const result = await exec('gh', args, { cwd, on: repo.machine });
-
-        if (result.code === 0) {
-          this.pulls[repo.key] = {
-            fetchedAt: Date.now(),
-            list: readPullList(JSON.parse(result.stdout)),
-          };
-
-          localStorage.setItem(pullsKey, JSON.stringify(this.pulls));
-          taskCx.notify();
-        }
-      } catch {
-        // The machine is away: keep what the rows showed.
-      } finally {
-        this.fetching.delete(repo.key);
-      }
-    });
-  }
-
-  private foldControls(row: RepoRow): Element[] {
-    const { fold, main } = row;
-
-    if (fold === null) {
-      return [];
-    }
-
-    const controls: Element[] = [];
-
-    if (fold.hidden > 0) {
-      controls.push(detailText(String(fold.hidden)));
-    }
-
-    if (this.hovered === main.space.id) {
-      controls.push(this.foldToggle(row));
-    }
-
-    return controls;
-  }
-
-  private foldToggle(row: RepoRow): Element {
-    const { fold, main, repo } = row;
-
-    return foldChevron(fold?.folded === true)
-      .id(`fold-${main.space.id}`)
-      .hover((style) => style.text_color(colors().foreground))
-      .on_mouse_down('left', (_event, cx) => {
-        cx.stop_propagation();
-      })
-      .on_mouse_up('left', (_event, cx) => {
-        cx.stop_propagation();
-        this.drag = noDrag;
-        this.foldedRepos.toggle(repo.key);
-        cx.notify();
-      });
-  }
-
-  private pullDetail(row: ListedSpace): Element[] {
-    const pull = pullOf(row.git, this.pulls);
-
-    if (pull === null) {
-      return [];
-    }
-
-    const token = pullColors[pullState(pull)] ?? 'dim';
-
-    return [detailText(`#${pull.number}`, colors()[token])];
-  }
-
-  private rowTitle(row: ListedSpace): string {
-    return row.space.named
-      ? row.space.name
-      : (pullOf(row.git, this.pulls)?.title ?? row.space.name);
-  }
-
-  private row(row: SpaceRow, ids: readonly string[]): Element {
-    const { space } = row;
-    const line = dragLine(this.drag, space.id, ids);
-
-    const element = listRow({
-      size: 'small',
-      inset: true,
-      state: space.active ? 'selected' : 'normal',
-      start: spaceMark(row.status),
-      label: this.rowTitle(row),
-      ...(line === undefined ? {} : { dropLine: line }),
-      dragged: this.drag.source === space.id && this.drag.over !== space.id,
-      end: this.pullDetail(row),
-    }).id(`space-${space.id}`);
-
-    this.addDragHandlers(element, space, ids);
-
-    return element;
-  }
-
-  private labelRow(row: RepoRow, ids: readonly string[]): Element {
-    const { main, name, fold } = row;
-    const { space } = main;
-    const line = dragLine(this.drag, space.id, ids);
-    const detail = labelDetail(main);
-
-    const element = listRow({
-      size: 'small',
-      inset: true,
-      state: space.active ? 'selected' : 'normal',
-      label: repoLabel({
-        name,
-        ...(detail === undefined ? {} : { detail }),
-        folded: fold?.folded === true,
-        selected: space.active,
-      }),
-      ...(line === undefined ? {} : { dropLine: line }),
-      dragged: this.drag.source === space.id && this.drag.over !== space.id,
-      end: [...this.foldControls(row), statusMark(main.status)],
-    }).id(`space-${space.id}`);
-
-    this.addDragHandlers(element, space, ids);
-
-    if (fold !== null) {
-      element.on_hover((hovered, cx) => {
-        if (hovered) {
-          this.hovered = space.id;
-        } else if (this.hovered === space.id) {
-          this.hovered = null;
-        }
-
-        cx.notify();
-      });
-    }
-
-    return element;
   }
 
   private addDragHandlers(element: Element, space: SpaceInfo, ids: readonly string[]): void {
