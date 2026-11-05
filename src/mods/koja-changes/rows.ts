@@ -24,46 +24,6 @@ import type { DiffRow } from './diffRows.ts';
 import { showsSelectionHint } from './selection.ts';
 import type { ChangeFile } from './status.ts';
 
-interface FileListState {
-  files: ChangeFile[];
-  open: string | null;
-  error: string | null;
-  loading: boolean;
-  root: string | null;
-  palette: Palette;
-  onPick: (path: string, cx: Context) => void;
-}
-
-interface CommitBarState {
-  input: InputState;
-  typing: boolean;
-  busy: boolean;
-  enabled: boolean;
-  palette: Palette;
-  onCommit: (cx: Context) => void;
-}
-
-interface PanelState {
-  files: ChangeFile[];
-  open: string | null;
-  error: string | null;
-  loading: boolean;
-  folder: string | null;
-  limited: boolean;
-  note: string | null;
-  busy: boolean;
-  hasSnapshot: boolean;
-  messageHasText: boolean;
-  rows: DiffRow[];
-  diffWidth: number;
-  input: InputState;
-  typing: boolean;
-  isTyping: () => boolean;
-  onEscape: () => void;
-  onPick: (path: string, cx: Context) => void;
-  onCommit: (cx: Context) => void;
-}
-
 const defaultFont = 'JetBrains Mono';
 
 const terminalFont = (): string => stringOf(settings()['font_family']) ?? defaultFont;
@@ -99,7 +59,12 @@ const fileListHeight = (count: number): number =>
     Math.max(diffSize.fileListHeightMinimum, count * rowHeight.medium + spacing.xlarge),
   );
 
-const headerRow = (files: ChangeFile[], add: number, del: number, palette: Palette): Element =>
+export const headerRow = (
+  files: ChangeFile[],
+  add: number,
+  del: number,
+  palette: Palette,
+): Element =>
   h_flex()
     .h(diffSize.headerHeight)
     .flex_none()
@@ -144,9 +109,15 @@ const fileRow = (
     });
 };
 
-const fileList = (state: FileListState): Element => {
-  const { files, open, error, loading, root, palette, onPick } = state;
-
+export const fileList = (
+  files: ChangeFile[],
+  open: string | null,
+  error: string | null,
+  loading: boolean,
+  root: string | null,
+  palette: Palette,
+  onPick: (path: string, cx: Context) => void,
+): Element => {
   const list = v_flex()
     .id('changes-list')
     .flex_none()
@@ -164,9 +135,14 @@ const fileList = (state: FileListState): Element => {
   return list;
 };
 
-const commitBar = (state: CommitBarState): Element => {
-  const { input, typing, busy, enabled, palette, onCommit } = state;
-
+export const commitBar = (
+  input: InputState,
+  typing: boolean,
+  busy: boolean,
+  enabled: boolean,
+  palette: Palette,
+  onCommit: (cx: Context) => void,
+): Element => {
   return h_flex()
     .flex_none()
     .p(spacing.large)
@@ -183,7 +159,7 @@ const commitBar = (state: CommitBarState): Element => {
     );
 };
 
-const limitedNotice = (palette: Palette): Element =>
+export const limitedNotice = (palette: Palette): Element =>
   div()
     .px(spacing.large)
     .py(spacing.xsmall)
@@ -191,7 +167,7 @@ const limitedNotice = (palette: Palette): Element =>
     .text_color(palette.dim)
     .child('Showing the first 1,000 changed files');
 
-const noteRow = (note: string, palette: Palette): Element =>
+export const noteRow = (note: string, palette: Palette): Element =>
   div()
     .px(spacing.large)
     .pb(spacing.medium)
@@ -232,12 +208,14 @@ const diffRow = (row: DiffRow, palette: Palette): Element => {
     .child(div().flex_1().min_w(0).truncate().child(row.text));
 };
 
-const diffArea = (
+export const diffArea = (
   rows: DiffRow[],
   diffWidth: number,
-  showHint: boolean,
-  palette: Palette,
+  open: string | null,
+  fileCount: number,
 ): Element => {
+  const palette = colors();
+
   const area = div()
     .flex_1()
     .min_h(0)
@@ -267,7 +245,7 @@ const diffArea = (
     )
     .child(Scrollbar.vertical('changes-diff').viewport_from_layout().absolute().inset_0());
 
-  if (showHint) {
+  if (showsSelectionHint(open, fileCount)) {
     area.child(
       div()
         .absolute()
@@ -279,66 +257,4 @@ const diffArea = (
   }
 
   return area;
-};
-
-export const changesPanel = (state: PanelState): Element => {
-  const {
-    files,
-    open,
-    error,
-    loading,
-    folder,
-    limited,
-    note,
-    busy,
-    hasSnapshot,
-    messageHasText,
-    rows,
-    diffWidth,
-    input,
-    typing,
-    isTyping,
-    onEscape,
-    onPick,
-    onCommit,
-  } = state;
-
-  const palette = colors();
-  const add = files.reduce((total, file) => total + file.add, 0);
-  const del = files.reduce((total, file) => total + file.del, 0);
-  const idle = !busy && !loading;
-  const ready = hasSnapshot && idle;
-  const enabled = ready && messageHasText;
-
-  const root = v_flex()
-    .id('changes')
-    .size_full()
-    .min_h(0)
-    .overflow_hidden()
-    .text_color(palette.foreground)
-    .text_size(textSize.default)
-    .on_key_down((event, keyCx) => {
-      if (event.key === 'escape' && isTyping()) {
-        onEscape();
-        keyCx.stop_propagation();
-        keyCx.notify();
-      }
-    })
-    .child(headerRow(files, add, del, palette));
-
-  root.child(fileList({ files, open, error, loading, root: folder, palette, onPick }));
-
-  if (limited) {
-    root.child(limitedNotice(palette));
-  }
-
-  root.child(diffArea(rows, diffWidth, showsSelectionHint(open, files.length), palette));
-
-  if (note !== null) {
-    root.child(noteRow(note, palette));
-  }
-
-  root.child(commitBar({ input, typing, busy, enabled, palette, onCommit }));
-
-  return root;
 };

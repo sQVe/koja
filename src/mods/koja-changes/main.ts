@@ -1,16 +1,16 @@
+import { InputState as InputStates, v_flex } from 'gpui-base';
 import type { InputState } from 'gpui-base';
-import { InputState as InputStates } from 'gpui-base';
 import type { AsyncContext, Context, Element, FocusHandle } from 'gpui-kit';
 import { View } from 'gpui-kit';
 import { exec, watchFolder } from 'herdr';
 
-import { repeat } from '../../kit/index.ts';
+import { colors, repeat, textSize } from '../../kit/index.ts';
 import { canCommit, hasText } from './commit.ts';
 import { DiffPreview } from './diffPreview.ts';
 import { commitAll, readChanges } from './git.ts';
 import type { ChangesSnapshot } from './git.ts';
 import { location, locationKey } from './location.ts';
-import { changesPanel } from './rows.ts';
+import { commitBar, diffArea, fileList, headerRow, limitedNotice, noteRow } from './rows.ts';
 import type { ChangeFile } from './status.ts';
 
 const refreshMilliseconds = 10000;
@@ -90,33 +90,59 @@ export default class Changes extends View {
       this.refresh(cx);
     }
 
-    const root = changesPanel({
-      files: this.files,
-      open: this.open,
-      error: this.error,
-      loading: this.loading,
-      folder: this.snapshot?.root ?? null,
-      limited: this.limited,
-      note: this.note,
-      busy: this.busy,
-      hasSnapshot: this.snapshot !== null,
-      messageHasText: hasText(this.message),
-      rows: this.preview.rows,
-      diffWidth: this.preview.diffWidth,
-      input: this.input,
-      typing: this.typing,
-      isTyping: () => this.typing,
-      onEscape: () => {
-        this.typing = false;
-        this.handle?.focus();
-      },
-      onPick: (path, clickCx) => {
-        this.pick(path, clickCx);
-      },
-      onCommit: (clickCx) => {
+    const palette = colors();
+    const add = this.files.reduce((total, file) => total + file.add, 0);
+    const del = this.files.reduce((total, file) => total + file.del, 0);
+    const idle = !this.busy && !this.loading;
+    const ready = this.snapshot !== null && idle;
+    const enabled = ready && hasText(this.message);
+
+    const root = v_flex()
+      .id('changes')
+      .size_full()
+      .min_h(0)
+      .overflow_hidden()
+      .text_color(palette.foreground)
+      .text_size(textSize.default)
+      .on_key_down((event, keyCx) => {
+        if (event.key === 'escape' && this.typing) {
+          this.typing = false;
+          this.handle?.focus();
+          keyCx.stop_propagation();
+          keyCx.notify();
+        }
+      })
+      .child(headerRow(this.files, add, del, palette));
+
+    root.child(
+      fileList(
+        this.files,
+        this.open,
+        this.error,
+        this.loading,
+        this.snapshot?.root ?? null,
+        palette,
+        (path, clickCx) => {
+          this.pick(path, clickCx);
+        },
+      ),
+    );
+
+    if (this.limited) {
+      root.child(limitedNotice(palette));
+    }
+
+    root.child(diffArea(this.preview.rows, this.preview.diffWidth, this.open, this.files.length));
+
+    if (this.note !== null) {
+      root.child(noteRow(this.note, palette));
+    }
+
+    root.child(
+      commitBar(this.input, this.typing, this.busy, enabled, palette, (clickCx) => {
         this.commit(clickCx);
-      },
-    });
+      }),
+    );
 
     return this.handle === null ? root : root.track_focus(this.handle);
   }
