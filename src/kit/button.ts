@@ -7,7 +7,7 @@ import { icon } from './icon.ts';
 import type { IconName } from './iconNames.ts';
 import type { Color } from './palette.ts';
 import { clearOf } from './palette.ts';
-import { actionHoverOpacity, controlSize, radius, spacing, textSize } from './size.ts';
+import { controlSize, radius, spacing, textSize } from './size.ts';
 import { colors } from './theme.ts';
 
 export type DialogButtonKind = 'solid' | 'danger' | 'outline';
@@ -63,6 +63,13 @@ const toggleTextColor = (options: ToggleButtonOptions): Color => {
   return options.quiet === true ? palette.dim : palette.muted;
 };
 
+const withFillRing = (button: Element, fill: Color, hovered: boolean): Element => {
+  const palette = colors();
+  const ringed = button.border(spacing.hairline).border_color(fill);
+
+  return withHover(ringed, hovered, (element) => element.border_color(palette.foreground));
+};
+
 export const actionButton = (options: ActionButtonOptions): Element => {
   const palette = colors();
 
@@ -81,12 +88,14 @@ export const actionButton = (options: ActionButtonOptions): Element => {
       .text_color(palette.solid_foreground)
       .cursor_pointer();
 
-    return withHover(enabledButton, options.hovered === true, (element) =>
-      element.opacity(actionHoverOpacity),
-    );
+    return withFillRing(enabledButton, palette.solid, options.hovered === true);
   }
 
-  return button.bg(palette.raised).text_color(palette.dim);
+  return button
+    .bg(palette.raised)
+    .text_color(palette.muted)
+    .border(spacing.hairline)
+    .border_color(palette.raised);
 };
 
 const dialogButtonBase = (label: string): Element =>
@@ -104,20 +113,15 @@ const solidDialogButton = (label: string, hovered: boolean): Element => {
   const palette = colors();
   const button = dialogButtonBase(label).bg(palette.solid).text_color(palette.solid_foreground);
 
-  return withHover(button, hovered, (element) => element.opacity(actionHoverOpacity));
+  return withFillRing(button, palette.solid, hovered);
 };
 
-// Dimming the fill would also dim the label below AA, so hover draws a ring instead.
 const dangerDialogButton = (label: string, hovered: boolean): Element => {
   const palette = colors();
 
-  const button = dialogButtonBase(label)
-    .border(spacing.hairline)
-    .border_color(palette.ansi1)
-    .bg(palette.ansi1)
-    .text_color(palette.popover);
+  const button = dialogButtonBase(label).bg(palette.ansi1).text_color(palette.popover);
 
-  return withHover(button, hovered, (element) => element.border_color(palette.foreground));
+  return withFillRing(button, palette.ansi1, hovered);
 };
 
 const outlineDialogButton = (label: string, hovered: boolean): Element => {

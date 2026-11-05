@@ -4,6 +4,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
 import { iconNames } from '../src/kit/iconNames.ts';
+import { badgeFillAlpha, diffFillAlpha } from '../src/kit/palette.ts';
 import { modsDirectory, typeScriptFiles } from './sourceFiles.ts';
 
 interface SourceLine {
@@ -18,7 +19,13 @@ interface ThemeFile {
   colors: Record<string, string>;
 }
 
+interface Fill {
+  alpha: string;
+  token: string;
+}
+
 interface ContrastPair {
+  fill?: Fill;
   minimum: number;
   reason: string;
   surface: string;
@@ -174,6 +181,14 @@ const contrastPair = (
   reason: string,
 ): ContrastPair => ({ text, surface, minimum, reason });
 
+const filledPair = (
+  text: string,
+  fill: Fill,
+  surface: string,
+  minimum: number,
+  reason: string,
+): ContrastPair => ({ text, fill, surface, minimum, reason });
+
 const rowSurfaces = ['chrome', 'popover', 'hover', 'selected'];
 
 const rowPairs = (): ContrastPair[] => {
@@ -221,6 +236,18 @@ const rowPairs = (): ContrastPair[] => {
   pairs.push(contrastPair('accent', 'hover', 4.5, 'highlightedText match on hover'));
   pairs.push(contrastPair('accent', 'selected', 4.5, 'highlightedText match on selected'));
 
+  rowSurfaces.concat('background').forEach((surface) => {
+    pairs.push(
+      filledPair(
+        'foreground',
+        { alpha: badgeFillAlpha, token: 'blocked' },
+        surface,
+        4.5,
+        `attentionBadge label on ${surface}`,
+      ),
+    );
+  });
+
   ['chrome', 'hover', 'selected'].forEach((surface) => {
     pairs.push(
       contrastPair('ansi5', surface, 4.5, `merged pull text in koja-spaces on ${surface}`),
@@ -245,45 +272,85 @@ const backgroundPairs = (): ContrastPair[] => [
   contrastPair('working', 'background', 3, 'statusMark working in a pane header on background'),
   contrastPair('done', 'background', 3, 'statusMark done in a pane header on background'),
   contrastPair('accent', 'background', 3, 'focused textField outline on background'),
+  filledPair(
+    'muted',
+    { alpha: diffFillAlpha, token: 'ansi1' },
+    'background',
+    4.5,
+    'Changes diff line number and line text on the removal tint',
+  ),
+  filledPair(
+    'foreground',
+    { alpha: diffFillAlpha, token: 'ansi1' },
+    'background',
+    4.5,
+    'Changes diff line text on the removal tint',
+  ),
+  filledPair(
+    'muted',
+    { alpha: diffFillAlpha, token: 'ansi2' },
+    'background',
+    4.5,
+    'Changes diff line number and line text on the addition tint',
+  ),
+  filledPair(
+    'foreground',
+    { alpha: diffFillAlpha, token: 'ansi2' },
+    'background',
+    4.5,
+    'Changes diff line text on the addition tint',
+  ),
 ];
 
 const contrastPairs = (): ContrastPair[] => [
   ...rowPairs(),
   ...backgroundPairs(),
-  contrastPair('dim', 'raised', 4.5, 'koja-changes diff hunk header on raised'),
+  contrastPair(
+    'muted',
+    'raised',
+    4.5,
+    'koja-changes diff hunk header and disabled actionButton label on raised',
+  ),
   contrastPair('solid_foreground', 'solid', 4.5, 'actionButton label on solid'),
   contrastPair('solid', 'popover', 3, 'actionButton fill on popover'),
   contrastPair('popover', 'ansi1', 4.5, 'dialogButton danger label on ansi1'),
 ];
 
-const knownFailures = [
-  'accent on hover',
-  'accent on selected',
-  'ansi1 on background',
-  'ansi1 on chrome',
-  'ansi1 on hover',
-  'ansi1 on selected',
-  'ansi2 on background',
-  'ansi2 on chrome',
-  'ansi2 on hover',
-  'ansi2 on selected',
-  'ansi5 on chrome',
-  'ansi5 on hover',
-  'ansi5 on selected',
-  'blocked on background',
-  'blocked on hover',
-  'blocked on selected',
-  'dim on background',
-  'dim on chrome',
-  'dim on hover',
-  'dim on popover',
-  'dim on raised',
-  'dim on selected',
-  'idle on hover',
-  'idle on selected',
-  'solid_foreground on solid',
-  'working on selected',
-];
+const blendChannel = (
+  fillChannel: number,
+  surfaceChannel: number,
+  alphaFraction: number,
+): string => {
+  const blended = fillChannel * alphaFraction + surfaceChannel * (1 - alphaFraction);
+
+  return Math.round(blended).toString(16).padStart(2, '0');
+};
+
+const blendOver = (fill: Fill, surfaceColor: string, palette: Record<string, string>): string => {
+  const fillColor = palette[fill.token];
+
+  if (fillColor === undefined) {
+    throw new Error(`The palette has no ${fill.token} fill`);
+  }
+
+  const alphaFraction = Number.parseInt(fill.alpha, 16) / 255;
+  const [fillRed, fillGreen, fillBlue] = hexChannels(fillColor);
+  const [surfaceRed, surfaceGreen, surfaceBlue] = hexChannels(surfaceColor);
+
+  const red = blendChannel(fillRed, surfaceRed, alphaFraction);
+  const green = blendChannel(fillGreen, surfaceGreen, alphaFraction);
+  const blue = blendChannel(fillBlue, surfaceBlue, alphaFraction);
+
+  return `#${red}${green}${blue}`;
+};
+
+const pairKey = (pair: ContrastPair): string => {
+  if (pair.fill === undefined) {
+    return `${pair.text} on ${pair.surface}`;
+  }
+
+  return `${pair.text} on ${pair.fill.token} ${pair.fill.alpha} over ${pair.surface}`;
+};
 
 const contrastResult = (pair: ContrastPair, palette: Record<string, string>): ContrastResult => {
   const color = palette[pair.text];
@@ -293,8 +360,11 @@ const contrastResult = (pair: ContrastPair, palette: Record<string, string>): Co
     throw new Error(`The palette has no ${pair.text} on ${pair.surface}`);
   }
 
-  const ratio = contrastRatio(color, surfaceColor);
-  const line = `${pair.text} on ${pair.surface}: ${ratio.toFixed(2)}:1, needs ${pair.minimum}:1`;
+  const measuredSurface =
+    pair.fill === undefined ? surfaceColor : blendOver(pair.fill, surfaceColor, palette);
+
+  const ratio = contrastRatio(color, measuredSurface);
+  const line = `${pairKey(pair)}: ${ratio.toFixed(2)}:1, needs ${pair.minimum}:1`;
 
   return { line, passed: ratio >= pair.minimum };
 };
@@ -337,7 +407,27 @@ describe('the UI language', () => {
     expect(result.line).toBe('foreground on popover: 3.54:1, needs 4.5:1');
   });
 
-  test('the real theme fails contrast only for the known failures', async () => {
+  test('the contrast check blends a see-through fill over its surface', () => {
+    const fixture = paletteFromTheme({
+      ansi: [],
+      colors: { blocked: '#ff0000', foreground: '#000000', popover: '#ffffff' },
+    });
+
+    const pair: ContrastPair = {
+      fill: { alpha: '26', token: 'blocked' },
+      minimum: 4.5,
+      reason: 'fixture filled pair',
+      surface: 'popover',
+      text: 'foreground',
+    };
+
+    const result = contrastResult(pair, fixture);
+
+    expect(result.passed).toBe(true);
+    expect(result.line).toBe('foreground on blocked 26 over popover: 16.18:1, needs 4.5:1');
+  });
+
+  test('the real theme passes every checked contrast pair', async () => {
     const theme = JSON.parse(await readFile(themePath, 'utf8')) as ThemeFile;
     const palette = paletteFromTheme(theme);
     const pairs = contrastPairs();
@@ -347,21 +437,11 @@ describe('the UI language', () => {
       .filter((result) => !result.passed)
       .map((result) => result.line);
 
-    const expected = knownFailures.map((key) => {
-      const match = pairs.find((pair) => `${pair.text} on ${pair.surface}` === key);
-
-      if (match === undefined) {
-        throw new Error(`The known failure "${key}" is not a checked pair`);
-      }
-
-      return contrastResult(match, palette).line;
-    });
-
-    expect(failed.toSorted()).toEqual(expected.toSorted());
+    expect(failed).toEqual([]);
   });
 
   test('every checked contrast pair names its text and surface once', () => {
-    const keys = contrastPairs().map((pair) => `${pair.text} on ${pair.surface}`);
+    const keys = contrastPairs().map(pairKey);
 
     expect(new Set(keys).size).toBe(keys.length);
   });

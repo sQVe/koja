@@ -21,7 +21,7 @@ export const textRoles: Record<TextRole, TextRoleStyle> = {
   body: { size: textSize.default, weight: 'regular', color: 'foreground' },
   sectionHeading: { size: textSize.small, weight: 'semibold', color: 'muted' },
   detail: { size: textSize.small, weight: 'regular', color: 'dim' },
-  badge: { size: textSize.xsmall, weight: 'semibold', color: 'blocked' },
+  badge: { size: textSize.xsmall, weight: 'semibold', color: 'foreground' },
 };
 
 export const withTextRole = (element: Element, role: TextRole, color?: ThemeToken): Element => {

@@ -166,7 +166,7 @@ const diffRow = (row: DiffRow, palette: Palette): Element => {
       .flex_none()
       .truncate()
       .bg(palette.raised)
-      .text_color(palette.dim)
+      .text_color(palette.muted)
       .child(row.text);
   }
 
@@ -184,7 +184,7 @@ const diffRow = (row: DiffRow, palette: Palette): Element => {
         .w(diffSize.lineNumberWidth)
         .flex_none()
         .text_right()
-        .text_color(palette.dim)
+        .text_color(palette.muted)
         .child(row.number === undefined ? '' : String(row.number)),
     )
     .child(div().flex_1().min_w(0).truncate().child(row.text));
