@@ -51,7 +51,21 @@ border for focus. The frame, panes, terminals, sidebar, and tab bar all share th
 - Panes and the side panel are rounded cards with a faint `selected` outline.
 - Pane titles use the detail role, 11 px Regular. The focused pane's title is `foreground` and its
   icon `muted`; an unfocused pane's title is `muted` and its icon `dim`.
-- Focus also shows as the `accent` border. Koja adds no other focus mark.
+- Focus also shows as the `accent` border, and the focused pane's header draws a faint fill from the
+  kit's focus value. Herdr cannot dim or tint an unfocused terminal, so the header is the one place
+  Koja can mark focus beyond the border. Koja adds no other focus mark.
+
+### Pane headers
+
+- A pane header shows, in order: program icon, name, the agent's task, branch, folder, and status,
+  then its buttons. Its text uses the detail role.
+- The branch shows only when it differs from its space's branch.
+- When the header narrows, the folder cuts in the middle down to a minimum width, then drops whole.
+  The branch does the same next. The task cuts at its end last.
+- Once a field drops, or the header is narrower than the compact width, one always-visible overflow
+  button replaces the split, zoom, and close buttons. Its menu lists the task, branch, and folder as
+  plain detail lines above those actions, so no field is out of reach.
+- Every header button carries an accessible name beside its tooltip.
 
 ### Rows
 
@@ -74,6 +88,8 @@ border for focus. The frame, panes, terminals, sidebar, and tab bar all share th
 
 - Only one of these gets a fill: a selected row, the active tab, or the active toggle. A hovered one
   of them draws no fill.
+- The focused pane header's focus fill is the one exception. It marks focus only: selection, hover,
+  and agent status never draw it.
 - A hovered list row, tab, or toggle draws a 1 px pill outline in `selected`. A hovered tab or
   toggle also brightens its text and icon to `foreground`.
 - If people find a selected item hard to tell from a hovered one, the kit adds one second cue to
@@ -98,9 +114,15 @@ border for focus. The frame, panes, terminals, sidebar, and tab bar all share th
   A selected row is therefore a pill.
 - A pill sits inside the bar on its own, so it works with any gap between the bar and the pane
   cards.
+- The panel switcher is a row of icon-only toggles. Each names its panel in a tooltip and an
+  accessible name, so four panels fit at the bar's right end.
+- Normal mode shows as a "Normal" pill with `accent` text in a `selected` outline. It is a status
+  label, not a control, and shows only while normal mode is on.
 
 ### Status marks
 
+- Done draws a small check icon in `done` green. Needs you stays a `blocked` dot, or the badge where
+  there is room, and working stays the spinner, so shape as well as color tells the states apart.
 - A sidebar space with no agent shows a hollow ring in the `border` color, so every space row has a
   mark and the list reads as one column. The ring is quieter than the filled idle dot, so it does
   not read as a state. Rows outside the sidebar, such as tabs and picker rows, keep an empty slot.
@@ -161,6 +183,7 @@ preview inside one framed overlay, so the list rounds only its own two outer cor
 - One fixed density and two row heights leave no room for a compact or roomy setting.
 - Popups and rows appear without a fade, because Herdr cannot animate a first appearance.
 - Hover is a faint outline, so selection and hover rely on fill alone until a second cue is needed.
+- The focus fill is a second kind of fill, so a focused header may at first read as selected.
 - Each mod must track its reads per resource to show error and stale lines, which adds state to
   every mod that reads.
 
@@ -200,6 +223,26 @@ short sooner than IBM Plex Sans did.
 
 Use another installed sans font. Rejected because neither ships with Herdr, while Geist does, so
 Koja would depend on a font the machine may lack.
+
+### Focus shown by the border and title alone
+
+Keep the accent border and brighter title as the only focus marks. Rejected because in a split tab
+the focused pane was hard to find at a glance, and Herdr cannot dim the other panes instead.
+
+### Done as a green dot
+
+Draw done as a dot in `done` green, as before. Rejected because only color then told done from needs
+you.
+
+### Labelled panel switcher tabs
+
+Show each panel's name as text in the tab bar. Rejected because four labelled panels crowd the tabs
+out of the bar.
+
+### Header fields that only show on hover
+
+Hide dropped fields and show them in a tooltip on hover. Rejected because a keyboard or touch user
+could not reach them, while the overflow menu is always visible.
 
 ### Flat side panel with a divider
 

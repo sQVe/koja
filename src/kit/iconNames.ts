@@ -1,9 +1,11 @@
 export const iconNames = [
+  'check',
   'chevron-down',
   'chevron-right',
   'circle-alert',
   'columns-2',
   'command',
+  'ellipsis',
   'file',
   'folder',
   'folder-open',

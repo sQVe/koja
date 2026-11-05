@@ -35,6 +35,16 @@ export interface ActionButtonOptions extends HoverOptions {
   enabled: boolean;
 }
 
+export interface IconToggleOptions extends HoverOptions {
+  name: IconName;
+  label: string;
+  active: boolean;
+}
+
+export interface ModePillOptions {
+  label: string;
+}
+
 export const iconButton = (options: IconButtonOptions): Element => {
   const palette = colors();
   const side = options.size === 'small' ? controlSize.smallButton : controlSize.button;
@@ -147,6 +157,51 @@ export const dialogButton = (options: DialogButtonOptions): Element => {
   }
 
   return solidDialogButton(options.label, hovered);
+};
+
+export const iconToggle = (options: IconToggleOptions): Element => {
+  const palette = colors();
+
+  const button = h_flex()
+    .size(controlSize.button)
+    .flex_none()
+    .items_center()
+    .justify_center()
+    .rounded(radius.pill)
+    .cursor_pointer()
+    // A clear border on every toggle, so the outline a hovered toggle draws never shifts its content.
+    .border(spacing.hairline)
+    .border_color(clearOf(palette.selected))
+    .child(icon(options.name, 'small'))
+    .accessibility_label(options.label)
+    .tooltip(options.label);
+
+  if (options.active) {
+    return button.bg(palette.selected).text_color(palette.foreground);
+  }
+
+  button.text_color(palette.muted);
+
+  return withHover(button, options.hovered === true, (element) =>
+    element.border_color(palette.selected).text_color(palette.foreground),
+  );
+};
+
+// The mode pill is a status label, not a control: it shows only while normal mode is on.
+export const modePill = (options: ModePillOptions): Element => {
+  const palette = colors();
+
+  return h_flex()
+    .h(controlSize.button)
+    .px(spacing.small)
+    .flex_none()
+    .items_center()
+    .rounded(radius.pill)
+    .border(spacing.hairline)
+    .border_color(palette.selected)
+    .text_size(textSize.small)
+    .text_color(palette.accent)
+    .child(options.label);
 };
 
 export const toggleButton = (options: ToggleButtonOptions): Element => {

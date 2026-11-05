@@ -166,7 +166,7 @@ describe('scene picker', () => {
     expect(closeCount).toBe(1);
   });
 
-  const scenes = ['sidebar', 'states', 'popup', 'controls'];
+  const scenes = ['sidebar', 'states', 'popup', 'controls', 'shell', 'pane-headers'];
 
   test.each(scenes)('submitting %s opens its window at its catalog size', async (name) => {
     const view = await loadView();

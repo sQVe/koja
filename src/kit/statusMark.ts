@@ -5,7 +5,7 @@ import type { Status } from 'herdr';
 
 import type { FileStatus } from './fileStatus.ts';
 import { fileStatusColor } from './fileStatus.ts';
-import { spinner } from './icon.ts';
+import { icon, spinner } from './icon.ts';
 import type { ThemeToken } from './palette.ts';
 import { badgeFillAlpha, withAlpha } from './palette.ts';
 import { controlSize, markSize, radius, spacing, textSize } from './size.ts';
@@ -41,6 +41,10 @@ export const statusMark = (status: Status | null): Element => {
 
   if (status === 'idle') {
     return slot.child(dot(markSize.quietDot, palette.idle));
+  }
+
+  if (status === 'done') {
+    return slot.child(icon('check', 'small').text_color(palette.done));
   }
 
   return slot.child(dot(markSize.dot, palette[status]));

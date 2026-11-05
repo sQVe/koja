@@ -30,6 +30,8 @@ export const radius = {
   default: 4,
   pill: 6,
   dialog: 8,
+  // A card's inner radius, one px less than its border, so a header fill fits its top corners.
+  cardInner: 7,
 } as const;
 
 export const rowHeight = {
@@ -64,6 +66,44 @@ export const controlSize = {
   tabLabelMaxWidth: 170,
 } as const;
 
+export const shellSize = {
+  sidebarWidth: 240,
+  panelWidth: 300,
+  specimenBodyHeight: 28,
+  wideSpecimenWidth: 884,
+  folderCutWidth: 700,
+  branchCutWidth: 470,
+  taskCutWidth: 360,
+  compactSpecimenWidth: 260,
+  focusedPaneShare: 7,
+  shellPaneShare: 3,
+  focusedPaneWidth: 487,
+  shellPaneWidth: 209,
+} as const;
+
+// The header budgets width from the glyph estimate, so a field shows in full while it fits; a
+// field leaves whole before the next one gives up any width, and any drop makes the header compact.
+// `glyph` is the average advance of a Detail-role glyph at 11 px Geist, read from a capture.
+const headerActionCount = 4;
+const headerActionGaps = 3;
+const headerGapCount = 6;
+const headerBranchIcon = iconSize.small + spacing.xsmall;
+const fieldMinimumWidth = 120;
+
+export const paneHeaderWidth = {
+  compact: 280,
+  glyph: 6,
+  padding: spacing.large * 2,
+  icon: iconSize.default,
+  branchIcon: headerBranchIcon,
+  gaps: spacing.medium * headerGapCount,
+  status: 60,
+  actions: controlSize.button * headerActionCount + spacing.xxsmall * headerActionGaps,
+  overflowAction: controlSize.button,
+  menuWidth: 240,
+  fieldMinimum: fieldMinimumWidth,
+} as const;
+
 export const markSize = {
   slot: 12,
   dot: 6,
@@ -92,6 +132,10 @@ export const overlaySize = {
   pickerWidthShare: 0.6,
   pickerHeightShare: 0.7,
   topOffset: 40,
+  shellWidth: 1260,
+  shellHeight: 760,
+  paneHeadersWidth: 900,
+  paneHeadersHeight: 760,
 } as const;
 
 export const railWidthLimit = 160;
