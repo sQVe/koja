@@ -4,6 +4,8 @@
 #   move x0 y0 x1 y1        glide the pointer, no buttons
 #   click x y [button]      button: 1 left (default), 3 right
 #   drag x0 y0 x1 y1        press, glide, release
+#   scroll x y [notches]    wheel at x y: notches > 0 down (default 1), < 0 up. Dragging a
+#                           scrollbar thumb does not scroll Herdr views; use this.
 #   hold|release <keysym>...   keep keys down across commands, e.g. `hold Control_L`
 #   type <text>             type it (keys of the X keymap; shift as needed)
 #   key <keysym> [mods...]  one key, e.g. `key Return`, `key l Control_L`
@@ -82,6 +84,15 @@ def button(n, down):
     d.sync()
 
 
+def wheel(notches):
+    # X11 reports the wheel as buttons 4 (up) and 5 (down), one press per notch.
+    wheel_button = 5 if notches > 0 else 4
+    for _ in range(abs(notches)):
+        button(wheel_button, True)
+        button(wheel_button, False)
+        time.sleep(0.05)
+
+
 def key(sym, mods=()):
     code = d.keysym_to_keycode(XK.string_to_keysym(sym))
     held = [d.keysym_to_keycode(XK.string_to_keysym(m)) for m in mods]
@@ -120,6 +131,10 @@ if sys.argv[1] == "sequence":
                 code = d.keysym_to_keycode(XK.string_to_keysym(sym))
                 xtest.fake_input(d, X.KeyPress if cmd == "hold" else X.KeyRelease, code)
             d.sync()
+        elif cmd == "scroll":
+            to(args[0], args[1])
+            time.sleep(0.1)
+            wheel(int(args[2]) if len(args) > 2 else 1)
         elif cmd in ("press", "lift"):
             cursor = "grab" if cmd == "press" else "arrow"
             publish_pointer()
@@ -162,6 +177,10 @@ elif cmd == "click":
     button(b, True)
     time.sleep(0.05)
     button(b, False)
+elif cmd == "scroll":
+    to(args[0], args[1])
+    time.sleep(0.2)
+    wheel(int(args[2]) if len(args) > 2 else 1)
 elif cmd == "drag":
     to(args[0], args[1])
     time.sleep(0.2)
