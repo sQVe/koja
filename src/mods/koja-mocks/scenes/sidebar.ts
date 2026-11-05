@@ -34,15 +34,12 @@ interface FakeRepo {
   spaces: FakeSpace[];
 }
 
-// The fake clock the scene's ages count back from, in seconds.
 const fakeNow = 1_800_000_000;
 
-// When each repository's main branch last changed, in seconds.
 const kojaCommittedAt = 1_799_992_200;
 
 const tikkCommittedAt = 1_799_740_800;
 
-// When the last read of koja's pull requests worked, in seconds.
 const kojaPullsReadAt = 1_799_999_640;
 
 const ageOf = (thenSeconds: number): string => shortAge(thenSeconds, fakeNow);

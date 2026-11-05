@@ -10,9 +10,6 @@ import { modsDirectory, typeScriptFiles } from './sourceFiles.ts';
 
 let textFixture: string | null = null;
 
-// Every method in Herdr's element type that sets a text size or a font weight. Mods pick a role
-// from the kit instead, so these stay in the kit. `font_family` sets a face, not a weight, so it
-// stays allowed.
 const rawTextMethods = new Set([
   'text_size',
   'text_2xl',
@@ -72,8 +69,6 @@ const memberName = (callee: CallExpression['callee']): string | null => {
   return isStringLiteral ? property.value : null;
 };
 
-// A call whose callee is a member named one of the setters, as `.name` or `['name']`. The member
-// name's start offset is the position to report, so a call split over lines still points at it.
 const setterStart = (node: CallExpression): number | null => {
   const name = memberName(node.callee);
   const named = name !== null && rawTextMethods.has(name);

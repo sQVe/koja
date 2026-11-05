@@ -30,10 +30,8 @@ const kindLines = (kind: StateKind): Element =>
         .child(stateLine({ kind, text: stateText[kind], action: retry() })),
     );
 
-// The fake clock the stale rows' age counts back from, in seconds.
 const staleNow = 1_800_000_000;
 
-// Four minutes before the clock, so the stale rows read "4m".
 const staleAgeSeconds = 240;
 
 const staleFiles = ['src/kit/size.ts', 'src/kit/stateLine.ts', 'src/mods/koja-gallery/states.ts'];

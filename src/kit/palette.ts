@@ -58,7 +58,6 @@ const expandShortHex = (hex: string): string =>
     .map((digit) => `${digit}${digit}`)
     .join('');
 
-// The same color at zero opacity. A theme color may already carry an alpha, so it is dropped first.
 export const clearOf = (color: Color): Color => {
   const hex = color.slice(1);
   const isShort = hex.length <= shortHexLength + 1;

@@ -7,7 +7,6 @@ import { colors } from './theme.ts';
 
 export type TextRole = 'viewTitle' | 'title' | 'body' | 'sectionHeading' | 'detail' | 'badge';
 
-// Geist ships real faces only at 400 and 600; other weights are synthesized.
 type TextWeight = 'regular' | 'semibold';
 
 interface TextRoleStyle {

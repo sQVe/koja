@@ -63,7 +63,6 @@ const panel = (count: string | null, content: Element[]): Element =>
     .child(panelHeader(count))
     .child(v_flex().py(spacing.xsmall).children(content));
 
-// The fake clock the stale card's age counts back from, in seconds.
 const fakeNow = 1_800_000_000;
 
 const lastGoodRead = 1_799_999_760;
