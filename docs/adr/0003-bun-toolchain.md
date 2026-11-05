@@ -32,6 +32,9 @@ mod. One runtime covers the tooling, the build, the installer, and every test.
 - Vite+ stays for lint, formatting, and staged checks. TypeScript, Knip, and Changesets also stay.
 - Scripts and hooks run installed command-line tools with `bunx --bun`, so tools with a Node shebang
   run on Bun.
+- The CI job that reports mutation survivors runs on Node with `npx`, not Bun. It holds a token that
+  can write pull request comments, so it installs nothing from the repository and runs a pinned
+  published reporter instead, which needs Node.
 
 ## Consequences
 
