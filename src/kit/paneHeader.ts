@@ -70,7 +70,6 @@ const middleLabel = (text: string): Element =>
     .tooltip(text)
     .child(text);
 
-// The branch icon and its text are one field, hidden whole, so the icon never shows without it.
 const branchElement = (branch: string, state: PaneHeaderFieldState): Element =>
   fieldWidth(
     h_flex()
@@ -108,8 +107,6 @@ const headerAction = (name: IconName, label: string, action: (() => void) | unde
 const headerButtons = (options: PaneHeaderOptions): Element[] =>
   paneActions(options).map((entry) => headerAction(entry.icon, entry.label, entry.action));
 
-// A drop, or a header below the compact width, replaces the four actions with one overflow
-// button that stays visible. Its callback opens the pane menu in the live mod.
 const actionRow = (fields: PaneHeaderFields, options: PaneHeaderOptions): Element => {
   if (fields.compact) {
     return h_flex()
@@ -127,7 +124,6 @@ export const paneHeader = (options: PaneHeaderOptions): Element => {
   const fields = paneHeaderFields(options);
   const iconColor = options.focused ? palette.muted : palette.dim;
 
-  // The header owns the hover and width reports, so hovering anywhere on it reveals the actions.
   const header = h_flex()
     .h(controlSize.sectionHeader)
     .flex_none()

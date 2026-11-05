@@ -11,7 +11,6 @@ const longTask = 'Move pane headers onto the shared kit part';
 const longBranch = 'me-1089-window-shell-layout-and-tab-bar';
 const longFolder = '~/code/koja/packages/desktop/src/mods/koja-mocks';
 
-// With the name and the four actions, the fixed width is 302 px; the overflow action frees 72 px.
 const fixedWithFour = 302;
 const fixedCompact = 230;
 const branchFull = branch.length * paneHeaderWidth.glyph + paneHeaderWidth.branchIcon;

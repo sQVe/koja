@@ -159,7 +159,6 @@ export const dialogButton = (options: DialogButtonOptions): Element => {
   return solidDialogButton(options.label, hovered);
 };
 
-// An icon-only panel toggle. Its name lives in a tooltip, because the icon alone cannot say it.
 export const iconToggle = (options: IconToggleOptions): Element => {
   const palette = colors();
 

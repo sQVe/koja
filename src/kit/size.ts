@@ -97,12 +97,10 @@ export const paneHeaderWidth = {
   icon: iconSize.default,
   branchIcon: headerBranchIcon,
   gaps: spacing.medium * headerGapCount,
-  // The widest status, the "Needs you" badge.
   status: 60,
   actions: controlSize.button * headerActionCount + spacing.xxsmall * headerActionGaps,
   overflowAction: controlSize.button,
   menuWidth: 240,
-  // The width a cut field keeps, including the branch icon, before it drops whole.
   fieldMinimum: fieldMinimumWidth,
 } as const;
 

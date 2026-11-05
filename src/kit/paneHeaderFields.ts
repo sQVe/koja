@@ -28,8 +28,6 @@ interface FieldSizes {
 
 const isPresent = (text: string | undefined): text is string => text !== undefined && text !== '';
 
-// The header budgets width from the glyph estimate, so a field shows in full while it fits, cuts in
-// the middle while it keeps its minimum width, and only then leaves whole.
 const estimate = (text: string): number => text.length * paneHeaderWidth.glyph;
 
 const baseWidth = (name: string, actions: number): number =>
