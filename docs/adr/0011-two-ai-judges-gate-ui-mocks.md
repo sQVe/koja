@@ -30,6 +30,13 @@ The judges are `openai/gpt-6.1-sol` and `claude-opus-5-5`. They come from differ
 so they share fewer blind spots. Each judge works alone and does not see the other judge's answer. A
 project skill runs each round and holds the procedure, so the procedure can change without code.
 
+Hill-climb mode runs the same gate over rounds while the session changes the design. The session
+keeps a change when both judges' comparisons call the new capture better, or when it passes the gate
+and the last kept design fails it. The mode stops after two rounds in a row where both judges pass
+and the keep rule keeps no change. Severity 1 findings and improvements are advice for the next
+change, not a block. The comparison tracks progress and is not the gate. A change to `hill-climb.md`
+needs no smoke test run, because the pass check does not use it.
+
 ### Mocks
 
 - A scene uses the kit's real parts and fake data. It lives in the committed `koja-mocks` mod.

@@ -114,6 +114,30 @@ Keep each round's files in `.tau/judge/<mock>/`. Git ignores that folder.
     check which earlier findings are fixed. Do this check yourself, in the session, and do not tell
     the judges.
 
+## Hill-climb mode
+
+Hill-climb mode runs rounds until the design stops improving. Each round runs steps 1 to 9 as they
+are, including the pass rule and the `needs evidence` retry. Every path in those steps moves to the
+round folder `.tau/judge/<scene>/round-<n>/`. Capture with:
+
+```sh
+bun run mock:capture <scene> .tau/judge/<scene>/round-<n>
+```
+
+The judge task also names `.pi/skills/judge-mock/hill-climb.md`. From round two, it also names the
+previous kept capture's `shot.png` and `crop.png`. When `.tau/slices/ui-direction/brief.md` exists,
+the task also names it. Without the brief, the mode runs the same way. Judges still never see
+earlier findings, verdicts, or this `SKILL.md`.
+
+Between rounds, the session changes the design from the findings and improvements. It keeps a change
+when both judges' comparisons call the new capture better. It also keeps a change that passes the
+gate when the last kept design fails it. Otherwise it undoes the change, and the next round compares
+against the last kept capture.
+
+Stop rule: stop after two rounds in a row where both judges pass and the keep rule keeps no change.
+Severity 1 findings and improvements are advice for the next change, not a block. The session
+decides this from the answers.
+
 ## Rules
 
 - Never show a judge the other judge's answer, an earlier verdict, or an earlier finding.
@@ -136,4 +160,5 @@ They are not results from a judge run.
 | `smoke-3` | fail             | Every command label is blank.                              |
 | `smoke-4` | pass             | One row is smaller than its neighbors.                     |
 
-Run the smoke test again when a judge model, `judge.md`, or what step 6 gives the judges changes.
+Run the smoke test again when a judge model, `judge.md`, or what step 6 gives the judges changes. A
+change to `hill-climb.md` needs no smoke test run, because the pass check does not use it.
