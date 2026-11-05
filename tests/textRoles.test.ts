@@ -3,8 +3,8 @@ import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
-import type { Node } from 'oxc-parser';
-import { parseSync } from 'oxc-parser';
+import type { CallExpression } from 'oxc-parser';
+import { parseSync, Visitor } from 'oxc-parser';
 
 import { modsDirectory, typeScriptFiles } from './sourceFiles.ts';
 
@@ -58,11 +58,7 @@ const lineAt = (source: string, index: number): number => {
 
 // A call whose callee is a member named one of the setters. The member name's start offset is the
 // position to report, so a call split over lines still points at the setter.
-const setterStart = (node: Node): number | null => {
-  if (node.type !== 'CallExpression') {
-    return null;
-  }
-
+const setterStart = (node: CallExpression): number | null => {
   const callee = node.callee;
 
   if (callee.type !== 'MemberExpression' || callee.computed) {
@@ -76,32 +72,6 @@ const setterStart = (node: Node): number | null => {
   }
 
   return rawTextMethods.has(property.name) ? property.start : null;
-};
-
-const walk = (node: unknown, visit: (node: Node) => void): void => {
-  if (Array.isArray(node)) {
-    node.forEach((child) => {
-      walk(child, visit);
-    });
-
-    return;
-  }
-
-  if (typeof node !== 'object' || node === null) {
-    return;
-  }
-
-  const record = node as Record<string, unknown>;
-
-  if (typeof record['type'] === 'string') {
-    visit(node as Node);
-  }
-
-  Object.entries(record).forEach(([key, value]) => {
-    if (key !== 'parent') {
-      walk(value, visit);
-    }
-  });
 };
 
 const rawTextFindings = async (directory: string): Promise<string[]> => {
@@ -120,17 +90,21 @@ const rawTextFindings = async (directory: string): Promise<string[]> => {
       findings.push(`${path}: cannot parse: ${error.message}`);
     });
 
-    walk(parsed.program, (node) => {
-      const start = setterStart(node);
+    const visitor = new Visitor({
+      CallExpression: (node) => {
+        const start = setterStart(node);
 
-      if (start === null) {
-        return;
-      }
+        if (start === null) {
+          return;
+        }
 
-      const line = lineAt(text, start);
+        const line = lineAt(text, start);
 
-      findings.push(`${path}:${line}: ${lines[line - 1]?.trim() ?? ''}`);
+        findings.push(`${path}:${line}: ${lines[line - 1]?.trim() ?? ''}`);
+      },
     });
+
+    visitor.visit(parsed.program);
 
     return findings;
   });
