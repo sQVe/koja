@@ -45,10 +45,13 @@ jobs:
     if: github.event_name == 'pull_request'
     runs-on: ubuntu-latest
     timeout-minutes: 60
+    permissions:
+      contents: read
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           fetch-depth: 0
+          persist-credentials: false
       - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2.2.0
         with:
           bun-version: 1.4.2
@@ -56,7 +59,38 @@ jobs:
       - name: Run mutation testing on changed lines
         env:
           BASE_SHA: ${{ github.event.pull_request.base.sha }}
+        # The report job decides the result, so a run with survivors must not fail here.
         run: |
           jq '.concurrency = "100%"' stryker.config.json > "${RUNNER_TEMP}/stryker.config.json"
           mapfile -t command < <(jq --raw-output '.mutation.argv[]' .pi/tau.json)
-          "${command[@]}" --config "${RUNNER_TEMP}/stryker.config.json" changed "$BASE_SHA"
+          "${command[@]}" --config "${RUNNER_TEMP}/stryker.config.json" changed "$BASE_SHA" > "${RUNNER_TEMP}/mutation.json" || true
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        if: always()
+        with:
+          name: mutation-report
+          path: ${{ runner.temp }}/mutation.json
+          if-no-files-found: error
+
+  # This job holds the write token, so it must run no code from the pull request: it checks out
+  # nothing, restores no dependency cache, and reads the report only as data.
+  mutation-report:
+    name: Mutation report
+    needs: mutation
+    if: always() && github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: read
+      pull-requests: write
+    steps:
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: 24
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: mutation-report
+          path: ${{ runner.temp }}/mutation-report
+      - uses: sQVe/mutation@0599638c85ea5455c7ec132e05c854a2d9716410 # v0.2.0
+        with:
+          report: ${{ runner.temp }}/mutation-report/mutation.json
+          command: npx --yes @sqve/mutation@0.2.0
