@@ -46,6 +46,26 @@ export type ThemeToken = keyof Palette;
 
 export const withAlpha = (color: Color, alpha: string): Color => `${color}${alpha}`;
 
+const shortHexLength = 3;
+
+const fullHexLength = 6;
+
+const clearAlpha = '00';
+
+const expandShortHex = (hex: string): string =>
+  hex
+    .split('')
+    .map((digit) => `${digit}${digit}`)
+    .join('');
+
+export const clearOf = (color: Color): Color => {
+  const hex = color.slice(1);
+  const isShort = hex.length <= shortHexLength + 1;
+  const rgb = isShort ? expandShortHex(hex.slice(0, shortHexLength)) : hex.slice(0, fullHexLength);
+
+  return `#${rgb}${clearAlpha}`;
+};
+
 const diffFillAlpha = '18';
 
 export const diffTints = (palette: Palette): { added: Color; removed: Color } => ({

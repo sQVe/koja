@@ -7,7 +7,6 @@ import {
   closeOverlay,
   controlSize,
   detailText,
-  emptyState,
   icon,
   keyHint,
   listRow,
@@ -21,7 +20,8 @@ import {
   separatorHeight,
   shortcutFor,
   spacing,
-  textSize,
+  stateLine,
+  withTextRole,
 } from '../../kit/index.ts';
 import type { Agent, AgentLoad, MenuTarget } from './agents.ts';
 import { agentList, menuActions, menuTarget, placeholderFor } from './agents.ts';
@@ -66,7 +66,7 @@ const agentHint = (agent: Agent, index: number): Element | null => {
 
 const menuHeight = (agentRows: number): number => {
   const chrome = controlSize.sectionHeader + separatorHeight + spacing.xsmall * 2;
-  const content = (fixedRows + Math.max(1, agentRows)) * rowHeight.medium + chrome;
+  const content = (fixedRows + Math.max(1, agentRows)) * rowHeight.small + chrome;
 
   return Math.min(overlaySize.wideMenuContentHeight, content);
 };
@@ -107,10 +107,9 @@ export default class NewMenu extends View {
     const missing = agents.filter((agent) => !agent.installed).slice(0, suggestedAgents);
     const choices = [...installed, ...missing];
 
-    const menu = popupSurface('new-menu')
+    const menu = withTextRole(popupSurface('new-menu'), 'body')
       .h(menuHeight(choices.length))
       .py(spacing.xsmall)
-      .text_size(textSize.default)
       .on_key_down((event) => {
         this.onKey(event, installed);
       })
@@ -193,7 +192,7 @@ export default class NewMenu extends View {
     const placeholder = placeholderFor(this.load);
 
     if (placeholder !== null) {
-      return list.child(emptyState(placeholder));
+      return list.child(stateLine(placeholder));
     }
 
     return list.children(
@@ -214,7 +213,7 @@ export default class NewMenu extends View {
 
   private row(entry: MenuEntry): Element {
     return listRow({
-      size: 'medium',
+      size: 'small',
       inset: true,
       state: entry.enabled ? 'normal' : 'disabled',
       start: entry.start,

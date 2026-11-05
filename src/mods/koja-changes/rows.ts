@@ -11,16 +11,18 @@ import {
   controlSize,
   diffSize,
   diffTints,
-  emptyState,
   fileStatusMark,
   listRow,
+  roleText,
   rowHeight,
   spacing,
+  stateLine,
   stringOf,
   textField,
-  textSize,
+  withTextRole,
 } from '../../kit/index.ts';
 import type { DiffRow } from './diffRows.ts';
+import { emptyLine } from './emptyLine.ts';
 import { showsSelectionHint } from './selection.ts';
 import type { ChangeFile } from './status.ts';
 
@@ -41,22 +43,10 @@ const fileLabel = (file: ChangeFile, palette: Palette): Element => {
   return label.child(div().max_w(controlSize.paneLabelMaxWidth).min_w(0).truncate().child(name));
 };
 
-const emptyMessage = (error: string | null, loading: boolean, root: string | null): string => {
-  if (error !== null) {
-    return error;
-  }
-
-  if (loading) {
-    return 'Loading changes…';
-  }
-
-  return root !== null ? 'No uncommitted changes' : 'No folder';
-};
-
 const fileListHeight = (count: number): number =>
   Math.min(
     diffSize.fileListHeightLimit,
-    Math.max(diffSize.fileListHeightMinimum, count * rowHeight.medium + spacing.xlarge),
+    Math.max(diffSize.fileListHeightMinimum, count * rowHeight.small + spacing.xlarge),
   );
 
 export const headerRow = (
@@ -73,11 +63,11 @@ export const headerRow = (
     .items_center()
     .border_b(spacing.hairline)
     .border_color(palette.border)
-    .child(div().font_semibold().child('Changes'))
+    .child(roleText('title', 'Changes').flex_none())
     .child(div().text_color(palette.dim).child(`${files.length} files`))
     .child(div().flex_1())
-    .child(div().text_size(textSize.small).text_color(palette.ansi2).child(`+${add}`))
-    .child(div().text_size(textSize.small).text_color(palette.ansi1).child(`−${del}`));
+    .child(roleText('detail', `+${add}`, 'ansi2').flex_none())
+    .child(roleText('detail', `−${del}`, 'ansi1').flex_none());
 
 const fileRow = (
   file: ChangeFile,
@@ -88,15 +78,15 @@ const fileRow = (
   const end: Element[] = [];
 
   if (file.add > 0) {
-    end.push(div().text_size(textSize.small).text_color(palette.ansi2).child(`+${file.add}`));
+    end.push(roleText('detail', `+${file.add}`, 'ansi2').flex_none());
   }
 
   if (file.del > 0) {
-    end.push(div().text_size(textSize.small).text_color(palette.ansi1).child(`−${file.del}`));
+    end.push(roleText('detail', `−${file.del}`, 'ansi1').flex_none());
   }
 
   return listRow({
-    size: 'medium',
+    size: 'small',
     inset: true,
     state: selected ? 'selected' : 'normal',
     start: fileStatusMark(file.status),
@@ -129,7 +119,7 @@ export const fileList = (
     .children(files.map((file) => fileRow(file, open === file.path, palette, onPick)));
 
   if (files.length === 0) {
-    list.child(emptyState(emptyMessage(error, loading, root)));
+    list.child(stateLine(emptyLine(error, loading, root)));
   }
 
   return list;
@@ -159,21 +149,13 @@ export const commitBar = (
     );
 };
 
-export const limitedNotice = (palette: Palette): Element =>
-  div()
-    .px(spacing.large)
-    .py(spacing.xsmall)
-    .text_size(textSize.small)
-    .text_color(palette.dim)
-    .child('Showing the first 1,000 changed files');
+export const limitedNotice = (): Element =>
+  withTextRole(div().px(spacing.large).py(spacing.xsmall), 'detail').child(
+    'Showing the first 1,000 changed files',
+  );
 
-export const noteRow = (note: string, palette: Palette): Element =>
-  div()
-    .px(spacing.large)
-    .pb(spacing.medium)
-    .text_size(textSize.small)
-    .text_color(palette.ansi1)
-    .child(note);
+export const noteRow = (note: string): Element =>
+  withTextRole(div().px(spacing.large).pb(spacing.medium), 'detail', 'ansi1').child(note);
 
 const diffRow = (row: DiffRow, palette: Palette): Element => {
   if (row.kind === '@') {
@@ -216,12 +198,11 @@ export const diffArea = (
 ): Element => {
   const palette = colors();
 
-  const area = div()
-    .flex_1()
-    .min_h(0)
-    .relative()
-    .font_family(terminalFont())
-    .text_size(textSize.small)
+  const area = withTextRole(
+    div().flex_1().min_h(0).relative().font_family(terminalFont()),
+    'detail',
+    'foreground',
+  )
     .child(
       div()
         .id('changes-diff-x')

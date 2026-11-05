@@ -10,7 +10,7 @@
 #   scripts/sandbox install       reinstall this checkout into a running sandbox
 #   scripts/sandbox do <action> [json]   / status   drive it (herdr-app do / status)
 #   scripts/sandbox shot [file]   screenshot of the window, in window pixels
-#   scripts/sandbox move|click|drag|type|key|hold|release ...   fake input (window px, see sandbox-input.py)
+#   scripts/sandbox move|click|drag|scroll|type|key|hold|release ...   fake input (window px, see sandbox-input.py)
 #   scripts/sandbox log           the window's log
 #   scripts/sandbox opened        links the window asked to open (logged, never opened)
 #   scripts/sandbox hc <args>     hc against the sandbox core
@@ -438,7 +438,7 @@ case ${1:-} in
     import -display "$DISPLAY" -window Herdr "$out"
     echo "$out"
     ;;
-  move | click | drag | type | key | hold | release | sequence) input "$@" ;;
+  move | click | drag | scroll | type | key | hold | release | sequence) input "$@" ;;
   log) cat "$root/app.log" ;;
   opened) cat "$root/opened" 2>/dev/null || true ;;
   hc) require_up; shift; exec hc "$@" ;;

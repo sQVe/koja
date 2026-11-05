@@ -6,6 +6,14 @@ import { sample } from './sample.ts';
 
 export const buttons = (): Element[] => [
   sample(
+    'Small 16 px button beside the 22 px button',
+    h_flex()
+      .gap(spacing.medium)
+      .items_center()
+      .child(iconButton({ name: 'plus' }))
+      .child(iconButton({ name: 'plus', size: 'small' })),
+  ),
+  sample(
     'Icon buttons: normal, hovered, small, small hovered',
     h_flex()
       .gap(spacing.medium)

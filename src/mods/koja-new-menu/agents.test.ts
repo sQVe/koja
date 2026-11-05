@@ -20,11 +20,11 @@ const agent: Agent = {
 
 describe('placeholderFor', () => {
   test('says it is checking while the list loads', () => {
-    expect(placeholderFor({ status: 'pending' })).not.toBeNull();
+    expect(placeholderFor({ status: 'pending' })?.kind).toBe('loading');
   });
 
   test('says it could not load after a failure', () => {
-    expect(placeholderFor({ status: 'failed' })).not.toBeNull();
+    expect(placeholderFor({ status: 'failed' })?.kind).toBe('error');
   });
 
   test('shows nothing once loading ends, even with no agents', () => {

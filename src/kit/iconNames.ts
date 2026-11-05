@@ -1,6 +1,7 @@
 export const iconNames = [
   'chevron-down',
   'chevron-right',
+  'circle-alert',
   'columns-2',
   'command',
   'file',

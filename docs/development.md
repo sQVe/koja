@@ -52,6 +52,7 @@ Try and QA mods in a throwaway Herdr window with its own core, home, and private
 bun run sandbox up
 bun run sandbox shot
 bun run sandbox click 941 137
+bun run sandbox scroll 640 400 5
 bun run sandbox type "pane"
 bun run sandbox key p Control_L Shift_L
 bun run sandbox install
@@ -60,9 +61,11 @@ bun run sandbox down
 ```
 
 `shot` writes the window at its own pixel size, so a coordinate read from a shot matches `click`.
-`bun run sandbox install` reinstalls after a mod edit without restarting the sandbox.
-`HERDR_APP_SANDBOX=<name>` runs a second sandbox side by side, and `HERDR_APP_BIN` runs another
-herdr-app binary instead of the installed one.
+`scroll x y n` turns the wheel n notches over that point, down for a positive n and up for a
+negative one; dragging a scrollbar does not scroll a Herdr view. `bun run sandbox install`
+reinstalls after a mod edit without restarting the sandbox. `HERDR_APP_SANDBOX=<name>` runs a second
+sandbox side by side, and `HERDR_APP_BIN` runs another herdr-app binary instead of the installed
+one.
 
 Never use `ydotool`, and never run `herdr-app do`, `hc`, or synthetic input against the user's real
 window or core.

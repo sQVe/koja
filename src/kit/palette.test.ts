@@ -1,6 +1,7 @@
 import { describe, expect, test } from 'bun:test';
 
-import { diffTints, toPalette, withAlpha } from './palette.ts';
+import { clearOf, diffTints, toPalette, withAlpha } from './palette.ts';
+import type { Color } from './palette.ts';
 
 const themeTokens = [
   'background',
@@ -81,6 +82,17 @@ describe('toPalette', () => {
 describe('color helpers', () => {
   test('appends the alpha suffix to a color', () => {
     expect(withAlpha('#102030', '18')).toBe('#10203018');
+  });
+
+  const clearCases: { color: Color; clear: Color }[] = [
+    { color: '#102030', clear: '#10203000' },
+    { color: '#ffffff17', clear: '#ffffff00' },
+    { color: '#abc', clear: '#aabbcc00' },
+    { color: '#abcd', clear: '#aabbcc00' },
+  ];
+
+  test.each(clearCases)('makes $color fully clear as $clear', ({ color, clear }) => {
+    expect(clearOf(color)).toBe(clear);
   });
 
   test('tints added and removed lines from the ansi colors', () => {

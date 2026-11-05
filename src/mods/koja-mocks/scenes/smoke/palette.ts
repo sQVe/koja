@@ -37,12 +37,12 @@ const isSelected = (quality: PaletteQuality, index: number): boolean => {
   return index === selectedIndex;
 };
 
-const rowSize = (quality: PaletteQuality, index: number): 'small' | 'medium' => {
+const rowSize = (quality: PaletteQuality, index: number): 'small' | 'large' => {
   if (quality === 'nearPass' && index === 2) {
     return 'small';
   }
 
-  return 'medium';
+  return 'large';
 };
 
 const rowLabel = (command: FakeCommand, quality: PaletteQuality): string => {

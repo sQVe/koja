@@ -23,6 +23,9 @@ const paletteSize: SceneSize = {
 
 const sceneSizes = {
   sidebar: { width: overlaySize.wideMenuWidth, height: overlaySize.wideMenuHeight },
+  states: { width: overlaySize.promptWidth, height: overlaySize.worktreeListHeight },
+  popup: { width: overlaySize.worktreeListWidth, height: overlaySize.worktreeListHeight },
+  controls: { width: overlaySize.worktreeListWidth, height: overlaySize.wideMenuHeight },
   'smoke-1': paletteSize,
   'smoke-2': paletteSize,
   'smoke-3': paletteSize,

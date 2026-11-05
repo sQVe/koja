@@ -2,7 +2,7 @@ import { afterAll, beforeEach, describe, expect, mock, test } from 'bun:test';
 
 import { gpuiBaseFake, gpuiKitFake, herdrFake, kitIndexFake } from '../../../tests/moduleFakes.ts';
 import { overlaySize } from '../../kit/size.ts';
-import { sceneOrigin } from './catalog.ts';
+import { findScene, sceneOrigin } from './catalog.ts';
 
 type SubmitHandler = (event: unknown, cx: { notify: () => void }) => void;
 
@@ -16,6 +16,8 @@ interface InputStub {
 
 const openedSpecs: unknown[] = [];
 let closeCount = 0;
+let sceneProps: Record<string, unknown> = {};
+const shownKinds: string[] = [];
 const shownTexts: string[] = [];
 const createdInputs: InputStub[] = [];
 
@@ -72,7 +74,7 @@ await mock.module('herdr', () =>
 
       return 'scene-1';
     },
-    props: () => ({}),
+    props: () => sceneProps,
   }),
 );
 
@@ -81,8 +83,10 @@ await mock.module('../../kit/index.ts', () =>
     closeOverlay: () => {
       closeCount += 1;
     },
-    emptyState: (text: string) => {
-      shownTexts.push(text);
+    iconButton: chainable,
+    stateLine: (options: { kind: string; text: string }) => {
+      shownKinds.push(options.kind);
+      shownTexts.push(options.text);
 
       return chainable();
     },
@@ -135,6 +139,8 @@ beforeEach(() => {
   createdInputs.length = 0;
   openedSpecs.length = 0;
   closeCount = 0;
+  sceneProps = {};
+  shownKinds.length = 0;
   shownTexts.length = 0;
 });
 
@@ -160,6 +166,21 @@ describe('scene picker', () => {
     expect(closeCount).toBe(1);
   });
 
+  const scenes = ['sidebar', 'states', 'popup', 'controls'];
+
+  test.each(scenes)('submitting %s opens its window at its catalog size', async (name) => {
+    const view = await loadView();
+    const lookup = findScene(name);
+    const size = 'scene' in lookup ? lookup.scene : { width: 0, height: 0 };
+
+    view.init(undefined, asyncContext);
+    submitTyped(name);
+
+    expect(openedSpecs).toEqual([
+      expect.objectContaining({ props: { scene: name }, width: size.width, height: size.height }),
+    ]);
+  });
+
   test('submitting an unknown name opens nothing and keeps the picker with its error', async () => {
     const view = await loadView();
 
@@ -169,6 +190,39 @@ describe('scene picker', () => {
 
     expect(openedSpecs).toEqual([]);
     expect(closeCount).toBe(0);
+    expect(shownKinds.at(-1)).toBe('error');
     expect(shownTexts.at(-1)).toContain('no-such-scene');
+  });
+
+  test('the picker hint is an empty state before any error', async () => {
+    const view = await loadView();
+
+    view.init(undefined, asyncContext);
+    view.render();
+
+    expect(shownKinds.at(-1)).toBe('empty');
+  });
+});
+
+describe('scene errors', () => {
+  test('an unknown scene prop asks for the error state', async () => {
+    sceneProps = { scene: 'no-such-scene' };
+
+    const view = await loadView();
+
+    view.init(undefined, asyncContext);
+    view.render();
+
+    expect(shownKinds.at(-1)).toBe('error');
+  });
+
+  test('a scene without its inputs asks for the error state', async () => {
+    const view = await loadView();
+
+    view.init(undefined, asyncContext);
+    sceneProps = { scene: 'sidebar' };
+    view.render();
+
+    expect(shownKinds.at(-1)).toBe('error');
   });
 });

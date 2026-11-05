@@ -34,7 +34,6 @@ export const radius = {
 
 export const rowHeight = {
   small: 24,
-  medium: 26,
   large: 28,
 } as const;
 
@@ -59,6 +58,7 @@ export const controlSize = {
   searchField: 40,
   sectionHeader: 26,
   sidebarHeader: 27,
+  smallButton: 16,
   tabBar: 28,
   tabSlot: 14,
   tabLabelMaxWidth: 170,

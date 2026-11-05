@@ -5,6 +5,7 @@ import { div } from 'gpui-kit';
 import type { HoverOptions } from './hover.ts';
 import { withHover } from './hover.ts';
 import type { Palette } from './palette.ts';
+import { clearOf } from './palette.ts';
 import { draggedOpacity, indentWidth, radius, rowHeight, spacing, textSize } from './size.ts';
 import type { RowSize } from './size.ts';
 import { colors } from './theme.ts';
@@ -16,6 +17,8 @@ export interface ListRowOptions extends HoverOptions {
   inset: boolean;
   state: RowState;
   label: Element | string;
+  // Identifiers such as branches and paths cut in the middle, so both ends stay visible.
+  cut?: 'middle' | 'end';
   muted?: boolean;
   centered?: boolean;
   detail?: string;
@@ -43,7 +46,9 @@ const withBackground = (row: Element, options: ListRowOptions, palette: Palette)
     return row;
   }
 
-  return withHover(row, options.hovered === true, (element) => element.bg(palette.hover));
+  return withHover(row, options.hovered === true, (element) =>
+    element.border_color(palette.selected),
+  );
 };
 
 const dropLineAt = (edge: 'top' | 'bottom', palette: Palette): Element => {
@@ -52,8 +57,19 @@ const dropLineAt = (edge: 'top' | 'bottom', palette: Palette): Element => {
   return (edge === 'top' ? line.top(spacing.none) : line.bottom(spacing.none)).bg(palette.accent);
 };
 
-const labelElement = (label: Element | string): Element =>
-  typeof label === 'string' ? div().min_w(0).truncate().child(label) : label;
+const labelElement = (options: ListRowOptions): Element => {
+  if (typeof options.label !== 'string') {
+    return options.label;
+  }
+
+  const label = div().min_w(0).truncate();
+
+  if (options.cut === 'middle') {
+    label.text_ellipsis_middle();
+  }
+
+  return label.child(options.label);
+};
 
 const detailElement = (detail: string, palette: Palette): Element =>
   div()
@@ -71,7 +87,7 @@ const labelGroup = (options: ListRowOptions, palette: Palette): Element => {
     group.flex_1();
   }
 
-  group.child(labelElement(options.label));
+  group.child(labelElement(options));
 
   if (options.detail !== undefined) {
     group.child(detailElement(options.detail, palette));
@@ -92,6 +108,9 @@ const rowFrame = (options: ListRowOptions, palette: Palette): Element => {
     .pr(spacing.small)
     .gap(spacing.small)
     .items_center()
+    // A clear border on every row, so the outline a hovered row draws never shifts its content.
+    .border(spacing.hairline)
+    .border_color(clearOf(palette.selected))
     .text_size(textSize.default)
     .text_color(labelColor(options, palette));
 

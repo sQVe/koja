@@ -2,6 +2,7 @@ import { describe, expect, test } from 'bun:test';
 
 import { overlaySize } from '../../kit/size.ts';
 import { findScene } from './catalog.ts';
+import type { SceneName } from './catalog.ts';
 
 describe('scene lookup', () => {
   test('an unknown name gives an error that contains the name', () => {
@@ -14,14 +15,26 @@ describe('scene lookup', () => {
     expect('error' in findScene('   ')).toBe(true);
   });
 
-  test('the sample scene gives its name and size', () => {
-    expect(findScene('sidebar')).toEqual({
-      scene: {
-        name: 'sidebar',
-        width: overlaySize.wideMenuWidth,
-        height: overlaySize.wideMenuHeight,
-      },
-    });
+  const sceneSizes: { name: SceneName; width: number; height: number }[] = [
+    { name: 'sidebar', width: overlaySize.wideMenuWidth, height: overlaySize.wideMenuHeight },
+    { name: 'states', width: overlaySize.promptWidth, height: overlaySize.worktreeListHeight },
+    {
+      name: 'popup',
+      width: overlaySize.worktreeListWidth,
+      height: overlaySize.worktreeListHeight,
+    },
+    { name: 'controls', width: overlaySize.worktreeListWidth, height: overlaySize.wideMenuHeight },
+  ];
+
+  test.each(sceneSizes)('the $name scene gives its name and size', (scene) => {
+    expect(findScene(scene.name)).toEqual({ scene });
+  });
+
+  test('an error for an unknown name lists every scene', () => {
+    const result = findScene('no-such-scene');
+    const message = 'error' in result ? result.error : '';
+
+    expect(sceneSizes.filter((scene) => !message.includes(scene.name))).toEqual([]);
   });
 
   test('spaces around a known name still find the scene', () => {

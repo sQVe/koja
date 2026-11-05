@@ -16,7 +16,6 @@ import {
   closeOverlay,
   currentWindow,
   detailText,
-  emptyState,
   highlightedText,
   keyHint,
   listRow,
@@ -27,6 +26,7 @@ import {
   sectionHeader,
   shortcutFor,
   spacing,
+  stateLine,
   stringOf,
   themeChoices,
 } from '../../kit/index.ts';
@@ -299,6 +299,9 @@ export default class Palette extends View {
   }
 
   private nothingMatches(): Element {
-    return emptyState(`Nothing matches "${this.query}". Places are in the picker.`);
+    return stateLine({
+      kind: 'empty',
+      text: `Nothing matches "${this.query}". Places are in the picker.`,
+    });
   }
 }

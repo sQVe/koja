@@ -5,6 +5,7 @@ import type { Status } from 'herdr';
 
 import type { HoverOptions } from './hover.ts';
 import { withHover } from './hover.ts';
+import { clearOf } from './palette.ts';
 import { controlSize, iconSize, radius, spacing, textSize } from './size.ts';
 import { statusMark } from './statusMark.ts';
 import { colors } from './theme.ts';
@@ -26,7 +27,7 @@ const startSlot = (iconElement: Element | null): Element => {
 };
 
 const endSlot = (options: TabOptions): Element => {
-  const slot = h_flex().size(controlSize.tabSlot).flex_none().items_center().justify_center();
+  const slot = h_flex().size(controlSize.smallButton).flex_none().items_center().justify_center();
 
   if (options.active) {
     return options.close === null ? slot : slot.child(options.close);
@@ -45,6 +46,9 @@ export const tab = (options: TabOptions): Element => {
     .flex_none()
     .items_center()
     .rounded(radius.pill)
+    // A clear border on every tab, so the outline a hovered tab draws never shifts its content.
+    .border(spacing.hairline)
+    .border_color(clearOf(palette.selected))
     .text_size(textSize.default);
 
   if (options.active) {
@@ -52,7 +56,9 @@ export const tab = (options: TabOptions): Element => {
   } else {
     element.text_color(palette.muted);
 
-    withHover(element, options.hovered === true, (styled) => styled.bg(palette.hover));
+    withHover(element, options.hovered === true, (styled) =>
+      styled.border_color(palette.selected).text_color(palette.foreground),
+    );
   }
 
   element

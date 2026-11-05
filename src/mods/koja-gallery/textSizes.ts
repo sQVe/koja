@@ -1,9 +1,9 @@
 import type { Element } from 'gpui-kit';
-import { div } from 'gpui-kit';
 
-import { textSize } from '../../kit/index.ts';
+import type { TextRole } from '../../kit/index.ts';
+import { roleText } from '../../kit/index.ts';
+
+const roleOrder: TextRole[] = ['viewTitle', 'title', 'body', 'sectionHeading', 'detail', 'badge'];
 
 export const textSizes = (): Element[] =>
-  (['xsmall', 'small', 'default', 'large'] as const).map((size) =>
-    div().text_size(textSize[size]).child(`${size}: The quick brown fox`),
-  );
+  roleOrder.map((role) => roleText(role, `${role}: The quick brown fox`));
