@@ -6,17 +6,24 @@ import { exec, watchFolder } from 'herdr';
 
 import { colors, repeat, withTextRole } from '../../kit/index.ts';
 import { canCommit, hasText } from './commit.ts';
+import type { CommitRequest } from './commit.ts';
 import { DiffPreview } from './diffPreview.ts';
 import { commitAll, readChanges } from './git.ts';
 import type { ChangesSnapshot } from './git.ts';
 import { location, locationKey } from './location.ts';
+import { applyRead, emptyReadState, isStale, readStateLine, watchStateLine } from './readState.ts';
+import type { ReadState } from './readState.ts';
 import { commitBar, diffArea, fileList, headerRow, limitedNotice, noteRow } from './rows.ts';
 import type { ChangeFile } from './status.ts';
 
 const refreshMilliseconds = 10000;
 
+const millisecondsPerSecond = 1000;
+
+const nowSeconds = (): number => Math.floor(Date.now() / millisecondsPerSecond);
+
 export default class Changes extends View {
-  private snapshot: ChangesSnapshot | null = null;
+  private state: ReadState = emptyReadState();
 
   private readonly preview = new DiffPreview();
 
@@ -32,9 +39,13 @@ export default class Changes extends View {
 
   private watched: string | null = null;
 
+  private watchGeneration = 0;
+
   private open: string | null = null;
 
   private loading = false;
+
+  private pendingRefresh = false;
 
   private busy = false;
 
@@ -42,12 +53,10 @@ export default class Changes extends View {
 
   private limited = false;
 
-  private error: string | null = null;
-
   private note: string | null = null;
 
   private get files(): ChangeFile[] {
-    return this.snapshot?.files ?? [];
+    return this.state.lastGood?.snapshot.files ?? [];
   }
 
   override init(_props: unknown, cx: AsyncContext): void {
@@ -81,6 +90,10 @@ export default class Changes extends View {
     this.refresh(cx);
 
     repeat(cx, refreshMilliseconds, (timerCx) => {
+      if (this.loading) {
+        return;
+      }
+
       this.refresh(timerCx);
     });
   }
@@ -93,9 +106,8 @@ export default class Changes extends View {
     const palette = colors();
     const add = this.files.reduce((total, file) => total + file.add, 0);
     const del = this.files.reduce((total, file) => total + file.del, 0);
-    const idle = !this.busy && !this.loading;
-    const ready = this.snapshot !== null && idle;
-    const enabled = ready && hasText(this.message);
+    const enabled = canCommit(this.commitRequest());
+    const now = nowSeconds();
 
     const root = withTextRole(v_flex(), 'body')
       .id('changes')
@@ -113,17 +125,22 @@ export default class Changes extends View {
       .child(headerRow(this.files, add, del, palette));
 
     root.child(
-      fileList(
-        this.files,
-        this.open,
-        this.error,
-        this.loading,
-        this.snapshot?.root ?? null,
+      fileList({
+        files: this.files,
+        open: this.open,
+        line: readStateLine(this.state, this.loading, now),
+        watchLine: watchStateLine(this.state),
         palette,
-        (path, clickCx) => {
+        onRetry: (retryCx) => {
+          this.refresh(retryCx);
+        },
+        onRetryWatch: (retryCx) => {
+          this.retryWatch(retryCx);
+        },
+        onPick: (path, clickCx) => {
           this.pick(path, clickCx);
         },
-      ),
+      }),
     );
 
     if (this.limited) {
@@ -145,8 +162,24 @@ export default class Changes extends View {
     return this.handle === null ? root : root.track_focus(this.handle);
   }
 
+  private commitRequest(): CommitRequest {
+    return {
+      message: this.message,
+      busy: this.busy,
+      loading: this.loading,
+      contextCurrent: this.context === locationKey(),
+      stale: isStale(this.state),
+    };
+  }
+
   private refresh(cx: Context): void {
-    if (this.loading || this.busy) {
+    if (this.loading) {
+      this.pendingRefresh = true;
+
+      return;
+    }
+
+    if (this.busy) {
       return;
     }
 
@@ -155,14 +188,14 @@ export default class Changes extends View {
 
     if (context !== this.context) {
       this.context = context;
-      this.snapshot = null;
+      this.state = emptyReadState();
       this.open = null;
       this.preview.setLines([]);
       this.message = '';
       this.input.set_value('');
-      this.error = null;
       this.note = null;
       this.watched = null;
+      this.watchGeneration += 1;
       this.closed = false;
       this.limited = false;
     }
@@ -176,6 +209,8 @@ export default class Changes extends View {
     this.loading = true;
 
     cx.spawn(async (taskCx) => {
+      taskCx.notify();
+
       try {
         const result = await readChanges(exec, cwd, where.on, () => locationKey() === context);
 
@@ -183,27 +218,26 @@ export default class Changes extends View {
           return;
         }
 
-        if (result.snapshot === null) {
-          this.clearForError(result.error);
+        if ('failure' in result) {
+          this.state = applyRead(this.state, result, nowSeconds());
         } else {
           await this.applySnapshot(result.snapshot, context, taskCx);
         }
       } catch (error) {
         if (locationKey() === context) {
-          this.error = String(error);
+          this.state = applyRead(this.state, { failure: String(error) }, nowSeconds());
         }
       } finally {
         this.loading = false;
+
+        if (this.pendingRefresh) {
+          this.pendingRefresh = false;
+          this.refresh(taskCx);
+        }
+
         taskCx.notify();
       }
     });
-  }
-
-  private clearForError(error: string | null): void {
-    this.snapshot = null;
-    this.preview.setLines([]);
-    this.open = null;
-    this.error = error;
   }
 
   private async applySnapshot(
@@ -211,9 +245,8 @@ export default class Changes extends View {
     context: string,
     cx: Context,
   ): Promise<void> {
-    this.snapshot = snapshot;
+    this.state = applyRead(this.state, { snapshot }, nowSeconds());
     this.limited = snapshot.limited;
-    this.error = null;
     this.watch(snapshot, cx);
 
     if (this.open !== null && !this.files.some((file) => file.path === this.open)) {
@@ -231,7 +264,7 @@ export default class Changes extends View {
       try {
         await this.preview.load(
           openPath,
-          () => this.snapshot,
+          () => this.state.lastGood?.snapshot ?? null,
           () => locationKey() === context && this.open === openPath,
         );
       } catch {
@@ -245,26 +278,51 @@ export default class Changes extends View {
   private watch(snapshot: ChangesSnapshot, cx: Context): void {
     const root = snapshot.root;
 
-    if (snapshot.on !== null || this.watched === root) {
+    if (this.state.watchFailed || snapshot.on !== null || this.watched === root) {
       return;
     }
 
     this.watched = root;
 
+    const generation = this.watchGeneration + 1;
+
+    this.watchGeneration = generation;
+
+    if (this.loading) {
+      this.pendingRefresh = true;
+    }
+
     cx.spawn(async (taskCx) => {
       try {
-        while (this.watched === root) {
+        while (this.watchGeneration === generation) {
           // eslint-disable-next-line no-await-in-loop -- one folder watch at a time
           await watchFolder(root);
 
-          if (this.watched === root) {
+          if (this.watchGeneration === generation) {
             this.refresh(taskCx);
           }
         }
       } catch {
-        this.watched = null;
+        if (this.watchGeneration === generation) {
+          this.watched = null;
+          this.state = { ...this.state, watchFailed: true };
+          taskCx.notify();
+        }
       }
     });
+  }
+
+  private retryWatch(cx: Context): void {
+    const snapshot = this.state.lastGood?.snapshot ?? null;
+
+    if (snapshot === null || this.context === null) {
+      return;
+    }
+
+    this.state = { ...this.state, watchFailed: false };
+    this.watch(snapshot, cx);
+    this.refresh(cx);
+    cx.notify();
   }
 
   private pick(path: string, cx: Context): void {
@@ -287,7 +345,7 @@ export default class Changes extends View {
       try {
         await this.preview.load(
           openPath,
-          () => this.snapshot,
+          () => this.state.lastGood?.snapshot ?? null,
           () => locationKey() === context && this.open === openPath,
         );
       } catch (error) {
@@ -303,16 +361,9 @@ export default class Changes extends View {
   }
 
   private commit(cx: Context): void {
-    const snapshot = this.snapshot;
+    const snapshot = this.state.lastGood?.snapshot ?? null;
 
-    const request = {
-      message: this.message,
-      busy: this.busy,
-      loading: this.loading,
-      contextCurrent: this.context === locationKey(),
-    };
-
-    if (snapshot === null || !canCommit(request)) {
+    if (snapshot === null || !canCommit(this.commitRequest())) {
       return;
     }
 

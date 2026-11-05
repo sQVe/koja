@@ -11,10 +11,7 @@ export interface ChangesSnapshot {
   limited: boolean;
 }
 
-export interface ChangesResult {
-  snapshot: ChangesSnapshot | null;
-  error: string | null;
-}
+export type ReadOutcome = { snapshot: ChangesSnapshot } | { failure: string };
 
 export type RunCommand = (
   command: string,
@@ -37,7 +34,7 @@ export const readChanges = async (
   cwd: string,
   on: string | null,
   isCurrent: () => boolean,
-): Promise<ChangesResult | null> => {
+): Promise<ReadOutcome | null> => {
   const top = await run('git', ['rev-parse', '--show-toplevel'], { cwd, on });
 
   if (!isCurrent()) {
@@ -45,7 +42,7 @@ export const readChanges = async (
   }
 
   if (top.code !== 0) {
-    return { snapshot: null, error: 'Not a git repository' };
+    return { failure: 'Not a git repository' };
   }
 
   const root = top.stdout.trim();
@@ -95,7 +92,6 @@ export const readChanges = async (
       files: mergeNumstat(entries.slice(0, fileLimit), outputs),
       limited: entries.length > fileLimit,
     },
-    error: null,
   };
 };
 

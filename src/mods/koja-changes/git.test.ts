@@ -1,6 +1,6 @@
 import { describe, expect, test } from 'bun:test';
 
-import type { RunCommand } from './git.ts';
+import type { ChangesSnapshot, ReadOutcome, RunCommand } from './git.ts';
 import { commitAll, readChanges } from './git.ts';
 
 interface GitOutputs {
@@ -26,6 +26,14 @@ const fakeRunner = (
   return { run, calls };
 };
 
+const snapshotOf = (result: ReadOutcome | null): ChangesSnapshot => {
+  if (result === null || 'failure' in result) {
+    throw new Error('expected a snapshot');
+  }
+
+  return result.snapshot;
+};
+
 describe('readChanges', () => {
   test('returns null and runs no further git command when the folder changed after rev-parse', async () => {
     const { run, calls } = fakeRunner(() => ({ ...ok, stdout: '/repo\n' }));
@@ -45,7 +53,7 @@ describe('readChanges', () => {
 
     const result = await readChanges(run, '/tmp', null, () => true);
 
-    expect(result).toEqual({ snapshot: null, error: 'Not a git repository' });
+    expect(result).toEqual({ failure: 'Not a git repository' });
   });
 });
 
@@ -92,11 +100,11 @@ describe('readChanges with a repository', () => {
 
     const result = await readChanges(run, '/repo/src', null, () => true);
 
-    expect(result?.snapshot?.root).toBe('/repo');
-    expect(result?.snapshot?.hasHead).toBe(true);
+    expect(snapshotOf(result).root).toBe('/repo');
+    expect(snapshotOf(result).hasHead).toBe(true);
 
     expect(
-      result?.snapshot?.files.map((file) => [file.path, file.status, file.add, file.del]),
+      snapshotOf(result).files.map((file) => [file.path, file.status, file.add, file.del]),
     ).toEqual([
       ['a.ts', 'M', 3, 1],
       ['new.ts', 'A', 0, 0],
@@ -110,8 +118,8 @@ describe('readChanges with a repository', () => {
 
     const result = await readChanges(run, '/repo', null, () => true);
 
-    expect(result?.snapshot?.hasHead).toBe(false);
-    expect(result?.snapshot?.files[0]).toMatchObject({ path: 'a.ts', add: 5, del: 1 });
+    expect(snapshotOf(result).hasHead).toBe(false);
+    expect(snapshotOf(result).files[0]).toMatchObject({ path: 'a.ts', add: 5, del: 1 });
     expect(calls.filter((call) => call.includes('--numstat'))).toHaveLength(2);
   });
 
@@ -142,8 +150,8 @@ describe('readChanges with a repository', () => {
 
     const result = await readChanges(run, '/repo', null, () => true);
 
-    expect(result?.snapshot?.files).toHaveLength(1000);
-    expect(result?.snapshot?.limited).toBe(true);
+    expect(snapshotOf(result).files).toHaveLength(1000);
+    expect(snapshotOf(result).limited).toBe(true);
   });
 
   test('does not mark a list of exactly 1,000 files as limited', async () => {
@@ -151,8 +159,8 @@ describe('readChanges with a repository', () => {
 
     const result = await readChanges(run, '/repo', null, () => true);
 
-    expect(result?.snapshot?.files).toHaveLength(1000);
-    expect(result?.snapshot?.limited).toBe(false);
+    expect(snapshotOf(result).files).toHaveLength(1000);
+    expect(snapshotOf(result).limited).toBe(false);
   });
 });
 

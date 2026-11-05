@@ -30,6 +30,7 @@ export const herdrFake = (overrides: ModuleFake = {}): ModuleFake => ({
   spaces: () => [],
   terminals: () => [],
   theme: () => ({}),
+  watchFolder: async () => [],
   writeTextFile: () => null,
   ...overrides,
 });
