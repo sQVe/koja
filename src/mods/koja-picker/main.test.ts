@@ -101,7 +101,6 @@ await mock.module('../../kit/index.ts', () =>
       closeOverlayCalls += 1;
     },
     colors: () => chainable(),
-    emptyState: () => chainable(),
     highlightedText: () => chainable(),
     icon: () => chainable(),
     iconSlot: () => chainable(),
@@ -118,10 +117,12 @@ await mock.module('../../kit/index.ts', () =>
     rowHeight: {},
     searchField: () => chainable(),
     spacing: {},
+    stateLine: () => chainable(),
     statusMark: () => chainable(),
     stringOf,
     textSize: {},
     toggleButton: () => chainable(),
+    withTextRole: (element: unknown) => element,
   }),
 );
 

@@ -34,7 +34,6 @@ export const radius = {
 
 export const rowHeight = {
   small: 24,
-  medium: 26,
   large: 28,
 } as const;
 

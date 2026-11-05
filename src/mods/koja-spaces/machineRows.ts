@@ -3,7 +3,6 @@ import { div } from 'gpui-kit';
 
 import {
   detailText,
-  emptyState,
   icon,
   iconButton,
   iconSlot,
@@ -11,6 +10,7 @@ import {
   listRow,
   sectionHeader,
   spacing,
+  stateLine,
 } from '../../kit/index.ts';
 import type { Machine } from './machines.ts';
 import { machineGroupOrder } from './machines.ts';
@@ -31,7 +31,8 @@ const connected = (machineList: Machine[], machine: string | null): boolean =>
   machine === null ||
   machineList.find((candidate) => candidate.name === machine)?.state === 'connected';
 
-const loadingRow = (collapsed: boolean): Element => emptyState(collapsed ? '…' : 'Loading…');
+const loadingRow = (collapsed: boolean): Element =>
+  stateLine({ kind: 'loading', text: collapsed ? '…' : 'Loading…' });
 
 const machineState = (host: MachineRowsHost, machine: string | null): Element => {
   if (!connected(host.machineList, machine)) {

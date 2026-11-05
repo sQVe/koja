@@ -16,6 +16,8 @@ interface InputStub {
 
 const openedSpecs: unknown[] = [];
 let closeCount = 0;
+let sceneProps: Record<string, unknown> = {};
+const shownKinds: string[] = [];
 const shownTexts: string[] = [];
 const createdInputs: InputStub[] = [];
 
@@ -72,7 +74,7 @@ await mock.module('herdr', () =>
 
       return 'scene-1';
     },
-    props: () => ({}),
+    props: () => sceneProps,
   }),
 );
 
@@ -81,8 +83,10 @@ await mock.module('../../kit/index.ts', () =>
     closeOverlay: () => {
       closeCount += 1;
     },
-    emptyState: (text: string) => {
-      shownTexts.push(text);
+    iconButton: chainable,
+    stateLine: (options: { kind: string; text: string }) => {
+      shownKinds.push(options.kind);
+      shownTexts.push(options.text);
 
       return chainable();
     },
@@ -135,6 +139,8 @@ beforeEach(() => {
   createdInputs.length = 0;
   openedSpecs.length = 0;
   closeCount = 0;
+  sceneProps = {};
+  shownKinds.length = 0;
   shownTexts.length = 0;
 });
 
@@ -184,6 +190,39 @@ describe('scene picker', () => {
 
     expect(openedSpecs).toEqual([]);
     expect(closeCount).toBe(0);
+    expect(shownKinds.at(-1)).toBe('error');
     expect(shownTexts.at(-1)).toContain('no-such-scene');
+  });
+
+  test('the picker hint is an empty state before any error', async () => {
+    const view = await loadView();
+
+    view.init(undefined, asyncContext);
+    view.render();
+
+    expect(shownKinds.at(-1)).toBe('empty');
+  });
+});
+
+describe('scene errors', () => {
+  test('an unknown scene prop asks for the error state', async () => {
+    sceneProps = { scene: 'no-such-scene' };
+
+    const view = await loadView();
+
+    view.init(undefined, asyncContext);
+    view.render();
+
+    expect(shownKinds.at(-1)).toBe('error');
+  });
+
+  test('a scene without its inputs asks for the error state', async () => {
+    const view = await loadView();
+
+    view.init(undefined, asyncContext);
+    sceneProps = { scene: 'sidebar' };
+    view.render();
+
+    expect(shownKinds.at(-1)).toBe('error');
   });
 });

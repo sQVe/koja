@@ -4,7 +4,7 @@ import type { AsyncContext, Context, Element, FocusHandle } from 'gpui-kit';
 import { View } from 'gpui-kit';
 import { exec, watchFolder } from 'herdr';
 
-import { colors, repeat, textSize } from '../../kit/index.ts';
+import { colors, repeat, withTextRole } from '../../kit/index.ts';
 import { canCommit, hasText } from './commit.ts';
 import { DiffPreview } from './diffPreview.ts';
 import { commitAll, readChanges } from './git.ts';
@@ -97,13 +97,11 @@ export default class Changes extends View {
     const ready = this.snapshot !== null && idle;
     const enabled = ready && hasText(this.message);
 
-    const root = v_flex()
+    const root = withTextRole(v_flex(), 'body')
       .id('changes')
       .size_full()
       .min_h(0)
       .overflow_hidden()
-      .text_color(palette.foreground)
-      .text_size(textSize.default)
       .on_key_down((event, keyCx) => {
         if (event.key === 'escape' && this.typing) {
           this.typing = false;
@@ -129,13 +127,13 @@ export default class Changes extends View {
     );
 
     if (this.limited) {
-      root.child(limitedNotice(palette));
+      root.child(limitedNotice());
     }
 
     root.child(diffArea(this.preview.rows, this.preview.diffWidth, this.open, this.files.length));
 
     if (this.note !== null) {
-      root.child(noteRow(this.note, palette));
+      root.child(noteRow(this.note));
     }
 
     root.child(

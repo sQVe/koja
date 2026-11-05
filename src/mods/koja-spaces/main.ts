@@ -17,7 +17,7 @@ import {
   repeat,
   rollupStatuses,
   spacing,
-  textSize,
+  withTextRole,
 } from '../../kit/index.ts';
 import { foldedSet } from './folded.ts';
 import { GitTracker } from './gitTracker.ts';
@@ -110,11 +110,10 @@ export default class Spaces extends View {
     this.statuses = rollupStatuses(spaces(), panes(), terminals());
     this.visibility = this.advance();
 
-    return v_flex()
+    return withTextRole(v_flex(), 'body')
       .size_full()
       .min_h(0)
       .bg(palette.chrome)
-      .text_size(textSize.default)
       .child(div().flex_none().h(topStripHeight()))
       .child(
         v_flex()

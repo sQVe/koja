@@ -14,14 +14,14 @@ import { focused, nextCommand, run } from 'herdr';
 import {
   closeOverlay,
   colors,
-  emptyState,
   modName,
   overlayId,
   radius,
   recordOverlayClose,
   repeat,
   searchField,
-  textSize,
+  stateLine,
+  withTextRole,
 } from '../../kit/index.ts';
 import type { StatusFilter } from './filters.ts';
 import { allFilter, statusFilters } from './filters.ts';
@@ -145,11 +145,11 @@ export default class Picker extends View {
     const data = pickerData();
     const rows = this.rowsFrom(data);
     const emptyText = this.query === '' ? this.filter().empty : 'No space matches.';
+    const empty = stateLine({ kind: 'empty', text: emptyText });
 
-    const picker = v_flex()
+    const picker = withTextRole(v_flex(), 'body')
       .id(modName)
       .size_full()
-      .text_size(textSize.default)
       .bg(palette.popover)
       .rounded_tl(radius.dialog)
       .rounded_bl(radius.dialog)
@@ -160,7 +160,7 @@ export default class Picker extends View {
         this.onModifiersChanged(event);
       })
       .child(searchField(this.input, 'search'))
-      .child(rows.length > 0 ? this.list(rows, data) : div().flex_1().child(emptyState(emptyText)))
+      .child(rows.length > 0 ? this.list(rows, data) : div().flex_1().child(empty))
       .child(this.footer(data));
 
     return this.handle === null ? picker : picker.track_focus(this.handle);

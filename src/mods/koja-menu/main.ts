@@ -16,8 +16,8 @@ import {
   shortcutFor,
   spaceFolder,
   spacing,
-  textSize,
   themeChoices,
+  withTextRole,
 } from '../../kit/index.ts';
 import type { Checkout, MenuEntry, MenuHost } from './entries.ts';
 import { menuEntries, readMenuProps, selectedIndex, stepSelection } from './entries.ts';
@@ -61,9 +61,8 @@ export default class Menu extends View {
     const items = menuEntries(readMenuProps(props()), this.checkout, menuHost);
     const selected = selectedIndex(items, this.selected);
 
-    const menu = popupSurface('menu')
+    const menu = withTextRole(popupSurface('menu'), 'body')
       .py(spacing.xsmall)
-      .text_size(textSize.default)
       .on_key_down((event, cx) => {
         this.onKey(event, items, cx);
       })
@@ -132,7 +131,7 @@ export default class Menu extends View {
     }
 
     const row = listRow({
-      size: 'medium',
+      size: 'small',
       inset: true,
       state: index === selected ? 'selected' : 'normal',
       start: icon(item.icon).text_color(colors().muted),

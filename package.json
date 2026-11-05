@@ -40,6 +40,7 @@
     "@stryker-mutator/util": "10.0.0",
     "@types/bun": "1.4.2",
     "knip": "6.37.0",
+    "oxc-parser": "0.150.0",
     "typescript": "7.0.2",
     "vite-plus": "0.3.0"
   },

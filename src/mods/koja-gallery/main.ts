@@ -3,7 +3,7 @@ import { InputState as InputStates, v_flex } from 'gpui-base';
 import type { AsyncContext, Element } from 'gpui-kit';
 import { View } from 'gpui-kit';
 
-import { colors, sectionHeader, spacing, textSize } from '../../kit/index.ts';
+import { colors, sectionHeader, spacing, withTextRole } from '../../kit/index.ts';
 import { actions } from './actions.ts';
 import { buttons } from './buttons.ts';
 import { dialogs } from './dialogs.ts';
@@ -39,16 +39,14 @@ export default class Gallery extends View {
   override render(): Element {
     const palette = colors();
 
-    return v_flex()
+    return withTextRole(v_flex(), 'body')
       .id('gallery')
       .size_full()
       .overflow_y_scrollbar()
       .py(spacing.medium)
       .gap(spacing.xlarge)
       .bg(palette.popover)
-      .text_size(textSize.default)
-      .text_color(palette.foreground)
-      .child(section('Text sizes', textSizes()))
+      .child(section('Text roles', textSizes()))
       .child(section('Icons', icons()))
       .child(section('Status marks', marks()))
       .child(section('List rows', rows()))

@@ -93,11 +93,11 @@ const dragRows = (): Element =>
 const otherRows = (): Element =>
   v_flex()
     .child(
-      listRow({ size: 'medium', inset: true, state: 'normal', muted: true, label: 'muted label' }),
+      listRow({ size: 'large', inset: true, state: 'normal', muted: true, label: 'muted label' }),
     )
     .child(
       listRow({
-        size: 'medium',
+        size: 'large',
         inset: false,
         state: 'selected',
         centered: true,

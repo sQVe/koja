@@ -7,6 +7,11 @@ export type AgentLoad =
   | { status: 'failed' }
   | { status: 'loaded'; agents: Agent[] };
 
+export interface AgentPlaceholder {
+  kind: 'loading' | 'error';
+  text: string;
+}
+
 export interface MenuTarget {
   space: string | null;
   machine: string | null;
@@ -48,10 +53,10 @@ export const menuActions = (target: MenuTarget): MenuActions => ({
 export const agentList = (load: AgentLoad): Agent[] =>
   load.status === 'loaded' ? load.agents : [];
 
-export const placeholderFor = (load: AgentLoad): string | null => {
+export const placeholderFor = (load: AgentLoad): AgentPlaceholder | null => {
   if (load.status === 'pending') {
-    return 'Checking installed agents…';
+    return { kind: 'loading', text: 'Checking installed agents…' };
   }
 
-  return load.status === 'failed' ? 'Could not load agents' : null;
+  return load.status === 'failed' ? { kind: 'error', text: 'Could not load agents' } : null;
 };

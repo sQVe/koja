@@ -13,14 +13,6 @@ import { currentPlatform } from './window.ts';
 export const separator = (): Element =>
   div().flex_none().my(spacing.xsmall).h(spacing.hairline).bg(colors().border);
 
-export const emptyState = (text: string): Element =>
-  div()
-    .px(spacing.large)
-    .py(spacing.medium)
-    .text_size(textSize.small)
-    .text_color(colors().dim)
-    .child(text);
-
 export const detailText = (text: string, color = colors().dim): Element =>
   div().flex_none().text_size(textSize.small).text_color(color).child(text);
 

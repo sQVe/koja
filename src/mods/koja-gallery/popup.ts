@@ -11,7 +11,7 @@ export const popupSurfaces = (): Element[] => [
     .child(
       popupSurface('popup-surface-sample')
         .py(spacing.xsmall)
-        .child(listRow({ size: 'medium', inset: true, state: 'normal', label: 'Normal row' }))
-        .child(listRow({ size: 'medium', inset: true, state: 'selected', label: 'Selected row' })),
+        .child(listRow({ size: 'large', inset: true, state: 'normal', label: 'Normal row' }))
+        .child(listRow({ size: 'large', inset: true, state: 'selected', label: 'Selected row' })),
     ),
 ];

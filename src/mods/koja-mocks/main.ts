@@ -7,13 +7,13 @@ import { openOverlay, props } from 'herdr';
 import {
   closeOverlay,
   detailText,
-  emptyState,
   iconButton,
   modName,
   popupSurface,
   recordOf,
   searchField,
   spacing,
+  stateLine,
   stringOf,
 } from '../../kit/index.ts';
 import { findScene, sceneOrigin } from './catalog.ts';
@@ -124,11 +124,19 @@ export default class Mocks extends View {
     closeOverlay();
   }
 
+  private pickerLine(): Element {
+    if (this.error !== null) {
+      return stateLine({ kind: 'error', text: this.error });
+    }
+
+    return stateLine({ kind: 'empty', text: pickerHint });
+  }
+
   private picker(): Element {
     return this.tracked(
       popupSurface('mocks-picker')
         .child(searchField(this.input, 'search'))
-        .child(emptyState(this.error ?? pickerHint)),
+        .child(this.pickerLine()),
     );
   }
 
@@ -166,11 +174,11 @@ export default class Mocks extends View {
     const lookup = findScene(name);
 
     if ('error' in lookup) {
-      return emptyState(lookup.error);
+      return stateLine({ kind: 'error', text: lookup.error });
     }
 
     if (this.sceneInputs === null) {
-      return emptyState('The scene opened without its inputs.');
+      return stateLine({ kind: 'error', text: 'The scene opened without its inputs.' });
     }
 
     return renderers[lookup.scene.name](this.sceneInputs);

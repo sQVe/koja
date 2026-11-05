@@ -12,10 +12,11 @@ import {
   iconButton,
   programIcon,
   recordOf,
+  roleText,
   spacing,
   statusMark,
   stringOf,
-  textSize,
+  withTextRole,
 } from '../../kit/index.ts';
 import { folderLabel } from './paneFolder.ts';
 import { paneFolder, paneName, paneProgram } from './paneLabel.ts';
@@ -83,7 +84,6 @@ export default class PaneHeader extends View {
 
   private header(pane: PaneInfo): Element {
     const palette = colors();
-    const titleColor = pane.focused ? palette.foreground : palette.muted;
     const iconColor = pane.focused ? palette.muted : palette.dim;
 
     // No background here: the pane frame's rounded background shows through, so the top corners stay clean.
@@ -95,7 +95,6 @@ export default class PaneHeader extends View {
       .items_center()
       .border_b(spacing.hairline)
       .border_color(palette.selected)
-      .text_size(textSize.small)
       .on_hover((hovered, cx) => {
         this.hovered = hovered;
         cx.notify();
@@ -109,24 +108,14 @@ export default class PaneHeader extends View {
     }
 
     element.child(
-      div()
-        .flex_initial()
-        .min_w(0)
-        .max_w(controlSize.paneLabelMaxWidth)
-        .truncate()
-        .font_medium()
-        .text_color(titleColor)
-        .child(paneName(pane)),
+      withTextRole(
+        div().flex_initial().min_w(0).max_w(controlSize.paneLabelMaxWidth).truncate(),
+        'detail',
+        pane.focused ? 'foreground' : 'muted',
+      ).child(paneName(pane)),
     );
 
-    element.child(
-      div()
-        .flex_1()
-        .min_w(0)
-        .truncate()
-        .text_color(palette.dim)
-        .child(folderLabel(paneFolder(pane), home())),
-    );
+    element.child(roleText('detail', folderLabel(paneFolder(pane), home())).flex_1());
 
     const status = statusElement(pane.status);
 

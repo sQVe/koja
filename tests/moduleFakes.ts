@@ -25,6 +25,7 @@ export const herdrFake = (overrides: ModuleFake = {}): ModuleFake => ({
   readTextFile: () => '',
   run: () => null,
   setShared: () => null,
+  settings: () => ({}),
   shared: () => undefined,
   spaces: () => [],
   terminals: () => [],
@@ -35,6 +36,7 @@ export const herdrFake = (overrides: ModuleFake = {}): ModuleFake => ({
 
 export const gpuiBaseFake = (overrides: ModuleFake = {}): ModuleFake => ({
   InputState: { new: () => undefined },
+  Scrollbar: { vertical: noop },
   h_flex: noop,
   v_flex: noop,
   v_virtual_list: noop,
@@ -66,7 +68,7 @@ export const kitIndexFake = (overrides: ModuleFake = {}): ModuleFake => ({
   dialogButton: chainable,
   dialogFrame: noop,
   diffSize: {},
-  emptyState: noop,
+  diffTints: noop,
   fileStatusMark: noop,
   highlightedText: noop,
   icon: noop,

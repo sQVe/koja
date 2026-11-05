@@ -35,7 +35,6 @@ export {
   rowHeight,
   separatorHeight,
   spacing,
-  textSize,
 } from './size.ts';
 
 export { attentionBadge, fileStatusMark, indicator, spaceMark, statusMark } from './statusMark.ts';
@@ -56,7 +55,7 @@ export { shortcutFor } from './shortcut.ts';
 
 export { themeChoices } from './themes.ts';
 
-export { detailText, emptyState, highlightedText, keyHint, separator } from './text.ts';
+export { detailText, highlightedText, keyHint, separator } from './text.ts';
 
 export { roleText, textRoles, withTextRole } from './textRole.ts';
 
