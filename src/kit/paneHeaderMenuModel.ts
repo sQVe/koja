@@ -14,6 +14,7 @@ export interface PaneHeaderMenuOptions {
 export interface PaneHeaderMenuField {
   icon: IconName | null;
   text: string;
+  cut: 'middle' | 'end';
 }
 
 export interface PaneHeaderMenuAction {
@@ -37,10 +38,10 @@ const isPresent = (text: string | undefined): text is string => text !== undefin
 
 const fieldCandidates = (
   options: PaneHeaderMenuOptions,
-): { icon: IconName | null; text: string | undefined }[] => [
-  { icon: null, text: options.task },
-  { icon: 'git-branch', text: options.branch },
-  { icon: 'folder', text: options.folder },
+): { icon: IconName | null; text: string | undefined; cut: 'middle' | 'end' }[] => [
+  { icon: null, text: options.task, cut: 'end' },
+  { icon: 'git-branch', text: options.branch, cut: 'middle' },
+  { icon: 'folder', text: options.folder, cut: 'middle' },
 ];
 
 export const paneActions = (options: PaneActionOptions): PaneHeaderMenuAction[] => [

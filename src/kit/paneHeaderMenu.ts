@@ -18,14 +18,23 @@ import { withTextRole } from './textRole.ts';
 import { colors } from './theme.ts';
 
 // A field line is not an action: no pill, no hover, and the task reserves the icon slot so every
-// text starts at the same place. The text cuts in the middle only when it is wider than the menu.
+// text starts at the same place.
 const fieldIcon = (name: IconName | null): Element =>
   name === null
     ? h_flex().size(iconSize.small).flex_none()
     : icon(name, 'small').text_color(colors().dim);
 
-const fieldText = (text: string): Element =>
-  withTextRole(div().flex_1().min_w(0).truncate(), 'detail').text_ellipsis_middle().child(text);
+const fieldText = (field: PaneHeaderMenuField): Element => {
+  const text = withTextRole(div().flex_1().min_w(0).truncate(), 'detail')
+    .tooltip(field.text)
+    .child(field.text);
+
+  if (field.cut === 'middle') {
+    text.text_ellipsis_middle();
+  }
+
+  return text;
+};
 
 const fieldRow = (field: PaneHeaderMenuField): Element =>
   h_flex()
@@ -37,7 +46,7 @@ const fieldRow = (field: PaneHeaderMenuField): Element =>
     .items_center()
     .min_w(0)
     .child(fieldIcon(field.icon))
-    .child(fieldText(field.text));
+    .child(fieldText(field));
 
 const actionRow = (entry: PaneHeaderMenuAction): Element =>
   listRow({

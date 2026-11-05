@@ -22,12 +22,12 @@ describe('paneHeaderMenuModel', () => {
     const empty = paneHeaderMenuModel({ ...actions, task: 'Build window shell', branch: '' });
 
     expect(full.fields).toEqual([
-      { icon: null, text: 'Build window shell' },
-      { icon: 'git-branch', text: 'me-1089-window-shell' },
-      { icon: 'folder', text: '~/code/koja' },
+      { icon: null, text: 'Build window shell', cut: 'end' },
+      { icon: 'git-branch', text: 'me-1089-window-shell', cut: 'middle' },
+      { icon: 'folder', text: '~/code/koja', cut: 'middle' },
     ]);
 
-    expect(empty.fields).toEqual([{ icon: null, text: 'Build window shell' }]);
+    expect(empty.fields).toEqual([{ icon: null, text: 'Build window shell', cut: 'end' }]);
   });
 
   test('shows the separator only when a field exists', () => {
