@@ -34,9 +34,7 @@ const pullColors: Record<string, ThemeToken> = {
   closed: 'ansi1',
 };
 
-const pullDetail = (row: ListedSpace, lookup: RowState['lookup']): Element[] => {
-  const pull = lookup(row.git);
-
+const pullDetail = (pull: Pull | null): Element[] => {
   if (pull === null) {
     return [];
   }
@@ -46,8 +44,8 @@ const pullDetail = (row: ListedSpace, lookup: RowState['lookup']): Element[] => 
   return [detailText(`#${pull.number}`, colors()[token])];
 };
 
-export const rowTitle = (row: ListedSpace, lookup: RowState['lookup']): string => {
-  return row.space.named ? row.space.name : (lookup(row.git)?.title ?? row.space.name);
+export const rowTitle = (row: ListedSpace, pull: Pull | null): string => {
+  return row.space.named ? row.space.name : (pull?.title ?? row.space.name);
 };
 
 const foldToggle = (row: RepoRow, toggleFold: RowState['toggleFold']): Element => {
@@ -126,11 +124,11 @@ export const row = (spaceRow: SpaceRow, ids: readonly string[], state: RowState)
     inset: true,
     state: space.active ? 'selected' : 'normal',
     start: spaceMark(spaceRow.status),
-    label: rowTitle(spaceRow, state.lookup),
+    label: rowTitle(spaceRow, pull),
     cut: rowCut(space.named, pull),
     ...(line === undefined ? {} : { dropLine: line }),
     dragged: state.drag.source === space.id && state.drag.over !== space.id,
-    end: pullDetail(spaceRow, state.lookup),
+    end: pullDetail(pull),
   }).id(`space-${space.id}`);
 
   state.attachDrag(element, space, ids);

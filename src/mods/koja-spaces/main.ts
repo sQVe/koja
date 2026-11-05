@@ -228,8 +228,7 @@ export default class Spaces extends View {
     if (collapsed) {
       const git = row.kind === 'repo' ? row.main.git : row.git;
 
-      const title =
-        row.kind === 'repo' ? row.name : rowTitle(row, (lookupGit) => this.pulls.lookup(lookupGit));
+      const title = row.kind === 'repo' ? row.name : rowTitle(row, this.pulls.lookup(row.git));
 
       return railRow(row, title, lineAbove, this.pulls.errorLine(git), (cx) => {
         this.retryPull(git, cx);

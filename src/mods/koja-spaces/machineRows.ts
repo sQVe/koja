@@ -13,7 +13,6 @@ import {
   stateLine,
   toggleButton,
 } from '../../kit/index.ts';
-import { machineErrorPlacement } from './machineError.ts';
 import type { Machine } from './machines.ts';
 import { machineGroupOrder } from './machines.ts';
 import { railErrorMark } from './rail.ts';
@@ -150,16 +149,9 @@ export const machineRows = (host: MachineRowsHost, collapsed: boolean): Element[
     .filter((machine): machine is string => machine !== null);
 
   const order = machineGroupOrder(remote, host.machineList);
-  const placement = machineErrorPlacement(host.machineError(), collapsed);
-
-  const head =
-    placement === null
-      ? []
-      : [
-          placement.kind === 'mark'
-            ? railErrorMark(placement.text, host.retryMachines)
-            : errorRow(placement.text, host.retryMachines),
-        ];
+  const error = host.machineError();
+  const errorElement = collapsed ? railErrorMark : errorRow;
+  const head = error === null ? [] : [errorElement(error, host.retryMachines)];
 
   if (order.length === 1) {
     const loading = host.loading(null) && host.groups.length === 0;

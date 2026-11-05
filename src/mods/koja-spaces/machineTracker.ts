@@ -3,13 +3,14 @@ import { hc } from 'herdr';
 
 import type { Machine } from './machines.ts';
 import { readMachineList } from './machines.ts';
-import type { ReadState } from './readState.ts';
-import { readErrorLine, readFailed, readSucceeded } from './readState.ts';
+import { readErrorLine } from './readState.ts';
 
 export class MachineTracker {
   private list: Machine[] = [];
 
-  private readState: ReadState | undefined;
+  private goodAt: number | null = null;
+
+  private failed = false;
 
   private fetching = false;
 
@@ -30,7 +31,7 @@ export class MachineTracker {
   }
 
   errorLine(): string | null {
-    return readErrorLine(this.readState, 'machines', Date.now());
+    return this.failed ? readErrorLine('machines', this.goodAt, Date.now()) : null;
   }
 
   private fetch(cx: Context): void {
@@ -42,13 +43,14 @@ export class MachineTracker {
         const list = result.code === 0 ? readMachineList(JSON.parse(result.stdout)) : null;
 
         if (list === null) {
-          this.readState = readFailed(this.readState);
+          this.failed = true;
         } else {
           this.list = list;
-          this.readState = readSucceeded(Date.now());
+          this.goodAt = Date.now();
+          this.failed = false;
         }
       } catch {
-        this.readState = readFailed(this.readState);
+        this.failed = true;
       } finally {
         this.fetching = false;
         taskCx.notify();

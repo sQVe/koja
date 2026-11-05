@@ -3,8 +3,7 @@ import { exec } from 'herdr';
 
 import type { Pull, PullCache } from './pulls.ts';
 import { pullFields, pullOf, readPullCaches, readPullList } from './pulls.ts';
-import type { ReadState } from './readState.ts';
-import { readErrorLine, readFailed, readSucceeded } from './readState.ts';
+import { readErrorLine } from './readState.ts';
 import type { GitInfo, RepoRef } from './tree.ts';
 import { repoName } from './tree.ts';
 
@@ -17,9 +16,7 @@ export class PullTracker {
     JSON.parse(localStorage.getItem(pullsKey) ?? '{}'),
   );
 
-  private readonly readStates: Record<string, ReadState> = Object.fromEntries(
-    Object.entries(this.pulls).map(([key, cache]) => [key, readSucceeded(cache.fetchedAt)]),
-  );
+  private readonly failed = new Set<string>();
 
   private readonly pullsTried: Record<string, number> = {};
 
@@ -30,11 +27,13 @@ export class PullTracker {
   }
 
   errorLine(git: GitInfo | null): string | null {
-    if (git === null) {
+    if (git === null || !this.failed.has(git.repo.key)) {
       return null;
     }
 
-    return readErrorLine(this.readStates[git.repo.key], `${repoName(git.root)} PRs`, Date.now());
+    const goodAt = this.pulls[git.repo.key]?.fetchedAt ?? null;
+
+    return readErrorLine(`${repoName(git.root)} PRs`, goodAt, Date.now());
   }
 
   refresh(repositories: { repo: RepoRef; cwd: string }[], cx: Context): void {
@@ -90,12 +89,10 @@ export class PullTracker {
         const list = await this.read(repo, cwd);
 
         if (list === null) {
-          this.readStates[repo.key] = readFailed(this.readStates[repo.key]);
+          this.failed.add(repo.key);
         } else {
-          const at = Date.now();
-
-          this.pulls[repo.key] = { fetchedAt: at, list };
-          this.readStates[repo.key] = readSucceeded(at);
+          this.pulls[repo.key] = { fetchedAt: Date.now(), list };
+          this.failed.delete(repo.key);
           localStorage.setItem(pullsKey, JSON.stringify(this.pulls));
         }
       } finally {
