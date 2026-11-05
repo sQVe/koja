@@ -22,13 +22,9 @@ import {
   withTextRole,
 } from '../../kit/index.ts';
 import type { DiffRow } from './diffRows.ts';
+import { emptyLine } from './emptyLine.ts';
 import { showsSelectionHint } from './selection.ts';
 import type { ChangeFile } from './status.ts';
-
-export interface EmptyLine {
-  kind: 'empty' | 'loading' | 'error';
-  text: string;
-}
 
 const defaultFont = 'JetBrains Mono';
 
@@ -45,22 +41,6 @@ const fileLabel = (file: ChangeFile, palette: Palette): Element => {
   }
 
   return label.child(div().max_w(controlSize.paneLabelMaxWidth).min_w(0).truncate().child(name));
-};
-
-export const emptyLine = (
-  error: string | null,
-  loading: boolean,
-  root: string | null,
-): EmptyLine => {
-  if (error !== null) {
-    return { kind: 'error', text: error };
-  }
-
-  if (loading) {
-    return { kind: 'loading', text: 'Loading changes…' };
-  }
-
-  return { kind: 'empty', text: root !== null ? 'No uncommitted changes' : 'No folder' };
 };
 
 const fileListHeight = (count: number): number =>
