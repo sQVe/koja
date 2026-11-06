@@ -25,13 +25,22 @@ describe('bindingFor', () => {
   });
 
   test('falls back to the first normal-mode key for an action', () => {
-    expect(bindingFor([], 'pane.split:right')).toBe('ctrl-w v');
+    expect(bindingFor([], 'pane.split:right')).toBe('w v');
   });
 
-  test('prefers a global binding over the normal-mode key', () => {
+  test('prefers the normal-mode key over a global binding', () => {
     const bindings = [binding('pane.split:right', 'ctrl-shift-o')];
 
-    expect(bindingFor(bindings, 'pane.split:right')).toBe('ctrl-shift-o');
+    expect(bindingFor(bindings, 'pane.split:right')).toBe('w v');
+  });
+
+  test('shows the plain-letter form of each part, not its ctrl-w alias', () => {
+    expect(bindingFor([], 'tab.new')).toBe('t n');
+    expect(bindingFor([], 'space.new')).toBe('s n');
+    expect(bindingFor([], 'layout.toggle:sidebar')).toBe('z s');
+    expect(bindingFor([], 'pane.go:left')).toBe('h');
+    expect(bindingFor([], 'space.next')).toBe('s j');
+    expect(bindingFor([], 'space.prev')).toBe('s k');
   });
 
   test('answers null for an action with only ambiguous normal-mode keys', () => {
@@ -39,13 +48,13 @@ describe('bindingFor', () => {
   });
 
   test('uses the first normal-mode key when an action has several', () => {
-    expect(bindingFor([], 'pane.close')).toBe('ctrl-w q');
+    expect(bindingFor([], 'pane.close')).toBe('w q');
   });
 
   test('returns an earlier action normal-mode key before a later global binding', () => {
     const bindings = [binding('palette.open', 'ctrl-shift-p')];
 
-    expect(bindingFor(bindings, 'pane.split:right', 'palette.open')).toBe('ctrl-w v');
+    expect(bindingFor(bindings, 'pane.split:right', 'palette.open')).toBe('w v');
   });
 
   test('continues to a later action when an earlier one has no key', () => {

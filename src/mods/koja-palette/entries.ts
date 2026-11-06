@@ -146,8 +146,6 @@ const namedEntries: NamedEntry[] = [
   { name: 'terminal.open', args: {}, group: 'Terminal', title: 'New terminal', words: 'shell' },
   { name: 'terminal.copy', args: {}, group: 'Terminal', title: 'Copy', words: 'clipboard' },
   { name: 'terminal.paste', args: {}, group: 'Terminal', title: 'Paste', words: 'clipboard' },
-  { name: 'agent.next', args: {}, group: 'Agent', title: 'Next agent', words: '' },
-  { name: 'agent.prev', args: {}, group: 'Agent', title: 'Previous agent', words: '' },
   { name: 'window.minimize', args: {}, group: 'Window', title: 'Minimize window', words: '' },
   {
     name: 'window.maximize',
@@ -216,6 +214,8 @@ const hiddenCommands = new Set([
   'terminal.kill',
   'terminal.show',
   'agent.focus',
+  'agent.next',
+  'agent.prev',
   'layout.set',
   'layout.toggle',
   'layout.show',

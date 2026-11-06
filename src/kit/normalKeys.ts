@@ -1,11 +1,4 @@
-export type NormalIntent =
-  | 'closeOtherPanes'
-  | 'nextPane'
-  | 'previousPane'
-  | 'lastPane'
-  | 'lastTab'
-  | 'nextSpace'
-  | 'previousSpace';
+export type NormalIntent = 'closeOtherPanes' | 'nextPane' | 'previousPane' | 'lastPane' | 'lastTab';
 
 export type NormalAction =
   | { kind: 'command'; command: string; args?: Record<string, unknown> }
@@ -19,6 +12,12 @@ export interface NormalKey {
   counted?: 'nthTab';
 }
 
+interface WindowKey {
+  key: string;
+  action: NormalAction;
+  controlTwin?: boolean;
+}
+
 const herdrCommand = (command: string, args?: Record<string, unknown>): NormalAction => ({
   kind: 'command',
   command,
@@ -29,7 +28,65 @@ const intentAction = (intent: NormalIntent): NormalAction => ({ kind: 'intent', 
 
 const leaveAction: NormalAction = { kind: 'leave' };
 
+const windowKeys: WindowKey[] = [
+  { key: 'h', action: herdrCommand('pane.go', { direction: 'left' }), controlTwin: true },
+  { key: 'j', action: herdrCommand('pane.go', { direction: 'down' }), controlTwin: true },
+  { key: 'k', action: herdrCommand('pane.go', { direction: 'up' }), controlTwin: true },
+  { key: 'l', action: herdrCommand('pane.go', { direction: 'right' }), controlTwin: true },
+  { key: 'left', action: herdrCommand('pane.go', { direction: 'left' }) },
+  { key: 'down', action: herdrCommand('pane.go', { direction: 'down' }) },
+  { key: 'up', action: herdrCommand('pane.go', { direction: 'up' }) },
+  { key: 'right', action: herdrCommand('pane.go', { direction: 'right' }) },
+  { key: 'H', action: herdrCommand('pane.swap', { direction: 'left' }) },
+  { key: 'J', action: herdrCommand('pane.swap', { direction: 'down' }) },
+  { key: 'K', action: herdrCommand('pane.swap', { direction: 'up' }) },
+  { key: 'L', action: herdrCommand('pane.swap', { direction: 'right' }) },
+  { key: 's', action: herdrCommand('pane.split', { direction: 'down' }), controlTwin: true },
+  { key: 'n', action: herdrCommand('pane.split', { direction: 'down' }), controlTwin: true },
+  { key: 'v', action: herdrCommand('pane.split', { direction: 'right' }), controlTwin: true },
+  { key: 'q', action: herdrCommand('pane.close'), controlTwin: true },
+  { key: 'c', action: herdrCommand('pane.close') },
+  { key: 'o', action: intentAction('closeOtherPanes'), controlTwin: true },
+  { key: 'm', action: herdrCommand('pane.zoom') },
+  { key: '_', action: herdrCommand('pane.zoom'), controlTwin: true },
+  { key: '|', action: herdrCommand('pane.zoom') },
+  { key: 'w', action: intentAction('nextPane'), controlTwin: true },
+  { key: 'W', action: intentAction('previousPane') },
+  { key: 'p', action: intentAction('lastPane'), controlTwin: true },
+];
+
+const windowEntry = ({ key, action }: WindowKey): NormalKey => ({ keys: ['w', key], action });
+
+const controlWindowEntries = ({ key, action, controlTwin }: WindowKey): NormalKey[] => {
+  const alias = { keys: ['ctrl-w', key], action };
+
+  if (controlTwin !== true) {
+    return [alias];
+  }
+
+  return [alias, { keys: ['ctrl-w', `ctrl-${key}`], action }];
+};
+
+const tabDigits = ['1', '2', '3', '4', '5', '6', '7', '8', '9'];
+
+const tabSelectEntry = (digit: string): NormalKey => ({
+  keys: ['t', digit],
+  action: herdrCommand('tab.select', { index: Number(digit) }),
+});
+
+const paletteAction = herdrCommand('mod.open', { name: 'koja-palette' });
+
+// The plain-letter form of an action comes before its ctrl-w alias, because key hints show the
+// first key of an action.
 export const normalKeys: NormalKey[] = [
+  { keys: ['h'], action: herdrCommand('pane.go', { direction: 'left' }) },
+  { keys: ['j'], action: herdrCommand('pane.go', { direction: 'down' }) },
+  { keys: ['k'], action: herdrCommand('pane.go', { direction: 'up' }) },
+  { keys: ['l'], action: herdrCommand('pane.go', { direction: 'right' }) },
+  { keys: ['H'], action: herdrCommand('pane.swap', { direction: 'left' }) },
+  { keys: ['J'], action: herdrCommand('pane.swap', { direction: 'down' }) },
+  { keys: ['K'], action: herdrCommand('pane.swap', { direction: 'up' }) },
+  { keys: ['L'], action: herdrCommand('pane.swap', { direction: 'right' }) },
   { keys: ['ctrl-h'], action: herdrCommand('pane.go', { direction: 'left' }) },
   { keys: ['ctrl-j'], action: herdrCommand('pane.go', { direction: 'down' }) },
   { keys: ['ctrl-k'], action: herdrCommand('pane.go', { direction: 'up' }) },
@@ -42,59 +99,29 @@ export const normalKeys: NormalKey[] = [
   { keys: ['ctrl-down'], action: herdrCommand('pane.go', { direction: 'down' }) },
   { keys: ['ctrl-up'], action: herdrCommand('pane.go', { direction: 'up' }) },
   { keys: ['ctrl-right'], action: herdrCommand('pane.go', { direction: 'right' }) },
-  { keys: ['ctrl-w', 'h'], action: herdrCommand('pane.go', { direction: 'left' }) },
-  { keys: ['ctrl-w', 'ctrl-h'], action: herdrCommand('pane.go', { direction: 'left' }) },
-  { keys: ['ctrl-w', 'j'], action: herdrCommand('pane.go', { direction: 'down' }) },
-  { keys: ['ctrl-w', 'ctrl-j'], action: herdrCommand('pane.go', { direction: 'down' }) },
-  { keys: ['ctrl-w', 'k'], action: herdrCommand('pane.go', { direction: 'up' }) },
-  { keys: ['ctrl-w', 'ctrl-k'], action: herdrCommand('pane.go', { direction: 'up' }) },
-  { keys: ['ctrl-w', 'l'], action: herdrCommand('pane.go', { direction: 'right' }) },
-  { keys: ['ctrl-w', 'ctrl-l'], action: herdrCommand('pane.go', { direction: 'right' }) },
-  { keys: ['ctrl-w', 'left'], action: herdrCommand('pane.go', { direction: 'left' }) },
-  { keys: ['ctrl-w', 'down'], action: herdrCommand('pane.go', { direction: 'down' }) },
-  { keys: ['ctrl-w', 'up'], action: herdrCommand('pane.go', { direction: 'up' }) },
-  { keys: ['ctrl-w', 'right'], action: herdrCommand('pane.go', { direction: 'right' }) },
-  { keys: ['ctrl-w', 'H'], action: herdrCommand('pane.swap', { direction: 'left' }) },
-  { keys: ['ctrl-w', 'J'], action: herdrCommand('pane.swap', { direction: 'down' }) },
-  { keys: ['ctrl-w', 'K'], action: herdrCommand('pane.swap', { direction: 'up' }) },
-  { keys: ['ctrl-w', 'L'], action: herdrCommand('pane.swap', { direction: 'right' }) },
-  { keys: ['ctrl-w', 's'], action: herdrCommand('pane.split', { direction: 'down' }) },
-  { keys: ['ctrl-w', 'ctrl-s'], action: herdrCommand('pane.split', { direction: 'down' }) },
-  { keys: ['ctrl-w', 'n'], action: herdrCommand('pane.split', { direction: 'down' }) },
-  { keys: ['ctrl-w', 'ctrl-n'], action: herdrCommand('pane.split', { direction: 'down' }) },
-  { keys: ['ctrl-w', 'v'], action: herdrCommand('pane.split', { direction: 'right' }) },
-  { keys: ['ctrl-w', 'ctrl-v'], action: herdrCommand('pane.split', { direction: 'right' }) },
-  { keys: ['ctrl-w', 'q'], action: herdrCommand('pane.close') },
-  { keys: ['ctrl-w', 'ctrl-q'], action: herdrCommand('pane.close') },
-  { keys: ['ctrl-w', 'c'], action: herdrCommand('pane.close') },
-  { keys: ['ctrl-w', 'o'], action: intentAction('closeOtherPanes') },
-  { keys: ['ctrl-w', 'ctrl-o'], action: intentAction('closeOtherPanes') },
-  { keys: ['ctrl-w', 'm'], action: herdrCommand('pane.zoom') },
-  { keys: ['ctrl-w', '_'], action: herdrCommand('pane.zoom') },
-  { keys: ['ctrl-w', 'ctrl-_'], action: herdrCommand('pane.zoom') },
-  { keys: ['ctrl-w', '|'], action: herdrCommand('pane.zoom') },
-  { keys: ['ctrl-w', 'w'], action: intentAction('nextPane') },
-  { keys: ['ctrl-w', 'ctrl-w'], action: intentAction('nextPane') },
-  { keys: ['ctrl-w', 'W'], action: intentAction('previousPane') },
-  { keys: ['ctrl-w', 'p'], action: intentAction('lastPane') },
-  { keys: ['ctrl-w', 'ctrl-p'], action: intentAction('lastPane') },
-  { keys: ['ctrl-t', 'w'], action: herdrCommand('tab.new') },
-  { keys: ['ctrl-t', 'ctrl-w'], action: herdrCommand('tab.new') },
-  { keys: ['ctrl-t', 'n'], action: herdrCommand('tab.next') },
-  { keys: ['ctrl-t', 'ctrl-n'], action: herdrCommand('tab.next') },
-  { keys: ['ctrl-t', 'p'], action: herdrCommand('tab.prev') },
-  { keys: ['ctrl-t', 'ctrl-p'], action: herdrCommand('tab.prev') },
-  { keys: ['ctrl-t', 'q'], action: herdrCommand('tab.close') },
-  { keys: ['ctrl-t', 'ctrl-q'], action: herdrCommand('tab.close') },
+  ...windowKeys.map(windowEntry),
+  ...windowKeys.flatMap(controlWindowEntries),
+  { keys: ['t', 'n'], action: herdrCommand('tab.new') },
+  { keys: ['t', 'q'], action: herdrCommand('tab.close') },
+  { keys: ['t', 'r'], action: herdrCommand('tab.rename') },
+  { keys: ['t', 'h'], action: herdrCommand('tab.prev') },
+  { keys: ['t', 'l'], action: herdrCommand('tab.next') },
+  ...tabDigits.map(tabSelectEntry),
   { keys: ['g', 't'], action: herdrCommand('tab.next'), counted: 'nthTab' },
   { keys: ['g', 'T'], action: herdrCommand('tab.prev') },
   { keys: ['g', 'tab'], action: intentAction('lastTab') },
-  { keys: ['tab'], action: intentAction('nextSpace') },
-  { keys: ['shift-tab'], action: intentAction('previousSpace') },
-  { keys: ['ctrl-q', 'n'], action: herdrCommand('agent.next') },
-  { keys: ['ctrl-q', 'ctrl-n'], action: herdrCommand('agent.next') },
-  { keys: ['ctrl-q', 'p'], action: herdrCommand('agent.prev') },
-  { keys: ['ctrl-q', 'ctrl-p'], action: herdrCommand('agent.prev') },
+  { keys: ['s', 'n'], action: herdrCommand('space.new') },
+  { keys: ['s', 'q'], action: herdrCommand('space.close') },
+  { keys: ['s', 'r'], action: herdrCommand('space.rename') },
+  { keys: ['s', 'j'], action: herdrCommand('space.next') },
+  { keys: ['s', 'k'], action: herdrCommand('space.prev') },
+  { keys: ['tab'], action: herdrCommand('space.next') },
+  { keys: ['shift-tab'], action: herdrCommand('space.prev') },
+  { keys: ['z', 's'], action: herdrCommand('layout.toggle', { id: 'sidebar' }) },
+  { keys: ['z', 'l'], action: herdrCommand('layout.switch') },
+  { keys: ['z', '+'], action: herdrCommand('app.zoom_in') },
+  { keys: ['z', '-'], action: herdrCommand('app.zoom_out') },
+  { keys: ['z', '0'], action: herdrCommand('app.zoom_reset') },
   { keys: ['ctrl-u'], action: herdrCommand('terminal.scroll', { pages: -0.5 }) },
   { keys: ['ctrl-d'], action: herdrCommand('terminal.scroll', { pages: 0.5 }) },
   { keys: ['ctrl-b'], action: herdrCommand('terminal.scroll', { pages: -1 }) },
@@ -103,8 +130,11 @@ export const normalKeys: NormalKey[] = [
   { keys: ['ctrl-e'], action: herdrCommand('terminal.scroll', { lines: 1 }) },
   { keys: ['g', 'g'], action: herdrCommand('terminal.scroll', { to: 'top' }) },
   { keys: ['G'], action: herdrCommand('terminal.scroll', { to: 'bottom' }) },
-  { keys: ['backspace'], action: herdrCommand('mod.open', { name: 'koja-palette' }) },
-  { keys: ['ö'], action: herdrCommand('mod.open', { name: 'koja-palette' }) },
+  { keys: [':'], action: paletteAction },
+  { keys: ['backspace'], action: paletteAction },
+  { keys: ['ö'], action: paletteAction },
+  { keys: ['/'], action: herdrCommand('terminal.search') },
+  { keys: ['?'], action: herdrCommand('app.help') },
   { keys: ['space', 'space'], action: herdrCommand('mod.open', { name: 'koja-picker' }) },
   { keys: ['i'], action: leaveAction },
   { keys: ['a'], action: leaveAction },

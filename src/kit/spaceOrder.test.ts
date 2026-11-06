@@ -1,6 +1,12 @@
 import { describe, expect, test } from 'bun:test';
 
-import { clearSpaceOrder, readSpaceOrder, writeSpaceOrder } from './spaceOrder.ts';
+import type { SpaceCommand, SpaceOrder, SpaceStepFacts } from './spaceOrder.ts';
+import {
+  clearSpaceOrder,
+  readSpaceOrder,
+  spaceStepCommand,
+  writeSpaceOrder,
+} from './spaceOrder.ts';
 
 const memoryStore = () => {
   const values: Record<string, unknown> = {};
@@ -45,5 +51,101 @@ describe('space order', () => {
 
   test('reads no order when a list holds something other than ids', () => {
     expect(readSpaceOrder(() => ({ shown: ['main', 3], hidden: [] }))).toBeNull();
+  });
+});
+
+const order = (shown: string[], hidden: string[] = []): SpaceOrder => ({ shown, hidden });
+
+const select = (id: string): SpaceCommand => ({ name: 'space.select', args: { id } });
+
+const nextFallback: SpaceCommand = { name: 'space.next' };
+
+const previousFallback: SpaceCommand = { name: 'space.prev' };
+
+// Herdr's list is main, notes, worktree; the sidebar nests the worktree under main.
+const sidebar = ['main', 'worktree', 'notes'];
+
+const facts = (
+  current: string | null,
+  published: SpaceOrder | null,
+  liveIds: string[] = sidebar,
+): SpaceStepFacts => ({ current, order: published, liveIds });
+
+const steps: [string, number, SpaceStepFacts, SpaceCommand | null][] = [
+  [
+    'selects the next sidebar row, not the next in Herdr order',
+    1,
+    facts('main', order(sidebar)),
+    select('worktree'),
+  ],
+  ['selects the row above in the sidebar', -1, facts('worktree', order(sidebar)), select('main')],
+  ['wraps from the last row to the first', 1, facts('notes', order(sidebar)), select('main')],
+  ['wraps from the first row to the last', -1, facts('main', order(sidebar)), select('notes')],
+  ['falls back to space.next with no published order', 1, facts('main', null), nextFallback],
+  ['falls back to space.prev with no published order', -1, facts('main', null), previousFallback],
+  [
+    'falls back when the focused space is in neither list',
+    1,
+    facts('other', order(sidebar)),
+    nextFallback,
+  ],
+  ['falls back when no space is focused', 1, facts(null, order(['main']), ['main']), nextFallback],
+  [
+    'falls back forward when a live space is unlisted',
+    1,
+    facts('main', order(['main', 'notes']), ['main', 'notes', 'added']),
+    nextFallback,
+  ],
+  [
+    'falls back backward when a live space is unlisted',
+    -1,
+    facts('main', order(['main', 'notes']), ['main', 'notes', 'added']),
+    previousFallback,
+  ],
+  [
+    'skips a folded space listed as hidden',
+    1,
+    facts('main', order(['main', 'notes'], ['worktree'])),
+    select('notes'),
+  ],
+  [
+    'goes from a hidden space to the first shown space',
+    1,
+    facts('remote-a', order(['local'], ['remote-a', 'remote-b']), [
+      'local',
+      'remote-a',
+      'remote-b',
+    ]),
+    select('local'),
+  ],
+  [
+    'goes back from a hidden space to the last shown space',
+    -1,
+    facts('remote-a', order(['local', 'notes'], ['remote-a', 'remote-b']), [
+      'local',
+      'notes',
+      'remote-a',
+      'remote-b',
+    ]),
+    select('notes'),
+  ],
+  [
+    'skips a space removed after the order was published',
+    1,
+    facts('main', order(['main', 'removed', 'notes']), ['main', 'notes']),
+    select('notes'),
+  ],
+  [
+    'skips a removed space going back',
+    -1,
+    facts('notes', order(['main', 'removed', 'notes']), ['main', 'notes']),
+    select('main'),
+  ],
+  ['runs nothing for a single space', 1, facts('main', order(['main']), ['main']), null],
+];
+
+describe('spaceStepCommand', () => {
+  test.each(steps)('%s', (_name, step, given, expected) => {
+    expect(spaceStepCommand(step, given)).toEqual(expected);
   });
 });
