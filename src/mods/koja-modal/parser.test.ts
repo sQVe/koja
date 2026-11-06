@@ -1,5 +1,6 @@
 import { describe, expect, test } from 'bun:test';
 
+import type { NormalAction, NormalIntent } from '../../kit/normalKeys.ts';
 import type { KeyModifiers, NormalKeyEvent } from './keyEvent.ts';
 import { normalizeKey } from './keyEvent.ts';
 import type { ParseResult, ParserState } from './parser.ts';
@@ -97,7 +98,7 @@ describe('normal mode sequences', () => {
 
     expect(result).toMatchObject({
       status: 'action',
-      action: { kind: 'intent', intent: 'previousSpace' },
+      action: { kind: 'command', command: 'space.prev' },
     });
   });
 
@@ -211,32 +212,147 @@ describe('normal mode clearing', () => {
   });
 });
 
-describe('normal mode tab chords', () => {
-  test('resolves ctrl-t ctrl-n to the next tab', () => {
-    const result = feed([ctrlT, control('n', 'ctrl-n')]);
+const command = (name: string, args?: Record<string, unknown>): NormalAction => ({
+  kind: 'command',
+  command: name,
+  ...(args === undefined ? {} : { args }),
+});
 
-    expect(result).toMatchObject({
+const intent = (name: NormalIntent): NormalAction => ({ kind: 'intent', intent: name });
+
+const palette = command('mod.open', { name: 'koja-palette' });
+
+const partKeys: [string, NormalAction][] = [
+  ['w v', command('pane.split', { direction: 'right' })],
+  ['w s', command('pane.split', { direction: 'down' })],
+  ['w n', command('pane.split', { direction: 'down' })],
+  ['w h', command('pane.go', { direction: 'left' })],
+  ['w L', command('pane.swap', { direction: 'right' })],
+  ['w q', command('pane.close')],
+  ['w c', command('pane.close')],
+  ['w o', intent('closeOtherPanes')],
+  ['w m', command('pane.zoom')],
+  ['w |', command('pane.zoom')],
+  ['w w', intent('nextPane')],
+  ['w W', intent('previousPane')],
+  ['w p', intent('lastPane')],
+  ['t n', command('tab.new')],
+  ['t q', command('tab.close')],
+  ['t r', command('tab.rename')],
+  ['t h', command('tab.prev')],
+  ['t l', command('tab.next')],
+  ['s n', command('space.new')],
+  ['s q', command('space.close')],
+  ['s r', command('space.rename')],
+  ['s j', command('space.next')],
+  ['s k', command('space.prev')],
+  ['z s', command('layout.toggle', { id: 'sidebar' })],
+  ['z l', command('layout.switch')],
+  ['z +', command('app.zoom_in')],
+  ['z -', command('app.zoom_out')],
+  ['z 0', command('app.zoom_reset')],
+];
+
+const singleKeys: [string, NormalAction][] = [
+  ['h', command('pane.go', { direction: 'left' })],
+  ['j', command('pane.go', { direction: 'down' })],
+  ['k', command('pane.go', { direction: 'up' })],
+  ['l', command('pane.go', { direction: 'right' })],
+  ['H', command('pane.swap', { direction: 'left' })],
+  ['J', command('pane.swap', { direction: 'down' })],
+  ['K', command('pane.swap', { direction: 'up' })],
+  ['L', command('pane.swap', { direction: 'right' })],
+  [':', palette],
+  ['/', command('terminal.search')],
+  ['?', command('app.help')],
+];
+
+const windowSecondKeys = [
+  'h',
+  'j',
+  'k',
+  'l',
+  'left',
+  'down',
+  'up',
+  'right',
+  'H',
+  'J',
+  'K',
+  'L',
+  'v',
+  's',
+  'n',
+  'q',
+  'c',
+  'o',
+  'm',
+  '_',
+  '|',
+  'w',
+  'W',
+  'p',
+];
+
+const typed = (sequence: string): NormalKeyEvent[] => sequence.split(' ').map(plain);
+
+describe('normal mode parts', () => {
+  test.each(partKeys)('resolves %s to its action', (sequence, action) => {
+    const result = feed(typed(sequence));
+
+    expect(result).toEqual({ status: 'action', action, state: initialParserState });
+  });
+
+  test.each(singleKeys)('resolves %s alone to its action', (key, action) => {
+    expect(feed([plain(key)])).toMatchObject({ status: 'action', action });
+  });
+
+  test.each(windowSecondKeys)('resolves ctrl-w then %s like w then the same key', (key) => {
+    const withControl = feed([ctrlW, plain(key)]);
+
+    const withLetter = feed([plain('w'), plain(key)]);
+
+    expect(withLetter.status).toBe('action');
+    expect(withControl).toEqual(withLetter);
+  });
+
+  test.each(['1', '3', '9'])('resolves t %s to select that tab', (digit) => {
+    expect(feed([plain('t'), plain(digit)])).toMatchObject({
       status: 'action',
-      action: { kind: 'command', command: 'tab.next' },
+      action: command('tab.select', { index: Number(digit) }),
     });
   });
 
-  test('resolves ctrl-t n to the next tab', () => {
-    const result = feed([ctrlT, plain('n')]);
-
-    expect(result).toMatchObject({
+  test('drops a count before t 3 and selects tab 3', () => {
+    expect(feed([plain('5'), plain('t'), plain('3')])).toMatchObject({
       status: 'action',
-      action: { kind: 'command', command: 'tab.next' },
+      action: command('tab.select', { index: 3 }),
     });
   });
 
-  test('resolves ctrl-t ctrl-w to a new tab', () => {
-    const result = feed([ctrlT, control('w', 'ctrl-w')]);
+  test.each(['w', 't', 's', 'z'])('waits for a second key after %s', (key) => {
+    expect(feed([plain(key)])).toMatchObject({ status: 'pending', state: { pending: [key] } });
+  });
 
-    expect(result).toMatchObject({
-      status: 'action',
-      action: { kind: 'command', command: 'tab.new' },
-    });
+  test.each([
+    ['ctrl-t', ctrlT],
+    ['ctrl-q', ctrlQ],
+  ])('ignores %s instead of waiting for a second key', (_name, prefix) => {
+    const result = feed([prefix]);
+
+    expect(result).toEqual({ status: 'cleared', state: initialParserState });
+  });
+
+  test.each(['n', 'p', 'q', 'w'])('runs nothing for ctrl-q then ctrl-%s', (key) => {
+    const result = feed([ctrlQ, control(key, `ctrl-${key}`)]);
+
+    expect(result.status).not.toBe('action');
+  });
+
+  test.each(['n', 'p', 'q', 'w'])('runs nothing for ctrl-t then ctrl-%s', (key) => {
+    const result = feed([ctrlT, control(key, `ctrl-${key}`)]);
+
+    expect(result.status).not.toBe('action');
   });
 });
 
@@ -277,19 +393,7 @@ describe('normal mode counts and chords', () => {
   });
 });
 
-describe('normal mode agents and palette', () => {
-  test('resolves the ctrl-q agent chords', () => {
-    expect(feed([ctrlQ, plain('n')])).toMatchObject({
-      status: 'action',
-      action: { kind: 'command', command: 'agent.next' },
-    });
-
-    expect(feed([ctrlQ, control('p', 'ctrl-p')])).toMatchObject({
-      status: 'action',
-      action: { kind: 'command', command: 'agent.prev' },
-    });
-  });
-
+describe('normal mode palette', () => {
   test('resolves Backspace and Space Space', () => {
     expect(feed([named('backspace', 'backspace')])).toMatchObject({
       status: 'action',

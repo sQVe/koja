@@ -60,6 +60,16 @@ describe('allEntries', () => {
     expect(entries.some((item) => item.name === 'space.select')).toBe(false);
   });
 
+  test('lists no agent jump even when the app offers it', () => {
+    commandList = [commandOf('agent.next'), commandOf('agent.prev'), commandOf('tab.new')];
+
+    const names = allEntries(host()).map((item) => item.name);
+
+    expect(names).toContain('tab.new');
+    expect(names).not.toContain('agent.next');
+    expect(names).not.toContain('agent.prev');
+  });
+
   test("lists every theme the app reports, including Koja's own", () => {
     commandList = [commandOf('app.theme')];
 

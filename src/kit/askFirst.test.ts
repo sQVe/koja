@@ -1,6 +1,7 @@
 import { afterAll, beforeEach, describe, expect, mock, test } from 'bun:test';
 
 import { herdrFake } from '../../tests/moduleFakes.ts';
+import { writeSpaceOrder } from './spaceOrder.ts';
 
 interface RunCall {
   name: string;
@@ -42,6 +43,8 @@ let openedSpecs: OpenedSpec[] = [];
 
 let runCalls: RunCall[] = [];
 
+let sharedValues: Record<string, unknown> = {};
+
 await mock.module('herdr', () =>
   herdrFake({
     focused: () => focusValue,
@@ -56,11 +59,21 @@ await mock.module('herdr', () =>
 
       return null;
     },
+    shared: (key: string) => sharedValues[key],
     spaces: () => spaceValues,
   }),
 );
 
 const { askFirst } = await import('./askFirst.ts');
+
+const publishSidebarOrder = (shown: string[]): void => {
+  writeSpaceOrder(
+    (key, value) => {
+      sharedValues[key] = value;
+    },
+    { shown, hidden: [] },
+  );
+};
 
 afterAll(() => {
   mock.restore();
@@ -92,6 +105,8 @@ beforeEach(() => {
   openedSpecs = [];
 
   runCalls = [];
+
+  sharedValues = {};
 });
 
 describe('askFirst', () => {
@@ -155,5 +170,40 @@ describe('askFirst', () => {
     askFirst('space.close', {});
 
     expect(openedSpecs[0]?.props?.['detail']).toBe('api — 2 tabs, 2 terminals');
+  });
+
+  test('next space selects the next space in sidebar order, not Herdr order', () => {
+    publishSidebarOrder(['s2', 's1']);
+
+    focusValue = { space: 's2', tab: 't3' };
+
+    const opened = askFirst('space.next');
+
+    expect(opened).toBe(false);
+    expect(runCalls).toEqual([{ name: 'space.select', args: { id: 's1' } }]);
+  });
+
+  test('previous space runs space.prev when the sidebar published no order', () => {
+    askFirst('space.prev');
+
+    expect(runCalls).toEqual([{ name: 'space.prev', args: undefined }]);
+  });
+
+  test('previous space runs space.prev when the focused space is not in the sidebar order', () => {
+    publishSidebarOrder(['s2', 's1']);
+    focusValue = { space: 'unknown', tab: 't9' };
+
+    askFirst('space.prev');
+
+    expect(runCalls).toEqual([{ name: 'space.prev', args: undefined }]);
+  });
+
+  test('previous space runs space.prev when nothing is focused', () => {
+    publishSidebarOrder(['s2', 's1']);
+    focusValue = null;
+
+    askFirst('space.prev');
+
+    expect(runCalls).toEqual([{ name: 'space.prev', args: undefined }]);
   });
 });

@@ -42,8 +42,8 @@ export const bindingFor = (
 
   for (const action of actions) {
     const binding =
-      global.find((candidate) => candidate.action === action) ??
-      normalBindings.find((candidate) => candidate.action === action);
+      normalBindings.find((candidate) => candidate.action === action) ??
+      global.find((candidate) => candidate.action === action);
 
     if (binding !== undefined) {
       return binding.keys;

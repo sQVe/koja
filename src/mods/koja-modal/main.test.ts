@@ -71,6 +71,7 @@ let terminalKeys: string[] = [];
 let afterHandlers: (() => void)[] = [];
 let statusLookups = 0;
 let paletteOpen = false;
+let helpOpen = false;
 let keyDownHandler: ((event: unknown) => void) | null = null;
 let currentContext: unknown = null;
 let sharedValues: Record<string, unknown> = {};
@@ -166,7 +167,15 @@ await mock.module('herdr', () =>
     exec: async () => {
       statusLookups += 1;
 
-      const overlays = paletteOpen ? [{ name: 'koja-palette' }] : [];
+      const overlays = [];
+
+      if (paletteOpen) {
+        overlays.push({ name: 'koja-palette' });
+      }
+
+      if (helpOpen) {
+        overlays.push({ name: 'help' });
+      }
 
       return { code: 0, stdout: JSON.stringify({ overlays }), stderr: '' };
     },
@@ -282,6 +291,7 @@ beforeEach(() => {
   afterHandlers = [];
   statusLookups = 0;
   paletteOpen = false;
+  helpOpen = false;
   keyDownHandler = null;
   currentContext = null;
   sharedValues = {};
@@ -307,10 +317,10 @@ describe('koja modal view', () => {
 
     view.render();
 
-    keyDownHandler?.(control('t', 'ctrl-t'));
+    keyDownHandler?.(plain('t'));
     keyDownHandler?.(plain('n'));
 
-    expect(runCalls).toEqual([{ command: 'tab.next', args: undefined }]);
+    expect(runCalls).toEqual([{ command: 'tab.new', args: undefined }]);
   });
 
   test('i closes the overlay', async () => {
@@ -362,6 +372,39 @@ describe('koja modal view', () => {
     await flush();
 
     expect(focusCalls).toBe(focusBefore);
+    expect(overlayFocused).toBe(false);
+  });
+
+  test('/ opens the search and closes normal mode so typing goes to the find bar', async () => {
+    const view = await loadView();
+
+    view.render();
+
+    keyDownHandler?.(plain('/'));
+    overlayFocused = false;
+    runAfterHandlers();
+    await flush();
+
+    expect(runCalls).toEqual([{ command: 'terminal.search', args: undefined }]);
+    expect(closeCalls).toEqual(['overlay-1']);
+    expect(overlayFocused).toBe(false);
+  });
+
+  test('? leaves the keyboard with Help while it is open', async () => {
+    const view = await loadView();
+
+    view.render();
+
+    keyDownHandler?.(plain('?'));
+    overlayFocused = false;
+    helpOpen = true;
+    runAfterHandlers();
+    tickHandler?.();
+    await flush();
+    tickHandler?.();
+    await flush();
+
+    expect(runCalls).toEqual([{ command: 'app.help', args: undefined }]);
     expect(overlayFocused).toBe(false);
   });
 
@@ -567,19 +610,19 @@ describe('koja modal view', () => {
     expect(runCalls).toEqual([{ command: 'tab.select', args: { index: 3 } }]);
   });
 
-  test('ctrl-t q routes tab.close through askFirst instead of Herdr run', async () => {
+  test('t q routes tab.close through askFirst instead of Herdr run', async () => {
     const view = await loadView();
 
     view.render();
 
-    keyDownHandler?.(control('t', 'ctrl-t'));
+    keyDownHandler?.(plain('t'));
     keyDownHandler?.(plain('q'));
 
     expect(askFirstCalls).toEqual([{ command: 'tab.close', args: undefined }]);
     expect(runCalls).toEqual([]);
   });
 
-  test('ctrl-t q yields the keyboard so the confirm keeps focus', async () => {
+  test('t q yields the keyboard so the confirm keeps focus', async () => {
     const view = await loadView();
 
     view.render();
@@ -588,14 +631,14 @@ describe('koja modal view', () => {
     paletteOpen = true;
     overlayFocused = false;
 
-    keyDownHandler?.(control('t', 'ctrl-t'));
+    keyDownHandler?.(plain('t'));
     keyDownHandler?.(plain('q'));
     runAfterHandlers();
 
     expect(overlayFocused).toBe(false);
   });
 
-  test('ctrl-t q regains the keyboard at once when no dialog opens', async () => {
+  test('t q regains the keyboard at once when no dialog opens', async () => {
     const view = await loadView();
 
     view.render();
@@ -606,7 +649,7 @@ describe('koja modal view', () => {
 
     const focusBefore = focusCalls;
 
-    keyDownHandler?.(control('t', 'ctrl-t'));
+    keyDownHandler?.(plain('t'));
     keyDownHandler?.(plain('q'));
     runAfterHandlers();
 

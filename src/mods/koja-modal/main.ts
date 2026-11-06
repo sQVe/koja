@@ -1,6 +1,6 @@
 import type { AsyncContext, Context, Element, FocusHandle, KeyEvent } from 'gpui-kit';
 import { div, View } from 'gpui-kit';
-import { exec, focused, nextCommand, panes, run, setShared, shared, spaces } from 'herdr';
+import { exec, focused, nextCommand, panes, run, setShared, shared } from 'herdr';
 
 import {
   askFirst,
@@ -27,10 +27,15 @@ const stopPress = (_event: unknown, cx: Context): void => {
   cx.stop_propagation();
 };
 
-const mayOpenOverlay = (command: string): boolean => command === 'mod.open';
+const overlayCommands = new Set(['mod.open', 'app.help']);
+
+const inlineInputCommands = new Set(['terminal.search']);
 
 const opensOverlay = (action: NormalAction): boolean =>
-  action.kind === 'command' && mayOpenOverlay(action.command);
+  action.kind === 'command' && overlayCommands.has(action.command);
+
+const opensInlineInput = (action: NormalAction): boolean =>
+  action.kind === 'command' && inlineInputCommands.has(action.command);
 
 export default class KojaModal extends View {
   private handle: FocusHandle | null = null;
@@ -54,7 +59,6 @@ export default class KojaModal extends View {
     },
     panes,
     focused,
-    spaces,
     store: {
       get: (key) => shared(key),
       set: (key, value) => {
@@ -122,6 +126,12 @@ export default class KojaModal extends View {
 
     this.dialogOpened = false;
     this.executor.execute(result.action);
+
+    if (opensInlineInput(result.action)) {
+      closeOverlay(overlayId());
+
+      return;
+    }
 
     if (opensOverlay(result.action) || this.openedDialog()) {
       this.hold.yield();
