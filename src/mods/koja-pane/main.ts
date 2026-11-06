@@ -2,7 +2,7 @@ import { h_flex } from 'gpui-base';
 import type { Element } from 'gpui-kit';
 import { div, View } from 'gpui-kit';
 import type { PaneInfo, Status } from 'herdr';
-import { home, panes, props, run } from 'herdr';
+import { home, panes, props, run, shared } from 'herdr';
 
 import type { IconName } from '../../kit/index.ts';
 import {
@@ -10,7 +10,9 @@ import {
   colors,
   controlSize,
   iconButton,
+  normalFocusFill,
   programIcon,
+  radius,
   recordOf,
   roleText,
   spacing,
@@ -18,6 +20,7 @@ import {
   stringOf,
   withTextRole,
 } from '../../kit/index.ts';
+import { headerTone } from './headerTone.ts';
 import { folderLabel } from './paneFolder.ts';
 import { paneFolder, paneName, paneProgram } from './paneLabel.ts';
 
@@ -84,9 +87,10 @@ export default class PaneHeader extends View {
 
   private header(pane: PaneInfo): Element {
     const palette = colors();
-    const iconColor = pane.focused ? palette.muted : palette.dim;
+    const tone = headerTone(pane.focused, Boolean(shared('koja-modal')));
 
-    // No background here: the pane frame's rounded background shows through, so the top corners stay clean.
+    // No background in insert mode: the pane frame's rounded background shows through, so the top
+    // corners stay clean.
     const element = h_flex()
       .id(`pane-header-${pane.pane}`)
       .size_full()
@@ -101,17 +105,21 @@ export default class PaneHeader extends View {
       })
       .on_click(() => run('pane.focus', { pane: pane.pane }));
 
+    if (tone.tinted) {
+      element.bg(normalFocusFill(palette)).rounded_t(radius.cardInner);
+    }
+
     const program = paneProgram(pane);
 
     if (program !== null && program.icon !== null) {
-      element.child(programIcon(program, 'default').text_color(iconColor));
+      element.child(programIcon(program, 'default').text_color(palette[tone.icon]));
     }
 
     element.child(
       withTextRole(
         div().flex_initial().min_w(0).max_w(controlSize.paneLabelMaxWidth).truncate(),
         'detail',
-        pane.focused ? 'foreground' : 'muted',
+        tone.title,
       ).child(paneName(pane)),
     );
 

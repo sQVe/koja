@@ -18,6 +18,7 @@ export const herdrFake = (overrides: ModuleFake = {}): ModuleFake => ({
   exec: async () => ({ code: 0, stdout: '', stderr: '' }),
   focused: () => null,
   hc: () => null,
+  home: () => '',
   keys: () => [],
   layout: () => null,
   layouts: () => [],

@@ -54,6 +54,10 @@ border for focus. The frame, panes, terminals, sidebar, and tab bar all share th
 - Focus also shows as the `accent` border, and the focused pane's header draws a faint fill from the
   kit's focus value. Herdr cannot dim or tint an unfocused terminal, so the header is the one place
   Koja can mark focus beyond the border. Koja adds no other focus mark.
+- In normal mode, Koja's overlay holds the keyboard, so Herdr draws no focus border. The focused
+  pane's header then draws an `accent` tint at alpha `18`, with its title and icon in `accent`. The
+  tint stays this light so the title and folder keep 4.5:1 contrast. Insert mode keeps the look
+  above.
 
 ### Pane headers
 

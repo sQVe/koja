@@ -83,7 +83,7 @@ export type { StateLineOptions } from './stateLine.ts';
 
 export { colors } from './theme.ts';
 
-export { diffTints } from './palette.ts';
+export { diffTints, normalFocusFill } from './palette.ts';
 
 export type { Palette, ThemeToken } from './palette.ts';
 

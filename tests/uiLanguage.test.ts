@@ -4,7 +4,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
 import { iconNames } from '../src/kit/iconNames.ts';
-import { badgeFillAlpha, diffFillAlpha } from '../src/kit/palette.ts';
+import { badgeFillAlpha, diffFillAlpha, normalFocusFillAlpha } from '../src/kit/palette.ts';
 import { isRawStyleExempt, modsDirectory, typeScriptFiles } from './sourceFiles.ts';
 
 interface SourceLine {
@@ -305,6 +305,34 @@ const backgroundPairs = (): ContrastPair[] => [
     'background',
     4.5,
     'Changes diff line text on the addition tint',
+  ),
+  filledPair(
+    'accent',
+    { alpha: normalFocusFillAlpha, token: 'accent' },
+    'background',
+    4.5,
+    'koja-pane focused title in normal mode on the focus tint',
+  ),
+  filledPair(
+    'dim',
+    { alpha: normalFocusFillAlpha, token: 'accent' },
+    'background',
+    4.5,
+    'koja-pane folder in normal mode on the focus tint',
+  ),
+  filledPair(
+    'working',
+    { alpha: normalFocusFillAlpha, token: 'accent' },
+    'background',
+    3,
+    'statusMark working in a normal-mode pane header on the focus tint',
+  ),
+  filledPair(
+    'done',
+    { alpha: normalFocusFillAlpha, token: 'accent' },
+    'background',
+    3,
+    'statusMark done in a normal-mode pane header on the focus tint',
   ),
 ];
 
