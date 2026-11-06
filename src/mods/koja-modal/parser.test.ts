@@ -394,13 +394,28 @@ describe('normal mode counts and chords', () => {
 });
 
 describe('normal mode palette', () => {
-  test('resolves Backspace and Space Space', () => {
+  test('resolves Backspace to the palette', () => {
     expect(feed([named('backspace', 'backspace')])).toMatchObject({
       status: 'action',
       action: { kind: 'command', command: 'mod.open', args: { name: 'koja-palette' } },
     });
+  });
 
-    expect(feed([named('space', 'space'), named('space', 'space')])).toMatchObject({
+  test('resolves s f and the aumlaut to the picker', () => {
+    const aumlaut = event({ key: 'quote', keystroke: 'ä', key_char: 'ä' });
+
+    for (const keys of [[plain('s'), plain('f')], [aumlaut]]) {
+      expect(feed(keys)).toMatchObject({
+        status: 'action',
+        action: { kind: 'command', command: 'mod.open', args: { name: 'koja-picker' } },
+      });
+    }
+  });
+
+  test('does not open the picker for Space Space', () => {
+    const result = feed([named('space', 'space'), named('space', 'space')]);
+
+    expect(result).not.toMatchObject({
       status: 'action',
       action: { kind: 'command', command: 'mod.open', args: { name: 'koja-picker' } },
     });
