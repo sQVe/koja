@@ -110,8 +110,9 @@ const steps: [string, number, SpaceStepFacts, SpaceCommand | null][] = [
   [
     'goes from a hidden space to the first shown space',
     1,
-    facts('remote-a', order(['local'], ['remote-a', 'remote-b']), [
+    facts('remote-a', order(['local', 'notes'], ['remote-a', 'remote-b']), [
       'local',
+      'notes',
       'remote-a',
       'remote-b',
     ]),
@@ -120,8 +121,9 @@ const steps: [string, number, SpaceStepFacts, SpaceCommand | null][] = [
   [
     'goes back from a hidden space to the last shown space',
     -1,
-    facts('remote-a', order(['local', 'notes'], ['remote-a', 'remote-b']), [
+    facts('remote-a', order(['local', 'work', 'notes'], ['remote-a', 'remote-b']), [
       'local',
+      'work',
       'notes',
       'remote-a',
       'remote-b',
