@@ -6,6 +6,8 @@ interface RecordedElement {
   styles: Record<string, unknown>;
 }
 
+type HoverHandler = (hovered: boolean, cx: { notify: () => void }) => void;
+
 // Records every style method by name, last call wins, so a test can read the drawn fill.
 const recorded = (): RecordedElement => {
   const element: RecordedElement = { styles: {} };
@@ -78,6 +80,18 @@ afterAll(() => {
   mock.restore();
 });
 
+const hoveredButtons = (): RecordedElement[] => {
+  focused = true;
+  normalMode = false;
+
+  const view = new loaded.default();
+  const onHover = view.render().styles['on_hover'] as HoverHandler;
+
+  onHover(true, { notify: () => undefined });
+
+  return view.render().styles['children'] as RecordedElement[];
+};
+
 const headerFill = (paneFocused: boolean, normal: boolean): unknown => {
   focused = paneFocused;
   normalMode = normal;
@@ -97,5 +111,16 @@ describe('pane header fill', () => {
   test('draws no fill on an unfocused header in either mode', () => {
     expect(headerFill(false, true)).toBeUndefined();
     expect(headerFill(false, false)).toBeUndefined();
+  });
+});
+
+describe('pane header buttons', () => {
+  test('name each button for assistive technology and in a tooltip', () => {
+    const buttons = hoveredButtons();
+    const names = buttons.map((button) => button.styles['accessibility_label']);
+    const tooltips = buttons.map((button) => button.styles['tooltip']);
+
+    expect(names).toEqual(['Split right', 'Split down', 'Zoom pane', 'Close pane']);
+    expect(tooltips).toEqual(names);
   });
 });

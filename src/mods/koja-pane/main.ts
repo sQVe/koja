@@ -4,13 +4,14 @@ import { div, View } from 'gpui-kit';
 import type { PaneInfo, Status } from 'herdr';
 import { home, panes, props, run, shared } from 'herdr';
 
-import type { IconName } from '../../kit/index.ts';
+import type { PaneHeaderMenuAction } from '../../kit/index.ts';
 import {
   attentionBadge,
   colors,
   controlSize,
   iconButton,
   normalFocusFill,
+  paneActions,
   programIcon,
   radius,
   recordOf,
@@ -42,34 +43,28 @@ const statusElement = (status: Status | null): Element | null => {
   return null;
 };
 
-const paneButton = (
-  name: IconName,
-  id: string,
-  command: string,
-  args: Record<string, unknown>,
-): Element =>
-  iconButton({ name })
+const paneButton = (entry: PaneHeaderMenuAction, id: string): Element =>
+  iconButton({ name: entry.icon })
     .id(id)
+    .accessibility_label(entry.label)
+    .tooltip(entry.label)
     .on_click((_event, cx) => {
       cx.stop_propagation();
-      run(command, args);
+      entry.action?.();
     });
 
 const paneButtons = (pane: PaneInfo): Element[] => {
-  const zoomIcon: IconName = pane.zoomed ? 'minimize-2' : 'maximize-2';
+  const ids = ['split-right', 'split-down', 'zoom', 'close'];
 
-  return [
-    paneButton('columns-2', `pane-split-right-${pane.pane}`, 'pane.split', {
-      direction: 'right',
-      pane: pane.pane,
-    }),
-    paneButton('rows-2', `pane-split-down-${pane.pane}`, 'pane.split', {
-      direction: 'down',
-      pane: pane.pane,
-    }),
-    paneButton(zoomIcon, `pane-zoom-${pane.pane}`, 'pane.zoom', { pane: pane.pane }),
-    paneButton('x', `pane-close-${pane.pane}`, 'pane.close', { pane: pane.pane }),
-  ];
+  const actions = paneActions({
+    zoomed: pane.zoomed,
+    onSplitRight: () => run('pane.split', { direction: 'right', pane: pane.pane }),
+    onSplitDown: () => run('pane.split', { direction: 'down', pane: pane.pane }),
+    onZoom: () => run('pane.zoom', { pane: pane.pane }),
+    onClose: () => run('pane.close', { pane: pane.pane }),
+  });
+
+  return actions.map((entry, index) => paneButton(entry, `pane-${ids[index]}-${pane.pane}`));
 };
 
 export default class PaneHeader extends View {
