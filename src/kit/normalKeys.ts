@@ -76,8 +76,6 @@ const tabSelectEntry = (digit: string): NormalKey => ({
 
 const paletteAction = herdrCommand('mod.open', { name: 'koja-palette' });
 
-// The plain-letter form of an action comes before its ctrl-w alias, because key hints show the
-// first key of an action.
 export const normalKeys: NormalKey[] = [
   { keys: ['h'], action: herdrCommand('pane.go', { direction: 'left' }) },
   { keys: ['j'], action: herdrCommand('pane.go', { direction: 'down' }) },

@@ -29,8 +29,6 @@ const stopPress = (_event: unknown, cx: Context): void => {
 
 const overlayCommands = new Set(['mod.open', 'app.help']);
 
-// The find bar takes typing inside the terminal and lists no overlay in the status, so the hold
-// would take the keyboard back from it. Normal mode closes instead.
 const inlineInputCommands = new Set(['terminal.search']);
 
 const opensOverlay = (action: NormalAction): boolean =>

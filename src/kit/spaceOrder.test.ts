@@ -62,7 +62,6 @@ const nextFallback: SpaceCommand = { name: 'space.next' };
 
 const previousFallback: SpaceCommand = { name: 'space.prev' };
 
-// Herdr's list is main, notes, worktree; the sidebar nests the worktree under main.
 const sidebar = ['main', 'worktree', 'notes'];
 
 const facts = (

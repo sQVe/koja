@@ -80,8 +80,6 @@ const targetSpace = (order: SpaceOrder, current: string | null, step: number): s
   return (step > 0 ? shown[0] : shown.at(-1)) ?? null;
 };
 
-// Steps through spaces in the order the sidebar shows them. Herdr's own space.next and space.prev
-// run only when the sidebar published no order that covers every live space.
 export const spaceStepCommand = (step: number, facts: SpaceStepFacts): SpaceCommand | null => {
   const order = liveOrder(facts);
   const target = order === null ? null : targetSpace(order, facts.current, step);
