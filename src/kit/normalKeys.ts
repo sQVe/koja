@@ -76,6 +76,8 @@ const tabSelectEntry = (digit: string): NormalKey => ({
 
 const paletteAction = herdrCommand('mod.open', { name: 'koja-palette' });
 
+const pickerAction = herdrCommand('mod.open', { name: 'koja-picker' });
+
 export const normalKeys: NormalKey[] = [
   { keys: ['h'], action: herdrCommand('pane.go', { direction: 'left' }) },
   { keys: ['j'], action: herdrCommand('pane.go', { direction: 'down' }) },
@@ -113,6 +115,7 @@ export const normalKeys: NormalKey[] = [
   { keys: ['s', 'r'], action: herdrCommand('space.rename') },
   { keys: ['s', 'j'], action: herdrCommand('space.next') },
   { keys: ['s', 'k'], action: herdrCommand('space.prev') },
+  { keys: ['s', 'f'], action: pickerAction },
   { keys: ['tab'], action: herdrCommand('space.next') },
   { keys: ['shift-tab'], action: herdrCommand('space.prev') },
   { keys: ['z', 's'], action: herdrCommand('layout.toggle', { id: 'sidebar' }) },
@@ -133,7 +136,7 @@ export const normalKeys: NormalKey[] = [
   { keys: ['ö'], action: paletteAction },
   { keys: ['/'], action: herdrCommand('terminal.search') },
   { keys: ['?'], action: herdrCommand('app.help') },
-  { keys: ['space', 'space'], action: herdrCommand('mod.open', { name: 'koja-picker' }) },
+  { keys: ['ä'], action: pickerAction },
   { keys: ['i'], action: leaveAction },
   { keys: ['a'], action: leaveAction },
   { keys: ['enter'], action: leaveAction },

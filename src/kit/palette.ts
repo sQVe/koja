@@ -70,6 +70,11 @@ export const diffFillAlpha = '18';
 
 export const badgeFillAlpha = '26';
 
+export const normalFocusFillAlpha = '18';
+
+export const normalFocusFill = (palette: Palette): Color =>
+  withAlpha(palette.accent, normalFocusFillAlpha);
+
 export const diffTints = (palette: Palette): { added: Color; removed: Color } => ({
   added: withAlpha(palette.ansi2, diffFillAlpha),
   removed: withAlpha(palette.ansi1, diffFillAlpha),

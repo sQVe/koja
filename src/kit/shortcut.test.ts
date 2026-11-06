@@ -43,6 +43,10 @@ describe('bindingFor', () => {
     expect(bindingFor([], 'space.prev')).toBe('s k');
   });
 
+  test('shows s f for the picker', () => {
+    expect(bindingFor([], 'mod.open:koja-picker')).toBe('s f');
+  });
+
   test('answers null for an action with only ambiguous normal-mode keys', () => {
     expect(bindingFor([], 'terminal.scroll')).toBeNull();
   });

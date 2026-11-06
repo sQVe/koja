@@ -27,6 +27,10 @@ export type { PaneHeaderOptions } from './paneHeader.ts';
 
 export { paneHeaderMenu } from './paneHeaderMenu.ts';
 
+export { paneActions } from './paneHeaderMenuModel.ts';
+
+export type { PaneHeaderMenuAction } from './paneHeaderMenuModel.ts';
+
 export { shortAge } from './age.ts';
 
 export { foldChevron, repoLabel } from './repoLabel.ts';
@@ -83,7 +87,7 @@ export type { StateLineOptions } from './stateLine.ts';
 
 export { colors } from './theme.ts';
 
-export { diffTints } from './palette.ts';
+export { diffTints, normalFocusFill } from './palette.ts';
 
 export type { Palette, ThemeToken } from './palette.ts';
 

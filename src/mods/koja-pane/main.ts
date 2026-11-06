@@ -2,15 +2,18 @@ import { h_flex } from 'gpui-base';
 import type { Element } from 'gpui-kit';
 import { div, View } from 'gpui-kit';
 import type { PaneInfo, Status } from 'herdr';
-import { home, panes, props, run } from 'herdr';
+import { home, panes, props, run, shared } from 'herdr';
 
-import type { IconName } from '../../kit/index.ts';
+import type { PaneHeaderMenuAction } from '../../kit/index.ts';
 import {
   attentionBadge,
   colors,
   controlSize,
   iconButton,
+  normalFocusFill,
+  paneActions,
   programIcon,
+  radius,
   recordOf,
   roleText,
   spacing,
@@ -18,6 +21,7 @@ import {
   stringOf,
   withTextRole,
 } from '../../kit/index.ts';
+import { headerTone } from './headerTone.ts';
 import { folderLabel } from './paneFolder.ts';
 import { paneFolder, paneName, paneProgram } from './paneLabel.ts';
 
@@ -39,34 +43,28 @@ const statusElement = (status: Status | null): Element | null => {
   return null;
 };
 
-const paneButton = (
-  name: IconName,
-  id: string,
-  command: string,
-  args: Record<string, unknown>,
-): Element =>
-  iconButton({ name })
+const paneButton = (entry: PaneHeaderMenuAction, id: string): Element =>
+  iconButton({ name: entry.icon })
     .id(id)
+    .accessibility_label(entry.label)
+    .tooltip(entry.label)
     .on_click((_event, cx) => {
       cx.stop_propagation();
-      run(command, args);
+      entry.action?.();
     });
 
 const paneButtons = (pane: PaneInfo): Element[] => {
-  const zoomIcon: IconName = pane.zoomed ? 'minimize-2' : 'maximize-2';
+  const ids = ['split-right', 'split-down', 'zoom', 'close'];
 
-  return [
-    paneButton('columns-2', `pane-split-right-${pane.pane}`, 'pane.split', {
-      direction: 'right',
-      pane: pane.pane,
-    }),
-    paneButton('rows-2', `pane-split-down-${pane.pane}`, 'pane.split', {
-      direction: 'down',
-      pane: pane.pane,
-    }),
-    paneButton(zoomIcon, `pane-zoom-${pane.pane}`, 'pane.zoom', { pane: pane.pane }),
-    paneButton('x', `pane-close-${pane.pane}`, 'pane.close', { pane: pane.pane }),
-  ];
+  const actions = paneActions({
+    zoomed: pane.zoomed,
+    onSplitRight: () => run('pane.split', { direction: 'right', pane: pane.pane }),
+    onSplitDown: () => run('pane.split', { direction: 'down', pane: pane.pane }),
+    onZoom: () => run('pane.zoom', { pane: pane.pane }),
+    onClose: () => run('pane.close', { pane: pane.pane }),
+  });
+
+  return actions.map((entry, index) => paneButton(entry, `pane-${ids[index]}-${pane.pane}`));
 };
 
 export default class PaneHeader extends View {
@@ -84,9 +82,8 @@ export default class PaneHeader extends View {
 
   private header(pane: PaneInfo): Element {
     const palette = colors();
-    const iconColor = pane.focused ? palette.muted : palette.dim;
+    const tone = headerTone(pane.focused, Boolean(shared('koja-modal')));
 
-    // No background here: the pane frame's rounded background shows through, so the top corners stay clean.
     const element = h_flex()
       .id(`pane-header-${pane.pane}`)
       .size_full()
@@ -101,17 +98,21 @@ export default class PaneHeader extends View {
       })
       .on_click(() => run('pane.focus', { pane: pane.pane }));
 
+    if (tone.tinted) {
+      element.bg(normalFocusFill(palette)).rounded_t(radius.cardInner);
+    }
+
     const program = paneProgram(pane);
 
     if (program !== null && program.icon !== null) {
-      element.child(programIcon(program, 'default').text_color(iconColor));
+      element.child(programIcon(program, 'default').text_color(palette[tone.icon]));
     }
 
     element.child(
       withTextRole(
         div().flex_initial().min_w(0).max_w(controlSize.paneLabelMaxWidth).truncate(),
         'detail',
-        pane.focused ? 'foreground' : 'muted',
+        tone.title,
       ).child(paneName(pane)),
     );
 
