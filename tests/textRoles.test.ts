@@ -6,7 +6,7 @@ import { join } from 'node:path';
 import type { CallExpression } from 'oxc-parser';
 import { parseSync, Visitor } from 'oxc-parser';
 
-import { modsDirectory, typeScriptFiles } from './sourceFiles.ts';
+import { isRawStyleExempt, modsDirectory, typeScriptFiles } from './sourceFiles.ts';
 
 let textFixture: string | null = null;
 
@@ -178,6 +178,8 @@ describe('the UI language', () => {
   });
 
   test('mods take every text size and weight from a role', async () => {
-    expect(await rawTextFindings(modsDirectory)).toEqual([]);
+    const findings = await rawTextFindings(modsDirectory);
+
+    expect(findings.filter((finding) => !isRawStyleExempt(finding))).toEqual([]);
   });
 });

@@ -21,12 +21,17 @@ const paletteSize: SceneSize = {
   height: overlaySize.wideMenuHeight,
 };
 
+const shellSceneSize: SceneSize = {
+  width: overlaySize.shellWidth,
+  height: overlaySize.shellHeight,
+};
+
 const sceneSizes = {
   sidebar: { width: overlaySize.wideMenuWidth, height: overlaySize.wideMenuHeight },
   states: { width: overlaySize.promptWidth, height: overlaySize.worktreeListHeight },
   popup: { width: overlaySize.worktreeListWidth, height: overlaySize.worktreeListHeight },
   controls: { width: overlaySize.worktreeListWidth, height: overlaySize.wideMenuHeight },
-  shell: { width: overlaySize.shellWidth, height: overlaySize.shellHeight },
+  shell: shellSceneSize,
   'pane-headers': {
     width: overlaySize.paneHeadersWidth,
     height: overlaySize.paneHeadersHeight,
@@ -35,6 +40,8 @@ const sceneSizes = {
   'smoke-2': paletteSize,
   'smoke-3': paletteSize,
   'smoke-4': paletteSize,
+  'direction-koja': shellSceneSize,
+  'direction-koja-normal': shellSceneSize,
 } as const satisfies Record<string, SceneSize>;
 
 export type SceneName = keyof typeof sceneSizes;

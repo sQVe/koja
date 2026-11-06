@@ -26,6 +26,9 @@ from it where its own surfaces need something else. Koja does not try to look li
 - The kit owns its icons, so no mod depends on an icon from a shipped Herdr mod.
 - A gallery view renders every kit component in every state. It is the visual check of the UI
   language, compared with `herdr-app shot`.
+- One exception: direction scenes in `koja-mocks`
+  ([ADR 0011](./0011-two-ai-judges-gate-ui-mocks.md)) hold their own values until the kit adopts the
+  chosen direction.
 
 Where a rule can be checked mechanically, a lint or test enforces it, so drift fails the check
 rather than showing up on screen.

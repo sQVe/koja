@@ -55,6 +55,14 @@ describe('scene lookup', () => {
     }
   });
 
+  const directionScenes: SceneName[] = ['direction-koja', 'direction-koja-normal'];
+
+  test.each(directionScenes)('the %s scene opens at the shell size', (name) => {
+    expect(findScene(name)).toEqual({
+      scene: { name, width: overlaySize.shellWidth, height: overlaySize.shellHeight },
+    });
+  });
+
   test('a name past the last smoke scene gives an error', () => {
     expect('error' in findScene('smoke-5')).toBe(true);
   });
