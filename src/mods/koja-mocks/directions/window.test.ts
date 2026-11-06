@@ -53,7 +53,6 @@ const descendants = (element: DrawnElement): DrawnElement[] => [
   ...element.kids.flatMap(descendants),
 ];
 
-// The header is the row that holds the pane's name label and its folder.
 const headerTexts = (window: DrawnElement, fakePane: FakePane): string[] => {
   const header = descendants(window).find(
     (part) =>

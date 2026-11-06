@@ -164,7 +164,6 @@ const branchField = (branch: string, tokens: DirectionTokens): Element =>
     .child(icon('git-branch', 'small'))
     .child(fixedLabel(branch, tokens.text.detail, tokens.ink.dim));
 
-// Only the focused pane's name is SemiBold.
 const paneName = (fakePane: FakePane, focused: boolean, tokens: DirectionTokens): Element => {
   const { ink, pane, text } = tokens;
 
@@ -213,7 +212,6 @@ const terminalBody = (lines: string[], tokens: DirectionTokens): Element =>
     .text_color(tokens.ink.text)
     .children(lines.map((line) => div().truncate().child(line)));
 
-// Every pane body shares one fill; only the border and the header mark focus.
 const card = (focused: boolean, tokens: DirectionTokens): Element => {
   const { pane } = tokens;
 

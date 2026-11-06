@@ -33,7 +33,6 @@ interface DirectionMarks {
   badgeRadius: number;
 }
 
-// The frame color fills the sidebar, the tab bar, and the gaps between panes.
 interface DirectionAreas {
   frame: Color;
   sidebarWidth: number;
@@ -54,7 +53,6 @@ interface DirectionPane {
   headerDivider: Color;
   bodyPadding: number;
   focusedHeaderFill: Color | null;
-  // The focused header's icon and name take this color; without it the name uses the text color.
   focusedHeaderInk: Color | null;
 }
 

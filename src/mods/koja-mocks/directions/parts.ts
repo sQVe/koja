@@ -111,7 +111,6 @@ export const iconToggle = (name: IconName, active: boolean, tokens: DirectionTok
   return toggle.text_color(tokens.ink.muted).hover((element) => element.bg(tokens.rows.hoverFill));
 };
 
-// One mode pill shows in both modes, so the mode is always visible in the tab bar.
 export const modePill = (tokens: DirectionTokens): Element => {
   const { controls } = tokens;
   const look = controls.modePill;
