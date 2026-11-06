@@ -1,8 +1,7 @@
 import { h_flex, v_flex } from 'gpui-base';
 import type { Element } from 'gpui-kit';
-import type { Program, Status } from 'herdr';
 
-import type { FileStatus, PaneHeaderOptions, RowState } from '../../../kit/index.ts';
+import type { PaneHeaderOptions } from '../../../kit/index.ts';
 import {
   attentionBadge,
   colors,
@@ -24,101 +23,10 @@ import {
   statusMark,
   tab,
 } from '../../../kit/index.ts';
-
-interface FakeSpace {
-  label: string;
-  status: Status | null;
-  state: RowState;
-  pull?: number;
-  badge?: string;
-}
-
-interface FakeRepo {
-  name: string;
-  branch: string;
-  age: string;
-  status: Status | null;
-  spaces: FakeSpace[];
-}
-
-interface FakeTab {
-  label: string;
-  active: boolean;
-  status: Status | null;
-  program: Program;
-}
-
-const agentProgram: Program = {
-  key: 'claude',
-  name: 'Claude Code',
-  icon: null,
-  tint: false,
-  tile: null,
-  color: null,
-  shell: false,
-  agent: true,
-};
-
-const shellProgram: Program = {
-  key: 'shell',
-  name: 'zsh',
-  icon: null,
-  tint: false,
-  tile: null,
-  color: null,
-  shell: true,
-  agent: false,
-};
-
-const fakeRepos: FakeRepo[] = [
-  {
-    name: 'koja',
-    branch: 'main',
-    age: '2h',
-    status: 'blocked',
-    spaces: [
-      { label: 'me-1089-window-shell', status: 'blocked', state: 'selected', pull: 31 },
-      { label: 'me-1088-ui-foundation', status: 'idle', state: 'normal' },
-      { label: 'fix-pr-badge', status: 'blocked', state: 'normal', badge: 'Needs you' },
-    ],
-  },
-  {
-    name: 'tikk',
-    branch: 'main',
-    age: '1d',
-    status: 'done',
-    spaces: [{ label: 'ticket-sync', status: 'done', state: 'normal', pull: 12 }],
-  },
-];
+import type { FakeChange, FakeRepo, FakeSpace, FakeTab } from './shellContent.ts';
+import { agentPane, changeRows, fakeRepos, fakeTabs, shellPane } from './shellContent.ts';
 
 const [kojaRepo, tikkRepo] = fakeRepos;
-
-const fakeTabs: FakeTab[] = [
-  { label: 'Build window shell', active: true, status: 'working', program: agentProgram },
-  { label: 'Review judge findings', active: false, status: 'blocked', program: agentProgram },
-  { label: 'Wire the tab bar', active: false, status: 'done', program: agentProgram },
-  { label: 'zsh', active: false, status: null, program: shellProgram },
-];
-
-const agentLines = [
-  '> bun run check',
-  'typecheck      ok',
-  'style:check    ok',
-  'tests          running',
-];
-
-const shellLines = [
-  '$ git log --oneline -3',
-  'a1b2c3d Wire the tab bar',
-  'e4f5a6b Review judge findings',
-  'c7d8e9f Build window shell',
-];
-
-const changeRows: { path: string; status: FileStatus; add: number; del: number }[] = [
-  { path: 'src/kit/paneHeader.ts', status: 'A', add: 24, del: 0 },
-  { path: 'src/mods/koja-mocks/scenes/shell.ts', status: 'A', add: 12, del: 0 },
-  { path: 'src/kit/button.ts', status: 'M', add: 2, del: 6 },
-];
 
 const spaceEnd = (space: FakeSpace): Element[] => {
   const end: Element[] = [];
@@ -232,7 +140,7 @@ const paneCard = (header: PaneHeaderOptions, lines: string[], grow: number): Ele
     .child(terminalBody(lines));
 };
 
-const changeRow = (change: (typeof changeRows)[number]): Element =>
+const changeRow = (change: FakeChange): Element =>
   listRow({
     size: 'small',
     inset: true,
@@ -298,32 +206,24 @@ const main = (): Element =>
         .child(
           paneCard(
             {
-              program: agentProgram,
-              name: 'Claude Code',
-              task: 'Build window shell',
-              branch: 'me-1089-window-shell',
-              folder: '~/code/koja',
-              status: 'working',
+              ...agentPane,
               focused: true,
               zoomed: false,
               width: shellSize.focusedPaneWidth,
             },
-            agentLines,
+            agentPane.lines,
             shellSize.focusedPaneShare,
           ),
         )
         .child(
           paneCard(
             {
-              program: shellProgram,
-              name: 'zsh',
-              folder: '~/code/tikk',
-              status: null,
+              ...shellPane,
               focused: false,
               zoomed: false,
               width: shellSize.shellPaneWidth,
             },
-            shellLines,
+            shellPane.lines,
             shellSize.shellPaneShare,
           ),
         )

@@ -5,7 +5,7 @@ import { join } from 'node:path';
 
 import { iconNames } from '../src/kit/iconNames.ts';
 import { badgeFillAlpha, diffFillAlpha } from '../src/kit/palette.ts';
-import { modsDirectory, typeScriptFiles } from './sourceFiles.ts';
+import { isRawStyleExempt, modsDirectory, typeScriptFiles } from './sourceFiles.ts';
 
 interface SourceLine {
   path: string;
@@ -109,6 +109,12 @@ const linesMatching = async (directory: string, pattern: RegExp): Promise<string
   return lines
     .filter((line) => !isComment(line.text) && pattern.test(line.text))
     .map((line) => `${line.path}:${line.line}: ${line.text.trim()}`);
+};
+
+const styleLinesMatching = async (pattern: RegExp): Promise<string[]> => {
+  const lines = await linesMatching(modsDirectory, pattern);
+
+  return lines.filter((line) => !isRawStyleExempt(line));
 };
 
 const paletteFromTheme = (theme: ThemeFile): Record<string, string> => {
@@ -372,7 +378,7 @@ const contrastResult = (pair: ContrastPair, palette: Record<string, string>): Co
 describe('the UI language', () => {
   test('the kit and mods hold no hard-coded colors', async () => {
     const kitFailures = await linesMatching(kitDirectory, hardCodedColorPattern);
-    const modFailures = await linesMatching(modsDirectory, hardCodedColorPattern);
+    const modFailures = await styleLinesMatching(hardCodedColorPattern);
 
     expect(kitFailures).toEqual([]);
     expect(modFailures).toEqual([]);
@@ -392,6 +398,16 @@ describe('the UI language', () => {
     ];
 
     expect(failures.toSorted()).toEqual(expected.toSorted());
+  });
+
+  test('only the direction mocks skip the raw color and size checks', () => {
+    const findings = [
+      "src/mods/koja-mocks/directions/paper.ts:5: const card = '#ffffff';",
+      "src/mods/koja-mocks/scenes/shell.ts:5: const card = '#ffffff';",
+      "src/mods/koja-mocks/directions.ts:5: const card = '#ffffff';",
+    ];
+
+    expect(findings.filter((finding) => !isRawStyleExempt(finding))).toEqual(findings.slice(1));
   });
 
   test('the contrast check names a low-contrast pair with both tokens and its ratio', () => {
@@ -464,6 +480,6 @@ describe('the UI language', () => {
   });
 
   test('mods take every size from the kit', async () => {
-    expect(await linesMatching(modsDirectory, sizedCallPattern)).toEqual([]);
+    expect(await styleLinesMatching(sizedCallPattern)).toEqual([]);
   });
 });

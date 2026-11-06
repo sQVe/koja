@@ -42,6 +42,11 @@ needs no smoke test run, because the pass check does not use it.
 - A scene uses the kit's real parts and fake data. It lives in the committed `koja-mocks` mod.
 - The sandbox opens each scene. The scene is captured as a full shot and a crop.
 - The judges see the shot, the crop, and the `bun run check` result.
+- A direction scene shows a look the kit does not have yet. It lives in `koja-mocks/directions/`,
+  draws from its own token set and parts, and is the only mod code exempt from the hard-coded color,
+  size, and text checks. Once a direction is chosen, build slices move it into the kit and the
+  theme, and the real mod is judged then. A direction scene is a reference for the user and the
+  judges, not a gate.
 
 ### Findings
 

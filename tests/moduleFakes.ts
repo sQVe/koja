@@ -113,6 +113,7 @@ export const kitIndexFake = (overrides: ModuleFake = {}): ModuleFake => ({
   shortcutFor: () => null,
   spaceMark: noop,
   spacing: {},
+  spinner: noop,
   stateLine: noop,
   statusMark: noop,
   stringOf: () => null,

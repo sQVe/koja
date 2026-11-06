@@ -18,6 +18,8 @@ import {
 } from '../../kit/index.ts';
 import { findScene, sceneOrigin } from './catalog.ts';
 import type { SceneName } from './catalog.ts';
+import { koja, kojaNormal } from './directions/koja.ts';
+import { directionWindow } from './directions/window.ts';
 import { controlsScene } from './scenes/controls.ts';
 import type { SceneInputs } from './scenes/inputs.ts';
 import { paneHeadersScene } from './scenes/paneHeaders.ts';
@@ -43,6 +45,8 @@ const renderers: Record<SceneName, (inputs: SceneInputs) => Element> = {
   'smoke-2': (inputs) => paletteClean(inputs.command),
   'smoke-3': (inputs) => paletteClearFail(inputs.command),
   'smoke-4': (inputs) => paletteNearPass(inputs.command),
+  'direction-koja': () => directionWindow(koja),
+  'direction-koja-normal': () => directionWindow(kojaNormal),
 };
 
 // A refocus after the window has drawn, when its input or focus target can take the keyboard.

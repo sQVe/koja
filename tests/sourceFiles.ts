@@ -3,6 +3,11 @@ import { join } from 'node:path';
 
 export const modsDirectory = 'src/mods';
 
+const rawStyleExemptDirectory = join(modsDirectory, 'koja-mocks', 'directions');
+
+export const isRawStyleExempt = (finding: string): boolean =>
+  finding.startsWith(`${rawStyleExemptDirectory}/`);
+
 export const typeScriptFiles = async (directory: string): Promise<string[]> => {
   const entries = await readdir(directory, { recursive: true });
 
