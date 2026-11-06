@@ -10,7 +10,6 @@ const focusedTone: HeaderTone = { tinted: false, title: 'foreground', icon: 'mut
 
 const unfocusedTone: HeaderTone = { tinted: false, title: 'muted', icon: 'dim' };
 
-// Herdr draws no focus border while normal mode holds the keyboard, so the header marks focus.
 const normalFocusedTone: HeaderTone = { tinted: true, title: 'accent', icon: 'accent' };
 
 export const headerTone = (focused: boolean, normalMode: boolean): HeaderTone => {

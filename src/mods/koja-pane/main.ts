@@ -84,8 +84,6 @@ export default class PaneHeader extends View {
     const palette = colors();
     const tone = headerTone(pane.focused, Boolean(shared('koja-modal')));
 
-    // No background in insert mode: the pane frame's rounded background shows through, so the top
-    // corners stay clean.
     const element = h_flex()
       .id(`pane-header-${pane.pane}`)
       .size_full()

@@ -8,7 +8,6 @@ interface RecordedElement {
 
 type HoverHandler = (hovered: boolean, cx: { notify: () => void }) => void;
 
-// Records every style method by name, last call wins, so a test can read the drawn fill.
 const recorded = (): RecordedElement => {
   const element: RecordedElement = { styles: {} };
 
