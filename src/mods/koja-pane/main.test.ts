@@ -1,6 +1,15 @@
 import { afterAll, describe, expect, mock, test } from 'bun:test';
 
-import { chainable, gpuiBaseFake, gpuiKitFake, herdrFake } from '../../../tests/moduleFakes.ts';
+import {
+  chainable,
+  gpuiBaseFake,
+  gpuiKitFake,
+  herdrFake,
+  kitIndexFake,
+} from '../../../tests/moduleFakes.ts';
+import { recordOf, stringOf } from '../../kit/fields.ts';
+import { normalFocusFill, toPalette } from '../../kit/palette.ts';
+import { paneActions } from '../../kit/paneHeaderMenuModel.ts';
 
 interface RecordedElement {
   styles: Record<string, unknown>;
@@ -64,7 +73,21 @@ await mock.module('herdr', () =>
     panes: () => [pane()],
     props: () => ({ pane: 'p1' }),
     shared: (key: string) => (key === 'koja-modal' && normalMode ? true : undefined),
-    theme: () => ({ accent, foreground: '#1e2028' }),
+  }),
+);
+
+await mock.module('../../kit/index.ts', () =>
+  kitIndexFake({
+    colors: () => toPalette({ accent, foreground: '#1e2028' }),
+    iconButton: () => recorded(),
+    normalFocusFill,
+    paneActions,
+    programIcon: () => chainable(),
+    radius: { cardInner: 7 },
+    recordOf,
+    roleText: () => chainable(),
+    stringOf,
+    withTextRole: (element: unknown) => element,
   }),
 );
 
