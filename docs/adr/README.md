@@ -49,6 +49,7 @@ the commit in its row.
 - [0010: Koja rolls up space and tab status itself](./0010-koja-rolls-up-agent-status.md)
 - [0011: Two AI judges from different model families gate UI mocks](./0011-two-ai-judges-gate-ui-mocks.md)
 - [0012: Normal mode gives each part of the app one plain letter](./0012-one-plain-letter-per-part.md)
+- [0013: Insert mode only types, and global keys are an allowlist](./0013-insert-mode-only-types.md)
 
 ## Retired
 
