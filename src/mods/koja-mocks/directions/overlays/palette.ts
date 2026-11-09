@@ -24,7 +24,7 @@ import {
 } from './parts.ts';
 
 const paletteWidth = 560;
-// The full command list is longer than the box shows.
+// An empty query lists every command; the box shows the first of them.
 const allCommands = 48;
 const listGap = 2;
 const scrollThumbWidth = 2;
@@ -95,7 +95,7 @@ const commandList = (tokens: DirectionTokens): Element =>
     .child(thumb(tokens));
 
 const countFooter = (tokens: DirectionTokens): Element =>
-  line([], [dimFact(`${shownCommands} of ${allCommands} commands`, tokens)], tokens);
+  line([], [dimFact(`${allCommands} commands`, tokens)], tokens);
 
 const palette = (tokens: DirectionTokens): Element =>
   floatingOverlay(paletteWidth, tokens)

@@ -143,4 +143,4 @@ export const newAgents: FakeAgent[] = [
 ];
 
 export const notInstalled = 'not installed';
-export const installAgent = 'Install…';
+export const installAgent = 'How to install';
