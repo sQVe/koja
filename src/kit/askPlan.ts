@@ -169,7 +169,6 @@ const closeTabPlan = (args: Record<string, unknown>, facts: AskFacts): AskPlan =
   return closeLastTabPlan(place, facts.panes);
 };
 
-// Herdr asks with its own dialog when the last pane closes its space, so Koja asks first instead.
 const closePanePlan = (args: Record<string, unknown>, facts: AskFacts): AskPlan => {
   const id = stringOf(args['pane']) ?? facts.focus?.pane;
   const pane = facts.panes.find((candidate) => candidate.pane === id);
