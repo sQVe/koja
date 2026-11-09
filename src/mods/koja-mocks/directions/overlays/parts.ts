@@ -8,8 +8,7 @@ import { cardFrame } from '../floating.ts';
 import { fixedLabel, label, row, terminalFont } from '../parts.ts';
 import { dimFact, divider, rowLine, titleLabel } from '../sidebars/facts.ts';
 import type { DirectionTokens } from '../tokens.ts';
-import type { FakeAgent, MenuItem, PlacedSpace } from './content.ts';
-import { installAgent, notInstalled } from './content.ts';
+import type { MenuItem, PlacedSpace } from './content.ts';
 
 export interface KeycapLook {
   fill: Color | null;
@@ -27,7 +26,14 @@ interface ItemOptions {
 const lineGap = 6;
 const keyGap = 4;
 const keycapPadding = 4;
-const keycapLift = 6;
+// An even cap height, so the cap sits on whole pixels in the even-height rows.
+const keycapLift = 5;
+// The font centers its line box, which puts letters without an ascender low in the cap. Raise
+// those by one pixel, and those with a descender as well by one more.
+const tallGlyphs = /[A-Z0-9bdfhijklt↵]/u;
+const descendingGlyphs = /[gpqy]/u;
+// Glyphs sit about 1 px left of the cap's center, so the left padding takes 1 px more.
+const keycapOpticalShift = 1;
 // Every cap is at least this wide, so key columns line up across rows.
 const keycapMinWidth = 18;
 const caretWidth = 1;
@@ -85,11 +91,19 @@ const plainKeycap = (tokens: DirectionTokens): KeycapLook => ({
   ink: tokens.ink.dim,
 });
 
+const glyphRaise = (key: string): number => {
+  const short = tallGlyphs.test(key) ? 0 : 1;
+  const descending = descendingGlyphs.test(key) ? 1 : 0;
+
+  return short + descending;
+};
+
 const keycap = (key: string, look: KeycapLook, tokens: DirectionTokens): Element => {
   const cap = h_flex()
     .h(tokens.text.detail.size + keycapLift)
     .min_w(keycapMinWidth)
-    .px(keycapPadding)
+    .pl(keycapPadding + keycapOpticalShift)
+    .pr(keycapPadding)
     .flex_none()
     .items_center()
     .justify_center()
@@ -101,7 +115,9 @@ const keycap = (key: string, look: KeycapLook, tokens: DirectionTokens): Element
     cap.bg(look.fill);
   }
 
-  return cap.child(fixedLabel(key, tokens.text.detail, look.ink).font_family(terminalFont));
+  const glyph = fixedLabel(key, tokens.text.detail, look.ink).font_family(terminalFont);
+
+  return cap.child(glyph.relative().top(-glyphRaise(key)));
 };
 
 export const keycaps = (
@@ -208,45 +224,6 @@ export const menuItem = (
   );
 
 // An agent that is not installed dims its icon and its name together.
-const missingAgentOpacity = 0.45;
-// Between `not installed` and its link. The row's gap spaces it.
-const linkSeparator = '·';
-
-// Herdr's agent logos are its own assets, which a mod may not name, so the mock draws the kit's
-// terminal icon in their place.
-export const agentItem = (
-  agent: FakeAgent,
-  hint: (keys: string[]) => Element[],
-  tokens: DirectionTokens,
-): Element => {
-  if (agent.key !== null) {
-    return item(
-      {
-        start: iconMark('terminal', tokens.ink.muted),
-        text: agent.name,
-        end: hint([agent.key]),
-        selected: false,
-      },
-      tokens,
-    );
-  }
-
-  return row(
-    {
-      selected: false,
-      start: iconMark('terminal', tokens.ink.muted).opacity(missingAgentOpacity),
-      label: label(agent.name, tokens.text.body, tokens.ink.text).opacity(missingAgentOpacity),
-      end: [
-        dimFact(notInstalled, tokens),
-        dimFact(linkSeparator, tokens),
-        // Underlined as the sidebar footer's links, so it reads as its own action.
-        fixedLabel(installAgent, tokens.text.detail, tokens.ink.muted).underline(),
-      ],
-    },
-    tokens,
-  );
-};
-
 // Dim footer text and keycaps in one run, read left to right.
 export const footerLine = (parts: (string | string[])[], tokens: DirectionTokens): Element =>
   line(
@@ -262,7 +239,7 @@ const normalModeLine = (tokens: DirectionTokens): Element =>
 // menu keeps its width.
 export const newMenuFooter = (tokens: DirectionTokens): Element[] => [
   divider(tokens),
-  footerLine(['Press 1–3 to start an agent.'], tokens),
+  footerLine(['Press 1 to start Pi.'], tokens),
   normalModeLine(tokens),
 ];
 

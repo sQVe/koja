@@ -8,9 +8,8 @@ import { fixedLabel } from '../parts.ts';
 import { divider } from '../sidebars/facts.ts';
 import { mapSidebar } from '../sidebars/sidebar.ts';
 import type { DirectionTokens } from '../tokens.ts';
-import { newAgents, newPlaces, newTerminal, paneMenu } from './content.ts';
+import { newPi, newPlaces, newTerminal, paneMenu } from './content.ts';
 import {
-  agentItem,
   dividedRows,
   floatingOverlay,
   heading,
@@ -76,7 +75,7 @@ const newMenu = (tokens: DirectionTokens): Element => {
     .top(newMenuTop)
     .child(heading('New tab', [], tokens))
     .child(menuItem(newTerminal, true, hints, rows))
-    .children(newAgents.map((agent) => agentItem(agent, hints, rows)))
+    .child(menuItem(newPi, false, hints, rows))
     .child(divider(rows))
     .child(heading('New space', [], tokens))
     .children(newPlaces.map((place) => menuItem(place, false, hints, rows)))

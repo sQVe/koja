@@ -38,11 +38,6 @@ export interface MenuItem {
   state?: string;
 }
 
-export interface FakeAgent {
-  name: string;
-  key: string | null;
-}
-
 export const paletteGroups: CommandGroup[] = [
   {
     name: 'Tabs',
@@ -134,13 +129,6 @@ export const newPlaces: MenuItem[] = [
   { label: 'From an existing worktree of koja…', icon: 'git-branch', keys: [] },
 ];
 
-export const newAgents: FakeAgent[] = [
-  { name: 'Claude Code', key: '1' },
-  { name: 'Codex', key: '2' },
-  { name: 'Pi', key: '3' },
-  { name: 'OpenCode', key: null },
-  { name: 'Cursor', key: null },
-];
-
-export const notInstalled = 'not installed';
-export const installAgent = 'How to install';
+// Herdr's agent logos are its own assets, which a mod may not name, so the mock draws the kit's
+// terminal icon in their place.
+export const newPi: MenuItem = { label: 'Pi', icon: 'terminal', keys: ['1'] };

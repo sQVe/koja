@@ -19,23 +19,23 @@ import {
   overlayTokens,
   overlayTop,
   searchLine,
-  searchRowHeight,
 } from './parts.ts';
 
 const paletteWidth = 560;
 // An empty query lists every command; the box shows the first of them.
 const allCommands = 48;
-const listGap = 2;
+// Command rows sit close, with no gap between them.
+const commandRowHeight = 26;
 const scrollThumbWidth = 2;
 // The thumb sits in the card's padding, right of the row pills, 2 px clear of the outline.
 const scrollThumbOffset = 2;
-// A group heading after the first takes half a row gap more above it, so groups read as groups.
+// A group heading after the first takes this much more space above it, so groups read as groups.
 const groupSpace = 6;
 // The direction has no faint ink or scrollbar token, so the thumb is the dim ink, mostly clear.
 const scrollThumbAlpha = '59';
 
 const paletteGroup = (group: CommandGroup, first: boolean, tokens: DirectionTokens): Element[] => {
-  const rows = overlayTokens(searchRowHeight(tokens), tokens);
+  const rows = overlayTokens(commandRowHeight, tokens);
 
   // The part letter follows the heading text, out of the key column, so it cannot read as a chord
   // with the row keys below.
@@ -73,13 +73,11 @@ const shownCommands = paletteGroups.reduce((sum, group) => sum + group.commands.
 const scrollThumb = (tokens: DirectionTokens): Color => `${tokens.ink.dim}${scrollThumbAlpha}`;
 
 const listHeight = (tokens: DirectionTokens): number => {
-  const lines = paletteGroups.length + shownCommands;
   const headings = paletteGroups.length * tokens.rows.height;
-  const rows = shownCommands * searchRowHeight(tokens);
-
+  const rows = shownCommands * commandRowHeight;
   const groupSpaces = (paletteGroups.length - 1) * groupSpace;
 
-  return headings + rows + (lines - 1) * listGap + groupSpaces;
+  return headings + rows + groupSpaces;
 };
 
 // Sized for the shown rows out of all commands, at the top of the list.
@@ -97,7 +95,6 @@ const commandList = (tokens: DirectionTokens): Element =>
   v_flex()
     .relative()
     .flex_none()
-    .gap(listGap)
     .children(paletteGroups.flatMap((group, index) => paletteGroup(group, index === 0, tokens)))
     .child(thumb(tokens));
 
