@@ -128,7 +128,6 @@ const sectionsCard = (tokens: DirectionTokens): Element => {
   );
 };
 
-// The checked-out PR opens in place with its own changes and workers.
 const spineLook = (pull: FakePull, tokens: DirectionTokens): Element => {
   if (!pull.checkedOut) {
     return pullLine(pull, tokens);

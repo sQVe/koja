@@ -18,7 +18,6 @@ const stateWords: Record<Status, string> = {
   idle: 'idle',
 };
 
-// The fake data names the time left, such as `22m left`; a worker that is done has no budget.
 const budgetPattern = /^(?<time>\S+) left$/v;
 
 export const workerState = (worker: FakeWorker): string => stateWords[worker.status];

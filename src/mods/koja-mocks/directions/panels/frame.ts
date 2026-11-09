@@ -50,7 +50,6 @@ export const panelHeader = (start: Element[], end: Element[], tokens: DirectionT
 export const panelTitle = (name: string, tokens: DirectionTokens): Element =>
   fixedLabel(name, tokens.text.title, tokens.ink.text);
 
-// A hidden tab keeps its alert, so what needs the user shows without opening the panel.
 const tabPill = (tab: PanelTab, tokens: DirectionTokens): Element =>
   togglePill(tab.name, tab.active, tokens)
     .gap(tabMarkGap)

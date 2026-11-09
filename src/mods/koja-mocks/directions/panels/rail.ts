@@ -40,7 +40,6 @@ export const shownFileCount = (state: RailState): number =>
 export const shownFiles = (state: RailState): FakeChange[] =>
   state.changes.branchView ? state.changes.branch : state.changes.uncommitted;
 
-// A space on main has no base, so it has no Uncommitted and Branch switch.
 export const changeScope = (state: RailState, tokens: DirectionTokens): Element[] => {
   const { changes } = state;
 
@@ -57,7 +56,6 @@ export const changeScope = (state: RailState, tokens: DirectionTokens): Element[
   return [changeSwitchOf(look, tokens).mt(0)];
 };
 
-// The switch and the file rows; a long list folds its rest.
 export const changeBody = (state: RailState, tokens: DirectionTokens): Element[] => {
   const files = shownFiles(state);
   const total = shownFileCount(state);
@@ -75,7 +73,6 @@ const fileGroup = (state: RailState, tokens: DirectionTokens): Element[] => [
   ...changeBody(state, tokens),
 ];
 
-// The workers group hides when the space has none.
 const workerGroup = (state: RailState, tokens: DirectionTokens): Element[] => {
   if (state.workers.length === 0) {
     return [];
@@ -87,13 +84,11 @@ const workerGroup = (state: RailState, tokens: DirectionTokens): Element[] => {
   ];
 };
 
-// The checked-out work, as two groups.
 export const workGroups = (state: RailState, tokens: DirectionTokens): Element[] => [
   ...fileGroup(state, tokens),
   ...workerGroup(state, tokens),
 ];
 
-// `detail` follows the name, such as a note that main has no pull request.
 export const mainLine = (detail: Element[], tokens: DirectionTokens): Element =>
   row(
     {
@@ -109,7 +104,6 @@ export const mainLine = (detail: Element[], tokens: DirectionTokens): Element =>
     tokens,
   );
 
-// On main there is no stack to draw, only main's own work.
 const mainList = (state: RailState, tokens: DirectionTokens): Element =>
   v_flex()
     .flex_none()
@@ -138,7 +132,6 @@ const railCard = (state: RailState, tokens: DirectionTokens): Element => {
   );
 };
 
-// The sidebar and the agent pane show the same space as the panel.
 export const stateScene = (
   state: RailState,
   drawCard: StateCard,

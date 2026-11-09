@@ -18,7 +18,6 @@ interface RailChanges {
   branch: FakeChange[];
   branchTotal: number;
   branchView: boolean;
-  // A space on main has no base, so it has no branch view.
   hasBase: boolean;
 }
 
@@ -56,7 +55,6 @@ export const baseRail: RailState = {
   workers,
 };
 
-// The sidebar shows the same focused space as the panel.
 export const projectsWith = (space: FakeSpace): FakeProject[] =>
   fakeProjects.map((project) => ({
     name: project.name,

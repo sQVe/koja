@@ -48,8 +48,6 @@ export const stackSectionHeader = (state: RailState, tokens: DirectionTokens): E
     tokens,
   );
 
-// The question mark and its count stay in the header, so a folded or scrolled list still says a
-// worker waits for the user.
 const askingMarks = (state: RailState, tokens: DirectionTokens): Element[] => {
   const asking = askingCount(state.workers);
 
@@ -67,7 +65,6 @@ const askingMarks = (state: RailState, tokens: DirectionTokens): Element[] => {
   ];
 };
 
-// `extra` follows the worker count after a `·`, such as the done workers a short panel leaves out.
 const workersDetail = (state: RailState, extra: Element[], tokens: DirectionTokens): Element[] => {
   const count = dimFact(String(state.workers.length), tokens);
 
@@ -92,7 +89,6 @@ export const workersSectionHeader = (
 export const section = (parts: Element[], tokens: DirectionTokens): Element =>
   v_flex().min_h(0).pt(tokens.rows.listPadding).children(parts);
 
-// A list cut at its own height; the thumb shows how much of it is in view.
 export const scrollRegion = (
   content: Element,
   shownShare: number,

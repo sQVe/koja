@@ -30,7 +30,6 @@ const { busy } = railStates;
 
 export const spaceStates: Record<RailCase, RailState> = {
   ...railStates,
-  // The sidebar row shows the stack's most urgent need, as the other rows do.
   busy: {
     ...busy,
     space: { ...busy.space, need: 'failing' },

@@ -61,7 +61,6 @@ const changesFold = (state: RailState, tokens: DirectionTokens): Element =>
     tokens,
   );
 
-// The checked-out node keeps its changes; its workers move to their own section.
 const pullChanges: HangingWork = (state, tokens) => [
   changesFold(state, tokens),
   ...changeBody(state, tokens),

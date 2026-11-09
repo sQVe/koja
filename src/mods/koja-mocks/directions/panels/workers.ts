@@ -12,12 +12,8 @@ import { managerName, workers } from './data.ts';
 import { budgetSlot, stateColumn, workerState } from './workerColumns.ts';
 import { replyField, replyPlaceholder, sendHint } from './workerReply.ts';
 
-// How a list shows its workers. `plain` keeps every time left at the row end. `waiting` ends each
-// row with its state word, shows the time budget in its own column, and starts the selected
-// pill at the row's own indent.
 type AskStyle = 'plain' | 'waiting';
 
-// How much room the selected question gets: `full` wraps its text, `compact` keeps one line.
 export type QuestionRoom = 'full' | 'compact';
 
 interface ListLook {
@@ -50,7 +46,6 @@ const workerMark = (worker: FakeWorker, tokens: DirectionTokens): Element => {
   return statusMark(worker.status, tokens).w(markWidth);
 };
 
-// A manager with a state shows it as its one mark, in the slot its workers use.
 const managerStart = (status: Status | null, tokens: DirectionTokens): Element => {
   if (status !== null) {
     return statusMark(status, tokens).w(markWidth);
@@ -63,7 +58,6 @@ const managerStart = (status: Status | null, tokens: DirectionTokens): Element =
     .child(icon('terminal', 'small').text_color(tokens.ink.muted));
 };
 
-// The manager has no role or budget, only its state word in the workers' state column.
 const managerEnd = (status: Status | null, tokens: DirectionTokens): Element[] => {
   if (status === null) {
     return [];
@@ -142,7 +136,6 @@ const questionLine = (worker: FakeWorker, style: AskStyle, tokens: DirectionToke
   return [questionFrame(style, tokens).pt(0).child(text)];
 };
 
-// The full question wraps, so it is never cut.
 const questionText = (text: string, room: QuestionRoom, tokens: DirectionTokens): Element =>
   room === 'compact'
     ? label(text, tokens.text.body, tokens.ink.text)
@@ -178,7 +171,6 @@ const fullQuestion = (
   return [block];
 };
 
-// The selected worker's question opens under its task; another asking worker keeps one line.
 const questionBlock = (
   worker: FakeWorker,
   reply: boolean,
@@ -216,7 +208,6 @@ export const workerListOf = (
     .child(managerLine(null, tokens))
     .children(workerRowsWith(shown, reply, { style: 'plain', room: 'full' }, tokens));
 
-// An asking worker waits on the user, so its row says so and its time left joins the question.
 export const waitingWorkerList = (
   shown: FakeWorker[],
   manager: Status,
@@ -227,7 +218,6 @@ export const waitingWorkerList = (
     .child(managerLine(manager, tokens))
     .children(workerRowsWith(shown, true, { style: 'waiting', room }, tokens));
 
-// Rows with one-line questions only; the selected question shows in its own pinned detail.
 export const workerRowsOf = (shown: FakeWorker[], tokens: DirectionTokens): Element =>
   v_flex()
     .flex_none()
@@ -241,7 +231,6 @@ export const workerRowsOf = (shown: FakeWorker[], tokens: DirectionTokens): Elem
       ]),
     );
 
-// The detail sits apart from its row, so it names the worker it answers.
 export const questionDetail = (shown: FakeWorker[], tokens: DirectionTokens): Element[] => {
   const asking = shown.find((worker) => worker.selected && worker.question !== undefined);
 
@@ -272,7 +261,6 @@ export const askingCount = (shown: FakeWorker[]): number =>
 export const workerList = (reply: boolean, tokens: DirectionTokens): Element =>
   workerListOf(workers, reply, tokens);
 
-// A worker's question must stay visible while Workers is hidden.
 export const workerAlerts = (tokens: DirectionTokens): Element[] => {
   const asking = workers.some((worker) => worker.status === 'blocked');
 

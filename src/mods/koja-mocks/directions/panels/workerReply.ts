@@ -26,8 +26,6 @@ export const replyField = (
     .child(placeholder.flex_1())
     .children(end);
 
-// Enter sends the reply, so the field names the key instead of drawing a chevron that reads as
-// the expand chevron.
 export const sendHint = (): Element => keyHint('enter');
 
 export const replyPlaceholder = (

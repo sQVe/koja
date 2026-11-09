@@ -28,7 +28,6 @@ import {
 
 export type SpineTake = 'inline' | 'rail' | 'pinned';
 
-// The checked-out PR's own work, as two groups.
 const pullGroups = (tokens: DirectionTokens): Element[] => workGroups(baseRail, tokens);
 
 const spineCard = (header: Element, body: Element[], tokens: DirectionTokens): Element =>

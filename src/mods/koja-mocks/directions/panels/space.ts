@@ -55,7 +55,6 @@ const uncommittedLabel = (count: number, tokens: DirectionTokens): Element =>
     .items_center()
     .child(dimFact(`Uncommitted ${count}`, tokens));
 
-// The switch titles the changes of a branch with a base.
 const changesTitle = (state: RailState, tokens: DirectionTokens): Element => {
   const { changes } = state;
 
@@ -71,7 +70,6 @@ const changesTitle = (state: RailState, tokens: DirectionTokens): Element => {
   return changeSegmentsOf(options, tokens);
 };
 
-// Every PR row stays in view; the checked-out PR's file list shows whole rows and folds the rest.
 const pullFiles = (state: RailState, tokens: DirectionTokens): Element[] => {
   const { fileRows } = spaceFit(state, tokens);
   const total = shownFileCount(state);
@@ -92,7 +90,6 @@ const stackBody = (state: RailState, tokens: DirectionTokens): Element => {
     return railListOf(state, pullFiles, true, tokens).pl(railShift).pt(listRowGap);
   }
 
-  // The label and the file marks start under the `main` text, one edge for the whole block.
   const changes = v_flex()
     .flex_none()
     .pl(branchMarkWidth + branchGap)
@@ -106,8 +103,6 @@ const stackBody = (state: RailState, tokens: DirectionTokens): Element => {
     .child(changes);
 };
 
-// One mark per PR that needs the user, in stack order. The rows below name the needs, so the
-// header only marks them; each mark names its PR and need on hover.
 const stackNeeds = (state: RailState, tokens: DirectionTokens): Element[] => {
   const marks = state.pulls.flatMap((pull) => {
     if (pull.need === undefined) {
@@ -129,7 +124,6 @@ const stackNeeds = (state: RailState, tokens: DirectionTokens): Element[] => {
 const stackProgress = (state: RailState, tokens: DirectionTokens): Element[] =>
   state.space.stack === undefined ? [] : [mergedProgress(state.space, tokens)];
 
-// The banner says how old the stack shown under it is.
 const staleStack = (state: RailState, tokens: DirectionTokens): Element[] => {
   if (state.readFailed === undefined) {
     return [];
@@ -154,7 +148,6 @@ const stackHeader = (state: RailState, tokens: DirectionTokens): Element =>
 const stackSection = (state: RailState, tokens: DirectionTokens): Element =>
   section([stackHeader(state, tokens), stackBody(state, tokens)], tokens).flex_none();
 
-// The manager works while any of its workers runs or waits.
 const managerStatus = (state: RailState): Status => {
   const busy = state.workers.some((worker) => worker.status !== 'done');
 
@@ -180,9 +173,6 @@ const leftOut = (count: number, tokens: DirectionTokens): Element[] => {
   return [control];
 };
 
-// The section hides when the space has no workers. When the panel runs out of height, done
-// workers leave the list, then the open question keeps one line; running and waiting workers
-// always stay.
 const workersSection = (state: RailState, tokens: DirectionTokens): Element[] => {
   if (state.workers.length === 0) {
     return [];
@@ -206,7 +196,6 @@ const workersSection = (state: RailState, tokens: DirectionTokens): Element[] =>
   ];
 };
 
-// The header is the terminal pane header's frame and title, with no view toggle.
 const spaceHeader = (tokens: DirectionTokens): Element =>
   panelHeader([panelTitle('Space', tokens), ...fileFacts(tokens)], [], tokens);
 

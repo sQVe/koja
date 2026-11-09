@@ -84,7 +84,6 @@ const markedStart = (pull: FakePull, tokens: DirectionTokens): Element =>
 export const pullLine: PullLook = (pull, tokens) =>
   pullLineWith(pull, markedStart(pull, tokens), false, tokens);
 
-// The stack map marks where the checked-out PR sits with the selected pill.
 export const mapLine: PullLook = (pull, tokens) =>
   pullLineWith(pull, markedStart(pull, tokens), pull.checkedOut, tokens);
 
@@ -126,8 +125,6 @@ export const factsRow = (facts: Element[], tokens: DirectionTokens): Element =>
 export const pullFactsRow = (pull: FakePull, tokens: DirectionTokens): Element =>
   factsRow(pullFacts(pull, tokens), tokens);
 
-// Running checks get a mark like the other needs.
-// A stack read minutes ago shows the checks as they were, with a still dim mark, never a spinner.
 const checksMark = (stale: boolean, tokens: DirectionTokens): Element => {
   if (!stale) {
     return statusMark('working', tokens).w(leadingWidth);
@@ -156,8 +153,6 @@ const checksFact = (checks: string, stale: boolean, tokens: DirectionTokens): El
     .child(fact);
 };
 
-// The checked-out PR's facts keep the 24 px row rhythm, and its ticket is a link as in the sidebar.
-// It has no diff totals: the changes below it count only uncommitted files.
 export const checkedOutFactsRow = (
   pull: FakePull,
   stale: boolean,
@@ -176,14 +171,12 @@ export const checkedOutFactsRow = (
   return factsRow(facts, tokens).h(tokens.rows.height);
 };
 
-// From the row's own edge to its title, past the leading mark and the number column.
 export const titleStart = leadingWidth + numberWidth + startGap * 2;
 
 export const markCenter = leadingWidth / 2;
 
 export const numberColumn = numberWidth + startGap;
 
-// The second line starts under the title.
 export const factsLine = (pull: FakePull, tokens: DirectionTokens): Element =>
   pullFactsRow(pull, tokens).pl(tokens.rows.paddingX + titleStart);
 
@@ -233,7 +226,6 @@ export const stackFacts = (tokens: DirectionTokens): Element[] => [
   mergedProgress(focusedSpace, tokens),
 ];
 
-// A failing PR must stay visible while the stack is hidden.
 export const stackAlerts = (tokens: DirectionTokens): Element[] => {
   const failing = shownPulls.some((pull) => pull.need === 'failing');
 

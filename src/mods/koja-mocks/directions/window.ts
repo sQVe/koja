@@ -25,7 +25,6 @@ import type { DirectionTokens } from './tokens.ts';
 
 export type SidebarDrawing = (tokens: DirectionTokens) => Element;
 
-// What fills the window right of the focused agent pane, and the tab bar toggles that open it.
 export interface PanelArrangement {
   toggles: (tokens: DirectionTokens) => Element[];
   panes: (tokens: DirectionTokens) => Element[];

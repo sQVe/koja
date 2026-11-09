@@ -95,7 +95,6 @@ const filesHeight = (shown: number, total: number, tokens: DirectionTokens): num
   return (shown + moreRow) * tokens.rows.height;
 };
 
-// Whole file rows that fit beside the stack and the workers, never fewer than two.
 const fileRowsThatFit = (state: RailState, look: WorkersLook, tokens: DirectionTokens): number => {
   const total = shownFileCount(state);
   const listed = shownFiles(state).length;
@@ -118,8 +117,6 @@ const overflows = (state: RailState, look: WorkersLook, tokens: DirectionTokens)
   return used > panelInnerHeight;
 };
 
-// Past the two file rows, done workers leave the list first, then the open question keeps one
-// line. Running and waiting workers, PR rows, and main always stay.
 const workersLook = (state: RailState, tokens: DirectionTokens): WorkersLook => {
   const whole: WorkersLook = { dropsDone: false, questionRoom: 'full' };
 

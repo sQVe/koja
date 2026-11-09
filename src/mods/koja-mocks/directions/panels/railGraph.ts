@@ -19,7 +19,6 @@ import {
   pullNumber,
 } from './stack.ts';
 
-// What hangs off the checked-out node below its facts line.
 export type HangingWork = (state: RailState, tokens: DirectionTokens) => Element[];
 
 interface RailLook {
@@ -84,11 +83,9 @@ const railRow = (cell: Element, content: Element): Element =>
     .child(cell)
     .child(v_flex().flex_1().min_w(0).child(content));
 
-// The checked-out work hangs off its node, and the rail keeps running beside it.
 const hangingBlock = (facts: Element, hung: Element[], tokens: DirectionTokens): Element =>
   railRow(lineCell(tokens), v_flex().flex_none().pl(numberColumn).child(facts).children(hung));
 
-// Says in words which PR is checked out, beside its need.
 const markedPullLine = (pull: FakePull, tokens: DirectionTokens): Element =>
   row(
     {
@@ -162,7 +159,6 @@ const trunkStart = (spaceLook: boolean, tokens: DirectionTokens): Element => {
   return h_flex().flex_none().pl(numberColumn).items_center().child(name);
 };
 
-// Merged PRs sit on the trunk, where the rail ends.
 const trunkRow = (state: RailState, spaceLook: boolean, tokens: DirectionTokens): Element => {
   const node = circle(nodeSize).bg(tokens.marks.done);
   const cell = railCell({ top: true, node, bottom: false }, tokens);
