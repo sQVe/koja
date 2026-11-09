@@ -23,6 +23,18 @@ import { gotoScene } from './directions/overlays/goto.ts';
 import { keysScene } from './directions/overlays/keys.ts';
 import { menuScene, newScene } from './directions/overlays/menus.ts';
 import { paletteScene } from './directions/overlays/palette.ts';
+import {
+  docksScene,
+  sectionsScene,
+  spineScene,
+  tabsScene,
+} from './directions/panels/arrangements.ts';
+import { railScene } from './directions/panels/rail.ts';
+import { railStates } from './directions/panels/railData.ts';
+import { spaceScene } from './directions/panels/space.ts';
+import { spaceStates } from './directions/panels/spaceData.ts';
+import { spineTakeScene } from './directions/panels/spine.ts';
+import { splitScene } from './directions/panels/split.ts';
 import { hoverScene, searchScene } from './directions/sidebars/find.ts';
 import { inboxSidebar } from './directions/sidebars/sidebar.ts';
 import { machineTagScene } from './directions/sidebars/states.ts';
@@ -65,6 +77,38 @@ const renderers: Record<SceneName, (inputs: SceneInputs) => Element> = {
   'overlay-new': () => newScene(koja),
   'overlay-menu-normal': () => menuScene(kojaNormal),
   'overlay-new-normal': () => newScene(kojaNormal),
+  'panels-tabs-stack': () => tabsScene('Stack', koja),
+  'panels-tabs-changes': () => tabsScene('Changes', koja),
+  'panels-tabs-workers': () => tabsScene('Workers', koja),
+  'panels-tabs-files': () => tabsScene('Files', koja),
+  'panels-sections': () => sectionsScene(koja),
+  'panels-spine': () => spineScene(false, koja),
+  'panels-spine-files': () => spineScene(true, koja),
+  'panels-docks': () => docksScene(koja),
+  'spine-inline': () => spineTakeScene('inline', koja),
+  'spine-rail': () => spineTakeScene('rail', koja),
+  'spine-pinned': () => spineTakeScene('pinned', koja),
+  'rail-busy': () => railScene(railStates.busy, koja),
+  'rail-clean': () => railScene(railStates.clean, koja),
+  'rail-single': () => railScene(railStates.single, koja),
+  'rail-no-pr': () => railScene(railStates.noPull, koja),
+  'rail-main': () => railScene(railStates.main, koja),
+  'rail-error': () => railScene(railStates.error, koja),
+  'rail-normal': () => railScene(railStates.base, kojaNormal),
+  'split-two-base': () => splitScene('two', railStates.base, koja),
+  'split-two-busy': () => splitScene('two', railStates.busy, koja),
+  'split-two-main': () => splitScene('two', railStates.main, koja),
+  'split-three-base': () => splitScene('three', railStates.base, koja),
+  'split-three-busy': () => splitScene('three', railStates.busy, koja),
+  'split-three-main': () => splitScene('three', railStates.main, koja),
+  'space-base': () => spaceScene(spaceStates.base, koja),
+  'space-busy': () => spaceScene(spaceStates.busy, koja),
+  'space-clean': () => spaceScene(spaceStates.clean, koja),
+  'space-single': () => spaceScene(spaceStates.single, koja),
+  'space-no-pr': () => spaceScene(spaceStates.noPull, koja),
+  'space-main': () => spaceScene(spaceStates.main, koja),
+  'space-error': () => spaceScene(spaceStates.error, koja),
+  'space-normal': () => spaceScene(spaceStates.base, kojaNormal),
 };
 
 // A refocus after the window has drawn, when its input or focus target can take the keyboard.

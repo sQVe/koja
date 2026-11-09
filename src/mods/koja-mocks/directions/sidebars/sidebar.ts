@@ -1,5 +1,5 @@
 import { h_flex, v_flex } from 'gpui-base';
-import type { Element } from 'gpui-kit';
+import type { Color, Element } from 'gpui-kit';
 
 import { fixedLabel } from '../parts.ts';
 import type { DirectionTokens } from '../tokens.ts';
@@ -33,10 +33,8 @@ const headerCountGap = 6;
 const toggleHeight = 22;
 const togglePadding = 8;
 
-const allSpaces = (): PlacedSpace[] =>
-  fakeProjects.flatMap((project) =>
-    project.spaces.map((space) => ({ space, project: project.name })),
-  );
+const allSpaces = (projects: FakeProject[]): PlacedSpace[] =>
+  projects.flatMap((project) => project.spaces.map((space) => ({ space, project: project.name })));
 
 const needsUser = (space: FakeSpace): boolean =>
   space.agent === 'blocked' || space.need !== undefined;
@@ -63,7 +61,7 @@ const projectGroup = (
     project.spaces.map((space) => mapRow(space, hovered, tokens)),
   );
 
-const sourceLink = (text: string, tokens: DirectionTokens): Element =>
+export const sourceLink = (text: string, tokens: DirectionTokens): Element =>
   fixedLabel(text, tokens.text.detail, tokens.ink.text).underline();
 
 const blockLine = (start: Element, end: Element, tokens: DirectionTokens): Element =>
@@ -93,7 +91,7 @@ const currentIds = (space: FakeSpace, tokens: DirectionTokens): Element[] => {
   return ids;
 };
 
-const mergedProgress = (space: FakeSpace, tokens: DirectionTokens): Element => {
+export const mergedProgress = (space: FakeSpace, tokens: DirectionTokens): Element => {
   if (space.stack === undefined) {
     return h_flex();
   }
@@ -108,8 +106,8 @@ const mergedProgress = (space: FakeSpace, tokens: DirectionTokens): Element => {
     .child(dimFact(`${merged}/${total} merged`, tokens));
 };
 
-const currentBlock = (tokens: DirectionTokens): Element => {
-  const selected = allSpaces().find((placed) => placed.space.selected)?.space;
+const currentBlock = (projects: FakeProject[], tokens: DirectionTokens): Element => {
+  const selected = allSpaces(projects).find((placed) => placed.space.selected)?.space;
 
   if (selected === undefined) {
     return v_flex();
@@ -135,13 +133,23 @@ const currentBlock = (tokens: DirectionTokens): Element => {
     );
 };
 
-const projectGroups = (hovered: string | null, tokens: DirectionTokens): Element[] =>
-  fakeProjects.map((project) => projectGroup(project, hovered, tokens));
+const mapList = (
+  projects: FakeProject[],
+  hovered: string | null,
+  tokens: DirectionTokens,
+): Element =>
+  v_flex()
+    .flex_1()
+    .min_h(0)
+    .gap(tokens.rows.groupGap)
+    .children(projects.map((project) => projectGroup(project, hovered, tokens)));
 
-const mapList = (hovered: string | null, tokens: DirectionTokens): Element =>
-  v_flex().flex_1().min_h(0).gap(tokens.rows.groupGap).children(projectGroups(hovered, tokens));
-
-const togglePill = (text: string, active: boolean, tokens: DirectionTokens): Element => {
+export const togglePillInk = (
+  text: string,
+  active: boolean,
+  color: Color,
+  tokens: DirectionTokens,
+): Element => {
   const pill = h_flex()
     .h(toggleHeight)
     .px(togglePadding)
@@ -152,10 +160,11 @@ const togglePill = (text: string, active: boolean, tokens: DirectionTokens): Ele
     pill.bg(tokens.rows.selectedFill);
   }
 
-  const color = active ? tokens.ink.text : tokens.ink.muted;
-
   return pill.child(fixedLabel(text, tokens.text.detail, color));
 };
+
+export const togglePill = (text: string, active: boolean, tokens: DirectionTokens): Element =>
+  togglePillInk(text, active, active ? tokens.ink.text : tokens.ink.muted, tokens);
 
 // The view switch is the only line above the list; its pill text lines up with project names.
 const viewBar = (inbox: boolean, tokens: DirectionTokens): Element =>
@@ -170,11 +179,21 @@ const viewBar = (inbox: boolean, tokens: DirectionTokens): Element =>
     .child(togglePill('Inbox', inbox, tokens));
 
 // Projects in the user's order; rows never move because of status.
-export const mapSidebarHovering = (hovered: string | null, tokens: DirectionTokens): Element =>
+const mapSidebarWith = (
+  projects: FakeProject[],
+  hovered: string | null,
+  tokens: DirectionTokens,
+): Element =>
   sidebarFrame(tokens)
     .child(viewBar(false, tokens))
-    .child(mapList(hovered, tokens))
-    .child(currentBlock(tokens));
+    .child(mapList(projects, hovered, tokens))
+    .child(currentBlock(projects, tokens));
+
+export const mapSidebarOf = (projects: FakeProject[], tokens: DirectionTokens): Element =>
+  mapSidebarWith(projects, null, tokens);
+
+export const mapSidebarHovering = (hovered: string | null, tokens: DirectionTokens): Element =>
+  mapSidebarWith(fakeProjects, hovered, tokens);
 
 export const mapSidebar = (tokens: DirectionTokens): Element => mapSidebarHovering(null, tokens);
 
@@ -204,7 +223,7 @@ const inboxRow = (placed: PlacedSpace, tokens: DirectionTokens): Element =>
   );
 
 const inboxGroup = (group: InboxGroup, tokens: DirectionTokens): Element[] => {
-  const members = allSpaces().filter((placed) => group.holds(placed.space));
+  const members = allSpaces(fakeProjects).filter((placed) => group.holds(placed.space));
 
   if (members.length === 0) {
     return [];
@@ -230,4 +249,4 @@ export const inboxSidebar = (tokens: DirectionTokens): Element =>
         .gap(tokens.rows.groupGap)
         .children(inboxGroups.flatMap((group) => inboxGroup(group, tokens))),
     )
-    .child(currentBlock(tokens));
+    .child(currentBlock(fakeProjects, tokens));

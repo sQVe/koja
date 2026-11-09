@@ -1,4 +1,4 @@
-import { h_flex } from 'gpui-base';
+import { h_flex, v_flex } from 'gpui-base';
 import type { Color, Element } from 'gpui-kit';
 import { div } from 'gpui-kit';
 import type { Status } from 'herdr';
@@ -39,7 +39,7 @@ export const fixedLabel = (text: string, style: TextStyle, color: Color): Elemen
 export const middleCutLabel = (text: string, style: TextStyle, color: Color): Element =>
   label(text, style, color).text_ellipsis_middle();
 
-const dot = (size: number, color: Color): Element =>
+export const dot = (size: number, color: Color): Element =>
   div()
     .size(size)
     .rounded(size / 2)
@@ -118,6 +118,37 @@ export const modePill = (tokens: DirectionTokens): Element => {
 
   return styled(pill, tokens.text.detail, look.text).child(tokens.normal ? 'Normal' : 'Insert');
 };
+
+export const paneHeaderFrame = (tokens: DirectionTokens): Element => {
+  const { pane } = tokens;
+
+  return h_flex()
+    .h(pane.headerHeight)
+    .flex_none()
+    .px(pane.headerPadding)
+    .gap(pane.headerGap)
+    .items_center()
+    .overflow_hidden()
+    .border_b(1)
+    .border_color(pane.headerDivider);
+};
+
+export const card = (focused: boolean, tokens: DirectionTokens): Element => {
+  const { pane } = tokens;
+
+  return v_flex()
+    .flex_1()
+    .min_w(0)
+    .min_h(0)
+    .rounded(pane.radius)
+    .bg(pane.fill)
+    .overflow_hidden()
+    .border(1)
+    .border_color(focused ? pane.focusedBorder : pane.border);
+};
+
+export const cardSlot = (inner: Element, tokens: DirectionTokens): Element =>
+  v_flex().h_full().min_w(0).rounded(tokens.pane.radius).child(inner);
 
 export const row = (options: RowOptions, tokens: DirectionTokens): Element => {
   const { rows } = tokens;

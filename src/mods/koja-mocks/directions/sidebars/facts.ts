@@ -24,8 +24,9 @@ const progressHeight = 3;
 const progressTrack = '#43464e33';
 const ringSize = 6;
 const markSlot = 14;
-const listRowGap = 2;
 const dividerHeight = 1;
+
+export const listRowGap = 2;
 
 const needIcons: Record<WorkNeed, IconName> = {
   conflict: 'triangle-alert',
@@ -52,17 +53,23 @@ const slot = (): Element => h_flex().w(markSlot).flex_none().items_center().just
 export const dimFact = (text: string, tokens: DirectionTokens): Element =>
   fixedLabel(text, tokens.text.detail, tokens.ink.dim);
 
+export const workNeedMark = (need: WorkNeed, tokens: DirectionTokens): Element =>
+  slot().child(stateIcon(needIcons[need], needColor(need, tokens)));
+
 const needMark = (space: FakeSpace, tokens: DirectionTokens): Element => {
   if (space.need === undefined) {
     return slot();
   }
 
-  return slot().child(stateIcon(needIcons[space.need], needColor(space.need, tokens)));
+  return workNeedMark(space.need, tokens);
 };
+
+export const questionMark = (tokens: DirectionTokens): Element =>
+  slot().child(stateIcon('message-circle-question', tokens.marks.blocked));
 
 export const agentMark = (space: FakeSpace, tokens: DirectionTokens): Element => {
   if (space.agent === 'blocked') {
-    return slot().child(stateIcon('message-circle-question', tokens.marks.blocked));
+    return questionMark(tokens);
   }
 
   if (space.agent !== null) {

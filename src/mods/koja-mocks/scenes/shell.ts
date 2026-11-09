@@ -5,11 +5,8 @@ import type { PaneHeaderOptions } from '../../../kit/index.ts';
 import {
   colors,
   controlSize,
-  diffSize,
-  fileStatusMark,
   iconButton,
   iconToggle,
-  listRow,
   modePill,
   paneHeader,
   programIcon,
@@ -21,9 +18,11 @@ import {
 } from '../../../kit/index.ts';
 import { koja } from '../directions/koja.ts';
 import { commandPalette } from '../directions/overlays/palette.ts';
+import { spacePanel } from '../directions/panels/space.ts';
+import { spaceStates } from '../directions/panels/spaceData.ts';
 import { mapSidebar } from '../directions/sidebars/sidebar.ts';
-import type { FakeChange, FakeTab } from './shellContent.ts';
-import { agentPane, changeRows, fakeTabs, shellPane } from './shellContent.ts';
+import type { FakeTab } from './shellContent.ts';
+import { agentPane, fakeTabs, shellPane } from './shellContent.ts';
 
 const sidebar = (): Element => mapSidebar(koja);
 
@@ -52,8 +51,7 @@ const tabBar = (): Element =>
     .child(h_flex().flex_1())
     .child(iconButton({ name: 'plus' }))
     .child(modePill({ label: 'Normal' }))
-    .child(iconToggle({ name: 'git-compare', label: 'Changes', active: true }))
-    .child(iconToggle({ name: 'folder', label: 'Files', active: false }));
+    .child(iconToggle({ name: 'panel-right', label: 'Space', active: true }));
 
 const terminalBody = (lines: string[]): Element =>
   v_flex()
@@ -80,56 +78,6 @@ const paneCard = (header: PaneHeaderOptions, lines: string[], grow: number): Ele
     .overflow_hidden()
     .child(paneHeader(header))
     .child(terminalBody(lines));
-};
-
-const changeRow = (change: FakeChange): Element =>
-  listRow({
-    size: 'small',
-    inset: true,
-    state: 'normal',
-    cut: 'middle',
-    start: fileStatusMark(change.status),
-    label: change.path,
-    end: [
-      roleText('detail', `+${change.add}`, 'ansi2').flex_none(),
-      roleText('detail', `−${change.del}`, 'ansi1').flex_none(),
-    ],
-  });
-
-const sidePanel = (): Element => {
-  const palette = colors();
-
-  const titleRow = h_flex()
-    .h(diffSize.headerHeight)
-    .flex_none()
-    .px(spacing.large)
-    .gap(spacing.small)
-    .items_center()
-    .border_b(spacing.hairline)
-    .border_color(palette.border)
-    .child(roleText('title', 'Changes').flex_none())
-    .child(roleText('detail', '3 files').flex_none())
-    .child(h_flex().flex_1())
-    .child(roleText('detail', '+38', 'ansi2').flex_none())
-    .child(roleText('detail', '−6', 'ansi1').flex_none());
-
-  return v_flex()
-    .w(shellSize.panelWidth)
-    .flex_none()
-    .h_full()
-    .rounded(radius.dialog)
-    .border(spacing.hairline)
-    .border_color(palette.selected)
-    .bg(palette.background)
-    .overflow_hidden()
-    .child(titleRow)
-    .child(
-      v_flex()
-        .flex_none()
-        .p(spacing.xsmall)
-        .gap(spacing.xxsmall)
-        .children(changeRows.map(changeRow)),
-    );
 };
 
 const main = (): Element =>
@@ -169,7 +117,7 @@ const main = (): Element =>
             shellSize.shellPaneShare,
           ),
         )
-        .child(sidePanel()),
+        .child(spacePanel(spaceStates.base, koja)),
     );
 
 const shellWindow = (): Element =>

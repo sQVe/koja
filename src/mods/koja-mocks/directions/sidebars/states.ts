@@ -127,7 +127,7 @@ const retryPill = (tokens: DirectionTokens): Element =>
     .child(fixedLabel('Retry', tokens.text.detail, tokens.ink.muted));
 
 // A failed read says so once, under the project, and offers Retry; rows keep their last facts.
-const errorLine = (text: string, tokens: DirectionTokens): Element =>
+export const errorLine = (text: string, tokens: DirectionTokens): Element =>
   headerLine(tokens)
     .child(icon('circle-alert', 'small').text_color(tokens.marks.blocked))
     .child(label(text, tokens.text.detail, tokens.ink.muted).flex_1())

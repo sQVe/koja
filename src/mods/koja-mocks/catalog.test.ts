@@ -55,7 +55,42 @@ describe('scene lookup', () => {
     }
   });
 
-  const directionScenes: SceneName[] = ['direction-koja', 'direction-koja-normal'];
+  const directionScenes: SceneName[] = [
+    'direction-koja',
+    'direction-koja-normal',
+    'panels-tabs-stack',
+    'panels-tabs-changes',
+    'panels-tabs-workers',
+    'panels-tabs-files',
+    'panels-sections',
+    'panels-spine',
+    'panels-spine-files',
+    'panels-docks',
+    'spine-inline',
+    'spine-rail',
+    'spine-pinned',
+    'rail-busy',
+    'rail-clean',
+    'rail-single',
+    'rail-no-pr',
+    'rail-main',
+    'rail-error',
+    'rail-normal',
+    'split-two-base',
+    'split-two-busy',
+    'split-two-main',
+    'split-three-base',
+    'split-three-busy',
+    'split-three-main',
+    'space-base',
+    'space-busy',
+    'space-clean',
+    'space-single',
+    'space-no-pr',
+    'space-main',
+    'space-error',
+    'space-normal',
+  ];
 
   test.each(directionScenes)('the %s scene opens at the shell size', (name) => {
     expect(findScene(name)).toEqual({
