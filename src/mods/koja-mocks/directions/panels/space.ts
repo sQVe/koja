@@ -210,7 +210,7 @@ const workersSection = (state: RailState, tokens: DirectionTokens): Element[] =>
 const spaceHeader = (tokens: DirectionTokens): Element =>
   panelHeader([panelTitle('Space', tokens), ...fileFacts(tokens)], [], tokens);
 
-const spaceCard: StateCard = (state, tokens) =>
+export const spacePanel: StateCard = (state, tokens) =>
   panelCard(
     [
       spaceHeader(tokens),
@@ -223,4 +223,4 @@ const spaceCard: StateCard = (state, tokens) =>
   );
 
 export const spaceScene = (state: RailState, tokens: DirectionTokens): Element =>
-  stateScene(state, spaceCard, tokens);
+  stateScene(state, spacePanel, tokens);

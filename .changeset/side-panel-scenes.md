@@ -10,3 +10,4 @@ rail without a commit bar when the work is large, clean, a single PR, a branch w
 `main`, after a failed read, and in normal mode. Add `split-two-*` and `split-three-*` scenes that
 split the panel into a Stack and a Workers section, or into Stack, Changes, and Workers. Add
 `space-*` scenes of the chosen panel, named Space, with Stack and Workers sections in every state.
+The `shell` scene shows the Space panel in place of Changes, with one Space toggle in the tab bar.
