@@ -19,6 +19,10 @@ import {
 import { findScene, sceneOrigin } from './catalog.ts';
 import type { SceneName } from './catalog.ts';
 import { koja, kojaNormal } from './directions/koja.ts';
+import { gotoScene } from './directions/overlays/goto.ts';
+import { keysScene } from './directions/overlays/keys.ts';
+import { menuScene, newScene } from './directions/overlays/menus.ts';
+import { paletteScene } from './directions/overlays/palette.ts';
 import { hoverScene, searchScene } from './directions/sidebars/find.ts';
 import { inboxSidebar } from './directions/sidebars/sidebar.ts';
 import { machineTagScene } from './directions/sidebars/states.ts';
@@ -54,6 +58,13 @@ const renderers: Record<SceneName, (inputs: SceneInputs) => Element> = {
   'sidebar-hover': () => hoverScene(koja),
   'sidebar-find': () => searchScene(koja),
   'sidebar-states': () => machineTagScene(koja),
+  'overlay-palette': () => paletteScene(kojaNormal),
+  'overlay-goto': () => gotoScene(kojaNormal),
+  'overlay-keys': () => keysScene(kojaNormal),
+  'overlay-menu': () => menuScene(koja),
+  'overlay-new': () => newScene(koja),
+  'overlay-menu-normal': () => menuScene(kojaNormal),
+  'overlay-new-normal': () => newScene(kojaNormal),
 };
 
 // A refocus after the window has drawn, when its input or focus target can take the keyboard.

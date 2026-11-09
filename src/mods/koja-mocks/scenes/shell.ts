@@ -20,6 +20,7 @@ import {
   tab,
 } from '../../../kit/index.ts';
 import { koja } from '../directions/koja.ts';
+import { commandPalette } from '../directions/overlays/palette.ts';
 import { mapSidebar } from '../directions/sidebars/sidebar.ts';
 import type { FakeChange, FakeTab } from './shellContent.ts';
 import { agentPane, changeRows, fakeTabs, shellPane } from './shellContent.ts';
@@ -171,5 +172,8 @@ const main = (): Element =>
         .child(sidePanel()),
     );
 
-export const shellScene = (): Element =>
+const shellWindow = (): Element =>
   h_flex().flex_1().min_h(0).bg(colors().chrome).child(sidebar()).child(main());
+
+export const shellScene = (): Element =>
+  v_flex().relative().flex_1().min_h(0).child(shellWindow()).child(commandPalette(koja));

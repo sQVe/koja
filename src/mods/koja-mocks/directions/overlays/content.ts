@@ -1,0 +1,140 @@
+import type { IconName } from '../../../../kit/index.ts';
+import type { FakeSpace } from '../sidebars/content.ts';
+import { fakeProjects } from '../sidebars/content.ts';
+
+interface FakeCommand {
+  title: string;
+  keys: string[];
+  icon: IconName;
+}
+
+export interface CommandGroup {
+  name: string;
+  letter: string;
+  commands: FakeCommand[];
+}
+
+interface KeyAction {
+  key: string;
+  action: string;
+}
+
+export interface KeyGroup {
+  name: string;
+  keys: KeyAction[];
+}
+
+export interface PlacedSpace {
+  space: FakeSpace;
+  project: string;
+}
+
+export interface MenuItem {
+  label: string;
+  icon: IconName;
+  // A hint shows only a binding of the current mode: the sequence after `ctrl-b` in normal mode,
+  // or a global chord in insert mode.
+  normalKeys: string[];
+  insertKeys?: string[];
+  divided?: boolean;
+  state?: string;
+}
+
+export const paletteGroups: CommandGroup[] = [
+  {
+    name: 'Tabs',
+    letter: 't',
+    commands: [
+      { title: 'New tab', keys: ['t', 'n'], icon: 'plus' },
+      { title: 'Rename tab', keys: ['t', 'r'], icon: 'square-pen' },
+      { title: 'Next tab', keys: ['t', 'l'], icon: 'chevron-right' },
+      { title: 'Close tab', keys: ['t', 'q'], icon: 'x' },
+    ],
+  },
+  {
+    name: 'Panes',
+    letter: 'w',
+    commands: [
+      { title: 'Split right', keys: ['w', 'v'], icon: 'panel-right' },
+      { title: 'Split down', keys: ['w', 's'], icon: 'panel-bottom' },
+      { title: 'Zoom pane', keys: ['w', 'm'], icon: 'maximize-2' },
+      { title: 'Close pane', keys: ['w', 'q'], icon: 'x' },
+    ],
+  },
+  {
+    name: 'Spaces',
+    letter: 's',
+    commands: [
+      { title: 'Find a space…', keys: ['s', 'f'], icon: 'search' },
+      { title: 'New space', keys: ['s', 'n'], icon: 'plus' },
+      { title: 'Rename space', keys: ['s', 'r'], icon: 'square-pen' },
+      { title: 'Next space', keys: ['s', 'j'], icon: 'chevron-right' },
+    ],
+  },
+];
+
+export const paneKeys: KeyGroup[] = [
+  {
+    name: 'Focus',
+    keys: [
+      { key: 'h', action: 'Left' },
+      { key: 'j', action: 'Down' },
+      { key: 'k', action: 'Up' },
+      { key: 'l', action: 'Right' },
+      { key: 'w', action: 'Next pane' },
+      { key: 'p', action: 'Last pane' },
+    ],
+  },
+  {
+    name: 'Move',
+    keys: [
+      { key: '⇧H', action: 'Left' },
+      { key: '⇧J', action: 'Down' },
+      { key: '⇧K', action: 'Up' },
+      { key: '⇧L', action: 'Right' },
+    ],
+  },
+  {
+    name: 'Split',
+    keys: [
+      { key: 'v', action: 'Right' },
+      { key: 's', action: 'Down' },
+    ],
+  },
+  {
+    name: 'Zoom and close',
+    keys: [
+      { key: 'm', action: 'Zoom' },
+      { key: 'q', action: 'Close' },
+      { key: 'o', action: 'Close others' },
+    ],
+  },
+];
+
+export const placedSpaces: PlacedSpace[] = fakeProjects.flatMap((project) =>
+  project.spaces.map((space) => ({ space, project: project.name })),
+);
+
+export const paneMenu: MenuItem[] = [
+  { label: 'Split right', icon: 'panel-right', normalKeys: ['w', 'v'] },
+  { label: 'Split down', icon: 'panel-bottom', normalKeys: ['w', 's'] },
+  { label: 'Zoom', icon: 'maximize-2', normalKeys: ['w', 'm'] },
+  { label: 'Send right-clicks to pane', icon: 'monitor', normalKeys: [], state: 'off' },
+  { label: 'Close pane', icon: 'x', normalKeys: ['w', 'q'], divided: true },
+];
+
+export const newTerminal: MenuItem = {
+  label: 'Terminal',
+  icon: 'terminal',
+  normalKeys: ['t', 'n'],
+};
+
+export const newPlaces: MenuItem[] = [
+  { label: 'Empty space', icon: 'plus', normalKeys: ['s', 'n'] },
+  { label: 'From a new worktree of koja…', icon: 'git-branch', normalKeys: [] },
+  { label: 'From an existing worktree of koja…', icon: 'git-branch', normalKeys: [] },
+];
+
+// Herdr's agent logos are its own assets, which a mod may not name, so the mock draws the kit's
+// terminal icon in their place.
+export const newPi: MenuItem = { label: 'Pi', icon: 'terminal', normalKeys: [] };

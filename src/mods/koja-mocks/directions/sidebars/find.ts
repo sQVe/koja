@@ -1,13 +1,12 @@
-import { h_flex, v_flex } from 'gpui-base';
+import { h_flex } from 'gpui-base';
 import type { Color, Element } from 'gpui-kit';
 import { div } from 'gpui-kit';
 
 import type { IconName } from '../../../../kit/index.ts';
 import { icon } from '../../../../kit/index.ts';
+import { floating, withFloating } from '../floating.ts';
 import { fixedLabel, label } from '../parts.ts';
 import type { DirectionTokens } from '../tokens.ts';
-import type { SidebarDrawing } from '../window.ts';
-import { directionWindow } from '../window.ts';
 import type { WorkNeed } from './content.ts';
 import { fakeProjects } from './content.ts';
 import { agentMark, dimFact, divider, joinedFacts } from './facts.ts';
@@ -38,7 +37,6 @@ const pickerWidth = 480;
 const pickerLeft = 390;
 const pickerTop = 56;
 const cardPadding = 6;
-const cardGap = 2;
 const layerHeight = 22;
 const markWidth = 14;
 const pullWidth = 34;
@@ -87,17 +85,6 @@ const needColor = (need: WorkNeed, tokens: DirectionTokens): Color => {
 
   return waits ? tokens.marks.modified : tokens.marks.blocked;
 };
-
-const floating = (width: number, tokens: DirectionTokens): Element =>
-  v_flex()
-    .absolute()
-    .w(width)
-    .p(cardPadding)
-    .gap(cardGap)
-    .rounded(tokens.pane.radius)
-    .bg(tokens.pane.fill)
-    .border(1)
-    .border_color(tokens.pane.border);
 
 const cardLine = (start: Element[], end: Element[], tokens: DirectionTokens): Element =>
   h_flex()
@@ -216,18 +203,6 @@ const stackCard = (tokens: DirectionTokens): Element => {
     .child(divider(tokens))
     .child(cardLine([dimFact('8 PRs', tokens)], [dimFact('Open stack ›', tokens)], tokens));
 };
-
-const withFloating = (
-  drawSidebar: SidebarDrawing,
-  floatingParts: Element[],
-  tokens: DirectionTokens,
-): Element =>
-  v_flex()
-    .relative()
-    .flex_1()
-    .min_h(0)
-    .child(directionWindow(tokens, drawSidebar))
-    .children(floatingParts);
 
 export const hoverScene = (tokens: DirectionTokens): Element =>
   withFloating(
