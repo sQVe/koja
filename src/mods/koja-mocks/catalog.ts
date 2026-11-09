@@ -51,6 +51,8 @@ const sceneSizes = {
   'overlay-keys': shellSceneSize,
   'overlay-menu': shellSceneSize,
   'overlay-new': shellSceneSize,
+  'overlay-menu-normal': shellSceneSize,
+  'overlay-new-normal': shellSceneSize,
 } as const satisfies Record<string, SceneSize>;
 
 export type SceneName = keyof typeof sceneSizes;

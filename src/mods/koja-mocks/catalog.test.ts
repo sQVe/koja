@@ -63,7 +63,7 @@ describe('scene lookup', () => {
     });
   });
 
-  const overlayScenes = ['palette', 'goto', 'keys', 'menu', 'new'].map(
+  const overlayScenes = ['palette', 'goto', 'keys', 'menu', 'new', 'menu-normal', 'new-normal'].map(
     (surface) => `overlay-${surface}`,
   );
 

@@ -63,6 +63,8 @@ const renderers: Record<SceneName, (inputs: SceneInputs) => Element> = {
   'overlay-keys': () => keysScene(kojaNormal),
   'overlay-menu': () => menuScene(koja),
   'overlay-new': () => newScene(koja),
+  'overlay-menu-normal': () => menuScene(kojaNormal),
+  'overlay-new-normal': () => newScene(kojaNormal),
 };
 
 // A refocus after the window has drawn, when its input or focus target can take the keyboard.

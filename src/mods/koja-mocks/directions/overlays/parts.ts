@@ -132,11 +132,6 @@ export const keycaps = (
     .children(keys.map((key) => keycap(key, look, tokens)));
 
 // A heading's part letter in the rows' first key column, with an empty slot for the second key.
-export const keycapHints =
-  (tokens: DirectionTokens) =>
-  (keys: string[]): Element[] =>
-    keys.length === 0 ? [] : [keycaps(keys, tokens)];
-
 export const item = (options: ItemOptions, tokens: DirectionTokens): Element =>
   row(
     {
@@ -207,17 +202,19 @@ export const spaceRow = (
 const settingState = (menu: MenuItem, tokens: DirectionTokens): Element[] =>
   menu.state === undefined ? [] : [dimFact(menu.state, tokens)];
 
-export const menuItem = (
-  menu: MenuItem,
-  selected: boolean,
-  hint: (keys: string[]) => Element[],
-  tokens: DirectionTokens,
-): Element =>
+// Only the current mode's binding, so every hint works as shown.
+const modeHints = (menu: MenuItem, tokens: DirectionTokens): Element[] => {
+  const keys = tokens.normal ? menu.normalKeys : (menu.insertKeys ?? []);
+
+  return keys.length === 0 ? [] : [keycaps(keys, tokens)];
+};
+
+export const menuItem = (menu: MenuItem, selected: boolean, tokens: DirectionTokens): Element =>
   item(
     {
       start: iconMark(menu.icon, tokens.ink.muted),
       text: menu.label,
-      end: [...settingState(menu, tokens), ...hint(menu.keys)],
+      end: [...settingState(menu, tokens), ...modeHints(menu, tokens)],
       selected,
     },
     tokens,
@@ -231,23 +228,6 @@ export const footerLine = (parts: (string | string[])[], tokens: DirectionTokens
     [],
     tokens,
   );
-
-const normalModeLine = (tokens: DirectionTokens): Element =>
-  footerLine(['Normal mode:', ['ctrl-b'], 'then the keys in order'], tokens);
-
-// The new menu's digits work while it is open; its other hints need normal mode. Two lines, so the
-// menu keeps its width.
-export const newMenuFooter = (tokens: DirectionTokens): Element[] => [
-  divider(tokens),
-  footerLine(['Press 1 to start Pi.'], tokens),
-  normalModeLine(tokens),
-];
-
-// The line under a menu that says how its key hints are reached.
-export const modeFooter = (tokens: DirectionTokens): Element[] => [
-  divider(tokens),
-  normalModeLine(tokens),
-];
 
 // Draws the menu's rows, with a divider above each row that starts a group. Pass row tokens.
 export const dividedRows = (

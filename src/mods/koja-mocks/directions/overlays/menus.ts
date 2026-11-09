@@ -14,22 +14,19 @@ import {
   floatingOverlay,
   heading,
   iconMark,
-  keycapHints,
   line,
   menuItem,
-  modeFooter,
-  newMenuFooter,
   overlayTokens,
 } from './parts.ts';
 
-// Wide enough for the footer that names normal mode.
-const menuWidth = 296;
+const menuWidth = 248;
 // The focused pane's right border, measured from the insert-mode window.
 const focusedPaneRight = 703;
 // A clear gap from that border, so the menu edge never runs beside it.
 const menuGapFromPane = 16;
 // The menu's top left: near the right-click in the focused pane's body, kept clear of its border.
 const pointer = { x: focusedPaneRight - menuGapFromPane - menuWidth, y: 168 };
+// Wide enough for the worktree rows.
 const newMenuWidth = 296;
 // Under the tab bar's `+`.
 const newMenuRight = 112;
@@ -37,6 +34,11 @@ const newMenuTop = 34;
 // The tab bar's `+` button, measured from the insert-mode window: 24 px, centered in the bar.
 const plusButtonRight = 111;
 const plusButtonTop = 6;
+// The `Normal` pill is wider than `Insert`, so in normal mode the `+` sits this much further left.
+// Measured from the two windows.
+const normalPillWiden = 6;
+
+const modeShift = (tokens: DirectionTokens): number => (tokens.normal ? normalPillWiden : 0);
 
 // Names the pane the menu acts on, in the heading style, above the first action.
 const targetHeading = (tokens: DirectionTokens): Element =>
@@ -51,16 +53,12 @@ const targetHeading = (tokens: DirectionTokens): Element =>
 
 const contextMenu = (tokens: DirectionTokens): Element => {
   const rows = overlayTokens(tokens.rows.height, tokens);
-  const hints = keycapHints(tokens);
 
   return floatingOverlay(menuWidth, tokens)
     .left(pointer.x)
     .top(pointer.y)
     .child(targetHeading(rows))
-    .children(
-      dividedRows(paneMenu, (menu, index) => menuItem(menu, index === 0, hints, rows), rows),
-    )
-    .children(modeFooter(rows));
+    .children(dividedRows(paneMenu, (menu, index) => menuItem(menu, index === 0, rows), rows));
 };
 
 export const menuScene = (tokens: DirectionTokens): Element =>
@@ -68,18 +66,16 @@ export const menuScene = (tokens: DirectionTokens): Element =>
 
 const newMenu = (tokens: DirectionTokens): Element => {
   const rows = overlayTokens(tokens.rows.height, tokens);
-  const hints = keycapHints(tokens);
 
   return floatingOverlay(newMenuWidth, tokens)
-    .right(newMenuRight)
+    .right(newMenuRight + modeShift(tokens))
     .top(newMenuTop)
     .child(heading('New tab', [], tokens))
-    .child(menuItem(newTerminal, true, hints, rows))
-    .child(menuItem(newPi, false, hints, rows))
+    .child(menuItem(newTerminal, true, rows))
+    .child(menuItem(newPi, false, rows))
     .child(divider(rows))
     .child(heading('New space', [], tokens))
-    .children(newPlaces.map((place) => menuItem(place, false, hints, rows)))
-    .children(newMenuFooter(rows));
+    .children(newPlaces.map((place) => menuItem(place, false, rows)));
 };
 
 // The `+` drawn pressed over the tab bar's own button while the menu is open. It takes the row pill
@@ -87,7 +83,7 @@ const newMenu = (tokens: DirectionTokens): Element => {
 const pressedPlus = (tokens: DirectionTokens): Element =>
   h_flex()
     .absolute()
-    .right(plusButtonRight)
+    .right(plusButtonRight + modeShift(tokens))
     .top(plusButtonTop)
     .size(tokens.controls.size)
     .items_center()

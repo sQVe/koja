@@ -32,7 +32,10 @@ export interface PlacedSpace {
 export interface MenuItem {
   label: string;
   icon: IconName;
-  keys: string[];
+  // A hint shows only a binding of the current mode: the sequence after `ctrl-b` in normal mode,
+  // or a global chord in insert mode.
+  normalKeys: string[];
+  insertKeys?: string[];
   divided?: boolean;
   // A setting's state, shown as dim text at the row end.
   state?: string;
@@ -114,21 +117,25 @@ export const placedSpaces: PlacedSpace[] = fakeProjects.flatMap((project) =>
 );
 
 export const paneMenu: MenuItem[] = [
-  { label: 'Split right', icon: 'panel-right', keys: ['w', 'v'] },
-  { label: 'Split down', icon: 'panel-bottom', keys: ['w', 's'] },
-  { label: 'Zoom', icon: 'maximize-2', keys: ['w', 'm'] },
-  { label: 'Send right-clicks to pane', icon: 'monitor', keys: [], state: 'off' },
-  { label: 'Close pane', icon: 'x', keys: ['w', 'q'], divided: true },
+  { label: 'Split right', icon: 'panel-right', normalKeys: ['w', 'v'] },
+  { label: 'Split down', icon: 'panel-bottom', normalKeys: ['w', 's'] },
+  { label: 'Zoom', icon: 'maximize-2', normalKeys: ['w', 'm'] },
+  { label: 'Send right-clicks to pane', icon: 'monitor', normalKeys: [], state: 'off' },
+  { label: 'Close pane', icon: 'x', normalKeys: ['w', 'q'], divided: true },
 ];
 
-export const newTerminal: MenuItem = { label: 'Terminal', icon: 'terminal', keys: ['t', 'n'] };
+export const newTerminal: MenuItem = {
+  label: 'Terminal',
+  icon: 'terminal',
+  normalKeys: ['t', 'n'],
+};
 
 export const newPlaces: MenuItem[] = [
-  { label: 'Empty space', icon: 'plus', keys: ['s', 'n'] },
-  { label: 'From a new worktree of koja…', icon: 'git-branch', keys: [] },
-  { label: 'From an existing worktree of koja…', icon: 'git-branch', keys: [] },
+  { label: 'Empty space', icon: 'plus', normalKeys: ['s', 'n'] },
+  { label: 'From a new worktree of koja…', icon: 'git-branch', normalKeys: [] },
+  { label: 'From an existing worktree of koja…', icon: 'git-branch', normalKeys: [] },
 ];
 
 // Herdr's agent logos are its own assets, which a mod may not name, so the mock draws the kit's
 // terminal icon in their place.
-export const newPi: MenuItem = { label: 'Pi', icon: 'terminal', keys: ['1'] };
+export const newPi: MenuItem = { label: 'Pi', icon: 'terminal', normalKeys: [] };
