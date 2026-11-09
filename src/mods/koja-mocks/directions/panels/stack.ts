@@ -4,7 +4,7 @@ import type { Element } from 'gpui-kit';
 import { icon } from '../../../../kit/index.ts';
 import { fixedLabel, label, row, statusMark } from '../parts.ts';
 import { dimFact, joinedFacts, workNeedMark } from '../sidebars/facts.ts';
-import { mergedProgress } from '../sidebars/sidebar.ts';
+import { mergedProgress, sourceLink } from '../sidebars/sidebar.ts';
 import type { DirectionTokens } from '../tokens.ts';
 import { diffCounts } from './changes.ts';
 import type { FakePull } from './data.ts';
@@ -124,6 +124,41 @@ export const factsRow = (facts: Element[], tokens: DirectionTokens): Element =>
 
 export const pullFactsRow = (pull: FakePull, tokens: DirectionTokens): Element =>
   factsRow(pullFacts(pull, tokens), tokens);
+
+// Running checks get a mark like the other needs.
+const checksFact = (checks: string, tokens: DirectionTokens): Element => {
+  const fact = dimFact(checks, tokens);
+
+  if (!checks.endsWith('running')) {
+    return fact;
+  }
+
+  return h_flex()
+    .flex_none()
+    .gap(countGap)
+    .items_center()
+    .child(statusMark('working', tokens).w(leadingWidth))
+    .child(fact);
+};
+
+// The checked-out PR's facts keep the 24 px row rhythm, and its ticket is a link as in the sidebar.
+export const checkedOutFactsRow = (pull: FakePull, tokens: DirectionTokens): Element => {
+  const facts = [sourceLink(pull.ticket, tokens)];
+
+  if (pull.checks !== undefined) {
+    facts.push(checksFact(pull.checks, tokens));
+  }
+
+  if (pull.threads !== undefined) {
+    facts.push(dimFact(`${pull.threads} threads`, tokens));
+  }
+
+  if (pull.diff !== undefined) {
+    facts.push(diffFact(pull.diff.add, pull.diff.del, tokens));
+  }
+
+  return factsRow(facts, tokens).h(tokens.rows.height);
+};
 
 // From the row's own edge to its title, past the leading mark and the number column.
 export const titleStart = leadingWidth + numberWidth + startGap * 2;

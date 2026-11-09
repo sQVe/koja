@@ -118,6 +118,25 @@ export const changeSwitchOf = (look: SwitchLook, tokens: DirectionTokens): Eleme
     .child(switchPill('Uncommitted', look.uncommitted, !look.branchActive, tokens))
     .child(switchPill('Branch', look.branch, look.branchActive, tokens));
 
+// One control with two options: a shared outline, and the selected option filled.
+export const changeSegmentsOf = (look: SwitchLook, tokens: DirectionTokens): Element => {
+  const segments = h_flex()
+    .flex_none()
+    .items_center()
+    .rounded(tokens.controls.radius)
+    .border(1)
+    .border_color(tokens.pane.border)
+    .child(switchPill('Uncommitted', look.uncommitted, !look.branchActive, tokens))
+    .child(switchPill('Branch', look.branch, look.branchActive, tokens));
+
+  return h_flex()
+    .h(tokens.rows.height)
+    .flex_none()
+    .mx(tokens.rows.inset)
+    .items_center()
+    .child(segments);
+};
+
 export const changeSwitch = (tokens: DirectionTokens): Element =>
   changeSwitchOf(
     { uncommitted: uncommittedCount, branch: branchChanges.length, branchActive: false },

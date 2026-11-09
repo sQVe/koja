@@ -93,7 +93,8 @@ export const workGroups = (state: RailState, tokens: DirectionTokens): Element[]
   ...workerGroup(state, tokens),
 ];
 
-export const mainLine = (tokens: DirectionTokens): Element =>
+// `detail` follows the name, such as a note that main has no pull request.
+export const mainLine = (detail: Element[], tokens: DirectionTokens): Element =>
   row(
     {
       selected: false,
@@ -103,7 +104,7 @@ export const mainLine = (tokens: DirectionTokens): Element =>
         .justify_center()
         .child(icon('git-branch', 'small').text_color(tokens.ink.muted)),
       label: label('main', tokens.text.body, tokens.ink.text),
-      end: [],
+      end: detail,
     },
     tokens,
   );
@@ -113,10 +114,10 @@ const mainList = (state: RailState, tokens: DirectionTokens): Element =>
   v_flex()
     .flex_none()
     .py(tokens.rows.listPadding)
-    .child(mainLine(tokens))
+    .child(mainLine([], tokens))
     .children(workGroups(state, tokens));
 
-export const readFailure = (state: RailState, tokens: DirectionTokens): Element[] => {
+const readFailure = (state: RailState, tokens: DirectionTokens): Element[] => {
   if (state.readFailed === undefined) {
     return [];
   }

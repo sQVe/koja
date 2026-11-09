@@ -1,5 +1,6 @@
 import type { DirectionTokens } from '../tokens.ts';
 import type { FakeWorker } from './data.ts';
+import { fileTree } from './data.ts';
 import { shownFileCount, shownFiles } from './rail.ts';
 import type { RailState } from './railData.ts';
 import type { QuestionRoom } from './workers.ts';
@@ -23,7 +24,7 @@ const panelInnerHeight = 688;
 const questionLineHeight = 25;
 const fullQuestionHeight = 96;
 const compactQuestionHeight = 78;
-const factsHeight = 18;
+const factsHeight = 24;
 const dividerHeight = 1;
 const fewestFileRows = 2;
 
@@ -33,8 +34,8 @@ const sectionTop = (tokens: DirectionTokens): number => {
   return rows.listPadding + rows.height + rows.listPadding * 2;
 };
 
-// Everything in the Stack section except the checked-out PR's file rows. The switch titles the
-// changes; without one, a Changes header does.
+// Everything in the Stack section except the checked-out PR's file rows, which the switch
+// titles.
 const stackHeight = (state: RailState, tokens: DirectionTokens): number => {
   const { rows } = tokens;
   const changesTitle = rows.height;
@@ -135,4 +136,19 @@ export const spaceFit = (state: RailState, tokens: DirectionTokens): SpaceFit =>
   const look = workersLook(state, tokens);
 
   return { fileRows: fileRowsThatFit(state, look, tokens), ...look };
+};
+
+// Whole tree rows that fit above every worker, keeping one row for `N more` when the tree is cut.
+export const treeRowsThatFit = (state: RailState, tokens: DirectionTokens): number => {
+  const { rows } = tokens;
+  const top = tokens.pane.headerHeight + errorHeight(state, tokens) + sectionTop(tokens);
+  const whole: WorkersLook = { dropsDone: false, questionRoom: 'full' };
+  const room = panelInnerHeight - top - workersHeight(state, whole, tokens);
+  const fit = Math.floor(room / rows.height);
+
+  if (fit >= fileTree.length) {
+    return fileTree.length;
+  }
+
+  return Math.max(fewestFileRows, fit - 1);
 };

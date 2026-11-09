@@ -3,7 +3,7 @@ import type { Element } from 'gpui-kit';
 import { div } from 'gpui-kit';
 
 import { iconToggle } from '../parts.ts';
-import { dimFact, questionMark, workNeedMark } from '../sidebars/facts.ts';
+import { dimFact, joinedFacts, questionMark, workNeedMark } from '../sidebars/facts.ts';
 import { mergedProgress } from '../sidebars/sidebar.ts';
 import type { DirectionTokens } from '../tokens.ts';
 import { panelHeader, panelTitle, sectionHeader } from './frame.ts';
@@ -67,7 +67,13 @@ const askingMarks = (state: RailState, tokens: DirectionTokens): Element[] => {
   ];
 };
 
-// `extra` follows the worker count, such as the done workers a short panel leaves out.
+// `extra` follows the worker count after a `·`, such as the done workers a short panel leaves out.
+const workersDetail = (state: RailState, extra: Element[], tokens: DirectionTokens): Element[] => {
+  const count = dimFact(String(state.workers.length), tokens);
+
+  return extra.length === 0 ? [count] : [joinedFacts([count, ...extra], tokens)];
+};
+
 export const workersSectionHeader = (
   state: RailState,
   extra: Element[],
@@ -77,7 +83,7 @@ export const workersSectionHeader = (
     {
       name: 'Workers',
       open: true,
-      detail: [dimFact(String(state.workers.length), tokens), ...extra],
+      detail: workersDetail(state, extra, tokens),
       end: askingMarks(state, tokens),
     },
     tokens,

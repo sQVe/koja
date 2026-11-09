@@ -65,12 +65,14 @@ const treeRow = (entry: FakeTreeEntry, tokens: DirectionTokens): Element =>
     tokens,
   );
 
-export const fileList = (tokens: DirectionTokens): Element =>
+export const fileListOf = (entries: FakeTreeEntry[], tokens: DirectionTokens): Element =>
   v_flex()
     .flex_none()
     .py(tokens.rows.listPadding)
     .gap(tokens.rows.gap)
-    .children(fileTree.map((entry) => treeRow(entry, tokens)));
+    .children(entries.map((entry) => treeRow(entry, tokens)));
+
+export const fileList = (tokens: DirectionTokens): Element => fileListOf(fileTree, tokens);
 
 export const fileFacts = (tokens: DirectionTokens): Element[] => [
   fixedLabel('koja', tokens.text.detail, tokens.ink.dim),

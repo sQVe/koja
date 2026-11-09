@@ -75,7 +75,7 @@ const twoStackBody = (state: RailState, tokens: DirectionTokens): Element => {
   return v_flex()
     .flex_none()
     .py(tokens.rows.listPadding)
-    .child(mainLine(tokens))
+    .child(mainLine([], tokens))
     .children(pullChanges(state, tokens));
 };
 

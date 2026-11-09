@@ -9,10 +9,11 @@ import { dimFact, questionMark } from '../sidebars/facts.ts';
 import type { DirectionTokens } from '../tokens.ts';
 import type { FakeWorker } from './data.ts';
 import { managerName, workers } from './data.ts';
+import { budgetSlot, stateColumn, workerState } from './workerColumns.ts';
 
-// How a list shows asking workers. `plain` keeps every time left at the row end. `waiting` says
-// `waiting` at an asking worker's row end, moves its time left to its question line, and
-// right-aligns the row's status.
+// How a list shows its workers. `plain` keeps every time left at the row end. `waiting` ends each
+// row with its state word, shows the time budget in its own column, and starts the selected
+// pill at the row's own indent.
 type AskStyle = 'plain' | 'waiting';
 
 // How much room the selected question gets: `full` wraps its text, `compact` keeps one line.
@@ -31,6 +32,8 @@ const questionPadding = 4;
 const fieldPadding = 8;
 const profileWidth = 36;
 const timeWidth = 62;
+// The reply placeholder is dim ink faded further, so it never reads as typed text.
+const placeholderOpacity = 0.6;
 
 export const workerCount = workers.length;
 
@@ -55,41 +58,61 @@ const managerStart = (status: Status | null, tokens: DirectionTokens): Element =
     .child(icon('terminal', 'small').text_color(tokens.ink.muted));
 };
 
+// The manager has no role or budget, only its state word in the workers' state column.
+const managerEnd = (status: Status | null, tokens: DirectionTokens): Element[] => {
+  if (status === null) {
+    return [];
+  }
+
+  const word = status === 'working' ? 'working' : 'idle';
+
+  return [stateColumn(word, tokens)];
+};
+
 const managerLine = (status: Status | null, tokens: DirectionTokens): Element =>
   row(
     {
       selected: false,
       start: managerStart(status, tokens),
       label: label(managerName, tokens.text.body, tokens.ink.muted),
-      end: [],
+      end: managerEnd(status, tokens),
     },
     tokens,
   );
 
-const rowTime = (worker: FakeWorker, style: AskStyle): string => {
-  const waiting = style === 'waiting' && worker.question !== undefined;
-
-  return waiting ? 'waiting' : worker.left;
-};
-
-const rowStatus = (worker: FakeWorker, style: AskStyle, tokens: DirectionTokens): Element => {
-  const status = dimFact(rowTime(worker, style), tokens).w(timeWidth);
-
-  return style === 'waiting' ? status.text_right() : status;
-};
-
-const workerRow = (worker: FakeWorker, style: AskStyle, tokens: DirectionTokens): Element =>
+const plainRow = (worker: FakeWorker, tokens: DirectionTokens): Element =>
   row(
     {
       selected: worker.selected,
       start: workerMark(worker, tokens),
       label: label(worker.task, tokens.text.body, tokens.ink.text),
-      end: [dimFact(worker.profile, tokens).w(profileWidth), rowStatus(worker, style, tokens)],
+      end: [
+        dimFact(worker.profile, tokens).w(profileWidth),
+        dimFact(worker.left, tokens).w(timeWidth),
+      ],
     },
     tokens,
   ).pl(tokens.rows.paddingX + nestIndent);
 
-const replyField = (placeholder: string, tokens: DirectionTokens): Element =>
+const stateRow = (worker: FakeWorker, tokens: DirectionTokens): Element =>
+  row(
+    {
+      selected: worker.selected,
+      start: workerMark(worker, tokens),
+      label: label(worker.task, tokens.text.body, tokens.ink.text),
+      end: [
+        dimFact(worker.profile, tokens).w(profileWidth),
+        budgetSlot(worker, tokens),
+        stateColumn(workerState(worker), tokens),
+      ],
+    },
+    tokens,
+  ).ml(tokens.rows.inset + nestIndent);
+
+const workerRow = (worker: FakeWorker, style: AskStyle, tokens: DirectionTokens): Element =>
+  style === 'waiting' ? stateRow(worker, tokens) : plainRow(worker, tokens);
+
+const replyField = (placeholder: Element, tokens: DirectionTokens): Element =>
   h_flex()
     .h(tokens.controls.size)
     .flex_none()
@@ -98,7 +121,7 @@ const replyField = (placeholder: string, tokens: DirectionTokens): Element =>
     .rounded(tokens.controls.radius)
     .border(1)
     .border_color(tokens.pane.border)
-    .child(label(placeholder, tokens.text.body, tokens.ink.dim));
+    .child(placeholder);
 
 const questionFrame = (tokens: DirectionTokens): Element => {
   const { rows } = tokens;
@@ -113,27 +136,14 @@ const questionFrame = (tokens: DirectionTokens): Element => {
     .gap(questionGap);
 };
 
-// A waiting worker's time left ends its question line; the question truncates first.
-const questionLine = (worker: FakeWorker, style: AskStyle, tokens: DirectionTokens): Element[] => {
+const questionLine = (worker: FakeWorker, tokens: DirectionTokens): Element[] => {
   if (worker.question === undefined) {
     return [];
   }
 
   const text = label(worker.question.text, tokens.text.body, tokens.ink.muted);
 
-  if (style === 'plain') {
-    return [questionFrame(tokens).pt(0).child(text)];
-  }
-
-  const line = h_flex()
-    .min_w(0)
-    .gap(questionGap)
-    .items_center()
-    .child(text)
-    .child(h_flex().flex_1())
-    .child(dimFact(worker.left, tokens));
-
-  return [questionFrame(tokens).pt(0).child(line)];
+  return [questionFrame(tokens).pt(0).child(text)];
 };
 
 // The full question wraps, so it is never cut.
@@ -141,6 +151,20 @@ const questionText = (text: string, room: QuestionRoom, tokens: DirectionTokens)
   room === 'compact'
     ? label(text, tokens.text.body, tokens.ink.text)
     : styled(div().min_w(0), tokens.text.body, tokens.ink.text).child(text);
+
+const replyPlaceholder = (
+  worker: FakeWorker,
+  waiting: boolean,
+  tokens: DirectionTokens,
+): Element => {
+  if (!waiting) {
+    return label('Reply to the worker', tokens.text.body, tokens.ink.dim);
+  }
+
+  const text = `Reply to ${worker.task}`;
+
+  return label(text, tokens.text.body, tokens.ink.dim).opacity(placeholderOpacity);
+};
 
 // The waiting style opens the question as close under its row as a question line sits.
 const fullQuestion = (
@@ -155,8 +179,7 @@ const fullQuestion = (
 
   const { asked } = worker.question;
   const waiting = look.style === 'waiting';
-  const age = waiting ? `${asked} · ${worker.left}` : asked;
-  const placeholder = waiting ? `Reply to ${worker.task}` : 'Reply to the worker';
+  const age = waiting ? `asked ${asked}` : asked;
   const frame = waiting ? questionFrame(tokens).pt(0) : questionFrame(tokens);
 
   const block = frame
@@ -164,7 +187,7 @@ const fullQuestion = (
     .child(dimFact(age, tokens));
 
   if (reply) {
-    block.child(replyField(placeholder, tokens));
+    block.child(replyField(replyPlaceholder(worker, waiting, tokens), tokens));
   }
 
   return [block];
@@ -177,9 +200,7 @@ const questionBlock = (
   look: ListLook,
   tokens: DirectionTokens,
 ): Element[] =>
-  worker.selected
-    ? fullQuestion(worker, reply, look, tokens)
-    : questionLine(worker, look.style, tokens);
+  worker.selected ? fullQuestion(worker, reply, look, tokens) : questionLine(worker, tokens);
 
 const workerRowsWith = (
   shown: FakeWorker[],
@@ -225,7 +246,7 @@ export const workerRowsOf = (shown: FakeWorker[], tokens: DirectionTokens): Elem
     .children(
       shown.flatMap((worker) => [
         workerRow(worker, 'plain', tokens),
-        ...(worker.selected ? [] : questionLine(worker, 'plain', tokens)),
+        ...(worker.selected ? [] : questionLine(worker, tokens)),
       ]),
     );
 

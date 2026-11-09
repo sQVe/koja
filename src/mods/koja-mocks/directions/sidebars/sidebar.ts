@@ -61,7 +61,7 @@ const projectGroup = (
     project.spaces.map((space) => mapRow(space, hovered, tokens)),
   );
 
-const sourceLink = (text: string, tokens: DirectionTokens): Element =>
+export const sourceLink = (text: string, tokens: DirectionTokens): Element =>
   fixedLabel(text, tokens.text.detail, tokens.ink.text).underline();
 
 const blockLine = (start: Element, end: Element, tokens: DirectionTokens): Element =>

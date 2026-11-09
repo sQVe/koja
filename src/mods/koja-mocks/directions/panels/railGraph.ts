@@ -8,6 +8,7 @@ import type { DirectionTokens } from '../tokens.ts';
 import type { FakePull } from './data.ts';
 import type { RailState } from './railData.ts';
 import {
+  checkedOutFactsRow,
   diffFact,
   factsRow,
   mergedTextOf,
@@ -36,6 +37,9 @@ const railWidth = 16;
 const railLeft = 4;
 const nodeSize = 8;
 const currentNodeSize = 10;
+
+// From the list's left edge to the work that hangs off the checked-out node.
+export const hangIndent = railLeft + railWidth + numberColumn;
 
 const circle = (size: number): Element =>
   div()
@@ -116,7 +120,9 @@ const railPull = (
     return [line];
   }
 
-  return [line, hangingBlock(pullFactsRow(pull, tokens), look.hung, tokens)];
+  const facts = look.marksCheckout ? checkedOutFactsRow(pull, tokens) : pullFactsRow(pull, tokens);
+
+  return [line, hangingBlock(facts, look.hung, tokens)];
 };
 
 // A branch without a PR takes the PR's place: its name in the number and title columns.
