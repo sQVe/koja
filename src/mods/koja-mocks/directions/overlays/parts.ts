@@ -250,10 +250,21 @@ export const footerLine = (parts: (string | string[])[], tokens: DirectionTokens
     tokens,
   );
 
+const normalModeLine = (tokens: DirectionTokens): Element =>
+  footerLine(['Normal mode:', ['ctrl-b'], 'then the keys in order'], tokens);
+
+// The new menu's digits work while it is open; its other hints need normal mode. Two lines, so the
+// menu keeps its width.
+export const newMenuFooter = (tokens: DirectionTokens): Element[] => [
+  divider(tokens),
+  footerLine(['Number keys pick here.'], tokens),
+  normalModeLine(tokens),
+];
+
 // The line under a menu that says how its key hints are reached.
 export const modeFooter = (tokens: DirectionTokens): Element[] => [
   divider(tokens),
-  footerLine(['Normal mode:', ['ctrl-b'], 'then the keys in order'], tokens),
+  normalModeLine(tokens),
 ];
 
 // Draws the menu's rows, with a divider above each row that starts a group. Pass row tokens.

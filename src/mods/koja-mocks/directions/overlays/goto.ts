@@ -66,6 +66,17 @@ const headerBand = (tokens: DirectionTokens): number =>
 // A space with only an agent status, so a chip draws the same mark as the rows and the sidebar.
 const markedSpace = (agent: Status): FakeSpace => ({ title: '', agent, selected: false, age: '' });
 
+// How many shown spaces have the chip's status. `All` shows no count.
+const chipCount = (shown: StatusChip, tokens: DirectionTokens): Element[] => {
+  if (shown.status === null) {
+    return [];
+  }
+
+  const count = placedSpaces.filter((placed) => placed.space.agent === shown.status).length;
+
+  return [fixedLabel(String(count), tokens.text.detail, tokens.ink.dim)];
+};
+
 const chip = (shown: StatusChip, active: boolean, tokens: DirectionTokens): Element => {
   const element = h_flex()
     .h(chipHeight)
@@ -86,10 +97,14 @@ const chip = (shown: StatusChip, active: boolean, tokens: DirectionTokens): Elem
   if (active) {
     element.bg(tokens.rows.hoverFill).border_color(overlayBorder);
 
-    return element.child(fixedLabel(shown.text, tokens.text.detail, tokens.ink.text));
+    return element
+      .child(fixedLabel(shown.text, tokens.text.detail, tokens.ink.text))
+      .children(chipCount(shown, tokens));
   }
 
-  return element.child(fixedLabel(shown.text, tokens.text.detail, tokens.ink.muted));
+  return element
+    .child(fixedLabel(shown.text, tokens.text.detail, tokens.ink.muted))
+    .children(chipCount(shown, tokens));
 };
 
 const chipLine = (tokens: DirectionTokens): Element =>
@@ -118,7 +133,7 @@ const tabRow = (tab: FakeTab, tokens: DirectionTokens): Element =>
     [
       statusMark(tab.status, tokens).w(markSlotWidth),
       iconMark('terminal', tokens.ink.muted),
-      label(tab.label, tokens.text.body, tokens.ink.text),
+      label(tab.label, tokens.text.body, tokens.ink.muted),
     ],
     [],
     tokens,

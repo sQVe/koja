@@ -15,6 +15,7 @@ import {
   keycapHints,
   menuItem,
   modeFooter,
+  newMenuFooter,
   overlayTokens,
 } from './parts.ts';
 
@@ -63,10 +64,11 @@ const newMenu = (tokens: DirectionTokens): Element => {
     .child(divider(rows))
     .child(heading('New space', [], tokens))
     .children(newPlaces.map((place) => menuItem(place, false, hints, rows)))
-    .children(modeFooter(rows));
+    .children(newMenuFooter(rows));
 };
 
-// The `+` drawn pressed, with the toggle fill, over the tab bar's own button while the menu is open.
+// The `+` drawn pressed over the tab bar's own button while the menu is open. It takes the row pill
+// fill, not the toggle's look, so it does not read as the Changes toggle that is on.
 const pressedPlus = (tokens: DirectionTokens): Element =>
   h_flex()
     .absolute()
@@ -76,7 +78,7 @@ const pressedPlus = (tokens: DirectionTokens): Element =>
     .items_center()
     .justify_center()
     .rounded(tokens.controls.radius)
-    .bg(tokens.controls.toggleFill)
+    .bg(tokens.rows.selectedFill)
     .text_color(tokens.controls.primary)
     .child(icon('plus', 'small'));
 
