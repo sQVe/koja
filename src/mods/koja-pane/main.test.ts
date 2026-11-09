@@ -17,6 +17,8 @@ interface RecordedElement {
 
 type HoverHandler = (hovered: boolean, cx: { notify: () => void }) => void;
 
+type ClickHandler = (event: unknown, cx: { stop_propagation: () => void }) => void;
+
 const recorded = (): RecordedElement => {
   const element: RecordedElement = { styles: {} };
 
@@ -45,6 +47,8 @@ const accent = '#4e4e8f';
 
 let focused = false;
 let normalMode = false;
+
+const askedCommands: { command: string; args: unknown }[] = [];
 
 const pane = (): Record<string, unknown> => ({
   pane: 'p1',
@@ -78,6 +82,11 @@ await mock.module('herdr', () =>
 
 await mock.module('../../kit/index.ts', () =>
   kitIndexFake({
+    askFirst: (command: string, args: unknown) => {
+      askedCommands.push({ command, args });
+
+      return true;
+    },
     colors: () => toPalette({ accent, foreground: '#1e2028' }),
     iconButton: () => recorded(),
     normalFocusFill,
@@ -144,5 +153,18 @@ describe('pane header buttons', () => {
 
     expect(names).toEqual(['Split right', 'Split down', 'Zoom pane', 'Close pane']);
     expect(tooltips).toEqual(names);
+  });
+
+  test('close asks first, so the last pane of a space gets the Koja dialog', () => {
+    const close = hoveredButtons().find(
+      (button) => button.styles['accessibility_label'] === 'Close pane',
+    );
+
+    const onClick = close?.styles['on_click'] as ClickHandler;
+
+    askedCommands.length = 0;
+    onClick(undefined, { stop_propagation: () => undefined });
+
+    expect(askedCommands).toEqual([{ command: 'pane.close', args: { pane: 'p1' } }]);
   });
 });
