@@ -2,7 +2,7 @@ import { h_flex, v_flex } from 'gpui-base';
 import type { Element } from 'gpui-kit';
 
 import { icon } from '../../../../kit/index.ts';
-import { fixedLabel, label, row, statusMark } from '../parts.ts';
+import { dot, fixedLabel, label, row, statusMark } from '../parts.ts';
 import { dimFact, joinedFacts, workNeedMark } from '../sidebars/facts.ts';
 import { mergedProgress, sourceLink } from '../sidebars/sidebar.ts';
 import type { DirectionTokens } from '../tokens.ts';
@@ -17,6 +17,7 @@ const numberWidth = 26;
 const startGap = 6;
 const factsHeight = 18;
 const countGap = 4;
+const staleDotSize = 6;
 
 export const shownPulls = stackPulls.filter((pull) => pull.state !== 'merged');
 
@@ -126,7 +127,21 @@ export const pullFactsRow = (pull: FakePull, tokens: DirectionTokens): Element =
   factsRow(pullFacts(pull, tokens), tokens);
 
 // Running checks get a mark like the other needs.
-const checksFact = (checks: string, tokens: DirectionTokens): Element => {
+// A stack read minutes ago shows the checks as they were, with a still dim mark, never a spinner.
+const checksMark = (stale: boolean, tokens: DirectionTokens): Element => {
+  if (!stale) {
+    return statusMark('working', tokens).w(leadingWidth);
+  }
+
+  return h_flex()
+    .w(leadingWidth)
+    .flex_none()
+    .items_center()
+    .justify_center()
+    .child(dot(staleDotSize, tokens.ink.dim));
+};
+
+const checksFact = (checks: string, stale: boolean, tokens: DirectionTokens): Element => {
   const fact = dimFact(checks, tokens);
 
   if (!checks.endsWith('running')) {
@@ -137,24 +152,25 @@ const checksFact = (checks: string, tokens: DirectionTokens): Element => {
     .flex_none()
     .gap(countGap)
     .items_center()
-    .child(statusMark('working', tokens).w(leadingWidth))
+    .child(checksMark(stale, tokens))
     .child(fact);
 };
 
 // The checked-out PR's facts keep the 24 px row rhythm, and its ticket is a link as in the sidebar.
-export const checkedOutFactsRow = (pull: FakePull, tokens: DirectionTokens): Element => {
+// It has no diff totals: the changes below it count only uncommitted files.
+export const checkedOutFactsRow = (
+  pull: FakePull,
+  stale: boolean,
+  tokens: DirectionTokens,
+): Element => {
   const facts = [sourceLink(pull.ticket, tokens)];
 
   if (pull.checks !== undefined) {
-    facts.push(checksFact(pull.checks, tokens));
+    facts.push(checksFact(pull.checks, stale, tokens));
   }
 
   if (pull.threads !== undefined) {
     facts.push(dimFact(`${pull.threads} threads`, tokens));
-  }
-
-  if (pull.diff !== undefined) {
-    facts.push(diffFact(pull.diff.add, pull.diff.del, tokens));
   }
 
   return factsRow(facts, tokens).h(tokens.rows.height);

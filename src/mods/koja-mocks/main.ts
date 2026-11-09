@@ -101,15 +101,14 @@ const renderers: Record<SceneName, (inputs: SceneInputs) => Element> = {
   'split-three-base': () => splitScene('three', railStates.base, koja),
   'split-three-busy': () => splitScene('three', railStates.busy, koja),
   'split-three-main': () => splitScene('three', railStates.main, koja),
-  'space-base': () => spaceScene('stack', spaceStates.base, koja),
-  'space-busy': () => spaceScene('stack', spaceStates.busy, koja),
-  'space-clean': () => spaceScene('stack', spaceStates.clean, koja),
-  'space-single': () => spaceScene('stack', spaceStates.single, koja),
-  'space-no-pr': () => spaceScene('stack', spaceStates.noPull, koja),
-  'space-main': () => spaceScene('stack', spaceStates.main, koja),
-  'space-error': () => spaceScene('stack', spaceStates.error, koja),
-  'space-files': () => spaceScene('files', spaceStates.base, koja),
-  'space-normal': () => spaceScene('stack', spaceStates.base, kojaNormal),
+  'space-base': () => spaceScene(spaceStates.base, koja),
+  'space-busy': () => spaceScene(spaceStates.busy, koja),
+  'space-clean': () => spaceScene(spaceStates.clean, koja),
+  'space-single': () => spaceScene(spaceStates.single, koja),
+  'space-no-pr': () => spaceScene(spaceStates.noPull, koja),
+  'space-main': () => spaceScene(spaceStates.main, koja),
+  'space-error': () => spaceScene(spaceStates.error, koja),
+  'space-normal': () => spaceScene(spaceStates.base, kojaNormal),
 };
 
 // A refocus after the window has drawn, when its input or focus target can take the keyboard.

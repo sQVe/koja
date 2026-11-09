@@ -5,11 +5,12 @@ import type { Status } from 'herdr';
 
 import { icon } from '../../../../kit/index.ts';
 import { label, row, statusMark, styled } from '../parts.ts';
-import { dimFact, questionMark } from '../sidebars/facts.ts';
+import { dimFact, listRowGap, questionMark } from '../sidebars/facts.ts';
 import type { DirectionTokens } from '../tokens.ts';
 import type { FakeWorker } from './data.ts';
 import { managerName, workers } from './data.ts';
 import { budgetSlot, stateColumn, workerState } from './workerColumns.ts';
+import { replyField, replyPlaceholder, sendHint } from './workerReply.ts';
 
 // How a list shows its workers. `plain` keeps every time left at the row end. `waiting` ends each
 // row with its state word, shows the time budget in its own column, and starts the selected
@@ -26,16 +27,20 @@ interface ListLook {
 
 const markWidth = 14;
 const nestIndent = 12;
+// The space list nests its workers by the kit's list indent (`indentWidth` in the kit's size.ts).
+const kitIndent = 20;
 const rowGap = 6;
 const questionGap = 4;
 const questionPadding = 4;
-const fieldPadding = 8;
 const profileWidth = 36;
 const timeWidth = 62;
-// The reply placeholder is dim ink faded further, so it never reads as typed text.
-const placeholderOpacity = 0.6;
+// The selected pill pads the question mark's 12 px icon by 8 px, as it pads the state word on the
+// right: the 14 px mark slot centers the icon 1 px in.
+const markBearing = 1;
 
 export const workerCount = workers.length;
+
+const indentOf = (style: AskStyle): number => (style === 'waiting' ? kitIndent : nestIndent);
 
 const workerMark = (worker: FakeWorker, tokens: DirectionTokens): Element => {
   if (worker.status === 'blocked') {
@@ -64,7 +69,7 @@ const managerEnd = (status: Status | null, tokens: DirectionTokens): Element[] =
     return [];
   }
 
-  const word = status === 'working' ? 'working' : 'idle';
+  const word = status === 'working' ? 'running' : 'idle';
 
   return [stateColumn(word, tokens)];
 };
@@ -92,7 +97,7 @@ const plainRow = (worker: FakeWorker, tokens: DirectionTokens): Element =>
       ],
     },
     tokens,
-  ).pl(tokens.rows.paddingX + nestIndent);
+  ).pl(tokens.rows.paddingX + indentOf('plain'));
 
 const stateRow = (worker: FakeWorker, tokens: DirectionTokens): Element =>
   row(
@@ -107,25 +112,16 @@ const stateRow = (worker: FakeWorker, tokens: DirectionTokens): Element =>
       ],
     },
     tokens,
-  ).ml(tokens.rows.inset + nestIndent);
+  )
+    .ml(tokens.rows.inset + indentOf('waiting'))
+    .pl(tokens.rows.paddingX - markBearing);
 
 const workerRow = (worker: FakeWorker, style: AskStyle, tokens: DirectionTokens): Element =>
   style === 'waiting' ? stateRow(worker, tokens) : plainRow(worker, tokens);
 
-const replyField = (placeholder: Element, tokens: DirectionTokens): Element =>
-  h_flex()
-    .h(tokens.controls.size)
-    .flex_none()
-    .px(fieldPadding)
-    .items_center()
-    .rounded(tokens.controls.radius)
-    .border(1)
-    .border_color(tokens.pane.border)
-    .child(placeholder);
-
-const questionFrame = (tokens: DirectionTokens): Element => {
+const questionFrame = (style: AskStyle, tokens: DirectionTokens): Element => {
   const { rows } = tokens;
-  const taskStart = rows.paddingX + nestIndent + markWidth + rowGap;
+  const taskStart = rows.paddingX + indentOf(style) + markWidth + rowGap;
 
   return v_flex()
     .flex_none()
@@ -136,14 +132,14 @@ const questionFrame = (tokens: DirectionTokens): Element => {
     .gap(questionGap);
 };
 
-const questionLine = (worker: FakeWorker, tokens: DirectionTokens): Element[] => {
+const questionLine = (worker: FakeWorker, style: AskStyle, tokens: DirectionTokens): Element[] => {
   if (worker.question === undefined) {
     return [];
   }
 
   const text = label(worker.question.text, tokens.text.body, tokens.ink.muted);
 
-  return [questionFrame(tokens).pt(0).child(text)];
+  return [questionFrame(style, tokens).pt(0).child(text)];
 };
 
 // The full question wraps, so it is never cut.
@@ -151,20 +147,6 @@ const questionText = (text: string, room: QuestionRoom, tokens: DirectionTokens)
   room === 'compact'
     ? label(text, tokens.text.body, tokens.ink.text)
     : styled(div().min_w(0), tokens.text.body, tokens.ink.text).child(text);
-
-const replyPlaceholder = (
-  worker: FakeWorker,
-  waiting: boolean,
-  tokens: DirectionTokens,
-): Element => {
-  if (!waiting) {
-    return label('Reply to the worker', tokens.text.body, tokens.ink.dim);
-  }
-
-  const text = `Reply to ${worker.task}`;
-
-  return label(text, tokens.text.body, tokens.ink.dim).opacity(placeholderOpacity);
-};
 
 // The waiting style opens the question as close under its row as a question line sits.
 const fullQuestion = (
@@ -180,14 +162,17 @@ const fullQuestion = (
   const { asked } = worker.question;
   const waiting = look.style === 'waiting';
   const age = waiting ? `asked ${asked}` : asked;
-  const frame = waiting ? questionFrame(tokens).pt(0) : questionFrame(tokens);
+  const opened = questionFrame(look.style, tokens);
+  const frame = waiting ? opened.pt(0) : opened;
 
   const block = frame
     .child(questionText(worker.question.text, look.room, tokens))
     .child(dimFact(age, tokens));
 
   if (reply) {
-    block.child(replyField(replyPlaceholder(worker, waiting, tokens), tokens));
+    const end = waiting ? [sendHint()] : [];
+
+    block.child(replyField(replyPlaceholder(worker, waiting, tokens), end, tokens));
   }
 
   return [block];
@@ -200,7 +185,9 @@ const questionBlock = (
   look: ListLook,
   tokens: DirectionTokens,
 ): Element[] =>
-  worker.selected ? fullQuestion(worker, reply, look, tokens) : questionLine(worker, tokens);
+  worker.selected
+    ? fullQuestion(worker, reply, look, tokens)
+    : questionLine(worker, look.style, tokens);
 
 const workerRowsWith = (
   shown: FakeWorker[],
@@ -213,15 +200,19 @@ const workerRowsWith = (
     ...questionBlock(worker, reply, look, tokens),
   ]);
 
-const listFrame = (tokens: DirectionTokens): Element =>
-  v_flex().flex_none().py(tokens.rows.listPadding).gap(tokens.rows.gap);
+// The space list spaces its rows as the sidebar does.
+const listFrame = (style: AskStyle, tokens: DirectionTokens): Element => {
+  const gap = style === 'waiting' ? listRowGap : tokens.rows.gap;
+
+  return v_flex().flex_none().py(tokens.rows.listPadding).gap(gap);
+};
 
 export const workerListOf = (
   shown: FakeWorker[],
   reply: boolean,
   tokens: DirectionTokens,
 ): Element =>
-  listFrame(tokens)
+  listFrame('plain', tokens)
     .child(managerLine(null, tokens))
     .children(workerRowsWith(shown, reply, { style: 'plain', room: 'full' }, tokens));
 
@@ -232,7 +223,7 @@ export const waitingWorkerList = (
   room: QuestionRoom,
   tokens: DirectionTokens,
 ): Element =>
-  listFrame(tokens)
+  listFrame('waiting', tokens)
     .child(managerLine(manager, tokens))
     .children(workerRowsWith(shown, true, { style: 'waiting', room }, tokens));
 
@@ -246,7 +237,7 @@ export const workerRowsOf = (shown: FakeWorker[], tokens: DirectionTokens): Elem
     .children(
       shown.flatMap((worker) => [
         workerRow(worker, 'plain', tokens),
-        ...(worker.selected ? [] : questionLine(worker, tokens)),
+        ...(worker.selected ? [] : questionLine(worker, 'plain', tokens)),
       ]),
     );
 

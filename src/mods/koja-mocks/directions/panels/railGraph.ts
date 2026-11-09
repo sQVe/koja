@@ -24,7 +24,8 @@ export type HangingWork = (state: RailState, tokens: DirectionTokens) => Element
 
 interface RailLook {
   hung: Element[];
-  marksCheckout: boolean;
+  spaceLook: boolean;
+  stale: boolean;
 }
 
 interface RailNode {
@@ -37,9 +38,6 @@ const railWidth = 16;
 const railLeft = 4;
 const nodeSize = 8;
 const currentNodeSize = 10;
-
-// From the list's left edge to the work that hangs off the checked-out node.
-export const hangIndent = railLeft + railWidth + numberColumn;
 
 const circle = (size: number): Element =>
   div()
@@ -102,8 +100,8 @@ const markedPullLine = (pull: FakePull, tokens: DirectionTokens): Element =>
     tokens,
   );
 
-const pullLineOf = (pull: FakePull, marksCheckout: boolean, tokens: DirectionTokens): Element =>
-  marksCheckout
+const pullLineOf = (pull: FakePull, spaceLook: boolean, tokens: DirectionTokens): Element =>
+  spaceLook
     ? markedPullLine(pull, tokens)
     : pullLineWith(pull, pullNumber(pull, tokens), false, tokens);
 
@@ -114,13 +112,15 @@ const railPull = (
   tokens: DirectionTokens,
 ): Element[] => {
   const cell = railCell({ top, node: pullNode(pull, tokens), bottom: true }, tokens);
-  const line = railRow(cell, pullLineOf(pull, look.marksCheckout, tokens));
+  const line = railRow(cell, pullLineOf(pull, look.spaceLook, tokens));
 
   if (!pull.checkedOut) {
     return [line];
   }
 
-  const facts = look.marksCheckout ? checkedOutFactsRow(pull, tokens) : pullFactsRow(pull, tokens);
+  const facts = look.spaceLook
+    ? checkedOutFactsRow(pull, look.stale, tokens)
+    : pullFactsRow(pull, tokens);
 
   return [line, hangingBlock(facts, look.hung, tokens)];
 };
@@ -151,8 +151,19 @@ const branchHead = (state: RailState, hung: Element[], tokens: DirectionTokens):
   return [railRow(cell, line), hangingBlock(facts, hung, tokens)];
 };
 
+// The space panel starts main's text in the PR title column, past an empty number column.
+const trunkStart = (spaceLook: boolean, tokens: DirectionTokens): Element => {
+  const name = fixedLabel('main', tokens.text.body, tokens.ink.text);
+
+  if (!spaceLook) {
+    return name;
+  }
+
+  return h_flex().flex_none().pl(numberColumn).items_center().child(name);
+};
+
 // Merged PRs sit on the trunk, where the rail ends.
-const trunkRow = (state: RailState, tokens: DirectionTokens): Element => {
+const trunkRow = (state: RailState, spaceLook: boolean, tokens: DirectionTokens): Element => {
   const node = circle(nodeSize).bg(tokens.marks.done);
   const cell = railCell({ top: true, node, bottom: false }, tokens);
   const merged = state.pulls.filter((pull) => pull.state === 'merged');
@@ -161,7 +172,7 @@ const trunkRow = (state: RailState, tokens: DirectionTokens): Element => {
   const trunk = row(
     {
       selected: false,
-      start: fixedLabel('main', tokens.text.body, tokens.ink.text),
+      start: trunkStart(spaceLook, tokens),
       label: mergedFacts,
       end: [],
     },
@@ -174,11 +185,11 @@ const trunkRow = (state: RailState, tokens: DirectionTokens): Element => {
 export const railListOf = (
   state: RailState,
   hang: HangingWork,
-  marksCheckout: boolean,
+  spaceLook: boolean,
   tokens: DirectionTokens,
 ): Element => {
   const shown = state.pulls.filter((pull) => pull.state !== 'merged');
-  const look = { hung: hang(state, tokens), marksCheckout };
+  const look = { hung: hang(state, tokens), spaceLook, stale: state.readFailed !== undefined };
   const head = branchHead(state, look.hung, tokens);
 
   const pulls = shown.flatMap((pull, index) => {
@@ -192,7 +203,7 @@ export const railListOf = (
     .py(tokens.rows.listPadding)
     .children(head)
     .children(pulls)
-    .child(trunkRow(state, tokens));
+    .child(trunkRow(state, spaceLook, tokens));
 };
 
 export const railList = (state: RailState, hang: HangingWork, tokens: DirectionTokens): Element =>

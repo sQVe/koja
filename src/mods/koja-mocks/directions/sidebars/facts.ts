@@ -24,8 +24,9 @@ const progressHeight = 3;
 const progressTrack = '#43464e33';
 const ringSize = 6;
 const markSlot = 14;
-const listRowGap = 2;
 const dividerHeight = 1;
+
+export const listRowGap = 2;
 
 const needIcons: Record<WorkNeed, IconName> = {
   conflict: 'triangle-alert',

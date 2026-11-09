@@ -65,7 +65,7 @@ const treeRow = (entry: FakeTreeEntry, tokens: DirectionTokens): Element =>
     tokens,
   );
 
-export const fileListOf = (entries: FakeTreeEntry[], tokens: DirectionTokens): Element =>
+const fileListOf = (entries: FakeTreeEntry[], tokens: DirectionTokens): Element =>
   v_flex()
     .flex_none()
     .py(tokens.rows.listPadding)

@@ -10,6 +10,12 @@ import { togglePillInk } from '../sidebars/sidebar.ts';
 import type { DirectionTokens } from '../tokens.ts';
 import { branchChanges } from './data.ts';
 
+export interface SwitchOption {
+  name: string;
+  count: number;
+  active: boolean;
+}
+
 interface SwitchLook {
   uncommitted: number;
   branch: number;
@@ -18,6 +24,7 @@ interface SwitchLook {
 
 const markSlotWidth = 12;
 const switchGap = 2;
+const segmentBorder = 1;
 const barPadding = 8;
 const barGap = 6;
 const fieldPadding = 8;
@@ -118,16 +125,20 @@ export const changeSwitchOf = (look: SwitchLook, tokens: DirectionTokens): Eleme
     .child(switchPill('Uncommitted', look.uncommitted, !look.branchActive, tokens))
     .child(switchPill('Branch', look.branch, look.branchActive, tokens));
 
-// One control with two options: a shared outline, and the selected option filled.
-export const changeSegmentsOf = (look: SwitchLook, tokens: DirectionTokens): Element => {
+// One control with its options in a shared outline. The options are the sidebar's view pills,
+// so the outline around them keeps the 24 px row height.
+export const changeSegmentsOf = (options: SwitchOption[], tokens: DirectionTokens): Element => {
+  const pills = options.map((option) =>
+    switchPill(option.name, option.count, option.active, tokens),
+  );
+
   const segments = h_flex()
     .flex_none()
     .items_center()
     .rounded(tokens.controls.radius)
-    .border(1)
+    .border(segmentBorder)
     .border_color(tokens.pane.border)
-    .child(switchPill('Uncommitted', look.uncommitted, !look.branchActive, tokens))
-    .child(switchPill('Branch', look.branch, look.branchActive, tokens));
+    .children(pills);
 
   return h_flex()
     .h(tokens.rows.height)

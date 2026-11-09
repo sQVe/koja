@@ -89,7 +89,6 @@ describe('scene lookup', () => {
     'space-no-pr',
     'space-main',
     'space-error',
-    'space-files',
     'space-normal',
   ];
 

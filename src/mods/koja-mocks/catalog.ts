@@ -84,7 +84,6 @@ const sceneSizes = {
   'space-no-pr': shellSceneSize,
   'space-main': shellSceneSize,
   'space-error': shellSceneSize,
-  'space-files': shellSceneSize,
   'space-normal': shellSceneSize,
 } as const satisfies Record<string, SceneSize>;
 
