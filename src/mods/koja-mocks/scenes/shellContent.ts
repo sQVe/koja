@@ -1,22 +1,6 @@
 import type { Program, Status } from 'herdr';
 
-import type { FileStatus, RowState } from '../../../kit/index.ts';
-
-export interface FakeSpace {
-  label: string;
-  status: Status | null;
-  state: RowState;
-  pull?: number;
-  badge?: string;
-}
-
-export interface FakeRepo {
-  name: string;
-  branch: string;
-  age: string;
-  status: Status | null;
-  spaces: FakeSpace[];
-}
+import type { FileStatus } from '../../../kit/index.ts';
 
 export interface FakeTab {
   label: string;
@@ -64,39 +48,18 @@ const shellProgram: Program = {
   agent: false,
 };
 
-export const fakeRepos: FakeRepo[] = [
-  {
-    name: 'koja',
-    branch: 'main',
-    age: '2h',
-    status: 'blocked',
-    spaces: [
-      { label: 'me-1089-window-shell', status: 'working', state: 'selected', pull: 31 },
-      { label: 'me-1088-ui-foundation', status: 'idle', state: 'normal' },
-      { label: 'fix-pr-badge', status: 'blocked', state: 'normal', badge: 'Needs you' },
-    ],
-  },
-  {
-    name: 'tikk',
-    branch: 'main',
-    age: '1d',
-    status: 'done',
-    spaces: [{ label: 'ticket-sync', status: 'done', state: 'normal', pull: 12 }],
-  },
-];
-
 export const fakeTabs: FakeTab[] = [
-  { label: 'Build window shell', active: true, status: 'working', program: agentProgram },
-  { label: 'Review judge findings', active: false, status: 'blocked', program: agentProgram },
-  { label: 'Wire the tab bar', active: false, status: 'done', program: agentProgram },
+  { label: 'Design the sidebar', active: true, status: 'working', program: agentProgram },
+  { label: 'Judge round', active: false, status: 'done', program: agentProgram },
+  { label: 'Mock scenes', active: false, status: 'working', program: agentProgram },
   { label: 'zsh', active: false, status: null, program: shellProgram },
 ];
 
 export const agentPane: FakePane = {
   program: agentProgram,
   name: 'Claude Code',
-  task: 'Build window shell',
-  branch: 'me-1089-window-shell',
+  task: 'Design the sidebar',
+  branch: 'me-1090-design-the-sidebar',
   folder: '~/code/koja',
   status: 'working',
   lines: ['> bun run check', 'typecheck      ok', 'style:check    ok', 'tests          running'],
@@ -106,13 +69,13 @@ export const shellPane: FakePane = {
   program: shellProgram,
   name: 'zsh',
   branch: 'main',
-  folder: '~/code/tikk',
+  folder: '~/code/koja',
   status: null,
   lines: [
     '$ git log --oneline -3',
-    'a1b2c3d Wire the tab bar',
-    'e4f5a6b Review judge findings',
-    'c7d8e9f Build window shell',
+    'a1b2c3d Add the hover card',
+    'e4f5a6b Add the inbox view',
+    'c7d8e9f Add state icons to the kit',
   ],
 };
 
