@@ -101,7 +101,7 @@ const commandList = (tokens: DirectionTokens): Element =>
 const countFooter = (tokens: DirectionTokens): Element =>
   line([], [dimFact(`${allCommands} commands`, tokens)], tokens);
 
-const palette = (tokens: DirectionTokens): Element =>
+export const commandPalette = (tokens: DirectionTokens): Element =>
   floatingOverlay(paletteWidth, tokens)
     .left(centered(paletteWidth))
     .top(overlayTop)
@@ -112,4 +112,4 @@ const palette = (tokens: DirectionTokens): Element =>
     .child(countFooter(tokens));
 
 export const paletteScene = (tokens: DirectionTokens): Element =>
-  withFloating(mapSidebar, [palette(tokens)], tokens);
+  withFloating(mapSidebar, [commandPalette(tokens)], tokens);
