@@ -7,7 +7,6 @@ import { gpuiBaseFake, gpuiKitFake, herdrFake } from '../../tests/moduleFakes.ts
 interface StateLineOptions {
   kind: 'empty' | 'loading' | 'error';
   text: string;
-  id?: string;
   action?: DrawnElement;
 }
 
@@ -68,15 +67,8 @@ describe('stateLine', () => {
     expect(drawnTexts(line)).toEqual(['Could not read git status.', 'Retry']);
   });
 
-  test('a line with an id shows its whole text as a tooltip, so a cut line stays readable', () => {
-    const text = 'koja PRs are 6m old.';
-    const line = render({ kind: 'error', text, id: 'koja-pulls-error' });
-
-    expect(drawnTooltips(line)).toEqual([text]);
-  });
-
-  test('a line without an id shows no tooltip', () => {
-    const line = render({ kind: 'error', text: 'Could not read git status.' });
+  test('an error line shows no tooltip', () => {
+    const line = render({ kind: 'error', text: 'koja PRs are 6m old.' });
 
     expect(drawnTooltips(line)).toEqual([]);
   });

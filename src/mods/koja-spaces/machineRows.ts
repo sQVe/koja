@@ -40,11 +40,10 @@ const connected = (machineList: Machine[], machine: string | null): boolean =>
 const loadingRow = (collapsed: boolean): Element =>
   stateLine({ kind: 'loading', text: collapsed ? '…' : 'Loading…' });
 
-const errorRow = (id: string, text: string, retry: (cx: Context) => void): Element =>
+const errorRow = (text: string, retry: (cx: Context) => void): Element =>
   stateLine({
     kind: 'error',
     text,
-    id,
     action: toggleButton({ label: 'Retry', active: false }).on_click((_event, cx) => {
       cx.stop_propagation();
       retry(cx);
@@ -159,7 +158,7 @@ const groupChildren = (
 
       if (rowIndex === 0 && error !== null) {
         elements.push(
-          errorRow(`pulls-error-${repoKey}`, error, (cx) => {
+          errorRow(error, (cx) => {
             host.retryPull(git, cx);
           }),
         );
@@ -174,8 +173,7 @@ const machineErrorRow = (
   text: string,
   collapsed: boolean,
   retry: (cx: Context) => void,
-): Element =>
-  collapsed ? railErrorMark(text, retry) : errorRow('machines-error-line', text, retry);
+): Element => (collapsed ? railErrorMark(text, retry) : errorRow(text, retry));
 
 export const machineRows = (host: MachineRowsHost, collapsed: boolean): Element[] => {
   const remote = host.groups

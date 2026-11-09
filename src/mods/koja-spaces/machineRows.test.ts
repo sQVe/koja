@@ -200,7 +200,7 @@ describe('machineRows', () => {
     expect(texts).not.toContain('Retry');
   });
 
-  test('a machine error is drawn first in the sidebar, with Retry, and carries its text as a tooltip', () => {
+  test('a machine error is drawn first in the sidebar, with Retry, and no tooltip', () => {
     const retry = mock(() => undefined);
 
     const rows = loaded.machineRows(
@@ -215,7 +215,7 @@ describe('machineRows', () => {
     const tree = drawnTree(rows);
 
     expect(drawnTexts(tree)).toEqual([machinesError, 'Retry', 'repo-row']);
-    expect(drawnTooltips(tree)).toContain(machinesError);
+    expect(drawnTooltips(tree)).toEqual([]);
 
     const button = elementWithText(tree, 'Retry');
 

@@ -159,7 +159,7 @@ preview inside one framed overlay, so the list rounds only its own two outer cor
 - The line says what is true and what to do next. Every read that fails shows an error line, so no
   read fails silently.
 - An error line names the resource that failed and sits with the part it affects. It carries its own
-  Retry. A line that a narrow list may cut shows its whole text as a tooltip.
+  Retry.
 - Where a list has no room for a line, such as the sidebar rail, the failed part shows the alert
   mark in `blocked` instead. The mark shows the line's text as a tooltip, and a click on it is the
   Retry.

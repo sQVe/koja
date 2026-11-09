@@ -11,7 +11,6 @@ type StateKind = 'empty' | 'loading' | 'error';
 export interface StateLineOptions {
   kind: StateKind;
   text: string;
-  id?: string;
   // A button or a keyHint for the next step.
   action?: Element;
 }
@@ -43,13 +42,7 @@ export const stateLine = (options: StateLineOptions): Element => {
     line.child(h_flex().w(markSize.slot).flex_none().justify_center().child(mark));
   }
 
-  const text = roleText('detail', options.text).flex_1();
-
-  if (options.id !== undefined) {
-    text.id(options.id).tooltip(options.text);
-  }
-
-  line.child(text);
+  line.child(roleText('detail', options.text).flex_1());
 
   if (options.action !== undefined) {
     line.child(options.action);
