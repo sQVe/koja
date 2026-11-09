@@ -63,6 +63,25 @@ describe('scene lookup', () => {
     });
   });
 
+  const overlayScenes = ['palette', 'goto', 'keys', 'menu', 'new'].map(
+    (surface) => `overlay-${surface}`,
+  );
+
+  test.each(overlayScenes)('the %s scene opens at the shell size', (name) => {
+    expect(findScene(name)).toHaveProperty('scene', {
+      name,
+      width: overlaySize.shellWidth,
+      height: overlaySize.shellHeight,
+    });
+  });
+
+  test.each(['overlay-cards-palette', 'overlay-wide-keys', 'overlay-box-palette'])(
+    'the dropped %s scene gives an error',
+    (name) => {
+      expect('error' in findScene(name)).toBe(true);
+    },
+  );
+
   test('a name past the last smoke scene gives an error', () => {
     expect('error' in findScene('smoke-5')).toBe(true);
   });

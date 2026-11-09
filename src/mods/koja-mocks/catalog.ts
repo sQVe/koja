@@ -46,6 +46,11 @@ const sceneSizes = {
   'sidebar-hover': shellSceneSize,
   'sidebar-find': shellSceneSize,
   'sidebar-states': shellSceneSize,
+  'overlay-palette': shellSceneSize,
+  'overlay-goto': shellSceneSize,
+  'overlay-keys': shellSceneSize,
+  'overlay-menu': shellSceneSize,
+  'overlay-new': shellSceneSize,
 } as const satisfies Record<string, SceneSize>;
 
 export type SceneName = keyof typeof sceneSizes;
