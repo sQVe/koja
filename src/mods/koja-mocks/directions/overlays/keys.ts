@@ -22,9 +22,7 @@ import type { KeycapLook } from './parts.ts';
 
 // From the bottom of the content area to the pane bottoms: the content padding.
 const paneBottomOffset = 8;
-// A clear gap above the pane bottoms, so the card edge never runs beside a pane edge.
 const cardGapAbovePanes = 24;
-// Columns take their content's width, with one even gap between them.
 const columnGap = 32;
 // The card lists every pane key, so its rows are shorter than panel rows.
 const keyRowCut = 4;
@@ -62,7 +60,6 @@ const keyColumn = (group: KeyGroup, tokens: DirectionTokens): Element => {
     );
 };
 
-// The divider runs from the text edge on the left to the text edge on the right.
 const keysCard = (tokens: DirectionTokens): Element =>
   overlayCard(tokens)
     .flex_none()
@@ -76,7 +73,6 @@ const keysCard = (tokens: DirectionTokens): Element =>
         .children(paneKeys.map((group) => keyColumn(group, tokens))),
     );
 
-// A strip across the main column centers the card, which is only as wide as its columns.
 const bottomCenter = (card: Element): Element =>
   h_flex()
     .absolute()

@@ -34,16 +34,12 @@ const tallGlyphs = /[A-Z0-9bdfhijklt↵]/u;
 const descendingGlyphs = /[gpqy]/u;
 // Glyphs sit about 1 px left of the cap's center, so the left padding takes 1 px more.
 const keycapOpticalShift = 1;
-// Every cap is at least this wide, so key columns line up across rows.
 const keycapMinWidth = 18;
 const caretWidth = 1;
-// The caret spans the input's line, a little taller than the text.
 const caretLift = 4;
-// The input's text inset: a small gap between the caret and the placeholder.
 const caretTextInset = 2;
 // From the top of the content area to the pane tops: the tab bar and the content padding.
 const paneTopOffset = 44;
-// A clear gap below the pane tops, so the overlay edge never runs beside a pane edge.
 const overlayGap = 40;
 
 // One step lighter than the pane body, so an overlay reads as a layer above the panes.
@@ -65,7 +61,6 @@ export const overlayTokens = (height: number, tokens: DirectionTokens): Directio
   rows: { ...tokens.rows, height, inset: 0 },
 });
 
-// Search popups keep their taller rows.
 const searchRowLift = 4;
 
 export const searchRowHeight = (tokens: DirectionTokens): number =>
@@ -77,7 +72,6 @@ export const mainWidth = 992;
 
 export const overlayTop = paneTopOffset + overlayGap;
 
-// The left edge that centers a card of this width in the main column.
 export const centered = (width: number): number => mainLeft + (mainWidth - width) / 2;
 
 export const iconMark = (name: IconName, color: Color): Element =>
@@ -131,7 +125,6 @@ export const keycaps = (
     .items_center()
     .children(keys.map((key) => keycap(key, look, tokens)));
 
-// A heading's part letter in the rows' first key column, with an empty slot for the second key.
 export const item = (options: ItemOptions, tokens: DirectionTokens): Element =>
   row(
     {
@@ -202,7 +195,6 @@ export const spaceRow = (
 const settingState = (menu: MenuItem, tokens: DirectionTokens): Element[] =>
   menu.state === undefined ? [] : [dimFact(menu.state, tokens)];
 
-// Only the current mode's binding, so every hint works as shown.
 const modeHints = (menu: MenuItem, tokens: DirectionTokens): Element[] => {
   const keys = tokens.normal ? menu.normalKeys : (menu.insertKeys ?? []);
 
@@ -220,8 +212,6 @@ export const menuItem = (menu: MenuItem, selected: boolean, tokens: DirectionTok
     tokens,
   );
 
-// An agent that is not installed dims its icon and its name together.
-// Dim footer text and keycaps in one run, read left to right.
 export const footerLine = (parts: (string | string[])[], tokens: DirectionTokens): Element =>
   line(
     parts.map((part) => (typeof part === 'string' ? dimFact(part, tokens) : keycaps(part, tokens))),
@@ -229,7 +219,6 @@ export const footerLine = (parts: (string | string[])[], tokens: DirectionTokens
     tokens,
   );
 
-// Draws the menu's rows, with a divider above each row that starts a group. Pass row tokens.
 export const dividedRows = (
   menus: MenuItem[],
   draw: (menu: MenuItem, index: number) => Element,

@@ -22,7 +22,6 @@ import {
 const menuWidth = 248;
 // The focused pane's right border, measured from the insert-mode window.
 const focusedPaneRight = 703;
-// A clear gap from that border, so the menu edge never runs beside it.
 const menuGapFromPane = 16;
 // The menu's top left: near the right-click in the focused pane's body, kept clear of its border.
 const pointer = { x: focusedPaneRight - menuGapFromPane - menuWidth, y: 168 };
@@ -40,7 +39,6 @@ const normalPillWiden = 6;
 
 const modeShift = (tokens: DirectionTokens): number => (tokens.normal ? normalPillWiden : 0);
 
-// Names the pane the menu acts on, in the heading style, above the first action.
 const targetHeading = (tokens: DirectionTokens): Element =>
   line(
     [

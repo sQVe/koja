@@ -59,14 +59,11 @@ const statusChips: StatusChip[] = [
   { text: 'Idle', status: 'idle' },
 ];
 
-// The search line and the chip line share one band with the preview's header, under one rule.
 const headerBand = (tokens: DirectionTokens): number =>
   chipGap + searchLineHeight(tokens) + previewLineGap + chipHeight + chipGap;
 
-// A space with only an agent status, so a chip draws the same mark as the rows and the sidebar.
 const markedSpace = (agent: Status): FakeSpace => ({ title: '', agent, selected: false, age: '' });
 
-// How many shown spaces have the chip's status. `All` counts every shown space.
 const chipCount = (shown: StatusChip, tokens: DirectionTokens): Element => {
   const matching = placedSpaces.filter(
     (placed) => shown.status === null || placed.space.agent === shown.status,
@@ -137,7 +134,6 @@ const tabRow = (tab: FakeTab, tokens: DirectionTokens): Element =>
     tokens,
   ).pl(tokens.rows.paddingX + tabIndent);
 
-// The current space has several tabs, so they follow it as child rows, as the live picker shows.
 const spaceRows = (placed: PlacedSpace, tokens: DirectionTokens): Element[] => {
   const row = spaceRow(placed, placed.space.selected, tokens);
 
@@ -165,7 +161,6 @@ const list = (tokens: DirectionTokens): Element => {
     );
 };
 
-// The selected row's space, whose pane the preview shows.
 const previewedSpace = placedSpaces.find((placed) => placed.space.selected);
 
 // The space comes first, then the pane, so the header names the target the row selects. It drops

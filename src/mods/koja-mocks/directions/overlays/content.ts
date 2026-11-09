@@ -37,7 +37,6 @@ export interface MenuItem {
   normalKeys: string[];
   insertKeys?: string[];
   divided?: boolean;
-  // A setting's state, shown as dim text at the row end.
   state?: string;
 }
 

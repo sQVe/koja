@@ -175,6 +175,5 @@ const main = (): Element =>
 const shellWindow = (): Element =>
   h_flex().flex_1().min_h(0).bg(colors().chrome).child(sidebar()).child(main());
 
-// The tab bar's pill says the shell is in normal mode, so the palette keeps its key hints.
 export const shellScene = (): Element =>
   v_flex().relative().flex_1().min_h(0).child(shellWindow()).child(commandPalette(koja));

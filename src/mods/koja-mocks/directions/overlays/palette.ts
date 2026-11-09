@@ -24,12 +24,10 @@ import {
 const paletteWidth = 560;
 // An empty query lists every command; the box shows the first of them.
 const allCommands = 48;
-// Command rows sit close, with no gap between them.
 const commandRowHeight = 26;
 const scrollThumbWidth = 2;
 // The thumb sits in the card's padding, right of the row pills, 2 px clear of the outline.
 const scrollThumbOffset = 2;
-// A group heading after the first takes this much more space above it, so groups read as groups.
 const groupSpace = 6;
 // The direction has no faint ink or scrollbar token, so the thumb is the dim ink, mostly clear.
 const scrollThumbAlpha = '59';
@@ -80,7 +78,6 @@ const listHeight = (tokens: DirectionTokens): number => {
   return headings + rows + groupSpaces;
 };
 
-// Sized for the shown rows out of all commands, at the top of the list.
 const thumb = (tokens: DirectionTokens): Element =>
   div()
     .absolute()
