@@ -19,8 +19,12 @@ import {
 } from './parts.ts';
 
 const menuWidth = 248;
-// Where the user right-clicked in the focused pane's body.
-const pointer = { x: 452, y: 168 };
+// The focused pane's right border, measured from the insert-mode window.
+const focusedPaneRight = 703;
+// A clear gap from that border, so the menu edge never runs beside it.
+const menuGapFromPane = 16;
+// The menu's top left: near the right-click in the focused pane's body, kept clear of its border.
+const pointer = { x: focusedPaneRight - menuGapFromPane - menuWidth, y: 168 };
 const newMenuWidth = 256;
 // Under the tab bar's `+`.
 const newMenuRight = 112;
@@ -56,7 +60,7 @@ const newMenu = (tokens: DirectionTokens): Element => {
     .child(menuItem(newTerminal, true, hints, rows))
     .children(newAgents.map((agent) => agentItem(agent, hints, rows)))
     .child(divider(rows))
-    .child(heading('Space', [], tokens))
+    .child(heading('New space', [], tokens))
     .children(newPlaces.map((place) => menuItem(place, false, hints, rows)))
     .children(modeFooter(rows));
 };

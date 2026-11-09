@@ -43,11 +43,12 @@ const keyColumn = (group: KeyGroup, tokens: DirectionTokens): Element => {
     );
 };
 
+// The divider runs from the text edge on the left to the text edge on the right.
 const keysCard = (tokens: DirectionTokens): Element =>
   overlayCard(tokens)
     .flex_none()
     .child(keyLine('w', fixedLabel('Panes', tokens.text.title, tokens.ink.text), tokens))
-    .child(divider(overlayTokens(tokens.rows.height, tokens)))
+    .child(divider(overlayTokens(tokens.rows.height, tokens)).mx(tokens.rows.paddingX))
     .child(
       h_flex()
         .flex_none()

@@ -66,10 +66,10 @@ export const paletteGroups: CommandGroup[] = [
     name: 'Spaces',
     letter: 's',
     commands: [
-      { title: 'Go to space or tab…', keys: ['s', 'f'], icon: 'search' },
+      { title: 'Find a space…', keys: ['s', 'f'], icon: 'search' },
       { title: 'New space', keys: ['s', 'n'], icon: 'plus' },
       { title: 'Rename space', keys: ['s', 'r'], icon: 'square-pen' },
-      { title: 'Next space', keys: ['s', 'j'], icon: 'chevron-down' },
+      { title: 'Next space', keys: ['s', 'j'], icon: 'chevron-right' },
     ],
   },
 ];
@@ -127,9 +127,9 @@ export const paneMenu: MenuItem[] = [
 export const newTerminal: MenuItem = { label: 'Terminal', icon: 'terminal', keys: ['t', 'n'] };
 
 export const newPlaces: MenuItem[] = [
-  { label: 'New space', icon: 'plus', keys: ['s', 'n'] },
-  { label: 'New worktree…', icon: 'git-branch', keys: [] },
-  { label: 'Open worktree…', icon: 'git-branch', keys: [] },
+  { label: 'Empty space', icon: 'plus', keys: ['s', 'n'] },
+  { label: 'From a new worktree…', icon: 'git-branch', keys: [] },
+  { label: 'From a worktree…', icon: 'git-branch', keys: [] },
 ];
 
 export const newAgents: FakeAgent[] = [

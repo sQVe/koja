@@ -35,11 +35,12 @@ const overlayGap = 40;
 // One step lighter than the pane body, so an overlay reads as a layer above the panes.
 export const overlaySurface = '#e6e8eb';
 
-// A neutral border in both modes; indigo stays on the panes.
-export const overlayBorder = (tokens: DirectionTokens): Color => tokens.ink.muted;
+// A mid gray between the pane border and the dark ink, in both modes, so the overlay edge does not
+// read as the insert-mode focus border. Indigo stays on the panes.
+export const overlayBorder = '#959aa4';
 
 export const overlayCard = (tokens: DirectionTokens): Element =>
-  cardFrame(tokens).bg(overlaySurface).border_color(overlayBorder(tokens));
+  cardFrame(tokens).bg(overlaySurface).border_color(overlayBorder);
 
 export const floatingOverlay = (width: number, tokens: DirectionTokens): Element =>
   overlayCard(tokens).absolute().w(width);
@@ -68,12 +69,8 @@ export const centered = (width: number): number => mainLeft + (mainWidth - width
 export const iconMark = (name: IconName, color: Color): Element =>
   icon(name, 'small').text_color(color);
 
-// A quiet gray in both modes: the pane border turns indigo in normal mode, which is too loud for
-// every key of a list.
-export const keycapOutline = (tokens: DirectionTokens): Color => tokens.rows.selectedFill;
-
-// One outlined box per key, with the badge radius. The overlay fill keeps the box visible on the
-// selected row's pill, which has the outline's color. The terminal font keeps `l` apart from `I`.
+// One outlined box per key, with the badge radius, the same on every row. The overlay border keeps
+// the outline visible on the selected row's pill. The terminal font keeps `l` apart from `I`.
 export const keycaps = (keys: string[], tokens: DirectionTokens): Element =>
   h_flex()
     .flex_none()
@@ -91,10 +88,18 @@ export const keycaps = (keys: string[], tokens: DirectionTokens): Element =>
           .rounded(tokens.marks.badgeRadius)
           .bg(overlaySurface)
           .border(1)
-          .border_color(keycapOutline(tokens))
+          .border_color(overlayBorder)
           .child(fixedLabel(key, tokens.text.detail, tokens.ink.dim).font_family(terminalFont)),
       ),
     );
+
+// A heading's part letter in the rows' first key column, with an empty slot for the second key.
+export const leadKeycap = (key: string, tokens: DirectionTokens): Element =>
+  h_flex()
+    .flex_none()
+    .gap(keyGap / 2)
+    .child(keycaps([key], tokens))
+    .child(div().w(keycapMinWidth).flex_none());
 
 export const keycapHints =
   (tokens: DirectionTokens) =>
@@ -217,14 +222,18 @@ export const agentItem = (
   );
 };
 
-// The line under a menu that says which mode its key hints belong to.
+// Dim footer text and keycaps in one run, read left to right.
+export const footerLine = (parts: (string | string[])[], tokens: DirectionTokens): Element =>
+  line(
+    parts.map((part) => (typeof part === 'string' ? dimFact(part, tokens) : keycaps(part, tokens))),
+    [],
+    tokens,
+  );
+
+// The line under a menu that says how its key hints are reached.
 export const modeFooter = (tokens: DirectionTokens): Element[] => [
   divider(tokens),
-  line(
-    [fixedLabel('Keys work in normal mode', tokens.text.detail, tokens.ink.dim)],
-    [keycaps(['ctrl-b'], tokens)],
-    tokens,
-  ),
+  footerLine(['Press', ['ctrl-b'], 'then a key'], tokens),
 ];
 
 // Draws the menu's rows, with a divider above each row that starts a group. Pass row tokens.

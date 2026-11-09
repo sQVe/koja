@@ -18,7 +18,7 @@ import {
   centered,
   heading,
   iconMark,
-  keycapOutline,
+  footerLine,
   line,
   overlayBorder,
   overlaySurface,
@@ -43,8 +43,13 @@ const chipHeight = 22;
 const chipPadding = 8;
 const chipGap = 4;
 const previewLineGap = 2;
-// A tab row's icon lines up with its space's title: the agent mark's slot and its gap.
+// A tab row's status mark sits under its space's title: the agent mark's slot and its gap.
 const tabIndent = 20;
+// The agent mark's slot in a space row, so a tab's mark takes the same width.
+const markSlotWidth = 14;
+// Inactive chips keep a 1 px border box so the chip line does not shift, but draw no outline.
+const noOutline = '#00000000';
+const footerHeight = 30;
 
 const statusChips: StatusChip[] = [
   { text: 'All', status: null },
@@ -69,20 +74,20 @@ const chip = (shown: StatusChip, active: boolean, tokens: DirectionTokens): Elem
     .flex_none()
     .items_center()
     .rounded(tokens.controls.radius)
-    .border(1);
+    .border(1)
+    .border_color(noOutline);
 
   if (shown.status !== null) {
     element.child(agentMark(markedSpace(shown.status), tokens));
   }
 
-  // Only the selected row has the gray pill, so the active chip is an outline in the muted ink.
+  // A segmented choice: the active chip takes the hover fill and an outline, so the selected row
+  // stays the only gray pill.
   if (active) {
-    element.border_color(tokens.ink.muted);
+    element.bg(tokens.rows.hoverFill).border_color(overlayBorder);
 
     return element.child(fixedLabel(shown.text, tokens.text.detail, tokens.ink.text));
   }
-
-  element.border_color(keycapOutline(tokens));
 
   return element.child(fixedLabel(shown.text, tokens.text.detail, tokens.ink.muted));
 };
@@ -110,8 +115,12 @@ const searchHead = (tokens: DirectionTokens): Element =>
 
 const tabRow = (tab: FakeTab, tokens: DirectionTokens): Element =>
   line(
-    [iconMark('terminal', tokens.ink.muted), label(tab.label, tokens.text.body, tokens.ink.text)],
-    [statusMark(tab.status, tokens)],
+    [
+      statusMark(tab.status, tokens).w(markSlotWidth),
+      iconMark('terminal', tokens.ink.muted),
+      label(tab.label, tokens.text.body, tokens.ink.text),
+    ],
+    [],
     tokens,
   ).pl(tokens.rows.paddingX + tabIndent);
 
@@ -185,21 +194,27 @@ const preview = (tokens: DirectionTokens): Element =>
         .children(agentPane.lines.map((text) => div().truncate().child(text))),
     );
 
+const footer = (tokens: DirectionTokens): Element =>
+  footerLine([['tab'], 'Next filter', ['↵'], 'Go to'], tokens)
+    .h(footerHeight)
+    .px(tokens.rows.paddingX + chipGap)
+    .border_t(1)
+    .border_color(tokens.pane.headerDivider);
+
 const goto = (tokens: DirectionTokens): Element =>
-  h_flex()
+  v_flex()
     .absolute()
     .left(centered(gotoWidth))
     .top(overlayTop)
     .w(gotoWidth)
-    .h(gotoHeight)
-    .items_start()
+    .h(gotoHeight + footerHeight)
     .overflow_hidden()
     .rounded(tokens.pane.radius)
     .bg(overlaySurface)
     .border(1)
-    .border_color(overlayBorder(tokens))
-    .child(list(tokens))
-    .child(preview(tokens));
+    .border_color(overlayBorder)
+    .child(h_flex().flex_1().min_h(0).items_start().child(list(tokens)).child(preview(tokens)))
+    .child(footer(tokens));
 
 export const gotoScene = (tokens: DirectionTokens): Element =>
   withFloating(mapSidebar, [goto(tokens)], tokens);
