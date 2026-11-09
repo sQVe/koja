@@ -6,6 +6,7 @@ import { stringOf } from './fields.ts';
 interface AskFocus {
   space: string;
   tab: string;
+  pane: string | null;
 }
 
 export interface AskFacts {
@@ -139,6 +140,17 @@ const renameTabPlan = (args: Record<string, unknown>, facts: AskFacts): AskPlan 
 };
 
 // Closing the last tab closes its space, so it gets the space wording, as in Herdr.
+const closeLastTabPlan = (place: TabPlace, paneList: PaneInfo[]): AskPlan => ({
+  kind: 'confirm',
+  dialog: {
+    title: 'Close space?',
+    detail: spaceDetail(place.space, paneList),
+    action: 'Close',
+    destroys: true,
+    command: { name: 'tab.close', args: { id: place.tab.id, confirmed: true } },
+  },
+});
+
 const closeTabPlan = (args: Record<string, unknown>, facts: AskFacts): AskPlan => {
   if (args['confirmed'] === true) {
     return { kind: 'run' };
@@ -150,25 +162,34 @@ const closeTabPlan = (args: Record<string, unknown>, facts: AskFacts): AskPlan =
     return { kind: 'skip' };
   }
 
-  const { space, tab } = place;
-
-  if (space.tabs.length > 1) {
+  if (place.space.tabs.length > 1) {
     return { kind: 'run' };
   }
 
-  return {
-    kind: 'confirm',
-    dialog: {
-      title: 'Close space?',
-      detail: spaceDetail(space, facts.panes),
-      action: 'Close',
-      destroys: true,
-      command: { name: 'tab.close', args: { id: tab.id, confirmed: true } },
-    },
-  };
+  return closeLastTabPlan(place, facts.panes);
+};
+
+// Herdr asks with its own dialog when the last pane closes its space, so Koja asks first instead.
+const closePanePlan = (args: Record<string, unknown>, facts: AskFacts): AskPlan => {
+  const id = stringOf(args['pane']) ?? facts.focus?.pane;
+  const pane = facts.panes.find((candidate) => candidate.pane === id);
+  const place = placeOf(facts.spaces, pane?.tab);
+
+  if (place === undefined) {
+    return { kind: 'run' };
+  }
+
+  const tabPanes = facts.panes.filter((candidate) => candidate.tab === place.tab.id);
+
+  if (tabPanes.length > 1 || place.space.tabs.length > 1) {
+    return { kind: 'run' };
+  }
+
+  return closeLastTabPlan(place, facts.panes);
 };
 
 const planners = new Map<string, PlanFunction>([
+  ['pane.close', closePanePlan],
   ['space.close', closeSpacePlan],
   ['space.rename', renameSpacePlan],
   ['tab.close', closeTabPlan],

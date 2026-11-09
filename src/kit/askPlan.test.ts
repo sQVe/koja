@@ -85,7 +85,7 @@ const webSpace = (): SpaceInfo => space('s2', 'web', [tab('t3', 'build')]);
 
 const spaceValues = (): SpaceInfo[] => [apiSpace(), webSpace()];
 
-const focusValue = { space: 's1', tab: 't2' };
+const focusValue = { space: 's1', tab: 't2', pane: null };
 
 describe('dialogFor', () => {
   test('asks before closing the focused space, and the confirm runs it with confirmed', () => {
@@ -186,7 +186,7 @@ describe('dialogFor', () => {
   });
 
   test('renaming the focused tab in a later space uses that space', () => {
-    const laterFocus = { space: 's2', tab: 't3' };
+    const laterFocus = { space: 's2', tab: 't3', pane: null };
     const plan = dialogFor('tab.rename', {}, facts(spaceValues(), [], laterFocus));
 
     expect(plan).toMatchObject({
@@ -276,7 +276,7 @@ describe('dialogFor', () => {
   });
 
   test('closing the focused tab with no id asks only when it is the last tab', () => {
-    const onlyTabFocus = { space: 's2', tab: 't3' };
+    const onlyTabFocus = { space: 's2', tab: 't3', pane: null };
     const spaces = spaceValues();
 
     expect(dialogFor('tab.close', {}, facts(spaces, [], onlyTabFocus)).kind).toBe('confirm');
@@ -300,9 +300,65 @@ describe('dialogFor', () => {
   });
 
   test('closing with no id skips when the focused tab is not in the focused space', () => {
-    const plan = dialogFor('tab.close', {}, facts(spaceValues(), [], { space: 's1', tab: 't3' }));
+    const plan = dialogFor(
+      'tab.close',
+      {},
+      facts(spaceValues(), [], { space: 's1', tab: 't3', pane: null }),
+    );
 
     expect(plan).toEqual({ kind: 'skip' });
+  });
+
+  test('closing the only pane of the only tab asks to close the space, and the confirm closes it', () => {
+    const panes = [terminalPane('p1', 't1'), terminalPane('p2', 't3')];
+    const plan = dialogFor('pane.close', { pane: 'p2' }, facts(spaceValues(), panes, focusValue));
+
+    expect(plan).toMatchObject({
+      kind: 'confirm',
+      dialog: {
+        title: 'Close space?',
+        action: 'Close',
+        destroys: true,
+        command: { name: 'tab.close', args: { id: 't3', confirmed: true } },
+      },
+    });
+  });
+
+  test('closing the focused pane with no id asks only when it is the last pane of the space', () => {
+    const panes = [terminalPane('p1', 't1'), terminalPane('p2', 't3')];
+    const spaces = spaceValues();
+
+    const lonePlan = dialogFor(
+      'pane.close',
+      {},
+      facts(spaces, panes, { space: 's2', tab: 't3', pane: 'p2' }),
+    );
+
+    const siblingTabPlan = dialogFor(
+      'pane.close',
+      {},
+      facts(spaces, panes, { space: 's1', tab: 't1', pane: 'p1' }),
+    );
+
+    expect(lonePlan.kind).toBe('confirm');
+    expect(siblingTabPlan).toEqual({ kind: 'run' });
+  });
+
+  test('closing a pane that has a sibling pane runs as is', () => {
+    const panes = [terminalPane('p2', 't3'), terminalPane('p3', 't3')];
+    const plan = dialogFor('pane.close', { pane: 'p2' }, facts(spaceValues(), panes, focusValue));
+
+    expect(plan).toEqual({ kind: 'run' });
+  });
+
+  test('closing a pane that is not known, with no focus, runs as is', () => {
+    const panes = [terminalPane('p2', 't3')];
+
+    expect(dialogFor('pane.close', {}, facts(spaceValues(), panes))).toEqual({ kind: 'run' });
+
+    expect(dialogFor('pane.close', { pane: 'gone' }, facts(spaceValues(), panes))).toEqual({
+      kind: 'run',
+    });
   });
 
   test('an unrelated command runs as is', () => {
