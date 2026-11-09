@@ -165,6 +165,9 @@ const list = (tokens: DirectionTokens): Element => {
     );
 };
 
+// The selected row's space, whose pane the preview shows.
+const previewedSpace = placedSpaces.find((placed) => placed.space.selected);
+
 // The space comes first, then the pane, so the header names the target the row selects. It drops
 // the folder, so the branch shows whole.
 const previewHeader = (tokens: DirectionTokens): Element => {
@@ -183,7 +186,13 @@ const previewHeader = (tokens: DirectionTokens): Element => {
     header.child(branchField(agentPane.branch, tokens));
   }
 
-  return bandRule(header.child(statusMark(agentPane.status, tokens)), tokens);
+  header.child(statusMark(agentPane.status, tokens));
+
+  if (previewedSpace?.space.pull !== undefined) {
+    header.child(fixedLabel(`#${previewedSpace.space.pull}`, text.detail, ink.dim));
+  }
+
+  return bandRule(header, tokens);
 };
 
 const preview = (tokens: DirectionTokens): Element =>

@@ -3,6 +3,7 @@ import type { Color, Element } from 'gpui-kit';
 import { div } from 'gpui-kit';
 
 import { withFloating } from '../floating.ts';
+import { fixedLabel } from '../parts.ts';
 import { dimFact, divider } from '../sidebars/facts.ts';
 import { mapSidebar } from '../sidebars/sidebar.ts';
 import type { DirectionTokens } from '../tokens.ts';
@@ -11,11 +12,9 @@ import { paletteGroups } from './content.ts';
 import {
   centered,
   floatingOverlay,
-  heading,
   iconMark,
   item,
   keycaps,
-  leadKeycap,
   line,
   overlayTokens,
   overlayTop,
@@ -37,9 +36,17 @@ const scrollThumbAlpha = '59';
 
 const paletteGroup = (group: CommandGroup, first: boolean, tokens: DirectionTokens): Element[] => {
   const rows = overlayTokens(searchRowHeight(tokens), tokens);
-  const letter = leadKeycap(group.letter, tokens);
 
-  const groupHeading = heading(group.name, [letter], tokens);
+  // The part letter follows the heading text, out of the key column, so it cannot read as a chord
+  // with the row keys below.
+  const groupHeading = line(
+    [
+      fixedLabel(group.name, tokens.text.heading, tokens.ink.muted),
+      keycaps([group.letter], tokens),
+    ],
+    [],
+    tokens,
+  );
 
   if (!first) {
     groupHeading.mt(groupSpace);

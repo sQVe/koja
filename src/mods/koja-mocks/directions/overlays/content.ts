@@ -130,8 +130,8 @@ export const newTerminal: MenuItem = { label: 'Terminal', icon: 'terminal', keys
 
 export const newPlaces: MenuItem[] = [
   { label: 'Empty space', icon: 'plus', keys: ['s', 'n'] },
-  { label: 'From a new worktree…', icon: 'git-branch', keys: [] },
-  { label: 'From an existing worktree…', icon: 'git-branch', keys: [] },
+  { label: 'From a new worktree of koja…', icon: 'git-branch', keys: [] },
+  { label: 'From an existing worktree of koja…', icon: 'git-branch', keys: [] },
 ];
 
 export const newAgents: FakeAgent[] = [

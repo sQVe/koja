@@ -116,13 +116,6 @@ export const keycaps = (
     .children(keys.map((key) => keycap(key, look, tokens)));
 
 // A heading's part letter in the rows' first key column, with an empty slot for the second key.
-export const leadKeycap = (key: string, tokens: DirectionTokens): Element =>
-  h_flex()
-    .flex_none()
-    .gap(keyGap / 2)
-    .child(keycaps([key], tokens))
-    .child(div().w(keycapMinWidth).flex_none());
-
 export const keycapHints =
   (tokens: DirectionTokens) =>
   (keys: string[]): Element[] =>
