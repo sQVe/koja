@@ -28,7 +28,8 @@ const chevronWidth = 12;
 const sectionGap = 6;
 const countGap = 6;
 
-// The live panel column is 368 px wide; the shell scene keeps its narrower panel.
+// The live panel column is 368 px wide, wider than the direction's 300 px panel area. Every
+// Space scene, the shell included, uses the live width.
 export const panelWidth = 368;
 
 export const oneCard = (drawCard: (tokens: DirectionTokens) => Element): PanelArrangement => ({
