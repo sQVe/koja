@@ -24,7 +24,6 @@ import { mapSidebar } from '../directions/sidebars/sidebar.ts';
 import type { FakeChange, FakeTab } from './shellContent.ts';
 import { agentPane, changeRows, fakeTabs, shellPane } from './shellContent.ts';
 
-// The sidebar shows the chosen direction ahead of the rest of the shell.
 const sidebar = (): Element => mapSidebar(koja);
 
 const tabElement = (fakeTab: FakeTab): Element => {

@@ -129,7 +129,6 @@ const layerEnd = (layer: FakeLayer, tokens: DirectionTokens): Element[] => {
   return layer.state === 'draft' ? [dimFact('draft', tokens)] : [];
 };
 
-// One open PR of the stack: its number and ticket first, so a glance finds an ID.
 const layerRow = (layer: FakeLayer, tokens: DirectionTokens): Element => {
   const ink = layer.state === 'draft' ? tokens.ink.dim : tokens.ink.text;
 
@@ -147,8 +146,6 @@ const layerRow = (layer: FakeLayer, tokens: DirectionTokens): Element => {
     .children(layerEnd(layer, tokens));
 };
 
-// Merged PRs share one line laid out like a PR row: numbers in the number column, and the state
-// at the end where open rows show theirs.
 const mergedRow = (merged: FakeLayer[], tokens: DirectionTokens): Element =>
   h_flex()
     .h(layerHeight)
@@ -199,7 +196,6 @@ const hoverArrow = (tokens: DirectionTokens): Element[] => [
   arrowLayer(arrowTip + 1, arrowDepth - 1, tokens.pane.fill),
 ];
 
-// The hover card lists the whole stack, so a PR or ticket number can be found without opening it.
 const stackCard = (tokens: DirectionTokens): Element => {
   const merged = stackLayers.filter((layer) => layer.state === 'merged');
   const open = stackLayers.filter((layer) => layer.state !== 'merged');
@@ -254,7 +250,6 @@ const matchedSpace = fakeProjects
   .flatMap((project) => project.spaces)
   .find((space) => space.title === hoveredTitle);
 
-// A result says why it matched: the PR, its place in the stack, and its state.
 const resultRow = (tokens: DirectionTokens): Element[] => {
   if (matchedSpace === undefined) {
     return [];
@@ -290,7 +285,6 @@ const resultRow = (tokens: DirectionTokens): Element[] => {
 const pickerHeading = (text: string, tokens: DirectionTokens): Element =>
   cardLine([fixedLabel(text, tokens.text.heading, tokens.ink.muted)], [], tokens);
 
-// The picker matches PR numbers, tickets, and branches across every space's stack.
 const picker = (tokens: DirectionTokens): Element =>
   floating(pickerWidth, tokens)
     .left(pickerLeft)

@@ -172,7 +172,6 @@ const listFrame = (tokens: DirectionTokens): Element =>
     .gap(tokens.rows.groupGap)
     .bg(tokens.areas.frame);
 
-// No machine level: a remote project names its machine in its header.
 const remoteTag = (machine: StateMachine, tokens: DirectionTokens): Element[] => [
   icon(machine.icon, 'small').text_color(tokens.ink.dim),
   dimFact(machine.name, tokens),

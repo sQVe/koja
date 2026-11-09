@@ -60,8 +60,6 @@ const needMark = (space: FakeSpace, tokens: DirectionTokens): Element => {
   return slot().child(stateIcon(needIcons[space.need], needColor(space.need, tokens)));
 };
 
-// An agent that asks the user gets its own icon; other states keep the kit's marks. A space with
-// no agent shows a hollow ring.
 export const agentMark = (space: FakeSpace, tokens: DirectionTokens): Element => {
   if (space.agent === 'blocked') {
     return slot().child(stateIcon('message-circle-question', tokens.marks.blocked));
@@ -81,7 +79,6 @@ export const agentMark = (space: FakeSpace, tokens: DirectionTokens): Element =>
   return slot().child(ring);
 };
 
-// A thin bar shows how far the stack has merged, a shape no status mark uses.
 export const progressBar = (merged: number, total: number, tokens: DirectionTokens): Element =>
   h_flex()
     .w(progressWidth)
@@ -117,7 +114,6 @@ const stackFact = (space: FakeSpace, tokens: DirectionTokens): Element[] => {
 export const titleLabel = (space: FakeSpace, tokens: DirectionTokens): Element =>
   label(space.title, tokens.text.body, tokens.ink.text).flex_shrink(1);
 
-// Hover is a 1 px outline; selection is the gray pill.
 export const rowLine = (look: RowLook, tokens: DirectionTokens): Element => {
   const { space } = look;
   const { rows } = tokens;
@@ -145,7 +141,6 @@ export const rowLine = (look: RowLook, tokens: DirectionTokens): Element => {
   return look.hovered ? line.border(1).border_color(tokens.pane.border) : line;
 };
 
-// Facts that belong together sit close and are split by a dim dot.
 export const joinedFacts = (parts: Element[], tokens: DirectionTokens): Element => {
   const joined = h_flex().min_w(0).gap(innerGap).items_center();
 

@@ -63,7 +63,6 @@ const projectGroup = (
     project.spaces.map((space) => mapRow(space, hovered, tokens)),
   );
 
-// Ticket and PR IDs open their sources, so they look like links.
 const sourceLink = (text: string, tokens: DirectionTokens): Element =>
   fixedLabel(text, tokens.text.detail, tokens.ink.text).underline();
 
@@ -94,7 +93,6 @@ const currentIds = (space: FakeSpace, tokens: DirectionTokens): Element[] => {
   return ids;
 };
 
-// The footer uses the same measure as the row, merged out of total.
 const mergedProgress = (space: FakeSpace, tokens: DirectionTokens): Element => {
   if (space.stack === undefined) {
     return h_flex();
@@ -110,7 +108,6 @@ const mergedProgress = (space: FakeSpace, tokens: DirectionTokens): Element => {
     .child(dimFact(`${merged}/${total} merged`, tokens));
 };
 
-// The selected space's sources and stack position, pinned below the list so no row grows.
 const currentBlock = (tokens: DirectionTokens): Element => {
   const selected = allSpaces().find((placed) => placed.space.selected)?.space;
 
@@ -223,7 +220,6 @@ const inboxGroup = (group: InboxGroup, tokens: DirectionTokens): Element[] => {
   ];
 };
 
-// Groups by what needs the user; rows move between groups as status changes.
 export const inboxSidebar = (tokens: DirectionTokens): Element =>
   sidebarFrame(tokens)
     .child(viewBar(true, tokens))
