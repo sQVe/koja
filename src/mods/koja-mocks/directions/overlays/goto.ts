@@ -66,15 +66,13 @@ const headerBand = (tokens: DirectionTokens): number =>
 // A space with only an agent status, so a chip draws the same mark as the rows and the sidebar.
 const markedSpace = (agent: Status): FakeSpace => ({ title: '', agent, selected: false, age: '' });
 
-// How many shown spaces have the chip's status. `All` shows no count.
-const chipCount = (shown: StatusChip, tokens: DirectionTokens): Element[] => {
-  if (shown.status === null) {
-    return [];
-  }
+// How many shown spaces have the chip's status. `All` counts every shown space.
+const chipCount = (shown: StatusChip, tokens: DirectionTokens): Element => {
+  const matching = placedSpaces.filter(
+    (placed) => shown.status === null || placed.space.agent === shown.status,
+  );
 
-  const count = placedSpaces.filter((placed) => placed.space.agent === shown.status).length;
-
-  return [fixedLabel(String(count), tokens.text.detail, tokens.ink.dim)];
+  return fixedLabel(String(matching.length), tokens.text.detail, tokens.ink.dim);
 };
 
 const chip = (shown: StatusChip, active: boolean, tokens: DirectionTokens): Element => {
@@ -99,12 +97,12 @@ const chip = (shown: StatusChip, active: boolean, tokens: DirectionTokens): Elem
 
     return element
       .child(fixedLabel(shown.text, tokens.text.detail, tokens.ink.text))
-      .children(chipCount(shown, tokens));
+      .child(chipCount(shown, tokens));
   }
 
   return element
     .child(fixedLabel(shown.text, tokens.text.detail, tokens.ink.muted))
-    .children(chipCount(shown, tokens));
+    .child(chipCount(shown, tokens));
 };
 
 const chipLine = (tokens: DirectionTokens): Element =>

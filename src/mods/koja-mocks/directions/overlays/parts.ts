@@ -195,6 +195,9 @@ export const spaceRow = (
     tokens,
   );
 
+const settingState = (menu: MenuItem, tokens: DirectionTokens): Element[] =>
+  menu.state === undefined ? [] : [dimFact(menu.state, tokens)];
+
 export const menuItem = (
   menu: MenuItem,
   selected: boolean,
@@ -205,7 +208,7 @@ export const menuItem = (
     {
       start: iconMark(menu.icon, tokens.ink.muted),
       text: menu.label,
-      end: hint(menu.keys),
+      end: [...settingState(menu, tokens), ...hint(menu.keys)],
       selected,
     },
     tokens,
@@ -213,6 +216,8 @@ export const menuItem = (
 
 // An agent that is not installed dims its icon and its name together.
 const missingAgentOpacity = 0.45;
+// Between `not installed` and its link. The row's gap spaces it.
+const linkSeparator = '·';
 
 // Herdr's agent logos are its own assets, which a mod may not name, so the mock draws the kit's
 // terminal icon in their place.
@@ -240,7 +245,9 @@ export const agentItem = (
       label: label(agent.name, tokens.text.body, tokens.ink.text).opacity(missingAgentOpacity),
       end: [
         dimFact(notInstalled, tokens),
-        fixedLabel(installAgent, tokens.text.detail, tokens.ink.muted),
+        dimFact(linkSeparator, tokens),
+        // Underlined as the sidebar footer's links, so it reads as its own action.
+        fixedLabel(installAgent, tokens.text.detail, tokens.ink.muted).underline(),
       ],
     },
     tokens,

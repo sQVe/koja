@@ -34,6 +34,8 @@ export interface MenuItem {
   icon: IconName;
   keys: string[];
   divided?: boolean;
+  // A setting's state, shown as dim text at the row end.
+  state?: string;
 }
 
 export interface FakeAgent {
@@ -120,7 +122,7 @@ export const paneMenu: MenuItem[] = [
   { label: 'Split right', icon: 'panel-right', keys: ['w', 'v'] },
   { label: 'Split down', icon: 'panel-bottom', keys: ['w', 's'] },
   { label: 'Zoom', icon: 'maximize-2', keys: ['w', 'm'] },
-  { label: 'Send right-clicks to pane', icon: 'monitor', keys: [] },
+  { label: 'Send right-clicks to pane', icon: 'monitor', keys: [], state: 'off' },
   { label: 'Close pane', icon: 'x', keys: ['w', 'q'], divided: true },
 ];
 
