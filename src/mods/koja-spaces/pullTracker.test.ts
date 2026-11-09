@@ -33,15 +33,25 @@ interface PullTrackerLike {
   retry: (repo: RepoRefLike, cwd: string, cx: unknown) => void;
 }
 
+let nextRemotes: () => Promise<ExecResultFake> = async () => ({ code: 0, stdout: 'origin\n' });
 let nextRead: () => Promise<ExecResultFake> = async () => ({ code: 0, stdout: '[]' });
+let pullReads = 0;
 
 await mock.module('herdr', () =>
   herdrFake({
     exec: async (
-      _command: string,
+      command: string,
       _args: string[],
       _options: { cwd?: string; on?: string | null },
-    ) => nextRead(),
+    ) => {
+      if (command === 'git') {
+        return nextRemotes();
+      }
+
+      pullReads += 1;
+
+      return nextRead();
+    },
   }),
 );
 
@@ -105,6 +115,8 @@ afterAll(() => {
 afterEach(() => {
   setSystemTime();
   store.clear();
+  nextRemotes = async () => ({ code: 0, stdout: 'origin\n' });
+  pullReads = 0;
 });
 
 describe('PullTracker', () => {
@@ -146,5 +158,42 @@ describe('PullTracker', () => {
 
     expect(tracker.lookup(git)?.number).toBe(7);
     expect(tracker.errorLine(git)).toBeNull();
+  });
+
+  test('a repository without a remote has no PRs and no error', async () => {
+    setSystemTime(new Date('2026-01-01T02:00:00.000Z'));
+    const tracker = new loaded.PullTracker();
+
+    nextRemotes = async () => ({ code: 0, stdout: '' });
+    nextRead = async () => ({ code: 1, stdout: '' });
+    tracker.refresh([{ repo, cwd: repo.path }], context);
+    await flush();
+
+    expect(tracker.errorLine(git)).toBeNull();
+    expect(tracker.lookup(git)).toBeNull();
+    expect(pullReads).toBe(0);
+  });
+
+  test('a failed remote read shows the error line', async () => {
+    setSystemTime(new Date('2026-01-01T03:00:00.000Z'));
+    const tracker = new loaded.PullTracker();
+
+    nextRemotes = async () => ({ code: 128, stdout: '' });
+    nextRead = async () => ({ code: 0, stdout: pulled });
+    tracker.refresh([{ repo, cwd: repo.path }], context);
+    await flush();
+
+    expect(tracker.errorLine(git)).toBe('Could not read koja PRs.');
+  });
+
+  test('a repository with a remote whose PR read fails shows the error line', async () => {
+    setSystemTime(new Date('2026-01-01T04:00:00.000Z'));
+    const tracker = new loaded.PullTracker();
+
+    nextRead = async () => ({ code: 1, stdout: '' });
+    tracker.refresh([{ repo, cwd: repo.path }], context);
+    await flush();
+
+    expect(tracker.errorLine(git)).toBe('Could not read koja PRs.');
   });
 });

@@ -62,6 +62,16 @@ export class PullTracker {
 
   private async read(repo: RepoRef, cwd: string): Promise<Pull[] | null> {
     try {
+      const remotes = await exec('git', ['remote'], { cwd, on: repo.machine });
+
+      if (remotes.code !== 0) {
+        return null;
+      }
+
+      if (remotes.stdout.trim() === '') {
+        return [];
+      }
+
       const args = ['pr', 'list', '--state', 'all', '--limit', '100', '--json', pullFields];
       const result = await exec('gh', args, { cwd, on: repo.machine });
 
