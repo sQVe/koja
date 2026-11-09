@@ -3,10 +3,9 @@ import type { Color, Element } from 'gpui-kit';
 import { div } from 'gpui-kit';
 
 import { icon } from '../../../kit/index.ts';
-import type { FakeChange, FakePane, FakeRepo, FakeSpace, FakeTab } from '../scenes/shellContent.ts';
-import { agentPane, changeRows, fakeRepos, fakeTabs, shellPane } from '../scenes/shellContent.ts';
+import type { FakeChange, FakePane, FakeTab } from '../scenes/shellContent.ts';
+import { agentPane, changeRows, fakeTabs, shellPane } from '../scenes/shellContent.ts';
 import {
-  attentionBadge,
   fixedLabel,
   iconButton,
   iconToggle,
@@ -19,72 +18,16 @@ import {
   terminalFont,
   uiFont,
 } from './parts.ts';
+import { mapSidebar } from './sidebars/sidebar.ts';
 import type { DirectionTokens } from './tokens.ts';
+
+export type SidebarDrawing = (tokens: DirectionTokens) => Element;
 
 const tabLabelMaxWidth = 170;
 const controlGap = 4;
 const tabContentGap = 6;
 const terminalLineGap = 2;
 const markSlotWidth = 12;
-
-const spaceEnd = (space: FakeSpace, tokens: DirectionTokens): Element[] => {
-  const end: Element[] = [];
-
-  if (space.pull !== undefined) {
-    end.push(fixedLabel(`#${space.pull}`, tokens.text.detail, tokens.ink.dim));
-  }
-
-  if (space.badge !== undefined) {
-    end.push(attentionBadge(space.badge, tokens));
-  }
-
-  return end;
-};
-
-const spaceRow = (space: FakeSpace, tokens: DirectionTokens): Element =>
-  row(
-    {
-      selected: space.state === 'selected',
-      start: statusMark(space.status, tokens),
-      label: middleCutLabel(space.label, tokens.text.body, tokens.ink.text),
-      end: spaceEnd(space, tokens),
-    },
-    tokens,
-  );
-
-const repoLabel = (repo: FakeRepo, tokens: DirectionTokens): Element =>
-  h_flex()
-    .min_w(0)
-    .gap(tabContentGap)
-    .items_center()
-    .child(fixedLabel(repo.name, tokens.text.heading, tokens.ink.muted))
-    .child(label(`${repo.branch} · ${repo.age}`, tokens.text.detail, tokens.ink.dim));
-
-const repoGroup = (repo: FakeRepo, tokens: DirectionTokens): Element =>
-  v_flex()
-    .flex_none()
-    .gap(tokens.rows.gap)
-    .child(
-      row(
-        {
-          selected: false,
-          label: repoLabel(repo, tokens),
-          end: [statusMark(repo.status, tokens)],
-        },
-        tokens,
-      ),
-    )
-    .children(repo.spaces.map((space) => spaceRow(space, tokens)));
-
-const sidebar = (tokens: DirectionTokens): Element =>
-  v_flex()
-    .py(tokens.rows.listPadding)
-    .gap(tokens.rows.groupGap)
-    .children(fakeRepos.map((repo) => repoGroup(repo, tokens)))
-    .w(tokens.areas.sidebarWidth)
-    .flex_none()
-    .h_full()
-    .bg(tokens.areas.frame);
 
 const tabFrame = (active: boolean, tokens: DirectionTokens): Element => {
   const { tabs } = tokens;
@@ -239,6 +182,21 @@ const terminalPane = (fakePane: FakePane, focused: boolean, tokens: DirectionTok
   return focused ? slot.flex_1() : slot.w(tokens.areas.shellPaneWidth).flex_none();
 };
 
+const changeCounts = (change: FakeChange, tokens: DirectionTokens): Element[] => {
+  const { marks, text } = tokens;
+  const counts: Element[] = [];
+
+  if (change.add > 0) {
+    counts.push(fixedLabel(`+${change.add}`, text.detail, marks.added));
+  }
+
+  if (change.del > 0) {
+    counts.push(fixedLabel(`−${change.del}`, text.detail, marks.removed));
+  }
+
+  return counts;
+};
+
 const changeRow = (change: FakeChange, tokens: DirectionTokens): Element => {
   const { marks, text } = tokens;
   const statusColor = change.status === 'M' ? marks.modified : marks.added;
@@ -248,10 +206,7 @@ const changeRow = (change: FakeChange, tokens: DirectionTokens): Element => {
       selected: false,
       start: fixedLabel(change.status, text.title, statusColor).w(markSlotWidth),
       label: middleCutLabel(change.path, text.body, tokens.ink.text),
-      end: [
-        fixedLabel(`+${change.add}`, text.detail, marks.added),
-        fixedLabel(`−${change.del}`, text.detail, marks.removed),
-      ],
+      end: changeCounts(change, tokens),
     },
     tokens,
   );
@@ -296,11 +251,14 @@ const content = (tokens: DirectionTokens): Element => {
 const mainColumn = (tokens: DirectionTokens): Element =>
   v_flex().flex_1().h_full().min_w(0).min_h(0).child(tabBar(tokens)).child(content(tokens));
 
-export const directionWindow = (tokens: DirectionTokens): Element =>
+export const directionWindow = (
+  tokens: DirectionTokens,
+  drawSidebar: SidebarDrawing = mapSidebar,
+): Element =>
   styled(
     h_flex().flex_1().min_h(0).bg(tokens.areas.frame).font_family(uiFont),
     tokens.text.body,
     tokens.ink.text,
   )
-    .child(sidebar(tokens))
+    .child(drawSidebar(tokens))
     .child(mainColumn(tokens));

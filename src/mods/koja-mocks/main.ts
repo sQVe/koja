@@ -19,6 +19,9 @@ import {
 import { findScene, sceneOrigin } from './catalog.ts';
 import type { SceneName } from './catalog.ts';
 import { koja, kojaNormal } from './directions/koja.ts';
+import { hoverScene, searchScene } from './directions/sidebars/find.ts';
+import { inboxSidebar } from './directions/sidebars/sidebar.ts';
+import { machineTagScene } from './directions/sidebars/states.ts';
 import { directionWindow } from './directions/window.ts';
 import { controlsScene } from './scenes/controls.ts';
 import type { SceneInputs } from './scenes/inputs.ts';
@@ -47,6 +50,10 @@ const renderers: Record<SceneName, (inputs: SceneInputs) => Element> = {
   'smoke-4': (inputs) => paletteNearPass(inputs.command),
   'direction-koja': () => directionWindow(koja),
   'direction-koja-normal': () => directionWindow(kojaNormal),
+  'sidebar-inbox': () => directionWindow(koja, inboxSidebar),
+  'sidebar-hover': () => hoverScene(koja),
+  'sidebar-find': () => searchScene(koja),
+  'sidebar-states': () => machineTagScene(koja),
 };
 
 // A refocus after the window has drawn, when its input or focus target can take the keyboard.

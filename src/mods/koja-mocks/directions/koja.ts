@@ -28,7 +28,7 @@ const diffMarks = {
 } as const;
 
 const areas: Omit<DirectionTokens['areas'], 'frame'> = {
-  sidebarWidth: 210,
+  sidebarWidth: 268,
   shellPaneWidth: 232,
   panelWidth: 300,
   contentPadding: 8,

@@ -42,6 +42,10 @@ const sceneSizes = {
   'smoke-4': paletteSize,
   'direction-koja': shellSceneSize,
   'direction-koja-normal': shellSceneSize,
+  'sidebar-inbox': shellSceneSize,
+  'sidebar-hover': shellSceneSize,
+  'sidebar-find': shellSceneSize,
+  'sidebar-states': shellSceneSize,
 } as const satisfies Record<string, SceneSize>;
 
 export type SceneName = keyof typeof sceneSizes;

@@ -4,7 +4,7 @@ import { div } from 'gpui-kit';
 import type { Status } from 'herdr';
 
 import type { IconName } from '../../../kit/index.ts';
-import { icon, spinner } from '../../../kit/index.ts';
+import { icon } from '../../../kit/index.ts';
 import type { DirectionTokens, TextStyle } from './tokens.ts';
 
 interface RowOptions {
@@ -22,8 +22,6 @@ const markSlot = 12;
 const dotSize = 6;
 const quietDotSize = 4;
 const pillPadding = 6;
-const badgePadding = 6;
-const badgeHeight = 18;
 const rowGap = 6;
 
 export const styled = (element: Element, style: TextStyle, color: Color): Element => {
@@ -50,7 +48,8 @@ const dot = (size: number, color: Color): Element =>
 
 const markShape = (status: Status, color: Color): Element => {
   if (status === 'working') {
-    return spinner().text_color(color);
+    // Drawn still: a capture of a spinning arc catches a random frame, which can read as a letter.
+    return icon('loader-circle', 'xsmall').text_color(color);
   }
 
   if (status === 'done') {
@@ -73,19 +72,6 @@ export const statusMark = (status: Status | null, tokens: DirectionTokens): Elem
 
   return slot.child(markShape(status, tokens.marks[status]));
 };
-
-export const attentionBadge = (text: string, tokens: DirectionTokens): Element =>
-  styled(
-    h_flex()
-      .h(badgeHeight)
-      .px(badgePadding)
-      .flex_none()
-      .items_center()
-      .rounded(tokens.marks.badgeRadius)
-      .bg(tokens.marks.badgeFill),
-    tokens.text.badge,
-    tokens.marks.badgeText,
-  ).child(text);
 
 const controlFrame = (name: IconName, tokens: DirectionTokens): Element =>
   h_flex()

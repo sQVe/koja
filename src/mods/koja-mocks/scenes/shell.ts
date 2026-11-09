@@ -3,7 +3,6 @@ import type { Element } from 'gpui-kit';
 
 import type { PaneHeaderOptions } from '../../../kit/index.ts';
 import {
-  attentionBadge,
   colors,
   controlSize,
   diffSize,
@@ -15,75 +14,18 @@ import {
   paneHeader,
   programIcon,
   radius,
-  repoLabel,
   roleText,
   shellSize,
-  spaceMark,
   spacing,
-  statusMark,
   tab,
 } from '../../../kit/index.ts';
-import type { FakeChange, FakeRepo, FakeSpace, FakeTab } from './shellContent.ts';
-import { agentPane, changeRows, fakeRepos, fakeTabs, shellPane } from './shellContent.ts';
+import { koja } from '../directions/koja.ts';
+import { mapSidebar } from '../directions/sidebars/sidebar.ts';
+import type { FakeChange, FakeTab } from './shellContent.ts';
+import { agentPane, changeRows, fakeTabs, shellPane } from './shellContent.ts';
 
-const [kojaRepo, tikkRepo] = fakeRepos;
-
-const spaceEnd = (space: FakeSpace): Element[] => {
-  const end: Element[] = [];
-
-  if (space.pull !== undefined) {
-    end.push(roleText('detail', `#${space.pull}`).flex_none());
-  }
-
-  if (space.badge !== undefined) {
-    end.push(attentionBadge(space.badge));
-  }
-
-  return end;
-};
-
-const spaceRow = (space: FakeSpace): Element =>
-  listRow({
-    size: 'small',
-    inset: true,
-    state: space.state,
-    label: space.label,
-    cut: 'middle',
-    start: spaceMark(space.status),
-    end: spaceEnd(space),
-  });
-
-const repoRow = (repo: FakeRepo): Element =>
-  listRow({
-    size: 'small',
-    inset: true,
-    state: 'normal',
-    label: repoLabel({
-      name: repo.name,
-      branch: repo.branch,
-      age: repo.age,
-      folded: false,
-      selected: false,
-    }),
-    end: [statusMark(repo.status)],
-  });
-
-const repoGroup = (repo: FakeRepo): Element =>
-  v_flex()
-    .flex_none()
-    .children([repoRow(repo), ...repo.spaces.map(spaceRow)]);
-
-const sidebar = (): Element => {
-  const repos = [kojaRepo, tikkRepo].filter((repo): repo is FakeRepo => repo !== undefined);
-
-  return v_flex()
-    .w(shellSize.sidebarWidth)
-    .flex_none()
-    .h_full()
-    .py(spacing.medium)
-    .gap(spacing.medium)
-    .children(repos.map(repoGroup));
-};
+// The sidebar shows the chosen direction ahead of the rest of the shell.
+const sidebar = (): Element => mapSidebar(koja);
 
 const tabElement = (fakeTab: FakeTab): Element => {
   const palette = colors();

@@ -25,7 +25,7 @@ await mock.module('gpui-kit', () => gpuiKitFake({ div: () => drawn() }));
 await mock.module('herdr', () => herdrFake());
 
 await mock.module('../../../kit/index.ts', () =>
-  kitIndexFake({ icon: (name: string) => drawn(name), spinner: () => drawn() }),
+  kitIndexFake({ icon: (name: string) => drawn(name) }),
 );
 
 // Loaded by path, so the root typecheck does not follow them into source that needs Herdr's types.
