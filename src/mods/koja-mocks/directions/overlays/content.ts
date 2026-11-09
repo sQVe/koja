@@ -87,7 +87,7 @@ export const paneKeys: KeyGroup[] = [
     ],
   },
   {
-    name: 'Swap',
+    name: 'Move',
     keys: [
       { key: '⇧H', action: 'Left' },
       { key: '⇧J', action: 'Down' },
@@ -129,7 +129,7 @@ export const newTerminal: MenuItem = { label: 'Terminal', icon: 'terminal', keys
 export const newPlaces: MenuItem[] = [
   { label: 'Empty space', icon: 'plus', keys: ['s', 'n'] },
   { label: 'From a new worktree…', icon: 'git-branch', keys: [] },
-  { label: 'From a worktree…', icon: 'git-branch', keys: [] },
+  { label: 'From an existing worktree…', icon: 'git-branch', keys: [] },
 ];
 
 export const newAgents: FakeAgent[] = [

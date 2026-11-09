@@ -11,6 +11,12 @@ import type { DirectionTokens } from '../tokens.ts';
 import type { FakeAgent, MenuItem, PlacedSpace } from './content.ts';
 import { notInstalled } from './content.ts';
 
+export interface KeycapLook {
+  fill: Color | null;
+  outline: Color;
+  ink: Color;
+}
+
 interface ItemOptions {
   start: Element;
   text: string;
@@ -71,27 +77,41 @@ export const iconMark = (name: IconName, color: Color): Element =>
 
 // One outlined box per key, with the badge radius, the same on every row. The overlay border keeps
 // the outline visible on the selected row's pill. The terminal font keeps `l` apart from `I`.
-export const keycaps = (keys: string[], tokens: DirectionTokens): Element =>
+const plainKeycap = (tokens: DirectionTokens): KeycapLook => ({
+  fill: overlaySurface,
+  outline: overlayBorder,
+  ink: tokens.ink.dim,
+});
+
+const keycap = (key: string, look: KeycapLook, tokens: DirectionTokens): Element => {
+  const cap = h_flex()
+    .h(tokens.text.detail.size + keycapLift)
+    .min_w(keycapMinWidth)
+    .px(keycapPadding)
+    .flex_none()
+    .items_center()
+    .justify_center()
+    .rounded(tokens.marks.badgeRadius)
+    .border(1)
+    .border_color(look.outline);
+
+  if (look.fill !== null) {
+    cap.bg(look.fill);
+  }
+
+  return cap.child(fixedLabel(key, tokens.text.detail, look.ink).font_family(terminalFont));
+};
+
+export const keycaps = (
+  keys: string[],
+  tokens: DirectionTokens,
+  look: KeycapLook = plainKeycap(tokens),
+): Element =>
   h_flex()
     .flex_none()
     .gap(keyGap / 2)
     .items_center()
-    .children(
-      keys.map((key) =>
-        h_flex()
-          .h(tokens.text.detail.size + keycapLift)
-          .min_w(keycapMinWidth)
-          .px(keycapPadding)
-          .flex_none()
-          .items_center()
-          .justify_center()
-          .rounded(tokens.marks.badgeRadius)
-          .bg(overlaySurface)
-          .border(1)
-          .border_color(overlayBorder)
-          .child(fixedLabel(key, tokens.text.detail, tokens.ink.dim).font_family(terminalFont)),
-      ),
-    );
+    .children(keys.map((key) => keycap(key, look, tokens)));
 
 // A heading's part letter in the rows' first key column, with an empty slot for the second key.
 export const leadKeycap = (key: string, tokens: DirectionTokens): Element =>
@@ -233,7 +253,7 @@ export const footerLine = (parts: (string | string[])[], tokens: DirectionTokens
 // The line under a menu that says how its key hints are reached.
 export const modeFooter = (tokens: DirectionTokens): Element[] => [
   divider(tokens),
-  footerLine(['Press', ['ctrl-b'], 'then a key'], tokens),
+  footerLine(['Normal mode:', ['ctrl-b'], 'then the keys in order'], tokens),
 ];
 
 // Draws the menu's rows, with a divider above each row that starts a group. Pass row tokens.

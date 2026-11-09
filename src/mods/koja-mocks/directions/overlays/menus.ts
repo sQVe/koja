@@ -18,14 +18,15 @@ import {
   overlayTokens,
 } from './parts.ts';
 
-const menuWidth = 248;
+// Wide enough for the footer that names normal mode.
+const menuWidth = 296;
 // The focused pane's right border, measured from the insert-mode window.
 const focusedPaneRight = 703;
 // A clear gap from that border, so the menu edge never runs beside it.
 const menuGapFromPane = 16;
 // The menu's top left: near the right-click in the focused pane's body, kept clear of its border.
 const pointer = { x: focusedPaneRight - menuGapFromPane - menuWidth, y: 168 };
-const newMenuWidth = 256;
+const newMenuWidth = 296;
 // Under the tab bar's `+`.
 const newMenuRight = 112;
 const newMenuTop = 34;

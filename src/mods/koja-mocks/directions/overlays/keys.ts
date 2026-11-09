@@ -14,9 +14,11 @@ import {
   line,
   mainLeft,
   mainWidth,
+  overlayBorder,
   overlayCard,
   overlayTokens,
 } from './parts.ts';
+import type { KeycapLook } from './parts.ts';
 
 // From the bottom of the content area to the pane bottoms: the content padding.
 const paneBottomOffset = 8;
@@ -29,6 +31,23 @@ const keyRowCut = 4;
 
 const keyLine = (key: string, action: Element, tokens: DirectionTokens): Element =>
   line([keycaps([key], tokens), action], [], tokens);
+
+// The key that was pressed takes the mode pill's look, so it does not read as one of the options.
+const pressedKeycap = (tokens: DirectionTokens): KeycapLook => {
+  const pill = tokens.controls.modePill;
+
+  return { fill: pill.fill, outline: pill.fill ?? overlayBorder, ink: pill.text };
+};
+
+const titleLine = (tokens: DirectionTokens): Element =>
+  line(
+    [
+      keycaps(['w'], tokens, pressedKeycap(tokens)),
+      fixedLabel('Panes', tokens.text.title, tokens.ink.text),
+    ],
+    [],
+    tokens,
+  );
 
 const keyColumn = (group: KeyGroup, tokens: DirectionTokens): Element => {
   const rows = overlayTokens(tokens.rows.height - keyRowCut, tokens);
@@ -47,7 +66,7 @@ const keyColumn = (group: KeyGroup, tokens: DirectionTokens): Element => {
 const keysCard = (tokens: DirectionTokens): Element =>
   overlayCard(tokens)
     .flex_none()
-    .child(keyLine('w', fixedLabel('Panes', tokens.text.title, tokens.ink.text), tokens))
+    .child(titleLine(tokens))
     .child(divider(overlayTokens(tokens.rows.height, tokens)).mx(tokens.rows.paddingX))
     .child(
       h_flex()
