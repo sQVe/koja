@@ -6,6 +6,7 @@ import { home, panes, props, run, shared } from 'herdr';
 
 import type { PaneHeaderMenuAction } from '../../kit/index.ts';
 import {
+  askFirst,
   attentionBadge,
   colors,
   controlSize,
@@ -61,7 +62,9 @@ const paneButtons = (pane: PaneInfo): Element[] => {
     onSplitRight: () => run('pane.split', { direction: 'right', pane: pane.pane }),
     onSplitDown: () => run('pane.split', { direction: 'down', pane: pane.pane }),
     onZoom: () => run('pane.zoom', { pane: pane.pane }),
-    onClose: () => run('pane.close', { pane: pane.pane }),
+    onClose: () => {
+      askFirst('pane.close', { pane: pane.pane });
+    },
   });
 
   return actions.map((entry, index) => paneButton(entry, `pane-${ids[index]}-${pane.pane}`));
