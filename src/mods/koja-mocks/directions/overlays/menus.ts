@@ -2,7 +2,9 @@ import { h_flex } from 'gpui-base';
 import type { Element } from 'gpui-kit';
 
 import { icon } from '../../../../kit/index.ts';
+import { agentPane } from '../../scenes/shellContent.ts';
 import { withFloating } from '../floating.ts';
+import { fixedLabel } from '../parts.ts';
 import { divider } from '../sidebars/facts.ts';
 import { mapSidebar } from '../sidebars/sidebar.ts';
 import type { DirectionTokens } from '../tokens.ts';
@@ -12,7 +14,9 @@ import {
   dividedRows,
   floatingOverlay,
   heading,
+  iconMark,
   keycapHints,
+  line,
   menuItem,
   modeFooter,
   newMenuFooter,
@@ -35,6 +39,17 @@ const newMenuTop = 34;
 const plusButtonRight = 111;
 const plusButtonTop = 6;
 
+// Names the pane the menu acts on, in the heading style, above the first action.
+const targetHeading = (tokens: DirectionTokens): Element =>
+  line(
+    [
+      iconMark('terminal', tokens.ink.muted),
+      fixedLabel(agentPane.name, tokens.text.heading, tokens.ink.muted),
+    ],
+    [],
+    tokens,
+  );
+
 const contextMenu = (tokens: DirectionTokens): Element => {
   const rows = overlayTokens(tokens.rows.height, tokens);
   const hints = keycapHints(tokens);
@@ -42,6 +57,7 @@ const contextMenu = (tokens: DirectionTokens): Element => {
   return floatingOverlay(menuWidth, tokens)
     .left(pointer.x)
     .top(pointer.y)
+    .child(targetHeading(rows))
     .children(
       dividedRows(paneMenu, (menu, index) => menuItem(menu, index === 0, hints, rows), rows),
     )

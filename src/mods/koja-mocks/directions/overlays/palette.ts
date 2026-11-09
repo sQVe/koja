@@ -27,9 +27,11 @@ const paletteWidth = 560;
 // The full command list is longer than the box shows.
 const allCommands = 48;
 const listGap = 2;
-const scrollThumbWidth = 3;
-// The thumb sits in the card's padding, right of the row pills.
-const scrollThumbOffset = 4;
+const scrollThumbWidth = 2;
+// The thumb sits in the card's padding, right of the row pills, 2 px clear of the outline.
+const scrollThumbOffset = 2;
+// A group heading after the first takes half a row gap more above it, so groups read as groups.
+const groupSpace = 6;
 // The direction has no faint ink or scrollbar token, so the thumb is the dim ink, mostly clear.
 const scrollThumbAlpha = '59';
 
@@ -37,8 +39,14 @@ const paletteGroup = (group: CommandGroup, first: boolean, tokens: DirectionToke
   const rows = overlayTokens(searchRowHeight(tokens), tokens);
   const letter = leadKeycap(group.letter, tokens);
 
+  const groupHeading = heading(group.name, [letter], tokens);
+
+  if (!first) {
+    groupHeading.mt(groupSpace);
+  }
+
   return [
-    heading(group.name, [letter], tokens),
+    groupHeading,
     ...group.commands.map((command, index) =>
       item(
         {
@@ -62,7 +70,9 @@ const listHeight = (tokens: DirectionTokens): number => {
   const headings = paletteGroups.length * tokens.rows.height;
   const rows = shownCommands * searchRowHeight(tokens);
 
-  return headings + rows + (lines - 1) * listGap;
+  const groupSpaces = (paletteGroups.length - 1) * groupSpace;
+
+  return headings + rows + (lines - 1) * listGap + groupSpaces;
 };
 
 // Sized for the shown rows out of all commands, at the top of the list.

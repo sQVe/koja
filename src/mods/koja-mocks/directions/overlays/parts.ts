@@ -33,6 +33,8 @@ const keycapMinWidth = 18;
 const caretWidth = 1;
 // The caret spans the input's line, a little taller than the text.
 const caretLift = 4;
+// The input's text inset: a small gap between the caret and the placeholder.
+const caretTextInset = 2;
 // From the top of the content area to the pane tops: the tab bar and the content padding.
 const paneTopOffset = 44;
 // A clear gap below the pane tops, so the overlay edge never runs beside a pane edge.
@@ -168,7 +170,7 @@ export const searchLine = (placeholder: string, tokens: DirectionTokens): Elemen
       iconMark('search', tokens.ink.dim),
       h_flex()
         .flex_none()
-        .gap(caretWidth)
+        .gap(caretTextInset)
         .items_center()
         .child(caret(tokens))
         .child(fixedLabel(placeholder, tokens.text.body, tokens.ink.dim)),
@@ -257,7 +259,7 @@ const normalModeLine = (tokens: DirectionTokens): Element =>
 // menu keeps its width.
 export const newMenuFooter = (tokens: DirectionTokens): Element[] => [
   divider(tokens),
-  footerLine(['Number keys pick here.'], tokens),
+  footerLine(['Press 1–3 to start an agent.'], tokens),
   normalModeLine(tokens),
 ];
 
