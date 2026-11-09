@@ -9,7 +9,7 @@ import { fixedLabel, label, row, terminalFont } from '../parts.ts';
 import { dimFact, divider, rowLine, titleLabel } from '../sidebars/facts.ts';
 import type { DirectionTokens } from '../tokens.ts';
 import type { FakeAgent, MenuItem, PlacedSpace } from './content.ts';
-import { notInstalled } from './content.ts';
+import { installAgent, notInstalled } from './content.ts';
 
 export interface KeycapLook {
   fill: Color | null;
@@ -238,7 +238,10 @@ export const agentItem = (
       selected: false,
       start: iconMark('terminal', tokens.ink.muted).opacity(missingAgentOpacity),
       label: label(agent.name, tokens.text.body, tokens.ink.text).opacity(missingAgentOpacity),
-      end: [dimFact(notInstalled, tokens)],
+      end: [
+        dimFact(notInstalled, tokens),
+        fixedLabel(installAgent, tokens.text.detail, tokens.ink.muted),
+      ],
     },
     tokens,
   );

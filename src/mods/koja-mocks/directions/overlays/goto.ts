@@ -3,15 +3,15 @@ import type { Element } from 'gpui-kit';
 import { div } from 'gpui-kit';
 import type { Status } from 'herdr';
 
-import { icon } from '../../../../kit/index.ts';
 import type { FakeTab } from '../../scenes/shellContent.ts';
 import { agentPane, fakeTabs } from '../../scenes/shellContent.ts';
 import { withFloating } from '../floating.ts';
-import { fixedLabel, label, middleCutLabel, statusMark, terminalFont } from '../parts.ts';
+import { fixedLabel, label, statusMark, terminalFont } from '../parts.ts';
 import type { FakeSpace } from '../sidebars/content.ts';
 import { agentMark } from '../sidebars/facts.ts';
 import { mapSidebar } from '../sidebars/sidebar.ts';
 import type { DirectionTokens } from '../tokens.ts';
+import { branchField } from '../window.ts';
 import type { PlacedSpace } from './content.ts';
 import { placedSpaces } from './content.ts';
 import {
@@ -50,8 +50,6 @@ const markSlotWidth = 14;
 // Inactive chips keep a 1 px border box so the chip line does not shift, but draw no outline.
 const noOutline = '#00000000';
 const footerHeight = 30;
-// The gap between the branch icon and its name, as in the pane header.
-const branchIconGap = 4;
 
 const statusChips: StatusChip[] = [
   { text: 'All', status: null },
@@ -169,18 +167,8 @@ const list = (tokens: DirectionTokens): Element => {
     );
 };
 
-// The space's title takes the room the task had, so the branch is the field that gives way.
-const shrinkingBranch = (branch: string, tokens: DirectionTokens): Element =>
-  h_flex()
-    .flex_1()
-    .min_w(0)
-    .gap(branchIconGap)
-    .items_center()
-    .text_color(tokens.ink.dim)
-    .child(icon('git-branch', 'small'))
-    .child(middleCutLabel(branch, tokens.text.detail, tokens.ink.dim));
-
-// The space comes first, then the pane, so the header names the target the row selects.
+// The space comes first, then the pane, so the header names the target the row selects. It drops
+// the folder, so the branch shows whole.
 const previewHeader = (tokens: DirectionTokens): Element => {
   const { ink, text } = tokens;
 
@@ -194,15 +182,10 @@ const previewHeader = (tokens: DirectionTokens): Element => {
     .child(fixedLabel(agentPane.name, text.detail, ink.muted));
 
   if (agentPane.branch !== undefined) {
-    header.child(shrinkingBranch(agentPane.branch, tokens));
+    header.child(branchField(agentPane.branch, tokens));
   }
 
-  return bandRule(
-    header
-      .child(fixedLabel(agentPane.folder, text.detail, ink.dim))
-      .child(statusMark(agentPane.status, tokens)),
-    tokens,
-  );
+  return bandRule(header.child(statusMark(agentPane.status, tokens)), tokens);
 };
 
 const preview = (tokens: DirectionTokens): Element =>

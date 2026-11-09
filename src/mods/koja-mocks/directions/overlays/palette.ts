@@ -95,7 +95,7 @@ const commandList = (tokens: DirectionTokens): Element =>
     .child(thumb(tokens));
 
 const countFooter = (tokens: DirectionTokens): Element =>
-  line([], [dimFact(`${shownCommands} of ${allCommands}`, tokens)], tokens);
+  line([], [dimFact(`${shownCommands} of ${allCommands} commands`, tokens)], tokens);
 
 const palette = (tokens: DirectionTokens): Element =>
   floatingOverlay(paletteWidth, tokens)
