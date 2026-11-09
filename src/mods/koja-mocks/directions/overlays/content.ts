@@ -89,10 +89,10 @@ export const paneKeys: KeyGroup[] = [
   {
     name: 'Swap',
     keys: [
-      { key: 'H', action: 'Left' },
-      { key: 'J', action: 'Down' },
-      { key: 'K', action: 'Up' },
-      { key: 'L', action: 'Right' },
+      { key: '⇧H', action: 'Left' },
+      { key: '⇧J', action: 'Down' },
+      { key: '⇧K', action: 'Up' },
+      { key: '⇧L', action: 'Right' },
     ],
   },
   {
@@ -103,7 +103,7 @@ export const paneKeys: KeyGroup[] = [
     ],
   },
   {
-    name: 'Pane',
+    name: 'Zoom and close',
     keys: [
       { key: 'm', action: 'Zoom' },
       { key: 'q', action: 'Close' },
@@ -127,7 +127,7 @@ export const paneMenu: MenuItem[] = [
 export const newTerminal: MenuItem = { label: 'Terminal', icon: 'terminal', keys: ['t', 'n'] };
 
 export const newPlaces: MenuItem[] = [
-  { label: 'New space', icon: 'plus', keys: ['s', 'n'], divided: true },
+  { label: 'New space', icon: 'plus', keys: ['s', 'n'] },
   { label: 'New worktree…', icon: 'git-branch', keys: [] },
   { label: 'Open worktree…', icon: 'git-branch', keys: [] },
 ];

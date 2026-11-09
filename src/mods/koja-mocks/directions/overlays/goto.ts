@@ -3,21 +3,29 @@ import type { Element } from 'gpui-kit';
 import { div } from 'gpui-kit';
 import type { Status } from 'herdr';
 
-import { agentPane } from '../../scenes/shellContent.ts';
+import type { FakeTab } from '../../scenes/shellContent.ts';
+import { agentPane, fakeTabs } from '../../scenes/shellContent.ts';
 import { withFloating } from '../floating.ts';
 import { fixedLabel, label, statusMark, terminalFont } from '../parts.ts';
-import { divider } from '../sidebars/facts.ts';
+import type { FakeSpace } from '../sidebars/content.ts';
+import { agentMark } from '../sidebars/facts.ts';
 import { mapSidebar } from '../sidebars/sidebar.ts';
 import type { DirectionTokens } from '../tokens.ts';
+import { branchField } from '../window.ts';
+import type { PlacedSpace } from './content.ts';
 import { placedSpaces } from './content.ts';
 import {
   centered,
+  heading,
   iconMark,
   keycapOutline,
   line,
+  overlayBorder,
+  overlaySurface,
   overlayTokens,
   overlayTop,
   searchLine,
+  searchLineHeight,
   searchRowHeight,
   spaceRow,
 } from './parts.ts';
@@ -27,21 +35,31 @@ interface StatusChip {
   status: Status | null;
 }
 
-const gotoWidth = 780;
-const gotoHeight = 300;
+// Wide enough for the preview header to show every pane header field, the task included.
+const gotoWidth = 880;
+const gotoHeight = 436;
 const listWidth = 400;
 const chipHeight = 22;
 const chipPadding = 8;
 const chipGap = 4;
 const previewLineGap = 2;
+// A tab row's icon lines up with its space's title: the agent mark's slot and its gap.
+const tabIndent = 20;
 
 const statusChips: StatusChip[] = [
   { text: 'All', status: null },
-  { text: 'Blocked', status: 'blocked' },
+  { text: 'Waiting', status: 'blocked' },
   { text: 'Done', status: 'done' },
   { text: 'Working', status: 'working' },
   { text: 'Idle', status: 'idle' },
 ];
+
+// The search line and the chip line share one band with the preview's header, under one rule.
+const headerBand = (tokens: DirectionTokens): number =>
+  chipGap + searchLineHeight(tokens) + previewLineGap + chipHeight + chipGap;
+
+// A space with only an agent status, so a chip draws the same mark as the rows and the sidebar.
+const markedSpace = (agent: Status): FakeSpace => ({ title: '', agent, selected: false, age: '' });
 
 const chip = (shown: StatusChip, active: boolean, tokens: DirectionTokens): Element => {
   const element = h_flex()
@@ -50,17 +68,21 @@ const chip = (shown: StatusChip, active: boolean, tokens: DirectionTokens): Elem
     .gap(chipGap)
     .flex_none()
     .items_center()
-    .rounded(tokens.controls.radius);
-
-  if (active) {
-    element.bg(tokens.rows.selectedFill);
-  } else {
-    element.border(1).border_color(keycapOutline(tokens));
-  }
+    .rounded(tokens.controls.radius)
+    .border(1);
 
   if (shown.status !== null) {
-    element.child(statusMark(shown.status, tokens));
+    element.child(agentMark(markedSpace(shown.status), tokens));
   }
+
+  // Only the selected row has the gray pill, so the active chip is an outline in the muted ink.
+  if (active) {
+    element.border_color(tokens.ink.muted);
+
+    return element.child(fixedLabel(shown.text, tokens.text.detail, tokens.ink.text));
+  }
+
+  element.border_color(keycapOutline(tokens));
 
   return element.child(fixedLabel(shown.text, tokens.text.detail, tokens.ink.muted));
 };
@@ -69,10 +91,40 @@ const chipLine = (tokens: DirectionTokens): Element =>
   h_flex()
     .flex_none()
     .px(tokens.rows.paddingX)
-    .pb(chipGap)
     .gap(chipGap)
     .items_center()
     .children(statusChips.map((shown, index) => chip(shown, index === 0, tokens)));
+
+const bandRule = (element: Element, tokens: DirectionTokens): Element =>
+  element.h(headerBand(tokens)).flex_none().border_b(1).border_color(tokens.pane.headerDivider);
+
+const searchHead = (tokens: DirectionTokens): Element =>
+  bandRule(
+    v_flex()
+      .p(chipGap)
+      .gap(previewLineGap)
+      .child(searchLine('Go to a space, tab or pane', tokens))
+      .child(chipLine(tokens)),
+    tokens,
+  );
+
+const tabRow = (tab: FakeTab, tokens: DirectionTokens): Element =>
+  line(
+    [iconMark('terminal', tokens.ink.muted), label(tab.label, tokens.text.body, tokens.ink.text)],
+    [statusMark(tab.status, tokens)],
+    tokens,
+  ).pl(tokens.rows.paddingX + tabIndent);
+
+// The current space has several tabs, so they follow it as child rows, as the live picker shows.
+const spaceRows = (placed: PlacedSpace, tokens: DirectionTokens): Element[] => {
+  const row = spaceRow(placed, placed.space.selected, tokens);
+
+  if (!placed.space.selected) {
+    return [row];
+  }
+
+  return [row, ...fakeTabs.map((tab) => tabRow(tab, tokens))];
+};
 
 const list = (tokens: DirectionTokens): Element => {
   const rows = overlayTokens(searchRowHeight(tokens), tokens);
@@ -81,12 +133,38 @@ const list = (tokens: DirectionTokens): Element => {
     .w(listWidth)
     .flex_none()
     .h_full()
-    .p(chipGap)
-    .gap(previewLineGap)
-    .child(searchLine('Go to a space, tab or pane', tokens))
-    .child(chipLine(tokens))
-    .child(divider(overlayTokens(tokens.rows.height, tokens)))
-    .children(placedSpaces.map((placed) => spaceRow(placed, placed.space.selected, rows)));
+    .child(searchHead(tokens))
+    .child(
+      v_flex()
+        .p(chipGap)
+        .gap(previewLineGap)
+        .child(heading('Spaces', [], tokens))
+        .children(placedSpaces.flatMap((placed) => spaceRows(placed, rows))),
+    );
+};
+
+const previewHeader = (tokens: DirectionTokens): Element => {
+  const { ink, text } = tokens;
+
+  const header = h_flex()
+    .px(tokens.pane.headerPadding)
+    .gap(tokens.pane.headerGap)
+    .items_center()
+    .overflow_hidden()
+    .child(iconMark('terminal', ink.muted))
+    .child(fixedLabel(agentPane.name, text.title, ink.text))
+    .child(label(agentPane.task ?? '', text.detail, ink.muted).flex_1());
+
+  if (agentPane.branch !== undefined) {
+    header.child(branchField(agentPane.branch, tokens));
+  }
+
+  return bandRule(
+    header
+      .child(fixedLabel(agentPane.folder, text.detail, ink.dim))
+      .child(statusMark(agentPane.status, tokens)),
+    tokens,
+  );
 };
 
 const preview = (tokens: DirectionTokens): Element =>
@@ -96,20 +174,7 @@ const preview = (tokens: DirectionTokens): Element =>
     .h_full()
     .border_l(1)
     .border_color(tokens.pane.headerDivider)
-    .child(
-      line(
-        [
-          iconMark('terminal', tokens.ink.muted),
-          fixedLabel(agentPane.name, tokens.text.title, tokens.ink.text),
-          label(agentPane.task ?? '', tokens.text.detail, tokens.ink.dim),
-        ],
-        [statusMark(agentPane.status, tokens)],
-        tokens,
-      )
-        .h(tokens.pane.headerHeight)
-        .border_b(1)
-        .border_color(tokens.pane.headerDivider),
-    )
+    .child(previewHeader(tokens))
     .child(
       v_flex()
         .p(tokens.pane.bodyPadding)
@@ -127,11 +192,12 @@ const goto = (tokens: DirectionTokens): Element =>
     .top(overlayTop)
     .w(gotoWidth)
     .h(gotoHeight)
+    .items_start()
     .overflow_hidden()
     .rounded(tokens.pane.radius)
-    .bg(tokens.pane.fill)
+    .bg(overlaySurface)
     .border(1)
-    .border_color(tokens.pane.border)
+    .border_color(overlayBorder(tokens))
     .child(list(tokens))
     .child(preview(tokens));
 

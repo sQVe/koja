@@ -98,7 +98,7 @@ const paneHeaderFrame = (tokens: DirectionTokens): Element => {
     .border_color(pane.headerDivider);
 };
 
-const branchField = (branch: string, tokens: DirectionTokens): Element =>
+export const branchField = (branch: string, tokens: DirectionTokens): Element =>
   h_flex()
     .flex_none()
     .gap(controlGap)

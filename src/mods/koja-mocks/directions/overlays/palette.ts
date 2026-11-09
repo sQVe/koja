@@ -1,7 +1,6 @@
 import type { Element } from 'gpui-kit';
 
-import { floating, withFloating } from '../floating.ts';
-import { fixedLabel } from '../parts.ts';
+import { withFloating } from '../floating.ts';
 import { divider } from '../sidebars/facts.ts';
 import { mapSidebar } from '../sidebars/sidebar.ts';
 import type { DirectionTokens } from '../tokens.ts';
@@ -9,6 +8,7 @@ import type { CommandGroup } from './content.ts';
 import { paletteGroups } from './content.ts';
 import {
   centered,
+  floatingOverlay,
   heading,
   iconMark,
   item,
@@ -23,7 +23,7 @@ const paletteWidth = 560;
 
 const paletteGroup = (group: CommandGroup, first: boolean, tokens: DirectionTokens): Element[] => {
   const rows = overlayTokens(searchRowHeight(tokens), tokens);
-  const letter = fixedLabel(group.letter, tokens.text.detail, tokens.ink.dim);
+  const letter = keycaps([group.letter], tokens);
 
   return [
     heading(group.name, [letter], tokens),
@@ -42,7 +42,7 @@ const paletteGroup = (group: CommandGroup, first: boolean, tokens: DirectionToke
 };
 
 const palette = (tokens: DirectionTokens): Element =>
-  floating(paletteWidth, tokens)
+  floatingOverlay(paletteWidth, tokens)
     .left(centered(paletteWidth))
     .top(overlayTop)
     .child(searchLine('Type a command', tokens))
