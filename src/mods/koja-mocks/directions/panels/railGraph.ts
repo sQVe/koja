@@ -13,12 +13,18 @@ import {
   mergedTextOf,
   numberColumn,
   pullFactsRow,
+  pullEnd,
   pullLineWith,
   pullNumber,
 } from './stack.ts';
 
 // What hangs off the checked-out node below its facts line.
 export type HangingWork = (state: RailState, tokens: DirectionTokens) => Element[];
+
+interface RailLook {
+  hung: Element[];
+  marksCheckout: boolean;
+}
 
 interface RailNode {
   top: boolean;
@@ -80,20 +86,37 @@ const railRow = (cell: Element, content: Element): Element =>
 const hangingBlock = (facts: Element, hung: Element[], tokens: DirectionTokens): Element =>
   railRow(lineCell(tokens), v_flex().flex_none().pl(numberColumn).child(facts).children(hung));
 
+// Says in words which PR is checked out, beside its need.
+const markedPullLine = (pull: FakePull, tokens: DirectionTokens): Element =>
+  row(
+    {
+      selected: false,
+      start: pullNumber(pull, tokens),
+      label: label(pull.title, tokens.text.body, tokens.ink.text),
+      end: [...(pull.checkedOut ? [dimFact('checked out', tokens)] : []), ...pullEnd(pull, tokens)],
+    },
+    tokens,
+  );
+
+const pullLineOf = (pull: FakePull, marksCheckout: boolean, tokens: DirectionTokens): Element =>
+  marksCheckout
+    ? markedPullLine(pull, tokens)
+    : pullLineWith(pull, pullNumber(pull, tokens), false, tokens);
+
 const railPull = (
   pull: FakePull,
   top: boolean,
-  hung: Element[],
+  look: RailLook,
   tokens: DirectionTokens,
 ): Element[] => {
   const cell = railCell({ top, node: pullNode(pull, tokens), bottom: true }, tokens);
-  const line = railRow(cell, pullLineWith(pull, pullNumber(pull, tokens), false, tokens));
+  const line = railRow(cell, pullLineOf(pull, look.marksCheckout, tokens));
 
   if (!pull.checkedOut) {
     return [line];
   }
 
-  return [line, hangingBlock(pullFactsRow(pull, tokens), hung, tokens)];
+  return [line, hangingBlock(pullFactsRow(pull, tokens), look.hung, tokens)];
 };
 
 // A branch without a PR takes the PR's place: its name in the number and title columns.
@@ -142,15 +165,20 @@ const trunkRow = (state: RailState, tokens: DirectionTokens): Element => {
   return railRow(cell, trunk);
 };
 
-export const railList = (state: RailState, hang: HangingWork, tokens: DirectionTokens): Element => {
+export const railListOf = (
+  state: RailState,
+  hang: HangingWork,
+  marksCheckout: boolean,
+  tokens: DirectionTokens,
+): Element => {
   const shown = state.pulls.filter((pull) => pull.state !== 'merged');
-  const hung = hang(state, tokens);
-  const head = branchHead(state, hung, tokens);
+  const look = { hung: hang(state, tokens), marksCheckout };
+  const head = branchHead(state, look.hung, tokens);
 
   const pulls = shown.flatMap((pull, index) => {
     const top = head.length > 0 || index > 0;
 
-    return railPull(pull, top, hung, tokens);
+    return railPull(pull, top, look, tokens);
   });
 
   return v_flex()
@@ -160,3 +188,6 @@ export const railList = (state: RailState, hang: HangingWork, tokens: DirectionT
     .children(pulls)
     .child(trunkRow(state, tokens));
 };
+
+export const railList = (state: RailState, hang: HangingWork, tokens: DirectionTokens): Element =>
+  railListOf(state, hang, false, tokens);

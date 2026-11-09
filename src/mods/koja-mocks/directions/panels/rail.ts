@@ -8,7 +8,7 @@ import { mapSidebarOf, mergedProgress } from '../sidebars/sidebar.ts';
 import { errorLine } from '../sidebars/states.ts';
 import type { DirectionTokens } from '../tokens.ts';
 import { directionWindow } from '../window.ts';
-import { changeListOf, changeSwitchOf, moreFilesRow } from './changes.ts';
+import { changeListOf, changeSwitchOf, moreRow } from './changes.ts';
 import {
   groupLabel,
   oneCard,
@@ -64,7 +64,7 @@ export const changeBody = (state: RailState, tokens: DirectionTokens): Element[]
   const list = changeListOf(files, tokens);
 
   if (total > files.length) {
-    list.child(moreFilesRow(total - files.length, tokens));
+    list.child(moreRow(total - files.length, 'files', tokens));
   }
 
   return [...changeScope(state, tokens), list];

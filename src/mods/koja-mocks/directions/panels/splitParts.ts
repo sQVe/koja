@@ -16,8 +16,17 @@ const markGap = 4;
 const percent = 100;
 
 // The panel keeps one name whatever it shows; the toggle swaps the stack for the file tree.
-export const namedHeader = (name: string, filesShown: boolean, tokens: DirectionTokens): Element =>
-  panelHeader([panelTitle(name, tokens)], [iconToggle('folder', filesShown, tokens)], tokens);
+export const namedHeader = (
+  name: string,
+  detail: Element[],
+  filesShown: boolean,
+  tokens: DirectionTokens,
+): Element =>
+  panelHeader(
+    [panelTitle(name, tokens), ...detail],
+    [iconToggle('folder', filesShown, tokens)],
+    tokens,
+  );
 
 const stackAlertsOf = (state: RailState, tokens: DirectionTokens): Element[] => {
   const failing = state.pulls.some((pull) => pull.need === 'failing');
@@ -58,12 +67,17 @@ const askingMarks = (state: RailState, tokens: DirectionTokens): Element[] => {
   ];
 };
 
-export const workersSectionHeader = (state: RailState, tokens: DirectionTokens): Element =>
+// `extra` follows the worker count, such as the done workers a short panel leaves out.
+export const workersSectionHeader = (
+  state: RailState,
+  extra: Element[],
+  tokens: DirectionTokens,
+): Element =>
   sectionHeader(
     {
       name: 'Workers',
       open: true,
-      detail: [dimFact(String(state.workers.length), tokens)],
+      detail: [dimFact(String(state.workers.length), tokens), ...extra],
       end: askingMarks(state, tokens),
     },
     tokens,

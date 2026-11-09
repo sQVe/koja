@@ -45,7 +45,7 @@ const leadingMark = (pull: FakePull, tokens: DirectionTokens): Element => {
   return statusMark('idle', tokens).w(leadingWidth);
 };
 
-const pullEnd = (pull: FakePull, tokens: DirectionTokens): Element[] => {
+export const pullEnd = (pull: FakePull, tokens: DirectionTokens): Element[] => {
   if (pull.state === 'draft') {
     return [dimFact('draft', tokens)];
   }

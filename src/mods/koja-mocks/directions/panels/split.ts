@@ -67,7 +67,7 @@ const pullChanges: HangingWork = (state, tokens) => [
   ...changeBody(state, tokens),
 ];
 
-export const twoStackBody = (state: RailState, tokens: DirectionTokens): Element => {
+const twoStackBody = (state: RailState, tokens: DirectionTokens): Element => {
   if (!state.onMain) {
     return railList(state, pullChanges, tokens);
   }
@@ -92,7 +92,7 @@ const twoWorkers = (state: RailState, tokens: DirectionTokens): Element[] => {
 
   return [
     sectionDivider(tokens),
-    section([workersSectionHeader(state, tokens), list], tokens)
+    section([workersSectionHeader(state, [], tokens), list], tokens)
       .flex_none()
       .max_h(workersShare)
       .overflow_hidden(),
@@ -102,7 +102,7 @@ const twoWorkers = (state: RailState, tokens: DirectionTokens): Element[] => {
 const twoCard: StateCard = (state, tokens) =>
   panelCard(
     [
-      namedHeader('Status', false, tokens),
+      namedHeader('Status', [], false, tokens),
       section(
         [stackSectionHeader(state, tokens), panelColumn([twoStackBody(state, tokens)])],
         tokens,
@@ -193,14 +193,14 @@ const threeWorkers = (state: RailState, tokens: DirectionTokens): Element[] => {
 
   return [
     sectionDivider(tokens),
-    section([workersSectionHeader(state, tokens), rows, ...pinned], tokens).flex_none(),
+    section([workersSectionHeader(state, [], tokens), rows, ...pinned], tokens).flex_none(),
   ];
 };
 
 const threeCard: StateCard = (state, tokens) =>
   panelCard(
     [
-      namedHeader('Status', false, tokens),
+      namedHeader('Status', [], false, tokens),
       contextRow(state, tokens),
       sectionDivider(tokens),
       threeStack(state, tokens),

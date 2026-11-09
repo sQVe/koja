@@ -32,6 +32,7 @@ import {
 import { railScene } from './directions/panels/rail.ts';
 import { railStates } from './directions/panels/railData.ts';
 import { spaceScene } from './directions/panels/space.ts';
+import { spaceStates } from './directions/panels/spaceData.ts';
 import { spineTakeScene } from './directions/panels/spine.ts';
 import { splitScene } from './directions/panels/split.ts';
 import { hoverScene, searchScene } from './directions/sidebars/find.ts';
@@ -100,15 +101,15 @@ const renderers: Record<SceneName, (inputs: SceneInputs) => Element> = {
   'split-three-base': () => splitScene('three', railStates.base, koja),
   'split-three-busy': () => splitScene('three', railStates.busy, koja),
   'split-three-main': () => splitScene('three', railStates.main, koja),
-  'space-base': () => spaceScene('stack', railStates.base, koja),
-  'space-busy': () => spaceScene('stack', railStates.busy, koja),
-  'space-clean': () => spaceScene('stack', railStates.clean, koja),
-  'space-single': () => spaceScene('stack', railStates.single, koja),
-  'space-no-pr': () => spaceScene('stack', railStates.noPull, koja),
-  'space-main': () => spaceScene('stack', railStates.main, koja),
-  'space-error': () => spaceScene('stack', railStates.error, koja),
-  'space-files': () => spaceScene('files', railStates.base, koja),
-  'space-normal': () => spaceScene('stack', railStates.base, kojaNormal),
+  'space-base': () => spaceScene('stack', spaceStates.base, koja),
+  'space-busy': () => spaceScene('stack', spaceStates.busy, koja),
+  'space-clean': () => spaceScene('stack', spaceStates.clean, koja),
+  'space-single': () => spaceScene('stack', spaceStates.single, koja),
+  'space-no-pr': () => spaceScene('stack', spaceStates.noPull, koja),
+  'space-main': () => spaceScene('stack', spaceStates.main, koja),
+  'space-error': () => spaceScene('stack', spaceStates.error, koja),
+  'space-files': () => spaceScene('files', spaceStates.base, koja),
+  'space-normal': () => spaceScene('stack', spaceStates.base, kojaNormal),
 };
 
 // A refocus after the window has drawn, when its input or focus target can take the keyboard.

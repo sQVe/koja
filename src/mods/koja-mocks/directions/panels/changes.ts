@@ -71,7 +71,7 @@ export const changeListOf = (changes: FakeChange[], tokens: DirectionTokens): El
 export const changeList = (tokens: DirectionTokens): Element => changeListOf(changeRows, tokens);
 
 // Folded rows of a long list; the chevron opens them in place, as a folder opens in a tree.
-export const moreFilesRow = (hidden: number, tokens: DirectionTokens): Element =>
+export const moreRow = (hidden: number, noun: string, tokens: DirectionTokens): Element =>
   row(
     {
       selected: false,
@@ -80,7 +80,7 @@ export const moreFilesRow = (hidden: number, tokens: DirectionTokens): Element =
         .flex_none()
         .justify_center()
         .child(icon('chevron-right', 'xsmall').text_color(tokens.ink.dim)),
-      label: label(`${hidden} more files`, tokens.text.body, tokens.ink.dim),
+      label: label(`${hidden} more ${noun}`, tokens.text.body, tokens.ink.dim),
       end: [],
     },
     tokens,
