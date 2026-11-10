@@ -18,6 +18,9 @@ import {
 } from '../../kit/index.ts';
 import { findScene, sceneOrigin } from './catalog.ts';
 import type { SceneName } from './catalog.ts';
+import { briefScene } from './directions/attention/brief.ts';
+import { cornerScene } from './directions/attention/corner.ts';
+import { createMixState, mixScene } from './directions/attention/mix.ts';
 import { contentScene } from './directions/content/scene.ts';
 import { dialogScene } from './directions/dialogs/scene.ts';
 import { koja, kojaNormal } from './directions/koja.ts';
@@ -66,6 +69,13 @@ const renderers: Record<SceneName, (inputs: SceneInputs) => Element> = {
   'smoke-2': (inputs) => paletteClean(inputs.command),
   'smoke-3': (inputs) => paletteClearFail(inputs.command),
   'smoke-4': (inputs) => paletteNearPass(inputs.command),
+  'attention-corner': () => cornerScene(koja),
+  'attention-corner-normal': () => cornerScene(kojaNormal),
+  'attention-mix': (inputs) => mixScene(false, koja, inputs.attention),
+  'attention-mix-normal': (inputs) => mixScene(false, kojaNormal, inputs.attention),
+  'attention-mix-open': (inputs) => mixScene(true, koja, inputs.attention),
+  'attention-brief': () => briefScene(koja),
+  'attention-brief-normal': () => briefScene(kojaNormal),
   'direction-koja': () => directionWindow(koja),
   'direction-koja-normal': () => directionWindow(kojaNormal),
   'sidebar-inbox': () => directionWindow(koja, inboxSidebar),
@@ -141,6 +151,7 @@ const pickerHint = 'Type a scene name and press Enter.';
 const sceneName = (): string | null => stringOf(recordOf(props())['scene']);
 
 const createSceneInputs = (): SceneInputs => ({
+  attention: createMixState(),
   search: InputStates.new({ value: popupQuery }),
   field: InputStates.new({ placeholder: 'Branch name…' }),
   filledField: InputStates.new({ value: 'feature/ui-foundation' }),
