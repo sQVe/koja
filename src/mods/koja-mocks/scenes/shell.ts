@@ -17,7 +17,7 @@ import {
   tab,
 } from '../../../kit/index.ts';
 import type { MixState } from '../directions/attention/mix.ts';
-import { createMixState, mixCard } from '../directions/attention/mix.ts';
+import { createMixState, mixCard, paneClearance } from '../directions/attention/mix.ts';
 import { contentPane } from '../directions/content/scene.ts';
 import { contentViews } from '../directions/content/states.ts';
 import { dialogLayer } from '../directions/dialogs/scene.ts';
@@ -29,8 +29,6 @@ import { mapSidebar } from '../directions/sidebars/sidebar.ts';
 import type { DirectionTokens } from '../directions/tokens.ts';
 import type { FakeTab } from './shellContent.ts';
 import { agentPane, fakeTabs, shellPane } from './shellContent.ts';
-
-const attentionClearance = 16;
 
 const sidebar = (): Element => mapSidebar(koja);
 
@@ -163,9 +161,9 @@ export const shellAttentionScene = (
       .child(
         h_flex()
           .absolute()
-          .left(attentionClearance)
-          .right(attentionClearance)
-          .bottom(attentionClearance)
+          .left(paneClearance)
+          .right(paneClearance)
+          .bottom(paneClearance)
           .justify_center()
           .child(card.w_full()),
       );

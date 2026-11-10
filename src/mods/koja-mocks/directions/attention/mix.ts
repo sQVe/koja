@@ -16,7 +16,8 @@ export interface MixState {
 }
 
 const maximumCardWidth = 420;
-const paneClearance = 16;
+
+export const paneClearance = 16;
 const cardPadding = 10;
 const lineGap = 6;
 const rowPadding = 8;
