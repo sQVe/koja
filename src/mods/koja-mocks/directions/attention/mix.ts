@@ -3,8 +3,8 @@ import type { Element } from 'gpui-kit';
 
 import { wrappedText } from '../dialogs/parts.ts';
 import { footerLine, iconMark, mainLeft, overlayCard } from '../overlays/parts.ts';
-import { fixedLabel, iconButton, label } from '../parts.ts';
-import type { DirectionTokens } from '../tokens.ts';
+import { fixedLabel, iconButton, label, terminalFont } from '../parts.ts';
+import type { DirectionTokens, TextStyle } from '../tokens.ts';
 import { attentionWindow, focusedPaneWidth, hiddenAsks } from './data.ts';
 
 type HiddenAsk = (typeof hiddenAsks)[number];
@@ -57,8 +57,8 @@ const moreControl = (state: MixState, tokens: DirectionTokens): Element => {
     .ml(textInset)
     .items_center()
     .cursor_pointer()
-    .child(label(text, tokens.text.detail, tokens.ink.dim))
-    .child(iconMark('chevron-right', tokens.ink.dim))
+    .child(label(text, tokens.text.detail, tokens.ink.muted))
+    .child(iconMark('chevron-right', tokens.ink.muted))
     .on_mouse_down('left', (_event, context) => {
       context.stop_propagation();
     })
@@ -67,6 +67,18 @@ const moreControl = (state: MixState, tokens: DirectionTokens): Element => {
       state.listOpen = true;
       context.notify();
     });
+};
+
+const commandLine = (ask: HiddenAsk, style: TextStyle, tokens: DirectionTokens): Element[] => {
+  if (ask.command === null) {
+    return [];
+  }
+
+  const command = wrappedText(ask.command, style, tokens.ink.text)
+    .font_family(terminalFont)
+    .ml(textInset);
+
+  return [command];
 };
 
 const askTitle = (ask: HiddenAsk, state: MixState, tokens: DirectionTokens): Element =>
@@ -82,7 +94,8 @@ const askTitle = (ask: HiddenAsk, state: MixState, tokens: DirectionTokens): Ele
 const askLine = (ask: HiddenAsk, state: MixState, tokens: DirectionTokens): Element => {
   const line = v_flex()
     .child(askTitle(ask, state, tokens))
-    .child(wrappedText(ask.question, tokens.text.body, tokens.ink.text).ml(textInset));
+    .child(wrappedText(ask.question, tokens.text.body, tokens.ink.text).ml(textInset))
+    .children(commandLine(ask, tokens.text.body, tokens));
 
   if (state.asks.length > 1) {
     line.child(moreControl(state, tokens).mt(lineGap));
@@ -110,7 +123,8 @@ const askRow = (ask: HiddenAsk, tokens: DirectionTokens): Element => {
     .rounded(tokens.rows.radius)
     .hover((element) => element.bg(tokens.rows.hoverFill))
     .child(title)
-    .child(wrappedText(detail, tokens.text.detail, tokens.ink.muted).ml(textInset));
+    .child(wrappedText(detail, tokens.text.detail, tokens.ink.muted).ml(textInset))
+    .children(commandLine(ask, tokens.text.detail, tokens));
 };
 
 const askList = (state: MixState, tokens: DirectionTokens): Element => {

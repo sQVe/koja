@@ -163,7 +163,7 @@ describe('attention scenes', () => {
 
     expect(texts).toContain('Build window shell asks you');
     expect(texts).toContain('1 more ask');
-    expect(texts).not.toContain('Run bun run sandbox up?');
+    expect(texts).not.toContain('bun run sandbox up');
     expect(texts).not.toContain('Which judge model for round 2?');
     expect(texts).not.toContain('Claude Code · Build shell');
   });
@@ -173,7 +173,7 @@ describe('attention scenes', () => {
     const texts = drawnTexts(scene);
     const count = clickablesWithText(scene, '1 more ask in Hill-climb mode for judges');
 
-    expect(texts).toContain('Run bun run sandbox up?');
+    expect(texts).toContain('bun run sandbox up');
     expect(texts).not.toContain('Which judge model for round 2?');
     expect(count).toHaveLength(1);
     expect(drawnIcons(count[0] ?? drawn())).toContain('chevron-right');
@@ -193,10 +193,10 @@ describe('attention scenes', () => {
 
     expect(notifications).toBe(1);
     expect(texts).toContain('2 asks in other spaces');
-    expect(texts).toContain('Claude Code · Run bun run sandbox up?');
+    expect(texts).toContain('Claude Code · Allow this command?');
     expect(texts).toContain('Pi · Which judge model for round 2?');
 
-    expect(texts.indexOf('Claude Code · Run bun run sandbox up?')).toBeLessThan(
+    expect(texts.indexOf('Claude Code · Allow this command?')).toBeLessThan(
       texts.indexOf('Pi · Which judge model for round 2?'),
     );
 
@@ -208,7 +208,7 @@ describe('attention scenes', () => {
     const texts = drawnTexts(scene);
 
     expect(texts).toContain('2 asks in other spaces');
-    expect(texts).toContain('Claude Code · Run bun run sandbox up?');
+    expect(texts).toContain('Claude Code · Allow this command?');
     expect(texts).toContain('Pi · Which judge model for round 2?');
     expect(hasKeys(scene)).toBe(false);
   });
@@ -223,7 +223,7 @@ describe('attention scenes', () => {
     const texts = drawnTexts(after);
 
     expect(notifications).toBe(1);
-    expect(texts).not.toContain('Run bun run sandbox up?');
+    expect(texts).not.toContain('bun run sandbox up');
     expect(texts).not.toContain('Which judge model for round 2?');
     expect(texts).not.toContain('1 more ask in Hill-climb mode for judges');
     expect(texts).toContain('Claude Code');
@@ -236,7 +236,7 @@ describe('attention scenes', () => {
     state.asks = state.asks.slice(0, 1);
     const scene = mixScene(false, koja, state);
 
-    expect(drawnTexts(scene)).toContain('Run bun run sandbox up?');
+    expect(drawnTexts(scene)).toContain('bun run sandbox up');
     expect(drawnTexts(scene)).not.toContain('1 more ask in Hill-climb mode for judges');
     expect(drawnIcons(scene)).not.toContain('chevron-right');
   });

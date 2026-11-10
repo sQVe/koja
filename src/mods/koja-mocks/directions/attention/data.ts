@@ -46,7 +46,8 @@ export const hiddenAsks = [
   {
     space: 'Build window shell',
     project: 'koja',
-    question: 'Run bun run sandbox up?',
+    question: 'Allow this command?',
+    command: 'bun run sandbox up',
     description: 'Claude Code asks to run bun run sandbox up.',
     agent: 'Claude Code',
     tab: 'Build shell',
@@ -56,6 +57,7 @@ export const hiddenAsks = [
     space: 'Hill-climb mode for judges',
     project: 'tau',
     question: 'Which judge model for round 2?',
+    command: null,
     description: 'Pi asks which judge model to use for round 2.',
     agent: 'Pi',
     tab: 'Pick judges',
