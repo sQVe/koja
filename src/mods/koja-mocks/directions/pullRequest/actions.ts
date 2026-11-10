@@ -4,32 +4,25 @@ import { div } from 'gpui-kit';
 
 import { icon } from '../../../../kit/index.ts';
 import { controlSize, spacing } from '../../../../kit/size.ts';
-import { reviewActionButton } from '../content/parts.ts';
+import { dialogActionsFor } from '../dialogs/actions.ts';
+import { wrappedText } from '../dialogs/parts.ts';
+import { dialogFrame } from '../dialogs/scene.ts';
 import { overlayCard, overlayTokens } from '../overlays/parts.ts';
 import { fixedLabel, label, row } from '../parts.ts';
+import { errorLine } from '../sidebars/states.ts';
 import type { DirectionTokens } from '../tokens.ts';
-import type { PullTake } from './data.ts';
+import type { PullState } from './data.ts';
 import { detailText } from './parts.ts';
 
 const menuMarkWidth = 12;
-const buttonInset = 12;
 const splitSegmentWidth = 28;
 
-const outlineAction = (text: string, tokens: DirectionTokens): Element =>
-  h_flex()
-    .h(controlSize.dialogButton)
-    .px(buttonInset)
-    .flex_none()
-    .items_center()
-    .justify_center()
-    .rounded(tokens.controls.radius)
-    .border(1)
-    .border_color(tokens.pane.border)
-    .child(fixedLabel(text, tokens.text.body, tokens.ink.text));
+export const mergeActionWidth = 208;
 
 const splitAction = (tokens: DirectionTokens): Element =>
   h_flex()
     .h(controlSize.dialogButton)
+    .w(mergeActionWidth)
     .flex_none()
     .items_stretch()
     .rounded(tokens.controls.radius)
@@ -52,22 +45,8 @@ const splitAction = (tokens: DirectionTokens): Element =>
         .child(icon('chevron-down', 'small').text_color(tokens.pane.fill)),
     );
 
-const mergeActions = (take: PullTake, tokens: DirectionTokens): Element => {
-  if (take === 'split') {
-    return splitAction(tokens);
-  }
-
-  const primary = take === 'merge' ? 'Squash and merge' : 'Ask agent to merge';
-  const secondary = take === 'merge' ? 'Ask agent to merge' : 'Squash and merge';
-
-  return v_flex()
-    .gap(spacing.small)
-    .child(reviewActionButton(primary, tokens))
-    .child(outlineAction(secondary, tokens));
-};
-
-export const readyActions = (take: PullTake, tokens: DirectionTokens): Element =>
-  v_flex()
+export const readyActions = (state: PullState, tokens: DirectionTokens): Element => {
+  const block = v_flex()
     .flex_none()
     .min_w(0)
     .gap(spacing.small)
@@ -79,8 +58,14 @@ export const readyActions = (take: PullTake, tokens: DirectionTokens): Element =
         .child(fixedLabel('Ready to merge', tokens.text.title, tokens.ink.text)),
     )
     .child(detailText('4 checks passed · approved · no conflicts', tokens))
-    .child(mergeActions(take, tokens))
-    .child(detailText('Into main · deletes the branch', tokens));
+    .child(splitAction(tokens));
+
+  if (state === 'merge-failed') {
+    block.child(errorLine('Could not merge: main changed since the last sync', tokens).mx(0).px(0));
+  }
+
+  return block.child(detailText('Into main · deletes the branch', tokens));
+};
 
 export const mergeMenu = (tokens: DirectionTokens): Element => {
   const menuTokens = overlayTokens(tokens.rows.height, tokens);
@@ -105,4 +90,16 @@ export const mergeMenu = (tokens: DirectionTokens): Element => {
       );
     }),
   );
+};
+
+export const mergeConfirm = (tokens: DirectionTokens): Element => {
+  const title = wrappedText('Squash and merge #44?', tokens.text.title, tokens.ink.text);
+
+  const body = v_flex()
+    .child(wrappedText('Squashes 5 commits into main.', tokens.text.body, tokens.ink.muted))
+    .child(
+      wrappedText('Deletes the branch me-1091-stack-panel.', tokens.text.body, tokens.ink.muted),
+    );
+
+  return dialogFrame(title, body, dialogActionsFor('Merge', false, tokens), tokens);
 };

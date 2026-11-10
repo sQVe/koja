@@ -146,7 +146,7 @@ const lineActions = (number: number, tokens: DirectionTokens): Element =>
         .tooltip(`Edit line ${number}`),
     );
 
-export const sourceText = (text: string, editing: boolean, tokens: DirectionTokens): Element => {
+const sourceText = (text: string, editing: boolean, tokens: DirectionTokens): Element => {
   const content = label(text, tokens.text.body, tokens.ink.text).font_family(terminalFont).flex_1();
 
   if (!editing && text.startsWith('#')) {
@@ -192,11 +192,7 @@ const editMark = (edited: boolean, tokens: DirectionTokens): Element => {
   return edited ? mark.bg(tokens.marks.working) : mark;
 };
 
-export const sourceLineNumber = (
-  number: string,
-  tokens: DirectionTokens,
-  current = false,
-): Element => {
+const sourceLineNumber = (number: string, tokens: DirectionTokens, current = false): Element => {
   const ink = current ? tokens.ink.text : tokens.ink.dim;
 
   return fixedLabel(number, tokens.text.detail, ink)

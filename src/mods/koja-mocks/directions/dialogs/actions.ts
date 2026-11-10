@@ -49,14 +49,23 @@ const dialogButton = (content: ButtonContent, tokens: DirectionTokens): Element 
   return button.child(caps);
 };
 
-export const dialogActions = (ask: DialogAsk, tokens: DirectionTokens): Element => {
-  const content = askContent[ask];
-  const fill = content.destructive ? tokens.marks.blocked : tokens.ink.text;
+export const dialogActionsFor = (
+  action: string,
+  destructive: boolean,
+  tokens: DirectionTokens,
+): Element => {
+  const fill = destructive ? tokens.marks.blocked : tokens.ink.text;
 
   return h_flex()
     .gap(buttonGap)
     .items_center()
     .justify_end()
     .child(dialogButton({ label: 'Cancel', key: null, fill: null }, tokens))
-    .child(dialogButton({ label: content.action, key: '↵', fill }, tokens));
+    .child(dialogButton({ label: action, key: '↵', fill }, tokens));
+};
+
+export const dialogActions = (ask: DialogAsk, tokens: DirectionTokens): Element => {
+  const content = askContent[ask];
+
+  return dialogActionsFor(content.action, content.destructive, tokens);
 };

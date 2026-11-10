@@ -53,6 +53,33 @@ const dialogDetail = (ask: DialogAsk, tokens: DirectionTokens): Element[] => {
   return [v_flex().children(lines)];
 };
 
+export const dialogFrame = (
+  title: Element,
+  body: Element,
+  actions: Element,
+  tokens: DirectionTokens,
+): Element => {
+  const card = overlayCard(tokens)
+    .relative()
+    .overflow_hidden()
+    .w(cardWidth)
+    .p(cardPadding)
+    .pt(cardPadding - titleLineBoxTrim)
+    .gap(dialogBlockGap)
+    .child(title)
+    .child(body)
+    .child(actions.mt(actionGroupGap - dialogBlockGap));
+
+  return v_flex()
+    .absolute()
+    .inset_0()
+    .items_center()
+    .justify_center()
+    .bg('#00000059')
+    .font_family(uiFont)
+    .child(card);
+};
+
 export const dialogLayer = (ask: DialogAsk, tokens: DirectionTokens): Element => {
   const body = v_flex()
     .gap(dialogBlockGap)
@@ -63,25 +90,7 @@ export const dialogLayer = (ask: DialogAsk, tokens: DirectionTokens): Element =>
     body.pl(markedBodyInset);
   }
 
-  const card = overlayCard(tokens)
-    .relative()
-    .overflow_hidden()
-    .w(cardWidth)
-    .p(cardPadding)
-    .pt(cardPadding - titleLineBoxTrim)
-    .gap(dialogBlockGap)
-    .child(dialogTitle(ask, tokens))
-    .child(body)
-    .child(dialogActions(ask, tokens).mt(actionGroupGap - dialogBlockGap));
-
-  return v_flex()
-    .absolute()
-    .inset_0()
-    .items_center()
-    .justify_center()
-    .bg('#00000059')
-    .font_family(uiFont)
-    .child(card);
+  return dialogFrame(dialogTitle(ask, tokens), body, dialogActions(ask, tokens), tokens);
 };
 
 export const dialogScene = (ask: DialogAsk, tokens: DirectionTokens): Element =>

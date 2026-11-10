@@ -12,171 +12,83 @@ import {
   readingInset,
   scrollBody,
 } from '../content/parts.ts';
-import { diffCounts } from '../panels/changes.ts';
 import { sectionDivider } from '../panels/frame.ts';
+import { errorLine } from '../sidebars/states.ts';
 import type { DirectionTokens } from '../tokens.ts';
-import { mergeMenu, readyActions } from './actions.ts';
-import type { PullState, PullTake } from './data.ts';
-import { filesFor, pullDiffs } from './data.ts';
-import { fileDiff, filesList } from './diff.ts';
-import { detailText, mergeBlockers, needsYouSection } from './parts.ts';
+import { mergeActionWidth, mergeMenu, readyActions } from './actions.ts';
+import type { PullView } from './data.ts';
+import { isReady } from './data.ts';
+import { filesSection } from './files.ts';
+import { needsYouSection } from './parts.ts';
+import { promptBar, promptHeader } from './prompt.ts';
 
 const factsRailWidth = 240;
 const railInset = 16;
-const menuTop = 104;
+const menuTop = 272;
 
-const filesSection = (state: PullState, tokens: DirectionTokens): Element => {
-  const files = filesFor(state);
-  const added = files.reduce((sum, file) => sum + file.add, 0);
-  const removed = files.reduce((sum, file) => sum + file.del, 0);
-  const open = state === 'ready';
-
-  const section = v_flex()
-    .flex_none()
-    .min_w(0)
-    .child(
-      contentSectionHeader(
-        { name: 'Files', count: files.length },
-        open,
-        diffCounts(added, removed, tokens),
-        tokens,
-      ),
-    );
-
-  if (open) {
-    section.child(filesList(state, false, tokens));
-  }
-
-  return section;
-};
-
-const overview = (state: PullState, item: ContentItem, tokens: DirectionTokens): Element => {
+const overview = (view: PullView, item: ContentItem, tokens: DirectionTokens): Element => {
+  const ready = isReady(view.state);
   const body = v_flex().flex_none().min_w(0);
 
-  if (state === 'blocked') {
-    body.child(needsYouSection(tokens));
+  if (view.queued && view.tray === 'header') {
+    body.child(promptHeader(tokens));
   }
 
-  return body
-    .child(contentSection({ name: 'Description' }, [description(item, tokens)], tokens))
-    .child(filesSection(state, tokens));
+  if (ready) {
+    body.child(readyActions(view.state, tokens).mx(readingInset).py(spacing.medium));
+  } else {
+    body.child(needsYouSection(view, tokens));
+  }
+
+  const foldedDescription = view.tray === 'header';
+
+  const descriptionSection = foldedDescription
+    ? contentSectionHeader({ name: 'Description' }, false, [], tokens)
+    : contentSection({ name: 'Description' }, [description(item, tokens)], tokens);
+
+  const filesOpen = ready || view.state === 'zoomed';
+
+  return body.child(descriptionSection).child(filesSection(view.state, filesOpen, tokens));
 };
 
-const factsRail = (
-  take: PullTake,
-  state: PullState,
-  item: ContentItem,
-  tokens: DirectionTokens,
-): Element => {
-  const rail = scrollBody('pr-facts')
-    .w(factsRailWidth)
-    .flex_none()
-    .p(railInset)
-    .gap(spacing.large)
-    .border_l(1)
-    .border_color(tokens.pane.headerDivider);
-
-  const status = state === 'ready' ? readyActions(take, tokens) : mergeBlockers(tokens);
-
-  rail.child(status).child(factRows(item.facts, tokens));
-
-  if (state === 'diff') {
-    rail
-      .child(
-        contentSectionHeader({ name: 'Files', count: filesFor(state).length }, true, [], tokens).mx(
-          0,
-        ),
-      )
-      .child(filesList(state, true, tokens).mx(-railInset));
-  }
-
-  return rail;
-};
-
-const leftFileDiff = (item: ContentItem, tokens: DirectionTokens): Element =>
-  v_flex()
-    .flex_1()
-    .min_h(0)
-    .min_w(0)
-    .child(itemHeading(item, tokens))
-    .child(
-      detailText('1 check failing · 2 threads unresolved · changes requested', tokens)
-        .mx(readingInset)
-        .pb(spacing.large),
-    )
-    .child(sectionDivider(tokens))
-    .child(
-      h_flex()
-        .flex_1()
-        .min_h(0)
-        .min_w(0)
-        .items_stretch()
-        .child(
-          scrollBody('pr-file-navigation')
-            .w(factsRailWidth)
-            .flex_none()
-            .border_r(1)
-            .border_color(tokens.pane.headerDivider)
-            .child(
-              contentSectionHeader(
-                { name: 'Files', count: filesFor('diff').length },
-                true,
-                [],
-                tokens,
-              ),
-            )
-            .child(filesList('diff', true, tokens)),
-        )
-        .child(scrollBody('pr-diff').child(fileDiff(pullDiffs[0], tokens))),
-    );
-
-export const pullBody = (
-  take: PullTake,
-  state: PullState,
-  item: ContentItem,
-  tokens: DirectionTokens,
-): Element => {
-  if (take === 'agent' && state === 'diff') {
-    return leftFileDiff(item, tokens);
-  }
-
+export const pullBody = (view: PullView, item: ContentItem, tokens: DirectionTokens): Element => {
   const reading = scrollBody('pr-reading').child(itemHeading(item, tokens));
 
-  if (state === 'blocked') {
-    return reading
-      .child(factsBlock(item.facts, tokens))
-      .child(sectionDivider(tokens))
-      .child(overview(state, item, tokens))
-      .pb(spacing.large);
+  if (view.state === 'unreachable') {
+    return reading.child(
+      errorLine('Could not read PR · GitHub is unreachable', tokens).mt(spacing.medium),
+    );
   }
 
-  const content = state === 'diff' ? fileDiff(pullDiffs[0], tokens) : overview(state, item, tokens);
+  const wide = view.state === 'zoomed';
 
-  reading.child(content).pb(spacing.large);
+  if (!wide) {
+    reading.child(factsBlock(item.facts, tokens)).child(sectionDivider(tokens));
+  }
 
-  const body = v_flex()
-    .relative()
-    .flex_1()
-    .min_h(0)
-    .min_w(0)
-    .child(
-      h_flex()
-        .flex_1()
-        .min_h(0)
-        .min_w(0)
-        .items_stretch()
-        .child(reading)
-        .child(factsRail(take, state, item, tokens)),
-    );
+  reading.child(overview(view, item, tokens)).pb(spacing.large);
+  const column = v_flex().flex_1().min_h(0).min_w(0).child(reading);
 
-  if (take === 'split' && state === 'ready') {
+  if (view.queued && view.tray === 'bar') {
+    column.child(promptBar(tokens));
+  }
+
+  const body = h_flex().relative().flex_1().min_h(0).min_w(0).items_stretch().child(column);
+
+  if (wide) {
     body.child(
-      mergeMenu(tokens)
-        .absolute()
-        .right(railInset)
-        .top(menuTop)
-        .w(factsRailWidth - railInset * 2),
+      scrollBody('pr-facts')
+        .w(factsRailWidth)
+        .flex_none()
+        .p(railInset)
+        .border_l(1)
+        .border_color(tokens.pane.headerDivider)
+        .child(factRows(item.facts, tokens)),
     );
+  }
+
+  if (view.state === 'ready-menu') {
+    body.child(mergeMenu(tokens).absolute().left(readingInset).top(menuTop).w(mergeActionWidth));
   }
 
   return body;

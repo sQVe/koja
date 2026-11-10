@@ -2,36 +2,54 @@ import type { FakeChange } from '../../scenes/shellContent.ts';
 import type { ContentItem } from '../content/data.ts';
 import { contentItems, pullFiles } from '../content/data.ts';
 
-export type PullTake = 'merge' | 'agent' | 'split';
-export type PullState = 'blocked' | 'ready' | 'diff';
+export type PullState =
+  | 'blocked'
+  | 'sent'
+  | 'ready'
+  | 'ready-menu'
+  | 'merge-confirm'
+  | 'merge-failed'
+  | 'checks-failed'
+  | 'unreachable'
+  | 'normal'
+  | 'zoomed';
+
+type PromptTray = 'bar' | 'header' | 'section';
+export type PullScene = PullState | 'tray-bar' | 'tray-header' | 'tray-section';
+
+export interface PullView {
+  state: PullState;
+  tray: PromptTray;
+  queued: boolean;
+}
 
 export interface PullThread {
-  path: string;
   reference: string;
+  path: string;
   author: string;
   text: string;
   snippet: string[];
 }
 
-export interface DiffLine {
-  old: number | null;
-  current: number | null;
-  kind: 'context' | 'added' | 'removed';
-  text: string;
-  thread?: PullThread;
-}
+export const pullViews: Record<PullScene, PullView> = {
+  'tray-bar': { state: 'blocked', tray: 'bar', queued: true },
+  'tray-header': { state: 'blocked', tray: 'header', queued: true },
+  'tray-section': { state: 'blocked', tray: 'section', queued: true },
+  blocked: { state: 'blocked', tray: 'bar', queued: false },
+  sent: { state: 'sent', tray: 'bar', queued: false },
+  ready: { state: 'ready', tray: 'bar', queued: false },
+  'ready-menu': { state: 'ready-menu', tray: 'bar', queued: false },
+  'merge-confirm': { state: 'merge-confirm', tray: 'bar', queued: false },
+  'merge-failed': { state: 'merge-failed', tray: 'bar', queued: false },
+  'checks-failed': { state: 'checks-failed', tray: 'bar', queued: false },
+  unreachable: { state: 'unreachable', tray: 'bar', queued: false },
+  normal: { state: 'normal', tray: 'bar', queued: false },
+  zoomed: { state: 'zoomed', tray: 'bar', queued: true },
+};
 
-interface DiffHunk {
-  range: string;
-  lines: DiffLine[];
-}
+const readyStates = new Set<PullState>(['ready', 'ready-menu', 'merge-confirm', 'merge-failed']);
 
-export interface PullDiff {
-  path: string;
-  added: number;
-  removed: number;
-  hunks: DiffHunk[];
-}
+export const isReady = (state: PullState): boolean => readyStates.has(state);
 
 const modifiedRows: FakeChange = {
   path: 'src/mods/koja-spaces/rows.ts',
@@ -40,7 +58,7 @@ const modifiedRows: FakeChange = {
   del: 2,
 };
 
-const blockedFiles: FakeChange[] = pullFiles.map((file) =>
+const blockedFiles = pullFiles.map((file) =>
   file.path === modifiedRows.path ? modifiedRows : file,
 );
 
@@ -53,6 +71,7 @@ export const checkFailure = {
   path: 'src/mods/koja-spaces/rows.ts:48',
   message: "Type 'string' is not assignable to type 'RowLook'.",
   age: 'failed 3m ago',
+  staleAge: 'failed 9m ago',
 };
 
 export const pullThreads: [PullThread, PullThread] = [
@@ -84,12 +103,13 @@ const blockedItem: ContentItem = {
   ...contentItems.pr,
   description: ['Keep the selected space and repository context visible when groups fold.'],
   facts: [
-    { name: 'Branch', value: 'me-1090-design-the-sidebar → main', wrap: true },
+    { name: 'Branch', value: 'me-1090-design-the-sidebar → main', truncateMiddle: true },
     { name: 'Ticket', value: 'ME-1090', target: 'Linear' },
     { name: 'Checks', value: '1 failing · 3 passed', checkState: 'failing' },
     { name: 'Threads', value: '2 unresolved · 1 resolved' },
     { name: 'Review', value: 'Changes requested by jonas-l', wrap: true },
     { name: 'Files', value: '9 changed', diff: blockedTotals },
+    { name: 'Agent', value: 'Design the sidebar', target: 'agent' },
   ],
 };
 
@@ -103,98 +123,32 @@ const readyItem: ContentItem = {
     'Adds compact branch rows, review status, and a direct path back to the agent terminal.',
   ],
   facts: [
-    { name: 'Branch', value: 'me-1091-stack-panel → main', wrap: true },
+    { name: 'Branch', value: 'me-1091-stack-panel → main', truncateMiddle: true },
     { name: 'Ticket', value: 'ME-1091', target: 'Linear' },
     { name: 'Checks', value: '4 passed', checkState: 'passed' },
     { name: 'Threads', value: '0 unresolved · 2 resolved' },
     { name: 'Review', value: 'Approved by jonas-l' },
     { name: 'Merge', value: 'No conflicts' },
     { name: 'Files', value: '5 changed', diff: { added: 100, removed: 3 } },
+    { name: 'Agent', value: 'Design the sidebar', target: 'agent' },
   ],
 };
 
 export const pullItem = (state: PullState): ContentItem => {
-  const item = state === 'ready' ? readyItem : blockedItem;
+  if (state === 'unreachable') {
+    return { ...blockedItem, title: null, state: null, readAge: null, facts: [] };
+  }
 
-  return {
-    ...item,
-    facts: [...item.facts, { name: 'Agent', value: 'Design the sidebar', target: 'agent' }],
-  };
+  if (state === 'checks-failed') {
+    const facts = blockedItem.facts.map((fact) =>
+      fact.name === 'Checks' ? { ...fact, age: 'synced 6m ago' } : fact,
+    );
+
+    return { ...blockedItem, facts };
+  }
+
+  return isReady(state) ? readyItem : blockedItem;
 };
 
 export const filesFor = (state: PullState): FakeChange[] =>
-  state === 'ready' ? readyFiles : blockedFiles;
-
-export const pullDiffs: [PullDiff, PullDiff] = [
-  {
-    path: 'src/mods/koja-spaces/rows.ts',
-    added: 86,
-    removed: 2,
-    hunks: [
-      {
-        range: '@@ −45,4 +45,5 @@ selected space',
-        lines: [
-          { old: 45, current: 45, kind: 'context', text: 'export const groupRow = (space) => {' },
-          { old: 46, current: null, kind: 'removed', text: '  if (space.folded) return null;' },
-          {
-            old: null,
-            current: 46,
-            kind: 'added',
-            text: '  if (space.folded && !space.selected) return null;',
-          },
-          { old: 47, current: 47, kind: 'context', text: '  const look = rowLook(space);' },
-          {
-            old: null,
-            current: 48,
-            kind: 'added',
-            text: '  return selectedRow(space, look);',
-            thread: pullThreads[0],
-          },
-          { old: 48, current: 49, kind: 'context', text: '};' },
-        ],
-      },
-      {
-        range: '@@ −70,3 +71,4 @@ visible rows',
-        lines: [
-          {
-            old: 70,
-            current: 71,
-            kind: 'context',
-            text: 'const visibleRows = groups.flatMap((group) => {',
-          },
-          {
-            old: 71,
-            current: null,
-            kind: 'removed',
-            text: '  return group.folded ? [] : group.spaces;',
-          },
-          {
-            old: null,
-            current: 72,
-            kind: 'added',
-            text: '  return group.spaces.filter(isVisible);',
-          },
-          { old: 72, current: 73, kind: 'context', text: '});' },
-          { old: null, current: 74, kind: 'added', text: '  return visibleRows;' },
-        ],
-      },
-    ],
-  },
-  {
-    path: 'src/kit/repoLabel.ts',
-    added: 18,
-    removed: 10,
-    hunks: [
-      {
-        range: '@@ −27,3 +27,4 @@ repository and branch',
-        lines: [
-          { old: 27, current: null, kind: 'removed', text: '  label(repository).flex_1()' },
-          { old: null, current: 27, kind: 'added', text: '  label(repository).flex_none()' },
-          { old: 28, current: 28, kind: 'context', text: '  label(branch).truncate()' },
-          { old: null, current: 29, kind: 'added', text: '    .min_w(0).flex_1()' },
-          { old: 29, current: 30, kind: 'context', text: ');' },
-        ],
-      },
-    ],
-  },
-];
+  isReady(state) ? readyFiles : blockedFiles;

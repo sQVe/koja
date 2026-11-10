@@ -13,6 +13,7 @@ export interface ContentFact {
   age?: string;
   warning?: boolean;
   wrap?: boolean;
+  truncateMiddle?: boolean;
   diff?: { added: number; removed: number };
 }
 

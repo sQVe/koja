@@ -6,28 +6,59 @@ import { icon } from '../../../../kit/index.ts';
 import { spacing } from '../../../../kit/size.ts';
 import {
   checkMark,
-  contentSection,
+  contentSectionHeader,
   paragraph,
   readingInset,
-  saveRecoveryButton,
   sectionBodyInset,
 } from '../content/parts.ts';
 import { fixedLabel, label, row, styled, terminalFont } from '../parts.ts';
 import { workNeedMark } from '../sidebars/facts.ts';
+import { errorLine } from '../sidebars/states.ts';
 import type { DirectionTokens } from '../tokens.ts';
-import type { PullThread } from './data.ts';
+import type { PullThread, PullView } from './data.ts';
 import { checkFailure, pullThreads } from './data.ts';
+import { promptAction, sectionSend } from './prompt.ts';
 
 const markSlotWidth = 12;
-
-const markSlot = (mark: Element): Element =>
-  h_flex().w(markSlotWidth).flex_none().items_center().justify_center().child(mark);
+const selectionInset = 18;
 
 export const detailText = (text: string, tokens: DirectionTokens): Element =>
   styled(div().min_w(0), tokens.text.detail, tokens.ink.dim).child(text);
 
-const detailBlock = (tokens: DirectionTokens): Element =>
-  v_flex().flex_none().min_w(0).ml(sectionBodyInset(tokens)).mr(readingInset);
+const selectionSlot = (picked: boolean, tokens: DirectionTokens): Element => {
+  const slot = h_flex().w(markSlotWidth).flex_none().items_center().justify_center();
+
+  if (picked) {
+    slot.child(icon('check', 'xsmall').text_color(tokens.ink.text));
+  }
+
+  return slot;
+};
+
+const itemMark = (
+  mark: Element,
+  picked: boolean,
+  view: PullView,
+  tokens: DirectionTokens,
+): Element => {
+  const start = h_flex().items_center().gap(spacing.small);
+
+  if (view.tray === 'section') {
+    start.child(selectionSlot(picked, tokens));
+  }
+
+  return start.child(h_flex().w(markSlotWidth).justify_center().child(mark));
+};
+
+const detailBlock = (view: PullView, tokens: DirectionTokens): Element => {
+  const extra = view.tray === 'section' ? selectionInset : 0;
+
+  return v_flex()
+    .flex_none()
+    .min_w(0)
+    .ml(sectionBodyInset(tokens) + extra)
+    .mr(readingInset);
+};
 
 const logLines = (lines: string[], tokens: DirectionTokens): Element =>
   v_flex()
@@ -38,32 +69,40 @@ const logLines = (lines: string[], tokens: DirectionTokens): Element =>
     .border_color(tokens.pane.border)
     .children(lines.map((line) => detailText(line, tokens).font_family(terminalFont)));
 
-const failedCheck = (tokens: DirectionTokens): Element =>
-  v_flex()
+const failedCheck = (view: PullView, tokens: DirectionTokens): Element => {
+  const stale = view.state === 'checks-failed';
+  const nameInk = stale ? tokens.ink.dim : tokens.ink.text;
+  const stateInk = stale ? tokens.ink.dim : tokens.marks.blocked;
+  const age = stale ? checkFailure.staleAge : checkFailure.age;
+
+  return v_flex()
     .flex_none()
     .min_w(0)
     .child(
       row(
         {
           selected: false,
-          start: markSlot(checkMark('failing', tokens)),
-          label: label('typecheck', tokens.text.body, tokens.ink.text),
+          start: itemMark(checkMark('failing', tokens), true, view, tokens),
+          label: label('typecheck', tokens.text.body, nameInk),
           end: [
-            fixedLabel('failing', tokens.text.detail, tokens.marks.blocked),
-            saveRecoveryButton('Send to agent', tokens),
+            fixedLabel('failing', tokens.text.detail, stateInk),
+            promptAction(true, view, tokens),
           ],
         },
         tokens,
       ),
     )
     .child(
-      detailBlock(tokens)
+      detailBlock(view, tokens)
         .child(logLines([checkFailure.path, checkFailure.message], tokens))
-        .child(detailText(checkFailure.age, tokens)),
+        .child(detailText(age, tokens)),
     );
+};
 
-const threadRow = (thread: PullThread, tokens: DirectionTokens): Element =>
-  v_flex()
+const threadRow = (thread: PullThread, view: PullView, tokens: DirectionTokens): Element => {
+  const picked = thread === pullThreads[0];
+
+  return v_flex()
     .flex_none()
     .min_w(0)
     .pb(spacing.xxsmall)
@@ -71,72 +110,41 @@ const threadRow = (thread: PullThread, tokens: DirectionTokens): Element =>
       row(
         {
           selected: false,
-          start: markSlot(workNeedMark('review', tokens)),
+          start: itemMark(workNeedMark('review', tokens), picked, view, tokens),
           label: label(thread.reference, tokens.text.title, tokens.ink.text),
           end: [
             fixedLabel('unresolved', tokens.text.detail, tokens.ink.dim),
-            saveRecoveryButton('Send to agent', tokens),
+            promptAction(picked, view, tokens),
           ],
         },
         tokens,
       ),
     )
     .child(
-      detailBlock(tokens)
+      detailBlock(view, tokens)
         .child(detailText(thread.author, tokens))
         .child(paragraph(thread.text, tokens))
         .child(logLines(thread.snippet, tokens)),
     );
+};
 
-export const needsYouSection = (tokens: DirectionTokens): Element =>
-  contentSection(
-    { name: 'Needs you', count: 3 },
-    [
-      failedCheck(tokens),
-      ...pullThreads.map((thread) => threadRow(thread, tokens)),
-      detailBlock(tokens).child(detailText('3 checks passed · 1 thread resolved', tokens)),
-    ],
-    tokens,
-  );
+export const needsYouSection = (view: PullView, tokens: DirectionTokens): Element => {
+  const header = contentSectionHeader({ name: 'Needs you', count: 3 }, true, [], tokens);
 
-export const threadCard = (thread: PullThread, tokens: DirectionTokens): Element =>
-  v_flex()
-    .flex_none()
-    .min_w(0)
-    .p(spacing.medium)
-    .gap(spacing.xsmall)
-    .rounded(tokens.controls.radius)
-    .border(1)
-    .border_color(tokens.pane.border)
+  if (view.tray === 'section') {
+    header.child(sectionSend(tokens));
+  }
+
+  const section = v_flex().flex_none().min_w(0).child(header);
+
+  if (view.state === 'checks-failed') {
+    section.child(errorLine('Could not sync checks · showing checks from 6m ago', tokens));
+  }
+
+  return section
+    .child(failedCheck(view, tokens))
+    .children(pullThreads.map((thread) => threadRow(thread, view, tokens)))
     .child(
-      h_flex()
-        .gap(spacing.small)
-        .items_center()
-        .child(icon('message-square', 'small').text_color(tokens.marks.working))
-        .child(detailText(`${thread.reference} · unresolved`, tokens)),
-    )
-    .child(paragraph(thread.text, tokens))
-    .child(
-      h_flex()
-        .items_center()
-        .gap(spacing.small)
-        .child(detailText(thread.author, tokens).flex_1())
-        .child(saveRecoveryButton('Send to agent', tokens)),
+      detailBlock(view, tokens).child(detailText('3 checks passed · 1 thread resolved', tokens)),
     );
-
-const mergeReason = (text: string, mark: Element, tokens: DirectionTokens): Element =>
-  h_flex()
-    .min_w(0)
-    .gap(spacing.small)
-    .items_start()
-    .child(markSlot(mark).mt(spacing.xxsmall))
-    .child(detailText(text, tokens));
-
-export const mergeBlockers = (tokens: DirectionTokens): Element =>
-  v_flex()
-    .flex_none()
-    .min_w(0)
-    .child(mergeReason('1 check failing', checkMark('failing', tokens), tokens))
-    .child(mergeReason('2 threads unresolved', workNeedMark('review', tokens), tokens))
-    .child(mergeReason('Changes requested by jonas-l', workNeedMark('review', tokens), tokens))
-    .child(detailText('Merge waits for these.', tokens));
+};
