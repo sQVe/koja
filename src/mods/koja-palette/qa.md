@@ -19,7 +19,9 @@ Use `type ":"`, not `key colon`: `key` does not add Shift.
 ## Driving steps
 
 1. Run `bun run sandbox shot <file>` and read the image to see the window.
-2. Run `bun run sandbox key b Control_L` to enter normal mode, then the entry point's command.
+2. When normal mode is off, run `bun run sandbox key b Control_L` to enter it. Then run the entry
+   point's command. Normal mode stays on after the palette closes, so skip `ctrl-b` for the next
+   entry point.
 3. Wait one second, then type a query with `bun run sandbox type "<text>"`.
 4. Clear the query with `key BackSpace`, once per letter.
 5. Move the selection with `bun run sandbox key <keysym>`: `Down`, `Up`, `Page_Down`, or `Page_Up`.
