@@ -71,12 +71,6 @@ export const fileDiff = (file: PullDiff, tokens: DirectionTokens): Element =>
       ),
     );
 
-export const inlineDiffs = (tokens: DirectionTokens): Element =>
-  v_flex()
-    .flex_none()
-    .min_w(0)
-    .children(pullDiffs.map((file) => fileDiff(file, tokens)));
-
 const fileRow = (
   file: FakeChange,
   selected: boolean,
@@ -101,24 +95,6 @@ const fileRow = (
     },
     tokens,
   );
-};
-
-export const compactFiles = (tokens: DirectionTokens): Element => {
-  const files = filesFor('diff');
-  const columnLength = 3;
-
-  const columns = [0, columnLength, columnLength * 2].map((start) =>
-    v_flex()
-      .flex_1()
-      .min_w(0)
-      .children(
-        files
-          .slice(start, start + columnLength)
-          .map((file) => fileRow(file, file.path === pullDiffs[0].path, tokens, true)),
-      ),
-  );
-
-  return h_flex().flex_none().min_w(0).children(columns);
 };
 
 export const filesList = (state: PullState, selected: boolean, tokens: DirectionTokens): Element =>

@@ -21,108 +21,161 @@ await mock.module('../../../../kit/index.ts', () =>
 );
 
 const scenePath = './scene.ts';
+const tokensPath = '../koja.ts';
 
 const { pullRequestScene } = (await import(scenePath)) as {
-  pullRequestScene: (variant: string, state: string) => DrawnElement;
+  pullRequestScene: (take: string, state: string) => DrawnElement;
 };
 
-const variants = ['reader', 'box', 'handoff'];
+const { koja } = (await import(tokensPath)) as {
+  koja: { ink: { text: string }; marks: { working: string; modified: string } };
+};
+
+const takes = ['merge', 'agent', 'split'];
 
 const descendants = (element: DrawnElement): DrawnElement[] => [
   element,
   ...element.kids.flatMap(descendants),
 ];
 
+const primaryAction = (scene: DrawnElement): string[] => {
+  const button = descendants(scene).find((element) =>
+    element.backgroundColors.includes(koja.ink.text),
+  );
+
+  return button === undefined ? [] : drawnTexts(button);
+};
+
 afterAll(() => {
   mock.restore();
 });
 
-test('PR scenes draw all nine insert-mode views with the requested PR and pane', () => {
-  for (const variant of variants) {
+test('PR takes draw all nine insert-mode views with separate Diff panes', () => {
+  for (const take of takes) {
     for (const state of ['blocked', 'ready', 'diff']) {
-      const scene = pullRequestScene(variant, state);
-      const texts = drawnTexts(scene);
+      const texts = drawnTexts(pullRequestScene(take, state));
       const identifier = state === 'ready' ? 'koja #44 · GitHub' : 'koja #41 · GitHub';
-      const pane = variant === 'box' && state === 'diff' ? 'Diff' : 'Pull request';
+      const pane = state === 'diff' ? 'Diff' : 'Pull request';
 
       expect(texts).toContain(identifier);
       expect(texts).toContain(pane);
       expect(texts).toContain('Insert');
       expect(texts).not.toContain('Normal');
       expect(texts.includes('> bun run check')).toBe(state === 'blocked');
+      expect(texts).not.toContain('Overview');
+      expect(texts).not.toContain('Files 9');
     }
   }
 });
 
-test('blocked PRs show the failure and both unresolved comments without a merge action', () => {
-  for (const variant of variants) {
-    const texts = drawnTexts(pullRequestScene(variant, 'blocked'));
+test('every blocked take offers three agent handoffs with logs and thread snippets', () => {
+  for (const take of takes) {
+    const texts = drawnTexts(pullRequestScene(take, 'blocked'));
 
+    expect(texts).toContain('Needs you');
     expect(texts).toContain("Type 'string' is not assignable to type 'RowLook'.");
     expect(texts).toContain('Keep the selected row visible when the group folds.');
     expect(texts).toContain('Can the branch truncate before the repository name?');
+    expect(texts).toContain('48  return selectedRow(space, look);');
+    expect(texts).toContain('28  label(branch).truncate()');
+    expect(texts.filter((text) => text === 'Send to agent')).toHaveLength(3);
     expect(texts).not.toContain('Squash and merge');
     expect(texts).not.toContain('Ask agent to merge');
   }
 });
 
-test('ready PRs distinguish reading, direct merge, and agent handoff', () => {
-  const reader = drawnTexts(pullRequestScene('reader', 'ready'));
-  const box = drawnTexts(pullRequestScene('box', 'ready'));
-  const handoff = drawnTexts(pullRequestScene('handoff', 'ready'));
+test('ready merge and agent takes offer both routes with opposite primary actions', () => {
+  for (const take of ['merge', 'agent']) {
+    const scene = pullRequestScene(take, 'ready');
+    const texts = drawnTexts(scene);
+    const primary = take === 'merge' ? 'Squash and merge' : 'Ask agent to merge';
 
-  for (const texts of [reader, box, handoff]) {
     expect(texts).toContain('Ready to merge');
+    expect(texts).toContain('Squash and merge');
+    expect(texts).toContain('Ask agent to merge');
     expect(texts).not.toContain('Needs you');
-  }
-
-  expect(reader).not.toContain('Squash and merge');
-  expect(reader).not.toContain('Ask agent to merge');
-  expect(box).toContain('Squash and merge');
-  expect(box).not.toContain('Ask agent to merge');
-  expect(handoff).toContain('Ask agent to merge');
-  expect(handoff).not.toContain('Squash and merge');
-  expect(handoff).toContain('Overview');
-  expect(handoff).not.toContain('Overview 0');
-  expect(handoff).toContain('Files 5');
-
-  expect(
-    drawnTexts(pullRequestScene('handoff', 'blocked')).filter((text) => text === 'Send to agent'),
-  ).toHaveLength(3);
-});
-
-test('handoff facts link the existing space agent terminal in every view', () => {
-  for (const state of ['blocked', 'ready', 'diff']) {
-    const scene = pullRequestScene('handoff', state);
-
-    const fact = descendants(scene).findLast(
-      (element) =>
-        drawnTexts(element).includes('Agent') && drawnIcons(element).includes('terminal'),
-    );
-
-    expect(fact).toBeDefined();
-    expect(drawnTexts(fact!)).toEqual(['Agent', 'Design the sidebar']);
+    expect(primaryAction(scene)).toEqual([primary]);
+    expect(texts).toContain('src/mods/koja-stack/main.ts');
   }
 });
 
-test('diff views put the thread directly after its commented line and show two numbered hunks', () => {
-  for (const variant of variants) {
-    const scene = pullRequestScene(variant, 'diff');
+test('the ready split take shows its four merge choices and marks the current choice', () => {
+  const scene = pullRequestScene('split', 'ready');
+  const texts = drawnTexts(scene);
+
+  expect(primaryAction(scene)).toEqual(['Squash and merge']);
+  expect(texts.filter((text) => text === 'Squash and merge')).toHaveLength(2);
+  expect(texts).toContain('Ask agent to merge');
+  expect(texts).toContain('Merge commit');
+  expect(texts).toContain('Rebase and merge');
+
+  const choice = descendants(scene).findLast((element) => {
+    const choiceTexts = drawnTexts(element);
+
+    return choiceTexts.includes('Squash and merge') && drawnIcons(element).includes('check');
+  });
+
+  expect(choice).toBeDefined();
+  expect(drawnTexts(choice!)).toEqual(['Squash and merge']);
+  expect(drawnIcons(scene)).toContain('chevron-down');
+});
+
+test('all PR takes link the existing space agent terminal', () => {
+  for (const take of takes) {
+    for (const state of ['blocked', 'ready']) {
+      const scene = pullRequestScene(take, state);
+
+      const fact = descendants(scene).findLast(
+        (element) =>
+          drawnTexts(element).includes('Agent') && drawnIcons(element).includes('terminal'),
+      );
+
+      expect(fact).toBeDefined();
+      expect(drawnTexts(fact!)).toEqual(['Agent', 'Design the sidebar']);
+    }
+  }
+});
+
+test('every Diff pane gives its anchored thread an agent action and keeps amber marks', () => {
+  for (const take of takes) {
+    const scene = pullRequestScene(take, 'diff');
     const texts = drawnTexts(scene);
     const anchor = texts.indexOf('  return selectedRow(space, look);');
     const comment = texts.indexOf('Keep the selected row visible when the group folds.');
+    const action = texts.indexOf('Send to agent');
 
     expect(anchor).toBeGreaterThan(-1);
     expect(comment).toBeGreaterThan(anchor);
-    expect(comment).toBeLessThan(texts.indexOf('  return visibleRows;'));
+    expect(action).toBeGreaterThan(comment);
+    expect(action).toBeLessThan(texts.indexOf('  return visibleRows;'));
     expect(texts).toContain('48');
     expect(texts).toContain('72');
-    expect(drawnIcons(scene)).toContain('message-square');
+    expect(texts).toContain('−2');
 
-    const rows = descendants(scene).filter((element) =>
-      element.texts.includes('  return selectedRow(space, look);'),
-    );
+    const pane = descendants(scene).findLast((element) => {
+      const paneTexts = drawnTexts(element);
 
-    expect(rows).toHaveLength(1);
+      return paneTexts.includes('Diff') && paneTexts.includes('rows.ts:48 · unresolved');
+    });
+
+    const marks = descendants(pane!).filter((element) => element.path === 'message-square');
+
+    const amber = new Set([koja.marks.working, koja.marks.modified]);
+
+    expect(marks.length).toBeGreaterThan(0);
+
+    expect(marks.every((mark) => mark.textColors.some((color) => amber.has(color)))).toBe(true);
   }
+});
+
+test('the agent Diff pane replaces rail facts with one blocker line and a leading file list', () => {
+  const texts = drawnTexts(pullRequestScene('agent', 'diff'));
+
+  expect(texts).toContain('1 check failing · 2 threads unresolved · changes requested');
+  expect(texts).not.toContain('Branch');
+  expect(texts).not.toContain('Review');
+
+  expect(texts.indexOf('rows.ts')).toBeLessThan(
+    texts.indexOf('  return selectedRow(space, look);'),
+  );
 });

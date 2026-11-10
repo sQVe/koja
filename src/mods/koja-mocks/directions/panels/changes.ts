@@ -12,7 +12,7 @@ import { branchChanges } from './data.ts';
 
 export interface SwitchOption {
   name: string;
-  count?: number;
+  count: number;
   active: boolean;
 }
 
@@ -104,16 +104,14 @@ export const uncommittedCount = changeRows.length;
 
 const switchPill = (
   name: string,
-  count: number | undefined,
+  count: number,
   active: boolean,
   tokens: DirectionTokens,
 ): Element => {
   const { ink } = tokens;
   const idle = count === 0 ? ink.dim : ink.muted;
 
-  const text = count === undefined ? name : `${name} ${count}`;
-
-  return togglePillInk(text, active, active ? ink.text : idle, tokens);
+  return togglePillInk(`${name} ${count}`, active, active ? ink.text : idle, tokens);
 };
 
 export const changeSwitchOf = (look: SwitchLook, tokens: DirectionTokens): Element =>

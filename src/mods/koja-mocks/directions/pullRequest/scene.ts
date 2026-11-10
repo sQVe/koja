@@ -7,13 +7,13 @@ import { card, cardSlot } from '../parts.ts';
 import type { DirectionTokens } from '../tokens.ts';
 import type { DirectionTab } from '../window.ts';
 import { directionWindow } from '../window.ts';
-import type { PullState, PullVariant } from './data.ts';
+import type { PullState, PullTake } from './data.ts';
 import { pullItem } from './data.ts';
 import { pullBody } from './layout.ts';
 
-export const pullRequestScene = (variant: PullVariant, state: PullState): Element => {
-  const item = pullItem(variant, state);
-  const separateDiff = variant === 'box' && state === 'diff';
+export const pullRequestScene = (take: PullTake, state: PullState): Element => {
+  const item = pullItem(state);
+  const separateDiff = state === 'diff';
   const headerItem = separateDiff ? { ...item, name: 'Diff', icon: 'git-compare' as const } : item;
   const tokens: DirectionTokens = { ...koja, areas: { ...koja.areas, shellPaneWidth: 400 } };
 
@@ -43,7 +43,7 @@ export const pullRequestScene = (variant: PullVariant, state: PullState): Elemen
       cardSlot(
         card(true, paneTokens)
           .child(contentHeader(headerItem, paneTokens))
-          .child(pullBody(variant, state, item, paneTokens)),
+          .child(pullBody(take, state, item, paneTokens)),
         paneTokens,
       ).flex_1(),
     ],

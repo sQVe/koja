@@ -2,7 +2,7 @@ import type { FakeChange } from '../../scenes/shellContent.ts';
 import type { ContentItem } from '../content/data.ts';
 import { contentItems, pullFiles } from '../content/data.ts';
 
-export type PullVariant = 'reader' | 'box' | 'handoff';
+export type PullTake = 'merge' | 'agent' | 'split';
 export type PullState = 'blocked' | 'ready' | 'diff';
 
 export interface PullThread {
@@ -44,7 +44,7 @@ const blockedFiles: FakeChange[] = pullFiles.map((file) =>
   file.path === modifiedRows.path ? modifiedRows : file,
 );
 
-export const blockedTotals = {
+const blockedTotals = {
   added: blockedFiles.reduce((sum, file) => sum + file.add, 0),
   removed: blockedFiles.reduce((sum, file) => sum + file.del, 0),
 };
@@ -54,13 +54,6 @@ export const checkFailure = {
   message: "Type 'string' is not assignable to type 'RowLook'.",
   age: 'failed 3m ago',
 };
-
-export const pullChecks = [
-  { name: 'typecheck', detail: 'passed in 18s' },
-  { name: 'tests', detail: 'passed in 1m 12s' },
-  { name: 'style', detail: 'passed in 9s' },
-  { name: 'build', detail: 'passed in 24s' },
-];
 
 export const pullThreads: [PullThread, PullThread] = [
   {
@@ -120,12 +113,8 @@ const readyItem: ContentItem = {
   ],
 };
 
-export const pullItem = (variant: PullVariant, state: PullState): ContentItem => {
+export const pullItem = (state: PullState): ContentItem => {
   const item = state === 'ready' ? readyItem : blockedItem;
-
-  if (variant !== 'handoff') {
-    return item;
-  }
 
   return {
     ...item,

@@ -190,6 +190,28 @@ describe('scene lookup', () => {
     }
   });
 
+  test('all current PR takes open at shell size', () => {
+    for (const take of ['merge', 'agent', 'split']) {
+      for (const state of ['blocked', 'ready', 'diff']) {
+        const name = `pr-${take}-${state}`;
+
+        expect(findScene(name)).toHaveProperty('scene', {
+          name,
+          width: overlaySize.shellWidth,
+          height: overlaySize.shellHeight,
+        });
+      }
+    }
+  });
+
+  test('the discarded PR takes no longer open', () => {
+    for (const take of ['reader', 'box', 'handoff']) {
+      for (const state of ['blocked', 'ready', 'diff']) {
+        expect(findScene(`pr-${take}-${state}`)).toHaveProperty('error');
+      }
+    }
+  });
+
   test('a name past the last smoke scene gives an error', () => {
     expect('error' in findScene('smoke-5')).toBe(true);
   });

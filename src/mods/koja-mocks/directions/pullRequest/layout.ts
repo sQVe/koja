@@ -12,32 +12,24 @@ import {
   readingInset,
   scrollBody,
 } from '../content/parts.ts';
-import { changeSegmentsOf, diffCounts } from '../panels/changes.ts';
+import { diffCounts } from '../panels/changes.ts';
 import { sectionDivider } from '../panels/frame.ts';
 import type { DirectionTokens } from '../tokens.ts';
-import type { PullState, PullVariant } from './data.ts';
-import { blockedTotals, filesFor, pullDiffs } from './data.ts';
-import { compactFiles, fileDiff, filesList, inlineDiffs } from './diff.ts';
-import { checksSection, mergeBlock, needsYouSection, threadsSection } from './parts.ts';
+import { mergeMenu, readyActions } from './actions.ts';
+import type { PullState, PullTake } from './data.ts';
+import { filesFor, pullDiffs } from './data.ts';
+import { fileDiff, filesList } from './diff.ts';
+import { detailText, mergeBlockers, needsYouSection } from './parts.ts';
 
 const factsRailWidth = 240;
+const railInset = 16;
+const menuTop = 104;
 
-const viewSwitch = (state: PullState, tokens: DirectionTokens): Element =>
-  changeSegmentsOf(
-    [
-      { name: 'Overview', active: state !== 'diff' },
-      { name: 'Files', count: filesFor(state).length, active: state === 'diff' },
-    ],
-    tokens,
-  )
-    .ml(readingInset)
-    .my(spacing.small);
-
-const filesSection = (variant: PullVariant, state: PullState, tokens: DirectionTokens): Element => {
+const filesSection = (state: PullState, tokens: DirectionTokens): Element => {
   const files = filesFor(state);
   const added = files.reduce((sum, file) => sum + file.add, 0);
   const removed = files.reduce((sum, file) => sum + file.del, 0);
-  const open = variant !== 'reader' && state !== 'blocked';
+  const open = state === 'ready';
 
   const section = v_flex()
     .flex_none()
@@ -58,33 +50,20 @@ const filesSection = (variant: PullVariant, state: PullState, tokens: DirectionT
   return section;
 };
 
-const overview = (
-  variant: PullVariant,
-  state: PullState,
-  item: ContentItem,
-  tokens: DirectionTokens,
-): Element => {
+const overview = (state: PullState, item: ContentItem, tokens: DirectionTokens): Element => {
   const body = v_flex().flex_none().min_w(0);
 
-  if (variant === 'handoff') {
-    if (state !== 'ready') {
-      body.child(needsYouSection(tokens));
-    }
-  } else {
-    body.child(checksSection(state, tokens)).child(threadsSection(state, tokens));
+  if (state === 'blocked') {
+    body.child(needsYouSection(tokens));
   }
 
-  const foldedDescription = variant === 'box' && state === 'blocked';
-
-  const descriptionSection = foldedDescription
-    ? contentSectionHeader({ name: 'Description' }, false, [], tokens)
-    : contentSection({ name: 'Description' }, [description(item, tokens)], tokens);
-
-  return body.child(descriptionSection).child(filesSection(variant, state, tokens));
+  return body
+    .child(contentSection({ name: 'Description' }, [description(item, tokens)], tokens))
+    .child(filesSection(state, tokens));
 };
 
 const factsRail = (
-  variant: PullVariant,
+  take: PullTake,
   state: PullState,
   item: ContentItem,
   tokens: DirectionTokens,
@@ -92,90 +71,113 @@ const factsRail = (
   const rail = scrollBody('pr-facts')
     .w(factsRailWidth)
     .flex_none()
-    .p(spacing.large)
+    .p(railInset)
     .gap(spacing.large)
     .border_l(1)
     .border_color(tokens.pane.headerDivider);
 
-  if (state === 'ready' || variant === 'box') {
-    rail.child(mergeBlock(variant, state, tokens));
-  }
+  const status = state === 'ready' ? readyActions(take, tokens) : mergeBlockers(tokens);
 
-  rail.child(factRows(item.facts, tokens));
+  rail.child(status).child(factRows(item.facts, tokens));
 
-  if (variant === 'box' && state === 'diff') {
+  if (state === 'diff') {
     rail
-      .child(contentSectionHeader({ name: 'Files', count: 9 }, true, [], tokens).mx(0))
-      .child(filesList(state, true, tokens).mx(-spacing.large));
+      .child(
+        contentSectionHeader({ name: 'Files', count: filesFor(state).length }, true, [], tokens).mx(
+          0,
+        ),
+      )
+      .child(filesList(state, true, tokens).mx(-railInset));
   }
 
   return rail;
 };
 
-const diffBody = (variant: PullVariant, tokens: DirectionTokens): Element => {
-  if (variant === 'reader') {
-    return v_flex()
-      .min_w(0)
-      .flex_none()
-      .child(
-        contentSectionHeader(
-          { name: 'Files', count: 9 },
-          true,
-          diffCounts(blockedTotals.added, blockedTotals.removed, tokens),
-          tokens,
-        ),
-      )
-      .child(inlineDiffs(tokens));
-  }
-
-  const body = v_flex().flex_none().min_w(0);
-
-  if (variant === 'handoff') {
-    body.child(compactFiles(tokens)).child(sectionDivider(tokens));
-  }
-
-  return body.child(fileDiff(pullDiffs[0], tokens));
-};
+const leftFileDiff = (item: ContentItem, tokens: DirectionTokens): Element =>
+  v_flex()
+    .flex_1()
+    .min_h(0)
+    .min_w(0)
+    .child(itemHeading(item, tokens))
+    .child(
+      detailText('1 check failing · 2 threads unresolved · changes requested', tokens)
+        .mx(readingInset)
+        .pb(spacing.large),
+    )
+    .child(sectionDivider(tokens))
+    .child(
+      h_flex()
+        .flex_1()
+        .min_h(0)
+        .min_w(0)
+        .items_stretch()
+        .child(
+          scrollBody('pr-file-navigation')
+            .w(factsRailWidth)
+            .flex_none()
+            .border_r(1)
+            .border_color(tokens.pane.headerDivider)
+            .child(
+              contentSectionHeader(
+                { name: 'Files', count: filesFor('diff').length },
+                true,
+                [],
+                tokens,
+              ),
+            )
+            .child(filesList('diff', true, tokens)),
+        )
+        .child(scrollBody('pr-diff').child(fileDiff(pullDiffs[0], tokens))),
+    );
 
 export const pullBody = (
-  variant: PullVariant,
+  take: PullTake,
   state: PullState,
   item: ContentItem,
   tokens: DirectionTokens,
 ): Element => {
+  if (take === 'agent' && state === 'diff') {
+    return leftFileDiff(item, tokens);
+  }
+
   const reading = scrollBody('pr-reading').child(itemHeading(item, tokens));
 
   if (state === 'blocked') {
-    const facts =
-      variant === 'box'
-        ? item.facts.filter((fact) => ['Branch', 'Ticket', 'Files'].includes(fact.name))
-        : item.facts;
-
-    reading.child(factsBlock(facts, tokens)).child(sectionDivider(tokens));
-
-    if (variant === 'box') {
-      reading.child(mergeBlock(variant, state, tokens).mx(readingInset).my(spacing.xsmall));
-    }
+    return reading
+      .child(factsBlock(item.facts, tokens))
+      .child(sectionDivider(tokens))
+      .child(overview(state, item, tokens))
+      .pb(spacing.large);
   }
 
-  if (variant === 'handoff') {
-    reading.child(viewSwitch(state, tokens));
-  }
-
-  const content =
-    state === 'diff' ? diffBody(variant, tokens) : overview(variant, state, item, tokens);
+  const content = state === 'diff' ? fileDiff(pullDiffs[0], tokens) : overview(state, item, tokens);
 
   reading.child(content).pb(spacing.large);
 
-  if (state === 'blocked') {
-    return reading;
-  }
-
-  return h_flex()
+  const body = v_flex()
+    .relative()
     .flex_1()
     .min_h(0)
     .min_w(0)
-    .items_stretch()
-    .child(reading)
-    .child(factsRail(variant, state, item, tokens));
+    .child(
+      h_flex()
+        .flex_1()
+        .min_h(0)
+        .min_w(0)
+        .items_stretch()
+        .child(reading)
+        .child(factsRail(take, state, item, tokens)),
+    );
+
+  if (take === 'split' && state === 'ready') {
+    body.child(
+      mergeMenu(tokens)
+        .absolute()
+        .right(railInset)
+        .top(menuTop)
+        .w(factsRailWidth - railInset * 2),
+    );
+  }
+
+  return body;
 };
