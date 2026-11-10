@@ -26,6 +26,14 @@ interface MixState {
 
 type Scene = (tokens: Tokens) => DrawnElement;
 
+const textElement = (text: string): DrawnElement => {
+  const element = drawn();
+
+  element.texts.push(text);
+
+  return element;
+};
+
 await mock.module('gpui-base', () =>
   gpuiBaseFake({ h_flex: () => drawn(), v_flex: () => drawn() }),
 );
@@ -34,7 +42,18 @@ await mock.module('gpui-kit', () => gpuiKitFake({ div: () => drawn() }));
 await mock.module('herdr', () => herdrFake());
 
 await mock.module('../../../../kit/index.ts', () =>
-  kitIndexFake({ icon: (name: string) => drawn(name) }),
+  kitIndexFake({
+    icon: (name: string) => drawn(name),
+    colors: () => ({}),
+    keyHint: textElement,
+    iconButton: () => drawn(),
+    iconToggle: () => drawn(),
+    modePill: () => drawn(),
+    paneHeader: () => drawn(),
+    tab: () => drawn(),
+    programIcon: () => drawn(),
+    roleText: (_role: string, text: string) => textElement(text),
+  }),
 );
 
 const cornerPath = './corner.ts';
@@ -42,6 +61,11 @@ const briefPath = './brief.ts';
 const mixPath = './mix.ts';
 const tokensPath = '../koja.ts';
 const catalogPath = '../../catalog.ts';
+const shellPath = '../../scenes/shell.ts';
+
+const { shellAttentionScene } = (await import(shellPath)) as {
+  shellAttentionScene: (open: boolean, tokens: Tokens, state?: MixState) => DrawnElement;
+};
 
 const { cornerScene } = (await import(cornerPath)) as { cornerScene: Scene };
 const { briefScene } = (await import(briefPath)) as { briefScene: Scene };
@@ -122,6 +146,64 @@ const headerCases = scenes.flatMap((scene) => [
 ]);
 
 describe('attention scenes', () => {
+  test('shell attention shows the newest ask over the shell', () => {
+    const texts = drawnTexts(shellAttentionScene(false, koja));
+
+    expect(texts).toContain('Build window shell');
+    expect(texts).toContain('Allow this command?');
+    expect(texts).toContain('bun run sandbox up');
+    expect(texts).toContain('1 more ask in Hill-climb mode for judges');
+    expect(texts).not.toContain('Go to this ask');
+  });
+
+  test('shell attention open shows both asks newest first', () => {
+    const texts = drawnTexts(shellAttentionScene(true, koja));
+
+    expect(texts).toContain('2 asks in other spaces');
+    expect(texts).toContain('Claude Code · Allow this command?');
+    expect(texts).toContain('Pi · Which judge model for round 2?');
+    expect(texts).toContain('koja · 2m');
+    expect(texts).toContain('tau · 5m');
+    expect(texts).toContain('bun run sandbox up');
+
+    expect(texts.indexOf('Claude Code · Allow this command?')).toBeLessThan(
+      texts.indexOf('Pi · Which judge model for round 2?'),
+    );
+  });
+
+  test('shell attention normal shows the go-to-ask keys', () => {
+    const scene = shellAttentionScene(false, kojaNormal);
+
+    expect(hasKeys(scene)).toBe(true);
+    expect(drawnTexts(scene)).toContain('Go to this ask');
+  });
+
+  test('shell attention opens the list and dismisses it without removing the terminal', () => {
+    const state = createMixState();
+    const closed = shellAttentionScene(false, koja, state);
+
+    expect(
+      activate(clickablesWithText(closed, '1 more ask in Hill-climb mode for judges')[0]),
+    ).toBe(1);
+
+    const opened = shellAttentionScene(false, koja, state);
+
+    expect(drawnTexts(opened)).toContain('Pi · Which judge model for round 2?');
+    expect(activate(dismissButton(opened))).toBe(1);
+
+    const dismissed = drawnTexts(shellAttentionScene(false, koja, state));
+
+    expect(dismissed).not.toContain('2 asks in other spaces');
+    expect(dismissed).not.toContain('bun run sandbox up');
+    expect(dismissed).toContain('> bun run check');
+  });
+
+  test('shell attention scenes can be opened from the catalog', () => {
+    for (const name of ['shell-attention', 'shell-attention-normal', 'shell-attention-open']) {
+      expect(findScene(name)).toHaveProperty('scene');
+    }
+  });
+
   test('corner keeps its single hidden ask and summary in both modes', () => {
     const scene = cornerScene(koja);
     const texts = drawnTexts(scene);

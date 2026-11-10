@@ -149,20 +149,35 @@ const askList = (state: MixState, tokens: DirectionTokens): Element => {
     .children(state.asks.map((ask) => askRow(ask, tokens)));
 };
 
-const positionedCard = (tokens: DirectionTokens): Element => {
-  const paneWidth = focusedPaneWidth(tokens);
-  const width = Math.min(maximumCardWidth, paneWidth - 2 * paneClearance);
-  const paneLeft = mainLeft + tokens.areas.contentPadding;
-  const left = paneLeft + (paneWidth - width) / 2;
-  const bottom = tokens.areas.contentPadding + paneClearance;
+export const mixCard = (
+  open: boolean,
+  tokens: DirectionTokens,
+  state: MixState,
+): Element | null => {
+  const ask = state.asks[0];
 
-  return overlayCard(tokens)
-    .absolute()
-    .left(left)
-    .bottom(bottom)
-    .w(width)
+  if (state.dismissed || ask === undefined) {
+    return null;
+  }
+
+  const listOpen = open || state.listOpen;
+  const content = listOpen ? askList(state, tokens) : askLine(ask, state, tokens);
+
+  const card = overlayCard(tokens)
+    .max_w(maximumCardWidth)
     .p(cardPadding)
-    .gap(lineGap);
+    .gap(lineGap)
+    .child(content);
+
+  if (tokens.normal) {
+    card.child(
+      footerLine([['g', 'n'], 'Go to this ask'], tokens)
+        .px(0)
+        .ml(textInset),
+    );
+  }
+
+  return card;
 };
 
 export const mixScene = (
@@ -176,23 +191,17 @@ export const mixScene = (
     .min_h(0)
     .child(attentionWindow({ variant: 'mix' }, tokens));
 
-  const ask = state.asks[0];
+  const card = mixCard(open, tokens, state);
 
-  if (state.dismissed || ask === undefined) {
+  if (card === null) {
     return scene;
   }
 
-  const listOpen = open || state.listOpen;
-  const content = listOpen ? askList(state, tokens) : askLine(ask, state, tokens);
-  const card = positionedCard(tokens).child(content);
+  const paneWidth = focusedPaneWidth(tokens);
+  const width = Math.min(maximumCardWidth, paneWidth - 2 * paneClearance);
+  const paneLeft = mainLeft + tokens.areas.contentPadding;
+  const left = paneLeft + (paneWidth - width) / 2;
+  const bottom = tokens.areas.contentPadding + paneClearance;
 
-  if (tokens.normal) {
-    card.child(
-      footerLine([['g', 'n'], 'Go to this ask'], tokens)
-        .px(0)
-        .ml(textInset),
-    );
-  }
-
-  return scene.child(card);
+  return scene.child(card.absolute().left(left).bottom(bottom).w(width));
 };

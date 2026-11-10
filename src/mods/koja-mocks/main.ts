@@ -48,7 +48,12 @@ import { controlsScene } from './scenes/controls.ts';
 import type { SceneInputs } from './scenes/inputs.ts';
 import { paneHeadersScene } from './scenes/paneHeaders.ts';
 import { popupQuery, popupScene } from './scenes/popup.ts';
-import { shellContentScene, shellDialogScene, shellScene } from './scenes/shell.ts';
+import {
+  shellAttentionScene,
+  shellContentScene,
+  shellDialogScene,
+  shellScene,
+} from './scenes/shell.ts';
 import { sidebarScene } from './scenes/sidebar.ts';
 import {
   paletteClean,
@@ -82,6 +87,9 @@ const renderers: Record<SceneName, (inputs: SceneInputs) => Element> = {
   'sidebar-hover': () => hoverScene(koja),
   'sidebar-find': () => searchScene(koja),
   'sidebar-states': () => machineTagScene(koja),
+  'shell-attention': (inputs) => shellAttentionScene(false, koja, inputs.attention),
+  'shell-attention-normal': (inputs) => shellAttentionScene(false, kojaNormal, inputs.attention),
+  'shell-attention-open': (inputs) => shellAttentionScene(true, koja, inputs.attention),
   'shell-dialog': shellDialogScene,
   'shell-content': shellContentScene,
   'dialog-close': () => dialogScene('close', koja),
