@@ -112,7 +112,7 @@ const askRow = (ask: HiddenAsk, tokens: DirectionTokens): Element => {
     .gap(lineGap)
     .items_center()
     .child(iconMark('message-circle-question', tokens.marks.blocked))
-    .child(fixedLabel(ask.space, tokens.text.body, tokens.ink.text))
+    .child(fixedLabel(ask.space, tokens.text.title, tokens.ink.text))
     .child(h_flex().flex_1())
     .child(fixedLabel(ask.project, tokens.text.detail, tokens.ink.dim));
 
