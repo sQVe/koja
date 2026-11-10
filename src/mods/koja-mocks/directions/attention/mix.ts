@@ -21,6 +21,9 @@ const cardPadding = 10;
 const lineGap = 6;
 const rowPadding = 8;
 const textInset = 20;
+// The close icon sits centered in a wider button, so the title pads less to line the icon up with
+// the project names below it.
+const closeIconInset = 3;
 
 export const createMixState = (asks: readonly HiddenAsk[] = hiddenAsks): MixState => ({
   asks,
@@ -123,8 +126,8 @@ const askRow = (ask: HiddenAsk, tokens: DirectionTokens): Element => {
     .rounded(tokens.rows.radius)
     .hover((element) => element.bg(tokens.rows.hoverFill))
     .child(title)
-    .child(wrappedText(detail, tokens.text.detail, tokens.ink.muted).ml(textInset))
-    .children(commandLine(ask, tokens.text.detail, tokens));
+    .child(wrappedText(detail, tokens.text.body, tokens.ink.muted).ml(textInset))
+    .children(commandLine(ask, tokens.text.body, tokens));
 };
 
 const askList = (state: MixState, tokens: DirectionTokens): Element => {
@@ -132,7 +135,8 @@ const askList = (state: MixState, tokens: DirectionTokens): Element => {
 
   const title = h_flex()
     .h(tokens.rows.height)
-    .px(rowPadding)
+    .pl(rowPadding)
+    .pr(closeIconInset)
     .items_center()
     .child(fixedLabel(titleText, tokens.text.title, tokens.ink.text))
     .child(h_flex().flex_1())
