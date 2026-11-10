@@ -58,7 +58,7 @@ const reviewHeading = (view: DraftView, tokens: DirectionTokens): Element => {
   const hint =
     view.state === 'edit-file'
       ? 'Done editing returns body.md to line comments'
-      : 'Click a line to comment or edit · Drag line numbers for more lines';
+      : 'Click a line to comment or edit · Drag line numbers to comment on a range';
 
   return heading.child(
     h_flex()

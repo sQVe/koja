@@ -170,9 +170,12 @@ const lineContent = (
 
   const content = sourceText(value, look.editingFile, tokens);
 
-  if (!look.edited || look.editingFile || !look.unsaved) {
+  if (!look.edited || look.editingFile) {
     return content;
   }
+
+  const note = look.unsaved ? 'unsaved' : 'edited';
+  const ink = look.unsaved ? tokens.marks.working : tokens.ink.dim;
 
   return h_flex()
     .flex_1()
@@ -180,7 +183,7 @@ const lineContent = (
     .items_center()
     .gap(spacing.small)
     .child(content.flex_none())
-    .child(fixedLabel('unsaved', tokens.text.detail, tokens.marks.working).font_family(uiFont));
+    .child(fixedLabel(note, tokens.text.detail, ink).font_family(uiFont));
 };
 
 const editMark = (edited: boolean, tokens: DirectionTokens): Element => {
@@ -216,7 +219,17 @@ const sourceLine = (
     .rounded(tokens.rows.radius)
     .child(content);
 
-  if (number === currentLine(file, state)) {
+  const current = number === currentLine(file, state);
+  const numberInk = current ? tokens.ink.text : tokens.ink.dim;
+
+  const lineNumber = fixedLabel(String(number), tokens.text.detail, numberInk)
+    .w(sourceSize.lineNumber)
+    .font_family(terminalFont)
+    .text_right();
+
+  if (current) {
+    lineNumber.font_semibold();
+
     if (state !== 'range') {
       band.bg(tokens.rows.hoverFill);
     }
@@ -235,12 +248,7 @@ const sourceLine = (
     .items_center()
     .gap(gutterGap)
     .child(gutter)
-    .child(
-      fixedLabel(String(number), tokens.text.detail, tokens.ink.dim)
-        .w(sourceSize.lineNumber)
-        .font_family(terminalFont)
-        .text_right(),
-    )
+    .child(lineNumber)
     .child(editMark(look.edited && !editingFile, tokens))
     .child(band);
 };

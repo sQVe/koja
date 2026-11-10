@@ -3,7 +3,7 @@ import type { Element } from 'gpui-kit';
 import { div } from 'gpui-kit';
 
 import { dialogButton, icon } from '../../../../kit/index.ts';
-import { rowHeight, spacing, textSize } from '../../../../kit/size.ts';
+import { controlSize, rowHeight, spacing, textSize } from '../../../../kit/size.ts';
 import { colors } from '../../../../kit/theme.ts';
 import { paragraph } from '../content/parts.ts';
 import { fixedLabel, label, row } from '../parts.ts';
@@ -24,21 +24,43 @@ export const outlineAction = (text: string, tokens: DirectionTokens): Element =>
     .border_color(tokens.pane.cardBorder)
     .text_color(tokens.ink.text);
 
-const quietAction = (text: string, tokens: DirectionTokens): Element =>
+const fileAction = (text: string, tokens: DirectionTokens): Element =>
   outlineAction(text, tokens)
+    .h(controlSize.smallButton)
     .border(0)
     .px(spacing.small)
+    .bg(tokens.rows.hoverFill)
     .text_size(tokens.text.detail.size)
-    .text_color(tokens.ink.dim)
-    .hover((element) => element.text_color(tokens.ink.text));
+    .text_color(tokens.ink.text);
+
+const fileMetadata = (file: DraftFile, editing: boolean, tokens: DirectionTokens): Element => {
+  const lineCount = file.lines.length === 1 ? '1 line' : `${file.lines.length} lines`;
+
+  const metadata = h_flex()
+    .items_center()
+    .gap(spacing.xsmall)
+    .child(fixedLabel(lineCount, tokens.text.detail, tokens.ink.dim));
+
+  if (file.comments.length > 0) {
+    const unit = file.comments.length === 1 ? 'comment' : 'comments';
+
+    metadata
+      .child(fixedLabel('·', tokens.text.detail, tokens.ink.dim))
+      .child(fixedLabel(`${file.comments.length} ${unit}`, tokens.text.detail, tokens.ink.dim));
+  }
+
+  if (editing) {
+    metadata
+      .child(fixedLabel('·', tokens.text.detail, tokens.ink.dim))
+      .child(fixedLabel('Editing', tokens.text.detail, tokens.ink.text));
+  }
+
+  return metadata;
+};
 
 export const fileHeading = (file: DraftFile, view: DraftView, tokens: DirectionTokens): Element => {
   const { state } = view;
-  const lineCount = file.lines.length === 1 ? '1 line' : `${file.lines.length} lines`;
   const editing = isBodyFile(file) && state === 'edit-file';
-  const commentCount = file.comments.length;
-  const commentUnit = commentCount === 1 ? 'comment' : 'comments';
-  const metadata = commentCount === 0 ? lineCount : `${lineCount} · ${commentCount} ${commentUnit}`;
 
   const heading = h_flex()
     .h(rowHeight.large)
@@ -48,13 +70,8 @@ export const fileHeading = (file: DraftFile, view: DraftView, tokens: DirectionT
     .items_center()
     .child(icon('file', 'small').text_color(tokens.ink.dim))
     .child(fixedLabel(file.name, tokens.text.title, tokens.ink.text))
-    .child(fixedLabel(metadata, tokens.text.detail, tokens.ink.dim));
-
-  if (editing) {
-    heading.child(fixedLabel('· Editing', tokens.text.detail, tokens.ink.text));
-  }
-
-  heading.child(div().flex_1());
+    .child(fileMetadata(file, editing, tokens))
+    .child(div().flex_1());
 
   if (state === 'sent') {
     return heading.child(fixedLabel('Read-only', tokens.text.detail, tokens.ink.dim));
@@ -65,8 +82,8 @@ export const fileHeading = (file: DraftFile, view: DraftView, tokens: DirectionT
   }
 
   return heading
-    .child(quietAction('Comment on file', tokens))
-    .child(quietAction('Edit file', tokens));
+    .child(fileAction('Comment on file', tokens))
+    .child(fileAction('Edit file', tokens));
 };
 
 const fileMarkWidth = { edit: 12, comments: 32 };
