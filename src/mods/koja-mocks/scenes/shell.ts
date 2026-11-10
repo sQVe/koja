@@ -16,6 +16,8 @@ import {
   spacing,
   tab,
 } from '../../../kit/index.ts';
+import type { MixState } from '../directions/attention/mix.ts';
+import { createMixState, mixCard, paneClearance } from '../directions/attention/mix.ts';
 import { contentPane } from '../directions/content/scene.ts';
 import { contentViews } from '../directions/content/states.ts';
 import { dialogLayer } from '../directions/dialogs/scene.ts';
@@ -24,6 +26,7 @@ import { commandPalette } from '../directions/overlays/palette.ts';
 import { spacePanel } from '../directions/panels/space.ts';
 import { spaceStates } from '../directions/panels/spaceData.ts';
 import { mapSidebar } from '../directions/sidebars/sidebar.ts';
+import type { DirectionTokens } from '../directions/tokens.ts';
 import type { FakeTab } from './shellContent.ts';
 import { agentPane, fakeTabs, shellPane } from './shellContent.ts';
 
@@ -142,6 +145,32 @@ const shellWindow = (panes: Element[] = shellPanes()): Element =>
 
 export const shellScene = (): Element =>
   v_flex().relative().flex_1().min_h(0).child(shellWindow()).child(commandPalette(koja));
+
+export const shellAttentionScene = (
+  open: boolean,
+  tokens: DirectionTokens,
+  state: MixState = createMixState(),
+): Element => {
+  const panes = shellPanes();
+  const card = mixCard(open, tokens, state);
+  const focusedPane = panes[0];
+
+  if (card !== null && focusedPane !== undefined) {
+    focusedPane
+      .relative()
+      .child(
+        h_flex()
+          .absolute()
+          .left(paneClearance)
+          .right(paneClearance)
+          .bottom(paneClearance)
+          .justify_center()
+          .child(card.w_full()),
+      );
+  }
+
+  return v_flex().relative().flex_1().min_h(0).child(shellWindow(panes));
+};
 
 export const shellContentScene = (): Element =>
   v_flex().relative().flex_1().min_h(0).child(shellWindow(contentPanes()));
