@@ -134,7 +134,7 @@ const askList = (state: MixState, tokens: DirectionTokens): Element => {
     .h(tokens.rows.height)
     .px(rowPadding)
     .items_center()
-    .child(fixedLabel(titleText, tokens.text.heading, tokens.ink.text))
+    .child(fixedLabel(titleText, tokens.text.title, tokens.ink.text))
     .child(h_flex().flex_1())
     .child(dismissControl(state, tokens));
 
@@ -182,7 +182,11 @@ export const mixScene = (
   const card = positionedCard(tokens).child(content);
 
   if (tokens.normal) {
-    card.child(footerLine([['g', 'n'], 'Go to'], tokens));
+    card.child(
+      footerLine([['g', 'n'], 'Go to this ask'], tokens)
+        .px(0)
+        .ml(textInset),
+    );
   }
 
   return scene.child(card);
