@@ -42,6 +42,7 @@ const pane: Omit<DirectionTokens['pane'], 'border' | 'focusedBorder' | 'focusedH
   headerPadding: 10,
   headerGap: 6,
   headerDivider: '#ccd0d6',
+  cardBorder: paneBorder,
   bodyPadding: 10,
   focusedHeaderInk: null,
 };

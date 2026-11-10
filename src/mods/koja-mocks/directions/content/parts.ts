@@ -24,6 +24,12 @@ interface ContentSectionLook {
   count?: number;
 }
 
+interface SaveFailureDetails {
+  error: string;
+  folder: string;
+  unsaved: string;
+}
+
 export const readingInset = spacing.xxlarge;
 
 const sectionMarkWidth = 12;
@@ -146,7 +152,7 @@ export const checkMark = (state: CheckState, tokens: DirectionTokens): Element =
   return statusMark(status, tokens);
 };
 
-const saveRecoveryButton = (text: string, tokens: DirectionTokens): Element =>
+export const saveRecoveryButton = (text: string, tokens: DirectionTokens): Element =>
   h_flex()
     .h(chipHeight)
     .px(spacing.small)
@@ -157,7 +163,7 @@ const saveRecoveryButton = (text: string, tokens: DirectionTokens): Element =>
     .border_color(tokens.pane.border)
     .child(fixedLabel(text, tokens.text.detail, tokens.ink.muted));
 
-export const saveFailure = (tokens: DirectionTokens): Element =>
+export const saveFailure = (tokens: DirectionTokens, details: SaveFailureDetails): Element =>
   v_flex()
     .gap(spacing.medium)
     .child(
@@ -176,20 +182,16 @@ export const saveFailure = (tokens: DirectionTokens): Element =>
             .min_w(0)
             .flex_1()
             .gap(spacing.xsmall)
+            .child(styled(div().min_w(0), tokens.text.detail, tokens.ink.text).child(details.error))
             .child(
-              styled(div().min_w(0), tokens.text.detail, tokens.ink.text).child(
-                'Could not save: the folder is read-only',
-              ),
-            )
-            .child(
-              label('~/code/koja/.tau/reviews', tokens.text.detail, tokens.ink.text)
+              label(details.folder, tokens.text.detail, tokens.ink.text)
                 .text_ellipsis_start()
-                .tooltip('~/code/koja/.tau/reviews'),
+                .tooltip(details.folder),
             ),
         ),
     )
     .child(h_flex().child(saveRecoveryButton('Copy path', tokens)))
-    .child(paragraph('1 line and 2 comments are unsaved. They stay in this pane.', tokens))
+    .child(paragraph(details.unsaved, tokens))
     .child(
       styled(div().min_w(0), tokens.text.detail, tokens.ink.dim).child(
         'Send to Tau waits for a save.',

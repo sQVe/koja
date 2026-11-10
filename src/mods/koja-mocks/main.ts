@@ -23,6 +23,7 @@ import { cornerScene } from './directions/attention/corner.ts';
 import { createMixState, mixScene } from './directions/attention/mix.ts';
 import { contentScene } from './directions/content/scene.ts';
 import { dialogScene } from './directions/dialogs/scene.ts';
+import { draftReviewScene } from './directions/draftReview/scene.ts';
 import { koja, kojaNormal } from './directions/koja.ts';
 import { gotoScene } from './directions/overlays/goto.ts';
 import { keysScene } from './directions/overlays/keys.ts';
@@ -52,6 +53,7 @@ import {
   shellAttentionScene,
   shellContentScene,
   shellDialogScene,
+  shellDraftReviewScene,
   shellScene,
 } from './scenes/shell.ts';
 import { sidebarScene } from './scenes/sidebar.ts';
@@ -92,6 +94,7 @@ const renderers: Record<SceneName, (inputs: SceneInputs) => Element> = {
   'shell-attention-open': (inputs) => shellAttentionScene(true, koja, inputs.attention),
   'shell-dialog': shellDialogScene,
   'shell-content': shellContentScene,
+  'shell-draft-review': shellDraftReviewScene,
   'dialog-close': () => dialogScene('close', koja),
   'dialog-close-normal': () => dialogScene('close', kojaNormal),
   'dialog-rename': () => dialogScene('rename', koja),
@@ -138,6 +141,17 @@ const renderers: Record<SceneName, (inputs: SceneInputs) => Element> = {
   'space-main': () => spaceScene(spaceStates.main, koja),
   'space-error': () => spaceScene(spaceStates.error, koja),
   'space-normal': () => spaceScene(spaceStates.base, kojaNormal),
+  'draft-review-comment': () => draftReviewScene('comment'),
+  'draft-review-range': () => draftReviewScene('range'),
+  'draft-review-file-comment': () => draftReviewScene('file-comment'),
+  'draft-review-edit-line': () => draftReviewScene('edit-line'),
+  'draft-review-edit-file': () => draftReviewScene('edit-file'),
+  'draft-review-saving-failed': () => draftReviewScene('saving-failed'),
+  'draft-review-changed-on-disk': () => draftReviewScene('changed-on-disk'),
+  'draft-review-sent': () => draftReviewScene('sent'),
+  'draft-review-broken': () => draftReviewScene('broken'),
+  'draft-review-plan': () => draftReviewScene('plan'),
+  'draft-review-normal': () => draftReviewScene('normal'),
   'content-rail-review': () => contentScene('review'),
   'content-rail-pr': () => contentScene('pr'),
   'content-rail-ticket': () => contentScene('ticket'),

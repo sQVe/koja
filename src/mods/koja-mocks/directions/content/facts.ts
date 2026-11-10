@@ -40,7 +40,9 @@ const factValue = (fact: ContentFact, tokens: DirectionTokens): Element => {
   }
 
   if (fact.checkState === undefined) {
-    return label(fact.value, tokens.text.detail, tokens.ink.text);
+    const ink = fact.warning === true ? tokens.marks.working : tokens.ink.text;
+
+    return label(fact.value, tokens.text.detail, ink);
   }
 
   const value = h_flex()

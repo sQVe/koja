@@ -40,7 +40,7 @@ const readingBody = (view: ContentView, tokens: DirectionTokens): Element => {
   return v_flex().flex_none().min_w(0).py(sectionGap).gap(sectionGap).children(sections);
 };
 
-const reviewActions = (state: ContentState, tokens: DirectionTokens): Element => {
+export const reviewActions = (state: ContentState, tokens: DirectionTokens): Element => {
   if (state === 'sent') {
     return v_flex()
       .gap(spacing.medium)
@@ -59,7 +59,13 @@ const reviewActions = (state: ContentState, tokens: DirectionTokens): Element =>
   const actions = v_flex().gap(spacing.medium).child(reviewActionButton(action, tokens));
 
   if (failed) {
-    actions.child(saveFailure(tokens));
+    actions.child(
+      saveFailure(tokens, {
+        error: 'Could not save: the folder is read-only',
+        folder: '~/code/koja/.tau/reviews',
+        unsaved: '1 line and 2 comments are unsaved. They stay in this pane.',
+      }),
+    );
   }
 
   return actions;

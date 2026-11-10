@@ -47,6 +47,8 @@ interface DirectionPane {
   radius: number;
   border: Color;
   focusedBorder: Color;
+  // Cards inside a pane keep this border in both modes; only the pane's own border turns indigo.
+  cardBorder: Color;
   headerHeight: number;
   headerPadding: number;
   headerGap: number;
