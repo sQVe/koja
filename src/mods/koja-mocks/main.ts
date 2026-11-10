@@ -41,6 +41,7 @@ import { spaceScene } from './directions/panels/space.ts';
 import { spaceStates } from './directions/panels/spaceData.ts';
 import { spineTakeScene } from './directions/panels/spine.ts';
 import { splitScene } from './directions/panels/split.ts';
+import { pullRequestScene } from './directions/pullRequest/scene.ts';
 import { hoverScene, searchScene } from './directions/sidebars/find.ts';
 import { inboxSidebar } from './directions/sidebars/sidebar.ts';
 import { machineTagScene } from './directions/sidebars/states.ts';
@@ -163,6 +164,15 @@ const renderers: Record<SceneName, (inputs: SceneInputs) => Element> = {
   'content-rail-ticket-loading': () => contentScene('ticket-loading'),
   'content-rail-ticket-long': () => contentScene('ticket-long'),
   'content-rail-pr-normal': () => contentScene('pr-normal'),
+  'pr-reader-blocked': () => pullRequestScene('reader', 'blocked'),
+  'pr-reader-ready': () => pullRequestScene('reader', 'ready'),
+  'pr-reader-diff': () => pullRequestScene('reader', 'diff'),
+  'pr-box-blocked': () => pullRequestScene('box', 'blocked'),
+  'pr-box-ready': () => pullRequestScene('box', 'ready'),
+  'pr-box-diff': () => pullRequestScene('box', 'diff'),
+  'pr-handoff-blocked': () => pullRequestScene('handoff', 'blocked'),
+  'pr-handoff-ready': () => pullRequestScene('handoff', 'ready'),
+  'pr-handoff-diff': () => pullRequestScene('handoff', 'diff'),
 };
 
 // A refocus after the window has drawn, when its input or focus target can take the keyboard.

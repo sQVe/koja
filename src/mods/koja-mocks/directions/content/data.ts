@@ -12,6 +12,7 @@ export interface ContentFact {
   checkState?: CheckState;
   age?: string;
   warning?: boolean;
+  wrap?: boolean;
   diff?: { added: number; removed: number };
 }
 

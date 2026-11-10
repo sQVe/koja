@@ -1,9 +1,10 @@
 import { h_flex, v_flex } from 'gpui-base';
 import type { Element } from 'gpui-kit';
+import { div } from 'gpui-kit';
 
 import { rowHeight, spacing } from '../../../../kit/size.ts';
 import { diffCounts } from '../panels/changes.ts';
-import { fixedLabel, label } from '../parts.ts';
+import { fixedLabel, label, styled } from '../parts.ts';
 import type { DirectionTokens } from '../tokens.ts';
 import type { ContentFact } from './data.ts';
 import { agentLink, externalLink } from './links.ts';
@@ -41,6 +42,10 @@ const factValue = (fact: ContentFact, tokens: DirectionTokens): Element => {
 
   if (fact.checkState === undefined) {
     const ink = fact.warning === true ? tokens.marks.working : tokens.ink.text;
+
+    if (fact.wrap === true) {
+      return styled(div().min_w(0), tokens.text.detail, ink).child(fact.value);
+    }
 
     return label(fact.value, tokens.text.detail, ink);
   }

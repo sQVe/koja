@@ -127,6 +127,15 @@ const sceneSizes = {
   'content-rail-ticket-loading': shellSceneSize,
   'content-rail-ticket-long': shellSceneSize,
   'content-rail-pr-normal': shellSceneSize,
+  'pr-reader-blocked': shellSceneSize,
+  'pr-reader-ready': shellSceneSize,
+  'pr-reader-diff': shellSceneSize,
+  'pr-box-blocked': shellSceneSize,
+  'pr-box-ready': shellSceneSize,
+  'pr-box-diff': shellSceneSize,
+  'pr-handoff-blocked': shellSceneSize,
+  'pr-handoff-ready': shellSceneSize,
+  'pr-handoff-diff': shellSceneSize,
 } as const satisfies Record<string, SceneSize>;
 
 export type SceneName = keyof typeof sceneSizes;
