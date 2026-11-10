@@ -76,10 +76,7 @@ const { askBody } = (await import(bodiesPath)) as {
 
 const contentPath = './content.ts';
 
-const { lostChanges, removalClosingLines, newWorktreeFacts, newBranch } = (await import(
-  contentPath
-)) as {
-  newWorktreeFacts: { folder: string };
+const { lostChanges, removalClosingLines, newBranch } = (await import(contentPath)) as {
   newBranch: string;
   lostChanges: { path: string }[];
   removalClosingLines: string[];
@@ -106,8 +103,10 @@ afterAll(() => {
 });
 
 describe('dialog drawing', () => {
-  test('the new worktree folder uses the repository shown by the panes', () => {
-    expect(newWorktreeFacts.folder).toBe(`${agentPane.folder}/${newBranch}`);
+  test('the new worktree dialog draws its folder in the repository shown by the panes', () => {
+    const texts = askBody('wt-new', koja).flatMap((part) => drawnTexts(part));
+
+    expect(texts).toContain(`${agentPane.folder}/${newBranch}`);
   });
 
   test('remove shows lost files before closing consequences and branch deletion', () => {
