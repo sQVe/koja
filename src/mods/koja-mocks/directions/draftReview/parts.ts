@@ -7,8 +7,9 @@ import { rowHeight, spacing, textSize } from '../../../../kit/size.ts';
 import { paragraph } from '../content/parts.ts';
 import { fixedLabel, label, row } from '../parts.ts';
 import type { DirectionTokens } from '../tokens.ts';
-import type { DraftComment, DraftFile, DraftState, DraftView } from './data.ts';
+import type { DraftComment, DraftFile, DraftView } from './data.ts';
 import { isBodyFile } from './data.ts';
+import { commentMark } from './marks.ts';
 
 interface ComposerContent {
   anchor: string;
@@ -23,11 +24,8 @@ export const outlineAction = (text: string, tokens: DirectionTokens): Element =>
     .border_color(tokens.pane.cardBorder)
     .text_color(tokens.ink.text);
 
-export const fileHeading = (
-  file: DraftFile,
-  state: DraftState,
-  tokens: DirectionTokens,
-): Element => {
+export const fileHeading = (file: DraftFile, view: DraftView, tokens: DirectionTokens): Element => {
+  const { state } = view;
   const lineCount = file.lines.length === 1 ? '1 line' : `${file.lines.length} lines`;
   const editing = isBodyFile(file) && state === 'edit-file';
   const commentCount = file.comments.length;
@@ -49,10 +47,14 @@ export const fileHeading = (
     return heading.child(fixedLabel('Read-only', tokens.text.detail, tokens.ink.dim));
   }
 
+  if (file !== view.selected) {
+    return heading;
+  }
+
   if (editing) {
     return heading
       .child(outlineAction('Comment on file', tokens))
-      .child(fixedLabel('Saved just now', tokens.text.detail, tokens.ink.dim))
+      .child(fixedLabel('Editing', tokens.text.detail, tokens.ink.text))
       .child(outlineAction('Done editing', tokens));
   }
 
@@ -134,17 +136,13 @@ export const commentCard = (
 ): Element => {
   const card = commentFrame(comment.anchor, unsaved, tokens).child(paragraph(comment.text, tokens));
 
-  if (unsaved) {
+  if (comment.start !== null) {
+    const kind = comment.start === comment.end ? 'single' : 'range';
+
     card
       .relative()
       .child(
-        div()
-          .absolute()
-          .left(0)
-          .top(spacing.xsmall)
-          .bottom(spacing.xsmall)
-          .w(2)
-          .bg(tokens.marks.working),
+        commentMark(kind, tokens).absolute().left(0).top(spacing.xsmall).bottom(spacing.xsmall),
       );
   }
 
@@ -166,7 +164,6 @@ const composerField = (content: ComposerContent, tokens: DirectionTokens): Eleme
 
 export const commentComposer = (content: ComposerContent, tokens: DirectionTokens): Element =>
   commentFrame(content.anchor, false, tokens)
-    .border_color(tokens.pane.focusedBorder)
     .child(composerField(content, tokens))
     .child(
       h_flex()

@@ -14,6 +14,7 @@ import {
   selectedRange,
   showsLineComposer,
 } from './data.ts';
+import { commentMark, gutterMarkWidth } from './marks.ts';
 import { commentCard, commentComposer } from './parts.ts';
 
 interface SourceLook {
@@ -21,7 +22,15 @@ interface SourceLook {
   inline: boolean;
 }
 
-const sourceSize = { line: 16, field: 26, hint: 18, mark: 3, markHeight: 14, lineNumber: 18 };
+const sourceSize = {
+  line: 16,
+  field: 26,
+  hint: 18,
+  mark: gutterMarkWidth,
+  markHeight: 14,
+  lineNumber: 18,
+};
+
 const gutterGap = spacing.large;
 const openLineNumber = 8;
 const currentLines = { body: 14, release: 3 };
@@ -35,19 +44,31 @@ const lineMark = (file: DraftFile, number: number, tokens: DirectionTokens): Ele
     return mark.bg(tokens.marks.working);
   }
 
-  const commented = file.comments.some((comment) => {
-    if (comment.start === null || comment.end === null) {
+  const comment = file.comments.find((candidate) => {
+    if (candidate.start === null || candidate.end === null) {
       return false;
     }
 
-    return number >= comment.start && number <= comment.end;
+    return number >= candidate.start && number <= candidate.end;
   });
 
-  if (commented) {
-    return mark.w(2).mr(1).bg(tokens.ink.muted);
+  if (comment === undefined) {
+    return mark;
   }
 
-  return mark;
+  if (comment.start === comment.end) {
+    return commentMark('single', tokens).h(sourceSize.line);
+  }
+
+  if (number === comment.start) {
+    return commentMark('start', tokens).h(sourceSize.line);
+  }
+
+  if (number === comment.end) {
+    return commentMark('end', tokens).h(sourceSize.line);
+  }
+
+  return commentMark('middle', tokens).h(sourceSize.line);
 };
 
 const lineField = (tokens: DirectionTokens): Element =>
@@ -77,10 +98,16 @@ const lineState = (file: DraftFile, number: number, state: DraftState) => {
   const commentAnchor = body && number === composingLineNumber;
   const selected = commentAnchor && showsLineComposer(state);
 
-  return { editingFile, edited, editingLine, selected };
+  const unsaved = state === 'saving-failed';
+
+  return { editingFile, edited, editingLine, selected, unsaved };
 };
 
 const currentLine = (file: DraftFile, state: DraftState): number | null => {
+  if (state === 'changed-on-disk') {
+    return null;
+  }
+
   if (state === 'sent' || state === 'edit-file' || state === 'edit-line') {
     return null;
   }
@@ -106,8 +133,17 @@ const currentLine = (file: DraftFile, state: DraftState): number | null => {
 
 const lineActions = (number: number, tokens: DirectionTokens): Element =>
   h_flex()
+    .h(sourceSize.line)
     .flex_none()
+    .items_center()
     .gap(spacing.xsmall)
+    .child(
+      fixedLabel(
+        'Drag line numbers to pick more lines',
+        tokens.text.detail,
+        tokens.ink.dim,
+      ).font_family(uiFont),
+    )
     .child(
       iconButton('message-square', tokens, tokens.ink.dim)
         .size(controlSize.smallButton)
@@ -141,7 +177,22 @@ const lineContent = (
   const caret = look.editingFile && look.edited;
   const value = caret ? `${text}▏` : text;
 
-  return sourceText(value, look.editingFile, tokens);
+  const content = sourceText(value, look.editingFile, tokens);
+
+  if (!look.edited || look.editingFile) {
+    return content;
+  }
+
+  const note = look.unsaved ? 'unsaved' : 'edited';
+  const ink = look.unsaved ? tokens.marks.working : tokens.ink.dim;
+
+  return h_flex()
+    .flex_1()
+    .min_w(0)
+    .items_center()
+    .gap(spacing.small)
+    .child(content.flex_none())
+    .child(fixedLabel(note, tokens.text.detail, ink).font_family(uiFont));
 };
 
 const sourceLine = (
@@ -152,7 +203,7 @@ const sourceLine = (
 ): Element => {
   const number = index + 1;
   const look = lineState(file, number, state);
-  const { editingFile, edited, editingLine, selected } = look;
+  const { editingFile, editingLine, selected } = look;
   const text = file.lines[index] ?? '';
 
   const gutter = editingFile
@@ -189,14 +240,6 @@ const sourceLine = (
     line.bg(tokens.rows.selectedFill);
   }
 
-  if (edited && !editingFile) {
-    const note = state === 'saving-failed' ? 'unsaved' : 'edited';
-
-    const ink = state === 'saving-failed' ? tokens.marks.working : tokens.ink.dim;
-
-    line.child(fixedLabel(note, tokens.text.detail, ink).font_family(uiFont));
-  }
-
   return line;
 };
 
@@ -220,7 +263,11 @@ const conflictLine = (tokens: DirectionTokens): Element =>
             .text_right(),
         ),
     )
-    .child(conflictBlock(tokens).my(spacing.xxsmall));
+    .child(
+      conflictBlock(tokens)
+        .ml(-spacing.medium - 1)
+        .my(spacing.xxsmall),
+    );
 
 const inlineComments = (
   file: DraftFile,

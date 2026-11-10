@@ -24,10 +24,9 @@ const changedAction = (tokens: DirectionTokens): Element =>
     .child(reviewActionButton('Go to line 6', tokens))
     .child(paragraph('body.md changed outside this pane.', tokens).text_color(tokens.marks.blocked))
     .child(
-      paragraph(
-        'Choose a version for line 6. Send to Tau waits until you choose.',
-        tokens,
-      ).text_color(tokens.ink.dim),
+      paragraph('Choose a version for line 6. Sending waits until you choose.', tokens).text_color(
+        tokens.ink.dim,
+      ),
     );
 
 export const draftActions = (state: DraftState, tokens: DirectionTokens): Element => {
@@ -50,6 +49,10 @@ export const draftActions = (state: DraftState, tokens: DirectionTokens): Elemen
 
   const actions = reviewActions(state === 'sent' ? 'sent' : 'ready', tokens);
   const openComment = state === 'comment' || state === 'range' || state === 'file-comment';
+
+  if (state === 'edit-line') {
+    actions.child(paragraph('1 line edit is still open.', tokens).text_color(tokens.ink.dim));
+  }
 
   if (openComment || state === 'normal') {
     actions.child(paragraph('1 comment is still open.', tokens).text_color(tokens.ink.dim));
