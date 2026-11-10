@@ -16,7 +16,7 @@ const lineInset = 12;
 const lineNumberWidth = 18;
 const gutterMarkWidth = 4;
 const gutterWidth = gutterMarkWidth + spacing.xsmall + lineNumberWidth;
-const commentInset = readingInset + gutterWidth + lineInset;
+const commentGap = gutterWidth + lineInset - gutterMarkWidth;
 const editedLineNumber = 6;
 
 const fileComments = (index: number, tokens: DirectionTokens): Element[] => {
@@ -66,9 +66,12 @@ export const reviewFileChoices = (tokens: DirectionTokens): Element =>
 
 const lineComment = (
   comment: (typeof reviewComments)[number],
-  readOnly: boolean,
+  state: ContentState,
   tokens: DirectionTokens,
 ): Element => {
+  const readOnly = state === 'sent';
+  const unsaved = state === 'saving-failed';
+
   const heading = h_flex()
     .gap(spacing.small)
     .items_center()
@@ -80,12 +83,13 @@ const lineComment = (
     heading.child(fixedLabel('Read-only', tokens.text.detail, tokens.ink.dim));
   }
 
-  return v_flex()
-    .flex_none()
+  if (unsaved) {
+    heading.child(fixedLabel('Unsaved', tokens.text.detail, tokens.marks.working));
+  }
+
+  const card = v_flex()
+    .flex_1()
     .min_w(0)
-    .ml(commentInset)
-    .mr(readingInset)
-    .my(spacing.xsmall)
     .px(spacing.large)
     .py(spacing.small)
     .gap(2)
@@ -94,10 +98,36 @@ const lineComment = (
     .border_color(tokens.pane.border)
     .child(heading)
     .child(paragraph(comment.text, tokens));
+
+  const mark = div().w(gutterMarkWidth).flex_none();
+
+  if (unsaved) {
+    mark.bg(tokens.marks.working);
+  }
+
+  return h_flex()
+    .flex_none()
+    .min_w(0)
+    .ml(readingInset)
+    .mr(readingInset)
+    .my(spacing.xsmall)
+    .gap(commentGap)
+    .items_stretch()
+    .child(mark)
+    .child(card);
 };
 
 const lineGutter = (number: number, unsaved: boolean, tokens: DirectionTokens): Element => {
+  const commented = reviewComments.some(
+    (comment) => number >= comment.start && number <= comment.end,
+  );
+
   const mark = div().w(gutterMarkWidth).h(lineInset).flex_none();
+  const numberInk = commented ? tokens.ink.text : tokens.ink.dim;
+
+  if (commented && !unsaved) {
+    mark.child(div().w(2).h_full().bg(tokens.ink.muted));
+  }
 
   if (unsaved) {
     mark.bg(tokens.marks.working);
@@ -110,9 +140,7 @@ const lineGutter = (number: number, unsaved: boolean, tokens: DirectionTokens): 
     .items_center()
     .child(mark)
     .child(
-      fixedLabel(String(number), tokens.text.detail, tokens.ink.dim)
-        .w(lineNumberWidth)
-        .text_right(),
+      fixedLabel(String(number), tokens.text.detail, numberInk).w(lineNumberWidth).text_right(),
     );
 };
 
@@ -170,7 +198,7 @@ export const reviewText = (state: ContentState, tokens: DirectionTokens): Elemen
     const comment = reviewComments.find((candidate) => candidate.end === index + 1);
 
     if (comment !== undefined) {
-      lines.push(lineComment(comment, readOnly, tokens));
+      lines.push(lineComment(comment, state, tokens));
     }
   });
 

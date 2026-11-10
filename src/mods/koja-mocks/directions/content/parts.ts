@@ -4,7 +4,7 @@ import { div } from 'gpui-kit';
 
 import { icon } from '../../../../kit/index.ts';
 import { controlSize, markSize, spacing, textSize } from '../../../../kit/size.ts';
-import { sectionHeader } from '../panels/frame.ts';
+import { sectionHeaderOf } from '../panels/frame.ts';
 import {
   dot,
   fixedLabel,
@@ -15,11 +15,17 @@ import {
   styled,
 } from '../parts.ts';
 import type { WorkNeed } from '../sidebars/content.ts';
-import { workNeedMark } from '../sidebars/facts.ts';
+import { questionMark, workNeedMark } from '../sidebars/facts.ts';
 import { retryPill } from '../sidebars/states.ts';
 import type { DirectionTokens } from '../tokens.ts';
 import type { CheckState, ContentItem } from './data.ts';
 import { externalLink } from './links.ts';
+
+interface ContentSectionLook {
+  name: string;
+  count?: number;
+  need?: WorkNeed;
+}
 
 export const readingInset = spacing.xxlarge;
 
@@ -49,8 +55,6 @@ export const sendButton = (enabled: boolean, tokens: DirectionTokens): Element =
 
   if (enabled) {
     button.bg(tokens.ink.text);
-  } else {
-    button.border(1).border_color(tokens.pane.border);
   }
 
   if (!enabled) {
@@ -61,8 +65,9 @@ export const sendButton = (enabled: boolean, tokens: DirectionTokens): Element =
 };
 
 const stateChip = (state: string, tokens: DirectionTokens): Element => {
-  const active = state === 'open' || state === 'sent' || state === 'in review';
+  const active = state === 'open' || state === 'sent';
   const color = active ? tokens.marks.done : tokens.marks.idle;
+  const mark = state === 'in review' ? questionMark(tokens) : dot(markSize.quietDot, color);
 
   return h_flex()
     .h(chipHeight)
@@ -73,7 +78,7 @@ const stateChip = (state: string, tokens: DirectionTokens): Element => {
     .rounded(tokens.marks.badgeRadius)
     .border(1)
     .border_color(tokens.pane.border)
-    .child(dot(markSize.quietDot, color))
+    .child(mark)
     .child(fixedLabel(state, tokens.text.detail, tokens.ink.muted));
 };
 
@@ -119,8 +124,12 @@ export const itemHeading = (item: ContentItem, tokens: DirectionTokens): Element
       .items_center()
       .child(stateChip(item.state, tokens));
 
+    if (item.unsaved === true) {
+      state.child(fixedLabel('unsaved', tokens.text.detail, tokens.marks.working));
+    }
+
     if (item.readAge !== null) {
-      state.child(fixedLabel(`read ${item.readAge}`, tokens.text.detail, tokens.ink.dim));
+      state.child(fixedLabel(`synced ${item.readAge}`, tokens.text.detail, tokens.ink.dim));
     }
 
     heading.child(state);
@@ -139,6 +148,17 @@ export const checkMark = (state: CheckState, tokens: DirectionTokens): Element =
   return statusMark(status, tokens);
 };
 
+const copyPathButton = (tokens: DirectionTokens): Element =>
+  h_flex()
+    .h(chipHeight)
+    .px(spacing.small)
+    .flex_none()
+    .items_center()
+    .rounded(tokens.controls.radius)
+    .border(1)
+    .border_color(tokens.pane.border)
+    .child(fixedLabel('Copy path', tokens.text.detail, tokens.ink.muted));
+
 export const saveFailure = (tokens: DirectionTokens): Element =>
   v_flex()
     .gap(spacing.medium)
@@ -155,37 +175,58 @@ export const saveFailure = (tokens: DirectionTokens): Element =>
         )
         .child(
           styled(div().min_w(0).flex_1(), tokens.text.detail, tokens.ink.text).child(
-            'Could not save: the review folder is read-only',
+            'Could not save: ~/code/koja/.tau/reviews is read-only',
           ),
-        )
-        .child(retryPill(tokens)),
+        ),
     )
-    .child(paragraph('Your edits stay in this pane. Send waits for a save.', tokens));
+    .child(h_flex().gap(spacing.small).child(retryPill(tokens)).child(copyPathButton(tokens)))
+    .child(
+      paragraph(
+        '1 line and 2 comments are unsaved. They stay in this pane, and Send waits for a save.',
+        tokens,
+      ),
+    );
 
-export const contentSection = (
-  name: string,
-  parts: Element[],
+export const contentSectionHeader = (
+  look: ContentSectionLook,
+  open: boolean,
+  detail: Element[],
   tokens: DirectionTokens,
-  need?: WorkNeed,
 ): Element => {
+  const title = h_flex()
+    .gap(spacing.small)
+    .items_center()
+    .child(fixedLabel(look.name, tokens.text.heading, tokens.ink.text));
+
   const end: Element[] = [];
 
-  if (need !== undefined) {
-    end.push(workNeedMark(need, tokens));
+  if (look.count !== undefined) {
+    title.child(fixedLabel(String(look.count), tokens.text.detail, tokens.ink.dim));
   }
 
-  return v_flex()
+  if (look.need !== undefined) {
+    end.push(workNeedMark(look.need, tokens));
+  }
+
+  return sectionHeaderOf(title, { open, detail, end }, tokens);
+};
+
+export const contentSection = (
+  look: ContentSectionLook,
+  parts: Element[],
+  tokens: DirectionTokens,
+): Element =>
+  v_flex()
     .flex_none()
     .min_w(0)
-    .child(sectionHeader({ name, open: true, detail: [], end }, tokens))
+    .child(contentSectionHeader(look, true, [], tokens))
     .children(parts);
-};
 
 export const description = (item: ContentItem, tokens: DirectionTokens): Element =>
   v_flex()
     .flex_none()
     .min_w(0)
     .px(readingInset)
-    .py(spacing.medium)
-    .gap(spacing.medium)
+    .py(spacing.xsmall)
+    .gap(spacing.xsmall)
     .children(item.description.map((text) => paragraph(text, tokens)));

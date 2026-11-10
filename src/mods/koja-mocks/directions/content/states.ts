@@ -58,7 +58,6 @@ const longTicket: ContentItem = {
     { name: 'Assignee', value: 'You' },
     { name: 'Cycle', value: 'Cycle 12' },
     { name: 'Estimate', value: '5 points' },
-    { name: 'Slices', value: '1 done · 1 in progress · 1 backlog' },
     { name: 'Related PRs', value: '#52', target: 'GitHub' },
     { name: '', value: '#57', target: 'GitHub' },
     { name: '', value: '#63', target: 'GitHub' },
@@ -72,6 +71,7 @@ export const contentViews = {
     state: 'saving-failed',
     item: {
       ...review.item,
+      unsaved: true,
       facts: review.item.facts.filter((fact) => fact.name !== 'Saved'),
     },
   },

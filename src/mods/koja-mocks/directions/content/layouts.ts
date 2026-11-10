@@ -3,13 +3,14 @@ import type { Element } from 'gpui-kit';
 
 import { icon, stateLine } from '../../../../kit/index.ts';
 import { spacing } from '../../../../kit/size.ts';
-import { sectionDivider, sectionHeader } from '../panels/frame.ts';
+import { sectionDivider } from '../panels/frame.ts';
 import { fixedLabel } from '../parts.ts';
 import { errorLine } from '../sidebars/states.ts';
 import type { DirectionTokens } from '../tokens.ts';
 import { pullSections, ticketSections } from './details.ts';
 import { factRows, factsBlock } from './facts.ts';
 import {
+  contentSectionHeader,
   sendButton,
   saveFailure,
   itemHeading,
@@ -22,7 +23,7 @@ import type { ContentState, ContentView } from './states.ts';
 
 const factsRailWidth = 240;
 const railInset = 16;
-const sectionGap = spacing.small;
+const sectionGap = spacing.xsmall;
 
 const readingBody = (view: ContentView, tokens: DirectionTokens): Element => {
   const { item, state } = view;
@@ -75,7 +76,7 @@ const reviewRail = (view: ContentView, tokens: DirectionTokens): Element =>
     .child(factRows(view.item.facts, tokens))
     .child(
       v_flex()
-        .child(sectionHeader({ name: 'Files 3', open: true, detail: [], end: [] }, tokens).mx(0))
+        .child(contentSectionHeader({ name: 'Files', count: 3 }, true, [], tokens).mx(0))
         .child(reviewFileList(tokens)),
     );
 

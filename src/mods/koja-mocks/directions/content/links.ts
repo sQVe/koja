@@ -1,10 +1,9 @@
 import { h_flex } from 'gpui-base';
 import type { Element } from 'gpui-kit';
-import { div } from 'gpui-kit';
 
 import { icon } from '../../../../kit/index.ts';
 import { spacing } from '../../../../kit/size.ts';
-import { styled } from '../parts.ts';
+import { label } from '../parts.ts';
 import { sourceLink } from '../sidebars/sidebar.ts';
 import type { DirectionTokens } from '../tokens.ts';
 import type { SourceTarget } from './data.ts';
@@ -31,6 +30,4 @@ export const agentLink = (value: string, tokens: DirectionTokens): Element =>
     .items_start()
     .tooltip(value)
     .child(icon('terminal', 'small').flex_none().mt(spacing.xxsmall).text_color(tokens.ink.dim))
-    .child(
-      styled(div().min_w(0).flex_1(), tokens.text.detail, tokens.ink.text).underline().child(value),
-    );
+    .child(label(value, tokens.text.detail, tokens.ink.text).flex_1().underline());

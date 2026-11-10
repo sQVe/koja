@@ -11,6 +11,7 @@ export interface ContentFact {
   target?: SourceTarget | 'agent';
   checkState?: CheckState;
   age?: string;
+  diff?: { added: number; removed: number };
 }
 
 export interface ContentItem {
@@ -19,6 +20,7 @@ export interface ContentItem {
   identifier: string;
   source: SourceTarget;
   readAge: string | null;
+  unsaved?: boolean;
   title: string | null;
   tab: string;
   state: string | null;
@@ -33,15 +35,15 @@ export const contentItems: Record<ContentKind, ContentItem> = {
     name: 'Draft review',
     identifier: 'ME-1090',
     source: 'Linear',
-    readAge: '1m ago',
+    readAge: null,
     title: 'Review design.md',
     tab: 'Review design.md',
     state: 'in review',
     icon: 'square-pen',
     description: [],
     facts: [
-      { name: 'From', value: 'Tau · draft review' },
-      { name: 'Agent', value: 'Claude Code · Design the sidebar', target: 'agent' },
+      { name: 'From', value: 'Tau' },
+      { name: 'Agent', value: 'Design the sidebar', target: 'agent' },
       { name: 'Comments', value: '2 line comments' },
       { name: 'Saved', value: '1m ago' },
     ],
@@ -65,7 +67,7 @@ export const contentItems: Record<ContentKind, ContentItem> = {
       { name: 'Ticket', value: 'ME-1090', target: 'Linear' },
       { name: 'Checks', value: '1 failing · 2 running', checkState: 'failing' },
       { name: 'Threads', value: '2 unresolved' },
-      { name: 'Files', value: '9 changed · +412 −38' },
+      { name: 'Files', value: '9 changed', diff: { added: 412, removed: 38 } },
     ],
   },
   ticket: {
@@ -85,7 +87,6 @@ export const contentItems: Record<ContentKind, ContentItem> = {
     facts: [
       { name: 'Project', value: 'Koja' },
       { name: 'Parent', value: 'ME-1087', target: 'Linear' },
-      { name: 'Slices', value: '1 done · 1 in progress · 1 backlog' },
       { name: 'Related PR', value: '#52', target: 'GitHub' },
     ],
   },
@@ -117,8 +118,14 @@ export const reviewLines = [
 ];
 
 export const reviewComments = [
-  { end: 6, range: 'L6', text: 'Keep the selected space visible when the project folds.' },
   {
+    start: 6,
+    end: 6,
+    range: 'L6',
+    text: 'Keep the selected space visible when the project folds.',
+  },
+  {
+    start: 12,
     end: 14,
     range: 'L12–14',
     text: 'Keep work-need marks visible when the group is folded.',

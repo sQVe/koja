@@ -48,7 +48,10 @@ const { checkMark } = (await import(partsPath)) as {
 };
 
 const { koja, kojaNormal } = (await import(tokensPath)) as {
-  koja: { ink: { text: string; dim: string } };
+  koja: {
+    ink: { text: string; dim: string; muted: string };
+    marks: { working: string; blocked: string; added: string; removed: string };
+  };
   kojaNormal: { pane: { focusedBorder: string; focusedHeaderFill: string } };
 };
 
@@ -88,6 +91,7 @@ const items = [
     other: [],
     tab: 'Review design.md',
     icon: 'square-pen',
+    body: '# Sidebar design',
   },
   {
     scene: 'pr',
@@ -97,6 +101,7 @@ const items = [
     other: ['ME-1090 · Linear'],
     tab: '#41 Design the sidebar',
     icon: 'git-compare',
+    body: 'typecheck',
   },
   {
     scene: 'ticket',
@@ -106,6 +111,7 @@ const items = [
     other: ['ME-1087 · Linear', 'koja #52 · GitHub'],
     tab: 'ME-1094 Design the ticket view',
     icon: 'file',
+    body: 'Description',
   },
 ];
 
@@ -116,7 +122,7 @@ afterAll(() => {
 });
 
 describe('Rail content scenes', () => {
-  test.each(items)('$scene names each source once before its state and read age', (item) => {
+  test.each(items)('$scene names each source once before its state and content', (item) => {
     const pane = paneOf(item.scene, item.kind);
     const texts = drawnTexts(pane);
 
@@ -125,8 +131,22 @@ describe('Rail content scenes', () => {
     }
 
     expect(texts.indexOf(item.identifier)).toBeLessThan(texts.indexOf(item.state));
-    expect(texts.filter((text) => text === 'read 1m ago')).toHaveLength(1);
-    expect(texts.indexOf(item.state)).toBeLessThan(texts.indexOf('read 1m ago'));
+    expect(texts.indexOf(item.state)).toBeLessThan(texts.indexOf(item.body));
+    expect(texts).not.toContain('read 1m ago');
+
+    if (item.scene !== 'review') {
+      expect(texts.filter((text) => text === 'synced 1m ago')).toHaveLength(1);
+      expect(texts.indexOf(item.state)).toBeLessThan(texts.indexOf('synced 1m ago'));
+    }
+
+    for (const action of [
+      'Open ticket',
+      'Open on GitHub',
+      'Open in Linear',
+      '#52 · Ticket view frame',
+    ]) {
+      expect(texts).not.toContain(action);
+    }
   });
 
   test.each(items)('$scene keeps its kind icon in the item tab', (item) => {
@@ -143,13 +163,18 @@ describe('Rail content scenes', () => {
   test.each(reviews)('%s names the selected space ticket and its agent terminal', (scene) => {
     const pane = paneOf(scene, 'Draft review');
     const texts = drawnTexts(pane);
-    const agent = sharedRegion(pane, 'Agent', 'Claude Code · Design the sidebar');
+    const agent = sharedRegion(pane, 'Agent', 'Design the sidebar');
 
     expect(texts.filter((text) => text === 'ME-1090 · Linear')).toHaveLength(1);
     expect(texts).not.toContain('ME-1092');
     expect(texts).toContain('# Sidebar design');
     expect(drawnIcons(agent)).toContain('terminal');
-    expect(texts.filter((text) => text === 'Claude Code · Design the sidebar')).toHaveLength(1);
+    expect(texts.filter((text) => text === 'Design the sidebar')).toHaveLength(1);
+    expect(drawnTooltips(agent)).toContain('Design the sidebar');
+    expect(texts).toContain('Tau');
+    expect(texts).not.toContain('Tau · draft review');
+    expect(texts).not.toContain('synced 1m ago');
+    expect(texts).not.toContain('read 1m ago');
   });
 
   test('the base review names the send action and saved state', () => {
@@ -163,27 +188,64 @@ describe('Rail content scenes', () => {
     expect(texts).not.toContain('saved 1m ago');
     expect(texts).not.toContain('> bun run check');
     expect(texts).toContain('Insert');
+    expect(texts).not.toContain('Normal');
+
+    for (const content of [
+      'slice-1.md',
+      'slice-2.md',
+      'L6',
+      'L12–14',
+      'Keep the selected space visible when the project folds.',
+      'Keep work-need marks visible when the group is folded.',
+    ]) {
+      expect(texts).toContain(content);
+    }
   });
 
   test('a failed save keeps edits and explains why sending is disabled without a solid fill', () => {
     const pane = paneOf('review-saving-failed', 'Draft review');
     const texts = drawnTexts(pane);
     const disabled = descendants(pane).filter((part) => part.isDisabled);
-    const reason = 'Could not save: the review folder is read-only';
+    const reason = 'Could not save: ~/code/koja/.tau/reviews is read-only';
     const action = sharedRegion(pane, reason, 'Send to Tau');
 
     expect(texts).toContain('Keep the selected space visible when groups fold.');
-    expect(texts).toContain('Unsaved');
+    expect(texts.filter((text) => text === 'Unsaved')).toHaveLength(3);
+    expect(elementWithText(pane, 'unsaved')?.textColors).toEqual([koja.marks.working]);
+    expect(texts.indexOf('unsaved')).toBeLessThan(texts.indexOf('# Sidebar design'));
     expect(texts).toContain('L6');
     expect(texts).toContain('L12–14');
     expect(texts.filter((text) => text === reason)).toHaveLength(1);
-    expect(texts).toContain('Your edits stay in this pane. Send waits for a save.');
+
+    expect(texts).toContain(
+      '1 line and 2 comments are unsaved. They stay in this pane, and Send waits for a save.',
+    );
+
     expect(texts).not.toContain('Saved');
     expect(disabled).toHaveLength(1);
     expect(drawnTexts(disabled[0]!)).toContain('Send to Tau');
     expect(disabled[0]!.backgroundColors).toHaveLength(0);
+    expect(disabled[0]!.borderColors).toHaveLength(0);
+    expect(elementWithText(disabled[0]!, 'Send to Tau')?.textColors).toEqual([koja.ink.dim]);
     expect(disabled[0]!.clickHandlers).toHaveLength(0);
     expect(drawnTexts(action)).toContain('Retry');
+    expect(drawnTexts(action)).toContain('Copy path');
+
+    for (const range of ['L6', 'L12–14']) {
+      const comment = descendants(pane).findLast((part) => {
+        const commentTexts = drawnTexts(part);
+
+        const hasGutter = part.kids.some((child) =>
+          child.backgroundColors.includes(koja.marks.working),
+        );
+
+        return commentTexts.includes(range) && commentTexts.includes('Unsaved') && hasGutter;
+      });
+
+      expect(comment).toBeDefined();
+      expect(drawnTexts(comment!)).not.toContain('# Sidebar design');
+    }
+
     expect(drawnTexts(action)).not.toContain('# Sidebar design');
 
     expect(drawnTexts(contentScene('review'))).toContain(
@@ -196,6 +258,8 @@ describe('Rail content scenes', () => {
 
     expect(texts).toContain('Sent to Tau');
     expect(texts).not.toContain('Send to Tau');
+    expect(texts).not.toContain('Done');
+    expect(texts).not.toContain('Unsaved');
     expect(texts).toContain('Tau closes this pane after collecting the review.');
     expect(texts.filter((text) => text === 'Read-only')).toHaveLength(3);
     expect(texts).toContain('L6');
@@ -249,10 +313,14 @@ describe('Rail content scenes', () => {
     const checks = sharedRegion(pane, reason, 'typecheck');
     const fact = sharedRegion(pane, 'Checks', '1 failing · 2 running');
 
-    expect(texts.filter((text) => text === 'read 1m ago')).toHaveLength(1);
+    expect(texts.filter((text) => text === 'synced 1m ago')).toHaveLength(1);
     expect(drawnTexts(fact)).toContain('· 6m old');
     expect(drawnTexts(checks)).toContain('Retry');
-    expect(drawnTexts(checks)).not.toContain('Threads 2');
+    expect(drawnTexts(checks)).not.toContain('Threads');
+
+    expect(texts).toContain('tests');
+    expect(drawnTexts(sharedRegion(pane, 'Threads', '2'))).toEqual(['Threads', '2']);
+    expect(drawnTexts(sharedRegion(pane, 'Files', '9'))).toEqual(['Files', '9']);
     expect(texts).toContain('Type mismatch in rows.ts:48');
   });
 
@@ -274,7 +342,12 @@ describe('Rail content scenes', () => {
 
   test('PR files start collapsed with their change totals intact', () => {
     const pane = paneOf('pr', 'Pull request');
-    const files = sharedRegion(pane, 'Files 9', '+412');
+
+    const files = descendants(pane).findLast((part) => {
+      const texts = drawnTexts(part);
+
+      return texts.includes('Files') && texts.includes('9') && texts.includes('+412');
+    })!;
 
     expect(drawnIcons(files)).toContain('chevron-right');
     expect(drawnTexts(files)).toContain('−38');
@@ -292,8 +365,10 @@ describe('Rail content scenes', () => {
     const pull = drawnTexts(paneOf('pr', 'Pull request'));
     const ticket = drawnTexts(paneOf('ticket', 'Ticket'));
 
-    expect(pull).toContain('rows.ts · L48 · sqve · 2h ago');
-    expect(pull).toContain('repoLabel.ts · L27–31 · sqve · 1h ago');
+    expect(pull).toContain('rows.ts:48');
+    expect(pull).toContain('repoLabel.ts:27–31');
+    expect(pull).toContain('sqve · 2h ago');
+    expect(pull).toContain('sqve · 1h ago');
     expect(ticket).toContain('Read the ticket snapshot');
     expect(ticket).toContain('Draw the shared content frame');
     expect(ticket).toContain('Check links and empty states');
@@ -308,7 +383,10 @@ describe('Rail content scenes', () => {
     expect(texts.filter((text) => text === 'Retry')).toHaveLength(1);
     expect(texts).not.toContain('Design the sidebar');
     expect(texts).not.toContain('read 1m ago');
-    expect(texts).not.toContain('Checks 3');
+    expect(texts).not.toContain('synced 1m ago');
+    expect(texts).not.toContain('Checks');
+    expect(texts).not.toContain('open');
+    expect(texts).not.toContain('Description');
   });
 
   test('a first ticket read names its source without inventing facts or a read time', () => {
@@ -318,7 +396,11 @@ describe('Rail content scenes', () => {
     expect(texts).toContain('Loading ticket');
     expect(texts).not.toContain('Backlog');
     expect(texts).not.toContain('Project');
+    expect(texts).not.toContain('Design the ticket view');
+    expect(texts).not.toContain('Slices');
+    expect(texts).not.toContain('Retry');
     expect(texts).not.toContain('read 1m ago');
+    expect(texts).not.toContain('synced 1m ago');
   });
 
   test('long linked facts keep their full source in a tooltip', () => {
@@ -329,17 +411,128 @@ describe('Rail content scenes', () => {
     expect(parent).toBeDefined();
     expect(drawnTooltips(pane)).toContain(parent!);
     expect(parent).toEndWith('· Linear');
+    expect(parent).toContain('every active development session in one window');
+
+    expect(texts).toContain(
+      'Design the ticket view for long titles, related pull requests, and project context across several active development cycles',
+    );
+
+    for (const fact of ['Labels', 'Assignee', 'Cycle', 'Estimate', 'Slices']) {
+      expect(texts).toContain(fact);
+    }
 
     for (const target of ['koja #52 · GitHub', 'koja #57 · GitHub', 'koja #63 · GitHub']) {
       expect(texts.filter((text) => text === target)).toHaveLength(1);
     }
   });
 
+  test.each(['pr', 'pr-checks-failed', 'pr-normal'])(
+    '%s puts attention first and gives check ages from now',
+    (scene) => {
+      const pane = paneOf(scene, 'Pull request');
+      const texts = drawnTexts(pane);
+
+      const sections = descendants(pane).filter((part) =>
+        part.kids.some((child) => child.kids.some((mark) => mark.path === 'chevron-down')),
+      );
+
+      const headings = sections.map((part) => drawnTexts(part)[0]);
+
+      expect(headings).toEqual(['Checks', 'Threads', 'Description']);
+      expect(texts.indexOf('Description')).toBeLessThan(texts.lastIndexOf('Files'));
+      expect(texts.some((text) => text.includes('before last read'))).toBe(false);
+      const age = scene === 'pr-checks-failed' ? 'started 8m ago' : 'started 2m ago';
+
+      expect(texts).toContain(age);
+
+      if (scene === 'pr-checks-failed') {
+        const running = descendants(pane).filter((part) => part.texts.includes('running'));
+
+        expect(running).toHaveLength(2);
+        expect(running.map((part) => part.textColors)).toEqual([[koja.ink.dim], [koja.ink.dim]]);
+      }
+    },
+  );
+
+  test.each(['pr', 'pr-checks-failed', 'pr-normal'])(
+    '%s colors diff totals in the facts and Files section',
+    (scene) => {
+      const pane = paneOf(scene, 'Pull request');
+
+      for (const [text, color] of [
+        ['+412', koja.marks.added],
+        ['−38', koja.marks.removed],
+      ] as const) {
+        const counts = descendants(pane).filter((part) => part.texts.includes(text));
+
+        expect(counts).toHaveLength(2);
+        expect(counts.map((part) => part.textColors)).toEqual([[color], [color]]);
+      }
+    },
+  );
+
+  test.each(['review', 'review-saving-failed', 'review-narrow'])(
+    '%s marks the review as waiting for the user',
+    (scene) => {
+      const pane = paneOf(scene, 'Draft review');
+
+      const chip = descendants(pane).findLast(
+        (part) => drawnTexts(part).includes('in review') && drawnIcons(part).length > 0,
+      )!;
+
+      expect(drawnIcons(chip)).toEqual(['message-circle-question']);
+      expect(descendants(chip).flatMap((part) => part.textColors)).toContain(koja.marks.blocked);
+    },
+  );
+
+  test.each(reviews)('%s distinguishes commented line numbers from plain line numbers', (scene) => {
+    const pane = paneOf(scene, 'Draft review');
+
+    for (const number of ['6', '12', '13', '14']) {
+      expect(elementWithText(pane, number)?.textColors).toEqual([koja.ink.text]);
+    }
+
+    expect(elementWithText(pane, '5')?.textColors).toEqual([koja.ink.dim]);
+  });
+
+  test.each(['ticket', 'ticket-long'])(
+    '%s keeps slice counts in the section and shows related PR states before links',
+    (scene) => {
+      const pane = paneOf(scene, 'Ticket');
+      const texts = drawnTexts(pane);
+      const related = sharedRegion(pane, 'open', 'koja #52 · GitHub');
+
+      expect(texts.filter((text) => text === 'Slices')).toHaveLength(1);
+      expect(texts).not.toContain('1 done · 1 in progress · 1 backlog');
+
+      expect(drawnTexts(related).indexOf('open')).toBeLessThan(
+        drawnTexts(related).indexOf('koja #52 · GitHub'),
+      );
+
+      expect(elementWithText(related, 'open')?.textColors).toEqual([koja.ink.dim]);
+    },
+  );
+
+  test.each(['pr', 'ticket', 'review'])(
+    '%s dims section counts separately from titles',
+    (scene) => {
+      const kind = items.find((item) => item.scene === scene)!.kind;
+      const pane = paneOf(scene, kind);
+      const sections: Record<string, string> = { pr: 'Checks', ticket: 'Slices', review: 'Files' };
+      const section = sections[scene]!;
+      const header = sharedRegion(pane, section, '3');
+
+      expect(elementWithText(header, '3')?.textColors).toEqual([koja.ink.dim]);
+      expect(elementWithText(header, section)?.textColors).toEqual([koja.ink.text]);
+    },
+  );
+
   test('normal mode keeps the focused content tint and indigo border', () => {
     const scene = contentScene('pr-normal');
     const pane = paneOf('pr-normal', 'Pull request');
 
     expect(drawnTexts(scene)).toContain('Normal');
+    expect(drawnTexts(scene)).toContain('> bun run check');
     expect(drawnTexts(scene)).not.toContain('Insert');
     expect(pane.borderColors).toContain(kojaNormal.pane.focusedBorder);
 

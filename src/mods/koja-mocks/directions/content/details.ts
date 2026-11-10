@@ -3,36 +3,62 @@ import type { Element } from 'gpui-kit';
 
 import { spacing } from '../../../../kit/size.ts';
 import { diffCounts } from '../panels/changes.ts';
-import { sectionHeader } from '../panels/frame.ts';
 import { fixedLabel, label, row, statusMark } from '../parts.ts';
 import { workNeedMark } from '../sidebars/facts.ts';
 import { errorLine } from '../sidebars/states.ts';
 import type { DirectionTokens } from '../tokens.ts';
 import type { ContentItem } from './data.ts';
 import { pullFiles, ticketSlices } from './data.ts';
-import { checkMark, contentSection, description, paragraph, readingInset } from './parts.ts';
+import {
+  checkMark,
+  contentSection,
+  contentSectionHeader,
+  description,
+  paragraph,
+} from './parts.ts';
 
-const checkDetailInset = 34;
-const threadGap = spacing.medium;
+const statusSlotWidth = 14;
+const rowGap = 6;
+
+const statusSlot = (mark: Element): Element =>
+  h_flex().w(statusSlotWidth).flex_none().items_center().justify_center().child(mark);
+
+const detailInset = (tokens: DirectionTokens): number =>
+  tokens.rows.inset + tokens.rows.paddingX + statusSlotWidth + rowGap;
+
+const threadGap = spacing.xsmall;
 const pullAdded = pullFiles.reduce((sum, file) => sum + file.add, 0);
 const pullDeleted = pullFiles.reduce((sum, file) => sum + file.del, 0);
 
 const checks = [
   { name: 'typecheck', state: 'failing', detail: 'Type mismatch in rows.ts:48', status: 'blocked' },
-  { name: 'tests', state: 'running', detail: 'Started 2m ago', status: 'working' },
-  { name: 'style', state: 'running', detail: 'Started 1m ago', status: 'working' },
+  {
+    name: 'tests',
+    state: 'running',
+    detail: 'started 2m ago',
+    staleDetail: 'started 8m ago',
+    status: 'working',
+  },
+  {
+    name: 'style',
+    state: 'running',
+    detail: 'started 1m ago',
+    staleDetail: 'started 7m ago',
+    status: 'working',
+  },
 ] as const;
 
 const checksList = (stale: boolean, tokens: DirectionTokens): Element =>
   v_flex()
     .flex_none()
     .min_w(0)
-    .py(spacing.small)
-    .gap(spacing.small)
+    .py(spacing.xxsmall)
+    .gap(spacing.xxsmall)
     .children(
       checks.map((check) => {
         const ink = stale ? tokens.ink.dim : tokens.marks[check.status];
-        const detail = stale ? check.detail.replace(' ago', ' before last read') : check.detail;
+        const hasStaleAge = stale && 'staleDetail' in check;
+        const detail = hasStaleAge ? check.staleDetail : check.detail;
 
         return v_flex()
           .flex_none()
@@ -41,7 +67,7 @@ const checksList = (stale: boolean, tokens: DirectionTokens): Element =>
             row(
               {
                 selected: false,
-                start: checkMark(check.state, tokens),
+                start: statusSlot(checkMark(check.state, tokens)),
                 label: label(check.name, tokens.text.body, tokens.ink.text),
                 end: [fixedLabel(check.state, tokens.text.detail, ink)],
               },
@@ -50,7 +76,7 @@ const checksList = (stale: boolean, tokens: DirectionTokens): Element =>
           )
           .child(
             label(detail, tokens.text.detail, tokens.ink.dim)
-              .ml(checkDetailInset)
+              .ml(detailInset(tokens))
               .mr(spacing.xlarge),
           );
       }),
@@ -65,40 +91,49 @@ const checksSection = (stale: boolean, tokens: DirectionTokens): Element => {
 
   parts.push(checksList(stale, tokens));
 
-  return contentSection('Checks 3', parts, tokens, 'failing');
+  return contentSection({ name: 'Checks', count: 3, need: 'failing' }, parts, tokens);
 };
 
 const reviewThreads = (tokens: DirectionTokens): Element =>
   v_flex()
     .flex_none()
     .min_w(0)
-    .px(readingInset)
-    .py(spacing.medium)
+    .py(spacing.xsmall)
     .gap(threadGap)
     .children(
       [
         {
-          reference: 'rows.ts · L48 · sqve · 2h ago',
+          reference: 'rows.ts:48',
+          detail: 'sqve · 2h ago',
           text: 'Keep the selected row visible when the group folds.',
         },
         {
-          reference: 'repoLabel.ts · L27–31 · sqve · 1h ago',
+          reference: 'repoLabel.ts:27–31',
+          detail: 'sqve · 1h ago',
           text: 'Can the branch truncate before the repository name?',
         },
       ].map((thread) =>
         v_flex()
           .flex_none()
           .min_w(0)
-          .gap(spacing.xsmall)
+          .gap(spacing.xxsmall)
           .child(
-            h_flex()
-              .gap(spacing.small)
-              .items_center()
-              .child(workNeedMark('review', tokens))
-              .child(fixedLabel(thread.reference, tokens.text.detail, tokens.ink.dim))
-              .child(fixedLabel('unresolved', tokens.text.detail, tokens.ink.dim)),
+            row(
+              {
+                selected: false,
+                start: statusSlot(workNeedMark('review', tokens)),
+                label: label(thread.reference, tokens.text.body, tokens.ink.text),
+                end: [fixedLabel('unresolved', tokens.text.detail, tokens.marks.modified)],
+              },
+              tokens,
+            ),
           )
-          .child(paragraph(thread.text, tokens)),
+          .child(paragraph(thread.text, tokens).ml(detailInset(tokens)).mr(spacing.xlarge))
+          .child(
+            label(thread.detail, tokens.text.detail, tokens.ink.dim)
+              .ml(detailInset(tokens))
+              .mr(spacing.xlarge),
+          ),
       ),
     );
 
@@ -126,21 +161,18 @@ export const pullSections = (
   staleChecks: boolean,
   tokens: DirectionTokens,
 ): Element[] => [
-  contentSection('Description', [description(item, tokens)], tokens),
   checksSection(staleChecks, tokens),
-  contentSection('Threads 2', [reviewThreads(tokens)], tokens, 'review'),
-  sectionHeader(
-    {
-      name: 'Files 9',
-      open: false,
-      detail: diffCounts(pullAdded, pullDeleted, tokens),
-      end: [],
-    },
+  contentSection({ name: 'Threads', count: 2, need: 'review' }, [reviewThreads(tokens)], tokens),
+  contentSection({ name: 'Description' }, [description(item, tokens)], tokens),
+  contentSectionHeader(
+    { name: 'Files', count: 9 },
+    false,
+    diffCounts(pullAdded, pullDeleted, tokens),
     tokens,
   ),
 ];
 
 export const ticketSections = (item: ContentItem, tokens: DirectionTokens): Element[] => [
-  contentSection('Description', [description(item, tokens)], tokens),
-  contentSection('Slices 3', [slicesList(tokens)], tokens),
+  contentSection({ name: 'Description' }, [description(item, tokens)], tokens),
+  contentSection({ name: 'Slices', count: 3 }, [slicesList(tokens)], tokens),
 ];
