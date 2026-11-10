@@ -31,8 +31,18 @@ fi
 root=/var/tmp/ruta-$name
 
 find_binary() {
-  if [[ -n ${HERDR_APP_BIN:-} ]]; then
-    printf '%s\n' "$HERDR_APP_BIN"
+  local chosen=${HERDR_APP_BIN:-}
+
+  if [[ $chosen == */* ]]; then
+    printf '%s\n' "$chosen"
+    return 0
+  fi
+
+  if [[ -n $chosen ]]; then
+    if ! command -v -- "$chosen"; then
+      echo "HERDR_APP_BIN names no program on PATH: '$chosen'" >&2
+      return 1
+    fi
     return 0
   fi
 
@@ -75,22 +85,21 @@ install_mods() {
   in_sandbox "$checkout/scripts/sandbox-ready"
 }
 
-absolute() {
-  realpath -ms -- "$1"
-}
-
 case ${1:-} in
   up | restart)
     command=$1
     shift
+    bin=$(find_binary)
+    # The launch script runs from the checkout, so give it an absolute path.
+    bin=$(realpath -ms -- "$bin")
     cd "$checkout"
-    exec ruta "$command" "$@" -- "$(absolute "$(find_binary)")"
+    exec ruta "$command" "$@" -- "$bin"
     ;;
   install) install_mods ;;
   do | status) require_up; in_sandbox herdr-app "$@" ;;
   hc) require_up; shift; in_sandbox hc "$@" ;;
   shot)
-    file=${2:+$(absolute "$2")}
+    file=${2:+$(realpath -ms -- "$2")}
     cd "$checkout"
     exec ruta shot ${file:+"$file"}
     ;;
