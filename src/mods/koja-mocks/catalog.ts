@@ -58,6 +58,7 @@ const sceneSizes = {
   'shell-attention-open': shellSceneSize,
   'shell-dialog': shellSceneSize,
   'shell-content': shellSceneSize,
+  'shell-draft-review': shellSceneSize,
   'dialog-close': shellSceneSize,
   'dialog-close-normal': shellSceneSize,
   'dialog-rename': shellSceneSize,

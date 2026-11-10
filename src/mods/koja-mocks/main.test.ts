@@ -172,6 +172,7 @@ describe('scene picker', () => {
     'popup',
     'controls',
     'shell',
+    'shell-draft-review',
     'pane-headers',
     'shell-attention',
     'shell-attention-normal',

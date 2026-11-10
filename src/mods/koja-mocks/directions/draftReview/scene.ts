@@ -86,7 +86,8 @@ const reviewBody = (view: DraftView, tokens: DirectionTokens): Element =>
     )
     .child(factsRail(view, tokens));
 
-const draftPane = (view: DraftView, tokens: DirectionTokens): Element => {
+export const draftReviewPane = (state: DraftState, tokens: DirectionTokens): Element => {
+  const view = draftView(state);
   const body = view.state === 'broken' ? brokenBody(view, tokens) : reviewBody(view, tokens);
 
   return cardSlot(
@@ -119,6 +120,6 @@ export const draftReviewScene = (state: DraftState): Element => {
     agentFocused: false,
     tabs,
     toggles: () => [],
-    panes: (tokens) => [draftPane(view, tokens)],
+    panes: (tokens) => [draftReviewPane(state, tokens)],
   });
 };

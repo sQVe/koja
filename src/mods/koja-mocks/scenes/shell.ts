@@ -5,6 +5,7 @@ import type { PaneHeaderOptions } from '../../../kit/index.ts';
 import {
   colors,
   controlSize,
+  icon,
   iconButton,
   iconToggle,
   modePill,
@@ -21,6 +22,8 @@ import { createMixState, mixCard, paneClearance } from '../directions/attention/
 import { contentPane } from '../directions/content/scene.ts';
 import { contentViews } from '../directions/content/states.ts';
 import { dialogLayer } from '../directions/dialogs/scene.ts';
+import { draftItem } from '../directions/draftReview/data.ts';
+import { draftReviewPane } from '../directions/draftReview/scene.ts';
 import { koja, kojaNormal } from '../directions/koja.ts';
 import { commandPalette } from '../directions/overlays/palette.ts';
 import { spacePanel } from '../directions/panels/space.ts';
@@ -29,6 +32,12 @@ import { mapSidebar } from '../directions/sidebars/sidebar.ts';
 import type { DirectionTokens } from '../directions/tokens.ts';
 import type { FakeTab } from './shellContent.ts';
 import { agentPane, fakeTabs, shellPane } from './shellContent.ts';
+
+interface ShellOptions {
+  activeTab?: Element;
+  spacePanelOpen?: boolean;
+  mode?: 'Insert' | 'Normal';
+}
 
 const sidebar = (): Element => mapSidebar(koja);
 
@@ -46,18 +55,31 @@ const tabElement = (fakeTab: FakeTab): Element => {
   });
 };
 
-const tabBar = (): Element =>
-  h_flex()
+const tabBar = (options: ShellOptions): Element => {
+  const tabs = fakeTabs.map((fakeTab) => {
+    const active = options.activeTab === undefined && fakeTab.active;
+
+    return tabElement({ ...fakeTab, active });
+  });
+
+  if (options.activeTab !== undefined) {
+    tabs.push(options.activeTab);
+  }
+
+  return h_flex()
     .h(controlSize.tabBar)
     .flex_none()
     .px(spacing.xsmall)
     .gap(spacing.xxsmall)
     .items_center()
-    .children(fakeTabs.map(tabElement))
+    .children(tabs)
     .child(h_flex().flex_1())
     .child(iconButton({ name: 'plus' }))
-    .child(modePill({ label: 'Normal' }))
-    .child(iconToggle({ name: 'panel-right', label: 'Space', active: true }));
+    .child(modePill({ label: options.mode ?? 'Normal' }))
+    .child(
+      iconToggle({ name: 'panel-right', label: 'Space', active: options.spacePanelOpen !== false }),
+    );
+};
 
 const terminalBody = (lines: string[]): Element =>
   v_flex()
@@ -123,25 +145,18 @@ const contentPanes = (): Element[] => [
   contentPane(contentViews.pr, koja),
 ];
 
-const main = (panes: Element[]): Element =>
-  v_flex()
-    .flex_1()
-    .h_full()
-    .min_w(0)
-    .min_h(0)
-    .child(tabBar())
-    .child(
-      h_flex()
-        .flex_1()
-        .min_h(0)
-        .gap(spacing.small)
-        .p(spacing.small)
-        .children(panes)
-        .child(spacePanel(spaceStates.base, koja)),
-    );
+const main = (panes: Element[], options: ShellOptions): Element => {
+  const body = h_flex().flex_1().min_h(0).gap(spacing.small).p(spacing.small).children(panes);
 
-const shellWindow = (panes: Element[] = shellPanes()): Element =>
-  h_flex().flex_1().min_h(0).bg(colors().chrome).child(sidebar()).child(main(panes));
+  if (options.spacePanelOpen !== false) {
+    body.child(spacePanel(spaceStates.base, koja));
+  }
+
+  return v_flex().flex_1().h_full().min_w(0).min_h(0).child(tabBar(options)).child(body);
+};
+
+const shellWindow = (panes: Element[] = shellPanes(), options: ShellOptions = {}): Element =>
+  h_flex().flex_1().min_h(0).bg(colors().chrome).child(sidebar()).child(main(panes, options));
 
 export const shellScene = (): Element =>
   v_flex().relative().flex_1().min_h(0).child(shellWindow()).child(commandPalette(koja));
@@ -174,6 +189,28 @@ export const shellAttentionScene = (
 
 export const shellContentScene = (): Element =>
   v_flex().relative().flex_1().min_h(0).child(shellWindow(contentPanes()));
+
+export const shellDraftReviewScene = (): Element => {
+  const activeTab = tab({
+    label: draftItem.tab,
+    active: true,
+    icon: icon(draftItem.icon, 'small').text_color(colors().foreground),
+    status: null,
+    close: iconButton({ name: 'x', size: 'small' }),
+  });
+
+  return v_flex()
+    .relative()
+    .flex_1()
+    .min_h(0)
+    .child(
+      shellWindow([draftReviewPane('comment', koja)], {
+        activeTab,
+        spacePanelOpen: false,
+        mode: 'Insert',
+      }),
+    );
+};
 
 export const shellDialogScene = (): Element =>
   v_flex()
