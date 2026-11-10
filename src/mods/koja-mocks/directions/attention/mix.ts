@@ -24,6 +24,7 @@ const textInset = 20;
 // The close icon sits centered in a wider button, so the title pads less to line the icon up with
 // the project names below it.
 const closeIconInset = 3;
+const askGap = 8;
 
 export const createMixState = (asks: readonly HiddenAsk[] = hiddenAsks): MixState => ({
   asks,
@@ -143,7 +144,7 @@ const askList = (state: MixState, tokens: DirectionTokens): Element => {
     .child(dismissControl(state, tokens));
 
   return v_flex()
-    .gap(2)
+    .gap(askGap)
     .child(title)
     .children(state.asks.map((ask) => askRow(ask, tokens)));
 };
