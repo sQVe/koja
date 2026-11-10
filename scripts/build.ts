@@ -1,5 +1,5 @@
 import { cp, readdir, rm } from 'node:fs/promises';
-import { join } from 'node:path';
+import { basename, join } from 'node:path';
 
 export const sourceDirectory = 'src/mods';
 export const outputDirectory = 'dist/mods';
@@ -22,6 +22,10 @@ const listModNames = async (directory: string): Promise<string[]> => {
 };
 
 const isTypeScript = (path: string): boolean => path.endsWith('.ts');
+
+const isQaRecipe = (path: string): boolean => basename(path) === 'qa.md';
+
+const shipsWithMod = (path: string): boolean => !isTypeScript(path) && !isQaRecipe(path);
 
 const bundleMod = async (modSource: string, modOutput: string, name: string): Promise<void> => {
   const result = await Bun.build({
@@ -54,7 +58,7 @@ const buildMod = async (source: string, output: string, name: string): Promise<v
   const modSource = join(source, name);
   const modOutput = join(output, name);
 
-  await cp(modSource, modOutput, { recursive: true, filter: (path) => !isTypeScript(path) });
+  await cp(modSource, modOutput, { recursive: true, filter: shipsWithMod });
   await copyKitIcons(source, modOutput);
   await bundleMod(modSource, modOutput, name);
 };
