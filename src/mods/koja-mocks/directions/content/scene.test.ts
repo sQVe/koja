@@ -407,6 +407,50 @@ describe('Rail content scenes', () => {
     expect(elementWithText(pane, 'Koja')?.textColors).toEqual([koja.ink.text]);
   });
 
+  test('save recovery renders the supplied failure details', async () => {
+    const { saveFailure } = (await import(partsPath)) as {
+      saveFailure: (
+        tokens: unknown,
+        details: { error: string; folder: string; unsaved: string },
+      ) => DrawnElement;
+    };
+
+    const details = {
+      error: 'The review folder is not writable.',
+      folder: '/worktree/review',
+      unsaved: 'The pending edit stays here.',
+    };
+
+    const recovery = drawnTexts(saveFailure(koja, details));
+
+    expect(recovery).toContain(details.error);
+    expect(recovery).toContain(details.folder);
+    expect(recovery).toContain(details.unsaved);
+  });
+
+  test('a warning fact changes only its value ink', async () => {
+    const factsPath = './facts.ts';
+
+    const { factRows } = (await import(factsPath)) as {
+      factRows: (
+        facts: { name: string; value: string; warning?: boolean }[],
+        tokens: unknown,
+      ) => DrawnElement;
+    };
+
+    const facts = factRows(
+      [
+        { name: 'Save state', value: 'Pending', warning: true },
+        { name: 'Origin', value: 'Agent' },
+      ],
+      koja,
+    );
+
+    expect(elementWithText(facts, 'Save state')?.textColors).toEqual([koja.ink.dim]);
+    expect(elementWithText(facts, 'Pending')?.textColors).toEqual([koja.marks.working]);
+    expect(elementWithText(facts, 'Agent')?.textColors).toEqual([koja.ink.text]);
+  });
+
   test('threads identify author and age and slices have no numeric prefix', () => {
     const pull = drawnTexts(paneOf('pr', 'Pull request'));
     const ticket = drawnTexts(paneOf('ticket', 'Ticket'));

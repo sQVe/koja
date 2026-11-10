@@ -11,6 +11,7 @@ export interface ContentFact {
   target?: SourceTarget | 'agent';
   checkState?: CheckState;
   age?: string;
+  warning?: boolean;
   diff?: { added: number; removed: number };
 }
 
