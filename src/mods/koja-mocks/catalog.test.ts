@@ -26,6 +26,7 @@ describe('scene lookup', () => {
     { name: 'controls', width: overlaySize.worktreeListWidth, height: overlaySize.wideMenuHeight },
     { name: 'shell', width: overlaySize.shellWidth, height: overlaySize.shellHeight },
     { name: 'shell-dialog', width: overlaySize.shellWidth, height: overlaySize.shellHeight },
+    { name: 'shell-content', width: overlaySize.shellWidth, height: overlaySize.shellHeight },
     {
       name: 'pane-headers',
       width: overlaySize.paneHeadersWidth,

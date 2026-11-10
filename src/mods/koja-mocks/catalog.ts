@@ -47,6 +47,7 @@ const sceneSizes = {
   'sidebar-find': shellSceneSize,
   'sidebar-states': shellSceneSize,
   'shell-dialog': shellSceneSize,
+  'shell-content': shellSceneSize,
   'dialog-close': shellSceneSize,
   'dialog-close-normal': shellSceneSize,
   'dialog-rename': shellSceneSize,

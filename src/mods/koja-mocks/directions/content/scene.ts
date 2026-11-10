@@ -20,7 +20,7 @@ const contentAgent: FakePane = {
   lines: agentPane.lines,
 };
 
-const contentPane = (view: ContentView, tokens: DirectionTokens): Element =>
+export const contentPane = (view: ContentView, tokens: DirectionTokens): Element =>
   cardSlot(
     card(true, tokens).child(contentHeader(view.item, tokens)).child(contentBody(view, tokens)),
     tokens,

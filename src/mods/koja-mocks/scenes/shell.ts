@@ -16,6 +16,8 @@ import {
   spacing,
   tab,
 } from '../../../kit/index.ts';
+import { contentPane } from '../directions/content/scene.ts';
+import { contentViews } from '../directions/content/states.ts';
 import { dialogLayer } from '../directions/dialogs/scene.ts';
 import { koja, kojaNormal } from '../directions/koja.ts';
 import { commandPalette } from '../directions/overlays/palette.ts';
@@ -81,7 +83,44 @@ const paneCard = (header: PaneHeaderOptions, lines: string[], grow: number): Ele
     .child(terminalBody(lines));
 };
 
-const main = (): Element =>
+const shellPanes = (): Element[] => [
+  paneCard(
+    {
+      ...agentPane,
+      focused: true,
+      zoomed: false,
+      width: shellSize.focusedPaneWidth,
+    },
+    agentPane.lines,
+    shellSize.focusedPaneShare,
+  ),
+  paneCard(
+    {
+      ...shellPane,
+      focused: false,
+      zoomed: false,
+      width: shellSize.shellPaneWidth,
+    },
+    shellPane.lines,
+    shellSize.shellPaneShare,
+  ),
+];
+
+const contentPanes = (): Element[] => [
+  paneCard(
+    {
+      ...agentPane,
+      focused: false,
+      zoomed: false,
+      width: shellSize.shellPaneWidth,
+    },
+    agentPane.lines,
+    1,
+  ),
+  contentPane(contentViews.pr, koja),
+];
+
+const main = (panes: Element[]): Element =>
   v_flex()
     .flex_1()
     .h_full()
@@ -94,38 +133,18 @@ const main = (): Element =>
         .min_h(0)
         .gap(spacing.small)
         .p(spacing.small)
-        .child(
-          paneCard(
-            {
-              ...agentPane,
-              focused: true,
-              zoomed: false,
-              width: shellSize.focusedPaneWidth,
-            },
-            agentPane.lines,
-            shellSize.focusedPaneShare,
-          ),
-        )
-        .child(
-          paneCard(
-            {
-              ...shellPane,
-              focused: false,
-              zoomed: false,
-              width: shellSize.shellPaneWidth,
-            },
-            shellPane.lines,
-            shellSize.shellPaneShare,
-          ),
-        )
+        .children(panes)
         .child(spacePanel(spaceStates.base, koja)),
     );
 
-const shellWindow = (): Element =>
-  h_flex().flex_1().min_h(0).bg(colors().chrome).child(sidebar()).child(main());
+const shellWindow = (panes: Element[] = shellPanes()): Element =>
+  h_flex().flex_1().min_h(0).bg(colors().chrome).child(sidebar()).child(main(panes));
 
 export const shellScene = (): Element =>
   v_flex().relative().flex_1().min_h(0).child(shellWindow()).child(commandPalette(koja));
+
+export const shellContentScene = (): Element =>
+  v_flex().relative().flex_1().min_h(0).child(shellWindow(contentPanes()));
 
 export const shellDialogScene = (): Element =>
   v_flex()
