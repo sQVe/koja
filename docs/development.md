@@ -45,8 +45,15 @@ herdr-app do layout.switch --name koja
 ## Sandbox
 
 Try and QA mods in a throwaway Herdr window with its own core, home, and private headless display.
+[ruta](https://github.com/sQVe/ruta) runs the display, the window, the input, and the shots, with
+the settings in [ruta.toml](../ruta.toml). Install it once:
+
+```sh
+cargo install --git https://github.com/sQVe/ruta --tag v0.1.0 --locked ruta
+```
+
 `up` installs this checkout with the existing installer, so it shows the worktree's mods and
-`config/`.
+`config/`. `restart` reinstalls and starts the window and its core again.
 
 ```sh
 bun run sandbox up
@@ -63,9 +70,11 @@ bun run sandbox down
 `shot` writes the window at its own pixel size, so a coordinate read from a shot matches `click`.
 `scroll x y n` turns the wheel n notches over that point, down for a positive n and up for a
 negative one; dragging a scrollbar does not scroll a Herdr view. `bun run sandbox install`
-reinstalls after a mod edit without restarting the sandbox. `HERDR_APP_SANDBOX=<name>` runs a second
-sandbox side by side, and `HERDR_APP_BIN` runs another herdr-app binary instead of the installed
-one.
+reinstalls after a mod edit without restarting the sandbox. `bun run sandbox do <action>`, `status`,
+and `hc <args>` drive the sandbox window and core. Every other command goes to ruta, so `log`,
+`opened`, `drag`, `hold`, and `release` work as `ruta` describes them. `RUTA_NAME=<name>` runs a
+second sandbox side by side, and `HERDR_APP_BIN` runs another herdr-app binary instead of the
+installed one.
 
 Never use `ydotool`, and never run `herdr-app do`, `hc`, or synthetic input against the user's real
 window or core.

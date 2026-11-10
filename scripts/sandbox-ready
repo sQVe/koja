@@ -1,0 +1,7 @@
+#!/usr/bin/env bash
+# ruta's ready command: succeed once the sandbox window answers, after
+# switching it to Koja's layout, the only one Koja's mods draw in.
+set -euo pipefail
+
+herdr-app status >/dev/null
+herdr-app do layout.switch --name koja >/dev/null

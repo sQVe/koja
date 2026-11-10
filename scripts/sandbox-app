@@ -1,0 +1,42 @@
+#!/usr/bin/env bash
+# ruta's launch command: install this checkout into the sandbox home, then
+# become herdr-app. ruta runs it with the sandbox's own HOME and XDG folders.
+#
+#   scripts/sandbox-app <herdr-app binary>
+set -euo pipefail
+
+if [[ $# -ne 1 ]]; then
+  echo "usage: scripts/sandbox-app <herdr-app binary>" >&2
+  exit 2
+fi
+
+bin=$1
+here=$(cd "$(dirname "$0")" && pwd)
+home=$XDG_CONFIG_HOME/herdr-app
+
+# The ready command and scripts/sandbox find the chosen herdr-app on the
+# sandbox PATH, which ruta starts with $RUTA_ROOT/bin.
+install_binary() {
+  local shim=$RUTA_ROOT/bin/herdr-app
+  printf '#!/bin/sh\nexec %q "$@"\n' "$bin" >"$shim"
+  chmod +x "$shim"
+}
+
+# A fresh home makes Herdr show its welcome and an Updated pill, which would sit in every shot.
+mark_first_start_done() {
+  local shared=$home/shared.json current='' version staged
+  if [[ -f $shared ]]; then current=$(jq -c 'objects' "$shared" 2>/dev/null) || current=''; fi
+  if [[ -z $current ]]; then current='{}'; fi
+  staged=$(mktemp "$home/shared.XXXXXX")
+  jq '. + {"frame.welcomed": "finished"}' <<<"$current" >"$staged"
+  mv "$staged" "$shared"
+
+  version=$("$bin" --version | awk '{ print $2 }')
+  jq -n --arg version "$version" '{last_run: $version, presented: []}' >"$home/update-notes.json"
+}
+
+install_binary
+mkdir -p "$home"
+(cd "$here/.." && HERDR_APP_HOME=$home HERDR_APP_BIN=$bin bun run herdr:install)
+mark_first_start_done
+exec "$bin"

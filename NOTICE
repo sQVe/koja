@@ -22,19 +22,6 @@ through Koja's UI kit. herdr/upstream.json records the Herdr release of each.
 - src/mods/koja-spaces, from defaults/mods/spaces in Herdr 0.1.11
 - src/mods/koja-tabs, from defaults/mods/tabs in Herdr 0.1.11
 
-Scripts derived from the Herdr app
-----------------------------------
-
-These scripts are derived from scripts of the Herdr app
-(https://github.com/herdrdev/herdr-app), which are licensed under the
-Apache License, Version 2.0. The license text is in LICENSES/Apache-2.0.txt.
-Koja changed each of them: they run the installed herdr-app, install Koja's
-mods and config into a private sandbox home, and stop only the processes the
-sandbox started. herdr/upstream.json records the Herdr commit of each.
-
-- scripts/sandbox, from scripts/sandbox at Herdr commit 65cd40a19d85f7c0044f89432285755ee0753a4e
-- scripts/sandbox-input.py, from scripts/sandbox-input.py at Herdr commit 65cd40a19d85f7c0044f89432285755ee0753a4e
-
 herdr/herdr.d.ts and herdr/gpui-kit.d.ts are copies of the type declarations
 that Herdr 0.1.11 writes into its home folder.
 
