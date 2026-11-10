@@ -1,11 +1,18 @@
 import { h_flex, v_flex } from 'gpui-base';
 import type { Element } from 'gpui-kit';
 
+import { spacing } from '../../../../kit/size.ts';
 import { agentPane, fakeTabs } from '../../scenes/shellContent.ts';
 import { factRows } from '../content/facts.ts';
-import { contentHeader, contentSectionHeader, itemHeading, scrollBody } from '../content/parts.ts';
+import {
+  contentHeader,
+  contentSectionHeader,
+  itemHeading,
+  readingInset,
+  scrollBody,
+} from '../content/parts.ts';
 import { koja, kojaNormal } from '../koja.ts';
-import { card, cardSlot } from '../parts.ts';
+import { card, cardSlot, fixedLabel } from '../parts.ts';
 import type { DirectionTokens } from '../tokens.ts';
 import type { DirectionTab } from '../window.ts';
 import { directionWindow } from '../window.ts';
@@ -17,6 +24,7 @@ import { draftView } from './views.ts';
 
 const railWidth = 260;
 const bodyInset = 16;
+const stateRowHeight = 20;
 
 const factsRail = (view: DraftView, tokens: DirectionTokens): Element =>
   scrollBody('draft-facts')
@@ -37,11 +45,32 @@ const factsRail = (view: DraftView, tokens: DirectionTokens): Element =>
         .child(fileNavigation(view, tokens)),
     );
 
-const reviewHeading = (view: DraftView, tokens: DirectionTokens): Element =>
-  itemHeading(view.item, {
+const reviewHeading = (view: DraftView, tokens: DirectionTokens): Element => {
+  const heading = itemHeading(view.item, {
     ...tokens,
     marks: { ...tokens.marks, blocked: tokens.ink.dim },
-  });
+  }).relative();
+
+  if (view.state === 'sent' || view.state === 'broken') {
+    return heading;
+  }
+
+  return heading.child(
+    h_flex()
+      .absolute()
+      .right(readingInset)
+      .bottom(spacing.medium)
+      .h(stateRowHeight)
+      .items_center()
+      .child(
+        fixedLabel(
+          'Click a line to comment · Drag line numbers for more lines',
+          tokens.text.detail,
+          tokens.ink.dim,
+        ),
+      ),
+  );
+};
 
 const reviewBody = (view: DraftView, tokens: DirectionTokens): Element =>
   h_flex()

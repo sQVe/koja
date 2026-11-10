@@ -1,6 +1,6 @@
 import type { ContentItem } from '../content/data.ts';
 import type { DraftState, DraftView } from './data.ts';
-import { bodyFile, draftFiles, draftItem, releaseFile } from './data.ts';
+import { bodyFile, draftFiles, draftItem, releaseFile, showsOpenComment } from './data.ts';
 import { planFiles, selectedSlice } from './plan.ts';
 
 const itemFor = (state: DraftState): ContentItem => {
@@ -14,6 +14,15 @@ const itemFor = (state: DraftState): ContentItem => {
       state: 'sent',
       facts: draftItem.facts.map((fact) =>
         fact.name === 'Saved' ? { name: 'Sent', value: 'just now' } : fact,
+      ),
+    };
+  }
+
+  if (showsOpenComment(state)) {
+    return {
+      ...draftItem,
+      facts: draftItem.facts.map((fact) =>
+        fact.name === 'Comments' ? { ...fact, value: '3 · 1 open' } : fact,
       ),
     };
   }

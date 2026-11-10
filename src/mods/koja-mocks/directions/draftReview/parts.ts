@@ -4,12 +4,12 @@ import { div } from 'gpui-kit';
 
 import { dialogButton, icon } from '../../../../kit/index.ts';
 import { rowHeight, spacing, textSize } from '../../../../kit/size.ts';
+import { colors } from '../../../../kit/theme.ts';
 import { paragraph } from '../content/parts.ts';
-import { fixedLabel, label, row } from '../parts.ts';
+import { fixedLabel, iconButton, label, row } from '../parts.ts';
 import type { DirectionTokens } from '../tokens.ts';
 import type { DraftComment, DraftFile, DraftView } from './data.ts';
 import { isBodyFile } from './data.ts';
-import { commentMark } from './marks.ts';
 
 interface ComposerContent {
   anchor: string;
@@ -48,7 +48,9 @@ export const fileHeading = (file: DraftFile, view: DraftView, tokens: DirectionT
   }
 
   if (file !== view.selected) {
-    return heading;
+    return heading
+      .child(iconButton('message-square', tokens, tokens.ink.dim).tooltip('Comment on file'))
+      .child(iconButton('square-pen', tokens, tokens.ink.dim).tooltip('Edit file'));
   }
 
   if (editing) {
@@ -105,7 +107,12 @@ export const fileNavigation = (view: DraftView, tokens: DirectionTokens): Elemen
     .gap(2)
     .children(view.files.map((file) => fileChoice(file, file.name === view.selected.name, tokens)));
 
-const commentFrame = (anchor: string, unsaved: boolean, tokens: DirectionTokens): Element => {
+const commentFrame = (
+  anchor: string,
+  unsaved: boolean,
+  tokens: DirectionTokens,
+  actions?: Element,
+): Element => {
   const header = h_flex()
     .items_center()
     .gap(spacing.medium)
@@ -115,6 +122,10 @@ const commentFrame = (anchor: string, unsaved: boolean, tokens: DirectionTokens)
 
   if (unsaved) {
     header.child(fixedLabel('unsaved', tokens.text.detail, tokens.marks.working));
+  }
+
+  if (actions !== undefined) {
+    header.child(div().flex_1()).child(actions);
   }
 
   return v_flex()
@@ -133,21 +144,7 @@ export const commentCard = (
   comment: DraftComment,
   unsaved: boolean,
   tokens: DirectionTokens,
-): Element => {
-  const card = commentFrame(comment.anchor, unsaved, tokens).child(paragraph(comment.text, tokens));
-
-  if (comment.start !== null) {
-    const kind = comment.start === comment.end ? 'single' : 'range';
-
-    card
-      .relative()
-      .child(
-        commentMark(kind, tokens).absolute().left(0).top(spacing.xsmall).bottom(spacing.xsmall),
-      );
-  }
-
-  return card;
-};
+): Element => commentFrame(comment.anchor, unsaved, tokens).child(paragraph(comment.text, tokens));
 
 const composerField = (content: ComposerContent, tokens: DirectionTokens): Element => {
   if (content.placeholder === true) {
@@ -162,13 +159,30 @@ const composerField = (content: ComposerContent, tokens: DirectionTokens): Eleme
   return paragraph(`${content.text}▏`, tokens);
 };
 
+const composerInput = (content: ComposerContent, tokens: DirectionTokens): Element =>
+  div()
+    .min_w(0)
+    .px(spacing.medium)
+    .py(spacing.xsmall)
+    .rounded(tokens.pane.radius)
+    .border(spacing.hairline)
+    .border_color(colors().border)
+    .child(composerField(content, tokens));
+
+const cancelComment = (tokens: DirectionTokens): Element =>
+  h_flex()
+    .h(rowHeight.small)
+    .px(spacing.small)
+    .items_center()
+    .child(fixedLabel('Cancel', tokens.text.detail, tokens.ink.dim));
+
 export const commentComposer = (content: ComposerContent, tokens: DirectionTokens): Element =>
-  commentFrame(content.anchor, false, tokens)
-    .child(composerField(content, tokens))
-    .child(
-      h_flex()
-        .gap(spacing.small)
-        .justify_end()
-        .child(outlineAction('Cancel', tokens))
-        .child(outlineAction('Comment', tokens)),
-    );
+  commentFrame(
+    content.anchor,
+    false,
+    tokens,
+    h_flex()
+      .gap(spacing.small)
+      .child(cancelComment(tokens))
+      .child(outlineAction('Comment', tokens)),
+  ).child(composerInput(content, tokens));

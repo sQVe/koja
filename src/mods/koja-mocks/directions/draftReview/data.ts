@@ -121,3 +121,6 @@ export const selectedRange = { start: 19, end: 20 };
 
 export const showsLineComposer = (state: DraftState): boolean =>
   state === 'comment' || state === 'normal';
+
+export const showsOpenComment = (state: DraftState): boolean =>
+  showsLineComposer(state) || state === 'range' || state === 'file-comment';

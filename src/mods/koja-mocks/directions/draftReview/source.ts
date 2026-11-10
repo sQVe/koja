@@ -35,13 +35,13 @@ const gutterGap = spacing.large;
 const openLineNumber = 8;
 const currentLines = { body: 14, release: 3 };
 
-export const textInset = sourceSize.mark + sourceSize.lineNumber + gutterGap * 2;
+export const textInset = sourceSize.mark + sourceSize.lineNumber + gutterGap * 2 + spacing.medium;
 
 const lineMark = (file: DraftFile, number: number, tokens: DirectionTokens): Element => {
   const mark = div().w(sourceSize.mark).h(sourceSize.markHeight).flex_none();
 
   if (file.editedLines.includes(number)) {
-    return mark.bg(tokens.marks.working);
+    return mark.w(2).mr(1).bg(tokens.marks.working);
   }
 
   const comment = file.comments.find((candidate) => {
@@ -138,13 +138,6 @@ const lineActions = (number: number, tokens: DirectionTokens): Element =>
     .items_center()
     .gap(spacing.xsmall)
     .child(
-      fixedLabel(
-        'Drag line numbers to pick more lines',
-        tokens.text.detail,
-        tokens.ink.dim,
-      ).font_family(uiFont),
-    )
-    .child(
       iconButton('message-square', tokens, tokens.ink.dim)
         .size(controlSize.smallButton)
         .tooltip(`Comment on line ${number}`),
@@ -212,13 +205,35 @@ const sourceLine = (
 
   const content = lineContent(text, look, tokens);
 
-  const line = h_flex()
+  const band = h_flex()
+    .h_full()
+    .flex_1()
+    .min_w(0)
+    .ml(spacing.xsmall)
+    .pl(spacing.xsmall)
+    .items_center()
+    .gap(gutterGap)
+    .rounded(tokens.rows.radius)
+    .child(content);
+
+  if (number === currentLine(file, state)) {
+    if (state !== 'range') {
+      band.bg(tokens.rows.hoverFill);
+    }
+
+    band.child(lineActions(number, tokens));
+  }
+
+  if (selected) {
+    band.bg(tokens.rows.selectedFill);
+  }
+
+  return h_flex()
     .h(editingLine ? sourceSize.field : sourceSize.line)
     .flex_none()
     .min_w(0)
     .items_center()
     .gap(gutterGap)
-    .rounded(tokens.rows.radius)
     .child(gutter)
     .child(
       fixedLabel(String(number), tokens.text.detail, tokens.ink.dim)
@@ -226,21 +241,7 @@ const sourceLine = (
         .font_family(terminalFont)
         .text_right(),
     )
-    .child(content);
-
-  if (number === currentLine(file, state)) {
-    if (state !== 'range') {
-      line.bg(tokens.rows.hoverFill);
-    }
-
-    line.child(lineActions(number, tokens));
-  }
-
-  if (selected) {
-    line.bg(tokens.rows.selectedFill);
-  }
-
-  return line;
+    .child(band);
 };
 
 const conflictLine = (tokens: DirectionTokens): Element =>
@@ -255,7 +256,7 @@ const conflictLine = (tokens: DirectionTokens): Element =>
         .mt(spacing.medium + spacing.xxsmall + 1)
         .gap(gutterGap)
         .items_center()
-        .child(div().w(sourceSize.mark).h(sourceSize.markHeight).bg(tokens.marks.working))
+        .child(div().w(2).mr(1).h(sourceSize.markHeight).bg(tokens.marks.working))
         .child(
           fixedLabel(String(editedLineNumber), tokens.text.detail, tokens.ink.dim)
             .w(sourceSize.lineNumber)
@@ -263,11 +264,7 @@ const conflictLine = (tokens: DirectionTokens): Element =>
             .text_right(),
         ),
     )
-    .child(
-      conflictBlock(tokens)
-        .ml(-spacing.medium - 1)
-        .my(spacing.xxsmall),
-    );
+    .child(conflictBlock(tokens).ml(-1).my(spacing.xxsmall));
 
 const inlineComments = (
   file: DraftFile,
@@ -296,10 +293,19 @@ const inlineComments = (
 
 const rangeSelection = (file: DraftFile, state: DraftState, tokens: DirectionTokens): Element =>
   v_flex()
+    .relative()
     .flex_none()
     .min_w(0)
-    .rounded(tokens.rows.radius)
-    .bg(tokens.rows.selectedFill)
+    .child(
+      div()
+        .absolute()
+        .left(textInset - spacing.xsmall)
+        .right(0)
+        .top(0)
+        .bottom(0)
+        .rounded(tokens.rows.radius)
+        .bg(tokens.rows.selectedFill),
+    )
     .child(sourceLine(file, selectedRange.start - 1, state, tokens))
     .child(sourceLine(file, selectedRange.end - 1, state, tokens));
 

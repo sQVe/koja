@@ -14,11 +14,11 @@ const versionRow = (yours: boolean, tokens: DirectionTokens): Element => {
   return h_flex()
     .h(rowHeight.small)
     .min_w(0)
-    .gap(spacing.medium)
+    .gap(spacing.small)
     .items_center()
     .child(
       h_flex()
-        .flex_1()
+        .flex_none()
         .min_w(0)
         .font_family(terminalFont)
         .child(fixedLabel('- Keep the selected space ', tokens.text.body, tokens.ink.text))

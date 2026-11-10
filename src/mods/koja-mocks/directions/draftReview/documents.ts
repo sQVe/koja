@@ -18,10 +18,12 @@ const scrollShares = { plan: 0.22, review: 0.64 };
 
 // These shell-sized viewports end on whole rows before the next line or file header.
 const viewportHeightByState: Partial<Record<DraftState, number>> = {
+  comment: 546,
   'edit-line': 552,
   'edit-file': 546,
   'saving-failed': 540,
   'changed-on-disk': 552,
+  plan: 510,
   sent: 540,
 };
 

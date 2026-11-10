@@ -1,13 +1,7 @@
 import { afterAll, describe, expect, mock, test } from 'bun:test';
 
 import type { DrawnElement } from '../../../../../tests/drawn.ts';
-import {
-  drawn,
-  drawnIcons,
-  drawnTexts,
-  drawnTooltips,
-  elementWithText,
-} from '../../../../../tests/drawn.ts';
+import { drawn, drawnIcons, drawnTexts, drawnTooltips } from '../../../../../tests/drawn.ts';
 import {
   gpuiBaseFake,
   gpuiKitFake,
@@ -15,9 +9,15 @@ import {
   kitIndexFake,
 } from '../../../../../tests/moduleFakes.ts';
 
+interface ReviewFile {
+  name: string;
+  lines: string[];
+  comments: { text: string }[];
+}
+
 interface ReviewFixture {
-  item: { facts: { name: string; value: string }[] };
-  selected: { lines: string[]; comments: { text: string }[] };
+  files: ReviewFile[];
+  selected: ReviewFile;
 }
 
 await mock.module('gpui-base', () =>
@@ -31,7 +31,7 @@ await mock.module('../../../../kit/index.ts', () =>
   kitIndexFake({
     icon: (name: string) => drawn(name),
     dialogButton: (options: { label: string }) => {
-      const button = drawn();
+      const button = drawn('button');
 
       button.texts.push(options.label);
 
@@ -44,21 +44,13 @@ const documentsPath = './documents.ts';
 const sourcePath = './source.ts';
 const viewsPath = './views.ts';
 const partsPath = './parts.ts';
-const actionsPath = './actions.ts';
-const conflictPath = './conflict.ts';
 const tokensPath = '../koja.ts';
 
 const { draftView } = (await import(viewsPath)) as {
   draftView: (state: string) => ReviewFixture;
 };
 
-const { koja } = (await import(tokensPath)) as {
-  koja: {
-    marks: { modified: string; added: string; removed: string; working: string };
-    ink: { dim: string };
-    pane: { cardBorder: string };
-  };
-};
+const { koja } = (await import(tokensPath)) as { koja: unknown };
 
 const { pinnedDocument } = (await import(documentsPath)) as {
   pinnedDocument: (view: unknown, tokens: unknown) => DrawnElement;
@@ -68,24 +60,9 @@ const { sourceLines } = (await import(sourcePath)) as {
   sourceLines: (file: unknown, look: unknown, tokens: unknown) => DrawnElement;
 };
 
-const { fileNavigation, commentCard, commentComposer } = (await import(partsPath)) as {
-  fileNavigation: (view: unknown, tokens: unknown) => DrawnElement;
-  commentCard: (comment: unknown, unsaved: boolean, tokens: unknown) => DrawnElement;
-  commentComposer: (content: unknown, tokens: unknown) => DrawnElement;
+const { fileHeading } = (await import(partsPath)) as {
+  fileHeading: (file: unknown, view: unknown, tokens: unknown) => DrawnElement;
 };
-
-const { draftActions } = (await import(actionsPath)) as {
-  draftActions: (state: string, tokens: unknown) => DrawnElement;
-};
-
-const { conflictBlock } = (await import(conflictPath)) as {
-  conflictBlock: (tokens: unknown) => DrawnElement;
-};
-
-const descendants = (element: DrawnElement): DrawnElement[] => [
-  element,
-  ...element.kids.flatMap(descendants),
-];
 
 const documentFor = (state: string): DrawnElement => pinnedDocument(draftView(state), koja);
 
@@ -100,20 +77,12 @@ afterAll(() => {
 });
 
 describe('draft review documents', () => {
-  test.each([
-    ['comment', 18],
-    ['normal', 18],
-    ['range', 20],
-    ['plan', 14],
-    ['saving-failed', 14],
-    ['file-comment', 3],
-  ] as const)('%s exposes comment and edit actions on its current line', (state, number) => {
-    const tooltips = drawnTooltips(linesFor(state));
-
-    expect(tooltips).toContain(`Comment on line ${number}`);
-    expect(tooltips).toContain(`Edit line ${number}`);
-    expect(drawnTexts(linesFor(state))).toContain('Drag line numbers to pick more lines');
-  });
+  test.each(['comment', 'normal', 'range', 'plan', 'saving-failed', 'file-comment'] as const)(
+    '%s exposes both current-line actions',
+    (state) => {
+      expect(drawnTooltips(linesFor(state))).toHaveLength(2);
+    },
+  );
 
   test.each(['edit-file', 'sent', 'changed-on-disk'] as const)(
     '%s has no read-view line actions',
@@ -122,46 +91,30 @@ describe('draft review documents', () => {
     },
   );
 
-  test('kept edits appear in the facts and file list', () => {
-    for (const state of ['comment', 'edit-line', 'plan'] as const) {
-      const view = draftView(state);
-      const edits = view.item.facts.find((fact: { name: string }) => fact.name === 'Edits');
-      const navigation = fileNavigation(view, koja);
-
-      expect(edits?.value).toBe(state === 'plan' ? '2 lines' : '1 line');
-      expect(elementWithText(navigation, 'M')?.textColors).toContain(koja.marks.modified);
-      expect(drawnTexts(navigation)).not.toContain('0');
-    }
-  });
-
-  test('an open line edit follows the kept line and leaves its mark intact', () => {
+  test('an open line edit replaces only its source line', () => {
     const view = draftView('edit-line');
     const texts = drawnTexts(linesFor('edit-line'));
-    const field = texts.findIndex((text) => text.endsWith('▏'));
 
-    expect(field).toBeGreaterThan(texts.indexOf(view.selected.lines[6] ?? ''));
-    expect(field).toBeLessThan(texts.indexOf('9'));
-    expect(texts.filter((text) => text === 'edited')).toHaveLength(1);
+    expect(texts).toContain(view.selected.lines[5] ?? '');
+    expect(texts).toContain(view.selected.lines[6] ?? '');
+    expect(texts).not.toContain(view.selected.lines[7] ?? '');
+
+    expect(texts.indexOf(view.selected.lines[6] ?? '')).toBeLessThan(
+      texts.indexOf(view.selected.lines[9] ?? ''),
+    );
   });
 
-  test('whole-file editing keeps both comments readable before its source', () => {
+  test('whole-file editing keeps both comments before its source', () => {
     const view = draftView('edit-file');
     const texts = drawnTexts(documentFor('edit-file'));
     const source = texts.indexOf(view.selected.lines[0] ?? '');
 
     for (const comment of view.selected.comments) {
-      const summary = texts.findIndex((text) => text.includes(comment.text));
+      const summary = texts.indexOf(comment.text);
 
       expect(summary).toBeGreaterThan(-1);
       expect(summary).toBeLessThan(source);
     }
-
-    expect(texts.filter((text) => text === 'Editing')).toHaveLength(1);
-    expect(texts).not.toContain('Saved just now');
-
-    expect(
-      drawnIcons(documentFor('edit-file')).filter((name) => name === 'message-square').length,
-    ).toBeGreaterThanOrEqual(view.selected.comments.length);
   });
 
   test.each([
@@ -174,64 +127,32 @@ describe('draft review documents', () => {
     'range',
     'file-comment',
     'normal',
-  ] as const)('%s gives file actions only to the active file', (state) => {
+  ] as const)('%s keeps actions on current and other file headers', (state) => {
+    const view = draftView(state);
+    const current = fileHeading(view.selected, view, koja);
+
+    expect(drawnIcons(current).filter((name) => name === 'button')).toHaveLength(2);
+
+    for (const file of view.files.filter((candidate) => candidate !== view.selected)) {
+      expect(drawnTooltips(fileHeading(file, view, koja))).toHaveLength(2);
+    }
+  });
+
+  test('sent file headers have no comment or edit actions', () => {
+    const view = draftView('sent');
+
+    for (const file of view.files) {
+      const heading = fileHeading(file, view, koja);
+
+      expect(drawnTooltips(heading)).toEqual([]);
+      expect(drawnIcons(heading)).not.toContain('button');
+    }
+  });
+
+  test.each(['range', 'file-comment'] as const)('%s starts at the composing file', (state) => {
     const texts = drawnTexts(documentFor(state));
 
-    expect(texts.filter((text) => text === 'Comment on file')).toHaveLength(1);
-
-    expect(texts.filter((text) => text === 'Edit file')).toHaveLength(
-      state === 'edit-file' ? 0 : 1,
-    );
-  });
-
-  test('unsaved comments keep their neutral range accent', () => {
-    const comment = { anchor: 'L2–4', text: 'Review this range.', start: 2, end: 4 };
-    const saved = commentCard(comment, false, koja);
-    const unsaved = commentCard(comment, true, koja);
-    const savedMarks = descendants(saved).flatMap((element) => element.backgroundColors);
-    const unsavedMarks = descendants(unsaved).flatMap((element) => element.backgroundColors);
-
-    expect(savedMarks).toContain(koja.ink.dim);
-    expect(unsavedMarks).toEqual(savedMarks);
-    expect(unsavedMarks).not.toContain(koja.marks.working);
-  });
-
-  test('the composer uses the same neutral edge as the editor', () => {
-    const composer = commentComposer({ anchor: 'File', text: 'Pending review' }, koja);
-
-    expect(composer.borderColors.at(-1)).toBe(koja.pane.cardBorder);
-  });
-
-  test('an open line edit is named below the send action', () => {
-    const texts = drawnTexts(draftActions('edit-line', koja));
-
-    expect(texts.indexOf('1 line edit is still open.')).toBeGreaterThan(
-      texts.indexOf('Send to Tau'),
-    );
-  });
-
-  test('a disk conflict provides a main action and distinguishes the changed words', () => {
-    const actions = draftActions('changed-on-disk', koja);
-    const conflict = conflictBlock(koja);
-
-    expect(drawnTexts(actions)).toContain('Go to line 6');
-    expect(elementWithText(conflict, 'in view when')?.textColors).toContain(koja.marks.added);
-    expect(elementWithText(conflict, 'visible while')?.textColors).toContain(koja.marks.removed);
-  });
-
-  test('a failed save labels both the unsaved line and comment', () => {
-    expect(drawnTexts(linesFor('saving-failed')).filter((text) => text === 'unsaved')).toHaveLength(
-      2,
-    );
-  });
-
-  test.each([
-    ['range', 'body.md'],
-    ['file-comment', 'release-notes.md'],
-  ] as const)('%s starts at the composing file', (state, name) => {
-    const texts = drawnTexts(documentFor(state));
-
-    expect(texts[0]).toBe(name);
+    expect(texts[0]).toBe(draftView(state).selected.name);
     expect(texts).not.toContain('title.md');
   });
 

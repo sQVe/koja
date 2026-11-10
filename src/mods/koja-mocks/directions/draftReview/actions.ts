@@ -16,7 +16,7 @@ import {
 import { label } from '../parts.ts';
 import type { DirectionTokens } from '../tokens.ts';
 import type { DraftState, DraftView } from './data.ts';
-import { draftFolder } from './data.ts';
+import { draftFolder, showsOpenComment } from './data.ts';
 
 const changedAction = (tokens: DirectionTokens): Element =>
   v_flex()
@@ -48,14 +48,13 @@ export const draftActions = (state: DraftState, tokens: DirectionTokens): Elemen
   }
 
   const actions = reviewActions(state === 'sent' ? 'sent' : 'ready', tokens);
-  const openComment = state === 'comment' || state === 'range' || state === 'file-comment';
 
   if (state === 'edit-line') {
-    actions.child(paragraph('1 line edit is still open.', tokens).text_color(tokens.ink.dim));
+    actions.child(paragraph('Sending adds the open line edit.', tokens).text_color(tokens.ink.dim));
   }
 
-  if (openComment || state === 'normal') {
-    actions.child(paragraph('1 comment is still open.', tokens).text_color(tokens.ink.dim));
+  if (showsOpenComment(state)) {
+    actions.child(paragraph('Sending adds the open comment.', tokens).text_color(tokens.ink.dim));
   }
 
   return actions;
