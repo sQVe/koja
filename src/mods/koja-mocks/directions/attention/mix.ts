@@ -114,7 +114,7 @@ const askRow = (ask: HiddenAsk, tokens: DirectionTokens): Element => {
     .child(iconMark('message-circle-question', tokens.marks.blocked))
     .child(fixedLabel(ask.space, tokens.text.title, tokens.ink.text))
     .child(h_flex().flex_1())
-    .child(fixedLabel(ask.project, tokens.text.detail, tokens.ink.dim));
+    .child(fixedLabel(`${ask.project} · ${ask.age}`, tokens.text.detail, tokens.ink.dim));
 
   const detail = `${ask.agent} · ${ask.question}`;
 
