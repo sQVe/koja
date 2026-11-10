@@ -14,6 +14,7 @@ import {
   iconButton,
   iconToggle,
   label,
+  middleCutLabel,
   modePill,
   paneHeaderFrame,
   statusMark,
@@ -65,8 +66,8 @@ export const hiddenAsks = [
 const tabContentGap = 6;
 const controlGap = 4;
 const referenceChangesWidth = 356;
-const narrowChangesWidth = 260;
-const askingPaneWidth = 248;
+const narrowChangesWidth = 224;
+const askingPaneWidth = 300;
 
 // The focused agent pane takes the width the asking pane and Changes leave in the main column.
 export const focusedPaneWidth = (tokens: DirectionTokens): number =>
@@ -174,6 +175,28 @@ const paneIcon = (asking: boolean, tokens: DirectionTokens): Element => {
   return icon('terminal', 'default').text_color(color);
 };
 
+// The task names the work, so the branch gives up its width before the task does.
+const taskFirstFields = (asking: boolean, tokens: DirectionTokens): Element[] => {
+  const { ink, text } = tokens;
+  const task = asking ? 'Review findings' : 'Design the sidebar';
+  const branch = asking ? 'main' : (agentPane.branch ?? '');
+
+  const branchPart = h_flex()
+    .ml_auto()
+    .min_w(0)
+    .gap(controlGap)
+    .items_center()
+    .text_color(ink.dim)
+    .child(icon('git-branch', 'small').flex_none())
+    .child(middleCutLabel(branch, text.detail, ink.dim));
+
+  return [
+    fixedLabel(task, text.detail, ink.muted),
+    branchPart,
+    fixedLabel(agentPane.folder, text.detail, ink.dim),
+  ];
+};
+
 const paneHeader = (
   asking: boolean,
   variant: AttentionVariant,
@@ -191,12 +214,15 @@ const paneHeader = (
     header.bg(pane.focusedHeaderFill);
   }
 
-  header
-    .child(leading)
-    .child(paneName(asking, tokens))
-    .child(label(task, text.detail, ink.muted).flex_1());
+  header.child(leading).child(paneName(asking, tokens));
 
-  if (variant !== 'corner') {
+  if (variant === 'mix') {
+    header.children(taskFirstFields(asking, tokens));
+  } else {
+    header.child(label(task, text.detail, ink.muted).flex_1());
+  }
+
+  if (variant !== 'corner' && variant !== 'mix') {
     const branch = asking ? 'main' : agentPane.branch;
 
     if (branch !== undefined) {

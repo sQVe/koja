@@ -1,6 +1,7 @@
 import { h_flex, v_flex } from 'gpui-base';
 import type { Element } from 'gpui-kit';
 
+import { wrappedText } from '../dialogs/parts.ts';
 import { footerLine, iconMark, mainLeft, overlayCard } from '../overlays/parts.ts';
 import { fixedLabel, iconButton, label } from '../parts.ts';
 import type { DirectionTokens } from '../tokens.ts';
@@ -42,17 +43,21 @@ const dismissControl = (state: MixState, tokens: DirectionTokens): Element =>
     });
 
 const moreControl = (state: MixState, tokens: DirectionTokens): Element => {
-  const remaining = `${state.asks.length - 1} more`;
+  const next = state.asks[1];
+  const others = state.asks.length - 1;
+
+  const text =
+    others === 1 && next !== undefined ? `1 more ask in ${next.space}` : `${others} more asks`;
 
   return h_flex()
     .id('attention-mix-more')
     .accessibility_label('Show all asks')
-    .h(tokens.controls.size)
-    .flex_none()
+    .min_w(0)
     .gap(2)
+    .ml(textInset)
     .items_center()
     .cursor_pointer()
-    .child(fixedLabel(remaining, tokens.text.detail, tokens.ink.dim))
+    .child(label(text, tokens.text.detail, tokens.ink.dim))
     .child(iconMark('chevron-right', tokens.ink.dim))
     .on_mouse_down('left', (_event, context) => {
       context.stop_propagation();
@@ -64,23 +69,29 @@ const moreControl = (state: MixState, tokens: DirectionTokens): Element => {
     });
 };
 
-const askLine = (ask: HiddenAsk, state: MixState, tokens: DirectionTokens): Element => {
-  const line = h_flex()
+const askTitle = (ask: HiddenAsk, state: MixState, tokens: DirectionTokens): Element =>
+  h_flex()
+    .h(tokens.controls.size)
     .gap(lineGap)
     .items_center()
     .child(iconMark('message-circle-question', tokens.marks.blocked))
-    .child(fixedLabel(`${ask.space}:`, tokens.text.title, tokens.ink.text))
-    .child(label(ask.question, tokens.text.body, tokens.ink.text).flex_1())
-    .child(fixedLabel(ask.project, tokens.text.detail, tokens.ink.dim));
+    .child(fixedLabel(ask.space, tokens.text.title, tokens.ink.text))
+    .child(label(ask.agent, tokens.text.detail, tokens.ink.dim).flex_1())
+    .child(dismissControl(state, tokens));
+
+const askLine = (ask: HiddenAsk, state: MixState, tokens: DirectionTokens): Element => {
+  const line = v_flex()
+    .child(askTitle(ask, state, tokens))
+    .child(wrappedText(ask.question, tokens.text.body, tokens.ink.text).ml(textInset));
 
   if (state.asks.length > 1) {
-    line.child(moreControl(state, tokens));
+    line.child(moreControl(state, tokens).mt(lineGap));
   }
 
-  return line.child(dismissControl(state, tokens));
+  return line;
 };
 
-const askRow = (ask: HiddenAsk, selected: boolean, tokens: DirectionTokens): Element => {
+const askRow = (ask: HiddenAsk, tokens: DirectionTokens): Element => {
   const title = h_flex()
     .gap(lineGap)
     .items_center()
@@ -89,20 +100,21 @@ const askRow = (ask: HiddenAsk, selected: boolean, tokens: DirectionTokens): Ele
     .child(h_flex().flex_1())
     .child(fixedLabel(ask.project, tokens.text.detail, tokens.ink.dim));
 
-  const row = v_flex()
+  const detail = `${ask.agent} · ${ask.question}`;
+
+  return v_flex()
     .flex_none()
     .px(rowPadding)
     .py(lineGap)
     .gap(2)
     .rounded(tokens.rows.radius)
+    .hover((element) => element.bg(tokens.rows.hoverFill))
     .child(title)
-    .child(fixedLabel(ask.question, tokens.text.detail, tokens.ink.dim).ml(textInset));
-
-  return selected ? row.bg(tokens.rows.selectedFill) : row;
+    .child(wrappedText(detail, tokens.text.detail, tokens.ink.muted).ml(textInset));
 };
 
 const askList = (state: MixState, tokens: DirectionTokens): Element => {
-  const titleText = `${state.asks.length} asks`;
+  const titleText = `${state.asks.length} asks in other spaces`;
 
   const title = h_flex()
     .h(tokens.rows.height)
@@ -115,7 +127,7 @@ const askList = (state: MixState, tokens: DirectionTokens): Element => {
   return v_flex()
     .gap(2)
     .child(title)
-    .children(state.asks.map((ask, index) => askRow(ask, index === 0, tokens)));
+    .children(state.asks.map((ask) => askRow(ask, tokens)));
 };
 
 const positionedCard = (tokens: DirectionTokens): Element => {
