@@ -18,6 +18,7 @@ import {
 } from '../../kit/index.ts';
 import { findScene, sceneOrigin } from './catalog.ts';
 import type { SceneName } from './catalog.ts';
+import { dialogScene } from './directions/dialogs/scene.ts';
 import { koja, kojaNormal } from './directions/koja.ts';
 import { gotoScene } from './directions/overlays/goto.ts';
 import { keysScene } from './directions/overlays/keys.ts';
@@ -43,7 +44,7 @@ import { controlsScene } from './scenes/controls.ts';
 import type { SceneInputs } from './scenes/inputs.ts';
 import { paneHeadersScene } from './scenes/paneHeaders.ts';
 import { popupQuery, popupScene } from './scenes/popup.ts';
-import { shellScene } from './scenes/shell.ts';
+import { shellDialogScene, shellScene } from './scenes/shell.ts';
 import { sidebarScene } from './scenes/sidebar.ts';
 import {
   paletteClean,
@@ -70,6 +71,14 @@ const renderers: Record<SceneName, (inputs: SceneInputs) => Element> = {
   'sidebar-hover': () => hoverScene(koja),
   'sidebar-find': () => searchScene(koja),
   'sidebar-states': () => machineTagScene(koja),
+  'shell-dialog': shellDialogScene,
+  'dialog-close': () => dialogScene('close', koja),
+  'dialog-close-normal': () => dialogScene('close', kojaNormal),
+  'dialog-rename': () => dialogScene('rename', koja),
+  'dialog-rename-normal': () => dialogScene('rename', kojaNormal),
+  'dialog-wt-new': () => dialogScene('wt-new', koja),
+  'dialog-wt-open': () => dialogScene('wt-open', koja),
+  'dialog-wt-remove': () => dialogScene('wt-remove', koja),
   'overlay-palette': () => paletteScene(kojaNormal),
   'overlay-goto': () => gotoScene(kojaNormal),
   'overlay-keys': () => keysScene(kojaNormal),

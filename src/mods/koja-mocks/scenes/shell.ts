@@ -16,7 +16,8 @@ import {
   spacing,
   tab,
 } from '../../../kit/index.ts';
-import { koja } from '../directions/koja.ts';
+import { dialogLayer } from '../directions/dialogs/scene.ts';
+import { koja, kojaNormal } from '../directions/koja.ts';
 import { commandPalette } from '../directions/overlays/palette.ts';
 import { spacePanel } from '../directions/panels/space.ts';
 import { spaceStates } from '../directions/panels/spaceData.ts';
@@ -125,3 +126,11 @@ const shellWindow = (): Element =>
 
 export const shellScene = (): Element =>
   v_flex().relative().flex_1().min_h(0).child(shellWindow()).child(commandPalette(koja));
+
+export const shellDialogScene = (): Element =>
+  v_flex()
+    .relative()
+    .flex_1()
+    .min_h(0)
+    .child(shellWindow())
+    .child(dialogLayer('close', kojaNormal));
