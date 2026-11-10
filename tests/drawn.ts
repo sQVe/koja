@@ -5,6 +5,9 @@ export interface DrawnElement {
   texts: string[];
   tooltipText: string | null;
   textColors: string[];
+  backgroundColors: string[];
+  borderColors: string[];
+  isDisabled: boolean;
   clickHandlers: ((event: unknown, cx: unknown) => void)[];
 }
 
@@ -24,6 +27,9 @@ export const drawn = (path: string | null = null): DrawnElement => {
     texts: [],
     tooltipText: null,
     textColors: [],
+    backgroundColors: [],
+    borderColors: [],
+    isDisabled: false,
     clickHandlers: [],
   };
 
@@ -54,6 +60,18 @@ export const drawn = (path: string | null = null): DrawnElement => {
 
         if (key === 'text_color') {
           target.textColors.push(String(args[0]));
+        }
+
+        if (key === 'bg') {
+          target.backgroundColors.push(String(args[0]));
+        }
+
+        if (key === 'border_color') {
+          target.borderColors.push(String(args[0]));
+        }
+
+        if (key === 'disabled') {
+          target.isDisabled = args[0] === true;
         }
 
         if (key === 'on_click') {

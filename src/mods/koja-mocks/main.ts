@@ -18,6 +18,7 @@ import {
 } from '../../kit/index.ts';
 import { findScene, sceneOrigin } from './catalog.ts';
 import type { SceneName } from './catalog.ts';
+import { contentScene } from './directions/content/scene.ts';
 import { dialogScene } from './directions/dialogs/scene.ts';
 import { koja, kojaNormal } from './directions/koja.ts';
 import { gotoScene } from './directions/overlays/goto.ts';
@@ -118,6 +119,17 @@ const renderers: Record<SceneName, (inputs: SceneInputs) => Element> = {
   'space-main': () => spaceScene(spaceStates.main, koja),
   'space-error': () => spaceScene(spaceStates.error, koja),
   'space-normal': () => spaceScene(spaceStates.base, kojaNormal),
+  'content-rail-review': () => contentScene('review'),
+  'content-rail-pr': () => contentScene('pr'),
+  'content-rail-ticket': () => contentScene('ticket'),
+  'content-rail-review-saving-failed': () => contentScene('review-saving-failed'),
+  'content-rail-review-sent': () => contentScene('review-sent'),
+  'content-rail-review-narrow': () => contentScene('review-narrow'),
+  'content-rail-pr-checks-failed': () => contentScene('pr-checks-failed'),
+  'content-rail-pr-unreachable': () => contentScene('pr-unreachable'),
+  'content-rail-ticket-loading': () => contentScene('ticket-loading'),
+  'content-rail-ticket-long': () => contentScene('ticket-long'),
+  'content-rail-pr-normal': () => contentScene('pr-normal'),
 };
 
 // A refocus after the window has drawn, when its input or focus target can take the keyboard.

@@ -99,6 +99,30 @@ describe('scene lookup', () => {
     });
   });
 
+  test('every Rail item and state opens at the shell size', () => {
+    const items = [
+      'review',
+      'review-saving-failed',
+      'review-sent',
+      'review-narrow',
+      'pr',
+      'pr-checks-failed',
+      'pr-unreachable',
+      'pr-normal',
+      'ticket',
+      'ticket-loading',
+      'ticket-long',
+    ] as const;
+
+    for (const item of items) {
+      const name = `content-rail-${item}` as const;
+
+      expect(findScene(name)).toEqual({
+        scene: { name, width: overlaySize.shellWidth, height: overlaySize.shellHeight },
+      });
+    }
+  });
+
   const overlayScenes = ['palette', 'goto', 'keys', 'menu', 'new', 'menu-normal', 'new-normal'].map(
     (surface) => `overlay-${surface}`,
   );

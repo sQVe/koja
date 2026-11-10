@@ -2,6 +2,7 @@ import { h_flex, v_flex } from 'gpui-base';
 import type { Color, Element } from 'gpui-kit';
 import { div } from 'gpui-kit';
 
+import type { IconName } from '../../../kit/index.ts';
 import { icon } from '../../../kit/index.ts';
 import type { FakePane, FakeTab } from '../scenes/shellContent.ts';
 import { agentPane, fakeTabs, shellPane } from '../scenes/shellContent.ts';
@@ -25,10 +26,16 @@ import type { DirectionTokens } from './tokens.ts';
 
 export type SidebarDrawing = (tokens: DirectionTokens) => Element;
 
+export interface DirectionTab extends FakeTab {
+  icon?: IconName;
+}
+
 export interface PanelArrangement {
   toggles: (tokens: DirectionTokens) => Element[];
   panes: (tokens: DirectionTokens) => Element[];
-  agent?: FakePane;
+  agent?: FakePane | null;
+  agentFocused?: boolean;
+  tabs?: DirectionTab[];
 }
 
 const tabLabelMaxWidth = 170;
@@ -54,13 +61,13 @@ const tabFrame = (active: boolean, tokens: DirectionTokens): Element => {
   return frame.hover((hovered) => hovered.text_color(tokens.ink.text));
 };
 
-const tabElement = (fakeTab: FakeTab, tokens: DirectionTokens): Element => {
+const tabElement = (fakeTab: DirectionTab, tokens: DirectionTokens): Element => {
   const { tabs } = tokens;
   const text = fakeTab.active ? tabs.activeText : tabs.text;
   const shown = fakeTab.status === 'idle' ? null : fakeTab.status;
 
   const element = tabFrame(fakeTab.active, tokens)
-    .child(icon('terminal', 'small').text_color(text))
+    .child(icon(fakeTab.icon ?? 'terminal', 'small').text_color(text))
     .child(label(fakeTab.label, tokens.text.body, text).max_w(tabLabelMaxWidth))
     .child(statusMark(shown, tokens));
 
@@ -79,7 +86,7 @@ const tabControls = (toggles: Element[], tokens: DirectionTokens): Element =>
     .child(modePill(tokens))
     .children(toggles);
 
-const tabBar = (toggles: Element[], tokens: DirectionTokens): Element =>
+const tabBar = (toggles: Element[], tabs: DirectionTab[], tokens: DirectionTokens): Element =>
   h_flex()
     .h(tokens.tabs.barHeight)
     .flex_none()
@@ -87,7 +94,7 @@ const tabBar = (toggles: Element[], tokens: DirectionTokens): Element =>
     .items_center()
     .bg(tokens.areas.frame)
     .child(div().w(tokens.tabs.barPadding).h_full().flex_none())
-    .children(fakeTabs.map((fakeTab) => tabElement(fakeTab, tokens)))
+    .children(tabs.map((fakeTab) => tabElement(fakeTab, tokens)))
     .child(tabControls(toggles, tokens));
 
 export const branchField = (branch: string, tokens: DirectionTokens): Element =>
@@ -180,14 +187,20 @@ const shellArrangement: PanelArrangement = {
 const content = (arrangement: PanelArrangement, tokens: DirectionTokens): Element => {
   const { areas } = tokens;
 
-  return h_flex()
+  const panes = h_flex()
     .flex_1()
     .min_h(0)
     .bg(areas.frame)
     .p(areas.contentPadding)
-    .gap(areas.contentGap)
-    .child(terminalPane(arrangement.agent ?? agentPane, true, tokens))
-    .children(arrangement.panes(tokens));
+    .gap(areas.contentGap);
+
+  if (arrangement.agent !== null) {
+    panes.child(
+      terminalPane(arrangement.agent ?? agentPane, arrangement.agentFocused ?? true, tokens),
+    );
+  }
+
+  return panes.children(arrangement.panes(tokens));
 };
 
 const mainColumn = (arrangement: PanelArrangement, tokens: DirectionTokens): Element =>
@@ -196,7 +209,7 @@ const mainColumn = (arrangement: PanelArrangement, tokens: DirectionTokens): Ele
     .h_full()
     .min_w(0)
     .min_h(0)
-    .child(tabBar(arrangement.toggles(tokens), tokens))
+    .child(tabBar(arrangement.toggles(tokens), arrangement.tabs ?? fakeTabs, tokens))
     .child(content(arrangement, tokens));
 
 export const directionWindow = (
