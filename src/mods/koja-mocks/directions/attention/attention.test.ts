@@ -131,7 +131,7 @@ describe('attention scenes', () => {
     expect(texts).not.toContain('Which judge model for round 2?');
     expect(hasKeys(scene)).toBe(false);
     expect(hasKeys(cornerScene(kojaNormal))).toBe(true);
-    expect(drawnIcons(directRow(scene, 'Mock scenes'))).toEqual(['terminal', 'circle-alert']);
+    expect(drawnIcons(directRow(scene, 'Mock scenes'))).toEqual(['terminal', 'triangle-alert']);
 
     expect(drawnIcons(directRow(scene, 'Pi'))).toEqual([
       'terminal',
@@ -285,7 +285,7 @@ describe('attention scenes', () => {
       expect(claudeFields).toEqual(expectedClaude);
       expect(piFields).toEqual(expectedPi);
 
-      const tabIcons = leading ? ['circle-alert'] : ['terminal', 'circle-alert'];
+      const tabIcons = leading ? ['triangle-alert'] : ['terminal', 'triangle-alert'];
 
       expect(drawnIcons(directRow(scene, 'Mock scenes'))).toEqual(tabIcons);
     },

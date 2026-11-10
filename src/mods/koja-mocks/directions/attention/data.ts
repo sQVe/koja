@@ -102,7 +102,7 @@ const attentionMark = (status: AttentionStatus, tokens: DirectionTokens): Elemen
   }
 
   if (status === 'crashed') {
-    return icon('circle-alert', 'small').text_color(tokens.marks.blocked);
+    return icon('triangle-alert', 'small').text_color(tokens.marks.blocked);
   }
 
   return statusMark(status, tokens);
