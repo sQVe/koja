@@ -14,9 +14,7 @@ import {
   statusMark,
   styled,
 } from '../parts.ts';
-import type { WorkNeed } from '../sidebars/content.ts';
 import { questionMark, workNeedMark } from '../sidebars/facts.ts';
-import { retryPill } from '../sidebars/states.ts';
 import type { DirectionTokens } from '../tokens.ts';
 import type { CheckState, ContentItem } from './data.ts';
 import { externalLink } from './links.ts';
@@ -24,10 +22,15 @@ import { externalLink } from './links.ts';
 interface ContentSectionLook {
   name: string;
   count?: number;
-  need?: WorkNeed;
 }
 
 export const readingInset = spacing.xxlarge;
+
+const sectionMarkWidth = 12;
+const sectionMarkGap = 6;
+
+export const sectionBodyInset = (tokens: DirectionTokens): number =>
+  tokens.rows.inset + tokens.rows.paddingX + sectionMarkWidth + sectionMarkGap;
 
 const actionPadding = 12;
 const chipHeight = 20;
@@ -40,34 +43,29 @@ export const paragraph = (text: string, tokens: DirectionTokens): Element =>
 export const scrollBody = (name: string): Element =>
   v_flex().id(name).flex_1().min_h(0).min_w(0).overflow_y_scrollbar();
 
-export const sendButton = (enabled: boolean, tokens: DirectionTokens): Element => {
-  const ink = enabled ? tokens.pane.fill : tokens.ink.dim;
-
-  const button = h_flex()
+export const reviewActionButton = (text: string, tokens: DirectionTokens): Element =>
+  h_flex()
     .h(controlSize.dialogButton)
     .px(actionPadding)
     .flex_none()
     .items_center()
     .justify_center()
     .rounded(tokens.controls.radius)
-    .disabled(!enabled)
-    .child(fixedLabel('Send to Tau', tokens.text.body, ink));
-
-  if (enabled) {
-    button.bg(tokens.ink.text);
-  }
-
-  if (!enabled) {
-    button.cursor_not_allowed().tooltip('Save your edits before sending');
-  }
-
-  return button;
-};
+    .bg(tokens.ink.text)
+    .child(fixedLabel(text, tokens.text.body, tokens.pane.fill));
 
 const stateChip = (state: string, tokens: DirectionTokens): Element => {
   const active = state === 'open' || state === 'sent';
   const color = active ? tokens.marks.done : tokens.marks.idle;
-  const mark = state === 'in review' ? questionMark(tokens) : dot(markSize.quietDot, color);
+  let mark = dot(markSize.quietDot, color);
+
+  if (state === 'in review') {
+    mark = questionMark(tokens);
+  }
+
+  if (state === 'In progress') {
+    mark = statusMark('working', tokens);
+  }
 
   return h_flex()
     .h(chipHeight)
@@ -148,7 +146,7 @@ export const checkMark = (state: CheckState, tokens: DirectionTokens): Element =
   return statusMark(status, tokens);
 };
 
-const copyPathButton = (tokens: DirectionTokens): Element =>
+const saveRecoveryButton = (text: string, tokens: DirectionTokens): Element =>
   h_flex()
     .h(chipHeight)
     .px(spacing.small)
@@ -157,7 +155,7 @@ const copyPathButton = (tokens: DirectionTokens): Element =>
     .rounded(tokens.controls.radius)
     .border(1)
     .border_color(tokens.pane.border)
-    .child(fixedLabel('Copy path', tokens.text.detail, tokens.ink.muted));
+    .child(fixedLabel(text, tokens.text.detail, tokens.ink.muted));
 
 export const saveFailure = (tokens: DirectionTokens): Element =>
   v_flex()
@@ -174,16 +172,27 @@ export const saveFailure = (tokens: DirectionTokens): Element =>
             .text_color(tokens.marks.blocked),
         )
         .child(
-          styled(div().min_w(0).flex_1(), tokens.text.detail, tokens.ink.text).child(
-            'Could not save: ~/code/koja/.tau/reviews is read-only',
-          ),
+          v_flex()
+            .min_w(0)
+            .flex_1()
+            .gap(spacing.xsmall)
+            .child(
+              styled(div().min_w(0), tokens.text.detail, tokens.ink.text).child(
+                'Could not save: the folder is read-only',
+              ),
+            )
+            .child(
+              label('~/code/koja/.tau/reviews', tokens.text.detail, tokens.ink.text)
+                .text_ellipsis_start()
+                .tooltip('~/code/koja/.tau/reviews'),
+            ),
         ),
     )
-    .child(h_flex().gap(spacing.small).child(retryPill(tokens)).child(copyPathButton(tokens)))
+    .child(h_flex().child(saveRecoveryButton('Copy path', tokens)))
+    .child(paragraph('1 line and 2 comments are unsaved. They stay in this pane.', tokens))
     .child(
-      paragraph(
-        '1 line and 2 comments are unsaved. They stay in this pane, and Send waits for a save.',
-        tokens,
+      styled(div().min_w(0), tokens.text.detail, tokens.ink.dim).child(
+        'Send to Tau waits for a save.',
       ),
     );
 
@@ -198,17 +207,11 @@ export const contentSectionHeader = (
     .items_center()
     .child(fixedLabel(look.name, tokens.text.heading, tokens.ink.text));
 
-  const end: Element[] = [];
-
   if (look.count !== undefined) {
     title.child(fixedLabel(String(look.count), tokens.text.detail, tokens.ink.dim));
   }
 
-  if (look.need !== undefined) {
-    end.push(workNeedMark(look.need, tokens));
-  }
-
-  return sectionHeaderOf(title, { open, detail, end }, tokens);
+  return sectionHeaderOf(title, { open, detail, end: [] }, tokens);
 };
 
 export const contentSection = (
@@ -226,7 +229,8 @@ export const description = (item: ContentItem, tokens: DirectionTokens): Element
   v_flex()
     .flex_none()
     .min_w(0)
-    .px(readingInset)
+    .pl(sectionBodyInset(tokens))
+    .pr(readingInset)
     .py(spacing.xsmall)
     .gap(spacing.xsmall)
     .children(item.description.map((text) => paragraph(text, tokens)));

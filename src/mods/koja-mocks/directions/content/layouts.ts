@@ -11,7 +11,7 @@ import { pullSections, ticketSections } from './details.ts';
 import { factRows, factsBlock } from './facts.ts';
 import {
   contentSectionHeader,
-  sendButton,
+  reviewActionButton,
   saveFailure,
   itemHeading,
   paragraph,
@@ -23,7 +23,7 @@ import type { ContentState, ContentView } from './states.ts';
 
 const factsRailWidth = 240;
 const railInset = 16;
-const sectionGap = spacing.xsmall;
+const sectionGap = spacing.xxsmall;
 
 const readingBody = (view: ContentView, tokens: DirectionTokens): Element => {
   const { item, state } = view;
@@ -54,10 +54,11 @@ const reviewActions = (state: ContentState, tokens: DirectionTokens): Element =>
       .child(paragraph('Tau closes this pane after collecting the review.', tokens));
   }
 
-  const enabled = state !== 'saving-failed';
-  const actions = v_flex().gap(spacing.medium).child(sendButton(enabled, tokens));
+  const failed = state === 'saving-failed';
+  const action = failed ? 'Retry save' : 'Send to Tau';
+  const actions = v_flex().gap(spacing.medium).child(reviewActionButton(action, tokens));
 
-  if (!enabled) {
+  if (failed) {
     actions.child(saveFailure(tokens));
   }
 
@@ -80,7 +81,7 @@ const reviewRail = (view: ContentView, tokens: DirectionTokens): Element =>
         .child(reviewFileList(tokens)),
     );
 
-const narrowReviewControls = (tokens: DirectionTokens): Element =>
+const narrowReviewControls = (state: ContentState, tokens: DirectionTokens): Element =>
   h_flex()
     .flex_none()
     .min_w(0)
@@ -89,7 +90,7 @@ const narrowReviewControls = (tokens: DirectionTokens): Element =>
     .py(spacing.small)
     .px(readingInset)
     .child(reviewFileChoices(tokens).flex_1().min_w(0))
-    .child(sendButton(true, tokens));
+    .child(reviewActions(state, tokens));
 
 const reviewViewport = (reading: Element): Element =>
   v_flex().flex_1().min_h(0).min_w(0).pb(spacing.large).child(reading);
@@ -121,7 +122,7 @@ export const contentBody = (view: ContentView, tokens: DirectionTokens): Element
   reading.child(factsBlock(view.item.facts, tokens)).child(sectionDivider(tokens));
 
   if (view.item.kind === 'review') {
-    reading.child(narrowReviewControls(tokens));
+    reading.child(narrowReviewControls(view.state, tokens));
   }
 
   reading.child(readingBody(view, tokens));

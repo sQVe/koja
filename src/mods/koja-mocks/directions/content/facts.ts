@@ -3,7 +3,7 @@ import type { Element } from 'gpui-kit';
 
 import { rowHeight, spacing } from '../../../../kit/size.ts';
 import { diffCounts } from '../panels/changes.ts';
-import { fixedLabel, label, statusMark } from '../parts.ts';
+import { fixedLabel, label } from '../parts.ts';
 import type { DirectionTokens } from '../tokens.ts';
 import type { ContentFact } from './data.ts';
 import { agentLink, externalLink } from './links.ts';
@@ -11,7 +11,7 @@ import { checkMark, readingInset } from './parts.ts';
 
 const factLabelWidth = 64;
 const factValueMaxWidth = 440;
-const factPairGap = 12;
+const factPairGap = 24;
 
 const factValue = (fact: ContentFact, tokens: DirectionTokens): Element => {
   if (fact.target === 'agent') {
@@ -23,9 +23,8 @@ const factValue = (fact: ContentFact, tokens: DirectionTokens): Element => {
       .min_w(0)
       .gap(spacing.xsmall)
       .items_center()
-      .child(statusMark('idle', tokens))
-      .child(fixedLabel('open', tokens.text.detail, tokens.ink.dim))
-      .child(externalLink(fact.value, fact.target, tokens));
+      .child(externalLink(fact.value, fact.target, tokens))
+      .child(fixedLabel('· open', tokens.text.detail, tokens.ink.dim));
   }
 
   if (fact.target !== undefined) {

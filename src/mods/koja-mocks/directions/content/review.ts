@@ -84,7 +84,7 @@ const lineComment = (
   }
 
   if (unsaved) {
-    heading.child(fixedLabel('Unsaved', tokens.text.detail, tokens.marks.working));
+    heading.tooltip('Unsaved comment');
   }
 
   const card = v_flex()
@@ -117,10 +117,11 @@ const lineComment = (
     .child(card);
 };
 
+const isCommentedLine = (number: number): boolean =>
+  reviewComments.some((comment) => number >= comment.start && number <= comment.end);
+
 const lineGutter = (number: number, unsaved: boolean, tokens: DirectionTokens): Element => {
-  const commented = reviewComments.some(
-    (comment) => number >= comment.start && number <= comment.end,
-  );
+  const commented = isCommentedLine(number);
 
   const mark = div().w(gutterMarkWidth).h(lineInset).flex_none();
   const numberInk = commented ? tokens.ink.text : tokens.ink.dim;
@@ -162,7 +163,7 @@ const documentLine = (
     .child(label(text, tokens.text.body, tokens.ink.text).flex_1());
 
   if (unsaved) {
-    line.child(fixedLabel('Unsaved', tokens.text.detail, tokens.marks.working));
+    line.child(fixedLabel('edited', tokens.text.detail, tokens.marks.working));
   }
 
   return line;
@@ -190,10 +191,10 @@ export const reviewText = (state: ContentState, tokens: DirectionTokens): Elemen
   const readOnly = state === 'sent';
 
   reviewLines.forEach((text, index) => {
-    const unsaved = state === 'saving-failed' && index + 1 === editedLineNumber;
-    const currentText = unsaved ? 'Keep the selected space visible when groups fold.' : text;
+    const edited = state === 'saving-failed' && index + 1 === editedLineNumber;
+    const currentText = edited ? 'Keep the selected space visible when groups fold.' : text;
 
-    lines.push(documentLine(currentText, index, unsaved, tokens));
+    lines.push(documentLine(currentText, index, edited, tokens));
 
     const comment = reviewComments.find((candidate) => candidate.end === index + 1);
 

@@ -94,7 +94,7 @@ export const contentViews = {
     item: {
       ...pull.item,
       facts: pull.item.facts.map((fact) =>
-        fact.name === 'Checks' ? { ...fact, age: '6m old' } : fact,
+        fact.name === 'Checks' ? { ...fact, age: 'synced 6m ago' } : fact,
       ),
     },
   },

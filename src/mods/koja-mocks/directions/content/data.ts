@@ -78,7 +78,7 @@ export const contentItems: Record<ContentKind, ContentItem> = {
     readAge: '1m ago',
     title: 'Design the ticket view',
     tab: 'ME-1094 Design the ticket view',
-    state: 'Backlog',
+    state: 'In progress',
     icon: 'file',
     description: [
       'Show one ticket with its slices, state, and links inside a content pane.',

@@ -1,9 +1,10 @@
 import { h_flex, v_flex } from 'gpui-base';
 import type { Element } from 'gpui-kit';
+import { div } from 'gpui-kit';
 
 import { spacing } from '../../../../kit/size.ts';
 import { diffCounts } from '../panels/changes.ts';
-import { fixedLabel, label, row, statusMark } from '../parts.ts';
+import { fixedLabel, label, row, statusMark, styled } from '../parts.ts';
 import { workNeedMark } from '../sidebars/facts.ts';
 import { errorLine } from '../sidebars/states.ts';
 import type { DirectionTokens } from '../tokens.ts';
@@ -14,17 +15,13 @@ import {
   contentSection,
   contentSectionHeader,
   description,
-  paragraph,
+  sectionBodyInset,
 } from './parts.ts';
 
-const statusSlotWidth = 14;
-const rowGap = 6;
+const statusSlotWidth = 12;
 
 const statusSlot = (mark: Element): Element =>
   h_flex().w(statusSlotWidth).flex_none().items_center().justify_center().child(mark);
-
-const detailInset = (tokens: DirectionTokens): number =>
-  tokens.rows.inset + tokens.rows.paddingX + statusSlotWidth + rowGap;
 
 const threadGap = spacing.xsmall;
 const pullAdded = pullFiles.reduce((sum, file) => sum + file.add, 0);
@@ -59,6 +56,7 @@ const checksList = (stale: boolean, tokens: DirectionTokens): Element =>
         const ink = stale ? tokens.ink.dim : tokens.marks[check.status];
         const hasStaleAge = stale && 'staleDetail' in check;
         const detail = hasStaleAge ? check.staleDetail : check.detail;
+        const mark = checkMark(check.state, tokens);
 
         return v_flex()
           .flex_none()
@@ -67,7 +65,7 @@ const checksList = (stale: boolean, tokens: DirectionTokens): Element =>
             row(
               {
                 selected: false,
-                start: statusSlot(checkMark(check.state, tokens)),
+                start: statusSlot(mark),
                 label: label(check.name, tokens.text.body, tokens.ink.text),
                 end: [fixedLabel(check.state, tokens.text.detail, ink)],
               },
@@ -76,7 +74,7 @@ const checksList = (stale: boolean, tokens: DirectionTokens): Element =>
           )
           .child(
             label(detail, tokens.text.detail, tokens.ink.dim)
-              .ml(detailInset(tokens))
+              .ml(sectionBodyInset(tokens))
               .mr(spacing.xlarge),
           );
       }),
@@ -86,12 +84,12 @@ const checksSection = (stale: boolean, tokens: DirectionTokens): Element => {
   const parts: Element[] = [];
 
   if (stale) {
-    parts.push(errorLine('Could not refresh checks · showing checks from 6m ago', tokens));
+    parts.push(errorLine('Could not sync checks · showing checks from 6m ago', tokens));
   }
 
   parts.push(checksList(stale, tokens));
 
-  return contentSection({ name: 'Checks', count: 3, need: 'failing' }, parts, tokens);
+  return contentSection({ name: 'Checks', count: 3 }, parts, tokens);
 };
 
 const reviewThreads = (tokens: DirectionTokens): Element =>
@@ -122,16 +120,21 @@ const reviewThreads = (tokens: DirectionTokens): Element =>
               {
                 selected: false,
                 start: statusSlot(workNeedMark('review', tokens)),
-                label: label(thread.reference, tokens.text.body, tokens.ink.text),
-                end: [fixedLabel('unresolved', tokens.text.detail, tokens.marks.modified)],
+                label: label(thread.reference, tokens.text.title, tokens.ink.text),
+                end: [fixedLabel('unresolved', tokens.text.detail, tokens.ink.dim)],
               },
               tokens,
             ),
           )
-          .child(paragraph(thread.text, tokens).ml(detailInset(tokens)).mr(spacing.xlarge))
+          .child(
+            styled(div().min_w(0), tokens.text.detail, tokens.ink.text)
+              .ml(sectionBodyInset(tokens))
+              .mr(spacing.xlarge)
+              .child(thread.text),
+          )
           .child(
             label(thread.detail, tokens.text.detail, tokens.ink.dim)
-              .ml(detailInset(tokens))
+              .ml(sectionBodyInset(tokens))
               .mr(spacing.xlarge),
           ),
       ),
@@ -148,8 +151,13 @@ const slicesList = (tokens: DirectionTokens): Element =>
           {
             selected: false,
             start: statusMark(slice.status, tokens),
-            label: label(slice.title, tokens.text.body, tokens.ink.text),
-            end: [fixedLabel(slice.state, tokens.text.detail, tokens.ink.dim)],
+            label: h_flex()
+              .min_w(0)
+              .gap(spacing.small)
+              .items_center()
+              .child(label(slice.title, tokens.text.body, tokens.ink.text))
+              .child(fixedLabel(slice.state, tokens.text.detail, tokens.ink.dim)),
+            end: [],
           },
           tokens,
         ),
@@ -162,7 +170,7 @@ export const pullSections = (
   tokens: DirectionTokens,
 ): Element[] => [
   checksSection(staleChecks, tokens),
-  contentSection({ name: 'Threads', count: 2, need: 'review' }, [reviewThreads(tokens)], tokens),
+  contentSection({ name: 'Threads', count: 2 }, [reviewThreads(tokens)], tokens),
   contentSection({ name: 'Description' }, [description(item, tokens)], tokens),
   contentSectionHeader(
     { name: 'Files', count: 9 },
