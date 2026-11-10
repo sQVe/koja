@@ -5,12 +5,21 @@ import { div } from 'gpui-kit';
 import { icon } from '../../../../kit/index.ts';
 import { controlSize, markSize, spacing, textSize } from '../../../../kit/size.ts';
 import { sectionHeader } from '../panels/frame.ts';
-import { dot, fixedLabel, iconButton, label, paneHeaderFrame, styled } from '../parts.ts';
+import {
+  dot,
+  fixedLabel,
+  iconButton,
+  label,
+  paneHeaderFrame,
+  statusMark,
+  styled,
+} from '../parts.ts';
 import type { WorkNeed } from '../sidebars/content.ts';
 import { workNeedMark } from '../sidebars/facts.ts';
-import { sourceLink } from '../sidebars/sidebar.ts';
+import { retryPill } from '../sidebars/states.ts';
 import type { DirectionTokens } from '../tokens.ts';
-import type { ContentItem } from './data.ts';
+import type { CheckState, ContentItem } from './data.ts';
+import { externalLink } from './links.ts';
 
 export const readingInset = spacing.xxlarge;
 
@@ -25,8 +34,7 @@ export const paragraph = (text: string, tokens: DirectionTokens): Element =>
 export const scrollBody = (name: string): Element =>
   v_flex().id(name).flex_1().min_h(0).min_w(0).overflow_y_scrollbar();
 
-export const doneButton = (enabled: boolean, tokens: DirectionTokens): Element => {
-  const fill = enabled ? tokens.ink.text : tokens.rows.selectedFill;
+export const sendButton = (enabled: boolean, tokens: DirectionTokens): Element => {
   const ink = enabled ? tokens.pane.fill : tokens.ink.dim;
 
   const button = h_flex()
@@ -36,9 +44,14 @@ export const doneButton = (enabled: boolean, tokens: DirectionTokens): Element =
     .items_center()
     .justify_center()
     .rounded(tokens.controls.radius)
-    .bg(fill)
     .disabled(!enabled)
-    .child(fixedLabel('Done', tokens.text.body, ink));
+    .child(fixedLabel('Send to Tau', tokens.text.body, ink));
+
+  if (enabled) {
+    button.bg(tokens.ink.text);
+  } else {
+    button.border(1).border_color(tokens.pane.border);
+  }
 
   if (!enabled) {
     button.cursor_not_allowed().tooltip('Save your edits before sending');
@@ -48,7 +61,7 @@ export const doneButton = (enabled: boolean, tokens: DirectionTokens): Element =
 };
 
 const stateChip = (state: string, tokens: DirectionTokens): Element => {
-  const active = state === 'open' || state === 'sent';
+  const active = state === 'open' || state === 'sent' || state === 'in review';
   const color = active ? tokens.marks.done : tokens.marks.idle;
 
   return h_flex()
@@ -87,7 +100,7 @@ export const itemHeading = (item: ContentItem, tokens: DirectionTokens): Element
     .pt(spacing.xlarge)
     .pb(spacing.medium)
     .gap(spacing.xxsmall)
-    .child(sourceLink(item.identifier, tokens).text_color(tokens.ink.dim));
+    .child(externalLink(item.identifier, item.source, tokens));
 
   if (item.title !== null) {
     heading.child(
@@ -100,11 +113,54 @@ export const itemHeading = (item: ContentItem, tokens: DirectionTokens): Element
   }
 
   if (item.state !== null) {
-    heading.child(h_flex().mt(spacing.xsmall).child(stateChip(item.state, tokens)));
+    const state = h_flex()
+      .mt(spacing.xsmall)
+      .gap(spacing.medium)
+      .items_center()
+      .child(stateChip(item.state, tokens));
+
+    if (item.readAge !== null) {
+      state.child(fixedLabel(`read ${item.readAge}`, tokens.text.detail, tokens.ink.dim));
+    }
+
+    heading.child(state);
   }
 
   return heading;
 };
+
+export const checkMark = (state: CheckState, tokens: DirectionTokens): Element => {
+  if (state === 'failing') {
+    return workNeedMark('failing', tokens);
+  }
+
+  const status = state === 'running' ? 'working' : 'done';
+
+  return statusMark(status, tokens);
+};
+
+export const saveFailure = (tokens: DirectionTokens): Element =>
+  v_flex()
+    .gap(spacing.medium)
+    .child(
+      h_flex()
+        .min_w(0)
+        .gap(spacing.small)
+        .items_start()
+        .child(
+          icon('circle-alert', 'small')
+            .flex_none()
+            .mt(spacing.xxsmall)
+            .text_color(tokens.marks.blocked),
+        )
+        .child(
+          styled(div().min_w(0).flex_1(), tokens.text.detail, tokens.ink.text).child(
+            'Could not save: the review folder is read-only',
+          ),
+        )
+        .child(retryPill(tokens)),
+    )
+    .child(paragraph('Your edits stay in this pane. Send waits for a save.', tokens));
 
 export const contentSection = (
   name: string,
@@ -130,6 +186,6 @@ export const description = (item: ContentItem, tokens: DirectionTokens): Element
     .flex_none()
     .min_w(0)
     .px(readingInset)
-    .py(spacing.large)
-    .gap(spacing.large)
+    .py(spacing.medium)
+    .gap(spacing.medium)
     .children(item.description.map((text) => paragraph(text, tokens)));

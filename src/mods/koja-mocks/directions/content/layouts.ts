@@ -3,15 +3,15 @@ import type { Element } from 'gpui-kit';
 
 import { icon, stateLine } from '../../../../kit/index.ts';
 import { spacing } from '../../../../kit/size.ts';
-import { sectionDivider } from '../panels/frame.ts';
+import { sectionDivider, sectionHeader } from '../panels/frame.ts';
 import { fixedLabel } from '../parts.ts';
 import { errorLine } from '../sidebars/states.ts';
 import type { DirectionTokens } from '../tokens.ts';
 import { pullSections, ticketSections } from './details.ts';
 import { factRows, factsBlock } from './facts.ts';
 import {
-  contentSection,
-  doneButton,
+  sendButton,
+  saveFailure,
   itemHeading,
   paragraph,
   readingInset,
@@ -22,7 +22,7 @@ import type { ContentState, ContentView } from './states.ts';
 
 const factsRailWidth = 240;
 const railInset = 16;
-const sectionGap = 12;
+const sectionGap = spacing.small;
 
 const readingBody = (view: ContentView, tokens: DirectionTokens): Element => {
   const { item, state } = view;
@@ -48,18 +48,16 @@ const reviewActions = (state: ContentState, tokens: DirectionTokens): Element =>
           .gap(spacing.small)
           .items_center()
           .child(icon('check', 'small').text_color(tokens.marks.done))
-          .child(fixedLabel('Review sent to Tau', tokens.text.body, tokens.ink.text)),
+          .child(fixedLabel('Sent to Tau', tokens.text.body, tokens.ink.text)),
       )
       .child(paragraph('Tau closes this pane after collecting the review.', tokens));
   }
 
   const enabled = state !== 'saving-failed';
-  const actions = v_flex().gap(spacing.medium).child(doneButton(enabled, tokens));
+  const actions = v_flex().gap(spacing.medium).child(sendButton(enabled, tokens));
 
   if (!enabled) {
-    actions
-      .child(errorLine('Could not save', tokens).mx(0).px(0))
-      .child(paragraph('Your edits are kept', tokens));
+    actions.child(saveFailure(tokens));
   }
 
   return actions;
@@ -75,7 +73,11 @@ const reviewRail = (view: ContentView, tokens: DirectionTokens): Element =>
     .border_color(tokens.pane.headerDivider)
     .child(reviewActions(view.state, tokens))
     .child(factRows(view.item.facts, tokens))
-    .child(contentSection('Files 3', [reviewFileList(tokens)], tokens));
+    .child(
+      v_flex()
+        .child(sectionHeader({ name: 'Files 3', open: true, detail: [], end: [] }, tokens).mx(0))
+        .child(reviewFileList(tokens)),
+    );
 
 const narrowReviewControls = (tokens: DirectionTokens): Element =>
   h_flex()
@@ -84,8 +86,12 @@ const narrowReviewControls = (tokens: DirectionTokens): Element =>
     .items_center()
     .gap(spacing.medium)
     .py(spacing.small)
+    .px(readingInset)
     .child(reviewFileChoices(tokens).flex_1().min_w(0))
-    .child(doneButton(true, tokens).mr(readingInset));
+    .child(sendButton(true, tokens));
+
+const reviewViewport = (reading: Element): Element =>
+  v_flex().flex_1().min_h(0).min_w(0).pb(spacing.large).child(reading);
 
 export const contentBody = (view: ContentView, tokens: DirectionTokens): Element => {
   const reading = scrollBody('content-reading').child(itemHeading(view.item, tokens));
@@ -107,7 +113,7 @@ export const contentBody = (view: ContentView, tokens: DirectionTokens): Element
       .flex_1()
       .min_h(0)
       .items_stretch()
-      .child(reading.child(readingBody(view, tokens)))
+      .child(reviewViewport(reading.child(readingBody(view, tokens))))
       .child(reviewRail(view, tokens));
   }
 
@@ -117,5 +123,11 @@ export const contentBody = (view: ContentView, tokens: DirectionTokens): Element
     reading.child(narrowReviewControls(tokens));
   }
 
-  return reading.child(readingBody(view, tokens));
+  reading.child(readingBody(view, tokens));
+
+  if (view.item.kind === 'review') {
+    return reviewViewport(reading);
+  }
+
+  return reading;
 };

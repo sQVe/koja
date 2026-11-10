@@ -36,6 +36,7 @@ const openingItem = (item: ContentItem): ContentItem => ({
   ...item,
   title: null,
   state: null,
+  readAge: null,
   tab: item.identifier,
   facts: [],
   description: [],
@@ -51,16 +52,16 @@ const longTicket: ContentItem = {
       name: 'Parent',
       value:
         'ME-1087 · Build the developer cockpit for agents, tickets, GitHub work, and every active development session in one window',
-      link: true,
+      target: 'Linear',
     },
     { name: 'Labels', value: 'design · cockpit · accessibility' },
     { name: 'Assignee', value: 'You' },
     { name: 'Cycle', value: 'Cycle 12' },
     { name: 'Estimate', value: '5 points' },
     { name: 'Slices', value: '1 done · 1 in progress · 1 backlog' },
-    { name: 'Related PRs', value: '#52', link: true },
-    { name: '', value: '#57', link: true },
-    { name: '', value: '#63', link: true },
+    { name: 'Related PRs', value: '#52', target: 'GitHub' },
+    { name: '', value: '#57', target: 'GitHub' },
+    { name: '', value: '#63', target: 'GitHub' },
   ],
 };
 
@@ -71,9 +72,7 @@ export const contentViews = {
     state: 'saving-failed',
     item: {
       ...review.item,
-      facts: review.item.facts.map((fact) =>
-        fact.name === 'Saved' ? { name: 'Saved', value: 'last saved 1m ago' } : fact,
-      ),
+      facts: review.item.facts.filter((fact) => fact.name !== 'Saved'),
     },
   },
   'review-sent': {
@@ -95,7 +94,7 @@ export const contentViews = {
     item: {
       ...pull.item,
       facts: pull.item.facts.map((fact) =>
-        fact.name === 'Checks' ? { name: 'Checks', value: 'last read 6m ago' } : fact,
+        fact.name === 'Checks' ? { ...fact, age: '6m old' } : fact,
       ),
     },
   },

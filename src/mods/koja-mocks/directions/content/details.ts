@@ -2,17 +2,18 @@ import { h_flex, v_flex } from 'gpui-base';
 import type { Element } from 'gpui-kit';
 
 import { spacing } from '../../../../kit/size.ts';
-import { changeListOf, diffCounts } from '../panels/changes.ts';
+import { diffCounts } from '../panels/changes.ts';
+import { sectionHeader } from '../panels/frame.ts';
 import { fixedLabel, label, row, statusMark } from '../parts.ts';
 import { workNeedMark } from '../sidebars/facts.ts';
 import { errorLine } from '../sidebars/states.ts';
 import type { DirectionTokens } from '../tokens.ts';
 import type { ContentItem } from './data.ts';
 import { pullFiles, ticketSlices } from './data.ts';
-import { contentSection, description, paragraph, readingInset } from './parts.ts';
+import { checkMark, contentSection, description, paragraph, readingInset } from './parts.ts';
 
 const checkDetailInset = 34;
-const threadGap = 12;
+const threadGap = spacing.medium;
 const pullAdded = pullFiles.reduce((sum, file) => sum + file.add, 0);
 const pullDeleted = pullFiles.reduce((sum, file) => sum + file.del, 0);
 
@@ -26,11 +27,10 @@ const checksList = (stale: boolean, tokens: DirectionTokens): Element =>
   v_flex()
     .flex_none()
     .min_w(0)
-    .py(spacing.medium)
-    .gap(spacing.medium)
+    .py(spacing.small)
+    .gap(spacing.small)
     .children(
       checks.map((check) => {
-        const status = stale ? 'idle' : check.status;
         const ink = stale ? tokens.ink.dim : tokens.marks[check.status];
         const detail = stale ? check.detail.replace(' ago', ' before last read') : check.detail;
 
@@ -41,7 +41,7 @@ const checksList = (stale: boolean, tokens: DirectionTokens): Element =>
             row(
               {
                 selected: false,
-                start: statusMark(status, tokens),
+                start: checkMark(check.state, tokens),
                 label: label(check.name, tokens.text.body, tokens.ink.text),
                 end: [fixedLabel(check.state, tokens.text.detail, ink)],
               },
@@ -60,7 +60,7 @@ const checksSection = (stale: boolean, tokens: DirectionTokens): Element => {
   const parts: Element[] = [];
 
   if (stale) {
-    parts.push(errorLine('Could not read checks · checks from 6m ago', tokens));
+    parts.push(errorLine('Could not refresh checks · showing checks from 6m ago', tokens));
   }
 
   parts.push(checksList(stale, tokens));
@@ -77,9 +77,12 @@ const reviewThreads = (tokens: DirectionTokens): Element =>
     .gap(threadGap)
     .children(
       [
-        { path: 'rows.ts · L48', text: 'Keep the selected row visible when the group folds.' },
         {
-          path: 'repoLabel.ts · L27–31',
+          reference: 'rows.ts · L48 · sqve · 2h ago',
+          text: 'Keep the selected row visible when the group folds.',
+        },
+        {
+          reference: 'repoLabel.ts · L27–31 · sqve · 1h ago',
           text: 'Can the branch truncate before the repository name?',
         },
       ].map((thread) =>
@@ -92,7 +95,7 @@ const reviewThreads = (tokens: DirectionTokens): Element =>
               .gap(spacing.small)
               .items_center()
               .child(workNeedMark('review', tokens))
-              .child(fixedLabel(thread.path, tokens.text.detail, tokens.ink.dim))
+              .child(fixedLabel(thread.reference, tokens.text.detail, tokens.ink.dim))
               .child(fixedLabel('unresolved', tokens.text.detail, tokens.ink.dim)),
           )
           .child(paragraph(thread.text, tokens)),
@@ -126,15 +129,13 @@ export const pullSections = (
   contentSection('Description', [description(item, tokens)], tokens),
   checksSection(staleChecks, tokens),
   contentSection('Threads 2', [reviewThreads(tokens)], tokens, 'review'),
-  contentSection(
-    'Files 9',
-    [
-      h_flex()
-        .px(readingInset)
-        .gap(spacing.small)
-        .children(diffCounts(pullAdded, pullDeleted, tokens)),
-      changeListOf(pullFiles, tokens),
-    ],
+  sectionHeader(
+    {
+      name: 'Files 9',
+      open: false,
+      detail: diffCounts(pullAdded, pullDeleted, tokens),
+      end: [],
+    },
     tokens,
   ),
 ];

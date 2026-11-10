@@ -115,7 +115,7 @@ const projectHeader = (project: StateProject, tokens: DirectionTokens): Element 
     .child(dimFact(`${project.hidden} more`, tokens));
 };
 
-const retryPill = (tokens: DirectionTokens): Element =>
+export const retryPill = (tokens: DirectionTokens): Element =>
   h_flex()
     .h(pillHeight)
     .px(pillPadding)

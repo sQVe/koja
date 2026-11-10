@@ -1,55 +1,67 @@
 import { h_flex, v_flex } from 'gpui-base';
 import type { Element } from 'gpui-kit';
+import { div } from 'gpui-kit';
 
 import { icon } from '../../../../kit/index.ts';
 import { diffSize, rowHeight, spacing } from '../../../../kit/size.ts';
 import { fixedLabel, label, row, terminalFont } from '../parts.ts';
 import type { DirectionTokens } from '../tokens.ts';
 import { reviewComments, reviewFiles, reviewLines } from './data.ts';
-import { paragraph } from './parts.ts';
+import { paragraph, readingInset } from './parts.ts';
 import type { ContentState } from './states.ts';
 
-const fileTabWidth = 128;
-const commentInset = 42;
+const fileTabWidth = 104;
+const commentedFileTabWidth = 154;
 const lineInset = 12;
 const lineNumberWidth = 18;
+const gutterMarkWidth = 4;
+const gutterWidth = gutterMarkWidth + spacing.xsmall + lineNumberWidth;
+const commentInset = readingInset + gutterWidth + lineInset;
 const editedLineNumber = 6;
+
+const fileComments = (index: number, tokens: DirectionTokens): Element[] => {
+  if (index !== 0) {
+    return [];
+  }
+
+  return [
+    h_flex()
+      .flex_none()
+      .gap(spacing.xsmall)
+      .items_center()
+      .child(icon('message-square', 'small').text_color(tokens.ink.dim))
+      .child(fixedLabel(String(reviewComments.length), tokens.text.detail, tokens.ink.dim)),
+  ];
+};
+
+const fileRow = (file: string, index: number, tokens: DirectionTokens): Element =>
+  row(
+    {
+      selected: index === 0,
+      start: icon('file', 'small').text_color(tokens.ink.dim),
+      label: label(file, tokens.text.body, tokens.ink.text),
+      end: fileComments(index, tokens),
+    },
+    tokens,
+  ).mx(0);
 
 export const reviewFileList = (tokens: DirectionTokens): Element =>
   v_flex()
     .flex_none()
     .py(spacing.small)
-    .children(
-      reviewFiles.map((file, index) =>
-        row(
-          {
-            selected: index === 0,
-            start: icon('file', 'small').text_color(tokens.ink.dim),
-            label: label(file, tokens.text.body, tokens.ink.text),
-            end: [],
-          },
-          tokens,
-        ),
-      ),
-    );
+    .children(reviewFiles.map((file, index) => fileRow(file, index, tokens)));
 
 export const reviewFileChoices = (tokens: DirectionTokens): Element =>
   h_flex()
     .flex_none()
-    .px(spacing.medium)
     .py(spacing.xsmall)
+    .gap(spacing.xsmall)
     .children(
-      reviewFiles.map((file, index) =>
-        row(
-          {
-            selected: index === 0,
-            start: icon('file', 'small').text_color(tokens.ink.dim),
-            label: label(file, tokens.text.body, tokens.ink.text),
-            end: [],
-          },
-          tokens,
-        ).w(fileTabWidth),
-      ),
+      reviewFiles.map((file, index) => {
+        const width = index === 0 ? commentedFileTabWidth : fileTabWidth;
+
+        return fileRow(file, index, tokens).w(width);
+      }),
     );
 
 const lineComment = (
@@ -72,7 +84,7 @@ const lineComment = (
     .flex_none()
     .min_w(0)
     .ml(commentInset)
-    .mr(lineInset)
+    .mr(readingInset)
     .my(spacing.xsmall)
     .px(spacing.large)
     .py(spacing.small)
@@ -82,6 +94,26 @@ const lineComment = (
     .border_color(tokens.pane.border)
     .child(heading)
     .child(paragraph(comment.text, tokens));
+};
+
+const lineGutter = (number: number, unsaved: boolean, tokens: DirectionTokens): Element => {
+  const mark = div().w(gutterMarkWidth).h(lineInset).flex_none();
+
+  if (unsaved) {
+    mark.bg(tokens.marks.working);
+  }
+
+  return h_flex()
+    .w(gutterWidth)
+    .flex_none()
+    .gap(spacing.xsmall)
+    .items_center()
+    .child(mark)
+    .child(
+      fixedLabel(String(number), tokens.text.detail, tokens.ink.dim)
+        .w(lineNumberWidth)
+        .text_right(),
+    );
 };
 
 const documentLine = (
@@ -94,18 +126,15 @@ const documentLine = (
     .h(diffSize.rowHeight)
     .flex_none()
     .min_w(0)
-    .px(lineInset)
+    .px(readingInset)
     .gap(lineInset)
     .items_center()
     .font_family(terminalFont)
-    .child(fixedLabel(String(index + 1), tokens.text.detail, tokens.ink.dim).w(lineNumberWidth))
+    .child(lineGutter(index + 1, unsaved, tokens))
     .child(label(text, tokens.text.body, tokens.ink.text).flex_1());
 
   if (unsaved) {
-    line
-      .border_l(2)
-      .border_color(tokens.marks.working)
-      .child(fixedLabel('Unsaved', tokens.text.detail, tokens.marks.working));
+    line.child(fixedLabel('Unsaved', tokens.text.detail, tokens.marks.working));
   }
 
   return line;
@@ -114,7 +143,7 @@ const documentLine = (
 const documentHeading = (readOnly: boolean, tokens: DirectionTokens): Element => {
   const heading = h_flex()
     .h(rowHeight.large)
-    .px(lineInset)
+    .px(readingInset)
     .gap(spacing.medium)
     .flex_none()
     .items_center()
@@ -134,7 +163,7 @@ export const reviewText = (state: ContentState, tokens: DirectionTokens): Elemen
 
   reviewLines.forEach((text, index) => {
     const unsaved = state === 'saving-failed' && index + 1 === editedLineNumber;
-    const currentText = unsaved ? 'The item keeps your edits until you send it.' : text;
+    const currentText = unsaved ? 'Keep the selected space visible when groups fold.' : text;
 
     lines.push(documentLine(currentText, index, unsaved, tokens));
 

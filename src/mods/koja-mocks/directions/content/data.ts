@@ -2,39 +2,56 @@ import type { IconName } from '../../../../kit/index.ts';
 import type { FakeChange } from '../../scenes/shellContent.ts';
 
 export type ContentKind = 'review' | 'pr' | 'ticket';
+export type SourceTarget = 'GitHub' | 'Linear';
+export type CheckState = 'failing' | 'running' | 'passed';
+
+export interface ContentFact {
+  name: string;
+  value: string;
+  target?: SourceTarget | 'agent';
+  checkState?: CheckState;
+  age?: string;
+}
 
 export interface ContentItem {
   kind: ContentKind;
   name: string;
   identifier: string;
+  source: SourceTarget;
+  readAge: string | null;
   title: string | null;
   tab: string;
   state: string | null;
   icon: IconName;
   description: string[];
-  facts: { name: string; value: string; link?: boolean }[];
+  facts: ContentFact[];
 }
 
 export const contentItems: Record<ContentKind, ContentItem> = {
   review: {
     kind: 'review',
     name: 'Draft review',
-    identifier: 'ME-1092',
+    identifier: 'ME-1090',
+    source: 'Linear',
+    readAge: '1m ago',
     title: 'Review design.md',
     tab: 'Review design.md',
-    state: 'open',
+    state: 'in review',
     icon: 'square-pen',
     description: [],
     facts: [
       { name: 'From', value: 'Tau · draft review' },
+      { name: 'Agent', value: 'Claude Code · Design the sidebar', target: 'agent' },
       { name: 'Comments', value: '2 line comments' },
-      { name: 'Saved', value: 'saved 1m ago' },
+      { name: 'Saved', value: '1m ago' },
     ],
   },
   pr: {
     kind: 'pr',
     name: 'Pull request',
     identifier: '#41',
+    source: 'GitHub',
+    readAge: '1m ago',
     title: 'Design the sidebar',
     tab: '#41 Design the sidebar',
     state: 'open',
@@ -45,8 +62,8 @@ export const contentItems: Record<ContentKind, ContentItem> = {
     ],
     facts: [
       { name: 'Branch', value: 'me-1090-design-the-sidebar → main' },
-      { name: 'Ticket', value: 'ME-1090', link: true },
-      { name: 'Checks', value: '2 running, 1 failing' },
+      { name: 'Ticket', value: 'ME-1090', target: 'Linear' },
+      { name: 'Checks', value: '1 failing · 2 running', checkState: 'failing' },
       { name: 'Threads', value: '2 unresolved' },
       { name: 'Files', value: '9 changed · +412 −38' },
     ],
@@ -55,6 +72,8 @@ export const contentItems: Record<ContentKind, ContentItem> = {
     kind: 'ticket',
     name: 'Ticket',
     identifier: 'ME-1094',
+    source: 'Linear',
+    readAge: '1m ago',
     title: 'Design the ticket view',
     tab: 'ME-1094 Design the ticket view',
     state: 'Backlog',
@@ -65,9 +84,9 @@ export const contentItems: Record<ContentKind, ContentItem> = {
     ],
     facts: [
       { name: 'Project', value: 'Koja' },
-      { name: 'Parent', value: 'ME-1087', link: true },
+      { name: 'Parent', value: 'ME-1087', target: 'Linear' },
       { name: 'Slices', value: '1 done · 1 in progress · 1 backlog' },
-      { name: 'Related PR', value: '#52', link: true },
+      { name: 'Related PR', value: '#52', target: 'GitHub' },
     ],
   },
 };
@@ -75,34 +94,34 @@ export const contentItems: Record<ContentKind, ContentItem> = {
 export const reviewFiles = ['design.md', 'slice-1.md', 'slice-2.md'];
 
 export const reviewLines = [
-  '# Content pane pattern',
+  '# Sidebar design',
   '',
   '## Goal',
-  'Show one work item without leaving Koja.',
+  'Keep projects and spaces easy to scan.',
   'Keep the terminal beside the work when useful.',
-  'The item owns its title, state, and actions.',
+  'The sidebar keeps each space and its work visible.',
   '',
   '## Shared frame',
-  '- Use the same pane chrome as a terminal.',
+  '- Group spaces by project.',
   '- Keep links to the source easy to find.',
-  '- Let the body use the space it needs.',
-  '- Show facts beside a wide document.',
-  '- Move facts below the title when narrow.',
-  '- Keep one clear action for draft reviews.',
+  '- Use one selected row per active space.',
+  '- Show work-need marks beside each space.',
+  '- Keep branch names quiet until needed.',
+  '- Keep the selected space visible when folded.',
   '',
   '## Recovery',
   'Keep the last good read when a refresh fails.',
   'Show Retry beside the part that failed.',
   'Never discard a comment after a failed save.',
-  'Done sends the review back to Tau.',
+  'Send to Tau returns the review to the agent.',
 ];
 
 export const reviewComments = [
-  { end: 6, range: 'L6', text: 'Keep the kind in pane chrome; the title belongs to the item.' },
+  { end: 6, range: 'L6', text: 'Keep the selected space visible when the project folds.' },
   {
     end: 14,
     range: 'L12–14',
-    text: 'Show the narrow layout beside the terminal in the next round.',
+    text: 'Keep work-need marks visible when the group is folded.',
   },
 ];
 
@@ -119,7 +138,7 @@ export const pullFiles: FakeChange[] = [
 ];
 
 export const ticketSlices = [
-  { title: '1. Read the ticket snapshot', state: 'done', status: 'done' },
-  { title: '2. Draw the shared content frame', state: 'in progress', status: 'working' },
-  { title: '3. Check links and empty states', state: 'backlog', status: 'idle' },
+  { title: 'Read the ticket snapshot', state: 'done', status: 'done' },
+  { title: 'Draw the shared content frame', state: 'in progress', status: 'working' },
+  { title: 'Check links and empty states', state: 'backlog', status: 'idle' },
 ] as const;

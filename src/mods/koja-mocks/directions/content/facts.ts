@@ -3,57 +3,78 @@ import type { Element } from 'gpui-kit';
 
 import { rowHeight, spacing } from '../../../../kit/size.ts';
 import { fixedLabel, label } from '../parts.ts';
-import { sourceLink } from '../sidebars/sidebar.ts';
 import type { DirectionTokens } from '../tokens.ts';
-import type { ContentItem } from './data.ts';
-import { readingInset } from './parts.ts';
+import type { ContentFact } from './data.ts';
+import { agentLink, externalLink } from './links.ts';
+import { checkMark, readingInset } from './parts.ts';
 
 const factLabelWidth = 64;
 const factValueMaxWidth = 440;
+const factPairGap = 12;
 
-const factValue = (fact: ContentItem['facts'][number], tokens: DirectionTokens): Element => {
-  if (fact.link === true) {
-    return sourceLink(fact.value, tokens)
-      .max_w(factValueMaxWidth)
-      .text_color(tokens.ink.dim)
-      .flex_shrink(1)
-      .tooltip(fact.value);
+const factValue = (fact: ContentFact, tokens: DirectionTokens): Element => {
+  if (fact.target === 'agent') {
+    return agentLink(fact.value, tokens);
   }
 
-  return label(fact.value, tokens.text.detail, tokens.ink.dim);
+  if (fact.target !== undefined) {
+    return externalLink(fact.value, fact.target, tokens).max_w(factValueMaxWidth).flex_shrink(1);
+  }
+
+  if (fact.checkState === undefined) {
+    return label(fact.value, tokens.text.detail, tokens.ink.text);
+  }
+
+  const value = h_flex()
+    .min_w(0)
+    .gap(spacing.xsmall)
+    .items_center()
+    .child(checkMark(fact.checkState, tokens))
+    .child(fixedLabel(fact.value, tokens.text.detail, tokens.ink.text));
+
+  if (fact.age !== undefined) {
+    value.child(fixedLabel(`· ${fact.age}`, tokens.text.detail, tokens.ink.dim));
+  }
+
+  return value;
 };
 
-const factPair = (fact: ContentItem['facts'][number], tokens: DirectionTokens): Element =>
+const factPair = (fact: ContentFact, tokens: DirectionTokens): Element =>
   h_flex()
     .min_w(0)
     .max_w_full()
-    .h(rowHeight.small)
-    .gap(spacing.medium)
+    .min_h(rowHeight.small)
+    .gap(spacing.small)
     .items_center()
     .child(fixedLabel(fact.name, tokens.text.detail, tokens.ink.dim))
     .child(factValue(fact, tokens));
 
-const alignedFact = (fact: ContentItem['facts'][number], tokens: DirectionTokens): Element =>
+const alignedFact = (fact: ContentFact, tokens: DirectionTokens): Element =>
   h_flex()
     .min_w(0)
-    .h(rowHeight.small)
+    .min_h(rowHeight.small)
     .gap(spacing.medium)
-    .items_center()
-    .child(fixedLabel(fact.name, tokens.text.detail, tokens.ink.dim).w(factLabelWidth))
-    .child(factValue(fact, tokens).flex_1());
+    .items_start()
+    .child(
+      fixedLabel(fact.name, tokens.text.detail, tokens.ink.dim)
+        .w(factLabelWidth)
+        .pt(spacing.xsmall),
+    )
+    .child(factValue(fact, tokens).flex_1().py(spacing.xsmall));
 
-export const factRows = (facts: ContentItem['facts'], tokens: DirectionTokens): Element =>
+export const factRows = (facts: ContentFact[], tokens: DirectionTokens): Element =>
   v_flex()
     .flex_none()
     .min_w(0)
     .children(facts.map((fact) => alignedFact(fact, tokens)));
 
-export const factsBlock = (facts: ContentItem['facts'], tokens: DirectionTokens): Element =>
+export const factsBlock = (facts: ContentFact[], tokens: DirectionTokens): Element =>
   h_flex()
     .flex_none()
     .min_w(0)
     .flex_wrap()
     .px(readingInset)
     .pb(spacing.large)
-    .gap(spacing.medium)
+    .gap_x(factPairGap)
+    .gap_y(spacing.medium)
     .children(facts.map((fact) => factPair(fact, tokens)));
