@@ -13,7 +13,7 @@ import {
   saveRecoveryButton,
   scrollBody,
 } from '../content/parts.ts';
-import { fixedLabel, label } from '../parts.ts';
+import { label } from '../parts.ts';
 import type { DirectionTokens } from '../tokens.ts';
 import type { DraftState, DraftView } from './data.ts';
 import { draftFolder } from './data.ts';
@@ -21,9 +21,14 @@ import { draftFolder } from './data.ts';
 const changedAction = (tokens: DirectionTokens): Element =>
   v_flex()
     .gap(spacing.medium)
-    .child(fixedLabel('Choose a version for line 6', tokens.text.heading, tokens.ink.text))
+    .child(reviewActionButton('Go to line 6', tokens))
     .child(paragraph('body.md changed outside this pane.', tokens).text_color(tokens.marks.blocked))
-    .child(paragraph('Send to Tau waits until you choose.', tokens).text_color(tokens.ink.dim));
+    .child(
+      paragraph(
+        'Choose a version for line 6. Send to Tau waits until you choose.',
+        tokens,
+      ).text_color(tokens.ink.dim),
+    );
 
 export const draftActions = (state: DraftState, tokens: DirectionTokens): Element => {
   if (state === 'saving-failed') {
@@ -32,7 +37,7 @@ export const draftActions = (state: DraftState, tokens: DirectionTokens): Elemen
       .child(reviewActionButton('Retry save', tokens))
       .child(
         saveFailure(tokens, {
-          error: 'Could not save: the folder is read-only.',
+          error: 'Could not save: the folder is read-only. Make it writable, then retry.',
           folder: draftFolder,
           unsaved: '1 line and 1 comment are unsaved. They stay in this pane.',
         }),
@@ -43,7 +48,14 @@ export const draftActions = (state: DraftState, tokens: DirectionTokens): Elemen
     return changedAction(tokens);
   }
 
-  return reviewActions(state === 'sent' ? 'sent' : 'ready', tokens);
+  const actions = reviewActions(state === 'sent' ? 'sent' : 'ready', tokens);
+  const openComment = state === 'comment' || state === 'range' || state === 'file-comment';
+
+  if (openComment || state === 'normal') {
+    actions.child(paragraph('1 comment is still open.', tokens).text_color(tokens.ink.dim));
+  }
+
+  return actions;
 };
 
 export const brokenBody = (view: DraftView, tokens: DirectionTokens): Element =>

@@ -25,6 +25,7 @@ export interface DraftFile {
   name: string;
   lines: string[];
   comments: DraftComment[];
+  editedLines: number[];
 }
 
 export interface DraftView {
@@ -35,6 +36,7 @@ export interface DraftView {
 }
 
 export const draftFolder = '.tau/pr/run-zCAlBX';
+export const editedLineNumber = 6;
 
 export const draftItem: ContentItem = {
   ...contentItems.review,
@@ -44,6 +46,7 @@ export const draftItem: ContentItem = {
     { name: 'From', value: 'Tau' },
     { name: 'Agent', value: 'Design the sidebar', target: 'agent' },
     { name: 'Comments', value: '3' },
+    { name: 'Edits', value: '1 line' },
     { name: 'Saved', value: '1m ago' },
     { name: 'Folder', value: draftFolder },
   ],
@@ -51,6 +54,7 @@ export const draftItem: ContentItem = {
 
 export const bodyFile: DraftFile = {
   name: 'body.md',
+  editedLines: [editedLineNumber],
   comments: [
     {
       anchor: 'File',
@@ -93,6 +97,7 @@ export const bodyFile: DraftFile = {
 
 export const releaseFile: DraftFile = {
   name: 'release-notes.md',
+  editedLines: [],
   comments: [{ start: 3, end: 3, anchor: 'L3', text: 'Say which mods change.' }],
   lines: [
     '## Sidebar',
@@ -105,16 +110,14 @@ export const releaseFile: DraftFile = {
 };
 
 export const draftFiles: DraftFile[] = [
-  { name: 'title.md', comments: [], lines: ['Design the sidebar'] },
+  { name: 'title.md', comments: [], editedLines: [], lines: ['Design the sidebar'] },
   bodyFile,
   releaseFile,
 ];
 
 export const isBodyFile = (file: DraftFile): boolean => file.name === 'body.md';
-export const editedLineNumber = 6;
 export const composingLineNumber = 18;
 export const selectedRange = { start: 19, end: 20 };
-export const retypedLine = '- Keep the selected space in view when groups fold.';
 
 export const showsLineComposer = (state: DraftState): boolean =>
   state === 'comment' || state === 'normal';

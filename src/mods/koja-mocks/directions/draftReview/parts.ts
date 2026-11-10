@@ -23,14 +23,6 @@ export const outlineAction = (text: string, tokens: DirectionTokens): Element =>
     .border_color(tokens.pane.cardBorder)
     .text_color(tokens.ink.text);
 
-const quietAction = (text: string, tokens: DirectionTokens): Element =>
-  h_flex()
-    .h(rowHeight.small)
-    .px(spacing.small)
-    .items_center()
-    .rounded(tokens.controls.radius)
-    .child(fixedLabel(text, tokens.text.detail, tokens.ink.muted));
-
 export const fileHeading = (
   file: DraftFile,
   state: DraftState,
@@ -38,6 +30,9 @@ export const fileHeading = (
 ): Element => {
   const lineCount = file.lines.length === 1 ? '1 line' : `${file.lines.length} lines`;
   const editing = isBodyFile(file) && state === 'edit-file';
+  const commentCount = file.comments.length;
+  const commentUnit = commentCount === 1 ? 'comment' : 'comments';
+  const metadata = commentCount === 0 ? lineCount : `${lineCount} · ${commentCount} ${commentUnit}`;
 
   const heading = h_flex()
     .h(rowHeight.large)
@@ -47,10 +42,8 @@ export const fileHeading = (
     .items_center()
     .child(icon('file', 'small').text_color(tokens.ink.dim))
     .child(fixedLabel(file.name, tokens.text.title, tokens.ink.text))
-    .child(fixedLabel(lineCount, tokens.text.detail, tokens.ink.dim))
-    .child(div().flex_1())
-    .child(icon('message-square', 'small').text_color(tokens.ink.dim))
-    .child(fixedLabel(String(file.comments.length), tokens.text.detail, tokens.ink.dim));
+    .child(fixedLabel(metadata, tokens.text.detail, tokens.ink.dim))
+    .child(div().flex_1());
 
   if (state === 'sent') {
     return heading.child(fixedLabel('Read-only', tokens.text.detail, tokens.ink.dim));
@@ -58,12 +51,39 @@ export const fileHeading = (
 
   if (editing) {
     return heading
-      .child(quietAction('Comment', tokens))
-      .child(fixedLabel('Editing', tokens.text.detail, tokens.ink.dim))
+      .child(outlineAction('Comment on file', tokens))
+      .child(fixedLabel('Saved just now', tokens.text.detail, tokens.ink.dim))
       .child(outlineAction('Done editing', tokens));
   }
 
-  return heading.child(quietAction('Comment', tokens)).child(quietAction('Edit file', tokens));
+  return heading
+    .child(outlineAction('Comment on file', tokens))
+    .child(outlineAction('Edit file', tokens));
+};
+
+const fileMarkWidth = { edit: 12, comments: 32 };
+
+const fileMarks = (file: DraftFile, tokens: DirectionTokens): Element[] => {
+  const edited = h_flex().w(fileMarkWidth.edit).flex_none().items_center();
+
+  const comments = h_flex()
+    .w(fileMarkWidth.comments)
+    .flex_none()
+    .items_center()
+    .justify_end()
+    .gap(spacing.small);
+
+  if (file.editedLines.length > 0) {
+    edited.child(fixedLabel('M', tokens.text.detail, tokens.marks.modified));
+  }
+
+  if (file.comments.length > 0) {
+    comments
+      .child(icon('message-square', 'small').text_color(tokens.ink.dim))
+      .child(fixedLabel(String(file.comments.length), tokens.text.detail, tokens.ink.dim));
+  }
+
+  return [edited, comments];
 };
 
 const fileChoice = (file: DraftFile, selected: boolean, tokens: DirectionTokens): Element =>
@@ -72,10 +92,7 @@ const fileChoice = (file: DraftFile, selected: boolean, tokens: DirectionTokens)
       selected,
       start: icon('file', 'small').text_color(tokens.ink.dim),
       label: label(file.name, tokens.text.body, tokens.ink.text),
-      end: [
-        icon('message-square', 'small').text_color(tokens.ink.dim),
-        fixedLabel(String(file.comments.length), tokens.text.detail, tokens.ink.dim),
-      ],
+      end: fileMarks(file, tokens),
     },
     tokens,
   ).mx(0);
@@ -86,8 +103,19 @@ export const fileNavigation = (view: DraftView, tokens: DirectionTokens): Elemen
     .gap(2)
     .children(view.files.map((file) => fileChoice(file, file.name === view.selected.name, tokens)));
 
-const commentFrame = (anchor: string, tokens: DirectionTokens): Element =>
-  v_flex()
+const commentFrame = (anchor: string, unsaved: boolean, tokens: DirectionTokens): Element => {
+  const header = h_flex()
+    .items_center()
+    .gap(spacing.medium)
+    .child(icon('message-square', 'small').text_color(tokens.ink.dim))
+    .child(fixedLabel('You', tokens.text.heading, tokens.ink.text))
+    .child(fixedLabel(anchor, tokens.text.detail, tokens.ink.dim));
+
+  if (unsaved) {
+    header.child(fixedLabel('unsaved', tokens.text.detail, tokens.marks.working));
+  }
+
+  return v_flex()
     .flex_none()
     .min_w(0)
     .px(spacing.large)
@@ -96,21 +124,15 @@ const commentFrame = (anchor: string, tokens: DirectionTokens): Element =>
     .rounded(tokens.pane.radius)
     .border(1)
     .border_color(tokens.pane.cardBorder)
-    .child(
-      h_flex()
-        .items_center()
-        .gap(spacing.medium)
-        .child(icon('message-square', 'small').text_color(tokens.ink.dim))
-        .child(fixedLabel('You', tokens.text.heading, tokens.ink.text))
-        .child(fixedLabel(anchor, tokens.text.detail, tokens.ink.dim)),
-    );
+    .child(header);
+};
 
 export const commentCard = (
   comment: DraftComment,
   unsaved: boolean,
   tokens: DirectionTokens,
 ): Element => {
-  const card = commentFrame(comment.anchor, tokens).child(paragraph(comment.text, tokens));
+  const card = commentFrame(comment.anchor, unsaved, tokens).child(paragraph(comment.text, tokens));
 
   if (unsaved) {
     card
@@ -143,7 +165,7 @@ const composerField = (content: ComposerContent, tokens: DirectionTokens): Eleme
 };
 
 export const commentComposer = (content: ComposerContent, tokens: DirectionTokens): Element =>
-  commentFrame(content.anchor, tokens)
+  commentFrame(content.anchor, false, tokens)
     .border_color(tokens.pane.focusedBorder)
     .child(composerField(content, tokens))
     .child(

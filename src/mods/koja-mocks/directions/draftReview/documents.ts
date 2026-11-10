@@ -12,7 +12,7 @@ import { commentCard, commentComposer, fileHeading } from './parts.ts';
 import { sourceLines, textInset } from './source.ts';
 
 const bodyInset = 16;
-const scrollShares = { review: 0.72, plan: 0.22, short: 1 };
+const scrollShares = { plan: 0.22, review: 0.64 };
 
 const fileBody = (file: DraftFile, view: DraftView, tokens: DirectionTokens): Element => {
   const editingFile = isBodyFile(file) && view.state === 'edit-file';
@@ -26,7 +26,19 @@ const fileBody = (file: DraftFile, view: DraftView, tokens: DirectionTokens): El
     );
   }
 
-  if (!editingFile) {
+  if (editingFile) {
+    body.child(
+      v_flex()
+        .flex_none()
+        .min_w(0)
+        .py(spacing.xsmall)
+        .children(
+          file.comments.map((comment) =>
+            fixedLabel(`${comment.anchor} · ${comment.text}`, tokens.text.detail, tokens.ink.dim),
+          ),
+        ),
+    );
+  } else {
     body.children(
       file.comments
         .filter((comment) => comment.start === null)
@@ -38,76 +50,57 @@ const fileBody = (file: DraftFile, view: DraftView, tokens: DirectionTokens): El
 
   if (editingFile) {
     source
-      .p(spacing.small)
+      .py(spacing.small)
+      .mx(-1)
       .rounded(tokens.controls.radius)
       .border(1)
-      .border_color(tokens.pane.focusedBorder);
+      .border_color(tokens.pane.cardBorder);
   }
 
   return body.child(source);
 };
 
-const remainingFiles = (view: DraftView, tokens: DirectionTokens): Element[] => {
-  const nextIndex = view.files.indexOf(view.selected) + 1;
-
-  return view.files.slice(nextIndex).map((file) =>
-    v_flex()
-      .flex_none()
-      .min_w(0)
-      .mt(spacing.medium)
-      .border_t(1)
-      .border_color(tokens.pane.headerDivider)
-      .child(fileHeading(file, view.state, tokens))
-      .child(fileBody(file, view, tokens)),
-  );
-};
-
-const pinnedHeader = (view: DraftView, tokens: DirectionTokens): Element => {
-  const header = v_flex()
+const fileSection = (file: DraftFile, view: DraftView, tokens: DirectionTokens): Element =>
+  v_flex()
     .flex_none()
     .min_w(0)
-    .px(bodyInset)
-    .pb(spacing.xsmall)
-    .bg(tokens.pane.fill)
-    .border_b(1)
-    .border_color(tokens.pane.headerDivider)
-    .child(fileHeading(view.selected, view.state, tokens));
-
-  if (view.state === 'edit-file') {
-    const count = view.selected.comments.length;
-
-    header.child(
-      fixedLabel(
-        `${count} comments show again when you finish editing.`,
-        tokens.text.detail,
-        tokens.ink.dim,
-      ).py(spacing.xsmall),
-    );
-  }
-
-  return header;
-};
+    .mb(spacing.medium)
+    .child(fileHeading(file, view.state, tokens))
+    .child(fileBody(file, view, tokens));
 
 const visibleShare = (view: DraftView): number => {
   if (view.state === 'file-comment') {
-    return scrollShares.short;
+    return 1;
   }
 
   return view.state === 'plan' ? scrollShares.plan : scrollShares.review;
 };
 
 export const pinnedDocument = (view: DraftView, tokens: DirectionTokens): Element => {
-  const reading = scrollBody('draft-files')
-    .px(bodyInset)
-    .pt(spacing.xsmall)
-    .pb(bodyInset)
-    .child(fileBody(view.selected, view, tokens))
-    .children(remainingFiles(view, tokens));
+  const reading = scrollBody('draft-files').px(bodyInset).pb(bodyInset);
+  const document = v_flex().flex_1().min_w(0).min_h(0);
+  const pinned = view.state === 'plan' || view.state === 'range' || view.state === 'file-comment';
 
-  return v_flex()
-    .flex_1()
-    .min_w(0)
-    .min_h(0)
-    .child(pinnedHeader(view, tokens))
-    .child(scrollRegion(reading, visibleShare(view), tokens).flex_1().min_w(0));
+  if (pinned) {
+    document.child(
+      v_flex()
+        .flex_none()
+        .px(bodyInset)
+        .border_b(1)
+        .border_color(tokens.pane.headerDivider)
+        .child(fileHeading(view.selected, view.state, tokens)),
+    );
+
+    reading.child(fileBody(view.selected, view, tokens));
+
+    const nextIndex = view.files.indexOf(view.selected) + 1;
+
+    reading.children(view.files.slice(nextIndex).map((file) => fileSection(file, view, tokens)));
+  } else {
+    reading.children(view.files.map((file) => fileSection(file, view, tokens)));
+  }
+
+  return document.child(
+    scrollRegion(reading, visibleShare(view), tokens).mr(spacing.small).flex_1().min_w(0),
+  );
 };

@@ -37,6 +37,12 @@ const factsRail = (view: DraftView, tokens: DirectionTokens): Element =>
         .child(fileNavigation(view, tokens)),
     );
 
+const reviewHeading = (view: DraftView, tokens: DirectionTokens): Element =>
+  itemHeading(view.item, {
+    ...tokens,
+    marks: { ...tokens.marks, blocked: tokens.ink.dim },
+  });
+
 const reviewBody = (view: DraftView, tokens: DirectionTokens): Element =>
   h_flex()
     .flex_1()
@@ -47,7 +53,7 @@ const reviewBody = (view: DraftView, tokens: DirectionTokens): Element =>
         .flex_1()
         .min_w(0)
         .min_h(0)
-        .child(itemHeading(view.item, tokens))
+        .child(reviewHeading(view, tokens))
         .child(pinnedDocument(view, tokens)),
     )
     .child(factsRail(view, tokens));

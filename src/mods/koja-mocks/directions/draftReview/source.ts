@@ -2,8 +2,8 @@ import { h_flex, v_flex } from 'gpui-base';
 import type { Element } from 'gpui-kit';
 import { div } from 'gpui-kit';
 
-import { spacing } from '../../../../kit/size.ts';
-import { fixedLabel, label, terminalFont } from '../parts.ts';
+import { controlSize, radius, rowHeight, spacing } from '../../../../kit/size.ts';
+import { fixedLabel, iconButton, label, terminalFont, uiFont } from '../parts.ts';
 import type { DirectionTokens } from '../tokens.ts';
 import { conflictBlock } from './conflict.ts';
 import type { DraftFile, DraftState } from './data.ts';
@@ -11,7 +11,6 @@ import {
   composingLineNumber,
   editedLineNumber,
   isBodyFile,
-  retypedLine,
   selectedRange,
   showsLineComposer,
 } from './data.ts';
@@ -22,14 +21,17 @@ interface SourceLook {
   inline: boolean;
 }
 
-const sourceSize = { line: 16, hint: 18, mark: 3, markHeight: 14, lineNumber: 18 };
+const sourceSize = { line: 16, field: 26, hint: 18, mark: 3, markHeight: 14, lineNumber: 18 };
+const gutterGap = spacing.large;
+const openLineNumber = 8;
+const currentLines = { body: 14, release: 3 };
 
-export const textInset = sourceSize.mark + sourceSize.lineNumber + spacing.medium * 2;
+export const textInset = sourceSize.mark + sourceSize.lineNumber + gutterGap * 2;
 
 const lineMark = (file: DraftFile, number: number, tokens: DirectionTokens): Element => {
   const mark = div().w(sourceSize.mark).h(sourceSize.markHeight).flex_none();
 
-  if (isBodyFile(file) && number === editedLineNumber) {
+  if (file.editedLines.includes(number)) {
     return mark.bg(tokens.marks.working);
   }
 
@@ -50,26 +52,96 @@ const lineMark = (file: DraftFile, number: number, tokens: DirectionTokens): Ele
 
 const lineField = (tokens: DirectionTokens): Element =>
   h_flex()
-    .h(sourceSize.line)
+    .h(sourceSize.field)
     .flex_1()
     .min_w(0)
+    .ml(-spacing.xsmall - 1)
     .px(spacing.xsmall)
     .items_center()
-    .rounded(tokens.controls.radius)
+    .rounded(radius.pill)
     .border(1)
     .border_color(tokens.pane.focusedBorder)
     .bg(tokens.pane.fill)
-    .child(label(`${retypedLine}▏`, tokens.text.body, tokens.ink.text));
+    .child(
+      label('- Link each work item to its source.▏', tokens.text.body, tokens.ink.text).font_family(
+        terminalFont,
+      ),
+    );
 
 const lineState = (file: DraftFile, number: number, state: DraftState) => {
   const body = isBodyFile(file);
   const editingFile = body && state === 'edit-file';
-  const edited = body && number === editedLineNumber;
-  const editingLine = edited && state === 'edit-line';
+  const edited = file.editedLines.includes(number);
+  const openLine = body && number === openLineNumber;
+  const editingLine = openLine && state === 'edit-line';
   const commentAnchor = body && number === composingLineNumber;
   const selected = commentAnchor && showsLineComposer(state);
 
   return { editingFile, edited, editingLine, selected };
+};
+
+const currentLine = (file: DraftFile, state: DraftState): number | null => {
+  if (state === 'sent' || state === 'edit-file' || state === 'edit-line') {
+    return null;
+  }
+
+  if (state === 'plan') {
+    return file.name === 'slice-3.md' ? currentLines.body : null;
+  }
+
+  if (state === 'file-comment') {
+    return file.name === 'release-notes.md' ? currentLines.release : null;
+  }
+
+  if (!isBodyFile(file)) {
+    return null;
+  }
+
+  if (showsLineComposer(state)) {
+    return composingLineNumber;
+  }
+
+  return state === 'range' ? selectedRange.end : currentLines.body;
+};
+
+const lineActions = (number: number, tokens: DirectionTokens): Element =>
+  h_flex()
+    .flex_none()
+    .gap(spacing.xsmall)
+    .child(
+      iconButton('message-square', tokens, tokens.ink.dim)
+        .size(controlSize.smallButton)
+        .tooltip(`Comment on line ${number}`),
+    )
+    .child(
+      iconButton('square-pen', tokens, tokens.ink.dim)
+        .size(controlSize.smallButton)
+        .tooltip(`Edit line ${number}`),
+    );
+
+const sourceText = (text: string, editing: boolean, tokens: DirectionTokens): Element => {
+  const content = label(text, tokens.text.body, tokens.ink.text).font_family(terminalFont).flex_1();
+
+  if (!editing && text.startsWith('#')) {
+    content.font_semibold();
+  }
+
+  return content;
+};
+
+const lineContent = (
+  text: string,
+  look: ReturnType<typeof lineState>,
+  tokens: DirectionTokens,
+): Element => {
+  if (look.editingLine) {
+    return lineField(tokens);
+  }
+
+  const caret = look.editingFile && look.edited;
+  const value = caret ? `${text}▏` : text;
+
+  return sourceText(value, look.editingFile, tokens);
 };
 
 const sourceLine = (
@@ -79,36 +151,39 @@ const sourceLine = (
   tokens: DirectionTokens,
 ): Element => {
   const number = index + 1;
-  const { editingFile, edited, editingLine, selected } = lineState(file, number, state);
-  let text = file.lines[index] ?? '';
-
-  if (editingFile && edited) {
-    text += '▏';
-  }
+  const look = lineState(file, number, state);
+  const { editingFile, edited, editingLine, selected } = look;
+  const text = file.lines[index] ?? '';
 
   const gutter = editingFile
     ? div().w(sourceSize.mark).flex_none()
     : lineMark(file, number, tokens);
 
-  const content = editingLine
-    ? lineField(tokens)
-    : label(text, tokens.text.body, tokens.ink.text).flex_1();
+  const content = lineContent(text, look, tokens);
 
   const line = h_flex()
-    .h(sourceSize.line)
+    .h(editingLine ? sourceSize.field : sourceSize.line)
     .flex_none()
     .min_w(0)
     .items_center()
-    .gap(spacing.medium)
+    .gap(gutterGap)
     .rounded(tokens.rows.radius)
-    .font_family(terminalFont)
     .child(gutter)
     .child(
       fixedLabel(String(number), tokens.text.detail, tokens.ink.dim)
         .w(sourceSize.lineNumber)
+        .font_family(terminalFont)
         .text_right(),
     )
     .child(content);
+
+  if (number === currentLine(file, state)) {
+    if (state !== 'range') {
+      line.bg(tokens.rows.hoverFill);
+    }
+
+    line.child(lineActions(number, tokens));
+  }
 
   if (selected) {
     line.bg(tokens.rows.selectedFill);
@@ -117,7 +192,9 @@ const sourceLine = (
   if (edited && !editingFile) {
     const note = state === 'saving-failed' ? 'unsaved' : 'edited';
 
-    line.child(fixedLabel(note, tokens.text.detail, tokens.ink.dim));
+    const ink = state === 'saving-failed' ? tokens.marks.working : tokens.ink.dim;
+
+    line.child(fixedLabel(note, tokens.text.detail, ink).font_family(uiFont));
   }
 
   return line;
@@ -127,13 +204,21 @@ const conflictLine = (tokens: DirectionTokens): Element =>
   h_flex()
     .flex_none()
     .min_w(0)
-    .gap(spacing.medium)
+    .gap(gutterGap)
     .items_start()
-    .child(div().w(sourceSize.mark).h(sourceSize.markHeight).bg(tokens.marks.working))
     .child(
-      fixedLabel(String(editedLineNumber), tokens.text.detail, tokens.ink.dim)
-        .w(sourceSize.lineNumber)
-        .text_right(),
+      h_flex()
+        .h(rowHeight.small)
+        .mt(spacing.medium + spacing.xxsmall + 1)
+        .gap(gutterGap)
+        .items_center()
+        .child(div().w(sourceSize.mark).h(sourceSize.markHeight).bg(tokens.marks.working))
+        .child(
+          fixedLabel(String(editedLineNumber), tokens.text.detail, tokens.ink.dim)
+            .w(sourceSize.lineNumber)
+            .font_family(terminalFont)
+            .text_right(),
+        ),
     )
     .child(conflictBlock(tokens).my(spacing.xxsmall));
 
@@ -182,7 +267,13 @@ const lineHint = (tokens: DirectionTokens): Element =>
     .flex_none()
     .ml(textInset)
     .items_center()
-    .child(fixedLabel('Enter keeps the line · Esc cancels', tokens.text.detail, tokens.ink.dim));
+    .child(
+      fixedLabel(
+        'Enter keeps and saves the line · Esc cancels',
+        tokens.text.detail,
+        tokens.ink.dim,
+      ),
+    );
 
 const rowParts = (
   file: DraftFile,
@@ -206,7 +297,9 @@ const rowParts = (
   const row = conflict ? conflictLine(tokens) : sourceLine(file, index, look.state, tokens);
   const parts = [row];
 
-  if (edited && look.state === 'edit-line') {
+  const { editingLine } = lineState(file, number, look.state);
+
+  if (editingLine) {
     parts.push(lineHint(tokens));
   }
 

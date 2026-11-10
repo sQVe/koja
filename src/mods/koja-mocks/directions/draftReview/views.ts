@@ -18,6 +18,15 @@ const itemFor = (state: DraftState): ContentItem => {
     };
   }
 
+  if (state === 'edit-file') {
+    return {
+      ...draftItem,
+      facts: draftItem.facts.map((fact) =>
+        fact.name === 'Saved' ? { name: 'Saved', value: 'just now' } : fact,
+      ),
+    };
+  }
+
   const unsaved = state === 'saving-failed' || state === 'changed-on-disk';
 
   if (unsaved) {
@@ -46,6 +55,7 @@ export const draftView = (state: DraftState): DraftView => {
           { name: 'From', value: 'Tau' },
           { name: 'Agent', value: 'Design the sidebar', target: 'agent' },
           { name: 'Comments', value: '5' },
+          { name: 'Edits', value: '2 lines' },
           { name: 'Saved', value: '1m ago' },
           { name: 'Folder', value: '.tau/slices/sidebar' },
         ],

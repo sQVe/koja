@@ -1,8 +1,11 @@
 import type { DraftComment, DraftFile } from './data.ts';
 
+const keptPlanLines = { first: 8, second: 9 };
+
 const sliceFile = (name: string, goal: string, comments: DraftComment[]): DraftFile => ({
   name,
   comments,
+  editedLines: name === 'slice-3.md' ? [keptPlanLines.first, keptPlanLines.second] : [],
   lines: [
     `# ${goal}`,
     '',
@@ -51,6 +54,7 @@ export const selectedSlice = sliceFile('slice-3.md', 'Save staged drafts without
 export const planFiles: DraftFile[] = [
   {
     name: 'plan.md',
+    editedLines: [],
     lines: ['# Sidebar review plan', '', 'Build the review in seven independently checked slices.'],
     comments: [
       {
@@ -63,6 +67,7 @@ export const planFiles: DraftFile[] = [
   },
   {
     name: 'container.md',
+    editedLines: [],
     lines: ['# Build the sidebar review', '', 'Deliver the seven slices in order.'],
     comments: [],
   },

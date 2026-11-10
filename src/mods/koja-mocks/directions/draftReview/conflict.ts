@@ -1,22 +1,33 @@
 import { h_flex, v_flex } from 'gpui-base';
 import type { Element } from 'gpui-kit';
 
-import { spacing } from '../../../../kit/size.ts';
-import { paragraph } from '../content/parts.ts';
+import { rowHeight, spacing } from '../../../../kit/size.ts';
 import { fixedLabel, terminalFont } from '../parts.ts';
 import type { DirectionTokens } from '../tokens.ts';
-import { retypedLine } from './data.ts';
 import { outlineAction } from './parts.ts';
 
 const versionLabelWidth = 52;
 
-const versionRow = (name: string, text: string, tokens: DirectionTokens): Element =>
-  h_flex()
+const versionRow = (yours: boolean, tokens: DirectionTokens): Element => {
+  const name = yours ? 'Yours' : 'On disk';
+  const changed = yours ? 'in view when' : 'visible while';
+  const ink = yours ? tokens.marks.added : tokens.marks.removed;
+
+  return h_flex()
+    .h(rowHeight.small)
     .min_w(0)
     .gap(spacing.medium)
-    .items_start()
+    .items_center()
     .child(fixedLabel(name, tokens.text.detail, tokens.ink.dim).w(versionLabelWidth))
-    .child(paragraph(text, tokens).font_family(terminalFont).flex_1());
+    .child(
+      h_flex()
+        .min_w(0)
+        .font_family(terminalFont)
+        .child(fixedLabel('- Keep the selected space ', tokens.text.body, tokens.ink.text))
+        .child(fixedLabel(changed, tokens.text.body, ink))
+        .child(fixedLabel(' groups fold.', tokens.text.body, tokens.ink.text)),
+    );
+};
 
 export const conflictBlock = (tokens: DirectionTokens): Element =>
   v_flex()
@@ -27,8 +38,8 @@ export const conflictBlock = (tokens: DirectionTokens): Element =>
     .rounded(tokens.pane.radius)
     .border(1)
     .border_color(tokens.pane.cardBorder)
-    .child(versionRow('Yours', retypedLine, tokens))
-    .child(versionRow('On disk', '- Keep the selected space visible while groups fold.', tokens))
+    .child(versionRow(true, tokens))
+    .child(versionRow(false, tokens))
     .child(
       h_flex()
         .gap(spacing.small)
