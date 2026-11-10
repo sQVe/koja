@@ -25,6 +25,7 @@ describe('scene lookup', () => {
     },
     { name: 'controls', width: overlaySize.worktreeListWidth, height: overlaySize.wideMenuHeight },
     { name: 'shell', width: overlaySize.shellWidth, height: overlaySize.shellHeight },
+    { name: 'shell-dialog', width: overlaySize.shellWidth, height: overlaySize.shellHeight },
     {
       name: 'pane-headers',
       width: overlaySize.paneHeadersWidth,
@@ -116,6 +117,52 @@ describe('scene lookup', () => {
       expect('error' in findScene(name)).toBe(true);
     },
   );
+
+  test('all stable dialog scenes open at shell size', () => {
+    const asks = [
+      'close',
+      'close-normal',
+      'rename',
+      'rename-normal',
+      'wt-new',
+      'wt-open',
+      'wt-remove',
+    ];
+
+    for (const ask of asks) {
+      const name = `dialog-${ask}`;
+
+      expect(findScene(name)).toHaveProperty('scene', {
+        name,
+        width: overlaySize.shellWidth,
+        height: overlaySize.shellHeight,
+      });
+    }
+  });
+
+  test('dialog take names no longer open', () => {
+    for (const take of ['card', 'compact', 'sheet', 'keys']) {
+      for (const ask of [
+        'close',
+        'close-normal',
+        'rename',
+        'rename-normal',
+        'wt-new',
+        'wt-remove',
+        'wt-open',
+      ]) {
+        expect(findScene(`dialog-${take}-${ask}`)).toHaveProperty('error');
+      }
+    }
+  });
+
+  test('the discarded dialog ideas no longer open', () => {
+    for (const idea of ['list', 'place']) {
+      for (const ask of ['close', 'rename', 'close-normal', 'rename-normal']) {
+        expect(findScene(`dialog-${idea}-${ask}`)).toHaveProperty('error');
+      }
+    }
+  });
 
   test('a name past the last smoke scene gives an error', () => {
     expect('error' in findScene('smoke-5')).toBe(true);

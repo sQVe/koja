@@ -151,7 +151,7 @@ export const line = (start: Element[], end: Element[], tokens: DirectionTokens):
 export const heading = (text: string, end: Element[], tokens: DirectionTokens): Element =>
   line([fixedLabel(text, tokens.text.heading, tokens.ink.muted)], end, tokens);
 
-const caret = (tokens: DirectionTokens): Element =>
+export const caret = (tokens: DirectionTokens): Element =>
   div()
     .w(caretWidth)
     .h(tokens.text.body.size + caretLift)
