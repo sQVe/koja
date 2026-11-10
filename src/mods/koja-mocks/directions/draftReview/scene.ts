@@ -55,6 +55,11 @@ const reviewHeading = (view: DraftView, tokens: DirectionTokens): Element => {
     return heading;
   }
 
+  const hint =
+    view.state === 'edit-file'
+      ? 'Done editing returns body.md to line comments'
+      : 'Click a line to comment or edit · Drag line numbers for more lines';
+
   return heading.child(
     h_flex()
       .absolute()
@@ -62,13 +67,7 @@ const reviewHeading = (view: DraftView, tokens: DirectionTokens): Element => {
       .bottom(spacing.medium)
       .h(stateRowHeight)
       .items_center()
-      .child(
-        fixedLabel(
-          'Click a line to comment · Drag line numbers for more lines',
-          tokens.text.detail,
-          tokens.ink.dim,
-        ),
-      ),
+      .child(fixedLabel(hint, tokens.text.detail, tokens.ink.dim)),
   );
 };
 

@@ -19,11 +19,13 @@ const scrollShares = { plan: 0.22, review: 0.64 };
 // These shell-sized viewports end on whole rows before the next line or file header.
 const viewportHeightByState: Partial<Record<DraftState, number>> = {
   comment: 546,
+  normal: 546,
+  range: 514,
   'edit-line': 552,
   'edit-file': 546,
   'saving-failed': 540,
   'changed-on-disk': 552,
-  plan: 510,
+  plan: 526,
   sent: 540,
 };
 
@@ -33,7 +35,7 @@ const commentSummary = (comment: DraftComment, tokens: DirectionTokens): Element
     .items_center()
     .gap(spacing.medium)
     .child(icon('message-square', 'small').text_color(tokens.ink.dim))
-    .child(fixedLabel(comment.anchor, tokens.text.detail, tokens.ink.dim))
+    .child(fixedLabel(comment.anchor, tokens.text.detail, tokens.ink.dim).w(spacing.xxlarge * 2))
     .child(label(comment.text, tokens.text.body, tokens.ink.text));
 
 const fileBody = (file: DraftFile, view: DraftView, tokens: DirectionTokens): Element => {

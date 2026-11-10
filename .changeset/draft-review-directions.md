@@ -7,4 +7,5 @@ changed files, submitted reviews, unreadable requests, long plans, and normal mo
 actions, range-selection hints, kept edits, readable editor comments, conflict word changes, and the
 complete file order. Keep file actions local, distinguish comment brackets from edit bars, and end
 the mock viewports on complete rows. Keep comment guidance visible and explain how sending adds open
-work.
+work. Use consistent quiet file actions, separate comment and edit gutter slots, and a single-field
+draft composer. Align editor comment anchors and conflict labels.

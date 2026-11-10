@@ -11,6 +11,7 @@ import {
   composingLineNumber,
   editedLineNumber,
   isBodyFile,
+  openLineEdit,
   selectedRange,
   showsLineComposer,
 } from './data.ts';
@@ -32,17 +33,16 @@ const sourceSize = {
 };
 
 const gutterGap = spacing.large;
-const openLineNumber = 8;
-const currentLines = { body: 14, release: 3 };
+const gutterGapCount = 3;
+const currentLines = { body: 18, plan: 17, release: 3 };
+const editSlotWidth = spacing.xxsmall;
+const bandInset = spacing.medium;
 
-export const textInset = sourceSize.mark + sourceSize.lineNumber + gutterGap * 2 + spacing.medium;
+export const textInset =
+  sourceSize.mark + sourceSize.lineNumber + editSlotWidth + gutterGap * gutterGapCount + bandInset;
 
 const lineMark = (file: DraftFile, number: number, tokens: DirectionTokens): Element => {
   const mark = div().w(sourceSize.mark).h(sourceSize.markHeight).flex_none();
-
-  if (file.editedLines.includes(number)) {
-    return mark.w(2).mr(1).bg(tokens.marks.working);
-  }
 
   const comment = file.comments.find((candidate) => {
     if (candidate.start === null || candidate.end === null) {
@@ -84,16 +84,14 @@ const lineField = (tokens: DirectionTokens): Element =>
     .border_color(tokens.pane.focusedBorder)
     .bg(tokens.pane.fill)
     .child(
-      label('- Link each work item to its source.▏', tokens.text.body, tokens.ink.text).font_family(
-        terminalFont,
-      ),
+      label(`${openLineEdit.text}▏`, tokens.text.body, tokens.ink.text).font_family(terminalFont),
     );
 
 const lineState = (file: DraftFile, number: number, state: DraftState) => {
   const body = isBodyFile(file);
   const editingFile = body && state === 'edit-file';
   const edited = file.editedLines.includes(number);
-  const openLine = body && number === openLineNumber;
+  const openLine = body && number === openLineEdit.line;
   const editingLine = openLine && state === 'edit-line';
   const commentAnchor = body && number === composingLineNumber;
   const selected = commentAnchor && showsLineComposer(state);
@@ -113,7 +111,7 @@ const currentLine = (file: DraftFile, state: DraftState): number | null => {
   }
 
   if (state === 'plan') {
-    return file.name === 'slice-3.md' ? currentLines.body : null;
+    return file.name === 'slice-3.md' ? currentLines.plan : null;
   }
 
   if (state === 'file-comment') {
@@ -172,12 +170,9 @@ const lineContent = (
 
   const content = sourceText(value, look.editingFile, tokens);
 
-  if (!look.edited || look.editingFile) {
+  if (!look.edited || look.editingFile || !look.unsaved) {
     return content;
   }
-
-  const note = look.unsaved ? 'unsaved' : 'edited';
-  const ink = look.unsaved ? tokens.marks.working : tokens.ink.dim;
 
   return h_flex()
     .flex_1()
@@ -185,7 +180,13 @@ const lineContent = (
     .items_center()
     .gap(spacing.small)
     .child(content.flex_none())
-    .child(fixedLabel(note, tokens.text.detail, ink).font_family(uiFont));
+    .child(fixedLabel('unsaved', tokens.text.detail, tokens.marks.working).font_family(uiFont));
+};
+
+const editMark = (edited: boolean, tokens: DirectionTokens): Element => {
+  const mark = div().w(editSlotWidth).h(sourceSize.markHeight).flex_none();
+
+  return edited ? mark.bg(tokens.marks.working) : mark;
 };
 
 const sourceLine = (
@@ -209,8 +210,7 @@ const sourceLine = (
     .h_full()
     .flex_1()
     .min_w(0)
-    .ml(spacing.xsmall)
-    .pl(spacing.xsmall)
+    .pl(bandInset)
     .items_center()
     .gap(gutterGap)
     .rounded(tokens.rows.radius)
@@ -241,6 +241,7 @@ const sourceLine = (
         .font_family(terminalFont)
         .text_right(),
     )
+    .child(editMark(look.edited && !editingFile, tokens))
     .child(band);
 };
 
@@ -256,13 +257,14 @@ const conflictLine = (tokens: DirectionTokens): Element =>
         .mt(spacing.medium + spacing.xxsmall + 1)
         .gap(gutterGap)
         .items_center()
-        .child(div().w(2).mr(1).h(sourceSize.markHeight).bg(tokens.marks.working))
+        .child(div().w(sourceSize.mark))
         .child(
           fixedLabel(String(editedLineNumber), tokens.text.detail, tokens.ink.dim)
             .w(sourceSize.lineNumber)
             .font_family(terminalFont)
             .text_right(),
-        ),
+        )
+        .child(editMark(true, tokens)),
     )
     .child(conflictBlock(tokens).ml(-1).my(spacing.xxsmall));
 
@@ -299,7 +301,7 @@ const rangeSelection = (file: DraftFile, state: DraftState, tokens: DirectionTok
     .child(
       div()
         .absolute()
-        .left(textInset - spacing.xsmall)
+        .left(textInset - bandInset)
         .right(0)
         .top(0)
         .bottom(0)

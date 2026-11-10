@@ -37,6 +37,7 @@ export interface DraftView {
 
 export const draftFolder = '.tau/pr/run-zCAlBX';
 export const editedLineNumber = 6;
+export const openLineEdit = { line: 8, text: '- Link each work item to its source.' };
 
 export const draftItem: ContentItem = {
   ...contentItems.review,

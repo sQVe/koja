@@ -6,7 +6,7 @@ import { dialogButton, icon } from '../../../../kit/index.ts';
 import { rowHeight, spacing, textSize } from '../../../../kit/size.ts';
 import { colors } from '../../../../kit/theme.ts';
 import { paragraph } from '../content/parts.ts';
-import { fixedLabel, iconButton, label, row } from '../parts.ts';
+import { fixedLabel, label, row } from '../parts.ts';
 import type { DirectionTokens } from '../tokens.ts';
 import type { DraftComment, DraftFile, DraftView } from './data.ts';
 import { isBodyFile } from './data.ts';
@@ -24,6 +24,14 @@ export const outlineAction = (text: string, tokens: DirectionTokens): Element =>
     .border_color(tokens.pane.cardBorder)
     .text_color(tokens.ink.text);
 
+const quietAction = (text: string, tokens: DirectionTokens): Element =>
+  outlineAction(text, tokens)
+    .border(0)
+    .px(spacing.small)
+    .text_size(tokens.text.detail.size)
+    .text_color(tokens.ink.dim)
+    .hover((element) => element.text_color(tokens.ink.text));
+
 export const fileHeading = (file: DraftFile, view: DraftView, tokens: DirectionTokens): Element => {
   const { state } = view;
   const lineCount = file.lines.length === 1 ? '1 line' : `${file.lines.length} lines`;
@@ -40,29 +48,25 @@ export const fileHeading = (file: DraftFile, view: DraftView, tokens: DirectionT
     .items_center()
     .child(icon('file', 'small').text_color(tokens.ink.dim))
     .child(fixedLabel(file.name, tokens.text.title, tokens.ink.text))
-    .child(fixedLabel(metadata, tokens.text.detail, tokens.ink.dim))
-    .child(div().flex_1());
+    .child(fixedLabel(metadata, tokens.text.detail, tokens.ink.dim));
+
+  if (editing) {
+    heading.child(fixedLabel('· Editing', tokens.text.detail, tokens.ink.text));
+  }
+
+  heading.child(div().flex_1());
 
   if (state === 'sent') {
     return heading.child(fixedLabel('Read-only', tokens.text.detail, tokens.ink.dim));
   }
 
-  if (file !== view.selected) {
-    return heading
-      .child(iconButton('message-square', tokens, tokens.ink.dim).tooltip('Comment on file'))
-      .child(iconButton('square-pen', tokens, tokens.ink.dim).tooltip('Edit file'));
-  }
-
   if (editing) {
-    return heading
-      .child(outlineAction('Comment on file', tokens))
-      .child(fixedLabel('Editing', tokens.text.detail, tokens.ink.text))
-      .child(outlineAction('Done editing', tokens));
+    return heading.child(outlineAction('Done editing', tokens));
   }
 
   return heading
-    .child(outlineAction('Comment on file', tokens))
-    .child(outlineAction('Edit file', tokens));
+    .child(quietAction('Comment on file', tokens))
+    .child(quietAction('Edit file', tokens));
 };
 
 const fileMarkWidth = { edit: 12, comments: 32 };
@@ -125,19 +129,26 @@ const commentFrame = (
   }
 
   if (actions !== undefined) {
-    header.child(div().flex_1()).child(actions);
+    header
+      .child(fixedLabel('· draft', tokens.text.detail, tokens.ink.dim))
+      .child(div().flex_1())
+      .child(actions);
   }
 
-  return v_flex()
+  const frame = v_flex()
     .flex_none()
     .min_w(0)
     .px(spacing.large)
     .py(spacing.xsmall)
     .gap(2)
     .rounded(tokens.pane.radius)
-    .border(1)
-    .border_color(tokens.pane.cardBorder)
     .child(header);
+
+  if (actions === undefined) {
+    frame.border(1).border_color(tokens.pane.cardBorder);
+  }
+
+  return frame;
 };
 
 export const commentCard = (

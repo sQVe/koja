@@ -40,6 +40,7 @@ await mock.module('../../../../kit/index.ts', () =>
   }),
 );
 
+const dataPath = './data.ts';
 const documentsPath = './documents.ts';
 const sourcePath = './source.ts';
 const viewsPath = './views.ts';
@@ -48,6 +49,10 @@ const tokensPath = '../koja.ts';
 
 const { draftView } = (await import(viewsPath)) as {
   draftView: (state: string) => ReviewFixture;
+};
+
+const { openLineEdit } = (await import(dataPath)) as {
+  openLineEdit: { line: number; text: string };
 };
 
 const { koja } = (await import(tokensPath)) as { koja: unknown };
@@ -99,9 +104,12 @@ describe('draft review documents', () => {
     expect(texts).toContain(view.selected.lines[6] ?? '');
     expect(texts).not.toContain(view.selected.lines[7] ?? '');
 
-    expect(texts.indexOf(view.selected.lines[6] ?? '')).toBeLessThan(
-      texts.indexOf(view.selected.lines[9] ?? ''),
-    );
+    const field = texts.findIndex((text) => text.startsWith(openLineEdit.text));
+    const followingLine = texts.indexOf(String(openLineEdit.line + 1));
+
+    expect(field).toBeGreaterThan(-1);
+    expect(texts.indexOf(view.selected.lines[6] ?? '')).toBeLessThan(field);
+    expect(field).toBeLessThan(followingLine);
   });
 
   test('whole-file editing keeps both comments before its source', () => {
@@ -131,10 +139,16 @@ describe('draft review documents', () => {
     const view = draftView(state);
     const current = fileHeading(view.selected, view, koja);
 
-    expect(drawnIcons(current).filter((name) => name === 'button')).toHaveLength(2);
+    const currentActionCount = state === 'edit-file' ? 1 : 2;
+
+    expect(drawnIcons(current).filter((name) => name === 'button')).toHaveLength(
+      currentActionCount,
+    );
 
     for (const file of view.files.filter((candidate) => candidate !== view.selected)) {
-      expect(drawnTooltips(fileHeading(file, view, koja))).toHaveLength(2);
+      const actions = drawnIcons(fileHeading(file, view, koja));
+
+      expect(actions.filter((name) => name === 'button')).toHaveLength(2);
     }
   });
 
