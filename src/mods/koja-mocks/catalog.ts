@@ -47,6 +47,7 @@ const sceneSizes = {
   'sidebar-find': shellSceneSize,
   'sidebar-states': shellSceneSize,
   'shell-dialog': shellSceneSize,
+  'shell-content': shellSceneSize,
   'dialog-close': shellSceneSize,
   'dialog-close-normal': shellSceneSize,
   'dialog-rename': shellSceneSize,
@@ -93,6 +94,17 @@ const sceneSizes = {
   'space-main': shellSceneSize,
   'space-error': shellSceneSize,
   'space-normal': shellSceneSize,
+  'content-rail-review': shellSceneSize,
+  'content-rail-pr': shellSceneSize,
+  'content-rail-ticket': shellSceneSize,
+  'content-rail-review-saving-failed': shellSceneSize,
+  'content-rail-review-sent': shellSceneSize,
+  'content-rail-review-narrow': shellSceneSize,
+  'content-rail-pr-checks-failed': shellSceneSize,
+  'content-rail-pr-unreachable': shellSceneSize,
+  'content-rail-ticket-loading': shellSceneSize,
+  'content-rail-ticket-long': shellSceneSize,
+  'content-rail-pr-normal': shellSceneSize,
 } as const satisfies Record<string, SceneSize>;
 
 export type SceneName = keyof typeof sceneSizes;

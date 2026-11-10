@@ -1,7 +1,7 @@
 import { afterAll, describe, expect, mock, test } from 'bun:test';
 
 import type { DrawnElement } from '../../../../tests/drawn.ts';
-import { drawn, drawnTexts } from '../../../../tests/drawn.ts';
+import { drawn, drawnTexts, elementWithText } from '../../../../tests/drawn.ts';
 import {
   gpuiBaseFake,
   gpuiKitFake,
@@ -34,7 +34,17 @@ const kojaPath = './koja.ts';
 const contentPath = '../scenes/shellContent.ts';
 
 const { directionWindow } = (await import(windowPath)) as {
-  directionWindow: (tokens: unknown) => DrawnElement;
+  directionWindow: (
+    tokens: unknown,
+    sidebar?: () => DrawnElement,
+    arrangement?: {
+      toggles: () => DrawnElement[];
+      panes: () => DrawnElement[];
+      agent?: FakePane | null;
+      agentFocused?: boolean;
+      tabs?: unknown[];
+    },
+  ) => DrawnElement;
 };
 
 const { koja, kojaNormal } = (await import(kojaPath)) as { koja: unknown; kojaNormal: unknown };
@@ -85,6 +95,35 @@ const scenes = [
 ];
 
 describe('the koja direction scenes', () => {
+  test('a content-only arrangement replaces the agent and uses its own tabs', () => {
+    const window = directionWindow(koja, () => drawn(), {
+      toggles: () => [],
+      panes: () => [drawn()],
+      agent: null,
+      tabs: [],
+    });
+
+    const texts = drawnTexts(window);
+
+    expect(texts).not.toContain(agentPane.name);
+    expect(texts).not.toContain('Design the sidebar');
+    expect(texts).not.toContain(shellPane.name);
+    expect(texts).toContain('Insert');
+  });
+
+  test('an arrangement can keep the agent visible without giving it focus', () => {
+    const window = directionWindow(koja, () => drawn(), {
+      toggles: () => [],
+      panes: () => [],
+      agentFocused: false,
+    });
+
+    const name = elementWithText(window, agentPane.name);
+    const colors = koja as { ink: { muted: string } };
+
+    expect(name?.textColors).toEqual([colors.ink.muted]);
+  });
+
   test.each(scenes)('$name shows the $shown mode pill and not $hidden', (scene) => {
     const texts = drawnTexts(directionWindow(scene.tokens));
 
