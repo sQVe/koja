@@ -39,6 +39,8 @@ let spaceValues: SpaceValue[] = [];
 
 let paneValues: PaneValue[] = [];
 
+let terminalValues: unknown[] = [];
+
 let openedSpecs: OpenedSpec[] = [];
 
 let runCalls: RunCall[] = [];
@@ -61,6 +63,7 @@ await mock.module('herdr', () =>
     },
     shared: (key: string) => sharedValues[key],
     spaces: () => spaceValues,
+    terminals: () => terminalValues,
   }),
 );
 
@@ -102,6 +105,8 @@ beforeEach(() => {
 
   paneValues = [];
 
+  terminalValues = [];
+
   openedSpecs = [];
 
   runCalls = [];
@@ -116,6 +121,113 @@ describe('askFirst', () => {
     expect(opened).toBe(true);
     expect(openedSpecs.map((spec) => spec.mod)).toEqual(['koja-confirm']);
     expect(runCalls).toEqual([]);
+  });
+
+  test('uses live parent-bound terminal records to confirm collateral pane closes', () => {
+    paneValues = [
+      { pane: 'parent', terminal: 'remote/t1', tab: 't3' },
+      { pane: 'child', terminal: 'remote/t2', tab: 't3' },
+    ];
+
+    terminalValues = [
+      { address: 'remote/t1', parent: null, state: 'live', die_with_parent: false },
+      { address: 'remote/t2', parent: 'remote/t1', state: 'live', die_with_parent: true },
+    ];
+
+    expect(askFirst('pane.close', { pane: 'parent' })).toBe(true);
+    expect(runCalls).toEqual([]);
+
+    expect(openedSpecs).toMatchObject([
+      {
+        mod: 'koja-confirm',
+        props: { command: { name: 'pane.close', args: { pane: 'parent' } } },
+      },
+    ]);
+  });
+
+  test('uses missing and empty space labels to confirm app-killed descendants', () => {
+    paneValues = [
+      { pane: 'parent', terminal: 't1', tab: 't3' },
+      { pane: 'child', terminal: 't3', tab: 't3' },
+    ];
+
+    for (const labels of [undefined, {}, { 'herdr.space': '' }]) {
+      terminalValues = [
+        { address: 't2', parent: 't1', state: 'live', die_with_parent: false, labels },
+        {
+          address: 't3',
+          parent: 't2',
+          state: 'live',
+          die_with_parent: true,
+          labels: { 'herdr.space': 's2' },
+        },
+      ];
+
+      expect(askFirst('pane.close', { pane: 'parent' })).toBe(true);
+    }
+
+    expect(runCalls).toEqual([]);
+    expect(openedSpecs).toHaveLength(3);
+  });
+
+  test('a nonempty space label preserves an outliving child and its descendants', () => {
+    paneValues = [
+      { pane: 'parent', terminal: 't1', tab: 't3' },
+      { pane: 'child', terminal: 't3', tab: 't3' },
+    ];
+
+    for (const space of ['s2', ' ']) {
+      terminalValues = [
+        {
+          address: 't2',
+          parent: 't1',
+          state: 'live',
+          die_with_parent: false,
+          labels: { 'herdr.space': space },
+        },
+        {
+          address: 't3',
+          parent: 't2',
+          state: 'live',
+          die_with_parent: true,
+          labels: { 'herdr.space': 's2' },
+        },
+      ];
+
+      expect(askFirst('pane.close', { pane: 'parent' })).toBe(false);
+    }
+
+    expect(openedSpecs).toEqual([]);
+
+    expect(runCalls).toEqual([
+      { name: 'pane.close', args: { pane: 'parent' } },
+      { name: 'pane.close', args: { pane: 'parent' } },
+    ]);
+  });
+
+  test('does not treat malformed or non-live terminal records as parent-bound children', () => {
+    paneValues = [
+      { pane: 'parent', terminal: 't1', tab: 't3' },
+      { pane: 'child', terminal: 't2', tab: 't3' },
+    ];
+
+    terminalValues = [
+      null,
+      {},
+      { address: 't2', parent: 't1', state: 'finished', die_with_parent: true },
+      {
+        address: 't2',
+        parent: 't1',
+        state: 'live',
+        die_with_parent: 'true',
+        labels: { 'herdr.space': 's2' },
+      },
+      { address: 't2', parent: 1, state: 'live', die_with_parent: true },
+    ];
+
+    expect(askFirst('pane.close', { pane: 'parent' })).toBe(false);
+    expect(openedSpecs).toEqual([]);
+    expect(runCalls).toEqual([{ name: 'pane.close', args: { pane: 'parent' } }]);
   });
 
   test('opens the prompt mod for a tab rename', () => {

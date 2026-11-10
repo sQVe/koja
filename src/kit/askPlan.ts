@@ -9,7 +9,16 @@ interface AskFocus {
   pane: string | null;
 }
 
+interface TerminalLifetime {
+  address: string;
+  parent: string | null;
+  live: boolean;
+  dieWithParent: boolean;
+  space?: string | null;
+}
+
 export interface AskFacts {
+  terminals: TerminalLifetime[];
   spaces: SpaceInfo[];
   panes: PaneInfo[];
   focus: AskFocus | null;
@@ -169,6 +178,74 @@ const closeTabPlan = (args: Record<string, unknown>, facts: AskFacts): AskPlan =
   return closeLastTabPlan(place, facts.panes);
 };
 
+const addClosingChildren = (
+  closing: Set<string>,
+  terminals: TerminalLifetime[],
+  closesWithParent: (terminal: TerminalLifetime) => boolean,
+): void => {
+  for (const parent of closing) {
+    for (const terminal of terminals) {
+      const liveChild = terminal.parent === parent && terminal.live;
+
+      if (liveChild && closesWithParent(terminal)) {
+        closing.add(terminal.address);
+      }
+    }
+  }
+};
+
+const closingTerminals = (address: string | null, terminals: TerminalLifetime[]): Set<string> => {
+  const closing = new Set<string>();
+
+  if (address === null) {
+    return closing;
+  }
+
+  closing.add(address);
+  addClosingChildren(closing, terminals, (terminal) => (terminal.space ?? '') === '');
+
+  // Core deaths do not restart Herdr's traversal of unlabelled children.
+  addClosingChildren(closing, terminals, (terminal) => terminal.dieWithParent);
+
+  return closing;
+};
+
+const collateralClosePlan = (pane: PaneInfo, place: TabPlace, facts: AskFacts): AskPlan | null => {
+  const terminals = closingTerminals(pane.terminal, facts.terminals);
+
+  const collateral = facts.panes.filter((candidate) => {
+    const closes = candidate.terminal !== null && terminals.has(candidate.terminal);
+
+    return candidate.pane !== pane.pane && closes;
+  });
+
+  if (collateral.length === 0) {
+    return null;
+  }
+
+  const closedPanes = new Set([pane.pane, ...collateral.map((candidate) => candidate.pane)]);
+  const spaceTabs = new Set(place.space.tabs.map((tab) => tab.id));
+
+  const survives = facts.panes.some(
+    (candidate) => spaceTabs.has(candidate.tab) && !closedPanes.has(candidate.pane),
+  );
+
+  const otherPanes = collateral.length === 1 ? '1 other pane' : `${collateral.length} other panes`;
+
+  return {
+    kind: 'confirm',
+    dialog: {
+      title: survives ? 'Close pane?' : 'Close space?',
+      detail: survives
+        ? `This pane and ${otherPanes} will close.`
+        : spaceDetail(place.space, facts.panes),
+      action: 'Close',
+      destroys: true,
+      command: { name: 'pane.close', args: { pane: pane.pane } },
+    },
+  };
+};
+
 const closePanePlan = (args: Record<string, unknown>, facts: AskFacts): AskPlan => {
   const id = stringOf(args['pane']) ?? facts.focus?.pane;
   const pane = facts.panes.find((candidate) => candidate.pane === id);
@@ -176,6 +253,14 @@ const closePanePlan = (args: Record<string, unknown>, facts: AskFacts): AskPlan 
 
   if (place === undefined) {
     return { kind: 'run' };
+  }
+
+  if (pane !== undefined) {
+    const collateral = collateralClosePlan(pane, place, facts);
+
+    if (collateral !== null) {
+      return collateral;
+    }
   }
 
   const tabPanes = facts.panes.filter((candidate) => candidate.tab === place.tab.id);

@@ -77,6 +77,7 @@ const facts = (
   spaces,
   panes,
   focus,
+  terminals: [],
 });
 
 const apiSpace = (): SpaceInfo => space('s1', 'api', [tab('t1', 'logs'), tab('t2', 'server')]);
@@ -349,6 +350,209 @@ describe('dialogFor', () => {
     const plan = dialogFor('pane.close', { pane: 'p2' }, facts(spaceValues(), panes, focusValue));
 
     expect(plan).toEqual({ kind: 'run' });
+  });
+
+  test('closing a parent asks to close the space when its child is the only other pane', () => {
+    const values = facts(
+      spaceValues(),
+      [terminalPane('parent', 't3'), terminalPane('child', 't3'), terminalPane('elsewhere', 't1')],
+      {
+        space: 's2',
+        tab: 't3',
+        pane: 'parent',
+      },
+    );
+
+    values.terminals = [
+      { address: 't-child', parent: 't-parent', live: true, dieWithParent: true },
+    ];
+
+    expect(dialogFor('pane.close', {}, values)).toMatchObject({
+      kind: 'confirm',
+      dialog: {
+        title: 'Close space?',
+        action: 'Close',
+        destroys: true,
+        command: { name: 'pane.close', args: { pane: 'parent' } },
+      },
+    });
+  });
+
+  test('closing a parent asks to close the space when its child occupies another tab', () => {
+    const values = facts([apiSpace()], [terminalPane('parent', 't1'), terminalPane('child', 't2')]);
+
+    values.terminals = [
+      { address: 't-child', parent: 't-parent', live: true, dieWithParent: true },
+    ];
+
+    expect(dialogFor('pane.close', { pane: 'parent' }, values)).toMatchObject({
+      kind: 'confirm',
+      dialog: {
+        title: 'Close space?',
+        command: { name: 'pane.close', args: { pane: 'parent' } },
+      },
+    });
+  });
+
+  test('closing a parent counts transitive collateral panes while an independent pane survives', () => {
+    const values = facts(
+      [webSpace()],
+      [
+        terminalPane('parent', 't3'),
+        terminalPane('child', 't3'),
+        terminalPane('grandchild', 't3'),
+        modPane('independent', 't3'),
+      ],
+    );
+
+    values.terminals = [
+      { address: 't-grandchild', parent: 'hidden', live: true, dieWithParent: true },
+      { address: 'hidden', parent: 't-child', live: true, dieWithParent: true },
+      { address: 't-child', parent: 't-parent', live: true, dieWithParent: true },
+    ];
+
+    expect(dialogFor('pane.close', { pane: 'parent' }, values)).toEqual({
+      kind: 'confirm',
+      dialog: {
+        title: 'Close pane?',
+        detail: 'This pane and 2 other panes will close.',
+        action: 'Close',
+        destroys: true,
+        command: { name: 'pane.close', args: { pane: 'parent' } },
+      },
+    });
+  });
+
+  test('closing a parent counts one collateral pane when another tab survives', () => {
+    const values = facts(
+      [apiSpace()],
+      [
+        terminalPane('parent', 't1'),
+        terminalPane('child', 't1'),
+        terminalPane('independent', 't2'),
+      ],
+    );
+
+    values.terminals = [
+      { address: 't-child', parent: 't-parent', live: true, dieWithParent: true },
+    ];
+
+    expect(dialogFor('pane.close', { pane: 'parent' }, values)).toMatchObject({
+      kind: 'confirm',
+      dialog: {
+        title: 'Close pane?',
+        detail: 'This pane and 1 other pane will close.',
+        command: { name: 'pane.close', args: { pane: 'parent' } },
+      },
+    });
+  });
+
+  test('closing a mod pane does not end terminals without parents', () => {
+    const values = facts([webSpace()], [modPane('mod', 't3'), terminalPane('child', 't3')]);
+
+    values.terminals = [{ address: 't-child', parent: null, live: true, dieWithParent: true }];
+
+    expect(dialogFor('pane.close', { pane: 'mod' }, values)).toEqual({ kind: 'run' });
+  });
+
+  test('closing a parent confirms a bound pane below an unlabelled outliving child', () => {
+    const values = facts([webSpace()], [terminalPane('parent', 't3'), terminalPane('child', 't3')]);
+
+    values.terminals = [
+      { address: 't-child', parent: 'hidden', live: true, dieWithParent: true, space: 's2' },
+      { address: 'hidden', parent: 't-parent', live: true, dieWithParent: false },
+    ];
+
+    expect(dialogFor('pane.close', { pane: 'parent' }, values)).toMatchObject({
+      kind: 'confirm',
+      dialog: {
+        title: 'Close space?',
+        command: { name: 'pane.close', args: { pane: 'parent' } },
+      },
+    });
+  });
+
+  test('closing a parent follows unlabelled app descendants then bound core descendants transitively', () => {
+    const values = facts([webSpace()], [terminalPane('parent', 't3'), terminalPane('child', 't3')]);
+
+    values.terminals = [
+      { address: 't-child', parent: 'bound', live: true, dieWithParent: true, space: 's2' },
+      { address: 'bound', parent: 'empty-label', live: true, dieWithParent: true, space: 's2' },
+      { address: 'empty-label', parent: 'hidden', live: true, dieWithParent: false, space: '' },
+      { address: 'hidden', parent: 't-parent', live: true, dieWithParent: false },
+    ];
+
+    expect(dialogFor('pane.close', { pane: 'parent' }, values)).toMatchObject({
+      kind: 'confirm',
+      dialog: {
+        title: 'Close space?',
+        command: { name: 'pane.close', args: { pane: 'parent' } },
+      },
+    });
+  });
+
+  test('a core-only death does not restart the app traversal through outliving descendants', () => {
+    const values = facts(
+      [webSpace()],
+      [terminalPane('parent', 't3'), terminalPane('bound', 't3'), terminalPane('survivor', 't3')],
+    );
+
+    values.terminals = [
+      { address: 't-bound', parent: 't-parent', live: true, dieWithParent: true, space: 's2' },
+      { address: 't-survivor', parent: 't-bound', live: true, dieWithParent: false },
+    ];
+
+    expect(dialogFor('pane.close', { pane: 'parent' }, values)).toMatchObject({
+      kind: 'confirm',
+      dialog: {
+        title: 'Close pane?',
+        detail: 'This pane and 1 other pane will close.',
+        command: { name: 'pane.close', args: { pane: 'parent' } },
+      },
+    });
+  });
+
+  test('closing a parent ignores finished and independent descendants and broken parent chains', () => {
+    const values = facts([webSpace()], [terminalPane('parent', 't3'), terminalPane('child', 't3')]);
+
+    const child = {
+      address: 't-child',
+      parent: 't-parent',
+      live: true,
+      dieWithParent: true,
+      space: 's2',
+    };
+
+    const chains = [
+      [{ ...child, live: false }],
+      [{ ...child, dieWithParent: false }],
+      [{ ...child, parent: 'missing' }],
+      [
+        { ...child, parent: 'hidden' },
+        { ...child, address: 'hidden', dieWithParent: false },
+      ],
+      [
+        { ...child, parent: 'hidden' },
+        { ...child, address: 'hidden', live: false },
+      ],
+      [{ ...child, parent: 'remote/t-parent' }],
+      [{ ...child, parent: 't-child' }],
+    ];
+
+    for (const terminals of chains) {
+      values.terminals = terminals;
+      expect(dialogFor('pane.close', { pane: 'parent' }, values)).toEqual({ kind: 'run' });
+    }
+  });
+
+  test('closing a child leaves its parent pane without a confirmation', () => {
+    const values = facts([webSpace()], [terminalPane('parent', 't3'), terminalPane('child', 't3')]);
+
+    values.terminals = [
+      { address: 't-child', parent: 't-parent', live: true, dieWithParent: true },
+    ];
+
+    expect(dialogFor('pane.close', { pane: 'child' }, values)).toEqual({ kind: 'run' });
   });
 
   test('closing a pane that is not known, with no focus, runs as is', () => {
