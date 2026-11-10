@@ -1,0 +1,14 @@
+name = "koja"
+
+[app]
+command = ["scripts/sandbox-app"]
+title = "Herdr"
+width = 1280
+height = 820
+
+[ready]
+command = ["scripts/sandbox-ready"]
+
+[environment]
+# Sounds would play on the real speakers.
+HERDR_APP_NO_SOUND = "1"
