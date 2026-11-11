@@ -6,14 +6,23 @@ import { contentSectionHeader, sectionBodyInset } from '../content/parts.ts';
 import { diffCounts, fileStatusInk } from '../panels/changes.ts';
 import { fixedLabel, middleCutLabel, row } from '../parts.ts';
 import type { DirectionTokens } from '../tokens.ts';
-import type { PullState } from './data.ts';
-import { hasResolvedReview, pullFileTotals, pullRequestFiles, pullThreads } from './data.ts';
+import type { PullView } from './data.ts';
+import {
+  hasResolvedReview,
+  isBottomBarView,
+  pullFileTotals,
+  pullRequestFiles,
+  pullThreads,
+} from './data.ts';
 
 const markSlotWidth = 12;
 
-export const filesSection = (state: PullState, open: boolean, tokens: DirectionTokens): Element => {
+export const filesSection = (view: PullView, open: boolean, tokens: DirectionTokens): Element => {
   const files = pullRequestFiles;
-  const detail = diffCounts(pullFileTotals.added, pullFileTotals.removed, tokens);
+
+  const detail = isBottomBarView(view)
+    ? []
+    : diffCounts(pullFileTotals.added, pullFileTotals.removed, tokens);
 
   const header = contentSectionHeader(
     { name: 'Files', count: files.length },
@@ -32,7 +41,7 @@ export const filesSection = (state: PullState, open: boolean, tokens: DirectionT
     files.map((file) => {
       const end = diffCounts(file.add, file.del, tokens);
 
-      const unresolved = !hasResolvedReview(state);
+      const unresolved = !hasResolvedReview(view.state);
       const hasThread = pullThreads.some((thread) => thread.path === file.path);
 
       if (unresolved && hasThread) {

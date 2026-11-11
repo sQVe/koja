@@ -62,7 +62,7 @@ export const draftActions = (state: DraftState, tokens: DirectionTokens): Elemen
 
 export const brokenBody = (view: DraftView, tokens: DirectionTokens): Element =>
   scrollBody('draft-broken')
-    .child(itemHeading(view.item, [], tokens))
+    .child(itemHeading(view.item, [], 'badge', tokens))
     .child(
       v_flex()
         .flex_none()

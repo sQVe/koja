@@ -1,6 +1,7 @@
-import { h_flex, v_flex } from 'gpui-base';
+import { h_flex, Scrollbar, v_flex } from 'gpui-base';
 import type { Element } from 'gpui-kit';
 
+import { icon } from '../../../../kit/index.ts';
 import { spacing } from '../../../../kit/size.ts';
 import type { ContentItem } from '../content/data.ts';
 import { factRows, factsBlock } from '../content/facts.ts';
@@ -19,14 +20,14 @@ import type { DirectionTokens } from '../tokens.ts';
 import { blockedMerge, mergeActionWidth, mergeMenu, readyActions } from './actions.ts';
 import type { PullView } from './data.ts';
 import { hasResolvedReview, isBottomBarView } from './data.ts';
-import { filesFact, pullFactsGrid } from './facts.ts';
+import { filesFact, pullFacts } from './facts.ts';
 import { filesSection } from './files.ts';
-import { needsYouSection } from './parts.ts';
+import { detailText, needsYouSection } from './parts.ts';
 import { promptBar, promptHeader } from './prompt.ts';
 
 const factsRailWidth = 240;
 const railInset = 16;
-const menuTop = 302;
+const menuTop = 328;
 
 const overview = (view: PullView, item: ContentItem, tokens: DirectionTokens): Element => {
   const resolved = hasResolvedReview(view.state);
@@ -58,36 +59,80 @@ const overview = (view: PullView, item: ContentItem, tokens: DirectionTokens): E
     descriptionSection.mb(spacing.medium);
   }
 
-  return body.child(descriptionSection).child(filesSection(view.state, filesOpen, tokens));
+  return body.child(descriptionSection).child(filesSection(view, filesOpen, tokens));
 };
 
-export const pullBody = (view: PullView, item: ContentItem, tokens: DirectionTokens): Element => {
+const readingViewport = (reading: Element, view: PullView): Element => {
+  if (!isBottomBarView(view)) {
+    return reading;
+  }
+
+  return v_flex()
+    .relative()
+    .flex_1()
+    .min_h(0)
+    .min_w(0)
+    .child(reading)
+    .child(Scrollbar.vertical('pr-reading').mode('always').absolute().inset_0());
+};
+
+const pullHeading = (view: PullView, item: ContentItem, tokens: DirectionTokens): Element => {
   const actions: Element[] = [];
 
   if (isBottomBarView(view)) {
     actions.push(saveRecoveryButton('Sync', tokens));
   }
 
-  const reading = scrollBody('pr-reading').child(itemHeading(item, actions, tokens));
+  const stateLook = isBottomBarView(view) ? 'plain' : 'badge';
+  const heading = itemHeading(item, actions, stateLook, tokens);
+
+  if (view.state === 'checks-failed') {
+    heading.child(
+      h_flex()
+        .mt(spacing.small)
+        .gap(spacing.small)
+        .items_center()
+        .child(icon('triangle-alert', 'small').text_color(tokens.marks.working))
+        .child(detailText('Could not sync checks · showing checks from 6m ago', tokens)),
+    );
+  }
+
+  return heading;
+};
+
+export const pullBody = (view: PullView, item: ContentItem, tokens: DirectionTokens): Element => {
+  const reading = isBottomBarView(view)
+    ? v_flex().id('pr-reading').flex_1().min_h(0).min_w(0).overflow_y_scroll()
+    : scrollBody('pr-reading');
+
+  reading.child(pullHeading(view, item, tokens));
 
   if (view.state === 'unreachable') {
-    return reading.child(
+    reading.child(
       errorLine('Could not read PR · GitHub is unreachable', 'Retry', tokens).mt(spacing.medium),
     );
+
+    return readingViewport(reading, view);
   }
 
   const wide = view.state === 'zoomed';
 
   if (!wide) {
     const facts = isBottomBarView(view)
-      ? pullFactsGrid(item.facts, tokens)
+      ? pullFacts(item.facts, tokens)
       : factsBlock(item.facts, tokens);
 
-    reading.child(facts).child(sectionDivider(tokens));
+    const divider = sectionDivider(tokens);
+
+    if (isBottomBarView(view)) {
+      divider.mx(tokens.rows.inset + tokens.rows.paddingX);
+    }
+
+    reading.child(facts).child(divider);
   }
 
   reading.child(overview(view, item, tokens)).pb(spacing.large);
-  const column = v_flex().flex_1().min_h(0).min_w(0).child(reading);
+  const column = v_flex().flex_1().min_h(0).min_w(0).child(readingViewport(reading, view));
 
   if (view.queued && isBottomBarView(view)) {
     column.child(promptBar(tokens));

@@ -16,13 +16,17 @@ import {
 } from '../../../../../tests/moduleFakes.ts';
 
 interface ViewTokens {
-  ink: { text: string };
-  marks: { blocked: string; working: string };
+  ink: { text: string; dim: string };
+  marks: { blocked: string; working: string; done: string };
   rows: { selectedFill: string };
 }
 
 await mock.module('gpui-base', () =>
-  gpuiBaseFake({ h_flex: () => drawn(), v_flex: () => drawn() }),
+  gpuiBaseFake({
+    h_flex: () => drawn(),
+    v_flex: () => drawn(),
+    Scrollbar: { vertical: (identifier: string) => drawn(`scrollbar/${identifier}`) },
+  }),
 );
 
 await mock.module('gpui-kit', () => gpuiKitFake({ div: () => drawn() }));
@@ -187,7 +191,7 @@ test('merge confirmation names the method and branch deletion without a destruct
   expect(button!.backgroundColors).not.toContain(koja.marks.blocked);
 });
 
-test('failed sync and merge keep their last data and offer a local Retry', () => {
+test('failed sync and merge retain their last data and recovery actions', () => {
   const checks = drawnTexts(paneOf('checks-failed'));
   const merge = drawnTexts(paneOf('merge-failed'));
 
@@ -195,7 +199,8 @@ test('failed sync and merge keep their last data and offer a local Retry', () =>
   expect(checks).toContain('typecheck');
   expect(checks).toContain('failed 9m ago ·');
   expect(checks).not.toContain('failed 3m ago');
-  expect(checks).toContain('Retry checks');
+  expect(checks).toContain('Sync');
+  expect(checks).not.toContain('Retry checks');
   expect(merge).toContain('Could not merge');
   expect(merge).toContain('main changed since the last sync');
   expect(merge).toContain('Sync and retry');
@@ -264,17 +269,17 @@ test('blocked views explain merge blockers and expose the requested review for t
     const texts = drawnTexts(pane);
 
     expect(texts).toContain("Can't merge yet");
-    expect(texts).toContain('1 failing check · 2 unresolved threads · changes requested');
+    expect(texts).toContain('1 of 5 checks failing · 2 unresolved threads · changes requested');
     expect(texts).not.toContain('Merge appears here when nothing blocks it.');
     expect(texts.indexOf("Can't merge yet")).toBeLessThan(texts.indexOf('Needs you'));
     expect(texts[texts.indexOf('Needs you') + 1]).toBe('4');
-    expect(texts).toContain('Changes requested');
+    expect(texts).toContain('Review from jonas-l');
     expect(texts).not.toContain('Please fix the two threads before merging.');
 
     const review = descendants(pane).findLast((element) => {
       const details = drawnTexts(element);
 
-      return details.includes('Changes requested') && details.includes('jonas-l · 2h ago');
+      return details.includes('Review from jonas-l') && details.includes('2h ago · 2 threads');
     });
 
     expect(review).toBeDefined();
@@ -356,7 +361,7 @@ test('loaded picked views expose the whole PR diff separately from single files'
   }
 });
 
-test('narrow fact rows separate Branch from Ticket Agent and the whole diff', () => {
+test('narrow facts keep one fact per row', () => {
   for (const name of ['blocked', 'tray-bar', 'ready', 'merge-failed', 'checks-failed']) {
     const grid = descendants(paneOf(name)).findLast((element) => {
       const texts = drawnTexts(element);
@@ -365,13 +370,29 @@ test('narrow fact rows separate Branch from Ticket Agent and the whole diff', ()
     });
 
     expect(grid).toBeDefined();
-    expect(grid!.kids).toHaveLength(3);
-    expect(drawnTexts(grid!.kids[0]!)).toContain('Branch');
-    expect(drawnTexts(grid!.kids[0]!)).not.toContain('Ticket');
-    expect(drawnTexts(grid!.kids[1]!)).toContain('Ticket');
-    expect(drawnTexts(grid!.kids[1]!)).toContain('Agent');
-    expect(drawnTexts(grid!.kids[2]!)).toContain('Files');
-    expect(drawnTexts(grid!.kids[2]!)).toContain('diff in Greppa');
+
+    const rows = descendants(grid!).filter((element) =>
+      element.kids.some((child) =>
+        ['Branch', 'Ticket', 'Agent', 'Files'].some((fact) => child.texts.includes(fact)),
+      ),
+    );
+
+    expect(rows).toHaveLength(4);
+    expect(drawnTexts(rows[0]!)).toContain('Branch');
+    expect(drawnTexts(rows[0]!)).not.toContain('Ticket');
+    expect(drawnTexts(rows[1]!)).toContain('Ticket');
+    expect(drawnTexts(rows[1]!)).not.toContain('Agent');
+    expect(drawnTexts(rows[2]!)).toContain('Agent');
+    expect(drawnTexts(rows[3]!)).toContain('Files');
+    expect(drawnTexts(rows[3]!)).toContain('diff in Greppa');
+
+    expect(
+      grid!.kids.some((child) => {
+        const texts = drawnTexts(child);
+
+        return texts.includes('Ticket') && texts.includes('Agent') && !texts.includes('Branch');
+      }),
+    ).toBe(false);
   }
 });
 
@@ -394,7 +415,7 @@ test('requested reviews have an amber review icon and a right-side state', () =>
     const review = descendants(paneOf(name)).findLast((element) => {
       const texts = drawnTexts(element);
 
-      return texts.includes('Changes requested') && texts.includes('Add for agent');
+      return texts.includes('Review from jonas-l') && texts.includes('Add for agent');
     });
 
     expect(review).toBeDefined();
@@ -406,14 +427,132 @@ test('requested reviews have an amber review icon and a right-side state', () =>
   }
 });
 
-test('partial sync names the stale part in both status and retry', () => {
-  const texts = drawnTexts(paneOf('checks-failed'));
+test('partial sync keeps one refresh control and warns beside the status', () => {
+  const pane = paneOf('checks-failed');
+  const texts = drawnTexts(pane);
+  const warning = 'Could not sync checks · showing checks from 6m ago';
 
   expect(texts).toContain('synced 1m ago · checks 6m ago');
-  expect(texts).toContain('Could not sync checks · showing checks from 6m ago');
-  expect(texts.filter((text) => text === 'Retry checks')).toHaveLength(1);
+  expect(texts).toContain(warning);
+  expect(texts.indexOf(warning)).toBeLessThan(texts.indexOf('Branch'));
+  expect(texts).not.toContain('Retry checks');
   expect(texts).not.toContain('Retry');
-  expect(texts).toContain('Sync');
+  expect(texts.filter((text) => text === 'Sync')).toHaveLength(1);
+  expect(texts[texts.indexOf('Needs you') + 1]).toBe('4');
+
+  const note = descendants(pane).findLast(
+    (element) =>
+      drawnTexts(element).includes(warning) && drawnIcons(element).includes('triangle-alert'),
+  );
+
+  expect(note).toBeDefined();
+});
+
+test('picked views use an always-visible native scrollbar for their reading area', () => {
+  for (const name of scenes.filter((scene) => !['tray-header', 'tray-section'].includes(scene))) {
+    const parts = descendants(paneOf(name));
+    const scrollbar = parts.find((element) => element.path === 'scrollbar/pr-reading');
+    const reading = parts.find((element) => element.properties.id?.[0] === 'pr-reading');
+
+    expect(scrollbar?.properties.mode).toEqual(['always']);
+    expect(reading?.properties.overflow_y_scroll).toEqual([]);
+    expect(reading?.properties.overflow_y_scrollbar).toBeUndefined();
+  }
+});
+
+test('picked open states are unboxed and use state ink', () => {
+  const loaded = scenes.filter(
+    (scene) => !['tray-header', 'tray-section', 'unreachable'].includes(scene),
+  );
+
+  for (const name of loaded) {
+    const state = descendants(paneOf(name)).findLast((element) =>
+      element.kids.some((child) => child.texts.includes('open')),
+    );
+
+    const text = state?.kids.find((child) => child.texts.includes('open'));
+    const tokens = name === 'normal' ? kojaNormal : koja;
+
+    expect(state).toBeDefined();
+    expect(state?.borderColors).toEqual([]);
+    expect(state?.backgroundColors).toEqual([]);
+    expect(text?.textColors).toContain(tokens.marks.done);
+  }
+});
+
+test('merge retry states its effect and separates cause ink from snapshot ink', () => {
+  const pane = paneOf('merge-failed');
+  const texts = drawnTexts(pane);
+  const effect = 'Squash and merge into main · deletes the branch';
+
+  const cause = descendants(pane).find((element) =>
+    element.texts.includes('main changed since the last sync'),
+  );
+
+  const snapshot = descendants(pane).find((element) =>
+    element.texts.includes('At the last sync: 4 checks passed · approved · 0 unresolved threads'),
+  );
+
+  expect(texts).toContain(effect);
+  expect(texts.indexOf(effect)).toBeGreaterThan(texts.indexOf('Sync and retry'));
+  expect(cause?.textColors.at(-1)).toBe(koja.ink.text);
+  expect(snapshot?.textColors.at(-1)).toBe(koja.ink.dim);
+});
+
+test('attention marks share a fixed centered slot', () => {
+  const titles = ['typecheck', 'Review from jonas-l', 'rows.ts:48', 'repoLabel.ts:27–31'];
+
+  for (const name of ['blocked', 'tray-bar', 'sent', 'checks-failed', 'normal', 'zoomed']) {
+    for (const title of titles) {
+      const row = descendants(paneOf(name)).findLast(
+        (element) => element.properties.h?.[0] === 24 && drawnTexts(element).includes(title),
+      );
+
+      const slot = row?.kids[0];
+
+      expect(slot?.properties.w).toEqual([12]);
+      expect(slot?.properties.h).toEqual([12]);
+      expect(slot?.properties.items_center).toEqual([]);
+      expect(slot?.properties.justify_center).toEqual([]);
+    }
+  }
+});
+
+test('picked dividers start at the section header mark column', () => {
+  for (const name of ['blocked', 'tray-bar', 'ready', 'merge-failed', 'checks-failed']) {
+    const parts = descendants(paneOf(name));
+    const divider = parts.find((element) => element.properties.h?.[0] === 1);
+
+    const header =
+      parts.findLast(
+        (element) =>
+          drawnTexts(element).includes('Files') && drawnIcons(element).includes('chevron-right'),
+      ) ??
+      parts.findLast(
+        (element) =>
+          drawnTexts(element).includes('Files') && drawnIcons(element).includes('chevron-down'),
+      );
+
+    const left = Number(header?.properties.mx?.[0]) + Number(header?.properties.px?.[0]);
+
+    expect(divider?.properties.mx).toEqual([left]);
+  }
+});
+
+test('picked Files headers leave aggregate counts in the facts only', () => {
+  for (const name of scenes.filter(
+    (scene) => !['tray-header', 'tray-section', 'unreachable'].includes(scene),
+  )) {
+    const header = descendants(paneOf(name)).findLast((element) => {
+      const texts = drawnTexts(element);
+
+      return texts.includes('Files') && texts.includes('opens in Greppa');
+    });
+
+    expect(drawnTexts(header!)).toContain('9');
+    expect(drawnTexts(header!)).not.toContain('+412');
+    expect(drawnTexts(header!)).not.toContain('−40');
+  }
 });
 
 test('alternate trays keep their original facts actions and short snippet', () => {

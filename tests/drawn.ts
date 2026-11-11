@@ -1,5 +1,6 @@
 export interface DrawnElement {
   kids: DrawnElement[];
+  properties: Record<string, unknown[]>;
   path: string | null;
   spins: boolean;
   texts: string[];
@@ -22,6 +23,7 @@ const addChild = (parent: DrawnElement, child: unknown): void => {
 export const drawn = (path: string | null = null): DrawnElement => {
   const element: DrawnElement = {
     kids: [],
+    properties: {},
     path,
     spins: false,
     texts: [],
@@ -44,6 +46,8 @@ export const drawn = (path: string | null = null): DrawnElement => {
       }
 
       return (...args: unknown[]) => {
+        target.properties[String(key)] = args;
+
         if (key === 'child') {
           addChild(target, args[0]);
         }

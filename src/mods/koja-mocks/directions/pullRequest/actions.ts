@@ -63,7 +63,7 @@ export const blockedMerge = (tokens: DirectionTokens): Element =>
     "Can't merge yet",
     icon('circle-x', 'small').text_color(tokens.marks.blocked),
     tokens,
-  ).child(detailText('1 failing check · 2 unresolved threads · changes requested', tokens));
+  ).child(detailText('1 of 5 checks failing · 2 unresolved threads · changes requested', tokens));
 
 export const readyActions = (state: PullState, tokens: DirectionTokens): Element => {
   if (state === 'merge-failed') {
@@ -72,11 +72,12 @@ export const readyActions = (state: PullState, tokens: DirectionTokens): Element
       icon('circle-x', 'small').text_color(tokens.marks.blocked),
       tokens,
     )
-      .child(detailText('main changed since the last sync', tokens))
+      .child(detailText('main changed since the last sync', tokens).text_color(tokens.ink.text))
       .child(
         detailText('At the last sync: 4 checks passed · approved · 0 unresolved threads', tokens),
       )
-      .child(h_flex().child(reviewActionButton('Sync and retry', tokens)));
+      .child(h_flex().child(reviewActionButton('Sync and retry', tokens)))
+      .child(detailText('Squash and merge into main · deletes the branch', tokens));
   }
 
   return mergeState(

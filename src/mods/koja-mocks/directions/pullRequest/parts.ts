@@ -15,7 +15,6 @@ import { sectionHeaderOf } from '../panels/frame.ts';
 import { fixedLabel, label, row, styled, terminalFont } from '../parts.ts';
 import { workNeedMark } from '../sidebars/facts.ts';
 import { sourceLink } from '../sidebars/sidebar.ts';
-import { errorLine } from '../sidebars/states.ts';
 import type { DirectionTokens } from '../tokens.ts';
 import type { PullThread, PullView } from './data.ts';
 import { checkFailure, isBottomBarView, pullThreads } from './data.ts';
@@ -43,6 +42,16 @@ const itemMark = (
   view: PullView,
   tokens: DirectionTokens,
 ): Element => {
+  if (isBottomBarView(view)) {
+    return h_flex()
+      .w(markSlotWidth)
+      .h(markSlotWidth)
+      .flex_none()
+      .items_center()
+      .justify_center()
+      .child(mark);
+  }
+
   const start = h_flex().items_center().gap(spacing.small);
 
   if (view.tray === 'section') {
@@ -80,6 +89,10 @@ const failedCheck = (view: PullView, tokens: DirectionTokens): Element => {
   const details = detailBlock(view, tokens);
   const lines = logLines([checkFailure.path, checkFailure.message], tokens);
 
+  const mark = isBottomBarView(view)
+    ? icon('circle-x', 'small').text_color(tokens.marks.blocked)
+    : checkMark('failing', tokens);
+
   if (isBottomBarView(view)) {
     details
       .child(
@@ -101,7 +114,7 @@ const failedCheck = (view: PullView, tokens: DirectionTokens): Element => {
       row(
         {
           selected: false,
-          start: itemMark(checkMark('failing', tokens), true, view, tokens),
+          start: itemMark(mark, true, view, tokens),
           label: label('typecheck', titleRole, nameInk),
           end: [
             fixedLabel('failing', tokens.text.detail, stateInk),
@@ -134,6 +147,10 @@ const threadRow = (thread: PullThread, view: PullView, tokens: DirectionTokens):
   const padding = isBottomBarView(view) ? 0 : spacing.xxsmall;
   const snippet = isBottomBarView(view) ? thread.snippet : thread.snippet.slice(0, 2);
 
+  const mark = isBottomBarView(view)
+    ? icon('message-square', 'small').text_color(tokens.marks.modified)
+    : workNeedMark('review', tokens);
+
   return v_flex()
     .flex_none()
     .min_w(0)
@@ -142,7 +159,7 @@ const threadRow = (thread: PullThread, view: PullView, tokens: DirectionTokens):
       row(
         {
           selected: false,
-          start: itemMark(workNeedMark('review', tokens), picked, view, tokens),
+          start: itemMark(mark, picked, view, tokens),
           label: threadTitle(thread, view, tokens),
           end: [
             fixedLabel('unresolved', tokens.text.detail, tokens.ink.dim),
@@ -174,7 +191,7 @@ const requestedReview = (view: PullView, tokens: DirectionTokens): Element =>
             view,
             tokens,
           ),
-          label: label('Changes requested', tokens.text.title, tokens.ink.text),
+          label: label('Review from jonas-l', tokens.text.title, tokens.ink.text),
           end: [
             fixedLabel('changes requested', tokens.text.detail, tokens.ink.dim),
             promptAction(false, view, tokens),
@@ -183,7 +200,7 @@ const requestedReview = (view: PullView, tokens: DirectionTokens): Element =>
         tokens,
       ),
     )
-    .child(detailBlock(view, tokens).child(detailText('jonas-l · 2h ago', tokens)));
+    .child(detailBlock(view, tokens).child(detailText('2h ago · 2 threads', tokens)));
 
 export const needsYouSection = (view: PullView, tokens: DirectionTokens): Element => {
   const items = [failedCheck(view, tokens)];
@@ -200,12 +217,6 @@ export const needsYouSection = (view: PullView, tokens: DirectionTokens): Elemen
   }
 
   const section = v_flex().flex_none().min_w(0).child(header);
-
-  if (view.state === 'checks-failed') {
-    section.child(
-      errorLine('Could not sync checks · showing checks from 6m ago', 'Retry checks', tokens),
-    );
-  }
 
   const itemList = v_flex().flex_none().min_w(0).children(items);
 

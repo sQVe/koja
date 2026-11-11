@@ -24,17 +24,11 @@ export const filesFact = (tokens: DirectionTokens): Element => {
   return factRow('Files', value, tokens);
 };
 
-export const pullFactsGrid = (facts: ContentFact[], tokens: DirectionTokens): Element => {
-  const branch = facts.filter((fact) => fact.name === 'Branch');
-  const related = facts.filter((fact) => fact.name !== 'Branch');
-  const columns = related.map((fact) => factRows([fact], tokens).w(0).flex_1());
-
-  return v_flex()
+export const pullFacts = (facts: ContentFact[], tokens: DirectionTokens): Element =>
+  v_flex()
     .flex_none()
     .min_w(0)
     .px(readingInset)
     .pb(spacing.large)
-    .child(factRows(branch, tokens))
-    .child(h_flex().min_w(0).gap(spacing.large).children(columns))
+    .child(factRows(facts, tokens))
     .child(filesFact(tokens));
-};
