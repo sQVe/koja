@@ -117,7 +117,9 @@ const readFailure = (state: RailState, tokens: DirectionTokens): Element[] => {
   }
 
   return [
-    errorLine(`Could not read PRs · ${state.readFailed}`, tokens).mt(tokens.rows.listPadding),
+    errorLine(`Could not read PRs · ${state.readFailed}`, 'Retry', tokens).mt(
+      tokens.rows.listPadding,
+    ),
   ];
 };
 

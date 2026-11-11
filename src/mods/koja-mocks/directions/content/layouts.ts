@@ -106,7 +106,7 @@ export const contentBody = (view: ContentView, tokens: DirectionTokens): Element
 
   if (view.state === 'unreachable') {
     return reading.child(
-      errorLine('Could not read PR · GitHub is unreachable', tokens).mt(spacing.medium),
+      errorLine('Could not read PR · GitHub is unreachable', 'Retry', tokens).mt(spacing.medium),
     );
   }
 

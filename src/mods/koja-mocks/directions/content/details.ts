@@ -84,7 +84,7 @@ const checksSection = (stale: boolean, tokens: DirectionTokens): Element => {
   const parts: Element[] = [];
 
   if (stale) {
-    parts.push(errorLine('Could not sync checks · showing checks from 6m ago', tokens));
+    parts.push(errorLine('Could not sync checks · showing checks from 6m ago', 'Retry', tokens));
   }
 
   parts.push(checksList(stale, tokens));

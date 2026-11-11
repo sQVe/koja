@@ -7,15 +7,13 @@ import { diffCounts, fileStatusInk } from '../panels/changes.ts';
 import { fixedLabel, middleCutLabel, row } from '../parts.ts';
 import type { DirectionTokens } from '../tokens.ts';
 import type { PullState } from './data.ts';
-import { hasResolvedReview, pullRequestFiles, pullThreads } from './data.ts';
+import { hasResolvedReview, pullFileTotals, pullRequestFiles, pullThreads } from './data.ts';
 
 const markSlotWidth = 12;
 
 export const filesSection = (state: PullState, open: boolean, tokens: DirectionTokens): Element => {
   const files = pullRequestFiles;
-  const added = files.reduce((sum, file) => sum + file.add, 0);
-  const removed = files.reduce((sum, file) => sum + file.del, 0);
-  const detail = diffCounts(added, removed, tokens);
+  const detail = diffCounts(pullFileTotals.added, pullFileTotals.removed, tokens);
 
   const header = contentSectionHeader(
     { name: 'Files', count: files.length },

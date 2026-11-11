@@ -1,13 +1,25 @@
 import { afterAll, expect, mock, test } from 'bun:test';
 
 import type { DrawnElement } from '../../../../../tests/drawn.ts';
-import { drawn, drawnIcons, drawnTexts, drawnTooltips } from '../../../../../tests/drawn.ts';
+import {
+  drawn,
+  drawnIcons,
+  drawnTexts,
+  drawnTooltips,
+  elementWithIcon,
+} from '../../../../../tests/drawn.ts';
 import {
   gpuiBaseFake,
   gpuiKitFake,
   herdrFake,
   kitIndexFake,
 } from '../../../../../tests/moduleFakes.ts';
+
+interface ViewTokens {
+  ink: { text: string };
+  marks: { blocked: string; working: string };
+  rows: { selectedFill: string };
+}
 
 await mock.module('gpui-base', () =>
   gpuiBaseFake({ h_flex: () => drawn(), v_flex: () => drawn() }),
@@ -27,8 +39,9 @@ const { pullRequestScene } = (await import(scenePath)) as {
   pullRequestScene: (name: string) => DrawnElement;
 };
 
-const { koja } = (await import(tokensPath)) as {
-  koja: { ink: { text: string }; marks: { blocked: string }; rows: { selectedFill: string } };
+const { koja, kojaNormal } = (await import(tokensPath)) as {
+  koja: ViewTokens;
+  kojaNormal: ViewTokens;
 };
 
 const checkPath = 'src/mods/koja-spaces/rows.ts:48';
@@ -182,7 +195,7 @@ test('failed sync and merge keep their last data and offer a local Retry', () =>
   expect(checks).toContain('typecheck');
   expect(checks).toContain('failed 9m ago ·');
   expect(checks).not.toContain('failed 3m ago');
-  expect(checks).toContain('Retry');
+  expect(checks).toContain('Retry checks');
   expect(merge).toContain('Could not merge');
   expect(merge).toContain('main changed since the last sync');
   expect(merge).toContain('Sync and retry');
@@ -222,7 +235,7 @@ test('file lists name Greppa once and branch facts retain their full tooltip', (
   expect(zoomed).toContain('−2');
 });
 
-test('picked views offer Sync and keep only Branch Ticket and Agent facts', () => {
+test('picked views offer Sync and keep Branch Ticket Agent and Files facts', () => {
   const pickedScenes = scenes.filter(
     (scene) => !['tray-header', 'tray-section', 'unreachable'].includes(scene),
   );
@@ -231,9 +244,11 @@ test('picked views offer Sync and keep only Branch Ticket and Agent facts', () =
     const texts = drawnTexts(paneOf(name));
 
     expect(texts.filter((text) => text === 'Sync')).toHaveLength(1);
-    expect(texts.indexOf('Sync')).toBe(texts.indexOf('synced 1m ago') + 1);
+    const status = name === 'checks-failed' ? 'synced 1m ago · checks 6m ago' : 'synced 1m ago';
 
-    for (const fact of ['Branch', 'Ticket', 'Agent']) {
+    expect(texts.indexOf('Sync')).toBe(texts.indexOf(status) + 1);
+
+    for (const fact of ['Branch', 'Ticket', 'Agent', 'Files']) {
       expect(texts).toContain(fact);
     }
 
@@ -250,11 +265,20 @@ test('blocked views explain merge blockers and expose the requested review for t
 
     expect(texts).toContain("Can't merge yet");
     expect(texts).toContain('1 failing check · 2 unresolved threads · changes requested');
-    expect(texts).toContain('Merge appears here when nothing blocks it.');
+    expect(texts).not.toContain('Merge appears here when nothing blocks it.');
     expect(texts.indexOf("Can't merge yet")).toBeLessThan(texts.indexOf('Needs you'));
     expect(texts[texts.indexOf('Needs you') + 1]).toBe('4');
     expect(texts).toContain('Changes requested');
-    expect(texts).toContain('Please fix the two threads before merging.');
+    expect(texts).not.toContain('Please fix the two threads before merging.');
+
+    const review = descendants(pane).findLast((element) => {
+      const details = drawnTexts(element);
+
+      return details.includes('Changes requested') && details.includes('jonas-l · 2h ago');
+    });
+
+    expect(review).toBeDefined();
+    expect(drawnTexts(review!)).not.toContain('rows.ts:48');
     expect(texts).not.toContain('Squash and merge');
     expect(descendants(pane).some((element) => element.isDisabled)).toBe(false);
   }
@@ -269,7 +293,7 @@ test('ready and failed merge views retain the selected spaces PR identity and ni
     expect(texts).toContain('ME-1090 · Linear');
     expect(texts).toContain('src/mods/koja-spaces/rows.ts');
     expect(texts).not.toContain('koja #44 · GitHub');
-    expect(texts[texts.indexOf('Files') + 1]).toBe('9');
+    expect(texts[texts.lastIndexOf('Files') + 1]).toBe('9');
   }
 
   const ready = drawnTexts(paneOf('ready'));
@@ -316,6 +340,82 @@ test('added items use selected fill while the remaining items stay unselected', 
   }
 });
 
+test('loaded picked views expose the whole PR diff separately from single files', () => {
+  const excluded = new Set(['tray-header', 'tray-section', 'unreachable']);
+  const loaded = scenes.filter((scene) => !excluded.has(scene));
+
+  for (const name of loaded) {
+    const pane = paneOf(name);
+    const texts = drawnTexts(pane);
+
+    expect(texts.filter((text) => text === 'diff in Greppa')).toHaveLength(1);
+    expect(texts).toContain('9 changed');
+    expect(texts).toContain('+412');
+    expect(texts).toContain('−40');
+    expect(texts.filter((text) => text === 'opens in Greppa')).toHaveLength(1);
+  }
+});
+
+test('narrow fact rows separate Branch from Ticket Agent and the whole diff', () => {
+  for (const name of ['blocked', 'tray-bar', 'ready', 'merge-failed', 'checks-failed']) {
+    const grid = descendants(paneOf(name)).findLast((element) => {
+      const texts = drawnTexts(element);
+
+      return ['Branch', 'Ticket', 'Agent', 'diff in Greppa'].every((text) => texts.includes(text));
+    });
+
+    expect(grid).toBeDefined();
+    expect(grid!.kids).toHaveLength(3);
+    expect(drawnTexts(grid!.kids[0]!)).toContain('Branch');
+    expect(drawnTexts(grid!.kids[0]!)).not.toContain('Ticket');
+    expect(drawnTexts(grid!.kids[1]!)).toContain('Ticket');
+    expect(drawnTexts(grid!.kids[1]!)).toContain('Agent');
+    expect(drawnTexts(grid!.kids[2]!)).toContain('Files');
+    expect(drawnTexts(grid!.kids[2]!)).toContain('diff in Greppa');
+  }
+});
+
+test('a failed merge keeps its last sync context distinct from current failure', () => {
+  const texts = drawnTexts(paneOf('merge-failed'));
+  const previous = 'At the last sync: 4 checks passed · approved · 0 unresolved threads';
+
+  expect(texts).toContain(previous);
+
+  expect(texts.indexOf(previous)).toBeGreaterThan(
+    texts.indexOf('main changed since the last sync'),
+  );
+
+  expect(texts.indexOf(previous)).toBeLessThan(texts.indexOf('Sync and retry'));
+  expect(texts).not.toContain('Ready to merge');
+});
+
+test('requested reviews have an amber review icon and a right-side state', () => {
+  for (const name of ['blocked', 'tray-bar', 'sent', 'checks-failed', 'normal', 'zoomed']) {
+    const review = descendants(paneOf(name)).findLast((element) => {
+      const texts = drawnTexts(element);
+
+      return texts.includes('Changes requested') && texts.includes('Add for agent');
+    });
+
+    expect(review).toBeDefined();
+    expect(drawnTexts(review!)).toContain('changes requested');
+    expect(drawnIcons(review!)).not.toContain('message-square');
+    const tokens = name === 'normal' ? kojaNormal : koja;
+
+    expect(elementWithIcon(review!, 'square-pen')?.textColors).toContain(tokens.marks.working);
+  }
+});
+
+test('partial sync names the stale part in both status and retry', () => {
+  const texts = drawnTexts(paneOf('checks-failed'));
+
+  expect(texts).toContain('synced 1m ago · checks 6m ago');
+  expect(texts).toContain('Could not sync checks · showing checks from 6m ago');
+  expect(texts.filter((text) => text === 'Retry checks')).toHaveLength(1);
+  expect(texts).not.toContain('Retry');
+  expect(texts).toContain('Sync');
+});
+
 test('alternate trays keep their original facts actions and short snippet', () => {
   for (const name of ['tray-header', 'tray-section']) {
     const texts = drawnTexts(paneOf(name));
@@ -325,6 +425,7 @@ test('alternate trays keep their original facts actions and short snippet', () =
     expect(texts).toContain('Review');
     expect(texts).toContain('Add to prompt');
     expect(texts).not.toContain('Sync');
+    expect(texts).not.toContain('diff in Greppa');
     expect(texts).not.toContain("Can't merge yet");
     expect(texts).not.toContain('Changes requested');
     expect(texts.some((text) => text.startsWith('31  '))).toBe(false);

@@ -69,7 +69,7 @@ export const pullRequestFiles = pullFiles.map((file) =>
   file.path === modifiedRows.path ? modifiedRows : file,
 );
 
-const blockedTotals = {
+export const pullFileTotals = {
   added: pullRequestFiles.reduce((sum, file) => sum + file.add, 0),
   removed: pullRequestFiles.reduce((sum, file) => sum + file.del, 0),
 };
@@ -113,7 +113,7 @@ const blockedItem: ContentItem = {
     { name: 'Checks', value: '1 failing · 3 passed', checkState: 'failing' },
     { name: 'Threads', value: '2 unresolved · 1 resolved' },
     { name: 'Review', value: 'Changes requested by jonas-l', wrap: true },
-    { name: 'Files', value: '9 changed', diff: blockedTotals },
+    { name: 'Files', value: '9 changed', diff: pullFileTotals },
     { name: 'Agent', value: 'Design the sidebar', target: 'agent' },
   ],
 };
@@ -131,5 +131,7 @@ export const pullItem = (view: PullView): ContentItem => {
     ['Branch', 'Ticket', 'Agent'].includes(fact.name),
   );
 
-  return { ...blockedItem, facts };
+  const readAge = view.state === 'checks-failed' ? '1m ago · checks 6m ago' : blockedItem.readAge;
+
+  return { ...blockedItem, facts, readAge };
 };

@@ -131,7 +131,7 @@ const staleStack = (state: RailState, tokens: DirectionTokens): Element[] => {
 
   const text = `Could not read PRs · stack from ${state.readFailed}`;
 
-  return [errorLine(text, tokens).mt(tokens.rows.listPadding)];
+  return [errorLine(text, 'Retry', tokens).mt(tokens.rows.listPadding)];
 };
 
 const stackHeader = (state: RailState, tokens: DirectionTokens): Element =>

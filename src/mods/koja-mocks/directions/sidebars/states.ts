@@ -115,7 +115,7 @@ const projectHeader = (project: StateProject, tokens: DirectionTokens): Element 
     .child(dimFact(`${project.hidden} more`, tokens));
 };
 
-const retryPill = (tokens: DirectionTokens): Element =>
+const retryPill = (text: string, tokens: DirectionTokens): Element =>
   h_flex()
     .h(pillHeight)
     .px(pillPadding)
@@ -124,14 +124,14 @@ const retryPill = (tokens: DirectionTokens): Element =>
     .rounded(tokens.controls.radius)
     .border(1)
     .border_color(tokens.pane.border)
-    .child(fixedLabel('Retry', tokens.text.detail, tokens.ink.muted));
+    .child(fixedLabel(text, tokens.text.detail, tokens.ink.muted));
 
 // A failed read says so once, under the project, and offers Retry; rows keep their last facts.
-export const errorLine = (text: string, tokens: DirectionTokens): Element =>
+export const errorLine = (text: string, action: string, tokens: DirectionTokens): Element =>
   headerLine(tokens)
     .child(icon('circle-alert', 'small').text_color(tokens.marks.blocked))
     .child(label(text, tokens.text.detail, tokens.ink.muted).flex_1())
-    .child(retryPill(tokens));
+    .child(retryPill(action, tokens));
 
 const spaceRow = (space: FakeSpace, tokens: DirectionTokens): Element =>
   rowLine(
@@ -149,7 +149,7 @@ const projectBlock = (project: StateProject, tokens: DirectionTokens): Element =
   const rows: Element[] = [];
 
   if (project.readError !== undefined) {
-    rows.push(errorLine(project.readError, tokens));
+    rows.push(errorLine(project.readError, 'Retry', tokens));
   }
 
   rows.push(...project.spaces.map((space) => spaceRow(space, tokens)));

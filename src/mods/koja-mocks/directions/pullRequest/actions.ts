@@ -59,9 +59,11 @@ const mergeState = (title: string, mark: Element, tokens: DirectionTokens): Elem
     );
 
 export const blockedMerge = (tokens: DirectionTokens): Element =>
-  mergeState("Can't merge yet", icon('circle-x', 'small').text_color(tokens.marks.blocked), tokens)
-    .child(detailText('1 failing check · 2 unresolved threads · changes requested', tokens))
-    .child(detailText('Merge appears here when nothing blocks it.', tokens));
+  mergeState(
+    "Can't merge yet",
+    icon('circle-x', 'small').text_color(tokens.marks.blocked),
+    tokens,
+  ).child(detailText('1 failing check · 2 unresolved threads · changes requested', tokens));
 
 export const readyActions = (state: PullState, tokens: DirectionTokens): Element => {
   if (state === 'merge-failed') {
@@ -71,6 +73,9 @@ export const readyActions = (state: PullState, tokens: DirectionTokens): Element
       tokens,
     )
       .child(detailText('main changed since the last sync', tokens))
+      .child(
+        detailText('At the last sync: 4 checks passed · approved · 0 unresolved threads', tokens),
+      )
       .child(h_flex().child(reviewActionButton('Sync and retry', tokens)));
   }
 

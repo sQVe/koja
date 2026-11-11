@@ -168,18 +168,22 @@ const requestedReview = (view: PullView, tokens: DirectionTokens): Element =>
       row(
         {
           selected: false,
-          start: itemMark(workNeedMark('review', tokens), false, view, tokens),
+          start: itemMark(
+            icon('square-pen', 'small').text_color(tokens.marks.working),
+            false,
+            view,
+            tokens,
+          ),
           label: label('Changes requested', tokens.text.title, tokens.ink.text),
-          end: [promptAction(false, view, tokens)],
+          end: [
+            fixedLabel('changes requested', tokens.text.detail, tokens.ink.dim),
+            promptAction(false, view, tokens),
+          ],
         },
         tokens,
       ),
     )
-    .child(
-      detailBlock(view, tokens)
-        .child(detailText('jonas-l · 2h ago', tokens))
-        .child(paragraph('Please fix the two threads before merging.', tokens)),
-    );
+    .child(detailBlock(view, tokens).child(detailText('jonas-l · 2h ago', tokens)));
 
 export const needsYouSection = (view: PullView, tokens: DirectionTokens): Element => {
   const items = [failedCheck(view, tokens)];
@@ -198,7 +202,9 @@ export const needsYouSection = (view: PullView, tokens: DirectionTokens): Elemen
   const section = v_flex().flex_none().min_w(0).child(header);
 
   if (view.state === 'checks-failed') {
-    section.child(errorLine('Could not sync checks · showing checks from 6m ago', tokens));
+    section.child(
+      errorLine('Could not sync checks · showing checks from 6m ago', 'Retry checks', tokens),
+    );
   }
 
   const itemList = v_flex().flex_none().min_w(0).children(items);

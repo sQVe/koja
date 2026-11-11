@@ -3,7 +3,7 @@ import type { Element } from 'gpui-kit';
 
 import { spacing } from '../../../../kit/size.ts';
 import type { ContentItem } from '../content/data.ts';
-import { factRows, factsBlock, factsGrid } from '../content/facts.ts';
+import { factRows, factsBlock } from '../content/facts.ts';
 import {
   contentSection,
   contentSectionHeader,
@@ -19,13 +19,14 @@ import type { DirectionTokens } from '../tokens.ts';
 import { blockedMerge, mergeActionWidth, mergeMenu, readyActions } from './actions.ts';
 import type { PullView } from './data.ts';
 import { hasResolvedReview, isBottomBarView } from './data.ts';
+import { filesFact, pullFactsGrid } from './facts.ts';
 import { filesSection } from './files.ts';
 import { needsYouSection } from './parts.ts';
 import { promptBar, promptHeader } from './prompt.ts';
 
 const factsRailWidth = 240;
 const railInset = 16;
-const menuTop = 276;
+const menuTop = 302;
 
 const overview = (view: PullView, item: ContentItem, tokens: DirectionTokens): Element => {
   const resolved = hasResolvedReview(view.state);
@@ -71,7 +72,7 @@ export const pullBody = (view: PullView, item: ContentItem, tokens: DirectionTok
 
   if (view.state === 'unreachable') {
     return reading.child(
-      errorLine('Could not read PR · GitHub is unreachable', tokens).mt(spacing.medium),
+      errorLine('Could not read PR · GitHub is unreachable', 'Retry', tokens).mt(spacing.medium),
     );
   }
 
@@ -79,7 +80,7 @@ export const pullBody = (view: PullView, item: ContentItem, tokens: DirectionTok
 
   if (!wide) {
     const facts = isBottomBarView(view)
-      ? factsGrid(item.facts, tokens)
+      ? pullFactsGrid(item.facts, tokens)
       : factsBlock(item.facts, tokens);
 
     reading.child(facts).child(sectionDivider(tokens));
@@ -102,7 +103,8 @@ export const pullBody = (view: PullView, item: ContentItem, tokens: DirectionTok
         .p(railInset)
         .border_l(1)
         .border_color(tokens.pane.headerDivider)
-        .child(factRows(item.facts, tokens)),
+        .child(factRows(item.facts, tokens))
+        .child(filesFact(tokens)),
     );
   }
 
