@@ -1,5 +1,5 @@
-import { realpath, stat } from 'node:fs/promises';
-import { join } from 'node:path';
+import { readdir, realpath, stat } from 'node:fs/promises';
+import { join, relative } from 'node:path';
 
 import { isMissing } from './build.ts';
 import type { InstallRecord } from './install.ts';
@@ -81,16 +81,37 @@ const copyFailures = async (
 
 const isTest = (path: string): boolean => path.endsWith('.test.ts');
 
+const foldersUnder = async (directory: string): Promise<string[]> => {
+  try {
+    const entries = await readdir(directory, { recursive: true, withFileTypes: true });
+
+    return entries
+      .filter((entry) => entry.isDirectory())
+      .map((entry) => relative(directory, join(entry.parentPath, entry.name)));
+  } catch (error) {
+    if (isMissing(error)) {
+      return [];
+    }
+
+    throw error;
+  }
+};
+
+// A deleted file has no modification time left to compare, but deleting, adding, or renaming a
+// file changes the modification time of its folder. So each folder counts as an input too.
 const shippedInputs = async (checkout: string): Promise<string[]> => {
   const inFolders = await Promise.all(
     shippedFolders.map(async (folder) => {
-      const files = await filesUnder(join(checkout, folder));
+      const root = join(checkout, folder);
+      const [files, folders] = await Promise.all([filesUnder(root), foldersUnder(root)]);
+      const shipped = files.filter((file) => !isTest(file));
+      const inside = shipped.concat(folders).map((path) => join(folder, path));
 
-      return files.map((file) => join(folder, file));
+      return [folder].concat(inside);
     }),
   );
 
-  return [...inFolders.flat().filter((path) => !isTest(path)), ...shippedFiles];
+  return [...inFolders.flat(), ...shippedFiles];
 };
 
 const modifiedAt = async (path: string): Promise<number | null> => {

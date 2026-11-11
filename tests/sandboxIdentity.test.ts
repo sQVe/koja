@@ -70,6 +70,20 @@ const touchAfterInstall = async (path: string): Promise<void> => {
   await utimes(path, later, later);
 };
 
+// A file system stamps a folder with a coarse clock, so an install and a change right after it
+// can share one time. Moving the install into the past keeps the two apart.
+const ageInstall = async (): Promise<void> => {
+  const record = await stat(recordPath());
+  const earlier = new Date(record.mtimeMs - 3_600_000);
+  const entries = await readdir(checkout, { recursive: true });
+
+  await Promise.all(
+    [recordPath(), ...entries.map((entry) => join(checkout, entry))].map(async (path) =>
+      utimes(path, earlier, earlier),
+    ),
+  );
+};
+
 const snapshot = async (folder: string): Promise<string[]> => {
   const entries = await readdir(folder, { recursive: true, withFileTypes: true });
 
@@ -229,7 +243,8 @@ describe('sandbox identity', () => {
   });
 
   test('passes when an input is exactly as old as the record', async () => {
-    const installedAt = new Date();
+    // Whole milliseconds in the past could sort before a file written in the same millisecond.
+    const installedAt = new Date(Date.now() + 60_000);
 
     await utimes(recordPath(), installedAt, installedAt);
     await utimes(join(checkout, 'package.json'), installedAt, installedAt);
@@ -241,6 +256,47 @@ describe('sandbox identity', () => {
     await touchAfterInstall(join(checkout, 'src', 'mods', 'koja-tabs', 'main.test.ts'));
 
     expect(await findIdentityFailures(options)).toEqual([]);
+  });
+
+  test.each([
+    ['src/mods/koja-tabs/main.ts', 'src/mods/koja-tabs'],
+    ['src/kit/icons/x.svg', 'src/kit/icons'],
+    ['config/layouts/koja.json', 'config/layouts'],
+    ['config/keys.json', 'config'],
+  ])('fails when %s was deleted after the install', async (path, folder) => {
+    await ageInstall();
+    await rm(join(checkout, path));
+
+    const failures = await findIdentityFailures(options);
+
+    expect(failures).toContainEqual({ kind: 'changedSinceInstall', path: folder });
+  });
+
+  test('fails when a file was added under src after the install', async () => {
+    await ageInstall();
+    await writeFile(join(checkout, 'src', 'kit', 'icons', 'plus.svg'), '<svg/>\n');
+
+    const failures = await findIdentityFailures(options);
+
+    expect(failures).toContainEqual({ kind: 'changedSinceInstall', path: 'src/kit/icons' });
+  });
+
+  test('passes when a test file was edited in place after the install', async () => {
+    await ageInstall();
+    await writeFile(join(checkout, 'src', 'mods', 'koja-tabs', 'main.test.ts'), 'export {};\n\n');
+
+    expect(await findIdentityFailures(options)).toEqual([]);
+  });
+
+  test('names the folder of a deleted input on its own line', async () => {
+    await ageInstall();
+    await rm(join(checkout, 'src', 'kit', 'icons', 'x.svg'));
+
+    const report = await identityReport(options);
+
+    expect(report.exitCode).toBe(1);
+    expect(report.lines).toHaveLength(1);
+    expect(report.lines[0]).toContain('src/kit/icons');
   });
 
   test('passes when a shipped input file does not exist', async () => {
