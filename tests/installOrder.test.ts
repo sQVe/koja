@@ -24,7 +24,7 @@ const passingCheck = async (): Promise<CheckResult> => ({ passed: true, output: 
 const failingCheck = async (): Promise<CheckResult> => ({ passed: false, output: 'failed' });
 
 const run = async (check: () => Promise<CheckResult>): ReturnType<typeof install> =>
-  install({ home, modsDirectory: mods, configDirectory: config, check });
+  install({ home, checkout: root, modsDirectory: mods, configDirectory: config, check });
 
 beforeEach(async () => {
   root = await mkdtemp(join(tmpdir(), 'koja-install-order-'));

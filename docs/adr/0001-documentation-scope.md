@@ -28,11 +28,12 @@ and code states behavior.
 - A tool's tuning record, such as `scripts/mutation-tuning.md`, lives next to the tool's setup. It
   states why each setting has its value and the measured runs behind it, so a later change can be
   measured the same way. It describes no feature.
-- A mod's QA recipe, `qa.md`, lives next to the mod it tests. It tells a QA agent how to reach and
-  drive the mod and what proves it works: the entry points, the driving steps, the observable
-  results, and the gotchas. It is a test procedure for an agent, not a guide for readers, and the
-  build leaves it out of the installed mod. A change that alters an entry point or a result the
-  recipe names updates the recipe in the same change.
+- The QA guide, `.pi/qa.md`, tells a manager which sections a change needs and tells a QA agent how
+  to reach the sandbox and use it safely. A feature's QA recipe lives in `.pi/qa/` and is linked
+  from the guide. It tells a QA agent how to drive the feature and what proves it works: the entry
+  points, the driving steps, the observable results, and the gotchas. Both are test procedures for
+  an agent, not guides for readers. A change that alters an entry point or a result they name
+  updates them in the same change.
 
 ### Adding and changing documents
 
@@ -65,7 +66,8 @@ never reused. Git keeps the history, and `git show <commit>:docs/adr/<file>` res
 - A reader who wants a guided tour of a feature does not get one.
 - Every change to a decision must update its ADR in the same change, or the ADR drifts from the
   code.
-- A QA recipe states some behavior in prose, so it can drift from the code like a feature page.
+- The QA guide and its recipes state some behavior in prose, so it can drift from the code like a
+  feature page.
 - The reasoning behind an earlier version of a decision lives only in Git history.
 
 ## Alternatives considered

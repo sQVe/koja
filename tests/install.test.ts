@@ -37,7 +37,7 @@ const passingCheck = async (folder: string): Promise<CheckResult> => {
 const run = async (
   check: (folder: string) => Promise<CheckResult> = passingCheck,
 ): ReturnType<typeof install> =>
-  install({ home, modsDirectory: mods, configDirectory: config, check });
+  install({ home, checkout: root, modsDirectory: mods, configDirectory: config, check });
 
 const exists = async (path: string): Promise<boolean> =>
   lstat(path).then(
@@ -159,6 +159,7 @@ describe('install', () => {
 
       const failure: unknown = await install({
         home: `${home}/`,
+        checkout: root,
         modsDirectory: mods,
         configDirectory: config,
         check: passingCheck,
@@ -186,6 +187,7 @@ describe('install', () => {
 
     const failure: unknown = await install({
       home: linkedHome,
+      checkout: root,
       modsDirectory: mods,
       configDirectory: config,
       check: passingCheck,
@@ -205,6 +207,7 @@ describe('install', () => {
 
     const base = {
       home,
+      checkout: root,
       modsDirectory: smallMods,
       configDirectory: smallConfig,
       check: passingCheck,
@@ -374,6 +377,7 @@ describe('install', () => {
 
     await install({
       home,
+      checkout: root,
       modsDirectory: mods,
       configDirectory: config,
       check: passingCheck,
@@ -416,6 +420,7 @@ describe('install', () => {
 
     const options = {
       home,
+      checkout: root,
       modsDirectory: smallMods,
       configDirectory: smallConfig,
       check: passingCheck,
@@ -459,6 +464,7 @@ describe('install', () => {
     const failure: unknown = await install({
       home: join(temporary, 'herdr-app'),
       roots: { userHome, temporary },
+      checkout: root,
       modsDirectory: mods,
       configDirectory: config,
       check: passingCheck,
@@ -467,6 +473,36 @@ describe('install', () => {
     expect(failure).toBeInstanceOf(Error);
     expect(failure).toHaveProperty('message', expect.stringContaining(linked));
     expect(await exists(join(actual, 'temporary', 'herdr-app', 'keys.json'))).toBe(false);
+  });
+
+  test('records the checkout it installed from and that every mod check passed', async () => {
+    await run();
+
+    const record: unknown = JSON.parse(await readFile(join(home, '.koja-install.json'), 'utf8'));
+
+    expect(record).toMatchObject({ checkout: root, allChecksPassed: true });
+  });
+
+  test('records that a mod check failed', async () => {
+    await run(async () => ({ passed: false, output: 'failed' }));
+
+    const record: unknown = JSON.parse(await readFile(join(home, '.koja-install.json'), 'utf8'));
+
+    expect(record).toMatchObject({ checkout: root, allChecksPassed: false });
+  });
+
+  test('removes a stale file named by a record without a checkout or a check result', async () => {
+    await writeAt(join(home, 'mods', 'koja-old', 'main.js'), 'export default 2;\n');
+
+    await writeFile(
+      join(home, '.koja-install.json'),
+      JSON.stringify({ version: 1, files: ['mods/koja-old/main.js'] }),
+    );
+
+    const result = await run();
+
+    expect(result.removed).toEqual(['mods/koja-old/main.js']);
+    expect(await exists(join(home, 'mods', 'koja-old', 'main.js'))).toBe(false);
   });
 
   test('checks every installed mod and reports each result', async () => {
