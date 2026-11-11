@@ -118,7 +118,7 @@ const containerTail = (view: TicketView, tokens: DirectionTokens): Element[] => 
 export const ticketSections = (view: TicketView, tokens: DirectionTokens): Element[] => {
   if (view.state === 'plain') {
     return [
-      section('Description', [description(view.item, tokens)], tokens),
+      section({ name: 'Description', detail: null }, [description(view.item, tokens)], tokens),
       acceptanceSection(view.criteria, tokens),
     ];
   }

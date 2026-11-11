@@ -5,7 +5,7 @@ import { stateLine } from '../../../../kit/index.ts';
 import { spacing } from '../../../../kit/size.ts';
 import { agentPane, fakeTabs } from '../../scenes/shellContent.ts';
 import { factRows, factsBlock } from '../content/facts.ts';
-import { contentHeader, itemHeading, readingInset } from '../content/parts.ts';
+import { contentHeader, readingInset } from '../content/parts.ts';
 import { koja, kojaNormal } from '../koja.ts';
 import { sectionDivider } from '../panels/frame.ts';
 import { card, cardSlot } from '../parts.ts';
@@ -15,6 +15,7 @@ import type { DirectionTab } from '../window.ts';
 import { directionWindow } from '../window.ts';
 import { ticketSections } from './body.ts';
 import type { TicketState, TicketView } from './data.ts';
+import { ticketHeading } from './heading.ts';
 import { nextBlock, nowBlock } from './summary.ts';
 import { ticketView } from './views.ts';
 
@@ -69,7 +70,7 @@ const ticketBody = (view: TicketView, tokens: DirectionTokens): Element => {
   const name = `ticket-view-${view.state}`;
   const bottomInset = view.state === 'single' ? singleBottomInset : planBottomInset;
 
-  const reading = v_flex().flex_1().min_h(0).min_w(0).child(itemHeading(view.item, tokens));
+  const reading = v_flex().flex_1().min_h(0).min_w(0).child(ticketHeading(view.item, tokens));
 
   if (view.state === 'loading') {
     return reading.child(

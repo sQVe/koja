@@ -5,10 +5,12 @@ import { div } from 'gpui-kit';
 import { spacing } from '../../../../kit/size.ts';
 import type { SourceTarget } from '../content/data.ts';
 import { agentLink, externalLink } from '../content/links.ts';
+import { sectionBodyInset } from '../content/parts.ts';
 import { fixedLabel, label, row, statusMark } from '../parts.ts';
 import type { DirectionTokens } from '../tokens.ts';
 import type { ActiveSlice, Slice, TicketView } from './data.ts';
 import { isActiveSlice } from './data.ts';
+import type { SectionHeading } from './parts.ts';
 import {
   detailLine,
   identifierCell,
@@ -24,16 +26,21 @@ import {
 } from './parts.ts';
 import { sliceMark } from './spine.ts';
 
+const summaryInset = (tokens: DirectionTokens): number =>
+  sectionBodyInset(tokens) + planChevronWidth + spacing.xsmall;
+
 const pullLink = (pull: string, tokens: DirectionTokens): Element => {
-  const linkTokens = { ...tokens, text: { ...tokens.text, detail: tokens.text.body } };
+  const linkTokens = {
+    ...tokens,
+    text: { ...tokens.text, detail: tokens.text.body },
+    ink: { ...tokens.ink, text: tokens.ink.dim },
+  };
 
   return externalLink(pull, 'GitHub', linkTokens).flex_none();
 };
 
 const nowDetails = (slice: ActiveSlice, tokens: DirectionTokens): Element => {
-  const details = detailLine(tokens).child(
-    label(slice.detail, tokens.text.detail, tokens.ink.dim).tooltip(slice.detail),
-  );
+  const details = note(slice.detail, tokens).ml(summaryInset(tokens));
 
   if (slice.agent !== null) {
     details.child(agentLink(slice.agent, tokens).flex_none());
@@ -190,7 +197,7 @@ const singleNow = (
     ),
   );
 
-  return section('Now', parts, tokens);
+  return section({ name: 'Now', detail: null }, parts, tokens);
 };
 
 export const nowBlock = (view: TicketView, tokens: DirectionTokens): Element => {
@@ -215,18 +222,23 @@ export const nowBlock = (view: TicketView, tokens: DirectionTokens): Element => 
     }),
   );
 
-  return section('Now', parts, tokens);
+  return section({ name: 'Now', detail: null }, parts, tokens);
 };
 
 const nothingReady = (view: TicketView, tokens: DirectionTokens): Element => {
   const waiting = view.slices.find((slice) => slice.readiness === 'blocked');
 
+  const heading: SectionHeading = {
+    name: 'Next',
+    detail: { kind: 'count', text: 'none can start' },
+  };
+
   if (waiting === undefined) {
-    return section('Next', [], tokens);
+    return section(heading, [], tokens);
   }
 
   return section(
-    'Next',
+    heading,
     [
       row(
         {
@@ -238,6 +250,7 @@ const nothingReady = (view: TicketView, tokens: DirectionTokens): Element => {
         tokens,
       ),
       detailLine(tokens)
+        .ml(summaryInset(tokens))
         .mr(spacing.small)
         .child(fixedLabel('waits for', tokens.text.detail, tokens.ink.dim))
         .child(externalLink(waiting.blockedBy, view.item.source, tokens).flex_none())
@@ -260,11 +273,15 @@ export const nextBlock = (view: TicketView, tokens: DirectionTokens): Element =>
   const reason = nextReason(ready);
 
   if (view.state === 'wide') {
-    return section('Next', [railItem(ready, view.item.source, tokens)], tokens);
+    return section(
+      { name: 'Next', detail: null },
+      [railItem(ready, view.item.source, tokens)],
+      tokens,
+    );
   }
 
   return section(
-    'Next',
+    { name: 'Next', detail: null },
     [
       row(
         {
@@ -275,7 +292,7 @@ export const nextBlock = (view: TicketView, tokens: DirectionTokens): Element =>
         },
         tokens,
       ),
-      note(reason, tokens),
+      note(reason, tokens).ml(summaryInset(tokens)),
     ],
     tokens,
   );

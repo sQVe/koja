@@ -1,0 +1,59 @@
+import { h_flex } from 'gpui-base';
+import type { Element } from 'gpui-kit';
+
+import { markSize, spacing } from '../../../../kit/size.ts';
+import type { ContentItem } from '../content/data.ts';
+import { itemHeading } from '../content/parts.ts';
+import { dot, fixedLabel, statusMark } from '../parts.ts';
+import type { DirectionTokens } from '../tokens.ts';
+
+const chipHeight = 20;
+
+const ticketStateMark = (state: string, tokens: DirectionTokens): Element => {
+  if (state === 'In progress') {
+    return statusMark('working', tokens);
+  }
+
+  if (state === 'Done') {
+    return statusMark('done', tokens);
+  }
+
+  const color = state === 'open' ? tokens.marks.done : tokens.marks.idle;
+
+  return dot(markSize.quietDot, color);
+};
+
+const ticketStateChip = (state: string, tokens: DirectionTokens): Element =>
+  h_flex()
+    .h(chipHeight)
+    .px(spacing.small)
+    .gap(spacing.xsmall)
+    .flex_none()
+    .items_center()
+    .rounded(tokens.marks.badgeRadius)
+    .border(1)
+    .border_color(tokens.pane.border)
+    .child(ticketStateMark(state, tokens))
+    .child(fixedLabel(state, tokens.text.detail, tokens.ink.muted));
+
+export const ticketHeading = (item: ContentItem, tokens: DirectionTokens): Element => {
+  const heading = itemHeading({ ...item, state: null }, tokens);
+
+  if (item.state === null) {
+    return heading;
+  }
+
+  const state = h_flex()
+    .mt(spacing.xsmall)
+    .gap(spacing.medium)
+    .items_center()
+    .child(ticketStateChip(item.state, tokens));
+
+  if (item.readAge !== null) {
+    state.child(
+      fixedLabel(`${item.kind} synced ${item.readAge}`, tokens.text.detail, tokens.ink.dim),
+    );
+  }
+
+  return heading.child(state);
+};

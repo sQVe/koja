@@ -84,11 +84,15 @@ export const sectionHeader = (
   return sectionHeaderOf(title, { open, detail: [], end: [] }, tokens);
 };
 
-export const section = (name: string, parts: Element[], tokens: DirectionTokens): Element =>
+export const section = (
+  heading: SectionHeading,
+  parts: Element[],
+  tokens: DirectionTokens,
+): Element =>
   v_flex()
     .flex_none()
     .min_w(0)
-    .child(sectionHeader({ name, detail: null }, true, tokens))
+    .child(sectionHeader(heading, true, tokens))
     .children(parts);
 
 export const detailLine = (tokens: DirectionTokens): Element =>
@@ -199,7 +203,7 @@ export const acceptanceSection = (items: Criterion[], tokens: DirectionTokens): 
 
 export const relationSection = (tokens: DirectionTokens): Element =>
   section(
-    'Relations',
+    { name: 'Relations', detail: null },
     [note('Blocked by ME-1282 · merged · cleared', tokens), note('Blocks ME-1285', tokens)],
     tokens,
   );

@@ -32,6 +32,7 @@ type FixtureSlice = { identifier: string; title: string } & (
 
 interface Fixture {
   item: {
+    kind: string;
     identifier: string;
     source: string;
     title: string | null;
@@ -45,6 +46,7 @@ interface Fixture {
 }
 
 interface Tokens {
+  text: { body: { size: number }; detail: { size: number } };
   ink: { text: string; dim: string; muted: string };
   marks: { done: string; working: string; idle: string; blocked: string };
   rows: { height: number; inset: number; paddingX: number; selectedFill: string };
@@ -174,6 +176,19 @@ const identifierCellOf = (root: DrawnElement, identifier: string): DrawnElement 
   const text = textElement(root, identifier);
 
   return required(descendants(root), (part) => part.kids.includes(text));
+};
+
+const identifierInsetOf = (row: DrawnElement, identifier: string): number => {
+  const cell = identifierCellOf(row, identifier);
+  const columns = required(descendants(row), (part) => part.kids.includes(cell));
+
+  return (
+    Number(attribute(row, 'mx')) +
+    Number(attribute(row, 'px')) +
+    Number(attribute(row.kids[0] ?? drawn(), 'w')) +
+    Number(attribute(row, 'gap')) +
+    Number(attribute(columns, 'pl'))
+  );
 };
 
 const links = (root: DrawnElement): DrawnElement[] =>
@@ -387,6 +402,14 @@ describe('ticket role contracts', () => {
         expect(summaryStatus.textColors).toEqual([tokens.ink.dim]);
         expect(hasStyle(summaryStatus, 'text_right')).toBe(true);
 
+        const pull = required(links(now), (part) =>
+          part.texts.some((text) => text.includes(slice.pull)),
+        );
+
+        expect(pull.textColors).toEqual([tokens.ink.dim]);
+        expect(attribute(pull, 'text_size')).toBe(tokens.text.body.size);
+        expect(hasStyle(pull, 'underline')).toBe(true);
+
         const item =
           state === 'single'
             ? now
@@ -419,6 +442,29 @@ describe('ticket role contracts', () => {
       }
     }
   });
+
+  test.each(states.filter((state) => ticketView(state).item.readAge !== null))(
+    '%s scopes header freshness to the ticket in its own detail role',
+    (state) => {
+      const pane = paneOf(state);
+      const fixture = ticketView(state);
+      const chip = stateChip(pane, fixture);
+
+      const stateRow = required(descendants(itemHeader(pane, fixture)), (part) =>
+        part.kids.includes(chip),
+      );
+
+      const age = stateRow.kids[1] ?? drawn();
+      const tokens = state === 'normal' ? kojaNormal : koja;
+
+      expect(stateRow.kids).toHaveLength(2);
+      expect(age.texts).toHaveLength(1);
+      expect(age.texts[0]?.indexOf(fixture.item.kind)).toBe(0);
+      expect(age.texts[0]).toContain(fixture.item.readAge ?? '');
+      expect(age.textColors).toEqual([tokens.ink.dim]);
+      expect(attribute(age, 'text_size')).toBe(tokens.text.detail.size);
+    },
+  );
 
   test('sync failure keeps the ticket read age separate from the PR failure banner', () => {
     const pane = paneOf('sync-failed');
@@ -610,6 +656,82 @@ describe('ticket scene structure', () => {
     expect(drawnTexts(content)).toContain('Whole plan');
     expect(track(content).kids).toHaveLength(ticketView('wide').slices.length);
   });
+
+  test.each([
+    'container',
+    'sync-failed',
+    'nothing-ready',
+    'tikk',
+    'long',
+    'normal',
+  ] satisfies TicketState[])('%s aligns summary details with their identity column', (state) => {
+    const pane = paneOf(state);
+    const now = section(pane, 'Now');
+
+    for (const slice of ticketView(state).slices.filter((item) => 'pull' in item)) {
+      const item = required(now.kids, (part) => drawnTexts(part).includes(slice.title));
+      const row = rowFor(item, slice.identifier);
+
+      expect(attribute(item.kids.at(-1) ?? drawn(), 'ml')).toBe(
+        identifierInsetOf(row, slice.identifier),
+      );
+    }
+
+    const next = section(pane, 'Next');
+    const identifier = summaryIdentifiers(state).at(-1) ?? '';
+    const row = rowFor(next, identifier);
+
+    expect(attribute(next.kids[2] ?? drawn(), 'ml')).toBe(identifierInsetOf(row, identifier));
+  });
+
+  test('single Now details align with its agent identity column', () => {
+    const fixture = ticketView('single');
+
+    const agent = fixture.agents[fixture.item.identifier]?.find(
+      (item) => item.state === 'in progress',
+    );
+
+    const identifier = agent?.identifier ?? '';
+    const now = section(paneOf('single'), 'Now');
+
+    expect(attribute(now.kids[2] ?? drawn(), 'ml')).toBe(
+      identifierInsetOf(rowFor(now, identifier), identifier),
+    );
+  });
+
+  test('nothing-ready puts its availability note in the header detail role', () => {
+    const pane = paneOf('nothing-ready');
+    const nextHeading = heading(pane, 'Next');
+    const planHeading = heading(pane, 'Whole plan');
+    const detail = nextHeading.kids[1] ?? drawn();
+    const count = planHeading.kids[1] ?? drawn();
+
+    expect(nextHeading.kids).toHaveLength(2);
+    expect(detail.texts).toHaveLength(1);
+    expect(detail.textColors).toEqual(count.textColors);
+    expect(detail.textColors).toEqual([koja.ink.dim]);
+    expect(attribute(detail, 'text_size')).toBe(attribute(count, 'text_size'));
+    expect(links(detail)).toHaveLength(0);
+    expect(heading(paneOf('container'), 'Next').kids).toHaveLength(1);
+  });
+
+  test.each(['container', 'sync-failed', 'tikk', 'long', 'normal', 'wide'] satisfies TicketState[])(
+    '%s keeps all three draft facts in metadata order',
+    (state) => {
+      const slice = ticketView(state).slices.find((item) => item.readiness === 'PR draft');
+      const now = section(paneOf(state), 'Now');
+      const item = required(now.kids, (part) => drawnTexts(part).includes(slice?.title ?? ''));
+      const details = item.kids[1] ?? drawn();
+
+      if (state === 'wide') {
+        expect(details.kids).toHaveLength(3);
+        expect(details.kids[0]?.kids).toHaveLength(3);
+        expect(details.kids.slice(1).every((line) => line.kids.length === 1)).toBe(true);
+      } else {
+        expect((drawnTexts(details)[0] ?? '').split(' · ')).toHaveLength(3);
+      }
+    },
+  );
 
   test('container summaries link their identities without linking reason references', () => {
     const pane = paneOf('container');
@@ -825,8 +947,13 @@ describe('ticket scene structure', () => {
       ),
     ).toBe(true);
 
-    expect(rowFor(plan, 'ME-1285').kids.at(-1)?.texts).toEqual(['next']);
-    expect(drawnTexts(next)).not.toContain('next');
+    const planRow = rowFor(plan, 'ME-1285');
+    const planStatus = planRow.kids.at(-1) ?? drawn();
+
+    expect(planRow.kids).toHaveLength(next.kids.length + 1);
+    expect(hasStyle(planStatus, 'text_right')).toBe(true);
+    expect(planStatus.texts).toHaveLength(1);
+    expect(descendants(next).filter((part) => hasStyle(part, 'text_right'))).toHaveLength(0);
   });
 
   test('only the single plan puts the next PR reason beside its title', () => {
@@ -1078,7 +1205,8 @@ describe('ticket scene structure', () => {
 
       expect(drawnTexts(item.kids[0] ?? drawn())).toEqual([slice.title]);
       expect(attribute(meta, 'layout')).toBe('column');
-      expect(meta.kids).toHaveLength(2);
+      const factCount = 'detail' in slice ? slice.detail.split(' · ').length : 2;
+      expect(meta.kids).toHaveLength(factCount);
       expect(meta.kids[0]?.kids[0]?.texts).toEqual([slice.identifier]);
       expect(meta.kids[0]?.kids[1]?.texts).toEqual(['·']);
       expect(meta.kids[0]?.kids).toHaveLength(3);
@@ -1186,14 +1314,22 @@ describe('ticket scene structure', () => {
 
     expect(hasStyle(waitingCell.kids[0] ?? drawn(), 'underline')).toBe(true);
     expect(drawnTexts(waiting)).toContain(fixture?.title ?? '');
-    expect(drawnTexts(waiting).at(-1)).toBe('blocked');
+    const waitingStatus = waiting.kids.at(-1) ?? drawn();
+
+    const planStatus =
+      rowFor(section(paneOf('nothing-ready'), 'Whole plan'), 'ME-1285').kids.at(-1) ?? drawn();
+
+    expect(hasStyle(waitingStatus, 'text_right')).toBe(true);
+    expect(waitingStatus.texts).toHaveLength(1);
+    expect(attribute(waitingStatus, 'w')).toBe(attribute(planStatus, 'w'));
+    expect(links(waitingStatus)).toHaveLength(0);
     expect(targets(waiting)).toEqual(['ME-1285']);
     expect(targets(detail)).toEqual(['ME-1290']);
     expect(targets(detail.kids[0] ?? drawn())).toEqual([]);
     expect(targets(detail.kids[1] ?? drawn())).toEqual(['ME-1290']);
     expect(detail.kids).toHaveLength(4);
     expect(detail.kids[2]?.textColors).toEqual([koja.ink.text]);
-    expect(detail.kids[3]?.textColors).toEqual([koja.ink.dim]);
+    expect(detail.kids[3]?.textColors).toEqual(detail.kids[0]?.textColors);
   });
 
   test('wide places both PRs and the agent only in the rail with wrapping and row rhythm', () => {
