@@ -45,9 +45,9 @@ interface Fixture {
 }
 
 interface Tokens {
-  ink: { dim: string; muted: string };
+  ink: { text: string; dim: string; muted: string };
   marks: { done: string; working: string; idle: string; blocked: string };
-  rows: { height: number; inset: number; selectedFill: string };
+  rows: { height: number; inset: number; paddingX: number; selectedFill: string };
   pane: { focusedBorder: string; focusedHeaderFill: string; headerDivider: string };
 }
 
@@ -261,6 +261,34 @@ const countGroups = (root: DrawnElement): DrawnElement[] => {
 
 const numbers = (root: DrawnElement): number[] =>
   drawnTexts(root).flatMap((text) => [...text.matchAll(/\d+/g)].map((match) => Number(match[0])));
+
+const summaryIdentifiers = (state: TicketState): string[] => {
+  const fixture = ticketView(state);
+
+  if (['loading', 'unreachable', 'done', 'plain'].includes(state)) {
+    return [];
+  }
+
+  if (state === 'single') {
+    const agents = fixture.agents[fixture.item.identifier] ?? [];
+
+    return agents.filter((agent) => agent.state === 'in progress').map((agent) => agent.identifier);
+  }
+
+  const identifiers = fixture.slices
+    .filter((slice) => slice.readiness === 'PR open' || slice.readiness === 'PR draft')
+    .map((slice) => slice.identifier);
+
+  const next =
+    fixture.slices.find((slice) => slice.readiness === 'ready') ??
+    fixture.slices.find((slice) => slice.readiness === 'blocked');
+
+  if (next !== undefined) {
+    identifiers.push(next.identifier);
+  }
+
+  return identifiers;
+};
 
 const parentName = 'Parent plan';
 
@@ -508,16 +536,82 @@ describe('ticket scene structure', () => {
     }
   });
 
-  test.each(states)('%s links every target at most once', (state) => {
+  test.each(states)('%s repeats only summary identity navigation targets', (state) => {
     const pane = paneOf(state);
     const destinations = targets(pane);
 
     expect(destinations.length).toBeGreaterThan(0);
-    expect(new Set(destinations).size).toBe(destinations.length);
+    const repeated = summaryIdentifiers(state);
+
+    for (const target of new Set(destinations)) {
+      const count = repeated.includes(target) ? 2 : 1;
+      expect(destinations.filter((destination) => destination === target)).toHaveLength(count);
+    }
+
+    for (const identifier of repeated) {
+      expect(destinations.filter((target) => target === identifier)).toHaveLength(2);
+    }
+
     expect(drawnIcons(pane)).not.toContain('refresh-cw');
   });
 
-  test('container summaries identify slices but leave their links in the plan', () => {
+  test.each([
+    'container',
+    'single',
+    'sync-failed',
+    'nothing-ready',
+    'tikk',
+    'long',
+    'normal',
+    'wide',
+  ] satisfies TicketState[])(
+    '%s summary identity links match plan ink and source tooltips',
+    (state) => {
+      const pane = paneOf(state);
+      const planName = state === 'single' ? parentName : 'Whole plan';
+      const plan = section(pane, planName);
+      const summaries = [section(pane, 'Now')];
+
+      if (state !== 'single') {
+        summaries.push(section(pane, 'Next'));
+      }
+
+      for (const identifier of summaryIdentifiers(state)) {
+        const summaryLink = required(summaries.flatMap(links), (part) =>
+          part.texts.includes(identifier),
+        );
+
+        const planLink = required(links(plan), (part) => part.texts.includes(identifier));
+
+        expect(hasStyle(summaryLink, 'underline')).toBe(true);
+        expect(summaryLink.textColors).toEqual(planLink.textColors);
+        expect(drawnTooltips(summaryLink)).toEqual(drawnTooltips(planLink));
+      }
+    },
+  );
+
+  test('wide plan and track share a capped reading width', () => {
+    const wide = paneOf('wide');
+
+    const scroll = required(
+      descendants(wide),
+      (part) => attribute(part, 'id') === 'ticket-view-wide',
+    );
+
+    const content = scroll.kids[0] ?? drawn();
+
+    const narrow = required(
+      descendants(paneOf('container')),
+      (part) => attribute(part, 'id') === 'ticket-view-container',
+    );
+
+    expect(Number(attribute(content, 'max_w'))).toBeGreaterThan(0);
+    expect(attribute(narrow.kids[0] ?? drawn(), 'max_w')).toBeUndefined();
+    expect(drawnTexts(content)).toContain('Whole plan');
+    expect(track(content).kids).toHaveLength(ticketView('wide').slices.length);
+  });
+
+  test('container summaries link their identities without linking reason references', () => {
     const pane = paneOf('container');
     const now = section(pane, 'Now');
     const next = section(pane, 'Next');
@@ -525,19 +619,21 @@ describe('ticket scene structure', () => {
 
     for (const identifier of ['ME-1283', 'ME-1284']) {
       expect(drawnTexts(now)).toContain(identifier);
-      expect(targets(now)).not.toContain(identifier);
+      expect(targets(now)).toContain(identifier);
       expect(targets(plan)).toContain(identifier);
 
-      expect(textElement(now, identifier).textColors).toEqual([koja.ink.dim]);
-
-      expect(textElement(now, identifier).textColors).not.toEqual(
+      expect(textElement(now, identifier).textColors).toEqual(
         textElement(plan, identifier).textColors,
       );
     }
 
     expect(drawnTexts(next)).toContain('ME-1285');
-    expect(textElement(next, 'ME-1285').textColors).toEqual([koja.ink.dim]);
-    expect(targets(next)).toHaveLength(0);
+
+    expect(textElement(next, 'ME-1285').textColors).toEqual(
+      textElement(plan, 'ME-1285').textColors,
+    );
+
+    expect(targets(next)).toEqual(['ME-1285']);
     expect(targets(now).filter((target) => target.includes('#'))).toHaveLength(2);
     expect(drawnIcons(now).filter((name) => name === 'terminal')).toHaveLength(1);
 
@@ -575,18 +671,18 @@ describe('ticket scene structure', () => {
     expect(drawnTexts(now)).toContain('AI-413');
     expect(drawnTexts(now)).not.toContain('AI-412');
     expect(drawnTexts(now)).not.toContain('AI-414');
-    expect(targets(now)).not.toContain('AI-413');
+    expect(targets(now)).toContain('AI-413');
     expect(targets(plan)).toContain('AI-413');
     expect(targets(plan)).not.toContain('ME-1283');
     expect(heading(pane, parentName).kids).toHaveLength(2);
-    expect(heading(pane, parentName).kids[1]?.textColors).toEqual([koja.ink.dim]);
+    expect(heading(pane, parentName).kids[1]?.textColors).toEqual([koja.ink.text]);
     const parentFixture = ticketView('container').item;
 
     expect(drawnTexts(heading(pane, parentName).kids[1] ?? drawn())).toEqual([
       `${parentFixture.identifier} ${parentFixture.title}`,
     ]);
 
-    expect(textElement(now, 'AI-413').textColors).toEqual([koja.ink.dim]);
+    expect(textElement(now, 'AI-413').textColors).toEqual(textElement(plan, 'AI-413').textColors);
 
     expect(
       drawnTexts(heading(pane, parentName)).some((text) =>
@@ -685,6 +781,8 @@ describe('ticket scene structure', () => {
 
     expect(parent.kids).toHaveLength(2);
     expect(parent.kids[0]).toBe(track(pane));
+    expect(Number(attribute(parent, 'pt'))).toBeGreaterThan(Number(attribute(parent, 'gap')));
+    expect(attribute(parent, 'mr')).toBe(tokens.rows.inset + tokens.rows.paddingX);
     expect(numbers(countGroups(pane)[0] ?? drawn())).toEqual([merged, fixture.slices.length]);
     expect(segments).toHaveLength(fixture.slices.length);
 
@@ -695,6 +793,15 @@ describe('ticket scene structure', () => {
       expect(segment.backgroundColors).toEqual([tone]);
       expect(attribute(segment, 'opacity') ?? 1).toBe(1);
       expect(legendColors).toContain(tone);
+    }
+  });
+
+  test('track spacing balances count lines without a working mark', () => {
+    const working = Number(attribute(trackParent(paneOf('container')), 'pt'));
+
+    for (const state of ['nothing-ready', 'done'] satisfies TicketState[]) {
+      const quiet = Number(attribute(trackParent(paneOf(state)), 'pt'));
+      expect(quiet).toBeGreaterThan(working);
     }
   });
 
@@ -718,7 +825,8 @@ describe('ticket scene structure', () => {
       ),
     ).toBe(true);
 
-    expect(rowFor(plan, 'ME-1285').kids.at(-1)?.texts).toEqual(next.kids.at(-1)?.texts);
+    expect(rowFor(plan, 'ME-1285').kids.at(-1)?.texts).toEqual(['next']);
+    expect(drawnTexts(next)).not.toContain('next');
   });
 
   test('only the single plan puts the next PR reason beside its title', () => {
@@ -804,11 +912,11 @@ describe('ticket scene structure', () => {
     ).toBe(true);
 
     expect(targets(pane).filter((target) => target.includes('#'))).toHaveLength(0);
-    expect(targets(next)).toEqual(['ME-1290']);
+    expect(targets(next)).toEqual(['ME-1285', 'ME-1290']);
     expect(drawnTexts(section(pane, 'Now')).some((text) => text.includes('ME-1290'))).toBe(false);
     expect(next.kids).toHaveLength(3);
     expect(drawnTexts(next.kids[1] ?? drawn()).some((text) => text.includes('ME-1285'))).toBe(true);
-    expect(targets(next.kids[1] ?? drawn())).toHaveLength(0);
+    expect(targets(next.kids[1] ?? drawn())).toEqual(['ME-1285']);
     expect(targets(next.kids[2] ?? drawn())).toEqual(['ME-1290']);
     expect(next.kids[2]?.kids[0]?.textColors).toEqual([koja.ink.dim]);
     expect(drawnIcons(section(pane, 'Whole plan'))).not.toContain('chevron-right');
@@ -975,7 +1083,7 @@ describe('ticket scene structure', () => {
       expect(meta.kids[0]?.kids[1]?.texts).toEqual(['·']);
       expect(meta.kids[0]?.kids).toHaveLength(3);
       expect(meta.kids[1]?.kids).toHaveLength(1);
-      expect(links(meta)).toHaveLength(0);
+      expect(targets(meta)).toEqual([slice.identifier]);
 
       for (const line of meta.kids) {
         expect(drawnTexts(line)[0]?.startsWith('·')).toBe(false);
@@ -985,7 +1093,11 @@ describe('ticket scene structure', () => {
       for (const fact of meta.kids.flatMap((line) => line.kids)) {
         expect(hasStyle(fact, 'flex_none')).toBe(true);
         expect(hasStyle(fact, 'whitespace_normal')).toBe(false);
-        expect(fact.textColors).toEqual([koja.ink.dim]);
+
+        if (!hasStyle(fact, 'underline')) {
+          expect(fact.textColors).toEqual([koja.ink.dim]);
+        }
+
         expect(attribute(fact, 'line_height')).toBe(`${koja.rows.height}px`);
       }
 
@@ -1072,14 +1184,16 @@ describe('ticket scene structure', () => {
     const next = section(paneOf('nothing-ready'), 'Next');
     const detail = next.kids[2] ?? drawn();
 
-    expect(waitingCell.kids[0]?.textColors).toEqual([koja.ink.dim]);
+    expect(hasStyle(waitingCell.kids[0] ?? drawn(), 'underline')).toBe(true);
     expect(drawnTexts(waiting)).toContain(fixture?.title ?? '');
     expect(drawnTexts(waiting).at(-1)).toBe('blocked');
-    expect(targets(waiting)).toEqual([]);
+    expect(targets(waiting)).toEqual(['ME-1285']);
     expect(targets(detail)).toEqual(['ME-1290']);
     expect(targets(detail.kids[0] ?? drawn())).toEqual([]);
     expect(targets(detail.kids[1] ?? drawn())).toEqual(['ME-1290']);
-    expect(detail.kids[2]?.textColors).toEqual([koja.ink.dim]);
+    expect(detail.kids).toHaveLength(4);
+    expect(detail.kids[2]?.textColors).toEqual([koja.ink.text]);
+    expect(detail.kids[3]?.textColors).toEqual([koja.ink.dim]);
   });
 
   test('wide places both PRs and the agent only in the rail with wrapping and row rhythm', () => {

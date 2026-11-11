@@ -5,6 +5,7 @@ import { description } from '../content/parts.ts';
 import type { DirectionTokens } from '../tokens.ts';
 import type { Slice, TicketView } from './data.ts';
 import { isActiveSlice } from './data.ts';
+import type { SectionHeading } from './parts.ts';
 import {
   acceptanceSection,
   activitySection,
@@ -80,17 +81,18 @@ const planNode = (slice: Slice, view: TicketView, tokens: DirectionTokens): Spin
 };
 
 const planSection = (view: TicketView, tokens: DirectionTokens): Element => {
-  const name = view.state === 'single' ? 'Parent plan' : 'Whole plan';
-
-  const count =
+  const heading: SectionHeading =
     view.state === 'single'
-      ? 'ME-1280 Build the sidebar'
-      : `${view.slices.length} in ${view.item.source}`;
+      ? { name: 'Parent plan', detail: { kind: 'identity', text: 'ME-1280 Build the sidebar' } }
+      : {
+          name: 'Whole plan',
+          detail: { kind: 'count', text: `${view.slices.length} slices in ${view.item.source}` },
+        };
 
   const plan = v_flex()
     .flex_none()
     .min_w(0)
-    .child(sectionHeader({ name, count }, true, tokens));
+    .child(sectionHeader(heading, true, tokens));
 
   if (view.state === 'single') {
     plan.child(progressTrack(view.slices, tokens));

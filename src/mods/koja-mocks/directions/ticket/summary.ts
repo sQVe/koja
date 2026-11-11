@@ -3,6 +3,7 @@ import type { Element } from 'gpui-kit';
 import { div } from 'gpui-kit';
 
 import { spacing } from '../../../../kit/size.ts';
+import type { SourceTarget } from '../content/data.ts';
 import { agentLink, externalLink } from '../content/links.ts';
 import { fixedLabel, label, row, statusMark } from '../parts.ts';
 import type { DirectionTokens } from '../tokens.ts';
@@ -11,6 +12,7 @@ import { isActiveSlice } from './data.ts';
 import {
   detailLine,
   identifierCell,
+  identifierLink,
   identifierWidths,
   nextReason,
   note,
@@ -56,7 +58,7 @@ const summaryIdentity = (
     .child(
       identifierCell(
         identifier,
-        { source: view.item.source, width: widths.slice, kind: 'summary' },
+        { source: view.item.source, width: widths.slice, kind: 'linked' },
         tokens,
       ),
     );
@@ -82,9 +84,17 @@ const railTitle = (slice: Slice, tokens: DirectionTokens): Element =>
 const railFact = (text: string, tokens: DirectionTokens): Element =>
   fixedLabel(text, tokens.text.detail, tokens.ink.dim).line_height(`${tokens.rows.height}px`);
 
-const railMetadata = (identifier: string, facts: string[], tokens: DirectionTokens): Element => {
+const railMetadata = (
+  identifier: string,
+  facts: string[],
+  source: SourceTarget,
+  tokens: DirectionTokens,
+): Element => {
   const [first, ...remaining] = facts;
-  const firstLine = detailLine(tokens).child(railFact(identifier, tokens));
+
+  const firstLine = detailLine(tokens).child(
+    identifierLink(identifier, source, tokens).flex_none().line_height(`${tokens.rows.height}px`),
+  );
 
   if (first !== undefined) {
     // Balance the separator's ink gaps at the fixed rail font size.
@@ -100,6 +110,7 @@ const railMetadata = (identifier: string, facts: string[], tokens: DirectionToke
 
 const railItem = (
   slice: ActiveSlice | Extract<Slice, { readiness: 'ready' }>,
+  source: SourceTarget,
   tokens: DirectionTokens,
 ): Element => {
   const detail = slice.readiness === 'ready' ? nextReason(slice) : slice.detail;
@@ -110,7 +121,7 @@ const railItem = (
     .min_w(0)
     .pb(spacing.small)
     .child(railTitle(slice, tokens))
-    .child(railMetadata(slice.identifier, facts, tokens));
+    .child(railMetadata(slice.identifier, facts, source, tokens));
 
   if (slice.readiness === 'ready') {
     return item;
@@ -175,7 +186,7 @@ const singleNow = (
 
   parts.push(
     ...working.map((item) =>
-      workRow(item, { source: view.item.source, width: widths.slice, kind: 'summary' }, tokens),
+      workRow(item, { source: view.item.source, width: widths.slice, kind: 'linked' }, tokens),
     ),
   );
 
@@ -197,7 +208,7 @@ export const nowBlock = (view: TicketView, tokens: DirectionTokens): Element => 
   parts.push(
     ...active.map((slice) => {
       if (view.state === 'wide') {
-        return railItem(slice, tokens);
+        return railItem(slice, view.item.source, tokens);
       }
 
       return nowSlice(slice, view, tokens);
@@ -230,12 +241,9 @@ const nothingReady = (view: TicketView, tokens: DirectionTokens): Element => {
         .mr(spacing.small)
         .child(fixedLabel('waits for', tokens.text.detail, tokens.ink.dim))
         .child(externalLink(waiting.blockedBy, view.item.source, tokens).flex_none())
+        .child(fixedLabel('Add the sidebar data model', tokens.text.detail, tokens.ink.text))
         .child(
-          label(
-            '· Add the sidebar data model · outside this plan · not started · no PR',
-            tokens.text.detail,
-            tokens.ink.dim,
-          ),
+          label('(outside this plan, not started, no PR)', tokens.text.detail, tokens.ink.dim),
         ),
     ],
     tokens,
@@ -252,7 +260,7 @@ export const nextBlock = (view: TicketView, tokens: DirectionTokens): Element =>
   const reason = nextReason(ready);
 
   if (view.state === 'wide') {
-    return section('Next', [railItem(ready, tokens)], tokens);
+    return section('Next', [railItem(ready, view.item.source, tokens)], tokens);
   }
 
   return section(
@@ -263,7 +271,7 @@ export const nextBlock = (view: TicketView, tokens: DirectionTokens): Element =>
           selected: false,
           start: sliceMark(ready, tokens),
           label: summaryLabel(ready, view, tokens),
-          end: [statusWord('next', tokens)],
+          end: [],
         },
         tokens,
       ),

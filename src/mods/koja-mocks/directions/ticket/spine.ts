@@ -104,10 +104,15 @@ const trackCounts = (slices: Slice[], tokens: DirectionTokens): Element => {
 };
 
 export const progressTrack = (slices: Slice[], tokens: DirectionTokens): Element => {
+  // The working mark reaches one pixel above the count text.
+  const topInset = slices.some(isActiveSlice) ? spacing.medium : spacing.medium + spacing.hairline;
+
   return v_flex()
     .flex_none()
-    .mx(readingInset)
-    .py(spacing.xsmall)
+    .ml(readingInset)
+    .mr(tokens.rows.inset + tokens.rows.paddingX)
+    .pt(topInset)
+    .pb(spacing.xsmall)
     .gap(spacing.small)
     .child(
       h_flex()

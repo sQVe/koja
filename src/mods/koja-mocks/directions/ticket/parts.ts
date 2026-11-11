@@ -12,15 +12,15 @@ import { sourceLink } from '../sidebars/sidebar.ts';
 import type { DirectionTokens } from '../tokens.ts';
 import type { AgentTicket, Criterion, Readiness, Slice, TicketView } from './data.ts';
 
-interface SectionHeading {
+export interface SectionHeading {
   name: string;
-  count: string | null;
+  detail: { kind: 'count' | 'identity'; text: string } | null;
 }
 
 export interface IdentifierLook {
   width: number;
   source: SourceTarget;
-  kind: 'linked' | 'current' | 'summary';
+  kind: 'linked' | 'current';
 }
 
 export const readinessStatus: Record<Readiness, Status> = {
@@ -75,8 +75,10 @@ export const sectionHeader = (
     .items_center()
     .child(fixedLabel(heading.name, tokens.text.heading, tokens.ink.text));
 
-  if (heading.count !== null) {
-    title.child(fixedLabel(heading.count, tokens.text.detail, tokens.ink.dim));
+  if (heading.detail !== null) {
+    const ink = heading.detail.kind === 'identity' ? tokens.ink.text : tokens.ink.dim;
+
+    title.child(fixedLabel(heading.detail.text, tokens.text.detail, ink));
   }
 
   return sectionHeaderOf(title, { open, detail: [], end: [] }, tokens);
@@ -86,7 +88,7 @@ export const section = (name: string, parts: Element[], tokens: DirectionTokens)
   v_flex()
     .flex_none()
     .min_w(0)
-    .child(sectionHeader({ name, count: null }, true, tokens))
+    .child(sectionHeader({ name, detail: null }, true, tokens))
     .children(parts);
 
 export const detailLine = (tokens: DirectionTokens): Element =>
@@ -121,22 +123,30 @@ export const foldedSection = (
   name: string,
   count: string | null,
   tokens: DirectionTokens,
-): Element => sectionHeader({ name, count }, false, tokens);
+): Element => {
+  const heading: SectionHeading = {
+    name,
+    detail: count === null ? null : { kind: 'count', text: count },
+  };
 
-const planLink = (identifier: string, source: SourceTarget, tokens: DirectionTokens): Element =>
-  sourceLink(identifier, tokens).tooltip(`${identifier} · ${source}`);
+  return sectionHeader(heading, false, tokens);
+};
+
+export const identifierLink = (
+  identifier: string,
+  source: SourceTarget,
+  tokens: DirectionTokens,
+): Element => sourceLink(identifier, tokens).tooltip(`${identifier} · ${source}`);
 
 export const identifierCell = (
   identifier: string,
   look: IdentifierLook,
   tokens: DirectionTokens,
 ): Element => {
-  const ink = look.kind === 'summary' ? tokens.ink.dim : tokens.ink.text;
-
   const text =
     look.kind === 'linked'
-      ? planLink(identifier, look.source, tokens)
-      : fixedLabel(identifier, tokens.text.detail, ink);
+      ? identifierLink(identifier, look.source, tokens)
+      : fixedLabel(identifier, tokens.text.detail, tokens.ink.text);
 
   return h_flex().w(look.width).flex_none().child(text);
 };
@@ -181,7 +191,9 @@ export const acceptanceSection = (items: Criterion[], tokens: DirectionTokens): 
   return v_flex()
     .flex_none()
     .min_w(0)
-    .child(sectionHeader({ name: 'Acceptance', count }, true, tokens))
+    .child(
+      sectionHeader({ name: 'Acceptance', detail: { kind: 'count', text: count } }, true, tokens),
+    )
     .children(items.map((item) => criterionRow(item, tokens)));
 };
 

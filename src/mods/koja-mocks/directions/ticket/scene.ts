@@ -19,14 +19,15 @@ import { nextBlock, nowBlock } from './summary.ts';
 import { ticketView } from './views.ts';
 
 const factsRailWidth = 240;
+const widePlanWidth = 480;
 const railInset = 16;
 const scrollbarWidth = 3;
 // Extend the native bar's box so its right inset does not hide the thumb behind the clip.
 const scrollbarInset = 4;
 const scrollbarOpacity = 0.5;
 // These fixed-size scenes stop the initial viewport between plan rows.
-const planBottomInset = 22;
-const singleBottomInset = 12;
+const planBottomInset = 18;
+const singleBottomInset = 8;
 
 // These fixtures have fixed viewport sizes; the short variants fit without scrolling.
 const overflowingStates = new Set<TicketState>([
@@ -90,6 +91,17 @@ const ticketBody = (view: TicketView, tokens: DirectionTokens): Element => {
     reading.child(errorLine('Could not sync PRs · showing PR states from 6m ago', tokens));
   }
 
+  const sections = v_flex()
+    .flex_none()
+    .min_w(0)
+    .py(spacing.xxsmall)
+    .gap(spacing.xxsmall)
+    .children(ticketSections(view, tokens));
+
+  if (view.state === 'wide') {
+    sections.max_w(widePlanWidth);
+  }
+
   const scroll = v_flex()
     .id(name)
     .flex_1()
@@ -97,14 +109,7 @@ const ticketBody = (view: TicketView, tokens: DirectionTokens): Element => {
     .min_w(0)
     .overflow_y_scroll()
     .pr(tokens.rows.inset)
-    .child(
-      v_flex()
-        .flex_none()
-        .min_w(0)
-        .py(spacing.xxsmall)
-        .gap(spacing.xxsmall)
-        .children(ticketSections(view, tokens)),
-    );
+    .child(sections);
 
   reading.child(sectionDivider(tokens)).child(readingViewport(scroll, view.state, bottomInset));
 
