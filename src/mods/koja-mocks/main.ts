@@ -55,6 +55,7 @@ import {
   shellContentScene,
   shellDialogScene,
   shellDraftReviewScene,
+  shellPullRequestScene,
   shellScene,
 } from './scenes/shell.ts';
 import { sidebarScene } from './scenes/sidebar.ts';
@@ -95,6 +96,7 @@ const renderers: Record<SceneName, (inputs: SceneInputs) => Element> = {
   'shell-attention-open': (inputs) => shellAttentionScene(true, koja, inputs.attention),
   'shell-dialog': shellDialogScene,
   'shell-content': shellContentScene,
+  'shell-pr-view': shellPullRequestScene,
   'shell-draft-review': shellDraftReviewScene,
   'dialog-close': () => dialogScene('close', koja),
   'dialog-close-normal': () => dialogScene('close', kojaNormal),

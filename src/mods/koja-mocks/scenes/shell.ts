@@ -28,6 +28,8 @@ import { koja, kojaNormal } from '../directions/koja.ts';
 import { commandPalette } from '../directions/overlays/palette.ts';
 import { spacePanel } from '../directions/panels/space.ts';
 import { spaceStates } from '../directions/panels/spaceData.ts';
+import { pullViews } from '../directions/pullRequest/data.ts';
+import { pullRequestPane } from '../directions/pullRequest/scene.ts';
 import { mapSidebar } from '../directions/sidebars/sidebar.ts';
 import type { DirectionTokens } from '../directions/tokens.ts';
 import type { FakeTab } from './shellContent.ts';
@@ -189,6 +191,28 @@ export const shellAttentionScene = (
 
 export const shellContentScene = (): Element =>
   v_flex().relative().flex_1().min_h(0).child(shellWindow(contentPanes()));
+
+export const shellPullRequestScene = (): Element => {
+  const panes = [
+    paneCard(
+      {
+        ...agentPane,
+        focused: false,
+        zoomed: false,
+        width: shellSize.focusedPaneWidth,
+      },
+      agentPane.lines,
+      1,
+    ),
+    pullRequestPane(pullViews.blocked, koja),
+  ];
+
+  return v_flex()
+    .relative()
+    .flex_1()
+    .min_h(0)
+    .child(shellWindow(panes, { spacePanelOpen: false, mode: 'Insert' }));
+};
 
 export const shellDraftReviewScene = (): Element => {
   const activeTab = tab({
