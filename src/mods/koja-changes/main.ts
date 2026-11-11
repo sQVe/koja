@@ -100,7 +100,7 @@ export default class Changes extends View {
 
   override render(cx: Context): Element {
     if (locationKey() !== this.context) {
-      this.refresh(cx);
+      this.startRead(cx);
     }
 
     const palette = colors();
@@ -173,14 +173,20 @@ export default class Changes extends View {
   }
 
   private refresh(cx: Context): void {
+    if (this.startRead(cx)) {
+      cx.notify();
+    }
+  }
+
+  private startRead(cx: Context): boolean {
     if (this.loading) {
       this.pendingRefresh = true;
 
-      return;
+      return false;
     }
 
     if (this.busy) {
-      return;
+      return false;
     }
 
     const where = location();
@@ -201,7 +207,7 @@ export default class Changes extends View {
     }
 
     if (where.cwd === null) {
-      return;
+      return false;
     }
 
     const cwd = where.cwd;
@@ -209,8 +215,6 @@ export default class Changes extends View {
     this.loading = true;
 
     cx.spawn(async (taskCx) => {
-      taskCx.notify();
-
       try {
         const result = await readChanges(exec, cwd, where.on, () => locationKey() === context);
 
@@ -238,6 +242,8 @@ export default class Changes extends View {
         taskCx.notify();
       }
     });
+
+    return true;
   }
 
   private async applySnapshot(

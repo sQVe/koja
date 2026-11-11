@@ -151,6 +151,13 @@ Give the brief these lines: `Sandbox: <name>`, the fixture paths, and `Data writ
   switch away and back.
 - The panel lists the changed files of the focused pane's repository, and a click on a file shows
   its diff.
+- After a switch to another space, the panel leaves "Loading changes…" and shows that space's files
+  or its state line.
+- A clean repository shows "No uncommitted changes". A folder that is no repository shows "Not a git
+  repository" with a Retry.
+- In a fixture repository with changes, a message and the Commit button make one commit of every
+  change. A message and `Return` in the message field do the same. After each, the message field is
+  empty and the panel shows "No uncommitted changes".
 
 ## Gallery and scenes
 
