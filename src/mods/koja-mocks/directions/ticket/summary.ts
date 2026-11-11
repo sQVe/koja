@@ -1,7 +1,7 @@
 import { h_flex, v_flex } from 'gpui-base';
 import type { Element } from 'gpui-kit';
 
-import { iconSize, spacing } from '../../../../kit/size.ts';
+import { spacing } from '../../../../kit/size.ts';
 import type { SourceTarget } from '../content/data.ts';
 import { agentLink, externalLink } from '../content/links.ts';
 import { sectionBodyInset } from '../content/parts.ts';
@@ -147,12 +147,7 @@ const railItem = (
   );
 
   if (slice.agent !== null) {
-    item.child(
-      detailLine(tokens)
-        .ml(sectionBodyInset(tokens) - iconSize.small - spacing.xsmall)
-        .h(tokens.rows.height)
-        .child(agentLink(slice.agent, tokens)),
-    );
+    item.child(detailLine(tokens).h(tokens.rows.height).child(agentLink(slice.agent, tokens)));
   }
 
   return item;

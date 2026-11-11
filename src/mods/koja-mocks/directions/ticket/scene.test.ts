@@ -14,7 +14,7 @@ import {
   herdrFake,
   kitIndexFake,
 } from '../../../../../tests/moduleFakes.ts';
-import { iconSize, overlaySize, spacing } from '../../../../kit/size.ts';
+import { overlaySize, spacing } from '../../../../kit/size.ts';
 import type { SceneName } from '../../catalog.ts';
 import { findScene } from '../../catalog.ts';
 
@@ -1294,13 +1294,42 @@ describe('ticket scene structure', () => {
         expect(drawnTexts(title.kids[1] ?? drawn())).toHaveLength(1);
 
         for (const line of lines) {
-          const iconInset = drawnIcons(line).includes('terminal')
-            ? iconSize.small + spacing.xsmall
-            : 0;
+          const factInset = Number(attribute(line, 'ml'));
+          const markInset = Number(attribute(title, 'mx')) + Number(attribute(title, 'px'));
 
-          expect(Number(attribute(line, 'ml')) + iconInset).toBe(firstColumnInsetOf(title));
+          expect(factInset).toBe(firstColumnInsetOf(title));
+          expect(factInset).toBeGreaterThan(markInset);
         }
       }
+    }
+  });
+
+  test('wide terminal icons start at their slice fact column without changing row rhythm', () => {
+    const now = section(paneOf('wide'), 'Now');
+
+    for (const slice of ticketView('wide').slices) {
+      if (!('agent' in slice) || slice.agent === null) {
+        continue;
+      }
+
+      const item = required(now.kids, (part) => drawnTexts(part).includes(slice.title));
+      const firstFact = item.kids[1]?.kids[0] ?? drawn();
+      const terminalRow = item.kids[3] ?? drawn();
+      const link = terminalRow.kids[0] ?? drawn();
+      const icon = link.kids[0] ?? drawn();
+      const text = link.kids[1] ?? drawn();
+
+      const iconInset =
+        Number(attribute(terminalRow, 'ml')) +
+        Number(attribute(link, 'pl') ?? 0) +
+        Number(attribute(icon, 'ml') ?? 0);
+
+      expect(item.kids.at(-1)).toBe(terminalRow);
+      expect(attribute(terminalRow, 'h')).toBe(koja.rows.height);
+      expect(iconInset).toBe(Number(attribute(firstFact, 'ml')));
+      expect(drawnIcons(icon)).toEqual(['terminal']);
+      expect(attribute(link, 'gap')).toBe(spacing.xsmall);
+      expect(targets(text)).toEqual([slice.agent]);
     }
   });
 
