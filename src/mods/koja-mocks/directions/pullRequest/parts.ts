@@ -3,7 +3,7 @@ import type { Element } from 'gpui-kit';
 import { div } from 'gpui-kit';
 
 import { icon } from '../../../../kit/index.ts';
-import { controlSize, spacing } from '../../../../kit/size.ts';
+import { spacing } from '../../../../kit/size.ts';
 import {
   checkMark,
   contentSectionHeader,
@@ -179,6 +179,12 @@ const threadRow = (thread: PullThread, view: PullView, tokens: DirectionTokens):
     );
 };
 
+const reviewPromptAction = (view: PullView, tokens: DirectionTokens): Element => {
+  const action = view.queued ? 'Add rest for agent' : 'Add all for agent';
+
+  return saveRecoveryButton(action, tokens);
+};
+
 const requestedReview = (view: PullView, tokens: DirectionTokens): Element =>
   v_flex()
     .flex_none()
@@ -193,16 +199,20 @@ const requestedReview = (view: PullView, tokens: DirectionTokens): Element =>
             view,
             tokens,
           ),
-          label: label('Review from jonas-l', tokens.text.title, tokens.ink.text),
+          label: h_flex()
+            .min_w(0)
+            .items_center()
+            .gap(spacing.small)
+            .child(label('Review from jonas-l', tokens.text.title, tokens.ink.text))
+            .child(fixedLabel('2h ago', tokens.text.detail, tokens.ink.dim)),
           end: [
             fixedLabel('changes requested', tokens.text.detail, tokens.ink.dim),
-            saveRecoveryButton('Add all for agent', tokens).h(controlSize.dialogButton),
+            reviewPromptAction(view, tokens),
           ],
         },
         tokens,
-      ).h(controlSize.dialogButton),
+      ),
     )
-    .child(detailBlock(view, tokens).child(detailText('2h ago', tokens)))
     .child(
       v_flex()
         .flex_none()

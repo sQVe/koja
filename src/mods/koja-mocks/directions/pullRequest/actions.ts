@@ -4,7 +4,7 @@ import { div } from 'gpui-kit';
 
 import { icon } from '../../../../kit/index.ts';
 import { controlSize, spacing } from '../../../../kit/size.ts';
-import { readingInset, reviewActionButton } from '../content/parts.ts';
+import { readingInset, reviewActionButton, sectionBodyInset } from '../content/parts.ts';
 import { dialogActionsFor } from '../dialogs/actions.ts';
 import { wrappedText } from '../dialogs/parts.ts';
 import { dialogFrame } from '../dialogs/scene.ts';
@@ -50,9 +50,10 @@ const mergeState = (title: string, mark: Element, tokens: DirectionTokens): Elem
     .flex_none()
     .min_w(0)
     .gap(spacing.small)
+    .pl(sectionBodyInset(tokens) - readingInset)
     .child(
       h_flex()
-        .ml(tokens.rows.inset + tokens.rows.paddingX - readingInset)
+        .ml(tokens.rows.inset + tokens.rows.paddingX - sectionBodyInset(tokens))
         .gap(spacing.small)
         .items_center()
         .child(mark)
@@ -73,7 +74,7 @@ export const readyActions = (state: PullState, tokens: DirectionTokens): Element
       icon('circle-x', 'small').text_color(tokens.marks.blocked),
       tokens,
     )
-      .child(detailText('main changed since the last sync', tokens).text_color(tokens.ink.text))
+      .child(fixedLabel('main changed since the last sync', tokens.text.body, tokens.ink.text))
       .child(
         detailText('At the last sync: 4 checks passed · approved · 0 unresolved threads', tokens),
       )

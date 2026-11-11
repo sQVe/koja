@@ -13,6 +13,7 @@ import {
   readingInset,
   saveRecoveryButton,
   scrollBody,
+  sectionBodyInset,
 } from '../content/parts.ts';
 import { sectionDivider } from '../panels/frame.ts';
 import { errorLine } from '../sidebars/states.ts';
@@ -38,13 +39,21 @@ const overview = (view: PullView, item: ContentItem, tokens: DirectionTokens): E
     body.child(promptHeader(tokens));
   }
 
+  if (view.state === 'zoomed') {
+    body.child(sectionDivider(tokens).mx(readingInset));
+  }
+
   if (resolved) {
     body.child(readyActions(view.state, tokens).mx(readingInset).py(spacing.medium));
-  } else {
-    if (isBottomBarView(view)) {
-      body.child(blockedMerge(tokens).mx(readingInset).py(spacing.medium));
-    }
+  } else if (isBottomBarView(view)) {
+    body.child(blockedMerge(tokens).mx(readingInset).py(spacing.medium));
+  }
 
+  if (isBottomBarView(view)) {
+    body.child(sectionDivider(tokens).mx(readingInset));
+  }
+
+  if (!resolved) {
     body.child(needsYouSection(view, tokens));
   }
 
@@ -103,7 +112,7 @@ const pullHeading = (view: PullView, item: ContentItem, tokens: DirectionTokens)
         .gap(spacing.small)
         .items_center()
         .child(icon('triangle-alert', 'small').text_color(tokens.marks.working))
-        .child(detailText('Could not sync checks', tokens)),
+        .child(detailText('Could not sync checks · GitHub timed out', tokens)),
     );
   }
 
@@ -172,7 +181,9 @@ export const pullBody = (view: PullView, item: ContentItem, tokens: DirectionTok
   }
 
   if (view.state === 'ready-menu') {
-    body.child(mergeMenu(tokens).absolute().left(readingInset).top(menuTop).w(mergeActionWidth));
+    body.child(
+      mergeMenu(tokens).absolute().left(sectionBodyInset(tokens)).top(menuTop).w(mergeActionWidth),
+    );
   }
 
   return body;

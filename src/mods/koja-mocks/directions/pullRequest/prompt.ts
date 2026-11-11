@@ -46,12 +46,12 @@ export const promptBar = (tokens: DirectionTokens): Element =>
     .child(
       sectionDivider(tokens)
         .ml(readingInset)
-        .mr(readingInset + spacing.medium),
+        .mr(tokens.rows.inset + tokens.rows.paddingX + spacing.medium),
     )
     .child(
       h_flex()
         .pl(readingInset)
-        .pr(readingInset + spacing.medium)
+        .pr(tokens.rows.inset + tokens.rows.paddingX + spacing.medium)
         .py(spacing.medium)
         .gap(spacing.medium)
         .items_center()

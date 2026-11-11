@@ -19,6 +19,7 @@ interface ViewTokens {
   ink: { text: string; dim: string };
   marks: { blocked: string; working: string; done: string };
   rows: { selectedFill: string };
+  text: { body: { size: number }; detail: { size: number } };
 }
 
 await mock.module('gpui-base', () =>
@@ -195,7 +196,7 @@ test('failed sync and merge retain their last data and recovery actions', () => 
   const checks = drawnTexts(paneOf('checks-failed'));
   const merge = drawnTexts(paneOf('merge-failed'));
 
-  expect(checks).toContain('Could not sync checks');
+  expect(checks).toContain('Could not sync checks · GitHub timed out');
   expect(checks).toContain('typecheck');
   expect(checks).toContain('failed 9m ago ·');
   expect(checks).not.toContain('failed 3m ago');
@@ -279,7 +280,7 @@ test('blocked views explain merge blockers and expose the requested review for t
     const review = descendants(pane).findLast((element) => {
       const details = drawnTexts(element);
 
-      return details.includes('Review from jonas-l') && details.includes('2h ago');
+      return details.includes('Review from jonas-l') && details.includes('rows.ts:48');
     });
 
     expect(review).toBeDefined();
@@ -416,7 +417,7 @@ test('requested reviews have an amber review icon and a right-side state', () =>
     const review = descendants(paneOf(name)).findLast((element) => {
       const texts = drawnTexts(element);
 
-      return texts.includes('Review from jonas-l') && texts.includes('Add all for agent');
+      return texts.includes('Review from jonas-l') && texts.includes('changes requested');
     });
 
     expect(review).toBeDefined();
@@ -431,7 +432,7 @@ test('requested reviews have an amber review icon and a right-side state', () =>
 test('partial sync keeps one refresh control and warns beside the status', () => {
   const pane = paneOf('checks-failed');
   const texts = drawnTexts(pane);
-  const warning = 'Could not sync checks';
+  const warning = 'Could not sync checks · GitHub timed out';
 
   expect(texts).toContain('synced 1m ago · checks 6m ago');
   expect(texts).toContain(warning);
@@ -499,6 +500,8 @@ test('merge retry states its effect and separates cause ink from snapshot ink', 
   expect(texts.indexOf(effect)).toBeGreaterThan(texts.indexOf('Sync and retry'));
   expect(cause?.textColors.at(-1)).toBe(koja.ink.text);
   expect(snapshot?.textColors.at(-1)).toBe(koja.ink.dim);
+  expect(cause?.properties.text_size).toEqual([koja.text.body.size]);
+  expect(snapshot?.properties.text_size).toEqual([koja.text.detail.size]);
 });
 
 test('attention marks share a fixed centered slot', () => {
@@ -558,7 +561,7 @@ test('picked Files headers leave aggregate counts in the facts only', () => {
   }
 });
 
-test('reviews own indented threads and a larger add-all control', () => {
+test('reviews own indented threads and equal-height add controls', () => {
   for (const name of ['blocked', 'tray-bar', 'sent', 'checks-failed', 'normal', 'zoomed']) {
     const parts = descendants(paneOf(name));
 
@@ -570,8 +573,12 @@ test('reviews own indented threads and a larger add-all control', () => {
 
     const nested = review?.kids.find((element) => element.properties.ml?.[0] === 18);
 
+    const action = ['tray-bar', 'zoomed'].includes(name)
+      ? 'Add rest for agent'
+      : 'Add all for agent';
+
     const reviewAction = parts.findLast((element) =>
-      element.kids.some((child) => child.texts.includes('Add all for agent')),
+      element.kids.some((child) => child.texts.includes(action)),
     );
 
     const threadAction =
@@ -584,9 +591,7 @@ test('reviews own indented threads and a larger add-all control', () => {
     expect(drawnTexts(nested!)).toContain('jonas-l · 2h ago');
     expect(drawnTexts(nested!)).toContain('jonas-l · 1h ago');
 
-    expect(Number(reviewAction?.properties.h?.[0])).toBeGreaterThan(
-      Number(threadAction?.properties.h?.[0]),
-    );
+    expect(Number(reviewAction?.properties.h?.[0])).toBe(Number(threadAction?.properties.h?.[0]));
   }
 });
 
@@ -613,7 +618,7 @@ test('merge heading marks align with top-level attention marks', () => {
       (element) => drawnTexts(element).includes(title) && drawnIcons(element).includes('circle-x'),
     );
 
-    expect(heading?.properties.ml).toEqual([-6]);
+    expect(heading?.properties.ml).toEqual([-18]);
   }
 });
 
@@ -676,6 +681,84 @@ test('resolved scenes keep the same description gap and bottom padding', () => {
     );
 
     expect(reading?.kids.at(-1)?.properties.pb).toEqual([8]);
+  }
+});
+
+test('review ages sit beside their titles without a metadata row', () => {
+  for (const name of ['blocked', 'tray-bar', 'sent', 'checks-failed', 'normal', 'zoomed']) {
+    const review = descendants(paneOf(name)).findLast((element) => {
+      const texts = drawnTexts(element);
+
+      return texts.includes('Review from jonas-l') && texts.includes('rows.ts:48');
+    });
+
+    const titleRow = review?.kids[0];
+
+    expect(drawnTexts(titleRow!)).toContain('2h ago');
+    expect(review?.kids).toHaveLength(2);
+
+    const titleGroup = descendants(titleRow!).findLast(
+      (element) =>
+        drawnTexts(element).includes('Review from jonas-l') &&
+        drawnTexts(element).includes('2h ago'),
+    );
+
+    expect(drawnTexts(titleGroup!)).toEqual(['Review from jonas-l', '2h ago']);
+  }
+});
+
+test('merge sections align their bodies and have two matching dividers', () => {
+  for (const name of [
+    'blocked',
+    'tray-bar',
+    'sent',
+    'checks-failed',
+    'normal',
+    'zoomed',
+    'ready',
+    'ready-menu',
+    'merge-confirm',
+    'merge-failed',
+  ]) {
+    const parts = descendants(paneOf(name));
+
+    const dividers = parts.filter(
+      (element) => element.properties.h?.[0] === 1 && element.properties.mx?.[0] === 20,
+    );
+
+    const merge = parts.find((element) => element.properties.pl?.[0] === 12);
+
+    expect(dividers).toHaveLength(2);
+    expect(merge).toBeDefined();
+    let summary = '1 of 4 checks failing · 2 unresolved threads · changes requested';
+
+    if (['ready', 'ready-menu', 'merge-confirm'].includes(name)) {
+      summary = 'Squash and merge';
+    }
+
+    if (name === 'merge-failed') {
+      summary = 'Sync and retry';
+    }
+
+    expect(drawnTexts(merge!)).toContain(summary);
+  }
+});
+
+test('queued tray edges align with item action edges', () => {
+  for (const name of ['tray-bar', 'zoomed']) {
+    const parts = descendants(paneOf(name));
+
+    const tray = parts.findLast(
+      (element) =>
+        drawnTexts(element).includes('Send to agent') && element.properties.pr !== undefined,
+    );
+
+    const divider = parts.find(
+      (element) => element.properties.h?.[0] === 1 && element.properties.mr !== undefined,
+    );
+
+    expect(tray?.properties.pr).toEqual([22]);
+    expect(divider?.properties.mr).toEqual([22]);
   }
 });
 
