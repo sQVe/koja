@@ -10,13 +10,14 @@ import { fixedLabel, label, row, statusMark } from '../parts.ts';
 import type { DirectionTokens } from '../tokens.ts';
 import type { Slice } from './data.ts';
 import { isActiveSlice } from './data.ts';
-import { identifierCell, planChevronWidth, readinessStatus } from './parts.ts';
+import { identifierCell, planChevronWidth, readinessStatus, statusWord } from './parts.ts';
 
 interface SliceLook {
   kind: 'current' | 'linked';
   disclosure: 'none' | 'open' | 'closed';
   source: SourceTarget;
-  nextIdentifier: string | null;
+  identifierWidth: number;
+  reason: string | null;
 }
 
 export interface SpineNode {
@@ -33,6 +34,7 @@ const markTop = 6;
 const markWidth = 12;
 const spineLeft = 20;
 const nextMarkSize = 8;
+const blockedStrength = 0.4;
 
 const nextMark = (tokens: DirectionTokens): Element =>
   h_flex()
@@ -53,7 +55,11 @@ const trackColor = (slice: Slice, tokens: DirectionTokens) => {
     return tokens.marks.done;
   }
 
-  return isActiveSlice(slice) ? tokens.marks.working : tokens.pane.headerDivider;
+  if (slice.readiness === 'ready') {
+    return tokens.marks.idle;
+  }
+
+  return slice.readiness === 'blocked' ? tokens.marks.blocked : tokens.marks.working;
 };
 
 const trackCounts = (slices: Slice[], tokens: DirectionTokens): Element => {
@@ -70,8 +76,7 @@ const trackCounts = (slices: Slice[], tokens: DirectionTokens): Element => {
       count: slices.filter(isActiveSlice).length,
       mark: statusMark('working', tokens),
     },
-    { name: 'next', count: Math.min(ready, 1), mark: nextMark(tokens) },
-    { name: 'ready', count: Math.max(ready - 1, 0), mark: nextMark(tokens) },
+    { name: 'next', count: ready, mark: nextMark(tokens) },
     {
       name: 'blocked',
       count: slices.filter((slice) => slice.readiness === 'blocked').length,
@@ -112,7 +117,17 @@ export const progressTrack = (slices: Slice[], tokens: DirectionTokens): Element
       h_flex()
         .h(trackHeight)
         .gap(trackHeight)
-        .children(slices.map((slice) => div().flex_1().h_full().bg(trackColor(slice, tokens)))),
+        .children(
+          slices.map((slice) => {
+            const segment = div().flex_1().h_full().bg(trackColor(slice, tokens));
+
+            if (slice.readiness === 'blocked') {
+              segment.opacity(blockedStrength);
+            }
+
+            return segment;
+          }),
+        ),
     )
     .child(trackCounts(slices, tokens));
 };
@@ -126,8 +141,7 @@ export const sliceMark = (slice: Slice, tokens: DirectionTokens): Element => {
 };
 
 const sliceRow = (slice: Slice, look: SliceLook, tokens: DirectionTokens): Element => {
-  const next = slice.identifier === look.nextIdentifier;
-  const word = next ? 'next' : slice.readiness;
+  const word = slice.readiness === 'ready' ? 'next' : slice.readiness;
   const chevron = h_flex().w(planChevronWidth).flex_none().items_center();
 
   if (look.disclosure !== 'none') {
@@ -136,10 +150,19 @@ const sliceRow = (slice: Slice, look: SliceLook, tokens: DirectionTokens): Eleme
     chevron.child(icon(name, 'xsmall').text_color(tokens.ink.dim));
   }
 
-  const end = [fixedLabel(word, tokens.text.detail, tokens.ink.dim)];
+  const title = h_flex()
+    .flex_1()
+    .min_w(0)
+    .gap(spacing.xxsmall)
+    .items_center()
+    .child(label(slice.title, tokens.text.body, tokens.ink.text).tooltip(slice.title));
 
-  if (slice.readiness === 'blocked') {
-    end.push(fixedLabel(`by ${slice.blockedBy}`, tokens.text.detail, tokens.ink.dim));
+  if (look.reason !== null) {
+    title.child(
+      label(`· ${look.reason}`, tokens.text.detail, tokens.ink.dim)
+        .flex_none()
+        .tooltip(look.reason),
+    );
   }
 
   return v_flex()
@@ -163,15 +186,19 @@ const sliceRow = (slice: Slice, look: SliceLook, tokens: DirectionTokens): Eleme
                 .gap(spacing.small)
                 .items_center()
                 .child(
-                  identifierCell(slice.identifier, look.source, look.kind === 'linked', tokens),
+                  identifierCell(
+                    slice.identifier,
+                    {
+                      source: look.source,
+                      width: look.identifierWidth,
+                      linked: look.kind === 'linked',
+                    },
+                    tokens,
+                  ),
                 )
-                .child(
-                  label(slice.title, tokens.text.body, tokens.ink.text)
-                    .flex_1()
-                    .tooltip(slice.title),
-                ),
+                .child(title),
             ),
-          end,
+          end: [statusWord(word, tokens)],
         },
         tokens,
       ),

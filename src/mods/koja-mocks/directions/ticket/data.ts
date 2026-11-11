@@ -27,15 +27,14 @@ interface ActiveFacts {
 }
 
 export type ActiveSlice = SliceIdentity &
-  ActiveFacts &
-  ({ readiness: 'PR open' | 'PR draft'; pull: string } | { readiness: 'in progress' });
+  ActiveFacts & { readiness: 'PR open' | 'PR draft'; pull: string };
 
 export type Slice =
   | ActiveSlice
   | (SliceIdentity &
       (
         | { readiness: 'merged' }
-        | { readiness: 'ready'; waitsFor: string; stack: string }
+        | { readiness: 'ready'; stack: ActiveSlice }
         | { readiness: 'blocked'; blockedBy: string }
       ));
 
@@ -61,9 +60,7 @@ export type TicketView = TicketData &
   ({ state: 'single'; current: ActiveSlice } | { state: Exclude<TicketState, 'single'> });
 
 export const isActiveSlice = (slice: Slice): slice is ActiveSlice =>
-  slice.readiness === 'PR open' ||
-  slice.readiness === 'PR draft' ||
-  slice.readiness === 'in progress';
+  slice.readiness === 'PR open' || slice.readiness === 'PR draft';
 
 export const footerSlice: ActiveSlice = {
   identifier: 'ME-1283',
@@ -83,15 +80,14 @@ export const slices: Slice[] = [
     title: 'Add Go to for PRs',
     readiness: 'PR draft',
     pull: '#59',
-    detail: 'stacked on koja #58 · 2 of 3 agent tickets done',
+    detail: 'stacked on koja #58 · 2 of 3 done',
     agent: null,
   },
   {
     identifier: 'ME-1285',
     title: 'Fold project groups',
     readiness: 'ready',
-    waitsFor: 'ME-1283',
-    stack: '#58',
+    stack: footerSlice,
   },
   {
     identifier: 'ME-1286',

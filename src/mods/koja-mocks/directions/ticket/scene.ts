@@ -38,13 +38,7 @@ const ticketBody = (view: TicketView, tokens: DirectionTokens): Element => {
   const name = `ticket-view-${view.state}`;
   const bottomInset = view.state === 'single' ? singleBottomInset : planBottomInset;
 
-  const reading = v_flex()
-    .id(name)
-    .flex_1()
-    .min_h(0)
-    .min_w(0)
-    .overflow_y_scroll()
-    .child(itemHeading(view.item, tokens));
+  const reading = v_flex().flex_1().min_h(0).min_w(0).child(itemHeading(view.item, tokens));
 
   if (view.state === 'loading') {
     return reading.child(
@@ -66,8 +60,13 @@ const ticketBody = (view: TicketView, tokens: DirectionTokens): Element => {
     reading.child(errorLine('Could not sync PRs · showing PR states from 6m ago', tokens));
   }
 
-  reading
-    .child(sectionDivider(tokens))
+  const scroll = v_flex()
+    .id(name)
+    .flex_1()
+    .min_h(0)
+    .min_w(0)
+    .overflow_y_scroll()
+    .pr(tokens.rows.inset)
     .child(
       v_flex()
         .flex_none()
@@ -77,8 +76,10 @@ const ticketBody = (view: TicketView, tokens: DirectionTokens): Element => {
         .children(ticketSections(view, tokens)),
     );
 
+  reading.child(sectionDivider(tokens)).child(readingViewport(scroll, name, bottomInset));
+
   if (view.state !== 'wide') {
-    return readingViewport(reading, name, bottomInset);
+    return reading;
   }
 
   const rail = v_flex()
@@ -93,13 +94,7 @@ const ticketBody = (view: TicketView, tokens: DirectionTokens): Element => {
     .child(nowBlock(view, tokens))
     .child(nextBlock(view, tokens));
 
-  return h_flex()
-    .flex_1()
-    .min_h(0)
-    .min_w(0)
-    .items_stretch()
-    .child(readingViewport(reading, name, bottomInset))
-    .child(rail);
+  return h_flex().flex_1().min_h(0).min_w(0).items_stretch().child(reading).child(rail);
 };
 
 const ticketPane = (view: TicketView, tokens: DirectionTokens): Element =>

@@ -128,11 +128,12 @@ const viewData: Record<Exclude<TicketState, 'single'>, TicketData> = {
   loading: { ...baseData, item: openingItem(ticketItems.container) },
   unreachable: { ...baseData, item: openingItem(ticketItems.container) },
   'sync-failed': baseData,
-  'nothing-ready': { ...baseData, slices: nothingReadySlices },
+  'nothing-ready': { ...baseData, slices: nothingReadySlices, agents: {} },
   done: {
     ...baseData,
     item: { ...ticketItems.container, state: 'Done' },
     slices: slices.map(mergedSlice),
+    agents: {},
   },
   plain: { item: plainItem, slices: [], agents: {}, criteria: plainCriteria },
   tikk: { ...baseData, item: tikkItem, slices: tikkSlices, agents: tikkAgents },

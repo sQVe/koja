@@ -8,6 +8,9 @@ import { isActiveSlice } from './data.ts';
 import {
   acceptanceSection,
   activitySection,
+  agentIndent,
+  identifierWidths,
+  nextReason,
   foldedSection,
   note,
   relationSection,
@@ -19,8 +22,6 @@ import type { SpineNode } from './spine.ts';
 import { progressTrack, spine, spineSlice } from './spine.ts';
 import { nextBlock, nowBlock } from './summary.ts';
 
-const nestedInset = 32;
-
 const disclosureFor = (children: number, expanded: boolean): 'none' | 'open' | 'closed' => {
   if (children === 0) {
     return 'none';
@@ -29,18 +30,31 @@ const disclosureFor = (children: number, expanded: boolean): 'none' | 'open' | '
   return expanded ? 'open' : 'closed';
 };
 
+const planReason = (slice: Slice, view: TicketView): string | null => {
+  if (slice.readiness === 'blocked') {
+    return `waits for ${slice.blockedBy}`;
+  }
+
+  if (view.state === 'single' && slice.readiness === 'ready') {
+    return nextReason(slice);
+  }
+
+  return null;
+};
+
 const planNode = (slice: Slice, view: TicketView, tokens: DirectionTokens): SpineNode => {
   const current = view.state === 'single' && slice.identifier === view.current.identifier;
   const firstActive = view.slices.find(isActiveSlice)?.identifier;
   const expanded = view.state === 'single' ? current : slice.identifier === firstActive;
-  const agents = isActiveSlice(slice) ? (view.agents[slice.identifier] ?? []) : [];
-  const nextIdentifier = view.slices.find((item) => item.readiness === 'ready')?.identifier ?? null;
+  const agents = view.agents[slice.identifier] ?? [];
+  const widths = identifierWidths(view);
+  const reason = planReason(slice, view);
   const kind = current ? 'current' : 'linked';
   const disclosure = disclosureFor(agents.length, expanded);
 
   const node = spineSlice(
     slice,
-    { kind, disclosure, source: view.item.source, nextIdentifier },
+    { kind, disclosure, source: view.item.source, identifierWidth: widths.slice, reason },
     tokens,
   );
 
@@ -49,8 +63,12 @@ const planNode = (slice: Slice, view: TicketView, tokens: DirectionTokens): Spin
       v_flex()
         .flex_none()
         .min_w(0)
-        .ml(nestedInset)
-        .children(agents.map((item) => workRow(item, view.item.source, tokens))),
+        .ml(agentIndent)
+        .children(
+          agents.map((item) =>
+            workRow(item, { source: view.item.source, width: widths.agent, linked: true }, tokens),
+          ),
+        ),
     );
   }
 
@@ -59,12 +77,16 @@ const planNode = (slice: Slice, view: TicketView, tokens: DirectionTokens): Spin
 
 const planSection = (view: TicketView, tokens: DirectionTokens): Element => {
   const name = view.state === 'single' ? 'ME-1280 Build the sidebar' : 'Whole plan';
-  const count = String(view.slices.length);
+
+  const count =
+    view.state === 'single'
+      ? String(view.slices.length)
+      : `${view.slices.length} in ${view.item.source}`;
 
   const plan = v_flex()
     .flex_none()
     .min_w(0)
-    .child(sectionHeader({ name, count, source: view.item.source }, true, tokens));
+    .child(sectionHeader({ name, count }, true, tokens));
 
   if (view.state === 'single') {
     plan.child(progressTrack(view.slices, tokens));

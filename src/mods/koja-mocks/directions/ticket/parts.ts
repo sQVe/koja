@@ -10,19 +10,23 @@ import { sectionHeaderOf } from '../panels/frame.ts';
 import { fixedLabel, label, row, statusMark, styled } from '../parts.ts';
 import { sourceLink } from '../sidebars/sidebar.ts';
 import type { DirectionTokens } from '../tokens.ts';
-import type { AgentTicket, Criterion, Readiness } from './data.ts';
+import type { AgentTicket, Criterion, Readiness, Slice, TicketView } from './data.ts';
 
 interface SectionHeading {
   name: string;
   count: string | null;
-  source: SourceTarget | null;
+}
+
+export interface IdentifierLook {
+  width: number;
+  source: SourceTarget;
+  linked: boolean;
 }
 
 export const readinessStatus: Record<Readiness, Status> = {
   merged: 'done',
   'PR open': 'working',
   'PR draft': 'working',
-  'in progress': 'working',
   ready: 'idle',
   blocked: 'blocked',
 };
@@ -34,9 +38,28 @@ const workStatuses: Record<Criterion['state'], Status> = {
 };
 
 export const planChevronWidth = 12;
-const identifierWidth = 72;
+export const agentIndent = 16;
+const identifierUnit = 6;
+const statusWidth = 56;
 const detailHeight = 16;
-const wrappedHeight = detailHeight * 2;
+
+export const identifierWidths = (view: TicketView): { slice: number; agent: number } => {
+  const sliceWidths = view.slices.map((slice) => slice.identifier.length * identifierUnit);
+
+  const agentWidths = Object.values(view.agents)
+    .flat()
+    .map((agent) => agent.identifier.length * identifierUnit + agentIndent);
+
+  const width = Math.max(0, ...sliceWidths, ...agentWidths);
+
+  return { slice: width, agent: width - agentIndent };
+};
+
+export const statusWord = (word: string, tokens: DirectionTokens): Element =>
+  fixedLabel(word, tokens.text.detail, tokens.ink.dim).w(statusWidth).text_right();
+
+export const nextReason = (slice: Extract<Slice, { readiness: 'ready' }>): string =>
+  `Can start · stacks on koja ${slice.stack.pull} (${slice.stack.identifier}, ${slice.stack.readiness})`;
 
 export const sectionHeader = (
   heading: SectionHeading,
@@ -53,10 +76,6 @@ export const sectionHeader = (
     title.child(fixedLabel(heading.count, tokens.text.detail, tokens.ink.dim));
   }
 
-  if (heading.source !== null) {
-    title.child(fixedLabel(`· ${heading.source}`, tokens.text.detail, tokens.ink.dim));
-  }
-
   return sectionHeaderOf(title, { open, detail: [], end: [] }, tokens);
 };
 
@@ -64,7 +83,7 @@ export const section = (name: string, parts: Element[], tokens: DirectionTokens)
   v_flex()
     .flex_none()
     .min_w(0)
-    .child(sectionHeader({ name, count: null, source: null }, true, tokens))
+    .child(sectionHeader({ name, count: null }, true, tokens))
     .children(parts);
 
 export const detailLine = (tokens: DirectionTokens): Element =>
@@ -82,7 +101,13 @@ export const note = (text: string, tokens: DirectionTokens): Element =>
 
 export const wrappedText = (text: string, tokens: DirectionTokens): Element =>
   styled(
-    div().min_w(0).whitespace_normal().line_height('16px').max_h(wrappedHeight).overflow_hidden(),
+    div()
+      .min_w(0)
+      .whitespace_normal()
+      .line_height(`${tokens.rows.height}px`)
+      .min_h(tokens.rows.height)
+      .max_h(tokens.rows.height * 2)
+      .overflow_hidden(),
     tokens.text.body,
     tokens.ink.text,
   )
@@ -93,30 +118,26 @@ export const foldedSection = (
   name: string,
   count: string | null,
   tokens: DirectionTokens,
-): Element => sectionHeader({ name, count, source: null }, false, tokens);
+): Element => sectionHeader({ name, count }, false, tokens);
 
-export const planLink = (
-  identifier: string,
-  source: SourceTarget,
-  tokens: DirectionTokens,
-): Element => sourceLink(identifier, tokens).tooltip(`${identifier} · ${source}`);
+const planLink = (identifier: string, source: SourceTarget, tokens: DirectionTokens): Element =>
+  sourceLink(identifier, tokens).tooltip(`${identifier} · ${source}`);
 
 export const identifierCell = (
   identifier: string,
-  source: SourceTarget,
-  linked: boolean,
+  look: IdentifierLook,
   tokens: DirectionTokens,
 ): Element => {
-  const text = linked
-    ? planLink(identifier, source, tokens)
-    : fixedLabel(identifier, tokens.text.detail, tokens.ink.muted);
+  const text = look.linked
+    ? planLink(identifier, look.source, tokens)
+    : fixedLabel(identifier, tokens.text.detail, tokens.ink.text);
 
-  return h_flex().w(identifierWidth).flex_none().child(text);
+  return h_flex().w(look.width).flex_none().child(text);
 };
 
 export const workRow = (
   item: AgentTicket,
-  source: SourceTarget,
+  look: IdentifierLook,
   tokens: DirectionTokens,
 ): Element =>
   row(
@@ -129,9 +150,9 @@ export const workRow = (
         .gap(spacing.small)
         .items_center()
         .pl(planChevronWidth + spacing.xsmall)
-        .child(identifierCell(item.identifier, source, true, tokens))
+        .child(identifierCell(item.identifier, look, tokens))
         .child(label(item.title, tokens.text.body, tokens.ink.text).flex_1().tooltip(item.title)),
-      end: [fixedLabel(item.state, tokens.text.detail, tokens.ink.dim)],
+      end: [statusWord(item.state, tokens)],
     },
     tokens,
   );
@@ -154,7 +175,7 @@ export const acceptanceSection = (items: Criterion[], tokens: DirectionTokens): 
   return v_flex()
     .flex_none()
     .min_w(0)
-    .child(sectionHeader({ name: 'Acceptance', count, source: null }, true, tokens))
+    .child(sectionHeader({ name: 'Acceptance', count }, true, tokens))
     .children(items.map((item) => criterionRow(item, tokens)));
 };
 

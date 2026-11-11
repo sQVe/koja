@@ -1,6 +1,6 @@
 import type { ContentItem } from '../content/data.ts';
 import type { AgentTicket, Slice } from './data.ts';
-import { isActiveSlice, sliceAgents, slices, ticketItems } from './data.ts';
+import { sliceAgents, slices, ticketItems } from './data.ts';
 
 const identifiers: Record<string, string> = {
   'ME-1280': 'koja-7fq3',
@@ -31,7 +31,7 @@ const identifierOf = (identifier: string): string => {
 };
 
 const referencesOf = (text: string): string => {
-  let translated = text.replaceAll('agent tickets', 'instructions');
+  let translated = text;
 
   for (const [linear, tikk] of Object.entries(identifiers)) {
     translated = translated.replaceAll(linear, tikk);
@@ -50,12 +50,11 @@ export const tikkSlices: Slice[] = slices.map((slice) => {
 
   translated.identifier = identifierOf(slice.identifier);
 
-  if (isActiveSlice(translated)) {
-    translated.detail = referencesOf(translated.detail);
-  }
-
   if (translated.readiness === 'ready') {
-    translated.waitsFor = identifierOf(translated.waitsFor);
+    translated.stack = {
+      ...translated.stack,
+      identifier: identifierOf(translated.stack.identifier),
+    };
   }
 
   if (translated.readiness === 'blocked') {
