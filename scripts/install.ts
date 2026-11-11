@@ -8,6 +8,7 @@ import {
   readdir,
   readFile,
   realpath,
+  rename,
   rmdir,
   stat,
   unlink,
@@ -28,9 +29,16 @@ export interface InstallRoots {
   temporary: string;
 }
 
+export interface InstallInput {
+  path: string;
+  modifiedAt: number;
+}
+
 export interface InstallOptions {
   home: string;
   checkout: string;
+  // Read before the build starts, so a change made during the build or the install shows later.
+  inputs: InstallInput[];
   modsDirectory: string;
   configDirectory: string;
   check: (modFolder: string) => Promise<CheckResult>;
@@ -47,9 +55,9 @@ export interface InstallResult {
 export interface InstallOrigin {
   checkout: string;
   allChecksPassed: boolean;
+  inputs: InstallInput[];
 }
 
-// A record written before the installer stored its origin has a null origin.
 export interface InstallRecord {
   files: string[];
   origin: InstallOrigin | null;
@@ -78,9 +86,11 @@ export const filesUnder = async (directory: string): Promise<string[]> => {
   try {
     const entries = await readdir(directory, { recursive: true, withFileTypes: true });
 
+    // A folder listing has no stable order, so callers would see another order on another machine.
     return entries
       .filter((entry) => entry.isFile())
-      .map((entry) => relative(directory, join(entry.parentPath, entry.name)));
+      .map((entry) => relative(directory, join(entry.parentPath, entry.name)))
+      .toSorted();
   } catch (error) {
     if (isMissing(error)) {
       return [];
@@ -88,6 +98,40 @@ export const filesUnder = async (directory: string): Promise<string[]> => {
 
     throw error;
   }
+};
+
+const shippedFolders = ['src', 'config'];
+
+const shippedFiles = ['scripts/build.ts', 'scripts/install.ts', 'package.json', 'bun.lock'];
+
+const isTest = (path: string): boolean => path.endsWith('.test.ts');
+
+const shippedPaths = async (checkout: string): Promise<string[]> => {
+  const inFolders = await Promise.all(
+    shippedFolders.map(async (folder) => {
+      const files = await filesUnder(join(checkout, folder));
+
+      return files.filter((file) => !isTest(file)).map((file) => join(folder, file));
+    }),
+  );
+
+  return [...inFolders.flat(), ...shippedFiles];
+};
+
+export const shippedInputs = async (checkout: string): Promise<InstallInput[]> => {
+  const paths = await shippedPaths(checkout);
+  const entries = await Promise.all(paths.map(async (path) => lstatOrNull(join(checkout, path))));
+  const inputs: InstallInput[] = [];
+
+  for (const [index, path] of paths.entries()) {
+    const entry = entries[index];
+
+    if (entry !== null && entry !== undefined) {
+      inputs.push({ path, modifiedAt: entry.mtimeMs });
+    }
+  }
+
+  return inputs;
 };
 
 const plannedFiles = async (options: InstallOptions): Promise<Map<string, string>> => {
@@ -122,14 +166,29 @@ const recordedFiles = (record: RecordFields): string[] => {
     : [];
 };
 
+const isInstallInput = (value: unknown): value is InstallInput => {
+  if (!isRecordFields(value)) {
+    return false;
+  }
+
+  return typeof value['path'] === 'string' && typeof value['modifiedAt'] === 'number';
+};
+
+const isInstallInputs = (value: unknown): value is InstallInput[] =>
+  Array.isArray(value) && value.every(isInstallInput);
+
 const recordedOrigin = (record: RecordFields): InstallOrigin | null => {
-  const { checkout, allChecksPassed } = record;
+  const { checkout, allChecksPassed, inputs } = record;
 
   if (typeof checkout !== 'string' || typeof allChecksPassed !== 'boolean') {
     return null;
   }
 
-  return { checkout, allChecksPassed };
+  if (!isInstallInputs(inputs)) {
+    return null;
+  }
+
+  return { checkout, allChecksPassed, inputs };
 };
 
 export const readRecord = async (home: string): Promise<InstallRecord | null> => {
@@ -318,18 +377,30 @@ const installedMods = (paths: Iterable<string>): string[] => {
   return [...mods].toSorted();
 };
 
+const byPath = (first: InstallInput, second: InstallInput): number => {
+  if (first.path === second.path) {
+    return 0;
+  }
+
+  return first.path < second.path ? -1 : 1;
+};
+
 const writeRecord = async (home: string, files: string[], origin: InstallOrigin): Promise<void> => {
   const record = {
     version: recordVersion,
     checkout: origin.checkout,
     allChecksPassed: origin.allChecksPassed,
+    inputs: origin.inputs.toSorted(byPath),
     files: files.toSorted(),
   };
 
   const recordPath = join(home, recordName);
+  const temporaryPath = join(home, `${recordName}.tmp`);
 
+  await removeSymlinkLeaf(temporaryPath);
+  await writeFile(temporaryPath, `${JSON.stringify(record, null, 2)}\n`);
   await removeSymlinkLeaf(recordPath);
-  await writeFile(recordPath, `${JSON.stringify(record, null, 2)}\n`);
+  await rename(temporaryPath, recordPath);
 };
 
 const isModFile = (path: string): boolean => path.split(sep)[0] === 'mods';
@@ -435,7 +506,7 @@ export const install = async (options: InstallOptions): Promise<InstallResult> =
       removed.push(...(await removeStale(home, stale, owned)));
     }
   } finally {
-    await writeRecord(home, [...owned], { checkout, allChecksPassed });
+    await writeRecord(home, [...owned], { checkout, allChecksPassed, inputs: options.inputs });
   }
 
   return { written, removed, checks };
@@ -467,11 +538,15 @@ const report = (result: InstallResult): boolean => {
 };
 
 const buildAndInstall = async (home: string): Promise<boolean> => {
+  const checkout = process.cwd();
+  const inputs = await shippedInputs(checkout);
+
   await buildMods(sourceDirectory, outputDirectory);
 
   const result = await install({
     home,
-    checkout: process.cwd(),
+    checkout,
+    inputs,
     modsDirectory: outputDirectory,
     configDirectory: 'config',
     check: herdrCheck,

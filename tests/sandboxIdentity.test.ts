@@ -16,7 +16,7 @@ import { tmpdir } from 'node:os';
 import { dirname, join, resolve } from 'node:path';
 
 import type { CheckResult } from '../scripts/install.ts';
-import { install } from '../scripts/install.ts';
+import { install, shippedInputs } from '../scripts/install.ts';
 import type { IdentityOptions } from '../scripts/sandboxIdentity.ts';
 import { findIdentityFailures, identityReport } from '../scripts/sandboxIdentity.ts';
 
@@ -43,6 +43,7 @@ const installFrom = async (
   await install({
     home,
     checkout: from,
+    inputs: await shippedInputs(from),
     modsDirectory: join(from, 'dist', 'mods'),
     configDirectory: join(from, 'config'),
     check,
@@ -70,18 +71,11 @@ const touchAfterInstall = async (path: string): Promise<void> => {
   await utimes(path, later, later);
 };
 
-// A file system stamps a folder with a coarse clock, so an install and a change right after it
-// can share one time. Moving the install into the past keeps the two apart.
-const ageInstall = async (): Promise<void> => {
-  const record = await stat(recordPath());
-  const earlier = new Date(record.mtimeMs - 3_600_000);
-  const entries = await readdir(checkout, { recursive: true });
+const shiftTime = async (path: string, milliseconds: number): Promise<void> => {
+  const entry = await stat(path);
+  const shifted = new Date(entry.mtimeMs + milliseconds);
 
-  await Promise.all(
-    [recordPath(), ...entries.map((entry) => join(checkout, entry))].map(async (path) =>
-      utimes(path, earlier, earlier),
-    ),
-  );
+  await utimes(path, shifted, shifted);
 };
 
 const snapshot = async (folder: string): Promise<string[]> => {
@@ -125,12 +119,6 @@ describe('sandbox identity', () => {
     expect(report.lines[0]).toContain(checkout);
   });
 
-  test('fails when the sandbox is not up', async () => {
-    expect(await findIdentityFailures({ ...options, window: 'notUp' })).toEqual([
-      { kind: 'sandboxNotUp' },
-    ]);
-  });
-
   test('fails when the window does not answer', async () => {
     expect(await findIdentityFailures({ ...options, window: 'silent' })).toEqual([
       { kind: 'windowSilent' },
@@ -147,6 +135,23 @@ describe('sandbox identity', () => {
     const record = JSON.parse(await readFile(recordPath(), 'utf8')) as { files: string[] };
 
     await writeFile(recordPath(), JSON.stringify({ version: 1, files: record.files }));
+
+    expect(await findIdentityFailures(options)).toEqual([{ kind: 'recordWithoutOrigin' }]);
+  });
+
+  test('fails when the record names its shipped inputs without their times', async () => {
+    const record = JSON.parse(await readFile(recordPath(), 'utf8')) as Record<string, unknown>;
+
+    await writeFile(recordPath(), JSON.stringify({ ...record, inputs: ['package.json'] }));
+
+    expect(await findIdentityFailures(options)).toEqual([{ kind: 'recordWithoutOrigin' }]);
+  });
+
+  test('fails when the record names no shipped inputs', async () => {
+    const record = JSON.parse(await readFile(recordPath(), 'utf8')) as Record<string, unknown>;
+    const { inputs: _, ...withoutInputs } = record;
+
+    await writeFile(recordPath(), JSON.stringify(withoutInputs));
 
     expect(await findIdentityFailures(options)).toEqual([{ kind: 'recordWithoutOrigin' }]);
   });
@@ -242,14 +247,47 @@ describe('sandbox identity', () => {
     expect(await findIdentityFailures(options)).toEqual([{ kind: 'changedSinceInstall', path }]);
   });
 
-  test('passes when an input is exactly as old as the record', async () => {
-    // Whole milliseconds in the past could sort before a file written in the same millisecond.
-    const installedAt = new Date(Date.now() + 60_000);
+  test('fails when an input got an earlier time after the install', async () => {
+    await shiftTime(join(checkout, 'package.json'), -60_000);
 
-    await utimes(recordPath(), installedAt, installedAt);
-    await utimes(join(checkout, 'package.json'), installedAt, installedAt);
+    expect(await findIdentityFailures(options)).toEqual([
+      { kind: 'changedSinceInstall', path: 'package.json' },
+    ]);
+  });
 
-    expect(await findIdentityFailures(options)).toEqual([]);
+  test.each([-3_600_000, 3_600_000])(
+    'passes when only the time of the record file moved by %d milliseconds',
+    async (milliseconds) => {
+      await shiftTime(recordPath(), milliseconds);
+
+      expect(await findIdentityFailures(options)).toEqual([]);
+    },
+  );
+
+  test('fails when an input changed between the snapshot and the end of the install', async () => {
+    const source = join(checkout, 'src', 'mods', 'koja-tabs', 'main.ts');
+
+    // An hour in the past, so the edit below gets another time on any file system clock.
+    await shiftTime(source, -3_600_000);
+
+    const inputs = await shippedInputs(checkout);
+
+    await install({
+      home,
+      checkout,
+      inputs,
+      modsDirectory: join(checkout, 'dist', 'mods'),
+      configDirectory: join(checkout, 'config'),
+      check: async () => {
+        await writeFile(source, 'export default 2;\n');
+
+        return { passed: true, output: 'passed' };
+      },
+    });
+
+    expect(await findIdentityFailures(options)).toEqual([
+      { kind: 'changedSinceInstall', path: 'src/mods/koja-tabs/main.ts' },
+    ]);
   });
 
   test('passes when only a test file changed after the install', async () => {
@@ -259,48 +297,58 @@ describe('sandbox identity', () => {
   });
 
   test.each([
-    ['src/mods/koja-tabs/main.ts', 'src/mods/koja-tabs'],
-    ['src/kit/icons/x.svg', 'src/kit/icons'],
-    ['config/layouts/koja.json', 'config/layouts'],
-    ['config/keys.json', 'config'],
-  ])('fails when %s was deleted after the install', async (path, folder) => {
-    await ageInstall();
+    'src/mods/koja-tabs/main.ts',
+    'src/kit/icons/x.svg',
+    'config/layouts/koja.json',
+    'config/keys.json',
+    'bun.lock',
+  ])('fails when %s was deleted after the install', async (path) => {
     await rm(join(checkout, path));
 
     const failures = await findIdentityFailures(options);
 
-    expect(failures).toContainEqual({ kind: 'changedSinceInstall', path: folder });
+    expect(failures).toContainEqual({ kind: 'changedSinceInstall', path });
   });
 
   test('fails when a file was added under src after the install', async () => {
-    await ageInstall();
     await writeFile(join(checkout, 'src', 'kit', 'icons', 'plus.svg'), '<svg/>\n');
 
-    const failures = await findIdentityFailures(options);
+    expect(await findIdentityFailures(options)).toEqual([
+      { kind: 'changedSinceInstall', path: 'src/kit/icons/plus.svg' },
+    ]);
+  });
 
-    expect(failures).toContainEqual({ kind: 'changedSinceInstall', path: 'src/kit/icons' });
+  test('passes when a test file was added under src after the install', async () => {
+    await writeFile(join(checkout, 'src', 'mods', 'koja-tabs', 'other.test.ts'), 'export {};\n');
+
+    expect(await findIdentityFailures(options)).toEqual([]);
+  });
+
+  test('passes when a test file under src was deleted after the install', async () => {
+    await rm(join(checkout, 'src', 'mods', 'koja-tabs', 'main.test.ts'));
+
+    expect(await findIdentityFailures(options)).toEqual([]);
   });
 
   test('passes when a test file was edited in place after the install', async () => {
-    await ageInstall();
     await writeFile(join(checkout, 'src', 'mods', 'koja-tabs', 'main.test.ts'), 'export {};\n\n');
 
     expect(await findIdentityFailures(options)).toEqual([]);
   });
 
-  test('names the folder of a deleted input on its own line', async () => {
-    await ageInstall();
+  test('names a deleted input on its own line', async () => {
     await rm(join(checkout, 'src', 'kit', 'icons', 'x.svg'));
 
     const report = await identityReport(options);
 
     expect(report.exitCode).toBe(1);
     expect(report.lines).toHaveLength(1);
-    expect(report.lines[0]).toContain('src/kit/icons');
+    expect(report.lines[0]).toContain('src/kit/icons/x.svg');
   });
 
-  test('passes when a shipped input file does not exist', async () => {
+  test('passes when a shipped input file did not exist at the install', async () => {
     await rm(join(checkout, 'bun.lock'));
+    await installFrom(checkout);
 
     expect(await findIdentityFailures(options)).toEqual([]);
   });
@@ -318,9 +366,7 @@ describe('sandbox identity', () => {
     expect(report.lines[2]).toContain('package.json');
   });
 
-  test('gives a sandbox that is down, a missing record, and an old record their own lines', async () => {
-    const down = await identityReport({ ...options, window: 'notUp' });
-
+  test('gives a missing record and an old record their own lines', async () => {
     await writeFile(recordPath(), JSON.stringify({ version: 1, files: [] }));
 
     const old = await identityReport(options);
@@ -328,11 +374,11 @@ describe('sandbox identity', () => {
     await rm(recordPath());
 
     const missing = await identityReport(options);
-    const lines = [...down.lines, ...old.lines, ...missing.lines];
+    const lines = [...old.lines, ...missing.lines];
 
-    expect([down.exitCode, old.exitCode, missing.exitCode]).toEqual([1, 1, 1]);
-    expect(lines).toHaveLength(3);
-    expect(new Set(lines).size).toBe(3);
+    expect([old.exitCode, missing.exitCode]).toEqual([1, 1]);
+    expect(lines).toHaveLength(2);
+    expect(new Set(lines).size).toBe(2);
   });
 
   test.each([
@@ -355,48 +401,79 @@ describe('sandbox identity', () => {
   });
 });
 
+const linesOf = (output: string): string[] => output.trim().split('\n');
+
 describe('scripts/sandbox identity', () => {
   const script = resolve(import.meta.dir, '..', 'scripts', 'sandbox');
+  const repository = resolve(import.meta.dir, '..');
   let name: string;
   let sandboxRoot: string;
+  let fakes: string;
 
   const runIdentity = async (): Promise<{ exitCode: number; output: string }> => {
     const child = Bun.spawn([script, 'identity'], {
-      env: { ...Bun.env, RUTA_NAME: name },
+      env: { ...Bun.env, RUTA_NAME: name, PATH: `${fakes}:${Bun.env['PATH'] ?? ''}` },
       stdout: 'pipe',
       stderr: 'pipe',
     });
 
-    const [output, exitCode] = await Promise.all([new Response(child.stdout).text(), child.exited]);
+    const [stdout, stderr, exitCode] = await Promise.all([
+      new Response(child.stdout).text(),
+      new Response(child.stderr).text(),
+      child.exited,
+    ]);
 
-    return { exitCode, output };
+    return { exitCode, output: stderr + stdout };
+  };
+
+  const writeProgram = async (path: string, body: string): Promise<void> => {
+    await writeAt(path, `#!/bin/sh\n${body}\n`);
+    await chmod(path, 0o755);
   };
 
   const writeWindow = async (exitCode: number): Promise<void> => {
-    const binary = join(sandboxRoot, 'bin', 'herdr-app');
-
-    await writeAt(binary, `#!/bin/sh\nexit ${exitCode}\n`);
-    await chmod(binary, 0o755);
+    await writeProgram(join(sandboxRoot, 'bin', 'herdr-app'), `exit ${exitCode}`);
   };
 
-  beforeEach(() => {
+  const writeRuta = async (line: string, exitCode: number): Promise<void> => {
+    const record = `printf '%s %s\\n' "$PWD" "$*" >>'${join(fakes, 'calls')}'`;
+    const stream = exitCode === 0 ? '' : ' >&2';
+
+    await writeProgram(join(fakes, 'ruta'), `${record}\necho '${line}'${stream}\nexit ${exitCode}`);
+  };
+
+  beforeEach(async () => {
     name = `koja-identity-test-${randomBytes(6).toString('hex')}`;
     sandboxRoot = join('/var/tmp', `ruta-${name}`);
+    fakes = await mkdtemp(join(tmpdir(), 'koja-identity-fakes-'));
   });
 
   afterEach(async () => {
     await rm(sandboxRoot, { recursive: true, force: true });
+    await rm(fakes, { recursive: true, force: true });
   });
 
-  test('exits 1 and says the named sandbox is not up when it has no folder', async () => {
+  test('exits 1 with only the line of ruta when ruta status fails', async () => {
+    await writeRuta('ruta is not up', 1);
+    await writeWindow(0);
+
     const result = await runIdentity();
 
     expect(result.exitCode).toBe(1);
-    expect(result.output.trim().split('\n')).toHaveLength(1);
-    expect(result.output).toContain(name);
+    expect(linesOf(result.output)).toEqual(['ruta is not up']);
   });
 
-  test('reports a silent window and a missing record of a sandbox whose window fails', async () => {
+  test('asks ruta for the status once, from the checkout', async () => {
+    await writeRuta('ruta is up', 0);
+    await writeWindow(0);
+
+    await runIdentity();
+
+    expect(await readFile(join(fakes, 'calls'), 'utf8')).toBe(`${repository} status\n`);
+  });
+
+  test('reports a silent window and a missing record after the line of ruta', async () => {
+    await writeRuta('ruta is up', 0);
     await writeWindow(1);
 
     const silent = await runIdentity();
@@ -404,16 +481,28 @@ describe('scripts/sandbox identity', () => {
     await writeWindow(0);
 
     const answering = await runIdentity();
+    const [status, record, ...rest] = linesOf(answering.output);
 
     expect(silent.exitCode).toBe(1);
-    expect(silent.output.trim().split('\n')).toHaveLength(2);
+    expect(linesOf(silent.output)).toHaveLength(3);
     expect(answering.exitCode).toBe(1);
-    expect(answering.output.trim().split('\n')).toHaveLength(1);
-    expect(silent.output).toContain(answering.output);
-    expect(answering.output).toContain(join(sandboxRoot, 'config', 'herdr-app'));
+    expect(status).toBe('ruta is up');
+    expect(rest).toEqual([]);
+    expect(linesOf(silent.output)[2]).toBe(record);
+    expect(record).toContain(join(sandboxRoot, 'config', 'herdr-app'));
+  });
+
+  test('reports a silent window when ruta says up and the sandbox has no window program', async () => {
+    await writeRuta('ruta is up', 0);
+
+    const result = await runIdentity();
+
+    expect(result.exitCode).toBe(1);
+    expect(linesOf(result.output)).toHaveLength(3);
   });
 
   test('creates nothing in the sandbox folder', async () => {
+    await writeRuta('ruta is up', 0);
     await writeWindow(0);
 
     const before = await snapshot(sandboxRoot);

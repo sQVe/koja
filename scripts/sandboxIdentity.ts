@@ -1,11 +1,17 @@
-import { readdir, realpath, stat } from 'node:fs/promises';
-import { join, relative } from 'node:path';
+import { realpath } from 'node:fs/promises';
+import { join } from 'node:path';
 
-import { isMissing } from './build.ts';
-import type { InstallRecord } from './install.ts';
-import { filesUnder, isSameFile, lstatOrNull, readRecord, recordName } from './install.ts';
+import type { InstallInput, InstallOrigin, InstallRecord } from './install.ts';
+import {
+  filesUnder,
+  isSameFile,
+  lstatOrNull,
+  readRecord,
+  recordName,
+  shippedInputs,
+} from './install.ts';
 
-type WindowState = 'answers' | 'silent' | 'notUp';
+type WindowState = 'answers' | 'silent';
 
 export interface IdentityOptions {
   name: string;
@@ -15,7 +21,6 @@ export interface IdentityOptions {
 }
 
 export type IdentityFailure =
-  | { kind: 'sandboxNotUp' }
   | { kind: 'windowSilent' }
   | { kind: 'recordMissing' }
   | { kind: 'recordWithoutOrigin' }
@@ -31,11 +36,7 @@ export interface IdentityReport {
   lines: string[];
 }
 
-const windowStates: WindowState[] = ['answers', 'silent', 'notUp'];
-
-const shippedFolders = ['src', 'config'];
-
-const shippedFiles = ['scripts/build.ts', 'scripts/install.ts', 'package.json', 'bun.lock'];
+const windowStates: WindowState[] = ['answers', 'silent'];
 
 // Pairs of the path inside Herdr home and the path inside the checkout, as the installer plans them.
 const sourcesByInstalledPath = async (checkout: string): Promise<Map<string, string>> => {
@@ -79,69 +80,26 @@ const copyFailures = async (
   return failures.filter((failure) => failure !== null);
 };
 
-const isTest = (path: string): boolean => path.endsWith('.test.ts');
+const timesByPath = (inputs: InstallInput[]): Map<string, number> =>
+  new Map(inputs.map((input) => [input.path, input.modifiedAt]));
 
-const foldersUnder = async (directory: string): Promise<string[]> => {
-  try {
-    const entries = await readdir(directory, { recursive: true, withFileTypes: true });
+const isFromCheckout = async (options: IdentityOptions, origin: InstallOrigin): Promise<boolean> =>
+  origin.checkout === (await realpath(options.checkout));
 
-    return entries
-      .filter((entry) => entry.isDirectory())
-      .map((entry) => relative(directory, join(entry.parentPath, entry.name)));
-  } catch (error) {
-    if (isMissing(error)) {
-      return [];
-    }
-
-    throw error;
+const changedSinceInstall = async (
+  options: IdentityOptions,
+  origin: InstallOrigin | null,
+): Promise<IdentityFailure[]> => {
+  if (origin === null || !(await isFromCheckout(options, origin))) {
+    return [];
   }
-};
 
-// A deleted file has no modification time left to compare, but deleting, adding, or renaming a
-// file changes the modification time of its folder. So each folder counts as an input too.
-const shippedInputs = async (checkout: string): Promise<string[]> => {
-  const inFolders = await Promise.all(
-    shippedFolders.map(async (folder) => {
-      const root = join(checkout, folder);
-      const [files, folders] = await Promise.all([filesUnder(root), foldersUnder(root)]);
-      const shipped = files.filter((file) => !isTest(file));
-      const inside = shipped.concat(folders).map((path) => join(folder, path));
+  const current = timesByPath(await shippedInputs(options.checkout));
+  const atInstall = timesByPath(origin.inputs);
+  const paths = [...new Set([...atInstall.keys(), ...current.keys()])].toSorted();
 
-      return [folder].concat(inside);
-    }),
-  );
-
-  return [...inFolders.flat(), ...shippedFiles];
-};
-
-const modifiedAt = async (path: string): Promise<number | null> => {
-  try {
-    const entry = await stat(path);
-
-    return entry.mtimeMs;
-  } catch (error) {
-    if (isMissing(error)) {
-      return null;
-    }
-
-    throw error;
-  }
-};
-
-const changedSinceInstall = async (options: IdentityOptions): Promise<IdentityFailure[]> => {
-  const installedAt = await modifiedAt(join(options.home, recordName));
-  const inputs = await shippedInputs(options.checkout);
-
-  const changed = await Promise.all(
-    inputs.map(async (path) => {
-      const inputAt = await modifiedAt(join(options.checkout, path));
-
-      return inputAt !== null && installedAt !== null && inputAt > installedAt;
-    }),
-  );
-
-  return inputs
-    .filter((_, index) => changed[index] === true)
+  return paths
+    .filter((path) => atInstall.get(path) !== current.get(path))
     .map((path) => ({ kind: 'changedSinceInstall', path }));
 };
 
@@ -155,7 +113,7 @@ const originFailures = async (
 
   const failures: IdentityFailure[] = [];
 
-  if (record.origin.checkout !== (await realpath(options.checkout))) {
+  if (!(await isFromCheckout(options, record.origin))) {
     failures.push({ kind: 'otherCheckout', installedFrom: record.origin.checkout });
   }
 
@@ -183,17 +141,13 @@ const installFailures = async (options: IdentityOptions): Promise<IdentityFailur
     ...(await originFailures(options, record)),
     ...(await copyFailures(options, sources)),
     ...withoutSource,
-    ...(await changedSinceInstall(options)),
+    ...(await changedSinceInstall(options, record.origin)),
   ];
 };
 
 export const findIdentityFailures = async (
   options: IdentityOptions,
 ): Promise<IdentityFailure[]> => {
-  if (options.window === 'notUp') {
-    return [{ kind: 'sandboxNotUp' }];
-  }
-
   const failures = await installFailures(options);
 
   return options.window === 'silent' ? [{ kind: 'windowSilent' }, ...failures] : failures;
@@ -201,10 +155,6 @@ export const findIdentityFailures = async (
 
 const failureLine = (options: IdentityOptions, failure: IdentityFailure): string => {
   switch (failure.kind) {
-    case 'sandboxNotUp': {
-      return `sandbox ${options.name} is not up`;
-    }
-
     case 'windowSilent': {
       return `the window of sandbox ${options.name} does not answer`;
     }
@@ -251,7 +201,10 @@ export const identityReport = async (options: IdentityOptions): Promise<Identity
   const failures = await findIdentityFailures(options);
 
   if (failures.length === 0) {
-    return { exitCode: 0, lines: [`sandbox ${options.name} serves ${options.checkout}`] };
+    return {
+      exitCode: 0,
+      lines: [`sandbox ${options.name} has the current mods and config of ${options.checkout}`],
+    };
   }
 
   return { exitCode: 1, lines: failures.map((failure) => failureLine(options, failure)) };

@@ -15,7 +15,7 @@ import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 
 import type { CheckResult } from '../scripts/install.ts';
-import { install, trustedRoot } from '../scripts/install.ts';
+import { filesUnder, install, readRecord, shippedInputs, trustedRoot } from '../scripts/install.ts';
 
 let root: string;
 let home: string;
@@ -37,7 +37,14 @@ const passingCheck = async (folder: string): Promise<CheckResult> => {
 const run = async (
   check: (folder: string) => Promise<CheckResult> = passingCheck,
 ): ReturnType<typeof install> =>
-  install({ home, checkout: root, modsDirectory: mods, configDirectory: config, check });
+  install({
+    home,
+    checkout: root,
+    inputs: [],
+    modsDirectory: mods,
+    configDirectory: config,
+    check,
+  });
 
 const exists = async (path: string): Promise<boolean> =>
   lstat(path).then(
@@ -160,6 +167,7 @@ describe('install', () => {
       const failure: unknown = await install({
         home: `${home}/`,
         checkout: root,
+        inputs: [],
         modsDirectory: mods,
         configDirectory: config,
         check: passingCheck,
@@ -188,6 +196,7 @@ describe('install', () => {
     const failure: unknown = await install({
       home: linkedHome,
       checkout: root,
+      inputs: [],
       modsDirectory: mods,
       configDirectory: config,
       check: passingCheck,
@@ -208,6 +217,7 @@ describe('install', () => {
     const base = {
       home,
       checkout: root,
+      inputs: [],
       modsDirectory: smallMods,
       configDirectory: smallConfig,
       check: passingCheck,
@@ -361,6 +371,75 @@ describe('install', () => {
     expect(written.files).toContain('mods/koja-tabs/main.js');
   });
 
+  test('preserves the earlier record when its temporary path is blocked and allows a retry', async () => {
+    await run();
+
+    const recordPath = join(home, '.koja-install.json');
+    const temporaryPath = join(home, '.koja-install.json.tmp');
+    const earlierText = await readFile(recordPath, 'utf8');
+    const earlierRecord = await readRecord(home);
+
+    await mkdir(temporaryPath);
+    await writeFile(join(config, 'keys.json'), 'changed\n');
+
+    const failure: unknown = await run().catch((error: unknown) => error);
+
+    expect(failure).toBeInstanceOf(Error);
+    expect(await readFile(recordPath, 'utf8')).toBe(earlierText);
+    expect(await readRecord(home)).toEqual(earlierRecord);
+
+    await rm(temporaryPath, { recursive: true });
+    await run();
+
+    expect(await readRecord(home)).toEqual(earlierRecord);
+    expect(await readFile(join(home, 'keys.json'), 'utf8')).toBe('changed\n');
+  });
+
+  test('replaces an incomplete temporary record without recording or leaving it behind', async () => {
+    const temporaryPath = join(home, '.koja-install.json.tmp');
+
+    await writeFile(temporaryPath, '{"files":');
+    await run();
+
+    expect(await exists(temporaryPath)).toBe(false);
+
+    expect((await readRecord(home))?.files).toEqual([
+      'keys.json',
+      'layouts/koja.json',
+      'mods/koja-tabs/icons/x.svg',
+      'mods/koja-tabs/main.js',
+    ]);
+  });
+
+  test('does not write through a symlinked temporary record', async () => {
+    const externalRecord = join(root, 'external-temporary-record.json');
+    const temporaryPath = join(home, '.koja-install.json.tmp');
+
+    await writeFile(externalRecord, 'keep\n');
+    await symlink(externalRecord, temporaryPath);
+    await run();
+
+    expect(await readFile(externalRecord, 'utf8')).toBe('keep\n');
+    expect(await exists(temporaryPath)).toBe(false);
+    expect((await readRecord(home))?.files).toContain('mods/koja-tabs/main.js');
+  });
+
+  test('rejects a broken live record without changing installed files', async () => {
+    await run();
+
+    const recordPath = join(home, '.koja-install.json');
+    const earlierKeys = await readFile(join(home, 'keys.json'), 'utf8');
+
+    await writeFile(recordPath, '{"files":');
+    await writeFile(join(config, 'keys.json'), 'changed\n');
+
+    const failure: unknown = await run().catch((error: unknown) => error);
+
+    expect(failure).toBeInstanceOf(SyntaxError);
+    expect(await readFile(recordPath, 'utf8')).toBe('{"files":');
+    expect(await readFile(join(home, 'keys.json'), 'utf8')).toBe(earlierKeys);
+  });
+
   test('leaves an unchanged file in place', async () => {
     await run();
 
@@ -378,6 +457,7 @@ describe('install', () => {
     await install({
       home,
       checkout: root,
+      inputs: [],
       modsDirectory: mods,
       configDirectory: config,
       check: passingCheck,
@@ -404,16 +484,8 @@ describe('install', () => {
     await writeAt(join(smallConfig, 'z.json'), 'new z\n');
     await mkdir(smallMods);
 
-    const entries = (await readdir(smallConfig, { recursive: true, withFileTypes: true }))
-      .filter((entry) => entry.isFile())
-      .map((entry) => entry.name);
-
-    const first = entries[0];
-    const second = entries[1];
-
-    if (first === undefined || second === undefined) {
-      throw new Error('need two files');
-    }
+    const first = 'a.json';
+    const second = 'z.json';
 
     await mkdir(join(home, first), { recursive: true });
     await writeAt(join(home, second), 'user data\n');
@@ -421,6 +493,7 @@ describe('install', () => {
     const options = {
       home,
       checkout: root,
+      inputs: [],
       modsDirectory: smallMods,
       configDirectory: smallConfig,
       check: passingCheck,
@@ -465,6 +538,7 @@ describe('install', () => {
       home: join(temporary, 'herdr-app'),
       roots: { userHome, temporary },
       checkout: root,
+      inputs: [],
       modsDirectory: mods,
       configDirectory: config,
       check: passingCheck,
@@ -489,6 +563,115 @@ describe('install', () => {
     const record: unknown = JSON.parse(await readFile(join(home, '.koja-install.json'), 'utf8'));
 
     expect(record).toMatchObject({ checkout: root, allChecksPassed: false });
+  });
+
+  test('lists the shipped inputs of a checkout with their times, without test files and built mods', async () => {
+    await writeAt(join(root, 'src', 'kit', 'row.ts'), 'export {};\n');
+    await writeAt(join(root, 'src', 'kit', 'row.test.ts'), 'export {};\n');
+    await writeAt(join(root, 'package.json'), '{}\n');
+
+    const inputs = await shippedInputs(root);
+    const paths = inputs.map((input) => input.path).toSorted();
+    const row = inputs.find((input) => input.path === 'src/kit/row.ts');
+    const rowStat = await stat(join(root, 'src', 'kit', 'row.ts'));
+
+    expect(paths).toEqual([
+      'config/keys.json',
+      'config/layouts/koja.json',
+      'package.json',
+      'src/kit/row.ts',
+    ]);
+
+    expect(row?.modifiedAt).toBe(rowStat.mtimeMs);
+  });
+
+  test('records the shipped inputs it was given, not the files of the checkout', async () => {
+    const inputs = [
+      { path: 'package.json', modifiedAt: 1500.25 },
+      { path: 'config/keys.json', modifiedAt: 2 },
+    ];
+
+    await install({
+      home,
+      checkout: root,
+      inputs,
+      modsDirectory: mods,
+      configDirectory: config,
+      check: passingCheck,
+    });
+
+    const record = await readRecord(home);
+
+    expect(record?.origin?.inputs).toEqual([
+      { path: 'config/keys.json', modifiedAt: 2 },
+      { path: 'package.json', modifiedAt: 1500.25 },
+    ]);
+  });
+
+  test.each([
+    ['a plain list of paths', ['package.json']],
+    ['an input without a time', [{ path: 'package.json' }]],
+    ['an input without a path', [{ modifiedAt: 2 }]],
+    ['no list', { path: 'package.json', modifiedAt: 2 }],
+  ])('reads a record that holds %s as a record without origin', async (_, inputs) => {
+    await writeFile(
+      join(home, '.koja-install.json'),
+      JSON.stringify({ version: 1, checkout: root, allChecksPassed: true, inputs, files: [] }),
+    );
+
+    expect(await readRecord(home)).toEqual({ files: [], origin: null });
+  });
+
+  test('runs on a home whose record holds a plain list of input paths', async () => {
+    await writeAt(join(home, 'mods', 'koja-old', 'main.js'), 'export default 2;\n');
+
+    await writeFile(
+      join(home, '.koja-install.json'),
+      JSON.stringify({
+        version: 1,
+        checkout: root,
+        allChecksPassed: true,
+        inputs: ['package.json'],
+        files: ['mods/koja-old/main.js'],
+      }),
+    );
+
+    const result = await run();
+
+    expect(result.removed).toEqual(['mods/koja-old/main.js']);
+  });
+
+  test('reads a record without shipped inputs as a record without origin', async () => {
+    await writeFile(
+      join(home, '.koja-install.json'),
+      JSON.stringify({
+        version: 1,
+        checkout: root,
+        allChecksPassed: true,
+        files: ['keys.json'],
+      }),
+    );
+
+    expect(await readRecord(home)).toEqual({ files: ['keys.json'], origin: null });
+  });
+
+  test('removes a stale file named by a record without shipped inputs', async () => {
+    await writeAt(join(home, 'mods', 'koja-old', 'main.js'), 'export default 2;\n');
+
+    await writeFile(
+      join(home, '.koja-install.json'),
+      JSON.stringify({
+        version: 1,
+        checkout: root,
+        allChecksPassed: true,
+        files: ['mods/koja-old/main.js'],
+      }),
+    );
+
+    const result = await run();
+
+    expect(result.removed).toEqual(['mods/koja-old/main.js']);
+    expect(await exists(join(home, 'mods', 'koja-old', 'main.js'))).toBe(false);
   });
 
   test('removes a stale file named by a record without a checkout or a check result', async () => {
@@ -523,4 +706,19 @@ describe('install', () => {
       'koja-menu',
     ]);
   });
+});
+
+describe('filesUnder', () => {
+  test.each([[['a.json', 'b.json', 'layouts/c.json']], [['layouts/c.json', 'b.json', 'a.json']]])(
+    'lists the files in path order when they were written as %j',
+    async (written) => {
+      const folder = join(root, 'listed');
+
+      for (const path of written) {
+        await writeAt(join(folder, path), '');
+      }
+
+      expect(await filesUnder(folder)).toEqual(['a.json', 'b.json', 'layouts/c.json']);
+    },
+  );
 });
