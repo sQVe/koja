@@ -15,7 +15,7 @@ import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 
 import type { CheckResult } from '../scripts/install.ts';
-import { install, readRecord, shippedInputs, trustedRoot } from '../scripts/install.ts';
+import { filesUnder, install, readRecord, shippedInputs, trustedRoot } from '../scripts/install.ts';
 
 let root: string;
 let home: string;
@@ -484,16 +484,8 @@ describe('install', () => {
     await writeAt(join(smallConfig, 'z.json'), 'new z\n');
     await mkdir(smallMods);
 
-    const entries = (await readdir(smallConfig, { recursive: true, withFileTypes: true }))
-      .filter((entry) => entry.isFile())
-      .map((entry) => entry.name);
-
-    const first = entries[0];
-    const second = entries[1];
-
-    if (first === undefined || second === undefined) {
-      throw new Error('need two files');
-    }
+    const first = 'a.json';
+    const second = 'z.json';
 
     await mkdir(join(home, first), { recursive: true });
     await writeAt(join(home, second), 'user data\n');
@@ -714,4 +706,19 @@ describe('install', () => {
       'koja-menu',
     ]);
   });
+});
+
+describe('filesUnder', () => {
+  test.each([[['a.json', 'b.json', 'layouts/c.json']], [['layouts/c.json', 'b.json', 'a.json']]])(
+    'lists the files in path order when they were written as %j',
+    async (written) => {
+      const folder = join(root, 'listed');
+
+      for (const path of written) {
+        await writeAt(join(folder, path), '');
+      }
+
+      expect(await filesUnder(folder)).toEqual(['a.json', 'b.json', 'layouts/c.json']);
+    },
+  );
 });

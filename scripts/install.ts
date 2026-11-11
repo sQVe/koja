@@ -86,9 +86,11 @@ export const filesUnder = async (directory: string): Promise<string[]> => {
   try {
     const entries = await readdir(directory, { recursive: true, withFileTypes: true });
 
+    // A folder listing has no stable order, so callers would see another order on another machine.
     return entries
       .filter((entry) => entry.isFile())
-      .map((entry) => relative(directory, join(entry.parentPath, entry.name)));
+      .map((entry) => relative(directory, join(entry.parentPath, entry.name)))
+      .toSorted();
   } catch (error) {
     if (isMissing(error)) {
       return [];
