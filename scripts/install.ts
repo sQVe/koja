@@ -47,9 +47,10 @@ export interface InstallResult {
 export interface InstallOrigin {
   checkout: string;
   allChecksPassed: boolean;
+  inputs: string[];
 }
 
-// A record written before the installer stored its origin has a null origin.
+// A record without a checkout, a check result, or a list of shipped inputs has a null origin.
 export interface InstallRecord {
   files: string[];
   origin: InstallOrigin | null;
@@ -90,6 +91,29 @@ export const filesUnder = async (directory: string): Promise<string[]> => {
   }
 };
 
+const shippedFolders = ['src', 'config'];
+
+const shippedFiles = ['scripts/build.ts', 'scripts/install.ts', 'package.json', 'bun.lock'];
+
+const isTest = (path: string): boolean => path.endsWith('.test.ts');
+
+// The files of a checkout that decide what an install writes, as paths inside the checkout.
+export const shippedInputs = async (checkout: string): Promise<string[]> => {
+  const inFolders = await Promise.all(
+    shippedFolders.map(async (folder) => {
+      const files = await filesUnder(join(checkout, folder));
+
+      return files.filter((file) => !isTest(file)).map((file) => join(folder, file));
+    }),
+  );
+
+  const existing = await Promise.all(
+    shippedFiles.map(async (file) => (await lstatOrNull(join(checkout, file))) !== null),
+  );
+
+  return [...inFolders.flat(), ...shippedFiles.filter((_, index) => existing[index] === true)];
+};
+
 const plannedFiles = async (options: InstallOptions): Promise<Map<string, string>> => {
   const planned = new Map<string, string>();
 
@@ -122,14 +146,21 @@ const recordedFiles = (record: RecordFields): string[] => {
     : [];
 };
 
+const isStrings = (value: unknown): value is string[] =>
+  Array.isArray(value) && value.every((item) => typeof item === 'string');
+
 const recordedOrigin = (record: RecordFields): InstallOrigin | null => {
-  const { checkout, allChecksPassed } = record;
+  const { checkout, allChecksPassed, inputs } = record;
 
   if (typeof checkout !== 'string' || typeof allChecksPassed !== 'boolean') {
     return null;
   }
 
-  return { checkout, allChecksPassed };
+  if (!isStrings(inputs)) {
+    return null;
+  }
+
+  return { checkout, allChecksPassed, inputs };
 };
 
 export const readRecord = async (home: string): Promise<InstallRecord | null> => {
@@ -323,6 +354,7 @@ const writeRecord = async (home: string, files: string[], origin: InstallOrigin)
     version: recordVersion,
     checkout: origin.checkout,
     allChecksPassed: origin.allChecksPassed,
+    inputs: origin.inputs.toSorted(),
     files: files.toSorted(),
   };
 
@@ -395,6 +427,7 @@ export const install = async (options: InstallOptions): Promise<InstallResult> =
   const modFiles = [...planned].filter(([path]) => isModFile(path));
   const configFiles = [...planned].filter(([path]) => !isModFile(path));
   const checkout = await realpath(options.checkout);
+  const inputs = await shippedInputs(checkout);
   const earlierRecord = await readRecord(home);
   const earlier = earlierRecord?.files ?? [];
   const stale = earlier.filter((file) => !planned.has(file));
@@ -435,7 +468,7 @@ export const install = async (options: InstallOptions): Promise<InstallResult> =
       removed.push(...(await removeStale(home, stale, owned)));
     }
   } finally {
-    await writeRecord(home, [...owned], { checkout, allChecksPassed });
+    await writeRecord(home, [...owned], { checkout, allChecksPassed, inputs });
   }
 
   return { written, removed, checks };

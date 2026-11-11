@@ -19,9 +19,10 @@ mod folder.
 An installer copies real files into `~/.config/herdr-app`. It writes only the files Koja owns: its
 built mods, its layout, its theme, its fonts, `keys.json`, and `settings.json`. It removes only
 files that an earlier install wrote and the current one no longer has, so it records the files it
-writes in Herdr's folder. It replaces a symlink in its way with a real file and never writes through
-one. It runs `herdr-app check` on every installed mod. A watch mode builds and installs on every
-save, so edits stay in the repository.
+writes in Herdr's folder. The record also names the checkout it installed from, whether every mod
+check passed, and the source files that decide what it installs. It replaces a symlink in its way
+with a real file and never writes through one. It runs `herdr-app check` on every installed mod. A
+watch mode builds and installs on every save, so edits stay in the repository.
 
 The installer writes and checks the mods before it touches config. It copies `keys.json`, the
 layout, the theme, the fonts, and `settings.json`, and removes stale files, only when every mod

@@ -1,9 +1,16 @@
-import { readdir, realpath, stat } from 'node:fs/promises';
-import { join, relative } from 'node:path';
+import { realpath, stat } from 'node:fs/promises';
+import { join } from 'node:path';
 
 import { isMissing } from './build.ts';
 import type { InstallRecord } from './install.ts';
-import { filesUnder, isSameFile, lstatOrNull, readRecord, recordName } from './install.ts';
+import {
+  filesUnder,
+  isSameFile,
+  lstatOrNull,
+  readRecord,
+  recordName,
+  shippedInputs,
+} from './install.ts';
 
 type WindowState = 'answers' | 'silent';
 
@@ -31,10 +38,6 @@ export interface IdentityReport {
 }
 
 const windowStates: WindowState[] = ['answers', 'silent'];
-
-const shippedFolders = ['src', 'config'];
-
-const shippedFiles = ['scripts/build.ts', 'scripts/install.ts', 'package.json', 'bun.lock'];
 
 // Pairs of the path inside Herdr home and the path inside the checkout, as the installer plans them.
 const sourcesByInstalledPath = async (checkout: string): Promise<Map<string, string>> => {
@@ -78,41 +81,6 @@ const copyFailures = async (
   return failures.filter((failure) => failure !== null);
 };
 
-const isTest = (path: string): boolean => path.endsWith('.test.ts');
-
-const foldersUnder = async (directory: string): Promise<string[]> => {
-  try {
-    const entries = await readdir(directory, { recursive: true, withFileTypes: true });
-
-    return entries
-      .filter((entry) => entry.isDirectory())
-      .map((entry) => relative(directory, join(entry.parentPath, entry.name)));
-  } catch (error) {
-    if (isMissing(error)) {
-      return [];
-    }
-
-    throw error;
-  }
-};
-
-// A deleted file has no modification time left to compare, but deleting, adding, or renaming a
-// file changes the modification time of its folder. So each folder counts as an input too.
-const shippedInputs = async (checkout: string): Promise<string[]> => {
-  const inFolders = await Promise.all(
-    shippedFolders.map(async (folder) => {
-      const root = join(checkout, folder);
-      const [files, folders] = await Promise.all([filesUnder(root), foldersUnder(root)]);
-      const shipped = files.filter((file) => !isTest(file));
-      const inside = shipped.concat(folders).map((path) => join(folder, path));
-
-      return [folder].concat(inside);
-    }),
-  );
-
-  return [...inFolders.flat(), ...shippedFiles];
-};
-
 const modifiedAt = async (path: string): Promise<number | null> => {
   try {
     const entry = await stat(path);
@@ -127,12 +95,21 @@ const modifiedAt = async (path: string): Promise<number | null> => {
   }
 };
 
-const changedSinceInstall = async (options: IdentityOptions): Promise<IdentityFailure[]> => {
+const changedSinceInstall = async (
+  options: IdentityOptions,
+  recorded: string[],
+): Promise<IdentityFailure[]> => {
   const installedAt = await modifiedAt(join(options.home, recordName));
-  const inputs = await shippedInputs(options.checkout);
+  const current = new Set(await shippedInputs(options.checkout));
+  const atInstall = new Set(recorded);
+  const inputs = [...new Set([...atInstall, ...current])].toSorted();
 
   const changed = await Promise.all(
     inputs.map(async (path) => {
+      if (!atInstall.has(path) || !current.has(path)) {
+        return true;
+      }
+
       const inputAt = await modifiedAt(join(options.checkout, path));
 
       return inputAt !== null && installedAt !== null && inputAt > installedAt;
@@ -178,11 +155,14 @@ const installFailures = async (options: IdentityOptions): Promise<IdentityFailur
     .filter((path) => !sources.has(path))
     .map((path): IdentityFailure => ({ kind: 'noSource', path }));
 
+  const changed =
+    record.origin === null ? [] : await changedSinceInstall(options, record.origin.inputs);
+
   return [
     ...(await originFailures(options, record)),
     ...(await copyFailures(options, sources)),
     ...withoutSource,
-    ...(await changedSinceInstall(options)),
+    ...changed,
   ];
 };
 

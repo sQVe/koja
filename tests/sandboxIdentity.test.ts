@@ -145,6 +145,15 @@ describe('sandbox identity', () => {
     expect(await findIdentityFailures(options)).toEqual([{ kind: 'recordWithoutOrigin' }]);
   });
 
+  test('fails when the record names no shipped inputs', async () => {
+    const record = JSON.parse(await readFile(recordPath(), 'utf8')) as Record<string, unknown>;
+    const { inputs: _, ...withoutInputs } = record;
+
+    await writeFile(recordPath(), JSON.stringify(withoutInputs));
+
+    expect(await findIdentityFailures(options)).toEqual([{ kind: 'recordWithoutOrigin' }]);
+  });
+
   test('fails when another checkout with the same files installed last', async () => {
     const other = join(root, 'other');
 
@@ -253,26 +262,41 @@ describe('sandbox identity', () => {
   });
 
   test.each([
-    ['src/mods/koja-tabs/main.ts', 'src/mods/koja-tabs'],
-    ['src/kit/icons/x.svg', 'src/kit/icons'],
-    ['config/layouts/koja.json', 'config/layouts'],
-    ['config/keys.json', 'config'],
-  ])('fails when %s was deleted after the install', async (path, folder) => {
+    'src/mods/koja-tabs/main.ts',
+    'src/kit/icons/x.svg',
+    'config/layouts/koja.json',
+    'config/keys.json',
+    'bun.lock',
+  ])('fails when %s was deleted after the install', async (path) => {
     await ageInstall();
     await rm(join(checkout, path));
 
     const failures = await findIdentityFailures(options);
 
-    expect(failures).toContainEqual({ kind: 'changedSinceInstall', path: folder });
+    expect(failures).toContainEqual({ kind: 'changedSinceInstall', path });
   });
 
   test('fails when a file was added under src after the install', async () => {
     await ageInstall();
     await writeFile(join(checkout, 'src', 'kit', 'icons', 'plus.svg'), '<svg/>\n');
 
-    const failures = await findIdentityFailures(options);
+    expect(await findIdentityFailures(options)).toEqual([
+      { kind: 'changedSinceInstall', path: 'src/kit/icons/plus.svg' },
+    ]);
+  });
 
-    expect(failures).toContainEqual({ kind: 'changedSinceInstall', path: 'src/kit/icons' });
+  test('passes when a test file was added under src after the install', async () => {
+    await ageInstall();
+    await writeFile(join(checkout, 'src', 'mods', 'koja-tabs', 'other.test.ts'), 'export {};\n');
+
+    expect(await findIdentityFailures(options)).toEqual([]);
+  });
+
+  test('passes when a test file under src was deleted after the install', async () => {
+    await ageInstall();
+    await rm(join(checkout, 'src', 'mods', 'koja-tabs', 'main.test.ts'));
+
+    expect(await findIdentityFailures(options)).toEqual([]);
   });
 
   test('passes when a test file was edited in place after the install', async () => {
@@ -282,7 +306,7 @@ describe('sandbox identity', () => {
     expect(await findIdentityFailures(options)).toEqual([]);
   });
 
-  test('names the folder of a deleted input on its own line', async () => {
+  test('names a deleted input on its own line', async () => {
     await ageInstall();
     await rm(join(checkout, 'src', 'kit', 'icons', 'x.svg'));
 
@@ -290,11 +314,12 @@ describe('sandbox identity', () => {
 
     expect(report.exitCode).toBe(1);
     expect(report.lines).toHaveLength(1);
-    expect(report.lines[0]).toContain('src/kit/icons');
+    expect(report.lines[0]).toContain('src/kit/icons/x.svg');
   });
 
-  test('passes when a shipped input file does not exist', async () => {
+  test('passes when a shipped input file did not exist at the install', async () => {
     await rm(join(checkout, 'bun.lock'));
+    await installFrom(checkout);
 
     expect(await findIdentityFailures(options)).toEqual([]);
   });

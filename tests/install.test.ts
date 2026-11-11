@@ -15,7 +15,7 @@ import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 
 import type { CheckResult } from '../scripts/install.ts';
-import { install, trustedRoot } from '../scripts/install.ts';
+import { install, readRecord, trustedRoot } from '../scripts/install.ts';
 
 let root: string;
 let home: string;
@@ -489,6 +489,56 @@ describe('install', () => {
     const record: unknown = JSON.parse(await readFile(join(home, '.koja-install.json'), 'utf8'));
 
     expect(record).toMatchObject({ checkout: root, allChecksPassed: false });
+  });
+
+  test('records the shipped inputs of the checkout, without test files and built mods', async () => {
+    await writeAt(join(root, 'src', 'kit', 'row.ts'), 'export {};\n');
+    await writeAt(join(root, 'src', 'kit', 'row.test.ts'), 'export {};\n');
+    await writeAt(join(root, 'package.json'), '{}\n');
+
+    await run();
+
+    const record = await readRecord(home);
+
+    expect(record?.origin?.inputs).toEqual([
+      'config/keys.json',
+      'config/layouts/koja.json',
+      'package.json',
+      'src/kit/row.ts',
+    ]);
+  });
+
+  test('reads a record without shipped inputs as a record without origin', async () => {
+    await writeFile(
+      join(home, '.koja-install.json'),
+      JSON.stringify({
+        version: 1,
+        checkout: root,
+        allChecksPassed: true,
+        files: ['keys.json'],
+      }),
+    );
+
+    expect(await readRecord(home)).toEqual({ files: ['keys.json'], origin: null });
+  });
+
+  test('removes a stale file named by a record without shipped inputs', async () => {
+    await writeAt(join(home, 'mods', 'koja-old', 'main.js'), 'export default 2;\n');
+
+    await writeFile(
+      join(home, '.koja-install.json'),
+      JSON.stringify({
+        version: 1,
+        checkout: root,
+        allChecksPassed: true,
+        files: ['mods/koja-old/main.js'],
+      }),
+    );
+
+    const result = await run();
+
+    expect(result.removed).toEqual(['mods/koja-old/main.js']);
+    expect(await exists(join(home, 'mods', 'koja-old', 'main.js'))).toBe(false);
   });
 
   test('removes a stale file named by a record without a checkout or a check result', async () => {
