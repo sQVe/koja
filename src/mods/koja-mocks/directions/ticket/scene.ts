@@ -26,9 +26,21 @@ const scrollbarWidth = 3;
 // Extend the native bar's box so its right inset does not hide the thumb behind the clip.
 const scrollbarInset = 4;
 const scrollbarOpacity = 0.5;
-// These fixed-size scenes stop the initial viewport between plan rows.
+
 const planBottomInset = 18;
-const singleBottomInset = 8;
+
+// These insets align each fixed scene's initial fold with a row boundary.
+const readingBottomInset = (state: TicketState): number => {
+  if (state === 'single') {
+    return spacing.medium;
+  }
+
+  if (state === 'container' || state === 'tikk' || state === 'normal') {
+    return spacing.large;
+  }
+
+  return planBottomInset;
+};
 
 // These fixtures have fixed viewport sizes; the short variants fit without scrolling.
 const overflowingStates = new Set<TicketState>([
@@ -68,7 +80,7 @@ const readingViewport = (reading: Element, state: TicketState, bottomInset: numb
 
 const ticketBody = (view: TicketView, tokens: DirectionTokens): Element => {
   const name = `ticket-view-${view.state}`;
-  const bottomInset = view.state === 'single' ? singleBottomInset : planBottomInset;
+  const bottomInset = readingBottomInset(view.state);
 
   const reading = v_flex().flex_1().min_h(0).min_w(0).child(ticketHeading(view, tokens));
 

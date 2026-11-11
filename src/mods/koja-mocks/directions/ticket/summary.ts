@@ -1,7 +1,7 @@
 import { h_flex, v_flex } from 'gpui-base';
 import type { Element } from 'gpui-kit';
 
-import { spacing } from '../../../../kit/size.ts';
+import { iconSize, spacing } from '../../../../kit/size.ts';
 import type { SourceTarget } from '../content/data.ts';
 import { agentLink, externalLink } from '../content/links.ts';
 import { sectionBodyInset } from '../content/parts.ts';
@@ -27,6 +27,9 @@ import { sliceMark } from './spine.ts';
 
 const summaryInset = (tokens: DirectionTokens): number =>
   sectionBodyInset(tokens) + planChevronWidth + spacing.xsmall;
+
+const detailSeparator = (tokens: DirectionTokens): Element =>
+  fixedLabel(' · ', tokens.text.detail, tokens.ink.dim);
 
 const pullLink = (pull: string, tokens: DirectionTokens): Element => {
   const linkTokens = {
@@ -98,13 +101,16 @@ const railMetadata = (
 ): Element => {
   const [first, ...remaining] = facts;
 
-  const firstLine = detailLine(tokens).child(
-    identifierLink(identifier, source, tokens).flex_none().line_height(`${tokens.rows.height}px`),
-  );
+  const firstLine = detailLine(tokens)
+    .gap(0)
+    .child(
+      identifierLink(identifier, source, tokens).flex_none().line_height(`${tokens.rows.height}px`),
+    );
 
   if (first !== undefined) {
-    // Balance the separator's ink gaps at the fixed rail font size.
-    firstLine.child(railFact('·', tokens).ml(1)).child(railFact(first, tokens));
+    firstLine
+      .child(detailSeparator(tokens).line_height(`${tokens.rows.height}px`))
+      .child(railFact(first, tokens));
   }
 
   return v_flex()
@@ -136,12 +142,19 @@ const railItem = (
   item.child(
     detailLine(tokens)
       .min_h(tokens.rows.height)
+      .gap(0)
       .child(pullLink(slice.pull, tokens))
-      .child(railFact(`· ${slice.readiness}`, tokens)),
+      .child(detailSeparator(tokens).line_height(`${tokens.rows.height}px`))
+      .child(railFact(slice.readiness, tokens)),
   );
 
   if (slice.agent !== null) {
-    item.child(detailLine(tokens).h(tokens.rows.height).child(agentLink(slice.agent, tokens)));
+    item.child(
+      detailLine(tokens)
+        .ml(sectionBodyInset(tokens) - iconSize.small - spacing.xsmall)
+        .h(tokens.rows.height)
+        .child(agentLink(slice.agent, tokens)),
+    );
   }
 
   return item;
@@ -175,12 +188,14 @@ const singleNow = (
       {
         selected: false,
         start: sliceMark(current, tokens),
-        label: pullLink(current.pull, tokens),
+        label: h_flex()
+          .pl(planChevronWidth + spacing.xsmall)
+          .child(pullLink(current.pull, tokens)),
         end: [statusWord(current.readiness, tokens)],
       },
       tokens,
     ),
-    nowDetails(current, tokens),
+    nowDetails(current, tokens).ml(summaryInset(tokens)),
   ];
 
   const working = (view.agents[current.identifier] ?? []).filter(
@@ -207,7 +222,7 @@ export const nowBlock = (view: TicketView, tokens: DirectionTokens): Element => 
   const parts: Element[] = [];
 
   if (active.length === 0) {
-    parts.push(note('No slice in progress', tokens));
+    parts.push(note('No slice in progress', tokens).ml(summaryInset(tokens)));
   }
 
   parts.push(
@@ -252,9 +267,18 @@ const nothingReady = (view: TicketView, tokens: DirectionTokens): Element => {
         .mr(spacing.small)
         .child(fixedLabel('waits for', tokens.text.detail, tokens.ink.dim))
         .child(externalLink(waiting.blockedBy, view.item.source, tokens).flex_none())
-        .child(fixedLabel('Add the sidebar data model', tokens.text.detail, tokens.ink.text))
         .child(
-          label('· outside this plan · not started · no PR', tokens.text.detail, tokens.ink.dim),
+          h_flex()
+            .flex_none()
+            .gap(0)
+            .items_center()
+            .child(fixedLabel('Add the sidebar data model', tokens.text.detail, tokens.ink.text))
+            .child(detailSeparator(tokens))
+            .child(fixedLabel('outside this plan', tokens.text.detail, tokens.ink.dim))
+            .child(detailSeparator(tokens))
+            .child(fixedLabel('not started', tokens.text.detail, tokens.ink.dim))
+            .child(detailSeparator(tokens))
+            .child(fixedLabel('no PR', tokens.text.detail, tokens.ink.dim)),
         ),
     ],
     tokens,
