@@ -58,6 +58,7 @@ import {
   shellDraftReviewScene,
   shellPullRequestScene,
   shellScene,
+  shellTicketScene,
 } from './scenes/shell.ts';
 import { sidebarScene } from './scenes/sidebar.ts';
 import {
@@ -99,6 +100,7 @@ const renderers: Record<SceneName, (inputs: SceneInputs) => Element> = {
   'shell-content': shellContentScene,
   'shell-pr-view': shellPullRequestScene,
   'shell-draft-review': shellDraftReviewScene,
+  'shell-ticket': shellTicketScene,
   'dialog-close': () => dialogScene('close', koja),
   'dialog-close-normal': () => dialogScene('close', kojaNormal),
   'dialog-rename': () => dialogScene('rename', koja),

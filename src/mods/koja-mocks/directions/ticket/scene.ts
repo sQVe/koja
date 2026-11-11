@@ -19,6 +19,8 @@ import { ticketHeading } from './heading.ts';
 import { nextBlock, nowBlock } from './summary.ts';
 import { ticketView } from './views.ts';
 
+export const ticketAgentWidth = 400;
+
 const factsRailWidth = 240;
 const widePlanWidth = 480;
 const railInset = 16;
@@ -145,16 +147,23 @@ const ticketBody = (view: TicketView, tokens: DirectionTokens): Element => {
   return h_flex().flex_1().min_h(0).min_w(0).items_stretch().child(reading).child(rail);
 };
 
-const ticketPane = (view: TicketView, tokens: DirectionTokens): Element =>
-  cardSlot(
+export const ticketPane = (state: TicketState, tokens: DirectionTokens): Element => {
+  const view = ticketView(state);
+
+  return cardSlot(
     card(true, tokens).child(contentHeader(view.item, tokens)).child(ticketBody(view, tokens)),
     tokens,
   ).flex_1();
+};
 
 export const ticketScene = (state: TicketState): Element => {
   const view = ticketView(state);
   const mode = state === 'normal' ? kojaNormal : koja;
-  const tokens: DirectionTokens = { ...mode, areas: { ...mode.areas, shellPaneWidth: 400 } };
+
+  const tokens: DirectionTokens = {
+    ...mode,
+    areas: { ...mode.areas, shellPaneWidth: ticketAgentWidth },
+  };
 
   const tabs: DirectionTab[] = fakeTabs.map((tab) => ({
     label: tab.label,
@@ -187,6 +196,6 @@ export const ticketScene = (state: TicketState): Element => {
     agentFocused: false,
     tabs,
     toggles: () => [],
-    panes: (look) => [ticketPane(view, look)],
+    panes: (look) => [ticketPane(state, look)],
   });
 };

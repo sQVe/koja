@@ -60,6 +60,7 @@ const sceneSizes = {
   'shell-content': shellSceneSize,
   'shell-pr-view': shellSceneSize,
   'shell-draft-review': shellSceneSize,
+  'shell-ticket': shellSceneSize,
   'dialog-close': shellSceneSize,
   'dialog-close-normal': shellSceneSize,
   'dialog-rename': shellSceneSize,

@@ -1,5 +1,5 @@
 import { h_flex, v_flex } from 'gpui-base';
-import type { Element } from 'gpui-kit';
+import type { Color, Element } from 'gpui-kit';
 
 import type { PaneHeaderOptions } from '../../../kit/index.ts';
 import {
@@ -28,9 +28,12 @@ import { koja, kojaNormal } from '../directions/koja.ts';
 import { commandPalette } from '../directions/overlays/palette.ts';
 import { spacePanel } from '../directions/panels/space.ts';
 import { spaceStates } from '../directions/panels/spaceData.ts';
+import { styled, uiFont } from '../directions/parts.ts';
 import { pullViews } from '../directions/pullRequest/data.ts';
 import { pullRequestPane } from '../directions/pullRequest/scene.ts';
 import { mapSidebar } from '../directions/sidebars/sidebar.ts';
+import { ticketAgentWidth, ticketPane } from '../directions/ticket/scene.ts';
+import { ticketView } from '../directions/ticket/views.ts';
 import type { DirectionTokens } from '../directions/tokens.ts';
 import type { FakeTab } from './shellContent.ts';
 import { agentPane, fakeTabs, shellPane } from './shellContent.ts';
@@ -39,6 +42,7 @@ interface ShellOptions {
   activeTab?: Element;
   spacePanelOpen?: boolean;
   mode?: 'Insert' | 'Normal';
+  layout?: { tabBarHeight: number; panePadding: number; paneGap: number; background: Color };
 }
 
 const sidebar = (): Element => mapSidebar(koja);
@@ -69,7 +73,7 @@ const tabBar = (options: ShellOptions): Element => {
   }
 
   return h_flex()
-    .h(controlSize.tabBar)
+    .h(options.layout?.tabBarHeight ?? controlSize.tabBar)
     .flex_none()
     .px(spacing.xsmall)
     .gap(spacing.xxsmall)
@@ -148,7 +152,13 @@ const contentPanes = (): Element[] => [
 ];
 
 const main = (panes: Element[], options: ShellOptions): Element => {
-  const body = h_flex().flex_1().min_h(0).gap(spacing.small).p(spacing.small).children(panes);
+  const body = h_flex()
+    .flex_1()
+    .min_h(0)
+    .gap(options.layout?.paneGap ?? spacing.small)
+    .p(options.layout?.panePadding ?? spacing.small)
+    .bg(options.layout?.background ?? colors().chrome)
+    .children(panes);
 
   if (options.spacePanelOpen !== false) {
     body.child(spacePanel(spaceStates.base, koja));
@@ -234,6 +244,52 @@ export const shellDraftReviewScene = (): Element => {
         mode: 'Insert',
       }),
     );
+};
+
+export const shellTicketScene = (): Element => {
+  const { item } = ticketView('container');
+
+  const activeTab = tab({
+    label: item.tab,
+    active: true,
+    icon: icon(item.icon, 'small').text_color(colors().foreground),
+    status: null,
+    close: iconButton({ name: 'x', size: 'small' }),
+  });
+
+  const agent = paneCard(
+    {
+      program: agentPane.program,
+      name: agentPane.name,
+      folder: agentPane.folder,
+      status: agentPane.status,
+      focused: false,
+      zoomed: false,
+      width: ticketAgentWidth,
+    },
+    agentPane.lines,
+    1,
+  )
+    .w(ticketAgentWidth)
+    .flex_none();
+
+  return styled(
+    v_flex().relative().flex_1().min_h(0).font_family(uiFont),
+    koja.text.body,
+    koja.ink.text,
+  ).child(
+    shellWindow([agent, ticketPane('container', koja)], {
+      activeTab,
+      spacePanelOpen: false,
+      mode: 'Insert',
+      layout: {
+        tabBarHeight: koja.tabs.barHeight,
+        panePadding: koja.areas.contentPadding,
+        paneGap: koja.areas.contentGap,
+        background: koja.areas.frame,
+      },
+    }),
+  );
 };
 
 export const shellDialogScene = (): Element =>
