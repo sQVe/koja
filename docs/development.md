@@ -70,7 +70,9 @@ bun run sandbox down
 `shot` writes the window at its own pixel size, so a coordinate read from a shot matches `click`.
 `scroll x y n` turns the wheel n notches over that point, down for a positive n and up for a
 negative one; dragging a scrollbar does not scroll a Herdr view. `bun run sandbox install`
-reinstalls after a mod edit without restarting the sandbox. `bun run sandbox do <action>`, `status`,
+reinstalls after a mod edit without restarting the sandbox. `bun run sandbox identity` exits 0 only
+when the running sandbox serves this checkout's current mods and `config/`, and prints each reason
+when it does not. It changes no file and starts nothing. `bun run sandbox do <action>`, `status`,
 and `hc <args>` drive the sandbox window and core. Every other command goes to ruta, so `log`,
 `opened`, `drag`, `hold`, and `release` work as `ruta` describes them. `RUTA_NAME=<name>` runs a
 second sandbox side by side, and `HERDR_APP_BIN` runs another herdr-app binary instead of the

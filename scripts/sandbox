@@ -5,6 +5,8 @@
 #   scripts/sandbox up            install this checkout, start the display, the core and the window
 #   scripts/sandbox restart       reinstall and restart the window
 #   scripts/sandbox install       reinstall this checkout into a running sandbox
+#   scripts/sandbox identity      say whether the sandbox serves this checkout's current mods and
+#                                 config; exits 0 only when it does, and changes nothing
 #   scripts/sandbox do <action> [json]   / status   drive it (herdr-app do / status)
 #   scripts/sandbox hc <args>     hc against the sandbox core
 #   scripts/sandbox shot [file]   screenshot of the window, in window pixels
@@ -13,7 +15,7 @@
 #   scripts/sandbox opened        links the window asked to open (logged, never opened)
 #   scripts/sandbox down          stop everything and delete it
 #
-# Every command but install, do, status, and hc goes to ruta; `ruta` without
+# Every command but install, identity, do, status, and hc goes to ruta; `ruta` without
 # arguments lists them. RUTA_NAME=<name> runs a second sandbox side by side.
 # HERDR_APP_BIN runs another herdr-app (an installed copy, to try updates)
 # instead of the default.
@@ -85,6 +87,16 @@ install_mods() {
   in_sandbox "$checkout/scripts/sandbox-ready"
 }
 
+window_state() {
+  if [[ ! -x $root/bin/herdr-app ]]; then
+    echo notUp
+  elif in_sandbox timeout 10 herdr-app status >/dev/null 2>&1; then
+    echo answers
+  else
+    echo silent
+  fi
+}
+
 case ${1:-} in
   up | restart)
     command=$1
@@ -96,6 +108,11 @@ case ${1:-} in
     exec ruta "$command" "$@" -- "$bin"
     ;;
   install) install_mods ;;
+  identity)
+    state=$(window_state)
+    cd "$checkout"
+    exec bun scripts/sandboxIdentity.ts "$name" "$root/config/herdr-app" "$checkout" "$state"
+    ;;
   do | status) require_up; in_sandbox herdr-app "$@" ;;
   hc) require_up; shift; in_sandbox hc "$@" ;;
   shot)

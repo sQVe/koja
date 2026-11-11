@@ -7,6 +7,7 @@ import {
   mkdir,
   readdir,
   readFile,
+  realpath,
   rmdir,
   stat,
   unlink,
@@ -29,6 +30,7 @@ export interface InstallRoots {
 
 export interface InstallOptions {
   home: string;
+  checkout: string;
   modsDirectory: string;
   configDirectory: string;
   check: (modFolder: string) => Promise<CheckResult>;
@@ -42,7 +44,20 @@ export interface InstallResult {
   checks: (CheckResult & { mod: string })[];
 }
 
-const recordName = '.koja-install.json';
+export interface InstallOrigin {
+  checkout: string;
+  allChecksPassed: boolean;
+}
+
+// A record written before the installer stored its origin has a null origin.
+export interface InstallRecord {
+  files: string[];
+  origin: InstallOrigin | null;
+}
+
+type RecordFields = Record<string, unknown>;
+
+export const recordName = '.koja-install.json';
 
 const recordVersion = 1;
 
@@ -50,7 +65,7 @@ const permissionBits = 0o777;
 
 const watchDebounceMilliseconds = 200;
 
-const lstatOrNull = async (path: string): Promise<Stats | null> =>
+export const lstatOrNull = async (path: string): Promise<Stats | null> =>
   lstat(path).catch((error: unknown) => {
     if (isMissing(error)) {
       return null;
@@ -59,7 +74,7 @@ const lstatOrNull = async (path: string): Promise<Stats | null> =>
     throw error;
   });
 
-const filesUnder = async (directory: string): Promise<string[]> => {
+export const filesUnder = async (directory: string): Promise<string[]> => {
   try {
     const entries = await readdir(directory, { recursive: true, withFileTypes: true });
 
@@ -96,26 +111,46 @@ const isInsideHome = (path: string): boolean => {
   return !isAbsolute(normalized) && !escapes;
 };
 
-const readRecord = async (home: string): Promise<string[]> => {
+const isRecordFields = (value: unknown): value is RecordFields =>
+  typeof value === 'object' && value !== null && !Array.isArray(value);
+
+const recordedFiles = (record: RecordFields): string[] => {
+  const { files } = record;
+
+  return Array.isArray(files)
+    ? files.filter((file): file is string => typeof file === 'string').filter(isInsideHome)
+    : [];
+};
+
+const recordedOrigin = (record: RecordFields): InstallOrigin | null => {
+  const { checkout, allChecksPassed } = record;
+
+  if (typeof checkout !== 'string' || typeof allChecksPassed !== 'boolean') {
+    return null;
+  }
+
+  return { checkout, allChecksPassed };
+};
+
+export const readRecord = async (home: string): Promise<InstallRecord | null> => {
   const path = join(home, recordName);
   const existing = await lstatOrNull(path);
 
   if (existing === null || existing.isSymbolicLink()) {
-    return [];
+    return null;
   }
 
   try {
     const record: unknown = JSON.parse(await readFile(path, 'utf8'));
 
-    const files =
-      typeof record === 'object' && record !== null && 'files' in record ? record.files : [];
+    if (!isRecordFields(record)) {
+      return { files: [], origin: null };
+    }
 
-    return Array.isArray(files)
-      ? files.filter((file): file is string => typeof file === 'string').filter(isInsideHome)
-      : [];
+    return { files: recordedFiles(record), origin: recordedOrigin(record) };
   } catch (error) {
     if (isMissing(error)) {
-      return [];
+      return null;
     }
 
     throw error;
@@ -195,7 +230,7 @@ const removeSymlinkLeaf = async (destination: string): Promise<void> => {
   }
 };
 
-const isSameFile = async (source: string, destination: string): Promise<boolean> => {
+export const isSameFile = async (source: string, destination: string): Promise<boolean> => {
   const [sourceStat, destinationStat] = await Promise.all([stat(source), lstat(destination)]);
   const sameMode = (sourceStat.mode & permissionBits) === (destinationStat.mode & permissionBits);
 
@@ -283,8 +318,14 @@ const installedMods = (paths: Iterable<string>): string[] => {
   return [...mods].toSorted();
 };
 
-const writeRecord = async (home: string, files: Iterable<string>): Promise<void> => {
-  const record = { version: recordVersion, files: [...files].toSorted() };
+const writeRecord = async (home: string, files: string[], origin: InstallOrigin): Promise<void> => {
+  const record = {
+    version: recordVersion,
+    checkout: origin.checkout,
+    allChecksPassed: origin.allChecksPassed,
+    files: files.toSorted(),
+  };
+
   const recordPath = join(home, recordName);
 
   await removeSymlinkLeaf(recordPath);
@@ -353,12 +394,15 @@ export const install = async (options: InstallOptions): Promise<InstallResult> =
   const planned = await plannedFiles(options);
   const modFiles = [...planned].filter(([path]) => isModFile(path));
   const configFiles = [...planned].filter(([path]) => !isModFile(path));
-  const earlier = await readRecord(home);
+  const checkout = await realpath(options.checkout);
+  const earlierRecord = await readRecord(home);
+  const earlier = earlierRecord?.files ?? [];
   const stale = earlier.filter((file) => !planned.has(file));
   const written: string[] = [];
   const removed: string[] = [];
   const checks: InstallResult['checks'] = [];
   const owned = new Set<string>();
+  let allChecksPassed = false;
 
   const recordOwned = (writtenPath: string): void => {
     owned.add(writtenPath);
@@ -382,7 +426,7 @@ export const install = async (options: InstallOptions): Promise<InstallResult> =
     written.push(...modsWritten);
     checks.push(...(await checkMods(home, planned, options.check)));
 
-    const allChecksPassed = checks.every((check) => check.passed);
+    allChecksPassed = checks.every((check) => check.passed);
 
     if (allChecksPassed) {
       const configWritten = await installFiles(home, configFiles, chmodFile, recordOwned);
@@ -391,7 +435,7 @@ export const install = async (options: InstallOptions): Promise<InstallResult> =
       removed.push(...(await removeStale(home, stale, owned)));
     }
   } finally {
-    await writeRecord(home, owned);
+    await writeRecord(home, [...owned], { checkout, allChecksPassed });
   }
 
   return { written, removed, checks };
@@ -427,6 +471,7 @@ const buildAndInstall = async (home: string): Promise<boolean> => {
 
   const result = await install({
     home,
+    checkout: process.cwd(),
     modsDirectory: outputDirectory,
     configDirectory: 'config',
     check: herdrCheck,
