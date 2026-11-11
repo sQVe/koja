@@ -73,16 +73,6 @@ describe('buildMods', () => {
     expect(preview.mode & 0o777).toBe(0o755);
   });
 
-  test('leaves the QA recipe out of the mod', async () => {
-    await writeSource('palette/main.ts', 'export const palette = 1;\n');
-    await writeSource('palette/mod.json', '{ "place": "none" }\n');
-    await writeSource('palette/qa.md', '# QA recipe\n');
-
-    await buildMods(source, output);
-
-    expect((await readdir(join(output, 'palette'))).toSorted()).toEqual(['main.js', 'mod.json']);
-  });
-
   test('copies the kit icons into every mod', async () => {
     await writeSource('../kit/icons/plus.svg', '<svg id="plus"/>\n');
     await writeSource('../kit/icons/x.svg', '<svg id="x"/>\n');

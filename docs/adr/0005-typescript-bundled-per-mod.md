@@ -19,7 +19,7 @@ folder.
 Mods and the kit are written in TypeScript. The build bundles each mod into one `main.js`, with the
 kit and every other local module inside it. Imports of Herdr's own modules, such as `herdr` and
 `gpui-kit`, stay imports. Files that are not TypeScript, such as `mod.json`, icons, and scripts, are
-copied as they are, except a mod's QA recipe, which is not part of the installed mod.
+copied as they are.
 
 Mods are typechecked against a copy of Herdr's declarations kept in the repository for the Herdr
 version Koja targets. Updating that copy is part of moving to a new Herdr version, and its diff

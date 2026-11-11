@@ -1,7 +1,8 @@
 # QA recipe: command palette
 
-Drive the command palette mod, `koja-palette`, in a running sandbox. Run every command from this
-worktree with `bun run sandbox <command>`. Read coordinates from a `shot`; they match `click`.
+Drive the command palette mod, `koja-palette`, in the sandbox the brief names. Follow
+[the rules for every section](../qa.md#rules-for-every-section) of the QA guide first: they set
+`RUTA_NAME`, prove the sandbox, and list what never to run.
 
 ## Entry points
 
@@ -29,7 +30,7 @@ Use `type ":"`, not `key colon`: `key` does not add Shift.
 6. Turn the wheel over the list with `scroll <x> <y> <notches>`, down for a positive count.
 7. Run the selected entry with `key Return`, or click its row with `click <x> <y>`. This closes the
    palette.
-8. Close the palette without running an entry with `key Escape`.
+8. Open the palette again, then close it without running an entry with `key Escape`.
 9. Leave normal mode with `key i` when the run is done.
 
 Take a `shot` after each step that should change the screen.
@@ -46,9 +47,9 @@ Take a `shot` after each step that should change the screen.
 - A row with a key binding shows its shortcut at the right side, such as `Z +` for Zoom in.
 - A query with no match shows `Nothing matches "<query>". Places are in the picker.`
 - Running an entry, by `Return` or by a click, closes the palette and runs its command.
-- Stored value: running an entry moves it to the top of Recent. The mod keeps the last 20 run
-  entries in its local storage, and Recent shows the first 5. To read the stored value through a
-  second, read-only view, open the palette again with an empty query and read the Recent section.
+- Stored value: running an entry moves it to the top of Recent, which shows at most 5 entries. To
+  read the stored value through a second, read-only view, open the palette again with an empty query
+  and read the Recent section.
 
 ## Gotchas
 
@@ -68,6 +69,3 @@ Take a `shot` after each step that should change the screen.
   terminal, such as scrolling, fail with a toast.
 - A row under the pointer shows a hover outline. It is not the selection; the selection has a filled
   background.
-- Never run `herdr-app do`, `hc`, or input against the user's real window. Use only
-  `bun run sandbox` from this worktree.
-- QA does not start, restart, or stop the sandbox, and does not run `sandbox install`.
