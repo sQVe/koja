@@ -3,12 +3,13 @@ import type { Element } from 'gpui-kit';
 import { div } from 'gpui-kit';
 
 import { icon } from '../../../../kit/index.ts';
-import { spacing } from '../../../../kit/size.ts';
+import { controlSize, spacing } from '../../../../kit/size.ts';
 import {
   checkMark,
   contentSectionHeader,
   paragraph,
   readingInset,
+  saveRecoveryButton,
   sectionBodyInset,
 } from '../content/parts.ts';
 import { sectionHeaderOf } from '../panels/frame.ts';
@@ -82,7 +83,8 @@ const logLines = (lines: string[], tokens: DirectionTokens): Element =>
 
 const failedCheck = (view: PullView, tokens: DirectionTokens): Element => {
   const stale = view.state === 'checks-failed';
-  const nameInk = stale ? tokens.ink.dim : tokens.ink.text;
+  const staleLegacy = stale && !isBottomBarView(view);
+  const nameInk = staleLegacy ? tokens.ink.dim : tokens.ink.text;
   const stateInk = stale ? tokens.ink.dim : tokens.marks.blocked;
   const age = stale ? checkFailure.staleAge : checkFailure.age;
   const titleRole = isBottomBarView(view) ? tokens.text.title : tokens.text.body;
@@ -138,7 +140,7 @@ const threadTitle = (thread: PullThread, view: PullView, tokens: DirectionTokens
     .min_w(0)
     .items_center()
     .tooltip(thread.path)
-    .child(label(folder, tokens.text.body, tokens.ink.dim).flex_shrink(1))
+    .child(label(folder, tokens.text.body, tokens.ink.text).flex_shrink(1))
     .child(fixedLabel(thread.reference, tokens.text.title, tokens.ink.text));
 };
 
@@ -194,22 +196,32 @@ const requestedReview = (view: PullView, tokens: DirectionTokens): Element =>
           label: label('Review from jonas-l', tokens.text.title, tokens.ink.text),
           end: [
             fixedLabel('changes requested', tokens.text.detail, tokens.ink.dim),
-            promptAction(false, view, tokens),
+            saveRecoveryButton('Add all for agent', tokens).h(controlSize.dialogButton),
           ],
         },
         tokens,
-      ),
+      ).h(controlSize.dialogButton),
     )
-    .child(detailBlock(view, tokens).child(detailText('2h ago · 2 threads', tokens)));
+    .child(detailBlock(view, tokens).child(detailText('2h ago', tokens)))
+    .child(
+      v_flex()
+        .flex_none()
+        .min_w(0)
+        .ml(selectionInset)
+        .mt(spacing.small)
+        .gap(spacing.small)
+        .children(pullThreads.map((thread) => threadRow(thread, view, tokens))),
+    );
 
 export const needsYouSection = (view: PullView, tokens: DirectionTokens): Element => {
   const items = [failedCheck(view, tokens)];
 
   if (isBottomBarView(view)) {
     items.push(requestedReview(view, tokens));
+  } else {
+    items.push(...pullThreads.map((thread) => threadRow(thread, view, tokens)));
   }
 
-  items.push(...pullThreads.map((thread) => threadRow(thread, view, tokens)));
   const header = contentSectionHeader({ name: 'Needs you', count: items.length }, true, [], tokens);
 
   if (view.tray === 'section') {

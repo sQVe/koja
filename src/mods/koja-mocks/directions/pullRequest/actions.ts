@@ -4,7 +4,7 @@ import { div } from 'gpui-kit';
 
 import { icon } from '../../../../kit/index.ts';
 import { controlSize, spacing } from '../../../../kit/size.ts';
-import { reviewActionButton } from '../content/parts.ts';
+import { readingInset, reviewActionButton } from '../content/parts.ts';
 import { dialogActionsFor } from '../dialogs/actions.ts';
 import { wrappedText } from '../dialogs/parts.ts';
 import { dialogFrame } from '../dialogs/scene.ts';
@@ -52,6 +52,7 @@ const mergeState = (title: string, mark: Element, tokens: DirectionTokens): Elem
     .gap(spacing.small)
     .child(
       h_flex()
+        .ml(tokens.rows.inset + tokens.rows.paddingX - readingInset)
         .gap(spacing.small)
         .items_center()
         .child(mark)
@@ -63,7 +64,7 @@ export const blockedMerge = (tokens: DirectionTokens): Element =>
     "Can't merge yet",
     icon('circle-x', 'small').text_color(tokens.marks.blocked),
     tokens,
-  ).child(detailText('1 of 5 checks failing · 2 unresolved threads · changes requested', tokens));
+  ).child(detailText('1 of 4 checks failing · 2 unresolved threads · changes requested', tokens));
 
 export const readyActions = (state: PullState, tokens: DirectionTokens): Element => {
   if (state === 'merge-failed') {

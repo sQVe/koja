@@ -107,9 +107,7 @@ test('prompt variants queue two items instead of sending each item immediately',
 
     expect(texts.filter((text) => text === 'Added')).toHaveLength(2);
     const action = name === 'tray-bar' ? 'Add for agent' : 'Add to prompt';
-    const remaining = name === 'tray-bar' ? 2 : 1;
-
-    expect(texts.filter((text) => text === action)).toHaveLength(remaining);
+    expect(texts.filter((text) => text === action)).toHaveLength(1);
     expect(texts).toContain("Type 'string' is not assignable to type 'RowLook'.");
     expect(texts).toContain('48  return selectedRow(space, look);');
     expect(texts).toContain('28  label(branch).truncate()');
@@ -142,9 +140,11 @@ test('empty and sent prompts have no tray and sent rows retain their content', (
   const blocked = drawnTexts(paneOf('blocked'));
   const sent = drawnTexts(paneOf('sent'));
 
-  expect(blocked.filter((text) => text === 'Add for agent')).toHaveLength(4);
+  expect(blocked.filter((text) => text === 'Add for agent')).toHaveLength(3);
+  expect(blocked).toContain('Add all for agent');
   expect(sent.filter((text) => text === 'Sent to agent · just now')).toHaveLength(2);
-  expect(sent.filter((text) => text === 'Add for agent')).toHaveLength(2);
+  expect(sent.filter((text) => text === 'Add for agent')).toHaveLength(1);
+  expect(sent).toContain('Add all for agent');
   expect(sent).toContain('Keep the selected row visible when the group folds.');
 
   for (const texts of [blocked, sent]) {
@@ -195,7 +195,7 @@ test('failed sync and merge retain their last data and recovery actions', () => 
   const checks = drawnTexts(paneOf('checks-failed'));
   const merge = drawnTexts(paneOf('merge-failed'));
 
-  expect(checks).toContain('Could not sync checks · showing checks from 6m ago');
+  expect(checks).toContain('Could not sync checks');
   expect(checks).toContain('typecheck');
   expect(checks).toContain('failed 9m ago ·');
   expect(checks).not.toContain('failed 3m ago');
@@ -269,21 +269,22 @@ test('blocked views explain merge blockers and expose the requested review for t
     const texts = drawnTexts(pane);
 
     expect(texts).toContain("Can't merge yet");
-    expect(texts).toContain('1 of 5 checks failing · 2 unresolved threads · changes requested');
+    expect(texts).toContain('1 of 4 checks failing · 2 unresolved threads · changes requested');
     expect(texts).not.toContain('Merge appears here when nothing blocks it.');
     expect(texts.indexOf("Can't merge yet")).toBeLessThan(texts.indexOf('Needs you'));
-    expect(texts[texts.indexOf('Needs you') + 1]).toBe('4');
+    expect(texts[texts.indexOf('Needs you') + 1]).toBe('2');
     expect(texts).toContain('Review from jonas-l');
     expect(texts).not.toContain('Please fix the two threads before merging.');
 
     const review = descendants(pane).findLast((element) => {
       const details = drawnTexts(element);
 
-      return details.includes('Review from jonas-l') && details.includes('2h ago · 2 threads');
+      return details.includes('Review from jonas-l') && details.includes('2h ago');
     });
 
     expect(review).toBeDefined();
-    expect(drawnTexts(review!)).not.toContain('rows.ts:48');
+    expect(drawnTexts(review!)).toContain('rows.ts:48');
+    expect(drawnTexts(review!)).toContain('repoLabel.ts:27–31');
     expect(texts).not.toContain('Squash and merge');
     expect(descendants(pane).some((element) => element.isDisabled)).toBe(false);
   }
@@ -298,7 +299,7 @@ test('ready and failed merge views retain the selected spaces PR identity and ni
     expect(texts).toContain('ME-1090 · Linear');
     expect(texts).toContain('src/mods/koja-spaces/rows.ts');
     expect(texts).not.toContain('koja #44 · GitHub');
-    expect(texts[texts.lastIndexOf('Files') + 1]).toBe('9');
+    expect(texts[texts.lastIndexOf('Files') + 1]).toBe('opens in Greppa');
   }
 
   const ready = drawnTexts(paneOf('ready'));
@@ -415,7 +416,7 @@ test('requested reviews have an amber review icon and a right-side state', () =>
     const review = descendants(paneOf(name)).findLast((element) => {
       const texts = drawnTexts(element);
 
-      return texts.includes('Review from jonas-l') && texts.includes('Add for agent');
+      return texts.includes('Review from jonas-l') && texts.includes('Add all for agent');
     });
 
     expect(review).toBeDefined();
@@ -430,7 +431,7 @@ test('requested reviews have an amber review icon and a right-side state', () =>
 test('partial sync keeps one refresh control and warns beside the status', () => {
   const pane = paneOf('checks-failed');
   const texts = drawnTexts(pane);
-  const warning = 'Could not sync checks · showing checks from 6m ago';
+  const warning = 'Could not sync checks';
 
   expect(texts).toContain('synced 1m ago · checks 6m ago');
   expect(texts).toContain(warning);
@@ -438,7 +439,8 @@ test('partial sync keeps one refresh control and warns beside the status', () =>
   expect(texts).not.toContain('Retry checks');
   expect(texts).not.toContain('Retry');
   expect(texts.filter((text) => text === 'Sync')).toHaveLength(1);
-  expect(texts[texts.indexOf('Needs you') + 1]).toBe('4');
+  expect(texts[texts.indexOf('Needs you') + 1]).toBe('2');
+  expect(texts).not.toContain('Could not sync checks · showing checks from 6m ago');
 
   const note = descendants(pane).findLast(
     (element) =>
@@ -448,7 +450,7 @@ test('partial sync keeps one refresh control and warns beside the status', () =>
   expect(note).toBeDefined();
 });
 
-test('picked views use an always-visible native scrollbar for their reading area', () => {
+test('picked reading areas use a persistent native overflow scrollbar', () => {
   for (const name of scenes.filter((scene) => !['tray-header', 'tray-section'].includes(scene))) {
     const parts = descendants(paneOf(name));
     const scrollbar = parts.find((element) => element.path === 'scrollbar/pr-reading');
@@ -505,7 +507,9 @@ test('attention marks share a fixed centered slot', () => {
   for (const name of ['blocked', 'tray-bar', 'sent', 'checks-failed', 'normal', 'zoomed']) {
     for (const title of titles) {
       const row = descendants(paneOf(name)).findLast(
-        (element) => element.properties.h?.[0] === 24 && drawnTexts(element).includes(title),
+        (element) =>
+          [24, 28].includes(Number(element.properties.h?.[0])) &&
+          drawnTexts(element).includes(title),
       );
 
       const slot = row?.kids[0];
@@ -518,7 +522,7 @@ test('attention marks share a fixed centered slot', () => {
   }
 });
 
-test('picked dividers start at the section header mark column', () => {
+test('picked dividers align with the body text column', () => {
   for (const name of ['blocked', 'tray-bar', 'ready', 'merge-failed', 'checks-failed']) {
     const parts = descendants(paneOf(name));
     const divider = parts.find((element) => element.properties.h?.[0] === 1);
@@ -533,9 +537,8 @@ test('picked dividers start at the section header mark column', () => {
           drawnTexts(element).includes('Files') && drawnIcons(element).includes('chevron-down'),
       );
 
-    const left = Number(header?.properties.mx?.[0]) + Number(header?.properties.px?.[0]);
-
-    expect(divider?.properties.mx).toEqual([left]);
+    expect(header).toBeDefined();
+    expect(divider?.properties.mx).toEqual([20]);
   }
 });
 
@@ -549,9 +552,130 @@ test('picked Files headers leave aggregate counts in the facts only', () => {
       return texts.includes('Files') && texts.includes('opens in Greppa');
     });
 
-    expect(drawnTexts(header!)).toContain('9');
+    expect(drawnTexts(header!)).not.toContain('9');
     expect(drawnTexts(header!)).not.toContain('+412');
     expect(drawnTexts(header!)).not.toContain('−40');
+  }
+});
+
+test('reviews own indented threads and a larger add-all control', () => {
+  for (const name of ['blocked', 'tray-bar', 'sent', 'checks-failed', 'normal', 'zoomed']) {
+    const parts = descendants(paneOf(name));
+
+    const review = parts.findLast((element) => {
+      const texts = drawnTexts(element);
+
+      return texts.includes('Review from jonas-l') && texts.includes('rows.ts:48');
+    });
+
+    const nested = review?.kids.find((element) => element.properties.ml?.[0] === 18);
+
+    const reviewAction = parts.findLast((element) =>
+      element.kids.some((child) => child.texts.includes('Add all for agent')),
+    );
+
+    const threadAction =
+      nested &&
+      descendants(nested).findLast((element) =>
+        element.kids.some((child) => child.texts.includes('Add for agent')),
+      );
+
+    expect(nested?.kids).toHaveLength(2);
+    expect(drawnTexts(nested!)).toContain('jonas-l · 2h ago');
+    expect(drawnTexts(nested!)).toContain('jonas-l · 1h ago');
+
+    expect(Number(reviewAction?.properties.h?.[0])).toBeGreaterThan(
+      Number(threadAction?.properties.h?.[0]),
+    );
+  }
+});
+
+test('scrolling content reserves an inset gutter and bottom section gap', () => {
+  for (const name of ['blocked', 'tray-bar', 'ready', 'merge-failed', 'checks-failed', 'zoomed']) {
+    const parts = descendants(paneOf(name));
+    const reading = parts.find((element) => element.properties.id?.[0] === 'pr-reading');
+    const scrollbar = parts.find((element) => element.path === 'scrollbar/pr-reading');
+    const last = reading?.kids.at(-1);
+
+    expect(reading?.properties.pr).toEqual([8]);
+    expect(scrollbar?.properties.right).toEqual([6]);
+    expect(scrollbar?.properties.viewport_from_layout).toEqual([]);
+    expect(last?.properties.pb).toEqual([8]);
+    expect(reading?.properties.pb).toBeUndefined();
+  }
+});
+
+test('merge heading marks align with top-level attention marks', () => {
+  for (const name of ['blocked', 'merge-failed']) {
+    const title = name === 'blocked' ? "Can't merge yet" : 'Could not merge';
+
+    const heading = descendants(paneOf(name)).findLast(
+      (element) => drawnTexts(element).includes(title) && drawnIcons(element).includes('circle-x'),
+    );
+
+    expect(heading?.properties.ml).toEqual([-6]);
+  }
+});
+
+test('attention titles use one ink even when checks are stale', () => {
+  for (const name of ['blocked', 'checks-failed', 'normal', 'zoomed']) {
+    const parts = descendants(paneOf(name));
+    const tokens = name === 'normal' ? kojaNormal : koja;
+
+    for (const title of [
+      'typecheck',
+      'Review from jonas-l',
+      'src/mods/koja-spaces/',
+      'rows.ts:48',
+      'src/kit/',
+      'repoLabel.ts:27–31',
+    ]) {
+      const element = parts.find((part) => part.texts.includes(title));
+
+      expect(element?.textColors.at(-1)).toBe(tokens.ink.text);
+    }
+  }
+});
+
+test('Sync has a larger gap than the state and status pair', () => {
+  for (const name of [
+    'blocked',
+    'tray-bar',
+    'ready',
+    'merge-failed',
+    'checks-failed',
+    'normal',
+    'zoomed',
+  ]) {
+    const parts = descendants(paneOf(name));
+
+    const action = parts.findLast((element) =>
+      element.kids.some((child) => child.texts.includes('Sync')),
+    );
+
+    const status = parts.findLast(
+      (element) => drawnTexts(element).includes('open') && drawnTexts(element).includes('Sync'),
+    );
+
+    expect(status?.properties.gap).toEqual([8]);
+    expect(action?.properties.ml).toEqual([2]);
+  }
+});
+
+test('resolved scenes keep the same description gap and bottom padding', () => {
+  for (const name of ['ready', 'merge-failed', 'ready-menu', 'merge-confirm']) {
+    const description = descendants(paneOf(name)).findLast(
+      (element) =>
+        drawnTexts(element).includes('Description') && element.properties.mb !== undefined,
+    );
+
+    expect(description?.properties.mb).toEqual([8]);
+
+    const reading = descendants(paneOf(name)).find(
+      (element) => element.properties.id?.[0] === 'pr-reading',
+    );
+
+    expect(reading?.kids.at(-1)?.properties.pb).toEqual([8]);
   }
 });
 

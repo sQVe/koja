@@ -24,12 +24,13 @@ export const filesSection = (view: PullView, open: boolean, tokens: DirectionTok
     ? []
     : diffCounts(pullFileTotals.added, pullFileTotals.removed, tokens);
 
-  const header = contentSectionHeader(
-    { name: 'Files', count: files.length },
-    open,
-    detail,
-    tokens,
-  ).child(fixedLabel('opens in Greppa', tokens.text.detail, tokens.ink.dim));
+  const sectionLook = isBottomBarView(view)
+    ? { name: 'Files' }
+    : { name: 'Files', count: files.length };
+
+  const header = contentSectionHeader(sectionLook, open, detail, tokens).child(
+    fixedLabel('opens in Greppa', tokens.text.detail, tokens.ink.dim),
+  );
 
   const section = v_flex().flex_none().min_w(0).child(header);
 

@@ -28,6 +28,7 @@ import { promptBar, promptHeader } from './prompt.ts';
 const factsRailWidth = 240;
 const railInset = 16;
 const menuTop = 328;
+const sectionGap = spacing.medium;
 
 const overview = (view: PullView, item: ContentItem, tokens: DirectionTokens): Element => {
   const resolved = hasResolvedReview(view.state);
@@ -56,7 +57,7 @@ const overview = (view: PullView, item: ContentItem, tokens: DirectionTokens): E
   const filesOpen = resolved || view.state === 'zoomed';
 
   if (resolved) {
-    descriptionSection.mb(spacing.medium);
+    descriptionSection.mb(sectionGap);
   }
 
   return body.child(descriptionSection).child(filesSection(view, filesOpen, tokens));
@@ -73,14 +74,23 @@ const readingViewport = (reading: Element, view: PullView): Element => {
     .min_h(0)
     .min_w(0)
     .child(reading)
-    .child(Scrollbar.vertical('pr-reading').mode('always').absolute().inset_0());
+    .child(
+      Scrollbar.vertical('pr-reading')
+        .mode('always')
+        .viewport_from_layout()
+        .absolute()
+        .top(0)
+        .bottom(0)
+        .left(0)
+        .right(spacing.small),
+    );
 };
 
 const pullHeading = (view: PullView, item: ContentItem, tokens: DirectionTokens): Element => {
   const actions: Element[] = [];
 
   if (isBottomBarView(view)) {
-    actions.push(saveRecoveryButton('Sync', tokens));
+    actions.push(saveRecoveryButton('Sync', tokens).ml(spacing.large - spacing.medium));
   }
 
   const stateLook = isBottomBarView(view) ? 'plain' : 'badge';
@@ -93,7 +103,7 @@ const pullHeading = (view: PullView, item: ContentItem, tokens: DirectionTokens)
         .gap(spacing.small)
         .items_center()
         .child(icon('triangle-alert', 'small').text_color(tokens.marks.working))
-        .child(detailText('Could not sync checks · showing checks from 6m ago', tokens)),
+        .child(detailText('Could not sync checks', tokens)),
     );
   }
 
@@ -102,7 +112,7 @@ const pullHeading = (view: PullView, item: ContentItem, tokens: DirectionTokens)
 
 export const pullBody = (view: PullView, item: ContentItem, tokens: DirectionTokens): Element => {
   const reading = isBottomBarView(view)
-    ? v_flex().id('pr-reading').flex_1().min_h(0).min_w(0).overflow_y_scroll()
+    ? v_flex().id('pr-reading').flex_1().min_h(0).min_w(0).pr(spacing.medium).overflow_y_scroll()
     : scrollBody('pr-reading');
 
   reading.child(pullHeading(view, item, tokens));
@@ -125,13 +135,21 @@ export const pullBody = (view: PullView, item: ContentItem, tokens: DirectionTok
     const divider = sectionDivider(tokens);
 
     if (isBottomBarView(view)) {
-      divider.mx(tokens.rows.inset + tokens.rows.paddingX);
+      divider.mx(readingInset);
     }
 
     reading.child(facts).child(divider);
   }
 
-  reading.child(overview(view, item, tokens)).pb(spacing.large);
+  const content = overview(view, item, tokens);
+
+  if (isBottomBarView(view)) {
+    content.pb(sectionGap);
+  } else {
+    reading.pb(spacing.large);
+  }
+
+  reading.child(content);
   const column = v_flex().flex_1().min_h(0).min_w(0).child(readingViewport(reading, view));
 
   if (view.queued && isBottomBarView(view)) {

@@ -4,6 +4,7 @@ import type { Element } from 'gpui-kit';
 import { icon } from '../../../../kit/index.ts';
 import { spacing } from '../../../../kit/size.ts';
 import { readingInset, reviewActionButton, saveRecoveryButton } from '../content/parts.ts';
+import { sectionDivider } from '../panels/frame.ts';
 import { fixedLabel } from '../parts.ts';
 import type { DirectionTokens } from '../tokens.ts';
 import type { PullView } from './data.ts';
@@ -40,19 +41,30 @@ export const sectionSend = (tokens: DirectionTokens): Element =>
   reviewActionButton('Send 2 to agent', tokens).h(smallActionHeight);
 
 export const promptBar = (tokens: DirectionTokens): Element =>
-  h_flex()
+  v_flex()
     .flex_none()
-    .px(readingInset)
-    .py(spacing.medium)
-    .gap(spacing.medium)
-    .items_center()
-    .border_t(1)
-    .border_color(tokens.pane.headerDivider)
     .child(
-      fixedLabel('2 added for Design the sidebar', tokens.text.detail, tokens.ink.text).flex_1(),
+      sectionDivider(tokens)
+        .ml(readingInset)
+        .mr(readingInset + spacing.medium),
     )
-    .child(saveRecoveryButton('Clear', tokens))
-    .child(reviewActionButton('Send to agent', tokens));
+    .child(
+      h_flex()
+        .pl(readingInset)
+        .pr(readingInset + spacing.medium)
+        .py(spacing.medium)
+        .gap(spacing.medium)
+        .items_center()
+        .child(
+          fixedLabel(
+            '2 added for Design the sidebar',
+            tokens.text.detail,
+            tokens.ink.text,
+          ).flex_1(),
+        )
+        .child(saveRecoveryButton('Clear', tokens))
+        .child(reviewActionButton('Send to agent', tokens)),
+    );
 
 export const promptHeader = (tokens: DirectionTokens): Element =>
   v_flex()
