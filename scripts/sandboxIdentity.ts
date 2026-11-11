@@ -5,7 +5,7 @@ import { isMissing } from './build.ts';
 import type { InstallRecord } from './install.ts';
 import { filesUnder, isSameFile, lstatOrNull, readRecord, recordName } from './install.ts';
 
-type WindowState = 'answers' | 'silent' | 'notUp';
+type WindowState = 'answers' | 'silent';
 
 export interface IdentityOptions {
   name: string;
@@ -15,7 +15,6 @@ export interface IdentityOptions {
 }
 
 export type IdentityFailure =
-  | { kind: 'sandboxNotUp' }
   | { kind: 'windowSilent' }
   | { kind: 'recordMissing' }
   | { kind: 'recordWithoutOrigin' }
@@ -31,7 +30,7 @@ export interface IdentityReport {
   lines: string[];
 }
 
-const windowStates: WindowState[] = ['answers', 'silent', 'notUp'];
+const windowStates: WindowState[] = ['answers', 'silent'];
 
 const shippedFolders = ['src', 'config'];
 
@@ -190,10 +189,6 @@ const installFailures = async (options: IdentityOptions): Promise<IdentityFailur
 export const findIdentityFailures = async (
   options: IdentityOptions,
 ): Promise<IdentityFailure[]> => {
-  if (options.window === 'notUp') {
-    return [{ kind: 'sandboxNotUp' }];
-  }
-
   const failures = await installFailures(options);
 
   return options.window === 'silent' ? [{ kind: 'windowSilent' }, ...failures] : failures;
@@ -201,10 +196,6 @@ export const findIdentityFailures = async (
 
 const failureLine = (options: IdentityOptions, failure: IdentityFailure): string => {
   switch (failure.kind) {
-    case 'sandboxNotUp': {
-      return `sandbox ${options.name} is not up`;
-    }
-
     case 'windowSilent': {
       return `the window of sandbox ${options.name} does not answer`;
     }
@@ -251,7 +242,10 @@ export const identityReport = async (options: IdentityOptions): Promise<Identity
   const failures = await findIdentityFailures(options);
 
   if (failures.length === 0) {
-    return { exitCode: 0, lines: [`sandbox ${options.name} serves ${options.checkout}`] };
+    return {
+      exitCode: 0,
+      lines: [`sandbox ${options.name} has the current mods and config of ${options.checkout}`],
+    };
   }
 
   return { exitCode: 1, lines: failures.map((failure) => failureLine(options, failure)) };

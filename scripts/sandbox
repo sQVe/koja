@@ -5,8 +5,9 @@
 #   scripts/sandbox up            install this checkout, start the display, the core and the window
 #   scripts/sandbox restart       reinstall and restart the window
 #   scripts/sandbox install       reinstall this checkout into a running sandbox
-#   scripts/sandbox identity      say whether the sandbox serves this checkout's current mods and
-#                                 config; exits 0 only when it does, and changes nothing
+#   scripts/sandbox identity      run `ruta status`, then say whether the sandbox has this
+#                                 checkout's current mods and config; exits 0 only when both
+#                                 hold, and changes nothing
 #   scripts/sandbox do <action> [json]   / status   drive it (herdr-app do / status)
 #   scripts/sandbox hc <args>     hc against the sandbox core
 #   scripts/sandbox shot [file]   screenshot of the window, in window pixels
@@ -88,9 +89,7 @@ install_mods() {
 }
 
 window_state() {
-  if [[ ! -x $root/bin/herdr-app ]]; then
-    echo notUp
-  elif in_sandbox timeout 10 herdr-app status >/dev/null 2>&1; then
+  if in_sandbox timeout 10 herdr-app status >/dev/null 2>&1; then
     echo answers
   else
     echo silent
@@ -109,8 +108,9 @@ case ${1:-} in
     ;;
   install) install_mods ;;
   identity)
-    state=$(window_state)
     cd "$checkout"
+    ruta status || exit 1
+    state=$(window_state)
     exec bun scripts/sandboxIdentity.ts "$name" "$root/config/herdr-app" "$checkout" "$state"
     ;;
   do | status) require_up; in_sandbox herdr-app "$@" ;;

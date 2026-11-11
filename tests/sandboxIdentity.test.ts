@@ -125,12 +125,6 @@ describe('sandbox identity', () => {
     expect(report.lines[0]).toContain(checkout);
   });
 
-  test('fails when the sandbox is not up', async () => {
-    expect(await findIdentityFailures({ ...options, window: 'notUp' })).toEqual([
-      { kind: 'sandboxNotUp' },
-    ]);
-  });
-
   test('fails when the window does not answer', async () => {
     expect(await findIdentityFailures({ ...options, window: 'silent' })).toEqual([
       { kind: 'windowSilent' },
@@ -318,9 +312,7 @@ describe('sandbox identity', () => {
     expect(report.lines[2]).toContain('package.json');
   });
 
-  test('gives a sandbox that is down, a missing record, and an old record their own lines', async () => {
-    const down = await identityReport({ ...options, window: 'notUp' });
-
+  test('gives a missing record and an old record their own lines', async () => {
     await writeFile(recordPath(), JSON.stringify({ version: 1, files: [] }));
 
     const old = await identityReport(options);
@@ -328,11 +320,11 @@ describe('sandbox identity', () => {
     await rm(recordPath());
 
     const missing = await identityReport(options);
-    const lines = [...down.lines, ...old.lines, ...missing.lines];
+    const lines = [...old.lines, ...missing.lines];
 
-    expect([down.exitCode, old.exitCode, missing.exitCode]).toEqual([1, 1, 1]);
-    expect(lines).toHaveLength(3);
-    expect(new Set(lines).size).toBe(3);
+    expect([old.exitCode, missing.exitCode]).toEqual([1, 1]);
+    expect(lines).toHaveLength(2);
+    expect(new Set(lines).size).toBe(2);
   });
 
   test.each([
@@ -355,48 +347,80 @@ describe('sandbox identity', () => {
   });
 });
 
+const linesOf = (output: string): string[] => output.trim().split('\n');
+
 describe('scripts/sandbox identity', () => {
   const script = resolve(import.meta.dir, '..', 'scripts', 'sandbox');
+  const repository = resolve(import.meta.dir, '..');
   let name: string;
   let sandboxRoot: string;
+  let fakes: string;
 
   const runIdentity = async (): Promise<{ exitCode: number; output: string }> => {
     const child = Bun.spawn([script, 'identity'], {
-      env: { ...Bun.env, RUTA_NAME: name },
+      env: { ...Bun.env, RUTA_NAME: name, PATH: `${fakes}:${Bun.env['PATH'] ?? ''}` },
       stdout: 'pipe',
       stderr: 'pipe',
     });
 
-    const [output, exitCode] = await Promise.all([new Response(child.stdout).text(), child.exited]);
+    const [stdout, stderr, exitCode] = await Promise.all([
+      new Response(child.stdout).text(),
+      new Response(child.stderr).text(),
+      child.exited,
+    ]);
 
-    return { exitCode, output };
+    return { exitCode, output: stderr + stdout };
+  };
+
+  const writeProgram = async (path: string, body: string): Promise<void> => {
+    await writeAt(path, `#!/bin/sh\n${body}\n`);
+    await chmod(path, 0o755);
   };
 
   const writeWindow = async (exitCode: number): Promise<void> => {
-    const binary = join(sandboxRoot, 'bin', 'herdr-app');
-
-    await writeAt(binary, `#!/bin/sh\nexit ${exitCode}\n`);
-    await chmod(binary, 0o755);
+    await writeProgram(join(sandboxRoot, 'bin', 'herdr-app'), `exit ${exitCode}`);
   };
 
-  beforeEach(() => {
+  // Stands in for ruta: it records where and how the script called it, then answers as told.
+  const writeRuta = async (line: string, exitCode: number): Promise<void> => {
+    const record = `printf '%s %s\\n' "$PWD" "$*" >>'${join(fakes, 'calls')}'`;
+    const stream = exitCode === 0 ? '' : ' >&2';
+
+    await writeProgram(join(fakes, 'ruta'), `${record}\necho '${line}'${stream}\nexit ${exitCode}`);
+  };
+
+  beforeEach(async () => {
     name = `koja-identity-test-${randomBytes(6).toString('hex')}`;
     sandboxRoot = join('/var/tmp', `ruta-${name}`);
+    fakes = await mkdtemp(join(tmpdir(), 'koja-identity-fakes-'));
   });
 
   afterEach(async () => {
     await rm(sandboxRoot, { recursive: true, force: true });
+    await rm(fakes, { recursive: true, force: true });
   });
 
-  test('exits 1 and says the named sandbox is not up when it has no folder', async () => {
+  test('exits 1 with only the line of ruta when ruta status fails', async () => {
+    await writeRuta('ruta is not up', 1);
+    await writeWindow(0);
+
     const result = await runIdentity();
 
     expect(result.exitCode).toBe(1);
-    expect(result.output.trim().split('\n')).toHaveLength(1);
-    expect(result.output).toContain(name);
+    expect(linesOf(result.output)).toEqual(['ruta is not up']);
   });
 
-  test('reports a silent window and a missing record of a sandbox whose window fails', async () => {
+  test('asks ruta for the status once, from the checkout', async () => {
+    await writeRuta('ruta is up', 0);
+    await writeWindow(0);
+
+    await runIdentity();
+
+    expect(await readFile(join(fakes, 'calls'), 'utf8')).toBe(`${repository} status\n`);
+  });
+
+  test('reports a silent window and a missing record after the line of ruta', async () => {
+    await writeRuta('ruta is up', 0);
     await writeWindow(1);
 
     const silent = await runIdentity();
@@ -404,16 +428,28 @@ describe('scripts/sandbox identity', () => {
     await writeWindow(0);
 
     const answering = await runIdentity();
+    const [status, record, ...rest] = linesOf(answering.output);
 
     expect(silent.exitCode).toBe(1);
-    expect(silent.output.trim().split('\n')).toHaveLength(2);
+    expect(linesOf(silent.output)).toHaveLength(3);
     expect(answering.exitCode).toBe(1);
-    expect(answering.output.trim().split('\n')).toHaveLength(1);
-    expect(silent.output).toContain(answering.output);
-    expect(answering.output).toContain(join(sandboxRoot, 'config', 'herdr-app'));
+    expect(status).toBe('ruta is up');
+    expect(rest).toEqual([]);
+    expect(linesOf(silent.output)[2]).toBe(record);
+    expect(record).toContain(join(sandboxRoot, 'config', 'herdr-app'));
+  });
+
+  test('reports a silent window when ruta says up and the sandbox has no window program', async () => {
+    await writeRuta('ruta is up', 0);
+
+    const result = await runIdentity();
+
+    expect(result.exitCode).toBe(1);
+    expect(linesOf(result.output)).toHaveLength(3);
   });
 
   test('creates nothing in the sandbox folder', async () => {
+    await writeRuta('ruta is up', 0);
     await writeWindow(0);
 
     const before = await snapshot(sandboxRoot);
