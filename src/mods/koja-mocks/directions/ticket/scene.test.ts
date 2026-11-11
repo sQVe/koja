@@ -275,6 +275,35 @@ const flowPositions = (root: DrawnElement): Map<DrawnElement, number> => {
   return positions;
 };
 
+const intrinsicWidth = (part: DrawnElement): number => {
+  const width = attribute(part, 'w');
+
+  if (typeof width === 'number') {
+    return width;
+  }
+
+  const textWidth =
+    (part.texts.join('').length * Number(attribute(part, 'text_size') ?? koja.text.detail.size)) /
+    2;
+
+  const childrenWidth = part.kids.reduce((sum, child) => sum + intrinsicWidth(child), 0);
+  const gaps = Math.max(0, part.kids.length - 1) * Number(attribute(part, 'gap') ?? 0);
+
+  return textWidth + childrenWidth + gaps + Number(attribute(part, 'px') ?? 0) * 2;
+};
+
+const allocatedWidths = (row: DrawnElement, width: number): number[] => {
+  const flexible = row.kids.filter((part) => hasStyle(part, 'flex_1'));
+  const fixed = row.kids.filter((part) => !hasStyle(part, 'flex_1'));
+  const reserved = fixed.reduce((sum, part) => sum + intrinsicWidth(part), 0);
+  const gaps = Math.max(0, row.kids.length - 1) * Number(attribute(row, 'gap') ?? 0);
+  const remaining = width - Number(attribute(row, 'px') ?? 0) * 2 - gaps - reserved;
+
+  return row.kids.map((part) =>
+    hasStyle(part, 'flex_1') ? remaining / flexible.length : intrinsicWidth(part),
+  );
+};
+
 const firstColumnInsetOf = (row: DrawnElement): number =>
   Number(attribute(row, 'mx')) +
   Number(attribute(row, 'px')) +
@@ -736,9 +765,7 @@ describe('ticket scene structure', () => {
         expect(hasStyle(label, 'font_semibold')).toBe(true);
 
         for (const detail of title.kids.slice(1)) {
-          const ink = name === parentName ? tokens.ink.text : tokens.ink.dim;
-
-          expect(detail.textColors).toEqual([ink]);
+          expect(detail.textColors).toEqual([tokens.ink.dim]);
           expect(attribute(detail, 'text_size')).toBe(tokens.text.detail.size);
         }
       }
@@ -813,6 +840,7 @@ describe('ticket scene structure', () => {
         const linkIndex = texts.findIndex((text) => text.startsWith(fact.value));
 
         expect(fact.title).toBeDefined();
+        expect(linkIndex).toBeGreaterThanOrEqual(0);
         expect(texts.indexOf(fact.title ?? '')).toBeGreaterThan(linkIndex);
         expect(title.textColors).toEqual([koja.ink.text]);
         expect(drawnTooltips(title)).toContain(fact.title ?? '');
@@ -828,6 +856,92 @@ describe('ticket scene structure', () => {
     },
   );
 
+  test.each(['single', 'container', 'tikk', 'normal'] satisfies TicketState[])(
+    '%s inline fact titles follow a dim padded separator',
+    (state) => {
+      const pane = paneOf(state);
+      const tokens = state === 'normal' ? kojaNormal : koja;
+
+      for (const fact of ticketView(state).item.facts) {
+        if (fact.name === 'Project' || fact.title === null) {
+          continue;
+        }
+
+        const pair = required(descendants(pane), (part) =>
+          part.kids.some((child) => child.texts.includes(fact.name)),
+        );
+
+        const title = textElement(pair, fact.title);
+        const line = required(descendants(pair), (part) => part.kids.includes(title));
+        const separator = line.kids[line.kids.indexOf(title) - 1] ?? drawn();
+
+        expect(separator.texts).toEqual([' · ']);
+        expect(separator.textColors).toEqual([tokens.ink.dim]);
+        expect(attribute(line, 'gap')).toBe(0);
+        expect(attribute(separator, 'text_size')).toBe(tokens.text.detail.size);
+      }
+    },
+  );
+
+  test('wide fact titles have more than a first-word slot beneath their links', () => {
+    const pane = paneOf('wide');
+    const rail = required(descendants(pane), (part) => hasStyle(part, 'border_l'));
+    const facts = ticketView('wide').item.facts;
+
+    for (const fact of facts) {
+      if (fact.name === 'Project' || fact.title === null) {
+        continue;
+      }
+
+      const pair = required(descendants(rail), (part) =>
+        part.kids.some((child) => child.texts.includes(fact.name)),
+      );
+
+      const group = required(descendants(rail), (part) => part.kids.includes(pair));
+      const title = textElement(pair, fact.title);
+      const value = required(descendants(pair), (part) => part.kids.includes(title));
+
+      const valueWidth =
+        Number(attribute(rail, 'w')) -
+        Number(attribute(rail, 'border_l')) -
+        Number(attribute(group, 'mx')) * 2 -
+        Number(attribute(pair.kids[0] ?? drawn(), 'w')) -
+        Number(attribute(pair, 'gap'));
+
+      const firstWord = fact.title.split(' ')[0] ?? '';
+      const minimumTitleWidth = (firstWord.length + 2) * Number(attribute(title, 'text_size'));
+
+      expect(attribute(value, 'layout')).toBe('column');
+      expect(valueWidth).toBeGreaterThan(minimumTitleWidth);
+      expect(drawnTexts(value).some((text) => text.startsWith(fact.value))).toBe(true);
+      expect(drawnTexts(value)).not.toContain(' · ');
+      expect(value.kids.at(-1)).toBe(title);
+      expect(title.textColors).toEqual([koja.ink.text]);
+    }
+  });
+
+  test.each([280, 320])(
+    'header facts reserve Project width and give the reference the remaining %ipx row',
+    (width) => {
+      const fixture = ticketView('single');
+      const facts = ticketFacts(fixture.item.facts, koja);
+      const project = facts.kids[0] ?? drawn();
+      const reference = facts.kids[1] ?? drawn();
+
+      const available =
+        width - Number(attribute(facts, 'px')) * 2 - Number(attribute(facts, 'gap'));
+
+      const projectWidth = intrinsicWidth(project);
+      const allocated = allocatedWidths(facts, width);
+
+      expect(allocated[0]).toBe(projectWidth);
+      expect(allocated[1]).toBe(available - projectWidth);
+      expect(allocated[1]).toBeLessThan(intrinsicWidth(reference));
+      expect(attribute(reference, 'min_w')).toBe(0);
+      expect(allocated.reduce((sum, value) => sum + value, 0)).toBe(available);
+    },
+  );
+
   test('a ticket fact without a known title keeps its link without an empty title', () => {
     const fixture = ticketView('single');
     const fact = fixture.item.facts.find((item) => item.name === 'Parent');
@@ -839,7 +953,10 @@ describe('ticket scene structure', () => {
     const known = ticketFacts([fact], koja);
     const unknown = ticketFacts([{ ...fact, title: null }], koja);
 
-    expect(drawnTexts(unknown)).toEqual(drawnTexts(known).filter((text) => text !== fact.title));
+    expect(drawnTexts(unknown)).toEqual(
+      drawnTexts(known).filter((text) => text !== fact.title && text.trim() !== '·'),
+    );
+
     expect(drawnTooltips(unknown)).not.toContain(fact.title ?? '');
     expect(fact.title).toBe(ticketView('container').item.title);
   });
@@ -1202,12 +1319,13 @@ describe('ticket scene structure', () => {
     expect(targets(plan)).toContain('AI-413');
     expect(targets(plan)).not.toContain('ME-1283');
     expect(heading(pane, parentName).kids).toHaveLength(2);
-    expect(heading(pane, parentName).kids[1]?.textColors).toEqual([koja.ink.text]);
+    expect(heading(pane, parentName).kids[1]?.textColors).toEqual([koja.ink.dim]);
     const parentFixture = ticketView('container').item;
+    const detail = heading(pane, parentName).kids[1] ?? drawn();
 
-    expect(drawnTexts(heading(pane, parentName).kids[1] ?? drawn())).toEqual([
-      `${parentFixture.identifier} ${parentFixture.title}`,
-    ]);
+    expect(numbers(detail)).toEqual([ticketView('single').slices.length]);
+    expect(drawnTexts(detail).some((text) => text.includes(parentFixture.title ?? ''))).toBe(false);
+    expect(drawnTexts(detail).some((text) => text.includes(parentFixture.identifier))).toBe(false);
 
     expect(textElement(now, 'AI-413').textColors).toEqual(textElement(plan, 'AI-413').textColors);
 
@@ -1215,7 +1333,7 @@ describe('ticket scene structure', () => {
       drawnTexts(heading(pane, parentName)).some((text) =>
         text.includes(ticketView('single').item.source),
       ),
-    ).toBe(false);
+    ).toBe(true);
   });
 
   test('plan disclosures distinguish empty open and closed slices', () => {
@@ -1816,33 +1934,41 @@ describe('ticket scene structure', () => {
   );
 
   test.each([
-    'container',
-    'tikk',
-    'normal',
-    'single',
-    'sync-failed',
-    'long',
-  ] satisfies TicketState[])('%s ends its initial fold after a complete row', (state) => {
-    const pane = paneOf(state);
-    const scroll = required(descendants(pane), (part) => hasStyle(part, 'overflow_y_scroll'));
-    const viewport = required(descendants(pane), (part) => part.kids.includes(scroll));
-    const positions = flowPositions(pane);
-    const scrollTop = positions.get(viewport) ?? 0;
-    const visibleBottom = fixedPaneHeight - Number(attribute(viewport, 'mb')) - 1;
-    const rows = descendants(scroll).filter((part) => attribute(part, 'h') === koja.rows.height);
+    ['container', 'Description'],
+    ['tikk', 'Description'],
+    ['normal', 'Description'],
+    ['single', 'ME-1286'],
+    ['sync-failed', 'ME-1287'],
+    ['long', 'ME-1310'],
+  ] satisfies [TicketState, string][])(
+    '%s ends its initial fold after a complete row',
+    (state, lastIdentity) => {
+      const pane = paneOf(state);
+      const scroll = required(descendants(pane), (part) => hasStyle(part, 'overflow_y_scroll'));
+      const viewport = required(descendants(pane), (part) => part.kids.includes(scroll));
+      const positions = flowPositions(pane);
+      const scrollTop = positions.get(viewport) ?? 0;
+      const visibleBottom = fixedPaneHeight - Number(attribute(viewport, 'mb')) - 1;
+      const rows = descendants(scroll).filter((part) => attribute(part, 'h') === koja.rows.height);
 
-    const boundaries = rows.map((part) => {
-      const top = positions.get(part) ?? 0;
-      const bottom = top + measuredHeight(part);
+      const boundaries = rows.map((part) => {
+        const top = positions.get(part) ?? 0;
+        const bottom = top + measuredHeight(part);
 
-      expect(Math.round(top) < visibleBottom && Math.round(bottom) > visibleBottom).toBe(false);
+        expect(Math.round(top) < visibleBottom && Math.round(bottom) > visibleBottom).toBe(false);
 
-      return Math.round(bottom);
-    });
+        return Math.round(bottom);
+      });
 
-    expect(scrollTop).toBeGreaterThan(0);
-    expect(boundaries).toContain(visibleBottom);
-  });
+      expect(scrollTop).toBeGreaterThan(0);
+      expect(boundaries).toContain(visibleBottom);
+
+      const lastRow = rowFor(scroll, lastIdentity);
+      const lastTop = positions.get(lastRow) ?? 0;
+
+      expect(Math.round(lastTop + measuredHeight(lastRow))).toBe(visibleBottom);
+    },
+  );
 
   test.each([
     'container',

@@ -12,6 +12,7 @@ import { isActiveSlice } from './data.ts';
 import type { SectionHeading } from './parts.ts';
 import {
   detailLine,
+  detailSeparator,
   identifierCell,
   identifierLink,
   identifierWidths,
@@ -27,9 +28,6 @@ import { sliceMark } from './spine.ts';
 
 const summaryInset = (tokens: DirectionTokens): number =>
   sectionBodyInset(tokens) + planChevronWidth + spacing.xsmall;
-
-const detailSeparator = (tokens: DirectionTokens): Element =>
-  fixedLabel(' · ', tokens.text.detail, tokens.ink.dim);
 
 const pullLink = (pull: string, tokens: DirectionTokens): Element => {
   const linkTokens = {

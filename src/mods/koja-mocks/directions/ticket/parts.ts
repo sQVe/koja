@@ -58,6 +58,9 @@ export const identifierWidths = (view: TicketView): { slice: number; agent: numb
   return { slice: width, agent: width - agentIndent };
 };
 
+export const detailSeparator = (tokens: DirectionTokens): Element =>
+  fixedLabel(' · ', tokens.text.detail, tokens.ink.dim);
+
 export const statusWord = (word: string, tokens: DirectionTokens): Element =>
   fixedLabel(word, tokens.text.detail, tokens.ink.dim).w(statusWidth).text_right();
 

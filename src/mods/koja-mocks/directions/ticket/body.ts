@@ -81,13 +81,12 @@ const planNode = (slice: Slice, view: TicketView, tokens: DirectionTokens): Spin
 };
 
 const planSection = (view: TicketView, tokens: DirectionTokens): Element => {
-  const heading: SectionHeading =
-    view.state === 'single'
-      ? { name: 'Parent plan', detail: { kind: 'identity', text: 'ME-1280 Build the sidebar' } }
-      : {
-          name: 'Whole plan',
-          detail: { kind: 'count', text: `${view.slices.length} slices in ${view.item.source}` },
-        };
+  const name = view.state === 'single' ? 'Parent plan' : 'Whole plan';
+
+  const heading: SectionHeading = {
+    name,
+    detail: { kind: 'count', text: `${view.slices.length} slices in ${view.item.source}` },
+  };
 
   const plan = v_flex()
     .flex_none()
