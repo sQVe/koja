@@ -40,7 +40,7 @@ const pullLink = (pull: string, tokens: DirectionTokens): Element => {
 };
 
 const nowDetails = (slice: ActiveSlice, tokens: DirectionTokens): Element => {
-  const details = note(slice.detail, tokens).ml(summaryInset(tokens));
+  const details = note(slice.detail, tokens);
 
   if (slice.agent !== null) {
     details.child(agentLink(slice.agent, tokens).flex_none());
@@ -164,7 +164,7 @@ const nowSlice = (slice: ActiveSlice, view: TicketView, tokens: DirectionTokens)
         tokens,
       ),
     )
-    .child(nowDetails(slice, tokens));
+    .child(nowDetails(slice, tokens).ml(summaryInset(tokens)));
 
 const singleNow = (
   view: Extract<TicketView, { state: 'single' }>,

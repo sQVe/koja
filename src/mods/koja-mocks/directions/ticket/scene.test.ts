@@ -32,7 +32,6 @@ type FixtureSlice = { identifier: string; title: string } & (
 
 interface Fixture {
   item: {
-    kind: string;
     identifier: string;
     source: string;
     title: string | null;
@@ -178,17 +177,17 @@ const identifierCellOf = (root: DrawnElement, identifier: string): DrawnElement 
   return required(descendants(root), (part) => part.kids.includes(text));
 };
 
+const firstColumnInsetOf = (row: DrawnElement): number =>
+  Number(attribute(row, 'mx')) +
+  Number(attribute(row, 'px')) +
+  Number(attribute(row.kids[0] ?? drawn(), 'w')) +
+  Number(attribute(row, 'gap'));
+
 const identifierInsetOf = (row: DrawnElement, identifier: string): number => {
   const cell = identifierCellOf(row, identifier);
   const columns = required(descendants(row), (part) => part.kids.includes(cell));
 
-  return (
-    Number(attribute(row, 'mx')) +
-    Number(attribute(row, 'px')) +
-    Number(attribute(row.kids[0] ?? drawn(), 'w')) +
-    Number(attribute(row, 'gap')) +
-    Number(attribute(columns, 'pl'))
-  );
+  return firstColumnInsetOf(row) + Number(attribute(columns, 'pl'));
 };
 
 const links = (root: DrawnElement): DrawnElement[] =>
@@ -444,7 +443,7 @@ describe('ticket role contracts', () => {
   });
 
   test.each(states.filter((state) => ticketView(state).item.readAge !== null))(
-    '%s scopes header freshness to the ticket in its own detail role',
+    '%s attributes header freshness only to successful source reads',
     (state) => {
       const pane = paneOf(state);
       const fixture = ticketView(state);
@@ -459,7 +458,20 @@ describe('ticket role contracts', () => {
 
       expect(stateRow.kids).toHaveLength(2);
       expect(age.texts).toHaveLength(1);
-      expect(age.texts[0]?.indexOf(fixture.item.kind)).toBe(0);
+      expect(age.texts[0]?.indexOf(fixture.item.source)).toBe(0);
+
+      const githubScenes: TicketState[] = [
+        'container',
+        'single',
+        'nothing-ready',
+        'done',
+        'tikk',
+        'long',
+        'normal',
+        'wide',
+      ];
+
+      expect(age.texts[0]?.includes('GitHub')).toBe(githubScenes.includes(state));
       expect(age.texts[0]).toContain(fixture.item.readAge ?? '');
       expect(age.textColors).toEqual([tokens.ink.dim]);
       expect(attribute(age, 'text_size')).toBe(tokens.text.detail.size);
@@ -496,6 +508,23 @@ describe('ticket role contracts', () => {
       expect(drawnIcons(header)).toHaveLength(0);
       expect(targets(header)).toEqual([fixture.item.identifier]);
       expect(descendants(header).filter((part) => hasStyle(part, 'border'))).toHaveLength(0);
+    },
+  );
+
+  test.each([
+    ['tikk', 'done'],
+    ['plain', 'idle'],
+  ] satisfies [TicketState, keyof Tokens['marks']][])(
+    '%s uses the %s tone for its chip dot',
+    (state, tone) => {
+      const chip = stateChip(paneOf(state), ticketView(state));
+      const mark = chip.kids[0] ?? drawn();
+
+      expect(chip.kids).toHaveLength(2);
+      expect(mark.backgroundColors).toEqual([koja.marks[tone]]);
+      expect(Number(attribute(mark, 'size'))).toBeGreaterThan(0);
+      expect(hasStyle(mark, 'rounded')).toBe(true);
+      expect(drawnIcons(mark)).toHaveLength(0);
     },
   );
 
@@ -684,19 +713,32 @@ describe('ticket scene structure', () => {
     expect(attribute(next.kids[2] ?? drawn(), 'ml')).toBe(identifierInsetOf(row, identifier));
   });
 
-  test('single Now details align with its agent identity column', () => {
-    const fixture = ticketView('single');
-
-    const agent = fixture.agents[fixture.item.identifier]?.find(
-      (item) => item.state === 'in progress',
-    );
-
-    const identifier = agent?.identifier ?? '';
+  test('single Now details align with the PR row first text', () => {
     const now = section(paneOf('single'), 'Now');
+    const row = now.kids[1] ?? drawn();
+    const label = row.kids[1] ?? drawn();
 
-    expect(attribute(now.kids[2] ?? drawn(), 'ml')).toBe(
-      identifierInsetOf(rowFor(now, identifier), identifier),
-    );
+    expect(links(label)).toHaveLength(1);
+    expect(drawnTexts(label)).toHaveLength(1);
+    expect(attribute(now.kids[2] ?? drawn(), 'ml')).toBe(firstColumnInsetOf(row));
+  });
+
+  test('wide detail lines align with their own title row first text', () => {
+    const pane = paneOf('wide');
+
+    for (const name of ['Now', 'Next']) {
+      for (const item of section(pane, name).kids.slice(1)) {
+        const title = item.kids[0] ?? drawn();
+        const metadata = item.kids[1] ?? drawn();
+        const lines = [...metadata.kids, ...item.kids.slice(2)];
+
+        expect(drawnTexts(title.kids[1] ?? drawn())).toHaveLength(1);
+
+        for (const line of lines) {
+          expect(attribute(line, 'ml')).toBe(firstColumnInsetOf(title));
+        }
+      }
+    }
   });
 
   test('nothing-ready puts its availability note in the header detail role', () => {

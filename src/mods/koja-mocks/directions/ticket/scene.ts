@@ -70,7 +70,7 @@ const ticketBody = (view: TicketView, tokens: DirectionTokens): Element => {
   const name = `ticket-view-${view.state}`;
   const bottomInset = view.state === 'single' ? singleBottomInset : planBottomInset;
 
-  const reading = v_flex().flex_1().min_h(0).min_w(0).child(ticketHeading(view.item, tokens));
+  const reading = v_flex().flex_1().min_h(0).min_w(0).child(ticketHeading(view, tokens));
 
   if (view.state === 'loading') {
     return reading.child(
