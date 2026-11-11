@@ -822,7 +822,7 @@ describe('ticket scene structure', () => {
   });
 
   test.each(states.filter((state) => !['loading', 'unreachable', 'plain'].includes(state)))(
-    '%s ticket facts carry a normal-ink title after their link without wrapping',
+    '%s ticket facts carry a normal-ink title before their link without wrapping',
     (state) => {
       const pane = paneOf(state);
       const facts = ticketView(state).item.facts.filter((fact) => fact.name !== 'Project');
@@ -841,7 +841,7 @@ describe('ticket scene structure', () => {
 
         expect(fact.title).toBeDefined();
         expect(linkIndex).toBeGreaterThanOrEqual(0);
-        expect(texts.indexOf(fact.title ?? '')).toBeGreaterThan(linkIndex);
+        expect(texts.indexOf(fact.title ?? '')).toBeLessThan(linkIndex);
         expect(title.textColors).toEqual([koja.ink.text]);
         expect(drawnTooltips(title)).toContain(fact.title ?? '');
         expect(hasStyle(title, 'truncate')).toBe(true);
@@ -857,7 +857,7 @@ describe('ticket scene structure', () => {
   );
 
   test.each(['single', 'container', 'tikk', 'normal'] satisfies TicketState[])(
-    '%s inline fact titles follow a dim padded separator',
+    '%s inline fact titles precede whole links with only a normal gap',
     (state) => {
       const pane = paneOf(state);
       const tokens = state === 'normal' ? kojaNormal : koja;
@@ -873,17 +873,22 @@ describe('ticket scene structure', () => {
 
         const title = textElement(pair, fact.title);
         const line = required(descendants(pair), (part) => part.kids.includes(title));
-        const separator = line.kids[line.kids.indexOf(title) - 1] ?? drawn();
+        const link = line.kids.at(-1) ?? drawn();
 
-        expect(separator.texts).toEqual([' · ']);
-        expect(separator.textColors).toEqual([tokens.ink.dim]);
-        expect(attribute(line, 'gap')).toBe(0);
-        expect(attribute(separator, 'text_size')).toBe(tokens.text.detail.size);
+        expect(line.kids).toHaveLength(2);
+        expect(line.kids[0]).toBe(title);
+        expect(drawnTexts(line)).not.toContain(' · ');
+        expect(Number(attribute(line, 'gap'))).toBeGreaterThan(0);
+        expect(attribute(title, 'flex_shrink')).toBe(1);
+        expect(hasStyle(title, 'flex_1')).toBe(false);
+        expect(hasStyle(link, 'flex_none')).toBe(true);
+        expect(targets(link)).toEqual([fact.value]);
+        expect(title.textColors).toEqual([tokens.ink.text]);
       }
     },
   );
 
-  test('wide fact titles have more than a first-word slot beneath their links', () => {
+  test('wide fact titles have more than a first-word slot above their links', () => {
     const pane = paneOf('wide');
     const rail = required(descendants(pane), (part) => hasStyle(part, 'border_l'));
     const facts = ticketView('wide').item.facts;
@@ -915,7 +920,7 @@ describe('ticket scene structure', () => {
       expect(valueWidth).toBeGreaterThan(minimumTitleWidth);
       expect(drawnTexts(value).some((text) => text.startsWith(fact.value))).toBe(true);
       expect(drawnTexts(value)).not.toContain(' · ');
-      expect(value.kids.at(-1)).toBe(title);
+      expect(value.kids[0]).toBe(title);
       expect(title.textColors).toEqual([koja.ink.text]);
     }
   });
@@ -939,6 +944,84 @@ describe('ticket scene structure', () => {
       expect(allocated[1]).toBeLessThan(intrinsicWidth(reference));
       expect(attribute(reference, 'min_w')).toBe(0);
       expect(allocated.reduce((sum, value) => sum + value, 0)).toBe(available);
+    },
+  );
+
+  test.each(['single', 'container', 'tikk'] satisfies TicketState[])(
+    '%s constrained header titles retain a readable prefix and leave the link whole',
+    (state) => {
+      const fixture = ticketView(state);
+      const reference = fixture.item.facts.find((fact) => fact.name !== 'Project');
+
+      if (reference === undefined) {
+        throw new Error('Missing reference fixture');
+      }
+
+      if (reference.title === null) {
+        throw new Error('Missing reference title');
+      }
+
+      const longTitle = Array.from({ length: 8 }, () => reference.title).join(' ');
+
+      const facts = ticketFacts(
+        fixture.item.facts.map((fact) =>
+          fact === reference ? { ...reference, title: longTitle } : fact,
+        ),
+        koja,
+      );
+
+      const referenceIndex = fixture.item.facts.indexOf(reference);
+      const pair = facts.kids[referenceIndex] ?? drawn();
+      const title = textElement(pair, longTitle);
+      const value = required(descendants(pair), (part) => part.kids.includes(title));
+      const link = value.kids.at(-1) ?? drawn();
+      const pairWidth = allocatedWidths(facts, 460)[referenceIndex] ?? 0;
+      const labelWidth = intrinsicWidth(pair.kids[0] ?? drawn());
+      const valueWidth = pairWidth - labelWidth - Number(attribute(pair, 'gap'));
+      const titleWidth = valueWidth - intrinsicWidth(link) - Number(attribute(value, 'gap'));
+      const firstWord = longTitle.split(' ')[0] ?? '';
+      const prefixAndEllipsisWidth = (firstWord.length + 3) * koja.text.detail.size;
+
+      expect(titleWidth).toBeGreaterThan(prefixAndEllipsisWidth);
+      expect(titleWidth).toBeLessThan(intrinsicWidth(title));
+      expect(hasStyle(title, 'truncate')).toBe(true);
+      expect(attribute(title, 'flex_shrink')).toBe(1);
+      expect(drawnTooltips(title)).toContain(longTitle);
+      expect(hasStyle(link, 'flex_none')).toBe(true);
+      expect(targets(link)).toEqual([reference.value]);
+      expect(drawnTexts(link).some((text) => text.endsWith(reference.target))).toBe(true);
+    },
+  );
+
+  test.each(['container', 'single', 'nothing-ready', 'tikk', 'wide'] satisfies TicketState[])(
+    '%s plan and summary ID columns stay before their titles',
+    (state) => {
+      const fixture = ticketView(state);
+      const items = [...fixture.slices, ...Object.values(fixture.agents).flat()];
+
+      const rows = descendants(paneOf(state)).filter(
+        (part) => attribute(part, 'h') === koja.rows.height,
+      );
+
+      let matched = 0;
+
+      for (const row of rows) {
+        const texts = drawnTexts(row);
+
+        for (const item of items) {
+          const identifierIndex = texts.findIndex((text) => text.startsWith(item.identifier));
+          const titleIndex = texts.indexOf(item.title);
+
+          if (identifierIndex === -1 || titleIndex === -1) {
+            continue;
+          }
+
+          expect(identifierIndex).toBeLessThan(titleIndex);
+          matched += 1;
+        }
+      }
+
+      expect(matched).toBeGreaterThan(0);
     },
   );
 
@@ -999,10 +1082,10 @@ describe('ticket scene structure', () => {
     const next = section(paneOf('nothing-ready'), 'Next');
     const detail = next.kids[2] ?? drawn();
     const facts = detail.kids.at(-1) ?? drawn();
-    const text = drawnTexts(facts).join(' ');
+    const separators = facts.kids.filter((part) => part.texts[0]?.trim() === '·');
 
     expect(drawnTexts(detail).join(' ')).not.toMatch(/[()]/);
-    expect(text.split('·')).toHaveLength(4);
+    expect(separators).toHaveLength(3);
 
     for (const fact of facts.kids.slice(1)) {
       expect(fact.textColors).toEqual([koja.ink.dim]);
@@ -1849,11 +1932,18 @@ describe('ticket scene structure', () => {
     expect(targets(waiting)).toEqual(['ME-1285']);
     expect(targets(detail)).toEqual(['ME-1290']);
     expect(targets(detail.kids[0] ?? drawn())).toEqual([]);
-    expect(targets(detail.kids[1] ?? drawn())).toEqual(['ME-1290']);
+    const title = detail.kids[1] ?? drawn();
+
+    expect(targets(title)).toEqual([]);
+    expect(title.texts).toHaveLength(1);
+    expect(title.textColors).toEqual([koja.ink.text]);
+    expect(hasStyle(title, 'underline')).toBe(false);
     expect(detail.kids).toHaveLength(3);
     const facts = detail.kids[2] ?? drawn();
 
-    expect(facts.kids[0]?.textColors).toEqual([koja.ink.text]);
+    expect(targets(facts.kids[0] ?? drawn())).toEqual(['ME-1290']);
+    expect(Number(attribute(detail, 'gap'))).toBeGreaterThan(0);
+    expect(drawnTexts(title)).not.toContain(' · ');
 
     for (const fact of facts.kids.slice(1)) {
       expect(fact.textColors).toEqual((detail.kids[0] ?? drawn()).textColors);

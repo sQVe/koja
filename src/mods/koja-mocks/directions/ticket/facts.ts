@@ -7,7 +7,6 @@ import { readingInset } from '../content/parts.ts';
 import { fixedLabel, label } from '../parts.ts';
 import type { DirectionTokens } from '../tokens.ts';
 import type { TicketFact } from './data.ts';
-import { detailSeparator } from './parts.ts';
 
 const factLabelWidth = 64;
 const factPairGap = 24;
@@ -23,24 +22,23 @@ const factValue = (
 
   const value = layout === 'inline' ? h_flex().items_center() : v_flex();
 
-  value
-    .flex_1()
-    .min_w(0)
-    .gap(0)
-    .child(externalLink(fact.value, fact.target, tokens).flex_none());
+  value.flex_1().min_w(0);
+
+  if (layout === 'inline') {
+    value.gap(spacing.small);
+  }
 
   if (fact.title !== null) {
     const title = label(fact.title, tokens.text.detail, tokens.ink.text).tooltip(fact.title);
 
     if (layout === 'inline') {
-      value.child(detailSeparator(tokens));
-      title.flex_1();
+      title.flex_shrink(1);
     }
 
     value.child(title);
   }
 
-  return value;
+  return value.child(externalLink(fact.value, fact.target, tokens).flex_none());
 };
 
 const factPair = (fact: TicketFact, tokens: DirectionTokens): Element => {
