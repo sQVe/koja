@@ -52,6 +52,8 @@ let inputValue = '';
 
 let notifications = 0;
 
+let rendering = false;
+
 let timerMilliseconds = 0;
 
 let timerHandler: ((cx: unknown) => void) | null = null;
@@ -79,7 +81,12 @@ const input = {
 };
 
 const context = {
+  // Herdr rejects a notify during render, also from a task that render starts.
   notify: () => {
+    if (rendering) {
+      throw new Error('cx.notify() is not allowed during the `render` phase');
+    }
+
     notifications += 1;
   },
   focus_handle: () => ({ focus: () => undefined }),
@@ -204,6 +211,7 @@ beforeEach(() => {
   statusGate = null;
   inputValue = '';
   notifications = 0;
+  rendering = false;
   timerMilliseconds = 0;
   timerHandler = null;
   renderedList = null;
@@ -219,7 +227,20 @@ const modulePath = './main.ts';
 const loadView = async (): Promise<ChangesView> => {
   const loaded = (await import(modulePath)) as { default: new () => ChangesView };
 
-  return new loaded.default();
+  const view = new loaded.default();
+  const render = view.render.bind(view);
+
+  view.render = (cx) => {
+    rendering = true;
+
+    try {
+      return render(cx);
+    } finally {
+      rendering = false;
+    }
+  };
+
+  return view;
 };
 
 const settle = async (): Promise<void> => {
@@ -354,6 +375,19 @@ describe('Changes view', () => {
     expect(statusReads).toBe(readsBeforeRetry + 1);
     expect(renderedList?.files.map((file) => file.path)).toEqual(['a.ts', 'hidden.ts']);
     expect(renderedCommit?.enabled).toBe(true);
+  });
+
+  test('a location change seen in render reads the new location and leaves the loading line', async () => {
+    const view = await boot();
+
+    cwd = '/repo/b';
+    statusText = ' M c.ts\0';
+    view.render(context);
+    await settle();
+    view.render(context);
+
+    expect(renderedList?.line).toBeNull();
+    expect(renderedList?.files.map((file) => file.path)).toEqual(['c.ts']);
   });
 
   test('a location change within one repository leaves one active watch loop', async () => {
