@@ -57,7 +57,6 @@ export interface InstallOrigin {
   inputs: InstallInput[];
 }
 
-// A record without a checkout, a check result, or a list of shipped inputs has a null origin.
 export interface InstallRecord {
   files: string[];
   origin: InstallOrigin | null;
@@ -116,8 +115,6 @@ const shippedPaths = async (checkout: string): Promise<string[]> => {
   return [...inFolders.flat(), ...shippedFiles];
 };
 
-// The files of a checkout that decide what an install writes, as paths inside the checkout,
-// each with its modification time. A file that does not exist is left out.
 export const shippedInputs = async (checkout: string): Promise<InstallInput[]> => {
   const paths = await shippedPaths(checkout);
   const entries = await Promise.all(paths.map(async (path) => lstatOrNull(join(checkout, path))));

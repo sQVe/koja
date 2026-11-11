@@ -86,7 +86,6 @@ const timesByPath = (inputs: InstallInput[]): Map<string, number> =>
 const isFromCheckout = async (options: IdentityOptions, origin: InstallOrigin): Promise<boolean> =>
   origin.checkout === (await realpath(options.checkout));
 
-// The inputs of another checkout have their own times, so only the checkout that installed is compared.
 const changedSinceInstall = async (
   options: IdentityOptions,
   origin: InstallOrigin | null,
