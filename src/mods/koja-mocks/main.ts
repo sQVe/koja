@@ -45,6 +45,7 @@ import { pullRequestScene } from './directions/pullRequest/scene.ts';
 import { hoverScene, searchScene } from './directions/sidebars/find.ts';
 import { inboxSidebar } from './directions/sidebars/sidebar.ts';
 import { machineTagScene } from './directions/sidebars/states.ts';
+import { ticketScene } from './directions/ticket/scene.ts';
 import { directionWindow } from './directions/window.ts';
 import { controlsScene } from './scenes/controls.ts';
 import type { SceneInputs } from './scenes/inputs.ts';
@@ -155,6 +156,18 @@ const renderers: Record<SceneName, (inputs: SceneInputs) => Element> = {
   'draft-review-broken': () => draftReviewScene('broken'),
   'draft-review-plan': () => draftReviewScene('plan'),
   'draft-review-normal': () => draftReviewScene('normal'),
+  'ticket-view-container': () => ticketScene('container'),
+  'ticket-view-single': () => ticketScene('single'),
+  'ticket-view-loading': () => ticketScene('loading'),
+  'ticket-view-unreachable': () => ticketScene('unreachable'),
+  'ticket-view-sync-failed': () => ticketScene('sync-failed'),
+  'ticket-view-nothing-ready': () => ticketScene('nothing-ready'),
+  'ticket-view-done': () => ticketScene('done'),
+  'ticket-view-plain': () => ticketScene('plain'),
+  'ticket-view-tikk': () => ticketScene('tikk'),
+  'ticket-view-long': () => ticketScene('long'),
+  'ticket-view-normal': () => ticketScene('normal'),
+  'ticket-view-wide': () => ticketScene('wide'),
   'content-rail-review': () => contentScene('review'),
   'content-rail-pr': () => contentScene('pr'),
   'content-rail-ticket': () => contentScene('ticket'),

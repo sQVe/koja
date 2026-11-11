@@ -73,6 +73,10 @@ const itemState = (state: string, look: 'badge' | 'plain', tokens: DirectionToke
     mark = statusMark('working', tokens);
   }
 
+  if (state === 'Done') {
+    mark = statusMark('done', tokens);
+  }
+
   const element = h_flex().h(chipHeight).gap(spacing.xsmall).flex_none().items_center();
 
   if (look === 'badge') {

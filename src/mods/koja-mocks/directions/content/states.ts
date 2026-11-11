@@ -32,7 +32,7 @@ const ticket: ContentView = {
   normal: false,
 };
 
-const openingItem = (item: ContentItem): ContentItem => ({
+export const openingItem = (item: ContentItem): ContentItem => ({
   ...item,
   title: null,
   state: null,
