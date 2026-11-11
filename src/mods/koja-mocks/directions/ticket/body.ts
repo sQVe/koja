@@ -80,9 +80,12 @@ const planNode = (slice: Slice, view: TicketView, tokens: DirectionTokens): Spin
 };
 
 const planSection = (view: TicketView, tokens: DirectionTokens): Element => {
-  const name = view.state === 'single' ? 'ME-1280 Build the sidebar' : 'Whole plan';
+  const name = view.state === 'single' ? 'Parent plan' : 'Whole plan';
 
-  const count = view.state === 'single' ? null : `${view.slices.length} in ${view.item.source}`;
+  const count =
+    view.state === 'single'
+      ? 'ME-1280 Build the sidebar'
+      : `${view.slices.length} in ${view.item.source}`;
 
   const plan = v_flex()
     .flex_none()

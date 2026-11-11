@@ -62,7 +62,7 @@ export const statusWord = (word: string, tokens: DirectionTokens): Element =>
   fixedLabel(word, tokens.text.detail, tokens.ink.dim).w(statusWidth).text_right();
 
 export const nextReason = (slice: Extract<Slice, { readiness: 'ready' }>): string =>
-  `Can start · stacks on koja ${slice.stack.pull} (${slice.stack.identifier})`;
+  `can start · stacks on open koja ${slice.stack.pull} (${slice.stack.identifier})`;
 
 export const sectionHeader = (
   heading: SectionHeading,

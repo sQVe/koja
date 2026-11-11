@@ -79,19 +79,24 @@ const railTitle = (slice: Slice, tokens: DirectionTokens): Element =>
     .child(sliceMark(slice, tokens).flex_none().mt(spacing.small))
     .child(wrappedText(slice.title, tokens).flex_1());
 
-const railMetadata = (identifier: string, facts: string[], tokens: DirectionTokens): Element =>
-  detailLine(tokens)
-    .flex_wrap()
-    .gap_y(0)
-    .children(
-      [identifier, ...facts].map((fact, index) => {
-        const text = index === 0 ? fact : `· ${fact}`;
+const railFact = (text: string, tokens: DirectionTokens): Element =>
+  fixedLabel(text, tokens.text.detail, tokens.ink.dim).line_height(`${tokens.rows.height}px`);
 
-        return fixedLabel(text, tokens.text.detail, tokens.ink.dim).line_height(
-          `${tokens.rows.height}px`,
-        );
-      }),
-    );
+const railMetadata = (identifier: string, facts: string[], tokens: DirectionTokens): Element => {
+  const [first, ...remaining] = facts;
+  const firstLine = detailLine(tokens).child(railFact(identifier, tokens));
+
+  if (first !== undefined) {
+    // Balance the separator's ink gaps at the fixed rail font size.
+    firstLine.child(railFact('·', tokens).ml(1)).child(railFact(first, tokens));
+  }
+
+  return v_flex()
+    .flex_none()
+    .min_w(0)
+    .child(firstLine)
+    .children(remaining.map((fact) => detailLine(tokens).child(railFact(fact, tokens))));
+};
 
 const railItem = (
   slice: ActiveSlice | Extract<Slice, { readiness: 'ready' }>,
@@ -202,25 +207,40 @@ export const nowBlock = (view: TicketView, tokens: DirectionTokens): Element => 
   return section('Now', parts, tokens);
 };
 
-const nothingReady = (view: TicketView, tokens: DirectionTokens): Element =>
-  section(
+const nothingReady = (view: TicketView, tokens: DirectionTokens): Element => {
+  const waiting = view.slices.find((slice) => slice.readiness === 'blocked');
+
+  if (waiting === undefined) {
+    return section('Next', [], tokens);
+  }
+
+  return section(
     'Next',
     [
       row(
         {
           selected: false,
           start: statusMark('blocked', tokens),
-          label: summaryIdentity('ME-1285', view, tokens)
-            .child(fixedLabel('waits for', tokens.text.detail, tokens.ink.dim))
-            .child(externalLink('ME-1290', 'Linear', tokens).flex_none()),
-          end: [],
+          label: summaryLabel(waiting, view, tokens),
+          end: [statusWord('blocked', tokens)],
         },
         tokens,
       ),
-      note('Add the sidebar data model · outside this plan · not started · no PR', tokens),
+      detailLine(tokens)
+        .mr(spacing.small)
+        .child(fixedLabel('waits for', tokens.text.detail, tokens.ink.dim))
+        .child(externalLink(waiting.blockedBy, view.item.source, tokens).flex_none())
+        .child(
+          label(
+            '· Add the sidebar data model · outside this plan · not started · no PR',
+            tokens.text.detail,
+            tokens.ink.dim,
+          ),
+        ),
     ],
     tokens,
   );
+};
 
 export const nextBlock = (view: TicketView, tokens: DirectionTokens): Element => {
   const ready = view.slices.find((slice) => slice.readiness === 'ready');

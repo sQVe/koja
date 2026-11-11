@@ -66,7 +66,7 @@ const trackCounts = (slices: Slice[], tokens: DirectionTokens): Element => {
 
   const groups = [
     {
-      name: 'merged',
+      name: `of ${slices.length} merged`,
       count: slices.filter((slice) => slice.readiness === 'merged').length,
       mark: statusMark('done', tokens),
     },
@@ -104,14 +104,11 @@ const trackCounts = (slices: Slice[], tokens: DirectionTokens): Element => {
 };
 
 export const progressTrack = (slices: Slice[], tokens: DirectionTokens): Element => {
-  const merged = slices.filter((slice) => slice.readiness === 'merged').length;
-
   return v_flex()
     .flex_none()
     .mx(readingInset)
     .py(spacing.xsmall)
     .gap(spacing.small)
-    .child(fixedLabel(`${merged} of ${slices.length} merged`, tokens.text.detail, tokens.ink.muted))
     .child(
       h_flex()
         .h(trackHeight)
@@ -147,11 +144,9 @@ const sliceRow = (slice: Slice, look: SliceLook, tokens: DirectionTokens): Eleme
     .child(label(slice.title, tokens.text.body, tokens.ink.text).tooltip(slice.title));
 
   if (look.reason !== null) {
-    title.child(
-      label(`· ${look.reason}`, tokens.text.detail, tokens.ink.dim)
-        .flex_none()
-        .tooltip(look.reason),
-    );
+    title
+      .child(fixedLabel('·', tokens.text.detail, tokens.ink.dim))
+      .child(fixedLabel(look.reason, tokens.text.detail, tokens.ink.dim).tooltip(look.reason));
   }
 
   return v_flex()
