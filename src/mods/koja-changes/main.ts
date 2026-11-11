@@ -178,7 +178,6 @@ export default class Changes extends View {
     }
   }
 
-  // Render calls this, so it must not call notify before its first await.
   private startRead(cx: Context): boolean {
     if (this.loading) {
       this.pendingRefresh = true;

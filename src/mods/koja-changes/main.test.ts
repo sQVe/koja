@@ -81,7 +81,6 @@ const input = {
 };
 
 const context = {
-  // Herdr rejects a notify during render, also from a task that render starts.
   notify: () => {
     if (rendering) {
       throw new Error('cx.notify() is not allowed during the `render` phase');
