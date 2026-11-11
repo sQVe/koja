@@ -16,10 +16,18 @@ import {
   kitIndexFake,
 } from '../../../../../tests/moduleFakes.ts';
 import { overlaySize } from '../../../../kit/size.ts';
+import type { SceneName } from '../../catalog.ts';
 import { findScene } from '../../catalog.ts';
 
+type TicketState =
+  Extract<SceneName, `ticket-view-${string}`> extends `ticket-view-${infer State}` ? State : never;
+
 await mock.module('gpui-base', () =>
-  gpuiBaseFake({ h_flex: () => drawn(), v_flex: () => drawn() }),
+  gpuiBaseFake({
+    h_flex: () => drawn(),
+    v_flex: () => drawn(),
+    Scrollbar: { vertical: () => drawn() },
+  }),
 );
 
 await mock.module('gpui-kit', () => gpuiKitFake({ div: () => drawn() }));
@@ -40,11 +48,6 @@ await mock.module('../../../../kit/index.ts', () =>
 
 const scenePath = './scene.ts';
 const tokensPath = '../koja.ts';
-const partsPath = './parts.ts';
-
-const { workRow } = (await import(partsPath)) as {
-  workRow: (item: unknown, source: string, tokens: unknown) => DrawnElement;
-};
 
 const { ticketScene } = (await import(scenePath)) as {
   ticketScene: (state: string) => DrawnElement;
@@ -53,7 +56,7 @@ const { ticketScene } = (await import(scenePath)) as {
 const { koja, kojaNormal } = (await import(tokensPath)) as {
   koja: {
     ink: { dim: string };
-    marks: { done: string; working: string; idle: string; blocked: string };
+    marks: { done: string; working: string; idle: string };
     rows: { selectedFill: string };
   };
   kojaNormal: { pane: { focusedBorder: string; focusedHeaderFill: string } };
@@ -76,37 +79,47 @@ const paneOf = (state: string): DrawnElement => {
   return pane;
 };
 
+const regionWith = (pane: DrawnElement, first: string, second: string): DrawnElement => {
+  const region = descendants(pane).findLast((part) => {
+    const texts = drawnTexts(part);
+
+    return texts.includes(first) && texts.includes(second);
+  });
+
+  if (region === undefined) {
+    throw new Error(`No region containing ${first} and ${second}`);
+  }
+
+  return region;
+};
+
 const trackColors = (pane: DrawnElement): string[] => {
   const track = descendants(pane).find((part) =>
     part.kids.some((child) => child.texts.some((text) => /^\d+ of \d+ merged$/.test(text))),
   );
 
-  if (track === undefined) {
-    return [];
-  }
+  const segments = track?.kids.find(
+    (part) =>
+      part.kids.length >= 7 && part.kids.every((child) => child.backgroundColors.length === 1),
+  );
 
-  return descendants(track).flatMap((part) => part.backgroundColors);
+  return segments?.kids.flatMap((part) => part.backgroundColors) ?? [];
 };
 
-const sourceLinks = (pane: DrawnElement): string[] =>
-  drawnTexts(pane).filter((text) => / · (?:Linear|GitHub|tikk)$/.test(text));
-
-const scenes = [
-  'ticket-view-container',
-  'ticket-view-single',
-  'ticket-view-loading',
-  'ticket-view-unreachable',
-  'ticket-view-sync-failed',
-  'ticket-view-nothing-ready',
-  'ticket-view-done',
-  'ticket-view-plain',
-  'ticket-view-tikk',
-  'ticket-view-long',
-  'ticket-view-normal',
-  'ticket-view-wide',
-] as const;
-
-const removedTakes = ['document', 'plan', 'board', 'tree', 'refined', 'focus', 'nested'];
+const states = [
+  'container',
+  'single',
+  'loading',
+  'unreachable',
+  'sync-failed',
+  'nothing-ready',
+  'done',
+  'plain',
+  'tikk',
+  'long',
+  'normal',
+  'wide',
+] satisfies TicketState[];
 
 afterAll(() => {
   mock.restore();
@@ -114,7 +127,9 @@ afterAll(() => {
 
 describe('ticket scenes', () => {
   test('all twelve view states open at the shell size', () => {
-    for (const name of scenes) {
+    for (const state of states) {
+      const name: SceneName = `ticket-view-${state}`;
+
       expect(findScene(name)).toEqual({
         scene: { name, width: overlaySize.shellWidth, height: overlaySize.shellHeight },
       });
@@ -122,7 +137,7 @@ describe('ticket scenes', () => {
   });
 
   test('earlier round scene names no longer open', () => {
-    for (const take of removedTakes) {
+    for (const take of ['document', 'plan', 'board', 'tree', 'refined', 'focus', 'nested']) {
       expect(findScene(`ticket-${take}-container`)).toHaveProperty('error');
       expect(findScene(`ticket-${take}-single`)).toHaveProperty('error');
     }
@@ -130,67 +145,142 @@ describe('ticket scenes', () => {
 });
 
 describe('ticket view rendering', () => {
-  test('the container links each target once and keeps plan order below Now and Next', () => {
+  test.each(['container', 'single', 'sync-failed', 'tikk', 'long', 'normal', 'wide'])(
+    '%s keeps tracker status only in the item chip',
+    (state) => {
+      const texts = drawnTexts(paneOf(state));
+
+      expect(texts).not.toContain('in review');
+      expect(texts).toContain('PR open');
+      expect(texts).toContain('PR draft');
+      expect(texts.some((text) => /^(?:In Progress|Backlog|open) ·/.test(text))).toBe(false);
+      expect(texts).not.toContain('In Progress');
+    },
+  );
+
+  test('container Now names the work and PRs without repeating slice identifiers', () => {
     const pane = paneOf('container');
-    const texts = drawnTexts(pane);
-    const links = sourceLinks(pane);
-    const plan = links.filter((text) => /^ME-128[1-7] · Linear$/.test(text));
+    const now = regionWith(pane, 'Now', 'koja #59 · GitHub');
+    const texts = drawnTexts(now);
 
-    expect(new Set(links).size).toBe(links.length);
-    expect(plan).toEqual(Array.from({ length: 7 }, (_, index) => `ME-${1281 + index} · Linear`));
-    expect(links).toContain('koja #58 · GitHub');
-    expect(links).toContain('koja #59 · GitHub');
-    expect(links.filter((text) => text.startsWith('AI-'))).toHaveLength(6);
-    expect(texts.indexOf('Now')).toBeLessThan(texts.indexOf('Next'));
-    expect(texts.indexOf('Next')).toBeLessThan(texts.indexOf('Whole plan'));
-    expect(texts.indexOf('Whole plan')).toBeLessThan(texts.indexOf('Description'));
-    expect(texts).toContain('In Progress · PR open · checks passing · 1 unresolved thread');
-    expect(texts).toContain('in review');
-
-    expect(trackColors(pane)).toEqual([
-      koja.marks.done,
-      koja.marks.done,
-      koja.marks.working,
-      koja.marks.working,
-      koja.marks.idle,
-      koja.marks.blocked,
-      koja.marks.blocked,
-    ]);
+    expect(texts).toContain('Add the space footer links');
+    expect(texts).toContain('checks passing · 1 unresolved thread');
+    expect(texts).toContain('Design the sidebar');
+    expect(drawnIcons(now)).toContain('terminal');
+    expect(texts).not.toContain('ME-1283');
+    expect(texts).not.toContain('ME-1284');
+    expect(texts.filter((text) => text === 'PR open')).toHaveLength(1);
+    expect(texts.filter((text) => text === 'PR draft')).toHaveLength(1);
+    expect(drawnTexts(pane).filter((text) => text === 'koja #58 · GitHub')).toHaveLength(1);
+    expect(drawnTexts(pane).filter((text) => text === 'koja #59 · GitHub')).toHaveLength(1);
   });
 
-  test('the single unfolds only its agents and keeps their links out of Now', () => {
+  test('single puts all acceptance before the parent plan and has no separate Next', () => {
     const pane = paneOf('single');
     const texts = drawnTexts(pane);
-    const links = sourceLinks(pane);
+    const parent = texts.indexOf('ME-1280 Build the sidebar');
 
-    const selected = descendants(pane).filter((part) =>
-      part.backgroundColors.includes(koja.rows.selectedFill),
-    );
-
-    expect(new Set(links).size).toBe(links.length);
-
-    expect(links.filter((text) => text.startsWith('AI-'))).toEqual([
-      'AI-412 · Linear',
-      'AI-413 · Linear',
-      'AI-414 · Linear',
-    ]);
-
+    expect(texts.indexOf('Now')).toBeLessThan(texts.indexOf('Acceptance'));
+    expect(texts.indexOf('Acceptance')).toBeLessThan(parent);
+    expect(texts.indexOf('The footer truncates a long branch')).toBeLessThan(parent);
+    expect(texts.indexOf('2 of 7 merged')).toBeGreaterThan(parent);
+    expect(texts).toContain('2 of 5');
+    expect(texts).not.toContain('Next');
+    expect(texts).toContain('next');
+    expect(texts.filter((text) => text === 'ME-1283 · Linear')).toHaveLength(1);
+    expect(texts.filter((text) => text === 'koja #58 · GitHub')).toHaveLength(1);
     expect(texts).toContain('AI-413 Route ticket links to the tracker');
-
-    expect(texts.indexOf('AI-413 Route ticket links to the tracker')).toBeLessThan(
-      texts.indexOf('Whole plan'),
-    );
-
-    expect(texts.indexOf('Whole plan')).toBeLessThan(texts.indexOf('AI-413 · Linear'));
-    expect(texts.indexOf('ME-1280 Build the sidebar')).toBeLessThan(texts.indexOf('2 of 7 merged'));
-    expect(texts.indexOf('Next')).toBeLessThan(texts.indexOf('ME-1285'));
-    expect(selected.some((part) => drawnTexts(part).includes('ME-1283'))).toBe(true);
-    expect(texts.indexOf('Acceptance')).toBeLessThan(texts.indexOf('Relations'));
-    expect(texts.indexOf('Relations')).toBeLessThan(texts.indexOf('Description'));
-    expect(texts.indexOf('Description')).toBeLessThan(texts.indexOf('Activity'));
   });
 
-  test.each(['loading', 'unreachable'])('%s shows no invented facts, age, or plan', (state) => {
+  test('the plan names its source once and unfolds only the first active slice', () => {
+    const pane = paneOf('container');
+    const texts = drawnTexts(pane);
+
+    expect(texts).toContain('Whole plan');
+    expect(texts).toContain('· Linear');
+
+    for (let number = 1281; number <= 1287; number += 1) {
+      expect(texts.filter((text) => text === `ME-${number}`)).toHaveLength(1);
+      expect(texts).not.toContain(`ME-${number} · Linear`);
+    }
+
+    expect(texts).toContain('AI-412');
+    expect(texts).not.toContain('AI-418');
+    expect(drawnIcons(regionWith(pane, 'ME-1284', 'PR draft'))).toContain('chevron-right');
+    expect(elementWithText(pane, '· Linear')?.textColors).toEqual([koja.ink.dim]);
+    expect(drawnTooltips(pane)).toContain('ME-1281 · Linear');
+  });
+
+  test('the progress track reserves color for merged and active work and counts each state', () => {
+    const pane = paneOf('container');
+    const colors = trackColors(pane);
+    const texts = drawnTexts(pane);
+
+    expect(colors.slice(0, 4)).toEqual([
+      koja.marks.done,
+      koja.marks.done,
+      koja.marks.working,
+      koja.marks.working,
+    ]);
+
+    expect(colors).toHaveLength(7);
+    expect(colors[4]).toBe(colors[5]);
+    expect(colors[5]).toBe(colors[6]);
+
+    for (const count of ['2 merged', '2 active', '1 next', '2 blocked']) {
+      expect(texts).toContain(count);
+    }
+  });
+
+  test('sync failure precedes the track and covers the whole summary once', () => {
+    const pane = paneOf('sync-failed');
+    const texts = drawnTexts(pane);
+    const failure = 'Could not sync PRs · showing PR states from 6m ago';
+
+    expect(texts.indexOf(failure)).toBeLessThan(texts.indexOf('2 of 7 merged'));
+    expect(texts.filter((text) => text.includes('6m ago'))).toHaveLength(1);
+    expect(texts).toContain('Retry');
+    expect(texts).toContain('synced 1m ago');
+    expect(elementWithText(pane, 'PR open')?.textColors).toEqual([koja.ink.dim]);
+    expect(spinning(pane)).toBe(false);
+  });
+
+  test('nothing ready identifies the external blocker by title and work state', () => {
+    const pane = paneOf('nothing-ready');
+    const texts = drawnTexts(pane);
+
+    expect(texts).toContain('Nothing is ready');
+    expect(texts).toContain('ME-1285 waits for');
+    expect(texts).toContain('ME-1290');
+    expect(texts).toContain('Add the sidebar data model');
+    expect(texts).toContain('not started');
+    expect(texts).toContain('no PR');
+    expect(texts).toContain('4 of 7 merged');
+    expect(texts).not.toContain('0 active');
+    expect(texts).not.toContain('0 next');
+  });
+
+  test('Next and blocked rows name their dependencies without duplicating links', () => {
+    const texts = drawnTexts(paneOf('container'));
+
+    expect(texts).toContain('Ready · waits on ME-1283, stacks on koja #58');
+    expect(texts).toContain('by ME-1285');
+    expect(texts).toContain('by ME-1286');
+    expect(texts.filter((text) => text === 'koja #58 · GitHub')).toHaveLength(1);
+  });
+
+  test('tikk keeps its own item status and source with the same slice vocabulary', () => {
+    const texts = drawnTexts(paneOf('tikk'));
+
+    expect(texts).toContain('koja-7fq3 · tikk');
+    expect(texts).toContain('· tikk');
+    expect(texts).toContain('koja-m4rd');
+    expect(texts).toContain('koja-a4dm');
+    expect(texts.filter((text) => text === 'open')).toHaveLength(1);
+    expect(texts.join('\n')).not.toMatch(/Linear|\b(?:ME|AI)-\d+/);
+  });
+
+  test.each(['loading', 'unreachable'])('%s has no invented facts, age, or summary', (state) => {
     const texts = drawnTexts(paneOf(state));
 
     expect(texts).toContain('ME-1280 · Linear');
@@ -202,195 +292,59 @@ describe('ticket view rendering', () => {
       'Now',
       'Next',
       'Whole plan',
-      'Description',
     ]) {
       expect(texts).not.toContain(absent);
     }
+
+    expect(texts.includes('Retry')).toBe(state === 'unreachable');
   });
 
-  test('loading uses the loading line without a retry action', () => {
-    const texts = drawnTexts(paneOf('loading'));
-
-    expect(texts).toContain('Loading ticket');
-    expect(texts).not.toContain('Retry');
-  });
-
-  test('unreachable names the failed source and offers Retry', () => {
-    const texts = drawnTexts(paneOf('unreachable'));
-
-    expect(texts).toContain('Could not read ticket · Linear is unreachable');
-    expect(texts).toContain('Retry');
-    expect(texts).not.toContain('Loading ticket');
-  });
-
-  test('failed PR sync retains ticket facts and marks stale PR-derived guidance', () => {
-    const pane = paneOf('sync-failed');
-    const texts = drawnTexts(pane);
-    const failure = 'Could not sync PRs · showing PR states from 6m ago';
-    const next = 'Backlog · Ready · stacks on koja #58 · uses PR states from 6m ago';
-
-    expect(texts).toContain('synced 1m ago');
-    expect(texts).toContain('Project');
-    expect(texts).toContain('Retry');
-    expect(texts.indexOf(failure)).toBeGreaterThan(texts.indexOf('Now'));
-    expect(texts.indexOf(failure)).toBeLessThan(texts.indexOf('Next'));
-    expect(texts).toContain(next);
-    expect(elementWithText(pane, 'in review')?.textColors).toEqual([koja.ink.dim]);
-
-    expect(
-      elementWithText(pane, 'In Progress · PR open · checks passing · 1 unresolved thread')
-        ?.textColors,
-    ).toEqual([koja.ink.dim]);
-
-    expect(spinning(pane)).toBe(false);
-  });
-
-  test('nothing ready keeps the four merged slices and links the external blocker once', () => {
-    const pane = paneOf('nothing-ready');
-    const texts = drawnTexts(pane);
-    const links = sourceLinks(pane);
-
-    expect(texts).toContain('4 of 7 merged');
-    expect(texts).toContain('No slices in progress');
-    expect(texts).toContain('Nothing is ready');
-    expect(texts).toContain('ME-1285 is blocked by');
-    expect(links.filter((text) => text === 'ME-1290 · Linear')).toHaveLength(1);
-    expect(texts).toContain('· no PR');
-    expect(links.some((text) => text.endsWith(' · GitHub'))).toBe(false);
-
-    expect(trackColors(pane)).toEqual([
-      koja.marks.done,
-      koja.marks.done,
-      koja.marks.done,
-      koja.marks.done,
-      koja.marks.blocked,
-      koja.marks.blocked,
-      koja.marks.blocked,
-    ]);
-  });
-
-  test('done folds the merged plan and removes action guidance', () => {
+  test('done folds the plan, omits zero counts, and uses a check in the state chip', () => {
     const pane = paneOf('done');
     const texts = drawnTexts(pane);
-
-    expect(texts).toContain('Done');
-    expect(texts).toContain('7 of 7 merged');
-    expect(texts).toContain('All slices merged');
-    expect(texts).toContain('7 merged');
-    expect(texts).not.toContain('Now');
-    expect(texts).not.toContain('Next');
-    expect(texts).not.toContain('ME-1281 · Linear');
-    expect(trackColors(pane)).toEqual(Array.from({ length: 7 }, () => koja.marks.done));
-  });
-
-  test('done uses the done check in its state chip', () => {
-    const pane = paneOf('done');
     const label = elementWithText(pane, 'Done');
     const chip = descendants(pane).find((part) => part.kids.includes(label!));
 
-    expect(chip).toBeDefined();
     expect(drawnIcons(chip!)).toEqual(['check']);
+    expect(texts).toContain('7 of 7 merged');
+    expect(texts).not.toContain('Now');
+    expect(texts).not.toContain('Next');
+    expect(texts).not.toContain('0 active');
+    expect(texts).not.toContain('ME-1281');
   });
 
-  test('instruction rows read stored status from data and keep readiness separate', () => {
-    const instruction = workRow(
-      {
-        identifier: 'koja-b6kr',
-        title: 'Route ticket links to the tracker',
-        state: 'in progress',
-        tracker: 'draft',
-      },
-      'tikk',
-      koja,
-    );
+  test('plain has only content sections and no empty plan', () => {
+    const texts = drawnTexts(paneOf('plain'));
 
-    const texts = drawnTexts(instruction);
-
-    expect(texts).toContain('draft');
-    expect(texts).toContain('in progress');
-    expect(texts).not.toContain('open');
-  });
-
-  test('a plain ticket has content without empty plan or relation sections', () => {
-    const pane = paneOf('plain');
-    const texts = drawnTexts(pane);
-
-    expect(sourceLinks(pane)).toEqual(['ME-1301 · Linear']);
-    expect(texts).toContain('Backlog');
     expect(texts).toContain('Description');
     expect(texts).toContain('Acceptance');
     expect(texts).toContain('0 of 2');
-
-    for (const absent of ['Now', 'Next', 'Whole plan', 'Relations', 'Activity']) {
-      expect(texts).not.toContain(absent);
-    }
-
-    expect(trackColors(pane)).toEqual([]);
+    expect(texts).not.toContain('Now');
+    expect(texts).not.toContain('Whole plan');
   });
 
-  test('tikk uses tikk ticket and instruction links without Linear facts', () => {
-    const pane = paneOf('tikk');
-    const texts = drawnTexts(pane);
-    const links = sourceLinks(pane);
-    const tickets = links.filter((text) => /^koja-[a-z0-9]{4} · tikk$/.test(text));
-
-    expect(tickets).toHaveLength(15);
-    expect(new Set(links).size).toBe(links.length);
-    expect(links).toContain('koja-7fq3 · tikk');
-    expect(links).toContain('koja-a4dm · tikk');
-    expect(links).toContain('koja #58 · GitHub');
-    expect(texts.join('\n')).not.toMatch(/Linear|\b(?:ME|AI)-\d+|In [Pp]rogress|Backlog/);
-    expect(texts).toContain('open · PR open · checks passing · 1 unresolved thread');
-    expect(texts).toContain('open · Ready · stacks on koja #58');
-    expect(texts.filter((text) => text === 'open')).toHaveLength(7);
-    expect(texts).toContain('in review');
-    expect(texts).toContain('in progress');
-
-    expect(texts).toContain('open · PR draft · stacked on koja #58 · 2 of 3 instructions done');
-  });
-
-  test('a long plan keeps guidance before fourteen slices and retains full title tooltips', () => {
+  test('long keeps fourteen slices and full title tooltips', () => {
     const pane = paneOf('long');
     const texts = drawnTexts(pane);
+    const identifiers = texts.filter((text) => /^ME-(?:128[1-7]|131[0-6])$/.test(text));
 
-    const links = sourceLinks(pane).filter((text) =>
-      /^ME-(?:128[1-7]|131[0-6]) · Linear$/.test(text),
-    );
-
-    const titles = texts.filter((text) => text.length > 60 && !text.includes(' · '));
-    const tooltips = drawnTooltips(pane);
-
+    expect(identifiers).toHaveLength(14);
     expect(texts).toContain('2 of 14 merged');
-    expect(links).toHaveLength(14);
-    expect(texts.indexOf('Now')).toBeLessThan(texts.indexOf('Whole plan'));
-    expect(texts.indexOf('Next')).toBeLessThan(texts.indexOf('Whole plan'));
-    expect(titles.length).toBeGreaterThan(1);
 
-    for (const title of titles) {
-      expect(tooltips).toContain(title);
-    }
+    expect(drawnTooltips(pane)).toContain(
+      'Add the selected space footer links for tickets and pull requests across repositories',
+    );
   });
 
-  test('normal mode changes the focus treatment without changing ticket content', () => {
+  test('normal changes the focus treatment without changing ticket content', () => {
     const pane = paneOf('normal');
 
     expect(drawnTexts(pane)).toEqual(drawnTexts(paneOf('container')));
-    expect(drawnTexts(ticketScene('normal'))).toContain('Normal');
     expect(pane.borderColors).toContain(kojaNormal.pane.focusedBorder);
-
-    expect(descendants(pane).flatMap((part) => part.backgroundColors)).toContain(
-      kojaNormal.pane.focusedHeaderFill,
-    );
   });
 
-  test('wide moves Now and Next below facts in the rail', () => {
-    const scene = ticketScene('wide');
+  test('wide retains summaries and their PR links only in the rail', () => {
     const pane = paneOf('wide');
-    const texts = drawnTexts(pane);
-
-    expect(drawnTexts(scene)).not.toContain('> bun run check');
-    expect(texts.filter((text) => text === 'ME-1090 · Linear')).toHaveLength(1);
-    expect(texts.indexOf('Project')).toBeGreaterThan(texts.indexOf('Acceptance · 1 of 3'));
 
     const columns = descendants(pane).find(
       (part) =>
@@ -399,27 +353,23 @@ describe('ticket view rendering', () => {
         drawnTexts(part.kids[1]!).includes('Project'),
     );
 
-    expect(columns).toBeDefined();
-
     const reading = drawnTexts(columns!.kids[0]!);
     const rail = drawnTexts(columns!.kids[1]!);
 
     expect(reading).not.toContain('Now');
     expect(reading).not.toContain('Next');
-    expect(reading).toContain('Build the sidebar');
-    expect(reading).toContain('2 of 7 merged');
-    expect(reading).toContain('Description');
-    expect(reading).toContain('Acceptance · 1 of 3');
+    expect(reading).toContain('Acceptance');
     expect(rail.indexOf('Now')).toBeGreaterThan(rail.indexOf('Project'));
     expect(rail.indexOf('Next')).toBeGreaterThan(rail.indexOf('Now'));
+    expect(rail).toContain('Add the space footer links');
     expect(rail.filter((text) => text === 'koja #58 · GitHub')).toHaveLength(1);
-    expect(rail.filter((text) => text === 'koja #59 · GitHub')).toHaveLength(1);
     expect(reading).not.toContain('koja #58 · GitHub');
-    expect(reading).not.toContain('koja #59 · GitHub');
+  });
 
-    const wideLinks = sourceLinks(pane).toSorted();
-    const containerLinks = sourceLinks(paneOf('container')).toSorted();
+  test.each(states)('%s adds no refresh action or key hints', (state) => {
+    const pane = paneOf(state);
 
-    expect(wideLinks).toEqual(containerLinks);
+    expect(drawnTexts(pane)).not.toContain('Refresh');
+    expect(drawnIcons(pane)).not.toContain('refresh-cw');
   });
 });

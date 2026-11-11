@@ -1,11 +1,11 @@
-import { h_flex, v_flex } from 'gpui-base';
+import { h_flex, Scrollbar, v_flex } from 'gpui-base';
 import type { Element } from 'gpui-kit';
 
 import { stateLine } from '../../../../kit/index.ts';
 import { spacing } from '../../../../kit/size.ts';
 import { agentPane, fakeTabs } from '../../scenes/shellContent.ts';
 import { factRows, factsBlock } from '../content/facts.ts';
-import { contentHeader, itemHeading, readingInset, scrollBody } from '../content/parts.ts';
+import { contentHeader, itemHeading, readingInset } from '../content/parts.ts';
 import { koja, kojaNormal } from '../koja.ts';
 import { sectionDivider } from '../panels/frame.ts';
 import { card, cardSlot } from '../parts.ts';
@@ -20,9 +20,31 @@ import { ticketView } from './views.ts';
 
 const factsRailWidth = 240;
 const railInset = 16;
+// These fixed-size scenes stop the initial viewport between plan rows.
+const planBottomInset = 22;
+const singleBottomInset = 12;
+
+const readingViewport = (reading: Element, name: string, bottomInset: number): Element =>
+  v_flex()
+    .relative()
+    .mb(bottomInset)
+    .flex_1()
+    .min_h(0)
+    .min_w(0)
+    .child(reading)
+    .child(Scrollbar.vertical(name).mode('always').absolute().inset_0());
 
 const ticketBody = (view: TicketView, tokens: DirectionTokens): Element => {
-  const reading = scrollBody(`ticket-view-${view.state}`).child(itemHeading(view.item, tokens));
+  const name = `ticket-view-${view.state}`;
+  const bottomInset = view.state === 'single' ? singleBottomInset : planBottomInset;
+
+  const reading = v_flex()
+    .id(name)
+    .flex_1()
+    .min_h(0)
+    .min_w(0)
+    .overflow_y_scroll()
+    .child(itemHeading(view.item, tokens));
 
   if (view.state === 'loading') {
     return reading.child(
@@ -40,6 +62,10 @@ const ticketBody = (view: TicketView, tokens: DirectionTokens): Element => {
     reading.child(factsBlock(view.item.facts, tokens));
   }
 
+  if (view.state === 'sync-failed') {
+    reading.child(errorLine('Could not sync PRs · showing PR states from 6m ago', tokens));
+  }
+
   reading
     .child(sectionDivider(tokens))
     .child(
@@ -52,7 +78,7 @@ const ticketBody = (view: TicketView, tokens: DirectionTokens): Element => {
     );
 
   if (view.state !== 'wide') {
-    return reading;
+    return readingViewport(reading, name, bottomInset);
   }
 
   const rail = v_flex()
@@ -67,7 +93,13 @@ const ticketBody = (view: TicketView, tokens: DirectionTokens): Element => {
     .child(nowBlock(view, tokens))
     .child(nextBlock(view, tokens));
 
-  return h_flex().flex_1().min_h(0).min_w(0).items_stretch().child(reading).child(rail);
+  return h_flex()
+    .flex_1()
+    .min_h(0)
+    .min_w(0)
+    .items_stretch()
+    .child(readingViewport(reading, name, bottomInset))
+    .child(rail);
 };
 
 const ticketPane = (view: TicketView, tokens: DirectionTokens): Element =>

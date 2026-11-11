@@ -5,18 +5,18 @@ import { div } from 'gpui-kit';
 import { icon } from '../../../../kit/index.ts';
 import { spacing } from '../../../../kit/size.ts';
 import type { SourceTarget } from '../content/data.ts';
-import { externalLink } from '../content/links.ts';
 import { readingInset } from '../content/parts.ts';
 import { fixedLabel, label, row, statusMark } from '../parts.ts';
 import type { DirectionTokens } from '../tokens.ts';
 import type { Slice } from './data.ts';
-import { readinessStatus } from './parts.ts';
+import { isActiveSlice } from './data.ts';
+import { identifierCell, planChevronWidth, readinessStatus } from './parts.ts';
 
 interface SliceLook {
-  linked: boolean;
-  selected: boolean;
-  expanded: boolean;
+  kind: 'current' | 'linked';
+  disclosure: 'none' | 'open' | 'closed';
   source: SourceTarget;
+  nextIdentifier: string | null;
 }
 
 export interface SpineNode {
@@ -34,6 +34,71 @@ const markWidth = 12;
 const spineLeft = 20;
 const nextMarkSize = 8;
 
+const nextMark = (tokens: DirectionTokens): Element =>
+  h_flex()
+    .w(markWidth)
+    .flex_none()
+    .items_center()
+    .justify_center()
+    .child(
+      div()
+        .size(nextMarkSize)
+        .rounded(nextMarkSize / 2)
+        .border(2)
+        .border_color(tokens.marks.idle),
+    );
+
+const trackColor = (slice: Slice, tokens: DirectionTokens) => {
+  if (slice.readiness === 'merged') {
+    return tokens.marks.done;
+  }
+
+  return isActiveSlice(slice) ? tokens.marks.working : tokens.pane.headerDivider;
+};
+
+const trackCounts = (slices: Slice[], tokens: DirectionTokens): Element => {
+  const ready = slices.filter((slice) => slice.readiness === 'ready').length;
+
+  const groups = [
+    {
+      name: 'merged',
+      count: slices.filter((slice) => slice.readiness === 'merged').length,
+      mark: statusMark('done', tokens),
+    },
+    {
+      name: 'active',
+      count: slices.filter(isActiveSlice).length,
+      mark: statusMark('working', tokens),
+    },
+    { name: 'next', count: Math.min(ready, 1), mark: nextMark(tokens) },
+    { name: 'ready', count: Math.max(ready - 1, 0), mark: nextMark(tokens) },
+    {
+      name: 'blocked',
+      count: slices.filter((slice) => slice.readiness === 'blocked').length,
+      mark: statusMark('blocked', tokens),
+    },
+  ];
+
+  const visible = groups.filter((group) => group.count > 0);
+  const counts = h_flex().flex_none().min_w(0).gap(spacing.small).items_center();
+
+  for (const [index, group] of visible.entries()) {
+    if (index > 0) {
+      counts.child(fixedLabel('·', tokens.text.detail, tokens.ink.dim));
+    }
+
+    counts.child(
+      h_flex()
+        .gap(spacing.xsmall)
+        .items_center()
+        .child(group.mark)
+        .child(fixedLabel(`${group.count} ${group.name}`, tokens.text.detail, tokens.ink.dim)),
+    );
+  }
+
+  return counts;
+};
+
 export const progressTrack = (slices: Slice[], tokens: DirectionTokens): Element => {
   const merged = slices.filter((slice) => slice.readiness === 'merged').length;
 
@@ -47,54 +112,35 @@ export const progressTrack = (slices: Slice[], tokens: DirectionTokens): Element
       h_flex()
         .h(trackHeight)
         .gap(trackHeight)
-        .children(
-          slices.map((slice) =>
-            div().flex_1().h_full().bg(tokens.marks[readinessStatus[slice.readiness]]),
-          ),
-        ),
-    );
+        .children(slices.map((slice) => div().flex_1().h_full().bg(trackColor(slice, tokens)))),
+    )
+    .child(trackCounts(slices, tokens));
 };
 
 export const sliceMark = (slice: Slice, tokens: DirectionTokens): Element => {
   if (slice.readiness === 'ready') {
-    return div()
-      .size(nextMarkSize)
-      .rounded(nextMarkSize / 2)
-      .border(2)
-      .border_color(tokens.marks.idle);
+    return nextMark(tokens);
   }
 
   return statusMark(readinessStatus[slice.readiness], tokens);
 };
 
-export const sliceName = (
-  slice: Slice,
-  linked: boolean,
-  source: SourceTarget,
-  tokens: DirectionTokens,
-): Element => {
-  const identifier = linked
-    ? externalLink(slice.identifier, source, tokens).flex_none()
-    : fixedLabel(slice.identifier, tokens.text.detail, tokens.ink.muted);
-
-  return h_flex()
-    .flex_1()
-    .min_w(0)
-    .gap(spacing.small)
-    .items_center()
-    .child(identifier)
-    .child(label(slice.title, tokens.text.body, tokens.ink.text).flex_1().tooltip(slice.title));
-};
-
 const sliceRow = (slice: Slice, look: SliceLook, tokens: DirectionTokens): Element => {
-  const readiness = slice.readiness === 'ready' ? 'next' : slice.readiness;
-  const name = h_flex().flex_1().min_w(0).gap(spacing.xsmall).items_center();
+  const next = slice.identifier === look.nextIdentifier;
+  const word = next ? 'next' : slice.readiness;
+  const chevron = h_flex().w(planChevronWidth).flex_none().items_center();
 
-  if (look.expanded) {
-    name.child(icon('chevron-down', 'xsmall').flex_none().text_color(tokens.ink.dim));
+  if (look.disclosure !== 'none') {
+    const name = look.disclosure === 'open' ? 'chevron-down' : 'chevron-right';
+
+    chevron.child(icon(name, 'xsmall').text_color(tokens.ink.dim));
   }
 
-  name.child(sliceName(slice, look.linked, look.source, tokens));
+  const end = [fixedLabel(word, tokens.text.detail, tokens.ink.dim)];
+
+  if (slice.readiness === 'blocked') {
+    end.push(fixedLabel(`by ${slice.blockedBy}`, tokens.text.detail, tokens.ink.dim));
+  }
 
   return v_flex()
     .flex_none()
@@ -102,10 +148,30 @@ const sliceRow = (slice: Slice, look: SliceLook, tokens: DirectionTokens): Eleme
     .child(
       row(
         {
-          selected: look.selected,
+          selected: look.kind === 'current',
           start: statusMark(null, tokens),
-          label: name,
-          end: [fixedLabel(readiness, tokens.text.detail, tokens.ink.dim)],
+          label: h_flex()
+            .flex_1()
+            .min_w(0)
+            .gap(spacing.xsmall)
+            .items_center()
+            .child(chevron)
+            .child(
+              h_flex()
+                .flex_1()
+                .min_w(0)
+                .gap(spacing.small)
+                .items_center()
+                .child(
+                  identifierCell(slice.identifier, look.source, look.kind === 'linked', tokens),
+                )
+                .child(
+                  label(slice.title, tokens.text.body, tokens.ink.text)
+                    .flex_1()
+                    .tooltip(slice.title),
+                ),
+            ),
+          end,
         },
         tokens,
       ),
@@ -115,7 +181,7 @@ const sliceRow = (slice: Slice, look: SliceLook, tokens: DirectionTokens): Eleme
 export const spineSlice = (slice: Slice, look: SliceLook, tokens: DirectionTokens): SpineNode => ({
   content: sliceRow(slice, look, tokens),
   mark: sliceMark(slice, tokens),
-  selected: look.selected,
+  selected: look.kind === 'current',
 });
 
 const spineLine = (index: number, length: number): Element => {

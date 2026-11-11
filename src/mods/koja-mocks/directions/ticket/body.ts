@@ -1,7 +1,7 @@
 import { v_flex } from 'gpui-base';
 import type { Element } from 'gpui-kit';
 
-import { contentSection, contentSectionHeader, description } from '../content/parts.ts';
+import { description } from '../content/parts.ts';
 import type { DirectionTokens } from '../tokens.ts';
 import type { Slice, TicketView } from './data.ts';
 import { isActiveSlice } from './data.ts';
@@ -11,32 +11,40 @@ import {
   foldedSection,
   note,
   relationSection,
+  section,
+  sectionHeader,
   workRow,
 } from './parts.ts';
 import type { SpineNode } from './spine.ts';
 import { progressTrack, spine, spineSlice } from './spine.ts';
 import { nextBlock, nowBlock } from './summary.ts';
 
-const nestedInset = 12;
+const nestedInset = 32;
+
+const disclosureFor = (children: number, expanded: boolean): 'none' | 'open' | 'closed' => {
+  if (children === 0) {
+    return 'none';
+  }
+
+  return expanded ? 'open' : 'closed';
+};
 
 const planNode = (slice: Slice, view: TicketView, tokens: DirectionTokens): SpineNode => {
-  const current = slice.identifier === view.currentIdentifier;
-  const expanded = view.currentIdentifier === null ? isActiveSlice(slice) : current;
+  const current = view.state === 'single' && slice.identifier === view.current.identifier;
+  const firstActive = view.slices.find(isActiveSlice)?.identifier;
+  const expanded = view.state === 'single' ? current : slice.identifier === firstActive;
+  const agents = isActiveSlice(slice) ? (view.agents[slice.identifier] ?? []) : [];
+  const nextIdentifier = view.slices.find((item) => item.readiness === 'ready')?.identifier ?? null;
+  const kind = current ? 'current' : 'linked';
+  const disclosure = disclosureFor(agents.length, expanded);
 
   const node = spineSlice(
     slice,
-    {
-      linked: !current,
-      selected: current,
-      expanded,
-      source: view.item.source,
-    },
+    { kind, disclosure, source: view.item.source, nextIdentifier },
     tokens,
   );
 
   if (expanded) {
-    const agents = view.agents[slice.identifier] ?? [];
-
     node.content.child(
       v_flex()
         .flex_none()
@@ -50,39 +58,40 @@ const planNode = (slice: Slice, view: TicketView, tokens: DirectionTokens): Spin
 };
 
 const planSection = (view: TicketView, tokens: DirectionTokens): Element => {
+  const name = view.state === 'single' ? 'ME-1280 Build the sidebar' : 'Whole plan';
+  const count = String(view.slices.length);
+
+  const plan = v_flex()
+    .flex_none()
+    .min_w(0)
+    .child(sectionHeader({ name, count, source: view.item.source }, true, tokens));
+
+  if (view.state === 'single') {
+    plan.child(progressTrack(view.slices, tokens));
+  }
+
   const nodes = view.slices.map((slice) => planNode(slice, view, tokens));
 
-  return contentSection(
-    { name: 'Whole plan', count: view.slices.length },
-    [spine(nodes, tokens)],
-    tokens,
-  );
+  return plan.child(spine(nodes, tokens));
 };
 
 const foldedAcceptance = (view: TicketView, tokens: DirectionTokens): Element => {
   const done = view.criteria.filter((item) => item.state === 'done').length;
+  const count = `${done} of ${view.criteria.length}`;
 
-  return foldedSection(`Acceptance · ${done} of ${view.criteria.length}`, undefined, tokens);
+  return foldedSection('Acceptance', count, tokens);
 };
 
-const tailSections = (view: TicketView, tokens: DirectionTokens): Element[] => {
-  if (view.currentIdentifier === null) {
-    return [foldedSection('Description', undefined, tokens), foldedAcceptance(view, tokens)];
-  }
-
-  return [
-    acceptanceSection(view.criteria, view.item.source, tokens),
-    relationSection(tokens),
-    foldedSection('Description', undefined, tokens),
-    activitySection(tokens),
-  ];
-};
+const containerTail = (view: TicketView, tokens: DirectionTokens): Element[] => [
+  foldedSection('Description', null, tokens),
+  foldedAcceptance(view, tokens),
+];
 
 export const ticketSections = (view: TicketView, tokens: DirectionTokens): Element[] => {
   if (view.state === 'plain') {
     return [
-      contentSection({ name: 'Description' }, [description(view.item, tokens)], tokens),
-      acceptanceSection(view.criteria, view.item.source, tokens),
+      section('Description', [description(view.item, tokens)], tokens),
+      acceptanceSection(view.criteria, tokens),
     ];
   }
 
@@ -90,24 +99,29 @@ export const ticketSections = (view: TicketView, tokens: DirectionTokens): Eleme
     return [
       progressTrack(view.slices, tokens),
       note('All slices merged', tokens),
-      foldedSection(`${view.slices.length} merged`, undefined, tokens),
-      ...tailSections(view, tokens),
+      foldedSection('merged', String(view.slices.length), tokens),
+      ...containerTail(view, tokens),
     ];
   }
 
-  const sections: Element[] = [];
-
-  if (view.currentIdentifier !== null) {
-    sections.push(contentSectionHeader({ name: 'ME-1280 Build the sidebar' }, true, [], tokens));
+  if (view.state === 'single') {
+    return [
+      nowBlock(view, tokens),
+      acceptanceSection(view.criteria, tokens),
+      planSection(view, tokens),
+      relationSection(tokens),
+      foldedSection('Description', null, tokens),
+      activitySection(tokens),
+    ];
   }
 
-  sections.push(progressTrack(view.slices, tokens));
+  const sections = [progressTrack(view.slices, tokens)];
 
   if (view.state !== 'wide') {
     sections.push(nowBlock(view, tokens), nextBlock(view, tokens));
   }
 
-  sections.push(planSection(view, tokens), ...tailSections(view, tokens));
+  sections.push(planSection(view, tokens), ...containerTail(view, tokens));
 
   return sections;
 };

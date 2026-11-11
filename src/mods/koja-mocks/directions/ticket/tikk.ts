@@ -1,6 +1,6 @@
 import type { ContentItem } from '../content/data.ts';
-import type { Slice, WorkItem } from './data.ts';
-import { sliceAgents, slices, ticketItems } from './data.ts';
+import type { AgentTicket, Slice } from './data.ts';
+import { isActiveSlice, sliceAgents, slices, ticketItems } from './data.ts';
 
 const identifiers: Record<string, string> = {
   'ME-1280': 'koja-7fq3',
@@ -40,28 +40,32 @@ const referencesOf = (text: string): string => {
   return translated;
 };
 
-const instructionOf = (item: WorkItem): WorkItem => {
-  if (item.identifier === undefined) {
-    return item;
-  }
-
-  return { ...item, identifier: identifierOf(item.identifier), tracker: 'open' };
-};
+const instructionOf = (item: AgentTicket): AgentTicket => ({
+  ...item,
+  identifier: identifierOf(item.identifier),
+});
 
 export const tikkSlices: Slice[] = slices.map((slice) => {
   const translated = Object.assign({}, slice);
 
   translated.identifier = identifierOf(slice.identifier);
-  translated.tracker = 'open';
 
-  if (slice.detail !== undefined) {
-    translated.detail = referencesOf(slice.detail);
+  if (isActiveSlice(translated)) {
+    translated.detail = referencesOf(translated.detail);
+  }
+
+  if (translated.readiness === 'ready') {
+    translated.waitsFor = identifierOf(translated.waitsFor);
+  }
+
+  if (translated.readiness === 'blocked') {
+    translated.blockedBy = identifierOf(translated.blockedBy);
   }
 
   return translated;
 });
 
-export const tikkAgents: Record<string, WorkItem[]> = Object.fromEntries(
+export const tikkAgents: Record<string, AgentTicket[]> = Object.fromEntries(
   Object.entries(sliceAgents).map(([identifier, agents]) => [
     identifierOf(identifier),
     agents.map(instructionOf),

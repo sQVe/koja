@@ -3,43 +3,68 @@ import type { Element } from 'gpui-kit';
 import { div } from 'gpui-kit';
 
 import { spacing } from '../../../../kit/size.ts';
-import type { SourceTarget } from '../content/data.ts';
-import { externalLink } from '../content/links.ts';
-import { contentSection } from '../content/parts.ts';
-import { fixedLabel, label, row, statusMark, styled } from '../parts.ts';
-import { errorLine } from '../sidebars/states.ts';
+import { agentLink, externalLink } from '../content/links.ts';
+import { readingInset, sectionBodyInset } from '../content/parts.ts';
+import { fixedLabel, label, row, statusMark } from '../parts.ts';
 import type { DirectionTokens } from '../tokens.ts';
-import type { Slice, TicketView } from './data.ts';
+import type { ActiveSlice, TicketView } from './data.ts';
 import { isActiveSlice } from './data.ts';
-import { detailLine, note, pullRow } from './parts.ts';
-import { sliceMark, sliceName } from './spine.ts';
+import { detailLine, note, planLink, section, wrappedText } from './parts.ts';
+import { sliceMark } from './spine.ts';
 
-const markSlotWidth = 12;
-const railDetailLineHeight = 16;
-const railDetailLineLength = `${railDetailLineHeight}px`;
+const pullLink = (pull: string, tokens: DirectionTokens): Element => {
+  const linkTokens = { ...tokens, text: { ...tokens.text, detail: tokens.text.body } };
 
-const railNote = (text: string, tokens: DirectionTokens): Element =>
-  detailLine(tokens).child(
-    styled(
-      div()
-        .flex_1()
-        .min_w(0)
-        .whitespace_normal()
-        .line_height(railDetailLineLength)
-        .max_h(railDetailLineHeight * 2)
-        .overflow_hidden(),
-      tokens.text.detail,
-      tokens.ink.dim,
-    )
-      .child(text)
-      .tooltip(text),
+  return externalLink(pull, 'GitHub', linkTokens).flex_none();
+};
+
+const wrappedDetail = (text: string, tokens: DirectionTokens): Element =>
+  wrappedText(text, tokens).text_size(tokens.text.detail.size).text_color(tokens.ink.dim);
+
+const nowDetails = (slice: ActiveSlice, rail: boolean, tokens: DirectionTokens): Element => {
+  if (rail) {
+    const details = v_flex()
+      .min_w(0)
+      .flex_none()
+      .ml(sectionBodyInset(tokens))
+      .mr(readingInset)
+      .child(wrappedDetail(slice.detail, tokens));
+
+    if (slice.agent !== null) {
+      details.child(agentLink(slice.agent, tokens));
+    }
+
+    return details;
+  }
+
+  const details = detailLine(tokens).child(
+    label(slice.detail, tokens.text.detail, tokens.ink.dim).tooltip(slice.detail),
   );
 
-const railNowSlice = (slice: Slice, source: SourceTarget, tokens: DirectionTokens): Element => {
+  if (slice.agent !== null) {
+    details.child(agentLink(slice.agent, tokens).flex_none());
+  }
+
+  return details;
+};
+
+const railTitle = (title: string, mark: Element, tokens: DirectionTokens): Element =>
+  h_flex()
+    .min_w(0)
+    .flex_none()
+    .min_h(tokens.rows.height)
+    .mx(tokens.rows.inset)
+    .px(tokens.rows.paddingX)
+    .gap(spacing.small)
+    .items_start()
+    .child(mark.flex_none().mt(spacing.small))
+    .child(wrappedText(title, tokens).flex_1());
+
+const railNowSlice = (slice: ActiveSlice, tokens: DirectionTokens): Element => {
   const pull = detailLine(tokens);
 
-  if (slice.pull !== undefined) {
-    pull.child(externalLink(slice.pull, 'GitHub', tokens).flex_none());
+  if (slice.readiness !== 'in progress') {
+    pull.child(pullLink(slice.pull, tokens));
   }
 
   pull.child(div().flex_1()).child(fixedLabel(slice.readiness, tokens.text.detail, tokens.ink.dim));
@@ -48,28 +73,16 @@ const railNowSlice = (slice: Slice, source: SourceTarget, tokens: DirectionToken
     .flex_none()
     .min_w(0)
     .pb(spacing.small)
-    .child(
-      row(
-        {
-          selected: false,
-          start: sliceMark(slice, tokens),
-          label: sliceName(slice, false, source, tokens),
-          end: [],
-        },
-        tokens,
-      ),
-    )
+    .child(railTitle(slice.title, sliceMark(slice, tokens), tokens))
     .child(pull)
-    .child(
-      railNote(`${slice.tracker} · PR ${slice.pullState ?? ''} · ${slice.detail ?? ''}`, tokens),
-    );
+    .child(nowDetails(slice, true, tokens));
 };
 
-const nowSlice = (slice: Slice, source: SourceTarget, tokens: DirectionTokens): Element => {
+const nowSlice = (slice: ActiveSlice, tokens: DirectionTokens): Element => {
   const end: Element[] = [];
 
-  if (slice.pull !== undefined) {
-    end.push(externalLink(slice.pull, 'GitHub', tokens).flex_none());
+  if (slice.readiness !== 'in progress') {
+    end.push(pullLink(slice.pull, tokens));
   }
 
   end.push(fixedLabel(slice.readiness, tokens.text.detail, tokens.ink.dim));
@@ -82,34 +95,42 @@ const nowSlice = (slice: Slice, source: SourceTarget, tokens: DirectionTokens): 
         {
           selected: false,
           start: sliceMark(slice, tokens),
-          label: sliceName(slice, false, source, tokens),
+          label: label(slice.title, tokens.text.body, tokens.ink.text).tooltip(slice.title),
           end,
         },
         tokens,
       ),
     )
-    .child(note(`${slice.tracker} · PR ${slice.pullState ?? ''} · ${slice.detail ?? ''}`, tokens));
+    .child(nowDetails(slice, false, tokens));
 };
 
-const singleNow = (view: TicketView, tokens: DirectionTokens): Element => {
-  const current = view.slices.find((slice) => slice.identifier === view.currentIdentifier);
+const singleNow = (
+  view: Extract<TicketView, { state: 'single' }>,
+  tokens: DirectionTokens,
+): Element => {
+  const current = view.current;
 
-  if (current === undefined) {
-    throw new Error('The single-ticket fixture has no current slice in its parent plan');
-  }
+  const title =
+    current.readiness === 'in progress'
+      ? label(current.title, tokens.text.body, tokens.ink.text)
+      : pullLink(current.pull, tokens);
 
-  const parts: Element[] = [];
+  const parts = [
+    row(
+      {
+        selected: false,
+        start: sliceMark(current, tokens),
+        label: title,
+        end: [fixedLabel(current.readiness, tokens.text.detail, tokens.ink.dim)],
+      },
+      tokens,
+    ),
+    nowDetails(current, false, tokens),
+  ];
 
-  if (current.pull !== undefined) {
-    parts.push(pullRow(current.pull, current.pullState ?? '', current.tracker, tokens));
-  }
-
-  if (current.detail !== undefined) {
-    parts.push(note(current.detail, tokens));
-  }
-
-  const agents = view.agents[current.identifier] ?? [];
-  const working = agents.filter((item) => item.state === 'in progress');
+  const working = (view.agents[current.identifier] ?? []).filter(
+    (item) => item.state === 'in progress',
+  );
 
   parts.push(
     ...working.map((item) =>
@@ -117,7 +138,7 @@ const singleNow = (view: TicketView, tokens: DirectionTokens): Element => {
         {
           selected: false,
           start: statusMark('working', tokens),
-          label: label(`${item.identifier ?? ''} ${item.title}`, tokens.text.body, tokens.ink.text),
+          label: label(`${item.identifier} ${item.title}`, tokens.text.body, tokens.ink.text),
           end: [fixedLabel(item.state, tokens.text.detail, tokens.ink.dim)],
         },
         tokens,
@@ -125,20 +146,16 @@ const singleNow = (view: TicketView, tokens: DirectionTokens): Element => {
     ),
   );
 
-  return contentSection({ name: 'Now' }, parts, tokens);
+  return section('Now', parts, tokens);
 };
 
 export const nowBlock = (view: TicketView, tokens: DirectionTokens): Element => {
-  if (view.currentIdentifier !== null) {
+  if (view.state === 'single') {
     return singleNow(view, tokens);
   }
 
   const active = view.slices.filter(isActiveSlice);
   const parts: Element[] = [];
-
-  if (view.state === 'sync-failed') {
-    parts.push(errorLine('Could not sync PRs · showing PR states from 6m ago', tokens));
-  }
 
   if (active.length === 0) {
     parts.push(note('No slices in progress', tokens));
@@ -146,20 +163,24 @@ export const nowBlock = (view: TicketView, tokens: DirectionTokens): Element => 
 
   const renderSlice = view.state === 'wide' ? railNowSlice : nowSlice;
 
-  parts.push(...active.map((slice) => renderSlice(slice, view.item.source, tokens)));
+  parts.push(...active.map((slice) => renderSlice(slice, tokens)));
 
-  return contentSection({ name: 'Now' }, parts, tokens);
+  return section('Now', parts, tokens);
 };
 
 const nothingReady = (tokens: DirectionTokens): Element =>
-  contentSection(
-    { name: 'Next' },
+  section(
+    'Next',
     [
       note('Nothing is ready', tokens),
       detailLine(tokens)
-        .child(fixedLabel('ME-1285 is blocked by', tokens.text.detail, tokens.ink.dim))
-        .child(externalLink('ME-1290', 'Linear', tokens))
-        .child(fixedLabel('· no PR', tokens.text.detail, tokens.ink.dim)),
+        .child(fixedLabel('ME-1285 waits for', tokens.text.detail, tokens.ink.dim))
+        .child(planLink('ME-1290', 'Linear', tokens).flex_none())
+        .child(fixedLabel('Add the sidebar data model', tokens.text.detail, tokens.ink.text))
+        .child(fixedLabel('·', tokens.text.detail, tokens.ink.dim))
+        .child(fixedLabel('not started', tokens.text.detail, tokens.ink.dim))
+        .child(fixedLabel('·', tokens.text.detail, tokens.ink.dim))
+        .child(fixedLabel('no PR', tokens.text.detail, tokens.ink.dim)),
     ],
     tokens,
   );
@@ -171,31 +192,33 @@ export const nextBlock = (view: TicketView, tokens: DirectionTokens): Element =>
     return nothingReady(tokens);
   }
 
-  let reason = `${ready.tracker} · ${ready.detail ?? ''}`;
+  const reason = `Ready · waits on ${ready.waitsFor}, stacks on koja ${ready.stack}`;
 
-  if (view.state === 'sync-failed') {
-    reason += ' · uses PR states from 6m ago';
+  if (view.state === 'wide') {
+    return section(
+      'Next',
+      [
+        railTitle(ready.title, sliceMark(ready, tokens), tokens),
+        note('next', tokens),
+        detailLine(tokens).child(wrappedDetail(reason, tokens)),
+      ],
+      tokens,
+    );
   }
 
-  const detail = view.state === 'wide' ? railNote(reason, tokens) : note(reason, tokens);
-
-  return contentSection(
-    { name: 'Next' },
+  return section(
+    'Next',
     [
       row(
         {
           selected: false,
-          start: h_flex()
-            .w(markSlotWidth)
-            .items_center()
-            .justify_center()
-            .child(sliceMark(ready, tokens)),
-          label: sliceName(ready, false, view.item.source, tokens),
+          start: sliceMark(ready, tokens),
+          label: label(ready.title, tokens.text.body, tokens.ink.text).tooltip(ready.title),
           end: [fixedLabel('next', tokens.text.detail, tokens.ink.dim)],
         },
         tokens,
       ),
-      detail,
+      note(reason, tokens),
     ],
     tokens,
   );

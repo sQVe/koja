@@ -16,98 +16,98 @@ export type TicketState =
   | 'normal'
   | 'wide';
 
-export type Readiness = 'merged' | 'in review' | 'in progress' | 'ready' | 'blocked';
-
-type TrackerStatus = 'Done' | 'In Progress' | 'Backlog' | 'draft' | 'open' | 'canceled';
-
-export interface Slice {
+interface SliceIdentity {
   identifier: string;
   title: string;
-  tracker: TrackerStatus;
-  readiness: Readiness;
-  pull?: string;
-  pullState?: string;
-  detail?: string;
 }
 
-export interface WorkItem {
+interface ActiveFacts {
+  detail: string;
+  agent: string | null;
+}
+
+export type ActiveSlice = SliceIdentity &
+  ActiveFacts &
+  ({ readiness: 'PR open' | 'PR draft'; pull: string } | { readiness: 'in progress' });
+
+export type Slice =
+  | ActiveSlice
+  | (SliceIdentity &
+      (
+        | { readiness: 'merged' }
+        | { readiness: 'ready'; waitsFor: string; stack: string }
+        | { readiness: 'blocked'; blockedBy: string }
+      ));
+
+export type Readiness = Slice['readiness'];
+
+export interface Criterion {
   title: string;
   state: 'done' | 'in progress' | 'todo';
-  identifier?: string;
-  tracker?: TrackerStatus;
 }
 
-export interface TicketView {
-  state: TicketState;
+export interface AgentTicket extends Criterion {
+  identifier: string;
+}
+
+export interface TicketData {
   item: ContentItem;
   slices: Slice[];
-  agents: Record<string, WorkItem[]>;
-  criteria: WorkItem[];
-  currentIdentifier: string | null;
+  agents: Record<string, AgentTicket[]>;
+  criteria: Criterion[];
 }
 
-export const isActiveSlice = (slice: Slice): boolean =>
-  slice.readiness === 'in review' || slice.readiness === 'in progress';
+export type TicketView = TicketData &
+  ({ state: 'single'; current: ActiveSlice } | { state: Exclude<TicketState, 'single'> });
+
+export const isActiveSlice = (slice: Slice): slice is ActiveSlice =>
+  slice.readiness === 'PR open' ||
+  slice.readiness === 'PR draft' ||
+  slice.readiness === 'in progress';
+
+export const footerSlice: ActiveSlice = {
+  identifier: 'ME-1283',
+  title: 'Add the space footer links',
+  readiness: 'PR open',
+  pull: '#58',
+  detail: 'checks passing · 1 unresolved thread',
+  agent: 'Design the sidebar',
+};
 
 export const slices: Slice[] = [
-  {
-    identifier: 'ME-1281',
-    title: 'Add two-line space rows',
-    tracker: 'Done',
-    readiness: 'merged',
-    pull: '#54',
-    pullState: 'merged',
-  },
-  {
-    identifier: 'ME-1282',
-    title: 'Add work-need marks',
-    tracker: 'Done',
-    readiness: 'merged',
-    pull: '#55',
-    pullState: 'merged',
-  },
-  {
-    identifier: 'ME-1283',
-    title: 'Add the space footer links',
-    tracker: 'In Progress',
-    readiness: 'in review',
-    pull: '#58',
-    pullState: 'open',
-    detail: 'checks passing · 1 unresolved thread',
-  },
+  { identifier: 'ME-1281', title: 'Add two-line space rows', readiness: 'merged' },
+  { identifier: 'ME-1282', title: 'Add work-need marks', readiness: 'merged' },
+  footerSlice,
   {
     identifier: 'ME-1284',
     title: 'Add Go to for PRs',
-    tracker: 'In Progress',
-    readiness: 'in progress',
+    readiness: 'PR draft',
     pull: '#59',
-    pullState: 'draft',
     detail: 'stacked on koja #58 · 2 of 3 agent tickets done',
+    agent: null,
   },
   {
     identifier: 'ME-1285',
     title: 'Fold project groups',
-    tracker: 'Backlog',
     readiness: 'ready',
-    detail: 'Ready · stacks on koja #58',
+    waitsFor: 'ME-1283',
+    stack: '#58',
   },
   {
     identifier: 'ME-1286',
     title: 'Show the stack hover card',
-    tracker: 'Backlog',
     readiness: 'blocked',
-    detail: 'blocked by ME-1285',
+    blockedBy: 'ME-1285',
   },
   {
     identifier: 'ME-1287',
     title: 'Judge the live sidebar',
-    tracker: 'Backlog',
     readiness: 'blocked',
-    detail: 'blocked by ME-1286',
+    blockedBy: 'ME-1286',
   },
 ];
 
-export const acceptance: Record<TicketKind, WorkItem[]> = {
+export const acceptance: Record<TicketKind, Criterion[]> = {
   container: [
     { title: 'Every space shows its two-line row', state: 'done' },
     { title: 'Go to finds a PR in any stack', state: 'todo' },
@@ -122,14 +122,12 @@ export const acceptance: Record<TicketKind, WorkItem[]> = {
   ],
 };
 
-const agentTickets: WorkItem[] = [
-  { identifier: 'AI-412', title: 'Draw the footer links', state: 'done' },
-  { identifier: 'AI-413', title: 'Route ticket links to the tracker', state: 'in progress' },
-  { identifier: 'AI-414', title: 'Add footer tests', state: 'todo' },
-];
-
-export const sliceAgents: Record<string, WorkItem[]> = {
-  'ME-1283': agentTickets,
+export const sliceAgents: Record<string, AgentTicket[]> = {
+  'ME-1283': [
+    { identifier: 'AI-412', title: 'Draw the footer links', state: 'done' },
+    { identifier: 'AI-413', title: 'Route ticket links to the tracker', state: 'in progress' },
+    { identifier: 'AI-414', title: 'Add footer tests', state: 'todo' },
+  ],
   'ME-1284': [
     { identifier: 'AI-418', title: 'Match PR numbers', state: 'done' },
     { identifier: 'AI-419', title: 'Search merged stacks', state: 'done' },
