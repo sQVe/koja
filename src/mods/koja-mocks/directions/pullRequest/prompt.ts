@@ -7,6 +7,7 @@ import { readingInset, reviewActionButton, saveRecoveryButton } from '../content
 import { fixedLabel } from '../parts.ts';
 import type { DirectionTokens } from '../tokens.ts';
 import type { PullView } from './data.ts';
+import { isBottomBarView } from './data.ts';
 
 const smallActionHeight = 20;
 
@@ -16,7 +17,7 @@ export const promptAction = (picked: boolean, view: PullView, tokens: DirectionT
   }
 
   if (picked && view.queued) {
-    return h_flex()
+    const added = h_flex()
       .h(smallActionHeight)
       .px(spacing.small)
       .gap(spacing.xsmall)
@@ -26,9 +27,13 @@ export const promptAction = (picked: boolean, view: PullView, tokens: DirectionT
       .border_color(tokens.pane.border)
       .child(icon('check', 'xsmall').text_color(tokens.ink.muted))
       .child(fixedLabel('Added', tokens.text.detail, tokens.ink.muted));
+
+    return isBottomBarView(view) ? added.bg(tokens.rows.selectedFill) : added;
   }
 
-  return saveRecoveryButton('Add to prompt', tokens);
+  const action = isBottomBarView(view) ? 'Add for agent' : 'Add to prompt';
+
+  return saveRecoveryButton(action, tokens);
 };
 
 export const sectionSend = (tokens: DirectionTokens): Element =>
@@ -44,9 +49,9 @@ export const promptBar = (tokens: DirectionTokens): Element =>
     .border_t(1)
     .border_color(tokens.pane.headerDivider)
     .child(
-      fixedLabel('2 items for Design the sidebar', tokens.text.detail, tokens.ink.text).flex_1(),
+      fixedLabel('2 added for Design the sidebar', tokens.text.detail, tokens.ink.text).flex_1(),
     )
-    .child(fixedLabel('Clear', tokens.text.detail, tokens.ink.muted))
+    .child(saveRecoveryButton('Clear', tokens))
     .child(reviewActionButton('Send to agent', tokens));
 
 export const promptHeader = (tokens: DirectionTokens): Element =>

@@ -47,9 +47,16 @@ export const pullViews: Record<PullScene, PullView> = {
   zoomed: { state: 'zoomed', tray: 'bar', queued: true },
 };
 
-const readyStates = new Set<PullState>(['ready', 'ready-menu', 'merge-confirm', 'merge-failed']);
+export const isBottomBarView = (view: PullView): boolean => view.tray === 'bar';
 
-export const isReady = (state: PullState): boolean => readyStates.has(state);
+const resolvedReviewStates = new Set<PullState>([
+  'ready',
+  'ready-menu',
+  'merge-confirm',
+  'merge-failed',
+]);
+
+export const hasResolvedReview = (state: PullState): boolean => resolvedReviewStates.has(state);
 
 const modifiedRows: FakeChange = {
   path: 'src/mods/koja-spaces/rows.ts',
@@ -58,13 +65,13 @@ const modifiedRows: FakeChange = {
   del: 2,
 };
 
-const blockedFiles = pullFiles.map((file) =>
+export const pullRequestFiles = pullFiles.map((file) =>
   file.path === modifiedRows.path ? modifiedRows : file,
 );
 
 const blockedTotals = {
-  added: blockedFiles.reduce((sum, file) => sum + file.add, 0),
-  removed: blockedFiles.reduce((sum, file) => sum + file.del, 0),
+  added: pullRequestFiles.reduce((sum, file) => sum + file.add, 0),
+  removed: pullRequestFiles.reduce((sum, file) => sum + file.del, 0),
 };
 
 export const checkFailure = {
@@ -87,16 +94,14 @@ export const pullThreads: [PullThread, PullThread] = [
     reference: 'repoLabel.ts:27–31',
     author: 'jonas-l · 1h ago',
     text: 'Can the branch truncate before the repository name?',
-    snippet: ['27  label(repository).flex_none()', '28  label(branch).truncate()'],
+    snippet: [
+      '27  label(repository).flex_none()',
+      '28  label(branch).truncate()',
+      '29    .min_w(0)',
+      '30    .flex_1()',
+      '31    .tooltip(branch)',
+    ],
   },
-];
-
-const readyFiles: FakeChange[] = [
-  { path: 'src/mods/koja-stack/main.ts', status: 'A', add: 42, del: 0 },
-  { path: 'src/mods/koja-stack/rows.ts', status: 'A', add: 28, del: 0 },
-  { path: 'src/mods/koja-stack/rows.test.ts', status: 'A', add: 24, del: 0 },
-  { path: 'src/kit/index.ts', status: 'M', add: 2, del: 1 },
-  { path: 'config/layouts/koja.json', status: 'M', add: 4, del: 2 },
 ];
 
 const blockedItem: ContentItem = {
@@ -113,42 +118,18 @@ const blockedItem: ContentItem = {
   ],
 };
 
-const readyItem: ContentItem = {
-  ...contentItems.pr,
-  identifier: '#44',
-  title: 'Add the stack panel',
-  tab: '#44 Add the stack panel',
-  description: [
-    'Keep the active branch and its pull request together in the stack panel.',
-    'Adds compact branch rows, review status, and a direct path back to the agent terminal.',
-  ],
-  facts: [
-    { name: 'Branch', value: 'me-1091-stack-panel → main', truncateMiddle: true },
-    { name: 'Ticket', value: 'ME-1091', target: 'Linear' },
-    { name: 'Checks', value: '4 passed', checkState: 'passed' },
-    { name: 'Threads', value: '0 unresolved · 2 resolved' },
-    { name: 'Review', value: 'Approved by jonas-l' },
-    { name: 'Merge', value: 'No conflicts' },
-    { name: 'Files', value: '5 changed', diff: { added: 100, removed: 3 } },
-    { name: 'Agent', value: 'Design the sidebar', target: 'agent' },
-  ],
-};
-
-export const pullItem = (state: PullState): ContentItem => {
-  if (state === 'unreachable') {
+export const pullItem = (view: PullView): ContentItem => {
+  if (view.state === 'unreachable') {
     return { ...blockedItem, title: null, state: null, readAge: null, facts: [] };
   }
 
-  if (state === 'checks-failed') {
-    const facts = blockedItem.facts.map((fact) =>
-      fact.name === 'Checks' ? { ...fact, age: 'synced 6m ago' } : fact,
-    );
-
-    return { ...blockedItem, facts };
+  if (!isBottomBarView(view)) {
+    return blockedItem;
   }
 
-  return isReady(state) ? readyItem : blockedItem;
-};
+  const facts = blockedItem.facts.filter((fact) =>
+    ['Branch', 'Ticket', 'Agent'].includes(fact.name),
+  );
 
-export const filesFor = (state: PullState): FakeChange[] =>
-  isReady(state) ? readyFiles : blockedFiles;
+  return { ...blockedItem, facts };
+};

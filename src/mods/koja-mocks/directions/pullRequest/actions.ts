@@ -4,12 +4,12 @@ import { div } from 'gpui-kit';
 
 import { icon } from '../../../../kit/index.ts';
 import { controlSize, spacing } from '../../../../kit/size.ts';
+import { reviewActionButton } from '../content/parts.ts';
 import { dialogActionsFor } from '../dialogs/actions.ts';
 import { wrappedText } from '../dialogs/parts.ts';
 import { dialogFrame } from '../dialogs/scene.ts';
 import { overlayCard, overlayTokens } from '../overlays/parts.ts';
 import { fixedLabel, label, row } from '../parts.ts';
-import { errorLine } from '../sidebars/states.ts';
 import type { DirectionTokens } from '../tokens.ts';
 import type { PullState } from './data.ts';
 import { detailText } from './parts.ts';
@@ -45,8 +45,8 @@ const splitAction = (tokens: DirectionTokens): Element =>
         .child(icon('chevron-down', 'small').text_color(tokens.pane.fill)),
     );
 
-export const readyActions = (state: PullState, tokens: DirectionTokens): Element => {
-  const block = v_flex()
+const mergeState = (title: string, mark: Element, tokens: DirectionTokens): Element =>
+  v_flex()
     .flex_none()
     .min_w(0)
     .gap(spacing.small)
@@ -54,17 +54,35 @@ export const readyActions = (state: PullState, tokens: DirectionTokens): Element
       h_flex()
         .gap(spacing.small)
         .items_center()
-        .child(icon('git-merge', 'small').text_color(tokens.marks.done))
-        .child(fixedLabel('Ready to merge', tokens.text.title, tokens.ink.text)),
-    )
-    .child(detailText('4 checks passed · approved · no conflicts', tokens))
-    .child(splitAction(tokens));
+        .child(mark)
+        .child(fixedLabel(title, tokens.text.title, tokens.ink.text)),
+    );
 
+export const blockedMerge = (tokens: DirectionTokens): Element =>
+  mergeState("Can't merge yet", icon('circle-x', 'small').text_color(tokens.marks.blocked), tokens)
+    .child(detailText('1 failing check · 2 unresolved threads · changes requested', tokens))
+    .child(detailText('Merge appears here when nothing blocks it.', tokens));
+
+export const readyActions = (state: PullState, tokens: DirectionTokens): Element => {
   if (state === 'merge-failed') {
-    block.child(errorLine('Could not merge: main changed since the last sync', tokens).mx(0).px(0));
+    return mergeState(
+      'Could not merge',
+      icon('circle-x', 'small').text_color(tokens.marks.blocked),
+      tokens,
+    )
+      .child(detailText('main changed since the last sync', tokens))
+      .child(h_flex().child(reviewActionButton('Sync and retry', tokens)));
   }
 
-  return block.child(detailText('Into main · deletes the branch', tokens));
+  return mergeState(
+    'Ready to merge',
+    icon('git-merge', 'small').text_color(tokens.marks.done),
+    tokens,
+  )
+    .child(detailText('4 checks passed · 0 unresolved · 3 resolved threads', tokens))
+    .child(detailText('approved by jonas-l · no conflicts', tokens))
+    .child(splitAction(tokens))
+    .child(detailText('Into main · deletes the branch', tokens));
 };
 
 export const mergeMenu = (tokens: DirectionTokens): Element => {
@@ -93,12 +111,16 @@ export const mergeMenu = (tokens: DirectionTokens): Element => {
 };
 
 export const mergeConfirm = (tokens: DirectionTokens): Element => {
-  const title = wrappedText('Squash and merge #44?', tokens.text.title, tokens.ink.text);
+  const title = wrappedText('Squash and merge #41?', tokens.text.title, tokens.ink.text);
 
   const body = v_flex()
     .child(wrappedText('Squashes 5 commits into main.', tokens.text.body, tokens.ink.muted))
     .child(
-      wrappedText('Deletes the branch me-1091-stack-panel.', tokens.text.body, tokens.ink.muted),
+      wrappedText(
+        'Deletes the branch me-1090-design-the-sidebar.',
+        tokens.text.body,
+        tokens.ink.muted,
+      ),
     );
 
   return dialogFrame(title, body, dialogActionsFor('Merge', false, tokens), tokens);

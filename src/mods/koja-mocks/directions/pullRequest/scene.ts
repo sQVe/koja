@@ -14,7 +14,7 @@ import { pullBody } from './layout.ts';
 
 export const pullRequestScene = (name: PullScene): Element => {
   const view = pullViews[name];
-  const item = pullItem(view.state);
+  const item = pullItem(view);
   const mode = view.state === 'normal' ? kojaNormal : koja;
   const tokens: DirectionTokens = { ...mode, areas: { ...mode.areas, shellPaneWidth: 400 } };
 

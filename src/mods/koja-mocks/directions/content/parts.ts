@@ -101,7 +101,11 @@ export const contentHeader = (item: ContentItem, tokens: DirectionTokens): Eleme
     .child(iconButton('ellipsis', tokens, tokens.ink.dim));
 };
 
-export const itemHeading = (item: ContentItem, tokens: DirectionTokens): Element => {
+export const itemHeading = (
+  item: ContentItem,
+  actions: Element[],
+  tokens: DirectionTokens,
+): Element => {
   const heading = v_flex()
     .flex_none()
     .min_w(0)
@@ -136,7 +140,7 @@ export const itemHeading = (item: ContentItem, tokens: DirectionTokens): Element
       state.child(fixedLabel(`synced ${item.readAge}`, tokens.text.detail, tokens.ink.dim));
     }
 
-    heading.child(state);
+    heading.child(state.children(actions));
   }
 
   return heading;

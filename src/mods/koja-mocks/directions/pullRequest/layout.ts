@@ -3,40 +3,45 @@ import type { Element } from 'gpui-kit';
 
 import { spacing } from '../../../../kit/size.ts';
 import type { ContentItem } from '../content/data.ts';
-import { factRows, factsBlock } from '../content/facts.ts';
+import { factRows, factsBlock, factsGrid } from '../content/facts.ts';
 import {
   contentSection,
   contentSectionHeader,
   description,
   itemHeading,
   readingInset,
+  saveRecoveryButton,
   scrollBody,
 } from '../content/parts.ts';
 import { sectionDivider } from '../panels/frame.ts';
 import { errorLine } from '../sidebars/states.ts';
 import type { DirectionTokens } from '../tokens.ts';
-import { mergeActionWidth, mergeMenu, readyActions } from './actions.ts';
+import { blockedMerge, mergeActionWidth, mergeMenu, readyActions } from './actions.ts';
 import type { PullView } from './data.ts';
-import { isReady } from './data.ts';
+import { hasResolvedReview, isBottomBarView } from './data.ts';
 import { filesSection } from './files.ts';
 import { needsYouSection } from './parts.ts';
 import { promptBar, promptHeader } from './prompt.ts';
 
 const factsRailWidth = 240;
 const railInset = 16;
-const menuTop = 272;
+const menuTop = 276;
 
 const overview = (view: PullView, item: ContentItem, tokens: DirectionTokens): Element => {
-  const ready = isReady(view.state);
+  const resolved = hasResolvedReview(view.state);
   const body = v_flex().flex_none().min_w(0);
 
   if (view.queued && view.tray === 'header') {
     body.child(promptHeader(tokens));
   }
 
-  if (ready) {
+  if (resolved) {
     body.child(readyActions(view.state, tokens).mx(readingInset).py(spacing.medium));
   } else {
+    if (isBottomBarView(view)) {
+      body.child(blockedMerge(tokens).mx(readingInset).py(spacing.medium));
+    }
+
     body.child(needsYouSection(view, tokens));
   }
 
@@ -46,13 +51,23 @@ const overview = (view: PullView, item: ContentItem, tokens: DirectionTokens): E
     ? contentSectionHeader({ name: 'Description' }, false, [], tokens)
     : contentSection({ name: 'Description' }, [description(item, tokens)], tokens);
 
-  const filesOpen = ready || view.state === 'zoomed';
+  const filesOpen = resolved || view.state === 'zoomed';
+
+  if (resolved) {
+    descriptionSection.mb(spacing.medium);
+  }
 
   return body.child(descriptionSection).child(filesSection(view.state, filesOpen, tokens));
 };
 
 export const pullBody = (view: PullView, item: ContentItem, tokens: DirectionTokens): Element => {
-  const reading = scrollBody('pr-reading').child(itemHeading(item, tokens));
+  const actions: Element[] = [];
+
+  if (isBottomBarView(view)) {
+    actions.push(saveRecoveryButton('Sync', tokens));
+  }
+
+  const reading = scrollBody('pr-reading').child(itemHeading(item, actions, tokens));
 
   if (view.state === 'unreachable') {
     return reading.child(
@@ -63,13 +78,17 @@ export const pullBody = (view: PullView, item: ContentItem, tokens: DirectionTok
   const wide = view.state === 'zoomed';
 
   if (!wide) {
-    reading.child(factsBlock(item.facts, tokens)).child(sectionDivider(tokens));
+    const facts = isBottomBarView(view)
+      ? factsGrid(item.facts, tokens)
+      : factsBlock(item.facts, tokens);
+
+    reading.child(facts).child(sectionDivider(tokens));
   }
 
   reading.child(overview(view, item, tokens)).pb(spacing.large);
   const column = v_flex().flex_1().min_h(0).min_w(0).child(reading);
 
-  if (view.queued && view.tray === 'bar') {
+  if (view.queued && isBottomBarView(view)) {
     column.child(promptBar(tokens));
   }
 

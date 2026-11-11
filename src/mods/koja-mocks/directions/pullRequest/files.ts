@@ -2,17 +2,17 @@ import { v_flex } from 'gpui-base';
 import type { Element } from 'gpui-kit';
 
 import { icon } from '../../../../kit/index.ts';
-import { contentSectionHeader } from '../content/parts.ts';
+import { contentSectionHeader, sectionBodyInset } from '../content/parts.ts';
 import { diffCounts, fileStatusInk } from '../panels/changes.ts';
 import { fixedLabel, middleCutLabel, row } from '../parts.ts';
 import type { DirectionTokens } from '../tokens.ts';
 import type { PullState } from './data.ts';
-import { filesFor, pullThreads } from './data.ts';
+import { hasResolvedReview, pullRequestFiles, pullThreads } from './data.ts';
 
 const markSlotWidth = 12;
 
 export const filesSection = (state: PullState, open: boolean, tokens: DirectionTokens): Element => {
-  const files = filesFor(state);
+  const files = pullRequestFiles;
   const added = files.reduce((sum, file) => sum + file.add, 0);
   const removed = files.reduce((sum, file) => sum + file.del, 0);
   const detail = diffCounts(added, removed, tokens);
@@ -34,7 +34,10 @@ export const filesSection = (state: PullState, open: boolean, tokens: DirectionT
     files.map((file) => {
       const end = diffCounts(file.add, file.del, tokens);
 
-      if (pullThreads.some((thread) => thread.path === file.path)) {
+      const unresolved = !hasResolvedReview(state);
+      const hasThread = pullThreads.some((thread) => thread.path === file.path);
+
+      if (unresolved && hasThread) {
         end.push(icon('message-square', 'xsmall').text_color(tokens.marks.working));
       }
 
@@ -48,7 +51,7 @@ export const filesSection = (state: PullState, open: boolean, tokens: DirectionT
           end,
         },
         tokens,
-      );
+      ).ml(sectionBodyInset(tokens) - tokens.rows.paddingX);
     }),
   );
 };

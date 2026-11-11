@@ -97,6 +97,23 @@ export const factRows = (facts: ContentFact[], tokens: DirectionTokens): Element
     .min_w(0)
     .children(facts.map((fact) => alignedFact(fact, tokens)));
 
+export const factsGrid = (facts: ContentFact[], tokens: DirectionTokens): Element => {
+  const grid = v_flex().flex_none().min_w(0).px(readingInset).pb(spacing.large);
+
+  for (let index = 0; index < facts.length; index += 2) {
+    const pair = facts.slice(index, index + 2);
+    const columns = pair.map((fact) => alignedFact(fact, tokens).w(0).flex_1());
+
+    if (pair.length === 1) {
+      columns.push(div().w(0).flex_1());
+    }
+
+    grid.child(h_flex().min_w(0).gap(spacing.large).children(columns));
+  }
+
+  return grid;
+};
+
 export const factsBlock = (facts: ContentFact[], tokens: DirectionTokens): Element =>
   h_flex()
     .flex_none()

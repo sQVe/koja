@@ -46,7 +46,7 @@ const factsRail = (view: DraftView, tokens: DirectionTokens): Element =>
     );
 
 const reviewHeading = (view: DraftView, tokens: DirectionTokens): Element => {
-  const heading = itemHeading(view.item, {
+  const heading = itemHeading(view.item, [], {
     ...tokens,
     marks: { ...tokens.marks, blocked: tokens.ink.dim },
   }).relative();
