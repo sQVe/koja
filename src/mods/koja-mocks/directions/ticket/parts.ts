@@ -69,11 +69,13 @@ export const sectionHeader = (
   open: boolean,
   tokens: DirectionTokens,
 ): Element => {
+  const headingStyle = { ...tokens.text.heading, size: tokens.text.body.size };
+
   const title = h_flex()
     .min_w(0)
     .gap(spacing.small)
     .items_center()
-    .child(fixedLabel(heading.name, tokens.text.heading, tokens.ink.text));
+    .child(fixedLabel(heading.name, headingStyle, tokens.ink.text));
 
   if (heading.detail !== null) {
     const ink = heading.detail.kind === 'identity' ? tokens.ink.text : tokens.ink.dim;

@@ -1,6 +1,5 @@
 import { h_flex, v_flex } from 'gpui-base';
 import type { Element } from 'gpui-kit';
-import { div } from 'gpui-kit';
 
 import { spacing } from '../../../../kit/size.ts';
 import type { SourceTarget } from '../content/data.ts';
@@ -138,8 +137,7 @@ const railItem = (
     detailLine(tokens)
       .min_h(tokens.rows.height)
       .child(pullLink(slice.pull, tokens))
-      .child(div().flex_1())
-      .child(statusWord(slice.readiness, tokens)),
+      .child(railFact(`· ${slice.readiness}`, tokens)),
   );
 
   if (slice.agent !== null) {
@@ -256,7 +254,7 @@ const nothingReady = (view: TicketView, tokens: DirectionTokens): Element => {
         .child(externalLink(waiting.blockedBy, view.item.source, tokens).flex_none())
         .child(fixedLabel('Add the sidebar data model', tokens.text.detail, tokens.ink.text))
         .child(
-          label('(outside this plan, not started, no PR)', tokens.text.detail, tokens.ink.dim),
+          label('· outside this plan · not started · no PR', tokens.text.detail, tokens.ink.dim),
         ),
     ],
     tokens,

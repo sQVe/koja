@@ -35,6 +35,7 @@ interface Fixture {
     identifier: string;
     source: string;
     title: string | null;
+    description: string[];
     state: string | null;
     readAge: string | null;
     facts: { name: string; value: string }[];
@@ -94,7 +95,7 @@ const hasStyle = (element: DrawnElement, name: string): boolean =>
 
 await mock.module('gpui-base', () =>
   gpuiBaseFake({
-    h_flex: () => rendered(),
+    h_flex: () => rendered(null, 'row'),
     v_flex: () => rendered(null, 'column'),
     Scrollbar: { vertical: () => rendered('scrollbar') },
   }),
@@ -393,13 +394,18 @@ describe('ticket role contracts', () => {
 
       expect(planStatus.texts).toEqual([slice.readiness]);
       expect(planStatus.textColors).toEqual([tokens.ink.dim]);
-      expect(drawnTexts(now).filter((text) => text === slice.readiness)).toHaveLength(summaryCount);
+
+      expect(drawnTexts(now).filter((text) => text.endsWith(slice.readiness))).toHaveLength(
+        summaryCount,
+      );
 
       if (summarized) {
-        const summaryStatus = textElement(now, slice.readiness);
+        const summaryStatus = required(descendants(now), (part) =>
+          part.texts.some((text) => text.endsWith(slice.readiness)),
+        );
 
         expect(summaryStatus.textColors).toEqual([tokens.ink.dim]);
-        expect(hasStyle(summaryStatus, 'text_right')).toBe(true);
+        expect(hasStyle(summaryStatus, 'text_right')).toBe(state !== 'wide');
 
         const pull = required(links(now), (part) =>
           part.texts.some((text) => text.includes(slice.pull)),
@@ -601,6 +607,95 @@ describe('ticket role contracts', () => {
 });
 
 describe('ticket scene structure', () => {
+  test.each(states.filter((state) => ticketView(state).item.readAge !== null))(
+    '%s gives section labels row-sized strong semibold text',
+    (state) => {
+      const pane = paneOf(state);
+      const tokens = state === 'normal' ? kojaNormal : koja;
+
+      const names = [
+        'Now',
+        'Next',
+        'Whole plan',
+        'Acceptance',
+        parentName,
+        'Relations',
+        'Description',
+        'Activity',
+      ];
+
+      if (state === 'done') {
+        names.push('merged');
+      }
+
+      const present = names.filter((name) => drawnTexts(pane).includes(name));
+
+      expect(present.length).toBeGreaterThan(0);
+
+      for (const name of present) {
+        const title = heading(pane, name);
+        const label = title.kids[0] ?? drawn();
+        const row = required(descendants(pane), (part) => part.kids.includes(title));
+
+        expect(attribute(row, 'h')).toBe(tokens.rows.height);
+        expect(attribute(label, 'text_size')).toBe(tokens.text.body.size);
+        expect(label.textColors).toEqual([tokens.ink.text]);
+        expect(hasStyle(label, 'font_semibold')).toBe(true);
+
+        for (const detail of title.kids.slice(1)) {
+          const ink = name === parentName ? tokens.ink.text : tokens.ink.dim;
+
+          expect(detail.textColors).toEqual([ink]);
+          expect(attribute(detail, 'text_size')).toBe(tokens.text.detail.size);
+        }
+      }
+    },
+  );
+
+  test('fixture acceptance and descriptions contain no link-like chevrons', () => {
+    for (const state of states) {
+      const fixture = ticketView(state);
+      const text = [...fixture.item.description, ...fixture.criteria.map((item) => item.title)];
+
+      expect(text.join('\n')).not.toContain('›');
+    }
+  });
+
+  test('outside blocker facts use dim separators without parentheses', () => {
+    const next = section(paneOf('nothing-ready'), 'Next');
+    const detail = next.kids[2] ?? drawn();
+    const facts = detail.kids.at(-1) ?? drawn();
+    const text = drawnTexts(facts).join(' ');
+
+    expect(drawnTexts(detail).join(' ')).not.toMatch(/[()]/);
+    expect(text.split('·')).toHaveLength(4);
+    expect(facts.textColors).toEqual([koja.ink.dim]);
+  });
+
+  test('wide PR states stay beside their links without right alignment or wrapping', () => {
+    const now = section(paneOf('wide'), 'Now');
+    const active = ticketView('wide').slices.filter((slice) => 'pull' in slice);
+
+    for (const slice of active) {
+      const item = required(now.kids, (part) => drawnTexts(part).includes(slice.title));
+      const line = item.kids[2] ?? drawn();
+      const status = line.kids.at(-1) ?? drawn();
+
+      expect(line.kids).toHaveLength(2);
+      expect(attribute(line, 'layout')).toBe('row');
+      expect(hasStyle(line, 'justify_between')).toBe(false);
+      expect(hasStyle(line, 'justify_end')).toBe(false);
+      expect(targets(line.kids[0] ?? drawn())).toHaveLength(1);
+      expect(drawnTexts(status).join(' ')).toContain(slice.readiness);
+      expect(status.textColors).toEqual([koja.ink.dim]);
+      expect(hasStyle(status, 'text_right')).toBe(false);
+      expect(hasStyle(status, 'w')).toBe(false);
+      expect(hasStyle(status, 'flex_none')).toBe(true);
+      expect(hasStyle(status, 'whitespace_normal')).toBe(false);
+      expect(line.kids.some((part) => hasStyle(part, 'flex_1'))).toBe(false);
+    }
+  });
+
   test('all registered views keep the shell size', () => {
     for (const state of states) {
       const name: SceneName = `ticket-view-${state}`;

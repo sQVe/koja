@@ -113,7 +113,7 @@ export const acceptance: Record<TicketKind, Criterion[]> = {
     { title: 'The footer shows the ticket and PR links', state: 'done' },
     { title: 'A ticket link opens the tracker', state: 'done' },
     { title: 'A PR link opens GitHub', state: 'todo' },
-    { title: 'Stack › opens the stack panel', state: 'todo' },
+    { title: 'The stack link opens the stack panel', state: 'todo' },
     { title: 'The footer truncates a long branch', state: 'todo' },
   ],
 };
@@ -166,7 +166,7 @@ export const ticketItems: Record<TicketKind, ContentItem> = {
       { name: 'Parent', value: 'ME-1280', target: 'Linear' },
     ],
     description: [
-      "Add the ticket and PR links and Stack › to the selected space's footer. Links open the ticket in its tracker and the PR on GitHub.",
+      "Add the ticket, PR, and stack links to the selected space's footer. Links open the ticket in its tracker and the PR on GitHub.",
     ],
   },
 };
