@@ -2,7 +2,7 @@ import { h_flex, v_flex } from 'gpui-base';
 import type { Element } from 'gpui-kit';
 
 import { icon } from '../../../../kit/index.ts';
-import { spacing } from '../../../../kit/size.ts';
+import { controlSize, spacing } from '../../../../kit/size.ts';
 import { readingInset, reviewActionButton, saveRecoveryButton } from '../content/parts.ts';
 import { sectionDivider } from '../panels/frame.ts';
 import { fixedLabel } from '../parts.ts';
@@ -62,7 +62,7 @@ export const promptBar = (tokens: DirectionTokens): Element =>
             tokens.ink.text,
           ).flex_1(),
         )
-        .child(saveRecoveryButton('Clear', tokens))
+        .child(saveRecoveryButton('Clear', tokens).h(controlSize.dialogButton))
         .child(reviewActionButton('Send to agent', tokens)),
     );
 

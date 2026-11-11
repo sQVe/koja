@@ -12,7 +12,6 @@ import {
   saveRecoveryButton,
   sectionBodyInset,
 } from '../content/parts.ts';
-import { sectionHeaderOf } from '../panels/frame.ts';
 import { fixedLabel, label, row, styled, terminalFont } from '../parts.ts';
 import { workNeedMark } from '../sidebars/facts.ts';
 import { sourceLink } from '../sidebars/sidebar.ts';
@@ -223,6 +222,14 @@ const requestedReview = (view: PullView, tokens: DirectionTokens): Element =>
         .children(pullThreads.map((thread) => threadRow(thread, view, tokens))),
     );
 
+export const passedSection = (tokens: DirectionTokens): Element =>
+  contentSectionHeader(
+    { name: 'Passed' },
+    false,
+    [fixedLabel('3 checks · 1 thread resolved', tokens.text.detail, tokens.ink.dim)],
+    tokens,
+  );
+
 export const needsYouSection = (view: PullView, tokens: DirectionTokens): Element => {
   const items = [failedCheck(view, tokens)];
 
@@ -232,7 +239,8 @@ export const needsYouSection = (view: PullView, tokens: DirectionTokens): Elemen
     items.push(...pullThreads.map((thread) => threadRow(thread, view, tokens)));
   }
 
-  const header = contentSectionHeader({ name: 'Needs you', count: items.length }, true, [], tokens);
+  const count = 1 + pullThreads.length;
+  const header = contentSectionHeader({ name: 'Needs you', count }, true, [], tokens);
 
   if (view.tray === 'section') {
     header.child(sectionSend(tokens));
@@ -247,11 +255,12 @@ export const needsYouSection = (view: PullView, tokens: DirectionTokens): Elemen
   }
 
   section.child(itemList);
-  const summary = detailText('3 checks passed · 1 thread resolved', tokens);
 
   if (isBottomBarView(view)) {
-    return section.child(sectionHeaderOf(summary, { open: false, detail: [], end: [] }, tokens));
+    return section;
   }
+
+  const summary = detailText('3 checks passed · 1 thread resolved', tokens);
 
   return section.child(detailBlock(view, tokens).child(summary));
 };

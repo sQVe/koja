@@ -78,7 +78,7 @@ export const readyActions = (state: PullState, tokens: DirectionTokens): Element
       .child(
         detailText('At the last sync: 4 checks passed · approved · 0 unresolved threads', tokens),
       )
-      .child(h_flex().child(reviewActionButton('Sync and retry', tokens)))
+      .child(h_flex().child(reviewActionButton('Update branch and retry', tokens)))
       .child(detailText('Squash and merge into main · deletes the branch', tokens));
   }
 

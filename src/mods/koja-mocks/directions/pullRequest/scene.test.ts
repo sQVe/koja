@@ -204,7 +204,8 @@ test('failed sync and merge retain their last data and recovery actions', () => 
   expect(checks).not.toContain('Retry checks');
   expect(merge).toContain('Could not merge');
   expect(merge).toContain('main changed since the last sync');
-  expect(merge).toContain('Sync and retry');
+  expect(merge).toContain('Update branch and retry');
+  expect(merge).not.toContain('Sync and retry');
   expect(merge).not.toContain('Ready to merge');
   expect(merge).not.toContain('Squash and merge');
   expect(merge).not.toContain('Into main · deletes the branch');
@@ -273,7 +274,7 @@ test('blocked views explain merge blockers and expose the requested review for t
     expect(texts).toContain('1 of 4 checks failing · 2 unresolved threads · changes requested');
     expect(texts).not.toContain('Merge appears here when nothing blocks it.');
     expect(texts.indexOf("Can't merge yet")).toBeLessThan(texts.indexOf('Needs you'));
-    expect(texts[texts.indexOf('Needs you') + 1]).toBe('2');
+    expect(texts[texts.indexOf('Needs you') + 1]).toBe('3');
     expect(texts).toContain('Review from jonas-l');
     expect(texts).not.toContain('Please fix the two threads before merging.');
 
@@ -324,7 +325,7 @@ test('attention items put metadata before excerpts and show the complete thread 
 
   const summary = descendants(pane).findLast(
     (element) =>
-      drawnTexts(element).includes('3 checks passed · 1 thread resolved') &&
+      drawnTexts(element).includes('3 checks · 1 thread resolved') &&
       drawnIcons(element).includes('chevron-right'),
   );
 
@@ -408,7 +409,7 @@ test('a failed merge keeps its last sync context distinct from current failure',
     texts.indexOf('main changed since the last sync'),
   );
 
-  expect(texts.indexOf(previous)).toBeLessThan(texts.indexOf('Sync and retry'));
+  expect(texts.indexOf(previous)).toBeLessThan(texts.indexOf('Update branch and retry'));
   expect(texts).not.toContain('Ready to merge');
 });
 
@@ -440,7 +441,7 @@ test('partial sync keeps one refresh control and warns beside the status', () =>
   expect(texts).not.toContain('Retry checks');
   expect(texts).not.toContain('Retry');
   expect(texts.filter((text) => text === 'Sync')).toHaveLength(1);
-  expect(texts[texts.indexOf('Needs you') + 1]).toBe('2');
+  expect(texts[texts.indexOf('Needs you') + 1]).toBe('3');
   expect(texts).not.toContain('Could not sync checks · showing checks from 6m ago');
 
   const note = descendants(pane).findLast(
@@ -497,7 +498,8 @@ test('merge retry states its effect and separates cause ink from snapshot ink', 
   );
 
   expect(texts).toContain(effect);
-  expect(texts.indexOf(effect)).toBeGreaterThan(texts.indexOf('Sync and retry'));
+  expect(texts).toContain('Update branch and retry');
+  expect(texts.indexOf(effect)).toBeGreaterThan(texts.indexOf('Update branch and retry'));
   expect(cause?.textColors.at(-1)).toBe(koja.ink.text);
   expect(snapshot?.textColors.at(-1)).toBe(koja.ink.dim);
   expect(cause?.properties.text_size).toEqual([koja.text.body.size]);
@@ -605,7 +607,13 @@ test('scrolling content reserves an inset gutter and bottom section gap', () => 
     expect(reading?.properties.pr).toEqual([8]);
     expect(scrollbar?.properties.right).toEqual([6]);
     expect(scrollbar?.properties.viewport_from_layout).toEqual([]);
-    expect(last?.properties.pb).toEqual([8]);
+    const queued = ['tray-bar', 'zoomed'].includes(name);
+    const padding = queued ? 0 : 8;
+    const clearance = queued ? 8 : 0;
+    const viewport = parts.find((element) => element.kids.includes(scrollbar!));
+
+    expect(last?.properties.pb).toEqual([padding]);
+    expect(viewport?.properties.mb).toEqual([clearance]);
     expect(reading?.properties.pb).toBeUndefined();
   }
 });
@@ -707,7 +715,7 @@ test('review ages sit beside their titles without a metadata row', () => {
   }
 });
 
-test('merge sections align their bodies and have two matching dividers', () => {
+test('loaded bodies align their merge text and section dividers', () => {
   for (const name of [
     'blocked',
     'tray-bar',
@@ -728,7 +736,10 @@ test('merge sections align their bodies and have two matching dividers', () => {
 
     const merge = parts.find((element) => element.properties.pl?.[0] === 12);
 
-    expect(dividers).toHaveLength(2);
+    const resolved = ['ready', 'ready-menu', 'merge-confirm', 'merge-failed'].includes(name);
+    const count = resolved ? 3 : 5;
+
+    expect(dividers).toHaveLength(count);
     expect(merge).toBeDefined();
     let summary = '1 of 4 checks failing · 2 unresolved threads · changes requested';
 
@@ -737,7 +748,7 @@ test('merge sections align their bodies and have two matching dividers', () => {
     }
 
     if (name === 'merge-failed') {
-      summary = 'Sync and retry';
+      summary = 'Update branch and retry';
     }
 
     expect(drawnTexts(merge!)).toContain(summary);
@@ -759,6 +770,71 @@ test('queued tray edges align with item action edges', () => {
 
     expect(tray?.properties.pr).toEqual([22]);
     expect(divider?.properties.mr).toEqual([22]);
+  }
+});
+
+test('picked body sections have one divider between each neighboring pair', () => {
+  for (const name of [
+    'blocked',
+    'tray-bar',
+    'sent',
+    'checks-failed',
+    'normal',
+    'zoomed',
+    'ready',
+    'ready-menu',
+    'merge-confirm',
+    'merge-failed',
+  ]) {
+    const reading = descendants(paneOf(name)).find(
+      (element) => element.properties.id?.[0] === 'pr-reading',
+    );
+
+    const body = reading?.kids.at(-1);
+    const resolved = ['ready', 'ready-menu', 'merge-confirm', 'merge-failed'].includes(name);
+    const sections = body?.kids.filter((_, index) => index % 2 === 0);
+    const dividers = body?.kids.filter((_, index) => index % 2 === 1);
+    const count = resolved ? 3 : 5;
+
+    expect(sections).toHaveLength(count);
+    expect(dividers).toHaveLength(count - 1);
+
+    for (const divider of dividers ?? []) {
+      expect(divider.properties.h).toEqual([1]);
+      expect(divider.properties.mx).toEqual([20]);
+    }
+
+    if (!resolved) {
+      expect(drawnTexts(sections![1]!)).toContain('Needs you');
+      expect(drawnTexts(sections![1]!)).not.toContain('Passed');
+      expect(drawnTexts(sections![2]!)).toEqual(['Passed', '3 checks · 1 thread resolved']);
+      expect(drawnIcons(sections![2]!)).toContain('chevron-right');
+    }
+
+    expect(drawnTexts(sections!.at(-2)!)).toContain('Description');
+    expect(drawnTexts(sections!.at(-1)!)).toContain('Files');
+  }
+});
+
+test('queued tray controls have equal heights and clear space above them', () => {
+  for (const name of ['tray-bar', 'zoomed']) {
+    const parts = descendants(paneOf(name));
+
+    const clear = parts.findLast((element) =>
+      element.kids.some((child) => child.texts.includes('Clear')),
+    );
+
+    const send = parts.findLast((element) =>
+      element.kids.some((child) => child.texts.includes('Send to agent')),
+    );
+
+    const viewport = parts.find((element) =>
+      element.kids.some((child) => child.path === 'scrollbar/pr-reading'),
+    );
+
+    expect(clear?.properties.h).toEqual(send?.properties.h);
+    expect(clear?.properties.h).toEqual([28]);
+    expect(viewport?.properties.mb).toEqual([8]);
   }
 });
 

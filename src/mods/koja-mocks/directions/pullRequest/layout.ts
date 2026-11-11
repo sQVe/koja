@@ -23,7 +23,7 @@ import type { PullView } from './data.ts';
 import { hasResolvedReview, isBottomBarView } from './data.ts';
 import { filesFact, pullFacts } from './facts.ts';
 import { filesSection } from './files.ts';
-import { detailText, needsYouSection } from './parts.ts';
+import { detailText, needsYouSection, passedSection } from './parts.ts';
 import { promptBar, promptHeader } from './prompt.ts';
 
 const factsRailWidth = 240;
@@ -31,30 +31,40 @@ const railInset = 16;
 const menuTop = 328;
 const sectionGap = spacing.medium;
 
-const overview = (view: PullView, item: ContentItem, tokens: DirectionTokens): Element => {
-  const resolved = hasResolvedReview(view.state);
+const separatedSections = (sections: Element[], tokens: DirectionTokens): Element => {
   const body = v_flex().flex_none().min_w(0);
 
-  if (view.queued && view.tray === 'header') {
-    body.child(promptHeader(tokens));
+  for (const [index, section] of sections.entries()) {
+    if (index > 0) {
+      body.child(sectionDivider(tokens).mx(readingInset));
+    }
+
+    body.child(section);
   }
 
-  if (view.state === 'zoomed') {
-    body.child(sectionDivider(tokens).mx(readingInset));
+  return body;
+};
+
+const overview = (view: PullView, item: ContentItem, tokens: DirectionTokens): Element => {
+  const resolved = hasResolvedReview(view.state);
+  const sections: Element[] = [];
+
+  if (view.queued && view.tray === 'header') {
+    sections.push(promptHeader(tokens));
   }
 
   if (resolved) {
-    body.child(readyActions(view.state, tokens).mx(readingInset).py(spacing.medium));
+    sections.push(readyActions(view.state, tokens).mx(readingInset).py(spacing.medium));
   } else if (isBottomBarView(view)) {
-    body.child(blockedMerge(tokens).mx(readingInset).py(spacing.medium));
-  }
-
-  if (isBottomBarView(view)) {
-    body.child(sectionDivider(tokens).mx(readingInset));
+    sections.push(blockedMerge(tokens).mx(readingInset).py(spacing.medium));
   }
 
   if (!resolved) {
-    body.child(needsYouSection(view, tokens));
+    sections.push(needsYouSection(view, tokens));
+
+    if (isBottomBarView(view)) {
+      sections.push(passedSection(tokens));
+    }
   }
 
   const foldedDescription = view.tray === 'header';
@@ -69,7 +79,13 @@ const overview = (view: PullView, item: ContentItem, tokens: DirectionTokens): E
     descriptionSection.mb(sectionGap);
   }
 
-  return body.child(descriptionSection).child(filesSection(view, filesOpen, tokens));
+  sections.push(descriptionSection, filesSection(view, filesOpen, tokens));
+
+  if (isBottomBarView(view)) {
+    return separatedSections(sections, tokens);
+  }
+
+  return v_flex().flex_none().min_w(0).children(sections);
 };
 
 const readingViewport = (reading: Element, view: PullView): Element => {
@@ -77,8 +93,11 @@ const readingViewport = (reading: Element, view: PullView): Element => {
     return reading;
   }
 
+  const clearance = view.queued ? sectionGap : spacing.none;
+
   return v_flex()
     .relative()
+    .mb(clearance)
     .flex_1()
     .min_h(0)
     .min_w(0)
@@ -148,12 +167,16 @@ export const pullBody = (view: PullView, item: ContentItem, tokens: DirectionTok
     }
 
     reading.child(facts).child(divider);
+  } else {
+    reading.child(sectionDivider(tokens).mx(readingInset));
   }
 
   const content = overview(view, item, tokens);
 
   if (isBottomBarView(view)) {
-    content.pb(sectionGap);
+    const padding = view.queued ? spacing.none : sectionGap;
+
+    content.pb(padding);
   } else {
     reading.pb(spacing.large);
   }
