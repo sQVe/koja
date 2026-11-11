@@ -39,11 +39,11 @@ For the manager. The `qa` worker starts nothing.
 
 The manager starts:
 
-- The sandbox. Pick a name that only this worktree uses: lowercase letters, digits, and dashes. All
-  worktrees share the default name `koja`.
+- The sandbox. Run `bun run sandbox guide` and follow its rules for every session and for the
+  session that starts the sandbox. They cover the name.
   - Start: `RUTA_NAME=<name> bun run sandbox up`, from the worktree.
   - After a later edit: `RUTA_NAME=<name> bun run sandbox install`.
-  - Check: `RUTA_NAME=<name> bun run sandbox identity` exits 0.
+  - Check: `RUTA_NAME=<name> bun run sandbox identity` exits 0. It runs `ruta status` first.
   - Stop, when the worker has reported: `RUTA_NAME=<name> bun run sandbox down`.
 - The fixtures, under `/var/tmp/ruta-<name>/home/`: an empty `.zshrc`, a Git repository with one
   commit and uncommitted changes, a clean one, and a folder that is no repository. Set `user.name`
@@ -60,21 +60,26 @@ Give the brief these lines: `Sandbox: <name>`, the fixture paths, and `Data writ
 
 ## Rules for every section
 
-- Run every command from the worktree with `RUTA_NAME=<name>` set, as the brief's `Sandbox:` line
-  names it. Without that line, ask the parent. Never use the default name.
-- Proof that the sandbox serves this worktree: `bun run sandbox identity` exits 0 and prints
-  `sandbox <name> serves <worktree path>`. On any other result, stop and ask the parent.
-- Never run `sandbox up`, `restart`, `install`, `down`, or `capture`, `bun run build`,
-  `bun run herdr:install`, or `bun run herdr:watch`. `sandbox install` builds the mods.
-- Input: `bun run sandbox click <x> <y> [button]`, `scroll <x> <y> <notches>`,
-  `drag <x0> <y0> <x1> <y1>`, `type "<text>"`, and `key <keysym> [modifier]...`. Read each
-  coordinate from a new `bun run sandbox shot <file outside the worktree>`. Button 3 is the right
-  button. Keysyms are case sensitive: `Return`, `Escape`, `BackSpace`, `Page_Down`.
+- The name is on the brief's `Sandbox:` line. Without that line, ask the parent.
+- From the worktree, run `RUTA_NAME=<name> bun run sandbox guide`, or `RUTA_NAME=<name> ruta guide`.
+  Follow its rules for every session and for a session that did not start the sandbox. The rules
+  below add to them.
+- Run each ruta command of that guide as `bun run sandbox <command>`, except `status`.
+  `bun run sandbox` alone prints the arguments of each command.
+- For the `ruta status` that the guide asks for before any input, run `bun run sandbox identity`. It
+  runs `ruta status` first and prints its line. Then it checks the installed mods and config against
+  the worktree, and prints `sandbox <name> has the current mods and config of <worktree path>`. It
+  must exit 0. On any other result, stop and ask the parent.
+- `bun run sandbox status` is not `ruta status`. It prints the status of the window, from
+  `herdr-app status`, and changes nothing.
+- Never run `sandbox install`, `bun run build`, `bun run herdr:install`, or `bun run herdr:watch`.
+  `sandbox install` builds the mods.
+- Read each coordinate from a new `bun run sandbox shot <file outside the worktree>`. Button 3 is
+  the right button. Keysyms are case sensitive: `Return`, `Escape`, `BackSpace`, `Page_Down`.
 - `key` adds no Shift. Use `type` for `:`, `?`, and capital letters, `key slash` for `/`, and
-  `key Tab Shift_L` for shift-tab. Follow each `hold` with its `release`.
+  `key Tab Shift_L` for shift-tab.
 - Typed text goes to whatever has the keyboard. Take a shot before `type` or `key Return`, so that
   no text lands in a terminal.
-- Read-only views: `bun run sandbox shot`, `status`, `log`, and `opened`.
 - Use `bun run sandbox do` or `bun run sandbox hc` only when a section or the brief names the exact
   command. They skip the keys and clicks a user has.
 - The sandbox is no file system jail. Work only in the fixture paths of the brief. Never open a
@@ -84,8 +89,7 @@ Give the brief these lines: `Sandbox: <name>`, the fixture paths, and `Data writ
   `Data writes` line; no recipe grants it. Palette Recent and picker history are no data write.
 - Never run `Quit Herdr`, `Close window`, `Reset to the default screen`, `Duplicate mod`, or
   `Duplicate layout`. They end the sandbox or change its installed files.
-- Never use `ydotool`. Never run `herdr-app`, `hc`, or input outside `bun run sandbox`, and touch no
-  sandbox under `/var/tmp/ruta-*` that the brief does not name.
+- Never run `herdr-app` or `hc` outside `bun run sandbox`.
 
 ## Normal mode keys
 
