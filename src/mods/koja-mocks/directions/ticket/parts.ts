@@ -185,7 +185,7 @@ const criterionRow = (item: Criterion, tokens: DirectionTokens): Element =>
       selected: false,
       start: statusMark(workStatuses[item.state], tokens),
       label: label(item.title, tokens.text.body, tokens.ink.text).tooltip(item.title),
-      end: [fixedLabel(item.state, tokens.text.detail, tokens.ink.dim)],
+      end: [],
     },
     tokens,
   );

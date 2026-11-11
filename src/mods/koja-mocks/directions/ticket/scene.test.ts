@@ -21,6 +21,15 @@ import { findScene } from '../../catalog.ts';
 type TicketState =
   Extract<SceneName, `ticket-view-${string}`> extends `ticket-view-${infer State}` ? State : never;
 
+type FixtureFact =
+  | { name: 'Project'; value: string }
+  | {
+      name: 'Parent' | 'Related';
+      value: string;
+      target: 'Linear' | 'tikk' | 'GitHub';
+      title: string | null;
+    };
+
 type Attributes = Record<string, unknown[]>;
 type DrawingMethod = (...values: unknown[]) => unknown;
 
@@ -38,11 +47,11 @@ interface Fixture {
     description: string[];
     state: string | null;
     readAge: string | null;
-    facts: { name: string; value: string }[];
+    facts: FixtureFact[];
   };
   slices: FixtureSlice[];
   agents: Record<string, { identifier: string; title: string; state: string }[]>;
-  criteria: { title: string; state: string }[];
+  criteria: { title: string; state: 'done' | 'in progress' | 'todo' }[];
 }
 
 interface Tokens {
@@ -127,6 +136,16 @@ const { ticketScene } = (await import(scenePath)) as {
 
 const { koja, kojaNormal } = (await import(tokensPath)) as { koja: Tokens; kojaNormal: Tokens };
 const { ticketView } = (await import(viewsPath)) as { ticketView: (state: TicketState) => Fixture };
+const partsPath = './parts.ts';
+const factsPath = './facts.ts';
+
+const { acceptanceSection } = (await import(partsPath)) as {
+  acceptanceSection: (items: Fixture['criteria'], tokens: Tokens) => DrawnElement;
+};
+
+const { ticketFacts } = (await import(factsPath)) as {
+  ticketFacts: (facts: FixtureFact[], tokens: Tokens) => DrawnElement;
+};
 
 const descendants = (element: DrawnElement): DrawnElement[] => [
   element,
@@ -176,6 +195,84 @@ const identifierCellOf = (root: DrawnElement, identifier: string): DrawnElement 
   const text = textElement(root, identifier);
 
   return required(descendants(root), (part) => part.kids.includes(text));
+};
+
+// The fixed capture's pane is 690px tall; row positions come from its rendered children.
+const fixedPaneHeight = 690;
+const defaultLineHeight = (1 + Math.sqrt(5)) / 2;
+
+const verticalEdge = (part: DrawnElement, kind: 'p' | 'm', edge: 't' | 'b'): number =>
+  Number(
+    attribute(part, `${kind}${edge}`) ?? attribute(part, `${kind}y`) ?? attribute(part, kind) ?? 0,
+  );
+
+const flowChildren = (part: DrawnElement): DrawnElement[] =>
+  part.kids.filter((child) => !hasStyle(child, 'absolute'));
+
+// The narrow fold fixtures use single-line text. Native captures also check font metrics.
+const measuredHeight = (part: DrawnElement): number => {
+  const fixed = attribute(part, 'h') ?? attribute(part, 'size');
+
+  if (typeof fixed === 'number') {
+    return fixed;
+  }
+
+  const children = flowChildren(part);
+
+  const heights = children.map(
+    (child) =>
+      measuredHeight(child) + verticalEdge(child, 'm', 't') + verticalEdge(child, 'm', 'b'),
+  );
+
+  const gap = Number(attribute(part, 'gap_y') ?? attribute(part, 'gap') ?? 0);
+
+  const stacked =
+    heights.reduce((sum, height) => sum + height, 0) + Math.max(0, heights.length - 1) * gap;
+
+  const childHeight = attribute(part, 'layout') === 'row' ? Math.max(0, ...heights) : stacked;
+  const fontSize = Number(attribute(part, 'text_size') ?? koja.text.body.size);
+  const specifiedHeight = attribute(part, 'line_height');
+
+  const lineHeight =
+    typeof specifiedHeight === 'string'
+      ? Number.parseFloat(specifiedHeight)
+      : Number(specifiedHeight ?? Math.ceil(fontSize * defaultLineHeight));
+
+  const textHeight = part.texts.length === 0 ? 0 : lineHeight;
+  const padding = verticalEdge(part, 'p', 't') + verticalEdge(part, 'p', 'b');
+  const border = Number(attribute(part, 'border') ?? 0) * 2;
+
+  return Math.max(
+    Number(attribute(part, 'min_h') ?? 0),
+    Math.max(textHeight, childHeight) + padding + border,
+  );
+};
+
+const flowPositions = (root: DrawnElement): Map<DrawnElement, number> => {
+  const positions = new Map<DrawnElement, number>();
+
+  const visit = (part: DrawnElement, top: number): void => {
+    positions.set(part, top);
+
+    let cursor = top + verticalEdge(part, 'p', 't') + Number(attribute(part, 'border') ?? 0);
+    const gap = Number(attribute(part, 'gap_y') ?? attribute(part, 'gap') ?? 0);
+
+    for (const child of flowChildren(part)) {
+      visit(child, cursor + verticalEdge(child, 'm', 't'));
+
+      if (attribute(part, 'layout') !== 'row') {
+        cursor +=
+          measuredHeight(child) +
+          verticalEdge(child, 'm', 't') +
+          verticalEdge(child, 'm', 'b') +
+          gap;
+      }
+    }
+  };
+
+  visit(root, 0);
+
+  return positions;
 };
 
 const firstColumnInsetOf = (row: DrawnElement): number =>
@@ -644,6 +741,130 @@ describe('ticket scene structure', () => {
           expect(detail.textColors).toEqual([ink]);
           expect(attribute(detail, 'text_size')).toBe(tokens.text.detail.size);
         }
+      }
+    },
+  );
+
+  test.each(states)('%s acceptance states appear only as marks', (state) => {
+    const fixture = ticketView(state);
+    const tokens = state === 'normal' ? kojaNormal : koja;
+    const acceptance = acceptanceSection(fixture.criteria, tokens);
+    const rows = acceptance.kids.slice(1);
+    const done = fixture.criteria.filter((item) => item.state === 'done').length;
+
+    expect(rows).toHaveLength(fixture.criteria.length);
+    expect(numbers(acceptance.kids[0] ?? drawn())).toEqual([done, fixture.criteria.length]);
+
+    for (const row of rows) {
+      const criterion = fixture.criteria.find((item) => drawnTexts(row).includes(item.title));
+
+      if (criterion === undefined) {
+        throw new Error('Acceptance row has no fixture');
+      }
+
+      const mark = row.kids[0] ?? drawn();
+
+      const tones = {
+        done: tokens.marks.done,
+        todo: tokens.marks.idle,
+        'in progress': tokens.marks.working,
+      };
+
+      const tone = tones[criterion.state];
+
+      const colors = descendants(mark).flatMap((part) =>
+        part.textColors.concat(part.backgroundColors),
+      );
+
+      expect(drawnTexts(row)).toEqual([criterion.title]);
+      expect(colors).toContain(tone);
+
+      if (criterion.state === 'done') {
+        expect(drawnIcons(mark)).toContain('check');
+      }
+
+      expect(descendants(row).some((part) => hasStyle(part, 'text_right'))).toBe(false);
+    }
+
+    if (state !== 'loading' && state !== 'unreachable') {
+      expect(numbers(heading(paneOf(state), 'Acceptance'))).toEqual([
+        done,
+        fixture.criteria.length,
+      ]);
+    }
+  });
+
+  test.each(states.filter((state) => !['loading', 'unreachable', 'plain'].includes(state)))(
+    '%s ticket facts carry a normal-ink title after their link without wrapping',
+    (state) => {
+      const pane = paneOf(state);
+      const facts = ticketView(state).item.facts.filter((fact) => fact.name !== 'Project');
+
+      for (const fact of facts) {
+        const pair = required(descendants(pane), (part) =>
+          part.kids.some((child) => child.texts.includes(fact.name)),
+        );
+
+        const title = textElement(pair, fact.title ?? '');
+        const owner = required(descendants(pane), (part) => part.kids.includes(pair));
+
+        expect(hasStyle(owner, 'flex_wrap')).toBe(false);
+        const texts = drawnTexts(pair);
+        const linkIndex = texts.findIndex((text) => text.startsWith(fact.value));
+
+        expect(fact.title).toBeDefined();
+        expect(texts.indexOf(fact.title ?? '')).toBeGreaterThan(linkIndex);
+        expect(title.textColors).toEqual([koja.ink.text]);
+        expect(drawnTooltips(title)).toContain(fact.title ?? '');
+        expect(hasStyle(title, 'truncate')).toBe(true);
+        expect(hasStyle(title, 'underline')).toBe(false);
+
+        expect(
+          descendants(pair).some(
+            (part) => hasStyle(part, 'flex_wrap') || hasStyle(part, 'whitespace_normal'),
+          ),
+        ).toBe(false);
+      }
+    },
+  );
+
+  test('a ticket fact without a known title keeps its link without an empty title', () => {
+    const fixture = ticketView('single');
+    const fact = fixture.item.facts.find((item) => item.name === 'Parent');
+
+    if (fact?.name !== 'Parent') {
+      throw new Error('Missing parent fixture');
+    }
+
+    const known = ticketFacts([fact], koja);
+    const unknown = ticketFacts([{ ...fact, title: null }], koja);
+
+    expect(drawnTexts(unknown)).toEqual(drawnTexts(known).filter((text) => text !== fact.title));
+    expect(drawnTooltips(unknown)).not.toContain(fact.title ?? '');
+    expect(fact.title).toBe(ticketView('container').item.title);
+  });
+
+  test.each(['container', 'single', 'tikk', 'long', 'normal', 'wide'] satisfies TicketState[])(
+    '%s retains state words on visible agent-ticket plan rows',
+    (state) => {
+      const fixture = ticketView(state);
+      const pane = paneOf(state);
+      const name = state === 'single' ? parentName : 'Whole plan';
+      const plan = section(pane, name);
+      const tokens = state === 'normal' ? kojaNormal : koja;
+
+      const visible = Object.values(fixture.agents)
+        .flat()
+        .filter((agent) => drawnTexts(plan).includes(agent.identifier));
+
+      expect(visible.length).toBeGreaterThan(0);
+
+      for (const agent of visible) {
+        const row = rowFor(plan, agent.identifier);
+        const status = textElement(row, agent.state);
+
+        expect(hasStyle(status, 'text_right')).toBe(true);
+        expect(status.textColors).toEqual([tokens.ink.dim]);
       }
     },
   );
@@ -1594,26 +1815,66 @@ describe('ticket scene structure', () => {
     },
   );
 
-  // Coordinates use the fixed scene crop, whose inner pane bottom is y=751.
   test.each([
-    ['container', 'Description', 717],
-    ['tikk', 'Description', 717],
-    ['normal', 'Description', 717],
-    ['single', 'ME-1286', 719],
-    ['sync-failed', 'ME-1287', 709],
-    ['long', 'ME-1310', 709],
-  ] satisfies [TicketState, string, number][])(
-    '%s ends its initial fold after a complete row',
-    (state, name, rowTop) => {
-      const pane = paneOf(state);
-      const scroll = required(descendants(pane), (part) => hasStyle(part, 'overflow_y_scroll'));
-      const viewport = required(descendants(pane), (part) => part.kids.includes(scroll));
-      const row = rowFor(pane, name);
-      const visibleBottom = 751 - Number(attribute(viewport, 'mb'));
+    'container',
+    'tikk',
+    'normal',
+    'single',
+    'sync-failed',
+    'long',
+  ] satisfies TicketState[])('%s ends its initial fold after a complete row', (state) => {
+    const pane = paneOf(state);
+    const scroll = required(descendants(pane), (part) => hasStyle(part, 'overflow_y_scroll'));
+    const viewport = required(descendants(pane), (part) => part.kids.includes(scroll));
+    const positions = flowPositions(pane);
+    const scrollTop = positions.get(viewport) ?? 0;
+    const visibleBottom = fixedPaneHeight - Number(attribute(viewport, 'mb')) - 1;
+    const rows = descendants(scroll).filter((part) => attribute(part, 'h') === koja.rows.height);
 
-      expect(visibleBottom).toBe(rowTop + Number(attribute(row, 'h')));
-    },
-  );
+    const boundaries = rows.map((part) => {
+      const top = positions.get(part) ?? 0;
+      const bottom = top + measuredHeight(part);
+
+      expect(Math.round(top) < visibleBottom && Math.round(bottom) > visibleBottom).toBe(false);
+
+      return Math.round(bottom);
+    });
+
+    expect(scrollTop).toBeGreaterThan(0);
+    expect(boundaries).toContain(visibleBottom);
+  });
+
+  test.each([
+    'container',
+    'tikk',
+    'normal',
+    'single',
+    'sync-failed',
+    'long',
+  ] satisfies TicketState[])('%s fold measurement detects added space above its rows', (state) => {
+    const pane = paneOf(state);
+    const scroll = required(descendants(pane), (part) => hasStyle(part, 'overflow_y_scroll'));
+    const viewport = required(descendants(pane), (part) => part.kids.includes(scroll));
+    const sections = scroll.kids[0] ?? drawn();
+    const padding = verticalEdge(sections, 'p', 't');
+
+    attributes.set(sections, { ...attributes.get(sections), pt: [padding + spacing.medium] });
+
+    const positions = flowPositions(pane);
+    const bottom = fixedPaneHeight - Number(attribute(viewport, 'mb')) - 1;
+
+    const cut = descendants(scroll).filter((part) => {
+      const top = positions.get(part) ?? 0;
+
+      return (
+        attribute(part, 'h') === koja.rows.height &&
+        top < bottom &&
+        top + measuredHeight(part) > bottom
+      );
+    });
+
+    expect(cut.length).toBeGreaterThan(0);
+  });
 
   test('mixed detail separators use the same text spacing without extra layout gaps', () => {
     const waiting = section(paneOf('nothing-ready'), 'Next').kids[2] ?? drawn();

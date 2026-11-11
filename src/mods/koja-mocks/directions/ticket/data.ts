@@ -1,4 +1,4 @@
-import type { ContentItem } from '../content/data.ts';
+import type { ContentItem, SourceTarget } from '../content/data.ts';
 
 type TicketKind = 'container' | 'single';
 
@@ -49,8 +49,14 @@ export interface AgentTicket extends Criterion {
   identifier: string;
 }
 
+export type TicketFact =
+  | { name: 'Project'; value: string }
+  | { name: 'Parent' | 'Related'; value: string; target: SourceTarget; title: string | null };
+
+export type TicketItem = Omit<ContentItem, 'facts'> & { facts: TicketFact[] };
+
 export interface TicketData {
-  item: ContentItem;
+  item: TicketItem;
   slices: Slice[];
   agents: Record<string, AgentTicket[]>;
   criteria: Criterion[];
@@ -131,7 +137,7 @@ export const sliceAgents: Record<string, AgentTicket[]> = {
   ],
 };
 
-export const ticketItems: Record<TicketKind, ContentItem> = {
+export const ticketItems: Record<TicketKind, TicketItem> = {
   container: {
     kind: 'ticket',
     name: 'Ticket',
@@ -144,7 +150,7 @@ export const ticketItems: Record<TicketKind, ContentItem> = {
     icon: 'file',
     facts: [
       { name: 'Project', value: 'Koja' },
-      { name: 'Related', value: 'ME-1090', target: 'Linear' },
+      { name: 'Related', value: 'ME-1090', target: 'Linear', title: 'Design the sidebar' },
     ],
     description: [
       'Build the approved sidebar design into koja-spaces. Each slice is one PR.',
@@ -163,7 +169,7 @@ export const ticketItems: Record<TicketKind, ContentItem> = {
     icon: 'file',
     facts: [
       { name: 'Project', value: 'Koja' },
-      { name: 'Parent', value: 'ME-1280', target: 'Linear' },
+      { name: 'Parent', value: 'ME-1280', target: 'Linear', title: 'Build the sidebar' },
     ],
     description: [
       "Add the ticket, PR, and stack links to the selected space's footer. Links open the ticket in its tracker and the PR on GitHub.",

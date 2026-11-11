@@ -1,6 +1,5 @@
-import type { ContentItem } from '../content/data.ts';
 import { openingItem } from '../content/states.ts';
-import type { Criterion, Slice, TicketData, TicketState, TicketView } from './data.ts';
+import type { Criterion, Slice, TicketData, TicketItem, TicketState, TicketView } from './data.ts';
 import {
   acceptance,
   footerSlice,
@@ -11,7 +10,7 @@ import {
 } from './data.ts';
 import { tikkAgents, tikkItem, tikkSlices } from './tikk.ts';
 
-const plainItem: ContentItem = {
+const plainItem: TicketItem = {
   ...ticketItems.container,
   identifier: 'ME-1301',
   title: 'Fix the tab icon for mod panes',
@@ -123,10 +122,12 @@ const baseData: TicketData = {
   criteria: acceptance.container,
 };
 
+const openingTicket: TicketItem = { ...openingItem(ticketItems.container), facts: [] };
+
 const viewData: Record<Exclude<TicketState, 'single'>, TicketData> = {
   container: baseData,
-  loading: { ...baseData, item: openingItem(ticketItems.container) },
-  unreachable: { ...baseData, item: openingItem(ticketItems.container) },
+  loading: { ...baseData, item: openingTicket },
+  unreachable: { ...baseData, item: openingTicket },
   'sync-failed': baseData,
   'nothing-ready': { ...baseData, slices: nothingReadySlices, agents: {} },
   done: {

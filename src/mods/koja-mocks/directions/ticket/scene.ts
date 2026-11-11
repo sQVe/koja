@@ -4,7 +4,6 @@ import type { Element } from 'gpui-kit';
 import { stateLine } from '../../../../kit/index.ts';
 import { spacing } from '../../../../kit/size.ts';
 import { agentPane, fakeTabs } from '../../scenes/shellContent.ts';
-import { factRows, factsBlock } from '../content/facts.ts';
 import { contentHeader, readingInset } from '../content/parts.ts';
 import { koja, kojaNormal } from '../koja.ts';
 import { sectionDivider } from '../panels/frame.ts';
@@ -15,6 +14,7 @@ import type { DirectionTab } from '../window.ts';
 import { directionWindow } from '../window.ts';
 import { ticketSections } from './body.ts';
 import type { TicketState, TicketView } from './data.ts';
+import { ticketFactRows, ticketFacts } from './facts.ts';
 import { ticketHeading } from './heading.ts';
 import { nextBlock, nowBlock } from './summary.ts';
 import { ticketView } from './views.ts';
@@ -97,7 +97,7 @@ const ticketBody = (view: TicketView, tokens: DirectionTokens): Element => {
   }
 
   if (view.state !== 'wide') {
-    reading.child(factsBlock(view.item.facts, tokens));
+    reading.child(ticketFacts(view.item.facts, tokens));
   }
 
   if (view.state === 'sync-failed') {
@@ -138,7 +138,7 @@ const ticketBody = (view: TicketView, tokens: DirectionTokens): Element => {
     .gap(spacing.medium)
     .border_l(1)
     .border_color(tokens.pane.headerDivider)
-    .child(factRows(view.item.facts, tokens).mx(railInset))
+    .child(ticketFactRows(view.item.facts, tokens).mx(railInset))
     .child(nowBlock(view, tokens))
     .child(nextBlock(view, tokens));
 

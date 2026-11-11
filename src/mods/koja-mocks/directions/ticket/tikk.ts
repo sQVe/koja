@@ -1,5 +1,4 @@
-import type { ContentItem } from '../content/data.ts';
-import type { AgentTicket, Slice } from './data.ts';
+import type { AgentTicket, Slice, TicketItem } from './data.ts';
 import { sliceAgents, slices, ticketItems } from './data.ts';
 
 const identifiers: Record<string, string> = {
@@ -71,15 +70,23 @@ export const tikkAgents: Record<string, AgentTicket[]> = Object.fromEntries(
   ]),
 );
 
-export const tikkItem: ContentItem = {
+export const tikkItem: TicketItem = {
   ...ticketItems.container,
   identifier: 'koja-7fq3',
   source: 'tikk',
   state: 'open',
   tab: 'koja-7fq3 Build the sidebar',
   description: ticketItems.container.description.map(referencesOf),
-  facts: [
-    { name: 'Project', value: 'Koja' },
-    { name: 'Related', value: 'koja-h6pt', target: 'tikk' },
-  ],
+  facts: ticketItems.container.facts.map((fact) => {
+    if (fact.name === 'Project') {
+      return fact;
+    }
+
+    const translated = Object.assign({}, fact);
+
+    translated.value = identifierOf(fact.value);
+    translated.target = 'tikk';
+
+    return translated;
+  }),
 };
