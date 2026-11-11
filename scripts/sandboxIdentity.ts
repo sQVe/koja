@@ -1,8 +1,7 @@
-import { realpath, stat } from 'node:fs/promises';
+import { realpath } from 'node:fs/promises';
 import { join } from 'node:path';
 
-import { isMissing } from './build.ts';
-import type { InstallRecord } from './install.ts';
+import type { InstallInput, InstallOrigin, InstallRecord } from './install.ts';
 import {
   filesUnder,
   isSameFile,
@@ -81,43 +80,27 @@ const copyFailures = async (
   return failures.filter((failure) => failure !== null);
 };
 
-const modifiedAt = async (path: string): Promise<number | null> => {
-  try {
-    const entry = await stat(path);
+const timesByPath = (inputs: InstallInput[]): Map<string, number> =>
+  new Map(inputs.map((input) => [input.path, input.modifiedAt]));
 
-    return entry.mtimeMs;
-  } catch (error) {
-    if (isMissing(error)) {
-      return null;
-    }
+const isFromCheckout = async (options: IdentityOptions, origin: InstallOrigin): Promise<boolean> =>
+  origin.checkout === (await realpath(options.checkout));
 
-    throw error;
-  }
-};
-
+// The inputs of another checkout have their own times, so only the checkout that installed is compared.
 const changedSinceInstall = async (
   options: IdentityOptions,
-  recorded: string[],
+  origin: InstallOrigin | null,
 ): Promise<IdentityFailure[]> => {
-  const installedAt = await modifiedAt(join(options.home, recordName));
-  const current = new Set(await shippedInputs(options.checkout));
-  const atInstall = new Set(recorded);
-  const inputs = [...new Set([...atInstall, ...current])].toSorted();
+  if (origin === null || !(await isFromCheckout(options, origin))) {
+    return [];
+  }
 
-  const changed = await Promise.all(
-    inputs.map(async (path) => {
-      if (!atInstall.has(path) || !current.has(path)) {
-        return true;
-      }
+  const current = timesByPath(await shippedInputs(options.checkout));
+  const atInstall = timesByPath(origin.inputs);
+  const paths = [...new Set([...atInstall.keys(), ...current.keys()])].toSorted();
 
-      const inputAt = await modifiedAt(join(options.checkout, path));
-
-      return inputAt !== null && installedAt !== null && inputAt > installedAt;
-    }),
-  );
-
-  return inputs
-    .filter((_, index) => changed[index] === true)
+  return paths
+    .filter((path) => atInstall.get(path) !== current.get(path))
     .map((path) => ({ kind: 'changedSinceInstall', path }));
 };
 
@@ -131,7 +114,7 @@ const originFailures = async (
 
   const failures: IdentityFailure[] = [];
 
-  if (record.origin.checkout !== (await realpath(options.checkout))) {
+  if (!(await isFromCheckout(options, record.origin))) {
     failures.push({ kind: 'otherCheckout', installedFrom: record.origin.checkout });
   }
 
@@ -155,14 +138,11 @@ const installFailures = async (options: IdentityOptions): Promise<IdentityFailur
     .filter((path) => !sources.has(path))
     .map((path): IdentityFailure => ({ kind: 'noSource', path }));
 
-  const changed =
-    record.origin === null ? [] : await changedSinceInstall(options, record.origin.inputs);
-
   return [
     ...(await originFailures(options, record)),
     ...(await copyFailures(options, sources)),
     ...withoutSource,
-    ...changed,
+    ...(await changedSinceInstall(options, record.origin)),
   ];
 };
 

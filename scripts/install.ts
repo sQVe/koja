@@ -28,9 +28,16 @@ export interface InstallRoots {
   temporary: string;
 }
 
+export interface InstallInput {
+  path: string;
+  modifiedAt: number;
+}
+
 export interface InstallOptions {
   home: string;
   checkout: string;
+  // Read before the build starts, so a change made during the build or the install shows later.
+  inputs: InstallInput[];
   modsDirectory: string;
   configDirectory: string;
   check: (modFolder: string) => Promise<CheckResult>;
@@ -47,7 +54,7 @@ export interface InstallResult {
 export interface InstallOrigin {
   checkout: string;
   allChecksPassed: boolean;
-  inputs: string[];
+  inputs: InstallInput[];
 }
 
 // A record without a checkout, a check result, or a list of shipped inputs has a null origin.
@@ -97,8 +104,7 @@ const shippedFiles = ['scripts/build.ts', 'scripts/install.ts', 'package.json', 
 
 const isTest = (path: string): boolean => path.endsWith('.test.ts');
 
-// The files of a checkout that decide what an install writes, as paths inside the checkout.
-export const shippedInputs = async (checkout: string): Promise<string[]> => {
+const shippedPaths = async (checkout: string): Promise<string[]> => {
   const inFolders = await Promise.all(
     shippedFolders.map(async (folder) => {
       const files = await filesUnder(join(checkout, folder));
@@ -107,11 +113,25 @@ export const shippedInputs = async (checkout: string): Promise<string[]> => {
     }),
   );
 
-  const existing = await Promise.all(
-    shippedFiles.map(async (file) => (await lstatOrNull(join(checkout, file))) !== null),
-  );
+  return [...inFolders.flat(), ...shippedFiles];
+};
 
-  return [...inFolders.flat(), ...shippedFiles.filter((_, index) => existing[index] === true)];
+// The files of a checkout that decide what an install writes, as paths inside the checkout,
+// each with its modification time. A file that does not exist is left out.
+export const shippedInputs = async (checkout: string): Promise<InstallInput[]> => {
+  const paths = await shippedPaths(checkout);
+  const entries = await Promise.all(paths.map(async (path) => lstatOrNull(join(checkout, path))));
+  const inputs: InstallInput[] = [];
+
+  for (const [index, path] of paths.entries()) {
+    const entry = entries[index];
+
+    if (entry !== null && entry !== undefined) {
+      inputs.push({ path, modifiedAt: entry.mtimeMs });
+    }
+  }
+
+  return inputs;
 };
 
 const plannedFiles = async (options: InstallOptions): Promise<Map<string, string>> => {
@@ -146,8 +166,16 @@ const recordedFiles = (record: RecordFields): string[] => {
     : [];
 };
 
-const isStrings = (value: unknown): value is string[] =>
-  Array.isArray(value) && value.every((item) => typeof item === 'string');
+const isInstallInput = (value: unknown): value is InstallInput => {
+  if (!isRecordFields(value)) {
+    return false;
+  }
+
+  return typeof value['path'] === 'string' && typeof value['modifiedAt'] === 'number';
+};
+
+const isInstallInputs = (value: unknown): value is InstallInput[] =>
+  Array.isArray(value) && value.every(isInstallInput);
 
 const recordedOrigin = (record: RecordFields): InstallOrigin | null => {
   const { checkout, allChecksPassed, inputs } = record;
@@ -156,7 +184,7 @@ const recordedOrigin = (record: RecordFields): InstallOrigin | null => {
     return null;
   }
 
-  if (!isStrings(inputs)) {
+  if (!isInstallInputs(inputs)) {
     return null;
   }
 
@@ -349,12 +377,20 @@ const installedMods = (paths: Iterable<string>): string[] => {
   return [...mods].toSorted();
 };
 
+const byPath = (first: InstallInput, second: InstallInput): number => {
+  if (first.path === second.path) {
+    return 0;
+  }
+
+  return first.path < second.path ? -1 : 1;
+};
+
 const writeRecord = async (home: string, files: string[], origin: InstallOrigin): Promise<void> => {
   const record = {
     version: recordVersion,
     checkout: origin.checkout,
     allChecksPassed: origin.allChecksPassed,
-    inputs: origin.inputs.toSorted(),
+    inputs: origin.inputs.toSorted(byPath),
     files: files.toSorted(),
   };
 
@@ -427,7 +463,6 @@ export const install = async (options: InstallOptions): Promise<InstallResult> =
   const modFiles = [...planned].filter(([path]) => isModFile(path));
   const configFiles = [...planned].filter(([path]) => !isModFile(path));
   const checkout = await realpath(options.checkout);
-  const inputs = await shippedInputs(checkout);
   const earlierRecord = await readRecord(home);
   const earlier = earlierRecord?.files ?? [];
   const stale = earlier.filter((file) => !planned.has(file));
@@ -468,7 +503,7 @@ export const install = async (options: InstallOptions): Promise<InstallResult> =
       removed.push(...(await removeStale(home, stale, owned)));
     }
   } finally {
-    await writeRecord(home, [...owned], { checkout, allChecksPassed, inputs });
+    await writeRecord(home, [...owned], { checkout, allChecksPassed, inputs: options.inputs });
   }
 
   return { written, removed, checks };
@@ -500,11 +535,15 @@ const report = (result: InstallResult): boolean => {
 };
 
 const buildAndInstall = async (home: string): Promise<boolean> => {
+  const checkout = process.cwd();
+  const inputs = await shippedInputs(checkout);
+
   await buildMods(sourceDirectory, outputDirectory);
 
   const result = await install({
     home,
-    checkout: process.cwd(),
+    checkout,
+    inputs,
     modsDirectory: outputDirectory,
     configDirectory: 'config',
     check: herdrCheck,

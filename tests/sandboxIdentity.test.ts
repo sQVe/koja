@@ -16,7 +16,7 @@ import { tmpdir } from 'node:os';
 import { dirname, join, resolve } from 'node:path';
 
 import type { CheckResult } from '../scripts/install.ts';
-import { install } from '../scripts/install.ts';
+import { install, shippedInputs } from '../scripts/install.ts';
 import type { IdentityOptions } from '../scripts/sandboxIdentity.ts';
 import { findIdentityFailures, identityReport } from '../scripts/sandboxIdentity.ts';
 
@@ -43,6 +43,7 @@ const installFrom = async (
   await install({
     home,
     checkout: from,
+    inputs: await shippedInputs(from),
     modsDirectory: join(from, 'dist', 'mods'),
     configDirectory: join(from, 'config'),
     check,
@@ -70,18 +71,11 @@ const touchAfterInstall = async (path: string): Promise<void> => {
   await utimes(path, later, later);
 };
 
-// A file system stamps a folder with a coarse clock, so an install and a change right after it
-// can share one time. Moving the install into the past keeps the two apart.
-const ageInstall = async (): Promise<void> => {
-  const record = await stat(recordPath());
-  const earlier = new Date(record.mtimeMs - 3_600_000);
-  const entries = await readdir(checkout, { recursive: true });
+const shiftTime = async (path: string, milliseconds: number): Promise<void> => {
+  const entry = await stat(path);
+  const shifted = new Date(entry.mtimeMs + milliseconds);
 
-  await Promise.all(
-    [recordPath(), ...entries.map((entry) => join(checkout, entry))].map(async (path) =>
-      utimes(path, earlier, earlier),
-    ),
-  );
+  await utimes(path, shifted, shifted);
 };
 
 const snapshot = async (folder: string): Promise<string[]> => {
@@ -141,6 +135,14 @@ describe('sandbox identity', () => {
     const record = JSON.parse(await readFile(recordPath(), 'utf8')) as { files: string[] };
 
     await writeFile(recordPath(), JSON.stringify({ version: 1, files: record.files }));
+
+    expect(await findIdentityFailures(options)).toEqual([{ kind: 'recordWithoutOrigin' }]);
+  });
+
+  test('fails when the record names its shipped inputs without their times', async () => {
+    const record = JSON.parse(await readFile(recordPath(), 'utf8')) as Record<string, unknown>;
+
+    await writeFile(recordPath(), JSON.stringify({ ...record, inputs: ['package.json'] }));
 
     expect(await findIdentityFailures(options)).toEqual([{ kind: 'recordWithoutOrigin' }]);
   });
@@ -245,14 +247,47 @@ describe('sandbox identity', () => {
     expect(await findIdentityFailures(options)).toEqual([{ kind: 'changedSinceInstall', path }]);
   });
 
-  test('passes when an input is exactly as old as the record', async () => {
-    // Whole milliseconds in the past could sort before a file written in the same millisecond.
-    const installedAt = new Date(Date.now() + 60_000);
+  test('fails when an input got an earlier time after the install', async () => {
+    await shiftTime(join(checkout, 'package.json'), -60_000);
 
-    await utimes(recordPath(), installedAt, installedAt);
-    await utimes(join(checkout, 'package.json'), installedAt, installedAt);
+    expect(await findIdentityFailures(options)).toEqual([
+      { kind: 'changedSinceInstall', path: 'package.json' },
+    ]);
+  });
 
-    expect(await findIdentityFailures(options)).toEqual([]);
+  test.each([-3_600_000, 3_600_000])(
+    'passes when only the time of the record file moved by %d milliseconds',
+    async (milliseconds) => {
+      await shiftTime(recordPath(), milliseconds);
+
+      expect(await findIdentityFailures(options)).toEqual([]);
+    },
+  );
+
+  test('fails when an input changed between the snapshot and the end of the install', async () => {
+    const source = join(checkout, 'src', 'mods', 'koja-tabs', 'main.ts');
+
+    // An hour in the past, so the edit below gets another time on any file system clock.
+    await shiftTime(source, -3_600_000);
+
+    const inputs = await shippedInputs(checkout);
+
+    await install({
+      home,
+      checkout,
+      inputs,
+      modsDirectory: join(checkout, 'dist', 'mods'),
+      configDirectory: join(checkout, 'config'),
+      check: async () => {
+        await writeFile(source, 'export default 2;\n');
+
+        return { passed: true, output: 'passed' };
+      },
+    });
+
+    expect(await findIdentityFailures(options)).toEqual([
+      { kind: 'changedSinceInstall', path: 'src/mods/koja-tabs/main.ts' },
+    ]);
   });
 
   test('passes when only a test file changed after the install', async () => {
@@ -268,7 +303,6 @@ describe('sandbox identity', () => {
     'config/keys.json',
     'bun.lock',
   ])('fails when %s was deleted after the install', async (path) => {
-    await ageInstall();
     await rm(join(checkout, path));
 
     const failures = await findIdentityFailures(options);
@@ -277,7 +311,6 @@ describe('sandbox identity', () => {
   });
 
   test('fails when a file was added under src after the install', async () => {
-    await ageInstall();
     await writeFile(join(checkout, 'src', 'kit', 'icons', 'plus.svg'), '<svg/>\n');
 
     expect(await findIdentityFailures(options)).toEqual([
@@ -286,28 +319,24 @@ describe('sandbox identity', () => {
   });
 
   test('passes when a test file was added under src after the install', async () => {
-    await ageInstall();
     await writeFile(join(checkout, 'src', 'mods', 'koja-tabs', 'other.test.ts'), 'export {};\n');
 
     expect(await findIdentityFailures(options)).toEqual([]);
   });
 
   test('passes when a test file under src was deleted after the install', async () => {
-    await ageInstall();
     await rm(join(checkout, 'src', 'mods', 'koja-tabs', 'main.test.ts'));
 
     expect(await findIdentityFailures(options)).toEqual([]);
   });
 
   test('passes when a test file was edited in place after the install', async () => {
-    await ageInstall();
     await writeFile(join(checkout, 'src', 'mods', 'koja-tabs', 'main.test.ts'), 'export {};\n\n');
 
     expect(await findIdentityFailures(options)).toEqual([]);
   });
 
   test('names a deleted input on its own line', async () => {
-    await ageInstall();
     await rm(join(checkout, 'src', 'kit', 'icons', 'x.svg'));
 
     const report = await identityReport(options);
