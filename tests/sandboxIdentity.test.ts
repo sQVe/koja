@@ -381,7 +381,6 @@ describe('scripts/sandbox identity', () => {
     await writeProgram(join(sandboxRoot, 'bin', 'herdr-app'), `exit ${exitCode}`);
   };
 
-  // Stands in for ruta: it records where and how the script called it, then answers as told.
   const writeRuta = async (line: string, exitCode: number): Promise<void> => {
     const record = `printf '%s %s\\n' "$PWD" "$*" >>'${join(fakes, 'calls')}'`;
     const stream = exitCode === 0 ? '' : ' >&2';
