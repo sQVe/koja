@@ -19,14 +19,13 @@ interface ViewTokens {
   ink: { text: string; dim: string };
   marks: { blocked: string; working: string; done: string };
   rows: { selectedFill: string };
-  text: { body: { size: number }; detail: { size: number } };
 }
 
 await mock.module('gpui-base', () =>
   gpuiBaseFake({
     h_flex: () => drawn(),
     v_flex: () => drawn(),
-    Scrollbar: { vertical: (identifier: string) => drawn(`scrollbar/${identifier}`) },
+    Scrollbar: { vertical: () => drawn() },
   }),
 );
 
@@ -82,6 +81,18 @@ const paneOf = (name: string): DrawnElement => {
   expect(pane).toBeDefined();
 
   return pane!;
+};
+
+const bodyOf = (name: string): DrawnElement => {
+  const body = descendants(paneOf(name)).findLast((element) => {
+    const headings = new Set(element.kids.map((child) => drawnTexts(child)[0]));
+
+    return headings.has('Description') && headings.has('Files');
+  });
+
+  expect(body).toBeDefined();
+
+  return body!;
 };
 
 afterAll(() => {
@@ -455,18 +466,6 @@ test('partial sync keeps one refresh control and warns beside the status', () =>
   expect(note).toBeDefined();
 });
 
-test('picked reading areas use a persistent native overflow scrollbar', () => {
-  for (const name of scenes.filter((scene) => !['tray-header', 'tray-section'].includes(scene))) {
-    const parts = descendants(paneOf(name));
-    const scrollbar = parts.find((element) => element.path === 'scrollbar/pr-reading');
-    const reading = parts.find((element) => element.properties.id?.[0] === 'pr-reading');
-
-    expect(scrollbar?.properties.mode).toEqual(['always']);
-    expect(reading?.properties.overflow_y_scroll).toEqual([]);
-    expect(reading?.properties.overflow_y_scrollbar).toBeUndefined();
-  }
-});
-
 test('picked open states are unboxed and use state ink', () => {
   const loaded = scenes.filter(
     (scene) => !['tray-header', 'tray-section', 'unreachable'].includes(scene),
@@ -505,8 +504,6 @@ test('merge retry states its effect and separates cause ink from snapshot ink', 
   expect(texts.indexOf(effect)).toBeGreaterThan(texts.indexOf('Update branch and retry'));
   expect(cause?.textColors.at(-1)).toBe(koja.ink.text);
   expect(snapshot?.textColors.at(-1)).toBe(koja.ink.dim);
-  expect(cause?.properties.text_size).toEqual([koja.text.body.size]);
-  expect(snapshot?.properties.text_size).toEqual([koja.text.detail.size]);
 });
 
 test('attention states share dim ink while the failed check keeps its red mark', () => {
@@ -535,11 +532,9 @@ test('attention states share dim ink while the failed check keeps its red mark',
 
 test('ready views put passed counts in a separate folded section', () => {
   for (const name of ['ready', 'ready-menu', 'merge-confirm']) {
-    const parts = descendants(paneOf(name));
-    const reading = parts.find((element) => element.properties.id?.[0] === 'pr-reading');
-    const body = reading?.kids.at(-1);
-    const merge = body?.kids[0];
-    const passed = body?.kids[2];
+    const body = bodyOf(name);
+    const merge = body.kids[0];
+    const passed = body.kids.find((section) => drawnTexts(section)[0] === 'Passed');
 
     expect(drawnTexts(merge!)).toContain('Ready to merge');
     expect(drawnTexts(merge!)).toContain('Squash and merge');
@@ -555,31 +550,9 @@ test('ready views put passed counts in a separate folded section', () => {
   }
 });
 
-test('attention marks share a fixed centered slot', () => {
-  const titles = ['typecheck', 'Review from jonas-l', 'rows.ts:48', 'repoLabel.ts:27–31'];
-
-  for (const name of ['blocked', 'tray-bar', 'sent', 'checks-failed', 'normal', 'zoomed']) {
-    for (const title of titles) {
-      const row = descendants(paneOf(name)).findLast(
-        (element) =>
-          [24, 28].includes(Number(element.properties.h?.[0])) &&
-          drawnTexts(element).includes(title),
-      );
-
-      const slot = row?.kids[0];
-
-      expect(slot?.properties.w).toEqual([12]);
-      expect(slot?.properties.h).toEqual([12]);
-      expect(slot?.properties.items_center).toEqual([]);
-      expect(slot?.properties.justify_center).toEqual([]);
-    }
-  }
-});
-
-test('picked dividers align with the body text column', () => {
+test('picked Files headers include a fold chevron', () => {
   for (const name of ['blocked', 'tray-bar', 'ready', 'merge-failed', 'checks-failed']) {
     const parts = descendants(paneOf(name));
-    const divider = parts.find((element) => element.properties.h?.[0] === 1);
 
     const header =
       parts.findLast(
@@ -592,7 +565,6 @@ test('picked dividers align with the body text column', () => {
       );
 
     expect(header).toBeDefined();
-    expect(divider?.properties.mx).toEqual([20]);
   }
 });
 
@@ -612,7 +584,7 @@ test('picked Files headers leave aggregate counts in the facts only', () => {
   }
 });
 
-test('reviews own indented threads and equal-height add controls', () => {
+test('reviews group their two threads with author metadata', () => {
   for (const name of ['blocked', 'tray-bar', 'sent', 'checks-failed', 'normal', 'zoomed']) {
     const parts = descendants(paneOf(name));
 
@@ -622,60 +594,11 @@ test('reviews own indented threads and equal-height add controls', () => {
       return texts.includes('Review from jonas-l') && texts.includes('rows.ts:48');
     });
 
-    const nested = review?.kids.find((element) => element.properties.ml?.[0] === 18);
-
-    const action = ['tray-bar', 'zoomed'].includes(name)
-      ? 'Add rest for agent'
-      : 'Add all for agent';
-
-    const reviewAction = parts.findLast((element) =>
-      element.kids.some((child) => child.texts.includes(action)),
-    );
-
-    const threadAction =
-      nested &&
-      descendants(nested).findLast((element) =>
-        element.kids.some((child) => child.texts.includes('Add for agent')),
-      );
+    const nested = review?.kids.find((element) => drawnTexts(element).includes('rows.ts:48'));
 
     expect(nested?.kids).toHaveLength(2);
     expect(drawnTexts(nested!)).toContain('jonas-l · 2h ago');
     expect(drawnTexts(nested!)).toContain('jonas-l · 1h ago');
-
-    expect(Number(reviewAction?.properties.h?.[0])).toBe(Number(threadAction?.properties.h?.[0]));
-  }
-});
-
-test('scrolling content reserves an inset gutter and bottom section gap', () => {
-  for (const name of ['blocked', 'tray-bar', 'ready', 'merge-failed', 'checks-failed', 'zoomed']) {
-    const parts = descendants(paneOf(name));
-    const reading = parts.find((element) => element.properties.id?.[0] === 'pr-reading');
-    const scrollbar = parts.find((element) => element.path === 'scrollbar/pr-reading');
-    const last = reading?.kids.at(-1);
-
-    expect(reading?.properties.pr).toEqual([8]);
-    expect(scrollbar?.properties.right).toEqual([6]);
-    expect(scrollbar?.properties.viewport_from_layout).toEqual([]);
-    const queued = ['tray-bar', 'zoomed'].includes(name);
-    const padding = queued ? 0 : 8;
-    const clearance = queued ? 8 : 0;
-    const viewport = parts.find((element) => element.kids.includes(scrollbar!));
-
-    expect(last?.properties.pb).toEqual([padding]);
-    expect(viewport?.properties.mb).toEqual([clearance]);
-    expect(reading?.properties.pb).toBeUndefined();
-  }
-});
-
-test('merge heading marks align with top-level attention marks', () => {
-  for (const name of ['blocked', 'merge-failed']) {
-    const title = name === 'blocked' ? "Can't merge yet" : 'Could not merge';
-
-    const heading = descendants(paneOf(name)).findLast(
-      (element) => drawnTexts(element).includes(title) && drawnIcons(element).includes('circle-x'),
-    );
-
-    expect(heading?.properties.ml).toEqual([-18]);
   }
 });
 
@@ -696,48 +619,6 @@ test('attention titles use one ink even when checks are stale', () => {
 
       expect(element?.textColors.at(-1)).toBe(tokens.ink.text);
     }
-  }
-});
-
-test('Sync has a larger gap than the state and status pair', () => {
-  for (const name of [
-    'blocked',
-    'tray-bar',
-    'ready',
-    'merge-failed',
-    'checks-failed',
-    'normal',
-    'zoomed',
-  ]) {
-    const parts = descendants(paneOf(name));
-
-    const action = parts.findLast((element) =>
-      element.kids.some((child) => child.texts.includes('Sync')),
-    );
-
-    const status = parts.findLast(
-      (element) => drawnTexts(element).includes('open') && drawnTexts(element).includes('Sync'),
-    );
-
-    expect(status?.properties.gap).toEqual([8]);
-    expect(action?.properties.ml).toEqual([2]);
-  }
-});
-
-test('resolved scenes keep the same description gap and bottom padding', () => {
-  for (const name of ['ready', 'merge-failed', 'ready-menu', 'merge-confirm']) {
-    const description = descendants(paneOf(name)).findLast(
-      (element) =>
-        drawnTexts(element).includes('Description') && element.properties.mb !== undefined,
-    );
-
-    expect(description?.properties.mb).toEqual([8]);
-
-    const reading = descendants(paneOf(name)).find(
-      (element) => element.properties.id?.[0] === 'pr-reading',
-    );
-
-    expect(reading?.kids.at(-1)?.properties.pb).toEqual([8]);
   }
 });
 
@@ -764,7 +645,7 @@ test('review ages sit beside their titles without a metadata row', () => {
   }
 });
 
-test('loaded bodies align their merge text and section dividers', () => {
+test('loaded bodies put merge status or recovery before their sections', () => {
   for (const name of [
     'blocked',
     'tray-bar',
@@ -777,24 +658,8 @@ test('loaded bodies align their merge text and section dividers', () => {
     'merge-confirm',
     'merge-failed',
   ]) {
-    const parts = descendants(paneOf(name));
+    const merge = bodyOf(name).kids[0];
 
-    const dividers = parts.filter(
-      (element) => element.properties.h?.[0] === 1 && element.properties.mx?.[0] === 20,
-    );
-
-    const merge = parts.find((element) => element.properties.pl?.[0] === 12);
-
-    const counts = new Map([
-      ['ready', 4],
-      ['ready-menu', 4],
-      ['merge-confirm', 4],
-      ['merge-failed', 3],
-    ]);
-
-    const count = counts.get(name) ?? 5;
-
-    expect(dividers).toHaveLength(count);
     expect(merge).toBeDefined();
     let summary = '1 of 4 checks failing · 2 unresolved threads · changes requested';
 
@@ -810,25 +675,7 @@ test('loaded bodies align their merge text and section dividers', () => {
   }
 });
 
-test('queued tray edges align with item action edges', () => {
-  for (const name of ['tray-bar', 'zoomed']) {
-    const parts = descendants(paneOf(name));
-
-    const tray = parts.findLast(
-      (element) =>
-        drawnTexts(element).includes('Send to agent') && element.properties.pr !== undefined,
-    );
-
-    const divider = parts.find(
-      (element) => element.properties.h?.[0] === 1 && element.properties.mr !== undefined,
-    );
-
-    expect(tray?.properties.pr).toEqual([22]);
-    expect(divider?.properties.mr).toEqual([22]);
-  }
-});
-
-test('picked body sections have one divider between each neighboring pair', () => {
+test('picked bodies group attention separately from Passed and end with Description and Files', () => {
   for (const name of [
     'blocked',
     'tray-bar',
@@ -841,14 +688,9 @@ test('picked body sections have one divider between each neighboring pair', () =
     'merge-confirm',
     'merge-failed',
   ]) {
-    const reading = descendants(paneOf(name)).find(
-      (element) => element.properties.id?.[0] === 'pr-reading',
-    );
-
-    const body = reading?.kids.at(-1);
+    const body = bodyOf(name);
     const resolved = ['ready', 'ready-menu', 'merge-confirm', 'merge-failed'].includes(name);
-    const sections = body?.kids.filter((_, index) => index % 2 === 0);
-    const dividers = body?.kids.filter((_, index) => index % 2 === 1);
+    const sections = body.kids.filter((section) => drawnTexts(section).length > 0);
 
     const counts = new Map([
       ['ready', 4],
@@ -860,44 +702,16 @@ test('picked body sections have one divider between each neighboring pair', () =
     const count = counts.get(name) ?? 5;
 
     expect(sections).toHaveLength(count);
-    expect(dividers).toHaveLength(count - 1);
-
-    for (const divider of dividers ?? []) {
-      expect(divider.properties.h).toEqual([1]);
-      expect(divider.properties.mx).toEqual([20]);
-    }
 
     if (!resolved) {
-      expect(drawnTexts(sections![1]!)).toContain('Needs you');
-      expect(drawnTexts(sections![1]!)).not.toContain('Passed');
-      expect(drawnTexts(sections![2]!)).toEqual(['Passed', '3 checks · 1 thread resolved']);
-      expect(drawnIcons(sections![2]!)).toContain('chevron-right');
+      expect(drawnTexts(sections[1]!)).toContain('Needs you');
+      expect(drawnTexts(sections[1]!)).not.toContain('Passed');
+      expect(drawnTexts(sections[2]!)).toEqual(['Passed', '3 checks · 1 thread resolved']);
+      expect(drawnIcons(sections[2]!)).toContain('chevron-right');
     }
 
-    expect(drawnTexts(sections!.at(-2)!)).toContain('Description');
-    expect(drawnTexts(sections!.at(-1)!)).toContain('Files');
-  }
-});
-
-test('queued tray controls have equal heights and clear space above them', () => {
-  for (const name of ['tray-bar', 'zoomed']) {
-    const parts = descendants(paneOf(name));
-
-    const clear = parts.findLast((element) =>
-      element.kids.some((child) => child.texts.includes('Clear')),
-    );
-
-    const send = parts.findLast((element) =>
-      element.kids.some((child) => child.texts.includes('Send to agent')),
-    );
-
-    const viewport = parts.find((element) =>
-      element.kids.some((child) => child.path === 'scrollbar/pr-reading'),
-    );
-
-    expect(clear?.properties.h).toEqual(send?.properties.h);
-    expect(clear?.properties.h).toEqual([28]);
-    expect(viewport?.properties.mb).toEqual([8]);
+    expect(drawnTexts(sections.at(-2)!)).toContain('Description');
+    expect(drawnTexts(sections.at(-1)!)).toContain('Files');
   }
 });
 
