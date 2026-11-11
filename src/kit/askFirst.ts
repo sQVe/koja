@@ -1,7 +1,9 @@
-import { focused, panes, run, shared, spaces } from 'herdr';
+import { focused, panes, run, shared, spaces, terminals } from 'herdr';
 
+import type { AskFacts } from './askPlan.ts';
 import { dialogFor } from './askPlan.ts';
 import { openConfirm, openPrompt } from './dialogOpen.ts';
+import { recordOf, stringOf } from './fields.ts';
 import { readSpaceOrder, spaceStepCommand } from './spaceOrder.ts';
 
 const spaceSteps = new Map([
@@ -21,6 +23,19 @@ const stepSpace = (step: number): void => {
   }
 };
 
+const terminalLifetime = (value: unknown): AskFacts['terminals'][number] => {
+  const terminal = recordOf(value);
+  const labels = recordOf(terminal['labels']);
+
+  return {
+    address: stringOf(terminal['address']) ?? '',
+    parent: stringOf(terminal['parent']),
+    live: terminal['state'] === 'live',
+    dieWithParent: terminal['die_with_parent'] === true,
+    space: stringOf(labels['herdr.space']),
+  };
+};
+
 export const askFirst = (command: string, args?: Record<string, unknown>): boolean => {
   const spaceStep = spaceSteps.get(command);
 
@@ -34,6 +49,7 @@ export const askFirst = (command: string, args?: Record<string, unknown>): boole
     spaces: spaces(),
     panes: panes(),
     focus: focused(),
+    terminals: terminals().map(terminalLifetime),
   });
 
   if (plan.kind === 'confirm') {
