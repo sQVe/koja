@@ -4,8 +4,7 @@ import { div } from 'gpui-kit';
 
 import { spacing } from '../../../../kit/size.ts';
 import { agentLink, externalLink } from '../content/links.ts';
-import { readingInset, sectionBodyInset } from '../content/parts.ts';
-import { fixedLabel, label, row } from '../parts.ts';
+import { fixedLabel, label, row, statusMark } from '../parts.ts';
 import type { DirectionTokens } from '../tokens.ts';
 import type { ActiveSlice, Slice, TicketView } from './data.ts';
 import { isActiveSlice } from './data.ts';
@@ -29,31 +28,9 @@ const pullLink = (pull: string, tokens: DirectionTokens): Element => {
   return externalLink(pull, 'GitHub', linkTokens).flex_none();
 };
 
-const wrappedDetail = (text: string, tokens: DirectionTokens): Element =>
-  wrappedText(text, tokens).text_size(tokens.text.detail.size).text_color(tokens.ink.dim);
-
-const nowDetails = (slice: ActiveSlice, view: TicketView, tokens: DirectionTokens): Element => {
-  const detail = view.state === 'sync-failed' ? `as of 6m ago · ${slice.detail}` : slice.detail;
-
-  if (view.state === 'wide') {
-    const details = v_flex()
-      .min_w(0)
-      .flex_none()
-      .ml(sectionBodyInset(tokens))
-      .mr(readingInset)
-      .child(wrappedDetail(detail, tokens));
-
-    if (slice.agent !== null) {
-      details.child(
-        h_flex().h(tokens.rows.height).items_center().child(agentLink(slice.agent, tokens)),
-      );
-    }
-
-    return details;
-  }
-
+const nowDetails = (slice: ActiveSlice, tokens: DirectionTokens): Element => {
   const details = detailLine(tokens).child(
-    label(detail, tokens.text.detail, tokens.ink.dim).tooltip(detail),
+    label(slice.detail, tokens.text.detail, tokens.ink.dim).tooltip(slice.detail),
   );
 
   if (slice.agent !== null) {
@@ -63,7 +40,11 @@ const nowDetails = (slice: ActiveSlice, view: TicketView, tokens: DirectionToken
   return details;
 };
 
-const summaryLabel = (slice: Slice, view: TicketView, tokens: DirectionTokens): Element => {
+const summaryIdentity = (
+  identifier: string,
+  view: TicketView,
+  tokens: DirectionTokens,
+): Element => {
   const widths = identifierWidths(view);
 
   return h_flex()
@@ -74,18 +55,20 @@ const summaryLabel = (slice: Slice, view: TicketView, tokens: DirectionTokens): 
     .items_center()
     .child(
       identifierCell(
-        slice.identifier,
-        { source: view.item.source, width: widths.slice, linked: false },
+        identifier,
+        { source: view.item.source, width: widths.slice, kind: 'summary' },
         tokens,
       ),
-    )
-    .child(label(slice.title, tokens.text.body, tokens.ink.text).tooltip(slice.title));
+    );
 };
 
-const railTitle = (slice: Slice, view: TicketView, tokens: DirectionTokens): Element => {
-  const widths = identifierWidths(view);
+const summaryLabel = (slice: Slice, view: TicketView, tokens: DirectionTokens): Element =>
+  summaryIdentity(slice.identifier, view, tokens).child(
+    label(slice.title, tokens.text.body, tokens.ink.text).tooltip(slice.title),
+  );
 
-  return h_flex()
+const railTitle = (slice: Slice, tokens: DirectionTokens): Element =>
+  h_flex()
     .min_w(0)
     .flex_none()
     .min_h(tokens.rows.height)
@@ -94,37 +77,54 @@ const railTitle = (slice: Slice, view: TicketView, tokens: DirectionTokens): Ele
     .gap(spacing.small)
     .items_start()
     .child(sliceMark(slice, tokens).flex_none().mt(spacing.small))
-    .child(
-      h_flex()
-        .flex_1()
-        .min_w(0)
-        .gap(spacing.small)
-        .items_start()
-        .child(
-          identifierCell(
-            slice.identifier,
-            { source: view.item.source, width: widths.slice, linked: false },
-            tokens,
-          ).mt(spacing.small),
-        )
-        .child(wrappedText(slice.title, tokens).flex_1()),
-    );
-};
+    .child(wrappedText(slice.title, tokens).flex_1());
 
-const railNowSlice = (slice: ActiveSlice, view: TicketView, tokens: DirectionTokens): Element =>
-  v_flex()
+const railMetadata = (identifier: string, facts: string[], tokens: DirectionTokens): Element =>
+  detailLine(tokens)
+    .flex_wrap()
+    .gap_y(0)
+    .children(
+      [identifier, ...facts].map((fact, index) => {
+        const text = index === 0 ? fact : `· ${fact}`;
+
+        return fixedLabel(text, tokens.text.detail, tokens.ink.dim).line_height(
+          `${tokens.rows.height}px`,
+        );
+      }),
+    );
+
+const railItem = (
+  slice: ActiveSlice | Extract<Slice, { readiness: 'ready' }>,
+  tokens: DirectionTokens,
+): Element => {
+  const detail = slice.readiness === 'ready' ? nextReason(slice) : slice.detail;
+  const facts = detail.split(' · ');
+
+  const item = v_flex()
     .flex_none()
     .min_w(0)
     .pb(spacing.small)
-    .child(railTitle(slice, view, tokens))
-    .child(
-      detailLine(tokens)
-        .min_h(tokens.rows.height)
-        .child(pullLink(slice.pull, tokens))
-        .child(div().flex_1())
-        .child(statusWord(slice.readiness, tokens)),
-    )
-    .child(nowDetails(slice, view, tokens));
+    .child(railTitle(slice, tokens))
+    .child(railMetadata(slice.identifier, facts, tokens));
+
+  if (slice.readiness === 'ready') {
+    return item;
+  }
+
+  item.child(
+    detailLine(tokens)
+      .min_h(tokens.rows.height)
+      .child(pullLink(slice.pull, tokens))
+      .child(div().flex_1())
+      .child(statusWord(slice.readiness, tokens)),
+  );
+
+  if (slice.agent !== null) {
+    item.child(detailLine(tokens).h(tokens.rows.height).child(agentLink(slice.agent, tokens)));
+  }
+
+  return item;
+};
 
 const nowSlice = (slice: ActiveSlice, view: TicketView, tokens: DirectionTokens): Element =>
   v_flex()
@@ -141,7 +141,7 @@ const nowSlice = (slice: ActiveSlice, view: TicketView, tokens: DirectionTokens)
         tokens,
       ),
     )
-    .child(nowDetails(slice, view, tokens));
+    .child(nowDetails(slice, tokens));
 
 const singleNow = (
   view: Extract<TicketView, { state: 'single' }>,
@@ -159,7 +159,7 @@ const singleNow = (
       },
       tokens,
     ),
-    nowDetails(current, view, tokens),
+    nowDetails(current, tokens),
   ];
 
   const working = (view.agents[current.identifier] ?? []).filter(
@@ -170,7 +170,7 @@ const singleNow = (
 
   parts.push(
     ...working.map((item) =>
-      workRow(item, { source: view.item.source, width: widths.slice, linked: false }, tokens),
+      workRow(item, { source: view.item.source, width: widths.slice, kind: 'summary' }, tokens),
     ),
   );
 
@@ -186,29 +186,38 @@ export const nowBlock = (view: TicketView, tokens: DirectionTokens): Element => 
   const parts: Element[] = [];
 
   if (active.length === 0) {
-    parts.push(note('No slice in progress · waiting for ME-1290', tokens));
+    parts.push(note('No slice in progress', tokens));
   }
 
-  const renderSlice = view.state === 'wide' ? railNowSlice : nowSlice;
+  parts.push(
+    ...active.map((slice) => {
+      if (view.state === 'wide') {
+        return railItem(slice, tokens);
+      }
 
-  parts.push(...active.map((slice) => renderSlice(slice, view, tokens)));
+      return nowSlice(slice, view, tokens);
+    }),
+  );
 
   return section('Now', parts, tokens);
 };
 
-const nothingReady = (tokens: DirectionTokens): Element =>
+const nothingReady = (view: TicketView, tokens: DirectionTokens): Element =>
   section(
     'Next',
     [
-      note('Nothing is ready', tokens),
-      detailLine(tokens)
-        .child(fixedLabel('ME-1285 waits for', tokens.text.detail, tokens.ink.dim))
-        .child(externalLink('ME-1290', 'Linear', tokens).flex_none())
-        .child(fixedLabel('Add the sidebar data model', tokens.text.detail, tokens.ink.text))
-        .child(fixedLabel('·', tokens.text.detail, tokens.ink.dim))
-        .child(fixedLabel('not started', tokens.text.detail, tokens.ink.dim))
-        .child(fixedLabel('·', tokens.text.detail, tokens.ink.dim))
-        .child(fixedLabel('no PR', tokens.text.detail, tokens.ink.dim)),
+      row(
+        {
+          selected: false,
+          start: statusMark('blocked', tokens),
+          label: summaryIdentity('ME-1285', view, tokens)
+            .child(fixedLabel('waits for', tokens.text.detail, tokens.ink.dim))
+            .child(externalLink('ME-1290', 'Linear', tokens).flex_none()),
+          end: [],
+        },
+        tokens,
+      ),
+      note('Add the sidebar data model · outside this plan · not started · no PR', tokens),
     ],
     tokens,
   );
@@ -217,20 +226,13 @@ export const nextBlock = (view: TicketView, tokens: DirectionTokens): Element =>
   const ready = view.slices.find((slice) => slice.readiness === 'ready');
 
   if (ready === undefined) {
-    return nothingReady(tokens);
+    return nothingReady(view, tokens);
   }
 
-  const currentReason = nextReason(ready);
-
-  const reason =
-    view.state === 'sync-failed' ? `${currentReason} (PR states from 6m ago)` : currentReason;
+  const reason = nextReason(ready);
 
   if (view.state === 'wide') {
-    return section(
-      'Next',
-      [railTitle(ready, view, tokens), detailLine(tokens).child(wrappedDetail(reason, tokens))],
-      tokens,
-    );
+    return section('Next', [railItem(ready, tokens)], tokens);
   }
 
   return section(

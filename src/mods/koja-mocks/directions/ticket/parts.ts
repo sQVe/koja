@@ -20,7 +20,7 @@ interface SectionHeading {
 export interface IdentifierLook {
   width: number;
   source: SourceTarget;
-  linked: boolean;
+  kind: 'linked' | 'current' | 'summary';
 }
 
 export const readinessStatus: Record<Readiness, Status> = {
@@ -40,11 +40,14 @@ const workStatuses: Record<Criterion['state'], Status> = {
 export const planChevronWidth = 12;
 export const agentIndent = 16;
 const identifierUnit = 6;
+const identifierPadding = 10;
 const statusWidth = 56;
 const detailHeight = 16;
 
 export const identifierWidths = (view: TicketView): { slice: number; agent: number } => {
-  const sliceWidths = view.slices.map((slice) => slice.identifier.length * identifierUnit);
+  const sliceWidths = view.slices.map(
+    (slice) => slice.identifier.length * identifierUnit + identifierPadding,
+  );
 
   const agentWidths = Object.values(view.agents)
     .flat()
@@ -59,7 +62,7 @@ export const statusWord = (word: string, tokens: DirectionTokens): Element =>
   fixedLabel(word, tokens.text.detail, tokens.ink.dim).w(statusWidth).text_right();
 
 export const nextReason = (slice: Extract<Slice, { readiness: 'ready' }>): string =>
-  `Can start · stacks on koja ${slice.stack.pull} (${slice.stack.identifier}, ${slice.stack.readiness})`;
+  `Can start · stacks on koja ${slice.stack.pull} (${slice.stack.identifier})`;
 
 export const sectionHeader = (
   heading: SectionHeading,
@@ -128,9 +131,12 @@ export const identifierCell = (
   look: IdentifierLook,
   tokens: DirectionTokens,
 ): Element => {
-  const text = look.linked
-    ? planLink(identifier, look.source, tokens)
-    : fixedLabel(identifier, tokens.text.detail, tokens.ink.text);
+  const ink = look.kind === 'summary' ? tokens.ink.dim : tokens.ink.text;
+
+  const text =
+    look.kind === 'linked'
+      ? planLink(identifier, look.source, tokens)
+      : fixedLabel(identifier, tokens.text.detail, ink);
 
   return h_flex().w(look.width).flex_none().child(text);
 };

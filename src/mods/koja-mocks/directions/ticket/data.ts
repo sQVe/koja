@@ -80,7 +80,7 @@ export const slices: Slice[] = [
     title: 'Add Go to for PRs',
     readiness: 'PR draft',
     pull: '#59',
-    detail: 'stacked on koja #58 · 2 of 3 done',
+    detail: 'stacked on koja #58 · 2 of 3 agent tickets done',
     agent: null,
   },
   {

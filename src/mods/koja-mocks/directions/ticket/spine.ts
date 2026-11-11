@@ -34,7 +34,6 @@ const markTop = 6;
 const markWidth = 12;
 const spineLeft = 20;
 const nextMarkSize = 8;
-const blockedStrength = 0.4;
 
 const nextMark = (tokens: DirectionTokens): Element =>
   h_flex()
@@ -117,17 +116,7 @@ export const progressTrack = (slices: Slice[], tokens: DirectionTokens): Element
       h_flex()
         .h(trackHeight)
         .gap(trackHeight)
-        .children(
-          slices.map((slice) => {
-            const segment = div().flex_1().h_full().bg(trackColor(slice, tokens));
-
-            if (slice.readiness === 'blocked') {
-              segment.opacity(blockedStrength);
-            }
-
-            return segment;
-          }),
-        ),
+        .children(slices.map((slice) => div().flex_1().h_full().bg(trackColor(slice, tokens)))),
     )
     .child(trackCounts(slices, tokens));
 };
@@ -191,7 +180,7 @@ const sliceRow = (slice: Slice, look: SliceLook, tokens: DirectionTokens): Eleme
                     {
                       source: look.source,
                       width: look.identifierWidth,
-                      linked: look.kind === 'linked',
+                      kind: look.kind,
                     },
                     tokens,
                   ),

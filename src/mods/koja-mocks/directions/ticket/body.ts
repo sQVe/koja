@@ -66,7 +66,11 @@ const planNode = (slice: Slice, view: TicketView, tokens: DirectionTokens): Spin
         .ml(agentIndent)
         .children(
           agents.map((item) =>
-            workRow(item, { source: view.item.source, width: widths.agent, linked: true }, tokens),
+            workRow(
+              item,
+              { source: view.item.source, width: widths.agent, kind: 'linked' },
+              tokens,
+            ),
           ),
         ),
     );
@@ -78,10 +82,7 @@ const planNode = (slice: Slice, view: TicketView, tokens: DirectionTokens): Spin
 const planSection = (view: TicketView, tokens: DirectionTokens): Element => {
   const name = view.state === 'single' ? 'ME-1280 Build the sidebar' : 'Whole plan';
 
-  const count =
-    view.state === 'single'
-      ? String(view.slices.length)
-      : `${view.slices.length} in ${view.item.source}`;
+  const count = view.state === 'single' ? null : `${view.slices.length} in ${view.item.source}`;
 
   const plan = v_flex()
     .flex_none()

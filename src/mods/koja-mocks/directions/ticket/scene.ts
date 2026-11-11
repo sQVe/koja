@@ -20,19 +20,49 @@ import { ticketView } from './views.ts';
 
 const factsRailWidth = 240;
 const railInset = 16;
+const scrollbarWidth = 3;
+// Extend the native bar's box so its right inset does not hide the thumb behind the clip.
+const scrollbarInset = 4;
+const scrollbarOpacity = 0.5;
 // These fixed-size scenes stop the initial viewport between plan rows.
 const planBottomInset = 22;
 const singleBottomInset = 12;
 
-const readingViewport = (reading: Element, name: string, bottomInset: number): Element =>
-  v_flex()
-    .relative()
-    .mb(bottomInset)
-    .flex_1()
-    .min_h(0)
-    .min_w(0)
-    .child(reading)
-    .child(Scrollbar.vertical(name).mode('always').absolute().inset_0());
+// These fixtures have fixed viewport sizes; the short variants fit without scrolling.
+const overflowingStates = new Set<TicketState>([
+  'container',
+  'single',
+  'sync-failed',
+  'tikk',
+  'long',
+  'normal',
+]);
+
+const readingViewport = (reading: Element, state: TicketState, bottomInset: number): Element => {
+  const viewport = v_flex().relative().mb(bottomInset).flex_1().min_h(0).min_w(0).child(reading);
+
+  if (overflowingStates.has(state)) {
+    viewport.child(
+      v_flex()
+        .absolute()
+        .top(0)
+        .bottom(0)
+        .right(scrollbarInset)
+        .w(scrollbarWidth)
+        .overflow_hidden()
+        .child(
+          Scrollbar.vertical(`ticket-view-${state}`)
+            .mode('always')
+            .absolute()
+            .inset_0()
+            .right(-scrollbarInset)
+            .opacity(scrollbarOpacity),
+        ),
+    );
+  }
+
+  return viewport;
+};
 
 const ticketBody = (view: TicketView, tokens: DirectionTokens): Element => {
   const name = `ticket-view-${view.state}`;
@@ -76,7 +106,7 @@ const ticketBody = (view: TicketView, tokens: DirectionTokens): Element => {
         .children(ticketSections(view, tokens)),
     );
 
-  reading.child(sectionDivider(tokens)).child(readingViewport(scroll, name, bottomInset));
+  reading.child(sectionDivider(tokens)).child(readingViewport(scroll, view.state, bottomInset));
 
   if (view.state !== 'wide') {
     return reading;
