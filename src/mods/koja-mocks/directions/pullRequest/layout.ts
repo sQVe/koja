@@ -28,7 +28,7 @@ import { promptBar, promptHeader } from './prompt.ts';
 
 const factsRailWidth = 240;
 const railInset = 16;
-const menuTop = 328;
+const menuTop = 304;
 const sectionGap = spacing.medium;
 
 const separatedSections = (sections: Element[], tokens: DirectionTokens): Element => {
@@ -61,10 +61,10 @@ const overview = (view: PullView, item: ContentItem, tokens: DirectionTokens): E
 
   if (!resolved) {
     sections.push(needsYouSection(view, tokens));
+  }
 
-    if (isBottomBarView(view)) {
-      sections.push(passedSection(tokens));
-    }
+  if (isBottomBarView(view) && view.state !== 'merge-failed') {
+    sections.push(passedSection(view.state, tokens));
   }
 
   const foldedDescription = view.tray === 'header';

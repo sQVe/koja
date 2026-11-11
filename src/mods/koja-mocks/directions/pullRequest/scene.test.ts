@@ -203,7 +203,7 @@ test('failed sync and merge retain their last data and recovery actions', () => 
   expect(checks).toContain('Sync');
   expect(checks).not.toContain('Retry checks');
   expect(merge).toContain('Could not merge');
-  expect(merge).toContain('main changed since the last sync');
+  expect(merge).toContain('main changed since the branch was updated');
   expect(merge).toContain('Update branch and retry');
   expect(merge).not.toContain('Sync and retry');
   expect(merge).not.toContain('Ready to merge');
@@ -306,7 +306,7 @@ test('ready and failed merge views retain the selected spaces PR identity and ni
 
   const ready = drawnTexts(paneOf('ready'));
 
-  expect(ready).toContain('4 checks passed · 0 unresolved · 3 resolved threads');
+  expect(ready).toContain('4 checks · 3 threads resolved');
   expect(ready).toContain('approved by jonas-l · no conflicts');
 });
 
@@ -356,7 +356,7 @@ test('loaded picked views expose the whole PR diff separately from single files'
     const pane = paneOf(name);
     const texts = drawnTexts(pane);
 
-    expect(texts.filter((text) => text === 'diff in Greppa')).toHaveLength(1);
+    expect(texts.filter((text) => text === 'full diff in Greppa')).toHaveLength(1);
     expect(texts).toContain('9 changed');
     expect(texts).toContain('+412');
     expect(texts).toContain('−40');
@@ -369,7 +369,9 @@ test('narrow facts keep one fact per row', () => {
     const grid = descendants(paneOf(name)).findLast((element) => {
       const texts = drawnTexts(element);
 
-      return ['Branch', 'Ticket', 'Agent', 'diff in Greppa'].every((text) => texts.includes(text));
+      return ['Branch', 'Ticket', 'Agent', 'full diff in Greppa'].every((text) =>
+        texts.includes(text),
+      );
     });
 
     expect(grid).toBeDefined();
@@ -387,7 +389,7 @@ test('narrow facts keep one fact per row', () => {
     expect(drawnTexts(rows[1]!)).not.toContain('Agent');
     expect(drawnTexts(rows[2]!)).toContain('Agent');
     expect(drawnTexts(rows[3]!)).toContain('Files');
-    expect(drawnTexts(rows[3]!)).toContain('diff in Greppa');
+    expect(drawnTexts(rows[3]!)).toContain('full diff in Greppa');
 
     expect(
       grid!.kids.some((child) => {
@@ -406,11 +408,12 @@ test('a failed merge keeps its last sync context distinct from current failure',
   expect(texts).toContain(previous);
 
   expect(texts.indexOf(previous)).toBeGreaterThan(
-    texts.indexOf('main changed since the last sync'),
+    texts.indexOf('main changed since the branch was updated'),
   );
 
   expect(texts.indexOf(previous)).toBeLessThan(texts.indexOf('Update branch and retry'));
   expect(texts).not.toContain('Ready to merge');
+  expect(texts).not.toContain('Passed');
 });
 
 test('requested reviews have an amber review icon and a right-side state', () => {
@@ -487,10 +490,10 @@ test('picked open states are unboxed and use state ink', () => {
 test('merge retry states its effect and separates cause ink from snapshot ink', () => {
   const pane = paneOf('merge-failed');
   const texts = drawnTexts(pane);
-  const effect = 'Squash and merge into main · deletes the branch';
+  const effect = 'Waits for checks, then squash and merge into main · deletes the branch';
 
   const cause = descendants(pane).find((element) =>
-    element.texts.includes('main changed since the last sync'),
+    element.texts.includes('main changed since the branch was updated'),
   );
 
   const snapshot = descendants(pane).find((element) =>
@@ -504,6 +507,52 @@ test('merge retry states its effect and separates cause ink from snapshot ink', 
   expect(snapshot?.textColors.at(-1)).toBe(koja.ink.dim);
   expect(cause?.properties.text_size).toEqual([koja.text.body.size]);
   expect(snapshot?.properties.text_size).toEqual([koja.text.detail.size]);
+});
+
+test('attention states share dim ink while the failed check keeps its red mark', () => {
+  for (const name of ['blocked', 'tray-bar', 'sent', 'checks-failed', 'normal', 'zoomed']) {
+    const parts = descendants(paneOf(name));
+    const tokens = name === 'normal' ? kojaNormal : koja;
+
+    for (const state of ['failing', 'changes requested', 'unresolved']) {
+      const labels = parts.filter((element) => element.texts.includes(state));
+
+      expect(labels.length).toBeGreaterThan(0);
+
+      for (const label of labels) {
+        expect(label.textColors.at(-1)).toBe(tokens.ink.dim);
+      }
+    }
+
+    const check = parts.findLast(
+      (element) =>
+        drawnTexts(element).includes('typecheck') && drawnIcons(element).includes('circle-x'),
+    );
+
+    expect(elementWithIcon(check!, 'circle-x')?.textColors).toContain(tokens.marks.blocked);
+  }
+});
+
+test('ready views put passed counts in a separate folded section', () => {
+  for (const name of ['ready', 'ready-menu', 'merge-confirm']) {
+    const parts = descendants(paneOf(name));
+    const reading = parts.find((element) => element.properties.id?.[0] === 'pr-reading');
+    const body = reading?.kids.at(-1);
+    const merge = body?.kids[0];
+    const passed = body?.kids[2];
+
+    expect(drawnTexts(merge!)).toContain('Ready to merge');
+    expect(drawnTexts(merge!)).toContain('Squash and merge');
+    expect(drawnTexts(merge!)).not.toContain('4 checks passed · 0 unresolved · 3 resolved threads');
+    expect(drawnTexts(passed!)).toEqual(['Passed', '4 checks · 3 threads resolved']);
+    expect(drawnIcons(passed!)).toContain('chevron-right');
+
+    const count = descendants(passed!).find((element) =>
+      element.texts.includes('4 checks · 3 threads resolved'),
+    );
+
+    expect(count?.textColors.at(-1)).toBe(koja.ink.dim);
+  }
 });
 
 test('attention marks share a fixed centered slot', () => {
@@ -736,8 +785,14 @@ test('loaded bodies align their merge text and section dividers', () => {
 
     const merge = parts.find((element) => element.properties.pl?.[0] === 12);
 
-    const resolved = ['ready', 'ready-menu', 'merge-confirm', 'merge-failed'].includes(name);
-    const count = resolved ? 3 : 5;
+    const counts = new Map([
+      ['ready', 4],
+      ['ready-menu', 4],
+      ['merge-confirm', 4],
+      ['merge-failed', 3],
+    ]);
+
+    const count = counts.get(name) ?? 5;
 
     expect(dividers).toHaveLength(count);
     expect(merge).toBeDefined();
@@ -794,7 +849,15 @@ test('picked body sections have one divider between each neighboring pair', () =
     const resolved = ['ready', 'ready-menu', 'merge-confirm', 'merge-failed'].includes(name);
     const sections = body?.kids.filter((_, index) => index % 2 === 0);
     const dividers = body?.kids.filter((_, index) => index % 2 === 1);
-    const count = resolved ? 3 : 5;
+
+    const counts = new Map([
+      ['ready', 4],
+      ['ready-menu', 4],
+      ['merge-confirm', 4],
+      ['merge-failed', 3],
+    ]);
+
+    const count = counts.get(name) ?? 5;
 
     expect(sections).toHaveLength(count);
     expect(dividers).toHaveLength(count - 1);
@@ -847,7 +910,7 @@ test('alternate trays keep their original facts actions and short snippet', () =
     expect(texts).toContain('Review');
     expect(texts).toContain('Add to prompt');
     expect(texts).not.toContain('Sync');
-    expect(texts).not.toContain('diff in Greppa');
+    expect(texts).not.toContain('full diff in Greppa');
     expect(texts).not.toContain("Can't merge yet");
     expect(texts).not.toContain('Changes requested');
     expect(texts.some((text) => text.startsWith('31  '))).toBe(false);

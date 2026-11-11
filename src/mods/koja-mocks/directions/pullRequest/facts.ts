@@ -19,7 +19,7 @@ export const filesFact = (tokens: DirectionTokens): Element => {
     .items_center()
     .child(fixedLabel(`${pullRequestFiles.length} changed`, tokens.text.detail, tokens.ink.text))
     .children(diffCounts(pullFileTotals.added, pullFileTotals.removed, tokens))
-    .child(sourceLink('diff in Greppa', tokens));
+    .child(sourceLink('full diff in Greppa', tokens));
 
   return factRow('Files', value, tokens);
 };

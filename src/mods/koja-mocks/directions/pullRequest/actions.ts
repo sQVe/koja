@@ -74,12 +74,19 @@ export const readyActions = (state: PullState, tokens: DirectionTokens): Element
       icon('circle-x', 'small').text_color(tokens.marks.blocked),
       tokens,
     )
-      .child(fixedLabel('main changed since the last sync', tokens.text.body, tokens.ink.text))
+      .child(
+        fixedLabel('main changed since the branch was updated', tokens.text.body, tokens.ink.text),
+      )
       .child(
         detailText('At the last sync: 4 checks passed · approved · 0 unresolved threads', tokens),
       )
       .child(h_flex().child(reviewActionButton('Update branch and retry', tokens)))
-      .child(detailText('Squash and merge into main · deletes the branch', tokens));
+      .child(
+        detailText(
+          'Waits for checks, then squash and merge into main · deletes the branch',
+          tokens,
+        ),
+      );
   }
 
   return mergeState(
@@ -87,7 +94,6 @@ export const readyActions = (state: PullState, tokens: DirectionTokens): Element
     icon('git-merge', 'small').text_color(tokens.marks.done),
     tokens,
   )
-    .child(detailText('4 checks passed · 0 unresolved · 3 resolved threads', tokens))
     .child(detailText('approved by jonas-l · no conflicts', tokens))
     .child(splitAction(tokens))
     .child(detailText('Into main · deletes the branch', tokens));

@@ -16,8 +16,8 @@ import { fixedLabel, label, row, styled, terminalFont } from '../parts.ts';
 import { workNeedMark } from '../sidebars/facts.ts';
 import { sourceLink } from '../sidebars/sidebar.ts';
 import type { DirectionTokens } from '../tokens.ts';
-import type { PullThread, PullView } from './data.ts';
-import { checkFailure, isBottomBarView, pullThreads } from './data.ts';
+import type { PullState, PullThread, PullView } from './data.ts';
+import { checkFailure, hasResolvedReview, isBottomBarView, pullThreads } from './data.ts';
 import { promptAction, sectionSend } from './prompt.ts';
 
 const markSlotWidth = 12;
@@ -84,7 +84,8 @@ const failedCheck = (view: PullView, tokens: DirectionTokens): Element => {
   const stale = view.state === 'checks-failed';
   const staleLegacy = stale && !isBottomBarView(view);
   const nameInk = staleLegacy ? tokens.ink.dim : tokens.ink.text;
-  const stateInk = stale ? tokens.ink.dim : tokens.marks.blocked;
+  const dimState = stale || isBottomBarView(view);
+  const stateInk = dimState ? tokens.ink.dim : tokens.marks.blocked;
   const age = stale ? checkFailure.staleAge : checkFailure.age;
   const titleRole = isBottomBarView(view) ? tokens.text.title : tokens.text.body;
   const details = detailBlock(view, tokens);
@@ -222,13 +223,18 @@ const requestedReview = (view: PullView, tokens: DirectionTokens): Element =>
         .children(pullThreads.map((thread) => threadRow(thread, view, tokens))),
     );
 
-export const passedSection = (tokens: DirectionTokens): Element =>
-  contentSectionHeader(
+export const passedSection = (state: PullState, tokens: DirectionTokens): Element => {
+  const count = hasResolvedReview(state)
+    ? '4 checks · 3 threads resolved'
+    : '3 checks · 1 thread resolved';
+
+  return contentSectionHeader(
     { name: 'Passed' },
     false,
-    [fixedLabel('3 checks · 1 thread resolved', tokens.text.detail, tokens.ink.dim)],
+    [fixedLabel(count, tokens.text.detail, tokens.ink.dim)],
     tokens,
   );
+};
 
 export const needsYouSection = (view: PullView, tokens: DirectionTokens): Element => {
   const items = [failedCheck(view, tokens)];
