@@ -8,6 +8,7 @@ import {
   readdir,
   readFile,
   realpath,
+  rename,
   rmdir,
   stat,
   unlink,
@@ -392,9 +393,12 @@ const writeRecord = async (home: string, files: string[], origin: InstallOrigin)
   };
 
   const recordPath = join(home, recordName);
+  const temporaryPath = join(home, `${recordName}.tmp`);
 
+  await removeSymlinkLeaf(temporaryPath);
+  await writeFile(temporaryPath, `${JSON.stringify(record, null, 2)}\n`);
   await removeSymlinkLeaf(recordPath);
-  await writeFile(recordPath, `${JSON.stringify(record, null, 2)}\n`);
+  await rename(temporaryPath, recordPath);
 };
 
 const isModFile = (path: string): boolean => path.split(sep)[0] === 'mods';

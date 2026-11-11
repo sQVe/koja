@@ -371,6 +371,75 @@ describe('install', () => {
     expect(written.files).toContain('mods/koja-tabs/main.js');
   });
 
+  test('preserves the earlier record when its temporary path is blocked and allows a retry', async () => {
+    await run();
+
+    const recordPath = join(home, '.koja-install.json');
+    const temporaryPath = join(home, '.koja-install.json.tmp');
+    const earlierText = await readFile(recordPath, 'utf8');
+    const earlierRecord = await readRecord(home);
+
+    await mkdir(temporaryPath);
+    await writeFile(join(config, 'keys.json'), 'changed\n');
+
+    const failure: unknown = await run().catch((error: unknown) => error);
+
+    expect(failure).toBeInstanceOf(Error);
+    expect(await readFile(recordPath, 'utf8')).toBe(earlierText);
+    expect(await readRecord(home)).toEqual(earlierRecord);
+
+    await rm(temporaryPath, { recursive: true });
+    await run();
+
+    expect(await readRecord(home)).toEqual(earlierRecord);
+    expect(await readFile(join(home, 'keys.json'), 'utf8')).toBe('changed\n');
+  });
+
+  test('replaces an incomplete temporary record without recording or leaving it behind', async () => {
+    const temporaryPath = join(home, '.koja-install.json.tmp');
+
+    await writeFile(temporaryPath, '{"files":');
+    await run();
+
+    expect(await exists(temporaryPath)).toBe(false);
+
+    expect((await readRecord(home))?.files).toEqual([
+      'keys.json',
+      'layouts/koja.json',
+      'mods/koja-tabs/icons/x.svg',
+      'mods/koja-tabs/main.js',
+    ]);
+  });
+
+  test('does not write through a symlinked temporary record', async () => {
+    const externalRecord = join(root, 'external-temporary-record.json');
+    const temporaryPath = join(home, '.koja-install.json.tmp');
+
+    await writeFile(externalRecord, 'keep\n');
+    await symlink(externalRecord, temporaryPath);
+    await run();
+
+    expect(await readFile(externalRecord, 'utf8')).toBe('keep\n');
+    expect(await exists(temporaryPath)).toBe(false);
+    expect((await readRecord(home))?.files).toContain('mods/koja-tabs/main.js');
+  });
+
+  test('rejects a broken live record without changing installed files', async () => {
+    await run();
+
+    const recordPath = join(home, '.koja-install.json');
+    const earlierKeys = await readFile(join(home, 'keys.json'), 'utf8');
+
+    await writeFile(recordPath, '{"files":');
+    await writeFile(join(config, 'keys.json'), 'changed\n');
+
+    const failure: unknown = await run().catch((error: unknown) => error);
+
+    expect(failure).toBeInstanceOf(SyntaxError);
+    expect(await readFile(recordPath, 'utf8')).toBe('{"files":');
+    expect(await readFile(join(home, 'keys.json'), 'utf8')).toBe(earlierKeys);
+  });
+
   test('leaves an unchanged file in place', async () => {
     await run();
 
