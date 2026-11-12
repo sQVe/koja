@@ -77,6 +77,7 @@ let currentContext: unknown = null;
 let sharedValues: Record<string, unknown> = {};
 let sharedWrites: string[] = [];
 let tickHandler: (() => void) | null = null;
+let sidebarHidden = false;
 const commandQueue: string[] = [];
 const commandWaiters: ((command: string) => void)[] = [];
 
@@ -211,6 +212,15 @@ await mock.module('herdr', () =>
 );
 
 const { overlayCloseCount, recordOverlayClose } = await import('../../kit/overlayOpen.ts');
+const { readSection, shownSections, writeSection } = await import('../../kit/section.ts');
+
+const markedSection = (): string => readSection((key) => sharedValues[key]);
+
+const markSidebar = (): void => {
+  writeSection((key, value) => {
+    sharedValues[key] = value;
+  }, 'sidebar');
+};
 
 await mock.module('../../kit/index.ts', () =>
   kitIndexFake({
@@ -226,7 +236,9 @@ await mock.module('../../kit/index.ts', () =>
     closeOverlay: (id?: string | null) => {
       closeCalls.push(id ?? null);
     },
+    findLayoutNode: (id: string) => ({ id, hidden: sidebarHidden }),
     overlayCloseCount,
+    shownSections,
     modName: 'koja-modal',
     overlayId: () => 'overlay-1',
     repeat: (_cx: unknown, _milliseconds: number, handler: () => void) => {
@@ -297,6 +309,7 @@ beforeEach(() => {
   sharedValues = {};
   sharedWrites = [];
   tickHandler = null;
+  sidebarHidden = false;
   commandQueue.length = 0;
   commandWaiters.length = 0;
 });
@@ -656,5 +669,110 @@ describe('koja modal view', () => {
     expect(overlayFocused).toBe(true);
     expect(focusCalls).toBe(focusBefore + 1);
     expect(statusLookups).toBe(0);
+  });
+
+  test('the section-next command marks the sidebar and the next one marks panes', async () => {
+    const view = await loadView();
+
+    view.render();
+    deliverCommand('section-next');
+    await flush();
+
+    const afterFirst = markedSection();
+
+    deliverCommand('section-next');
+    await flush();
+
+    expect([afterFirst, markedSection()]).toEqual(['sidebar', 'panes']);
+    expect(closeCalls).toEqual([]);
+  });
+
+  test('the section-previous command marks the sidebar', async () => {
+    const view = await loadView();
+
+    view.render();
+    deliverCommand('section-previous');
+    await flush();
+
+    expect(markedSection()).toBe('sidebar');
+  });
+
+  test('with the sidebar marked, j runs the sidebar list command without askFirst', async () => {
+    const view = await loadView();
+
+    view.render();
+    deliverCommand('section-next');
+    await flush();
+    press(plain('j'));
+
+    expect(runCalls).toEqual([{ command: 'koja-spaces.list-down', args: undefined }]);
+    expect(askFirstCalls).toEqual([]);
+  });
+
+  test('with the sidebar marked, enter opens the row and stays in normal mode', async () => {
+    const view = await loadView();
+
+    view.render();
+    deliverCommand('section-next');
+    await flush();
+    press({ key: 'enter', keystroke: 'enter', modifiers: noModifiers });
+
+    expect(runCalls).toEqual([{ command: 'koja-spaces.list-open', args: undefined }]);
+    expect(closeCalls).toEqual([]);
+  });
+
+  test('with the sidebar marked, i leaves normal mode and drops the mark', async () => {
+    const view = await loadView();
+
+    view.render();
+    deliverCommand('section-next');
+    await flush();
+    press(plain('i'));
+
+    expect(closeCalls).toEqual(['overlay-1']);
+    expect(markedSection()).toBe('panes');
+  });
+
+  test('a tick drops the mark of a sidebar that hid', async () => {
+    const view = await loadView();
+
+    view.render();
+    deliverCommand('section-next');
+    await flush();
+    const beforeHide = markedSection();
+
+    sidebarHidden = true;
+    tickHandler?.();
+
+    expect([beforeHide, markedSection()]).toEqual(['sidebar', 'panes']);
+  });
+
+  test('no key goes to a sidebar that hid before the tick', async () => {
+    const view = await loadView();
+
+    view.render();
+    deliverCommand('section-next');
+    await flush();
+    sidebarHidden = true;
+    press(plain('j'));
+
+    expect(runCalls).toEqual([{ command: 'pane.go', args: { direction: 'down' } }]);
+  });
+
+  test('a mark left by an earlier session is dropped on start', async () => {
+    markSidebar();
+
+    await loadView();
+
+    expect(markedSection()).toBe('panes');
+  });
+
+  test('closing drops the mark', async () => {
+    const view = await loadView();
+
+    markSidebar();
+    view.close();
+
+    expect(markedSection()).toBe('panes');
   });
 });

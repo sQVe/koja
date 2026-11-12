@@ -1,9 +1,15 @@
+import type { ListAction } from './section.ts';
+
 export type NormalIntent = 'closeOtherPanes' | 'nextPane' | 'previousPane' | 'lastPane' | 'lastTab';
+
+export type SectionTarget = 'next' | 'previous' | 'panes';
 
 export type NormalAction =
   | { kind: 'command'; command: string; args?: Record<string, unknown> }
   | { kind: 'intent'; intent: NormalIntent }
   | { kind: 'nthTab'; index: number }
+  | { kind: 'section'; target: SectionTarget }
+  | { kind: 'list'; action: ListAction }
   | { kind: 'leave' };
 
 export interface NormalKey {
@@ -25,6 +31,10 @@ const herdrCommand = (command: string, args?: Record<string, unknown>): NormalAc
 });
 
 const intentAction = (intent: NormalIntent): NormalAction => ({ kind: 'intent', intent });
+
+const sectionAction = (target: SectionTarget): NormalAction => ({ kind: 'section', target });
+
+const listAction = (action: ListAction): NormalAction => ({ kind: 'list', action });
 
 const leaveAction: NormalAction = { kind: 'leave' };
 
@@ -116,8 +126,9 @@ export const normalKeys: NormalKey[] = [
   { keys: ['s', 'j'], action: herdrCommand('space.next') },
   { keys: ['s', 'k'], action: herdrCommand('space.prev') },
   { keys: ['s', 'f'], action: pickerAction },
-  { keys: ['tab'], action: herdrCommand('space.next') },
-  { keys: ['shift-tab'], action: herdrCommand('space.prev') },
+  { keys: ['tab'], action: sectionAction('next') },
+  { keys: ['shift-tab'], action: sectionAction('previous') },
+  { keys: ['escape'], action: sectionAction('panes') },
   { keys: ['z', 's'], action: herdrCommand('layout.toggle', { id: 'sidebar' }) },
   { keys: ['z', 'l'], action: herdrCommand('layout.switch') },
   { keys: ['z', '+'], action: herdrCommand('app.zoom_in') },
@@ -140,4 +151,14 @@ export const normalKeys: NormalKey[] = [
   { keys: ['i'], action: leaveAction },
   { keys: ['a'], action: leaveAction },
   { keys: ['enter'], action: leaveAction },
+];
+
+export const listKeys: NormalKey[] = [
+  { keys: ['j'], action: listAction('down') },
+  { keys: ['k'], action: listAction('up') },
+  { keys: ['g', 'g'], action: listAction('first') },
+  { keys: ['G'], action: listAction('last') },
+  { keys: ['ctrl-d'], action: listAction('halfPageDown') },
+  { keys: ['ctrl-u'], action: listAction('halfPageUp') },
+  { keys: ['enter'], action: listAction('open') },
 ];

@@ -29,7 +29,7 @@ const plain = (key: string): NormalKeyEvent => event({ key, keystroke: key, key_
 const named = (key: string, keystroke: string): NormalKeyEvent => event({ key, keystroke });
 
 const step = (state: ParserState, keys: NormalKeyEvent): ParseResult =>
-  parseKey(state, normalizeKey(keys));
+  parseKey(state, normalizeKey(keys), []);
 
 const feed = (keys: NormalKeyEvent[]): ParseResult => {
   let state: ParserState = initialParserState;
@@ -86,7 +86,7 @@ describe('normal mode sequences', () => {
     });
   });
 
-  test('resolves Shift-Tab to the previous space', () => {
+  test('resolves Shift-Tab to the previous section', () => {
     const shiftTab = event({
       key: 'tab',
       keystroke: 'shift-tab',
@@ -98,8 +98,28 @@ describe('normal mode sequences', () => {
 
     expect(result).toMatchObject({
       status: 'action',
-      action: { kind: 'command', command: 'space.prev' },
+      action: { kind: 'section', target: 'previous' },
     });
+  });
+
+  test('resolves Tab to the next section', () => {
+    expect(feed([named('tab', 'tab')])).toMatchObject({
+      status: 'action',
+      action: { kind: 'section', target: 'next' },
+    });
+  });
+
+  test('resolves a bare Escape to the panes section', () => {
+    expect(feed([named('escape', 'escape')])).toMatchObject({
+      status: 'action',
+      action: { kind: 'section', target: 'panes' },
+    });
+  });
+
+  test('Escape after a pending prefix only clears the prefix', () => {
+    const result = feed([plain('g'), named('escape', 'escape')]);
+
+    expect(result).toEqual({ status: 'cleared', state: initialParserState });
   });
 
   test('resolves the oumlaut to the palette', () => {

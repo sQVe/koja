@@ -50,6 +50,7 @@ the commit in its row.
 - [0011: Two AI judges from different model families gate UI mocks](./0011-two-ai-judges-gate-ui-mocks.md)
 - [0012: Normal mode gives each part of the app one plain letter](./0012-one-plain-letter-per-part.md)
 - [0013: Insert mode only types, and global keys are an allowlist](./0013-insert-mode-only-types.md)
+- [0014: Normal mode keeps the keyboard and forwards list keys to the marked section](./0014-normal-mode-forwards-list-keys.md)
 
 ## Retired
 

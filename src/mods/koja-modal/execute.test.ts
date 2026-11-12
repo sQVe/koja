@@ -84,7 +84,10 @@ const createSession = (initialPanes: PaneLike[], startPane: string, startTab: st
       panes = next;
     },
     act: (action) => {
-      if (action.kind !== 'leave') {
+      const runnable =
+        action.kind !== 'leave' && action.kind !== 'list' && action.kind !== 'section';
+
+      if (runnable) {
         executor.execute(action);
       }
     },
