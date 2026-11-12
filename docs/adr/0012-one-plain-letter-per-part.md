@@ -17,9 +17,22 @@ one pattern instead of a new chord each.
 
 ## Decision
 
-Normal-mode keys feel familiar to a Neovim user but are never harder to type than they need to be.
-Koja keeps Neovim's letters, drops Ctrl where nothing needs it, and gives each part of the app one
-plain letter. The second keys under that letter are Neovim's where Neovim has them.
+Koja chooses normal-mode keys by this procedure, giving each part one plain letter and keeping
+Neovim's keys where they fit.
+
+1. Find the action's part: `w` `t` `s` `g` `z`. A new letter only when no part fits.
+2. If Neovim has a key for the same action on the same kind of thing, use it under the part letter,
+   without `ctrl`.
+3. Otherwise pick a second key by its name in English, the same across parts: `n` new, `q` close,
+   `r` rename.
+4. Add a one-key alias only when the user repeats the action in a row or does it many times in a
+   session. Use a free key whose Vim meaning needs a cursor. One alias per action.
+5. Never change these keys: `h j k l`, `gg` `G`, `/`, digits as counts, `gt` `gT`, `ctrl-w`, `i`,
+   `Escape`, `:`, `?`.
+6. A key steps only through an order the user can see on screen.
+7. A marked section adds no keys beyond the list keys `j` `k` `gg` `G` `ctrl-d` `ctrl-u` `Enter`.
+   See [ADR 0014](./0014-normal-mode-forwards-list-keys.md).
+8. Every key, alias included, is a row in the kit's table.
 
 ### Parts
 
@@ -30,25 +43,45 @@ plain letter. The second keys under that letter are Neovim's where Neovim has th
   such as Changes or a side panel, gets a letter under `g` when it is built.
 - `z`: view, such as the sidebar, the layout, and font zoom.
 
-A new part of the app gets its own letter only when it does not fit under one of these.
-
 ### Single keys and aliases
 
-- Plain `h/j/k/l` and the arrow keys move between panes, because no cursor needs them. While a
-  section with a list is marked, `j` and `k` move its cursor instead; see
-  [ADR 0014](./0014-normal-mode-forwards-list-keys.md).
-- `:` opens the palette, `/` searches, and `?` opens help, as in Neovim.
-- `/` leaves normal mode, as Vim's `/` leaves normal mode for the command line. Herdr gives no
-  signal when its find bar closes, so normal mode cannot know when to take the keyboard back. Help
-  is an overlay Koja can see, so normal mode waits while Help is open and then takes the keyboard
-  back.
-- `ctrl-w` sequences stay as aliases of `w`, so Neovim muscle memory still works.
-- `Space` goes to the next pane that needs you, as the one-key alias of `g a`, because the user
-  repeats this jump more than any other.
-- Key hints in the palette and menus show the plain-letter form, so users learn the short keys.
+The bracket family serves repeated moves: `]` `[` step spaces, `)` `(` step tabs, and `}` `{` go to
+the main space of the next and previous repository. Plain `h/j/k/l` move between panes because no
+cursor needs them. `H/J/K/L` give repeated pane swaps one alias each. `Space` goes to the next pane
+that needs you, as the one-key alias of `g a`, because the user repeats this jump more than any
+other.
 
-Koja moves between items only in an order the user can see on screen. A key that steps through a
-hidden order, such as agents with no agent list, does not belong in normal mode.
+Keys fixed by step 5 are not exceptions. `:` opens the palette, `/` searches, and `?` opens help, as
+in Neovim. `/` leaves normal mode, as Vim's `/` leaves normal mode for the command line. Herdr gives
+no signal when its find bar closes, so normal mode cannot know when to take the keyboard back. Help
+is an overlay Koja can see, so normal mode waits while Help is open and then takes the keyboard
+back. `ctrl-w` sequences stay as aliases of `w`, so Neovim muscle memory still works.
+
+Step 2 accepts the nearest Neovim action with the same purpose, including the `ctrl-w` second keys
+under `w`. A digit or symbol can name an action in step 3, such as `t 1` or `z +`. A jump to the
+last-used pane or tab does not step through an order, so step 6 does not apply to it.
+
+Hints in the palette and menus show the form with the fewest keys, which is the one-key alias when
+an action has one.
+
+### Exceptions
+
+- `}` `{` break step 1: they have no part-letter form, keeping repository moves in the bracket
+  family.
+- `t h` `t l` break steps 2 and 3: direction letters keep tab moves aligned with left and right.
+- `s j` `s k` break step 3: direction letters follow the sidebar's vertical space list.
+- Arrow keys, `ctrl-h/j/k/l`, and Ctrl-arrow keys break step 4: extra pane-move aliases keep
+  familiar direction keys.
+- `Backspace` and `ö` break step 4: extra palette aliases ease access; `ö` is a layout alias, not a
+  Vim cursor key.
+- `ä` breaks step 4: the picker has a layout alias, not a Vim cursor key.
+- `a` and `Enter` break step 4: both alias `i` to make returning to typing easy.
+- `Tab` `Shift-Tab` break step 1: they have no part;
+  [ADR 0014](./0014-normal-mode-forwards-list-keys.md) owns this choice.
+- `ctrl-u/d/b/f/y/e` break steps 1 and 2: scrolling keeps Neovim's chords without a part-letter
+  form.
+- `w w` `w W` break step 6: they keep Neovim's pane cycle in Herdr's pane order, which is not shown.
+- `z l` breaks step 6: it keeps layout cycling even though the layout order is not shown.
 
 ## Consequences
 
@@ -71,6 +104,11 @@ hidden order, such as agents with no agent list, does not belong in normal mode.
 
 Keep `ctrl-w` for panes and add Ctrl prefixes for tabs and spaces. Rejected because Koja has no
 cursor that takes the plain letters, so the chords only make keys harder to type.
+
+### Neovim-style bracket pairs
+
+Use pairs such as `]s` to step spaces. Rejected because a bare `]` cannot exist next to `]s` without
+a timeout. The bracket family keeps repeated moves to one key without waiting.
 
 ### Keep normal mode paused during a search
 
