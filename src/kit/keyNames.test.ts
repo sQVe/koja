@@ -33,6 +33,10 @@ describe('actionName', () => {
     expect(commandName('pane.split')).toBeUndefined();
   });
 
+  test('gives no tab name for another command with an index', () => {
+    expect(commandName('pane.select', { index: 2 })).toBeUndefined();
+  });
+
   test('names an intent, a section step, a list action, and leaving', () => {
     expect(actionName({ kind: 'intent', intent: 'closeOtherPanes' })).toBe('Close other panes');
     expect(actionName({ kind: 'section', target: 'next' })).toBe('Next section');

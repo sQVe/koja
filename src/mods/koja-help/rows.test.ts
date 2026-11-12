@@ -98,6 +98,12 @@ describe('helpGroups', () => {
     expect(sequences).toEqual(['s j']);
   });
 
+  test('keeps a row when only one of its key sequences starts with the query', () => {
+    const sequences = rowsOf(helpGroups('w n')).flatMap(sequencesOf);
+
+    expect(sequences).toEqual(['w s', 'w n']);
+  });
+
   test('does not match the middle of a key name', () => {
     expect(rowsOf(helpGroups('space')).flatMap(sequencesOf)).not.toContain('backspace');
   });
