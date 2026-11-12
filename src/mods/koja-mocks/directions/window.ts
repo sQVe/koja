@@ -30,12 +30,16 @@ export interface DirectionTab extends FakeTab {
   icon?: IconName;
 }
 
+// Where the window shows the keyboard mode: a pill in the tab bar, or the focused pane's footer.
+type ModeMark = 'tabBar' | 'paneFooter';
+
 export interface PanelArrangement {
   toggles: (tokens: DirectionTokens) => Element[];
   panes: (tokens: DirectionTokens) => Element[];
   agent?: FakePane | null;
   agentFocused?: boolean;
   tabs?: DirectionTab[];
+  modeMark?: ModeMark;
 }
 
 const tabLabelMaxWidth = 170;
@@ -74,19 +78,24 @@ const tabElement = (fakeTab: DirectionTab, tokens: DirectionTokens): Element => 
   return fakeTab.active ? element.child(iconButton('x', tokens, tokens.ink.dim)) : element;
 };
 
-const tabControls = (toggles: Element[], tokens: DirectionTokens): Element =>
-  h_flex()
+const tabControls = (arrangement: PanelArrangement, tokens: DirectionTokens): Element => {
+  const controls = h_flex()
     .flex_1()
     .h_full()
     .px(tokens.tabs.barPadding)
     .gap(controlGap)
     .items_center()
     .justify_end()
-    .child(iconButton('plus', tokens, tokens.controls.primary))
-    .child(modePill(tokens))
-    .children(toggles);
+    .child(iconButton('plus', tokens, tokens.controls.primary));
 
-const tabBar = (toggles: Element[], tabs: DirectionTab[], tokens: DirectionTokens): Element =>
+  if (arrangement.modeMark !== 'paneFooter') {
+    controls.child(modePill(tokens));
+  }
+
+  return controls.children(arrangement.toggles(tokens));
+};
+
+const tabBar = (arrangement: PanelArrangement, tokens: DirectionTokens): Element =>
   h_flex()
     .h(tokens.tabs.barHeight)
     .flex_none()
@@ -94,8 +103,8 @@ const tabBar = (toggles: Element[], tabs: DirectionTab[], tokens: DirectionToken
     .items_center()
     .bg(tokens.areas.frame)
     .child(div().w(tokens.tabs.barPadding).h_full().flex_none())
-    .children(tabs.map((fakeTab) => tabElement(fakeTab, tokens)))
-    .child(tabControls(toggles, tokens));
+    .children((arrangement.tabs ?? fakeTabs).map((fakeTab) => tabElement(fakeTab, tokens)))
+    .child(tabControls(arrangement, tokens));
 
 export const branchField = (branch: string, tokens: DirectionTokens): Element =>
   h_flex()
@@ -106,7 +115,11 @@ export const branchField = (branch: string, tokens: DirectionTokens): Element =>
     .child(icon('git-branch', 'small'))
     .child(fixedLabel(branch, tokens.text.detail, tokens.ink.dim));
 
-const paneName = (fakePane: FakePane, focused: boolean, tokens: DirectionTokens): Element => {
+export const paneName = (
+  fakePane: FakePane,
+  focused: boolean,
+  tokens: DirectionTokens,
+): Element => {
   const { ink, pane, text } = tokens;
 
   if (!focused) {
@@ -116,7 +129,7 @@ const paneName = (fakePane: FakePane, focused: boolean, tokens: DirectionTokens)
   return fixedLabel(fakePane.name, text.title, pane.focusedHeaderInk ?? ink.text);
 };
 
-const headerIconColor = (focused: boolean, tokens: DirectionTokens): Color =>
+export const headerIconColor = (focused: boolean, tokens: DirectionTokens): Color =>
   focused ? (tokens.pane.focusedHeaderInk ?? tokens.ink.muted) : tokens.ink.dim;
 
 const paneHeader = (fakePane: FakePane, focused: boolean, tokens: DirectionTokens): Element => {
@@ -143,7 +156,7 @@ const paneHeader = (fakePane: FakePane, focused: boolean, tokens: DirectionToken
     .child(iconButton('ellipsis', tokens, ink.dim));
 };
 
-const terminalBody = (lines: string[], tokens: DirectionTokens): Element =>
+export const terminalBody = (lines: string[], tokens: DirectionTokens): Element =>
   v_flex()
     .flex_1()
     .min_h(0)
@@ -209,7 +222,7 @@ const mainColumn = (arrangement: PanelArrangement, tokens: DirectionTokens): Ele
     .h_full()
     .min_w(0)
     .min_h(0)
-    .child(tabBar(arrangement.toggles(tokens), arrangement.tabs ?? fakeTabs, tokens))
+    .child(tabBar(arrangement, tokens))
     .child(content(arrangement, tokens));
 
 export const directionWindow = (
