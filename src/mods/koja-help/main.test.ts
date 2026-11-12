@@ -11,6 +11,8 @@ let closeCalls = 0;
 let recordedCloses = 0;
 let drawnKeys: string[] = [];
 let drawnRows: string[] = [];
+let drawnStates: string[] = [];
+let trackedHandles: unknown[] = [];
 
 const element = (): unknown => {
   const node: unknown = new Proxy(() => undefined, {
@@ -22,6 +24,14 @@ const element = (): unknown => {
       if (key === 'on_key_down') {
         return (handler: KeyHandler) => {
           keyHandler = handler;
+
+          return node;
+        };
+      }
+
+      if (key === 'track_focus') {
+        return (handle: unknown) => {
+          trackedHandles.push(handle);
 
           return node;
         };
@@ -66,7 +76,11 @@ await mock.module('../../kit/index.ts', () =>
     overlaySize: {},
     searchField: element,
     sectionHeader: element,
-    stateLine: element,
+    stateLine: (state: { text: string }) => {
+      drawnStates.push(state.text);
+
+      return element();
+    },
     detailText: element,
     keyHint: (keys: string) => {
       drawnKeys.push(keys);
@@ -105,6 +119,8 @@ beforeEach(() => {
   recordedCloses = 0;
   drawnKeys = [];
   drawnRows = [];
+  drawnStates = [];
+  trackedHandles = [];
 });
 
 afterAll(() => {
@@ -141,6 +157,58 @@ test('help draws normal keys, filters spaces, and closes on Escape', () => {
 
   expect(closeCalls).toBe(1);
   expect(recordedCloses).toBe(1);
+});
+
+test('help shows the pane note only while pane rows match', () => {
+  const view = new loaded.default();
+
+  view.init(undefined, context);
+  view.render();
+
+  expect(drawnStates).toContain('Every key here also works after ctrl-w.');
+
+  query = 'space';
+  changeHandler?.();
+  drawnStates = [];
+  drawnRows = [];
+  view.render();
+
+  expect(drawnRows.length).toBeGreaterThan(0);
+  expect(drawnStates).toEqual([]);
+});
+
+test('help shows the empty state only when no rows match', () => {
+  const view = new loaded.default();
+
+  view.init(undefined, context);
+  query = 'no matching key';
+  changeHandler?.();
+  view.render();
+
+  expect(drawnRows).toEqual([]);
+  expect(drawnStates).toEqual(['Nothing matches "no matching key".']);
+
+  query = 'space';
+  changeHandler?.();
+  drawnStates = [];
+  view.render();
+
+  expect(drawnRows.length).toBeGreaterThan(0);
+  expect(drawnStates).toEqual([]);
+});
+
+test('help tracks its focus handle only after initialization', () => {
+  const view = new loaded.default();
+  const handle = {};
+
+  view.render();
+
+  expect(trackedHandles).toEqual([]);
+
+  view.init(undefined, { ...context, focus_handle: () => handle });
+  view.render();
+
+  expect(trackedHandles).toEqual([handle]);
 });
 
 test('closing help records the overlay close', () => {
