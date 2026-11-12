@@ -24,8 +24,8 @@ import { createMixState, mixScene } from './directions/attention/mix.ts';
 import { contentScene } from './directions/content/scene.ts';
 import { dialogScene } from './directions/dialogs/scene.ts';
 import { draftReviewScene } from './directions/draftReview/scene.ts';
-import { modeScene } from './directions/footer/scene.ts';
 import { koja, kojaNormal } from './directions/koja.ts';
+import { modeScene } from './directions/modeHeader/scene.ts';
 import { gotoScene } from './directions/overlays/goto.ts';
 import { keysScene } from './directions/overlays/keys.ts';
 import { menuScene, newScene } from './directions/overlays/menus.ts';
@@ -90,18 +90,12 @@ const renderers: Record<SceneName, (inputs: SceneInputs) => Element> = {
   'attention-brief-normal': () => briefScene(kojaNormal),
   'direction-koja': () => directionWindow(koja),
   'direction-koja-normal': () => directionWindow(kojaNormal),
-  'footer-insert': () => modeScene('insert', 'bottom'),
-  'footer-normal': () => modeScene('normal', 'bottom'),
-  'footer-pending': () => modeScene('pending', 'bottom'),
-  'footer-split': () => modeScene('split', 'bottom'),
-  'footer-split-normal': () => modeScene('split-normal', 'bottom'),
-  'footer-lone': () => modeScene('lone', 'bottom'),
-  'header-mode-insert': () => modeScene('insert', 'top'),
-  'header-mode-normal': () => modeScene('normal', 'top'),
-  'header-mode-pending': () => modeScene('pending', 'top'),
-  'header-mode-split': () => modeScene('split', 'top'),
-  'header-mode-split-normal': () => modeScene('split-normal', 'top'),
-  'header-mode-lone': () => modeScene('lone', 'top'),
+  'header-mode-insert': () => modeScene('insert'),
+  'header-mode-normal': () => modeScene('normal'),
+  'header-mode-pending': () => modeScene('pending'),
+  'header-mode-split': () => modeScene('split'),
+  'header-mode-split-normal': () => modeScene('split-normal'),
+  'header-mode-lone': () => modeScene('lone'),
   'sidebar-inbox': () => directionWindow(koja, inboxSidebar),
   'sidebar-hover': () => hoverScene(koja),
   'sidebar-find': () => searchScene(koja),

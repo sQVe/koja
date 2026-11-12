@@ -177,7 +177,7 @@ const terminalPane = (fakePane: FakePane, focused: boolean, tokens: DirectionTok
   return focused ? slot.flex_1() : slot.w(tokens.areas.shellPaneWidth).flex_none();
 };
 
-const sidePanel = (tokens: DirectionTokens): Element => {
+export const sidePanel = (tokens: DirectionTokens): Element => {
   const header = paneHeaderFrame(tokens)
     .child(fixedLabel('Changes', tokens.text.title, tokens.ink.text))
     .child(fixedLabel('3 files', tokens.text.detail, tokens.ink.dim))

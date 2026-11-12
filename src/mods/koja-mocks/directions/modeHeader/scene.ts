@@ -8,33 +8,33 @@ import { cardSlot, iconToggle } from '../parts.ts';
 import type { DirectionTokens } from '../tokens.ts';
 import { directionWindow } from '../window.ts';
 import { reviewPane } from './data.ts';
-import type { PaneFocus, RowFit, RowLook, RowPosition } from './pane.ts';
-import { changesPanel, chromePane } from './pane.ts';
+import type { HeaderFit, HeaderLook, PaneFocus } from './pane.ts';
+import { changesPanel, modePane } from './pane.ts';
 
-// `pending` holds the count and prefix typed so far, and is empty when no key is pending.
-type Keyboard = { mode: 'insert' } | { mode: 'normal'; pending: string };
+// `pending` holds the count and prefix keys typed so far, and is empty when no key is pending.
+type Keyboard = { mode: 'insert' } | { mode: 'normal'; pending: string[] };
 
 type SplitPlace = 'upper' | 'lower' | 'beside';
 
-// How far each pane's chrome row has narrowed at its width in the scene.
+// How far each pane's header has narrowed at its width in the scene.
 type Layout =
-  | { kind: 'shell'; agentFit: RowFit }
+  | { kind: 'shell'; agentFit: HeaderFit }
   | { kind: 'lone' }
-  | { kind: 'split'; focused: SplitPlace; fits: Record<SplitPlace, RowFit> };
+  | { kind: 'split'; focused: SplitPlace; fits: Record<SplitPlace, HeaderFit> };
 
 interface ModeScene {
   layout: Layout;
   keyboard: Keyboard;
 }
 
-const shell: Layout = { kind: 'shell', agentFit: 'taskDropped' };
-// The key-cap takes the width the cut branch needs, so the folder drops.
-const pendingShell: Layout = { kind: 'shell', agentFit: 'folderDropped' };
+const shell: Layout = { kind: 'shell', agentFit: 'folderShort' };
+// Two keycaps take about 30 px more than the row has left beside the whole branch.
+const pendingShell: Layout = { kind: 'shell', agentFit: 'branchCut' };
 
 const modeScenes = {
   insert: { layout: shell, keyboard: { mode: 'insert' } },
-  normal: { layout: shell, keyboard: { mode: 'normal', pending: '' } },
-  pending: { layout: pendingShell, keyboard: { mode: 'normal', pending: '3s' } },
+  normal: { layout: shell, keyboard: { mode: 'normal', pending: [] } },
+  pending: { layout: pendingShell, keyboard: { mode: 'normal', pending: ['3', 's'] } },
   split: {
     layout: {
       kind: 'split',
@@ -49,7 +49,7 @@ const modeScenes = {
       focused: 'upper',
       fits: { upper: 'taskDropped', lower: 'full', beside: 'full' },
     },
-    keyboard: { mode: 'normal', pending: 'g' },
+    keyboard: { mode: 'normal', pending: ['g'] },
   },
   lone: { layout: { kind: 'lone' }, keyboard: { mode: 'insert' } },
 } satisfies Record<string, ModeScene>;
@@ -61,7 +61,7 @@ const tokensOf = (keyboard: Keyboard): DirectionTokens =>
 
 const focusOf = (keyboard: Keyboard): PaneFocus => ({
   focused: true,
-  pending: keyboard.mode === 'normal' ? keyboard.pending : '',
+  pending: keyboard.mode === 'normal' ? keyboard.pending : [],
 });
 
 const unfocused: PaneFocus = { focused: false };
@@ -69,34 +69,28 @@ const unfocused: PaneFocus = { focused: false };
 const wideSlot = (inner: Element, tokens: DirectionTokens): Element =>
   cardSlot(inner, tokens).flex_1();
 
-const shellPanes = (
-  agentFit: RowFit,
-  scene: ModeScene,
-  position: RowPosition,
-  tokens: DirectionTokens,
-): Element[] => {
-  const agentLook: RowLook = { focus: focusOf(scene.keyboard), fit: agentFit, position };
-  const shellLook: RowLook = { focus: unfocused, fit: 'full', position };
+const shellPanes = (agentFit: HeaderFit, scene: ModeScene, tokens: DirectionTokens): Element[] => {
+  const agentLook: HeaderLook = { focus: focusOf(scene.keyboard), fit: agentFit };
+  const shellLook: HeaderLook = { focus: unfocused, fit: 'full' };
 
   return [
-    wideSlot(chromePane(agentPane, agentLook, tokens), tokens),
-    cardSlot(chromePane(shellPane, shellLook, tokens), tokens)
+    wideSlot(modePane(agentPane, agentLook, tokens), tokens),
+    cardSlot(modePane(shellPane, shellLook, tokens), tokens)
       .w(tokens.areas.shellPaneWidth)
       .flex_none(),
-    changesPanel(position, tokens),
+    changesPanel(tokens),
   ];
 };
 
 const splitPanes = (
   layout: Extract<Layout, { kind: 'split' }>,
   scene: ModeScene,
-  position: RowPosition,
   tokens: DirectionTokens,
 ): Element[] => {
   const placed = (place: SplitPlace, fakePane: FakePane): Element => {
     const focus = place === layout.focused ? focusOf(scene.keyboard) : unfocused;
 
-    return chromePane(fakePane, { focus, fit: layout.fits[place], position }, tokens);
+    return modePane(fakePane, { focus, fit: layout.fits[place] }, tokens);
   };
 
   const stack = v_flex()
@@ -110,24 +104,23 @@ const splitPanes = (
   return [stack, wideSlot(placed('beside', reviewPane), tokens)];
 };
 
-const panesOf = (scene: ModeScene, position: RowPosition, tokens: DirectionTokens): Element[] => {
+const panesOf = (scene: ModeScene, tokens: DirectionTokens): Element[] => {
   const { layout } = scene;
 
   if (layout.kind === 'shell') {
-    return shellPanes(layout.agentFit, scene, position, tokens);
+    return shellPanes(layout.agentFit, scene, tokens);
   }
 
   if (layout.kind === 'split') {
-    return splitPanes(layout, scene, position, tokens);
+    return splitPanes(layout, scene, tokens);
   }
 
-  const look: RowLook = { focus: focusOf(scene.keyboard), fit: 'full', position };
+  const look: HeaderLook = { focus: focusOf(scene.keyboard), fit: 'full' };
 
-  return [wideSlot(chromePane(agentPane, look, tokens), tokens)];
+  return [wideSlot(modePane(agentPane, look, tokens), tokens)];
 };
 
-// One scene at either position: the chrome row of every pane, and the Changes title row.
-export const modeScene = (name: ModeSceneName, position: RowPosition): Element => {
+export const modeScene = (name: ModeSceneName): Element => {
   const scene: ModeScene = modeScenes[name];
   const panelOpen = scene.layout.kind === 'shell';
 
@@ -138,6 +131,6 @@ export const modeScene = (name: ModeSceneName, position: RowPosition): Element =
       iconToggle('git-compare', panelOpen, tokens),
       iconToggle('folder', false, tokens),
     ],
-    panes: (tokens) => panesOf(scene, position, tokens),
+    panes: (tokens) => panesOf(scene, tokens),
   });
 };
