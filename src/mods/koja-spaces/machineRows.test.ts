@@ -37,6 +37,8 @@ interface MachineRowsHostLike {
   retryPull: (git: GitInfo | null, cx: unknown) => void;
 }
 
+type ShownRowsHostLike = Pick<MachineRowsHostLike, 'machineList' | 'groups' | 'folded'>;
+
 interface RepoFixture {
   group: TreeGroup;
   git: GitInfo;
@@ -107,6 +109,7 @@ const modulePath = './machineRows.ts';
 
 const loaded = (await import(modulePath)) as {
   machineRows: (host: MachineRowsHostLike, collapsed: boolean) => DrawnElement[];
+  shownRows: (host: ShownRowsHostLike) => TreeRow[];
 };
 
 const space = (id: string, machine: string | null = null): SpaceInfo => ({
@@ -183,6 +186,62 @@ afterAll(() => {
 });
 
 const machinesError = 'Could not read machines.';
+
+const spaceGroup = (id: string, machine: string | null = null): TreeGroup => ({
+  kind: 'space',
+  listed: { space: space(id, machine), git: null, status: null },
+});
+
+const shownIds = (host: ShownRowsHostLike): string[] =>
+  loaded.shownRows(host).map((row) => (row.kind === 'repo' ? row.main.space.id : row.space.id));
+
+const drawnSpaces = (host: ShownRowsHostLike): string[] => {
+  const rows = loaded.machineRows({ ...hostOf({}), ...host }, false);
+
+  return drawnTexts(drawnTree(rows)).filter((text) => text.startsWith('space-'));
+};
+
+describe('shownRows', () => {
+  const groups = [
+    spaceGroup('work-one', 'work'),
+    spaceGroup('local-one'),
+    spaceGroup('home-one', 'home'),
+  ];
+
+  test('lists the rows machine by machine, this computer first', () => {
+    const host = { machineList: [], groups, folded: () => false };
+
+    expect(shownIds(host)).toEqual(['local-one', 'home-one', 'work-one']);
+  });
+
+  test('leaves out the rows of a folded machine', () => {
+    const host = {
+      machineList: [],
+      groups,
+      folded: (machine: string | null) => machine === 'home',
+    };
+
+    expect(shownIds(host)).toEqual(['local-one', 'work-one']);
+    expect(drawnSpaces(host)).toEqual(['space-local-one', 'space-work-one']);
+  });
+
+  test('lists a repository row before its worktrees', () => {
+    const host = {
+      machineList: [],
+      groups: [repoFixture('main', 'child').group],
+      folded: () => false,
+    };
+
+    expect(shownIds(host)).toEqual(['main', 'child']);
+  });
+
+  test('ignores the fold of this computer when it is the only machine', () => {
+    const host = { machineList: [], groups: [spaceGroup('local-one')], folded: () => true };
+
+    expect(shownIds(host)).toEqual(['local-one']);
+    expect(drawnSpaces(host)).toEqual(['space-local-one']);
+  });
+});
 
 const addIcons = (tree: DrawnElement): number =>
   drawnIcons(tree).filter((name) => name === 'plus.svg').length;

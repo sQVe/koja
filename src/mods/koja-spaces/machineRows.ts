@@ -33,6 +33,15 @@ export interface MachineRowsHost {
   retryPull: (git: GitInfo | null, cx: Context) => void;
 }
 
+export type ShownRowsHost = Pick<MachineRowsHost, 'machineList' | 'groups' | 'folded'>;
+
+interface MachineSection {
+  machine: string | null;
+  headed: boolean;
+  folded: boolean;
+  groups: TreeGroup[];
+}
+
 const connected = (machineList: Machine[], machine: string | null): boolean =>
   machine === null ||
   machineList.find((candidate) => candidate.name === machine)?.state === 'connected';
@@ -175,39 +184,59 @@ const machineErrorRow = (
   retry: (cx: Context) => void,
 ): Element => (collapsed ? railErrorMark(text, retry) : errorRow(text, retry));
 
-export const machineRows = (host: MachineRowsHost, collapsed: boolean): Element[] => {
+const machineSections = (host: ShownRowsHost): MachineSection[] => {
   const remote = host.groups
     .map((group) => machineOfGroup(group))
     .filter((machine): machine is string => machine !== null);
 
   const order = machineGroupOrder(remote, host.machineList);
+
+  // With one machine there is no header, so there is nothing to fold.
+  if (order.length === 1) {
+    return [{ machine: null, headed: false, folded: false, groups: host.groups }];
+  }
+
+  return order.map((machine) => ({
+    machine,
+    headed: true,
+    folded: host.folded(machine),
+    groups: host.groups.filter((group) => machineOfGroup(group) === machine),
+  }));
+};
+
+export const shownRows = (host: ShownRowsHost): TreeRow[] =>
+  machineSections(host)
+    .filter((section) => !section.folded)
+    .flatMap((section) => section.groups.flatMap(groupRows));
+
+const sectionRows = (
+  host: MachineRowsHost,
+  section: MachineSection,
+  collapsed: boolean,
+): Element[] => {
+  if (section.folded) {
+    return [];
+  }
+
+  if (section.groups.length > 0) {
+    return groupChildren(host, section.groups, collapsed);
+  }
+
+  if (host.loading(section.machine)) {
+    return [loadingRow(collapsed)];
+  }
+
+  return section.headed ? [newSpaceRow(host, section.machine, collapsed)] : [];
+};
+
+export const machineRows = (host: MachineRowsHost, collapsed: boolean): Element[] => {
   const error = host.machineError();
   const head = error === null ? [] : [machineErrorRow(error, collapsed, host.retryMachines)];
 
-  if (order.length === 1) {
-    const loading = host.loading(null) && host.groups.length === 0;
-    const rows = loading ? [loadingRow(collapsed)] : groupChildren(host, host.groups, collapsed);
+  const rows = machineSections(host).flatMap((section) => {
+    const header = section.headed ? [machineHeader(host, section.machine, collapsed)] : [];
 
-    return head.concat(rows);
-  }
-
-  const rows = order.flatMap((machine) => {
-    const mine = host.groups.filter((group) => machineOfGroup(group) === machine);
-    const header = machineHeader(host, machine, collapsed);
-
-    if (host.folded(machine)) {
-      return [header];
-    }
-
-    if (mine.length > 0) {
-      return [header].concat(groupChildren(host, mine, collapsed));
-    }
-
-    const row = host.loading(machine)
-      ? loadingRow(collapsed)
-      : newSpaceRow(host, machine, collapsed);
-
-    return [header, row];
+    return header.concat(sectionRows(host, section, collapsed));
   });
 
   return head.concat(rows);

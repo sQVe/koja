@@ -125,6 +125,11 @@ await mock.module('herdr', () =>
 
       return null;
     },
+    setShared: (key: string, value: unknown) => {
+      sharedValues[key] = value;
+
+      return null;
+    },
     shared: (key: string) => sharedValues[key],
     spaces: () => spaceList,
     theme: () => themeColors,
@@ -217,6 +222,9 @@ const redrawsOf = async (command: string): Promise<number> => {
 const selected = (): unknown[] =>
   runCalls.filter((call) => call.command === 'space.select').map((call) => call.args?.['id']);
 
+const spaceNames = (view: FakeView): string[] =>
+  drawnTexts(view.render()).filter((text) => text.startsWith('name-'));
+
 const reportHeight = (view: FakeView, height: number): void => {
   for (const element of elementsWithSizeHandler(view.render())) {
     element.sizeHandlers[0]?.({ width: 200, height }, {});
@@ -230,6 +238,7 @@ beforeEach(() => {
   sidebarWidth = null;
   commandQueue.length = 0;
   commandWaiters.length = 0;
+  store.clear();
   spaceList = ['a', 'b', 'c', 'd', 'e', 'f', 'g', 'h'].map((id) => space(id, id === 'b'));
   mark('sidebar');
 });
@@ -326,6 +335,29 @@ describe('koja-spaces list cursor', () => {
     await send('list-open');
 
     expect(selected()).toEqual(['e']);
+  });
+
+  test('a folded machine leaves its spaces out of the drawn rows and the published order', async () => {
+    spaceList = [space('a', true), { ...space('w', false), machine: 'work' }, space('c', false)];
+    store.set('machines.folded', JSON.stringify(['work']));
+
+    const view = await loadView();
+
+    expect(spaceNames(view)).toEqual(['name-a', 'name-c']);
+    expect(sharedValues['spaces.order']).toEqual({ shown: ['a', 'c'], hidden: ['w'] });
+
+    await send('list-last');
+
+    expect(cursorNames(view)).toEqual(['name-c']);
+  });
+
+  test('an open machine draws and publishes its spaces after this computer', async () => {
+    spaceList = [space('a', true), { ...space('w', false), machine: 'work' }, space('c', false)];
+
+    const view = await loadView();
+
+    expect(spaceNames(view)).toEqual(['name-a', 'name-c', 'name-w']);
+    expect(sharedValues['spaces.order']).toEqual({ shown: ['a', 'c', 'w'], hidden: [] });
   });
 
   test('the collapsed rail outlines the cursor row', async () => {

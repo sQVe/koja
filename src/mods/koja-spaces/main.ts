@@ -36,7 +36,7 @@ import {
 import { cursorRow, halfPageOf, moveCursor } from './cursor.ts';
 import { foldedSet } from './folded.ts';
 import { GitTracker } from './gitTracker.ts';
-import { machineRows } from './machineRows.ts';
+import { machineRows, shownRows } from './machineRows.ts';
 import { isMachineLoading } from './machines.ts';
 import { MachineTracker } from './machineTracker.ts';
 import { newSpaceArguments } from './newSpace.ts';
@@ -68,6 +68,8 @@ const isNarrow = (): boolean => {
 };
 
 const isSidebarMarked = (): boolean => readSection(shared) === 'sidebar';
+
+const spaceIdOf = (row: TreeRow): string => listedOf(row).space.id;
 
 const activeSpaceId = (): string | null => spaces().find((space) => space.active)?.id ?? null;
 
@@ -103,8 +105,6 @@ export default class Spaces extends View {
   private statuses: StatusRollup = { spaces: {}, tabs: {} };
 
   private cursor: string | null = null;
-
-  private shownIds: readonly string[] = [];
 
   private halfPage = 1;
 
@@ -161,7 +161,7 @@ export default class Spaces extends View {
             this.drag = noDrag;
             cx.notify();
           })
-          .children(this.rows(collapsed)),
+          .children(this.grouped(collapsed)),
       );
   }
 
@@ -184,7 +184,7 @@ export default class Spaces extends View {
     }
 
     const result = moveCursor({
-      shown: this.shownIds,
+      shown: this.shownRows().map(spaceIdOf),
       cursor: this.cursor,
       active: activeSpaceId(),
       action,
@@ -200,20 +200,20 @@ export default class Spaces extends View {
     cx.notify();
   }
 
-  private cursorRow(): string | null {
+  private cursorRow(shown: readonly TreeRow[]): string | null {
     if (!isSidebarMarked()) {
       return null;
     }
 
-    return cursorRow(this.shownIds, this.cursor, activeSpaceId());
+    return cursorRow(shown.map(spaceIdOf), this.cursor, activeSpaceId());
   }
 
-  private rows(collapsed: boolean): Element[] {
-    const expected = this.cursorRow();
-    const elements = this.grouped(collapsed, expected);
-    const cursor = this.cursorRow();
-
-    return cursor === expected ? elements : this.grouped(collapsed, cursor);
+  private shownRows(groups: TreeGroup[] = this.ordered()): TreeRow[] {
+    return shownRows({
+      machineList: this.machines.lookup(),
+      groups,
+      folded: (machine) => this.foldedMachines.has(machine ?? ''),
+    });
   }
 
   private advance(): VisibilityResult {
@@ -312,7 +312,7 @@ export default class Spaces extends View {
       row,
       title,
       lineAbove,
-      cursor: listedOf(row).space.id === cursor,
+      cursor: spaceIdOf(row) === cursor,
       error: this.pulls.errorLine(git),
       retry: (cx) => {
         this.retryPull(git, cx);
@@ -343,21 +343,20 @@ export default class Spaces extends View {
     return row.kind === 'repo' ? labelRow(row, ids, state) : spaceRow(row, ids, state);
   }
 
-  private grouped(collapsed: boolean, cursor: string | null): Element[] {
+  private grouped(collapsed: boolean): Element[] {
     const groups = this.ordered();
     const ids = spaces().map((space) => space.id);
-    const shownRows: TreeRow[] = [];
+    const shown = this.shownRows(groups);
+    const cursor = this.cursorRow(shown);
 
-    // machineRows draws only the shown rows, in sidebar order.
-    const elements = machineRows(
+    this.order.publish(shown, ids);
+
+    return machineRows(
       {
         machineList: this.machines.lookup(),
         groups,
-        draw: (row, lineAbove) => {
-          shownRows.push(row);
-
-          return collapsed ? this.drawRail(row, lineAbove, cursor) : this.draw(row, ids, cursor);
-        },
+        draw: (row, lineAbove) =>
+          collapsed ? this.drawRail(row, lineAbove, cursor) : this.draw(row, ids, cursor),
         folded: (machine) => this.foldedMachines.has(machine ?? ''),
         loading: (machine) => this.isLoading(machine),
         addSpace: (machine) => {
@@ -375,11 +374,6 @@ export default class Spaces extends View {
       },
       collapsed,
     );
-
-    this.order.publish(shownRows, ids);
-    this.shownIds = shownRows.map((row) => listedOf(row).space.id);
-
-    return elements;
   }
 
   private addDragHandlers(element: Element, space: SpaceInfo, ids: readonly string[]): void {
