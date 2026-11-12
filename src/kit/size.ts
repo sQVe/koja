@@ -118,7 +118,6 @@ export const progressSize = {
 export const hoverCardSize = {
   width: 312,
   arrowDepth: 4,
-  // The y of the header line's center: the card's outline, its top padding, then half the line.
   headerCenter: spacing.hairline + spacing.xsmall + rowHeight.small / 2,
   pullColumn: 34,
   ticketColumn: 58,
