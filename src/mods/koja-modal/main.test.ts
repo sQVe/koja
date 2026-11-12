@@ -460,7 +460,7 @@ describe('koja modal view', () => {
     tickHandler?.();
     await flush();
 
-    expect(runCalls).toEqual([{ command: 'app.help', args: undefined }]);
+    expect(runCalls).toEqual([{ command: 'mod.open', args: { name: 'koja-help' } }]);
     expect(overlayFocused).toBe(false);
   });
 

@@ -125,6 +125,22 @@ describe('allEntries', () => {
     expect(item?.id).toBe('tab.new:{}');
   });
 
+  test('keeps each entry id as its command and arguments, which Recent saves', () => {
+    commandList = ['tab.new', 'pane.split', 'pane.go', 'space.next', 'mod.open'].map(commandOf);
+
+    const entries = allEntries(host());
+    const ids = entries.map((item) => item.id);
+
+    expect(ids).toContain('pane.split:{"direction":"right"}');
+    expect(ids).toContain('mod.open:{"name":"koja-picker"}');
+
+    expect(entries.every((item) => item.id === `${item.name}:${JSON.stringify(item.args)}`)).toBe(
+      true,
+    );
+
+    expect(new Set(ids).size).toBe(ids.length);
+  });
+
   test('finds an unknown command by its words, with underscores read as spaces', () => {
     commandList = [commandOf('weird.some_thing')];
 

@@ -284,7 +284,7 @@ const singleKeys: [string, NormalAction][] = [
   ['L', command('pane.swap', { direction: 'right' })],
   [':', palette],
   ['/', command('terminal.search')],
-  ['?', command('app.help')],
+  ['?', command('mod.open', { name: 'koja-help' })],
 ];
 
 const windowSecondKeys = [

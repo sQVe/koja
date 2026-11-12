@@ -66,7 +66,8 @@ Overlays:
 
 - Normal mode stays on after a dialog, the palette, or the picker closes.
 - `/` opens terminal search and leaves normal mode.
-- `?` opens help.
+- `?` opens Koja's key help. A query filters its rows.
+- `Escape` closes the help and keeps normal mode on. `s j` then changes the space.
 
 ## Gotchas
 
