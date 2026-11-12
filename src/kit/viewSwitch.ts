@@ -1,5 +1,5 @@
 import { h_flex } from 'gpui-base';
-import type { Element } from 'gpui-kit';
+import type { Context, Element } from 'gpui-kit';
 
 import { toggleButton } from './button.ts';
 import { spacing } from './size.ts';
@@ -12,7 +12,8 @@ interface ViewOption<Id extends string> {
 export interface ViewSwitchOptions<Id extends string> {
   options: ViewOption<Id>[];
   active: Id;
-  onSelect: (id: Id) => void;
+  // A click does not redraw the view. The caller stores the id, then calls `cx.notify()`.
+  onSelect: (id: Id, cx: Context) => void;
 }
 
 export const viewSwitch = <Id extends string>(switchOptions: ViewSwitchOptions<Id>): Element => {
@@ -20,7 +21,7 @@ export const viewSwitch = <Id extends string>(switchOptions: ViewSwitchOptions<I
     toggleButton({ label: option.label, active: option.id === switchOptions.active }).on_click(
       (_event, cx) => {
         cx.stop_propagation();
-        switchOptions.onSelect(option.id);
+        switchOptions.onSelect(option.id, cx);
       },
     ),
   );

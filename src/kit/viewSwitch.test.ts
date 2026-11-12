@@ -7,7 +7,7 @@ import { gpuiBaseFake, gpuiKitFake, herdrFake } from '../../tests/moduleFakes.ts
 interface ViewSwitchOptions {
   options: { id: string; label: string }[];
   active: string;
-  onSelect: (id: string) => void;
+  onSelect: (id: string, cx: unknown) => void;
 }
 
 const palette = {
@@ -67,5 +67,20 @@ describe('viewSwitch', () => {
     }
 
     expect(selected).toEqual(['inbox']);
+  });
+
+  test('a click passes its context on, so the caller can ask for a redraw', () => {
+    const contexts: unknown[] = [];
+    const clickContext = { stop_propagation: () => undefined };
+
+    const element = viewSwitch({
+      options: views,
+      active: 'projects',
+      onSelect: (_id, cx) => contexts.push(cx),
+    });
+
+    optionButton(element, 'Inbox')?.clickHandlers[0]?.({}, clickContext);
+
+    expect(contexts).toEqual([clickContext]);
   });
 });
