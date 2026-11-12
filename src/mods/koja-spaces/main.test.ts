@@ -147,7 +147,6 @@ await mock.module('herdr', () =>
   }),
 );
 
-const { railWidthLimit } = await import('../../kit/size.ts');
 const { writeSection } = await import('../../kit/section.ts');
 
 const kitModule = async (name: string): Promise<Record<string, unknown>> =>
@@ -461,12 +460,11 @@ describe('koja-spaces list cursor', () => {
     expect(scrollCalls).toEqual([]);
   });
 
-  test('the collapsed rail outlines the cursor row', async () => {
-    sidebarWidth = railWidthLimit - 1;
+  test('a narrow sidebar draws full space names', async () => {
+    sidebarWidth = 100;
 
     const view = await loadView();
-    const outlined = elementsWithBorder(view.render(), themeColors.accent);
 
-    expect(outlined.map((element) => element.tooltipText)).toEqual(['name-b']);
+    expect(spaceNames(view)).toEqual(spaceList.map((candidate) => candidate.name));
   });
 });

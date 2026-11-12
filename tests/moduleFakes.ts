@@ -107,7 +107,6 @@ export const kitIndexFake = (overrides: ModuleFake = {}): ModuleFake => ({
   popupSurface: noop,
   programIcon: noop,
   radius: {},
-  railWidthLimit: 0,
   readDialogCommand: noop,
   readSection: () => 'panes',
   recordOf: () => undefined,

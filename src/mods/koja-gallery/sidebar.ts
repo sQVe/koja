@@ -1,7 +1,6 @@
 import { v_flex } from 'gpui-base';
 import type { Element } from 'gpui-kit';
 import { div } from 'gpui-kit';
-import type { Status } from 'herdr';
 
 import {
   colors,
@@ -10,7 +9,6 @@ import {
   listRow,
   overlaySize,
   repoLabel,
-  separator,
   spacing,
   statusMark,
 } from '../../kit/index.ts';
@@ -18,18 +16,6 @@ import { sample } from './sample.ts';
 
 const sidebarFrame = (content: Element[]): Element =>
   v_flex().w(overlaySize.menuWidth).children(content);
-
-const railDot = (status: Status, selected: boolean): Element =>
-  listRow({
-    size: 'small',
-    inset: true,
-    state: selected ? 'selected' : 'normal',
-    centered: true,
-    label: '',
-    end: [statusMark(status)],
-  });
-
-const insetLine = (): Element => div().px(spacing.small).child(separator());
 
 const sidebarGap = (): Element => div().h(spacing.medium);
 
@@ -139,16 +125,6 @@ export const sidebarSamples = (): Element[] => [
           selected: true,
         }),
       }),
-    ]),
-  ),
-  sample(
-    'Rail: one dot per repository, the active pill, lines between repositories',
-    sidebarFrame([
-      railDot('working', false),
-      insetLine(),
-      railDot('idle', true),
-      insetLine(),
-      railDot('blocked', false),
     ]),
   ),
 ];

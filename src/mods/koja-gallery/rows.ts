@@ -101,16 +101,6 @@ const otherRows = (): Element =>
     .child(
       listRow({
         size: 'large',
-        inset: false,
-        state: 'selected',
-        centered: true,
-        label: '3',
-        end: [statusMark('blocked')],
-      }),
-    )
-    .child(
-      listRow({
-        size: 'large',
         inset: true,
         state: 'normal',
         label: highlightedText('Split right', matchOf('Split right', 'Sp'), true),
@@ -146,5 +136,5 @@ export const rows = (): Element[] => [
   sample('Flush, small', rowsInState(false)),
   sample('Tree', treeRows()),
   sample('Reordering', dragRows()),
-  sample('Muted, centered, and highlighted', otherRows()),
+  sample('Muted and highlighted', otherRows()),
 ];

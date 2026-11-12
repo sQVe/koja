@@ -20,12 +20,10 @@ import type { StatusRollup } from '../../kit/index.ts';
 import {
   colors,
   controlSize,
-  findLayoutNode,
   hoveredAfter,
   layoutRoot,
   listActionOf,
   overlaySize,
-  railWidthLimit,
   readSection,
   repeat,
   rollupStatuses,
@@ -41,10 +39,9 @@ import { isMachineLoading } from './machines.ts';
 import { MachineTracker } from './machineTracker.ts';
 import { newSpaceArguments } from './newSpace.ts';
 import { PullTracker } from './pullTracker.ts';
-import { railRow } from './rail.ts';
 import { createOrderPublisher } from './spaceOrder.ts';
 import type { RowState } from './spaceRows.ts';
-import { labelRow, row as spaceRow, rowTitle } from './spaceRows.ts';
+import { labelRow, row as spaceRow } from './spaceRows.ts';
 import type { GitInfo, ListedSpace, TreeGroup, TreeRow } from './tree.ts';
 import { listedOf, nestSpaces, placesOf } from './tree.ts';
 import type { VisibilityResult, VisibilityState } from './visibility.ts';
@@ -59,13 +56,6 @@ const checkMilliseconds = 250;
 const machinesFoldedKey = 'machines.folded';
 
 const reposFoldedKey = 'repos.folded';
-
-const isNarrow = (): boolean => {
-  const sidebar = findLayoutNode('sidebar');
-  const width = sidebar?.sizePx ?? null;
-
-  return width !== null && width < railWidthLimit;
-};
 
 const isSidebarMarked = (): boolean => readSection(shared) === 'sidebar';
 
@@ -138,7 +128,6 @@ export default class Spaces extends View {
 
   override render(): Element {
     const palette = colors();
-    const collapsed = isNarrow();
 
     this.statuses = rollupStatuses(spaces(), panes(), terminals());
     this.visibility = this.advance();
@@ -166,7 +155,7 @@ export default class Spaces extends View {
             this.drag = noDrag;
             cx.notify();
           })
-          .children(this.grouped(collapsed)),
+          .children(this.grouped()),
       );
   }
 
@@ -322,22 +311,6 @@ export default class Spaces extends View {
     this.pulls.retry(git.repo, git.cwd, cx);
   };
 
-  private drawRail(row: TreeRow, lineAbove: boolean, cursor: string | null): Element {
-    const git = row.kind === 'repo' ? row.main.git : row.git;
-    const title = row.kind === 'repo' ? row.name : rowTitle(row, this.pulls.lookup(row.git));
-
-    return railRow({
-      row,
-      title,
-      lineAbove,
-      cursor: spaceIdOf(row) === cursor,
-      error: this.pulls.errorLine(git),
-      retry: (cx) => {
-        this.retryPull(git, cx);
-      },
-    });
-  }
-
   private draw(row: TreeRow, ids: readonly string[], cursor: string | null): Element {
     const state: RowState = {
       drag: this.drag,
@@ -361,7 +334,7 @@ export default class Spaces extends View {
     return row.kind === 'repo' ? labelRow(row, ids, state) : spaceRow(row, ids, state);
   }
 
-  private grouped(collapsed: boolean): Element[] {
+  private grouped(): Element[] {
     const groups = this.ordered();
     const ids = spaces().map((space) => space.id);
     const shown = this.shownRows(groups);
@@ -371,38 +344,33 @@ export default class Spaces extends View {
 
     this.order.publish(shown, ids);
 
-    const elements = machineRows(
-      {
-        machineList: this.machines.lookup(),
-        groups,
-        draw: (row, lineAbove) => {
-          const element = collapsed
-            ? this.drawRail(row, lineAbove, cursor)
-            : this.draw(row, ids, cursor);
+    const elements = machineRows({
+      machineList: this.machines.lookup(),
+      groups,
+      draw: (row) => {
+        const element = this.draw(row, ids, cursor);
 
-          if (spaceIdOf(row) === cursor) {
-            cursorElement = element;
-          }
+        if (spaceIdOf(row) === cursor) {
+          cursorElement = element;
+        }
 
-          return element;
-        },
-        folded: (machine) => this.foldedMachines.has(machine ?? ''),
-        loading: (machine) => this.isLoading(machine),
-        addSpace: (machine) => {
-          run('space.new', newSpaceArguments(machine));
-        },
-        toggleFold: (machine) => {
-          this.foldedMachines.toggle(machine ?? '');
-        },
-        machineError: () => this.machines.errorLine(),
-        pullError: (git) => this.pulls.errorLine(git),
-        retryMachines: (cx) => {
-          this.machines.retry(cx);
-        },
-        retryPull: this.retryPull,
+        return element;
       },
-      collapsed,
-    );
+      folded: (machine) => this.foldedMachines.has(machine ?? ''),
+      loading: (machine) => this.isLoading(machine),
+      addSpace: (machine) => {
+        run('space.new', newSpaceArguments(machine));
+      },
+      toggleFold: (machine) => {
+        this.foldedMachines.toggle(machine ?? '');
+      },
+      machineError: () => this.machines.errorLine(),
+      pullError: (git) => this.pulls.errorLine(git),
+      retryMachines: (cx) => {
+        this.machines.retry(cx);
+      },
+      retryPull: this.retryPull,
+    });
 
     this.showCursor(elements, cursorElement);
 

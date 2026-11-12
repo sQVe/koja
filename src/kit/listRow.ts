@@ -20,7 +20,6 @@ export interface ListRowOptions extends HoverOptions {
   // Identifiers such as branches and paths cut in the middle, so both ends stay visible.
   cut?: 'middle' | 'end';
   muted?: boolean;
-  centered?: boolean;
   detail?: string;
   depth?: number;
   start?: Element;
@@ -85,11 +84,7 @@ const detailElement = (detail: string, palette: Palette): Element =>
     .child(detail);
 
 const labelGroup = (options: ListRowOptions, palette: Palette): Element => {
-  const group = h_flex().min_w(0).gap(spacing.small).items_center();
-
-  if (options.centered !== true) {
-    group.flex_1();
-  }
+  const group = h_flex().min_w(0).gap(spacing.small).items_center().flex_1();
 
   group.child(labelElement(options));
 
@@ -121,10 +116,6 @@ const rowFrame = (options: ListRowOptions, palette: Palette): Element => {
 };
 
 const decorate = (row: Element, options: ListRowOptions, palette: Palette): void => {
-  if (options.centered === true) {
-    row.justify_center();
-  }
-
   if (options.dragged === true) {
     row.opacity(draggedOpacity);
   }

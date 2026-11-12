@@ -164,9 +164,6 @@ preview inside one framed overlay, so the list rounds only its own two outer cor
   read fails silently.
 - An error line names the resource that failed and sits with the part it affects. It carries its own
   Retry.
-- Where a list has no room for a line, such as the sidebar rail, the failed part shows the alert
-  mark in `blocked` instead. The mark shows the line's text as a tooltip, and a click on it is the
-  Retry.
 - Each mod keeps the pending, failed, stale, and fresh state of each resource apart, keyed by the
   repository or context it read. Retry reads that resource again at once, skipping the normal
   refresh delay. An error clears only when that same resource reads again.

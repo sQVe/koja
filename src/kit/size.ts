@@ -138,8 +138,6 @@ export const overlaySize = {
   paneHeadersHeight: 760,
 } as const;
 
-export const railWidthLimit = 160;
-
 export const trafficLightsWidth = 64;
 
 export const draggedOpacity = 0.5;

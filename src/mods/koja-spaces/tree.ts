@@ -106,16 +106,6 @@ export const gitOfGroup = (group: TreeGroup): GitInfo | null => listedOfGroup(gr
 export const machineOfGroup = (group: TreeGroup): string | null =>
   listedOfGroup(group).space.machine ?? null;
 
-const isRepository = (group: TreeGroup | null): boolean => group?.kind === 'repo';
-
-export const railLineBefore = (group: TreeGroup, previous: TreeGroup | null): boolean => {
-  if (previous === null) {
-    return false;
-  }
-
-  return isRepository(group) || isRepository(previous);
-};
-
 export const groupGapBefore = (group: TreeGroup, previous: TreeGroup | null): boolean =>
   previous !== null && group.kind === 'repo';
 
