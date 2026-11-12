@@ -3,14 +3,7 @@ import { describe, expect, test } from 'bun:test';
 import type { SpaceInfo, Status } from 'herdr';
 
 import type { GitInfo, ListedSpace, TreeGroup, TreeRow } from './tree.ts';
-import {
-  groupGapBefore,
-  groupRows,
-  machineOfGroup,
-  nestSpaces,
-  railLineBefore,
-  repoOf,
-} from './tree.ts';
+import { groupGapBefore, groupRows, machineOfGroup, nestSpaces, repoOf } from './tree.ts';
 
 const repoPath = '/code/koja/.git';
 
@@ -189,79 +182,6 @@ describe('nestSpaces', () => {
 });
 
 describe('group spacing', () => {
-  test('draws a rail line above each repository after the first group', () => {
-    const groups = nestSpaces(
-      [
-        listed(spaceOf('notes'), null),
-        listed(spaceOf('koja'), gitAt('/code/koja/.git', false)),
-        listed(spaceOf('tool'), gitAt('/code/tool/.git', false)),
-      ],
-      new Set(),
-    );
-
-    expect(flagged(groups, railLineBefore)).toEqual(['repo:koja', 'repo:tool']);
-  });
-
-  test('draws a rail line between a repository and the plain space after it', () => {
-    const groups = nestSpaces(
-      [
-        listed(spaceOf('koja'), gitAt('/code/koja/.git', false)),
-        listed(spaceOf('feature'), gitAt('/code/koja/.git', true)),
-        listed(spaceOf('notes'), null),
-      ],
-      new Set(),
-    );
-
-    expect(flagged(groups, railLineBefore)).toEqual(['space:notes']);
-  });
-
-  test('draws no rail line between a repository and its worktrees', () => {
-    const groups = nestSpaces(
-      [
-        listed(spaceOf('notes'), null),
-        listed(spaceOf('koja'), gitAt('/code/koja/.git', false)),
-        listed(spaceOf('feature'), gitAt('/code/koja/.git', true)),
-      ],
-      new Set(),
-    );
-
-    expect(flagged(groups, railLineBefore)).toEqual(['repo:koja']);
-  });
-
-  test('draws no rail line between plain spaces', () => {
-    const groups = nestSpaces(
-      [listed(spaceOf('first'), null), listed(spaceOf('second'), null)],
-      new Set(),
-    );
-
-    expect(flagged(groups, railLineBefore)).toEqual([]);
-  });
-
-  test('draws a rail line above a repository when a group of another machine sits between', () => {
-    const groups = nestSpaces(
-      [
-        listed(spaceOf('first'), gitAt('/code/first/.git', false)),
-        listed(machineSpace('remote', 'laptop'), null),
-        listed(spaceOf('second'), gitAt('/code/second/.git', false)),
-      ],
-      new Set(),
-    );
-
-    expect(flagged(groups, railLineBefore)).toEqual(['repo:second']);
-  });
-
-  test('draws no rail line above the first group of another machine', () => {
-    const groups = nestSpaces(
-      [
-        listed(machineSpace('notes', 'laptop'), null),
-        listed(spaceOf('koja'), gitAt('/code/koja/.git', false)),
-      ],
-      new Set(),
-    );
-
-    expect(flagged(groups, railLineBefore)).toEqual([]);
-  });
-
   test('leaves no gap above a machine first repository group', () => {
     const groups = nestSpaces(
       [

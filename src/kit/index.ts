@@ -50,7 +50,6 @@ export {
   diffSize,
   overlaySize,
   radius,
-  railWidthLimit,
   rowHeight,
   separatorHeight,
   shellSize,

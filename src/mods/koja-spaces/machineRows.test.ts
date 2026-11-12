@@ -11,7 +11,6 @@ import {
   drawnTree,
   elementWithText,
   clickablesWithText,
-  elementWithTooltip,
 } from '../../../tests/drawn.ts';
 import type { DrawnElement } from '../../../tests/drawn.ts';
 import { gpuiBaseFake, gpuiKitFake, herdrFake, kitIndexFake } from '../../../tests/moduleFakes.ts';
@@ -26,7 +25,7 @@ interface MachineLike {
 interface MachineRowsHostLike {
   machineList: MachineLike[];
   groups: TreeGroup[];
-  draw: (row: TreeRow, lineAbove: boolean) => unknown;
+  draw: (row: TreeRow) => unknown;
   folded: (machine: string | null) => boolean;
   loading: (machine: string | null) => boolean;
   addSpace: (machine: string | null) => void;
@@ -108,7 +107,7 @@ await mock.module('../../kit/index.ts', () => kitIndexFake(realKit));
 const modulePath = './machineRows.ts';
 
 const loaded = (await import(modulePath)) as {
-  machineRows: (host: MachineRowsHostLike, collapsed: boolean) => DrawnElement[];
+  machineRows: (host: MachineRowsHostLike) => DrawnElement[];
   shownRows: (host: ShownRowsHostLike) => TreeRow[];
 };
 
@@ -196,7 +195,7 @@ const shownIds = (host: ShownRowsHostLike): string[] =>
   loaded.shownRows(host).map((row) => (row.kind === 'repo' ? row.main.space.id : row.space.id));
 
 const drawnSpaces = (host: ShownRowsHostLike): string[] => {
-  const rows = loaded.machineRows({ ...hostOf({}), ...host }, false);
+  const rows = loaded.machineRows({ ...hostOf({}), ...host });
 
   return drawnTexts(drawnTree(rows)).filter((text) => text.startsWith('space-'));
 };
@@ -252,7 +251,7 @@ const remoteNewSpaceRow = (tree: DrawnElement): DrawnElement =>
 
 describe('machineRows', () => {
   test('no error draws no machine error text', () => {
-    const rows = loaded.machineRows(hostOf({ groups: [repoFixture('a').group] }), false);
+    const rows = loaded.machineRows(hostOf({ groups: [repoFixture('a').group] }));
     const texts = drawnTexts(drawnTree(rows));
 
     expect(texts).not.toContain(machinesError);
@@ -268,7 +267,6 @@ describe('machineRows', () => {
         machineError: machinesError,
         retryMachines: retry,
       }),
-      false,
     );
 
     const tree = drawnTree(rows);
@@ -285,7 +283,6 @@ describe('machineRows', () => {
   test('a machine error with a remote machine comes before the first machine header', () => {
     const rows = loaded.machineRows(
       hostOf({ groups: [repoFixture('a', null, 'work').group], machineError: machinesError }),
-      false,
     );
 
     const texts = drawnTexts(drawnTree(rows));
@@ -294,25 +291,6 @@ describe('machineRows', () => {
 
     expect(errorAt).toBe(0);
     expect(headerAt).toBeGreaterThan(errorAt);
-  });
-
-  test('a machine error in the rail is a mark with the error tooltip whose click calls the machine retry', () => {
-    const retry = mock(() => undefined);
-
-    const rows = loaded.machineRows(
-      hostOf({ machineError: machinesError, retryMachines: retry }),
-      true,
-    );
-
-    const tree = drawnTree(rows);
-
-    expect(drawnTexts(tree)).not.toContain(machinesError);
-    expect(drawnIcons(tree)).toContain('circle-alert.svg');
-
-    const mark = elementWithTooltip(tree, machinesError);
-
-    click(mark as DrawnElement);
-    expect(retry).toHaveBeenCalledTimes(1);
   });
 
   test('a PR error is drawn after the group first row and its Retry calls the PR retry with that git', () => {
@@ -326,7 +304,6 @@ describe('machineRows', () => {
         pullError: (git) => (git === null ? null : prError),
         retryPull: retry,
       }),
-      false,
     );
 
     const tree = drawnTree(rows);
@@ -356,7 +333,6 @@ describe('machineRows', () => {
 
     const rows = loaded.machineRows(
       hostOf({ groups: [worktree('one'), worktree('two')], pullError: () => prError }),
-      false,
     );
 
     const texts = drawnTexts(drawnTree(rows));
@@ -374,7 +350,7 @@ describe('machineRows', () => {
       addSpace,
     });
 
-    const tree = drawnTree(loaded.machineRows(host, false));
+    const tree = drawnTree(loaded.machineRows(host));
 
     for (const row of clickablesWithText(tree, 'New space there')) {
       click(row);
@@ -383,7 +359,7 @@ describe('machineRows', () => {
     expect(addSpace).not.toHaveBeenCalledWith('work');
 
     const freshTree = drawnTree(
-      loaded.machineRows(hostOf({ machineList: [{ name: 'work', state: 'connected' }] }), false),
+      loaded.machineRows(hostOf({ machineList: [{ name: 'work', state: 'connected' }] })),
     );
 
     // The remote machine's header drops its add button; its row keeps a disabled plus.
@@ -394,7 +370,7 @@ describe('machineRows', () => {
     const addSpace = mock(() => undefined);
 
     const host = hostOf({ machineList: [{ name: 'work', state: 'connected' }], addSpace });
-    const tree = drawnTree(loaded.machineRows(host, false));
+    const tree = drawnTree(loaded.machineRows(host));
 
     click(remoteNewSpaceRow(tree));
     expect(addSpace).toHaveBeenCalledWith('work');

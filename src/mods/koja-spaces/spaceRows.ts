@@ -45,7 +45,7 @@ const pullDetail = (pull: Pull | null): Element[] => {
   return [detailText(`#${pull.number}`, colors()[token])];
 };
 
-export const rowTitle = (row: ListedSpace, pull: Pull | null): string => {
+const rowTitle = (row: ListedSpace, pull: Pull | null): string => {
   return row.space.named ? row.space.name : (pull?.title ?? row.space.name);
 };
 

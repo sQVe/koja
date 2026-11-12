@@ -43,7 +43,7 @@
       "size": {
         "px": 268
       },
-      "min": 44,
+      "min": 200,
       "max": 480,
       "background": "chrome",
       "resizable": false

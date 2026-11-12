@@ -139,9 +139,6 @@ export const drawnTooltips = (element: DrawnElement): string[] =>
 export const elementWithText = (element: DrawnElement, text: string): DrawnElement | null =>
   descendants(element).find((part) => part.texts.includes(text)) ?? null;
 
-export const elementWithTooltip = (element: DrawnElement, text: string): DrawnElement | null =>
-  descendants(element).find((part) => part.tooltipText === text) ?? null;
-
 export const elementWithIcon = (element: DrawnElement, name: string): DrawnElement | null =>
   descendants(element).find((part) => part.path?.split('/').at(-1) === name) ?? null;
 

@@ -15,14 +15,13 @@ import {
 } from '../../kit/index.ts';
 import type { Machine } from './machines.ts';
 import { machineGroupOrder } from './machines.ts';
-import { railErrorMark } from './rail.ts';
 import type { GitInfo, TreeGroup, TreeRow } from './tree.ts';
-import { gitOfGroup, groupGapBefore, groupRows, machineOfGroup, railLineBefore } from './tree.ts';
+import { gitOfGroup, groupGapBefore, groupRows, machineOfGroup } from './tree.ts';
 
 export interface MachineRowsHost {
   machineList: Machine[];
   groups: TreeGroup[];
-  draw: (row: TreeRow, lineAbove: boolean) => Element;
+  draw: (row: TreeRow) => Element;
   folded: (machine: string | null) => boolean;
   loading: (machine: string | null) => boolean;
   addSpace: (machine: string | null) => void;
@@ -46,8 +45,7 @@ const connected = (machineList: Machine[], machine: string | null): boolean =>
   machine === null ||
   machineList.find((candidate) => candidate.name === machine)?.state === 'connected';
 
-const loadingRow = (collapsed: boolean): Element =>
-  stateLine({ kind: 'loading', text: collapsed ? '…' : 'Loading…' });
+const loadingRow = (): Element => stateLine({ kind: 'loading', text: 'Loading…' });
 
 const errorRow = (text: string, retry: (cx: Context) => void): Element =>
   stateLine({
@@ -82,14 +80,10 @@ const machineState = (host: MachineRowsHost, machine: string | null): Element | 
     });
 };
 
-const machineHeader = (
-  host: MachineRowsHost,
-  machine: string | null,
-  collapsed: boolean,
-): Element => {
+const machineHeader = (host: MachineRowsHost, machine: string | null): Element => {
   const folded = host.folded(machine);
-  const state = collapsed ? null : machineState(host, machine);
-  const label = collapsed ? '' : (machine ?? 'This computer');
+  const state = machineState(host, machine);
+  const label = machine ?? 'This computer';
 
   return sectionHeader({
     label,
@@ -109,11 +103,7 @@ const machineHeader = (
     });
 };
 
-const newSpaceRow = (
-  host: MachineRowsHost,
-  machine: string | null,
-  collapsed: boolean,
-): Element => {
+const newSpaceRow = (host: MachineRowsHost, machine: string | null): Element => {
   const stale = staleRemote(host, machine);
 
   const row = listRow({
@@ -122,7 +112,7 @@ const newSpaceRow = (
     state: stale ? 'disabled' : 'normal',
     muted: true,
     start: iconSlot(icon('plus', 'small')),
-    label: collapsed ? '' : 'New space there',
+    label: 'New space there',
   }).id(`machine-new-${machine ?? 'local'}`);
 
   if (!stale) {
@@ -136,26 +126,21 @@ const newSpaceRow = (
 
 const groupGap = (): Element => div().h(spacing.medium);
 
-const groupChildren = (
-  host: MachineRowsHost,
-  groups: TreeGroup[],
-  collapsed: boolean,
-): Element[] => {
+const groupChildren = (host: MachineRowsHost, groups: TreeGroup[]): Element[] => {
   const elements: Element[] = [];
   const reposWithError = new Set<string>();
 
   groups.forEach((group, index) => {
     const previous = groups[index - 1] ?? null;
 
-    if (!collapsed && groupGapBefore(group, previous)) {
+    if (groupGapBefore(group, previous)) {
       elements.push(groupGap());
     }
 
-    const lineAbove = railLineBefore(group, previous);
     const rows = groupRows(group);
     const git = gitOfGroup(group);
     const repoKey = git?.repo.key ?? '';
-    const skipError = collapsed || reposWithError.has(repoKey);
+    const skipError = reposWithError.has(repoKey);
     const error = skipError ? null : host.pullError(git);
 
     if (error !== null) {
@@ -163,7 +148,7 @@ const groupChildren = (
     }
 
     rows.forEach((row, rowIndex) => {
-      elements.push(host.draw(row, lineAbove && rowIndex === 0));
+      elements.push(host.draw(row));
 
       if (rowIndex === 0 && error !== null) {
         elements.push(
@@ -177,12 +162,6 @@ const groupChildren = (
 
   return elements;
 };
-
-const machineErrorRow = (
-  text: string,
-  collapsed: boolean,
-  retry: (cx: Context) => void,
-): Element => (collapsed ? railErrorMark(text, retry) : errorRow(text, retry));
 
 const machineSections = (host: ShownRowsHost): MachineSection[] => {
   const remote = host.groups
@@ -209,34 +188,30 @@ export const shownRows = (host: ShownRowsHost): TreeRow[] =>
     .filter((section) => !section.folded)
     .flatMap((section) => section.groups.flatMap(groupRows));
 
-const sectionRows = (
-  host: MachineRowsHost,
-  section: MachineSection,
-  collapsed: boolean,
-): Element[] => {
+const sectionRows = (host: MachineRowsHost, section: MachineSection): Element[] => {
   if (section.folded) {
     return [];
   }
 
   if (section.groups.length > 0) {
-    return groupChildren(host, section.groups, collapsed);
+    return groupChildren(host, section.groups);
   }
 
   if (host.loading(section.machine)) {
-    return [loadingRow(collapsed)];
+    return [loadingRow()];
   }
 
-  return section.headed ? [newSpaceRow(host, section.machine, collapsed)] : [];
+  return section.headed ? [newSpaceRow(host, section.machine)] : [];
 };
 
-export const machineRows = (host: MachineRowsHost, collapsed: boolean): Element[] => {
+export const machineRows = (host: MachineRowsHost): Element[] => {
   const error = host.machineError();
-  const head = error === null ? [] : [machineErrorRow(error, collapsed, host.retryMachines)];
+  const head = error === null ? [] : [errorRow(error, host.retryMachines)];
 
   const rows = machineSections(host).flatMap((section) => {
-    const header = section.headed ? [machineHeader(host, section.machine, collapsed)] : [];
+    const header = section.headed ? [machineHeader(host, section.machine)] : [];
 
-    return header.concat(sectionRows(host, section, collapsed));
+    return header.concat(sectionRows(host, section));
   });
 
   return head.concat(rows);
