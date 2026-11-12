@@ -118,6 +118,13 @@ export const progressSize = {
 export const hoverCardSize = {
   width: 312,
   arrowDepth: 4,
+  pullColumn: 34,
+  ticketColumn: 58,
+} as const;
+
+export const sidebarSize = {
+  width: 268,
+  groupGap: 12,
 } as const;
 
 export const indentWidth = 20;

@@ -36,6 +36,10 @@ const sceneSizes = {
     width: overlaySize.paneHeadersWidth,
     height: overlaySize.paneHeadersHeight,
   },
+  'sidebar-parts': {
+    width: overlaySize.paneHeadersWidth,
+    height: overlaySize.paneHeadersHeight,
+  },
   'smoke-1': paletteSize,
   'smoke-2': paletteSize,
   'smoke-3': paletteSize,

@@ -60,11 +60,13 @@ export type { WorkNeed } from './workIcon.ts';
 export {
   controlSize,
   diffSize,
+  hoverCardSize,
   overlaySize,
   radius,
   rowHeight,
   separatorHeight,
   shellSize,
+  sidebarSize,
   spacing,
 } from './size.ts';
 

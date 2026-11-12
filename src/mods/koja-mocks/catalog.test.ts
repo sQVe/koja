@@ -35,6 +35,11 @@ describe('scene lookup', () => {
       width: overlaySize.paneHeadersWidth,
       height: overlaySize.paneHeadersHeight,
     },
+    {
+      name: 'sidebar-parts',
+      width: overlaySize.paneHeadersWidth,
+      height: overlaySize.paneHeadersHeight,
+    },
   ];
 
   test.each(sceneSizes)('the $name scene gives its name and size', (scene) => {

@@ -62,6 +62,7 @@ import {
   shellTicketScene,
 } from './scenes/shell.ts';
 import { sidebarScene } from './scenes/sidebar.ts';
+import { sidebarPartsScene } from './scenes/sidebarParts.ts';
 import {
   paletteClean,
   paletteClearFail,
@@ -77,6 +78,7 @@ const renderers: Record<SceneName, (inputs: SceneInputs) => Element> = {
   controls: controlsScene,
   shell: shellScene,
   'pane-headers': paneHeadersScene,
+  'sidebar-parts': sidebarPartsScene,
   'smoke-1': (inputs) => paletteNearFail(inputs.command),
   'smoke-2': (inputs) => paletteClean(inputs.command),
   'smoke-3': (inputs) => paletteClearFail(inputs.command),
