@@ -30,8 +30,8 @@ export interface DirectionTab extends FakeTab {
   icon?: IconName;
 }
 
-// Where the window shows the keyboard mode: a pill in the tab bar, or the focused pane's footer.
-type ModeMark = 'tabBar' | 'paneFooter';
+// Where the window shows the keyboard mode: a pill in the tab bar, or the focused pane's chrome row.
+type ModeMark = 'tabBar' | 'paneChrome';
 
 export interface PanelArrangement {
   toggles: (tokens: DirectionTokens) => Element[];
@@ -88,7 +88,7 @@ const tabControls = (arrangement: PanelArrangement, tokens: DirectionTokens): El
     .justify_end()
     .child(iconButton('plus', tokens, tokens.controls.primary));
 
-  if (arrangement.modeMark !== 'paneFooter') {
+  if (arrangement.modeMark !== 'paneChrome') {
     controls.child(modePill(tokens));
   }
 

@@ -24,7 +24,7 @@ import { createMixState, mixScene } from './directions/attention/mix.ts';
 import { contentScene } from './directions/content/scene.ts';
 import { dialogScene } from './directions/dialogs/scene.ts';
 import { draftReviewScene } from './directions/draftReview/scene.ts';
-import { footerScene } from './directions/footer/scene.ts';
+import { modeScene } from './directions/footer/scene.ts';
 import { koja, kojaNormal } from './directions/koja.ts';
 import { gotoScene } from './directions/overlays/goto.ts';
 import { keysScene } from './directions/overlays/keys.ts';
@@ -90,12 +90,18 @@ const renderers: Record<SceneName, (inputs: SceneInputs) => Element> = {
   'attention-brief-normal': () => briefScene(kojaNormal),
   'direction-koja': () => directionWindow(koja),
   'direction-koja-normal': () => directionWindow(kojaNormal),
-  'footer-insert': () => footerScene('insert'),
-  'footer-normal': () => footerScene('normal'),
-  'footer-pending': () => footerScene('pending'),
-  'footer-split': () => footerScene('split'),
-  'footer-split-normal': () => footerScene('split-normal'),
-  'footer-lone': () => footerScene('lone'),
+  'footer-insert': () => modeScene('insert', 'bottom'),
+  'footer-normal': () => modeScene('normal', 'bottom'),
+  'footer-pending': () => modeScene('pending', 'bottom'),
+  'footer-split': () => modeScene('split', 'bottom'),
+  'footer-split-normal': () => modeScene('split-normal', 'bottom'),
+  'footer-lone': () => modeScene('lone', 'bottom'),
+  'header-mode-insert': () => modeScene('insert', 'top'),
+  'header-mode-normal': () => modeScene('normal', 'top'),
+  'header-mode-pending': () => modeScene('pending', 'top'),
+  'header-mode-split': () => modeScene('split', 'top'),
+  'header-mode-split-normal': () => modeScene('split-normal', 'top'),
+  'header-mode-lone': () => modeScene('lone', 'top'),
   'sidebar-inbox': () => directionWindow(koja, inboxSidebar),
   'sidebar-hover': () => hoverScene(koja),
   'sidebar-find': () => searchScene(koja),

@@ -1,7 +1,7 @@
 import { afterAll, describe, expect, mock, test } from 'bun:test';
 
 import type { DrawnElement } from '../../../../../tests/drawn.ts';
-import { drawn, drawnIcons, drawnTexts } from '../../../../../tests/drawn.ts';
+import { drawn, drawnIcons, drawnTexts, elementWithText } from '../../../../../tests/drawn.ts';
 import {
   gpuiBaseFake,
   gpuiKitFake,
@@ -26,7 +26,8 @@ interface Expected {
   pending: string | null;
   focused: FakePane;
   unfocused: FakePane[];
-  // Panes whose footer is too narrow for the folder.
+  // Panes whose row is too narrow for the task, and those too narrow for the folder as well.
+  noTask: FakePane[];
   noFolder: FakePane[];
 }
 
@@ -35,16 +36,56 @@ interface Tokens {
   controls: { toggleFill: string };
 }
 
+type DrawingMethod = (...values: unknown[]) => unknown;
+
+const styleCalls = new WeakMap<DrawnElement, Set<string>>();
+
+// The shared fake keeps no layout calls, so this one also records the name of every call.
+const styledElement = (path: string | null = null): DrawnElement => {
+  const element = drawn(path) as DrawnElement & Record<string, unknown>;
+  const calls = new Set<string>();
+
+  const handle: DrawnElement = new Proxy(element, {
+    get: (target, key) => {
+      if (typeof key !== 'string') {
+        return undefined;
+      }
+
+      const value = target[key];
+
+      if (typeof value !== 'function') {
+        return value;
+      }
+
+      const method = value as DrawingMethod;
+
+      return (...values: unknown[]) => {
+        calls.add(key);
+        method(...values);
+
+        return handle;
+      };
+    },
+  });
+
+  styleCalls.set(handle, calls);
+
+  return handle;
+};
+
+const hasStyle = (element: DrawnElement | undefined, name: string): boolean =>
+  element !== undefined && (styleCalls.get(element)?.has(name) ?? false);
+
 await mock.module('gpui-base', () =>
-  gpuiBaseFake({ h_flex: () => drawn(), v_flex: () => drawn() }),
+  gpuiBaseFake({ h_flex: () => styledElement(), v_flex: () => styledElement() }),
 );
 
-await mock.module('gpui-kit', () => gpuiKitFake({ div: () => drawn() }));
+await mock.module('gpui-kit', () => gpuiKitFake({ div: () => styledElement() }));
 
 await mock.module('herdr', () => herdrFake());
 
 await mock.module('../../../../kit/index.ts', () =>
-  kitIndexFake({ icon: (name: string) => drawn(name) }),
+  kitIndexFake({ icon: (name: string) => styledElement(name) }),
 );
 
 // Loaded by path, so the root typecheck does not follow them into source that needs Herdr's types.
@@ -54,9 +95,12 @@ const windowPath = '../window.ts';
 const kojaPath = '../koja.ts';
 const contentPath = '../../scenes/shellContent.ts';
 
-const { footerScene } = (await import(scenePath)) as {
-  footerScene: (name: FooterSceneName) => DrawnElement;
+const { modeScene } = (await import(scenePath)) as {
+  modeScene: (name: FooterSceneName, position: 'top' | 'bottom') => DrawnElement;
 };
+
+const footerScene = (name: FooterSceneName): DrawnElement => modeScene(name, 'bottom');
+const headerScene = (name: FooterSceneName): DrawnElement => modeScene(name, 'top');
 
 const { reviewPane } = (await import(dataPath)) as { reviewPane: FakePane };
 
@@ -96,8 +140,10 @@ const footerTexts = (window: DrawnElement, fakePane: FakePane): string[] => {
 const paneFields = (fakePane: FakePane, expected: Expected): string[] => {
   const fields = [fakePane.name];
 
-  if (fakePane.task !== undefined) {
-    fields.push(fakePane.task);
+  const task = expected.noTask.includes(fakePane) ? undefined : fakePane.task;
+
+  if (task !== undefined) {
+    fields.push(task);
   }
 
   if (fakePane.branch !== undefined) {
@@ -130,19 +176,20 @@ const changesToggleFills = (window: DrawnElement): string[][] =>
     .filter((part) => part.kids.some((kid) => kid.path === 'git-compare'))
     .map((part) => part.backgroundColors);
 
-const shellScene = { focused: agentPane, unfocused: [shellPane], noFolder: [agentPane] };
+const shellScene = { focused: agentPane, unfocused: [shellPane], noTask: [agentPane] };
 
 const scenes: Expected[] = [
-  { name: 'insert', mode: 'Insert', pending: null, ...shellScene },
-  { name: 'normal', mode: 'Normal', pending: null, ...shellScene },
-  { name: 'pending', mode: 'Normal', pending: '3s', ...shellScene },
+  { name: 'insert', mode: 'Insert', pending: null, ...shellScene, noFolder: [] },
+  { name: 'normal', mode: 'Normal', pending: null, ...shellScene, noFolder: [] },
+  { name: 'pending', mode: 'Normal', pending: '3s', ...shellScene, noFolder: [agentPane] },
   {
     name: 'split',
     mode: 'Insert',
     pending: null,
     focused: reviewPane,
     unfocused: [agentPane, shellPane],
-    noFolder: [agentPane, reviewPane],
+    noTask: [],
+    noFolder: [],
   },
   {
     name: 'split-normal',
@@ -150,7 +197,8 @@ const scenes: Expected[] = [
     pending: 'g',
     focused: agentPane,
     unfocused: [reviewPane, shellPane],
-    noFolder: [agentPane],
+    noTask: [agentPane],
+    noFolder: [],
   },
   {
     name: 'lone',
@@ -158,12 +206,25 @@ const scenes: Expected[] = [
     pending: null,
     focused: agentPane,
     unfocused: [],
+    noTask: [],
     noFolder: [],
   },
 ];
 
+const panesOf = (expected: Expected): FakePane[] => [expected.focused, ...expected.unfocused];
+
+// The card parts of a pane: its chrome row and its terminal body, in drawing order.
+const paneParts = (window: DrawnElement, fakePane: FakePane): DrawnElement[] => {
+  const chrome = footerOf(window, fakePane);
+  const paneCard = descendants(window).find((part) => part.kids.some((kid) => kid === chrome));
+
+  return paneCard?.kids ?? [];
+};
+
 const modeLabels = (texts: string[]): string[] =>
   texts.filter((text) => text === 'Insert' || text === 'Normal');
+
+const sorted = (window: DrawnElement): string[] => drawnTexts(window).toSorted();
 
 describe('the pane footer scenes', () => {
   test.each(scenes)(
@@ -235,17 +296,137 @@ describe('the pane footer scenes', () => {
   test.each(scenes)('footer-$name draws each footer after its terminal body', (expected) => {
     const window = footerScene(expected.name);
 
-    for (const fakePane of [expected.focused, ...expected.unfocused]) {
-      const footer = footerOf(window, fakePane);
-      const paneCard = descendants(window).find((part) => part.kids.some((kid) => kid === footer));
-      const parts = paneCard?.kids ?? [];
-      const firstLine = fakePane.lines.at(0) ?? '';
-      const bodyIndex = parts.findIndex((part) => drawnTexts(part).includes(firstLine));
+    for (const fakePane of panesOf(expected)) {
+      const parts = paneParts(window, fakePane);
 
-      expect(bodyIndex).toBe(0);
-      expect(parts.at(-1)).toBe(footer);
       expect(parts).toHaveLength(2);
+      expect(drawnTexts(parts[0] ?? drawn())).toEqual(fakePane.lines);
+      expect(parts[1]).toBe(footerOf(window, fakePane));
     }
+  });
+
+  test.each(scenes)(
+    'header-mode-$name draws each chrome row before its terminal body',
+    (expected) => {
+      const window = headerScene(expected.name);
+
+      for (const fakePane of panesOf(expected)) {
+        const parts = paneParts(window, fakePane);
+
+        expect(parts).toHaveLength(2);
+        expect(parts[0]).toBe(footerOf(window, fakePane));
+        expect(drawnTexts(parts[1] ?? drawn())).toEqual(fakePane.lines);
+      }
+    },
+  );
+
+  test.each(scenes)(
+    'header-mode-$name draws the texts, icons, and fills of footer-$name in every chrome row',
+    (expected) => {
+      const header = headerScene(expected.name);
+      const footer = footerScene(expected.name);
+
+      for (const fakePane of panesOf(expected)) {
+        const top = footerOf(header, fakePane) ?? drawn('missing header');
+        const bottom = footerOf(footer, fakePane) ?? drawn('missing footer');
+
+        expect(drawnTexts(top)).toEqual(drawnTexts(bottom));
+        expect(drawnTexts(top)).toContain(fakePane.name);
+        expect(drawnIcons(top)).toEqual(drawnIcons(bottom));
+
+        expect(descendants(top).map((part) => part.backgroundColors)).toEqual(
+          descendants(bottom).map((part) => part.backgroundColors),
+        );
+      }
+    },
+  );
+
+  test.each(scenes)(
+    'header-mode-$name differs from footer-$name in the order of its parts only',
+    (expected) => {
+      expect(sorted(headerScene(expected.name))).toEqual(sorted(footerScene(expected.name)));
+      expect(modeLabels(drawnTexts(headerScene(expected.name)))).toEqual([expected.mode]);
+    },
+  );
+
+  test.each(['insert', 'normal', 'pending'] as const)(
+    'header-mode-%s draws the Changes title row above its list',
+    (name) => {
+      const texts = drawnTexts(headerScene(name));
+
+      expect(texts.indexOf('Changes')).toBeGreaterThan(-1);
+      expect(texts.indexOf('Changes')).toBeLessThan(texts.indexOf('src/kit/paneHeader.ts'));
+    },
+  );
+
+  test.each(scenes)('header-mode-$name divides each chrome row on its bottom edge', (expected) => {
+    const window = headerScene(expected.name);
+
+    for (const fakePane of panesOf(expected)) {
+      const chrome = footerOf(window, fakePane);
+
+      expect(hasStyle(chrome, 'border_b')).toBe(true);
+      expect(hasStyle(chrome, 'border_t')).toBe(false);
+    }
+  });
+
+  test.each(scenes)('footer-$name divides each footer on its top edge', (expected) => {
+    const window = footerScene(expected.name);
+
+    for (const fakePane of panesOf(expected)) {
+      const chrome = footerOf(window, fakePane);
+
+      expect(hasStyle(chrome, 'border_t')).toBe(true);
+      expect(hasStyle(chrome, 'border_b')).toBe(false);
+    }
+  });
+
+  test.each(['top', 'bottom'] as const)(
+    'a narrowed row at the %s cuts its branch in the middle and lets it shrink',
+    (position) => {
+      const window = modeScene('insert', position);
+
+      const branch = elementWithText(
+        footerOf(window, agentPane) ?? drawn(),
+        agentPane.branch ?? '',
+      );
+
+      expect(hasStyle(branch ?? undefined, 'text_ellipsis_middle')).toBe(true);
+      expect(hasStyle(branch ?? undefined, 'flex_none')).toBe(false);
+    },
+  );
+
+  test.each(['top', 'bottom'] as const)(
+    'a full row at the %s keeps its branch whole at a fixed width',
+    (position) => {
+      const window = modeScene('lone', position);
+
+      const branch = elementWithText(
+        footerOf(window, agentPane) ?? drawn(),
+        agentPane.branch ?? '',
+      );
+
+      expect(hasStyle(branch ?? undefined, 'flex_none')).toBe(true);
+      expect(hasStyle(branch ?? undefined, 'text_ellipsis_middle')).toBe(false);
+    },
+  );
+
+  test('a narrow row drops the task and keeps the branch and the folder', () => {
+    expect(footerTexts(footerScene('insert'), agentPane)).toEqual([
+      'Insert',
+      agentPane.name,
+      agentPane.branch ?? '',
+      agentPane.folder,
+    ]);
+  });
+
+  test('the narrowest row drops the folder after the task and keeps the branch', () => {
+    expect(footerTexts(footerScene('pending'), agentPane)).toEqual([
+      'Normal',
+      '3s',
+      agentPane.name,
+      agentPane.branch ?? '',
+    ]);
   });
 
   test.each(scenes)('footer-$name draws its one mode label outside the tab bar', (expected) => {
