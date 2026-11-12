@@ -1,6 +1,7 @@
 import { afterAll, beforeEach, expect, mock, test } from 'bun:test';
 
 import { gpuiBaseFake, gpuiKitFake, kitIndexFake } from '../../../tests/moduleFakes.ts';
+import { helpGroups } from './rows.ts';
 
 type KeyHandler = (event: { key: string }) => void;
 
@@ -150,6 +151,10 @@ test('help draws normal keys, filters spaces, and closes on Escape', () => {
 
   expect(drawnKeys).toContain('s j');
   expect(drawnKeys).not.toContain('t n');
+
+  const matching = helpGroups('space').flatMap((group) => group.rows.map((row) => row.name));
+
+  expect(drawnRows).toEqual(matching);
   expect(drawnRows).toContain('Next space');
   expect(drawnRows).not.toContain('New tab');
 
