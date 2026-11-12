@@ -83,7 +83,6 @@ const spaceRow = (space: FakeSpace): Element =>
     inset: true,
     state: space.look === 'selected' ? 'selected' : 'normal',
     hovered: space.look === 'hovered',
-    cursor: space.look === 'cursor',
     start: spaceMark(space.agent),
     label: space.title,
     end: spaceEnd(space),

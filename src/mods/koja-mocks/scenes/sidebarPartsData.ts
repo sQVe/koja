@@ -2,7 +2,7 @@ import type { Status } from 'herdr';
 
 import type { WorkNeed } from '../../../kit/index.ts';
 
-export type RowLook = 'normal' | 'selected' | 'hovered' | 'cursor';
+export type RowLook = 'normal' | 'selected' | 'hovered';
 
 export interface FakeSpace {
   title: string;
@@ -62,14 +62,14 @@ export const fakeProjects: FakeProject[] = [
         agent: 'working',
         need: 'restack',
         stack: { merged: 1, total: 3 },
-        look: 'cursor',
+        look: 'normal',
       },
     ],
   },
   {
     name: 'tikk',
     spaces: [
-      { title: 'Ticket sync', agent: null, need: 'conflict', look: 'normal' },
+      { title: 'Ticket sync', agent: null, look: 'normal' },
       { title: 'Import tickets from Linear', agent: 'idle', look: 'normal' },
     ],
   },
