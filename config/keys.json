@@ -3,9 +3,7 @@
     "ctrl-b": "mod.open:koja-modal"
   },
   "mod:koja-modal": {
-    "ctrl-b": "koja-modal.hold",
-    "tab": "koja-modal.section-next",
-    "shift-tab": "koja-modal.section-previous"
+    "ctrl-b": "koja-modal.hold"
   },
   "terminal": {
     "ctrl-backspace": "send:\u0017",

@@ -59,6 +59,14 @@ const plain = (key: string): NormalKeyEvent => ({
   modifiers: noModifiers,
 });
 
+const tab: NormalKeyEvent = { key: 'tab', keystroke: 'tab', modifiers: noModifiers };
+
+const shiftTab: NormalKeyEvent = {
+  key: 'tab',
+  keystroke: 'shift-tab',
+  modifiers: { ...noModifiers, shift: true },
+};
+
 let focusedPane: string | null = 'p1';
 let focusedTab = 'tab-1';
 let runCalls: RunCall[] = [];
@@ -73,6 +81,9 @@ let statusLookups = 0;
 let paletteOpen = false;
 let helpOpen = false;
 let keyDownHandler: ((event: unknown) => void) | null = null;
+let keyBindings: { keystroke: string; action: string; context?: string }[] = [];
+let keyContext: string | null = null;
+let actionHandlers: Record<string, () => void> = {};
 let currentContext: unknown = null;
 let sharedValues: Record<string, unknown> = {};
 let sharedWrites: string[] = [];
@@ -119,6 +130,20 @@ const createElement = (): Record<string, unknown> => {
     return element;
   };
 
+  element['key_context'] = (context: string) => {
+    keyContext = context;
+
+    return element;
+  };
+
+  element['on_action'] = (action: string, handler: (event: unknown, cx: unknown) => void) => {
+    actionHandlers[action] = () => {
+      handler({ action }, currentContext);
+    };
+
+    return element;
+  };
+
   element['on_mouse_down'] = () => element;
   element['track_focus'] = () => element;
 
@@ -149,6 +174,17 @@ const press = (event: NormalKeyEvent): void => {
   }
 
   keyDownHandler?.(event);
+};
+
+// A key that the mod bound itself arrives as its action, and never as a raw key.
+const pressBound = (keystroke: string): void => {
+  const binding = keyBindings.find(
+    (candidate) => candidate.keystroke === keystroke && candidate.context === keyContext,
+  );
+
+  if (binding !== undefined && overlayFocused) {
+    actionHandlers[binding.action]?.();
+  }
 };
 
 const runAfterHandlers = (): void => {
@@ -261,6 +297,11 @@ const loadView = async (): Promise<FakeView> => {
       is_focused: () => overlayFocused,
       release: () => true,
     }),
+    bind_keys: (bindings: typeof keyBindings) => {
+      keyBindings.push(...bindings);
+
+      return bindings.length;
+    },
     spawn: (body: () => Promise<void>) => {
       body().catch(() => undefined);
     },
@@ -305,6 +346,9 @@ beforeEach(() => {
   paletteOpen = false;
   helpOpen = false;
   keyDownHandler = null;
+  keyBindings = [];
+  keyContext = null;
+  actionHandlers = {};
   currentContext = null;
   sharedValues = {};
   sharedWrites = [];
@@ -671,28 +715,48 @@ describe('koja modal view', () => {
     expect(statusLookups).toBe(0);
   });
 
-  test('the section-next command marks the sidebar and the next one marks panes', async () => {
+  test('the tab key that the mod binds marks the sidebar, and the next one marks panes', async () => {
     const view = await loadView();
 
     view.render();
-    deliverCommand('section-next');
-    await flush();
+    pressBound('tab');
 
     const afterFirst = markedSection();
 
-    deliverCommand('section-next');
-    await flush();
+    pressBound('tab');
 
     expect([afterFirst, markedSection()]).toEqual(['sidebar', 'panes']);
     expect(closeCalls).toEqual([]);
   });
 
-  test('the section-previous command marks the sidebar', async () => {
+  test('the shift-tab key that the mod binds marks the sidebar from panes', async () => {
     const view = await loadView();
 
     view.render();
-    deliverCommand('section-previous');
-    await flush();
+    pressBound('shift-tab');
+
+    expect(markedSection()).toBe('sidebar');
+  });
+
+  test('tab marks the sidebar and the next tab marks panes', async () => {
+    const view = await loadView();
+
+    view.render();
+    press(tab);
+
+    const afterFirst = markedSection();
+
+    press(tab);
+
+    expect([afterFirst, markedSection()]).toEqual(['sidebar', 'panes']);
+    expect(closeCalls).toEqual([]);
+  });
+
+  test('shift-tab marks the sidebar', async () => {
+    const view = await loadView();
+
+    view.render();
+    press(shiftTab);
 
     expect(markedSection()).toBe('sidebar');
   });
@@ -701,8 +765,7 @@ describe('koja modal view', () => {
     const view = await loadView();
 
     view.render();
-    deliverCommand('section-next');
-    await flush();
+    press(tab);
     press(plain('j'));
 
     expect(runCalls).toEqual([{ command: 'koja-spaces.list-down', args: undefined }]);
@@ -713,8 +776,7 @@ describe('koja modal view', () => {
     const view = await loadView();
 
     view.render();
-    deliverCommand('section-next');
-    await flush();
+    press(tab);
     press({ key: 'enter', keystroke: 'enter', modifiers: noModifiers });
 
     expect(runCalls).toEqual([{ command: 'koja-spaces.list-open', args: undefined }]);
@@ -725,8 +787,7 @@ describe('koja modal view', () => {
     const view = await loadView();
 
     view.render();
-    deliverCommand('section-next');
-    await flush();
+    press(tab);
     press(plain('i'));
 
     expect(closeCalls).toEqual(['overlay-1']);
@@ -737,8 +798,7 @@ describe('koja modal view', () => {
     const view = await loadView();
 
     view.render();
-    deliverCommand('section-next');
-    await flush();
+    press(tab);
     const beforeHide = markedSection();
 
     sidebarHidden = true;
@@ -751,8 +811,7 @@ describe('koja modal view', () => {
     const view = await loadView();
 
     view.render();
-    deliverCommand('section-next');
-    await flush();
+    press(tab);
     sidebarHidden = true;
     press(plain('j'));
 

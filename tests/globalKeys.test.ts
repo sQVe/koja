@@ -4,6 +4,7 @@ import { readFile } from 'node:fs/promises';
 interface Keys {
   global: Record<string, string>;
   terminal: Record<string, string>;
+  'mod:koja-modal': Record<string, string>;
 }
 
 const allowedGlobalKeys = ['ctrl-b'];
@@ -48,4 +49,12 @@ test('config/keys.json has no terminal key outside the allowlist', async () => {
 
   expect(outside, 'terminal keys outside the allowlist').toEqual([]);
   expect(Object.keys(terminal).toSorted()).toEqual(allowedTerminalKeys);
+});
+
+// koja-modal binds Tab and Shift-Tab itself. A binding for them here never reaches the mod in a
+// window that was just started.
+test('config/keys.json binds only ctrl-b in the koja-modal section', async () => {
+  const modal = (await readKeys())['mod:koja-modal'];
+
+  expect(Object.keys(modal).toSorted()).toEqual(['ctrl-b']);
 });

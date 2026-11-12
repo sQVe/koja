@@ -15,8 +15,10 @@ on the list instead of the panes, so the app needs to know which section the key
 focus back after each action. A key that arrives while another surface has focus goes to that
 surface, and when that surface is a terminal, the key is typed into the program in the pane.
 
-The window uses `Tab` and `Shift-Tab` for its own tab stops, so they never arrive at a mod as raw
-keys. A mod gets them only through a key binding in its own key section.
+In a window that was just started, Herdr takes `Tab` and `Shift-Tab` itself. `koja-modal` then gets
+neither the raw key nor a command, with or without a binding in its key section of `keys.json`.
+After Herdr reloads `keys.json` in a running window, the keys arrive as raw keys, or as the command
+when the key section binds them. The reload also drops a key binding that a mod made itself.
 
 A mod command sent to a hidden mod fails with a visible error.
 
@@ -29,8 +31,10 @@ The marked section is a shared value, because every mod draws again when a share
 section draws the mark and runs the list commands. It never takes focus. The section with no mark
 drawn is the panes, and there the list keys keep their pane and scroll meaning.
 
-`Tab` and `Shift-Tab` step the mark through the shown sections. They are bound in the key section of
-`koja-modal`, so they apply only while normal mode has focus and take no key from programs in panes.
+`Tab` and `Shift-Tab` step the mark through the shown sections. `koja-modal` binds them itself, in
+its own key context, so they work in a window that was just started. They are also rows in the kit's
+key table, which covers the raw keys after a reload of `keys.json`. `keys.json` has no entry for
+them. Both ways apply only while normal mode has focus and take no key from programs in panes.
 
 The mark never rests on a hidden section. The step skips a hidden section, and `koja-modal` moves
 the mark back to the panes when the marked section hides, before it sends any key.

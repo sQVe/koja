@@ -18,6 +18,7 @@ import { createKeyboardHold, createStatusLookup } from './keyboardHold.ts';
 import { normalizeKey } from './keyEvent.ts';
 import type { ParserState } from './parser.ts';
 import { initialParserState, parseKey } from './parser.ts';
+import { bindSectionKeys, withSectionKeys } from './sectionKeys.ts';
 import { createSections, isSectionKeyAction } from './sections.ts';
 
 const modeKey = 'koja-modal';
@@ -25,12 +26,6 @@ const modeKey = 'koja-modal';
 const historyKey = 'koja-modal.history';
 
 const refocusIntervalMilliseconds = 50;
-
-const commandKeys = new Map([
-  ['hold', 'ctrl-b'],
-  ['section-next', 'tab'],
-  ['section-previous', 'shift-tab'],
-]);
 
 const stopPress = (_event: unknown, cx: Context): void => {
   cx.stop_propagation();
@@ -92,6 +87,7 @@ export default class KojaModal extends View {
 
     this.handle = handle;
     handle.focus();
+    bindSectionKeys(cx);
     setShared(modeKey, true);
     this.sections.reset();
     this.executor.observe();
@@ -115,13 +111,17 @@ export default class KojaModal extends View {
   override render(): Element {
     const handle = this.handle;
 
-    const root = div()
+    const keyed = div()
       .id(modName)
       .size_full()
       .on_key_down((event, cx) => {
         this.handleKey(event, cx);
       })
       .on_mouse_down('left', stopPress);
+
+    const root = withSectionKeys(keyed, (key, cx) => {
+      this.handleKeyName(key, cx);
+    });
 
     return handle === null ? root : root.track_focus(handle);
   }
@@ -200,10 +200,9 @@ export default class KojaModal extends View {
       for (;;) {
         // eslint-disable-next-line no-await-in-loop -- each key command is awaited in turn
         const command = await nextCommand();
-        const key = commandKeys.get(command);
 
-        if (key !== undefined) {
-          this.handleKeyName(key, cx);
+        if (command === 'hold') {
+          this.handleKeyName('ctrl-b', cx);
           this.hold.check();
         }
       }
