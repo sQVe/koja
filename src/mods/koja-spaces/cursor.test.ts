@@ -106,6 +106,10 @@ describe('cursorRow', () => {
     expect(cursorRow(['a', 'b'], 'b', 'a')).toBe('b');
   });
 
+  test('keeps the cursor on the first row when another row is active', () => {
+    expect(cursorRow(['a', 'b'], 'a', 'b')).toBe('a');
+  });
+
   test('is the active space when there is no cursor or it is no longer shown', () => {
     expect(cursorRow(['a', 'b'], null, 'b')).toBe('b');
     expect(cursorRow(['a', 'b'], 'gone', 'b')).toBe('b');

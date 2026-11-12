@@ -95,6 +95,15 @@ describe('marked section', () => {
     expect(session.writes).toEqual(['sidebar', 'panes']);
   });
 
+  test('bare escape keeps panes marked while the sidebar is shown', () => {
+    const session = createSession();
+
+    session.press('escape');
+
+    expect(session.marked()).toBe('panes');
+    expect(session.writes).toEqual([]);
+  });
+
   test('escape after a pending prefix keeps the mark', () => {
     const session = createSession();
 
