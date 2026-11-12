@@ -23,8 +23,11 @@ Each key works from normal mode. Press `key b Control_L` to enter it.
 1. Run `bun run sandbox shot <file>` and read the image to see the window.
 2. Use one entry point.
 3. Take a `shot`, and read the dialog or the prompt.
-4. Cancel with `key Escape`, or click `Close` when the brief allows data writes.
-5. Take a `shot`, and count the spaces, tabs, and panes.
+4. In a close dialog, cancel with `key Escape`. When the brief allows data writes, click `Close`.
+5. In a rename prompt, cancel with `key Escape`. When the brief allows data writes, clear the name
+   with `key BackSpace`, once per letter. Type a new name with `bun run sandbox type "<name>"`, then
+   run `key Return` or click `Save`. Repeat once with an empty name.
+6. Take a `shot`, and count the spaces, tabs, and panes, or read the new name.
 
 ## Observable results
 
