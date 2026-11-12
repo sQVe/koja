@@ -655,8 +655,75 @@ describe('needs you jump', () => {
       { pane: 'p2', tab: 'tab-2', status: 'blocked' },
     ]);
 
-    session.values['spaces.order'] = { shown: ['space-1'], hidden: ['space-2'] };
+    session.values['spaces.order'] = { shown: ['space-1'], hidden: ['space-2'], roots: [] };
     session.act(intent('nextNeedsYou'));
+
+    expect(session.calls).toEqual([]);
+  });
+});
+
+const spaceOf = (id: string): SpaceLike => ({ id, tabs: [] });
+
+describe('repository steps', () => {
+  const liveIds = ['space-1', 'space-2', 'space-3'];
+
+  const liveSpaces = liveIds.map(spaceOf);
+
+  const publishOrder = (session: Session): void => {
+    session.values['spaces.order'] = {
+      shown: liveIds,
+      hidden: [],
+      roots: ['space-2', 'space-3'],
+    };
+  };
+
+  test('the next root intent selects the nearest repository after the focused space', () => {
+    const session = createSession(twoPanes, 'p1', 'tab-1');
+
+    session.setSpaces(liveSpaces);
+    publishOrder(session);
+    session.act(intent('nextRoot'));
+
+    expect(session.calls).toEqual([{ command: 'space.select', args: { id: 'space-2' } }]);
+  });
+
+  test('the previous root intent wraps to the last repository', () => {
+    const session = createSession(twoPanes, 'p1', 'tab-1');
+
+    session.setSpaces(liveSpaces);
+    publishOrder(session);
+    session.act(intent('previousRoot'));
+
+    expect(session.calls).toEqual([{ command: 'space.select', args: { id: 'space-3' } }]);
+  });
+
+  test('the root intents run nothing without a published order', () => {
+    const session = createSession(twoPanes, 'p1', 'tab-1');
+
+    session.setSpaces(liveSpaces);
+    session.act(intent('nextRoot'));
+    session.act(intent('previousRoot'));
+
+    expect(session.calls).toEqual([]);
+  });
+
+  test('the root intents run nothing when the order misses a live space', () => {
+    const session = createSession(twoPanes, 'p1', 'tab-1');
+
+    session.setSpaces([...liveSpaces, spaceOf('space-4')]);
+    publishOrder(session);
+    session.act(intent('nextRoot'));
+
+    expect(session.calls).toEqual([]);
+  });
+
+  test('the root intents run nothing when no pane is focused', () => {
+    const session = createSession(twoPanes, 'p1', 'tab-1');
+
+    session.setSpaces(liveSpaces);
+    publishOrder(session);
+    session.clearFocus();
+    session.act(intent('nextRoot'));
 
     expect(session.calls).toEqual([]);
   });

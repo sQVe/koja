@@ -4,6 +4,7 @@ import type { SpaceCommand, SpaceOrder, SpaceStepFacts } from './spaceOrder.ts';
 import {
   clearSpaceOrder,
   readSpaceOrder,
+  rootStepCommand,
   spaceStepCommand,
   visibleSpaceIds,
   writeSpaceOrder,
@@ -24,15 +25,17 @@ describe('space order', () => {
   test('reads back the shown and hidden ids that were written', () => {
     const store = memoryStore();
 
-    writeSpaceOrder(store.set, { shown: ['main', 'worktree'], hidden: ['folded'] });
+    const published = { shown: ['main', 'worktree'], hidden: ['folded'], roots: ['main'] };
 
-    expect(readSpaceOrder(store.get)).toEqual({ shown: ['main', 'worktree'], hidden: ['folded'] });
+    writeSpaceOrder(store.set, published);
+
+    expect(readSpaceOrder(store.get)).toEqual(published);
   });
 
   test('reads no order after the published order is cleared', () => {
     const store = memoryStore();
 
-    writeSpaceOrder(store.set, { shown: ['main'], hidden: [] });
+    writeSpaceOrder(store.set, { shown: ['main'], hidden: [], roots: [] });
     clearSpaceOrder(store.set);
 
     expect(readSpaceOrder(store.get)).toBeNull();
@@ -47,15 +50,23 @@ describe('space order', () => {
   });
 
   test('reads no order when the hidden list is missing', () => {
-    expect(readSpaceOrder(() => ({ shown: ['main'] }))).toBeNull();
+    expect(readSpaceOrder(() => ({ shown: ['main'], roots: [] }))).toBeNull();
+  });
+
+  test('reads no order when the root list is missing', () => {
+    expect(readSpaceOrder(() => ({ shown: ['main'], hidden: [] }))).toBeNull();
   });
 
   test('reads no order when a list holds something other than ids', () => {
-    expect(readSpaceOrder(() => ({ shown: ['main', 3], hidden: [] }))).toBeNull();
+    expect(readSpaceOrder(() => ({ shown: ['main', 3], hidden: [], roots: [] }))).toBeNull();
   });
 });
 
-const order = (shown: string[], hidden: string[] = []): SpaceOrder => ({ shown, hidden });
+const order = (shown: string[], hidden: string[] = [], roots: string[] = []): SpaceOrder => ({
+  shown,
+  hidden,
+  roots,
+});
 
 const select = (id: string): SpaceCommand => ({ name: 'space.select', args: { id } });
 
@@ -176,5 +187,74 @@ describe('visibleSpaceIds', () => {
     const published = order(['notes'], ['main']);
 
     expect(visibleSpaceIds({ order: published, liveIds: sidebar })).toEqual(sidebar);
+  });
+});
+
+const tree = ['a', 'a1', 'b', 'c'];
+
+const treeOrder = order(tree, [], ['a', 'c']);
+
+const foldedOrder = order(['a', 'b', 'c'], ['a1'], ['a', 'c']);
+
+const foldedIds = ['a', 'b', 'c', 'a1'];
+
+const rootSteps: [string, number, SpaceStepFacts, SpaceCommand | null][] = [
+  ['selects the nearest root after a worktree', 1, facts('a1', treeOrder, tree), select('c')],
+  ['selects the nearest root before a worktree', -1, facts('a1', treeOrder, tree), select('a')],
+  ['selects the nearest root before a plain space', -1, facts('b', treeOrder, tree), select('a')],
+  ['selects the next root from a root', 1, facts('a', treeOrder, tree), select('c')],
+  ['wraps from the last root to the first', 1, facts('c', treeOrder, tree), select('a')],
+  ['wraps from the first root to the last', -1, facts('a', treeOrder, tree), select('c')],
+  [
+    'goes from a hidden space to the first root',
+    1,
+    facts('a1', foldedOrder, foldedIds),
+    select('a'),
+  ],
+  [
+    'goes back from a hidden space to the last root',
+    -1,
+    facts('a1', foldedOrder, foldedIds),
+    select('c'),
+  ],
+  [
+    'skips a root that is not live',
+    1,
+    facts('a', order(['a', 'gone', 'c'], [], ['a', 'gone', 'c']), ['a', 'c']),
+    select('c'),
+  ],
+  [
+    'skips a root that is not live going back',
+    -1,
+    facts('c', order(['a', 'gone', 'c'], [], ['a', 'gone', 'c']), ['a', 'c']),
+    select('a'),
+  ],
+  ['runs nothing with no published order', 1, facts('a', null, tree), null],
+  ['runs nothing with no root', 1, facts('a', order(tree), tree), null],
+  ['runs nothing when no space is focused', 1, facts(null, treeOrder, tree), null],
+  ['runs nothing when the focused space is in neither list', 1, facts('x', treeOrder, tree), null],
+  [
+    'runs nothing when a live space is unlisted',
+    1,
+    facts('a1', treeOrder, [...tree, 'added']),
+    null,
+  ],
+  [
+    'runs nothing when the only root is the current space',
+    1,
+    facts('a', order(['a', 'a1'], [], ['a']), ['a', 'a1']),
+    null,
+  ],
+  [
+    'runs nothing going back when the only root is the current space',
+    -1,
+    facts('a', order(['a', 'a1'], [], ['a']), ['a', 'a1']),
+    null,
+  ],
+];
+
+describe('rootStepCommand', () => {
+  test.each(rootSteps)('%s', (_name, step, given, expected) => {
+    expect(rootStepCommand(step, given)).toEqual(expected);
   });
 });

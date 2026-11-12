@@ -3,6 +3,7 @@ import { recordOf } from './fields.ts';
 export interface SpaceOrder {
   shown: string[];
   hidden: string[];
+  roots: string[];
 }
 
 export interface LiveSpaceFacts {
@@ -27,7 +28,7 @@ const isIdList = (value: unknown): value is string[] =>
 const isSpaceOrder = (value: unknown): value is SpaceOrder => {
   const record = recordOf(value);
 
-  return isIdList(record['shown']) && isIdList(record['hidden']);
+  return isIdList(record['shown']) && isIdList(record['hidden']) && isIdList(record['roots']);
 };
 
 export const readSpaceOrder = (get: (key: string) => unknown): SpaceOrder | null => {
@@ -37,14 +38,18 @@ export const readSpaceOrder = (get: (key: string) => unknown): SpaceOrder | null
     return null;
   }
 
-  return { shown: [...value.shown], hidden: [...value.hidden] };
+  return { shown: [...value.shown], hidden: [...value.hidden], roots: [...value.roots] };
 };
 
 export const writeSpaceOrder = (
   set: (key: string, value: unknown) => void,
   order: SpaceOrder,
 ): void => {
-  set(spaceOrderKey, { shown: [...order.shown], hidden: [...order.hidden] });
+  set(spaceOrderKey, {
+    shown: [...order.shown],
+    hidden: [...order.hidden],
+    roots: [...order.roots],
+  });
 };
 
 export const clearSpaceOrder = (set: (key: string, value: unknown) => void): void => {
@@ -63,7 +68,13 @@ const liveOrder = (facts: LiveSpaceFacts): SpaceOrder | null => {
 
   const live = new Set(facts.liveIds);
 
-  return { shown: order.shown.filter((id) => live.has(id)), hidden: order.hidden };
+  const isLive = (id: string): boolean => live.has(id);
+
+  return {
+    shown: order.shown.filter(isLive),
+    hidden: order.hidden,
+    roots: order.roots.filter(isLive),
+  };
 };
 
 export const visibleSpaceIds = (facts: LiveSpaceFacts): readonly string[] =>
@@ -95,6 +106,38 @@ export const spaceStepCommand = (step: number, facts: SpaceStepFacts): SpaceComm
   }
 
   if (target === facts.current) {
+    return null;
+  }
+
+  return { name: 'space.select', args: { id: target } };
+};
+
+const targetRoot = (order: SpaceOrder, current: string, step: number): string | null => {
+  const place = order.shown.indexOf(current);
+
+  if (place === -1 && !order.hidden.includes(current)) {
+    return null;
+  }
+
+  const roots = order.shown.filter((id) => order.roots.includes(id));
+
+  if (step > 0) {
+    return roots.find((id) => order.shown.indexOf(id) > place) ?? roots[0] ?? null;
+  }
+
+  return roots.findLast((id) => order.shown.indexOf(id) < place) ?? roots.at(-1) ?? null;
+};
+
+export const rootStepCommand = (step: number, facts: SpaceStepFacts): SpaceCommand | null => {
+  const order = liveOrder(facts);
+
+  if (order === null || facts.current === null) {
+    return null;
+  }
+
+  const target = targetRoot(order, facts.current, step);
+
+  if (target === null || target === facts.current) {
     return null;
   }
 

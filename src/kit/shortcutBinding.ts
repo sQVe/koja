@@ -32,7 +32,11 @@ const normalBinding = (entry: NormalKey): ActionKeys[] => {
   return [{ action, keys: entry.keys.join(' ') }];
 };
 
-const normalBindings = normalKeys.flatMap(normalBinding);
+const shortestFirst = normalKeys.toSorted(
+  (first, second) => first.keys.length - second.keys.length,
+);
+
+const normalBindings = shortestFirst.flatMap(normalBinding);
 
 export const bindingFor = (
   bindings: readonly KeyBinding[],

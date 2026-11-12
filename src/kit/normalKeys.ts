@@ -7,7 +7,9 @@ export type NormalIntent =
   | 'lastPane'
   | 'lastTab'
   | 'nextNeedsYou'
-  | 'previousNeedsYou';
+  | 'previousNeedsYou'
+  | 'nextRoot'
+  | 'previousRoot';
 
 export type SectionTarget = 'next' | 'previous' | 'panes';
 
@@ -126,6 +128,8 @@ export const normalKeys: NormalKey[] = [
   ...tabDigits.map(tabSelectEntry),
   { keys: ['g', 't'], action: herdrCommand('tab.next'), counted: 'nthTab' },
   { keys: ['g', 'T'], action: herdrCommand('tab.prev') },
+  { keys: [')'], action: herdrCommand('tab.next') },
+  { keys: ['('], action: herdrCommand('tab.prev') },
   { keys: ['g', 'tab'], action: intentAction('lastTab') },
   { keys: ['g', 'a'], action: intentAction('nextNeedsYou') },
   { keys: ['g', 'A'], action: intentAction('previousNeedsYou') },
@@ -135,6 +139,10 @@ export const normalKeys: NormalKey[] = [
   { keys: ['s', 'r'], action: herdrCommand('space.rename') },
   { keys: ['s', 'j'], action: herdrCommand('space.next') },
   { keys: ['s', 'k'], action: herdrCommand('space.prev') },
+  { keys: [']'], action: herdrCommand('space.next') },
+  { keys: ['['], action: herdrCommand('space.prev') },
+  { keys: ['}'], action: intentAction('nextRoot') },
+  { keys: ['{'], action: intentAction('previousRoot') },
   { keys: ['s', 'f'], action: pickerAction },
   { keys: ['tab'], action: sectionAction('next') },
   { keys: ['shift-tab'], action: sectionAction('previous') },

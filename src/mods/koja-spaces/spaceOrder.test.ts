@@ -73,6 +73,7 @@ describe('sidebar order publishing', () => {
     expect(readSpaceOrder(store.get)).toEqual({
       shown: ['notes', 'koja', 'first-worktree', 'second-worktree'],
       hidden: [],
+      roots: ['koja'],
     });
   });
 
@@ -85,6 +86,28 @@ describe('sidebar order publishing', () => {
     expect(readSpaceOrder(store.get)).toEqual({
       shown: ['notes', 'koja'],
       hidden: ['first-worktree', 'second-worktree'],
+      roots: ['koja'],
+    });
+  });
+
+  test('publishes the repository rows as roots, in shown order', () => {
+    const store = memoryStore();
+    const otherRepo = { ...gitOf(false), repo: repoOf(null, '/code/tau/.git') };
+
+    const list = [
+      listed('koja', gitOf(false)),
+      listed('koja-worktree', gitOf(true)),
+      listed('notes', null),
+      listed('tau', otherRepo),
+      listed('tau-worktree', { ...otherRepo, linked: true }),
+    ];
+
+    createOrderPublisher(store.set).publish(rowsOf(list), allIds(list));
+
+    expect(readSpaceOrder(store.get)).toEqual({
+      shown: ['koja', 'koja-worktree', 'notes', 'tau', 'tau-worktree'],
+      hidden: [],
+      roots: ['koja', 'tau'],
     });
   });
 
@@ -112,6 +135,7 @@ describe('sidebar order publishing', () => {
     expect(readSpaceOrder(store.get)).toEqual({
       shown: ['notes', 'koja'],
       hidden: ['first-worktree', 'second-worktree'],
+      roots: ['koja'],
     });
   });
 
@@ -136,6 +160,7 @@ describe('sidebar order publishing', () => {
     expect(readSpaceOrder(store.get)).toEqual({
       shown: ['notes', 'koja', 'first-worktree', 'second-worktree'],
       hidden: [],
+      roots: ['koja'],
     });
   });
 });

@@ -74,7 +74,7 @@ const publishSidebarOrder = (shown: string[]): void => {
     (key, value) => {
       sharedValues[key] = value;
     },
-    { shown, hidden: [] },
+    { shown, hidden: [], roots: [] },
   );
 };
 
