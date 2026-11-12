@@ -23,7 +23,7 @@ through Koja's UI kit. herdr/upstream.json records the Herdr release of each.
 - src/mods/koja-tabs, from defaults/mods/tabs in Herdr 0.1.11
 
 herdr/herdr.d.ts and herdr/gpui-kit.d.ts are copies of the type declarations
-that Herdr 0.1.11 writes into its home folder.
+that Herdr 0.1.15 writes into its home folder.
 
 Icons
 -----
