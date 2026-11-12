@@ -22,7 +22,9 @@ Cross-effects:
   or `config/themes/`, assign all sections.
 - Close and rename start from normal mode, the palette, the menus, the tab strip, and the pane
   header. A change to any of those entry points needs "Close and rename".
-- `src/kit/spaceOrder.ts` changes both the sidebar order and where `s j`, `s k`, and `Tab` go.
+- `src/kit/spaceOrder.ts` changes both the sidebar order and where `s j` and `s k` go.
+- `src/kit/section.ts` names the sections and list commands that `koja-modal` sends and
+  `koja-spaces` runs. A change there needs "Normal mode keys" and "Sidebar, tabs, panes".
 - `src/kit/statusRollup.ts` and `paneHeader*.ts` change the sidebar, the tabs, and the pane headers.
 - `config/keys.json` and `config/layouts/koja.json` are installed as they are. A key or layout
   change can break a mod that no source file touched.
@@ -99,8 +101,15 @@ Give the brief these lines: `Sandbox: <name>`, the fixture paths, and `Data writ
   `Return` leaves it, and the terminal takes typed text again.
 - `h` `j` `k` `l` and the arrows move focus. `H` `J` `K` `L` swap panes. `w v` and `w s` split,
   `w m` zooms and restores, and `w w` and `w W` step through the panes of the tab.
-- `t n` opens a tab. `t h`, `t l`, `t 1` to `t 9`, and `g t` select tabs. `s j`, `s k`, and `Tab`
-  step spaces in sidebar order. `z s` hides and shows the sidebar.
+- `t n` opens a tab. `t h`, `t l`, `t 1` to `t 9`, and `g t` select tabs. `s j` and `s k` step
+  spaces in sidebar order. `z s` hides and shows the sidebar.
+- `key Tab` and `key Tab Shift_L` move the mark between the sidebar and the panes. A marked sidebar
+  shows a 1 px accent outline on its cursor row, and the panes show no mark. `Escape`, `i`, and a
+  hidden sidebar drop the mark.
+- With the sidebar marked, `j` and `k` move the outline one row, `g g` and `G` go to the first and
+  last row, and `key d Control_L` and `key u Control_L` move half the rows that fit the list.
+  `key Return` selects the space of the outline row and keeps normal mode on. No key types into the
+  terminal.
 - Normal mode stays on after a dialog, the palette, or the picker closes. `/` opens terminal search
   and leaves normal mode. `?` opens help.
 

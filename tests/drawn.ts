@@ -9,6 +9,7 @@ export interface DrawnElement {
   borderColors: string[];
   isDisabled: boolean;
   clickHandlers: ((event: unknown, cx: unknown) => void)[];
+  sizeHandlers: ((size: { width: number; height: number }, cx: unknown) => void)[];
 }
 
 const addChild = (parent: DrawnElement, child: unknown): void => {
@@ -31,6 +32,7 @@ export const drawn = (path: string | null = null): DrawnElement => {
     borderColors: [],
     isDisabled: false,
     clickHandlers: [],
+    sizeHandlers: [],
   };
 
   const handle: DrawnElement = new Proxy(element, {
@@ -78,6 +80,10 @@ export const drawn = (path: string | null = null): DrawnElement => {
           target.clickHandlers.push(args[0] as (event: unknown, cx: unknown) => void);
         }
 
+        if (key === 'on_size_change') {
+          target.sizeHandlers.push(args[0] as DrawnElement['sizeHandlers'][number]);
+        }
+
         if (key === 'spin') {
           target.spins = true;
         }
@@ -110,6 +116,12 @@ export const clickablesWithText = (element: DrawnElement, text: string): DrawnEl
   descendants(element).filter(
     (part) => part.clickHandlers.length > 0 && drawnTexts(part).includes(text),
   );
+
+export const elementsWithBorder = (element: DrawnElement, color: string): DrawnElement[] =>
+  descendants(element).filter((part) => part.borderColors.at(-1) === color);
+
+export const elementsWithSizeHandler = (element: DrawnElement): DrawnElement[] =>
+  descendants(element).filter((part) => part.sizeHandlers.length > 0);
 
 export const drawnIcons = (element: DrawnElement): string[] =>
   descendants(element)

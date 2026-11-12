@@ -1,8 +1,18 @@
-import { v_flex } from 'gpui-base';
+import { ScrollHandle, v_flex } from 'gpui-base';
 import type { AsyncContext, Context, Element } from 'gpui-kit';
 import { div, View } from 'gpui-kit';
 import type { SpaceInfo } from 'herdr';
-import { machines, openOverlay, panes, run, setShared, spaces, terminals } from 'herdr';
+import {
+  machines,
+  nextCommand,
+  openOverlay,
+  panes,
+  run,
+  setShared,
+  shared,
+  spaces,
+  terminals,
+} from 'herdr';
 
 import type { DragState } from '../../kit/drag.ts';
 import { dropAction, noDrag, setDragOver, startDrag } from '../../kit/drag.ts';
@@ -13,16 +23,20 @@ import {
   findLayoutNode,
   hoveredAfter,
   layoutRoot,
+  listActionOf,
   overlaySize,
   railWidthLimit,
+  readSection,
   repeat,
   rollupStatuses,
+  rowHeight,
   spacing,
   withTextRole,
 } from '../../kit/index.ts';
+import { cursorRow, halfPageOf, moveCursor } from './cursor.ts';
 import { foldedSet } from './folded.ts';
 import { GitTracker } from './gitTracker.ts';
-import { machineRows } from './machineRows.ts';
+import { machineRows, shownRows } from './machineRows.ts';
 import { isMachineLoading } from './machines.ts';
 import { MachineTracker } from './machineTracker.ts';
 import { newSpaceArguments } from './newSpace.ts';
@@ -32,7 +46,7 @@ import { createOrderPublisher } from './spaceOrder.ts';
 import type { RowState } from './spaceRows.ts';
 import { labelRow, row as spaceRow, rowTitle } from './spaceRows.ts';
 import type { GitInfo, ListedSpace, TreeGroup, TreeRow } from './tree.ts';
-import { nestSpaces, placesOf } from './tree.ts';
+import { listedOf, nestSpaces, placesOf } from './tree.ts';
 import type { VisibilityResult, VisibilityState } from './visibility.ts';
 import { advanceVisibility, initialVisibility } from './visibility.ts';
 
@@ -52,6 +66,12 @@ const isNarrow = (): boolean => {
 
   return width !== null && width < railWidthLimit;
 };
+
+const isSidebarMarked = (): boolean => readSection(shared) === 'sidebar';
+
+const spaceIdOf = (row: TreeRow): string => listedOf(row).space.id;
+
+const activeSpaceId = (): string | null => spaces().find((space) => space.active)?.id ?? null;
 
 const topStripHeight = (): number =>
   layoutRoot().trafficLights === null ? spacing.small : controlSize.sidebarHeader;
@@ -84,6 +104,16 @@ export default class Spaces extends View {
 
   private statuses: StatusRollup = { spaces: {}, tabs: {} };
 
+  private cursor: string | null = null;
+
+  private halfPage = 1;
+
+  private readonly scroll = ScrollHandle.new();
+
+  private revealCursor = false;
+
+  private marked = false;
+
   override close(): void {
     this.order.clear();
   }
@@ -102,6 +132,8 @@ export default class Spaces extends View {
     repeat(cx, checkMilliseconds, (timerCx) => {
       this.checkNew(timerCx);
     });
+
+    this.listenForCommands(cx);
   }
 
   override render(): Element {
@@ -111,6 +143,8 @@ export default class Spaces extends View {
     this.statuses = rollupStatuses(spaces(), panes(), terminals());
     this.visibility = this.advance();
 
+    this.followMark(isSidebarMarked());
+
     return withTextRole(v_flex(), 'body')
       .size_full()
       .min_h(0)
@@ -118,17 +152,86 @@ export default class Spaces extends View {
       .child(div().flex_none().h(topStripHeight()))
       .child(
         v_flex()
+          .id('spaces-list')
           .flex_1()
           .min_h(0)
           .pb(spacing.xlarge)
           .overflow_y_scrollbar()
+          .track_scroll(this.scroll)
           .mode('always')
+          .on_size_change((size) => {
+            this.halfPage = halfPageOf(size.height, rowHeight.small);
+          })
           .on_mouse_up('left', (_event, cx) => {
             this.drag = noDrag;
             cx.notify();
           })
           .children(this.grouped(collapsed)),
       );
+  }
+
+  private followMark(marked: boolean): void {
+    if (!marked) {
+      this.cursor = null;
+    }
+
+    if (marked && !this.marked) {
+      this.revealCursor = true;
+    }
+
+    this.marked = marked;
+  }
+
+  private listenForCommands(cx: AsyncContext): void {
+    cx.spawn(async (taskCx) => {
+      for (;;) {
+        // eslint-disable-next-line no-await-in-loop -- each list command is awaited in turn
+        const command = await nextCommand();
+
+        this.applyCommand(command, taskCx);
+      }
+    });
+  }
+
+  private applyCommand(command: string, cx: Context): void {
+    const action = listActionOf(command);
+
+    if (action === null || !isSidebarMarked()) {
+      return;
+    }
+
+    const result = moveCursor({
+      shown: this.shownRows().map(spaceIdOf),
+      cursor: this.cursor,
+      active: activeSpaceId(),
+      action,
+      halfPage: this.halfPage,
+    });
+
+    this.cursor = result.cursor;
+    this.revealCursor = true;
+
+    if (result.select !== null) {
+      run('space.select', { id: result.select });
+    }
+
+    cx.notify();
+  }
+
+  private cursorRow(shown: readonly TreeRow[]): string | null {
+    if (!isSidebarMarked()) {
+      return null;
+    }
+
+    return cursorRow(shown.map(spaceIdOf), this.cursor, activeSpaceId());
+  }
+
+  private shownRows(groups: TreeGroup[] = this.ordered()): TreeRow[] {
+    return shownRows({
+      machineList: this.machines.lookup(),
+      groups,
+      folded: (machine) => this.foldedMachines.has(machine ?? ''),
+    });
   }
 
   private advance(): VisibilityResult {
@@ -219,25 +322,27 @@ export default class Spaces extends View {
     this.pulls.retry(git.repo, git.cwd, cx);
   };
 
-  private draw(
-    row: TreeRow,
-    ids: readonly string[],
-    collapsed: boolean,
-    lineAbove: boolean,
-  ): Element {
-    if (collapsed) {
-      const git = row.kind === 'repo' ? row.main.git : row.git;
+  private drawRail(row: TreeRow, lineAbove: boolean, cursor: string | null): Element {
+    const git = row.kind === 'repo' ? row.main.git : row.git;
+    const title = row.kind === 'repo' ? row.name : rowTitle(row, this.pulls.lookup(row.git));
 
-      const title = row.kind === 'repo' ? row.name : rowTitle(row, this.pulls.lookup(row.git));
-
-      return railRow(row, title, lineAbove, this.pulls.errorLine(git), (cx) => {
+    return railRow({
+      row,
+      title,
+      lineAbove,
+      cursor: spaceIdOf(row) === cursor,
+      error: this.pulls.errorLine(git),
+      retry: (cx) => {
         this.retryPull(git, cx);
-      });
-    }
+      },
+    });
+  }
 
+  private draw(row: TreeRow, ids: readonly string[], cursor: string | null): Element {
     const state: RowState = {
       drag: this.drag,
       hovered: this.hovered,
+      cursor,
       lookup: (git) => this.pulls.lookup(git),
       attachDrag: (element, space, rowIds) => {
         this.addDragHandlers(element, space, rowIds);
@@ -259,17 +364,27 @@ export default class Spaces extends View {
   private grouped(collapsed: boolean): Element[] {
     const groups = this.ordered();
     const ids = spaces().map((space) => space.id);
-    const shownRows: TreeRow[] = [];
+    const shown = this.shownRows(groups);
+    const cursor = this.cursorRow(shown);
 
-    // machineRows draws only the shown rows, in sidebar order.
+    let cursorElement: Element | null = null;
+
+    this.order.publish(shown, ids);
+
     const elements = machineRows(
       {
         machineList: this.machines.lookup(),
         groups,
         draw: (row, lineAbove) => {
-          shownRows.push(row);
+          const element = collapsed
+            ? this.drawRail(row, lineAbove, cursor)
+            : this.draw(row, ids, cursor);
 
-          return this.draw(row, ids, collapsed, lineAbove);
+          if (spaceIdOf(row) === cursor) {
+            cursorElement = element;
+          }
+
+          return element;
         },
         folded: (machine) => this.foldedMachines.has(machine ?? ''),
         loading: (machine) => this.isLoading(machine),
@@ -289,9 +404,20 @@ export default class Spaces extends View {
       collapsed,
     );
 
-    this.order.publish(shownRows, ids);
+    this.showCursor(elements, cursorElement);
 
     return elements;
+  }
+
+  // The scroll handle shows a direct child of the list by its index.
+  private showCursor(elements: readonly Element[], cursorElement: Element | null): void {
+    const index = cursorElement === null ? -1 : elements.indexOf(cursorElement);
+
+    if (this.revealCursor && index >= 0) {
+      this.scroll.scroll_to_item(index);
+    }
+
+    this.revealCursor = false;
   }
 
   private addDragHandlers(element: Element, space: SpaceInfo, ids: readonly string[]): void {

@@ -54,19 +54,24 @@ const actionFor = (entry: NormalKey, count: number | null): NormalAction => {
   return entry.action;
 };
 
-export const parseKey = (state: ParserState, key: string): ParseResult => {
+export const parseKey = (
+  state: ParserState,
+  key: string,
+  layer: readonly NormalKey[],
+): ParseResult => {
   if (isCountKey(state, key)) {
     return countPending(state, key);
   }
 
   const tokens = [...state.pending, key];
-  const exact = normalKeys.find((entry) => sameKeys(entry.keys, tokens));
+  const rows = [...layer, ...normalKeys];
+  const exact = rows.find((entry) => sameKeys(entry.keys, tokens));
 
   if (exact !== undefined) {
     return { status: 'action', action: actionFor(exact, state.count), state: initialParserState };
   }
 
-  const isPrefix = normalKeys.some((entry) => startsWith(entry.keys, tokens));
+  const isPrefix = rows.some((entry) => startsWith(entry.keys, tokens));
 
   if (isPrefix) {
     return { status: 'pending', state: { pending: tokens, count: state.count } };

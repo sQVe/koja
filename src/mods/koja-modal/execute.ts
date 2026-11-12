@@ -27,7 +27,7 @@ export interface ExecutorDeps {
   historyKey: string;
 }
 
-type RunnableAction = Exclude<NormalAction, { kind: 'leave' }>;
+type RunnableAction = Exclude<NormalAction, { kind: 'leave' | 'list' | 'section' }>;
 
 export interface Executor {
   execute: (action: RunnableAction) => void;

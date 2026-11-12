@@ -53,7 +53,8 @@ border for focus. The frame, panes, terminals, sidebar, and tab bar all share th
   icon `muted`; an unfocused pane's title is `muted` and its icon `dim`.
 - Focus also shows as the `accent` border, and the focused pane's header draws a faint fill from the
   kit's focus value. Herdr cannot dim or tint an unfocused terminal, so the header is the one place
-  Koja can mark focus beyond the border. Koja adds no other focus mark.
+  Koja can mark focus beyond the border. Koja adds no other mark of pane focus. The list cursor of a
+  marked section is a separate mark; see [Selection and hover](#selection-and-hover).
 - In normal mode, Koja's overlay holds the keyboard, so Herdr draws no focus border. The focused
   pane's header then draws an `accent` tint at alpha `18`, with its title and icon in `accent`. The
   tint stays this light so the title and folder keep 4.5:1 contrast. Insert mode keeps the look
@@ -96,6 +97,9 @@ border for focus. The frame, panes, terminals, sidebar, and tab bar all share th
   and agent status never draw it.
 - A hovered list row, tab, or toggle draws a 1 px pill outline in `selected`. A hovered tab or
   toggle also brightens its text and icon to `foreground`.
+- In normal mode, the row under the list cursor of a marked section draws a 1 px pill outline in
+  `accent`, also when it is selected or hovered. A selected cursor row keeps its fill. The outline
+  is the only mark of a marked section: the section itself draws no border.
 - If people find a selected item hard to tell from a hovered one, the kit adds one second cue to
   selected rows and active toggles, not a second hover style.
 - An icon button has no selected state, so it keeps its hover fill.

@@ -59,6 +59,14 @@ const plain = (key: string): NormalKeyEvent => ({
   modifiers: noModifiers,
 });
 
+const tab: NormalKeyEvent = { key: 'tab', keystroke: 'tab', modifiers: noModifiers };
+
+const shiftTab: NormalKeyEvent = {
+  key: 'tab',
+  keystroke: 'shift-tab',
+  modifiers: { ...noModifiers, shift: true },
+};
+
 let focusedPane: string | null = 'p1';
 let focusedTab = 'tab-1';
 let runCalls: RunCall[] = [];
@@ -73,10 +81,14 @@ let statusLookups = 0;
 let paletteOpen = false;
 let helpOpen = false;
 let keyDownHandler: ((event: unknown) => void) | null = null;
+let keyBindings: { keystroke: string; action: string; context?: string }[] = [];
+let keyContext: string | null = null;
+let actionHandlers: Record<string, () => void> = {};
 let currentContext: unknown = null;
 let sharedValues: Record<string, unknown> = {};
 let sharedWrites: string[] = [];
 let tickHandler: (() => void) | null = null;
+let sidebarHidden = false;
 const commandQueue: string[] = [];
 const commandWaiters: ((command: string) => void)[] = [];
 
@@ -118,6 +130,20 @@ const createElement = (): Record<string, unknown> => {
     return element;
   };
 
+  element['key_context'] = (context: string) => {
+    keyContext = context;
+
+    return element;
+  };
+
+  element['on_action'] = (action: string, handler: (event: unknown, cx: unknown) => void) => {
+    actionHandlers[action] = () => {
+      handler({ action }, currentContext);
+    };
+
+    return element;
+  };
+
   element['on_mouse_down'] = () => element;
   element['track_focus'] = () => element;
 
@@ -148,6 +174,16 @@ const press = (event: NormalKeyEvent): void => {
   }
 
   keyDownHandler?.(event);
+};
+
+const pressBound = (keystroke: string): void => {
+  const binding = keyBindings.find(
+    (candidate) => candidate.keystroke === keystroke && candidate.context === keyContext,
+  );
+
+  if (binding !== undefined && overlayFocused) {
+    actionHandlers[binding.action]?.();
+  }
 };
 
 const runAfterHandlers = (): void => {
@@ -211,6 +247,15 @@ await mock.module('herdr', () =>
 );
 
 const { overlayCloseCount, recordOverlayClose } = await import('../../kit/overlayOpen.ts');
+const { readSection, shownSections, writeSection } = await import('../../kit/section.ts');
+
+const markedSection = (): string => readSection((key) => sharedValues[key]);
+
+const markSidebar = (): void => {
+  writeSection((key, value) => {
+    sharedValues[key] = value;
+  }, 'sidebar');
+};
 
 await mock.module('../../kit/index.ts', () =>
   kitIndexFake({
@@ -226,7 +271,9 @@ await mock.module('../../kit/index.ts', () =>
     closeOverlay: (id?: string | null) => {
       closeCalls.push(id ?? null);
     },
+    findLayoutNode: (id: string) => ({ id, hidden: sidebarHidden }),
     overlayCloseCount,
+    shownSections,
     modName: 'koja-modal',
     overlayId: () => 'overlay-1',
     repeat: (_cx: unknown, _milliseconds: number, handler: () => void) => {
@@ -249,6 +296,11 @@ const loadView = async (): Promise<FakeView> => {
       is_focused: () => overlayFocused,
       release: () => true,
     }),
+    bind_keys: (bindings: typeof keyBindings) => {
+      keyBindings.push(...bindings);
+
+      return bindings.length;
+    },
     spawn: (body: () => Promise<void>) => {
       body().catch(() => undefined);
     },
@@ -293,10 +345,14 @@ beforeEach(() => {
   paletteOpen = false;
   helpOpen = false;
   keyDownHandler = null;
+  keyBindings = [];
+  keyContext = null;
+  actionHandlers = {};
   currentContext = null;
   sharedValues = {};
   sharedWrites = [];
   tickHandler = null;
+  sidebarHidden = false;
   commandQueue.length = 0;
   commandWaiters.length = 0;
 });
@@ -656,5 +712,125 @@ describe('koja modal view', () => {
     expect(overlayFocused).toBe(true);
     expect(focusCalls).toBe(focusBefore + 1);
     expect(statusLookups).toBe(0);
+  });
+
+  test('the tab key that the mod binds marks the sidebar, and the next one marks panes', async () => {
+    const view = await loadView();
+
+    view.render();
+    pressBound('tab');
+
+    const afterFirst = markedSection();
+
+    pressBound('tab');
+
+    expect([afterFirst, markedSection()]).toEqual(['sidebar', 'panes']);
+    expect(closeCalls).toEqual([]);
+  });
+
+  test('the shift-tab key that the mod binds marks the sidebar from panes', async () => {
+    const view = await loadView();
+
+    view.render();
+    pressBound('shift-tab');
+
+    expect(markedSection()).toBe('sidebar');
+  });
+
+  test('tab marks the sidebar and the next tab marks panes', async () => {
+    const view = await loadView();
+
+    view.render();
+    press(tab);
+
+    const afterFirst = markedSection();
+
+    press(tab);
+
+    expect([afterFirst, markedSection()]).toEqual(['sidebar', 'panes']);
+    expect(closeCalls).toEqual([]);
+  });
+
+  test('shift-tab marks the sidebar', async () => {
+    const view = await loadView();
+
+    view.render();
+    press(shiftTab);
+
+    expect(markedSection()).toBe('sidebar');
+  });
+
+  test('with the sidebar marked, j runs the sidebar list command without askFirst', async () => {
+    const view = await loadView();
+
+    view.render();
+    press(tab);
+    press(plain('j'));
+
+    expect(runCalls).toEqual([{ command: 'koja-spaces.list-down', args: undefined }]);
+    expect(askFirstCalls).toEqual([]);
+  });
+
+  test('with the sidebar marked, enter opens the row and stays in normal mode', async () => {
+    const view = await loadView();
+
+    view.render();
+    press(tab);
+    press({ key: 'enter', keystroke: 'enter', modifiers: noModifiers });
+
+    expect(runCalls).toEqual([{ command: 'koja-spaces.list-open', args: undefined }]);
+    expect(closeCalls).toEqual([]);
+  });
+
+  test('with the sidebar marked, i leaves normal mode and drops the mark', async () => {
+    const view = await loadView();
+
+    view.render();
+    press(tab);
+    press(plain('i'));
+
+    expect(closeCalls).toEqual(['overlay-1']);
+    expect(markedSection()).toBe('panes');
+  });
+
+  test('a tick drops the mark of a sidebar that hid', async () => {
+    const view = await loadView();
+
+    view.render();
+    press(tab);
+    const beforeHide = markedSection();
+
+    sidebarHidden = true;
+    tickHandler?.();
+
+    expect([beforeHide, markedSection()]).toEqual(['sidebar', 'panes']);
+  });
+
+  test('no key goes to a sidebar that hid before the tick', async () => {
+    const view = await loadView();
+
+    view.render();
+    press(tab);
+    sidebarHidden = true;
+    press(plain('j'));
+
+    expect(runCalls).toEqual([{ command: 'pane.go', args: { direction: 'down' } }]);
+  });
+
+  test('a mark left by an earlier session is dropped on start', async () => {
+    markSidebar();
+
+    await loadView();
+
+    expect(markedSection()).toBe('panes');
+  });
+
+  test('closing drops the mark', async () => {
+    const view = await loadView();
+
+    markSidebar();
+    view.close();
+
+    expect(markedSection()).toBe('panes');
   });
 });

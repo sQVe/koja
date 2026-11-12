@@ -5,10 +5,12 @@ import { exec, focused, nextCommand, panes, run, setShared, shared } from 'herdr
 import {
   askFirst,
   closeOverlay,
+  findLayoutNode,
   modName,
   overlayCloseCount,
   overlayId,
   repeat,
+  shownSections,
 } from '../../kit/index.ts';
 import type { NormalAction } from '../../kit/normalKeys.ts';
 import { createExecutor } from './execute.ts';
@@ -16,6 +18,8 @@ import { createKeyboardHold, createStatusLookup } from './keyboardHold.ts';
 import { normalizeKey } from './keyEvent.ts';
 import type { ParserState } from './parser.ts';
 import { initialParserState, parseKey } from './parser.ts';
+import { bindSectionKeys, withSectionKeys } from './sectionKeys.ts';
+import { createSections, isSectionKeyAction } from './sections.ts';
 
 const modeKey = 'koja-modal';
 
@@ -30,6 +34,13 @@ const stopPress = (_event: unknown, cx: Context): void => {
 const overlayCommands = new Set(['mod.open', 'app.help']);
 
 const inlineInputCommands = new Set(['terminal.search']);
+
+const sharedStore = {
+  get: (key: string): unknown => shared(key),
+  set: (key: string, value: unknown): void => {
+    setShared(key, value);
+  },
+};
 
 const opensOverlay = (action: NormalAction): boolean =>
   action.kind === 'command' && overlayCommands.has(action.command);
@@ -59,13 +70,16 @@ export default class KojaModal extends View {
     },
     panes,
     focused,
-    store: {
-      get: (key) => shared(key),
-      set: (key, value) => {
-        setShared(key, value);
-      },
-    },
+    store: sharedStore,
     historyKey,
+  });
+
+  private readonly sections = createSections({
+    store: sharedStore,
+    run: (command, args) => {
+      run(command, args);
+    },
+    shown: () => shownSections(findLayoutNode('sidebar')),
   });
 
   override init(_props: unknown, cx: AsyncContext): void {
@@ -73,7 +87,9 @@ export default class KojaModal extends View {
 
     this.handle = handle;
     handle.focus();
+    bindSectionKeys(cx);
     setShared(modeKey, true);
+    this.sections.reset();
     this.executor.observe();
     this.keepKeyboard(cx);
     this.listenForCommands(cx);
@@ -82,6 +98,7 @@ export default class KojaModal extends View {
   override close(): void {
     this.executor.observe();
     setShared(modeKey, null);
+    this.sections.reset();
     this.hold.close();
 
     const pane = focused()?.pane;
@@ -94,13 +111,17 @@ export default class KojaModal extends View {
   override render(): Element {
     const handle = this.handle;
 
-    const root = div()
+    const keyed = div()
       .id(modName)
       .size_full()
       .on_key_down((event, cx) => {
         this.handleKey(event, cx);
       })
       .on_mouse_down('left', stopPress);
+
+    const root = withSectionKeys(keyed, (key, cx) => {
+      this.handleKeyName(key, cx);
+    });
 
     return handle === null ? root : root.track_focus(handle);
   }
@@ -110,7 +131,7 @@ export default class KojaModal extends View {
   }
 
   private handleKeyName(key: string, cx: Context): void {
-    const result = parseKey(this.state, key);
+    const result = parseKey(this.state, key, this.sections.layer());
 
     this.state = result.state;
 
@@ -119,7 +140,14 @@ export default class KojaModal extends View {
     }
 
     if (result.action.kind === 'leave') {
-      closeOverlay(overlayId());
+      this.leave();
+
+      return;
+    }
+
+    if (isSectionKeyAction(result.action)) {
+      this.sections.execute(result.action);
+      this.regainKeyboard(cx);
 
       return;
     }
@@ -128,7 +156,7 @@ export default class KojaModal extends View {
     this.executor.execute(result.action);
 
     if (opensInlineInput(result.action)) {
-      closeOverlay(overlayId());
+      this.leave();
 
       return;
     }
@@ -140,6 +168,11 @@ export default class KojaModal extends View {
     }
 
     this.regainKeyboard(cx);
+  }
+
+  private leave(): void {
+    this.sections.reset();
+    closeOverlay(overlayId());
   }
 
   private openedDialog(): boolean {
@@ -157,6 +190,7 @@ export default class KojaModal extends View {
   private keepKeyboard(cx: AsyncContext): void {
     repeat(cx, refocusIntervalMilliseconds, () => {
       this.executor.observe();
+      this.sections.check();
       this.hold.check();
     });
   }

@@ -34,7 +34,9 @@ A new part of the app gets its own letter only when it does not fit under one of
 
 ### Single keys and aliases
 
-- Plain `h/j/k/l` and the arrow keys move between panes, because no cursor needs them.
+- Plain `h/j/k/l` and the arrow keys move between panes, because no cursor needs them. While a
+  section with a list is marked, `j` and `k` move its cursor instead; see
+  [ADR 0014](./0014-normal-mode-forwards-list-keys.md).
 - `:` opens the palette, `/` searches, and `?` opens help, as in Neovim.
 - `/` leaves normal mode, as Vim's `/` leaves normal mode for the command line. Herdr gives no
   signal when its find bar closes, so normal mode cannot know when to take the keyboard back. Help

@@ -21,6 +21,7 @@ import type { GitInfo, ListedSpace, RepoRow, SpaceRow } from './tree.ts';
 export interface RowState {
   drag: DragState;
   hovered: string | null;
+  cursor: string | null;
   lookup: (git: GitInfo | null) => Pull | null;
   attachDrag: (element: Element, space: SpaceInfo, ids: readonly string[]) => void;
   onHover: (spaceId: string, hovered: boolean, cx: Context) => void;
@@ -100,6 +101,7 @@ export const labelRow = (row: RepoRow, ids: readonly string[], state: RowState):
     }),
     ...(line === undefined ? {} : { dropLine: line }),
     dragged: state.drag.source === space.id && state.drag.over !== space.id,
+    cursor: state.cursor === space.id,
     end: [...foldControls(row, state), statusMark(main.status)],
   }).id(`space-${space.id}`);
 
@@ -128,6 +130,7 @@ export const row = (spaceRow: SpaceRow, ids: readonly string[], state: RowState)
     cut: rowCut(space.named, pull),
     ...(line === undefined ? {} : { dropLine: line }),
     dragged: state.drag.source === space.id && state.drag.over !== space.id,
+    cursor: state.cursor === space.id,
     end: pullDetail(pull),
   }).id(`space-${space.id}`);
 
