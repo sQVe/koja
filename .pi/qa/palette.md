@@ -1,7 +1,7 @@
 # QA recipe: command palette
 
 Drive the command palette mod, `koja-palette`, in the sandbox the brief names. Follow
-[the rules for every section](../qa.md#rules-for-every-section) of the QA guide first: they name the
+[the rules for every section](../qa.md#rules-for-every-section) of the QA guide first. They name the
 sandbox, point to `ruta guide`, prove the sandbox, and list what never to run.
 
 ## Entry points
