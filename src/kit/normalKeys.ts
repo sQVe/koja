@@ -1,6 +1,13 @@
 import type { ListAction } from './section.ts';
 
-export type NormalIntent = 'closeOtherPanes' | 'nextPane' | 'previousPane' | 'lastPane' | 'lastTab';
+export type NormalIntent =
+  | 'closeOtherPanes'
+  | 'nextPane'
+  | 'previousPane'
+  | 'lastPane'
+  | 'lastTab'
+  | 'nextNeedsYou'
+  | 'previousNeedsYou';
 
 export type SectionTarget = 'next' | 'previous' | 'panes';
 
@@ -120,6 +127,9 @@ export const normalKeys: NormalKey[] = [
   { keys: ['g', 't'], action: herdrCommand('tab.next'), counted: 'nthTab' },
   { keys: ['g', 'T'], action: herdrCommand('tab.prev') },
   { keys: ['g', 'tab'], action: intentAction('lastTab') },
+  { keys: ['g', 'a'], action: intentAction('nextNeedsYou') },
+  { keys: ['g', 'A'], action: intentAction('previousNeedsYou') },
+  { keys: ['space'], action: intentAction('nextNeedsYou') },
   { keys: ['s', 'n'], action: herdrCommand('space.new') },
   { keys: ['s', 'q'], action: herdrCommand('space.close') },
   { keys: ['s', 'r'], action: herdrCommand('space.rename') },

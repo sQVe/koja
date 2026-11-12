@@ -43,6 +43,8 @@ A new part of the app gets its own letter only when it does not fit under one of
   is an overlay Koja can see, so normal mode waits while Help is open and then takes the keyboard
   back.
 - `ctrl-w` sequences stay as aliases of `w`, so Neovim muscle memory still works.
+- `Space` goes to the next pane that needs you, as the one-key alias of `g a`, because the user
+  repeats this jump more than any other.
 - Key hints in the palette and menus show the plain-letter form, so users learn the short keys.
 
 Koja moves between items only in an order the user can see on screen. A key that steps through a

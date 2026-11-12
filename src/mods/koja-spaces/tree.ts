@@ -1,5 +1,6 @@
 import type { PaneInfo, SpaceInfo, Status } from 'herdr';
 
+import { needsYou } from '../../kit/needsYou.ts';
 import { spaceFolder } from '../../kit/space.ts';
 
 export interface Place {
@@ -94,8 +95,6 @@ export const placesOf = (spaceList: SpaceInfo[], paneList: PaneInfo[]): Record<s
 
   return at;
 };
-
-const needsYou = (status: Status | null): boolean => status === 'blocked' || status === 'done';
 
 export const listedOf = (row: TreeRow): ListedSpace => (row.kind === 'repo' ? row.main : row);
 

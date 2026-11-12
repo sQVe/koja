@@ -1,10 +1,12 @@
 import { recordOf, stringOf } from '../../kit/fields.ts';
 import type { NormalAction, NormalIntent } from '../../kit/normalKeys.ts';
+import { readSpaceOrder, visibleSpaceIds } from '../../kit/spaceOrder.ts';
+import type { JumpPane, JumpSpace } from './needsYouJump.ts';
+import { needsYouTarget } from './needsYouJump.ts';
 
-export interface PaneLike {
-  pane: string;
-  tab: string;
-}
+export type PaneLike = JumpPane;
+
+export type SpaceLike = JumpSpace;
 
 interface FocusedPane {
   pane: string | null;
@@ -22,6 +24,7 @@ type RunCommand = (command: string, args?: Record<string, unknown>) => void;
 export interface ExecutorDeps {
   run: RunCommand;
   panes: () => PaneLike[];
+  spaces: () => SpaceLike[];
   focused: () => FocusedPane | null;
   store: ExecutorStore;
   historyKey: string;
@@ -205,6 +208,35 @@ const focusLastTab = (previous: NormalModeHistory, deps: ExecutorDeps): void => 
   deps.run('tab.select', { id: target });
 };
 
+const focusNeedsYou = (step: 1 | -1, deps: ExecutorDeps): void => {
+  const current = deps.focused();
+  const spaces = deps.spaces();
+  const order = readSpaceOrder(deps.store.get);
+  const liveIds = spaces.map((space) => space.id);
+
+  const target = needsYouTarget({
+    step,
+    visibleSpaces: visibleSpaceIds({ order, liveIds }),
+    spaces,
+    panes: deps.panes(),
+    focusedPane: current?.pane ?? null,
+  });
+
+  if (target === null) {
+    return;
+  }
+
+  if (target.space !== current?.space) {
+    deps.run('space.select', { id: target.space });
+  }
+
+  if (target.tab !== current?.tab) {
+    deps.run('tab.select', { id: target.tab });
+  }
+
+  deps.run('pane.focus', { pane: target.pane });
+};
+
 const runIntent = (intent: NormalIntent, previous: NormalModeHistory, deps: ExecutorDeps): void => {
   switch (intent) {
     case 'closeOtherPanes': {
@@ -233,6 +265,18 @@ const runIntent = (intent: NormalIntent, previous: NormalModeHistory, deps: Exec
 
     case 'lastTab': {
       focusLastTab(previous, deps);
+
+      break;
+    }
+
+    case 'nextNeedsYou': {
+      focusNeedsYou(1, deps);
+
+      break;
+    }
+
+    case 'previousNeedsYou': {
+      focusNeedsYou(-1, deps);
 
       break;
     }

@@ -5,9 +5,12 @@ export interface SpaceOrder {
   hidden: string[];
 }
 
-export interface SpaceStepFacts {
+export interface LiveSpaceFacts {
   order: SpaceOrder | null;
   liveIds: readonly string[];
+}
+
+export interface SpaceStepFacts extends LiveSpaceFacts {
   current: string | null;
 }
 
@@ -51,7 +54,7 @@ export const clearSpaceOrder = (set: (key: string, value: unknown) => void): voi
 const hasUnlistedSpace = (order: SpaceOrder, liveIds: readonly string[]): boolean =>
   liveIds.some((id) => !order.shown.includes(id) && !order.hidden.includes(id));
 
-const liveOrder = (facts: SpaceStepFacts): SpaceOrder | null => {
+const liveOrder = (facts: LiveSpaceFacts): SpaceOrder | null => {
   const order = facts.order;
 
   if (order === null || hasUnlistedSpace(order, facts.liveIds)) {
@@ -62,6 +65,9 @@ const liveOrder = (facts: SpaceStepFacts): SpaceOrder | null => {
 
   return { shown: order.shown.filter((id) => live.has(id)), hidden: order.hidden };
 };
+
+export const visibleSpaceIds = (facts: LiveSpaceFacts): readonly string[] =>
+  liveOrder(facts)?.shown ?? facts.liveIds;
 
 const targetSpace = (order: SpaceOrder, current: string | null, step: number): string | null => {
   const shown = order.shown;

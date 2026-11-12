@@ -1,7 +1,7 @@
 import { describe, expect, test } from 'bun:test';
 
 import type { NormalAction, NormalIntent } from '../../kit/normalKeys.ts';
-import type { Executor, PaneLike } from './execute.ts';
+import type { Executor, PaneLike, SpaceLike } from './execute.ts';
 import { createExecutor } from './execute.ts';
 
 interface RunCall {
@@ -17,6 +17,7 @@ interface Session {
   setFocus: (pane: string | null, tab?: string | null) => void;
   clearFocus: () => void;
   setPanes: (panes: PaneLike[]) => void;
+  setSpaces: (spaces: SpaceLike[]) => void;
 }
 
 const command = (name: string, args?: Record<string, unknown>): NormalAction => ({
@@ -36,6 +37,7 @@ const createSession = (initialPanes: PaneLike[], startPane: string, startTab: st
   let currentTab: string | null = startTab;
   let hasFocus = true;
   let panes = initialPanes;
+  let spaces: SpaceLike[] = [];
   const values: Record<string, unknown> = {};
   const calls: RunCall[] = [];
 
@@ -60,6 +62,7 @@ const createSession = (initialPanes: PaneLike[], startPane: string, startTab: st
     createExecutor({
       run,
       panes: () => panes,
+      spaces: () => spaces,
       focused: () => (hasFocus ? { pane: currentPane, tab: currentTab, space: 'space-1' } : null),
       store,
       historyKey,
@@ -83,6 +86,9 @@ const createSession = (initialPanes: PaneLike[], startPane: string, startTab: st
     setPanes: (next) => {
       panes = next;
     },
+    setSpaces: (next) => {
+      spaces = next;
+    },
     act: (action) => {
       const runnable =
         action.kind !== 'leave' && action.kind !== 'list' && action.kind !== 'section';
@@ -99,16 +105,16 @@ const createSession = (initialPanes: PaneLike[], startPane: string, startTab: st
 };
 
 const twoPanes: PaneLike[] = [
-  { pane: 'p1', tab: 'tab-1' },
-  { pane: 'p2', tab: 'tab-1' },
+  { pane: 'p1', tab: 'tab-1', status: null },
+  { pane: 'p2', tab: 'tab-1', status: null },
 ];
 
 describe('close other panes', () => {
   test('ctrl-w o closes every other pane in the focused tab only', () => {
     const panes: PaneLike[] = [
-      { pane: 'p1', tab: 'tab-1' },
-      { pane: 'p2', tab: 'tab-1' },
-      { pane: 'p3', tab: 'tab-2' },
+      { pane: 'p1', tab: 'tab-1', status: null },
+      { pane: 'p2', tab: 'tab-1', status: null },
+      { pane: 'p3', tab: 'tab-2', status: null },
     ];
 
     const session = createSession(panes, 'p1', 'tab-1');
@@ -159,7 +165,7 @@ describe('pane movement', () => {
     const session = createSession(twoPanes, 'p1', 'tab-1');
 
     session.act(intent('nextPane'));
-    session.setPanes([{ pane: 'p2', tab: 'tab-1' }]);
+    session.setPanes([{ pane: 'p2', tab: 'tab-1', status: null }]);
 
     const afterMove = session.calls.length;
 
@@ -171,9 +177,9 @@ describe('pane movement', () => {
 
 describe('navigation history', () => {
   const tabAndPanePanes: PaneLike[] = [
-    { pane: 'p1', tab: 'tab-1' },
-    { pane: 'p3', tab: 'tab-2' },
-    { pane: 'p4', tab: 'tab-2' },
+    { pane: 'p1', tab: 'tab-1', status: null },
+    { pane: 'p3', tab: 'tab-2', status: null },
+    { pane: 'p4', tab: 'tab-2', status: null },
   ];
 
   test('g then Tab returns to the earlier tab after a pane move', () => {
@@ -195,9 +201,9 @@ describe('navigation history', () => {
 
   test('ctrl-w p returns to the last pane after a tab change and back', () => {
     const panes: PaneLike[] = [
-      { pane: 'p1', tab: 'tab-1' },
-      { pane: 'p2', tab: 'tab-1' },
-      { pane: 'p3', tab: 'tab-2' },
+      { pane: 'p1', tab: 'tab-1', status: null },
+      { pane: 'p2', tab: 'tab-1', status: null },
+      { pane: 'p3', tab: 'tab-2', status: null },
     ];
 
     const session = createSession(panes, 'p1', 'tab-1');
@@ -220,9 +226,9 @@ describe('navigation history', () => {
 
   test('a pane move in a single-pane tab does not erase the last pane', () => {
     const panes: PaneLike[] = [
-      { pane: 'p1', tab: 'tab-1' },
-      { pane: 'p2', tab: 'tab-1' },
-      { pane: 'p3', tab: 'tab-2' },
+      { pane: 'p1', tab: 'tab-1', status: null },
+      { pane: 'p2', tab: 'tab-1', status: null },
+      { pane: 'p3', tab: 'tab-2', status: null },
     ];
 
     const session = createSession(panes, 'p1', 'tab-1');
@@ -246,8 +252,8 @@ describe('navigation history', () => {
 
   test('a pane action that keeps focus does not erase the last tab', () => {
     const panes: PaneLike[] = [
-      { pane: 'p1', tab: 'tab-1' },
-      { pane: 'p3', tab: 'tab-2' },
+      { pane: 'p1', tab: 'tab-1', status: null },
+      { pane: 'p3', tab: 'tab-2', status: null },
     ];
 
     const session = createSession(panes, 'p1', 'tab-1');
@@ -268,10 +274,10 @@ describe('navigation history', () => {
 
 describe('observed history', () => {
   const twoTabPanes: PaneLike[] = [
-    { pane: 'p1', tab: 'tab-1' },
-    { pane: 'p2', tab: 'tab-1' },
-    { pane: 'p3', tab: 'tab-2' },
-    { pane: 'p4', tab: 'tab-2' },
+    { pane: 'p1', tab: 'tab-1', status: null },
+    { pane: 'p2', tab: 'tab-1', status: null },
+    { pane: 'p3', tab: 'tab-2', status: null },
+    { pane: 'p4', tab: 'tab-2', status: null },
   ];
 
   test('ctrl-w p returns after a directional move with no destination', () => {
@@ -419,9 +425,9 @@ describe('no focused pane', () => {
 describe('pane move edges', () => {
   test('moves forward from the middle of the tab', () => {
     const panes: PaneLike[] = [
-      { pane: 'p1', tab: 'tab-1' },
-      { pane: 'p2', tab: 'tab-1' },
-      { pane: 'p3', tab: 'tab-1' },
+      { pane: 'p1', tab: 'tab-1', status: null },
+      { pane: 'p2', tab: 'tab-1', status: null },
+      { pane: 'p3', tab: 'tab-1', status: null },
     ];
 
     const session = createSession(panes, 'p2', 'tab-1');
@@ -441,9 +447,9 @@ describe('pane move edges', () => {
 
   test('moves backward from the middle of the tab', () => {
     const panes: PaneLike[] = [
-      { pane: 'p1', tab: 'tab-1' },
-      { pane: 'p2', tab: 'tab-1' },
-      { pane: 'p3', tab: 'tab-1' },
+      { pane: 'p1', tab: 'tab-1', status: null },
+      { pane: 'p2', tab: 'tab-1', status: null },
+      { pane: 'p3', tab: 'tab-1', status: null },
     ];
 
     const session = createSession(panes, 'p2', 'tab-1');
@@ -471,8 +477,8 @@ describe('last pane guards', () => {
 
   test('does not focus the last pane when it left the focused tab', () => {
     const panes: PaneLike[] = [
-      { pane: 'p1', tab: 'tab-1' },
-      { pane: 'p2', tab: 'tab-2' },
+      { pane: 'p1', tab: 'tab-1', status: null },
+      { pane: 'p2', tab: 'tab-2', status: null },
     ];
 
     const session = createSession(panes, 'p1', 'tab-1');
@@ -490,8 +496,8 @@ describe('last pane guards', () => {
 
   test('keeps the recorded last tab when the stored focus is not an object', () => {
     const panes: PaneLike[] = [
-      { pane: 'p1', tab: 'tab-1' },
-      { pane: 'p3', tab: 'tab-2' },
+      { pane: 'p1', tab: 'tab-1', status: null },
+      { pane: 'p3', tab: 'tab-2', status: null },
     ];
 
     const session = createSession(panes, 'p1', 'tab-1');
@@ -504,8 +510,8 @@ describe('last pane guards', () => {
 
   test('keeps the recorded last tab when the stored focus is null', () => {
     const panes: PaneLike[] = [
-      { pane: 'p1', tab: 'tab-1' },
-      { pane: 'p3', tab: 'tab-2' },
+      { pane: 'p1', tab: 'tab-1', status: null },
+      { pane: 'p3', tab: 'tab-2', status: null },
     ];
 
     const session = createSession(panes, 'p1', 'tab-1');
@@ -542,6 +548,87 @@ describe('last tab guards', () => {
     };
 
     session.act(intent('lastTab'));
+
+    expect(session.calls).toEqual([]);
+  });
+});
+
+describe('needs you jump', () => {
+  const twoSpaces: SpaceLike[] = [
+    { id: 'space-1', tabs: [{ id: 'tab-1' }] },
+    { id: 'space-2', tabs: [{ id: 'tab-2' }] },
+  ];
+
+  const jumpSession = (panes: PaneLike[]): Session => {
+    const session = createSession(panes, 'p1', 'tab-1');
+
+    session.setSpaces(twoSpaces);
+
+    return session;
+  };
+
+  test('selects the space and the tab, then focuses a pane in another space', () => {
+    const session = jumpSession([
+      { pane: 'p1', tab: 'tab-1', status: 'idle' },
+      { pane: 'p2', tab: 'tab-2', status: 'blocked' },
+    ]);
+
+    session.act(intent('nextNeedsYou'));
+
+    expect(session.calls).toEqual([
+      { command: 'space.select', args: { id: 'space-2' } },
+      { command: 'tab.select', args: { id: 'tab-2' } },
+      { command: 'pane.focus', args: { pane: 'p2' } },
+    ]);
+  });
+
+  test('only focuses a pane in the focused tab', () => {
+    const session = jumpSession([
+      { pane: 'p1', tab: 'tab-1', status: 'idle' },
+      { pane: 'p2', tab: 'tab-1', status: 'done' },
+    ]);
+
+    session.act(intent('nextNeedsYou'));
+
+    expect(session.calls).toEqual([{ command: 'pane.focus', args: { pane: 'p2' } }]);
+  });
+
+  test('runs nothing when no other pane needs the user', () => {
+    const session = jumpSession([
+      { pane: 'p1', tab: 'tab-1', status: 'blocked' },
+      { pane: 'p2', tab: 'tab-2', status: 'working' },
+    ]);
+
+    session.act(intent('nextNeedsYou'));
+    session.act(intent('previousNeedsYou'));
+
+    expect(session.calls).toEqual([]);
+  });
+
+  test('previous goes to the needing pane before the focused one', () => {
+    const session = jumpSession([
+      { pane: 'p1', tab: 'tab-1', status: 'idle' },
+      { pane: 'p2', tab: 'tab-1', status: 'done' },
+      { pane: 'p3', tab: 'tab-2', status: 'blocked' },
+    ]);
+
+    session.act(intent('previousNeedsYou'));
+
+    expect(session.calls).toEqual([
+      { command: 'space.select', args: { id: 'space-2' } },
+      { command: 'tab.select', args: { id: 'tab-2' } },
+      { command: 'pane.focus', args: { pane: 'p3' } },
+    ]);
+  });
+
+  test('skips a space the published sidebar order hides', () => {
+    const session = jumpSession([
+      { pane: 'p1', tab: 'tab-1', status: 'idle' },
+      { pane: 'p2', tab: 'tab-2', status: 'blocked' },
+    ]);
+
+    session.values['spaces.order'] = { shown: ['space-1'], hidden: ['space-2'] };
+    session.act(intent('nextNeedsYou'));
 
     expect(session.calls).toEqual([]);
   });
