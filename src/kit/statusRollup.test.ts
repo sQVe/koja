@@ -76,10 +76,10 @@ const roll = (terminals: unknown[]): ReturnType<typeof rollupStatuses> => {
 };
 
 describe('statusRank', () => {
-  test('orders blocked above working above done above idle', () => {
-    expect(statusRank('blocked')).toBeGreaterThan(statusRank('working'));
-    expect(statusRank('working')).toBeGreaterThan(statusRank('done'));
-    expect(statusRank('done')).toBeGreaterThan(statusRank('idle'));
+  test('orders blocked above done above working above idle above null', () => {
+    expect(statusRank('blocked')).toBeGreaterThan(statusRank('done'));
+    expect(statusRank('done')).toBeGreaterThan(statusRank('working'));
+    expect(statusRank('working')).toBeGreaterThan(statusRank('idle'));
     expect(statusRank(null)).toBeLessThan(statusRank('idle'));
   });
 });
@@ -104,12 +104,21 @@ describe('rollupStatuses', () => {
     expect(result.spaces['s1']).toBe('working');
   });
 
-  test('a working background child beats a done pane', () => {
+  test('a done pane beats a working background child', () => {
     const { spaces } = fixtures();
     const panes = [paneOf('p1', 'k1', 'done'), paneOf('p2', 'k2')];
     const result = rollupStatuses(spaces, panes, [terminalOf('t-child', 't-p1', 'working')]);
 
-    expect(result.tabs['k1']).toBe('working');
+    expect(result.tabs['k1']).toBe('done');
+    expect(result.spaces['s1']).toBe('done');
+  });
+
+  test('a blocked pane beats a done pane in the same tab', () => {
+    const { spaces } = fixtures();
+    const panes = [paneOf('p1', 'k1', 'blocked'), paneOf('p2', 'k1', 'done')];
+    const result = rollupStatuses(spaces, panes, []);
+
+    expect(result.tabs['k1']).toBe('blocked');
   });
 
   test('a grandchild counts for its top pane tab and its space', () => {
@@ -152,7 +161,7 @@ describe('rollupStatuses', () => {
     expect(result.spaces['s1']).toBe('blocked');
   });
 
-  test('done holds only when nothing is blocked or working', () => {
+  test('a done pane sets its tab and space to done', () => {
     const { spaces } = fixtures();
     const panes = [paneOf('p1', 'k1', 'done'), paneOf('p2', 'k2')];
     const result = rollupStatuses(spaces, panes, []);
