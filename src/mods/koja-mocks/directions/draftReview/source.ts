@@ -192,6 +192,15 @@ const editMark = (edited: boolean, tokens: DirectionTokens): Element => {
   return edited ? mark.bg(tokens.marks.working) : mark;
 };
 
+const sourceLineNumber = (number: string, tokens: DirectionTokens, current = false): Element => {
+  const ink = current ? tokens.ink.text : tokens.ink.dim;
+
+  return fixedLabel(number, tokens.text.detail, ink)
+    .w(sourceSize.lineNumber)
+    .font_family(terminalFont)
+    .text_right();
+};
+
 const sourceLine = (
   file: DraftFile,
   index: number,
@@ -220,12 +229,7 @@ const sourceLine = (
     .child(content);
 
   const current = number === currentLine(file, state);
-  const numberInk = current ? tokens.ink.text : tokens.ink.dim;
-
-  const lineNumber = fixedLabel(String(number), tokens.text.detail, numberInk)
-    .w(sourceSize.lineNumber)
-    .font_family(terminalFont)
-    .text_right();
+  const lineNumber = sourceLineNumber(String(number), tokens, current);
 
   if (current) {
     lineNumber.font_semibold();

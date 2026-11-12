@@ -27,6 +27,7 @@ describe('scene lookup', () => {
     { name: 'shell', width: overlaySize.shellWidth, height: overlaySize.shellHeight },
     { name: 'shell-dialog', width: overlaySize.shellWidth, height: overlaySize.shellHeight },
     { name: 'shell-content', width: overlaySize.shellWidth, height: overlaySize.shellHeight },
+    { name: 'shell-pr-view', width: overlaySize.shellWidth, height: overlaySize.shellHeight },
     { name: 'shell-draft-review', width: overlaySize.shellWidth, height: overlaySize.shellHeight },
     {
       name: 'pane-headers',
@@ -186,6 +187,41 @@ describe('scene lookup', () => {
     for (const idea of ['list', 'place']) {
       for (const ask of ['close', 'rename', 'close-normal', 'rename-normal']) {
         expect(findScene(`dialog-${idea}-${ask}`)).toHaveProperty('error');
+      }
+    }
+  });
+
+  test('all current PR states and prompt trays open at shell size', () => {
+    const states = [
+      'blocked',
+      'sent',
+      'ready',
+      'ready-menu',
+      'merge-confirm',
+      'merge-failed',
+      'checks-failed',
+      'unreachable',
+      'normal',
+      'zoomed',
+    ];
+
+    const names = states.map((state) => `pr-view-${state}`);
+
+    names.push('pr-tray-bar', 'pr-tray-header', 'pr-tray-section');
+
+    for (const name of names) {
+      expect(findScene(name)).toHaveProperty('scene', {
+        name,
+        width: overlaySize.shellWidth,
+        height: overlaySize.shellHeight,
+      });
+    }
+  });
+
+  test('the discarded PR takes no longer open', () => {
+    for (const take of ['reader', 'box', 'handoff', 'merge', 'agent', 'split']) {
+      for (const state of ['blocked', 'ready', 'diff']) {
+        expect(findScene(`pr-${take}-${state}`)).toHaveProperty('error');
       }
     }
   });

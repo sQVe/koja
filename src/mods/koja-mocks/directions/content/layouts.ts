@@ -102,11 +102,11 @@ const reviewViewport = (reading: Element): Element =>
   v_flex().flex_1().min_h(0).min_w(0).pb(spacing.large).child(reading);
 
 export const contentBody = (view: ContentView, tokens: DirectionTokens): Element => {
-  const reading = scrollBody('content-reading').child(itemHeading(view.item, tokens));
+  const reading = scrollBody('content-reading').child(itemHeading(view.item, [], 'badge', tokens));
 
   if (view.state === 'unreachable') {
     return reading.child(
-      errorLine('Could not read PR · GitHub is unreachable', tokens).mt(spacing.medium),
+      errorLine('Could not read PR · GitHub is unreachable', 'Retry', tokens).mt(spacing.medium),
     );
   }
 

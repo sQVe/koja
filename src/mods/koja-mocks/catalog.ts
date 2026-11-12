@@ -58,6 +58,7 @@ const sceneSizes = {
   'shell-attention-open': shellSceneSize,
   'shell-dialog': shellSceneSize,
   'shell-content': shellSceneSize,
+  'shell-pr-view': shellSceneSize,
   'shell-draft-review': shellSceneSize,
   'dialog-close': shellSceneSize,
   'dialog-close-normal': shellSceneSize,
@@ -127,6 +128,19 @@ const sceneSizes = {
   'content-rail-ticket-loading': shellSceneSize,
   'content-rail-ticket-long': shellSceneSize,
   'content-rail-pr-normal': shellSceneSize,
+  'pr-tray-bar': shellSceneSize,
+  'pr-tray-header': shellSceneSize,
+  'pr-tray-section': shellSceneSize,
+  'pr-view-blocked': shellSceneSize,
+  'pr-view-sent': shellSceneSize,
+  'pr-view-ready': shellSceneSize,
+  'pr-view-ready-menu': shellSceneSize,
+  'pr-view-merge-confirm': shellSceneSize,
+  'pr-view-merge-failed': shellSceneSize,
+  'pr-view-checks-failed': shellSceneSize,
+  'pr-view-unreachable': shellSceneSize,
+  'pr-view-normal': shellSceneSize,
+  'pr-view-zoomed': shellSceneSize,
 } as const satisfies Record<string, SceneSize>;
 
 export type SceneName = keyof typeof sceneSizes;

@@ -41,6 +41,7 @@ import { spaceScene } from './directions/panels/space.ts';
 import { spaceStates } from './directions/panels/spaceData.ts';
 import { spineTakeScene } from './directions/panels/spine.ts';
 import { splitScene } from './directions/panels/split.ts';
+import { pullRequestScene } from './directions/pullRequest/scene.ts';
 import { hoverScene, searchScene } from './directions/sidebars/find.ts';
 import { inboxSidebar } from './directions/sidebars/sidebar.ts';
 import { machineTagScene } from './directions/sidebars/states.ts';
@@ -54,6 +55,7 @@ import {
   shellContentScene,
   shellDialogScene,
   shellDraftReviewScene,
+  shellPullRequestScene,
   shellScene,
 } from './scenes/shell.ts';
 import { sidebarScene } from './scenes/sidebar.ts';
@@ -94,6 +96,7 @@ const renderers: Record<SceneName, (inputs: SceneInputs) => Element> = {
   'shell-attention-open': (inputs) => shellAttentionScene(true, koja, inputs.attention),
   'shell-dialog': shellDialogScene,
   'shell-content': shellContentScene,
+  'shell-pr-view': shellPullRequestScene,
   'shell-draft-review': shellDraftReviewScene,
   'dialog-close': () => dialogScene('close', koja),
   'dialog-close-normal': () => dialogScene('close', kojaNormal),
@@ -163,6 +166,19 @@ const renderers: Record<SceneName, (inputs: SceneInputs) => Element> = {
   'content-rail-ticket-loading': () => contentScene('ticket-loading'),
   'content-rail-ticket-long': () => contentScene('ticket-long'),
   'content-rail-pr-normal': () => contentScene('pr-normal'),
+  'pr-tray-bar': () => pullRequestScene('tray-bar'),
+  'pr-tray-header': () => pullRequestScene('tray-header'),
+  'pr-tray-section': () => pullRequestScene('tray-section'),
+  'pr-view-blocked': () => pullRequestScene('blocked'),
+  'pr-view-sent': () => pullRequestScene('sent'),
+  'pr-view-ready': () => pullRequestScene('ready'),
+  'pr-view-ready-menu': () => pullRequestScene('ready-menu'),
+  'pr-view-merge-confirm': () => pullRequestScene('merge-confirm'),
+  'pr-view-merge-failed': () => pullRequestScene('merge-failed'),
+  'pr-view-checks-failed': () => pullRequestScene('checks-failed'),
+  'pr-view-unreachable': () => pullRequestScene('unreachable'),
+  'pr-view-normal': () => pullRequestScene('normal'),
+  'pr-view-zoomed': () => pullRequestScene('zoomed'),
 };
 
 // A refocus after the window has drawn, when its input or focus target can take the keyboard.

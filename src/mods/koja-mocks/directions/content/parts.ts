@@ -60,7 +60,7 @@ export const reviewActionButton = (text: string, tokens: DirectionTokens): Eleme
     .bg(tokens.ink.text)
     .child(fixedLabel(text, tokens.text.body, tokens.pane.fill));
 
-const stateChip = (state: string, tokens: DirectionTokens): Element => {
+const itemState = (state: string, look: 'badge' | 'plain', tokens: DirectionTokens): Element => {
   const active = state === 'open' || state === 'sent';
   const color = active ? tokens.marks.done : tokens.marks.idle;
   let mark = dot(markSize.quietDot, color);
@@ -73,17 +73,19 @@ const stateChip = (state: string, tokens: DirectionTokens): Element => {
     mark = statusMark('working', tokens);
   }
 
-  return h_flex()
-    .h(chipHeight)
-    .px(spacing.small)
-    .gap(spacing.xsmall)
-    .flex_none()
-    .items_center()
-    .rounded(tokens.marks.badgeRadius)
-    .border(1)
-    .border_color(tokens.pane.border)
-    .child(mark)
-    .child(fixedLabel(state, tokens.text.detail, tokens.ink.muted));
+  const element = h_flex().h(chipHeight).gap(spacing.xsmall).flex_none().items_center();
+
+  if (look === 'badge') {
+    element
+      .px(spacing.small)
+      .rounded(tokens.marks.badgeRadius)
+      .border(1)
+      .border_color(tokens.pane.border);
+  }
+
+  const ink = look === 'plain' ? color : tokens.ink.muted;
+
+  return element.child(mark).child(fixedLabel(state, tokens.text.detail, ink));
 };
 
 export const contentHeader = (item: ContentItem, tokens: DirectionTokens): Element => {
@@ -101,7 +103,12 @@ export const contentHeader = (item: ContentItem, tokens: DirectionTokens): Eleme
     .child(iconButton('ellipsis', tokens, tokens.ink.dim));
 };
 
-export const itemHeading = (item: ContentItem, tokens: DirectionTokens): Element => {
+export const itemHeading = (
+  item: ContentItem,
+  actions: Element[],
+  stateLook: 'badge' | 'plain',
+  tokens: DirectionTokens,
+): Element => {
   const heading = v_flex()
     .flex_none()
     .min_w(0)
@@ -126,7 +133,7 @@ export const itemHeading = (item: ContentItem, tokens: DirectionTokens): Element
       .mt(spacing.xsmall)
       .gap(spacing.medium)
       .items_center()
-      .child(stateChip(item.state, tokens));
+      .child(itemState(item.state, stateLook, tokens));
 
     if (item.unsaved === true) {
       state.child(fixedLabel('unsaved', tokens.text.detail, tokens.marks.working));
@@ -136,7 +143,7 @@ export const itemHeading = (item: ContentItem, tokens: DirectionTokens): Element
       state.child(fixedLabel(`synced ${item.readAge}`, tokens.text.detail, tokens.ink.dim));
     }
 
-    heading.child(state);
+    heading.child(state.children(actions));
   }
 
   return heading;

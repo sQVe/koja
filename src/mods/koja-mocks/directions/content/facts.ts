@@ -1,9 +1,10 @@
 import { h_flex, v_flex } from 'gpui-base';
 import type { Element } from 'gpui-kit';
+import { div } from 'gpui-kit';
 
 import { rowHeight, spacing } from '../../../../kit/size.ts';
 import { diffCounts } from '../panels/changes.ts';
-import { fixedLabel, label } from '../parts.ts';
+import { fixedLabel, label, middleCutLabel, styled } from '../parts.ts';
 import type { DirectionTokens } from '../tokens.ts';
 import type { ContentFact } from './data.ts';
 import { agentLink, externalLink } from './links.ts';
@@ -42,6 +43,14 @@ const factValue = (fact: ContentFact, tokens: DirectionTokens): Element => {
   if (fact.checkState === undefined) {
     const ink = fact.warning === true ? tokens.marks.working : tokens.ink.text;
 
+    if (fact.truncateMiddle === true) {
+      return middleCutLabel(fact.value, tokens.text.detail, ink).tooltip(fact.value);
+    }
+
+    if (fact.wrap === true) {
+      return styled(div().min_w(0), tokens.text.detail, ink).child(fact.value);
+    }
+
     return label(fact.value, tokens.text.detail, ink);
   }
 
@@ -69,24 +78,22 @@ const factPair = (fact: ContentFact, tokens: DirectionTokens): Element =>
     .child(fixedLabel(fact.name, tokens.text.detail, tokens.ink.dim))
     .child(factValue(fact, tokens));
 
-const alignedFact = (fact: ContentFact, tokens: DirectionTokens): Element =>
+export const factRow = (name: string, value: Element, tokens: DirectionTokens): Element =>
   h_flex()
     .min_w(0)
     .min_h(rowHeight.small)
     .gap(spacing.medium)
     .items_start()
     .child(
-      fixedLabel(fact.name, tokens.text.detail, tokens.ink.dim)
-        .w(factLabelWidth)
-        .pt(spacing.xsmall),
+      fixedLabel(name, tokens.text.detail, tokens.ink.dim).w(factLabelWidth).pt(spacing.xsmall),
     )
-    .child(factValue(fact, tokens).flex_1().py(spacing.xsmall));
+    .child(value.flex_1().py(spacing.xsmall));
 
 export const factRows = (facts: ContentFact[], tokens: DirectionTokens): Element =>
   v_flex()
     .flex_none()
     .min_w(0)
-    .children(facts.map((fact) => alignedFact(fact, tokens)));
+    .children(facts.map((fact) => factRow(fact.name, factValue(fact, tokens), tokens)));
 
 export const factsBlock = (facts: ContentFact[], tokens: DirectionTokens): Element =>
   h_flex()
