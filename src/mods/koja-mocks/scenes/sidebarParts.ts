@@ -31,9 +31,6 @@ const views = [
 
 const pullLabel = (pull: number): string => `#${pull}`;
 
-// The x offset of an inset row's content: its margin, its outline, and its padding.
-const insetContent = (): number => spacing.xsmall + spacing.hairline + spacing.small;
-
 const rowPitch = (): number => rowHeight.small + spacing.xxsmall;
 
 const groupHeight = (project: FakeProject): number =>
@@ -57,10 +54,14 @@ const hoveredRowCenter = (): number => {
   return top;
 };
 
-const cardTitleCenter = (): number => spacing.hairline + spacing.xsmall + rowHeight.small / 2;
-
 const sidebarLine = (content: Element): Element =>
-  h_flex().h(rowHeight.small).flex_none().min_w(0).px(insetContent()).items_center().child(content);
+  h_flex()
+    .h(rowHeight.small)
+    .flex_none()
+    .min_w(0)
+    .px(sidebarSize.rowContentInset)
+    .items_center()
+    .child(content);
 
 const spaceEnd = (space: FakeSpace): Element[] => {
   const end: Element[] = [];
@@ -184,7 +185,7 @@ const mergedRow = (merged: FakeLayer[]): Element =>
 const stackCard = (hovered: FakeSpace): Element => {
   const merged = stackLayers.filter((layer) => layer.state === 'merged');
   const open = stackLayers.filter((layer) => layer.state !== 'merged');
-  const arrowTop = cardTitleCenter();
+  const arrowTop = hoverCardSize.headerCenter;
 
   return div()
     .absolute()

@@ -5,11 +5,11 @@ import type { WorkNeed } from '../../kit/index.ts';
 import {
   emptyWorkSlot,
   hoverCard,
+  hoverCardSize,
   linkText,
   listRow,
   overlaySize,
   roleText,
-  rowHeight,
   spaceFooter,
   spaceMark,
   spacing,
@@ -24,8 +24,6 @@ interface SampleLayer {
   title: string;
   need: WorkNeed | null;
 }
-
-const headerCenter = spacing.hairline + spacing.xsmall + rowHeight.small / 2;
 
 const sampleLayers: SampleLayer[] = [
   { pull: 504, title: 'Two-line rows', need: null },
@@ -140,7 +138,7 @@ export const sidebarParts = (): Element[] => [
   sample(
     'Hover card with its arrow on the header line',
     hoverCard({
-      arrowTop: headerCenter,
+      arrowTop: hoverCardSize.headerCenter,
       header: cardLine(roleText('title', 'Tau workflow sidebar'), 'koja'),
       body: sampleLayers.map((layer) => stackLayer(layer)),
       footer: cardLine(roleText('detail', '8 PRs'), 'Open stack ›'),

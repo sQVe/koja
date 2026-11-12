@@ -2,7 +2,7 @@ import { h_flex, v_flex } from 'gpui-base';
 import type { Element } from 'gpui-kit';
 import { div } from 'gpui-kit';
 
-import { rowHeight, spacing } from './size.ts';
+import { rowHeight, sidebarSize, spacing } from './size.ts';
 import { stackProgress } from './stackProgress.ts';
 import { separator } from './text.ts';
 import { roleText, withTextRole } from './textRole.ts';
@@ -14,15 +14,12 @@ export interface SpaceFooterOptions {
   end: Element;
 }
 
-// The x offset of an inset list row's content: its margin, its outline, and its padding.
-const insetPadding = spacing.xsmall + spacing.hairline + spacing.small;
-
 const footerLine = (start: Element, end: Element[]): Element =>
   h_flex()
     .flex_none()
     .min_w(0)
     .h(rowHeight.small)
-    .px(insetPadding)
+    .px(sidebarSize.rowContentInset)
     .gap(spacing.small)
     .items_center()
     .child(start)

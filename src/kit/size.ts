@@ -118,6 +118,8 @@ export const progressSize = {
 export const hoverCardSize = {
   width: 312,
   arrowDepth: 4,
+  // The y of the header line's center: the card's outline, its top padding, then half the line.
+  headerCenter: spacing.hairline + spacing.xsmall + rowHeight.small / 2,
   pullColumn: 34,
   ticketColumn: 58,
 } as const;
@@ -125,6 +127,8 @@ export const hoverCardSize = {
 export const sidebarSize = {
   width: 268,
   groupGap: 12,
+  // The x offset of an inset list row's content: its margin, its outline, and its padding.
+  rowContentInset: spacing.xsmall + spacing.hairline + spacing.small,
 } as const;
 
 export const indentWidth = 20;
