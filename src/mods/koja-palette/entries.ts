@@ -1,4 +1,11 @@
 import { bindingAction } from '../../kit/binding.ts';
+import type { CommandTitle } from '../../kit/commandTitles.ts';
+import {
+  commandIdentity,
+  commandTitles,
+  focusPaneTitles,
+  swapPaneTitles,
+} from '../../kit/commandTitles.ts';
 import type { ThemeChoice } from '../../kit/themes.ts';
 import type { FuzzyMatch } from './fuzzy.ts';
 import { fuzzyMatch } from './fuzzy.ts';
@@ -53,75 +60,37 @@ const titleBonus = 4;
 
 const rankOfUnknown = 99;
 
-const directions = ['left', 'right', 'up', 'down'];
-
 const layoutTitles: Record<string, string> = {
   main: 'Herdr',
   terminals: 'Terminals',
   win98: 'Herdr 98',
 };
 
+const shared = (
+  { command, args, title }: CommandTitle,
+  group: string,
+  words: string,
+): NamedEntry => ({ name: command, args, group, title, words });
+
 const namedEntries: NamedEntry[] = [
-  {
-    name: 'tab.new',
-    args: {},
-    group: 'Tab',
-    title: 'New tab',
-    words: 'tab agent new task',
-  },
-  {
-    name: 'mod.open',
-    args: { name: 'koja-picker' },
-    group: 'Tab',
-    title: 'Go to space or tab…',
-    words: 'switch jump find',
-  },
-  { name: 'tab.rename', args: {}, group: 'Tab', title: 'Rename tab', words: 'tab' },
-  { name: 'tab.close', args: {}, group: 'Tab', title: 'Close tab', words: 'tab kill' },
-  { name: 'tab.next', args: {}, group: 'Tab', title: 'Next tab', words: 'tab' },
-  { name: 'tab.prev', args: {}, group: 'Tab', title: 'Previous tab', words: 'tab' },
-  {
-    name: 'pane.split',
-    args: { direction: 'right' },
-    group: 'Pane',
-    title: 'Split right',
-    words: 'vertical',
-  },
-  {
-    name: 'pane.split',
-    args: { direction: 'down' },
-    group: 'Pane',
-    title: 'Split down',
-    words: 'horizontal',
-  },
-  { name: 'pane.close', args: {}, group: 'Pane', title: 'Close pane', words: 'kill' },
-  {
-    name: 'pane.zoom',
-    args: {},
-    group: 'Pane',
-    title: 'Zoom pane',
-    words: 'maximize fullscreen',
-  },
-  ...directions.map((direction): NamedEntry => ({
-    name: 'pane.go',
-    args: { direction },
-    group: 'Pane',
-    title: `Focus pane ${direction}`,
-    words: 'move go',
-  })),
-  ...directions.map((direction): NamedEntry => ({
-    name: 'pane.swap',
-    args: { direction },
-    group: 'Pane',
-    title: `Swap pane ${direction}`,
-    words: 'move',
-  })),
-  { name: 'space.new', args: {}, group: 'Space', title: 'New space', words: 'workspace' },
-  { name: 'space.rename', args: {}, group: 'Space', title: 'Rename space', words: 'workspace' },
-  { name: 'space.close', args: {}, group: 'Space', title: 'Close space', words: 'workspace kill' },
-  { name: 'space.next', args: {}, group: 'Space', title: 'Next space', words: 'workspace' },
-  { name: 'space.prev', args: {}, group: 'Space', title: 'Previous space', words: 'workspace' },
-  { name: 'layout.switch', args: {}, group: 'Layout', title: 'Next layout', words: 'look switch' },
+  shared(commandTitles.newTab, 'Tab', 'tab agent new task'),
+  shared(commandTitles.openPicker, 'Tab', 'switch jump find'),
+  shared(commandTitles.renameTab, 'Tab', 'tab'),
+  shared(commandTitles.closeTab, 'Tab', 'tab kill'),
+  shared(commandTitles.nextTab, 'Tab', 'tab'),
+  shared(commandTitles.previousTab, 'Tab', 'tab'),
+  shared(commandTitles.splitRight, 'Pane', 'vertical'),
+  shared(commandTitles.splitDown, 'Pane', 'horizontal'),
+  shared(commandTitles.closePane, 'Pane', 'kill'),
+  shared(commandTitles.zoomPane, 'Pane', 'maximize fullscreen'),
+  ...focusPaneTitles.map((focus) => shared(focus, 'Pane', 'move go')),
+  ...swapPaneTitles.map((swap) => shared(swap, 'Pane', 'move')),
+  shared(commandTitles.newSpace, 'Space', 'workspace'),
+  shared(commandTitles.renameSpace, 'Space', 'workspace'),
+  shared(commandTitles.closeSpace, 'Space', 'workspace kill'),
+  shared(commandTitles.nextSpace, 'Space', 'workspace'),
+  shared(commandTitles.previousSpace, 'Space', 'workspace'),
+  shared(commandTitles.nextLayout, 'Layout', 'look switch'),
   {
     name: 'layout.reset',
     args: {},
@@ -190,9 +159,9 @@ const namedEntries: NamedEntry[] = [
     title: 'Reset to the default screen',
     words: 'escape hatch broken restore',
   },
-  { name: 'app.zoom_in', args: {}, group: 'App', title: 'Zoom in', words: 'bigger font size' },
-  { name: 'app.zoom_out', args: {}, group: 'App', title: 'Zoom out', words: 'smaller font size' },
-  { name: 'app.zoom_reset', args: {}, group: 'App', title: 'Reset zoom', words: 'font size' },
+  shared(commandTitles.zoomIn, 'App', 'bigger font size'),
+  shared(commandTitles.zoomOut, 'App', 'smaller font size'),
+  shared(commandTitles.resetZoom, 'App', 'font size'),
   { name: 'app.quit', args: {}, group: 'App', title: 'Quit Herdr', words: 'exit' },
   {
     name: 'mod.open',
@@ -244,15 +213,12 @@ const titleOf = (name: string): { group: string; title: string } => {
   return { group: capitalize(noun), title: capitalize(`${verb.replaceAll('_', ' ')} ${noun}`) };
 };
 
-const entryId = (name: string, args: Record<string, unknown>): string =>
-  `${name}:${JSON.stringify(args)}`;
-
 const layoutEntry = (name: string): Entry => {
   const title = layoutTitles[name] ?? capitalize(name);
   const args = { name };
 
   return {
-    id: entryId('layout.switch', args),
+    id: commandIdentity('layout.switch', args),
     name: 'layout.switch',
     args,
     group: 'Layout',
@@ -270,7 +236,7 @@ const otherEntries = (host: PaletteHost): Entry[] =>
       const { group, title } = titleOf(command.name);
 
       return {
-        id: entryId(command.name, {}),
+        id: commandIdentity(command.name, {}),
         name: command.name,
         args: {},
         group,
@@ -285,7 +251,7 @@ const themeEntries = (known: ReadonlySet<string>, host: PaletteHost): Entry[] =>
   }
 
   return host.themes().map((theme) => ({
-    id: entryId('app.theme', { name: theme.name }),
+    id: commandIdentity('app.theme', { name: theme.name }),
     name: 'app.theme',
     args: { name: theme.name },
     group: 'App',
@@ -302,7 +268,7 @@ export const allEntries = (host: PaletteHost): Entry[] => {
     .filter((entry) => known.has(entry.name))
     .filter((entry) => !(onMacos && entry.name.startsWith('window.')))
     .map((entry): Entry => ({
-      id: entryId(entry.name, entry.args),
+      id: commandIdentity(entry.name, entry.args),
       name: entry.name,
       args: entry.args,
       group: entry.group,
