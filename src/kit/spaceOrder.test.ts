@@ -206,6 +206,12 @@ const rootSteps: [string, number, SpaceStepFacts, SpaceCommand | null][] = [
   ['wraps from the last root to the first', 1, facts('c', treeOrder, tree), select('a')],
   ['wraps from the first root to the last', -1, facts('a', treeOrder, tree), select('c')],
   [
+    'wraps back to the last of three roots',
+    -1,
+    facts('a', order(tree, [], ['a', 'b', 'c']), tree),
+    select('c'),
+  ],
+  [
     'goes from a hidden space to the first root',
     1,
     facts('a1', foldedOrder, foldedIds),

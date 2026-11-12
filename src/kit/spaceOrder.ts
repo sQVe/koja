@@ -68,13 +68,7 @@ const liveOrder = (facts: LiveSpaceFacts): SpaceOrder | null => {
 
   const live = new Set(facts.liveIds);
 
-  const isLive = (id: string): boolean => live.has(id);
-
-  return {
-    shown: order.shown.filter(isLive),
-    hidden: order.hidden,
-    roots: order.roots.filter(isLive),
-  };
+  return { ...order, shown: order.shown.filter((id) => live.has(id)) };
 };
 
 export const visibleSpaceIds = (facts: LiveSpaceFacts): readonly string[] =>
@@ -112,10 +106,12 @@ export const spaceStepCommand = (step: number, facts: SpaceStepFacts): SpaceComm
   return { name: 'space.select', args: { id: target } };
 };
 
-const targetRoot = (order: SpaceOrder, current: string, step: number): string | null => {
-  const place = order.shown.indexOf(current);
+const placeIn = (ids: readonly (string | null)[], id: string | null): number => ids.indexOf(id);
 
-  if (place === -1 && !order.hidden.includes(current)) {
+const targetRoot = (order: SpaceOrder, current: string | null, step: number): string | null => {
+  const place = placeIn(order.shown, current);
+
+  if (place === -1 && placeIn(order.hidden, current) === -1) {
     return null;
   }
 
@@ -131,7 +127,7 @@ const targetRoot = (order: SpaceOrder, current: string, step: number): string | 
 export const rootStepCommand = (step: number, facts: SpaceStepFacts): SpaceCommand | null => {
   const order = liveOrder(facts);
 
-  if (order === null || facts.current === null) {
+  if (order === null) {
     return null;
   }
 
