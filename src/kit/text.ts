@@ -16,6 +16,9 @@ export const separator = (): Element =>
 export const detailText = (text: string, color = colors().dim): Element =>
   div().flex_none().text_size(textSize.small).text_color(color).child(text);
 
+export const linkText = (text: string): Element =>
+  withTextRole(div().flex_none(), 'detail', 'foreground').underline().cursor_pointer().child(text);
+
 const unbroken = (text: string): string => text.replaceAll(' ', '\u00a0');
 
 const hiddenText = (text: string): Element => div().flex_none().invisible().child(unbroken(text));

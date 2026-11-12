@@ -72,6 +72,9 @@ export const badgeFillAlpha = '26';
 
 export const normalFocusFillAlpha = '18';
 
+// See-through, so the stack progress track shows on the frame and on a selected row's fill alike.
+export const progressTrackAlpha = '33';
+
 export const normalFocusFill = (palette: Palette): Color =>
   withAlpha(palette.accent, normalFocusFillAlpha);
 

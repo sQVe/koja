@@ -11,6 +11,8 @@ export type { DialogButtonKind } from './button.ts';
 
 export { dialogFrame } from './dialog.ts';
 
+export { hoverCard } from './hoverCard.ts';
+
 export { icon, iconSlot, programIcon, spinner } from './icon.ts';
 
 export { iconNames } from './iconNames.ts';
@@ -45,6 +47,16 @@ export { textField } from './textField.ts';
 
 export { sectionHeader } from './sectionHeader.ts';
 
+export { spaceFooter } from './spaceFooter.ts';
+
+export { stackProgress } from './stackProgress.ts';
+
+export { viewSwitch } from './viewSwitch.ts';
+
+export { emptyWorkSlot, workIcon } from './workIcon.ts';
+
+export type { WorkNeed } from './workIcon.ts';
+
 export {
   controlSize,
   diffSize,
@@ -74,7 +86,7 @@ export { shortcutFor } from './shortcut.ts';
 
 export { themeChoices } from './themes.ts';
 
-export { detailText, highlightedText, keyHint, separator } from './text.ts';
+export { detailText, highlightedText, keyHint, linkText, separator } from './text.ts';
 
 export { roleText, textRoles, withTextRole } from './textRole.ts';
 

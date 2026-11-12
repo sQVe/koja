@@ -110,6 +110,16 @@ export const markSize = {
   quietDot: 4,
 } as const;
 
+export const progressSize = {
+  width: 12,
+  height: 3,
+} as const;
+
+export const hoverCardSize = {
+  width: 312,
+  arrowDepth: 4,
+} as const;
+
 export const indentWidth = 20;
 
 export const overlaySize = {
