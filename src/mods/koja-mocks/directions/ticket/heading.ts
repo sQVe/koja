@@ -46,7 +46,7 @@ const freshnessSources = (view: TicketView): string => {
 
 export const ticketHeading = (view: TicketView, tokens: DirectionTokens): Element => {
   const { item } = view;
-  const heading = itemHeading({ ...item, state: null }, tokens);
+  const heading = itemHeading({ ...item, state: null }, [], 'badge', tokens);
 
   if (item.state === null) {
     return heading;

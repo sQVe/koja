@@ -94,7 +94,9 @@ const ticketBody = (view: TicketView, tokens: DirectionTokens): Element => {
 
   if (view.state === 'unreachable') {
     return reading.child(
-      errorLine('Could not read ticket · Linear is unreachable', tokens).mt(spacing.medium),
+      errorLine('Could not read ticket · Linear is unreachable', 'Retry', tokens).mt(
+        spacing.medium,
+      ),
     );
   }
 
@@ -103,7 +105,7 @@ const ticketBody = (view: TicketView, tokens: DirectionTokens): Element => {
   }
 
   if (view.state === 'sync-failed') {
-    reading.child(errorLine('Could not sync PRs · showing PR states from 6m ago', tokens));
+    reading.child(errorLine('Could not sync PRs · showing PR states from 6m ago', 'Retry', tokens));
   }
 
   const sections = v_flex()
