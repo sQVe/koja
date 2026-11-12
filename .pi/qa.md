@@ -41,17 +41,20 @@ For the manager. The `qa` worker starts nothing.
 
 The manager starts:
 
-- The sandbox. Run `bun run sandbox guide` and follow its rules for every session and for the
-  session that starts the sandbox. They cover the name.
+- The sandbox. Run `bun run sandbox guide`. Follow two parts of its output: "Every session" and "The
+  session that starts the sandbox". They say how to pick the name.
   - Start: `RUTA_NAME=<name> bun run sandbox up`, from the worktree.
   - After a later edit: `RUTA_NAME=<name> bun run sandbox install`.
   - Check: `RUTA_NAME=<name> bun run sandbox identity` exits 0. It runs `ruta status` first.
   - Stop, when the worker has reported: `RUTA_NAME=<name> bun run sandbox down`.
-- The fixtures, under `/var/tmp/ruta-<name>/home/`: an empty `.zshrc`, a Git repository with one
-  commit and uncommitted changes, a clean one, and a folder that is no repository. Set `user.name`
-  and `user.email` in each repository. Open a space on each with
+- The fixtures, under `/var/tmp/ruta-<name>/home/`. `sandbox down` deletes them.
+  - An empty `.zshrc`.
+  - A Git repository with one commit and uncommitted changes.
+  - A clean Git repository.
+  - A folder that is not a repository.
+
+  Set `user.name` and `user.email` in each repository. Open a space on each with
   `RUTA_NAME=<name> bun run sandbox do space.new --folder <path>`, with two tabs and a split in one.
-  `sandbox down` deletes them.
 
 Ask the user:
 
@@ -62,16 +65,19 @@ Give the brief these lines: `Sandbox: <name>`, the fixture paths, and `Data writ
 
 ## Rules for every section
 
+Every section is reached through the proof in these rules: `bun run sandbox identity` must exit 0.
+So no section has its own "Reach it". What to check in a section is in its recipe.
+
 - The name is on the brief's `Sandbox:` line. Without that line, ask the parent.
 - From the worktree, run `RUTA_NAME=<name> bun run sandbox guide`, or `RUTA_NAME=<name> ruta guide`.
-  Follow its rules for every session and for a session that did not start the sandbox. The rules
-  below add to them.
+  Follow two parts of its output: "Every session" and "A session that did not start the sandbox".
+  The rules below add to them.
 - Run each ruta command of that guide as `bun run sandbox <command>`, except `status`.
   `bun run sandbox` alone prints the arguments of each command.
 - For the `ruta status` that the guide asks for before any input, run `bun run sandbox identity`. It
   runs `ruta status` first and prints its line. Then it checks the installed mods and config against
-  the worktree, and prints `sandbox <name> has the current mods and config of <worktree path>`. It
-  must exit 0. On any other result, stop and ask the parent.
+  the worktree. It prints `sandbox <name> has the current mods and config of <worktree path>`, and
+  it must exit 0. On any other result, stop and ask the parent.
 - `bun run sandbox status` is not `ruta status`. It prints the status of the window, from
   `herdr-app status`, and changes nothing.
 - Never run `sandbox install`, `bun run build`, `bun run herdr:install`, or `bun run herdr:watch`.
@@ -82,78 +88,46 @@ Give the brief these lines: `Sandbox: <name>`, the fixture paths, and `Data writ
   `key Tab Shift_L` for shift-tab.
 - Typed text goes to whatever has the keyboard. Take a shot before `type` or `key Return`, so that
   no text lands in a terminal.
-- Use `bun run sandbox do` or `bun run sandbox hc` only when a section or the brief names the exact
+- Use `bun run sandbox do` or `bun run sandbox hc` only when a recipe or the brief names the exact
   command. They skip the keys and clicks a user has.
-- The sandbox is no file system jail. Work only in the fixture paths of the brief. Never open a
-  space or a terminal on a real checkout, create or remove a worktree outside the fixtures, launch
-  an agent, connect a machine, or type a shell command that the brief does not list.
+- The sandbox is not a file system jail. Work only in the fixture paths of the brief. Never do any
+  of these:
+  - Open a space or a terminal on a real checkout.
+  - Create or remove a worktree outside the fixtures.
+  - Launch an agent, or connect a machine.
+  - Type a shell command that the brief does not list.
 - A data write is a commit, a worktree action, a rename, or a close. Follow the brief's
-  `Data writes` line; no recipe grants it. Palette Recent and picker history are no data write.
+  `Data writes` line. No recipe grants a data write. Palette Recent and picker history are not data
+  writes.
 - Never run `Quit Herdr`, `Close window`, `Reset to the default screen`, `Duplicate mod`, or
   `Duplicate layout`. They end the sandbox or change its installed files.
 - Never run `herdr-app` or `hc` outside `bun run sandbox`.
 
 ## Normal mode keys
 
-### What to check
+### Recipes
 
-- `key b Control_L` enters normal mode, and the focused pane header gets its tint. `i`, `a`, or
-  `Return` leaves it, and the terminal takes typed text again.
-- `h` `j` `k` `l` and the arrows move focus. `H` `J` `K` `L` swap panes. `w v` and `w s` split,
-  `w m` zooms and restores, and `w w` and `w W` step through the panes of the tab.
-- `t n` opens a tab. `t h`, `t l`, `t 1` to `t 9`, and `g t` select tabs. `s j` and `s k` step
-  spaces in sidebar order. `z s` hides and shows the sidebar.
-- `type ']'` and `type '['` step spaces as `s j` and `s k` do. `type ')'` and `type '('` step tabs.
-  `type '}'` and `type '{'` select the main space of the next and previous repository row of the
-  sidebar, and wrap at the ends. With no repository row, they do nothing.
-- The palette shows `]` as the key of "Next space" and `)` as the key of "Next tab".
-- `key Tab` and `key Tab Shift_L` move the mark between the sidebar and the panes. A marked sidebar
-  shows a 1 px accent outline on its cursor row, and the panes show no mark. `Escape`, `i`, and a
-  hidden sidebar drop the mark.
-- With the sidebar marked, `j` and `k` move the outline one row, `g g` and `G` go to the first and
-  last row, and `key d Control_L` and `key u Control_L` move half the rows that fit the list.
-  `key Return` selects the space of the outline row and keeps normal mode on. No key types into the
-  terminal.
-- Normal mode stays on after a dialog, the palette, or the picker closes. `/` opens terminal search
-  and leaves normal mode. `?` opens help.
+- [Normal mode keys](qa/normal-keys.md): every key group, the bracket keys, the sidebar mark, and
+  the overlays.
 
 ## Close and rename
 
-### What to check
+### Recipes
 
-- `w q` closes only the focused pane, with no dialog, when the pane has siblings. On the last pane
-  of the last tab, the dialog is `Close space?` with the space name, tab count, and terminal count.
-- `s q` always asks. `t q` asks only on the last tab of a space. `Escape` cancels, and every space,
-  tab, and pane is still there. `Close` ends exactly what the dialog named.
-- The same dialogs come from the palette, the menus, the tab's close button, and the pane header.
-- `t r` and `s r` open a rename prompt. It holds the current name, or nothing for a tab or space
-  with an automatic name. `Escape` keeps the name. An empty name brings the automatic name back.
+- [Close and rename](qa/close-and-rename.md): the close dialogs and the rename prompt.
 
 ## Palette and picker
-
-### What to check
-
-- `:` and `BackSpace` open the palette from normal mode. A query filters, `Return` or a click runs
-  the entry, `Escape` cancels, and Recent shows the entry on the next open.
-- `s f` opens the picker. A query filters, `Tab` and shift-tab change the filter, `Return` goes to
-  the row, and `Escape` returns focus to the pane that had it.
-- The picker preview follows the selection and types nothing into the source terminal.
 
 ### Recipes
 
 - [Command palette](qa/palette.md): all entry points, list movement, and Recent.
+- [Picker](qa/picker.md): the query, the filter, and the preview.
 
 ## Sidebar, tabs, panes
 
-### What to check
+### Recipes
 
-- The sidebar lists every space. A click selects a space. A drag changes the order, and `s j`
-  follows the new order.
-- The tab strip shows the tabs of the selected space. A click selects, a drag reorders, and the plus
-  button opens the New menu.
-- Each pane has a header with its label, and the focused pane has the accent border.
-- A right click on a space or a tab opens a menu for that item, not for the focused one.
-- The New menu lists terminal, agent, space, and worktree choices. Read it; launch nothing.
+- [Sidebar, tabs, and panes](qa/sidebar-tabs-panes.md): selection, order, headers, and menus.
 
 ## Changes panel
 
@@ -162,30 +136,15 @@ Give the brief these lines: `Sandbox: <name>`, the fixture paths, and `Data writ
 - Commit stages every change of the focused pane's repository. Never type in the message field or
   press the Commit button outside a fixture repository.
 
-### What to check
+### Recipes
 
-- The Changes button in the tab strip shows and hides the panel. Each space keeps its choice after a
-  switch away and back.
-- The panel lists the changed files of the focused pane's repository, and a click on a file shows
-  its diff.
-- After a switch to another space, the panel leaves "Loading changes…" and shows that space's files
-  or its state line.
-- A clean repository shows "No uncommitted changes". A folder that is no repository shows "Not a git
-  repository" with a Retry.
-- In a fixture repository with changes, a message and the Commit button make one commit of every
-  change. A message and `Return` in the message field do the same. After each, the message field is
-  empty and the panel shows "No uncommitted changes".
+- [Changes panel](qa/changes-panel.md): the panel states, the diff, and Commit.
 
 ## Gallery and scenes
 
-### What to check
+### Recipes
 
-- The palette entry `Kit gallery` opens the gallery.
-- `bun run sandbox do mod.open --name koja-mocks` opens the scene picker. After one second, a scene
-  name from `src/mods/koja-mocks/catalog.ts` and `Return` open that scene. An unknown name shows an
-  error. `Escape` closes the scene.
-- `bun run mock:capture <scene> <new folder outside the worktree>` writes `shot.png`, `crop.png`,
-  and `capture.json`, and closes the scene. It refuses when a `koja-mocks` overlay is open.
+- [Gallery and scenes](qa/gallery-and-scenes.md): the gallery, the scene picker, and capture.
 
 ## Not testable
 
@@ -194,7 +153,7 @@ Give the brief these lines: `Sandbox: <name>`, the fixture paths, and `Data writ
 - A pane close that also ends other panes: no fixture step makes a terminal with a live child
   terminal in another pane.
 - Agent launch, agent status, machines, and pull request rows: they need real agents, SSH, and
-  GitHub, and the sandbox has no fake source for them.
+  GitHub. The sandbox has no fake source for them.
 - `sandbox up`, `restart`, `install`, and `down`, the build, and the installer: the `qa` worker may
   not run them.
-- The look of a scene: the judge-mock skill gates it.
+- The look of a scene: the `judge-mock` skill decides it. Two AI judges pass or fail the scene.
