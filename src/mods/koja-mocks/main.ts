@@ -25,6 +25,7 @@ import { contentScene } from './directions/content/scene.ts';
 import { dialogScene } from './directions/dialogs/scene.ts';
 import { draftReviewScene } from './directions/draftReview/scene.ts';
 import { koja, kojaNormal } from './directions/koja.ts';
+import { modeScene } from './directions/modeHeader/scene.ts';
 import { gotoScene } from './directions/overlays/goto.ts';
 import { keysScene } from './directions/overlays/keys.ts';
 import { menuScene, newScene } from './directions/overlays/menus.ts';
@@ -89,6 +90,12 @@ const renderers: Record<SceneName, (inputs: SceneInputs) => Element> = {
   'attention-brief-normal': () => briefScene(kojaNormal),
   'direction-koja': () => directionWindow(koja),
   'direction-koja-normal': () => directionWindow(kojaNormal),
+  'header-mode-insert': () => modeScene('insert'),
+  'header-mode-normal': () => modeScene('normal'),
+  'header-mode-pending': () => modeScene('pending'),
+  'header-mode-split': () => modeScene('split'),
+  'header-mode-split-normal': () => modeScene('split-normal'),
+  'header-mode-lone': () => modeScene('lone'),
   'sidebar-inbox': () => directionWindow(koja, inboxSidebar),
   'sidebar-hover': () => hoverScene(koja),
   'sidebar-find': () => searchScene(koja),

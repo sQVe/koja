@@ -63,6 +63,12 @@ describe('scene lookup', () => {
   const directionScenes: SceneName[] = [
     'direction-koja',
     'direction-koja-normal',
+    'header-mode-insert',
+    'header-mode-normal',
+    'header-mode-pending',
+    'header-mode-split',
+    'header-mode-split-normal',
+    'header-mode-lone',
     'panels-tabs-stack',
     'panels-tabs-changes',
     'panels-tabs-workers',
