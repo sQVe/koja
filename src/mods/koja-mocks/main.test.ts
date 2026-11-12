@@ -174,6 +174,7 @@ describe('scene picker', () => {
     'shell',
     'shell-pr-view',
     'shell-draft-review',
+    'shell-ticket',
     'pane-headers',
     'shell-attention',
     'shell-attention-normal',

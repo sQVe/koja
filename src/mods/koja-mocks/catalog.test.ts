@@ -29,6 +29,7 @@ describe('scene lookup', () => {
     { name: 'shell-content', width: overlaySize.shellWidth, height: overlaySize.shellHeight },
     { name: 'shell-pr-view', width: overlaySize.shellWidth, height: overlaySize.shellHeight },
     { name: 'shell-draft-review', width: overlaySize.shellWidth, height: overlaySize.shellHeight },
+    { name: 'shell-ticket', width: overlaySize.shellWidth, height: overlaySize.shellHeight },
     {
       name: 'pane-headers',
       width: overlaySize.paneHeadersWidth,

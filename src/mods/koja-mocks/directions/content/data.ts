@@ -2,7 +2,7 @@ import type { IconName } from '../../../../kit/index.ts';
 import type { FakeChange } from '../../scenes/shellContent.ts';
 
 export type ContentKind = 'review' | 'pr' | 'ticket';
-export type SourceTarget = 'GitHub' | 'Linear';
+export type SourceTarget = 'GitHub' | 'Linear' | 'tikk';
 export type CheckState = 'failing' | 'running' | 'passed';
 
 export interface ContentFact {
