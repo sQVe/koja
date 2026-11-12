@@ -134,6 +134,22 @@ border for focus. The frame, panes, terminals, sidebar, and tab bar all share th
 - A sidebar space with no agent shows a hollow ring in the `border` color, so every space row has a
   mark and the list reads as one column. The ring is quieter than the filled idle dot, so it does
   not read as a state. Rows outside the sidebar, such as tabs and picker rows, keep an empty slot.
+- A work icon at a row's end names the one thing a stack needs, as a 12 px icon in a fixed slot.
+  Conflict and CI failing draw in `blocked`, review and restack needed in `ansi3`, and ready to
+  merge in `done`. Red asks to fix, amber asks to act, and green says the work is done. Each icon
+  also differs in shape, so color is never the only cue. The slot carries the need's name as a
+  tooltip and an accessible name, and a row with no need keeps the empty slot so the column stays
+  aligned.
+- Stack progress is a 12 px by 3 px bar with rounded ends, then the count in the detail role. The
+  track is `dim` at alpha `33` and the fill is solid `dim`. The see-through track shows on the frame
+  and on a selected row's fill alike, and the bar stays as quiet as the detail text beside it. A
+  stack with no pull requests draws an empty track.
+
+### Links
+
+- Link text, such as a ticket or pull request id, draws in the detail role in `foreground`,
+  underlined, with a pointer cursor. Plain detail text is `dim`, so the brighter color and the
+  underline tell a link from a fact without a second color.
 
 ### Popups
 
@@ -144,6 +160,11 @@ border for focus. The frame, panes, terminals, sidebar, and tab bar all share th
 Herdr's own dialogs keep Herdr's frame. Koja's popups use the same frame, so popups look the same
 whether Koja or Herdr opens them. The picker is the one exception: its list sits beside a terminal
 preview inside one framed overlay, so the list rounds only its own two outer corners.
+
+- A hover card is a `popover` card with a 1 px `border` outline and `radius.pill` corners. An arrow
+  4 px deep on its left edge points at the row it describes. GPUI cannot rotate a box, so the arrow
+  is 1 px columns that grow 2 px each, which keeps both edges at 45 degrees and crisp. A fill layer
+  1 px inside the outline layer covers the card's left border, so arrow and card read as one shape.
 
 ### Motion
 

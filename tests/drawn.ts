@@ -10,6 +10,7 @@ export interface DrawnElement {
   isDisabled: boolean;
   clickHandlers: ((event: unknown, cx: unknown) => void)[];
   sizeHandlers: ((size: { width: number; height: number }, cx: unknown) => void)[];
+  styles: Record<string, unknown[]>;
 }
 
 const addChild = (parent: DrawnElement, child: unknown): void => {
@@ -33,6 +34,7 @@ export const drawn = (path: string | null = null): DrawnElement => {
     isDisabled: false,
     clickHandlers: [],
     sizeHandlers: [],
+    styles: {},
   };
 
   const handle: DrawnElement = new Proxy(element, {
@@ -88,6 +90,8 @@ export const drawn = (path: string | null = null): DrawnElement => {
           target.spins = true;
         }
 
+        target.styles[String(key)] = args;
+
         return handle;
       };
     },
@@ -138,6 +142,9 @@ export const drawnTooltips = (element: DrawnElement): string[] =>
 
 export const elementWithText = (element: DrawnElement, text: string): DrawnElement | null =>
   descendants(element).find((part) => part.texts.includes(text)) ?? null;
+
+export const elementsWithStyle = (element: DrawnElement, style: string): DrawnElement[] =>
+  descendants(element).filter((part) => part.styles[style] !== undefined);
 
 export const elementWithIcon = (element: DrawnElement, name: string): DrawnElement | null =>
   descendants(element).find((part) => part.path?.split('/').at(-1) === name) ?? null;

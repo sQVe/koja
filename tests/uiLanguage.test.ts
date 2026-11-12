@@ -252,6 +252,10 @@ const rowPairs = (): ContrastPair[] => {
 
   pairs.push(contrastPair('accent', 'chrome', 3, 'listRow cursor outline on chrome'));
 
+  ['chrome', 'popover', 'selected'].forEach((surface) => {
+    pairs.push(contrastPair('ansi3', surface, 3, `workIcon review and restack on ${surface}`));
+  });
+
   rowSurfaces.concat('background').forEach((surface) => {
     pairs.push(
       filledPair(

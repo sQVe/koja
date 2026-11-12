@@ -110,6 +110,26 @@ export const markSize = {
   quietDot: 4,
 } as const;
 
+export const progressSize = {
+  width: 12,
+  height: 3,
+} as const;
+
+export const hoverCardSize = {
+  width: 312,
+  arrowDepth: 4,
+  headerCenter: spacing.hairline + spacing.xsmall + rowHeight.small / 2,
+  pullColumn: 34,
+  ticketColumn: 58,
+} as const;
+
+export const sidebarSize = {
+  width: 268,
+  groupGap: 12,
+  // The x offset of an inset list row's content: its margin, its outline, and its padding.
+  rowContentInset: spacing.xsmall + spacing.hairline + spacing.small,
+} as const;
+
 export const indentWidth = 20;
 
 export const overlaySize = {

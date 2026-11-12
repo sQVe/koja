@@ -72,6 +72,8 @@ export const badgeFillAlpha = '26';
 
 export const normalFocusFillAlpha = '18';
 
+export const progressTrackAlpha = '33';
+
 export const normalFocusFill = (palette: Palette): Color =>
   withAlpha(palette.accent, normalFocusFillAlpha);
 
