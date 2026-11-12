@@ -49,7 +49,7 @@ Try and QA mods in a throwaway Herdr window with its own core, home, and private
 the settings in [ruta.toml](../ruta.toml). Install it once:
 
 ```sh
-cargo install --git https://github.com/sQVe/ruta --tag v0.2.0 --locked ruta
+cargo install --git https://github.com/sQVe/ruta --tag v0.2.1 --locked ruta
 ```
 
 `up` installs this checkout with the existing installer, so it shows the worktree's mods and
