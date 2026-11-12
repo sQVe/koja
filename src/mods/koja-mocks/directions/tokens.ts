@@ -25,6 +25,7 @@ interface DirectionMarks {
   blocked: Color;
   idle: Color;
   done: Color;
+  spine: Color;
   added: Color;
   removed: Color;
   modified: Color;

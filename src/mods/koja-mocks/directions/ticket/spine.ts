@@ -27,7 +27,6 @@ export interface SpineNode {
 }
 
 const trackHeight = 3;
-const spineInk = '#7b8089';
 const markCenter = 12;
 const markLeft = 14;
 const markTop = 6;
@@ -200,8 +199,8 @@ export const spineSlice = (slice: Slice, look: SliceLook, tokens: DirectionToken
   selected: look.kind === 'current',
 });
 
-const spineLine = (index: number, length: number): Element => {
-  const line = div().absolute().left(spineLeft).w(1).bg(spineInk);
+const spineLine = (index: number, length: number, tokens: DirectionTokens): Element => {
+  const line = div().absolute().left(spineLeft).w(1).bg(tokens.marks.spine);
   const top = index === 0 ? markCenter : 0;
 
   line.top(top);
@@ -227,7 +226,7 @@ export const spine = (nodes: SpineNode[], tokens: DirectionTokens): Element =>
           .flex_none()
           .min_w(0)
           .child(node.content)
-          .child(spineLine(index, nodes.length))
+          .child(spineLine(index, nodes.length, tokens))
           .child(
             h_flex()
               .absolute()

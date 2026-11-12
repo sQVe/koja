@@ -1352,17 +1352,22 @@ describe('ticket scene structure', () => {
   test.each(['container', 'sync-failed', 'tikk', 'long', 'normal', 'wide'] satisfies TicketState[])(
     '%s keeps all three draft facts in metadata order',
     (state) => {
-      const slice = ticketView(state).slices.find((item) => item.readiness === 'PR draft');
-      const now = section(paneOf(state), 'Now');
-      const item = required(now.kids, (part) => drawnTexts(part).includes(slice?.title ?? ''));
-      const details = item.kids[1] ?? drawn();
+      const draftDetails = (scene: TicketState): string[] => {
+        const slice = ticketView(scene).slices.find((item) => item.readiness === 'PR draft');
+        const now = section(paneOf(scene), 'Now');
+        const item = required(now.kids, (part) => drawnTexts(part).includes(slice?.title ?? ''));
+
+        return drawnTexts(item.kids[1] ?? drawn());
+      };
+
+      const narrowFacts = (draftDetails('container')[0] ?? '').split(' · ');
+
+      expect(narrowFacts).toHaveLength(3);
 
       if (state === 'wide') {
-        expect(details.kids).toHaveLength(3);
-        expect(details.kids[0]?.kids).toHaveLength(3);
-        expect(details.kids.slice(1).every((line) => line.kids.length === 1)).toBe(true);
+        expect(draftDetails(state).slice(-3)).toEqual(narrowFacts);
       } else {
-        expect((drawnTexts(details)[0] ?? '').split(' · ')).toHaveLength(3);
+        expect((draftDetails(state)[0] ?? '').split(' · ')).toEqual(narrowFacts);
       }
     },
   );
