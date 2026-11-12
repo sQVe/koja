@@ -605,6 +605,34 @@ describe('needs you jump', () => {
     expect(session.calls).toEqual([]);
   });
 
+  test('goes to the first needing pane when no pane is focused', () => {
+    const session = jumpSession([
+      { pane: 'p1', tab: 'tab-1', status: 'idle' },
+      { pane: 'p2', tab: 'tab-2', status: 'blocked' },
+    ]);
+
+    session.clearFocus();
+    session.act(intent('nextNeedsYou'));
+
+    expect(session.calls).toEqual([
+      { command: 'space.select', args: { id: 'space-2' } },
+      { command: 'tab.select', args: { id: 'tab-2' } },
+      { command: 'pane.focus', args: { pane: 'p2' } },
+    ]);
+  });
+
+  test('next goes to the needing pane after the focused one, not the one before', () => {
+    const session = jumpSession([
+      { pane: 'p1', tab: 'tab-1', status: 'idle' },
+      { pane: 'p2', tab: 'tab-1', status: 'done' },
+      { pane: 'p3', tab: 'tab-2', status: 'blocked' },
+    ]);
+
+    session.act(intent('nextNeedsYou'));
+
+    expect(session.calls).toEqual([{ command: 'pane.focus', args: { pane: 'p2' } }]);
+  });
+
   test('previous goes to the needing pane before the focused one', () => {
     const session = jumpSession([
       { pane: 'p1', tab: 'tab-1', status: 'idle' },

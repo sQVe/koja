@@ -51,6 +51,18 @@ describe('needsYouTarget in sidebar order', () => {
     expect(target(-1, 'b-idle', given)).toEqual(inA);
   });
 
+  test('skips a visible space id that has no live space', () => {
+    const found = needsYouTarget({
+      step: 1,
+      visibleSpaces: ['gone', 'b', 'a'],
+      spaces,
+      panes,
+      focusedPane: null,
+    });
+
+    expect(found).toEqual(inB);
+  });
+
   test('skips a space the sidebar hides', () => {
     const found = needsYouTarget({
       step: 1,
