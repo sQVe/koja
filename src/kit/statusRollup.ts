@@ -24,7 +24,7 @@ export const readTerminals = (records: readonly unknown[]): CoreTerminal[] =>
     };
   });
 
-const statusRanks: Record<Status, number> = { blocked: 4, working: 3, done: 2, idle: 1 };
+const statusRanks: Record<Status, number> = { blocked: 4, done: 3, working: 2, idle: 1 };
 
 export const statusRank = (status: Status | null | undefined): number =>
   status === null || status === undefined ? 0 : statusRanks[status];
