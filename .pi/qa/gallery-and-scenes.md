@@ -14,10 +14,14 @@ names. Follow [the rules for every section](../qa.md#rules-for-every-section) of
 ## Driving steps
 
 1. Run `bun run sandbox shot <file>` and read the image to see the window.
-2. Open the scene picker, and wait one second.
-3. Type a scene name from `src/mods/koja-mocks/catalog.ts`, then run `key Return`.
-4. Take a `shot` of the scene, then close it with `key Escape`.
-5. Run the capture command, and list the new folder.
+2. Run the palette entry `Kit gallery`, and take a `shot` of the gallery.
+3. Open the scene picker, and wait one second.
+4. Type a name that is not in `src/mods/koja-mocks/catalog.ts`, run `key Return`, and take a `shot`
+   of the error. Open the scene picker again when it closed.
+5. Type a scene name from `src/mods/koja-mocks/catalog.ts`, then run `key Return`. Take a `shot` of
+   the scene.
+6. With the scene still open, run the capture command, and read its refusal.
+7. Close the scene with `key Escape`. Run the capture command again, and list the new folder.
 
 ## Observable results
 
