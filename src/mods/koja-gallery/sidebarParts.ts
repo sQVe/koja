@@ -113,6 +113,10 @@ export const sidebarParts = (): Element[] => [
     viewSwitch({ options: views, active: 'projects', onSelect: () => undefined }),
   ),
   sample(
+    'View switch with Inbox active',
+    viewSwitch({ options: views, active: 'inbox', onSelect: () => undefined }),
+  ),
+  sample(
     'Link text',
     h_flex()
       .gap(spacing.medium)
