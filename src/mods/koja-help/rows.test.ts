@@ -110,6 +110,11 @@ describe('helpGroups', () => {
     expect(sequences).toEqual(['w s', 'w n']);
   });
 
+  test('finds a pane key by its ctrl-w form', () => {
+    expect(rowsOf(helpGroups('ctrl-w v'))).toEqual([{ name: 'Split right', keys: [['w', 'v']] }]);
+    expect(rowsOf(helpGroups('ctrl-w')).flatMap(sequencesOf)).toContain('w v');
+  });
+
   test('does not match the middle of a key name', () => {
     expect(rowsOf(helpGroups('space')).flatMap(sequencesOf)).not.toContain('backspace');
   });

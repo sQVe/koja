@@ -84,12 +84,18 @@ const allGroups = (): HelpGroup[] => {
 const startsSequence = (keys: readonly string[], query: string): boolean =>
   keys.join(' ').toLowerCase().startsWith(query);
 
+// The help lists the ctrl-w forms only as a note, so a ctrl-w query looks for the w form.
+const keyQueryOf = (query: string): string =>
+  query.startsWith('ctrl-w') ? `w${query.slice('ctrl-w'.length)}` : query;
+
 const matches = (row: HelpRow, query: string): boolean => {
   if (row.name.toLowerCase().includes(query)) {
     return true;
   }
 
-  return row.keys.some((keys) => startsSequence(keys, query));
+  const keyQuery = keyQueryOf(query);
+
+  return row.keys.some((keys) => startsSequence(keys, keyQuery));
 };
 
 export const helpGroups = (query: string): HelpGroup[] => {
