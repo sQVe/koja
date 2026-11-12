@@ -37,6 +37,7 @@ const rowHeightSmall = 24;
 
 let runCalls: RunCall[] = [];
 let notifyCalls = 0;
+let scrollCalls: number[] = [];
 let sharedValues: Record<string, unknown> = {};
 let sidebarWidth: number | null = null;
 let spaceList: SpaceInfo[] = [];
@@ -109,7 +110,17 @@ Object.assign(globalThis, {
 });
 
 await mock.module('gpui-base', () =>
-  gpuiBaseFake({ h_flex: () => drawn(), v_flex: () => drawn() }),
+  gpuiBaseFake({
+    h_flex: () => drawn(),
+    v_flex: () => drawn(),
+    ScrollHandle: {
+      new: () => ({
+        scroll_to_item: (index: number) => {
+          scrollCalls.push(index);
+        },
+      }),
+    },
+  }),
 );
 
 await mock.module('gpui-kit', () =>
@@ -196,6 +207,8 @@ const loadView = async (): Promise<FakeView> => {
 
   view.init({}, context);
   view.render();
+  // A view that starts marked shows its cursor row in its first draw, which no test here counts.
+  scrollCalls = [];
 
   return view;
 };
@@ -225,6 +238,15 @@ const selected = (): unknown[] =>
 const spaceNames = (view: FakeView): string[] =>
   drawnTexts(view.render()).filter((text) => text.startsWith('name-'));
 
+// The place of the outlined row among the direct children of the scrolling list.
+const cursorChildIndex = (view: FakeView): number => {
+  const list = elementsWithSizeHandler(view.render())[0];
+
+  return (list?.kids ?? []).findIndex(
+    (child) => elementsWithBorder(child, themeColors.accent).length > 0,
+  );
+};
+
 const reportHeight = (view: FakeView, height: number): void => {
   for (const element of elementsWithSizeHandler(view.render())) {
     element.sizeHandlers[0]?.({ width: 200, height }, {});
@@ -234,6 +256,7 @@ const reportHeight = (view: FakeView, height: number): void => {
 beforeEach(() => {
   runCalls = [];
   notifyCalls = 0;
+  scrollCalls = [];
   sharedValues = {};
   sidebarWidth = null;
   commandQueue.length = 0;
@@ -358,6 +381,79 @@ describe('koja-spaces list cursor', () => {
 
     expect(spaceNames(view)).toEqual(['name-a', 'name-c', 'name-w']);
     expect(sharedValues['spaces.order']).toEqual({ shown: ['a', 'c', 'w'], hidden: [] });
+  });
+
+  test('a list command asks the list to show the cursor row on the next draw, once', async () => {
+    const view = await loadView();
+
+    await send('list-last');
+    view.render();
+    view.render();
+
+    expect(cursorNames(view)).toEqual(['name-h']);
+    expect(scrollCalls).toEqual([cursorChildIndex(view)]);
+  });
+
+  test('the row to show counts the machine headers above it', async () => {
+    spaceList = [space('a', true), { ...space('w', false), machine: 'work' }];
+
+    const view = await loadView();
+
+    await send('list-last');
+    view.render();
+
+    const plain = cursorChildIndex(view);
+
+    expect(cursorNames(view)).toEqual(['name-w']);
+    // Above w: the row of a and the two machine headers.
+    expect(plain).toBeGreaterThanOrEqual(3);
+    expect(scrollCalls).toEqual([plain]);
+  });
+
+  test('the draw in which the sidebar became marked asks to show the cursor row, once', async () => {
+    mark('panes');
+
+    const view = await loadView();
+
+    mark('sidebar');
+    view.render();
+
+    const shown = [...scrollCalls];
+
+    view.render();
+
+    expect(shown).toEqual([cursorChildIndex(view)]);
+    expect(scrollCalls).toEqual(shown);
+  });
+
+  test('a draw in which the sidebar lost its mark asks for no scroll', async () => {
+    const view = await loadView();
+
+    mark('panes');
+    view.render();
+
+    expect(scrollCalls).toEqual([]);
+  });
+
+  test('a draw with no list command asks for no scroll', async () => {
+    const view = await loadView();
+
+    view.render();
+    spaceList = spaceList.map((candidate) => space(candidate.id, candidate.id === 'h'));
+    view.render();
+
+    expect(scrollCalls).toEqual([]);
+  });
+
+  test('a list command on a sidebar that is not marked asks for no scroll', async () => {
+    mark('panes');
+
+    const view = await loadView();
+
+    await send('list-last');
+    view.render();
+
+    expect(scrollCalls).toEqual([]);
   });
 
   test('the collapsed rail outlines the cursor row', async () => {

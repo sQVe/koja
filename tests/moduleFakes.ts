@@ -45,6 +45,7 @@ export const herdrFake = (overrides: ModuleFake = {}): ModuleFake => ({
 export const gpuiBaseFake = (overrides: ModuleFake = {}): ModuleFake => ({
   Input: { new: () => chainable() },
   InputState: { new: () => undefined },
+  ScrollHandle: { new: () => chainable() },
   Scrollbar: { vertical: noop },
   h_flex: noop,
   v_flex: noop,

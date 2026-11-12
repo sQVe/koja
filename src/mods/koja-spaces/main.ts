@@ -1,4 +1,4 @@
-import { v_flex } from 'gpui-base';
+import { ScrollHandle, v_flex } from 'gpui-base';
 import type { AsyncContext, Context, Element } from 'gpui-kit';
 import { div, View } from 'gpui-kit';
 import type { SpaceInfo } from 'herdr';
@@ -108,6 +108,12 @@ export default class Spaces extends View {
 
   private halfPage = 1;
 
+  private readonly scroll = ScrollHandle.new();
+
+  private revealCursor = false;
+
+  private marked = false;
+
   override close(): void {
     this.order.clear();
   }
@@ -137,9 +143,7 @@ export default class Spaces extends View {
     this.statuses = rollupStatuses(spaces(), panes(), terminals());
     this.visibility = this.advance();
 
-    if (!isSidebarMarked()) {
-      this.cursor = null;
-    }
+    this.followMark(isSidebarMarked());
 
     return withTextRole(v_flex(), 'body')
       .size_full()
@@ -153,6 +157,7 @@ export default class Spaces extends View {
           .min_h(0)
           .pb(spacing.xlarge)
           .overflow_y_scrollbar()
+          .track_scroll(this.scroll)
           .mode('always')
           .on_size_change((size) => {
             this.halfPage = halfPageOf(size.height, rowHeight.small);
@@ -163,6 +168,18 @@ export default class Spaces extends View {
           })
           .children(this.grouped(collapsed)),
       );
+  }
+
+  private followMark(marked: boolean): void {
+    if (!marked) {
+      this.cursor = null;
+    }
+
+    if (marked && !this.marked) {
+      this.revealCursor = true;
+    }
+
+    this.marked = marked;
   }
 
   private listenForCommands(cx: AsyncContext): void {
@@ -192,6 +209,7 @@ export default class Spaces extends View {
     });
 
     this.cursor = result.cursor;
+    this.revealCursor = true;
 
     if (result.select !== null) {
       run('space.select', { id: result.select });
@@ -349,14 +367,25 @@ export default class Spaces extends View {
     const shown = this.shownRows(groups);
     const cursor = this.cursorRow(shown);
 
+    let cursorElement: Element | null = null;
+
     this.order.publish(shown, ids);
 
-    return machineRows(
+    const elements = machineRows(
       {
         machineList: this.machines.lookup(),
         groups,
-        draw: (row, lineAbove) =>
-          collapsed ? this.drawRail(row, lineAbove, cursor) : this.draw(row, ids, cursor),
+        draw: (row, lineAbove) => {
+          const element = collapsed
+            ? this.drawRail(row, lineAbove, cursor)
+            : this.draw(row, ids, cursor);
+
+          if (spaceIdOf(row) === cursor) {
+            cursorElement = element;
+          }
+
+          return element;
+        },
         folded: (machine) => this.foldedMachines.has(machine ?? ''),
         loading: (machine) => this.isLoading(machine),
         addSpace: (machine) => {
@@ -374,6 +403,21 @@ export default class Spaces extends View {
       },
       collapsed,
     );
+
+    this.showCursor(elements, cursorElement);
+
+    return elements;
+  }
+
+  // The scroll handle shows a direct child of the list by its index.
+  private showCursor(elements: readonly Element[], cursorElement: Element | null): void {
+    const index = cursorElement === null ? -1 : elements.indexOf(cursorElement);
+
+    if (this.revealCursor && index >= 0) {
+      this.scroll.scroll_to_item(index);
+    }
+
+    this.revealCursor = false;
   }
 
   private addDragHandlers(element: Element, space: SpaceInfo, ids: readonly string[]): void {
