@@ -14,6 +14,10 @@ const intentNames: Record<NormalIntent, string> = {
   previousPane: 'Previous pane',
   lastPane: 'Last pane',
   lastTab: 'Last tab',
+  nextNeedsYou: 'Next pane that needs you',
+  previousNeedsYou: 'Previous pane that needs you',
+  nextRoot: 'Next repository',
+  previousRoot: 'Previous repository',
 };
 
 const sectionNames: Record<SectionTarget, string> = {

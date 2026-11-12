@@ -150,8 +150,8 @@ test('help draws normal keys, filters spaces, and closes on Escape', () => {
 
   expect(drawnKeys).toContain('s j');
   expect(drawnKeys).not.toContain('t n');
-  expect(drawnRows.length).toBeGreaterThan(0);
-  expect(drawnRows.every((name) => name.toLowerCase().includes('space'))).toBe(true);
+  expect(drawnRows).toContain('Next space');
+  expect(drawnRows).not.toContain('New tab');
 
   keyHandler?.({ key: 'escape' });
 

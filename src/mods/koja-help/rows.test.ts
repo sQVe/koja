@@ -84,9 +84,15 @@ describe('helpGroups', () => {
     ]);
   });
 
-  test('keeps only rows whose name contains the query', () => {
+  test('keeps only rows whose name contains the query or whose key sequence starts with it', () => {
     const rows = rowsOf(helpGroups('space'));
-    const unrelated = rows.filter((row) => !row.name.toLowerCase().includes('space'));
+
+    const unrelated = rows.filter((row) => {
+      const inName = row.name.toLowerCase().includes('space');
+      const startsKeys = sequencesOf(row).some((sequence) => sequence.startsWith('space'));
+
+      return !inName && !startsKeys;
+    });
 
     expect(unrelated).toEqual([]);
     expect(rows).toContainEqual({ name: 'Next space', keys: [['s', 'j']] });
@@ -109,12 +115,15 @@ describe('helpGroups', () => {
   });
 
   test('matches a query without case', () => {
-    expect(rowsOf(helpGroups('NEXT SPACE'))).toEqual([{ name: 'Next space', keys: [['s', 'j']] }]);
+    expect(rowsOf(helpGroups('RENAME SPACE'))).toEqual([
+      { name: 'Rename space', keys: [['s', 'r']] },
+    ]);
+
     expect(rowsOf(helpGroups('g t')).flatMap(sequencesOf)).toContain('g T');
   });
 
   test('drops a group that the query leaves empty', () => {
-    expect(helpGroups('next space').map((group) => group.id)).toEqual(['s']);
+    expect(helpGroups('rename space').map((group) => group.id)).toEqual(['s']);
   });
 
   test('gives no group for a query that matches nothing', () => {
