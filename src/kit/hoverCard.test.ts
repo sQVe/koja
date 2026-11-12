@@ -23,7 +23,6 @@ await mock.module('gpui-kit', () => gpuiKitFake({ div: () => drawn() }));
 
 await mock.module('herdr', () => herdrFake({ theme: () => palette }));
 
-// A path in a variable keeps the typechecker of tests away from the gpui modules.
 const modulePath = './hoverCard.ts';
 
 const { hoverCard } = (await import(modulePath)) as {
@@ -50,7 +49,6 @@ const cardWithArrowAt = (arrowTop: number): DrawnElement =>
     footer: textElement('Open stack ›'),
   });
 
-// The tip is the middle row of an arrow layer, the one 1 px column at its point.
 const tipRow = (layer: DrawnElement): number => {
   const [top] = layer.styles['top'] as [number];
   const [height] = layer.styles['h'] as [number];

@@ -25,7 +25,6 @@ interface SampleLayer {
   need: WorkNeed | null;
 }
 
-// The card's outline, its top padding, then half of the header line.
 const headerCenter = spacing.hairline + spacing.xsmall + rowHeight.small / 2;
 
 const sampleLayers: SampleLayer[] = [

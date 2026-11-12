@@ -39,8 +39,6 @@ const rowPitch = (): number => rowHeight.small + spacing.xxsmall;
 const groupHeight = (project: FakeProject): number =>
   rowHeight.small + project.spaces.length * rowPitch();
 
-// The y of the hovered row's center, from the sidebar's own layout: its top padding, the view
-// switch line, then the groups above it.
 const hoveredRowCenter = (): number => {
   let top = spacing.small + rowHeight.small;
 
@@ -59,7 +57,6 @@ const hoveredRowCenter = (): number => {
   return top;
 };
 
-// The card's outline, its top padding, then half of the header line.
 const cardTitleCenter = (): number => spacing.hairline + spacing.xsmall + rowHeight.small / 2;
 
 const sidebarLine = (content: Element): Element =>
@@ -142,7 +139,6 @@ const cardLine = (start: Element, end: string): Element =>
     .child(start.flex_1())
     .child(roleText('detail', end));
 
-// A mark as wide as the icon, so the card's header text lines up with the marks under it.
 const layerMark = (layer: FakeLayer): Element =>
   layer.state === 'checkedOut' ? icon('git-branch', 'small') : statusMark(null);
 

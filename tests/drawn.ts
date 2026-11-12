@@ -10,7 +10,6 @@ export interface DrawnElement {
   isDisabled: boolean;
   clickHandlers: ((event: unknown, cx: unknown) => void)[];
   sizeHandlers: ((size: { width: number; height: number }, cx: unknown) => void)[];
-  // The arguments of the last call of each other method, such as `w` or `underline`.
   styles: Record<string, unknown[]>;
 }
 
