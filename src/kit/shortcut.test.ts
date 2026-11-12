@@ -39,12 +39,19 @@ describe('bindingFor', () => {
     expect(bindingFor([], 'space.new')).toBe('s n');
     expect(bindingFor([], 'layout.toggle:sidebar')).toBe('z s');
     expect(bindingFor([], 'pane.go:left')).toBe('h');
-    expect(bindingFor([], 'space.next')).toBe('s j');
-    expect(bindingFor([], 'space.prev')).toBe('s k');
   });
 
-  test('shows s f for the picker', () => {
-    expect(bindingFor([], 'mod.open:koja-picker')).toBe('s f');
+  test('shows the one-key alias of an action that has one', () => {
+    expect(bindingFor([], 'space.next')).toBe(']');
+    expect(bindingFor([], 'space.prev')).toBe('[');
+    expect(bindingFor([], 'tab.next')).toBe(')');
+    expect(bindingFor([], 'tab.prev')).toBe('(');
+    expect(bindingFor([], 'mod.open:koja-picker')).toBe('ä');
+  });
+
+  test('shows the first of several keys of the same length', () => {
+    expect(bindingFor([], 'pane.go:left')).toBe('h');
+    expect(bindingFor([], 'mod.open:koja-palette')).toBe(':');
   });
 
   test('answers null for an action with only ambiguous normal-mode keys', () => {

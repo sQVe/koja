@@ -1,6 +1,6 @@
 import { recordOf, stringOf } from '../../kit/fields.ts';
 import type { NormalAction, NormalIntent } from '../../kit/normalKeys.ts';
-import { readSpaceOrder, visibleSpaceIds } from '../../kit/spaceOrder.ts';
+import { readSpaceOrder, rootStepCommand, visibleSpaceIds } from '../../kit/spaceOrder.ts';
 import type { JumpPane, JumpSpace } from './needsYouJump.ts';
 import { needsYouTarget } from './needsYouJump.ts';
 
@@ -237,6 +237,18 @@ const focusNeedsYou = (step: 1 | -1, deps: ExecutorDeps): void => {
   deps.run('pane.focus', { pane: target.pane });
 };
 
+const stepRoot = (step: number, deps: ExecutorDeps): void => {
+  const command = rootStepCommand(step, {
+    order: readSpaceOrder(deps.store.get),
+    liveIds: deps.spaces().map((space) => space.id),
+    current: deps.focused()?.space ?? null,
+  });
+
+  if (command !== null) {
+    deps.run(command.name, command.args);
+  }
+};
+
 const runIntent = (intent: NormalIntent, previous: NormalModeHistory, deps: ExecutorDeps): void => {
   switch (intent) {
     case 'closeOtherPanes': {
@@ -277,6 +289,18 @@ const runIntent = (intent: NormalIntent, previous: NormalModeHistory, deps: Exec
 
     case 'previousNeedsYou': {
       focusNeedsYou(-1, deps);
+
+      break;
+    }
+
+    case 'nextRoot': {
+      stepRoot(1, deps);
+
+      break;
+    }
+
+    case 'previousRoot': {
+      stepRoot(-1, deps);
 
       break;
     }

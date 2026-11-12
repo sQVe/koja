@@ -460,6 +460,30 @@ describe('normal mode palette', () => {
     });
   });
 
+  test.each([
+    [']', 'space.next'],
+    ['[', 'space.prev'],
+    [')', 'tab.next'],
+    ['(', 'tab.prev'],
+  ])('resolves %s alone to %s', (key, name) => {
+    expect(feed([plain(key)])).toEqual({
+      status: 'action',
+      state: initialParserState,
+      action: { kind: 'command', command: name },
+    });
+  });
+
+  test.each<[string, NormalIntent]>([
+    ['}', 'nextRoot'],
+    ['{', 'previousRoot'],
+  ])('resolves %s alone to the %s intent', (key, name) => {
+    expect(feed([plain(key)])).toEqual({
+      status: 'action',
+      state: initialParserState,
+      action: { kind: 'intent', intent: name },
+    });
+  });
+
   test('resolves the leave-normal-mode keys', () => {
     for (const leave of [plain('i'), plain('a'), named('enter', 'enter')]) {
       expect(feed([leave])).toMatchObject({

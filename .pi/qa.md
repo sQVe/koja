@@ -103,6 +103,10 @@ Give the brief these lines: `Sandbox: <name>`, the fixture paths, and `Data writ
   `w m` zooms and restores, and `w w` and `w W` step through the panes of the tab.
 - `t n` opens a tab. `t h`, `t l`, `t 1` to `t 9`, and `g t` select tabs. `s j` and `s k` step
   spaces in sidebar order. `z s` hides and shows the sidebar.
+- `type ']'` and `type '['` step spaces as `s j` and `s k` do. `type ')'` and `type '('` step tabs.
+  `type '}'` and `type '{'` select the main space of the next and previous repository row of the
+  sidebar, and wrap at the ends. With no repository row, they do nothing.
+- The palette shows `]` as the key of "Next space" and `)` as the key of "Next tab".
 - `key Tab` and `key Tab Shift_L` move the mark between the sidebar and the panes. A marked sidebar
   shows a 1 px accent outline on its cursor row, and the panes show no mark. `Escape`, `i`, and a
   hidden sidebar drop the mark.

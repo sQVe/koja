@@ -367,7 +367,7 @@ describe('koja-spaces list cursor', () => {
     const view = await loadView();
 
     expect(spaceNames(view)).toEqual(['name-a', 'name-c']);
-    expect(sharedValues['spaces.order']).toEqual({ shown: ['a', 'c'], hidden: ['w'] });
+    expect(sharedValues['spaces.order']).toEqual({ shown: ['a', 'c'], hidden: ['w'], roots: [] });
 
     await send('list-last');
 
@@ -380,7 +380,12 @@ describe('koja-spaces list cursor', () => {
     const view = await loadView();
 
     expect(spaceNames(view)).toEqual(['name-a', 'name-c', 'name-w']);
-    expect(sharedValues['spaces.order']).toEqual({ shown: ['a', 'c', 'w'], hidden: [] });
+
+    expect(sharedValues['spaces.order']).toEqual({
+      shown: ['a', 'c', 'w'],
+      hidden: [],
+      roots: [],
+    });
   });
 
   test('a list command asks the list to show the cursor row on the next draw, once', async () => {
