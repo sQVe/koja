@@ -432,6 +432,25 @@ describe('normal mode palette', () => {
     }
   });
 
+  test('resolves Space and g a to the same next pane that needs you', () => {
+    const space = feed([event({ key: 'space', keystroke: 'space', key_char: ' ' })]);
+    const next = feed([plain('g'), plain('a')]);
+
+    expect(next).toMatchObject({
+      status: 'action',
+      action: { kind: 'intent', intent: 'nextNeedsYou' },
+    });
+
+    expect(space).toEqual(next);
+  });
+
+  test('resolves g A to the previous pane that needs you', () => {
+    expect(feed([plain('g'), plain('A')])).toMatchObject({
+      status: 'action',
+      action: { kind: 'intent', intent: 'previousNeedsYou' },
+    });
+  });
+
   test('does not open the picker for Space Space', () => {
     const result = feed([named('space', 'space'), named('space', 'space')]);
 

@@ -1,6 +1,6 @@
 import type { AsyncContext, Context, Element, FocusHandle, KeyEvent } from 'gpui-kit';
 import { div, View } from 'gpui-kit';
-import { exec, focused, nextCommand, panes, run, setShared, shared } from 'herdr';
+import { exec, focused, nextCommand, panes, run, setShared, shared, spaces } from 'herdr';
 
 import {
   askFirst,
@@ -69,6 +69,7 @@ export default class KojaModal extends View {
       this.dialogOpened = askFirst(command, args);
     },
     panes,
+    spaces,
     focused,
     store: sharedStore,
     historyKey,

@@ -5,6 +5,7 @@ import {
   clearSpaceOrder,
   readSpaceOrder,
   spaceStepCommand,
+  visibleSpaceIds,
   writeSpaceOrder,
 } from './spaceOrder.ts';
 
@@ -148,5 +149,32 @@ const steps: [string, number, SpaceStepFacts, SpaceCommand | null][] = [
 describe('spaceStepCommand', () => {
   test.each(steps)('%s', (_name, step, given, expected) => {
     expect(spaceStepCommand(step, given)).toEqual(expected);
+  });
+});
+
+describe('visibleSpaceIds', () => {
+  test('returns the shown spaces in sidebar order without the hidden ones', () => {
+    const published = order(['notes', 'main'], ['worktree']);
+
+    expect(visibleSpaceIds({ order: published, liveIds: sidebar })).toEqual(['notes', 'main']);
+  });
+
+  test('drops a shown space that is no longer live', () => {
+    const published = order(['notes', 'removed', 'main']);
+
+    expect(visibleSpaceIds({ order: published, liveIds: ['main', 'notes'] })).toEqual([
+      'notes',
+      'main',
+    ]);
+  });
+
+  test('returns every live space in Herdr order when no order is published', () => {
+    expect(visibleSpaceIds({ order: null, liveIds: sidebar })).toEqual(sidebar);
+  });
+
+  test('returns every live space when the order misses a live space', () => {
+    const published = order(['notes'], ['main']);
+
+    expect(visibleSpaceIds({ order: published, liveIds: sidebar })).toEqual(sidebar);
   });
 });
