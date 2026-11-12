@@ -2,7 +2,17 @@ import { v_flex } from 'gpui-base';
 import type { AsyncContext, Context, Element } from 'gpui-kit';
 import { div, View } from 'gpui-kit';
 import type { SpaceInfo } from 'herdr';
-import { machines, openOverlay, panes, run, setShared, spaces, terminals } from 'herdr';
+import {
+  machines,
+  nextCommand,
+  openOverlay,
+  panes,
+  run,
+  setShared,
+  shared,
+  spaces,
+  terminals,
+} from 'herdr';
 
 import type { DragState } from '../../kit/drag.ts';
 import { dropAction, noDrag, setDragOver, startDrag } from '../../kit/drag.ts';
@@ -13,13 +23,17 @@ import {
   findLayoutNode,
   hoveredAfter,
   layoutRoot,
+  listActionOf,
   overlaySize,
   railWidthLimit,
+  readSection,
   repeat,
   rollupStatuses,
+  rowHeight,
   spacing,
   withTextRole,
 } from '../../kit/index.ts';
+import { cursorRow, halfPageOf, moveCursor } from './cursor.ts';
 import { foldedSet } from './folded.ts';
 import { GitTracker } from './gitTracker.ts';
 import { machineRows } from './machineRows.ts';
@@ -32,7 +46,7 @@ import { createOrderPublisher } from './spaceOrder.ts';
 import type { RowState } from './spaceRows.ts';
 import { labelRow, row as spaceRow, rowTitle } from './spaceRows.ts';
 import type { GitInfo, ListedSpace, TreeGroup, TreeRow } from './tree.ts';
-import { nestSpaces, placesOf } from './tree.ts';
+import { listedOf, nestSpaces, placesOf } from './tree.ts';
 import type { VisibilityResult, VisibilityState } from './visibility.ts';
 import { advanceVisibility, initialVisibility } from './visibility.ts';
 
@@ -52,6 +66,10 @@ const isNarrow = (): boolean => {
 
   return width !== null && width < railWidthLimit;
 };
+
+const isSidebarMarked = (): boolean => readSection(shared) === 'sidebar';
+
+const activeSpaceId = (): string | null => spaces().find((space) => space.active)?.id ?? null;
 
 const topStripHeight = (): number =>
   layoutRoot().trafficLights === null ? spacing.small : controlSize.sidebarHeader;
@@ -84,6 +102,12 @@ export default class Spaces extends View {
 
   private statuses: StatusRollup = { spaces: {}, tabs: {} };
 
+  private cursor: string | null = null;
+
+  private shownIds: readonly string[] = [];
+
+  private halfPage = 1;
+
   override close(): void {
     this.order.clear();
   }
@@ -102,6 +126,8 @@ export default class Spaces extends View {
     repeat(cx, checkMilliseconds, (timerCx) => {
       this.checkNew(timerCx);
     });
+
+    this.listenForCommands(cx);
   }
 
   override render(): Element {
@@ -111,6 +137,10 @@ export default class Spaces extends View {
     this.statuses = rollupStatuses(spaces(), panes(), terminals());
     this.visibility = this.advance();
 
+    if (!isSidebarMarked()) {
+      this.cursor = null;
+    }
+
     return withTextRole(v_flex(), 'body')
       .size_full()
       .min_h(0)
@@ -118,17 +148,73 @@ export default class Spaces extends View {
       .child(div().flex_none().h(topStripHeight()))
       .child(
         v_flex()
+          .id('spaces-list')
           .flex_1()
           .min_h(0)
           .pb(spacing.xlarge)
           .overflow_y_scrollbar()
           .mode('always')
+          .on_size_change((size) => {
+            this.halfPage = halfPageOf(size.height, rowHeight.small);
+          })
           .on_mouse_up('left', (_event, cx) => {
             this.drag = noDrag;
             cx.notify();
           })
-          .children(this.grouped(collapsed)),
+          .children(this.rows(collapsed)),
       );
+  }
+
+  private listenForCommands(cx: AsyncContext): void {
+    cx.spawn(async (taskCx) => {
+      for (;;) {
+        // eslint-disable-next-line no-await-in-loop -- each list command is awaited in turn
+        const command = await nextCommand();
+
+        this.applyCommand(command, taskCx);
+      }
+    });
+  }
+
+  private applyCommand(command: string, cx: Context): void {
+    const action = listActionOf(command);
+
+    if (action === null || !isSidebarMarked()) {
+      return;
+    }
+
+    const result = moveCursor({
+      shown: this.shownIds,
+      cursor: this.cursor,
+      active: activeSpaceId(),
+      action,
+      halfPage: this.halfPage,
+    });
+
+    this.cursor = result.cursor;
+
+    if (result.select !== null) {
+      run('space.select', { id: result.select });
+    }
+
+    cx.notify();
+  }
+
+  private cursorRow(): string | null {
+    if (!isSidebarMarked()) {
+      return null;
+    }
+
+    return cursorRow(this.shownIds, this.cursor, activeSpaceId());
+  }
+
+  private rows(collapsed: boolean): Element[] {
+    const expected = this.cursorRow();
+    const elements = this.grouped(collapsed, expected);
+    const cursor = this.cursorRow();
+
+    // The shown rows are known only after a draw, so a cursor that moved with them draws again.
+    return cursor === expected ? elements : this.grouped(collapsed, cursor);
   }
 
   private advance(): VisibilityResult {
@@ -219,25 +305,27 @@ export default class Spaces extends View {
     this.pulls.retry(git.repo, git.cwd, cx);
   };
 
-  private draw(
-    row: TreeRow,
-    ids: readonly string[],
-    collapsed: boolean,
-    lineAbove: boolean,
-  ): Element {
-    if (collapsed) {
-      const git = row.kind === 'repo' ? row.main.git : row.git;
+  private drawRail(row: TreeRow, lineAbove: boolean, cursor: string | null): Element {
+    const git = row.kind === 'repo' ? row.main.git : row.git;
+    const title = row.kind === 'repo' ? row.name : rowTitle(row, this.pulls.lookup(row.git));
 
-      const title = row.kind === 'repo' ? row.name : rowTitle(row, this.pulls.lookup(row.git));
-
-      return railRow(row, title, lineAbove, this.pulls.errorLine(git), (cx) => {
+    return railRow({
+      row,
+      title,
+      lineAbove,
+      cursor: listedOf(row).space.id === cursor,
+      error: this.pulls.errorLine(git),
+      retry: (cx) => {
         this.retryPull(git, cx);
-      });
-    }
+      },
+    });
+  }
 
+  private draw(row: TreeRow, ids: readonly string[], cursor: string | null): Element {
     const state: RowState = {
       drag: this.drag,
       hovered: this.hovered,
+      cursor,
       lookup: (git) => this.pulls.lookup(git),
       attachDrag: (element, space, rowIds) => {
         this.addDragHandlers(element, space, rowIds);
@@ -256,7 +344,7 @@ export default class Spaces extends View {
     return row.kind === 'repo' ? labelRow(row, ids, state) : spaceRow(row, ids, state);
   }
 
-  private grouped(collapsed: boolean): Element[] {
+  private grouped(collapsed: boolean, cursor: string | null): Element[] {
     const groups = this.ordered();
     const ids = spaces().map((space) => space.id);
     const shownRows: TreeRow[] = [];
@@ -269,7 +357,7 @@ export default class Spaces extends View {
         draw: (row, lineAbove) => {
           shownRows.push(row);
 
-          return this.draw(row, ids, collapsed, lineAbove);
+          return collapsed ? this.drawRail(row, lineAbove, cursor) : this.draw(row, ids, cursor);
         },
         folded: (machine) => this.foldedMachines.has(machine ?? ''),
         loading: (machine) => this.isLoading(machine),
@@ -290,6 +378,7 @@ export default class Spaces extends View {
     );
 
     this.order.publish(shownRows, ids);
+    this.shownIds = shownRows.map((row) => listedOf(row).space.id);
 
     return elements;
   }

@@ -7,6 +7,15 @@ import { colors, icon, listRow, separator, spaceMark, spacing } from '../../kit/
 import type { TreeRow } from './tree.ts';
 import { listedOf } from './tree.ts';
 
+interface RailRowOptions {
+  row: TreeRow;
+  title: string;
+  lineAbove: boolean;
+  cursor: boolean;
+  error: string | null;
+  retry: (cx: Context) => void;
+}
+
 const insetLine = (): Element => div().px(spacing.small).child(separator());
 
 const alertMark = (id: string, text: string, retry: (cx: Context) => void): Element =>
@@ -33,14 +42,9 @@ export const railErrorMark = (text: string, retry: (cx: Context) => void): Eleme
     end: [alertMark('rail-machines-error', text, retry)],
   }).id('machines-error');
 
-export const railRow = (
-  row: TreeRow,
-  title: string,
-  lineAbove: boolean,
-  error: string | null,
-  retry: (cx: Context) => void,
-): Element => {
-  const { space, status } = listedOf(row);
+export const railRow = (options: RailRowOptions): Element => {
+  const { cursor, error, lineAbove, retry, title } = options;
+  const { space, status } = listedOf(options.row);
 
   const end =
     error === null
@@ -52,6 +56,7 @@ export const railRow = (
     inset: true,
     state: space.active ? 'selected' : 'normal',
     centered: true,
+    cursor,
     label: '',
     end,
   })

@@ -240,7 +240,17 @@ const rowPairs = (): ContrastPair[] => {
   );
 
   pairs.push(contrastPair('accent', 'hover', 4.5, 'highlightedText match on hover'));
-  pairs.push(contrastPair('accent', 'selected', 4.5, 'highlightedText match on selected'));
+
+  pairs.push(
+    contrastPair(
+      'accent',
+      'selected',
+      4.5,
+      'highlightedText match and listRow cursor outline on selected',
+    ),
+  );
+
+  pairs.push(contrastPair('accent', 'chrome', 3, 'listRow cursor outline on chrome'));
 
   rowSurfaces.concat('background').forEach((surface) => {
     pairs.push(

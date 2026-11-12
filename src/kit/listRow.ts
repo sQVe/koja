@@ -27,6 +27,8 @@ export interface ListRowOptions extends HoverOptions {
   end?: Element[];
   dragged?: boolean;
   dropLine?: 'top' | 'bottom';
+  // The row under the list cursor of a marked section.
+  cursor?: boolean;
 }
 
 const labelColor = (options: ListRowOptions, palette: Palette): Palette[keyof Palette] => {
@@ -37,12 +39,15 @@ const labelColor = (options: ListRowOptions, palette: Palette): Palette[keyof Pa
   return options.muted === true ? palette.muted : palette.foreground;
 };
 
-const withBackground = (row: Element, options: ListRowOptions, palette: Palette): Element => {
-  if (options.state === 'selected') {
-    return row.bg(palette.selected);
+const withFill = (row: Element, options: ListRowOptions, palette: Palette): Element =>
+  options.state === 'selected' ? row.bg(palette.selected) : row;
+
+const withOutline = (row: Element, options: ListRowOptions, palette: Palette): Element => {
+  if (options.cursor === true) {
+    return row.border_color(palette.accent);
   }
 
-  if (options.state === 'disabled') {
+  if (options.state !== 'normal') {
     return row;
   }
 
@@ -108,7 +113,8 @@ const rowFrame = (options: ListRowOptions, palette: Palette): Element => {
     .pr(spacing.small)
     .gap(spacing.small)
     .items_center()
-    // A clear border on every row, so the outline a hovered row draws never shifts its content.
+    // A clear border on every row, so the outline of a hovered or cursor row never shifts its
+    // content.
     .border(spacing.hairline)
     .border_color(clearOf(palette.selected))
     .text_size(textSize.default)
@@ -133,7 +139,8 @@ const decorate = (row: Element, options: ListRowOptions, palette: Palette): void
 
 export const listRow = (options: ListRowOptions): Element => {
   const palette = colors();
-  const row = withBackground(rowFrame(options, palette), options, palette);
+  const filled = withFill(rowFrame(options, palette), options, palette);
+  const row = withOutline(filled, options, palette);
 
   decorate(row, options, palette);
 

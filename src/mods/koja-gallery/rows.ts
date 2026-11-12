@@ -5,11 +5,13 @@ import type { RowState } from '../../kit/index.ts';
 import { highlightedText, icon, keyHint, listRow, statusMark } from '../../kit/index.ts';
 import { matchOf, sample } from './sample.ts';
 
-const rowStates: { state: RowState; hovered: boolean; label: string }[] = [
-  { state: 'normal', hovered: false, label: 'normal' },
-  { state: 'normal', hovered: true, label: 'hovered' },
-  { state: 'selected', hovered: false, label: 'selected' },
-  { state: 'disabled', hovered: false, label: 'disabled' },
+const rowStates: { state: RowState; hovered: boolean; cursor: boolean; label: string }[] = [
+  { state: 'normal', hovered: false, cursor: false, label: 'normal' },
+  { state: 'normal', hovered: true, cursor: false, label: 'hovered' },
+  { state: 'selected', hovered: false, cursor: false, label: 'selected' },
+  { state: 'disabled', hovered: false, cursor: false, label: 'disabled' },
+  { state: 'normal', hovered: false, cursor: true, label: 'cursor' },
+  { state: 'selected', hovered: false, cursor: true, label: 'selected cursor' },
 ];
 
 const rowsInState = (inset: boolean): Element =>
@@ -20,6 +22,7 @@ const rowsInState = (inset: boolean): Element =>
         inset,
         state: variant.state,
         hovered: variant.hovered,
+        cursor: variant.cursor,
         start: icon('terminal', 'large'),
         label: `${variant.label} row`,
         detail: 'detail',

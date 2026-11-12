@@ -117,4 +117,4 @@ export { repeat } from './timer.ts';
 
 export { overlayCloseCount, recordOverlayClose } from './overlayOpen.ts';
 
-export { shownSections } from './section.ts';
+export { listActionOf, readSection, shownSections } from './section.ts';
