@@ -51,8 +51,6 @@ test('config/keys.json has no terminal key outside the allowlist', async () => {
   expect(Object.keys(terminal).toSorted()).toEqual(allowedTerminalKeys);
 });
 
-// koja-modal binds Tab and Shift-Tab itself. A binding for them here never reaches the mod in a
-// window that was just started.
 test('config/keys.json binds only ctrl-b in the koja-modal section', async () => {
   const modal = (await readKeys())['mod:koja-modal'];
 

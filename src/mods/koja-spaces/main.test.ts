@@ -166,7 +166,6 @@ const realKit = Object.fromEntries(
   Object.entries(kitExports).filter(([name]) => sharedNames.has(name)),
 );
 
-// Other test files mock the kit index with stand-ins, so this file mocks it with the real parts.
 await mock.module('../../kit/index.ts', () => kitIndexFake(realKit));
 
 const mark = (section: 'sidebar' | 'panes'): void => {
@@ -205,7 +204,6 @@ const send = async (command: string): Promise<void> => {
   await flush();
 };
 
-// The machine read of a new view also asks for a redraw, so only the calls of the command count.
 const redrawsOf = async (command: string): Promise<number> => {
   await flush();
 
@@ -231,7 +229,6 @@ beforeEach(() => {
   sharedValues = {};
   sidebarWidth = null;
   commandQueue.length = 0;
-  // Each test loads its own view, and an earlier view must not take this test's commands.
   commandWaiters.length = 0;
   spaceList = ['a', 'b', 'c', 'd', 'e', 'f', 'g', 'h'].map((id) => space(id, id === 'b'));
   mark('sidebar');

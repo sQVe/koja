@@ -16,8 +16,6 @@ interface RowOptions {
   cursor?: boolean;
 }
 
-// Records every style method by name, last call wins, and applies a hover look to a fresh element
-// so a test can read the runtime hover style.
 const recorded = (): RecordedElement => {
   const element: RecordedElement = { hoverLook: null, styles: {} };
 

@@ -176,7 +176,6 @@ const press = (event: NormalKeyEvent): void => {
   keyDownHandler?.(event);
 };
 
-// A key that the mod bound itself arrives as its action, and never as a raw key.
 const pressBound = (keystroke: string): void => {
   const binding = keyBindings.find(
     (candidate) => candidate.keystroke === keystroke && candidate.context === keyContext,

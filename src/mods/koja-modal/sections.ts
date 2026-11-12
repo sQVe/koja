@@ -29,7 +29,6 @@ export const isSectionKeyAction = (action: NormalAction): action is SectionKeyAc
 const noKeys: readonly NormalKey[] = [];
 
 export const createSections = (deps: SectionsDeps): Sections => {
-  // Every mod draws again when the shared value changes, so an unchanged mark is not written.
   const mark = (section: Section): void => {
     if (readSection(deps.store.get) === section) {
       return;

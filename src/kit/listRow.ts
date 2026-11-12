@@ -27,7 +27,6 @@ export interface ListRowOptions extends HoverOptions {
   end?: Element[];
   dragged?: boolean;
   dropLine?: 'top' | 'bottom';
-  // The row under the list cursor of a marked section.
   cursor?: boolean;
 }
 
@@ -113,8 +112,6 @@ const rowFrame = (options: ListRowOptions, palette: Palette): Element => {
     .pr(spacing.small)
     .gap(spacing.small)
     .items_center()
-    // A clear border on every row, so the outline of a hovered or cursor row never shifts its
-    // content.
     .border(spacing.hairline)
     .border_color(clearOf(palette.selected))
     .text_size(textSize.default)

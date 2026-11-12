@@ -213,7 +213,6 @@ export default class Spaces extends View {
     const elements = this.grouped(collapsed, expected);
     const cursor = this.cursorRow();
 
-    // The shown rows are known only after a draw, so a cursor that moved with them draws again.
     return cursor === expected ? elements : this.grouped(collapsed, cursor);
   }
 
