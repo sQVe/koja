@@ -164,7 +164,7 @@ export const normalKeys: NormalKey[] = [
   { keys: ['backspace'], action: paletteAction },
   { keys: ['ö'], action: paletteAction },
   { keys: ['/'], action: herdrCommand('terminal.search') },
-  { keys: ['?'], action: herdrCommand('app.help') },
+  { keys: ['?'], action: herdrCommand('mod.open', { name: 'koja-help' }) },
   { keys: ['ä'], action: pickerAction },
   { keys: ['i'], action: leaveAction },
   { keys: ['a'], action: leaveAction },

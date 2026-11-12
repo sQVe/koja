@@ -76,7 +76,7 @@ const commandNames: CommandName[] = [
   { command: 'terminal.scroll', args: { to: 'top' }, name: 'Scroll to top' },
   { command: 'terminal.scroll', args: { to: 'bottom' }, name: 'Scroll to bottom' },
   { command: 'terminal.search', name: 'Search terminal' },
-  { command: 'app.help', name: 'Keys' },
+  { command: 'mod.open', args: { name: 'koja-help' }, name: 'Keys' },
 ];
 
 const commandKey = (command: string, args: Record<string, unknown> = {}): string =>

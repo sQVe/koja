@@ -31,8 +31,6 @@ const stopPress = (_event: unknown, cx: Context): void => {
   cx.stop_propagation();
 };
 
-const overlayCommands = new Set(['mod.open', 'app.help']);
-
 const inlineInputCommands = new Set(['terminal.search']);
 
 const sharedStore = {
@@ -43,7 +41,7 @@ const sharedStore = {
 };
 
 const opensOverlay = (action: NormalAction): boolean =>
-  action.kind === 'command' && overlayCommands.has(action.command);
+  action.kind === 'command' && action.command === 'mod.open';
 
 const opensInlineInput = (action: NormalAction): boolean =>
   action.kind === 'command' && inlineInputCommands.has(action.command);

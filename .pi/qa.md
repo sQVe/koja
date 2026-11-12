@@ -6,14 +6,14 @@ user's real Herdr window.
 
 ## Choose sections
 
-| Section              | Test it when the change touches                                                    |
-| -------------------- | ---------------------------------------------------------------------------------- |
-| Normal mode keys     | `koja-modal`, `src/kit/normalKeys.ts`, `config/keys.json`                          |
-| Close and rename     | `src/kit/askFirst.ts`, `askPlan.ts`, `dialog*.ts`, `koja-confirm`, `koja-prompt`   |
-| Palette and picker   | `koja-palette`, `koja-picker`, `src/kit/palette.ts`, `overlay*.ts`, `shortcut*.ts` |
-| Sidebar, tabs, panes | `koja-spaces`, `koja-tabs`, `koja-pane`, `koja-menu`, `koja-new-menu`              |
-| Changes panel        | `koja-changes`, `src/kit/fileStatus.ts`, the panel memory in `koja-tabs`           |
-| Gallery and scenes   | `koja-gallery`, `koja-mocks`, `scripts/capture.ts`                                 |
+| Section              | Test it when the change touches                                                                 |
+| -------------------- | ----------------------------------------------------------------------------------------------- |
+| Normal mode keys     | `koja-modal`, `src/kit/normalKeys.ts`, `config/keys.json`                                       |
+| Close and rename     | `src/kit/askFirst.ts`, `askPlan.ts`, `dialog*.ts`, `koja-confirm`, `koja-prompt`                |
+| Palette and picker   | `koja-palette`, `koja-picker`, `koja-help`, `src/kit/palette.ts`, `overlay*.ts`, `shortcut*.ts` |
+| Sidebar, tabs, panes | `koja-spaces`, `koja-tabs`, `koja-pane`, `koja-menu`, `koja-new-menu`                           |
+| Changes panel        | `koja-changes`, `src/kit/fileStatus.ts`, the panel memory in `koja-tabs`                        |
+| Gallery and scenes   | `koja-gallery`, `koja-mocks`, `scripts/capture.ts`                                              |
 
 Cross-effects:
 
