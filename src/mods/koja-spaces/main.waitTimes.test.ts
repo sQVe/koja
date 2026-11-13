@@ -283,6 +283,47 @@ describe('koja-spaces wait ages', () => {
     expect([first, quiet, changed, shown, writes.length]).toEqual([1, 1, 2, 3, 4]);
   });
 
+  test('the check redraws when one space changes status', async () => {
+    showSpaces({ a: 'working', b: null }, 'b');
+    await loadView();
+    checkAt(start);
+    checkAt(start + 250);
+
+    const before = notifyCalls;
+
+    showSpaces({ a: 'blocked', b: null }, 'b');
+    checkAt(start + 500);
+
+    expect(notifyCalls - before).toBe(1);
+  });
+
+  test('the check redraws when the shown space changes', async () => {
+    showSpaces({ a: 'idle', b: null }, 'b');
+    await loadView();
+    checkAt(start);
+    checkAt(start + 250);
+
+    const before = notifyCalls;
+
+    showSpaces({ a: 'idle', b: null }, 'a');
+    checkAt(start + 500);
+
+    expect(notifyCalls - before).toBe(1);
+  });
+
+  test('the check does not redraw when nothing changed', async () => {
+    showSpaces({ a: 'blocked', b: null }, 'b');
+    await loadView();
+    checkAt(start);
+    checkAt(start + 250);
+
+    const before = notifyCalls;
+
+    checkAt(start + 500);
+
+    expect(notifyCalls - before).toBe(0);
+  });
+
   test('a time that passes with no change redraws within a minute', async () => {
     showSpaces({ a: 'blocked', b: null }, 'b');
     await loadView();
