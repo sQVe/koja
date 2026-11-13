@@ -79,7 +79,7 @@ const dragRows = (): Element =>
         size: 'small',
         inset: false,
         state: 'normal',
-        dropLine: 'top',
+        drop: 'top',
         label: 'drop above',
       }),
     )
@@ -88,8 +88,17 @@ const dragRows = (): Element =>
         size: 'small',
         inset: false,
         state: 'normal',
-        dropLine: 'bottom',
+        drop: 'bottom',
         label: 'drop below',
+      }),
+    )
+    .child(
+      listRow({
+        size: 'small',
+        inset: false,
+        state: 'normal',
+        drop: 'refused',
+        label: 'drop refused',
       }),
     );
 

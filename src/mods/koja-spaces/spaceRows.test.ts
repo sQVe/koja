@@ -25,6 +25,7 @@ import { advanceWaitTimes, emptyWaitTimes, readWaitTimes, waitAge } from './wait
 
 interface RowStateLike {
   drag: { source: string | null; over: string | null };
+  refused: string | null;
   cursor: string | null;
   age: string | null;
   lookup: (git: GitInfo | null) => Pull | null;
@@ -125,6 +126,7 @@ const listedSpace = (named: boolean): ListedSpace => ({
 
 const stateWith = (found: Pull | null, age: string | null = null): RowStateLike => ({
   drag: { source: null, over: null },
+  refused: null,
   cursor: null,
   age,
   lookup: () => found,

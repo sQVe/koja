@@ -28,6 +28,8 @@ import { projectRows } from './projectRows.ts';
 import type { Project } from './projects.ts';
 import { groupProjects, shownSpaces } from './projects.ts';
 import { PullTracker } from './pullTracker.ts';
+import type { ProjectChildren } from './spaceDrop.ts';
+import { canDrop, dropMoves } from './spaceDrop.ts';
 import { createOrderPublisher } from './spaceOrder.ts';
 import type { HeaderState, RowState } from './spaceRows.ts';
 import { headerRow, row as spaceRow } from './spaceRows.ts';
@@ -47,6 +49,8 @@ const ageMilliseconds = 60_000;
 const waitTimesKey = 'wait.times';
 
 const projectsFoldedKey = 'repos.folded';
+
+const noFolds = { has: (): boolean => false };
 
 const isSidebarMarked = (): boolean => readSection(shared) === 'sidebar';
 
@@ -81,6 +85,8 @@ export default class Spaces extends View {
   private visibility: VisibilityState = initialVisibility(spaces().map((space) => space.id));
 
   private drag: DragState = noDrag;
+
+  private refused: string | null = null;
 
   private hovered: string | null = null;
 
@@ -143,7 +149,7 @@ export default class Spaces extends View {
             this.halfPage = halfPageOf(size.height, rowHeight.small);
           })
           .on_mouse_up('left', (_event, cx) => {
-            this.drag = noDrag;
+            this.endDrag();
             cx.notify();
           })
           .children(this.listRows()),
@@ -269,11 +275,11 @@ export default class Spaces extends View {
     });
   }
 
-  private projects(): Project[] {
+  private listedSpaces(): ListedSpace[] {
     const spaceList = spaces();
     const paneList = panes();
 
-    const list: ListedSpace[] = spaceList
+    return spaceList
       .map((space) => {
         const place = placeOfSpace(space, paneList);
 
@@ -285,8 +291,16 @@ export default class Spaces extends View {
         };
       })
       .filter((row) => this.visibility.shown.has(row.space.id));
+  }
 
-    return groupProjects(list, this.foldedProjects);
+  private projects(): Project[] {
+    return groupProjects(this.listedSpaces(), this.foldedProjects);
+  }
+
+  private projectChildren(): ProjectChildren[] {
+    return groupProjects(this.listedSpaces(), noFolds).map((project) =>
+      project.spaces.map((row) => row.space.id),
+    );
   }
 
   private isWaiting(): boolean {
@@ -304,6 +318,7 @@ export default class Spaces extends View {
 
     const state: RowState = {
       drag: this.drag,
+      refused: this.refused,
       cursor,
       age,
       lookup: (git) => this.pulls.lookup(git),
@@ -326,6 +341,7 @@ export default class Spaces extends View {
 
     const state: HeaderState = {
       drag: this.drag,
+      refused: this.refused,
       cursor,
       age: waitAge(this.waitTimes, waiting, now),
       hovered: this.hovered,
@@ -344,7 +360,7 @@ export default class Spaces extends View {
   }
 
   private readonly toggleFold = (key: string, cx: Context): void => {
-    this.drag = noDrag;
+    this.endDrag();
     this.foldedProjects.toggle(key);
     cx.notify();
   };
@@ -413,27 +429,43 @@ export default class Spaces extends View {
       });
   }
 
-  private dragOver(space: SpaceInfo, cx: Context): void {
-    const source = spaces().find((candidate) => candidate.id === this.drag.source);
+  private endDrag(): void {
+    this.drag = noDrag;
+    this.refused = null;
+  }
+
+  private canDropOn(sourceId: string, space: SpaceInfo): boolean {
+    const source = spaces().find((candidate) => candidate.id === sourceId);
 
     const sameMachine =
       source !== undefined && (source.machine ?? null) === (space.machine ?? null);
 
-    const next = setDragOver(this.drag, space.id, sameMachine);
+    return sameMachine && canDrop(this.projectChildren(), sourceId, space.id);
+  }
 
-    if (this.drag.source !== null && next.over !== this.drag.over) {
-      this.drag = next;
-      cx.notify();
+  private dragOver(space: SpaceInfo, cx: Context): void {
+    const { source, over } = this.drag;
+
+    if (source === null || space.id === over || space.id === this.refused) {
+      return;
     }
+
+    const allowed = this.canDropOn(source, space);
+
+    this.drag = setDragOver(this.drag, space.id, allowed);
+    this.refused = allowed ? null : space.id;
+    cx.notify();
   }
 
   private drop(space: SpaceInfo, ids: readonly string[], cx: Context): void {
     const action = dropAction(this.drag, space.id, ids);
 
-    this.drag = noDrag;
+    this.endDrag();
 
     if (action?.kind === 'move') {
-      run('space.move', { id: action.id, index: action.index });
+      for (const move of dropMoves(ids, this.projectChildren(), action.id, space.id)) {
+        run('space.move', { id: move.id, index: move.index });
+      }
     } else if (action?.kind === 'select') {
       run('space.select', { id: action.id });
     }
