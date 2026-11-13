@@ -56,7 +56,8 @@
     "!src/mods/koja-spaces/projectRows.ts",
     "!src/mods/koja-spaces/pullTracker.ts",
     "!src/mods/koja-spaces/rail.ts",
-    "!src/mods/koja-spaces/spaceRows.ts"
+    "!src/mods/koja-spaces/spaceRows.ts",
+    "!src/mods/koja-worktree/workspace.ts"
   ],
   "tsconfigFile": "stryker-no-tsconfig.json",
   "checkers": [],
