@@ -95,7 +95,6 @@ const writeHeartbeat = (write: WriteShared, lease: Lease, now: number): void => 
   write(heartbeatKey, heartbeat);
 };
 
-// Herdr has no compare-and-set and the last writer wins, so a claim counts only when it reads back.
 export const claimLease = (
   read: ReadShared,
   write: WriteShared,

@@ -10,7 +10,6 @@ export interface SnapshotPublisher {
 const sameFacts = (first: Facts, second: Facts): boolean =>
   JSON.stringify(first) === JSON.stringify(second);
 
-// Herdr redraws every mod on each shared write, so equal facts must not be written again.
 export const createSnapshotPublisher = (
   read: ReadShared,
   write: WriteShared,

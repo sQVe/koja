@@ -51,8 +51,6 @@ export default class Gallery extends View {
     this.renameField.set_value('Build and test');
   }
 
-  // Herdr redraws on every shared write but not when a heartbeat ages out, so one task redraws at
-  // the deadline of the heartbeat shown.
   private followStaleDeadline(state: DataState, now: number, cx: Context): void {
     const staleAt = staleAtOf(state);
 
