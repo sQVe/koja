@@ -186,6 +186,7 @@ describe('scene picker', () => {
     'header-mark-after-name-flat',
     'header-mark-left-divider',
     'header-mark-left-divider-inset',
+    'header-mark-left-divider-soft',
     'shell-attention',
     'shell-attention-normal',
     'shell-attention-open',

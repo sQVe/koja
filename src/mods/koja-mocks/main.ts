@@ -89,6 +89,7 @@ const renderers: Record<SceneName, (inputs: SceneInputs) => Element> = {
   'header-mark-after-name-flat': () => headerMarksScene('afterName', 'flat', 'none'),
   'header-mark-left-divider': () => headerMarksScene('leftActive', 'flat', 'full'),
   'header-mark-left-divider-inset': () => headerMarksScene('leftActive', 'flat', 'inset'),
+  'header-mark-left-divider-soft': () => headerMarksScene('leftActive', 'flat', 'soft'),
   'smoke-1': (inputs) => paletteNearFail(inputs.command),
   'smoke-2': (inputs) => paletteClean(inputs.command),
   'smoke-3': (inputs) => paletteClearFail(inputs.command),
