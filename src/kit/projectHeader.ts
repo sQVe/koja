@@ -112,7 +112,7 @@ const spaceHeader = (options: SpaceHeader): Element =>
     ...(options.dropLine === undefined ? {} : { dropLine: options.dropLine }),
     dragged: options.dragged,
     cursor: options.cursor,
-    end: [...ageOf(options), ...foldControls(options)],
+    end: [...foldControls(options), ...ageOf(options)],
   });
 
 export const projectHeader = (options: ProjectHeaderOptions): Element =>

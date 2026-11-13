@@ -212,4 +212,16 @@ describe('projectHeader for a main space', () => {
     expect(drawnTexts(header)).toContain('3 more');
     expect(drawnIcons(header)).toContain('chevron-right.svg');
   });
+
+  test('ends with the age after the fold controls, so it lines up with row ages', () => {
+    const header = projectHeader(spaceOptions({ folded: true, hidden: 3, age: '4m' }));
+    const last = header.kids.at(-1);
+
+    expect(last === undefined ? [] : drawnTexts(last)).toEqual(['4m']);
+    expect(drawnTexts(header)).toEqual(['agent-mark', 'koja', '3 more', '4m']);
+  });
+
+  test('draws no age when it has none', () => {
+    expect(drawnTexts(projectHeader(spaceOptions({})))).toEqual(['agent-mark', 'koja']);
+  });
 });
