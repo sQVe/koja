@@ -3,24 +3,13 @@ import { afterAll, afterEach, describe, expect, mock, test } from 'bun:test';
 import type { ExecResult } from 'herdr';
 
 import { herdrFake, kitIndexFake } from '../../../tests/moduleFakes.ts';
-
-interface GitLike {
-  branch: string | null;
-  repo: { machine: string | null; commonDirectory: string; key: string };
-  root: string;
-  cwd: string;
-  linked: boolean;
-}
-
-interface PlaceLike {
-  machine: string | null;
-  folder: string;
-  key: string;
-}
+import { placeOf } from '../../data/gitIdentity.ts';
+import type { Place } from '../../data/gitIdentity.ts';
+import type { GitInfo } from './tree.ts';
 
 interface GitTrackerLike {
-  lookup: (key: string) => GitLike | null | undefined;
-  refresh: (places: PlaceLike[], cx: unknown) => void;
+  lookup: (key: string) => GitInfo | null | undefined;
+  refresh: (places: Place[], cx: unknown) => void;
 }
 
 interface FolderGit {
@@ -82,14 +71,8 @@ const context = {
   notify: () => undefined,
 };
 
-const placeAt = (folder: string): PlaceLike => ({
-  machine: null,
-  folder,
-  key: JSON.stringify([null, folder]),
-});
-
-const read = async (tracker: GitTrackerLike, folder: string): Promise<GitLike | null> => {
-  const place = placeAt(folder);
+const read = async (tracker: GitTrackerLike, folder: string): Promise<GitInfo | null> => {
+  const place = placeOf(null, folder);
 
   const first = spawned.length;
 

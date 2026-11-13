@@ -1,35 +1,21 @@
 import { afterAll, afterEach, describe, expect, mock, setSystemTime, test } from 'bun:test';
 
 import { herdrFake } from '../../../tests/moduleFakes.ts';
+import { repositoryOf } from '../../data/gitIdentity.ts';
+import type { RepositoryIdentity } from '../../data/gitIdentity.ts';
+import type { Pull } from './pulls.ts';
+import type { GitInfo } from './tree.ts';
 
 interface ExecResultFake {
   code: number;
   stdout: string;
 }
 
-interface RepositoryLike {
-  machine: string | null;
-  commonDirectory: string;
-  key: string;
-}
-
-interface GitLike {
-  branch: string | null;
-  repo: RepositoryLike;
-  root: string;
-  cwd: string;
-  linked: boolean;
-}
-
-interface PullLike {
-  number: number;
-}
-
 interface PullTrackerLike {
-  lookup: (git: GitLike) => PullLike | null;
-  failed: (git: GitLike) => boolean;
-  refresh: (repositories: { repo: RepositoryLike; cwd: string }[], cx: unknown) => void;
-  retry: (repo: RepositoryLike, cwd: string, cx: unknown) => void;
+  lookup: (git: GitInfo) => Pull | null;
+  failed: (git: GitInfo) => boolean;
+  refresh: (repositories: { repo: RepositoryIdentity; cwd: string }[], cx: unknown) => void;
+  retry: (repo: RepositoryIdentity, cwd: string, cx: unknown) => void;
 }
 
 let nextRemotes: () => Promise<ExecResultFake> = async () => ({ code: 0, stdout: 'origin\n' });
@@ -75,13 +61,9 @@ const pulled = JSON.stringify([
   { number: 7, state: 'OPEN', isDraft: false, title: 'Fix the redirect', headRefName: 'main' },
 ]);
 
-const repo: RepositoryLike = {
-  machine: null,
-  commonDirectory: '/code/koja/.git',
-  key: JSON.stringify([null, '/code/koja/.git']),
-};
+const repo = repositoryOf(null, '/code/koja/.git');
 
-const git: GitLike = {
+const git: GitInfo = {
   branch: 'main',
   repo,
   root: '/code/koja',
