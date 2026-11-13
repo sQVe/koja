@@ -68,6 +68,8 @@ Overlays:
 - `/` opens terminal search and leaves normal mode.
 - `?` opens Koja's key help. A query filters its rows.
 - `Escape` closes the help and keeps normal mode on. `s j` then changes the space.
+- `Down` and `Up` move the selected row of the help. A query selects the first row again.
+- `Enter` closes the help, runs the selected row as its keys would, and keeps normal mode on.
 
 ## Gotchas
 
