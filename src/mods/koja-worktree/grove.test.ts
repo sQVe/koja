@@ -8,6 +8,10 @@ describe('grove workspace', () => {
     expect(workspaceRoot('/work/repo/.bare/')).toBe('/work/repo');
   });
 
+  test('the workspace root ignores several trailing slashes on the common dir', () => {
+    expect(workspaceRoot('/work/repo/.bare//')).toBe('/work/repo');
+  });
+
   test('a common dir that is not .bare is outside a Grove workspace', () => {
     expect(workspaceRoot('/work/repo/.git')).toBeNull();
     expect(workspaceRoot('/work/repo.bare')).toBeNull();
@@ -61,5 +65,9 @@ describe('failure text', () => {
     expect(failureText({ code: 1, stdout: 'out', stderr: ' err\n' }, 'failed')).toBe('err');
     expect(failureText({ code: 1, stdout: 'out\n', stderr: '' }, 'failed')).toBe('out');
     expect(failureText({ code: 1, stdout: ' ', stderr: '' }, 'failed')).toBe('failed');
+  });
+
+  test('uses stdout when stderr holds only whitespace', () => {
+    expect(failureText({ code: 1, stdout: 'out', stderr: '\n' }, 'failed')).toBe('out');
   });
 });
