@@ -2,7 +2,8 @@ import { describe, expect, test } from 'bun:test';
 
 import type { SpaceInfo } from 'herdr';
 
-import { placeOf, placeOfSpace, repoName, repoOf } from './tree.ts';
+import { placeOf, repositoryOf } from '../../data/gitIdentity.ts';
+import { placeOfSpace, repoName } from './tree.ts';
 
 describe('repository names', () => {
   test('names a repository after its checkout folder, not its git folder', () => {
@@ -37,8 +38,8 @@ describe('places and repositories', () => {
   });
 
   test('one repository path on two machines makes two repositories', () => {
-    expect(repoOf(null, '/code/koja/.git').key).not.toBe(
-      repoOf('build-box', '/code/koja/.git').key,
+    expect(repositoryOf(null, '/code/koja/.git').key).not.toBe(
+      repositoryOf('build-box', '/code/koja/.git').key,
     );
   });
 });

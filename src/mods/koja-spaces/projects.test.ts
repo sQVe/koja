@@ -2,10 +2,10 @@ import { describe, expect, test } from 'bun:test';
 
 import type { SpaceInfo, Status } from 'herdr';
 
+import { placeOf, repositoryOf } from '../../data/gitIdentity.ts';
 import type { Project } from './projects.ts';
 import { groupProjects, rootSpaceIds, shownSpaces } from './projects.ts';
 import type { GitInfo, ListedSpace } from './tree.ts';
-import { placeOf, repoOf } from './tree.ts';
 
 interface SpaceOptions {
   machine?: string | null;
@@ -33,7 +33,7 @@ const gitAt = (
   machine: string | null = null,
 ): GitInfo => ({
   branch: 'main',
-  repo: repoOf(machine, path),
+  repo: repositoryOf(machine, path),
   root,
   cwd: root,
   linked,
@@ -178,7 +178,7 @@ describe('groupProjects', () => {
       bareWorktree('done', { status: 'done' }),
     ];
 
-    const key = repoOf(null, bareRepo).key;
+    const key = repositoryOf(null, bareRepo).key;
     const [project] = groupProjects(list, { has: (candidate) => candidate === key });
 
     expect(project?.folded).toBe(true);
@@ -195,7 +195,7 @@ describe('groupProjects', () => {
       listed('blocked', '/code/blocked', gitAt(repo, '/code/blocked', true), { status: 'blocked' }),
     ];
 
-    const key = repoOf(null, repo).key;
+    const key = repositoryOf(null, repo).key;
     const [project] = groupProjects(list, { has: (candidate) => candidate === key });
 
     expect(project?.main?.space.id).toBe('koja');
@@ -250,7 +250,7 @@ describe('rootSpaceIds', () => {
       listed('site', '/code/site', null),
     ];
 
-    const key = repoOf(null, bareRepo).key;
+    const key = repositoryOf(null, bareRepo).key;
 
     const projects = groupProjects(list, { has: (candidate) => candidate === key });
 

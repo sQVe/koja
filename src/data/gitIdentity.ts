@@ -6,13 +6,13 @@ export type RunCommand = (
   options: { cwd: string; on: string | null },
 ) => Promise<ExecResult>;
 
-interface Place {
+export interface Place {
   machine: string | null;
   folder: string;
   key: string;
 }
 
-interface RepositoryIdentity {
+export interface RepositoryIdentity {
   machine: string | null;
   commonDirectory: string;
   key: string;
@@ -24,7 +24,7 @@ interface WorktreeIdentity {
   key: string;
 }
 
-type Branch =
+export type Branch =
   | { kind: 'named'; name: string }
   | { kind: 'unborn'; name: string }
   | { kind: 'detached' };
@@ -47,13 +47,16 @@ type Git = (args: string[]) => Promise<ExecResult>;
 
 const keyOf = (machine: string | null, path: string): string => JSON.stringify([machine, path]);
 
-const placeOf = (machine: string | null, folder: string): Place => ({
+export const placeOf = (machine: string | null, folder: string): Place => ({
   machine,
   folder,
   key: keyOf(machine, folder),
 });
 
-const repositoryOf = (machine: string | null, commonDirectory: string): RepositoryIdentity => ({
+export const repositoryOf = (
+  machine: string | null,
+  commonDirectory: string,
+): RepositoryIdentity => ({
   machine,
   commonDirectory,
   key: keyOf(machine, commonDirectory),

@@ -2,12 +2,12 @@ import { describe, expect, test } from 'bun:test';
 
 import type { SpaceInfo } from 'herdr';
 
+import { placeOf, repositoryOf } from '../../data/gitIdentity.ts';
 import { readSpaceOrder } from '../../kit/spaceOrder.ts';
 import type { Project } from './projects.ts';
 import { groupProjects } from './projects.ts';
 import { createOrderPublisher } from './spaceOrder.ts';
 import type { GitInfo, ListedSpace } from './tree.ts';
-import { placeOf, repoOf } from './tree.ts';
 
 const repoPath = '/code/koja/.git';
 
@@ -26,7 +26,7 @@ const spaceOf = (id: string): SpaceInfo => ({
 
 const gitOf = (linked: boolean): GitInfo => ({
   branch: 'main',
-  repo: repoOf(null, repoPath),
+  repo: repositoryOf(null, repoPath),
   root: '/code/koja',
   cwd: '/',
   linked,
@@ -78,7 +78,7 @@ describe('sidebar order publishing', () => {
 
   test('keeps the main space of a folded project shown and publishes its other spaces as hidden', () => {
     const store = memoryStore();
-    const folded = [repoOf(null, repoPath).key];
+    const folded = [repositoryOf(null, repoPath).key];
 
     createOrderPublisher(store.set).publish(projectsOf(repoList(), folded), allIds(repoList()));
 
@@ -91,7 +91,7 @@ describe('sidebar order publishing', () => {
 
   test('publishes the main space once, at its header, and as the root of its project', () => {
     const store = memoryStore();
-    const otherRepo = { ...gitOf(false), repo: repoOf(null, '/code/tau/.git') };
+    const otherRepo = { ...gitOf(false), repo: repositoryOf(null, '/code/tau/.git') };
 
     const list = [
       listed('koja', gitOf(false)),
@@ -138,7 +138,7 @@ describe('sidebar order publishing', () => {
   test('publishes again when a project is folded', () => {
     const store = memoryStore();
     const order = createOrderPublisher(store.set);
-    const folded = [repoOf(null, repoPath).key];
+    const folded = [repositoryOf(null, repoPath).key];
 
     order.publish(projectsOf(repoList()), allIds(repoList()));
     order.publish(projectsOf(repoList(), folded), allIds(repoList()));

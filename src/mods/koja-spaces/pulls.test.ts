@@ -1,9 +1,9 @@
 import { describe, expect, test } from 'bun:test';
 
+import { repositoryOf } from '../../data/gitIdentity.ts';
 import { pullOf, pullState, readPullCaches, readPullList } from './pulls.ts';
 import type { Pull } from './pulls.ts';
 import type { GitInfo } from './tree.ts';
-import { repoOf } from './tree.ts';
 
 const pull = (fields: Partial<Pull>): Pull => ({
   number: 1,
@@ -16,7 +16,7 @@ const pull = (fields: Partial<Pull>): Pull => ({
 
 const git = (branch: string): GitInfo => ({
   branch,
-  repo: repoOf(null, '/repo'),
+  repo: repositoryOf(null, '/repo'),
   root: '/repo',
   cwd: '/repo',
   linked: false,
@@ -54,7 +54,7 @@ describe('pullState', () => {
 describe('pullOf', () => {
   test('prefers the open pull request on the branch', () => {
     const caches = {
-      [repoOf(null, '/repo').key]: {
+      [repositoryOf(null, '/repo').key]: {
         fetchedAt: 0,
         list: [pull({ number: 1, state: 'MERGED' }), pull({ number: 2, state: 'OPEN' })],
       },
@@ -65,7 +65,7 @@ describe('pullOf', () => {
 
   test('falls back to the newest when none is open', () => {
     const caches = {
-      [repoOf(null, '/repo').key]: {
+      [repositoryOf(null, '/repo').key]: {
         fetchedAt: 0,
         list: [pull({ number: 1, state: 'MERGED' }), pull({ number: 2, state: 'CLOSED' })],
       },

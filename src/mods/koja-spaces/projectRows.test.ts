@@ -17,9 +17,9 @@ import {
   herdrFake,
   realKitIndexFake,
 } from '../../../tests/moduleFakes.ts';
+import { placeOf, repositoryOf } from '../../data/gitIdentity.ts';
 import type { Project } from './projects.ts';
 import type { GitInfo, ListedSpace } from './tree.ts';
-import { placeOf, repoOf } from './tree.ts';
 
 interface ProjectRowsHostLike {
   projects: Project[];
@@ -115,7 +115,7 @@ const spaceOf = (id: string, options: SpaceOptions): SpaceInfo => ({
 
 const gitAt = (name: string, machine: string | null, linked: boolean): GitInfo => ({
   branch: 'main',
-  repo: repoOf(machine, `/code/${name}/.git`),
+  repo: repositoryOf(machine, `/code/${name}/.git`),
   root: `/code/${name}`,
   cwd: `/code/${name}`,
   linked,

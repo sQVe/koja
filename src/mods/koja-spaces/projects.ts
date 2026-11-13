@@ -40,7 +40,7 @@ const projectName = (rows: ProjectRows, main: ListedSpace | null): string => {
   }
 
   if (first.git !== null) {
-    return repoPathName(first.git.repo.path);
+    return repoPathName(first.git.repo.commonDirectory);
   }
 
   return lastPart(first.place.folder) ?? first.space.name;
