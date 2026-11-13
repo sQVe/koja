@@ -11,6 +11,7 @@ import type {
 import { div, View } from 'gpui-kit';
 import { focused, nextCommand, run } from 'herdr';
 
+import { createContextKeys } from '../../kit/contextKeys.ts';
 import {
   closeOverlay,
   colors,
@@ -35,6 +36,11 @@ import { list as virtualList } from './rowElements.ts';
 import type { PickerData, PickerRow } from './rows.ts';
 import { buildRows, rowPane } from './rows.ts';
 import { keepSearchFocused } from './searchFocus.ts';
+
+const filterKeys = createContextKeys('KojaPicker', [
+  { keystroke: 'tab', action: 'koja-picker-filter-next' },
+  { keystroke: 'shift-tab', action: 'koja-picker-filter-previous' },
+]);
 
 const controlKey = (event: KeyEvent, letter: string): boolean =>
   event.modifiers.control && event.key === letter;
@@ -72,6 +78,7 @@ export default class Picker extends View {
       return;
     }
 
+    filterKeys.bind(cx);
     this.preview = previewFromProps();
     this.watchPreview(cx);
 
@@ -163,7 +170,13 @@ export default class Picker extends View {
       .child(rows.length > 0 ? this.list(rows, data) : div().flex_1().child(empty))
       .child(this.footer(data));
 
-    return this.handle === null ? picker : picker.track_focus(this.handle);
+    const root = filterKeys.withKeys(picker, (key, cx) => {
+      const step = key === 'tab' ? 1 : -1;
+
+      this.changeStatusFilter(this.filterIndex + step, cx);
+    });
+
+    return this.handle === null ? root : root.track_focus(this.handle);
   }
 
   private filter(): StatusFilter {
