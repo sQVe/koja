@@ -21,6 +21,7 @@ let terminalList: unknown[] = [];
 let themes: { name: string; label: string }[] = [];
 let runCalls: { command: string; args: Record<string, unknown> }[] = [];
 let dialogCalls: { action: string; space: string | null }[] = [];
+let groveCalls: { action: string; space: string | null }[] = [];
 
 const host: MenuHost = {
   run: (command, args) => {
@@ -28,6 +29,9 @@ const host: MenuHost = {
   },
   openWorktreeDialog: (action, space) => {
     dialogCalls.push({ action, space });
+  },
+  openGroveDialog: (action, space) => {
+    groveCalls.push({ action, space });
   },
   terminals: () => terminalList,
   themes: () => themes,
@@ -87,13 +91,21 @@ describe('menu entries', () => {
     expect(hintOf(menu, null, 'Use Herdr right-click menu')).toBe('ctrl-alt-m');
   });
 
-  test('name the worktree action for each worktree entry', () => {
+  test('hint only Open worktree, whose binding opens the same dialog', () => {
     terminalList = [];
-    bindings = { 'worktree:new': 'ctrl-alt-n', 'worktree:open': 'ctrl-alt-o' };
+
+    bindings = {
+      'worktree:new': 'ctrl-alt-n',
+      'worktree:open': 'ctrl-alt-o',
+      'worktree:remove': 'ctrl-alt-r',
+      worktree: 'ctrl-alt-w',
+    };
+
     const menu: MenuProps = { kind: 'space', target: target({ id: 'space-1' }) };
 
-    expect(hintOf(menu, 'main', 'New worktree')).toBe('ctrl-alt-n');
-    expect(hintOf(menu, 'main', 'Open worktree')).toBe('ctrl-alt-o');
+    expect(hintOf(menu, 'linked', 'New worktree')).toBeNull();
+    expect(hintOf(menu, 'linked', 'Open worktree')).toBe('ctrl-alt-o');
+    expect(hintOf(menu, 'linked', 'Remove worktree')).toBeNull();
   });
 
   test('list every theme the app reports, including Koja\u2019s own', () => {
@@ -322,26 +334,30 @@ describe('menu commands', () => {
 
     runCalls = [];
     dialogCalls = [];
+    groveCalls = [];
     const main = menuEntries(spaceMenu, 'main', host);
 
     runEntries(spaceMenu, 'main');
 
     expect(runCalls.map((call) => call.command)).toEqual(['space.rename', 'space.close']);
-
-    expect(dialogCalls).toStrictEqual([
-      { action: 'new', space: 'space-1' },
-      { action: 'open', space: 'space-1' },
-    ]);
+    expect(groveCalls).toStrictEqual([{ action: 'new', space: 'space-1' }]);
+    expect(dialogCalls).toStrictEqual([{ action: 'open', space: 'space-1' }]);
 
     expect(main[1]?.group).toBe(false);
     expect(main.at(-1)?.group).toBe(true);
 
     runCalls = [];
     dialogCalls = [];
+    groveCalls = [];
 
     runEntries(spaceMenu, 'linked');
 
-    expect(dialogCalls.map((call) => call.action)).toEqual(['new', 'open', 'remove']);
+    expect(groveCalls).toStrictEqual([
+      { action: 'new', space: 'space-1' },
+      { action: 'remove', space: 'space-1' },
+    ]);
+
+    expect(dialogCalls).toStrictEqual([{ action: 'open', space: 'space-1' }]);
   });
 
   test('run the global commands and mark the first theme row as a group', () => {
