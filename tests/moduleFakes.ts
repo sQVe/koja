@@ -1,5 +1,10 @@
 type ModuleFake = Record<string, unknown>;
 
+type KeyHandler = (
+  event: { key: string },
+  context: { stop_propagation: () => void; notify: () => void },
+) => void;
+
 const noop = (): undefined => undefined;
 
 export const chainable = (): unknown =>
@@ -7,6 +12,29 @@ export const chainable = (): unknown =>
     get: (_target, key) => (key === 'then' ? undefined : chainable()),
     apply: () => chainable(),
   });
+
+export const dialogFrameFake = (captureKeyHandler: (handler: KeyHandler) => void): unknown => {
+  const element: unknown = new Proxy(() => undefined, {
+    get: (_target, key) => {
+      if (key === 'on_key_down') {
+        return (handler: KeyHandler) => {
+          captureKeyHandler(handler);
+
+          return element;
+        };
+      }
+
+      if (key === 'track_focus') {
+        return () => element;
+      }
+
+      return key === 'then' ? undefined : chainable();
+    },
+    apply: () => element,
+  });
+
+  return element;
+};
 
 // Bun fixes a mocked module's export names at the first mock.module call, so every mock of a
 // module must expose the same names. These helpers hold the union each test file needs; a file

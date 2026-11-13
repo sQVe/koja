@@ -2,6 +2,7 @@ import { afterAll, beforeEach, describe, expect, mock, test } from 'bun:test';
 
 import {
   chainable,
+  dialogFrameFake,
   gpuiBaseFake,
   gpuiKitFake,
   herdrFake,
@@ -31,29 +32,6 @@ let selectedRanges: { start: number; end: number }[] = [];
 let sharedValues: Record<string, unknown> = {};
 const inputHandlers = new Map<string, () => void>();
 const buttonHandlers = new Map<string, () => void>();
-
-const frameSurface = (): unknown => {
-  const element: unknown = new Proxy(() => undefined, {
-    get: (_target, key) => {
-      if (key === 'on_key_down') {
-        return (handler: KeyHandler) => {
-          keyDownHandler = handler;
-
-          return element;
-        };
-      }
-
-      if (key === 'track_focus') {
-        return () => element;
-      }
-
-      return key === 'then' ? undefined : chainable();
-    },
-    apply: () => element,
-  });
-
-  return element;
-};
 
 const inputStub = {
   on: (event: string, handler: () => void) => {
@@ -120,7 +98,10 @@ await mock.module('../../kit/index.ts', () =>
       calls.push('close');
     },
     dialogButton: recordButton,
-    dialogFrame: frameSurface,
+    dialogFrame: () =>
+      dialogFrameFake((handler: KeyHandler) => {
+        keyDownHandler = handler;
+      }),
     readDialogCommand,
     recordOf,
     recordOverlayClose,

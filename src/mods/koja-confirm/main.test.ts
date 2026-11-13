@@ -1,6 +1,11 @@
 import { afterAll, beforeEach, describe, expect, mock, test } from 'bun:test';
 
-import { chainable, gpuiKitFake, herdrFake, kitIndexFake } from '../../../tests/moduleFakes.ts';
+import {
+  dialogFrameFake,
+  gpuiKitFake,
+  herdrFake,
+  kitIndexFake,
+} from '../../../tests/moduleFakes.ts';
 import { readDialogCommand } from '../../kit/dialogPayload.ts';
 import { recordOf, stringOf } from '../../kit/fields.ts';
 
@@ -23,29 +28,6 @@ let buttonKinds: string[] = [];
 let stopPropagationCount = 0;
 let sharedValues: Record<string, unknown> = {};
 const buttonHandlers = new Map<string, () => void>();
-
-const frameSurface = (): unknown => {
-  const element: unknown = new Proxy(() => undefined, {
-    get: (_target, key) => {
-      if (key === 'on_key_down') {
-        return (handler: KeyHandler) => {
-          keyDownHandler = handler;
-
-          return element;
-        };
-      }
-
-      if (key === 'track_focus') {
-        return () => element;
-      }
-
-      return key === 'then' ? undefined : chainable();
-    },
-    apply: () => element,
-  });
-
-  return element;
-};
 
 const recordButton = (options: { kind: string }): unknown => {
   buttonKinds.push(options.kind);
@@ -88,7 +70,10 @@ await mock.module('../../kit/index.ts', () =>
       calls.push('close');
     },
     dialogButton: recordButton,
-    dialogFrame: frameSurface,
+    dialogFrame: () =>
+      dialogFrameFake((handler: KeyHandler) => {
+        keyDownHandler = handler;
+      }),
     readDialogCommand,
     recordOf,
     recordOverlayClose,

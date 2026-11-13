@@ -2,6 +2,7 @@ import { afterAll, beforeEach, describe, expect, mock, test } from 'bun:test';
 
 import {
   chainable,
+  dialogFrameFake,
   gpuiBaseFake,
   gpuiKitFake,
   herdrFake,
@@ -105,29 +106,6 @@ const fakeExec = async (
   return result;
 };
 
-const frameSurface = (): unknown => {
-  const element: unknown = new Proxy(() => undefined, {
-    get: (_target, key) => {
-      if (key === 'on_key_down') {
-        return (handler: KeyHandler) => {
-          keyDownHandler = handler;
-
-          return element;
-        };
-      }
-
-      if (key === 'track_focus') {
-        return () => element;
-      }
-
-      return key === 'then' ? undefined : chainable();
-    },
-    apply: () => element,
-  });
-
-  return element;
-};
-
 const recordButton = (options: { kind: string; label: string }): unknown => {
   const element: Record<string, unknown> = {
     on_click: (handler: (event: unknown, cx: unknown) => void) => {
@@ -197,7 +175,10 @@ await mock.module('../../kit/index.ts', () =>
     },
     detailText: chainable,
     dialogButton: recordButton,
-    dialogFrame: frameSurface,
+    dialogFrame: () =>
+      dialogFrameFake((handler: KeyHandler) => {
+        keyDownHandler = handler;
+      }),
     recordOf,
     rollupStatuses: () => ({ spaces: spaceStatuses, tabs: {} }),
     spaceFolder,
