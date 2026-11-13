@@ -60,7 +60,6 @@ export const findWorktreeFolder = async (
   return worktreeFolder(listing, branch);
 };
 
-// Resolves to Grove's error text, or null when it succeeded.
 export const runGrove = async (workspace: Workspace, args: string[]): Promise<string | null> => {
   const result = await exec('grove', args, { cwd: workspace.root, on: workspace.machine });
 

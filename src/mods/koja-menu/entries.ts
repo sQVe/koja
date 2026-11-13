@@ -168,7 +168,6 @@ const worktreeEntry = (
   },
 });
 
-// No shortcut hint: the worktree binding still opens Herdr's dialog, not this one.
 const groveEntry = (
   host: MenuHost,
   label: string,
