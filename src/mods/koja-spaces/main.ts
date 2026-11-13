@@ -293,9 +293,14 @@ export default class Spaces extends View {
     return spaces().some((space) => !this.visibility.shown.has(space.id));
   }
 
-  private draw(row: ListedSpace, ids: readonly string[], cursor: string | null): Element {
+  private draw(
+    row: ListedSpace,
+    ids: readonly string[],
+    cursor: string | null,
+    now: number,
+  ): Element {
     const waiting = { id: row.space.id, status: row.status, active: row.space.active };
-    const age = waitAge(this.waitTimes, waiting, Date.now());
+    const age = waitAge(this.waitTimes, waiting, now);
 
     const state: RowState = {
       drag: this.drag,
@@ -315,10 +320,14 @@ export default class Spaces extends View {
     main: ListedSpace,
     ids: readonly string[],
     cursor: string | null,
+    now: number,
   ): Element {
+    const waiting = { id: main.space.id, status: main.status, active: main.space.active };
+
     const state: HeaderState = {
       drag: this.drag,
       cursor,
+      age: waitAge(this.waitTimes, waiting, now),
       hovered: this.hovered,
       lookup: (git) => this.pulls.lookup(git),
       attachDrag: (element, space, rowIds) => {
@@ -348,6 +357,7 @@ export default class Spaces extends View {
     const projects = this.projects();
     const ids = spaces().map((space) => space.id);
     const cursor = this.cursorRow(projects);
+    const now = Date.now();
 
     let cursorElement: Element | null = null;
 
@@ -364,8 +374,9 @@ export default class Spaces extends View {
     const elements = projectRows({
       projects,
       loading: this.isWaiting(),
-      draw: (row) => keepCursor(row, this.draw(row, ids, cursor)),
-      drawMain: (project, main) => keepCursor(main, this.drawMain(project, main, ids, cursor)),
+      draw: (row) => keepCursor(row, this.draw(row, ids, cursor, now)),
+      drawMain: (project, main) =>
+        keepCursor(main, this.drawMain(project, main, ids, cursor, now)),
       pullFailed: (git) => this.pulls.failed(git),
       retryPull: this.retryPull,
       toggleFold: this.toggleFold,

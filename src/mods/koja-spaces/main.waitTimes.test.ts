@@ -4,7 +4,12 @@ import type { PaneInfo, SpaceInfo, Status } from 'herdr';
 
 import { drawn, drawnTexts } from '../../../tests/drawn.ts';
 import type { DrawnElement } from '../../../tests/drawn.ts';
-import { gpuiBaseFake, gpuiKitFake, herdrFake, kitIndexFake } from '../../../tests/moduleFakes.ts';
+import {
+  gpuiBaseFake,
+  gpuiKitFake,
+  herdrFake,
+  realKitIndexFake,
+} from '../../../tests/moduleFakes.ts';
 
 interface FakeView {
   init: (props: unknown, cx: unknown) => void;
@@ -121,9 +126,6 @@ await mock.module('herdr', () =>
   }),
 );
 
-const kitModule = async (name: string): Promise<Record<string, unknown>> =>
-  (await import(`../../kit/${name}.ts`)) as Record<string, unknown>;
-
 const kitParts = [
   'button',
   'hoverTarget',
@@ -143,18 +145,9 @@ const kitParts = [
   'timer',
 ];
 
-const kitExports = Object.assign({}, ...(await Promise.all(kitParts.map(kitModule)))) as Record<
-  string,
-  unknown
->;
+const kitFake = await realKitIndexFake(kitParts);
 
-const sharedNames = new Set(Object.keys(kitIndexFake()));
-
-const realKit = Object.fromEntries(
-  Object.entries(kitExports).filter(([name]) => sharedNames.has(name)),
-);
-
-await mock.module('../../kit/index.ts', () => kitIndexFake(realKit));
+await mock.module('../../kit/index.ts', () => kitFake);
 
 const context = {
   notify: () => {

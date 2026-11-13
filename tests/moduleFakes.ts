@@ -148,3 +148,19 @@ export const kitIndexFake = (overrides: ModuleFake = {}): ModuleFake => ({
   workIcon: noop,
   ...overrides,
 });
+
+const kitPart = async (name: string): Promise<ModuleFake> =>
+  (await import(`../src/kit/${name}.ts`)) as ModuleFake;
+
+// Imports the named kit parts after the caller has mocked their modules, and keeps only the names
+// kitIndexFake exposes, so the real parts replace its defaults without adding export names.
+export const realKitIndexFake = async (parts: readonly string[]): Promise<ModuleFake> => {
+  const modules = await Promise.all(parts.map(kitPart));
+  const sharedNames = new Set(Object.keys(kitIndexFake()));
+
+  const real = Object.fromEntries(
+    modules.flatMap((module) => Object.entries(module)).filter(([name]) => sharedNames.has(name)),
+  );
+
+  return kitIndexFake(real);
+};
