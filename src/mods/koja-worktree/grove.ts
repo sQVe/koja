@@ -26,7 +26,6 @@ export const workspaceRoot = (commonDirectory: string): string | null => {
   return trimmed.slice(0, -bareFolder.length - 1);
 };
 
-// Grove names a worktree by its folder, so a checkout elsewhere could name a workspace namesake.
 export const isWorkspaceWorktree = (folder: string, root: string): boolean => {
   const parent = trimSlashes(folder).split('/').slice(0, -1).join('/');
 

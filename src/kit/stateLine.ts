@@ -14,7 +14,6 @@ export interface StateLineOptions {
   text: string;
   // A button or a keyHint for the next step.
   action?: Element;
-  // Breaks the text over lines instead of cutting it to one line.
   wrap?: boolean;
 }
 
