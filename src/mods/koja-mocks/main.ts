@@ -49,6 +49,7 @@ import { machineTagScene } from './directions/sidebars/states.ts';
 import { ticketScene } from './directions/ticket/scene.ts';
 import { directionWindow } from './directions/window.ts';
 import { controlsScene } from './scenes/controls.ts';
+import { headerMarksScene } from './scenes/headerMarks.ts';
 import type { SceneInputs } from './scenes/inputs.ts';
 import { paneHeadersScene } from './scenes/paneHeaders.ts';
 import { popupQuery, popupScene } from './scenes/popup.ts';
@@ -79,6 +80,10 @@ const renderers: Record<SceneName, (inputs: SceneInputs) => Element> = {
   shell: shellScene,
   'pane-headers': paneHeadersScene,
   'sidebar-parts': sidebarPartsScene,
+  'header-mark-name': () => headerMarksScene('name'),
+  'header-mark-right': () => headerMarksScene('right'),
+  'header-mark-right-active': () => headerMarksScene('rightActive'),
+  'header-mark-left-active': () => headerMarksScene('leftActive'),
   'smoke-1': (inputs) => paletteNearFail(inputs.command),
   'smoke-2': (inputs) => paletteClean(inputs.command),
   'smoke-3': (inputs) => paletteClearFail(inputs.command),
