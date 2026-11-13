@@ -272,7 +272,7 @@ describe('koja-spaces wait ages', () => {
     expect(ageOf(restarted, 'b')).toBe('9m');
   });
 
-  test('saves at once on a change, and otherwise at most once a minute', async () => {
+  test('saves only when a status or the shown space changes', async () => {
     showSpaces({ a: 'blocked', b: null }, 'b');
     await loadView();
     checkAt(start);
@@ -295,7 +295,7 @@ describe('koja-spaces wait ages', () => {
 
     checkAt(start + 92_000);
 
-    expect([first, quiet, changed, shown, writes.length]).toEqual([1, 1, 2, 3, 4]);
+    expect([first, quiet, changed, shown, writes.length]).toEqual([1, 1, 2, 3, 3]);
   });
 
   test('the check redraws when one space changes status', async () => {
