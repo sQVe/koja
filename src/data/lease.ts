@@ -17,6 +17,7 @@ export type WriteShared = (key: string, value: unknown) => void;
 export const leaseKey = 'koja.data.v1.lease';
 export const heartbeatKey = 'koja.data.v1.heartbeat';
 export const leaseExpiryMilliseconds = 30_000;
+export const heartbeatIntervalMilliseconds = 10_000;
 
 const isOwner = (value: unknown): value is string => typeof value === 'string' && value !== '';
 

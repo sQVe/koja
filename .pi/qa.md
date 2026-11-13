@@ -26,6 +26,8 @@ Cross-effects:
 - `src/kit/section.ts` names the sections and list commands that `koja-modal` sends and
   `koja-spaces` runs. A change there needs "Normal mode keys" and "Sidebar, tabs, panes".
 - `src/kit/statusRollup.ts` and `paneHeader*.ts` change the sidebar, the tabs, and the pane headers.
+- `src/data/` runs inside `koja-spaces` and is shown by `koja-gallery`. A change there needs
+  "Sidebar, tabs, panes" and "Gallery and scenes".
 - `config/keys.json` and `config/layouts/koja.json` are installed as they are. A key or layout
   change can break a mod that no source file touched.
 - `scripts/build.ts`, `scripts/install.ts`, and `herdr/*.d.ts` change what every mod gets. Assign

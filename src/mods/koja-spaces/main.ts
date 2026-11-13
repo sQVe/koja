@@ -4,6 +4,7 @@ import { div, View } from 'gpui-kit';
 import type { PaneInfo, SpaceInfo } from 'herdr';
 import { nextCommand, openOverlay, panes, run, setShared, shared, spaces, terminals } from 'herdr';
 
+import { startDataHost } from '../../data/host.ts';
 import type { DragState } from '../../kit/drag.ts';
 import { dropAction, noDrag, setDragOver, startDrag } from '../../kit/drag.ts';
 import type { StatusRollup } from '../../kit/index.ts';
@@ -120,6 +121,8 @@ export default class Spaces extends View {
     });
 
     this.listenForCommands(cx);
+
+    startDataHost(cx);
   }
 
   override render(): Element {

@@ -17,6 +17,7 @@ export type DataState =
       snapshot: Snapshot;
       owner: string;
       generation: number;
+      heartbeatAt: number;
       staleAt: number;
     };
 
@@ -35,5 +36,5 @@ export const readDataState = (read: ReadShared, now: number): DataState => {
     return { kind: 'stale', snapshot, owner, generation, heartbeatAt: heartbeat.at };
   }
 
-  return { kind: 'live', snapshot, owner, generation, staleAt };
+  return { kind: 'live', snapshot, owner, generation, heartbeatAt: heartbeat.at, staleAt };
 };

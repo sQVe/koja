@@ -24,6 +24,7 @@ describe('readDataState', () => {
       snapshot,
       owner: 'window-a',
       generation: 2,
+      heartbeatAt: writtenAt,
       staleAt: deadline,
     });
 
