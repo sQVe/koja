@@ -1,5 +1,7 @@
 import type { ExecResult } from 'herdr';
 
+import type { RunCommand } from '../../data/gitIdentity.ts';
+import { readGitIdentity } from '../../data/gitIdentity.ts';
 import type { ChangeFile } from './status.ts';
 import { mergeNumstat, parseStatus } from './status.ts';
 
@@ -12,12 +14,6 @@ export interface ChangesSnapshot {
 }
 
 export type ReadOutcome = { snapshot: ChangesSnapshot } | { failure: string };
-
-export type RunCommand = (
-  command: string,
-  args: string[],
-  options: { cwd: string; on: string | null },
-) => Promise<ExecResult>;
 
 export const readFlags = [
   '--no-optional-locks',
@@ -35,17 +31,21 @@ export const readChanges = async (
   on: string | null,
   isCurrent: () => boolean,
 ): Promise<ReadOutcome | null> => {
-  const top = await run('git', ['rev-parse', '--show-toplevel'], { cwd, on });
+  const identity = await readGitIdentity(run, on, cwd);
 
   if (!isCurrent()) {
     return null;
   }
 
-  if (top.code !== 0) {
+  if (identity.kind === 'failed') {
+    throw new Error(identity.error);
+  }
+
+  if (identity.kind === 'none' || identity.kind === 'bare') {
     return { failure: 'Not a git repository' };
   }
 
-  const root = top.stdout.trim();
+  const root = identity.worktree.top;
 
   const git = (args: string[]): Promise<ExecResult> =>
     run('git', [...readFlags, ...args], { cwd: root, on });
