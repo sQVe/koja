@@ -49,11 +49,13 @@ const spaceEnd = (space: MarkSpace): Element[] => {
   return end;
 };
 
-const spaceRow = (space: MarkSpace): Element =>
+// The left-mark variant nests its spaces under the header, so each project reads as one group.
+const spaceRow = (space: MarkSpace, variant: HeaderMarkVariant): Element =>
   listRow({
     size: 'small',
     inset: true,
     state: 'normal',
+    depth: variant === 'leftActive' ? 1 : 0,
     start: spaceMark(space.agent),
     label: space.title,
     end: spaceEnd(space),
@@ -122,7 +124,7 @@ const projectGroup = (project: MarkProject, variant: HeaderMarkVariant): Element
     .flex_none()
     .gap(spacing.xxsmall)
     .child(headerRow(project, variant))
-    .children(project.spaces.map((space) => spaceRow(space)));
+    .children(project.spaces.map((space) => spaceRow(space, variant)));
 
 const switchLine = (): Element =>
   h_flex()
