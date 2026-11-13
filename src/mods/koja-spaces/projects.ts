@@ -45,7 +45,6 @@ const projectName = (rows: ProjectRows): string => {
 
 const shownWhenFolded = (row: ListedSpace): boolean => row.space.active || needsYou(row.status);
 
-// Every row of a project shares its key, so the first row holds the project's git and machine.
 const projectOf = (key: string, rows: ProjectRows, foldedKeys: FoldedKeys): Project => {
   const [first] = rows;
   const folded = foldedKeys.has(key);

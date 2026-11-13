@@ -56,7 +56,6 @@ const projectBlock = (project: Project, host: ProjectRowsHost): Element[] => {
   return [...elements, ...project.spaces.map((row) => host.draw(row))];
 };
 
-// Every row is a direct child of the list, because the cursor scrolls to a child by its index.
 export const projectRows = (host: ProjectRowsHost): Element[] => {
   if (host.projects.length === 0) {
     return host.loading ? [loadingRow()] : [];

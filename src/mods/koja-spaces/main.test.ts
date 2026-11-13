@@ -413,7 +413,6 @@ describe('koja-spaces list cursor', () => {
     const plain = cursorChildIndex(view);
 
     expect(cursorNames(view)).toEqual(['name-w']);
-    // Above w: the row of a and the two project headers.
     expect(plain).toBeGreaterThanOrEqual(3);
     expect(scrollCalls).toEqual([plain]);
   });

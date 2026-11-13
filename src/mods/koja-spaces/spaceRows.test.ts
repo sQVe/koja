@@ -52,7 +52,6 @@ const realKit = Object.fromEntries(
   Object.entries(kitExports).filter(([name]) => sharedNames.has(name)),
 );
 
-// Other test files mock the kit index with stand-ins, so this file mocks it with the real parts.
 await mock.module('../../kit/index.ts', () => kitIndexFake(realKit));
 
 const modulePath = './spaceRows.ts';
