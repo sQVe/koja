@@ -22,6 +22,7 @@
     "!src/kit/overlay.ts",
     "!src/kit/overlayOpen.ts",
     "!src/kit/popupSurface.ts",
+    "!src/kit/projectHeader.ts",
     "!src/kit/repoLabel.ts",
     "!src/kit/searchField.ts",
     "!src/kit/sectionHeader.ts",

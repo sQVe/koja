@@ -37,6 +37,8 @@ export { shortAge } from './age.ts';
 
 export { foldChevron, repoLabel } from './repoLabel.ts';
 
+export { projectHeader } from './projectHeader.ts';
+
 export { popupSurface } from './popupSurface.ts';
 
 export type { RowState } from './listRow.ts';

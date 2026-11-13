@@ -110,6 +110,7 @@ export const kitIndexFake = (overrides: ModuleFake = {}): ModuleFake => ({
   paneHeaderMenu: noop,
   popupSurface: noop,
   programIcon: noop,
+  projectHeader: noop,
   radius: {},
   readDialogCommand: noop,
   readSection: () => 'panes',
