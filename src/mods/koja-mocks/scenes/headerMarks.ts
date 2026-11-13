@@ -1,4 +1,5 @@
 import { h_flex, v_flex } from 'gpui-base';
+import { div } from 'gpui-kit';
 import type { Element } from 'gpui-kit';
 import type { Status } from 'herdr';
 
@@ -10,6 +11,7 @@ import {
   iconSlot,
   listRow,
   roleText,
+  separator,
   rowHeight,
   sidebarSize,
   spaceMark,
@@ -27,6 +29,9 @@ export type HeaderMarkVariant = 'name' | 'right' | 'rightActive' | 'leftActive' 
 
 // Nested spaces sit one level under their header; flat spaces line up with it.
 export type SpaceLayout = 'nested' | 'flat';
+
+// A divider between projects runs across the list, or starts at the mark column.
+export type GroupDivider = 'none' | 'full' | 'inset';
 
 const views = [
   { id: 'projects', label: 'Projects' },
@@ -187,7 +192,36 @@ const switchLine = (): Element =>
     .items_center()
     .child(viewSwitch({ options: views, active: 'projects', onSelect: () => undefined }));
 
-export const headerMarksScene = (variant: HeaderMarkVariant, layout: SpaceLayout): Element =>
+// The divider takes the place of the gap between projects, so the list keeps its rhythm.
+const dividerLine = (divider: GroupDivider): Element =>
+  div()
+    .flex_none()
+    .py(spacing.xxsmall)
+    .px(divider === 'inset' ? sidebarSize.rowContentInset : spacing.xsmall)
+    .child(separator());
+
+const projectList = (
+  variant: HeaderMarkVariant,
+  layout: SpaceLayout,
+  divider: GroupDivider,
+): Element => {
+  const groups = markProjects.map((project) => projectGroup(project, variant, layout));
+  const list = v_flex().flex_1().min_h(0).pt(sidebarSize.groupGap);
+
+  if (divider === 'none') {
+    return list.gap(sidebarSize.groupGap).children(groups);
+  }
+
+  return list.children(
+    groups.flatMap((group, index) => (index === 0 ? [group] : [dividerLine(divider), group])),
+  );
+};
+
+export const headerMarksScene = (
+  variant: HeaderMarkVariant,
+  layout: SpaceLayout,
+  divider: GroupDivider,
+): Element =>
   v_flex()
     .flex_1()
     .min_h(0)
@@ -195,11 +229,4 @@ export const headerMarksScene = (variant: HeaderMarkVariant, layout: SpaceLayout
     .pt(spacing.small)
     .bg(colors().chrome)
     .child(switchLine())
-    .child(
-      v_flex()
-        .flex_1()
-        .min_h(0)
-        .pt(sidebarSize.groupGap)
-        .gap(sidebarSize.groupGap)
-        .children(markProjects.map((project) => projectGroup(project, variant, layout))),
-    );
+    .child(projectList(variant, layout, divider));
