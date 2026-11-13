@@ -311,6 +311,24 @@ describe('readGitIdentity', () => {
     expect(identity.kind).toBe('failed');
   });
 
+  test('reads a successful layout as a checkout even when stderr mentions no repository', async () => {
+    const run = fakeRunner((args) => {
+      if (isLayoutRead(args)) {
+        return exitWith(0, checkoutLayout, 'warning: not a git repository: /work/vendor\n');
+      }
+
+      if (args.includes('--show-toplevel')) {
+        return exitWith(0, '/work\n');
+      }
+
+      return exitWith(0, 'main\n');
+    });
+
+    const identity = await readGitIdentity(run, null, '/work');
+
+    expect(identity.kind).toBe('main');
+  });
+
   test('gives a failed read when the checkout top is empty', async () => {
     const run = fakeRunner((args) =>
       isLayoutRead(args) ? exitWith(0, checkoutLayout) : exitWith(0, '\n'),
