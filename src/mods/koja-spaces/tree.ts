@@ -1,22 +1,12 @@
 import type { PaneInfo, SpaceInfo, Status } from 'herdr';
 
+import type { Place, RepositoryIdentity } from '../../data/gitIdentity.ts';
+import { placeOf } from '../../data/gitIdentity.ts';
 import { spaceFolder } from '../../kit/space.ts';
-
-export interface Place {
-  machine: string | null;
-  folder: string;
-  key: string;
-}
-
-export interface RepoRef {
-  machine: string | null;
-  path: string;
-  key: string;
-}
 
 export interface GitInfo {
   branch: string | null;
-  repo: RepoRef;
+  repo: RepositoryIdentity;
   root: string;
   cwd: string;
   linked: boolean;
@@ -32,18 +22,6 @@ export interface ListedSpace {
 export interface FoldedKeys {
   has: (key: string) => boolean;
 }
-
-export const placeOf = (machine: string | null, folder: string): Place => ({
-  machine,
-  folder,
-  key: JSON.stringify([machine, folder]),
-});
-
-export const repoOf = (machine: string | null, path: string): RepoRef => ({
-  machine,
-  path,
-  key: JSON.stringify([machine, path]),
-});
 
 export const placeOfSpace = (space: SpaceInfo, paneList: PaneInfo[]): Place =>
   placeOf(space.machine ?? null, spaceFolder(space, paneList));

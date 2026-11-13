@@ -16,10 +16,10 @@ import {
   herdrFake,
   realKitIndexFake,
 } from '../../../tests/moduleFakes.ts';
+import { placeOf, repositoryOf } from '../../data/gitIdentity.ts';
 import type { Project } from './projects.ts';
 import type { Pull } from './pulls.ts';
 import type { GitInfo, ListedSpace } from './tree.ts';
-import { placeOf, repoOf } from './tree.ts';
 import type { WaitTimes } from './waitTimes.ts';
 import { advanceWaitTimes, emptyWaitTimes, readWaitTimes, waitAge } from './waitTimes.ts';
 
@@ -92,7 +92,7 @@ afterAll(() => {
 
 const git: GitInfo = {
   branch: 'feature-login',
-  repo: repoOf(null, '/code/koja/.git'),
+  repo: repositoryOf(null, '/code/koja/.git'),
   root: '/code/koja',
   cwd: '/code/koja',
   linked: true,

@@ -18,8 +18,8 @@ import {
   herdrFake,
   realKitIndexFake,
 } from '../../../tests/moduleFakes.ts';
+import { repositoryOf } from '../../data/gitIdentity.ts';
 import type { GitInfo } from './tree.ts';
-import { repoOf } from './tree.ts';
 
 type MouseHandler = (event: unknown, cx: unknown) => void;
 
@@ -135,7 +135,7 @@ class FakeGitTracker {
 
 const checkoutOf = (folder: string, linked: boolean): GitInfo => ({
   branch: 'main',
-  repo: repoOf(null, '/code/koja/.git'),
+  repo: repositoryOf(null, '/code/koja/.git'),
   root: folder,
   cwd: folder,
   linked,
@@ -577,7 +577,7 @@ describe('koja-spaces main space header', () => {
 
 const projectCheckout = (project: string, folder: string, linked: boolean): GitInfo => ({
   branch: 'main',
-  repo: repoOf(null, `/code/${project}/.git`),
+  repo: repositoryOf(null, `/code/${project}/.git`),
   root: folder,
   cwd: folder,
   linked,

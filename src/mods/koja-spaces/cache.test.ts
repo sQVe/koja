@@ -1,12 +1,12 @@
 import { describe, expect, test } from 'bun:test';
 
+import { repositoryOf } from '../../data/gitIdentity.ts';
 import { negativeEntryExpired, pruneRecord, retireUnusedWatches } from './cache.ts';
 import type { GitInfo } from './tree.ts';
-import { repoOf } from './tree.ts';
 
 const gitInfo = (repo: string): GitInfo => ({
   branch: null,
-  repo: repoOf(null, repo),
+  repo: repositoryOf(null, repo),
   root: '/',
   cwd: '/',
   linked: false,
@@ -37,7 +37,7 @@ describe('negativeEntryExpired', () => {
 });
 
 describe('retireUnusedWatches', () => {
-  const key = repoOf(null, 'repoA').key;
+  const key = repositoryOf(null, 'repoA').key;
 
   test('retires a watcher once its last place is pruned', () => {
     expect(retireUnusedWatches(new Set([key]), {})).toEqual(new Set());

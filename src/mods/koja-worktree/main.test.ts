@@ -58,6 +58,9 @@ const spaceFolderPath = `${workspaceRoot}/feat-a`;
 
 const statusCommand = 'git --no-optional-locks status --porcelain';
 
+const layoutCommand =
+  'git rev-parse --is-bare-repository --is-inside-git-dir --path-format=absolute --git-dir --git-common-dir';
+
 let calls: Call[] = [];
 let execCalls: ExecCall[] = [];
 let execResults: Record<string, ExecResult | Error> = {};
@@ -77,7 +80,11 @@ const failed = (stderr: string): ExecResult => ({ code: 1, stdout: '', stderr })
 
 const defaultResults = (): Record<string, ExecResult | Error> => ({
   'git rev-parse --show-toplevel': ok(`${spaceFolderPath}\n`),
-  'git rev-parse --path-format=absolute --git-common-dir': ok(`${workspaceRoot}/.bare\n`),
+  [layoutCommand]: ok(
+    `false\nfalse\n${workspaceRoot}/.bare/worktrees/feat-a\n${workspaceRoot}/.bare\n`,
+  ),
+  'git symbolic-ref --quiet --short HEAD': ok('feat/a\n'),
+  'git rev-parse --verify --quiet HEAD': ok('1111111\n'),
   [statusCommand]: ok(),
   'git worktree list --porcelain': ok(
     [
@@ -318,11 +325,40 @@ describe('remove worktree without risk', () => {
 
     await openDialog();
 
-    expect(execCalls.map((call) => call.on)).toEqual(['box', 'box', 'box', 'box']);
+    expect(execCalls.length).toBeGreaterThan(0);
+    expect(execCalls.every((call) => call.on === 'box')).toBe(true);
   });
 });
 
 describe('worktree checks', () => {
+  test('a folder outside any repository shows an error and runs no Grove', async () => {
+    execResults[layoutCommand] = failed('fatal: not a git repository');
+    await openDialog();
+
+    expect(stateLines).toEqual([
+      { kind: 'error', text: `${spaceFolderPath} is not in a git repository.`, wrap: true },
+    ]);
+
+    expect(groveCalls()).toEqual([]);
+    expect(calls).toEqual([]);
+  });
+
+  test('a bare repository shows an error and runs no Grove', async () => {
+    execResults[layoutCommand] = ok(`true\ntrue\n${spaceFolderPath}\n${spaceFolderPath}\n`);
+    await openDialog();
+
+    expect(stateLines).toEqual([
+      {
+        kind: 'error',
+        text: `${spaceFolderPath} is a bare repository with no checkout.`,
+        wrap: true,
+      },
+    ]);
+
+    expect(groveCalls()).toEqual([]);
+    expect(calls).toEqual([]);
+  });
+
   test('a failed git status shows its error and runs no Grove', async () => {
     execResults[statusCommand] = failed('fatal: index file corrupt');
     await openDialog();
@@ -333,8 +369,8 @@ describe('worktree checks', () => {
   });
 
   test('a folder outside a Grove workspace shows an error and runs no Grove', async () => {
-    execResults['git rev-parse --path-format=absolute --git-common-dir'] = ok(
-      `${spaceFolderPath}/.git\n`,
+    execResults[layoutCommand] = ok(
+      `false\nfalse\n${spaceFolderPath}/.git\n${spaceFolderPath}/.git\n`,
     );
 
     await openDialog();

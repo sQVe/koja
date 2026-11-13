@@ -1,5 +1,6 @@
 import { describe, expect, test } from 'bun:test';
 
+import type { GitIdentity } from '../../data/gitIdentity.ts';
 import type {
   Checkout,
   MenuEntry,
@@ -9,6 +10,7 @@ import type {
   TerminalFacts,
 } from './entries.ts';
 import {
+  checkoutOf,
   menuEntries,
   readMenuProps,
   readTerminal,
@@ -392,5 +394,36 @@ describe('menu commands', () => {
 
     expect(themeRows[0]?.group).toBe(true);
     expect(themeRows[1]?.group).toBe(false);
+  });
+});
+
+describe('checkoutOf', () => {
+  const place = { machine: null, folder: '/repo', key: '[null,"/repo"]' };
+  const repository = { machine: null, commonDirectory: '/repo/.git', key: '[null,"/repo/.git"]' };
+  const worktree = { machine: null, top: '/repo', key: '[null,"/repo"]' };
+  const branch = { kind: 'named', name: 'main' } as const;
+
+  const identities: { kind: string; identity: GitIdentity; checkout: Checkout }[] = [
+    {
+      kind: 'main',
+      identity: { kind: 'main', place, repository, worktree, branch },
+      checkout: 'main',
+    },
+    {
+      kind: 'linked',
+      identity: { kind: 'linked', place, repository, worktree, branch },
+      checkout: 'linked',
+    },
+    { kind: 'bare', identity: { kind: 'bare', place, repository, branch }, checkout: null },
+    { kind: 'none', identity: { kind: 'none', place }, checkout: null },
+    {
+      kind: 'failed',
+      identity: { kind: 'failed', place, error: 'fatal: unreachable' },
+      checkout: null,
+    },
+  ];
+
+  test.each(identities)('maps a $kind read to its checkout', ({ identity, checkout }) => {
+    expect(checkoutOf(identity)).toBe(checkout);
   });
 });

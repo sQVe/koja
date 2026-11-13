@@ -3,6 +3,7 @@ import type { AsyncContext, Context, Element, FocusHandle, KeyEvent } from 'gpui
 import { View } from 'gpui-kit';
 import { exec, panes, props, spaces, terminals } from 'herdr';
 
+import { readGitIdentity } from '../../data/gitIdentity.ts';
 import {
   askFirst,
   closeOverlay,
@@ -21,7 +22,7 @@ import {
   withTextRole,
 } from '../../kit/index.ts';
 import type { Checkout, MenuEntry, MenuHost } from './entries.ts';
-import { menuEntries, readMenuProps, selectedIndex, stepSelection } from './entries.ts';
+import { checkoutOf, menuEntries, readMenuProps, selectedIndex, stepSelection } from './entries.ts';
 
 const menuHost: MenuHost = {
   run: askFirst,
@@ -29,21 +30,6 @@ const menuHost: MenuHost = {
   openGroveDialog,
   terminals,
   themes: themeChoices,
-};
-
-const checkoutOf = async (folder: string, machine: string | null): Promise<Checkout> => {
-  const top = await exec('git', ['rev-parse', '--show-toplevel'], { cwd: folder, on: machine });
-
-  const common = await exec('git', ['rev-parse', '--path-format=absolute', '--git-common-dir'], {
-    cwd: folder,
-    on: machine,
-  });
-
-  if (top.code !== 0 || common.code !== 0) {
-    return null;
-  }
-
-  return common.stdout.trim() === `${top.stdout.trim()}/.git` ? 'main' : 'linked';
 };
 
 export default class Menu extends View {
@@ -84,7 +70,9 @@ export default class Menu extends View {
     const folder = spaceFolder(space, panes());
 
     cx.spawn(async (taskCx) => {
-      this.checkout = await checkoutOf(folder, space.machine).catch(() => null);
+      const identity = await readGitIdentity(exec, space.machine, folder);
+
+      this.checkout = checkoutOf(identity);
       taskCx.notify();
     });
   }

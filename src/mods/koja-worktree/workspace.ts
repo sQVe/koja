@@ -1,6 +1,7 @@
 import type { SpaceInfo } from 'herdr';
 import { exec, panes, spaces, terminals } from 'herdr';
 
+import { readGitIdentity } from '../../data/gitIdentity.ts';
 import { rollupStatuses, spaceFolder } from '../../kit/index.ts';
 import type { RemoveRisk, Workspace } from './grove.ts';
 import {
@@ -24,16 +25,22 @@ const probe = async (args: string[], cwd: string, machine: string | null): Promi
 
 export const readWorkspace = async (space: SpaceInfo): Promise<Workspace> => {
   const start = spaceFolder(space, panes());
-  const top = await probe(['rev-parse', '--show-toplevel'], start, space.machine);
-  const folder = top.trim();
+  const identity = await readGitIdentity(exec, space.machine, start);
 
-  const common = await probe(
-    ['rev-parse', '--path-format=absolute', '--git-common-dir'],
-    folder,
-    space.machine,
-  );
+  if (identity.kind === 'failed') {
+    throw new Error(identity.error);
+  }
 
-  const root = workspaceRoot(common);
+  if (identity.kind === 'none') {
+    throw new Error(`${start} is not in a git repository.`);
+  }
+
+  if (identity.kind === 'bare') {
+    throw new Error(`${start} is a bare repository with no checkout.`);
+  }
+
+  const folder = identity.worktree.top;
+  const root = workspaceRoot(identity.repository.commonDirectory);
 
   if (root === null) {
     throw new Error(`${folder} is not in a Grove workspace.`);

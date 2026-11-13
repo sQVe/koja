@@ -1,35 +1,21 @@
 import { afterAll, afterEach, describe, expect, mock, setSystemTime, test } from 'bun:test';
 
 import { herdrFake } from '../../../tests/moduleFakes.ts';
+import { repositoryOf } from '../../data/gitIdentity.ts';
+import type { RepositoryIdentity } from '../../data/gitIdentity.ts';
+import type { Pull } from './pulls.ts';
+import type { GitInfo } from './tree.ts';
 
 interface ExecResultFake {
   code: number;
   stdout: string;
 }
 
-interface RepoRefLike {
-  machine: string | null;
-  path: string;
-  key: string;
-}
-
-interface GitLike {
-  branch: string | null;
-  repo: RepoRefLike;
-  root: string;
-  cwd: string;
-  linked: boolean;
-}
-
-interface PullLike {
-  number: number;
-}
-
 interface PullTrackerLike {
-  lookup: (git: GitLike) => PullLike | null;
-  failed: (git: GitLike) => boolean;
-  refresh: (repositories: { repo: RepoRefLike; cwd: string }[], cx: unknown) => void;
-  retry: (repo: RepoRefLike, cwd: string, cx: unknown) => void;
+  lookup: (git: GitInfo) => Pull | null;
+  failed: (git: GitInfo) => boolean;
+  refresh: (repositories: { repo: RepositoryIdentity; cwd: string }[], cx: unknown) => void;
+  retry: (repo: RepositoryIdentity, cwd: string, cx: unknown) => void;
 }
 
 let nextRemotes: () => Promise<ExecResultFake> = async () => ({ code: 0, stdout: 'origin\n' });
@@ -75,13 +61,9 @@ const pulled = JSON.stringify([
   { number: 7, state: 'OPEN', isDraft: false, title: 'Fix the redirect', headRefName: 'main' },
 ]);
 
-const repo: RepoRefLike = {
-  machine: null,
-  path: '/code/koja/.git',
-  key: JSON.stringify([null, '/code/koja/.git']),
-};
+const repo = repositoryOf(null, '/code/koja/.git');
 
-const git: GitLike = {
+const git: GitInfo = {
   branch: 'main',
   repo,
   root: '/code/koja',
@@ -119,14 +101,14 @@ describe('PullTracker', () => {
     const tracker = new loaded.PullTracker();
 
     nextRead = async () => ({ code: 0, stdout: pulled });
-    tracker.refresh([{ repo, cwd: repo.path }], context);
+    tracker.refresh([{ repo, cwd: repo.commonDirectory }], context);
     await flush();
 
     expect(tracker.lookup(git)?.number).toBe(7);
 
     setSystemTime(new Date('2026-01-01T00:06:00.000Z'));
     nextRead = async () => ({ code: 1, stdout: '' });
-    tracker.refresh([{ repo, cwd: repo.path }], context);
+    tracker.refresh([{ repo, cwd: repo.commonDirectory }], context);
     await flush();
 
     expect(tracker.lookup(git)?.number).toBe(7);
@@ -141,13 +123,13 @@ describe('PullTracker', () => {
       throw new Error('gh is away');
     };
 
-    tracker.refresh([{ repo, cwd: repo.path }], context);
+    tracker.refresh([{ repo, cwd: repo.commonDirectory }], context);
     await flush();
 
     expect(tracker.failed(git)).toBe(true);
 
     nextRead = async () => ({ code: 0, stdout: pulled });
-    tracker.retry(repo, repo.path, context);
+    tracker.retry(repo, repo.commonDirectory, context);
     await flush();
 
     expect(tracker.lookup(git)?.number).toBe(7);
@@ -160,7 +142,7 @@ describe('PullTracker', () => {
 
     nextRemotes = async () => ({ code: 0, stdout: '' });
     nextRead = async () => ({ code: 1, stdout: '' });
-    tracker.refresh([{ repo, cwd: repo.path }], context);
+    tracker.refresh([{ repo, cwd: repo.commonDirectory }], context);
     await flush();
 
     expect(tracker.failed(git)).toBe(false);
@@ -173,7 +155,7 @@ describe('PullTracker', () => {
 
     nextRemotes = async () => ({ code: 128, stdout: '' });
     nextRead = async () => ({ code: 0, stdout: pulled });
-    tracker.refresh([{ repo, cwd: repo.path }], context);
+    tracker.refresh([{ repo, cwd: repo.commonDirectory }], context);
     await flush();
 
     expect(tracker.failed(git)).toBe(true);
@@ -184,7 +166,7 @@ describe('PullTracker', () => {
     const tracker = new loaded.PullTracker();
 
     nextRead = async () => ({ code: 1, stdout: '' });
-    tracker.refresh([{ repo, cwd: repo.path }], context);
+    tracker.refresh([{ repo, cwd: repo.commonDirectory }], context);
     await flush();
 
     expect(tracker.failed(git)).toBe(true);

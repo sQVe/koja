@@ -1,9 +1,10 @@
 import type { Context } from 'gpui-kit';
 import { exec } from 'herdr';
 
+import type { RepositoryIdentity } from '../../data/gitIdentity.ts';
 import type { Pull, PullCache } from './pulls.ts';
 import { pullFields, pullOf, readPullCaches, readPullList } from './pulls.ts';
-import type { GitInfo, RepoRef } from './tree.ts';
+import type { GitInfo } from './tree.ts';
 
 const pullsKey = 'pulls';
 
@@ -28,7 +29,7 @@ export class PullTracker {
     return this.failedRepos.has(git.repo.key);
   }
 
-  refresh(repositories: { repo: RepoRef; cwd: string }[], cx: Context): void {
+  refresh(repositories: { repo: RepositoryIdentity; cwd: string }[], cx: Context): void {
     const now = Date.now();
 
     for (const { repo, cwd } of repositories) {
@@ -43,7 +44,7 @@ export class PullTracker {
     }
   }
 
-  retry(repo: RepoRef, cwd: string, cx: Context): void {
+  retry(repo: RepositoryIdentity, cwd: string, cx: Context): void {
     if (this.fetching.has(repo.key)) {
       return;
     }
@@ -52,7 +53,7 @@ export class PullTracker {
     this.fetch(repo, cwd, cx);
   }
 
-  private async read(repo: RepoRef, cwd: string): Promise<Pull[] | null> {
+  private async read(repo: RepositoryIdentity, cwd: string): Promise<Pull[] | null> {
     try {
       const remotes = await exec('git', ['remote'], { cwd, on: repo.machine });
 
@@ -83,7 +84,7 @@ export class PullTracker {
     }
   }
 
-  private fetch(repo: RepoRef, cwd: string, cx: Context): void {
+  private fetch(repo: RepositoryIdentity, cwd: string, cx: Context): void {
     this.fetching.add(repo.key);
 
     cx.spawn(async (taskCx) => {

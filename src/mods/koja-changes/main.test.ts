@@ -127,8 +127,16 @@ await mock.module('herdr', () =>
     exec: async (command: string, args: string[]) => {
       commands.push([command, ...args]);
 
-      if (args[0] === 'rev-parse') {
+      if (args.includes('--is-bare-repository')) {
+        return { code: 0, stdout: 'false\nfalse\n/repo/.git\n/repo/.git\n', stderr: '' };
+      }
+
+      if (args.includes('--show-toplevel')) {
         return { code: 0, stdout: '/repo\n', stderr: '' };
+      }
+
+      if (args[0] === 'symbolic-ref') {
+        return { code: 0, stdout: 'main\n', stderr: '' };
       }
 
       if (args.includes('status')) {

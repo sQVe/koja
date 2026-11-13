@@ -1,6 +1,9 @@
 import { describe, expect, test } from 'bun:test';
 
-import type { ChangesSnapshot, ReadOutcome, RunCommand } from './git.ts';
+import type { ExecResult } from 'herdr';
+
+import type { RunCommand } from '../../data/gitIdentity.ts';
+import type { ChangesSnapshot, ReadOutcome } from './git.ts';
 import { commitAll, readChanges } from './git.ts';
 
 interface GitOutputs {
@@ -12,9 +15,7 @@ interface GitOutputs {
 
 const ok = { code: 0, stdout: '', stderr: '' };
 
-const fakeRunner = (
-  answer: (args: string[]) => { code: number; stdout: string; stderr: string },
-) => {
+const fakeRunner = (answer: (args: string[]) => ExecResult) => {
   const calls: string[][] = [];
 
   const run: RunCommand = async (command, args) => {
@@ -34,17 +35,56 @@ const snapshotOf = (result: ReadOutcome | null): ChangesSnapshot => {
   return result.snapshot;
 };
 
+const mainLayout = 'false\nfalse\n/repo/.git\n/repo/.git\n';
+const bareLayout = 'true\nfalse\n/repo.git\n/repo.git\n';
+
+const identityAnswer =
+  (layout: string) =>
+  (args: string[]): ExecResult | null => {
+    if (args.includes('--is-bare-repository')) {
+      return { ...ok, stdout: layout };
+    }
+
+    if (args.includes('--show-toplevel')) {
+      return { ...ok, stdout: '/repo\n' };
+    }
+
+    if (args[0] === 'symbolic-ref') {
+      return { ...ok, stdout: 'main\n' };
+    }
+
+    if (args.includes('--quiet')) {
+      return ok;
+    }
+
+    return null;
+  };
+
 describe('readChanges', () => {
-  test('returns null and runs no further git command when the folder changed after rev-parse', async () => {
-    const { run, calls } = fakeRunner(() => ({ ...ok, stdout: '/repo\n' }));
+  test('returns null and runs no change read when the folder changed after the identity read', async () => {
+    const { run, calls } = fakeRunner((args) => identityAnswer(mainLayout)(args) ?? ok);
 
     const result = await readChanges(run, '/repo', null, () => false);
 
     expect(result).toBeNull();
-    expect(calls).toEqual([['git', 'rev-parse', '--show-toplevel']]);
+
+    expect(calls).toEqual([
+      [
+        'git',
+        'rev-parse',
+        '--is-bare-repository',
+        '--is-inside-git-dir',
+        '--path-format=absolute',
+        '--git-dir',
+        '--git-common-dir',
+      ],
+      ['git', 'rev-parse', '--show-toplevel'],
+      ['git', 'symbolic-ref', '--quiet', '--short', 'HEAD'],
+      ['git', 'rev-parse', '--verify', '--quiet', 'HEAD'],
+    ]);
   });
 
-  test('reports a folder outside a repository when rev-parse fails', async () => {
+  test('reports a folder outside a repository', async () => {
     const { run } = fakeRunner(() => ({
       code: 128,
       stdout: '',
@@ -54,6 +94,30 @@ describe('readChanges', () => {
     const result = await readChanges(run, '/tmp', null, () => true);
 
     expect(result).toEqual({ failure: 'Not a git repository' });
+  });
+
+  test('reports a bare repository as not a git repository and reads no changes', async () => {
+    const { run, calls } = fakeRunner((args) => identityAnswer(bareLayout)(args) ?? ok);
+
+    const result = await readChanges(run, '/repo.git', null, () => true);
+
+    expect(result).toEqual({ failure: 'Not a git repository' });
+    expect(calls.filter((call) => call.includes('status'))).toHaveLength(0);
+  });
+
+  test('fails with the git error and reads no changes when git cannot read the folder', async () => {
+    const { run, calls } = fakeRunner(() => ({
+      code: 128,
+      stdout: '',
+      stderr: 'fatal: detected dubious ownership in repository at /repo\n',
+    }));
+
+    const failure = await readChanges(run, '/repo', null, () => true).catch(
+      (error: unknown) => error,
+    );
+
+    expect(failure).toEqual(new Error('fatal: detected dubious ownership in repository at /repo'));
+    expect(calls.filter((call) => call.includes('status'))).toHaveLength(0);
   });
 });
 
@@ -65,9 +129,11 @@ const failedWith = (code: number, message: string) => ({
 
 const gitAnswer =
   (outputs: GitOutputs) =>
-  (args: string[]): { code: number; stdout: string; stderr: string } => {
-    if (args[0] === 'rev-parse') {
-      return { ...ok, stdout: '/repo\n' };
+  (args: string[]): ExecResult => {
+    const identity = identityAnswer(mainLayout)(args);
+
+    if (identity !== null) {
+      return identity;
     }
 
     if (args.includes('status')) {

@@ -2,14 +2,35 @@ import type { Context } from 'gpui-kit';
 import type { PaneInfo, SpaceInfo } from 'herdr';
 import { exec, machines, watchFolder } from 'herdr';
 
+import type { Branch, GitIdentity, Place, RepositoryIdentity } from '../../data/gitIdentity.ts';
+import { placeOf, readGitIdentity } from '../../data/gitIdentity.ts';
 import { currentWindow } from '../../kit/index.ts';
 import { negativeEntryExpired, pruneRecord, retireUnusedWatches } from './cache.ts';
-import type { GitInfo, Place, RepoRef } from './tree.ts';
-import { placeOf, repoOf } from './tree.ts';
+import type { GitInfo } from './tree.ts';
 
 // Changes made outside Herdr, such as an editor's save or a commit in another app, are looked
 // for this often in repositories the list shows, while the window is in front.
 const fallbackMilliseconds = 60_000;
+
+const branchName = (branch: Branch): string | null =>
+  branch.kind === 'detached' ? null : branch.name;
+
+const gitInfoOf = (identity: Exclude<GitIdentity, { kind: 'failed' }>): GitInfo | null => {
+  if (identity.kind === 'none') {
+    return null;
+  }
+
+  const branch = branchName(identity.branch);
+  const { repository: repo, place } = identity;
+
+  if (identity.kind === 'bare') {
+    return { branch, repo, root: place.folder, cwd: place.folder, linked: false };
+  }
+
+  const linked = identity.kind === 'linked';
+
+  return { branch, repo, root: identity.worktree.top, cwd: place.folder, linked };
+};
 
 export class GitTracker {
   private git: Record<string, GitInfo | null> = {};
@@ -38,9 +59,9 @@ export class GitTracker {
     return this.git[key];
   }
 
-  repositories(): { repo: RepoRef; cwd: string }[] {
+  repositories(): { repo: RepositoryIdentity; cwd: string }[] {
     const seen = new Set<string>();
-    const repos: { repo: RepoRef; cwd: string }[] = [];
+    const repos: { repo: RepositoryIdentity; cwd: string }[] = [];
 
     for (const info of Object.values(this.git)) {
       if (info !== null && !seen.has(info.repo.key)) {
@@ -232,92 +253,28 @@ export class GitTracker {
   }
 
   private async check(place: Place, cx: Context): Promise<void> {
-    const options = { cwd: place.folder, on: place.machine };
-
     this.checked[place.key] = Date.now();
     this.unsure.delete(place.key);
 
-    try {
-      const top = await exec('git', ['rev-parse', '--show-toplevel'], options);
+    const identity = await readGitIdentity(exec, place.machine, place.folder);
 
-      if (top.code !== 0) {
-        await this.checkFailed(place, top.stderr);
-
-        return;
-      }
-
-      const { repo, branch } = await this.repoAndBranch(place);
-
-      // A main checkout's own git folder is the common one, wherever it lives, such as one made
-      // with `git clone --separate-git-dir`; a linked worktree's sits under it.
-      const gitDirectory = await exec(
-        'git',
-        ['rev-parse', '--path-format=absolute', '--git-dir'],
-        options,
-      );
-
-      const linked = gitDirectory.stdout.trim() !== repo.path;
-      const root = top.stdout.trim();
-
-      this.git[place.key] = { branch, repo, root, cwd: place.folder, linked };
-
-      if (place.machine === null) {
-        this.watch(repo, cx);
-      }
-    } catch {
+    if (identity.kind === 'failed') {
       this.git[place.key] ??= null;
       this.unsure.add(place.key);
-    }
-  }
-
-  private async repoAndBranch(place: Place): Promise<{ repo: RepoRef; branch: string | null }> {
-    const options = { cwd: place.folder, on: place.machine };
-
-    const common = await exec(
-      'git',
-      ['rev-parse', '--path-format=absolute', '--git-common-dir'],
-      options,
-    );
-
-    const head = await exec('git', ['symbolic-ref', '--short', 'HEAD'], options);
-
-    return {
-      repo: repoOf(place.machine, common.stdout.trim()),
-      branch: head.code === 0 ? head.stdout.trim() : null,
-    };
-  }
-
-  private async checkFailed(place: Place, stderr: string): Promise<void> {
-    if (/must be run in a work tree/i.test(stderr)) {
-      this.git[place.key] = await this.bareRepo(place);
 
       return;
     }
 
-    // Only git's own "no" is remembered as no repository; anything else is asked again.
-    if (!/not a git repository/i.test(stderr)) {
-      this.unsure.add(place.key);
-    }
+    this.git[place.key] = gitInfoOf(identity);
 
-    this.git[place.key] = null;
+    const checkout = identity.kind === 'main' || identity.kind === 'linked';
+
+    if (checkout && place.machine === null) {
+      this.watch(identity.repository, cx);
+    }
   }
 
-  // A folder holding a bare repository, with its worktrees beside it, has no checkout of its
-  // own; it stands in for the main checkout so the worktrees nest under it.
-  private async bareRepo(place: Place): Promise<GitInfo | null> {
-    const options = { cwd: place.folder, on: place.machine };
-    const bare = await exec('git', ['rev-parse', '--is-bare-repository'], options);
-
-    if (bare.stdout.trim() !== 'true') {
-      return null;
-    }
-
-    const { repo, branch } = await this.repoAndBranch(place);
-
-    return { branch, repo, root: place.folder, cwd: place.folder, linked: false };
-  }
-
-  private watch(repo: RepoRef, cx: Context): void {
+  private watch(repo: RepositoryIdentity, cx: Context): void {
     if (this.watching.has(repo.key)) {
       return;
     }
@@ -328,7 +285,7 @@ export class GitTracker {
       try {
         while (this.watching.has(repo.key)) {
           // eslint-disable-next-line no-await-in-loop -- waits for each batch of changes in turn
-          await watchFolder(repo.path);
+          await watchFolder(repo.commonDirectory);
 
           if (this.watching.has(repo.key)) {
             this.refresh(
