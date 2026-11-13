@@ -28,7 +28,7 @@ const shellSceneSize: SceneSize = {
 
 const headerMarkSize: SceneSize = {
   width: sidebarSize.width,
-  height: overlaySize.wideMenuHeight,
+  height: overlaySize.paneHeadersHeight,
 };
 
 const sceneSizes = {
@@ -49,6 +49,7 @@ const sceneSizes = {
   'header-mark-right': headerMarkSize,
   'header-mark-right-active': headerMarkSize,
   'header-mark-left-active': headerMarkSize,
+  'header-mark-after-name': headerMarkSize,
   'smoke-1': paletteSize,
   'smoke-2': paletteSize,
   'smoke-3': paletteSize,

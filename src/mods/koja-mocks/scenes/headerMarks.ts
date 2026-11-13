@@ -23,7 +23,7 @@ import type { MarkProject, MarkSpace } from './headerMarksData.ts';
 import { markProjects } from './headerMarksData.ts';
 
 // Where a project header draws its main space's agent mark.
-export type HeaderMarkVariant = 'name' | 'right' | 'rightActive' | 'leftActive';
+export type HeaderMarkVariant = 'name' | 'right' | 'rightActive' | 'leftActive' | 'afterName';
 
 const views = [
   { id: 'projects', label: 'Projects' },
@@ -49,60 +49,79 @@ const spaceEnd = (space: MarkSpace): Element[] => {
   return end;
 };
 
-// The left-mark variant nests its spaces under the header, so each project reads as one group.
+// These variants nest the spaces under the header, so each project reads as one group.
+const nestsSpaces = (variant: HeaderMarkVariant): boolean =>
+  variant === 'leftActive' || variant === 'afterName';
+
 const spaceRow = (space: MarkSpace, variant: HeaderMarkVariant): Element =>
   listRow({
     size: 'small',
     inset: true,
     state: 'normal',
-    depth: variant === 'leftActive' ? 1 : 0,
+    depth: nestsSpaces(variant) ? 1 : 0,
     start: spaceMark(space.agent),
     label: space.title,
     end: spaceEnd(space),
   });
+
+const mainAgent = (project: MarkProject): Status | null => project.main?.agent ?? null;
+
+const activeMark = (project: MarkProject): Element[] => {
+  const agent = mainAgent(project);
+
+  return project.main !== null && needsAttention(agent) ? [spaceMark(agent)] : [];
+};
 
 const machineParts = (project: MarkProject): Element[] =>
   project.machine === undefined
     ? []
     : [icon('server', 'small').text_color(colors().dim), roleText('detail', project.machine)];
 
-const nameLabel = (project: MarkProject): Element =>
+const nameLabel = (project: MarkProject, variant: HeaderMarkVariant): Element =>
   h_flex()
     .min_w(0)
     .gap(spacing.small)
     .items_center()
     .child(roleText('sectionHeading', project.name, 'foreground'))
+    .children(variant === 'afterName' ? activeMark(project) : [])
     .children(machineParts(project));
 
-// The chevron keeps its slot when hidden, so the age and mark do not shift on hover.
-const foldSlot = (project: MarkProject): Element =>
-  project.main.look === 'hovered'
-    ? iconSlot(icon('chevron-down', 'small').text_color(colors().dim))
-    : emptyWorkSlot();
+const chevron = (name: 'chevron-down' | 'chevron-right'): Element =>
+  iconSlot(icon(name, 'small').text_color(colors().dim));
+
+// Both header kinds fold the same way. The chevron keeps its slot when hidden, so nothing shifts
+// on hover.
+const foldParts = (project: MarkProject): Element[] => {
+  if (project.hidden > 0) {
+    return [roleText('detail', `${project.hidden} more`), chevron('chevron-right')];
+  }
+
+  return [project.look === 'hovered' ? chevron('chevron-down') : emptyWorkSlot()];
+};
 
 // The right mark sits in the rows' work icon column, so ages line up down the list.
-const showsRightMark = (variant: HeaderMarkVariant, agent: Status | null): boolean => {
+const showsRightMark = (project: MarkProject, variant: HeaderMarkVariant): boolean => {
+  if (project.main === null) {
+    return false;
+  }
+
   if (variant === 'right') {
     return true;
   }
 
-  return variant === 'rightActive' && needsAttention(agent);
+  return variant === 'rightActive' && needsAttention(project.main.agent);
 };
 
-const rightMark = (project: MarkProject, variant: HeaderMarkVariant): Element => {
-  const { agent } = project.main;
+const rightMark = (project: MarkProject, variant: HeaderMarkVariant): Element =>
+  showsRightMark(project, variant) ? spaceMark(mainAgent(project)) : emptyWorkSlot();
 
-  return showsRightMark(variant, agent) ? spaceMark(agent) : emptyWorkSlot();
-};
-
+// Every header reserves the slot, so names line up whether or not a mark shows.
 const leftMark = (project: MarkProject, variant: HeaderMarkVariant): Element | undefined => {
   if (variant !== 'leftActive') {
     return undefined;
   }
 
-  const { agent } = project.main;
-
-  return needsAttention(agent) ? spaceMark(agent) : statusMark(null);
+  return activeMark(project)[0] ?? statusMark(null);
 };
 
 const headerRow = (project: MarkProject, variant: HeaderMarkVariant): Element => {
@@ -111,11 +130,11 @@ const headerRow = (project: MarkProject, variant: HeaderMarkVariant): Element =>
   return listRow({
     size: 'small',
     inset: true,
-    state: project.main.look === 'selected' ? 'selected' : 'normal',
-    hovered: project.main.look === 'hovered',
+    state: project.look === 'selected' ? 'selected' : 'normal',
+    hovered: project.look === 'hovered',
     ...(start === undefined ? {} : { start }),
-    label: nameLabel(project),
-    end: [foldSlot(project), ...ageParts(project.main.age), rightMark(project, variant)],
+    label: nameLabel(project, variant),
+    end: [...foldParts(project), ...ageParts(project.main?.age), rightMark(project, variant)],
   });
 };
 

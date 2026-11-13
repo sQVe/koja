@@ -12,18 +12,30 @@ export interface MarkSpace {
   stack?: { merged: number; total: number };
 }
 
-// The header is the project's main space, so its agent and age belong to that space.
+// The header is the project's main space when it has one, so its agent and age belong to that
+// space. A project without a main space has a plain header.
 export interface MarkProject {
   name: string;
   machine?: string;
-  main: { agent: Status | null; age?: string; look: HeaderLook };
+  look: HeaderLook;
+  hidden: number;
+  main: { agent: Status | null; age?: string } | null;
   spaces: MarkSpace[];
 }
 
 export const markProjects: MarkProject[] = [
   {
+    name: 'platform',
+    look: 'normal',
+    hidden: 7,
+    main: { agent: 'idle', age: 'now' },
+    spaces: [],
+  },
+  {
     name: 'koja',
-    main: { agent: 'working', look: 'selected' },
+    look: 'selected',
+    hidden: 0,
+    main: { agent: 'working' },
     spaces: [
       {
         title: 'Build window shell',
@@ -39,7 +51,9 @@ export const markProjects: MarkProject[] = [
   {
     name: 'herdr-app',
     machine: 'build-box',
-    main: { agent: 'blocked', age: '6m', look: 'hovered' },
+    look: 'hovered',
+    hidden: 0,
+    main: { agent: 'blocked', age: '6m' },
     spaces: [
       { title: 'Pane equalize', agent: 'working' },
       { title: 'Swap pane by target', agent: 'done', age: '18m', need: 'merge' },
@@ -47,27 +61,40 @@ export const markProjects: MarkProject[] = [
   },
   {
     name: 'tau',
-    main: { agent: 'done', age: '12m', look: 'normal' },
-    spaces: [
-      {
-        title: 'Hill-climb mode for judges',
-        agent: 'working',
-        need: 'restack',
-        stack: { merged: 1, total: 3 },
-      },
-    ],
+    look: 'normal',
+    hidden: 0,
+    main: { agent: 'done', age: '12m' },
+    spaces: [{ title: 'Hill-climb judges', agent: 'working', need: 'restack' }],
   },
   {
     name: 'tikk',
-    main: { agent: 'idle', age: '3h', look: 'normal' },
+    look: 'normal',
+    hidden: 0,
+    main: { agent: 'idle', age: '3h' },
     spaces: [
       { title: 'Ticket sync', agent: null, age: '2d' },
-      { title: 'Import tickets from Linear', agent: 'idle', age: '5h' },
+      { title: 'Import from Linear', agent: 'idle', age: '5h' },
     ],
   },
   {
+    name: 'stomme',
+    look: 'normal',
+    hidden: 0,
+    main: null,
+    spaces: [{ title: 'Base repository and check', agent: 'working' }],
+  },
+  {
+    name: 'greppa',
+    look: 'normal',
+    hidden: 2,
+    main: null,
+    spaces: [],
+  },
+  {
     name: 'dotfiles',
-    main: { agent: null, age: '4d', look: 'normal' },
+    look: 'normal',
+    hidden: 0,
+    main: { agent: null, age: '4d' },
     spaces: [{ title: 'Zsh prompt timing', agent: 'idle', age: '1d' }],
   },
 ];

@@ -84,6 +84,7 @@ const renderers: Record<SceneName, (inputs: SceneInputs) => Element> = {
   'header-mark-right': () => headerMarksScene('right'),
   'header-mark-right-active': () => headerMarksScene('rightActive'),
   'header-mark-left-active': () => headerMarksScene('leftActive'),
+  'header-mark-after-name': () => headerMarksScene('afterName'),
   'smoke-1': (inputs) => paletteNearFail(inputs.command),
   'smoke-2': (inputs) => paletteClean(inputs.command),
   'smoke-3': (inputs) => paletteClearFail(inputs.command),
