@@ -192,6 +192,9 @@ preview inside one framed overlay, so the list rounds only its own two outer cor
   refresh delay. An error clears only when that same resource reads again.
 - A stale list keeps its rows below an error line with the age of the last good read. The age comes
   early in the text, so a cut line still shows it.
+- The sidebar's PR read is the exception. Its line reads `Could not read PRs`, with no repository
+  name and no age, because the project header above it names the repository and the sidebar shows
+  only what the user should act on. The rows keep their last facts.
 - A load longer than about 300 ms shows the spinner with its text; a shorter load shows nothing.
 - An action that changes state, such as Commit, stays disabled on stale data until the same resource
   reads again. Reading and navigation stay allowed.
