@@ -3,6 +3,7 @@ import type { Context, Element } from 'gpui-kit';
 import { div } from 'gpui-kit';
 
 import { icon, iconSlot } from './icon.ts';
+import type { DropMark } from './listRow.ts';
 import { listRow } from './listRow.ts';
 import { rowHeight, sidebarSize, spacing } from './size.ts';
 import { detailText } from './text.ts';
@@ -31,7 +32,7 @@ interface SpaceHeader extends HeaderBase {
   cursor: boolean;
   hovered: boolean;
   dragged: boolean;
-  dropLine?: 'top' | 'bottom';
+  drop?: DropMark;
 }
 
 type ProjectHeaderOptions = FoldHeader | SpaceHeader;
@@ -109,7 +110,7 @@ const spaceHeader = (options: SpaceHeader): Element =>
     state: options.selected ? 'selected' : 'normal',
     start: options.mark,
     label: nameLabel(options),
-    ...(options.dropLine === undefined ? {} : { dropLine: options.dropLine }),
+    ...(options.drop === undefined ? {} : { drop: options.drop }),
     dragged: options.dragged,
     cursor: options.cursor,
     end: [...foldControls(options), ...ageOf(options)],

@@ -5,11 +5,11 @@ names. Follow [the rules for every section](../qa.md#rules-for-every-section) of
 
 ## Entry points
 
-| Entry point | How to use it                                                                   |
-| ----------- | ------------------------------------------------------------------------------- |
-| Sidebar     | A click or a drag on a space row or a project header, and a click on a chevron  |
-| Tab strip   | A click or a drag on a tab, and a click on the plus button                      |
-| Menus       | A right click on a space, a project header, or a tab. Button 3 is the right one |
+| Entry point | How to use it                                                                    |
+| ----------- | -------------------------------------------------------------------------------- |
+| Sidebar     | A click on a space row or a project header, a drag on a space row, and a chevron |
+| Tab strip   | A click or a drag on a tab, and a click on the plus button                       |
+| Menus       | A right click on a space, a project header, or a tab. Button 3 is the right one  |
 
 ## Driving steps
 
@@ -31,7 +31,11 @@ names. Follow [the rules for every section](../qa.md#rules-for-every-section) of
 - A project without a main checkout, such as only linked worktrees or a folder outside Git, has a
   name-only header. A click on that name folds the project, and a second click opens it again.
 - A new space shows under its project.
-- A drag changes the order, and `s j` follows the new order.
+- A space row dragged onto another space of its own project lands there, above it when moving up and
+  below it when moving down. The project order does not change, and `s j` follows the new order.
+- While a drag hovers a row of another project or a project header, that row shows no drop line and
+  the pointer is the not-allowed cursor. A drop there leaves the order unchanged.
+- A press and release on the same row or header selects its space, as a click does.
 - The tab strip shows the tabs of the selected space.
 - A click selects a tab, a drag reorders the tabs, and the plus button opens the New menu.
 - Each pane has a header with its label, and the focused pane has the accent border.

@@ -21,6 +21,8 @@ import {
 import type { GitInfo } from './tree.ts';
 import { repoOf } from './tree.ts';
 
+type MouseHandler = (event: unknown, cx: unknown) => void;
+
 interface RunCall {
   command: string;
   args: Record<string, unknown> | undefined;
@@ -570,5 +572,189 @@ describe('koja-spaces main space header', () => {
     await loadView();
 
     expect(sharedValues['spaces.order']).toEqual({ shown: ['m', 'w'], hidden: [], roots: ['m'] });
+  });
+});
+
+const projectCheckout = (project: string, folder: string, linked: boolean): GitInfo => ({
+  branch: 'main',
+  repo: repoOf(null, `/code/${project}/.git`),
+  root: folder,
+  cwd: folder,
+  linked,
+});
+
+const handlersOf = (element: DrawnElement, name: string): MouseHandler[] =>
+  element.mouseHandlers[name] ?? [];
+
+describe('koja-spaces drag and drop', () => {
+  const useSpaces = (ids: string[]): void => {
+    gitByFolder = {};
+
+    for (const id of ids) {
+      const [project = id, worktree] = id.split('-');
+      const folder = `/code/${id}`;
+
+      gitByFolder[folder] = projectCheckout(project, folder, worktree !== undefined);
+    }
+
+    spaceList = ids.map((id) => space(id, false, `/code/${id}`));
+  };
+
+  const context = { notify: () => undefined, stop_propagation: () => undefined };
+
+  const rowOf = (view: FakeView, id: string): DrawnElement => {
+    const label = id.includes('-') ? `name-${id}` : id;
+
+    const found = elementsWithMouseHandlers(view.render())
+      .filter(pressable)
+      .find((element) => drawnTexts(element).includes(label));
+
+    if (found === undefined) {
+      throw new Error(`No row for ${id}`);
+    }
+
+    return found;
+  };
+
+  const moveOver = (element: DrawnElement): void => {
+    const handler = element.styles['on_mouse_move']?.[0] as MouseHandler | undefined;
+
+    handler?.({}, context);
+  };
+
+  const dragOver = (view: FakeView, source: string, target: string): void => {
+    for (const handler of handlersOf(rowOf(view, source), 'on_mouse_down:left')) {
+      handler({}, context);
+    }
+
+    moveOver(rowOf(view, target));
+  };
+
+  const dragAndDrop = (view: FakeView, source: string, target: string): void => {
+    dragOver(view, source, target);
+
+    for (const handler of handlersOf(rowOf(view, target), 'on_mouse_up:left')) {
+      handler({}, context);
+    }
+  };
+
+  const moves = (): unknown[] =>
+    runCalls.filter((call) => call.command === 'space.move').map((call) => call.args);
+
+  // Applies the moves as Herdr does: each index is the one-based final place in the whole order.
+  const orderAfterMoves = (): string[] => {
+    const order = spaceList.map((candidate) => candidate.id);
+
+    for (const move of moves() as { id: string; index: number }[]) {
+      const rest = order.filter((id) => id !== move.id);
+
+      rest.splice(move.index - 1, 0, move.id);
+      order.splice(0, order.length, ...rest);
+    }
+
+    return order;
+  };
+
+  const showsDropLine = (element: DrawnElement): boolean =>
+    element.kids.some((kid) => kid.backgroundColors.includes(themeColors.accent));
+
+  test('a drop of the first space on the last space of its project moves it there', async () => {
+    useSpaces(['alpha', 'alpha-1', 'alpha-2', 'alpha-3', 'beta', 'beta-1']);
+
+    const view = await loadView();
+
+    dragAndDrop(view, 'alpha-1', 'alpha-3');
+
+    expect(orderAfterMoves()).toEqual(['alpha', 'alpha-2', 'alpha-3', 'alpha-1', 'beta', 'beta-1']);
+  });
+
+  test('a drop inside a project whose spaces sit among another project keeps the project order', async () => {
+    useSpaces(['alpha-1', 'beta-1', 'alpha-2', 'alpha-3']);
+
+    const view = await loadView();
+
+    dragAndDrop(view, 'alpha-1', 'alpha-3');
+
+    expect(orderAfterMoves()).toEqual(['alpha-2', 'beta-1', 'alpha-3', 'alpha-1']);
+  });
+
+  test('a drop on a row in another project moves no space', async () => {
+    useSpaces(['alpha', 'alpha-1', 'alpha-2', 'beta', 'beta-1']);
+
+    const view = await loadView();
+
+    dragAndDrop(view, 'alpha-2', 'beta-1');
+
+    expect(moves()).toEqual([]);
+  });
+
+  test('a drop on the main space header moves no space', async () => {
+    useSpaces(['alpha', 'alpha-1', 'alpha-2']);
+
+    const view = await loadView();
+
+    dragAndDrop(view, 'alpha-2', 'alpha');
+
+    expect(moves()).toEqual([]);
+  });
+
+  test('a drop of the main space header on a row of its project moves no space', async () => {
+    useSpaces(['alpha', 'alpha-1', 'alpha-2']);
+
+    const view = await loadView();
+
+    dragAndDrop(view, 'alpha', 'alpha-2');
+
+    expect(moves()).toEqual([]);
+  });
+
+  test('a press and release on a row selects its space', async () => {
+    useSpaces(['alpha', 'alpha-1', 'alpha-2']);
+
+    const view = await loadView();
+
+    dragAndDrop(view, 'alpha-1', 'alpha-1');
+
+    expect(selected()).toEqual(['alpha-1']);
+    expect(moves()).toEqual([]);
+  });
+
+  test('a drag over a row in another project shows no drop line and a not-allowed cursor', async () => {
+    useSpaces(['alpha', 'alpha-1', 'beta', 'beta-1']);
+
+    const view = await loadView();
+
+    dragOver(view, 'alpha-1', 'beta-1');
+
+    const target = rowOf(view, 'beta-1');
+
+    expect(showsDropLine(target)).toBe(false);
+    expect(target.styles['cursor_not_allowed']).toBeDefined();
+  });
+
+  test('a drag over the main space header shows no drop line and a not-allowed cursor', async () => {
+    useSpaces(['alpha', 'alpha-1', 'alpha-2']);
+
+    const view = await loadView();
+
+    dragOver(view, 'alpha-2', 'alpha');
+
+    const target = rowOf(view, 'alpha');
+
+    expect(showsDropLine(target)).toBe(false);
+    expect(target.styles['cursor_not_allowed']).toBeDefined();
+  });
+
+  test('a drag over a row in its own project shows a drop line and no not-allowed cursor', async () => {
+    useSpaces(['alpha', 'alpha-1', 'alpha-2']);
+
+    const view = await loadView();
+
+    dragOver(view, 'alpha-1', 'alpha-2');
+
+    const target = rowOf(view, 'alpha-2');
+
+    expect(showsDropLine(target)).toBe(true);
+    expect(target.styles['cursor_not_allowed']).toBeUndefined();
   });
 });

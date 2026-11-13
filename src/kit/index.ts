@@ -39,7 +39,7 @@ export { projectHeader } from './projectHeader.ts';
 
 export { popupSurface } from './popupSurface.ts';
 
-export type { RowState } from './listRow.ts';
+export type { DropMark, RowState } from './listRow.ts';
 
 export { searchField } from './searchField.ts';
 

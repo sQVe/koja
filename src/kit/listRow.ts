@@ -12,6 +12,8 @@ import { colors } from './theme.ts';
 
 export type RowState = 'normal' | 'selected' | 'disabled';
 
+export type DropMark = 'top' | 'bottom' | 'refused';
+
 export interface ListRowOptions extends HoverOptions {
   size: RowSize;
   inset: boolean;
@@ -25,7 +27,7 @@ export interface ListRowOptions extends HoverOptions {
   start?: Element;
   end?: Element[];
   dragged?: boolean;
-  dropLine?: 'top' | 'bottom';
+  drop?: DropMark;
   cursor?: boolean;
 }
 
@@ -120,8 +122,10 @@ const decorate = (row: Element, options: ListRowOptions, palette: Palette): void
     row.opacity(draggedOpacity);
   }
 
-  if (options.dropLine !== undefined) {
-    row.child(dropLineAt(options.dropLine, palette));
+  if (options.drop === 'refused') {
+    row.cursor_not_allowed();
+  } else if (options.drop !== undefined) {
+    row.child(dropLineAt(options.drop, palette));
   }
 };
 
