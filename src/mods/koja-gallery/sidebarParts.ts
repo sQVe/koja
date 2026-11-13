@@ -24,6 +24,7 @@ interface HeaderLook {
   selected?: boolean;
   hovered?: boolean;
   folded?: boolean;
+  age?: string;
 }
 
 interface SampleLayer {
@@ -108,6 +109,7 @@ const mainHeader = (name: string, look: HeaderLook): Element => {
     hidden: folded ? 2 : 0,
     onToggle: () => undefined,
     mark: spaceMark('idle'),
+    age: look.age ?? null,
     selected: look.selected ?? false,
     cursor: false,
     hovered: look.hovered ?? false,
@@ -117,12 +119,13 @@ const mainHeader = (name: string, look: HeaderLook): Element => {
 
 export const sidebarParts = (): Element[] => [
   sample(
-    'Project headers: main space, selected, hovered, folded, remote without a main checkout',
+    'Project headers: main space, selected, hovered, folded, waiting with an age, remote without a main checkout',
     partsFrame([
       mainHeader('koja', {}),
       mainHeader('herdr', { selected: true }),
       mainHeader('tikk', { hovered: true }),
       mainHeader('seam', { folded: true }),
+      mainHeader('ruta', { folded: true, age: '4m' }),
       projectHeader({
         kind: 'fold',
         name: 'tau',

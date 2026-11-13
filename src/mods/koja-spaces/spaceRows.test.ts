@@ -1,6 +1,6 @@
 import { afterAll, describe, expect, mock, test } from 'bun:test';
 
-import type { SpaceInfo } from 'herdr';
+import type { SpaceInfo, Status } from 'herdr';
 
 import {
   drawn,
@@ -10,15 +10,23 @@ import {
   elementsWithStyle,
 } from '../../../tests/drawn.ts';
 import type { DrawnElement } from '../../../tests/drawn.ts';
-import { gpuiBaseFake, gpuiKitFake, herdrFake, kitIndexFake } from '../../../tests/moduleFakes.ts';
+import {
+  gpuiBaseFake,
+  gpuiKitFake,
+  herdrFake,
+  realKitIndexFake,
+} from '../../../tests/moduleFakes.ts';
 import type { Project } from './projects.ts';
 import type { Pull } from './pulls.ts';
 import type { GitInfo, ListedSpace } from './tree.ts';
 import { placeOf, repoOf } from './tree.ts';
+import type { WaitTimes } from './waitTimes.ts';
+import { advanceWaitTimes, emptyWaitTimes, readWaitTimes, waitAge } from './waitTimes.ts';
 
 interface RowStateLike {
   drag: { source: string | null; over: string | null };
   cursor: string | null;
+  age: string | null;
   lookup: (git: GitInfo | null) => Pull | null;
   attachDrag: (element: unknown, space: SpaceInfo, ids: readonly string[]) => void;
 }
@@ -49,10 +57,8 @@ await mock.module('gpui-kit', () =>
 
 await mock.module('herdr', () => herdrFake({ theme: () => themeColors }));
 
-const kitModule = async (name: string): Promise<Record<string, unknown>> =>
-  (await import(`../../kit/${name}.ts`)) as Record<string, unknown>;
-
 const kitParts = [
+  'age',
   'icon',
   'listRow',
   'projectHeader',
@@ -63,18 +69,9 @@ const kitParts = [
   'theme',
 ];
 
-const kitExports = Object.assign({}, ...(await Promise.all(kitParts.map(kitModule)))) as Record<
-  string,
-  unknown
->;
+const kitFake = await realKitIndexFake(kitParts);
 
-const sharedNames = new Set(Object.keys(kitIndexFake()));
-
-const realKit = Object.fromEntries(
-  Object.entries(kitExports).filter(([name]) => sharedNames.has(name)),
-);
-
-await mock.module('../../kit/index.ts', () => kitIndexFake(realKit));
+await mock.module('../../kit/index.ts', () => kitFake);
 
 const modulePath = './spaceRows.ts';
 
@@ -126,9 +123,10 @@ const listedSpace = (named: boolean): ListedSpace => ({
   place: placeOf(null, '/code/koja'),
 });
 
-const stateWith = (found: Pull | null): RowStateLike => ({
+const stateWith = (found: Pull | null, age: string | null = null): RowStateLike => ({
   drag: { source: null, over: null },
   cursor: null,
+  age,
   lookup: () => found,
   attachDrag: () => undefined,
 });
@@ -204,6 +202,18 @@ describe('headerRow', () => {
     expect(hovers).toEqual(['main true']);
   });
 
+  test('ends with the age of the main space when it has one, and none without', () => {
+    const aged = loaded.headerRow(projectWith([]), mainSpace, ['main'], {
+      ...headerState([]),
+      age: '4m',
+    });
+
+    const plain = loaded.headerRow(projectWith([]), mainSpace, ['main'], headerState([]));
+
+    expect(drawnTexts(aged).filter((text) => text !== '')).toEqual(['koja', '4m']);
+    expect(drawnTexts(plain).filter((text) => text !== '')).toEqual(['koja']);
+  });
+
   test('reports no hover when the project has nothing to fold', () => {
     const header = loaded.headerRow(projectWith([]), mainSpace, ['main'], headerState([]));
 
@@ -261,5 +271,85 @@ describe('headerRow', () => {
     expect(lines).toHaveLength(1);
     expect(lines[0]?.backgroundColors).toContain(themeColors.accent);
     expect(elementsWithStyle(headerOf(mainSpace, {}), 'top')).toHaveLength(0);
+  });
+});
+
+const minute = 60_000;
+
+const start = 1_700_000_000_000;
+
+const spaceWith = (id: string, status: Status | null, active: boolean): ListedSpace => {
+  const listed = listedSpace(true);
+
+  return { ...listed, space: { ...listed.space, id, active }, status };
+};
+
+const drawnRow = (times: WaitTimes, listed: ListedSpace, now: number): string[] => {
+  const age = waitAge(
+    times,
+    { id: listed.space.id, status: listed.status, active: listed.space.active },
+    now,
+  );
+
+  return drawnTexts(loaded.row(listed, [listed.space.id], stateWith(null, age)));
+};
+
+const advanced = (
+  times: WaitTimes,
+  statuses: Record<string, Status | null>,
+  active: string | null,
+  now: number,
+): WaitTimes => advanceWaitTimes(times, { statuses, active, now }).times;
+
+describe('row age', () => {
+  test('a blocked space shows the age since it became blocked', () => {
+    const times = advanced(emptyWaitTimes, { a: 'blocked' }, null, start);
+
+    expect(drawnRow(times, spaceWith('a', 'blocked', false), start + 5 * minute)).toEqual([
+      'login',
+      '5m',
+    ]);
+  });
+
+  test('a space whose agent works again shows no age', () => {
+    const blocked = advanced(emptyWaitTimes, { a: 'blocked' }, null, start);
+    const working = advanced(blocked, { a: 'working' }, null, start + minute);
+
+    expect(drawnRow(working, spaceWith('a', 'working', false), start + 5 * minute)).toEqual([
+      'login',
+    ]);
+  });
+
+  test('an idle space shows the age since the user last showed it', () => {
+    const shown = advanced(emptyWaitTimes, { a: 'idle', b: null }, 'a', start);
+    const left = advanced(shown, { a: 'idle', b: null }, 'b', start + minute);
+
+    expect(drawnRow(left, spaceWith('a', 'idle', false), start + 8 * minute)).toEqual([
+      'login',
+      '8m',
+    ]);
+  });
+
+  test('the shown space shows no age', () => {
+    const shown = advanced(emptyWaitTimes, { a: 'idle', b: 'blocked' }, 'a', start);
+
+    expect(drawnRow(shown, spaceWith('a', 'idle', true), start + 8 * minute)).toEqual(['login']);
+  });
+
+  test('both ages are still drawn from the saved times', () => {
+    const shown = advanced(emptyWaitTimes, { a: 'blocked', b: 'idle' }, 'b', start);
+    const left = advanced(shown, { a: 'blocked', b: 'idle' }, 'a', start + 2 * minute);
+    const restored = readWaitTimes(JSON.stringify(left));
+    const later = advanced(restored, { a: 'blocked', b: 'idle' }, 'c', start + 7 * minute);
+
+    expect(drawnRow(later, spaceWith('a', 'blocked', false), start + 7 * minute)).toEqual([
+      'login',
+      '7m',
+    ]);
+
+    expect(drawnRow(later, spaceWith('b', 'idle', false), start + 7 * minute)).toEqual([
+      'login',
+      '7m',
+    ]);
   });
 });

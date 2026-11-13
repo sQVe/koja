@@ -53,6 +53,14 @@ const slot = (): Element => h_flex().w(markSlot).flex_none().items_center().just
 export const dimFact = (text: string, tokens: DirectionTokens): Element =>
   fixedLabel(text, tokens.text.detail, tokens.ink.dim);
 
+export const ageFact = (space: FakeSpace, tokens: DirectionTokens): Element[] => {
+  if (space.selected || space.agent === 'working') {
+    return [];
+  }
+
+  return [dimFact(space.age, tokens)];
+};
+
 export const workNeedMark = (need: WorkNeed, tokens: DirectionTokens): Element =>
   slot().child(stateIcon(needIcons[need], needColor(need, tokens)));
 

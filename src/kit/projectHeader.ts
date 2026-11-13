@@ -5,6 +5,7 @@ import { div } from 'gpui-kit';
 import { icon, iconSlot } from './icon.ts';
 import { listRow } from './listRow.ts';
 import { rowHeight, sidebarSize, spacing } from './size.ts';
+import { detailText } from './text.ts';
 import { roleText } from './textRole.ts';
 import { colors } from './theme.ts';
 
@@ -25,6 +26,7 @@ interface FoldHeader extends HeaderBase {
 interface SpaceHeader extends HeaderBase {
   kind: 'space';
   mark: Element;
+  age: string | null;
   selected: boolean;
   cursor: boolean;
   hovered: boolean;
@@ -89,6 +91,9 @@ const foldControls = (options: SpaceHeader): Element[] => {
   return [options.hovered ? foldToggle(options) : iconSlot(div())];
 };
 
+const ageOf = (options: SpaceHeader): Element[] =>
+  options.age === null ? [] : [detailText(options.age)];
+
 const nameLabel = (options: HeaderBase): Element =>
   h_flex()
     .min_w(0)
@@ -107,7 +112,7 @@ const spaceHeader = (options: SpaceHeader): Element =>
     ...(options.dropLine === undefined ? {} : { dropLine: options.dropLine }),
     dragged: options.dragged,
     cursor: options.cursor,
-    end: foldControls(options),
+    end: [...foldControls(options), ...ageOf(options)],
   });
 
 export const projectHeader = (options: ProjectHeaderOptions): Element =>
