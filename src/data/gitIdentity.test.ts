@@ -85,6 +85,10 @@ const fakeRunner =
     return result;
   };
 
+// A remote runner can reject with plain text, so the reader must not assume an Error.
+// eslint-disable-next-line typescript/prefer-promise-reject-errors -- the case under test
+const rejectWithText: RunCommand = () => Promise.reject('connection dropped');
+
 const isLayoutRead = (args: string[]): boolean =>
   args[0] === 'rev-parse' && args.includes('--git-common-dir');
 
@@ -269,6 +273,36 @@ describe('readGitIdentity', () => {
     const identity = await readGitIdentity(run, 'box', '/work');
 
     expect(identity).toMatchObject({ kind: 'failed', error: 'machine box is offline' });
+  });
+
+  test('gives a failed read when the runner rejects with a value that is not an Error', async () => {
+    const identity = await readGitIdentity(rejectWithText, 'box', '/work');
+
+    expect(identity).toMatchObject({ kind: 'failed', error: 'connection dropped' });
+  });
+
+  test('gives a failed read naming the command when it fails without stderr', async () => {
+    const run = fakeRunner(() => exitWith(129));
+    const identity = await readGitIdentity(run, null, '/work');
+
+    const error = identity.kind === 'failed' ? identity.error : '';
+
+    expect(identity.kind).toBe('failed');
+    expect(error).toContain('129');
+  });
+
+  test('gives a failed read when the layout output misses the common folder', async () => {
+    const run = fakeRunner(() => exitWith(0, 'false\nfalse\n/work/.git\n'));
+    const identity = await readGitIdentity(run, null, '/work');
+
+    expect(identity.kind).toBe('failed');
+  });
+
+  test('gives a failed read when the layout output has an empty git folder', async () => {
+    const run = fakeRunner(() => exitWith(0, 'false\nfalse\n\n/work/.git\n'));
+    const identity = await readGitIdentity(run, null, '/work');
+
+    expect(identity.kind).toBe('failed');
   });
 
   test('gives a failed read when git rev-parse prints nothing', async () => {
