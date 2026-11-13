@@ -112,7 +112,9 @@ export { currentWindow } from './window.ts';
 
 export { spaceFolder } from './space.ts';
 
-export { openWorktreeDialog } from './worktree.ts';
+export { openGroveDialog, openWorktreeDialog } from './worktree.ts';
+
+export type { GroveAction } from './worktree.ts';
 
 export { askFirst } from './askFirst.ts';
 

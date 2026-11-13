@@ -147,6 +147,8 @@ export const overlaySize = {
   confirmHeight: 120,
   promptWidth: 380,
   promptHeight: 150,
+  groveWidth: 420,
+  groveHeight: 180,
   pickerListWidth: 420,
   pickerInset: 3,
   pickerWidthShare: 0.6,
