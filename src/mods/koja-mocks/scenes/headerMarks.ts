@@ -21,7 +21,6 @@ import {
   viewSwitch,
   workIcon,
 } from '../../../kit/index.ts';
-import { markSize } from '../../../kit/size.ts';
 import type { MarkProject, MarkSpace } from './headerMarksData.ts';
 import { markProjects } from './headerMarksData.ts';
 
@@ -32,7 +31,7 @@ export type HeaderMarkVariant = 'name' | 'right' | 'rightActive' | 'leftActive' 
 export type SpaceLayout = 'nested' | 'flat';
 
 // A divider between projects runs across the list or starts at the mark column. A soft divider
-// is lighter and inset from both sides by the names' offset, so it sits centered.
+// runs across the list in the lighter selected color.
 export type GroupDivider = 'none' | 'full' | 'inset' | 'soft';
 
 const views = [
@@ -195,13 +194,11 @@ const switchLine = (): Element =>
     .child(viewSwitch({ options: views, active: 'projects', onSelect: () => undefined }));
 
 // The divider takes the place of the gap between projects, so the list keeps its rhythm.
-const labelInset = sidebarSize.rowContentInset + markSize.slot + spacing.small;
-
 const softLine = (): Element =>
   div()
     .flex_none()
     .py(spacing.xxsmall)
-    .px(labelInset)
+    .px(spacing.xsmall)
     .child(div().my(spacing.xsmall).h(spacing.hairline).bg(colors().selected));
 
 const dividerLine = (divider: GroupDivider): Element => {
