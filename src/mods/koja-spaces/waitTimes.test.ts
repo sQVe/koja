@@ -90,6 +90,13 @@ describe('waitAge', () => {
 
     expect(ageOf(back, { id: 'a', status: 'blocked' }, start + 5 * minute)).toBe('3m');
   });
+
+  test('a shown id that is not a live space gets no shown time', () => {
+    const missing = advanced(emptyWaitTimes, { a: null }, 'b', start);
+    const appeared = advanced(missing, { a: null, b: 'idle' }, 'a', start + minute);
+
+    expect(ageOf(appeared, { id: 'b', status: 'idle' }, start + 5 * minute)).toBeNull();
+  });
 });
 
 describe('advanceWaitTimes', () => {
@@ -128,6 +135,13 @@ describe('advanceWaitTimes', () => {
       }).changed,
     ).toBe(false);
   });
+
+  test('reports a change when one of several spaces changes status', () => {
+    const first = advanced(emptyWaitTimes, { a: 'idle', b: 'working', c: 'done' }, 'a', start);
+    const statuses = { a: 'idle', b: 'blocked', c: 'done' } as const;
+
+    expect(advanceWaitTimes(first, { statuses, active: 'a', now: start + 1 }).changed).toBe(true);
+  });
 });
 
 const saved = (times: WaitTimes): string => JSON.stringify(times);
@@ -142,6 +156,16 @@ describe('readWaitTimes', () => {
 
     expect(ageOf(later, { id: 'a', status: 'blocked' }, start + 6 * minute)).toBe('6m');
     expect(ageOf(later, { id: 'b', status: 'idle' }, start + 6 * minute)).toBe('5m');
+  });
+
+  test('a state read from its saved value keeps its shown space', () => {
+    const statuses = { a: 'blocked', b: 'idle' } as const;
+    const first = advanced(emptyWaitTimes, statuses, 'b', start);
+    const restored = readWaitTimes(saved(first));
+
+    expect(advanceWaitTimes(restored, { statuses, active: 'b', now: start + 1 }).changed).toBe(
+      false,
+    );
   });
 
   test('a saved status that differs from the current one starts a new clock', () => {
