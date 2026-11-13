@@ -4,6 +4,7 @@
 **Status**: Accepted\
 **Related**: [ADR 0005 (TypeScript mods bundled into one file each)](./0005-typescript-bundled-per-mod.md),
 [ADR 0007 (One UI language through one kit)](./0007-one-ui-language.md),
+[ADR 0016 (One data owner hosted by koja-spaces)](./0016-one-data-owner-hosted-by-spaces.md),
 [Herdr 98 roles](https://github.com/herdrdev/herdr-app/tree/master/defaults/mods/win98),
 [Whitby](https://github.com/shellscape/herdr-whitby)
 
@@ -29,7 +30,9 @@ rename changes every mod, layout, and key that names it in the same change.
 Data that more than one mod reads, such as the normal-mode key table that `koja-modal` parses and
 other mods can show as shortcuts, lives in the kit as static data. The state and logic that act on
 it, such as pending keys, counts, and history, stay in the mod that owns them. A mod never imports
-from another mod's folder; code that two mods share belongs in the kit.
+from another mod's folder. Shared UI code belongs in the kit; shared non-UI data code belongs in
+`src/data/`, with one running owner for scheduled external reads
+([ADR 0016](./0016-one-data-owner-hosted-by-spaces.md)).
 
 ## Consequences
 

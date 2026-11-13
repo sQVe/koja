@@ -52,6 +52,7 @@ the commit in its row.
 - [0013: Insert mode only types, and global keys are an allowlist](./0013-insert-mode-only-types.md)
 - [0014: Normal mode keeps the keyboard and forwards list keys to the marked section](./0014-normal-mode-forwards-list-keys.md)
 - [0015: The space menu creates and removes worktrees with Grove](./0015-grove-runs-space-menu-worktrees.md)
+- [0016: One data owner hosted by koja-spaces](./0016-one-data-owner-hosted-by-spaces.md)
 
 ## Retired
 
