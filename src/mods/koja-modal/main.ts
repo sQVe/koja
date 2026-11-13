@@ -2,6 +2,7 @@ import type { AsyncContext, Context, Element, FocusHandle, KeyEvent } from 'gpui
 import { div, View } from 'gpui-kit';
 import { exec, focused, nextCommand, panes, run, setShared, shared, spaces } from 'herdr';
 
+import { createContextKeys } from '../../kit/contextKeys.ts';
 import {
   askFirst,
   closeOverlay,
@@ -19,8 +20,12 @@ import { createKeyboardHold, createStatusLookup } from './keyboardHold.ts';
 import { normalizeKey } from './keyEvent.ts';
 import type { ParserState } from './parser.ts';
 import { initialParserState, parseKey } from './parser.ts';
-import { bindSectionKeys, withSectionKeys } from './sectionKeys.ts';
 import { createSections, isSectionKeyAction } from './sections.ts';
+
+const sectionKeys = createContextKeys('KojaModal', [
+  { keystroke: 'tab', action: 'koja-modal-section-next' },
+  { keystroke: 'shift-tab', action: 'koja-modal-section-previous' },
+]);
 
 const modeKey = 'koja-modal';
 
@@ -87,7 +92,7 @@ export default class KojaModal extends View {
 
     this.handle = handle;
     handle.focus();
-    bindSectionKeys(cx);
+    sectionKeys.bind(cx);
     setShared(modeKey, true);
     this.sections.reset();
     this.executor.observe();
@@ -120,7 +125,7 @@ export default class KojaModal extends View {
       })
       .on_mouse_down('left', stopPress);
 
-    const root = withSectionKeys(keyed, (key, cx) => {
+    const root = sectionKeys.withKeys(keyed, (key, cx) => {
       this.handleKeyName(key, cx);
     });
 

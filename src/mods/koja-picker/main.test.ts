@@ -12,12 +12,34 @@ let closeOverlayCalls = 0;
 let props: Record<string, unknown> = {};
 let sharedValues: Record<string, unknown> = {};
 let sharedWrites: string[] = [];
+let keyBindings: { keystroke: string; action: string; context?: string }[] = [];
+let keyContext: string | null = null;
+let actionHandlers: Record<string, () => void> = {};
+let emptyText = '';
 
 const chainable = (onKeyDown?: (handler: KeyHandler) => void): unknown => {
   const element: unknown = new Proxy(() => element, {
     get: (_target, key) => {
       if (key === 'then') {
         return undefined;
+      }
+
+      if (key === 'key_context') {
+        return (context: string) => {
+          keyContext = context;
+
+          return element;
+        };
+      }
+
+      if (key === 'on_action') {
+        return (action: string, handler: (event: unknown, cx: unknown) => void) => {
+          actionHandlers[action] = () => {
+            handler({ action }, renderedContext);
+          };
+
+          return element;
+        };
       }
 
       if (key === 'on_key_down') {
@@ -117,7 +139,11 @@ await mock.module('../../kit/index.ts', () =>
     rowHeight: {},
     searchField: () => chainable(),
     spacing: {},
-    stateLine: () => chainable(),
+    stateLine: (state: { text: string }) => {
+      emptyText = state.text;
+
+      return chainable();
+    },
     statusMark: () => chainable(),
     stringOf,
     textSize: {},
@@ -145,12 +171,18 @@ const loadView = async (): Promise<{
 };
 
 const asyncContext = {
+  bind_keys: (bindings: typeof keyBindings) => {
+    keyBindings.push(...bindings);
+
+    return bindings.length;
+  },
   focus_handle: () => ({ focus: () => undefined, is_focused: () => false }),
   spawn: () => undefined,
   timer: { after: () => undefined, every: () => undefined },
 };
 
 const renderedContext = {
+  notify: () => undefined,
   stop_propagation: () => undefined,
 };
 
@@ -164,9 +196,44 @@ beforeEach(() => {
   props = { part: 'list' };
   sharedValues = {};
   sharedWrites = [];
+  keyBindings = [];
+  keyContext = null;
+  actionHandlers = {};
+  emptyText = '';
 });
 
 describe('picker overlay state', () => {
+  test('installed tab actions cycle the status filter in the picker context', async () => {
+    const view = await loadView();
+
+    view.init(undefined, asyncContext);
+    view.render();
+
+    expect(keyBindings.map((binding) => binding.keystroke)).toEqual(['tab', 'shift-tab']);
+    expect(keyContext).toBe('KojaPicker');
+    expect(emptyText).toBe('No space matches.');
+
+    const steps = [
+      { keystroke: 'tab', expected: 'Nothing needs you.' },
+      { keystroke: 'shift-tab', expected: 'No space matches.' },
+      { keystroke: 'shift-tab', expected: 'Nothing is idle.' },
+    ];
+
+    for (const { keystroke, expected } of steps) {
+      const binding = keyBindings.find((entry) => entry.keystroke === keystroke);
+
+      expect(binding?.context).toBe(keyContext ?? undefined);
+      actionHandlers[binding?.action ?? '']?.();
+      view.render();
+
+      expect(emptyText).toBe(expected);
+    }
+
+    keyDownHandler?.({ key: 'escape', modifiers: { control: false } }, renderedContext);
+
+    expect(closeOverlayCalls).toBe(1);
+  });
+
   test('showing the list writes no shared state', async () => {
     const view = await loadView();
 
