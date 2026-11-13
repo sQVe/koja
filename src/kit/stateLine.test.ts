@@ -1,13 +1,21 @@
 import { afterAll, describe, expect, mock, test } from 'bun:test';
 
 import type { DrawnElement } from '../../tests/drawn.ts';
-import { drawn, drawnIcons, drawnTexts, drawnTooltips, spinning } from '../../tests/drawn.ts';
+import {
+  drawn,
+  drawnIcons,
+  drawnTexts,
+  drawnTooltips,
+  elementsWithStyle,
+  spinning,
+} from '../../tests/drawn.ts';
 import { gpuiBaseFake, gpuiKitFake, herdrFake } from '../../tests/moduleFakes.ts';
 
 interface StateLineOptions {
   kind: 'empty' | 'loading' | 'error';
   text: string;
   action?: DrawnElement;
+  wrap?: boolean;
 }
 
 Object.assign(globalThis, { kojaModName: 'koja' });
@@ -65,6 +73,20 @@ describe('stateLine', () => {
     const line = render({ kind: 'error', text: 'Could not read git status.', action });
 
     expect(drawnTexts(line)).toEqual(['Could not read git status.', 'Retry']);
+  });
+
+  test('a wrapping line shows its whole text uncut', () => {
+    const text = 'fatal: first line of a long error\nhint: second line';
+    const line = render({ kind: 'error', text, wrap: true });
+
+    expect(drawnTexts(line)).toEqual([text]);
+    expect(elementsWithStyle(line, 'truncate')).toEqual([]);
+  });
+
+  test('a line without wrap cuts its text to one line', () => {
+    const line = render({ kind: 'error', text: 'Could not read git status.' });
+
+    expect(elementsWithStyle(line, 'truncate')).toHaveLength(1);
   });
 
   test('an error line shows no tooltip', () => {

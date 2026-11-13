@@ -148,7 +148,9 @@ export const overlaySize = {
   promptWidth: 380,
   promptHeight: 150,
   groveWidth: 420,
-  groveHeight: 180,
+  groveHeight: 280,
+  // Leaves room in groveHeight for the field and the buttons; a longer message scrolls.
+  groveMessageHeight: 120,
   pickerListWidth: 420,
   pickerInset: 3,
   pickerWidthShare: 0.6,

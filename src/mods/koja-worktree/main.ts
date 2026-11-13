@@ -1,7 +1,7 @@
 import type { InputState } from 'gpui-base';
 import { InputState as InputStates, v_flex } from 'gpui-base';
 import type { AsyncContext, Context, Element, FocusHandle, KeyEvent } from 'gpui-kit';
-import { View } from 'gpui-kit';
+import { div, View } from 'gpui-kit';
 import { props, run, spaces } from 'herdr';
 
 import type { GroveAction } from '../../kit/index.ts';
@@ -10,6 +10,7 @@ import {
   detailText,
   dialogButton,
   dialogFrame,
+  overlaySize,
   recordOf,
   recordOverlayClose,
   spacing,
@@ -233,9 +234,17 @@ export default class Worktree extends View {
       return stateLine({ kind: 'loading', text: 'Running Grove…' });
     }
 
-    return this.phase.kind === 'failed'
-      ? stateLine({ kind: 'error', text: this.phase.message })
-      : null;
+    if (this.phase.kind !== 'failed') {
+      return null;
+    }
+
+    const message = stateLine({ kind: 'error', text: this.phase.message, wrap: true });
+
+    return div()
+      .id('worktree-error')
+      .max_h(overlaySize.groveMessageHeight)
+      .overflow_y_scrollbar()
+      .child(message);
   }
 
   private body(): Element {

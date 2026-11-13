@@ -41,6 +41,12 @@ interface Button {
 
 type Call = 'close' | RunCall;
 
+interface StateLine {
+  kind: string;
+  text: string;
+  wrap?: boolean;
+}
+
 interface DialogView {
   init: (props: unknown, cx: unknown) => void;
   render: () => unknown;
@@ -60,7 +66,7 @@ let spaceList: unknown[] = [];
 let spaceStatuses: Record<string, string | null> = {};
 let keyDownHandler: KeyHandler | null = null;
 let buttons = new Map<string, Button>();
-let stateLines: { kind: string; text: string }[] = [];
+let stateLines: StateLine[] = [];
 let typedValue = '';
 let tasks: Promise<unknown>[] = [];
 const inputHandlers = new Map<string, (event: unknown, cx: unknown) => void>();
@@ -153,7 +159,7 @@ await mock.module('gpui-base', () =>
   }),
 );
 
-await mock.module('gpui-kit', () => gpuiKitFake());
+await mock.module('gpui-kit', () => gpuiKitFake({ div: chainable }));
 
 await mock.module('herdr', () =>
   herdrFake({
@@ -182,7 +188,7 @@ await mock.module('../../kit/index.ts', () =>
     recordOf,
     rollupStatuses: () => ({ spaces: spaceStatuses, tabs: {} }),
     spaceFolder,
-    stateLine: (options: { kind: string; text: string }) => {
+    stateLine: (options: StateLine) => {
       stateLines.push(options);
 
       return chainable();
@@ -301,7 +307,7 @@ describe('remove worktree without risk', () => {
     execResults['grove remove feat-a'] = failed('worktree is locked');
     await openDialog();
 
-    expect(stateLines).toEqual([{ kind: 'error', text: 'worktree is locked' }]);
+    expect(stateLines).toEqual([{ kind: 'error', text: 'worktree is locked', wrap: true }]);
     expect(calls).toEqual([]);
   });
 
@@ -321,7 +327,7 @@ describe('worktree checks', () => {
     execResults[statusCommand] = failed('fatal: index file corrupt');
     await openDialog();
 
-    expect(stateLines).toEqual([{ kind: 'error', text: 'fatal: index file corrupt' }]);
+    expect(stateLines).toEqual([{ kind: 'error', text: 'fatal: index file corrupt', wrap: true }]);
     expect(buttons.has('Remove')).toBe(false);
     expect(groveCalls()).toEqual([]);
   });
@@ -359,7 +365,7 @@ describe('worktree checks', () => {
     execResults['git rev-parse --show-toplevel'] = new Error('machine box is offline');
     await openDialog();
 
-    expect(stateLines).toEqual([{ kind: 'error', text: 'machine box is offline' }]);
+    expect(stateLines).toEqual([{ kind: 'error', text: 'machine box is offline', wrap: true }]);
     expect(groveCalls()).toEqual([]);
   });
 
@@ -422,11 +428,27 @@ describe('new worktree', () => {
     await click(view, 'Create');
 
     expect(stateLines).toEqual([
-      { kind: 'error', text: "fatal: a branch named 'feat/b' already exists" },
+      { kind: 'error', text: "fatal: a branch named 'feat/b' already exists", wrap: true },
     ]);
 
     expect(calls).toEqual([]);
     expect(buttons.has('Create')).toBe(true);
+  });
+
+  test('a long, multi-line Grove add error reaches the dialog whole as wrapping text', async () => {
+    const message = [
+      `fatal: '${workspaceRoot}/feat-b' could not be created because the folder already exists and is not empty`,
+      'hint: remove the folder or pick another branch name',
+      'hint: run grove list to see the worktrees of this workspace',
+    ].join('\n');
+
+    execResults['grove add feat/b'] = failed(message);
+    const view = await openDialog();
+    typedValue = 'feat/b';
+
+    await click(view, 'Create');
+
+    expect(stateLines).toEqual([{ kind: 'error', text: message, wrap: true }]);
   });
 
   test('a new folder Git does not list shows an error and offers no second Grove add', async () => {
