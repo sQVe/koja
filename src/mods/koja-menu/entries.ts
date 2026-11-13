@@ -1,3 +1,4 @@
+import type { GitIdentity } from '../../data/gitIdentity.ts';
 import { bindingAction } from '../../kit/binding.ts';
 import { recordOf, stringOf } from '../../kit/fields.ts';
 import type { IconName } from '../../kit/iconNames.ts';
@@ -46,6 +47,10 @@ export interface MenuHost {
 const menuKinds: readonly MenuKind[] = ['pane', 'tab', 'space', 'global'];
 
 const worktreeCommand = 'worktree';
+
+// A bare repository has no checkout of its own to make or remove worktrees from.
+export const checkoutOf = (identity: GitIdentity): Checkout =>
+  identity.kind === 'main' || identity.kind === 'linked' ? identity.kind : null;
 
 const isMenuKind = (value: string | null): value is MenuKind =>
   menuKinds.some((kind) => kind === value);
