@@ -64,6 +64,10 @@ export default class Worktree extends View {
 
   private handle: FocusHandle | null = null;
 
+  // The error box scrolls only under a fixed height. A max height, even beside a fixed one, stops
+  // the wheel. Wrapped text has no height before it is drawn, so its drawn height sizes the box.
+  private messageHeight: number | null = null;
+
   override init(_props: unknown, cx: AsyncContext): void {
     this.action = readAction(props());
     this.input = InputStates.new({ value: '' });
@@ -238,13 +242,30 @@ export default class Worktree extends View {
       return null;
     }
 
-    const message = stateLine({ kind: 'error', text: this.phase.message, wrap: true });
+    const message = stateLine({ kind: 'error', text: this.phase.message, wrap: true })
+      .id('worktree-error-text')
+      .on_size_change((size, cx) => {
+        this.measureMessage(size.height, cx);
+      });
 
-    return div()
-      .id('worktree-error')
-      .max_h(overlaySize.groveMessageHeight)
-      .overflow_y_scrollbar()
-      .child(message);
+    const box = div().id('worktree-error');
+
+    if (this.messageHeight === null) {
+      box.max_h(overlaySize.groveMessageHeight);
+    } else {
+      box.h(Math.min(this.messageHeight, overlaySize.groveMessageHeight));
+    }
+
+    return box.overflow_y_scrollbar().child(message);
+  }
+
+  private measureMessage(height: number, cx: Context): void {
+    if (height === this.messageHeight) {
+      return;
+    }
+
+    this.messageHeight = height;
+    cx.notify();
   }
 
   private body(): Element {
