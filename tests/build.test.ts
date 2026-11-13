@@ -49,6 +49,29 @@ describe('buildMods', () => {
     expect(bundle).not.toMatch(/from\s*["'][^"']*kit\/size/);
   });
 
+  test('bundles the shared data modules into an importing mod', async () => {
+    await writeSource(
+      '../data/snapshot.ts',
+      "export const snapshotKey = 'koja.data.v1.snapshot';\n",
+    );
+
+    await writeSource(
+      'spaces/main.ts',
+      [
+        "import { snapshotKey } from '../../data/snapshot.ts';",
+        'export const key = () => snapshotKey;',
+        '',
+      ].join('\n'),
+    );
+
+    await buildMods(source, output);
+
+    const bundle = await readFile(join(output, 'spaces', 'main.js'), 'utf8');
+
+    expect(bundle).toContain('koja.data.v1.snapshot');
+    expect(bundle).not.toMatch(/from\s*["'][^"']*data\/snapshot/);
+  });
+
   test('copies files other than TypeScript and keeps their mode', async () => {
     await writeSource('picker/main.ts', 'export const picker = 1;\n');
     await writeSource('picker/helper.ts', 'export const helper = 1;\n');

@@ -1,4 +1,4 @@
-const isRecord = (value: unknown): value is Record<string, unknown> =>
+export const isRecord = (value: unknown): value is Record<string, unknown> =>
   typeof value === 'object' && value !== null && !Array.isArray(value);
 
 export const recordOf = (value: unknown): Record<string, unknown> => (isRecord(value) ? value : {});

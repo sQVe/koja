@@ -9,6 +9,7 @@
     "src/**/*.ts",
     "!src/**/*.test.ts",
     "!src/mods/*/main.ts",
+    "!src/data/host.ts",
     "!src/kit/askFirst.ts",
     "!src/kit/button.ts",
     "!src/kit/dialog.ts",

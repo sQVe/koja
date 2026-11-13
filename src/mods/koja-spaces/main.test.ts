@@ -18,6 +18,7 @@ import {
   herdrFake,
   realKitIndexFake,
 } from '../../../tests/moduleFakes.ts';
+import { readDataState } from '../../data/consumer.ts';
 import { repositoryOf } from '../../data/gitIdentity.ts';
 import type { GitInfo } from './tree.ts';
 
@@ -756,5 +757,15 @@ describe('koja-spaces drag and drop', () => {
 
     expect(showsDropLine(target)).toBe(true);
     expect(target.styles['cursor_not_allowed']).toBeUndefined();
+  });
+});
+
+describe('koja-spaces data host', () => {
+  test('a started sidebar publishes a live data snapshot', async () => {
+    await loadView();
+
+    const state = readDataState((key) => sharedValues[key], Date.now());
+
+    expect(state.kind).toBe('live');
   });
 });
