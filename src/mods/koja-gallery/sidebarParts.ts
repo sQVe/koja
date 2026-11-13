@@ -20,6 +20,12 @@ import {
 } from '../../kit/index.ts';
 import { sample } from './sample.ts';
 
+interface HeaderLook {
+  selected?: boolean;
+  hovered?: boolean;
+  folded?: boolean;
+}
+
 interface SampleLayer {
   pull: number;
   title: string;
@@ -92,19 +98,39 @@ const stackLayer = (layer: SampleLayer): Element =>
     end: [layer.need === null ? emptyWorkSlot() : workIcon(layer.need)],
   });
 
+const mainHeader = (name: string, look: HeaderLook): Element => {
+  const folded = look.folded ?? false;
+
+  return projectHeader({
+    kind: 'space',
+    name,
+    folded,
+    hidden: folded ? 2 : 0,
+    onToggle: () => undefined,
+    mark: spaceMark('idle'),
+    selected: look.selected ?? false,
+    cursor: false,
+    hovered: look.hovered ?? false,
+    dragged: false,
+  });
+};
+
 export const sidebarParts = (): Element[] => [
   sample(
-    'Project headers: plain, remote, folded',
+    'Project headers: main space, selected, hovered, folded, remote without a main checkout',
     partsFrame([
-      projectHeader({ name: 'koja', folded: false, hidden: 0, onToggle: () => undefined }),
+      mainHeader('koja', {}),
+      mainHeader('herdr', { selected: true }),
+      mainHeader('tikk', { hovered: true }),
+      mainHeader('seam', { folded: true }),
       projectHeader({
+        kind: 'fold',
         name: 'tau',
         machine: 'build-box',
         folded: false,
         hidden: 0,
         onToggle: () => undefined,
       }),
-      projectHeader({ name: 'tikk', folded: true, hidden: 2, onToggle: () => undefined }),
     ]),
   ),
   sample('Blocked space', spaceMark('blocked')),

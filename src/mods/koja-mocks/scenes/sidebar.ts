@@ -108,7 +108,13 @@ const spaceRow = (space: FakeSpace): Element =>
   });
 
 const repoHeader = (repo: FakeRepo): Element =>
-  projectHeader({ name: repo.name, folded: false, hidden: 0, onToggle: () => undefined });
+  projectHeader({
+    kind: 'fold',
+    name: repo.name,
+    folded: false,
+    hidden: 0,
+    onToggle: () => undefined,
+  });
 
 const errorLine = (text: string): Element =>
   stateLine({ kind: 'error', text, action: toggleButton({ label: 'Retry', active: false }) });

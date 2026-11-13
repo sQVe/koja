@@ -83,7 +83,13 @@ const projectGroup = (project: FakeProject): Element =>
     .flex_none()
     .gap(spacing.xxsmall)
     .child(
-      projectHeader({ name: project.name, folded: false, hidden: 0, onToggle: () => undefined }),
+      projectHeader({
+        kind: 'fold',
+        name: project.name,
+        folded: false,
+        hidden: 0,
+        onToggle: () => undefined,
+      }),
     )
     .children(project.spaces.map((space) => spaceRow(space)));
 

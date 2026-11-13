@@ -1,7 +1,7 @@
 import type { SpaceOrder } from '../../kit/spaceOrder.ts';
 import { clearSpaceOrder, writeSpaceOrder } from '../../kit/spaceOrder.ts';
 import type { Project } from './projects.ts';
-import { firstSpaceIds, shownSpaces } from './projects.ts';
+import { rootSpaceIds, shownSpaces } from './projects.ts';
 
 export interface OrderPublisher {
   publish: (projects: Project[], liveIds: readonly string[]) => void;
@@ -20,7 +20,7 @@ export const createOrderPublisher = (
   return {
     publish: (projects, liveIds) => {
       const shown = shownSpaces(projects).map((row) => row.space.id);
-      const roots = firstSpaceIds(projects);
+      const roots = rootSpaceIds(projects);
       const order: SpaceOrder = { shown, hidden: hiddenIds(shown, liveIds), roots };
       const serialized = JSON.stringify(order);
 

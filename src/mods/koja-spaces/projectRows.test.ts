@@ -20,6 +20,7 @@ interface ProjectRowsHostLike {
   projects: Project[];
   loading: boolean;
   draw: (row: ListedSpace) => unknown;
+  drawMain: (project: Project, main: ListedSpace) => unknown;
   pullFailed: (git: GitInfo) => boolean;
   retryPull: (git: GitInfo, cx: unknown) => void;
   toggleFold: (key: string, cx: unknown) => void;
@@ -29,6 +30,7 @@ interface SpaceOptions {
   machine?: string | null;
   status?: Status | null;
   active?: boolean;
+  main?: boolean;
 }
 
 const themeColors = {
@@ -59,9 +61,11 @@ const kitModule = async (name: string): Promise<Record<string, unknown>> =>
 const kitParts = [
   'button',
   'icon',
+  'listRow',
   'projectHeader',
   'size',
   'stateLine',
+  'statusMark',
   'text',
   'textRole',
   'theme',
@@ -88,6 +92,17 @@ const loaded = (await import(modulePath)) as {
 
 const { groupProjects } = await import('./projects.ts');
 
+const spaceRowsPath = './spaceRows.ts';
+
+const { headerRow } = (await import(spaceRowsPath)) as {
+  headerRow: (
+    project: Project,
+    main: ListedSpace,
+    ids: readonly string[],
+    state: unknown,
+  ) => DrawnElement;
+};
+
 afterAll(() => {
   mock.restore();
 });
@@ -105,23 +120,31 @@ const spaceOf = (id: string, options: SpaceOptions): SpaceInfo => ({
   tabs: [],
 });
 
-const gitAt = (name: string, machine: string | null): GitInfo => ({
+const gitAt = (name: string, machine: string | null, linked: boolean): GitInfo => ({
   branch: 'main',
   repo: repoOf(machine, `/code/${name}/.git`),
   root: `/code/${name}`,
   cwd: `/code/${name}`,
-  linked: false,
+  linked,
 });
 
 const listed = (id: string, project: string, options: SpaceOptions = {}): ListedSpace => {
   const space = spaceOf(id, options);
-  const git = gitAt(project, space.machine);
+  const git = gitAt(project, space.machine, options.main !== true);
 
   return { space, git, status: options.status ?? null, place: placeOf(space.machine, git.root) };
 };
 
 const projectsOf = (list: ListedSpace[], folded: string[] = []): Project[] =>
   groupProjects(list, { has: (key) => folded.includes(key) });
+
+const drawMain = (_project: Project, main: ListedSpace): DrawnElement => {
+  const element = drawn();
+
+  element.texts.push(`main-${main.space.id}`);
+
+  return element;
+};
 
 const drawRow = (row: ListedSpace): DrawnElement => {
   const element = drawn();
@@ -135,6 +158,7 @@ const hostOf = (overrides: Partial<ProjectRowsHostLike>): ProjectRowsHostLike =>
   projects: [],
   loading: false,
   draw: drawRow,
+  drawMain,
   pullFailed: () => false,
   retryPull: () => undefined,
   toggleFold: () => undefined,
@@ -147,6 +171,24 @@ const drawnOf = (overrides: Partial<ProjectRowsHostLike>): DrawnElement =>
 const pullError = 'Could not read PRs';
 
 describe('projectRows', () => {
+  test('a project with only its main space draws its header and no space row', () => {
+    const tree = drawnOf({ projects: projectsOf([listed('a', 'koja', { main: true })]) });
+
+    expect(drawnTexts(tree).filter((text) => text !== '')).toEqual(['main-a']);
+  });
+
+  test('a project with its main space and two others draws the header and two rows', () => {
+    const list = [listed('b', 'koja'), listed('a', 'koja', { main: true }), listed('c', 'koja')];
+
+    const tree = drawnOf({ projects: projectsOf(list) });
+
+    expect(drawnTexts(tree).filter((text) => text !== '')).toEqual([
+      'main-a',
+      'space-b',
+      'space-c',
+    ]);
+  });
+
   test('names the machine in a remote project header and draws no machine header', () => {
     const tree = drawnOf({
       projects: projectsOf([listed('a', 'koja'), listed('r', 'herdr', { machine: 'build-box' })]),
@@ -161,6 +203,38 @@ describe('projectRows', () => {
     expect(drawnIcons(header)).toContain('server.svg');
     expect(texts).not.toContain('This computer');
     expect(drawnIcons(tree)).not.toContain('monitor.svg');
+  });
+
+  test('names the machine in the header of a remote project that has a main space', () => {
+    const list = [
+      listed('a', 'koja', { main: true }),
+      listed('r', 'herdr', { machine: 'build-box', main: true }),
+    ];
+
+    const state = {
+      drag: { source: null, over: null },
+      cursor: null,
+      hovered: null,
+      lookup: () => null,
+      attachDrag: () => undefined,
+      onHover: () => undefined,
+      toggleFold: () => undefined,
+    };
+
+    const rows = loaded.projectRows(
+      hostOf({
+        projects: projectsOf(list),
+        drawMain: (project, main) => headerRow(project, main, ['a', 'r'], state),
+      }),
+    );
+
+    const remote = rows.find((row) => drawnTexts(row).includes('herdr')) as DrawnElement;
+    const local = rows.find((row) => drawnTexts(row).includes('koja')) as DrawnElement;
+
+    expect(drawnTexts(remote)).toContain('build-box');
+    expect(drawnIcons(remote)).toContain('server.svg');
+    expect(drawnTexts(local)).not.toContain('build-box');
+    expect(drawnTexts(drawnTree(rows)).filter((text) => text === 'build-box')).toHaveLength(1);
   });
 
   test('draws each project header before its spaces, in project order', () => {
@@ -230,7 +304,7 @@ describe('projectRows', () => {
     expect(texts.filter((text) => text.startsWith('space-'))).toEqual(['space-b', 'space-c']);
   });
 
-  test('a click on a project header toggles the fold of that project', () => {
+  test('a click on the header of a project without a main space toggles its fold', () => {
     const projects = projectsOf([listed('a', 'koja'), listed('t', 'tikk')]);
     const toggled: unknown[] = [];
 

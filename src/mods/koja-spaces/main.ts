@@ -10,6 +10,7 @@ import type { StatusRollup } from '../../kit/index.ts';
 import {
   colors,
   controlSize,
+  hoveredAfter,
   layoutRoot,
   listActionOf,
   overlaySize,
@@ -28,8 +29,8 @@ import type { Project } from './projects.ts';
 import { groupProjects, shownSpaces } from './projects.ts';
 import { PullTracker } from './pullTracker.ts';
 import { createOrderPublisher } from './spaceOrder.ts';
-import type { RowState } from './spaceRows.ts';
-import { row as spaceRow } from './spaceRows.ts';
+import type { HeaderState, RowState } from './spaceRows.ts';
+import { headerRow, row as spaceRow } from './spaceRows.ts';
 import type { GitInfo, ListedSpace } from './tree.ts';
 import { placeOfSpace, placesOf } from './tree.ts';
 import type { VisibilityResult, VisibilityState } from './visibility.ts';
@@ -70,6 +71,8 @@ export default class Spaces extends View {
   private visibility: VisibilityState = initialVisibility(spaces().map((space) => space.id));
 
   private drag: DragState = noDrag;
+
+  private hovered: string | null = null;
 
   private statuses: StatusRollup = { spaces: {}, tabs: {} };
 
@@ -274,6 +277,30 @@ export default class Spaces extends View {
     return spaceRow(row, ids, state);
   }
 
+  private drawMain(
+    project: Project,
+    main: ListedSpace,
+    ids: readonly string[],
+    cursor: string | null,
+  ): Element {
+    const state: HeaderState = {
+      drag: this.drag,
+      cursor,
+      hovered: this.hovered,
+      lookup: (git) => this.pulls.lookup(git),
+      attachDrag: (element, space, rowIds) => {
+        this.addDragHandlers(element, space, rowIds);
+      },
+      onHover: (spaceId, hovered, cx) => {
+        this.hovered = hoveredAfter(this.hovered, spaceId, hovered);
+        cx.notify();
+      },
+      toggleFold: this.toggleFold,
+    };
+
+    return headerRow(project, main, ids, state);
+  }
+
   private readonly toggleFold = (key: string, cx: Context): void => {
     this.drag = noDrag;
     this.foldedProjects.toggle(key);
@@ -291,20 +318,21 @@ export default class Spaces extends View {
 
     let cursorElement: Element | null = null;
 
+    const keepCursor = (row: ListedSpace, element: Element): Element => {
+      if (row.space.id === cursor) {
+        cursorElement = element;
+      }
+
+      return element;
+    };
+
     this.order.publish(projects, ids);
 
     const elements = projectRows({
       projects,
       loading: this.isWaiting(),
-      draw: (row) => {
-        const element = this.draw(row, ids, cursor);
-
-        if (row.space.id === cursor) {
-          cursorElement = element;
-        }
-
-        return element;
-      },
+      draw: (row) => keepCursor(row, this.draw(row, ids, cursor)),
+      drawMain: (project, main) => keepCursor(main, this.drawMain(project, main, ids, cursor)),
       pullFailed: (git) => this.pulls.failed(git),
       retryPull: this.retryPull,
       toggleFold: this.toggleFold,

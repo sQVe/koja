@@ -3,7 +3,7 @@ import { describe, expect, test } from 'bun:test';
 import type { SpaceInfo, Status } from 'herdr';
 
 import type { Project } from './projects.ts';
-import { firstSpaceIds, groupProjects, shownSpaces } from './projects.ts';
+import { groupProjects, rootSpaceIds, shownSpaces } from './projects.ts';
 import type { GitInfo, ListedSpace } from './tree.ts';
 import { placeOf, repoOf } from './tree.ts';
 
@@ -52,8 +52,15 @@ const listed = (
 
 const nothingFolded = { has: (): boolean => false };
 
+const mainOf = (project: Project): string[] =>
+  project.main === null ? [] : [`main ${project.main.space.id}`];
+
 const describeProjects = (projects: Project[]): string[][] =>
-  projects.map((project) => [project.name, ...project.spaces.map((row) => row.space.id)]);
+  projects.map((project) => [
+    project.name,
+    ...mainOf(project),
+    ...project.spaces.map((row) => row.space.id),
+  ]);
 
 const bareRepo = '/code/koja/.bare';
 
@@ -76,7 +83,7 @@ describe('groupProjects', () => {
     ]);
   });
 
-  test('keeps the main checkout as a normal space and names the project after its folder', () => {
+  test('takes the main checkout out of the rows as the main space and names the project after its folder', () => {
     const repo = '/repos/store/upstream.git';
 
     const list = [
@@ -86,7 +93,20 @@ describe('groupProjects', () => {
 
     const projects = groupProjects(list, nothingFolded);
 
-    expect(describeProjects(projects)).toEqual([['herdr', 'feature', 'herdr']]);
+    expect(describeProjects(projects)).toEqual([['herdr', 'main herdr', 'feature']]);
+  });
+
+  test('keeps a second checkout of the same repository that is not linked as a row', () => {
+    const repo = '/code/koja/.git';
+
+    const list = [
+      listed('koja', '/code/koja', gitAt(repo, '/code/koja', false)),
+      listed('copy', '/code/koja-copy', gitAt(repo, '/code/koja-copy', false)),
+    ];
+
+    const projects = groupProjects(list, nothingFolded);
+
+    expect(describeProjects(projects)).toEqual([['koja', 'main koja', 'copy']]);
   });
 
   test('names a project after a bare repository folder when only linked worktrees are open', () => {
@@ -129,7 +149,7 @@ describe('groupProjects', () => {
     const projects = groupProjects(list, nothingFolded);
 
     expect(describeProjects(projects)).toEqual([
-      ['beta', 'beta-one', 'beta-two'],
+      ['beta', 'main beta-two', 'beta-one'],
       ['alpha', 'alpha-one', 'alpha-two'],
     ]);
   });
@@ -166,6 +186,23 @@ describe('groupProjects', () => {
     expect(project?.hidden).toBe(2);
   });
 
+  test('folding keeps the main space and counts only the other spaces', () => {
+    const repo = '/code/koja/.git';
+
+    const list = [
+      listed('koja', '/code/koja', gitAt(repo, '/code/koja', false)),
+      listed('idle', '/code/idle', gitAt(repo, '/code/idle', true)),
+      listed('blocked', '/code/blocked', gitAt(repo, '/code/blocked', true), { status: 'blocked' }),
+    ];
+
+    const key = repoOf(null, repo).key;
+    const [project] = groupProjects(list, { has: (candidate) => candidate === key });
+
+    expect(project?.main?.space.id).toBe('koja');
+    expect(project?.spaces.map((row) => row.space.id)).toEqual(['blocked']);
+    expect(project?.hidden).toBe(1);
+  });
+
   test('folds a project with a single space', () => {
     const list = [listed('notes', '/home/me/notes', null)];
     const key = placeOf(null, '/home/me/notes').key;
@@ -178,6 +215,19 @@ describe('groupProjects', () => {
 });
 
 describe('shownSpaces', () => {
+  test('lists the main space of a project before its other shown spaces', () => {
+    const repo = '/code/koja/.git';
+
+    const list = [
+      listed('worktree', '/code/worktree', gitAt(repo, '/code/worktree', true)),
+      listed('koja', '/code/koja', gitAt(repo, '/code/koja', false)),
+    ];
+
+    const ids = shownSpaces(groupProjects(list, nothingFolded)).map((row) => row.space.id);
+
+    expect(ids).toEqual(['koja', 'worktree']);
+  });
+
   test('lists the shown spaces of every project in order', () => {
     const list = [
       bareWorktree('first'),
@@ -191,7 +241,7 @@ describe('shownSpaces', () => {
   });
 });
 
-describe('firstSpaceIds', () => {
+describe('rootSpaceIds', () => {
   test('names the first shown space of each project and skips a project with none', () => {
     const list = [
       bareWorktree('hidden'),
@@ -204,6 +254,6 @@ describe('firstSpaceIds', () => {
 
     const projects = groupProjects(list, { has: (candidate) => candidate === key });
 
-    expect(firstSpaceIds(projects)).toEqual(['notes', 'site']);
+    expect(rootSpaceIds(projects)).toEqual(['notes', 'site']);
   });
 });

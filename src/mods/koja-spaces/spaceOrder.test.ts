@@ -76,20 +76,20 @@ describe('sidebar order publishing', () => {
     });
   });
 
-  test('publishes the spaces of a folded project as hidden, not shown', () => {
+  test('keeps the main space of a folded project shown and publishes its other spaces as hidden', () => {
     const store = memoryStore();
     const folded = [repoOf(null, repoPath).key];
 
     createOrderPublisher(store.set).publish(projectsOf(repoList(), folded), allIds(repoList()));
 
     expect(readSpaceOrder(store.get)).toEqual({
-      shown: ['notes'],
-      hidden: ['koja', 'first-worktree', 'second-worktree'],
-      roots: ['notes'],
+      shown: ['notes', 'koja'],
+      hidden: ['first-worktree', 'second-worktree'],
+      roots: ['notes', 'koja'],
     });
   });
 
-  test('publishes the first shown space of each project as a root, in shown order', () => {
+  test('publishes the main space once, at its header, and as the root of its project', () => {
     const store = memoryStore();
     const otherRepo = { ...gitOf(false), repo: repoOf(null, '/code/tau/.git') };
 
@@ -103,9 +103,22 @@ describe('sidebar order publishing', () => {
     createOrderPublisher(store.set).publish(projectsOf(list), allIds(list));
 
     expect(readSpaceOrder(store.get)).toEqual({
-      shown: ['koja', 'koja-worktree', 'tau-worktree', 'tau'],
+      shown: ['koja', 'koja-worktree', 'tau', 'tau-worktree'],
       hidden: [],
-      roots: ['koja', 'tau-worktree'],
+      roots: ['koja', 'tau'],
+    });
+  });
+
+  test('publishes the first shown space as the root of a project without a main space', () => {
+    const store = memoryStore();
+    const list = [listed('first-worktree', gitOf(true)), listed('second-worktree', gitOf(true))];
+
+    createOrderPublisher(store.set).publish(projectsOf(list), allIds(list));
+
+    expect(readSpaceOrder(store.get)).toEqual({
+      shown: ['first-worktree', 'second-worktree'],
+      hidden: [],
+      roots: ['first-worktree'],
     });
   });
 
@@ -131,9 +144,9 @@ describe('sidebar order publishing', () => {
     order.publish(projectsOf(repoList(), folded), allIds(repoList()));
 
     expect(readSpaceOrder(store.get)).toEqual({
-      shown: ['notes'],
-      hidden: ['koja', 'first-worktree', 'second-worktree'],
-      roots: ['notes'],
+      shown: ['notes', 'koja'],
+      hidden: ['first-worktree', 'second-worktree'],
+      roots: ['notes', 'koja'],
     });
   });
 
