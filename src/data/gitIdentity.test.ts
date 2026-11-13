@@ -85,7 +85,6 @@ const fakeRunner =
     return result;
   };
 
-// A remote runner can reject with plain text, so the reader must not assume an Error.
 // eslint-disable-next-line typescript/prefer-promise-reject-errors -- the case under test
 const rejectWithText: RunCommand = () => Promise.reject('connection dropped');
 

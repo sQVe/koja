@@ -23,8 +23,6 @@ const gitInfoOf = (identity: Exclude<GitIdentity, { kind: 'failed' }>): GitInfo 
   const branch = branchName(identity.branch);
   const { repository: repo, place } = identity;
 
-  // A folder holding a bare repository, with its worktrees beside it, has no checkout of its
-  // own; it stands in for the main checkout so the worktrees nest under it.
   if (identity.kind === 'bare') {
     return { branch, repo, root: place.folder, cwd: place.folder, linked: false };
   }

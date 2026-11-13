@@ -38,7 +38,6 @@ const snapshotOf = (result: ReadOutcome | null): ChangesSnapshot => {
 const mainLayout = 'false\nfalse\n/repo/.git\n/repo/.git\n';
 const bareLayout = 'true\nfalse\n/repo.git\n/repo.git\n';
 
-// Answers the commands the identity reader runs; the change reads carry read flags first.
 const identityAnswer =
   (layout: string) =>
   (args: string[]): ExecResult | null => {

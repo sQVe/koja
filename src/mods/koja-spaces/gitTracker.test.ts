@@ -95,7 +95,6 @@ const read = async (tracker: GitTrackerLike, folder: string): Promise<GitLike | 
 
   tracker.refresh([place], context);
 
-  // Only the refresh is awaited; a repository watch it starts never ends here.
   await spawned[first];
 
   return tracker.lookup(place.key) ?? null;

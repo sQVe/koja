@@ -48,7 +48,6 @@ const menuKinds: readonly MenuKind[] = ['pane', 'tab', 'space', 'global'];
 
 const worktreeCommand = 'worktree';
 
-// A bare repository has no checkout of its own to make or remove worktrees from.
 export const checkoutOf = (identity: GitIdentity): Checkout =>
   identity.kind === 'main' || identity.kind === 'linked' ? identity.kind : null;
 
