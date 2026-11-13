@@ -35,6 +35,13 @@ Cross-effects:
 - Changes only to tests, documents, changesets, or the sandbox scripts need no `qa` launch.
 - When the impact on a section is unclear, include the section.
 
+## Journeys
+
+| Journey                                                                           | Goal                                               | Run it when the change touches                                                                | Test    |
+| --------------------------------------------------------------------------------- | -------------------------------------------------- | --------------------------------------------------------------------------------------------- | ------- |
+| [Triage the spaces that need you](qa/journeys/triage-the-spaces-that-need-you.md) | Read one-line space rows and switch spaces.        | `src/mods/koja-spaces/`, `src/kit/space.ts`, `src/kit/statusMark.ts`, `src/kit/spaceOrder.ts` | by hand |
+| [Recover from a failed PR read](qa/journeys/recover-from-a-failed-pr-read.md)     | Retry a failed read without losing the space rows. | `src/mods/koja-spaces/`, `src/kit/stateLine.ts`, `src/kit/button.ts`                          | by hand |
+
 ## Before a launch
 
 For the manager. The `qa` worker starts nothing.
@@ -55,6 +62,46 @@ The manager starts:
 
   Set `user.name` and `user.email` in each repository. Open a space on each with
   `RUTA_NAME=<name> bun run sandbox do space.new --folder <path>`, with two tabs and a split in one.
+
+For either journey, use this fixture instead of the general fixtures above. Start a fresh sandbox
+first. Replace `<name>` with its name, then run these commands from the worktree:
+
+```sh
+export RUTA_NAME=<name>
+fixtureHome=/var/tmp/ruta-$RUTA_NAME/home
+mkdir -p "$fixtureHome/pr-fixture"
+touch "$fixtureHome/.zshrc"
+git -C "$fixtureHome/pr-fixture" init -b fixture-branch
+git -C "$fixtureHome/pr-fixture" config user.name 'QA Fixture'
+git -C "$fixtureHome/pr-fixture" config user.email qa@example.invalid
+git -C "$fixtureHome/pr-fixture" remote add origin https://example.invalid/qa/pr-fixture.git
+cat > "$fixtureHome/fake-gh" <<'SH'
+#!/bin/sh
+printf '%s\n' "$*" >> "$HOME/gh-calls"
+if [ -f "$HOME/pr-read-ok" ]; then
+  printf '[]\n'
+  exit 0
+fi
+printf 'fixture read failed\n' >&2
+exit 1
+SH
+chmod +x "$fixtureHome/fake-gh"
+ln -s "$fixtureHome/fake-gh" "/var/tmp/ruta-$RUTA_NAME/bin/gh"
+bun run sandbox do space.new --folder "$fixtureHome/pr-fixture"
+bun run sandbox do space.new --folder "$fixtureHome/pr-fixture"
+bun run sandbox identity
+```
+
+- Start: the commands above create two spaces on an empty fixture repository. No commit is needed.
+  The sandbox puts its `bin` first on `PATH`; the fake `gh` never calls GitHub or the real `gh`.
+- Check that it is up: identity exits 0. Wait for `Could not read PRs` and `Retry` under
+  `pr-fixture`. Both `pr-fixture` rows show a hollow agent mark. `$fixtureHome/gh-calls` records
+  `pr list`.
+- Stop: the manager runs `RUTA_NAME=<name> bun run sandbox down` after the worker reports.
+
+Give the worker `Data writes: allowed`, the fixture home, and permission to create only
+`<fixture home>/pr-read-ok` during recovery. Run recovery before triage when assigning both. The
+worker needs no install, restart, repository setup, or real GitHub login.
 
 Ask the user:
 
@@ -152,8 +199,10 @@ So no section has its own "Reach it". What to check in a section is in its recip
 - A double click, such as the rename of a tab: the sandbox input sends single clicks only.
 - A pane close that also ends other panes: no fixture step makes a terminal with a live child
   terminal in another pane.
-- Agent launch, agent status, machines, and pull request rows: they need real agents, SSH, and
-  GitHub. The sandbox has no fake source for them.
+- Agent launch, live agent status, and machines: they need real agents and SSH. The journey fixture
+  shows only the hollow agent mark, not live status changes.
+- Live GitHub PR data: the journey fixture tests a failed read and an empty successful read only. It
+  does not test authenticated GitHub reads or populated PR data.
 - `sandbox up`, `restart`, `install`, and `down`, the build, and the installer: the `qa` worker may
   not run them.
 - The look of a scene: the `judge-mock` skill decides it. Two AI judges pass or fail the scene.
