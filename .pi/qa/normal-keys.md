@@ -44,9 +44,10 @@ Bracket keys:
 
 - `type ']'` and `type '['` step spaces as `s j` and `s k` do.
 - `type ')'` and `type '('` step tabs.
-- `type '}'` and `type '{'` select the first space of the next and previous project of the sidebar,
-  and wrap at the ends. From a later space of a project, `{` first selects that project's first
-  space. With one project, they select its first space.
+- `type '}'` and `type '{'` select the header of the next and previous project of the sidebar, and
+  wrap at the ends. The header selects the main checkout, or the first space of a project without
+  one. From a later space of a project, `{` first selects that project's header. With one project,
+  they select its header.
 - The palette shows `]` as the key of "Next space" and `)` as the key of "Next tab".
 
 The sidebar mark:

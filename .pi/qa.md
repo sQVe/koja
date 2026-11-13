@@ -95,8 +95,8 @@ bun run sandbox identity
 - Start: the commands above create two spaces on an empty fixture repository. No commit is needed.
   The sandbox puts its `bin` first on `PATH`; the fake `gh` never calls GitHub or the real `gh`.
 - Check that it is up: identity exits 0. Wait for `Could not read PRs` and `Retry` under
-  `pr-fixture`. Both `pr-fixture` rows show a hollow agent mark. `$fixtureHome/gh-calls` records
-  `pr list`.
+  `pr-fixture`. The `pr-fixture` header and its one row each show a hollow agent mark.
+  `$fixtureHome/gh-calls` records `pr list`.
 - Stop: the manager runs `RUTA_NAME=<name> bun run sandbox down` after the worker reports.
 
 Give the worker `Data writes: allowed`, the fixture home, and permission to create only
