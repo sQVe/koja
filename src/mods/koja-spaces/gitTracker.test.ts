@@ -22,6 +22,7 @@ const ok = { code: 0, stdout: '', stderr: '' };
 
 let folders: Record<string, FolderGit> = {};
 let failure: string | null = null;
+let watched: string[] = [];
 
 const answer = (args: string[], cwd: string): ExecResult => {
   const folder = folders[cwd];
@@ -53,7 +54,11 @@ await mock.module('herdr', () =>
   herdrFake({
     exec: async (_command: string, args: string[], options: { cwd: string }) =>
       answer(args, options.cwd),
-    watchFolder: () => new Promise<string[]>(() => {}),
+    watchFolder: (folder: string) => {
+      watched.push(folder);
+
+      return new Promise<string[]>(() => {});
+    },
   }),
 );
 
@@ -71,8 +76,12 @@ const context = {
   notify: () => undefined,
 };
 
-const read = async (tracker: GitTrackerLike, folder: string): Promise<GitInfo | null> => {
-  const place = placeOf(null, folder);
+const read = async (
+  tracker: GitTrackerLike,
+  folder: string,
+  machine: string | null = null,
+): Promise<GitInfo | null> => {
+  const place = placeOf(machine, folder);
 
   const first = spawned.length;
 
@@ -89,9 +98,15 @@ const mainCheckout: FolderGit = {
   branch: 'main\n',
 };
 
+const bareRepository: FolderGit = {
+  layout: 'true\nfalse\n/code/tau.git\n/code/tau.git\n',
+  branch: 'main\n',
+};
+
 afterEach(() => {
   folders = {};
   failure = null;
+  watched = [];
 });
 
 afterAll(() => {
@@ -134,7 +149,7 @@ describe('GitTracker', () => {
 
   test('lets a bare repository stand in for the main checkout at its folder', async () => {
     folders = {
-      '/code/tau.git': { layout: 'true\nfalse\n/code/tau.git\n/code/tau.git\n', branch: 'main\n' },
+      '/code/tau.git': bareRepository,
     };
 
     const info = await read(new loaded.GitTracker(), '/code/tau.git');
@@ -170,5 +185,31 @@ describe('GitTracker', () => {
     folders = {};
 
     expect(await read(tracker, '/code/koja')).toBeNull();
+  });
+
+  test('watches the common directory of a checkout on this machine', async () => {
+    folders = { '/code/koja/src': mainCheckout };
+
+    await read(new loaded.GitTracker(), '/code/koja/src');
+
+    expect(watched).toEqual(['/code/koja/.git']);
+  });
+
+  test('starts no watch for a checkout on another machine', async () => {
+    folders = { '/code/koja': mainCheckout };
+
+    const info = await read(new loaded.GitTracker(), '/code/koja', 'build-box');
+
+    expect(info?.repo.machine).toBe('build-box');
+    expect(watched).toEqual([]);
+  });
+
+  test('starts no watch for a bare repository', async () => {
+    folders = { '/code/tau.git': bareRepository };
+
+    const info = await read(new loaded.GitTracker(), '/code/tau.git');
+
+    expect(info?.root).toBe('/code/tau.git');
+    expect(watched).toEqual([]);
   });
 });

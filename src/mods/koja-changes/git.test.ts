@@ -67,7 +67,21 @@ describe('readChanges', () => {
     const result = await readChanges(run, '/repo', null, () => false);
 
     expect(result).toBeNull();
-    expect(calls.filter((call) => call.includes('status'))).toHaveLength(0);
+
+    expect(calls).toEqual([
+      [
+        'git',
+        'rev-parse',
+        '--is-bare-repository',
+        '--is-inside-git-dir',
+        '--path-format=absolute',
+        '--git-dir',
+        '--git-common-dir',
+      ],
+      ['git', 'rev-parse', '--show-toplevel'],
+      ['git', 'symbolic-ref', '--quiet', '--short', 'HEAD'],
+      ['git', 'rev-parse', '--verify', '--quiet', 'HEAD'],
+    ]);
   });
 
   test('reports a folder outside a repository', async () => {
