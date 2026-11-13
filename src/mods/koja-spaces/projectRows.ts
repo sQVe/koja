@@ -9,6 +9,7 @@ export interface ProjectRowsHost {
   projects: Project[];
   loading: boolean;
   draw: (row: ListedSpace) => Element;
+  drawMain: (project: Project, main: ListedSpace) => Element;
   pullFailed: (git: GitInfo) => boolean;
   retryPull: (git: GitInfo, cx: Context) => void;
   toggleFold: (key: string, cx: Context) => void;
@@ -34,8 +35,13 @@ const pullErrorRow = (git: GitInfo, host: ProjectRowsHost): Element =>
     }),
   });
 
-const header = (project: Project, host: ProjectRowsHost): Element =>
-  projectHeader({
+const header = (project: Project, host: ProjectRowsHost): Element => {
+  if (project.main !== null) {
+    return host.drawMain(project, project.main);
+  }
+
+  return projectHeader({
+    kind: 'fold',
     name: project.name,
     ...(project.machine === null ? {} : { machine: project.machine }),
     folded: project.folded,
@@ -44,6 +50,7 @@ const header = (project: Project, host: ProjectRowsHost): Element =>
       host.toggleFold(project.key, cx);
     },
   });
+};
 
 const projectBlock = (project: Project, host: ProjectRowsHost): Element[] => {
   const elements = [header(project, host)];

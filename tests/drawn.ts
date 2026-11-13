@@ -10,6 +10,8 @@ export interface DrawnElement {
   isDisabled: boolean;
   clickHandlers: ((event: unknown, cx: unknown) => void)[];
   sizeHandlers: ((size: { width: number; height: number }, cx: unknown) => void)[];
+  mouseHandlers: Record<string, ((event: unknown, cx: unknown) => void)[]>;
+  hoverHandlers: ((hovered: boolean, cx: unknown) => void)[];
   styles: Record<string, unknown[]>;
 }
 
@@ -34,6 +36,8 @@ export const drawn = (path: string | null = null): DrawnElement => {
     isDisabled: false,
     clickHandlers: [],
     sizeHandlers: [],
+    mouseHandlers: {},
+    hoverHandlers: [],
     styles: {},
   };
 
@@ -84,6 +88,18 @@ export const drawn = (path: string | null = null): DrawnElement => {
 
         if (key === 'on_size_change') {
           target.sizeHandlers.push(args[0] as DrawnElement['sizeHandlers'][number]);
+        }
+
+        if (key === 'on_mouse_down' || key === 'on_mouse_up') {
+          const name = `${key}:${String(args[0])}`;
+          const handlers = target.mouseHandlers[name] ?? [];
+
+          handlers.push(args[1] as (event: unknown, cx: unknown) => void);
+          target.mouseHandlers[name] = handlers;
+        }
+
+        if (key === 'on_hover') {
+          target.hoverHandlers.push(args[0] as DrawnElement['hoverHandlers'][number]);
         }
 
         if (key === 'spin') {
@@ -152,3 +168,17 @@ export const elementWithIcon = (element: DrawnElement, name: string): DrawnEleme
 export const click = (element: DrawnElement): void => {
   element.clickHandlers[0]?.({}, { stop_propagation: () => undefined });
 };
+
+// A left press and release on the element alone; the fake does not pass events to parents.
+export const press = (element: DrawnElement, cx: unknown): void => {
+  for (const handler of element.mouseHandlers['on_mouse_down:left'] ?? []) {
+    handler({}, cx);
+  }
+
+  for (const handler of element.mouseHandlers['on_mouse_up:left'] ?? []) {
+    handler({}, cx);
+  }
+};
+
+export const elementsWithMouseHandlers = (element: DrawnElement): DrawnElement[] =>
+  descendants(element).filter((part) => Object.keys(part.mouseHandlers).length > 0);

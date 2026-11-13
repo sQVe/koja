@@ -7,10 +7,14 @@ import {
   drawn,
   drawnTexts,
   elementsWithBorder,
+  elementsWithMouseHandlers,
   elementsWithSizeHandler,
+  press,
 } from '../../../tests/drawn.ts';
 import type { DrawnElement } from '../../../tests/drawn.ts';
 import { gpuiBaseFake, gpuiKitFake, herdrFake, kitIndexFake } from '../../../tests/moduleFakes.ts';
+import type { GitInfo } from './tree.ts';
+import { repoOf } from './tree.ts';
 
 interface RunCall {
   command: string;
@@ -42,6 +46,7 @@ let scrollCalls: number[] = [];
 let sharedValues: Record<string, unknown> = {};
 let sidebarWidth: number | null = null;
 let spaceList: SpaceInfo[] = [];
+let gitByFolder: Record<string, GitInfo> = {};
 const commandQueue: string[] = [];
 const commandWaiters: ((command: string) => void)[] = [];
 
@@ -92,6 +97,43 @@ const space = (id: string, active: boolean, folder = '/code/notes'): SpaceInfo =
   tabs: [],
 });
 
+// Answers as the tracker would once git ran in each folder.
+class FakeGitTracker {
+  entries(): Record<string, GitInfo> {
+    return {};
+  }
+
+  lookup(key: string): GitInfo | undefined {
+    const [, folder] = JSON.parse(key) as [string | null, string];
+
+    return gitByFolder[folder];
+  }
+
+  repositories(): [] {
+    return [];
+  }
+
+  sweep(): Set<string> {
+    return new Set();
+  }
+
+  prune(): void {
+    return undefined;
+  }
+
+  refresh(): void {
+    return undefined;
+  }
+}
+
+const checkoutOf = (folder: string, linked: boolean): GitInfo => ({
+  branch: 'main',
+  repo: repoOf(null, '/code/koja/.git'),
+  root: folder,
+  cwd: folder,
+  linked,
+});
+
 class HostView {
   render(): unknown {
     return null;
@@ -127,6 +169,8 @@ await mock.module('gpui-base', () =>
 await mock.module('gpui-kit', () =>
   gpuiKitFake({ div: () => drawn(), svg: (path: string) => drawn(path), View: HostView }),
 );
+
+await mock.module('./gitTracker.ts', () => ({ GitTracker: FakeGitTracker }));
 
 await mock.module('herdr', () =>
   herdrFake({
@@ -263,6 +307,7 @@ beforeEach(() => {
   commandWaiters.length = 0;
   store.clear();
   spaceList = ['a', 'b', 'c', 'd', 'e', 'f', 'g', 'h'].map((id) => space(id, id === 'b'));
+  gitByFolder = {};
   mark('sidebar');
 });
 
@@ -469,5 +514,68 @@ describe('koja-spaces list cursor', () => {
     const view = await loadView();
 
     expect(spaceNames(view)).toEqual(spaceList.map((candidate) => candidate.name));
+  });
+});
+
+const pressable = (element: DrawnElement): boolean =>
+  element.mouseHandlers['on_mouse_down:left'] !== undefined;
+
+describe('koja-spaces main space header', () => {
+  const useRepository = (): void => {
+    gitByFolder = {
+      '/code/koja': checkoutOf('/code/koja', false),
+      '/code/koja-fix': checkoutOf('/code/koja-fix', true),
+    };
+
+    spaceList = [space('w', true, '/code/koja-fix'), space('m', false, '/code/koja')];
+  };
+
+  const headerOf = (view: FakeView): DrawnElement | undefined =>
+    elementsWithMouseHandlers(view.render())
+      .filter(pressable)
+      .find((element) => drawnTexts(element).includes('koja'));
+
+  test('draws the main space as the header, not as a row', async () => {
+    useRepository();
+
+    const view = await loadView();
+
+    expect(spaceNames(view)).toEqual(['name-w']);
+    expect(drawnTexts(view.render()).filter((text) => text === 'koja')).toHaveLength(1);
+  });
+
+  test('a click on the header selects the main space', async () => {
+    useRepository();
+
+    const view = await loadView();
+
+    press(headerOf(view) as DrawnElement, {
+      notify: () => undefined,
+      stop_propagation: () => undefined,
+    });
+
+    expect(selected()).toEqual(['m']);
+  });
+
+  test('the cursor stops on the header and list-open selects the main space', async () => {
+    useRepository();
+
+    const view = await loadView();
+
+    await send('list-first');
+
+    expect(cursorNames(view)).toEqual(['koja']);
+
+    await send('list-open');
+
+    expect(selected()).toEqual(['m']);
+  });
+
+  test('publishes the main space once, at the header, and as the root', async () => {
+    useRepository();
+
+    await loadView();
+
+    expect(sharedValues['spaces.order']).toEqual({ shown: ['m', 'w'], hidden: [], roots: ['m'] });
   });
 });
