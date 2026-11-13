@@ -90,6 +90,19 @@ describe('groupProjects', () => {
     expect(describeProjects(projects)).toEqual([['herdr', 'feature', 'herdr']]);
   });
 
+  test('names a project after a bare repository folder when only linked worktrees are open', () => {
+    const repo = '/repos/koja.git';
+
+    const list = [
+      listed('feature', '/code/feature', gitAt(repo, '/code/feature', true)),
+      listed('fix', '/code/fix', gitAt(repo, '/code/fix', true)),
+    ];
+
+    const projects = groupProjects(list, nothingFolded);
+
+    expect(describeProjects(projects)).toEqual([['koja', 'feature', 'fix']]);
+  });
+
   test('gives a remote project its machine name', () => {
     const remote = { machine: 'build-box' };
 

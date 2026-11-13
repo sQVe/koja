@@ -12,6 +12,8 @@ export interface Project {
   hidden: number;
 }
 
+type ProjectRows = [ListedSpace, ...ListedSpace[]];
+
 const projectKey = (row: ListedSpace): string => row.git?.repo.key ?? row.place.key;
 
 const lastPart = (path: string): string | null =>
@@ -26,33 +28,34 @@ const repoPathName = (path: string): string => {
   return repoName(checkout);
 };
 
-const projectName = (rows: ListedSpace[], git: GitInfo | null): string => {
-  const first = rows[0];
+const projectName = (rows: ProjectRows): string => {
+  const [first] = rows;
   const main = rows.find((row) => row.git?.linked === false);
 
   if (main?.git) {
     return repoName(main.git.root);
   }
 
-  if (git !== null) {
-    return repoPathName(git.repo.path);
+  if (first.git !== null) {
+    return repoPathName(first.git.repo.path);
   }
 
-  return lastPart(first?.place.folder ?? '') ?? first?.space.name ?? '';
+  return lastPart(first.place.folder) ?? first.space.name;
 };
 
 const shownWhenFolded = (row: ListedSpace): boolean => row.space.active || needsYou(row.status);
 
-const projectOf = (key: string, rows: ListedSpace[], foldedKeys: FoldedKeys): Project => {
-  const git = rows.find((row) => row.git !== null)?.git ?? null;
+// Every row of a project shares its key, so the first row holds the project's git and machine.
+const projectOf = (key: string, rows: ProjectRows, foldedKeys: FoldedKeys): Project => {
+  const [first] = rows;
   const folded = foldedKeys.has(key);
   const spaces = folded ? rows.filter(shownWhenFolded) : rows;
 
   return {
     key,
-    name: projectName(rows, git),
-    machine: rows[0]?.place.machine ?? null,
-    git,
+    name: projectName(rows),
+    machine: first.place.machine,
+    git: first.git,
     spaces,
     folded,
     hidden: rows.length - spaces.length,
@@ -60,12 +63,17 @@ const projectOf = (key: string, rows: ListedSpace[], foldedKeys: FoldedKeys): Pr
 };
 
 export const groupProjects = (list: ListedSpace[], foldedKeys: FoldedKeys): Project[] => {
-  const byKey = new Map<string, ListedSpace[]>();
+  const byKey = new Map<string, ProjectRows>();
 
   for (const row of list) {
     const key = projectKey(row);
+    const rows = byKey.get(key);
 
-    byKey.set(key, [...(byKey.get(key) ?? []), row]);
+    if (rows === undefined) {
+      byKey.set(key, [row]);
+    } else {
+      rows.push(row);
+    }
   }
 
   return [...byKey].map(([key, rows]) => projectOf(key, rows, foldedKeys));
