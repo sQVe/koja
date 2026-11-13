@@ -20,7 +20,6 @@ export interface GitInfo {
   root: string;
   cwd: string;
   linked: boolean;
-  committedAt: number | null;
 }
 
 export interface ListedSpace {

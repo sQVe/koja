@@ -111,7 +111,6 @@ const gitAt = (name: string, machine: string | null): GitInfo => ({
   root: `/code/${name}`,
   cwd: `/code/${name}`,
   linked: false,
-  committedAt: null,
 });
 
 const listed = (id: string, project: string, options: SpaceOptions = {}): ListedSpace => {

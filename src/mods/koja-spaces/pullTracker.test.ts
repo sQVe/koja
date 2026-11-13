@@ -19,7 +19,6 @@ interface GitLike {
   root: string;
   cwd: string;
   linked: boolean;
-  committedAt: number | null;
 }
 
 interface PullLike {
@@ -88,7 +87,6 @@ const git: GitLike = {
   root: '/code/koja',
   cwd: '/code/koja',
   linked: false,
-  committedAt: null,
 };
 
 const spawned: Promise<void>[] = [];

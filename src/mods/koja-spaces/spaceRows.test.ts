@@ -70,7 +70,6 @@ const git: GitInfo = {
   root: '/code/koja',
   cwd: '/code/koja',
   linked: true,
-  committedAt: null,
 };
 
 const pull: Pull = {

@@ -37,7 +37,6 @@ const gitAt = (
   root,
   cwd: root,
   linked,
-  committedAt: null,
 });
 
 const listed = (

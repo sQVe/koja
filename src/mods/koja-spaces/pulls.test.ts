@@ -20,7 +20,6 @@ const git = (branch: string): GitInfo => ({
   root: '/repo',
   cwd: '/repo',
   linked: false,
-  committedAt: null,
 });
 
 describe('readPullList', () => {

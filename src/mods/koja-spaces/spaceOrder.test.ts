@@ -30,7 +30,6 @@ const gitOf = (linked: boolean): GitInfo => ({
   root: '/code/koja',
   cwd: '/',
   linked,
-  committedAt: null,
 });
 
 const listed = (id: string, git: GitInfo | null): ListedSpace => ({
