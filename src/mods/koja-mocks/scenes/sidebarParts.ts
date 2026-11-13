@@ -10,6 +10,7 @@ import {
   icon,
   linkText,
   listRow,
+  projectHeader,
   roleText,
   rowHeight,
   sidebarSize,
@@ -54,15 +55,6 @@ const hoveredRowCenter = (): number => {
   return top;
 };
 
-const sidebarLine = (content: Element): Element =>
-  h_flex()
-    .h(rowHeight.small)
-    .flex_none()
-    .min_w(0)
-    .px(sidebarSize.rowContentInset)
-    .items_center()
-    .child(content);
-
 const spaceEnd = (space: FakeSpace): Element[] => {
   const end: Element[] = [];
 
@@ -90,7 +82,9 @@ const projectGroup = (project: FakeProject): Element =>
   v_flex()
     .flex_none()
     .gap(spacing.xxsmall)
-    .child(sidebarLine(roleText('sectionHeading', project.name, 'foreground')))
+    .child(
+      projectHeader({ name: project.name, folded: false, hidden: 0, onToggle: () => undefined }),
+    )
     .children(project.spaces.map((space) => spaceRow(space)));
 
 // The switch's pill text lines up with the project names under it.

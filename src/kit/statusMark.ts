@@ -51,6 +51,12 @@ export const statusMark = (status: Status | null): Element => {
 };
 
 export const spaceMark = (status: Status | null): Element => {
+  if (status === 'blocked') {
+    return statusMark(null).child(
+      icon('message-circle-question', 'small').text_color(colors().blocked),
+    );
+  }
+
   if (status !== null) {
     return statusMark(status);
   }

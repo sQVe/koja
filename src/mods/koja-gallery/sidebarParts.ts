@@ -9,6 +9,7 @@ import {
   linkText,
   listRow,
   overlaySize,
+  projectHeader,
   roleText,
   spaceFooter,
   spaceMark,
@@ -92,6 +93,21 @@ const stackLayer = (layer: SampleLayer): Element =>
   });
 
 export const sidebarParts = (): Element[] => [
+  sample(
+    'Project headers: plain, remote, folded',
+    partsFrame([
+      projectHeader({ name: 'koja', folded: false, hidden: 0, onToggle: () => undefined }),
+      projectHeader({
+        name: 'tau',
+        machine: 'build-box',
+        folded: false,
+        hidden: 0,
+        onToggle: () => undefined,
+      }),
+      projectHeader({ name: 'tikk', folded: true, hidden: 2, onToggle: () => undefined }),
+    ]),
+  ),
+  sample('Blocked space', spaceMark('blocked')),
   sample(
     'Work icons: conflict, failing, review, restack, merge',
     h_flex()

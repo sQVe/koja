@@ -105,8 +105,8 @@ border for focus. The frame, panes, terminals, sidebar, and tab bar all share th
 - An icon button has no selected state, so it keeps its hover fill.
 - A hovered solid or danger button keeps its fill and label and draws a 1 px `foreground` ring,
   because fading would dim the label below AA.
-- A hover-only control, such as a pane header button or the sidebar fold chevron, keeps its space,
-  so a row does not shift when it appears.
+- A hover-only control, such as a pane header button, keeps its space, so a row does not shift when
+  it appears.
 
 ### Truncation
 
@@ -129,8 +129,10 @@ border for focus. The frame, panes, terminals, sidebar, and tab bar all share th
 
 ### Status marks
 
-- Done draws a small check icon in `done` green. Needs you stays a `blocked` dot, or the badge where
-  there is room, and working stays the spinner, so shape as well as color tells the states apart.
+- Done draws a small check icon in `done` green. A sidebar space that needs you draws the
+  `message-circle-question` icon in `blocked` red. Tabs and picker rows keep the `blocked` dot, or
+  the badge where there is room. Working stays the spinner, so shape as well as color tells the
+  states apart.
 - A sidebar space with no agent shows a hollow ring in the `border` color, so every space row has a
   mark and the list reads as one column. The ring is quieter than the filled idle dot, so it does
   not read as a state. Rows outside the sidebar, such as tabs and picker rows, keep an empty slot.
@@ -190,6 +192,9 @@ preview inside one framed overlay, so the list rounds only its own two outer cor
   refresh delay. An error clears only when that same resource reads again.
 - A stale list keeps its rows below an error line with the age of the last good read. The age comes
   early in the text, so a cut line still shows it.
+- The sidebar's PR read is the exception. Its line reads `Could not read PRs`, with no repository
+  name and no age, because the project header above it names the repository and the sidebar shows
+  only what the user should act on. The rows keep their last facts.
 - A load longer than about 300 ms shows the spinner with its text; a shorter load shows nothing.
 - An action that changes state, such as Commit, stays disabled on stale data until the same resource
   reads again. Reading and navigation stay allowed.

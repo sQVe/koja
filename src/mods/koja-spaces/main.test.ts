@@ -3,6 +3,7 @@ import { afterAll, beforeEach, describe, expect, mock, test } from 'bun:test';
 import type { SpaceInfo } from 'herdr';
 
 import {
+  clickablesWithText,
   drawn,
   drawnTexts,
   elementsWithBorder,
@@ -78,12 +79,12 @@ const flush = async (): Promise<void> => {
   });
 };
 
-const space = (id: string, active: boolean): SpaceInfo => ({
+const space = (id: string, active: boolean, folder = '/code/notes'): SpaceInfo => ({
   id,
   index: 1,
   name: `name-${id}`,
   named: true,
-  folder: '',
+  folder,
   machine: null,
   branch: null,
   active,
@@ -158,7 +159,7 @@ const kitParts = [
   'icon',
   'layout',
   'listRow',
-  'repoLabel',
+  'projectHeader',
   'section',
   'sectionHeader',
   'size',
@@ -359,22 +360,25 @@ describe('koja-spaces list cursor', () => {
     expect(selected()).toEqual(['e']);
   });
 
-  test('a folded machine leaves its spaces out of the drawn rows and the published order', async () => {
-    spaceList = [space('a', true), { ...space('w', false), machine: 'work' }, space('c', false)];
-    store.set('machines.folded', JSON.stringify(['work']));
-
+  test('a click on a project header folds it to its active space and publishes the rest as hidden', async () => {
     const view = await loadView();
 
-    expect(spaceNames(view)).toEqual(['name-a', 'name-c']);
-    expect(sharedValues['spaces.order']).toEqual({ shown: ['a', 'c'], hidden: ['w'], roots: [] });
+    const header = clickablesWithText(view.render(), 'notes')[0];
 
-    await send('list-last');
+    header?.clickHandlers[0]?.({}, { notify: () => undefined });
 
-    expect(cursorNames(view)).toEqual(['name-c']);
+    expect(spaceNames(view)).toEqual(['name-b']);
+    expect(drawnTexts(view.render())).toContain('7 more');
+
+    expect(sharedValues['spaces.order']).toEqual({
+      shown: ['b'],
+      hidden: ['a', 'c', 'd', 'e', 'f', 'g', 'h'],
+      roots: ['b'],
+    });
   });
 
-  test('an open machine draws and publishes its spaces after this computer', async () => {
-    spaceList = [space('a', true), { ...space('w', false), machine: 'work' }, space('c', false)];
+  test('draws and publishes the spaces project by project', async () => {
+    spaceList = [space('a', true), space('w', false, '/code/work'), space('c', false)];
 
     const view = await loadView();
 
@@ -383,7 +387,7 @@ describe('koja-spaces list cursor', () => {
     expect(sharedValues['spaces.order']).toEqual({
       shown: ['a', 'c', 'w'],
       hidden: [],
-      roots: [],
+      roots: ['a', 'w'],
     });
   });
 
@@ -398,8 +402,8 @@ describe('koja-spaces list cursor', () => {
     expect(scrollCalls).toEqual([cursorChildIndex(view)]);
   });
 
-  test('the row to show counts the machine headers above it', async () => {
-    spaceList = [space('a', true), { ...space('w', false), machine: 'work' }];
+  test('the row to show counts the project headers above it', async () => {
+    spaceList = [space('a', true), space('w', false, '/code/work')];
 
     const view = await loadView();
 
@@ -409,7 +413,6 @@ describe('koja-spaces list cursor', () => {
     const plain = cursorChildIndex(view);
 
     expect(cursorNames(view)).toEqual(['name-w']);
-    // Above w: the row of a and the two machine headers.
     expect(plain).toBeGreaterThanOrEqual(3);
     expect(scrollCalls).toEqual([plain]);
   });

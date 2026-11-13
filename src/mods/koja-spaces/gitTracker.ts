@@ -57,7 +57,6 @@ export class GitTracker {
     at: Record<string, Place>,
     spaceList: SpaceInfo[],
     paneList: PaneInfo[],
-    foldedMachine: (machine: string) => boolean,
   ): Set<string> {
     const placeByKey = new Map<string, Place>(
       Object.values(at)
@@ -81,7 +80,7 @@ export class GitTracker {
     this.addReturnedMachines(placeByKey, due);
 
     if (currentWindow()?.active === true) {
-      this.addFallbacks(now, placeByKey, keys, due, foldedMachine);
+      this.addFallbacks(now, keys, due);
     }
 
     return due;
@@ -200,13 +199,7 @@ export class GitTracker {
     }
   }
 
-  private addFallbacks(
-    now: number,
-    placeByKey: Map<string, Place>,
-    keys: Set<string>,
-    due: Set<string>,
-    foldedMachine: (machine: string) => boolean,
-  ): void {
+  private addFallbacks(now: number, keys: Set<string>, due: Set<string>): void {
     for (const key of keys) {
       const asks = this.git[key] !== null && this.git[key] !== undefined;
       const noRepository = this.git[key] === null;
@@ -215,10 +208,9 @@ export class GitTracker {
         noRepository && negativeEntryExpired(this.checked[key], now, fallbackMilliseconds);
 
       const known = asks || this.unsure.has(key) || expired;
-      const machine = placeByKey.get(key)?.machine ?? '';
       const stale = now - (this.checked[key] ?? 0) > fallbackMilliseconds;
 
-      if (known && !foldedMachine(machine) && stale) {
+      if (known && stale) {
         due.add(key);
       }
     }
@@ -265,11 +257,9 @@ export class GitTracker {
       );
 
       const linked = gitDirectory.stdout.trim() !== repo.path;
-      const committedAt = linked ? null : await this.lastCommit(place);
-
       const root = top.stdout.trim();
 
-      this.git[place.key] = { branch, repo, root, cwd: place.folder, linked, committedAt };
+      this.git[place.key] = { branch, repo, root, cwd: place.folder, linked };
 
       if (place.machine === null) {
         this.watch(repo, cx);
@@ -295,20 +285,6 @@ export class GitTracker {
       repo: repoOf(place.machine, common.stdout.trim()),
       branch: head.code === 0 ? head.stdout.trim() : null,
     };
-  }
-
-  // The age is optional: a failed read must not drop the repository the other reads found.
-  private async lastCommit(place: Place): Promise<number | null> {
-    try {
-      const log = await exec('git', ['log', '-1', '--format=%ct', 'HEAD'], {
-        cwd: place.folder,
-        on: place.machine,
-      });
-
-      return log.code === 0 ? Number(log.stdout.trim()) : null;
-    } catch {
-      return null;
-    }
   }
 
   private async checkFailed(place: Place, stderr: string): Promise<void> {
@@ -337,9 +313,8 @@ export class GitTracker {
     }
 
     const { repo, branch } = await this.repoAndBranch(place);
-    const committedAt = await this.lastCommit(place);
 
-    return { branch, repo, root: place.folder, cwd: place.folder, linked: false, committedAt };
+    return { branch, repo, root: place.folder, cwd: place.folder, linked: false };
   }
 
   private watch(repo: RepoRef, cx: Context): void {

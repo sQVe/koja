@@ -2,17 +2,7 @@ import { ScrollHandle, v_flex } from 'gpui-base';
 import type { AsyncContext, Context, Element } from 'gpui-kit';
 import { div, View } from 'gpui-kit';
 import type { SpaceInfo } from 'herdr';
-import {
-  machines,
-  nextCommand,
-  openOverlay,
-  panes,
-  run,
-  setShared,
-  shared,
-  spaces,
-  terminals,
-} from 'herdr';
+import { nextCommand, openOverlay, panes, run, setShared, shared, spaces, terminals } from 'herdr';
 
 import type { DragState } from '../../kit/drag.ts';
 import { dropAction, noDrag, setDragOver, startDrag } from '../../kit/drag.ts';
@@ -20,7 +10,6 @@ import type { StatusRollup } from '../../kit/index.ts';
 import {
   colors,
   controlSize,
-  hoveredAfter,
   layoutRoot,
   listActionOf,
   overlaySize,
@@ -34,32 +23,28 @@ import {
 import { cursorRow, halfPageOf, moveCursor } from './cursor.ts';
 import { foldedSet } from './folded.ts';
 import { GitTracker } from './gitTracker.ts';
-import { machineRows, shownRows } from './machineRows.ts';
-import { isMachineLoading } from './machines.ts';
-import { MachineTracker } from './machineTracker.ts';
-import { newSpaceArguments } from './newSpace.ts';
+import { projectRows } from './projectRows.ts';
+import type { Project } from './projects.ts';
+import { groupProjects, shownSpaces } from './projects.ts';
 import { PullTracker } from './pullTracker.ts';
 import { createOrderPublisher } from './spaceOrder.ts';
 import type { RowState } from './spaceRows.ts';
-import { labelRow, row as spaceRow } from './spaceRows.ts';
-import type { GitInfo, ListedSpace, TreeGroup, TreeRow } from './tree.ts';
-import { listedOf, nestSpaces, placesOf } from './tree.ts';
+import { row as spaceRow } from './spaceRows.ts';
+import type { GitInfo, ListedSpace } from './tree.ts';
+import { placeOfSpace, placesOf } from './tree.ts';
 import type { VisibilityResult, VisibilityState } from './visibility.ts';
 import { advanceVisibility, initialVisibility } from './visibility.ts';
-
-const machinesMilliseconds = 15_000;
 
 const pullsMilliseconds = 15_000;
 
 const checkMilliseconds = 250;
 
-const machinesFoldedKey = 'machines.folded';
-
-const reposFoldedKey = 'repos.folded';
+const projectsFoldedKey = 'repos.folded';
 
 const isSidebarMarked = (): boolean => readSection(shared) === 'sidebar';
 
-const spaceIdOf = (row: TreeRow): string => listedOf(row).space.id;
+const shownIdsOf = (projects: Project[]): string[] =>
+  shownSpaces(projects).map((row) => row.space.id);
 
 const activeSpaceId = (): string | null => spaces().find((space) => space.active)?.id ?? null;
 
@@ -78,19 +63,13 @@ export default class Spaces extends View {
 
   private readonly pulls = new PullTracker();
 
-  private readonly foldedMachines = foldedSet(machinesFoldedKey, storage);
-
-  private readonly foldedRepos = foldedSet(reposFoldedKey, storage);
+  private readonly foldedProjects = foldedSet(projectsFoldedKey, storage);
 
   private readonly order = createOrderPublisher(setShared);
-
-  private readonly machines = new MachineTracker();
 
   private visibility: VisibilityState = initialVisibility(spaces().map((space) => space.id));
 
   private drag: DragState = noDrag;
-
-  private hovered: string | null = null;
 
   private statuses: StatusRollup = { spaces: {}, tabs: {} };
 
@@ -111,12 +90,6 @@ export default class Spaces extends View {
   override init(_props: unknown, cx: AsyncContext): void {
     repeat(cx, pullsMilliseconds, (timerCx) => {
       this.pulls.refresh(this.git.repositories(), timerCx);
-    });
-
-    this.machines.refresh(cx);
-
-    repeat(cx, machinesMilliseconds, (timerCx) => {
-      this.machines.refresh(timerCx);
     });
 
     repeat(cx, checkMilliseconds, (timerCx) => {
@@ -144,6 +117,7 @@ export default class Spaces extends View {
           .id('spaces-list')
           .flex_1()
           .min_h(0)
+          .gap(spacing.xxsmall)
           .pb(spacing.xlarge)
           .overflow_y_scrollbar()
           .track_scroll(this.scroll)
@@ -155,7 +129,7 @@ export default class Spaces extends View {
             this.drag = noDrag;
             cx.notify();
           })
-          .children(this.grouped()),
+          .children(this.listRows()),
       );
   }
 
@@ -190,7 +164,7 @@ export default class Spaces extends View {
     }
 
     const result = moveCursor({
-      shown: this.shownRows().map(spaceIdOf),
+      shown: shownIdsOf(this.projects()),
       cursor: this.cursor,
       active: activeSpaceId(),
       action,
@@ -207,20 +181,12 @@ export default class Spaces extends View {
     cx.notify();
   }
 
-  private cursorRow(shown: readonly TreeRow[]): string | null {
+  private cursorRow(projects: Project[]): string | null {
     if (!isSidebarMarked()) {
       return null;
     }
 
-    return cursorRow(shown.map(spaceIdOf), this.cursor, activeSpaceId());
-  }
-
-  private shownRows(groups: TreeGroup[] = this.ordered()): TreeRow[] {
-    return shownRows({
-      machineList: this.machines.lookup(),
-      groups,
-      folded: (machine) => this.foldedMachines.has(machine ?? ''),
-    });
+    return cursorRow(shownIdsOf(projects), this.cursor, activeSpaceId());
   }
 
   private advance(): VisibilityResult {
@@ -246,9 +212,7 @@ export default class Spaces extends View {
 
     this.visibility = result;
 
-    const due = this.git.sweep(Date.now(), at, spaceList, paneList, (machine) =>
-      this.foldedMachines.has(machine),
-    );
+    const due = this.git.sweep(Date.now(), at, spaceList, paneList);
 
     if (due.size > 0) {
       this.git.refresh(
@@ -273,103 +237,77 @@ export default class Spaces extends View {
     });
   }
 
-  private ordered(): TreeGroup[] {
+  private projects(): Project[] {
     const spaceList = spaces();
     const paneList = panes();
-    const at = placesOf(spaceList, paneList);
 
     const list: ListedSpace[] = spaceList
-      .map((space) => ({
-        space,
-        git: this.git.lookup(at[space.id]?.key ?? '') ?? null,
-        status: this.statuses.spaces[space.id] ?? null,
-      }))
+      .map((space) => {
+        const place = placeOfSpace(space, paneList);
+
+        return {
+          space,
+          git: this.git.lookup(place.key) ?? null,
+          status: this.statuses.spaces[space.id] ?? null,
+          place,
+        };
+      })
       .filter((row) => this.visibility.shown.has(row.space.id));
 
-    return nestSpaces(list, this.foldedRepos);
+    return groupProjects(list, this.foldedProjects);
   }
 
-  private isLoading(machine: string | null): boolean {
-    const layout = machines().find((candidate) => candidate.name === machine)?.layout;
-
-    const connected = this.machines
-      .lookup()
-      .some((known) => known.name === machine && known.state === 'connected');
-
-    const waitingForSpace = spaces().some(
-      (space) => (space.machine ?? null) === machine && !this.visibility.shown.has(space.id),
-    );
-
-    return isMachineLoading(layout, connected, waitingForSpace);
+  private isWaiting(): boolean {
+    return spaces().some((space) => !this.visibility.shown.has(space.id));
   }
 
-  private readonly retryPull = (git: GitInfo | null, cx: Context): void => {
-    if (git === null) {
-      return;
-    }
-
-    this.pulls.retry(git.repo, git.cwd, cx);
-  };
-
-  private draw(row: TreeRow, ids: readonly string[], cursor: string | null): Element {
+  private draw(row: ListedSpace, ids: readonly string[], cursor: string | null): Element {
     const state: RowState = {
       drag: this.drag,
-      hovered: this.hovered,
       cursor,
       lookup: (git) => this.pulls.lookup(git),
       attachDrag: (element, space, rowIds) => {
         this.addDragHandlers(element, space, rowIds);
       },
-      onHover: (spaceId, hovered, cx) => {
-        this.hovered = hoveredAfter(this.hovered, spaceId, hovered);
-        cx.notify();
-      },
-      toggleFold: (repoKey, cx) => {
-        this.drag = noDrag;
-        this.foldedRepos.toggle(repoKey);
-        cx.notify();
-      },
     };
 
-    return row.kind === 'repo' ? labelRow(row, ids, state) : spaceRow(row, ids, state);
+    return spaceRow(row, ids, state);
   }
 
-  private grouped(): Element[] {
-    const groups = this.ordered();
+  private readonly toggleFold = (key: string, cx: Context): void => {
+    this.drag = noDrag;
+    this.foldedProjects.toggle(key);
+    cx.notify();
+  };
+
+  private readonly retryPull = (git: GitInfo, cx: Context): void => {
+    this.pulls.retry(git.repo, git.cwd, cx);
+  };
+
+  private listRows(): Element[] {
+    const projects = this.projects();
     const ids = spaces().map((space) => space.id);
-    const shown = this.shownRows(groups);
-    const cursor = this.cursorRow(shown);
+    const cursor = this.cursorRow(projects);
 
     let cursorElement: Element | null = null;
 
-    this.order.publish(shown, ids);
+    this.order.publish(projects, ids);
 
-    const elements = machineRows({
-      machineList: this.machines.lookup(),
-      groups,
+    const elements = projectRows({
+      projects,
+      loading: this.isWaiting(),
       draw: (row) => {
         const element = this.draw(row, ids, cursor);
 
-        if (spaceIdOf(row) === cursor) {
+        if (row.space.id === cursor) {
           cursorElement = element;
         }
 
         return element;
       },
-      folded: (machine) => this.foldedMachines.has(machine ?? ''),
-      loading: (machine) => this.isLoading(machine),
-      addSpace: (machine) => {
-        run('space.new', newSpaceArguments(machine));
-      },
-      toggleFold: (machine) => {
-        this.foldedMachines.toggle(machine ?? '');
-      },
-      machineError: () => this.machines.errorLine(),
-      pullError: (git) => this.pulls.errorLine(git),
-      retryMachines: (cx) => {
-        this.machines.retry(cx);
-      },
+      pullFailed: (git) => this.pulls.failed(git),
       retryPull: this.retryPull,
+      toggleFold: this.toggleFold,
     });
 
     this.showCursor(elements, cursorElement);
