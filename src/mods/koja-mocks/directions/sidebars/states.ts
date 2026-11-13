@@ -8,7 +8,7 @@ import type { DirectionTokens } from '../tokens.ts';
 import { directionWindow } from '../window.ts';
 import type { FakeSpace } from './content.ts';
 import { fakeProjects } from './content.ts';
-import { dimFact, rowLine, sidebarGroup, titleLabel } from './facts.ts';
+import { ageFact, dimFact, rowLine, sidebarGroup, titleLabel } from './facts.ts';
 
 interface StateProject {
   name: string;
@@ -138,7 +138,7 @@ const spaceRow = (space: FakeSpace, tokens: DirectionTokens): Element =>
     {
       space,
       middle: [titleLabel(space, tokens)],
-      trailing: [],
+      trailing: ageFact(space, tokens),
       hovered: false,
       progress: true,
     },

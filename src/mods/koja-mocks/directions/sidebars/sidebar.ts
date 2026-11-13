@@ -6,6 +6,7 @@ import type { DirectionTokens } from '../tokens.ts';
 import type { FakeProject, FakeSpace } from './content.ts';
 import { fakeProjects } from './content.ts';
 import {
+  ageFact,
   dimFact,
   divider,
   groupHeader,
@@ -44,7 +45,7 @@ const mapRow = (space: FakeSpace, hovered: string | null, tokens: DirectionToken
     {
       space,
       middle: [titleLabel(space, tokens)],
-      trailing: [],
+      trailing: ageFact(space, tokens),
       hovered: space.title === hovered,
       progress: true,
     },
