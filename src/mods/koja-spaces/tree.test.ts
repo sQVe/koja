@@ -3,7 +3,7 @@ import { describe, expect, test } from 'bun:test';
 import type { SpaceInfo, Status } from 'herdr';
 
 import type { GitInfo, ListedSpace, TreeGroup, TreeRow } from './tree.ts';
-import { groupGapBefore, groupRows, machineOfGroup, nestSpaces, repoOf } from './tree.ts';
+import { groupGapBefore, groupRows, machineOfGroup, nestSpaces, placeOf, repoOf } from './tree.ts';
 
 const repoPath = '/code/koja/.git';
 
@@ -37,6 +37,7 @@ const listed = (space: SpaceInfo, git: GitInfo | null): ListedSpace => ({
   space,
   git,
   status: space.status,
+  place: placeOf(space.machine, git?.root ?? space.folder),
 });
 
 const list = (statuses: (Status | null)[] = [null, null]): ListedSpace[] => [

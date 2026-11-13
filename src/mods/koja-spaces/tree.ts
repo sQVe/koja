@@ -28,6 +28,7 @@ export interface ListedSpace {
   space: SpaceInfo;
   git: GitInfo | null;
   status: Status | null;
+  place: Place;
 }
 
 interface Fold {
@@ -86,11 +87,14 @@ export const repoOf = (machine: string | null, path: string): RepoRef => ({
   key: JSON.stringify([machine, path]),
 });
 
+export const placeOfSpace = (space: SpaceInfo, paneList: PaneInfo[]): Place =>
+  placeOf(space.machine ?? null, spaceFolder(space, paneList));
+
 export const placesOf = (spaceList: SpaceInfo[], paneList: PaneInfo[]): Record<string, Place> => {
   const at: Record<string, Place> = {};
 
   for (const space of spaceList) {
-    at[space.id] = placeOf(space.machine ?? null, spaceFolder(space, paneList));
+    at[space.id] = placeOfSpace(space, paneList);
   }
 
   return at;

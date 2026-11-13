@@ -5,7 +5,7 @@ import type { SpaceInfo } from 'herdr';
 import { readSpaceOrder } from '../../kit/spaceOrder.ts';
 import { createOrderPublisher } from './spaceOrder.ts';
 import type { GitInfo, ListedSpace, TreeRow } from './tree.ts';
-import { groupRows, nestSpaces, repoOf } from './tree.ts';
+import { groupRows, nestSpaces, placeOf, repoOf } from './tree.ts';
 
 const repoPath = '/code/koja/.git';
 
@@ -35,6 +35,7 @@ const listed = (id: string, git: GitInfo | null): ListedSpace => ({
   space: spaceOf(id),
   git,
   status: null,
+  place: placeOf(null, git?.root ?? ''),
 });
 
 const memoryStore = () => {

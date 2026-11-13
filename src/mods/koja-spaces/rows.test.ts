@@ -5,7 +5,7 @@ import type { SpaceInfo } from 'herdr';
 import type { Pull } from './pulls.ts';
 import { labelDetail, rowCut } from './rows.ts';
 import type { GitInfo, ListedSpace } from './tree.ts';
-import { repoOf } from './tree.ts';
+import { placeOf, repoOf } from './tree.ts';
 
 const twoMinutes = 120;
 
@@ -32,7 +32,7 @@ const mainCheckout = (branch: string | null, committedAt: number | null): Listed
     committedAt,
   };
 
-  return { space, git, status: null };
+  return { space, git, status: null, place: placeOf(null, git.root) };
 };
 
 const secondsAgo = (seconds: number): number => Math.floor(Date.now() / 1000) - seconds;

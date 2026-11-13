@@ -43,7 +43,7 @@ import { createOrderPublisher } from './spaceOrder.ts';
 import type { RowState } from './spaceRows.ts';
 import { labelRow, row as spaceRow } from './spaceRows.ts';
 import type { GitInfo, ListedSpace, TreeGroup, TreeRow } from './tree.ts';
-import { listedOf, nestSpaces, placesOf } from './tree.ts';
+import { listedOf, nestSpaces, placeOfSpace, placesOf } from './tree.ts';
 import type { VisibilityResult, VisibilityState } from './visibility.ts';
 import { advanceVisibility, initialVisibility } from './visibility.ts';
 
@@ -276,14 +276,18 @@ export default class Spaces extends View {
   private ordered(): TreeGroup[] {
     const spaceList = spaces();
     const paneList = panes();
-    const at = placesOf(spaceList, paneList);
 
     const list: ListedSpace[] = spaceList
-      .map((space) => ({
-        space,
-        git: this.git.lookup(at[space.id]?.key ?? '') ?? null,
-        status: this.statuses.spaces[space.id] ?? null,
-      }))
+      .map((space) => {
+        const place = placeOfSpace(space, paneList);
+
+        return {
+          space,
+          git: this.git.lookup(place.key) ?? null,
+          status: this.statuses.spaces[space.id] ?? null,
+          place,
+        };
+      })
       .filter((row) => this.visibility.shown.has(row.space.id));
 
     return nestSpaces(list, this.foldedRepos);

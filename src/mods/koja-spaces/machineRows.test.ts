@@ -15,7 +15,7 @@ import {
 import type { DrawnElement } from '../../../tests/drawn.ts';
 import { gpuiBaseFake, gpuiKitFake, herdrFake, kitIndexFake } from '../../../tests/moduleFakes.ts';
 import type { GitInfo, ListedSpace, TreeGroup, TreeRow } from './tree.ts';
-import { repoOf } from './tree.ts';
+import { placeOf, repoOf } from './tree.ts';
 
 interface MachineLike {
   name: string;
@@ -139,12 +139,13 @@ const repoFixture = (
   machine: string | null = null,
 ): RepoFixture => {
   const git = gitInfo('/repo/.git');
-  const main: ListedSpace = { space: space(id, machine), git, status: null };
+  const place = placeOf(machine, git.root);
+  const main: ListedSpace = { space: space(id, machine), git, status: null, place };
 
   const children =
     childId === null
       ? []
-      : [{ kind: 'space' as const, space: space(childId, machine), git, status: null }];
+      : [{ kind: 'space' as const, space: space(childId, machine), git, status: null, place }];
 
   const group: TreeGroup = {
     kind: 'repo',
@@ -188,7 +189,7 @@ const machinesError = 'Could not read machines.';
 
 const spaceGroup = (id: string, machine: string | null = null): TreeGroup => ({
   kind: 'space',
-  listed: { space: space(id, machine), git: null, status: null },
+  listed: { space: space(id, machine), git: null, status: null, place: placeOf(machine, '') },
 });
 
 const shownIds = (host: ShownRowsHostLike): string[] =>
@@ -328,7 +329,7 @@ describe('machineRows', () => {
 
     const worktree = (id: string): TreeGroup => ({
       kind: 'space',
-      listed: { space: space(id), git, status: null },
+      listed: { space: space(id), git, status: null, place: placeOf(null, git.root) },
     });
 
     const rows = loaded.machineRows(
