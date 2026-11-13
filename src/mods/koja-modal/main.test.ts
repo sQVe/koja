@@ -10,6 +10,7 @@ import {
 } from 'bun:test';
 
 import { gpuiKitFake, herdrFake, kitIndexFake } from '../../../tests/moduleFakes.ts';
+import { runNormalKeys, takeNormalKeys } from '../../kit/normalRun.ts';
 
 interface RunCall {
   command: string;
@@ -249,6 +250,16 @@ await mock.module('herdr', () =>
 const { overlayCloseCount, recordOverlayClose } = await import('../../kit/overlayOpen.ts');
 const { readSection, shownSections, writeSection } = await import('../../kit/section.ts');
 
+const herdrHost = {
+  shared: (key: string): unknown => sharedValues[key],
+  setShared: (key: string, value: unknown): void => {
+    sharedValues[key] = value;
+  },
+  run: (command: string, args?: Record<string, unknown>): void => {
+    runCalls.push({ command, args });
+  },
+};
+
 const markedSection = (): string => readSection((key) => sharedValues[key]);
 
 const markSidebar = (): void => {
@@ -279,6 +290,7 @@ await mock.module('../../kit/index.ts', () =>
     repeat: (_cx: unknown, _milliseconds: number, handler: () => void) => {
       tickHandler = handler;
     },
+    takeNormalKeys,
   }),
 );
 
@@ -652,6 +664,85 @@ describe('koja modal view', () => {
 
     expect(runCalls).toEqual([]);
     expect(closeCalls).toEqual([]);
+  });
+
+  test('run-keys runs the pending keys as typed keys and keeps the keyboard', async () => {
+    const view = await loadView();
+
+    view.render();
+    runNormalKeys(herdrHost, ['t', 'l']);
+    runCalls = [];
+    overlayFocused = false;
+
+    const focusBefore = focusCalls;
+
+    deliverCommand('run-keys');
+    await flush();
+    runAfterHandlers();
+
+    expect(runCalls).toEqual([{ command: 'tab.next', args: undefined }]);
+    expect(takeNormalKeys(herdrHost)).toBeNull();
+    expect(closeCalls).toEqual([]);
+    expect(overlayFocused).toBe(true);
+    expect(focusCalls).toBe(focusBefore + 1);
+  });
+
+  test('run-keys ignores a count typed before it', async () => {
+    const view = await loadView();
+
+    view.render();
+    keyDownHandler?.(plain('3'));
+    runNormalKeys(herdrHost, ['g', 't']);
+    runCalls = [];
+
+    deliverCommand('run-keys');
+    await flush();
+
+    expect(runCalls).toEqual([{ command: 'tab.next', args: undefined }]);
+  });
+
+  test('run-keys ignores a prefix typed before it', async () => {
+    const view = await loadView();
+
+    view.render();
+    keyDownHandler?.(plain('t'));
+    runNormalKeys(herdrHost, ['s', 'j']);
+    runCalls = [];
+
+    deliverCommand('run-keys');
+    await flush();
+
+    expect(runCalls).toEqual([{ command: 'space.next', args: undefined }]);
+  });
+
+  test('run-keys with no pending keys or an empty key list runs nothing', async () => {
+    const view = await loadView();
+
+    view.render();
+    deliverCommand('run-keys');
+    await flush();
+
+    runNormalKeys(herdrHost, []);
+    runCalls = [];
+    deliverCommand('run-keys');
+    await flush();
+
+    expect(runCalls).toEqual([]);
+    expect(closeCalls).toEqual([]);
+    expect(takeNormalKeys(herdrHost)).toBeNull();
+  });
+
+  test('starting normal mode runs the pending keys once', async () => {
+    runNormalKeys(herdrHost, ['t', 'l']);
+    runCalls = [];
+
+    const view = await loadView();
+
+    view.render();
+    deliverCommand('run-keys');
+    await flush();
+
+    expect(runCalls).toEqual([{ command: 'tab.next', args: undefined }]);
   });
 
   test('3gt selects the third tab', async () => {

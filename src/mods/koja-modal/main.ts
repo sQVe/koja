@@ -11,6 +11,7 @@ import {
   overlayId,
   repeat,
   shownSections,
+  takeNormalKeys,
 } from '../../kit/index.ts';
 import type { NormalAction } from '../../kit/normalKeys.ts';
 import { createExecutor } from './execute.ts';
@@ -92,6 +93,7 @@ export default class KojaModal extends View {
     this.executor.observe();
     this.keepKeyboard(cx);
     this.listenForCommands(cx);
+    this.runPendingKeys(cx);
   }
 
   override close(): void {
@@ -169,6 +171,20 @@ export default class KojaModal extends View {
     this.regainKeyboard(cx);
   }
 
+  private runPendingKeys(cx: Context): void {
+    const keys = takeNormalKeys({ setShared, shared });
+
+    if (keys === null) {
+      return;
+    }
+
+    this.state = initialParserState;
+
+    for (const key of keys) {
+      this.handleKeyName(key, cx);
+    }
+  }
+
   private leave(): void {
     this.sections.reset();
     closeOverlay(overlayId());
@@ -203,6 +219,10 @@ export default class KojaModal extends View {
         if (command === 'hold') {
           this.handleKeyName('ctrl-b', cx);
           this.hold.check();
+        }
+
+        if (command === 'run-keys') {
+          this.runPendingKeys(cx);
         }
       }
     });

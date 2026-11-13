@@ -128,6 +128,8 @@ export { closeOverlay, openAtTop, overlayId } from './overlay.ts';
 
 export { repeat } from './timer.ts';
 
+export { runNormalKeys, takeNormalKeys } from './normalRun.ts';
+
 export { overlayCloseCount, recordOverlayClose } from './overlayOpen.ts';
 
 export { listActionOf, readSection, shownSections } from './section.ts';
