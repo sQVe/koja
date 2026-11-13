@@ -56,10 +56,19 @@ const staleRows = (): Element =>
     )
     .children(staleFiles.map(staleRow));
 
+const wrappedError = [
+  "fatal: 'feat/search-results' is already checked out at '/work/koja/feat-search-results', so Grove cannot add another worktree for it until that worktree is removed or switched to another branch.",
+  'hint: remove that worktree first, or pick another branch name.',
+].join('\n');
+
 export const states = (): Element[] => [
   sample(
     'Empty, loading, and error states, each with and without an action',
     v_flex().gap(spacing.xxsmall).children(stateKinds.map(kindLines)),
   ),
   sample('Stale rows: the error line names its resource and its age', staleRows()),
+  sample(
+    'A wrapping error line shows its whole message',
+    stateLine({ kind: 'error', text: wrappedError, wrap: true }),
+  ),
 ];

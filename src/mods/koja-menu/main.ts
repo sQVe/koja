@@ -10,6 +10,7 @@ import {
   icon,
   keyHint,
   listRow,
+  openGroveDialog,
   openWorktreeDialog,
   popupSurface,
   separator,
@@ -25,6 +26,7 @@ import { menuEntries, readMenuProps, selectedIndex, stepSelection } from './entr
 const menuHost: MenuHost = {
   run: askFirst,
   openWorktreeDialog,
+  openGroveDialog,
   terminals,
   themes: themeChoices,
 };

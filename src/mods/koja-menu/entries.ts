@@ -2,7 +2,7 @@ import { bindingAction } from '../../kit/binding.ts';
 import { recordOf, stringOf } from '../../kit/fields.ts';
 import type { IconName } from '../../kit/iconNames.ts';
 import type { ThemeChoice } from '../../kit/themes.ts';
-import type { WorktreeAction } from '../../kit/worktree.ts';
+import type { GroveAction, WorktreeAction } from '../../kit/worktree.ts';
 
 type MenuKind = 'pane' | 'tab' | 'space' | 'global';
 
@@ -38,6 +38,7 @@ export interface TerminalFacts {
 export interface MenuHost {
   run: (command: string, args: Record<string, unknown>) => void;
   openWorktreeDialog: (action: WorktreeAction, space: string | null) => void;
+  openGroveDialog: (action: GroveAction, space: string | null) => void;
   terminals: () => unknown[];
   themes: () => ThemeChoice[];
 }
@@ -167,17 +168,32 @@ const worktreeEntry = (
   },
 });
 
+const groveEntry = (
+  host: MenuHost,
+  label: string,
+  space: string | null,
+  action: GroveAction,
+): MenuEntry => ({
+  label,
+  icon: 'git-branch',
+  shortcuts: [],
+  group: false,
+  action: () => {
+    host.openGroveDialog(action, space);
+  },
+});
+
 const spaceEntries = (host: MenuHost, target: MenuTarget, checkout: Checkout): MenuEntry[] => {
   const worktreeItems =
     checkout === null
       ? []
       : [
-          worktreeEntry(host, 'New worktree', target.id, 'new'),
+          groveEntry(host, 'New worktree', target.id, 'new'),
           worktreeEntry(host, 'Open worktree', target.id, 'open'),
         ];
 
   const removeItems =
-    checkout === 'linked' ? [worktreeEntry(host, 'Remove worktree', target.id, 'remove')] : [];
+    checkout === 'linked' ? [groveEntry(host, 'Remove worktree', target.id, 'remove')] : [];
 
   return [
     commandEntry(host, 'Rename', 'square-pen', 'space.rename', { id: target.id }),
