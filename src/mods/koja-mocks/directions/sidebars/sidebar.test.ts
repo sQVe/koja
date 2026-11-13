@@ -59,28 +59,31 @@ const scenes = [
   { name: 'sidebar-states', tokens: koja, render: () => machineTagScene(koja) },
 ];
 
-test.each(scenes)('$name shows only non-working, non-selected row ages', (scene) => {
-  const sidebar = scene.render();
-  const texts = drawnTexts(sidebar);
+test.each(scenes)(
+  '$name shows ages only on blocked and done rows that are not selected',
+  (scene) => {
+    const sidebar = scene.render();
+    const texts = drawnTexts(sidebar);
 
-  expect(texts).toContain('Tau workflow sidebar');
-  expect(texts).toContain('Design the sidebar');
+    expect(texts).toContain('Tau workflow sidebar');
+    expect(texts).toContain('Design the sidebar');
 
-  for (const age of ['2m', '18m', '1h', '1d', '3d']) {
-    expect(texts).toContain(age);
-    expect(elementWithText(sidebar, age)?.textColors).toEqual([scene.tokens.ink.dim]);
+    for (const age of ['2m', '18m']) {
+      expect(texts).toContain(age);
+      expect(elementWithText(sidebar, age)?.textColors).toEqual([scene.tokens.ink.dim]);
 
-    expect(elementWithText(sidebar, age)?.styles['text_size']).toEqual([
-      scene.tokens.text.detail.size,
-    ]);
-  }
+      expect(elementWithText(sidebar, age)?.styles['text_size']).toEqual([
+        scene.tokens.text.detail.size,
+      ]);
+    }
 
-  for (const age of ['now', '5m', '1m']) {
-    expect(texts).not.toContain(age);
-  }
-});
+    for (const age of ['now', '5m', '1m', '1h', '1d', '3d']) {
+      expect(texts).not.toContain(age);
+    }
+  },
+);
 
-test('a selected non-working row has no age', () => {
+test('a selected done row has no age', () => {
   const projects = fakeProjects.map((project) => ({
     ...project,
     spaces: project.spaces.map((space) => ({ ...space, selected: space.age === '18m' })),

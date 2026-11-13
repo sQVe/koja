@@ -224,27 +224,42 @@ describe('koja-spaces wait ages', () => {
     expect(ageOf(view, 'a')).toBeNull();
   });
 
-  test('an idle space shows the age since the user last showed it, and the shown one none', async () => {
-    showSpaces({ a: 'idle', b: 'idle' }, 'a');
+  test('an idle space draws no age after the user shows it and leaves it', async () => {
+    showSpaces({ a: 'working', b: 'idle' }, 'b');
 
     const view = await loadView();
 
     checkAt(start);
-    checkAt(start + minute);
     showSpaces({ a: 'idle', b: 'idle' }, 'b');
-    checkAt(start + minute + 250);
-    setSystemTime(start + 4 * minute);
+    checkAt(start + minute);
+    showSpaces({ a: 'idle', b: 'idle' }, 'a');
+    checkAt(start + 2 * minute);
+    showSpaces({ a: 'idle', b: 'idle' }, 'b');
+    checkAt(start + 3 * minute);
+    setSystemTime(start + 9 * minute);
 
-    expect(ageOf(view, 'a')).toBe('3m');
-    expect(ageOf(view, 'b')).toBeNull();
+    expect(ageOf(view, 'a')).toBeNull();
   });
 
-  test('both ages are still drawn after the mod starts again from its saved times', async () => {
-    showSpaces({ a: 'blocked', b: 'idle', c: null }, 'b');
+  test('a space without an agent draws no age', async () => {
+    showSpaces({ a: null, b: null }, 'a');
+
+    const view = await loadView();
+
+    checkAt(start);
+    showSpaces({ a: null, b: null }, 'b');
+    checkAt(start + minute);
+    setSystemTime(start + 9 * minute);
+
+    expect(ageOf(view, 'a')).toBeNull();
+  });
+
+  test('blocked and done ages are still drawn after the mod starts again from its saved times', async () => {
+    showSpaces({ a: 'blocked', b: 'working', c: null }, 'c');
     await loadView();
     checkAt(start);
-    showSpaces({ a: 'blocked', b: 'idle', c: null }, 'c');
-    checkAt(start + 250);
+    showSpaces({ a: 'blocked', b: 'done', c: null }, 'c');
+    checkAt(start + minute);
 
     timers = [];
     setSystemTime(start + 10 * minute);
@@ -254,7 +269,7 @@ describe('koja-spaces wait ages', () => {
     checkAt(start + 10 * minute);
 
     expect(ageOf(restarted, 'a')).toBe('10m');
-    expect(ageOf(restarted, 'b')).toBe('10m');
+    expect(ageOf(restarted, 'b')).toBe('9m');
   });
 
   test('saves at once on a change, and otherwise at most once a minute', async () => {
@@ -298,14 +313,14 @@ describe('koja-spaces wait ages', () => {
   });
 
   test('the check redraws when the shown space changes', async () => {
-    showSpaces({ a: 'idle', b: null }, 'b');
+    showSpaces({ a: 'blocked', b: null }, 'b');
     await loadView();
     checkAt(start);
     checkAt(start + 250);
 
     const before = notifyCalls;
 
-    showSpaces({ a: 'idle', b: null }, 'a');
+    showSpaces({ a: 'blocked', b: null }, 'a');
     checkAt(start + 500);
 
     expect(notifyCalls - before).toBe(1);

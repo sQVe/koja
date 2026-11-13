@@ -54,7 +54,9 @@ export const dimFact = (text: string, tokens: DirectionTokens): Element =>
   fixedLabel(text, tokens.text.detail, tokens.ink.dim);
 
 export const ageFact = (space: FakeSpace, tokens: DirectionTokens): Element[] => {
-  if (space.selected || space.agent === 'working') {
+  const waiting = space.agent === 'blocked' || space.agent === 'done';
+
+  if (space.selected || !waiting) {
     return [];
   }
 
