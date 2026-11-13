@@ -1,7 +1,7 @@
 import { ScrollHandle, v_flex } from 'gpui-base';
 import type { AsyncContext, Context, Element } from 'gpui-kit';
 import { div, View } from 'gpui-kit';
-import type { SpaceInfo } from 'herdr';
+import type { PaneInfo, SpaceInfo } from 'herdr';
 import { nextCommand, openOverlay, panes, run, setShared, shared, spaces, terminals } from 'herdr';
 
 import type { DragState } from '../../kit/drag.ts';
@@ -35,10 +35,16 @@ import type { GitInfo, ListedSpace } from './tree.ts';
 import { placeOfSpace, placesOf } from './tree.ts';
 import type { VisibilityResult, VisibilityState } from './visibility.ts';
 import { advanceVisibility, initialVisibility } from './visibility.ts';
+import type { WaitTimes } from './waitTimes.ts';
+import { advanceWaitTimes, readWaitTimes, waitAge } from './waitTimes.ts';
 
 const pullsMilliseconds = 15_000;
 
 const checkMilliseconds = 250;
+
+const ageMilliseconds = 60_000;
+
+const waitTimesKey = 'wait.times';
 
 const projectsFoldedKey = 'repos.folded';
 
@@ -67,6 +73,10 @@ export default class Spaces extends View {
   private readonly foldedProjects = foldedSet(projectsFoldedKey, storage);
 
   private readonly order = createOrderPublisher(setShared);
+
+  private waitTimes: WaitTimes = readWaitTimes(storage.get(waitTimesKey));
+
+  private waitTimesSavedAt = Number.NEGATIVE_INFINITY;
 
   private visibility: VisibilityState = initialVisibility(spaces().map((space) => space.id));
 
@@ -97,6 +107,10 @@ export default class Spaces extends View {
 
     repeat(cx, checkMilliseconds, (timerCx) => {
       this.checkNew(timerCx);
+    });
+
+    repeat(cx, ageMilliseconds, (timerCx) => {
+      timerCx.notify();
     });
 
     this.listenForCommands(cx);
@@ -204,10 +218,25 @@ export default class Spaces extends View {
     });
   }
 
+  private trackWaits(spaceList: SpaceInfo[], paneList: PaneInfo[], now: number): boolean {
+    const statuses = rollupStatuses(spaceList, paneList, terminals()).spaces;
+    const result = advanceWaitTimes(this.waitTimes, { statuses, active: activeSpaceId(), now });
+
+    this.waitTimes = result.times;
+
+    if (result.changed || now - this.waitTimesSavedAt >= ageMilliseconds) {
+      storage.set(waitTimesKey, JSON.stringify(result.times));
+      this.waitTimesSavedAt = now;
+    }
+
+    return result.changed;
+  }
+
   private checkNew(cx: Context): void {
     const spaceList = spaces();
     const paneList = panes();
     const at = placesOf(spaceList, paneList);
+    const waitsChanged = this.trackWaits(spaceList, paneList, Date.now());
 
     this.git.prune(new Set(Object.values(at).map((place) => place.key)));
 
@@ -224,7 +253,7 @@ export default class Spaces extends View {
       );
     }
 
-    if (result.changed || result.waiting) {
+    if (result.changed || result.waiting || waitsChanged) {
       cx.notify();
     }
   }
@@ -265,9 +294,13 @@ export default class Spaces extends View {
   }
 
   private draw(row: ListedSpace, ids: readonly string[], cursor: string | null): Element {
+    const waiting = { id: row.space.id, status: row.status, active: row.space.active };
+    const age = waitAge(this.waitTimes, waiting, Date.now());
+
     const state: RowState = {
       drag: this.drag,
       cursor,
+      age,
       lookup: (git) => this.pulls.lookup(git),
       attachDrag: (element, space, rowIds) => {
         this.addDragHandlers(element, space, rowIds);

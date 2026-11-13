@@ -34,6 +34,14 @@ surface uses it instead of Herdr's status.
 One function keeps the three surfaces in agreement, as [ADR 0004](./0004-separate-mods-one-kit.md)
 requires for shared logic.
 
+Koja also keeps its own wait times for the sidebar's row ages, and saves them in the sidebar mod's
+local storage so they last across a restart.
+
+- A blocked or done space counts its age from when its rolled-up status entered that state. A saved
+  time is kept only while the status stays the same.
+- An idle space, or one without an agent, counts its age from when the user last showed it.
+- A space shows no age while it works, while the user shows it, or when Koja has no time for it.
+
 ## Consequences
 
 ### Positive
@@ -47,6 +55,8 @@ requires for shared logic.
 - An unseen finished turn is hidden while any pane or sub-agent in the same space or tab works.
 - A sub-agent's finished turn alone never shows a space or tab as done.
 - Koja's status can differ from the status Herdr shows for the same space or tab.
+- A wait time starts when Koja first sees the state. A change while Koja is not running counts from
+  its next start, and a last-shown time can lose up to one minute when Koja stops.
 - When Herdr exposes a full status for every terminal, this function should move to it, and this ADR
   must change.
 
@@ -61,6 +71,12 @@ sub-agents.
 
 Make Herdr roll up every terminal in the Herdr fork. Rejected because Koja would carry a Herdr
 change it does not own. The request goes to Herdr upstream instead.
+
+### Use Herdr's `changed_at` for wait times
+
+Count a row's age from the time Herdr records for an agent's last status change. Rejected because
+Herdr's `changed_at` is empty after a restart, and it cannot give the time the user last showed a
+space, because mods cannot read Herdr's seen state.
 
 ### Guess done for terminals without a pane
 
