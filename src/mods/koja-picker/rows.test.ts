@@ -145,7 +145,7 @@ describe('buildRows', () => {
     expect(keysOf(buildRows('', ['working'], fixture))).toStrictEqual(['space:s1', 'tab:k1']);
   });
 
-  test('lists a done space and tab only in the done filter while a child works', () => {
+  test('lists a done space and tab only in the working filter while a child works', () => {
     const fixture = data(
       {
         spaces: [spaceOf('s1', 1, 'koja', [tabOf('k1', 1, true), tabOf('k2', 2)])],
@@ -154,8 +154,8 @@ describe('buildRows', () => {
       [{ address: 't-child', parent: 't-p1', status: 'working' }],
     );
 
-    expect(keysOf(buildRows('', ['done'], fixture))).toStrictEqual(['space:s1', 'tab:k1']);
-    expect(keysOf(buildRows('', ['working'], fixture))).toStrictEqual([]);
+    expect(keysOf(buildRows('', ['done'], fixture))).toStrictEqual([]);
+    expect(keysOf(buildRows('', ['working'], fixture))).toStrictEqual(['space:s1', 'tab:k1']);
   });
 
   test('keeps only spaces that match the query', () => {
@@ -264,13 +264,13 @@ describe('buildRows', () => {
     const fixture = data({
       spaces: [spaceOf('s1', 1, 'koja', [tabOf('k1', 1, true), tabOf('k2', 2)])],
       panes: [
-        paneOf('p1', 'k1', 'working'),
-        paneOf('p2', 'k1', 'done'),
+        paneOf('p1', 'k1', 'done'),
+        paneOf('p2', 'k1', 'working'),
         paneOf('p3', 'k2', 'blocked'),
       ],
     });
 
-    expect(keysOf(buildRows('', ['working', 'blocked'], fixture))).toStrictEqual([
+    expect(keysOf(buildRows('', ['done', 'blocked'], fixture))).toStrictEqual([
       'space:s1',
       'pane:p1',
       'tab:k2',
