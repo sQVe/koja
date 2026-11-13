@@ -12,7 +12,6 @@ import type { GitInfo, ListedSpace } from './tree.ts';
 
 export interface RowState {
   drag: DragState;
-  // The row the drag is over that the dragged space cannot land on.
   refused: string | null;
   cursor: string | null;
   age: string | null;

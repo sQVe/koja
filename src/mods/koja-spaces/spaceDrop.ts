@@ -14,7 +14,6 @@ const childrenWith = (
 ): ProjectChildren | null =>
   projects.find((children) => children.includes(source) && children.includes(target)) ?? null;
 
-// A space lands only on itself or on another space below the same project header.
 export const canDrop = (
   projects: readonly ProjectChildren[],
   source: string,
@@ -29,7 +28,6 @@ const movedChildren = (children: ProjectChildren, source: string, target: string
   return rest;
 };
 
-// The project's spaces take its own places in the order, so every other space stays where it is.
 const wantedOrder = (
   order: readonly string[],
   children: ProjectChildren,
@@ -40,7 +38,6 @@ const wantedOrder = (
   return order.map((id) => (children.includes(id) ? (queue.shift() ?? id) : id));
 };
 
-// The places in values of one longest run of rising values.
 const risingRun = (values: readonly number[]): Set<number> => {
   const lengths: number[] = [];
   const previous: number[] = [];
@@ -71,8 +68,6 @@ const risingRun = (values: readonly number[]): Set<number> => {
   return run;
 };
 
-// Keeps the longest run already in wanted order still, and puts each other space after the one
-// it should follow, so most drops need one move.
 const movesBetween = (order: readonly string[], wanted: readonly string[]): SpaceMove[] => {
   const kept = risingRun(order.map((id) => wanted.indexOf(id)));
   const keptIds = new Set(order.filter((_id, index) => kept.has(index)));
@@ -95,8 +90,6 @@ const movesBetween = (order: readonly string[], wanted: readonly string[]): Spac
   return moves;
 };
 
-// The moves that put source where target is within their project: above it when moving up, below
-// it when moving down. Each move counts on Herdr having made the moves before it.
 export const dropMoves = (
   order: readonly string[],
   projects: readonly ProjectChildren[],

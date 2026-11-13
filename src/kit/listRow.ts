@@ -12,7 +12,6 @@ import { colors } from './theme.ts';
 
 export type RowState = 'normal' | 'selected' | 'disabled';
 
-// Where a dragged row would land, or that it cannot land on this row.
 export type DropMark = 'top' | 'bottom' | 'refused';
 
 export interface ListRowOptions extends HoverOptions {

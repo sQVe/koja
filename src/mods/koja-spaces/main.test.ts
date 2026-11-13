@@ -587,7 +587,6 @@ const handlersOf = (element: DrawnElement, name: string): MouseHandler[] =>
   element.mouseHandlers[name] ?? [];
 
 describe('koja-spaces drag and drop', () => {
-  // Each id names its project: "alpha" is the main space, "alpha-1" a linked worktree.
   const useSpaces = (ids: string[]): void => {
     gitByFolder = {};
 
