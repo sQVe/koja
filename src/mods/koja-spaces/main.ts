@@ -81,8 +81,6 @@ export default class Spaces extends View {
 
   private waitTimes: WaitTimes = readWaitTimes(storage.get(waitTimesKey));
 
-  private waitTimesSavedAt = Number.NEGATIVE_INFINITY;
-
   private visibility: VisibilityState = initialVisibility(spaces().map((space) => space.id));
 
   private drag: DragState = noDrag;
@@ -233,9 +231,8 @@ export default class Spaces extends View {
 
     this.waitTimes = result.times;
 
-    if (result.changed || now - this.waitTimesSavedAt >= ageMilliseconds) {
+    if (result.changed) {
       storage.set(waitTimesKey, JSON.stringify(result.times));
-      this.waitTimesSavedAt = now;
     }
 
     return result.changed;
