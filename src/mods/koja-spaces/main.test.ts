@@ -577,7 +577,7 @@ describe('koja-spaces main space header', () => {
 
 const projectCheckout = (project: string, folder: string, linked: boolean): GitInfo => ({
   branch: 'main',
-  repo: repoOf(null, `/code/${project}/.git`),
+  repo: repositoryOf(null, `/code/${project}/.git`),
   root: folder,
   cwd: folder,
   linked,
