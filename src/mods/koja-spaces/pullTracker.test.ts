@@ -28,7 +28,7 @@ interface PullLike {
 
 interface PullTrackerLike {
   lookup: (git: GitLike) => PullLike | null;
-  errorLine: (git: GitLike) => string | null;
+  failed: (git: GitLike) => boolean;
   refresh: (repositories: { repo: RepoRefLike; cwd: string }[], cx: unknown) => void;
   retry: (repo: RepoRefLike, cwd: string, cx: unknown) => void;
 }
@@ -116,7 +116,7 @@ afterEach(() => {
 });
 
 describe('PullTracker', () => {
-  test('a failed PR read keeps the old numbers and shows an error with their age', async () => {
+  test('a failed PR read keeps the old numbers and reports the failure', async () => {
     setSystemTime(new Date('2026-01-01T00:00:00.000Z'));
     const tracker = new loaded.PullTracker();
 
@@ -132,10 +132,10 @@ describe('PullTracker', () => {
     await flush();
 
     expect(tracker.lookup(git)?.number).toBe(7);
-    expect(tracker.errorLine(git)).toBe('koja PRs are 6m old.');
+    expect(tracker.failed(git)).toBe(true);
   });
 
-  test('Retry clears the error after a good read', async () => {
+  test('Retry clears the failure after a good read', async () => {
     setSystemTime(new Date('2026-01-01T01:00:00.000Z'));
     const tracker = new loaded.PullTracker();
 
@@ -146,17 +146,17 @@ describe('PullTracker', () => {
     tracker.refresh([{ repo, cwd: repo.path }], context);
     await flush();
 
-    expect(tracker.errorLine(git)).toBe('Could not read koja PRs.');
+    expect(tracker.failed(git)).toBe(true);
 
     nextRead = async () => ({ code: 0, stdout: pulled });
     tracker.retry(repo, repo.path, context);
     await flush();
 
     expect(tracker.lookup(git)?.number).toBe(7);
-    expect(tracker.errorLine(git)).toBeNull();
+    expect(tracker.failed(git)).toBe(false);
   });
 
-  test('a repository without a remote has no PRs and no error', async () => {
+  test('a repository without a remote has no PRs and no failure', async () => {
     setSystemTime(new Date('2026-01-01T02:00:00.000Z'));
     const tracker = new loaded.PullTracker();
 
@@ -165,11 +165,11 @@ describe('PullTracker', () => {
     tracker.refresh([{ repo, cwd: repo.path }], context);
     await flush();
 
-    expect(tracker.errorLine(git)).toBeNull();
+    expect(tracker.failed(git)).toBe(false);
     expect(tracker.lookup(git)).toBeNull();
   });
 
-  test('a failed remote read shows the error line', async () => {
+  test('a failed remote read reports the failure', async () => {
     setSystemTime(new Date('2026-01-01T03:00:00.000Z'));
     const tracker = new loaded.PullTracker();
 
@@ -178,10 +178,10 @@ describe('PullTracker', () => {
     tracker.refresh([{ repo, cwd: repo.path }], context);
     await flush();
 
-    expect(tracker.errorLine(git)).not.toBeNull();
+    expect(tracker.failed(git)).toBe(true);
   });
 
-  test('a repository with a remote whose PR read fails shows the error line', async () => {
+  test('a repository with a remote whose PR read fails reports the failure', async () => {
     setSystemTime(new Date('2026-01-01T04:00:00.000Z'));
     const tracker = new loaded.PullTracker();
 
@@ -189,6 +189,6 @@ describe('PullTracker', () => {
     tracker.refresh([{ repo, cwd: repo.path }], context);
     await flush();
 
-    expect(tracker.errorLine(git)).not.toBeNull();
+    expect(tracker.failed(git)).toBe(true);
   });
 });

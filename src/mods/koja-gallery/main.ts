@@ -13,7 +13,6 @@ import { marks } from './marks.ts';
 import { popupSurfaces } from './popup.ts';
 import { rows } from './rows.ts';
 import { searchAndText } from './searchAndText.ts';
-import { sidebarSamples } from './sidebar.ts';
 import { sidebarParts } from './sidebarParts.ts';
 import { states } from './states.ts';
 import { tabs } from './tabs.ts';
@@ -54,7 +53,6 @@ export default class Gallery extends View {
       .child(section('Text roles', textSizes()))
       .child(section('Icons', icons()))
       .child(section('Status marks', marks()))
-      .child(section('Sidebar', sidebarSamples()))
       .child(section('Sidebar parts', sidebarParts()))
       .child(section('Section headers', headers()))
       .child(

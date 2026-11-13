@@ -35,8 +35,6 @@ export type { PaneHeaderMenuAction } from './paneHeaderMenuModel.ts';
 
 export { shortAge } from './age.ts';
 
-export { foldChevron, repoLabel } from './repoLabel.ts';
-
 export { projectHeader } from './projectHeader.ts';
 
 export { popupSurface } from './popupSurface.ts';
@@ -104,7 +102,7 @@ export { colors } from './theme.ts';
 
 export { diffTints, normalFocusFill } from './palette.ts';
 
-export type { Palette, ThemeToken } from './palette.ts';
+export type { Palette } from './palette.ts';
 
 export { listOf, numberOf, recordOf, stringOf } from './fields.ts';
 

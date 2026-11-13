@@ -46,7 +46,7 @@ Neovim's keys where they fit.
 ### Single keys and aliases
 
 The bracket family serves repeated moves: `]` `[` step spaces, `)` `(` step tabs, and `}` `{` go to
-the main space of the next and previous repository. Plain `h/j/k/l` move between panes because no
+the first space of the next and previous project. Plain `h/j/k/l` move between panes because no
 cursor needs them. `H/J/K/L` give repeated pane swaps one alias each. `Space` goes to the next pane
 that needs you, as the one-key alias of `g a`, because the user repeats this jump more than any
 other.

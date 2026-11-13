@@ -57,7 +57,6 @@ export class GitTracker {
     at: Record<string, Place>,
     spaceList: SpaceInfo[],
     paneList: PaneInfo[],
-    foldedMachine: (machine: string) => boolean,
   ): Set<string> {
     const placeByKey = new Map<string, Place>(
       Object.values(at)
@@ -81,7 +80,7 @@ export class GitTracker {
     this.addReturnedMachines(placeByKey, due);
 
     if (currentWindow()?.active === true) {
-      this.addFallbacks(now, placeByKey, keys, due, foldedMachine);
+      this.addFallbacks(now, keys, due);
     }
 
     return due;
@@ -200,13 +199,7 @@ export class GitTracker {
     }
   }
 
-  private addFallbacks(
-    now: number,
-    placeByKey: Map<string, Place>,
-    keys: Set<string>,
-    due: Set<string>,
-    foldedMachine: (machine: string) => boolean,
-  ): void {
+  private addFallbacks(now: number, keys: Set<string>, due: Set<string>): void {
     for (const key of keys) {
       const asks = this.git[key] !== null && this.git[key] !== undefined;
       const noRepository = this.git[key] === null;
@@ -215,10 +208,9 @@ export class GitTracker {
         noRepository && negativeEntryExpired(this.checked[key], now, fallbackMilliseconds);
 
       const known = asks || this.unsure.has(key) || expired;
-      const machine = placeByKey.get(key)?.machine ?? '';
       const stale = now - (this.checked[key] ?? 0) > fallbackMilliseconds;
 
-      if (known && !foldedMachine(machine) && stale) {
+      if (known && stale) {
         due.add(key);
       }
     }

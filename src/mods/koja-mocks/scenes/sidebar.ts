@@ -9,12 +9,11 @@ import {
   detailText,
   listRow,
   radius,
-  repoLabel,
+  projectHeader,
   shortAge,
   spaceMark,
   spacing,
   stateLine,
-  statusMark,
   toggleButton,
 } from '../../../kit/index.ts';
 
@@ -28,18 +27,11 @@ interface FakeSpace {
 
 interface FakeRepo {
   name: string;
-  branch: string;
-  age: string;
-  status: Status | null;
   error?: string;
   spaces: FakeSpace[];
 }
 
 const fakeNow = 1_800_000_000;
-
-const kojaCommittedAt = 1_799_992_200;
-
-const tikkCommittedAt = 1_799_740_800;
 
 const kojaPullsReadAt = 1_799_999_640;
 
@@ -48,9 +40,6 @@ const ageOf = (thenSeconds: number): string => shortAge(thenSeconds, fakeNow);
 const fakeRepos: FakeRepo[] = [
   {
     name: 'koja',
-    branch: 'main',
-    age: ageOf(kojaCommittedAt),
-    status: 'blocked',
     error: `koja PRs are ${ageOf(kojaPullsReadAt)} old.`,
     spaces: [
       {
@@ -76,9 +65,6 @@ const fakeRepos: FakeRepo[] = [
   },
   {
     name: 'tikk',
-    branch: 'main',
-    age: ageOf(tikkCommittedAt),
-    status: 'done',
     spaces: [
       {
         label: 'ticket-sync',
@@ -121,26 +107,14 @@ const spaceRow = (space: FakeSpace): Element =>
     end: spaceEnd(space),
   });
 
-const repoRow = (repo: FakeRepo): Element =>
-  listRow({
-    size: 'small',
-    inset: true,
-    state: 'normal',
-    label: repoLabel({
-      name: repo.name,
-      branch: repo.branch,
-      age: repo.age,
-      folded: false,
-      selected: false,
-    }),
-    end: [statusMark(repo.status)],
-  });
+const repoHeader = (repo: FakeRepo): Element =>
+  projectHeader({ name: repo.name, folded: false, hidden: 0, onToggle: () => undefined });
 
 const errorLine = (text: string): Element =>
   stateLine({ kind: 'error', text, action: toggleButton({ label: 'Retry', active: false }) });
 
 const repoGroup = (repo: FakeRepo): Element => {
-  const group = v_flex().child(repoRow(repo));
+  const group = v_flex().child(repoHeader(repo));
 
   if (repo.error !== undefined) {
     group.child(errorLine(repo.error));
