@@ -77,12 +77,16 @@ const machineParts = (project: MarkProject): Element[] =>
     ? []
     : [icon('server', 'small').text_color(colors().dim), roleText('detail', project.machine)];
 
+// In the left-mark variant, a header that is not a space keeps the section heading's own tone.
+const nameTone = (project: MarkProject, variant: HeaderMarkVariant): 'foreground' | 'muted' =>
+  variant === 'leftActive' && project.main === null ? 'muted' : 'foreground';
+
 const nameLabel = (project: MarkProject, variant: HeaderMarkVariant): Element =>
   h_flex()
     .min_w(0)
     .gap(spacing.small)
     .items_center()
-    .child(roleText('sectionHeading', project.name, 'foreground'))
+    .child(roleText('sectionHeading', project.name, nameTone(project, variant)))
     .children(variant === 'afterName' ? activeMark(project) : [])
     .children(machineParts(project));
 
@@ -124,6 +128,29 @@ const leftMark = (project: MarkProject, variant: HeaderMarkVariant): Element | u
   return activeMark(project)[0] ?? statusMark(null);
 };
 
+const hiddenParts = (project: MarkProject): Element[] =>
+  project.hidden > 0 ? [roleText('detail', `${project.hidden} more`)] : [];
+
+// The left-mark variant puts the chevron in the rows' work icon column, so it keeps one place and
+// the header's age lines up with the rows' ages.
+const foldSlot = (project: MarkProject): Element => {
+  if (project.hidden > 0) {
+    return chevron('chevron-right');
+  }
+
+  return project.look === 'hovered' ? chevron('chevron-down') : emptyWorkSlot();
+};
+
+const headerEnd = (project: MarkProject, variant: HeaderMarkVariant): Element[] => {
+  const age = ageParts(project.main?.age);
+
+  if (variant === 'leftActive') {
+    return [...hiddenParts(project), ...age, foldSlot(project)];
+  }
+
+  return [...foldParts(project), ...age, rightMark(project, variant)];
+};
+
 const headerRow = (project: MarkProject, variant: HeaderMarkVariant): Element => {
   const start = leftMark(project, variant);
 
@@ -134,7 +161,7 @@ const headerRow = (project: MarkProject, variant: HeaderMarkVariant): Element =>
     hovered: project.look === 'hovered',
     ...(start === undefined ? {} : { start }),
     label: nameLabel(project, variant),
-    end: [...foldParts(project), ...ageParts(project.main?.age), rightMark(project, variant)],
+    end: headerEnd(project, variant),
   });
 };
 
