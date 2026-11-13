@@ -108,6 +108,7 @@ const mainHeader = (name: string, look: HeaderLook): Element => {
     hidden: folded ? 2 : 0,
     onToggle: () => undefined,
     mark: spaceMark('idle'),
+    age: null,
     selected: look.selected ?? false,
     cursor: false,
     hovered: look.hovered ?? false,

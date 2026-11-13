@@ -375,8 +375,7 @@ export default class Spaces extends View {
       projects,
       loading: this.isWaiting(),
       draw: (row) => keepCursor(row, this.draw(row, ids, cursor, now)),
-      drawMain: (project, main) =>
-        keepCursor(main, this.drawMain(project, main, ids, cursor, now)),
+      drawMain: (project, main) => keepCursor(main, this.drawMain(project, main, ids, cursor, now)),
       pullFailed: (git) => this.pulls.failed(git),
       retryPull: this.retryPull,
       toggleFold: this.toggleFold,

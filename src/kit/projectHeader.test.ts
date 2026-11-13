@@ -27,6 +27,7 @@ interface FoldHeaderOptions extends HeaderBase {
 interface SpaceHeaderOptions extends HeaderBase {
   kind: 'space';
   mark: DrawnElement;
+  age: string | null;
   selected: boolean;
   cursor: boolean;
   hovered: boolean;
@@ -80,6 +81,7 @@ const spaceOptions = (overrides: Partial<SpaceHeaderOptions>): SpaceHeaderOption
   hidden: 0,
   onToggle: () => undefined,
   mark: markOf(),
+  age: null,
   selected: false,
   cursor: false,
   hovered: false,

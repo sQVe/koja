@@ -207,6 +207,7 @@ describe('projectRows', () => {
     const state = {
       drag: { source: null, over: null },
       cursor: null,
+      age: null,
       hovered: null,
       lookup: () => null,
       attachDrag: () => undefined,

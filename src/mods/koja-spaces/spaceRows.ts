@@ -71,6 +71,7 @@ export const headerRow = (
       state.toggleFold(project.key, cx);
     },
     mark: spaceMark(main.status),
+    age: state.age,
     selected: space.active,
     cursor: state.cursor === space.id,
     hovered: state.hovered === space.id,

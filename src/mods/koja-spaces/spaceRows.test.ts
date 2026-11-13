@@ -202,6 +202,18 @@ describe('headerRow', () => {
     expect(hovers).toEqual(['main true']);
   });
 
+  test('ends with the age of the main space when it has one, and none without', () => {
+    const aged = loaded.headerRow(projectWith([]), mainSpace, ['main'], {
+      ...headerState([]),
+      age: '4m',
+    });
+
+    const plain = loaded.headerRow(projectWith([]), mainSpace, ['main'], headerState([]));
+
+    expect(drawnTexts(aged).filter((text) => text !== '')).toEqual(['koja', '4m']);
+    expect(drawnTexts(plain).filter((text) => text !== '')).toEqual(['koja']);
+  });
+
   test('reports no hover when the project has nothing to fold', () => {
     const header = loaded.headerRow(projectWith([]), mainSpace, ['main'], headerState([]));
 
