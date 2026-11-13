@@ -337,6 +337,24 @@ describe('worktree checks', () => {
     expect(groveCalls()).toEqual([]);
   });
 
+  test('a checkout outside the workspace root shows an error and removes no namesake', async () => {
+    execResults['git rev-parse --show-toplevel'] = ok('/elsewhere/feat-a\n');
+    await openDialog();
+
+    expect(stateLines.map((line) => line.kind)).toEqual(['error']);
+    expect(buttons.has('Remove')).toBe(false);
+    expect(groveCalls()).toEqual([]);
+  });
+
+  test('a new worktree from a checkout outside the workspace root shows an error', async () => {
+    dialogProps = { action: 'new', space: 'space-1', overlay: 'overlay-1' };
+    execResults['git rev-parse --show-toplevel'] = ok('/elsewhere/feat-a\n');
+    await openDialog();
+
+    expect(stateLines.map((line) => line.kind)).toEqual(['error']);
+    expect(buttons.has('Create')).toBe(false);
+  });
+
   test('a rejected exec shows its error and runs no Grove', async () => {
     execResults['git rev-parse --show-toplevel'] = new Error('machine box is offline');
     await openDialog();

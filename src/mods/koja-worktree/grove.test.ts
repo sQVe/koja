@@ -1,6 +1,13 @@
 import { describe, expect, test } from 'bun:test';
 
-import { baseName, failureText, removeRisk, workspaceRoot, worktreeFolder } from './grove.ts';
+import {
+  baseName,
+  failureText,
+  isWorkspaceWorktree,
+  removeRisk,
+  workspaceRoot,
+  worktreeFolder,
+} from './grove.ts';
 
 describe('grove workspace', () => {
   test('the workspace root is the parent of a .bare common dir', () => {
@@ -15,6 +22,18 @@ describe('grove workspace', () => {
   test('a common dir that is not .bare is outside a Grove workspace', () => {
     expect(workspaceRoot('/work/repo/.git')).toBeNull();
     expect(workspaceRoot('/work/repo.bare')).toBeNull();
+  });
+
+  test('a checkout directly under the workspace root is a workspace worktree', () => {
+    expect(isWorkspaceWorktree('/work/repo/feat-a', '/work/repo')).toBe(true);
+    expect(isWorkspaceWorktree('/work/repo/feat-a//', '/work/repo/')).toBe(true);
+  });
+
+  test('a checkout outside the workspace root or nested deeper is not a workspace worktree', () => {
+    expect(isWorkspaceWorktree('/elsewhere/feat-a', '/work/repo')).toBe(false);
+    expect(isWorkspaceWorktree('/work/repo/nested/feat-a', '/work/repo')).toBe(false);
+    expect(isWorkspaceWorktree('/work/repo', '/work/repo')).toBe(false);
+    expect(isWorkspaceWorktree('/work/repository/feat-a', '/work/repo')).toBe(false);
   });
 
   test('a worktree is named by its folder', () => {

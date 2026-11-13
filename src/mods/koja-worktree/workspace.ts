@@ -3,7 +3,14 @@ import { exec, panes, spaces, terminals } from 'herdr';
 
 import { rollupStatuses, spaceFolder } from '../../kit/index.ts';
 import type { RemoveRisk, Workspace } from './grove.ts';
-import { baseName, failureText, removeRisk, workspaceRoot, worktreeFolder } from './grove.ts';
+import {
+  baseName,
+  failureText,
+  isWorkspaceWorktree,
+  removeRisk,
+  workspaceRoot,
+  worktreeFolder,
+} from './grove.ts';
 
 const probe = async (args: string[], cwd: string, machine: string | null): Promise<string> => {
   const result = await exec('git', args, { cwd, on: machine });
@@ -30,6 +37,10 @@ export const readWorkspace = async (space: SpaceInfo): Promise<Workspace> => {
 
   if (root === null) {
     throw new Error(`${folder} is not in a Grove workspace.`);
+  }
+
+  if (!isWorkspaceWorktree(folder, root)) {
+    throw new Error(`${folder} is not directly in the Grove workspace ${root}.`);
   }
 
   return { space: space.id, machine: space.machine, folder, root, name: baseName(folder) };
