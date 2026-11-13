@@ -25,6 +25,9 @@ import { markProjects } from './headerMarksData.ts';
 // Where a project header draws its main space's agent mark.
 export type HeaderMarkVariant = 'name' | 'right' | 'rightActive' | 'leftActive' | 'afterName';
 
+// Nested spaces sit one level under their header; flat spaces line up with it.
+export type SpaceLayout = 'nested' | 'flat';
+
 const views = [
   { id: 'projects', label: 'Projects' },
   { id: 'inbox', label: 'Inbox' },
@@ -49,16 +52,16 @@ const spaceEnd = (space: MarkSpace): Element[] => {
   return end;
 };
 
-// These variants nest the spaces under the header, so each project reads as one group.
-const nestsSpaces = (variant: HeaderMarkVariant): boolean =>
+// The variants that draw the mark beside the name share one header layout.
+const marksNearName = (variant: HeaderMarkVariant): boolean =>
   variant === 'leftActive' || variant === 'afterName';
 
-const spaceRow = (space: MarkSpace, variant: HeaderMarkVariant): Element =>
+const spaceRow = (space: MarkSpace, nested: boolean): Element =>
   listRow({
     size: 'small',
     inset: true,
     state: 'normal',
-    depth: nestsSpaces(variant) ? 1 : 0,
+    depth: nested ? 1 : 0,
     start: spaceMark(space.agent),
     label: space.title,
     end: spaceEnd(space),
@@ -77,9 +80,9 @@ const machineParts = (project: MarkProject): Element[] =>
     ? []
     : [icon('server', 'small').text_color(colors().dim), roleText('detail', project.machine)];
 
-// In the left-mark variant, a header that is not a space keeps the section heading's own tone.
+// A header that is not a space keeps the section heading's own tone.
 const nameTone = (project: MarkProject, variant: HeaderMarkVariant): 'foreground' | 'muted' =>
-  variant === 'leftActive' && project.main === null ? 'muted' : 'foreground';
+  marksNearName(variant) && project.main === null ? 'muted' : 'foreground';
 
 const nameLabel = (project: MarkProject, variant: HeaderMarkVariant): Element =>
   h_flex()
@@ -131,7 +134,7 @@ const leftMark = (project: MarkProject, variant: HeaderMarkVariant): Element | u
 const hiddenParts = (project: MarkProject): Element[] =>
   project.hidden > 0 ? [roleText('detail', `${project.hidden} more`)] : [];
 
-// The left-mark variant puts the chevron in the rows' work icon column, so it keeps one place and
+// These variants put the chevron in the rows' work icon column, so it keeps one place and
 // the header's age lines up with the rows' ages.
 const foldSlot = (project: MarkProject): Element => {
   if (project.hidden > 0) {
@@ -144,7 +147,7 @@ const foldSlot = (project: MarkProject): Element => {
 const headerEnd = (project: MarkProject, variant: HeaderMarkVariant): Element[] => {
   const age = ageParts(project.main?.age);
 
-  if (variant === 'leftActive') {
+  if (marksNearName(variant)) {
     return [...hiddenParts(project), ...age, foldSlot(project)];
   }
 
@@ -165,12 +168,16 @@ const headerRow = (project: MarkProject, variant: HeaderMarkVariant): Element =>
   });
 };
 
-const projectGroup = (project: MarkProject, variant: HeaderMarkVariant): Element =>
+const projectGroup = (
+  project: MarkProject,
+  variant: HeaderMarkVariant,
+  layout: SpaceLayout,
+): Element =>
   v_flex()
     .flex_none()
     .gap(spacing.xxsmall)
     .child(headerRow(project, variant))
-    .children(project.spaces.map((space) => spaceRow(space, variant)));
+    .children(project.spaces.map((space) => spaceRow(space, layout === 'nested')));
 
 const switchLine = (): Element =>
   h_flex()
@@ -180,7 +187,7 @@ const switchLine = (): Element =>
     .items_center()
     .child(viewSwitch({ options: views, active: 'projects', onSelect: () => undefined }));
 
-export const headerMarksScene = (variant: HeaderMarkVariant): Element =>
+export const headerMarksScene = (variant: HeaderMarkVariant, layout: SpaceLayout): Element =>
   v_flex()
     .flex_1()
     .min_h(0)
@@ -194,5 +201,5 @@ export const headerMarksScene = (variant: HeaderMarkVariant): Element =>
         .min_h(0)
         .pt(sidebarSize.groupGap)
         .gap(sidebarSize.groupGap)
-        .children(markProjects.map((project) => projectGroup(project, variant))),
+        .children(markProjects.map((project) => projectGroup(project, variant, layout))),
     );

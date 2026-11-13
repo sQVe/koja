@@ -50,6 +50,8 @@ const sceneSizes = {
   'header-mark-right-active': headerMarkSize,
   'header-mark-left-active': headerMarkSize,
   'header-mark-after-name': headerMarkSize,
+  'header-mark-left-flat': headerMarkSize,
+  'header-mark-after-name-flat': headerMarkSize,
   'smoke-1': paletteSize,
   'smoke-2': paletteSize,
   'smoke-3': paletteSize,
