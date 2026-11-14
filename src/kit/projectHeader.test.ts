@@ -27,6 +27,8 @@ interface HeaderBase {
 
 interface FoldHeaderOptions extends HeaderBase {
   kind: 'fold';
+  dragged?: boolean;
+  drop?: 'top' | 'bottom' | 'refused';
 }
 
 interface SpaceHeaderOptions extends HeaderBase {
@@ -135,6 +137,33 @@ describe('projectHeader', () => {
 
     expect(drawnTexts(folded)).toContain('2 more');
     expect(drawnTexts(open)).not.toContain('2 more');
+  });
+
+  test('fold headers show directional drop lines and dim only while dragged', () => {
+    const target = projectHeader({ ...options, drop: 'bottom' });
+    const line = target.kids.find((child) => child.backgroundColors.includes(themeColors.accent));
+    const dragged = projectHeader({ ...options, dragged: true });
+    const resting = projectHeader(options);
+
+    expect(line?.styles['bottom']).toBeDefined();
+    expect(dragged.styles['opacity']).toBeDefined();
+    expect(resting.styles['opacity']).toBeUndefined();
+
+    expect(resting.kids.some((child) => child.backgroundColors.includes(themeColors.accent))).toBe(
+      false,
+    );
+
+    expect(drawnTexts(dragged)).toEqual(drawnTexts(resting));
+  });
+
+  test('fold headers refuse a drop without showing a line', () => {
+    const target = projectHeader({ ...options, drop: 'refused' });
+
+    expect(target.styles['cursor_not_allowed']).toBeDefined();
+
+    expect(target.kids.some((child) => child.backgroundColors.includes(themeColors.accent))).toBe(
+      false,
+    );
   });
 
   test('clicking the header toggles once', () => {

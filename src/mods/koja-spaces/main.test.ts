@@ -49,6 +49,7 @@ const themeColors = {
 const rowHeightSmall = 24;
 
 let runCalls: RunCall[] = [];
+let overlayCalls: unknown[] = [];
 let notifyCalls = 0;
 let scrollCalls: number[] = [];
 let sharedValues: Record<string, unknown> = {};
@@ -184,6 +185,11 @@ await mock.module('herdr', () =>
   herdrFake({
     layout: () => ({ id: 'sidebar', size: { px: sidebarWidth } }),
     nextCommand,
+    openOverlay: (options: unknown) => {
+      overlayCalls.push(options);
+
+      return null;
+    },
     run: (command: string, args?: Record<string, unknown>) => {
       runCalls.push({ command, args });
 
@@ -295,6 +301,7 @@ const reportHeight = (view: FakeView, height: number): void => {
 
 beforeEach(() => {
   runCalls = [];
+  overlayCalls = [];
   notifyCalls = 0;
   scrollCalls = [];
   sharedValues = {};
@@ -658,6 +665,252 @@ describe('koja-spaces drag and drop', () => {
 
   const showsDropLine = (element: DrawnElement): boolean =>
     element.kids.some((kid) => kid.backgroundColors.includes(themeColors.accent));
+
+  test('a project without a main checkout reorders drawn and published projects', async () => {
+    useSpaces(['alpha-1', 'alpha-2', 'beta', 'beta-1']);
+
+    const view = await loadView();
+
+    dragAndDrop(view, 'alpha', 'beta');
+
+    const order = orderAfterMoves();
+    const byId = new Map(spaceList.map((row) => [row.id, row]));
+
+    spaceList = order.flatMap((id) => {
+      const row = byId.get(id);
+
+      return row === undefined ? [] : [row];
+    });
+
+    const labels = new Set(['alpha', 'beta', 'name-beta-1', 'name-alpha-1', 'name-alpha-2']);
+    const drawnOrder = drawnTexts(view.render()).filter((text) => labels.has(text));
+
+    expect(drawnOrder).toEqual(['beta', 'name-beta-1', 'alpha', 'name-alpha-1', 'name-alpha-2']);
+
+    expect(sharedValues['spaces.order']).toEqual({
+      shown: ['beta', 'beta-1', 'alpha-1', 'alpha-2'],
+      hidden: [],
+      roots: ['beta', 'alpha-1'],
+    });
+  });
+
+  test('a main header can drop on a project without a main checkout', async () => {
+    useSpaces(['alpha', 'alpha-1', 'beta-1', 'beta-2']);
+
+    const view = await loadView();
+
+    dragOver(view, 'alpha', 'beta');
+
+    const target = rowOf(view, 'beta');
+
+    expect(showsDropLine(target)).toBe(true);
+    expect(target.styles['cursor_not_allowed']).toBeUndefined();
+
+    dragAndDrop(view, 'alpha', 'beta');
+
+    expect(orderAfterMoves()).toEqual(['beta-1', 'beta-2', 'alpha', 'alpha-1']);
+  });
+
+  test('a dragged fold header is dimmed and a plain click still folds it', async () => {
+    useSpaces(['alpha-1', 'alpha-2', 'beta-1']);
+
+    const view = await loadView();
+
+    expect(rowOf(view, 'alpha').styles['opacity']).toBeUndefined();
+
+    dragOver(view, 'alpha', 'beta');
+
+    expect(rowOf(view, 'alpha').styles['opacity']).toBeDefined();
+    expect(showsDropLine(rowOf(view, 'beta'))).toBe(true);
+
+    dragAndDrop(view, 'alpha', 'alpha');
+
+    const header = clickablesWithText(view.render(), 'alpha')[0];
+
+    header?.clickHandlers[0]?.({}, context);
+
+    expect(spaceNames(view)).toEqual(['name-beta-1']);
+    expect(moves()).toEqual([]);
+  });
+
+  test.each([
+    ['alpha-1', 'beta'],
+    ['alpha', 'alpha-1'],
+  ])('a drop from %s to %s does not mix fold headers and rows', async (source, target) => {
+    useSpaces(['alpha-1', 'alpha-2', 'beta-1']);
+
+    const view = await loadView();
+
+    dragOver(view, source, target);
+
+    const row = rowOf(view, target);
+
+    expect(showsDropLine(row)).toBe(false);
+    expect(row.styles['cursor_not_allowed']).toBeDefined();
+
+    dragAndDrop(view, source, target);
+
+    expect(moves()).toEqual([]);
+  });
+
+  test('fold headers on different machines refuse drops', async () => {
+    useSpaces(['alpha-1', 'alpha-2', 'beta-1']);
+
+    for (const row of spaceList) {
+      if (row.id.startsWith('beta')) {
+        row.machine = 'remote';
+      }
+    }
+
+    const view = await loadView();
+
+    dragOver(view, 'alpha', 'beta');
+
+    const target = rowOf(view, 'beta');
+
+    expect(showsDropLine(target)).toBe(false);
+    expect(target.styles['cursor_not_allowed']).toBeDefined();
+
+    dragAndDrop(view, 'alpha', 'beta');
+
+    expect(moves()).toEqual([]);
+  });
+
+  test('dropping project A on C reorders drawn and published projects', async () => {
+    useSpaces(['alpha', 'alpha-1', 'beta', 'beta-1', 'gamma', 'gamma-1']);
+
+    const view = await loadView();
+
+    dragOver(view, 'alpha', 'gamma');
+
+    const target = rowOf(view, 'gamma');
+
+    expect(showsDropLine(target)).toBe(true);
+    expect(target.styles['cursor_not_allowed']).toBeUndefined();
+
+    for (const handler of handlersOf(target, 'on_mouse_up:left')) {
+      handler({}, context);
+    }
+
+    const order = orderAfterMoves();
+    const byId = new Map(spaceList.map((row) => [row.id, row]));
+
+    spaceList = order.flatMap((id) => {
+      const row = byId.get(id);
+
+      return row === undefined ? [] : [row];
+    });
+
+    const labels = new Set([
+      'alpha',
+      'beta',
+      'gamma',
+      'name-alpha-1',
+      'name-beta-1',
+      'name-gamma-1',
+    ]);
+
+    const drawnOrder = drawnTexts(view.render()).filter((text) => labels.has(text));
+
+    expect(drawnOrder).toEqual([
+      'beta',
+      'name-beta-1',
+      'gamma',
+      'name-gamma-1',
+      'alpha',
+      'name-alpha-1',
+    ]);
+
+    expect(sharedValues['spaces.order']).toEqual({
+      shown: ['beta', 'beta-1', 'gamma', 'gamma-1', 'alpha', 'alpha-1'],
+      hidden: [],
+      roots: ['beta', 'gamma', 'alpha'],
+    });
+  });
+
+  test('dropping a later header before an earlier project moves all its members', async () => {
+    useSpaces(['alpha-1', 'beta', 'alpha', 'beta-1']);
+
+    const view = await loadView();
+
+    dragOver(view, 'beta', 'alpha');
+
+    const target = rowOf(view, 'alpha');
+    const line = target.kids.find((kid) => kid.backgroundColors.includes(themeColors.accent));
+
+    expect(line?.styles['top']).toBeDefined();
+    expect(target.styles['cursor_not_allowed']).toBeUndefined();
+
+    for (const handler of handlersOf(target, 'on_mouse_up:left')) {
+      handler({}, context);
+    }
+
+    expect(orderAfterMoves()).toEqual(['beta', 'beta-1', 'alpha-1', 'alpha']);
+  });
+
+  test('moving a folded project includes its hidden spaces', async () => {
+    useSpaces(['alpha', 'alpha-1', 'alpha-2', 'beta', 'beta-1']);
+    store.set('repos.folded', JSON.stringify([repositoryOf(null, '/code/alpha/.git').key]));
+
+    const view = await loadView();
+
+    expect(spaceNames(view)).toEqual(['name-beta-1']);
+
+    dragAndDrop(view, 'alpha', 'beta');
+
+    expect(orderAfterMoves()).toEqual(['beta', 'beta-1', 'alpha', 'alpha-1', 'alpha-2']);
+  });
+
+  test('a press and release on a header selects its main space', async () => {
+    useSpaces(['alpha', 'alpha-1']);
+
+    const view = await loadView();
+
+    dragAndDrop(view, 'alpha', 'alpha');
+
+    expect(selected()).toEqual(['alpha']);
+    expect(moves()).toEqual([]);
+  });
+
+  test('a right press on a header opens the menu of its main space', async () => {
+    useSpaces(['alpha', 'alpha-1']);
+
+    const view = await loadView();
+
+    for (const handler of handlersOf(rowOf(view, 'alpha'), 'on_mouse_down:right')) {
+      handler({}, context);
+    }
+
+    expect(overlayCalls).toEqual([
+      expect.objectContaining({
+        mod: 'koja-menu',
+        props: { tab: 'space', target: { id: 'alpha' } },
+      }),
+    ]);
+  });
+
+  test('headers on different machines refuse drops', async () => {
+    useSpaces(['alpha', 'alpha-1', 'beta', 'beta-1']);
+
+    for (const row of spaceList) {
+      if (row.id.startsWith('beta')) {
+        row.machine = 'remote';
+      }
+    }
+
+    const view = await loadView();
+
+    dragOver(view, 'alpha', 'beta');
+
+    const target = rowOf(view, 'beta');
+
+    expect(showsDropLine(target)).toBe(false);
+    expect(target.styles['cursor_not_allowed']).toBeDefined();
+
+    dragAndDrop(view, 'alpha', 'beta');
+
+    expect(moves()).toEqual([]);
+  });
 
   test('a drop of the first space on the last space of its project moves it there', async () => {
     useSpaces(['alpha', 'alpha-1', 'alpha-2', 'alpha-3', 'beta', 'beta-1']);

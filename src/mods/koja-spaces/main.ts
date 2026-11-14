@@ -6,7 +6,7 @@ import { nextCommand, openOverlay, panes, run, setShared, shared, spaces, termin
 
 import { startDataHost } from '../../data/host.ts';
 import type { DragState } from '../../kit/drag.ts';
-import { dropAction, noDrag, setDragOver, startDrag } from '../../kit/drag.ts';
+import { dragLine, dropAction, noDrag, setDragOver, startDrag } from '../../kit/drag.ts';
 import type { StatusRollup } from '../../kit/index.ts';
 import {
   colors,
@@ -30,7 +30,7 @@ import type { Project } from './projects.ts';
 import { groupProjects, shownSpaces } from './projects.ts';
 import { PullTracker } from './pullTracker.ts';
 import type { ProjectChildren } from './spaceDrop.ts';
-import { canDrop, dropMoves } from './spaceDrop.ts';
+import { canDrop, dropMoves, projectDropMoves } from './spaceDrop.ts';
 import { createOrderPublisher } from './spaceOrder.ts';
 import type { HeaderState, RowState } from './spaceRows.ts';
 import { headerRow, row as spaceRow } from './spaceRows.ts';
@@ -40,6 +40,8 @@ import type { VisibilityResult, VisibilityState } from './visibility.ts';
 import { advanceVisibility, initialVisibility } from './visibility.ts';
 import type { WaitTimes } from './waitTimes.ts';
 import { advanceWaitTimes, readWaitTimes, waitAge } from './waitTimes.ts';
+
+type SidebarDrag = { kind: 'space'; state: DragState } | { kind: 'project'; state: DragState };
 
 const pullsMilliseconds = 15_000;
 
@@ -83,7 +85,7 @@ export default class Spaces extends View {
 
   private visibility: VisibilityState = initialVisibility(spaces().map((space) => space.id));
 
-  private drag: DragState = noDrag;
+  private drag: SidebarDrag = { kind: 'space', state: noDrag };
 
   private refused: string | null = null;
 
@@ -303,6 +305,30 @@ export default class Spaces extends View {
     );
   }
 
+  private projectKeys(): string[] {
+    return this.projects().map((project) => project.key);
+  }
+
+  private dragFor(kind: SidebarDrag['kind']): DragState {
+    return this.drag.kind === kind ? this.drag.state : noDrag;
+  }
+
+  private projectMoves(source: string, target: Project, ids: readonly string[]) {
+    const projects = groupProjects(this.listedSpaces(), noFolds)
+      .filter((project) => project.machine === (target.machine ?? null))
+      .map((project) => {
+        const members = project.spaces.map((row) => row.space.id);
+
+        if (project.main !== null) {
+          members.push(project.main.space.id);
+        }
+
+        return { key: project.key, members };
+      });
+
+    return projectDropMoves(ids, projects, source, target.key);
+  }
+
   private isWaiting(): boolean {
     return spaces().some((space) => !this.visibility.shown.has(space.id));
   }
@@ -317,7 +343,7 @@ export default class Spaces extends View {
     const age = waitAge(this.waitTimes, waiting, now);
 
     const state: RowState = {
-      drag: this.drag,
+      drag: this.dragFor('space'),
       refused: this.refused,
       cursor,
       age,
@@ -340,20 +366,20 @@ export default class Spaces extends View {
     const waiting = { id: main.space.id, status: main.status, active: main.space.active };
 
     const state: HeaderState = {
-      drag: this.drag,
+      drag: this.dragFor('project'),
       refused: this.refused,
       cursor,
       age: waitAge(this.waitTimes, waiting, now),
       hovered: this.hovered,
       lookup: (git) => this.pulls.lookup(git),
-      attachDrag: (element, space, rowIds) => {
-        this.addDragHandlers(element, space, rowIds);
+      attachDrag: (element) => {
+        this.addProjectDragHandlers(element, project, ids);
       },
       onHover: this.setHovered,
       toggleFold: this.toggleFold,
     };
 
-    return headerRow(project, main, ids, state);
+    return headerRow(project, main, this.projectKeys(), state);
   }
 
   private readonly setHovered = (id: string, hovered: boolean, cx: Context): void => {
@@ -394,6 +420,22 @@ export default class Spaces extends View {
       loading: this.isWaiting(),
       draw: (row) => keepCursor(row, this.draw(row, ids, cursor, now)),
       drawMain: (project, main) => keepCursor(main, this.drawMain(project, main, ids, cursor, now)),
+      foldDrag: (project) => {
+        const drag = this.dragFor('project');
+
+        const drop =
+          this.refused === project.key
+            ? 'refused'
+            : dragLine(drag, project.key, this.projectKeys());
+
+        return {
+          dragged: drag.source === project.key && drag.over !== project.key,
+          ...(drop === undefined ? {} : { drop }),
+        };
+      },
+      attachFoldDrag: (element, project) => {
+        this.addProjectDragHandlers(element, project, ids);
+      },
       pullFailed: (git) => this.pulls.failed(git),
       retryPull: this.retryPull,
       toggleFold: this.toggleFold,
@@ -417,10 +459,65 @@ export default class Spaces extends View {
     this.revealCursor = false;
   }
 
+  private projectDragOver(project: Project, cx: Context): void {
+    const { source, over } = this.drag.state;
+
+    if (source === null || over === project.key || this.refused === project.key) {
+      return;
+    }
+
+    const sourceProject = this.projects().find((candidate) => candidate.key === source);
+    const sameMachine = sourceProject !== undefined && sourceProject.machine === project.machine;
+    const allowed = this.drag.kind === 'project' && sameMachine;
+
+    this.drag = { ...this.drag, state: setDragOver(this.drag.state, project.key, allowed) };
+    this.refused = allowed ? null : project.key;
+    cx.notify();
+  }
+
+  private dropProject(project: Project, ids: readonly string[], cx: Context): void {
+    const action = dropAction(this.dragFor('project'), project.key, this.projectKeys());
+
+    this.endDrag();
+
+    if (action?.kind === 'move') {
+      for (const move of this.projectMoves(action.id, project, ids)) {
+        run('space.move', { id: move.id, index: move.index });
+      }
+    } else if (action?.kind === 'select' && project.main !== null) {
+      run('space.select', { id: project.main.space.id });
+    }
+
+    cx.notify();
+  }
+
+  private addProjectDragHandlers(element: Element, project: Project, ids: readonly string[]): void {
+    element
+      .on_mouse_down('left', () => {
+        const keys = this.projectKeys();
+
+        this.drag = { kind: 'project', state: startDrag(keys, keys.indexOf(project.key)) };
+      })
+      .on_mouse_move((_event, cx) => {
+        this.projectDragOver(project, cx);
+      })
+      .on_mouse_up('left', (_event, cx) => {
+        this.dropProject(project, ids, cx);
+      });
+
+    const { main } = project;
+
+    if (main !== null) {
+      element.on_mouse_down('right', () => {
+        this.openMenu(main.space);
+      });
+    }
+  }
+
   private addDragHandlers(element: Element, space: SpaceInfo, ids: readonly string[]): void {
     element
       .on_mouse_down('left', () => {
-        this.drag = startDrag(ids, ids.indexOf(space.id));
+        this.drag = { kind: 'space', state: startDrag(ids, ids.indexOf(space.id)) };
       })
       .on_mouse_move((_event, cx) => {
         this.dragOver(space, cx);
@@ -434,7 +531,7 @@ export default class Spaces extends View {
   }
 
   private endDrag(): void {
-    this.drag = noDrag;
+    this.drag = { kind: 'space', state: noDrag };
     this.refused = null;
   }
 
@@ -444,30 +541,36 @@ export default class Spaces extends View {
     const sameMachine =
       source !== undefined && (source.machine ?? null) === (space.machine ?? null);
 
-    return sameMachine && canDrop(this.projectChildren(), sourceId, space.id);
+    if (!sameMachine) {
+      return false;
+    }
+
+    return canDrop(this.projectChildren(), sourceId, space.id);
   }
 
   private dragOver(space: SpaceInfo, cx: Context): void {
-    const { source, over } = this.drag;
+    const { source, over } = this.drag.state;
 
     if (source === null || space.id === over || space.id === this.refused) {
       return;
     }
 
-    const allowed = this.canDropOn(source, space);
+    const allowed = this.drag.kind === 'space' && this.canDropOn(source, space);
 
-    this.drag = setDragOver(this.drag, space.id, allowed);
+    this.drag = { ...this.drag, state: setDragOver(this.drag.state, space.id, allowed) };
     this.refused = allowed ? null : space.id;
     cx.notify();
   }
 
   private drop(space: SpaceInfo, ids: readonly string[], cx: Context): void {
-    const action = dropAction(this.drag, space.id, ids);
+    const action = dropAction(this.dragFor('space'), space.id, ids);
 
     this.endDrag();
 
     if (action?.kind === 'move') {
-      for (const move of dropMoves(ids, this.projectChildren(), action.id, space.id)) {
+      const moves = dropMoves(ids, this.projectChildren(), action.id, space.id);
+
+      for (const move of moves) {
         run('space.move', { id: move.id, index: move.index });
       }
     } else if (action?.kind === 'select') {

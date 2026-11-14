@@ -27,6 +27,8 @@ interface ProjectRowsHostLike {
   loading: boolean;
   draw: (row: ListedSpace) => unknown;
   drawMain: (project: Project, main: ListedSpace) => unknown;
+  foldDrag: (project: Project) => { dragged: boolean };
+  attachFoldDrag: (element: unknown, project: Project) => void;
   pullFailed: (git: GitInfo) => boolean;
   retryPull: (git: GitInfo, cx: unknown) => void;
   toggleFold: (key: string, cx: unknown) => void;
@@ -155,6 +157,8 @@ const hostOf = (overrides: Partial<ProjectRowsHostLike>): ProjectRowsHostLike =>
   loading: false,
   draw: drawRow,
   drawMain,
+  foldDrag: () => ({ dragged: false }),
+  attachFoldDrag: () => undefined,
   pullFailed: () => false,
   retryPull: () => undefined,
   toggleFold: () => undefined,

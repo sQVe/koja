@@ -1,5 +1,6 @@
 import type { Context, Element } from 'gpui-kit';
 
+import type { DropMark } from '../../kit/index.ts';
 import {
   projectHeader,
   sidebarSize,
@@ -16,6 +17,8 @@ export interface ProjectRowsHost {
   loading: boolean;
   draw: (row: ListedSpace) => Element;
   drawMain: (project: Project, main: ListedSpace) => Element;
+  foldDrag: (project: Project) => { dragged: boolean; drop?: DropMark };
+  attachFoldDrag: (element: Element, project: Project) => void;
   pullFailed: (git: GitInfo) => boolean;
   retryPull: (git: GitInfo, cx: Context) => void;
   toggleFold: (key: string, cx: Context) => void;
@@ -42,8 +45,9 @@ const pullErrorRow = (git: GitInfo, host: ProjectRowsHost): Element =>
 const foldHeader = (project: Project, host: ProjectRowsHost): Element => {
   const id = `project-${project.key}`;
 
-  return projectHeader({
+  const element = projectHeader({
     kind: 'fold',
+    ...host.foldDrag(project),
     name: project.name,
     ...(project.machine === null ? {} : { machine: project.machine }),
     folded: project.folded,
@@ -57,6 +61,10 @@ const foldHeader = (project: Project, host: ProjectRowsHost): Element => {
     .on_hover((hovered, cx) => {
       host.onHover(id, hovered, cx);
     });
+
+  host.attachFoldDrag(element, project);
+
+  return element;
 };
 
 const header = (project: Project, host: ProjectRowsHost): Element =>
