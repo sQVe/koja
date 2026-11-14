@@ -21,15 +21,19 @@ names. Follow [the rules for every section](../qa.md#rules-for-every-section) of
 
 - The sidebar lists every space under the name of its project, one line per space: its mark and its
   title. A space row shows no PR number and no branch.
-- The main checkout of a Git repository is the project header, not a row. The header shows that
-  space's mark and the repository name, and no space row repeats it.
+- The main checkout of a Git repository is the project header, not a row. The header shows the
+  repository name, and no space row repeats it. Before the name, it shows that space's mark only
+  while the agent is working, blocked, or done. Otherwise the slot stays empty, so every project
+  name starts at the same place.
 - A click selects a space with the gray fill. A click on a project header selects its main checkout
   the same way. A hovered row or header shows a 1 px outline.
 - Hovering a project header that has other spaces shows a chevron at its right end. A click on the
   chevron folds the project to its active spaces and the spaces that need the user, shows `N more`,
   and does not change the selected space. A click on the chevron of a folded project opens it again.
 - A project without a main checkout, such as only linked worktrees or a folder outside Git, has a
-  name-only header. A click on that name folds the project, and a second click opens it again.
+  name-only header in a muted tone. A click on that name folds the project, and a second click opens
+  it again. Hovering it shows the chevron at its right end, as on a main checkout header.
+- A thin light gray line runs across the sidebar between two projects, with none above the first.
 - A new space shows under its project.
 - A space row dragged onto another space of its own project lands there, above it when moving up and
   below it when moving down. The project order does not change, and `s j` follows the new order.
