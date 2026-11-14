@@ -158,6 +158,7 @@ export const kitIndexFake = (overrides: ModuleFake = {}): ModuleFake => ({
   shortcutFor: () => null,
   shownSections: () => new Set(['panes']),
   sidebarSize: {},
+  softSeparator: noop,
   spaceFolder: () => '',
   spaceFooter: noop,
   spaceMark: noop,

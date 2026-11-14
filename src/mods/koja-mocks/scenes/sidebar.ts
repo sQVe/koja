@@ -113,6 +113,7 @@ const repoHeader = (repo: FakeRepo): Element =>
     name: repo.name,
     folded: false,
     hidden: 0,
+    hovered: false,
     onToggle: () => undefined,
   });
 

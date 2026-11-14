@@ -1,5 +1,6 @@
 import { h_flex, v_flex } from 'gpui-base';
 import type { Element } from 'gpui-kit';
+import type { Status } from 'herdr';
 
 import type { WorkNeed } from '../../kit/index.ts';
 import {
@@ -11,6 +12,8 @@ import {
   overlaySize,
   projectHeader,
   roleText,
+  sidebarSize,
+  softSeparator,
   spaceFooter,
   spaceMark,
   spacing,
@@ -21,6 +24,7 @@ import {
 import { sample } from './sample.ts';
 
 interface HeaderLook {
+  status?: Status;
   selected?: boolean;
   hovered?: boolean;
   folded?: boolean;
@@ -108,7 +112,7 @@ const mainHeader = (name: string, look: HeaderLook): Element => {
     folded,
     hidden: folded ? 2 : 0,
     onToggle: () => undefined,
-    mark: spaceMark('idle'),
+    status: look.status ?? 'idle',
     age: look.age ?? null,
     selected: look.selected ?? false,
     cursor: false,
@@ -117,24 +121,33 @@ const mainHeader = (name: string, look: HeaderLook): Element => {
   });
 };
 
+// This frame has no row gap, so the divider band is the whole gap between projects.
+const withDividers = (headers: Element[]): Element[] =>
+  headers.flatMap((header, index) =>
+    index === 0 ? [header] : [softSeparator(sidebarSize.groupGap), header],
+  );
+
 export const sidebarParts = (): Element[] => [
   sample(
-    'Project headers: main space, selected, hovered, folded, waiting with an age, remote without a main checkout',
-    partsFrame([
-      mainHeader('koja', {}),
-      mainHeader('herdr', { selected: true }),
-      mainHeader('tikk', { hovered: true }),
-      mainHeader('seam', { folded: true }),
-      mainHeader('ruta', { folded: true, age: '4m' }),
-      projectHeader({
-        kind: 'fold',
-        name: 'tau',
-        machine: 'build-box',
-        folded: false,
-        hidden: 0,
-        onToggle: () => undefined,
-      }),
-    ]),
+    'Project headers: idle main space, working and selected, hovered, folded, waiting with an age, remote without a main checkout, with the soft divider between projects',
+    partsFrame(
+      withDividers([
+        mainHeader('koja', {}),
+        mainHeader('herdr', { selected: true, status: 'working' }),
+        mainHeader('tikk', { hovered: true }),
+        mainHeader('seam', { folded: true }),
+        mainHeader('ruta', { folded: true, age: '4m', status: 'blocked' }),
+        projectHeader({
+          kind: 'fold',
+          name: 'tau',
+          machine: 'build-box',
+          folded: false,
+          hidden: 0,
+          hovered: false,
+          onToggle: () => undefined,
+        }),
+      ]),
+    ),
   ),
   sample('Blocked space', spaceMark('blocked')),
   sample(

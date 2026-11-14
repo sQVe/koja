@@ -13,6 +13,16 @@ import { currentPlatform } from './window.ts';
 export const separator = (): Element =>
   div().flex_none().my(spacing.xsmall).h(spacing.hairline).bg(colors().border);
 
+// A quiet line between groups, such as sidebar projects. It is centered in a band of the given
+// height, so the band can take the place of the gap between the groups.
+export const softSeparator = (height: number): Element =>
+  h_flex()
+    .flex_none()
+    .h(height)
+    .px(spacing.xsmall)
+    .items_center()
+    .child(div().flex_1().h(spacing.hairline).bg(colors().selected));
+
 export const detailText = (text: string, color = colors().dim): Element =>
   div().flex_none().text_size(textSize.small).text_color(color).child(text);
 
