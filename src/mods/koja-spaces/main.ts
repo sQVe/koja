@@ -349,15 +349,17 @@ export default class Spaces extends View {
       attachDrag: (element, space, rowIds) => {
         this.addDragHandlers(element, space, rowIds);
       },
-      onHover: (spaceId, hovered, cx) => {
-        this.hovered = hoveredAfter(this.hovered, spaceId, hovered);
-        cx.notify();
-      },
+      onHover: this.setHovered,
       toggleFold: this.toggleFold,
     };
 
     return headerRow(project, main, ids, state);
   }
+
+  private readonly setHovered = (id: string, hovered: boolean, cx: Context): void => {
+    this.hovered = hoveredAfter(this.hovered, id, hovered);
+    cx.notify();
+  };
 
   private readonly toggleFold = (key: string, cx: Context): void => {
     this.endDrag();
@@ -395,6 +397,8 @@ export default class Spaces extends View {
       pullFailed: (git) => this.pulls.failed(git),
       retryPull: this.retryPull,
       toggleFold: this.toggleFold,
+      hovered: this.hovered,
+      onHover: this.setHovered,
     });
 
     this.showCursor(elements, cursorElement);

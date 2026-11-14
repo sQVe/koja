@@ -1,4 +1,4 @@
-import { overlaySize, spacing } from '../../kit/size.ts';
+import { overlaySize, sidebarSize, spacing } from '../../kit/size.ts';
 
 export interface Point {
   x: number;
@@ -26,6 +26,11 @@ const shellSceneSize: SceneSize = {
   height: overlaySize.shellHeight,
 };
 
+const headerMarkSize: SceneSize = {
+  width: sidebarSize.width,
+  height: overlaySize.paneHeadersHeight,
+};
+
 const sceneSizes = {
   sidebar: { width: overlaySize.wideMenuWidth, height: overlaySize.wideMenuHeight },
   states: { width: overlaySize.promptWidth, height: overlaySize.worktreeListHeight },
@@ -40,6 +45,16 @@ const sceneSizes = {
     width: overlaySize.paneHeadersWidth,
     height: overlaySize.paneHeadersHeight,
   },
+  'header-mark-name': headerMarkSize,
+  'header-mark-right': headerMarkSize,
+  'header-mark-right-active': headerMarkSize,
+  'header-mark-left-active': headerMarkSize,
+  'header-mark-after-name': headerMarkSize,
+  'header-mark-left-flat': headerMarkSize,
+  'header-mark-after-name-flat': headerMarkSize,
+  'header-mark-left-divider': headerMarkSize,
+  'header-mark-left-divider-inset': headerMarkSize,
+  'header-mark-left-divider-soft': headerMarkSize,
   'smoke-1': paletteSize,
   'smoke-2': paletteSize,
   'smoke-3': paletteSize,

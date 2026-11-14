@@ -107,6 +107,13 @@ border for focus. The frame, panes, terminals, sidebar, and tab bar all share th
   because fading would dim the label below AA.
 - A hover-only control, such as a pane header button, keeps its space, so a row does not shift when
   it appears.
+- Both kinds of sidebar project header end the same way: the hidden count when folded, then the age
+  of the main space when it has one, then the fold chevron in the last slot. A folded header always
+  shows `chevron-right`. An open header shows `chevron-down` only on hover and otherwise keeps the
+  empty slot. A header whose project has nothing to fold shows no chevron.
+- Sidebar projects sit one group gap apart, with a 1 px line in `selected` centered in the gap and
+  inset 4 px from each side of the list. The kit draws this soft line, not the `border` separator
+  that menus use.
 
 ### Truncation
 
@@ -136,6 +143,10 @@ border for focus. The frame, panes, terminals, sidebar, and tab bar all share th
 - A sidebar space with no agent shows a hollow ring in the `border` color, so every space row has a
   mark and the list reads as one column. The ring is quieter than the filled idle dot, so it does
   not read as a state. Rows outside the sidebar, such as tabs and picker rows, keep an empty slot.
+- A sidebar project header is the exception to the ring. Every header reserves the mark slot, so
+  every project name starts at the same x. A header that is the project's main space shows that
+  space's mark only when it is working, blocked, or done, and otherwise keeps the slot empty. A
+  header with no main space keeps the slot empty and draws its name in `muted`.
 - A work icon at a row's end names the one thing a stack needs, as a 12 px icon in a fixed slot.
   Conflict and CI failing draw in `blocked`, review and restack needed in `ansi3`, and ready to
   merge in `done`. Red asks to fix, amber asks to act, and green says the work is done. Each icon

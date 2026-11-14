@@ -49,6 +49,7 @@ import { machineTagScene } from './directions/sidebars/states.ts';
 import { ticketScene } from './directions/ticket/scene.ts';
 import { directionWindow } from './directions/window.ts';
 import { controlsScene } from './scenes/controls.ts';
+import { headerMarksScene } from './scenes/headerMarks.ts';
 import type { SceneInputs } from './scenes/inputs.ts';
 import { paneHeadersScene } from './scenes/paneHeaders.ts';
 import { popupQuery, popupScene } from './scenes/popup.ts';
@@ -79,6 +80,16 @@ const renderers: Record<SceneName, (inputs: SceneInputs) => Element> = {
   shell: shellScene,
   'pane-headers': paneHeadersScene,
   'sidebar-parts': sidebarPartsScene,
+  'header-mark-name': () => headerMarksScene('name', 'flat', 'none'),
+  'header-mark-right': () => headerMarksScene('right', 'flat', 'none'),
+  'header-mark-right-active': () => headerMarksScene('rightActive', 'flat', 'none'),
+  'header-mark-left-active': () => headerMarksScene('leftActive', 'nested', 'none'),
+  'header-mark-after-name': () => headerMarksScene('afterName', 'nested', 'none'),
+  'header-mark-left-flat': () => headerMarksScene('leftActive', 'flat', 'none'),
+  'header-mark-after-name-flat': () => headerMarksScene('afterName', 'flat', 'none'),
+  'header-mark-left-divider': () => headerMarksScene('leftActive', 'flat', 'full'),
+  'header-mark-left-divider-inset': () => headerMarksScene('leftActive', 'flat', 'inset'),
+  'header-mark-left-divider-soft': () => headerMarksScene('leftActive', 'flat', 'soft'),
   'smoke-1': (inputs) => paletteNearFail(inputs.command),
   'smoke-2': (inputs) => paletteClean(inputs.command),
   'smoke-3': (inputs) => paletteClearFail(inputs.command),

@@ -18,6 +18,7 @@ import {
   realKitIndexFake,
 } from '../../../tests/moduleFakes.ts';
 import { placeOf, repositoryOf } from '../../data/gitIdentity.ts';
+import { sidebarSize, spacing } from '../../kit/size.ts';
 import type { Project } from './projects.ts';
 import type { GitInfo, ListedSpace } from './tree.ts';
 
@@ -29,6 +30,8 @@ interface ProjectRowsHostLike {
   pullFailed: (git: GitInfo) => boolean;
   retryPull: (git: GitInfo, cx: unknown) => void;
   toggleFold: (key: string, cx: unknown) => void;
+  hovered: string | null;
+  onHover: (id: string, hovered: boolean, cx: unknown) => void;
 }
 
 interface SpaceOptions {
@@ -155,6 +158,8 @@ const hostOf = (overrides: Partial<ProjectRowsHostLike>): ProjectRowsHostLike =>
   pullFailed: () => false,
   retryPull: () => undefined,
   toggleFold: () => undefined,
+  hovered: null,
+  onHover: () => undefined,
   ...overrides,
 });
 
@@ -313,6 +318,51 @@ describe('projectRows', () => {
     click(clickablesWithText(tree, 'tikk')[0] as DrawnElement);
 
     expect(toggled).toEqual([projects[1]?.key]);
+  });
+
+  test('draws a divider in the selected color between projects and none before the first', () => {
+    const rows = loaded.projectRows(
+      hostOf({ projects: projectsOf([listed('a', 'koja'), listed('t', 'tikk')]) }),
+    );
+
+    const divider = rows.find((row) => drawnTexts(row).every((text) => text === ''));
+    const texts = rows.map((row) => drawnTexts(row).find((text) => text !== '') ?? 'divider');
+
+    expect(texts).toEqual(['koja', 'space-a', 'divider', 'tikk', 'space-t']);
+    expect(divider?.kids[0]?.backgroundColors).toEqual([themeColors.selected]);
+  });
+
+  test('keeps the projects a group gap apart, with the row gap on both sides of the divider', () => {
+    const rows = loaded.projectRows(
+      hostOf({ projects: projectsOf([listed('a', 'koja'), listed('t', 'tikk')]) }),
+    );
+
+    const divider = rows[2] as DrawnElement;
+
+    expect(divider.styles['h']).toEqual([sidebarSize.groupGap - 2 * spacing.xxsmall]);
+  });
+
+  test('a header without a main space reports hover and shows its chevron while hovered', () => {
+    const projects = projectsOf([listed('a', 'koja')]);
+    const hovers: unknown[] = [];
+
+    const still = loaded.projectRows(
+      hostOf({
+        projects,
+        onHover: (id, hovered) => {
+          hovers.push([id, hovered]);
+        },
+      }),
+    )[0] as DrawnElement;
+
+    still.hoverHandlers[0]?.(true, {});
+
+    const id = (hovers[0] as [string, boolean] | undefined)?.[0] ?? '';
+    const hovered = loaded.projectRows(hostOf({ projects, hovered: id }))[0] as DrawnElement;
+
+    expect(hovers).toEqual([[id, true]]);
+    expect(drawnIcons(still)).not.toContain('chevron-down.svg');
+    expect(drawnIcons(hovered)).toContain('chevron-down.svg');
   });
 
   test('draws Loading while no project shows and a space still waits', () => {

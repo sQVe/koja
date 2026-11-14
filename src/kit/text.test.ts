@@ -4,7 +4,7 @@ import type { DrawnElement } from '../../tests/drawn.ts';
 import { drawn, drawnTexts } from '../../tests/drawn.ts';
 import { gpuiBaseFake, gpuiKitFake, herdrFake } from '../../tests/moduleFakes.ts';
 
-const palette = { dim: '#2b2b3b', foreground: '#3c3c4c' } as const;
+const palette = { dim: '#2b2b3b', foreground: '#3c3c4c', selected: '#4d4d5d' } as const;
 
 Object.assign(globalThis, { kojaModName: 'koja' });
 
@@ -16,8 +16,9 @@ await mock.module('herdr', () => herdrFake({ theme: () => palette }));
 
 const modulePath = './text.ts';
 
-const { linkText } = (await import(modulePath)) as {
+const { linkText, softSeparator } = (await import(modulePath)) as {
   linkText: (text: string) => DrawnElement;
+  softSeparator: (height: number) => DrawnElement;
 };
 
 afterAll(() => {
@@ -32,5 +33,18 @@ describe('linkText', () => {
     expect(link.textColors.at(-1)).toBe(palette.foreground);
     expect(link.styles['underline']).toBeDefined();
     expect(link.styles['cursor_pointer']).toBeDefined();
+  });
+});
+
+describe('softSeparator', () => {
+  test('draws a 1 px selected line inset 4 px from each side, centered in the given height', () => {
+    const band = softSeparator(8);
+    const line = band.kids[0] as DrawnElement;
+
+    expect(band.styles['h']).toEqual([8]);
+    expect(band.styles['px']).toEqual([4]);
+    expect(band.styles['items_center']).toBeDefined();
+    expect(line.styles['h']).toEqual([1]);
+    expect(line.backgroundColors).toEqual([palette.selected]);
   });
 });

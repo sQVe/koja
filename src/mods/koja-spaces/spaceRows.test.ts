@@ -189,6 +189,17 @@ describe('headerRow', () => {
     expect(drawnTexts(header).filter((text) => text !== '')).toEqual(['koja']);
   });
 
+  test('keeps the mark slot empty while the main space is idle or has no agent', () => {
+    for (const status of ['idle', null] as const) {
+      const quiet = { ...mainSpace, status };
+      const header = loaded.headerRow(projectWith([]), quiet, ['main'], headerState([]));
+      const slot = header.kids[0] as DrawnElement;
+
+      expect(slot.kids).toEqual([]);
+      expect(drawnTexts(header.kids[1] as DrawnElement)).toContain('koja');
+    }
+  });
+
   test('reports hover on the main space when the project has other spaces to fold', () => {
     const hovers: string[] = [];
 

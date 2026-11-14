@@ -97,7 +97,7 @@ bun run sandbox identity
 - Start: the commands above create two spaces on an empty fixture repository. No commit is needed.
   The sandbox puts its `bin` first on `PATH`; the fake `gh` never calls GitHub or the real `gh`.
 - Check that it is up: identity exits 0. Wait for `Could not read PRs` and `Retry` under
-  `pr-fixture`. The `pr-fixture` header and its one row each show a hollow agent mark.
+  `pr-fixture`. The `pr-fixture` header shows no agent mark, and its one row shows a hollow one.
   `$fixtureHome/gh-calls` records `pr list`.
 - Stop: the manager runs `RUTA_NAME=<name> bun run sandbox down` after the worker reports.
 
@@ -202,7 +202,8 @@ So no section has its own "Reach it". What to check in a section is in its recip
 - A pane close that also ends other panes: no fixture step makes a terminal with a live child
   terminal in another pane.
 - Agent launch, live agent status, and machines: they need real agents and SSH. The journey fixture
-  shows only the hollow agent mark, not live status changes.
+  shows only idle spaces, with no mark on the header and a hollow one on the row, not live status
+  changes.
 - Live GitHub PR data: the journey fixture tests a failed read and an empty successful read only. It
   does not test authenticated GitHub reads or populated PR data.
 - `sandbox up`, `restart`, `install`, and `down`, the build, and the installer: the `qa` worker may

@@ -88,7 +88,14 @@ export { shortcutFor } from './shortcut.ts';
 
 export { themeChoices } from './themes.ts';
 
-export { detailText, highlightedText, keyHint, linkText, separator } from './text.ts';
+export {
+  detailText,
+  highlightedText,
+  keyHint,
+  linkText,
+  separator,
+  softSeparator,
+} from './text.ts';
 
 export { roleText, textRoles, withTextRole } from './textRole.ts';
 

@@ -75,7 +75,7 @@ export const headerRow = (
     onToggle: (cx) => {
       state.toggleFold(project.key, cx);
     },
-    mark: spaceMark(main.status),
+    status: main.status,
     age: state.age,
     selected: space.active,
     cursor: state.cursor === space.id,
