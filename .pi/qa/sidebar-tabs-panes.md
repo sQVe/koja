@@ -26,10 +26,13 @@ names. Follow [the rules for every section](../qa.md#rules-for-every-section) of
   while the agent is working, blocked, or done. Otherwise the slot stays empty, so every project
   name starts at the same place.
 - A click selects a space with the gray fill. A click on a project header selects its main checkout
-  the same way. A hovered row or header shows a 1 px outline.
+  the same way. A hovered row or header that is not selected shows a 1 px outline. A selected one
+  keeps its fill and shows no hover outline. The list cursor shows its own accent outline.
 - Hovering a project header that has other spaces shows a chevron at its right end. A click on the
   chevron folds the project to its active spaces and the spaces that need the user, shows `N more`,
   and does not change the selected space. A click on the chevron of a folded project opens it again.
+- A folded header ends with `N more`, then the age of its main space when it has one, then the
+  chevron. A header without a main checkout has no age.
 - A project without a main checkout, such as only linked worktrees or a folder outside Git, has a
   name-only header in a muted tone. A click on that name folds the project, and a second click opens
   it again. Hovering it shows the chevron at its right end, as on a main checkout header.
