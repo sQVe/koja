@@ -117,7 +117,9 @@ const rowFrame = (options: ListRowOptions, palette: Palette): Element => {
   return options.inset ? frame.mx(spacing.xsmall).rounded(radius.pill) : frame;
 };
 
-const decorate = (row: Element, options: ListRowOptions, palette: Palette): void => {
+const withDrag = (row: Element, options: { dragged?: boolean; drop?: DropMark }): Element => {
+  const palette = colors();
+
   if (options.dragged === true) {
     row.opacity(draggedOpacity);
   }
@@ -125,8 +127,10 @@ const decorate = (row: Element, options: ListRowOptions, palette: Palette): void
   if (options.drop === 'refused') {
     row.cursor_not_allowed();
   } else if (options.drop !== undefined) {
-    row.child(dropLineAt(options.drop, palette));
+    row.relative().child(dropLineAt(options.drop, palette));
   }
+
+  return row;
 };
 
 export const listRow = (options: ListRowOptions): Element => {
@@ -134,7 +138,7 @@ export const listRow = (options: ListRowOptions): Element => {
   const filled = withFill(rowFrame(options, palette), options, palette);
   const row = withOutline(filled, options, palette);
 
-  decorate(row, options, palette);
+  withDrag(row, options);
 
   if (options.start !== undefined) {
     row.child(options.start);

@@ -24,6 +24,8 @@ interface HeaderBase {
 // A click on the header folds the project.
 interface FoldHeader extends HeaderBase {
   kind: 'fold';
+  dragged?: boolean;
+  drop?: DropMark;
 }
 
 // The header is the row of the project's main space; its chevron folds the project.
@@ -94,6 +96,8 @@ const foldHeader = (options: FoldHeader): Element =>
     state: 'normal',
     start: statusMark(null),
     label: nameLabel(options, 'muted'),
+    ...(options.drop === undefined ? {} : { drop: options.drop }),
+    ...(options.dragged === undefined ? {} : { dragged: options.dragged }),
     end: [...hiddenParts(options), foldSlot(options, chevronSlot)],
   })
     .cursor_pointer()

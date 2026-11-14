@@ -64,7 +64,7 @@ export const headerRow = (
   state: HeaderState,
 ): Element => {
   const { space } = main;
-  const drop = dropMark(state, space.id, ids);
+  const drop = dropMark(state, project.key, ids);
 
   const element = projectHeader({
     kind: 'space',
@@ -80,7 +80,7 @@ export const headerRow = (
     selected: space.active,
     cursor: state.cursor === space.id,
     hovered: state.hovered === space.id,
-    dragged: state.drag.source === space.id && state.drag.over !== space.id,
+    dragged: state.drag.source === project.key && state.drag.over !== project.key,
     ...(drop === undefined ? {} : { drop }),
   }).id(`space-${space.id}`);
 

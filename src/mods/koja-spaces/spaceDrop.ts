@@ -7,6 +7,11 @@ export interface SpaceMove {
   index: number;
 }
 
+export interface DropProject {
+  key: string;
+  members: readonly string[];
+}
+
 const childrenWith = (
   projects: readonly ProjectChildren[],
   source: string,
@@ -88,6 +93,30 @@ const movesBetween = (order: readonly string[], wanted: readonly string[]): Spac
   });
 
   return moves;
+};
+
+export const projectDropMoves = (
+  order: readonly string[],
+  projects: readonly DropProject[],
+  source: string,
+  target: string,
+): SpaceMove[] => {
+  const from = projects.findIndex((project) => project.key === source);
+  const to = projects.findIndex((project) => project.key === target);
+  const moving = projects[from];
+
+  if (moving === undefined || to === -1 || from === to) {
+    return [];
+  }
+
+  const reordered = projects.filter((members) => members !== moving);
+
+  reordered.splice(to, 0, moving);
+
+  const members = projects.flatMap((project) => project.members);
+  const wanted = reordered.flatMap((project) => order.filter((id) => project.members.includes(id)));
+
+  return movesBetween(order, wantedOrder(order, members, wanted));
 };
 
 export const dropMoves = (

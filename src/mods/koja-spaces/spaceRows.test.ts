@@ -234,7 +234,7 @@ describe('headerRow', () => {
   });
 
   const headerOf = (main: ListedSpace, state: Partial<HeaderStateLike>): DrawnElement =>
-    loaded.headerRow(projectWith([listedSpace(true)]), main, ['main', 'a'], {
+    loaded.headerRow(projectWith([listedSpace(true)]), main, [git.repo.key, 'other-project'], {
       ...headerState([]),
       ...state,
     });
@@ -269,16 +269,16 @@ describe('headerRow', () => {
     expect(drawnIcons(headerOf(mainSpace, { hovered: 'a' }))).not.toContain('chevron-down.svg');
   });
 
-  test('dims the header while its main space is dragged over another row', () => {
-    const dragged = headerOf(mainSpace, { drag: { source: 'main', over: 'a' } });
+  test('dims the header while its project is dragged over another header', () => {
+    const dragged = headerOf(mainSpace, { drag: { source: git.repo.key, over: 'other-project' } });
     const still = headerOf(mainSpace, {});
 
     expect(dragged.styles['opacity']).toBeDefined();
     expect(still.styles['opacity']).toBeUndefined();
   });
 
-  test('draws a drop line on top of the header while a later row is dragged over it', () => {
-    const target = headerOf(mainSpace, { drag: { source: 'a', over: 'main' } });
+  test('draws a drop line on top of the header while a later project is dragged over it', () => {
+    const target = headerOf(mainSpace, { drag: { source: 'other-project', over: git.repo.key } });
     const lines = elementsWithStyle(target, 'top');
 
     expect(lines).toHaveLength(1);
