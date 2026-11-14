@@ -24,14 +24,10 @@ import {
 import type { MarkProject, MarkSpace } from './headerMarksData.ts';
 import { markProjects } from './headerMarksData.ts';
 
-// Where a project header draws its main space's agent mark.
 export type HeaderMarkVariant = 'name' | 'right' | 'rightActive' | 'leftActive' | 'afterName';
 
-// Nested spaces sit one level under their header; flat spaces line up with it.
 export type SpaceLayout = 'nested' | 'flat';
 
-// A divider between projects runs across the list or starts at the mark column. A soft divider
-// runs across the list in the lighter selected color.
 export type GroupDivider = 'none' | 'full' | 'inset' | 'soft';
 
 const views = [
@@ -58,7 +54,6 @@ const spaceEnd = (space: MarkSpace): Element[] => {
   return end;
 };
 
-// The variants that draw the mark beside the name share one header layout.
 const marksNearName = (variant: HeaderMarkVariant): boolean =>
   variant === 'leftActive' || variant === 'afterName';
 
@@ -86,7 +81,6 @@ const machineParts = (project: MarkProject): Element[] =>
     ? []
     : [icon('server', 'small').text_color(colors().dim), roleText('detail', project.machine)];
 
-// A header that is not a space keeps the section heading's own tone.
 const nameTone = (project: MarkProject, variant: HeaderMarkVariant): 'foreground' | 'muted' =>
   marksNearName(variant) && project.main === null ? 'muted' : 'foreground';
 

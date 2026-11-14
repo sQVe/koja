@@ -25,7 +25,6 @@ export interface ProjectRowsHost {
 
 const pullErrorText = 'Could not read PRs';
 
-// The list puts the row gap on both sides of this divider, so the projects sit a group gap apart.
 const projectDivider = (): Element => softSeparator(sidebarSize.groupGap - 2 * spacing.xxsmall);
 
 const loadingRow = (): Element => stateLine({ kind: 'loading', text: 'Loading…' });

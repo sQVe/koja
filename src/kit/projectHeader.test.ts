@@ -102,7 +102,6 @@ const pressContext = { stop_propagation: () => undefined };
 const nameIndex = (header: DrawnElement): number =>
   header.kids.findIndex((kid) => drawnTexts(kid).includes('koja'));
 
-// The styles that place the name: the row's own inset and every part drawn before the name.
 const namePlacement = (header: DrawnElement): unknown[] => [
   header.styles['pl'],
   header.styles['mx'],

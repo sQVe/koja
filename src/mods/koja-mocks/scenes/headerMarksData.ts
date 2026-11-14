@@ -12,8 +12,6 @@ export interface MarkSpace {
   stack?: { merged: number; total: number };
 }
 
-// The header is the project's main space when it has one, so its agent and age belong to that
-// space. A project without a main space has a plain header.
 export interface MarkProject {
   name: string;
   machine?: string;

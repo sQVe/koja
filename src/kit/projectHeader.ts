@@ -55,7 +55,6 @@ const nameLabel = (options: HeaderBase, tone: 'foreground' | 'muted'): Element =
 const needsAttention = (status: Status | null): boolean =>
   status === 'working' || status === 'blocked' || status === 'done';
 
-// The header keeps the mark slot even when empty, so every project name starts at the same x.
 const headerMark = (status: Status | null): Element =>
   needsAttention(status) ? spaceMark(status) : statusMark(null);
 
@@ -67,7 +66,6 @@ const chevronSlot = (options: HeaderBase): Element =>
     colors().dim,
   );
 
-// A press on the space header row selects its space, so the chevron keeps its press to itself.
 const spaceFoldToggle = (options: SpaceHeader): Element =>
   chevronSlot(options)
     .id('fold')
@@ -80,7 +78,6 @@ const spaceFoldToggle = (options: SpaceHeader): Element =>
       options.onToggle(cx);
     });
 
-// An open header hides its chevron until hovered, but keeps the slot so nothing shifts.
 const foldSlot = (options: HeaderBase, chevron: (options: HeaderBase) => Element): Element => {
   const shown = options.folded || options.hovered;
 
