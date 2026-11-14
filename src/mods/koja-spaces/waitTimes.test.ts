@@ -50,19 +50,25 @@ describe('waitAge', () => {
     expect(ageOf(done, { id: 'a', status: 'done' }, start + 6 * minute)).toBe('2m');
   });
 
-  test('an idle space has the age since the user last showed it', () => {
-    const opened = advanced(emptyWaitTimes, { a: 'idle', b: null }, 'a', start);
-    const shown = advanced(opened, { a: 'idle', b: null }, 'a', start + 2 * minute);
-    const left = advanced(shown, { a: 'idle', b: null }, 'b', start + 3 * minute);
+  test('an idle space has no age, whether or not the user showed it', () => {
+    const opened = advanced(emptyWaitTimes, { a: 'idle', b: 'idle', c: null }, 'a', start);
+    const left = advanced(opened, { a: 'idle', b: 'idle', c: null }, 'c', start + minute);
 
-    expect(ageOf(left, { id: 'a', status: 'idle' }, start + 10 * minute)).toBe('8m');
+    expect(ageOf(left, { id: 'a', status: 'idle' }, start + 10 * minute)).toBeNull();
+    expect(ageOf(left, { id: 'b', status: 'idle' }, start + 10 * minute)).toBeNull();
   });
 
-  test('a space without an agent has the age since the user last showed it', () => {
+  test('a space without an agent has no age', () => {
     const shown = advanced(emptyWaitTimes, { a: null, b: null }, 'a', start);
     const left = advanced(shown, { a: null, b: null }, 'b', start + minute);
 
-    expect(ageOf(left, { id: 'a', status: null }, start + 4 * minute)).toBe('4m');
+    expect(ageOf(left, { id: 'a', status: null }, start + 4 * minute)).toBeNull();
+  });
+
+  test('a time saved by the old shown rule never gives an idle space an age', () => {
+    const text = JSON.stringify({ entered: {}, shown: { a: start }, active: 'b' });
+
+    expect(ageOf(readWaitTimes(text), { id: 'a', status: 'idle' }, start + minute)).toBeNull();
   });
 
   test('the shown space has no age', () => {
@@ -71,12 +77,6 @@ describe('waitAge', () => {
     expect(
       ageOf(times, { id: 'a', status: 'blocked', active: true }, start + 9 * minute),
     ).toBeNull();
-  });
-
-  test('an idle space the user never showed has no age', () => {
-    const times = advanced(emptyWaitTimes, { a: 'idle' }, null, start);
-
-    expect(ageOf(times, { id: 'a', status: 'idle' }, start + 9 * minute)).toBeNull();
   });
 
   test('a blocked space with no recorded time has no age', () => {
@@ -89,13 +89,6 @@ describe('waitAge', () => {
     const back = advanced(gone, { a: 'blocked', b: null }, 'b', start + 2 * minute);
 
     expect(ageOf(back, { id: 'a', status: 'blocked' }, start + 5 * minute)).toBe('3m');
-  });
-
-  test('a shown id that is not a live space gets no shown time', () => {
-    const missing = advanced(emptyWaitTimes, { a: null }, 'b', start);
-    const appeared = advanced(missing, { a: null, b: 'idle' }, 'a', start + minute);
-
-    expect(ageOf(appeared, { id: 'b', status: 'idle' }, start + 5 * minute)).toBeNull();
   });
 });
 
@@ -147,15 +140,14 @@ describe('advanceWaitTimes', () => {
 const saved = (times: WaitTimes): string => JSON.stringify(times);
 
 describe('readWaitTimes', () => {
-  test('a state read from its saved value keeps both ages', () => {
-    const opened = advanced(emptyWaitTimes, { a: 'blocked', b: 'idle' }, 'b', start);
-    const shown = advanced(opened, { a: 'blocked', b: 'idle' }, 'b', start + minute);
-    const left = advanced(shown, { a: 'blocked', b: 'idle' }, 'a', start + 2 * minute);
-    const restored = readWaitTimes(saved(left));
-    const later = advanced(restored, { a: 'blocked', b: 'idle' }, 'a', start + 6 * minute);
+  test('a state read from its saved value keeps the blocked and done ages', () => {
+    const first = advanced(emptyWaitTimes, { a: 'blocked', b: 'working' }, null, start);
+    const finished = advanced(first, { a: 'blocked', b: 'done' }, null, start + minute);
+    const restored = readWaitTimes(saved(finished));
+    const later = advanced(restored, { a: 'blocked', b: 'done' }, null, start + 6 * minute);
 
     expect(ageOf(later, { id: 'a', status: 'blocked' }, start + 6 * minute)).toBe('6m');
-    expect(ageOf(later, { id: 'b', status: 'idle' }, start + 6 * minute)).toBe('5m');
+    expect(ageOf(later, { id: 'b', status: 'done' }, start + 6 * minute)).toBe('5m');
   });
 
   test('a state read from its saved value keeps its shown space', () => {
@@ -198,19 +190,17 @@ describe('readWaitTimes', () => {
 
     const text = JSON.stringify({
       entered,
-      shown: { a: start, b: 'yesterday', c: null },
       active: 7,
     });
 
     expect(readWaitTimes(text)).toEqual({
       entered: { a: { status: 'blocked', at: start } },
-      shown: { a: start },
       active: null,
     });
   });
 
   test('drops a time that is not a finite number', () => {
-    const text = `{"entered":{"a":{"status":"done","at":1e999}},"shown":{"a":-1e999}}`;
+    const text = `{"entered":{"a":{"status":"done","at":1e999},"b":{"status":"blocked","at":-1e999}}}`;
 
     expect(readWaitTimes(text)).toEqual(emptyWaitTimes);
   });

@@ -322,36 +322,33 @@ describe('row age', () => {
     ]);
   });
 
-  test('an idle space shows the age since the user last showed it', () => {
+  test('an idle space shows no age after the user showed it', () => {
     const shown = advanced(emptyWaitTimes, { a: 'idle', b: null }, 'a', start);
     const left = advanced(shown, { a: 'idle', b: null }, 'b', start + minute);
 
-    expect(drawnRow(left, spaceWith('a', 'idle', false), start + 8 * minute)).toEqual([
-      'login',
-      '8m',
-    ]);
+    expect(drawnRow(left, spaceWith('a', 'idle', false), start + 8 * minute)).toEqual(['login']);
   });
 
   test('the shown space shows no age', () => {
-    const shown = advanced(emptyWaitTimes, { a: 'idle', b: 'blocked' }, 'a', start);
+    const shown = advanced(emptyWaitTimes, { a: 'blocked', b: null }, 'a', start);
 
-    expect(drawnRow(shown, spaceWith('a', 'idle', true), start + 8 * minute)).toEqual(['login']);
+    expect(drawnRow(shown, spaceWith('a', 'blocked', true), start + 8 * minute)).toEqual(['login']);
   });
 
-  test('both ages are still drawn from the saved times', () => {
-    const shown = advanced(emptyWaitTimes, { a: 'blocked', b: 'idle' }, 'b', start);
-    const left = advanced(shown, { a: 'blocked', b: 'idle' }, 'a', start + 2 * minute);
-    const restored = readWaitTimes(JSON.stringify(left));
-    const later = advanced(restored, { a: 'blocked', b: 'idle' }, 'c', start + 7 * minute);
+  test('blocked and done ages are still drawn from the saved times', () => {
+    const first = advanced(emptyWaitTimes, { a: 'blocked', b: 'working' }, null, start);
+    const finished = advanced(first, { a: 'blocked', b: 'done' }, null, start + 2 * minute);
+    const restored = readWaitTimes(JSON.stringify(finished));
+    const later = advanced(restored, { a: 'blocked', b: 'done' }, 'c', start + 7 * minute);
 
     expect(drawnRow(later, spaceWith('a', 'blocked', false), start + 7 * minute)).toEqual([
       'login',
       '7m',
     ]);
 
-    expect(drawnRow(later, spaceWith('b', 'idle', false), start + 7 * minute)).toEqual([
+    expect(drawnRow(later, spaceWith('b', 'done', false), start + 7 * minute)).toEqual([
       'login',
-      '7m',
+      '5m',
     ]);
   });
 });

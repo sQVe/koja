@@ -2,7 +2,6 @@ import type { Status } from 'herdr';
 
 import { shortAge } from '../../kit/age.ts';
 import { recordOf, stringOf } from '../../kit/fields.ts';
-import { pruneRecord } from './cache.ts';
 
 interface EnteredTime {
   status: Status;
@@ -11,7 +10,6 @@ interface EnteredTime {
 
 export interface WaitTimes {
   entered: Record<string, EnteredTime>;
-  shown: Record<string, number>;
   active: string | null;
 }
 
@@ -34,7 +32,6 @@ export interface WaitingSpace {
 
 export const emptyWaitTimes: WaitTimes = {
   entered: {},
-  shown: {},
   active: null,
 };
 
@@ -90,7 +87,6 @@ export const readWaitTimes = (text: string | null): WaitTimes => {
 
   return {
     entered: readRecord(record['entered'], readEntered),
-    shown: readRecord(record['shown'], timeOf),
     active: stringOf(record['active']),
   };
 };
@@ -122,26 +118,15 @@ const statusChanged = (
 };
 
 export const advanceWaitTimes = (times: WaitTimes, input: WaitInput): WaitAdvance => {
-  const live = new Set(Object.keys(input.statuses));
   const entered = advanceEntered(times.entered, input);
-  const shown = pruneRecord(times.shown, live);
-
-  if (input.active !== null && live.has(input.active)) {
-    shown[input.active] = input.now;
-  }
-
   const changed = statusChanged(times.entered, entered) || times.active !== input.active;
 
-  return { times: { entered, shown, active: input.active }, changed };
+  return { times: { entered, active: input.active }, changed };
 };
 
 const waitStart = (times: WaitTimes, space: WaitingSpace): number | null => {
-  if (space.status === 'working') {
+  if (space.status !== 'blocked' && space.status !== 'done') {
     return null;
-  }
-
-  if (space.status === null || space.status === 'idle') {
-    return times.shown[space.id] ?? null;
   }
 
   const entered = times.entered[space.id];
