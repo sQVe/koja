@@ -69,6 +69,8 @@ an action has one.
 - `}` `{` break step 1: they have no part-letter form, keeping repository moves in the bracket
   family.
 - `t h` `t l` break steps 2 and 3: direction letters keep tab moves aligned with left and right.
+- `t H` `t L` break steps 2 and 3: they move the active tab left and right, as `w H` `w L` move a
+  pane.
 - `s j` `s k` break step 3: direction letters follow the sidebar's vertical space list.
 - Arrow keys, `ctrl-h/j/k/l`, and Ctrl-arrow keys break step 4: extra pane-move aliases keep
   familiar direction keys.

@@ -79,6 +79,8 @@ const namedEntries: NamedEntry[] = [
   shared(commandTitles.closeTab, 'Tab', 'tab kill'),
   shared(commandTitles.nextTab, 'Tab', 'tab'),
   shared(commandTitles.previousTab, 'Tab', 'tab'),
+  shared(commandTitles.moveTabLeft, 'Tab', 'tab reorder'),
+  shared(commandTitles.moveTabRight, 'Tab', 'tab reorder'),
   shared(commandTitles.splitRight, 'Pane', 'vertical'),
   shared(commandTitles.splitDown, 'Pane', 'horizontal'),
   shared(commandTitles.closePane, 'Pane', 'kill'),
@@ -174,7 +176,6 @@ const namedEntries: NamedEntry[] = [
 
 const hiddenCommands = new Set([
   'space.move',
-  'tab.move',
   'space.select',
   'tab.select',
   'pane.focus',

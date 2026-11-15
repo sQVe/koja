@@ -1,4 +1,4 @@
-import { bindingAction } from './binding.ts';
+import { bindingAction, namesBinding } from './binding.ts';
 import type { NormalKey } from './normalKeys.ts';
 import { normalKeys } from './normalKeys.ts';
 
@@ -10,10 +10,10 @@ export interface KeyBinding {
 
 type ActionKeys = Pick<KeyBinding, 'action' | 'keys'>;
 
-const hasNonStringFirstArg = (args: Record<string, unknown> | undefined): boolean => {
+const hasUnnamedFirstArg = (args: Record<string, unknown> | undefined): boolean => {
   const values = Object.values(args ?? {});
 
-  return values.length > 0 && typeof values[0] !== 'string';
+  return values.length > 0 && !namesBinding(values[0]);
 };
 
 const normalBinding = (entry: NormalKey): ActionKeys[] => {
@@ -23,7 +23,7 @@ const normalBinding = (entry: NormalKey): ActionKeys[] => {
     return [];
   }
 
-  if (hasNonStringFirstArg(normalAction.args)) {
+  if (hasUnnamedFirstArg(normalAction.args)) {
     return [];
   }
 
