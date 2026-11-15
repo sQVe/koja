@@ -1,7 +1,7 @@
 import { v_flex } from 'gpui-base';
 import type { AsyncContext, Element, FocusHandle, KeyEvent } from 'gpui-kit';
 import { View } from 'gpui-kit';
-import { knownAgents, panes, run, spaces } from 'herdr';
+import { checking, knownAgents, panes, run, spaces } from 'herdr';
 
 import {
   closeOverlay,
@@ -83,6 +83,10 @@ export default class NewMenu extends View {
     this.handle.focus();
 
     this.target = menuTarget(activeSpace(), focusedFolder());
+
+    if (checking()) {
+      return;
+    }
 
     cx.spawn(async (taskCx) => {
       try {

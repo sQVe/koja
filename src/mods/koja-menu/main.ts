@@ -1,7 +1,7 @@
 import { v_flex } from 'gpui-base';
 import type { AsyncContext, Context, Element, FocusHandle, KeyEvent } from 'gpui-kit';
 import { View } from 'gpui-kit';
-import { exec, panes, props, spaces, terminals } from 'herdr';
+import { checking, exec, panes, props, spaces, terminals } from 'herdr';
 
 import { readGitIdentity } from '../../data/gitIdentity.ts';
 import {
@@ -60,6 +60,10 @@ export default class Menu extends View {
   }
 
   private lookAtCheckout(cx: AsyncContext): void {
+    if (checking()) {
+      return;
+    }
+
     const menu = readMenuProps(props());
     const space = spaces().find((candidate) => candidate.id === menu.target.id);
 

@@ -16,6 +16,17 @@ let keyBindings: { keystroke: string; action: string; context?: string }[] = [];
 let keyContext: string | null = null;
 let actionHandlers: Record<string, () => void> = {};
 let emptyText = '';
+let checkingNow = false;
+let overlayNow: string | null = null;
+let sideEffects: string[] = [];
+
+const recordEffect =
+  (name: string, result: unknown) =>
+  (...args: unknown[]): unknown => {
+    sideEffects.push([name, ...args.flat()].join(' '));
+
+    return result;
+  };
 
 const chainable = (onKeyDown?: (handler: KeyHandler) => void): unknown => {
   const element: unknown = new Proxy(() => element, {
@@ -91,14 +102,23 @@ await mock.module('gpui-kit', () =>
 await mock.module('herdr', () =>
   herdrFake({
     appHome: () => '/tmp',
-    exec: async () => ({ code: 0, stdout: '', stderr: '' }),
+    checking: () => checkingNow,
+    exec: async (...args: unknown[]) => {
+      recordEffect('exec', null)(...args);
+
+      return { code: 0, stdout: '/tmp/koja-picker.test\n', stderr: '' };
+    },
     focused: () => null,
-    hc: () => null,
+    hc: async (...args: unknown[]) => {
+      recordEffect('hc', null)(...args);
+
+      return { code: 0, stdout: 'w1:p1\n', stderr: '' };
+    },
     nextCommand: () => new Promise<string>(() => {}),
     panes: () => [],
     props: () => props,
-    readTextFile: () => '',
-    run: () => null,
+    readTextFile: async (...args: unknown[]) => recordEffect('readTextFile', null)(...args),
+    run: recordEffect('run', null),
     setShared: (key: string, value: unknown) => {
       sharedValues[key] = value;
       sharedWrites.push(key);
@@ -108,7 +128,7 @@ await mock.module('herdr', () =>
     shared: (key: string) => sharedValues[key],
     spaces: () => [],
     terminals: () => [],
-    writeTextFile: () => null,
+    writeTextFile: async (...args: unknown[]) => recordEffect('writeTextFile', null)(...args),
   }),
 );
 
@@ -129,7 +149,7 @@ await mock.module('../../kit/index.ts', () =>
     listRow: () => chainable(),
     modName: 'koja-picker',
     openAtTop: () => 'overlay-3',
-    overlayId: () => null,
+    overlayId: () => overlayNow,
     overlaySize: {},
     programIcon: () => chainable(),
     radius: {},
@@ -200,6 +220,94 @@ beforeEach(() => {
   keyContext = null;
   actionHandlers = {};
   emptyText = '';
+  checkingNow = false;
+  overlayNow = null;
+  sideEffects = [];
+});
+
+const settle = async (): Promise<void> => {
+  for (let index = 0; index < 20; index += 1) {
+    await Promise.resolve();
+  }
+};
+
+const resumedPreview = {
+  part: 'list',
+  preview: {
+    folder: '/tmp/koja-picker.test',
+    state: '/tmp/koja-picker.test/state',
+    viewer: 'w1:p1',
+  },
+};
+
+describe('picker preview during herdr-app check', () => {
+  test('a list with a running preview starts no process and writes no file', async () => {
+    checkingNow = true;
+    props = resumedPreview;
+
+    const view = await loadView();
+
+    view.init(undefined, asyncContext);
+    view.close();
+    await settle();
+
+    expect(sideEffects).toEqual([]);
+  });
+
+  test('the preview part opens no preview', async () => {
+    checkingNow = true;
+    props = { part: 'preview' };
+    overlayNow = 'overlay-3';
+
+    const view = await loadView();
+
+    const spawningContext = {
+      ...asyncContext,
+      spawn: (body: () => Promise<void>) => {
+        body().catch(() => undefined);
+      },
+    };
+
+    view.init(undefined, spawningContext);
+    view.close();
+    await settle();
+
+    expect(sideEffects).toEqual([]);
+  });
+
+  test('outside a check, a list with a running preview writes its heartbeat', async () => {
+    props = resumedPreview;
+
+    const view = await loadView();
+
+    view.init(undefined, asyncContext);
+    await settle();
+
+    const heartbeat = sideEffects.filter((effect) =>
+      effect.startsWith('writeTextFile /tmp/koja-picker.test/heartbeat'),
+    );
+
+    expect(heartbeat).toHaveLength(1);
+  });
+
+  test('outside a check, the preview part makes a preview folder', async () => {
+    props = { part: 'preview' };
+    overlayNow = 'overlay-3';
+
+    const view = await loadView();
+
+    const spawningContext = {
+      ...asyncContext,
+      spawn: (body: () => Promise<void>) => {
+        body().catch(() => undefined);
+      },
+    };
+
+    view.init(undefined, spawningContext);
+    await settle();
+
+    expect(sideEffects).toContain('exec mktemp -d -t koja-picker.XXXXXX');
+  });
 });
 
 describe('picker overlay state', () => {

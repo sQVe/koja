@@ -297,6 +297,19 @@ const typeMessage = (): void => {
 const commitCommands = (): number => commands.filter((args) => args.includes('commit')).length;
 
 describe('Changes view', () => {
+  test('during herdr-app check, init and render run no git and watch no folder', async () => {
+    checkingNow = true;
+
+    const view = await boot();
+
+    timerHandler?.(context);
+    view.render(context);
+    await settle();
+
+    expect(commands).toEqual([]);
+    expect(watchers).toEqual([]);
+  });
+
   test('a failed refresh keeps the files, shows the stale line, and blocks Commit and Enter', async () => {
     const view = await boot();
 

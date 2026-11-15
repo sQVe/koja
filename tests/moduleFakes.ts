@@ -41,6 +41,7 @@ export const dialogFrameFake = (captureKeyHandler: (handler: KeyHandler) => void
 // passes its own behavior as overrides and gets the rest as defaults.
 export const herdrFake = (overrides: ModuleFake = {}): ModuleFake => ({
   appHome: () => '',
+  checking: () => false,
   closeOverlay: () => null,
   commands: () => [],
   exec: async () => ({ code: 0, stdout: '', stderr: '' }),
@@ -48,6 +49,7 @@ export const herdrFake = (overrides: ModuleFake = {}): ModuleFake => ({
   hc: () => null,
   home: () => '',
   keys: () => [],
+  knownAgents: async () => [],
   layout: () => null,
   layouts: () => [],
   machines: () => [],
@@ -129,6 +131,7 @@ export const kitIndexFake = (overrides: ModuleFake = {}): ModuleFake => ({
   modePill: noop,
   openAtTop: () => null,
   openGroveDialog: noop,
+  openWorktreeDialog: noop,
   openPrompt: noop,
   overlayCloseCount: () => 0,
   overlayId: () => null,
@@ -153,6 +156,7 @@ export const kitIndexFake = (overrides: ModuleFake = {}): ModuleFake => ({
   searchField: noop,
   sectionHeader: noop,
   separator: noop,
+  separatorHeight: 0,
   shellSize: {},
   shortAge: () => '',
   shortcutFor: () => null,

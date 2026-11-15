@@ -79,7 +79,11 @@ const createHarness = (
   };
 };
 
-const statusLookup = (result: () => Promise<CommandResult>) => createStatusLookup(() => result());
+const statusLookup = (result: () => Promise<CommandResult>) =>
+  createStatusLookup(
+    () => result(),
+    () => false,
+  );
 
 const otherOverlay = JSON.stringify({ overlays: [{ name: 'koja-palette' }] });
 
@@ -399,6 +403,27 @@ describe('keyboard hold', () => {
     second.resolve(true);
     await flush();
 
+    expect(harness.focusCalls()).toBe(0);
+  });
+
+  test('runs no status command during herdr-app check and keeps the keyboard owner', async () => {
+    let commands = 0;
+
+    const lookup = createStatusLookup(
+      async () => {
+        commands += 1;
+
+        return { code: 0, stdout: noOverlay, stderr: '' };
+      },
+      () => true,
+    );
+
+    const harness = createHarness(lookup);
+
+    harness.hold.check();
+    await flush();
+
+    expect(commands).toBe(0);
     expect(harness.focusCalls()).toBe(0);
   });
 });

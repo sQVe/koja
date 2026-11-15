@@ -1061,6 +1061,15 @@ describe('koja-spaces git reads', () => {
     expect(trackerCalls).toContain('repositories');
   });
 
+  test('during herdr-app check, timer ticks read no git and no pull requests', async () => {
+    checkingNow = true;
+
+    await loadView();
+    tick();
+
+    expect(trackerCalls).toEqual([]);
+  });
+
   test('closing the sidebar stops the git tracker', async () => {
     const view = await loadView();
 

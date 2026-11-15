@@ -2,7 +2,7 @@ import { InputState as InputStates, v_flex } from 'gpui-base';
 import type { InputState } from 'gpui-base';
 import type { AsyncContext, Context, Element, FocusHandle } from 'gpui-kit';
 import { View } from 'gpui-kit';
-import { exec, watchFolder } from 'herdr';
+import { checking, exec, watchFolder } from 'herdr';
 
 import { watchFolderChanges } from '../../data/folderWatch.ts';
 import type { FolderWatchHandle } from '../../data/folderWatch.ts';
@@ -188,6 +188,10 @@ export default class Changes extends View {
   }
 
   private startRead(cx: Context): boolean {
+    if (checking()) {
+      return false;
+    }
+
     const context = locationKey();
     const moved = context !== this.context;
 

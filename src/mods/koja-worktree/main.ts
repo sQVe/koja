@@ -2,7 +2,7 @@ import type { InputState } from 'gpui-base';
 import { InputState as InputStates, v_flex } from 'gpui-base';
 import type { AsyncContext, Context, Element, FocusHandle, KeyEvent } from 'gpui-kit';
 import { div, View } from 'gpui-kit';
-import { props, run, spaces } from 'herdr';
+import { checking, props, run, spaces } from 'herdr';
 
 import type { GroveAction } from '../../kit/index.ts';
 import {
@@ -95,6 +95,10 @@ export default class Worktree extends View {
       cx.timer.after(refocusMilliseconds, () => {
         this.input.focus();
       });
+    }
+
+    if (checking()) {
+      return;
     }
 
     cx.spawn(async (taskCx) => {

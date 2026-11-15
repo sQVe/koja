@@ -52,8 +52,15 @@ const readOverlayStatus = (stdout: string): OverlayStatus => {
   return overlays.some((overlay) => !ownOverlays.has(overlayName(overlay)));
 };
 
-export const createStatusLookup = (exec: StatusExec): (() => Promise<OverlayStatus>) => {
+export const createStatusLookup = (
+  exec: StatusExec,
+  isChecking: () => boolean,
+): (() => Promise<OverlayStatus>) => {
   return async (): Promise<OverlayStatus> => {
+    if (isChecking()) {
+      return null;
+    }
+
     const result = await exec('herdr-app', ['status']);
 
     if (result.code !== 0) {
