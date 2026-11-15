@@ -4,6 +4,8 @@ import type { AsyncContext, Context, Element, FocusHandle } from 'gpui-kit';
 import { View } from 'gpui-kit';
 import { exec, watchFolder } from 'herdr';
 
+import { watchFolderChanges } from '../../data/folderWatch.ts';
+import type { FolderWatchHandle } from '../../data/folderWatch.ts';
 import { colors, repeat, withTextRole } from '../../kit/index.ts';
 import { canCommit, hasText } from './commit.ts';
 import type { CommitRequest } from './commit.ts';
@@ -15,6 +17,11 @@ import { applyRead, emptyReadState, isStale, readStateLine, watchStateLine } fro
 import type { ReadState } from './readState.ts';
 import { commitBar, diffArea, fileList, headerRow, limitedNotice, noteRow } from './rows.ts';
 import type { ChangeFile } from './status.ts';
+
+interface WatchedRoot {
+  root: string;
+  handle: FolderWatchHandle;
+}
 
 const refreshMilliseconds = 10000;
 
@@ -37,9 +44,7 @@ export default class Changes extends View {
 
   private context: string | null = null;
 
-  private watched: string | null = null;
-
-  private watchGeneration = 0;
+  private watched: WatchedRoot | null = null;
 
   private open: string | null = null;
 
@@ -96,6 +101,10 @@ export default class Changes extends View {
 
       this.refresh(timerCx);
     });
+  }
+
+  override close(): void {
+    this.stopWatch();
   }
 
   override render(cx: Context): Element {
@@ -179,6 +188,13 @@ export default class Changes extends View {
   }
 
   private startRead(cx: Context): boolean {
+    const context = locationKey();
+    const moved = context !== this.context;
+
+    if (moved) {
+      this.stopWatch();
+    }
+
     if (this.loading) {
       this.pendingRefresh = true;
 
@@ -190,9 +206,8 @@ export default class Changes extends View {
     }
 
     const where = location();
-    const context = locationKey();
 
-    if (context !== this.context) {
+    if (moved) {
       this.context = context;
       this.state = emptyReadState();
       this.open = null;
@@ -200,8 +215,6 @@ export default class Changes extends View {
       this.message = '';
       this.input.set_value('');
       this.note = null;
-      this.watched = null;
-      this.watchGeneration += 1;
       this.closed = false;
       this.limited = false;
     }
@@ -281,41 +294,36 @@ export default class Changes extends View {
     }
   }
 
+  private stopWatch(): void {
+    this.watched?.handle.cancel();
+    this.watched = null;
+  }
+
   private watch(snapshot: ChangesSnapshot, cx: Context): void {
     const root = snapshot.root;
 
-    if (this.state.watchFailed || snapshot.on !== null || this.watched === root) {
+    if (this.state.watchFailed || snapshot.on !== null || this.watched?.root === root) {
       return;
     }
 
-    this.watched = root;
+    this.stopWatch();
 
-    const generation = this.watchGeneration + 1;
+    const handle = watchFolderChanges(watchFolder, root, cx, {
+      onChange: (taskCx) => {
+        this.refresh(taskCx);
+      },
+      onError: (taskCx) => {
+        this.watched = null;
+        this.state = { ...this.state, watchFailed: true };
+        taskCx.notify();
+      },
+    });
 
-    this.watchGeneration = generation;
+    this.watched = { root, handle };
 
     if (this.loading) {
       this.pendingRefresh = true;
     }
-
-    cx.spawn(async (taskCx) => {
-      try {
-        while (this.watchGeneration === generation) {
-          // eslint-disable-next-line no-await-in-loop -- one folder watch at a time
-          await watchFolder(root);
-
-          if (this.watchGeneration === generation) {
-            this.refresh(taskCx);
-          }
-        }
-      } catch {
-        if (this.watchGeneration === generation) {
-          this.watched = null;
-          this.state = { ...this.state, watchFailed: true };
-          taskCx.notify();
-        }
-      }
-    });
   }
 
   private retryWatch(cx: Context): void {

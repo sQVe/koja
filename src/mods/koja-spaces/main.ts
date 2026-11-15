@@ -105,16 +105,11 @@ export default class Spaces extends View {
 
   override close(): void {
     this.order.clear();
+    this.git.stop();
   }
 
   override init(_props: unknown, cx: AsyncContext): void {
-    repeat(cx, pullsMilliseconds, (timerCx) => {
-      this.pulls.refresh(this.git.repositories(), timerCx);
-    });
-
-    repeat(cx, checkMilliseconds, (timerCx) => {
-      this.checkNew(timerCx);
-    });
+    this.startGitReads(cx);
 
     repeat(cx, ageMilliseconds, (timerCx) => {
       timerCx.notify();
@@ -157,6 +152,16 @@ export default class Spaces extends View {
           })
           .children(this.listRows()),
       );
+  }
+
+  private startGitReads(cx: AsyncContext): void {
+    repeat(cx, pullsMilliseconds, (timerCx) => {
+      this.pulls.refresh(this.git.repositories(), timerCx);
+    });
+
+    repeat(cx, checkMilliseconds, (timerCx) => {
+      this.checkNew(timerCx);
+    });
   }
 
   private followMark(marked: boolean): void {

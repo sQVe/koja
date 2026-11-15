@@ -32,6 +32,7 @@ interface RunCall {
 interface FakeView {
   init: (props: unknown, cx: unknown) => void;
   render: () => DrawnElement;
+  close: () => void;
 }
 
 const themeColors = {
@@ -56,6 +57,9 @@ let sharedValues: Record<string, unknown> = {};
 let sidebarWidth: number | null = null;
 let spaceList: SpaceInfo[] = [];
 let gitByFolder: Record<string, GitInfo> = {};
+let checkingNow = false;
+let trackerCalls: string[] = [];
+let timerHandlers: ((cx: unknown) => void)[] = [];
 const commandQueue: string[] = [];
 const commandWaiters: ((command: string) => void)[] = [];
 
@@ -119,19 +123,27 @@ class FakeGitTracker {
   }
 
   repositories(): [] {
+    trackerCalls.push('repositories');
+
     return [];
   }
 
   sweep(): Set<string> {
+    trackerCalls.push('sweep');
+
     return new Set();
   }
 
   prune(): void {
-    return undefined;
+    trackerCalls.push('prune');
   }
 
   refresh(): void {
-    return undefined;
+    trackerCalls.push('refresh');
+  }
+
+  stop(): void {
+    trackerCalls.push('stop');
   }
 }
 
@@ -183,6 +195,7 @@ await mock.module('./gitTracker.ts', () => ({ GitTracker: FakeGitTracker }));
 
 await mock.module('herdr', () =>
   herdrFake({
+    checking: () => checkingNow,
     layout: () => ({ id: 'sidebar', size: { px: sidebarWidth } }),
     nextCommand,
     openOverlay: (options: unknown) => {
@@ -224,6 +237,7 @@ const kitParts = [
   'text',
   'textRole',
   'theme',
+  'timer',
 ];
 
 const kitFake = await realKitIndexFake(kitParts);
@@ -248,7 +262,11 @@ const loadView = async (): Promise<FakeView> => {
     spawn: (body: (cx: unknown) => Promise<void>) => {
       body(context).catch(() => undefined);
     },
-    timer: { every: () => undefined },
+    timer: {
+      every: (_milliseconds: number, handler: (cx: unknown) => void) => {
+        timerHandlers.push(handler);
+      },
+    },
   };
 
   view.init({}, context);
@@ -311,6 +329,9 @@ beforeEach(() => {
   store.clear();
   spaceList = ['a', 'b', 'c', 'd', 'e', 'f', 'g', 'h'].map((id) => space(id, id === 'b'));
   gitByFolder = {};
+  checkingNow = false;
+  trackerCalls = [];
+  timerHandlers = [];
   mark('sidebar');
 });
 
@@ -1020,5 +1041,31 @@ describe('koja-spaces data host', () => {
     const state = readDataState((key) => sharedValues[key], Date.now());
 
     expect(state.kind).toBe('live');
+  });
+});
+
+describe('koja-spaces git reads', () => {
+  const tick = (): void => {
+    const timerContext = { notify: () => undefined, spawn: () => undefined };
+
+    for (const handler of timerHandlers) {
+      handler(timerContext);
+    }
+  };
+
+  test('timer ticks look for git changes and pull requests', async () => {
+    await loadView();
+    tick();
+
+    expect(trackerCalls).toContain('sweep');
+    expect(trackerCalls).toContain('repositories');
+  });
+
+  test('closing the sidebar stops the git tracker', async () => {
+    const view = await loadView();
+
+    view.close();
+
+    expect(trackerCalls).toEqual(['stop']);
   });
 });

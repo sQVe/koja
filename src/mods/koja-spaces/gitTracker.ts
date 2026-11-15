@@ -2,6 +2,8 @@ import type { Context } from 'gpui-kit';
 import type { PaneInfo, SpaceInfo } from 'herdr';
 import { exec, machines, watchFolder } from 'herdr';
 
+import { watchFolderChanges } from '../../data/folderWatch.ts';
+import type { FolderWatchHandle } from '../../data/folderWatch.ts';
 import type { Branch, GitIdentity, Place, RepositoryIdentity } from '../../data/gitIdentity.ts';
 import { placeOf, readGitIdentity } from '../../data/gitIdentity.ts';
 import { currentWindow } from '../../kit/index.ts';
@@ -49,7 +51,10 @@ export class GitTracker {
 
   private at: Record<string, Place> = {};
 
-  private watching = new Set<string>();
+  private readonly watches = new Map<string, FolderWatchHandle>();
+
+  // null until the first prune: every place counts as live before the list is known.
+  private live: ReadonlySet<string> | null = null;
 
   entries(): Record<string, GitInfo | null> {
     return this.git;
@@ -108,6 +113,7 @@ export class GitTracker {
   }
 
   prune(live: ReadonlySet<string>): void {
+    this.live = live;
     this.git = pruneRecord(this.git, live);
     this.checked = pruneRecord(this.checked, live);
 
@@ -124,6 +130,10 @@ export class GitTracker {
     }
 
     this.forgetUnusedWatches();
+  }
+
+  stop(): void {
+    this.prune(new Set());
   }
 
   refresh(places: Iterable<Place>, cx: Context): void {
@@ -249,14 +259,33 @@ export class GitTracker {
   }
 
   private forgetUnusedWatches(): void {
-    this.watching = retireUnusedWatches(this.watching, this.git);
+    const kept = retireUnusedWatches(new Set(this.watches.keys()), this.git);
+
+    for (const [key, handle] of this.watches) {
+      if (!kept.has(key)) {
+        handle.cancel();
+        this.watches.delete(key);
+      }
+    }
+  }
+
+  private stillTracked(key: string): boolean {
+    return this.live === null || this.live.has(key);
   }
 
   private async check(place: Place, cx: Context): Promise<void> {
+    if (!this.stillTracked(place.key)) {
+      return;
+    }
+
     this.checked[place.key] = Date.now();
     this.unsure.delete(place.key);
 
     const identity = await readGitIdentity(exec, place.machine, place.folder);
+
+    if (!this.stillTracked(place.key)) {
+      return;
+    }
 
     if (identity.kind === 'failed') {
       this.git[place.key] ??= null;
@@ -274,31 +303,26 @@ export class GitTracker {
     }
   }
 
+  private placesIn(repo: RepositoryIdentity): Place[] {
+    return Object.values(this.git)
+      .filter((info): info is GitInfo => info !== null && info.repo.key === repo.key)
+      .map((info) => placeOf(info.repo.machine, info.cwd));
+  }
+
   private watch(repo: RepositoryIdentity, cx: Context): void {
-    if (this.watching.has(repo.key)) {
+    if (this.watches.has(repo.key)) {
       return;
     }
 
-    this.watching.add(repo.key);
-
-    cx.spawn(async (taskCx) => {
-      try {
-        while (this.watching.has(repo.key)) {
-          // eslint-disable-next-line no-await-in-loop -- waits for each batch of changes in turn
-          await watchFolder(repo.commonDirectory);
-
-          if (this.watching.has(repo.key)) {
-            this.refresh(
-              Object.values(this.git)
-                .filter((info): info is GitInfo => info !== null && info.repo.key === repo.key)
-                .map((info) => placeOf(info.repo.machine, info.cwd)),
-              taskCx,
-            );
-          }
-        }
-      } catch {
-        this.watching.delete(repo.key);
-      }
+    const handle = watchFolderChanges(watchFolder, repo.commonDirectory, cx, {
+      onChange: (taskCx) => {
+        this.refresh(this.placesIn(repo), taskCx);
+      },
+      onError: () => {
+        this.watches.delete(repo.key);
+      },
     });
+
+    this.watches.set(repo.key, handle);
   }
 }
