@@ -13,7 +13,6 @@ import {
   projectHeader,
   roleText,
   sidebarSize,
-  softSeparator,
   spaceFooter,
   spaceMark,
   spacing,
@@ -121,33 +120,28 @@ const mainHeader = (name: string, look: HeaderLook): Element => {
   });
 };
 
-// This frame has no row gap, so the divider band is the whole gap between projects.
-const withDividers = (headers: Element[]): Element[] =>
-  headers.flatMap((header, index) =>
-    index === 0 ? [header] : [softSeparator(sidebarSize.groupGap), header],
-  );
+const projectsFrame = (headers: Element[]): Element =>
+  v_flex().w(overlaySize.menuWidth).gap(sidebarSize.groupGap).children(headers);
 
 export const sidebarParts = (): Element[] => [
   sample(
-    'Project headers: idle main space, working and selected, hovered, folded, waiting with an age, remote without a main checkout, with the soft divider between projects',
-    partsFrame(
-      withDividers([
-        mainHeader('koja', {}),
-        mainHeader('herdr', { selected: true, status: 'working' }),
-        mainHeader('tikk', { hovered: true }),
-        mainHeader('seam', { folded: true }),
-        mainHeader('ruta', { folded: true, age: '4m', status: 'blocked' }),
-        projectHeader({
-          kind: 'fold',
-          name: 'tau',
-          machine: 'build-box',
-          folded: false,
-          hidden: 0,
-          hovered: false,
-          onToggle: () => undefined,
-        }),
-      ]),
-    ),
+    'Project headers: idle main space, working and selected, hovered, folded, waiting with an age, remote without a main checkout, a group gap apart',
+    projectsFrame([
+      mainHeader('koja', {}),
+      mainHeader('herdr', { selected: true, status: 'working' }),
+      mainHeader('tikk', { hovered: true }),
+      mainHeader('seam', { folded: true }),
+      mainHeader('ruta', { folded: true, age: '4m', status: 'blocked' }),
+      projectHeader({
+        kind: 'fold',
+        name: 'tau',
+        machine: 'build-box',
+        folded: false,
+        hidden: 0,
+        hovered: false,
+        onToggle: () => undefined,
+      }),
+    ]),
   ),
   sample('Blocked space', spaceMark('blocked')),
   sample(

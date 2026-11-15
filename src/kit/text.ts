@@ -13,14 +13,6 @@ import { currentPlatform } from './window.ts';
 export const separator = (): Element =>
   div().flex_none().my(spacing.xsmall).h(spacing.hairline).bg(colors().border);
 
-export const softSeparator = (height: number): Element =>
-  h_flex()
-    .flex_none()
-    .h(height)
-    .px(spacing.xsmall)
-    .items_center()
-    .child(div().flex_1().h(spacing.hairline).bg(colors().selected));
-
 export const detailText = (text: string, color = colors().dim): Element =>
   div().flex_none().text_size(textSize.small).text_color(color).child(text);
 

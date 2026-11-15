@@ -36,7 +36,8 @@ names. Follow [the rules for every section](../qa.md#rules-for-every-section) of
 - A project without a main checkout, such as only linked worktrees or a folder outside Git, has a
   name-only header in a muted tone. A click on that name folds the project, and a second click opens
   it again. Hovering it shows the chevron at its right end, as on a main checkout header.
-- A thin light gray line runs across the sidebar between two projects, with none above the first.
+- An empty gap separates two projects in the sidebar, with no line in it. A hovered or selected row
+  next to the gap shows only its own outline or fill.
 - A new space shows under its project.
 - A space row dragged onto another space of its own project lands there, above it when moving up and
   below it when moving down. The project order does not change, and `s j` follows the new order.
