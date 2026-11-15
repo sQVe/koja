@@ -31,6 +31,7 @@ import {
   toggleButton,
   trafficLightsPadding,
 } from '../../kit/index.ts';
+import { parsedJson } from '../../kit/parsedJson.ts';
 import type { PanelMemory } from './panelMemory.ts';
 import { initialPanelMemory, panelMemory } from './panelMemory.ts';
 import { tabDropAction } from './tabDrop.ts';
@@ -53,7 +54,7 @@ const stopPress = (_event: unknown, cx: Context): void => {
 };
 
 const readStoredPanels = (): Record<string, string | null> => {
-  const stored: unknown = JSON.parse(localStorage.getItem(panelStorageKey) ?? '{}');
+  const stored: unknown = parsedJson(localStorage.getItem(panelStorageKey) ?? '{}');
 
   const entries = Object.entries(recordOf(stored)).map(
     ([space, panel]) => [space, stringOf(panel)] as const,

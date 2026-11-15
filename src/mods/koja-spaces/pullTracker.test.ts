@@ -57,9 +57,11 @@ Object.assign(globalThis, {
 const modulePath = './pullTracker.ts';
 const loaded = (await import(modulePath)) as { PullTracker: new () => PullTrackerLike };
 
-const pulled = JSON.stringify([
+const pullList = [
   { number: 7, state: 'OPEN', isDraft: false, title: 'Fix the redirect', headRefName: 'main' },
-]);
+];
+
+const pulled = JSON.stringify(pullList);
 
 const repo = repositoryOf(null, '/code/koja/.git');
 
@@ -96,6 +98,40 @@ afterEach(() => {
 });
 
 describe('PullTracker', () => {
+  test('recovers from invalid saved JSON and persists a refreshed pull cache', async () => {
+    setSystemTime(new Date('2026-01-01T00:00:00.000Z'));
+    store.set('pulls', '{{{not json');
+
+    const tracker = new loaded.PullTracker();
+
+    expect(tracker.lookup(git)).toBeNull();
+    expect(tracker.failed(git)).toBe(false);
+
+    nextRead = async () => ({ code: 0, stdout: pulled });
+    tracker.refresh([{ repo, cwd: repo.commonDirectory }], context);
+    await flush();
+
+    expect(tracker.lookup(git)?.number).toBe(7);
+
+    expect(JSON.parse(store.get('pulls') ?? '')).toEqual({
+      [repo.key]: {
+        fetchedAt: Date.now(),
+        list: pullList,
+      },
+    });
+
+    expect(new loaded.PullTracker().lookup(git)?.number).toBe(7);
+  });
+
+  test('reads a valid saved pull cache without refreshing', () => {
+    store.set('pulls', JSON.stringify({ [repo.key]: { fetchedAt: 123, list: pullList } }));
+
+    const tracker = new loaded.PullTracker();
+
+    expect(tracker.lookup(git)?.number).toBe(7);
+    expect(tracker.failed(git)).toBe(false);
+  });
+
   test('a failed PR read keeps the old numbers and reports the failure', async () => {
     setSystemTime(new Date('2026-01-01T00:00:00.000Z'));
     const tracker = new loaded.PullTracker();

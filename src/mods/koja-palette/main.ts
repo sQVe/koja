@@ -30,6 +30,7 @@ import {
   stringOf,
   themeChoices,
 } from '../../kit/index.ts';
+import { parsedJson } from '../../kit/parsedJson.ts';
 import type { Entry, Row } from './entries.ts';
 import { allEntries, entryShortcut, paletteRows } from './entries.ts';
 import type { RowPlace } from './viewport.ts';
@@ -55,7 +56,7 @@ const refocusMilliseconds = 600;
 const recentStorageKey = 'recent';
 
 const readRecent = (): string[] => {
-  const stored: unknown = JSON.parse(localStorage.getItem(recentStorageKey) ?? '[]');
+  const stored: unknown = parsedJson(localStorage.getItem(recentStorageKey) ?? '[]');
 
   return Array.isArray(stored)
     ? stored.filter((item): item is string => typeof item === 'string')
