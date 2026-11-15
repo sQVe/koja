@@ -111,9 +111,7 @@ border for focus. The frame, panes, terminals, sidebar, and tab bar all share th
   of the main space when it has one, then the fold chevron in the last slot. A folded header always
   shows `chevron-right`. An open header shows `chevron-down` only on hover and otherwise keeps the
   empty slot. A header whose project has nothing to fold shows no chevron.
-- Sidebar projects sit one group gap apart, with a 1 px line in `selected` centered in the gap and
-  inset 4 px from each side of the list. The kit draws this soft line, not the `border` separator
-  that menus use.
+- Sidebar projects sit one group gap apart, with no line between them. Space alone separates them.
 
 ### Truncation
 
@@ -310,3 +308,10 @@ stays empty, so rows with and without a mark still do not read as one column.
 ### A ring in the idle color
 
 Draw the ring in the `idle` color. Rejected because it then looked as heavy as the idle dot.
+
+### A line between sidebar projects
+
+Draw a 1 px line in `selected` in the gap between sidebar projects, inset 4 px from each side of the
+list. Rejected because the line has the color and width of the hover outline and selected fill of
+inset rows, and sits about 3 px from their edge. A hovered or selected row next to it looked like it
+had a doubled border.

@@ -1,14 +1,8 @@
 import type { Context, Element } from 'gpui-kit';
+import { div } from 'gpui-kit';
 
 import type { DropMark } from '../../kit/index.ts';
-import {
-  projectHeader,
-  sidebarSize,
-  softSeparator,
-  spacing,
-  stateLine,
-  toggleButton,
-} from '../../kit/index.ts';
+import { projectHeader, sidebarSize, spacing, stateLine, toggleButton } from '../../kit/index.ts';
 import type { Project } from './projects.ts';
 import type { GitInfo, ListedSpace } from './tree.ts';
 
@@ -28,7 +22,11 @@ export interface ProjectRowsHost {
 
 const pullErrorText = 'Could not read PRs';
 
-const projectDivider = (): Element => softSeparator(sidebarSize.groupGap - 2 * spacing.xxsmall);
+// The list puts the row gap on both sides of this spacer, so the projects sit a group gap apart.
+const projectGap = (): Element =>
+  div()
+    .flex_none()
+    .h(sidebarSize.groupGap - 2 * spacing.xxsmall);
 
 const loadingRow = (): Element => stateLine({ kind: 'loading', text: 'Loading…' });
 
@@ -89,6 +87,6 @@ export const projectRows = (host: ProjectRowsHost): Element[] => {
   return host.projects.flatMap((project, index) => {
     const block = projectBlock(project, host);
 
-    return index === 0 ? block : [projectDivider(), ...block];
+    return index === 0 ? block : [projectGap(), ...block];
   });
 };

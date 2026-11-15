@@ -324,26 +324,27 @@ describe('projectRows', () => {
     expect(toggled).toEqual([projects[1]?.key]);
   });
 
-  test('draws a divider in the selected color between projects and none before the first', () => {
+  test('puts an empty gap between projects and none before the first', () => {
     const rows = loaded.projectRows(
       hostOf({ projects: projectsOf([listed('a', 'koja'), listed('t', 'tikk')]) }),
     );
 
-    const divider = rows.find((row) => drawnTexts(row).every((text) => text === ''));
-    const texts = rows.map((row) => drawnTexts(row).find((text) => text !== '') ?? 'divider');
+    const texts = rows.map((row) => drawnTexts(row).find((text) => text !== '') ?? 'gap');
+    const gap = rows[2] as DrawnElement;
 
-    expect(texts).toEqual(['koja', 'space-a', 'divider', 'tikk', 'space-t']);
-    expect(divider?.kids[0]?.backgroundColors).toEqual([themeColors.selected]);
+    expect(texts).toEqual(['koja', 'space-a', 'gap', 'tikk', 'space-t']);
+    expect(gap.kids).toEqual([]);
+    expect(gap.backgroundColors).toEqual([]);
   });
 
-  test('keeps the projects a group gap apart, with the row gap on both sides of the divider', () => {
+  test('keeps the projects a group gap apart, with the row gap on both sides of the spacer', () => {
     const rows = loaded.projectRows(
       hostOf({ projects: projectsOf([listed('a', 'koja'), listed('t', 'tikk')]) }),
     );
 
-    const divider = rows[2] as DrawnElement;
+    const gap = rows[2] as DrawnElement;
 
-    expect(divider.styles['h']).toEqual([sidebarSize.groupGap - 2 * spacing.xxsmall]);
+    expect(gap.styles['h']).toEqual([sidebarSize.groupGap - 2 * spacing.xxsmall]);
   });
 
   test('a header without a main space reports hover and shows its chevron while hovered', () => {
