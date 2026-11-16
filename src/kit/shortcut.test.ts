@@ -36,6 +36,8 @@ describe('bindingFor', () => {
 
   test('shows the plain-letter form of each part, not its ctrl-w alias', () => {
     expect(bindingFor([], 'tab.new')).toBe('t n');
+    expect(bindingFor([], 'tab.next')).toBe('t l');
+    expect(bindingFor([], 'tab.prev')).toBe('t h');
     expect(bindingFor([], 'space.new')).toBe('s n');
     expect(bindingFor([], 'layout.toggle:sidebar')).toBe('z s');
     expect(bindingFor([], 'pane.go:left')).toBe('h');
@@ -44,8 +46,6 @@ describe('bindingFor', () => {
   test('shows the one-key alias of an action that has one', () => {
     expect(bindingFor([], 'space.next')).toBe(']');
     expect(bindingFor([], 'space.prev')).toBe('[');
-    expect(bindingFor([], 'tab.next')).toBe(')');
-    expect(bindingFor([], 'tab.prev')).toBe('(');
     expect(bindingFor([], 'mod.open:koja-picker')).toBe('ä');
   });
 

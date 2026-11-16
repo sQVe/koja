@@ -45,11 +45,12 @@ Neovim's keys where they fit.
 
 ### Single keys and aliases
 
-The bracket family serves repeated moves: `]` `[` step spaces, `)` `(` step tabs, and `}` `{` go to
-the first space of the next and previous project. Plain `h/j/k/l` move between panes because no
-cursor needs them. `H/J/K/L` give repeated pane swaps one alias each. `Space` goes to the next pane
-that needs you, as the one-key alias of `g a`, because the user repeats this jump more than any
-other.
+The bracket family serves repeated moves: `]` `[` step spaces, `)` `(` go to the next and previous
+pane that needs you, and `}` `{` go to the first space of the next and previous project. The user
+repeats the jump to a pane that needs you more than any other move, so it has only the one-key pair
+and no sequence. Each move gets a pair because a key without a direction has no partner for the way
+back. Plain `h/j/k/l` move between panes because no cursor needs them. `H/J/K/L` give repeated pane
+swaps one alias each.
 
 Keys fixed by step 5 are not exceptions. `:` opens the palette, `/` searches, and `?` opens help, as
 in Neovim. `/` leaves normal mode, as Vim's `/` leaves normal mode for the command line. Herdr gives
@@ -68,6 +69,8 @@ an action has one.
 
 - `}` `{` break step 1: they have no part-letter form, keeping repository moves in the bracket
   family.
+- `)` `(` break step 1: they have no part-letter form, because the jump to a pane that needs you
+  crosses tabs and spaces and has no part of its own.
 - `t h` `t l` break steps 2 and 3: direction letters keep tab moves aligned with left and right.
 - `t H` `t L` break steps 2 and 3: they move the active tab left and right, as `w H` `w L` move a
   pane.
@@ -111,6 +114,11 @@ cursor that takes the plain letters, so the chords only make keys harder to type
 
 Use pairs such as `]s` to step spaces. Rejected because a bare `]` cannot exist next to `]s` without
 a timeout. The bracket family keeps repeated moves to one key without waiting.
+
+### Several aliases for the jump to a pane that needs you
+
+Keep `g a` `g A` and `Space` next to `)` `(`. Rejected because the extra keys do the same jump, and
+`Space` has no direction, so it has no partner for the way back.
 
 ### Keep normal mode paused during a search
 
