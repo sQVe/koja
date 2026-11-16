@@ -12,8 +12,6 @@ export interface FolderWatchHandle {
   cancel: () => void;
 }
 
-// Calls onChange after each batch of changes under folder, and onError once if a watch rejects.
-// After cancel(), neither callback runs again.
 export const watchFolderChanges = (
   watchFolder: WatchFolder,
   folder: string,
