@@ -2,7 +2,17 @@ import { ScrollHandle, v_flex } from 'gpui-base';
 import type { AsyncContext, Context, Element } from 'gpui-kit';
 import { div, View } from 'gpui-kit';
 import type { PaneInfo, SpaceInfo } from 'herdr';
-import { nextCommand, openOverlay, panes, run, setShared, shared, spaces, terminals } from 'herdr';
+import {
+  checking,
+  nextCommand,
+  openOverlay,
+  panes,
+  run,
+  setShared,
+  shared,
+  spaces,
+  terminals,
+} from 'herdr';
 
 import { startDataHost } from '../../data/host.ts';
 import type { DragState } from '../../kit/drag.ts';
@@ -105,16 +115,11 @@ export default class Spaces extends View {
 
   override close(): void {
     this.order.clear();
+    this.git.stop();
   }
 
   override init(_props: unknown, cx: AsyncContext): void {
-    repeat(cx, pullsMilliseconds, (timerCx) => {
-      this.pulls.refresh(this.git.repositories(), timerCx);
-    });
-
-    repeat(cx, checkMilliseconds, (timerCx) => {
-      this.checkNew(timerCx);
-    });
+    this.startGitReads(cx);
 
     repeat(cx, ageMilliseconds, (timerCx) => {
       timerCx.notify();
@@ -157,6 +162,20 @@ export default class Spaces extends View {
           })
           .children(this.listRows()),
       );
+  }
+
+  private startGitReads(cx: AsyncContext): void {
+    if (checking()) {
+      return;
+    }
+
+    repeat(cx, pullsMilliseconds, (timerCx) => {
+      this.pulls.refresh(this.git.repositories(), timerCx);
+    });
+
+    repeat(cx, checkMilliseconds, (timerCx) => {
+      this.checkNew(timerCx);
+    });
   }
 
   private followMark(marked: boolean): void {

@@ -157,6 +157,16 @@ describe('allEntries', () => {
     expect(rows.map((row) => row.entry.name)).toEqual(['weird']);
   });
 
+  test('offers moving the tab one step each way when the app knows tab.move', () => {
+    commandList = [commandOf('tab.move')];
+
+    const moves = allEntries(host())
+      .filter((item) => item.name === 'tab.move')
+      .map((item) => item.args);
+
+    expect(moves).toEqual([{ by: -1 }, { by: 1 }]);
+  });
+
   test('lists a known command once, from the named catalog', () => {
     commandList = [commandOf('tab.new')];
 

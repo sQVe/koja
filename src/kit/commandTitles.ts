@@ -28,6 +28,8 @@ export const commandTitles = {
   closeTab: { command: 'tab.close', args: {}, title: 'Close tab' },
   nextTab: { command: 'tab.next', args: {}, title: 'Next tab' },
   previousTab: { command: 'tab.prev', args: {}, title: 'Previous tab' },
+  moveTabLeft: { command: 'tab.move', args: { by: -1 }, title: 'Move tab left' },
+  moveTabRight: { command: 'tab.move', args: { by: 1 }, title: 'Move tab right' },
   splitRight: {
     command: 'pane.split',
     args: { direction: 'right' },

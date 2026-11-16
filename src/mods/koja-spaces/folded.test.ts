@@ -37,6 +37,21 @@ describe('foldedSet', () => {
     expect(values['machines.folded']).toBe('[]');
   });
 
+  test('recovers from invalid saved JSON and persists a later toggle', () => {
+    const { values, store: storage } = store();
+
+    storage.set('repos.folded', '{{{not json');
+
+    const folded = foldedSet('repos.folded', storage);
+
+    expect(folded.has('a')).toBe(false);
+
+    folded.toggle('a');
+
+    expect(folded.has('a')).toBe(true);
+    expect(values['repos.folded']).toBe('["a"]');
+  });
+
   test('reads an existing folded set', () => {
     const { store: storage } = store();
 

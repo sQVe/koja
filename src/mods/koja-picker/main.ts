@@ -9,7 +9,7 @@ import type {
   ModifiersChangedEvent,
 } from 'gpui-kit';
 import { div, View } from 'gpui-kit';
-import { focused, nextCommand, run } from 'herdr';
+import { checking, focused, nextCommand, run } from 'herdr';
 
 import { createContextKeys } from '../../kit/contextKeys.ts';
 import {
@@ -69,8 +69,10 @@ export default class Picker extends View {
   });
 
   override init(_props: unknown, cx: AsyncContext): void {
+    const startsPreview = !checking();
+
     if (!isList()) {
-      if (overlayId() !== null) {
+      if (startsPreview && overlayId() !== null) {
         this.preview = createPreviewSession();
         launch(cx, this.preview, history.rememberPane);
       }
@@ -79,7 +81,7 @@ export default class Picker extends View {
     }
 
     filterKeys.bind(cx);
-    this.preview = previewFromProps();
+    this.preview = startsPreview ? previewFromProps() : null;
     this.watchPreview(cx);
 
     const current = focused()?.space ?? null;

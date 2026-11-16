@@ -61,6 +61,7 @@ const statusCommand = 'git --no-optional-locks status --porcelain';
 const layoutCommand =
   'git rev-parse --is-bare-repository --is-inside-git-dir --path-format=absolute --git-dir --git-common-dir';
 
+let checkingNow = false;
 let calls: Call[] = [];
 let execCalls: ExecCall[] = [];
 let execResults: Record<string, ExecResult | Error> = {};
@@ -170,6 +171,7 @@ await mock.module('gpui-kit', () => gpuiKitFake({ div: chainable }));
 
 await mock.module('herdr', () =>
   herdrFake({
+    checking: () => checkingNow,
     exec: fakeExec,
     props: () => dialogProps,
     run: (name: string, args: Record<string, unknown>) => {
@@ -236,6 +238,7 @@ afterAll(() => {
 });
 
 beforeEach(() => {
+  checkingNow = false;
   calls = [];
   execCalls = [];
   execResults = defaultResults();
@@ -403,6 +406,14 @@ describe('worktree checks', () => {
 
     expect(stateLines).toEqual([{ kind: 'error', text: 'machine box is offline', wrap: true }]);
     expect(groveCalls()).toEqual([]);
+  });
+
+  test('during herdr-app check, a clean worktree runs no git or Grove and keeps its space', async () => {
+    checkingNow = true;
+    await openDialog();
+
+    expect(execCalls).toEqual([]);
+    expect(calls).toEqual([]);
   });
 
   test('a space that is gone shows an error and runs nothing', async () => {

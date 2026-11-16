@@ -125,6 +125,8 @@ export const normalKeys: NormalKey[] = [
   { keys: ['t', 'r'], action: herdrCommand('tab.rename') },
   { keys: ['t', 'h'], action: herdrCommand('tab.prev') },
   { keys: ['t', 'l'], action: herdrCommand('tab.next') },
+  { keys: ['t', 'H'], action: herdrCommand('tab.move', { by: -1 }) },
+  { keys: ['t', 'L'], action: herdrCommand('tab.move', { by: 1 }) },
   ...tabDigits.map(tabSelectEntry),
   { keys: ['g', 't'], action: herdrCommand('tab.next'), counted: 'nthTab' },
   { keys: ['g', 'T'], action: herdrCommand('tab.prev') },

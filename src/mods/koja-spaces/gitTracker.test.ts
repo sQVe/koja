@@ -10,6 +10,14 @@ import type { GitInfo } from './tree.ts';
 interface GitTrackerLike {
   lookup: (key: string) => GitInfo | null | undefined;
   refresh: (places: Place[], cx: unknown) => void;
+  prune: (live: ReadonlySet<string>) => void;
+  stop: () => void;
+}
+
+interface FolderWatchFake {
+  folder: string;
+  resolve: (paths: string[]) => void;
+  reject: (reason: Error) => void;
 }
 
 interface FolderGit {
@@ -23,6 +31,12 @@ const ok = { code: 0, stdout: '', stderr: '' };
 let folders: Record<string, FolderGit> = {};
 let failure: string | null = null;
 let watched: string[] = [];
+let cancelled: string[] = [];
+let gitCalls = 0;
+let readFolders: string[] = [];
+let gitGate: Promise<void> = Promise.resolve();
+let cancelResolves = true;
+let watches: FolderWatchFake[] = [];
 
 const answer = (args: string[], cwd: string): ExecResult => {
   const folder = folders[cwd];
@@ -52,12 +66,37 @@ const answer = (args: string[], cwd: string): ExecResult => {
 
 await mock.module('herdr', () =>
   herdrFake({
-    exec: async (_command: string, args: string[], options: { cwd: string }) =>
-      answer(args, options.cwd),
+    exec: async (_command: string, args: string[], options: { cwd: string }) => {
+      gitCalls += 1;
+      readFolders.push(options.cwd);
+      await gitGate;
+
+      return answer(args, options.cwd);
+    },
     watchFolder: (folder: string) => {
+      let settle: Pick<FolderWatchFake, 'resolve' | 'reject'> | null = null;
+
+      const promise = new Promise<string[]>((resolve, reject) => {
+        settle = { resolve, reject };
+      });
+
+      watches.push({
+        folder,
+        resolve: (paths) => settle?.resolve(paths),
+        reject: (reason) => settle?.reject(reason),
+      });
+
       watched.push(folder);
 
-      return new Promise<string[]>(() => {});
+      return Object.assign(promise, {
+        cancel: () => {
+          cancelled.push(folder);
+
+          if (cancelResolves) {
+            settle?.resolve([]);
+          }
+        },
+      });
     },
   }),
 );
@@ -76,6 +115,12 @@ const context = {
   notify: () => undefined,
 };
 
+const settle = async (): Promise<void> => {
+  for (let index = 0; index < 20; index += 1) {
+    await Promise.resolve();
+  }
+};
+
 const read = async (
   tracker: GitTrackerLike,
   folder: string,
@@ -90,6 +135,24 @@ const read = async (
   await spawned[first];
 
   return tracker.lookup(place.key) ?? null;
+};
+
+// Starts a read whose git commands wait until finish() lets them answer.
+const delayedRead = (tracker: GitTrackerLike, folder: string): { finish: () => Promise<void> } => {
+  const gate = Promise.withResolvers<undefined>();
+
+  gitGate = gate.promise;
+
+  const first = spawned.length;
+
+  tracker.refresh([placeOf(null, folder)], context);
+
+  return {
+    finish: async (): Promise<void> => {
+      gate.resolve(undefined);
+      await spawned[first];
+    },
+  };
 };
 
 const mainCheckout: FolderGit = {
@@ -107,6 +170,12 @@ afterEach(() => {
   folders = {};
   failure = null;
   watched = [];
+  cancelled = [];
+  gitCalls = 0;
+  readFolders = [];
+  gitGate = Promise.resolve();
+  cancelResolves = true;
+  watches = [];
 });
 
 afterAll(() => {
@@ -154,11 +223,17 @@ describe('GitTracker', () => {
 
     const info = await read(new loaded.GitTracker(), '/code/tau.git');
 
-    expect(info).toMatchObject({ branch: 'main', root: '/code/tau.git', linked: false });
+    expect(info).toMatchObject({
+      branch: 'main',
+      root: '/code/tau.git',
+      linked: false,
+    });
   });
 
   test('gives a detached HEAD no branch', async () => {
-    folders = { '/code/koja': { layout: mainCheckout.layout, top: '/code/koja' } };
+    folders = {
+      '/code/koja': { layout: mainCheckout.layout, top: '/code/koja' },
+    };
 
     const info = await read(new loaded.GitTracker(), '/code/koja');
 
@@ -211,5 +286,142 @@ describe('GitTracker', () => {
 
     expect(info?.root).toBe('/code/tau.git');
     expect(watched).toEqual([]);
+  });
+
+  test('cancels the watch of a repository no space shows and reads nothing for it', async () => {
+    folders = { '/code/koja/src': mainCheckout };
+
+    const tracker = new loaded.GitTracker();
+
+    await read(tracker, '/code/koja/src');
+
+    const callsBeforePrune = gitCalls;
+
+    tracker.prune(new Set());
+    await settle();
+
+    expect(cancelled).toEqual(['/code/koja/.git']);
+    expect(watched).toEqual(['/code/koja/.git']);
+    expect(gitCalls).toBe(callsBeforePrune);
+  });
+
+  test('cancels the watch when a later read finds no repository', async () => {
+    const tracker = new loaded.GitTracker();
+
+    folders = { '/code/koja': mainCheckout };
+    await read(tracker, '/code/koja');
+    folders = {};
+    await read(tracker, '/code/koja');
+
+    expect(cancelled).toEqual(['/code/koja/.git']);
+  });
+
+  test('stop cancels every watch and reads nothing more', async () => {
+    folders = {
+      '/code/koja': mainCheckout,
+      '/code/tikk': {
+        ...mainCheckout,
+        layout: 'false\nfalse\n/code/tikk/.git\n/code/tikk/.git\n',
+        top: '/code/tikk',
+      },
+    };
+
+    const tracker = new loaded.GitTracker();
+
+    await read(tracker, '/code/koja');
+    await read(tracker, '/code/tikk');
+
+    const callsBeforeStop = gitCalls;
+
+    tracker.stop();
+    await settle();
+
+    expect(cancelled).toEqual(['/code/koja/.git', '/code/tikk/.git']);
+    expect(watched).toHaveLength(2);
+    expect(gitCalls).toBe(callsBeforeStop);
+  });
+
+  test('a read that ends after its place was pruned starts no watch and keeps no repository', async () => {
+    folders = { '/code/koja': mainCheckout };
+
+    const tracker = new loaded.GitTracker();
+    const pendingRead = delayedRead(tracker, '/code/koja');
+
+    tracker.prune(new Set());
+    await pendingRead.finish();
+
+    expect(watched).toEqual([]);
+    expect(tracker.lookup(placeOf(null, '/code/koja').key)).toBeUndefined();
+  });
+
+  test('a read that ends after stop starts no watch and keeps no repository', async () => {
+    folders = { '/code/koja': mainCheckout };
+
+    const tracker = new loaded.GitTracker();
+    const pendingRead = delayedRead(tracker, '/code/koja');
+
+    tracker.stop();
+    await pendingRead.finish();
+
+    expect(watched).toEqual([]);
+    expect(tracker.lookup(placeOf(null, '/code/koja').key)).toBeUndefined();
+  });
+
+  test('stop leaves the rest of a running batch unread', async () => {
+    folders = { '/code/koja': mainCheckout, '/code/tikk': mainCheckout };
+
+    const tracker = new loaded.GitTracker();
+    const gate = Promise.withResolvers<undefined>();
+
+    gitGate = gate.promise;
+
+    const first = spawned.length;
+
+    tracker.refresh([placeOf(null, '/code/koja'), placeOf(null, '/code/tikk')], context);
+    await settle();
+    tracker.stop();
+    gate.resolve(undefined);
+    await spawned[first];
+
+    expect(readFolders).not.toContain('/code/tikk');
+  });
+
+  test('a rejected watch lets the next read start a new one', async () => {
+    folders = { '/code/koja': mainCheckout };
+
+    const tracker = new loaded.GitTracker();
+
+    await read(tracker, '/code/koja');
+    watches[0]?.reject(new Error('too many watches'));
+    await settle();
+    await read(tracker, '/code/koja');
+
+    expect(watched).toEqual(['/code/koja/.git', '/code/koja/.git']);
+  });
+
+  test('a late rejection of a replaced watch keeps the new watch', async () => {
+    folders = { '/code/koja': mainCheckout };
+    cancelResolves = false;
+
+    const key = placeOf(null, '/code/koja').key;
+    const tracker = new loaded.GitTracker();
+
+    await read(tracker, '/code/koja');
+    tracker.prune(new Set());
+    tracker.prune(new Set([key]));
+    await read(tracker, '/code/koja');
+
+    watches[0]?.reject(new Error('cancelled late'));
+    await settle();
+    await read(tracker, '/code/koja');
+
+    expect(watched).toEqual(['/code/koja/.git', '/code/koja/.git']);
+
+    const callsBeforeChange = gitCalls;
+
+    watches[1]?.resolve(['/code/koja/.git/HEAD']);
+    await settle();
+
+    expect(gitCalls).toBeGreaterThan(callsBeforeChange);
   });
 });

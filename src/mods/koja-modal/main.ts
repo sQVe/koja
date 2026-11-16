@@ -1,6 +1,6 @@
 import type { AsyncContext, Context, Element, FocusHandle, KeyEvent } from 'gpui-kit';
 import { div, View } from 'gpui-kit';
-import { exec, focused, nextCommand, panes, run, setShared, shared, spaces } from 'herdr';
+import { checking, exec, focused, nextCommand, panes, run, setShared, shared, spaces } from 'herdr';
 
 import { createContextKeys } from '../../kit/contextKeys.ts';
 import {
@@ -62,7 +62,7 @@ export default class KojaModal extends View {
   private readonly hold = createKeyboardHold({
     isFocused: () => this.handle?.is_focused() ?? false,
     overlayCloseCount,
-    lookupStatus: createStatusLookup(exec),
+    lookupStatus: createStatusLookup(exec, checking),
     focus: () => {
       this.handle?.focus();
     },

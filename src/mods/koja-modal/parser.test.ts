@@ -261,6 +261,8 @@ const partKeys: [string, NormalAction][] = [
   ['t r', command('tab.rename')],
   ['t h', command('tab.prev')],
   ['t l', command('tab.next')],
+  ['t H', command('tab.move', { by: -1 })],
+  ['t L', command('tab.move', { by: 1 })],
   ['s n', command('space.new')],
   ['s q', command('space.close')],
   ['s r', command('space.rename')],

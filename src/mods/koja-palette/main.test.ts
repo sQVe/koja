@@ -22,6 +22,8 @@ let keyDownHandler: KeyHandler | null = null;
 let closeOverlayCalls = 0;
 let sharedValues: Record<string, unknown> = {};
 let sharedWrites: string[] = [];
+let chosenCommands: string[] = [];
+let submitInput: (() => void) | null = null;
 
 const chainable = (): unknown =>
   new Proxy(() => undefined, {
@@ -49,7 +51,11 @@ const surface = (): unknown => {
 };
 
 const inputStub = {
-  on: () => undefined,
+  on: (event: string, handler: () => void) => {
+    if (event === 'submit') {
+      submitInput = handler;
+    }
+  },
   focus: () => undefined,
   value: () => '',
 };
@@ -74,7 +80,10 @@ await mock.module('gpui-kit', () =>
 
 await mock.module('herdr', () =>
   herdrFake({
-    commands: () => [],
+    commands: () => [
+      { name: 'tab.new', args: [], about: '' },
+      { name: 'tab.close', args: [], about: '' },
+    ],
     layouts: () => [],
     openOverlay: () => 'overlay-2',
     run: () => null,
@@ -93,6 +102,9 @@ const { overlayCloseCount, recordOverlayClose } = await import('../../kit/overla
 await mock.module('../../kit/index.ts', () =>
   kitIndexFake({
     recordOverlayClose,
+    askFirst: (name: string) => {
+      chosenCommands.push(name);
+    },
     closeOverlay: () => {
       closeOverlayCalls += 1;
     },
@@ -145,9 +157,38 @@ beforeEach(() => {
   closeOverlayCalls = 0;
   sharedValues = {};
   sharedWrites = [];
+  chosenCommands = [];
+  storage.clear();
+  submitInput = null;
 });
 
 describe('palette overlay state', () => {
+  test('recovers from invalid saved JSON and persists a selected command', async () => {
+    storage.set('recent', '{{{not json');
+
+    const view = await loadView();
+
+    view.init(undefined, asyncContext);
+    view.render();
+    submitInput?.();
+
+    expect(chosenCommands).toEqual(['tab.new']);
+    expect(storage.get('recent')).toBe('["tab.new:{}"]');
+  });
+
+  test('reads valid saved recent commands before the default ordering', async () => {
+    storage.set('recent', '["tab.close:{}"]');
+
+    const view = await loadView();
+
+    view.init(undefined, asyncContext);
+    view.render();
+    submitInput?.();
+
+    expect(chosenCommands).toEqual(['tab.close']);
+    expect(storage.get('recent')).toBe('["tab.close:{}"]');
+  });
+
   test('opening the palette writes no shared state', async () => {
     const view = await loadView();
 

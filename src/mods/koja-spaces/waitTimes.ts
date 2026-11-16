@@ -2,6 +2,7 @@ import type { Status } from 'herdr';
 
 import { shortAge } from '../../kit/age.ts';
 import { recordOf, stringOf } from '../../kit/fields.ts';
+import { parsedJson } from '../../kit/parsedJson.ts';
 
 interface EnteredTime {
   status: Status;
@@ -72,18 +73,8 @@ const readRecord = <T>(
   return read;
 };
 
-const parsedJson = (text: string): unknown => {
-  try {
-    const value: unknown = JSON.parse(text);
-
-    return value;
-  } catch {
-    return null;
-  }
-};
-
 export const readWaitTimes = (text: string | null): WaitTimes => {
-  const record = recordOf(parsedJson(text ?? '{}'));
+  const record = recordOf(parsedJson(text));
 
   return {
     entered: readRecord(record['entered'], readEntered),

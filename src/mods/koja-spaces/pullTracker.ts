@@ -2,6 +2,7 @@ import type { Context } from 'gpui-kit';
 import { exec } from 'herdr';
 
 import type { RepositoryIdentity } from '../../data/gitIdentity.ts';
+import { parsedJson } from '../../kit/parsedJson.ts';
 import type { Pull, PullCache } from './pulls.ts';
 import { pullFields, pullOf, readPullCaches, readPullList } from './pulls.ts';
 import type { GitInfo } from './tree.ts';
@@ -12,7 +13,7 @@ const pullsMaxAge = 180_000;
 
 export class PullTracker {
   private pulls: Record<string, PullCache> = readPullCaches(
-    JSON.parse(localStorage.getItem(pullsKey) ?? '{}'),
+    parsedJson(localStorage.getItem(pullsKey)),
   );
 
   private readonly failedRepos = new Set<string>();

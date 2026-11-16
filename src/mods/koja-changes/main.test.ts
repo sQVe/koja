@@ -10,6 +10,7 @@ import {
 
 interface Watch {
   pending: boolean;
+  cancelled: boolean;
   resolve: (paths: string[]) => void;
   reject: (reason: Error) => void;
 }
@@ -30,11 +31,14 @@ interface RenderedCommit {
 
 interface ChangesView {
   init: (props: unknown, cx: unknown) => void;
+  close: () => void;
   render: (cx: unknown) => unknown;
   refresh: (cx: unknown) => void;
 }
 
 let cwd = '/repo/a';
+
+let checkingNow = false;
 
 let failStatus = false;
 
@@ -107,23 +111,39 @@ await mock.module('gpui-kit', () => gpuiKitFake());
 
 await mock.module('herdr', () =>
   herdrFake({
+    checking: () => checkingNow,
     focused: () => ({ pane: null, cwd, terminal: null }),
-    watchFolder: () =>
-      new Promise<string[]>((resolve, reject) => {
-        const watch: Watch = {
-          pending: true,
-          resolve: (paths) => {
-            watch.pending = false;
-            resolve(paths);
-          },
-          reject: (reason) => {
-            watch.pending = false;
-            reject(reason);
-          },
-        };
+    watchFolder: () => {
+      let settle: Pick<Watch, 'resolve' | 'reject'> | null = null;
 
-        watchers.push(watch);
-      }),
+      const promise = new Promise<string[]>((resolve, reject) => {
+        settle = { resolve, reject };
+      });
+
+      const watch: Watch = {
+        pending: true,
+        cancelled: false,
+        resolve: (paths) => {
+          watch.pending = false;
+          settle?.resolve(paths);
+        },
+        reject: (reason) => {
+          watch.pending = false;
+          settle?.reject(reason);
+        },
+      };
+
+      watchers.push(watch);
+
+      return Object.assign(promise, {
+        cancel: () => {
+          if (watch.pending) {
+            watch.cancelled = true;
+            watch.resolve([]);
+          }
+        },
+      });
+    },
     exec: async (command: string, args: string[]) => {
       commands.push([command, ...args]);
 
@@ -210,6 +230,7 @@ afterAll(() => {
 
 beforeEach(() => {
   cwd = '/repo/a';
+  checkingNow = false;
   failStatus = false;
   statusReads = 0;
   statusText = ' M a.ts\0 M b.ts\0';
@@ -276,6 +297,19 @@ const typeMessage = (): void => {
 const commitCommands = (): number => commands.filter((args) => args.includes('commit')).length;
 
 describe('Changes view', () => {
+  test('during herdr-app check, init and render run no git and watch no folder', async () => {
+    checkingNow = true;
+
+    const view = await boot();
+
+    timerHandler?.(context);
+    view.render(context);
+    await settle();
+
+    expect(commands).toEqual([]);
+    expect(watchers).toEqual([]);
+  });
+
   test('a failed refresh keeps the files, shows the stale line, and blocks Commit and Enter', async () => {
     const view = await boot();
 
@@ -415,7 +449,31 @@ describe('Changes view', () => {
     expect(watchers.filter((watch) => watch.pending)).toHaveLength(1);
   });
 
-  test('a watch rejected while focus was briefly elsewhere shows the watch error line', async () => {
+  test('a location change cancels the old watch and reads only the new location', async () => {
+    const view = await boot();
+
+    cwd = '/repo/b';
+    view.render(context);
+    await settle();
+
+    expect(watchers[0]?.cancelled).toBe(true);
+    expect(watchers.filter((watch) => watch.pending)).toHaveLength(1);
+    expect(statusReads).toBe(4);
+  });
+
+  test('closing the view cancels its watch and starts no read', async () => {
+    const view = await boot();
+    const readsBeforeClose = statusReads;
+
+    view.close();
+    await settle();
+
+    expect(watchers[0]?.cancelled).toBe(true);
+    expect(watchers).toHaveLength(1);
+    expect(statusReads).toBe(readsBeforeClose);
+  });
+
+  test('a folder switch during a blocked read cancels the old watch before the read ends', async () => {
     const view = await boot();
 
     blockStatus = true;
@@ -426,7 +484,23 @@ describe('Changes view', () => {
     view.render(context);
     await settle();
 
-    watchers[0]?.reject(new Error('watch unavailable'));
+    expect(watchers[0]?.cancelled).toBe(true);
+    expect(watchers.filter((watch) => watch.pending)).toHaveLength(0);
+
+    blockStatus = false;
+    statusGate?.();
+    await settle();
+  });
+
+  test('a read that ends back on the first folder after a brief switch watches it again', async () => {
+    const view = await boot();
+
+    blockStatus = true;
+    view.refresh(context);
+    await settle();
+
+    cwd = '/repo/b';
+    view.render(context);
     await settle();
 
     cwd = '/repo/a';
@@ -435,7 +509,9 @@ describe('Changes view', () => {
     await settle();
     view.render(context);
 
-    expect(renderedList?.watchLine?.kind).toBe('error');
+    expect(watchers[0]?.cancelled).toBe(true);
+    expect(watchers.filter((watch) => watch.pending)).toHaveLength(1);
+    expect(renderedList?.watchLine).toBeNull();
   });
 
   test('an event on the current watch runs a new status read and shows the changed files', async () => {
