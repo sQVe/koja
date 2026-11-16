@@ -11,7 +11,7 @@ export interface FoldedStore {
 }
 
 const readStrings = (value: string | null): Set<string> => {
-  const stored: unknown = parsedJson(value ?? '[]');
+  const stored: unknown = parsedJson(value);
 
   return new Set(
     Array.isArray(stored) ? stored.filter((item): item is string => typeof item === 'string') : [],

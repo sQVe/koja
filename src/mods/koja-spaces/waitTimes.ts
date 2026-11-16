@@ -74,7 +74,7 @@ const readRecord = <T>(
 };
 
 export const readWaitTimes = (text: string | null): WaitTimes => {
-  const record = recordOf(parsedJson(text ?? '{}'));
+  const record = recordOf(parsedJson(text));
 
   return {
     entered: readRecord(record['entered'], readEntered),

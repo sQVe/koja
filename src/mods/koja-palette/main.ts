@@ -56,7 +56,7 @@ const refocusMilliseconds = 600;
 const recentStorageKey = 'recent';
 
 const readRecent = (): string[] => {
-  const stored: unknown = parsedJson(localStorage.getItem(recentStorageKey) ?? '[]');
+  const stored: unknown = parsedJson(localStorage.getItem(recentStorageKey));
 
   return Array.isArray(stored)
     ? stored.filter((item): item is string => typeof item === 'string')

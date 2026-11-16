@@ -13,7 +13,7 @@ const pullsMaxAge = 180_000;
 
 export class PullTracker {
   private pulls: Record<string, PullCache> = readPullCaches(
-    parsedJson(localStorage.getItem(pullsKey) ?? '{}'),
+    parsedJson(localStorage.getItem(pullsKey)),
   );
 
   private readonly failedRepos = new Set<string>();

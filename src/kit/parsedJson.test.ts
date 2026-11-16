@@ -7,6 +7,10 @@ describe('parsedJson', () => {
     expect(parsedJson(text)).toBeNull();
   });
 
+  test('returns null for a missing value', () => {
+    expect(parsedJson(null)).toBeNull();
+  });
+
   test.each([
     ['null', null],
     ['false', false],

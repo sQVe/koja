@@ -54,7 +54,7 @@ const stopPress = (_event: unknown, cx: Context): void => {
 };
 
 const readStoredPanels = (): Record<string, string | null> => {
-  const stored: unknown = parsedJson(localStorage.getItem(panelStorageKey) ?? '{}');
+  const stored: unknown = parsedJson(localStorage.getItem(panelStorageKey));
 
   const entries = Object.entries(recordOf(stored)).map(
     ([space, panel]) => [space, stringOf(panel)] as const,
