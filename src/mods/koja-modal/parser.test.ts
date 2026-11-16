@@ -434,22 +434,14 @@ describe('normal mode palette', () => {
     }
   });
 
-  test('resolves Space and g a to the same next pane that needs you', () => {
-    const space = feed([event({ key: 'space', keystroke: 'space', key_char: ' ' })]);
-    const next = feed([plain('g'), plain('a')]);
-
-    expect(next).toMatchObject({
+  test.each<[string, NormalIntent]>([
+    [')', 'nextNeedsYou'],
+    ['(', 'previousNeedsYou'],
+  ])('resolves %s to %s', (key, name) => {
+    expect(feed([plain(key)])).toEqual({
       status: 'action',
-      action: { kind: 'intent', intent: 'nextNeedsYou' },
-    });
-
-    expect(space).toEqual(next);
-  });
-
-  test('resolves g A to the previous pane that needs you', () => {
-    expect(feed([plain('g'), plain('A')])).toMatchObject({
-      status: 'action',
-      action: { kind: 'intent', intent: 'previousNeedsYou' },
+      state: initialParserState,
+      action: { kind: 'intent', intent: name },
     });
   });
 
@@ -465,8 +457,6 @@ describe('normal mode palette', () => {
   test.each([
     [']', 'space.next'],
     ['[', 'space.prev'],
-    [')', 'tab.next'],
-    ['(', 'tab.prev'],
   ])('resolves %s alone to %s', (key, name) => {
     expect(feed([plain(key)])).toEqual({
       status: 'action',

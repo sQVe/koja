@@ -84,6 +84,15 @@ describe('helpGroups', () => {
     ]);
   });
 
+  test('lists ) and ( with the jumps to the panes that need you', () => {
+    const single = groupOf(helpGroups(''), 'single')?.rows ?? [];
+    const nextNeedsYou = single.find((row) => row.name === 'Next pane that needs you');
+    const previousNeedsYou = single.find((row) => row.name === 'Previous pane that needs you');
+
+    expect(nextNeedsYou?.keys).toContainEqual([')']);
+    expect(previousNeedsYou?.keys).toContainEqual(['(']);
+  });
+
   test('keeps only rows whose name contains the query or whose key sequence starts with it', () => {
     const rows = rowsOf(helpGroups('space'));
 

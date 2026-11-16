@@ -43,12 +43,13 @@ Tabs, spaces, and the sidebar:
 Bracket keys:
 
 - `type ']'` and `type '['` step spaces as `s j` and `s k` do.
-- `type ')'` and `type '('` step tabs.
+- `type ')'` and `type '('` focus the next and previous pane whose agent is blocked or done, across
+  spaces in sidebar order, and wrap at the ends.
 - `type '}'` and `type '{'` select the header of the next and previous project of the sidebar, and
   wrap at the ends. The header selects the main checkout, or the first space of a project without
   one. From a later space of a project, `{` first selects that project's header. With one project,
   they select its header.
-- The palette shows `]` as the key of "Next space" and `)` as the key of "Next tab".
+- The palette shows `]` as the key of "Next space" and `t l` as the key of "Next tab".
 
 The sidebar mark:
 
