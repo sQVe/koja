@@ -17,7 +17,7 @@ import { dirname, join, resolve } from 'node:path';
 
 import type { CheckResult } from '../scripts/install.ts';
 import { install, shippedInputs } from '../scripts/install.ts';
-import type { IdentityOptions } from '../scripts/sandboxIdentity.ts';
+import type { IdentityFailure, IdentityOptions } from '../scripts/sandboxIdentity.ts';
 import { findIdentityFailures, identityReport } from '../scripts/sandboxIdentity.ts';
 
 let root: string;
@@ -232,20 +232,29 @@ describe('sandbox identity', () => {
     expect(await findIdentityFailures(options)).toEqual([]);
   });
 
-  test.each([
-    'src/mods/koja-tabs/main.ts',
-    'src/kit/icons/x.svg',
-    'config/layouts/koja.json',
-    'scripts/build.ts',
-    'scripts/install.ts',
-    'package.json',
-    'bun.lock',
-  ])('fails when %s changed after the install', async (path) => {
+  test.each<[string, IdentityFailure[]]>([
+    [
+      'src/mods/koja-tabs/main.ts',
+      [{ kind: 'changedSinceInstall', path: 'src/mods/koja-tabs/main.ts' }],
+    ],
+    ['src/kit/icons/x.svg', [{ kind: 'changedSinceInstall', path: 'src/kit/icons/x.svg' }]],
+    [
+      'config/layouts/koja.json',
+      [
+        { kind: 'differs', path: 'config/layouts/koja.json' },
+        { kind: 'changedSinceInstall', path: 'config/layouts/koja.json' },
+      ],
+    ],
+    ['scripts/build.ts', [{ kind: 'changedSinceInstall', path: 'scripts/build.ts' }]],
+    ['scripts/install.ts', [{ kind: 'changedSinceInstall', path: 'scripts/install.ts' }]],
+    ['package.json', [{ kind: 'changedSinceInstall', path: 'package.json' }]],
+    ['bun.lock', [{ kind: 'changedSinceInstall', path: 'bun.lock' }]],
+  ])('fails when %s changed after the install', async (path, expected) => {
     await rewriteAfterInstall(join(checkout, path));
 
     const failures = await findIdentityFailures(options);
 
-    expect(failures).toContainEqual({ kind: 'changedSinceInstall', path });
+    expect(failures).toEqual(expected);
   });
 
   test('passes when only the time of an input moved', async () => {
@@ -419,19 +428,23 @@ describe('scripts/sandbox identity', () => {
   let sandboxRoot: string;
   let fakes: string;
 
-  const runSandbox = async (
-    command: string,
-    environment: Record<string, string>,
-  ): Promise<{ exitCode: number; output: string }> => {
+  const spawnSandbox = (command: string, environment: Record<string, string>) => {
     const baseEnvironment = { ...Bun.env };
 
     delete baseEnvironment['RUTA_NAME'];
 
-    const child = Bun.spawn([script, command], {
+    return Bun.spawn([script, command], {
       env: { ...baseEnvironment, ...environment, PATH: `${fakes}:${Bun.env['PATH'] ?? ''}` },
       stdout: 'pipe',
       stderr: 'pipe',
     });
+  };
+
+  const runSandbox = async (
+    command: string,
+    environment: Record<string, string>,
+  ): Promise<{ exitCode: number; output: string }> => {
+    const child = spawnSandbox(command, environment);
 
     const [stdout, stderr, exitCode] = await Promise.all([
       new Response(child.stdout).text(),
@@ -572,5 +585,23 @@ describe('scripts/sandbox identity', () => {
     await runIdentity();
 
     expect(await snapshot(sandboxRoot)).toEqual(before);
+  });
+
+  test('serializes the install of two sandboxes', async () => {
+    const record = join(fakes, 'installs');
+    const body = `printf 'start\\n' >>'${record}'\nsleep 0.3\nprintf 'end\\n' >>'${record}'`;
+
+    await writeProgram(join(fakes, 'bun'), body);
+    await writeProgram(join(sandboxRoot, 'bin', 'herdr-app'), 'exit 0');
+
+    const children = [
+      spawnSandbox('install', { RUTA_NAME: name }),
+      spawnSandbox('install', { RUTA_NAME: name }),
+    ];
+
+    const exitCodes = await Promise.all(children.map((child) => child.exited));
+
+    expect(exitCodes).toEqual([0, 0]);
+    expect(linesOf(await readFile(record, 'utf8'))).toEqual(['start', 'end', 'start', 'end']);
   });
 });

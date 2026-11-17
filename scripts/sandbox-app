@@ -22,6 +22,11 @@ install_binary() {
   chmod +x "$shim"
 }
 
+# Two verification runs build into the same dist/mods, so the build and install run one at a time.
+install_checkout() {
+  (cd "$here/.." && HERDR_APP_HOME=$home HERDR_APP_BIN=$bin flock "$here/.." bun run herdr:install)
+}
+
 # A fresh home makes Herdr show its welcome and an Updated pill, which would sit in every shot.
 mark_first_start_done() {
   local shared=$home/shared.json current='' version staged
@@ -37,6 +42,6 @@ mark_first_start_done() {
 
 install_binary
 mkdir -p "$home"
-(cd "$here/.." && HERDR_APP_HOME=$home HERDR_APP_BIN=$bin bun run herdr:install)
+install_checkout
 mark_first_start_done
 exec "$bin"
