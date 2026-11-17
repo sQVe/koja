@@ -1,7 +1,9 @@
-# QA recipe: normal mode keys
+# Normal mode keys
+
+Target: sandbox
 
 Drive normal mode, from the mod `koja-modal`, in the sandbox the brief names. Follow
-[the rules for every section](../qa.md#rules-for-every-section) of the QA guide first.
+[the rules for every section](../../qa.md#rules-for-every-section) of the QA guide first.
 
 ## Entry points
 
@@ -73,6 +75,11 @@ Overlays:
 - `Escape` closes the help and keeps normal mode on. `s j` then changes the space.
 - `Down` and `Up` move the selected row of the help. A query selects the first row again.
 - `Enter` closes the help, runs the selected row as its keys would, and keeps normal mode on.
+
+## End state
+
+The tester names each key group it sent and the visible change each one made, and says which keys it
+could not send. The bracket keys, the sidebar mark, and the help overlay each showed their result.
 
 ## Gotchas
 

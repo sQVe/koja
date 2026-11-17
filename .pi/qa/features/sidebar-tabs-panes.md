@@ -1,7 +1,10 @@
-# QA recipe: sidebar, tabs, and panes
+# Sidebar, tabs, and panes
+
+Target: sandbox
 
 Drive the spaces sidebar, the tab strip, the pane headers, and their menus in the sandbox the brief
-names. Follow [the rules for every section](../qa.md#rules-for-every-section) of the QA guide first.
+names. Follow [the rules for every section](../../qa.md#rules-for-every-section) of the QA guide
+first.
 
 ## Entry points
 
@@ -49,6 +52,11 @@ names. Follow [the rules for every section](../qa.md#rules-for-every-section) of
 - Each pane has a header with its label, and the focused pane has the accent border.
 - A right click on a space or a tab opens a menu for that item, not for the focused one.
 - The New menu lists terminal, agent, space, and worktree choices.
+
+## End state
+
+The tester names the space each click selected, the order after a drag, and the menu each right
+click opened. The tab strip and the pane headers followed the selected space.
 
 ## Gotchas
 

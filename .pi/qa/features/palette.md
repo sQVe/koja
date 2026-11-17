@@ -1,8 +1,10 @@
-# QA recipe: command palette
+# Command palette
+
+Target: sandbox
 
 Drive the command palette mod, `koja-palette`, in the sandbox the brief names. Follow
-[the rules for every section](../qa.md#rules-for-every-section) of the QA guide first. They name the
-sandbox, point to `ruta guide`, prove the sandbox, and list what never to run.
+[the rules for every section](../../qa.md#rules-for-every-section) of the QA guide first. They name
+the sandbox, point to `ruta guide`, prove the sandbox, and list what never to run.
 
 ## Entry points
 
@@ -50,6 +52,11 @@ Take a `shot` after each step that should change the screen.
 - Stored value: running an entry moves it to the top of Recent, which shows at most 5 entries. To
   read the stored value through a second, read-only view, open the palette again with an empty query
   and read the Recent section.
+
+## End state
+
+The tester names the Recent entries before and after a run, and the row that each query left.
+`Escape` closed the palette without running an entry.
 
 ## Gotchas
 

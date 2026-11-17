@@ -1,7 +1,9 @@
-# QA recipe: close and rename
+# Close and rename
+
+Target: sandbox
 
 Drive the close dialogs and the rename prompt in the sandbox the brief names. Follow
-[the rules for every section](../qa.md#rules-for-every-section) of the QA guide first.
+[the rules for every section](../../qa.md#rules-for-every-section) of the QA guide first.
 
 ## Entry points
 
@@ -43,6 +45,11 @@ Each key works from normal mode. Press `key b Control_L` to enter it.
   with an automatic name.
 - `Escape` keeps the name.
 - An empty name brings the automatic name back.
+
+## End state
+
+The tester names the dialog each entry point opened, and says whether `Escape` kept the space, tab,
+or pane. With data writes allowed, the closed item is gone and the renamed one shows its new name.
 
 ## Gotchas
 

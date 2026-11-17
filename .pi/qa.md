@@ -34,6 +34,8 @@ Cross-effects:
   "Normal mode keys" plus the sections of the mods the change names.
 - A scene in `koja-mocks` uses fake data. It never proves the real mod.
 
+No launch, and unclear impact:
+
 - Changes only to tests, documents, changesets, or the sandbox scripts need no `qa` launch.
 - When the impact on a section is unclear, include the section.
 
@@ -44,26 +46,35 @@ Cross-effects:
 | [Triage the spaces that need you](qa/journeys/triage-the-spaces-that-need-you.md) | Read one-line space rows and switch spaces.        | `src/mods/koja-spaces/`, `src/kit/space.ts`, `src/kit/statusMark.ts`, `src/kit/spaceOrder.ts` | by hand |
 | [Recover from a failed PR read](qa/journeys/recover-from-a-failed-pr-read.md)     | Retry a failed read without losing the space rows. | `src/mods/koja-spaces/`, `src/kit/stateLine.ts`, `src/kit/button.ts`                          | by hand |
 
+## Features
+
+| Feature                                                       | Section              | Target  | Update it when the change touches                                                      |
+| ------------------------------------------------------------- | -------------------- | ------- | -------------------------------------------------------------------------------------- |
+| [Normal mode keys](qa/features/normal-keys.md)                | Normal mode keys     | sandbox | `koja-modal`, `src/kit/normalKeys.ts`, `config/keys.json`                              |
+| [Close and rename](qa/features/close-and-rename.md)           | Close and rename     | sandbox | `src/kit/askFirst.ts`, `askPlan.ts`, `dialog*.ts`, `koja-confirm`, `koja-prompt`       |
+| [Command palette](qa/features/palette.md)                     | Palette and picker   | sandbox | `koja-palette`, `koja-help`, `src/kit/palette.ts`, `overlay*.ts`, `shortcut*.ts`       |
+| [Picker](qa/features/picker.md)                               | Palette and picker   | sandbox | `koja-picker`, `src/kit/palette.ts`, `overlay*.ts`                                     |
+| [Sidebar, tabs, and panes](qa/features/sidebar-tabs-panes.md) | Sidebar, tabs, panes | sandbox | `koja-spaces`, `koja-tabs`, `koja-pane`, `koja-menu`, `koja-new-menu`, `koja-worktree` |
+| [Changes panel](qa/features/changes-panel.md)                 | Changes panel        | sandbox | `koja-changes`, `src/kit/fileStatus.ts`, the panel memory in `koja-tabs`               |
+| [Gallery and scenes](qa/features/gallery-and-scenes.md)       | Gallery and scenes   | sandbox | `koja-gallery`, `koja-mocks`, `scripts/capture.ts`                                     |
+
 ## Before a launch
 
 For the manager. The `qa` worker starts nothing.
 
-The manager starts:
+The manager launches the `sandbox` target with Tau's `verification` tool. That runs
+`bun run sandbox up`, then `bun run sandbox identity`, and `bun run sandbox down` after the worker
+reports. The sandbox name is `koja-<run>`, from the brief's `Verification run:` line.
 
-- The sandbox. Run `bun run sandbox guide`. Follow two parts of its output: "Every session" and "The
-  session that starts the sandbox". They say how to pick the name.
-  - Start: `RUTA_NAME=<name> bun run sandbox up`, from the worktree.
-  - After a later edit: `RUTA_NAME=<name> bun run sandbox install`.
-  - Check: `RUTA_NAME=<name> bun run sandbox identity` exits 0. It runs `ruta status` first.
-  - Stop, when the worker has reported: `RUTA_NAME=<name> bun run sandbox down`.
-- The fixtures, under `/var/tmp/ruta-<name>/home/`. `sandbox down` deletes them.
-  - An empty `.zshrc`.
-  - A Git repository with one commit and uncommitted changes.
-  - A clean Git repository.
-  - A folder that is not a repository.
+The manager creates the fixtures after the launch, under `/var/tmp/ruta-<name>/home/`:
 
-  Set `user.name` and `user.email` in each repository. Open a space on each with
-  `RUTA_NAME=<name> bun run sandbox do space.new --folder <path>`, with two tabs and a split in one.
+- An empty `.zshrc`.
+- A Git repository with one commit and uncommitted changes.
+- A clean Git repository.
+- A folder that is not a repository.
+
+Set `user.name` and `user.email` in each repository. Open a space on each with
+`RUTA_NAME=<name> bun run sandbox do space.new --folder <path>`, with two tabs and a split in one.
 
 For either journey, use this fixture instead of the general fixtures above. Start a fresh sandbox
 first. Replace `<name>` with its name, then run these commands from the worktree:
@@ -99,7 +110,8 @@ bun run sandbox identity
 - Check that it is up: identity exits 0. Wait for `Could not read PRs` and `Retry` under
   `pr-fixture`. The `pr-fixture` header shows no agent mark, and its one row shows a hollow one.
   `$fixtureHome/gh-calls` records `pr list`.
-- Stop: the manager runs `RUTA_NAME=<name> bun run sandbox down` after the worker reports.
+
+The manager stops the run with the `verification` tool after the worker reports.
 
 Give the worker `Data writes: allowed`, the fixture home, and permission to create only
 `<fixture home>/pr-read-ok` during recovery. Run recovery before triage when assigning both. The
@@ -114,19 +126,11 @@ Give the brief these lines: `Sandbox: <name>`, the fixture paths, and `Data writ
 
 ## Rules for every section
 
-Every section is reached through the proof in these rules: `bun run sandbox identity` must exit 0.
-So no section has its own "Reach it". What to check in a section is in its recipe.
-
-- The name is on the brief's `Sandbox:` line. Without that line, ask the parent.
 - From the worktree, run `RUTA_NAME=<name> bun run sandbox guide`, or `RUTA_NAME=<name> ruta guide`.
   Follow two parts of its output: "Every session" and "A session that did not start the sandbox".
   The rules below add to them.
 - Run each ruta command of that guide as `bun run sandbox <command>`, except `status`.
   `bun run sandbox` alone prints the arguments of each command.
-- For the `ruta status` that the guide asks for before any input, run `bun run sandbox identity`. It
-  runs `ruta status` first and prints its line. Then it checks the installed mods and config against
-  the worktree. It prints `sandbox <name> has the current mods and config of <worktree path>`, and
-  it must exit 0. On any other result, stop and ask the parent.
 - `bun run sandbox status` is not `ruta status`. It prints the status of the window, from
   `herdr-app status`, and changes nothing.
 - Never run `sandbox install`, `bun run build`, `bun run herdr:install`, or `bun run herdr:watch`.
@@ -154,46 +158,86 @@ So no section has its own "Reach it". What to check in a section is in its recip
 
 ## Normal mode keys
 
-### Recipes
+Target: sandbox
 
-- [Normal mode keys](qa/normal-keys.md): every key group, the bracket keys, the sidebar mark, and
-  the overlays.
+### Reach it
+
+Run `RUTA_NAME=<name> bun run sandbox identity` from the worktree. It prints
+`sandbox <name> has the current mods and config of <worktree path>`, and it must exit 0. On any
+other result, stop and ask the parent.
+
+### Features
+
+- [Normal mode keys](qa/features/normal-keys.md): every key group, the bracket keys, the sidebar
+  mark, and the overlays.
 
 ## Close and rename
 
-### Recipes
+Target: sandbox
 
-- [Close and rename](qa/close-and-rename.md): the close dialogs and the rename prompt.
+### Reach it
+
+Same as [Normal mode keys](#normal-mode-keys).
+
+### Features
+
+- [Close and rename](qa/features/close-and-rename.md): the close dialogs and the rename prompt.
 
 ## Palette and picker
 
-### Recipes
+Target: sandbox
 
-- [Command palette](qa/palette.md): all entry points, list movement, and Recent.
-- [Picker](qa/picker.md): the query, the filter, and the preview.
+### Reach it
+
+Same as [Normal mode keys](#normal-mode-keys).
+
+### Features
+
+- [Command palette](qa/features/palette.md): all entry points, list movement, and Recent.
+- [Picker](qa/features/picker.md): the query, the filter, and the preview.
 
 ## Sidebar, tabs, panes
 
-### Recipes
+Target: sandbox
 
-- [Sidebar, tabs, and panes](qa/sidebar-tabs-panes.md): selection, order, headers, and menus.
+### Reach it
+
+Same as [Normal mode keys](#normal-mode-keys).
+
+### Features
+
+- [Sidebar, tabs, and panes](qa/features/sidebar-tabs-panes.md): selection, order, headers, and
+  menus.
 
 ## Changes panel
+
+Target: sandbox
+
+### Reach it
+
+Same as [Normal mode keys](#normal-mode-keys).
 
 ### Use it safely
 
 - Commit stages every change of the focused pane's repository. Never type in the message field or
   press the Commit button outside a fixture repository.
 
-### Recipes
+### Features
 
-- [Changes panel](qa/changes-panel.md): the panel states, the diff, and Commit.
+- [Changes panel](qa/features/changes-panel.md): the panel states, the diff, and Commit.
 
 ## Gallery and scenes
 
-### Recipes
+Target: sandbox
 
-- [Gallery and scenes](qa/gallery-and-scenes.md): the gallery, the scene picker, and capture.
+### Reach it
+
+Same as [Normal mode keys](#normal-mode-keys).
+
+### Features
+
+- [Gallery and scenes](qa/features/gallery-and-scenes.md): the gallery, the scene picker, and
+  capture.
 
 ## Not testable
 

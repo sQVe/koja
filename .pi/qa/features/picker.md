@@ -1,7 +1,9 @@
-# QA recipe: picker
+# Picker
+
+Target: sandbox
 
 Drive the picker mod, `koja-picker`, in the sandbox the brief names. Follow
-[the rules for every section](../qa.md#rules-for-every-section) of the QA guide first.
+[the rules for every section](../../qa.md#rules-for-every-section) of the QA guide first.
 
 ## Entry points
 
@@ -26,6 +28,11 @@ Press `key b Control_L` first to enter normal mode.
 - `Return` goes to the row.
 - `Escape` returns focus to the pane that had it.
 - The picker preview follows the selection and types nothing into the source terminal.
+
+## End state
+
+The tester names the row the query left and the filter each `Tab` press showed. `Escape` returned
+focus to the pane that had it.
 
 ## Gotchas
 
