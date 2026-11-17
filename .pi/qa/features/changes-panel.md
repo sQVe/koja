@@ -1,7 +1,9 @@
-# QA recipe: Changes panel
+# Changes panel
+
+Target: sandbox
 
 Drive the Changes panel mod, `koja-changes`, in the sandbox the brief names. Follow
-[the rules for every section](../qa.md#rules-for-every-section) of the QA guide first.
+[the rules for every section](../../qa.md#rules-for-every-section) of the QA guide first.
 
 ## Entry points
 
@@ -30,6 +32,11 @@ Drive the Changes panel mod, `koja-changes`, in the sandbox the brief names. Fol
 - In a fixture repository with changes, a message and the Commit button make one commit of every
   change. A message and `Return` in the message field do the same.
 - After each commit, the message field is empty and the panel shows "No uncommitted changes".
+
+## End state
+
+The tester names the files each space's panel listed and the diff that a click showed. With data
+writes allowed, the commit left `No uncommitted changes`.
 
 ## Gotchas
 

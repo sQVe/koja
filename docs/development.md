@@ -53,7 +53,9 @@ cargo install --git https://github.com/sQVe/ruta --tag v0.2.1 --locked ruta
 ```
 
 `up` installs this checkout with the existing installer, so it shows the worktree's mods and
-`config/`. `restart` reinstalls and starts the window and its core again.
+`config/`. `restart` reinstalls and starts the window and its core again. `.pi/tau.json` declares
+the same commands as the `sandbox` verification target, so Tau's `verification` tool launches,
+checks, and stops the sandbox. See [ADR 0017](adr/0017-sandbox-is-a-verification-target.md).
 
 ```sh
 bun run sandbox up
@@ -72,13 +74,15 @@ bun run sandbox down
 negative one; dragging a scrollbar does not scroll a Herdr view. `bun run sandbox install`
 reinstalls after a mod edit without restarting the sandbox. `bun run sandbox identity` runs
 `ruta status` first, which passes only when the sandbox is up and was started from this checkout. It
-then exits 0 only when the sandbox has this checkout's current mods and `config/`, and prints each
-reason when it does not. It changes no file and starts nothing. `bun run sandbox do <action>`,
-`status`, and `hc <args>` drive the sandbox window and core, so `status` is `herdr-app status`, not
-`ruta status`. Every other command goes to ruta, so `guide`, `log`, `opened`, `drag`, `hold`, and
-`release` work as `ruta` describes them. `bun run sandbox guide` prints ruta's rules for a session
-that starts a sandbox and for one that only drives it. `RUTA_NAME=<name>` runs a second sandbox side
-by side, and `HERDR_APP_BIN` runs another herdr-app binary instead of the installed one.
+then exits 0 only when the sandbox has this checkout's current mods and `config/`, compared by
+content hash, and prints each reason when it does not. It changes no file and starts nothing.
+`bun run sandbox do <action>`, `status`, and `hc <args>` drive the sandbox window and core, so
+`status` is `herdr-app status`, not `ruta status`. Every other command goes to ruta, so `guide`,
+`log`, `opened`, `drag`, `hold`, and `release` work as `ruta` describes them.
+`bun run sandbox guide` prints ruta's rules for a session that starts a sandbox and for one that
+only drives it. `RUTA_NAME=<name>` runs a second sandbox side by side, and `TAU_VERIFICATION_RUN`
+names it `koja-<run>` for a Tau verification run. `HERDR_APP_BIN` runs another herdr-app binary
+instead of the installed one.
 
 Never use `ydotool`, and never run `herdr-app do`, `hc`, or synthetic input against the user's real
 window or core.

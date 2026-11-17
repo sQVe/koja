@@ -17,7 +17,8 @@
 #   scripts/sandbox down          stop everything and delete it
 #
 # Every command but install, identity, do, status, and hc goes to ruta; `ruta` without
-# arguments lists them. RUTA_NAME=<name> runs a second sandbox side by side.
+# arguments lists them. RUTA_NAME=<name> runs a second sandbox side by side, and
+# TAU_VERIFICATION_RUN names the sandbox koja-<run>.
 # HERDR_APP_BIN runs another herdr-app (an installed copy, to try updates)
 # instead of the default.
 set -euo pipefail
@@ -25,6 +26,12 @@ set -euo pipefail
 here=$(cd "$(dirname "$0")" && pwd)
 checkout=$(dirname "$here")
 name=${RUTA_NAME-koja}
+
+if [[ -n ${TAU_VERIFICATION_RUN:-} ]]; then
+  name=koja-${TAU_VERIFICATION_RUN,,}
+fi
+
+export RUTA_NAME=$name
 
 if [[ ! $name =~ ^[a-z0-9][a-z0-9-]*$ ]]; then
   echo "RUTA_NAME must be one name of lowercase letters, digits, and dashes, not '$name'" >&2
@@ -84,7 +91,7 @@ in_sandbox() {
 
 install_mods() {
   require_up
-  (cd "$checkout" && in_sandbox HERDR_APP_HOME="$root/config/herdr-app" bun run herdr:install)
+  (cd "$checkout" && in_sandbox HERDR_APP_HOME="$root/config/herdr-app" flock "$checkout" bun run herdr:install)
   in_sandbox "$checkout/scripts/sandbox-ready"
 }
 

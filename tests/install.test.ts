@@ -1,4 +1,5 @@
 import { afterEach, beforeEach, describe, expect, test } from 'bun:test';
+import { createHash } from 'node:crypto';
 import {
   chmod,
   lstat,
@@ -565,7 +566,7 @@ describe('install', () => {
     expect(record).toMatchObject({ checkout: root, allChecksPassed: false });
   });
 
-  test('lists the shipped inputs of a checkout with their times, without test files and built mods', async () => {
+  test('lists the shipped inputs of a checkout with their hashes, without test files and built mods', async () => {
     await writeAt(join(root, 'src', 'kit', 'row.ts'), 'export {};\n');
     await writeAt(join(root, 'src', 'kit', 'row.test.ts'), 'export {};\n');
     await writeAt(join(root, 'package.json'), '{}\n');
@@ -573,7 +574,7 @@ describe('install', () => {
     const inputs = await shippedInputs(root);
     const paths = inputs.map((input) => input.path).toSorted();
     const row = inputs.find((input) => input.path === 'src/kit/row.ts');
-    const rowStat = await stat(join(root, 'src', 'kit', 'row.ts'));
+    const rowHash = createHash('sha256').update('export {};\n').digest('hex');
 
     expect(paths).toEqual([
       'config/keys.json',
@@ -582,13 +583,21 @@ describe('install', () => {
       'src/kit/row.ts',
     ]);
 
-    expect(row?.modifiedAt).toBe(rowStat.mtimeMs);
+    expect(row?.hash).toBe(rowHash);
+  });
+
+  test('skips a shipped input that does not exist', async () => {
+    await writeAt(join(root, 'package.json'), '{}\n');
+
+    const inputs = await shippedInputs(root);
+
+    expect(inputs.map((input) => input.path)).not.toContain('bun.lock');
   });
 
   test('records the shipped inputs it was given, not the files of the checkout', async () => {
     const inputs = [
-      { path: 'package.json', modifiedAt: 1500.25 },
-      { path: 'config/keys.json', modifiedAt: 2 },
+      { path: 'package.json', hash: 'aaaa' },
+      { path: 'config/keys.json', hash: 'bbbb' },
     ];
 
     await install({
@@ -603,16 +612,16 @@ describe('install', () => {
     const record = await readRecord(home);
 
     expect(record?.origin?.inputs).toEqual([
-      { path: 'config/keys.json', modifiedAt: 2 },
-      { path: 'package.json', modifiedAt: 1500.25 },
+      { path: 'config/keys.json', hash: 'bbbb' },
+      { path: 'package.json', hash: 'aaaa' },
     ]);
   });
 
   test.each([
     ['a plain list of paths', ['package.json']],
-    ['an input without a time', [{ path: 'package.json' }]],
-    ['an input without a path', [{ modifiedAt: 2 }]],
-    ['no list', { path: 'package.json', modifiedAt: 2 }],
+    ['an input without a hash', [{ path: 'package.json', modifiedAt: 2 }]],
+    ['an input without a path', [{ hash: 'aaaa' }]],
+    ['no list', { path: 'package.json', hash: 'aaaa' }],
   ])('reads a record that holds %s as a record without origin', async (_, inputs) => {
     await writeFile(
       join(home, '.koja-install.json'),

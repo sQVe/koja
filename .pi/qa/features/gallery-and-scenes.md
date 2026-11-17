@@ -1,7 +1,10 @@
-# QA recipe: gallery and scenes
+# Gallery and scenes
+
+Target: sandbox
 
 Drive the kit gallery, `koja-gallery`, and the mock scenes, `koja-mocks`, in the sandbox the brief
-names. Follow [the rules for every section](../qa.md#rules-for-every-section) of the QA guide first.
+names. Follow [the rules for every section](../../qa.md#rules-for-every-section) of the QA guide
+first.
 
 ## Entry points
 
@@ -33,6 +36,11 @@ names. Follow [the rules for every section](../qa.md#rules-for-every-section) of
 - `bun run mock:capture <scene> <new folder outside the worktree>` writes `shot.png`, `crop.png`,
   and `capture.json`, and closes the scene.
 - The capture refuses when a `koja-mocks` overlay is open.
+
+## End state
+
+The tester names the scene that opened and the error that the unknown name showed. The capture wrote
+`shot.png`, `crop.png`, and `capture.json` in the new folder.
 
 ## Gotchas
 
