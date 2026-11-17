@@ -80,8 +80,8 @@ const copyFailures = async (
   return failures.filter((failure) => failure !== null);
 };
 
-const timesByPath = (inputs: InstallInput[]): Map<string, number> =>
-  new Map(inputs.map((input) => [input.path, input.modifiedAt]));
+const hashesByPath = (inputs: InstallInput[]): Map<string, string> =>
+  new Map(inputs.map((input) => [input.path, input.hash]));
 
 const isFromCheckout = async (options: IdentityOptions, origin: InstallOrigin): Promise<boolean> =>
   origin.checkout === (await realpath(options.checkout));
@@ -94,8 +94,8 @@ const changedSinceInstall = async (
     return [];
   }
 
-  const current = timesByPath(await shippedInputs(options.checkout));
-  const atInstall = timesByPath(origin.inputs);
+  const current = hashesByPath(await shippedInputs(options.checkout));
+  const atInstall = hashesByPath(origin.inputs);
   const paths = [...new Set([...atInstall.keys(), ...current.keys()])].toSorted();
 
   return paths

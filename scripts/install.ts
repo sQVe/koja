@@ -1,3 +1,4 @@
+import { createHash } from 'node:crypto';
 import type { Stats } from 'node:fs';
 import { watch } from 'node:fs';
 import {
@@ -31,7 +32,7 @@ export interface InstallRoots {
 
 export interface InstallInput {
   path: string;
-  modifiedAt: number;
+  hash: string;
 }
 
 export interface InstallOptions {
@@ -67,7 +68,7 @@ type RecordFields = Record<string, unknown>;
 
 export const recordName = '.koja-install.json';
 
-const recordVersion = 1;
+const recordVersion = 2;
 
 const permissionBits = 0o777;
 
@@ -118,16 +119,30 @@ const shippedPaths = async (checkout: string): Promise<string[]> => {
   return [...inFolders.flat(), ...shippedFiles];
 };
 
+const contentHash = async (path: string): Promise<string | null> => {
+  try {
+    const content = await readFile(path);
+
+    return createHash('sha256').update(content).digest('hex');
+  } catch (error) {
+    if (isMissing(error)) {
+      return null;
+    }
+
+    throw error;
+  }
+};
+
 export const shippedInputs = async (checkout: string): Promise<InstallInput[]> => {
   const paths = await shippedPaths(checkout);
-  const entries = await Promise.all(paths.map(async (path) => lstatOrNull(join(checkout, path))));
+  const hashes = await Promise.all(paths.map(async (path) => contentHash(join(checkout, path))));
   const inputs: InstallInput[] = [];
 
   for (const [index, path] of paths.entries()) {
-    const entry = entries[index];
+    const hash = hashes[index];
 
-    if (entry !== null && entry !== undefined) {
-      inputs.push({ path, modifiedAt: entry.mtimeMs });
+    if (hash !== null && hash !== undefined) {
+      inputs.push({ path, hash });
     }
   }
 
@@ -171,7 +186,7 @@ const isInstallInput = (value: unknown): value is InstallInput => {
     return false;
   }
 
-  return typeof value['path'] === 'string' && typeof value['modifiedAt'] === 'number';
+  return typeof value['path'] === 'string' && typeof value['hash'] === 'string';
 };
 
 const isInstallInputs = (value: unknown): value is InstallInput[] =>

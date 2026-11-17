@@ -64,11 +64,10 @@ const writeCheckout = async (folder: string): Promise<void> => {
   await writeAt(join(folder, 'dist', 'mods', 'koja-tabs', 'icons', 'x.svg'), '<svg/>\n');
 };
 
-const touchAfterInstall = async (path: string): Promise<void> => {
-  const record = await stat(recordPath());
-  const later = new Date(record.mtimeMs + 60_000);
+const rewriteAfterInstall = async (path: string): Promise<void> => {
+  const content = await readFile(path, 'utf8');
 
-  await utimes(path, later, later);
+  await writeFile(path, `${content}// changed\n`);
 };
 
 const shiftTime = async (path: string, milliseconds: number): Promise<void> => {
@@ -139,7 +138,7 @@ describe('sandbox identity', () => {
     expect(await findIdentityFailures(options)).toEqual([{ kind: 'recordWithoutOrigin' }]);
   });
 
-  test('fails when the record names its shipped inputs without their times', async () => {
+  test('fails when the record names its shipped inputs without their hashes', async () => {
     const record = JSON.parse(await readFile(recordPath(), 'utf8')) as Record<string, unknown>;
 
     await writeFile(recordPath(), JSON.stringify({ ...record, inputs: ['package.json'] }));
@@ -242,17 +241,27 @@ describe('sandbox identity', () => {
     'package.json',
     'bun.lock',
   ])('fails when %s changed after the install', async (path) => {
-    await touchAfterInstall(join(checkout, path));
+    await rewriteAfterInstall(join(checkout, path));
 
-    expect(await findIdentityFailures(options)).toEqual([{ kind: 'changedSinceInstall', path }]);
+    const failures = await findIdentityFailures(options);
+
+    expect(failures).toContainEqual({ kind: 'changedSinceInstall', path });
   });
 
-  test('fails when an input got an earlier time after the install', async () => {
+  test('passes when only the time of an input moved', async () => {
     await shiftTime(join(checkout, 'package.json'), -60_000);
 
-    expect(await findIdentityFailures(options)).toEqual([
-      { kind: 'changedSinceInstall', path: 'package.json' },
-    ]);
+    expect(await findIdentityFailures(options)).toEqual([]);
+  });
+
+  test('passes when a shipped input was rewritten with the same content', async () => {
+    const path = join(checkout, 'package.json');
+    const content = await readFile(path);
+
+    await writeFile(path, content);
+    await shiftTime(path, 60_000);
+
+    expect(await findIdentityFailures(options)).toEqual([]);
   });
 
   test.each([-3_600_000, 3_600_000])(
@@ -291,7 +300,7 @@ describe('sandbox identity', () => {
   });
 
   test('passes when only a test file changed after the install', async () => {
-    await touchAfterInstall(join(checkout, 'src', 'mods', 'koja-tabs', 'main.test.ts'));
+    await rewriteAfterInstall(join(checkout, 'src', 'mods', 'koja-tabs', 'main.test.ts'));
 
     expect(await findIdentityFailures(options)).toEqual([]);
   });
@@ -355,7 +364,7 @@ describe('sandbox identity', () => {
 
   test('reports every failed reason, each on its own line', async () => {
     await writeFile(join(checkout, 'dist', 'mods', 'koja-tabs', 'main.js'), 'export default 2;\n');
-    await touchAfterInstall(join(checkout, 'package.json'));
+    await rewriteAfterInstall(join(checkout, 'package.json'));
 
     const report = await identityReport({ ...options, window: 'silent' });
 
@@ -387,7 +396,7 @@ describe('sandbox identity', () => {
       'fails',
       async (): Promise<void> => {
         await writeFile(join(home, 'keys.json'), '{ "edited": true }\n');
-        await touchAfterInstall(join(checkout, 'package.json'));
+        await rewriteAfterInstall(join(checkout, 'package.json'));
       },
     ],
   ])('writes nothing when it %s', async (_, arrange) => {
