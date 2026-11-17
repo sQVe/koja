@@ -4,5 +4,14 @@
   },
   "fullCheck": {
     "argv": ["bun", "run", "--bun", "check"]
+  },
+  "verification": {
+    "targets": {
+      "sandbox": {
+        "launch": ["bun", "run", "sandbox", "up"],
+        "doctor": ["bun", "run", "sandbox", "identity"],
+        "stop": ["bun", "run", "sandbox", "down"]
+      }
+    }
   }
 }

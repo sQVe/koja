@@ -419,9 +419,16 @@ describe('scripts/sandbox identity', () => {
   let sandboxRoot: string;
   let fakes: string;
 
-  const runIdentity = async (): Promise<{ exitCode: number; output: string }> => {
-    const child = Bun.spawn([script, 'identity'], {
-      env: { ...Bun.env, RUTA_NAME: name, PATH: `${fakes}:${Bun.env['PATH'] ?? ''}` },
+  const runSandbox = async (
+    command: string,
+    environment: Record<string, string>,
+  ): Promise<{ exitCode: number; output: string }> => {
+    const baseEnvironment = { ...Bun.env };
+
+    delete baseEnvironment['RUTA_NAME'];
+
+    const child = Bun.spawn([script, command], {
+      env: { ...baseEnvironment, ...environment, PATH: `${fakes}:${Bun.env['PATH'] ?? ''}` },
       stdout: 'pipe',
       stderr: 'pipe',
     });
@@ -435,6 +442,11 @@ describe('scripts/sandbox identity', () => {
     return { exitCode, output: stderr + stdout };
   };
 
+  const runIdentity = async (
+    environment?: Record<string, string>,
+  ): Promise<{ exitCode: number; output: string }> =>
+    runSandbox('identity', environment ?? { RUTA_NAME: name });
+
   const writeProgram = async (path: string, body: string): Promise<void> => {
     await writeAt(path, `#!/bin/sh\n${body}\n`);
     await chmod(path, 0o755);
@@ -445,7 +457,7 @@ describe('scripts/sandbox identity', () => {
   };
 
   const writeRuta = async (line: string, exitCode: number): Promise<void> => {
-    const record = `printf '%s %s\\n' "$PWD" "$*" >>'${join(fakes, 'calls')}'`;
+    const record = `printf '%s %s %s\\n' "$RUTA_NAME" "$PWD" "$*" >>'${join(fakes, 'calls')}'`;
     const stream = exitCode === 0 ? '' : ' >&2';
 
     await writeProgram(join(fakes, 'ruta'), `${record}\necho '${line}'${stream}\nexit ${exitCode}`);
@@ -478,7 +490,48 @@ describe('scripts/sandbox identity', () => {
 
     await runIdentity();
 
-    expect(await readFile(join(fakes, 'calls'), 'utf8')).toBe(`${repository} status\n`);
+    expect(await readFile(join(fakes, 'calls'), 'utf8')).toBe(`${name} ${repository} status\n`);
+  });
+
+  test('names the sandbox after the verification run', async () => {
+    await writeRuta('ruta is up', 0);
+    await writeWindow(0);
+
+    const result = await runIdentity({ TAU_VERIFICATION_RUN: 'abc123' });
+
+    expect(await readFile(join(fakes, 'calls'), 'utf8')).toContain('koja-abc123');
+    expect(result.output).toContain('/var/tmp/ruta-koja-abc123/config/herdr-app');
+  });
+
+  test('lowercases the run name', async () => {
+    await writeRuta('ruta is up', 0);
+    await writeWindow(0);
+
+    await runIdentity({ TAU_VERIFICATION_RUN: 'sandbox-oIr3hd' });
+
+    expect(await readFile(join(fakes, 'calls'), 'utf8')).toContain('koja-sandbox-oir3hd');
+  });
+
+  test('prefers the verification run over RUTA_NAME', async () => {
+    await writeRuta('ruta is up', 0);
+    await writeWindow(0);
+
+    await runIdentity({ RUTA_NAME: 'other', TAU_VERIFICATION_RUN: 'abc123' });
+
+    expect(await readFile(join(fakes, 'calls'), 'utf8')).toContain('koja-abc123');
+  });
+
+  test('passes the run name to ruta up', async () => {
+    const program = join(fakes, 'herdr-app-fake');
+
+    await writeProgram(program, 'exit 0');
+    await writeRuta('ruta is up', 0);
+
+    await runSandbox('up', { TAU_VERIFICATION_RUN: 'abc123', HERDR_APP_BIN: program });
+
+    expect(await readFile(join(fakes, 'calls'), 'utf8')).toBe(
+      `koja-abc123 ${repository} up -- ${program}\n`,
+    );
   });
 
   test('reports a silent window and a missing record after the line of ruta', async () => {
