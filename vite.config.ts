@@ -1,4 +1,4 @@
-import { format, lint } from '@sqve/seam';
+import { format, lint } from '@sqve/stomme-ts-style';
 import { defineConfig } from 'vite-plus';
 
 export default defineConfig({
@@ -15,7 +15,7 @@ export default defineConfig({
   },
   staged: {
     '*.{ts,tsx,js,jsx,mjs,cjs}': [
-      'bunx --bun seam --no-error-on-unmatched-pattern',
+      'bunx --bun stomme-ts-style',
       'bunx --bun vp fmt --check --no-error-on-unmatched-pattern',
     ],
     '*.{json,md,yaml,yml,css}': 'bunx --bun vp fmt --check --no-error-on-unmatched-pattern',

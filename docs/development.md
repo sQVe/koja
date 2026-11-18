@@ -94,16 +94,17 @@ window or core.
 | `bun run check`                        | Run typechecking, house style, formatting, Knip, and the full test suite. |
 | `bun run test`                         | Run the full test suite.                                                  |
 | `bun run test:changed`                 | Run tests affected by uncommitted changes.                                |
-| `bun run style:check`                  | Check all lint rules, including house style, with `seam`.                 |
-| `bun run style:fix`                    | Apply safe house-style fixes with `seam --fix`.                           |
+| `bun run style:check`                  | Check all lint rules, including house style, with `stomme-ts-style`.      |
+| `bun run style:fix`                    | Apply safe house-style fixes with `stomme-ts-style --fix`.                |
 | `bun run lint`                         | Run ordinary lint diagnostics, as editors do.                             |
 | `bun run format`                       | Format files.                                                             |
 | `bun run knip`                         | Find unused files, exports, and dependencies.                             |
 | `bun run mutation changed origin/main` | List the mutants in changed lines that no test kills.                     |
 
-House style comes from the [`@sqve/seam`](https://www.npmjs.com/package/@sqve/seam) package. Its
-`seam` command turns on the house rules for its own lint run, so editors and `bun run lint` show the
-ordinary rules only.
+House style comes from the
+[`@sqve/stomme-ts-style`](https://www.npmjs.com/package/@sqve/stomme-ts-style) package. Its
+`stomme-ts-style` command turns on the house rules for its own lint run, so editors and
+`bun run lint` show the ordinary rules only.
 
 Configure linting, formatting, and staged checks in [vite.config.ts](../vite.config.ts). Run
 installed command-line tools with `bunx --bun`, as the scripts do. The tools start with a Node
