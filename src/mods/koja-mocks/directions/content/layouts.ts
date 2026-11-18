@@ -42,15 +42,17 @@ const readingBody = (view: ContentView, tokens: DirectionTokens): Element => {
 
 export const reviewActions = (state: ContentState, tokens: DirectionTokens): Element => {
   if (state === 'sent') {
+    const checkIcon = icon('check', 'small').text_color(tokens.marks.done);
+
+    const sentRow = h_flex()
+      .gap(spacing.small)
+      .items_center()
+      .child(checkIcon)
+      .child(fixedLabel('Sent to Tau', tokens.text.body, tokens.ink.text));
+
     return v_flex()
       .gap(spacing.medium)
-      .child(
-        h_flex()
-          .gap(spacing.small)
-          .items_center()
-          .child(icon('check', 'small').text_color(tokens.marks.done))
-          .child(fixedLabel('Sent to Tau', tokens.text.body, tokens.ink.text)),
-      )
+      .child(sentRow)
       .child(paragraph('Tau closes this pane after collecting the review.', tokens));
   }
 
@@ -71,8 +73,11 @@ export const reviewActions = (state: ContentState, tokens: DirectionTokens): Ele
   return actions;
 };
 
-const reviewRail = (view: ContentView, tokens: DirectionTokens): Element =>
-  v_flex()
+const reviewRail = (view: ContentView, tokens: DirectionTokens): Element => {
+  const filesHeader = contentSectionHeader({ name: 'Files', count: 3 }, true, [], tokens).mx(0);
+  const files = v_flex().child(filesHeader).child(reviewFileList(tokens));
+
+  return v_flex()
     .w(factsRailWidth)
     .flex_none()
     .p(railInset)
@@ -81,47 +86,54 @@ const reviewRail = (view: ContentView, tokens: DirectionTokens): Element =>
     .border_color(tokens.pane.headerDivider)
     .child(reviewActions(view.state, tokens))
     .child(factRows(view.item.facts, tokens))
-    .child(
-      v_flex()
-        .child(contentSectionHeader({ name: 'Files', count: 3 }, true, [], tokens).mx(0))
-        .child(reviewFileList(tokens)),
-    );
+    .child(files);
+};
 
-const narrowReviewControls = (state: ContentState, tokens: DirectionTokens): Element =>
-  h_flex()
+const narrowReviewControls = (state: ContentState, tokens: DirectionTokens): Element => {
+  const fileChoices = reviewFileChoices(tokens).flex_1().min_w(0);
+
+  return h_flex()
     .flex_none()
     .min_w(0)
     .items_center()
     .gap(spacing.medium)
     .py(spacing.small)
     .px(readingInset)
-    .child(reviewFileChoices(tokens).flex_1().min_w(0))
+    .child(fileChoices)
     .child(reviewActions(state, tokens));
+};
 
 const reviewViewport = (reading: Element): Element =>
   v_flex().flex_1().min_h(0).min_w(0).pb(spacing.large).child(reading);
 
 export const contentBody = (view: ContentView, tokens: DirectionTokens): Element => {
-  const reading = scrollBody('content-reading').child(itemHeading(view.item, [], 'badge', tokens));
+  const heading = itemHeading(view.item, [], 'badge', tokens);
+  const reading = scrollBody('content-reading').child(heading);
 
   if (view.state === 'unreachable') {
-    return reading.child(
-      errorLine('Could not read PR · GitHub is unreachable', 'Retry', tokens).mt(spacing.medium),
+    const unreachable = errorLine('Could not read PR · GitHub is unreachable', 'Retry', tokens).mt(
+      spacing.medium,
     );
+
+    return reading.child(unreachable);
   }
 
   if (view.state === 'loading') {
-    return reading.child(
-      stateLine({ kind: 'loading', text: 'Loading ticket' }).px(readingInset).mt(spacing.medium),
-    );
+    const loading = stateLine({ kind: 'loading', text: 'Loading ticket' })
+      .px(readingInset)
+      .mt(spacing.medium);
+
+    return reading.child(loading);
   }
 
   if (view.wide) {
+    const readingWithBody = reading.child(readingBody(view, tokens));
+
     return h_flex()
       .flex_1()
       .min_h(0)
       .items_stretch()
-      .child(reviewViewport(reading.child(readingBody(view, tokens))))
+      .child(reviewViewport(readingWithBody))
       .child(reviewRail(view, tokens));
   }
 

@@ -58,23 +58,23 @@ const readingViewport = (reading: Element, state: TicketState, bottomInset: numb
   const viewport = v_flex().relative().mb(bottomInset).flex_1().min_h(0).min_w(0).child(reading);
 
   if (overflowingStates.has(state)) {
-    viewport.child(
-      v_flex()
-        .absolute()
-        .top(0)
-        .bottom(0)
-        .right(scrollbarInset)
-        .w(scrollbarWidth)
-        .overflow_hidden()
-        .child(
-          Scrollbar.vertical(`ticket-view-${state}`)
-            .mode('always')
-            .absolute()
-            .inset_0()
-            .right(-scrollbarInset)
-            .opacity(scrollbarOpacity),
-        ),
-    );
+    const scrollbar = Scrollbar.vertical(`ticket-view-${state}`)
+      .mode('always')
+      .absolute()
+      .inset_0()
+      .right(-scrollbarInset)
+      .opacity(scrollbarOpacity);
+
+    const scrollbarTrack = v_flex()
+      .absolute()
+      .top(0)
+      .bottom(0)
+      .right(scrollbarInset)
+      .w(scrollbarWidth)
+      .overflow_hidden()
+      .child(scrollbar);
+
+    viewport.child(scrollbarTrack);
   }
 
   return viewport;
@@ -87,17 +87,21 @@ const ticketBody = (view: TicketView, tokens: DirectionTokens): Element => {
   const reading = v_flex().flex_1().min_h(0).min_w(0).child(ticketHeading(view, tokens));
 
   if (view.state === 'loading') {
-    return reading.child(
-      stateLine({ kind: 'loading', text: 'Loading ticket' }).px(readingInset).mt(spacing.medium),
-    );
+    const loading = stateLine({ kind: 'loading', text: 'Loading ticket' })
+      .px(readingInset)
+      .mt(spacing.medium);
+
+    return reading.child(loading);
   }
 
   if (view.state === 'unreachable') {
-    return reading.child(
-      errorLine('Could not read ticket · Linear is unreachable', 'Retry', tokens).mt(
-        spacing.medium,
-      ),
-    );
+    const unreachable = errorLine(
+      'Could not read ticket · Linear is unreachable',
+      'Retry',
+      tokens,
+    ).mt(spacing.medium);
+
+    return reading.child(unreachable);
   }
 
   if (view.state !== 'wide') {
@@ -128,11 +132,15 @@ const ticketBody = (view: TicketView, tokens: DirectionTokens): Element => {
     .pr(tokens.rows.inset)
     .child(sections);
 
-  reading.child(sectionDivider(tokens)).child(readingViewport(scroll, view.state, bottomInset));
+  const viewport = readingViewport(scroll, view.state, bottomInset);
+
+  reading.child(sectionDivider(tokens)).child(viewport);
 
   if (view.state !== 'wide') {
     return reading;
   }
+
+  const factRows = ticketFactRows(view.item.facts, tokens).mx(railInset);
 
   const rail = v_flex()
     .w(factsRailWidth)
@@ -142,7 +150,7 @@ const ticketBody = (view: TicketView, tokens: DirectionTokens): Element => {
     .gap(spacing.medium)
     .border_l(1)
     .border_color(tokens.pane.headerDivider)
-    .child(ticketFactRows(view.item.facts, tokens).mx(railInset))
+    .child(factRows)
     .child(nowBlock(view, tokens))
     .child(nextBlock(view, tokens));
 
@@ -152,10 +160,11 @@ const ticketBody = (view: TicketView, tokens: DirectionTokens): Element => {
 export const ticketPane = (state: TicketState, tokens: DirectionTokens): Element => {
   const view = ticketView(state);
 
-  return cardSlot(
-    card(true, tokens).child(contentHeader(view.item, tokens)).child(ticketBody(view, tokens)),
-    tokens,
-  ).flex_1();
+  const pane = card(true, tokens)
+    .child(contentHeader(view.item, tokens))
+    .child(ticketBody(view, tokens));
+
+  return cardSlot(pane, tokens).flex_1();
 };
 
 export const ticketScene = (state: TicketState): Element => {

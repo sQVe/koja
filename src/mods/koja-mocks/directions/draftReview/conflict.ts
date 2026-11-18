@@ -28,8 +28,28 @@ const versionLabel = (name: string, tokens: DirectionTokens): Element =>
     .items_center()
     .child(fixedLabel(name, tokens.text.detail, tokens.ink.dim));
 
-export const conflictBlock = (tokens: DirectionTokens): Element =>
-  v_flex()
+export const conflictBlock = (tokens: DirectionTokens): Element => {
+  const versions = v_flex()
+    .flex_none()
+    .gap(spacing.small)
+    .child(versionText(true, tokens))
+    .child(versionText(false, tokens));
+
+  const versionLabels = v_flex()
+    .flex_none()
+    .gap(spacing.small)
+    .child(versionLabel('Yours', tokens))
+    .child(versionLabel('On disk', tokens));
+
+  const comparison = h_flex().gap(spacing.small).child(versions).child(versionLabels);
+
+  const choices = h_flex()
+    .gap(spacing.small)
+    .justify_end()
+    .child(outlineAction('Keep yours', tokens))
+    .child(outlineAction('Use disk', tokens));
+
+  return v_flex()
     .flex_1()
     .min_w(0)
     .p(spacing.medium)
@@ -37,28 +57,6 @@ export const conflictBlock = (tokens: DirectionTokens): Element =>
     .rounded(tokens.pane.radius)
     .border(1)
     .border_color(tokens.pane.cardBorder)
-    .child(
-      h_flex()
-        .gap(spacing.small)
-        .child(
-          v_flex()
-            .flex_none()
-            .gap(spacing.small)
-            .child(versionText(true, tokens))
-            .child(versionText(false, tokens)),
-        )
-        .child(
-          v_flex()
-            .flex_none()
-            .gap(spacing.small)
-            .child(versionLabel('Yours', tokens))
-            .child(versionLabel('On disk', tokens)),
-        ),
-    )
-    .child(
-      h_flex()
-        .gap(spacing.small)
-        .justify_end()
-        .child(outlineAction('Keep yours', tokens))
-        .child(outlineAction('Use disk', tokens)),
-    );
+    .child(comparison)
+    .child(choices);
+};

@@ -46,16 +46,23 @@ export const filesSection = (view: PullView, open: boolean, tokens: DirectionTok
       const hasThread = pullThreads.some((thread) => thread.path === file.path);
 
       if (unresolved && hasThread) {
-        end.push(icon('message-square', 'xsmall').text_color(tokens.marks.working));
+        const threadIcon = icon('message-square', 'xsmall').text_color(tokens.marks.working);
+
+        end.push(threadIcon);
       }
+
+      const statusInk = fileStatusInk(file.status, tokens);
+      const status = fixedLabel(file.status, tokens.text.detail, statusInk).w(markSlotWidth);
+
+      const pathLabel = middleCutLabel(file.path, tokens.text.body, tokens.ink.text).tooltip(
+        file.path,
+      );
 
       return row(
         {
           selected: false,
-          start: fixedLabel(file.status, tokens.text.detail, fileStatusInk(file.status, tokens)).w(
-            markSlotWidth,
-          ),
-          label: middleCutLabel(file.path, tokens.text.body, tokens.ink.text).tooltip(file.path),
+          start: status,
+          label: pathLabel,
           end,
         },
         tokens,

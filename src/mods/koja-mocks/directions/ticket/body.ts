@@ -60,21 +60,17 @@ const planNode = (slice: Slice, view: TicketView, tokens: DirectionTokens): Spin
   );
 
   if (expanded) {
-    node.content.child(
-      v_flex()
-        .flex_none()
-        .min_w(0)
-        .ml(agentIndent)
-        .children(
-          agents.map((item) =>
-            workRow(
-              item,
-              { source: view.item.source, width: widths.agent, kind: 'linked' },
-              tokens,
-            ),
-          ),
+    const agentRows = v_flex()
+      .flex_none()
+      .min_w(0)
+      .ml(agentIndent)
+      .children(
+        agents.map((item) =>
+          workRow(item, { source: view.item.source, width: widths.agent, kind: 'linked' }, tokens),
         ),
-    );
+      );
+
+    node.content.child(agentRows);
   }
 
   return node;

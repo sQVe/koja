@@ -38,7 +38,9 @@ const factValue = (
     value.child(title);
   }
 
-  return value.child(externalLink(fact.value, fact.target, tokens).flex_none());
+  const link = externalLink(fact.value, fact.target, tokens).flex_none();
+
+  return value.child(link);
 };
 
 const factPair = (fact: TicketFact, tokens: DirectionTokens): Element => {
@@ -67,17 +69,19 @@ export const ticketFactRows = (facts: TicketFact[], tokens: DirectionTokens): El
     .flex_none()
     .min_w(0)
     .children(
-      facts.map((fact) =>
-        h_flex()
+      facts.map((fact) => {
+        const name = fixedLabel(fact.name, tokens.text.detail, tokens.ink.dim)
+          .w(factLabelWidth)
+          .pt(spacing.xsmall);
+
+        const value = factValue(fact, 'stacked', tokens).flex_1().py(spacing.xsmall);
+
+        return h_flex()
           .min_w(0)
           .min_h(rowHeight.small)
           .gap(spacing.medium)
           .items_start()
-          .child(
-            fixedLabel(fact.name, tokens.text.detail, tokens.ink.dim)
-              .w(factLabelWidth)
-              .pt(spacing.xsmall),
-          )
-          .child(factValue(fact, 'stacked', tokens).flex_1().py(spacing.xsmall)),
-      ),
+          .child(name)
+          .child(value);
+      }),
     );

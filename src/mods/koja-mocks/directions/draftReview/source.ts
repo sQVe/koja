@@ -71,8 +71,12 @@ const lineMark = (file: DraftFile, number: number, tokens: DirectionTokens): Ele
   return commentMark('middle', tokens).h(sourceSize.line);
 };
 
-const lineField = (tokens: DirectionTokens): Element =>
-  h_flex()
+const lineField = (tokens: DirectionTokens): Element => {
+  const text = label(`${openLineEdit.text}▏`, tokens.text.body, tokens.ink.text).font_family(
+    terminalFont,
+  );
+
+  return h_flex()
     .h(sourceSize.field)
     .flex_1()
     .min_w(0)
@@ -83,9 +87,8 @@ const lineField = (tokens: DirectionTokens): Element =>
     .border(1)
     .border_color(tokens.pane.focusedBorder)
     .bg(tokens.pane.fill)
-    .child(
-      label(`${openLineEdit.text}▏`, tokens.text.body, tokens.ink.text).font_family(terminalFont),
-    );
+    .child(text);
+};
 
 const lineState = (file: DraftFile, number: number, state: DraftState) => {
   const body = isBodyFile(file);
@@ -129,22 +132,23 @@ const currentLine = (file: DraftFile, state: DraftState): number | null => {
   return state === 'range' ? selectedRange.end : currentLines.body;
 };
 
-const lineActions = (number: number, tokens: DirectionTokens): Element =>
-  h_flex()
+const lineActions = (number: number, tokens: DirectionTokens): Element => {
+  const commentButton = iconButton('message-square', tokens, tokens.ink.dim)
+    .size(controlSize.smallButton)
+    .tooltip(`Comment on line ${number}`);
+
+  const editButton = iconButton('square-pen', tokens, tokens.ink.dim)
+    .size(controlSize.smallButton)
+    .tooltip(`Edit line ${number}`);
+
+  return h_flex()
     .h(sourceSize.line)
     .flex_none()
     .items_center()
     .gap(spacing.xsmall)
-    .child(
-      iconButton('message-square', tokens, tokens.ink.dim)
-        .size(controlSize.smallButton)
-        .tooltip(`Comment on line ${number}`),
-    )
-    .child(
-      iconButton('square-pen', tokens, tokens.ink.dim)
-        .size(controlSize.smallButton)
-        .tooltip(`Edit line ${number}`),
-    );
+    .child(commentButton)
+    .child(editButton);
+};
 
 const sourceText = (text: string, editing: boolean, tokens: DirectionTokens): Element => {
   const content = label(text, tokens.text.body, tokens.ink.text).font_family(terminalFont).flex_1();
@@ -177,13 +181,15 @@ const lineContent = (
   const note = look.unsaved ? 'unsaved' : 'edited';
   const ink = look.unsaved ? tokens.marks.working : tokens.ink.dim;
 
+  const noteLabel = fixedLabel(note, tokens.text.detail, ink).font_family(uiFont);
+
   return h_flex()
     .flex_1()
     .min_w(0)
     .items_center()
     .gap(spacing.small)
     .child(content.flex_none())
-    .child(fixedLabel(note, tokens.text.detail, ink).font_family(uiFont));
+    .child(noteLabel);
 };
 
 const editMark = (edited: boolean, tokens: DirectionTokens): Element => {
@@ -245,8 +251,10 @@ const sourceLine = (
     band.bg(tokens.rows.selectedFill);
   }
 
+  const lineHeight = editingLine ? sourceSize.field : sourceSize.line;
+
   return h_flex()
-    .h(editingLine ? sourceSize.field : sourceSize.line)
+    .h(lineHeight)
     .flex_none()
     .min_w(0)
     .items_center()
@@ -257,28 +265,27 @@ const sourceLine = (
     .child(band);
 };
 
-const conflictLine = (tokens: DirectionTokens): Element =>
-  h_flex()
-    .flex_none()
-    .min_w(0)
+const conflictLine = (tokens: DirectionTokens): Element => {
+  const markSlot = div().w(sourceSize.mark);
+
+  const lineNumber = fixedLabel(String(editedLineNumber), tokens.text.detail, tokens.ink.dim)
+    .w(sourceSize.lineNumber)
+    .font_family(terminalFont)
+    .text_right();
+
+  const gutter = h_flex()
+    .h(rowHeight.small)
+    .mt(spacing.medium + spacing.xxsmall + 1)
     .gap(gutterGap)
-    .items_start()
-    .child(
-      h_flex()
-        .h(rowHeight.small)
-        .mt(spacing.medium + spacing.xxsmall + 1)
-        .gap(gutterGap)
-        .items_center()
-        .child(div().w(sourceSize.mark))
-        .child(
-          fixedLabel(String(editedLineNumber), tokens.text.detail, tokens.ink.dim)
-            .w(sourceSize.lineNumber)
-            .font_family(terminalFont)
-            .text_right(),
-        )
-        .child(editMark(true, tokens)),
-    )
-    .child(conflictBlock(tokens).ml(-1).my(spacing.xxsmall));
+    .items_center()
+    .child(markSlot)
+    .child(lineNumber)
+    .child(editMark(true, tokens));
+
+  const block = conflictBlock(tokens).ml(-1).my(spacing.xxsmall);
+
+  return h_flex().flex_none().min_w(0).gap(gutterGap).items_start().child(gutter).child(block);
+};
 
 const inlineComments = (
   file: DraftFile,
@@ -295,33 +302,37 @@ const inlineComments = (
   const composing = isBodyFile(file) && showsLineComposer(state);
 
   if (composing && number === composingLineNumber) {
-    comments.push(
-      commentComposer({ anchor: 'L18', text: 'Name the sandbox command here.' }, tokens)
-        .ml(textInset)
-        .my(spacing.xxsmall),
-    );
+    const composer = commentComposer(
+      { anchor: 'L18', text: 'Name the sandbox command here.' },
+      tokens,
+    )
+      .ml(textInset)
+      .my(spacing.xxsmall);
+
+    comments.push(composer);
   }
 
   return comments;
 };
 
-const rangeSelection = (file: DraftFile, state: DraftState, tokens: DirectionTokens): Element =>
-  v_flex()
+const rangeSelection = (file: DraftFile, state: DraftState, tokens: DirectionTokens): Element => {
+  const highlight = div()
+    .absolute()
+    .left(textInset - bandInset)
+    .right(0)
+    .top(0)
+    .bottom(0)
+    .rounded(tokens.rows.radius)
+    .bg(tokens.rows.selectedFill);
+
+  return v_flex()
     .relative()
     .flex_none()
     .min_w(0)
-    .child(
-      div()
-        .absolute()
-        .left(textInset - bandInset)
-        .right(0)
-        .top(0)
-        .bottom(0)
-        .rounded(tokens.rows.radius)
-        .bg(tokens.rows.selectedFill),
-    )
+    .child(highlight)
     .child(sourceLine(file, selectedRange.start - 1, state, tokens))
     .child(sourceLine(file, selectedRange.end - 1, state, tokens));
+};
 
 const rangeComposer = (tokens: DirectionTokens): Element =>
   commentComposer({ anchor: 'L19–20', text: 'Comment on lines 19–20', placeholder: true }, tokens)

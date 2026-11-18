@@ -15,19 +15,25 @@ export const commentMark = (kind: CommentMark, tokens: DirectionTokens): Element
   const mark = div().relative().w(gutterMarkWidth).flex_none();
 
   if (kind === 'single') {
-    return mark.child(tick(tokens).top('50%'));
+    const centerTick = tick(tokens).top('50%');
+
+    return mark.child(centerTick);
   }
 
   const line = div().absolute().left(0).w(2).top(0).bottom(0).bg(tokens.ink.muted);
 
   if (kind === 'start') {
+    const startTick = tick(tokens).top('50%');
+
     line.top('50%');
-    mark.child(tick(tokens).top('50%'));
+    mark.child(startTick);
   }
 
   if (kind === 'end') {
+    const endTick = tick(tokens).top('50%');
+
     line.bottom('50%');
-    mark.child(tick(tokens).top('50%'));
+    mark.child(endTick);
   }
 
   return mark.child(line);

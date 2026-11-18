@@ -15,12 +15,11 @@ import { pullBody } from './layout.ts';
 export const pullRequestPane = (view: PullView, tokens: DirectionTokens): Element => {
   const item = pullItem(view);
 
-  return cardSlot(
-    card(true, tokens)
-      .child(contentHeader(item, tokens))
-      .child(pullBody(view, item, tokens)),
-    tokens,
-  ).flex_1();
+  const pane = card(true, tokens)
+    .child(contentHeader(item, tokens))
+    .child(pullBody(view, item, tokens));
+
+  return cardSlot(pane, tokens).flex_1();
 };
 
 export const pullRequestScene = (name: PullScene): Element => {
@@ -28,8 +27,10 @@ export const pullRequestScene = (name: PullScene): Element => {
   const mode = view.state === 'normal' ? kojaNormal : koja;
   const tokens: DirectionTokens = { ...mode, areas: { ...mode.areas, shellPaneWidth: 400 } };
 
+  const agent = view.state === 'zoomed' ? null : agentPane;
+
   const window = directionWindow(tokens, undefined, {
-    agent: view.state === 'zoomed' ? null : agentPane,
+    agent,
     agentFocused: false,
     tabs: fakeTabs,
     toggles: () => [],

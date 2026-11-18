@@ -141,9 +141,9 @@ describe('draft review documents', () => {
 
     const currentActionCount = state === 'edit-file' ? 1 : 2;
 
-    expect(drawnIcons(current).filter((name) => name === 'button')).toHaveLength(
-      currentActionCount,
-    );
+    const currentButtons = drawnIcons(current).filter((name) => name === 'button');
+
+    expect(currentButtons).toHaveLength(currentActionCount);
 
     for (const file of view.files.filter((candidate) => candidate !== view.selected)) {
       const actions = drawnIcons(fileHeading(file, view, koja));

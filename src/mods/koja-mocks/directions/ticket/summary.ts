@@ -43,7 +43,9 @@ const nowDetails = (slice: ActiveSlice, tokens: DirectionTokens): Element => {
   const details = note(slice.detail, tokens);
 
   if (slice.agent !== null) {
-    details.child(agentLink(slice.agent, tokens).flex_none());
+    const link = agentLink(slice.agent, tokens).flex_none();
+
+    details.child(link);
   }
 
   return details;
@@ -71,13 +73,17 @@ const summaryIdentity = (
     );
 };
 
-const summaryLabel = (slice: Slice, view: TicketView, tokens: DirectionTokens): Element =>
-  summaryIdentity(slice.identifier, view, tokens).child(
-    label(slice.title, tokens.text.body, tokens.ink.text).tooltip(slice.title),
-  );
+const summaryLabel = (slice: Slice, view: TicketView, tokens: DirectionTokens): Element => {
+  const title = label(slice.title, tokens.text.body, tokens.ink.text).tooltip(slice.title);
 
-const railTitle = (slice: Slice, tokens: DirectionTokens): Element =>
-  h_flex()
+  return summaryIdentity(slice.identifier, view, tokens).child(title);
+};
+
+const railTitle = (slice: Slice, tokens: DirectionTokens): Element => {
+  const mark = sliceMark(slice, tokens).flex_none().mt(spacing.small);
+  const title = wrappedText(slice.title, tokens).flex_1();
+
+  return h_flex()
     .min_w(0)
     .flex_none()
     .min_h(tokens.rows.height)
@@ -85,8 +91,9 @@ const railTitle = (slice: Slice, tokens: DirectionTokens): Element =>
     .px(tokens.rows.paddingX)
     .gap(spacing.small)
     .items_start()
-    .child(sliceMark(slice, tokens).flex_none().mt(spacing.small))
-    .child(wrappedText(slice.title, tokens).flex_1());
+    .child(mark)
+    .child(title);
+};
 
 const railFact = (text: string, tokens: DirectionTokens): Element =>
   fixedLabel(text, tokens.text.detail, tokens.ink.dim).line_height(`${tokens.rows.height}px`);
@@ -99,16 +106,16 @@ const railMetadata = (
 ): Element => {
   const [first, ...remaining] = facts;
 
-  const firstLine = detailLine(tokens)
-    .gap(0)
-    .child(
-      identifierLink(identifier, source, tokens).flex_none().line_height(`${tokens.rows.height}px`),
-    );
+  const link = identifierLink(identifier, source, tokens)
+    .flex_none()
+    .line_height(`${tokens.rows.height}px`);
+
+  const firstLine = detailLine(tokens).gap(0).child(link);
 
   if (first !== undefined) {
-    firstLine
-      .child(detailSeparator(tokens).line_height(`${tokens.rows.height}px`))
-      .child(railFact(first, tokens));
+    const separator = detailSeparator(tokens).line_height(`${tokens.rows.height}px`);
+
+    firstLine.child(separator).child(railFact(first, tokens));
   }
 
   return v_flex()
@@ -137,24 +144,32 @@ const railItem = (
     return item;
   }
 
-  item.child(
-    detailLine(tokens)
-      .min_h(tokens.rows.height)
-      .gap(0)
-      .child(pullLink(slice.pull, tokens))
-      .child(detailSeparator(tokens).line_height(`${tokens.rows.height}px`))
-      .child(railFact(slice.readiness, tokens)),
-  );
+  const separator = detailSeparator(tokens).line_height(`${tokens.rows.height}px`);
+
+  const pullLine = detailLine(tokens)
+    .min_h(tokens.rows.height)
+    .gap(0)
+    .child(pullLink(slice.pull, tokens))
+    .child(separator)
+    .child(railFact(slice.readiness, tokens));
+
+  item.child(pullLine);
 
   if (slice.agent !== null) {
-    item.child(detailLine(tokens).h(tokens.rows.height).child(agentLink(slice.agent, tokens)));
+    const agentLine = detailLine(tokens)
+      .h(tokens.rows.height)
+      .child(agentLink(slice.agent, tokens));
+
+    item.child(agentLine);
   }
 
   return item;
 };
 
-const nowSlice = (slice: ActiveSlice, view: TicketView, tokens: DirectionTokens): Element =>
-  v_flex()
+const nowSlice = (slice: ActiveSlice, view: TicketView, tokens: DirectionTokens): Element => {
+  const details = nowDetails(slice, tokens).ml(summaryInset(tokens));
+
+  return v_flex()
     .flex_none()
     .min_w(0)
     .child(
@@ -168,7 +183,8 @@ const nowSlice = (slice: ActiveSlice, view: TicketView, tokens: DirectionTokens)
         tokens,
       ),
     )
-    .child(nowDetails(slice, tokens).ml(summaryInset(tokens)));
+    .child(details);
+};
 
 const singleNow = (
   view: Extract<TicketView, { state: 'single' }>,
@@ -176,14 +192,16 @@ const singleNow = (
 ): Element => {
   const current = view.current;
 
+  const pullLabel = h_flex()
+    .pl(planChevronWidth + spacing.xsmall)
+    .child(pullLink(current.pull, tokens));
+
   const parts = [
     row(
       {
         selected: false,
         start: sliceMark(current, tokens),
-        label: h_flex()
-          .pl(planChevronWidth + spacing.xsmall)
-          .child(pullLink(current.pull, tokens)),
+        label: pullLabel,
         end: [statusWord(current.readiness, tokens)],
       },
       tokens,
@@ -215,7 +233,9 @@ export const nowBlock = (view: TicketView, tokens: DirectionTokens): Element => 
   const parts: Element[] = [];
 
   if (active.length === 0) {
-    parts.push(note('No slice in progress', tokens).ml(summaryInset(tokens)));
+    const emptyNote = note('No slice in progress', tokens).ml(summaryInset(tokens));
+
+    parts.push(emptyNote);
   }
 
   parts.push(
@@ -243,6 +263,27 @@ const nothingReady = (view: TicketView, tokens: DirectionTokens): Element => {
     return section(heading, [], tokens);
   }
 
+  const blocker = externalLink(waiting.blockedBy, view.item.source, tokens).flex_none();
+
+  const blockerStatus = h_flex()
+    .flex_none()
+    .gap(0)
+    .items_center()
+    .child(blocker)
+    .child(detailSeparator(tokens))
+    .child(fixedLabel('outside this plan', tokens.text.detail, tokens.ink.dim))
+    .child(detailSeparator(tokens))
+    .child(fixedLabel('not started', tokens.text.detail, tokens.ink.dim))
+    .child(detailSeparator(tokens))
+    .child(fixedLabel('no PR', tokens.text.detail, tokens.ink.dim));
+
+  const waitLine = detailLine(tokens)
+    .ml(summaryInset(tokens))
+    .mr(spacing.small)
+    .child(fixedLabel('waits for', tokens.text.detail, tokens.ink.dim))
+    .child(fixedLabel('Add the sidebar data model', tokens.text.detail, tokens.ink.text))
+    .child(blockerStatus);
+
   return section(
     heading,
     [
@@ -255,24 +296,7 @@ const nothingReady = (view: TicketView, tokens: DirectionTokens): Element => {
         },
         tokens,
       ),
-      detailLine(tokens)
-        .ml(summaryInset(tokens))
-        .mr(spacing.small)
-        .child(fixedLabel('waits for', tokens.text.detail, tokens.ink.dim))
-        .child(fixedLabel('Add the sidebar data model', tokens.text.detail, tokens.ink.text))
-        .child(
-          h_flex()
-            .flex_none()
-            .gap(0)
-            .items_center()
-            .child(externalLink(waiting.blockedBy, view.item.source, tokens).flex_none())
-            .child(detailSeparator(tokens))
-            .child(fixedLabel('outside this plan', tokens.text.detail, tokens.ink.dim))
-            .child(detailSeparator(tokens))
-            .child(fixedLabel('not started', tokens.text.detail, tokens.ink.dim))
-            .child(detailSeparator(tokens))
-            .child(fixedLabel('no PR', tokens.text.detail, tokens.ink.dim)),
-        ),
+      waitLine,
     ],
     tokens,
   );
@@ -295,6 +319,8 @@ export const nextBlock = (view: TicketView, tokens: DirectionTokens): Element =>
     );
   }
 
+  const reasonNote = note(reason, tokens).ml(summaryInset(tokens));
+
   return section(
     { name: 'Next', detail: null },
     [
@@ -307,7 +333,7 @@ export const nextBlock = (view: TicketView, tokens: DirectionTokens): Element =>
         },
         tokens,
       ),
-      note(reason, tokens).ml(summaryInset(tokens)),
+      reasonNote,
     ],
     tokens,
   );

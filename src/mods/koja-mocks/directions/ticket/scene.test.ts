@@ -466,10 +466,13 @@ describe('ticket role contracts', () => {
     const failed = state === 'unreachable' || state === 'sync-failed';
     const actions = textActions(pane);
 
-    expect(actions).toHaveLength(failed ? 1 : 0);
-    const destinations = permittedTargets(ticketView(state));
+    const expectedActions = failed ? 1 : 0;
 
-    expect(targets(pane).every((target) => destinations.includes(target))).toBe(true);
+    expect(actions).toHaveLength(expectedActions);
+    const destinations = permittedTargets(ticketView(state));
+    const allPermitted = targets(pane).every((target) => destinations.includes(target));
+
+    expect(allPermitted).toBe(true);
 
     for (const action of actions) {
       const failure = required(descendants(pane), (part) => part.kids.includes(action));
@@ -488,9 +491,14 @@ describe('ticket role contracts', () => {
       const identity = itemHeader(pane, fixture).kids[0] ?? drawn();
 
       expect(drawnTexts(chip)).toEqual([fixture.item.state ?? '']);
-      expect(drawnTexts(pane).filter((text) => text === fixture.item.state)).toHaveLength(1);
+      const stateTexts = drawnTexts(pane).filter((text) => text === fixture.item.state);
+
+      expect(stateTexts).toHaveLength(1);
       expect(targets(identity)).toEqual([fixture.item.identifier]);
-      expect(drawnTexts(identity).some((text) => text.includes(fixture.item.source))).toBe(true);
+
+      const namesSource = drawnTexts(identity).some((text) => text.includes(fixture.item.source));
+
+      expect(namesSource).toBe(true);
     },
   );
 
@@ -521,7 +529,9 @@ describe('ticket role contracts', () => {
       expect(planStatus.texts).toEqual([slice.readiness]);
       expect(planStatus.textColors).toEqual([tokens.ink.dim]);
 
-      expect(drawnTexts(now).filter((text) => text === slice.readiness)).toHaveLength(summaryCount);
+      const readinessTexts = drawnTexts(now).filter((text) => text === slice.readiness);
+
+      expect(readinessTexts).toHaveLength(summaryCount);
 
       if (summarized) {
         const summaryStatus = textElement(now, slice.readiness);
@@ -635,7 +645,9 @@ describe('ticket role contracts', () => {
       expect(drawnTexts(header)).toHaveLength(1);
       expect(drawnIcons(header)).toHaveLength(0);
       expect(targets(header)).toEqual([fixture.item.identifier]);
-      expect(descendants(header).filter((part) => hasStyle(part, 'border'))).toHaveLength(0);
+      const bordered = descendants(header).filter((part) => hasStyle(part, 'border'));
+
+      expect(bordered).toHaveLength(0);
     },
   );
 
@@ -714,7 +726,9 @@ describe('ticket role contracts', () => {
 
     expect(source.texts.some((text) => text.includes(fixture.item.source))).toBe(true);
     expect(source.textColors).toEqual([koja.ink.dim]);
-    expect(drawnTexts(pane).some((text) => text.includes(otherSource))).toBe(false);
+    const namesOtherSource = drawnTexts(pane).some((text) => text.includes(otherSource));
+
+    expect(namesOtherSource).toBe(false);
   });
 
   test('plain keeps a populated Description before Acceptance', () => {
@@ -810,7 +824,9 @@ describe('ticket scene structure', () => {
         expect(drawnIcons(mark)).toContain('check');
       }
 
-      expect(descendants(row).some((part) => hasStyle(part, 'text_right'))).toBe(false);
+      const rightAligned = descendants(row).some((part) => hasStyle(part, 'text_right'));
+
+      expect(rightAligned).toBe(false);
     }
 
     if (state !== 'loading' && state !== 'unreachable') {
@@ -847,11 +863,11 @@ describe('ticket scene structure', () => {
         expect(hasStyle(title, 'truncate')).toBe(true);
         expect(hasStyle(title, 'underline')).toBe(false);
 
-        expect(
-          descendants(pair).some(
-            (part) => hasStyle(part, 'flex_wrap') || hasStyle(part, 'whitespace_normal'),
-          ),
-        ).toBe(false);
+        const wraps = descendants(pair).some(
+          (part) => hasStyle(part, 'flex_wrap') || hasStyle(part, 'whitespace_normal'),
+        );
+
+        expect(wraps).toBe(false);
       }
     },
   );
@@ -918,7 +934,9 @@ describe('ticket scene structure', () => {
 
       expect(attribute(value, 'layout')).toBe('column');
       expect(valueWidth).toBeGreaterThan(minimumTitleWidth);
-      expect(drawnTexts(value).some((text) => text.startsWith(fact.value))).toBe(true);
+      const startsWithValue = drawnTexts(value).some((text) => text.startsWith(fact.value));
+
+      expect(startsWithValue).toBe(true);
       expect(drawnTexts(value)).not.toContain(' · ');
       expect(value.kids[0]).toBe(title);
       expect(title.textColors).toEqual([koja.ink.text]);
@@ -989,7 +1007,9 @@ describe('ticket scene structure', () => {
       expect(drawnTooltips(title)).toContain(longTitle);
       expect(hasStyle(link, 'flex_none')).toBe(true);
       expect(targets(link)).toEqual([reference.value]);
-      expect(drawnTexts(link).some((text) => text.endsWith(reference.target))).toBe(true);
+      const endsWithTarget = drawnTexts(link).some((text) => text.endsWith(reference.target));
+
+      expect(endsWithTarget).toBe(true);
     },
   );
 
@@ -1036,9 +1056,11 @@ describe('ticket scene structure', () => {
     const known = ticketFacts([fact], koja);
     const unknown = ticketFacts([{ ...fact, title: null }], koja);
 
-    expect(drawnTexts(unknown)).toEqual(
-      drawnTexts(known).filter((text) => text !== fact.title && text.trim() !== '·'),
+    const knownWithoutTitle = drawnTexts(known).filter(
+      (text) => text !== fact.title && text.trim() !== '·',
     );
+
+    expect(drawnTexts(unknown)).toEqual(knownWithoutTitle);
 
     expect(drawnTooltips(unknown)).not.toContain(fact.title ?? '');
     expect(fact.title).toBe(ticketView('container').item.title);
@@ -1084,7 +1106,9 @@ describe('ticket scene structure', () => {
     const facts = detail.kids.at(-1) ?? drawn();
     const separators = facts.kids.filter((part) => part.texts[0]?.trim() === '·');
 
-    expect(drawnTexts(detail).join(' ')).not.toMatch(/[()]/);
+    const detailText = drawnTexts(detail).join(' ');
+
+    expect(detailText).not.toMatch(/[()]/);
     expect(separators).toHaveLength(3);
 
     for (const fact of facts.kids.slice(1)) {
@@ -1106,7 +1130,9 @@ describe('ticket scene structure', () => {
       expect(hasStyle(line, 'justify_between')).toBe(false);
       expect(hasStyle(line, 'justify_end')).toBe(false);
       expect(targets(line.kids[0] ?? drawn())).toHaveLength(1);
-      expect(drawnTexts(status).join(' ')).toContain(slice.readiness);
+      const statusText = drawnTexts(status).join(' ');
+
+      expect(statusText).toContain(slice.readiness);
       expect(status.textColors).toEqual([koja.ink.dim]);
       expect(hasStyle(status, 'text_right')).toBe(false);
       expect(hasStyle(status, 'w')).toBe(false);
@@ -1365,7 +1391,9 @@ describe('ticket scene structure', () => {
       expect(narrowFacts).toHaveLength(3);
 
       if (state === 'wide') {
-        expect(draftDetails(state).slice(-3)).toEqual(narrowFacts);
+        const trailingFacts = draftDetails(state).slice(-3);
+
+        expect(trailingFacts).toEqual(narrowFacts);
       } else {
         expect((draftDetails(state)[0] ?? '').split(' · ')).toEqual(narrowFacts);
       }
@@ -1395,8 +1423,11 @@ describe('ticket scene structure', () => {
     );
 
     expect(targets(next)).toEqual(['ME-1285']);
-    expect(targets(now).filter((target) => target.includes('#'))).toHaveLength(2);
-    expect(drawnIcons(now).filter((name) => name === 'terminal')).toHaveLength(1);
+    const pullTargets = targets(now).filter((target) => target.includes('#'));
+    const terminalIcons = drawnIcons(now).filter((name) => name === 'terminal');
+
+    expect(pullTargets).toHaveLength(2);
+    expect(terminalIcons).toHaveLength(1);
 
     const order = ['Now', 'Next', 'Whole plan', 'Description'].map((name) =>
       drawnTexts(pane).indexOf(name),
@@ -1441,16 +1472,25 @@ describe('ticket scene structure', () => {
     const detail = heading(pane, parentName).kids[1] ?? drawn();
 
     expect(numbers(detail)).toEqual([ticketView('single').slices.length]);
-    expect(drawnTexts(detail).some((text) => text.includes(parentFixture.title ?? ''))).toBe(false);
-    expect(drawnTexts(detail).some((text) => text.includes(parentFixture.identifier))).toBe(false);
+
+    const namesParentTitle = drawnTexts(detail).some((text) =>
+      text.includes(parentFixture.title ?? ''),
+    );
+
+    const namesParentIdentifier = drawnTexts(detail).some((text) =>
+      text.includes(parentFixture.identifier),
+    );
+
+    expect(namesParentTitle).toBe(false);
+    expect(namesParentIdentifier).toBe(false);
 
     expect(textElement(now, 'AI-413').textColors).toEqual(textElement(plan, 'AI-413').textColors);
 
-    expect(
-      drawnTexts(heading(pane, parentName)).some((text) =>
-        text.includes(ticketView('single').item.source),
-      ),
-    ).toBe(true);
+    const namesSingleSource = drawnTexts(heading(pane, parentName)).some((text) =>
+      text.includes(ticketView('single').item.source),
+    );
+
+    expect(namesSingleSource).toBe(true);
   });
 
   test('plan disclosures distinguish empty open and closed slices', () => {
@@ -1495,7 +1535,9 @@ describe('ticket scene structure', () => {
       koja.marks.blocked,
     ]);
 
-    expect(countGroups(pane).map(numbers)).toEqual([[2, 7], [2], [1], [2]]);
+    const groupNumbers = countGroups(pane).map(numbers);
+
+    expect(groupNumbers).toEqual([[2, 7], [2], [1], [2]]);
     const groups = countGroups(pane);
 
     const parent = required(descendants(pane), (part) =>
@@ -1505,13 +1547,15 @@ describe('ticket scene structure', () => {
     expect(parent.kids).toHaveLength(groups.length * 2 - 1);
     expect(parent.kids[0]).toBe(groups[0]);
     expect(parent.kids.at(-1)).toBe(groups.at(-1));
-    expect(countGroups(paneOf('nothing-ready')).map(numbers)).toEqual([[4, 7], [3]]);
+    const nothingReadyNumbers = countGroups(paneOf('nothing-ready')).map(numbers);
 
-    expect(
-      track(paneOf('nothing-ready'))
-        .kids.slice(0, 4)
-        .every((part) => part.backgroundColors.includes(koja.marks.done)),
-    ).toBe(true);
+    expect(nothingReadyNumbers).toEqual([[4, 7], [3]]);
+
+    const mergedSegments = track(paneOf('nothing-ready'))
+      .kids.slice(0, 4)
+      .every((part) => part.backgroundColors.includes(koja.marks.done));
+
+    expect(mergedSegments).toBe(true);
   });
 
   test.each(
@@ -1577,15 +1621,17 @@ describe('ticket scene structure', () => {
       (part) => part.kids.length === 3 && drawnTexts(part.kids[0] ?? drawn()).includes('ME-1285'),
     );
 
-    expect(descendants(next).some((part) => part.borderColors.includes(koja.marks.idle))).toBe(
-      true,
+    const nextHasIdleBorder = descendants(next).some((part) =>
+      part.borderColors.includes(koja.marks.idle),
     );
 
-    expect(
-      descendants(node.kids.at(-1) ?? drawn()).some((part) =>
-        part.borderColors.includes(koja.marks.idle),
-      ),
-    ).toBe(true);
+    expect(nextHasIdleBorder).toBe(true);
+
+    const nodeHasIdleBorder = descendants(node.kids.at(-1) ?? drawn()).some((part) =>
+      part.borderColors.includes(koja.marks.idle),
+    );
+
+    expect(nodeHasIdleBorder).toBe(true);
 
     const planRow = rowFor(plan, 'ME-1285');
     const planStatus = planRow.kids.at(-1) ?? drawn();
@@ -1593,7 +1639,9 @@ describe('ticket scene structure', () => {
     expect(planRow.kids).toHaveLength(next.kids.length + 1);
     expect(hasStyle(planStatus, 'text_right')).toBe(true);
     expect(planStatus.texts).toHaveLength(1);
-    expect(descendants(next).filter((part) => hasStyle(part, 'text_right'))).toHaveLength(0);
+    const rightAlignedParts = descendants(next).filter((part) => hasStyle(part, 'text_right'));
+
+    expect(rightAlignedParts).toHaveLength(0);
   });
 
   test('only the single plan puts the next PR reason beside its title', () => {
@@ -1607,11 +1655,15 @@ describe('ticket scene structure', () => {
     expect(reason.textColors).toContain(koja.ink.dim);
     expect(targets(single)).toEqual(['ME-1285']);
 
-    expect(drawnTexts(single.kids.at(-1) ?? drawn()).some((text) => text.includes('#58'))).toBe(
-      false,
+    const singleNamesPull = drawnTexts(single.kids.at(-1) ?? drawn()).some((text) =>
+      text.includes('#58'),
     );
 
-    expect(drawnTexts(container).some((text) => text.includes('#58'))).toBe(false);
+    expect(singleNamesPull).toBe(false);
+
+    const containerNamesPull = drawnTexts(container).some((text) => text.includes('#58'));
+
+    expect(containerNamesPull).toBe(false);
   });
 
   test('blocked reasons stay with titles outside the aligned status column', () => {
@@ -1621,8 +1673,15 @@ describe('ticket scene structure', () => {
     const status = blocked.kids.at(-1);
 
     expect(status?.texts).toHaveLength(1);
-    expect(drawnTexts(status ?? drawn()).some((text) => text.includes('ME-1285'))).toBe(false);
-    expect(drawnTexts(blocked).some((text) => text.includes('ME-1285'))).toBe(true);
+
+    const statusNamesBlocker = drawnTexts(status ?? drawn()).some((text) =>
+      text.includes('ME-1285'),
+    );
+
+    const rowNamesBlocker = drawnTexts(blocked).some((text) => text.includes('ME-1285'));
+
+    expect(statusNamesBlocker).toBe(false);
+    expect(rowNamesBlocker).toBe(true);
 
     const reason = required(descendants(blocked), (part) =>
       part.texts.some((text) => text.includes('ME-1285')),
@@ -1674,15 +1733,29 @@ describe('ticket scene structure', () => {
       drawnTexts(part).some((text) => text.includes('ME-1290')),
     );
 
-    expect(
-      drawnTexts(blocker).some((text) => text.includes(ticketView('nothing-ready').item.source)),
-    ).toBe(true);
+    const blockerNamesSource = drawnTexts(blocker).some((text) =>
+      text.includes(ticketView('nothing-ready').item.source),
+    );
 
-    expect(targets(pane).filter((target) => target.includes('#'))).toHaveLength(0);
+    expect(blockerNamesSource).toBe(true);
+
+    const pullTargets = targets(pane).filter((target) => target.includes('#'));
+
+    expect(pullTargets).toHaveLength(0);
     expect(targets(next)).toEqual(['ME-1285', 'ME-1290']);
-    expect(drawnTexts(section(pane, 'Now')).some((text) => text.includes('ME-1290'))).toBe(false);
+
+    const nowNamesBlocker = drawnTexts(section(pane, 'Now')).some((text) =>
+      text.includes('ME-1290'),
+    );
+
+    expect(nowNamesBlocker).toBe(false);
     expect(next.kids).toHaveLength(3);
-    expect(drawnTexts(next.kids[1] ?? drawn()).some((text) => text.includes('ME-1285'))).toBe(true);
+
+    const nextNamesReady = drawnTexts(next.kids[1] ?? drawn()).some((text) =>
+      text.includes('ME-1285'),
+    );
+
+    expect(nextNamesReady).toBe(true);
     expect(targets(next.kids[1] ?? drawn())).toEqual(['ME-1285']);
     expect(targets(next.kids[2] ?? drawn())).toEqual(['ME-1290']);
     expect(next.kids[2]?.kids[0]?.textColors).toEqual([koja.ink.dim]);
@@ -1755,22 +1828,31 @@ describe('ticket scene structure', () => {
 
       expect(body.kids).toHaveLength(2);
       expect(targets(pane)).toHaveLength(1);
-      expect(drawnIcons(pane).includes('loading')).toBe(state === 'loading');
-      expect(drawnIcons(pane).includes('circle-alert')).toBe(state === 'unreachable');
+      const hasLoading = drawnIcons(pane).includes('loading');
+      const hasAlert = drawnIcons(pane).includes('circle-alert');
+
+      expect(hasLoading).toBe(state === 'loading');
+      expect(hasAlert).toBe(state === 'unreachable');
     },
   );
 
   test('done keeps merged colors and a folded summary instead of work rows', () => {
     const pane = paneOf('done');
 
-    expect(track(pane).kids.every((part) => part.backgroundColors.includes(koja.marks.done))).toBe(
-      true,
+    const allMerged = track(pane).kids.every((part) =>
+      part.backgroundColors.includes(koja.marks.done),
     );
 
-    expect(countGroups(pane).map(numbers)).toEqual([[7, 7]]);
+    expect(allMerged).toBe(true);
+
+    const groupNumbers = countGroups(pane).map(numbers);
+
+    expect(groupNumbers).toEqual([[7, 7]]);
     expect(drawnIcons(pane)).toContain('check');
     expect(numbers(heading(pane, 'merged'))).toEqual([7]);
-    expect(drawnIcons(pane).filter((name) => name === 'chevron-right')).toHaveLength(3);
+    const collapsedChevrons = drawnIcons(pane).filter((name) => name === 'chevron-right');
+
+    expect(collapsedChevrons).toHaveLength(3);
     expect(drawnTexts(pane)).not.toContain('Now');
     expect(drawnTexts(pane)).not.toContain('Next');
     expect(drawnTexts(pane)).not.toContain('ME-1281');
@@ -1780,7 +1862,9 @@ describe('ticket scene structure', () => {
   test('plain has acceptance rows without a plan or work summaries', () => {
     const pane = paneOf('plain');
 
-    expect(section(pane, 'Acceptance').kids.slice(1)).toHaveLength(2);
+    const acceptanceRows = section(pane, 'Acceptance').kids.slice(1);
+
+    expect(acceptanceRows).toHaveLength(2);
     expect(numbers(heading(pane, 'Acceptance'))).toEqual([0, 2]);
     expect(targets(pane)).toContain(ticketView('plain').item.identifier);
 
@@ -1788,14 +1872,18 @@ describe('ticket scene structure', () => {
       expect(drawnTexts(pane)).not.toContain(absent);
     }
 
-    expect(descendants(pane).some((part) => part.kids.length >= 7)).toBe(false);
+    const hasWideParent = descendants(pane).some((part) => part.kids.length >= 7);
+
+    expect(hasWideParent).toBe(false);
   });
 
   test('tikk translates every rendered identifier and dependency target', () => {
     const pane = paneOf('tikk');
     const plan = section(pane, 'Whole plan');
 
-    expect(drawnTexts(pane).join('\n')).not.toMatch(/\b(?:ME|AI)-\d+/);
+    const paneText = drawnTexts(pane).join('\n');
+
+    expect(paneText).not.toMatch(/\b(?:ME|AI)-\d+/);
     expect(targets(plan)).toHaveLength(10);
     expect(drawnIcons(section(pane, 'Now'))).toContain('terminal');
     expect(track(pane).kids).toHaveLength(7);
@@ -1812,7 +1900,10 @@ describe('ticket scene structure', () => {
       expect(drawnTooltips(plan)).toContain(slice.title);
     }
 
-    expect(drawnTexts(pane).indexOf('Next')).toBeLessThan(drawnTexts(pane).indexOf('Whole plan'));
+    const nextIndex = drawnTexts(pane).indexOf('Next');
+    const planIndex = drawnTexts(pane).indexOf('Whole plan');
+
+    expect(nextIndex).toBeLessThan(planIndex);
   });
 
   test('normal preserves content and changes both the focused border and header fill', () => {
@@ -1821,11 +1912,11 @@ describe('ticket scene structure', () => {
     expect(drawnTexts(pane)).toEqual(drawnTexts(paneOf('container')));
     expect(pane.borderColors).toContain(kojaNormal.pane.focusedBorder);
 
-    expect(
-      descendants(pane).some((part) =>
-        part.backgroundColors.includes(kojaNormal.pane.focusedHeaderFill),
-      ),
-    ).toBe(true);
+    const hasFocusedFill = descendants(pane).some((part) =>
+      part.backgroundColors.includes(kojaNormal.pane.focusedHeaderFill),
+    );
+
+    expect(hasFocusedFill).toBe(true);
   });
 
   test('rail items share title metadata PR and agent order with indivisible facts', () => {
@@ -1854,8 +1945,11 @@ describe('ticket scene structure', () => {
       expect(targets(meta)).toEqual([slice.identifier]);
 
       for (const line of meta.kids) {
-        expect(drawnTexts(line)[0]?.startsWith('·')).toBe(false);
-        expect(attribute(line, 'gap')).toBe(line === meta.kids[0] ? 0 : spacing.small);
+        const startsWithSeparator = drawnTexts(line)[0]?.startsWith('·');
+        const expectedGap = line === meta.kids[0] ? 0 : spacing.small;
+
+        expect(startsWithSeparator).toBe(false);
+        expect(attribute(line, 'gap')).toBe(expectedGap);
       }
 
       for (const fact of meta.kids.flatMap((line) => line.kids)) {
@@ -1871,7 +1965,9 @@ describe('ticket scene structure', () => {
 
       if ('pull' in slice) {
         expect(targets(item.kids[2] ?? drawn())).toEqual([`koja ${slice.pull}`]);
-        expect(item.kids).toHaveLength(slice.agent === null ? 3 : 4);
+        const expectedKids = slice.agent === null ? 3 : 4;
+
+        expect(item.kids).toHaveLength(expectedKids);
 
         if (slice.agent !== null) {
           expect(targets(item.kids[3] ?? drawn())).toEqual([slice.agent]);
@@ -1879,11 +1975,11 @@ describe('ticket scene structure', () => {
       } else {
         expect(item.kids).toHaveLength(2);
 
-        expect(
-          drawnTexts(meta.kids[1] ?? drawn()).some(
-            (text) => text.includes('#58') && text.includes('ME-1283'),
-          ),
-        ).toBe(true);
+        const namesPullAndBlocker = drawnTexts(meta.kids[1] ?? drawn()).some(
+          (text) => text.includes('#58') && text.includes('ME-1283'),
+        );
+
+        expect(namesPullAndBlocker).toBe(true);
       }
     }
   });
@@ -1939,11 +2035,11 @@ describe('ticket scene structure', () => {
     expect(attribute(waitingColumns, 'pl')).toBe(attribute(readyColumns, 'pl'));
     expect(attribute(waitingColumns, 'gap')).toBe(attribute(readyColumns, 'gap'));
 
-    expect(
-      descendants(waiting.kids[0] ?? drawn()).some((part) =>
-        part.backgroundColors.includes(koja.marks.blocked),
-      ),
-    ).toBe(true);
+    const hasBlockedFill = descendants(waiting.kids[0] ?? drawn()).some((part) =>
+      part.backgroundColors.includes(koja.marks.blocked),
+    );
+
+    expect(hasBlockedFill).toBe(true);
 
     const fixture = ticketView('nothing-ready').slices.find(
       (slice) => slice.identifier === 'ME-1285',
@@ -2000,10 +2096,15 @@ describe('ticket scene structure', () => {
     const now = section(rail, 'Now');
     const next = section(rail, 'Next');
 
-    expect(targets(rail).filter((target) => target.includes('#'))).toHaveLength(2);
-    expect(targets(reading).filter((target) => target.includes('#'))).toHaveLength(0);
-    expect(new Set(targets(pane))).toEqual(new Set(targets(paneOf('container'))));
-    expect(drawnIcons(rail).filter((name) => name === 'terminal')).toHaveLength(1);
+    const railPullTargets = targets(rail).filter((target) => target.includes('#'));
+    const readingPullTargets = targets(reading).filter((target) => target.includes('#'));
+    const containerTargets = new Set(targets(paneOf('container')));
+    const railTerminalIcons = drawnIcons(rail).filter((name) => name === 'terminal');
+
+    expect(railPullTargets).toHaveLength(2);
+    expect(readingPullTargets).toHaveLength(0);
+    expect(new Set(targets(pane))).toEqual(containerTargets);
+    expect(railTerminalIcons).toHaveLength(1);
     expect(drawnIcons(reading)).not.toContain('terminal');
     expect(drawnTexts(reading)).not.toContain('Now');
     expect(drawnTexts(reading)).not.toContain('Next');
@@ -2044,7 +2145,9 @@ describe('ticket scene structure', () => {
 
       const bars = descendants(pane).filter((part) => part.path === 'scrollbar');
 
-      expect(bars).toHaveLength(overflowing ? 1 : 0);
+      const expectedBars = overflowing ? 1 : 0;
+
+      expect(bars).toHaveLength(expectedBars);
 
       for (const bar of bars) {
         const clip = required(descendants(pane), (part) => part.kids.includes(bar));
@@ -2143,7 +2246,9 @@ describe('ticket scene structure', () => {
       expect(attribute(line, 'gap')).toBe(0);
 
       for (const separator of separators) {
-        expect(separator.texts[0]?.split('·').map((side) => side.length)).toEqual([1, 1]);
+        const sideLengths = separator.texts[0]?.split('·').map((side) => side.length);
+
+        expect(sideLengths).toEqual([1, 1]);
         expect(attribute(separator, 'text_size')).toBe(koja.text.detail.size);
         expect(Number(attribute(separator, 'ml') ?? 0)).toBe(0);
         expect(Number(attribute(separator, 'mr') ?? 0)).toBe(0);
