@@ -5,20 +5,7 @@ and GitHub work, in one window. It is made of TypeScript mods that share one UI 
 layout, theme, and keys that use them. Read [the development guide](docs/development.md) for local
 setup and verification.
 
-- Run `bun run check` before finishing changes. It runs typechecking, lint with house style,
-  formatting, Knip, and tests.
-- Format with `bun run format`, and fix style with `bun run style:fix`. House style comes from
-  `@sqve/seam`.
-- Follow the decisions in [docs/adr](docs/adr/README.md), and record new decisions there. Read that
-  guide before adding or changing an ADR. When details of a decision change, edit its ADR in place
-  in the same change. Do not write documents that explain how a feature works; see
-  [ADR 0001](docs/adr/0001-documentation-scope.md).
-- Name values in camelCase and types in PascalCase. Never SCREAMING_CASE, not even for module
-  constants.
-- Declare a helper before the code that uses it. Join at most three checks in one condition, and do
-  not mix `&&` with `||`; name the inner group instead.
-- Comment only what the code cannot say, such as a constraint or a workaround. Do not describe the
-  code's history.
+- Fix style with `bun run style:fix`. House style comes from `@sqve/stomme-ts-style`.
 - Add a changeset with `bun run changeset` when a change touches `src/**`. Release PRs are exempt;
   see [versioning](docs/development.md#versioning).
 - Before finishing a document, check its local links and verify the commands it gives against the
@@ -46,9 +33,7 @@ setup and verification.
 
 ## Tests
 
-- Test behavior a caller can observe. Do not test wording, constants, types, or internal calls.
-- Keep tests next to source. Cross-module and tooling checks go in `tests/`.
-- Use temporary directories for fixtures and remove them when the test finishes.
+- Do not test wording, constants, types, or internal calls.
 - Try and QA mods in the sandbox only: `bun run sandbox up`, `shot`, the input commands, and `down`.
   Tau launches it as the `sandbox` verification target in `.pi/tau.json`, and `.pi/qa.md` holds the
   QA guide. The sandbox runs on [ruta](https://github.com/sQVe/ruta); install it with
