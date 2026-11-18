@@ -62,4 +62,19 @@ describe('foldedSet', () => {
     expect(folded.has('b')).toBe(true);
     expect(folded.has('c')).toBe(false);
   });
+
+  test('drops saved items that are not strings', () => {
+    const { values, store: storage } = store();
+
+    storage.set('repos.folded', '["a",1,null,{"b":true},["c"],"d"]');
+
+    const folded = foldedSet('repos.folded', storage);
+
+    expect(folded.has('a')).toBe(true);
+    expect(folded.has('d')).toBe(true);
+
+    folded.toggle('e');
+
+    expect(values['repos.folded']).toBe('["a","d","e"]');
+  });
 });

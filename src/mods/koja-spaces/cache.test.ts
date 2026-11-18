@@ -4,9 +4,9 @@ import { repositoryOf } from '../../data/gitIdentity.ts';
 import { negativeEntryExpired, pruneRecord, retireUnusedWatches } from './cache.ts';
 import type { GitInfo } from './tree.ts';
 
-const gitInfo = (repo: string): GitInfo => ({
+const gitInfo = (repo: string, machine: string | null = null): GitInfo => ({
   branch: null,
-  repo: repositoryOf(null, repo),
+  repo: repositoryOf(machine, repo),
   root: '/',
   cwd: '/',
   linked: false,
@@ -47,5 +47,24 @@ describe('retireUnusedWatches', () => {
     const git: Record<string, GitInfo | null> = { place: gitInfo('repoA') };
 
     expect(retireUnusedWatches(new Set([key]), git)).toEqual(new Set([key]));
+  });
+
+  test('retires a watcher that only a repository on another machine uses', () => {
+    const remote = gitInfo('repoA', 'work');
+    const git: Record<string, GitInfo | null> = { place: remote };
+
+    expect(retireUnusedWatches(new Set([key, remote.repo.key]), git)).toEqual(new Set());
+  });
+
+  test('keeps the local watcher and retires the remote one', () => {
+    const git: Record<string, GitInfo | null> = {
+      local: gitInfo('repoA'),
+      remote: gitInfo('repoB', 'work'),
+      missing: null,
+    };
+
+    const watching = new Set([key, repositoryOf('work', 'repoB').key]);
+
+    expect(retireUnusedWatches(watching, git)).toEqual(new Set([key]));
   });
 });
