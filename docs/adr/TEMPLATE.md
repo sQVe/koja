@@ -23,7 +23,7 @@ with a backslash except the last, so Markdown keeps the line breaks:
 story, the history of the old mechanism, ticket IDs, and implementation steps. Leave out
 measurements the decision does not rest on, and summarize one it does rest on in one sentence.
 Leave out prices, benchmark tables, and exact versions or byte counts that go stale. Name a file
-only when the decision is about that file. -->
+only when the decision is about that file, or when it holds the evidence the decision rests on. -->
 
 ## Decision
 
