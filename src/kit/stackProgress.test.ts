@@ -37,7 +37,9 @@ describe('stackProgress', () => {
   test('3 of 8 draws a fill 4.5 px wide and the count', () => {
     const progress = stackProgress({ merged: 3, total: 8, label: 'count' });
 
-    expect(fills(progress).map((fill) => fill.styles['w'])).toEqual([[4.5]]);
+    const fillWidths = fills(progress).map((fill) => fill.styles['w']);
+
+    expect(fillWidths).toEqual([[4.5]]);
     expect(drawnTexts(progress)).toEqual(['3/8']);
   });
 

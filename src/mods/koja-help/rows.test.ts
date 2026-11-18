@@ -48,15 +48,9 @@ describe('helpGroups', () => {
   });
 
   test('lists the groups in the order of the parts, then single keys, then list keys', () => {
-    expect(helpGroups('').map((group) => group.id)).toEqual([
-      'w',
-      't',
-      's',
-      'g',
-      'z',
-      'single',
-      'list',
-    ]);
+    const groupIds = helpGroups('').map((group) => group.id);
+
+    expect(groupIds).toEqual(['w', 't', 's', 'g', 'z', 'single', 'list']);
   });
 
   test('puts a sequence in the group of its first key', () => {
@@ -121,11 +115,16 @@ describe('helpGroups', () => {
 
   test('finds a pane key by its ctrl-w form', () => {
     expect(rowsOf(helpGroups('ctrl-w v'))).toEqual([{ name: 'Split right', keys: [['w', 'v']] }]);
-    expect(rowsOf(helpGroups('ctrl-w')).flatMap(sequencesOf)).toContain('w v');
+
+    const ctrlWSequences = rowsOf(helpGroups('ctrl-w')).flatMap(sequencesOf);
+
+    expect(ctrlWSequences).toContain('w v');
   });
 
   test('does not match the middle of a key name', () => {
-    expect(rowsOf(helpGroups('space')).flatMap(sequencesOf)).not.toContain('backspace');
+    const spaceSequences = rowsOf(helpGroups('space')).flatMap(sequencesOf);
+
+    expect(spaceSequences).not.toContain('backspace');
   });
 
   test('matches a query without case', () => {
@@ -133,11 +132,15 @@ describe('helpGroups', () => {
       { name: 'Rename space', keys: [['s', 'r']] },
     ]);
 
-    expect(rowsOf(helpGroups('g t')).flatMap(sequencesOf)).toContain('g T');
+    const gtSequences = rowsOf(helpGroups('g t')).flatMap(sequencesOf);
+
+    expect(gtSequences).toContain('g T');
   });
 
   test('drops a group that the query leaves empty', () => {
-    expect(helpGroups('rename space').map((group) => group.id)).toEqual(['s']);
+    const renameSpaceGroupIds = helpGroups('rename space').map((group) => group.id);
+
+    expect(renameSpaceGroupIds).toEqual(['s']);
   });
 
   test('gives no group for a query that matches nothing', () => {

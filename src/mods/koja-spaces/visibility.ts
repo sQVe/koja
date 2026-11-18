@@ -33,7 +33,10 @@ export const advanceVisibility = (
   const live = new Set(input.spaces.map((space) => space.id));
 
   const shown = new Set([...state.shown].filter((id) => live.has(id)));
-  const born = Object.fromEntries(Object.entries(state.born).filter(([id]) => live.has(id)));
+
+  const liveBornEntries = Object.entries(state.born).filter(([id]) => live.has(id));
+
+  const born = Object.fromEntries(liveBornEntries);
 
   for (const space of input.spaces) {
     if (shown.has(space.id)) {

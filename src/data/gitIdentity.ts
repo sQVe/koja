@@ -83,7 +83,9 @@ const commandFailure = (args: string[], result: ExecResult): Error => {
   const stderr = result.stderr.trim();
   const fallback = `${describeCommand(args)} exited with ${result.code}`;
 
-  return new Error(stderr === '' ? fallback : stderr);
+  const message = stderr === '' ? fallback : stderr;
+
+  return new Error(message);
 };
 
 const outputOf = (args: string[], result: ExecResult): string => {

@@ -146,7 +146,9 @@ describe('gallery data layer section', () => {
     view.render(context);
     view.render(context);
 
-    expect(liveTasks().map((task) => task.milliseconds)).toEqual([leaseExpiryMilliseconds - 4000]);
+    const taskTimes = liveTasks().map((task) => task.milliseconds);
+
+    expect(taskTimes).toEqual([leaseExpiryMilliseconds - 4000]);
   });
 
   test('replaces its deadline task when a new heartbeat moves the deadline', () => {
@@ -159,7 +161,9 @@ describe('gallery data layer section', () => {
     writeHeartbeat(renewedAt);
     view.render(context);
 
-    expect(liveTasks().map((task) => task.milliseconds)).toEqual([leaseExpiryMilliseconds]);
+    const taskTimes = liveTasks().map((task) => task.milliseconds);
+
+    expect(taskTimes).toEqual([leaseExpiryMilliseconds]);
     expect(tasks).toHaveLength(2);
   });
 

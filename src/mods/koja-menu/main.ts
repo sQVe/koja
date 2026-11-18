@@ -124,13 +124,17 @@ export default class Menu extends View {
       group.child(separator());
     }
 
+    const state = index === selected ? 'selected' : 'normal';
+    const start = icon(item.icon).text_color(colors().muted);
+    const end = shortcut === null ? [] : [keyHint(shortcut)];
+
     const row = listRow({
       size: 'small',
       inset: true,
-      state: index === selected ? 'selected' : 'normal',
-      start: icon(item.icon).text_color(colors().muted),
+      state,
+      start,
       label: item.label,
-      end: shortcut === null ? [] : [keyHint(shortcut)],
+      end,
     })
       .id(`menu-item-${index}`)
       .on_click(() => {

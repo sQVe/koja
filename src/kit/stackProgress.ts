@@ -31,7 +31,9 @@ const progressBar = (merged: number, total: number): Element => {
 
   const fillWidth = (progressSize.width * merged) / total;
 
-  return track.child(div().w(fillWidth).h_full().rounded(barRadius).bg(palette.dim));
+  const fill = div().w(fillWidth).h_full().rounded(barRadius).bg(palette.dim);
+
+  return track.child(fill);
 };
 
 const progressText = (options: StackProgressOptions): string => {
@@ -40,10 +42,14 @@ const progressText = (options: StackProgressOptions): string => {
   return options.label === 'merged' ? `${count} merged` : count;
 };
 
-export const stackProgress = (options: StackProgressOptions): Element =>
-  h_flex()
+export const stackProgress = (options: StackProgressOptions): Element => {
+  const textBox = div().flex_none();
+  const text = withTextRole(textBox, 'detail').child(progressText(options));
+
+  return h_flex()
     .flex_none()
     .gap(spacing.xsmall)
     .items_center()
     .child(progressBar(options.merged, options.total))
-    .child(withTextRole(div().flex_none(), 'detail').child(progressText(options)));
+    .child(text);
+};

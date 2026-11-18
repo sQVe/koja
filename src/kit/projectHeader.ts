@@ -63,10 +63,11 @@ const headerMark = (status: Status | null): Element =>
 const hiddenParts = (options: HeaderBase): Element[] =>
   options.folded ? [roleText('detail', `${options.hidden} more`)] : [];
 
-const chevronSlot = (options: HeaderBase): Element =>
-  iconSlot(icon(options.folded ? 'chevron-right' : 'chevron-down', 'small')).text_color(
-    colors().dim,
-  );
+const chevronSlot = (options: HeaderBase): Element => {
+  const chevronName = options.folded ? 'chevron-right' : 'chevron-down';
+
+  return iconSlot(icon(chevronName, 'small')).text_color(colors().dim);
+};
 
 const spaceFoldToggle = (options: SpaceHeader): Element =>
   chevronSlot(options)
@@ -105,11 +106,13 @@ const foldHeader = (options: FoldHeader): Element =>
       options.onToggle(cx);
     });
 
-const spaceHeader = (options: SpaceHeader): Element =>
-  listRow({
+const spaceHeader = (options: SpaceHeader): Element => {
+  const state = options.selected ? 'selected' : 'normal';
+
+  return listRow({
     size: 'small',
     inset: true,
-    state: options.selected ? 'selected' : 'normal',
+    state,
     start: headerMark(options.status),
     label: nameLabel(options, 'foreground'),
     ...(options.drop === undefined ? {} : { drop: options.drop }),
@@ -121,6 +124,7 @@ const spaceHeader = (options: SpaceHeader): Element =>
       foldSlot(options, () => spaceFoldToggle(options)),
     ],
   });
+};
 
 export const projectHeader = (options: ProjectHeaderOptions): Element =>
   options.kind === 'fold' ? foldHeader(options) : spaceHeader(options);

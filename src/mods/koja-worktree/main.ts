@@ -308,9 +308,11 @@ export default class Worktree extends View {
   }
 
   override render(): Element {
+    const title = this.action === null ? 'Worktree' : titles[this.action];
+
     const frame = dialogFrame({
       id: 'worktree',
-      title: this.action === null ? 'Worktree' : titles[this.action],
+      title,
       body: this.body(),
       actions: this.actions(),
     }).on_key_down((event, cx) => {

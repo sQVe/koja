@@ -15,13 +15,16 @@ export interface DialogFrameOptions {
   actions: Element[];
 }
 
-const titleRow = (title: string): Element =>
-  h_flex()
+const titleRow = (title: string): Element => {
+  const titleText = div().flex_1().min_w(0).text_size(textSize.large).font_semibold().child(title);
+
+  return h_flex()
     .flex_none()
     .items_center()
     .justify_between()
-    .child(div().flex_1().min_w(0).text_size(textSize.large).font_semibold().child(title))
+    .child(titleText)
     .child(keyHint('Esc'));
+};
 
 const actionRow = (actions: Element[]): Element =>
   h_flex().flex_none().gap(spacing.small).justify_end().children(actions);

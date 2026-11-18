@@ -9,6 +9,13 @@ import { colors } from './theme.ts';
 
 export const searchField = (input: InputState, iconName: IconName): Element => {
   const palette = colors();
+  const searchIcon = icon(iconName, 'large').text_color(palette.dim);
+
+  const searchInput = Input.new(input)
+    .flex_1()
+    .h_full()
+    .text_size(textSize.default)
+    .text_color(palette.foreground);
 
   return h_flex()
     .h(controlSize.searchField)
@@ -18,8 +25,6 @@ export const searchField = (input: InputState, iconName: IconName): Element => {
     .items_center()
     .border_b(spacing.hairline)
     .border_color(palette.border)
-    .child(icon(iconName, 'large').text_color(palette.dim))
-    .child(
-      Input.new(input).flex_1().h_full().text_size(textSize.default).text_color(palette.foreground),
-    );
+    .child(searchIcon)
+    .child(searchInput);
 };

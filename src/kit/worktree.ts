@@ -23,12 +23,14 @@ export const openWorktreeDialog = (
   folder: string | null = null,
 ): void => {
   const listing = action === 'open';
+  const width = listing ? overlaySize.worktreeListWidth : overlaySize.worktreeFormWidth;
+  const height = listing ? overlaySize.worktreeListHeight : overlaySize.worktreeFormHeight;
 
   openOverlay({
     mod: 'worktree',
     kind: 'dialog',
-    width: listing ? overlaySize.worktreeListWidth : overlaySize.worktreeFormWidth,
-    height: listing ? overlaySize.worktreeListHeight : overlaySize.worktreeFormHeight,
+    width,
+    height,
     props: { space, action, ...(folder === null ? {} : { folder }) },
   });
 };

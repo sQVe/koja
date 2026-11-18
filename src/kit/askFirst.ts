@@ -12,9 +12,11 @@ const spaceSteps = new Map([
 ]);
 
 const stepSpace = (step: number): void => {
+  const liveIds = spaces().map((space) => space.id);
+
   const command = spaceStepCommand(step, {
     order: readSpaceOrder(shared),
-    liveIds: spaces().map((space) => space.id),
+    liveIds,
     current: focused()?.space ?? null,
   });
 
@@ -45,11 +47,13 @@ export const askFirst = (command: string, args?: Record<string, unknown>): boole
     return false;
   }
 
+  const terminalFacts = terminals().map(terminalLifetime);
+
   const plan = dialogFor(command, args ?? {}, {
     spaces: spaces(),
     panes: panes(),
     focus: focused(),
-    terminals: terminals().map(terminalLifetime),
+    terminals: terminalFacts,
   });
 
   if (plan.kind === 'confirm') {

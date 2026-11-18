@@ -13,7 +13,11 @@ export const history: PickerHistory = createHistory(
     set: (key, value) => {
       setShared(key, value);
     },
-    liveTabs: () => new Set(spaces().flatMap((space) => space.tabs.map((tab) => tab.id))),
+    liveTabs: () => {
+      const tabIds = spaces().flatMap((space) => space.tabs.map((tab) => tab.id));
+
+      return new Set(tabIds);
+    },
   },
   { recent: `${modName}.recent`, focus: `${modName}.focus` },
 );

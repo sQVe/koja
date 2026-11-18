@@ -236,7 +236,9 @@ export const toggleButton = (options: ToggleButtonOptions): Element => {
   button.child(options.label);
 
   if (options.end !== undefined) {
-    button.child(h_flex().text_color(palette.dim).child(options.end));
+    const endSlot = h_flex().text_color(palette.dim).child(options.end);
+
+    button.child(endSlot);
   }
 
   return button;

@@ -25,9 +25,8 @@ const fieldIcon = (name: IconName | null): Element =>
     : icon(name, 'small').text_color(colors().dim);
 
 const fieldText = (field: PaneHeaderMenuField): Element => {
-  const text = withTextRole(div().flex_1().min_w(0).truncate(), 'detail')
-    .tooltip(field.text)
-    .child(field.text);
+  const box = div().flex_1().min_w(0).truncate();
+  const text = withTextRole(box, 'detail').tooltip(field.text).child(field.text);
 
   if (field.cut === 'middle') {
     text.text_ellipsis_middle();
@@ -48,17 +47,20 @@ const fieldRow = (field: PaneHeaderMenuField): Element =>
     .child(fieldIcon(field.icon))
     .child(fieldText(field));
 
-const actionRow = (entry: PaneHeaderMenuAction): Element =>
-  listRow({
+const actionRow = (entry: PaneHeaderMenuAction): Element => {
+  const start = icon(entry.icon).text_color(colors().muted);
+
+  return listRow({
     size: 'small',
     inset: true,
     state: 'normal',
-    start: icon(entry.icon).text_color(colors().muted),
+    start,
     label: entry.label,
   }).on_click((_event, cx) => {
     cx.stop_propagation();
     entry.action?.();
   });
+};
 
 export const paneHeaderMenu = (options: PaneHeaderMenuOptions): Element => {
   const model = paneHeaderMenuModel(options);

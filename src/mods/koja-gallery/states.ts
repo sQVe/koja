@@ -16,19 +16,17 @@ const stateText: Record<StateKind, string> = {
 
 const retry = (): Element => toggleButton({ label: 'Retry', active: false });
 
-const kindLines = (kind: StateKind): Element =>
-  h_flex()
-    .gap(spacing.large)
-    .child(
-      v_flex()
-        .flex_1()
-        .child(stateLine({ kind, text: stateText[kind] })),
-    )
-    .child(
-      v_flex()
-        .flex_1()
-        .child(stateLine({ kind, text: stateText[kind], action: retry() })),
-    );
+const kindLines = (kind: StateKind): Element => {
+  const plain = v_flex()
+    .flex_1()
+    .child(stateLine({ kind, text: stateText[kind] }));
+
+  const withAction = v_flex()
+    .flex_1()
+    .child(stateLine({ kind, text: stateText[kind], action: retry() }));
+
+  return h_flex().gap(spacing.large).child(plain).child(withAction);
+};
 
 const staleNow = 1_800_000_000;
 
@@ -36,14 +34,17 @@ const staleAgeSeconds = 240;
 
 const staleFiles = ['src/kit/size.ts', 'src/kit/stateLine.ts', 'src/mods/koja-gallery/states.ts'];
 
-const staleRow = (path: string): Element =>
-  listRow({
+const staleRow = (path: string): Element => {
+  const status = roleText('detail', 'M').flex_none();
+
+  return listRow({
     size: 'small',
     inset: true,
     state: 'normal',
     label: path,
-    end: [roleText('detail', 'M').flex_none()],
+    end: [status],
   });
+};
 
 const staleRows = (): Element =>
   v_flex()
@@ -61,14 +62,15 @@ const wrappedError = [
   'hint: remove that worktree first, or pick another branch name.',
 ].join('\n');
 
-export const states = (): Element[] => [
-  sample(
-    'Empty, loading, and error states, each with and without an action',
-    v_flex().gap(spacing.xxsmall).children(stateKinds.map(kindLines)),
-  ),
-  sample('Stale rows: the error line names its resource and its age', staleRows()),
-  sample(
-    'A wrapping error line shows its whole message',
-    stateLine({ kind: 'error', text: wrappedError, wrap: true }),
-  ),
-];
+export const states = (): Element[] => {
+  const kinds = v_flex().gap(spacing.xxsmall).children(stateKinds.map(kindLines));
+
+  return [
+    sample('Empty, loading, and error states, each with and without an action', kinds),
+    sample('Stale rows: the error line names its resource and its age', staleRows()),
+    sample(
+      'A wrapping error line shows its whole message',
+      stateLine({ kind: 'error', text: wrappedError, wrap: true }),
+    ),
+  ];
+};

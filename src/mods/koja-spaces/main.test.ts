@@ -565,7 +565,10 @@ describe('koja-spaces main space header', () => {
     const view = await loadView();
 
     expect(spaceNames(view)).toEqual(['name-w']);
-    expect(drawnTexts(view.render()).filter((text) => text === 'koja')).toHaveLength(1);
+
+    const kojaTexts = drawnTexts(view.render()).filter((text) => text === 'koja');
+
+    expect(kojaTexts).toHaveLength(1);
   });
 
   test('a click on the header selects the main space', async () => {

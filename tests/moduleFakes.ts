@@ -198,9 +198,11 @@ export const realKitIndexFake = async (parts: readonly string[]): Promise<Module
   const modules = await Promise.all(parts.map(kitPart));
   const sharedNames = new Set(Object.keys(kitIndexFake()));
 
-  const real = Object.fromEntries(
-    modules.flatMap((module) => Object.entries(module)).filter(([name]) => sharedNames.has(name)),
-  );
+  const sharedEntries = modules
+    .flatMap((module) => Object.entries(module))
+    .filter(([name]) => sharedNames.has(name));
+
+  const real = Object.fromEntries(sharedEntries);
 
   return kitIndexFake(real);
 };

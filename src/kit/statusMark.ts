@@ -36,7 +36,9 @@ export const statusMark = (status: Status | null): Element => {
   }
 
   if (status === 'working') {
-    return slot.child(spinner().text_color(palette.working));
+    const spinnerMark = spinner().text_color(palette.working);
+
+    return slot.child(spinnerMark);
   }
 
   if (status === 'idle') {
@@ -44,7 +46,9 @@ export const statusMark = (status: Status | null): Element => {
   }
 
   if (status === 'done') {
-    return slot.child(icon('check', 'small').text_color(palette.done));
+    const checkMark = icon('check', 'small').text_color(palette.done);
+
+    return slot.child(checkMark);
   }
 
   return slot.child(dot(markSize.dot, palette[status]));
@@ -52,9 +56,9 @@ export const statusMark = (status: Status | null): Element => {
 
 export const spaceMark = (status: Status | null): Element => {
   if (status === 'blocked') {
-    return statusMark(null).child(
-      icon('message-circle-question', 'small').text_color(colors().blocked),
-    );
+    const questionMark = icon('message-circle-question', 'small').text_color(colors().blocked);
+
+    return statusMark(null).child(questionMark);
   }
 
   if (status !== null) {

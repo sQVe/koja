@@ -40,7 +40,10 @@ test('config/keys.json has no global key outside the allowlist', async () => {
   const outside = keysOutside(global, allowedGlobalKeys);
 
   expect(outside, 'global keys outside the allowlist').toEqual([]);
-  expect(Object.keys(global).toSorted()).toEqual(allowedGlobalKeys);
+
+  const globalKeys = Object.keys(global).toSorted();
+
+  expect(globalKeys).toEqual(allowedGlobalKeys);
 });
 
 test('config/keys.json has no terminal key outside the allowlist', async () => {
@@ -48,11 +51,16 @@ test('config/keys.json has no terminal key outside the allowlist', async () => {
   const outside = keysOutside(terminal, allowedTerminalKeys);
 
   expect(outside, 'terminal keys outside the allowlist').toEqual([]);
-  expect(Object.keys(terminal).toSorted()).toEqual(allowedTerminalKeys);
+
+  const terminalKeys = Object.keys(terminal).toSorted();
+
+  expect(terminalKeys).toEqual(allowedTerminalKeys);
 });
 
 test('config/keys.json binds only ctrl-b in the koja-modal section', async () => {
   const modal = (await readKeys())['mod:koja-modal'];
 
-  expect(Object.keys(modal).toSorted()).toEqual(['ctrl-b']);
+  const modalKeys = Object.keys(modal).toSorted();
+
+  expect(modalKeys).toEqual(['ctrl-b']);
 });

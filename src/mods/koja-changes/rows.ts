@@ -51,8 +51,14 @@ export const headerRow = (
   add: number,
   del: number,
   palette: Palette,
-): Element =>
-  h_flex()
+): Element => {
+  const title = roleText('title', 'Changes').flex_none();
+  const fileCount = roleText('detail', `${files.length} files`).flex_none();
+  const spacer = div().flex_1();
+  const added = roleText('detail', `+${add}`, 'ansi2').flex_none();
+  const removed = roleText('detail', `−${del}`, 'ansi1').flex_none();
+
+  return h_flex()
     .h(diffSize.headerHeight)
     .flex_none()
     .px(spacing.large)
@@ -60,11 +66,12 @@ export const headerRow = (
     .items_center()
     .border_b(spacing.hairline)
     .border_color(palette.border)
-    .child(roleText('title', 'Changes').flex_none())
-    .child(roleText('detail', `${files.length} files`).flex_none())
-    .child(div().flex_1())
-    .child(roleText('detail', `+${add}`, 'ansi2').flex_none())
-    .child(roleText('detail', `−${del}`, 'ansi1').flex_none());
+    .child(title)
+    .child(fileCount)
+    .child(spacer)
+    .child(added)
+    .child(removed);
+};
 
 const fileRow = (
   file: ChangeFile,
@@ -74,17 +81,23 @@ const fileRow = (
   const end: Element[] = [];
 
   if (file.add > 0) {
-    end.push(roleText('detail', `+${file.add}`, 'ansi2').flex_none());
+    const added = roleText('detail', `+${file.add}`, 'ansi2').flex_none();
+
+    end.push(added);
   }
 
   if (file.del > 0) {
-    end.push(roleText('detail', `−${file.del}`, 'ansi1').flex_none());
+    const removed = roleText('detail', `−${file.del}`, 'ansi1').flex_none();
+
+    end.push(removed);
   }
+
+  const state = selected ? 'selected' : 'normal';
 
   return listRow({
     size: 'small',
     inset: true,
-    state: selected ? 'selected' : 'normal',
+    state,
     cut: 'middle',
     start: fileStatusMark(file.status),
     label: file.path,
@@ -146,29 +159,36 @@ export const commitBar = (
   palette: Palette,
   onCommit: (cx: Context) => void,
 ): Element => {
+  const field = textField(input, typing).flex_1().min_w(0);
+  const label = busy ? 'Committing…' : 'Commit';
+
+  const commitButton = actionButton({ label, enabled })
+    .id('commit')
+    .on_click((_event, clickCx) => {
+      onCommit(clickCx);
+    });
+
   return h_flex()
     .flex_none()
     .p(spacing.large)
     .gap(spacing.medium)
     .border_t(spacing.hairline)
     .border_color(palette.border)
-    .child(textField(input, typing).flex_1().min_w(0))
-    .child(
-      actionButton({ label: busy ? 'Committing…' : 'Commit', enabled })
-        .id('commit')
-        .on_click((_event, clickCx) => {
-          onCommit(clickCx);
-        }),
-    );
+    .child(field)
+    .child(commitButton);
 };
 
-export const limitedNotice = (): Element =>
-  withTextRole(div().px(spacing.large).py(spacing.xsmall), 'detail').child(
-    'Showing the first 1,000 changed files',
-  );
+export const limitedNotice = (): Element => {
+  const box = div().px(spacing.large).py(spacing.xsmall);
 
-export const noteRow = (note: string): Element =>
-  withTextRole(div().px(spacing.large).pb(spacing.medium), 'detail', 'ansi1').child(note);
+  return withTextRole(box, 'detail').child('Showing the first 1,000 changed files');
+};
+
+export const noteRow = (note: string): Element => {
+  const box = div().px(spacing.large).pb(spacing.medium);
+
+  return withTextRole(box, 'detail', 'ansi1').child(note);
+};
 
 const diffRow = (row: DiffRow, palette: Palette): Element => {
   if (row.kind === '@') {
@@ -185,11 +205,10 @@ const diffRow = (row: DiffRow, palette: Palette): Element => {
 
   const tints = diffTints(palette);
 
-  const lineNumber = withTextRole(
-    div().w(diffSize.lineNumberWidth).flex_none().text_right(),
-    'detail',
-    'muted',
-  ).child(row.number === undefined ? '' : String(row.number));
+  const numberBox = div().w(diffSize.lineNumberWidth).flex_none().text_right();
+  const numberText = row.number === undefined ? '' : String(row.number);
+  const lineNumber = withTextRole(numberBox, 'detail', 'muted').child(numberText);
+  const textBox = div().flex_1().min_w(0).truncate().child(row.text);
 
   return h_flex()
     .w_full()
@@ -199,7 +218,7 @@ const diffRow = (row: DiffRow, palette: Palette): Element => {
     .when(row.kind === '+', (element) => element.bg(tints.added))
     .when(row.kind === '-', (element) => element.bg(tints.removed))
     .child(lineNumber)
-    .child(div().flex_1().min_w(0).truncate().child(row.text));
+    .child(textBox);
 };
 
 export const diffArea = (
@@ -210,40 +229,25 @@ export const diffArea = (
 ): Element => {
   const palette = colors();
 
-  const area = withTextRole(
-    div().flex_1().min_h(0).relative().font_family(terminalFont()),
-    'detail',
-    'foreground',
-  )
-    .child(
-      div()
-        .id('changes-diff-x')
-        .size_full()
-        .overflow_x_scrollbar()
-        .child(
-          div()
-            .w_full()
-            .min_w(diffWidth)
-            .h_full()
-            .child(
-              v_virtual_list(
-                'changes-diff',
-                rows.length,
-                diffSize.rowHeight,
-                (index) => String(index),
-                (range) => rows.slice(range.start, range.end).map((row) => diffRow(row, palette)),
-              ).size_full(),
-            ),
-        ),
-    )
-    .child(Scrollbar.vertical('changes-diff').viewport_from_layout().absolute().inset_0());
+  const virtualList = v_virtual_list(
+    'changes-diff',
+    rows.length,
+    diffSize.rowHeight,
+    (index) => String(index),
+    (range) => rows.slice(range.start, range.end).map((row) => diffRow(row, palette)),
+  ).size_full();
+
+  const listColumn = div().w_full().min_w(diffWidth).h_full().child(virtualList);
+  const scroller = div().id('changes-diff-x').size_full().overflow_x_scrollbar().child(listColumn);
+  const scrollbar = Scrollbar.vertical('changes-diff').viewport_from_layout().absolute().inset_0();
+  const areaBox = div().flex_1().min_h(0).relative().font_family(terminalFont());
+  const area = withTextRole(areaBox, 'detail', 'foreground').child(scroller).child(scrollbar);
 
   if (showsSelectionHint(open, fileCount)) {
-    area.child(
-      withTextRole(div().absolute().top(spacing.small).px(spacing.large), 'detail').child(
-        'Select a file to view its changes',
-      ),
-    );
+    const hintBox = div().absolute().top(spacing.small).px(spacing.large);
+    const hint = withTextRole(hintBox, 'detail').child('Select a file to view its changes');
+
+    area.child(hint);
   }
 
   return area;

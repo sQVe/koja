@@ -8,6 +8,8 @@ import { colors } from './theme.ts';
 
 export const textField = (input: InputState, focused: boolean): Element => {
   const palette = colors();
+  const borderColor = focused ? palette.accent : palette.border;
+  const inputElement = Input.new(input).flex_1().h_full();
 
   return h_flex()
     .h(controlSize.button)
@@ -16,9 +18,9 @@ export const textField = (input: InputState, focused: boolean): Element => {
     .items_center()
     .rounded(radius.pill)
     .border(spacing.hairline)
-    .border_color(focused ? palette.accent : palette.border)
+    .border_color(borderColor)
     .on_mouse_down('left', (_event, cx) => {
       cx.stop_propagation();
     })
-    .child(withTextRole(Input.new(input).flex_1().h_full(), 'body'));
+    .child(withTextRole(inputElement, 'body'));
 };

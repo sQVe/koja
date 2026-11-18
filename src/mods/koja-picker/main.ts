@@ -156,6 +156,8 @@ export default class Picker extends View {
     const emptyText = this.query === '' ? this.filter().empty : 'No space matches.';
     const empty = stateLine({ kind: 'empty', text: emptyText });
 
+    const body = rows.length > 0 ? this.list(rows, data) : div().flex_1().child(empty);
+
     const picker = withTextRole(v_flex(), 'body')
       .id(modName)
       .size_full()
@@ -169,7 +171,7 @@ export default class Picker extends View {
         this.onModifiersChanged(event);
       })
       .child(searchField(this.input, 'search'))
-      .child(rows.length > 0 ? this.list(rows, data) : div().flex_1().child(empty))
+      .child(body)
       .child(this.footer(data));
 
     const root = filterKeys.withKeys(picker, (key, cx) => {
