@@ -28,7 +28,8 @@ mod. One runtime covers the tooling, the build, the installer, and every test.
   for the next one. Every `mock.module()` of the same module must expose the same export names,
   because Bun fixes them at the first mock. The mutation runner runs all files in one process the
   same way.
-- `bun run check` runs typechecking, house style, formatting, and Knip at once, then the tests.
+- `bun run check` runs typechecking, house style, stomme check, formatting, and Knip at once, then
+  the tests.
 - Vite+ stays for lint, formatting, and staged checks. TypeScript, Knip, and Changesets also stay.
 - Scripts and hooks run installed command-line tools with `bunx --bun`, so tools with a Node shebang
   run on Bun.

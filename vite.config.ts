@@ -11,9 +11,9 @@ export default defineConfig({
   fmt: {
     ...format,
     // Local agent state is not source and must not be reformatted.
-    // `stomme sync` writes `docs/stomme/**` and the stomme block in `AGENTS.md`; a formatter
-    // change makes `stomme check` report them as edited.
-    ignorePatterns: ['bun.lock', '.tau/**', 'herdr/*.d.ts', 'docs/stomme/**', 'AGENTS.md'],
+    // `stomme sync` writes `docs/stomme/**`; a formatter change makes `stomme check` report
+    // the files as edited.
+    ignorePatterns: ['bun.lock', '.tau/**', 'herdr/*.d.ts', 'docs/stomme/**'],
   },
   staged: {
     '*.{ts,tsx,js,jsx,mjs,cjs}': [

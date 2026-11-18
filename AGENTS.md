@@ -55,6 +55,8 @@ setup and verification.
   `cargo install --git https://github.com/sQVe/ruta --tag v0.2.1 --locked ruta`. Never use
   `ydotool`, and never run `herdr-app do`, `hc`, or synthetic input against the user's real window
   or core. See [Sandbox](docs/development.md#sandbox).
+
+<!-- prettier-ignore-start -->
 <!-- stomme:start -->
 # Shared rules
 
@@ -70,3 +72,4 @@ setup and verification.
 - Read [the TypeScript guide](docs/stomme/languages/typescript/guide.md).
 - Read [the herdr guide](docs/stomme/layers/herdr/guide.md).
 <!-- stomme:end -->
+<!-- prettier-ignore-end -->
