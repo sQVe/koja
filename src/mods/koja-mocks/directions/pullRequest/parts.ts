@@ -23,14 +23,19 @@ import { promptAction, sectionSend } from './prompt.ts';
 const markSlotWidth = 12;
 const selectionInset = 18;
 
-export const detailText = (text: string, tokens: DirectionTokens): Element =>
-  styled(div().min_w(0), tokens.text.detail, tokens.ink.dim).child(text);
+export const detailText = (text: string, tokens: DirectionTokens): Element => {
+  const container = div().min_w(0);
+
+  return styled(container, tokens.text.detail, tokens.ink.dim).child(text);
+};
 
 const selectionSlot = (picked: boolean, tokens: DirectionTokens): Element => {
   const slot = h_flex().w(markSlotWidth).flex_none().items_center().justify_center();
 
   if (picked) {
-    slot.child(icon('check', 'xsmall').text_color(tokens.ink.text));
+    const checkIcon = icon('check', 'xsmall').text_color(tokens.ink.text);
+
+    slot.child(checkIcon);
   }
 
   return slot;
@@ -58,7 +63,9 @@ const itemMark = (
     start.child(selectionSlot(picked, tokens));
   }
 
-  return start.child(h_flex().w(markSlotWidth).justify_center().child(mark));
+  const markSlot = h_flex().w(markSlotWidth).justify_center().child(mark);
+
+  return start.child(markSlot);
 };
 
 const detailBlock = (view: PullView, tokens: DirectionTokens): Element => {
@@ -96,15 +103,15 @@ const failedCheck = (view: PullView, tokens: DirectionTokens): Element => {
     : checkMark('failing', tokens);
 
   if (isBottomBarView(view)) {
-    details
-      .child(
-        h_flex()
-          .gap(spacing.xsmall)
-          .items_center()
-          .child(detailText(`${age} ·`, tokens))
-          .child(sourceLink('log on GitHub', tokens).text_color(tokens.ink.dim)),
-      )
-      .child(lines);
+    const logLink = sourceLink('log on GitHub', tokens).text_color(tokens.ink.dim);
+
+    const logSource = h_flex()
+      .gap(spacing.xsmall)
+      .items_center()
+      .child(detailText(`${age} ·`, tokens))
+      .child(logLink);
+
+    details.child(logSource).child(lines);
   } else {
     details.child(lines).child(detailText(age, tokens));
   }
@@ -135,12 +142,13 @@ const threadTitle = (thread: PullThread, view: PullView, tokens: DirectionTokens
   }
 
   const folder = thread.path.slice(0, thread.path.lastIndexOf('/') + 1);
+  const folderLabel = label(folder, tokens.text.body, tokens.ink.text).flex_shrink(1);
 
   return h_flex()
     .min_w(0)
     .items_center()
     .tooltip(thread.path)
-    .child(label(folder, tokens.text.body, tokens.ink.text).flex_shrink(1))
+    .child(folderLabel)
     .child(fixedLabel(thread.reference, tokens.text.title, tokens.ink.text));
 };
 
@@ -152,6 +160,11 @@ const threadRow = (thread: PullThread, view: PullView, tokens: DirectionTokens):
   const mark = isBottomBarView(view)
     ? icon('message-square', 'small').text_color(tokens.marks.modified)
     : workNeedMark('review', tokens);
+
+  const body = detailBlock(view, tokens)
+    .child(detailText(thread.author, tokens))
+    .child(paragraph(thread.text, tokens))
+    .child(logLines(snippet, tokens));
 
   return v_flex()
     .flex_none()
@@ -171,12 +184,7 @@ const threadRow = (thread: PullThread, view: PullView, tokens: DirectionTokens):
         tokens,
       ),
     )
-    .child(
-      detailBlock(view, tokens)
-        .child(detailText(thread.author, tokens))
-        .child(paragraph(thread.text, tokens))
-        .child(logLines(snippet, tokens)),
-    );
+    .child(body);
 };
 
 const reviewPromptAction = (view: PullView, tokens: DirectionTokens): Element => {
@@ -185,26 +193,33 @@ const reviewPromptAction = (view: PullView, tokens: DirectionTokens): Element =>
   return saveRecoveryButton(action, tokens);
 };
 
-const requestedReview = (view: PullView, tokens: DirectionTokens): Element =>
-  v_flex()
+const requestedReview = (view: PullView, tokens: DirectionTokens): Element => {
+  const penIcon = icon('square-pen', 'small').text_color(tokens.marks.working);
+
+  const title = h_flex()
+    .min_w(0)
+    .items_center()
+    .gap(spacing.small)
+    .child(label('Review from jonas-l', tokens.text.title, tokens.ink.text))
+    .child(fixedLabel('2h ago', tokens.text.detail, tokens.ink.dim));
+
+  const threads = v_flex()
+    .flex_none()
+    .min_w(0)
+    .ml(selectionInset)
+    .mt(spacing.small)
+    .gap(spacing.small)
+    .children(pullThreads.map((thread) => threadRow(thread, view, tokens)));
+
+  return v_flex()
     .flex_none()
     .min_w(0)
     .child(
       row(
         {
           selected: false,
-          start: itemMark(
-            icon('square-pen', 'small').text_color(tokens.marks.working),
-            false,
-            view,
-            tokens,
-          ),
-          label: h_flex()
-            .min_w(0)
-            .items_center()
-            .gap(spacing.small)
-            .child(label('Review from jonas-l', tokens.text.title, tokens.ink.text))
-            .child(fixedLabel('2h ago', tokens.text.detail, tokens.ink.dim)),
+          start: itemMark(penIcon, false, view, tokens),
+          label: title,
           end: [
             fixedLabel('changes requested', tokens.text.detail, tokens.ink.dim),
             reviewPromptAction(view, tokens),
@@ -213,15 +228,8 @@ const requestedReview = (view: PullView, tokens: DirectionTokens): Element =>
         tokens,
       ),
     )
-    .child(
-      v_flex()
-        .flex_none()
-        .min_w(0)
-        .ml(selectionInset)
-        .mt(spacing.small)
-        .gap(spacing.small)
-        .children(pullThreads.map((thread) => threadRow(thread, view, tokens))),
-    );
+    .child(threads);
+};
 
 export const passedSection = (state: PullState, tokens: DirectionTokens): Element => {
   const count = hasResolvedReview(state)
@@ -268,5 +276,7 @@ export const needsYouSection = (view: PullView, tokens: DirectionTokens): Elemen
 
   const summary = detailText('3 checks passed · 1 thread resolved', tokens);
 
-  return section.child(detailBlock(view, tokens).child(summary));
+  const summaryBlock = detailBlock(view, tokens).child(summary);
+
+  return section.child(summaryBlock);
 };

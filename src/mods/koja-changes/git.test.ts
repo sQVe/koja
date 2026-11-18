@@ -169,9 +169,14 @@ describe('readChanges with a repository', () => {
     expect(snapshotOf(result).root).toBe('/repo');
     expect(snapshotOf(result).hasHead).toBe(true);
 
-    expect(
-      snapshotOf(result).files.map((file) => [file.path, file.status, file.add, file.del]),
-    ).toEqual([
+    const snapshotRows = snapshotOf(result).files.map((file) => [
+      file.path,
+      file.status,
+      file.add,
+      file.del,
+    ]);
+
+    expect(snapshotRows).toEqual([
       ['a.ts', 'M', 3, 1],
       ['new.ts', 'A', 0, 0],
     ]);

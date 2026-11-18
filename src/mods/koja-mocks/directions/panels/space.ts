@@ -74,7 +74,8 @@ const pullFiles = (state: RailState, tokens: DirectionTokens): Element[] => {
   const { fileRows } = spaceFit(state, tokens);
   const total = shownFileCount(state);
 
-  const list = changeListOf(shownFiles(state).slice(0, fileRows), tokens).py(0).gap(0);
+  const visibleFiles = shownFiles(state).slice(0, fileRows);
+  const list = changeListOf(visibleFiles, tokens).py(0).gap(0);
 
   if (fileRows < total) {
     list.child(moreRow(total - fileRows, 'files', tokens));
@@ -161,6 +162,8 @@ const leftOut = (count: number, tokens: DirectionTokens): Element[] => {
     return [];
   }
 
+  const chevron = icon('chevron-down', 'xsmall').text_color(tokens.ink.dim);
+
   const control = h_flex()
     .flex_none()
     .gap(doneGap)
@@ -168,7 +171,7 @@ const leftOut = (count: number, tokens: DirectionTokens): Element[] => {
     .rounded(tokens.rows.radius)
     .hover((hovered) => hovered.bg(tokens.rows.hoverFill))
     .child(dimFact(`${count} done`, tokens))
-    .child(icon('chevron-down', 'xsmall').text_color(tokens.ink.dim));
+    .child(chevron);
 
   return [control];
 };

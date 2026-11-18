@@ -86,8 +86,10 @@ const needColor = (need: WorkNeed, tokens: DirectionTokens): Color => {
   return waits ? tokens.marks.modified : tokens.marks.blocked;
 };
 
-const cardLine = (start: Element[], end: Element[], tokens: DirectionTokens): Element =>
-  h_flex()
+const cardLine = (start: Element[], end: Element[], tokens: DirectionTokens): Element => {
+  const spacer = h_flex().flex_1();
+
+  return h_flex()
     .h(tokens.rows.height)
     .flex_none()
     .min_w(0)
@@ -95,14 +97,17 @@ const cardLine = (start: Element[], end: Element[], tokens: DirectionTokens): El
     .gap(lineGap)
     .items_center()
     .children(start)
-    .child(h_flex().flex_1())
+    .child(spacer)
     .children(end);
+};
 
 const layerMark = (layer: FakeLayer, tokens: DirectionTokens): Element => {
   const slot = h_flex().w(markWidth).flex_none().items_center().justify_center();
 
   if (layer.checkedOut) {
-    return slot.child(icon('git-branch', 'small').text_color(tokens.ink.text));
+    const branchIcon = icon('git-branch', 'small').text_color(tokens.ink.text);
+
+    return slot.child(branchIcon);
   }
 
   return slot;
@@ -119,6 +124,14 @@ const layerEnd = (layer: FakeLayer, tokens: DirectionTokens): Element[] => {
 const layerRow = (layer: FakeLayer, tokens: DirectionTokens): Element => {
   const ink = layer.state === 'draft' ? tokens.ink.dim : tokens.ink.text;
 
+  const pullNumber = fixedLabel(`#${layer.pull}`, tokens.text.detail, tokens.ink.muted).w(
+    pullWidth,
+  );
+
+  const ticket = fixedLabel(layer.ticket, tokens.text.detail, tokens.ink.dim).w(ticketWidth);
+
+  const title = label(layer.title, tokens.text.body, ink).flex_1();
+
   return h_flex()
     .h(layerHeight)
     .flex_none()
@@ -127,35 +140,34 @@ const layerRow = (layer: FakeLayer, tokens: DirectionTokens): Element => {
     .gap(lineGap)
     .items_center()
     .child(layerMark(layer, tokens))
-    .child(fixedLabel(`#${layer.pull}`, tokens.text.detail, tokens.ink.muted).w(pullWidth))
-    .child(fixedLabel(layer.ticket, tokens.text.detail, tokens.ink.dim).w(ticketWidth))
-    .child(label(layer.title, tokens.text.body, ink).flex_1())
+    .child(pullNumber)
+    .child(ticket)
+    .child(title)
     .children(layerEnd(layer, tokens));
 };
 
-const mergedRow = (merged: FakeLayer[], tokens: DirectionTokens): Element =>
-  h_flex()
+const mergedRow = (merged: FakeLayer[], tokens: DirectionTokens): Element => {
+  const checkIcon = icon('check', 'small').text_color(tokens.ink.dim);
+  const checkSlot = h_flex().w(markWidth).flex_none().justify_center().child(checkIcon);
+  const spacer = h_flex().flex_1();
+
+  return h_flex()
     .h(layerHeight)
     .flex_none()
     .min_w(0)
     .px(tokens.rows.paddingX)
     .gap(lineGap)
     .items_center()
-    .child(
-      h_flex()
-        .w(markWidth)
-        .flex_none()
-        .justify_center()
-        .child(icon('check', 'small').text_color(tokens.ink.dim)),
-    )
+    .child(checkSlot)
     .child(
       joinedFacts(
         merged.map((layer) => fixedLabel(`#${layer.pull}`, tokens.text.detail, tokens.ink.muted)),
         tokens,
       ),
     )
-    .child(h_flex().flex_1())
+    .child(spacer)
     .child(dimFact(`${merged.length} merged`, tokens));
+};
 
 // One layer of the arrow: 1 px columns that grow 2 px each, so both edges run at 45 degrees and
 // stay crisp. GPUI cannot rotate a box.
@@ -211,15 +223,18 @@ export const hoverScene = (tokens: DirectionTokens): Element =>
     tokens,
   );
 
-const searchLine = (tokens: DirectionTokens): Element =>
-  h_flex()
+const searchLine = (tokens: DirectionTokens): Element => {
+  const searchIcon = icon('search', 'small').text_color(tokens.ink.dim);
+
+  return h_flex()
     .h(tokens.rows.height + cardPadding)
     .flex_none()
     .px(tokens.rows.paddingX)
     .gap(lineGap)
     .items_center()
-    .child(icon('search', 'small').text_color(tokens.ink.dim))
+    .child(searchIcon)
     .child(fixedLabel(searchQuery, tokens.text.body, tokens.ink.text));
+};
 
 const matchedSpace = fakeProjects
   .flatMap((project) => project.spaces)
@@ -239,6 +254,8 @@ const resultRow = (tokens: DirectionTokens): Element[] => {
     tokens,
   );
 
+  const spacer = h_flex().flex_1();
+
   const row = h_flex()
     .h(tokens.rows.height)
     .flex_none()
@@ -251,7 +268,7 @@ const resultRow = (tokens: DirectionTokens): Element[] => {
     .child(agentMark(matchedSpace, tokens))
     .child(fixedLabel(matchedSpace.title, tokens.text.body, tokens.ink.text))
     .child(dimFact('koja', tokens))
-    .child(h_flex().flex_1())
+    .child(spacer)
     .child(reason);
 
   return [row];

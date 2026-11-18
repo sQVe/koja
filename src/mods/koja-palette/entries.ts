@@ -262,7 +262,8 @@ const themeEntries = (known: ReadonlySet<string>, host: PaletteHost): Entry[] =>
 };
 
 export const allEntries = (host: PaletteHost): Entry[] => {
-  const known = new Set(host.commands().map((command) => command.name));
+  const commandNames = host.commands().map((command) => command.name);
+  const known = new Set(commandNames);
   const onMacos = host.platform === 'macos';
 
   const named = namedEntries

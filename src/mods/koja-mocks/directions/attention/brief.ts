@@ -15,13 +15,15 @@ const briefCard = (tokens: DirectionTokens): Element => {
   const ask = hiddenAsks[0];
   const prompt = `${ask.space} asks you`;
 
+  const spacer = h_flex().flex_1();
+
   const line = h_flex()
     .gap(lineGap)
     .items_center()
     .child(iconMark('message-circle-question', tokens.marks.blocked))
     .child(fixedLabel(prompt, tokens.text.body, tokens.ink.text))
     .child(fixedLabel(ask.project, tokens.text.detail, tokens.ink.dim))
-    .child(h_flex().flex_1())
+    .child(spacer)
     .child(fixedLabel('1 more ask', tokens.text.detail, tokens.ink.dim))
     .child(iconButton('x', tokens, tokens.ink.dim));
 

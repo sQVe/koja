@@ -43,8 +43,11 @@ const chipHeight = 20;
 const proseWidth = 720;
 const viewTitle = { size: textSize.large, semibold: true };
 
-export const paragraph = (text: string, tokens: DirectionTokens): Element =>
-  styled(div().min_w(0).max_w(proseWidth), tokens.text.body, tokens.ink.text).child(text);
+export const paragraph = (text: string, tokens: DirectionTokens): Element => {
+  const container = div().min_w(0).max_w(proseWidth);
+
+  return styled(container, tokens.text.body, tokens.ink.text).child(text);
+};
 
 export const scrollBody = (name: string): Element =>
   v_flex().id(name).flex_1().min_h(0).min_w(0).overflow_y_scrollbar();
@@ -96,9 +99,12 @@ export const contentHeader = (item: ContentItem, tokens: DirectionTokens): Eleme
     header.bg(tokens.pane.focusedHeaderFill);
   }
 
+  const itemIcon = icon(item.icon, 'small').text_color(ink);
+  const name = label(item.name, tokens.text.title, ink).flex_1();
+
   return header
-    .child(icon(item.icon, 'small').text_color(ink))
-    .child(label(item.name, tokens.text.title, ink).flex_1())
+    .child(itemIcon)
+    .child(name)
     .child(iconButton('maximize-2', tokens, tokens.ink.dim))
     .child(iconButton('ellipsis', tokens, tokens.ink.dim));
 };
@@ -119,13 +125,12 @@ export const itemHeading = (
     .child(externalLink(item.identifier, item.source, tokens));
 
   if (item.title !== null) {
-    heading.child(
-      h_flex()
-        .min_h(controlSize.dialogButton)
-        .min_w(0)
-        .items_center()
-        .child(styled(div().min_w(0).flex_1(), viewTitle, tokens.ink.text).child(item.title)),
-    );
+    const container = div().min_w(0).flex_1();
+    const title = styled(container, viewTitle, tokens.ink.text).child(item.title);
+
+    const titleRow = h_flex().min_h(controlSize.dialogButton).min_w(0).items_center().child(title);
+
+    heading.child(titleRow);
   }
 
   if (item.state !== null) {
@@ -170,40 +175,46 @@ export const saveRecoveryButton = (text: string, tokens: DirectionTokens): Eleme
     .border_color(tokens.pane.border)
     .child(fixedLabel(text, tokens.text.detail, tokens.ink.muted));
 
-export const saveFailure = (tokens: DirectionTokens, details: SaveFailureDetails): Element =>
-  v_flex()
+export const saveFailure = (tokens: DirectionTokens, details: SaveFailureDetails): Element => {
+  const alertIcon = icon('circle-alert', 'small')
+    .flex_none()
+    .mt(spacing.xxsmall)
+    .text_color(tokens.marks.blocked);
+
+  const errorContainer = div().min_w(0);
+
+  const errorText = styled(errorContainer, tokens.text.detail, tokens.ink.text).child(
+    details.error,
+  );
+
+  const folder = label(details.folder, tokens.text.detail, tokens.ink.text)
+    .text_ellipsis_start()
+    .tooltip(details.folder);
+
+  const messages = v_flex().min_w(0).flex_1().gap(spacing.xsmall).child(errorText).child(folder);
+
+  const failureRow = h_flex()
+    .min_w(0)
+    .gap(spacing.small)
+    .items_start()
+    .child(alertIcon)
+    .child(messages);
+
+  const copyButton = saveRecoveryButton('Copy path', tokens);
+  const recovery = h_flex().child(copyButton);
+  const waitContainer = div().min_w(0);
+
+  const waitNote = styled(waitContainer, tokens.text.detail, tokens.ink.dim).child(
+    'Send to Tau waits for a save.',
+  );
+
+  return v_flex()
     .gap(spacing.medium)
-    .child(
-      h_flex()
-        .min_w(0)
-        .gap(spacing.small)
-        .items_start()
-        .child(
-          icon('circle-alert', 'small')
-            .flex_none()
-            .mt(spacing.xxsmall)
-            .text_color(tokens.marks.blocked),
-        )
-        .child(
-          v_flex()
-            .min_w(0)
-            .flex_1()
-            .gap(spacing.xsmall)
-            .child(styled(div().min_w(0), tokens.text.detail, tokens.ink.text).child(details.error))
-            .child(
-              label(details.folder, tokens.text.detail, tokens.ink.text)
-                .text_ellipsis_start()
-                .tooltip(details.folder),
-            ),
-        ),
-    )
-    .child(h_flex().child(saveRecoveryButton('Copy path', tokens)))
+    .child(failureRow)
+    .child(recovery)
     .child(paragraph(details.unsaved, tokens))
-    .child(
-      styled(div().min_w(0), tokens.text.detail, tokens.ink.dim).child(
-        'Send to Tau waits for a save.',
-      ),
-    );
+    .child(waitNote);
+};
 
 export const contentSectionHeader = (
   look: ContentSectionLook,

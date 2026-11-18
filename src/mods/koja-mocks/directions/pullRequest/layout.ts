@@ -36,7 +36,9 @@ const separatedSections = (sections: Element[], tokens: DirectionTokens): Elemen
 
   for (const [index, section] of sections.entries()) {
     if (index > 0) {
-      body.child(sectionDivider(tokens).mx(readingInset));
+      const divider = sectionDivider(tokens).mx(readingInset);
+
+      body.child(divider);
     }
 
     body.child(section);
@@ -54,9 +56,13 @@ const overview = (view: PullView, item: ContentItem, tokens: DirectionTokens): E
   }
 
   if (resolved) {
-    sections.push(readyActions(view.state, tokens).mx(readingInset).py(spacing.medium));
+    const ready = readyActions(view.state, tokens).mx(readingInset).py(spacing.medium);
+
+    sections.push(ready);
   } else if (isBottomBarView(view)) {
-    sections.push(blockedMerge(tokens).mx(readingInset).py(spacing.medium));
+    const blocked = blockedMerge(tokens).mx(readingInset).py(spacing.medium);
+
+    sections.push(blocked);
   }
 
   if (!resolved) {
@@ -95,6 +101,15 @@ const readingViewport = (reading: Element, view: PullView): Element => {
 
   const clearance = view.queued ? sectionGap : spacing.none;
 
+  const scrollbar = Scrollbar.vertical('pr-reading')
+    .mode('always')
+    .viewport_from_layout()
+    .absolute()
+    .top(0)
+    .bottom(0)
+    .left(0)
+    .right(spacing.small);
+
   return v_flex()
     .relative()
     .mb(clearance)
@@ -102,37 +117,32 @@ const readingViewport = (reading: Element, view: PullView): Element => {
     .min_h(0)
     .min_w(0)
     .child(reading)
-    .child(
-      Scrollbar.vertical('pr-reading')
-        .mode('always')
-        .viewport_from_layout()
-        .absolute()
-        .top(0)
-        .bottom(0)
-        .left(0)
-        .right(spacing.small),
-    );
+    .child(scrollbar);
 };
 
 const pullHeading = (view: PullView, item: ContentItem, tokens: DirectionTokens): Element => {
   const actions: Element[] = [];
 
   if (isBottomBarView(view)) {
-    actions.push(saveRecoveryButton('Sync', tokens).ml(spacing.large - spacing.medium));
+    const syncButton = saveRecoveryButton('Sync', tokens).ml(spacing.large - spacing.medium);
+
+    actions.push(syncButton);
   }
 
   const stateLook = isBottomBarView(view) ? 'plain' : 'badge';
   const heading = itemHeading(item, actions, stateLook, tokens);
 
   if (view.state === 'checks-failed') {
-    heading.child(
-      h_flex()
-        .mt(spacing.small)
-        .gap(spacing.small)
-        .items_center()
-        .child(icon('triangle-alert', 'small').text_color(tokens.marks.working))
-        .child(detailText('Could not sync checks · GitHub timed out', tokens)),
-    );
+    const alertIcon = icon('triangle-alert', 'small').text_color(tokens.marks.working);
+
+    const syncFailure = h_flex()
+      .mt(spacing.small)
+      .gap(spacing.small)
+      .items_center()
+      .child(alertIcon)
+      .child(detailText('Could not sync checks · GitHub timed out', tokens));
+
+    heading.child(syncFailure);
   }
 
   return heading;
@@ -146,9 +156,11 @@ export const pullBody = (view: PullView, item: ContentItem, tokens: DirectionTok
   reading.child(pullHeading(view, item, tokens));
 
   if (view.state === 'unreachable') {
-    reading.child(
-      errorLine('Could not read PR · GitHub is unreachable', 'Retry', tokens).mt(spacing.medium),
+    const unreachable = errorLine('Could not read PR · GitHub is unreachable', 'Retry', tokens).mt(
+      spacing.medium,
     );
+
+    reading.child(unreachable);
 
     return readingViewport(reading, view);
   }
@@ -168,7 +180,9 @@ export const pullBody = (view: PullView, item: ContentItem, tokens: DirectionTok
 
     reading.child(facts).child(divider);
   } else {
-    reading.child(sectionDivider(tokens).mx(readingInset));
+    const wideDivider = sectionDivider(tokens).mx(readingInset);
+
+    reading.child(wideDivider);
   }
 
   const content = overview(view, item, tokens);
@@ -182,6 +196,7 @@ export const pullBody = (view: PullView, item: ContentItem, tokens: DirectionTok
   }
 
   reading.child(content);
+
   const column = v_flex().flex_1().min_h(0).min_w(0).child(readingViewport(reading, view));
 
   if (view.queued && isBottomBarView(view)) {
@@ -191,22 +206,26 @@ export const pullBody = (view: PullView, item: ContentItem, tokens: DirectionTok
   const body = h_flex().relative().flex_1().min_h(0).min_w(0).items_stretch().child(column);
 
   if (wide) {
-    body.child(
-      scrollBody('pr-facts')
-        .w(factsRailWidth)
-        .flex_none()
-        .p(railInset)
-        .border_l(1)
-        .border_color(tokens.pane.headerDivider)
-        .child(factRows(item.facts, tokens))
-        .child(filesFact(tokens)),
-    );
+    const rail = scrollBody('pr-facts')
+      .w(factsRailWidth)
+      .flex_none()
+      .p(railInset)
+      .border_l(1)
+      .border_color(tokens.pane.headerDivider)
+      .child(factRows(item.facts, tokens))
+      .child(filesFact(tokens));
+
+    body.child(rail);
   }
 
   if (view.state === 'ready-menu') {
-    body.child(
-      mergeMenu(tokens).absolute().left(sectionBodyInset(tokens)).top(menuTop).w(mergeActionWidth),
-    );
+    const menu = mergeMenu(tokens)
+      .absolute()
+      .left(sectionBodyInset(tokens))
+      .top(menuTop)
+      .w(mergeActionWidth);
+
+    body.child(menu);
   }
 
   return body;

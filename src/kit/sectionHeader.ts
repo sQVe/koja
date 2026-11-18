@@ -20,16 +20,15 @@ export const sectionHeader = (options: SectionHeaderOptions): Element => {
   const height = options.size === 'bar' ? controlSize.sidebarHeader : controlSize.sectionHeader;
   const paddingStart = options.paddingStart ?? spacing.large;
 
-  const header = withTextRole(
-    h_flex()
-      .flex_none()
-      .h(height)
-      .pl(paddingStart)
-      .pr(spacing.large)
-      .gap(spacing.small)
-      .items_center(),
-    'detail',
-  );
+  const row = h_flex()
+    .flex_none()
+    .h(height)
+    .pl(paddingStart)
+    .pr(spacing.large)
+    .gap(spacing.small)
+    .items_center();
+
+  const header = withTextRole(row, 'detail');
 
   if (options.interactive === true) {
     header.cursor_pointer().hover((style) => style.bg(palette.hover));
@@ -39,7 +38,8 @@ export const sectionHeader = (options: SectionHeaderOptions): Element => {
     header.child(options.start);
   }
 
-  return header
-    .child(withTextRole(div().flex_1().min_w(0).truncate(), 'sectionHeading').child(options.label))
-    .children(options.end ?? []);
+  const labelBox = div().flex_1().min_w(0).truncate();
+  const label = withTextRole(labelBox, 'sectionHeading').child(options.label);
+
+  return header.child(label).children(options.end ?? []);
 };

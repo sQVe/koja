@@ -19,68 +19,72 @@ const splitSegmentWidth = 28;
 
 export const mergeActionWidth = 208;
 
-const splitAction = (tokens: DirectionTokens): Element =>
-  h_flex()
+const splitAction = (tokens: DirectionTokens): Element => {
+  const chevron = icon('chevron-down', 'small').text_color(tokens.pane.fill);
+
+  const mergeSegment = h_flex()
+    .flex_1()
+    .items_center()
+    .justify_center()
+    .child(fixedLabel('Squash and merge', tokens.text.body, tokens.pane.fill));
+
+  const menuSegment = h_flex()
+    .w(splitSegmentWidth)
+    .flex_none()
+    .items_center()
+    .justify_center()
+    .border_l(1)
+    .border_color(tokens.ink.dim)
+    .child(chevron);
+
+  return h_flex()
     .h(controlSize.dialogButton)
     .w(mergeActionWidth)
     .flex_none()
     .items_stretch()
     .rounded(tokens.controls.radius)
     .bg(tokens.ink.text)
-    .child(
-      h_flex()
-        .flex_1()
-        .items_center()
-        .justify_center()
-        .child(fixedLabel('Squash and merge', tokens.text.body, tokens.pane.fill)),
-    )
-    .child(
-      h_flex()
-        .w(splitSegmentWidth)
-        .flex_none()
-        .items_center()
-        .justify_center()
-        .border_l(1)
-        .border_color(tokens.ink.dim)
-        .child(icon('chevron-down', 'small').text_color(tokens.pane.fill)),
-    );
+    .child(mergeSegment)
+    .child(menuSegment);
+};
 
-const mergeState = (title: string, mark: Element, tokens: DirectionTokens): Element =>
-  v_flex()
+const mergeState = (title: string, mark: Element, tokens: DirectionTokens): Element => {
+  const titleRow = h_flex()
+    .ml(tokens.rows.inset + tokens.rows.paddingX - sectionBodyInset(tokens))
+    .gap(spacing.small)
+    .items_center()
+    .child(mark)
+    .child(fixedLabel(title, tokens.text.title, tokens.ink.text));
+
+  return v_flex()
     .flex_none()
     .min_w(0)
     .gap(spacing.small)
     .pl(sectionBodyInset(tokens) - readingInset)
-    .child(
-      h_flex()
-        .ml(tokens.rows.inset + tokens.rows.paddingX - sectionBodyInset(tokens))
-        .gap(spacing.small)
-        .items_center()
-        .child(mark)
-        .child(fixedLabel(title, tokens.text.title, tokens.ink.text)),
-    );
+    .child(titleRow);
+};
 
-export const blockedMerge = (tokens: DirectionTokens): Element =>
-  mergeState(
-    "Can't merge yet",
-    icon('circle-x', 'small').text_color(tokens.marks.blocked),
-    tokens,
-  ).child(detailText('1 of 4 checks failing · 2 unresolved threads · changes requested', tokens));
+export const blockedMerge = (tokens: DirectionTokens): Element => {
+  const failingMark = icon('circle-x', 'small').text_color(tokens.marks.blocked);
+
+  return mergeState("Can't merge yet", failingMark, tokens).child(
+    detailText('1 of 4 checks failing · 2 unresolved threads · changes requested', tokens),
+  );
+};
 
 export const readyActions = (state: PullState, tokens: DirectionTokens): Element => {
   if (state === 'merge-failed') {
-    return mergeState(
-      'Could not merge',
-      icon('circle-x', 'small').text_color(tokens.marks.blocked),
-      tokens,
-    )
+    const failingMark = icon('circle-x', 'small').text_color(tokens.marks.blocked);
+    const retryRow = h_flex().child(reviewActionButton('Update branch and retry', tokens));
+
+    return mergeState('Could not merge', failingMark, tokens)
       .child(
         fixedLabel('main changed since the branch was updated', tokens.text.body, tokens.ink.text),
       )
       .child(
         detailText('At the last sync: 4 checks passed · approved · 0 unresolved threads', tokens),
       )
-      .child(h_flex().child(reviewActionButton('Update branch and retry', tokens)))
+      .child(retryRow)
       .child(
         detailText(
           'Waits for checks, then squash and merge into main · deletes the branch',
@@ -89,11 +93,9 @@ export const readyActions = (state: PullState, tokens: DirectionTokens): Element
       );
   }
 
-  return mergeState(
-    'Ready to merge',
-    icon('git-merge', 'small').text_color(tokens.marks.done),
-    tokens,
-  )
+  const doneMark = icon('git-merge', 'small').text_color(tokens.marks.done);
+
+  return mergeState('Ready to merge', doneMark, tokens)
     .child(detailText('approved by jonas-l · no conflicts', tokens))
     .child(splitAction(tokens))
     .child(detailText('Into main · deletes the branch', tokens));

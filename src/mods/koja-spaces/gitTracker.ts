@@ -84,11 +84,11 @@ export class GitTracker {
     spaceList: SpaceInfo[],
     paneList: PaneInfo[],
   ): Set<string> {
-    const placeByKey = new Map<string, Place>(
-      Object.values(at)
-        .filter((place) => place.folder !== '')
-        .map((place) => [place.key, place]),
-    );
+    const placeEntries = Object.values(at)
+      .filter((place) => place.folder !== '')
+      .map((place): [string, Place] => [place.key, place]);
+
+    const placeByKey = new Map<string, Place>(placeEntries);
 
     const keys = new Set(placeByKey.keys());
     const due = new Set([...keys].filter((key) => !(key in this.git)));

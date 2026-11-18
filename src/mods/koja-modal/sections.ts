@@ -54,7 +54,9 @@ export const createSections = (deps: SectionsDeps): Sections => {
       return 'panes';
     }
 
-    return stepSection(from, to === 'next' ? 1 : -1, deps.shown());
+    const step = to === 'next' ? 1 : -1;
+
+    return stepSection(from, step, deps.shown());
   };
 
   const runList = (section: Section, action: ListAction): void => {

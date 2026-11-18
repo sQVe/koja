@@ -13,8 +13,11 @@ export const dialogBlockGap = 8;
 
 export const fieldHintGap = 4;
 
-export const wrappedText = (text: string, style: TextStyle, color: Color): Element =>
-  styled(div().min_w(0).flex_none().whitespace_normal(), style, color).child(text);
+export const wrappedText = (text: string, style: TextStyle, color: Color): Element => {
+  const container = div().min_w(0).flex_none().whitespace_normal();
+
+  return styled(container, style, color).child(text);
+};
 
 export const quotedTitle = (title: string, name: string, tokens: DirectionTokens): Element =>
   h_flex()
@@ -23,12 +26,13 @@ export const quotedTitle = (title: string, name: string, tokens: DirectionTokens
     .child(label(name, tokens.text.title, tokens.ink.text))
     .child(fixedLabel('”', tokens.text.title, tokens.ink.text));
 
-const selectedName = (tokens: DirectionTokens): Element =>
-  h_flex()
-    .flex_none()
-    .items_center()
-    .child(fixedLabel(spaceName, tokens.text.body, tokens.ink.text).bg(tokens.rows.selectedFill))
-    .child(caret(tokens));
+const selectedName = (tokens: DirectionTokens): Element => {
+  const name = fixedLabel(spaceName, tokens.text.body, tokens.ink.text).bg(
+    tokens.rows.selectedFill,
+  );
+
+  return h_flex().flex_none().items_center().child(name).child(caret(tokens));
+};
 
 export const renameField = (tokens: DirectionTokens): Element =>
   h_flex()

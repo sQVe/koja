@@ -55,18 +55,20 @@ export const diffCounts = (add: number, del: number, tokens: DirectionTokens): E
   return counts;
 };
 
-const changeRow = (change: FakeChange, tokens: DirectionTokens): Element =>
-  row(
+const changeRow = (change: FakeChange, tokens: DirectionTokens): Element => {
+  const statusInk = fileStatusInk(change.status, tokens);
+  const start = fixedLabel(change.status, tokens.text.title, statusInk).w(markSlotWidth);
+
+  return row(
     {
       selected: false,
-      start: fixedLabel(change.status, tokens.text.title, fileStatusInk(change.status, tokens)).w(
-        markSlotWidth,
-      ),
+      start,
       label: middleCutLabel(change.path, tokens.text.body, tokens.ink.text),
       end: diffCounts(change.add, change.del, tokens),
     },
     tokens,
   );
+};
 
 export const changeListOf = (changes: FakeChange[], tokens: DirectionTokens): Element =>
   v_flex()
@@ -78,20 +80,20 @@ export const changeListOf = (changes: FakeChange[], tokens: DirectionTokens): El
 export const changeList = (tokens: DirectionTokens): Element => changeListOf(changeRows, tokens);
 
 // Folded rows of a long list; the chevron opens them in place, as a folder opens in a tree.
-export const moreRow = (hidden: number, noun: string, tokens: DirectionTokens): Element =>
-  row(
+export const moreRow = (hidden: number, noun: string, tokens: DirectionTokens): Element => {
+  const chevron = icon('chevron-right', 'xsmall').text_color(tokens.ink.dim);
+  const start = h_flex().w(markSlotWidth).flex_none().justify_center().child(chevron);
+
+  return row(
     {
       selected: false,
-      start: h_flex()
-        .w(markSlotWidth)
-        .flex_none()
-        .justify_center()
-        .child(icon('chevron-right', 'xsmall').text_color(tokens.ink.dim)),
+      start,
       label: label(`${hidden} more ${noun}`, tokens.text.body, tokens.ink.dim),
       end: [],
     },
     tokens,
   );
+};
 
 export const changeTotals = (tokens: DirectionTokens): Element[] => {
   const add = changeRows.reduce((sum, change) => sum + change.add, 0);
@@ -111,7 +113,9 @@ const switchPill = (
   const { ink } = tokens;
   const idle = count === 0 ? ink.dim : ink.muted;
 
-  return togglePillInk(`${name} ${count}`, active, active ? ink.text : idle, tokens);
+  const pillInk = active ? ink.text : idle;
+
+  return togglePillInk(`${name} ${count}`, active, pillInk, tokens);
 };
 
 export const changeSwitchOf = (look: SwitchLook, tokens: DirectionTokens): Element =>
@@ -166,18 +170,17 @@ const commitField = (tokens: DirectionTokens): Element =>
     .border_color(tokens.pane.border)
     .child(label('Commit message', tokens.text.body, tokens.ink.dim));
 
-const commitButton = (tokens: DirectionTokens): Element =>
-  styled(
-    h_flex()
-      .h(tokens.controls.size)
-      .px(buttonPadding)
-      .flex_none()
-      .items_center()
-      .rounded(tokens.controls.radius)
-      .bg(tokens.controls.toggleFill),
-    tokens.text.body,
-    tokens.ink.text,
-  ).child('Commit');
+const commitButton = (tokens: DirectionTokens): Element => {
+  const button = h_flex()
+    .h(tokens.controls.size)
+    .px(buttonPadding)
+    .flex_none()
+    .items_center()
+    .rounded(tokens.controls.radius)
+    .bg(tokens.controls.toggleFill);
+
+  return styled(button, tokens.text.body, tokens.ink.text).child('Commit');
+};
 
 export const commitBar = (tokens: DirectionTokens): Element =>
   h_flex()

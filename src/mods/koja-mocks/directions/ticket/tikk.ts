@@ -63,12 +63,14 @@ export const tikkSlices: Slice[] = slices.map((slice) => {
   return translated;
 });
 
-export const tikkAgents: Record<string, AgentTicket[]> = Object.fromEntries(
-  Object.entries(sliceAgents).map(([identifier, agents]) => [
+const agentEntries = Object.entries(sliceAgents).map(
+  ([identifier, agents]): [string, AgentTicket[]] => [
     identifierOf(identifier),
     agents.map(instructionOf),
-  ]),
+  ],
 );
+
+export const tikkAgents: Record<string, AgentTicket[]> = Object.fromEntries(agentEntries);
 
 export const tikkItem: TicketItem = {
   ...ticketItems.container,

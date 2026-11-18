@@ -24,26 +24,31 @@ const fileComments = (index: number, tokens: DirectionTokens): Element[] => {
     return [];
   }
 
+  const commentIcon = icon('message-square', 'small').text_color(tokens.ink.dim);
+
   return [
     h_flex()
       .flex_none()
       .gap(spacing.xsmall)
       .items_center()
-      .child(icon('message-square', 'small').text_color(tokens.ink.dim))
+      .child(commentIcon)
       .child(fixedLabel(String(reviewComments.length), tokens.text.detail, tokens.ink.dim)),
   ];
 };
 
-const fileRow = (file: string, index: number, tokens: DirectionTokens): Element =>
-  row(
+const fileRow = (file: string, index: number, tokens: DirectionTokens): Element => {
+  const fileIcon = icon('file', 'small').text_color(tokens.ink.dim);
+
+  return row(
     {
       selected: index === 0,
-      start: icon('file', 'small').text_color(tokens.ink.dim),
+      start: fileIcon,
       label: label(file, tokens.text.body, tokens.ink.text),
       end: fileComments(index, tokens),
     },
     tokens,
   ).mx(0);
+};
 
 export const reviewFileList = (tokens: DirectionTokens): Element =>
   v_flex()
@@ -72,10 +77,12 @@ const lineComment = (
   const readOnly = state === 'sent';
   const unsaved = state === 'saving-failed';
 
+  const commentIcon = icon('message-square', 'small').text_color(tokens.ink.dim);
+
   const heading = h_flex()
     .gap(spacing.small)
     .items_center()
-    .child(icon('message-square', 'small').text_color(tokens.ink.dim))
+    .child(commentIcon)
     .child(fixedLabel('You', tokens.text.heading, tokens.ink.text))
     .child(fixedLabel(comment.range, tokens.text.detail, tokens.ink.dim));
 
@@ -127,12 +134,18 @@ const lineGutter = (number: number, unsaved: boolean, tokens: DirectionTokens): 
   const numberInk = commented ? tokens.ink.text : tokens.ink.dim;
 
   if (commented && !unsaved) {
-    mark.child(div().w(2).h_full().bg(tokens.ink.muted));
+    const stripe = div().w(2).h_full().bg(tokens.ink.muted);
+
+    mark.child(stripe);
   }
 
   if (unsaved) {
     mark.bg(tokens.marks.working);
   }
+
+  const numberLabel = fixedLabel(String(number), tokens.text.detail, numberInk)
+    .w(lineNumberWidth)
+    .text_right();
 
   return h_flex()
     .w(gutterWidth)
@@ -140,9 +153,7 @@ const lineGutter = (number: number, unsaved: boolean, tokens: DirectionTokens): 
     .gap(spacing.xsmall)
     .items_center()
     .child(mark)
-    .child(
-      fixedLabel(String(number), tokens.text.detail, numberInk).w(lineNumberWidth).text_right(),
-    );
+    .child(numberLabel);
 };
 
 const documentLine = (
@@ -151,6 +162,8 @@ const documentLine = (
   unsaved: boolean,
   tokens: DirectionTokens,
 ): Element => {
+  const textLabel = label(text, tokens.text.body, tokens.ink.text).flex_1();
+
   const line = h_flex()
     .h(diffSize.rowHeight)
     .flex_none()
@@ -160,7 +173,7 @@ const documentLine = (
     .items_center()
     .font_family(terminalFont)
     .child(lineGutter(index + 1, unsaved, tokens))
-    .child(label(text, tokens.text.body, tokens.ink.text).flex_1());
+    .child(textLabel);
 
   if (unsaved) {
     line.child(fixedLabel('edited', tokens.text.detail, tokens.marks.working));

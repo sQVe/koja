@@ -51,11 +51,9 @@ const managerStart = (status: Status | null, tokens: DirectionTokens): Element =
     return statusMark(status, tokens).w(markWidth);
   }
 
-  return h_flex()
-    .w(markWidth)
-    .flex_none()
-    .justify_center()
-    .child(icon('terminal', 'small').text_color(tokens.ink.muted));
+  const terminalIcon = icon('terminal', 'small').text_color(tokens.ink.muted);
+
+  return h_flex().w(markWidth).flex_none().justify_center().child(terminalIcon);
 };
 
 const managerEnd = (status: Status | null, tokens: DirectionTokens): Element[] => {
@@ -79,36 +77,36 @@ const managerLine = (status: Status | null, tokens: DirectionTokens): Element =>
     tokens,
   );
 
-const plainRow = (worker: FakeWorker, tokens: DirectionTokens): Element =>
-  row(
+const plainRow = (worker: FakeWorker, tokens: DirectionTokens): Element => {
+  const profile = dimFact(worker.profile, tokens).w(profileWidth);
+  const left = dimFact(worker.left, tokens).w(timeWidth);
+
+  return row(
     {
       selected: worker.selected,
       start: workerMark(worker, tokens),
       label: label(worker.task, tokens.text.body, tokens.ink.text),
-      end: [
-        dimFact(worker.profile, tokens).w(profileWidth),
-        dimFact(worker.left, tokens).w(timeWidth),
-      ],
+      end: [profile, left],
     },
     tokens,
   ).pl(tokens.rows.paddingX + indentOf('plain'));
+};
 
-const stateRow = (worker: FakeWorker, tokens: DirectionTokens): Element =>
-  row(
+const stateRow = (worker: FakeWorker, tokens: DirectionTokens): Element => {
+  const profile = dimFact(worker.profile, tokens).w(profileWidth);
+
+  return row(
     {
       selected: worker.selected,
       start: workerMark(worker, tokens),
       label: label(worker.task, tokens.text.body, tokens.ink.text),
-      end: [
-        dimFact(worker.profile, tokens).w(profileWidth),
-        budgetSlot(worker, tokens),
-        stateColumn(workerState(worker), tokens),
-      ],
+      end: [profile, budgetSlot(worker, tokens), stateColumn(workerState(worker), tokens)],
     },
     tokens,
   )
     .ml(tokens.rows.inset + indentOf('waiting'))
     .pl(tokens.rows.paddingX - markBearing);
+};
 
 const workerRow = (worker: FakeWorker, style: AskStyle, tokens: DirectionTokens): Element =>
   style === 'waiting' ? stateRow(worker, tokens) : plainRow(worker, tokens);
@@ -136,10 +134,15 @@ const questionLine = (worker: FakeWorker, style: AskStyle, tokens: DirectionToke
   return [questionFrame(style, tokens).pt(0).child(text)];
 };
 
-const questionText = (text: string, room: QuestionRoom, tokens: DirectionTokens): Element =>
-  room === 'compact'
-    ? label(text, tokens.text.body, tokens.ink.text)
-    : styled(div().min_w(0), tokens.text.body, tokens.ink.text).child(text);
+const questionText = (text: string, room: QuestionRoom, tokens: DirectionTokens): Element => {
+  if (room === 'compact') {
+    return label(text, tokens.text.body, tokens.ink.text);
+  }
+
+  const container = div().min_w(0);
+
+  return styled(container, tokens.text.body, tokens.ink.text).child(text);
+};
 
 // The waiting style opens the question as close under its row as a question line sits.
 const fullQuestion = (

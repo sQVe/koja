@@ -36,12 +36,12 @@ export interface PaneHeaderOptions {
 
 const isPresent = (text: string | undefined): text is string => text !== undefined && text !== '';
 
-const nameElement = (options: PaneHeaderOptions): Element =>
-  withTextRole(
-    div().flex_none().min_w(0).max_w(controlSize.paneLabelMaxWidth).truncate(),
-    'detail',
-    options.focused ? 'foreground' : 'muted',
-  ).child(options.name);
+const nameElement = (options: PaneHeaderOptions): Element => {
+  const box = div().flex_none().min_w(0).max_w(controlSize.paneLabelMaxWidth).truncate();
+  const color = options.focused ? 'foreground' : 'muted';
+
+  return withTextRole(box, 'detail', color).child(options.name);
+};
 
 // While a branch or folder is cut, that field takes the leftover width and the task keeps its own;
 // otherwise the task fills the leftover width and cuts at the end, after both fields have left.
@@ -64,24 +64,29 @@ const taskElement = (options: PaneHeaderOptions, fieldCut: boolean): Element => 
 const fieldWidth = (element: Element, state: PaneHeaderFieldState): Element =>
   state === 'cut' ? element.flex_1().min_w(paneHeaderWidth.fieldMinimum) : element.flex_none();
 
-const middleLabel = (text: string): Element =>
-  withTextRole(div().min_w(0).flex_1().truncate(), 'detail', 'dim')
-    .text_ellipsis_middle()
-    .tooltip(text)
-    .child(text);
+const middleLabel = (text: string): Element => {
+  const box = div().min_w(0).flex_1().truncate();
 
-const branchElement = (branch: string, state: PaneHeaderFieldState): Element =>
-  fieldWidth(
-    h_flex()
-      .items_center()
-      .gap(spacing.xsmall)
-      .child(icon('git-branch', 'small').text_color(colors().dim))
-      .child(middleLabel(branch)),
-    state,
-  );
+  return withTextRole(box, 'detail', 'dim').text_ellipsis_middle().tooltip(text).child(text);
+};
 
-const folderElement = (folder: string, state: PaneHeaderFieldState): Element =>
-  fieldWidth(h_flex().child(middleLabel(folder)), state);
+const branchElement = (branch: string, state: PaneHeaderFieldState): Element => {
+  const branchIcon = icon('git-branch', 'small').text_color(colors().dim);
+
+  const field = h_flex()
+    .items_center()
+    .gap(spacing.xsmall)
+    .child(branchIcon)
+    .child(middleLabel(branch));
+
+  return fieldWidth(field, state);
+};
+
+const folderElement = (folder: string, state: PaneHeaderFieldState): Element => {
+  const field = h_flex().child(middleLabel(folder));
+
+  return fieldWidth(field, state);
+};
 
 const statusElement = (status: Status | null): Element | null => {
   if (status === 'blocked') {
@@ -144,7 +149,9 @@ export const paneHeader = (options: PaneHeaderOptions): Element => {
     header.bg(focusFill()).rounded_t(radius.cardInner);
   }
 
-  header.child(programIcon(options.program, 'default').text_color(iconColor));
+  const programMark = programIcon(options.program, 'default').text_color(iconColor);
+
+  header.child(programMark);
   header.child(nameElement(options));
   const fieldCut = fields.branch === 'cut' || fields.folder === 'cut';
 

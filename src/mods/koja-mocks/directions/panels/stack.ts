@@ -35,12 +35,9 @@ export const checkedOutPull = stackPulls.find((pull) => pull.checkedOut) ?? unkn
 
 const leadingMark = (pull: FakePull, tokens: DirectionTokens): Element => {
   if (pull.checkedOut) {
-    return h_flex()
-      .w(leadingWidth)
-      .flex_none()
-      .items_center()
-      .justify_center()
-      .child(icon('git-branch', 'small').text_color(tokens.ink.muted));
+    const branchIcon = icon('git-branch', 'small').text_color(tokens.ink.muted);
+
+    return h_flex().w(leadingWidth).flex_none().items_center().justify_center().child(branchIcon);
   }
 
   return statusMark('idle', tokens).w(leadingWidth);
@@ -203,16 +200,11 @@ export const mergedTextOf = (merged: FakePull[], tokens: DirectionTokens): Eleme
     .child(dimFact(numbers, tokens));
 };
 
-export const mergedFold = (tokens: DirectionTokens): Element =>
-  row(
-    {
-      selected: false,
-      start: statusMark('done', tokens).w(leadingWidth),
-      label: mergedTextOf(mergedPulls, tokens),
-      end: [],
-    },
-    tokens,
-  );
+export const mergedFold = (tokens: DirectionTokens): Element => {
+  const start = statusMark('done', tokens).w(leadingWidth);
+
+  return row({ selected: false, start, label: mergedTextOf(mergedPulls, tokens), end: [] }, tokens);
+};
 
 export const stackList = (look: PullLook, tokens: DirectionTokens): Element =>
   v_flex()

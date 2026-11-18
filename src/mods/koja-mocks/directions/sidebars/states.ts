@@ -109,9 +109,12 @@ const projectHeader = (project: StateProject, tokens: DirectionTokens): Element 
     return header;
   }
 
+  const chevron = icon('chevron-right', 'small').text_color(tokens.ink.dim);
+  const spacer = h_flex().flex_1();
+
   return header
-    .child(icon('chevron-right', 'small').text_color(tokens.ink.dim))
-    .child(h_flex().flex_1())
+    .child(chevron)
+    .child(spacer)
     .child(dimFact(`${project.hidden} more`, tokens));
 };
 
@@ -127,11 +130,12 @@ const retryPill = (text: string, tokens: DirectionTokens): Element =>
     .child(fixedLabel(text, tokens.text.detail, tokens.ink.muted));
 
 // A failed read says so once, under the project, and offers Retry; rows keep their last facts.
-export const errorLine = (text: string, action: string, tokens: DirectionTokens): Element =>
-  headerLine(tokens)
-    .child(icon('circle-alert', 'small').text_color(tokens.marks.blocked))
-    .child(label(text, tokens.text.detail, tokens.ink.muted).flex_1())
-    .child(retryPill(action, tokens));
+export const errorLine = (text: string, action: string, tokens: DirectionTokens): Element => {
+  const alertIcon = icon('circle-alert', 'small').text_color(tokens.marks.blocked);
+  const message = label(text, tokens.text.detail, tokens.ink.muted).flex_1();
+
+  return headerLine(tokens).child(alertIcon).child(message).child(retryPill(action, tokens));
+};
 
 const spaceRow = (space: FakeSpace, tokens: DirectionTokens): Element =>
   rowLine(
@@ -190,14 +194,15 @@ const taggedBlock = (
   );
 };
 
-const tagSidebar = (tokens: DirectionTokens): Element =>
-  listFrame(tokens)
-    .children(localProjects().map((project) => projectBlock(project, tokens)))
-    .children(
-      remoteMachines().flatMap((machine) =>
-        machine.projects.map((project) => taggedBlock(project, machine, tokens)),
-      ),
-    );
+const tagSidebar = (tokens: DirectionTokens): Element => {
+  const localBlocks = localProjects().map((project) => projectBlock(project, tokens));
+
+  const remoteBlocks = remoteMachines().flatMap((machine) =>
+    machine.projects.map((project) => taggedBlock(project, machine, tokens)),
+  );
+
+  return listFrame(tokens).children(localBlocks).children(remoteBlocks);
+};
 
 export const machineTagScene = (tokens: DirectionTokens): Element =>
   directionWindow(tokens, tagSidebar);

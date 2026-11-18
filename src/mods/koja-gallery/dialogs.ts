@@ -26,8 +26,11 @@ const buttonRow = (hovered: boolean): Element =>
 const button = (label: string, kind: DialogButtonKind): Element => dialogButton({ label, kind });
 
 // The gallery itself paints `popover`, so each dialog sits on `chrome` to show the popup's edge.
-const dialogSurface = (width: number, height: number, dialog: Element): Element =>
-  div().p(spacing.medium).bg(colors().chrome).child(v_flex().w(width).h(height).child(dialog));
+const dialogSurface = (width: number, height: number, dialog: Element): Element => {
+  const frame = v_flex().w(width).h(height).child(dialog);
+
+  return div().p(spacing.medium).bg(colors().chrome).child(frame);
+};
 
 const confirmDialog = (): Element =>
   dialogFrame({
@@ -37,16 +40,19 @@ const confirmDialog = (): Element =>
     actions: [button('Cancel', 'outline'), button('Close', 'danger')],
   });
 
-const promptDialog = (renameField: InputState): Element =>
-  dialogFrame({
+const promptDialog = (renameField: InputState): Element => {
+  const body = v_flex()
+    .gap(spacing.small)
+    .child(textField(renameField, true))
+    .child(detailText('Names show in the tab bar.'));
+
+  return dialogFrame({
     id: 'dialog-prompt-sample',
     title: 'Rename tab',
-    body: v_flex()
-      .gap(spacing.small)
-      .child(textField(renameField, true))
-      .child(detailText('Names show in the tab bar.')),
+    body,
     actions: [button('Cancel', 'outline'), button('Save', 'solid')],
   });
+};
 
 export const dialogs = (renameField: InputState): Element[] => [
   sample('Dialog buttons: normal', buttonRow(false)),

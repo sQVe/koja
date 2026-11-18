@@ -46,12 +46,14 @@ export const loadFilePreview = async (
       ];
     }
   } else {
+    const headArguments = hasHead ? ['HEAD'] : [];
+
     const result = await exec(
       'git',
       [
         ...readFlags,
         'diff',
-        ...(hasHead ? ['HEAD'] : []),
+        ...headArguments,
         '--no-ext-diff',
         '--no-textconv',
         '--no-color',

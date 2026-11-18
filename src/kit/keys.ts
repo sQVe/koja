@@ -67,7 +67,9 @@ const formatStroke = (stroke: string, platform: Platform): string => {
   const modifiers = modifierOrder.filter((modifier) => heldModifiers.has(modifier));
   const parts = [...modifiers.map((modifier) => names[modifier]), keyLabel(key)];
 
-  return parts.join(platform === 'macos' ? '' : '+');
+  const separator = platform === 'macos' ? '' : '+';
+
+  return parts.join(separator);
 };
 
 export const formatKeys = (keys: string, platform: Platform): string =>

@@ -27,11 +27,13 @@ const spaceRow = (row: PickerRow, selected: boolean, query: string, data: Picker
   const label =
     nameMatch === null ? space.name : highlightedText(space.name, nameMatch.positions, true);
 
+  const folderIcon = icon('folder').text_color(colors().dim);
+
   return listRow({
     size: 'large',
     inset: true,
     state: rowState(selected),
-    start: iconSlot(icon('folder').text_color(colors().dim)),
+    start: iconSlot(folderIcon),
     label,
     ...(space.branch === null || space.branch === '' ? {} : { detail: space.branch }),
     end: [statusMark(data.statuses.spaces[space.id] ?? null)],
@@ -43,12 +45,14 @@ const tabRow = (row: TabPickerRow, selected: boolean, data: PickerData): Element
 
   const { program, label } = tabRowDisplay(tab, data.panes, data.terminals);
 
+  const programMark = programIcon(program ?? null).text_color(colors().dim);
+
   return listRow({
     size: 'large',
     inset: true,
     state: rowState(selected),
     depth: 1,
-    start: programIcon(program ?? null).text_color(colors().dim),
+    start: programMark,
     label,
     muted: !tab.active,
     end: [statusMark(data.statuses.tabs[tab.id] ?? null)],
@@ -59,12 +63,15 @@ const paneRow = (row: PanePickerRow, selected: boolean): Element => {
   const { pane } = row;
   const detail = paneDetail(pane);
 
+  const depth = row.space.tabs.length > 1 ? 2 : 1;
+  const programMark = programIcon(pane.program).text_color(colors().dim);
+
   return listRow({
     size: 'large',
     inset: true,
     state: rowState(selected),
-    depth: row.space.tabs.length > 1 ? 2 : 1,
-    start: programIcon(pane.program).text_color(colors().dim),
+    depth,
+    start: programMark,
     label: paneLabel(pane),
     muted: !pane.focused,
     ...(detail === null ? {} : { detail }),

@@ -309,15 +309,22 @@ export default class Mocks extends View {
   }
 
   private picker(): Element {
-    return this.tracked(
-      popupSurface('mocks-picker')
-        .child(searchField(this.input, 'search'))
-        .child(this.pickerLine()),
-    );
+    const surface = popupSurface('mocks-picker')
+      .child(searchField(this.input, 'search'))
+      .child(this.pickerLine());
+
+    return this.tracked(surface);
   }
 
   private scene(name: string): Element {
     const content = this.sceneContent(name);
+
+    const closeButton = iconButton({ name: 'x', size: 'small' })
+      .accessibility_label('Close scene')
+      .on_click((_event, clickCx) => {
+        clickCx.stop_propagation();
+        closeOverlay();
+      });
 
     const header = h_flex()
       .flex_none()
@@ -325,27 +332,20 @@ export default class Mocks extends View {
       .items_center()
       .px(spacing.large)
       .child(detailText(name))
-      .child(
-        iconButton({ name: 'x', size: 'small' })
-          .accessibility_label('Close scene')
-          .on_click((_event, clickCx) => {
-            clickCx.stop_propagation();
-            closeOverlay();
-          }),
-      );
+      .child(closeButton);
 
-    return this.tracked(
-      popupSurface('mocks-scene')
-        .h_full()
-        .on_key_down((event, keyCx) => {
-          if (event.key === 'escape') {
-            keyCx.stop_propagation();
-            closeOverlay();
-          }
-        })
-        .child(header)
-        .child(content),
-    );
+    const surface = popupSurface('mocks-scene')
+      .h_full()
+      .on_key_down((event, keyCx) => {
+        if (event.key === 'escape') {
+          keyCx.stop_propagation();
+          closeOverlay();
+        }
+      })
+      .child(header)
+      .child(content);
+
+    return this.tracked(surface);
   }
 
   private sceneContent(name: string): Element {

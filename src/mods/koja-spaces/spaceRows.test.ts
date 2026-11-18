@@ -186,7 +186,10 @@ describe('headerRow', () => {
     const header = loaded.headerRow(projectWith([]), mainSpace, ['main'], headerState([]));
 
     expect(drawnIcons(header)).toContain('message-circle-question.svg');
-    expect(drawnTexts(header).filter((text) => text !== '')).toEqual(['koja']);
+
+    const headerTexts = drawnTexts(header).filter((text) => text !== '');
+
+    expect(headerTexts).toEqual(['koja']);
   });
 
   test('keeps the mark slot empty while the main space is idle or has no agent', () => {
@@ -223,8 +226,13 @@ describe('headerRow', () => {
 
     const plain = loaded.headerRow(projectWith([]), mainSpace, ['main'], headerState([]));
 
-    expect(drawnTexts(aged).filter((text) => text !== '')).toEqual(['koja', '4m']);
-    expect(drawnTexts(plain).filter((text) => text !== '')).toEqual(['koja']);
+    const agedTexts = drawnTexts(aged).filter((text) => text !== '');
+
+    expect(agedTexts).toEqual(['koja', '4m']);
+
+    const plainTexts = drawnTexts(plain).filter((text) => text !== '');
+
+    expect(plainTexts).toEqual(['koja']);
   });
 
   test('reports no hover when the project has nothing to fold', () => {

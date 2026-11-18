@@ -176,7 +176,9 @@ describe('projectRows', () => {
   test('a project with only its main space draws its header and no space row', () => {
     const tree = drawnOf({ projects: projectsOf([listed('a', 'koja', { main: true })]) });
 
-    expect(drawnTexts(tree).filter((text) => text !== '')).toEqual(['main-a']);
+    const shownTexts = drawnTexts(tree).filter((text) => text !== '');
+
+    expect(shownTexts).toEqual(['main-a']);
   });
 
   test('a project with its main space and two others draws the header and two rows', () => {
@@ -184,11 +186,9 @@ describe('projectRows', () => {
 
     const tree = drawnOf({ projects: projectsOf(list) });
 
-    expect(drawnTexts(tree).filter((text) => text !== '')).toEqual([
-      'main-a',
-      'space-b',
-      'space-c',
-    ]);
+    const shownTexts = drawnTexts(tree).filter((text) => text !== '');
+
+    expect(shownTexts).toEqual(['main-a', 'space-b', 'space-c']);
   });
 
   test('names the machine in a remote project header and draws no machine header', () => {
@@ -238,7 +238,10 @@ describe('projectRows', () => {
     expect(drawnTexts(remote)).toContain('build-box');
     expect(drawnIcons(remote)).toContain('server.svg');
     expect(drawnTexts(local)).not.toContain('build-box');
-    expect(drawnTexts(drawnTree(rows)).filter((text) => text === 'build-box')).toHaveLength(1);
+
+    const buildBoxTexts = drawnTexts(drawnTree(rows)).filter((text) => text === 'build-box');
+
+    expect(buildBoxTexts).toHaveLength(1);
   });
 
   test('draws each project header before its spaces, in project order', () => {

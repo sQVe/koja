@@ -62,16 +62,19 @@ export const fileHeading = (file: DraftFile, view: DraftView, tokens: DirectionT
   const { state } = view;
   const editing = isBodyFile(file) && state === 'edit-file';
 
+  const fileIcon = icon('file', 'small').text_color(tokens.ink.dim);
+  const spacer = div().flex_1();
+
   const heading = h_flex()
     .h(rowHeight.large)
     .flex_none()
     .min_w(0)
     .gap(spacing.large)
     .items_center()
-    .child(icon('file', 'small').text_color(tokens.ink.dim))
+    .child(fileIcon)
     .child(fixedLabel(file.name, tokens.text.title, tokens.ink.text))
     .child(fileMetadata(file, editing, tokens))
-    .child(div().flex_1());
+    .child(spacer);
 
   if (state === 'sent') {
     return heading.child(fixedLabel('Read-only', tokens.text.detail, tokens.ink.dim));
@@ -103,24 +106,29 @@ const fileMarks = (file: DraftFile, tokens: DirectionTokens): Element[] => {
   }
 
   if (file.comments.length > 0) {
+    const commentIcon = icon('message-square', 'small').text_color(tokens.ink.dim);
+
     comments
-      .child(icon('message-square', 'small').text_color(tokens.ink.dim))
+      .child(commentIcon)
       .child(fixedLabel(String(file.comments.length), tokens.text.detail, tokens.ink.dim));
   }
 
   return [edited, comments];
 };
 
-const fileChoice = (file: DraftFile, selected: boolean, tokens: DirectionTokens): Element =>
-  row(
+const fileChoice = (file: DraftFile, selected: boolean, tokens: DirectionTokens): Element => {
+  const fileIcon = icon('file', 'small').text_color(tokens.ink.dim);
+
+  return row(
     {
       selected,
-      start: icon('file', 'small').text_color(tokens.ink.dim),
+      start: fileIcon,
       label: label(file.name, tokens.text.body, tokens.ink.text),
       end: fileMarks(file, tokens),
     },
     tokens,
   ).mx(0);
+};
 
 export const fileNavigation = (view: DraftView, tokens: DirectionTokens): Element =>
   v_flex()
@@ -134,10 +142,12 @@ const commentFrame = (
   tokens: DirectionTokens,
   actions?: Element,
 ): Element => {
+  const commentIcon = icon('message-square', 'small').text_color(tokens.ink.dim);
+
   const header = h_flex()
     .items_center()
     .gap(spacing.medium)
-    .child(icon('message-square', 'small').text_color(tokens.ink.dim))
+    .child(commentIcon)
     .child(fixedLabel('You', tokens.text.heading, tokens.ink.text))
     .child(fixedLabel(anchor, tokens.text.detail, tokens.ink.dim));
 
@@ -146,9 +156,11 @@ const commentFrame = (
   }
 
   if (actions !== undefined) {
+    const headerSpacer = div().flex_1();
+
     header
       .child(fixedLabel('· draft', tokens.text.detail, tokens.ink.dim))
-      .child(div().flex_1())
+      .child(headerSpacer)
       .child(actions);
   }
 
@@ -176,11 +188,13 @@ export const commentCard = (
 
 const composerField = (content: ComposerContent, tokens: DirectionTokens): Element => {
   if (content.placeholder === true) {
+    const caret = div().w(1).h(textSize.large).bg(tokens.ink.text);
+
     return h_flex()
       .min_w(0)
       .gap(spacing.xxsmall)
       .items_center()
-      .child(div().w(1).h(textSize.large).bg(tokens.ink.text))
+      .child(caret)
       .child(label(content.text, tokens.text.body, tokens.ink.dim));
   }
 
@@ -204,13 +218,13 @@ const cancelComment = (tokens: DirectionTokens): Element =>
     .items_center()
     .child(fixedLabel('Cancel', tokens.text.detail, tokens.ink.dim));
 
-export const commentComposer = (content: ComposerContent, tokens: DirectionTokens): Element =>
-  commentFrame(
-    content.anchor,
-    false,
-    tokens,
-    h_flex()
-      .gap(spacing.small)
-      .child(cancelComment(tokens))
-      .child(outlineAction('Comment', tokens)),
-  ).child(composerInput(content, tokens));
+export const commentComposer = (content: ComposerContent, tokens: DirectionTokens): Element => {
+  const composerActions = h_flex()
+    .gap(spacing.small)
+    .child(cancelComment(tokens))
+    .child(outlineAction('Comment', tokens));
+
+  return commentFrame(content.anchor, false, tokens, composerActions).child(
+    composerInput(content, tokens),
+  );
+};

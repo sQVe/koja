@@ -29,8 +29,15 @@ const kindMark = (kind: StateKind): Element | null => {
   return null;
 };
 
-const lineText = (text: string, wrap: boolean): Element =>
-  wrap ? withTextRole(div().min_w(0), 'detail').child(text) : roleText('detail', text);
+const lineText = (text: string, wrap: boolean): Element => {
+  if (!wrap) {
+    return roleText('detail', text);
+  }
+
+  const box = div().min_w(0);
+
+  return withTextRole(box, 'detail').child(text);
+};
 
 export const stateLine = (options: StateLineOptions): Element => {
   const wrap = options.wrap === true;
@@ -51,10 +58,14 @@ export const stateLine = (options: StateLineOptions): Element => {
   const mark = kindMark(options.kind);
 
   if (mark !== null) {
-    line.child(h_flex().w(markSize.slot).flex_none().justify_center().child(mark));
+    const markSlot = h_flex().w(markSize.slot).flex_none().justify_center().child(mark);
+
+    line.child(markSlot);
   }
 
-  line.child(lineText(options.text, wrap).flex_1());
+  const text = lineText(options.text, wrap).flex_1();
+
+  line.child(text);
 
   if (options.action !== undefined) {
     line.child(options.action);

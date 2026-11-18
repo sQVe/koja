@@ -17,32 +17,32 @@ const fileStatuses: FileStatus[] = ['A', 'M', 'D', 'U'];
 const markWithLabel = (mark: Element, label: string): Element =>
   h_flex().gap(spacing.xsmall).items_center().child(mark).child(label);
 
-export const marks = (): Element[] => [
-  h_flex()
-    .gap(spacing.large)
-    .children([
-      markWithLabel(statusMark('working'), 'working'),
-      markWithLabel(statusMark('blocked'), 'blocked'),
-      markWithLabel(statusMark('done'), 'done'),
-      markWithLabel(statusMark('idle'), 'idle'),
-      markWithLabel(spaceMark(null), 'no agent'),
-      markWithLabel(statusMark(null), 'none'),
-    ]),
-  sample(
-    'File status letters: added, modified, deleted, unmerged',
+export const marks = (): Element[] => {
+  const letters = h_flex()
+    .gap(spacing.medium)
+    .items_center()
+    .children(fileStatuses.map((status) => fileStatusMark(status)));
+
+  const indicators = h_flex()
+    .gap(spacing.medium)
+    .items_center()
+    .child(indicator('ansi2'))
+    .child(indicator('blocked'))
+    .child(indicator('dim'));
+
+  return [
     h_flex()
-      .gap(spacing.medium)
-      .items_center()
-      .children(fileStatuses.map((status) => fileStatusMark(status))),
-  ),
-  sample(
-    'Indicators',
-    h_flex()
-      .gap(spacing.medium)
-      .items_center()
-      .child(indicator('ansi2'))
-      .child(indicator('blocked'))
-      .child(indicator('dim')),
-  ),
-  sample('Attention badge', attentionBadge('Needs you')),
-];
+      .gap(spacing.large)
+      .children([
+        markWithLabel(statusMark('working'), 'working'),
+        markWithLabel(statusMark('blocked'), 'blocked'),
+        markWithLabel(statusMark('done'), 'done'),
+        markWithLabel(statusMark('idle'), 'idle'),
+        markWithLabel(spaceMark(null), 'no agent'),
+        markWithLabel(statusMark(null), 'none'),
+      ]),
+    sample('File status letters: added, modified, deleted, unmerged', letters),
+    sample('Indicators', indicators),
+    sample('Attention badge', attentionBadge('Needs you')),
+  ];
+};

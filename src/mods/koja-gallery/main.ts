@@ -30,11 +30,14 @@ interface StaleDeadline {
 const staleAtOf = (state: DataState): number | null =>
   state.kind === 'live' ? state.staleAt : null;
 
-const section = (title: string, content: Element[]): Element =>
-  v_flex()
+const section = (title: string, content: Element[]): Element => {
+  const body = v_flex().px(spacing.large).gap(spacing.medium).children(content);
+
+  return v_flex()
     .gap(spacing.small)
     .child(sectionHeader({ label: title, size: 'default' }))
-    .child(v_flex().px(spacing.large).gap(spacing.medium).children(content));
+    .child(body);
+};
 
 export default class Gallery extends View {
   private readonly search: InputState = InputStates.new({ placeholder: 'Search field' });

@@ -1,0 +1,152 @@
+schema = 1
+version = "0.2.0"
+language = "typescript"
+layers = ["herdr"]
+
+[roles]
+kit = "src/kit"
+
+[[violations]]
+path = "src/kit/dialog.ts"
+rule = "typescript-owner-folder"
+key = "dialogOpen.ts"
+
+[[violations]]
+path = "src/kit/dialog.ts"
+rule = "typescript-owner-folder"
+key = "dialogPayload.ts"
+
+[[violations]]
+path = "src/kit/hover.ts"
+rule = "typescript-owner-folder"
+key = "hoverCard.ts"
+
+[[violations]]
+path = "src/kit/hover.ts"
+rule = "typescript-owner-folder"
+key = "hoverTarget.ts"
+
+[[violations]]
+path = "src/kit/icon.ts"
+rule = "typescript-owner-folder"
+key = "iconNames.ts"
+
+[[violations]]
+path = "src/kit/index.ts"
+rule = "no-index-file"
+key = "index.ts"
+
+[[violations]]
+path = "src/kit/overlay.ts"
+rule = "typescript-owner-folder"
+key = "overlayOpen.ts"
+
+[[violations]]
+path = "src/kit/paneHeader.ts"
+rule = "typescript-owner-folder"
+key = "paneHeaderFields.ts"
+
+[[violations]]
+path = "src/kit/paneHeader.ts"
+rule = "typescript-owner-folder"
+key = "paneHeaderMenu.ts"
+
+[[violations]]
+path = "src/kit/paneHeaderMenu.ts"
+rule = "typescript-owner-folder"
+key = "paneHeaderMenuModel.ts"
+
+[[violations]]
+path = "src/kit/section.ts"
+rule = "typescript-owner-folder"
+key = "sectionHeader.ts"
+
+[[violations]]
+path = "src/kit/shortcut.ts"
+rule = "typescript-owner-folder"
+key = "shortcutBinding.ts"
+
+[[violations]]
+path = "src/kit/space.ts"
+rule = "typescript-owner-folder"
+key = "spaceFooter.ts"
+
+[[violations]]
+path = "src/kit/space.ts"
+rule = "typescript-owner-folder"
+key = "spaceOrder.ts"
+
+[[violations]]
+path = "src/kit/tab.ts"
+rule = "typescript-owner-folder"
+key = "tabLabel.ts"
+
+[[violations]]
+path = "src/kit/text.ts"
+rule = "typescript-owner-folder"
+key = "textField.ts"
+
+[[violations]]
+path = "src/kit/text.ts"
+rule = "typescript-owner-folder"
+key = "textRole.ts"
+
+[[violations]]
+path = "src/mods/koja-mocks/directions/attention/attention.test.ts"
+rule = "test-file-name"
+key = "attention.test.ts"
+
+[[violations]]
+path = "src/mods/koja-mocks/directions/panels/rail.ts"
+rule = "typescript-owner-folder"
+key = "railData.ts"
+
+[[violations]]
+path = "src/mods/koja-mocks/directions/panels/rail.ts"
+rule = "typescript-owner-folder"
+key = "railGraph.ts"
+
+[[violations]]
+path = "src/mods/koja-mocks/directions/panels/space.ts"
+rule = "typescript-owner-folder"
+key = "spaceData.ts"
+
+[[violations]]
+path = "src/mods/koja-mocks/directions/panels/space.ts"
+rule = "typescript-owner-folder"
+key = "spaceFit.ts"
+
+[[violations]]
+path = "src/mods/koja-mocks/directions/panels/split.ts"
+rule = "typescript-owner-folder"
+key = "splitParts.ts"
+
+[[violations]]
+path = "src/mods/koja-mocks/scenes/headerMarks.ts"
+rule = "typescript-owner-folder"
+key = "headerMarksData.ts"
+
+[[violations]]
+path = "src/mods/koja-mocks/scenes/shell.ts"
+rule = "typescript-owner-folder"
+key = "shellContent.ts"
+
+[[violations]]
+path = "src/mods/koja-mocks/scenes/sidebar.ts"
+rule = "typescript-owner-folder"
+key = "sidebarParts.ts"
+
+[[violations]]
+path = "src/mods/koja-mocks/scenes/sidebarParts.ts"
+rule = "typescript-owner-folder"
+key = "sidebarPartsData.ts"
+
+[[violations]]
+path = "src/mods/koja-picker/previewShell.test.ts"
+rule = "test-file-name"
+key = "previewShell.test.ts"
+
+[[violations]]
+path = "src/mods/koja-spaces/main.waitTimes.test.ts"
+rule = "test-file-name"
+key = "main.waitTimes.test.ts"

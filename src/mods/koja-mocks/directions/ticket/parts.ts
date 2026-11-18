@@ -110,23 +110,23 @@ export const detailLine = (tokens: DirectionTokens): Element =>
     .gap(spacing.small)
     .items_center();
 
-export const note = (text: string, tokens: DirectionTokens): Element =>
-  detailLine(tokens).child(label(text, tokens.text.detail, tokens.ink.dim).tooltip(text));
+export const note = (text: string, tokens: DirectionTokens): Element => {
+  const noteLabel = label(text, tokens.text.detail, tokens.ink.dim).tooltip(text);
 
-export const wrappedText = (text: string, tokens: DirectionTokens): Element =>
-  styled(
-    div()
-      .min_w(0)
-      .whitespace_normal()
-      .line_height(`${tokens.rows.height}px`)
-      .min_h(tokens.rows.height)
-      .max_h(tokens.rows.height * 2)
-      .overflow_hidden(),
-    tokens.text.body,
-    tokens.ink.text,
-  )
-    .child(text)
-    .tooltip(text);
+  return detailLine(tokens).child(noteLabel);
+};
+
+export const wrappedText = (text: string, tokens: DirectionTokens): Element => {
+  const container = div()
+    .min_w(0)
+    .whitespace_normal()
+    .line_height(`${tokens.rows.height}px`)
+    .min_h(tokens.rows.height)
+    .max_h(tokens.rows.height * 2)
+    .overflow_hidden();
+
+  return styled(container, tokens.text.body, tokens.ink.text).child(text).tooltip(text);
+};
 
 export const foldedSection = (
   name: string,
@@ -164,34 +164,42 @@ export const workRow = (
   item: AgentTicket,
   look: IdentifierLook,
   tokens: DirectionTokens,
-): Element =>
-  row(
+): Element => {
+  const title = label(item.title, tokens.text.body, tokens.ink.text).flex_1().tooltip(item.title);
+
+  const rowLabel = h_flex()
+    .flex_1()
+    .min_w(0)
+    .gap(spacing.small)
+    .items_center()
+    .pl(planChevronWidth + spacing.xsmall)
+    .child(identifierCell(item.identifier, look, tokens))
+    .child(title);
+
+  return row(
     {
       selected: false,
       start: statusMark(workStatuses[item.state], tokens),
-      label: h_flex()
-        .flex_1()
-        .min_w(0)
-        .gap(spacing.small)
-        .items_center()
-        .pl(planChevronWidth + spacing.xsmall)
-        .child(identifierCell(item.identifier, look, tokens))
-        .child(label(item.title, tokens.text.body, tokens.ink.text).flex_1().tooltip(item.title)),
+      label: rowLabel,
       end: [statusWord(item.state, tokens)],
     },
     tokens,
   );
+};
 
-const criterionRow = (item: Criterion, tokens: DirectionTokens): Element =>
-  row(
+const criterionRow = (item: Criterion, tokens: DirectionTokens): Element => {
+  const title = label(item.title, tokens.text.body, tokens.ink.text).tooltip(item.title);
+
+  return row(
     {
       selected: false,
       start: statusMark(workStatuses[item.state], tokens),
-      label: label(item.title, tokens.text.body, tokens.ink.text).tooltip(item.title),
+      label: title,
       end: [],
     },
     tokens,
   );
+};
 
 export const acceptanceSection = (items: Criterion[], tokens: DirectionTokens): Element => {
   const done = items.filter((item) => item.state === 'done').length;

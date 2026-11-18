@@ -30,15 +30,14 @@ const projectGap = (): Element =>
 
 const loadingRow = (): Element => stateLine({ kind: 'loading', text: 'Loading…' });
 
-const pullErrorRow = (git: GitInfo, host: ProjectRowsHost): Element =>
-  stateLine({
-    kind: 'error',
-    text: pullErrorText,
-    action: toggleButton({ label: 'Retry', active: false }).on_click((_event, cx) => {
-      cx.stop_propagation();
-      host.retryPull(git, cx);
-    }),
+const pullErrorRow = (git: GitInfo, host: ProjectRowsHost): Element => {
+  const retry = toggleButton({ label: 'Retry', active: false }).on_click((_event, cx) => {
+    cx.stop_propagation();
+    host.retryPull(git, cx);
   });
+
+  return stateLine({ kind: 'error', text: pullErrorText, action: retry });
+};
 
 const foldHeader = (project: Project, host: ProjectRowsHost): Element => {
   const id = `project-${project.key}`;

@@ -113,26 +113,29 @@ const chipLine = (tokens: DirectionTokens): Element =>
 const bandRule = (element: Element, tokens: DirectionTokens): Element =>
   element.h(headerBand(tokens)).flex_none().border_b(1).border_color(tokens.pane.headerDivider);
 
-const searchHead = (tokens: DirectionTokens): Element =>
-  bandRule(
-    v_flex()
-      .p(chipGap)
-      .gap(previewLineGap)
-      .child(searchLine('Go to a space, tab or pane', tokens))
-      .child(chipLine(tokens)),
-    tokens,
-  );
+const searchHead = (tokens: DirectionTokens): Element => {
+  const head = v_flex()
+    .p(chipGap)
+    .gap(previewLineGap)
+    .child(searchLine('Go to a space, tab or pane', tokens))
+    .child(chipLine(tokens));
 
-const tabRow = (tab: FakeTab, tokens: DirectionTokens): Element =>
-  line(
+  return bandRule(head, tokens);
+};
+
+const tabRow = (tab: FakeTab, tokens: DirectionTokens): Element => {
+  const statusSlot = statusMark(tab.status, tokens).w(markSlotWidth);
+
+  return line(
     [
-      statusMark(tab.status, tokens).w(markSlotWidth),
+      statusSlot,
       iconMark('terminal', tokens.ink.muted),
       label(tab.label, tokens.text.body, tokens.ink.muted),
     ],
     [],
     tokens,
   ).pl(tokens.rows.paddingX + tabIndent);
+};
 
 const spaceRows = (placed: PlacedSpace, tokens: DirectionTokens): Element[] => {
   const row = spaceRow(placed, placed.space.selected, tokens);
@@ -147,18 +150,13 @@ const spaceRows = (placed: PlacedSpace, tokens: DirectionTokens): Element[] => {
 const list = (tokens: DirectionTokens): Element => {
   const rows = overlayTokens(searchRowHeight(tokens), tokens);
 
-  return v_flex()
-    .w(listWidth)
-    .flex_none()
-    .h_full()
-    .child(searchHead(tokens))
-    .child(
-      v_flex()
-        .p(chipGap)
-        .gap(previewLineGap)
-        .child(heading('Spaces', [], tokens))
-        .children(placedSpaces.flatMap((placed) => spaceRows(placed, rows))),
-    );
+  const spaces = v_flex()
+    .p(chipGap)
+    .gap(previewLineGap)
+    .child(heading('Spaces', [], tokens))
+    .children(placedSpaces.flatMap((placed) => spaceRows(placed, rows)));
+
+  return v_flex().w(listWidth).flex_none().h_full().child(searchHead(tokens)).child(spaces);
 };
 
 const previewedSpace = placedSpaces.find((placed) => placed.space.selected);
@@ -190,23 +188,24 @@ const previewHeader = (tokens: DirectionTokens): Element => {
   return bandRule(header, tokens);
 };
 
-const preview = (tokens: DirectionTokens): Element =>
-  v_flex()
+const preview = (tokens: DirectionTokens): Element => {
+  const terminalLines = v_flex()
+    .p(tokens.pane.bodyPadding)
+    .gap(previewLineGap)
+    .font_family(terminalFont)
+    .text_size(tokens.text.terminal)
+    .text_color(tokens.ink.text)
+    .children(agentPane.lines.map((text) => div().truncate().child(text)));
+
+  return v_flex()
     .flex_1()
     .min_w(0)
     .h_full()
     .border_l(1)
     .border_color(tokens.pane.headerDivider)
     .child(previewHeader(tokens))
-    .child(
-      v_flex()
-        .p(tokens.pane.bodyPadding)
-        .gap(previewLineGap)
-        .font_family(terminalFont)
-        .text_size(tokens.text.terminal)
-        .text_color(tokens.ink.text)
-        .children(agentPane.lines.map((text) => div().truncate().child(text))),
-    );
+    .child(terminalLines);
+};
 
 const footer = (tokens: DirectionTokens): Element =>
   footerLine([['tab'], 'Next filter', ['↵'], 'Go to'], tokens)
@@ -215,8 +214,15 @@ const footer = (tokens: DirectionTokens): Element =>
     .border_t(1)
     .border_color(tokens.pane.headerDivider);
 
-const goto = (tokens: DirectionTokens): Element =>
-  v_flex()
+const goto = (tokens: DirectionTokens): Element => {
+  const columns = h_flex()
+    .flex_1()
+    .min_h(0)
+    .items_start()
+    .child(list(tokens))
+    .child(preview(tokens));
+
+  return v_flex()
     .absolute()
     .left(centered(gotoWidth))
     .top(overlayTop)
@@ -227,8 +233,9 @@ const goto = (tokens: DirectionTokens): Element =>
     .bg(overlaySurface)
     .border(1)
     .border_color(overlayBorder)
-    .child(h_flex().flex_1().min_h(0).items_start().child(list(tokens)).child(preview(tokens)))
+    .child(columns)
     .child(footer(tokens));
+};
 
 export const gotoScene = (tokens: DirectionTokens): Element =>
   withFloating(mapSidebar, [goto(tokens)], tokens);

@@ -18,16 +18,22 @@ import type { DirectionTokens } from '../tokens.ts';
 import type { DraftState, DraftView } from './data.ts';
 import { draftFolder, showsOpenComment } from './data.ts';
 
-const changedAction = (tokens: DirectionTokens): Element =>
-  v_flex()
+const changedAction = (tokens: DirectionTokens): Element => {
+  const changedNote = paragraph('body.md changed outside this pane.', tokens).text_color(
+    tokens.marks.blocked,
+  );
+
+  const chooseNote = paragraph(
+    'Choose a version for line 6. Sending waits until you choose.',
+    tokens,
+  ).text_color(tokens.ink.dim);
+
+  return v_flex()
     .gap(spacing.medium)
     .child(reviewActionButton('Go to line 6', tokens))
-    .child(paragraph('body.md changed outside this pane.', tokens).text_color(tokens.marks.blocked))
-    .child(
-      paragraph('Choose a version for line 6. Sending waits until you choose.', tokens).text_color(
-        tokens.ink.dim,
-      ),
-    );
+    .child(changedNote)
+    .child(chooseNote);
+};
 
 export const draftActions = (state: DraftState, tokens: DirectionTokens): Element => {
   if (state === 'saving-failed') {
@@ -47,35 +53,47 @@ export const draftActions = (state: DraftState, tokens: DirectionTokens): Elemen
     return changedAction(tokens);
   }
 
-  const actions = reviewActions(state === 'sent' ? 'sent' : 'ready', tokens);
+  const reviewState = state === 'sent' ? 'sent' : 'ready';
+  const actions = reviewActions(reviewState, tokens);
 
   if (state === 'edit-line') {
-    actions.child(paragraph('Sending adds the open line edit.', tokens).text_color(tokens.ink.dim));
+    const lineEditNote = paragraph('Sending adds the open line edit.', tokens).text_color(
+      tokens.ink.dim,
+    );
+
+    actions.child(lineEditNote);
   }
 
   if (showsOpenComment(state)) {
-    actions.child(paragraph('Sending adds the open comment.', tokens).text_color(tokens.ink.dim));
+    const commentNote = paragraph('Sending adds the open comment.', tokens).text_color(
+      tokens.ink.dim,
+    );
+
+    actions.child(commentNote);
   }
 
   return actions;
 };
 
-export const brokenBody = (view: DraftView, tokens: DirectionTokens): Element =>
-  scrollBody('draft-broken')
+export const brokenBody = (view: DraftView, tokens: DirectionTokens): Element => {
+  const errorLine = stateLine({
+    kind: 'error',
+    text: 'Could not open this review: request.json uses version 2. Update Koja to read it.',
+  }).px(0);
+
+  const copyPath = h_flex().child(saveRecoveryButton('Copy path', tokens));
+
+  const details = v_flex()
+    .flex_none()
+    .min_w(0)
+    .px(readingInset)
+    .py(spacing.medium)
+    .gap(spacing.medium)
+    .child(errorLine)
+    .child(label(draftFolder, tokens.text.body, tokens.ink.text))
+    .child(copyPath);
+
+  return scrollBody('draft-broken')
     .child(itemHeading(view.item, [], 'badge', tokens))
-    .child(
-      v_flex()
-        .flex_none()
-        .min_w(0)
-        .px(readingInset)
-        .py(spacing.medium)
-        .gap(spacing.medium)
-        .child(
-          stateLine({
-            kind: 'error',
-            text: 'Could not open this review: request.json uses version 2. Update Koja to read it.',
-          }).px(0),
-        )
-        .child(label(draftFolder, tokens.text.body, tokens.ink.text))
-        .child(h_flex().child(saveRecoveryButton('Copy path', tokens))),
-    );
+    .child(details);
+};

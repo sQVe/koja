@@ -29,41 +29,55 @@ const viewportHeightByState: Partial<Record<DraftState, number>> = {
   sent: 540,
 };
 
-const commentSummary = (comment: DraftComment, tokens: DirectionTokens): Element =>
-  h_flex()
+const commentSummary = (comment: DraftComment, tokens: DirectionTokens): Element => {
+  const commentIcon = icon('message-square', 'small').text_color(tokens.ink.dim);
+
+  const anchor = fixedLabel(comment.anchor, tokens.text.detail, tokens.ink.dim).w(
+    spacing.xxlarge * 2,
+  );
+
+  return h_flex()
     .min_w(0)
     .items_center()
     .gap(spacing.medium)
-    .child(icon('message-square', 'small').text_color(tokens.ink.dim))
-    .child(fixedLabel(comment.anchor, tokens.text.detail, tokens.ink.dim).w(spacing.xxlarge * 2))
+    .child(commentIcon)
+    .child(anchor)
     .child(label(comment.text, tokens.text.body, tokens.ink.text));
+};
 
 const fileBody = (file: DraftFile, view: DraftView, tokens: DirectionTokens): Element => {
   const editingFile = isBodyFile(file) && view.state === 'edit-file';
   const body = v_flex().flex_none().min_w(0);
 
   if (view.state === 'file-comment' && file === view.selected) {
-    body.child(
-      commentComposer({ anchor: 'File', text: 'Add the koja-mocks change too.' }, tokens)
-        .ml(textInset)
-        .my(spacing.xxsmall),
-    );
+    const composer = commentComposer(
+      { anchor: 'File', text: 'Add the koja-mocks change too.' },
+      tokens,
+    )
+      .ml(textInset)
+      .my(spacing.xxsmall);
+
+    body.child(composer);
   }
 
   if (editingFile) {
-    body.child(
-      v_flex()
-        .flex_none()
-        .min_w(0)
-        .py(spacing.xsmall)
-        .children(file.comments.map((comment) => commentSummary(comment, tokens))),
-    );
+    const summaries = v_flex()
+      .flex_none()
+      .min_w(0)
+      .py(spacing.xsmall)
+      .children(file.comments.map((comment) => commentSummary(comment, tokens)));
+
+    body.child(summaries);
   } else {
-    body.children(
-      file.comments
-        .filter((comment) => comment.start === null)
-        .map((comment) => commentCard(comment, false, tokens).ml(textInset).my(spacing.xxsmall)),
-    );
+    const cards = file.comments
+      .filter((comment) => comment.start === null)
+      .map((comment) => {
+        const card = commentCard(comment, false, tokens);
+
+        return card.ml(textInset).my(spacing.xxsmall);
+      });
+
+    body.children(cards);
   }
 
   const source = sourceLines(file, { state: view.state, inline: !editingFile }, tokens);
@@ -84,7 +98,9 @@ const fileSection = (file: DraftFile, view: DraftView, tokens: DirectionTokens):
   const section = v_flex().flex_none().min_w(0);
 
   if (file !== view.files[0]) {
-    section.child(div().h(1).flex_none().mt(spacing.small).bg(tokens.pane.cardBorder));
+    const separator = div().h(1).flex_none().mt(spacing.small).bg(tokens.pane.cardBorder);
+
+    section.child(separator);
   }
 
   return section.child(fileHeading(file, view, tokens)).child(fileBody(file, view, tokens));
@@ -112,20 +128,22 @@ export const pinnedDocument = (view: DraftView, tokens: DirectionTokens): Elemen
   const pinned = view.state === 'plan' || view.state === 'range' || view.state === 'file-comment';
 
   if (pinned) {
-    document.child(
-      v_flex()
-        .flex_none()
-        .px(bodyInset)
-        .border_b(1)
-        .border_color(tokens.pane.headerDivider)
-        .child(fileHeading(view.selected, view, tokens)),
-    );
+    const selectedHeading = v_flex()
+      .flex_none()
+      .px(bodyInset)
+      .border_b(1)
+      .border_color(tokens.pane.headerDivider)
+      .child(fileHeading(view.selected, view, tokens));
+
+    document.child(selectedHeading);
 
     reading.child(fileBody(view.selected, view, tokens));
 
     const nextIndex = view.files.indexOf(view.selected) + 1;
 
-    reading.children(view.files.slice(nextIndex).map((file) => fileSection(file, view, tokens)));
+    const remaining = view.files.slice(nextIndex).map((file) => fileSection(file, view, tokens));
+
+    reading.children(remaining);
   } else {
     reading.children(view.files.map((file) => fileSection(file, view, tokens)));
   }

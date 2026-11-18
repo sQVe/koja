@@ -300,7 +300,9 @@ describe('remove worktree without risk', () => {
 
     await click(view, 'Remove');
 
-    expect(groveCalls().map((call) => call.args)).toEqual([['remove', '--force', 'feat-a']]);
+    const removeArguments = groveCalls().map((call) => call.args);
+
+    expect(removeArguments).toEqual([['remove', '--force', 'feat-a']]);
   });
 
   test('enter confirms a remove that asks first', async () => {
@@ -310,7 +312,9 @@ describe('remove worktree without risk', () => {
     keyDownHandler?.({ key: 'enter' }, context);
     await settle();
 
-    expect(groveCalls().map((call) => call.args)).toEqual([['remove', '--force', 'feat-a']]);
+    const removeArguments = groveCalls().map((call) => call.args);
+
+    expect(removeArguments).toEqual([['remove', '--force', 'feat-a']]);
   });
 
   test('a failed Grove remove shows its error, keeps the dialog, and keeps the space', async () => {
@@ -464,7 +468,9 @@ describe('new worktree', () => {
     inputHandlers.get('submit')?.({}, context);
     await settle();
 
-    expect(groveCalls().map((call) => call.args)).toEqual([['add', 'feat/b']]);
+    const addArguments = groveCalls().map((call) => call.args);
+
+    expect(addArguments).toEqual([['add', 'feat/b']]);
   });
 
   test('a failed Grove add shows its error text and lets the user try again', async () => {

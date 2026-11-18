@@ -16,8 +16,11 @@ export const separator = (): Element =>
 export const detailText = (text: string, color = colors().dim): Element =>
   div().flex_none().text_size(textSize.small).text_color(color).child(text);
 
-export const linkText = (text: string): Element =>
-  withTextRole(div().flex_none(), 'detail', 'foreground').underline().cursor_pointer().child(text);
+export const linkText = (text: string): Element => {
+  const box = div().flex_none();
+
+  return withTextRole(box, 'detail', 'foreground').underline().cursor_pointer().child(text);
+};
 
 const unbroken = (text: string): string => text.replaceAll(' ', '\u00a0');
 
@@ -26,30 +29,17 @@ const hiddenText = (text: string): Element => div().flex_none().invisible().chil
 // Draws text.slice(start, end) by drawing text.slice(0, end) as one string and clipping off its
 // first `start` letters, so each letter keeps the position and kerning it has in the whole text.
 const clippedRun = (text: string, start: number, end: number, color: Color): Element => {
-  const shown = h_flex()
-    .flex_1()
-    .min_w(0)
-    .overflow_hidden()
-    .justify_end()
-    .child(
-      div()
-        .flex_none()
-        .text_color(color)
-        .child(unbroken(text.slice(0, end))),
-    );
+  const shownText = div()
+    .flex_none()
+    .text_color(color)
+    .child(unbroken(text.slice(0, end)));
 
-  const window = h_flex()
-    .absolute()
-    .inset_0()
-    .child(hiddenText(text.slice(0, start)))
-    .child(shown);
+  const shown = h_flex().flex_1().min_w(0).overflow_hidden().justify_end().child(shownText);
+  const hiddenStart = hiddenText(text.slice(0, start));
+  const window = h_flex().absolute().inset_0().child(hiddenStart).child(shown);
+  const hiddenEnd = hiddenText(text.slice(0, end));
 
-  return div()
-    .absolute()
-    .top_0()
-    .left_0()
-    .child(hiddenText(text.slice(0, end)))
-    .child(window);
+  return div().absolute().top_0().left_0().child(hiddenEnd).child(window);
 };
 
 // Text with the letters a search matched in the accent color. Herdr cannot color part of one text
@@ -78,5 +68,8 @@ export const highlightedText = (
   return div().relative().min_w(0).overflow_hidden().child(hiddenText(text)).children(layers);
 };
 
-export const keyHint = (keysText: string): Element =>
-  withTextRole(div().flex_none(), 'detail').child(formatKeys(keysText, currentPlatform()));
+export const keyHint = (keysText: string): Element => {
+  const box = div().flex_none();
+
+  return withTextRole(box, 'detail').child(formatKeys(keysText, currentPlatform()));
+};

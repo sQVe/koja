@@ -2,7 +2,7 @@
 
 **Date**: 2026-11-02\
 **Status**: Accepted\
-**Related**: [Seam](https://github.com/sQVe/seam),
+**Related**: [stomme](https://github.com/sQVe/stomme),
 [ADR 0003 (Bun as runtime, package manager, test runner, and bundler)](./0003-bun-toolchain.md)
 
 ## Context
@@ -23,8 +23,10 @@ Koja lives in its own public repository and uses the same base as Tikk and Mergi
 
 ### What is shared
 
-- Tooling: vite-plus for lint and format, `@sqve/seam` for house style, Knip, Changesets for
-  releases, and Stryker mutation testing through `@sqve/mutation`. Shared files match Tikk and
+- stomme: the rules, guides, and checks pinned in `mise.toml` and `stomme.toml`, with `stomme check`
+  in the full check and CI.
+- Tooling: vite-plus for lint and format, `@sqve/stomme-ts-style` for house style, Knip, Changesets
+  for releases, and Stryker mutation testing through `@sqve/mutation`. Shared files match Tikk and
   Mergit, except for the project name and description.
 - CI, Renovate, CodeRabbit, the Grove worktree setup, and the GitHub ruleset.
 
@@ -35,6 +37,10 @@ Koja lives in its own public repository and uses the same base as Tikk and Mergi
   and `gpui-kit`, exist only inside the Herdr app, so mutants in modules that import them would
   never meet a test.
 - ADRs after 0003 and the architecture section of `AGENTS.md` belong to Koja.
+- A tool's tuning record, such as `scripts/mutation-tuning.md`, lives next to the tool's setup. It
+  states why each setting has its value and the measured runs behind it, so a later change can be
+  measured the same way.
+- Layout breaks stay recorded in `stomme.toml` until follow-up changes move the files.
 
 ## Consequences
 
@@ -45,8 +51,8 @@ Koja lives in its own public repository and uses the same base as Tikk and Mergi
 
 ### Negative
 
-- Nothing catches drift between the repositories. The author of a change to a shared file must make
-  it in each.
+- `stomme check` catches drift in the shared rules, but shared files outside stomme, such as CI and
+  Renovate settings, still need a change in each repository.
 - Koja is not in the dotfiles repository, so a new machine needs one more clone.
 
 ## Alternatives considered

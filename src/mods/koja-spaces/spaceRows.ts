@@ -37,10 +37,12 @@ export const row = (listed: ListedSpace, ids: readonly string[], state: RowState
   const pull = state.lookup(listed.git);
   const end = state.age === null ? [] : [detailText(state.age)];
 
+  const rowState = space.active ? 'selected' : 'normal';
+
   const element = listRow({
     size: 'small',
     inset: true,
-    state: space.active ? 'selected' : 'normal',
+    state: rowState,
     start: spaceMark(listed.status),
     label: rowTitle(listed, pull),
     cut: rowCut(space.named, pull),

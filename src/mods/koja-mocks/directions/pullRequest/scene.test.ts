@@ -145,7 +145,9 @@ test('prompt variants queue two items instead of sending each item immediately',
     return texts.includes('typecheck') && texts.includes('Added');
   });
 
-  expect(drawnIcons(selectedRow!).slice(0, 2)).toEqual(['check', 'circle-x']);
+  const leadingIcons = drawnIcons(selectedRow!).slice(0, 2);
+
+  expect(leadingIcons).toEqual(['check', 'circle-x']);
 });
 
 test('empty and sent prompts have no tray and sent rows retain their content', () => {
@@ -299,7 +301,9 @@ test('blocked views explain merge blockers and expose the requested review for t
     expect(drawnTexts(review!)).toContain('rows.ts:48');
     expect(drawnTexts(review!)).toContain('repoLabel.ts:27–31');
     expect(texts).not.toContain('Squash and merge');
-    expect(descendants(pane).some((element) => element.isDisabled)).toBe(false);
+    const hasDisabled = descendants(pane).some((element) => element.isDisabled);
+
+    expect(hasDisabled).toBe(false);
   }
 });
 

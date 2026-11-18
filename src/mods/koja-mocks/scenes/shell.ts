@@ -51,11 +51,12 @@ const tabElement = (fakeTab: FakeTab): Element => {
   const palette = colors();
   const bright = fakeTab.active;
   const iconColor = bright ? palette.foreground : palette.dim;
+  const tabIcon = programIcon(fakeTab.program, 'small').text_color(iconColor);
 
   return tab({
     label: fakeTab.label,
     active: fakeTab.active,
-    icon: programIcon(fakeTab.program, 'small').text_color(iconColor),
+    icon: tabIcon,
     status: fakeTab.status,
     close: iconButton({ name: 'x', size: 'small' }),
   });
@@ -72,6 +73,8 @@ const tabBar = (options: ShellOptions): Element => {
     tabs.push(options.activeTab);
   }
 
+  const spacer = h_flex().flex_1();
+
   return h_flex()
     .h(options.layout?.tabBarHeight ?? controlSize.tabBar)
     .flex_none()
@@ -79,7 +82,7 @@ const tabBar = (options: ShellOptions): Element => {
     .gap(spacing.xxsmall)
     .items_center()
     .children(tabs)
-    .child(h_flex().flex_1())
+    .child(spacer)
     .child(iconButton({ name: 'plus' }))
     .child(modePill({ label: options.mode ?? 'Normal' }))
     .child(
@@ -98,6 +101,7 @@ const terminalBody = (lines: string[]): Element =>
 
 const paneCard = (header: PaneHeaderOptions, lines: string[], grow: number): Element => {
   const palette = colors();
+  const borderInk = header.focused ? palette.accent : palette.selected;
 
   return v_flex()
     .flex_grow(grow)
@@ -107,7 +111,7 @@ const paneCard = (header: PaneHeaderOptions, lines: string[], grow: number): Ele
     .h_full()
     .rounded(radius.dialog)
     .border(spacing.hairline)
-    .border_color(header.focused ? palette.accent : palette.selected)
+    .border_color(borderInk)
     .bg(palette.background)
     .overflow_hidden()
     .child(paneHeader(header))
@@ -183,17 +187,15 @@ export const shellAttentionScene = (
   const focusedPane = panes[0];
 
   if (card !== null && focusedPane !== undefined) {
-    focusedPane
-      .relative()
-      .child(
-        h_flex()
-          .absolute()
-          .left(paneClearance)
-          .right(paneClearance)
-          .bottom(paneClearance)
-          .justify_center()
-          .child(card.w_full()),
-      );
+    const overlay = h_flex()
+      .absolute()
+      .left(paneClearance)
+      .right(paneClearance)
+      .bottom(paneClearance)
+      .justify_center()
+      .child(card.w_full());
+
+    focusedPane.relative().child(overlay);
   }
 
   return v_flex().relative().flex_1().min_h(0).child(shellWindow(panes));
@@ -225,10 +227,12 @@ export const shellPullRequestScene = (): Element => {
 };
 
 export const shellDraftReviewScene = (): Element => {
+  const draftIcon = icon(draftItem.icon, 'small').text_color(colors().foreground);
+
   const activeTab = tab({
     label: draftItem.tab,
     active: true,
-    icon: icon(draftItem.icon, 'small').text_color(colors().foreground),
+    icon: draftIcon,
     status: null,
     close: iconButton({ name: 'x', size: 'small' }),
   });
@@ -248,11 +252,12 @@ export const shellDraftReviewScene = (): Element => {
 
 export const shellTicketScene = (): Element => {
   const { item } = ticketView('container');
+  const ticketIcon = icon(item.icon, 'small').text_color(colors().foreground);
 
   const activeTab = tab({
     label: item.tab,
     active: true,
-    icon: icon(item.icon, 'small').text_color(colors().foreground),
+    icon: ticketIcon,
     status: null,
     close: iconButton({ name: 'x', size: 'small' }),
   });
@@ -273,11 +278,9 @@ export const shellTicketScene = (): Element => {
     .w(ticketAgentWidth)
     .flex_none();
 
-  return styled(
-    v_flex().relative().flex_1().min_h(0).font_family(uiFont),
-    koja.text.body,
-    koja.ink.text,
-  ).child(
+  const root = v_flex().relative().flex_1().min_h(0).font_family(uiFont);
+
+  return styled(root, koja.text.body, koja.ink.text).child(
     shellWindow([agent, ticketPane('container', koja)], {
       activeTab,
       spacePanelOpen: false,

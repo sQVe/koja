@@ -176,23 +176,19 @@ describe('the space panel', () => {
     const busy = headerOf('busy');
     const base = headerOf('base');
 
-    expect(busy === undefined ? [] : drawnIcons(busy)).toEqual([
-      'chevron-down',
-      'layers',
-      'circle-x',
-      'message-square',
-    ]);
+    const busyIcons = busy === undefined ? [] : drawnIcons(busy);
+    const busyTooltips = busy === undefined ? [] : drawnTooltips(busy);
+    const baseTooltips = base === undefined ? [] : drawnTooltips(base);
 
-    expect(busy === undefined ? [] : drawnTooltips(busy)).toEqual([
+    expect(busyIcons).toEqual(['chevron-down', 'layers', 'circle-x', 'message-square']);
+
+    expect(busyTooltips).toEqual([
       '#43 · needs a restack',
       '#40 · CI failing',
       '#38 · review threads',
     ]);
 
-    expect(base === undefined ? [] : drawnTooltips(base)).toEqual([
-      '#40 · CI failing',
-      '#38 · review threads',
-    ]);
+    expect(baseTooltips).toEqual(['#40 · CI failing', '#38 · review threads']);
   });
 
   test('the failing mark in the stack header takes the failure color', () => {
@@ -219,7 +215,9 @@ describe('the space panel', () => {
       return texts.length === 2 && texts[0] === 'Space';
     });
 
-    expect(header === undefined ? ['missing'] : drawnIcons(header)).toEqual([]);
+    const headerIcons = header === undefined ? ['missing'] : drawnIcons(header);
+
+    expect(headerIcons).toEqual([]);
   });
 
   test('a stale stack shows its running checks without a spinner', () => {
@@ -270,12 +268,12 @@ describe('the space panel', () => {
         drawnTexts(part).length === 2 && drawnTexts(part)[0] === 'Reply to Pick the ring size',
     );
 
-    expect(field === undefined ? [] : drawnTexts(field)).toEqual([
-      'Reply to Pick the ring size',
-      'enter',
-    ]);
+    const fieldTexts = field === undefined ? [] : drawnTexts(field);
+    const fieldIcons = field === undefined ? ['missing'] : drawnIcons(field);
 
-    expect(field === undefined ? ['missing'] : drawnIcons(field)).toEqual([]);
+    expect(fieldTexts).toEqual(['Reply to Pick the ring size', 'enter']);
+
+    expect(fieldIcons).toEqual([]);
   });
 
   test('the checked-out PR says so at its row end', () => {

@@ -19,14 +19,17 @@ const heartbeatAge = (heartbeatAt: number, now: number): string => {
   return `${shortAge(heartbeatAt / secondMilliseconds, now / secondMilliseconds)} ago`;
 };
 
-const field = (label: string, value: string): Element =>
-  listRow({
+const field = (label: string, value: string): Element => {
+  const valueText = roleText('detail', value).flex_none();
+
+  return listRow({
     size: 'small',
     inset: true,
     state: 'normal',
     label,
-    end: [roleText('detail', value).flex_none()],
+    end: [valueText],
   });
+};
 
 const stateWord: Record<HeldState['kind'], string> = { live: 'Live', stale: 'Stale' };
 

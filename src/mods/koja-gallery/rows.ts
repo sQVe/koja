@@ -16,9 +16,11 @@ const rowStates: { state: RowState; hovered: boolean; cursor: boolean; label: st
 
 const rowsInState = (inset: boolean): Element =>
   v_flex().children(
-    rowStates.map((variant) =>
-      listRow({
-        size: inset ? 'large' : 'small',
+    rowStates.map((variant) => {
+      const size = inset ? 'large' : 'small';
+
+      return listRow({
+        size,
         inset,
         state: variant.state,
         hovered: variant.hovered,
@@ -27,8 +29,8 @@ const rowsInState = (inset: boolean): Element =>
         label: `${variant.label} row`,
         detail: 'detail',
         end: [keyHint('ctrl-shift-t'), statusMark('done')],
-      }),
-    ),
+      });
+    }),
   );
 
 const treeRows = (): Element =>

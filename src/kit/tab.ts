@@ -62,9 +62,10 @@ export const tab = (options: TabOptions): Element => {
     );
   }
 
-  element
-    .child(startSlot(options.icon === null ? null : options.icon.text_color(iconTone)))
-    .child(div().max_w(controlSize.tabLabelMaxWidth).truncate().child(options.label));
+  const tabIcon = options.icon === null ? null : options.icon.text_color(iconTone);
+  const label = div().max_w(controlSize.tabLabelMaxWidth).truncate().child(options.label);
+
+  element.child(startSlot(tabIcon)).child(label);
 
   const status = shownStatus(options.status);
 

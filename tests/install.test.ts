@@ -711,9 +711,9 @@ describe('install', () => {
       join(home, 'mods', 'koja-tabs'),
     ]);
 
-    expect(result.checks.filter((check) => !check.passed).map((check) => check.mod)).toEqual([
-      'koja-menu',
-    ]);
+    const failedMods = result.checks.filter((check) => !check.passed).map((check) => check.mod);
+
+    expect(failedMods).toEqual(['koja-menu']);
   });
 });
 

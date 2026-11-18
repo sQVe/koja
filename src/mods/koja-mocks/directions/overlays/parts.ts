@@ -111,7 +111,9 @@ const keycap = (key: string, look: KeycapLook, tokens: DirectionTokens): Element
 
   const glyph = fixedLabel(key, tokens.text.detail, look.ink).font_family(terminalFont);
 
-  return cap.child(glyph.relative().top(-glyphRaise(key)));
+  const raisedGlyph = glyph.relative().top(-glyphRaise(key));
+
+  return cap.child(raisedGlyph);
 };
 
 export const keycaps = (
@@ -136,8 +138,10 @@ export const item = (options: ItemOptions, tokens: DirectionTokens): Element =>
     tokens,
   );
 
-export const line = (start: Element[], end: Element[], tokens: DirectionTokens): Element =>
-  h_flex()
+export const line = (start: Element[], end: Element[], tokens: DirectionTokens): Element => {
+  const spacer = h_flex().flex_1();
+
+  return h_flex()
     .h(tokens.rows.height)
     .flex_none()
     .min_w(0)
@@ -145,8 +149,9 @@ export const line = (start: Element[], end: Element[], tokens: DirectionTokens):
     .gap(lineGap)
     .items_center()
     .children(start)
-    .child(h_flex().flex_1())
+    .child(spacer)
     .children(end);
+};
 
 export const heading = (text: string, end: Element[], tokens: DirectionTokens): Element =>
   line([fixedLabel(text, tokens.text.heading, tokens.ink.muted)], end, tokens);
@@ -161,20 +166,16 @@ export const caret = (tokens: DirectionTokens): Element =>
 export const searchLineHeight = (tokens: DirectionTokens): number =>
   searchRowHeight(tokens) + lineGap;
 
-export const searchLine = (placeholder: string, tokens: DirectionTokens): Element =>
-  line(
-    [
-      iconMark('search', tokens.ink.dim),
-      h_flex()
-        .flex_none()
-        .gap(caretTextInset)
-        .items_center()
-        .child(caret(tokens))
-        .child(fixedLabel(placeholder, tokens.text.body, tokens.ink.dim)),
-    ],
-    [],
-    tokens,
-  ).h(searchLineHeight(tokens));
+export const searchLine = (placeholder: string, tokens: DirectionTokens): Element => {
+  const field = h_flex()
+    .flex_none()
+    .gap(caretTextInset)
+    .items_center()
+    .child(caret(tokens))
+    .child(fixedLabel(placeholder, tokens.text.body, tokens.ink.dim));
+
+  return line([iconMark('search', tokens.ink.dim), field], [], tokens).h(searchLineHeight(tokens));
+};
 
 export const spaceRow = (
   placed: PlacedSpace,

@@ -102,7 +102,9 @@ export default class NewMenu extends View {
   }
 
   private startAgent(agent: Agent): void {
-    run('tab.new', menuActions(this.target).agent(agent));
+    const command = menuActions(this.target).agent(agent);
+
+    run('tab.new', command);
   }
 
   override render(): Element {
@@ -110,6 +112,8 @@ export default class NewMenu extends View {
     const installed = agents.filter((agent) => agent.installed);
     const missing = agents.filter((agent) => !agent.installed).slice(0, suggestedAgents);
     const choices = [...installed, ...missing];
+
+    const placeRows = this.placeEntries().map((entry) => this.row(entry));
 
     const menu = withTextRole(popupSurface('new-menu'), 'body')
       .h(menuHeight(choices.length))
@@ -121,7 +125,7 @@ export default class NewMenu extends View {
       .child(sectionHeader({ label: 'Start an agent', size: 'default' }))
       .child(this.agentRows(choices))
       .child(separator())
-      .children(this.placeEntries().map((entry) => this.row(entry)));
+      .children(placeRows);
 
     return this.handle === null ? menu : menu.track_focus(this.handle);
   }
@@ -216,13 +220,16 @@ export default class NewMenu extends View {
   }
 
   private row(entry: MenuEntry): Element {
+    const state = entry.enabled ? 'normal' : 'disabled';
+    const end = entry.hint === null ? [] : [entry.hint];
+
     return listRow({
       size: 'small',
       inset: true,
-      state: entry.enabled ? 'normal' : 'disabled',
+      state,
       start: entry.start,
       label: entry.label,
-      end: entry.hint === null ? [] : [entry.hint],
+      end,
     })
       .id(entry.id)
       .on_click(() => {

@@ -58,6 +58,10 @@ const checksList = (stale: boolean, tokens: DirectionTokens): Element =>
         const detail = hasStaleAge ? check.staleDetail : check.detail;
         const mark = checkMark(check.state, tokens);
 
+        const detailLabel = label(detail, tokens.text.detail, tokens.ink.dim)
+          .ml(sectionBodyInset(tokens))
+          .mr(spacing.xlarge);
+
         return v_flex()
           .flex_none()
           .min_w(0)
@@ -72,11 +76,7 @@ const checksList = (stale: boolean, tokens: DirectionTokens): Element =>
               tokens,
             ),
           )
-          .child(
-            label(detail, tokens.text.detail, tokens.ink.dim)
-              .ml(sectionBodyInset(tokens))
-              .mr(spacing.xlarge),
-          );
+          .child(detailLabel);
       }),
     );
 
@@ -110,34 +110,36 @@ const reviewThreads = (tokens: DirectionTokens): Element =>
           detail: 'sqve · 1h ago',
           text: 'Can the branch truncate before the repository name?',
         },
-      ].map((thread) =>
-        v_flex()
+      ].map((thread) => {
+        const threadRow = row(
+          {
+            selected: false,
+            start: statusSlot(workNeedMark('review', tokens)),
+            label: label(thread.reference, tokens.text.title, tokens.ink.text),
+            end: [fixedLabel('unresolved', tokens.text.detail, tokens.ink.dim)],
+          },
+          tokens,
+        );
+
+        const container = div().min_w(0);
+
+        const text = styled(container, tokens.text.detail, tokens.ink.text)
+          .ml(sectionBodyInset(tokens))
+          .mr(spacing.xlarge)
+          .child(thread.text);
+
+        const detail = label(thread.detail, tokens.text.detail, tokens.ink.dim)
+          .ml(sectionBodyInset(tokens))
+          .mr(spacing.xlarge);
+
+        return v_flex()
           .flex_none()
           .min_w(0)
           .gap(spacing.xxsmall)
-          .child(
-            row(
-              {
-                selected: false,
-                start: statusSlot(workNeedMark('review', tokens)),
-                label: label(thread.reference, tokens.text.title, tokens.ink.text),
-                end: [fixedLabel('unresolved', tokens.text.detail, tokens.ink.dim)],
-              },
-              tokens,
-            ),
-          )
-          .child(
-            styled(div().min_w(0), tokens.text.detail, tokens.ink.text)
-              .ml(sectionBodyInset(tokens))
-              .mr(spacing.xlarge)
-              .child(thread.text),
-          )
-          .child(
-            label(thread.detail, tokens.text.detail, tokens.ink.dim)
-              .ml(sectionBodyInset(tokens))
-              .mr(spacing.xlarge),
-          ),
-      ),
+          .child(threadRow)
+          .child(text)
+          .child(detail);
+      }),
     );
 
 const slicesList = (tokens: DirectionTokens): Element =>
@@ -146,22 +148,24 @@ const slicesList = (tokens: DirectionTokens): Element =>
     .py(spacing.medium)
     .gap(spacing.xsmall)
     .children(
-      ticketSlices.map((slice) =>
-        row(
+      ticketSlices.map((slice) => {
+        const title = h_flex()
+          .min_w(0)
+          .gap(spacing.small)
+          .items_center()
+          .child(label(slice.title, tokens.text.body, tokens.ink.text))
+          .child(fixedLabel(slice.state, tokens.text.detail, tokens.ink.dim));
+
+        return row(
           {
             selected: false,
             start: statusMark(slice.status, tokens),
-            label: h_flex()
-              .min_w(0)
-              .gap(spacing.small)
-              .items_center()
-              .child(label(slice.title, tokens.text.body, tokens.ink.text))
-              .child(fixedLabel(slice.state, tokens.text.detail, tokens.ink.dim)),
+            label: title,
             end: [],
           },
           tokens,
-        ),
-      ),
+        );
+      }),
     );
 
 export const pullSections = (

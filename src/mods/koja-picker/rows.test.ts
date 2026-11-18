@@ -224,14 +224,9 @@ describe('buildRows', () => {
   });
 
   test('labels each row with its kind', () => {
-    expect(buildRows('', null, data()).map((row) => row.kind)).toEqual([
-      'space',
-      'tab',
-      'pane',
-      'pane',
-      'tab',
-      'space',
-    ]);
+    const rowKinds = buildRows('', null, data()).map((row) => row.kind);
+
+    expect(rowKinds).toEqual(['space', 'tab', 'pane', 'pane', 'tab', 'space']);
   });
 
   test('matches a space by its status word', () => {

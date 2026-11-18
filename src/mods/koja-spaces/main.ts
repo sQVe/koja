@@ -67,6 +67,8 @@ const noFolds = { has: (): boolean => false };
 
 const isSidebarMarked = (): boolean => readSection(shared) === 'sidebar';
 
+const liveSpaceIds = (): string[] => spaces().map((space) => space.id);
+
 const shownIdsOf = (projects: Project[]): string[] =>
   shownSpaces(projects).map((row) => row.space.id);
 
@@ -93,7 +95,7 @@ export default class Spaces extends View {
 
   private waitTimes: WaitTimes = readWaitTimes(storage.get(waitTimesKey));
 
-  private visibility: VisibilityState = initialVisibility(spaces().map((space) => space.id));
+  private visibility: VisibilityState = initialVisibility(liveSpaceIds());
 
   private drag: SidebarDrag = { kind: 'space', state: noDrag };
 
@@ -138,30 +140,32 @@ export default class Spaces extends View {
 
     this.followMark(isSidebarMarked());
 
+    const topStrip = div().flex_none().h(topStripHeight());
+
+    const list = v_flex()
+      .id('spaces-list')
+      .flex_1()
+      .min_h(0)
+      .gap(spacing.xxsmall)
+      .pb(spacing.xlarge)
+      .overflow_y_scrollbar()
+      .track_scroll(this.scroll)
+      .mode('always')
+      .on_size_change((size) => {
+        this.halfPage = halfPageOf(size.height, rowHeight.small);
+      })
+      .on_mouse_up('left', (_event, cx) => {
+        this.endDrag();
+        cx.notify();
+      })
+      .children(this.listRows());
+
     return withTextRole(v_flex(), 'body')
       .size_full()
       .min_h(0)
       .bg(palette.chrome)
-      .child(div().flex_none().h(topStripHeight()))
-      .child(
-        v_flex()
-          .id('spaces-list')
-          .flex_1()
-          .min_h(0)
-          .gap(spacing.xxsmall)
-          .pb(spacing.xlarge)
-          .overflow_y_scrollbar()
-          .track_scroll(this.scroll)
-          .mode('always')
-          .on_size_change((size) => {
-            this.halfPage = halfPageOf(size.height, rowHeight.small);
-          })
-          .on_mouse_up('left', (_event, cx) => {
-            this.endDrag();
-            cx.notify();
-          })
-          .children(this.listRows()),
-      );
+      .child(topStrip)
+      .child(list);
   }
 
   private startGitReads(cx: AsyncContext): void {
@@ -265,7 +269,9 @@ export default class Spaces extends View {
     const at = placesOf(spaceList, paneList);
     const waitsChanged = this.trackWaits(spaceList, paneList, Date.now());
 
-    this.git.prune(new Set(Object.values(at).map((place) => place.key)));
+    const placeKeys = Object.values(at).map((place) => place.key);
+
+    this.git.prune(new Set(placeKeys));
 
     const result = this.advance();
 
@@ -274,10 +280,9 @@ export default class Spaces extends View {
     const due = this.git.sweep(Date.now(), at, spaceList, paneList);
 
     if (due.size > 0) {
-      this.git.refresh(
-        Object.values(at).filter((place) => due.has(place.key)),
-        cx,
-      );
+      const duePlaces = Object.values(at).filter((place) => due.has(place.key));
+
+      this.git.refresh(duePlaces, cx);
     }
 
     if (result.changed || result.waiting || waitsChanged) {

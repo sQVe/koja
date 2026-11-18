@@ -130,6 +130,23 @@ export default class Tabs extends View {
     this.syncPanel(space, enabled);
 
     const startPadding = windowButtonsPadding();
+    const startSpacer = div().w(startPadding).flex_none();
+    const endSpacer = div().flex_1().min_w(0);
+
+    const tabItems = shown.map((tabInfo, index) =>
+      this.tabItem(space, tabInfo, statuses.tabs[tabInfo.id] ?? null, index),
+    );
+
+    const scroller = h_flex()
+      .id('tab-scroll')
+      .flex_1()
+      .min_w(0)
+      .h_full()
+      .items_center()
+      .gap(spacing.xxsmall)
+      .overflow_x_scrollbar()
+      .children(tabItems)
+      .child(endSpacer);
 
     return h_flex()
       .size_full()
@@ -142,26 +159,13 @@ export default class Tabs extends View {
       })
       .on_scroll_wheel((event) => {
         if (Math.abs(event.delta.y) >= 1) {
-          run(event.delta.y > 0 ? 'tab.prev' : 'tab.next');
+          const scrollCommand = event.delta.y > 0 ? 'tab.prev' : 'tab.next';
+
+          run(scrollCommand);
         }
       })
-      .child(div().w(startPadding).flex_none())
-      .child(
-        h_flex()
-          .id('tab-scroll')
-          .flex_1()
-          .min_w(0)
-          .h_full()
-          .items_center()
-          .gap(spacing.xxsmall)
-          .overflow_x_scrollbar()
-          .children(
-            shown.map((tabInfo, index) =>
-              this.tabItem(space, tabInfo, statuses.tabs[tabInfo.id] ?? null, index),
-            ),
-          )
-          .child(div().flex_1().min_w(0)),
-      )
+      .child(startSpacer)
+      .child(scroller)
       .child(this.controls(enabled));
   }
 
@@ -199,12 +203,13 @@ export default class Tabs extends View {
     const paneList = panes();
     const program = tabProgram(tabInfo, paneList);
     const hasIcon = program?.icon !== null && program !== undefined;
+    const tabIcon = hasIcon ? programIcon(program, 'small') : null;
 
     return tab({
       label: tabLabel(tabInfo, program, paneList, terminals()),
       active: tabInfo.active,
       hovered: this.hoveredTab === tabInfo.id,
-      icon: hasIcon ? programIcon(program, 'small') : null,
+      icon: tabIcon,
       status,
       close: this.closeButton(tabInfo),
     })
@@ -273,6 +278,10 @@ export default class Tabs extends View {
       });
 
     const normalMode = Boolean(shared('koja-modal'));
+    const visiblePanels = panels.filter((panel) => enabled.includes(panel.id));
+    const panelButtons = visiblePanels.map((panel) => this.panelButton(panel));
+    const modeToken = normalMode ? 'blocked' : 'ansi2';
+    const modeMark = h_flex().mx(spacing.small).child(indicator(modeToken));
 
     return h_flex()
       .flex_none()
@@ -281,16 +290,8 @@ export default class Tabs extends View {
       .pr(spacing.xsmall)
       .items_center()
       .child(newButton)
-      .children(
-        panels
-          .filter((panel) => enabled.includes(panel.id))
-          .map((panel) => this.panelButton(panel)),
-      )
-      .child(
-        h_flex()
-          .mx(spacing.small)
-          .child(indicator(normalMode ? 'blocked' : 'ansi2')),
-      );
+      .children(panelButtons)
+      .child(modeMark);
   }
 
   private panelButton(panel: Panel): Element {
@@ -300,7 +301,9 @@ export default class Tabs extends View {
       .id(`panel-${panel.id}`)
       .on_mouse_down('left', stopPress)
       .on_click(() => {
-        showPanel(on ? null : panel.id);
+        const target = on ? null : panel.id;
+
+        showPanel(target);
       });
   }
 }

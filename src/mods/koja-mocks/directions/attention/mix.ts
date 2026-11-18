@@ -86,39 +86,49 @@ const commandLine = (ask: HiddenAsk, style: TextStyle, tokens: DirectionTokens):
   return [command];
 };
 
-const askTitle = (ask: HiddenAsk, state: MixState, tokens: DirectionTokens): Element =>
-  h_flex()
+const askTitle = (ask: HiddenAsk, state: MixState, tokens: DirectionTokens): Element => {
+  const agentLabel = label(ask.agent, tokens.text.detail, tokens.ink.dim).flex_1();
+
+  return h_flex()
     .h(tokens.controls.size)
     .gap(lineGap)
     .items_center()
     .child(iconMark('message-circle-question', tokens.marks.blocked))
     .child(fixedLabel(ask.space, tokens.text.title, tokens.ink.text))
-    .child(label(ask.agent, tokens.text.detail, tokens.ink.dim).flex_1())
+    .child(agentLabel)
     .child(dismissControl(state, tokens));
+};
 
 const askLine = (ask: HiddenAsk, state: MixState, tokens: DirectionTokens): Element => {
+  const question = wrappedText(ask.question, tokens.text.body, tokens.ink.text).ml(textInset);
+
   const line = v_flex()
     .child(askTitle(ask, state, tokens))
-    .child(wrappedText(ask.question, tokens.text.body, tokens.ink.text).ml(textInset))
+    .child(question)
     .children(commandLine(ask, tokens.text.body, tokens));
 
   if (state.asks.length > 1) {
-    line.child(moreControl(state, tokens).mt(lineGap));
+    const more = moreControl(state, tokens).mt(lineGap);
+
+    line.child(more);
   }
 
   return line;
 };
 
 const askRow = (ask: HiddenAsk, tokens: DirectionTokens): Element => {
+  const spacer = h_flex().flex_1();
+
   const title = h_flex()
     .gap(lineGap)
     .items_center()
     .child(iconMark('message-circle-question', tokens.marks.blocked))
     .child(fixedLabel(ask.space, tokens.text.title, tokens.ink.text))
-    .child(h_flex().flex_1())
+    .child(spacer)
     .child(fixedLabel(`${ask.project} · ${ask.age}`, tokens.text.detail, tokens.ink.dim));
 
   const detail = `${ask.agent} · ${ask.question}`;
+  const detailText = wrappedText(detail, tokens.text.body, tokens.ink.muted).ml(textInset);
 
   return v_flex()
     .flex_none()
@@ -128,12 +138,14 @@ const askRow = (ask: HiddenAsk, tokens: DirectionTokens): Element => {
     .rounded(tokens.rows.radius)
     .hover((element) => element.bg(tokens.rows.hoverFill))
     .child(title)
-    .child(wrappedText(detail, tokens.text.body, tokens.ink.muted).ml(textInset))
+    .child(detailText)
     .children(commandLine(ask, tokens.text.body, tokens));
 };
 
 const askList = (state: MixState, tokens: DirectionTokens): Element => {
   const titleText = `${state.asks.length} asks in other spaces`;
+
+  const spacer = h_flex().flex_1();
 
   const title = h_flex()
     .h(tokens.rows.height)
@@ -141,7 +153,7 @@ const askList = (state: MixState, tokens: DirectionTokens): Element => {
     .pr(closeIconInset)
     .items_center()
     .child(fixedLabel(titleText, tokens.text.title, tokens.ink.text))
-    .child(h_flex().flex_1())
+    .child(spacer)
     .child(dismissControl(state, tokens));
 
   return v_flex()
@@ -171,11 +183,11 @@ export const mixCard = (
     .child(content);
 
   if (tokens.normal) {
-    card.child(
-      footerLine([['g', 'n'], 'Go to this ask'], tokens)
-        .px(0)
-        .ml(textInset),
-    );
+    const footer = footerLine([['g', 'n'], 'Go to this ask'], tokens)
+      .px(0)
+      .ml(textInset);
+
+    card.child(footer);
   }
 
   return card;
@@ -204,5 +216,7 @@ export const mixScene = (
   const left = paneLeft + (paneWidth - width) / 2;
   const bottom = tokens.areas.contentPadding + paneClearance;
 
-  return scene.child(card.absolute().left(left).bottom(bottom).w(width));
+  const positionedCard = card.absolute().left(left).bottom(bottom).w(width);
+
+  return scene.child(positionedCard);
 };

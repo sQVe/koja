@@ -1,4 +1,4 @@
-import { format, lint } from '@sqve/seam';
+import { format, lint } from '@sqve/stomme-ts-style';
 import { defineConfig } from 'vite-plus';
 
 export default defineConfig({
@@ -11,11 +11,13 @@ export default defineConfig({
   fmt: {
     ...format,
     // Local agent state is not source and must not be reformatted.
-    ignorePatterns: ['bun.lock', '.tau/**', 'herdr/*.d.ts'],
+    // `stomme sync` writes `docs/stomme/**`; a formatter change makes `stomme check` report
+    // the files as edited.
+    ignorePatterns: ['bun.lock', '.tau/**', 'herdr/*.d.ts', 'docs/stomme/**'],
   },
   staged: {
     '*.{ts,tsx,js,jsx,mjs,cjs}': [
-      'bunx --bun seam --no-error-on-unmatched-pattern',
+      'bunx --bun stomme-ts-style',
       'bunx --bun vp fmt --check --no-error-on-unmatched-pattern',
     ],
     '*.{json,md,yaml,yml,css}': 'bunx --bun vp fmt --check --no-error-on-unmatched-pattern',

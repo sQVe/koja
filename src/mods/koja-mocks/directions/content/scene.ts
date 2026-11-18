@@ -20,11 +20,13 @@ const contentAgent: FakePane = {
   lines: agentPane.lines,
 };
 
-export const contentPane = (view: ContentView, tokens: DirectionTokens): Element =>
-  cardSlot(
-    card(true, tokens).child(contentHeader(view.item, tokens)).child(contentBody(view, tokens)),
-    tokens,
-  ).flex_1();
+export const contentPane = (view: ContentView, tokens: DirectionTokens): Element => {
+  const pane = card(true, tokens)
+    .child(contentHeader(view.item, tokens))
+    .child(contentBody(view, tokens));
+
+  return cardSlot(pane, tokens).flex_1();
+};
 
 export const contentScene = (name: ContentSceneName): Element => {
   const view = contentViews[name];
@@ -51,8 +53,10 @@ export const contentScene = (name: ContentSceneName): Element => {
     icon: item.icon,
   });
 
+  const agent = view.wide ? null : contentAgent;
+
   return directionWindow(contentTokens, undefined, {
-    agent: view.wide ? null : contentAgent,
+    agent,
     agentFocused: false,
     tabs,
     toggles: () => [],

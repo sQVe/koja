@@ -29,6 +29,7 @@ const staleFiles: FakeFile[] = [
 
 const panelHeader = (count: string | null): Element => {
   const palette = colors();
+  const title = roleText('title', 'Changes').flex_none();
 
   const header = h_flex()
     .h(diffSize.headerHeight)
@@ -38,30 +39,36 @@ const panelHeader = (count: string | null): Element => {
     .items_center()
     .border_b(spacing.hairline)
     .border_color(palette.border)
-    .child(roleText('title', 'Changes').flex_none());
+    .child(title);
 
   return count === null ? header : header.child(roleText('detail', count));
 };
 
-const fileRow = (file: FakeFile): Element =>
-  listRow({
+const fileRow = (file: FakeFile): Element => {
+  const additions = roleText('detail', `+${file.add}`, 'ansi2').flex_none();
+
+  return listRow({
     size: 'small',
     inset: true,
     state: 'normal',
     start: fileStatusMark(file.status),
     label: file.path,
-    end: [roleText('detail', `+${file.add}`, 'ansi2').flex_none()],
+    end: [additions],
   });
+};
 
 const retry = (): Element => toggleButton({ label: 'Retry', active: false });
 
-const panel = (count: string | null, content: Element[]): Element =>
-  v_flex()
+const panel = (count: string | null, content: Element[]): Element => {
+  const body = v_flex().py(spacing.xsmall).children(content);
+
+  return v_flex()
     .flex_none()
     .rounded(radius.dialog)
     .bg(colors().chrome)
     .child(panelHeader(count))
-    .child(v_flex().py(spacing.xsmall).children(content));
+    .child(body);
+};
 
 const fakeNow = 1_800_000_000;
 

@@ -10,17 +10,21 @@ const iconSizes = ['xsmall', 'small', 'default', 'large'] as const;
 const iconTile = (name: IconName): Element =>
   v_flex().gap(spacing.xsmall).items_center().child(icon(name, 'large')).child(detailText(name));
 
-export const icons = (): Element[] => [
-  h_flex().flex_wrap().gap(spacing.medium).children(iconNames.map(iconTile)),
-  sample(
-    'Sizes',
-    h_flex()
-      .gap(spacing.medium)
-      .items_center()
-      .children(iconSizes.map((size) => icon('folder', size))),
-  ),
-  sample(
-    'Spinner and program icon without a program',
-    h_flex().gap(spacing.medium).items_center().child(spinner()).child(programIcon(null)),
-  ),
-];
+export const icons = (): Element[] => {
+  const sizes = h_flex()
+    .gap(spacing.medium)
+    .items_center()
+    .children(iconSizes.map((size) => icon('folder', size)));
+
+  const withoutProgram = h_flex()
+    .gap(spacing.medium)
+    .items_center()
+    .child(spinner())
+    .child(programIcon(null));
+
+  return [
+    h_flex().flex_wrap().gap(spacing.medium).children(iconNames.map(iconTile)),
+    sample('Sizes', sizes),
+    sample('Spinner and program icon without a program', withoutProgram),
+  ];
+};

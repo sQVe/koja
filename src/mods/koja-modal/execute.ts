@@ -238,9 +238,11 @@ const focusNeedsYou = (step: 1 | -1, deps: ExecutorDeps): void => {
 };
 
 const stepRoot = (step: number, deps: ExecutorDeps): void => {
+  const liveIds = deps.spaces().map((space) => space.id);
+
   const command = rootStepCommand(step, {
     order: readSpaceOrder(deps.store.get),
-    liveIds: deps.spaces().map((space) => space.id),
+    liveIds,
     current: deps.focused()?.space ?? null,
   });
 

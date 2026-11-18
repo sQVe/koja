@@ -48,7 +48,10 @@ const factValue = (fact: ContentFact, tokens: DirectionTokens): Element => {
     }
 
     if (fact.wrap === true) {
-      return styled(div().min_w(0), tokens.text.detail, ink).child(fact.value);
+      const container = div().min_w(0);
+      const wrapped = styled(container, tokens.text.detail, ink);
+
+      return wrapped.child(fact.value);
     }
 
     return label(fact.value, tokens.text.detail, ink);
@@ -78,16 +81,21 @@ const factPair = (fact: ContentFact, tokens: DirectionTokens): Element =>
     .child(fixedLabel(fact.name, tokens.text.detail, tokens.ink.dim))
     .child(factValue(fact, tokens));
 
-export const factRow = (name: string, value: Element, tokens: DirectionTokens): Element =>
-  h_flex()
+export const factRow = (name: string, value: Element, tokens: DirectionTokens): Element => {
+  const nameLabel = fixedLabel(name, tokens.text.detail, tokens.ink.dim)
+    .w(factLabelWidth)
+    .pt(spacing.xsmall);
+
+  const valueSlot = value.flex_1().py(spacing.xsmall);
+
+  return h_flex()
     .min_w(0)
     .min_h(rowHeight.small)
     .gap(spacing.medium)
     .items_start()
-    .child(
-      fixedLabel(name, tokens.text.detail, tokens.ink.dim).w(factLabelWidth).pt(spacing.xsmall),
-    )
-    .child(value.flex_1().py(spacing.xsmall));
+    .child(nameLabel)
+    .child(valueSlot);
+};
 
 export const factRows = (facts: ContentFact[], tokens: DirectionTokens): Element =>
   v_flex()

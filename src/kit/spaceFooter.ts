@@ -30,7 +30,10 @@ const joinedLinks = (links: Element[]): Element => {
 
   links.forEach((link, index) => {
     if (index > 0) {
-      joined.child(withTextRole(div().flex_none(), 'detail').child('·'));
+      const dotBox = div().flex_none();
+      const dot = withTextRole(dotBox, 'detail').child('·');
+
+      joined.child(dot);
     }
 
     joined.child(link);
@@ -47,15 +50,15 @@ const progressOf = (options: SpaceFooterOptions): Element[] => {
   return [stackProgress({ ...options.progress, label: 'merged' })];
 };
 
-export const spaceFooter = (options: SpaceFooterOptions): Element =>
-  v_flex()
+export const spaceFooter = (options: SpaceFooterOptions): Element => {
+  const separatorRow = div().mx(spacing.xsmall).child(separator());
+  const title = roleText('title', options.title).flex_1().tooltip(options.title);
+  const titleLine = footerLine(title, progressOf(options));
+
+  return v_flex()
     .flex_none()
     .min_w(0)
-    .child(div().mx(spacing.xsmall).child(separator()))
-    .child(
-      footerLine(
-        roleText('title', options.title).flex_1().tooltip(options.title),
-        progressOf(options),
-      ),
-    )
+    .child(separatorRow)
+    .child(titleLine)
     .child(footerLine(joinedLinks(options.links), [options.end]));
+};

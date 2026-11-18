@@ -114,14 +114,15 @@ export default class Palette extends View {
     const at = clampIndex(this.at, rows.length);
     const scroll = scrollToShow(places, at, this.scroll, max);
 
+    const body =
+      rows.length > 0 ? this.list(rows, places, scrolls, at, scroll) : this.nothingMatches();
+
     const palette = popupSurface('palette')
       .on_key_down((event, cx) => {
         this.onKey(event, rows, places, cx);
       })
       .child(searchField(this.input, 'command'))
-      .child(
-        rows.length > 0 ? this.list(rows, places, scrolls, at, scroll) : this.nothingMatches(),
-      );
+      .child(body);
 
     return this.handle === null ? palette : palette.track_focus(this.handle);
   }
@@ -148,7 +149,9 @@ export default class Palette extends View {
 
     const layoutName = stringOf(shared('layout')) ?? 'main';
 
-    askFirst(entry.name, entry.name === 'layout.clone' ? { name: layoutName } : entry.args);
+    const args = entry.name === 'layout.clone' ? { name: layoutName } : entry.args;
+
+    askFirst(entry.name, args);
   }
 
   private closePalette(): void {
@@ -237,10 +240,12 @@ export default class Palette extends View {
       end.push(keyHint(shortcut));
     }
 
+    const state = selected ? 'selected' : 'normal';
+
     return listRow({
       size: 'large',
       inset: true,
-      state: selected ? 'selected' : 'normal',
+      state,
       label: highlightedText(row.entry.title, row.positions, selected),
       end,
     })
@@ -294,9 +299,13 @@ export default class Palette extends View {
         this.onWheel(event, places, cx);
       });
 
-    return scrolls
-      ? list.h(listHeight).overflow_hidden().children(items)
-      : list.child(v_flex().children(items));
+    if (scrolls) {
+      return list.h(listHeight).overflow_hidden().children(items);
+    }
+
+    const column = v_flex().children(items);
+
+    return list.child(column);
   }
 
   private nothingMatches(): Element {

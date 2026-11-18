@@ -89,7 +89,9 @@ describe('allEntries', () => {
     commandList = [commandOf('tab.new')];
     themeList = [{ name: 'graphite', label: 'Theme: graphite' }];
 
-    expect(allEntries(host()).some((item) => item.name === 'app.theme')).toBe(false);
+    const hasThemeEntry = allEntries(host()).some((item) => item.name === 'app.theme');
+
+    expect(hasThemeEntry).toBe(false);
   });
 
   test('hides window commands on macOS', () => {
@@ -97,11 +99,15 @@ describe('allEntries', () => {
 
     platform = 'macos';
 
-    expect(allEntries(host()).some((item) => item.name === 'window.minimize')).toBe(false);
+    const hasMinimizeOnMacos = allEntries(host()).some((item) => item.name === 'window.minimize');
+
+    expect(hasMinimizeOnMacos).toBe(false);
 
     platform = 'linux';
 
-    expect(allEntries(host()).some((item) => item.name === 'window.minimize')).toBe(true);
+    const hasMinimizeOnLinux = allEntries(host()).some((item) => item.name === 'window.minimize');
+
+    expect(hasMinimizeOnLinux).toBe(true);
   });
 
   test('keeps non-window commands on macOS', () => {
@@ -228,7 +234,10 @@ describe('allEntries', () => {
     expect(item?.args).toEqual({ name: 'graphite' });
     expect(item?.id).toBe('app.theme:{"name":"graphite"}');
     expect(item?.group).toBe('App');
-    expect(paletteRows(item === undefined ? [] : [item], 'colors look', [])).toHaveLength(1);
+
+    const themeEntries = item === undefined ? [] : [item];
+
+    expect(paletteRows(themeEntries, 'colors look', [])).toHaveLength(1);
   });
 });
 
@@ -240,13 +249,17 @@ describe('paletteRows', () => {
       entry('c', 'c', 'Weird', 'C'),
     ];
 
-    expect(paletteRows(all, '', ['b']).map((row) => row.head)).toEqual(['Recent', 'Tab', 'Weird']);
+    const headings = paletteRows(all, '', ['b']).map((row) => row.head);
+
+    expect(headings).toEqual(['Recent', 'Tab', 'Weird']);
   });
 
   test('keeps only entries the query matches', () => {
     const all = [entry('a', 'a', 'Tab', 'New tab'), entry('b', 'b', 'Pane', 'Zoom pane')];
 
-    expect(paletteRows(all, 'new', []).map((row) => row.entry.id)).toEqual(['a']);
+    const matchedIds = paletteRows(all, 'new', []).map((row) => row.entry.id);
+
+    expect(matchedIds).toEqual(['a']);
   });
 
   test('ranks the command whose words match a spaced query first', () => {
@@ -297,13 +310,17 @@ describe('paletteRows', () => {
   test('ranks a recent entry first when scores tie', () => {
     const all = [entry('a', 'a', 'Tab', 'Alpha'), entry('b', 'b', 'Tab', 'Alpha')];
 
-    expect(paletteRows(all, 'alp', ['b']).map((row) => row.entry.id)).toEqual(['b', 'a']);
+    const rankedIds = paletteRows(all, 'alp', ['b']).map((row) => row.entry.id);
+
+    expect(rankedIds).toEqual(['b', 'a']);
   });
 
   test('keeps the ranked order when the input already has it', () => {
     const all = [entry('b', 'b', 'Tab', 'Alpha'), entry('a', 'a', 'Tab', 'Alpha')];
 
-    expect(paletteRows(all, 'alp', ['b']).map((row) => row.entry.id)).toEqual(['b', 'a']);
+    const rankedIds = paletteRows(all, 'alp', ['b']).map((row) => row.entry.id);
+
+    expect(rankedIds).toEqual(['b', 'a']);
   });
 
   test('matches an entry through its extra words and reports no highlight positions', () => {
@@ -324,16 +341,17 @@ describe('paletteRows', () => {
     const wordsOnly = { ...entry('b', 'b', 'Tab', 'Alpha'), words: 'new' };
     const titleOnly = entry('a', 'a', 'Tab', 'New tab');
 
-    expect(paletteRows([wordsOnly, titleOnly], 'new', []).map((row) => row.entry.id)).toEqual([
-      'a',
-      'b',
-    ]);
+    const matchedIds = paletteRows([wordsOnly, titleOnly], 'new', []).map((row) => row.entry.id);
+
+    expect(matchedIds).toEqual(['a', 'b']);
   });
 
   test('ignores a recent id that is no longer in the list', () => {
     const all = [entry('a', 'a', 'Tab', 'A')];
 
-    expect(paletteRows(all, '', ['gone']).map((row) => row.head)).toEqual(['Tab']);
+    const headings = paletteRows(all, '', ['gone']).map((row) => row.head);
+
+    expect(headings).toEqual(['Tab']);
   });
 
   test('shows at most five recent entries', () => {
@@ -350,19 +368,25 @@ describe('paletteRows', () => {
   test('drops an entry that claims the Recent group but is not recent', () => {
     const all = [entry('a', 'a', 'Recent', 'A')];
 
-    expect(paletteRows(all, '', []).map((row) => row.entry.id)).toEqual([]);
+    const listedIds = paletteRows(all, '', []).map((row) => row.entry.id);
+
+    expect(listedIds).toEqual([]);
   });
 
   test('ignores the case and spacing a query uses', () => {
     const all = [entry('a', 'a', 'Tab', 'New tab')];
 
-    expect(paletteRows(all, '  NEW   TAB ', []).map((row) => row.entry.id)).toEqual(['a']);
+    const matchedIds = paletteRows(all, '  NEW   TAB ', []).map((row) => row.entry.id);
+
+    expect(matchedIds).toEqual(['a']);
   });
 
   test('reports no highlight positions for a listing without a query', () => {
     const all = [entry('a', 'a', 'Tab', 'A'), entry('b', 'b', 'Pane', 'B')];
 
-    expect(paletteRows(all, '', ['a']).map((row) => row.positions)).toEqual([[], []]);
+    const positions = paletteRows(all, '', ['a']).map((row) => row.positions);
+
+    expect(positions).toEqual([[], []]);
   });
 });
 

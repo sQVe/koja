@@ -30,8 +30,11 @@ export const styled = (element: Element, style: TextStyle, color: Color): Elemen
   return style.semibold ? sized.font_semibold() : sized.font_normal();
 };
 
-export const label = (text: string, style: TextStyle, color: Color): Element =>
-  styled(div().min_w(0).truncate(), style, color).child(text);
+export const label = (text: string, style: TextStyle, color: Color): Element => {
+  const container = div().min_w(0).truncate();
+
+  return styled(container, style, color).child(text);
+};
 
 export const fixedLabel = (text: string, style: TextStyle, color: Color): Element =>
   label(text, style, color).flex_none();
@@ -116,7 +119,9 @@ export const modePill = (tokens: DirectionTokens): Element => {
     pill.border(1).border_color(look.border);
   }
 
-  return styled(pill, tokens.text.detail, look.text).child(tokens.normal ? 'Normal' : 'Insert');
+  const modeName = tokens.normal ? 'Normal' : 'Insert';
+
+  return styled(pill, tokens.text.detail, look.text).child(modeName);
 };
 
 export const paneHeaderFrame = (tokens: DirectionTokens): Element => {
@@ -135,6 +140,7 @@ export const paneHeaderFrame = (tokens: DirectionTokens): Element => {
 
 export const card = (focused: boolean, tokens: DirectionTokens): Element => {
   const { pane } = tokens;
+  const borderColor = focused ? pane.focusedBorder : pane.border;
 
   return v_flex()
     .flex_1()
@@ -144,7 +150,7 @@ export const card = (focused: boolean, tokens: DirectionTokens): Element => {
     .bg(pane.fill)
     .overflow_hidden()
     .border(1)
-    .border_color(focused ? pane.focusedBorder : pane.border);
+    .border_color(borderColor);
 };
 
 export const cardSlot = (inner: Element, tokens: DirectionTokens): Element =>
@@ -173,7 +179,7 @@ export const row = (options: RowOptions, tokens: DirectionTokens): Element => {
     element.child(options.start);
   }
 
-  return element
-    .child(h_flex().flex_1().min_w(0).items_center().child(options.label))
-    .children(options.end);
+  const labelSlot = h_flex().flex_1().min_w(0).items_center().child(options.label);
+
+  return element.child(labelSlot).children(options.end);
 };

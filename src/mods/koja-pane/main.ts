@@ -108,18 +108,19 @@ export default class PaneHeader extends View {
     const program = paneProgram(pane);
 
     if (program !== null && program.icon !== null) {
-      element.child(programIcon(program, 'default').text_color(palette[tone.icon]));
+      const programMark = programIcon(program, 'default').text_color(palette[tone.icon]);
+
+      element.child(programMark);
     }
 
-    element.child(
-      withTextRole(
-        div().flex_initial().min_w(0).max_w(controlSize.paneLabelMaxWidth).truncate(),
-        'detail',
-        tone.title,
-      ).child(paneName(pane)),
-    );
+    const titleBox = div().flex_initial().min_w(0).max_w(controlSize.paneLabelMaxWidth).truncate();
+    const title = withTextRole(titleBox, 'detail', tone.title).child(paneName(pane));
 
-    element.child(roleText('detail', folderLabel(paneFolder(pane), home())).flex_1());
+    element.child(title);
+
+    const folder = roleText('detail', folderLabel(paneFolder(pane), home())).flex_1();
+
+    element.child(folder);
 
     const status = statusElement(pane.status);
 

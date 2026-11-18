@@ -31,5 +31,8 @@ export const withTextRole = (element: Element, role: TextRole, color?: ThemeToke
   return style.weight === 'semibold' ? sized.font_semibold() : sized.font_normal();
 };
 
-export const roleText = (role: TextRole, text: string, color?: ThemeToken): Element =>
-  withTextRole(div().min_w(0).truncate(), role, color).child(text);
+export const roleText = (role: TextRole, text: string, color?: ThemeToken): Element => {
+  const box = div().min_w(0).truncate();
+
+  return withTextRole(box, role, color).child(text);
+};

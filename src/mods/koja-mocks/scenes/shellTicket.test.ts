@@ -85,11 +85,17 @@ await mock.module('../../../kit/index.ts', () =>
     iconButton: () => drawn('button'),
     iconToggle: () => drawn('toggle'),
     modePill: (options: { label: string }) => textNode(options.label, 'mode'),
-    paneHeader: (options: { name: string; focused: boolean }) =>
-      textNode(options.name, options.focused ? 'focused-pane' : 'unfocused-pane'),
+    paneHeader: (options: { name: string; focused: boolean }) => {
+      const role = options.focused ? 'focused-pane' : 'unfocused-pane';
+
+      return textNode(options.name, role);
+    },
     roleText: (role: string, text: string) => textNode(text, role),
-    tab: (options: { label: string; active: boolean }) =>
-      textNode(options.label, options.active ? 'active-tab' : 'tab'),
+    tab: (options: { label: string; active: boolean }) => {
+      const role = options.active ? 'active-tab' : 'tab';
+
+      return textNode(options.label, role);
+    },
   }),
 );
 
@@ -200,10 +206,15 @@ test('shell-ticket holds an unfocused agent beside the focused container pane in
   expect(drawnTexts(agent)).toEqual([agentPane.name, ...agentPane.lines]);
   expect(drawnTexts(ticket)).toEqual(drawnTexts(ticketPane('container', koja)));
 
-  expect(
-    descendants(ticket).some((node) => node.borderColors.includes(koja.pane.focusedBorder)),
-  ).toBe(true);
+  const ticketFocused = descendants(ticket).some((node) =>
+    node.borderColors.includes(koja.pane.focusedBorder),
+  );
 
-  expect(activeTabs.map((node) => node.texts)).toEqual([[ticketView('container').item.tab]]);
-  expect(required(nodes, (node) => node.path === 'mode').texts).toEqual(['Insert']);
+  const activeTabTexts = activeTabs.map((node) => node.texts);
+  const modeNode = required(nodes, (node) => node.path === 'mode');
+
+  expect(ticketFocused).toBe(true);
+
+  expect(activeTabTexts).toEqual([[ticketView('container').item.tab]]);
+  expect(modeNode.texts).toEqual(['Insert']);
 });

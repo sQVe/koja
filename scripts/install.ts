@@ -461,14 +461,17 @@ const checkMods = async (
   home: string,
   planned: Map<string, string>,
   check: InstallOptions['check'],
-): Promise<InstallResult['checks']> =>
-  Promise.all(
-    installedMods(planned.keys()).map(async (mod) => {
-      const result = await check(join(home, 'mods', mod));
+): Promise<InstallResult['checks']> => {
+  const mods = installedMods(planned.keys());
 
-      return { mod, passed: result.passed, output: result.output };
-    }),
-  );
+  const checkMod = async (mod: string): Promise<InstallResult['checks'][number]> => {
+    const result = await check(join(home, 'mods', mod));
+
+    return { mod, passed: result.passed, output: result.output };
+  };
+
+  return Promise.all(mods.map(checkMod));
+};
 
 export const install = async (options: InstallOptions): Promise<InstallResult> => {
   const home = resolve(options.home);

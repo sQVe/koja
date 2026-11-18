@@ -23,7 +23,9 @@ const chevron = (entry: FakeTreeEntry, tokens: DirectionTokens): Element => {
 
   const name = entry.open ? 'chevron-down' : 'chevron-right';
 
-  return slot.child(icon(name, 'xsmall').text_color(tokens.ink.dim));
+  const mark = icon(name, 'xsmall').text_color(tokens.ink.dim);
+
+  return slot.child(mark);
 };
 
 const entryIcon = (entry: FakeTreeEntry, tokens: DirectionTokens): Element => {
@@ -48,22 +50,25 @@ const entryEnd = (entry: FakeTreeEntry, tokens: DirectionTokens): Element[] => {
   return entry.changed ? [slot.child(dot(changedDotSize, tokens.marks.modified))] : [];
 };
 
-const treeRow = (entry: FakeTreeEntry, tokens: DirectionTokens): Element =>
-  row(
+const treeRow = (entry: FakeTreeEntry, tokens: DirectionTokens): Element => {
+  const start = h_flex()
+    .flex_none()
+    .pl(entry.depth * levelIndent)
+    .gap(iconGap)
+    .items_center()
+    .child(chevron(entry, tokens))
+    .child(entryIcon(entry, tokens));
+
+  return row(
     {
       selected: false,
-      start: h_flex()
-        .flex_none()
-        .pl(entry.depth * levelIndent)
-        .gap(iconGap)
-        .items_center()
-        .child(chevron(entry, tokens))
-        .child(entryIcon(entry, tokens)),
+      start,
       label: label(entry.name, tokens.text.body, tokens.ink.text),
       end: entryEnd(entry, tokens),
     },
     tokens,
   );
+};
 
 const fileListOf = (entries: FakeTreeEntry[], tokens: DirectionTokens): Element =>
   v_flex()

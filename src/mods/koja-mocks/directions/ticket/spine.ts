@@ -34,19 +34,15 @@ const markWidth = 12;
 const spineLeft = 20;
 const nextMarkSize = 8;
 
-const nextMark = (tokens: DirectionTokens): Element =>
-  h_flex()
-    .w(markWidth)
-    .flex_none()
-    .items_center()
-    .justify_center()
-    .child(
-      div()
-        .size(nextMarkSize)
-        .rounded(nextMarkSize / 2)
-        .border(2)
-        .border_color(tokens.marks.idle),
-    );
+const nextMark = (tokens: DirectionTokens): Element => {
+  const ring = div()
+    .size(nextMarkSize)
+    .rounded(nextMarkSize / 2)
+    .border(2)
+    .border_color(tokens.marks.idle);
+
+  return h_flex().w(markWidth).flex_none().items_center().justify_center().child(ring);
+};
 
 const trackColor = (slice: Slice, tokens: DirectionTokens) => {
   if (slice.readiness === 'merged') {
@@ -90,13 +86,13 @@ const trackCounts = (slices: Slice[], tokens: DirectionTokens): Element => {
       counts.child(fixedLabel('·', tokens.text.detail, tokens.ink.dim));
     }
 
-    counts.child(
-      h_flex()
-        .gap(spacing.xsmall)
-        .items_center()
-        .child(group.mark)
-        .child(fixedLabel(`${group.count} ${group.name}`, tokens.text.detail, tokens.ink.dim)),
-    );
+    const countGroup = h_flex()
+      .gap(spacing.xsmall)
+      .items_center()
+      .child(group.mark)
+      .child(fixedLabel(`${group.count} ${group.name}`, tokens.text.detail, tokens.ink.dim));
+
+    counts.child(countGroup);
   }
 
   return counts;
@@ -106,6 +102,11 @@ export const progressTrack = (slices: Slice[], tokens: DirectionTokens): Element
   // The working mark reaches one pixel above the count text.
   const topInset = slices.some(isActiveSlice) ? spacing.medium : spacing.medium + spacing.hairline;
 
+  const segments = h_flex()
+    .h(trackHeight)
+    .gap(trackHeight)
+    .children(slices.map((slice) => div().flex_1().h_full().bg(trackColor(slice, tokens))));
+
   return v_flex()
     .flex_none()
     .ml(readingInset)
@@ -113,12 +114,7 @@ export const progressTrack = (slices: Slice[], tokens: DirectionTokens): Element
     .pt(topInset)
     .pb(spacing.xsmall)
     .gap(spacing.small)
-    .child(
-      h_flex()
-        .h(trackHeight)
-        .gap(trackHeight)
-        .children(slices.map((slice) => div().flex_1().h_full().bg(trackColor(slice, tokens)))),
-    )
+    .child(segments)
     .child(trackCounts(slices, tokens));
 };
 
@@ -137,21 +133,43 @@ const sliceRow = (slice: Slice, look: SliceLook, tokens: DirectionTokens): Eleme
   if (look.disclosure !== 'none') {
     const name = look.disclosure === 'open' ? 'chevron-down' : 'chevron-right';
 
-    chevron.child(icon(name, 'xsmall').text_color(tokens.ink.dim));
+    const chevronIcon = icon(name, 'xsmall').text_color(tokens.ink.dim);
+
+    chevron.child(chevronIcon);
   }
 
-  const title = h_flex()
-    .flex_1()
-    .min_w(0)
-    .gap(spacing.xxsmall)
-    .items_center()
-    .child(label(slice.title, tokens.text.body, tokens.ink.text).tooltip(slice.title));
+  const titleLabel = label(slice.title, tokens.text.body, tokens.ink.text).tooltip(slice.title);
+  const title = h_flex().flex_1().min_w(0).gap(spacing.xxsmall).items_center().child(titleLabel);
 
   if (look.reason !== null) {
-    title
-      .child(fixedLabel('·', tokens.text.detail, tokens.ink.dim))
-      .child(fixedLabel(look.reason, tokens.text.detail, tokens.ink.dim).tooltip(look.reason));
+    const reasonLabel = fixedLabel(look.reason, tokens.text.detail, tokens.ink.dim).tooltip(
+      look.reason,
+    );
+
+    title.child(fixedLabel('·', tokens.text.detail, tokens.ink.dim)).child(reasonLabel);
   }
+
+  const identifier = identifierCell(
+    slice.identifier,
+    { source: look.source, width: look.identifierWidth, kind: look.kind },
+    tokens,
+  );
+
+  const identifiedTitle = h_flex()
+    .flex_1()
+    .min_w(0)
+    .gap(spacing.small)
+    .items_center()
+    .child(identifier)
+    .child(title);
+
+  const rowLabel = h_flex()
+    .flex_1()
+    .min_w(0)
+    .gap(spacing.xsmall)
+    .items_center()
+    .child(chevron)
+    .child(identifiedTitle);
 
   return v_flex()
     .flex_none()
@@ -161,31 +179,7 @@ const sliceRow = (slice: Slice, look: SliceLook, tokens: DirectionTokens): Eleme
         {
           selected: look.kind === 'current',
           start: statusMark(null, tokens),
-          label: h_flex()
-            .flex_1()
-            .min_w(0)
-            .gap(spacing.xsmall)
-            .items_center()
-            .child(chevron)
-            .child(
-              h_flex()
-                .flex_1()
-                .min_w(0)
-                .gap(spacing.small)
-                .items_center()
-                .child(
-                  identifierCell(
-                    slice.identifier,
-                    {
-                      source: look.source,
-                      width: look.identifierWidth,
-                      kind: look.kind,
-                    },
-                    tokens,
-                  ),
-                )
-                .child(title),
-            ),
+          label: rowLabel,
           end: [statusWord(word, tokens)],
         },
         tokens,
@@ -221,22 +215,22 @@ export const spine = (nodes: SpineNode[], tokens: DirectionTokens): Element =>
       nodes.map((node, index) => {
         const fill = node.selected ? tokens.rows.selectedFill : tokens.pane.fill;
 
+        const markSlot = h_flex()
+          .absolute()
+          .left(markLeft)
+          .top(markTop)
+          .size(markWidth)
+          .items_center()
+          .justify_center()
+          .bg(fill)
+          .child(node.mark);
+
         return v_flex()
           .relative()
           .flex_none()
           .min_w(0)
           .child(node.content)
           .child(spineLine(index, nodes.length, tokens))
-          .child(
-            h_flex()
-              .absolute()
-              .left(markLeft)
-              .top(markTop)
-              .size(markWidth)
-              .items_center()
-              .justify_center()
-              .bg(fill)
-              .child(node.mark),
-          );
+          .child(markSlot);
       }),
     );

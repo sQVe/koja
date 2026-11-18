@@ -26,8 +26,17 @@ const railWidth = 260;
 const bodyInset = 16;
 const stateRowHeight = 20;
 
-const factsRail = (view: DraftView, tokens: DirectionTokens): Element =>
-  scrollBody('draft-facts')
+const factsRail = (view: DraftView, tokens: DirectionTokens): Element => {
+  const filesHeader = contentSectionHeader(
+    { name: 'Files', count: view.files.length },
+    true,
+    [],
+    tokens,
+  ).mx(0);
+
+  const files = v_flex().flex_none().child(filesHeader).child(fileNavigation(view, tokens));
+
+  return scrollBody('draft-facts')
     .w(railWidth)
     .flex_none()
     .p(bodyInset)
@@ -36,14 +45,8 @@ const factsRail = (view: DraftView, tokens: DirectionTokens): Element =>
     .border_color(tokens.pane.headerDivider)
     .child(draftActions(view.state, tokens))
     .child(factRows(view.item.facts, tokens))
-    .child(
-      v_flex()
-        .flex_none()
-        .child(
-          contentSectionHeader({ name: 'Files', count: view.files.length }, true, [], tokens).mx(0),
-        )
-        .child(fileNavigation(view, tokens)),
-    );
+    .child(files);
+};
 
 const reviewHeading = (view: DraftView, tokens: DirectionTokens): Element => {
   const heading = itemHeading(view.item, [], 'badge', {
@@ -60,40 +63,35 @@ const reviewHeading = (view: DraftView, tokens: DirectionTokens): Element => {
       ? 'Done editing returns body.md to line comments'
       : 'Click a line to comment or edit · Drag line numbers to comment on a range';
 
-  return heading.child(
-    h_flex()
-      .absolute()
-      .right(readingInset)
-      .bottom(spacing.medium)
-      .h(stateRowHeight)
-      .items_center()
-      .child(fixedLabel(hint, tokens.text.detail, tokens.ink.dim)),
-  );
+  const hintRow = h_flex()
+    .absolute()
+    .right(readingInset)
+    .bottom(spacing.medium)
+    .h(stateRowHeight)
+    .items_center()
+    .child(fixedLabel(hint, tokens.text.detail, tokens.ink.dim));
+
+  return heading.child(hintRow);
 };
 
-const reviewBody = (view: DraftView, tokens: DirectionTokens): Element =>
-  h_flex()
+const reviewBody = (view: DraftView, tokens: DirectionTokens): Element => {
+  const document = v_flex()
     .flex_1()
+    .min_w(0)
     .min_h(0)
-    .items_stretch()
-    .child(
-      v_flex()
-        .flex_1()
-        .min_w(0)
-        .min_h(0)
-        .child(reviewHeading(view, tokens))
-        .child(pinnedDocument(view, tokens)),
-    )
-    .child(factsRail(view, tokens));
+    .child(reviewHeading(view, tokens))
+    .child(pinnedDocument(view, tokens));
+
+  return h_flex().flex_1().min_h(0).items_stretch().child(document).child(factsRail(view, tokens));
+};
 
 export const draftReviewPane = (state: DraftState, tokens: DirectionTokens): Element => {
   const view = draftView(state);
   const body = view.state === 'broken' ? brokenBody(view, tokens) : reviewBody(view, tokens);
 
-  return cardSlot(
-    card(true, tokens).child(contentHeader(view.item, tokens)).child(body),
-    tokens,
-  ).flex_1();
+  const pane = card(true, tokens).child(contentHeader(view.item, tokens)).child(body);
+
+  return cardSlot(pane, tokens).flex_1();
 };
 
 export const draftReviewScene = (state: DraftState): Element => {

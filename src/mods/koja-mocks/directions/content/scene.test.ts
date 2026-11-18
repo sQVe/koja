@@ -346,7 +346,9 @@ describe('Rail content scenes', () => {
 
       expect(drawnIcons(fact)).toContain('circle-x');
       expect(drawnIcons(checks)).toContain('circle-x');
-      expect(drawnIcons(checks).filter((name) => name === 'loader-circle')).toHaveLength(2);
+      const loaders = drawnIcons(checks).filter((name) => name === 'loader-circle');
+
+      expect(loaders).toHaveLength(2);
 
       expect(spinning(checks)).toBe(false);
     },
@@ -571,7 +573,9 @@ describe('Rail content scenes', () => {
       )!;
 
       expect(drawnIcons(chip)).toEqual(['message-circle-question']);
-      expect(descendants(chip).flatMap((part) => part.textColors)).toContain(koja.marks.blocked);
+      const chipTextColors = descendants(chip).flatMap((part) => part.textColors);
+
+      expect(chipTextColors).toContain(koja.marks.blocked);
     },
   );
 
@@ -595,15 +599,16 @@ describe('Rail content scenes', () => {
       expect(texts.filter((text) => text === 'Slices')).toHaveLength(1);
       expect(texts).not.toContain('1 done · 1 in progress · 1 backlog');
 
-      expect(drawnTexts(related).indexOf('· open')).toBeGreaterThan(
-        drawnTexts(related).indexOf('koja #52 · GitHub'),
-      );
+      const openIndex = drawnTexts(related).indexOf('· open');
+      const linkIndex = drawnTexts(related).indexOf('koja #52 · GitHub');
+
+      expect(openIndex).toBeGreaterThan(linkIndex);
 
       expect(elementWithText(related, '· open')?.textColors).toEqual([koja.ink.dim]);
 
-      expect(descendants(related).flatMap((part) => part.backgroundColors)).not.toContain(
-        koja.marks.idle,
-      );
+      const relatedBackgrounds = descendants(related).flatMap((part) => part.backgroundColors);
+
+      expect(relatedBackgrounds).not.toContain(koja.marks.idle);
     },
   );
 
@@ -723,8 +728,8 @@ describe('Rail content scenes', () => {
     expect(drawnTexts(scene)).not.toContain('Insert');
     expect(pane.borderColors).toContain(kojaNormal.pane.focusedBorder);
 
-    expect(descendants(pane).flatMap((part) => part.backgroundColors)).toContain(
-      kojaNormal.pane.focusedHeaderFill,
-    );
+    const paneBackgrounds = descendants(pane).flatMap((part) => part.backgroundColors);
+
+    expect(paneBackgrounds).toContain(kojaNormal.pane.focusedHeaderFill);
   });
 });

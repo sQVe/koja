@@ -5,9 +5,12 @@ Set up a checkout and check changes before release.
 ## Local setup
 
 Use the Bun version specified by `packageManager` in [package.json](../package.json). Bun is the
-runtime, package manager, test runner, and bundler. Run these commands from the Koja checkout:
+runtime, package manager, test runner, and bundler. Install [mise](https://mise.jdx.dev), which
+installs the pinned stomme release. Run these commands from the Koja checkout:
 
 ```sh
+mise trust
+mise install
 bun install --frozen-lockfile
 bun run check
 ```
@@ -89,21 +92,26 @@ window or core.
 
 ## Check changes
 
-| Command                                | Use                                                                       |
-| -------------------------------------- | ------------------------------------------------------------------------- |
-| `bun run check`                        | Run typechecking, house style, formatting, Knip, and the full test suite. |
-| `bun run test`                         | Run the full test suite.                                                  |
-| `bun run test:changed`                 | Run tests affected by uncommitted changes.                                |
-| `bun run style:check`                  | Check all lint rules, including house style, with `seam`.                 |
-| `bun run style:fix`                    | Apply safe house-style fixes with `seam --fix`.                           |
-| `bun run lint`                         | Run ordinary lint diagnostics, as editors do.                             |
-| `bun run format`                       | Format files.                                                             |
-| `bun run knip`                         | Find unused files, exports, and dependencies.                             |
-| `bun run mutation changed origin/main` | List the mutants in changed lines that no test kills.                     |
+| Command                                | Use                                                                                     |
+| -------------------------------------- | --------------------------------------------------------------------------------------- |
+| `bun run check`                        | Run typechecking, house style, stomme check, formatting, Knip, and the full test suite. |
+| `bun run test`                         | Run the full test suite.                                                                |
+| `bun run test:changed`                 | Run tests affected by uncommitted changes.                                              |
+| `bun run style:check`                  | Check all lint rules, including house style, with `stomme-ts-style`.                    |
+| `bun run stomme:check`                 | Check the shared stomme rules.                                                          |
+| `bun run style:fix`                    | Apply safe house-style fixes with `stomme-ts-style --fix`.                              |
+| `bun run lint`                         | Run ordinary lint diagnostics, as editors do.                                           |
+| `bun run format`                       | Format files.                                                                           |
+| `bun run knip`                         | Find unused files, exports, and dependencies.                                           |
+| `bun run mutation changed origin/main` | List the mutants in changed lines that no test kills.                                   |
 
-House style comes from the [`@sqve/seam`](https://www.npmjs.com/package/@sqve/seam) package. Its
-`seam` command turns on the house rules for its own lint run, so editors and `bun run lint` show the
-ordinary rules only.
+After a change to the stomme pin or layers in `stomme.toml` or `mise.toml`, run
+`mise exec -- stomme sync` and commit what it writes.
+
+House style comes from the
+[`@sqve/stomme-ts-style`](https://www.npmjs.com/package/@sqve/stomme-ts-style) package. Its
+`stomme-ts-style` command turns on the house rules for its own lint run, so editors and
+`bun run lint` show the ordinary rules only.
 
 Configure linting, formatting, and staged checks in [vite.config.ts](../vite.config.ts). Run
 installed command-line tools with `bunx --bun`, as the scripts do. The tools start with a Node
