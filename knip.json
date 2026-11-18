@@ -3,5 +3,6 @@
   "entry": ["src/mods/*/main.ts"],
   "ignore": ["herdr/*.d.ts"],
   "ignoreDependencies": ["gpui-base", "gpui-kit"],
+  "ignoreBinaries": ["mise"],
   "stryker": false
 }

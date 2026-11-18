@@ -55,3 +55,18 @@ setup and verification.
   `cargo install --git https://github.com/sQVe/ruta --tag v0.2.1 --locked ruta`. Never use
   `ydotool`, and never run `herdr-app do`, `hc`, or synthetic input against the user's real window
   or core. See [Sandbox](docs/development.md#sandbox).
+<!-- stomme:start -->
+# Shared rules
+
+- Run the full check before finishing changes: `bun run --bun check`.
+- Format with the `format` script in `package.json`.
+- Follow the decisions in [docs/adr](docs/adr/README.md).
+- Follow the shared ADRs in [docs/stomme/shared/adr](docs/stomme/shared/adr/README.md).
+- Record new decisions in [docs/adr](docs/adr/README.md).
+- Edit an ADR in place when its details change.
+- Comment only what the code cannot say. Never describe history.
+- Document decisions, not features. See [ADR 0001](docs/stomme/shared/adr/0001-documentation-scope.md).
+- Read [the general guide](docs/stomme/shared/coding.md).
+- Read [the TypeScript guide](docs/stomme/languages/typescript/guide.md).
+- Read [the herdr guide](docs/stomme/layers/herdr/guide.md).
+<!-- stomme:end -->
