@@ -62,21 +62,26 @@ const spaceEnd = (space: FakeSpace): Element[] => {
     end.push(stackProgress({ ...space.stack, label: 'count' }));
   }
 
-  end.push(space.need === undefined ? emptyWorkSlot() : workIcon(space.need));
+  const needSlot = space.need === undefined ? emptyWorkSlot() : workIcon(space.need);
+
+  end.push(needSlot);
 
   return end;
 };
 
-const spaceRow = (space: FakeSpace): Element =>
-  listRow({
+const spaceRow = (space: FakeSpace): Element => {
+  const state = space.look === 'selected' ? 'selected' : 'normal';
+
+  return listRow({
     size: 'small',
     inset: true,
-    state: space.look === 'selected' ? 'selected' : 'normal',
+    state,
     hovered: space.look === 'hovered',
     start: spaceMark(space.agent),
     label: space.title,
     end: spaceEnd(space),
   });
+};
 
 const projectGroup = (project: FakeProject): Element =>
   v_flex()
@@ -114,23 +119,26 @@ const selectedFooter = (selected: FakeSpace): Element =>
     end: linkText('Stack ›'),
   });
 
-const sidebar = (): Element =>
-  v_flex()
+const sidebar = (): Element => {
+  const groups = v_flex()
+    .flex_1()
+    .min_h(0)
+    .pt(sidebarSize.groupGap)
+    .gap(sidebarSize.groupGap)
+    .children(fakeProjects.map((project) => projectGroup(project)));
+
+  const footers = spacesWithLook('selected').map((space) => selectedFooter(space));
+
+  return v_flex()
     .w(sidebarSize.width)
     .h_full()
     .flex_none()
     .pt(spacing.small)
     .pb(spacing.xsmall)
     .child(switchLine())
-    .child(
-      v_flex()
-        .flex_1()
-        .min_h(0)
-        .pt(sidebarSize.groupGap)
-        .gap(sidebarSize.groupGap)
-        .children(fakeProjects.map((project) => projectGroup(project))),
-    )
-    .children(spacesWithLook('selected').map((space) => selectedFooter(space)));
+    .child(groups)
+    .children(footers);
+};
 
 const cardLine = (start: Element, end: string): Element =>
   h_flex()
@@ -152,15 +160,20 @@ const layerEnd = (layer: FakeLayer): Element => {
   return layer.state === 'draft' ? roleText('detail', 'draft') : emptyWorkSlot();
 };
 
-const layerLabel = (layer: FakeLayer): Element =>
-  h_flex()
+const layerLabel = (layer: FakeLayer): Element => {
+  const pull = roleText('detail', pullLabel(layer.pull), 'muted').w(hoverCardSize.pullColumn);
+  const ticket = roleText('detail', layer.ticket).w(hoverCardSize.ticketColumn);
+  const title = div().flex_1().min_w(0).truncate().child(layer.title);
+
+  return h_flex()
     .flex_1()
     .min_w(0)
     .gap(spacing.small)
     .items_center()
-    .child(roleText('detail', pullLabel(layer.pull), 'muted').w(hoverCardSize.pullColumn))
-    .child(roleText('detail', layer.ticket).w(hoverCardSize.ticketColumn))
-    .child(div().flex_1().min_w(0).truncate().child(layer.title));
+    .child(pull)
+    .child(ticket)
+    .child(title);
+};
 
 const layerRow = (layer: FakeLayer): Element =>
   listRow({
@@ -173,15 +186,19 @@ const layerRow = (layer: FakeLayer): Element =>
     end: [layerEnd(layer)],
   });
 
-const mergedRow = (merged: FakeLayer[]): Element =>
-  listRow({
+const mergedRow = (merged: FakeLayer[]): Element => {
+  const checkIcon = icon('check', 'small').text_color(colors().dim);
+  const pulls = merged.map((layer) => pullLabel(layer.pull)).join(' · ');
+
+  return listRow({
     size: 'small',
     inset: false,
     state: 'normal',
-    start: icon('check', 'small').text_color(colors().dim),
-    label: roleText('detail', merged.map((layer) => pullLabel(layer.pull)).join(' · '), 'muted'),
+    start: checkIcon,
+    label: roleText('detail', pulls, 'muted'),
     end: [roleText('detail', `${merged.length} merged`)],
   });
+};
 
 const stackCard = (hovered: FakeSpace): Element => {
   const merged = stackLayers.filter((layer) => layer.state === 'merged');
@@ -202,11 +219,8 @@ const stackCard = (hovered: FakeSpace): Element => {
     );
 };
 
-export const sidebarPartsScene = (): Element =>
-  div()
-    .relative()
-    .flex_1()
-    .min_h(0)
-    .bg(colors().chrome)
-    .child(sidebar())
-    .children(spacesWithLook('hovered').map((space) => stackCard(space)));
+export const sidebarPartsScene = (): Element => {
+  const cards = spacesWithLook('hovered').map((space) => stackCard(space));
+
+  return div().relative().flex_1().min_h(0).bg(colors().chrome).child(sidebar()).children(cards);
+};

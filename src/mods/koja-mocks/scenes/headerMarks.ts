@@ -48,8 +48,10 @@ const spaceEnd = (space: MarkSpace): Element[] => {
     end.push(stackProgress({ ...space.stack, label: 'count' }));
   }
 
+  const needSlot = space.need === undefined ? emptyWorkSlot() : workIcon(space.need);
+
   end.push(...ageParts(space.age));
-  end.push(space.need === undefined ? emptyWorkSlot() : workIcon(space.need));
+  end.push(needSlot);
 
   return end;
 };
@@ -57,16 +59,19 @@ const spaceEnd = (space: MarkSpace): Element[] => {
 const marksNearName = (variant: HeaderMarkVariant): boolean =>
   variant === 'leftActive' || variant === 'afterName';
 
-const spaceRow = (space: MarkSpace, nested: boolean): Element =>
-  listRow({
+const spaceRow = (space: MarkSpace, nested: boolean): Element => {
+  const depth = nested ? 1 : 0;
+
+  return listRow({
     size: 'small',
     inset: true,
     state: 'normal',
-    depth: nested ? 1 : 0,
+    depth,
     start: spaceMark(space.agent),
     label: space.title,
     end: spaceEnd(space),
   });
+};
 
 const mainAgent = (project: MarkProject): Status | null => project.main?.agent ?? null;
 
@@ -76,25 +81,36 @@ const activeMark = (project: MarkProject): Element[] => {
   return project.main !== null && needsAttention(agent) ? [spaceMark(agent)] : [];
 };
 
-const machineParts = (project: MarkProject): Element[] =>
-  project.machine === undefined
-    ? []
-    : [icon('server', 'small').text_color(colors().dim), roleText('detail', project.machine)];
+const machineParts = (project: MarkProject): Element[] => {
+  if (project.machine === undefined) {
+    return [];
+  }
+
+  const serverIcon = icon('server', 'small').text_color(colors().dim);
+
+  return [serverIcon, roleText('detail', project.machine)];
+};
 
 const nameTone = (project: MarkProject, variant: HeaderMarkVariant): 'foreground' | 'muted' =>
   marksNearName(variant) && project.main === null ? 'muted' : 'foreground';
 
-const nameLabel = (project: MarkProject, variant: HeaderMarkVariant): Element =>
-  h_flex()
+const nameLabel = (project: MarkProject, variant: HeaderMarkVariant): Element => {
+  const nearMarks = variant === 'afterName' ? activeMark(project) : [];
+
+  return h_flex()
     .min_w(0)
     .gap(spacing.small)
     .items_center()
     .child(roleText('sectionHeading', project.name, nameTone(project, variant)))
-    .children(variant === 'afterName' ? activeMark(project) : [])
+    .children(nearMarks)
     .children(machineParts(project));
+};
 
-const chevron = (name: 'chevron-down' | 'chevron-right'): Element =>
-  iconSlot(icon(name, 'small').text_color(colors().dim));
+const chevron = (name: 'chevron-down' | 'chevron-right'): Element => {
+  const chevronIcon = icon(name, 'small').text_color(colors().dim);
+
+  return iconSlot(chevronIcon);
+};
 
 // Both header kinds fold the same way. The chevron keeps its slot when hidden, so nothing shifts
 // on hover.
@@ -156,11 +172,12 @@ const headerEnd = (project: MarkProject, variant: HeaderMarkVariant): Element[] 
 
 const headerRow = (project: MarkProject, variant: HeaderMarkVariant): Element => {
   const start = leftMark(project, variant);
+  const state = project.look === 'selected' ? 'selected' : 'normal';
 
   return listRow({
     size: 'small',
     inset: true,
-    state: project.look === 'selected' ? 'selected' : 'normal',
+    state,
     hovered: project.look === 'hovered',
     ...(start === undefined ? {} : { start }),
     label: nameLabel(project, variant),
@@ -172,12 +189,15 @@ const projectGroup = (
   project: MarkProject,
   variant: HeaderMarkVariant,
   layout: SpaceLayout,
-): Element =>
-  v_flex()
+): Element => {
+  const spaces = project.spaces.map((space) => spaceRow(space, layout === 'nested'));
+
+  return v_flex()
     .flex_none()
     .gap(spacing.xxsmall)
     .child(headerRow(project, variant))
-    .children(project.spaces.map((space) => spaceRow(space, layout === 'nested')));
+    .children(spaces);
+};
 
 const switchLine = (): Element =>
   h_flex()
@@ -188,23 +208,20 @@ const switchLine = (): Element =>
     .child(viewSwitch({ options: views, active: 'projects', onSelect: () => undefined }));
 
 // The divider takes the place of the gap between projects, so the list keeps its rhythm.
-const softLine = (): Element =>
-  div()
-    .flex_none()
-    .py(spacing.xxsmall)
-    .px(spacing.xsmall)
-    .child(div().my(spacing.xsmall).h(spacing.hairline).bg(colors().selected));
+const softLine = (): Element => {
+  const rule = div().my(spacing.xsmall).h(spacing.hairline).bg(colors().selected);
+
+  return div().flex_none().py(spacing.xxsmall).px(spacing.xsmall).child(rule);
+};
 
 const dividerLine = (divider: GroupDivider): Element => {
   if (divider === 'soft') {
     return softLine();
   }
 
-  return div()
-    .flex_none()
-    .py(spacing.xxsmall)
-    .px(divider === 'inset' ? sidebarSize.rowContentInset : spacing.xsmall)
-    .child(separator());
+  const inset = divider === 'inset' ? sidebarSize.rowContentInset : spacing.xsmall;
+
+  return div().flex_none().py(spacing.xxsmall).px(inset).child(separator());
 };
 
 const projectList = (

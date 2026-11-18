@@ -84,6 +84,13 @@ const paneStatus = (status: Status | null): Element[] => {
 const paneHeader = (pane: FakePane): Element => {
   const palette = colors();
   const buttons = pane.focused ? paneButtonNames.map((name) => iconButton({ name })) : [];
+  const iconInk = pane.focused ? palette.muted : palette.dim;
+  const nameInk = pane.focused ? 'foreground' : 'muted';
+  const borderInk = pane.focused ? palette.accent : palette.selected;
+  const paneIcon = programIcon(null, 'default').text_color(iconInk);
+  const paneName = roleText('detail', pane.name, nameInk).flex_initial();
+  const paneFolder = roleText('detail', pane.folder).flex_1();
+  const bottomSpace = div().h(spacing.xxlarge);
 
   const header = h_flex()
     .h(controlSize.sectionHeader)
@@ -92,9 +99,9 @@ const paneHeader = (pane: FakePane): Element => {
     .items_center()
     .border_b(spacing.hairline)
     .border_color(palette.selected)
-    .child(programIcon(null, 'default').text_color(pane.focused ? palette.muted : palette.dim))
-    .child(roleText('detail', pane.name, pane.focused ? 'foreground' : 'muted').flex_initial())
-    .child(roleText('detail', pane.folder).flex_1())
+    .child(paneIcon)
+    .child(paneName)
+    .child(paneFolder)
     .children(paneStatus(pane.status))
     .children(buttons);
 
@@ -102,10 +109,10 @@ const paneHeader = (pane: FakePane): Element => {
     .flex_none()
     .rounded(radius.dialog)
     .border(spacing.hairline)
-    .border_color(pane.focused ? palette.accent : palette.selected)
+    .border_color(borderInk)
     .bg(palette.background)
     .child(header)
-    .child(div().h(spacing.xxlarge));
+    .child(bottomSpace);
 };
 
 const tabElement = (fakeTab: FakeTab): Element => {
@@ -119,8 +126,24 @@ const tabElement = (fakeTab: FakeTab): Element => {
   });
 };
 
-const tabBar = (): Element =>
-  h_flex()
+const tabBar = (): Element => {
+  const spacer = h_flex().flex_1();
+
+  const changesToggle = toggleButton({
+    label: 'Changes',
+    active: true,
+    start: icon('git-compare', 'small'),
+  });
+
+  const filesToggle = toggleButton({
+    label: 'Files',
+    active: false,
+    start: icon('folder', 'small'),
+  });
+
+  const indicatorSlot = h_flex().mx(spacing.small).child(indicator('ansi2'));
+
+  return h_flex()
     .h(controlSize.tabBar)
     .flex_none()
     .px(spacing.xsmall)
@@ -129,26 +152,32 @@ const tabBar = (): Element =>
     .rounded(radius.dialog)
     .bg(colors().chrome)
     .children(fakeTabs.map(tabElement))
-    .child(h_flex().flex_1())
+    .child(spacer)
     .child(iconButton({ name: 'plus' }))
-    .child(toggleButton({ label: 'Changes', active: true, start: icon('git-compare', 'small') }))
-    .child(toggleButton({ label: 'Files', active: false, start: icon('folder', 'small') }))
-    .child(h_flex().mx(spacing.small).child(indicator('ansi2')));
+    .child(changesToggle)
+    .child(filesToggle)
+    .child(indicatorSlot);
+};
 
-const buttons = (): Element[] => [
-  line([
-    roleText('detail', 'Default').flex_none(),
-    iconButton({ name: 'plus' }),
-    iconButton({ name: 'search', hovered: true }),
-    iconButton({ name: 'x' }),
-  ]),
-  line([
-    roleText('detail', 'Small').flex_none(),
-    iconButton({ name: 'plus', size: 'small' }),
-    iconButton({ name: 'chevron-down', size: 'small', hovered: true }),
-    iconButton({ name: 'x', size: 'small' }),
-  ]),
-];
+const buttons = (): Element[] => {
+  const defaultTitle = roleText('detail', 'Default').flex_none();
+  const smallTitle = roleText('detail', 'Small').flex_none();
+
+  return [
+    line([
+      defaultTitle,
+      iconButton({ name: 'plus' }),
+      iconButton({ name: 'search', hovered: true }),
+      iconButton({ name: 'x' }),
+    ]),
+    line([
+      smallTitle,
+      iconButton({ name: 'plus', size: 'small' }),
+      iconButton({ name: 'chevron-down', size: 'small', hovered: true }),
+      iconButton({ name: 'x', size: 'small' }),
+    ]),
+  ];
+};
 
 const toggles = (): Element[] => [
   line([
@@ -172,16 +201,34 @@ const roleRow = (role: TextRole): Element => {
   const style = textRoles[role];
   const weight = style.weight === 'semibold' ? 'SemiBold' : 'Regular';
 
+  const roleName = withTextRole(h_flex(), role).child(roleNames[role]);
+
   return v_flex()
     .flex_none()
-    .child(withTextRole(h_flex(), role).child(roleNames[role]))
+    .child(roleName)
     .child(roleText('detail', `${style.size} px · ${weight} · ${style.color}`));
 };
 
 const typeRoles = (): Element[] => roleOrder.map((role) => roleRow(role));
 
-export const controlsScene = (inputs: SceneInputs): Element =>
-  v_flex()
+export const controlsScene = (inputs: SceneInputs): Element => {
+  const controlSections = v_flex()
+    .flex_1()
+    .gap(spacing.medium)
+    .child(section('Buttons', buttons()))
+    .child(section('Toggles and marks', toggles()))
+    .child(section('Fields and actions', fields(inputs)));
+
+  const typeSection = v_flex().flex_1().child(section('Type roles', typeRoles()));
+
+  const columns = h_flex()
+    .flex_none()
+    .gap(spacing.xxlarge)
+    .items_start()
+    .child(controlSections)
+    .child(typeSection);
+
+  return v_flex()
     .flex_1()
     .min_h(0)
     .px(spacing.large)
@@ -190,18 +237,5 @@ export const controlsScene = (inputs: SceneInputs): Element =>
     .gap(spacing.medium)
     .child(section('Pane header', fakePanes.map(paneHeader)))
     .child(section('Tabs', [tabBar()]))
-    .child(
-      h_flex()
-        .flex_none()
-        .gap(spacing.xxlarge)
-        .items_start()
-        .child(
-          v_flex()
-            .flex_1()
-            .gap(spacing.medium)
-            .child(section('Buttons', buttons()))
-            .child(section('Toggles and marks', toggles()))
-            .child(section('Fields and actions', fields(inputs))),
-        )
-        .child(v_flex().flex_1().child(section('Type roles', typeRoles()))),
-    );
+    .child(columns);
+};

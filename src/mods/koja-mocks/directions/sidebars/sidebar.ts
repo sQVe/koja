@@ -65,8 +65,10 @@ const projectGroup = (
 export const sourceLink = (text: string, tokens: DirectionTokens): Element =>
   fixedLabel(text, tokens.text.detail, tokens.ink.text).underline();
 
-const blockLine = (start: Element, end: Element, tokens: DirectionTokens): Element =>
-  h_flex()
+const blockLine = (start: Element, end: Element, tokens: DirectionTokens): Element => {
+  const spacer = h_flex().flex_1();
+
+  return h_flex()
     .h(tokens.rows.height)
     .flex_none()
     .min_w(0)
@@ -75,8 +77,9 @@ const blockLine = (start: Element, end: Element, tokens: DirectionTokens): Eleme
     .gap(togglePadding)
     .items_center()
     .child(start)
-    .child(h_flex().flex_1())
+    .child(spacer)
     .child(end);
+};
 
 const currentIds = (space: FakeSpace, tokens: DirectionTokens): Element[] => {
   const ids: Element[] = [];
@@ -164,8 +167,11 @@ export const togglePillInk = (
   return pill.child(fixedLabel(text, tokens.text.detail, color));
 };
 
-export const togglePill = (text: string, active: boolean, tokens: DirectionTokens): Element =>
-  togglePillInk(text, active, active ? tokens.ink.text : tokens.ink.muted, tokens);
+export const togglePill = (text: string, active: boolean, tokens: DirectionTokens): Element => {
+  const pillInk = active ? tokens.ink.text : tokens.ink.muted;
+
+  return togglePillInk(text, active, pillInk, tokens);
+};
 
 // The view switch is the only line above the list; its pill text lines up with project names.
 const viewBar = (inbox: boolean, tokens: DirectionTokens): Element =>
@@ -230,24 +236,26 @@ const inboxGroup = (group: InboxGroup, tokens: DirectionTokens): Element[] => {
     return [];
   }
 
+  const count = dimFact(String(members.length), tokens).ml(headerCountGap);
+  const header = groupHeader(group.name, tokens).child(count);
+
   return [
     sidebarGroup(
-      groupHeader(group.name, tokens).child(
-        dimFact(String(members.length), tokens).ml(headerCountGap),
-      ),
+      header,
       members.map((placed) => inboxRow(placed, tokens)),
     ),
   ];
 };
 
-export const inboxSidebar = (tokens: DirectionTokens): Element =>
-  sidebarFrame(tokens)
+export const inboxSidebar = (tokens: DirectionTokens): Element => {
+  const groups = v_flex()
+    .flex_1()
+    .min_h(0)
+    .gap(tokens.rows.groupGap)
+    .children(inboxGroups.flatMap((group) => inboxGroup(group, tokens)));
+
+  return sidebarFrame(tokens)
     .child(viewBar(true, tokens))
-    .child(
-      v_flex()
-        .flex_1()
-        .min_h(0)
-        .gap(tokens.rows.groupGap)
-        .children(inboxGroups.flatMap((group) => inboxGroup(group, tokens))),
-    )
+    .child(groups)
     .child(currentBlock(fakeProjects, tokens));
+};

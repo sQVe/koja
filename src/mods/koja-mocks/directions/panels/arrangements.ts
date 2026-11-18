@@ -121,11 +121,9 @@ const sectionsCard = (tokens: DirectionTokens): Element => {
     sectionHeader({ name: 'Files', open: false, detail: fileFacts(tokens), end: [] }, tokens),
   ];
 
-  return panelCard(
-    [v_flex().flex_none().pt(tokens.rows.listPadding).children(parts)],
-    panelWidth,
-    tokens,
-  );
+  const sections = v_flex().flex_none().pt(tokens.rows.listPadding).children(parts);
+
+  return panelCard([sections], panelWidth, tokens);
 };
 
 const spineLook = (pull: FakePull, tokens: DirectionTokens): Element => {
@@ -133,18 +131,17 @@ const spineLook = (pull: FakePull, tokens: DirectionTokens): Element => {
     return pullLine(pull, tokens);
   }
 
-  return v_flex()
+  // The file list already ends with the list padding.
+  const workers = workerList(false, tokens).pt(0);
+
+  const checkedOutBlock = v_flex()
     .flex_none()
-    .child(pullLine(pull, tokens))
-    .child(
-      v_flex()
-        .flex_none()
-        .pl(blockIndent)
-        .child(changeSwitch(tokens))
-        .child(changeList(tokens))
-        // The file list already ends with the list padding.
-        .child(workerList(false, tokens).pt(0)),
-    );
+    .pl(blockIndent)
+    .child(changeSwitch(tokens))
+    .child(changeList(tokens))
+    .child(workers);
+
+  return v_flex().flex_none().child(pullLine(pull, tokens)).child(checkedOutBlock);
 };
 
 const spineCard = (showFiles: boolean, tokens: DirectionTokens): Element => {

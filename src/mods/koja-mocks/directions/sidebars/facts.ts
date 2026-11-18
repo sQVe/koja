@@ -96,20 +96,21 @@ export const agentMark = (space: FakeSpace, tokens: DirectionTokens): Element =>
   return slot().child(ring);
 };
 
-export const progressBar = (merged: number, total: number, tokens: DirectionTokens): Element =>
-  h_flex()
+export const progressBar = (merged: number, total: number, tokens: DirectionTokens): Element => {
+  const fill = div()
+    .w((progressWidth * merged) / total)
+    .h_full()
+    .rounded(progressHeight / 2)
+    .bg(tokens.ink.dim);
+
+  return h_flex()
     .w(progressWidth)
     .h(progressHeight)
     .flex_none()
     .rounded(progressHeight / 2)
     .bg(progressTrack)
-    .child(
-      div()
-        .w((progressWidth * merged) / total)
-        .h_full()
-        .rounded(progressHeight / 2)
-        .bg(tokens.ink.dim),
-    );
+    .child(fill);
+};
 
 const stackFact = (space: FakeSpace, tokens: DirectionTokens): Element[] => {
   if (space.stack === undefined) {
@@ -135,6 +136,9 @@ export const rowLine = (look: RowLook, tokens: DirectionTokens): Element => {
   const { space } = look;
   const { rows } = tokens;
 
+  const spacer = h_flex().flex_1();
+  const progress = look.progress ? stackFact(space, tokens) : [];
+
   const line = h_flex()
     .flex_none()
     .min_w(0)
@@ -146,9 +150,9 @@ export const rowLine = (look: RowLook, tokens: DirectionTokens): Element => {
     .rounded(rows.radius)
     .child(agentMark(space, tokens))
     .children(look.middle)
-    .child(h_flex().flex_1())
+    .child(spacer)
     .children(look.trailing)
-    .children(look.progress ? stackFact(space, tokens) : [])
+    .children(progress)
     .child(needMark(space, tokens));
 
   if (space.selected) {

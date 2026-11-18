@@ -90,7 +90,9 @@ const focusParts = (focus: PaneFocus, tokens: DirectionTokens): Element[] => {
   if (focus.pending.length > 0) {
     const keycaps = focus.pending.map((key) => keycap(key, tokens));
 
-    parts.push(h_flex().flex_none().gap(keycapGap).items_center().children(keycaps));
+    const pendingKeys = h_flex().flex_none().gap(keycapGap).items_center().children(keycaps);
+
+    parts.push(pendingKeys);
   }
 
   return parts;
@@ -99,16 +101,19 @@ const focusParts = (focus: PaneFocus, tokens: DirectionTokens): Element[] => {
 const taskParts = (fakePane: FakePane, fit: HeaderFit, tokens: DirectionTokens): Element[] =>
   fit === 'full' ? [label(fakePane.task ?? '', tokens.text.detail, tokens.ink.muted)] : [];
 
-const cutBranch = (branch: string, tokens: DirectionTokens): Element =>
-  h_flex()
+const cutBranch = (branch: string, tokens: DirectionTokens): Element => {
+  const branchIcon = icon('git-branch', 'small').flex_none();
+
+  return h_flex()
     .flex_1()
     .min_w(branchMinimum)
     .gap(branchGap)
     .items_center()
     .justify_end()
     .text_color(tokens.ink.dim)
-    .child(icon('git-branch', 'small').flex_none())
+    .child(branchIcon)
     .child(middleCutLabel(branch, tokens.text.detail, tokens.ink.dim));
+};
 
 const cutsBranch = (fit: HeaderFit): boolean => fit === 'branchCut' || fit === 'folderDropped';
 
@@ -146,9 +151,13 @@ const modeHeader = (fakePane: FakePane, look: HeaderLook, tokens: DirectionToken
     header.bg(fill);
   }
 
+  const terminalIcon = icon('terminal', 'default').text_color(
+    headerIconColor(focus.focused, tokens),
+  );
+
   return header
     .children(focusParts(focus, tokens))
-    .child(icon('terminal', 'default').text_color(headerIconColor(focus.focused, tokens)))
+    .child(terminalIcon)
     .child(paneName(fakePane, focus.focused, tokens))
     .children(taskParts(fakePane, fit, tokens))
     .children(branchParts(fakePane, fit, tokens))

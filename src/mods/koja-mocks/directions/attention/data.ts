@@ -183,13 +183,15 @@ const taskFirstFields = (asking: boolean, tokens: DirectionTokens): Element[] =>
   const task = asking ? 'Review findings' : 'Design the sidebar';
   const branch = asking ? 'main' : (agentPane.branch ?? '');
 
+  const branchIcon = icon('git-branch', 'small').flex_none();
+
   const branchPart = h_flex()
     .ml_auto()
     .min_w(0)
     .gap(controlGap)
     .items_center()
     .text_color(ink.dim)
-    .child(icon('git-branch', 'small').flex_none())
+    .child(branchIcon)
     .child(middleCutLabel(branch, text.detail, ink.dim));
 
   return [
@@ -221,7 +223,9 @@ const paneHeader = (
   if (variant === 'mix') {
     header.children(taskFirstFields(asking, tokens));
   } else {
-    header.child(label(task, text.detail, ink.muted).flex_1());
+    const taskLabel = label(task, text.detail, ink.muted).flex_1();
+
+    header.child(taskLabel);
   }
 
   if (variant !== 'corner' && variant !== 'mix') {
@@ -287,10 +291,12 @@ const changesPaneWidth = (variant: AttentionVariant): number => {
 };
 
 const changesPane = (variant: AttentionVariant, tokens: DirectionTokens): Element => {
+  const spacer = h_flex().flex_1();
+
   const header = paneHeaderFrame(tokens)
     .child(fixedLabel('Changes', tokens.text.title, tokens.ink.text))
     .child(fixedLabel('3 files', tokens.text.detail, tokens.ink.dim))
-    .child(h_flex().flex_1())
+    .child(spacer)
     .children(changeTotals(tokens));
 
   const inner = card(false, tokens).child(header).child(changeList(tokens));
@@ -318,11 +324,7 @@ export const attentionWindow = (options: AttentionWindow, tokens: DirectionToken
     .child(attentionBar(options, tokens))
     .child(panes);
 
-  return styled(
-    h_flex().flex_1().min_h(0).bg(tokens.areas.frame).font_family(uiFont),
-    tokens.text.body,
-    tokens.ink.text,
-  )
-    .child(sidebar)
-    .child(main);
+  const root = h_flex().flex_1().min_h(0).bg(tokens.areas.frame).font_family(uiFont);
+
+  return styled(root, tokens.text.body, tokens.ink.text).child(sidebar).child(main);
 };

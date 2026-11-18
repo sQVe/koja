@@ -60,18 +60,17 @@ const keyColumn = (group: KeyGroup, tokens: DirectionTokens): Element => {
     );
 };
 
-const keysCard = (tokens: DirectionTokens): Element =>
-  overlayCard(tokens)
+const keysCard = (tokens: DirectionTokens): Element => {
+  const rule = divider(overlayTokens(tokens.rows.height, tokens)).mx(tokens.rows.paddingX);
+
+  const columns = h_flex()
     .flex_none()
-    .child(titleLine(tokens))
-    .child(divider(overlayTokens(tokens.rows.height, tokens)).mx(tokens.rows.paddingX))
-    .child(
-      h_flex()
-        .flex_none()
-        .gap(columnGap)
-        .items_start()
-        .children(paneKeys.map((group) => keyColumn(group, tokens))),
-    );
+    .gap(columnGap)
+    .items_start()
+    .children(paneKeys.map((group) => keyColumn(group, tokens)));
+
+  return overlayCard(tokens).flex_none().child(titleLine(tokens)).child(rule).child(columns);
+};
 
 const bottomCenter = (card: Element): Element =>
   h_flex()

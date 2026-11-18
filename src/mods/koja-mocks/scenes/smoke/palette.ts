@@ -53,15 +53,18 @@ const rowLabel = (command: FakeCommand, quality: PaletteQuality): string => {
   return command.label;
 };
 
-const commandRow = (command: FakeCommand, quality: PaletteQuality, index: number): Element =>
-  listRow({
+const commandRow = (command: FakeCommand, quality: PaletteQuality, index: number): Element => {
+  const state = isSelected(quality, index) ? 'selected' : 'normal';
+
+  return listRow({
     size: rowSize(quality, index),
     inset: true,
-    state: isSelected(quality, index) ? 'selected' : 'normal',
+    state,
     start: icon(command.icon, 'large'),
     label: rowLabel(command, quality),
     end: [keyHint(command.shortcut)],
   });
+};
 
 const paletteScene = (quality: PaletteQuality, input: InputState): Element => {
   const body = v_flex().flex_1().min_h(0).py(spacing.small);
@@ -70,9 +73,11 @@ const paletteScene = (quality: PaletteQuality, input: InputState): Element => {
     body.child(sectionHeader({ label: 'Commands', size: 'default' }));
   }
 
-  body.child(
-    v_flex().children(fakeCommands.map((command, index) => commandRow(command, quality, index))),
+  const commandList = v_flex().children(
+    fakeCommands.map((command, index) => commandRow(command, quality, index)),
   );
+
+  body.child(commandList);
 
   return v_flex().flex_1().min_h(0).child(searchField(input, 'command')).child(body);
 };

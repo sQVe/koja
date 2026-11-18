@@ -79,14 +79,19 @@ const pinnedBlock = (tokens: DirectionTokens): Element =>
     .child(factsLine(checkedOutPull, tokens))
     .children(pullGroups(tokens));
 
-const stackMap = (tokens: DirectionTokens): Element =>
-  v_flex()
+const stackMap = (tokens: DirectionTokens): Element => {
+  const header = groupHeader('Stack', tokens)
+    .gap(tokens.pane.headerGap)
+    .children(stackFacts(tokens));
+
+  return v_flex()
     .flex_none()
     .py(tokens.rows.listPadding)
     .gap(tokens.rows.gap)
-    .child(groupHeader('Stack', tokens).gap(tokens.pane.headerGap).children(stackFacts(tokens)))
+    .child(header)
     .children(shownPulls.map((pull) => mapLine(pull, tokens)))
     .child(mergedFold(tokens));
+};
 
 // The current PR never scrolls; only the stack map below it does.
 const pinnedCard = (tokens: DirectionTokens): Element =>

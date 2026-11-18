@@ -37,24 +37,34 @@ export const oneCard = (drawCard: (tokens: DirectionTokens) => Element): PanelAr
   panes: (tokens) => [drawCard(tokens)],
 });
 
-export const groupLabel = (name: string, count: number, tokens: DirectionTokens): Element =>
-  groupHeader(name, tokens).child(dimFact(String(count), tokens).ml(countGap));
+export const groupLabel = (name: string, count: number, tokens: DirectionTokens): Element => {
+  const countFact = dimFact(String(count), tokens).ml(countGap);
 
-export const panelCard = (parts: Element[], width: number, tokens: DirectionTokens): Element =>
-  cardSlot(card(false, tokens).children(parts), tokens).w(width).flex_none();
+  return groupHeader(name, tokens).child(countFact);
+};
+
+export const panelCard = (parts: Element[], width: number, tokens: DirectionTokens): Element => {
+  const inner = card(false, tokens).children(parts);
+
+  return cardSlot(inner, tokens).w(width).flex_none();
+};
 
 export const spacer = (): Element => div().flex_1().min_h(0);
 
-export const panelHeader = (start: Element[], end: Element[], tokens: DirectionTokens): Element =>
-  paneHeaderFrame(tokens).children(start).child(h_flex().flex_1()).children(end);
+export const panelHeader = (start: Element[], end: Element[], tokens: DirectionTokens): Element => {
+  const filler = h_flex().flex_1();
+
+  return paneHeaderFrame(tokens).children(start).child(filler).children(end);
+};
 
 export const panelTitle = (name: string, tokens: DirectionTokens): Element =>
   fixedLabel(name, tokens.text.title, tokens.ink.text);
 
-const tabPill = (tab: PanelTab, tokens: DirectionTokens): Element =>
-  togglePill(tab.name, tab.active, tokens)
-    .gap(tabMarkGap)
-    .children(tab.active ? [] : tab.alerts);
+const tabPill = (tab: PanelTab, tokens: DirectionTokens): Element => {
+  const alerts = tab.active ? [] : tab.alerts;
+
+  return togglePill(tab.name, tab.active, tokens).gap(tabMarkGap).children(alerts);
+};
 
 // The pills sit at the row inset, so the tab text lines up with the row text below.
 export const tabStrip = (tabs: PanelTab[], end: Element[], tokens: DirectionTokens): Element =>
@@ -73,6 +83,9 @@ export const sectionHeaderOf = (
 ): Element => {
   const { rows } = tokens;
   const chevron = look.open ? 'chevron-down' : 'chevron-right';
+  const chevronIcon = icon(chevron, 'xsmall').text_color(tokens.ink.dim);
+  const chevronSlot = h_flex().w(chevronWidth).flex_none().justify_center().child(chevronIcon);
+  const filler = h_flex().flex_1();
 
   return h_flex()
     .h(rows.height)
@@ -84,16 +97,10 @@ export const sectionHeaderOf = (
     .items_center()
     .rounded(rows.radius)
     .hover((hovered) => hovered.bg(rows.hoverFill))
-    .child(
-      h_flex()
-        .w(chevronWidth)
-        .flex_none()
-        .justify_center()
-        .child(icon(chevron, 'xsmall').text_color(tokens.ink.dim)),
-    )
+    .child(chevronSlot)
     .child(title)
     .children(look.detail)
-    .child(h_flex().flex_1())
+    .child(filler)
     .children(look.end);
 };
 

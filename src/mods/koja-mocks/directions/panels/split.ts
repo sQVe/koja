@@ -98,22 +98,22 @@ const twoWorkers = (state: RailState, tokens: DirectionTokens): Element[] => {
   ];
 };
 
-const twoCard: StateCard = (state, tokens) =>
-  panelCard(
-    [
-      namedHeader('Status', [], false, tokens),
-      section(
-        [stackSectionHeader(state, tokens), panelColumn([twoStackBody(state, tokens)])],
-        tokens,
-      ).flex_1(),
-      ...twoWorkers(state, tokens),
-    ],
+const twoCard: StateCard = (state, tokens) => {
+  const stack = section(
+    [stackSectionHeader(state, tokens), panelColumn([twoStackBody(state, tokens)])],
+    tokens,
+  ).flex_1();
+
+  return panelCard(
+    [namedHeader('Status', [], false, tokens), stack, ...twoWorkers(state, tokens)],
     panelWidth,
     tokens,
   );
+};
 
 const contextRow = (state: RailState, tokens: DirectionTokens): Element => {
   const branch = state.agent?.branch ?? agentPane.branch ?? '';
+  const branchIcon = icon('git-branch', 'small').text_color(tokens.ink.dim);
 
   return h_flex()
     .h(tokens.rows.height)
@@ -122,7 +122,7 @@ const contextRow = (state: RailState, tokens: DirectionTokens): Element => {
     .px(tokens.rows.paddingX)
     .gap(contextGap)
     .items_center()
-    .child(icon('git-branch', 'small').text_color(tokens.ink.dim))
+    .child(branchIcon)
     .child(fixedLabel(branch, tokens.text.detail, tokens.ink.dim));
 };
 

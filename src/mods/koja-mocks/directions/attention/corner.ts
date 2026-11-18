@@ -17,18 +17,20 @@ const footerInset = 12;
 const cornerCard = (tokens: DirectionTokens): Element => {
   const ask = hiddenAsks[0];
 
+  const spacer = h_flex().flex_1();
+  const closeButton = iconButton('x', tokens, tokens.ink.dim).cursor_pointer();
+
   const title = h_flex()
     .gap(lineGap)
     .items_center()
     .child(iconMark('message-circle-question', tokens.marks.blocked))
     .child(fixedLabel(ask.space, tokens.text.title, tokens.ink.text))
-    .child(h_flex().flex_1())
+    .child(spacer)
     .child(fixedLabel(ask.project, tokens.text.detail, tokens.ink.dim))
-    .child(iconButton('x', tokens, tokens.ink.dim).cursor_pointer());
+    .child(closeButton);
 
-  const body = styled(div().ml(textInset).mr(lineGap), tokens.text.body, tokens.ink.muted).child(
-    ask.description,
-  );
+  const bodyContainer = div().ml(textInset).mr(lineGap);
+  const body = styled(bodyContainer, tokens.text.body, tokens.ink.muted).child(ask.description);
 
   const card = overlayCard(tokens)
     .absolute()
@@ -42,12 +44,14 @@ const cornerCard = (tokens: DirectionTokens): Element => {
     .child(body);
 
   if (tokens.normal) {
-    card.child(footerLine([['g', 'n'], 'Go to'], tokens).ml(footerInset));
+    const footer = footerLine([['g', 'n'], 'Go to'], tokens).ml(footerInset);
+
+    card.child(footer);
   }
 
-  return card.child(
-    fixedLabel('1 more ask', tokens.text.detail, tokens.ink.dim).ml(textInset).mt(2),
-  );
+  const moreAsks = fixedLabel('1 more ask', tokens.text.detail, tokens.ink.dim).ml(textInset).mt(2);
+
+  return card.child(moreAsks);
 };
 
 export const cornerScene = (tokens: DirectionTokens): Element =>

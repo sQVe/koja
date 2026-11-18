@@ -75,11 +75,12 @@ const commandEnd = (command: FakeCommand): Element[] => {
 
 const commandRow = (command: FakeCommand): Element => {
   const selected = command.title === selectedTitle;
+  const state = selected ? 'selected' : 'normal';
 
   return listRow({
     size: 'large',
     inset: true,
-    state: selected ? 'selected' : 'normal',
+    state,
     label: highlightedText(command.title, matchPositions(command.title), selected),
     end: commandEnd(command),
   });
@@ -90,9 +91,8 @@ const group = (fakeGroup: FakeGroup): Element[] => [
   ...fakeGroup.commands.map(commandRow),
 ];
 
-export const popupScene = (inputs: SceneInputs): Element =>
-  v_flex()
-    .flex_1()
-    .min_h(0)
-    .child(searchField(inputs.search, 'search'))
-    .child(v_flex().my(spacing.xsmall).children(fakeGroups.flatMap(group)));
+export const popupScene = (inputs: SceneInputs): Element => {
+  const groups = v_flex().my(spacing.xsmall).children(fakeGroups.flatMap(group));
+
+  return v_flex().flex_1().min_h(0).child(searchField(inputs.search, 'search')).child(groups);
+};

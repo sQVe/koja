@@ -33,13 +33,12 @@ const metadataLineHeight = 18;
 const shownColumnWidth = 58;
 const ageColumnWidth = 35;
 
-const metadataLine = (label: string, value: string, tokens: DirectionTokens): Element =>
-  h_flex()
-    .h(metadataLineHeight)
-    .gap(metadataGap)
-    .items_center()
-    .child(fixedLabel(label, tokens.text.detail, tokens.ink.dim).w(metadataLabelWidth))
-    .child(middleCutLabel(value, tokens.text.detail, tokens.ink.text).flex_1());
+const metadataLine = (label: string, value: string, tokens: DirectionTokens): Element => {
+  const name = fixedLabel(label, tokens.text.detail, tokens.ink.dim).w(metadataLabelWidth);
+  const content = middleCutLabel(value, tokens.text.detail, tokens.ink.text).flex_1();
+
+  return h_flex().h(metadataLineHeight).gap(metadataGap).items_center().child(name).child(content);
+};
 
 const worktreeMetadata = (tokens: DirectionTokens): Element =>
   v_flex()
@@ -59,37 +58,42 @@ const branchInput = (tokens: DirectionTokens): Element =>
     .child(fixedLabel(newBranch, tokens.text.body, tokens.ink.text))
     .child(caret(tokens));
 
-const branchField = (tokens: DirectionTokens): Element =>
-  v_flex()
+const branchField = (tokens: DirectionTokens): Element => {
+  const inputs = v_flex()
+    .gap(metadataFieldGap)
+    .child(branchInput(tokens))
+    .child(worktreeMetadata(tokens));
+
+  return v_flex()
     .gap(branchLabelGap)
     .child(fixedLabel('Branch', tokens.text.heading, tokens.ink.muted))
-    .child(
-      v_flex().gap(metadataFieldGap).child(branchInput(tokens)).child(worktreeMetadata(tokens)),
-    );
+    .child(inputs);
+};
 
-const deleteBranchRow = (tokens: DirectionTokens): Element =>
-  h_flex()
+const deleteBranchRow = (tokens: DirectionTokens): Element => {
+  const checkbox = div()
+    .size(checkboxSize)
+    .flex_none()
+    .rounded(tokens.marks.badgeRadius)
+    .border(1)
+    .border_color(tokens.ink.dim)
+    .bg(tokens.pane.fill);
+
+  return h_flex()
     .h(tokens.rows.height)
     .gap(checkboxGap)
     .items_center()
-    .child(
-      div()
-        .size(checkboxSize)
-        .flex_none()
-        .rounded(tokens.marks.badgeRadius)
-        .border(1)
-        .border_color(tokens.ink.dim)
-        .bg(tokens.pane.fill),
-    )
+    .child(checkbox)
     .child(fixedLabel('Also delete the branch', tokens.text.body, tokens.ink.text));
+};
 
-const deleteBranch = (tokens: DirectionTokens): Element =>
-  v_flex()
-    .gap(fieldHintGap)
-    .child(deleteBranchRow(tokens))
-    .child(
-      wrappedText(branchDeletionHint, tokens.text.detail, tokens.ink.dim).ml(checkboxLabelInset),
-    );
+const deleteBranch = (tokens: DirectionTokens): Element => {
+  const hint = wrappedText(branchDeletionHint, tokens.text.detail, tokens.ink.dim).ml(
+    checkboxLabelInset,
+  );
+
+  return v_flex().gap(fieldHintGap).child(deleteBranchRow(tokens)).child(hint);
+};
 
 const lostFileRows = (tokens: DirectionTokens): Element => {
   const fileTokens: DirectionTokens = {

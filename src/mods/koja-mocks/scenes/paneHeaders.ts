@@ -136,22 +136,23 @@ const compactAgent: PaneHeaderOptions = {
 
 const specimen = (header: PaneHeaderOptions): Element => {
   const palette = colors();
+  const borderInk = header.focused ? palette.accent : palette.selected;
+
+  const body = v_flex()
+    .h(shellSize.specimenBodyHeight)
+    .flex_none()
+    .p(spacing.medium)
+    .child(roleText('detail', 'Terminal text'));
 
   const card = v_flex()
     .flex_none()
     .rounded(radius.dialog)
     .border(spacing.hairline)
-    .border_color(header.focused ? palette.accent : palette.selected)
+    .border_color(borderInk)
     .bg(palette.background)
     .overflow_hidden()
     .child(paneHeader(header))
-    .child(
-      v_flex()
-        .h(shellSize.specimenBodyHeight)
-        .flex_none()
-        .p(spacing.medium)
-        .child(roleText('detail', 'Terminal text')),
-    );
+    .child(body);
 
   return header.width == null ? card : card.w(header.width);
 };
@@ -162,28 +163,23 @@ const compactWithMenu = (header: PaneHeaderOptions): Element => {
   const menuWidth = header.width ?? shellSize.compactSpecimenWidth;
   const palette = colors();
 
-  return v_flex()
-    .relative()
-    .w(menuWidth)
-    .flex_none()
-    .child(specimen(header))
+  const menu = v_flex()
+    .absolute()
+    .top(controlSize.sectionHeader)
+    .right(spacing.none)
+    .rounded(radius.dialog)
+    .border(spacing.hairline)
+    .border_color(palette.border)
     .child(
-      v_flex()
-        .absolute()
-        .top(controlSize.sectionHeader)
-        .right(spacing.none)
-        .rounded(radius.dialog)
-        .border(spacing.hairline)
-        .border_color(palette.border)
-        .child(
-          paneHeaderMenu({
-            task: header.task,
-            branch: header.branch,
-            folder: header.folder,
-            zoomed: header.zoomed,
-          }),
-        ),
+      paneHeaderMenu({
+        task: header.task,
+        branch: header.branch,
+        folder: header.folder,
+        zoomed: header.zoomed,
+      }),
     );
+
+  return v_flex().relative().w(menuWidth).flex_none().child(specimen(header)).child(menu);
 };
 
 export const paneHeadersScene = (): Element =>

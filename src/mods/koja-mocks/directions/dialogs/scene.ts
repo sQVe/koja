@@ -31,14 +31,18 @@ const dialogTitle = (ask: DialogAsk, tokens: DirectionTokens): Element => {
   const title = h_flex().gap(markGap).items_start();
 
   if (content.destructive) {
-    title.child(iconMark('triangle-alert', tokens.marks.blocked).mt(titleMarkTop));
+    const warning = iconMark('triangle-alert', tokens.marks.blocked).mt(titleMarkTop);
+
+    title.child(warning);
   }
 
   if (ask === 'wt-open') {
     title.pl(tokens.rows.paddingX);
   }
 
-  return title.child(wrappedText(content.title, tokens.text.title, tokens.ink.text).flex_1());
+  const titleText = wrappedText(content.title, tokens.text.title, tokens.ink.text).flex_1();
+
+  return title.child(titleText);
 };
 
 const dialogDetail = (ask: DialogAsk, tokens: DirectionTokens): Element[] => {

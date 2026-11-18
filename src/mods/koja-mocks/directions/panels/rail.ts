@@ -89,20 +89,20 @@ export const workGroups = (state: RailState, tokens: DirectionTokens): Element[]
   ...workerGroup(state, tokens),
 ];
 
-export const mainLine = (detail: Element[], tokens: DirectionTokens): Element =>
-  row(
+export const mainLine = (detail: Element[], tokens: DirectionTokens): Element => {
+  const branchIcon = icon('git-branch', 'small').text_color(tokens.ink.muted);
+  const start = h_flex().w(markWidth).flex_none().justify_center().child(branchIcon);
+
+  return row(
     {
       selected: false,
-      start: h_flex()
-        .w(markWidth)
-        .flex_none()
-        .justify_center()
-        .child(icon('git-branch', 'small').text_color(tokens.ink.muted)),
+      start,
       label: label('main', tokens.text.body, tokens.ink.text),
       end: detail,
     },
     tokens,
   );
+};
 
 const mainList = (state: RailState, tokens: DirectionTokens): Element =>
   v_flex()

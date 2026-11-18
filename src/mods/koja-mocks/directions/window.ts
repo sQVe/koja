@@ -70,9 +70,12 @@ const tabElement = (fakeTab: DirectionTab, tokens: DirectionTokens): Element => 
   const text = fakeTab.active ? tabs.activeText : tabs.text;
   const shown = fakeTab.status === 'idle' ? null : fakeTab.status;
 
+  const tabIcon = icon(fakeTab.icon ?? 'terminal', 'small').text_color(text);
+  const tabLabel = label(fakeTab.label, tokens.text.body, text).max_w(tabLabelMaxWidth);
+
   const element = tabFrame(fakeTab.active, tokens)
-    .child(icon(fakeTab.icon ?? 'terminal', 'small').text_color(text))
-    .child(label(fakeTab.label, tokens.text.body, text).max_w(tabLabelMaxWidth))
+    .child(tabIcon)
+    .child(tabLabel)
     .child(statusMark(shown, tokens));
 
   return fakeTab.active ? element.child(iconButton('x', tokens, tokens.ink.dim)) : element;
@@ -95,16 +98,19 @@ const tabControls = (arrangement: PanelArrangement, tokens: DirectionTokens): El
   return controls.children(arrangement.toggles(tokens));
 };
 
-const tabBar = (arrangement: PanelArrangement, tokens: DirectionTokens): Element =>
-  h_flex()
+const tabBar = (arrangement: PanelArrangement, tokens: DirectionTokens): Element => {
+  const barInset = div().w(tokens.tabs.barPadding).h_full().flex_none();
+
+  return h_flex()
     .h(tokens.tabs.barHeight)
     .flex_none()
     .gap(tokens.tabs.gap)
     .items_center()
     .bg(tokens.areas.frame)
-    .child(div().w(tokens.tabs.barPadding).h_full().flex_none())
+    .child(barInset)
     .children((arrangement.tabs ?? fakeTabs).map((fakeTab) => tabElement(fakeTab, tokens)))
     .child(tabControls(arrangement, tokens));
+};
 
 export const branchField = (branch: string, tokens: DirectionTokens): Element =>
   h_flex()
@@ -141,10 +147,13 @@ const paneHeader = (fakePane: FakePane, focused: boolean, tokens: DirectionToken
     header.bg(fill);
   }
 
+  const terminalIcon = icon('terminal', 'default').text_color(headerIconColor(focused, tokens));
+  const task = label(fakePane.task ?? '', text.detail, ink.muted).flex_1();
+
   header
-    .child(icon('terminal', 'default').text_color(headerIconColor(focused, tokens)))
+    .child(terminalIcon)
     .child(paneName(fakePane, focused, tokens))
-    .child(label(fakePane.task ?? '', text.detail, ink.muted).flex_1());
+    .child(task);
 
   if (fakePane.branch !== undefined) {
     header.child(branchField(fakePane.branch, tokens));
@@ -178,15 +187,17 @@ const terminalPane = (fakePane: FakePane, focused: boolean, tokens: DirectionTok
 };
 
 export const sidePanel = (tokens: DirectionTokens): Element => {
+  const spacer = h_flex().flex_1();
+
   const header = paneHeaderFrame(tokens)
     .child(fixedLabel('Changes', tokens.text.title, tokens.ink.text))
     .child(fixedLabel('3 files', tokens.text.detail, tokens.ink.dim))
-    .child(h_flex().flex_1())
+    .child(spacer)
     .children(changeTotals(tokens));
 
-  return cardSlot(card(false, tokens).child(header).child(changeList(tokens)), tokens)
-    .w(tokens.areas.panelWidth)
-    .flex_none();
+  const inner = card(false, tokens).child(header).child(changeList(tokens));
+
+  return cardSlot(inner, tokens).w(tokens.areas.panelWidth).flex_none();
 };
 
 const shellArrangement: PanelArrangement = {
@@ -229,11 +240,10 @@ export const directionWindow = (
   tokens: DirectionTokens,
   drawSidebar: SidebarDrawing = mapSidebar,
   arrangement: PanelArrangement = shellArrangement,
-): Element =>
-  styled(
-    h_flex().flex_1().min_h(0).bg(tokens.areas.frame).font_family(uiFont),
-    tokens.text.body,
-    tokens.ink.text,
-  )
+): Element => {
+  const root = h_flex().flex_1().min_h(0).bg(tokens.areas.frame).font_family(uiFont);
+
+  return styled(root, tokens.text.body, tokens.ink.text)
     .child(drawSidebar(tokens))
     .child(mainColumn(arrangement, tokens));
+};

@@ -75,27 +75,31 @@ const railCell = (look: RailNode, tokens: DirectionTokens): Element =>
 const lineCell = (tokens: DirectionTokens): Element =>
   v_flex().w(railWidth).flex_none().items_center().child(railSegment(true, tokens));
 
-const railRow = (cell: Element, content: Element): Element =>
-  h_flex()
-    .flex_none()
-    .items_stretch()
-    .pl(railLeft)
-    .child(cell)
-    .child(v_flex().flex_1().min_w(0).child(content));
+const railRow = (cell: Element, content: Element): Element => {
+  const contentSlot = v_flex().flex_1().min_w(0).child(content);
 
-const hangingBlock = (facts: Element, hung: Element[], tokens: DirectionTokens): Element =>
-  railRow(lineCell(tokens), v_flex().flex_none().pl(numberColumn).child(facts).children(hung));
+  return h_flex().flex_none().items_stretch().pl(railLeft).child(cell).child(contentSlot);
+};
 
-const markedPullLine = (pull: FakePull, tokens: DirectionTokens): Element =>
-  row(
+const hangingBlock = (facts: Element, hung: Element[], tokens: DirectionTokens): Element => {
+  const hungBlock = v_flex().flex_none().pl(numberColumn).child(facts).children(hung);
+
+  return railRow(lineCell(tokens), hungBlock);
+};
+
+const markedPullLine = (pull: FakePull, tokens: DirectionTokens): Element => {
+  const checkedOutFacts = pull.checkedOut ? [dimFact('checked out', tokens)] : [];
+
+  return row(
     {
       selected: false,
       start: pullNumber(pull, tokens),
       label: label(pull.title, tokens.text.body, tokens.ink.text),
-      end: [...(pull.checkedOut ? [dimFact('checked out', tokens)] : []), ...pullEnd(pull, tokens)],
+      end: [...checkedOutFacts, ...pullEnd(pull, tokens)],
     },
     tokens,
   );
+};
 
 const pullLineOf = (pull: FakePull, spaceLook: boolean, tokens: DirectionTokens): Element =>
   spaceLook
