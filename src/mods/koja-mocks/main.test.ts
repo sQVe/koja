@@ -176,6 +176,7 @@ describe('scene picker', () => {
     'shell-draft-review',
     'shell-ticket',
     'pane-headers',
+    'pane-headers-roles',
     'sidebar-parts',
     'header-mark-name',
     'header-mark-right',

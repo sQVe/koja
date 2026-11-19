@@ -12,6 +12,7 @@ export interface PaneHeaderFields {
 export interface PaneHeaderFieldsInput {
   width?: number | null;
   name: string;
+  role?: string;
   task?: string;
   branch?: string;
   folder?: string;
@@ -30,16 +31,20 @@ const isPresent = (text: string | undefined): text is string => text !== undefin
 
 const estimate = (text: string): number => text.length * paneHeaderWidth.glyph;
 
-const baseWidth = (name: string, actions: number): number =>
+const roleWidth = (role: string | undefined): number =>
+  isPresent(role) ? estimate(role) + paneHeaderWidth.badgePadding + paneHeaderWidth.badgeGap : 0;
+
+const baseWidth = (name: string, role: string | undefined, actions: number): number =>
   paneHeaderWidth.padding +
   paneHeaderWidth.icon +
   Math.min(estimate(name), controlSize.paneLabelMaxWidth) +
+  roleWidth(role) +
   paneHeaderWidth.status +
   actions +
   paneHeaderWidth.gaps;
 
 const fieldSizes = (input: PaneHeaderFieldsInput, actions: number): FieldSizes => ({
-  fixed: baseWidth(input.name, actions),
+  fixed: baseWidth(input.name, input.role, actions),
   task: isPresent(input.task) ? estimate(input.task) : 0,
   branchFull: isPresent(input.branch) ? estimate(input.branch) + paneHeaderWidth.branchIcon : 0,
   branchMinimum: isPresent(input.branch) ? paneHeaderWidth.fieldMinimum : 0,

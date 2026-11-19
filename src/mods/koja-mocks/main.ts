@@ -51,6 +51,7 @@ import { directionWindow } from './directions/window.ts';
 import { controlsScene } from './scenes/controls.ts';
 import { headerMarksScene } from './scenes/headerMarks.ts';
 import type { SceneInputs } from './scenes/inputs.ts';
+import { paneHeadersRolesScene } from './scenes/paneHeaderRoles.ts';
 import { paneHeadersScene } from './scenes/paneHeaders.ts';
 import { popupQuery, popupScene } from './scenes/popup.ts';
 import {
@@ -79,6 +80,7 @@ const renderers: Record<SceneName, (inputs: SceneInputs) => Element> = {
   controls: controlsScene,
   shell: shellScene,
   'pane-headers': paneHeadersScene,
+  'pane-headers-roles': paneHeadersRolesScene,
   'sidebar-parts': sidebarPartsScene,
   'header-mark-name': () => headerMarksScene('name', 'flat', 'none'),
   'header-mark-right': () => headerMarksScene('right', 'flat', 'none'),

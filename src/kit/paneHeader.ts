@@ -9,6 +9,7 @@ import type { IconName } from './iconNames.ts';
 import type { PaneHeaderFields, PaneHeaderFieldState } from './paneHeaderFields.ts';
 import { paneHeaderFields } from './paneHeaderFields.ts';
 import { paneActions } from './paneHeaderMenuModel.ts';
+import { roleBadge } from './roleBadge.ts';
 import { controlSize, paneHeaderWidth, radius, spacing } from './size.ts';
 import { attentionBadge, statusMark } from './statusMark.ts';
 import { withTextRole } from './textRole.ts';
@@ -17,6 +18,7 @@ import { colors, focusFill } from './theme.ts';
 export interface PaneHeaderOptions {
   program: Program | null;
   name: string;
+  role?: string;
   task?: string;
   branch?: string;
   folder?: string;
@@ -153,6 +155,11 @@ export const paneHeader = (options: PaneHeaderOptions): Element => {
 
   header.child(programMark);
   header.child(nameElement(options));
+
+  if (isPresent(options.role)) {
+    header.child(roleBadge(options.role));
+  }
+
   const fieldCut = fields.branch === 'cut' || fields.folder === 'cut';
 
   header.child(taskElement(options, fieldCut));

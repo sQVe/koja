@@ -36,6 +36,11 @@ describe('scene lookup', () => {
       height: overlaySize.paneHeadersHeight,
     },
     {
+      name: 'pane-headers-roles',
+      width: overlaySize.paneHeadersWidth,
+      height: overlaySize.paneHeadersHeight,
+    },
+    {
       name: 'sidebar-parts',
       width: overlaySize.paneHeadersWidth,
       height: overlaySize.paneHeadersHeight,

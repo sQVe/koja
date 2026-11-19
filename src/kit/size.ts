@@ -98,6 +98,8 @@ export const paneHeaderWidth = {
   branchIcon: headerBranchIcon,
   gaps: spacing.medium * headerGapCount,
   status: 60,
+  badgePadding: spacing.small * 2,
+  badgeGap: spacing.medium,
   actions: controlSize.button * headerActionCount + spacing.xxsmall * headerActionGaps,
   overflowAction: controlSize.button,
   menuWidth: 240,

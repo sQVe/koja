@@ -106,6 +106,15 @@ describe('paneHeaderFields', () => {
     expect(below.compact).toBe(true);
   });
 
+  test('a role badge cuts the folder at a width that fits it whole without a role', () => {
+    const width = fixedWithFour + folderFull;
+    const withoutRole = paneHeaderFields({ width, name, folder: longFolder });
+    const withRole = paneHeaderFields({ width, name, folder: longFolder, role: 'architect' });
+
+    expect(withoutRole.folder).toBe('full');
+    expect(withRole.folder).toBe('cut');
+  });
+
   test('cuts the task only after both fields drop', () => {
     const fields = paneHeaderFields({
       width: 420,

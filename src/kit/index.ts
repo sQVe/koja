@@ -72,6 +72,9 @@ export {
 
 export { attentionBadge, fileStatusMark, indicator, spaceMark, statusMark } from './statusMark.ts';
 
+/** @public */
+export { roleBadge, roleToken } from './roleBadge.ts';
+
 export type { FileStatus } from './fileStatus.ts';
 
 export { rollupStatuses } from './statusRollup.ts';
