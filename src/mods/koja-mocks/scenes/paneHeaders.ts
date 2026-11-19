@@ -159,7 +159,7 @@ const specimen = (header: PaneHeaderOptions): Element => {
 
 // The open menu hangs under the overflow button, at the right end of the compact header. Herdr
 // draws a real popup's outline itself, so the scene draws it here.
-const compactWithMenu = (header: PaneHeaderOptions): Element => {
+export const compactWithMenu = (header: PaneHeaderOptions): Element => {
   const menuWidth = header.width ?? shellSize.compactSpecimenWidth;
   const palette = colors();
 

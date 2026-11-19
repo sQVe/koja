@@ -4,6 +4,7 @@ import type { Program } from 'herdr';
 
 import type { PaneHeaderOptions } from '../../../kit/index.ts';
 import { colors, paneHeader, radius, roleText, shellSize, spacing } from '../../../kit/index.ts';
+import { compactWithMenu } from './paneHeaders.ts';
 
 type SizedPaneHeader = PaneHeaderOptions & { width: number };
 
@@ -92,8 +93,9 @@ export const paneHeadersRolesScene = (): Element =>
       ),
     )
     .child(
-      specimen(
+      compactWithMenu(
         rolePane('architect', {
+          status: 'working',
           task: workerTask,
           branch: workerBranch,
           width: shellSize.compactSpecimenWidth,

@@ -8,7 +8,7 @@ import {
   herdrFake,
   kitIndexFake,
 } from '../../../../tests/moduleFakes.ts';
-import { radius, shellSize, spacing } from '../../../kit/size.ts';
+import { controlSize, radius, shellSize, spacing } from '../../../kit/size.ts';
 
 await mock.module('gpui-base', () =>
   gpuiBaseFake({ h_flex: () => drawn(), v_flex: () => drawn() }),
@@ -24,8 +24,11 @@ await mock.module('../../../kit/index.ts', () =>
       accent: '#accent',
       selected: '#selected',
       background: '#background',
+      border: '#border',
     }),
+    controlSize,
     paneHeader: () => drawn(),
+    paneHeaderMenu: () => drawn(),
     radius,
     roleText: () => drawn(),
     shellSize,
@@ -43,9 +46,19 @@ afterAll(() => {
   mock.restore();
 });
 
+const descendants = (element: DrawnElement): DrawnElement[] => [
+  element,
+  ...element.kids.flatMap(descendants),
+];
+
 test('the focused specimen has a different border from the unfocused ones', () => {
   const scene = paneHeadersRolesScene();
-  const borders = scene.kids.map((card) => card.borderColors.at(-1));
+
+  const cards = descendants(scene).filter((element) =>
+    element.backgroundColors.includes('#background'),
+  );
+
+  const borders = cards.map((card) => card.borderColors.at(-1));
   const [focused, ...unfocused] = borders;
 
   expect(focused).toBe('#accent');

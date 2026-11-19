@@ -163,6 +163,7 @@ export const overlaySize = {
   shellHeight: 760,
   paneHeadersWidth: 900,
   paneHeadersHeight: 760,
+  paneHeadersRolesHeight: 780,
 } as const;
 
 export const trafficLightsWidth = 64;
