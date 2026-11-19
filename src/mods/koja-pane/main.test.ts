@@ -17,6 +17,19 @@ let terminalReads = 0;
 
 const askedCommands: { command: string; args: unknown }[] = [];
 
+const piProgram = {
+  key: 'pi',
+  name: 'Pi',
+  icon: null,
+  tint: false,
+  tile: null,
+  color: null,
+  shell: false,
+  agent: true,
+};
+
+let paneProgramValue: Record<string, unknown> | null = null;
+
 const textElement = (text: string): DrawnElement => {
   const element = drawn();
 
@@ -34,7 +47,7 @@ const pane = (): Record<string, unknown> => ({
   branch: null,
   status: null,
   app: null,
-  program: null,
+  program: paneProgramValue,
   focused,
   zoomed: false,
 });
@@ -74,7 +87,13 @@ await mock.module('../../kit/index.ts', () =>
     programIcon: () => drawn(),
     radius: { cardInner: 7 },
     recordOf,
-    roleBadge: (role: string) => textElement(role),
+    roleBadge: (role: string) => {
+      const badge = textElement(role);
+
+      badge.styles['roleBadge'] = [role];
+
+      return badge;
+    },
     roleText: (_role: string, text: string) => textElement(text),
     stringOf,
     withTextRole: (element: unknown) => element,
@@ -99,6 +118,7 @@ afterEach(() => {
   terminalRecords = [];
   terminalReads = 0;
   askedCommands.length = 0;
+  paneProgramValue = null;
 });
 
 const rendered = (): DrawnElement => new loaded.default().render();
@@ -128,9 +148,14 @@ const headerFill = (paneFocused: boolean, normal: boolean): unknown => {
   return rendered().backgroundColors[0];
 };
 
-const badgePosition = (tree: DrawnElement, label: string): number => {
-  const titleIndex = tree.kids.findIndex((kid) => drawnTexts(kid).includes('zsh'));
-  const badgeIndex = tree.kids.findIndex((kid) => drawnTexts(kid).includes(label));
+const badgeElements = (tree: DrawnElement): DrawnElement[] => elementsWithStyle(tree, 'roleBadge');
+
+const badgeTexts = (tree: DrawnElement): string[] =>
+  badgeElements(tree).flatMap((badge) => drawnTexts(badge));
+
+const badgePosition = (tree: DrawnElement, name: string): number => {
+  const titleIndex = tree.kids.findIndex((kid) => drawnTexts(kid).includes(name));
+  const badgeIndex = tree.kids.findIndex((kid) => kid.styles['roleBadge'] !== undefined);
 
   return badgeIndex - titleIndex;
 };
@@ -151,19 +176,39 @@ describe('pane header fill', () => {
 });
 
 describe('pane header role badge', () => {
-  test('draws the role badge right after the title when the terminal carries a tau label', () => {
-    terminalRecords = [{ address: 't1', labels: { 'tau.profile': 'worker' } }];
+  test('draws the architect role badge right after the Pi title when both labels are present', () => {
+    paneProgramValue = piProgram;
 
-    expect(badgePosition(rendered(), 'worker')).toBe(1);
+    terminalRecords = [
+      { address: 't1', labels: { 'tau.role': 'architect', 'tau.profile': 'worker' } },
+    ];
+
+    const tree = rendered();
+
+    expect(drawnTexts(tree)).toContain('Pi');
+    expect(badgeTexts(tree)).toEqual(['architect']);
+    expect(badgePosition(tree, 'Pi')).toBe(1);
   });
 
-  test('draws no role badge when the terminal carries no tau label', () => {
+  test('draws the scout profile badge right after the Pi title when only the profile is present', () => {
+    paneProgramValue = piProgram;
+    terminalRecords = [{ address: 't1', labels: { 'tau.profile': 'scout' } }];
+
+    const tree = rendered();
+
+    expect(drawnTexts(tree)).toContain('Pi');
+    expect(badgeTexts(tree)).toEqual(['scout']);
+    expect(badgePosition(tree, 'Pi')).toBe(1);
+  });
+
+  test('draws the Pi title and no badge element when the terminal carries no tau label', () => {
+    paneProgramValue = piProgram;
     terminalRecords = [{ address: 't1', labels: {} }];
 
     const tree = rendered();
 
-    expect(drawnTexts(tree)).not.toContain('worker');
-    expect(badgePosition(tree, 'worker')).toBe(-1);
+    expect(drawnTexts(tree)).toContain('Pi');
+    expect(badgeElements(tree)).toEqual([]);
   });
 
   test('draws no role badge and reads no terminals for a mod pane', () => {

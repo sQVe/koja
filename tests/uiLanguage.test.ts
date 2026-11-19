@@ -264,6 +264,8 @@ const rowPairs = (): ContrastPair[] => {
     pairs.push(contrastPair('ansi3', surface, 3, `workIcon review and restack on ${surface}`));
   });
 
+  pairs.push(contrastPair('ansi3', 'popover', 4.5, 'workIcon review and restack on popover'));
+
   rowSurfaces.concat('background').forEach((surface) => {
     pairs.push(
       filledPair(
@@ -543,6 +545,14 @@ describe('the UI language', () => {
 
     expect(result.passed).toBe(true);
     expect(result.line).toBe('foreground on blocked 26 over popover: 16.18:1, needs 4.5:1');
+  });
+
+  test('two declarations of one pair merge at the larger minimum', () => {
+    const loose = contrastPair('foreground', 'popover', 4.5, 'loose declaration');
+    const strict = contrastPair('foreground', 'popover', 7, 'strict declaration');
+
+    expect(mergePairs([loose, strict])[0]?.minimum).toBe(7);
+    expect(mergePairs([strict, loose])[0]?.minimum).toBe(7);
   });
 
   test('the real theme passes every checked contrast pair', async () => {
