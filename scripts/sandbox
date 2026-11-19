@@ -14,7 +14,7 @@
 #   scripts/sandbox move|click|drag|scroll|type|key|hold|release ...   fake input (window px)
 #   scripts/sandbox log           the window's log
 #   scripts/sandbox opened        links the window asked to open (logged, never opened)
-#   scripts/sandbox down          stop everything and delete it
+#   scripts/sandbox down          stop everything, the fixture machine too, and delete it
 #
 # Every command but install, identity, do, status, and hc goes to ruta; `ruta` without
 # arguments lists them. RUTA_NAME=<name> runs a second sandbox side by side, and
@@ -126,6 +126,13 @@ case ${1:-} in
     file=${2:+$(realpath -ms -- "$2")}
     cd "$checkout"
     exec ruta shot ${file:+"$file"}
+    ;;
+  down)
+    failed=0
+    "$here/sandbox-machine" down || failed=1
+    cd "$checkout"
+    ruta down || failed=1
+    exit "$failed"
     ;;
   *)
     cd "$checkout"

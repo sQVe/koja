@@ -1,0 +1,310 @@
+#!/usr/bin/env bash
+# A second machine for the sandbox, reached over ssh on loopback. Its keys,
+# sshd, home, runtime folder, and herdr-core all live under the sandbox root,
+# so a space can be made on another machine without touching the real one.
+#
+#   scripts/sandbox-machine up     start it, add it to the sandbox core, and
+#                                  make a Git repository there
+#   scripts/sandbox-machine down   forget it, stop it, and delete its files
+#
+# RUTA_NAME=<name> names the sandbox, as it does for scripts/sandbox.
+set -euo pipefail
+
+here=$(cd "$(dirname "$0")" && pwd)
+checkout=$(dirname "$here")
+name=${RUTA_NAME-koja}
+
+if [[ -n ${TAU_VERIFICATION_RUN:-} ]]; then
+  name=koja-${TAU_VERIFICATION_RUN,,}
+fi
+
+export RUTA_NAME=$name
+
+if [[ ! $name =~ ^[a-z0-9][a-z0-9-]*$ ]]; then
+  echo "RUTA_NAME must be one name of lowercase letters, digits, and dashes, not '$name'" >&2
+  exit 2
+fi
+
+root=/var/tmp/ruta-$name
+machine=$root/machine
+machine_name=qa-remote
+fixture=$machine/home/remote-fixture
+
+sandbox() {
+  "$checkout/scripts/sandbox" "$@"
+}
+
+require_up() {
+  if ! sandbox identity; then
+    echo "sandbox $name is not ready; run 'scripts/sandbox up' first" >&2
+    exit 1
+  fi
+}
+
+sshd_pid() {
+  if [[ ! -f $machine/sshd.pid ]]; then
+    return 1
+  fi
+
+  local pid
+  pid=$(cat "$machine/sshd.pid")
+  kill -0 "$pid" 2>/dev/null || return 1
+  printf '%s\n' "$pid"
+}
+
+free_port() {
+  local port
+
+  for _ in $(seq 1 20); do
+    port=$(shuf -i 20000-60000 -n 1)
+    if [[ -z $(ss -Hltn "sport = :$port") ]]; then
+      printf '%s\n' "$port"
+      return 0
+    fi
+  done
+
+  echo "found no free port for the fixture sshd" >&2
+  return 1
+}
+
+write_sshd_config() {
+  local port=$1
+
+  cat > "$machine/sshd_config" <<EOF
+Port $port
+ListenAddress 127.0.0.1
+HostKey $machine/host_key
+AuthorizedKeysFile $machine/authorized_keys
+PidFile $machine/sshd.pid
+ForceCommand $machine/login
+SetEnv HOME=$machine/home XDG_RUNTIME_DIR=$machine/run
+UsePAM no
+PasswordAuthentication no
+KbdInteractiveAuthentication no
+PermitRootLogin no
+DisableForwarding yes
+UseDNS no
+# /var/tmp is world-writable, so sshd would otherwise refuse the key files.
+StrictModes no
+LogLevel VERBOSE
+EOF
+}
+
+# sshd runs every session through this wrapper, so both the login path and a
+# command given over ssh see the machine's own home and runtime folder.
+write_login() {
+  cat > "$machine/login" <<EOF
+#!/bin/sh
+export HOME=$machine/home
+export XDG_RUNTIME_DIR=$machine/run
+export PATH=$machine/bin:/usr/local/bin:/usr/bin:/bin
+cd "\$HOME" || exit 1
+if [ -n "\${SSH_ORIGINAL_COMMAND:-}" ]; then
+  exec sh -c "\$SSH_ORIGINAL_COMMAND"
+fi
+exec "\${SHELL:-/bin/sh}" -l
+EOF
+  chmod 700 "$machine/login"
+}
+
+# OpenSSH reads ~/.ssh/config from the password database, not from HOME, so the
+# client reaches this machine only through a config file given with -F.
+write_ssh_config() {
+  local port=$1
+
+  cat > "$machine/ssh_config" <<EOF
+Host $machine_name
+  HostName 127.0.0.1
+  Port $port
+  User $(id -un)
+  IdentityFile $machine/client_key
+  IdentitiesOnly yes
+  UserKnownHostsFile $machine/known_hosts
+  StrictHostKeyChecking accept-new
+EOF
+  mkdir -p "$root/home/.ssh"
+  chmod 700 "$root/home/.ssh"
+  cp "$machine/ssh_config" "$root/home/.ssh/config"
+  chmod 600 "$root/home/.ssh/config"
+}
+
+install_client() {
+  mkdir -p "$root/bin"
+  cat > "$root/bin/ssh" <<EOF
+#!/bin/sh
+exec /usr/bin/ssh -F $machine/ssh_config "\$@"
+EOF
+  chmod 755 "$root/bin/ssh"
+}
+
+# The machine side needs its own herdr-core, and hc machine add copies one only
+# when asked to. Put it inside the sandbox root, on the machine's PATH.
+copy_core() {
+  local source
+
+  if ! source=$(command -v herdr-core); then
+    echo "found no herdr-core to put on the fixture machine" >&2
+    return 1
+  fi
+
+  if [[ -x $machine/bin/herdr-core ]] && cmp -s "$source" "$machine/bin/herdr-core"; then
+    return 0
+  fi
+
+  install -m 755 "$source" "$machine/bin/herdr-core"
+  ln -sf herdr-core "$machine/bin/hc"
+}
+
+start_sshd() {
+  if sshd_pid >/dev/null; then
+    return 0
+  fi
+
+  /usr/bin/sshd -f "$machine/sshd_config" -E "$machine/sshd.log"
+}
+
+wait_for_ssh() {
+  for _ in $(seq 1 50); do
+    if /usr/bin/ssh -F "$machine/ssh_config" -o BatchMode=yes -o ConnectTimeout=1 \
+      "$machine_name" true >/dev/null 2>&1; then
+      return 0
+    fi
+
+    sleep 0.2
+  done
+
+  echo "the fixture sshd did not answer on port $(cat "$machine/port")" >&2
+  return 1
+}
+
+make_fixture() {
+  if [[ -d $fixture/.git ]]; then
+    return 0
+  fi
+
+  mkdir -p "$fixture"
+  HOME=$machine/home git -C "$fixture" init -q -b remote-branch
+  HOME=$machine/home git -C "$fixture" config user.name 'QA Fixture'
+  HOME=$machine/home git -C "$fixture" config user.email qa@example.invalid
+  HOME=$machine/home git -C "$fixture" config commit.gpgsign false
+  printf '# remote fixture\n' > "$fixture/README.md"
+  HOME=$machine/home git -C "$fixture" add README.md
+  HOME=$machine/home git -C "$fixture" commit -q -m 'Add the fixture readme'
+}
+
+add_machine() {
+  local machines
+  machines=$(sandbox hc machine ls --json)
+
+  if [[ $machines == *"\"name\":\"$machine_name\""* ]]; then
+    return 0
+  fi
+
+  sandbox hc machine add --name "$machine_name" "$machine_name" >/dev/null
+}
+
+# Every process of the fixture either names the machine in its command line or
+# has it in the environment, such as a shell started on the machine.
+machine_pids() {
+  {
+    pgrep -f -- "$machine" || true
+    for environ in /proc/[0-9]*/environ; do
+      if (tr '\0' '\n' < "$environ") 2>/dev/null | grep -qF -- "$machine"; then
+        basename "$(dirname "$environ")"
+      fi
+    done
+  } | sort -u
+}
+
+stop_processes() {
+  local pids
+  pids=$(machine_pids)
+
+  if [[ -z $pids ]]; then
+    return 0
+  fi
+
+  kill $pids 2>/dev/null || true
+  for _ in $(seq 1 50); do
+    pids=$(machine_pids)
+    if [[ -z $pids ]]; then
+      return 0
+    fi
+
+    sleep 0.1
+  done
+
+  kill -9 $pids 2>/dev/null || true
+}
+
+stop_sshd() {
+  local pid
+  pid=$(sshd_pid) || return 0
+
+  kill "$pid" 2>/dev/null || true
+  for _ in $(seq 1 50); do
+    if ! kill -0 "$pid" 2>/dev/null; then
+      return 0
+    fi
+
+    sleep 0.1
+  done
+
+  kill -9 "$pid" 2>/dev/null || true
+}
+
+up() {
+  require_up
+  local port
+
+  mkdir -p "$machine/home" "$machine/run" "$machine/bin"
+  chmod 700 "$machine"
+
+  if [[ ! -f $machine/host_key ]]; then
+    ssh-keygen -q -t ed25519 -N '' -C "sandbox $name host" -f "$machine/host_key"
+  fi
+
+  if [[ ! -f $machine/client_key ]]; then
+    ssh-keygen -q -t ed25519 -N '' -C "$machine_name" -f "$machine/client_key"
+  fi
+  cp "$machine/client_key.pub" "$machine/authorized_keys"
+  chmod 600 "$machine/authorized_keys"
+
+  local port
+  if sshd_pid >/dev/null; then
+    port=$(cat "$machine/port")
+  else
+    port=$(free_port)
+    printf '%s\n' "$port" > "$machine/port"
+  fi
+  write_sshd_config "$port"
+  write_login
+  write_ssh_config "$port"
+  install_client
+  copy_core
+  start_sshd
+  wait_for_ssh
+  make_fixture
+  add_machine
+
+  printf 'machine %s is up; its fixture repository is %s\n' "$machine_name" "$fixture"
+}
+
+down() {
+  if [[ -x $root/bin/herdr-app && -S $root/run/herdr-core/default.sock ]]; then
+    sandbox hc machine rm "$machine_name" >/dev/null 2>&1 || true
+  fi
+
+  stop_sshd
+  stop_processes
+  rm -rf "$machine"
+}
+
+case ${1:-} in
+  up) up ;;
+  down) down ;;
+  *)
+    echo "usage: scripts/sandbox-machine up|down" >&2
+    exit 2
+    ;;
+esac

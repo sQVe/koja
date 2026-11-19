@@ -124,6 +124,30 @@ Ask the user:
 Give the brief these lines: `Sandbox: <name>`, the fixture paths, and `Data writes: allowed` or
 `not allowed`. Give one sandbox to one worker at a time.
 
+### Second machine
+
+A space on another machine needs the fixture machine. Only the manager starts and connects it. The
+`qa` worker never does.
+
+From the worktree, with the sandbox up:
+
+```sh
+export RUTA_NAME=<name>
+scripts/sandbox-machine up
+bun run sandbox do space.new "{\"folder\":\"/var/tmp/ruta-$RUTA_NAME/machine/home/remote-fixture\",\"machine\":\"qa-remote\"}"
+bun run sandbox hc exec --on qa-remote sh -c 'echo $HOME $XDG_RUNTIME_DIR'
+```
+
+- Start: `scripts/sandbox-machine up` starts an sshd on loopback and adds the machine `qa-remote` to
+  the sandbox core. It needs `bun run sandbox identity` to exit 0 first, and it prints the machine
+  name and the path of its fixture repository. The machine's keys, home, runtime folder, and
+  herdr-core all sit under `/var/tmp/ruta-<name>/machine/`. Nothing outside that folder is read or
+  written, and no root is needed.
+- Check that it is up: the `hc exec` command prints two paths under `/var/tmp/ruta-<name>/machine/`,
+  and the space shows a `remote-fixture` project header with the `qa-remote` label.
+- Stop: `bun run sandbox down` runs `scripts/sandbox-machine down` first. That forgets the machine,
+  stops its processes, and deletes `/var/tmp/ruta-<name>/machine/`.
+
 ## Rules for every section
 
 - From the worktree, run `RUTA_NAME=<name> bun run sandbox guide`, or `RUTA_NAME=<name> ruta guide`.
@@ -245,9 +269,11 @@ Same as [Normal mode keys](#normal-mode-keys).
 - A double click, such as the rename of a tab: the sandbox input sends single clicks only.
 - A pane close that also ends other panes: no fixture step makes a terminal with a live child
   terminal in another pane.
-- Agent launch, live agent status, and machines: they need real agents and SSH. The journey fixture
-  shows only idle spaces, with no mark on the header and a hollow one on the row, not live status
-  changes.
+- Agent launch and live agent status: they need real agents. The journey fixture shows only idle
+  spaces, with no mark on the header and a hollow one on the row, not live status changes.
+- Real SSH machines, machine login, and a rebuilt machine: they need a real server and credentials.
+  The [second machine](#second-machine) fixture tests only the sidebar header of a project on
+  `qa-remote`.
 - Live GitHub PR data: the journey fixture tests a failed read and an empty successful read only. It
   does not test authenticated GitHub reads or populated PR data.
 - `sandbox up`, `restart`, `install`, and `down`, the build, and the installer: the `qa` worker may
