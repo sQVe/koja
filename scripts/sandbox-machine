@@ -192,15 +192,126 @@ make_fixture() {
   HOME=$machine/home git -C "$fixture" commit -q -m 'Add the fixture readme'
 }
 
+now_ms() {
+  date +%s%3N
+}
+
+# Bound one sandbox call by the milliseconds left before the deadline.
+run_bounded() {
+  local budget_ms=$1
+  shift
+
+  local seconds
+  seconds=$(printf '%d.%03d' $((budget_ms / 1000)) $((budget_ms % 1000)))
+  timeout "$seconds" "$checkout/scripts/sandbox" "$@"
+}
+
+machine_entry() {
+  printf '%s' "$1" | grep -o "{[^}]*\"name\":\"$machine_name\"[^}]*}" | head -n 1 || true
+}
+
+wait_for_core() {
+  local deadline=$1
+  local response='' status='' entry remaining
+
+  while :; do
+    remaining=$((deadline - $(now_ms)))
+    if (( remaining <= 0 )); then
+      echo "machine $machine_name did not connect within 15 s (phase core): exit ${status:-none}, last response: $response" >&2
+      return 1
+    fi
+
+    set +e
+    response=$(run_bounded "$remaining" hc machine ls --json 2>&1)
+    status=$?
+    set -e
+    entry=$(machine_entry "$response")
+    if [[ $entry == *'"state":"connected"'* && $entry == *'"temporary":false'* ]]; then
+      return 0
+    fi
+
+    sleep 0.25
+  done
+}
+
+check_machine_shell() {
+  local deadline=$1
+  local response status remaining
+  remaining=$((deadline - $(now_ms)))
+
+  if (( remaining <= 0 )); then
+    echo "machine $machine_name missed the readiness deadline (phase exec)" >&2
+    return 1
+  fi
+
+  set +e
+  response=$(run_bounded "$remaining" hc exec --on "$machine_name" --cwd "$fixture" /bin/sh -c ':' 2>&1)
+  status=$?
+  set -e
+  if (( status != 0 )); then
+    echo "machine $machine_name could not run a shell in $fixture (phase exec): exit $status, last response: $response" >&2
+    return 1
+  fi
+}
+
+# Herdr's app lags the core's machine list, so a space made right after the
+# machine connects can still fail with "Herdr has no machine called qa-remote".
+# Poll a space.new that must fail, until the app knows the machine.
+wait_for_app() {
+  local deadline=$1
+  local response='' status='' remaining probe_folder probe_json probe
+  probe_folder=$machine/home/space-new-probe-$$
+  probe_json=$(printf '{"folder":"%s","machine":"%s","focus":false,"argv":["/bin/sh","-c",":"]}' "$probe_folder" "$machine_name")
+  probe=("do" space.new "$probe_json")
+
+  while :; do
+    remaining=$((deadline - $(now_ms)))
+    if (( remaining <= 0 )); then
+      echo "Herdr did not learn machine $machine_name within 15 s (phase app): exit ${status:-none}, last response: $response" >&2
+      return 1
+    fi
+
+    set +e
+    response=$(run_bounded "$remaining" "${probe[@]}" 2>&1)
+    status=$?
+    set -e
+    if (( status == 0 )); then
+      echo "the space.new readiness probe created a space; stopping sandbox $name" >&2
+      sandbox down || true
+      return 1
+    fi
+
+    if [[ $response != *"Herdr has no machine called $machine_name"* ]]; then
+      if [[ $response == *'cannot start a terminal: terminal.run'* && $response == *'No such file or directory'* ]]; then
+        return 0
+      fi
+
+      echo "the space.new readiness probe failed unexpectedly (phase app): exit $status, last response: $response" >&2
+      return 1
+    fi
+
+    sleep 0.25
+  done
+}
+
+wait_ready() {
+  local deadline
+  deadline=$(( $(now_ms) + 15000 ))
+
+  wait_for_core "$deadline" || return 1
+  check_machine_shell "$deadline" || return 1
+  wait_for_app "$deadline" || return 1
+}
+
 add_machine() {
   local machines
   machines=$(sandbox hc machine ls --json)
 
-  if [[ $machines == *"\"name\":\"$machine_name\""* ]]; then
-    return 0
+  if [[ $machines != *"\"name\":\"$machine_name\""* ]]; then
+    sandbox hc machine add --name "$machine_name" "$machine_name" >/dev/null
   fi
 
-  sandbox hc machine add --name "$machine_name" "$machine_name" >/dev/null
+  wait_ready
 }
 
 # Every process of the fixture either names the machine in its command line or
