@@ -50,6 +50,10 @@ let normalMode = false;
 
 const askedCommands: { command: string; args: unknown }[] = [];
 
+const drawnBadges: string[] = [];
+
+let terminalRecords: unknown[] = [];
+
 const pane = (): Record<string, unknown> => ({
   pane: 'p1',
   terminal: 't1',
@@ -77,6 +81,7 @@ await mock.module('herdr', () =>
     panes: () => [pane()],
     props: () => ({ pane: 'p1' }),
     shared: (key: string) => (key === 'koja-modal' && normalMode ? true : undefined),
+    terminals: () => terminalRecords,
   }),
 );
 
@@ -94,6 +99,11 @@ await mock.module('../../kit/index.ts', () =>
     programIcon: () => chainable(),
     radius: { cardInner: 7 },
     recordOf,
+    roleBadge: (role: string) => {
+      drawnBadges.push(role);
+
+      return chainable();
+    },
     roleText: () => chainable(),
     stringOf,
     withTextRole: (element: unknown) => element,
@@ -142,6 +152,29 @@ describe('pane header fill', () => {
   test('draws no fill on an unfocused header in either mode', () => {
     expect(headerFill(false, true)).toBeUndefined();
     expect(headerFill(false, false)).toBeUndefined();
+  });
+});
+
+describe('pane header role badge', () => {
+  const badgeFor = (records: unknown[]): string[] => {
+    terminalRecords = records;
+    drawnBadges.length = 0;
+
+    new loaded.default().render();
+
+    return drawnBadges;
+  };
+
+  test('shows the role badge when the terminal carries a tau label', () => {
+    const records = [{ address: 't1', labels: { 'tau.profile': 'worker' } }];
+
+    expect(badgeFor(records)).toEqual(['worker']);
+  });
+
+  test('shows no badge when the terminal carries no tau label', () => {
+    const records = [{ address: 't1', labels: {} }];
+
+    expect(badgeFor(records)).toEqual([]);
   });
 });
 

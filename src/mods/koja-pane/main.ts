@@ -2,7 +2,7 @@ import { h_flex } from 'gpui-base';
 import type { Element } from 'gpui-kit';
 import { div, View } from 'gpui-kit';
 import type { PaneInfo, Status } from 'herdr';
-import { home, panes, props, run, shared } from 'herdr';
+import { home, panes, props, run, shared, terminals } from 'herdr';
 
 import type { PaneHeaderMenuAction } from '../../kit/index.ts';
 import {
@@ -16,6 +16,7 @@ import {
   programIcon,
   radius,
   recordOf,
+  roleBadge,
   roleText,
   spacing,
   statusMark,
@@ -25,6 +26,7 @@ import {
 import { headerTone } from './headerTone.ts';
 import { folderLabel } from './paneFolder.ts';
 import { paneFolder, paneName, paneProgram } from './paneLabel.ts';
+import { paneRole } from './paneRole.ts';
 
 const headerPane = (): PaneInfo | undefined => {
   const paneId = stringOf(recordOf(props()).pane);
@@ -117,6 +119,12 @@ export default class PaneHeader extends View {
     const title = withTextRole(titleBox, 'detail', tone.title).child(paneName(pane));
 
     element.child(title);
+
+    const role = paneRole(pane, terminals());
+
+    if (role !== null) {
+      element.child(roleBadge(role));
+    }
 
     const folder = roleText('detail', folderLabel(paneFolder(pane), home())).flex_1();
 
