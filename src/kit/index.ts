@@ -70,7 +70,14 @@ export {
   spacing,
 } from './size.ts';
 
-export { attentionBadge, fileStatusMark, indicator, spaceMark, statusMark } from './statusMark.ts';
+export {
+  attentionBadge,
+  fileStatusMark,
+  indicator,
+  paneStatusElement,
+  spaceMark,
+  statusMark,
+} from './statusMark.ts';
 
 /** @public */
 export { roleBadge, roleToken } from './roleBadge.ts';
@@ -93,7 +100,7 @@ export { themeChoices } from './themes.ts';
 
 export { detailText, highlightedText, keyHint, linkText, separator } from './text.ts';
 
-export { roleText, textRoles, withTextRole } from './textRole.ts';
+export { roleText, textRoleNames, textRoles, withTextRole } from './textRole.ts';
 
 export type { TextRole } from './textRole.ts';
 

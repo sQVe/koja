@@ -32,6 +32,10 @@ export const textRoles: Record<TextRole, TextRoleStyle> = {
   tag: { size: textSize.xsmall, weight: 'regular', color: 'foreground' },
 };
 
+const isTextRole = (value: string): value is TextRole => Object.hasOwn(textRoles, value);
+
+export const textRoleNames = Object.keys(textRoles).filter(isTextRole);
+
 export const withTextRole = (element: Element, role: TextRole, color?: ThemeToken): Element => {
   const style = textRoles[role];
   const sized = element.text_size(style.size).text_color(colors()[color ?? style.color]);

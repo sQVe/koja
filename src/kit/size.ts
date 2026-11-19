@@ -66,6 +66,14 @@ export const controlSize = {
   tabLabelMaxWidth: 170,
 } as const;
 
+export const badgeSize = {
+  height: controlSize.badge,
+  padding: spacing.small,
+  border: spacing.hairline,
+  radius: radius.default,
+  horizontal: spacing.small * 2 + spacing.hairline * 2,
+} as const;
+
 export const shellSize = {
   sidebarWidth: 240,
   panelWidth: 300,
@@ -98,8 +106,6 @@ export const paneHeaderWidth = {
   branchIcon: headerBranchIcon,
   gaps: spacing.medium * headerGapCount,
   status: 60,
-  badgePadding: spacing.small * 2,
-  badgeBorder: spacing.hairline * 2,
   badgeGap: spacing.medium,
   actions: controlSize.button * headerActionCount + spacing.xxsmall * headerActionGaps,
   overflowAction: controlSize.button,

@@ -1,62 +1,33 @@
-import { afterAll, describe, expect, mock, test } from 'bun:test';
+import { afterAll, afterEach, describe, expect, mock, test } from 'bun:test';
 
-import {
-  chainable,
-  gpuiBaseFake,
-  gpuiKitFake,
-  herdrFake,
-  kitIndexFake,
-} from '../../../tests/moduleFakes.ts';
+import type { DrawnElement } from '../../../tests/drawn.ts';
+import { click, drawn, drawnTexts, elementsWithStyle } from '../../../tests/drawn.ts';
+import { gpuiBaseFake, gpuiKitFake, herdrFake, kitIndexFake } from '../../../tests/moduleFakes.ts';
 import { recordOf, stringOf } from '../../kit/fields.ts';
 import { normalFocusFill, toPalette } from '../../kit/palette.ts';
 import { paneActions } from '../../kit/paneHeaderMenuModel.ts';
-
-interface RecordedElement {
-  styles: Record<string, unknown>;
-}
-
-type HoverHandler = (hovered: boolean, cx: { notify: () => void }) => void;
-
-type ClickHandler = (event: unknown, cx: { stop_propagation: () => void }) => void;
-
-const recorded = (): RecordedElement => {
-  const element: RecordedElement = { styles: {} };
-
-  const handle: RecordedElement = new Proxy(element, {
-    get: (target, key) => {
-      if (key === 'then') {
-        return undefined;
-      }
-
-      if (key === 'styles') {
-        return target.styles;
-      }
-
-      return (...args: unknown[]) => {
-        element.styles[String(key)] = args[0];
-
-        return handle;
-      };
-    },
-  });
-
-  return handle;
-};
 
 const accent = '#4e4e8f';
 
 let focused = false;
 let normalMode = false;
+let paneTerminal: string | null = 't1';
+let terminalRecords: unknown[] = [];
+let terminalReads = 0;
 
 const askedCommands: { command: string; args: unknown }[] = [];
 
-const drawnBadges: string[] = [];
+const textElement = (text: string): DrawnElement => {
+  const element = drawn();
 
-let terminalRecords: unknown[] = [];
+  element.texts.push(text);
+
+  return element;
+};
 
 const pane = (): Record<string, unknown> => ({
   pane: 'p1',
-  terminal: 't1',
+  terminal: paneTerminal,
   tab: 'tb1',
   title: 'zsh',
   cwd: null,
@@ -70,10 +41,10 @@ const pane = (): Record<string, unknown> => ({
 
 Object.assign(globalThis, { kojaModName: 'koja-pane' });
 
-await mock.module('gpui-base', () => gpuiBaseFake({ h_flex: () => recorded() }));
+await mock.module('gpui-base', () => gpuiBaseFake({ h_flex: () => drawn() }));
 
 await mock.module('gpui-kit', () =>
-  gpuiKitFake({ div: () => chainable(), image: () => chainable(), svg: () => chainable() }),
+  gpuiKitFake({ div: () => drawn(), image: () => drawn(), svg: (path: string) => drawn(path) }),
 );
 
 await mock.module('herdr', () =>
@@ -81,7 +52,11 @@ await mock.module('herdr', () =>
     panes: () => [pane()],
     props: () => ({ pane: 'p1' }),
     shared: (key: string) => (key === 'koja-modal' && normalMode ? true : undefined),
-    terminals: () => terminalRecords,
+    terminals: () => {
+      terminalReads += 1;
+
+      return terminalRecords;
+    },
   }),
 );
 
@@ -93,18 +68,14 @@ await mock.module('../../kit/index.ts', () =>
       return true;
     },
     colors: () => toPalette({ accent, foreground: '#1e2028' }),
-    iconButton: () => recorded(),
+    iconButton: () => drawn(),
     normalFocusFill,
     paneActions,
-    programIcon: () => chainable(),
+    programIcon: () => drawn(),
     radius: { cardInner: 7 },
     recordOf,
-    roleBadge: (role: string) => {
-      drawnBadges.push(role);
-
-      return chainable();
-    },
-    roleText: () => chainable(),
+    roleBadge: (role: string) => textElement(role),
+    roleText: (_role: string, text: string) => textElement(text),
     stringOf,
     withTextRole: (element: unknown) => element,
   }),
@@ -114,30 +85,54 @@ await mock.module('../../kit/index.ts', () =>
 const modulePath = './main.ts';
 
 const loaded = (await import(modulePath)) as {
-  default: new () => { render: () => RecordedElement };
+  default: new () => { render: () => DrawnElement };
 };
 
 afterAll(() => {
   mock.restore();
 });
 
-const hoveredButtons = (): RecordedElement[] => {
+afterEach(() => {
+  focused = false;
+  normalMode = false;
+  paneTerminal = 't1';
+  terminalRecords = [];
+  terminalReads = 0;
+  askedCommands.length = 0;
+});
+
+const rendered = (): DrawnElement => new loaded.default().render();
+
+const styleValue = (element: DrawnElement, style: string): string | null => {
+  const value = element.styles[style]?.[0];
+
+  return typeof value === 'string' ? value : null;
+};
+
+const hoveredButtons = (): DrawnElement[] => {
   focused = true;
   normalMode = false;
 
   const view = new loaded.default();
-  const onHover = view.render().styles['on_hover'] as HoverHandler;
+  const onHover = view.render().hoverHandlers[0];
 
-  onHover(true, { notify: () => undefined });
+  onHover?.(true, { notify: () => undefined });
 
-  return view.render().styles['children'] as RecordedElement[];
+  return elementsWithStyle(view.render(), 'accessibility_label');
 };
 
 const headerFill = (paneFocused: boolean, normal: boolean): unknown => {
   focused = paneFocused;
   normalMode = normal;
 
-  return new loaded.default().render().styles['bg'];
+  return rendered().backgroundColors[0];
+};
+
+const badgePosition = (tree: DrawnElement, label: string): number => {
+  const titleIndex = tree.kids.findIndex((kid) => drawnTexts(kid).includes('zsh'));
+  const badgeIndex = tree.kids.findIndex((kid) => drawnTexts(kid).includes(label));
+
+  return badgeIndex - titleIndex;
 };
 
 describe('pane header fill', () => {
@@ -156,33 +151,37 @@ describe('pane header fill', () => {
 });
 
 describe('pane header role badge', () => {
-  const badgeFor = (records: unknown[]): string[] => {
-    terminalRecords = records;
-    drawnBadges.length = 0;
+  test('draws the role badge right after the title when the terminal carries a tau label', () => {
+    terminalRecords = [{ address: 't1', labels: { 'tau.profile': 'worker' } }];
 
-    new loaded.default().render();
-
-    return drawnBadges;
-  };
-
-  test('shows the role badge when the terminal carries a tau label', () => {
-    const records = [{ address: 't1', labels: { 'tau.profile': 'worker' } }];
-
-    expect(badgeFor(records)).toEqual(['worker']);
+    expect(badgePosition(rendered(), 'worker')).toBe(1);
   });
 
-  test('shows no badge when the terminal carries no tau label', () => {
-    const records = [{ address: 't1', labels: {} }];
+  test('draws no role badge when the terminal carries no tau label', () => {
+    terminalRecords = [{ address: 't1', labels: {} }];
 
-    expect(badgeFor(records)).toEqual([]);
+    const tree = rendered();
+
+    expect(drawnTexts(tree)).not.toContain('worker');
+    expect(badgePosition(tree, 'worker')).toBe(-1);
+  });
+
+  test('draws no role badge and reads no terminals for a mod pane', () => {
+    paneTerminal = null;
+    terminalRecords = [{ address: 't1', labels: { 'tau.role': 'lead' } }];
+
+    const tree = rendered();
+
+    expect(drawnTexts(tree)).not.toContain('lead');
+    expect(terminalReads).toBe(0);
   });
 });
 
 describe('pane header buttons', () => {
   test('name each button for assistive technology and in a tooltip', () => {
     const buttons = hoveredButtons();
-    const names = buttons.map((button) => button.styles['accessibility_label']);
-    const tooltips = buttons.map((button) => button.styles['tooltip']);
+    const names = buttons.map((button) => styleValue(button, 'accessibility_label'));
+    const tooltips = buttons.map((button) => button.tooltipText);
 
     expect(names).toEqual(['Split right', 'Split down', 'Zoom pane', 'Close pane']);
     expect(tooltips).toEqual(names);
@@ -190,13 +189,12 @@ describe('pane header buttons', () => {
 
   test('close asks first, so the last pane of a space gets the Koja dialog', () => {
     const close = hoveredButtons().find(
-      (button) => button.styles['accessibility_label'] === 'Close pane',
+      (button) => styleValue(button, 'accessibility_label') === 'Close pane',
     );
 
-    const onClick = close?.styles['on_click'] as ClickHandler;
-
-    askedCommands.length = 0;
-    onClick(undefined, { stop_propagation: () => undefined });
+    if (close !== undefined) {
+      click(close);
+    }
 
     expect(askedCommands).toEqual([{ command: 'pane.close', args: { pane: 'p1' } }]);
   });

@@ -5,6 +5,7 @@ import { join } from 'node:path';
 
 import { iconNames } from '../src/kit/iconNames.ts';
 import { badgeFillAlpha, diffFillAlpha, normalFocusFillAlpha } from '../src/kit/palette.ts';
+import { roleColorTokens } from '../src/kit/rolePalette.ts';
 import { isRawStyleExempt, modsDirectory, typeScriptFiles } from './sourceFiles.ts';
 
 interface SourceLine {
@@ -35,6 +36,13 @@ interface ContrastPair {
 interface ContrastResult {
   line: string;
   passed: boolean;
+}
+
+interface RoleSurface {
+  surface: string;
+  fill?: Fill;
+  minimum: number;
+  reason: string;
 }
 
 const kitDirectory = 'src/kit';
@@ -197,22 +205,12 @@ const filledPair = (
 
 const rowSurfaces = ['chrome', 'popover', 'hover', 'selected'];
 
-const mutedRowReason = (surface: string): string =>
-  surface === 'popover'
-    ? 'roleBadge muted label and outline and listRow muted label on popover'
-    : `listRow muted label on ${surface}`;
-
-const ansi2RowReason = (surface: string): string =>
-  surface === 'popover'
-    ? 'roleBadge ansi2 label and outline and diff addition text on popover'
-    : `diff addition and file status text on ${surface}`;
-
 const rowPairs = (): ContrastPair[] => {
   const pairs: ContrastPair[] = [];
 
   rowSurfaces.forEach((surface) => {
     pairs.push(contrastPair('foreground', surface, 4.5, `listRow and tab label on ${surface}`));
-    pairs.push(contrastPair('muted', surface, 4.5, mutedRowReason(surface)));
+    pairs.push(contrastPair('muted', surface, 4.5, `listRow muted label on ${surface}`));
 
     pairs.push(
       contrastPair('dim', surface, 4.5, `listRow detail, icon, and key hint on ${surface}`),
@@ -222,7 +220,9 @@ const rowPairs = (): ContrastPair[] => {
       contrastPair('ansi1', surface, 4.5, `diff removal and file status text on ${surface}`),
     );
 
-    pairs.push(contrastPair('ansi2', surface, 4.5, ansi2RowReason(surface)));
+    pairs.push(
+      contrastPair('ansi2', surface, 4.5, `diff addition and file status text on ${surface}`),
+    );
 
     pairs.push(contrastPair('working', surface, 3, `statusMark working on ${surface}`));
     pairs.push(contrastPair('done', surface, 3, `statusMark done on ${surface}`));
@@ -264,21 +264,6 @@ const rowPairs = (): ContrastPair[] => {
     pairs.push(contrastPair('ansi3', surface, 3, `workIcon review and restack on ${surface}`));
   });
 
-  pairs.push(
-    contrastPair(
-      'ansi3',
-      'popover',
-      4.5,
-      'roleBadge ansi3 label and outline and workIcon review and restack on popover',
-    ),
-  );
-
-  ['ansi4', 'ansi5'].forEach((token) => {
-    pairs.push(
-      contrastPair(token, 'popover', 4.5, `roleBadge ${token} label and outline on popover`),
-    );
-  });
-
   rowSurfaces.concat('background').forEach((surface) => {
     pairs.push(
       filledPair(
@@ -300,6 +285,36 @@ const rowPairs = (): ContrastPair[] => {
   return pairs;
 };
 
+const roleSurfaces: RoleSurface[] = [
+  { surface: 'popover', minimum: 4.5, reason: 'roleBadge label and outline on popover' },
+  { surface: 'background', minimum: 4.5, reason: 'roleBadge label and outline on background' },
+  {
+    surface: 'background',
+    fill: { alpha: normalFocusFillAlpha, token: 'accent' },
+    minimum: 4.5,
+    reason: 'roleBadge label and outline on the focus tint',
+  },
+];
+
+const rolePairs = (): ContrastPair[] => {
+  const pairs: ContrastPair[] = [];
+
+  roleSurfaces.forEach(({ surface, fill, minimum, reason }) => {
+    roleColorTokens().forEach((token) => {
+      const pairReason = `${reason} as ${token}`;
+
+      const pair =
+        fill === undefined
+          ? contrastPair(token, surface, minimum, pairReason)
+          : filledPair(token, fill, surface, minimum, pairReason);
+
+      pairs.push(pair);
+    });
+  });
+
+  return pairs;
+};
+
 const backgroundPairs = (): ContrastPair[] => [
   contrastPair(
     'foreground',
@@ -311,16 +326,11 @@ const backgroundPairs = (): ContrastPair[] => [
     'muted',
     'background',
     4.5,
-    'roleBadge muted label and outline and koja-pane unfocused title on background',
+    'koja-pane unfocused title and listRow muted label on background',
   ),
   contrastPair('dim', 'background', 4.5, 'koja-pane folder and Changes detail on background'),
   contrastPair('ansi1', 'background', 4.5, 'Changes removal and file status text on background'),
-  contrastPair(
-    'ansi2',
-    'background',
-    4.5,
-    'roleBadge ansi2 label and outline and Changes addition text on background',
-  ),
+  contrastPair('ansi2', 'background', 4.5, 'Changes addition and file status text on background'),
   contrastPair('blocked', 'background', 4.5, 'fileStatusMark M text on background'),
   contrastPair('working', 'background', 3, 'statusMark working in a pane header on background'),
   contrastPair('done', 'background', 3, 'statusMark done in a pane header on background'),
@@ -381,59 +391,46 @@ const backgroundPairs = (): ContrastPair[] => [
     3,
     'statusMark done in a normal-mode pane header on the focus tint',
   ),
-  contrastPair('ansi4', 'background', 4.5, 'roleBadge ansi4 label and outline on background'),
-  contrastPair('ansi3', 'background', 4.5, 'roleBadge ansi3 label and outline on background'),
-  contrastPair('ansi5', 'background', 4.5, 'roleBadge ansi5 label and outline on background'),
-  filledPair(
-    'ansi4',
-    { alpha: normalFocusFillAlpha, token: 'accent' },
-    'background',
-    4.5,
-    'roleBadge ansi4 label and outline on the focus tint',
-  ),
-  filledPair(
-    'ansi2',
-    { alpha: normalFocusFillAlpha, token: 'accent' },
-    'background',
-    4.5,
-    'roleBadge ansi2 label and outline on the focus tint',
-  ),
-  filledPair(
-    'ansi3',
-    { alpha: normalFocusFillAlpha, token: 'accent' },
-    'background',
-    4.5,
-    'roleBadge ansi3 label and outline on the focus tint',
-  ),
-  filledPair(
-    'ansi5',
-    { alpha: normalFocusFillAlpha, token: 'accent' },
-    'background',
-    4.5,
-    'roleBadge ansi5 label and outline on the focus tint',
-  ),
-  filledPair(
-    'muted',
-    { alpha: normalFocusFillAlpha, token: 'accent' },
-    'background',
-    4.5,
-    'roleBadge muted label and outline on the focus tint',
-  ),
 ];
 
-const contrastPairs = (): ContrastPair[] => [
-  ...rowPairs(),
-  ...backgroundPairs(),
-  contrastPair(
-    'muted',
-    'raised',
-    4.5,
-    'koja-changes diff hunk header and disabled actionButton label on raised',
-  ),
-  contrastPair('solid_foreground', 'solid', 4.5, 'actionButton label on solid'),
-  contrastPair('solid', 'popover', 3, 'actionButton fill on popover'),
-  contrastPair('popover', 'ansi1', 4.5, 'dialogButton danger label on ansi1'),
-];
+const pairKey = (pair: ContrastPair): string => {
+  if (pair.fill === undefined) {
+    return `${pair.text} on ${pair.surface}`;
+  }
+
+  return `${pair.text} on ${pair.fill.token} ${pair.fill.alpha} over ${pair.surface}`;
+};
+
+const mergePairs = (pairs: ContrastPair[]): ContrastPair[] => {
+  const merged = new Map<string, ContrastPair>();
+
+  pairs.forEach((pair) => {
+    const key = pairKey(pair);
+    const existing = merged.get(key);
+
+    if (existing === undefined || pair.minimum > existing.minimum) {
+      merged.set(key, pair);
+    }
+  });
+
+  return [...merged.values()];
+};
+
+const contrastPairs = (): ContrastPair[] =>
+  mergePairs([
+    ...rowPairs(),
+    ...backgroundPairs(),
+    ...rolePairs(),
+    contrastPair(
+      'muted',
+      'raised',
+      4.5,
+      'koja-changes diff hunk header and disabled actionButton label on raised',
+    ),
+    contrastPair('solid_foreground', 'solid', 4.5, 'actionButton label on solid'),
+    contrastPair('solid', 'popover', 3, 'actionButton fill on popover'),
+    contrastPair('popover', 'ansi1', 4.5, 'dialogButton danger label on ansi1'),
+  ]);
 
 const blendChannel = (
   fillChannel: number,
@@ -461,14 +458,6 @@ const blendOver = (fill: Fill, surfaceColor: string, palette: Record<string, str
   const blue = blendChannel(fillBlue, surfaceBlue, alphaFraction);
 
   return `#${red}${green}${blue}`;
-};
-
-const pairKey = (pair: ContrastPair): string => {
-  if (pair.fill === undefined) {
-    return `${pair.text} on ${pair.surface}`;
-  }
-
-  return `${pair.text} on ${pair.fill.token} ${pair.fill.alpha} over ${pair.surface}`;
 };
 
 const contrastResult = (pair: ContrastPair, palette: Record<string, string>): ContrastResult => {

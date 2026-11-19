@@ -1,15 +1,13 @@
-import type { PaneInfo } from 'herdr';
-
-import { recordOf, stringOf } from '../../kit/fields.ts';
+import { terminalLabel, terminalRecordOf } from '../../data/terminalRecord.ts';
 
 const recordFor = (
   terminalRecords: readonly unknown[],
   address: string,
-): Record<string, unknown> | null => {
+): ReturnType<typeof terminalRecordOf> | null => {
   for (const record of terminalRecords) {
-    const terminal = recordOf(record);
+    const terminal = terminalRecordOf(record);
 
-    if (terminal['address'] === address) {
+    if (terminal.address === address) {
       return terminal;
     }
   }
@@ -17,22 +15,15 @@ const recordFor = (
   return null;
 };
 
-const labelOf = (terminal: Record<string, unknown>, key: string): string | null => {
-  const label = stringOf(recordOf(terminal['labels'])[key]);
-
-  return label === '' ? null : label;
-};
-
-export const paneRole = (pane: PaneInfo, terminalRecords: readonly unknown[]): string | null => {
-  if (pane.terminal === null) {
-    return null;
-  }
-
-  const terminal = recordFor(terminalRecords, pane.terminal);
+export const paneRole = (
+  terminalAddress: string,
+  terminalRecords: readonly unknown[],
+): string | null => {
+  const terminal = recordFor(terminalRecords, terminalAddress);
 
   if (terminal === null) {
     return null;
   }
 
-  return labelOf(terminal, 'tau.role') ?? labelOf(terminal, 'tau.profile');
+  return terminalLabel(terminal, 'tau.role') ?? terminalLabel(terminal, 'tau.profile');
 };

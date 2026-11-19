@@ -11,7 +11,7 @@ import { paneHeaderFields } from './paneHeaderFields.ts';
 import { paneActions } from './paneHeaderMenuModel.ts';
 import { roleBadge } from './roleBadge.ts';
 import { controlSize, paneHeaderWidth, radius, spacing } from './size.ts';
-import { attentionBadge, statusMark } from './statusMark.ts';
+import { paneStatusElement } from './statusMark.ts';
 import { withTextRole } from './textRole.ts';
 import { colors, focusFill } from './theme.ts';
 
@@ -90,18 +90,6 @@ const folderElement = (folder: string, state: PaneHeaderFieldState): Element => 
   return fieldWidth(field, state);
 };
 
-const statusElement = (status: Status | null): Element | null => {
-  if (status === 'blocked') {
-    return attentionBadge('Needs you');
-  }
-
-  if (status === 'working' || status === 'done') {
-    return statusMark(status);
-  }
-
-  return null;
-};
-
 const headerAction = (name: IconName, label: string, action: (() => void) | undefined): Element =>
   iconButton({ name })
     .accessibility_label(label)
@@ -172,7 +160,7 @@ export const paneHeader = (options: PaneHeaderOptions): Element => {
     header.child(folderElement(options.folder, fields.folder));
   }
 
-  const status = statusElement(options.status);
+  const status = paneStatusElement(options.status);
 
   if (status !== null) {
     header.child(status);

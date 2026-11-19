@@ -40,32 +40,45 @@ describe('paneRole', () => {
   test('a tau.role label names the role', () => {
     const records = [terminalRecord('t1', { 'tau.role': 'architect', 'tau.profile': 'worker' })];
 
-    expect(paneRole(paneOf('t1'), records)).toBe('architect');
+    expect(paneRole('t1', records)).toBe('architect');
   });
 
   test('a tau.profile label names the profile without a role', () => {
     const records = [terminalRecord('t1', { 'tau.profile': 'scout' })];
 
-    expect(paneRole(paneOf('t1'), records)).toBe('scout');
+    expect(paneRole('t1', records)).toBe('scout');
   });
 
   test('a pane without either label has no role', () => {
     const records = [terminalRecord('t1', {})];
     const pane = paneOf('t1');
 
-    expect(paneRole(pane, records)).toBeNull();
+    expect(paneRole('t1', records)).toBeNull();
     expect(paneName(pane)).toBe('Pi');
   });
 
   test('an empty role falls back to the profile', () => {
     const records = [terminalRecord('t1', { 'tau.role': '', 'tau.profile': 'qa' })];
 
-    expect(paneRole(paneOf('t1'), records)).toBe('qa');
+    expect(paneRole('t1', records)).toBe('qa');
   });
 
-  test('a mod pane has no role', () => {
-    const records = [terminalRecord('t1', { 'tau.role': 'lead' })];
+  test('the first record for an address names the role', () => {
+    const records = [
+      terminalRecord('t1', { 'tau.role': 'lead' }),
+      terminalRecord('t1', { 'tau.role': 'worker' }),
+    ];
 
-    expect(paneRole(paneOf(null), records)).toBeNull();
+    expect(paneRole('t1', records)).toBe('lead');
+  });
+
+  test('a nonmatching or malformed record has no role', () => {
+    const records = [
+      'not a record',
+      terminalRecord('t2', { 'tau.role': 'lead' }),
+      { address: 't1', labels: 'not labels' },
+    ];
+
+    expect(paneRole('t1', records)).toBeNull();
   });
 });

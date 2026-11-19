@@ -1,25 +1,24 @@
 import { h_flex } from 'gpui-base';
 import type { Element } from 'gpui-kit';
 import { div, View } from 'gpui-kit';
-import type { PaneInfo, Status } from 'herdr';
+import type { PaneInfo } from 'herdr';
 import { home, panes, props, run, shared, terminals } from 'herdr';
 
 import type { PaneHeaderMenuAction } from '../../kit/index.ts';
 import {
   askFirst,
-  attentionBadge,
   colors,
   controlSize,
   iconButton,
   normalFocusFill,
   paneActions,
+  paneStatusElement,
   programIcon,
   radius,
   recordOf,
   roleBadge,
   roleText,
   spacing,
-  statusMark,
   stringOf,
   withTextRole,
 } from '../../kit/index.ts';
@@ -32,18 +31,6 @@ const headerPane = (): PaneInfo | undefined => {
   const paneId = stringOf(recordOf(props()).pane);
 
   return panes().find((candidate) => candidate.pane === paneId);
-};
-
-const statusElement = (status: Status | null): Element | null => {
-  if (status === 'blocked') {
-    return attentionBadge('Needs you');
-  }
-
-  if (status === 'working' || status === 'done') {
-    return statusMark(status);
-  }
-
-  return null;
 };
 
 const paneButton = (entry: PaneHeaderMenuAction, id: string): Element =>
@@ -120,7 +107,7 @@ export default class PaneHeader extends View {
 
     element.child(title);
 
-    const role = paneRole(pane, terminals());
+    const role = pane.terminal === null ? null : paneRole(pane.terminal, terminals());
 
     if (role !== null) {
       element.child(roleBadge(role));
@@ -130,7 +117,7 @@ export default class PaneHeader extends View {
 
     element.child(folder);
 
-    const status = statusElement(pane.status);
+    const status = paneStatusElement(pane.status);
 
     if (status !== null) {
       element.child(status);

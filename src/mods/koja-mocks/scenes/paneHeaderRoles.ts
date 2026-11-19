@@ -3,10 +3,8 @@ import type { Element } from 'gpui-kit';
 import type { Program } from 'herdr';
 
 import type { PaneHeaderOptions } from '../../../kit/index.ts';
-import { colors, paneHeader, radius, roleText, shellSize, spacing } from '../../../kit/index.ts';
-import { compactWithMenu } from './paneHeaders.ts';
-
-type SizedPaneHeader = PaneHeaderOptions & { width: number };
+import { shellSize, spacing } from '../../../kit/index.ts';
+import { compactWithMenu, specimen } from './paneCard.ts';
 
 const piProgram: Program = {
   key: 'pi',
@@ -24,7 +22,7 @@ const longFolder = '~/code/koja/packages/desktop/src/mods/koja-mocks';
 const workerTask = 'Build window shell';
 const workerBranch = 'me-1089-window-shell';
 
-const piPane = (extra: Partial<PaneHeaderOptions>): SizedPaneHeader => {
+const piPane = (extra: Partial<PaneHeaderOptions>): PaneHeaderOptions => {
   const width = extra.width ?? shellSize.wideSpecimenWidth;
 
   return {
@@ -39,31 +37,8 @@ const piPane = (extra: Partial<PaneHeaderOptions>): SizedPaneHeader => {
   };
 };
 
-const rolePane = (role: string, extra: Partial<PaneHeaderOptions> = {}): SizedPaneHeader =>
+const rolePane = (role: string, extra: Partial<PaneHeaderOptions> = {}): PaneHeaderOptions =>
   piPane({ role, ...extra });
-
-const specimen = (header: SizedPaneHeader): Element => {
-  const palette = colors();
-  const borderInk = header.focused ? palette.accent : palette.selected;
-
-  const body = v_flex()
-    .h(shellSize.specimenBodyHeight)
-    .flex_none()
-    .p(spacing.medium)
-    .child(roleText('detail', 'Terminal text'));
-
-  const card = v_flex()
-    .flex_none()
-    .rounded(radius.dialog)
-    .border(spacing.hairline)
-    .border_color(borderInk)
-    .bg(palette.background)
-    .overflow_hidden()
-    .child(paneHeader(header))
-    .child(body);
-
-  return card.w(header.width);
-};
 
 export const paneHeadersRolesScene = (): Element =>
   v_flex()
