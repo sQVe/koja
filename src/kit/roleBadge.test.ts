@@ -45,10 +45,12 @@ describe('roleBadge', () => {
     expect(roleToken('__proto__')).toBe('muted');
   });
 
-  test('the badge draws the role as written in its color', () => {
+  test('the badge draws the role as outlined text in its color', () => {
     const badge = roleBadge('architect');
 
     expect(drawnTexts(badge)).toEqual(['architect']);
-    expect(badge.backgroundColors).toEqual(['#00ff0026']);
+    expect(badge.backgroundColors).toEqual([]);
+    expect(badge.borderColors).toEqual(['#00ff00']);
+    expect(badge.textColors).toEqual(['#00ff00']);
   });
 });

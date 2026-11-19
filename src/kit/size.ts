@@ -99,6 +99,7 @@ export const paneHeaderWidth = {
   gaps: spacing.medium * headerGapCount,
   status: 60,
   badgePadding: spacing.small * 2,
+  badgeBorder: spacing.hairline * 2,
   badgeGap: spacing.medium,
   actions: controlSize.button * headerActionCount + spacing.xxsmall * headerActionGaps,
   overflowAction: controlSize.button,

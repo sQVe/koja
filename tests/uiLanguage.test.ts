@@ -197,12 +197,22 @@ const filledPair = (
 
 const rowSurfaces = ['chrome', 'popover', 'hover', 'selected'];
 
+const mutedRowReason = (surface: string): string =>
+  surface === 'popover'
+    ? 'roleBadge muted label and outline and listRow muted label on popover'
+    : `listRow muted label on ${surface}`;
+
+const ansi2RowReason = (surface: string): string =>
+  surface === 'popover'
+    ? 'roleBadge ansi2 label and outline and diff addition text on popover'
+    : `diff addition and file status text on ${surface}`;
+
 const rowPairs = (): ContrastPair[] => {
   const pairs: ContrastPair[] = [];
 
   rowSurfaces.forEach((surface) => {
     pairs.push(contrastPair('foreground', surface, 4.5, `listRow and tab label on ${surface}`));
-    pairs.push(contrastPair('muted', surface, 4.5, `listRow muted label on ${surface}`));
+    pairs.push(contrastPair('muted', surface, 4.5, mutedRowReason(surface)));
 
     pairs.push(
       contrastPair('dim', surface, 4.5, `listRow detail, icon, and key hint on ${surface}`),
@@ -212,9 +222,7 @@ const rowPairs = (): ContrastPair[] => {
       contrastPair('ansi1', surface, 4.5, `diff removal and file status text on ${surface}`),
     );
 
-    pairs.push(
-      contrastPair('ansi2', surface, 4.5, `diff addition and file status text on ${surface}`),
-    );
+    pairs.push(contrastPair('ansi2', surface, 4.5, ansi2RowReason(surface)));
 
     pairs.push(contrastPair('working', surface, 3, `statusMark working on ${surface}`));
     pairs.push(contrastPair('done', surface, 3, `statusMark done on ${surface}`));
@@ -252,8 +260,23 @@ const rowPairs = (): ContrastPair[] => {
 
   pairs.push(contrastPair('accent', 'chrome', 3, 'listRow cursor outline on chrome'));
 
-  ['chrome', 'popover', 'selected'].forEach((surface) => {
+  ['chrome', 'selected'].forEach((surface) => {
     pairs.push(contrastPair('ansi3', surface, 3, `workIcon review and restack on ${surface}`));
+  });
+
+  pairs.push(
+    contrastPair(
+      'ansi3',
+      'popover',
+      4.5,
+      'roleBadge ansi3 label and outline and workIcon review and restack on popover',
+    ),
+  );
+
+  ['ansi4', 'ansi5'].forEach((token) => {
+    pairs.push(
+      contrastPair(token, 'popover', 4.5, `roleBadge ${token} label and outline on popover`),
+    );
   });
 
   rowSurfaces.concat('background').forEach((surface) => {
@@ -284,10 +307,20 @@ const backgroundPairs = (): ContrastPair[] => [
     4.5,
     'koja-pane title and koja-changes text on background',
   ),
-  contrastPair('muted', 'background', 4.5, 'koja-pane unfocused title on background'),
+  contrastPair(
+    'muted',
+    'background',
+    4.5,
+    'roleBadge muted label and outline and koja-pane unfocused title on background',
+  ),
   contrastPair('dim', 'background', 4.5, 'koja-pane folder and Changes detail on background'),
   contrastPair('ansi1', 'background', 4.5, 'Changes removal and file status text on background'),
-  contrastPair('ansi2', 'background', 4.5, 'Changes addition and file status text on background'),
+  contrastPair(
+    'ansi2',
+    'background',
+    4.5,
+    'roleBadge ansi2 label and outline and Changes addition text on background',
+  ),
   contrastPair('blocked', 'background', 4.5, 'fileStatusMark M text on background'),
   contrastPair('working', 'background', 3, 'statusMark working in a pane header on background'),
   contrastPair('done', 'background', 3, 'statusMark done in a pane header on background'),
@@ -348,40 +381,43 @@ const backgroundPairs = (): ContrastPair[] => [
     3,
     'statusMark done in a normal-mode pane header on the focus tint',
   ),
+  contrastPair('ansi4', 'background', 4.5, 'roleBadge ansi4 label and outline on background'),
+  contrastPair('ansi3', 'background', 4.5, 'roleBadge ansi3 label and outline on background'),
+  contrastPair('ansi5', 'background', 4.5, 'roleBadge ansi5 label and outline on background'),
   filledPair(
-    'foreground',
-    { alpha: badgeFillAlpha, token: 'ansi4' },
+    'ansi4',
+    { alpha: normalFocusFillAlpha, token: 'accent' },
     'background',
     4.5,
-    'roleBadge lead and architect label on background',
+    'roleBadge ansi4 label and outline on the focus tint',
   ),
   filledPair(
-    'foreground',
-    { alpha: badgeFillAlpha, token: 'ansi2' },
+    'ansi2',
+    { alpha: normalFocusFillAlpha, token: 'accent' },
     'background',
     4.5,
-    'roleBadge worker label on background',
+    'roleBadge ansi2 label and outline on the focus tint',
   ),
   filledPair(
-    'foreground',
-    { alpha: badgeFillAlpha, token: 'ansi3' },
+    'ansi3',
+    { alpha: normalFocusFillAlpha, token: 'accent' },
     'background',
     4.5,
-    'roleBadge scout, reviewer, and checker label on background',
+    'roleBadge ansi3 label and outline on the focus tint',
   ),
   filledPair(
-    'foreground',
-    { alpha: badgeFillAlpha, token: 'ansi5' },
+    'ansi5',
+    { alpha: normalFocusFillAlpha, token: 'accent' },
     'background',
     4.5,
-    'roleBadge qa and browser label on background',
+    'roleBadge ansi5 label and outline on the focus tint',
   ),
   filledPair(
-    'foreground',
-    { alpha: badgeFillAlpha, token: 'muted' },
+    'muted',
+    { alpha: normalFocusFillAlpha, token: 'accent' },
     'background',
     4.5,
-    'roleBadge other role label on background',
+    'roleBadge muted label and outline on the focus tint',
   ),
 ];
 

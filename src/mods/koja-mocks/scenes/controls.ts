@@ -52,7 +52,15 @@ const fakeTabs: FakeTab[] = [
 
 const paneButtonNames: IconName[] = ['columns-2', 'rows-2', 'maximize-2', 'x'];
 
-const roleOrder: TextRole[] = ['viewTitle', 'title', 'body', 'sectionHeading', 'detail', 'badge'];
+const roleOrder: TextRole[] = [
+  'viewTitle',
+  'title',
+  'body',
+  'sectionHeading',
+  'detail',
+  'badge',
+  'tag',
+];
 
 const roleNames: Record<TextRole, string> = {
   viewTitle: 'View title',
@@ -61,6 +69,7 @@ const roleNames: Record<TextRole, string> = {
   sectionHeading: 'Section heading',
   detail: 'Detail',
   badge: 'Badge',
+  tag: 'Tag',
 };
 
 const section = (name: string, content: Element[]): Element =>

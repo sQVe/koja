@@ -5,7 +5,14 @@ import type { ThemeToken } from './palette.ts';
 import { textSize } from './size.ts';
 import { colors } from './theme.ts';
 
-export type TextRole = 'viewTitle' | 'title' | 'body' | 'sectionHeading' | 'detail' | 'badge';
+export type TextRole =
+  | 'viewTitle'
+  | 'title'
+  | 'body'
+  | 'sectionHeading'
+  | 'detail'
+  | 'badge'
+  | 'tag';
 
 type TextWeight = 'regular' | 'semibold';
 
@@ -22,6 +29,7 @@ export const textRoles: Record<TextRole, TextRoleStyle> = {
   sectionHeading: { size: textSize.small, weight: 'semibold', color: 'muted' },
   detail: { size: textSize.small, weight: 'regular', color: 'dim' },
   badge: { size: textSize.xsmall, weight: 'semibold', color: 'foreground' },
+  tag: { size: textSize.xsmall, weight: 'regular', color: 'foreground' },
 };
 
 export const withTextRole = (element: Element, role: TextRole, color?: ThemeToken): Element => {

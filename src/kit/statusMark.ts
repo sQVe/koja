@@ -78,7 +78,7 @@ export const fileStatusMark = (status: FileStatus): Element =>
     .text_color(fileStatusColor(status, colors()))
     .child(status);
 
-export const tintedBadge = (label: string, token: ThemeToken): Element => {
+export const attentionBadge = (label: string): Element => {
   const palette = colors();
 
   const badge = h_flex()
@@ -87,9 +87,7 @@ export const tintedBadge = (label: string, token: ThemeToken): Element => {
     .flex_none()
     .items_center()
     .rounded(radius.default)
-    .bg(withAlpha(palette[token], badgeFillAlpha));
+    .bg(withAlpha(palette.blocked, badgeFillAlpha));
 
   return withTextRole(badge, 'badge').child(label);
 };
-
-export const attentionBadge = (label: string): Element => tintedBadge(label, 'blocked');
