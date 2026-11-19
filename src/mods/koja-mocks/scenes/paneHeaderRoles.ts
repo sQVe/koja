@@ -5,6 +5,8 @@ import type { Program } from 'herdr';
 import type { PaneHeaderOptions } from '../../../kit/index.ts';
 import { colors, paneHeader, radius, roleText, shellSize, spacing } from '../../../kit/index.ts';
 
+type SizedPaneHeader = PaneHeaderOptions & { width: number };
+
 const piProgram: Program = {
   key: 'pi',
   name: 'Pi',
@@ -21,21 +23,25 @@ const longFolder = '~/code/koja/packages/desktop/src/mods/koja-mocks';
 const workerTask = 'Build window shell';
 const workerBranch = 'me-1089-window-shell';
 
-const piPane = (extra: Partial<PaneHeaderOptions>): PaneHeaderOptions => ({
-  program: piProgram,
-  name: 'Pi',
-  folder: paneFolder,
-  status: null,
-  focused: false,
-  zoomed: false,
-  width: shellSize.wideSpecimenWidth,
-  ...extra,
-});
+const piPane = (extra: Partial<PaneHeaderOptions>): SizedPaneHeader => {
+  const width = extra.width ?? shellSize.wideSpecimenWidth;
 
-const rolePane = (role: string, extra: Partial<PaneHeaderOptions> = {}): PaneHeaderOptions =>
+  return {
+    program: piProgram,
+    name: 'Pi',
+    folder: paneFolder,
+    status: null,
+    focused: false,
+    zoomed: false,
+    ...extra,
+    width,
+  };
+};
+
+const rolePane = (role: string, extra: Partial<PaneHeaderOptions> = {}): SizedPaneHeader =>
   piPane({ role, ...extra });
 
-const specimen = (header: PaneHeaderOptions): Element => {
+const specimen = (header: SizedPaneHeader): Element => {
   const palette = colors();
   const borderInk = header.focused ? palette.accent : palette.selected;
 
@@ -55,7 +61,7 @@ const specimen = (header: PaneHeaderOptions): Element => {
     .child(paneHeader(header))
     .child(body);
 
-  return header.width == null ? card : card.w(header.width);
+  return card.w(header.width);
 };
 
 export const paneHeadersRolesScene = (): Element =>

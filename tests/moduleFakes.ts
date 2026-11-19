@@ -151,6 +151,7 @@ export const kitIndexFake = (overrides: ModuleFake = {}): ModuleFake => ({
   recordOf: () => undefined,
   recordOverlayClose: noop,
   repeat: noop,
+  roleBadge: noop,
   roleText: noop,
   rollupStatuses: () => ({ spaces: {}, tabs: {} }),
   rowHeight: {},

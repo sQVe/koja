@@ -39,6 +39,12 @@ describe('roleBadge', () => {
     expect(roleToken('planner')).toBe('muted');
   });
 
+  test('an inherited object name gets the neutral color', () => {
+    expect(roleToken('constructor')).toBe('muted');
+    expect(roleToken('toString')).toBe('muted');
+    expect(roleToken('__proto__')).toBe('muted');
+  });
+
   test('the badge draws the role as written in its color', () => {
     const badge = roleBadge('architect');
 

@@ -37,8 +37,11 @@ border for focus. The frame, panes, terminals, sidebar, and tab bar all share th
   - Body: 13 px Regular `foreground`, for row labels, tab names, menu items, and input text.
   - Section heading: 11 px SemiBold `muted`, for repository names and group headings.
   - Detail: 11 px Regular `dim`, for a branch, age, count, hint, or state line.
-  - Badge: 9 px SemiBold `foreground`, on a fill tinted with its status color, because
-    status-colored text on that tint falls below 4.5:1.
+  - Badge: 9 px SemiBold `foreground`, on a fill of one theme token at the kit's badge alpha,
+    because status-colored text on that tint falls below 4.5:1. The attention badge tints with
+    `blocked`. The role badge tints by kind of work, never with a status color: `ansi4` for lead and
+    architect, `ansi2` for worker, `ansi3` for scout, reviewer, and checker, `ansi5` for qa and
+    browser, and `muted` for any other role.
 - A role fixes size and weight. A caller may change only its tone.
 - Key hints use the detail role, so a hint reads as a detail beside a 13 px label.
 - Line height stays Herdr's default. The kit adds no line-height value until a part needs wrapped
@@ -62,8 +65,11 @@ border for focus. The frame, panes, terminals, sidebar, and tab bar all share th
 
 ### Pane headers
 
-- A pane header shows, in order: program icon, name, the agent's task, branch, folder, and status,
-  then its buttons. Its text uses the detail role.
+- A pane header shows, in order: program icon, name, the role badge when the pane has a role, the
+  agent's task, branch, folder, and status, then its buttons. Its text uses the detail role.
+- The role badge follows the name, so a terminal's role or profile reads beside its name. It has the
+  attention badge's shape and takes its fill from the kind of work. The badge never cuts; the name
+  and the fields give up width first.
 - The branch shows only when it differs from its space's branch.
 - When the header narrows, the folder cuts in the middle down to a minimum width, then drops whole.
   The branch does the same next. The task cuts at its end last.

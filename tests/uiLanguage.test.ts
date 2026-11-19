@@ -348,6 +348,41 @@ const backgroundPairs = (): ContrastPair[] => [
     3,
     'statusMark done in a normal-mode pane header on the focus tint',
   ),
+  filledPair(
+    'foreground',
+    { alpha: badgeFillAlpha, token: 'ansi4' },
+    'background',
+    4.5,
+    'roleBadge lead and architect label on background',
+  ),
+  filledPair(
+    'foreground',
+    { alpha: badgeFillAlpha, token: 'ansi2' },
+    'background',
+    4.5,
+    'roleBadge worker label on background',
+  ),
+  filledPair(
+    'foreground',
+    { alpha: badgeFillAlpha, token: 'ansi3' },
+    'background',
+    4.5,
+    'roleBadge scout, reviewer, and checker label on background',
+  ),
+  filledPair(
+    'foreground',
+    { alpha: badgeFillAlpha, token: 'ansi5' },
+    'background',
+    4.5,
+    'roleBadge qa and browser label on background',
+  ),
+  filledPair(
+    'foreground',
+    { alpha: badgeFillAlpha, token: 'muted' },
+    'background',
+    4.5,
+    'roleBadge other role label on background',
+  ),
 ];
 
 const contrastPairs = (): ContrastPair[] => [
