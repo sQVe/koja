@@ -17,6 +17,7 @@ let normalMode = false;
 let paneTerminal: string | null = 't1';
 let paneCwd: string | null = null;
 let paneBranch: string | null = null;
+let spaceBranch: string | null = null;
 let paneStatus: string | null = null;
 let terminalRecords: unknown[] = [];
 let terminalReads = 0;
@@ -85,6 +86,7 @@ await mock.module('herdr', () =>
     home: () => '/var/tmp/ruta-koja/home',
     panes: () => [pane()],
     props: () => ({ pane: 'p1' }),
+    spaces: () => [{ id: 'space-1', branch: spaceBranch, tabs: [{ id: 'tb1' }] }],
     shared: (key: string) => (key === 'koja-modal' && normalMode ? true : undefined),
     openOverlay: (spec: unknown) => {
       openedOverlays.push(spec);
@@ -101,8 +103,13 @@ await mock.module('herdr', () =>
 
 const overflowModulePath = '../../kit/paneHeader.ts';
 
-const { paneOverflowButton } = (await import(overflowModulePath)) as {
+const { paneBranchElement, paneFolderElement, paneOverflowButton, paneTaskElement } = (await import(
+  overflowModulePath
+)) as {
+  paneBranchElement: (branch: string, state: 'full' | 'cut', endAligned: boolean) => DrawnElement;
+  paneFolderElement: (folder: string, state: 'full' | 'cut', endAligned: boolean) => DrawnElement;
   paneOverflowButton: (onOverflow: (() => void) | undefined) => DrawnElement;
+  paneTaskElement: (task: string | undefined, fieldCut: boolean) => DrawnElement | null;
 };
 
 const badgeModulePath = '../../kit/roleBadge.ts';
@@ -124,6 +131,9 @@ await mock.module('../../kit/index.ts', () =>
     normalFocusFill,
     overlaySize,
     paneActions,
+    paneBranchElement,
+    paneFolderElement,
+    paneTaskElement,
     statusMarkWidth: fakeStatusMarkWidth,
     paneHeaderFields,
     paneHeaderWidth,
@@ -162,6 +172,7 @@ afterEach(() => {
   paneTerminal = 't1';
   paneCwd = null;
   paneBranch = null;
+  spaceBranch = null;
   paneStatus = null;
   terminalRecords = [];
   terminalReads = 0;
@@ -345,6 +356,76 @@ describe('pane header buttons', () => {
     paneCwd = '/var/tmp/ruta-koja/home/pi-fixture';
 
     expect(drawnTexts(renderedAt(700))).toContain('~/pi-fixture');
+  });
+
+  test('a wide header draws the task and a branch different from its space', () => {
+    paneProgramValue = piProgram;
+    paneCwd = '/var/tmp/ruta-koja/home/pi-fixture-feature';
+    paneBranch = 'feature-branch';
+    spaceBranch = 'fixture-branch';
+
+    terminalRecords = [
+      {
+        address: 't1',
+        labels: { 'tau.role': 'architect', 'tau.task': 'Build window shell' },
+      },
+    ];
+
+    const texts = drawnTexts(renderedAt(700));
+
+    expect(texts).toContain('Build window shell');
+    expect(texts).toContain('feature-branch');
+    expect(texts).toContain('~/pi-fixture-feature');
+  });
+
+  test('hides a branch equal to its space branch', () => {
+    paneProgramValue = piProgram;
+    paneCwd = '/var/tmp/ruta-koja/home/pi-fixture';
+    paneBranch = 'fixture-branch';
+    spaceBranch = 'fixture-branch';
+
+    terminalRecords = [
+      {
+        address: 't1',
+        labels: { 'tau.role': 'architect', 'tau.task': 'Build window shell' },
+      },
+    ];
+
+    const texts = drawnTexts(renderedAt(700));
+
+    expect(texts).toContain('Build window shell');
+    expect(texts).toContain('~/pi-fixture');
+    expect(texts).not.toContain('fixture-branch');
+  });
+
+  test('gives way in the order folder, branch, task, badge', () => {
+    paneProgramValue = piProgram;
+    paneCwd = '/var/tmp/ruta-koja/home/pi-fixture-feature';
+    paneBranch = 'feature-branch';
+    spaceBranch = 'fixture-branch';
+
+    terminalRecords = [
+      {
+        address: 't1',
+        labels: { 'tau.role': 'architect', 'tau.task': 'Build window shell' },
+      },
+    ];
+
+    const wide = drawnTexts(renderedAt(700));
+    const medium = drawnTexts(renderedAt(500));
+    const narrow = drawnTexts(renderedAt(360));
+    const tiny = renderedAt(120);
+    const task = tiny.kids.find((kid) => drawnTexts(kid).includes('Build window shell'));
+    const [badge] = badgeElements(tiny);
+
+    expect(wide).toContain('~/pi-fixture-feature');
+    expect(medium).toContain('feature-branch');
+    expect(medium).not.toContain('~/pi-fixture-feature');
+    expect(narrow).not.toContain('feature-branch');
+    expect(narrow).toContain('Build window shell');
+    expect(drawnTexts(tiny)).toContain('Build window shell');
+    expect(task?.styles['flex_1']).toEqual([]);
+    expect(badge?.styles['flex_initial']).toEqual([]);
   });
 
   test('a 233 px header with a built-in role draws its folder', () => {

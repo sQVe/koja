@@ -23,7 +23,13 @@ export { hoveredAfter } from './hoverTarget.ts';
 
 export { listRow } from './listRow.ts';
 
-export { paneHeader, paneOverflowButton } from './paneHeader.ts';
+export {
+  paneBranchElement,
+  paneFolderElement,
+  paneHeader,
+  paneOverflowButton,
+  paneTaskElement,
+} from './paneHeader.ts';
 
 export type { PaneHeaderOptions } from './paneHeader.ts';
 

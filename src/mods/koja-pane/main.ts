@@ -2,7 +2,7 @@ import { h_flex } from 'gpui-base';
 import type { Element } from 'gpui-kit';
 import { div, View } from 'gpui-kit';
 import type { PaneInfo } from 'herdr';
-import { home, openOverlay, panes, props, run, shared, terminals } from 'herdr';
+import { home, openOverlay, panes, props, run, shared, spaces, terminals } from 'herdr';
 
 import { terminalMetadata } from '../../data/terminalRecord.ts';
 import type { PaneHeaderMenuAction } from '../../kit/index.ts';
@@ -16,14 +16,16 @@ import {
   paneActions,
   paneHeaderFields,
   paneHeaderWidth,
+  paneBranchElement,
+  paneFolderElement,
   paneOverflowButton,
   paneStatusElement,
+  paneTaskElement,
   statusMarkWidth,
   programIcon,
   radius,
   recordOf,
   roleBadge,
-  roleText,
   spacing,
   stringOf,
   withTextRole,
@@ -42,6 +44,7 @@ interface PaneHeaderContext {
   name: string;
   role: string | null;
   task: string | null;
+  paneBranch: string | null;
   branch: string | null;
   folderText: string;
   fields: ReturnType<typeof paneHeaderFields>;
@@ -97,6 +100,10 @@ const openPaneMenu = (pane: PaneInfo, details: PaneMenuDetails): void => {
   });
 };
 
+const spaceBranchOf = (tab: string): string | null =>
+  spaces().find((candidate) => candidate.tabs.some((candidateTab) => candidateTab.id === tab))
+    ?.branch ?? null;
+
 const paneHeaderContext = (pane: PaneInfo, width: number | null): PaneHeaderContext => {
   const terminalRecords = pane.terminal === null ? [] : terminals();
 
@@ -106,18 +113,22 @@ const paneHeaderContext = (pane: PaneInfo, width: number | null): PaneHeaderCont
   const name = paneName(pane);
   const role = terminalInfo?.role ?? null;
   const task = terminalInfo?.task ?? null;
-  const branch = pane.branch;
+  const paneBranch = pane.branch;
+  const spaceBranch = spaceBranchOf(pane.tab);
+  const branch = paneBranch !== null && paneBranch !== spaceBranch ? paneBranch : null;
   const folderText = folderLabel(paneFolder(pane), home());
 
   const fields = paneHeaderFields({
     width,
     name,
     ...(role === null ? {} : { role }),
+    ...(task === null ? {} : { task }),
+    ...(branch === null ? {} : { branch }),
     folder: folderText,
     statusWidth: statusMarkWidth(pane.status),
   });
 
-  return { name, role, task, branch, folderText, fields };
+  return { name, role, task, paneBranch, branch, folderText, fields };
 };
 
 export default class PaneHeader extends View {
@@ -197,10 +208,19 @@ export default class PaneHeader extends View {
       element.child(roleBadge(context.role, context.fields.role));
     }
 
-    if (context.fields.folder !== 'dropped') {
-      const folder = roleText('detail', context.folderText).flex_1();
+    const fieldCut = context.fields.branch === 'cut' || context.fields.folder === 'cut';
+    const task = paneTaskElement(context.task ?? undefined, fieldCut);
 
-      element.child(folder);
+    if (task !== null) {
+      element.child(task);
+    }
+
+    if (context.branch !== null && context.fields.branch !== 'dropped') {
+      element.child(paneBranchElement(context.branch, context.fields.branch, false));
+    }
+
+    if (context.fields.folder !== 'dropped') {
+      element.child(paneFolderElement(context.folderText, context.fields.folder, false));
     }
 
     const status = paneStatusElement(pane.status);
@@ -217,7 +237,7 @@ export default class PaneHeader extends View {
       const action = paneOverflowButton(() => {
         openPaneMenu(pane, {
           task: context.task,
-          branch: context.branch,
+          branch: context.paneBranch,
           folder: context.folderText,
         });
       }).ml_auto();

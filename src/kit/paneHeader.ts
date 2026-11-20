@@ -54,8 +54,8 @@ const nameElement = (options: PaneHeaderOptions): Element => {
 
 // While a branch or folder is cut, that field takes the leftover width and the task keeps its own;
 // otherwise the task fills the leftover width and cuts at the end, after both fields have left.
-const taskElement = (options: PaneHeaderOptions, fieldCut: boolean): Element | null => {
-  if (!isPresent(options.task)) {
+export const paneTaskElement = (task: string | undefined, fieldCut: boolean): Element | null => {
+  if (!isPresent(task)) {
     return null;
   }
 
@@ -67,7 +67,7 @@ const taskElement = (options: PaneHeaderOptions, fieldCut: boolean): Element | n
     label.flex_1();
   }
 
-  return withTextRole(label, 'detail', 'muted').tooltip(options.task).child(options.task);
+  return withTextRole(label, 'detail', 'muted').tooltip(task).child(task);
 };
 
 const fieldWidth = (
@@ -88,7 +88,7 @@ const middleLabel = (text: string): Element => {
   return withTextRole(box, 'detail', 'dim').text_ellipsis_middle().tooltip(text).child(text);
 };
 
-const branchElement = (
+export const paneBranchElement = (
   branch: string,
   state: PaneHeaderFieldState,
   endAligned: boolean,
@@ -104,7 +104,7 @@ const branchElement = (
   return fieldWidth(field, state, endAligned);
 };
 
-const folderElement = (
+export const paneFolderElement = (
   folder: string,
   state: PaneHeaderFieldState,
   endAligned: boolean,
@@ -166,11 +166,11 @@ const trailingChildren = (
   const folder = options.folder;
 
   if (isPresent(branch) && fields.branch !== 'dropped') {
-    children.push(branchElement(branch, fields.branch, alignment.branch));
+    children.push(paneBranchElement(branch, fields.branch, alignment.branch));
   }
 
   if (isPresent(folder) && fields.folder !== 'dropped') {
-    children.push(folderElement(folder, fields.folder, alignment.folder));
+    children.push(paneFolderElement(folder, fields.folder, alignment.folder));
   }
 
   if (status !== null) {
@@ -243,7 +243,7 @@ export const paneHeader = (options: PaneHeaderOptions): Element => {
   const status = paneStatusElement(options.status);
   const alignment = trailingAlignment(hasTask, showsBranch, showsFolder, status !== null);
 
-  const task = taskElement(options, fieldCut);
+  const task = paneTaskElement(options.task, fieldCut);
 
   if (task !== null) {
     header.child(task);
