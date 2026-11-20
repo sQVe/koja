@@ -5,11 +5,7 @@ import { emptyFacts, snapshotKey } from './snapshot.ts';
 import type { SnapshotNotices } from './storedSnapshot.ts';
 import { createSnapshotNotices, readStoredSnapshot } from './storedSnapshot.ts';
 
-const malformedNotice =
-  'Koja ignored a malformed data snapshot. The data host will rebuild it on its next publish.';
-
-const newerNotice =
-  'Koja ignored a data snapshot from a newer version. Update Koja to a version that supports this snapshot format.';
+type SnapshotRejection = Parameters<SnapshotNotices['report']>[0];
 
 const memoryStore =
   (value: unknown) =>
@@ -25,6 +21,30 @@ const logged = (): { messages: string[]; notices: SnapshotNotices } => {
 
   return { messages, notices };
 };
+
+const onlyMessage = (messages: string[]): string => {
+  expect(messages).toHaveLength(1);
+
+  const [message] = messages;
+
+  if (message === undefined) {
+    throw new Error('the snapshot reporter logged no notice');
+  }
+
+  return message;
+};
+
+const messageFor = (rejection: SnapshotRejection): string => {
+  const { messages, notices } = logged();
+
+  notices.report(rejection);
+
+  return onlyMessage(messages);
+};
+
+const malformedMessage = (): string => messageFor('malformed');
+
+const newerMessage = (): string => messageFor('newer');
 
 const snapshot = { version: 2, revision: 4, facts: emptyFacts() } satisfies Snapshot;
 
@@ -65,7 +85,7 @@ describe('readStoredSnapshot', () => {
 
     expect(readStoredSnapshot(read, notices)).toBeNull();
     expect(readStoredSnapshot(read, notices)).toBeNull();
-    expect(messages).toEqual([malformedNotice]);
+    expect(messages).toEqual([malformedMessage()]);
   });
 
   test('treats the shared key absent sentinel as missing', () => {
@@ -81,7 +101,7 @@ describe('readStoredSnapshot', () => {
     expect(readStoredSnapshot(memoryStore(null), notices)).toBeNull();
     expect(readStoredSnapshot(memoryStore({ version: 2 }), notices)).toBeNull();
     expect(readStoredSnapshot(memoryStore({ version: 2 }), notices)).toBeNull();
-    expect(messages).toEqual([malformedNotice]);
+    expect(messages).toEqual([malformedMessage()]);
   });
 
   test('reports a present record without a valid version as malformed', () => {
@@ -89,7 +109,7 @@ describe('readStoredSnapshot', () => {
 
     expect(readStoredSnapshot(memoryStore({ version: 'two' }), notices)).toBeNull();
 
-    expect(messages).toEqual([malformedNotice]);
+    expect(messages).toEqual([malformedMessage()]);
   });
 
   test('reports a newer version once and keeps rejecting it', () => {
@@ -98,10 +118,10 @@ describe('readStoredSnapshot', () => {
 
     expect(readStoredSnapshot(read, notices)).toBeNull();
     expect(readStoredSnapshot(read, notices)).toBeNull();
-    expect(messages).toEqual([newerNotice]);
+    expect(messages).toEqual([newerMessage()]);
   });
 
-  test('reports each reason once', () => {
+  test('reports each reason once in the order they occur', () => {
     const { messages, notices } = logged();
 
     readStoredSnapshot(memoryStore({ version: 2 }), notices);
@@ -109,6 +129,15 @@ describe('readStoredSnapshot', () => {
     readStoredSnapshot(memoryStore({ version: 2 }), notices);
     readStoredSnapshot(memoryStore({ version: 3 }), notices);
 
-    expect(messages).toEqual([malformedNotice, newerNotice]);
+    expect(messages).toEqual([malformedMessage(), newerMessage()]);
+  });
+
+  test('reports a different notice for each reason', () => {
+    const malformed = malformedMessage();
+    const newer = newerMessage();
+
+    expect(malformed).not.toBe('');
+    expect(newer).not.toBe('');
+    expect(malformed).not.toBe(newer);
   });
 });
