@@ -118,7 +118,7 @@ describe('duePlaces', () => {
 
     const result = dueOf(inputOf(facts, reads, before), worldOf([spaceOf('s1', '/code/tikk')]), 10);
 
-    expect(sorted(result.due)).toEqual([placeKey('/code/tikk')]);
+    expect(sorted(result.due.keys())).toEqual([placeKey('/code/tikk')]);
   });
 
   test('marks every place in a repository when a pane there stops working', () => {
@@ -137,8 +137,8 @@ describe('duePlaces', () => {
     const first = dueOf(inputOf(facts, reads), working, 10);
     const second = dueOf(inputOf(facts, reads, first.state), idle, 10);
 
-    expect(sorted(first.due)).toEqual([]);
-    expect(sorted(second.due)).toEqual(sorted(folders.map((folder) => placeKey(folder))));
+    expect(sorted(first.due.keys())).toEqual([]);
+    expect(sorted(second.due.keys())).toEqual(sorted(folders.map((folder) => placeKey(folder))));
   });
 
   test('marks the places of a machine whose layout is ready again', () => {
@@ -161,18 +161,18 @@ describe('duePlaces', () => {
     const first = dueOf(inputOf(facts, reads), loading, 10);
     const second = dueOf(inputOf(facts, reads, first.state), ready, 10);
 
-    expect(sorted(first.due)).toEqual([]);
-    expect(sorted(second.due)).toEqual([placeKey('/srv/app', 'qa')]);
+    expect(sorted(first.due.keys())).toEqual([]);
+    expect(sorted(second.due.keys())).toEqual([placeKey('/srv/app', 'qa')]);
   });
 
-  test('marks one representative per worktree for the fallback', () => {
-    const folders = ['/code/a1', '/code/a2', '/code/b1', '/code/b2'];
+  test('marks the representative for a refresh and each nested alias for a mapping check', () => {
+    const folders = ['/code/a1', '/code/a1/sub', '/code/b1', '/code/b1/sub'];
 
     const facts = factsOf([
       ['/code/a1', '/code/a1'],
-      ['/code/a2', '/code/a1'],
+      ['/code/a1/sub', '/code/a1'],
       ['/code/b1', '/code/b1'],
-      ['/code/b2', '/code/b1'],
+      ['/code/b1/sub', '/code/b1'],
     ]);
 
     const reads = readAt(
@@ -184,6 +184,28 @@ describe('duePlaces', () => {
 
     const result = dueOf(inputOf(facts, reads), worldOf(spaces), 60_001);
 
-    expect(sorted(result.due)).toEqual([placeKey('/code/a1'), placeKey('/code/b1')]);
+    expect(sorted(result.due.keys())).toEqual(folders.map((folder) => placeKey(folder)));
+    expect(result.due.get(placeKey('/code/a1'))).toBe('refresh');
+    expect(result.due.get(placeKey('/code/a1/sub'))).toBe('mapping');
+    expect(result.due.get(placeKey('/code/b1'))).toBe('refresh');
+    expect(result.due.get(placeKey('/code/b1/sub'))).toBe('mapping');
+  });
+
+  test('prefers a normal trigger over the mapping fallback for the same place', () => {
+    const facts = factsOf([
+      ['/code/a', '/code/a'],
+      ['/code/a/sub', '/code/a'],
+    ]);
+
+    const reads = readAt([placeKey('/code/a'), placeKey('/code/a/sub')], 0);
+    const spaces = [spaceOf('root', '/code/a'), spaceOf('alias', '/code/a/sub')];
+    const working = worldOf(spaces, [terminal('p1', 'tab-alias', 'working')]);
+    const idle = worldOf(spaces, [terminal('p1', 'tab-alias', 'idle')]);
+
+    const first = dueOf(inputOf(facts, reads), working, 60_001);
+    const second = dueOf(inputOf(facts, reads, first.state), idle, 60_001);
+
+    expect(first.due.get(placeKey('/code/a/sub'))).toBe('mapping');
+    expect(second.due.get(placeKey('/code/a/sub'))).toBe('refresh');
   });
 });

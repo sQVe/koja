@@ -27,8 +27,10 @@ export interface DueInput {
   facts: GitFacts;
 }
 
+export type ReadReason = 'refresh' | 'mapping';
+
 export interface DueResult {
-  due: Set<string>;
+  due: Map<string, ReadReason>;
   state: DueState;
 }
 
@@ -41,7 +43,7 @@ interface DueContext {
   input: DueInput;
   places: Record<string, Place>;
   live: Readonly<Record<string, Place>>;
-  due: Set<string>;
+  due: Map<string, ReadReason>;
   now: number;
 }
 
@@ -135,7 +137,7 @@ const repositoryKeyOf = (facts: GitFacts, key: string): string | null => {
 const addUnread = (context: DueContext): void => {
   for (const key of Object.keys(context.live)) {
     if (!Object.hasOwn(context.input.reads, key)) {
-      context.due.add(key);
+      context.due.set(key, 'refresh');
     }
   }
 };
@@ -149,7 +151,7 @@ const addMoved = (context: DueContext): void => {
     }
 
     if (Object.hasOwn(context.live, place.key)) {
-      context.due.add(place.key);
+      context.due.set(place.key, 'refresh');
     }
   }
 };
@@ -169,7 +171,7 @@ const addFinished = (context: DueContext, finished: ReadonlySet<string>): void =
         repository !== null && repositoryKeyOf(context.input.facts, key) === repository;
 
       if (key === place.key || sameRepository) {
-        context.due.add(key);
+        context.due.set(key, 'refresh');
       }
     }
   }
@@ -185,10 +187,70 @@ const addReturned = (context: DueContext, ready: Readonly<Record<string, boolean
       const onMachine = (place.machine ?? '') === name;
 
       if (onMachine && Object.hasOwn(context.live, place.key)) {
-        context.due.add(place.key);
+        context.due.set(place.key, 'refresh');
       }
     }
   }
+};
+
+const needsMappingCheck = (
+  facts: GitFacts,
+  representatives: ReadonlyMap<string, string>,
+  live: Readonly<Record<string, Place>>,
+  key: string,
+): boolean => {
+  const place = facts.places[key];
+
+  if (place?.kind !== 'repository') {
+    return false;
+  }
+
+  if (representatives.get(place.worktree) === key) {
+    return false;
+  }
+
+  const worktree = facts.worktrees[place.worktree];
+  const observed = live[key];
+
+  if (worktree === undefined || observed === undefined) {
+    return false;
+  }
+
+  return observed.folder !== worktree.root;
+};
+
+const fallbackReason = (
+  context: DueContext,
+  representatives: ReadonlyMap<string, string>,
+  key: string,
+  memory: ReadMemory,
+): ReadReason | null => {
+  if (memory.failure) {
+    return 'refresh';
+  }
+
+  const place = context.input.facts.places[key];
+
+  if (place === undefined) {
+    return null;
+  }
+
+  if (place.kind === 'none') {
+    return 'refresh';
+  }
+
+  if (place.kind !== 'repository') {
+    return null;
+  }
+
+  if (representatives.get(place.worktree) === key) {
+    return 'refresh';
+  }
+
+  const { facts } = context.input;
+  const mapping = needsMappingCheck(facts, representatives, context.live, key);
+
+  return mapping ? 'mapping' : null;
 };
 
 const addFallbacks = (context: DueContext): void => {
@@ -199,30 +261,14 @@ const addFallbacks = (context: DueContext): void => {
     const memory = reads[key];
     const stale = memory !== undefined && context.now - memory.lastReadAt > fallbackMilliseconds;
 
-    if (memory === undefined || !stale) {
+    if (memory === undefined || !stale || context.due.has(key)) {
       continue;
     }
 
-    if (memory.failure) {
-      context.due.add(key);
+    const reason = fallbackReason(context, representatives, key, memory);
 
-      continue;
-    }
-
-    const place = facts.places[key];
-
-    if (place === undefined) {
-      continue;
-    }
-
-    if (place.kind === 'none') {
-      context.due.add(key);
-
-      continue;
-    }
-
-    if (place.kind === 'repository' && representatives.get(place.worktree) === key) {
-      context.due.add(key);
+    if (reason !== null) {
+      context.due.set(key, reason);
     }
   }
 };
@@ -240,7 +286,7 @@ export const duePlaces = (
     input,
     places: observed.bySpace,
     live: observed.byKey,
-    due: new Set(),
+    due: new Map(),
     now,
   };
 

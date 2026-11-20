@@ -1,7 +1,7 @@
 import type { Context } from 'gpui-kit';
 
 import type { WatchFolder } from './folderWatch.ts';
-import type { DueState, GitWorld, ReadMemory } from './gitDue.ts';
+import type { DueState, GitWorld, ReadMemory, ReadReason } from './gitDue.ts';
 import { duePlaces, emptyDueState, worktreeRepresentatives } from './gitDue.ts';
 import type { RunningRead } from './gitFences.ts';
 import { ReadFences } from './gitFences.ts';
@@ -30,6 +30,11 @@ export interface GitScheduler {
   stop: () => void;
 }
 
+interface DueMark {
+  at: number;
+  reason: ReadReason;
+}
+
 const debounceMilliseconds = 250;
 const readLimit = 4;
 
@@ -56,9 +61,9 @@ const worktreeGitOf = (
   };
 };
 
-const compareDue = (first: [string, number], second: [string, number]): number => {
-  if (first[1] !== second[1]) {
-    return first[1] - second[1];
+const compareDue = (first: [string, DueMark], second: [string, DueMark]): number => {
+  if (first[1].at !== second[1].at) {
+    return first[1].at - second[1].at;
   }
 
   if (first[0] === second[0]) {
@@ -74,7 +79,7 @@ class Scheduler implements GitScheduler {
   private state: DueState = emptyDueState();
   private live: Readonly<Record<string, Place>> = {};
   private reads: Record<string, ReadMemory> = {};
-  private readonly marks = new Map<string, number>();
+  private readonly marks = new Map<string, DueMark>();
   private readonly watchMarks = new Map<string, number>();
   private readonly checkouts = new Set<string>();
   private readonly fences = new ReadFences();
@@ -119,8 +124,8 @@ class Scheduler implements GitScheduler {
     this.state = due.state;
     this.applyEvents();
 
-    for (const key of due.due) {
-      this.mark(key, now);
+    for (const [key, reason] of due.due) {
+      this.mark(key, now, reason);
     }
 
     this.startReads(observed.byKey, cx, now);
@@ -135,14 +140,19 @@ class Scheduler implements GitScheduler {
     return { places: this.places, worktrees: this.worktrees };
   }
 
-  private mark(key: string, at: number): void {
+  private mark(key: string, at: number, reason: ReadReason): void {
     const current = this.marks.get(key);
 
-    if (current !== undefined && current <= at) {
+    if (current === undefined) {
+      this.marks.set(key, { at, reason });
+
       return;
     }
 
-    this.marks.set(key, at);
+    const refresh = current.reason === 'refresh' || reason === 'refresh';
+    const merged: ReadReason = refresh ? 'refresh' : 'mapping';
+
+    this.marks.set(key, { at: Math.min(current.at, at), reason: merged });
   }
 
   private forgetLeft(live: Readonly<Record<string, Place>>): void {
@@ -254,8 +264,8 @@ class Scheduler implements GitScheduler {
     }
   }
 
-  private dueMarks(): [string, number][] {
-    const due = new Map<string, number>(this.marks);
+  private dueMarks(): [string, DueMark][] {
+    const due = new Map<string, DueMark>(this.marks);
     const representatives = worktreeRepresentatives(this.places, this.live);
 
     for (const [worktreeKey, at] of this.watchMarks) {
@@ -266,10 +276,9 @@ class Scheduler implements GitScheduler {
       }
 
       const current = due.get(representative);
+      const earliest = current === undefined ? at : Math.min(current.at, at);
 
-      if (current === undefined || at < current) {
-        due.set(representative, at);
-      }
+      due.set(representative, { at: earliest, reason: 'refresh' });
     }
 
     return [...due].toSorted(compareDue);
@@ -320,8 +329,8 @@ class Scheduler implements GitScheduler {
   private startReads(live: Readonly<Record<string, Place>>, cx: Context, now: number): void {
     const due = this.dueMarks();
 
-    for (const [key, at] of due) {
-      if (at > now) {
+    for (const [key, dueMark] of due) {
+      if (dueMark.at > now) {
         return;
       }
 
@@ -337,11 +346,17 @@ class Scheduler implements GitScheduler {
         continue;
       }
 
-      this.startRead(place, worktree, cx, now);
+      this.startRead(place, worktree, dueMark.reason, cx, now);
     }
   }
 
-  private startRead(place: Place, worktree: string | null, cx: Context, now: number): void {
+  private startRead(
+    place: Place,
+    worktree: string | null,
+    reason: ReadReason,
+    cx: Context,
+    now: number,
+  ): void {
     this.sequence += 1;
 
     const sequence = this.sequence;
@@ -351,14 +366,14 @@ class Scheduler implements GitScheduler {
     this.running.set(place.key, { sequence, worktree, invalidated: false });
     this.reads[place.key] = { lastReadAt: now, failure: memory?.failure ?? false };
 
-    if (worktree !== null) {
+    if (worktree !== null && reason === 'refresh') {
       this.watchMarks.delete(worktree);
     }
 
     cx.spawn(async (taskCx) => {
       const identity = await readGitIdentity(this.dependencies.run, place.machine, place.folder);
 
-      this.apply(identity, sequence, taskCx);
+      this.apply(identity, sequence, reason, taskCx);
     });
   }
 
@@ -432,7 +447,7 @@ class Scheduler implements GitScheduler {
     this.watches.start(identity.repository, cx);
   }
 
-  private apply(identity: GitIdentity, sequence: number, cx: Context): void {
+  private apply(identity: GitIdentity, sequence: number, reason: ReadReason, cx: Context): void {
     const key = identity.place.key;
     const running = this.running.get(key);
     const worktree = this.resultWorktree(identity);
@@ -452,20 +467,79 @@ class Scheduler implements GitScheduler {
     }
 
     if (decision === 'retry') {
-      this.mark(key, this.dependencies.now());
+      this.mark(key, this.dependencies.now(), reason);
     }
 
     if (decision === 'apply') {
-      this.write(identity, sequence);
-      this.pruneWorktrees();
-      this.startWatch(identity, cx);
-
-      this.watches.cancelUnused(usedRepositories(this.worktrees, this.checkouts));
-
-      this.publishIfHeld();
+      this.applyResult(identity, sequence, reason, cx);
     }
 
     this.fences.retire(this.running, this.live);
+  }
+
+  private applyResult(
+    identity: GitIdentity,
+    sequence: number,
+    reason: ReadReason,
+    cx: Context,
+  ): void {
+    if (reason === 'mapping') {
+      this.applyMapping(identity, sequence, cx);
+
+      return;
+    }
+
+    this.write(identity, sequence);
+    this.commitWrite(identity, cx);
+  }
+
+  private applyMapping(identity: GitIdentity, sequence: number, cx: Context): void {
+    if (this.sameMapping(identity)) {
+      this.remember(identity.place.key, false);
+
+      return;
+    }
+
+    if (identity.kind === 'failed') {
+      this.writeFailure(identity.place.key);
+
+      return;
+    }
+
+    this.write(identity, sequence);
+    this.commitWrite(identity, cx);
+  }
+
+  private sameMapping(identity: GitIdentity): boolean {
+    if (identity.kind === 'none' || identity.kind === 'failed') {
+      return false;
+    }
+
+    const place = this.places[identity.place.key];
+
+    if (place?.kind !== 'repository') {
+      return false;
+    }
+
+    const worktree = this.worktrees[place.worktree];
+
+    if (worktree === undefined) {
+      return false;
+    }
+
+    const sameWorktree = worktreeKeyOf(identity) === place.worktree;
+    const sameRepository = identity.repository.key === worktree.repository.key;
+
+    return sameWorktree && sameRepository;
+  }
+
+  private commitWrite(identity: GitIdentity, cx: Context): void {
+    this.pruneWorktrees();
+    this.startWatch(identity, cx);
+
+    this.watches.cancelUnused(usedRepositories(this.worktrees, this.checkouts));
+
+    this.publishIfHeld();
   }
 
   private publishIfHeld(): void {
