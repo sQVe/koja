@@ -10,6 +10,7 @@ import {
   parseHeartbeat,
   parseLease,
   renewHeartbeat,
+  sameHolder,
 } from './lease.ts';
 
 const memoryStore = () => {
@@ -165,6 +166,16 @@ describe('renewHeartbeat', () => {
 
     expect(renewHeartbeat(store.read, store.write, first, expiry)).toBe(false);
     expect(store.values).toEqual(before);
+  });
+});
+
+describe('sameHolder', () => {
+  test('tells holders apart by owner and generation', () => {
+    const holder = { version: 1, owner: 'window-a', generation: 3 } satisfies Lease;
+
+    expect(sameHolder(holder, { ...holder })).toBe(true);
+    expect(sameHolder(holder, { ...holder, owner: 'window-b' })).toBe(false);
+    expect(sameHolder(holder, { ...holder, generation: 4 })).toBe(false);
   });
 });
 

@@ -61,7 +61,7 @@ export const parseHeartbeat = (value: unknown): Heartbeat | null => {
 export const heartbeatDeadline = (heartbeat: Heartbeat): number =>
   heartbeat.at + leaseExpiryMilliseconds;
 
-const sameHolder = (first: Lease, second: Lease): boolean =>
+export const sameHolder = (first: Lease, second: Lease): boolean =>
   first.owner === second.owner && first.generation === second.generation;
 
 const liveLease = (read: ReadShared, now: number): Lease | null => {
