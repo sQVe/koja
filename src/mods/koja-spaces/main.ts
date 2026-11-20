@@ -428,7 +428,7 @@ export default class Spaces extends View {
 
     this.order.publish(projects, ids);
 
-    const keys = this.projectKeys(state);
+    const keys = projects.map((project) => project.key);
 
     const elements = projectRows({
       projects,
