@@ -88,7 +88,6 @@ export const shellSize = {
 // `glyph` is the average advance of a Detail-role glyph at 11 px Geist, read from a capture.
 const headerActionCount = 4;
 const headerActionGaps = 3;
-const headerGapCount = 6;
 const headerBranchIcon = iconSize.small + spacing.xsmall;
 const fieldMinimumWidth = 120;
 
@@ -98,9 +97,7 @@ export const paneHeaderWidth = {
   padding: spacing.large * 2,
   icon: iconSize.default,
   branchIcon: headerBranchIcon,
-  gaps: spacing.medium * headerGapCount,
-  status: 60,
-  badgeGap: spacing.medium,
+  gap: spacing.medium,
   actions: controlSize.button * headerActionCount + spacing.xxsmall * headerActionGaps,
   overflowAction: controlSize.button,
   menuWidth: 240,

@@ -79,6 +79,7 @@ export {
   indicator,
   hasStatusMark,
   paneStatusElement,
+  statusMarkWidth,
   spaceMark,
   statusMark,
 } from './statusMark.ts';

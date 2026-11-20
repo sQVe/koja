@@ -114,6 +114,7 @@ export const kitIndexFake = (overrides: ModuleFake = {}): ModuleFake => ({
   findLayoutNode: () => null,
   highlightedText: noop,
   hasStatusMark: () => false,
+  statusMarkWidth: () => 0,
   hoverCard: noop,
   hoverCardSize: {},
   hoveredAfter: () => null,

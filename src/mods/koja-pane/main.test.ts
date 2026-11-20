@@ -17,6 +17,7 @@ let normalMode = false;
 let paneTerminal: string | null = 't1';
 let paneCwd: string | null = null;
 let paneBranch: string | null = null;
+let paneStatus: string | null = null;
 let terminalRecords: unknown[] = [];
 let terminalReads = 0;
 
@@ -45,6 +46,18 @@ const textElement = (text: string): DrawnElement => {
   return element;
 };
 
+const fakeStatusMarkWidth = (status: string | null): number => {
+  if (status === 'blocked') {
+    return 66;
+  }
+
+  if (status === 'working' || status === 'done') {
+    return 12;
+  }
+
+  return 0;
+};
+
 const pane = (): Record<string, unknown> => ({
   pane: 'p1',
   terminal: paneTerminal,
@@ -52,7 +65,7 @@ const pane = (): Record<string, unknown> => ({
   title: 'zsh',
   cwd: paneCwd,
   branch: paneBranch,
-  status: null,
+  status: paneStatus,
   app: null,
   program: paneProgramValue,
   focused,
@@ -111,8 +124,7 @@ await mock.module('../../kit/index.ts', () =>
     normalFocusFill,
     overlaySize,
     paneActions,
-    hasStatusMark: (status: string | null) =>
-      status === 'blocked' || status === 'working' || status === 'done',
+    statusMarkWidth: fakeStatusMarkWidth,
     paneHeaderFields,
     paneHeaderWidth,
     paneOverflowButton,
@@ -150,6 +162,7 @@ afterEach(() => {
   paneTerminal = 't1';
   paneCwd = null;
   paneBranch = null;
+  paneStatus = null;
   terminalRecords = [];
   terminalReads = 0;
   askedCommands.length = 0;
@@ -340,6 +353,23 @@ describe('pane header buttons', () => {
     terminalRecords = [{ address: 't1', labels: { 'tau.role': 'lead' } }];
 
     expect(drawnTexts(renderedAt(245))).toContain('~/pi-fixture');
+  });
+
+  test('a 245 px header with a working mark draws its folder', () => {
+    paneProgramValue = piProgram;
+    paneCwd = '/var/tmp/ruta-koja/home/pi-fixture';
+    paneStatus = 'working';
+    terminalRecords = [{ address: 't1', labels: { 'tau.role': 'lead' } }];
+
+    expect(drawnTexts(renderedAt(245))).toContain('~/pi-fixture');
+  });
+
+  test('a 220 px header without a mark draws its folder', () => {
+    paneProgramValue = piProgram;
+    paneCwd = '/var/tmp/ruta-koja/home/pi-fixture';
+    terminalRecords = [{ address: 't1', labels: { 'tau.role': 'lead' } }];
+
+    expect(drawnTexts(renderedAt(220))).toContain('~/pi-fixture');
   });
 
   test('a narrow header draws its compact action without hover', () => {

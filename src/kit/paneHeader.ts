@@ -11,7 +11,7 @@ import { paneHeaderFields } from './paneHeaderFields.ts';
 import { paneActions } from './paneHeaderMenuModel.ts';
 import { roleBadge } from './roleBadge.ts';
 import { controlSize, paneHeaderWidth, radius, spacing } from './size.ts';
-import { hasStatusMark, paneStatusElement } from './statusMark.ts';
+import { paneStatusElement, statusMarkWidth } from './statusMark.ts';
 import { withTextRole } from './textRole.ts';
 import { colors, focusFill } from './theme.ts';
 
@@ -47,9 +47,9 @@ const nameElement = (options: PaneHeaderOptions): Element => {
 
 // While a branch or folder is cut, that field takes the leftover width and the task keeps its own;
 // otherwise the task fills the leftover width and cuts at the end, after both fields have left.
-const taskElement = (options: PaneHeaderOptions, fieldCut: boolean): Element => {
+const taskElement = (options: PaneHeaderOptions, fieldCut: boolean): Element | null => {
   if (!isPresent(options.task)) {
-    return fieldCut ? h_flex() : h_flex().flex_1();
+    return null;
   }
 
   const label = div().min_w(0).truncate();
@@ -108,17 +108,17 @@ const headerButtons = (options: PaneHeaderOptions): Element[] =>
 
 const actionRow = (fields: PaneHeaderFields, options: PaneHeaderOptions): Element => {
   if (fields.compact) {
-    return h_flex().flex_none().child(paneOverflowButton(options.onOverflow));
+    return h_flex().flex_none().ml_auto().child(paneOverflowButton(options.onOverflow));
   }
 
-  const row = h_flex().flex_none().gap(spacing.xxsmall).children(headerButtons(options));
+  const row = h_flex().flex_none().ml_auto().gap(spacing.xxsmall).children(headerButtons(options));
 
   return options.hovered === true ? row : row.invisible();
 };
 
 export const paneHeader = (options: PaneHeaderOptions): Element => {
   const palette = colors();
-  const fields = paneHeaderFields({ ...options, status: hasStatusMark(options.status) });
+  const fields = paneHeaderFields({ ...options, statusWidth: statusMarkWidth(options.status) });
   const iconColor = options.focused ? palette.muted : palette.dim;
 
   const header = h_flex()
@@ -152,7 +152,11 @@ export const paneHeader = (options: PaneHeaderOptions): Element => {
 
   const fieldCut = fields.branch === 'cut' || fields.folder === 'cut';
 
-  header.child(taskElement(options, fieldCut));
+  const task = taskElement(options, fieldCut);
+
+  if (task !== null) {
+    header.child(task);
+  }
 
   if (fields.branch !== 'dropped' && isPresent(options.branch)) {
     header.child(branchElement(options.branch, fields.branch));

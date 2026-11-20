@@ -80,11 +80,11 @@ describe('paneHeader role badge', () => {
   });
 
   test('a pane without a role draws no badge', () => {
-    expect(textsAfterName(header())).toEqual([]);
+    expect(drawnTexts(header())).toEqual(['Pi', '~/code/koja']);
   });
 
   test('an empty role draws no badge', () => {
-    expect(textsAfterName(header(''))).toEqual([]);
+    expect(drawnTexts(header(''))).toEqual(['Pi', '~/code/koja']);
   });
 
   test('a full role badge draws without the cut minimum', () => {
@@ -99,6 +99,29 @@ describe('paneHeader role badge', () => {
 
     expect(badge?.styles['flex_initial']).toEqual([]);
     expect(badge?.styles['min_w']).toEqual([0]);
+  });
+
+  test('a compact header without a task has no empty spacer and ends its action', () => {
+    const element = paneHeader({
+      program: null,
+      name: 'Pi',
+      role: 'architect',
+      folder: '~/pi-fixture',
+      status: null,
+      focused: false,
+      zoomed: false,
+      width: 120,
+    });
+
+    const spacers = element.kids.filter(
+      (kid) =>
+        kid.styles['flex_1'] !== undefined && kid.texts.length === 0 && kid.kids.length === 0,
+    );
+
+    const actionRow = element.kids.find((kid) => kid.styles['ml_auto'] !== undefined);
+
+    expect(spacers).toEqual([]);
+    expect(actionRow?.styles['ml_auto']).toEqual([]);
   });
 });
 

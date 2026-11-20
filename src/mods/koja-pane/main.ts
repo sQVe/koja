@@ -16,8 +16,8 @@ import {
   paneHeaderFields,
   paneHeaderWidth,
   paneOverflowButton,
-  hasStatusMark,
   paneStatusElement,
+  statusMarkWidth,
   programIcon,
   radius,
   recordOf,
@@ -149,7 +149,7 @@ export default class PaneHeader extends View {
       name,
       ...(role === null ? {} : { role }),
       folder: folderText,
-      status: hasStatusMark(pane.status),
+      statusWidth: statusMarkWidth(pane.status),
     });
 
     const titleBox = div()

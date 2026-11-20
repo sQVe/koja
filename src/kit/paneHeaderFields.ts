@@ -17,12 +17,11 @@ export interface PaneHeaderFieldsInput {
   task?: string;
   branch?: string;
   folder?: string;
-  status?: boolean;
+  statusWidth: number;
 }
 
 interface FieldSizes {
   fixed: number;
-  task: number;
   branchFull: number;
   branchMinimum: number;
   folderFull: number;
@@ -34,29 +33,38 @@ const isPresent = (text: string | undefined): text is string => text !== undefin
 const estimate = (text: string): number => text.length * paneHeaderWidth.glyph;
 
 const roleWidth = (role: string | undefined): number =>
-  isPresent(role) ? estimate(role) + badgeSize.horizontal + paneHeaderWidth.badgeGap : 0;
+  isPresent(role) ? estimate(role) + badgeSize.horizontal : 0;
 
-const baseWidth = (
-  name: string,
-  role: string | undefined,
-  actions: number,
-  status: boolean,
-): number =>
-  paneHeaderWidth.padding +
-  paneHeaderWidth.icon +
-  Math.min(estimate(name), controlSize.paneLabelMaxWidth) +
-  roleWidth(role) +
-  (status ? paneHeaderWidth.status : 0) +
-  actions +
-  paneHeaderWidth.gaps;
+const gapCount = (children: number): number => Math.max(0, children - 1);
+
+const baseWidth = (input: PaneHeaderFieldsInput, actions: number): number => {
+  const children =
+    2 +
+    (isPresent(input.role) ? 1 : 0) +
+    (isPresent(input.task) ? 1 : 0) +
+    (input.statusWidth > 0 ? 1 : 0) +
+    1;
+
+  return (
+    paneHeaderWidth.padding +
+    paneHeaderWidth.icon +
+    Math.min(estimate(input.name), controlSize.paneLabelMaxWidth) +
+    roleWidth(input.role) +
+    (isPresent(input.task) ? estimate(input.task) : 0) +
+    input.statusWidth +
+    actions +
+    gapCount(children) * paneHeaderWidth.gap
+  );
+};
 
 const fieldSizes = (input: PaneHeaderFieldsInput, actions: number): FieldSizes => ({
-  fixed: baseWidth(input.name, input.role, actions, input.status !== false),
-  task: isPresent(input.task) ? estimate(input.task) : 0,
-  branchFull: isPresent(input.branch) ? estimate(input.branch) + paneHeaderWidth.branchIcon : 0,
-  branchMinimum: isPresent(input.branch) ? paneHeaderWidth.fieldMinimum : 0,
-  folderFull: isPresent(input.folder) ? estimate(input.folder) : 0,
-  folderMinimum: isPresent(input.folder) ? paneHeaderWidth.fieldMinimum : 0,
+  fixed: baseWidth(input, actions),
+  branchFull: isPresent(input.branch)
+    ? estimate(input.branch) + paneHeaderWidth.branchIcon + paneHeaderWidth.gap
+    : 0,
+  branchMinimum: isPresent(input.branch) ? paneHeaderWidth.fieldMinimum + paneHeaderWidth.gap : 0,
+  folderFull: isPresent(input.folder) ? estimate(input.folder) + paneHeaderWidth.gap : 0,
+  folderMinimum: isPresent(input.folder) ? paneHeaderWidth.fieldMinimum + paneHeaderWidth.gap : 0,
 });
 
 const fieldResult = (
@@ -66,7 +74,7 @@ const fieldResult = (
   fullWidth: number,
   minimumWidth: number,
 ): PaneHeaderFieldState => {
-  const available = width - sizes.fixed - sizes.task - beforeWidth;
+  const available = width - sizes.fixed - beforeWidth;
 
   if (available >= fullWidth) {
     return 'full';
@@ -95,18 +103,14 @@ const roleState = (
   input: PaneHeaderFieldsInput,
   width: number,
   sizes: FieldSizes,
-  branch: PaneHeaderFieldState,
-  folder: PaneHeaderFieldState,
+  branchWidth: number,
+  folderWidth: number,
 ): 'full' | 'cut' => {
   if (!isPresent(input.role)) {
     return 'full';
   }
 
-  const used =
-    sizes.fixed +
-    sizes.task +
-    stateWidth(branch, sizes.branchFull, sizes.branchMinimum) +
-    stateWidth(folder, sizes.folderFull, sizes.folderMinimum);
+  const used = sizes.fixed + branchWidth + folderWidth;
 
   return width >= used ? 'full' : 'cut';
 };
@@ -122,11 +126,15 @@ const statesFor = (
     ? fieldResult(width, sizes, 0, sizes.branchFull, sizes.branchMinimum)
     : 'dropped';
 
+  const branchWidth = stateWidth(branch, sizes.branchFull, sizes.branchMinimum);
+
   const folder = isPresent(input.folder)
-    ? fieldResult(width, sizes, sizes.branchFull, sizes.folderFull, sizes.folderMinimum)
+    ? fieldResult(width, sizes, branchWidth, sizes.folderFull, sizes.folderMinimum)
     : 'dropped';
 
-  const role = roleState(input, width, sizes, branch, folder);
+  const folderWidth = stateWidth(folder, sizes.folderFull, sizes.folderMinimum);
+
+  const role = roleState(input, width, sizes, branchWidth, folderWidth);
 
   return { branch, folder, role };
 };
