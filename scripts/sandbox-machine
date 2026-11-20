@@ -25,6 +25,7 @@ machine=$root/machine
 machine_name=qa-remote
 fixture=$machine/home/remote-fixture
 state_file=$machine/ownership.json
+receipt_file=$machine/launch-receipt.json
 lock_file=$root/machine.lock
 sshd_bin=/usr/bin/sshd
 cgroup_root=/sys/fs/cgroup
@@ -45,6 +46,10 @@ require_up() {
 
 random_hex() {
   od -An -N6 -tx1 /dev/urandom | tr -d ' \n'
+}
+
+new_launch_id() {
+  od -An -N16 -tx1 /dev/urandom | tr -d ' \n'
 }
 
 read_boot_id() {
@@ -127,19 +132,101 @@ process_cgroup_path() {
   awk -F: '$1 == 0 { print $3 }' "/proc/$1/cgroup" 2>/dev/null
 }
 
+expected_cgroup() {
+  local service=$1
+  local user_id
+
+  user_id=$(id -u)
+  printf '/user.slice/user-%s.slice/user@%s.service/app.slice/%s\n' "$user_id" "$user_id" "$service"
+}
+
+cgroup_matches_service() {
+  local service=$1
+  local cgroup=$2
+
+  [[ $cgroup == "$(expected_cgroup "$service")" ]]
+}
+
+service_has_pending_job() {
+  local service=$1
+  local jobs
+
+  jobs=$(user_systemctl list-jobs --no-legend --no-pager "$service" 2>/dev/null) || return 2
+  [[ -n $jobs ]]
+}
+
+receipt_valid() {
+  if [[ ! -s $receipt_file ]]; then
+    return 1
+  fi
+
+  [[ $(stat -c %a "$receipt_file") == 600 ]] || return 1
+  jq -e '
+    type == "object" and
+    (has("launchId") and (.launchId | type == "string" and test("^[0-9a-f]{32}$"))) and
+    (has("invocationId") and (.invocationId | type == "string" and test("^[0-9a-f]{32}$"))) and
+    (has("cgroup") and (.cgroup | type == "string" and length > 0))
+  ' "$receipt_file" >/dev/null 2>&1
+}
+
+load_receipt_fields() {
+  receipt_launch_id=$(jq -er '.launchId' "$receipt_file") || return 1
+  receipt_invocation=$(jq -er '.invocationId' "$receipt_file") || return 1
+  receipt_cgroup=$(jq -er '.cgroup' "$receipt_file") || return 1
+
+  [[ $receipt_launch_id == "$state_launch_id" ]] || return 1
+  cgroup_matches_service "$state_service" "$receipt_cgroup" || return 1
+}
+
+fixture_has_artifacts() {
+  local found
+
+  if [[ -e $receipt_file || -L $receipt_file ]]; then
+    return 0
+  fi
+
+  if [[ -L $machine ]] || [[ -e $machine && ! -d $machine ]]; then
+    return 0
+  fi
+
+  if [[ ! -d $machine ]]; then
+    return 1
+  fi
+
+  if ! found=$(find "$machine" -mindepth 1 ! -type d -print -quit); then
+    return 2
+  fi
+
+  [[ -n $found ]]
+}
+
+fixture_registered() {
+  local machines
+
+  if [[ ! -x $root/bin/herdr-app ]]; then
+    return 1
+  fi
+
+  machines=$(sandbox hc machine ls --json 2>/dev/null) || return 2
+  printf '%s' "$machines" | jq -e 'type == "array"' >/dev/null 2>&1 || return 2
+  printf '%s' "$machines" | jq -e --arg name "$machine_name" 'any(.[]; .name == $name)' >/dev/null 2>&1
+}
+
 state_valid() {
   if [[ ! -s $state_file ]]; then
     return 1
   fi
 
+  [[ $(stat -c %a "$state_file") == 600 ]] || return 1
   jq -e '
     type == "object" and
-    .version == 1 and
-    (.service | type == "string" and length > 0) and
-    (.bootId | type == "string" and length > 0) and
-    (.port | type == "number" and . > 0 and . < 65536) and
-    ((.invocationId // "") | type == "string") and
-    ((.cgroup // "") | type == "string") and
+    (has("version") and .version == 1) and
+    (has("service") and (.service | type == "string" and length > 0)) and
+    (has("bootId") and (.bootId | type == "string" and length > 0)) and
+    (has("port") and (.port | type == "number" and . > 0 and . < 65536)) and
+    (has("launchId") and (.launchId | type == "string" and test("^[0-9a-f]{32}$"))) and
+    (has("invocationId") and (.invocationId | type == "string")) and
+    (has("cgroup") and (.cgroup | type == "string")) and
     ((.invocationId == "" and .cgroup == "") or (.invocationId != "" and .cgroup != ""))
   ' "$state_file" >/dev/null 2>&1
 }
@@ -152,16 +239,20 @@ load_state_fields() {
 
   state_boot=$(jq -er '.bootId' "$state_file") || return 1
   state_port=$(jq -er '.port' "$state_file") || return 1
-  state_invocation=$(jq -er '.invocationId // ""' "$state_file") || return 1
-  state_cgroup=$(jq -er '.cgroup // ""' "$state_file") || return 1
+  state_launch_id=$(jq -er '.launchId' "$state_file") || return 1
+  state_invocation=$(jq -er '.invocationId' "$state_file") || return 1
+  state_cgroup=$(jq -er '.cgroup' "$state_file") || return 1
+
+  [[ $state_boot =~ ^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$ ]] || return 1
+  [[ $state_port =~ ^[0-9]+$ ]] && (( state_port > 0 && state_port < 65536 )) || return 1
+  [[ $state_launch_id =~ ^[0-9a-f]{32}$ ]] || return 1
 
   if [[ -n $state_invocation && ! $state_invocation =~ ^[0-9a-f]{32}$ ]]; then
     return 1
   fi
 
   if [[ -n $state_cgroup ]]; then
-    cgroup_path_safe "$state_cgroup" || return 1
-    [[ $(basename "$state_cgroup") == "$state_service" ]] || return 1
+    cgroup_matches_service "$state_service" "$state_cgroup" || return 1
   fi
 }
 
@@ -169,8 +260,9 @@ write_state() {
   local service=$1
   local boot=$2
   local port=$3
-  local invocation=$4
-  local cgroup=$5
+  local launch=$4
+  local invocation=$5
+  local cgroup=$6
   local temporary
 
   temporary=$(mktemp "$machine/.ownership.XXXXXX") || return 1
@@ -178,9 +270,10 @@ write_state() {
     --arg service "$service" \
     --arg bootId "$boot" \
     --argjson port "$port" \
+    --arg launchId "$launch" \
     --arg invocationId "$invocation" \
     --arg cgroup "$cgroup" \
-    '{version: 1, service: $service, bootId: $bootId, port: $port, invocationId: $invocationId, cgroup: $cgroup}' > "$temporary"); then
+    '{version: 1, service: $service, bootId: $bootId, port: $port, launchId: $launchId, invocationId: $invocationId, cgroup: $cgroup}' > "$temporary"); then
     rm -f "$temporary"
     return 1
   fi
@@ -208,7 +301,7 @@ write_state() {
 }
 
 read_and_verify_state() {
-  local load current_boot
+  local load current_boot expected job_status
 
   if [[ ! -e $state_file ]]; then
     return 2
@@ -220,6 +313,28 @@ read_and_verify_state() {
   current_boot=$(read_boot_id) || return 1
   load=$(service_property "$state_service" LoadState) || return 1
   if [[ $load == not-found ]]; then
+    service_has_pending_job "$state_service"
+    job_status=$?
+    if (( job_status == 2 )); then
+      echo "could not read pending jobs for fixture service $state_service" >&2
+      return 1
+    fi
+
+    if (( job_status == 0 )); then
+      echo "fixture service $state_service has an incomplete start job" >&2
+      return 1
+    fi
+
+    expected=$(expected_cgroup "$state_service")
+    if [[ -z $state_cgroup ]]; then
+      if cgroup_removed_or_empty "$expected"; then
+        return 3
+      fi
+
+      echo "the fixture cgroup $expected is populated without service $state_service" >&2
+      return 1
+    fi
+
     if cgroup_removed_or_empty "$state_cgroup"; then
       return 3
     fi
@@ -253,25 +368,46 @@ read_and_verify_state() {
     return 1
   fi
 
-  if [[ -z $service_cgroup ]] || ! cgroup_path_safe "$service_cgroup" || [[ $(basename "$service_cgroup") != "$state_service" ]]; then
+  if ! cgroup_matches_service "$state_service" "$service_cgroup"; then
     echo "the fixture service $state_service has no dedicated cgroup" >&2
     return 1
   fi
 
-  if [[ -n $state_invocation && $service_invocation != "$state_invocation" ]]; then
+  if [[ -z $state_invocation || -z $state_cgroup ]]; then
+    if [[ ! -e $receipt_file ]]; then
+      echo "the fixture service $state_service has no launch receipt" >&2
+      return 1
+    fi
+
+    if ! receipt_valid; then
+      echo "the fixture launch receipt is invalid" >&2
+      return 1
+    fi
+
+    if ! load_receipt_fields; then
+      echo "the fixture launch receipt does not belong to this intent" >&2
+      return 1
+    fi
+
+    if [[ $service_invocation != "$receipt_invocation" || $service_cgroup != "$receipt_cgroup" ]]; then
+      echo "the fixture service does not match its launch receipt" >&2
+      return 1
+    fi
+
+    write_state "$state_service" "$state_boot" "$state_port" "$state_launch_id" "$service_invocation" "$service_cgroup" || return 1
+    state_invocation=$service_invocation
+    state_cgroup=$service_cgroup
+    return 0
+  fi
+
+  if [[ $service_invocation != "$state_invocation" ]]; then
     echo "the fixture service invocation does not match its ownership record" >&2
     return 1
   fi
 
-  if [[ -n $state_cgroup && $service_cgroup != "$state_cgroup" ]]; then
+  if [[ $service_cgroup != "$state_cgroup" ]]; then
     echo "the fixture service cgroup does not match its ownership record" >&2
     return 1
-  fi
-
-  if [[ -z $state_invocation || -z $state_cgroup ]]; then
-    write_state "$state_service" "$state_boot" "$state_port" "$service_invocation" "$service_cgroup" || return 1
-    state_invocation=$service_invocation
-    state_cgroup=$service_cgroup
   fi
 }
 
@@ -279,13 +415,13 @@ stop_verified_service() {
   local service=$1
   local invocation=$2
   local cgroup=$3
-  local current_invocation current_cgroup
+  local current_invocation current_cgroup load status
 
   if [[ -z $invocation || -z $cgroup ]]; then
     return 1
   fi
 
-  if ! cgroup_path_safe "$cgroup" || [[ $(basename "$cgroup") != "$service" ]]; then
+  if ! cgroup_matches_service "$service" "$cgroup"; then
     return 1
   fi
 
@@ -295,7 +431,28 @@ stop_verified_service() {
     return 1
   fi
 
-  user_systemctl stop "$service" >/dev/null 2>&1
+  user_systemctl stop "$service" >/dev/null 2>&1 || return 1
+
+  load=$(service_property "$service" LoadState) || return 1
+  if [[ $load == not-found ]]; then
+    set +e
+    service_has_pending_job "$service"
+    status=$?
+    set -e
+    if (( status != 1 )); then
+      return 1
+    fi
+
+    return 0
+  fi
+
+  if [[ $load != loaded ]]; then
+    return 1
+  fi
+
+  current_invocation=$(service_property "$service" InvocationID) || return 1
+  current_cgroup=$(service_property "$service" ControlGroup) || return 1
+  [[ $current_invocation == "$invocation" && $current_cgroup == "$cgroup" ]]
 }
 
 check_capability() {
@@ -384,7 +541,7 @@ check_capability() {
     caller_cgroup=$(process_cgroup_path $$)
     if (( child_ok == 0 )); then
       echo "the fixture capability probe child left its service cgroup" >&2
-    elif [[ ! $invocation =~ ^[0-9a-f]{32}$ || $(basename "$cgroup") != "$service" ]]; then
+    elif [[ ! $invocation =~ ^[0-9a-f]{32}$ ]] || ! cgroup_matches_service "$service" "$cgroup"; then
       echo "the fixture capability probe service has no invocation identity" >&2
     elif [[ $caller_cgroup == "$cgroup" || $caller_cgroup == "$cgroup"/* ]]; then
       echo "the fixture capability probe caller is inside the service cgroup" >&2
@@ -500,6 +657,27 @@ copy_core() {
   ln -sf herdr-core "$machine/bin/hc"
 }
 
+write_start_wrapper() {
+  cat > "$machine/start-fixture" <<EOF
+#!/bin/sh
+set -eu
+launch_id=\$1
+expected=\$(/usr/bin/jq -er '.launchId' "$state_file") || exit 1
+[ "\$expected" = "\$launch_id" ] || exit 1
+invocation=\${INVOCATION_ID:-}
+[ -n "\$invocation" ] || exit 1
+cgroup=\$(/usr/bin/awk -F: '\$1 == 0 { print \$3 }' /proc/self/cgroup)
+[ -n "\$cgroup" ] || exit 1
+temporary=\$(/usr/bin/mktemp "$machine/.receipt.XXXXXX") || exit 1
+/usr/bin/jq -n --arg launchId "\$launch_id" --arg invocationId "\$invocation" --arg cgroup "\$cgroup" '{launchId:\$launchId, invocationId:\$invocationId, cgroup:\$cgroup}' > "\$temporary" || { /usr/bin/rm -f "\$temporary"; exit 1; }
+/usr/bin/chmod 600 "\$temporary" || { /usr/bin/rm -f "\$temporary"; exit 1; }
+/usr/bin/ln -T "\$temporary" "$receipt_file" || { /usr/bin/rm -f "\$temporary"; exit 1; }
+/usr/bin/rm -f "\$temporary"
+exec "$sshd_bin" -D -f "$machine/sshd_config" -E "$machine/sshd.log"
+EOF
+  chmod 700 "$machine/start-fixture"
+}
+
 start_service() {
   local output status load
 
@@ -510,9 +688,15 @@ start_service() {
 
   if [[ $load != not-found ]]; then
     echo "fixture service name $state_service is not absent; not starting" >&2
-    rm -f "$state_file"
     return 1
   fi
+
+  if [[ -e $receipt_file ]]; then
+    echo "fixture launch receipt already exists; not starting" >&2
+    return 1
+  fi
+
+  write_start_wrapper || return 1
 
   set +e
   output=$(user_systemd_run --unit="$state_service" \
@@ -523,7 +707,7 @@ start_service() {
     --property=TimeoutStopSec="$stop_timeout" \
     --property=SendSIGKILL=yes \
     --collect \
-    "$sshd_bin" -D -f "$machine/sshd_config" -E "$machine/sshd.log" 2>&1)
+    "$machine/start-fixture" "$state_launch_id" 2>&1)
   status=$?
   set -e
 
@@ -535,7 +719,7 @@ start_service() {
     sleep 0.1
   done
 
-  echo "could not start fixture service $state_service: $output" >&2
+  echo "could not start fixture service $state_service: exit $status: $output" >&2
   return 1
 }
 
@@ -689,12 +873,46 @@ add_machine() {
   wait_ready
 }
 
+unregister_machine() {
+  if [[ -x $root/bin/herdr-app && -S $root/run/herdr-core/default.sock ]]; then
+    sandbox hc machine rm "$machine_name" >/dev/null 2>&1 || true
+  fi
+}
+
 up() {
   local mode=new port status load
 
   require_up
-  mkdir -p "$machine/home" "$machine/run" "$machine/bin"
-  chmod 700 "$machine"
+
+  if [[ ! -e $state_file ]]; then
+    set +e
+    fixture_has_artifacts
+    status=$?
+    set -e
+    if (( status == 2 )); then
+      echo "could not read the fixture machine setup; not starting" >&2
+      return 1
+    fi
+
+    if (( status == 0 )); then
+      echo "the fixture machine has setup files but no ownership record; not starting" >&2
+      return 1
+    fi
+
+    set +e
+    fixture_registered
+    status=$?
+    set -e
+    if (( status == 0 )); then
+      echo "the fixture machine is registered but has no ownership record; not starting" >&2
+      return 1
+    fi
+
+    if (( status == 2 )); then
+      echo "could not read the fixture machine registration; not starting" >&2
+      return 1
+    fi
+  fi
 
   if [[ -e $state_file ]]; then
     if read_and_verify_state; then
@@ -714,18 +932,21 @@ up() {
           return 1
         fi
 
-        rm -f "$state_file"
+        rm -f "$state_file" "$receipt_file"
       fi
     else
       status=$?
       if (( status == 3 )); then
-        rm -f "$state_file"
+        rm -f "$state_file" "$receipt_file"
       else
         echo "the fixture ownership record is not usable; not starting a second listener" >&2
         return 1
       fi
     fi
   fi
+
+  mkdir -p "$machine/home" "$machine/run" "$machine/bin"
+  chmod 700 "$machine"
 
   if [[ $mode == new ]]; then
     check_capability || return 1
@@ -741,11 +962,21 @@ up() {
       return 1
     fi
 
+    set +e
+    service_has_pending_job "$state_service"
+    status=$?
+    set -e
+    if (( status != 1 )); then
+      echo "fixture service name $state_service has an incomplete start job; not starting" >&2
+      return 1
+    fi
+
     state_boot=$(read_boot_id) || return 1
     state_port=$port
+    state_launch_id=$(new_launch_id) || return 1
     state_invocation=''
     state_cgroup=''
-    write_state "$state_service" "$state_boot" "$state_port" '' '' || return 1
+    write_state "$state_service" "$state_boot" "$state_port" "$state_launch_id" '' '' || return 1
   fi
 
   if [[ ! -f $machine/host_key ]]; then
@@ -776,12 +1007,35 @@ up() {
 down() {
   local status
 
-  if [[ -x $root/bin/herdr-app && -S $root/run/herdr-core/default.sock ]]; then
-    sandbox hc machine rm "$machine_name" >/dev/null 2>&1 || true
-  fi
-
   if [[ ! -e $state_file ]]; then
-    rm -rf "$machine"
+    set +e
+    fixture_has_artifacts
+    status=$?
+    set -e
+    if (( status == 2 )); then
+      echo "could not read the fixture machine setup; not stopping" >&2
+      return 1
+    fi
+
+    if (( status == 0 )); then
+      echo "the fixture machine has setup files but no ownership record; not stopping" >&2
+      return 1
+    fi
+
+    set +e
+    fixture_registered
+    status=$?
+    set -e
+    if (( status == 0 )); then
+      echo "the fixture machine is registered but has no ownership record; not stopping" >&2
+      return 1
+    fi
+
+    if (( status == 2 )); then
+      echo "could not read the fixture machine registration; not stopping" >&2
+      return 1
+    fi
+
     return 0
   fi
 
@@ -790,7 +1044,8 @@ down() {
   else
     status=$?
     if (( status == 3 )); then
-      rm -f "$state_file"
+      unregister_machine
+      rm -f "$state_file" "$receipt_file"
       rm -rf "$machine"
       return 0
     fi
@@ -811,7 +1066,8 @@ down() {
     return 1
   fi
 
-  rm -f "$state_file"
+  unregister_machine
+  rm -f "$state_file" "$receipt_file"
   rm -rf "$machine"
 }
 
