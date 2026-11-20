@@ -1,17 +1,38 @@
-import { describe, expect, test } from 'bun:test';
+import { describe, expect, spyOn, test } from 'bun:test';
 
 import { readDataState } from './consumer.ts';
 import { heartbeatKey, leaseExpiryMilliseconds } from './lease.ts';
 import type { Snapshot } from './snapshot.ts';
-import { snapshotKey } from './snapshot.ts';
+import { emptyFacts, snapshotKey } from './snapshot.ts';
+
+const malformedNotice =
+  'Koja ignored a malformed data snapshot. The data host will rebuild it on its next publish.';
+
+const newerNotice =
+  'Koja ignored a data snapshot from a newer version. Update Koja to a version that supports this snapshot format.';
 
 const memoryStore =
   (values: Record<string, unknown>) =>
   (key: string): unknown =>
     values[key];
 
+const captureLog = (): { messages: string[]; restore: () => void } => {
+  const messages: string[] = [];
+
+  const spy = spyOn(console, 'log').mockImplementation((message: string) => {
+    messages.push(message);
+  });
+
+  return {
+    messages,
+    restore: () => {
+      spy.mockRestore();
+    },
+  };
+};
+
 const writtenAt = 1_000_000;
-const snapshot = { version: 1, revision: 3, facts: {} } satisfies Snapshot;
+const snapshot = { version: 2, revision: 3, facts: emptyFacts() } satisfies Snapshot;
 const heartbeat = { version: 1, owner: 'window-a', generation: 2, at: writtenAt };
 
 describe('readDataState', () => {
@@ -43,10 +64,57 @@ describe('readDataState', () => {
     expect(readDataState(read, writtenAt)).toEqual({ kind: 'unavailable' });
   });
 
-  test('is unavailable when the stored snapshot is invalid', () => {
+  test('is unavailable without reporting when the shared key holds the absent sentinel', () => {
+    const capture = captureLog();
+    const read = memoryStore({ [snapshotKey]: null, [heartbeatKey]: heartbeat });
+
+    try {
+      expect(readDataState(read, writtenAt)).toEqual({ kind: 'unavailable' });
+      expect(capture.messages).toEqual([]);
+    } finally {
+      capture.restore();
+    }
+  });
+
+  test('is unavailable for a retired snapshot without reporting it', () => {
+    const capture = captureLog();
+    const retired = { version: 1, revision: 3, facts: {} };
+    const read = memoryStore({ [snapshotKey]: retired, [heartbeatKey]: heartbeat });
+
+    try {
+      expect(readDataState(read, writtenAt)).toEqual({ kind: 'unavailable' });
+      expect(readDataState(read, writtenAt)).toEqual({ kind: 'unavailable' });
+      expect(capture.messages).toEqual([]);
+    } finally {
+      capture.restore();
+    }
+  });
+
+  test('is unavailable for a malformed snapshot and reports it once', () => {
+    const capture = captureLog();
     const read = memoryStore({ [snapshotKey]: { version: 2 }, [heartbeatKey]: heartbeat });
 
-    expect(readDataState(read, writtenAt)).toEqual({ kind: 'unavailable' });
+    try {
+      expect(readDataState(read, writtenAt)).toEqual({ kind: 'unavailable' });
+      expect(readDataState(read, writtenAt)).toEqual({ kind: 'unavailable' });
+      expect(capture.messages).toEqual([malformedNotice]);
+    } finally {
+      capture.restore();
+    }
+  });
+
+  test('is unavailable for a newer snapshot and reports it once', () => {
+    const capture = captureLog();
+    const newer = { version: 3, revision: 3, facts: emptyFacts() };
+    const read = memoryStore({ [snapshotKey]: newer, [heartbeatKey]: heartbeat });
+
+    try {
+      expect(readDataState(read, writtenAt)).toEqual({ kind: 'unavailable' });
+      expect(readDataState(read, writtenAt)).toEqual({ kind: 'unavailable' });
+      expect(capture.messages).toEqual([newerNotice]);
+    } finally {
+      capture.restore();
+    }
   });
 
   test('is unavailable when no valid heartbeat was written', () => {

@@ -10,7 +10,7 @@ import {
   realKitIndexFake,
 } from '../../../tests/moduleFakes.ts';
 import { heartbeatKey, leaseExpiryMilliseconds } from '../../data/lease.ts';
-import { snapshotKey } from '../../data/snapshot.ts';
+import { emptyFacts, snapshotKey } from '../../data/snapshot.ts';
 
 interface FakeView {
   init: (props: unknown, cx: unknown) => void;
@@ -119,7 +119,7 @@ const openGallery = (): FakeView => {
 const liveTasks = (): DeadlineTask[] => tasks.filter((task) => !task.cancelled);
 
 beforeEach(() => {
-  sharedValues = { [snapshotKey]: { version: 1, revision: 1, facts: {} } };
+  sharedValues = { [snapshotKey]: { version: 2, revision: 1, facts: emptyFacts() } };
   tasks = [];
   notifyCalls = 0;
   setSystemTime(start);

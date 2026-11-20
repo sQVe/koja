@@ -47,7 +47,20 @@ Consumers use a heartbeat deadline to distinguish live data from stale data with
 another shared write. Missing or invalid shared data is unavailable. Keeping the heartbeat apart
 from the snapshot separates publisher liveness from changes in facts. Publish snapshots only when
 facts change, because each shared write redraws every mod; heartbeat renewal must not create a new
-snapshot revision.
+snapshot revision. Compare facts by content, so a reordered map is not a change.
+
+### Snapshot versions
+
+The snapshot is a saved record, so a field change bumps its `version`. The current reader accepts
+only version 2 and rejects unknown fields. Version 1 carried no facts: its `facts` was
+`Record<string, never>`, and the next owner publish rewrites it. A version 1 snapshot is therefore
+retired silently, because no user action applies. This is the one exception to the notices that
+[shared ADR 0008](../stomme/shared/adr/0008-backwards-compatibility.md) requires for saved formats.
+
+A malformed version 2 record, or a present record without a valid version, is logged once per mod
+copy with a message that the host rebuilds the snapshot on its next publish. A positive whole
+version above 2 is logged once per mod copy with a message that names the update. Each reason logs
+once per loaded mod copy, and later reads stay silent.
 
 ## Consequences
 

@@ -62,11 +62,21 @@ export const repositoryOf = (
   key: keyOf(machine, commonDirectory),
 });
 
-const worktreeOf = (machine: string | null, top: string): WorktreeIdentity => ({
+export const worktreeOf = (machine: string | null, top: string): WorktreeIdentity => ({
   machine,
   top,
   key: keyOf(machine, top),
 });
+
+export const worktreeKeyOf = (
+  identity: Exclude<GitIdentity, { kind: 'failed' | 'none' }>,
+): string => {
+  if (identity.kind === 'bare') {
+    return worktreeOf(identity.place.machine, identity.place.folder).key;
+  }
+
+  return identity.worktree.key;
+};
 
 const layoutArgs = [
   'rev-parse',

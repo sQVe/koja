@@ -5,6 +5,7 @@ import { repeat } from '../kit/timer.ts';
 import type { Lease } from './lease.ts';
 import { claimLease, heartbeatIntervalMilliseconds, renewHeartbeat } from './lease.ts';
 import { createSnapshotPublisher } from './publisher.ts';
+import { emptyFacts } from './snapshot.ts';
 
 // Herdr's runtime has the Web Crypto global, but its declarations do not name it.
 declare const crypto: { randomUUID: () => string };
@@ -25,7 +26,7 @@ export const startDataHost = (cx: Context): void => {
     }
 
     if (lease !== null) {
-      publisher.publish(lease, {});
+      publisher.publish(lease, emptyFacts());
     }
   };
 

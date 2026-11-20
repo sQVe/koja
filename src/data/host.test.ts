@@ -8,7 +8,7 @@ import {
   leaseExpiryMilliseconds,
   parseHeartbeat,
 } from './lease.ts';
-import { snapshotKey } from './snapshot.ts';
+import { emptyFacts, snapshotKey } from './snapshot.ts';
 
 interface Copy {
   beat: () => void;
@@ -74,7 +74,12 @@ describe('startDataHost', () => {
     startCopy();
 
     expect(heartbeat()).toMatchObject({ generation: 1, at: start });
-    expect(sharedValues.get(snapshotKey)).toEqual({ version: 1, revision: 1, facts: {} });
+
+    expect(sharedValues.get(snapshotKey)).toEqual({
+      version: 2,
+      revision: 1,
+      facts: emptyFacts(),
+    });
   });
 
   test('renews the heartbeat on its timer every heartbeat interval', () => {

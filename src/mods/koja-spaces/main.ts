@@ -15,6 +15,7 @@ import {
 } from 'herdr';
 
 import { startDataHost } from '../../data/host.ts';
+import { placeOfSpace, placesOf } from '../../data/places.ts';
 import type { DragState } from '../../kit/drag.ts';
 import { dragLine, dropAction, noDrag, setDragOver, startDrag } from '../../kit/drag.ts';
 import type { StatusRollup } from '../../kit/index.ts';
@@ -45,7 +46,6 @@ import { createOrderPublisher } from './spaceOrder.ts';
 import type { HeaderState, RowState } from './spaceRows.ts';
 import { headerRow, row as spaceRow } from './spaceRows.ts';
 import type { GitInfo, ListedSpace } from './tree.ts';
-import { placeOfSpace, placesOf } from './tree.ts';
 import type { VisibilityResult, VisibilityState } from './visibility.ts';
 import { advanceVisibility, initialVisibility } from './visibility.ts';
 import type { WaitTimes } from './waitTimes.ts';
