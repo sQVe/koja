@@ -32,7 +32,7 @@ describe('readStoredSnapshot', () => {
   test('stays silent when no snapshot was written', () => {
     const { messages, notices } = logged();
 
-    expect(readStoredSnapshot(memoryStore(undefined), notices)).toEqual({ kind: 'missing' });
+    expect(readStoredSnapshot(memoryStore(undefined), notices)).toBeNull();
     expect(messages).toEqual([]);
   });
 
@@ -40,7 +40,7 @@ describe('readStoredSnapshot', () => {
     const { messages, notices } = logged();
     const stored = { version: 1, revision: 4, facts: {} };
 
-    expect(readStoredSnapshot(memoryStore(stored), notices)).toEqual({ kind: 'retired' });
+    expect(readStoredSnapshot(memoryStore(stored), notices)).toBeNull();
     expect(messages).toEqual([]);
   });
 
@@ -54,7 +54,7 @@ describe('readStoredSnapshot', () => {
       return snapshot;
     };
 
-    expect(readStoredSnapshot(read, notices)).toEqual({ kind: 'read', snapshot });
+    expect(readStoredSnapshot(read, notices)).toEqual(snapshot);
     expect(keys).toEqual([snapshotKey]);
     expect(messages).toEqual([]);
   });
@@ -63,33 +63,31 @@ describe('readStoredSnapshot', () => {
     const { messages, notices } = logged();
     const read = memoryStore({ version: 2 });
 
-    expect(readStoredSnapshot(read, notices)).toEqual({ kind: 'malformed' });
-    expect(readStoredSnapshot(read, notices)).toEqual({ kind: 'malformed' });
+    expect(readStoredSnapshot(read, notices)).toBeNull();
+    expect(readStoredSnapshot(read, notices)).toBeNull();
     expect(messages).toEqual([malformedNotice]);
   });
 
   test('treats the shared key absent sentinel as missing', () => {
     const { messages, notices } = logged();
 
-    expect(readStoredSnapshot(memoryStore(null), notices)).toEqual({ kind: 'missing' });
+    expect(readStoredSnapshot(memoryStore(null), notices)).toBeNull();
     expect(messages).toEqual([]);
   });
 
   test('reports a malformed record after an absent read once', () => {
     const { messages, notices } = logged();
 
-    expect(readStoredSnapshot(memoryStore(null), notices)).toEqual({ kind: 'missing' });
-    expect(readStoredSnapshot(memoryStore({ version: 2 }), notices)).toEqual({ kind: 'malformed' });
-    expect(readStoredSnapshot(memoryStore({ version: 2 }), notices)).toEqual({ kind: 'malformed' });
+    expect(readStoredSnapshot(memoryStore(null), notices)).toBeNull();
+    expect(readStoredSnapshot(memoryStore({ version: 2 }), notices)).toBeNull();
+    expect(readStoredSnapshot(memoryStore({ version: 2 }), notices)).toBeNull();
     expect(messages).toEqual([malformedNotice]);
   });
 
   test('reports a present record without a valid version as malformed', () => {
     const { messages, notices } = logged();
 
-    expect(readStoredSnapshot(memoryStore({ version: 'two' }), notices)).toEqual({
-      kind: 'malformed',
-    });
+    expect(readStoredSnapshot(memoryStore({ version: 'two' }), notices)).toBeNull();
 
     expect(messages).toEqual([malformedNotice]);
   });
@@ -98,8 +96,8 @@ describe('readStoredSnapshot', () => {
     const { messages, notices } = logged();
     const read = memoryStore({ version: 3, revision: 4, facts: emptyFacts() });
 
-    expect(readStoredSnapshot(read, notices)).toEqual({ kind: 'newer' });
-    expect(readStoredSnapshot(read, notices)).toEqual({ kind: 'newer' });
+    expect(readStoredSnapshot(read, notices)).toBeNull();
+    expect(readStoredSnapshot(read, notices)).toBeNull();
     expect(messages).toEqual([newerNotice]);
   });
 

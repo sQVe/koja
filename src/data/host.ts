@@ -33,11 +33,7 @@ declare const crypto: { randomUUID: () => string };
 
 const sweepMilliseconds = 250;
 
-const seedFacts = (): Facts => {
-  const stored = readStoredSnapshot(shared, snapshotNotices);
-
-  return stored.kind === 'read' ? stored.snapshot.facts : emptyFacts();
-};
+const seedFacts = (): Facts => readStoredSnapshot(shared, snapshotNotices)?.facts ?? emptyFacts();
 
 const gitWorld = (): GitWorld => ({ spaces: spaces(), panes: panes(), machines: machines() });
 

@@ -6,13 +6,6 @@ import { parseSnapshot, snapshotKey } from './snapshot.ts';
 
 type SnapshotRejection = 'malformed' | 'newer';
 
-export type StoredSnapshot =
-  | { kind: 'missing' }
-  | { kind: 'retired' }
-  | { kind: 'newer' }
-  | { kind: 'malformed' }
-  | { kind: 'read'; snapshot: Snapshot };
-
 export interface SnapshotNotices {
   report: (rejection: SnapshotRejection) => void;
 }
@@ -55,31 +48,31 @@ const isNewerVersion = (version: unknown): boolean => isPositiveWholeNumber(vers
 
 const isAbsent = (value: unknown): boolean => value === undefined || value === null;
 
-export const readStoredSnapshot = (read: ReadShared, notices: SnapshotNotices): StoredSnapshot => {
+export const readStoredSnapshot = (read: ReadShared, notices: SnapshotNotices): Snapshot | null => {
   const value = read(snapshotKey);
   const snapshot = parseSnapshot(value);
 
   if (snapshot !== null) {
-    return { kind: 'read', snapshot };
+    return snapshot;
   }
 
   if (isAbsent(value)) {
-    return { kind: 'missing' };
+    return null;
   }
 
   const version = recordOf(value).version;
 
   if (version === 1) {
-    return { kind: 'retired' };
+    return null;
   }
 
   if (isNewerVersion(version)) {
     notices.report('newer');
 
-    return { kind: 'newer' };
+    return null;
   }
 
   notices.report('malformed');
 
-  return { kind: 'malformed' };
+  return null;
 };

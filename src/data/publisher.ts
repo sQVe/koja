@@ -48,11 +48,11 @@ export const createSnapshotPublisher = (
 
     const stored = readStoredSnapshot(read, snapshotNotices);
 
-    if (stored.kind === 'read' && sameFacts(stored.snapshot.facts, facts)) {
+    if (stored !== null && sameFacts(stored.facts, facts)) {
       return;
     }
 
-    const revision = (stored.kind === 'read' ? stored.snapshot.revision : 0) + 1;
+    const revision = (stored?.revision ?? 0) + 1;
     const snapshot: Snapshot = { version: 2, revision, facts };
 
     write(snapshotKey, snapshot);

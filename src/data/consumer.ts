@@ -1,7 +1,6 @@
 import type { ReadShared } from './lease.ts';
 import { heartbeatDeadline, heartbeatKey, parseHeartbeat } from './lease.ts';
 import type { Snapshot } from './snapshot.ts';
-import type { StoredSnapshot } from './storedSnapshot.ts';
 import { readStoredSnapshot, snapshotNotices } from './storedSnapshot.ts';
 
 export type DataState =
@@ -23,14 +22,13 @@ export type DataState =
     };
 
 export const readDataState = (read: ReadShared, now: number): DataState => {
-  const stored: StoredSnapshot = readStoredSnapshot(read, snapshotNotices);
+  const snapshot = readStoredSnapshot(read, snapshotNotices);
   const heartbeat = parseHeartbeat(read(heartbeatKey));
 
-  if (stored.kind !== 'read' || heartbeat === null) {
+  if (snapshot === null || heartbeat === null) {
     return { kind: 'unavailable' };
   }
 
-  const { snapshot } = stored;
   const { owner, generation } = heartbeat;
   const staleAt = heartbeatDeadline(heartbeat);
 
