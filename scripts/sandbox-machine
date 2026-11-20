@@ -201,15 +201,27 @@ fixture_has_artifacts() {
 }
 
 fixture_registered() {
-  local machines
+  local machines registered
 
   if [[ ! -x $root/bin/herdr-app ]]; then
     return 1
   fi
 
   machines=$(sandbox hc machine ls --json 2>/dev/null) || return 2
-  printf '%s' "$machines" | jq -e 'type == "array"' >/dev/null 2>&1 || return 2
-  printf '%s' "$machines" | jq -e --arg name "$machine_name" 'any(.[]; .name == $name)' >/dev/null 2>&1
+  registered=$(printf '%s' "$machines" | jq -r --arg name "$machine_name" '
+    if (type == "object") and (.machines | type == "array")
+      and all(.machines[]; (type == "object") and (.name | type == "string"))
+    then any(.machines[]; .name == $name)
+    else error("unexpected machine list")
+    end
+  ' 2>/dev/null) || return 2
+
+  case $registered in
+    true) return 0 ;;
+    false) return 1 ;;
+  esac
+
+  return 2
 }
 
 state_valid() {

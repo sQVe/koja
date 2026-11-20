@@ -1154,7 +1154,7 @@ describe('scripts/sandbox-machine missing ownership', () => {
     await writeProgram(
       join(root, 'bin', 'hc'),
       `if [ "$1" = machine ] && [ "$2" = ls ]; then
-  printf '[{"name":"qa-remote","state":"connected","temporary":false}]\n'
+  printf '{"machines":[{"name":"qa-remote","state":"connected","temporary":false}]}\n'
 fi`,
     );
 
@@ -1193,7 +1193,7 @@ fi`,
       join(root, 'bin', 'hc'),
       `printf '%s\\n' "$*" >>'${calls}'
 if [ "$1" = machine ] && [ "$2" = ls ]; then
-  printf '[{"name":"qa-remote","state":"connected","temporary":false}]\\n'
+  printf '{"machines":[{"name":"qa-remote","state":"connected","temporary":false}]}\\n'
 fi`,
     );
 
@@ -1216,6 +1216,202 @@ fi`,
 
     expect(down.exitCode).not.toBe(0);
     expect(await Bun.file(calls).exists()).toBe(true);
+    expect(await readFile(calls, 'utf8')).not.toContain('machine rm');
+  });
+});
+
+describe('scripts/sandbox-machine fixture registration shape', () => {
+  test('up starts when the machine list is an empty envelope', async () => {
+    const manager = await newTemporaryFolder('koja-machine-manager-');
+    const started = join(await newTemporaryFolder('koja-machine-started-'), 'started');
+    const added = join(await newTemporaryFolder('koja-machine-added-'), 'added');
+
+    await writeFakeSystemctl(manager);
+    await mkdir(join(root, 'bin'), { recursive: true });
+    await writeProgram(join(root, 'bin', 'herdr-app'), 'exit 0');
+    await writeProgram(join(root, 'bin', 'hc'), `printf '{"machines":[]}\\n'`);
+
+    const result = await runBash(
+      `
+        set -euo pipefail
+        source '${machineScript}'
+        require_up() { return 0; }
+        sandbox() {
+          if [ "$1" = hc ]; then
+            shift
+            PATH="$root/bin:$PATH" hc "$@"
+          else
+            return 1
+          fi
+        }
+        check_capability() { return 0; }
+        free_port() { echo 23456; }
+        copy_core() { return 0; }
+        start_service() { touch "$STARTED"; }
+        wait_for_ssh() { return 0; }
+        make_fixture() { return 0; }
+        add_machine() { touch "$ADDED"; }
+        up
+        [ -e "$STARTED" ] && [ -e "$ADDED" ]
+      `,
+      { ADDED: added, FAKE_MANAGER_DIR: manager, PATH: pathWith(manager), STARTED: started },
+    );
+
+    expect(result.exitCode).toBe(0);
+  });
+
+  test('up refuses a flat machine array without starting', async () => {
+    const manager = await newTemporaryFolder('koja-machine-manager-');
+    const started = join(await newTemporaryFolder('koja-machine-started-'), 'started');
+
+    await mkdir(join(root, 'bin'), { recursive: true });
+    await writeProgram(join(root, 'bin', 'herdr-app'), 'exit 0');
+    await writeProgram(join(root, 'bin', 'hc'), `printf '[{"name":"other-machine"}]\\n'`);
+
+    const result = await runBash(
+      `
+        set -euo pipefail
+        source '${machineScript}'
+        require_up() { return 0; }
+        sandbox() {
+          if [ "$1" = hc ]; then
+            shift
+            PATH="$root/bin:$PATH" hc "$@"
+          else
+            return 1
+          fi
+        }
+        check_capability() { touch "$STARTED"; }
+        start_service() { touch "$STARTED"; }
+        if up; then exit 1; fi
+        [ ! -e "$STARTED" ] || exit 1
+      `,
+      { PATH: pathWith(manager), STARTED: started },
+    );
+
+    expect(result.exitCode).toBe(0);
+  });
+
+  test('down exits cleanly when the machine list is an empty envelope', async () => {
+    const calls = join(await newTemporaryFolder('koja-machine-calls-'), 'calls');
+
+    await mkdir(join(root, 'bin'), { recursive: true });
+    await writeProgram(join(root, 'bin', 'herdr-app'), 'exit 0');
+
+    await writeProgram(
+      join(root, 'bin', 'hc'),
+      `printf '%s\\n' "$*" >>'${calls}'
+printf '{"machines":[]}\\n'`,
+    );
+
+    const down = await runBash(
+      `
+        set -euo pipefail
+        source '${machineScript}'
+        sandbox() {
+          if [ "$1" = hc ]; then
+            shift
+            PATH="$root/bin:$PATH" hc "$@"
+          else
+            return 1
+          fi
+        }
+        down
+      `,
+    );
+
+    expect(down.exitCode).toBe(0);
+    expect(await readFile(calls, 'utf8')).not.toContain('machine rm');
+  });
+
+  test('down refuses a bare machine array without unregistering', async () => {
+    const calls = join(await newTemporaryFolder('koja-machine-calls-'), 'calls');
+
+    await mkdir(join(root, 'bin'), { recursive: true });
+    await writeProgram(join(root, 'bin', 'herdr-app'), 'exit 0');
+
+    await writeProgram(
+      join(root, 'bin', 'hc'),
+      `printf '%s\\n' "$*" >>'${calls}'
+printf '[]\\n'`,
+    );
+
+    const down = await runBash(
+      `
+        set -euo pipefail
+        source '${machineScript}'
+        sandbox() {
+          if [ "$1" = hc ]; then
+            shift
+            PATH="$root/bin:$PATH" hc "$@"
+          else
+            return 1
+          fi
+        }
+        down
+      `,
+    );
+
+    expect(down.exitCode).not.toBe(0);
+    expect(await readFile(calls, 'utf8')).not.toContain('machine rm');
+  });
+
+  test('down refuses a machine list whose entries are not named objects', async () => {
+    const calls = join(await newTemporaryFolder('koja-machine-calls-'), 'calls');
+
+    await mkdir(join(root, 'bin'), { recursive: true });
+    await writeProgram(join(root, 'bin', 'herdr-app'), 'exit 0');
+
+    await writeProgram(
+      join(root, 'bin', 'hc'),
+      `printf '%s\\n' "$*" >>'${calls}'
+printf '{"machines":[null,{"name":5}]}\\n'`,
+    );
+
+    const down = await runBash(
+      `
+        set -euo pipefail
+        source '${machineScript}'
+        sandbox() {
+          if [ "$1" = hc ]; then
+            shift
+            PATH="$root/bin:$PATH" hc "$@"
+          else
+            return 1
+          fi
+        }
+        down
+      `,
+    );
+
+    expect(down.exitCode).not.toBe(0);
+    expect(await readFile(calls, 'utf8')).not.toContain('machine rm');
+  });
+
+  test('down refuses an empty machine list without unregistering', async () => {
+    const calls = join(await newTemporaryFolder('koja-machine-calls-'), 'calls');
+
+    await mkdir(join(root, 'bin'), { recursive: true });
+    await writeProgram(join(root, 'bin', 'herdr-app'), 'exit 0');
+    await writeProgram(join(root, 'bin', 'hc'), `printf '%s\\n' "$*" >>'${calls}'`);
+
+    const down = await runBash(
+      `
+        set -euo pipefail
+        source '${machineScript}'
+        sandbox() {
+          if [ "$1" = hc ]; then
+            shift
+            PATH="$root/bin:$PATH" hc "$@"
+          else
+            return 1
+          fi
+        }
+        down
+      `,
+    );
+
+    expect(down.exitCode).not.toBe(0);
     expect(await readFile(calls, 'utf8')).not.toContain('machine rm');
   });
 });
