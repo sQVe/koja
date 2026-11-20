@@ -47,7 +47,7 @@ const baseWidth = (input: PaneHeaderFieldsInput, actions: number, includeTask: b
     (hasTask ? 1 : 0) +
     (input.statusWidth > 0 ? 1 : 0);
 
-  // The name and the trailing action always draw.
+  // Count the name and one action group even when the buttons are hidden.
   const children = 2 + fieldChildren;
 
   return (
