@@ -1,0 +1,9 @@
+{
+  "version": 2,
+  "service": "koja-fixture-0123456789ab.service",
+  "bootId": "01234567-89ab-cdef-0123-456789abcdef",
+  "port": 23456,
+  "launchId": "cccccccccccccccccccccccccccccccc",
+  "invocationId": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+  "cgroup": "/user.slice/user-@USER_ID@.slice/user@@USER_ID@.service/app.slice/koja-fixture-0123456789ab.service"
+}

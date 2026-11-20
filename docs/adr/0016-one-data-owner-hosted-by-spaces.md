@@ -77,6 +77,22 @@ guarantee: another actor that manages the same private name between the check an
 receive the signal. A post-stop check detects some races but cannot undo a signal. Process paths,
 environment text, PID files, process trees, and numeric PIDs never authorize a signal.
 
+The fixture writes two proof records. `ownership.json` uses version 2 and `launch-receipt.json` uses
+version 1, each with its own `version` field. A reader validates the raw JSON against the exact
+current schema before extracting any field. It rejects unknown fields, multiple JSON values,
+malformed encodings, and a cgroup other than the one derived from the validated service name. No
+fixture proof format shipped before these two, so ownership version 1 and the earlier unversioned
+receipt are retired without compatibility support. Neither record alone relaxes the launch or stop
+checks.
+
+Unusable proof fails closed and leaves the records and fixture artifacts unchanged. It makes no
+launch, adoption, rewrite, unregistration, or stop call. The notice names the record kind and reason
+without printing record contents. For a retired record it says: "Use the exact checkout that created
+this fixture only if it can still prove ownership and stop it safely. Otherwise leave the artifacts
+and processes alone." For a newer record it directs the user to a checkout that supports that
+version. For malformed current proof it reports the invalid record and that cleanup did not run,
+without suggesting an edit.
+
 ### Snapshot versions
 
 The snapshot is a saved record, so a field change bumps its `version`. The current reader accepts

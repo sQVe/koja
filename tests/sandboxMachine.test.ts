@@ -69,7 +69,7 @@ const serviceName = (): string => `koja-fixture-${randomBytes(6).toString('hex')
 const launchId = 'c'.repeat(32);
 
 const ownership = (service: string, overrides: Record<string, unknown> = {}) => ({
-  version: 1,
+  version: 2,
   service,
   bootId,
   port: 23456,
@@ -85,6 +85,7 @@ const writeOwnership = async (state: Record<string, unknown>): Promise<void> => 
 };
 
 const receipt = (service: string, overrides: Record<string, unknown> = {}) => ({
+  version: 1,
   launchId,
   invocationId: 'a'.repeat(32),
   cgroup: cgroupFor(service),
@@ -94,6 +95,16 @@ const receipt = (service: string, overrides: Record<string, unknown> = {}) => ({
 const writeReceipt = async (value: Record<string, unknown>): Promise<void> => {
   await mkdir(machine, { recursive: true });
   await writeFile(receiptFile, JSON.stringify(value), { mode: 0o600 });
+};
+
+const fixtureRecord = async (fileName: string): Promise<string> =>
+  (
+    await readFile(join(import.meta.dir, 'fixtures', 'sandbox-machine', fileName), 'utf8')
+  ).replaceAll('@USER_ID@', String(userId));
+
+const writeRawRecord = async (path: string, contents: string): Promise<void> => {
+  await mkdir(machine, { recursive: true });
+  await writeFile(path, contents, { mode: 0o600 });
 };
 
 const unitProperties = (service: string, overrides: Record<string, string> = {}) => ({
@@ -540,7 +551,7 @@ describe('scripts/sandbox-machine ownership', () => {
           [ -f "$state_file" ] || exit 1
           boot=$(cat /proc/sys/kernel/random/boot_id)
           jq -e --arg boot "$boot" '
-            .version == 1 and
+            .version == 2 and
             (.service | length > 0) and
             .bootId == $boot and
             .port == 23456 and
@@ -1073,6 +1084,391 @@ describe('scripts/sandbox-machine ownership record shape', () => {
   }
 });
 
+describe('scripts/sandbox-machine record formats', () => {
+  test('reads the frozen current ownership and receipt records', async () => {
+    await writeRawRecord(stateFile, await fixtureRecord('ownership-v2.json'));
+    await writeRawRecord(receiptFile, await fixtureRecord('launch-receipt-v1.json'));
+
+    const result = await runBash(
+      `
+        set -euo pipefail
+        source '${machineScript}'
+        state_record_read
+        receipt_record_read "$state_service" "$state_launch_id" yes
+      `,
+    );
+
+    expect(result.exitCode).toBe(0);
+  });
+
+  test('writes the current ownership and receipt formats', async () => {
+    const service = serviceName();
+
+    const result = await runBash(
+      `
+        set -euo pipefail
+        source '${machineScript}'
+        mkdir -p "$machine"
+        write_state '${service}' '${bootId}' 23456 '${launchId}' '' ''
+        jq -e 'keys == ["bootId","cgroup","invocationId","launchId","port","service","version"] and .version == 2 and .service == "${service}" and .invocationId == "" and .cgroup == ""' "$state_file" >/dev/null
+        sshd_bin=/bin/true
+        write_start_wrapper
+        INVOCATION_ID='${'d'.repeat(32)}' '${machine}/start-fixture' '${launchId}'
+        jq -e 'keys == ["cgroup","invocationId","launchId","version"] and .version == 1' "$receipt_file" >/dev/null
+      `,
+    );
+
+    expect(result.exitCode).toBe(0);
+  });
+});
+
+describe('scripts/sandbox-machine strict record parsing', () => {
+  const malformedOwnershipRecords = (service: string): [string, string][] => [
+    ['an unknown field', JSON.stringify({ ...ownership(service), extra: true })],
+    ['a nonobject value', JSON.stringify([ownership(service)])],
+    [
+      'multiple JSON values',
+      `${JSON.stringify(ownership(service))}\n${JSON.stringify(ownership(service))}`,
+    ],
+    [
+      'a cgroup with a trailing newline',
+      JSON.stringify(ownership(service, { cgroup: `${cgroupFor(service)}\n` })),
+    ],
+    [
+      'an incomplete pair',
+      JSON.stringify(ownership(service, { invocationId: '', cgroup: cgroupFor(service) })),
+    ],
+    ['a fractional port', JSON.stringify(ownership(service, { port: 23456.5 }))],
+    [
+      'an invalid launch encoding',
+      JSON.stringify(ownership(service, { launchId: 'C'.repeat(32) })),
+    ],
+    [
+      'a service with a trailing newline',
+      JSON.stringify(ownership(service, { service: `${service}\n` })),
+    ],
+    [
+      'a boot ID with a trailing newline',
+      JSON.stringify(ownership(service, { bootId: `${bootId}\n` })),
+    ],
+    [
+      'a launch ID with a trailing newline',
+      JSON.stringify(ownership(service, { launchId: `${launchId}\n` })),
+    ],
+  ];
+
+  const malformedReceiptRecords = (service: string): [string, string][] => [
+    ['an unknown field', JSON.stringify({ ...receipt(service), extra: true })],
+    ['a nonobject value', JSON.stringify([receipt(service)])],
+    [
+      'multiple JSON values',
+      `${JSON.stringify(receipt(service))}\n${JSON.stringify(receipt(service))}`,
+    ],
+    [
+      'a cgroup with a trailing newline',
+      JSON.stringify(receipt(service, { cgroup: `${cgroupFor(service)}\n` })),
+    ],
+    ['an incomplete record', JSON.stringify({ version: 1, launchId })],
+    ['a fractional version', JSON.stringify(receipt(service, { version: 1.5 }))],
+    [
+      'an invalid invocation encoding',
+      JSON.stringify(receipt(service, { invocationId: 'A'.repeat(32) })),
+    ],
+    [
+      'a launch ID with a trailing newline',
+      JSON.stringify(receipt(service, { launchId: `${launchId}\n` })),
+    ],
+    [
+      'an invocation ID with a trailing newline',
+      JSON.stringify(receipt(service, { invocationId: `${'a'.repeat(32)}\n` })),
+    ],
+  ];
+
+  const checkMalformedOwnership = (label: string, contents: string): void => {
+    test(`rejects an ownership record with ${label}`, async () => {
+      await writeRawRecord(stateFile, contents);
+
+      const result = await runBash(
+        `
+          set -euo pipefail
+          source '${machineScript}'
+          if state_valid; then exit 1; fi
+        `,
+      );
+
+      expect(result.exitCode).toBe(0);
+    });
+  };
+
+  for (const [label, contents] of malformedOwnershipRecords(serviceName())) {
+    checkMalformedOwnership(label, contents);
+  }
+
+  const receiptService = serviceName();
+
+  const checkMalformedReceipt = (label: string, contents: string): void => {
+    test(`rejects a receipt with ${label}`, async () => {
+      await writeRawRecord(receiptFile, contents);
+
+      const result = await runBash(
+        `
+          set -euo pipefail
+          source '${machineScript}'
+          if receipt_valid '${receiptService}' '${launchId}'; then exit 1; fi
+        `,
+      );
+
+      expect(result.exitCode).toBe(0);
+    });
+  };
+
+  for (const [label, contents] of malformedReceiptRecords(receiptService)) {
+    checkMalformedReceipt(label, contents);
+  }
+
+  const checkLateReceipt = (
+    label: string,
+    makeCandidate: (service: string, invocation: string) => Record<string, unknown>,
+  ): void => {
+    test(`does not load a ${label} receipt that appears during a manager observation`, async () => {
+      const service = serviceName();
+      const invocation = 'a'.repeat(32);
+      const candidate = makeCandidate(service, invocation);
+      const manager = await newTemporaryFolder('koja-machine-manager-');
+      const base = await newTemporaryFolder('koja-machine-systemctl-');
+
+      const candidateFile = join(
+        await newTemporaryFolder('koja-machine-candidate-'),
+        'receipt.json',
+      );
+
+      const marker = join(await newTemporaryFolder('koja-machine-marker-'), 'created');
+
+      await writeFakeSystemctl(base);
+      await writeUnit(manager, service, unitProperties(service, { InvocationID: invocation }));
+      await writeOwnership(ownership(service, { invocationId: '', cgroup: '' }));
+      await writeFile(candidateFile, JSON.stringify(candidate), { mode: 0o600 });
+
+      await writeProgram(
+        join(manager, 'systemctl'),
+        `if [ ! -e '${marker}' ]; then
+  : > '${marker}'
+  cp '${candidateFile}' '${receiptFile}'
+  chmod 600 '${receiptFile}'
+fi
+exec '${base}/systemctl' "$@"`,
+      );
+
+      const stateBefore = await readFile(stateFile, 'utf8');
+
+      const down = await runDown({
+        FAKE_MANAGER_DIR: manager,
+        PATH: pathWith(manager),
+      });
+
+      expect(down.exitCode).not.toBe(0);
+      expect(await Bun.file(marker).exists()).toBe(true);
+      expect(await readFile(stateFile, 'utf8')).toBe(stateBefore);
+      expect(await readFile(receiptFile, 'utf8')).toBe(JSON.stringify(candidate));
+      expect(await Bun.file(join(manager, 'calls')).exists()).toBe(false);
+    });
+  };
+
+  checkLateReceipt('retired', (service, invocation) => ({
+    launchId,
+    invocationId: invocation,
+    cgroup: cgroupFor(service),
+  }));
+
+  checkLateReceipt('malformed', (service, invocation) => ({
+    version: 1,
+    launchId,
+    invocationId: invocation,
+    cgroup: cgroupFor(service),
+    extra: true,
+  }));
+
+  test('does not recover a pending record whose receipt cgroup ends with a newline', async () => {
+    const service = serviceName();
+    const manager = await newTemporaryFolder('koja-machine-manager-');
+
+    await writeFakeSystemctl(manager);
+    await writeUnit(manager, service, unitProperties(service));
+    await writeOwnership(ownership(service, { invocationId: '', cgroup: '' }));
+    await writeReceipt(receipt(service, { cgroup: `${cgroupFor(service)}\n` }));
+
+    const down = await runDown({
+      FAKE_MANAGER_DIR: manager,
+      PATH: pathWith(manager),
+    });
+
+    expect(down.exitCode).not.toBe(0);
+    expect(await Bun.file(stateFile).exists()).toBe(true);
+    expect(await Bun.file(receiptFile).exists()).toBe(true);
+    expect(await Bun.file(join(manager, 'calls')).exists()).toBe(false);
+  });
+
+  test('does not stop a service whose ownership cgroup ends with a newline', async () => {
+    const service = serviceName();
+    const manager = await newTemporaryFolder('koja-machine-manager-');
+
+    await writeFakeSystemctl(manager);
+    await writeUnit(manager, service, unitProperties(service));
+    await writeOwnership(ownership(service, { cgroup: `${cgroupFor(service)}\n` }));
+
+    const down = await runDown({
+      FAKE_MANAGER_DIR: manager,
+      PATH: pathWith(manager),
+    });
+
+    expect(down.exitCode).not.toBe(0);
+    expect(await Bun.file(stateFile).exists()).toBe(true);
+    expect(await Bun.file(join(manager, 'calls')).exists()).toBe(false);
+  });
+});
+
+describe('scripts/sandbox-machine record format refusals', () => {
+  const refuseBothPaths = async (): Promise<void> => {
+    const manager = await newTemporaryFolder('koja-machine-manager-');
+    const started = join(await newTemporaryFolder('koja-machine-started-'), 'started');
+    const stateBefore = await readFile(stateFile, 'utf8');
+    const receiptBefore = await readFile(receiptFile, 'utf8');
+
+    await writeFakeSystemctl(manager);
+
+    const down = await runDown({
+      FAKE_MANAGER_DIR: manager,
+      PATH: pathWith(manager),
+    });
+
+    expect(down.exitCode).not.toBe(0);
+    expect(await readFile(stateFile, 'utf8')).toBe(stateBefore);
+    expect(await readFile(receiptFile, 'utf8')).toBe(receiptBefore);
+    expect(await Bun.file(join(manager, 'calls')).exists()).toBe(false);
+
+    const up = await runBash(
+      `
+        set -euo pipefail
+        source '${machineScript}'
+        require_up() { return 0; }
+        check_capability() { return 0; }
+        free_port() { echo 23456; }
+        copy_core() { return 0; }
+        start_service() { touch "$STARTED"; }
+        wait_for_ssh() { return 0; }
+        make_fixture() { return 0; }
+        add_machine() { return 0; }
+        up
+      `,
+      { FAKE_MANAGER_DIR: manager, PATH: pathWith(manager), STARTED: started },
+    );
+
+    expect(up.exitCode).not.toBe(0);
+    expect(await readFile(stateFile, 'utf8')).toBe(stateBefore);
+    expect(await readFile(receiptFile, 'utf8')).toBe(receiptBefore);
+    expect(await Bun.file(join(manager, 'calls')).exists()).toBe(false);
+    expect(await Bun.file(started).exists()).toBe(false);
+  };
+
+  const refuseReceiptWithoutOwnership = (
+    label: string,
+    contents: Record<string, unknown>,
+  ): void => {
+    test(`refuses ${label} without an ownership record`, async () => {
+      const started = join(await newTemporaryFolder('koja-machine-started-'), 'started');
+
+      await writeReceipt(contents);
+      const receiptBefore = await readFile(receiptFile, 'utf8');
+
+      const down = await runDown();
+
+      expect(down.exitCode).not.toBe(0);
+      expect(await readFile(receiptFile, 'utf8')).toBe(receiptBefore);
+
+      const up = await runBash(
+        `
+          set -euo pipefail
+          source '${machineScript}'
+          require_up() { return 0; }
+          start_service() { touch "$STARTED"; }
+          up
+        `,
+        { STARTED: started },
+      );
+
+      expect(up.exitCode).not.toBe(0);
+      expect(await readFile(receiptFile, 'utf8')).toBe(receiptBefore);
+      expect(await Bun.file(started).exists()).toBe(false);
+    });
+  };
+
+  const receiptOnlyService = serviceName();
+  const retiredReceipt: Record<string, unknown> = receipt(receiptOnlyService);
+  delete retiredReceipt['version'];
+
+  refuseReceiptWithoutOwnership('a retired launch receipt', retiredReceipt);
+
+  refuseReceiptWithoutOwnership(
+    'a newer launch receipt',
+    receipt(receiptOnlyService, { version: 2 }),
+  );
+
+  refuseReceiptWithoutOwnership(
+    'a malformed launch receipt',
+    receipt(receiptOnlyService, { extra: true }),
+  );
+
+  test('refuses a retired ownership record on up and down', async () => {
+    const service = serviceName();
+
+    await writeOwnership(ownership(service, { version: 1, invocationId: '', cgroup: '' }));
+    await writeReceipt(receipt(service));
+    await refuseBothPaths();
+  });
+
+  test('refuses a newer ownership record on up and down', async () => {
+    const service = serviceName();
+
+    await writeOwnership(ownership(service, { version: 3, invocationId: '', cgroup: '' }));
+    await writeReceipt(receipt(service));
+    await refuseBothPaths();
+  });
+
+  test('refuses a malformed ownership record on up and down', async () => {
+    const service = serviceName();
+
+    await writeOwnership(ownership(service, { extra: true }));
+    await writeReceipt(receipt(service));
+    await refuseBothPaths();
+  });
+
+  test('refuses a retired launch receipt on up and down', async () => {
+    const service = serviceName();
+    const oldReceipt: Record<string, unknown> = receipt(service);
+    delete oldReceipt['version'];
+
+    await writeOwnership(ownership(service, { invocationId: '', cgroup: '' }));
+    await writeReceipt(oldReceipt);
+    await refuseBothPaths();
+  });
+
+  test('refuses a newer launch receipt on up and down', async () => {
+    const service = serviceName();
+
+    await writeOwnership(ownership(service, { invocationId: '', cgroup: '' }));
+    await writeReceipt(receipt(service, { version: 2 }));
+    await refuseBothPaths();
+  });
+
+  test('refuses a malformed launch receipt on up and down', async () => {
+    const service = serviceName();
+
+    await writeOwnership(ownership(service, { invocationId: '', cgroup: '' }));
+    await writeReceipt(receipt(service, { extra: true }));
+    await refuseBothPaths();
+  });
+});
+
 describe('scripts/sandbox-machine missing ownership', () => {
   test('up refuses to launch when setup artifacts remain without a record', async () => {
     const started = join(await newTemporaryFolder('koja-machine-started-'), 'started');
@@ -1462,7 +1858,7 @@ describe('scripts/sandbox-machine launch receipt', () => {
     await writeFakeSystemctl(manager);
     await writeUnit(manager, service, unitProperties(service));
     await writeOwnership(ownership(service, { invocationId: '', cgroup: '' }));
-    await writeReceipt({ launchId });
+    await writeReceipt({ version: 1, launchId });
 
     const down = await runDown({
       FAKE_MANAGER_DIR: manager,

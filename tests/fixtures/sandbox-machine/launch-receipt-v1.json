@@ -1,0 +1,6 @@
+{
+  "version": 1,
+  "launchId": "cccccccccccccccccccccccccccccccc",
+  "invocationId": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+  "cgroup": "/user.slice/user-@USER_ID@.slice/user@@USER_ID@.service/app.slice/koja-fixture-0123456789ab.service"
+}

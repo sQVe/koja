@@ -155,27 +155,105 @@ service_has_pending_job() {
   [[ -n $jobs ]]
 }
 
-receipt_valid() {
-  if [[ ! -s $receipt_file ]]; then
+proof_file_usable() {
+  local file=$1
+
+  [[ -f $file && ! -L $file && -r $file ]] || return 1
+  [[ $(stat -c %a "$file") == 600 ]]
+}
+
+proof_refusal_notice() {
+  local record=$1
+  local kind=$2
+
+  case $kind in
+    retired)
+      printf 'the fixture %s uses a retired format. Use the exact checkout that created this fixture only if it can still prove ownership and stop it safely. Otherwise leave the artifacts and processes alone.\n' "$record" >&2
+      ;;
+    newer)
+      printf 'the fixture %s uses a newer format; use a checkout that supports that version.\n' "$record" >&2
+      ;;
+    *)
+      printf 'the fixture %s is invalid; cleanup did not run.\n' "$record" >&2
+      ;;
+  esac
+}
+
+receipt_record_read() {
+  local service=${1:-}
+  local launch=${2:-}
+  local check_expected=${3:-yes}
+  local output kind user_id check
+
+  receipt_record_kind=malformed
+  if ! proof_file_usable "$receipt_file"; then
     return 1
   fi
 
-  [[ $(stat -c %a "$receipt_file") == 600 ]] || return 1
-  jq -e '
-    type == "object" and
-    (has("launchId") and (.launchId | type == "string" and test("^[0-9a-f]{32}$"))) and
-    (has("invocationId") and (.invocationId | type == "string" and test("^[0-9a-f]{32}$"))) and
-    (has("cgroup") and (.cgroup | type == "string" and length > 0))
-  ' "$receipt_file" >/dev/null 2>&1
+  user_id=$(id -u) || return 1
+  if [[ $check_expected == yes ]]; then
+    check=true
+  else
+    check=false
+  fi
+
+  output=$(jq -s -r --arg service "$service" --arg launch "$launch" --arg user "$user_id" --argjson check "$check" '
+    if length != 1 then
+      "malformed"
+    elif (.[0] | type) != "object" then
+      "malformed"
+    else
+      .[0] as $record |
+      if ($record | has("version") | not) then
+        "retired"
+      elif (($record.version | type) != "number") or (($record.version | floor) != $record.version) then
+        "malformed"
+      elif $record.version > 1 then
+        "newer"
+      elif $record.version != 1 then
+        "malformed"
+      elif (
+        $record |
+        (keys == ["cgroup", "invocationId", "launchId", "version"]) and
+        (.launchId | type == "string" and test("^[0-9a-f]{32}\\z")) and
+        (.invocationId | type == "string" and test("^[0-9a-f]{32}\\z")) and
+        (.cgroup | type == "string" and test("^/[A-Za-z0-9_@:./-]+\\z") and (contains("..") | not))
+      ) then
+        if (
+          ($check | not) or
+          ($record.launchId == $launch and $record.cgroup == "/user.slice/user-\($user).slice/user@\($user).service/app.slice/\($service)")
+        ) then
+          ["current", $record.launchId, $record.invocationId, $record.cgroup] | @tsv
+        else
+          "malformed"
+        end
+      else
+        "malformed"
+      end
+    end
+  ' "$receipt_file" 2>/dev/null) || {
+    receipt_record_kind=malformed
+    return 1
+  }
+
+  IFS=$'\t' read -r kind receipt_launch_id receipt_invocation receipt_cgroup <<< "$output"
+  receipt_record_kind=${kind:-malformed}
+  [[ $receipt_record_kind == current ]]
 }
 
-load_receipt_fields() {
-  receipt_launch_id=$(jq -er '.launchId' "$receipt_file") || return 1
-  receipt_invocation=$(jq -er '.invocationId' "$receipt_file") || return 1
-  receipt_cgroup=$(jq -er '.cgroup' "$receipt_file") || return 1
+receipt_valid() {
+  receipt_record_read "$1" "$2" yes
+}
 
-  [[ $receipt_launch_id == "$state_launch_id" ]] || return 1
-  cgroup_matches_service "$state_service" "$receipt_cgroup" || return 1
+refuse_unusable_receipt_without_state() {
+  if [[ ! -e $receipt_file ]]; then
+    return 0
+  fi
+
+  if ! receipt_record_read '' '' no; then
+    proof_refusal_notice 'launch receipt' "$receipt_record_kind"
+    return 1
+  fi
 }
 
 fixture_has_artifacts() {
@@ -224,48 +302,68 @@ fixture_registered() {
   return 2
 }
 
-state_valid() {
-  if [[ ! -s $state_file ]]; then
+state_record_read() {
+  local output kind user_id
+
+  state_record_kind=malformed
+  if ! proof_file_usable "$state_file"; then
     return 1
   fi
 
-  [[ $(stat -c %a "$state_file") == 600 ]] || return 1
-  jq -e '
-    type == "object" and
-    (has("version") and .version == 1) and
-    (has("service") and (.service | type == "string" and length > 0)) and
-    (has("bootId") and (.bootId | type == "string" and length > 0)) and
-    (has("port") and (.port | type == "number" and . > 0 and . < 65536)) and
-    (has("launchId") and (.launchId | type == "string" and test("^[0-9a-f]{32}$"))) and
-    (has("invocationId") and (.invocationId | type == "string")) and
-    (has("cgroup") and (.cgroup | type == "string")) and
-    ((.invocationId == "" and .cgroup == "") or (.invocationId != "" and .cgroup != ""))
-  ' "$state_file" >/dev/null 2>&1
+  user_id=$(id -u) || return 1
+  output=$(jq -s -r --arg user "$user_id" '
+    if length != 1 then
+      "malformed"
+    elif (.[0] | type) != "object" then
+      "malformed"
+    else
+      .[0] as $record |
+      if ($record | has("version") | not) then
+        "malformed"
+      elif (($record.version | type) != "number") or (($record.version | floor) != $record.version) then
+        "malformed"
+      elif $record.version == 1 then
+        "retired"
+      elif $record.version > 2 then
+        "newer"
+      elif $record.version != 2 then
+        "malformed"
+      elif (
+        $record |
+        (keys == ["bootId", "cgroup", "invocationId", "launchId", "port", "service", "version"]) and
+        (.service | type == "string" and test("^koja-fixture-[0-9a-f]{12}\\.service\\z")) and
+        (.bootId | type == "string" and test("^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\\z")) and
+        (.port | type == "number" and . == floor and . > 0 and . < 65536) and
+        (.launchId | type == "string" and test("^[0-9a-f]{32}\\z")) and
+        (.invocationId | type == "string") and
+        (.cgroup | type == "string") and
+        (
+          (.invocationId == "" and .cgroup == "") or
+          (
+            (.invocationId | test("^[0-9a-f]{32}\\z")) and
+            (.cgroup | test("^/[A-Za-z0-9_@:./-]+\\z")) and
+            (.cgroup | contains("..") | not) and
+            .cgroup == "/user.slice/user-\($user).slice/user@\($user).service/app.slice/\(.service)"
+          )
+        )
+      ) then
+        ["current", $record.service, $record.bootId, ($record.port | tostring), $record.launchId, $record.invocationId, $record.cgroup] | @tsv
+      else
+        "malformed"
+      end
+    end
+  ' "$state_file" 2>/dev/null) || {
+    state_record_kind=malformed
+    return 1
+  }
+
+  IFS=$'\t' read -r kind state_service state_boot state_port state_launch_id state_invocation state_cgroup <<< "$output"
+  state_record_kind=${kind:-malformed}
+  [[ $state_record_kind == current ]]
 }
 
-load_state_fields() {
-  state_service=$(jq -er '.service' "$state_file") || return 1
-  if [[ ! $state_service =~ ^koja-fixture-[0-9a-f]{12}\.service$ ]]; then
-    return 1
-  fi
-
-  state_boot=$(jq -er '.bootId' "$state_file") || return 1
-  state_port=$(jq -er '.port' "$state_file") || return 1
-  state_launch_id=$(jq -er '.launchId' "$state_file") || return 1
-  state_invocation=$(jq -er '.invocationId' "$state_file") || return 1
-  state_cgroup=$(jq -er '.cgroup' "$state_file") || return 1
-
-  [[ $state_boot =~ ^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$ ]] || return 1
-  [[ $state_port =~ ^[0-9]+$ ]] && (( state_port > 0 && state_port < 65536 )) || return 1
-  [[ $state_launch_id =~ ^[0-9a-f]{32}$ ]] || return 1
-
-  if [[ -n $state_invocation && ! $state_invocation =~ ^[0-9a-f]{32}$ ]]; then
-    return 1
-  fi
-
-  if [[ -n $state_cgroup ]]; then
-    cgroup_matches_service "$state_service" "$state_cgroup" || return 1
-  fi
+state_valid() {
+  state_record_read
 }
 
 write_state() {
@@ -285,7 +383,7 @@ write_state() {
     --arg launchId "$launch" \
     --arg invocationId "$invocation" \
     --arg cgroup "$cgroup" \
-    '{version: 1, service: $service, bootId: $bootId, port: $port, launchId: $launchId, invocationId: $invocationId, cgroup: $cgroup}' > "$temporary"); then
+    '{version: 2, service: $service, bootId: $bootId, port: $port, launchId: $launchId, invocationId: $invocationId, cgroup: $cgroup}' > "$temporary"); then
     rm -f "$temporary"
     return 1
   fi
@@ -313,14 +411,24 @@ write_state() {
 }
 
 read_and_verify_state() {
-  local load current_boot expected job_status
+  local load current_boot expected job_status receipt_present=0
 
   if [[ ! -e $state_file ]]; then
     return 2
   fi
 
-  state_valid || return 1
-  load_state_fields || return 1
+  if ! state_record_read; then
+    proof_refusal_notice 'ownership record' "$state_record_kind"
+    return 4
+  fi
+
+  if [[ -e $receipt_file ]]; then
+    receipt_present=1
+    if ! receipt_record_read "$state_service" "$state_launch_id" yes; then
+      proof_refusal_notice 'launch receipt' "$receipt_record_kind"
+      return 4
+    fi
+  fi
 
   current_boot=$(read_boot_id) || return 1
   load=$(service_property "$state_service" LoadState) || return 1
@@ -386,18 +494,8 @@ read_and_verify_state() {
   fi
 
   if [[ -z $state_invocation || -z $state_cgroup ]]; then
-    if [[ ! -e $receipt_file ]]; then
+    if (( receipt_present == 0 )); then
       echo "the fixture service $state_service has no launch receipt" >&2
-      return 1
-    fi
-
-    if ! receipt_valid; then
-      echo "the fixture launch receipt is invalid" >&2
-      return 1
-    fi
-
-    if ! load_receipt_fields; then
-      echo "the fixture launch receipt does not belong to this intent" >&2
       return 1
     fi
 
@@ -681,7 +779,7 @@ invocation=\${INVOCATION_ID:-}
 cgroup=\$(/usr/bin/awk -F: '\$1 == 0 { print \$3 }' /proc/self/cgroup)
 [ -n "\$cgroup" ] || exit 1
 temporary=\$(/usr/bin/mktemp "$machine/.receipt.XXXXXX") || exit 1
-/usr/bin/jq -n --arg launchId "\$launch_id" --arg invocationId "\$invocation" --arg cgroup "\$cgroup" '{launchId:\$launchId, invocationId:\$invocationId, cgroup:\$cgroup}' > "\$temporary" || { /usr/bin/rm -f "\$temporary"; exit 1; }
+/usr/bin/jq -n --arg launchId "\$launch_id" --arg invocationId "\$invocation" --arg cgroup "\$cgroup" '{version: 1, launchId:\$launchId, invocationId:\$invocationId, cgroup:\$cgroup}' > "\$temporary" || { /usr/bin/rm -f "\$temporary"; exit 1; }
 /usr/bin/chmod 600 "\$temporary" || { /usr/bin/rm -f "\$temporary"; exit 1; }
 /usr/bin/ln -T "\$temporary" "$receipt_file" || { /usr/bin/rm -f "\$temporary"; exit 1; }
 /usr/bin/rm -f "\$temporary"
@@ -691,7 +789,7 @@ EOF
 }
 
 start_service() {
-  local output status load
+  local output status read_status load
 
   load=$(service_property "$state_service" LoadState) || {
     echo "could not read fixture service $state_service before start" >&2
@@ -724,8 +822,16 @@ start_service() {
   set -e
 
   for _ in $(seq 1 50); do
-    if read_and_verify_state; then
+    set +e
+    read_and_verify_state
+    read_status=$?
+    set -e
+    if (( read_status == 0 )); then
       return 0
+    fi
+
+    if (( read_status == 4 )); then
+      return 1
     fi
 
     sleep 0.1
@@ -897,6 +1003,8 @@ up() {
   require_up
 
   if [[ ! -e $state_file ]]; then
+    refuse_unusable_receipt_without_state || return 1
+
     set +e
     fixture_has_artifacts
     status=$?
@@ -948,6 +1056,10 @@ up() {
       fi
     else
       status=$?
+      if (( status == 4 )); then
+        return 1
+      fi
+
       if (( status == 3 )); then
         rm -f "$state_file" "$receipt_file"
       else
@@ -1020,6 +1132,8 @@ down() {
   local status
 
   if [[ ! -e $state_file ]]; then
+    refuse_unusable_receipt_without_state || return 1
+
     set +e
     fixture_has_artifacts
     status=$?
@@ -1055,6 +1169,10 @@ down() {
     :
   else
     status=$?
+    if (( status == 4 )); then
+      return 1
+    fi
+
     if (( status == 3 )); then
       unregister_machine
       rm -f "$state_file" "$receipt_file"
