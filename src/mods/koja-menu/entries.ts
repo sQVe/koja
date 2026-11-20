@@ -2,6 +2,7 @@ import type { GitIdentity } from '../../data/gitIdentity.ts';
 import { bindingAction } from '../../kit/binding.ts';
 import { recordOf, stringOf } from '../../kit/fields.ts';
 import type { IconName } from '../../kit/iconNames.ts';
+import type { PaneHeaderMenuFieldOptions } from '../../kit/paneHeaderMenuModel.ts';
 import type { ThemeChoice } from '../../kit/themes.ts';
 import type { GroveAction, WorktreeAction } from '../../kit/worktree.ts';
 
@@ -19,6 +20,9 @@ export interface MenuTarget {
 export interface MenuProps {
   kind: MenuKind;
   target: MenuTarget;
+  task?: string | null;
+  branch?: string | null;
+  folder?: string | null;
 }
 
 export interface MenuEntry {
@@ -67,7 +71,31 @@ export const readMenuProps = (value: unknown): MenuProps => {
       id: stringOf(target['id']),
       space: stringOf(target['space']),
     },
+    task: stringOf(props['task']),
+    branch: stringOf(props['branch']),
+    folder: stringOf(props['folder']),
   };
+};
+
+const isPresent = (text: string | null | undefined): text is string =>
+  text !== null && text !== undefined && text !== '';
+
+export const menuDetails = (menu: MenuProps): PaneHeaderMenuFieldOptions => {
+  const details: PaneHeaderMenuFieldOptions = {};
+
+  if (isPresent(menu.task)) {
+    details.task = menu.task;
+  }
+
+  if (isPresent(menu.branch)) {
+    details.branch = menu.branch;
+  }
+
+  if (isPresent(menu.folder)) {
+    details.folder = menu.folder;
+  }
+
+  return details;
 };
 
 export const readTerminal = (value: unknown): TerminalFacts => {

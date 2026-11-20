@@ -29,7 +29,7 @@ export type { PaneHeaderOptions } from './paneHeader.ts';
 
 export { paneHeaderFields } from './paneHeaderFields.ts';
 
-export { paneHeaderMenu } from './paneHeaderMenu.ts';
+export { paneHeaderMenu, paneHeaderMenuDetails } from './paneHeaderMenu.ts';
 
 export { paneActions } from './paneHeaderMenuModel.ts';
 
@@ -64,6 +64,7 @@ export {
   diffSize,
   hoverCardSize,
   overlaySize,
+  paneHeaderWidth,
   radius,
   rowHeight,
   separatorHeight,
@@ -92,7 +93,7 @@ export type { StatusRollup } from './statusRollup.ts';
 
 export { tab } from './tab.ts';
 
-export { tabLabel, tabProgram } from './tabLabel.ts';
+export { tabLabel, tabProgram, taskOfPane } from './tabLabel.ts';
 
 export { trafficLightsPadding } from './trafficLights.ts';
 

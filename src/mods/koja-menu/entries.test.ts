@@ -11,6 +11,7 @@ import type {
 } from './entries.ts';
 import {
   checkoutOf,
+  menuDetails,
   menuEntries,
   readMenuProps,
   readTerminal,
@@ -179,11 +180,35 @@ describe('menu commands', () => {
     ).toEqual({
       kind: 'pane',
       target: { pane: 'pane-1', terminal: 'terminal-1', id: 'id-1', space: 'space-1' },
+      task: null,
+      branch: null,
+      folder: null,
     });
 
     expect(readMenuProps({ tab: 'tab' }).kind).toBe('tab');
     expect(readMenuProps({ tab: 'space' }).kind).toBe('space');
     expect(readMenuProps({ tab: 'global' }).kind).toBe('global');
+  });
+
+  test('list the pane details before the pane actions', () => {
+    const menu: MenuProps = {
+      kind: 'pane',
+      target: target({ pane: 'pane-1' }),
+      task: 'Build window shell',
+      branch: 'me-1089-window-shell',
+      folder: '~/code/koja',
+    };
+
+    const details = menuDetails(menu);
+    const actions = menuEntries(menu, null, host).map((entry) => entry.label);
+
+    expect([details.task, details.branch, details.folder]).toEqual([
+      'Build window shell',
+      'me-1089-window-shell',
+      '~/code/koja',
+    ]);
+
+    expect(actions.slice(0, 4)).toEqual(['Split right', 'Split down', 'Zoom', 'Close pane']);
   });
 
   test('read a terminal name and parent, and a right-click sent to the pane', () => {

@@ -7,13 +7,16 @@ import { recordOf, stringOf } from '../../kit/fields.ts';
 import { normalFocusFill, toPalette } from '../../kit/palette.ts';
 import { paneHeaderFields } from '../../kit/paneHeaderFields.ts';
 import { paneActions } from '../../kit/paneHeaderMenuModel.ts';
-import { controlSize, overlaySize } from '../../kit/size.ts';
+import { controlSize, overlaySize, paneHeaderWidth } from '../../kit/size.ts';
+import { taskOfPane } from '../../kit/tabLabel.ts';
 
 const accent = '#4e4e8f';
 
 let focused = false;
 let normalMode = false;
 let paneTerminal: string | null = 't1';
+let paneCwd: string | null = null;
+let paneBranch: string | null = null;
 let terminalRecords: unknown[] = [];
 let terminalReads = 0;
 
@@ -47,8 +50,8 @@ const pane = (): Record<string, unknown> => ({
   terminal: paneTerminal,
   tab: 'tb1',
   title: 'zsh',
-  cwd: null,
-  branch: null,
+  cwd: paneCwd,
+  branch: paneBranch,
   status: null,
   app: null,
   program: paneProgramValue,
@@ -66,6 +69,7 @@ await mock.module('gpui-kit', () =>
 
 await mock.module('herdr', () =>
   herdrFake({
+    home: () => '/var/tmp/ruta-koja/home',
     panes: () => [pane()],
     props: () => ({ pane: 'p1' }),
     shared: (key: string) => (key === 'koja-modal' && normalMode ? true : undefined),
@@ -102,6 +106,7 @@ await mock.module('../../kit/index.ts', () =>
     overlaySize,
     paneActions,
     paneHeaderFields,
+    paneHeaderWidth,
     paneOverflowButton,
     programIcon: () => drawn(),
     radius: { cardInner: 7 },
@@ -116,6 +121,7 @@ await mock.module('../../kit/index.ts', () =>
     },
     roleText: (_role: string, text: string) => textElement(text),
     stringOf,
+    taskOfPane,
     withTextRole: (element: unknown) => element,
   }),
 );
@@ -135,6 +141,8 @@ afterEach(() => {
   focused = false;
   normalMode = false;
   paneTerminal = 't1';
+  paneCwd = null;
+  paneBranch = null;
   terminalRecords = [];
   terminalReads = 0;
   askedCommands.length = 0;
@@ -158,6 +166,21 @@ const hoveredButtons = (): DrawnElement[] => {
   const onHover = view.render().hoverHandlers[0];
 
   onHover?.(true, { notify: () => undefined });
+
+  return elementsWithStyle(view.render(), 'accessibility_label');
+};
+
+const buttonsAt = (width: number): DrawnElement[] => {
+  focused = false;
+  normalMode = false;
+
+  const view = new loaded.default();
+  const first = view.render();
+
+  first.sizeHandlers[0]?.(
+    { width, height: controlSize.sectionHeader },
+    { notify: () => undefined },
+  );
 
   return elementsWithStyle(view.render(), 'accessibility_label');
 };
@@ -274,20 +297,26 @@ describe('pane header role badge', () => {
 });
 
 describe('pane header buttons', () => {
-  test('a narrow header draws one compact action instead of the four buttons', () => {
-    const names = hoveredAt(240).map((button) => styleValue(button, 'accessibility_label'));
+  test('a narrow header draws its compact action without hover', () => {
+    const names = buttonsAt(240).map((button) => styleValue(button, 'accessibility_label'));
 
     expect(names).toEqual(['Pane actions']);
   });
 
-  test('a wide header keeps the four buttons', () => {
-    const names = hoveredAt(900).map((button) => styleValue(button, 'accessibility_label'));
+  test('a wide header hides its four buttons until hover', () => {
+    const hidden = buttonsAt(900).map((button) => styleValue(button, 'accessibility_label'));
+    const shown = hoveredAt(900).map((button) => styleValue(button, 'accessibility_label'));
 
-    expect(names).toEqual(['Split right', 'Split down', 'Zoom pane', 'Close pane']);
+    expect(hidden).toEqual([]);
+    expect(shown).toEqual(['Split right', 'Split down', 'Zoom pane', 'Close pane']);
   });
 
-  test('the compact action opens the pane menu with the four actions', () => {
-    const [compact] = hoveredAt(240);
+  test('the compact action opens the pane menu with the pane details and actions', () => {
+    paneCwd = '/var/tmp/ruta-koja/home/pi-fixture';
+    paneBranch = 'me-1089-window-shell';
+    terminalRecords = [{ address: 't1', labels: { 'tau.task': 'Build window shell' } }];
+
+    const [compact] = buttonsAt(240);
 
     if (compact !== undefined) {
       click(compact);
@@ -297,9 +326,15 @@ describe('pane header buttons', () => {
       {
         mod: 'koja-menu',
         kind: 'popup',
-        width: overlaySize.menuWidth,
+        width: paneHeaderWidth.menuWidth,
         height: overlaySize.menuHeight,
-        props: { tab: 'pane', target: { pane: 'p1', terminal: 't1' } },
+        props: {
+          tab: 'pane',
+          target: { pane: 'p1', terminal: 't1' },
+          task: 'Build window shell',
+          branch: 'me-1089-window-shell',
+          folder: '~/pi-fixture',
+        },
       },
     ]);
   });

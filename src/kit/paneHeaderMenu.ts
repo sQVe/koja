@@ -8,9 +8,10 @@ import { listRow } from './listRow.ts';
 import type {
   PaneHeaderMenuAction,
   PaneHeaderMenuField,
+  PaneHeaderMenuFieldOptions,
   PaneHeaderMenuOptions,
 } from './paneHeaderMenuModel.ts';
-import { paneHeaderMenuModel } from './paneHeaderMenuModel.ts';
+import { paneHeaderMenuFields, paneHeaderMenuModel } from './paneHeaderMenuModel.ts';
 import { popupSurface } from './popupSurface.ts';
 import { iconSize, paneHeaderWidth, rowHeight, spacing } from './size.ts';
 import { separator } from './text.ts';
@@ -62,17 +63,24 @@ const actionRow = (entry: PaneHeaderMenuAction): Element => {
   });
 };
 
+export const paneHeaderMenuDetails = (options: PaneHeaderMenuFieldOptions): Element[] => {
+  const fields = paneHeaderMenuFields(options);
+  const rows = fields.map(fieldRow);
+
+  if (fields.length > 0) {
+    rows.push(separator());
+  }
+
+  return rows;
+};
+
 export const paneHeaderMenu = (options: PaneHeaderMenuOptions): Element => {
   const model = paneHeaderMenuModel(options);
 
   const menu = popupSurface('pane-header-menu')
     .w(paneHeaderWidth.menuWidth)
     .py(spacing.xsmall)
-    .children(model.fields.map(fieldRow));
-
-  if (model.separator) {
-    menu.child(separator());
-  }
+    .children(paneHeaderMenuDetails(options));
 
   return menu.children(model.actions.map(actionRow));
 };

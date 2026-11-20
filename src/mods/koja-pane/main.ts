@@ -14,6 +14,7 @@ import {
   overlaySize,
   paneActions,
   paneHeaderFields,
+  paneHeaderWidth,
   paneOverflowButton,
   paneStatusElement,
   programIcon,
@@ -23,12 +24,19 @@ import {
   roleText,
   spacing,
   stringOf,
+  taskOfPane,
   withTextRole,
 } from '../../kit/index.ts';
 import { headerTone } from './headerTone.ts';
 import { folderLabel } from './paneFolder.ts';
 import { paneFolder, paneName, paneProgram } from './paneLabel.ts';
 import { paneRole } from './paneRole.ts';
+
+interface PaneMenuDetails {
+  task: string | null;
+  branch: string | null;
+  folder: string;
+}
 
 const headerPane = (): PaneInfo | undefined => {
   const paneId = stringOf(recordOf(props()).pane);
@@ -62,13 +70,19 @@ const paneButtons = (pane: PaneInfo): Element[] => {
   return actions.map((entry, index) => paneButton(entry, `pane-${ids[index]}-${pane.pane}`));
 };
 
-const openPaneMenu = (pane: PaneInfo): void => {
+const openPaneMenu = (pane: PaneInfo, details: PaneMenuDetails): void => {
   openOverlay({
     mod: 'koja-menu',
     kind: 'popup',
-    width: overlaySize.menuWidth,
+    width: paneHeaderWidth.menuWidth,
     height: overlaySize.menuHeight,
-    props: { tab: 'pane', target: { pane: pane.pane, terminal: pane.terminal } },
+    props: {
+      tab: 'pane',
+      target: { pane: pane.pane, terminal: pane.terminal },
+      task: details.task,
+      branch: details.branch,
+      folder: details.folder,
+    },
   });
 };
 
@@ -122,7 +136,11 @@ export default class PaneHeader extends View {
     }
 
     const name = paneName(pane);
-    const role = pane.terminal === null ? null : paneRole(pane.terminal, terminals());
+    const terminalRecords = pane.terminal === null ? [] : terminals();
+    const role = pane.terminal === null ? null : paneRole(pane.terminal, terminalRecords);
+    const task = taskOfPane(pane, terminalRecords);
+    const branch = pane.branch;
+    const folderText = folderLabel(paneFolder(pane), home());
 
     const fields = paneHeaderFields({
       width: this.width,
@@ -144,7 +162,7 @@ export default class PaneHeader extends View {
       element.child(roleBadge(role));
     }
 
-    const folder = roleText('detail', folderLabel(paneFolder(pane), home())).flex_1();
+    const folder = roleText('detail', folderText).flex_1();
 
     element.child(folder);
 
@@ -154,16 +172,14 @@ export default class PaneHeader extends View {
       element.child(status);
     }
 
-    if (this.hovered) {
-      if (fields.compact) {
-        element.child(
-          paneOverflowButton(() => {
-            openPaneMenu(pane);
-          }),
-        );
-      } else {
-        element.children(paneButtons(pane));
-      }
+    if (fields.compact) {
+      element.child(
+        paneOverflowButton(() => {
+          openPaneMenu(pane, { task, branch, folder: folderText });
+        }),
+      );
+    } else if (this.hovered) {
+      element.children(paneButtons(pane));
     }
 
     return element;
