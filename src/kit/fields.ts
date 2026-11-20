@@ -3,6 +3,9 @@ export const isRecord = (value: unknown): value is Record<string, unknown> =>
 
 export const recordOf = (value: unknown): Record<string, unknown> => (isRecord(value) ? value : {});
 
+export const hasOnlyKeys = (fields: Record<string, unknown>, keys: readonly string[]): boolean =>
+  Object.keys(fields).length === keys.length && keys.every((key) => Object.hasOwn(fields, key));
+
 export const stringOf = (value: unknown): string | null =>
   typeof value === 'string' ? value : null;
 

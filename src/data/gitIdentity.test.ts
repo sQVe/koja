@@ -6,7 +6,7 @@ import { join } from 'node:path';
 import type { ExecResult } from 'herdr';
 
 import type { GitIdentity, RunCommand } from './gitIdentity.ts';
-import { readGitIdentity } from './gitIdentity.ts';
+import { readGitIdentity, worktreeKeyOf } from './gitIdentity.ts';
 
 // Git hooks export variables such as GIT_DIR that would point every command at the outer repository.
 const outsideGit = Object.entries(process.env).filter(([name]) => !name.startsWith('GIT_'));
@@ -104,6 +104,7 @@ describe('readGitIdentity', () => {
       await mkdir(subfolder, { recursive: true });
 
       const identity = await read(subfolder, 'box');
+      const worktree = identity.kind === 'linked' ? worktreeKeyOf(identity) : null;
 
       expect(identity).toEqual({
         kind: 'linked',
@@ -116,6 +117,8 @@ describe('readGitIdentity', () => {
         worktree: { machine: 'box', top: linked, key: keyOf('box', linked) },
         branch: { kind: 'named', name: 'feature' },
       });
+
+      expect(worktree).toBe(keyOf('box', linked));
     });
   });
 
@@ -123,6 +126,7 @@ describe('readGitIdentity', () => {
     await withTemp(async (root) => {
       const main = await makeRepository(root);
       const identity = await read(main);
+      const worktree = identity.kind === 'main' ? worktreeKeyOf(identity) : null;
 
       expect(identity).toMatchObject({
         kind: 'main',
@@ -130,6 +134,8 @@ describe('readGitIdentity', () => {
         worktree: { top: main },
         branch: { kind: 'named', name: 'main' },
       });
+
+      expect(worktree).toBe(keyOf(null, main));
     });
   });
 
@@ -166,6 +172,20 @@ describe('readGitIdentity', () => {
         repository: { machine: null, commonDirectory: bare, key: keyOf(null, bare) },
         branch: { kind: 'named', name: 'main' },
       });
+    });
+  });
+
+  test('names the worktree of a bare repository by its folder', async () => {
+    await withTemp(async (root) => {
+      const source = await makeRepository(root);
+      const bare = join(root, 'bare.git');
+
+      await git(root, 'clone', '--quiet', '--bare', source, bare);
+
+      const identity = await read(bare);
+      const worktree = identity.kind === 'bare' ? worktreeKeyOf(identity) : null;
+
+      expect(worktree).toBe(keyOf(null, bare));
     });
   });
 

@@ -19,6 +19,7 @@ import type { CheckResult } from '../scripts/install.ts';
 import { install, shippedInputs } from '../scripts/install.ts';
 import type { IdentityFailure, IdentityOptions } from '../scripts/sandboxIdentity.ts';
 import { findIdentityFailures, identityReport } from '../scripts/sandboxIdentity.ts';
+import { replaceOnce } from './scriptCopy.ts';
 
 let root: string;
 let home: string;
@@ -427,18 +428,51 @@ describe('scripts/sandbox identity', () => {
   let name: string;
   let sandboxRoot: string;
   let fakes: string;
+  let guards: string;
+  let instrumentedSandbox: string;
 
-  const spawnSandbox = (command: string, environment: Record<string, string>) => {
+  const pathWith = (...folders: string[]): string =>
+    [...folders, guards, '/usr/bin', '/bin', Bun.env['PATH'] ?? ''].join(':');
+
+  const environmentForSandbox = (environment: Record<string, string>): Record<string, string> => {
     const baseEnvironment = { ...Bun.env };
 
     delete baseEnvironment['RUTA_NAME'];
+    delete baseEnvironment['TAU_VERIFICATION_RUN'];
+    delete baseEnvironment['HERDR_APP_BIN'];
 
-    return Bun.spawn([script, command], {
-      env: { ...baseEnvironment, ...environment, PATH: `${fakes}:${Bun.env['PATH'] ?? ''}` },
+    return {
+      ...baseEnvironment,
+      ...environment,
+      PATH: pathWith(fakes),
+    };
+  };
+
+  const writeInstrumentedSandbox = async (): Promise<string> => {
+    const path = join(fakes, 'scripts', 'sandbox');
+
+    const source = replaceOnce(
+      replaceOnce(
+        await readFile(script, 'utf8'),
+        'root=/var/tmp/ruta-$name',
+        `root='${sandboxRoot}'`,
+      ),
+      'checkout=$(dirname "$here")',
+      `checkout='${repository}'`,
+    );
+
+    await writeAt(path, source);
+    await chmod(path, 0o755);
+
+    return path;
+  };
+
+  const spawnSandbox = (command: string, environment: Record<string, string>) =>
+    Bun.spawn([instrumentedSandbox, command], {
+      env: environmentForSandbox(environment),
       stdout: 'pipe',
       stderr: 'pipe',
     });
-  };
 
   const runSandbox = async (
     command: string,
@@ -478,13 +512,39 @@ describe('scripts/sandbox identity', () => {
 
   beforeEach(async () => {
     name = `koja-identity-test-${randomBytes(6).toString('hex')}`;
-    sandboxRoot = join('/var/tmp', `ruta-${name}`);
+    sandboxRoot = await mkdtemp(join(tmpdir(), 'koja-identity-root-'));
     fakes = await mkdtemp(join(tmpdir(), 'koja-identity-fakes-'));
+    guards = await mkdtemp(join(tmpdir(), 'koja-identity-guards-'));
+    instrumentedSandbox = await writeInstrumentedSandbox();
+
+    for (const command of ['systemctl', 'systemd-run', 'ruta', 'herdr-app', 'hc']) {
+      await writeProgram(join(guards, command), 'exit 127');
+    }
   });
 
   afterEach(async () => {
     await rm(sandboxRoot, { recursive: true, force: true });
     await rm(fakes, { recursive: true, force: true });
+    await rm(guards, { recursive: true, force: true });
+  });
+
+  test('resolves the sandbox commands only inside the test folders', async () => {
+    const child = Bun.spawn(
+      [
+        'sh',
+        '-c',
+        'for command in systemctl systemd-run ruta herdr-app hc; do command -v "$command"; done',
+      ],
+      { env: environmentForSandbox({}), stdout: 'pipe', stderr: 'pipe' },
+    );
+
+    const [output, exitCode] = await Promise.all([new Response(child.stdout).text(), child.exited]);
+
+    const paths = linesOf(output);
+
+    expect(exitCode).toBe(0);
+    expect(paths).toHaveLength(5);
+    expect(paths.every((path) => path.startsWith(`${guards}/`))).toBe(true);
   });
 
   test('exits 1 with only the line of ruta when ruta status fails', async () => {
@@ -513,7 +573,8 @@ describe('scripts/sandbox identity', () => {
     const result = await runIdentity({ TAU_VERIFICATION_RUN: 'abc123' });
 
     expect(await readFile(join(fakes, 'calls'), 'utf8')).toContain('koja-abc123');
-    expect(result.output).toContain('/var/tmp/ruta-koja-abc123/config/herdr-app');
+    expect(result.output).toContain(join(sandboxRoot, 'config', 'herdr-app'));
+    expect(result.output).not.toContain('/var/tmp/ruta-');
   });
 
   test('lowercases the run name', async () => {

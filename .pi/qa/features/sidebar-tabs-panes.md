@@ -28,6 +28,8 @@ first.
   repository name, and no space row repeats it. Before the name, it shows that space's mark only
   while the agent is working, blocked, or done. Otherwise the slot stays empty, so every project
   name starts at the same place.
+- A space on the `qa-remote` fixture machine shows a `remote-fixture` project header that carries
+  the `qa-remote` label with the server icon. There is no separate machine header.
 - A click selects a space with the gray fill. A click on a project header selects its main checkout
   the same way. A hovered row or header that is not selected shows a 1 px outline. A selected one
   keeps its fill and shows no hover outline. The list cursor shows its own accent outline.
@@ -61,6 +63,6 @@ click opened. The tab strip and the pane headers followed the selected space.
 ## Gotchas
 
 - Read the New menu. Launch nothing from it.
-- Agent launch, agent status, remote projects, and pull request titles are not testable. They need
-  real agents, SSH, and GitHub. A fixture repository without a remote has no PRs, so it shows no
+- Agent launch, agent status, real SSH machines, and pull request titles are not testable. They need
+  real agents, servers, and GitHub. A fixture repository without a remote has no PRs, so it shows no
   `Could not read PRs` line.
