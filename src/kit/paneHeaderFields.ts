@@ -17,6 +17,7 @@ export interface PaneHeaderFieldsInput {
   task?: string;
   branch?: string;
   folder?: string;
+  showsProgramIcon: boolean;
   statusWidth: number;
 }
 
@@ -45,7 +46,7 @@ const baseWidth = (input: PaneHeaderFieldsInput, actions: number, includeTask: b
 
   return (
     paneHeaderWidth.padding +
-    paneHeaderWidth.icon +
+    (input.showsProgramIcon ? paneHeaderWidth.icon : 0) +
     Math.min(estimate(input.name), controlSize.paneLabelMaxWidth) +
     roleWidth(input.role) +
     (hasTask ? estimate(input.task ?? '') : 0) +

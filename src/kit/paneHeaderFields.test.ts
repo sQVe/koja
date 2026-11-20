@@ -1,5 +1,6 @@
 import { describe, expect, test } from 'bun:test';
 
+import type { PaneHeaderFieldsInput } from './paneHeaderFields.ts';
 import { paneHeaderFields } from './paneHeaderFields.ts';
 import { paneHeaderWidth, shellSize } from './size.ts';
 
@@ -19,9 +20,12 @@ const branchFull =
 
 const folderFull = longFolder.length * paneHeaderWidth.glyph + paneHeaderWidth.gap;
 
+const iconHeaderFields = (input: Omit<PaneHeaderFieldsInput, 'showsProgramIcon'>) =>
+  paneHeaderFields({ ...input, showsProgramIcon: true });
+
 describe('paneHeaderFields', () => {
   test('shows every field full at an unmeasured width', () => {
-    const fields = paneHeaderFields({ statusWidth: 0, name, task, branch, folder: '~/code/koja' });
+    const fields = iconHeaderFields({ statusWidth: 0, name, task, branch, folder: '~/code/koja' });
 
     expect(fields).toEqual({
       task: 'shown',
@@ -33,7 +37,7 @@ describe('paneHeaderFields', () => {
   });
 
   test('shows every field full at a measured width that fits them', () => {
-    const fields = paneHeaderFields({
+    const fields = iconHeaderFields({
       statusWidth: 0,
       width: 900,
       name,
@@ -52,14 +56,14 @@ describe('paneHeaderFields', () => {
   });
 
   test('marks the header compact exactly below the compact width', () => {
-    const at = paneHeaderFields({
+    const at = iconHeaderFields({
       statusWidth: 0,
       width: paneHeaderWidth.compact,
       name,
       task: 'Header',
     });
 
-    const below = paneHeaderFields({
+    const below = iconHeaderFields({
       statusWidth: 0,
       width: paneHeaderWidth.compact - 1,
       name,
@@ -71,14 +75,14 @@ describe('paneHeaderFields', () => {
   });
 
   test('cuts the branch exactly when it stops fitting full', () => {
-    const at = paneHeaderFields({
+    const at = iconHeaderFields({
       statusWidth: 0,
       width: fixedWithFour + branchFull,
       name,
       branch,
     });
 
-    const below = paneHeaderFields({
+    const below = iconHeaderFields({
       statusWidth: 0,
       width: fixedWithFour + branchFull - 1,
       name,
@@ -91,14 +95,14 @@ describe('paneHeaderFields', () => {
   });
 
   test('drops the branch exactly below its minimum width', () => {
-    const at = paneHeaderFields({
+    const at = iconHeaderFields({
       statusWidth: 0,
       width: fixedCompact + paneHeaderWidth.fieldMinimum + paneHeaderWidth.gap,
       name,
       branch,
     });
 
-    const below = paneHeaderFields({
+    const below = iconHeaderFields({
       statusWidth: 0,
       width: fixedCompact + paneHeaderWidth.fieldMinimum + paneHeaderWidth.gap - 1,
       name,
@@ -111,14 +115,14 @@ describe('paneHeaderFields', () => {
   });
 
   test('cuts the folder exactly when it stops fitting full', () => {
-    const at = paneHeaderFields({
+    const at = iconHeaderFields({
       statusWidth: 0,
       width: fixedWithFour + folderFull,
       name,
       folder: longFolder,
     });
 
-    const below = paneHeaderFields({
+    const below = iconHeaderFields({
       statusWidth: 0,
       width: fixedWithFour + folderFull - 1,
       name,
@@ -131,14 +135,14 @@ describe('paneHeaderFields', () => {
   });
 
   test('drops the folder exactly below its minimum width', () => {
-    const at = paneHeaderFields({
+    const at = iconHeaderFields({
       statusWidth: 0,
       width: fixedCompact + paneHeaderWidth.fieldMinimum + paneHeaderWidth.gap,
       name,
       folder: longFolder,
     });
 
-    const below = paneHeaderFields({
+    const below = iconHeaderFields({
       statusWidth: 0,
       width: fixedCompact + paneHeaderWidth.fieldMinimum + paneHeaderWidth.gap - 1,
       name,
@@ -153,7 +157,7 @@ describe('paneHeaderFields', () => {
   test('keeps the branch whole while the folder gives way', () => {
     const branchLabel = 'me-1089-window-shell-layout-and-tab-bar-work';
 
-    const fields = paneHeaderFields({
+    const fields = iconHeaderFields({
       statusWidth: 0,
       width: 400,
       name: 'Pi',
@@ -168,9 +172,9 @@ describe('paneHeaderFields', () => {
 
   test('a role badge cuts the folder at a width that fits it whole without a role', () => {
     const width = fixedWithFour + folderFull;
-    const withoutRole = paneHeaderFields({ statusWidth: 0, width, name, folder: longFolder });
+    const withoutRole = iconHeaderFields({ statusWidth: 0, width, name, folder: longFolder });
 
-    const withRole = paneHeaderFields({
+    const withRole = iconHeaderFields({
       statusWidth: 0,
       width,
       name,
@@ -183,7 +187,7 @@ describe('paneHeaderFields', () => {
   });
 
   test('a long role label cuts only after the folder and branch give way', () => {
-    const roomy = paneHeaderFields({
+    const roomy = iconHeaderFields({
       statusWidth: 0,
       width: shellSize.folderCutWidth,
       name,
@@ -193,7 +197,7 @@ describe('paneHeaderFields', () => {
       folder: longFolder,
     });
 
-    const tight = paneHeaderFields({
+    const tight = iconHeaderFields({
       statusWidth: 0,
       width: 300,
       name,
@@ -211,7 +215,7 @@ describe('paneHeaderFields', () => {
   });
 
   test('a long role label shows whole while the header has room', () => {
-    const fields = paneHeaderFields({
+    const fields = iconHeaderFields({
       statusWidth: 0,
       width: shellSize.folderCutWidth,
       name: 'Pi',
@@ -225,7 +229,7 @@ describe('paneHeaderFields', () => {
   });
 
   test('cuts the task only after both fields drop', () => {
-    const fields = paneHeaderFields({
+    const fields = iconHeaderFields({
       statusWidth: 0,
       width: 420,
       name,
@@ -240,8 +244,32 @@ describe('paneHeaderFields', () => {
     expect(fields.compact).toBe(true);
   });
 
+  test('shows a task at the width where it fits without a program icon', () => {
+    const fields = paneHeaderFields({
+      statusWidth: 0,
+      showsProgramIcon: false,
+      width: 146,
+      name,
+      task: 'Header',
+    });
+
+    expect(fields.task).toBe('shown');
+  });
+
+  test('hides a task at the same width when the header draws a program icon', () => {
+    const fields = paneHeaderFields({
+      statusWidth: 0,
+      showsProgramIcon: true,
+      width: 146,
+      name,
+      task: 'Header',
+    });
+
+    expect(fields.task).toBe('hidden');
+  });
+
   test('shows a field only when it has text', () => {
-    const folderOnly = paneHeaderFields({
+    const folderOnly = iconHeaderFields({
       statusWidth: 0,
       width: 760,
       name,
@@ -249,7 +277,7 @@ describe('paneHeaderFields', () => {
       folder: '~/code/koja',
     });
 
-    const taskOnly = paneHeaderFields({ statusWidth: 0, width: 760, name, task: 'Header' });
+    const taskOnly = iconHeaderFields({ statusWidth: 0, width: 760, name, task: 'Header' });
 
     expect(folderOnly).toEqual({
       task: 'hidden',

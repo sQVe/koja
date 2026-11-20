@@ -37,6 +37,8 @@ const piProgram = {
   agent: true,
 };
 
+const iconProgram = { ...piProgram, icon: '/icons/pi.png' };
+
 let paneProgramValue: Record<string, unknown> | null = null;
 
 const textElement = (text: string): DrawnElement => {
@@ -417,7 +419,7 @@ describe('pane header buttons', () => {
     ];
 
     const wide = drawnTexts(renderedAt(700));
-    const medium = drawnTexts(renderedAt(500));
+    const medium = drawnTexts(renderedAt(480));
     const narrow = drawnTexts(renderedAt(360));
     const cut = renderedAt(180);
     const tiny = renderedAt(120);
@@ -435,8 +437,22 @@ describe('pane header buttons', () => {
     expect(badge?.styles['flex_initial']).toEqual([]);
   });
 
-  test('a task with no room is omitted and its gap goes to the badge', () => {
+  test('an iconless header shows a task at the width where a drawn icon would hide it', () => {
     paneProgramValue = piProgram;
+    paneCwd = '/var/tmp/ruta-koja/home/pi-fixture';
+
+    terminalRecords = [
+      {
+        address: 't1',
+        labels: { 'tau.role': 'architect', 'tau.task': 'Build window shell' },
+      },
+    ];
+
+    expect(drawnTexts(renderedAt(159))).toContain('Build window shell');
+  });
+
+  test('a task with no room is omitted and its gap goes to the badge', () => {
+    paneProgramValue = iconProgram;
     paneCwd = '/var/tmp/ruta-koja/home/pi-fixture';
 
     terminalRecords = [

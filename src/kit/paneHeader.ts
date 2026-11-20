@@ -204,7 +204,13 @@ const actionRow = (
 
 export const paneHeader = (options: PaneHeaderOptions): Element => {
   const palette = colors();
-  const fields = paneHeaderFields({ ...options, statusWidth: statusMarkWidth(options.status) });
+
+  const fields = paneHeaderFields({
+    ...options,
+    statusWidth: statusMarkWidth(options.status),
+    showsProgramIcon: true,
+  });
+
   const iconColor = options.focused ? palette.muted : palette.dim;
 
   const header = h_flex()

@@ -104,7 +104,11 @@ const spaceBranchOf = (tab: string): string | null =>
   spaces().find((candidate) => candidate.tabs.some((candidateTab) => candidateTab.id === tab))
     ?.branch ?? null;
 
-const paneHeaderContext = (pane: PaneInfo, width: number | null): PaneHeaderContext => {
+const paneHeaderContext = (
+  pane: PaneInfo,
+  width: number | null,
+  showsProgramIcon: boolean,
+): PaneHeaderContext => {
   const terminalRecords = pane.terminal === null ? [] : terminals();
 
   const terminalInfo =
@@ -125,6 +129,7 @@ const paneHeaderContext = (pane: PaneInfo, width: number | null): PaneHeaderCont
     ...(task === null ? {} : { task }),
     ...(branch === null ? {} : { branch }),
     folder: folderText,
+    showsProgramIcon,
     statusWidth: statusMarkWidth(pane.status),
   });
 
@@ -185,14 +190,15 @@ export default class PaneHeader extends View {
     tone: ReturnType<typeof headerTone>,
   ): void {
     const program = paneProgram(pane);
+    const programIconPath = program?.icon ?? null;
 
-    if (program !== null && program.icon !== null) {
+    if (program !== null && programIconPath !== null) {
       const programMark = programIcon(program, 'default').text_color(palette[tone.icon]);
 
       element.child(programMark);
     }
 
-    const context = paneHeaderContext(pane, this.width);
+    const context = paneHeaderContext(pane, this.width, programIconPath !== null);
 
     const titleBox = div()
       .flex_initial()
