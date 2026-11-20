@@ -92,6 +92,12 @@ const { paneOverflowButton } = (await import(overflowModulePath)) as {
   paneOverflowButton: (onOverflow: (() => void) | undefined) => DrawnElement;
 };
 
+const badgeModulePath = '../../kit/roleBadge.ts';
+
+const { roleBadge } = (await import(badgeModulePath)) as {
+  roleBadge: (role: string, state?: 'full' | 'cut') => DrawnElement;
+};
+
 await mock.module('../../kit/index.ts', () =>
   kitIndexFake({
     askFirst: (command: string, args: unknown) => {
@@ -111,11 +117,10 @@ await mock.module('../../kit/index.ts', () =>
     programIcon: () => drawn(),
     radius: { cardInner: 7 },
     recordOf,
-    roleBadge: (role: string) => {
-      const badge = textElement(role);
+    roleBadge: (role: string, state?: 'full' | 'cut') => {
+      const badge = roleBadge(role, state);
 
       badge.styles['roleBadge'] = [role];
-      badge.tooltipText = role;
 
       return badge;
     },
@@ -152,6 +157,18 @@ afterEach(() => {
 
 const rendered = (): DrawnElement => new loaded.default().render();
 
+const renderedAt = (width: number): DrawnElement => {
+  const view = new loaded.default();
+  const first = view.render();
+
+  first.sizeHandlers[0]?.(
+    { width, height: controlSize.sectionHeader },
+    { notify: () => undefined },
+  );
+
+  return view.render();
+};
+
 const styleValue = (element: DrawnElement, style: string): string | null => {
   const value = element.styles[style]?.[0];
 
@@ -174,15 +191,7 @@ const buttonsAt = (width: number): DrawnElement[] => {
   focused = false;
   normalMode = false;
 
-  const view = new loaded.default();
-  const first = view.render();
-
-  first.sizeHandlers[0]?.(
-    { width, height: controlSize.sectionHeader },
-    { notify: () => undefined },
-  );
-
-  return elementsWithStyle(view.render(), 'accessibility_label');
+  return elementsWithStyle(renderedAt(width), 'accessibility_label');
 };
 
 const hoveredAt = (width: number): DrawnElement[] => {
@@ -297,6 +306,23 @@ describe('pane header role badge', () => {
 });
 
 describe('pane header buttons', () => {
+  test('a 120 px header keeps the compact action and cuts the architect badge', () => {
+    paneProgramValue = piProgram;
+    terminalRecords = [{ address: 't1', labels: { 'tau.role': 'architect' } }];
+
+    const tree = renderedAt(120);
+    const [badge] = badgeElements(tree);
+
+    const action = elementsWithStyle(tree, 'accessibility_label').find(
+      (element) => styleValue(element, 'accessibility_label') === 'Pane actions',
+    );
+
+    expect(action?.styles['flex_none']).toEqual([]);
+    expect(badge?.tooltipText).toBe('architect');
+    expect(badge?.styles['flex_initial']).toEqual([]);
+    expect(badge?.styles['min_w']).toEqual([0]);
+  });
+
   test('a narrow header draws its compact action without hover', () => {
     const names = buttonsAt(240).map((button) => styleValue(button, 'accessibility_label'));
 

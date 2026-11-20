@@ -3,7 +3,7 @@ import { afterAll, describe, expect, mock, test } from 'bun:test';
 import type { DrawnElement } from '../../tests/drawn.ts';
 import { drawn, drawnTexts } from '../../tests/drawn.ts';
 import { gpuiBaseFake, gpuiKitFake, herdrFake } from '../../tests/moduleFakes.ts';
-import { badgeSize, paneHeaderWidth } from './size.ts';
+
 Object.assign(globalThis, { kojaModName: 'koja' });
 
 await mock.module('gpui-base', () => gpuiBaseFake({ h_flex: () => drawn() }));
@@ -17,17 +17,6 @@ await mock.module('herdr', () =>
 );
 
 const modulePath = './roleBadge.ts';
-
-const builtInRoles = [
-  'lead',
-  'architect',
-  'worker',
-  'scout',
-  'reviewer',
-  'checker',
-  'qa',
-  'browser',
-] as const;
 
 const { roleBadge, roleToken } = (await import(modulePath)) as {
   roleBadge: (role: string, state?: 'full' | 'cut') => DrawnElement;
@@ -65,7 +54,8 @@ describe('roleBadge', () => {
     expect(label?.styles['min_w']).toEqual([0]);
     expect(label?.styles['truncate']).toEqual([]);
     expect(label?.styles['max_w']).toBeUndefined();
-    expect(badge.styles['min_w']).toEqual([badgeSize.minimumWidth]);
+    expect(badge.styles['flex_initial']).toEqual([]);
+    expect(badge.styles['min_w']).toEqual([0]);
   });
 
   test('a full role badge shows its whole label', () => {
@@ -76,17 +66,6 @@ describe('roleBadge', () => {
     expect(badge.styles['flex_none']).toEqual([]);
     expect(badge.styles['min_w']).toBeUndefined();
     expect(label?.styles['max_w']).toBeUndefined();
-  });
-
-  test('every built-in role keeps its whole label as the minimum', () => {
-    const narrowed = builtInRoles.filter((role) => {
-      const badge = roleBadge(role, 'cut');
-      const minimum = badge.styles['min_w']?.[0];
-
-      return minimum !== role.length * paneHeaderWidth.glyph + badgeSize.horizontal;
-    });
-
-    expect(narrowed).toEqual([]);
   });
 
   test('the badge draws the role as outlined text in its color', () => {

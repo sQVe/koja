@@ -71,16 +71,17 @@ border for focus. The frame, panes, terminals, sidebar, and tab bar all share th
   agent's task, branch, folder, and status, then its buttons. Its text uses the detail role.
 - The role badge follows the name, so a terminal's role or profile reads beside its name. It is an
   outlined tag in the group's color with no fill, so "Needs you" stays the only filled pill. It
-  shows its full label while the header has room. The folder and branch cut and drop first; only
-  then does the label cut at the end with an ellipsis, down to the width of the longest built-in
-  name, so every built-in name stays whole. Hovering shows the full label. The header controls and
-  the pane name keep their space, so the badge never pushes them out of the pane.
+  shows its full label while the header has room. The folder and branch cut and drop first; then the
+  label cuts at the end with an ellipsis, and hovering shows the full label. When the header is too
+  narrow for the badge and the controls together, the badge cuts below the longest built-in name, so
+  the controls stay in the pane. Built-in names stay whole at the widths the header supports.
 - The branch shows only when it differs from its space's branch.
 - When the header narrows, the folder cuts in the middle down to a minimum width, then drops whole.
   The branch does the same next. The task cuts at its end last.
 - Once a field drops, or the header is narrower than the compact width, one always-visible overflow
   button replaces the split, zoom, and close buttons. Its menu lists the task, branch, and folder as
-  plain detail lines above those actions, so no field is out of reach.
+  plain detail lines above those actions, so no field is out of reach. The button keeps its width
+  before the name and badge take theirs.
 - Every header button carries an accessible name beside its tooltip.
 
 ### Rows

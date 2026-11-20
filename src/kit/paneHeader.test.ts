@@ -5,7 +5,7 @@ import type { Status } from 'herdr';
 import type { DrawnElement } from '../../tests/drawn.ts';
 import { drawn, drawnIcons, drawnTexts } from '../../tests/drawn.ts';
 import { gpuiBaseFake, gpuiKitFake, herdrFake } from '../../tests/moduleFakes.ts';
-import { badgeSize, shellSize } from './size.ts';
+import { shellSize } from './size.ts';
 
 interface HeaderOptions {
   program: null;
@@ -94,10 +94,11 @@ describe('paneHeader role badge', () => {
     expect(badge?.styles['flex_none']).toEqual([]);
   });
 
-  test('a cut role badge draws at its minimum width', () => {
+  test('a cut role badge can shrink below the built-in width', () => {
     const badge = roleElement(300);
 
-    expect(badge?.styles['min_w']).toEqual([badgeSize.minimumWidth]);
+    expect(badge?.styles['flex_initial']).toEqual([]);
+    expect(badge?.styles['min_w']).toEqual([0]);
   });
 });
 

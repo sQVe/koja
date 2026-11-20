@@ -115,8 +115,6 @@ export const badgeSize = {
   border: spacing.hairline,
   radius: radius.default,
   horizontal: badgeHorizontal,
-  // The narrowest a role badge draws: the longest built-in name, so built-in names stay whole.
-  minimumWidth: 'architect'.length * paneHeaderWidth.glyph + badgeHorizontal,
 } as const;
 
 export const markSize = {

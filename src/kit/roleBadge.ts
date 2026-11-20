@@ -4,7 +4,7 @@ import { div } from 'gpui-kit';
 
 import type { ThemeToken } from './palette.ts';
 import { roleToken as rolePaletteToken } from './rolePalette.ts';
-import { badgeSize, paneHeaderWidth } from './size.ts';
+import { badgeSize } from './size.ts';
 import { withTextRole } from './textRole.ts';
 import { colors } from './theme.ts';
 
@@ -18,7 +18,6 @@ export const roleBadge = (role: string, state: RoleBadgeState = 'cut'): Element 
   const token = roleToken(role);
   const labelBox = div().min_w(0).truncate();
   const label = withTextRole(labelBox, 'tag', token);
-  const labelWidth = role.length * paneHeaderWidth.glyph + badgeSize.horizontal;
 
   const box = h_flex()
     .h(badgeSize.height)
@@ -32,7 +31,7 @@ export const roleBadge = (role: string, state: RoleBadgeState = 'cut'): Element 
   if (state === 'full') {
     box.flex_none();
   } else {
-    box.flex_initial().min_w(Math.min(labelWidth, badgeSize.minimumWidth));
+    box.flex_initial().min_w(0);
   }
 
   return box.child(label.child(role));
