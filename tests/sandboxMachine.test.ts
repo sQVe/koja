@@ -7,6 +7,8 @@ import { join, resolve } from 'node:path';
 import { spawn } from 'bun';
 import type { Subprocess } from 'bun';
 
+import { replaceOnce } from './scriptCopy.ts';
+
 const checkout = resolve(import.meta.dir, '..');
 const script = join(checkout, 'scripts', 'sandbox-machine');
 const sandbox = join(checkout, 'scripts', 'sandbox');
@@ -17,6 +19,8 @@ const cgroupFor = (service: string): string =>
 
 let name: string;
 let root: string;
+let guards: string;
+let machineScript: string;
 let machine: string;
 let fixture: string;
 let stateFile: string;
@@ -30,6 +34,25 @@ const newTemporaryFolder = async (prefix: string): Promise<string> => {
   temporaryFolders.push(folder);
 
   return folder;
+};
+
+const pathWith = (...folders: string[]): string =>
+  [...folders, guards, '/usr/bin', '/bin', Bun.env['PATH'] ?? ''].join(':');
+
+const writeInstrumentedMachineScript = async (): Promise<string> => {
+  const folder = await newTemporaryFolder('koja-machine-scripts-');
+  const path = join(folder, 'sandbox-machine');
+
+  const source = replaceOnce(
+    await readFile(script, 'utf8'),
+    'root=/var/tmp/ruta-$name',
+    `root='${root}'`,
+  );
+
+  await writeFile(path, source, { mode: 0o755 });
+  await chmod(path, 0o755);
+
+  return path;
 };
 
 const writeProgram = async (path: string, body: string): Promise<void> => {
@@ -149,6 +172,20 @@ const cleanEnvironment = (): Record<string, string> => {
   }
 
   delete environment['RUTA_NAME'];
+  delete environment['TAU_VERIFICATION_RUN'];
+
+  return environment;
+};
+
+const environmentFor = (overrides: Record<string, string> = {}): Record<string, string> => {
+  const environment: Record<string, string> = {
+    ...cleanEnvironment(),
+    RUTA_NAME: name,
+    PATH: pathWith(),
+    ...overrides,
+  };
+
+  delete environment['TAU_VERIFICATION_RUN'];
 
   return environment;
 };
@@ -159,7 +196,7 @@ const run = async (
 ): Promise<{ exitCode: number; output: string }> => {
   const child = spawn(program, {
     cwd: checkout,
-    env: { ...cleanEnvironment(), RUTA_NAME: name, ...environment },
+    env: environmentFor(environment),
     stdout: 'pipe',
     stderr: 'pipe',
   });
@@ -173,16 +210,42 @@ const run = async (
   return { exitCode, output: stderr + stdout };
 };
 
-const runDown = (environment: Record<string, string> = {}) =>
-  run(['bash', script, 'down'], environment);
-
 const runBash = (body: string, environment: Record<string, string> = {}) =>
   run(['bash', '-c', body], environment);
+
+const runDown = (environment: Record<string, string> = {}) =>
+  run(['bash', machineScript, 'down'], environment);
+
+const writeInstrumentedSandboxScripts = async (): Promise<string> => {
+  const folder = await newTemporaryFolder('koja-machine-scripts-');
+  const scripts = join(folder, 'scripts');
+
+  await mkdir(scripts, { recursive: true });
+
+  const sandboxSource = replaceOnce(
+    replaceOnce(await readFile(sandbox, 'utf8'), 'root=/var/tmp/ruta-$name', `root='${root}'`),
+    'checkout=$(dirname "$here")',
+    `checkout='${checkout}'`,
+  );
+
+  const machineSource = replaceOnce(
+    await readFile(script, 'utf8'),
+    'root=/var/tmp/ruta-$name',
+    `root='${root}'`,
+  );
+
+  await writeFile(join(scripts, 'sandbox'), sandboxSource, { mode: 0o755 });
+  await writeFile(join(scripts, 'sandbox-machine'), machineSource, { mode: 0o755 });
+  await chmod(join(scripts, 'sandbox'), 0o755);
+  await chmod(join(scripts, 'sandbox-machine'), 0o755);
+
+  return join(scripts, 'sandbox');
+};
 
 const spawnShell = (command: string, environment: Record<string, string> = {}): Subprocess => {
   const child = spawn(['sh', '-c', command], {
     cwd: checkout,
-    env: { PATH: '/usr/bin:/bin', ...environment },
+    env: environmentFor({ PATH: pathWith(), ...environment }),
     stdout: 'ignore',
     stderr: 'ignore',
   });
@@ -204,13 +267,19 @@ const alive = (pid: number): boolean => {
 
 beforeEach(async () => {
   name = `koja-machine-test-${randomBytes(6).toString('hex')}`;
-  root = join('/var/tmp', `ruta-${name}`);
+  temporaryFolders = [];
+  root = await mkdtemp(join(tmpdir(), 'koja-machine-root-'));
+  guards = await newTemporaryFolder('koja-machine-guards-');
+  machineScript = await writeInstrumentedMachineScript();
   machine = join(root, 'machine');
   fixture = join(machine, 'home', 'remote-fixture');
   stateFile = join(machine, 'ownership.json');
   bootId = (await readFile('/proc/sys/kernel/random/boot_id', 'utf8')).trim();
-  temporaryFolders = [];
   children = [];
+
+  for (const command of ['systemctl', 'systemd-run', 'ruta', 'herdr-app', 'hc']) {
+    await writeProgram(join(guards, command), 'exit 127');
+  }
 });
 
 afterEach(async () => {
@@ -228,6 +297,34 @@ afterEach(async () => {
   for (const folder of temporaryFolders) {
     await rm(folder, { recursive: true, force: true });
   }
+});
+
+describe('scripts/sandbox-machine test isolation', () => {
+  test('resolves the fixture commands only inside the test folders', async () => {
+    const result = await runBash(`
+      set -euo pipefail
+      for command in systemctl systemd-run ruta herdr-app hc; do
+        path=$(command -v "$command")
+        case $path in
+          '${guards}'/*) ;;
+          *) printf '%s=%s\\n' "$command" "$path"; exit 1 ;;
+        esac
+      done
+    `);
+
+    expect(result.exitCode).toBe(0);
+  });
+
+  test('ignores an inherited verification run and keeps the root in the temporary folder', async () => {
+    const result = await runBash(
+      `set -euo pipefail
+source '${machineScript}'
+printf '%s\\n%s\\n' "$name" "$root"`,
+      { TAU_VERIFICATION_RUN: 'decoy-run' },
+    );
+
+    expect(result.output).toBe(`${name}\n${root}\n`);
+  });
 });
 
 describe('scripts/sandbox-machine down ownership', () => {
@@ -254,7 +351,7 @@ describe('scripts/sandbox-machine down ownership', () => {
       ],
       {
         cwd: checkout,
-        env: { PATH: '/usr/bin:/bin' },
+        env: environmentFor({ PATH: pathWith() }),
         stdout: 'ignore',
         stderr: 'ignore',
       },
@@ -271,28 +368,19 @@ describe('scripts/sandbox-machine down ownership', () => {
 });
 
 describe('scripts/sandbox-machine capability', () => {
-  test('checks the real user manager with a disposable service', async () => {
-    const result = await runBash(`
-      set -euo pipefail
-      source '${script}'
-      check_capability
-    `);
-
-    expect(result.exitCode).toBe(0);
-  }, 30_000);
-
   test('fails the capability probe when its disposable service cannot start', async () => {
     const folder = await newTemporaryFolder('koja-machine-probe-fail-');
 
+    await writeFakeSystemctl(folder);
     await writeProgram(join(folder, 'systemd-run'), 'exit 1');
 
     const result = await runBash(
       `
         set -euo pipefail
-        source '${script}'
+        source '${machineScript}'
         if check_capability; then exit 1; fi
       `,
-      { PATH: `${folder}:/usr/bin:/bin` },
+      { FAKE_MANAGER_DIR: folder, PATH: pathWith(folder) },
     );
 
     expect(result.exitCode).toBe(0);
@@ -307,10 +395,10 @@ describe('scripts/sandbox-machine capability', () => {
     const result = await runBash(
       `
         set -euo pipefail
-        source '${script}'
+        source '${machineScript}'
         if check_capability; then exit 1; fi
       `,
-      { FAKE_MANAGER_DIR: manager, PATH: `${manager}:/usr/bin:/bin` },
+      { FAKE_MANAGER_DIR: manager, PATH: pathWith(manager) },
     );
 
     expect(result.exitCode).toBe(0);
@@ -327,12 +415,12 @@ describe('scripts/sandbox-machine capability', () => {
     const result = await runBash(
       `
         set -euo pipefail
-        source '${script}'
+        source '${machineScript}'
         service_property() { echo loaded; }
         if check_capability; then exit 1; fi
         [ ! -e "$STARTED" ] || exit 1
       `,
-      { FAKE_MANAGER_DIR: manager, PATH: `${manager}:/usr/bin:/bin`, STARTED: started },
+      { FAKE_MANAGER_DIR: manager, PATH: pathWith(manager), STARTED: started },
     );
 
     expect(result.exitCode).toBe(0);
@@ -345,7 +433,7 @@ describe('scripts/sandbox-machine capability', () => {
     const result = await runBash(
       `
         set -euo pipefail
-        source '${script}'
+        source '${machineScript}'
         service_property() {
           case "$2" in
             LoadState) echo not-found ;;
@@ -381,7 +469,7 @@ describe('scripts/sandbox-machine capability', () => {
     const result = await runBash(
       `
         set -euo pipefail
-        source '${script}'
+        source '${machineScript}'
         require_up() { return 0; }
         check_capability() { return 1; }
         start_service() { touch "$STARTED"; }
@@ -402,12 +490,15 @@ describe('scripts/sandbox-machine capability', () => {
 
 describe('scripts/sandbox-machine ownership', () => {
   test('writes the intent before starting the service', async () => {
+    const manager = await newTemporaryFolder('koja-machine-manager-');
     const started = join(await newTemporaryFolder('koja-machine-started-'), 'started');
+
+    await writeFakeSystemctl(manager);
 
     const result = await runBash(
       `
         set -euo pipefail
-        source '${script}'
+        source '${machineScript}'
         require_up() { return 0; }
         check_capability() { return 0; }
         free_port() { echo 23456; }
@@ -433,7 +524,7 @@ describe('scripts/sandbox-machine ownership', () => {
         up
         [ -e "$STARTED" ]
       `,
-      { STARTED: started },
+      { FAKE_MANAGER_DIR: manager, PATH: pathWith(manager), STARTED: started },
     );
 
     expect(result.exitCode).toBe(0);
@@ -449,7 +540,7 @@ describe('scripts/sandbox-machine ownership', () => {
     const result = await runBash(
       `
         set -euo pipefail
-        source '${script}'
+        source '${machineScript}'
         require_up() { return 0; }
         check_capability() { return 0; }
         free_port() { echo 23456; }
@@ -462,7 +553,7 @@ describe('scripts/sandbox-machine ownership', () => {
         if up; then exit 1; fi
         [ ! -e "$STARTED" ] || exit 1
       `,
-      { FAKE_MANAGER_DIR: manager, PATH: `${manager}:/usr/bin:/bin`, STARTED: started },
+      { FAKE_MANAGER_DIR: manager, PATH: pathWith(manager), STARTED: started },
     );
 
     expect(result.exitCode).toBe(0);
@@ -473,12 +564,13 @@ describe('scripts/sandbox-machine ownership', () => {
     const manager = await newTemporaryFolder('koja-machine-manager-');
     const started = join(await newTemporaryFolder('koja-machine-started-'), 'started');
 
+    await writeFakeSystemctl(manager);
     await writeProgram(join(manager, 'jq'), 'exit 1');
 
     const result = await runBash(
       `
         set -euo pipefail
-        source '${script}'
+        source '${machineScript}'
         require_up() { return 0; }
         check_capability() { return 0; }
         free_port() { echo 23456; }
@@ -491,7 +583,7 @@ describe('scripts/sandbox-machine ownership', () => {
         if up; then exit 1; fi
         [ ! -e "$STARTED" ] || exit 1
       `,
-      { PATH: `${manager}:/usr/bin:/bin`, STARTED: started },
+      { FAKE_MANAGER_DIR: manager, PATH: pathWith(manager), STARTED: started },
     );
 
     expect(result.exitCode).toBe(0);
@@ -508,7 +600,7 @@ describe('scripts/sandbox-machine ownership', () => {
     const result = await runBash(
       `
         set -euo pipefail
-        source '${script}'
+        source '${machineScript}'
         require_up() { return 0; }
         check_capability() { return 0; }
         free_port() { echo 34567; }
@@ -523,7 +615,7 @@ describe('scripts/sandbox-machine ownership', () => {
         up
         [ -e "$STARTED" ]
       `,
-      { FAKE_MANAGER_DIR: manager, PATH: `${manager}:/usr/bin:/bin`, STARTED: started },
+      { FAKE_MANAGER_DIR: manager, PATH: pathWith(manager), STARTED: started },
     );
 
     expect(result.exitCode).toBe(0);
@@ -542,7 +634,7 @@ describe('scripts/sandbox-machine ownership', () => {
     const result = await runBash(
       `
         set -euo pipefail
-        source '${script}'
+        source '${machineScript}'
         require_up() { return 0; }
         check_capability() { exit 1; }
         copy_core() { return 0; }
@@ -554,7 +646,7 @@ describe('scripts/sandbox-machine ownership', () => {
         [ ! -e "$STARTED" ] || exit 1
         jq -e '.service == "${service}" and .port == 34567 and .invocationId == "${invocation}"' "$state_file" >/dev/null
       `,
-      { FAKE_MANAGER_DIR: manager, PATH: `${manager}:/usr/bin:/bin`, STARTED: started },
+      { FAKE_MANAGER_DIR: manager, PATH: pathWith(manager), STARTED: started },
     );
 
     expect(result.exitCode).toBe(0);
@@ -572,11 +664,11 @@ describe('scripts/sandbox-machine ownership', () => {
     const result = await runBash(
       `
         set -euo pipefail
-        source '${script}'
+        source '${machineScript}'
         read_and_verify_state
         jq -e '.invocationId == "${invocation}" and .cgroup == "${cgroupFor(service)}"' "$state_file" >/dev/null
       `,
-      { FAKE_MANAGER_DIR: manager, PATH: `${manager}:/usr/bin:/bin` },
+      { FAKE_MANAGER_DIR: manager, PATH: pathWith(manager) },
     );
 
     expect(result.exitCode).toBe(0);
@@ -591,7 +683,7 @@ describe('scripts/sandbox-machine ownership', () => {
 
     const down = await runDown({
       FAKE_MANAGER_DIR: manager,
-      PATH: `${manager}:/usr/bin:/bin`,
+      PATH: pathWith(manager),
     });
 
     expect(down.exitCode).not.toBe(0);
@@ -609,7 +701,7 @@ describe('scripts/sandbox-machine ownership', () => {
 
     const down = await runDown({
       FAKE_MANAGER_DIR: manager,
-      PATH: `${manager}:/usr/bin:/bin`,
+      PATH: pathWith(manager),
     });
 
     expect(down.exitCode).not.toBe(0);
@@ -626,7 +718,7 @@ describe('scripts/sandbox-machine ownership', () => {
 
     const down = await runDown({
       FAKE_MANAGER_DIR: manager,
-      PATH: `${manager}:/usr/bin:/bin`,
+      PATH: pathWith(manager),
     });
 
     expect(down.exitCode).not.toBe(0);
@@ -652,7 +744,7 @@ describe('scripts/sandbox-machine ownership', () => {
 
     const down = await runDown({
       FAKE_MANAGER_DIR: manager,
-      PATH: `${manager}:/usr/bin:/bin`,
+      PATH: pathWith(manager),
     });
 
     expect(down.exitCode).not.toBe(0);
@@ -670,7 +762,7 @@ describe('scripts/sandbox-machine ownership', () => {
 
     const down = await runDown({
       FAKE_MANAGER_DIR: manager,
-      PATH: `${manager}:/usr/bin:/bin`,
+      PATH: pathWith(manager),
     });
 
     expect(down.exitCode).not.toBe(0);
@@ -688,11 +780,11 @@ describe('scripts/sandbox-machine ownership', () => {
     const down = await runBash(
       `
         set -euo pipefail
-        source '${script}'
+        source '${machineScript}'
         manager_timeout=1
         down
       `,
-      { FAKE_MANAGER_DIR: manager, PATH: `${manager}:/usr/bin:/bin` },
+      { FAKE_MANAGER_DIR: manager, PATH: pathWith(manager) },
     );
 
     expect(down.exitCode).not.toBe(0);
@@ -709,7 +801,7 @@ describe('scripts/sandbox-machine ownership', () => {
 
     const down = await runDown({
       FAKE_MANAGER_DIR: manager,
-      PATH: `${manager}:/usr/bin:/bin`,
+      PATH: pathWith(manager),
     });
 
     expect(down.exitCode).not.toBe(0);
@@ -727,7 +819,7 @@ describe('scripts/sandbox-machine ownership', () => {
 
     const down = await runDown({
       FAKE_MANAGER_DIR: manager,
-      PATH: `${manager}:/usr/bin:/bin`,
+      PATH: pathWith(manager),
     });
 
     expect(down.exitCode).toBe(0);
@@ -746,7 +838,7 @@ describe('scripts/sandbox-machine ownership', () => {
     const down = await runDown({
       FAKE_MANAGER_DIR: manager,
       FAKE_SHOW_RESULT: 'fail',
-      PATH: `${manager}:/usr/bin:/bin`,
+      PATH: pathWith(manager),
     });
 
     expect(down.exitCode).not.toBe(0);
@@ -764,7 +856,7 @@ describe('scripts/sandbox-machine ownership', () => {
     const down = await runDown({
       FAKE_MANAGER_DIR: manager,
       FAKE_STOP_RESULT: 'fail',
-      PATH: `${manager}:/usr/bin:/bin`,
+      PATH: pathWith(manager),
     });
 
     expect(down.exitCode).not.toBe(0);
@@ -786,11 +878,11 @@ describe('scripts/sandbox-machine ownership', () => {
     const down = await runBash(
       `
         set -euo pipefail
-        source '${script}'
+        source '${machineScript}'
         cgroup_root='${cgroupRoot}'
         down
       `,
-      { FAKE_MANAGER_DIR: manager, PATH: `${manager}:/usr/bin:/bin` },
+      { FAKE_MANAGER_DIR: manager, PATH: pathWith(manager) },
     );
 
     expect(down.exitCode).not.toBe(0);
@@ -806,7 +898,7 @@ describe('scripts/sandbox-machine ownership', () => {
 
     const down = await runDown({
       FAKE_MANAGER_DIR: manager,
-      PATH: `${manager}:/usr/bin:/bin`,
+      PATH: pathWith(manager),
     });
 
     expect(down.exitCode).toBe(0);
@@ -826,19 +918,19 @@ describe('scripts/sandbox-machine ownership', () => {
       FAKE_MANAGER_DIR: manager,
       FAKE_STOP_RECORD: record,
       FAKE_STOP_RESULT: 'fail',
-      PATH: `${manager}:/usr/bin:/bin`,
+      PATH: pathWith(manager),
     };
 
-    const first = spawn(['bash', script, 'down'], {
+    const first = spawn(['bash', machineScript, 'down'], {
       cwd: checkout,
-      env: { ...cleanEnvironment(), RUTA_NAME: name, ...environment },
+      env: environmentFor(environment),
       stdout: 'ignore',
       stderr: 'ignore',
     });
 
-    const second = spawn(['bash', script, 'down'], {
+    const second = spawn(['bash', machineScript, 'down'], {
       cwd: checkout,
-      env: { ...cleanEnvironment(), RUTA_NAME: name, ...environment },
+      env: environmentFor(environment),
       stdout: 'ignore',
       stderr: 'ignore',
     });
@@ -868,16 +960,17 @@ describe('scripts/sandbox-machine ownership', () => {
     const service = serviceName();
     const manager = await newTemporaryFolder('koja-machine-manager-');
     const calls = join(manager, 'ruta-calls');
+    const instrumentedSandbox = await writeInstrumentedSandboxScripts();
 
     await writeFakeSystemctl(manager);
     await writeProgram(join(manager, 'ruta'), `printf '%s\\n' "$*" >>'${calls}'`);
     await writeUnit(manager, service, unitProperties(service));
     await writeOwnership(ownership(service));
 
-    const down = await run(['bash', sandbox, 'down'], {
+    const down = await run(['bash', instrumentedSandbox, 'down'], {
       FAKE_MANAGER_DIR: manager,
       FAKE_STOP_RESULT: 'fail',
-      PATH: `${manager}:/usr/bin:/bin`,
+      PATH: pathWith(manager),
     });
 
     expect(down.exitCode).not.toBe(0);
