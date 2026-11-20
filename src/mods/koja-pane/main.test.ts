@@ -308,6 +308,7 @@ describe('pane header role badge', () => {
 describe('pane header buttons', () => {
   test('a 120 px header keeps the compact action and cuts the architect badge', () => {
     paneProgramValue = piProgram;
+    paneCwd = '/var/tmp/ruta-koja/home/pi-fixture';
     terminalRecords = [{ address: 't1', labels: { 'tau.role': 'architect' } }];
 
     const tree = renderedAt(120);
@@ -321,6 +322,13 @@ describe('pane header buttons', () => {
     expect(badge?.tooltipText).toBe('architect');
     expect(badge?.styles['flex_initial']).toEqual([]);
     expect(badge?.styles['min_w']).toEqual([0]);
+    expect(drawnTexts(tree)).not.toContain('~/pi-fixture');
+  });
+
+  test('a wide header draws its folder', () => {
+    paneCwd = '/var/tmp/ruta-koja/home/pi-fixture';
+
+    expect(drawnTexts(renderedAt(700))).toContain('~/pi-fixture');
   });
 
   test('a narrow header draws its compact action without hover', () => {

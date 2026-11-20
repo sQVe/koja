@@ -111,6 +111,7 @@ export default class PaneHeader extends View {
       .px(spacing.large)
       .gap(spacing.medium)
       .items_center()
+      .overflow_hidden()
       .border_b(spacing.hairline)
       .border_color(palette.selected)
       .on_hover((hovered, cx) => {
@@ -146,6 +147,7 @@ export default class PaneHeader extends View {
       width: this.width,
       name,
       ...(role === null ? {} : { role }),
+      folder: folderText,
     });
 
     const titleBox = div()
@@ -159,12 +161,14 @@ export default class PaneHeader extends View {
     element.child(title);
 
     if (role !== null) {
-      element.child(roleBadge(role));
+      element.child(roleBadge(role, fields.role));
     }
 
-    const folder = roleText('detail', folderText).flex_1();
+    if (fields.folder !== 'dropped') {
+      const folder = roleText('detail', folderText).flex_1();
 
-    element.child(folder);
+      element.child(folder);
+    }
 
     const status = paneStatusElement(pane.status);
 
