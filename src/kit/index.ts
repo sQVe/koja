@@ -77,7 +77,6 @@ export {
   attentionBadge,
   fileStatusMark,
   indicator,
-  hasStatusMark,
   paneStatusElement,
   statusMarkWidth,
   spaceMark,

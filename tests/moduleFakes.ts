@@ -113,7 +113,6 @@ export const kitIndexFake = (overrides: ModuleFake = {}): ModuleFake => ({
   fileStatusMark: noop,
   findLayoutNode: () => null,
   highlightedText: noop,
-  hasStatusMark: () => false,
   statusMarkWidth: () => 0,
   hoverCard: noop,
   hoverCardSize: {},

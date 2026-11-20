@@ -94,7 +94,7 @@ export const attentionBadge = (label: string): Element => {
 
 const attentionStatusWidth = 'Needs you'.length * paneHeaderWidth.glyph + spacing.small * 2;
 
-export const hasStatusMark = (status: Status | null): status is 'working' | 'blocked' | 'done' =>
+const hasStatusMark = (status: Status | null): status is 'working' | 'blocked' | 'done' =>
   status === 'blocked' || status === 'working' || status === 'done';
 
 export const statusMarkWidth = (status: Status | null): number => {
