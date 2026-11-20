@@ -141,12 +141,15 @@ bun run sandbox hc exec --on qa-remote sh -c 'echo $HOME $XDG_RUNTIME_DIR'
 - Start: `scripts/sandbox-machine up` starts an sshd on loopback and adds the machine `qa-remote` to
   the sandbox core. It needs `bun run sandbox identity` to exit 0 first, and it prints the machine
   name and the path of its fixture repository. The machine's keys, home, runtime folder, and
-  herdr-core all sit under `/var/tmp/ruta-<name>/machine/`. Nothing outside that folder is read or
-  written, and no root is needed.
+  herdr-core all sit under `/var/tmp/ruta-<name>/machine/`. The server runs in a transient systemd
+  user service, so the user manager and cgroup filesystem are also used. `up` checks cgroup v2 and
+  the user manager with a disposable service before starting sshd; if that check fails, it starts no
+  listener. No root is needed.
 - Check that it is up: the `hc exec` command prints two paths under `/var/tmp/ruta-<name>/machine/`,
   and the space shows a `remote-fixture` project header with the `qa-remote` label.
 - Stop: `bun run sandbox down` runs `scripts/sandbox-machine down` first. That forgets the machine,
-  stops its processes, and deletes `/var/tmp/ruta-<name>/machine/`.
+  stops the recorded transient service and drains its cgroup, then deletes
+  `/var/tmp/ruta-<name>/machine/`.
 
 ## Rules for every section
 

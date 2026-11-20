@@ -3,10 +3,9 @@
 # sshd, home, runtime folder, and herdr-core all live under the sandbox root,
 # so a space can be made on another machine without touching the real one.
 #
-#
 set -euo pipefail
 
-here=$(cd "$(dirname "$0")" && pwd)
+here=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
 checkout=$(dirname "$here")
 name=${RUTA_NAME-koja}
 
@@ -25,6 +24,13 @@ root=/var/tmp/ruta-$name
 machine=$root/machine
 machine_name=qa-remote
 fixture=$machine/home/remote-fixture
+state_file=$machine/ownership.json
+lock_file=$root/machine.lock
+sshd_bin=/usr/bin/sshd
+cgroup_root=/sys/fs/cgroup
+boot_id_file=/proc/sys/kernel/random/boot_id
+stop_timeout=5
+manager_timeout=10
 
 sandbox() {
   "$checkout/scripts/sandbox" "$@"
@@ -37,15 +43,361 @@ require_up() {
   fi
 }
 
-sshd_pid() {
-  if [[ ! -f $machine/sshd.pid ]]; then
+random_hex() {
+  od -An -N6 -tx1 /dev/urandom | tr -d ' \n'
+}
+
+read_boot_id() {
+  cat "$boot_id_file"
+}
+
+new_service_name() {
+  printf 'koja-fixture-%s.service\n' "$(random_hex)"
+}
+
+user_systemctl() {
+  timeout "$manager_timeout" systemctl --user "$@"
+}
+
+user_systemd_run() {
+  timeout "$manager_timeout" systemd-run --user "$@"
+}
+
+service_property() {
+  local service=$1
+  local property=$2
+
+  user_systemctl show "$service" --property="$property" --value --no-pager 2>/dev/null
+}
+
+service_properties_match() {
+  local service=$1
+  local expected_timeout=$2
+  local transient type exit_type kill_mode restart send_sigkill timeout
+
+  transient=$(service_property "$service" Transient) || return 2
+  type=$(service_property "$service" Type) || return 2
+  exit_type=$(service_property "$service" ExitType) || return 2
+  kill_mode=$(service_property "$service" KillMode) || return 2
+  restart=$(service_property "$service" Restart) || return 2
+  send_sigkill=$(service_property "$service" SendSIGKILL) || return 2
+  timeout=$(service_property "$service" TimeoutStopUSec) || return 2
+  [[ $transient == yes && $type == exec && $exit_type == cgroup && $kill_mode == control-group && $restart == no && $send_sigkill == yes ]] || return 1
+  [[ $timeout == "${expected_timeout}s" || $timeout == $((expected_timeout * 1000000)) ]]
+}
+
+cgroup_path_safe() {
+  local cgroup=$1
+
+  [[ $cgroup =~ ^/[A-Za-z0-9_@:./-]+$ && $cgroup != *..* ]]
+}
+
+cgroup_dir() {
+  printf '%s%s\n' "$cgroup_root" "$1"
+}
+
+cgroup_removed_or_empty() {
+  local cgroup=$1
+  local directory
+
+  if [[ -z $cgroup ]]; then
+    return 0
+  fi
+
+  cgroup_path_safe "$cgroup" || return 1
+
+  directory=$(cgroup_dir "$cgroup")
+  if [[ ! -e $directory ]]; then
+    return 0
+  fi
+
+  if [[ ! -e $directory/cgroup.events ]]; then
     return 1
   fi
 
-  local pid
-  pid=$(cat "$machine/sshd.pid")
-  kill -0 "$pid" 2>/dev/null || return 1
-  printf '%s\n' "$pid"
+  grep -qx 'populated 0' "$directory/cgroup.events"
+}
+
+cgroup_procs() {
+  cgroup_path_safe "$1" || return 1
+  cat "$(cgroup_dir "$1")/cgroup.procs" 2>/dev/null
+}
+
+process_cgroup_path() {
+  awk -F: '$1 == 0 { print $3 }' "/proc/$1/cgroup" 2>/dev/null
+}
+
+state_valid() {
+  if [[ ! -s $state_file ]]; then
+    return 1
+  fi
+
+  jq -e '
+    type == "object" and
+    .version == 1 and
+    (.service | type == "string" and length > 0) and
+    (.bootId | type == "string" and length > 0) and
+    (.port | type == "number" and . > 0 and . < 65536) and
+    ((.invocationId // "") | type == "string") and
+    ((.cgroup // "") | type == "string") and
+    ((.invocationId == "" and .cgroup == "") or (.invocationId != "" and .cgroup != ""))
+  ' "$state_file" >/dev/null 2>&1
+}
+
+load_state_fields() {
+  state_service=$(jq -er '.service' "$state_file") || return 1
+  if [[ ! $state_service =~ ^koja-fixture-[0-9a-f]{12}\.service$ ]]; then
+    return 1
+  fi
+
+  state_boot=$(jq -er '.bootId' "$state_file") || return 1
+  state_port=$(jq -er '.port' "$state_file") || return 1
+  state_invocation=$(jq -er '.invocationId // ""' "$state_file") || return 1
+  state_cgroup=$(jq -er '.cgroup // ""' "$state_file") || return 1
+
+  if [[ -n $state_invocation && ! $state_invocation =~ ^[0-9a-f]{32}$ ]]; then
+    return 1
+  fi
+
+  if [[ -n $state_cgroup ]]; then
+    cgroup_path_safe "$state_cgroup" || return 1
+    [[ $(basename "$state_cgroup") == "$state_service" ]] || return 1
+  fi
+}
+
+write_state() {
+  local service=$1
+  local boot=$2
+  local port=$3
+  local invocation=$4
+  local cgroup=$5
+  local temporary
+
+  temporary=$(mktemp "$machine/.ownership.XXXXXX") || return 1
+  if ! (umask 077; jq -n \
+    --arg service "$service" \
+    --arg bootId "$boot" \
+    --argjson port "$port" \
+    --arg invocationId "$invocation" \
+    --arg cgroup "$cgroup" \
+    '{version: 1, service: $service, bootId: $bootId, port: $port, invocationId: $invocationId, cgroup: $cgroup}' > "$temporary"); then
+    rm -f "$temporary"
+    return 1
+  fi
+
+  if ! chmod 600 "$temporary"; then
+    rm -f "$temporary"
+    return 1
+  fi
+
+  if [[ $(stat -c %a "$temporary") != 600 ]]; then
+    rm -f "$temporary"
+    return 1
+  fi
+
+  if ! mv "$temporary" "$state_file"; then
+    rm -f "$temporary"
+    return 1
+  fi
+
+  if [[ ! -s $state_file || $(stat -c %a "$state_file") != 600 ]]; then
+    return 1
+  fi
+
+  state_valid
+}
+
+read_and_verify_state() {
+  local load current_boot
+
+  if [[ ! -e $state_file ]]; then
+    return 2
+  fi
+
+  state_valid || return 1
+  load_state_fields || return 1
+
+  current_boot=$(read_boot_id) || return 1
+  load=$(service_property "$state_service" LoadState) || return 1
+  if [[ $load == not-found ]]; then
+    if cgroup_removed_or_empty "$state_cgroup"; then
+      return 3
+    fi
+
+    echo "the fixture cgroup $state_cgroup is populated without service $state_service" >&2
+    return 1
+  fi
+
+  if [[ $load != loaded ]]; then
+    echo "the fixture service $state_service has load state $load" >&2
+    return 1
+  fi
+
+  if [[ $state_boot != "$current_boot" ]]; then
+    echo "the fixture ownership record is from another boot" >&2
+    return 1
+  fi
+
+  service_properties_match "$state_service" "$stop_timeout" || {
+    echo "the fixture service $state_service has unexpected properties" >&2
+    return 1
+  }
+
+  service_invocation=$(service_property "$state_service" InvocationID) || return 1
+  service_cgroup=$(service_property "$state_service" ControlGroup) || return 1
+  service_active_state=$(service_property "$state_service" ActiveState) || return 1
+  service_main_pid=$(service_property "$state_service" MainPID) || return 1
+
+  if [[ ! $service_invocation =~ ^[0-9a-f]{32}$ ]]; then
+    echo "the fixture service $state_service has no invocation ID" >&2
+    return 1
+  fi
+
+  if [[ -z $service_cgroup ]] || ! cgroup_path_safe "$service_cgroup" || [[ $(basename "$service_cgroup") != "$state_service" ]]; then
+    echo "the fixture service $state_service has no dedicated cgroup" >&2
+    return 1
+  fi
+
+  if [[ -n $state_invocation && $service_invocation != "$state_invocation" ]]; then
+    echo "the fixture service invocation does not match its ownership record" >&2
+    return 1
+  fi
+
+  if [[ -n $state_cgroup && $service_cgroup != "$state_cgroup" ]]; then
+    echo "the fixture service cgroup does not match its ownership record" >&2
+    return 1
+  fi
+
+  if [[ -z $state_invocation || -z $state_cgroup ]]; then
+    write_state "$state_service" "$state_boot" "$state_port" "$service_invocation" "$service_cgroup" || return 1
+    state_invocation=$service_invocation
+    state_cgroup=$service_cgroup
+  fi
+}
+
+stop_verified_service() {
+  local service=$1
+  local invocation=$2
+  local cgroup=$3
+  local current_invocation current_cgroup
+
+  if [[ -z $invocation || -z $cgroup ]]; then
+    return 1
+  fi
+
+  if ! cgroup_path_safe "$cgroup" || [[ $(basename "$cgroup") != "$service" ]]; then
+    return 1
+  fi
+
+  current_invocation=$(service_property "$service" InvocationID) || return 1
+  current_cgroup=$(service_property "$service" ControlGroup) || return 1
+  if [[ $current_invocation != "$invocation" || $current_cgroup != "$cgroup" ]]; then
+    return 1
+  fi
+
+  user_systemctl stop "$service" >/dev/null 2>&1
+}
+
+check_capability() {
+  local service cgroup procs caller_cgroup version invocation child_ok failed load deadline
+
+  deadline=$(( $(now_ms) + 15000 ))
+
+  if [[ $(stat -fc %T "$cgroup_root" 2>/dev/null) != cgroup2fs ]]; then
+    echo "the fixture machine needs cgroup v2 at $cgroup_root" >&2
+    return 1
+  fi
+
+  if [[ ! -f $cgroup_root/cgroup.controllers ]]; then
+    echo "the fixture machine needs cgroup v2 controllers at $cgroup_root" >&2
+    return 1
+  fi
+
+  version=$(user_systemctl show --property=Version --value --no-pager 2>/dev/null) || {
+    echo "the fixture machine needs a reachable systemd user manager" >&2
+    return 1
+  }
+
+  if [[ -z $version ]]; then
+    echo "the fixture machine needs a reachable systemd user manager" >&2
+    return 1
+  fi
+
+  service=$(new_service_name)
+  load=$(service_property "$service" LoadState) || {
+    echo "the fixture capability probe could not read its service" >&2
+    return 1
+  }
+
+  if [[ $load != not-found ]]; then
+    echo "the fixture capability probe name $service is not absent" >&2
+    return 1
+  fi
+
+  if ! user_systemd_run --unit="$service" \
+    --service-type=exec \
+    --property=ExitType=cgroup \
+    --property=KillMode=control-group \
+    --property=Restart=no \
+    --property=TimeoutStopSec=3 \
+    --property=SendSIGKILL=yes \
+    --collect \
+    /bin/sh -c 'sleep 10 & exit 0' >/dev/null 2>&1; then
+    echo "the fixture capability probe could not start its service" >&2
+    return 1
+  fi
+
+  failed=1
+  cgroup=''
+  procs=''
+  invocation=''
+  for _ in $(seq 1 50); do
+    if (( $(now_ms) >= deadline )); then
+      break
+    fi
+
+    cgroup=$(service_property "$service" ControlGroup) || cgroup=''
+    if [[ -n $cgroup ]]; then
+      procs=$(cgroup_procs "$cgroup" || true)
+      if [[ -n $procs ]]; then
+        break
+      fi
+    fi
+
+    sleep 0.1
+  done
+
+  if [[ -z $cgroup || -z $procs ]]; then
+    echo "the fixture capability probe did not keep a detached child in its cgroup" >&2
+  elif ! service_properties_match "$service" 3; then
+    echo "the fixture capability probe service has unexpected properties" >&2
+  else
+    invocation=$(service_property "$service" InvocationID) || invocation=''
+    child_ok=1
+    for pid in $procs; do
+      if [[ $(process_cgroup_path "$pid") != "$cgroup" ]]; then
+        child_ok=0
+        break
+      fi
+    done
+
+    caller_cgroup=$(process_cgroup_path $$)
+    if (( child_ok == 0 )); then
+      echo "the fixture capability probe child left its service cgroup" >&2
+    elif [[ ! $invocation =~ ^[0-9a-f]{32}$ || $(basename "$cgroup") != "$service" ]]; then
+      echo "the fixture capability probe service has no invocation identity" >&2
+    elif [[ $caller_cgroup == "$cgroup" || $caller_cgroup == "$cgroup"/* ]]; then
+      echo "the fixture capability probe caller is inside the service cgroup" >&2
+    elif ! stop_verified_service "$service" "$invocation" "$cgroup"; then
+      echo "the fixture capability probe service did not stop" >&2
+    elif ! cgroup_removed_or_empty "$cgroup"; then
+      echo "the fixture capability probe cgroup did not drain" >&2
+    else
+      failed=0
+    fi
+  fi
+
+  return "$failed"
 }
 
 free_port() {
@@ -71,7 +423,6 @@ Port $port
 ListenAddress 127.0.0.1
 HostKey $machine/host_key
 AuthorizedKeysFile $machine/authorized_keys
-PidFile $machine/sshd.pid
 ForceCommand $machine/login
 SetEnv HOME=$machine/home XDG_RUNTIME_DIR=$machine/run
 UsePAM no
@@ -149,12 +500,43 @@ copy_core() {
   ln -sf herdr-core "$machine/bin/hc"
 }
 
-start_sshd() {
-  if sshd_pid >/dev/null; then
-    return 0
+start_service() {
+  local output status load
+
+  load=$(service_property "$state_service" LoadState) || {
+    echo "could not read fixture service $state_service before start" >&2
+    return 1
+  }
+
+  if [[ $load != not-found ]]; then
+    echo "fixture service name $state_service is not absent; not starting" >&2
+    rm -f "$state_file"
+    return 1
   fi
 
-  /usr/bin/sshd -f "$machine/sshd_config" -E "$machine/sshd.log"
+  set +e
+  output=$(user_systemd_run --unit="$state_service" \
+    --service-type=exec \
+    --property=ExitType=cgroup \
+    --property=KillMode=control-group \
+    --property=Restart=no \
+    --property=TimeoutStopSec="$stop_timeout" \
+    --property=SendSIGKILL=yes \
+    --collect \
+    "$sshd_bin" -D -f "$machine/sshd_config" -E "$machine/sshd.log" 2>&1)
+  status=$?
+  set -e
+
+  for _ in $(seq 1 50); do
+    if read_and_verify_state; then
+      return 0
+    fi
+
+    sleep 0.1
+  done
+
+  echo "could not start fixture service $state_service: $output" >&2
+  return 1
 }
 
 wait_for_ssh() {
@@ -307,62 +689,64 @@ add_machine() {
   wait_ready
 }
 
-# Every process of the fixture either names the machine in its command line or
-# has it in the environment, such as a shell started on the machine.
-machine_pids() {
-  {
-    pgrep -f -- "$machine" || true
-    for environ in /proc/[0-9]*/environ; do
-      if (tr '\0' '\n' < "$environ") 2>/dev/null | grep -qF -- "$machine"; then
-        basename "$(dirname "$environ")"
-      fi
-    done
-  } | sort -u
-}
-
-stop_processes() {
-  local pids
-  pids=$(machine_pids)
-
-  if [[ -z $pids ]]; then
-    return 0
-  fi
-
-  kill $pids 2>/dev/null || true
-  for _ in $(seq 1 50); do
-    pids=$(machine_pids)
-    if [[ -z $pids ]]; then
-      return 0
-    fi
-
-    sleep 0.1
-  done
-
-  kill -9 $pids 2>/dev/null || true
-}
-
-stop_sshd() {
-  local pid
-  pid=$(sshd_pid) || return 0
-
-  kill "$pid" 2>/dev/null || true
-  for _ in $(seq 1 50); do
-    if ! kill -0 "$pid" 2>/dev/null; then
-      return 0
-    fi
-
-    sleep 0.1
-  done
-
-  kill -9 "$pid" 2>/dev/null || true
-}
-
 up() {
-  require_up
-  local port
+  local mode=new port status load
 
+  require_up
   mkdir -p "$machine/home" "$machine/run" "$machine/bin"
   chmod 700 "$machine"
+
+  if [[ -e $state_file ]]; then
+    if read_and_verify_state; then
+      if [[ $service_active_state == active && $service_main_pid =~ ^[0-9]+$ && $service_main_pid -gt 0 ]]; then
+        mode=reuse
+        port=$state_port
+      else
+        if [[ $service_active_state != inactive ]]; then
+          if ! stop_verified_service "$state_service" "$service_invocation" "$service_cgroup"; then
+            echo "could not stop the old fixture service $state_service; kept $state_file" >&2
+            return 1
+          fi
+        fi
+
+        if ! cgroup_removed_or_empty "$service_cgroup"; then
+          echo "the old fixture cgroup $service_cgroup is still populated; kept $state_file" >&2
+          return 1
+        fi
+
+        rm -f "$state_file"
+      fi
+    else
+      status=$?
+      if (( status == 3 )); then
+        rm -f "$state_file"
+      else
+        echo "the fixture ownership record is not usable; not starting a second listener" >&2
+        return 1
+      fi
+    fi
+  fi
+
+  if [[ $mode == new ]]; then
+    check_capability || return 1
+    port=$(free_port) || return 1
+    state_service=$(new_service_name)
+    load=$(service_property "$state_service" LoadState) || {
+      echo "could not check fixture service name $state_service before start" >&2
+      return 1
+    }
+
+    if [[ $load != not-found ]]; then
+      echo "fixture service name $state_service is not absent; not starting" >&2
+      return 1
+    fi
+
+    state_boot=$(read_boot_id) || return 1
+    state_port=$port
+    state_invocation=''
+    state_cgroup=''
+    write_state "$state_service" "$state_boot" "$state_port" '' '' || return 1
+  fi
 
   if [[ ! -f $machine/host_key ]]; then
     ssh-keygen -q -t ed25519 -N '' -C "sandbox $name host" -f "$machine/host_key"
@@ -374,19 +758,14 @@ up() {
   cp "$machine/client_key.pub" "$machine/authorized_keys"
   chmod 600 "$machine/authorized_keys"
 
-  local port
-  if sshd_pid >/dev/null; then
-    port=$(cat "$machine/port")
-  else
-    port=$(free_port)
-    printf '%s\n' "$port" > "$machine/port"
-  fi
   write_sshd_config "$port"
   write_login
   write_ssh_config "$port"
   install_client
   copy_core
-  start_sshd
+  if [[ $mode == new ]]; then
+    start_service || return 1
+  fi
   wait_for_ssh
   make_fixture
   add_machine
@@ -395,20 +774,66 @@ up() {
 }
 
 down() {
+  local status
+
   if [[ -x $root/bin/herdr-app && -S $root/run/herdr-core/default.sock ]]; then
     sandbox hc machine rm "$machine_name" >/dev/null 2>&1 || true
   fi
 
-  stop_sshd
-  stop_processes
+  if [[ ! -e $state_file ]]; then
+    rm -rf "$machine"
+    return 0
+  fi
+
+  if read_and_verify_state; then
+    :
+  else
+    status=$?
+    if (( status == 3 )); then
+      rm -f "$state_file"
+      rm -rf "$machine"
+      return 0
+    fi
+
+    echo "could not verify the fixture ownership record; kept $state_file" >&2
+    return 1
+  fi
+
+  if [[ $service_active_state != inactive ]]; then
+    if ! stop_verified_service "$state_service" "$service_invocation" "$service_cgroup"; then
+      echo "could not stop fixture service $state_service; kept $state_file" >&2
+      return 1
+    fi
+  fi
+
+  if ! cgroup_removed_or_empty "$service_cgroup"; then
+    echo "the fixture cgroup $service_cgroup is still populated; kept $state_file" >&2
+    return 1
+  fi
+
+  rm -f "$state_file"
   rm -rf "$machine"
 }
 
-case ${1:-} in
-  up) up ;;
-  down) down ;;
-  *)
-    echo "usage: scripts/sandbox-machine up|down" >&2
-    exit 2
-    ;;
-esac
+lock_machine() {
+  mkdir -p "$root"
+  exec 9>"$lock_file"
+  flock 9
+}
+
+if [[ ${BASH_SOURCE[0]} == "$0" ]]; then
+  case ${1:-} in
+    up)
+      lock_machine
+      up
+      ;;
+    down)
+      lock_machine
+      down
+      ;;
+    *)
+      echo "usage: scripts/sandbox-machine up|down" >&2
+      exit 2
+      ;;
+  esac
+fi

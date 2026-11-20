@@ -129,6 +129,10 @@ case ${1:-} in
   down)
     failed=0
     "$here/sandbox-machine" down || failed=1
+    if (( failed != 0 )); then
+      echo "the fixture machine did not stop; leaving sandbox $name up" >&2
+      exit 1
+    fi
     cd "$checkout"
     ruta down || failed=1
     exit "$failed"

@@ -49,6 +49,15 @@ from the snapshot separates publisher liveness from changes in facts. Publish sn
 facts change, because each shared write redraws every mod; heartbeat renewal must not create a new
 snapshot revision. Compare facts by content, so a reordered map is not a change.
 
+### Sandbox remote fixture ownership
+
+The sandbox remote fixture starts its server in a private, per-run cgroup owned by a transient
+systemd user service. The client and the rest of the sandbox stay outside that service. The fixture
+checks the user's cgroup support before launch. Teardown stops only the recorded service invocation
+and checks that the cgroup is empty. Without ownership proof, teardown signals nothing and reports
+that it could not establish cleanup. Process names, arguments, environment text, PID files, and
+ancestry are not proof of ownership.
+
 ### Snapshot versions
 
 The snapshot is a saved record, so a field change bumps its `version`. The current reader accepts
