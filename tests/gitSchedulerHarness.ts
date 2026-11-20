@@ -232,6 +232,10 @@ export class GitSchedulerHarness {
     this.folders[placeKeyOf(machine, folder)] = git;
   }
 
+  clearFolder(machine: string | null, folder: string): void {
+    Reflect.deleteProperty(this.folders, placeKeyOf(machine, folder));
+  }
+
   setNow(at: number): void {
     this.now = at;
     this.renew();

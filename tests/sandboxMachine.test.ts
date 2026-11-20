@@ -1603,6 +1603,26 @@ printf "not-json\\n"`,
     expect(await Bun.file(join(manager, 'calls')).exists()).toBe(false);
   });
 
+  test('keeps a matching record from another boot and stops nothing', async () => {
+    const service = serviceName();
+    const manager = await newTemporaryFolder('koja-machine-manager-');
+    const oldBoot = '00000000-0000-4000-8000-000000000000';
+    const record = ownership(service, { bootId: oldBoot });
+
+    await writeFakeSystemctl(manager);
+    await writeUnit(manager, service, unitProperties(service));
+    await writeOwnership(record);
+
+    const down = await runDown({
+      FAKE_MANAGER_DIR: manager,
+      PATH: pathWith(manager),
+    });
+
+    expect(down.exitCode).not.toBe(0);
+    expect(JSON.parse(await readFile(stateFile, 'utf8'))).toEqual(record);
+    expect(await Bun.file(join(manager, 'calls')).exists()).toBe(false);
+  });
+
   test('keeps a pending record whose receipt is not owner-only', async () => {
     const service = serviceName();
     const manager = await newTemporaryFolder('koja-machine-manager-');

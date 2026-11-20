@@ -50,6 +50,56 @@ describe('createGitScheduler watches', () => {
     expect(harness.started.filter((read) => read.folder === '/code/a')).toHaveLength(1);
   });
 
+  test('starts no watch for a bare repository', async () => {
+    harness.setFolder(null, '/code/bare.git', {
+      layout: 'true\nfalse\n/code/bare.git\n/code/bare.git\n',
+      branch: 'main\n',
+    });
+
+    const scheduler = harness.start();
+
+    scheduler.tick(worldOf([spaceOf('s1', '/code/bare.git')]), harness.context);
+    await harness.complete(harness.startedAt(0));
+
+    expect(harness.watched).toEqual([]);
+
+    expect(scheduler.facts().git.places[placeKeyOf(null, '/code/bare.git')]).toEqual({
+      kind: 'repository',
+      worktree: worktreeOf(null, '/code/bare.git').key,
+    });
+  });
+
+  test('forgets a repository and cancels its watch when a refresh finds none', async () => {
+    harness.setFolder(null, '/code/koja', mainCheckout('/code/koja'));
+
+    const scheduler = harness.start();
+    const world = worldOf([spaceOf('s1', '/code/koja')]);
+
+    scheduler.tick(world, harness.context);
+    await harness.complete(harness.startedAt(0));
+
+    const watch = harness.watches.at(-1);
+    const key = placeKeyOf(null, '/code/koja');
+
+    expect(scheduler.facts().git.places[key]).toEqual({
+      kind: 'repository',
+      worktree: worktreeOf(null, '/code/koja').key,
+    });
+
+    expect(watch?.cancelled).toBe(false);
+
+    harness.clearFolder(null, '/code/koja');
+    harness.setNow(60_001);
+    scheduler.tick(world, harness.context);
+    expect(harness.started).toHaveLength(2);
+
+    await harness.complete(harness.startedAt(1));
+
+    expect(scheduler.facts().git.places[key]).toEqual({ kind: 'none' });
+    expect(scheduler.facts().git.worktrees).toEqual({});
+    expect(watch?.cancelled).toBe(true);
+  });
+
   test('cancels the checkout watch when only a bare place remains', async () => {
     harness.setFolder(null, '/code/bare.git', {
       layout: 'true\nfalse\n/code/common.git\n/code/common.git\n',

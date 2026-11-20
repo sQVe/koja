@@ -67,11 +67,15 @@ describe('createGitScheduler', () => {
 
     const left = placeKeyOf(null, '/code/koja');
 
+    expect(harness.watched).toEqual([]);
+
     expect(scheduler.facts().git.places[left]).toBeUndefined();
 
     expect(harness.published.some((facts) => Object.hasOwn(facts.git.places, left))).toBe(false);
 
     await harness.complete(harness.startedAt(1));
+
+    expect(harness.watched).toEqual(['/code/tikk/.git']);
 
     expect(scheduler.facts().git.places[placeKeyOf(null, '/code/tikk')]).toEqual({
       kind: 'repository',

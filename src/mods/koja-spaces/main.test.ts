@@ -31,6 +31,13 @@ interface RunCall {
   args: Record<string, unknown> | undefined;
 }
 
+interface ExecCall {
+  command: string;
+  args: string[];
+  cwd: string;
+  on: string | null;
+}
+
 interface Timer {
   milliseconds: number;
   handler: (cx: unknown) => void;
@@ -64,6 +71,8 @@ const themeColors = {
 const rowHeightSmall = 24;
 
 let runCalls: RunCall[] = [];
+let execCalls: ExecCall[] = [];
+let checkingNow = false;
 let execCommands: string[] = [];
 let overlayCalls: unknown[] = [];
 let notifyCalls = 0;
@@ -107,6 +116,23 @@ const flush = async (): Promise<void> => {
   await new Promise((resolve) => {
     setTimeout(resolve, 0);
   });
+};
+
+const timerHarnessContext = {
+  notify: () => {
+    notifyCalls += 1;
+  },
+  spawn: (body: (cx: unknown) => Promise<void>) => {
+    body(timerHarnessContext).catch(() => undefined);
+  },
+};
+
+const runTimers = (milliseconds: number): void => {
+  for (const timer of timers) {
+    if (timer.milliseconds === milliseconds) {
+      timer.handler(timerHarnessContext);
+    }
+  }
 };
 
 const space = (
@@ -193,8 +219,10 @@ await mock.module('gpui-kit', () =>
 
 await mock.module('herdr', () =>
   herdrFake({
-    exec: async (command: string) => {
+    checking: () => checkingNow,
+    exec: async (command: string, args: string[], options: { cwd: string; on: string | null }) => {
       execCommands.push(command);
+      execCalls.push({ command, args, cwd: options.cwd, on: options.on });
 
       return { code: 128, stdout: '', stderr: 'fatal: not a git repository' };
     },
@@ -321,6 +349,8 @@ const reportHeight = (view: FakeView, height: number): void => {
 
 beforeEach(() => {
   runCalls = [];
+  execCalls = [];
+  checkingNow = false;
   execCommands = [];
   overlayCalls = [];
   notifyCalls = 0;
@@ -1100,5 +1130,36 @@ describe('koja-spaces git reads', () => {
     await flush();
 
     expect(execCommands.filter((command) => command === 'git')).toEqual([]);
+  });
+
+  test('refreshes pulls from the latest populated snapshot facts', async () => {
+    await loadView();
+
+    showFacts(
+      storedFacts([{ folder: '/code/koja', commonDirectory: '/code/koja/.git', linked: false }]),
+    );
+
+    execCalls = [];
+
+    runTimers(15_000);
+    await flush();
+
+    expect(execCalls).toEqual([{ command: 'git', args: ['remote'], cwd: '/code/koja', on: null }]);
+  });
+
+  test('starts no pull refresh during herdr-app check', async () => {
+    checkingNow = true;
+    await loadView();
+
+    showFacts(
+      storedFacts([{ folder: '/code/koja', commonDirectory: '/code/koja/.git', linked: false }]),
+    );
+
+    execCalls = [];
+
+    runTimers(15_000);
+    await flush();
+
+    expect(execCalls).toEqual([]);
   });
 });
