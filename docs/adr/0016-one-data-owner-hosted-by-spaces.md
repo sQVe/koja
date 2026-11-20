@@ -30,10 +30,16 @@ only scheduler of external background reads.
 own external data. The host code lives outside the mod, so moving it to another host changes one
 import and its startup call rather than moving scheduling logic into a surface.
 
-Later background readers must follow this ownership rule. Establishing the host adds no external
-reader and does not move the existing readers. Action-time reads and confirmed writes stay in their
-own mods, so a user action does not wait for the background scheduler. `koja-changes` keeps its own
-git reads until its panel is replaced; it is the named exception to background ownership.
+Scheduled Git identity reads follow this ownership rule. Only the copy that holds the lease starts
+them, so one `koja-spaces` copy reads identity for every consumer. Losing the lease stops new
+scheduling and closes the watches that copy opened. A Git command already running may finish, and
+the lease fence drops its result instead of publishing it. Action-time reads and confirmed writes
+stay in their own mods, so a user action does not wait for the background scheduler. `koja-changes`
+keeps its own git reads until its panel is replaced.
+
+Pull request reads are a temporary exception. `koja-spaces` keeps its own PR list reads, their local
+cache, and their retry until the host owns them. The exception ends with that move, so it does not
+become the rule.
 
 ### Shared ownership and freshness
 
@@ -53,10 +59,23 @@ snapshot revision. Compare facts by content, so a reordered map is not a change.
 
 The sandbox remote fixture starts its server in a private, per-run cgroup owned by a transient
 systemd user service. The client and the rest of the sandbox stay outside that service. The fixture
-checks the user's cgroup support before launch. Teardown stops only the recorded service invocation
-and checks that the cgroup is empty. Without ownership proof, teardown signals nothing and reports
-that it could not establish cleanup. Process names, arguments, environment text, PID files, and
-ancestry are not proof of ownership.
+checks the user's cgroup support before launch.
+
+The cgroup, not a process tree, identifies the server side. systemd places the service's processes
+in the cgroup and every descendant inherits it, so an SSH session helper, a remote core, or a
+terminal that detaches or is reparented still belongs to it. A numeric PID is reused, and a
+reparented process leaves its parent's PID path, so neither a PID nor ancestry identifies the
+fixture later.
+
+Each run uses a random, never-reused private unit name that only Koja manages. Under that exclusive
+lifecycle, Koja holds the fixture lock and verifies the exact transient invocation and cgroup
+immediately before the stop. If a visible replacement or missing proof fails that check, teardown
+sends no stop, reports that it could not establish cleanup, and keeps the ownership record. After a
+stop is sent, a populated cgroup is incomplete cleanup: teardown reports it and keeps the record.
+`StopUnit` takes a unit name, not an invocation ID, so this is not an unconditional exact-invocation
+guarantee: another actor that manages the same private name between the check and the stop can
+receive the signal. A post-stop check detects some races but cannot undo a signal. Process paths,
+environment text, PID files, process trees, and numeric PIDs never authorize a signal.
 
 ### Snapshot versions
 
@@ -79,6 +98,8 @@ once per loaded mod copy, and later reads stay silent.
 - External data code stays outside UI surfaces and the kit, so the host remains replaceable.
 - Consumers can distinguish a stopped publisher from unchanged facts.
 - Action-time reads and confirmed writes remain independent of background scheduling.
+- A detached server process stays owned after its parent exits, because the cgroup, not ancestry,
+  records its membership.
 
 ### Negative
 
@@ -89,6 +110,8 @@ once per loaded mod copy, and later reads stay silent.
 - Last-writer-wins storage requires ownership checks and generation fencing rather than relying on a
   mod copy being a singleton.
 - Heartbeats still cause shared writes and redraws even when facts do not change.
+- The fixture stop guarantee rests on Koja being the only manager of each private unit name. Another
+  actor that manages the same name is outside it.
 
 ## Alternatives considered
 
