@@ -835,9 +835,9 @@ wait_for_app() {
     status=$?
     set -e
     if (( status == 0 )); then
-      echo "the space.new readiness probe created a space; stopping sandbox $name" >&2
-      sandbox down || true
-      return 1
+      unexpected_app_success=1
+      echo "the space.new readiness probe created a space; unwinding to the lock owner for cleanup" >&2
+      return 2
     fi
 
     if [[ $response != *"Herdr has no machine called $machine_name"* ]]; then
@@ -859,7 +859,7 @@ wait_ready() {
 
   wait_for_core "$deadline" || return 1
   check_machine_shell "$deadline" || return 1
-  wait_for_app "$deadline" || return 1
+  wait_for_app "$deadline"
 }
 
 add_machine() {
@@ -1077,11 +1077,31 @@ lock_machine() {
   flock 9
 }
 
+cleanup_unexpected_app_success() {
+  if (( unexpected_app_success == 1 )); then
+    unexpected_app_success=0
+    exec 9>&-
+    sandbox down || true
+  fi
+}
+
+run_up() {
+  local status
+
+  unexpected_app_success=0
+  lock_machine
+  trap cleanup_unexpected_app_success EXIT
+  up
+  status=$?
+  trap - EXIT
+  cleanup_unexpected_app_success
+  return "$status"
+}
+
 if [[ ${BASH_SOURCE[0]} == "$0" ]]; then
   case ${1:-} in
     up)
-      lock_machine
-      up
+      run_up
       ;;
     down)
       lock_machine

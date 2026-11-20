@@ -1659,3 +1659,178 @@ printf "not-json\\n"`,
     expect(await Bun.file(stateFile).exists()).toBe(true);
   });
 });
+
+describe('scripts/sandbox-machine unexpected app readiness success', () => {
+  test('unwinds without waiting on the lock it already holds', async () => {
+    const result = await runBash(`
+      set -euo pipefail
+      source '${machineScript}'
+      lock_machine
+      run_bounded() { return 0; }
+      sandbox() {
+        timeout 1 flock "$lock_file" true
+      }
+      set +e
+      wait_for_app $(( $(now_ms) + 1000 ))
+      status=$?
+      set -e
+      printf 'status=%s\\n' "$status"
+      exit "$status"
+    `);
+
+    expect(result.exitCode).toBe(2);
+    expect(result.output).toContain('unwinding');
+  });
+
+  test('aborts an unguarded setup failure before later setup and cleanup', async () => {
+    const started = join(await newTemporaryFolder('koja-machine-started-'), 'started');
+    const later = join(await newTemporaryFolder('koja-machine-later-'), 'later');
+    const cleanup = join(await newTemporaryFolder('koja-machine-cleanup-'), 'log');
+
+    await mkdir(machine, { recursive: true });
+    await writeFile(join(machine, 'host_key'), 'host');
+    await writeFile(join(machine, 'client_key'), 'client');
+    await writeFile(join(machine, 'client_key.pub'), 'public');
+
+    const result = await runBash(
+      `
+        set -euo pipefail
+        source '${machineScript}'
+        require_up() { return 0; }
+        fixture_has_artifacts() { return 1; }
+        fixture_registered() { return 1; }
+        check_capability() { return 0; }
+        free_port() { echo 23456; }
+        service_property() { echo not-found; }
+        service_has_pending_job() { return 1; }
+        write_state() { return 0; }
+        write_sshd_config() { return 0; }
+        write_login() { return 0; }
+        write_ssh_config() { return 0; }
+        install_client() { return 0; }
+        copy_core() { return 7; }
+        start_service() { touch "$STARTED"; }
+        wait_for_ssh() { touch "$LATER"; }
+        make_fixture() { touch "$LATER"; }
+        add_machine() { touch "$LATER"; }
+        sandbox() {
+          if [ "$1" = down ]; then
+            touch "$CLEANUP"
+          fi
+          return 0
+        }
+        run_up
+      `,
+      { CLEANUP: cleanup, LATER: later, STARTED: started },
+    );
+
+    expect(result.exitCode).toBe(7);
+    expect(await Bun.file(started).exists()).toBe(false);
+    expect(await Bun.file(later).exists()).toBe(false);
+    expect(await Bun.file(cleanup).exists()).toBe(false);
+  });
+
+  test('cleans up once from the lock owner and reports failure', async () => {
+    const cleanup = join(await newTemporaryFolder('koja-machine-cleanup-'), 'log');
+
+    const result = await runBash(
+      `
+        set -euo pipefail
+        source '${machineScript}'
+        run_bounded() { return 0; }
+        wait_for_core() { return 0; }
+        check_machine_shell() { return 0; }
+        up() { add_machine; }
+        sandbox() {
+          if [ "$1" = down ]; then
+            if flock -n "$lock_file" true; then
+              printf 'released\\n' >> "$CLEANUP"
+            else
+              printf 'held\\n' >> "$CLEANUP"
+            fi
+            return 0
+          fi
+          return 0
+        }
+        run_up
+      `,
+      { CLEANUP: cleanup },
+    );
+
+    expect(result.exitCode).toBe(2);
+    expect(await readFile(cleanup, 'utf8')).toBe('released\n');
+  });
+
+  test('does not clean up on an ordinary app error', async () => {
+    const cleanup = join(await newTemporaryFolder('koja-machine-cleanup-'), 'log');
+
+    const result = await runBash(
+      `
+        set -euo pipefail
+        source '${machineScript}'
+        run_bounded() { printf 'some other app error'; return 1; }
+        wait_for_core() { return 0; }
+        check_machine_shell() { return 0; }
+        up() { add_machine; }
+        sandbox() {
+          if [ "$1" = down ]; then
+            touch "$CLEANUP"
+          fi
+          return 0
+        }
+        run_up
+      `,
+      { CLEANUP: cleanup },
+    );
+
+    expect(result.exitCode).toBe(1);
+    expect(await Bun.file(cleanup).exists()).toBe(false);
+  });
+
+  test('does not clean up when up fails with status 2 for another reason', async () => {
+    const cleanup = join(await newTemporaryFolder('koja-machine-cleanup-'), 'log');
+
+    const result = await runBash(
+      `
+        set -euo pipefail
+        source '${machineScript}'
+        up() { return 2; }
+        sandbox() {
+          if [ "$1" = down ]; then
+            touch "$CLEANUP"
+          fi
+          return 0
+        }
+        run_up
+      `,
+      { CLEANUP: cleanup },
+    );
+
+    expect(result.exitCode).toBe(2);
+    expect(await Bun.file(cleanup).exists()).toBe(false);
+  });
+
+  test('keeps polling the connecting response without cleanup', async () => {
+    const cleanup = join(await newTemporaryFolder('koja-machine-cleanup-'), 'log');
+
+    const result = await runBash(
+      `
+        set -euo pipefail
+        source '${machineScript}'
+        run_bounded() { printf 'Herdr has no machine called qa-remote'; return 1; }
+        up() { wait_for_app $(( $(now_ms) + 100 )); }
+        sandbox() {
+          if [ "$1" = down ]; then
+            touch "$CLEANUP"
+          fi
+          return 0
+        }
+        run_up
+      `,
+      { CLEANUP: cleanup },
+    );
+
+    expect(result.exitCode).toBe(1);
+    expect(await Bun.file(cleanup).exists()).toBe(false);
+  });
+});
