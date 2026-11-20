@@ -99,14 +99,16 @@ const headerAction = (name: IconName, label: string, action: (() => void) | unde
       action?.();
     });
 
+/** @public */
+export const paneOverflowButton = (onOverflow: (() => void) | undefined): Element =>
+  headerAction('ellipsis', 'Pane actions', onOverflow);
+
 const headerButtons = (options: PaneHeaderOptions): Element[] =>
   paneActions(options).map((entry) => headerAction(entry.icon, entry.label, entry.action));
 
 const actionRow = (fields: PaneHeaderFields, options: PaneHeaderOptions): Element => {
   if (fields.compact) {
-    return h_flex()
-      .flex_none()
-      .child(headerAction('ellipsis', 'Pane actions', options.onOverflow));
+    return h_flex().flex_none().child(paneOverflowButton(options.onOverflow));
   }
 
   const row = h_flex().flex_none().gap(spacing.xxsmall).children(headerButtons(options));

@@ -5,8 +5,9 @@ import { click, drawn, drawnTexts, elementsWithStyle } from '../../../tests/draw
 import { gpuiBaseFake, gpuiKitFake, herdrFake, kitIndexFake } from '../../../tests/moduleFakes.ts';
 import { recordOf, stringOf } from '../../kit/fields.ts';
 import { normalFocusFill, toPalette } from '../../kit/palette.ts';
+import { paneHeaderFields } from '../../kit/paneHeaderFields.ts';
 import { paneActions } from '../../kit/paneHeaderMenuModel.ts';
-import { controlSize } from '../../kit/size.ts';
+import { controlSize, overlaySize } from '../../kit/size.ts';
 
 const accent = '#4e4e8f';
 
@@ -17,6 +18,8 @@ let terminalRecords: unknown[] = [];
 let terminalReads = 0;
 
 const askedCommands: { command: string; args: unknown }[] = [];
+
+const openedOverlays: unknown[] = [];
 
 const piProgram = {
   key: 'pi',
@@ -66,6 +69,11 @@ await mock.module('herdr', () =>
     panes: () => [pane()],
     props: () => ({ pane: 'p1' }),
     shared: (key: string) => (key === 'koja-modal' && normalMode ? true : undefined),
+    openOverlay: (spec: unknown) => {
+      openedOverlays.push(spec);
+
+      return '';
+    },
     terminals: () => {
       terminalReads += 1;
 
@@ -73,6 +81,12 @@ await mock.module('herdr', () =>
     },
   }),
 );
+
+const overflowModulePath = '../../kit/paneHeader.ts';
+
+const { paneOverflowButton } = (await import(overflowModulePath)) as {
+  paneOverflowButton: (onOverflow: (() => void) | undefined) => DrawnElement;
+};
 
 await mock.module('../../kit/index.ts', () =>
   kitIndexFake({
@@ -85,7 +99,10 @@ await mock.module('../../kit/index.ts', () =>
     controlSize,
     iconButton: () => drawn(),
     normalFocusFill,
+    overlaySize,
     paneActions,
+    paneHeaderFields,
+    paneOverflowButton,
     programIcon: () => drawn(),
     radius: { cardInner: 7 },
     recordOf,
@@ -121,6 +138,7 @@ afterEach(() => {
   terminalRecords = [];
   terminalReads = 0;
   askedCommands.length = 0;
+  openedOverlays.length = 0;
   paneProgramValue = null;
 });
 
@@ -140,6 +158,23 @@ const hoveredButtons = (): DrawnElement[] => {
   const onHover = view.render().hoverHandlers[0];
 
   onHover?.(true, { notify: () => undefined });
+
+  return elementsWithStyle(view.render(), 'accessibility_label');
+};
+
+const hoveredAt = (width: number): DrawnElement[] => {
+  focused = false;
+  normalMode = false;
+
+  const view = new loaded.default();
+  const first = view.render();
+
+  first.sizeHandlers[0]?.(
+    { width, height: controlSize.sectionHeader },
+    { notify: () => undefined },
+  );
+
+  first.hoverHandlers[0]?.(true, { notify: () => undefined });
 
   return elementsWithStyle(view.render(), 'accessibility_label');
 };
@@ -239,6 +274,36 @@ describe('pane header role badge', () => {
 });
 
 describe('pane header buttons', () => {
+  test('a narrow header draws one compact action instead of the four buttons', () => {
+    const names = hoveredAt(240).map((button) => styleValue(button, 'accessibility_label'));
+
+    expect(names).toEqual(['Pane actions']);
+  });
+
+  test('a wide header keeps the four buttons', () => {
+    const names = hoveredAt(900).map((button) => styleValue(button, 'accessibility_label'));
+
+    expect(names).toEqual(['Split right', 'Split down', 'Zoom pane', 'Close pane']);
+  });
+
+  test('the compact action opens the pane menu with the four actions', () => {
+    const [compact] = hoveredAt(240);
+
+    if (compact !== undefined) {
+      click(compact);
+    }
+
+    expect(openedOverlays).toEqual([
+      {
+        mod: 'koja-menu',
+        kind: 'popup',
+        width: overlaySize.menuWidth,
+        height: overlaySize.menuHeight,
+        props: { tab: 'pane', target: { pane: 'p1', terminal: 't1' } },
+      },
+    ]);
+  });
+
   test('name each button for assistive technology and in a tooltip', () => {
     const buttons = hoveredButtons();
     const names = buttons.map((button) => styleValue(button, 'accessibility_label'));

@@ -2,7 +2,7 @@ import { h_flex } from 'gpui-base';
 import type { Element } from 'gpui-kit';
 import { div, View } from 'gpui-kit';
 import type { PaneInfo } from 'herdr';
-import { home, panes, props, run, shared, terminals } from 'herdr';
+import { home, openOverlay, panes, props, run, shared, terminals } from 'herdr';
 
 import type { PaneHeaderMenuAction } from '../../kit/index.ts';
 import {
@@ -11,7 +11,10 @@ import {
   controlSize,
   iconButton,
   normalFocusFill,
+  overlaySize,
   paneActions,
+  paneHeaderFields,
+  paneOverflowButton,
   paneStatusElement,
   programIcon,
   radius,
@@ -59,8 +62,20 @@ const paneButtons = (pane: PaneInfo): Element[] => {
   return actions.map((entry, index) => paneButton(entry, `pane-${ids[index]}-${pane.pane}`));
 };
 
+const openPaneMenu = (pane: PaneInfo): void => {
+  openOverlay({
+    mod: 'koja-menu',
+    kind: 'popup',
+    width: overlaySize.menuWidth,
+    height: overlaySize.menuHeight,
+    props: { tab: 'pane', target: { pane: pane.pane, terminal: pane.terminal } },
+  });
+};
+
 export default class PaneHeader extends View {
   private hovered = false;
+
+  private width: number | null = null;
 
   override render(): Element {
     const pane = headerPane();
@@ -88,6 +103,10 @@ export default class PaneHeader extends View {
         this.hovered = hovered;
         cx.notify();
       })
+      .on_size_change((size, cx) => {
+        this.width = size.width;
+        cx.notify();
+      })
       .on_click(() => run('pane.focus', { pane: pane.pane }));
 
     if (tone.tinted) {
@@ -102,17 +121,24 @@ export default class PaneHeader extends View {
       element.child(programMark);
     }
 
+    const name = paneName(pane);
+    const role = pane.terminal === null ? null : paneRole(pane.terminal, terminals());
+
+    const fields = paneHeaderFields({
+      width: this.width,
+      name,
+      ...(role === null ? {} : { role }),
+    });
+
     const titleBox = div()
       .flex_initial()
       .min_w(controlSize.paneLabelMinWidth)
       .max_w(controlSize.paneLabelMaxWidth)
       .truncate();
 
-    const title = withTextRole(titleBox, 'detail', tone.title).child(paneName(pane));
+    const title = withTextRole(titleBox, 'detail', tone.title).child(name);
 
     element.child(title);
-
-    const role = pane.terminal === null ? null : paneRole(pane.terminal, terminals());
 
     if (role !== null) {
       element.child(roleBadge(role));
@@ -129,7 +155,15 @@ export default class PaneHeader extends View {
     }
 
     if (this.hovered) {
-      element.children(paneButtons(pane));
+      if (fields.compact) {
+        element.child(
+          paneOverflowButton(() => {
+            openPaneMenu(pane);
+          }),
+        );
+      } else {
+        element.children(paneButtons(pane));
+      }
     }
 
     return element;

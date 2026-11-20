@@ -141,6 +141,8 @@ export const kitIndexFake = (overrides: ModuleFake = {}): ModuleFake => ({
   overlaySize: {},
   paneActions: () => [],
   paneHeader: noop,
+  paneHeaderFields: noop,
+  paneOverflowButton: noop,
   paneStatusElement: () => null,
   paneHeaderMenu: noop,
   popupSurface: noop,
