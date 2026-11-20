@@ -1,7 +1,7 @@
 import { describe, expect, test } from 'bun:test';
 
 import { paneHeaderFields } from './paneHeaderFields.ts';
-import { paneHeaderWidth } from './size.ts';
+import { badgeSize, paneHeaderWidth } from './size.ts';
 
 const name = 'Claude Code';
 
@@ -113,6 +113,22 @@ describe('paneHeaderFields', () => {
 
     expect(withoutRole.folder).toBe('full');
     expect(withRole.folder).toBe('cut');
+  });
+
+  test('a long role budgets the badge cap, not its full length', () => {
+    const capWidth = badgeSize.maxLabelWidth + badgeSize.horizontal + paneHeaderWidth.badgeGap;
+    const width = fixedWithFour + folderFull + capWidth;
+    const atCap = paneHeaderFields({ width, name, folder: longFolder, role: 'architect' });
+
+    const long = paneHeaderFields({
+      width,
+      name,
+      folder: longFolder,
+      role: 'integration-test-runner',
+    });
+
+    expect(atCap.folder).toBe('full');
+    expect(long.folder).toBe(atCap.folder);
   });
 
   test('cuts the task only after both fields drop', () => {

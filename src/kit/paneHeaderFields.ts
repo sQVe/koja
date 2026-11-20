@@ -32,7 +32,11 @@ const isPresent = (text: string | undefined): text is string => text !== undefin
 const estimate = (text: string): number => text.length * paneHeaderWidth.glyph;
 
 const roleWidth = (role: string | undefined): number =>
-  isPresent(role) ? estimate(role) + badgeSize.horizontal + paneHeaderWidth.badgeGap : 0;
+  isPresent(role)
+    ? Math.min(estimate(role), badgeSize.maxLabelWidth) +
+      badgeSize.horizontal +
+      paneHeaderWidth.badgeGap
+    : 0;
 
 const baseWidth = (name: string, role: string | undefined, actions: number): number =>
   paneHeaderWidth.padding +

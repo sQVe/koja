@@ -91,6 +91,7 @@ await mock.module('../../kit/index.ts', () =>
       const badge = textElement(role);
 
       badge.styles['roleBadge'] = [role];
+      badge.tooltipText = role;
 
       return badge;
     },
@@ -199,6 +200,17 @@ describe('pane header role badge', () => {
     expect(drawnTexts(tree)).toContain('Pi');
     expect(badgeTexts(tree)).toEqual(['scout']);
     expect(badgePosition(tree, 'Pi')).toBe(1);
+  });
+
+  test('draws a long profile badge with the full label as its tooltip', () => {
+    paneProgramValue = piProgram;
+    terminalRecords = [{ address: 't1', labels: { 'tau.profile': 'integration-test-runner' } }];
+
+    const tree = rendered();
+    const [badge] = badgeElements(tree);
+
+    expect(badgeTexts(tree)).toEqual(['integration-test-runner']);
+    expect(badge?.tooltipText).toBe('integration-test-runner');
   });
 
   test('draws the Pi title and no badge element when the terminal carries no tau label', () => {

@@ -66,14 +66,6 @@ export const controlSize = {
   tabLabelMaxWidth: 170,
 } as const;
 
-export const badgeSize = {
-  height: controlSize.badge,
-  padding: spacing.small,
-  border: spacing.hairline,
-  radius: radius.default,
-  horizontal: spacing.small * 2 + spacing.hairline * 2,
-} as const;
-
 export const shellSize = {
   sidebarWidth: 240,
   panelWidth: 300,
@@ -111,6 +103,16 @@ export const paneHeaderWidth = {
   overflowAction: controlSize.button,
   menuWidth: 240,
   fieldMinimum: fieldMinimumWidth,
+} as const;
+
+export const badgeSize = {
+  height: controlSize.badge,
+  padding: spacing.small,
+  border: spacing.hairline,
+  radius: radius.default,
+  horizontal: spacing.small * 2 + spacing.hairline * 2,
+  // The widest a role badge label draws, so every built-in name fits whole.
+  maxLabelWidth: 'architect'.length * paneHeaderWidth.glyph,
 } as const;
 
 export const markSize = {

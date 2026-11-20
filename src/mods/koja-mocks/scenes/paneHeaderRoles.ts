@@ -59,7 +59,7 @@ export const paneHeadersRolesScene = (): Element =>
     .child(specimen(piPane({})))
     .child(
       specimen(
-        rolePane('architect', {
+        rolePane('integration-test-runner', {
           task: workerTask,
           branch: workerBranch,
           folder: longFolder,

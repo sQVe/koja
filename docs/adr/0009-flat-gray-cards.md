@@ -70,8 +70,10 @@ border for focus. The frame, panes, terminals, sidebar, and tab bar all share th
 - A pane header shows, in order: program icon, name, the role badge when the pane has a role, the
   agent's task, branch, folder, and status, then its buttons. Its text uses the detail role.
 - The role badge follows the name, so a terminal's role or profile reads beside its name. It is an
-  outlined tag in the group's color with no fill, so "Needs you" stays the only filled pill. The
-  badge never cuts; the name keeps its cap and the fields give up width first.
+  outlined tag in the group's color with no fill, so "Needs you" stays the only filled pill. Its
+  label cuts at the end with an ellipsis at the width of the longest built-in name, so every
+  built-in name stays whole and a longer label shows in full on hover. The header controls keep
+  their space first, so the badge shrinks only when the pane is narrower than they need.
 - The branch shows only when it differs from its space's branch.
 - When the header narrows, the folder cuts in the middle down to a minimum width, then drops whole.
   The branch does the same next. The task cuts at its end last.
