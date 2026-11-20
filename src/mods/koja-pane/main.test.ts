@@ -420,7 +420,7 @@ describe('pane header buttons', () => {
 
     const wide = drawnTexts(renderedAt(700));
     const medium = drawnTexts(renderedAt(480));
-    const narrow = drawnTexts(renderedAt(360));
+    const narrow = drawnTexts(renderedAt(340));
     const cut = renderedAt(180);
     const tiny = renderedAt(120);
     const task = cut.kids.find((kid) => drawnTexts(kid).includes('Build window shell'));
@@ -449,6 +449,36 @@ describe('pane header buttons', () => {
     ];
 
     expect(drawnTexts(renderedAt(159))).toContain('Build window shell');
+  });
+
+  test('shows an iconless task exactly at the width where its gap fits', () => {
+    paneProgramValue = piProgram;
+    paneCwd = '/var/tmp/ruta-koja/home/pi-fixture';
+
+    terminalRecords = [
+      {
+        address: 't1',
+        labels: { 'tau.role': 'architect', 'tau.task': 'Build window shell' },
+      },
+    ];
+
+    expect(drawnTexts(renderedAt(137))).not.toContain('Build window shell');
+    expect(drawnTexts(renderedAt(138))).toContain('Build window shell');
+  });
+
+  test('shows a task with a drawn icon exactly at the width where its gap fits', () => {
+    paneProgramValue = iconProgram;
+    paneCwd = '/var/tmp/ruta-koja/home/pi-fixture';
+
+    terminalRecords = [
+      {
+        address: 't1',
+        labels: { 'tau.role': 'architect', 'tau.task': 'Build window shell' },
+      },
+    ];
+
+    expect(drawnTexts(renderedAt(159))).not.toContain('Build window shell');
+    expect(drawnTexts(renderedAt(160))).toContain('Build window shell');
   });
 
   test('a task with no room is omitted and its gap goes to the badge', () => {

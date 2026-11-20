@@ -41,8 +41,14 @@ const gapCount = (children: number): number => Math.max(0, children - 1);
 const baseWidth = (input: PaneHeaderFieldsInput, actions: number, includeTask: boolean): number => {
   const hasTask = includeTask && isPresent(input.task);
 
-  const children =
-    2 + (isPresent(input.role) ? 1 : 0) + (hasTask ? 1 : 0) + (input.statusWidth > 0 ? 1 : 0) + 1;
+  const fieldChildren =
+    (input.showsProgramIcon ? 1 : 0) +
+    (isPresent(input.role) ? 1 : 0) +
+    (hasTask ? 1 : 0) +
+    (input.statusWidth > 0 ? 1 : 0);
+
+  // The name and the trailing action always draw.
+  const children = 2 + fieldChildren;
 
   return (
     paneHeaderWidth.padding +
