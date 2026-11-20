@@ -183,6 +183,8 @@ describe('menu commands', () => {
       task: null,
       branch: null,
       folder: null,
+      overflow: false,
+      zoomed: false,
     });
 
     expect(readMenuProps({ tab: 'tab' }).kind).toBe('tab');
@@ -209,6 +211,40 @@ describe('menu commands', () => {
     ]);
 
     expect(actions.slice(0, 4)).toEqual(['Split right', 'Split down', 'Zoom', 'Close pane']);
+  });
+
+  test('the compact menu lists only the pane actions', () => {
+    terminalList = [
+      {
+        address: 'terminal-1',
+        parent: 'terminal-0',
+        labels: { 'herdr.right-click': 'program' },
+      },
+    ];
+
+    const menu: MenuProps = {
+      kind: 'pane',
+      overflow: true,
+      zoomed: false,
+      target: target({ pane: 'pane-1', terminal: 'terminal-1' }),
+    };
+
+    const labels = menuEntries(menu, null, host).map((entry) => entry.label);
+
+    expect(labels).toEqual(['Split right', 'Split down', 'Zoom pane', 'Close pane']);
+  });
+
+  test('the compact menu restores a zoomed pane', () => {
+    const menu: MenuProps = {
+      kind: 'pane',
+      overflow: true,
+      zoomed: true,
+      target: target({ pane: 'pane-1' }),
+    };
+
+    const labels = menuEntries(menu, null, host).map((entry) => entry.label);
+
+    expect(labels).toEqual(['Split right', 'Split down', 'Restore pane', 'Close pane']);
   });
 
   test('read a terminal name and parent, and a right-click sent to the pane', () => {

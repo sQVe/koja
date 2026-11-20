@@ -2,6 +2,7 @@ import type { GitIdentity } from '../../data/gitIdentity.ts';
 import { bindingAction } from '../../kit/binding.ts';
 import { recordOf, stringOf } from '../../kit/fields.ts';
 import type { IconName } from '../../kit/iconNames.ts';
+import { paneActions } from '../../kit/paneHeaderMenuModel.ts';
 import type { PaneHeaderMenuFieldOptions } from '../../kit/paneHeaderMenuModel.ts';
 import type { ThemeChoice } from '../../kit/themes.ts';
 import type { GroveAction, WorktreeAction } from '../../kit/worktree.ts';
@@ -23,6 +24,8 @@ export interface MenuProps {
   task?: string | null;
   branch?: string | null;
   folder?: string | null;
+  overflow?: boolean;
+  zoomed?: boolean;
 }
 
 export interface MenuEntry {
@@ -74,6 +77,8 @@ export const readMenuProps = (value: unknown): MenuProps => {
     task: stringOf(props['task']),
     branch: stringOf(props['branch']),
     folder: stringOf(props['folder']),
+    overflow: props['overflow'] === true,
+    zoomed: props['zoomed'] === true,
   };
 };
 
@@ -162,6 +167,31 @@ const sendBackEntries = (
       terminal: terminal.address,
     }),
   ];
+};
+
+const overflowEntries = (host: MenuHost, target: MenuTarget, zoomed: boolean): MenuEntry[] => {
+  const pane = target.pane ?? undefined;
+
+  const commands: [string, Record<string, unknown>][] = [
+    ['pane.split', { direction: 'right', pane }],
+    ['pane.split', { direction: 'down', pane }],
+    ['pane.zoom', { pane }],
+    ['pane.close', { pane }],
+  ];
+
+  return paneActions({ zoomed }).map((entry, index) => {
+    const [command, args] = commands[index] ?? ['', {}];
+
+    return {
+      label: entry.label,
+      icon: entry.icon,
+      shortcuts: menuShortcuts(command, args),
+      group: entry.label === 'Close pane',
+      action: () => {
+        host.run(command, args);
+      },
+    };
+  });
 };
 
 const paneEntries = (host: MenuHost, target: MenuTarget): MenuEntry[] => {
@@ -263,7 +293,9 @@ export const stepSelection = (
 
 export const menuEntries = (menu: MenuProps, checkout: Checkout, host: MenuHost): MenuEntry[] => {
   if (menu.kind === 'pane') {
-    return paneEntries(host, menu.target);
+    return menu.overflow === true
+      ? overflowEntries(host, menu.target, menu.zoomed === true)
+      : paneEntries(host, menu.target);
   }
 
   if (menu.kind === 'tab') {
