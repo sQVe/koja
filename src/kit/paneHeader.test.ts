@@ -11,6 +11,8 @@ interface HeaderOptions {
   program: null;
   name: string;
   role?: string;
+  task?: string;
+  branch?: string;
   folder: string;
   status: Status | null;
   focused: boolean;
@@ -118,6 +120,64 @@ describe('paneHeader role badge', () => {
 
     expect(folder?.styles['ml_auto']).toEqual([]);
     expect(actionRow?.styles['ml_auto']).toEqual([]);
+  });
+
+  test('a task keeps the trailing fields in place', () => {
+    const element = paneHeader({
+      program: null,
+      name: 'Pi',
+      role: 'lead',
+      task: 'Build window shell',
+      branch: 'me-1089-window-shell',
+      folder: '~/code/koja',
+      status: 'working',
+      focused: false,
+      zoomed: false,
+      width: shellSize.wideSpecimenWidth,
+    });
+
+    const task = element.kids.find((kid) => drawnTexts(kid).includes('Build window shell'));
+    const branch = element.kids.find((kid) => drawnTexts(kid).includes('me-1089-window-shell'));
+
+    expect(task?.styles['flex_1']).toEqual([]);
+    expect(branch?.styles['ml_auto']).toBeUndefined();
+  });
+
+  test('a branch without a task end-aligns first', () => {
+    const element = paneHeader({
+      program: null,
+      name: 'Pi',
+      role: 'lead',
+      branch: 'me-1089-window-shell',
+      folder: '~/code/koja',
+      status: null,
+      focused: false,
+      zoomed: false,
+      width: shellSize.wideSpecimenWidth,
+    });
+
+    const branch = element.kids.find((kid) => drawnTexts(kid).includes('me-1089-window-shell'));
+    const folder = element.kids.find((kid) => drawnTexts(kid).includes('~/code/koja'));
+
+    expect(branch?.styles['ml_auto']).toEqual([]);
+    expect(folder?.styles['ml_auto']).toBeUndefined();
+  });
+
+  test('a status without a task end-aligns first', () => {
+    const element = paneHeader({
+      program: null,
+      name: 'Pi',
+      role: 'lead',
+      folder: '',
+      status: 'blocked',
+      focused: false,
+      zoomed: false,
+      width: shellSize.wideSpecimenWidth,
+    });
+
+    const status = element.kids.find((kid) => drawnTexts(kid).includes('Needs you'));
+
+    expect(status?.styles['ml_auto']).toEqual([]);
   });
 
   test('a compact header without a task has no empty spacer and ends its action', () => {

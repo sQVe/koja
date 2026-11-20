@@ -33,7 +33,7 @@ const isPresent = (text: string | undefined): text is string => text !== undefin
 const estimate = (text: string): number => text.length * paneHeaderWidth.glyph;
 
 const roleWidth = (role: string | undefined): number =>
-  isPresent(role) ? estimate(role) + badgeSize.horizontal : 0;
+  isPresent(role) ? role.length * paneHeaderWidth.badgeGlyph + badgeSize.horizontal : 0;
 
 const gapCount = (children: number): number => Math.max(0, children - 1);
 

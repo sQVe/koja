@@ -347,6 +347,14 @@ describe('pane header buttons', () => {
     expect(drawnTexts(renderedAt(700))).toContain('~/pi-fixture');
   });
 
+  test('a 233 px header with a built-in role draws its folder', () => {
+    paneProgramValue = piProgram;
+    paneCwd = '/var/tmp/ruta-koja/home/pi-fixture';
+    terminalRecords = [{ address: 't1', labels: { 'tau.role': 'architect' } }];
+
+    expect(drawnTexts(renderedAt(233))).toContain('~/pi-fixture');
+  });
+
   test('a 245 px header with a short role draws its folder', () => {
     paneProgramValue = piProgram;
     paneCwd = '/var/tmp/ruta-koja/home/pi-fixture';
@@ -409,6 +417,8 @@ describe('pane header buttons', () => {
           task: 'Build window shell',
           branch: 'me-1089-window-shell',
           folder: '~/pi-fixture',
+          overflow: true,
+          zoomed: false,
         },
       },
     ]);

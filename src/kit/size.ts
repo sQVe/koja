@@ -94,6 +94,8 @@ const fieldMinimumWidth = 120;
 export const paneHeaderWidth = {
   compact: 280,
   glyph: 6,
+  // The average advance of a Tag-role glyph at 9 px Geist, used for the role badge.
+  badgeGlyph: 5,
   padding: spacing.large * 2,
   icon: iconSize.default,
   branchIcon: headerBranchIcon,
