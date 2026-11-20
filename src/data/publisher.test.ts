@@ -1,6 +1,6 @@
 import { describe, expect, spyOn, test } from 'bun:test';
 
-import { withFreshSnapshotCopy } from '../../tests/freshSnapshotCopy.ts';
+import { runSnapshotNoticeScenario } from '../../tests/snapshotNoticeLifetime.ts';
 import { placeOf, repositoryOf } from './gitIdentity.ts';
 import type { Lease } from './lease.ts';
 import { claimLease, leaseExpiryMilliseconds } from './lease.ts';
@@ -211,44 +211,32 @@ describe('createSnapshotPublisher', () => {
   });
 
   test('reports a malformed snapshot before replacing it', async () => {
-    await withFreshSnapshotCopy(async (messages) => {
-      const store = memoryStore();
-      const lease = claimFor(store, 'window-a', start);
+    const record = await runSnapshotNoticeScenario('publisher-malformed');
+    const snapshotWrites = record.writes.filter((write) => write.key === snapshotKey);
 
-      let noticesAtWrite = -1;
+    expect(record.messages).toHaveLength(1);
+    expect(snapshotWrites).toHaveLength(1);
+    expect(snapshotWrites[0]?.messageCount).toBe(1);
+    expect(record.snapshot).toEqual({ version: 2, revision: 1, facts: emptyFacts() });
+  });
 
-      const write = (key: string, value: unknown): void => {
-        noticesAtWrite = messages.length;
-        store.write(key, value);
-      };
+  test('reports a newer snapshot before replacing it', async () => {
+    const record = await runSnapshotNoticeScenario('publisher-newer');
+    const snapshotWrites = record.writes.filter((write) => write.key === snapshotKey);
 
-      store.values[snapshotKey] = { version: 2 };
-
-      createSnapshotPublisher(store.read, write, () => start).publish(lease, emptyFacts());
-
-      expect(noticesAtWrite).toBe(1);
-      expect(messages).toHaveLength(1);
-      expect(store.values[snapshotKey]).toEqual({ version: 2, revision: 1, facts: emptyFacts() });
-    });
+    expect(record.messages).toHaveLength(1);
+    expect(snapshotWrites).toHaveLength(1);
+    expect(snapshotWrites[0]?.messageCount).toBe(1);
+    expect(record.snapshot).toEqual({ version: 2, revision: 1, facts: emptyFacts() });
   });
 
   test('stays silent for a missing or retired snapshot', async () => {
-    await withFreshSnapshotCopy(async (messages) => {
-      const retired = { version: 1, revision: 4, facts: {} };
+    const record = await runSnapshotNoticeScenario('publisher-silent');
+    const snapshotWrites = record.writes.filter((write) => write.key === snapshotKey);
 
-      for (const value of [undefined, retired]) {
-        const store = memoryStore();
-        const lease = claimFor(store, 'window-a', start);
-
-        store.values[snapshotKey] = value;
-
-        createSnapshotPublisher(store.read, store.write, () => start).publish(lease, emptyFacts());
-
-        expect(store.values[snapshotKey]).toEqual({ version: 2, revision: 1, facts: emptyFacts() });
-      }
-
-      expect(messages).toEqual([]);
-    });
+    expect(record.messages).toEqual([]);
+    expect(snapshotWrites).toHaveLength(2);
+    expect(record.snapshot).toEqual({ version: 2, revision: 1, facts: emptyFacts() });
   });
 
   test('writes nothing for an owner that was fenced out', () => {

@@ -2,10 +2,9 @@ import { afterAll, beforeEach, describe, expect, mock, setSystemTime, test } fro
 
 import type { ExecResult, FolderWatch } from 'herdr';
 
-import { withFreshSnapshotCopy } from '../../tests/freshSnapshotCopy.ts';
 import { spaceOf } from '../../tests/gitSchedulerHarness.ts';
 import { herdrFake } from '../../tests/moduleFakes.ts';
-import { readDataState } from './consumer.ts';
+import { runSnapshotNoticeScenario } from '../../tests/snapshotNoticeLifetime.ts';
 import { placeOf, repositoryOf, worktreeOf } from './gitIdentity.ts';
 import type { Heartbeat } from './lease.ts';
 import {
@@ -362,25 +361,23 @@ describe('startDataHost', () => {
     expect(gitCalls()).toEqual([]);
   });
 
-  test('logs one notice across the reader, the host seed and the publisher', async () => {
-    await withFreshSnapshotCopy((messages) => {
-      sharedValues.set(snapshotKey, { version: 2 });
+  test('logs one notice per reason across the reader, the host seed and the publisher', async () => {
+    const record = await runSnapshotNoticeScenario('host-once-per-reason');
+    const snapshotWrites = record.writes.filter((write) => write.key === snapshotKey);
 
-      expect(readDataState((key) => sharedValues.get(key), start)).toEqual({
-        kind: 'unavailable',
-      });
+    expect(record.messages).toHaveLength(2);
+    expect(record.stages.map((stage) => stage.messageCount)).toEqual([0, 0, 1, 1, 2, 2]);
+    expect(snapshotWrites).toHaveLength(2);
+    expect(snapshotWrites.map((write) => write.messageCount)).toEqual([1, 2]);
+    expect(record.snapshot).toEqual({ version: 2, revision: 1, facts: emptyFacts() });
+  });
 
-      expect(messages).toHaveLength(1);
+  test('logs again in a fresh loaded copy', async () => {
+    const first = await runSnapshotNoticeScenario('host-once-per-reason');
+    const second = await runSnapshotNoticeScenario('host-once-per-reason');
 
-      startCopy();
-
-      expect(messages).toHaveLength(1);
-
-      expect(parseSnapshot(sharedValues.get(snapshotKey))).toEqual({
-        version: 2,
-        revision: 1,
-        facts: emptyFacts(),
-      });
-    });
+    expect(first.messages).toHaveLength(2);
+    expect(second.messages).toHaveLength(2);
+    expect(second.stages.map((stage) => stage.messageCount)).toEqual([0, 0, 1, 1, 2, 2]);
   });
 });
