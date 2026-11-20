@@ -2,6 +2,7 @@
 'koja': patch
 ---
 
-Cut a long role badge label at the end with an ellipsis and show the full label on hover, so a
-custom profile such as `integration-test-runner` fits without pushing the pane header controls out.
-Built-in role names stay whole.
+Show a role badge's full label while the pane header has room. When space runs out, the folder and
+branch give up their space first, then a long label such as `integration-test-runner` cuts at the
+end with an ellipsis and shows in full on hover. Built-in role names stay whole, and the pane name
+keeps its space.

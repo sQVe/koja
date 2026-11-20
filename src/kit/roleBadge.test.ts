@@ -4,7 +4,6 @@ import type { DrawnElement } from '../../tests/drawn.ts';
 import { drawn, drawnTexts } from '../../tests/drawn.ts';
 import { gpuiBaseFake, gpuiKitFake, herdrFake } from '../../tests/moduleFakes.ts';
 import { badgeSize, paneHeaderWidth } from './size.ts';
-
 Object.assign(globalThis, { kojaModName: 'koja' });
 
 await mock.module('gpui-base', () => gpuiBaseFake({ h_flex: () => drawn() }));
@@ -31,7 +30,7 @@ const builtInRoles = [
 ] as const;
 
 const { roleBadge, roleToken } = (await import(modulePath)) as {
-  roleBadge: (role: string) => DrawnElement;
+  roleBadge: (role: string, state?: 'full' | 'cut') => DrawnElement;
   roleToken: (role: string) => string;
 };
 
@@ -57,23 +56,37 @@ describe('roleBadge', () => {
     expect(roleToken('__proto__')).toBe('muted');
   });
 
-  test('a long role label cuts at the badge cap and keeps its full text on hover', () => {
-    const badge = roleBadge('integration-test-runner');
+  test('a cut role badge keeps its full text on hover', () => {
+    const badge = roleBadge('integration-test-runner', 'cut');
     const [label] = badge.kids;
 
     expect(drawnTexts(badge)).toEqual(['integration-test-runner']);
-    expect(label?.styles['min_w']).toEqual([0]);
-    expect(label?.styles['max_w']).toEqual([badgeSize.maxLabelWidth]);
-    expect(label?.styles['truncate']).toEqual([]);
     expect(badge.tooltipText).toBe('integration-test-runner');
+    expect(label?.styles['min_w']).toEqual([0]);
+    expect(label?.styles['truncate']).toEqual([]);
+    expect(label?.styles['max_w']).toBeUndefined();
+    expect(badge.styles['min_w']).toEqual([badgeSize.minimumWidth]);
   });
 
-  test('every built-in role fits inside the badge cap', () => {
-    const tooWide = builtInRoles.filter(
-      (role) => role.length * paneHeaderWidth.glyph > badgeSize.maxLabelWidth,
-    );
+  test('a full role badge shows its whole label', () => {
+    const badge = roleBadge('integration-test-runner', 'full');
+    const [label] = badge.kids;
 
-    expect(tooWide).toEqual([]);
+    expect(badge.tooltipText).toBe('integration-test-runner');
+    expect(badge.styles['flex_none']).toEqual([]);
+    expect(badge.styles['min_w']).toBeUndefined();
+    expect(label?.styles['max_w']).toBeUndefined();
+  });
+
+  test('every built-in role keeps its whole label as the minimum', () => {
+    const narrowed = builtInRoles.filter((role) => {
+      const badge = roleBadge(role, 'cut');
+      const minimum = badge.styles['min_w']?.[0];
+
+      return minimum !== role.length * paneHeaderWidth.glyph + badgeSize.horizontal;
+    });
+
+    expect(narrowed).toEqual([]);
   });
 
   test('the badge draws the role as outlined text in its color', () => {

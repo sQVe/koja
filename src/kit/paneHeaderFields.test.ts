@@ -1,7 +1,7 @@
 import { describe, expect, test } from 'bun:test';
 
 import { paneHeaderFields } from './paneHeaderFields.ts';
-import { badgeSize, paneHeaderWidth } from './size.ts';
+import { paneHeaderWidth, shellSize } from './size.ts';
 
 const name = 'Claude Code';
 
@@ -22,6 +22,7 @@ describe('paneHeaderFields', () => {
 
     expect(fields).toEqual({
       task: true,
+      role: 'full',
       branch: 'full',
       folder: 'full',
       compact: false,
@@ -33,6 +34,7 @@ describe('paneHeaderFields', () => {
 
     expect(fields).toEqual({
       task: true,
+      role: 'full',
       branch: 'full',
       folder: 'full',
       compact: false,
@@ -115,20 +117,43 @@ describe('paneHeaderFields', () => {
     expect(withRole.folder).toBe('cut');
   });
 
-  test('a long role budgets the badge cap, not its full length', () => {
-    const capWidth = badgeSize.maxLabelWidth + badgeSize.horizontal + paneHeaderWidth.badgeGap;
-    const width = fixedWithFour + folderFull + capWidth;
-    const atCap = paneHeaderFields({ width, name, folder: longFolder, role: 'architect' });
-
-    const long = paneHeaderFields({
-      width,
+  test('a long role label cuts only after the folder and branch drop', () => {
+    const roomy = paneHeaderFields({
+      width: shellSize.folderCutWidth,
       name,
-      folder: longFolder,
       role: 'integration-test-runner',
+      task,
+      branch,
+      folder: longFolder,
     });
 
-    expect(atCap.folder).toBe('full');
-    expect(long.folder).toBe(atCap.folder);
+    const tight = paneHeaderFields({
+      width: 300,
+      name,
+      role: 'integration-test-runner',
+      task,
+      branch: longBranch,
+      folder: longFolder,
+    });
+
+    expect(roomy.folder).toBe('dropped');
+    expect(roomy.role).toBe('full');
+    expect(tight.branch).toBe('dropped');
+    expect(tight.folder).toBe('dropped');
+    expect(tight.role).toBe('cut');
+  });
+
+  test('a long role label shows whole while the header has room', () => {
+    const fields = paneHeaderFields({
+      width: shellSize.folderCutWidth,
+      name: 'Pi',
+      role: 'integration-test-runner',
+      task,
+      branch,
+      folder: longFolder,
+    });
+
+    expect(fields.role).toBe('full');
   });
 
   test('cuts the task only after both fields drop', () => {
@@ -158,6 +183,7 @@ describe('paneHeaderFields', () => {
 
     expect(folderOnly).toEqual({
       task: false,
+      role: 'full',
       branch: 'dropped',
       folder: 'full',
       compact: false,
@@ -165,6 +191,7 @@ describe('paneHeaderFields', () => {
 
     expect(taskOnly).toEqual({
       task: true,
+      role: 'full',
       branch: 'dropped',
       folder: 'dropped',
       compact: false,

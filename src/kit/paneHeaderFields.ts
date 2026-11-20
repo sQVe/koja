@@ -4,6 +4,7 @@ export type PaneHeaderFieldState = 'full' | 'cut' | 'dropped';
 
 export interface PaneHeaderFields {
   task: boolean;
+  role: 'full' | 'cut';
   branch: PaneHeaderFieldState;
   folder: PaneHeaderFieldState;
   compact: boolean;
@@ -32,11 +33,7 @@ const isPresent = (text: string | undefined): text is string => text !== undefin
 const estimate = (text: string): number => text.length * paneHeaderWidth.glyph;
 
 const roleWidth = (role: string | undefined): number =>
-  isPresent(role)
-    ? Math.min(estimate(role), badgeSize.maxLabelWidth) +
-      badgeSize.horizontal +
-      paneHeaderWidth.badgeGap
-    : 0;
+  isPresent(role) ? estimate(role) + badgeSize.horizontal + paneHeaderWidth.badgeGap : 0;
 
 const baseWidth = (name: string, role: string | undefined, actions: number): number =>
   paneHeaderWidth.padding +
@@ -76,21 +73,56 @@ const fieldResult = (
   return 'dropped';
 };
 
+const stateWidth = (state: PaneHeaderFieldState, full: number, minimum: number): number => {
+  if (state === 'full') {
+    return full;
+  }
+
+  if (state === 'cut') {
+    return minimum;
+  }
+
+  return 0;
+};
+
+const roleState = (
+  input: PaneHeaderFieldsInput,
+  width: number,
+  sizes: FieldSizes,
+  branch: PaneHeaderFieldState,
+  folder: PaneHeaderFieldState,
+): 'full' | 'cut' => {
+  if (!isPresent(input.role)) {
+    return 'full';
+  }
+
+  const used =
+    sizes.fixed +
+    sizes.task +
+    stateWidth(branch, sizes.branchFull, sizes.branchMinimum) +
+    stateWidth(folder, sizes.folderFull, sizes.folderMinimum);
+
+  return width >= used ? 'full' : 'cut';
+};
+
 const statesFor = (
   input: PaneHeaderFieldsInput,
   width: number,
   actions: number,
-): { branch: PaneHeaderFieldState; folder: PaneHeaderFieldState } => {
+): { branch: PaneHeaderFieldState; folder: PaneHeaderFieldState; role: 'full' | 'cut' } => {
   const sizes = fieldSizes(input, actions);
 
-  return {
-    branch: isPresent(input.branch)
-      ? fieldResult(width, sizes, 0, sizes.branchFull, sizes.branchMinimum)
-      : 'dropped',
-    folder: isPresent(input.folder)
-      ? fieldResult(width, sizes, sizes.branchFull, sizes.folderFull, sizes.folderMinimum)
-      : 'dropped',
-  };
+  const branch = isPresent(input.branch)
+    ? fieldResult(width, sizes, 0, sizes.branchFull, sizes.branchMinimum)
+    : 'dropped';
+
+  const folder = isPresent(input.folder)
+    ? fieldResult(width, sizes, sizes.branchFull, sizes.folderFull, sizes.folderMinimum)
+    : 'dropped';
+
+  const role = roleState(input, width, sizes, branch, folder);
+
+  return { branch, folder, role };
 };
 
 const drops = (field: PaneHeaderFieldState, text: string | undefined): boolean =>
@@ -109,6 +141,7 @@ export const paneHeaderFields = (input: PaneHeaderFieldsInput): PaneHeaderFields
 
   return {
     task: isPresent(input.task),
+    role: fields.role,
     branch: fields.branch,
     folder: fields.folder,
     compact,

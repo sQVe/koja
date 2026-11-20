@@ -57,6 +57,8 @@ export const controlSize = {
   button: 22,
   dialogButton: 28,
   paneLabelMaxWidth: 260,
+  // Keeps the pane name, such as "Pi", whole when the header is narrow.
+  paneLabelMinWidth: 12,
   searchField: 40,
   sectionHeader: 26,
   sidebarHeader: 27,
@@ -105,14 +107,16 @@ export const paneHeaderWidth = {
   fieldMinimum: fieldMinimumWidth,
 } as const;
 
+const badgeHorizontal = spacing.small * 2 + spacing.hairline * 2;
+
 export const badgeSize = {
   height: controlSize.badge,
   padding: spacing.small,
   border: spacing.hairline,
   radius: radius.default,
-  horizontal: spacing.small * 2 + spacing.hairline * 2,
-  // The widest a role badge label draws, so every built-in name fits whole.
-  maxLabelWidth: 'architect'.length * paneHeaderWidth.glyph,
+  horizontal: badgeHorizontal,
+  // The narrowest a role badge draws: the longest built-in name, so built-in names stay whole.
+  minimumWidth: 'architect'.length * paneHeaderWidth.glyph + badgeHorizontal,
 } as const;
 
 export const markSize = {

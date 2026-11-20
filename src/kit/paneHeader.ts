@@ -145,7 +145,7 @@ export const paneHeader = (options: PaneHeaderOptions): Element => {
   header.child(nameElement(options));
 
   if (isPresent(options.role)) {
-    header.child(roleBadge(options.role));
+    header.child(roleBadge(options.role, fields.role));
   }
 
   const fieldCut = fields.branch === 'cut' || fields.folder === 'cut';

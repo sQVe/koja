@@ -6,6 +6,7 @@ import { gpuiBaseFake, gpuiKitFake, herdrFake, kitIndexFake } from '../../../tes
 import { recordOf, stringOf } from '../../kit/fields.ts';
 import { normalFocusFill, toPalette } from '../../kit/palette.ts';
 import { paneActions } from '../../kit/paneHeaderMenuModel.ts';
+import { controlSize } from '../../kit/size.ts';
 
 const accent = '#4e4e8f';
 
@@ -81,6 +82,7 @@ await mock.module('../../kit/index.ts', () =>
       return true;
     },
     colors: () => toPalette({ accent, foreground: '#1e2028' }),
+    controlSize,
     iconButton: () => drawn(),
     normalFocusFill,
     paneActions,
@@ -202,15 +204,17 @@ describe('pane header role badge', () => {
     expect(badgePosition(tree, 'Pi')).toBe(1);
   });
 
-  test('draws a long profile badge with the full label as its tooltip', () => {
+  test('draws a long profile badge with the full label as its tooltip and keeps the title space', () => {
     paneProgramValue = piProgram;
     terminalRecords = [{ address: 't1', labels: { 'tau.profile': 'integration-test-runner' } }];
 
     const tree = rendered();
     const [badge] = badgeElements(tree);
+    const title = tree.kids.find((kid) => drawnTexts(kid).includes('Pi'));
 
     expect(badgeTexts(tree)).toEqual(['integration-test-runner']);
     expect(badge?.tooltipText).toBe('integration-test-runner');
+    expect(title?.styles['min_w']).toEqual([controlSize.paneLabelMinWidth]);
   });
 
   test('draws the Pi title and no badge element when the terminal carries no tau label', () => {

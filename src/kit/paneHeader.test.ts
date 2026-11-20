@@ -5,7 +5,7 @@ import type { Status } from 'herdr';
 import type { DrawnElement } from '../../tests/drawn.ts';
 import { drawn, drawnIcons, drawnTexts } from '../../tests/drawn.ts';
 import { gpuiBaseFake, gpuiKitFake, herdrFake } from '../../tests/moduleFakes.ts';
-import { shellSize } from './size.ts';
+import { badgeSize, shellSize } from './size.ts';
 
 interface HeaderOptions {
   program: null;
@@ -59,6 +59,21 @@ const textsAfterName = (element: DrawnElement): string[] | null => {
   return next === undefined ? null : drawnTexts(next);
 };
 
+const roleElement = (width: number): DrawnElement | undefined => {
+  const element = paneHeader({
+    program: null,
+    name: 'Pi',
+    role: 'integration-test-runner',
+    folder: '~/code/koja',
+    status: null,
+    focused: false,
+    zoomed: false,
+    width,
+  });
+
+  return element.kids.find((kid) => drawnTexts(kid).includes('integration-test-runner'));
+};
+
 describe('paneHeader role badge', () => {
   test('the role badge draws right after the pane name', () => {
     expect(textsAfterName(header('architect'))).toEqual(['architect']);
@@ -70,6 +85,19 @@ describe('paneHeader role badge', () => {
 
   test('an empty role draws no badge', () => {
     expect(textsAfterName(header(''))).toEqual([]);
+  });
+
+  test('a full role badge draws without the cut minimum', () => {
+    const badge = roleElement(shellSize.wideSpecimenWidth);
+
+    expect(badge?.styles['min_w']).toBeUndefined();
+    expect(badge?.styles['flex_none']).toEqual([]);
+  });
+
+  test('a cut role badge draws at its minimum width', () => {
+    const badge = roleElement(300);
+
+    expect(badge?.styles['min_w']).toEqual([badgeSize.minimumWidth]);
   });
 });
 

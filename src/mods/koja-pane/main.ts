@@ -102,7 +102,12 @@ export default class PaneHeader extends View {
       element.child(programMark);
     }
 
-    const titleBox = div().flex_initial().min_w(0).max_w(controlSize.paneLabelMaxWidth).truncate();
+    const titleBox = div()
+      .flex_initial()
+      .min_w(controlSize.paneLabelMinWidth)
+      .max_w(controlSize.paneLabelMaxWidth)
+      .truncate();
+
     const title = withTextRole(titleBox, 'detail', tone.title).child(paneName(pane));
 
     element.child(title);
