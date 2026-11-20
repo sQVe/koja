@@ -24,7 +24,7 @@ describe('paneHeaderFields', () => {
     const fields = paneHeaderFields({ statusWidth: 0, name, task, branch, folder: '~/code/koja' });
 
     expect(fields).toEqual({
-      task: true,
+      task: 'shown',
       role: 'full',
       branch: 'full',
       folder: 'full',
@@ -43,7 +43,7 @@ describe('paneHeaderFields', () => {
     });
 
     expect(fields).toEqual({
-      task: true,
+      task: 'shown',
       role: 'full',
       branch: 'full',
       folder: 'full',
@@ -236,7 +236,7 @@ describe('paneHeaderFields', () => {
 
     expect(fields.branch).toBe('dropped');
     expect(fields.folder).toBe('dropped');
-    expect(fields.task).toBe(true);
+    expect(fields.task).toBe('shown');
     expect(fields.compact).toBe(true);
   });
 
@@ -252,7 +252,7 @@ describe('paneHeaderFields', () => {
     const taskOnly = paneHeaderFields({ statusWidth: 0, width: 760, name, task: 'Header' });
 
     expect(folderOnly).toEqual({
-      task: false,
+      task: 'hidden',
       role: 'full',
       branch: 'dropped',
       folder: 'full',
@@ -260,7 +260,7 @@ describe('paneHeaderFields', () => {
     });
 
     expect(taskOnly).toEqual({
-      task: true,
+      task: 'shown',
       role: 'full',
       branch: 'dropped',
       folder: 'dropped',

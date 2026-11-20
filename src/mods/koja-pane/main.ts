@@ -208,8 +208,26 @@ export default class PaneHeader extends View {
       element.child(roleBadge(context.role, context.fields.role));
     }
 
+    const taskShown = context.fields.task === 'shown';
+
+    const endAligned =
+      !taskShown && context.fields.branch !== 'cut' && context.fields.folder !== 'cut';
+
+    const status = paneStatusElement(pane.status);
+
+    this.addHeaderFields(element, context, taskShown, endAligned, status);
+    this.addHeaderActions(element, pane, context, endAligned, status !== null);
+  }
+
+  private addHeaderFields(
+    element: Element,
+    context: PaneHeaderContext,
+    taskShown: boolean,
+    endAligned: boolean,
+    status: Element | null,
+  ): void {
     const fieldCut = context.fields.branch === 'cut' || context.fields.folder === 'cut';
-    const task = paneTaskElement(context.task ?? undefined, fieldCut);
+    const task = taskShown ? paneTaskElement(context.task ?? undefined, fieldCut) : null;
 
     if (task !== null) {
       element.child(task);
@@ -223,16 +241,20 @@ export default class PaneHeader extends View {
       element.child(paneFolderElement(context.folderText, context.fields.folder, false));
     }
 
-    const status = paneStatusElement(pane.status);
-
     if (status !== null) {
-      element.child(status);
-    }
+      const placedStatus = endAligned ? status.ml_auto() : status;
 
-    this.addHeaderActions(element, pane, context);
+      element.child(placedStatus);
+    }
   }
 
-  private addHeaderActions(element: Element, pane: PaneInfo, context: PaneHeaderContext): void {
+  private addHeaderActions(
+    element: Element,
+    pane: PaneInfo,
+    context: PaneHeaderContext,
+    endAligned: boolean,
+    hasStatus: boolean,
+  ): void {
     if (context.fields.compact) {
       const action = paneOverflowButton(() => {
         openPaneMenu(pane, {
@@ -240,11 +262,21 @@ export default class PaneHeader extends View {
           branch: context.paneBranch,
           folder: context.folderText,
         });
-      }).ml_auto();
+      });
 
-      element.child(action);
+      const placed = endAligned && !hasStatus ? action.ml_auto() : action;
+
+      element.child(placed);
     } else if (this.hovered) {
-      element.children(paneButtons(pane));
+      const buttons = paneButtons(pane);
+
+      if (endAligned && !hasStatus) {
+        const row = h_flex().ml_auto().children(buttons);
+
+        element.child(row);
+      } else {
+        element.children(buttons);
+      }
     }
   }
 }

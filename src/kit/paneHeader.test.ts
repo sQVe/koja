@@ -143,6 +143,25 @@ describe('paneHeader role badge', () => {
     expect(branch?.styles['ml_auto']).toBeUndefined();
   });
 
+  test('a task with no room is omitted and the badge stays whole', () => {
+    const element = paneHeader({
+      program: null,
+      name: 'Pi',
+      role: 'architect',
+      task: 'Build window shell',
+      folder: '~/code/koja',
+      status: null,
+      focused: false,
+      zoomed: false,
+      width: 159,
+    });
+
+    const badge = element.kids.find((kid) => drawnTexts(kid).includes('architect'));
+
+    expect(drawnTexts(element)).not.toContain('Build window shell');
+    expect(badge?.styles['flex_none']).toEqual([]);
+  });
+
   test('a branch without a task end-aligns first', () => {
     const element = paneHeader({
       program: null,

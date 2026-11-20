@@ -237,13 +237,13 @@ export const paneHeader = (options: PaneHeaderOptions): Element => {
   }
 
   const fieldCut = fields.branch === 'cut' || fields.folder === 'cut';
-  const hasTask = isPresent(options.task);
+  const hasTask = fields.task === 'shown';
   const showsBranch = fields.branch !== 'dropped' && isPresent(options.branch);
   const showsFolder = fields.folder !== 'dropped' && isPresent(options.folder);
   const status = paneStatusElement(options.status);
   const alignment = trailingAlignment(hasTask, showsBranch, showsFolder, status !== null);
 
-  const task = paneTaskElement(options.task, fieldCut);
+  const task = hasTask ? paneTaskElement(options.task, fieldCut) : null;
 
   if (task !== null) {
     header.child(task);
