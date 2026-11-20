@@ -1,7 +1,7 @@
 import type { PaneInfo, SpaceInfo, machines } from 'herdr';
 
 import type { Place } from './gitIdentity.ts';
-import { placesOf } from './places.ts';
+import type { PlaceObservation } from './places.ts';
 import type { GitFacts, PlaceGit } from './snapshot.ts';
 
 export interface GitWorld {
@@ -40,7 +40,7 @@ interface PaneActivity {
 interface DueContext {
   input: DueInput;
   places: Record<string, Place>;
-  live: ReadonlySet<string>;
+  live: Readonly<Record<string, Place>>;
   due: Set<string>;
   now: number;
 }
@@ -49,26 +49,14 @@ const fallbackMilliseconds = 60_000;
 
 export const emptyDueState = (): DueState => ({ places: {}, busy: {}, ready: {} });
 
-export const livePlaceKeys = (places: Readonly<Record<string, Place>>): Set<string> => {
-  const keys = new Set<string>();
-
-  for (const place of Object.values(places)) {
-    if (place.folder !== '') {
-      keys.add(place.key);
-    }
-  }
-
-  return keys;
-};
-
 export const worktreeRepresentatives = (
   places: Readonly<Record<string, PlaceGit>>,
-  live: ReadonlySet<string>,
+  live: Readonly<Record<string, Place>>,
 ): Map<string, string> => {
   const representatives = new Map<string, string>();
 
   for (const [key, place] of Object.entries(places)) {
-    if (!live.has(key) || place.kind !== 'repository') {
+    if (!Object.hasOwn(live, key) || place.kind !== 'repository') {
       continue;
     }
 
@@ -145,7 +133,7 @@ const repositoryKeyOf = (facts: GitFacts, key: string): string | null => {
 };
 
 const addUnread = (context: DueContext): void => {
-  for (const key of context.live) {
+  for (const key of Object.keys(context.live)) {
     if (!Object.hasOwn(context.input.reads, key)) {
       context.due.add(key);
     }
@@ -160,7 +148,7 @@ const addMoved = (context: DueContext): void => {
       continue;
     }
 
-    if (context.live.has(place.key)) {
+    if (Object.hasOwn(context.live, place.key)) {
       context.due.add(place.key);
     }
   }
@@ -170,13 +158,13 @@ const addFinished = (context: DueContext, finished: ReadonlySet<string>): void =
   for (const id of finished) {
     const place = context.places[id];
 
-    if (place === undefined || !context.live.has(place.key)) {
+    if (place === undefined || !Object.hasOwn(context.live, place.key)) {
       continue;
     }
 
     const repository = repositoryKeyOf(context.input.facts, place.key);
 
-    for (const key of context.live) {
+    for (const key of Object.keys(context.live)) {
       const sameRepository =
         repository !== null && repositoryKeyOf(context.input.facts, key) === repository;
 
@@ -196,7 +184,7 @@ const addReturned = (context: DueContext, ready: Readonly<Record<string, boolean
     for (const place of Object.values(context.places)) {
       const onMachine = (place.machine ?? '') === name;
 
-      if (onMachine && context.live.has(place.key)) {
+      if (onMachine && Object.hasOwn(context.live, place.key)) {
         context.due.add(place.key);
       }
     }
@@ -207,7 +195,7 @@ const addFallbacks = (context: DueContext): void => {
   const { facts, reads } = context.input;
   const representatives = worktreeRepresentatives(facts.places, context.live);
 
-  for (const key of context.live) {
+  for (const key of Object.keys(context.live)) {
     const memory = reads[key];
     const stale = memory !== undefined && context.now - memory.lastReadAt > fallbackMilliseconds;
 
@@ -239,12 +227,22 @@ const addFallbacks = (context: DueContext): void => {
   }
 };
 
-export const duePlaces = (input: DueInput, world: GitWorld, now: number): DueResult => {
-  const places = placesOf(world.spaces, world.panes);
-  const live = livePlaceKeys(places);
+export const duePlaces = (
+  input: DueInput,
+  world: GitWorld,
+  observed: PlaceObservation,
+  now: number,
+): DueResult => {
   const activity = paneActivity(world, input.state.busy);
   const ready = readyMachines(world);
-  const context: DueContext = { input, places, live, due: new Set(), now };
+
+  const context: DueContext = {
+    input,
+    places: observed.bySpace,
+    live: observed.byKey,
+    due: new Set(),
+    now,
+  };
 
   addUnread(context);
   addMoved(context);
@@ -252,5 +250,5 @@ export const duePlaces = (input: DueInput, world: GitWorld, now: number): DueRes
   addReturned(context, ready);
   addFallbacks(context);
 
-  return { due: context.due, state: { places, busy: activity.busy, ready } };
+  return { due: context.due, state: { places: observed.bySpace, busy: activity.busy, ready } };
 };

@@ -2,7 +2,8 @@ import type { Context } from 'gpui-kit';
 
 import type { WatchFolder } from './folderWatch.ts';
 import type { DueState, GitWorld, ReadMemory } from './gitDue.ts';
-import { duePlaces, emptyDueState, livePlaceKeys, worktreeRepresentatives } from './gitDue.ts';
+import { duePlaces, emptyDueState, worktreeRepresentatives } from './gitDue.ts';
+import type { RunningRead } from './gitFences.ts';
 import { ReadFences } from './gitFences.ts';
 import type { Branch, GitIdentity, Place, RunCommand } from './gitIdentity.ts';
 import { readGitIdentity, worktreeKeyOf } from './gitIdentity.ts';
@@ -10,7 +11,7 @@ import type { WatchRegistry } from './gitWatches.ts';
 import { createWatchRegistry, usedRepositories } from './gitWatches.ts';
 import type { Lease } from './lease.ts';
 import { sameHolder } from './lease.ts';
-import { placesOf } from './places.ts';
+import { observePlaces } from './places.ts';
 import type { Facts, GitFacts, PlaceGit, WorktreeGit } from './snapshot.ts';
 
 export type { GitWorld } from './gitDue.ts';
@@ -27,12 +28,6 @@ export interface GitScheduler {
   tick: (world: GitWorld, cx: Context) => void;
   facts: () => Facts;
   stop: () => void;
-}
-
-interface RunningRead {
-  sequence: number;
-  worktree: string | null;
-  epoch: number;
 }
 
 const debounceMilliseconds = 250;
@@ -77,14 +72,13 @@ class Scheduler implements GitScheduler {
   private places: Record<string, PlaceGit>;
   private worktrees: Record<string, WorktreeGit>;
   private state: DueState = emptyDueState();
-  private live: ReadonlySet<string> = new Set();
+  private live: Readonly<Record<string, Place>> = {};
   private reads: Record<string, ReadMemory> = {};
   private readonly marks = new Map<string, number>();
   private readonly watchMarks = new Map<string, number>();
   private readonly checkouts = new Set<string>();
   private readonly fences = new ReadFences();
   private readonly running = new Map<string, RunningRead>();
-  private readonly runningWorktrees = new Map<string, number>();
   private readonly watches: WatchRegistry;
   private sequence = 0;
   private stopped = false;
@@ -109,16 +103,16 @@ class Scheduler implements GitScheduler {
     }
 
     const now = this.dependencies.now();
-    const places = placesOf(world.spaces, world.panes);
-    const live = livePlaceKeys(places);
+    const observed = observePlaces(world.spaces, world.panes);
 
-    if (this.prune(live)) {
+    if (this.prune(observed.byKey)) {
       this.publishIfHeld();
     }
 
     const due = duePlaces(
       { state: this.state, reads: this.reads, facts: this.gitFacts() },
       world,
+      observed,
       now,
     );
 
@@ -129,7 +123,7 @@ class Scheduler implements GitScheduler {
       this.mark(key, now);
     }
 
-    this.startReads(due.state.places, live, cx, now);
+    this.startReads(observed.byKey, cx, now);
   }
 
   stop(): void {
@@ -151,13 +145,17 @@ class Scheduler implements GitScheduler {
     this.marks.set(key, at);
   }
 
-  private forgetLeft(live: ReadonlySet<string>): void {
-    for (const key of this.live) {
-      if (live.has(key)) {
+  private forgetLeft(live: Readonly<Record<string, Place>>): void {
+    for (const key of Object.keys(this.live)) {
+      if (Object.hasOwn(live, key)) {
         continue;
       }
 
-      this.fences.leave(key, this.running.has(key));
+      const running = this.running.get(key);
+
+      if (running !== undefined) {
+        running.invalidated = true;
+      }
 
       this.marks.delete(key);
     }
@@ -165,7 +163,7 @@ class Scheduler implements GitScheduler {
     const kept: Record<string, ReadMemory> = {};
 
     for (const [key, memory] of Object.entries(this.reads)) {
-      if (live.has(key)) {
+      if (Object.hasOwn(live, key)) {
         kept[key] = memory;
       }
     }
@@ -173,7 +171,7 @@ class Scheduler implements GitScheduler {
     this.reads = kept;
   }
 
-  private prune(live: ReadonlySet<string>): boolean {
+  private prune(live: Readonly<Record<string, Place>>): boolean {
     this.forgetLeft(live);
     this.live = live;
 
@@ -181,7 +179,7 @@ class Scheduler implements GitScheduler {
     let changed = false;
 
     for (const [key, place] of Object.entries(this.places)) {
-      if (live.has(key)) {
+      if (Object.hasOwn(live, key)) {
         kept[key] = place;
 
         continue;
@@ -196,9 +194,7 @@ class Scheduler implements GitScheduler {
 
     const worktreesChanged = this.pruneWorktrees();
 
-    this.watches.cancelUnused(
-      usedRepositories(this.places, this.worktrees, this.checkouts, this.live),
-    );
+    this.watches.cancelUnused(usedRepositories(this.worktrees, this.checkouts));
 
     return changed || worktreesChanged;
   }
@@ -207,7 +203,7 @@ class Scheduler implements GitScheduler {
     const named = new Set<string>();
 
     for (const [key, place] of Object.entries(this.places)) {
-      if (this.live.has(key) && place.kind === 'repository') {
+      if (Object.hasOwn(this.live, key) && place.kind === 'repository') {
         named.add(place.worktree);
       }
     }
@@ -289,51 +285,30 @@ class Scheduler implements GitScheduler {
     return place.worktree;
   }
 
-  private startReads(
-    places: Record<string, Place>,
-    live: ReadonlySet<string>,
-    cx: Context,
-    now: number,
-  ): void {
-    const byKey = new Map<string, Place>();
-
-    for (const place of Object.values(places)) {
-      if (!byKey.has(place.key)) {
-        byKey.set(place.key, place);
+  private worktreeBusy(worktree: string): boolean {
+    for (const read of this.running.values()) {
+      if (read.worktree === worktree) {
+        return true;
       }
     }
 
-    const due = this.dueMarks();
-
-    for (const [key, at] of due) {
-      if (at > now) {
-        return;
-      }
-
-      const worktree = this.gateWorktree(key);
-
-      if (!this.startable(key, worktree, live)) {
-        continue;
-      }
-
-      const place = byKey.get(key);
-
-      if (place !== undefined) {
-        this.startRead(place, worktree, cx, now);
-      }
-    }
+    return false;
   }
 
-  private startable(key: string, worktree: string | null, live: ReadonlySet<string>): boolean {
+  private startable(
+    key: string,
+    worktree: string | null,
+    live: Readonly<Record<string, Place>>,
+  ): boolean {
     if (this.running.size >= readLimit) {
       return false;
     }
 
-    if (!live.has(key) || this.running.has(key)) {
+    if (!Object.hasOwn(live, key) || this.running.has(key)) {
       return false;
     }
 
-    if (worktree !== null && this.runningWorktrees.has(worktree)) {
+    if (worktree !== null && this.worktreeBusy(worktree)) {
       return false;
     }
 
@@ -342,40 +317,49 @@ class Scheduler implements GitScheduler {
     return held !== null && sameHolder(held, this.lease);
   }
 
+  private startReads(live: Readonly<Record<string, Place>>, cx: Context, now: number): void {
+    const due = this.dueMarks();
+
+    for (const [key, at] of due) {
+      if (at > now) {
+        return;
+      }
+
+      const place = live[key];
+
+      if (place === undefined) {
+        continue;
+      }
+
+      const worktree = this.gateWorktree(key);
+
+      if (!this.startable(key, worktree, live)) {
+        continue;
+      }
+
+      this.startRead(place, worktree, cx, now);
+    }
+  }
+
   private startRead(place: Place, worktree: string | null, cx: Context, now: number): void {
     this.sequence += 1;
 
     const sequence = this.sequence;
-    const epoch = this.fences.epochOf(place.key);
     const memory = this.reads[place.key];
 
     this.marks.delete(place.key);
-    this.running.set(place.key, { sequence, worktree, epoch });
+    this.running.set(place.key, { sequence, worktree, invalidated: false });
     this.reads[place.key] = { lastReadAt: now, failure: memory?.failure ?? false };
 
     if (worktree !== null) {
-      this.runningWorktrees.set(worktree, sequence);
       this.watchMarks.delete(worktree);
     }
 
     cx.spawn(async (taskCx) => {
       const identity = await readGitIdentity(this.dependencies.run, place.machine, place.folder);
 
-      this.finish(place.key, worktree, sequence);
-      this.apply(identity, sequence, epoch, taskCx);
+      this.apply(identity, sequence, taskCx);
     });
-  }
-
-  private finish(key: string, worktree: string | null, sequence: number): void {
-    const running = this.running.get(key);
-
-    if (running?.sequence === sequence) {
-      this.running.delete(key);
-    }
-
-    if (worktree !== null && this.runningWorktrees.get(worktree) === sequence) {
-      this.runningWorktrees.delete(worktree);
-    }
   }
 
   private resultWorktree(identity: GitIdentity): string | null {
@@ -406,7 +390,7 @@ class Scheduler implements GitScheduler {
     const key = identity.place.key;
     const worktree = this.resultWorktree(identity);
 
-    this.fences.wrote(key, worktree, sequence);
+    this.fences.wrote(worktree, sequence);
 
     if (identity.kind === 'failed') {
       this.writeFailure(key);
@@ -448,19 +432,24 @@ class Scheduler implements GitScheduler {
     this.watches.start(identity.repository, cx);
   }
 
-  private apply(identity: GitIdentity, sequence: number, epoch: number, cx: Context): void {
+  private apply(identity: GitIdentity, sequence: number, cx: Context): void {
     const key = identity.place.key;
+    const running = this.running.get(key);
+    const worktree = this.resultWorktree(identity);
 
     const decision = this.fences.decide({
-      key,
       stopped: this.stopped,
-      live: this.live,
-      epoch,
+      live: Object.hasOwn(this.live, key),
+      invalidated: running?.invalidated ?? false,
       sequence,
-      worktree: this.resultWorktree(identity),
+      worktree,
       held: this.dependencies.heldLease(),
       lease: this.lease,
     });
+
+    if (running?.sequence === sequence) {
+      this.running.delete(key);
+    }
 
     if (decision === 'retry') {
       this.mark(key, this.dependencies.now());
@@ -471,9 +460,7 @@ class Scheduler implements GitScheduler {
       this.pruneWorktrees();
       this.startWatch(identity, cx);
 
-      this.watches.cancelUnused(
-        usedRepositories(this.places, this.worktrees, this.checkouts, this.live),
-      );
+      this.watches.cancelUnused(usedRepositories(this.worktrees, this.checkouts));
 
       this.publishIfHeld();
     }

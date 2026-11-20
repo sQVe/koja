@@ -2,9 +2,10 @@ import { describe, expect, test } from 'bun:test';
 
 import type { PaneInfo, Program, SpaceInfo, Status, TabInfo } from 'herdr';
 
-import type { DueInput, GitWorld, ReadMemory } from './gitDue.ts';
+import type { DueInput, DueResult, GitWorld, ReadMemory } from './gitDue.ts';
 import { duePlaces, emptyDueState } from './gitDue.ts';
 import { placeOf, repositoryOf, worktreeOf } from './gitIdentity.ts';
+import { observePlaces } from './places.ts';
 import { emptyFacts } from './snapshot.ts';
 import type { GitFacts, PlaceGit, WorktreeGit } from './snapshot.ts';
 
@@ -106,17 +107,16 @@ const inputOf = (
 
 const sorted = (values: Iterable<string>): string[] => [...values].toSorted();
 
+const dueOf = (input: DueInput, world: GitWorld, now: number): DueResult =>
+  duePlaces(input, world, observePlaces(world.spaces, world.panes), now);
+
 describe('duePlaces', () => {
   test('marks a place the space moved to', () => {
     const facts = emptyFacts().git;
     const reads = readAt([placeKey('/code/koja'), placeKey('/code/tikk')], 10);
     const before = { ...emptyDueState(), places: { s1: placeOf(null, '/code/koja') } };
 
-    const result = duePlaces(
-      inputOf(facts, reads, before),
-      worldOf([spaceOf('s1', '/code/tikk')]),
-      10,
-    );
+    const result = dueOf(inputOf(facts, reads, before), worldOf([spaceOf('s1', '/code/tikk')]), 10);
 
     expect(sorted(result.due)).toEqual([placeKey('/code/tikk')]);
   });
@@ -134,8 +134,8 @@ describe('duePlaces', () => {
     const working = worldOf(spaces, [terminal('p1', 'tab-s1', 'working')]);
     const idle = worldOf(spaces, [terminal('p1', 'tab-s1', 'idle')]);
 
-    const first = duePlaces(inputOf(facts, reads), working, 10);
-    const second = duePlaces(inputOf(facts, reads, first.state), idle, 10);
+    const first = dueOf(inputOf(facts, reads), working, 10);
+    const second = dueOf(inputOf(facts, reads, first.state), idle, 10);
 
     expect(sorted(first.due)).toEqual([]);
     expect(sorted(second.due)).toEqual(sorted(folders.map((folder) => placeKey(folder))));
@@ -158,8 +158,8 @@ describe('duePlaces', () => {
       machines: [{ name: 'qa', layout: 'ready' }],
     };
 
-    const first = duePlaces(inputOf(facts, reads), loading, 10);
-    const second = duePlaces(inputOf(facts, reads, first.state), ready, 10);
+    const first = dueOf(inputOf(facts, reads), loading, 10);
+    const second = dueOf(inputOf(facts, reads, first.state), ready, 10);
 
     expect(sorted(first.due)).toEqual([]);
     expect(sorted(second.due)).toEqual([placeKey('/srv/app', 'qa')]);
@@ -182,7 +182,7 @@ describe('duePlaces', () => {
 
     const spaces = folders.map((folder, index) => spaceOf(`s${index}`, folder));
 
-    const result = duePlaces(inputOf(facts, reads), worldOf(spaces), 60_001);
+    const result = dueOf(inputOf(facts, reads), worldOf(spaces), 60_001);
 
     expect(sorted(result.due)).toEqual([placeKey('/code/a1'), placeKey('/code/b1')]);
   });

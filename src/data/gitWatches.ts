@@ -3,12 +3,7 @@ import type { Context } from 'gpui-kit';
 import type { FolderWatchHandle, WatchFolder } from './folderWatch.ts';
 import { watchFolderChanges } from './folderWatch.ts';
 import type { RepositoryIdentity } from './gitIdentity.ts';
-import type { PlaceGit, WorktreeGit } from './snapshot.ts';
-
-interface WatchRecord {
-  token: symbol;
-  handle: FolderWatchHandle;
-}
+import type { WorktreeGit } from './snapshot.ts';
 
 export interface WatchRegistry {
   start: (repository: RepositoryIdentity, cx: Context) => void;
@@ -18,25 +13,13 @@ export interface WatchRegistry {
 }
 
 export const usedRepositories = (
-  places: Readonly<Record<string, PlaceGit>>,
   worktrees: Readonly<Record<string, WorktreeGit>>,
   checkouts: ReadonlySet<string>,
-  live: ReadonlySet<string>,
 ): Set<string> => {
   const used = new Set<string>();
 
-  for (const [key, place] of Object.entries(places)) {
-    if (!live.has(key) || place.kind !== 'repository') {
-      continue;
-    }
-
-    if (!checkouts.has(place.worktree)) {
-      continue;
-    }
-
-    const worktree = worktrees[place.worktree];
-
-    if (worktree === undefined || worktree.repository.machine !== null) {
+  for (const [key, worktree] of Object.entries(worktrees)) {
+    if (!checkouts.has(key) || worktree.repository.machine !== null) {
       continue;
     }
 
@@ -47,18 +30,8 @@ export const usedRepositories = (
 };
 
 export const createWatchRegistry = (watchFolder: WatchFolder, now: () => number): WatchRegistry => {
-  const watches = new Map<string, WatchRecord>();
+  const watches = new Map<string, FolderWatchHandle>();
   const events = new Map<string, number>();
-
-  const drop = (repositoryKey: string, token: symbol): void => {
-    const current = watches.get(repositoryKey);
-
-    if (current === undefined || current.token !== token) {
-      return;
-    }
-
-    watches.delete(repositoryKey);
-  };
 
   const record = (repositoryKey: string): void => {
     const at = now();
@@ -76,18 +49,16 @@ export const createWatchRegistry = (watchFolder: WatchFolder, now: () => number)
       return;
     }
 
-    const token = Symbol('watch');
-
     const handle = watchFolderChanges(watchFolder, repository.commonDirectory, cx, {
       onChange: () => {
         record(repository.key);
       },
       onError: () => {
-        drop(repository.key, token);
+        watches.delete(repository.key);
       },
     });
 
-    watches.set(repository.key, { token, handle });
+    watches.set(repository.key, handle);
   };
 
   const cancelUnused = (used: ReadonlySet<string>): void => {
@@ -96,7 +67,7 @@ export const createWatchRegistry = (watchFolder: WatchFolder, now: () => number)
         continue;
       }
 
-      watched.handle.cancel();
+      watched.cancel();
       watches.delete(key);
     }
   };
@@ -111,7 +82,7 @@ export const createWatchRegistry = (watchFolder: WatchFolder, now: () => number)
 
   const stop = (): void => {
     for (const watched of watches.values()) {
-      watched.handle.cancel();
+      watched.cancel();
     }
 
     watches.clear();

@@ -158,6 +158,30 @@ describe('createGitScheduler fences', () => {
     expect(harness.published.some((facts) => Object.hasOwn(facts.git.places, left))).toBe(false);
   });
 
+  test('keeps an invalidated read in the dispatch limit until it settles', async () => {
+    const folders = ['/code/a', '/code/b', '/code/c', '/code/d', '/code/e'];
+
+    for (const folder of folders) {
+      harness.setFolder(null, folder, mainCheckout(folder));
+    }
+
+    const scheduler = harness.start();
+    const spaces = folders.map((folder, index) => spaceOf(`s${index}`, folder));
+
+    scheduler.tick(worldOf(spaces), harness.context);
+    expect(harness.started).toHaveLength(4);
+
+    scheduler.tick(worldOf(spaces.slice(1)), harness.context);
+    expect(harness.started).toHaveLength(4);
+
+    await harness.complete(harness.startedAt(0));
+    expect(harness.started).toHaveLength(4);
+
+    scheduler.tick(worldOf(spaces.slice(1)), harness.context);
+    expect(harness.started).toHaveLength(5);
+    expect(harness.startedAt(4).folder).toBe('/code/e');
+  });
+
   test('drops a result after a place leaves and returns', async () => {
     harness.setFolder(null, '/code/a', mainCheckout('/code/a'));
     harness.setFolder(null, '/code/b', mainCheckout('/code/b'));

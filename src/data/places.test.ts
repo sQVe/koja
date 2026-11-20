@@ -3,7 +3,7 @@ import { describe, expect, test } from 'bun:test';
 import type { SpaceInfo } from 'herdr';
 
 import { placeOf } from './gitIdentity.ts';
-import { placeOfSpace, placesOf } from './places.ts';
+import { observePlaces, placeOfSpace, placesOf } from './places.ts';
 
 const spaceOf = (id: string, folder: string, machine: string | null = null): SpaceInfo => ({
   id,
@@ -33,5 +33,20 @@ describe('places', () => {
     const space = spaceOf('remote', '/srv/app', 'build-box');
 
     expect(placeOfSpace(space, [])).toEqual(placeOf('build-box', '/srv/app'));
+  });
+
+  test('indexes each live place by space and once by its key', () => {
+    const observed = observePlaces(
+      [spaceOf('root', '/code/a'), spaceOf('alias', '/code/a'), spaceOf('plain', '')],
+      [],
+    );
+
+    expect(observed.bySpace).toEqual({
+      root: placeOf(null, '/code/a'),
+      alias: placeOf(null, '/code/a'),
+      plain: placeOf(null, ''),
+    });
+
+    expect(observed.byKey).toEqual({ [placeOf(null, '/code/a').key]: placeOf(null, '/code/a') });
   });
 });
