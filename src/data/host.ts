@@ -13,10 +13,10 @@ import {
   sameHolder,
 } from './lease.ts';
 import type { SnapshotPublisher } from './publisher.ts';
-import { createSnapshotPublisher, snapshotNotices } from './publisher.ts';
+import { createSnapshotPublisher } from './publisher.ts';
 import type { Facts } from './snapshot.ts';
 import { emptyFacts } from './snapshot.ts';
-import { readStoredSnapshot } from './storedSnapshot.ts';
+import { readStoredSnapshot, snapshotNotices } from './storedSnapshot.ts';
 
 interface SchedulerBinding {
   lease: Lease;

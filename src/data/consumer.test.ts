@@ -5,12 +5,6 @@ import { heartbeatKey, leaseExpiryMilliseconds } from './lease.ts';
 import type { Snapshot } from './snapshot.ts';
 import { emptyFacts, snapshotKey } from './snapshot.ts';
 
-const malformedNotice =
-  'Koja ignored a malformed data snapshot. The data host will rebuild it on its next publish.';
-
-const newerNotice =
-  'Koja ignored a data snapshot from a newer version. Update Koja to a version that supports this snapshot format.';
-
 const memoryStore =
   (values: Record<string, unknown>) =>
   (key: string): unknown =>
@@ -90,31 +84,19 @@ describe('readDataState', () => {
     }
   });
 
-  test('is unavailable for a malformed snapshot and reports it once', () => {
-    const capture = captureLog();
+  test('is unavailable for a malformed snapshot', () => {
     const read = memoryStore({ [snapshotKey]: { version: 2 }, [heartbeatKey]: heartbeat });
 
-    try {
-      expect(readDataState(read, writtenAt)).toEqual({ kind: 'unavailable' });
-      expect(readDataState(read, writtenAt)).toEqual({ kind: 'unavailable' });
-      expect(capture.messages).toEqual([malformedNotice]);
-    } finally {
-      capture.restore();
-    }
+    expect(readDataState(read, writtenAt)).toEqual({ kind: 'unavailable' });
+    expect(readDataState(read, writtenAt)).toEqual({ kind: 'unavailable' });
   });
 
-  test('is unavailable for a newer snapshot and reports it once', () => {
-    const capture = captureLog();
+  test('is unavailable for a newer snapshot', () => {
     const newer = { version: 3, revision: 3, facts: emptyFacts() };
     const read = memoryStore({ [snapshotKey]: newer, [heartbeatKey]: heartbeat });
 
-    try {
-      expect(readDataState(read, writtenAt)).toEqual({ kind: 'unavailable' });
-      expect(readDataState(read, writtenAt)).toEqual({ kind: 'unavailable' });
-      expect(capture.messages).toEqual([newerNotice]);
-    } finally {
-      capture.restore();
-    }
+    expect(readDataState(read, writtenAt)).toEqual({ kind: 'unavailable' });
+    expect(readDataState(read, writtenAt)).toEqual({ kind: 'unavailable' });
   });
 
   test('is unavailable when no valid heartbeat was written', () => {

@@ -2,8 +2,10 @@ import { afterAll, beforeEach, describe, expect, mock, setSystemTime, test } fro
 
 import type { ExecResult, FolderWatch } from 'herdr';
 
+import { withFreshSnapshotCopy } from '../../tests/freshSnapshotCopy.ts';
 import { spaceOf } from '../../tests/gitSchedulerHarness.ts';
 import { herdrFake } from '../../tests/moduleFakes.ts';
+import { readDataState } from './consumer.ts';
 import { placeOf, repositoryOf, worktreeOf } from './gitIdentity.ts';
 import type { Heartbeat } from './lease.ts';
 import {
@@ -358,5 +360,27 @@ describe('startDataHost', () => {
 
     expect(intervals).toEqual([heartbeatIntervalMilliseconds]);
     expect(gitCalls()).toEqual([]);
+  });
+
+  test('logs one notice across the reader, the host seed and the publisher', async () => {
+    await withFreshSnapshotCopy((messages) => {
+      sharedValues.set(snapshotKey, { version: 2 });
+
+      expect(readDataState((key) => sharedValues.get(key), start)).toEqual({
+        kind: 'unavailable',
+      });
+
+      expect(messages).toHaveLength(1);
+
+      startCopy();
+
+      expect(messages).toHaveLength(1);
+
+      expect(parseSnapshot(sharedValues.get(snapshotKey))).toEqual({
+        version: 2,
+        revision: 1,
+        facts: emptyFacts(),
+      });
+    });
   });
 });

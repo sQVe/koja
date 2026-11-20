@@ -28,7 +28,7 @@ const noticeOf: Record<SnapshotRejection, string> = {
   newer: newerNotice,
 };
 
-export const logSnapshotNotice = (message: string): void => {
+const logSnapshotNotice = (message: string): void => {
   // eslint-disable-next-line no-console -- Herdr's mod log is console.log.
   console.log(message);
 };
@@ -47,6 +47,9 @@ export const createSnapshotNotices = (log: (message: string) => void): SnapshotN
     },
   };
 };
+
+// One reporter per loaded copy keeps each snapshot notice to one log line in its bundle.
+export const snapshotNotices = createSnapshotNotices(logSnapshotNotice);
 
 const isNewerVersion = (version: unknown): boolean => isPositiveWholeNumber(version) && version > 2;
 

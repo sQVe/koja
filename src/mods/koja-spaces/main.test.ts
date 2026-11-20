@@ -19,8 +19,10 @@ import {
   realKitIndexFake,
 } from '../../../tests/moduleFakes.ts';
 import { readDataState } from '../../data/consumer.ts';
-import { repositoryOf } from '../../data/gitIdentity.ts';
-import type { GitInfo } from './tree.ts';
+import { placeOf, repositoryOf, worktreeOf } from '../../data/gitIdentity.ts';
+import { heartbeatKey, leaseKey } from '../../data/lease.ts';
+import type { Facts, PlaceGit, WorktreeGit } from '../../data/snapshot.ts';
+import { snapshotKey } from '../../data/snapshot.ts';
 
 type MouseHandler = (event: unknown, cx: unknown) => void;
 
@@ -29,10 +31,22 @@ interface RunCall {
   args: Record<string, unknown> | undefined;
 }
 
+interface Timer {
+  milliseconds: number;
+  handler: (cx: unknown) => void;
+}
+
 interface FakeView {
   init: (props: unknown, cx: unknown) => void;
   render: () => DrawnElement;
   close: () => void;
+}
+
+interface Checkout {
+  folder: string;
+  machine?: string | null;
+  commonDirectory: string;
+  linked: boolean;
 }
 
 const themeColors = {
@@ -50,16 +64,14 @@ const themeColors = {
 const rowHeightSmall = 24;
 
 let runCalls: RunCall[] = [];
+let execCommands: string[] = [];
 let overlayCalls: unknown[] = [];
 let notifyCalls = 0;
 let scrollCalls: number[] = [];
 let sharedValues: Record<string, unknown> = {};
 let sidebarWidth: number | null = null;
 let spaceList: SpaceInfo[] = [];
-let gitByFolder: Record<string, GitInfo> = {};
-let checkingNow = false;
-let trackerCalls: string[] = [];
-let timerHandlers: ((cx: unknown) => void)[] = [];
+let timers: Timer[] = [];
 const commandQueue: string[] = [];
 const commandWaiters: ((command: string) => void)[] = [];
 
@@ -97,63 +109,51 @@ const flush = async (): Promise<void> => {
   });
 };
 
-const space = (id: string, active: boolean, folder = '/code/notes'): SpaceInfo => ({
+const space = (
+  id: string,
+  active: boolean,
+  folder = '/code/notes',
+  machine: string | null = null,
+): SpaceInfo => ({
   id,
   index: 1,
   name: `name-${id}`,
   named: true,
   folder,
-  machine: null,
+  machine,
   branch: null,
   active,
   status: null,
   tabs: [],
 });
 
-// Answers as the tracker would once git ran in each folder.
-class FakeGitTracker {
-  entries(): Record<string, GitInfo> {
-    return {};
+const storedFacts = (checkouts: readonly Checkout[]): Facts => {
+  const places: Record<string, PlaceGit> = {};
+  const worktrees: Record<string, WorktreeGit> = {};
+
+  for (const checkout of checkouts) {
+    const machine = checkout.machine ?? null;
+    const worktree = worktreeOf(machine, checkout.folder);
+
+    places[placeOf(machine, checkout.folder).key] = {
+      kind: 'repository',
+      worktree: worktree.key,
+    };
+
+    worktrees[worktree.key] = {
+      repository: repositoryOf(machine, checkout.commonDirectory),
+      root: checkout.folder,
+      branch: 'main',
+      linked: checkout.linked,
+    };
   }
 
-  lookup(key: string): GitInfo | undefined {
-    const [, folder] = JSON.parse(key) as [string | null, string];
+  return { git: { places, worktrees } };
+};
 
-    return gitByFolder[folder];
-  }
-
-  repositories(): [] {
-    trackerCalls.push('repositories');
-
-    return [];
-  }
-
-  sweep(): Set<string> {
-    trackerCalls.push('sweep');
-
-    return new Set();
-  }
-
-  prune(): void {
-    trackerCalls.push('prune');
-  }
-
-  refresh(): void {
-    trackerCalls.push('refresh');
-  }
-
-  stop(): void {
-    trackerCalls.push('stop');
-  }
-}
-
-const checkoutOf = (folder: string, linked: boolean): GitInfo => ({
-  branch: 'main',
-  repo: repositoryOf(null, '/code/koja/.git'),
-  root: folder,
-  cwd: folder,
-  linked,
-});
+const showFacts = (facts: Facts): void => {
+  sharedValues[snapshotKey] = { version: 2, revision: 1, facts };
+};
 
 class HostView {
   render(): unknown {
@@ -191,11 +191,13 @@ await mock.module('gpui-kit', () =>
   gpuiKitFake({ div: () => drawn(), svg: (path: string) => drawn(path), View: HostView }),
 );
 
-await mock.module('./gitTracker.ts', () => ({ GitTracker: FakeGitTracker }));
-
 await mock.module('herdr', () =>
   herdrFake({
-    checking: () => checkingNow,
+    exec: async (command: string) => {
+      execCommands.push(command);
+
+      return { code: 128, stdout: '', stderr: 'fatal: not a git repository' };
+    },
     layout: () => ({ id: 'sidebar', size: { px: sidebarWidth } }),
     nextCommand,
     openOverlay: (options: unknown) => {
@@ -263,8 +265,8 @@ const loadView = async (): Promise<FakeView> => {
       body(context).catch(() => undefined);
     },
     timer: {
-      every: (_milliseconds: number, handler: (cx: unknown) => void) => {
-        timerHandlers.push(handler);
+      every: (milliseconds: number, handler: (cx: unknown) => void) => {
+        timers.push({ milliseconds, handler });
       },
     },
   };
@@ -319,6 +321,7 @@ const reportHeight = (view: FakeView, height: number): void => {
 
 beforeEach(() => {
   runCalls = [];
+  execCommands = [];
   overlayCalls = [];
   notifyCalls = 0;
   scrollCalls = [];
@@ -328,10 +331,7 @@ beforeEach(() => {
   commandWaiters.length = 0;
   store.clear();
   spaceList = ['a', 'b', 'c', 'd', 'e', 'f', 'g', 'h'].map((id) => space(id, id === 'b'));
-  gitByFolder = {};
-  checkingNow = false;
-  trackerCalls = [];
-  timerHandlers = [];
+  timers = [];
   mark('sidebar');
 });
 
@@ -546,10 +546,12 @@ const pressable = (element: DrawnElement): boolean =>
 
 describe('koja-spaces main space header', () => {
   const useRepository = (): void => {
-    gitByFolder = {
-      '/code/koja': checkoutOf('/code/koja', false),
-      '/code/koja-fix': checkoutOf('/code/koja-fix', true),
-    };
+    showFacts(
+      storedFacts([
+        { folder: '/code/koja', commonDirectory: '/code/koja/.git', linked: false },
+        { folder: '/code/koja-fix', commonDirectory: '/code/koja/.git', linked: true },
+      ]),
+    );
 
     spaceList = [space('w', true, '/code/koja-fix'), space('m', false, '/code/koja')];
   };
@@ -607,29 +609,34 @@ describe('koja-spaces main space header', () => {
   });
 });
 
-const projectCheckout = (project: string, folder: string, linked: boolean): GitInfo => ({
-  branch: 'main',
-  repo: repositoryOf(null, `/code/${project}/.git`),
-  root: folder,
-  cwd: folder,
-  linked,
-});
-
 const handlersOf = (element: DrawnElement, name: string): MouseHandler[] =>
   element.mouseHandlers[name] ?? [];
 
 describe('koja-spaces drag and drop', () => {
-  const useSpaces = (ids: string[]): void => {
-    gitByFolder = {};
+  const useSpaces = (ids: string[], remoteProjects: readonly string[] = []): void => {
+    const checkouts: Checkout[] = [];
 
     for (const id of ids) {
       const [project = id, worktree] = id.split('-');
       const folder = `/code/${id}`;
+      const machine = remoteProjects.includes(project) ? 'remote' : null;
 
-      gitByFolder[folder] = projectCheckout(project, folder, worktree !== undefined);
+      checkouts.push({
+        folder,
+        machine,
+        commonDirectory: `/code/${project}/.git`,
+        linked: worktree !== undefined,
+      });
     }
 
-    spaceList = ids.map((id) => space(id, false, `/code/${id}`));
+    showFacts(storedFacts(checkouts));
+
+    spaceList = ids.map((id) => {
+      const [project = id] = id.split('-');
+      const machine = remoteProjects.includes(project) ? 'remote' : null;
+
+      return space(id, false, `/code/${id}`, machine);
+    });
   };
 
   const context = { notify: () => undefined, stop_propagation: () => undefined };
@@ -778,13 +785,7 @@ describe('koja-spaces drag and drop', () => {
   });
 
   test('fold headers on different machines refuse drops', async () => {
-    useSpaces(['alpha-1', 'alpha-2', 'beta-1']);
-
-    for (const row of spaceList) {
-      if (row.id.startsWith('beta')) {
-        row.machine = 'remote';
-      }
-    }
+    useSpaces(['alpha-1', 'alpha-2', 'beta-1'], ['beta']);
 
     const view = await loadView();
 
@@ -914,13 +915,7 @@ describe('koja-spaces drag and drop', () => {
   });
 
   test('headers on different machines refuse drops', async () => {
-    useSpaces(['alpha', 'alpha-1', 'beta', 'beta-1']);
-
-    for (const row of spaceList) {
-      if (row.id.startsWith('beta')) {
-        row.machine = 'remote';
-      }
-    }
+    useSpaces(['alpha', 'alpha-1', 'beta', 'beta-1'], ['beta']);
 
     const view = await loadView();
 
@@ -1047,37 +1042,63 @@ describe('koja-spaces data host', () => {
   });
 });
 
+describe('koja-spaces stored git facts', () => {
+  test('groups spaces by the stored git facts', async () => {
+    showFacts(
+      storedFacts([
+        { folder: '/code/koja', commonDirectory: '/code/koja/.git', linked: false },
+        { folder: '/code/koja-fix', commonDirectory: '/code/koja/.git', linked: true },
+        {
+          folder: '/srv/app',
+          machine: 'build-box',
+          commonDirectory: '/srv/app/.git',
+          linked: false,
+        },
+      ]),
+    );
+
+    spaceList = [
+      space('w', true, '/code/koja-fix'),
+      space('m', false, '/code/koja'),
+      space('r', false, '/srv/app', 'build-box'),
+    ];
+
+    const view = await loadView();
+    const texts = drawnTexts(view.render());
+
+    expect(spaceNames(view)).toEqual(['name-w']);
+    expect(texts.filter((text) => text === 'koja')).toHaveLength(1);
+    expect(texts.filter((text) => text === 'app')).toHaveLength(1);
+    expect(texts.filter((text) => text === 'build-box')).toHaveLength(1);
+  });
+});
+
 describe('koja-spaces git reads', () => {
-  const tick = (): void => {
-    const timerContext = { notify: () => undefined, spawn: () => undefined };
+  test('runs no git command of its own', async () => {
+    sharedValues[leaseKey] = { version: 1, owner: 'window-b', generation: 1 };
+    sharedValues[heartbeatKey] = { version: 1, owner: 'window-b', generation: 1, at: Date.now() };
 
-    for (const handler of timerHandlers) {
-      handler(timerContext);
-    }
-  };
-
-  test('timer ticks look for git changes and pull requests', async () => {
-    await loadView();
-    tick();
-
-    expect(trackerCalls).toContain('sweep');
-    expect(trackerCalls).toContain('repositories');
-  });
-
-  test('during herdr-app check, timer ticks read no git and no pull requests', async () => {
-    checkingNow = true;
-
-    await loadView();
-    tick();
-
-    expect(trackerCalls).toEqual([]);
-  });
-
-  test('closing the sidebar stops the git tracker', async () => {
     const view = await loadView();
 
-    view.close();
+    const timerContext = {
+      notify: () => undefined,
+      spawn: (body: (cx: unknown) => Promise<void>) => {
+        body(timerContext).catch(() => undefined);
+      },
+    };
 
-    expect(trackerCalls).toEqual(['stop']);
+    view.render();
+
+    for (let index = 0; index < 20; index += 1) {
+      for (const timer of timers) {
+        if (timer.milliseconds === 250) {
+          timer.handler(timerContext);
+        }
+      }
+    }
+
+    await flush();
+
+    expect(execCommands.filter((command) => command === 'git')).toEqual([]);
   });
 });

@@ -1,5 +1,6 @@
 import { describe, expect, spyOn, test } from 'bun:test';
 
+import { withFreshSnapshotCopy } from '../../tests/freshSnapshotCopy.ts';
 import { placeOf, repositoryOf } from './gitIdentity.ts';
 import type { Lease } from './lease.ts';
 import { claimLease, leaseExpiryMilliseconds } from './lease.ts';
@@ -209,30 +210,45 @@ describe('createSnapshotPublisher', () => {
     });
   });
 
-  test('reports a malformed snapshot before replacing it', () => {
-    const store = memoryStore();
-    const lease = claimFor(store, 'window-a', start);
-    const events: string[] = [];
+  test('reports a malformed snapshot before replacing it', async () => {
+    await withFreshSnapshotCopy(async (messages) => {
+      const store = memoryStore();
+      const lease = claimFor(store, 'window-a', start);
 
-    const spy = spyOn(console, 'log').mockImplementation(() => {
-      events.push('log');
-    });
+      let noticesAtWrite = -1;
 
-    const write = (key: string, value: unknown): void => {
-      store.write(key, value);
-      events.push('write');
-    };
+      const write = (key: string, value: unknown): void => {
+        noticesAtWrite = messages.length;
+        store.write(key, value);
+      };
 
-    store.values[snapshotKey] = { version: 2 };
+      store.values[snapshotKey] = { version: 2 };
 
-    try {
       createSnapshotPublisher(store.read, write, () => start).publish(lease, emptyFacts());
 
-      expect(events).toEqual(['log', 'write']);
+      expect(noticesAtWrite).toBe(1);
+      expect(messages).toHaveLength(1);
       expect(store.values[snapshotKey]).toEqual({ version: 2, revision: 1, facts: emptyFacts() });
-    } finally {
-      spy.mockRestore();
-    }
+    });
+  });
+
+  test('stays silent for a missing or retired snapshot', async () => {
+    await withFreshSnapshotCopy(async (messages) => {
+      const retired = { version: 1, revision: 4, facts: {} };
+
+      for (const value of [undefined, retired]) {
+        const store = memoryStore();
+        const lease = claimFor(store, 'window-a', start);
+
+        store.values[snapshotKey] = value;
+
+        createSnapshotPublisher(store.read, store.write, () => start).publish(lease, emptyFacts());
+
+        expect(store.values[snapshotKey]).toEqual({ version: 2, revision: 1, facts: emptyFacts() });
+      }
+
+      expect(messages).toEqual([]);
+    });
   });
 
   test('writes nothing for an owner that was fenced out', () => {

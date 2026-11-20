@@ -162,4 +162,26 @@ describe('createGitScheduler', () => {
     await harness.complete(harness.startedAt(1));
     expect(harness.watched).toHaveLength(2);
   });
+
+  test('cancels the watch when the last space leaves and starts no read', async () => {
+    harness.setFolder(null, '/code/koja', mainCheckout('/code/koja'));
+
+    const scheduler = harness.start();
+    const world = worldOf([spaceOf('s1', '/code/koja')]);
+
+    scheduler.tick(world, harness.context);
+    await harness.complete(harness.startedAt(0));
+
+    const watch = harness.watches.at(-1);
+
+    scheduler.tick(worldOf([]), harness.context);
+
+    expect(watch?.cancelled).toBe(true);
+    expect(harness.started).toHaveLength(1);
+
+    harness.setNow(1);
+    scheduler.tick(worldOf([]), harness.context);
+
+    expect(harness.started).toHaveLength(1);
+  });
 });

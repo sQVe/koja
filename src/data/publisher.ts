@@ -3,14 +3,11 @@ import type { Lease, ReadShared, WriteShared } from './lease.ts';
 import { holdsLease } from './lease.ts';
 import type { Facts, Snapshot } from './snapshot.ts';
 import { snapshotKey } from './snapshot.ts';
-import { createSnapshotNotices, logSnapshotNotice, readStoredSnapshot } from './storedSnapshot.ts';
+import { readStoredSnapshot, snapshotNotices } from './storedSnapshot.ts';
 
 export interface SnapshotPublisher {
   publish: (lease: Lease, facts: Facts) => void;
 }
-
-// One reporter per loaded copy keeps each snapshot notice to one log line in this bundle.
-export const snapshotNotices = createSnapshotNotices(logSnapshotNotice);
 
 const compareKeys = ([first]: [string, unknown], [second]: [string, unknown]): number => {
   if (first === second) {
