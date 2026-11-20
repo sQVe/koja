@@ -19,6 +19,7 @@ import {
   statusMark,
   tab,
   textField,
+  textRoleNames,
   textRoles,
   toggleButton,
   withTextRole,
@@ -52,8 +53,6 @@ const fakeTabs: FakeTab[] = [
 
 const paneButtonNames: IconName[] = ['columns-2', 'rows-2', 'maximize-2', 'x'];
 
-const roleOrder: TextRole[] = ['viewTitle', 'title', 'body', 'sectionHeading', 'detail', 'badge'];
-
 const roleNames: Record<TextRole, string> = {
   viewTitle: 'View title',
   title: 'Title',
@@ -61,6 +60,7 @@ const roleNames: Record<TextRole, string> = {
   sectionHeading: 'Section heading',
   detail: 'Detail',
   badge: 'Badge',
+  tag: 'Tag',
 };
 
 const section = (name: string, content: Element[]): Element =>
@@ -209,7 +209,7 @@ const roleRow = (role: TextRole): Element => {
     .child(roleText('detail', `${style.size} px · ${weight} · ${style.color}`));
 };
 
-const typeRoles = (): Element[] => roleOrder.map((role) => roleRow(role));
+const typeRoles = (): Element[] => textRoleNames.map((role) => roleRow(role));
 
 export const controlsScene = (inputs: SceneInputs): Element => {
   const controlSections = v_flex()

@@ -23,11 +23,19 @@ export { hoveredAfter } from './hoverTarget.ts';
 
 export { listRow } from './listRow.ts';
 
-export { paneHeader } from './paneHeader.ts';
+export {
+  paneBranchElement,
+  paneFolderElement,
+  paneHeader,
+  paneOverflowButton,
+  paneTaskElement,
+} from './paneHeader.ts';
 
 export type { PaneHeaderOptions } from './paneHeader.ts';
 
-export { paneHeaderMenu } from './paneHeaderMenu.ts';
+export { paneHeaderFields } from './paneHeaderFields.ts';
+
+export { paneHeaderMenu, paneHeaderMenuDetails } from './paneHeaderMenu.ts';
 
 export { paneActions } from './paneHeaderMenuModel.ts';
 
@@ -62,6 +70,7 @@ export {
   diffSize,
   hoverCardSize,
   overlaySize,
+  paneHeaderWidth,
   radius,
   rowHeight,
   separatorHeight,
@@ -70,7 +79,18 @@ export {
   spacing,
 } from './size.ts';
 
-export { attentionBadge, fileStatusMark, indicator, spaceMark, statusMark } from './statusMark.ts';
+export {
+  attentionBadge,
+  fileStatusMark,
+  indicator,
+  paneStatusElement,
+  statusMarkWidth,
+  spaceMark,
+  statusMark,
+} from './statusMark.ts';
+
+/** @public */
+export { roleBadge, roleToken } from './roleBadge.ts';
 
 export type { FileStatus } from './fileStatus.ts';
 
@@ -90,7 +110,7 @@ export { themeChoices } from './themes.ts';
 
 export { detailText, highlightedText, keyHint, linkText, separator } from './text.ts';
 
-export { roleText, textRoles, withTextRole } from './textRole.ts';
+export { roleText, textRoleNames, textRoles, withTextRole } from './textRole.ts';
 
 export type { TextRole } from './textRole.ts';
 

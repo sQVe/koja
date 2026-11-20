@@ -150,6 +150,16 @@ describe('tabLabel', () => {
     expect(labelOf(unnamedTab, [terminalPane('p1'), otherTabWorker], records)).toBe('zsh');
   });
 
+  test('keeps the last non-empty task for a terminal address', () => {
+    const records = [
+      terminalRecord('p1', 'First task'),
+      terminalRecord('p1', 'Second task'),
+      terminalRecord('p1', ''),
+    ];
+
+    expect(labelOf(unnamedTab, [terminalPane('p1')], records)).toBe('Second task');
+  });
+
   test('treats an empty task label as no task', () => {
     const records = [terminalRecord('p1', '')];
 

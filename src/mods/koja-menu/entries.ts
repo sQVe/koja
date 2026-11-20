@@ -2,6 +2,8 @@ import type { GitIdentity } from '../../data/gitIdentity.ts';
 import { bindingAction } from '../../kit/binding.ts';
 import { recordOf, stringOf } from '../../kit/fields.ts';
 import type { IconName } from '../../kit/iconNames.ts';
+import { paneActions } from '../../kit/paneHeaderMenuModel.ts';
+import type { PaneHeaderMenuFieldOptions } from '../../kit/paneHeaderMenuModel.ts';
 import type { ThemeChoice } from '../../kit/themes.ts';
 import type { GroveAction, WorktreeAction } from '../../kit/worktree.ts';
 
@@ -19,6 +21,11 @@ export interface MenuTarget {
 export interface MenuProps {
   kind: MenuKind;
   target: MenuTarget;
+  task?: string | null;
+  branch?: string | null;
+  folder?: string | null;
+  overflow?: boolean;
+  zoomed?: boolean;
 }
 
 export interface MenuEntry {
@@ -67,7 +74,33 @@ export const readMenuProps = (value: unknown): MenuProps => {
       id: stringOf(target['id']),
       space: stringOf(target['space']),
     },
+    task: stringOf(props['task']),
+    branch: stringOf(props['branch']),
+    folder: stringOf(props['folder']),
+    overflow: props['overflow'] === true,
+    zoomed: props['zoomed'] === true,
   };
+};
+
+const isPresent = (text: string | null | undefined): text is string =>
+  text !== null && text !== undefined && text !== '';
+
+export const menuDetails = (menu: MenuProps): PaneHeaderMenuFieldOptions => {
+  const details: PaneHeaderMenuFieldOptions = {};
+
+  if (isPresent(menu.task)) {
+    details.task = menu.task;
+  }
+
+  if (isPresent(menu.branch)) {
+    details.branch = menu.branch;
+  }
+
+  if (isPresent(menu.folder)) {
+    details.folder = menu.folder;
+  }
+
+  return details;
 };
 
 export const readTerminal = (value: unknown): TerminalFacts => {
@@ -134,6 +167,31 @@ const sendBackEntries = (
       terminal: terminal.address,
     }),
   ];
+};
+
+const overflowEntries = (host: MenuHost, target: MenuTarget, zoomed: boolean): MenuEntry[] => {
+  const pane = target.pane ?? undefined;
+
+  const commands: [string, Record<string, unknown>][] = [
+    ['pane.split', { direction: 'right', pane }],
+    ['pane.split', { direction: 'down', pane }],
+    ['pane.zoom', { pane }],
+    ['pane.close', { pane }],
+  ];
+
+  return paneActions({ zoomed }).map((entry, index) => {
+    const [command, args] = commands[index] ?? ['', {}];
+
+    return {
+      label: entry.label,
+      icon: entry.icon,
+      shortcuts: menuShortcuts(command, args),
+      group: entry.label === 'Close pane',
+      action: () => {
+        host.run(command, args);
+      },
+    };
+  });
 };
 
 const paneEntries = (host: MenuHost, target: MenuTarget): MenuEntry[] => {
@@ -235,7 +293,9 @@ export const stepSelection = (
 
 export const menuEntries = (menu: MenuProps, checkout: Checkout, host: MenuHost): MenuEntry[] => {
   if (menu.kind === 'pane') {
-    return paneEntries(host, menu.target);
+    return menu.overflow === true
+      ? overflowEntries(host, menu.target, menu.zoomed === true)
+      : paneEntries(host, menu.target);
   }
 
   if (menu.kind === 'tab') {
