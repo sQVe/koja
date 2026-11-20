@@ -3,11 +3,7 @@
 # sshd, home, runtime folder, and herdr-core all live under the sandbox root,
 # so a space can be made on another machine without touching the real one.
 #
-#   scripts/sandbox-machine up     start it, add it to the sandbox core, and
-#                                  make a Git repository there
-#   scripts/sandbox-machine down   forget it, stop it, and delete its files
 #
-# RUTA_NAME=<name> names the sandbox, as it does for scripts/sandbox.
 set -euo pipefail
 
 here=$(cd "$(dirname "$0")" && pwd)
@@ -90,8 +86,6 @@ LogLevel VERBOSE
 EOF
 }
 
-# sshd runs every session through this wrapper, so both the login path and a
-# command given over ssh see the machine's own home and runtime folder.
 write_login() {
   cat > "$machine/login" <<EOF
 #!/bin/sh
@@ -196,7 +190,6 @@ now_ms() {
   date +%s%3N
 }
 
-# Bound one sandbox call by the milliseconds left before the deadline.
 run_bounded() {
   local budget_ms=$1
   shift
