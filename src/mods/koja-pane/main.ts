@@ -4,6 +4,7 @@ import { div, View } from 'gpui-kit';
 import type { PaneInfo } from 'herdr';
 import { home, openOverlay, panes, props, run, shared, terminals } from 'herdr';
 
+import { terminalMetadata } from '../../data/terminalRecord.ts';
 import type { PaneHeaderMenuAction } from '../../kit/index.ts';
 import {
   askFirst,
@@ -25,18 +26,25 @@ import {
   roleText,
   spacing,
   stringOf,
-  taskOfPane,
   withTextRole,
 } from '../../kit/index.ts';
 import { headerTone } from './headerTone.ts';
 import { folderLabel } from './paneFolder.ts';
 import { paneFolder, paneName, paneProgram } from './paneLabel.ts';
-import { paneRole } from './paneRole.ts';
 
 interface PaneMenuDetails {
   task: string | null;
   branch: string | null;
   folder: string;
+}
+
+interface PaneHeaderContext {
+  name: string;
+  role: string | null;
+  task: string | null;
+  branch: string | null;
+  folderText: string;
+  fields: ReturnType<typeof paneHeaderFields>;
 }
 
 const headerPane = (): PaneInfo | undefined => {
@@ -83,8 +91,33 @@ const openPaneMenu = (pane: PaneInfo, details: PaneMenuDetails): void => {
       task: details.task,
       branch: details.branch,
       folder: details.folder,
+      overflow: true,
+      zoomed: pane.zoomed,
     },
   });
+};
+
+const paneHeaderContext = (pane: PaneInfo, width: number | null): PaneHeaderContext => {
+  const terminalRecords = pane.terminal === null ? [] : terminals();
+
+  const terminalInfo =
+    pane.terminal === null ? undefined : terminalMetadata(terminalRecords).get(pane.terminal);
+
+  const name = paneName(pane);
+  const role = terminalInfo?.role ?? null;
+  const task = terminalInfo?.task ?? null;
+  const branch = pane.branch;
+  const folderText = folderLabel(paneFolder(pane), home());
+
+  const fields = paneHeaderFields({
+    width,
+    name,
+    ...(role === null ? {} : { role }),
+    folder: folderText,
+    statusWidth: statusMarkWidth(pane.status),
+  });
+
+  return { name, role, task, branch, folderText, fields };
 };
 
 export default class PaneHeader extends View {
@@ -129,6 +162,17 @@ export default class PaneHeader extends View {
       element.bg(normalFocusFill(palette)).rounded_t(radius.cardInner);
     }
 
+    this.addHeaderContent(element, pane, palette, tone);
+
+    return element;
+  }
+
+  private addHeaderContent(
+    element: Element,
+    pane: PaneInfo,
+    palette: ReturnType<typeof colors>,
+    tone: ReturnType<typeof headerTone>,
+  ): void {
     const program = paneProgram(pane);
 
     if (program !== null && program.icon !== null) {
@@ -137,20 +181,7 @@ export default class PaneHeader extends View {
       element.child(programMark);
     }
 
-    const name = paneName(pane);
-    const terminalRecords = pane.terminal === null ? [] : terminals();
-    const role = pane.terminal === null ? null : paneRole(pane.terminal, terminalRecords);
-    const task = taskOfPane(pane, terminalRecords);
-    const branch = pane.branch;
-    const folderText = folderLabel(paneFolder(pane), home());
-
-    const fields = paneHeaderFields({
-      width: this.width,
-      name,
-      ...(role === null ? {} : { role }),
-      folder: folderText,
-      statusWidth: statusMarkWidth(pane.status),
-    });
+    const context = paneHeaderContext(pane, this.width);
 
     const titleBox = div()
       .flex_initial()
@@ -158,16 +189,16 @@ export default class PaneHeader extends View {
       .max_w(controlSize.paneLabelMaxWidth)
       .truncate();
 
-    const title = withTextRole(titleBox, 'detail', tone.title).child(name);
+    const title = withTextRole(titleBox, 'detail', tone.title).child(context.name);
 
     element.child(title);
 
-    if (role !== null) {
-      element.child(roleBadge(role, fields.role));
+    if (context.role !== null) {
+      element.child(roleBadge(context.role, context.fields.role));
     }
 
-    if (fields.folder !== 'dropped') {
-      const folder = roleText('detail', folderText).flex_1();
+    if (context.fields.folder !== 'dropped') {
+      const folder = roleText('detail', context.folderText).flex_1();
 
       element.child(folder);
     }
@@ -178,16 +209,22 @@ export default class PaneHeader extends View {
       element.child(status);
     }
 
-    if (fields.compact) {
+    this.addHeaderActions(element, pane, context);
+  }
+
+  private addHeaderActions(element: Element, pane: PaneInfo, context: PaneHeaderContext): void {
+    if (context.fields.compact) {
       const action = paneOverflowButton(() => {
-        openPaneMenu(pane, { task, branch, folder: folderText });
+        openPaneMenu(pane, {
+          task: context.task,
+          branch: context.branch,
+          folder: context.folderText,
+        });
       }).ml_auto();
 
       element.child(action);
     } else if (this.hovered) {
       element.children(paneButtons(pane));
     }
-
-    return element;
   }
 }

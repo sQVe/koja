@@ -1,16 +1,13 @@
 import type { PaneInfo, TabInfo } from 'herdr';
 
-import { terminalLabel, terminalRecordOf } from '../data/terminalRecord.ts';
+import { terminalMetadata } from '../data/terminalRecord.ts';
 
 const taskByAddress = (terminalRecords: readonly unknown[]): Map<unknown, string> => {
   const tasks = new Map<unknown, string>();
 
-  for (const record of terminalRecords) {
-    const terminal = terminalRecordOf(record);
-    const task = terminalLabel(terminal, 'tau.task');
-
-    if (task !== null) {
-      tasks.set(terminal.address, task);
+  for (const [address, metadata] of terminalMetadata(terminalRecords)) {
+    if (metadata.task !== null) {
+      tasks.set(address, metadata.task);
     }
   }
 
