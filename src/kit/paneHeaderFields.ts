@@ -129,7 +129,7 @@ const statesFor = (
   const branchWidth = stateWidth(branch, sizes.branchFull, sizes.branchMinimum);
 
   const folder = isPresent(input.folder)
-    ? fieldResult(width, sizes, branchWidth, sizes.folderFull, sizes.folderMinimum)
+    ? fieldResult(width, sizes, sizes.branchFull, sizes.folderFull, sizes.folderMinimum)
     : 'dropped';
 
   const folderWidth = stateWidth(folder, sizes.folderFull, sizes.folderMinimum);

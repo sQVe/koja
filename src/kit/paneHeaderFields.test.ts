@@ -150,6 +150,22 @@ describe('paneHeaderFields', () => {
     expect(below.compact).toBe(true);
   });
 
+  test('keeps the branch whole while the folder gives way', () => {
+    const branchLabel = 'me-1089-window-shell-layout-and-tab-bar-work';
+
+    const fields = paneHeaderFields({
+      statusWidth: 0,
+      width: 400,
+      name: 'Pi',
+      branch: branchLabel,
+      folder: '~/code/koja',
+    });
+
+    expect(fields.branch).toBe('full');
+    expect(fields.folder).toBe('dropped');
+    expect(fields.compact).toBe(true);
+  });
+
   test('a role badge cuts the folder at a width that fits it whole without a role', () => {
     const width = fixedWithFour + folderFull;
     const withoutRole = paneHeaderFields({ statusWidth: 0, width, name, folder: longFolder });
