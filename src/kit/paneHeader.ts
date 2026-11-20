@@ -36,6 +36,13 @@ export interface PaneHeaderOptions {
   onOverflow?: () => void;
 }
 
+interface TrailingAlignment {
+  branch: boolean;
+  folder: boolean;
+  status: boolean;
+  action: boolean;
+}
+
 const isPresent = (text: string | undefined): text is string => text !== undefined && text !== '';
 
 const nameElement = (options: PaneHeaderOptions): Element => {
@@ -63,8 +70,17 @@ const taskElement = (options: PaneHeaderOptions, fieldCut: boolean): Element | n
   return withTextRole(label, 'detail', 'muted').tooltip(options.task).child(options.task);
 };
 
-const fieldWidth = (element: Element, state: PaneHeaderFieldState): Element =>
-  state === 'cut' ? element.flex_1().min_w(paneHeaderWidth.fieldMinimum) : element.flex_none();
+const fieldWidth = (
+  element: Element,
+  state: PaneHeaderFieldState,
+  endAligned: boolean,
+): Element => {
+  if (state === 'cut') {
+    return element.flex_1().min_w(paneHeaderWidth.fieldMinimum);
+  }
+
+  return endAligned ? element.flex_none().ml_auto() : element.flex_none();
+};
 
 const middleLabel = (text: string): Element => {
   const box = div().min_w(0).flex_1().truncate();
@@ -72,7 +88,11 @@ const middleLabel = (text: string): Element => {
   return withTextRole(box, 'detail', 'dim').text_ellipsis_middle().tooltip(text).child(text);
 };
 
-const branchElement = (branch: string, state: PaneHeaderFieldState): Element => {
+const branchElement = (
+  branch: string,
+  state: PaneHeaderFieldState,
+  endAligned: boolean,
+): Element => {
   const branchIcon = icon('git-branch', 'small').text_color(colors().dim);
 
   const field = h_flex()
@@ -81,13 +101,17 @@ const branchElement = (branch: string, state: PaneHeaderFieldState): Element => 
     .child(branchIcon)
     .child(middleLabel(branch));
 
-  return fieldWidth(field, state);
+  return fieldWidth(field, state, endAligned);
 };
 
-const folderElement = (folder: string, state: PaneHeaderFieldState): Element => {
+const folderElement = (
+  folder: string,
+  state: PaneHeaderFieldState,
+  endAligned: boolean,
+): Element => {
   const field = h_flex().child(middleLabel(folder));
 
-  return fieldWidth(field, state);
+  return fieldWidth(field, state, endAligned);
 };
 
 const headerAction = (name: IconName, label: string, action: (() => void) | undefined): Element =>
@@ -106,12 +130,74 @@ export const paneOverflowButton = (onOverflow: (() => void) | undefined): Elemen
 const headerButtons = (options: PaneHeaderOptions): Element[] =>
   paneActions(options).map((entry) => headerAction(entry.icon, entry.label, entry.action));
 
-const actionRow = (fields: PaneHeaderFields, options: PaneHeaderOptions): Element => {
-  if (fields.compact) {
-    return h_flex().flex_none().ml_auto().child(paneOverflowButton(options.onOverflow));
+const trailingAlignment = (
+  hasTask: boolean,
+  showsBranch: boolean,
+  showsFolder: boolean,
+  showsStatus: boolean,
+): TrailingAlignment => {
+  if (hasTask) {
+    return { branch: false, folder: false, status: false, action: false };
   }
 
-  const row = h_flex().flex_none().ml_auto().gap(spacing.xxsmall).children(headerButtons(options));
+  if (showsBranch) {
+    return { branch: true, folder: false, status: false, action: false };
+  }
+
+  if (showsFolder) {
+    return { branch: false, folder: true, status: false, action: false };
+  }
+
+  if (showsStatus) {
+    return { branch: false, folder: false, status: true, action: false };
+  }
+
+  return { branch: false, folder: false, status: false, action: true };
+};
+
+const trailingChildren = (
+  options: PaneHeaderOptions,
+  fields: PaneHeaderFields,
+  status: Element | null,
+  alignment: TrailingAlignment,
+): Element[] => {
+  const children: Element[] = [];
+  const branch = options.branch;
+  const folder = options.folder;
+
+  if (isPresent(branch) && fields.branch !== 'dropped') {
+    children.push(branchElement(branch, fields.branch, alignment.branch));
+  }
+
+  if (isPresent(folder) && fields.folder !== 'dropped') {
+    children.push(folderElement(folder, fields.folder, alignment.folder));
+  }
+
+  if (status !== null) {
+    const placedStatus = alignment.status ? status.ml_auto() : status;
+
+    children.push(placedStatus);
+  }
+
+  return children;
+};
+
+const actionRow = (
+  fields: PaneHeaderFields,
+  options: PaneHeaderOptions,
+  endAligned: boolean,
+): Element => {
+  if (fields.compact) {
+    const compact = h_flex().flex_none().child(paneOverflowButton(options.onOverflow));
+
+    return endAligned ? compact.ml_auto() : compact;
+  }
+
+  const row = h_flex().flex_none().gap(spacing.xxsmall).children(headerButtons(options));
+
+  if (endAligned) {
+    row.ml_auto();
+  }
 
   return options.hovered === true ? row : row.invisible();
 };
@@ -151,6 +237,11 @@ export const paneHeader = (options: PaneHeaderOptions): Element => {
   }
 
   const fieldCut = fields.branch === 'cut' || fields.folder === 'cut';
+  const hasTask = isPresent(options.task);
+  const showsBranch = fields.branch !== 'dropped' && isPresent(options.branch);
+  const showsFolder = fields.folder !== 'dropped' && isPresent(options.folder);
+  const status = paneStatusElement(options.status);
+  const alignment = trailingAlignment(hasTask, showsBranch, showsFolder, status !== null);
 
   const task = taskElement(options, fieldCut);
 
@@ -158,21 +249,8 @@ export const paneHeader = (options: PaneHeaderOptions): Element => {
     header.child(task);
   }
 
-  if (fields.branch !== 'dropped' && isPresent(options.branch)) {
-    header.child(branchElement(options.branch, fields.branch));
-  }
-
-  if (fields.folder !== 'dropped' && isPresent(options.folder)) {
-    header.child(folderElement(options.folder, fields.folder));
-  }
-
-  const status = paneStatusElement(options.status);
-
-  if (status !== null) {
-    header.child(status);
-  }
-
-  header.child(actionRow(fields, options));
+  header.children(trailingChildren(options, fields, status, alignment));
+  header.child(actionRow(fields, options, alignment.action));
 
   return header;
 };

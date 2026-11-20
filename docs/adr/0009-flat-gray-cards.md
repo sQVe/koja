@@ -80,6 +80,8 @@ border for focus. The frame, panes, terminals, sidebar, and tab bar all share th
   The branch does the same next. The task cuts at its end last. The status slot counts the mark that
   shows: a working or done mark takes its 12 px slot, "Needs you" takes its pill width, and an idle
   pane reserves nothing.
+- In the kit header, a row without a task end-aligns its first trailing field, so the branch,
+  folder, and status sit at the right end. The action follows them.
 - Once a field drops, or the header is narrower than the compact width, one always-visible overflow
   button replaces the split, zoom, and close buttons. Its menu lists the task, branch, and folder as
   plain detail lines above those actions, so no field is out of reach. The button keeps its width

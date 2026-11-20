@@ -101,6 +101,25 @@ describe('paneHeader role badge', () => {
     expect(badge?.styles['min_w']).toEqual([0]);
   });
 
+  test('a wide header without a task end-aligns its folder', () => {
+    const element = paneHeader({
+      program: null,
+      name: 'Pi',
+      role: 'lead',
+      folder: '~/code/koja',
+      status: null,
+      focused: false,
+      zoomed: false,
+      width: shellSize.wideSpecimenWidth,
+    });
+
+    const folder = element.kids.find((kid) => drawnTexts(kid).includes('~/code/koja'));
+    const actionRow = element.kids.find((kid) => kid.styles['ml_auto'] !== undefined);
+
+    expect(folder?.styles['ml_auto']).toEqual([]);
+    expect(actionRow?.styles['ml_auto']).toEqual([]);
+  });
+
   test('a compact header without a task has no empty spacer and ends its action', () => {
     const element = paneHeader({
       program: null,
