@@ -992,9 +992,45 @@ add_machine() {
 }
 
 unregister_machine() {
-  if [[ -x $root/bin/herdr-app && -S $root/run/herdr-core/default.sock ]]; then
-    sandbox hc machine rm "$machine_name" >/dev/null 2>&1 || true
+  local registered status response
+
+  if [[ ! -x $root/bin/herdr-app || ! -S $root/run/herdr-core/default.sock ]]; then
+    return 0
   fi
+
+  set +e
+  fixture_registered
+  registered=$?
+  set -e
+
+  if (( registered == 1 )); then
+    return 0
+  fi
+
+  if (( registered != 0 )); then
+    echo "could not read the fixture machine registration; not unregistering $machine_name" >&2
+    return 1
+  fi
+
+  set +e
+  response=$(sandbox hc machine rm "$machine_name" 2>&1)
+  status=$?
+  set -e
+  if (( status != 0 )); then
+    echo "could not unregister fixture machine $machine_name: exit $status, last response: $response" >&2
+    return 1
+  fi
+}
+
+remove_fixture() {
+  unregister_machine || return 1
+
+  if ! rm -f "$state_file" "$receipt_file"; then
+    echo "could not remove the fixture proof files; kept $machine" >&2
+    return 1
+  fi
+
+  rm -rf "$machine"
 }
 
 up() {
@@ -1174,9 +1210,7 @@ down() {
     fi
 
     if (( status == 3 )); then
-      unregister_machine
-      rm -f "$state_file" "$receipt_file"
-      rm -rf "$machine"
+      remove_fixture || return 1
       return 0
     fi
 
@@ -1196,9 +1230,7 @@ down() {
     return 1
   fi
 
-  unregister_machine
-  rm -f "$state_file" "$receipt_file"
-  rm -rf "$machine"
+  remove_fixture
 }
 
 lock_machine() {

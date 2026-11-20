@@ -1,6 +1,9 @@
 import { afterEach, beforeEach, describe, expect, test } from 'bun:test';
 import { randomBytes } from 'node:crypto';
+import { once } from 'node:events';
 import { chmod, mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
+import { createServer } from 'node:net';
+import type { Server } from 'node:net';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 
@@ -257,6 +260,91 @@ const runBash = (body: string, environment: Record<string, string> = {}) =>
 
 const runDown = (environment: Record<string, string> = {}) =>
   run(['bash', machineScript, 'down'], environment);
+
+const runDownWithFakeHc = (environment: Record<string, string> = {}) =>
+  runBash(
+    `
+      set -euo pipefail
+      source '${machineScript}'
+      sandbox() {
+        if [ "$1" = hc ]; then
+          shift
+          PATH="$root/bin:$PATH" hc "$@"
+        else
+          return 1
+        fi
+      }
+      down
+    `,
+    environment,
+  );
+
+const openCoreSocket = async (): Promise<Server> => {
+  const socketFolder = join(root, 'run', 'herdr-core');
+  const server = createServer();
+
+  await mkdir(socketFolder, { recursive: true });
+  await mkdir(join(root, 'bin'), { recursive: true });
+  await writeProgram(join(root, 'bin', 'herdr-app'), 'exit 0');
+
+  server.listen(join(socketFolder, 'default.sock'));
+  await once(server, 'listening');
+
+  return server;
+};
+
+const registeredMachines =
+  '{"machines":[{"name":"qa-remote","state":"connected","temporary":false}]}';
+
+const writeFakeHc = async (body: string): Promise<string> => {
+  const calls = join(await newTemporaryFolder('koja-machine-hc-'), 'calls');
+
+  await mkdir(join(root, 'bin'), { recursive: true });
+  await writeProgram(join(root, 'bin', 'hc'), `printf '%s\\n' "$*" >>'${calls}'\n${body}`);
+
+  return calls;
+};
+
+const listMachines = (machines: string): string =>
+  `if [ "$1" = machine ] && [ "$2" = ls ]; then
+  printf '%s\\n' '${machines}'
+  exit 0
+fi`;
+
+const removeMachine = (failFlag: string): string =>
+  `if [ "$1" = machine ] && [ "$2" = rm ]; then
+  if [ -e '${failFlag}' ]; then
+    printf 'fake rm failure 7\\n' >&2
+    exit 7
+  fi
+  exit 0
+fi`;
+
+const listMachinesFails = `if [ "$1" = machine ] && [ "$2" = ls ]; then
+  exit 1
+fi`;
+
+const readFixtureFiles = async (): Promise<Buffer[]> =>
+  Promise.all([
+    readFile(stateFile),
+    readFile(receiptFile),
+    readFile(join(machine, 'fixture-proof')),
+  ]);
+
+const writeFakeRm = async (folder: string): Promise<string> => {
+  const calls = join(folder, 'calls');
+
+  await writeProgram(
+    join(folder, 'rm'),
+    `printf '%s\\n' "$*" >>'${calls}'
+if [ "$1" = -f ]; then
+  exit 1
+fi
+exit 0`,
+  );
+
+  return calls;
+};
 
 const writeInstrumentedSandboxScripts = async (): Promise<string> => {
   const folder = await newTemporaryFolder('koja-machine-scripts-');
@@ -1809,6 +1897,227 @@ printf '{"machines":[null,{"name":5}]}\\n'`,
 
     expect(down.exitCode).not.toBe(0);
     expect(await readFile(calls, 'utf8')).not.toContain('machine rm');
+  });
+});
+
+describe('scripts/sandbox-machine fixture unregistration', () => {
+  test('keeps the record and artifacts when unregistering fails after a verified stop', async () => {
+    const service = serviceName();
+    const manager = await newTemporaryFolder('koja-machine-manager-');
+    const failFlag = join(await newTemporaryFolder('koja-machine-hc-'), 'rm-fails');
+    const core = await openCoreSocket();
+
+    const calls = await writeFakeHc(
+      `${listMachines(registeredMachines)}\n${removeMachine(failFlag)}`,
+    );
+
+    await writeFakeSystemctl(manager);
+    await writeUnit(manager, service, unitProperties(service));
+    await writeOwnership(ownership(service));
+    await writeReceipt(receipt(service));
+    await writeFile(join(machine, 'fixture-proof'), 'kept\n');
+    await writeFile(failFlag, '');
+
+    const before = await readFixtureFiles();
+
+    try {
+      const down = await runDownWithFakeHc({
+        FAKE_MANAGER_DIR: manager,
+        PATH: pathWith(manager),
+      });
+
+      expect(down.exitCode).not.toBe(0);
+      expect(down.output).toContain('qa-remote');
+      expect(down.output).toContain('fake rm failure 7');
+      expect(await readFixtureFiles()).toEqual(before);
+      expect(await readFile(join(manager, 'calls'), 'utf8')).toBe(`stop ${service}\n`);
+      expect(await readFile(calls, 'utf8')).toContain('machine rm qa-remote');
+
+      await rm(failFlag);
+
+      const retry = await runDownWithFakeHc({
+        FAKE_MANAGER_DIR: manager,
+        PATH: pathWith(manager),
+      });
+
+      expect(retry.exitCode).toBe(0);
+      expect(await Bun.file(stateFile).exists()).toBe(false);
+      expect(await Bun.file(receiptFile).exists()).toBe(false);
+      expect(await Bun.file(join(machine, 'fixture-proof')).exists()).toBe(false);
+      expect(await readFile(join(manager, 'calls'), 'utf8')).toBe(`stop ${service}\n`);
+    } finally {
+      core.close();
+    }
+  });
+
+  test('keeps the record and artifacts when unregistering fails while the service is already absent', async () => {
+    const service = serviceName();
+    const manager = await newTemporaryFolder('koja-machine-manager-');
+    const failFlag = join(await newTemporaryFolder('koja-machine-hc-'), 'rm-fails');
+    const core = await openCoreSocket();
+
+    const calls = await writeFakeHc(
+      `${listMachines(registeredMachines)}\n${removeMachine(failFlag)}`,
+    );
+
+    await writeFakeSystemctl(manager);
+    await writeOwnership(ownership(service));
+    await writeReceipt(receipt(service));
+    await writeFile(join(machine, 'fixture-proof'), 'kept\n');
+    await writeFile(failFlag, '');
+
+    const before = await readFixtureFiles();
+
+    try {
+      const down = await runDownWithFakeHc({
+        FAKE_MANAGER_DIR: manager,
+        PATH: pathWith(manager),
+      });
+
+      expect(down.exitCode).not.toBe(0);
+      expect(down.output).toContain('qa-remote');
+      expect(down.output).toContain('fake rm failure 7');
+      expect(await readFixtureFiles()).toEqual(before);
+      expect(await Bun.file(join(manager, 'calls')).exists()).toBe(false);
+      expect(await readFile(calls, 'utf8')).toContain('machine rm qa-remote');
+
+      await rm(failFlag);
+
+      const retry = await runDownWithFakeHc({
+        FAKE_MANAGER_DIR: manager,
+        PATH: pathWith(manager),
+      });
+
+      expect(retry.exitCode).toBe(0);
+      expect(await Bun.file(stateFile).exists()).toBe(false);
+      expect(await Bun.file(receiptFile).exists()).toBe(false);
+      expect(await Bun.file(join(machine, 'fixture-proof')).exists()).toBe(false);
+      expect(await Bun.file(join(manager, 'calls')).exists()).toBe(false);
+    } finally {
+      core.close();
+    }
+  });
+
+  test('keeps the proof and fails when the first proof removal fails', async () => {
+    const service = serviceName();
+    const manager = await newTemporaryFolder('koja-machine-manager-');
+    const rmFolder = await newTemporaryFolder('koja-machine-rm-');
+    const calls = await writeFakeRm(rmFolder);
+    const launched = join(manager, 'launched');
+
+    await writeFakeSystemctl(manager);
+    await writeProgram(join(manager, 'systemd-run'), `touch '${launched}'`);
+    await writeOwnership(ownership(service));
+    await writeReceipt(receipt(service));
+    await writeFile(join(machine, 'fixture-proof'), 'kept\n');
+
+    const before = await readFixtureFiles();
+
+    const down = await runDown({
+      FAKE_MANAGER_DIR: manager,
+      PATH: pathWith(rmFolder, manager),
+    });
+
+    expect(down.exitCode).not.toBe(0);
+    expect(await readFixtureFiles()).toEqual(before);
+    expect(await Bun.file(join(manager, 'calls')).exists()).toBe(false);
+    expect(await Bun.file(launched).exists()).toBe(false);
+    expect(await readFile(calls, 'utf8')).toContain('-f');
+    expect(await readFile(calls, 'utf8')).not.toContain('-rf');
+  });
+
+  test('treats a reachable valid empty machine list as already unregistered', async () => {
+    const service = serviceName();
+    const manager = await newTemporaryFolder('koja-machine-manager-');
+    const core = await openCoreSocket();
+    const calls = await writeFakeHc(listMachines('{"machines":[]}'));
+
+    await writeFakeSystemctl(manager);
+    await writeOwnership(ownership(service));
+    await writeReceipt(receipt(service));
+    await writeFile(join(machine, 'fixture-proof'), 'kept\n');
+
+    try {
+      const down = await runDownWithFakeHc({
+        FAKE_MANAGER_DIR: manager,
+        PATH: pathWith(manager),
+      });
+
+      expect(down.exitCode).toBe(0);
+      expect(await Bun.file(stateFile).exists()).toBe(false);
+      expect(await Bun.file(receiptFile).exists()).toBe(false);
+      expect(await Bun.file(join(machine, 'fixture-proof')).exists()).toBe(false);
+      expect(await readFile(calls, 'utf8')).not.toContain('machine rm');
+    } finally {
+      core.close();
+    }
+  });
+
+  const checkUnreadableRegistration = (label: string, body: string): void => {
+    test(`keeps the record when the machine registration ${label}`, async () => {
+      const service = serviceName();
+      const manager = await newTemporaryFolder('koja-machine-manager-');
+      const core = await openCoreSocket();
+      const calls = await writeFakeHc(body);
+
+      await writeFakeSystemctl(manager);
+      await writeOwnership(ownership(service));
+      await writeReceipt(receipt(service));
+      await writeFile(join(machine, 'fixture-proof'), 'kept\n');
+
+      const before = await readFixtureFiles();
+
+      try {
+        const down = await runDownWithFakeHc({
+          FAKE_MANAGER_DIR: manager,
+          PATH: pathWith(manager),
+        });
+
+        expect(down.exitCode).not.toBe(0);
+        expect(down.output).toContain('qa-remote');
+        expect(await readFixtureFiles()).toEqual(before);
+        expect(await readFile(calls, 'utf8')).not.toContain('machine rm');
+      } finally {
+        core.close();
+      }
+    });
+  };
+
+  for (const [label, body] of [
+    ['cannot be read', listMachinesFails],
+    ['is not a valid list', listMachines('[]')],
+  ] as const) {
+    checkUnreadableRegistration(label, body);
+  }
+
+  test('removes the record after a reachable core unregisters the fixture', async () => {
+    const service = serviceName();
+    const manager = await newTemporaryFolder('koja-machine-manager-');
+    const core = await openCoreSocket();
+
+    const calls = await writeFakeHc(
+      `${listMachines(registeredMachines)}\n${removeMachine(join(manager, 'rm-fails'))}`,
+    );
+
+    await writeFakeSystemctl(manager);
+    await writeOwnership(ownership(service));
+    await writeReceipt(receipt(service));
+    await writeFile(join(machine, 'fixture-proof'), 'kept\n');
+
+    try {
+      const down = await runDownWithFakeHc({
+        FAKE_MANAGER_DIR: manager,
+        PATH: pathWith(manager),
+      });
+
+      expect(down.exitCode).toBe(0);
+      expect(await Bun.file(stateFile).exists()).toBe(false);
+      expect(await Bun.file(receiptFile).exists()).toBe(false);
+      expect(await Bun.file(join(machine, 'fixture-proof')).exists()).toBe(false);
+      expect(await readFile(calls, 'utf8')).toContain('machine rm qa-remote');
+    } finally {
+      core.close();
+    }
   });
 });
 
