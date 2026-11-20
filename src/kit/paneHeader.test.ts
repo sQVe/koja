@@ -95,7 +95,7 @@ describe('paneHeader role badge', () => {
   });
 
   test('a cut role badge can shrink below the built-in width', () => {
-    const badge = roleElement(300);
+    const badge = roleElement(120);
 
     expect(badge?.styles['flex_initial']).toEqual([]);
     expect(badge?.styles['min_w']).toEqual([0]);

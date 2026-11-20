@@ -16,6 +16,7 @@ import {
   paneHeaderFields,
   paneHeaderWidth,
   paneOverflowButton,
+  hasStatusMark,
   paneStatusElement,
   programIcon,
   radius,
@@ -148,6 +149,7 @@ export default class PaneHeader extends View {
       name,
       ...(role === null ? {} : { role }),
       folder: folderText,
+      status: hasStatusMark(pane.status),
     });
 
     const titleBox = div()
@@ -177,11 +179,11 @@ export default class PaneHeader extends View {
     }
 
     if (fields.compact) {
-      element.child(
-        paneOverflowButton(() => {
-          openPaneMenu(pane, { task, branch, folder: folderText });
-        }),
-      );
+      const action = paneOverflowButton(() => {
+        openPaneMenu(pane, { task, branch, folder: folderText });
+      }).ml_auto();
+
+      element.child(action);
     } else if (this.hovered) {
       element.children(paneButtons(pane));
     }

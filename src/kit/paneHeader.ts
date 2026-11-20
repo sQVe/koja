@@ -11,7 +11,7 @@ import { paneHeaderFields } from './paneHeaderFields.ts';
 import { paneActions } from './paneHeaderMenuModel.ts';
 import { roleBadge } from './roleBadge.ts';
 import { controlSize, paneHeaderWidth, radius, spacing } from './size.ts';
-import { paneStatusElement } from './statusMark.ts';
+import { hasStatusMark, paneStatusElement } from './statusMark.ts';
 import { withTextRole } from './textRole.ts';
 import { colors, focusFill } from './theme.ts';
 
@@ -118,7 +118,7 @@ const actionRow = (fields: PaneHeaderFields, options: PaneHeaderOptions): Elemen
 
 export const paneHeader = (options: PaneHeaderOptions): Element => {
   const palette = colors();
-  const fields = paneHeaderFields(options);
+  const fields = paneHeaderFields({ ...options, status: hasStatusMark(options.status) });
   const iconColor = options.focused ? palette.muted : palette.dim;
 
   const header = h_flex()

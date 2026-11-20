@@ -92,14 +92,17 @@ export const attentionBadge = (label: string): Element => {
   return withTextRole(badge, 'badge').child(label);
 };
 
+export const hasStatusMark = (status: Status | null): status is 'working' | 'blocked' | 'done' =>
+  status === 'blocked' || status === 'working' || status === 'done';
+
 export const paneStatusElement = (status: Status | null): Element | null => {
+  if (!hasStatusMark(status)) {
+    return null;
+  }
+
   if (status === 'blocked') {
     return attentionBadge('Needs you');
   }
 
-  if (status === 'working' || status === 'done') {
-    return statusMark(status);
-  }
-
-  return null;
+  return statusMark(status);
 };

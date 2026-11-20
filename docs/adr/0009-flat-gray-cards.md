@@ -77,11 +77,12 @@ border for focus. The frame, panes, terminals, sidebar, and tab bar all share th
   the controls stay in the pane. Built-in names stay whole at the widths the header supports.
 - The branch shows only when it differs from its space's branch.
 - When the header narrows, the folder cuts in the middle down to a minimum width, then drops whole.
-  The branch does the same next. The task cuts at its end last.
+  The branch does the same next. The task cuts at its end last. The status slot counts only while a
+  status mark shows, so an idle pane does not reserve its width.
 - Once a field drops, or the header is narrower than the compact width, one always-visible overflow
   button replaces the split, zoom, and close buttons. Its menu lists the task, branch, and folder as
   plain detail lines above those actions, so no field is out of reach. The button keeps its width
-  before the name and badge take theirs.
+  before the name and badge take theirs, and it stays at the end of the row when a field drops.
 - Every header button carries an accessible name beside its tooltip.
 
 ### Rows

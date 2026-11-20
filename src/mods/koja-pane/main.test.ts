@@ -111,6 +111,8 @@ await mock.module('../../kit/index.ts', () =>
     normalFocusFill,
     overlaySize,
     paneActions,
+    hasStatusMark: (status: string | null) =>
+      status === 'blocked' || status === 'working' || status === 'done',
     paneHeaderFields,
     paneHeaderWidth,
     paneOverflowButton,
@@ -323,12 +325,21 @@ describe('pane header buttons', () => {
     expect(badge?.styles['flex_initial']).toEqual([]);
     expect(badge?.styles['min_w']).toEqual([0]);
     expect(drawnTexts(tree)).not.toContain('~/pi-fixture');
+    expect(action?.styles['ml_auto']).toEqual([]);
   });
 
   test('a wide header draws its folder', () => {
     paneCwd = '/var/tmp/ruta-koja/home/pi-fixture';
 
     expect(drawnTexts(renderedAt(700))).toContain('~/pi-fixture');
+  });
+
+  test('a 245 px header with a short role draws its folder', () => {
+    paneProgramValue = piProgram;
+    paneCwd = '/var/tmp/ruta-koja/home/pi-fixture';
+    terminalRecords = [{ address: 't1', labels: { 'tau.role': 'lead' } }];
+
+    expect(drawnTexts(renderedAt(245))).toContain('~/pi-fixture');
   });
 
   test('a narrow header draws its compact action without hover', () => {
