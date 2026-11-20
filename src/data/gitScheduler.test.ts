@@ -108,6 +108,29 @@ describe('createGitScheduler', () => {
     expect(harness.revision()).toBe(1);
   });
 
+  test('publishes a failed place and reads it again after the fallback', async () => {
+    harness.failure = 'fatal: the machine is unreachable';
+
+    const scheduler = harness.start();
+    const world = worldOf([spaceOf('s1', '/code/koja')]);
+
+    scheduler.tick(world, harness.context);
+    await harness.complete(harness.startedAt(0));
+
+    const key = placeKeyOf(null, '/code/koja');
+
+    expect(harness.published.at(-1)?.git.places[key]).toEqual({ kind: 'failed' });
+    expect(harness.revision()).toBe(1);
+
+    harness.setNow(60_000);
+    scheduler.tick(world, harness.context);
+    expect(harness.started).toHaveLength(1);
+
+    harness.setNow(60_001);
+    scheduler.tick(world, harness.context);
+    expect(harness.started).toHaveLength(2);
+  });
+
   test('reads a remote place with no watch', async () => {
     harness.setFolder('qa-remote', '/srv/app', mainCheckout('/srv/app'));
 
@@ -132,6 +155,27 @@ describe('createGitScheduler', () => {
 
     scheduler.tick(world, harness.context);
     await harness.complete(harness.startedAt(0));
+
+    harness.setNow(60_000);
+    scheduler.tick(world, harness.context);
+    expect(harness.started).toHaveLength(1);
+
+    harness.setNow(60_001);
+    scheduler.tick(world, harness.context);
+    expect(harness.started).toHaveLength(2);
+  });
+
+  test('reads a folder with no repository again after the fallback', async () => {
+    const scheduler = harness.start();
+    const world = worldOf([spaceOf('s1', '/code/plain')]);
+
+    scheduler.tick(world, harness.context);
+    await harness.complete(harness.startedAt(0));
+
+    const key = placeKeyOf(null, '/code/plain');
+
+    expect(harness.published.at(-1)?.git.places[key]).toEqual({ kind: 'none' });
+    expect(harness.watched).toEqual([]);
 
     harness.setNow(60_000);
     scheduler.tick(world, harness.context);
@@ -183,5 +227,23 @@ describe('createGitScheduler', () => {
     scheduler.tick(worldOf([]), harness.context);
 
     expect(harness.started).toHaveLength(1);
+  });
+
+  test('publishes the removal of a worktree after its last place leaves', async () => {
+    harness.setFolder(null, '/code/koja', mainCheckout('/code/koja'));
+
+    const scheduler = harness.start();
+
+    scheduler.tick(worldOf([spaceOf('s1', '/code/koja')]), harness.context);
+    await harness.complete(harness.startedAt(0));
+    expect(harness.revision()).toBe(1);
+
+    scheduler.tick(worldOf([]), harness.context);
+
+    const published = harness.published.at(-1);
+
+    expect(harness.revision()).toBe(2);
+    expect(published?.git.places).toEqual({});
+    expect(published?.git.worktrees).toEqual({});
   });
 });
