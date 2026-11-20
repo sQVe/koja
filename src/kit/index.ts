@@ -94,7 +94,7 @@ export type { StatusRollup } from './statusRollup.ts';
 
 export { tab } from './tab.ts';
 
-export { tabLabel, tabProgram, taskOfPane } from './tabLabel.ts';
+export { tabLabel, tabProgram } from './tabLabel.ts';
 
 export { trafficLightsPadding } from './trafficLights.ts';
 
