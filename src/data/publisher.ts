@@ -9,7 +9,8 @@ export interface SnapshotPublisher {
   publish: (lease: Lease, facts: Facts) => void;
 }
 
-const notices = createSnapshotNotices(logSnapshotNotice);
+// One reporter per loaded copy keeps each snapshot notice to one log line in this bundle.
+export const snapshotNotices = createSnapshotNotices(logSnapshotNotice);
 
 const compareKeys = ([first]: [string, unknown], [second]: [string, unknown]): number => {
   if (first === second) {
@@ -48,7 +49,7 @@ export const createSnapshotPublisher = (
       return;
     }
 
-    const stored = readStoredSnapshot(read, notices);
+    const stored = readStoredSnapshot(read, snapshotNotices);
 
     if (stored.kind === 'read' && sameFacts(stored.snapshot.facts, facts)) {
       return;
