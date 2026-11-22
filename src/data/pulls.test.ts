@@ -84,6 +84,23 @@ describe('readRepositoryPulls', () => {
     expect(calls.map((call) => call.command)).toEqual(['git']);
   });
 
+  test('reads no PRs when git remote prints only whitespace', async () => {
+    const calls: string[] = [];
+
+    const run: RunCommand = async (command) => {
+      calls.push(command);
+
+      return result(' \n');
+    };
+
+    expect(await readRepositoryPulls(run, repository, '/repo', alwaysOwner)).toEqual({
+      kind: 'read',
+      pulls: [],
+    });
+
+    expect(calls).toEqual(['git']);
+  });
+
   test('fails when git remote fails without calling gh', async () => {
     const calls: string[] = [];
 

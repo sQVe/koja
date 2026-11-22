@@ -331,6 +331,52 @@ describe('createPullScheduler', () => {
     expect(harness.calls.map((call) => call.command)).toEqual(['git', 'gh']);
   });
 
+  test('a read for one repository answers no unanswered request for another', async () => {
+    const other = repositoryOf(null, '/code/other/.git');
+    const otherPlace = placeOf(null, '/code/other');
+    const otherWorktree = worktreeOf(null, '/code/other');
+    const base = gitFactsOf();
+
+    const git: GitFacts = {
+      places: {
+        ...base.places,
+        [otherPlace.key]: { kind: 'repository', worktree: otherWorktree.key },
+      },
+      worktrees: {
+        ...base.worktrees,
+        [otherWorktree.key]: {
+          repository: other,
+          root: '/code/other',
+          branch: 'main',
+          linked: false,
+        },
+      },
+    };
+
+    harness.setRequests([requestFor('window-a', 'a-1')]);
+
+    const scheduler = harness.start({
+      pulls: {
+        [repository.key]: { pulls: [], failed: false },
+        [other.key]: { pulls: [], failed: false },
+      },
+      readTimes: { [other.key]: start },
+    });
+
+    scheduler.tick(git, harness.spawn);
+    expect(harness.calls).toHaveLength(1);
+
+    harness.setRequests([
+      requestFor('window-a', 'a-1'),
+      { consumer: 'window-b', id: 'b-1', repository: other.key, at: start },
+    ]);
+
+    await harness.respondRemotes(0);
+    await harness.respondPulls(1, pullList(7));
+
+    expect(harness.outcomes()).toEqual([{ consumer: 'window-a', id: 'a-1', result: 'read' }]);
+  });
+
   test('a re-asserted request whose answer is still in memory starts no second read', async () => {
     harness.setRequests([requestFor('window-a', 'a-1')]);
 
@@ -380,6 +426,18 @@ describe('createPullScheduler', () => {
     expect(readPullReadTimes(harness.store.read, harness.notices)).toEqual({
       [repository.key]: start,
     });
+  });
+
+  test('a Retry whose PR read fails is answered failed', async () => {
+    harness.setRequests([requestFor('window-a', 'a-1')]);
+
+    const scheduler = harness.start();
+
+    scheduler.tick(gitFactsOf(), harness.spawn);
+    await harness.respondRemotes(0);
+    await harness.respond(1, { code: 1, stdout: '', stderr: 'offline' });
+
+    expect(harness.outcomes()).toEqual([{ consumer: 'window-a', id: 'a-1', result: 'failed' }]);
   });
 
   test('reads each repository at most once per 180 s', async () => {
