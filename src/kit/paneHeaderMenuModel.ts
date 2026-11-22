@@ -1,9 +1,12 @@
 import type { IconName } from './iconNames.ts';
 
-export interface PaneHeaderMenuOptions {
+export interface PaneHeaderMenuFieldOptions {
   task?: string | undefined;
   branch?: string | undefined;
   folder?: string | undefined;
+}
+
+export interface PaneHeaderMenuOptions extends PaneHeaderMenuFieldOptions {
   zoomed: boolean;
   onSplitRight?: (() => void) | undefined;
   onSplitDown?: (() => void) | undefined;
@@ -37,12 +40,15 @@ type PaneActionOptions = Pick<
 const isPresent = (text: string | undefined): text is string => text !== undefined && text !== '';
 
 const fieldCandidates = (
-  options: PaneHeaderMenuOptions,
+  options: PaneHeaderMenuFieldOptions,
 ): { icon: IconName | null; text: string | undefined; cut: 'middle' | 'end' }[] => [
   { icon: null, text: options.task, cut: 'end' },
   { icon: 'git-branch', text: options.branch, cut: 'middle' },
   { icon: 'folder', text: options.folder, cut: 'middle' },
 ];
+
+export const paneHeaderMenuFields = (options: PaneHeaderMenuFieldOptions): PaneHeaderMenuField[] =>
+  fieldCandidates(options).filter((field): field is PaneHeaderMenuField => isPresent(field.text));
 
 export const paneActions = (options: PaneActionOptions): PaneHeaderMenuAction[] => [
   { icon: 'columns-2', label: 'Split right', action: options.onSplitRight },
@@ -56,9 +62,7 @@ export const paneActions = (options: PaneActionOptions): PaneHeaderMenuAction[] 
 ];
 
 export const paneHeaderMenuModel = (options: PaneHeaderMenuOptions): PaneHeaderMenuModel => {
-  const fields = fieldCandidates(options).filter((field): field is PaneHeaderMenuField =>
-    isPresent(field.text),
-  );
+  const fields = paneHeaderMenuFields(options);
 
   return {
     fields,

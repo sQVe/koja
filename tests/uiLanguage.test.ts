@@ -5,6 +5,7 @@ import { join } from 'node:path';
 
 import { iconNames } from '../src/kit/iconNames.ts';
 import { badgeFillAlpha, diffFillAlpha, normalFocusFillAlpha } from '../src/kit/palette.ts';
+import { roleColorTokens } from '../src/kit/rolePalette.ts';
 import { isRawStyleExempt, modsDirectory, typeScriptFiles } from './sourceFiles.ts';
 
 interface SourceLine {
@@ -35,6 +36,13 @@ interface ContrastPair {
 interface ContrastResult {
   line: string;
   passed: boolean;
+}
+
+interface RoleSurface {
+  surface: string;
+  fill?: Fill;
+  minimum: number;
+  reason: string;
 }
 
 const kitDirectory = 'src/kit';
@@ -252,9 +260,11 @@ const rowPairs = (): ContrastPair[] => {
 
   pairs.push(contrastPair('accent', 'chrome', 3, 'listRow cursor outline on chrome'));
 
-  ['chrome', 'popover', 'selected'].forEach((surface) => {
+  ['chrome', 'selected'].forEach((surface) => {
     pairs.push(contrastPair('ansi3', surface, 3, `workIcon review and restack on ${surface}`));
   });
+
+  pairs.push(contrastPair('ansi3', 'popover', 4.5, 'workIcon review and restack on popover'));
 
   rowSurfaces.concat('background').forEach((surface) => {
     pairs.push(
@@ -277,6 +287,36 @@ const rowPairs = (): ContrastPair[] => {
   return pairs;
 };
 
+const roleSurfaces: RoleSurface[] = [
+  { surface: 'popover', minimum: 4.5, reason: 'roleBadge label and outline on popover' },
+  { surface: 'background', minimum: 4.5, reason: 'roleBadge label and outline on background' },
+  {
+    surface: 'background',
+    fill: { alpha: normalFocusFillAlpha, token: 'accent' },
+    minimum: 4.5,
+    reason: 'roleBadge label and outline on the focus tint',
+  },
+];
+
+const rolePairs = (): ContrastPair[] => {
+  const pairs: ContrastPair[] = [];
+
+  roleSurfaces.forEach(({ surface, fill, minimum, reason }) => {
+    roleColorTokens().forEach((token) => {
+      const pairReason = `${reason} as ${token}`;
+
+      const pair =
+        fill === undefined
+          ? contrastPair(token, surface, minimum, pairReason)
+          : filledPair(token, fill, surface, minimum, pairReason);
+
+      pairs.push(pair);
+    });
+  });
+
+  return pairs;
+};
+
 const backgroundPairs = (): ContrastPair[] => [
   contrastPair(
     'foreground',
@@ -284,7 +324,12 @@ const backgroundPairs = (): ContrastPair[] => [
     4.5,
     'koja-pane title and koja-changes text on background',
   ),
-  contrastPair('muted', 'background', 4.5, 'koja-pane unfocused title on background'),
+  contrastPair(
+    'muted',
+    'background',
+    4.5,
+    'koja-pane unfocused title and listRow muted label on background',
+  ),
   contrastPair('dim', 'background', 4.5, 'koja-pane folder and Changes detail on background'),
   contrastPair('ansi1', 'background', 4.5, 'Changes removal and file status text on background'),
   contrastPair('ansi2', 'background', 4.5, 'Changes addition and file status text on background'),
@@ -350,19 +395,44 @@ const backgroundPairs = (): ContrastPair[] => [
   ),
 ];
 
-const contrastPairs = (): ContrastPair[] => [
-  ...rowPairs(),
-  ...backgroundPairs(),
-  contrastPair(
-    'muted',
-    'raised',
-    4.5,
-    'koja-changes diff hunk header and disabled actionButton label on raised',
-  ),
-  contrastPair('solid_foreground', 'solid', 4.5, 'actionButton label on solid'),
-  contrastPair('solid', 'popover', 3, 'actionButton fill on popover'),
-  contrastPair('popover', 'ansi1', 4.5, 'dialogButton danger label on ansi1'),
-];
+const pairKey = (pair: ContrastPair): string => {
+  if (pair.fill === undefined) {
+    return `${pair.text} on ${pair.surface}`;
+  }
+
+  return `${pair.text} on ${pair.fill.token} ${pair.fill.alpha} over ${pair.surface}`;
+};
+
+const mergePairs = (pairs: ContrastPair[]): ContrastPair[] => {
+  const merged = new Map<string, ContrastPair>();
+
+  pairs.forEach((pair) => {
+    const key = pairKey(pair);
+    const existing = merged.get(key);
+
+    if (existing === undefined || pair.minimum > existing.minimum) {
+      merged.set(key, pair);
+    }
+  });
+
+  return [...merged.values()];
+};
+
+const contrastPairs = (): ContrastPair[] =>
+  mergePairs([
+    ...rowPairs(),
+    ...backgroundPairs(),
+    ...rolePairs(),
+    contrastPair(
+      'muted',
+      'raised',
+      4.5,
+      'koja-changes diff hunk header and disabled actionButton label on raised',
+    ),
+    contrastPair('solid_foreground', 'solid', 4.5, 'actionButton label on solid'),
+    contrastPair('solid', 'popover', 3, 'actionButton fill on popover'),
+    contrastPair('popover', 'ansi1', 4.5, 'dialogButton danger label on ansi1'),
+  ]);
 
 const blendChannel = (
   fillChannel: number,
@@ -390,14 +460,6 @@ const blendOver = (fill: Fill, surfaceColor: string, palette: Record<string, str
   const blue = blendChannel(fillBlue, surfaceBlue, alphaFraction);
 
   return `#${red}${green}${blue}`;
-};
-
-const pairKey = (pair: ContrastPair): string => {
-  if (pair.fill === undefined) {
-    return `${pair.text} on ${pair.surface}`;
-  }
-
-  return `${pair.text} on ${pair.fill.token} ${pair.fill.alpha} over ${pair.surface}`;
 };
 
 const contrastResult = (pair: ContrastPair, palette: Record<string, string>): ContrastResult => {
@@ -483,6 +545,14 @@ describe('the UI language', () => {
 
     expect(result.passed).toBe(true);
     expect(result.line).toBe('foreground on blocked 26 over popover: 16.18:1, needs 4.5:1');
+  });
+
+  test('two declarations of one pair merge at the larger minimum', () => {
+    const loose = contrastPair('foreground', 'popover', 4.5, 'loose declaration');
+    const strict = contrastPair('foreground', 'popover', 7, 'strict declaration');
+
+    expect(mergePairs([loose, strict])[0]?.minimum).toBe(7);
+    expect(mergePairs([strict, loose])[0]?.minimum).toBe(7);
   });
 
   test('the real theme passes every checked contrast pair', async () => {

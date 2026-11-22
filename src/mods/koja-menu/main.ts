@@ -13,6 +13,7 @@ import {
   listRow,
   openGroveDialog,
   openWorktreeDialog,
+  paneHeaderMenuDetails,
   popupSurface,
   separator,
   shortcutFor,
@@ -22,7 +23,14 @@ import {
   withTextRole,
 } from '../../kit/index.ts';
 import type { Checkout, MenuEntry, MenuHost } from './entries.ts';
-import { checkoutOf, menuEntries, readMenuProps, selectedIndex, stepSelection } from './entries.ts';
+import {
+  checkoutOf,
+  menuDetails,
+  menuEntries,
+  readMenuProps,
+  selectedIndex,
+  stepSelection,
+} from './entries.ts';
 
 const menuHost: MenuHost = {
   run: askFirst,
@@ -46,7 +54,11 @@ export default class Menu extends View {
   }
 
   override render(): Element {
-    const items = menuEntries(readMenuProps(props()), this.checkout, menuHost);
+    const menuProps = readMenuProps(props());
+    const items = menuEntries(menuProps, this.checkout, menuHost);
+
+    const details = menuProps.kind === 'pane' ? paneHeaderMenuDetails(menuDetails(menuProps)) : [];
+
     const selected = selectedIndex(items, this.selected);
 
     const menu = withTextRole(popupSurface('menu'), 'body')
@@ -54,6 +66,7 @@ export default class Menu extends View {
       .on_key_down((event, cx) => {
         this.onKey(event, items, cx);
       })
+      .children(details)
       .children(items.map((_item, index) => this.row(items, index, selected)));
 
     return this.handle === null ? menu : menu.track_focus(this.handle);

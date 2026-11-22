@@ -37,8 +37,13 @@ border for focus. The frame, panes, terminals, sidebar, and tab bar all share th
   - Body: 13 px Regular `foreground`, for row labels, tab names, menu items, and input text.
   - Section heading: 11 px SemiBold `muted`, for repository names and group headings.
   - Detail: 11 px Regular `dim`, for a branch, age, count, hint, or state line.
-  - Badge: 9 px SemiBold `foreground`, on a fill tinted with its status color, because
-    status-colored text on that tint falls below 4.5:1.
+  - Badge: 9 px SemiBold `foreground`, on a fill of one theme token at the kit's badge alpha,
+    because status-colored text on that tint falls below 4.5:1. Only the attention badge uses this
+    fill, and it tints with `blocked`.
+  - Tag: 9 px Regular, in the color of the role's group, inside a 1 px outline of the same color
+    with no fill. The role badge uses it. The group colors are `ansi4` for lead and architect,
+    `ansi2` for worker, `ansi3` for scout, reviewer, and checker, `ansi5` for qa and browser, and
+    `muted` for any other role. No group uses a status color.
 - A role fixes size and weight. A caller may change only its tone.
 - Key hints use the detail role, so a hint reads as a detail beside a 13 px label.
 - Line height stays Herdr's default. The kit adds no line-height value until a part needs wrapped
@@ -62,14 +67,25 @@ border for focus. The frame, panes, terminals, sidebar, and tab bar all share th
 
 ### Pane headers
 
-- A pane header shows, in order: program icon, name, the agent's task, branch, folder, and status,
-  then its buttons. Its text uses the detail role.
+- A pane header shows, in order: program icon, name, the role badge when the pane has a role, the
+  agent's task, branch, folder, and status, then its buttons. Its text uses the detail role.
+- The role badge follows the name, so a terminal's role or profile reads beside its name. It is an
+  outlined tag in the group's color with no fill, so "Needs you" stays the only filled pill. It
+  shows its full label while the header has room. The folder and branch cut and drop first; then the
+  label cuts at the end with an ellipsis, and hovering shows the full label. When the header is too
+  narrow for the badge and the controls together, the badge cuts below the longest built-in name, so
+  the controls stay in the pane. Built-in names stay whole at the widths the header supports.
 - The branch shows only when it differs from its space's branch.
 - When the header narrows, the folder cuts in the middle down to a minimum width, then drops whole.
-  The branch does the same next. The task cuts at its end last.
+  The branch does the same next. The task cuts at its end last. The status slot counts the mark that
+  shows: a working or done mark takes its 12 px slot, "Needs you" takes its pill width, and an idle
+  pane reserves nothing.
+- In the kit header, a row without a task end-aligns its first trailing field, so the branch,
+  folder, and status sit at the right end. The action follows them.
 - Once a field drops, or the header is narrower than the compact width, one always-visible overflow
   button replaces the split, zoom, and close buttons. Its menu lists the task, branch, and folder as
-  plain detail lines above those actions, so no field is out of reach.
+  plain detail lines above those actions, so no field is out of reach. The button keeps its width
+  before the name and badge take theirs, and it stays at the end of the row when a field drops.
 - Every header button carries an accessible name beside its tooltip.
 
 ### Rows

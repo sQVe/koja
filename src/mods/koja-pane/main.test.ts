@@ -1,84 +1,124 @@
-import { afterAll, describe, expect, mock, test } from 'bun:test';
+import { afterAll, afterEach, describe, expect, mock, test } from 'bun:test';
 
-import {
-  chainable,
-  gpuiBaseFake,
-  gpuiKitFake,
-  herdrFake,
-  kitIndexFake,
-} from '../../../tests/moduleFakes.ts';
+import type { DrawnElement } from '../../../tests/drawn.ts';
+import { click, drawn, drawnTexts, elementsWithStyle } from '../../../tests/drawn.ts';
+import { gpuiBaseFake, gpuiKitFake, herdrFake, kitIndexFake } from '../../../tests/moduleFakes.ts';
 import { recordOf, stringOf } from '../../kit/fields.ts';
 import { normalFocusFill, toPalette } from '../../kit/palette.ts';
+import { paneHeaderFields } from '../../kit/paneHeaderFields.ts';
 import { paneActions } from '../../kit/paneHeaderMenuModel.ts';
-
-interface RecordedElement {
-  styles: Record<string, unknown>;
-}
-
-type HoverHandler = (hovered: boolean, cx: { notify: () => void }) => void;
-
-type ClickHandler = (event: unknown, cx: { stop_propagation: () => void }) => void;
-
-const recorded = (): RecordedElement => {
-  const element: RecordedElement = { styles: {} };
-
-  const handle: RecordedElement = new Proxy(element, {
-    get: (target, key) => {
-      if (key === 'then') {
-        return undefined;
-      }
-
-      if (key === 'styles') {
-        return target.styles;
-      }
-
-      return (...args: unknown[]) => {
-        element.styles[String(key)] = args[0];
-
-        return handle;
-      };
-    },
-  });
-
-  return handle;
-};
+import { controlSize, overlaySize, paneHeaderWidth } from '../../kit/size.ts';
+import { taskOfPane } from '../../kit/tabLabel.ts';
 
 const accent = '#4e4e8f';
 
 let focused = false;
 let normalMode = false;
+let paneTerminal: string | null = 't1';
+let paneCwd: string | null = null;
+let paneBranch: string | null = null;
+let spaceBranch: string | null = null;
+let paneStatus: string | null = null;
+let terminalRecords: unknown[] = [];
+let terminalReads = 0;
 
 const askedCommands: { command: string; args: unknown }[] = [];
 
+const openedOverlays: unknown[] = [];
+
+const piProgram = {
+  key: 'pi',
+  name: 'Pi',
+  icon: null,
+  tint: false,
+  tile: null,
+  color: null,
+  shell: false,
+  agent: true,
+};
+
+const iconProgram = { ...piProgram, icon: '/icons/pi.png' };
+
+let paneProgramValue: Record<string, unknown> | null = null;
+
+const textElement = (text: string): DrawnElement => {
+  const element = drawn();
+
+  element.texts.push(text);
+
+  return element;
+};
+
+const fakeStatusMarkWidth = (status: string | null): number => {
+  if (status === 'blocked') {
+    return 66;
+  }
+
+  if (status === 'working' || status === 'done') {
+    return 12;
+  }
+
+  return 0;
+};
+
 const pane = (): Record<string, unknown> => ({
   pane: 'p1',
-  terminal: 't1',
+  terminal: paneTerminal,
   tab: 'tb1',
   title: 'zsh',
-  cwd: null,
-  branch: null,
-  status: null,
+  cwd: paneCwd,
+  branch: paneBranch,
+  status: paneStatus,
   app: null,
-  program: null,
+  program: paneProgramValue,
   focused,
   zoomed: false,
 });
 
 Object.assign(globalThis, { kojaModName: 'koja-pane' });
 
-await mock.module('gpui-base', () => gpuiBaseFake({ h_flex: () => recorded() }));
+await mock.module('gpui-base', () => gpuiBaseFake({ h_flex: () => drawn() }));
 
 await mock.module('gpui-kit', () =>
-  gpuiKitFake({ div: () => chainable(), image: () => chainable(), svg: () => chainable() }),
+  gpuiKitFake({ div: () => drawn(), image: () => drawn(), svg: (path: string) => drawn(path) }),
 );
 
 await mock.module('herdr', () =>
   herdrFake({
+    home: () => '/var/tmp/ruta-koja/home',
     panes: () => [pane()],
     props: () => ({ pane: 'p1' }),
+    spaces: () => [{ id: 'space-1', branch: spaceBranch, tabs: [{ id: 'tb1' }] }],
     shared: (key: string) => (key === 'koja-modal' && normalMode ? true : undefined),
+    openOverlay: (spec: unknown) => {
+      openedOverlays.push(spec);
+
+      return '';
+    },
+    terminals: () => {
+      terminalReads += 1;
+
+      return terminalRecords;
+    },
   }),
 );
+
+const overflowModulePath = '../../kit/paneHeader.ts';
+
+const { paneBranchElement, paneFolderElement, paneOverflowButton, paneTaskElement } = (await import(
+  overflowModulePath
+)) as {
+  paneBranchElement: (branch: string, state: 'full' | 'cut', endAligned: boolean) => DrawnElement;
+  paneFolderElement: (folder: string, state: 'full' | 'cut', endAligned: boolean) => DrawnElement;
+  paneOverflowButton: (onOverflow: (() => void) | undefined) => DrawnElement;
+  paneTaskElement: (task: string | undefined, fieldCut: boolean) => DrawnElement | null;
+};
+
+const badgeModulePath = '../../kit/roleBadge.ts';
+
+const { roleBadge } = (await import(badgeModulePath)) as {
+  roleBadge: (role: string, state?: 'full' | 'cut') => DrawnElement;
+};
 
 await mock.module('../../kit/index.ts', () =>
   kitIndexFake({
@@ -88,14 +128,33 @@ await mock.module('../../kit/index.ts', () =>
       return true;
     },
     colors: () => toPalette({ accent, foreground: '#1e2028' }),
-    iconButton: () => recorded(),
+    controlSize,
+    iconButton: () => drawn(),
     normalFocusFill,
+    overlaySize,
     paneActions,
-    programIcon: () => chainable(),
+    paneBranchElement,
+    paneFolderElement,
+    paneStatusElement: (status: string | null) =>
+      fakeStatusMarkWidth(status) > 0 ? textElement(status ?? '') : null,
+    paneTaskElement,
+    statusMarkWidth: fakeStatusMarkWidth,
+    paneHeaderFields,
+    paneHeaderWidth,
+    paneOverflowButton,
+    programIcon: () => drawn(),
     radius: { cardInner: 7 },
     recordOf,
-    roleText: () => chainable(),
+    roleBadge: (role: string, state?: 'full' | 'cut') => {
+      const badge = roleBadge(role, state);
+
+      badge.styles['roleBadge'] = [role];
+
+      return badge;
+    },
+    roleText: (_role: string, text: string) => textElement(text),
     stringOf,
+    taskOfPane,
     withTextRole: (element: unknown) => element,
   }),
 );
@@ -104,30 +163,104 @@ await mock.module('../../kit/index.ts', () =>
 const modulePath = './main.ts';
 
 const loaded = (await import(modulePath)) as {
-  default: new () => { render: () => RecordedElement };
+  default: new () => { render: () => DrawnElement };
 };
 
 afterAll(() => {
   mock.restore();
 });
 
-const hoveredButtons = (): RecordedElement[] => {
+afterEach(() => {
+  focused = false;
+  normalMode = false;
+  paneTerminal = 't1';
+  paneCwd = null;
+  paneBranch = null;
+  spaceBranch = null;
+  paneStatus = null;
+  terminalRecords = [];
+  terminalReads = 0;
+  askedCommands.length = 0;
+  openedOverlays.length = 0;
+  paneProgramValue = null;
+});
+
+const rendered = (): DrawnElement => new loaded.default().render();
+
+const renderedAt = (width: number): DrawnElement => {
+  const view = new loaded.default();
+  const first = view.render();
+
+  first.sizeHandlers[0]?.(
+    { width, height: controlSize.sectionHeader },
+    { notify: () => undefined },
+  );
+
+  return view.render();
+};
+
+const styleValue = (element: DrawnElement, style: string): string | null => {
+  const value = element.styles[style]?.[0];
+
+  return typeof value === 'string' ? value : null;
+};
+
+const hoveredButtons = (): DrawnElement[] => {
   focused = true;
   normalMode = false;
 
   const view = new loaded.default();
-  const onHover = view.render().styles['on_hover'] as HoverHandler;
+  const onHover = view.render().hoverHandlers[0];
 
-  onHover(true, { notify: () => undefined });
+  onHover?.(true, { notify: () => undefined });
 
-  return view.render().styles['children'] as RecordedElement[];
+  return elementsWithStyle(view.render(), 'accessibility_label');
 };
+
+const buttonsAt = (width: number): DrawnElement[] => {
+  focused = false;
+  normalMode = false;
+
+  return elementsWithStyle(renderedAt(width), 'accessibility_label');
+};
+
+const renderedHoveredAt = (width: number): DrawnElement => {
+  focused = false;
+  normalMode = false;
+
+  const view = new loaded.default();
+  const first = view.render();
+
+  first.sizeHandlers[0]?.(
+    { width, height: controlSize.sectionHeader },
+    { notify: () => undefined },
+  );
+
+  first.hoverHandlers[0]?.(true, { notify: () => undefined });
+
+  return view.render();
+};
+
+const hoveredAt = (width: number): DrawnElement[] =>
+  elementsWithStyle(renderedHoveredAt(width), 'accessibility_label');
 
 const headerFill = (paneFocused: boolean, normal: boolean): unknown => {
   focused = paneFocused;
   normalMode = normal;
 
-  return new loaded.default().render().styles['bg'];
+  return rendered().backgroundColors[0];
+};
+
+const badgeElements = (tree: DrawnElement): DrawnElement[] => elementsWithStyle(tree, 'roleBadge');
+
+const badgeTexts = (tree: DrawnElement): string[] =>
+  badgeElements(tree).flatMap((badge) => drawnTexts(badge));
+
+const badgePosition = (tree: DrawnElement, name: string): number => {
+  const titleIndex = tree.kids.findIndex((kid) => drawnTexts(kid).includes(name));
+  const badgeIndex = tree.kids.findIndex((kid) => kid.styles['roleBadge'] !== undefined);
+
+  return badgeIndex - titleIndex;
 };
 
 describe('pane header fill', () => {
@@ -145,11 +278,369 @@ describe('pane header fill', () => {
   });
 });
 
+describe('pane header role badge', () => {
+  test('draws the architect role badge right after the Pi title when both labels are present', () => {
+    paneProgramValue = piProgram;
+
+    terminalRecords = [
+      { address: 't1', labels: { 'tau.role': 'architect', 'tau.profile': 'worker' } },
+    ];
+
+    const tree = rendered();
+
+    expect(drawnTexts(tree)).toContain('Pi');
+    expect(badgeTexts(tree)).toEqual(['architect']);
+    expect(badgePosition(tree, 'Pi')).toBe(1);
+  });
+
+  test('draws the scout profile badge right after the Pi title when only the profile is present', () => {
+    paneProgramValue = piProgram;
+    terminalRecords = [{ address: 't1', labels: { 'tau.profile': 'scout' } }];
+
+    const tree = rendered();
+
+    expect(drawnTexts(tree)).toContain('Pi');
+    expect(badgeTexts(tree)).toEqual(['scout']);
+    expect(badgePosition(tree, 'Pi')).toBe(1);
+  });
+
+  test('draws a long profile badge with the full label as its tooltip and keeps the title space', () => {
+    paneProgramValue = piProgram;
+    terminalRecords = [{ address: 't1', labels: { 'tau.profile': 'integration-test-runner' } }];
+
+    const tree = rendered();
+    const [badge] = badgeElements(tree);
+    const title = tree.kids.find((kid) => drawnTexts(kid).includes('Pi'));
+
+    expect(badgeTexts(tree)).toEqual(['integration-test-runner']);
+    expect(badge?.tooltipText).toBe('integration-test-runner');
+    expect(title?.styles['min_w']).toEqual([controlSize.paneLabelMinWidth]);
+  });
+
+  test('draws the Pi title and no badge element when the terminal carries no tau label', () => {
+    paneProgramValue = piProgram;
+    terminalRecords = [{ address: 't1', labels: {} }];
+
+    const tree = rendered();
+
+    expect(drawnTexts(tree)).toContain('Pi');
+    expect(badgeElements(tree)).toEqual([]);
+  });
+
+  test('draws no role badge and reads no terminals for a mod pane', () => {
+    paneTerminal = null;
+    terminalRecords = [{ address: 't1', labels: { 'tau.role': 'lead' } }];
+
+    const tree = rendered();
+
+    expect(drawnTexts(tree)).not.toContain('lead');
+    expect(terminalReads).toBe(0);
+  });
+});
+
 describe('pane header buttons', () => {
+  test('a 120 px header keeps the compact action and cuts the architect badge', () => {
+    paneProgramValue = piProgram;
+    paneCwd = '/var/tmp/ruta-koja/home/pi-fixture';
+    terminalRecords = [{ address: 't1', labels: { 'tau.role': 'architect' } }];
+
+    const tree = renderedAt(120);
+    const [badge] = badgeElements(tree);
+
+    const action = elementsWithStyle(tree, 'accessibility_label').find(
+      (element) => styleValue(element, 'accessibility_label') === 'Pane actions',
+    );
+
+    expect(action?.styles['flex_none']).toEqual([]);
+    expect(badge?.tooltipText).toBe('architect');
+    expect(badge?.styles['flex_initial']).toEqual([]);
+    expect(badge?.styles['min_w']).toEqual([0]);
+    expect(drawnTexts(tree)).not.toContain('~/pi-fixture');
+    expect(action?.styles['ml_auto']).toEqual([]);
+  });
+
+  test('a wide header draws its folder', () => {
+    paneCwd = '/var/tmp/ruta-koja/home/pi-fixture';
+
+    expect(drawnTexts(renderedAt(700))).toContain('~/pi-fixture');
+  });
+
+  test('a wide header draws the task and a branch different from its space', () => {
+    paneProgramValue = piProgram;
+    paneCwd = '/var/tmp/ruta-koja/home/pi-fixture-feature';
+    paneBranch = 'feature-branch';
+    spaceBranch = 'fixture-branch';
+
+    terminalRecords = [
+      {
+        address: 't1',
+        labels: { 'tau.role': 'architect', 'tau.task': 'Build window shell' },
+      },
+    ];
+
+    const texts = drawnTexts(renderedAt(700));
+
+    expect(texts).toContain('Build window shell');
+    expect(texts).toContain('feature-branch');
+    expect(texts).toContain('~/pi-fixture-feature');
+  });
+
+  test('hides a branch equal to its space branch', () => {
+    paneProgramValue = piProgram;
+    paneCwd = '/var/tmp/ruta-koja/home/pi-fixture';
+    paneBranch = 'fixture-branch';
+    spaceBranch = 'fixture-branch';
+
+    terminalRecords = [
+      {
+        address: 't1',
+        labels: { 'tau.role': 'architect', 'tau.task': 'Build window shell' },
+      },
+    ];
+
+    const texts = drawnTexts(renderedAt(700));
+
+    expect(texts).toContain('Build window shell');
+    expect(texts).toContain('~/pi-fixture');
+    expect(texts).not.toContain('fixture-branch');
+  });
+
+  test('gives way in the order folder, branch, task, badge', () => {
+    paneProgramValue = piProgram;
+    paneCwd = '/var/tmp/ruta-koja/home/pi-fixture-feature';
+    paneBranch = 'feature-branch';
+    spaceBranch = 'fixture-branch';
+
+    terminalRecords = [
+      {
+        address: 't1',
+        labels: { 'tau.role': 'architect', 'tau.task': 'Build window shell' },
+      },
+    ];
+
+    const wide = drawnTexts(renderedAt(700));
+    const medium = drawnTexts(renderedAt(480));
+    const narrow = drawnTexts(renderedAt(340));
+    const cut = renderedAt(180);
+    const tiny = renderedAt(120);
+    const task = cut.kids.find((kid) => drawnTexts(kid).includes('Build window shell'));
+    const [badge] = badgeElements(tiny);
+
+    expect(wide).toContain('~/pi-fixture-feature');
+    expect(medium).toContain('feature-branch');
+    expect(medium).not.toContain('~/pi-fixture-feature');
+    expect(narrow).not.toContain('feature-branch');
+    expect(narrow).toContain('Build window shell');
+    expect(drawnTexts(cut)).toContain('Build window shell');
+    expect(task?.styles['flex_1']).toEqual([]);
+    expect(drawnTexts(tiny)).not.toContain('Build window shell');
+    expect(badge?.styles['flex_initial']).toEqual([]);
+  });
+
+  test('an iconless header shows a task at the width where a drawn icon would hide it', () => {
+    paneProgramValue = piProgram;
+    paneCwd = '/var/tmp/ruta-koja/home/pi-fixture';
+
+    terminalRecords = [
+      {
+        address: 't1',
+        labels: { 'tau.role': 'architect', 'tau.task': 'Build window shell' },
+      },
+    ];
+
+    expect(drawnTexts(renderedAt(159))).toContain('Build window shell');
+  });
+
+  test('shows an iconless task exactly at the width where its gap fits', () => {
+    paneProgramValue = piProgram;
+    paneCwd = '/var/tmp/ruta-koja/home/pi-fixture';
+
+    terminalRecords = [
+      {
+        address: 't1',
+        labels: { 'tau.role': 'architect', 'tau.task': 'Build window shell' },
+      },
+    ];
+
+    expect(drawnTexts(renderedAt(137))).not.toContain('Build window shell');
+    expect(drawnTexts(renderedAt(138))).toContain('Build window shell');
+  });
+
+  test('shows a task with a drawn icon exactly at the width where its gap fits', () => {
+    paneProgramValue = iconProgram;
+    paneCwd = '/var/tmp/ruta-koja/home/pi-fixture';
+
+    terminalRecords = [
+      {
+        address: 't1',
+        labels: { 'tau.role': 'architect', 'tau.task': 'Build window shell' },
+      },
+    ];
+
+    expect(drawnTexts(renderedAt(159))).not.toContain('Build window shell');
+    expect(drawnTexts(renderedAt(160))).toContain('Build window shell');
+  });
+
+  test('a task with no room is omitted and its gap goes to the badge', () => {
+    paneProgramValue = iconProgram;
+    paneCwd = '/var/tmp/ruta-koja/home/pi-fixture';
+
+    terminalRecords = [
+      {
+        address: 't1',
+        labels: { 'tau.role': 'architect', 'tau.task': 'Build window shell' },
+      },
+    ];
+
+    const tree = renderedAt(159);
+    const [badge] = badgeElements(tree);
+    const [compact] = elementsWithStyle(tree, 'accessibility_label');
+
+    if (compact !== undefined) {
+      click(compact);
+    }
+
+    expect(drawnTexts(tree)).not.toContain('Build window shell');
+    expect(badge?.styles['flex_none']).toEqual([]);
+    expect(openedOverlays).toMatchObject([{ props: { task: 'Build window shell' } }]);
+  });
+
+  test('a wide header ends its trailing group at the right edge without a task, with a task, and with a branch', () => {
+    paneProgramValue = piProgram;
+    paneCwd = '/var/tmp/ruta-koja/home/pi-fixture';
+    paneStatus = 'working';
+    terminalRecords = [{ address: 't1', labels: { 'tau.role': 'lead' } }];
+
+    const withStatus = renderedHoveredAt(900);
+    const folder = withStatus.kids.find((kid) => drawnTexts(kid).includes('~/pi-fixture'));
+    const status = withStatus.kids.find((kid) => drawnTexts(kid).includes('working'));
+    const badge = withStatus.kids.find((kid) => kid.styles['roleBadge'] !== undefined);
+    const autos = withStatus.kids.filter((kid) => kid.styles['ml_auto'] !== undefined);
+
+    expect(folder?.styles['ml_auto']).toBeUndefined();
+
+    expect(withStatus.kids.indexOf(folder ?? drawn())).toBeGreaterThan(
+      withStatus.kids.indexOf(badge ?? drawn()),
+    );
+
+    expect(autos).toHaveLength(1);
+    expect(autos[0]).toBe(status);
+    expect(elementsWithStyle(withStatus, 'accessibility_label')).toHaveLength(4);
+
+    paneStatus = null;
+    const noStatus = renderedHoveredAt(900);
+    const group = noStatus.kids.find((kid) => kid.styles['ml_auto'] !== undefined);
+
+    expect(group?.styles['ml_auto']).toEqual([]);
+    expect(elementsWithStyle(group ?? drawn(), 'accessibility_label')).toHaveLength(4);
+
+    terminalRecords = [
+      {
+        address: 't1',
+        labels: { 'tau.role': 'lead', 'tau.task': 'Build window shell' },
+      },
+    ];
+
+    const withTask = renderedHoveredAt(900);
+    const task = withTask.kids.find((kid) => drawnTexts(kid).includes('Build window shell'));
+    const taskAutos = withTask.kids.filter((kid) => kid.styles['ml_auto'] !== undefined);
+
+    expect(task?.styles['flex_1']).toEqual([]);
+    expect(taskAutos).toEqual([]);
+
+    paneBranch = 'feature-branch';
+    spaceBranch = 'fixture-branch';
+    terminalRecords = [{ address: 't1', labels: { 'tau.role': 'lead' } }];
+
+    const withBranch = renderedHoveredAt(900);
+    const branch = withBranch.kids.find((kid) => drawnTexts(kid).includes('feature-branch'));
+    const branchGroup = withBranch.kids.find((kid) => kid.styles['ml_auto'] !== undefined);
+
+    expect(branch?.styles['ml_auto']).toBeUndefined();
+    expect(elementsWithStyle(branchGroup ?? drawn(), 'accessibility_label')).toHaveLength(4);
+  });
+
+  test('a 233 px header with a built-in role draws its folder', () => {
+    paneProgramValue = piProgram;
+    paneCwd = '/var/tmp/ruta-koja/home/pi-fixture';
+    terminalRecords = [{ address: 't1', labels: { 'tau.role': 'architect' } }];
+
+    expect(drawnTexts(renderedAt(233))).toContain('~/pi-fixture');
+  });
+
+  test('a 245 px header with a short role draws its folder', () => {
+    paneProgramValue = piProgram;
+    paneCwd = '/var/tmp/ruta-koja/home/pi-fixture';
+    terminalRecords = [{ address: 't1', labels: { 'tau.role': 'lead' } }];
+
+    expect(drawnTexts(renderedAt(245))).toContain('~/pi-fixture');
+  });
+
+  test('a 245 px header with a working mark draws its folder', () => {
+    paneProgramValue = piProgram;
+    paneCwd = '/var/tmp/ruta-koja/home/pi-fixture';
+    paneStatus = 'working';
+    terminalRecords = [{ address: 't1', labels: { 'tau.role': 'lead' } }];
+
+    expect(drawnTexts(renderedAt(245))).toContain('~/pi-fixture');
+  });
+
+  test('a 220 px header without a mark draws its folder', () => {
+    paneProgramValue = piProgram;
+    paneCwd = '/var/tmp/ruta-koja/home/pi-fixture';
+    terminalRecords = [{ address: 't1', labels: { 'tau.role': 'lead' } }];
+
+    expect(drawnTexts(renderedAt(220))).toContain('~/pi-fixture');
+  });
+
+  test('a narrow header draws its compact action without hover', () => {
+    const names = buttonsAt(240).map((button) => styleValue(button, 'accessibility_label'));
+
+    expect(names).toEqual(['Pane actions']);
+  });
+
+  test('a wide header hides its four buttons until hover', () => {
+    const hidden = buttonsAt(900).map((button) => styleValue(button, 'accessibility_label'));
+    const shown = hoveredAt(900).map((button) => styleValue(button, 'accessibility_label'));
+
+    expect(hidden).toEqual([]);
+    expect(shown).toEqual(['Split right', 'Split down', 'Zoom pane', 'Close pane']);
+  });
+
+  test('the compact action opens the pane menu with the pane details and actions', () => {
+    paneCwd = '/var/tmp/ruta-koja/home/pi-fixture';
+    paneBranch = 'me-1089-window-shell';
+    terminalRecords = [{ address: 't1', labels: { 'tau.task': 'Build window shell' } }];
+
+    const [compact] = buttonsAt(240);
+
+    if (compact !== undefined) {
+      click(compact);
+    }
+
+    expect(openedOverlays).toEqual([
+      {
+        mod: 'koja-menu',
+        kind: 'popup',
+        width: paneHeaderWidth.menuWidth,
+        height: overlaySize.menuHeight,
+        props: {
+          tab: 'pane',
+          target: { pane: 'p1', terminal: 't1' },
+          task: 'Build window shell',
+          branch: 'me-1089-window-shell',
+          folder: '~/pi-fixture',
+          overflow: true,
+          zoomed: false,
+        },
+      },
+    ]);
+  });
+
   test('name each button for assistive technology and in a tooltip', () => {
     const buttons = hoveredButtons();
-    const names = buttons.map((button) => button.styles['accessibility_label']);
-    const tooltips = buttons.map((button) => button.styles['tooltip']);
+    const names = buttons.map((button) => styleValue(button, 'accessibility_label'));
+    const tooltips = buttons.map((button) => button.tooltipText);
 
     expect(names).toEqual(['Split right', 'Split down', 'Zoom pane', 'Close pane']);
     expect(tooltips).toEqual(names);
@@ -157,13 +648,12 @@ describe('pane header buttons', () => {
 
   test('close asks first, so the last pane of a space gets the Koja dialog', () => {
     const close = hoveredButtons().find(
-      (button) => button.styles['accessibility_label'] === 'Close pane',
+      (button) => styleValue(button, 'accessibility_label') === 'Close pane',
     );
 
-    const onClick = close?.styles['on_click'] as ClickHandler;
-
-    askedCommands.length = 0;
-    onClick(undefined, { stop_propagation: () => undefined });
+    if (close !== undefined) {
+      click(close);
+    }
 
     expect(askedCommands).toEqual([{ command: 'pane.close', args: { pane: 'p1' } }]);
   });

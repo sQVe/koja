@@ -41,6 +41,10 @@ const sceneSizes = {
     width: overlaySize.paneHeadersWidth,
     height: overlaySize.paneHeadersHeight,
   },
+  'pane-headers-roles': {
+    width: overlaySize.paneHeadersWidth,
+    height: overlaySize.paneHeadersRolesHeight,
+  },
   'sidebar-parts': {
     width: overlaySize.paneHeadersWidth,
     height: overlaySize.paneHeadersHeight,

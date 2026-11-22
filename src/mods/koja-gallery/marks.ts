@@ -6,6 +6,7 @@ import {
   attentionBadge,
   fileStatusMark,
   indicator,
+  roleBadge,
   spaceMark,
   spacing,
   statusMark,
@@ -30,6 +31,17 @@ export const marks = (): Element[] => {
     .child(indicator('blocked'))
     .child(indicator('dim'));
 
+  const roleBadges = h_flex()
+    .gap(spacing.medium)
+    .items_center()
+    .children([
+      roleBadge('architect'),
+      roleBadge('worker'),
+      roleBadge('reviewer'),
+      roleBadge('qa'),
+      roleBadge('planner'),
+    ]);
+
   return [
     h_flex()
       .gap(spacing.large)
@@ -44,5 +56,6 @@ export const marks = (): Element[] => {
     sample('File status letters: added, modified, deleted, unmerged', letters),
     sample('Indicators', indicators),
     sample('Attention badge', attentionBadge('Needs you')),
+    sample('Role badges: architect, worker, reviewer, qa, unknown', roleBadges),
   ];
 };

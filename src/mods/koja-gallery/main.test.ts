@@ -55,6 +55,7 @@ const kitFake = await realKitIndexFake([
   'listRow',
   'popupSurface',
   'projectHeader',
+  'roleBadge',
   'searchField',
   'sectionHeader',
   'size',

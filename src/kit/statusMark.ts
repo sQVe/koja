@@ -8,7 +8,7 @@ import { fileStatusColor } from './fileStatus.ts';
 import { icon, spinner } from './icon.ts';
 import type { ThemeToken } from './palette.ts';
 import { badgeFillAlpha, withAlpha } from './palette.ts';
-import { controlSize, markSize, radius, spacing, textSize } from './size.ts';
+import { controlSize, markSize, paneHeaderWidth, radius, spacing, textSize } from './size.ts';
 import { withTextRole } from './textRole.ts';
 import { colors } from './theme.ts';
 
@@ -90,4 +90,33 @@ export const attentionBadge = (label: string): Element => {
     .bg(withAlpha(palette.blocked, badgeFillAlpha));
 
   return withTextRole(badge, 'badge').child(label);
+};
+
+const attentionStatusWidth = 'Needs you'.length * paneHeaderWidth.glyph + spacing.small * 2;
+
+const hasStatusMark = (status: Status | null): status is 'working' | 'blocked' | 'done' =>
+  status === 'blocked' || status === 'working' || status === 'done';
+
+export const statusMarkWidth = (status: Status | null): number => {
+  if (status === 'blocked') {
+    return attentionStatusWidth;
+  }
+
+  if (status === 'working' || status === 'done') {
+    return markSize.slot;
+  }
+
+  return 0;
+};
+
+export const paneStatusElement = (status: Status | null): Element | null => {
+  if (!hasStatusMark(status)) {
+    return null;
+  }
+
+  if (status === 'blocked') {
+    return attentionBadge('Needs you');
+  }
+
+  return statusMark(status);
 };

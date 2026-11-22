@@ -57,6 +57,8 @@ export const controlSize = {
   button: 22,
   dialogButton: 28,
   paneLabelMaxWidth: 260,
+  // Keeps the pane name, such as "Pi", whole when the header is narrow.
+  paneLabelMinWidth: 12,
   searchField: 40,
   sectionHeader: 26,
   sidebarHeader: 27,
@@ -86,22 +88,32 @@ export const shellSize = {
 // `glyph` is the average advance of a Detail-role glyph at 11 px Geist, read from a capture.
 const headerActionCount = 4;
 const headerActionGaps = 3;
-const headerGapCount = 6;
 const headerBranchIcon = iconSize.small + spacing.xsmall;
 const fieldMinimumWidth = 120;
 
 export const paneHeaderWidth = {
   compact: 280,
   glyph: 6,
+  // The average advance of a Tag-role glyph at 9 px Geist, used for the role badge.
+  badgeGlyph: 5,
   padding: spacing.large * 2,
   icon: iconSize.default,
   branchIcon: headerBranchIcon,
-  gaps: spacing.medium * headerGapCount,
-  status: 60,
+  gap: spacing.medium,
   actions: controlSize.button * headerActionCount + spacing.xxsmall * headerActionGaps,
   overflowAction: controlSize.button,
   menuWidth: 240,
   fieldMinimum: fieldMinimumWidth,
+} as const;
+
+const badgeHorizontal = spacing.small * 2 + spacing.hairline * 2;
+
+export const badgeSize = {
+  height: controlSize.badge,
+  padding: spacing.small,
+  border: spacing.hairline,
+  radius: radius.default,
+  horizontal: badgeHorizontal,
 } as const;
 
 export const markSize = {
@@ -160,6 +172,7 @@ export const overlaySize = {
   shellHeight: 760,
   paneHeadersWidth: 900,
   paneHeadersHeight: 760,
+  paneHeadersRolesHeight: 780,
 } as const;
 
 export const trafficLightsWidth = 64;

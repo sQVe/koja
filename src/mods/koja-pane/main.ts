@@ -1,24 +1,32 @@
 import { h_flex } from 'gpui-base';
 import type { Element } from 'gpui-kit';
 import { div, View } from 'gpui-kit';
-import type { PaneInfo, Status } from 'herdr';
-import { home, panes, props, run, shared } from 'herdr';
+import type { PaneInfo } from 'herdr';
+import { home, openOverlay, panes, props, run, shared, spaces, terminals } from 'herdr';
 
+import { terminalMetadata } from '../../data/terminalRecord.ts';
 import type { PaneHeaderMenuAction } from '../../kit/index.ts';
 import {
   askFirst,
-  attentionBadge,
   colors,
   controlSize,
   iconButton,
   normalFocusFill,
+  overlaySize,
   paneActions,
+  paneHeaderFields,
+  paneHeaderWidth,
+  paneBranchElement,
+  paneFolderElement,
+  paneOverflowButton,
+  paneStatusElement,
+  paneTaskElement,
+  statusMarkWidth,
   programIcon,
   radius,
   recordOf,
-  roleText,
+  roleBadge,
   spacing,
-  statusMark,
   stringOf,
   withTextRole,
 } from '../../kit/index.ts';
@@ -26,22 +34,26 @@ import { headerTone } from './headerTone.ts';
 import { folderLabel } from './paneFolder.ts';
 import { paneFolder, paneName, paneProgram } from './paneLabel.ts';
 
+interface PaneMenuDetails {
+  task: string | null;
+  branch: string | null;
+  folder: string;
+}
+
+interface PaneHeaderContext {
+  name: string;
+  role: string | null;
+  task: string | null;
+  paneBranch: string | null;
+  branch: string | null;
+  folderText: string;
+  fields: ReturnType<typeof paneHeaderFields>;
+}
+
 const headerPane = (): PaneInfo | undefined => {
   const paneId = stringOf(recordOf(props()).pane);
 
   return panes().find((candidate) => candidate.pane === paneId);
-};
-
-const statusElement = (status: Status | null): Element | null => {
-  if (status === 'blocked') {
-    return attentionBadge('Needs you');
-  }
-
-  if (status === 'working' || status === 'done') {
-    return statusMark(status);
-  }
-
-  return null;
 };
 
 const paneButton = (entry: PaneHeaderMenuAction, id: string): Element =>
@@ -70,8 +82,64 @@ const paneButtons = (pane: PaneInfo): Element[] => {
   return actions.map((entry, index) => paneButton(entry, `pane-${ids[index]}-${pane.pane}`));
 };
 
+const openPaneMenu = (pane: PaneInfo, details: PaneMenuDetails): void => {
+  openOverlay({
+    mod: 'koja-menu',
+    kind: 'popup',
+    width: paneHeaderWidth.menuWidth,
+    height: overlaySize.menuHeight,
+    props: {
+      tab: 'pane',
+      target: { pane: pane.pane, terminal: pane.terminal },
+      task: details.task,
+      branch: details.branch,
+      folder: details.folder,
+      overflow: true,
+      zoomed: pane.zoomed,
+    },
+  });
+};
+
+const spaceBranchOf = (tab: string): string | null =>
+  spaces().find((candidate) => candidate.tabs.some((candidateTab) => candidateTab.id === tab))
+    ?.branch ?? null;
+
+const paneHeaderContext = (
+  pane: PaneInfo,
+  width: number | null,
+  showsProgramIcon: boolean,
+): PaneHeaderContext => {
+  const terminalRecords = pane.terminal === null ? [] : terminals();
+
+  const terminalInfo =
+    pane.terminal === null ? undefined : terminalMetadata(terminalRecords).get(pane.terminal);
+
+  const name = paneName(pane);
+  const role = terminalInfo?.role ?? null;
+  const task = terminalInfo?.task ?? null;
+  const paneBranch = pane.branch;
+  const spaceBranch = spaceBranchOf(pane.tab);
+  const branch = paneBranch !== null && paneBranch !== spaceBranch ? paneBranch : null;
+  const folderText = folderLabel(paneFolder(pane), home());
+
+  const fields = paneHeaderFields({
+    width,
+    name,
+    ...(role === null ? {} : { role }),
+    ...(task === null ? {} : { task }),
+    ...(branch === null ? {} : { branch }),
+    folder: folderText,
+    showsProgramIcon,
+    statusWidth: statusMarkWidth(pane.status),
+  });
+
+  return { name, role, task, paneBranch, branch, folderText, fields };
+};
+
 export default class PaneHeader extends View {
   private hovered = false;
+
+  private width: number | null = null;
 
   override render(): Element {
     const pane = headerPane();
@@ -93,10 +161,15 @@ export default class PaneHeader extends View {
       .px(spacing.large)
       .gap(spacing.medium)
       .items_center()
+      .overflow_hidden()
       .border_b(spacing.hairline)
       .border_color(palette.selected)
       .on_hover((hovered, cx) => {
         this.hovered = hovered;
+        cx.notify();
+      })
+      .on_size_change((size, cx) => {
+        this.width = size.width;
         cx.notify();
       })
       .on_click(() => run('pane.focus', { pane: pane.pane }));
@@ -105,33 +178,111 @@ export default class PaneHeader extends View {
       element.bg(normalFocusFill(palette)).rounded_t(radius.cardInner);
     }
 
-    const program = paneProgram(pane);
+    this.addHeaderContent(element, pane, palette, tone);
 
-    if (program !== null && program.icon !== null) {
+    return element;
+  }
+
+  private addHeaderContent(
+    element: Element,
+    pane: PaneInfo,
+    palette: ReturnType<typeof colors>,
+    tone: ReturnType<typeof headerTone>,
+  ): void {
+    const program = paneProgram(pane);
+    const programIconPath = program?.icon ?? null;
+
+    if (program !== null && programIconPath !== null) {
       const programMark = programIcon(program, 'default').text_color(palette[tone.icon]);
 
       element.child(programMark);
     }
 
-    const titleBox = div().flex_initial().min_w(0).max_w(controlSize.paneLabelMaxWidth).truncate();
-    const title = withTextRole(titleBox, 'detail', tone.title).child(paneName(pane));
+    const context = paneHeaderContext(pane, this.width, programIconPath !== null);
+
+    const titleBox = div()
+      .flex_initial()
+      .min_w(controlSize.paneLabelMinWidth)
+      .max_w(controlSize.paneLabelMaxWidth)
+      .truncate();
+
+    const title = withTextRole(titleBox, 'detail', tone.title).child(context.name);
 
     element.child(title);
 
-    const folder = roleText('detail', folderLabel(paneFolder(pane), home())).flex_1();
+    if (context.role !== null) {
+      element.child(roleBadge(context.role, context.fields.role));
+    }
 
-    element.child(folder);
+    const taskShown = context.fields.task === 'shown';
 
-    const status = statusElement(pane.status);
+    const endAligned =
+      !taskShown && context.fields.branch !== 'cut' && context.fields.folder !== 'cut';
+
+    const status = paneStatusElement(pane.status);
+
+    this.addHeaderFields(element, context, taskShown, endAligned, status);
+    this.addHeaderActions(element, pane, context, endAligned, status !== null);
+  }
+
+  private addHeaderFields(
+    element: Element,
+    context: PaneHeaderContext,
+    taskShown: boolean,
+    endAligned: boolean,
+    status: Element | null,
+  ): void {
+    const fieldCut = context.fields.branch === 'cut' || context.fields.folder === 'cut';
+    const task = taskShown ? paneTaskElement(context.task ?? undefined, fieldCut) : null;
+
+    if (task !== null) {
+      element.child(task);
+    }
+
+    if (context.branch !== null && context.fields.branch !== 'dropped') {
+      element.child(paneBranchElement(context.branch, context.fields.branch, false));
+    }
+
+    if (context.fields.folder !== 'dropped') {
+      element.child(paneFolderElement(context.folderText, context.fields.folder, false));
+    }
 
     if (status !== null) {
-      element.child(status);
-    }
+      const placedStatus = endAligned ? status.ml_auto() : status;
 
-    if (this.hovered) {
-      element.children(paneButtons(pane));
+      element.child(placedStatus);
     }
+  }
 
-    return element;
+  private addHeaderActions(
+    element: Element,
+    pane: PaneInfo,
+    context: PaneHeaderContext,
+    endAligned: boolean,
+    hasStatus: boolean,
+  ): void {
+    if (context.fields.compact) {
+      const action = paneOverflowButton(() => {
+        openPaneMenu(pane, {
+          task: context.task,
+          branch: context.paneBranch,
+          folder: context.folderText,
+        });
+      });
+
+      const placed = endAligned && !hasStatus ? action.ml_auto() : action;
+
+      element.child(placed);
+    } else if (this.hovered) {
+      const buttons = paneButtons(pane);
+
+      if (endAligned && !hasStatus) {
+        const row = h_flex().ml_auto().children(buttons);
+
+        element.child(row);
+      } else {
+        element.children(buttons);
+      }
+    }
   }
 }
