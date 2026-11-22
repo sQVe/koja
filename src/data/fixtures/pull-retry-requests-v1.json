@@ -1,0 +1,11 @@
+{
+  "version": 1,
+  "requests": [
+    {
+      "consumer": "window-a",
+      "id": "0f8a1b2c-3d4e-5f60-7182-93a4b5c6d7e8",
+      "repository": "[null,\"/code/koja/.git\"]",
+      "at": 1700000000000
+    }
+  ]
+}

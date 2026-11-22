@@ -12,7 +12,7 @@ import { createWatchRegistry, usedRepositories } from './gitWatches.ts';
 import type { Lease } from './lease.ts';
 import { sameHolder } from './lease.ts';
 import { observePlaces } from './places.ts';
-import type { Facts, GitFacts, PlaceGit, WorktreeGit } from './snapshot.ts';
+import type { GitFacts, PlaceGit, WorktreeGit } from './snapshot.ts';
 
 export type { GitWorld } from './gitDue.ts';
 
@@ -21,12 +21,12 @@ export interface GitSchedulerDependencies {
   watchFolder: WatchFolder;
   now: () => number;
   heldLease: () => Lease | null;
-  publish: (lease: Lease, facts: Facts) => void;
+  publish: () => void;
 }
 
 export interface GitScheduler {
   tick: (world: GitWorld, cx: Context) => void;
-  facts: () => Facts;
+  gitFacts: () => GitFacts;
   stop: () => void;
 }
 
@@ -91,15 +91,15 @@ class Scheduler implements GitScheduler {
   constructor(
     private readonly dependencies: GitSchedulerDependencies,
     private readonly lease: Lease,
-    seed: Facts,
+    seed: GitFacts,
   ) {
-    this.places = { ...seed.git.places };
-    this.worktrees = { ...seed.git.worktrees };
+    this.places = { ...seed.places };
+    this.worktrees = { ...seed.worktrees };
     this.watches = createWatchRegistry(dependencies.watchFolder, dependencies.now);
   }
 
-  facts(): Facts {
-    return { git: this.gitFacts() };
+  gitFacts(): GitFacts {
+    return { places: this.places, worktrees: this.worktrees };
   }
 
   tick(world: GitWorld, cx: Context): void {
@@ -134,10 +134,6 @@ class Scheduler implements GitScheduler {
   stop(): void {
     this.stopped = true;
     this.watches.stop();
-  }
-
-  private gitFacts(): GitFacts {
-    return { places: this.places, worktrees: this.worktrees };
   }
 
   private mark(key: string, at: number, reason: ReadReason): void {
@@ -549,12 +545,12 @@ class Scheduler implements GitScheduler {
       return;
     }
 
-    this.dependencies.publish(this.lease, this.facts());
+    this.dependencies.publish();
   }
 }
 
 export const createGitScheduler = (
   dependencies: GitSchedulerDependencies,
   lease: Lease,
-  seed: Facts,
+  seed: GitFacts,
 ): GitScheduler => new Scheduler(dependencies, lease, seed);

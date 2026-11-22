@@ -1,21 +1,20 @@
 import type { Context, Element } from 'gpui-kit';
 import type { SpaceInfo } from 'herdr';
 
+import type { Pull } from '../../data/pulls.ts';
 import type { DragState } from '../../kit/drag.ts';
 import { dragLine } from '../../kit/drag.ts';
 import type { DropMark } from '../../kit/index.ts';
 import { detailText, listRow, projectHeader, spaceMark } from '../../kit/index.ts';
 import type { Project } from './projects.ts';
-import type { Pull } from './pulls.ts';
 import { rowCut } from './rows.ts';
-import type { GitInfo, ListedSpace } from './tree.ts';
+import type { ListedSpace } from './tree.ts';
 
 export interface RowState {
   drag: DragState;
   refused: string | null;
   cursor: string | null;
   age: string | null;
-  lookup: (git: GitInfo | null) => Pull | null;
   attachDrag: (element: Element, space: SpaceInfo, ids: readonly string[]) => void;
 }
 
@@ -31,10 +30,14 @@ const dropMark = (state: RowState, id: string, ids: readonly string[]): DropMark
 const rowTitle = (row: ListedSpace, pull: Pull | null): string =>
   row.space.named ? row.space.name : (pull?.title ?? row.space.name);
 
-export const row = (listed: ListedSpace, ids: readonly string[], state: RowState): Element => {
+export const row = (
+  listed: ListedSpace,
+  ids: readonly string[],
+  state: RowState,
+  pull: Pull | null,
+): Element => {
   const { space } = listed;
   const drop = dropMark(state, space.id, ids);
-  const pull = state.lookup(listed.git);
   const end = state.age === null ? [] : [detailText(state.age)];
 
   const rowState = space.active ? 'selected' : 'normal';

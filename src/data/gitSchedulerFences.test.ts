@@ -9,12 +9,13 @@ import {
 } from '../../tests/gitSchedulerHarness.ts';
 import { worktreeOf } from './gitIdentity.ts';
 import type { Lease } from './lease.ts';
+import type { GitFacts } from './snapshot.ts';
 import { emptyFacts } from './snapshot.ts';
 
 const harness = new GitSchedulerHarness();
 
-const hasOldBranch = (facts: { git: { worktrees: Record<string, { branch: string | null }> } }) =>
-  Object.values(facts.git.worktrees).some((worktree) => worktree.branch === 'old');
+const hasOldBranch = (facts: GitFacts) =>
+  Object.values(facts.worktrees).some((worktree) => worktree.branch === 'old');
 
 beforeEach(() => {
   harness.reset();
@@ -45,7 +46,7 @@ describe('createGitScheduler fences', () => {
     await harness.complete(harness.startedAt(0));
 
     expect(harness.published).toHaveLength(0);
-    expect(scheduler.facts()).toEqual(emptyFacts());
+    expect(scheduler.gitFacts()).toEqual(emptyFacts().git);
   });
 
   test('drops a result when only the generation moves on', async () => {
@@ -60,7 +61,7 @@ describe('createGitScheduler fences', () => {
     await harness.complete(harness.startedAt(0));
 
     expect(harness.published).toHaveLength(0);
-    expect(scheduler.facts()).toEqual(emptyFacts());
+    expect(scheduler.gitFacts()).toEqual(emptyFacts().git);
   });
 
   test('starts no further read when the lease is lost mid-batch', () => {
@@ -106,7 +107,7 @@ describe('createGitScheduler fences', () => {
 
     const worktree = worktreeOf(null, '/code/a').key;
 
-    expect(scheduler.facts().git.places[placeKeyOf(null, '/code/a/sub')]).toEqual({
+    expect(scheduler.gitFacts().places[placeKeyOf(null, '/code/a/sub')]).toEqual({
       kind: 'repository',
       worktree,
     });
@@ -114,7 +115,7 @@ describe('createGitScheduler fences', () => {
     harness.setFolder(null, '/code/a', { ...mainCheckout('/code/a'), branch: 'old\n' });
     await harness.complete(harness.startedAt(0));
 
-    expect(scheduler.facts().git.places[placeKeyOf(null, '/code/a')]).toBeUndefined();
+    expect(scheduler.gitFacts().places[placeKeyOf(null, '/code/a')]).toBeUndefined();
 
     scheduler.tick(world, harness.context);
     expect(harness.started).toHaveLength(3);
@@ -123,12 +124,12 @@ describe('createGitScheduler fences', () => {
     harness.setFolder(null, '/code/a', { ...mainCheckout('/code/a'), branch: 'newer\n' });
     await harness.complete(harness.startedAt(2));
 
-    expect(scheduler.facts().git.places[placeKeyOf(null, '/code/a')]).toEqual({
+    expect(scheduler.gitFacts().places[placeKeyOf(null, '/code/a')]).toEqual({
       kind: 'repository',
       worktree,
     });
 
-    expect(scheduler.facts().git.worktrees[worktree]?.branch).toBe('newer');
+    expect(scheduler.gitFacts().worktrees[worktree]?.branch).toBe('newer');
     expect(harness.published.some(hasOldBranch)).toBe(false);
   });
 
@@ -153,9 +154,9 @@ describe('createGitScheduler fences', () => {
 
     const left = placeKeyOf(null, '/code/a');
 
-    expect(scheduler.facts().git.places[left]).toBeUndefined();
+    expect(scheduler.gitFacts().places[left]).toBeUndefined();
 
-    expect(harness.published.some((facts) => Object.hasOwn(facts.git.places, left))).toBe(false);
+    expect(harness.published.some((facts) => Object.hasOwn(facts.places, left))).toBe(false);
   });
 
   test('keeps an invalidated read in the dispatch limit until it settles', async () => {
@@ -200,7 +201,7 @@ describe('createGitScheduler fences', () => {
     harness.setFolder(null, '/code/a', { ...mainCheckout('/code/a'), branch: 'old\n' });
     await harness.complete(harness.startedAt(0));
 
-    expect(scheduler.facts().git.places[placeKeyOf(null, '/code/a')]).toBeUndefined();
+    expect(scheduler.gitFacts().places[placeKeyOf(null, '/code/a')]).toBeUndefined();
     expect(harness.published.some(hasOldBranch)).toBe(false);
 
     scheduler.tick(worldOf([spaceOf('s1', '/code/a')]), harness.context);
@@ -210,7 +211,7 @@ describe('createGitScheduler fences', () => {
     harness.setFolder(null, '/code/a', { ...mainCheckout('/code/a'), branch: 'fresh\n' });
     await harness.complete(harness.startedAt(2));
 
-    expect(scheduler.facts().git.worktrees[worktreeOf(null, '/code/a').key]?.branch).toBe('fresh');
+    expect(scheduler.gitFacts().worktrees[worktreeOf(null, '/code/a').key]?.branch).toBe('fresh');
   });
 
   test('stop cancels the watch and drops a late result', async () => {
@@ -246,8 +247,6 @@ describe('createGitScheduler fences', () => {
     expect(harness.revision()).toBe(revisionBefore);
     expect(harness.watched).toHaveLength(watchedBefore);
 
-    expect(scheduler.facts().git.worktrees[worktreeOf(null, '/code/koja').key]?.branch).toBe(
-      'main',
-    );
+    expect(scheduler.gitFacts().worktrees[worktreeOf(null, '/code/koja').key]?.branch).toBe('main');
   });
 });

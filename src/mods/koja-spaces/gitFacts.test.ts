@@ -2,9 +2,17 @@ import { describe, expect, test } from 'bun:test';
 
 import type { DataState } from '../../data/consumer.ts';
 import { placeOf, repositoryOf, worktreeOf } from '../../data/gitIdentity.ts';
-import type { Facts, GitFacts, PlaceGit, Snapshot, WorktreeGit } from '../../data/snapshot.ts';
+import type {
+  Facts,
+  GitFacts,
+  PlaceGit,
+  RepositoryPulls,
+  Snapshot,
+  WorktreeGit,
+} from '../../data/snapshot.ts';
 import { emptyFacts } from '../../data/snapshot.ts';
-import { answeredPlaces, gitInfoAt, repositoriesOf } from './gitFacts.ts';
+import { answeredPlaces, gitInfoAt, pullFailedAt, pullFactsOf } from './gitFacts.ts';
+import type { GitInfo } from './tree.ts';
 
 interface Checkout {
   folder: string;
@@ -13,7 +21,10 @@ interface Checkout {
   linked: boolean;
 }
 
-const factsOf = (checkouts: readonly Checkout[]): Facts => {
+const factsOf = (
+  checkouts: readonly Checkout[],
+  pulls: Record<string, RepositoryPulls> = {},
+): Facts => {
   const places: Record<string, PlaceGit> = {};
   const worktrees: Record<string, WorktreeGit> = {};
 
@@ -34,17 +45,17 @@ const factsOf = (checkouts: readonly Checkout[]): Facts => {
     };
   }
 
-  return { git: { places, worktrees } };
+  return { git: { places, worktrees }, pulls };
 };
 
 const placesFacts = (places: Record<string, PlaceGit>): Facts => {
   const facts: GitFacts = { places, worktrees: {} };
 
-  return { git: facts };
+  return { git: facts, pulls: {} };
 };
 
 const stateOf = (facts: Facts, kind: 'live' | 'stale' = 'live'): DataState => {
-  const snapshot: Snapshot = { version: 2, revision: 3, facts };
+  const snapshot: Snapshot = { version: 3, revision: 3, facts };
   const fields = { snapshot, owner: 'window-a', generation: 1, heartbeatAt: 0 };
 
   return kind === 'live' ? { kind, ...fields, staleAt: 30_000 } : { kind, ...fields };
@@ -62,7 +73,6 @@ describe('gitInfoAt', () => {
       branch: 'main',
       repo: repositoryOf(null, '/code/koja/.git'),
       root: '/code/koja-fix',
-      cwd: '/code/koja-fix',
       linked: true,
     });
   });
@@ -102,26 +112,45 @@ describe('gitInfoAt', () => {
     );
 
     expect(gitInfoAt(state, place)?.repo.machine).toBe('build-box');
-    expect(gitInfoAt(state, place)?.cwd).toBe('/srv/app');
+    expect(gitInfoAt(state, place)?.root).toBe('/srv/app');
   });
 });
 
-describe('repositoriesOf', () => {
-  test('lists each repository once', () => {
-    const state = stateOf(
-      factsOf([
-        { folder: '/code/koja', commonDirectory: '/code/koja/.git', linked: false },
-        { folder: '/code/koja-fix', commonDirectory: '/code/koja/.git', linked: true },
-      ]),
-    );
+const kojaFacts = (pulls: Record<string, RepositoryPulls> = {}): Facts =>
+  factsOf([{ folder: '/code/koja', commonDirectory: '/code/koja/.git', linked: false }], pulls);
 
-    expect(repositoriesOf(state)).toEqual([
-      { repo: repositoryOf(null, '/code/koja/.git'), cwd: '/code/koja' },
-    ]);
+const kojaGit: GitInfo = {
+  branch: 'main',
+  repo: repositoryOf(null, '/code/koja/.git'),
+  root: '/code/koja',
+  linked: false,
+};
+
+describe('pullFactsOf', () => {
+  test('gives the PR facts of the snapshot and none when unavailable', () => {
+    const pulls = { [kojaGit.repo.key]: { pulls: [], failed: true } };
+
+    expect(pullFactsOf(stateOf(kojaFacts(pulls)))).toEqual(pulls);
+    expect(pullFactsOf({ kind: 'unavailable' })).toEqual({});
+  });
+});
+
+describe('pullFailedAt', () => {
+  test('is true when the PR facts of the repository failed', () => {
+    const state = stateOf(kojaFacts({ [kojaGit.repo.key]: { pulls: [], failed: true } }));
+
+    expect(pullFailedAt(state, kojaGit)).toBe(true);
   });
 
-  test('lists no repository when no snapshot was read', () => {
-    expect(repositoriesOf({ kind: 'unavailable' })).toEqual([]);
+  test('is false when the PR facts of the repository were read', () => {
+    const state = stateOf(kojaFacts({ [kojaGit.repo.key]: { pulls: [], failed: false } }));
+
+    expect(pullFailedAt(state, kojaGit)).toBe(false);
+  });
+
+  test('is false for an unavailable state and for a repository with no PR facts', () => {
+    expect(pullFailedAt(stateOf(kojaFacts()), kojaGit)).toBe(false);
+    expect(pullFailedAt({ kind: 'unavailable' }, kojaGit)).toBe(false);
   });
 });
 

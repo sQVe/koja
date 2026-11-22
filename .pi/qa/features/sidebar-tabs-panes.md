@@ -24,6 +24,8 @@ first.
 
 - The sidebar lists every space under the name of its project, one line per space: its mark and its
   title. A space row shows no PR number and no branch.
+- An unnamed space row shows the PR title of its branch instead of the folder name. A named space
+  row keeps its name.
 - The main checkout of a Git repository is the project header, not a row. The header shows the
   repository name, and no space row repeats it. Before the name, it shows that space's mark only
   while the agent is working, blocked, or done. Otherwise the slot stays empty, so every project
@@ -63,6 +65,7 @@ click opened. The tab strip and the pane headers followed the selected space.
 ## Gotchas
 
 - Read the New menu. Launch nothing from it.
-- Agent launch, agent status, real SSH machines, and pull request titles are not testable. They need
-  real agents, servers, and GitHub. A fixture repository without a remote has no PRs, so it shows no
-  `Could not read PRs` line.
+- Agent launch, agent status, and real SSH machines are not testable. They need real agents and
+  servers. Pull request titles come from the [PR rows fixture](../../qa.md#pr-rows-fixture), which
+  fakes `gh` on the sandbox and the second machine. A fixture repository without a remote has no
+  PRs, so it shows no `Could not read PRs` line.

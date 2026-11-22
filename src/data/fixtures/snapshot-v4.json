@@ -1,0 +1,10 @@
+{
+  "version": 4,
+  "revision": 8,
+  "facts": {
+    "git": {
+      "places": {},
+      "worktrees": {}
+    }
+  }
+}

@@ -44,19 +44,19 @@ No launch, and unclear impact:
 | Journey                                                                           | Goal                                               | Run it when the change touches                                                                | Test    |
 | --------------------------------------------------------------------------------- | -------------------------------------------------- | --------------------------------------------------------------------------------------------- | ------- |
 | [Triage the spaces that need you](qa/journeys/triage-the-spaces-that-need-you.md) | Read one-line space rows and switch spaces.        | `src/mods/koja-spaces/`, `src/kit/space.ts`, `src/kit/statusMark.ts`, `src/kit/spaceOrder.ts` | by hand |
-| [Recover from a failed PR read](qa/journeys/recover-from-a-failed-pr-read.md)     | Retry a failed read without losing the space rows. | `src/mods/koja-spaces/`, `src/kit/stateLine.ts`, `src/kit/button.ts`                          | by hand |
+| [Recover from a failed PR read](qa/journeys/recover-from-a-failed-pr-read.md)     | Retry a failed read without losing the space rows. | `src/mods/koja-spaces/`, `src/kit/stateLine.ts`, `src/kit/button.ts`, `src/data/pull*.ts`     | by hand |
 
 ## Features
 
-| Feature                                                       | Section              | Target  | Update it when the change touches                                                      |
-| ------------------------------------------------------------- | -------------------- | ------- | -------------------------------------------------------------------------------------- |
-| [Normal mode keys](qa/features/normal-keys.md)                | Normal mode keys     | sandbox | `koja-modal`, `src/kit/normalKeys.ts`, `config/keys.json`                              |
-| [Close and rename](qa/features/close-and-rename.md)           | Close and rename     | sandbox | `src/kit/askFirst.ts`, `askPlan.ts`, `dialog*.ts`, `koja-confirm`, `koja-prompt`       |
-| [Command palette](qa/features/palette.md)                     | Palette and picker   | sandbox | `koja-palette`, `koja-help`, `src/kit/palette.ts`, `overlay*.ts`, `shortcut*.ts`       |
-| [Picker](qa/features/picker.md)                               | Palette and picker   | sandbox | `koja-picker`, `src/kit/palette.ts`, `overlay*.ts`                                     |
-| [Sidebar, tabs, and panes](qa/features/sidebar-tabs-panes.md) | Sidebar, tabs, panes | sandbox | `koja-spaces`, `koja-tabs`, `koja-pane`, `koja-menu`, `koja-new-menu`, `koja-worktree` |
-| [Changes panel](qa/features/changes-panel.md)                 | Changes panel        | sandbox | `koja-changes`, `src/kit/fileStatus.ts`, the panel memory in `koja-tabs`               |
-| [Gallery and scenes](qa/features/gallery-and-scenes.md)       | Gallery and scenes   | sandbox | `koja-gallery`, `koja-mocks`, `scripts/capture.ts`                                     |
+| Feature                                                       | Section              | Target  | Update it when the change touches                                                                           |
+| ------------------------------------------------------------- | -------------------- | ------- | ----------------------------------------------------------------------------------------------------------- |
+| [Normal mode keys](qa/features/normal-keys.md)                | Normal mode keys     | sandbox | `koja-modal`, `src/kit/normalKeys.ts`, `config/keys.json`                                                   |
+| [Close and rename](qa/features/close-and-rename.md)           | Close and rename     | sandbox | `src/kit/askFirst.ts`, `askPlan.ts`, `dialog*.ts`, `koja-confirm`, `koja-prompt`                            |
+| [Command palette](qa/features/palette.md)                     | Palette and picker   | sandbox | `koja-palette`, `koja-help`, `src/kit/palette.ts`, `overlay*.ts`, `shortcut*.ts`                            |
+| [Picker](qa/features/picker.md)                               | Palette and picker   | sandbox | `koja-picker`, `src/kit/palette.ts`, `overlay*.ts`                                                          |
+| [Sidebar, tabs, and panes](qa/features/sidebar-tabs-panes.md) | Sidebar, tabs, panes | sandbox | `koja-spaces`, `koja-tabs`, `koja-pane`, `koja-menu`, `koja-new-menu`, `koja-worktree`, `src/data/pull*.ts` |
+| [Changes panel](qa/features/changes-panel.md)                 | Changes panel        | sandbox | `koja-changes`, `src/kit/fileStatus.ts`, the panel memory in `koja-tabs`                                    |
+| [Gallery and scenes](qa/features/gallery-and-scenes.md)       | Gallery and scenes   | sandbox | `koja-gallery`, `koja-mocks`, `scripts/capture.ts`                                                          |
 
 ## Before a launch
 
@@ -150,6 +150,56 @@ bun run sandbox hc exec --on qa-remote sh -c 'echo $HOME $XDG_RUNTIME_DIR'
 - Stop: `bun run sandbox down` runs `scripts/sandbox-machine down` first. That forgets the machine,
   stops the recorded transient service and drains its cgroup, then deletes
   `/var/tmp/ruta-<name>/machine/`.
+
+### PR rows fixture
+
+An unnamed space row shows the PR title of its branch. This fixture gives one local space and one
+remote space a title, so a sidebar shot shows the rows before and after a sidebar change.
+
+Start a fresh sandbox first. Replace `<name>` with its name, then run these commands from the
+worktree:
+
+```sh
+export RUTA_NAME=<name>
+fixtureHome=/var/tmp/ruta-$RUTA_NAME/home
+touch "$fixtureHome/.zshrc"
+mkdir -p "$fixtureHome/pr-rows"
+git -C "$fixtureHome/pr-rows" init -b fixture-branch
+git -C "$fixtureHome/pr-rows" config user.name 'QA Fixture'
+git -C "$fixtureHome/pr-rows" config user.email qa@example.invalid
+git -C "$fixtureHome/pr-rows" remote add origin https://example.invalid/qa/pr-rows.git
+cat > "$fixtureHome/fake-gh" <<'SH'
+#!/bin/sh
+printf '%s\n' "$*" >> "$HOME/gh-calls"
+printf '[{"number":7,"state":"OPEN","isDraft":false,"title":"Fixture pull request","headRefName":"fixture-branch"}]\n'
+SH
+chmod +x "$fixtureHome/fake-gh"
+ln -s "$fixtureHome/fake-gh" "/var/tmp/ruta-$RUTA_NAME/bin/gh"
+scripts/sandbox-machine up
+cat > "/var/tmp/ruta-$RUTA_NAME/machine/bin/gh" <<'SH'
+#!/bin/sh
+printf '[{"number":8,"state":"OPEN","isDraft":false,"title":"Remote fixture pull request","headRefName":"remote-branch"}]\n'
+SH
+chmod +x "/var/tmp/ruta-$RUTA_NAME/machine/bin/gh"
+bun run sandbox hc exec --on qa-remote sh -c 'cd "$HOME/remote-fixture" && git remote add origin https://example.invalid/qa/remote-fixture.git && git checkout remote-branch'
+bun run sandbox do space.new --folder "$fixtureHome/pr-rows"
+bun run sandbox do space.new --folder "$fixtureHome/pr-rows"
+bun run sandbox do space.new "{\"folder\":\"/var/tmp/ruta-$RUTA_NAME/machine/home/remote-fixture\",\"machine\":\"qa-remote\"}"
+bun run sandbox do space.new "{\"folder\":\"/var/tmp/ruta-$RUTA_NAME/machine/home/remote-fixture\",\"machine\":\"qa-remote\"}"
+bun run sandbox identity
+```
+
+- Start: the commands open two spaces on each repository, after both fake `gh` scripts are in place.
+  The first space of a project becomes its header, which never shows a PR title; the second is the
+  unnamed row that does. The sandbox puts its `bin` first on `PATH`, and `scripts/sandbox-machine`
+  puts `/var/tmp/ruta-<name>/machine/bin` first on the machine's `PATH`, so each read runs a fake
+  `gh` and no read reaches GitHub. The local fake appends each call to `$fixtureHome/gh-calls`.
+- Check that it is up: within 180 s of the spaces opening, the row under the `pr-rows` header reads
+  `Fixture pull request`, and the row under the `remote-fixture` header with the `qa-remote` label
+  reads `Remote fixture pull request`. No `Could not read PRs` line shows.
+- Shot: `bun run sandbox shot <slice directory>/pr-rows-before.png` before the sidebar change, and
+  `pr-rows-after.png` in the same directory after it.
+- Stop: the `verification` tool, which runs `bun run sandbox down`.
 
 ## Rules for every section
 

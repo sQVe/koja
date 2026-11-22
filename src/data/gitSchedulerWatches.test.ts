@@ -63,7 +63,7 @@ describe('createGitScheduler watches', () => {
 
     expect(harness.watched).toEqual([]);
 
-    expect(scheduler.facts().git.places[placeKeyOf(null, '/code/bare.git')]).toEqual({
+    expect(scheduler.gitFacts().places[placeKeyOf(null, '/code/bare.git')]).toEqual({
       kind: 'repository',
       worktree: worktreeOf(null, '/code/bare.git').key,
     });
@@ -81,7 +81,7 @@ describe('createGitScheduler watches', () => {
     const watch = harness.watches.at(-1);
     const key = placeKeyOf(null, '/code/koja');
 
-    expect(scheduler.facts().git.places[key]).toEqual({
+    expect(scheduler.gitFacts().places[key]).toEqual({
       kind: 'repository',
       worktree: worktreeOf(null, '/code/koja').key,
     });
@@ -95,8 +95,8 @@ describe('createGitScheduler watches', () => {
 
     await harness.complete(harness.startedAt(1));
 
-    expect(scheduler.facts().git.places[key]).toEqual({ kind: 'none' });
-    expect(scheduler.facts().git.worktrees).toEqual({});
+    expect(scheduler.gitFacts().places[key]).toEqual({ kind: 'none' });
+    expect(scheduler.gitFacts().worktrees).toEqual({});
     expect(watch?.cancelled).toBe(true);
   });
 
@@ -128,7 +128,7 @@ describe('createGitScheduler watches', () => {
     scheduler.tick(worldOf([spaceOf('s2', '/code/bare.git')]), harness.context);
 
     expect(harness.watches.at(-1)?.cancelled).toBe(true);
-    expect(scheduler.facts().git.places[placeKeyOf(null, '/code/bare.git')]).toBeDefined();
+    expect(scheduler.gitFacts().places[placeKeyOf(null, '/code/bare.git')]).toBeDefined();
   });
 
   test('reads once when a smaller representative becomes known during the debounce', async () => {
@@ -204,7 +204,7 @@ describe('createGitScheduler watches', () => {
     const linkedWatch = harness.watches.at(-1);
     const bare = placeKeyOf(null, '/code/repo');
 
-    expect(scheduler.facts().git.places[bare]).toEqual({
+    expect(scheduler.gitFacts().places[bare]).toEqual({
       kind: 'repository',
       worktree: worktreeOf(null, '/code/repo').key,
     });

@@ -4,8 +4,16 @@ import { join } from 'node:path';
 
 import { isRecord } from '../kit/fields.ts';
 import { placeOf, repositoryOf } from './gitIdentity.ts';
-import type { Facts, GitFacts, PlaceGit, Snapshot, WorktreeGit } from './snapshot.ts';
-import { emptyFacts, parseSnapshot } from './snapshot.ts';
+import type { Pull } from './pulls.ts';
+import type {
+  Facts,
+  GitFacts,
+  PlaceGit,
+  RepositoryPulls,
+  Snapshot,
+  WorktreeGit,
+} from './snapshot.ts';
+import { emptyFacts, joinFacts, parseSnapshot } from './snapshot.ts';
 
 type RawRecord = Record<string, unknown>;
 
@@ -36,13 +44,28 @@ const gitFacts = (): GitFacts => {
   };
 };
 
-const snapshotOf = (git: unknown): unknown => ({ version: 2, revision: 4, facts: { git } });
+const snapshotOf = (git: unknown): unknown => ({
+  version: 3,
+  revision: 4,
+  facts: { git, pulls: {} },
+});
+
+const pull = (fields: Partial<Pull> = {}): Pull => ({
+  number: 1,
+  state: 'OPEN',
+  isDraft: false,
+  title: 'Title',
+  headRefName: 'main',
+  ...fields,
+});
+
+const repositoryKey = keyOf(null, '/work/.git');
 
 const validRaw = () => {
   const key = keyOf(null, '/work');
 
   const snapshot: RawSnapshot = {
-    version: 2,
+    version: 3,
     revision: 4,
     facts: {
       git: {
@@ -60,6 +83,7 @@ const validRaw = () => {
           },
         },
       },
+      pulls: {},
     },
   };
 
@@ -75,6 +99,8 @@ const recordIn = (value: unknown, name: string): RawRecord => {
 };
 
 const gitAt = (snapshot: RawSnapshot): RawRecord => recordIn(snapshot.facts.git, 'git');
+
+const pullsAt = (snapshot: RawSnapshot): RawRecord => recordIn(snapshot.facts.pulls, 'pulls');
 
 const placesAt = (snapshot: RawSnapshot): RawRecord => recordIn(gitAt(snapshot).places, 'places');
 
@@ -174,11 +200,12 @@ const malformedFields: [string, (snapshot: RawSnapshot, key: string) => void][] 
 ];
 
 describe('parseSnapshot', () => {
-  test('reads the version 2 fixture', () => {
-    const stored = fixture('snapshot-v2.json');
+  test('reads the version 3 fixture with its PR facts', () => {
+    const stored = fixture('snapshot-v3.json');
     const parsed = parseSnapshot(stored);
     const facts: Facts | undefined = parsed?.facts;
     const git: GitFacts | undefined = facts?.git;
+    const pulls: Record<string, RepositoryPulls> | undefined = facts?.pulls;
     const places: PlaceGit[] = Object.values(git?.places ?? {});
     const worktrees: WorktreeGit[] = Object.values(git?.worktrees ?? {});
 
@@ -192,17 +219,87 @@ describe('parseSnapshot', () => {
     ]);
 
     expect(worktrees.map((tree) => tree.linked)).toEqual([false, true]);
+
+    expect(pulls?.[keyOf(null, '/code/koja/.git')]).toEqual({
+      pulls: [pull({ number: 41, title: 'Read the theme once per turn' })],
+      failed: false,
+    });
+  });
+
+  test('reads the version 2 fixture without PR facts', () => {
+    const stored = recordIn(fixture('snapshot-v2.json'), 'snapshot');
+    const git: unknown = recordIn(stored.facts, 'facts').git;
+    const parsed = parseSnapshot(stored);
+    const parsedGit: unknown = parsed?.facts.git;
+
+    expect(parsed?.version).toBe(3);
+    expect(parsed?.revision).toBe(7);
+    expect(parsedGit).toEqual(git);
+    expect(parsed?.facts.pulls).toEqual({});
+  });
+
+  test('accepts empty version 2 places and worktrees maps', () => {
+    const stored = {
+      version: 2,
+      revision: 4,
+      facts: { git: { places: {}, worktrees: {} } },
+    };
+
+    expect(parseSnapshot(stored)).toEqual({
+      version: 3,
+      revision: 4,
+      facts: { git: { places: {}, worktrees: {} }, pulls: {} },
+    });
+  });
+
+  test('rejects an unknown field in version 2 facts', () => {
+    const stored = {
+      version: 2,
+      revision: 4,
+      facts: { git: { places: {}, worktrees: {} }, extra: true },
+    };
+
+    expect(parseSnapshot(stored)).toBeNull();
+  });
+
+  test('rejects a version 2 revision that is not a positive whole number', () => {
+    const facts = { git: { places: {}, worktrees: {} } };
+
+    expect(parseSnapshot({ version: 2, revision: 0, facts })).toBeNull();
+    expect(parseSnapshot({ version: 2, revision: 1.5, facts })).toBeNull();
+    expect(parseSnapshot({ version: 2, revision: '4', facts })).toBeNull();
+  });
+
+  test('rejects an unknown field in a version 2 snapshot', () => {
+    const facts = { git: { places: {}, worktrees: {} } };
+
+    expect(parseSnapshot({ version: 2, revision: 4, facts, extra: true })).toBeNull();
+  });
+
+  test('rejects a version 2 snapshot without a revision', () => {
+    const facts = { git: { places: {}, worktrees: {} } };
+
+    expect(parseSnapshot({ version: 2, facts })).toBeNull();
+  });
+
+  test('rejects a version 2 snapshot without facts', () => {
+    expect(parseSnapshot({ version: 2, revision: 4 })).toBeNull();
+  });
+
+  test('rejects version 2 facts that are not a record', () => {
+    expect(parseSnapshot({ version: 2, revision: 4, facts: [] })).toBeNull();
   });
 
   test('keeps an own __proto__ place key', () => {
     const stored: unknown = JSON.parse(`{
-      "version": 2,
+      "version": 3,
       "revision": 4,
       "facts": {
         "git": {
           "places": { "__proto__": { "kind": "none" } },
           "worktrees": {}
-        }
+        },
+        "pulls": {}
       }
     }`);
 
@@ -225,8 +322,8 @@ describe('parseSnapshot', () => {
     expect(parseSnapshot(fixture('snapshot-v1.json'))).toBeNull();
   });
 
-  test('rejects a newer version', () => {
-    expect(parseSnapshot(fixture('snapshot-v3.json'))).toBeNull();
+  test('rejects the newer version 4 fixture', () => {
+    expect(parseSnapshot(fixture('snapshot-v4.json'))).toBeNull();
   });
 
   test('rejects a place that names a missing worktree', () => {
@@ -297,7 +394,7 @@ describe('parseSnapshot', () => {
   });
 
   test('rejects an unknown field in the snapshot', () => {
-    const stored = { version: 2, revision: 4, facts: emptyFacts(), extra: true };
+    const stored = { version: 3, revision: 4, facts: emptyFacts(), extra: true };
 
     expect(parseSnapshot(stored)).toBeNull();
   });
@@ -377,33 +474,125 @@ describe('parseSnapshot', () => {
     expect(parsed?.facts.git.places['notes']).toEqual({ kind: 'none' });
   });
 
+  test('accepts a pull fact for a worktree repository', () => {
+    const { snapshot } = validRaw();
+
+    pullsAt(snapshot)[repositoryKey] = { pulls: [pull()], failed: true };
+
+    expect(parseSnapshot(snapshot)?.facts.pulls[repositoryKey]).toEqual({
+      pulls: [pull()],
+      failed: true,
+    });
+  });
+
+  test('rejects a stored pull with an extra field', () => {
+    const { snapshot } = validRaw();
+
+    pullsAt(snapshot)[repositoryKey] = {
+      pulls: [{ ...pull(), extra: true }],
+      failed: false,
+    };
+
+    expect(parseSnapshot(snapshot)).toBeNull();
+  });
+
+  test('rejects a pulls entry with an extra key', () => {
+    const { snapshot } = validRaw();
+
+    pullsAt(snapshot)[repositoryKey] = { pulls: [], failed: false, extra: true };
+
+    expect(parseSnapshot(snapshot)).toBeNull();
+  });
+
+  test('rejects a pulls key no worktree names', () => {
+    const { snapshot } = validRaw();
+
+    pullsAt(snapshot)[keyOf(null, '/other/.git')] = { pulls: [], failed: false };
+
+    expect(parseSnapshot(snapshot)).toBeNull();
+  });
+
+  const malformedPulls: [string, (snapshot: RawSnapshot) => void][] = [
+    [
+      'a pull number that is not a number',
+      (snapshot) => {
+        pullsAt(snapshot)[repositoryKey] = { pulls: [{ ...pull(), number: '1' }], failed: false };
+      },
+    ],
+    [
+      'a pull without a headRefName',
+      (snapshot) => {
+        pullsAt(snapshot)[repositoryKey] = {
+          pulls: [{ number: 1, state: 'OPEN', isDraft: false, title: 'Title' }],
+          failed: false,
+        };
+      },
+    ],
+    [
+      'a failed flag that is not a boolean',
+      (snapshot) => {
+        pullsAt(snapshot)[repositoryKey] = { pulls: [], failed: 'no' };
+      },
+    ],
+    [
+      'a pulls list that is not an array',
+      (snapshot) => {
+        pullsAt(snapshot)[repositoryKey] = { pulls: {}, failed: false };
+      },
+    ],
+  ];
+
+  for (const [name, mutate] of malformedPulls) {
+    test(`rejects ${name}`, () => {
+      const { snapshot } = validRaw();
+
+      mutate(snapshot);
+
+      expect(parseSnapshot(snapshot)).toBeNull();
+    });
+  }
+
   test('accepts empty maps', () => {
-    const stored = { version: 2, revision: 4, facts: emptyFacts() } satisfies Snapshot;
+    const stored = { version: 3, revision: 4, facts: emptyFacts() } satisfies Snapshot;
 
     expect(parseSnapshot(stored)).toEqual(stored);
   });
 
   test('rejects a missing revision', () => {
-    expect(parseSnapshot({ version: 2, facts: emptyFacts() })).toBeNull();
+    expect(parseSnapshot({ version: 3, facts: emptyFacts() })).toBeNull();
   });
 
   test('rejects a revision that is not a positive whole number', () => {
-    expect(parseSnapshot({ version: 2, revision: 0, facts: emptyFacts() })).toBeNull();
-    expect(parseSnapshot({ version: 2, revision: 1.5, facts: emptyFacts() })).toBeNull();
-    expect(parseSnapshot({ version: 2, revision: '4', facts: emptyFacts() })).toBeNull();
+    expect(parseSnapshot({ version: 3, revision: 0, facts: emptyFacts() })).toBeNull();
+    expect(parseSnapshot({ version: 3, revision: 1.5, facts: emptyFacts() })).toBeNull();
+    expect(parseSnapshot({ version: 3, revision: '4', facts: emptyFacts() })).toBeNull();
   });
 
   test('rejects missing facts', () => {
-    expect(parseSnapshot({ version: 2, revision: 4 })).toBeNull();
+    expect(parseSnapshot({ version: 3, revision: 4 })).toBeNull();
   });
 
   test('rejects facts that are not a record', () => {
-    expect(parseSnapshot({ version: 2, revision: 4, facts: [] })).toBeNull();
+    expect(parseSnapshot({ version: 3, revision: 4, facts: [] })).toBeNull();
   });
 
   test('rejects a value that is not an object', () => {
     expect(parseSnapshot('snapshot')).toBeNull();
     expect(parseSnapshot(null)).toBeNull();
     expect(parseSnapshot([snapshotOf(emptyFacts().git)])).toBeNull();
+  });
+});
+
+describe('joinFacts', () => {
+  test('drops PR facts of a repository with no worktree', () => {
+    const named = keyOf(null, '/work/.git');
+    const orphan = keyOf(null, '/gone/.git');
+
+    const facts = joinFacts(gitFacts(), {
+      [named]: { pulls: [pull()], failed: false },
+      [orphan]: { pulls: [], failed: true },
+    });
+
+    expect(facts.pulls).toEqual({ [named]: { pulls: [pull()], failed: false } });
   });
 });

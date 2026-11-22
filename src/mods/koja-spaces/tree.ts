@@ -6,7 +6,6 @@ export interface GitInfo {
   branch: string | null;
   repo: RepositoryIdentity;
   root: string;
-  cwd: string;
   linked: boolean;
 }
 

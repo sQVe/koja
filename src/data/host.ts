@@ -14,13 +14,22 @@ import {
 } from './lease.ts';
 import type { SnapshotPublisher } from './publisher.ts';
 import { createSnapshotPublisher } from './publisher.ts';
+import type { PullReadTimesPublisher } from './pullReadTimes.ts';
+import { createPullReadTimesPublisher, readPullReadTimes } from './pullReadTimes.ts';
+import type { PullRetryOutcomesPublisher } from './pullRetry.ts';
+import { createPullRetryOutcomesPublisher } from './pullRetry.ts';
+import type { PullScheduler } from './pullScheduler.ts';
+import { createPullScheduler } from './pullScheduler.ts';
+import { recordNotices } from './recordNotices.ts';
 import type { Facts } from './snapshot.ts';
-import { emptyFacts } from './snapshot.ts';
-import { readStoredSnapshot, snapshotNotices } from './storedSnapshot.ts';
+import { emptyFacts, joinFacts } from './snapshot.ts';
+import { readStoredSnapshot } from './storedSnapshot.ts';
 
 interface SchedulerBinding {
   lease: Lease;
-  scheduler: GitScheduler;
+  git: GitScheduler;
+  pulls: PullScheduler;
+  publish: () => void;
 }
 
 interface HostState {
@@ -33,42 +42,89 @@ declare const crypto: { randomUUID: () => string };
 
 const sweepMilliseconds = 250;
 
-const seedFacts = (): Facts => readStoredSnapshot(shared, snapshotNotices)?.facts ?? emptyFacts();
+const seedFacts = (): Facts => readStoredSnapshot(shared, recordNotices)?.facts ?? emptyFacts();
 
 const gitWorld = (): GitWorld => ({ spaces: spaces(), panes: panes(), machines: machines() });
 
 const stopScheduler = (state: HostState): void => {
-  state.binding?.scheduler.stop();
+  state.binding?.git.stop();
+  state.binding?.pulls.stop();
   state.binding = null;
 };
 
-const schedulerFor = (
-  state: HostState,
+const createSchedulerBinding = (
   publisher: SnapshotPublisher,
+  readTimesPublisher: PullReadTimesPublisher,
+  outcomesPublisher: PullRetryOutcomesPublisher,
   heldLease: () => Lease | null,
   held: Lease,
-): GitScheduler => {
-  if (state.binding !== null && sameHolder(state.binding.lease, held)) {
-    return state.binding.scheduler;
-  }
+): SchedulerBinding => {
+  const seed = seedFacts();
+  let binding: SchedulerBinding | null = null;
 
-  stopScheduler(state);
+  const publishSnapshot = (): void => {
+    if (binding === null) {
+      return;
+    }
 
-  const scheduler = createGitScheduler(
+    publisher.publish(binding.lease, joinFacts(binding.git.gitFacts(), binding.pulls.pulls()));
+  };
+
+  const git = createGitScheduler(
     {
       run: exec,
       watchFolder,
       now: Date.now,
       heldLease,
-      publish: publisher.publish,
+      publish: publishSnapshot,
     },
     held,
-    seedFacts(),
+    seed.git,
   );
 
-  state.binding = { lease: held, scheduler };
+  const pulls = createPullScheduler(
+    {
+      run: exec,
+      now: Date.now,
+      heldLease,
+      read: shared,
+      notices: recordNotices,
+      publish: publishSnapshot,
+      publishReadTimes: readTimesPublisher.publish,
+      publishOutcomes: outcomesPublisher.publish,
+    },
+    held,
+    { pulls: seed.pulls, readTimes: readPullReadTimes(shared, recordNotices) },
+  );
 
-  return scheduler;
+  binding = { lease: held, git, pulls, publish: publishSnapshot };
+
+  return binding;
+};
+
+const schedulerFor = (
+  state: HostState,
+  publisher: SnapshotPublisher,
+  readTimesPublisher: PullReadTimesPublisher,
+  outcomesPublisher: PullRetryOutcomesPublisher,
+  heldLease: () => Lease | null,
+  held: Lease,
+): SchedulerBinding => {
+  if (state.binding !== null && sameHolder(state.binding.lease, held)) {
+    return state.binding;
+  }
+
+  stopScheduler(state);
+
+  state.binding = createSchedulerBinding(
+    publisher,
+    readTimesPublisher,
+    outcomesPublisher,
+    heldLease,
+    held,
+  );
+
+  return state.binding;
 };
 
 // A hot reload stops the old copy's timers without calling close(), so the host never releases
@@ -76,6 +132,8 @@ const schedulerFor = (
 export const startDataHost = (cx: Context): void => {
   const owner = crypto.randomUUID();
   const publisher = createSnapshotPublisher(shared, setShared, Date.now);
+  const readTimesPublisher = createPullReadTimesPublisher(shared, setShared, Date.now);
+  const outcomesPublisher = createPullRetryOutcomesPublisher(shared, setShared, Date.now);
   const state: HostState = { candidate: null, binding: null };
 
   const heldLease = (): Lease | null =>
@@ -96,9 +154,14 @@ export const startDataHost = (cx: Context): void => {
     const held = checking() ? null : heldLease();
 
     if (held !== null) {
-      const scheduler = schedulerFor(state, publisher, heldLease, held);
-
-      publisher.publish(held, scheduler.facts());
+      schedulerFor(
+        state,
+        publisher,
+        readTimesPublisher,
+        outcomesPublisher,
+        heldLease,
+        held,
+      ).publish();
 
       return;
     }
@@ -119,7 +182,17 @@ export const startDataHost = (cx: Context): void => {
       return;
     }
 
-    schedulerFor(state, publisher, heldLease, held).tick(gitWorld(), timerCx);
+    const binding = schedulerFor(
+      state,
+      publisher,
+      readTimesPublisher,
+      outcomesPublisher,
+      heldLease,
+      held,
+    );
+
+    binding.git.tick(gitWorld(), timerCx);
+    binding.pulls.tick(binding.git.gitFacts(), (body) => timerCx.spawn(body));
   };
 
   beat();

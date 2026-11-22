@@ -1,6 +1,6 @@
 import { describe, expect, test } from 'bun:test';
 
-import type { Pull } from './pulls.ts';
+import type { Pull } from '../../data/pulls.ts';
 import { rowCut } from './rows.ts';
 
 const pull = (title: string): Pull => ({

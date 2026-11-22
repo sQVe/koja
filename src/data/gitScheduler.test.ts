@@ -69,15 +69,15 @@ describe('createGitScheduler', () => {
 
     expect(harness.watched).toEqual([]);
 
-    expect(scheduler.facts().git.places[left]).toBeUndefined();
+    expect(scheduler.gitFacts().places[left]).toBeUndefined();
 
-    expect(harness.published.some((facts) => Object.hasOwn(facts.git.places, left))).toBe(false);
+    expect(harness.published.some((facts) => Object.hasOwn(facts.places, left))).toBe(false);
 
     await harness.complete(harness.startedAt(1));
 
     expect(harness.watched).toEqual(['/code/tikk/.git']);
 
-    expect(scheduler.facts().git.places[placeKeyOf(null, '/code/tikk')]).toEqual({
+    expect(scheduler.gitFacts().places[placeKeyOf(null, '/code/tikk')]).toEqual({
       kind: 'repository',
       worktree: worktreeOf(null, '/code/tikk').key,
     });
@@ -104,7 +104,7 @@ describe('createGitScheduler', () => {
     harness.failure = 'fatal: the machine is unreachable';
     await harness.complete(harness.startedAt(1));
 
-    expect(scheduler.facts().git.places[placeKeyOf(null, '/code/koja')]).toEqual({
+    expect(scheduler.gitFacts().places[placeKeyOf(null, '/code/koja')]).toEqual({
       kind: 'repository',
       worktree: worktreeOf(null, '/code/koja').key,
     });
@@ -123,7 +123,7 @@ describe('createGitScheduler', () => {
 
     const key = placeKeyOf(null, '/code/koja');
 
-    expect(harness.published.at(-1)?.git.places[key]).toEqual({ kind: 'failed' });
+    expect(harness.published.at(-1)?.places[key]).toEqual({ kind: 'failed' });
     expect(harness.revision()).toBe(1);
 
     harness.setNow(60_000);
@@ -145,7 +145,7 @@ describe('createGitScheduler', () => {
 
     expect(harness.watched).toEqual([]);
 
-    expect(scheduler.facts().git.places[placeKeyOf('qa-remote', '/srv/app')]).toEqual({
+    expect(scheduler.gitFacts().places[placeKeyOf('qa-remote', '/srv/app')]).toEqual({
       kind: 'repository',
       worktree: worktreeOf('qa-remote', '/srv/app').key,
     });
@@ -178,7 +178,7 @@ describe('createGitScheduler', () => {
 
     const key = placeKeyOf(null, '/code/plain');
 
-    expect(harness.published.at(-1)?.git.places[key]).toEqual({ kind: 'none' });
+    expect(harness.published.at(-1)?.places[key]).toEqual({ kind: 'none' });
     expect(harness.watched).toEqual([]);
 
     harness.setNow(60_000);
@@ -247,7 +247,7 @@ describe('createGitScheduler', () => {
     const published = harness.published.at(-1);
 
     expect(harness.revision()).toBe(2);
-    expect(published?.git.places).toEqual({});
-    expect(published?.git.worktrees).toEqual({});
+    expect(published?.places).toEqual({});
+    expect(published?.worktrees).toEqual({});
   });
 });

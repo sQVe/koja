@@ -2,6 +2,8 @@ import { hasOnlyKeys, isRecord, recordOf, stringOf } from '../kit/fields.ts';
 import { isPositiveWholeNumber } from './fields.ts';
 import type { RepositoryIdentity } from './gitIdentity.ts';
 import { repositoryOf, worktreeOf } from './gitIdentity.ts';
+import type { Pull } from './pulls.ts';
+import { parseStoredPull } from './pulls.ts';
 
 export type PlaceGit =
   | { kind: 'repository'; worktree: string }
@@ -20,19 +22,27 @@ export interface GitFacts {
   worktrees: Record<string, WorktreeGit>;
 }
 
-export interface Facts {
-  git: GitFacts;
+export interface RepositoryPulls {
+  pulls: Pull[];
+  failed: boolean;
 }
 
+export interface Facts {
+  git: GitFacts;
+  pulls: Record<string, RepositoryPulls>;
+}
+
+export const snapshotVersion = 3;
+
 export interface Snapshot {
-  version: 2;
+  version: typeof snapshotVersion;
   revision: number;
   facts: Facts;
 }
 
 export const snapshotKey = 'koja.data.v1.snapshot';
 
-export const emptyFacts = (): Facts => ({ git: { places: {}, worktrees: {} } });
+export const emptyFacts = (): Facts => ({ git: { places: {}, worktrees: {} }, pulls: {} });
 
 const isNullableString = (value: unknown): value is string | null =>
   value === null || typeof value === 'string';
@@ -212,7 +222,101 @@ const parseGitFacts = (value: unknown): GitFacts | null => {
   return { places: Object.fromEntries(placeEntries), worktrees: parsedWorktrees };
 };
 
+const parseRepositoryPulls = (value: unknown): RepositoryPulls | null => {
+  if (!isRecord(value)) {
+    return null;
+  }
+
+  if (!hasOnlyKeys(value, ['pulls', 'failed'])) {
+    return null;
+  }
+
+  const failed = value.failed;
+
+  if (typeof failed !== 'boolean') {
+    return null;
+  }
+
+  const stored = value.pulls;
+
+  if (!Array.isArray(stored)) {
+    return null;
+  }
+
+  const pulls: Pull[] = [];
+
+  for (const entry of stored) {
+    const parsed = parseStoredPull(entry);
+
+    if (parsed === null) {
+      return null;
+    }
+
+    pulls.push(parsed);
+  }
+
+  return { pulls, failed };
+};
+
+const repositoryKeys = (worktrees: Record<string, WorktreeGit>): Set<string> => {
+  const keys = Object.values(worktrees).map((worktree) => worktree.repository.key);
+
+  return new Set(keys);
+};
+
+const parsePulls = (
+  value: unknown,
+  worktrees: Record<string, WorktreeGit>,
+): Record<string, RepositoryPulls> | null => {
+  if (!isRecord(value)) {
+    return null;
+  }
+
+  const known = repositoryKeys(worktrees);
+  const entries: [string, RepositoryPulls][] = [];
+
+  for (const [key, entry] of Object.entries(value)) {
+    if (!known.has(key)) {
+      return null;
+    }
+
+    const parsed = parseRepositoryPulls(entry);
+
+    if (parsed === null) {
+      return null;
+    }
+
+    entries.push([key, parsed]);
+  }
+
+  return Object.fromEntries(entries);
+};
+
 const parseFacts = (value: unknown): Facts | null => {
+  if (!isRecord(value)) {
+    return null;
+  }
+
+  if (!hasOnlyKeys(value, ['git', 'pulls'])) {
+    return null;
+  }
+
+  const git = parseGitFacts(value.git);
+
+  if (git === null) {
+    return null;
+  }
+
+  const pulls = parsePulls(value.pulls, git.worktrees);
+
+  if (pulls === null) {
+    return null;
+  }
+
+  return { git, pulls };
+};
+
+const parsePreviousFacts = (value: unknown): Facts | null => {
   if (!isRecord(value)) {
     return null;
   }
@@ -227,16 +331,10 @@ const parseFacts = (value: unknown): Facts | null => {
     return null;
   }
 
-  return { git };
+  return { git, pulls: {} };
 };
 
-export const parseSnapshot = (value: unknown): Snapshot | null => {
-  const fields = recordOf(value);
-
-  if (fields.version !== 2) {
-    return null;
-  }
-
+const parseCurrentSnapshot = (fields: Record<string, unknown>): Snapshot | null => {
   if (!hasOnlyKeys(fields, ['version', 'revision', 'facts'])) {
     return null;
   }
@@ -251,5 +349,44 @@ export const parseSnapshot = (value: unknown): Snapshot | null => {
     return null;
   }
 
-  return { version: 2, revision: fields.revision, facts };
+  return { version: snapshotVersion, revision: fields.revision, facts };
+};
+
+const parsePreviousSnapshot = (fields: Record<string, unknown>): Snapshot | null => {
+  if (!hasOnlyKeys(fields, ['version', 'revision', 'facts'])) {
+    return null;
+  }
+
+  if (!isPositiveWholeNumber(fields.revision)) {
+    return null;
+  }
+
+  const facts = parsePreviousFacts(fields.facts);
+
+  if (facts === null) {
+    return null;
+  }
+
+  return { version: snapshotVersion, revision: fields.revision, facts };
+};
+
+export const parseSnapshot = (value: unknown): Snapshot | null => {
+  const fields = recordOf(value);
+
+  if (fields.version === 2) {
+    return parsePreviousSnapshot(fields);
+  }
+
+  if (fields.version !== snapshotVersion) {
+    return null;
+  }
+
+  return parseCurrentSnapshot(fields);
+};
+
+export const joinFacts = (git: GitFacts, pulls: Record<string, RepositoryPulls>): Facts => {
+  const known = repositoryKeys(git.worktrees);
+  const entries = Object.entries(pulls).filter(([key]) => known.has(key));
+
+  return { git, pulls: Object.fromEntries(entries) };
 };

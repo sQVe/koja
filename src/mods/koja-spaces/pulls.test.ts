@@ -1,8 +1,9 @@
 import { describe, expect, test } from 'bun:test';
 
 import { repositoryOf } from '../../data/gitIdentity.ts';
-import { pullOf, pullState, readPullCaches, readPullList } from './pulls.ts';
-import type { Pull } from './pulls.ts';
+import type { Pull } from '../../data/pulls.ts';
+import type { RepositoryPulls } from '../../data/snapshot.ts';
+import { pullOf } from './pulls.ts';
 import type { GitInfo } from './tree.ts';
 
 const pull = (fields: Partial<Pull>): Pull => ({
@@ -18,63 +19,47 @@ const git = (branch: string): GitInfo => ({
   branch,
   repo: repositoryOf(null, '/repo'),
   root: '/repo',
-  cwd: '/repo',
   linked: false,
 });
 
-describe('readPullList', () => {
-  test('drops entries missing a number, state, or branch', () => {
-    const list = [
-      { number: 1, state: 'OPEN', headRefName: 'main' },
-      { number: 2, state: 'OPEN' },
-      { state: 'OPEN', headRefName: 'main' },
-    ];
-
-    expect(readPullList(list)).toEqual([pull({ title: '' })]);
-  });
-});
-
-describe('readPullCaches', () => {
-  test('defaults a missing fetch time and parses the list', () => {
-    const stored = { '/repo': { list: [{ number: 1, state: 'OPEN', headRefName: 'main' }] } };
-
-    expect(readPullCaches(stored)).toEqual({
-      '/repo': { fetchedAt: 0, list: [pull({ title: '' })] },
-    });
-  });
-});
-
-describe('pullState', () => {
-  test('calls an open draft a draft', () => {
-    expect(pullState(pull({ isDraft: true, state: 'OPEN' }))).toBe('draft');
-    expect(pullState(pull({ state: 'MERGED' }))).toBe('merged');
-  });
+const pullsOf = (...list: Pull[]): Record<string, RepositoryPulls> => ({
+  [repositoryOf(null, '/repo').key]: { pulls: list, failed: false },
 });
 
 describe('pullOf', () => {
   test('prefers the open pull request on the branch', () => {
-    const caches = {
-      [repositoryOf(null, '/repo').key]: {
-        fetchedAt: 0,
-        list: [pull({ number: 1, state: 'MERGED' }), pull({ number: 2, state: 'OPEN' })],
-      },
-    };
+    const pulls = pullsOf(pull({ number: 1, state: 'MERGED' }), pull({ number: 2, state: 'OPEN' }));
 
-    expect(pullOf(git('main'), caches)?.number).toBe(2);
+    expect(pullOf(git('main'), pulls)?.number).toBe(2);
   });
 
   test('falls back to the newest when none is open', () => {
-    const caches = {
-      [repositoryOf(null, '/repo').key]: {
-        fetchedAt: 0,
-        list: [pull({ number: 1, state: 'MERGED' }), pull({ number: 2, state: 'CLOSED' })],
-      },
-    };
+    const pulls = pullsOf(
+      pull({ number: 1, state: 'MERGED' }),
+      pull({ number: 2, state: 'CLOSED' }),
+    );
 
-    expect(pullOf(git('main'), caches)?.number).toBe(1);
+    expect(pullOf(git('main'), pulls)?.number).toBe(1);
+  });
+
+  test('ignores a pull request on another branch', () => {
+    const pulls = pullsOf(
+      pull({ number: 1, headRefName: 'other' }),
+      pull({ number: 2, headRefName: 'main' }),
+    );
+
+    expect(pullOf(git('main'), pulls)?.number).toBe(2);
+  });
+
+  test('answers null when only another branch has a pull request', () => {
+    expect(pullOf(git('main'), pullsOf(pull({ number: 1, headRefName: 'other' })))).toBeNull();
   });
 
   test('answers null without a branch', () => {
-    expect(pullOf({ ...git('main'), branch: null }, {})).toBeNull();
+    expect(pullOf({ ...git('main'), branch: null }, pullsOf(pull({})))).toBeNull();
+  });
+
+  test('answers null for a repository with no PR facts', () => {
+    expect(pullOf(git('main'), {})).toBeNull();
   });
 });

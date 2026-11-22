@@ -59,12 +59,12 @@ describe('createGitScheduler place mapping fallback', () => {
     const aliasKey = placeKeyOf(remote, remoteAlias);
     const shared = worktreeOf(remote, remoteRoot).key;
 
-    expect(scheduler.facts().git.places[rootKey]).toEqual({
+    expect(scheduler.gitFacts().places[rootKey]).toEqual({
       kind: 'repository',
       worktree: shared,
     });
 
-    expect(scheduler.facts().git.places[aliasKey]).toEqual({
+    expect(scheduler.gitFacts().places[aliasKey]).toEqual({
       kind: 'repository',
       worktree: shared,
     });
@@ -88,12 +88,12 @@ describe('createGitScheduler place mapping fallback', () => {
 
     await harness.complete(harness.startedAt(3));
 
-    expect(scheduler.facts().git.places[rootKey]).toEqual({
+    expect(scheduler.gitFacts().places[rootKey]).toEqual({
       kind: 'repository',
       worktree: shared,
     });
 
-    expect(scheduler.facts().git.places[aliasKey]).toEqual({
+    expect(scheduler.gitFacts().places[aliasKey]).toEqual({
       kind: 'repository',
       worktree: worktreeOf(remote, remoteAlias).key,
     });
@@ -124,12 +124,12 @@ describe('createGitScheduler place mapping fallback', () => {
 
     await harness.complete(harness.startedAt(2));
 
-    expect(scheduler.facts().git.places[aliasKey]).toEqual({
+    expect(scheduler.gitFacts().places[aliasKey]).toEqual({
       kind: 'repository',
       worktree: linkedWorktree,
     });
 
-    expect(scheduler.facts().git.worktrees[linkedWorktree]).toEqual({
+    expect(scheduler.gitFacts().worktrees[linkedWorktree]).toEqual({
       repository: repositoryOf(null, `${rootFolder}/.git`),
       root: aliasFolder,
       branch: 'feature',
@@ -163,12 +163,12 @@ describe('createGitScheduler place mapping fallback', () => {
 
     await harness.complete(harness.startedAt(2));
 
-    expect(scheduler.facts().git.places[aliasKey]).toEqual({
+    expect(scheduler.gitFacts().places[aliasKey]).toEqual({
       kind: 'repository',
       worktree: sharedWorktree,
     });
 
-    expect(scheduler.facts().git.worktrees[sharedWorktree]).toEqual({
+    expect(scheduler.gitFacts().worktrees[sharedWorktree]).toEqual({
       repository: repositoryOf(null, '/code/other/.git'),
       root: rootFolder,
       branch: 'release',
@@ -206,7 +206,7 @@ describe('createGitScheduler place mapping fallback', () => {
     harness.setFolder(null, aliasFolder, { ...mainCheckout(rootFolder), branch: 'feature\n' });
 
     const aliasKey = placeKeyOf(null, aliasFolder);
-    const mappingBefore = structuredClone(scheduler.facts().git.places[aliasKey]);
+    const mappingBefore = structuredClone(scheduler.gitFacts().places[aliasKey]);
     const revisionBefore = harness.revision();
     const publishedBefore = harness.published.length;
 
@@ -216,9 +216,9 @@ describe('createGitScheduler place mapping fallback', () => {
 
     await harness.complete(harness.startedAt(3));
 
-    expect(scheduler.facts().git.places[aliasKey]).toEqual(mappingBefore);
+    expect(scheduler.gitFacts().places[aliasKey]).toEqual(mappingBefore);
 
-    expect(scheduler.facts().git.worktrees[sharedWorktree]).toEqual({
+    expect(scheduler.gitFacts().worktrees[sharedWorktree]).toEqual({
       repository: repositoryOf(null, `${rootFolder}/.git`),
       root: rootFolder,
       branch: 'feature',
@@ -242,7 +242,7 @@ describe('createGitScheduler place mapping fallback', () => {
     scheduler.tick(worldOf([root, alias]), harness.context);
     await harness.complete(harness.startedAt(1));
 
-    const factsBefore = structuredClone(scheduler.facts());
+    const factsBefore = structuredClone(scheduler.gitFacts());
     const revisionBefore = harness.revision();
 
     harness.setNow(60_001);
@@ -253,7 +253,7 @@ describe('createGitScheduler place mapping fallback', () => {
 
     await harness.complete(harness.startedAt(2));
 
-    expect(scheduler.facts()).toEqual(factsBefore);
+    expect(scheduler.gitFacts()).toEqual(factsBefore);
     expect(harness.revision()).toBe(revisionBefore);
     expect(harness.published).toHaveLength(publishedBefore);
 
@@ -294,19 +294,19 @@ describe('createGitScheduler place mapping fallback', () => {
     expect(harness.startedAt(2).folder).toBe(extraFolder);
     expect(harness.startedAt(3).folder).toBe(aliasFolder);
 
-    const factsBefore = structuredClone(scheduler.facts());
+    const factsBefore = structuredClone(scheduler.gitFacts());
     const revisionBefore = harness.revision();
     const publishedBefore = harness.published.length;
 
     await harness.complete(harness.startedAt(3));
 
-    expect(scheduler.facts()).toEqual(factsBefore);
+    expect(scheduler.gitFacts()).toEqual(factsBefore);
     expect(harness.revision()).toBe(revisionBefore);
     expect(harness.published).toHaveLength(publishedBefore);
 
     await harness.complete(harness.startedAt(2));
 
-    expect(scheduler.facts().git.places[placeKeyOf(null, extraFolder)]).toEqual({
+    expect(scheduler.gitFacts().places[placeKeyOf(null, extraFolder)]).toEqual({
       kind: 'repository',
       worktree: sharedWorktree,
     });
@@ -345,7 +345,7 @@ describe('createGitScheduler place mapping fallback', () => {
 
     await harness.complete(harness.startedAt(3));
 
-    expect(scheduler.facts().git.places[aliasKey]).toEqual({ kind: 'none' });
+    expect(scheduler.gitFacts().places[aliasKey]).toEqual({ kind: 'none' });
     expect(harness.revision()).toBe(revisionBefore + 1);
   });
 
@@ -366,13 +366,13 @@ describe('createGitScheduler place mapping fallback', () => {
     scheduler.tick(worldOf([root, alias]), harness.context);
     expect(aliasReads()).toHaveLength(2);
 
-    const factsBefore = structuredClone(scheduler.facts());
+    const factsBefore = structuredClone(scheduler.gitFacts());
     const revisionBefore = harness.revision();
 
     harness.failure = 'fatal: the machine is unreachable';
     await harness.complete(harness.startedAt(2));
 
-    expect(scheduler.facts()).toEqual(factsBefore);
+    expect(scheduler.gitFacts()).toEqual(factsBefore);
     expect(harness.revision()).toBe(revisionBefore);
 
     harness.failure = null;

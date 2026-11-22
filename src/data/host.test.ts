@@ -14,7 +14,10 @@ import {
   leaseKey,
   parseHeartbeat,
 } from './lease.ts';
-import type { Snapshot } from './snapshot.ts';
+import { pullReadTimesKey } from './pullReadTimes.ts';
+import { pullRetryRequestsKey } from './pullRetry.ts';
+import type { Pull } from './pulls.ts';
+import type { RepositoryPulls, Snapshot } from './snapshot.ts';
 import { emptyFacts, parseSnapshot, snapshotKey } from './snapshot.ts';
 
 interface ExecCall {
@@ -43,6 +46,8 @@ interface Copy {
   tick: () => void;
 }
 
+const pullPeriodMilliseconds = 180_000;
+
 const sweepMilliseconds = 250;
 const folder = '/code/koja';
 const place = placeOf(null, folder);
@@ -53,6 +58,8 @@ const sharedValues = new Map<string, unknown>();
 let execCalls: ExecCall[] = [];
 let watches: WatchFake[] = [];
 let spaceFolders: string[] = [folder];
+let pullList: Pull[] = [];
+let ghFailures = 0;
 let checkingNow = false;
 let intervals: number[] = [];
 
@@ -80,6 +87,20 @@ const runFake = async (
   const cwd = options.cwd ?? '';
 
   execCalls.push({ command, args, cwd, on: options.on ?? null });
+
+  if (command === 'git' && args[0] === 'remote') {
+    return { code: 0, stdout: 'origin\n', stderr: '' };
+  }
+
+  if (command === 'gh' && args[0] === 'pr' && args[1] === 'list') {
+    if (ghFailures > 0) {
+      ghFailures -= 1;
+
+      return { code: 1, stdout: '', stderr: 'offline' };
+    }
+
+    return { code: 0, stdout: JSON.stringify(pullList), stderr: '' };
+  }
 
   return mainCheckout(args, cwd);
 };
@@ -176,13 +197,15 @@ const settle = async (): Promise<void> => {
 
 const gitCalls = (): ExecCall[] => execCalls.filter((call) => call.command === 'git');
 
+const pullCalls = (): ExecCall[] => execCalls.filter((call) => call.command === 'gh');
+
 const heartbeat = (): Heartbeat | null => parseHeartbeat(sharedValues.get(heartbeatKey));
 
-const storedSnapshot = (): Snapshot => {
+const storedSnapshot = (pulls: Record<string, RepositoryPulls> = {}): Snapshot => {
   const worktree = worktreeOf(null, folder);
 
   return {
-    version: 2,
+    version: 3,
     revision: 7,
     facts: {
       git: {
@@ -191,6 +214,7 @@ const storedSnapshot = (): Snapshot => {
           [worktree.key]: { repository, root: folder, branch: 'main', linked: false },
         },
       },
+      pulls,
     },
   };
 };
@@ -200,6 +224,8 @@ beforeEach(() => {
   execCalls = [];
   watches = [];
   spaceFolders = [folder];
+  pullList = [];
+  ghFailures = 0;
   checkingNow = false;
   intervals = [];
   setSystemTime(start);
@@ -212,7 +238,7 @@ describe('startDataHost', () => {
     expect(heartbeat()).toMatchObject({ generation: 1, at: start });
 
     expect(sharedValues.get(snapshotKey)).toEqual({
-      version: 2,
+      version: 3,
       revision: 1,
       facts: emptyFacts(),
     });
@@ -325,6 +351,86 @@ describe('startDataHost', () => {
     expect(parseSnapshot(sharedValues.get(snapshotKey))?.revision).toBe(7);
   });
 
+  test('a takeover seeds the PR facts and a recent read time so it starts no read', async () => {
+    const pull: Pull = {
+      number: 7,
+      state: 'OPEN',
+      isDraft: false,
+      title: 'Pull 7',
+      headRefName: 'feature-7',
+    };
+
+    sharedValues.set(
+      snapshotKey,
+      storedSnapshot({ [repository.key]: { pulls: [pull], failed: false } }),
+    );
+
+    sharedValues.set(pullReadTimesKey, {
+      version: 1,
+      pulls: { [repository.key]: start - 1000 },
+    });
+
+    sharedValues.set(leaseKey, { version: 1, owner: 'other', generation: 1 });
+
+    sharedValues.set(heartbeatKey, {
+      version: 1,
+      owner: 'other',
+      generation: 1,
+      at: start - leaseExpiryMilliseconds,
+    });
+
+    const copy = startCopy();
+
+    copy.beat();
+    copy.tick();
+    await settle();
+
+    expect(pullCalls()).toEqual([]);
+
+    expect(parseSnapshot(sharedValues.get(snapshotKey))?.facts.pulls[repository.key]).toEqual({
+      pulls: [pull],
+      failed: false,
+    });
+  });
+
+  test('a successful Retry clears the failed state and repopulates the titles', async () => {
+    const pull: Pull = {
+      number: 7,
+      state: 'OPEN',
+      isDraft: false,
+      title: 'Pull 7',
+      headRefName: 'feature-7',
+    };
+
+    pullList = [pull];
+    ghFailures = 1;
+
+    const copy = startCopy();
+
+    copy.tick();
+    await settle();
+    copy.tick();
+    await settle();
+
+    expect(parseSnapshot(sharedValues.get(snapshotKey))?.facts.pulls[repository.key]).toEqual({
+      pulls: [],
+      failed: true,
+    });
+
+    sharedValues.set(pullRetryRequestsKey, {
+      version: 1,
+      requests: [{ consumer: 'window-a', id: 'r-1', repository: repository.key, at: start }],
+    });
+
+    copy.tick();
+    await settle();
+
+    expect(parseSnapshot(sharedValues.get(snapshotKey))?.facts.pulls[repository.key]).toEqual({
+      pulls: [pull],
+      failed: false,
+    });
+  });
+
   test('stops reading after it loses the lease', async () => {
     const copy = startCopy();
 
@@ -369,7 +475,7 @@ describe('startDataHost', () => {
     expect(record.stages.map((stage) => stage.messageCount)).toEqual([0, 0, 1, 1, 2, 2]);
     expect(snapshotWrites).toHaveLength(2);
     expect(snapshotWrites.map((write) => write.messageCount)).toEqual([1, 2]);
-    expect(record.snapshot).toEqual({ version: 2, revision: 1, facts: emptyFacts() });
+    expect(record.snapshot).toEqual({ version: 3, revision: 1, facts: emptyFacts() });
   });
 
   test('logs again in a fresh loaded copy', async () => {
@@ -379,5 +485,119 @@ describe('startDataHost', () => {
     expect(first.messages).toHaveLength(2);
     expect(second.messages).toHaveLength(2);
     expect(second.stages.map((stage) => stage.messageCount)).toEqual([0, 0, 1, 1, 2, 2]);
+  });
+
+  test('an unchanged PR read writes no new snapshot revision', async () => {
+    const pull: Pull = {
+      number: 7,
+      state: 'OPEN',
+      isDraft: false,
+      title: 'Pull 7',
+      headRefName: 'feature-7',
+    };
+
+    pullList = [pull];
+
+    const copy = startCopy();
+
+    copy.tick();
+    await settle();
+    copy.tick();
+    await settle();
+
+    const afterRead = parseSnapshot(sharedValues.get(snapshotKey));
+
+    expect(afterRead?.facts.pulls[repository.key]).toEqual({ pulls: [pull], failed: false });
+
+    const revision = afterRead?.revision;
+
+    setSystemTime(start + pullPeriodMilliseconds);
+    copy.beat();
+    copy.tick();
+    await settle();
+
+    expect(parseSnapshot(sharedValues.get(snapshotKey))?.revision).toBe(revision);
+
+    expect(sharedValues.get(pullReadTimesKey)).toEqual({
+      version: 1,
+      pulls: { [repository.key]: start + pullPeriodMilliseconds },
+    });
+
+    expect(pullCalls()).toHaveLength(2);
+  });
+
+  test('PR facts and git facts publish in one snapshot', async () => {
+    const pull: Pull = {
+      number: 7,
+      state: 'OPEN',
+      isDraft: false,
+      title: 'Pull 7',
+      headRefName: 'feature-7',
+    };
+
+    pullList = [pull];
+
+    const copy = startCopy();
+
+    copy.tick();
+    await settle();
+    copy.tick();
+    await settle();
+
+    const worktree = worktreeOf(null, folder).key;
+    const open = parseSnapshot(sharedValues.get(snapshotKey));
+
+    expect(open?.facts.git.worktrees[worktree]).toBeDefined();
+    expect(open?.facts.pulls[repository.key]).toEqual({ pulls: [pull], failed: false });
+
+    spaceFolders = [];
+    copy.tick();
+    await settle();
+
+    const closed = parseSnapshot(sharedValues.get(snapshotKey));
+
+    expect(closed?.facts.git.worktrees).toEqual({});
+    expect(closed?.facts.pulls).toEqual({});
+
+    const reads = pullCalls().length;
+
+    spaceFolders = [folder];
+    copy.tick();
+    await settle();
+
+    const reopened = parseSnapshot(sharedValues.get(snapshotKey));
+
+    expect(reopened?.facts.git.worktrees[worktree]).toBeDefined();
+    expect(reopened?.facts.pulls[repository.key]).toEqual({ pulls: [pull], failed: false });
+    expect(pullCalls()).toHaveLength(reads);
+  });
+
+  test('a git-only facts change keeps the PR facts already read', async () => {
+    const pull: Pull = {
+      number: 7,
+      state: 'OPEN',
+      isDraft: false,
+      title: 'Pull 7',
+      headRefName: 'feature-7',
+    };
+
+    pullList = [pull];
+
+    const copy = startCopy();
+
+    copy.tick();
+    await settle();
+    copy.tick();
+    await settle();
+
+    spaceFolders = [folder, '/code/tikk'];
+    copy.tick();
+    await settle();
+
+    const after = parseSnapshot(sharedValues.get(snapshotKey));
+    const added = worktreeOf(null, '/code/tikk').key;
+
+    expect(after?.facts.git.worktrees[added]).toBeDefined();
+    expect(after?.facts.pulls[repository.key]).toEqual({ pulls: [pull], failed: false });
   });
 });
