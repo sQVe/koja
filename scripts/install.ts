@@ -1,22 +1,36 @@
-import { createHash } from 'node:crypto';
+import { createHash, randomUUID } from 'node:crypto';
 import type { Stats } from 'node:fs';
-import { watch } from 'node:fs';
+import { constants, watch } from 'node:fs';
 import {
   chmod,
   copyFile,
   lstat,
   mkdir,
+  mkdtemp,
+  open,
   readdir,
   readFile,
   realpath,
   rename,
+  rm,
   rmdir,
   stat,
   unlink,
   writeFile,
 } from 'node:fs/promises';
 import { homedir, tmpdir } from 'node:os';
-import { dirname, isAbsolute, join, normalize, parse, relative, resolve, sep } from 'node:path';
+import {
+  basename,
+  dirname,
+  isAbsolute,
+  join,
+  normalize,
+  parse,
+  relative,
+  resolve,
+  sep,
+} from 'node:path';
+import { setTimeout as delay } from 'node:timers/promises';
 
 import { buildMods, isMissing, outputDirectory, sourceDirectory } from './build.ts';
 
@@ -45,6 +59,10 @@ export interface InstallOptions {
   check: (modFolder: string) => Promise<CheckResult>;
   roots?: InstallRoots;
   chmodFile?: (path: string, mode: number) => Promise<void>;
+  lockTimeoutMilliseconds?: number;
+  temporaryRecordName?: () => string;
+  writeRecordFile?: (path: string, text: string) => Promise<void>;
+  removeStaging?: (path: string) => Promise<void>;
 }
 
 export interface InstallResult {
@@ -56,6 +74,7 @@ export interface InstallResult {
 export interface InstallOrigin {
   checkout: string;
   allChecksPassed: boolean;
+  completed: boolean;
   inputs: InstallInput[];
 }
 
@@ -69,19 +88,42 @@ export interface InstallRecord {
 
 type RecordFields = Record<string, unknown>;
 
+interface InstallProgress {
+  written: string[];
+  removed: string[];
+  checks: InstallResult['checks'];
+  applied: boolean;
+  staging: string | null;
+}
+
+type AncestorResolution = 'missing' | 'directory' | 'removed';
+
 export const recordName = '.koja-install.json';
 
 export const recordPath = (home: string): string => join(home, recordName);
 
-const recordVersion = 2;
+const lockName = '.koja-install.lock';
+
+const stagingPrefix = '.koja-check-';
+
+const lockRetryMilliseconds = 25;
+
+const lockTimeoutMilliseconds = 30_000;
+
+const recordVersion = 3;
+
+const commonRecordFields = new Set(['version', 'checkout', 'allChecksPassed', 'inputs', 'files']);
 
 const permissionBits = 0o777;
 
 const watchDebounceMilliseconds = 200;
 
+const isNotDirectory = (error: unknown): boolean =>
+  error instanceof Error && 'code' in error && error.code === 'ENOTDIR';
+
 export const lstatOrNull = async (path: string): Promise<Stats | null> =>
   lstat(path).catch((error: unknown) => {
-    if (isMissing(error)) {
+    if (isMissing(error) || isNotDirectory(error)) {
       return null;
     }
 
@@ -104,6 +146,15 @@ export const filesUnder = async (directory: string): Promise<string[]> => {
 
     throw error;
   }
+};
+
+const leavesUnder = async (directory: string): Promise<string[]> => {
+  const entries = await readdir(directory, { recursive: true, withFileTypes: true });
+
+  return entries
+    .filter((entry) => !entry.isDirectory())
+    .map((entry) => relative(directory, join(entry.parentPath, entry.name)))
+    .toSorted();
 };
 
 const shippedFolders = ['src', 'config'];
@@ -154,6 +205,21 @@ export const shippedInputs = async (checkout: string): Promise<InstallInput[]> =
   return inputs;
 };
 
+const isInstallerMetadata = (path: string): boolean => {
+  const [top] = path.split(sep);
+
+  const recordMetadata =
+    path === recordName ||
+    path.startsWith(`${recordName}${sep}`) ||
+    path.startsWith(`${recordName}.`);
+
+  const lockMetadata = path === lockName || path.startsWith(`${lockName}${sep}`);
+
+  const stagingMetadata = top?.startsWith(stagingPrefix) === true;
+
+  return recordMetadata || lockMetadata || stagingMetadata;
+};
+
 const plannedFiles = async (options: InstallOptions): Promise<Map<string, string>> => {
   const planned = new Map<string, string>();
 
@@ -165,25 +231,91 @@ const plannedFiles = async (options: InstallOptions): Promise<Map<string, string
     planned.set(join('mods', file), join(options.modsDirectory, file));
   }
 
+  for (const path of planned.keys()) {
+    if (isInstallerMetadata(path)) {
+      throw new Error(`Refusing to install reserved installer path ${JSON.stringify(path)}`);
+    }
+  }
+
   return planned;
-};
-
-const isInsideHome = (path: string): boolean => {
-  const normalized = normalize(path);
-  const escapes = normalized === '..' || normalized.startsWith(`..${sep}`);
-
-  return !isAbsolute(normalized) && !escapes;
 };
 
 const isRecordFields = (value: unknown): value is RecordFields =>
   typeof value === 'object' && value !== null && !Array.isArray(value);
 
+const invalidRecordEntry = (reason: string, file: string): Error =>
+  new Error(`Refusing install record entry ${JSON.stringify(file)}: ${reason}`);
+
+const canonicalRecordPath = (path: string): string => {
+  const normalized = normalize(path);
+
+  return normalized.endsWith(sep) ? normalized.slice(0, -sep.length) : normalized;
+};
+
+const recordedPath = (file: string): string | null => {
+  if (file === '') {
+    throw invalidRecordEntry('the path is empty', file);
+  }
+
+  const normalized = normalize(file);
+
+  if (isAbsolute(normalized)) {
+    return null;
+  }
+
+  const escapes = normalized === '..' || normalized.startsWith(`..${sep}`);
+
+  if (escapes) {
+    return null;
+  }
+
+  const canonical = canonicalRecordPath(normalized);
+
+  if (canonical === '.' || canonical === '') {
+    throw invalidRecordEntry('the path names Herdr home itself', file);
+  }
+
+  if (isInstallerMetadata(canonical)) {
+    throw invalidRecordEntry('the path is reserved for installer metadata', file);
+  }
+
+  if (canonical !== file) {
+    throw invalidRecordEntry('the path is not canonical', file);
+  }
+
+  return canonical;
+};
+
 const recordedFiles = (record: RecordFields): string[] => {
   const { files } = record;
 
-  return Array.isArray(files)
-    ? files.filter((file): file is string => typeof file === 'string').filter(isInsideHome)
-    : [];
+  if (!Array.isArray(files)) {
+    return [];
+  }
+
+  const recorded: string[] = [];
+  const seen = new Set<string>();
+
+  for (const file of files) {
+    if (typeof file !== 'string') {
+      continue;
+    }
+
+    const canonical = recordedPath(file);
+
+    if (canonical === null) {
+      continue;
+    }
+
+    if (seen.has(canonical)) {
+      throw invalidRecordEntry('the path appears more than once', file);
+    }
+
+    seen.add(canonical);
+    recorded.push(canonical);
+  }
+
+  return recorded;
 };
 
 const isInstallInput = (value: unknown): value is InstallInput => {
@@ -197,14 +329,51 @@ const isInstallInput = (value: unknown): value is InstallInput => {
 const isInstallInputs = (value: unknown): value is InstallInput[] =>
   Array.isArray(value) && value.every(isInstallInput);
 
+const assertCurrentRecord = (record: RecordFields): void => {
+  const problems: string[] = [];
+
+  if (typeof record['checkout'] !== 'string') {
+    problems.push('checkout');
+  }
+
+  if (typeof record['allChecksPassed'] !== 'boolean') {
+    problems.push('allChecksPassed');
+  }
+
+  if (typeof record['completed'] !== 'boolean') {
+    problems.push('completed');
+  }
+
+  if (
+    !Array.isArray(record['files']) ||
+    !record['files'].every((file) => typeof file === 'string')
+  ) {
+    problems.push('files');
+  }
+
+  if (!isInstallInputs(record['inputs'])) {
+    problems.push('inputs');
+  }
+
+  if (problems.length > 0) {
+    throw new Error(
+      `The install record of version ${recordVersion} is malformed: ${problems.join(', ')}`,
+    );
+  }
+};
+
 const recordedCheckout = (record: RecordFields): string | null => {
   const { checkout } = record;
 
   return typeof checkout === 'string' && isAbsolute(checkout) ? checkout : null;
 };
 
-const recordedOrigin = (record: RecordFields, checkout: string | null): InstallOrigin | null => {
-  const { allChecksPassed, inputs } = record;
+const recordedOrigin = (
+  record: RecordFields,
+  checkout: string | null,
+  version: number,
+): InstallOrigin | null => {
+  const { allChecksPassed, completed, inputs } = record;
 
   if (checkout === null || typeof allChecksPassed !== 'boolean') {
     return null;
@@ -214,7 +383,44 @@ const recordedOrigin = (record: RecordFields, checkout: string | null): InstallO
     return null;
   }
 
-  return { checkout, allChecksPassed, inputs };
+  if (version < recordVersion) {
+    return { checkout, allChecksPassed, completed: false, inputs };
+  }
+
+  if (typeof completed !== 'boolean') {
+    return null;
+  }
+
+  return { checkout, allChecksPassed, completed, inputs };
+};
+
+const recordVersionOf = (record: RecordFields): number => {
+  const version = record['version'];
+
+  if (typeof version !== 'number' || !Number.isInteger(version) || version < 1) {
+    throw new Error('The install record has no valid version');
+  }
+
+  if (version > recordVersion) {
+    throw new Error(
+      `The install record has version ${version}, newer than supported version ${recordVersion}. Update Koja or remove the record and install again.`,
+    );
+  }
+
+  return version;
+};
+
+const assertRecordFields = (record: RecordFields, version: number): void => {
+  for (const field of Object.keys(record)) {
+    const currentOnly = version === recordVersion && field === 'completed';
+    const known = commonRecordFields.has(field) || currentOnly;
+
+    if (!known) {
+      throw new Error(
+        `The install record of version ${version} has unknown field ${JSON.stringify(field)}`,
+      );
+    }
+  }
 };
 
 export const readRecord = async (home: string): Promise<InstallRecord | null> => {
@@ -232,12 +438,20 @@ export const readRecord = async (home: string): Promise<InstallRecord | null> =>
       return { files: [], checkout: null, origin: null };
     }
 
+    const version = recordVersionOf(record);
+
+    assertRecordFields(record, version);
+
+    if (version === recordVersion) {
+      assertCurrentRecord(record);
+    }
+
     const checkout = recordedCheckout(record);
 
     return {
       files: recordedFiles(record),
       checkout,
-      origin: recordedOrigin(record, checkout),
+      origin: recordedOrigin(record, checkout, version),
     };
   } catch (error) {
     if (isMissing(error)) {
@@ -337,6 +551,8 @@ export const isSameFile = async (source: string, destination: string): Promise<b
   return sourceText.equals(destinationText);
 };
 
+const temporaryName = (path: string): string => `.${basename(path)}.koja-${randomUUID()}.tmp`;
+
 const installFile = async (
   home: string,
   path: string,
@@ -355,11 +571,34 @@ const installFile = async (
   }
 
   const sourceStat = await stat(source);
+  const folder = dirname(destination);
+  const temporaryPath = join(folder, temporaryName(destination));
 
-  await mkdir(dirname(destination), { recursive: true });
-  await copyFile(source, destination);
+  await mkdir(folder, { recursive: true });
+
+  try {
+    await copyFile(source, temporaryPath, constants.COPYFILE_EXCL);
+    await chmodFile(temporaryPath, sourceStat.mode & permissionBits);
+    await rename(temporaryPath, destination);
+  } catch (error) {
+    await rm(temporaryPath, { force: true }).catch(() => undefined);
+
+    throw error;
+  }
+
   onWritten(path);
-  await chmodFile(destination, sourceStat.mode & permissionBits);
+
+  return true;
+};
+
+const removeEmptyFolder = async (folder: string): Promise<boolean> => {
+  const entries = await readdir(folder).catch(() => null);
+
+  if (entries === null || entries.length > 0) {
+    return false;
+  }
+
+  await rmdir(folder);
 
   return true;
 };
@@ -369,14 +608,10 @@ const removeEmptyFolders = async (home: string, path: string): Promise<void> => 
 
   while (folder !== home && folder.startsWith(home)) {
     // eslint-disable-next-line no-await-in-loop -- a parent can only be empty once its child is gone
-    const entries = await readdir(folder).catch(() => null);
-
-    if (entries === null || entries.length > 0) {
+    if (!(await removeEmptyFolder(folder))) {
       return;
     }
 
-    // eslint-disable-next-line no-await-in-loop -- as above
-    await rmdir(folder);
     folder = dirname(folder);
   }
 };
@@ -417,22 +652,81 @@ const byPath = (first: InstallInput, second: InstallInput): number => {
   return first.path < second.path ? -1 : 1;
 };
 
-const writeRecord = async (home: string, files: string[], origin: InstallOrigin): Promise<void> => {
+const isAlreadyExists = (error: unknown): boolean =>
+  error instanceof Error && 'code' in error && error.code === 'EEXIST';
+
+const createInstallLock = async (lockPath: string): Promise<void> => {
+  const handle = await open(lockPath, 'wx');
+
+  await handle.close();
+};
+
+const acquireInstallLock = async (
+  home: string,
+  timeoutMilliseconds: number,
+): Promise<() => Promise<void>> => {
+  const lockPath = join(home, lockName);
+  const deadline = Date.now() + timeoutMilliseconds;
+
+  await removeSymlinkLeaf(lockPath);
+
+  for (;;) {
+    try {
+      // eslint-disable-next-line no-await-in-loop -- the lock is tried once before a wait
+      await createInstallLock(lockPath);
+
+      return async () => {
+        await unlink(lockPath).catch((error: unknown) => {
+          if (!isMissing(error)) {
+            throw error;
+          }
+        });
+      };
+    } catch (error) {
+      if (!isAlreadyExists(error)) {
+        throw error;
+      }
+
+      if (Date.now() >= deadline) {
+        throw new Error(
+          `Timed out waiting for the install lock ${lockPath}. Stop other installs for this home, check that no installer holds the lock, then remove only ${lockPath} and retry.`,
+          { cause: error },
+        );
+      }
+
+      // eslint-disable-next-line no-await-in-loop -- a held lock is retried after a wait
+      await delay(lockRetryMilliseconds);
+    }
+  }
+};
+
+const writeRecord = async (
+  home: string,
+  files: string[],
+  origin: InstallOrigin,
+  recordTemporaryName: string,
+  writeFileTo: (path: string, text: string) => Promise<void>,
+): Promise<void> => {
   const record = {
     version: recordVersion,
     checkout: origin.checkout,
     allChecksPassed: origin.allChecksPassed,
+    completed: origin.completed,
     inputs: origin.inputs.toSorted(byPath),
     files: files.toSorted(),
   };
 
   const path = recordPath(home);
-  const temporaryPath = join(home, `${recordName}.tmp`);
+  const temporaryPath = join(home, recordTemporaryName);
 
-  await removeSymlinkLeaf(temporaryPath);
-  await writeFile(temporaryPath, `${JSON.stringify(record, null, 2)}\n`);
-  await removeSymlinkLeaf(path);
-  await rename(temporaryPath, path);
+  try {
+    await writeFileTo(temporaryPath, `${JSON.stringify(record, null, 2)}\n`);
+    await rename(temporaryPath, path);
+  } catch (error) {
+    await rm(temporaryPath, { force: true }).catch(() => undefined);
+
+    throw error;
+  }
 };
 
 const isModFile = (path: string): boolean => path.split(sep)[0] === 'mods';
@@ -442,12 +736,15 @@ const installFiles = async (
   files: [string, string][],
   chmodFile: (path: string, mode: number) => Promise<void>,
   onWritten: (path: string) => void,
+  sourceRoot?: string,
 ): Promise<string[]> => {
   const written: string[] = [];
 
   for (const [path, source] of files) {
+    const from = sourceRoot === undefined ? source : join(sourceRoot, path);
+
     // eslint-disable-next-line no-await-in-loop -- files are written one at a time, in order
-    if (await installFile(home, path, source, chmodFile, onWritten)) {
+    if (await installFile(home, path, from, chmodFile, onWritten)) {
       written.push(path);
     }
   }
@@ -490,61 +787,315 @@ const checkMods = async (
   return Promise.all(mods.map(checkMod));
 };
 
-export const install = async (options: InstallOptions): Promise<InstallResult> => {
-  const home = resolve(options.home);
-  const roots = options.roots ?? { userHome: resolve(homedir()), temporary: resolve(tmpdir()) };
-  const chmodFile = options.chmodFile ?? chmod;
+const stageFile = async (staging: string, path: string, source: string): Promise<void> => {
+  const destination = join(staging, path);
+  const sourceStat = await stat(source);
 
-  await refuseLinkedHome(home, roots);
+  await mkdir(dirname(destination), { recursive: true });
+  await copyFile(source, destination);
+  await chmod(destination, sourceStat.mode & permissionBits);
+};
 
-  const planned = await plannedFiles(options);
-  const modFiles = [...planned].filter(([path]) => isModFile(path));
-  const configFiles = [...planned].filter(([path]) => !isModFile(path));
-  const checkout = await realpath(options.checkout);
-  const earlierRecord = await readRecord(home);
-  const earlier = earlierRecord?.files ?? [];
-  const stale = earlier.filter((file) => !planned.has(file));
-  const written: string[] = [];
+const stageMods = async (home: string, planned: Map<string, string>): Promise<string> => {
+  const staging = await mkdtemp(join(home, stagingPrefix));
+
+  try {
+    for (const [path, source] of planned) {
+      if (!isModFile(path)) {
+        continue;
+      }
+
+      // eslint-disable-next-line no-await-in-loop -- files are staged one at a time to bound I/O
+      await stageFile(staging, path, source);
+    }
+
+    return staging;
+  } catch (error) {
+    try {
+      await rm(staging, { recursive: true, force: true });
+    } catch (cleanupError) {
+      throw new AggregateError([error, cleanupError], `Could not stage mods into ${staging}`, {
+        cause: cleanupError,
+      });
+    }
+
+    throw error;
+  }
+};
+
+const adoptPlanned = (owned: Set<string>, planned: Map<string, string>): void => {
+  for (const path of planned.keys()) {
+    owned.add(path);
+  }
+};
+
+const unownedConflict = (path: string): Error =>
+  new Error(`Refusing to replace ${path}, which this installer did not write`);
+
+const pathAncestors = (path: string): string[] => {
+  const ancestors: string[] = [];
+  let current = '';
+
+  for (const part of dirname(path).split(sep)) {
+    if (part === '' || part === '.') {
+      continue;
+    }
+
+    current = current === '' ? part : join(current, part);
+    ancestors.push(current);
+  }
+
+  return ancestors;
+};
+
+const removeOwnedDirectory = async (
+  home: string,
+  path: string,
+  owned: Set<string>,
+): Promise<string[]> => {
+  const destination = join(home, path);
+  const relativeLeaves = await leavesUnder(destination);
+  const leaves = relativeLeaves.map((leaf) => join(path, leaf));
+
+  for (const leaf of leaves) {
+    if (!owned.has(leaf)) {
+      throw unownedConflict(join(home, leaf));
+    }
+  }
+
+  await rm(destination, { recursive: true, force: true });
+
+  for (const leaf of leaves) {
+    owned.delete(leaf);
+  }
+
+  return leaves;
+};
+
+const resolveAncestorConflict = async (
+  home: string,
+  ancestor: string,
+  owned: Set<string>,
+): Promise<AncestorResolution> => {
+  const existing = await lstatOrNull(join(home, ancestor));
+
+  if (existing === null) {
+    return 'missing';
+  }
+
+  if (existing.isDirectory()) {
+    return 'directory';
+  }
+
+  if (!owned.has(ancestor)) {
+    throw unownedConflict(join(home, ancestor));
+  }
+
+  await unlink(join(home, ancestor));
+  owned.delete(ancestor);
+
+  return 'removed';
+};
+
+const resolveDestinationConflict = async (
+  home: string,
+  path: string,
+  owned: Set<string>,
+): Promise<string[]> => {
   const removed: string[] = [];
-  const checks: InstallResult['checks'] = [];
-  const owned = new Set<string>();
-  let allChecksPassed = false;
 
+  for (const ancestor of pathAncestors(path)) {
+    // eslint-disable-next-line no-await-in-loop -- each ancestor is checked before the next one
+    const resolution = await resolveAncestorConflict(home, ancestor, owned);
+
+    if (resolution === 'missing') {
+      break;
+    }
+
+    if (resolution === 'removed') {
+      removed.push(ancestor);
+
+      break;
+    }
+  }
+
+  const existing = await lstatOrNull(join(home, path));
+
+  if (existing?.isDirectory() === true) {
+    removed.push(...(await removeOwnedDirectory(home, path, owned)));
+  }
+
+  return removed;
+};
+
+const resolveConflicts = async (
+  home: string,
+  files: [string, string][],
+  owned: Set<string>,
+): Promise<string[]> => {
+  const removed: string[] = [];
+
+  for (const [path] of files) {
+    // eslint-disable-next-line no-await-in-loop -- destinations are resolved one at a time
+    removed.push(...(await resolveDestinationConflict(home, path, owned)));
+  }
+
+  return removed;
+};
+
+const writeRecordFile = async (path: string, text: string): Promise<void> => {
+  await writeFile(path, text, { flag: 'wx' });
+};
+
+const finishInstall = async (
+  home: string,
+  files: string[],
+  checkout: string,
+  inputs: InstallInput[],
+  temporaryRecordName: string,
+  writeFileTo: (path: string, text: string) => Promise<void>,
+  removeStaging: (path: string) => Promise<void>,
+  progress: InstallProgress,
+): Promise<void> => {
+  let completed = false;
+
+  try {
+    if (progress.staging !== null) {
+      await removeStaging(progress.staging);
+    }
+
+    completed = progress.applied;
+  } finally {
+    await writeRecord(
+      home,
+      files,
+      { checkout, allChecksPassed: completed, completed, inputs },
+      temporaryRecordName,
+      writeFileTo,
+    );
+  }
+};
+
+const removeStagingDirectory = async (path: string): Promise<void> => {
+  await rm(path, { recursive: true, force: true });
+};
+
+const defaultTemporaryRecordName = (): string => `${recordName}.${randomUUID()}.tmp`;
+
+const publishPlan = async (
+  home: string,
+  options: InstallOptions,
+  planned: Map<string, string>,
+  modFiles: [string, string][],
+  configFiles: [string, string][],
+  stale: string[],
+  owned: Set<string>,
+  chmodFile: (path: string, mode: number) => Promise<void>,
+  progress: InstallProgress,
+): Promise<void> => {
   const recordOwned = (writtenPath: string): void => {
     owned.add(writtenPath);
   };
 
-  for (const path of earlier) {
-    // eslint-disable-next-line no-await-in-loop -- earlier paths are checked before anything changes
-    if ((await lstatOrNull(join(home, path))) !== null) {
-      owned.add(path);
-    }
+  progress.staging = await stageMods(home, planned);
+  progress.checks.push(...(await checkMods(progress.staging, planned, options.check)));
+
+  if (!progress.checks.every((check) => check.passed)) {
+    return;
   }
 
-  for (const path of [...planned.keys(), ...stale, recordName]) {
-    // eslint-disable-next-line no-await-in-loop -- every destination is checked before anything changes
-    await refuseLinkedFolders(home, path);
-  }
+  progress.removed.push(...(await resolveConflicts(home, modFiles, owned)));
+
+  const modsWritten = await installFiles(home, modFiles, chmodFile, recordOwned, progress.staging);
+
+  progress.written.push(...modsWritten);
+  progress.removed.push(...(await resolveConflicts(home, configFiles, owned)));
+
+  const configWritten = await installFiles(home, configFiles, chmodFile, recordOwned);
+
+  progress.written.push(...configWritten);
+  progress.removed.push(...(await removeStale(home, stale, owned)));
+
+  adoptPlanned(owned, planned);
+
+  progress.applied = true;
+};
+
+export const install = async (options: InstallOptions): Promise<InstallResult> => {
+  const home = resolve(options.home);
+  const roots = options.roots ?? { userHome: resolve(homedir()), temporary: resolve(tmpdir()) };
+  const chmodFile = options.chmodFile ?? chmod;
+  const writeRecordTo = options.writeRecordFile ?? writeRecordFile;
+  const temporaryRecordName = options.temporaryRecordName ?? defaultTemporaryRecordName;
+  const removeStaging = options.removeStaging ?? removeStagingDirectory;
+
+  await refuseLinkedHome(home, roots);
+  await mkdir(home, { recursive: true });
+
+  const releaseLock = await acquireInstallLock(
+    home,
+    options.lockTimeoutMilliseconds ?? lockTimeoutMilliseconds,
+  );
 
   try {
-    const modsWritten = await installFiles(home, modFiles, chmodFile, recordOwned);
+    const planned = await plannedFiles(options);
+    const modFiles = [...planned].filter(([path]) => isModFile(path));
+    const configFiles = [...planned].filter(([path]) => !isModFile(path));
+    const checkout = await realpath(options.checkout);
+    const earlierRecord = await readRecord(home);
+    const earlier = earlierRecord?.files ?? [];
+    const stale = earlier.filter((file) => !planned.has(file));
+    const owned = new Set<string>();
 
-    written.push(...modsWritten);
-    checks.push(...(await checkMods(home, planned, options.check)));
+    const progress: InstallProgress = {
+      written: [],
+      removed: [],
+      checks: [],
+      applied: false,
+      staging: null,
+    };
 
-    allChecksPassed = checks.every((check) => check.passed);
-
-    if (allChecksPassed) {
-      const configWritten = await installFiles(home, configFiles, chmodFile, recordOwned);
-
-      written.push(...configWritten);
-      removed.push(...(await removeStale(home, stale, owned)));
+    for (const path of earlier) {
+      // eslint-disable-next-line no-await-in-loop -- earlier paths are checked before anything changes
+      if ((await lstatOrNull(join(home, path))) !== null) {
+        owned.add(path);
+      }
     }
-  } finally {
-    await writeRecord(home, [...owned], { checkout, allChecksPassed, inputs: options.inputs });
-  }
 
-  return { written, removed, checks };
+    for (const path of [...planned.keys(), ...stale, recordName]) {
+      // eslint-disable-next-line no-await-in-loop -- every destination is checked before anything changes
+      await refuseLinkedFolders(home, path);
+    }
+
+    try {
+      await publishPlan(
+        home,
+        options,
+        planned,
+        modFiles,
+        configFiles,
+        stale,
+        owned,
+        chmodFile,
+        progress,
+      );
+    } finally {
+      await finishInstall(
+        home,
+        [...owned],
+        checkout,
+        options.inputs,
+        temporaryRecordName(),
+        writeRecordTo,
+        removeStaging,
+        progress,
+      );
+    }
+
+    return { written: progress.written, removed: progress.removed, checks: progress.checks };
+  } finally {
+    await releaseLock();
+  }
 };
 
 const herdrCheck = async (modFolder: string): Promise<CheckResult> => {

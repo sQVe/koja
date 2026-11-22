@@ -159,16 +159,32 @@ describe('sandbox identity', () => {
   test('fails when the record names its shipped inputs without their hashes', async () => {
     const record = JSON.parse(await readFile(recordPath(), 'utf8')) as Record<string, unknown>;
 
-    await writeFile(recordPath(), JSON.stringify({ ...record, inputs: ['package.json'] }));
+    await writeFile(
+      recordPath(),
+      JSON.stringify({
+        version: 2,
+        checkout: record['checkout'],
+        allChecksPassed: record['allChecksPassed'],
+        inputs: ['package.json'],
+        files: record['files'],
+      }),
+    );
 
     expect(await findIdentityFailures(options)).toEqual([{ kind: 'recordWithoutOrigin' }]);
   });
 
   test('fails when the record names no shipped inputs', async () => {
     const record = JSON.parse(await readFile(recordPath(), 'utf8')) as Record<string, unknown>;
-    const { inputs: _, ...withoutInputs } = record;
 
-    await writeFile(recordPath(), JSON.stringify(withoutInputs));
+    await writeFile(
+      recordPath(),
+      JSON.stringify({
+        version: 2,
+        checkout: record['checkout'],
+        allChecksPassed: record['allChecksPassed'],
+        files: record['files'],
+      }),
+    );
 
     expect(await findIdentityFailures(options)).toEqual([{ kind: 'recordWithoutOrigin' }]);
   });
@@ -198,10 +214,54 @@ describe('sandbox identity', () => {
     await installFrom(checkout, { check: failingCheck });
 
     expect(await findIdentityFailures(options)).toEqual([
+      { kind: 'installIncomplete' },
       { kind: 'checkFailed' },
       { kind: 'notInstalled', path: 'config/keys.json' },
       { kind: 'notInstalled', path: 'config/layouts/koja.json' },
+      { kind: 'notInstalled', path: 'dist/mods/koja-tabs/icons/x.svg' },
+      { kind: 'notInstalled', path: 'dist/mods/koja-tabs/main.js' },
     ]);
+  });
+
+  test('fails when a previous version 2 record claims success but not completion', async () => {
+    const record = JSON.parse(await readFile(recordPath(), 'utf8')) as Record<string, unknown>;
+
+    await writeFile(
+      recordPath(),
+      JSON.stringify({
+        version: 2,
+        checkout: record['checkout'],
+        allChecksPassed: true,
+        inputs: record['inputs'],
+        files: record['files'],
+      }),
+    );
+
+    expect(await findIdentityFailures(options)).toEqual([{ kind: 'installIncomplete' }]);
+  });
+
+  test('names a sandbox command when the install is incomplete', async () => {
+    const record = JSON.parse(await readFile(recordPath(), 'utf8')) as Record<string, unknown>;
+
+    await writeFile(
+      recordPath(),
+      JSON.stringify({
+        version: 3,
+        checkout: record['checkout'],
+        allChecksPassed: true,
+        completed: false,
+        inputs: record['inputs'],
+        files: record['files'],
+      }),
+    );
+
+    const report = await identityReport(options);
+    const line = report.lines.find((entry) => entry.includes('did not finish'));
+
+    expect(report.exitCode).toBe(1);
+    expect(line).toContain('bun run sandbox install');
+    expect(line).toContain('bun run sandbox up');
+    expect(line).not.toContain('herdr:install');
   });
 
   test('fails when a built mod file has no installed copy', async () => {

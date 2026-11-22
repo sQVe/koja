@@ -24,6 +24,10 @@ Declare one `sandbox` target in `.pi/tau.json`, and let Tau launch, check, and s
 
 The doctor is `bun run sandbox identity`. It compares the installed mods and config with the
 checkout by content hash, not by time: the install record holds the SHA-256 of every shipped input.
+It also requires the record to mark its install complete. An ordinary version 1 record names no
+origin, so the doctor reports `recordWithoutOrigin`. A version 2 record can show that its checks
+passed, but not that config and cleanup finished, so the doctor reports `installIncomplete` until
+the next install writes a version 3 record.
 
 The sandbox name comes from the run. When Tau sets `TAU_VERIFICATION_RUN`, the name is `koja-<run>`,
 lowercased to fit ruta's name pattern. Otherwise the name is `RUTA_NAME`, then `koja`. The run name
@@ -51,8 +55,9 @@ A checkout that no longer exists holds nothing, so its name is free to take over
 ### Negative
 
 - `.pi/tau.json` gains a key that only a trusted project may hold, like `fullCheck.argv`.
-- The install record is version 2. A sandbox installed by an older Koja fails the doctor until the
-  next `bun run sandbox up`, which rewrites the record.
+- The install record is version 3. A sandbox installed by an older Koja fails the doctor until the
+  next `bun run sandbox up`, which rewrites the record. Version 1 and version 2 records still parse,
+  but their success flag never counts as a completed install.
 - A by-hand session must pass `RUTA_NAME` when no verification run names the sandbox.
 
 ## Alternatives considered

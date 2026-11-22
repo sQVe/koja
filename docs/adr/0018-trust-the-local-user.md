@@ -30,8 +30,6 @@ drop, or ownership check against a co-writer with the same UID.
 
 - The sandbox fixture script creates `/var/tmp/ruta-<name>` and opens `machine.lock` before `up()`
   validates the root. A co-writer with the same UID can replace the fixture files there.
-- The installer copies files in place, so a destination that is a hard link to another file receives
-  the copied content too.
 - A folder can be replaced between the check and the use, so Git or Grove then acts on whatever now
   sits at that path.
 - The picker takes its preview folder and state file from its props, so the mod that opens it names
