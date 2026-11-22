@@ -255,7 +255,32 @@ class Scheduler implements PullScheduler {
       this.answers.set(waiter, { result, at });
     }
 
+    this.adoptLateRequests(key, result, this.dependencies.now());
     this.publishStoredOutcomes();
+  }
+
+  private adoptLateRequests(key: string, result: PullRetryResult, now: number): void {
+    const stored = readPullRetryRequests(this.dependencies.read, this.dependencies.notices);
+
+    if (stored.kind === 'newer') {
+      return;
+    }
+
+    const taken = answeredRequestKeys(this.dependencies.read);
+
+    for (const [requestId, answer] of this.answers) {
+      if (answer.result !== null) {
+        taken.add(requestId);
+      }
+    }
+
+    for (const request of freshRequests(stored.items, taken, now)) {
+      if (request.repository !== key) {
+        continue;
+      }
+
+      this.answers.set(requestKey(request), { result, at: request.at });
+    }
   }
 
   private writeRead(key: string, read: SettledPullRead): void {

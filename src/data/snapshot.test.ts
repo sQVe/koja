@@ -270,6 +270,18 @@ describe('parseSnapshot', () => {
     expect(parseSnapshot({ version: 2, revision: '4', facts })).toBeNull();
   });
 
+  test('rejects an unknown field in a version 2 snapshot', () => {
+    const facts = { git: { places: {}, worktrees: {} } };
+
+    expect(parseSnapshot({ version: 2, revision: 4, facts, extra: true })).toBeNull();
+  });
+
+  test('rejects a version 2 snapshot without a revision', () => {
+    const facts = { git: { places: {}, worktrees: {} } };
+
+    expect(parseSnapshot({ version: 2, facts })).toBeNull();
+  });
+
   test('rejects a version 2 snapshot without facts', () => {
     expect(parseSnapshot({ version: 2, revision: 4 })).toBeNull();
   });

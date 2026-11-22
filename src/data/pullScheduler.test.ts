@@ -305,6 +305,32 @@ describe('createPullScheduler', () => {
     ]);
   });
 
+  test('a request written before an in-flight read completes gets that read outcome', async () => {
+    harness.setRequests([requestFor('window-a', 'a-1')]);
+
+    const scheduler = harness.start();
+    const git = gitFactsOf();
+
+    scheduler.tick(git, harness.spawn);
+    expect(harness.calls).toHaveLength(1);
+
+    harness.setRequests([requestFor('window-a', 'a-1'), requestFor('window-b', 'b-1')]);
+
+    await harness.respondRemotes(0);
+    await harness.respondPulls(1, pullList(7));
+
+    expect(harness.calls.filter((call) => call.command === 'gh')).toHaveLength(1);
+
+    expect(harness.outcomes()).toEqual([
+      { consumer: 'window-a', id: 'a-1', result: 'read' },
+      { consumer: 'window-b', id: 'b-1', result: 'read' },
+    ]);
+
+    scheduler.tick(git, harness.spawn);
+
+    expect(harness.calls.map((call) => call.command)).toEqual(['git', 'gh']);
+  });
+
   test('a re-asserted request whose answer is still in memory starts no second read', async () => {
     harness.setRequests([requestFor('window-a', 'a-1')]);
 
