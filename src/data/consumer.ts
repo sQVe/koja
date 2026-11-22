@@ -1,7 +1,8 @@
 import type { ReadShared } from './lease.ts';
 import { heartbeatDeadline, heartbeatKey, parseHeartbeat } from './lease.ts';
+import { recordNotices } from './recordNotices.ts';
 import type { Snapshot } from './snapshot.ts';
-import { readStoredSnapshot, snapshotNotices } from './storedSnapshot.ts';
+import { readStoredSnapshot } from './storedSnapshot.ts';
 
 export type DataState =
   | { kind: 'unavailable' }
@@ -22,7 +23,7 @@ export type DataState =
     };
 
 export const readDataState = (read: ReadShared, now: number): DataState => {
-  const snapshot = readStoredSnapshot(read, snapshotNotices);
+  const snapshot = readStoredSnapshot(read, recordNotices);
   const heartbeat = parseHeartbeat(read(heartbeatKey));
 
   if (snapshot === null || heartbeat === null) {

@@ -1,21 +1,25 @@
 import { describe, expect, test } from 'bun:test';
+import { readFileSync } from 'node:fs';
+import { join } from 'node:path';
 
+import type { RecordNotices, RecordRejection } from './recordNotices.ts';
+import { createRecordNotices } from './recordNotices.ts';
 import type { Snapshot } from './snapshot.ts';
 import { emptyFacts, snapshotKey } from './snapshot.ts';
-import type { SnapshotNotices } from './storedSnapshot.ts';
-import { createSnapshotNotices, readStoredSnapshot } from './storedSnapshot.ts';
+import { readStoredSnapshot } from './storedSnapshot.ts';
 
-type SnapshotRejection = Parameters<SnapshotNotices['report']>[0];
+const fixture = (name: string): unknown =>
+  JSON.parse(readFileSync(join(import.meta.dir, 'fixtures', name), 'utf8'));
 
 const memoryStore =
   (value: unknown) =>
   (key: string): unknown =>
     key === snapshotKey ? value : undefined;
 
-const logged = (): { messages: string[]; notices: SnapshotNotices } => {
+const logged = (): { messages: string[]; notices: RecordNotices } => {
   const messages: string[] = [];
 
-  const notices = createSnapshotNotices((message) => {
+  const notices = createRecordNotices((message) => {
     messages.push(message);
   });
 
@@ -34,10 +38,10 @@ const onlyMessage = (messages: string[]): string => {
   return message;
 };
 
-const messageFor = (rejection: SnapshotRejection): string => {
+const messageFor = (rejection: RecordRejection): string => {
   const { messages, notices } = logged();
 
-  notices.report(rejection);
+  notices.report('snapshot', rejection);
 
   return onlyMessage(messages);
 };
@@ -46,7 +50,7 @@ const malformedMessage = (): string => messageFor('malformed');
 
 const newerMessage = (): string => messageFor('newer');
 
-const snapshot = { version: 2, revision: 4, facts: emptyFacts() } satisfies Snapshot;
+const snapshot = { version: 3, revision: 4, facts: emptyFacts() } satisfies Snapshot;
 
 describe('readStoredSnapshot', () => {
   test('stays silent when no snapshot was written', () => {
@@ -114,7 +118,30 @@ describe('readStoredSnapshot', () => {
 
   test('reports a newer version once and keeps rejecting it', () => {
     const { messages, notices } = logged();
-    const read = memoryStore({ version: 3, revision: 4, facts: emptyFacts() });
+    const read = memoryStore({ version: 4, revision: 4, facts: emptyFacts() });
+
+    expect(readStoredSnapshot(read, notices)).toBeNull();
+    expect(readStoredSnapshot(read, notices)).toBeNull();
+    expect(messages).toEqual([newerMessage()]);
+  });
+
+  test('reports a malformed version 3 snapshot as malformed', () => {
+    const { messages, notices } = logged();
+
+    const read = memoryStore({
+      version: 3,
+      revision: 4,
+      facts: { git: { places: {}, worktrees: {} } },
+    });
+
+    expect(readStoredSnapshot(read, notices)).toBeNull();
+    expect(readStoredSnapshot(read, notices)).toBeNull();
+    expect(messages).toEqual([malformedMessage()]);
+  });
+
+  test('skips the version 4 fixture with the newer notice once', () => {
+    const { messages, notices } = logged();
+    const read = memoryStore(fixture('snapshot-v4.json'));
 
     expect(readStoredSnapshot(read, notices)).toBeNull();
     expect(readStoredSnapshot(read, notices)).toBeNull();
@@ -125,9 +152,9 @@ describe('readStoredSnapshot', () => {
     const { messages, notices } = logged();
 
     readStoredSnapshot(memoryStore({ version: 2 }), notices);
-    readStoredSnapshot(memoryStore({ version: 3 }), notices);
+    readStoredSnapshot(memoryStore({ version: 4 }), notices);
     readStoredSnapshot(memoryStore({ version: 2 }), notices);
-    readStoredSnapshot(memoryStore({ version: 3 }), notices);
+    readStoredSnapshot(memoryStore({ version: 4 }), notices);
 
     expect(messages).toEqual([malformedMessage(), newerMessage()]);
   });

@@ -28,7 +28,6 @@ const gitOf = (linked: boolean): GitInfo => ({
   branch: 'main',
   repo: repositoryOf(null, repoPath),
   root: '/code/koja',
-  cwd: '/',
   linked,
 });
 

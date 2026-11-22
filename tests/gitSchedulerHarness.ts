@@ -6,20 +6,20 @@ import { placeOf } from '../src/data/gitIdentity.ts';
 import type { Lease } from '../src/data/lease.ts';
 import { heartbeatKey, leaseKey } from '../src/data/lease.ts';
 import { createSnapshotPublisher } from '../src/data/publisher.ts';
-import type { Facts } from '../src/data/snapshot.ts';
-import { emptyFacts, parseSnapshot, snapshotKey } from '../src/data/snapshot.ts';
+import type { GitFacts } from '../src/data/snapshot.ts';
+import { joinFacts, parseSnapshot, snapshotKey } from '../src/data/snapshot.ts';
 
 interface Dependencies {
   run: RunCommand;
   watchFolder: (folder: string) => FolderWatch;
   now: () => number;
   heldLease: () => Lease | null;
-  publish: (lease: Lease, facts: Facts) => void;
+  publish: () => void;
 }
 
 export interface SchedulerLike {
   tick: (world: GitWorld, cx: unknown) => void;
-  facts: () => Facts;
+  gitFacts: () => GitFacts;
   stop: () => void;
 }
 
@@ -48,7 +48,7 @@ const readLimit = 4;
 const modulePath = '../src/data/gitScheduler.ts';
 
 const loaded = (await import(modulePath)) as {
-  createGitScheduler: (dependencies: Dependencies, lease: Lease, seed: Facts) => SchedulerLike;
+  createGitScheduler: (dependencies: Dependencies, lease: Lease, seed: GitFacts) => SchedulerLike;
 };
 
 export const placeKeyOf = (machine: string | null, folder: string): string =>
@@ -153,7 +153,7 @@ export class GitSchedulerHarness {
   watched: string[] = [];
   spawned: Promise<unknown>[] = [];
   sharedValues = new Map<string, unknown>();
-  published: Facts[] = [];
+  published: GitFacts[] = [];
   now = 0;
   lease: Lease = { version: 1, owner: 'owner-a', generation: 1 };
   held: Lease | null = this.lease;
@@ -201,7 +201,9 @@ export class GitSchedulerHarness {
     this.renew();
   }
 
-  start(seed: Facts = emptyFacts()): SchedulerLike {
+  start(seed?: GitFacts): SchedulerLike {
+    const initial = seed ?? { places: {}, worktrees: {} };
+
     const publisher = createSnapshotPublisher(
       (key) => this.sharedValues.get(key),
       (key, value) => {
@@ -216,13 +218,15 @@ export class GitSchedulerHarness {
         watchFolder: this.watchFolder,
         now: () => this.now,
         heldLease: () => (this.heldLeaseOverride === null ? this.held : this.heldLeaseOverride()),
-        publish: (callLease, facts) => {
-          this.published.push(facts);
-          publisher.publish(callLease, facts);
+        publish: () => {
+          const git = this.scheduler.gitFacts();
+
+          this.published.push(git);
+          publisher.publish(this.lease, joinFacts(git, {}));
         },
       },
       this.lease,
-      seed,
+      initial,
     );
 
     return this.current;
@@ -250,7 +254,7 @@ export class GitSchedulerHarness {
   }
 
   gateOf(key: string): string | null {
-    const place = this.scheduler.facts().git.places[key];
+    const place = this.scheduler.gitFacts().places[key];
 
     if (place?.kind !== 'repository') {
       return null;

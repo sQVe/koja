@@ -3,6 +3,7 @@ import { afterAll, beforeEach, describe, expect, mock, test } from 'bun:test';
 import type { SpaceInfo } from 'herdr';
 
 import {
+  click,
   clickablesWithText,
   drawn,
   drawnTexts,
@@ -21,7 +22,8 @@ import {
 import { readDataState } from '../../data/consumer.ts';
 import { placeOf, repositoryOf, worktreeOf } from '../../data/gitIdentity.ts';
 import { heartbeatKey, leaseKey } from '../../data/lease.ts';
-import type { Facts, PlaceGit, WorktreeGit } from '../../data/snapshot.ts';
+import { pullRetryOutcomesKey, pullRetryRequestsKey } from '../../data/pullRetry.ts';
+import type { Facts, PlaceGit, RepositoryPulls, WorktreeGit } from '../../data/snapshot.ts';
 import { snapshotKey } from '../../data/snapshot.ts';
 
 type MouseHandler = (event: unknown, cx: unknown) => void;
@@ -56,6 +58,13 @@ interface Checkout {
   linked: boolean;
 }
 
+interface StoredPullRequest {
+  consumer: string;
+  id: string;
+  repository: string;
+  at: number;
+}
+
 const themeColors = {
   accent: '#0a0a0a',
   foreground: '#111111',
@@ -73,11 +82,11 @@ const rowHeightSmall = 24;
 let runCalls: RunCall[] = [];
 let execCalls: ExecCall[] = [];
 let checkingNow = false;
-let execCommands: string[] = [];
 let overlayCalls: unknown[] = [];
 let notifyCalls = 0;
 let scrollCalls: number[] = [];
 let sharedValues: Record<string, unknown> = {};
+let sharedWrites: string[] = [];
 let sidebarWidth: number | null = null;
 let spaceList: SpaceInfo[] = [];
 let timers: Timer[] = [];
@@ -153,7 +162,10 @@ const space = (
   tabs: [],
 });
 
-const storedFacts = (checkouts: readonly Checkout[]): Facts => {
+const storedFacts = (
+  checkouts: readonly Checkout[],
+  pulls: Record<string, RepositoryPulls> = {},
+): Facts => {
   const places: Record<string, PlaceGit> = {};
   const worktrees: Record<string, WorktreeGit> = {};
 
@@ -174,11 +186,11 @@ const storedFacts = (checkouts: readonly Checkout[]): Facts => {
     };
   }
 
-  return { git: { places, worktrees } };
+  return { git: { places, worktrees }, pulls };
 };
 
 const showFacts = (facts: Facts): void => {
-  sharedValues[snapshotKey] = { version: 2, revision: 1, facts };
+  sharedValues[snapshotKey] = { version: 3, revision: 1, facts };
 };
 
 class HostView {
@@ -221,7 +233,6 @@ await mock.module('herdr', () =>
   herdrFake({
     checking: () => checkingNow,
     exec: async (command: string, args: string[], options: { cwd: string; on: string | null }) => {
-      execCommands.push(command);
       execCalls.push({ command, args, cwd: options.cwd, on: options.on });
 
       return { code: 128, stdout: '', stderr: 'fatal: not a git repository' };
@@ -239,6 +250,7 @@ await mock.module('herdr', () =>
       return null;
     },
     setShared: (key: string, value: unknown) => {
+      sharedWrites.push(key);
       sharedValues[key] = value;
 
       return null;
@@ -351,11 +363,11 @@ beforeEach(() => {
   runCalls = [];
   execCalls = [];
   checkingNow = false;
-  execCommands = [];
   overlayCalls = [];
   notifyCalls = 0;
   scrollCalls = [];
   sharedValues = {};
+  sharedWrites = [];
   sidebarWidth = null;
   commandQueue.length = 0;
   commandWaiters.length = 0;
@@ -365,7 +377,10 @@ beforeEach(() => {
   mark('sidebar');
 });
 
+const realRandomUuid = crypto.randomUUID;
+
 afterAll(() => {
+  crypto.randomUUID = realRandomUuid;
   mock.restore();
 });
 
@@ -1103,63 +1118,173 @@ describe('koja-spaces stored git facts', () => {
   });
 });
 
-describe('koja-spaces git reads', () => {
-  test('runs no git command of its own', async () => {
-    sharedValues[leaseKey] = { version: 1, owner: 'window-b', generation: 1 };
-    sharedValues[heartbeatKey] = { version: 1, owner: 'window-b', generation: 1, at: Date.now() };
+const anotherOwner = (): void => {
+  const lease = { version: 1, owner: 'window-b', generation: 1 };
 
-    const view = await loadView();
+  sharedValues[leaseKey] = lease;
+  sharedValues[heartbeatKey] = { ...lease, at: Date.now() };
+};
 
-    const timerContext = {
-      notify: () => undefined,
-      spawn: (body: (cx: unknown) => Promise<void>) => {
-        body(timerContext).catch(() => undefined);
-      },
-    };
-
-    view.render();
-
-    for (let index = 0; index < 20; index += 1) {
-      for (const timer of timers) {
-        if (timer.milliseconds === 250) {
-          timer.handler(timerContext);
-        }
-      }
+const runTimersUntil = (milliseconds: number): void => {
+  for (const timer of timers) {
+    for (let at = timer.milliseconds; at <= milliseconds; at += timer.milliseconds) {
+      timer.handler(timerHarnessContext);
     }
+  }
+};
 
-    await flush();
+let generatedIds = 0;
 
-    expect(execCommands.filter((command) => command === 'git')).toEqual([]);
-  });
+const stubId = (number: number): `${string}-${string}-${string}-${string}-${string}` =>
+  `00000000-0000-4000-8000-${String(number).padStart(12, '0')}`;
 
-  test('refreshes pulls from the latest populated snapshot facts', async () => {
+const stubIds = (): void => {
+  generatedIds = 0;
+
+  crypto.randomUUID = () => {
+    generatedIds += 1;
+
+    return stubId(generatedIds);
+  };
+};
+
+const fixturePull = {
+  number: 7,
+  state: 'OPEN',
+  isDraft: false,
+  title: 'Fixture pull request',
+  headRefName: 'main',
+};
+
+const kojaRepositoryKey = repositoryOf(null, '/code/koja/.git').key;
+
+const storedPullRequests = (): StoredPullRequest[] => {
+  const stored = sharedValues[pullRetryRequestsKey] as
+    | { requests?: StoredPullRequest[] }
+    | undefined;
+
+  return stored?.requests ?? [];
+};
+
+const onlyStoredPullRequest = (): StoredPullRequest => {
+  const [request] = storedPullRequests();
+
+  if (request === undefined) {
+    throw new Error('No stored pull request');
+  }
+
+  return request;
+};
+
+const usePullFacts = (pulls: RepositoryPulls): void => {
+  showFacts(
+    storedFacts(
+      [
+        { folder: '/code/koja', commonDirectory: '/code/koja/.git', linked: false },
+        { folder: '/code/koja-fix', commonDirectory: '/code/koja/.git', linked: true },
+      ],
+      { [kojaRepositoryKey]: pulls },
+    ),
+  );
+
+  spaceList = [space('m', true, '/code/koja'), space('w', false, '/code/koja-fix')];
+};
+
+describe('koja-spaces pull facts', () => {
+  test('runs no git or gh command', async () => {
+    anotherOwner();
+    usePullFacts({ pulls: [fixturePull], failed: false });
+
     await loadView();
-
-    showFacts(
-      storedFacts([{ folder: '/code/koja', commonDirectory: '/code/koja/.git', linked: false }]),
-    );
-
-    execCalls = [];
-
-    runTimers(15_000);
-    await flush();
-
-    expect(execCalls).toEqual([{ command: 'git', args: ['remote'], cwd: '/code/koja', on: null }]);
-  });
-
-  test('starts no pull refresh during herdr-app check', async () => {
-    checkingNow = true;
-    await loadView();
-
-    showFacts(
-      storedFacts([{ folder: '/code/koja', commonDirectory: '/code/koja/.git', linked: false }]),
-    );
-
-    execCalls = [];
-
-    runTimers(15_000);
+    runTimersUntil(200_000);
     await flush();
 
     expect(execCalls).toEqual([]);
+  });
+
+  test('titles an unnamed row with its PR from the snapshot', async () => {
+    anotherOwner();
+    usePullFacts({ pulls: [fixturePull], failed: false });
+
+    spaceList = [
+      space('m', true, '/code/koja'),
+      { ...space('w', false, '/code/koja-fix'), named: false },
+    ];
+
+    const view = await loadView();
+
+    expect(drawnTexts(view.render())).toContain('Fixture pull request');
+  });
+
+  test("shows Could not read PRs from the snapshot's failed PR facts", async () => {
+    anotherOwner();
+    usePullFacts({ pulls: [], failed: true });
+
+    const view = await loadView();
+
+    expect(drawnTexts(view.render())).toContain('Could not read PRs');
+  });
+
+  test("Retry writes one request with this copy's consumer and the repository key", async () => {
+    anotherOwner();
+    stubIds();
+    usePullFacts({ pulls: [], failed: true });
+
+    const view = await loadView();
+
+    click(clickablesWithText(view.render(), 'Retry')[0] as DrawnElement);
+
+    const request = onlyStoredPullRequest();
+
+    expect(storedPullRequests()).toHaveLength(1);
+    expect(request.consumer).toBe(stubId(1));
+    expect(request.repository).toBe(kojaRepositoryKey);
+    expect(request.id).not.toBe(request.consumer);
+    expect(request.at).toBeGreaterThan(0);
+  });
+
+  test('a second Retry while the first is pending writes nothing', async () => {
+    anotherOwner();
+    stubIds();
+    usePullFacts({ pulls: [], failed: true });
+
+    const view = await loadView();
+
+    click(clickablesWithText(view.render(), 'Retry')[0] as DrawnElement);
+    click(clickablesWithText(view.render(), 'Retry')[0] as DrawnElement);
+
+    const requestWrites = sharedWrites.filter((key) => key === pullRetryRequestsKey);
+
+    expect(requestWrites).toHaveLength(1);
+    expect(storedPullRequests()).toHaveLength(1);
+  });
+
+  test('an outcome for the request lets Retry request again', async () => {
+    anotherOwner();
+    stubIds();
+    usePullFacts({ pulls: [], failed: true });
+
+    const view = await loadView();
+
+    click(clickablesWithText(view.render(), 'Retry')[0] as DrawnElement);
+
+    const first = onlyStoredPullRequest();
+
+    sharedValues[pullRetryOutcomesKey] = {
+      version: 1,
+      outcomes: [{ consumer: first.consumer, id: first.id, result: 'read' }],
+    };
+
+    runTimers(250);
+
+    expect(storedPullRequests()).toEqual([]);
+
+    click(clickablesWithText(view.render(), 'Retry')[0] as DrawnElement);
+
+    const second = onlyStoredPullRequest();
+
+    expect(second.consumer).toBe(first.consumer);
+    expect(second.id).not.toBe(first.id);
+    expect(second.repository).toBe(kojaRepositoryKey);
   });
 });

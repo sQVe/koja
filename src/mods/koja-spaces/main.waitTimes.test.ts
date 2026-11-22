@@ -210,10 +210,11 @@ beforeEach(() => {
 
   sharedValues = {
     [snapshotKey]: {
-      version: 2,
+      version: 3,
       revision: 1,
       facts: {
         git: { places: { [placeOf(null, '/code/notes').key]: { kind: 'none' } }, worktrees: {} },
+        pulls: {},
       },
     },
   };

@@ -17,8 +17,8 @@ import {
   realKitIndexFake,
 } from '../../../tests/moduleFakes.ts';
 import { placeOf, repositoryOf } from '../../data/gitIdentity.ts';
+import type { Pull } from '../../data/pulls.ts';
 import type { Project } from './projects.ts';
-import type { Pull } from './pulls.ts';
 import type { GitInfo, ListedSpace } from './tree.ts';
 import type { WaitTimes } from './waitTimes.ts';
 import { advanceWaitTimes, emptyWaitTimes, readWaitTimes, waitAge } from './waitTimes.ts';
@@ -28,7 +28,6 @@ interface RowStateLike {
   refused: string | null;
   cursor: string | null;
   age: string | null;
-  lookup: (git: GitInfo | null) => Pull | null;
   attachDrag: (element: unknown, space: SpaceInfo, ids: readonly string[]) => void;
 }
 
@@ -77,7 +76,12 @@ await mock.module('../../kit/index.ts', () => kitFake);
 const modulePath = './spaceRows.ts';
 
 const loaded = (await import(modulePath)) as {
-  row: (row: ListedSpace, ids: readonly string[], state: RowStateLike) => DrawnElement;
+  row: (
+    row: ListedSpace,
+    ids: readonly string[],
+    state: RowStateLike,
+    pull: Pull | null,
+  ) => DrawnElement;
   headerRow: (
     project: Project,
     main: ListedSpace,
@@ -94,7 +98,6 @@ const git: GitInfo = {
   branch: 'feature-login',
   repo: repositoryOf(null, '/code/koja/.git'),
   root: '/code/koja',
-  cwd: '/code/koja',
   linked: true,
 };
 
@@ -124,17 +127,16 @@ const listedSpace = (named: boolean): ListedSpace => ({
   place: placeOf(null, '/code/koja'),
 });
 
-const stateWith = (found: Pull | null, age: string | null = null): RowStateLike => ({
+const stateWith = (age: string | null = null): RowStateLike => ({
   drag: { source: null, over: null },
   refused: null,
   cursor: null,
   age,
-  lookup: () => found,
   attachDrag: () => undefined,
 });
 
 const textsOf = (named: boolean, found: Pull | null): string[] =>
-  drawnTexts(loaded.row(listedSpace(named), ['a'], stateWith(found)));
+  drawnTexts(loaded.row(listedSpace(named), ['a'], stateWith(), found));
 
 describe('row', () => {
   test('draws the space title and no PR number and no branch', () => {
@@ -173,7 +175,7 @@ const projectWith = (spaces: ListedSpace[]): Project => ({
 });
 
 const headerState = (hovers: string[]): HeaderStateLike => ({
-  ...stateWith(pull),
+  ...stateWith(),
   hovered: null,
   onHover: (spaceId, hovered) => {
     hovers.push(`${spaceId} ${String(hovered)}`);
@@ -312,7 +314,7 @@ const drawnRow = (times: WaitTimes, listed: ListedSpace, now: number): string[] 
     now,
   );
 
-  return drawnTexts(loaded.row(listed, [listed.space.id], stateWith(null, age)));
+  return drawnTexts(loaded.row(listed, [listed.space.id], stateWith(age), null));
 };
 
 const advanced = (

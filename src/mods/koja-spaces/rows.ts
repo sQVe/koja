@@ -1,4 +1,4 @@
-import type { Pull } from './pulls.ts';
+import type { Pull } from '../../data/pulls.ts';
 
 export type RowCut = 'middle' | 'end';
 

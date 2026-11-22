@@ -1,40 +1,14 @@
-import { isRecord } from '../kit/fields.ts';
 import type { Lease, ReadShared, WriteShared } from './lease.ts';
 import { holdsLease } from './lease.ts';
+import { recordNotices } from './recordNotices.ts';
 import type { Facts, Snapshot } from './snapshot.ts';
 import { snapshotKey } from './snapshot.ts';
-import { readStoredSnapshot, snapshotNotices } from './storedSnapshot.ts';
+import { sameValue } from './sortedValue.ts';
+import { readStoredSnapshot } from './storedSnapshot.ts';
 
 export interface SnapshotPublisher {
   publish: (lease: Lease, facts: Facts) => void;
 }
-
-const compareKeys = ([first]: [string, unknown], [second]: [string, unknown]): number => {
-  if (first === second) {
-    return 0;
-  }
-
-  return first < second ? -1 : 1;
-};
-
-const sortedValue = (value: unknown): unknown => {
-  if (Array.isArray(value)) {
-    return value.map(sortedValue);
-  }
-
-  if (!isRecord(value)) {
-    return value;
-  }
-
-  const entries: [string, unknown][] = Object.entries(value)
-    .toSorted(compareKeys)
-    .map(([key, entry]) => [key, sortedValue(entry)]);
-
-  return Object.fromEntries(entries);
-};
-
-const sameFacts = (first: Facts, second: Facts): boolean =>
-  JSON.stringify(sortedValue(first)) === JSON.stringify(sortedValue(second));
 
 export const createSnapshotPublisher = (
   read: ReadShared,
@@ -46,14 +20,14 @@ export const createSnapshotPublisher = (
       return;
     }
 
-    const stored = readStoredSnapshot(read, snapshotNotices);
+    const stored = readStoredSnapshot(read, recordNotices);
 
-    if (stored !== null && sameFacts(stored.facts, facts)) {
+    if (stored !== null && sameValue(stored.facts, facts)) {
       return;
     }
 
     const revision = (stored?.revision ?? 0) + 1;
-    const snapshot: Snapshot = { version: 2, revision, facts };
+    const snapshot: Snapshot = { version: 3, revision, facts };
 
     write(snapshotKey, snapshot);
   },

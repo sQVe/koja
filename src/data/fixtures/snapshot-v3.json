@@ -3,8 +3,58 @@
   "revision": 8,
   "facts": {
     "git": {
-      "places": {},
-      "worktrees": {}
+      "places": {
+        "[null,\"/code/koja\"]": {
+          "kind": "repository",
+          "worktree": "[null,\"/code/koja\"]"
+        },
+        "[\"build-box\",\"/srv/app\"]": {
+          "kind": "repository",
+          "worktree": "[\"build-box\",\"/srv/app\"]"
+        },
+        "[null,\"/tmp/notes\"]": {
+          "kind": "none"
+        },
+        "[null,\"/srv/broken\"]": {
+          "kind": "failed"
+        }
+      },
+      "worktrees": {
+        "[null,\"/code/koja\"]": {
+          "repository": {
+            "machine": null,
+            "commonDirectory": "/code/koja/.git",
+            "key": "[null,\"/code/koja/.git\"]"
+          },
+          "root": "/code/koja",
+          "branch": "main",
+          "linked": false
+        },
+        "[\"build-box\",\"/srv/app\"]": {
+          "repository": {
+            "machine": "build-box",
+            "commonDirectory": "/srv/app/.git",
+            "key": "[\"build-box\",\"/srv/app/.git\"]"
+          },
+          "root": "/srv/app",
+          "branch": "feature",
+          "linked": true
+        }
+      }
+    },
+    "pulls": {
+      "[null,\"/code/koja/.git\"]": {
+        "pulls": [
+          {
+            "number": 41,
+            "state": "OPEN",
+            "isDraft": false,
+            "title": "Read the theme once per turn",
+            "headRefName": "main"
+          }
+        ],
+        "failed": false
+      }
     }
   }
 }

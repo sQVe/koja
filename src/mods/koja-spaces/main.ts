@@ -18,6 +18,8 @@ import type { DataState } from '../../data/consumer.ts';
 import { readDataState } from '../../data/consumer.ts';
 import { startDataHost } from '../../data/host.ts';
 import { placeOfSpace, placesOf } from '../../data/places.ts';
+import { createPullRetryClient } from '../../data/pullRetry.ts';
+import type { RepositoryPulls } from '../../data/snapshot.ts';
 import type { DragState } from '../../kit/drag.ts';
 import { dragLine, dropAction, noDrag, setDragOver, startDrag } from '../../kit/drag.ts';
 import type { StatusRollup } from '../../kit/index.ts';
@@ -37,11 +39,11 @@ import {
 } from '../../kit/index.ts';
 import { cursorRow, halfPageOf, moveCursor } from './cursor.ts';
 import { foldedSet } from './folded.ts';
-import { answeredPlaces, gitInfoAt, repositoriesOf } from './gitFacts.ts';
+import { answeredPlaces, gitInfoAt, pullFailedAt, pullFactsOf } from './gitFacts.ts';
 import { projectRows } from './projectRows.ts';
 import type { Project } from './projects.ts';
 import { groupProjects, shownSpaces } from './projects.ts';
-import { PullTracker } from './pullTracker.ts';
+import { pullOf } from './pulls.ts';
 import type { ProjectChildren } from './spaceDrop.ts';
 import { canDrop, dropMoves, projectDropMoves } from './spaceDrop.ts';
 import { createOrderPublisher } from './spaceOrder.ts';
@@ -55,7 +57,8 @@ import { advanceWaitTimes, readWaitTimes, waitAge } from './waitTimes.ts';
 
 type SidebarDrag = { kind: 'space'; state: DragState } | { kind: 'project'; state: DragState };
 
-const pullsMilliseconds = 15_000;
+// Herdr's runtime has the Web Crypto global, but its declarations do not name it.
+declare const crypto: { randomUUID: () => string };
 
 const checkMilliseconds = 250;
 
@@ -87,7 +90,11 @@ const storage = {
 };
 
 export default class Spaces extends View {
-  private readonly pulls = new PullTracker();
+  private readonly pullRetries = createPullRetryClient(
+    { read: shared, write: setShared },
+    crypto.randomUUID(),
+    () => crypto.randomUUID(),
+  );
 
   private readonly foldedProjects = foldedSet(projectsFoldedKey, storage);
 
@@ -120,7 +127,7 @@ export default class Spaces extends View {
   }
 
   override init(_props: unknown, cx: AsyncContext): void {
-    this.startGitReads(cx);
+    this.startChecks(cx);
 
     repeat(cx, ageMilliseconds, (timerCx) => {
       timerCx.notify();
@@ -168,16 +175,13 @@ export default class Spaces extends View {
       .child(list);
   }
 
-  private startGitReads(cx: AsyncContext): void {
+  private startChecks(cx: AsyncContext): void {
     if (checking()) {
       return;
     }
 
-    repeat(cx, pullsMilliseconds, (timerCx) => {
-      this.pulls.refresh(repositoriesOf(readDataState(shared, Date.now())), timerCx);
-    });
-
     repeat(cx, checkMilliseconds, (timerCx) => {
+      this.pullRetries.settle(Date.now());
       this.checkWaits(timerCx);
     });
   }
@@ -350,6 +354,7 @@ export default class Spaces extends View {
     ids: readonly string[],
     cursor: string | null,
     now: number,
+    pulls: Record<string, RepositoryPulls>,
   ): Element {
     const waiting = { id: row.space.id, status: row.status, active: row.space.active };
     const age = waitAge(this.waitTimes, waiting, now);
@@ -359,13 +364,14 @@ export default class Spaces extends View {
       refused: this.refused,
       cursor,
       age,
-      lookup: (git) => this.pulls.lookup(git),
       attachDrag: (element, space, rowIds) => {
         this.addDragHandlers(element, space, rowIds);
       },
     };
 
-    return spaceRow(row, ids, state);
+    const pull = pullOf(row.git, pulls);
+
+    return spaceRow(row, ids, state, pull);
   }
 
   private drawMain(
@@ -384,7 +390,6 @@ export default class Spaces extends View {
       cursor,
       age: waitAge(this.waitTimes, waiting, now),
       hovered: this.hovered,
-      lookup: (git) => this.pulls.lookup(git),
       attachDrag: (element) => {
         this.addProjectDragHandlers(element, project, ids);
       },
@@ -406,8 +411,8 @@ export default class Spaces extends View {
     cx.notify();
   };
 
-  private readonly retryPull = (git: GitInfo, cx: Context): void => {
-    this.pulls.retry(git.repo, git.cwd, cx);
+  private readonly retryPull = (git: GitInfo, _cx: Context): void => {
+    this.pullRetries.request(git.repo.key, Date.now());
   };
 
   private listRows(state: DataState): Element[] {
@@ -415,6 +420,7 @@ export default class Spaces extends View {
     const ids = spaces().map((space) => space.id);
     const cursor = this.cursorRow(projects);
     const now = Date.now();
+    const pulls = pullFactsOf(state);
 
     let cursorElement: Element | null = null;
 
@@ -433,7 +439,7 @@ export default class Spaces extends View {
     const elements = projectRows({
       projects,
       loading: this.isWaiting(),
-      draw: (row) => keepCursor(row, this.draw(row, ids, cursor, now)),
+      draw: (row) => keepCursor(row, this.draw(row, ids, cursor, now, pulls)),
       drawMain: (project, main) =>
         keepCursor(main, this.drawMain(project, main, ids, keys, cursor, now)),
       foldDrag: (project) => {
@@ -449,7 +455,7 @@ export default class Spaces extends View {
       attachFoldDrag: (element, project) => {
         this.addProjectDragHandlers(element, project, ids);
       },
-      pullFailed: (git) => this.pulls.failed(git),
+      pullFailed: (git) => pullFailedAt(state, git),
       retryPull: this.retryPull,
       toggleFold: this.toggleFold,
       hovered: this.hovered,

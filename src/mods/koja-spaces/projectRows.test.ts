@@ -122,7 +122,6 @@ const gitAt = (name: string, machine: string | null, linked: boolean): GitInfo =
   branch: 'main',
   repo: repositoryOf(machine, `/code/${name}/.git`),
   root: `/code/${name}`,
-  cwd: `/code/${name}`,
   linked,
 });
 

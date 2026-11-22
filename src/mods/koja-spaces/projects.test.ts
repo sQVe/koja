@@ -35,7 +35,6 @@ const gitAt = (
   branch: 'main',
   repo: repositoryOf(machine, path),
   root,
-  cwd: root,
   linked,
 });
 

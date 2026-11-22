@@ -33,13 +33,11 @@ import and its startup call rather than moving scheduling logic into a surface.
 Scheduled Git identity reads follow this ownership rule. Only the copy that holds the lease starts
 them, so one `koja-spaces` copy reads identity for every consumer. Losing the lease stops new
 scheduling and closes the watches that copy opened. A Git command already running may finish, and
-the lease fence drops its result instead of publishing it. Action-time reads and confirmed writes
-stay in their own mods, so a user action does not wait for the background scheduler. `koja-changes`
-keeps its own git reads until its panel is replaced.
-
-Pull request reads are a temporary exception. `koja-spaces` keeps its own PR list reads, their local
-cache, and their retry until the host owns them. The exception ends with that move, so it does not
-become the rule.
+the lease fence drops its result instead of publishing it. Scheduled PR reads and Retry requests
+follow the same rule: only the lease holder reads PR lists and writes their outcomes, and a consumer
+writes only its own request. Action-time reads and confirmed writes stay in their own mods, so a
+user action does not wait for the background scheduler. `koja-changes` keeps its own git reads until
+its panel is replaced.
 
 ### Shared ownership and freshness
 
@@ -53,7 +51,14 @@ Consumers use a heartbeat deadline to distinguish live data from stale data with
 another shared write. Missing or invalid shared data is unavailable. Keeping the heartbeat apart
 from the snapshot separates publisher liveness from changes in facts. Publish snapshots only when
 facts change, because each shared write redraws every mod; heartbeat renewal must not create a new
-snapshot revision. Compare facts by content, so a reordered map is not a change.
+snapshot revision. Compare facts by content, so a reordered map is not a change. PR read times live
+in their own versioned key, so an unchanged PR read writes no snapshot revision. PR Retry is a
+correlated request: each consumer writes its own request into a shared requests key and re-asserts
+it until answered, so a list entry another writer dropped returns. Only the owner writes outcomes,
+keyed by the request's consumer and ID, and a consumer drops its request once its outcome appears.
+The owner derives the outcome list from the live requests each time, so an outcome disappears with
+its request and comes back if a client re-asserts it. The owner treats a stored outcome as an
+answer, so a request answered by a previous owner is never taken again.
 
 ### Sandbox remote fixture ownership
 
@@ -96,15 +101,17 @@ without suggesting an edit.
 ### Snapshot versions
 
 The snapshot is a saved record, so a field change bumps its `version`. The current reader accepts
-only version 2 and rejects unknown fields. Version 1 carried no facts: its `facts` was
+version 3, which holds Git facts and per-repository PR facts, and rejects unknown fields. Version 2
+is the previous supported format: its facts held only Git facts, so the reader parses them and
+returns a version 3 snapshot with no PR facts. Version 1 carried no facts: its `facts` was
 `Record<string, never>`, and the next owner publish rewrites it. A version 1 snapshot is therefore
 retired silently, because no user action applies. This is the one exception to the notices that
 [shared ADR 0008](../stomme/shared/adr/0008-backwards-compatibility.md) requires for saved formats.
 
-A malformed version 2 record, or a present record without a valid version, is logged once per mod
-copy with a message that the host rebuilds the snapshot on its next publish. A positive whole
-version above 2 is logged once per mod copy with a message that names the update. Each reason logs
-once per loaded mod copy, and later reads stay silent.
+A malformed version 3 record, a malformed version 2 record, or a present record without a valid
+version, is logged once per mod copy with a message that the host rebuilds the snapshot on its next
+publish. A positive whole version above 3 is logged once per mod copy with a message that names the
+update. Each reason logs once per loaded mod copy, and later reads stay silent.
 
 ## Consequences
 
