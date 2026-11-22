@@ -1,9 +1,12 @@
-import { describe, expect, test } from 'bun:test';
+import { describe, expect, spyOn, test } from 'bun:test';
 
+import { runSnapshotNoticeScenario } from '../../tests/snapshotNoticeLifetime.ts';
+import { placeOf, repositoryOf } from './gitIdentity.ts';
 import type { Lease } from './lease.ts';
 import { claimLease, leaseExpiryMilliseconds } from './lease.ts';
 import { createSnapshotPublisher } from './publisher.ts';
-import { snapshotKey } from './snapshot.ts';
+import type { Facts, PlaceGit, WorktreeGit } from './snapshot.ts';
+import { emptyFacts, snapshotKey } from './snapshot.ts';
 
 const memoryStore = () => {
   const values: Record<string, unknown> = {};
@@ -21,6 +24,42 @@ const memoryStore = () => {
 };
 
 type Store = ReturnType<typeof memoryStore>;
+
+const keyOf = (machine: string | null, path: string): string => JSON.stringify([machine, path]);
+
+const populatedFacts = (folders: string[]): Facts => {
+  const places: Record<string, PlaceGit> = {};
+  const worktrees: Record<string, WorktreeGit> = {};
+
+  for (const folder of folders) {
+    const key = keyOf(null, folder);
+
+    places[placeOf(null, folder).key] = { kind: 'repository', worktree: key };
+
+    worktrees[key] = {
+      repository: repositoryOf(null, `${folder}/.git`),
+      root: folder,
+      branch: 'main',
+      linked: false,
+    };
+  }
+
+  return { git: { places, worktrees } };
+};
+
+const factsWithBranch = (branch: string): Facts => ({
+  git: {
+    places: {},
+    worktrees: {
+      [keyOf(null, '/one')]: {
+        repository: repositoryOf(null, '/one/.git'),
+        root: '/one',
+        branch,
+        linked: false,
+      },
+    },
+  },
+});
 
 const start = 1_000_000;
 
@@ -41,10 +80,10 @@ describe('createSnapshotPublisher', () => {
     const store = memoryStore();
     const lease = claimFor(store, 'window-a', start);
 
-    store.values[snapshotKey] = { version: 2, revision: 9, facts: {} };
-    createSnapshotPublisher(store.read, store.write, () => start).publish(lease, {});
+    store.values[snapshotKey] = { version: 1, revision: 9, facts: {} };
+    createSnapshotPublisher(store.read, store.write, () => start).publish(lease, emptyFacts());
 
-    expect(store.values[snapshotKey]).toEqual({ version: 1, revision: 1, facts: {} });
+    expect(store.values[snapshotKey]).toEqual({ version: 2, revision: 1, facts: emptyFacts() });
   });
 
   test('writes no shared key when the facts are unchanged', () => {
@@ -52,9 +91,9 @@ describe('createSnapshotPublisher', () => {
     const lease = claimFor(store, 'window-a', start);
     const publisher = createSnapshotPublisher(store.read, store.write, () => start);
 
-    publisher.publish(lease, {});
+    publisher.publish(lease, emptyFacts());
     store.writes.length = 0;
-    publisher.publish(lease, {});
+    publisher.publish(lease, emptyFacts());
 
     expect(store.writes).toEqual([]);
   });
@@ -63,11 +102,141 @@ describe('createSnapshotPublisher', () => {
     const store = memoryStore();
     const lease = claimFor(store, 'window-b', start);
 
-    store.values[snapshotKey] = { version: 1, revision: 5, facts: {} };
-    createSnapshotPublisher(store.read, store.write, () => start).publish(lease, {});
+    store.values[snapshotKey] = { version: 2, revision: 5, facts: emptyFacts() };
+    createSnapshotPublisher(store.read, store.write, () => start).publish(lease, emptyFacts());
 
     expect(store.writes).toEqual([]);
-    expect(store.values[snapshotKey]).toEqual({ version: 1, revision: 5, facts: {} });
+    expect(store.values[snapshotKey]).toEqual({ version: 2, revision: 5, facts: emptyFacts() });
+  });
+
+  test('writes nothing when equal populated facts list their maps in another order', () => {
+    const store = memoryStore();
+    const lease = claimFor(store, 'window-a', start);
+    const writes: string[] = [];
+
+    const write = (key: string, value: unknown): void => {
+      store.write(key, value);
+      writes.push(key);
+    };
+
+    const publisher = createSnapshotPublisher(store.read, write, () => start);
+    const first = populatedFacts(['/one', '/two']);
+    const second = populatedFacts(['/two', '/one']);
+
+    publisher.publish(lease, first);
+    writes.length = 0;
+    publisher.publish(lease, second);
+
+    expect(writes).toEqual([]);
+    expect(store.values[snapshotKey]).toEqual({ version: 2, revision: 1, facts: first });
+  });
+
+  test('writes revision 1 without a malformed notice when the shared key is absent as null', () => {
+    const store = memoryStore();
+    const lease = claimFor(store, 'window-a', start);
+    const messages: string[] = [];
+
+    const spy = spyOn(console, 'log').mockImplementation((message: string) => {
+      messages.push(message);
+    });
+
+    store.values[snapshotKey] = null;
+
+    try {
+      createSnapshotPublisher(store.read, store.write, () => start).publish(lease, emptyFacts());
+
+      expect(messages).toEqual([]);
+      expect(store.writes).toEqual([snapshotKey]);
+      expect(store.values[snapshotKey]).toEqual({ version: 2, revision: 1, facts: emptyFacts() });
+    } finally {
+      spy.mockRestore();
+    }
+  });
+
+  test('writes nothing when canonically equivalent keys are inserted in another order', () => {
+    const store = memoryStore();
+    const lease = claimFor(store, 'window-a', start);
+    const writes: string[] = [];
+
+    const write = (key: string, value: unknown): void => {
+      store.write(key, value);
+      writes.push(key);
+    };
+
+    const publisher = createSnapshotPublisher(store.read, write, () => start);
+    const composed = '/café';
+    const decomposed = '/cafe\u0301';
+    const first = populatedFacts([composed, decomposed]);
+    const second = populatedFacts([decomposed, composed]);
+
+    publisher.publish(lease, first);
+    writes.length = 0;
+    publisher.publish(lease, second);
+    publisher.publish(lease, first);
+
+    expect(composed.localeCompare(decomposed)).toBe(0);
+    expect(Object.keys(first.git.places)).toHaveLength(2);
+    expect(writes).toEqual([]);
+    expect(store.values[snapshotKey]).toEqual({ version: 2, revision: 1, facts: first });
+  });
+
+  test('writes a new revision when a populated key differs', () => {
+    const store = memoryStore();
+    const lease = claimFor(store, 'window-a', start);
+    const publisher = createSnapshotPublisher(store.read, store.write, () => start);
+
+    publisher.publish(lease, populatedFacts(['/one']));
+    publisher.publish(lease, populatedFacts(['/two']));
+
+    expect(store.values[snapshotKey]).toEqual({
+      version: 2,
+      revision: 2,
+      facts: populatedFacts(['/two']),
+    });
+  });
+
+  test('writes a new revision when a populated value differs', () => {
+    const store = memoryStore();
+    const lease = claimFor(store, 'window-a', start);
+    const publisher = createSnapshotPublisher(store.read, store.write, () => start);
+
+    publisher.publish(lease, factsWithBranch('main'));
+    publisher.publish(lease, factsWithBranch('trunk'));
+
+    expect(store.values[snapshotKey]).toEqual({
+      version: 2,
+      revision: 2,
+      facts: factsWithBranch('trunk'),
+    });
+  });
+
+  test('reports a malformed snapshot before replacing it', async () => {
+    const record = await runSnapshotNoticeScenario('publisher-malformed');
+    const snapshotWrites = record.writes.filter((write) => write.key === snapshotKey);
+
+    expect(record.messages).toHaveLength(1);
+    expect(snapshotWrites).toHaveLength(1);
+    expect(snapshotWrites[0]?.messageCount).toBe(1);
+    expect(record.snapshot).toEqual({ version: 2, revision: 1, facts: emptyFacts() });
+  });
+
+  test('reports a newer snapshot before replacing it', async () => {
+    const record = await runSnapshotNoticeScenario('publisher-newer');
+    const snapshotWrites = record.writes.filter((write) => write.key === snapshotKey);
+
+    expect(record.messages).toHaveLength(1);
+    expect(snapshotWrites).toHaveLength(1);
+    expect(snapshotWrites[0]?.messageCount).toBe(1);
+    expect(record.snapshot).toEqual({ version: 2, revision: 1, facts: emptyFacts() });
+  });
+
+  test('stays silent for a missing or retired snapshot', async () => {
+    const record = await runSnapshotNoticeScenario('publisher-silent');
+    const snapshotWrites = record.writes.filter((write) => write.key === snapshotKey);
+
+    expect(record.messages).toEqual([]);
+    expect(snapshotWrites).toHaveLength(2);
+    expect(record.snapshot).toEqual({ version: 2, revision: 1, facts: emptyFacts() });
   });
 
   test('writes nothing for an owner that was fenced out', () => {
@@ -76,7 +245,7 @@ describe('createSnapshotPublisher', () => {
     const expiry = start + leaseExpiryMilliseconds;
 
     claimFor(store, 'window-b', expiry);
-    createSnapshotPublisher(store.read, store.write, () => expiry).publish(fencedOut, {});
+    createSnapshotPublisher(store.read, store.write, () => expiry).publish(fencedOut, emptyFacts());
 
     expect(store.writes).toEqual([]);
     expect(store.values[snapshotKey]).toBeUndefined();

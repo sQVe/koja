@@ -1,6 +1,10 @@
 {
   "$schema": "https://unpkg.com/knip@6/schema.json",
-  "entry": ["src/mods/*/main.ts"],
+  "entry": [
+    "src/mods/*/main.ts",
+    "tests/snapshotNoticeBoundaries.ts",
+    "tests/snapshotNoticeScenario.ts"
+  ],
   "ignore": ["herdr/*.d.ts"],
   "ignoreDependencies": ["gpui-base", "gpui-kit"],
   "ignoreBinaries": ["mise"],

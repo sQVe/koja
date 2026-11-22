@@ -11,7 +11,7 @@ import {
 import type { DataState } from '../../data/consumer.ts';
 import { readDataState } from '../../data/consumer.ts';
 import { heartbeatKey, leaseExpiryMilliseconds } from '../../data/lease.ts';
-import { snapshotKey } from '../../data/snapshot.ts';
+import { emptyFacts, snapshotKey } from '../../data/snapshot.ts';
 
 Object.assign(globalThis, { kojaModName: 'koja' });
 
@@ -51,7 +51,7 @@ afterAll(() => {
 const writtenAt = 1_000_000;
 
 const sharedValues = {
-  [snapshotKey]: { version: 1, revision: 3, facts: {} },
+  [snapshotKey]: { version: 2, revision: 3, facts: emptyFacts() },
   [heartbeatKey]: { version: 1, owner: 'window-a', generation: 2, at: writtenAt },
 };
 

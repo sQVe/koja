@@ -14,7 +14,10 @@ import {
   terminals,
 } from 'herdr';
 
+import type { DataState } from '../../data/consumer.ts';
+import { readDataState } from '../../data/consumer.ts';
 import { startDataHost } from '../../data/host.ts';
+import { placeOfSpace, placesOf } from '../../data/places.ts';
 import type { DragState } from '../../kit/drag.ts';
 import { dragLine, dropAction, noDrag, setDragOver, startDrag } from '../../kit/drag.ts';
 import type { StatusRollup } from '../../kit/index.ts';
@@ -34,7 +37,7 @@ import {
 } from '../../kit/index.ts';
 import { cursorRow, halfPageOf, moveCursor } from './cursor.ts';
 import { foldedSet } from './folded.ts';
-import { GitTracker } from './gitTracker.ts';
+import { answeredPlaces, gitInfoAt, repositoriesOf } from './gitFacts.ts';
 import { projectRows } from './projectRows.ts';
 import type { Project } from './projects.ts';
 import { groupProjects, shownSpaces } from './projects.ts';
@@ -45,7 +48,6 @@ import { createOrderPublisher } from './spaceOrder.ts';
 import type { HeaderState, RowState } from './spaceRows.ts';
 import { headerRow, row as spaceRow } from './spaceRows.ts';
 import type { GitInfo, ListedSpace } from './tree.ts';
-import { placeOfSpace, placesOf } from './tree.ts';
 import type { VisibilityResult, VisibilityState } from './visibility.ts';
 import { advanceVisibility, initialVisibility } from './visibility.ts';
 import type { WaitTimes } from './waitTimes.ts';
@@ -85,8 +87,6 @@ const storage = {
 };
 
 export default class Spaces extends View {
-  private readonly git = new GitTracker();
-
   private readonly pulls = new PullTracker();
 
   private readonly foldedProjects = foldedSet(projectsFoldedKey, storage);
@@ -117,7 +117,6 @@ export default class Spaces extends View {
 
   override close(): void {
     this.order.clear();
-    this.git.stop();
   }
 
   override init(_props: unknown, cx: AsyncContext): void {
@@ -134,9 +133,10 @@ export default class Spaces extends View {
 
   override render(): Element {
     const palette = colors();
+    const state = readDataState(shared, Date.now());
 
     this.statuses = rollupStatuses(spaces(), panes(), terminals());
-    this.visibility = this.advance();
+    this.visibility = this.advance(state);
 
     this.followMark(isSidebarMarked());
 
@@ -158,7 +158,7 @@ export default class Spaces extends View {
         this.endDrag();
         cx.notify();
       })
-      .children(this.listRows());
+      .children(this.listRows(state));
 
     return withTextRole(v_flex(), 'body')
       .size_full()
@@ -174,11 +174,11 @@ export default class Spaces extends View {
     }
 
     repeat(cx, pullsMilliseconds, (timerCx) => {
-      this.pulls.refresh(this.git.repositories(), timerCx);
+      this.pulls.refresh(repositoriesOf(readDataState(shared, Date.now())), timerCx);
     });
 
     repeat(cx, checkMilliseconds, (timerCx) => {
-      this.checkNew(timerCx);
+      this.checkWaits(timerCx);
     });
   }
 
@@ -212,8 +212,10 @@ export default class Spaces extends View {
       return;
     }
 
+    const state = readDataState(shared, Date.now());
+
     const result = moveCursor({
-      shown: shownIdsOf(this.projects()),
+      shown: shownIdsOf(this.projects(state)),
       cursor: this.cursor,
       active: activeSpaceId(),
       action,
@@ -238,14 +240,14 @@ export default class Spaces extends View {
     return cursorRow(shownIdsOf(projects), this.cursor, activeSpaceId());
   }
 
-  private advance(): VisibilityResult {
+  private advance(state: DataState): VisibilityResult {
     const spaceList = spaces();
     const paneList = panes();
     const at = placesOf(spaceList, paneList);
 
     return advanceVisibility(this.visibility, {
       spaces: spaceList.map((space) => ({ id: space.id, key: at[space.id]?.key ?? '' })),
-      answered: new Set(Object.keys(this.git.entries())),
+      answered: answeredPlaces(state),
       time: Date.now(),
     });
   }
@@ -263,27 +265,13 @@ export default class Spaces extends View {
     return result.changed;
   }
 
-  private checkNew(cx: Context): void {
+  private checkWaits(cx: Context): void {
     const spaceList = spaces();
     const paneList = panes();
-    const at = placesOf(spaceList, paneList);
     const waitsChanged = this.trackWaits(spaceList, paneList, Date.now());
-
-    const placeKeys = Object.values(at).map((place) => place.key);
-
-    this.git.prune(new Set(placeKeys));
-
-    const result = this.advance();
+    const result = this.advance(readDataState(shared, Date.now()));
 
     this.visibility = result;
-
-    const due = this.git.sweep(Date.now(), at, spaceList, paneList);
-
-    if (due.size > 0) {
-      const duePlaces = Object.values(at).filter((place) => due.has(place.key));
-
-      this.git.refresh(duePlaces, cx);
-    }
 
     if (result.changed || result.waiting || waitsChanged) {
       cx.notify();
@@ -301,7 +289,7 @@ export default class Spaces extends View {
     });
   }
 
-  private listedSpaces(): ListedSpace[] {
+  private listedSpaces(state: DataState): ListedSpace[] {
     const spaceList = spaces();
     const paneList = panes();
 
@@ -311,7 +299,7 @@ export default class Spaces extends View {
 
         return {
           space,
-          git: this.git.lookup(place.key) ?? null,
+          git: gitInfoAt(state, place) ?? null,
           status: this.statuses.spaces[space.id] ?? null,
           place,
         };
@@ -319,26 +307,26 @@ export default class Spaces extends View {
       .filter((row) => this.visibility.shown.has(row.space.id));
   }
 
-  private projects(): Project[] {
-    return groupProjects(this.listedSpaces(), this.foldedProjects);
+  private projects(state: DataState): Project[] {
+    return groupProjects(this.listedSpaces(state), this.foldedProjects);
   }
 
-  private projectChildren(): ProjectChildren[] {
-    return groupProjects(this.listedSpaces(), noFolds).map((project) =>
+  private projectChildren(state: DataState): ProjectChildren[] {
+    return groupProjects(this.listedSpaces(state), noFolds).map((project) =>
       project.spaces.map((row) => row.space.id),
     );
   }
 
-  private projectKeys(): string[] {
-    return this.projects().map((project) => project.key);
+  private projectKeys(state: DataState): string[] {
+    return this.projects(state).map((project) => project.key);
   }
 
   private dragFor(kind: SidebarDrag['kind']): DragState {
     return this.drag.kind === kind ? this.drag.state : noDrag;
   }
 
-  private projectMoves(source: string, target: Project, ids: readonly string[]) {
-    const projects = groupProjects(this.listedSpaces(), noFolds)
+  private projectMoves(state: DataState, source: string, target: Project, ids: readonly string[]) {
+    const projects = groupProjects(this.listedSpaces(state), noFolds)
       .filter((project) => project.machine === (target.machine ?? null))
       .map((project) => {
         const members = project.spaces.map((row) => row.space.id);
@@ -384,6 +372,7 @@ export default class Spaces extends View {
     project: Project,
     main: ListedSpace,
     ids: readonly string[],
+    keys: readonly string[],
     cursor: string | null,
     now: number,
   ): Element {
@@ -403,7 +392,7 @@ export default class Spaces extends View {
       toggleFold: this.toggleFold,
     };
 
-    return headerRow(project, main, this.projectKeys(), state);
+    return headerRow(project, main, keys, state);
   }
 
   private readonly setHovered = (id: string, hovered: boolean, cx: Context): void => {
@@ -421,8 +410,8 @@ export default class Spaces extends View {
     this.pulls.retry(git.repo, git.cwd, cx);
   };
 
-  private listRows(): Element[] {
-    const projects = this.projects();
+  private listRows(state: DataState): Element[] {
+    const projects = this.projects(state);
     const ids = spaces().map((space) => space.id);
     const cursor = this.cursorRow(projects);
     const now = Date.now();
@@ -439,18 +428,18 @@ export default class Spaces extends View {
 
     this.order.publish(projects, ids);
 
+    const keys = projects.map((project) => project.key);
+
     const elements = projectRows({
       projects,
       loading: this.isWaiting(),
       draw: (row) => keepCursor(row, this.draw(row, ids, cursor, now)),
-      drawMain: (project, main) => keepCursor(main, this.drawMain(project, main, ids, cursor, now)),
+      drawMain: (project, main) =>
+        keepCursor(main, this.drawMain(project, main, ids, keys, cursor, now)),
       foldDrag: (project) => {
         const drag = this.dragFor('project');
 
-        const drop =
-          this.refused === project.key
-            ? 'refused'
-            : dragLine(drag, project.key, this.projectKeys());
+        const drop = this.refused === project.key ? 'refused' : dragLine(drag, project.key, keys);
 
         return {
           dragged: drag.source === project.key && drag.over !== project.key,
@@ -490,7 +479,8 @@ export default class Spaces extends View {
       return;
     }
 
-    const sourceProject = this.projects().find((candidate) => candidate.key === source);
+    const state = readDataState(shared, Date.now());
+    const sourceProject = this.projects(state).find((candidate) => candidate.key === source);
     const sameMachine = sourceProject !== undefined && sourceProject.machine === project.machine;
     const allowed = this.drag.kind === 'project' && sameMachine;
 
@@ -500,12 +490,13 @@ export default class Spaces extends View {
   }
 
   private dropProject(project: Project, ids: readonly string[], cx: Context): void {
-    const action = dropAction(this.dragFor('project'), project.key, this.projectKeys());
+    const state = readDataState(shared, Date.now());
+    const action = dropAction(this.dragFor('project'), project.key, this.projectKeys(state));
 
     this.endDrag();
 
     if (action?.kind === 'move') {
-      for (const move of this.projectMoves(action.id, project, ids)) {
+      for (const move of this.projectMoves(state, action.id, project, ids)) {
         run('space.move', { id: move.id, index: move.index });
       }
     } else if (action?.kind === 'select' && project.main !== null) {
@@ -518,7 +509,7 @@ export default class Spaces extends View {
   private addProjectDragHandlers(element: Element, project: Project, ids: readonly string[]): void {
     element
       .on_mouse_down('left', () => {
-        const keys = this.projectKeys();
+        const keys = this.projectKeys(readDataState(shared, Date.now()));
 
         this.drag = { kind: 'project', state: startDrag(keys, keys.indexOf(project.key)) };
       })
@@ -559,7 +550,7 @@ export default class Spaces extends View {
     this.refused = null;
   }
 
-  private canDropOn(sourceId: string, space: SpaceInfo): boolean {
+  private canDropOn(state: DataState, sourceId: string, space: SpaceInfo): boolean {
     const source = spaces().find((candidate) => candidate.id === sourceId);
 
     const sameMachine =
@@ -569,7 +560,7 @@ export default class Spaces extends View {
       return false;
     }
 
-    return canDrop(this.projectChildren(), sourceId, space.id);
+    return canDrop(this.projectChildren(state), sourceId, space.id);
   }
 
   private dragOver(space: SpaceInfo, cx: Context): void {
@@ -579,7 +570,8 @@ export default class Spaces extends View {
       return;
     }
 
-    const allowed = this.drag.kind === 'space' && this.canDropOn(source, space);
+    const state = readDataState(shared, Date.now());
+    const allowed = this.drag.kind === 'space' && this.canDropOn(state, source, space);
 
     this.drag = { ...this.drag, state: setDragOver(this.drag.state, space.id, allowed) };
     this.refused = allowed ? null : space.id;
@@ -592,7 +584,8 @@ export default class Spaces extends View {
     this.endDrag();
 
     if (action?.kind === 'move') {
-      const moves = dropMoves(ids, this.projectChildren(), action.id, space.id);
+      const state = readDataState(shared, Date.now());
+      const moves = dropMoves(ids, this.projectChildren(state), action.id, space.id);
 
       for (const move of moves) {
         run('space.move', { id: move.id, index: move.index });

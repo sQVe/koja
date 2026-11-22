@@ -10,6 +10,8 @@ import {
   herdrFake,
   realKitIndexFake,
 } from '../../../tests/moduleFakes.ts';
+import { placeOf } from '../../data/gitIdentity.ts';
+import { snapshotKey } from '../../data/snapshot.ts';
 
 interface FakeView {
   init: (props: unknown, cx: unknown) => void;
@@ -32,6 +34,7 @@ let paneList: PaneInfo[] = [];
 let timers: Timer[] = [];
 let notifyCalls = 0;
 let writes: string[] = [];
+let sharedValues: Record<string, unknown> = {};
 const store = new Map<string, string>();
 
 const space = (id: string, active: boolean): SpaceInfo => ({
@@ -121,6 +124,12 @@ await mock.module('gpui-kit', () =>
 await mock.module('herdr', () =>
   herdrFake({
     panes: () => paneList,
+    setShared: (key: string, value: unknown) => {
+      sharedValues[key] = value;
+
+      return null;
+    },
+    shared: (key: string) => sharedValues[key],
     spaces: () => spaceList,
     theme: () => ({}),
   }),
@@ -198,6 +207,17 @@ beforeEach(() => {
   notifyCalls = 0;
   writes = [];
   store.clear();
+
+  sharedValues = {
+    [snapshotKey]: {
+      version: 2,
+      revision: 1,
+      facts: {
+        git: { places: { [placeOf(null, '/code/notes').key]: { kind: 'none' } }, worktrees: {} },
+      },
+    },
+  };
+
   setSystemTime(start);
 });
 
