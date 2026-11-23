@@ -16,6 +16,7 @@ import {
 import { tmpdir } from 'node:os';
 import { dirname, join, sep } from 'node:path';
 
+import { acquireCheckoutLock } from '../scripts/checkoutLock.ts';
 import type { CheckResult } from '../scripts/install.ts';
 import { filesUnder, install, readRecord, shippedInputs, trustedRoot } from '../scripts/install.ts';
 import { findIdentityFailures } from '../scripts/sandboxIdentity.ts';
@@ -54,6 +55,18 @@ const exists = async (path: string): Promise<boolean> =>
     () => true,
     () => false,
   );
+
+const snapshotHome = async (): Promise<Record<string, string>> => {
+  const files = await filesUnder(home);
+
+  const entries = await Promise.all(
+    files.map(
+      async (file) => [file, (await readFile(join(home, file))).toString('base64')] as const,
+    ),
+  );
+
+  return Object.fromEntries(entries);
+};
 
 const fixtureText = async (name: string): Promise<string> =>
   readFile(join('tests', 'fixtures', name), 'utf8');
@@ -342,6 +355,24 @@ describe('install', () => {
 
     expect(result).toEqual({ written: [], removed: [], checks: [] });
     expect((await readRecord(home))?.files).toEqual([]);
+  });
+
+  test('fails without changing the home or running checks when the built mods are missing', async () => {
+    await run();
+
+    const before = await snapshotHome();
+
+    await rm(mods, { recursive: true, force: true });
+    await writeAt(join(config, 'keys.json'), '{ "changed": true }\n');
+    checked = [];
+
+    const failure: unknown = await run().catch((error: unknown) => error);
+
+    expect(failure).toBeInstanceOf(Error);
+    expect(failure).toHaveProperty('message', expect.stringContaining('built mods'));
+    expect(failure).toHaveProperty('message', expect.stringContaining(mods));
+    expect(checked).toEqual([]);
+    expect(await snapshotHome()).toEqual(before);
   });
 
   test('replaces an owned file with a directory before copying the new files', async () => {
@@ -687,6 +718,95 @@ describe('install', () => {
 
     expect(result.written).toEqual([]);
     expect(await exists(lockPath)).toBe(false);
+  });
+
+  test('waits for the checkout lock before reading the built mods', async () => {
+    let signalWaiting!: () => void;
+
+    const waiting = new Promise<void>((resolve) => {
+      signalWaiting = resolve;
+    });
+
+    const release = await acquireCheckoutLock(root);
+
+    const pending = install({
+      home,
+      checkout: root,
+      inputs: [],
+      modsDirectory: mods,
+      configDirectory: config,
+      check: passingCheck,
+      onCheckoutLockWait: signalWaiting,
+    });
+
+    try {
+      await Promise.race([
+        waiting,
+        pending.then(() => {
+          throw new Error('The install did not wait for the checkout lock');
+        }),
+      ]);
+
+      expect(checked).toEqual([]);
+    } finally {
+      await release();
+    }
+
+    const result = await pending;
+
+    expect(result.checks).toHaveLength(1);
+  });
+
+  test('takes the checkout lock before the home lock for ordinary and sandbox installs', async () => {
+    await run();
+
+    let signalWaiting!: () => void;
+
+    const waiting = new Promise<void>((resolve) => {
+      signalWaiting = resolve;
+    });
+
+    const releaseCheckout = await acquireCheckoutLock(root);
+
+    const ordinary = install({
+      home,
+      checkout: root,
+      inputs: [],
+      modsDirectory: mods,
+      configDirectory: config,
+      check: passingCheck,
+      onCheckoutLockWait: signalWaiting,
+    });
+
+    try {
+      await Promise.race([
+        waiting,
+        ordinary.then(() => {
+          throw new Error('The ordinary install did not wait for the checkout lock');
+        }),
+      ]);
+
+      expect(await exists(join(home, '.koja-install.lock'))).toBe(false);
+
+      const sandbox = await install({
+        home,
+        checkout: root,
+        inputs: [],
+        modsDirectory: mods,
+        configDirectory: config,
+        check: passingCheck,
+        checkoutLockHeld: true,
+        lockTimeoutMilliseconds: 1_000,
+      });
+
+      expect(sandbox.checks).toHaveLength(1);
+    } finally {
+      await releaseCheckout();
+    }
+
+    const result = await ordinary;
+
+    expect(result.checks).toHaveLength(1);
   });
 
   test('rejects a broken live record without changing installed files', async () => {

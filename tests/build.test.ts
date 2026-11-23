@@ -1,9 +1,32 @@
 import { afterEach, beforeEach, describe, expect, test } from 'bun:test';
-import { chmod, mkdir, mkdtemp, readdir, readFile, rm, stat, writeFile } from 'node:fs/promises';
+import {
+  chmod,
+  lstat,
+  mkdir,
+  mkdtemp,
+  readdir,
+  readFile,
+  readlink,
+  rename,
+  rm,
+  stat,
+  symlink,
+  writeFile,
+} from 'node:fs/promises';
 import { tmpdir } from 'node:os';
-import { join } from 'node:path';
+import { dirname, join, relative, resolve as resolvePath } from 'node:path';
 
 import { buildMods } from '../scripts/build.ts';
+import { acquireCheckoutLock } from '../scripts/checkoutLock.ts';
+
+interface StructuredDiagnostic {
+  readonly message: string;
+  readonly position: {
+    readonly file: string;
+    readonly line: number;
+    readonly column: number;
+  } | null;
+}
 
 let root: string;
 let source: string;
@@ -14,6 +37,76 @@ const writeSource = async (path: string, content: string): Promise<void> => {
 
   await mkdir(join(file, '..'), { recursive: true });
   await writeFile(file, content);
+};
+
+const readTree = async (directory: string): Promise<Record<string, string>> => {
+  const entries = await readdir(directory, { recursive: true, withFileTypes: true });
+
+  const snapshot = await Promise.all(
+    entries.map(async (entry) => {
+      const path = relative(directory, join(entry.parentPath, entry.name));
+
+      if (entry.isDirectory()) {
+        return [path, 'directory'] as const;
+      }
+
+      if (entry.isSymbolicLink()) {
+        return [path, `symlink:${await readlink(join(directory, path))}`] as const;
+      }
+
+      const content = await readFile(join(directory, path));
+
+      return [path, `file:${content.toString('base64')}`] as const;
+    }),
+  );
+
+  return Object.fromEntries(snapshot);
+};
+
+const exists = async (path: string): Promise<boolean> =>
+  lstat(path).then(
+    () => true,
+    () => false,
+  );
+
+const messageOf = (failure: unknown): string =>
+  failure instanceof Error ? failure.message : String(failure);
+
+const isStructuredDiagnostic = (value: unknown): value is StructuredDiagnostic =>
+  value instanceof Error && 'position' in value;
+
+const firstDiagnosticOf = (failure: unknown): StructuredDiagnostic | null => {
+  if (failure instanceof AggregateError) {
+    for (const nested of failure.errors) {
+      const diagnostic = firstDiagnosticOf(nested);
+
+      if (diagnostic !== null) {
+        return diagnostic;
+      }
+    }
+  }
+
+  return isStructuredDiagnostic(failure) ? failure : null;
+};
+
+const positionedDiagnosticOf = (
+  failure: unknown,
+): StructuredDiagnostic & {
+  readonly position: NonNullable<StructuredDiagnostic['position']>;
+} => {
+  const diagnostic = firstDiagnosticOf(failure);
+
+  if (diagnostic === null) {
+    throw new Error('The failure has no positioned diagnostic');
+  }
+
+  const { position } = diagnostic;
+
+  if (position === null) {
+    throw new Error('The failure has no positioned diagnostic');
+  }
+
+  return { message: diagnostic.message, position };
 };
 
 beforeEach(async () => {
@@ -27,6 +120,106 @@ afterEach(async () => {
 });
 
 describe('buildMods', () => {
+  test('refuses an output that is the source directory and keeps the tree unchanged', async () => {
+    await writeSource('menu/main.ts', 'export const menu = 1;\n');
+
+    const before = await readTree(root);
+    const failure = await buildMods(source, source).catch((error: unknown) => error);
+
+    expect(failure).toBeInstanceOf(Error);
+    expect(messageOf(failure)).toContain('overlap');
+    expect(await readTree(root)).toEqual(before);
+  });
+
+  test('refuses an output that contains the source directory and keeps the tree unchanged', async () => {
+    await writeSource('menu/main.ts', 'export const menu = 1;\n');
+
+    const before = await readTree(root);
+    const failure = await buildMods(source, join(root, 'src')).catch((error: unknown) => error);
+
+    expect(failure).toBeInstanceOf(Error);
+    expect(messageOf(failure)).toContain('overlap');
+    expect(await readTree(root)).toEqual(before);
+  });
+
+  test('refuses an output inside the source directory and keeps the tree unchanged', async () => {
+    await writeSource('menu/main.ts', 'export const menu = 1;\n');
+
+    const before = await readTree(root);
+    const failure = await buildMods(source, join(source, 'dist')).catch((error: unknown) => error);
+
+    expect(failure).toBeInstanceOf(Error);
+    expect(messageOf(failure)).toContain('overlap');
+    expect(await readTree(root)).toEqual(before);
+  });
+
+  test('refuses an output that aliases the source through a symlink and keeps the tree unchanged', async () => {
+    await writeSource('menu/main.ts', 'export const menu = 1;\n');
+
+    const alias = join(root, 'source-alias');
+
+    await symlink(source, alias, 'dir');
+
+    const before = await readTree(root);
+    const failure = await buildMods(source, alias).catch((error: unknown) => error);
+
+    expect(failure).toBeInstanceOf(Error);
+    expect(messageOf(failure)).toContain('overlap');
+    expect(await readTree(root)).toEqual(before);
+  });
+
+  test('refuses an output whose final symlink hides overlap with the source', async () => {
+    await writeSource('menu/main.ts', 'export const menu = 1;\n');
+
+    const outside = join(root, 'outside');
+    const finalLink = join(source, 'mods');
+
+    await mkdir(outside);
+    await symlink(outside, finalLink, 'dir');
+    await symlink(source, join(root, 'dist'), 'dir');
+
+    const before = await readTree(root);
+
+    const failure = await buildMods(source, join(root, 'dist', 'mods')).catch(
+      (error: unknown) => error,
+    );
+
+    expect(failure).toBeInstanceOf(Error);
+    expect(messageOf(failure)).toContain('overlap');
+    expect(await readTree(root)).toEqual(before);
+    expect((await lstat(finalLink)).isSymbolicLink()).toBe(true);
+  });
+
+  test('waits for the checkout lock before staging', async () => {
+    await writeSource('menu/main.ts', 'export const menu = 1;\n');
+
+    let signalWaiting!: () => void;
+
+    const waiting = new Promise<void>((resolve) => {
+      signalWaiting = resolve;
+    });
+
+    const release = await acquireCheckoutLock(root);
+    const build = buildMods(source, output, { onCheckoutLockWait: signalWaiting });
+
+    try {
+      await Promise.race([
+        waiting,
+        build.then(() => {
+          throw new Error('The build did not wait for the checkout lock');
+        }),
+      ]);
+
+      expect(await exists(output)).toBe(false);
+    } finally {
+      await release();
+    }
+
+    await build;
+
+    expect(await exists(join(output, 'menu', 'main.js'))).toBe(true);
+  });
+
   test('bundles local modules into main.js and keeps Herdr modules as imports', async () => {
     await writeSource('../kit/size.ts', 'export const statusDotSize = 6;\n');
 
@@ -96,6 +289,57 @@ describe('buildMods', () => {
     expect(preview.mode & 0o777).toBe(0o755);
   });
 
+  test('copies a directory whose name ends in .ts with its assets', async () => {
+    await writeSource('picker/main.ts', 'export const picker = 1;\n');
+    await writeSource('picker/assets.ts/icon.svg', '<svg/>\n');
+    await writeSource('picker/assets.ts/nested/data.json', '{}\n');
+
+    await buildMods(source, output);
+
+    expect(await readFile(join(output, 'picker', 'assets.ts', 'icon.svg'), 'utf8')).toBe(
+      '<svg/>\n',
+    );
+
+    expect(await readFile(join(output, 'picker', 'assets.ts', 'nested', 'data.json'), 'utf8')).toBe(
+      '{}\n',
+    );
+  });
+
+  test('does not copy TypeScript files with other extensions', async () => {
+    await writeSource('picker/main.ts', 'export const picker = 1;\n');
+    await writeSource('picker/component.tsx', 'export const component = 1;\n');
+    await writeSource('picker/module.mts', 'export const module = 1;\n');
+    await writeSource('picker/common.cts', 'export const common = 1;\n');
+
+    await buildMods(source, output);
+
+    const files = await readdir(join(output, 'picker'), { recursive: true });
+
+    expect(files).not.toContain('component.tsx');
+    expect(files).not.toContain('module.mts');
+    expect(files).not.toContain('common.cts');
+  });
+
+  test('refuses a directory symlink whose name ends in .ts', async () => {
+    await writeSource('picker/main.ts', 'export const picker = 1;\n');
+
+    const linked = join(root, 'linked-assets');
+
+    await mkdir(linked);
+    await writeFile(join(linked, 'asset.svg'), '<svg/>\n');
+    await writeFile(join(linked, 'component.tsx'), 'export const component = 1;\n');
+    await writeFile(join(linked, 'module.mts'), 'export const module = 1;\n');
+    await writeFile(join(linked, 'common.cts'), 'export const common = 1;\n');
+    await symlink(linked, join(source, 'picker', 'assets.ts'), 'dir');
+
+    const failure = await buildMods(source, output).catch((error: unknown) => error);
+
+    expect(failure).toBeInstanceOf(Error);
+    expect(messageOf(failure)).toContain('assets.ts');
+    expect(messageOf(failure)).toContain('symlink');
+    expect(await exists(join(output, 'picker'))).toBe(false);
+  });
+
   test('copies the kit icons into every mod', async () => {
     await writeSource('../kit/icons/plus.svg', '<svg id="plus"/>\n');
     await writeSource('../kit/icons/x.svg', '<svg id="x"/>\n');
@@ -134,7 +378,7 @@ describe('buildMods', () => {
     expect(bundle).not.toContain('kojaModName');
   });
 
-  test('removes mods left from an earlier build', async () => {
+  test('removes mods left from an earlier build and leaves no backup behind', async () => {
     await writeSource('tabs/main.ts', 'export const tabs = 1;\n');
     await mkdir(join(output, 'removed'), { recursive: true });
     await writeFile(join(output, 'removed', 'main.js'), '');
@@ -143,15 +387,149 @@ describe('buildMods', () => {
 
     expect(names).toEqual(['tabs']);
     expect(await readdir(output)).toEqual(['tabs']);
+    expect(await readdir(dirname(output))).toEqual(['mods']);
   });
 
-  test('names the mod that fails to build', async () => {
+  test('keeps the published mods and removes staging when a build fails', async () => {
+    await writeSource('broken/main.ts', 'export const broken = ;\n');
+    await mkdir(join(output, 'old'), { recursive: true });
+    await writeFile(join(output, 'old', 'main.js'), 'old bundle\n');
+
+    const before = await readTree(output);
+    const failure = await buildMods(source, output).catch((error: unknown) => error);
+
+    expect(failure).toBeInstanceOf(AggregateError);
+    expect(await readTree(output)).toEqual(before);
+    expect(await readdir(dirname(output))).toEqual(['mods']);
+  });
+
+  test('removes a staging tree with a copied read-only directory when a build fails', async () => {
+    const assets = join(source, 'broken', 'assets');
+
+    await writeSource('broken/main.ts', 'export const broken = ;\n');
+    await writeSource('broken/assets/data.json', '{}\n');
+    await chmod(assets, 0o555);
+
+    try {
+      const failure = await buildMods(source, output).catch((error: unknown) => error);
+
+      expect(failure).toBeInstanceOf(AggregateError);
+      expect(await readdir(dirname(output))).toEqual([]);
+    } finally {
+      await chmod(assets, 0o755);
+    }
+  });
+
+  test('leaves no partial published output when one of two mods fails', async () => {
+    await writeSource('menu/main.ts', 'export const menu = 1;\n');
+    await writeSource('broken/main.ts', 'export const broken = ;\n');
+    await mkdir(join(output, 'old'), { recursive: true });
+    await writeFile(join(output, 'old', 'main.js'), 'old bundle\n');
+
+    const before = await readTree(output);
+    const failure = await buildMods(source, output).catch((error: unknown) => error);
+
+    expect(failure).toBeInstanceOf(AggregateError);
+    expect(await readTree(output)).toEqual(before);
+    expect(await readdir(output)).toEqual(['old']);
+    expect(await readdir(dirname(output))).toEqual(['mods']);
+  });
+
+  test('reports every failing mod with a positioned diagnostic after all builds settle', async () => {
+    await writeSource('alpha/main.ts', 'export const alpha = ;\n');
+    await writeSource('beta/main.ts', 'export const beta = ;\n');
+
+    const failure = await buildMods(source, output).catch((error: unknown) => error);
+    const message = messageOf(failure);
+    const diagnostic = positionedDiagnosticOf(failure);
+
+    expect(failure).toBeInstanceOf(AggregateError);
+    expect(message).toContain('alpha');
+    expect(message).toContain('beta');
+    expect(message).toContain(diagnostic.message);
+    expect(message).toContain(diagnostic.position.file);
+    expect(message).toContain(`${diagnostic.position.line}:${diagnostic.position.column}`);
+  });
+
+  test('names the mod and the first structured diagnostic when a mod fails to build', async () => {
     await writeSource('broken/main.ts', 'export const broken = ;\n');
 
     const failure: unknown = await buildMods(source, output).catch((error: unknown) => error);
+    const message = messageOf(failure);
+    const diagnostic = positionedDiagnosticOf(failure);
 
     expect(failure).toBeInstanceOf(AggregateError);
-    expect(failure).toHaveProperty('message', 'Could not build mod broken');
+    expect(message).toContain('Could not build mod broken');
+    expect(message).toContain(diagnostic.message);
+    expect(message).toContain(diagnostic.position.file);
+    expect(message).toContain(`${diagnostic.position.line}:${diagnostic.position.column}`);
+  });
+
+  test('keeps the positioned diagnostic when staging cleanup fails', async () => {
+    await writeSource('broken/main.ts', 'export const broken = ;\n');
+
+    const failure = await buildMods(source, output, {
+      removeStaging: async () => {
+        throw new Error('injected staging cleanup failure');
+      },
+    }).catch((error: unknown) => error);
+
+    const message = messageOf(failure);
+    const diagnostic = positionedDiagnosticOf(failure);
+
+    expect(failure).toBeInstanceOf(AggregateError);
+    expect(message).toContain('could not remove');
+    expect(message).toContain('injected staging cleanup failure');
+    expect(message).toContain(diagnostic.message);
+    expect(message).toContain(diagnostic.position.file);
+    expect(message).toContain(`${diagnostic.position.line}:${diagnostic.position.column}`);
+  });
+
+  test('reports a backup cleanup failure after publishing without failing the build', async () => {
+    await writeSource('menu/main.ts', 'export const menu = 1;\n');
+    await mkdir(join(output, 'old'), { recursive: true });
+    await writeFile(join(output, 'old', 'main.js'), 'old bundle\n');
+
+    const warnings: string[] = [];
+
+    const names = await buildMods(source, output, {
+      removePrevious: async () => {
+        throw new Error('injected backup cleanup failure');
+      },
+      warn: (message) => {
+        warnings.push(message);
+      },
+    });
+
+    expect(names).toEqual(['menu']);
+    expect(await exists(join(output, 'old'))).toBe(false);
+    expect(await exists(join(output, 'menu', 'main.js'))).toBe(true);
+    expect(warnings).toHaveLength(1);
+    expect(warnings[0]).toContain('previous');
+    expect(warnings[0]).toContain('injected backup cleanup failure');
+  });
+
+  test('restores the old published mods when publishing the staged tree fails', async () => {
+    await writeSource('menu/main.ts', 'export const menu = 1;\n');
+    await mkdir(join(output, 'old'), { recursive: true });
+    await writeFile(join(output, 'old', 'main.js'), 'old bundle\n');
+
+    const before = await readTree(output);
+
+    const failure = await buildMods(source, output, {
+      renamePath: async (from, to) => {
+        if (from.includes('.staging-') && to === resolvePath(output)) {
+          throw new Error('injected publish failure');
+        }
+
+        await rename(from, to);
+      },
+    }).catch((error: unknown) => error);
+
+    expect(failure).toBeInstanceOf(Error);
+    expect(messageOf(failure)).toContain('injected publish failure');
+    expect(await readTree(output)).toEqual(before);
+    expect(await readdir(dirname(output))).toEqual(['mods']);
   });
 
   test('builds nothing when there is no mods folder', async () => {

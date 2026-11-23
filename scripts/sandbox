@@ -125,7 +125,8 @@ in_sandbox() {
 
 install_mods() {
   require_up
-  (cd "$checkout" && in_sandbox HERDR_APP_HOME="$root/config/herdr-app" flock "$checkout" bun run herdr:install)
+  # The outer checkout lock covers the build and install, which skip taking it again.
+  (cd "$checkout" && in_sandbox HERDR_APP_HOME="$root/config/herdr-app" KOJA_CHECKOUT_LOCK_HELD=1 flock "$checkout" bun run herdr:install)
   in_sandbox "$checkout/scripts/sandbox-ready"
 }
 

@@ -35,6 +35,15 @@ successful install, every matching planned file counts as owned, including one i
 The record marks an install complete only after config and cleanup succeed, and keeps partial
 ownership after a failure so the next run can recover.
 
+One checkout has a single writer for the shared `dist/mods` output. A build and an install take the
+same `flock` on the checkout directory: the build holds it while it stages and publishes the mods,
+and the installer holds it before it reads that tree. Every installer takes the checkout lock before
+the home lock, so two installs cannot wait on each other in opposite orders. A sandbox launcher
+holds that same checkout lock around its whole build and install command; the inner acquisition
+skips the lock only because that caller already holds it. An installer refuses a missing built mods
+tree with its own error instead of treating it as an empty plan, so a reader never mistakes an
+absent build for a deliberate empty one.
+
 `keys.json`, the layout, and `settings.json` live in the repository, because they name Koja's mods
 and theme, and a rename must change them in the same commit.
 

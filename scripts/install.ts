@@ -33,6 +33,7 @@ import {
 import { setTimeout as delay } from 'node:timers/promises';
 
 import { buildMods, isMissing, outputDirectory, sourceDirectory } from './build.ts';
+import { acquireCheckoutLock } from './checkoutLock.ts';
 
 export interface CheckResult {
   passed: boolean;
@@ -63,6 +64,8 @@ export interface InstallOptions {
   temporaryRecordName?: () => string;
   writeRecordFile?: (path: string, text: string) => Promise<void>;
   removeStaging?: (path: string) => Promise<void>;
+  onCheckoutLockWait?: (() => void) | undefined;
+  checkoutLockHeld?: boolean | undefined;
 }
 
 export interface InstallResult {
@@ -220,8 +223,31 @@ const isInstallerMetadata = (path: string): boolean => {
   return recordMetadata || lockMetadata || stagingMetadata;
 };
 
+const assertBuiltMods = async (directory: string): Promise<void> => {
+  try {
+    const details = await stat(directory);
+
+    if (!details.isDirectory()) {
+      throw new Error(
+        `Refusing to install because the built mods path ${directory} is not a directory`,
+      );
+    }
+  } catch (error) {
+    if (isMissing(error)) {
+      throw new Error(
+        `Refusing to install because the built mods are missing at ${directory}. Run bun run build first.`,
+        { cause: error },
+      );
+    }
+
+    throw error;
+  }
+};
+
 const plannedFiles = async (options: InstallOptions): Promise<Map<string, string>> => {
   const planned = new Map<string, string>();
+
+  await assertBuiltMods(options.modsDirectory);
 
   for (const file of await filesUnder(options.configDirectory)) {
     planned.set(file, join(options.configDirectory, file));
@@ -700,6 +726,32 @@ const acquireInstallLock = async (
   }
 };
 
+const acquireInstallLocks = async (
+  home: string,
+  options: InstallOptions,
+): Promise<() => Promise<void>> => {
+  const releaseCheckout = await acquireCheckoutLock(options.checkout, {
+    held: options.checkoutLockHeld,
+    onWait: options.onCheckoutLockWait,
+  });
+
+  try {
+    const releaseInstall = await acquireInstallLock(
+      home,
+      options.lockTimeoutMilliseconds ?? lockTimeoutMilliseconds,
+    );
+
+    return async () => {
+      await releaseInstall();
+      await releaseCheckout();
+    };
+  } catch (error) {
+    await releaseCheckout();
+
+    throw error;
+  }
+};
+
 const writeRecord = async (
   home: string,
   files: string[],
@@ -1032,10 +1084,7 @@ export const install = async (options: InstallOptions): Promise<InstallResult> =
   await refuseLinkedHome(home, roots);
   await mkdir(home, { recursive: true });
 
-  const releaseLock = await acquireInstallLock(
-    home,
-    options.lockTimeoutMilliseconds ?? lockTimeoutMilliseconds,
-  );
+  const releaseLocks = await acquireInstallLocks(home, options);
 
   try {
     const planned = await plannedFiles(options);
@@ -1094,7 +1143,7 @@ export const install = async (options: InstallOptions): Promise<InstallResult> =
 
     return { written: progress.written, removed: progress.removed, checks: progress.checks };
   } finally {
-    await releaseLock();
+    await releaseLocks();
   }
 };
 
