@@ -75,22 +75,35 @@ case ${1:-} in
   *) refuse_other_checkout ;;
 esac
 
-root_identity() {
-  stat -c '%d:%i:%w' -- "$root" 2>/dev/null
+generation_file=$root/.koja-generation
+
+write_generation() {
+  if [[ ! -d $root ]]; then
+    echo "sandbox $name root $root is missing" >&2
+    return 1
+  fi
+
+  local id
+  id=$(od -An -N16 -tx1 /dev/urandom | tr -d ' \n') || return 1
+  printf '%s\n' "$id" > "$generation_file"
+}
+
+root_generation() {
+  cat "$generation_file" 2>/dev/null
 }
 
 require_generation() {
-  if [[ -z ${KOJA_SANDBOX_ROOT_ID:-} ]]; then
+  if [[ -z ${KOJA_SANDBOX_GENERATION:-} ]]; then
     return 0
   fi
 
   local current
-  current=$(root_identity) || {
-    echo "sandbox $name root $root disappeared under a running capture" >&2
+  current=$(root_generation) || {
+    echo "sandbox $name root $root has no generation under a running capture" >&2
     exit 1
   }
 
-  if [[ $current != "$KOJA_SANDBOX_ROOT_ID" ]]; then
+  if [[ -z $current || $current != "$KOJA_SANDBOX_GENERATION" ]]; then
     echo "sandbox $name root $root was replaced under a running capture" >&2
     exit 1
   fi
@@ -170,7 +183,12 @@ case ${1:-} in
     # The launch script runs from the checkout, so give it an absolute path.
     bin=$(realpath -ms -- "$bin")
     cd "$checkout"
-    exec ruta "$command" "$@" -- "$bin"
+    status=0
+    ruta "$command" "$@" -- "$bin" || status=$?
+    if (( status == 0 )); then
+      write_generation
+    fi
+    exit "$status"
     ;;
   install) install_mods ;;
   identity)
@@ -192,25 +210,29 @@ case ${1:-} in
       echo "usage: scripts/sandbox lock <command>..." >&2
       exit 2
     fi
-    expected=$(root_identity) || {
+    expected=$(root_generation) || {
       echo "sandbox $name is not up; run 'scripts/sandbox up' first" >&2
       exit 1
     }
+    if [[ -z $expected ]]; then
+      echo "sandbox $name has no generation; run 'scripts/sandbox up' first" >&2
+      exit 1
+    fi
     # The lock file sits beside the root, so replacing the root cannot split one lock in two.
     exec flock --exclusive "$root.capture.lock" sh -c '
       root=$1
       name=$2
       expected=$3
       shift 3
-      current=$(stat -c "%d:%i:%w" -- "$root") || {
-        printf "sandbox %s root %s disappeared while waiting for the capture lock\n" "$name" "$root" >&2
+      current=$(cat "$root/.koja-generation" 2>/dev/null) || {
+        printf "sandbox %s root %s has no generation while waiting for the capture lock\n" "$name" "$root" >&2
         exit 1
       }
-      if [ "$current" != "$expected" ]; then
+      if [ -z "$current" ] || [ "$current" != "$expected" ]; then
         printf "sandbox %s root %s was replaced while waiting for the capture lock\n" "$name" "$root" >&2
         exit 1
       fi
-      export KOJA_SANDBOX_ROOT_ID="$current"
+      export KOJA_SANDBOX_GENERATION="$current"
       exec "$@"
     ' sh "$root" "$name" "$expected" "$@"
     ;;

@@ -8,8 +8,11 @@ import { replaceOnce } from './scriptCopy.ts';
 const checkout = resolve(import.meta.dir, '..');
 const sandbox = join(checkout, 'scripts', 'sandbox');
 
+let guards: string;
 let root: string;
 let script: string;
+
+const generationFile = '.koja-generation';
 
 const environmentFor = (name: string): Record<string, string> => {
   const environment: Record<string, string> = {};
@@ -21,6 +24,7 @@ const environmentFor = (name: string): Record<string, string> => {
   }
 
   environment['RUTA_NAME'] = name;
+  environment['PATH'] = `${guards}:${environment['PATH'] ?? ''}`;
 
   delete environment['TAU_VERIFICATION_RUN'];
 
@@ -49,6 +53,17 @@ const waitForFile = async (path: string): Promise<void> => {
   throw new Error(`The file ${path} never appeared.`);
 };
 
+const writeGeneration = async (folder: string, id: string): Promise<void> => {
+  await writeFile(join(folder, generationFile), `${id}\n`);
+};
+
+const writeMetadataShim = async (folder: string): Promise<void> => {
+  const path = join(folder, 'stat');
+
+  await writeFile(path, '#!/bin/sh\nprintf "0:0:-\\n"\n', { mode: 0o755 });
+  await chmod(path, 0o755);
+};
+
 const writeShim = async (folder: string): Promise<void> => {
   const bin = join(folder, 'bin');
 
@@ -68,6 +83,7 @@ const stopIfRunning = async (child: LockProcess | undefined): Promise<void> => {
 
 beforeEach(async () => {
   root = await mkdtemp(join(tmpdir(), 'koja-sandbox-lock-'));
+  guards = join(root, 'guards');
 
   const source = replaceOnce(
     await readFile(sandbox, 'utf8'),
@@ -79,8 +95,16 @@ beforeEach(async () => {
 
   await writeFile(script, source, { mode: 0o755 });
   await chmod(script, 0o755);
-  await mkdir(join(root, 'ruta-alpha'), { recursive: true });
-  await mkdir(join(root, 'ruta-beta'), { recursive: true });
+  await mkdir(guards, { recursive: true });
+  await writeMetadataShim(guards);
+
+  const alphaRoot = join(root, 'ruta-alpha');
+  const betaRoot = join(root, 'ruta-beta');
+
+  await mkdir(alphaRoot, { recursive: true });
+  await mkdir(betaRoot, { recursive: true });
+  await writeGeneration(alphaRoot, 'alpha-generation');
+  await writeGeneration(betaRoot, 'beta-generation');
 });
 
 afterEach(async () => {
@@ -136,7 +160,15 @@ describe('scripts/sandbox lock', () => {
     }
   });
 
-  test('keeps the same-name lock and rejects a sandbox root replaced under it', async () => {
+  test('rejects a sandbox root whose generation id is missing', async () => {
+    await rm(join(root, 'ruta-alpha', generationFile));
+
+    const holder = spawnLock('alpha', ['sh', '-c', 'exit 0']);
+
+    expect(await holder.exited).not.toBe(0);
+  });
+
+  test('keeps the same-name lock and rejects a replaced root with reused metadata', async () => {
     const held = join(root, 'held');
     const replace = join(root, 'replace');
     const replaced = join(root, 'replaced');
@@ -163,6 +195,7 @@ describe('scripts/sandbox lock', () => {
 
       await rm(alphaRoot, { recursive: true, force: true });
       await mkdir(alphaRoot, { recursive: true });
+      await writeGeneration(alphaRoot, 'replacement-generation');
       await writeShim(alphaRoot);
       await writeFile(replace, '');
       await waitForFile(replaced);
