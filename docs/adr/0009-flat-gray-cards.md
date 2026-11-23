@@ -41,13 +41,15 @@ border for focus. The frame, panes, terminals, sidebar, and tab bar all share th
     because status-colored text on that tint falls below 4.5:1. Only the attention badge uses this
     fill, and it tints with `blocked`.
   - Tag: 9 px Regular, on a solid fill of the role's group color, with a 1 px outline in the same
-    color. The label uses the theme's `foreground` or `background` token, whichever contrasts more
-    with the fill. The label keeps 4.5:1 on its fill, and the fill keeps 3:1 against the surface
-    under it, as for any non-text edge. Koja supports only themes whose `foreground` and
-    `background` contrast with each other, so the label has no third token to fall back to. The role
-    badge uses it. The group colors are `ansi4` for lead, `ansi6` for architect, `ansi2` for worker,
-    `ansi3` for scout, reviewer, and checker, `ansi5` for qa and browser, and `muted` for any other
-    role. No group uses a status color.
+    color. The kit draws the fill and outline opaque, without any alpha a theme override gives the
+    role color, so the label is chosen against the color the chip shows. The label uses the theme's
+    `foreground` or `background` token, whichever contrasts more with the fill. In Koja's own theme,
+    the label keeps 4.5:1 on its fill, and the fill keeps 3:1 against the surface under it, as for
+    any non-text edge; the theme gate checks both. In another theme, the label takes the better of
+    the two tokens and can fall below 4.5:1 when a role color sits between them, because the role
+    colors come from that theme. The role badge uses it. The group colors are `ansi4` for lead,
+    `ansi6` for architect, `ansi2` for worker, `ansi3` for scout, reviewer, and checker, `ansi5` for
+    qa and browser, and `muted` for any other role. No group uses a status color.
 - A role fixes size and weight. A caller may change only its tone.
 - Key hints use the detail role, so a hint reads as a detail beside a 13 px label.
 - Line height stays Herdr's default. The kit adds no line-height value until a part needs wrapped

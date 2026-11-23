@@ -3,6 +3,7 @@ import type { Element } from 'gpui-kit';
 import { div } from 'gpui-kit';
 
 import { readableTextToken } from './contrast.ts';
+import { opaqueOf } from './palette.ts';
 import type { ThemeToken } from './palette.ts';
 import { roleToken as rolePaletteToken } from './rolePalette.ts';
 import { badgeSize } from './size.ts';
@@ -18,6 +19,7 @@ export const roleToken = (role: string): ThemeToken => rolePaletteToken(role);
 export const roleBadge = (role: string, state: RoleBadgeState = 'cut'): Element => {
   const token = roleToken(role);
   const palette = colors();
+  const fill = opaqueOf(palette[token]);
   const labelBox = div().min_w(0).truncate();
   const label = withTextRole(labelBox, 'tag', readableTextToken(token, palette));
 
@@ -26,9 +28,9 @@ export const roleBadge = (role: string, state: RoleBadgeState = 'cut'): Element 
     .px(badgeSize.padding)
     .items_center()
     .rounded(badgeSize.radius)
-    .bg(palette[token])
+    .bg(fill)
     .border(badgeSize.border)
-    .border_color(palette[token])
+    .border_color(fill)
     .tooltip(role);
 
   if (state === 'full') {

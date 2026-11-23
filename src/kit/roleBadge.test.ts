@@ -16,7 +16,7 @@ await mock.module('herdr', () =>
   herdrFake({
     theme: () => ({
       ansi4: '#00ff00',
-      ansi6: '#1b5e57',
+      ansi6: '#1b5e5780',
       background: '#ffffff',
       foreground: '#000000',
     }),
