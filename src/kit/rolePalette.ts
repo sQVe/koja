@@ -2,7 +2,7 @@ import type { ThemeToken } from './palette.ts';
 
 const roleTokens = new Map<string, ThemeToken>([
   ['lead', 'ansi4'],
-  ['architect', 'ansi4'],
+  ['architect', 'ansi6'],
   ['worker', 'ansi2'],
   ['scout', 'ansi3'],
   ['reviewer', 'ansi3'],

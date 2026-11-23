@@ -13,7 +13,14 @@ await mock.module('gpui-kit', () =>
 );
 
 await mock.module('herdr', () =>
-  herdrFake({ theme: () => ({ ansi4: '#00ff00', foreground: '#000000' }) }),
+  herdrFake({
+    theme: () => ({
+      ansi4: '#00ff00',
+      ansi6: '#1b5e57',
+      background: '#ffffff',
+      foreground: '#000000',
+    }),
+  }),
 );
 
 const modulePath = './roleBadge.ts';
@@ -29,7 +36,8 @@ afterAll(() => {
 
 describe('roleBadge', () => {
   test('the role badge color follows the kind of work', () => {
-    expect(roleToken('architect')).toBe('ansi4');
+    expect(roleToken('architect')).toBe('ansi6');
+    expect(roleToken('lead')).toBe('ansi4');
     expect(roleToken('worker')).toBe('ansi2');
     expect(roleToken('reviewer')).toBe('ansi3');
     expect(roleToken('qa')).toBe('ansi5');
@@ -68,13 +76,26 @@ describe('roleBadge', () => {
     expect(label?.styles['max_w']).toBeUndefined();
   });
 
-  test('the badge draws the role as outlined text in its color', () => {
+  test('the role badge fills and outlines in the role color', () => {
     const badge = roleBadge('architect');
-    const [label] = badge.kids;
 
     expect(drawnTexts(badge)).toEqual(['architect']);
-    expect(badge.backgroundColors).toEqual([]);
+    expect(badge.backgroundColors).toEqual(['#1b5e57']);
+    expect(badge.borderColors).toEqual(['#1b5e57']);
+  });
+
+  test('a dark fill gets light label text', () => {
+    const [label] = roleBadge('architect').kids;
+
+    expect(label?.textColors).toEqual(['#ffffff']);
+  });
+
+  test('a light fill keeps its fill and dark label text', () => {
+    const badge = roleBadge('lead');
+    const [label] = badge.kids;
+
+    expect(badge.backgroundColors).toEqual(['#00ff00']);
     expect(badge.borderColors).toEqual(['#00ff00']);
-    expect(label?.textColors).toEqual(['#00ff00']);
+    expect(label?.textColors).toEqual(['#000000']);
   });
 });
