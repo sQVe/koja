@@ -3,8 +3,14 @@ import { mkdtemp, readdir, readFile, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
+import { readableTextToken } from '../src/kit/contrast.ts';
 import { iconNames } from '../src/kit/iconNames.ts';
-import { badgeFillAlpha, diffFillAlpha, normalFocusFillAlpha } from '../src/kit/palette.ts';
+import {
+  badgeFillAlpha,
+  diffFillAlpha,
+  normalFocusFillAlpha,
+  toPalette,
+} from '../src/kit/palette.ts';
 import { roleColorTokens } from '../src/kit/rolePalette.ts';
 import { isRawStyleExempt, modsDirectory, typeScriptFiles } from './sourceFiles.ts';
 
@@ -36,13 +42,6 @@ interface ContrastPair {
 interface ContrastResult {
   line: string;
   passed: boolean;
-}
-
-interface RoleSurface {
-  surface: string;
-  fill?: Fill;
-  minimum: number;
-  reason: string;
 }
 
 const kitDirectory = 'src/kit';
@@ -287,31 +286,28 @@ const rowPairs = (): ContrastPair[] => {
   return pairs;
 };
 
-const roleSurfaces: RoleSurface[] = [
-  { surface: 'popover', minimum: 4.5, reason: 'roleBadge label and outline on popover' },
-  { surface: 'background', minimum: 4.5, reason: 'roleBadge label and outline on background' },
-  {
-    surface: 'background',
-    fill: { alpha: normalFocusFillAlpha, token: 'accent' },
-    minimum: 4.5,
-    reason: 'roleBadge label and outline on the focus tint',
-  },
-];
-
-const rolePairs = (): ContrastPair[] => {
+const rolePairs = (palette: Record<string, string>): ContrastPair[] => {
   const pairs: ContrastPair[] = [];
+  const kitPalette = toPalette(palette);
 
-  roleSurfaces.forEach(({ surface, fill, minimum, reason }) => {
-    roleColorTokens().forEach((token) => {
-      const pairReason = `${reason} as ${token}`;
+  roleColorTokens().forEach((token) => {
+    const labelToken = readableTextToken(token, kitPalette);
 
-      const pair =
-        fill === undefined
-          ? contrastPair(token, surface, minimum, pairReason)
-          : filledPair(token, fill, surface, minimum, pairReason);
+    pairs.push(contrastPair(labelToken, token, 4.5, 'roleBadge label on its fill'));
+    pairs.push(contrastPair(token, 'background', 3, 'roleBadge fill on background'));
+    pairs.push(contrastPair(token, 'hover', 3, 'roleBadge fill on hover'));
 
-      pairs.push(pair);
-    });
+    pairs.push(
+      filledPair(
+        token,
+        { alpha: normalFocusFillAlpha, token: 'accent' },
+        'background',
+        3,
+        'roleBadge fill on the accent focus tint',
+      ),
+    );
+
+    pairs.push(contrastPair(token, 'popover', 3, 'roleBadge fill on popover'));
   });
 
   return pairs;
@@ -418,11 +414,11 @@ const mergePairs = (pairs: ContrastPair[]): ContrastPair[] => {
   return [...merged.values()];
 };
 
-const contrastPairs = (): ContrastPair[] =>
+const contrastPairs = (palette: Record<string, string>): ContrastPair[] =>
   mergePairs([
     ...rowPairs(),
     ...backgroundPairs(),
-    ...rolePairs(),
+    ...rolePairs(palette),
     contrastPair(
       'muted',
       'raised',
@@ -558,7 +554,7 @@ describe('the UI language', () => {
   test('the real theme passes every checked contrast pair', async () => {
     const theme = JSON.parse(await readFile(themePath, 'utf8')) as ThemeFile;
     const palette = paletteFromTheme(theme);
-    const pairs = contrastPairs();
+    const pairs = contrastPairs(palette);
 
     const failed = pairs
       .map((pair) => contrastResult(pair, palette))
@@ -568,8 +564,9 @@ describe('the UI language', () => {
     expect(failed).toEqual([]);
   });
 
-  test('every checked contrast pair names its text and surface once', () => {
-    const keys = contrastPairs().map(pairKey);
+  test('every checked contrast pair names its text and surface once', async () => {
+    const theme = JSON.parse(await readFile(themePath, 'utf8')) as ThemeFile;
+    const keys = contrastPairs(paletteFromTheme(theme)).map(pairKey);
 
     expect(new Set(keys).size).toBe(keys.length);
   });

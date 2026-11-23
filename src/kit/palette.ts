@@ -58,13 +58,16 @@ const expandShortHex = (hex: string): string =>
     .map((digit) => `${digit}${digit}`)
     .join('');
 
-export const clearOf = (color: Color): Color => {
+const rgbOf = (color: Color): string => {
   const hex = color.slice(1);
   const isShort = hex.length <= shortHexLength + 1;
-  const rgb = isShort ? expandShortHex(hex.slice(0, shortHexLength)) : hex.slice(0, fullHexLength);
 
-  return `#${rgb}${clearAlpha}`;
+  return isShort ? expandShortHex(hex.slice(0, shortHexLength)) : hex.slice(0, fullHexLength);
 };
+
+export const clearOf = (color: Color): Color => `#${rgbOf(color)}${clearAlpha}`;
+
+export const opaqueOf = (color: Color): Color => `#${rgbOf(color)}`;
 
 export const diffFillAlpha = '18';
 

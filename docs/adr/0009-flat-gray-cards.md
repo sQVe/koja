@@ -40,10 +40,16 @@ border for focus. The frame, panes, terminals, sidebar, and tab bar all share th
   - Badge: 9 px SemiBold `foreground`, on a fill of one theme token at the kit's badge alpha,
     because status-colored text on that tint falls below 4.5:1. Only the attention badge uses this
     fill, and it tints with `blocked`.
-  - Tag: 9 px Regular, in the color of the role's group, inside a 1 px outline of the same color
-    with no fill. The role badge uses it. The group colors are `ansi4` for lead and architect,
-    `ansi2` for worker, `ansi3` for scout, reviewer, and checker, `ansi5` for qa and browser, and
-    `muted` for any other role. No group uses a status color.
+  - Tag: 9 px Regular, on a solid fill of the role's group color, with a 1 px outline in the same
+    color. The kit draws the fill and outline opaque, without any alpha a theme override gives the
+    role color, so the label is chosen against the color the chip shows. The label uses the theme's
+    `foreground` or `background` token, whichever contrasts more with the fill. In Koja's own theme,
+    the label keeps 4.5:1 on its fill, and the fill keeps 3:1 against the surface under it, as for
+    any non-text edge; the theme gate checks both. In another theme, the label takes the better of
+    the two tokens and can fall below 4.5:1 when a role color sits between them, because the role
+    colors come from that theme. The role badge uses it. The group colors are `ansi4` for lead,
+    `ansi6` for architect, `ansi2` for worker, `ansi3` for scout, reviewer, and checker, `ansi5` for
+    qa and browser, and `muted` for any other role. No group uses a status color.
 - A role fixes size and weight. A caller may change only its tone.
 - Key hints use the detail role, so a hint reads as a detail beside a 13 px label.
 - Line height stays Herdr's default. The kit adds no line-height value until a part needs wrapped
@@ -69,12 +75,13 @@ border for focus. The frame, panes, terminals, sidebar, and tab bar all share th
 
 - A pane header shows, in order: program icon, name, the role badge when the pane has a role, the
   agent's task, branch, folder, and status, then its buttons. Its text uses the detail role.
-- The role badge follows the name, so a terminal's role or profile reads beside its name. It is an
-  outlined tag in the group's color with no fill, so "Needs you" stays the only filled pill. It
-  shows its full label while the header has room. The folder and branch cut and drop first; then the
-  label cuts at the end with an ellipsis, and hovering shows the full label. When the header is too
-  narrow for the badge and the controls together, the badge cuts below the longest built-in name, so
-  the controls stay in the pane. Built-in names stay whole at the widths the header supports.
+- The role badge follows the name, so a terminal's role or profile reads beside its name. It is a
+  solid chip in the group's color, with its label in the theme's text token that contrasts most with
+  that fill. It shows its full label while the header has room. The folder and branch cut and drop
+  first; then the label cuts at the end with an ellipsis, and hovering shows the full label. When
+  the header is too narrow for the badge and the controls together, the badge cuts below the longest
+  built-in name, so the controls stay in the pane. Built-in names stay whole at the widths the
+  header supports.
 - The branch shows only when it differs from its space's branch.
 - When the header narrows, the folder cuts in the middle down to a minimum width, then drops whole.
   The branch does the same next. The task cuts at its end last. The status slot counts the mark that
@@ -331,3 +338,10 @@ Draw a 1 px line in `selected` in the gap between sidebar projects, inset 4 px f
 list. Rejected because the line has the color and width of the hover outline and selected fill of
 inset rows, and sits about 3 px from their edge. A hovered or selected row next to it looked like it
 had a doubled border.
+
+### A third label token for flat themes
+
+Add `accent_foreground` as a third label candidate, for themes such as Herdr's `win98`, whose
+`foreground` and `background` are both black. Rejected because a third token would fix only the
+badge label; the pane header's `foreground` text on `background` stays black on black in such a
+theme. Herdr's Settings picker lists `win98` only with its own layout.

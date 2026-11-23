@@ -1,6 +1,6 @@
 import { describe, expect, test } from 'bun:test';
 
-import { clearOf, diffTints, toPalette, withAlpha } from './palette.ts';
+import { clearOf, diffTints, opaqueOf, toPalette, withAlpha } from './palette.ts';
 import type { Color } from './palette.ts';
 
 const themeTokens = [
@@ -93,6 +93,15 @@ describe('color helpers', () => {
 
   test.each(clearCases)('makes $color fully clear as $clear', ({ color, clear }) => {
     expect(clearOf(color)).toBe(clear);
+  });
+
+  const opaqueCases: { color: Color; opaque: Color }[] = [
+    { color: '#77777780', opaque: '#777777' },
+    { color: '#777777', opaque: '#777777' },
+  ];
+
+  test.each(opaqueCases)('makes $color opaque as $opaque', ({ color, opaque }) => {
+    expect(opaqueOf(color)).toBe(opaque);
   });
 
   test('tints added and removed lines from the ansi colors', () => {
