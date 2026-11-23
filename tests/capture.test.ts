@@ -1,10 +1,28 @@
 import { describe, expect, test } from 'bun:test';
-import { mkdtemp, rm, stat } from 'node:fs/promises';
+import {
+  chmod,
+  mkdir,
+  mkdtemp,
+  readFile,
+  readdir,
+  rename,
+  rm,
+  stat,
+  writeFile,
+} from 'node:fs/promises';
 import { tmpdir } from 'node:os';
-import { join } from 'node:path';
+import { basename, dirname, join } from 'node:path';
 
 import type { CaptureContext } from '../scripts/capture.ts';
-import { capture, cropBox, cropFits, cropGeometry } from '../scripts/capture.ts';
+import { capture, cropBox, cropFits, cropGeometry, publishCapture } from '../scripts/capture.ts';
+import { sceneReadyLine } from '../src/mods/koja-mocks/catalog.ts';
+
+interface FakeSandboxOptions {
+  logs?: string[] | ((read: number) => string);
+  onShot?: (path: string) => Promise<void> | void;
+}
+
+type Overlays = string[] | (() => string[]);
 
 const runCapture = async (args: string[]) => {
   const script = join(import.meta.dir, '..', 'scripts', 'capture.ts');
@@ -43,22 +61,136 @@ const anyOutputExists = async (folder: string): Promise<boolean> => {
   return existing.includes(true);
 };
 
-const fakeContext = (overlays: string[]) => {
+const writeCaptureFiles = async (folder: string, label: string): Promise<void> => {
+  await mkdir(folder, { recursive: true });
+
+  await Promise.all(outputFiles.map((file) => writeFile(join(folder, file), `${label} ${file}`)));
+};
+
+const readCaptureFiles = async (folder: string): Promise<Record<string, Buffer>> =>
+  Object.fromEntries(
+    await Promise.all(
+      outputFiles.map(async (file) => [file, await readFile(join(folder, file))] as const),
+    ),
+  );
+
+const expectSameCapture = (
+  actual: Record<string, Buffer>,
+  expected: Record<string, Buffer>,
+): void => {
+  for (const file of outputFiles) {
+    const current = actual[file];
+    const original = expected[file];
+
+    if (current === undefined || original === undefined) {
+      throw new Error(`The ${file} capture file is missing.`);
+    }
+
+    expect(current.equals(original)).toBe(true);
+  }
+};
+
+const stagingFolder = async (folder: string): Promise<string> => {
+  const parent = dirname(folder);
+
+  await mkdir(parent, { recursive: true });
+
+  return mkdtemp(join(parent, `.${basename(folder)}-staging-`));
+};
+
+const siblingFolders = async (folder: string, label: string): Promise<string[]> => {
+  const parent = dirname(folder);
+  const prefix = `.${basename(folder)}-${label}-`;
+  const entries = await readdir(parent);
+
+  return entries.filter((entry) => entry.startsWith(prefix)).map((entry) => join(parent, entry));
+};
+
+const fakeContext = (overlays: Overlays = [], options: FakeSandboxOptions = {}) => {
   const commands: string[][] = [];
+  let logReads = 0;
+  let statusReads = 0;
+
+  const readLog = (): string => {
+    const source = options.logs;
+    const read = logReads;
+
+    logReads += 1;
+
+    if (typeof source === 'function') {
+      return source(read);
+    }
+
+    return source?.[read] ?? '';
+  };
 
   const context: CaptureContext = {
     sandbox: {
       run: async (args) => {
         commands.push(args);
 
+        if (args[0] === 'log') {
+          return readLog();
+        }
+
+        if (args[0] === 'shot') {
+          await options.onShot?.(args[1] ?? '');
+        }
+
         return '';
       },
-      status: async () => ({ zoom: 1, overlays }),
+      status: async () => {
+        statusReads += 1;
+
+        return {
+          zoom: 1,
+          overlays: typeof overlays === 'function' ? overlays() : overlays,
+        };
+      },
     },
+    pickerSettleMilliseconds: 0,
     waitMilliseconds: 0,
   };
 
-  return { commands, context };
+  return { commands, context, logReads: () => logReads, statusReads: () => statusReads };
+};
+
+const statusSequence = (...states: string[][]): (() => string[]) => {
+  let index = 0;
+
+  return () => {
+    const state = states[Math.min(index, states.length - 1)] ?? [];
+
+    index += 1;
+
+    return state;
+  };
+};
+
+const runTool = async (command: string[]): Promise<void> => {
+  const child = Bun.spawn(command, { stdout: 'pipe', stderr: 'pipe' });
+
+  const [stderr, exitCode] = await Promise.all([new Response(child.stderr).text(), child.exited]);
+
+  if (exitCode !== 0) {
+    throw new Error(`${command.join(' ')} failed: ${stderr.trim()}`);
+  }
+};
+
+const writeShot = async (path: string): Promise<void> => {
+  await runTool(['magick', '-size', '800x600', 'xc:white', path]);
+};
+
+const herdrLogPrefix =
+  '\u001b[2m2026-11-23T07:35:27.254072Z\u001b[0m \u001b[32m INFO\u001b[0m \u001b[2mgpui_shell::script\u001b[0m\u001b[2m:\u001b[0m ';
+
+const successContext = (options: FakeSandboxOptions = {}) => {
+  const ready = sceneReadyLine('sidebar');
+
+  return fakeContext(statusSequence([], ['koja-mocks'], ['koja-mocks'], [], []), {
+    logs: ['earlier\n', `earlier\n${herdrLogPrefix}${ready}\n`],
+    ...options,
+  });
 };
 
 const sceneOrigin = { x: 20, y: 40 };
@@ -113,6 +245,357 @@ describe('mock:capture', () => {
       expect(commands).not.toContainEqual(['key', 'Escape']);
 
       expect(await anyOutputExists(folder)).toBe(false);
+    } finally {
+      await rm(root, { recursive: true, force: true });
+    }
+  });
+
+  test('a successful capture replaces all three files as a set and names the requested scene', async () => {
+    const root = await mkdtemp(join(tmpdir(), 'koja-capture-'));
+    const folder = join(root, 'judge', 'sidebar');
+    const { commands, context } = successContext({ onShot: writeShot });
+
+    try {
+      await mkdir(folder, { recursive: true });
+
+      await Promise.all(outputFiles.map((file) => writeFile(join(folder, file), `old ${file}`)));
+
+      await capture(['sidebar', folder], context);
+
+      const record = JSON.parse(await readFile(join(folder, 'capture.json'), 'utf8')) as {
+        scene: string;
+      };
+
+      expect(record.scene).toBe('sidebar');
+
+      for (const file of outputFiles) {
+        const content = await readFile(join(folder, file));
+
+        expect(content.equals(Buffer.from(`old ${file}`))).toBe(false);
+      }
+
+      const shotPath = commands.find(([command]) => command === 'shot')?.[1];
+
+      if (shotPath === undefined) {
+        throw new Error('The capture took no shot.');
+      }
+
+      expect(dirname(shotPath)).not.toBe(folder);
+      expect((await readdir(folder)).toSorted()).toEqual([...outputFiles].toSorted());
+      expect(await readdir(dirname(folder))).toEqual(['sidebar']);
+    } finally {
+      await rm(root, { recursive: true, force: true });
+    }
+  });
+
+  test('a capture with no ready line fails, names the scene, closes the overlay, and leaves earlier files and no staging folder', async () => {
+    const root = await mkdtemp(join(tmpdir(), 'koja-capture-'));
+    const folder = join(root, 'judge', 'sidebar');
+
+    const { commands, context } = fakeContext(
+      statusSequence([], ['koja-mocks'], ['koja-mocks'], []),
+      { logs: ['earlier\n', 'earlier\n'] },
+    );
+
+    try {
+      await mkdir(folder, { recursive: true });
+
+      await Promise.all(outputFiles.map((file) => writeFile(join(folder, file), `old ${file}`)));
+
+      const before = await Promise.all(
+        outputFiles.map(async (file) => [file, await readFile(join(folder, file))] as const),
+      );
+
+      const message = await failureMessageOf(capture(['sidebar', folder], context));
+
+      expect(message).toContain('sidebar');
+      expect(commands).toContainEqual(['key', 'Escape']);
+      expect(commands.filter(([command]) => command === 'shot')).toEqual([]);
+
+      for (const [file, original] of before) {
+        expect((await readFile(join(folder, file))).equals(original)).toBe(true);
+      }
+
+      expect(await readdir(dirname(folder))).toEqual(['sidebar']);
+    } finally {
+      await rm(root, { recursive: true, force: true });
+    }
+  });
+
+  test('a ready line for sidebar-inbox does not satisfy a wait for sidebar', async () => {
+    const root = await mkdtemp(join(tmpdir(), 'koja-capture-'));
+    const folder = join(root, 'judge', 'sidebar');
+    const otherReady = sceneReadyLine('sidebar-inbox');
+
+    const { commands, context } = fakeContext(
+      statusSequence([], ['koja-mocks'], ['koja-mocks'], []),
+      { logs: ['earlier\n', `earlier\n${herdrLogPrefix}${otherReady}\n`] },
+    );
+
+    try {
+      const message = await failureMessageOf(capture(['sidebar', folder], context));
+
+      expect(message).toContain('sidebar');
+      expect(commands.filter(([command]) => command === 'shot')).toEqual([]);
+      expect(await fileExists(folder)).toBe(false);
+    } finally {
+      await rm(root, { recursive: true, force: true });
+    }
+  });
+
+  test('a ready line written before the baseline does not satisfy the wait', async () => {
+    const root = await mkdtemp(join(tmpdir(), 'koja-capture-'));
+    const folder = join(root, 'judge', 'sidebar');
+    const ready = sceneReadyLine('sidebar');
+
+    const { commands, context } = fakeContext(
+      statusSequence([], ['koja-mocks'], ['koja-mocks'], []),
+      { logs: [`earlier\n${ready}\n`, `earlier\n${ready}\n`] },
+    );
+
+    try {
+      const message = await failureMessageOf(capture(['sidebar', folder], context));
+
+      expect(message).toContain('sidebar');
+      expect(commands.filter(([command]) => command === 'shot')).toEqual([]);
+      expect(await fileExists(folder)).toBe(false);
+    } finally {
+      await rm(root, { recursive: true, force: true });
+    }
+  });
+
+  test('a non-file at each output name fails before driving the sandbox and leaves no staging folder', async () => {
+    for (const blockedFile of outputFiles) {
+      const root = await mkdtemp(join(tmpdir(), 'koja-capture-'));
+      const folder = join(root, 'judge', 'sidebar');
+
+      try {
+        await mkdir(folder, { recursive: true });
+
+        const blocked = join(folder, blockedFile);
+
+        await mkdir(blocked);
+        await writeFile(join(blocked, 'keep.txt'), 'keep');
+
+        const { commands, context, logReads, statusReads } = successContext({
+          onShot: writeShot,
+        });
+
+        const message = await failureMessageOf(capture(['sidebar', folder], context));
+
+        expect(message).toContain(blocked);
+        expect(commands).toEqual([]);
+        expect(logReads()).toBe(0);
+        expect(statusReads()).toBe(0);
+        expect(await siblingFolders(folder, 'staging')).toEqual([]);
+        expect(await readFile(join(blocked, 'keep.txt'), 'utf8')).toBe('keep');
+      } finally {
+        await rm(root, { recursive: true, force: true });
+      }
+    }
+  });
+});
+
+describe('publishCapture', () => {
+  test('a failed rename restores the earlier capture files and removes the staging and backup folders', async () => {
+    for (const failedFile of outputFiles) {
+      const root = await mkdtemp(join(tmpdir(), 'koja-publish-'));
+      const folder = join(root, 'judge', 'sidebar');
+
+      try {
+        await writeCaptureFiles(folder, 'old');
+
+        const staging = await stagingFolder(folder);
+
+        await writeCaptureFiles(staging, 'new');
+
+        const before = await readCaptureFiles(folder);
+
+        const failure = await failureMessageOf(
+          publishCapture(staging, folder, async (from, to) => {
+            if (from === join(staging, failedFile) && to === join(folder, failedFile)) {
+              throw new Error('publish failed');
+            }
+
+            await rename(from, to);
+          }),
+        );
+
+        expect(failure).toContain('publish failed');
+        expectSameCapture(await readCaptureFiles(folder), before);
+        expect(await readdir(dirname(folder))).toEqual(['sidebar']);
+      } finally {
+        await rm(root, { recursive: true, force: true });
+      }
+    }
+  });
+
+  test('a failed rename leaves no capture files when the folder had none before', async () => {
+    for (const failedFile of outputFiles) {
+      const root = await mkdtemp(join(tmpdir(), 'koja-publish-'));
+      const folder = join(root, 'judge', 'sidebar');
+
+      try {
+        const staging = await stagingFolder(folder);
+
+        await writeCaptureFiles(staging, 'new');
+
+        const failure = await failureMessageOf(
+          publishCapture(staging, folder, async (from, to) => {
+            if (from === join(staging, failedFile) && to === join(folder, failedFile)) {
+              throw new Error('publish failed');
+            }
+
+            await rename(from, to);
+          }),
+        );
+
+        expect(failure).toContain('publish failed');
+        expect(await anyOutputExists(folder)).toBe(false);
+        expect(await readdir(dirname(folder))).toEqual(['sidebar']);
+      } finally {
+        await rm(root, { recursive: true, force: true });
+      }
+    }
+  });
+
+  test('a failed backup rename leaves every earlier capture file in place', async () => {
+    for (const failedFile of outputFiles) {
+      const root = await mkdtemp(join(tmpdir(), 'koja-publish-'));
+      const folder = join(root, 'judge', 'sidebar');
+
+      try {
+        await writeCaptureFiles(folder, 'old');
+
+        const staging = await stagingFolder(folder);
+        const backupPrefix = `.${basename(folder)}-backup-`;
+
+        await writeCaptureFiles(staging, 'new');
+
+        const before = await readCaptureFiles(folder);
+
+        const failure = await failureMessageOf(
+          publishCapture(staging, folder, async (from, to) => {
+            const targetFolder = basename(dirname(to));
+
+            if (basename(from) === failedFile && targetFolder.startsWith(backupPrefix)) {
+              throw new Error('backup failed');
+            }
+
+            await rename(from, to);
+          }),
+        );
+
+        expect(failure).toContain('backup failed');
+        expectSameCapture(await readCaptureFiles(folder), before);
+        expect(await readdir(dirname(folder))).toEqual(['sidebar']);
+      } finally {
+        await rm(root, { recursive: true, force: true });
+      }
+    }
+  });
+
+  test('a non-file at an output name is refused without moving or deleting anything', async () => {
+    for (const blockedFile of outputFiles) {
+      const root = await mkdtemp(join(tmpdir(), 'koja-publish-'));
+      const folder = join(root, 'judge', 'sidebar');
+
+      try {
+        await writeCaptureFiles(folder, 'old');
+
+        const blocked = join(folder, blockedFile);
+
+        await rm(blocked);
+        await mkdir(blocked);
+        await writeFile(join(blocked, 'keep.txt'), 'keep');
+
+        const staging = await stagingFolder(folder);
+
+        await writeCaptureFiles(staging, 'new');
+
+        const failure = await failureMessageOf(publishCapture(staging, folder));
+
+        expect(failure).toContain(blocked);
+        expect(await readFile(join(blocked, 'keep.txt'), 'utf8')).toBe('keep');
+
+        for (const file of outputFiles) {
+          if (file !== blockedFile) {
+            expect(await readFile(join(folder, file), 'utf8')).toBe(`old ${file}`);
+          }
+        }
+
+        expect(await siblingFolders(folder, 'staging')).toEqual([]);
+        expect(await siblingFolders(folder, 'backup')).toEqual([]);
+      } finally {
+        await rm(root, { recursive: true, force: true });
+      }
+    }
+  });
+
+  test('a read-only target folder leaves the earlier capture and removes staging and backup', async () => {
+    const root = await mkdtemp(join(tmpdir(), 'koja-publish-'));
+    const folder = join(root, 'judge', 'sidebar');
+
+    try {
+      await writeCaptureFiles(folder, 'old');
+
+      const before = await readCaptureFiles(folder);
+
+      await chmod(folder, 0o555);
+
+      const { context } = successContext({ onShot: writeShot });
+      const failure = await failureMessageOf(capture(['sidebar', folder], context));
+
+      expect(failure).not.toBe('no error');
+      expectSameCapture(await readCaptureFiles(folder), before);
+      expect(await siblingFolders(folder, 'staging')).toEqual([]);
+      expect(await siblingFolders(folder, 'backup')).toEqual([]);
+    } finally {
+      await chmod(folder, 0o755).catch(() => undefined);
+      await rm(root, { recursive: true, force: true });
+    }
+  });
+
+  test('a failed restore keeps both folders and names them in the error', async () => {
+    const root = await mkdtemp(join(tmpdir(), 'koja-publish-'));
+    const folder = join(root, 'judge', 'sidebar');
+
+    try {
+      await writeCaptureFiles(folder, 'old');
+
+      const staging = await stagingFolder(folder);
+      const backupPrefix = `.${basename(folder)}-backup-`;
+
+      await writeCaptureFiles(staging, 'new');
+
+      const failure = await failureMessageOf(
+        publishCapture(staging, folder, async (from, to) => {
+          if (from === join(staging, 'crop.png') && to === join(folder, 'crop.png')) {
+            throw new Error('publish failed');
+          }
+
+          const parent = basename(dirname(from));
+
+          if (parent.startsWith(backupPrefix) && basename(from) === 'shot.png') {
+            throw new Error('restore failed');
+          }
+
+          await rename(from, to);
+        }),
+      );
+
+      const backups = await siblingFolders(folder, 'backup');
+      const backup = backups[0];
+
+      if (backup === undefined) {
+        throw new Error('The backup folder was removed.');
+      }
+
+      expect(failure).toContain(backup);
+      expect(failure).toContain(staging);
+      expect(failure).toContain('restore failed');
+      expect(await fileExists(join(backup, 'shot.png'))).toBe(true);
+      expect(await fileExists(join(staging, 'crop.png'))).toBe(true);
     } finally {
       await rm(root, { recursive: true, force: true });
     }

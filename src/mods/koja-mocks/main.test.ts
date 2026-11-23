@@ -1,8 +1,8 @@
-import { afterAll, beforeEach, describe, expect, mock, test } from 'bun:test';
+import { afterAll, beforeEach, describe, expect, mock, spyOn, test } from 'bun:test';
 
 import { gpuiBaseFake, gpuiKitFake, herdrFake, kitIndexFake } from '../../../tests/moduleFakes.ts';
 import { overlaySize } from '../../kit/size.ts';
-import { findScene, sceneOrigin } from './catalog.ts';
+import { findScene, sceneOrigin, sceneReadyLine } from './catalog.ts';
 
 type SubmitHandler = (event: unknown, cx: { notify: () => void }) => void;
 
@@ -98,6 +98,8 @@ await mock.module('../../kit/index.ts', () =>
     stringOf: (value: unknown) => (typeof value === 'string' ? value : null),
   }),
 );
+
+await mock.module('./directions/attention/brief.ts', () => ({ briefScene: chainable }));
 
 const loadView = async (): Promise<{
   init: (props: unknown, cx: unknown) => void;
@@ -226,6 +228,72 @@ describe('scene picker', () => {
     view.render();
 
     expect(shownKinds.at(-1)).toBe('empty');
+  });
+});
+
+describe('scene readiness', () => {
+  test('a rendered scene writes its canonical ready line once', async () => {
+    sceneProps = { scene: ' attention-brief ' };
+    const log = spyOn(console, 'log').mockImplementation(() => undefined);
+
+    try {
+      const view = await loadView();
+
+      view.init(undefined, asyncContext);
+      view.render();
+      view.render();
+
+      expect(log.mock.calls).toEqual([[sceneReadyLine('attention-brief')]]);
+    } finally {
+      log.mockRestore();
+    }
+  });
+
+  test('the picker writes no ready line', async () => {
+    const log = spyOn(console, 'log').mockImplementation(() => undefined);
+
+    try {
+      const view = await loadView();
+
+      view.init(undefined, asyncContext);
+      view.render();
+
+      expect(log).not.toHaveBeenCalled();
+    } finally {
+      log.mockRestore();
+    }
+  });
+
+  test('an unknown scene writes no ready line', async () => {
+    sceneProps = { scene: 'no-such-scene' };
+    const log = spyOn(console, 'log').mockImplementation(() => undefined);
+
+    try {
+      const view = await loadView();
+
+      view.init(undefined, asyncContext);
+      view.render();
+
+      expect(log).not.toHaveBeenCalled();
+    } finally {
+      log.mockRestore();
+    }
+  });
+
+  test('a scene without its inputs writes no ready line', async () => {
+    const log = spyOn(console, 'log').mockImplementation(() => undefined);
+
+    try {
+      const view = await loadView();
+
+      view.init(undefined, asyncContext);
+      sceneProps = { scene: 'attention-brief' };
+      view.render();
+
+      expect(log).not.toHaveBeenCalled();
+    } finally {
+      log.mockRestore();
+    }
   });
 });
 

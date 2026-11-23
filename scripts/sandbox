@@ -11,6 +11,7 @@
 #   scripts/sandbox do <action> [json]   / status   drive it (herdr-app do / status)
 #   scripts/sandbox hc <args>     hc against the sandbox core
 #   scripts/sandbox shot [file]   screenshot of the window, in window pixels
+#   scripts/sandbox lock <command>  run a command under the sandbox capture lock
 #   scripts/sandbox move|click|drag|scroll|type|key|hold|release ...   fake input (window px)
 #   scripts/sandbox log           the window's log
 #   scripts/sandbox opened        links the window asked to open (logged, never opened)
@@ -73,6 +74,27 @@ case ${1:-} in
   '' | guide | identity | log | opened | shot | status) ;;
   *) refuse_other_checkout ;;
 esac
+
+root_identity() {
+  stat -c '%d:%i:%w' -- "$root" 2>/dev/null
+}
+
+require_generation() {
+  if [[ -z ${KOJA_SANDBOX_ROOT_ID:-} ]]; then
+    return 0
+  fi
+
+  local current
+  current=$(root_identity) || {
+    echo "sandbox $name root $root disappeared under a running capture" >&2
+    exit 1
+  }
+
+  if [[ $current != "$KOJA_SANDBOX_ROOT_ID" ]]; then
+    echo "sandbox $name root $root was replaced under a running capture" >&2
+    exit 1
+  fi
+}
 
 find_binary() {
   local chosen=${HERDR_APP_BIN:-}
@@ -138,6 +160,8 @@ window_state() {
   fi
 }
 
+require_generation
+
 case ${1:-} in
   up | restart)
     command=$1
@@ -162,6 +186,35 @@ case ${1:-} in
     cd "$checkout"
     exec ruta shot ${file:+"$file"}
     ;;
+  lock)
+    shift
+    if (( $# == 0 )); then
+      echo "usage: scripts/sandbox lock <command>..." >&2
+      exit 2
+    fi
+    expected=$(root_identity) || {
+      echo "sandbox $name is not up; run 'scripts/sandbox up' first" >&2
+      exit 1
+    }
+    # The lock file sits beside the root, so replacing the root cannot split one lock in two.
+    exec flock --exclusive "$root.capture.lock" sh -c '
+      root=$1
+      name=$2
+      expected=$3
+      shift 3
+      current=$(stat -c "%d:%i:%w" -- "$root") || {
+        printf "sandbox %s root %s disappeared while waiting for the capture lock\n" "$name" "$root" >&2
+        exit 1
+      }
+      if [ "$current" != "$expected" ]; then
+        printf "sandbox %s root %s was replaced while waiting for the capture lock\n" "$name" "$root" >&2
+        exit 1
+      fi
+      export KOJA_SANDBOX_ROOT_ID="$current"
+      exec "$@"
+    ' sh "$root" "$name" "$expected" "$@"
+    ;;
+  guard) require_up ;;
   down)
     failed=0
     "$here/sandbox-machine" down || failed=1

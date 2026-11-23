@@ -16,7 +16,7 @@ import {
   stateLine,
   stringOf,
 } from '../../kit/index.ts';
-import { findScene, sceneOrigin } from './catalog.ts';
+import { findScene, sceneOrigin, sceneReadyLine } from './catalog.ts';
 import type { SceneName } from './catalog.ts';
 import { briefScene } from './directions/attention/brief.ts';
 import { cornerScene } from './directions/attention/corner.ts';
@@ -72,6 +72,11 @@ import {
   paletteNearPass,
 } from './scenes/smoke/palette.ts';
 import { statesScene } from './scenes/states.ts';
+
+interface SceneRender {
+  element: Element;
+  readyName: SceneName | null;
+}
 
 const renderers: Record<SceneName, (inputs: SceneInputs) => Element> = {
   sidebar: sidebarScene,
@@ -240,6 +245,8 @@ export default class Mocks extends View {
 
   private readonly input: InputState = InputStates.new({ placeholder: 'Scene name…' });
 
+  private readyLogged = false;
+
   private sceneInputs: SceneInputs | null = null;
 
   override init(_props: unknown, cx: AsyncContext): void {
@@ -268,7 +275,19 @@ export default class Mocks extends View {
   override render(): Element {
     const name = sceneName();
 
-    return name === null ? this.picker() : this.scene(name);
+    if (name === null) {
+      return this.picker();
+    }
+
+    const scene = this.scene(name);
+
+    if (scene.readyName !== null && !this.readyLogged) {
+      this.readyLogged = true;
+      // eslint-disable-next-line no-console -- Herdr's mod log is console.log.
+      console.log(sceneReadyLine(scene.readyName));
+    }
+
+    return scene.element;
   }
 
   private focusSelf(): void {
@@ -318,8 +337,9 @@ export default class Mocks extends View {
     return this.tracked(surface);
   }
 
-  private scene(name: string): Element {
+  private scene(name: string): SceneRender {
     const content = this.sceneContent(name);
+    const title = content.readyName ?? name;
 
     const closeButton = iconButton({ name: 'x', size: 'small' })
       .accessibility_label('Close scene')
@@ -333,7 +353,7 @@ export default class Mocks extends View {
       .justify_between()
       .items_center()
       .px(spacing.large)
-      .child(detailText(name))
+      .child(detailText(title))
       .child(closeButton);
 
     const surface = popupSurface('mocks-scene')
@@ -345,23 +365,28 @@ export default class Mocks extends View {
         }
       })
       .child(header)
-      .child(content);
+      .child(content.element);
 
-    return this.tracked(surface);
+    return { element: this.tracked(surface), readyName: content.readyName };
   }
 
-  private sceneContent(name: string): Element {
+  private sceneContent(name: string): SceneRender {
     const lookup = findScene(name);
 
     if ('error' in lookup) {
-      return stateLine({ kind: 'error', text: lookup.error });
+      return { element: stateLine({ kind: 'error', text: lookup.error }), readyName: null };
     }
 
     if (this.sceneInputs === null) {
-      return stateLine({ kind: 'error', text: 'The scene opened without its inputs.' });
+      const element = stateLine({ kind: 'error', text: 'The scene opened without its inputs.' });
+
+      return { element, readyName: null };
     }
 
-    return renderers[lookup.scene.name](this.sceneInputs);
+    return {
+      element: renderers[lookup.scene.name](this.sceneInputs),
+      readyName: lookup.scene.name,
+    };
   }
 
   private tracked(element: Element): Element {
