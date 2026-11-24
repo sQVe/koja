@@ -33,6 +33,7 @@ cgroup_root=/sys/fs/cgroup
 boot_id_file=/proc/sys/kernel/random/boot_id
 stop_timeout=5
 manager_timeout=10
+start_job_timeout=3
 
 sandbox() {
   "$checkout/scripts/sandbox" "$@"
@@ -412,6 +413,26 @@ write_state() {
 }
 
 read_and_verify_state() {
+  local deadline=$(( $(now_ms) + start_job_timeout * 1000 ))
+  local status
+
+  while :; do
+    read_and_verify_state_once
+    status=$?
+    if (( status != 5 )); then
+      return "$status"
+    fi
+
+    if (( $(now_ms) >= deadline )); then
+      echo "fixture service $state_service has an incomplete start job" >&2
+      return 1
+    fi
+
+    sleep 0.1
+  done
+}
+
+read_and_verify_state_once() {
   local load current_boot expected job_status receipt_present=0
 
   if [[ ! -e $state_file ]]; then
@@ -442,8 +463,7 @@ read_and_verify_state() {
     fi
 
     if (( job_status == 0 )); then
-      echo "fixture service $state_service has an incomplete start job" >&2
-      return 1
+      return 5
     fi
 
     expected=$(expected_cgroup "$state_service")

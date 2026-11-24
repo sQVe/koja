@@ -1,7 +1,7 @@
 import { afterEach, beforeEach, describe, expect, test } from 'bun:test';
 import { randomBytes } from 'node:crypto';
 import { once } from 'node:events';
-import { chmod, mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
+import { chmod, lstat, mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import { createServer } from 'node:net';
 import type { Server } from 'node:net';
 import { tmpdir } from 'node:os';
@@ -174,6 +174,10 @@ case $command in
     exit 0
     ;;
   list-jobs)
+    if [ -n "\${FAKE_JOB_MARKER:-}" ] && [ -e "$FAKE_JOB_MARKER" ]; then
+      printf '1 job start\\n'
+      exit 0
+    fi
     if [ "\${FAKE_JOB_RESULT:-none}" = present ]; then
       printf '1 job start\\n'
     fi
@@ -324,12 +328,24 @@ const listMachinesFails = `if [ "$1" = machine ] && [ "$2" = ls ]; then
   exit 1
 fi`;
 
-const readFixtureFiles = async (): Promise<Buffer[]> =>
+const readProofFiles = async (folder: string): Promise<Buffer[]> =>
   Promise.all([
-    readFile(stateFile),
-    readFile(receiptFile),
-    readFile(join(machine, 'fixture-proof')),
+    readFile(join(folder, 'ownership.json')),
+    readFile(join(folder, 'launch-receipt.json')),
+    readFile(join(folder, 'fixture-proof')),
   ]);
+
+const readFixtureFiles = async (): Promise<Buffer[]> => readProofFiles(machine);
+
+const pathExists = async (path: string): Promise<boolean> => {
+  try {
+    await lstat(path);
+
+    return true;
+  } catch {
+    return false;
+  }
+};
 
 const writeFakeRm = async (folder: string): Promise<string> => {
   const calls = join(folder, 'calls');
@@ -2073,16 +2089,20 @@ describe('scripts/sandbox-machine fixture unregistration', () => {
     }
   });
 
-  test('sets the machine aside and fails when the discarded folder cannot be removed', async () => {
+  test('sets the machine aside and keeps its proofs when the discard cannot be removed', async () => {
     const service = serviceName();
     const manager = await newTemporaryFolder('koja-machine-manager-');
     const rmFolder = await newTemporaryFolder('koja-machine-rm-');
     const calls = await writeFakeRm(rmFolder);
+    const launched = join(manager, 'launched');
 
     await writeFakeSystemctl(manager);
+    await writeProgram(join(manager, 'systemd-run'), `touch '${launched}'`);
     await writeOwnership(ownership(service));
     await writeReceipt(receipt(service));
     await writeFile(join(machine, 'fixture-proof'), 'kept\n');
+
+    const before = await readFixtureFiles();
 
     const down = await runDown({
       FAKE_MANAGER_DIR: manager,
@@ -2090,15 +2110,17 @@ describe('scripts/sandbox-machine fixture unregistration', () => {
     });
 
     expect(down.exitCode).not.toBe(0);
-    expect(await Bun.file(stateFile).exists()).toBe(false);
-    expect(await Bun.file(receiptFile).exists()).toBe(false);
-    expect(await Bun.file(join(machine, 'fixture-proof')).exists()).toBe(false);
+    expect(await Bun.file(join(manager, 'calls')).exists()).toBe(false);
+    expect(await Bun.file(launched).exists()).toBe(false);
+    expect(await pathExists(machine)).toBe(false);
+    expect(await pathExists(join(root, 'machine.removing'))).toBe(true);
+    expect(await readProofFiles(join(root, 'machine.removing'))).toEqual(before);
     expect(await readFile(calls, 'utf8')).toContain('-rf');
 
     const retry = await runDown({ FAKE_MANAGER_DIR: manager, PATH: pathWith(manager) });
 
     expect(retry.exitCode).toBe(0);
-    expect(await Bun.file(join(root, 'machine.removing')).exists()).toBe(false);
+    expect(await pathExists(join(root, 'machine.removing'))).toBe(false);
   });
 
   test('treats a reachable valid empty machine list as already unregistered', async () => {
@@ -2850,6 +2872,81 @@ describe('scripts/sandbox-machine interrupted fixture replacement', () => {
     expect(down.exitCode).toBe(0);
   });
 
+  test('keeps the record when a replacement is interrupted after stopping a verified service', async () => {
+    const service = serviceName();
+    const manager = await newTemporaryFolder('koja-machine-manager-');
+    const environment = { FAKE_MANAGER_DIR: manager, PATH: pathWith(manager) };
+
+    await writeFakeSystemctl(manager);
+    await writeUnit(manager, service, unitProperties(service, { ActiveState: 'failed' }));
+    await writeOwnership(ownership(service));
+    await writeReceipt(receipt(service));
+    await writeFile(join(machine, 'fixture-proof'), 'kept\n');
+
+    const interrupted = await runBash(upCommand('check_capability'), environment);
+
+    expect(interrupted.exitCode).toBe(130);
+    expect(await Bun.file(stateFile).exists()).toBe(true);
+    expect(await Bun.file(receiptFile).exists()).toBe(false);
+
+    const retry = await runBash(upCommand(null), environment);
+
+    expect(retry.exitCode).toBe(0);
+  });
+
+  test('does not start a replacement when the machine cannot be unregistered', async () => {
+    const service = serviceName();
+    const manager = await newTemporaryFolder('koja-machine-manager-');
+    const failFlag = join(await newTemporaryFolder('koja-machine-hc-'), 'rm-fails');
+    const started = join(await newTemporaryFolder('koja-machine-started-'), 'started');
+    const core = await openCoreSocket();
+
+    const calls = await writeFakeHc(
+      `${listMachines(registeredMachines)}\n${removeMachine(failFlag)}`,
+    );
+
+    await writeFakeSystemctl(manager);
+    await writeOwnership(ownership(service));
+    await writeReceipt(receipt(service));
+    await writeFile(join(machine, 'fixture-proof'), 'kept\n');
+    await writeFile(failFlag, '');
+
+    try {
+      const result = await runBash(
+        `
+          set -euo pipefail
+          source '${machineScript}'
+          sandbox() {
+            if [ "$1" = hc ]; then
+              shift
+              PATH="$root/bin:$PATH" hc "$@"
+            else
+              return 1
+            fi
+          }
+          require_up() { return 0; }
+          check_capability() { touch "$STARTED"; }
+          free_port() { echo 23456; }
+          copy_core() { return 0; }
+          start_service() { touch "$STARTED"; }
+          wait_for_ssh() { return 0; }
+          make_fixture() { return 0; }
+          add_machine() { return 0; }
+          up
+        `,
+        { FAKE_MANAGER_DIR: manager, PATH: pathWith(manager), STARTED: started },
+      );
+
+      expect(result.exitCode).not.toBe(0);
+      expect(result.output).toContain('fake rm failure 7');
+      expect(await Bun.file(started).exists()).toBe(false);
+      expect(await Bun.file(stateFile).exists()).toBe(true);
+      expect(await readFile(calls, 'utf8')).toContain('machine rm qa-remote');
+    } finally {
+      core.close();
+    }
+  });
+
   for (const step of [
     'check_capability',
     'copy_core',
@@ -2941,11 +3038,12 @@ describe('scripts/sandbox-machine interrupted fixture removal', () => {
 
     expect(interrupted.exitCode).not.toBe(0);
     await expectNoSetupWithoutRecord();
+    expect(await pathExists(join(root, 'machine.removing'))).toBe(true);
 
     const retry = await runDown({ FAKE_MANAGER_DIR: manager, PATH: pathWith(manager) });
 
     expect(retry.exitCode).toBe(0);
-    expect(await Bun.file(join(root, 'machine.removing')).exists()).toBe(false);
+    expect(await pathExists(join(root, 'machine.removing'))).toBe(false);
   });
 
   test('the next down resolves an interruption during the removal of the discarded machine', async () => {
@@ -2961,11 +3059,12 @@ describe('scripts/sandbox-machine interrupted fixture removal', () => {
 
     expect(interrupted.exitCode).not.toBe(0);
     await expectNoSetupWithoutRecord();
+    expect(await pathExists(join(root, 'machine.removing'))).toBe(true);
 
     const retry = await runDown({ FAKE_MANAGER_DIR: manager, PATH: pathWith(manager) });
 
     expect(retry.exitCode).toBe(0);
-    expect(await Bun.file(join(root, 'machine.removing')).exists()).toBe(false);
+    expect(await pathExists(join(root, 'machine.removing'))).toBe(false);
   });
 
   test('the next up resolves a removal that an interruption left without a record', async () => {
@@ -2988,6 +3087,85 @@ describe('scripts/sandbox-machine interrupted fixture removal', () => {
     });
 
     expect(retry.exitCode).toBe(0);
-    expect(await Bun.file(join(root, 'machine.removing')).exists()).toBe(false);
+    expect(await pathExists(join(root, 'machine.removing'))).toBe(false);
+  });
+});
+
+describe('scripts/sandbox-machine pending start job', () => {
+  test('waits for a start job to settle before treating the record as a conflict', async () => {
+    const service = serviceName();
+    const manager = await newTemporaryFolder('koja-machine-manager-');
+    const marker = join(await newTemporaryFolder('koja-machine-job-'), 'pending');
+    const invocation = 'b'.repeat(32);
+    const unit = join(manager, `${service}.json`);
+    const pendingUnit = join(manager, `${service}.json.pending`);
+
+    await writeFakeSystemctl(manager);
+    await writeOwnership(ownership(service, { invocationId: '', cgroup: '' }));
+    await writeReceipt(receipt(service, { invocationId: invocation }));
+
+    await writeFile(
+      pendingUnit,
+      JSON.stringify(unitProperties(service, { InvocationID: invocation })),
+    );
+
+    await writeFile(marker, '');
+
+    spawnShell(`sleep 0.4; mv '${pendingUnit}' '${unit}'; rm -f '${marker}'`);
+
+    const down = await runDown({
+      FAKE_JOB_MARKER: marker,
+      FAKE_MANAGER_DIR: manager,
+      PATH: pathWith(manager),
+    });
+
+    expect(down.exitCode).toBe(0);
+    expect(await Bun.file(stateFile).exists()).toBe(false);
+  }, 30_000);
+});
+
+describe('scripts/sandbox-machine discarded folder', () => {
+  test('down fails when the discarded folder of an earlier removal cannot be removed', async () => {
+    const rmFolder = await newTemporaryFolder('koja-machine-rm-');
+    const leftover = join(root, 'machine.removing', 'leftover');
+
+    await writeProgram(join(rmFolder, 'rm'), 'exit 1');
+    await mkdir(join(root, 'machine.removing'), { recursive: true });
+    await writeFile(leftover, 'left\n');
+
+    const down = await runDown({ PATH: pathWith(rmFolder) });
+
+    expect(down.exitCode).not.toBe(0);
+    expect(await pathExists(leftover)).toBe(true);
+
+    const retry = await runDown({ PATH: pathWith() });
+
+    expect(retry.exitCode).toBe(0);
+    expect(await pathExists(leftover)).toBe(false);
+  });
+
+  test('up fails before setup when the discarded folder of an earlier removal cannot be removed', async () => {
+    const rmFolder = await newTemporaryFolder('koja-machine-rm-');
+    const started = join(await newTemporaryFolder('koja-machine-started-'), 'started');
+    const leftover = join(root, 'machine.removing', 'leftover');
+
+    await writeProgram(join(rmFolder, 'rm'), 'exit 1');
+    await mkdir(join(root, 'machine.removing'), { recursive: true });
+    await writeFile(leftover, 'left\n');
+
+    const result = await runBash(
+      `
+        set -euo pipefail
+        source '${machineScript}'
+        require_up() { return 0; }
+        check_capability() { touch "$STARTED"; }
+        up
+      `,
+      { PATH: pathWith(rmFolder), STARTED: started },
+    );
+
+    expect(result.exitCode).not.toBe(0);
+    expect(await Bun.file(started).exists()).toBe(false);
+    expect(await pathExists(leftover)).toBe(true);
   });
 });
