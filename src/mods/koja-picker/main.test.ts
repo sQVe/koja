@@ -360,7 +360,10 @@ describe('picker overlay state', () => {
     view.init(undefined, asyncContext);
     view.render();
 
-    inputValue = 'zzz';
+    const query = 'zzz';
+
+    inputValue = query;
+    expect(inputChange).not.toBeNull();
     inputChange?.(renderedContext);
     view.render();
 
@@ -380,7 +383,7 @@ describe('picker overlay state', () => {
       view.render();
 
       expect(emptyText).toContain(label);
-      expect(emptyText).toContain(inputValue);
+      expect(emptyText).toContain(query);
       expect(emptyText).not.toBe(allText);
     }
   });
