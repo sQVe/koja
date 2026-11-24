@@ -78,20 +78,18 @@ const settle = async (): Promise<void> => {
   }
 };
 
-const start = (listener?: Listener): HandleLike =>
-  loaded.watchFolderChanges(
-    watchFolder,
-    '/repo',
-    context,
-    listener ?? {
-      onChange: () => {
-        changes += 1;
-      },
-      onError: () => {
-        errors += 1;
-      },
-    },
-  );
+const countChange = (): void => {
+  changes += 1;
+};
+
+const countError = (): void => {
+  errors += 1;
+};
+
+const countingListener = (): Listener => ({ onChange: countChange, onError: countError });
+
+const start = (custom?: Listener): HandleLike =>
+  loaded.watchFolderChanges(watchFolder, '/repo', context, custom ?? countingListener());
 
 const latest = (): Watch => {
   const watch = watches.at(-1);
@@ -140,12 +138,10 @@ describe('watchFolderChanges', () => {
   test('a cancel inside a change starts no next watch', async () => {
     const handle = start({
       onChange: () => {
-        changes += 1;
+        countChange();
         handle.cancel();
       },
-      onError: () => {
-        errors += 1;
-      },
+      onError: countError,
     });
 
     latest().resolve(['/repo/a']);

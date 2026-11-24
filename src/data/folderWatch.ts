@@ -21,27 +21,28 @@ export const watchFolderChanges = (
   let pending = watchFolder(folder);
   let cancelled = false;
 
+  const isCancelled = (): boolean => cancelled;
+
   cx.spawn(async (taskCx) => {
     try {
       for (;;) {
         // eslint-disable-next-line no-await-in-loop -- one folder watch at a time
         await pending;
 
-        if (cancelled) {
+        if (isCancelled()) {
           return;
         }
 
         listener.onChange(taskCx);
 
-        // eslint-disable-next-line typescript/no-unnecessary-condition -- the listener may cancel through the handle
-        if (cancelled) {
+        if (isCancelled()) {
           return;
         }
 
         pending = watchFolder(folder);
       }
     } catch {
-      if (!cancelled) {
+      if (!isCancelled()) {
         listener.onError(taskCx);
       }
     }
