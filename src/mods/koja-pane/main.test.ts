@@ -7,7 +7,7 @@ import { recordOf, stringOf } from '../../kit/fields.ts';
 import { normalFocusFill, toPalette } from '../../kit/palette.ts';
 import { paneHeaderFields } from '../../kit/paneHeaderFields.ts';
 import { paneActions } from '../../kit/paneHeaderMenuModel.ts';
-import { controlSize, overlaySize, paneHeaderWidth } from '../../kit/size.ts';
+import { controlSize, overlaySize, paneHeaderWidth, spacing } from '../../kit/size.ts';
 import { taskOfPane } from '../../kit/tabLabel.ts';
 
 const accent = '#4e4e8f';
@@ -153,6 +153,7 @@ await mock.module('../../kit/index.ts', () =>
       return badge;
     },
     roleText: (_role: string, text: string) => textElement(text),
+    spacing,
     stringOf,
     taskOfPane,
     withTextRole: (element: unknown) => element,
@@ -558,6 +559,14 @@ describe('pane header buttons', () => {
 
     expect(branch?.styles['ml_auto']).toBeUndefined();
     expect(elementsWithStyle(branchGroup ?? drawn(), 'accessibility_label')).toHaveLength(4);
+  });
+
+  test('a wide header keeps its gap between the hovered buttons when no task or mark sits beside them', () => {
+    const tree = renderedHoveredAt(900);
+    const group = tree.kids.find((kid) => kid.styles['ml_auto'] !== undefined);
+
+    expect(group?.styles['gap']).toEqual(tree.styles['gap']);
+    expect(elementsWithStyle(group ?? drawn(), 'accessibility_label')).toHaveLength(4);
   });
 
   test('a 233 px header with a built-in role draws its folder', () => {
