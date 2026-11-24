@@ -565,7 +565,7 @@ describe('pane header buttons', () => {
     const tree = renderedHoveredAt(900);
     const group = tree.kids.find((kid) => kid.styles['ml_auto'] !== undefined);
 
-    expect(group?.styles['gap']).toEqual(tree.styles['gap']);
+    expect(group?.styles['gap']).toEqual([spacing.medium]);
     expect(elementsWithStyle(group ?? drawn(), 'accessibility_label')).toHaveLength(4);
   });
 
