@@ -109,14 +109,14 @@ const outputOf = (args: string[], result: ExecResult): string => {
   const output = stripFinalNewline(result.stdout);
 
   if (output.trim() === '') {
-    throw new Error(`${describeCommand(args)} printed nothing`);
+    throw new Error(`${describeCommand(args)} printed no output`);
   }
 
   return output;
 };
 
 const parsePath = (line: string | undefined): string => {
-  if (line === undefined || line === '') {
+  if (line === undefined || line.trim() === '') {
     throw new Error(`${describeCommand(layoutArgs)} printed no path`);
   }
 

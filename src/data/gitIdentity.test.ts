@@ -57,13 +57,13 @@ const withTemp = async (body: (root: string) => Promise<void>): Promise<void> =>
 };
 
 const makeRepository = async (root: string, name = 'main'): Promise<string> => {
-  const main = join(root, name);
+  const folder = join(root, name);
 
-  await mkdir(main);
-  await git(main, 'init', '--quiet', '--initial-branch=main');
-  await git(main, 'commit', '--quiet', '--allow-empty', '-m', 'first');
+  await mkdir(folder);
+  await git(folder, 'init', '--quiet', '--initial-branch=main');
+  await git(folder, 'commit', '--quiet', '--allow-empty', '-m', 'first');
 
-  return main;
+  return folder;
 };
 
 const read = (folder: string, machine: string | null = null): Promise<GitIdentity> =>
@@ -349,6 +349,13 @@ describe('readGitIdentity', () => {
 
   test('gives a failed read when the layout output has an empty git folder', async () => {
     const run = fakeRunner(() => exitWith(0, 'false\nfalse\n\n/work/.git\n'));
+    const identity = await readGitIdentity(run, null, '/work');
+
+    expect(identity.kind).toBe('failed');
+  });
+
+  test('gives a failed read when the layout output has a spaces-only git folder', async () => {
+    const run = fakeRunner(() => exitWith(0, 'false\nfalse\n   \n/work/.git\n'));
     const identity = await readGitIdentity(run, null, '/work');
 
     expect(identity.kind).toBe('failed');
