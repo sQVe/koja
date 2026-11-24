@@ -12,7 +12,7 @@ const longTask = 'Move pane headers onto the shared kit part';
 const longBranch = 'me-1089-window-shell-layout-and-tab-bar';
 const longFolder = '~/code/koja/packages/desktop/src/mods/koja-mocks';
 
-const fixedWithFour = 210;
+const fixedWithFour = 228;
 const fixedCompact = 138;
 
 const branchFull =

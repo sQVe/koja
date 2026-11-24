@@ -193,7 +193,7 @@ const actionRow = (
     return endAligned ? compact.ml_auto() : compact;
   }
 
-  const row = h_flex().flex_none().gap(spacing.xxsmall).children(headerButtons(options));
+  const row = h_flex().flex_none().gap(paneHeaderWidth.gap).children(headerButtons(options));
 
   if (endAligned) {
     row.ml_auto();
@@ -217,7 +217,7 @@ export const paneHeader = (options: PaneHeaderOptions): Element => {
     .h(controlSize.sectionHeader)
     .flex_none()
     .px(spacing.large)
-    .gap(spacing.medium)
+    .gap(paneHeaderWidth.gap)
     .items_center()
     .overflow_hidden()
     .border_b(spacing.hairline)
