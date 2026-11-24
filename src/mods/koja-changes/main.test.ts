@@ -107,7 +107,6 @@ const context = {
   spawn: (callback: (cx: unknown) => Promise<void>) => {
     if (failNextSpawn) {
       failNextSpawn = false;
-      failDiff = false;
 
       throw new Error('task limit reached');
     }
@@ -286,6 +285,7 @@ beforeEach(() => {
   watchers.length = 0;
   spawnErrors.length = 0;
   failNextSpawn = false;
+  failDiff = false;
   inputHandlers.clear();
 });
 

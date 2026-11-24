@@ -34,7 +34,7 @@ const previewFailureNote = (error: unknown): string => {
   const oneLine = detail.replace(/\s+/g, ' ').trim();
 
   if (oneLine === '') {
-    return 'Cannot preview this diff (too large or unreadable)';
+    return 'Cannot preview this diff';
   }
 
   return `Cannot preview this diff: ${oneLine}`;
