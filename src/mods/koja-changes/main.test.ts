@@ -71,6 +71,8 @@ let renderedNote: string | null = null;
 
 let renderedDiff: unknown[] = [];
 
+let renderedDiffWidth = 0;
+
 const commands: string[][] = [];
 
 const watchers: Watch[] = [];
@@ -193,7 +195,7 @@ await mock.module('herdr', () =>
       }
 
       if (args.includes('diff')) {
-        return { code: 0, stdout: '@@ -1 +1 @@\n-old\n+new', stderr: '' };
+        return { code: 0, stdout: `@@ -1 +1 @@\n-old\n+${'n'.repeat(60)}`, stderr: '' };
       }
 
       return { code: 0, stdout: '', stderr: '' };
@@ -238,8 +240,9 @@ await mock.module('./rows.ts', () => ({
 
     return chainable();
   },
-  diffArea: (rows: unknown[]) => {
+  diffArea: (rows: unknown[], diffWidth: number) => {
     renderedDiff = rows;
+    renderedDiffWidth = diffWidth;
 
     return chainable();
   },
@@ -267,6 +270,7 @@ beforeEach(() => {
   renderedCommit = null;
   renderedNote = null;
   renderedDiff = [];
+  renderedDiffWidth = 0;
   commands.length = 0;
   watchers.length = 0;
   spawnErrors.length = 0;
@@ -696,7 +700,8 @@ describe('Changes view', () => {
 
     const paths = (renderedList?.files ?? []).map((file) => file.path);
     const open = renderedList?.open ?? null;
-    const diff = renderedDiff;
+    const diff = [...renderedDiff];
+    const diffWidth = renderedDiffWidth;
 
     failNextSpawn = true;
     renderedList?.onPick('b.ts', context);
@@ -707,6 +712,7 @@ describe('Changes view', () => {
     expect((renderedList?.files ?? []).map((file) => file.path)).toEqual(paths);
     expect(renderedList?.open).toBe(open);
     expect(renderedDiff).toEqual(diff);
+    expect(renderedDiffWidth).toBe(diffWidth);
   });
 
   test('a background refresh requests a redraw before its read finishes', async () => {

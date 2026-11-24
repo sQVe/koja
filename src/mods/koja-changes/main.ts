@@ -29,6 +29,12 @@ const millisecondsPerSecond = 1000;
 
 const nowSeconds = (): number => Math.floor(Date.now() / millisecondsPerSecond);
 
+const previewFailureNote = (error: unknown): string => {
+  const detail = error instanceof Error ? error.message : String(error);
+
+  return `Cannot preview this diff: ${detail}`;
+};
+
 export default class Changes extends View {
   private state: ReadState = emptyReadState();
 
@@ -309,9 +315,9 @@ export default class Changes extends View {
           () => this.state.lastGood?.snapshot ?? null,
           () => locationKey() === context && this.open === openPath,
         );
-      } catch {
+      } catch (error) {
         if (locationKey() === context && this.open === openPath) {
-          this.preview.setLines(['Cannot preview this diff (too large or unreadable)']);
+          this.preview.setLines([previewFailureNote(error)]);
         }
       }
     }
@@ -366,16 +372,6 @@ export default class Changes extends View {
     const openPath = this.open === path ? null : path;
     const context = this.context;
 
-    if (openPath === null || context === null) {
-      this.open = openPath;
-      this.preview.setLines([]);
-      this.note = null;
-      this.closed = openPath === null;
-      cx.notify();
-
-      return;
-    }
-
     const previous = {
       open: this.open,
       closed: this.closed,
@@ -386,7 +382,13 @@ export default class Changes extends View {
     this.open = openPath;
     this.preview.setLines([]);
     this.note = null;
-    this.closed = false;
+    this.closed = openPath === null;
+
+    if (openPath === null || context === null) {
+      cx.notify();
+
+      return;
+    }
 
     const refusal = this.spawnTask(cx, async (taskCx) => {
       try {
@@ -397,7 +399,7 @@ export default class Changes extends View {
         );
       } catch (error) {
         if (locationKey() === context && this.open === openPath) {
-          this.note = `Cannot preview this diff: ${String(error)}`;
+          this.note = previewFailureNote(error);
         }
       }
 
@@ -409,7 +411,7 @@ export default class Changes extends View {
       this.closed = previous.closed;
       this.preview.rows = previous.rows;
       this.preview.diffWidth = previous.width;
-      this.note = `Cannot preview this diff: ${refusal.message}`;
+      this.note = previewFailureNote(refusal);
     }
 
     cx.notify();
