@@ -276,6 +276,7 @@ const loadView = async (): Promise<ChangesView> => {
 
   view.render = (cx) => {
     rendering = true;
+    renderedNote = null;
 
     try {
       return render(cx);
@@ -664,6 +665,7 @@ describe('Changes view', () => {
     view.render(context);
 
     const before = statusReads;
+    const commits = commitCommands();
 
     failNextSpawn = true;
     renderedCommit?.onCommit(context);
@@ -671,12 +673,28 @@ describe('Changes view', () => {
     view.render(context);
 
     expect(renderedNote).toContain('Commit failed');
+    expect(commitCommands()).toBe(commits);
+    expect(inputValue).toBe('Review fixture');
     expect(renderedCommit?.enabled).toBe(true);
 
     view.refresh(context);
     await settle();
 
     expect(statusReads).toBeGreaterThan(before);
+  });
+
+  test('a file pick whose task cannot start shows the note and keeps the files', async () => {
+    const view = await boot();
+
+    const files = renderedList?.files ?? [];
+
+    failNextSpawn = true;
+    renderedList?.onPick('b.ts', context);
+    await settle();
+    view.render(context);
+
+    expect(renderedNote).toContain('Cannot preview this diff');
+    expect(renderedList?.files).toEqual(files);
   });
 
   test('a background refresh requests a redraw before its read finishes', async () => {

@@ -395,7 +395,7 @@ export default class Changes extends View {
     });
 
     if (refusal !== null) {
-      this.note = `Cannot preview this diff (too large or unreadable): ${refusal.message}`;
+      this.note = `Cannot preview this diff: ${refusal.message}`;
     }
 
     cx.notify();
