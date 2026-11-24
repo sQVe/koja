@@ -81,6 +81,8 @@ const spawnErrors: unknown[] = [];
 
 let failNextSpawn = false;
 
+let failDiff = false;
+
 const inputHandlers = new Map<string, (event: unknown, cx: unknown) => void>();
 
 const input = {
@@ -105,6 +107,7 @@ const context = {
   spawn: (callback: (cx: unknown) => Promise<void>) => {
     if (failNextSpawn) {
       failNextSpawn = false;
+      failDiff = false;
 
       throw new Error('task limit reached');
     }
@@ -195,6 +198,14 @@ await mock.module('herdr', () =>
       }
 
       if (args.includes('diff')) {
+        if (failDiff) {
+          return {
+            code: 128,
+            stdout: '',
+            stderr: 'fatal: ambiguous argument\nUse -- to separate paths',
+          };
+        }
+
         return { code: 0, stdout: `@@ -1 +1 @@\n-old\n+${'n'.repeat(60)}`, stderr: '' };
       }
 
@@ -337,6 +348,22 @@ describe('Changes view', () => {
 
     expect(commands).toEqual([]);
     expect(watchers).toEqual([]);
+  });
+
+  test('a preview whose diff command fails shows the error on one row', async () => {
+    failDiff = true;
+
+    const view = await boot();
+
+    view.render(context);
+
+    const texts = renderedDiff.map((row) => (row as { text: string }).text);
+
+    expect(texts).toEqual([
+      'Cannot preview this diff: fatal: ambiguous argument Use -- to separate paths',
+    ]);
+
+    expect(renderedDiffWidth).toBeGreaterThan(300);
   });
 
   test('a failed refresh keeps the files, shows the stale line, and blocks Commit and Enter', async () => {

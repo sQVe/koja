@@ -31,8 +31,13 @@ const nowSeconds = (): number => Math.floor(Date.now() / millisecondsPerSecond);
 
 const previewFailureNote = (error: unknown): string => {
   const detail = error instanceof Error ? error.message : String(error);
+  const oneLine = detail.replace(/\s+/g, ' ').trim();
 
-  return `Cannot preview this diff: ${detail}`;
+  if (oneLine === '') {
+    return 'Cannot preview this diff (too large or unreadable)';
+  }
+
+  return `Cannot preview this diff: ${oneLine}`;
 };
 
 export default class Changes extends View {
