@@ -231,9 +231,21 @@ export default class Changes extends View {
 
     this.loading = true;
 
+    try {
+      this.spawnRead(cx, cwd, where.on, context);
+    } catch (error) {
+      this.loading = false;
+
+      throw error;
+    }
+
+    return true;
+  }
+
+  private spawnRead(cx: Context, cwd: string, on: string | null, context: string): void {
     cx.spawn(async (taskCx) => {
       try {
-        const result = await readChanges(exec, cwd, where.on, () => locationKey() === context);
+        const result = await readChanges(exec, cwd, on, () => locationKey() === context);
 
         if (result === null || locationKey() !== context) {
           return;
@@ -259,8 +271,6 @@ export default class Changes extends View {
         taskCx.notify();
       }
     });
-
-    return true;
   }
 
   private async applySnapshot(

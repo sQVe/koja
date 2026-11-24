@@ -72,6 +72,8 @@ const watchers: Watch[] = [];
 
 const spawnErrors: unknown[] = [];
 
+let failNextSpawn = false;
+
 const inputHandlers = new Map<string, (event: unknown, cx: unknown) => void>();
 
 const input = {
@@ -94,6 +96,12 @@ const context = {
   },
   focus_handle: () => ({ focus: () => undefined }),
   spawn: (callback: (cx: unknown) => Promise<void>) => {
+    if (failNextSpawn) {
+      failNextSpawn = false;
+
+      throw new Error('task limit reached');
+    }
+
     void callback(context).catch((error: unknown) => {
       spawnErrors.push(error);
     });
@@ -247,6 +255,7 @@ beforeEach(() => {
   commands.length = 0;
   watchers.length = 0;
   spawnErrors.length = 0;
+  failNextSpawn = false;
   inputHandlers.clear();
 });
 
@@ -607,6 +616,29 @@ describe('Changes view', () => {
 
     expect(statusReads).toBe(3);
     expect(renderedCommit?.enabled).toBe(true);
+  });
+
+  test('a refresh that cannot start its task leaves no loading line and a later one reads', async () => {
+    const view = await boot();
+
+    const before = statusReads;
+
+    failNextSpawn = true;
+
+    expect(() => {
+      view.refresh(context);
+    }).toThrow();
+
+    view.render(context);
+
+    expect(renderedList?.line?.kind).not.toBe('loading');
+
+    view.refresh(context);
+    await settle();
+    view.render(context);
+
+    expect(statusReads).toBeGreaterThan(before);
+    expect(renderedList?.line).toBeNull();
   });
 
   test('a background refresh requests a redraw before its read finishes', async () => {
