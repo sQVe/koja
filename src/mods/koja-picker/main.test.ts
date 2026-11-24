@@ -69,10 +69,19 @@ const chainable = (onKeyDown?: (handler: KeyHandler) => void): unknown => {
   return element;
 };
 
+let inputValue = '';
+let inputChange: ((cx: unknown) => void) | null = null;
+
 const inputStub = {
-  on: () => undefined,
+  on: (event: string, handler: (event: unknown, cx: unknown) => void) => {
+    if (event === 'change') {
+      inputChange = (cx) => {
+        handler({}, cx);
+      };
+    }
+  },
   focus: () => undefined,
-  value: () => '',
+  value: () => inputValue,
 };
 
 await mock.module('gpui-base', () =>
@@ -220,6 +229,8 @@ beforeEach(() => {
   keyContext = null;
   actionHandlers = {};
   emptyText = '';
+  inputValue = '';
+  inputChange = null;
   checkingNow = false;
   overlayNow = null;
   sideEffects = [];
@@ -340,6 +351,40 @@ describe('picker overlay state', () => {
     keyDownHandler?.({ key: 'escape', modifiers: { control: false } }, renderedContext);
 
     expect(closeOverlayCalls).toBe(1);
+  });
+
+  test('a query names the filter the list is using', async () => {
+    const view = await loadView();
+
+    view.init(undefined, asyncContext);
+    view.render();
+
+    const query = 'zzz';
+
+    const allWithoutQuery = emptyText;
+
+    inputValue = query;
+    expect(inputChange).not.toBeNull();
+    inputChange?.(renderedContext);
+    view.render();
+
+    expect(emptyText).toBe(allWithoutQuery);
+
+    const presses = [
+      { keystroke: 'tab', label: 'Needs you' },
+      { keystroke: 'tab', label: 'Blocked' },
+    ];
+
+    for (const { keystroke, label } of presses) {
+      const binding = keyBindings.find((entry) => entry.keystroke === keystroke);
+
+      actionHandlers[binding?.action ?? '']?.();
+      view.render();
+
+      expect(emptyText).toContain(label);
+      expect(emptyText).toContain(query);
+      expect(emptyText).not.toBe(allWithoutQuery);
+    }
   });
 
   test('showing the list writes no shared state', async () => {

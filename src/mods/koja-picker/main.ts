@@ -153,8 +153,7 @@ export default class Picker extends View {
     const palette = colors();
     const data = pickerData();
     const rows = this.rowsFrom(data);
-    const emptyText = this.query === '' ? this.filter().empty : 'No space matches.';
-    const empty = stateLine({ kind: 'empty', text: emptyText });
+    const empty = stateLine({ kind: 'empty', text: this.emptyText(), wrap: true });
 
     const body = rows.length > 0 ? this.list(rows, data) : div().flex_1().child(empty);
 
@@ -185,6 +184,16 @@ export default class Picker extends View {
 
   private filter(): StatusFilter {
     return statusFilters[this.filterIndex] ?? allFilter;
+  }
+
+  private emptyText(): string {
+    const filter = this.filter();
+
+    if (this.query === '' || filter === allFilter) {
+      return filter.empty;
+    }
+
+    return `Nothing in ${filter.label} matches "${this.query}".`;
   }
 
   private rowsFrom(data: PickerData): PickerRow[] {
