@@ -21,6 +21,8 @@ export const watchFolderChanges = (
   let pending = watchFolder(folder);
   let cancelled = false;
 
+  // The listener can cancel synchronously through the handle, so read the flag through a call
+  // rather than the value the compiler has narrowed.
   const isCancelled = (): boolean => cancelled;
 
   cx.spawn(async (taskCx) => {
