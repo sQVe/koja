@@ -31,8 +31,14 @@ export const watchFolderChanges = (
           return;
         }
 
-        pending = watchFolder(folder);
         listener.onChange(taskCx);
+
+        // eslint-disable-next-line typescript/no-unnecessary-condition -- the listener may cancel through the handle
+        if (cancelled) {
+          return;
+        }
+
+        pending = watchFolder(folder);
       }
     } catch {
       if (!cancelled) {

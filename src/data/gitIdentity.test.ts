@@ -342,6 +342,20 @@ describe('readGitIdentity', () => {
     expect(identity.kind).toBe('failed');
   });
 
+  test('gives a failed read when the layout output has a bare flag that is neither true nor false', async () => {
+    const run = fakeRunner(() => exitWith(0, 'yes\nfalse\n/work/.git\n/work/.git\n'));
+    const identity = await readGitIdentity(run, null, '/work');
+
+    expect(identity.kind).toBe('failed');
+  });
+
+  test('gives a failed read when the layout output has a git folder flag that is neither true nor false', async () => {
+    const run = fakeRunner(() => exitWith(0, 'false\nyes\n/work/.git\n/work/.git\n'));
+    const identity = await readGitIdentity(run, null, '/work');
+
+    expect(identity.kind).toBe('failed');
+  });
+
   test('gives a failed read when git rev-parse prints nothing', async () => {
     const run = fakeRunner(() => exitWith(0));
     const identity = await readGitIdentity(run, null, '/work');

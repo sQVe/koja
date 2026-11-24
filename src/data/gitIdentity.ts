@@ -122,12 +122,24 @@ const parsePath = (line: string | undefined): string => {
   return line;
 };
 
+const parseFlag = (line: string | undefined): boolean => {
+  if (line === 'true') {
+    return true;
+  }
+
+  if (line === 'false') {
+    return false;
+  }
+
+  throw new Error(`${describeCommand(layoutArgs)} printed a flag that is not true or false`);
+};
+
 const parseLayout = (output: string) => {
   const [bare, insideGitDirectory, gitDirectory, commonDirectory] = output.split('\n');
 
   return {
-    bare: bare === 'true',
-    insideGitDirectory: insideGitDirectory === 'true',
+    bare: parseFlag(bare),
+    insideGitDirectory: parseFlag(insideGitDirectory),
     gitDirectory: parsePath(gitDirectory),
     commonDirectory: parsePath(commonDirectory),
   };

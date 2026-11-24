@@ -22,8 +22,15 @@ let watches: Watch[] = [];
 let changes = 0;
 let errors = 0;
 let cancelResolves = true;
+let failNextWatch = false;
 
 const watchFolder = (folder: string): FolderWatch => {
+  if (failNextWatch) {
+    failNextWatch = false;
+
+    throw new Error('too many folders');
+  }
+
   const settled = Promise.withResolvers<string[]>();
 
   const watch: Watch = {
@@ -71,15 +78,20 @@ const settle = async (): Promise<void> => {
   }
 };
 
-const start = (): HandleLike =>
-  loaded.watchFolderChanges(watchFolder, '/repo', context, {
-    onChange: () => {
-      changes += 1;
+const start = (listener?: Listener): HandleLike =>
+  loaded.watchFolderChanges(
+    watchFolder,
+    '/repo',
+    context,
+    listener ?? {
+      onChange: () => {
+        changes += 1;
+      },
+      onError: () => {
+        errors += 1;
+      },
     },
-    onError: () => {
-      errors += 1;
-    },
-  });
+  );
 
 const latest = (): Watch => {
   const watch = watches.at(-1);
@@ -96,6 +108,7 @@ beforeEach(() => {
   changes = 0;
   errors = 0;
   cancelResolves = true;
+  failNextWatch = false;
 });
 
 describe('watchFolderChanges', () => {
@@ -124,6 +137,25 @@ describe('watchFolderChanges', () => {
     expect(watches).toHaveLength(2);
   });
 
+  test('a cancel inside a change starts no next watch', async () => {
+    const handle = start({
+      onChange: () => {
+        changes += 1;
+        handle.cancel();
+      },
+      onError: () => {
+        errors += 1;
+      },
+    });
+
+    latest().resolve(['/repo/a']);
+    await settle();
+
+    expect(changes).toBe(1);
+    expect(errors).toBe(0);
+    expect(watches).toHaveLength(1);
+  });
+
   test('calls the error callback once when a watch rejects', async () => {
     start();
 
@@ -132,6 +164,18 @@ describe('watchFolderChanges', () => {
 
     expect(errors).toBe(1);
     expect(changes).toBe(0);
+    expect(watches).toHaveLength(1);
+  });
+
+  test('delivers a change and calls the error callback when the next watch fails', async () => {
+    start();
+    failNextWatch = true;
+
+    latest().resolve(['/repo/a']);
+    await settle();
+
+    expect(changes).toBe(1);
+    expect(errors).toBe(1);
     expect(watches).toHaveLength(1);
   });
 
