@@ -56,8 +56,8 @@ const withTemp = async (body: (root: string) => Promise<void>): Promise<void> =>
   }
 };
 
-const makeRepository = async (root: string): Promise<string> => {
-  const main = join(root, 'main');
+const makeRepository = async (root: string, name = 'main'): Promise<string> => {
+  const main = join(root, name);
 
   await mkdir(main);
   await git(main, 'init', '--quiet', '--initial-branch=main');
@@ -141,11 +141,7 @@ describe('readGitIdentity', () => {
 
   test('keeps a trailing space in the checkout folder', async () => {
     await withTemp(async (root) => {
-      const checkout = join(root, 'checkout ');
-
-      await mkdir(checkout);
-      await git(checkout, 'init', '--quiet', '--initial-branch=main');
-      await git(checkout, 'commit', '--quiet', '--allow-empty', '-m', 'first');
+      const checkout = await makeRepository(root, 'checkout ');
 
       const identity = await read(checkout);
 
@@ -204,6 +200,22 @@ describe('readGitIdentity', () => {
       const worktree = identity.kind === 'bare' ? worktreeKeyOf(identity) : null;
 
       expect(worktree).toBe(keyOf(null, bare));
+    });
+  });
+
+  test('keeps a trailing space in a bare repository folder', async () => {
+    await withTemp(async (root) => {
+      const source = await makeRepository(root);
+      const bare = join(root, 'bare.git ');
+
+      await git(root, 'clone', '--quiet', '--bare', source, bare);
+
+      const identity = await read(bare);
+
+      expect(identity).toMatchObject({
+        kind: 'bare',
+        repository: { commonDirectory: bare, key: keyOf(null, bare) },
+      });
     });
   });
 
@@ -384,6 +396,16 @@ describe('readGitIdentity', () => {
   test('gives a failed read when the checkout top is empty', async () => {
     const run = fakeRunner((args) =>
       isLayoutRead(args) ? exitWith(0, checkoutLayout) : exitWith(0, '\n'),
+    );
+
+    const identity = await readGitIdentity(run, null, '/work');
+
+    expect(identity.kind).toBe('failed');
+  });
+
+  test('gives a failed read when the checkout top is only spaces', async () => {
+    const run = fakeRunner((args) =>
+      isLayoutRead(args) ? exitWith(0, checkoutLayout) : exitWith(0, '   \n'),
     );
 
     const identity = await readGitIdentity(run, null, '/work');
