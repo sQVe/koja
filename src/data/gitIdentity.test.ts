@@ -139,6 +139,24 @@ describe('readGitIdentity', () => {
     });
   });
 
+  test('keeps a trailing space in the checkout folder', async () => {
+    await withTemp(async (root) => {
+      const checkout = join(root, 'checkout ');
+
+      await mkdir(checkout);
+      await git(checkout, 'init', '--quiet', '--initial-branch=main');
+      await git(checkout, 'commit', '--quiet', '--allow-empty', '-m', 'first');
+
+      const identity = await read(checkout);
+
+      expect(identity).toMatchObject({
+        kind: 'main',
+        repository: { commonDirectory: join(checkout, '.git') },
+        worktree: { top: checkout, key: keyOf(null, checkout) },
+      });
+    });
+  });
+
   test('reads a checkout made with a separate git folder as main', async () => {
     await withTemp(async (root) => {
       const source = await makeRepository(root);

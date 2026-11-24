@@ -98,12 +98,14 @@ const commandFailure = (args: string[], result: ExecResult): Error => {
   return new Error(message);
 };
 
+const stripFinalNewline = (output: string): string => output.replace(/\r?\n$/, '');
+
 const outputOf = (args: string[], result: ExecResult): string => {
   if (result.code !== 0) {
     throw commandFailure(args, result);
   }
 
-  const output = result.stdout.trim();
+  const output = stripFinalNewline(result.stdout);
 
   if (output === '') {
     throw new Error(`${describeCommand(args)} printed nothing`);
