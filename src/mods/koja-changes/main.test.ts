@@ -618,27 +618,35 @@ describe('Changes view', () => {
     expect(renderedCommit?.enabled).toBe(true);
   });
 
-  test('a refresh that cannot start its task leaves no loading line and a later one reads', async () => {
+  test('a watch event whose read cannot start marks the read failed until a read succeeds', async () => {
     const view = await boot();
 
-    const before = statusReads;
-
-    failNextSpawn = true;
-
-    expect(() => {
-      view.refresh(context);
-    }).toThrow();
-
+    typeMessage();
     view.render(context);
 
-    expect(renderedList?.line?.kind).not.toBe('loading');
+    expect(renderedCommit?.enabled).toBe(true);
+
+    const before = commitCommands();
+
+    failNextSpawn = true;
+    watchers[0]?.resolve(['/repo/a.ts']);
+    await settle();
+    view.render(context);
+
+    expect(renderedList?.line?.kind).toBe('error');
+    expect(renderedCommit?.enabled).toBe(false);
+
+    renderedCommit?.onCommit(context);
+    await settle();
+
+    expect(commitCommands()).toBe(before);
 
     view.refresh(context);
     await settle();
     view.render(context);
 
-    expect(statusReads).toBeGreaterThan(before);
     expect(renderedList?.line).toBeNull();
+    expect(renderedCommit?.enabled).toBe(true);
   });
 
   test('a background refresh requests a redraw before its read finishes', async () => {

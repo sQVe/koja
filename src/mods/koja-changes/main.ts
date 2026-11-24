@@ -235,8 +235,7 @@ export default class Changes extends View {
       this.spawnRead(cx, cwd, where.on, context);
     } catch (error) {
       this.loading = false;
-
-      throw error;
+      this.state = applyRead(this.state, { failure: String(error) }, nowSeconds());
     }
 
     return true;
