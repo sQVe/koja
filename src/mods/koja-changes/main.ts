@@ -364,19 +364,29 @@ export default class Changes extends View {
 
   private pick(path: string, cx: Context): void {
     const openPath = this.open === path ? null : path;
-
-    this.open = openPath;
-    this.preview.setLines([]);
-    this.note = null;
-    this.closed = openPath === null;
-
     const context = this.context;
 
     if (openPath === null || context === null) {
+      this.open = openPath;
+      this.preview.setLines([]);
+      this.note = null;
+      this.closed = openPath === null;
       cx.notify();
 
       return;
     }
+
+    const previous = {
+      open: this.open,
+      closed: this.closed,
+      rows: this.preview.rows,
+      width: this.preview.diffWidth,
+    };
+
+    this.open = openPath;
+    this.preview.setLines([]);
+    this.note = null;
+    this.closed = false;
 
     const refusal = this.spawnTask(cx, async (taskCx) => {
       try {
@@ -387,7 +397,7 @@ export default class Changes extends View {
         );
       } catch (error) {
         if (locationKey() === context && this.open === openPath) {
-          this.note = `Cannot preview this diff (too large or unreadable): ${String(error)}`;
+          this.note = `Cannot preview this diff: ${String(error)}`;
         }
       }
 
@@ -395,6 +405,10 @@ export default class Changes extends View {
     });
 
     if (refusal !== null) {
+      this.open = previous.open;
+      this.closed = previous.closed;
+      this.preview.rows = previous.rows;
+      this.preview.diffWidth = previous.width;
       this.note = `Cannot preview this diff: ${refusal.message}`;
     }
 

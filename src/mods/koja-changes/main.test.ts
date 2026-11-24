@@ -17,6 +17,7 @@ interface Watch {
 
 interface RenderedList {
   files: { path: string }[];
+  open: string | null;
   line: { kind: string; text: string } | null;
   watchLine: { kind: string; text: string } | null;
   onRetry: (cx: unknown) => void;
@@ -67,6 +68,8 @@ let renderedList: RenderedList | null = null;
 let renderedCommit: RenderedCommit | null = null;
 
 let renderedNote: string | null = null;
+
+let renderedDiff: unknown[] = [];
 
 const commands: string[][] = [];
 
@@ -235,7 +238,11 @@ await mock.module('./rows.ts', () => ({
 
     return chainable();
   },
-  diffArea: chainable,
+  diffArea: (rows: unknown[]) => {
+    renderedDiff = rows;
+
+    return chainable();
+  },
 }));
 
 afterAll(() => {
@@ -259,6 +266,7 @@ beforeEach(() => {
   renderedList = null;
   renderedCommit = null;
   renderedNote = null;
+  renderedDiff = [];
   commands.length = 0;
   watchers.length = 0;
   spawnErrors.length = 0;
@@ -683,18 +691,22 @@ describe('Changes view', () => {
     expect(statusReads).toBeGreaterThan(before);
   });
 
-  test('a file pick whose task cannot start shows the note and keeps the files', async () => {
+  test('a file pick whose task cannot start keeps the open file and its diff', async () => {
     const view = await boot();
 
-    const files = renderedList?.files ?? [];
+    const paths = (renderedList?.files ?? []).map((file) => file.path);
+    const open = renderedList?.open ?? null;
+    const diff = renderedDiff;
 
     failNextSpawn = true;
     renderedList?.onPick('b.ts', context);
     await settle();
     view.render(context);
 
-    expect(renderedNote).toContain('Cannot preview this diff');
-    expect(renderedList?.files).toEqual(files);
+    expect(renderedNote).toBe('Cannot preview this diff: task limit reached');
+    expect((renderedList?.files ?? []).map((file) => file.path)).toEqual(paths);
+    expect(renderedList?.open).toBe(open);
+    expect(renderedDiff).toEqual(diff);
   });
 
   test('a background refresh requests a redraw before its read finishes', async () => {
