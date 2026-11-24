@@ -193,7 +193,7 @@ const actionRow = (
     return endAligned ? compact.ml_auto() : compact;
   }
 
-  const row = h_flex().flex_none().gap(spacing.xxsmall).children(headerButtons(options));
+  const row = h_flex().flex_none().gap(spacing.medium).children(headerButtons(options));
 
   if (endAligned) {
     row.ml_auto();
