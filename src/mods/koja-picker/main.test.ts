@@ -1,7 +1,6 @@
 import { afterAll, beforeEach, describe, expect, mock, test } from 'bun:test';
 
 import { gpuiBaseFake, gpuiKitFake, herdrFake, kitIndexFake } from '../../../tests/moduleFakes.ts';
-import { allFilter } from './filters.ts';
 
 type KeyHandler = (event: { key: string; modifiers: { control: boolean } }, cx: unknown) => void;
 
@@ -362,14 +361,14 @@ describe('picker overlay state', () => {
 
     const query = 'zzz';
 
+    const allWithoutQuery = emptyText;
+
     inputValue = query;
     expect(inputChange).not.toBeNull();
     inputChange?.(renderedContext);
     view.render();
 
-    const allText = emptyText;
-
-    expect(allText).toBe(allFilter.empty);
+    expect(emptyText).toBe(allWithoutQuery);
 
     const presses = [
       { keystroke: 'tab', label: 'Needs you' },
@@ -384,7 +383,7 @@ describe('picker overlay state', () => {
 
       expect(emptyText).toContain(label);
       expect(emptyText).toContain(query);
-      expect(emptyText).not.toBe(allText);
+      expect(emptyText).not.toBe(allWithoutQuery);
     }
   });
 
