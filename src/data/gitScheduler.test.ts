@@ -112,6 +112,46 @@ describe('createGitScheduler', () => {
     expect(harness.revision()).toBe(1);
   });
 
+  test('keeps the last good fact when a layout flag is neither true nor false', async () => {
+    harness.setFolder(null, '/code/koja', mainCheckout('/code/koja'));
+
+    const scheduler = harness.start();
+    const world = worldOf([spaceOf('s1', '/code/koja')]);
+
+    scheduler.tick(world, harness.context);
+    await harness.complete(harness.startedAt(0));
+    expect(harness.revision()).toBe(1);
+
+    const replies = ['yes\nfalse\n', 'false\nyes\n'];
+
+    for (const [index, flags] of replies.entries()) {
+      const other = `/code/other-${index}`;
+
+      harness.setFolder(null, '/code/koja', {
+        layout: `${flags}${other}/.git\n${other}/.git\n`,
+        top: other,
+        branch: 'other\n',
+      });
+
+      harness.setNow(10 + index * 300);
+      await harness.fire();
+      scheduler.tick(world, harness.context);
+
+      harness.setNow(260 + index * 300);
+      scheduler.tick(world, harness.context);
+      expect(harness.started).toHaveLength(2 + index);
+
+      await harness.complete(harness.startedAt(1 + index));
+
+      expect(scheduler.gitFacts().places[placeKeyOf(null, '/code/koja')]).toEqual({
+        kind: 'repository',
+        worktree: worktreeOf(null, '/code/koja').key,
+      });
+
+      expect(harness.revision()).toBe(1);
+    }
+  });
+
   test('publishes a failed place and reads it again after the fallback', async () => {
     harness.failure = 'fatal: the machine is unreachable';
 

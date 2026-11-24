@@ -98,34 +98,51 @@ const commandFailure = (args: string[], result: ExecResult): Error => {
   return new Error(message);
 };
 
+// Git prints paths as they are, so strip only the line ending; trimming would eat a trailing space.
+const stripFinalNewline = (output: string): string => output.replace(/\r?\n$/, '');
+
 const outputOf = (args: string[], result: ExecResult): string => {
   if (result.code !== 0) {
     throw commandFailure(args, result);
   }
 
-  const output = result.stdout.trim();
+  const output = stripFinalNewline(result.stdout);
 
-  if (output === '') {
-    throw new Error(`${describeCommand(args)} printed nothing`);
+  if (output.trim() === '') {
+    throw new Error(`${describeCommand(args)} printed no output`);
   }
 
   return output;
 };
 
 const parsePath = (line: string | undefined): string => {
-  if (line === undefined || line === '') {
+  if (line === undefined || line.trim() === '') {
     throw new Error(`${describeCommand(layoutArgs)} printed no path`);
   }
 
   return line;
 };
 
+const parseFlag = (flag: string, line: string | undefined): boolean => {
+  if (line === 'true') {
+    return true;
+  }
+
+  if (line === 'false') {
+    return false;
+  }
+
+  throw new Error(
+    `${describeCommand(layoutArgs)} printed ${flag} as something other than true or false`,
+  );
+};
+
 const parseLayout = (output: string) => {
   const [bare, insideGitDirectory, gitDirectory, commonDirectory] = output.split('\n');
 
   return {
-    bare: bare === 'true',
-    insideGitDirectory: insideGitDirectory === 'true',
+    bare: parseFlag('--is-bare-repository', bare),
+    insideGitDirectory: parseFlag('--is-inside-git-dir', insideGitDirectory),
     gitDirectory: parsePath(gitDirectory),
     commonDirectory: parsePath(commonDirectory),
   };

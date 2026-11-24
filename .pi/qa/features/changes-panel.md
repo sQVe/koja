@@ -16,7 +16,7 @@ Drive the Changes panel mod, `koja-changes`, in the sandbox the brief names. Fol
 1. Run `bun run sandbox shot <file>` and read each coordinate from the image.
 2. Click the Changes button to show the panel.
 3. Select the space of each fixture in turn, and take a `shot` of the panel.
-4. Click a file in the list, and take a `shot` of its diff.
+4. Click a file that is not open, and take a `shot` of its diff.
 5. When the brief allows data writes, commit in a fixture repository with changes.
 
 ## Observable results
@@ -24,7 +24,7 @@ Drive the Changes panel mod, `koja-changes`, in the sandbox the brief names. Fol
 - The Changes button in the tab strip shows and hides the panel.
 - Each space keeps its choice after a switch away and back.
 - The panel lists the changed files of the focused pane's repository.
-- A click on a file shows its diff.
+- A click on a file that is not open shows its diff. A click on the open file closes it.
 - After a switch to another space, the panel leaves "Loading changes…". It shows that space's files
   or its state line.
 - A clean repository shows "No uncommitted changes".

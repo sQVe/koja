@@ -21,21 +21,30 @@ export const watchFolderChanges = (
   let pending = watchFolder(folder);
   let cancelled = false;
 
+  // The listener can cancel synchronously through the handle, so read the flag through a call
+  // rather than the value the compiler has narrowed.
+  const isCancelled = (): boolean => cancelled;
+
   cx.spawn(async (taskCx) => {
     try {
       for (;;) {
         // eslint-disable-next-line no-await-in-loop -- one folder watch at a time
         await pending;
 
-        if (cancelled) {
+        if (isCancelled()) {
+          return;
+        }
+
+        listener.onChange(taskCx);
+
+        if (isCancelled()) {
           return;
         }
 
         pending = watchFolder(folder);
-        listener.onChange(taskCx);
       }
     } catch {
-      if (!cancelled) {
+      if (!isCancelled()) {
         listener.onError(taskCx);
       }
     }

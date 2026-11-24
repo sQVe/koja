@@ -56,14 +56,14 @@ const withTemp = async (body: (root: string) => Promise<void>): Promise<void> =>
   }
 };
 
-const makeRepository = async (root: string): Promise<string> => {
-  const main = join(root, 'main');
+const makeRepository = async (root: string, name = 'main'): Promise<string> => {
+  const folder = join(root, name);
 
-  await mkdir(main);
-  await git(main, 'init', '--quiet', '--initial-branch=main');
-  await git(main, 'commit', '--quiet', '--allow-empty', '-m', 'first');
+  await mkdir(folder);
+  await git(folder, 'init', '--quiet', '--initial-branch=main');
+  await git(folder, 'commit', '--quiet', '--allow-empty', '-m', 'first');
 
-  return main;
+  return folder;
 };
 
 const read = (folder: string, machine: string | null = null): Promise<GitIdentity> =>
@@ -139,6 +139,20 @@ describe('readGitIdentity', () => {
     });
   });
 
+  test('keeps a trailing space in the checkout folder', async () => {
+    await withTemp(async (root) => {
+      const checkout = await makeRepository(root, 'checkout ');
+
+      const identity = await read(checkout);
+
+      expect(identity).toMatchObject({
+        kind: 'main',
+        repository: { commonDirectory: join(checkout, '.git') },
+        worktree: { top: checkout, key: keyOf(null, checkout) },
+      });
+    });
+  });
+
   test('reads a checkout made with a separate git folder as main', async () => {
     await withTemp(async (root) => {
       const source = await makeRepository(root);
@@ -186,6 +200,22 @@ describe('readGitIdentity', () => {
       const worktree = identity.kind === 'bare' ? worktreeKeyOf(identity) : null;
 
       expect(worktree).toBe(keyOf(null, bare));
+    });
+  });
+
+  test('keeps a trailing space in a bare repository folder', async () => {
+    await withTemp(async (root) => {
+      const source = await makeRepository(root);
+      const bare = join(root, 'bare.git ');
+
+      await git(root, 'clone', '--quiet', '--bare', source, bare);
+
+      const identity = await read(bare);
+
+      expect(identity).toMatchObject({
+        kind: 'bare',
+        repository: { commonDirectory: bare, key: keyOf(null, bare) },
+      });
     });
   });
 
@@ -324,6 +354,27 @@ describe('readGitIdentity', () => {
     expect(identity.kind).toBe('failed');
   });
 
+  test('gives a failed read when the layout output has a spaces-only git folder', async () => {
+    const run = fakeRunner(() => exitWith(0, 'false\nfalse\n   \n/work/.git\n'));
+    const identity = await readGitIdentity(run, null, '/work');
+
+    expect(identity.kind).toBe('failed');
+  });
+
+  test('gives a failed read when the layout output has a bare flag that is neither true nor false', async () => {
+    const run = fakeRunner(() => exitWith(0, 'yes\nfalse\n/work/.git\n/work/.git\n'));
+    const identity = await readGitIdentity(run, null, '/work');
+
+    expect(identity.kind).toBe('failed');
+  });
+
+  test('gives a failed read when the layout output has a git folder flag that is neither true nor false', async () => {
+    const run = fakeRunner(() => exitWith(0, 'false\nyes\n/work/.git\n/work/.git\n'));
+    const identity = await readGitIdentity(run, null, '/work');
+
+    expect(identity.kind).toBe('failed');
+  });
+
   test('gives a failed read when git rev-parse prints nothing', async () => {
     const run = fakeRunner(() => exitWith(0));
     const identity = await readGitIdentity(run, null, '/work');
@@ -352,6 +403,16 @@ describe('readGitIdentity', () => {
   test('gives a failed read when the checkout top is empty', async () => {
     const run = fakeRunner((args) =>
       isLayoutRead(args) ? exitWith(0, checkoutLayout) : exitWith(0, '\n'),
+    );
+
+    const identity = await readGitIdentity(run, null, '/work');
+
+    expect(identity.kind).toBe('failed');
+  });
+
+  test('gives a failed read when the checkout top is only spaces', async () => {
+    const run = fakeRunner((args) =>
+      isLayoutRead(args) ? exitWith(0, checkoutLayout) : exitWith(0, '   \n'),
     );
 
     const identity = await readGitIdentity(run, null, '/work');

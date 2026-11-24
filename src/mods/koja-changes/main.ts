@@ -29,6 +29,17 @@ const millisecondsPerSecond = 1000;
 
 const nowSeconds = (): number => Math.floor(Date.now() / millisecondsPerSecond);
 
+const previewFailureNote = (error: unknown): string => {
+  const detail = error instanceof Error ? error.message : String(error);
+  const oneLine = detail.replace(/\s+/g, ' ').trim();
+
+  if (oneLine === '') {
+    return 'Cannot preview this diff';
+  }
+
+  return `Cannot preview this diff: ${oneLine}`;
+};
+
 export default class Changes extends View {
   private state: ReadState = emptyReadState();
 
@@ -231,9 +242,30 @@ export default class Changes extends View {
 
     this.loading = true;
 
-    cx.spawn(async (taskCx) => {
+    const refusal = this.spawnRead(cx, cwd, where.on, context);
+
+    if (refusal !== null) {
+      this.loading = false;
+      this.state = applyRead(this.state, { failure: refusal.message }, nowSeconds());
+    }
+
+    return true;
+  }
+
+  private spawnTask(cx: Context, body: (taskCx: AsyncContext) => unknown): Error | null {
+    try {
+      cx.spawn(body);
+
+      return null;
+    } catch (error) {
+      return error instanceof Error ? error : new Error(String(error));
+    }
+  }
+
+  private spawnRead(cx: Context, cwd: string, on: string | null, context: string): Error | null {
+    return this.spawnTask(cx, async (taskCx) => {
       try {
-        const result = await readChanges(exec, cwd, where.on, () => locationKey() === context);
+        const result = await readChanges(exec, cwd, on, () => locationKey() === context);
 
         if (result === null || locationKey() !== context) {
           return;
@@ -259,8 +291,6 @@ export default class Changes extends View {
         taskCx.notify();
       }
     });
-
-    return true;
   }
 
   private async applySnapshot(
@@ -290,9 +320,9 @@ export default class Changes extends View {
           () => this.state.lastGood?.snapshot ?? null,
           () => locationKey() === context && this.open === openPath,
         );
-      } catch {
+      } catch (error) {
         if (locationKey() === context && this.open === openPath) {
-          this.preview.setLines(['Cannot preview this diff (too large or unreadable)']);
+          this.preview.setLines([previewFailureNote(error)]);
         }
       }
     }
@@ -345,13 +375,19 @@ export default class Changes extends View {
 
   private pick(path: string, cx: Context): void {
     const openPath = this.open === path ? null : path;
+    const context = this.context;
+
+    const previous = {
+      open: this.open,
+      closed: this.closed,
+      rows: this.preview.rows,
+      width: this.preview.diffWidth,
+    };
 
     this.open = openPath;
     this.preview.setLines([]);
     this.note = null;
     this.closed = openPath === null;
-
-    const context = this.context;
 
     if (openPath === null || context === null) {
       cx.notify();
@@ -359,7 +395,7 @@ export default class Changes extends View {
       return;
     }
 
-    cx.spawn(async (taskCx) => {
+    const refusal = this.spawnTask(cx, async (taskCx) => {
       try {
         await this.preview.load(
           openPath,
@@ -368,12 +404,20 @@ export default class Changes extends View {
         );
       } catch (error) {
         if (locationKey() === context && this.open === openPath) {
-          this.note = `Cannot preview this diff (too large or unreadable): ${String(error)}`;
+          this.note = previewFailureNote(error);
         }
       }
 
       taskCx.notify();
     });
+
+    if (refusal !== null) {
+      this.open = previous.open;
+      this.closed = previous.closed;
+      this.preview.rows = previous.rows;
+      this.preview.diffWidth = previous.width;
+      this.note = previewFailureNote(refusal);
+    }
 
     cx.notify();
   }
@@ -392,7 +436,7 @@ export default class Changes extends View {
     this.busy = true;
     this.note = null;
 
-    cx.spawn(async (taskCx) => {
+    const refusal = this.spawnTask(cx, async (taskCx) => {
       try {
         await commitAll(exec, root, on, message);
 
@@ -410,6 +454,11 @@ export default class Changes extends View {
         taskCx.notify();
       }
     });
+
+    if (refusal !== null) {
+      this.busy = false;
+      this.note = `Commit failed: ${refusal.message}`;
+    }
 
     cx.notify();
   }

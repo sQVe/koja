@@ -17,6 +17,7 @@ interface Watch {
 
 interface RenderedList {
   files: { path: string }[];
+  open: string | null;
   line: { kind: string; text: string } | null;
   watchLine: { kind: string; text: string } | null;
   onRetry: (cx: unknown) => void;
@@ -66,11 +67,21 @@ let renderedList: RenderedList | null = null;
 
 let renderedCommit: RenderedCommit | null = null;
 
+let renderedNote: string | null = null;
+
+let renderedDiff: unknown[] = [];
+
+let renderedDiffWidth = 0;
+
 const commands: string[][] = [];
 
 const watchers: Watch[] = [];
 
 const spawnErrors: unknown[] = [];
+
+let failNextSpawn = false;
+
+let diffError: string | null = null;
 
 const inputHandlers = new Map<string, (event: unknown, cx: unknown) => void>();
 
@@ -94,6 +105,12 @@ const context = {
   },
   focus_handle: () => ({ focus: () => undefined }),
   spawn: (callback: (cx: unknown) => Promise<void>) => {
+    if (failNextSpawn) {
+      failNextSpawn = false;
+
+      throw new Error('task limit reached');
+    }
+
     void callback(context).catch((error: unknown) => {
       spawnErrors.push(error);
     });
@@ -180,7 +197,11 @@ await mock.module('herdr', () =>
       }
 
       if (args.includes('diff')) {
-        return { code: 0, stdout: '@@ -1 +1 @@\n-old\n+new', stderr: '' };
+        if (diffError !== null) {
+          return { code: 128, stdout: '', stderr: diffError };
+        }
+
+        return { code: 0, stdout: `@@ -1 +1 @@\n-old\n+${'n'.repeat(60)}`, stderr: '' };
       }
 
       return { code: 0, stdout: '', stderr: '' };
@@ -203,7 +224,11 @@ await mock.module('../../kit/index.ts', () =>
 await mock.module('./rows.ts', () => ({
   headerRow: chainable,
   limitedNotice: chainable,
-  noteRow: chainable,
+  noteRow: (text: string) => {
+    renderedNote = text;
+
+    return chainable();
+  },
   fileList: (options: RenderedList) => {
     renderedList = options;
 
@@ -221,7 +246,12 @@ await mock.module('./rows.ts', () => ({
 
     return chainable();
   },
-  diffArea: chainable,
+  diffArea: (rows: unknown[], diffWidth: number) => {
+    renderedDiff = rows;
+    renderedDiffWidth = diffWidth;
+
+    return chainable();
+  },
 }));
 
 afterAll(() => {
@@ -244,9 +274,14 @@ beforeEach(() => {
   timerHandler = null;
   renderedList = null;
   renderedCommit = null;
+  renderedNote = null;
+  renderedDiff = [];
+  renderedDiffWidth = 0;
   commands.length = 0;
   watchers.length = 0;
   spawnErrors.length = 0;
+  failNextSpawn = false;
+  diffError = null;
   inputHandlers.clear();
 });
 
@@ -260,6 +295,7 @@ const loadView = async (): Promise<ChangesView> => {
 
   view.render = (cx) => {
     rendering = true;
+    renderedNote = null;
 
     try {
       return render(cx);
@@ -308,6 +344,34 @@ describe('Changes view', () => {
 
     expect(commands).toEqual([]);
     expect(watchers).toEqual([]);
+  });
+
+  test('a preview whose diff command fails shows the error on one row', async () => {
+    diffError = 'fatal: ambiguous argument\nUse -- to separate paths';
+
+    const view = await boot();
+
+    view.render(context);
+
+    const texts = renderedDiff.map((row) => (row as { text: string }).text);
+
+    expect(texts).toEqual([
+      'Cannot preview this diff: fatal: ambiguous argument Use -- to separate paths',
+    ]);
+
+    expect(renderedDiffWidth).toBeGreaterThan(300);
+  });
+
+  test('a preview whose diff command fails without a message says only that it failed', async () => {
+    diffError = '';
+
+    const view = await boot();
+
+    view.render(context);
+
+    const texts = renderedDiff.map((row) => (row as { text: string }).text);
+
+    expect(texts).toEqual(['Cannot preview this diff']);
   });
 
   test('a failed refresh keeps the files, shows the stale line, and blocks Commit and Enter', async () => {
@@ -607,6 +671,83 @@ describe('Changes view', () => {
 
     expect(statusReads).toBe(3);
     expect(renderedCommit?.enabled).toBe(true);
+  });
+
+  test('a watch event whose read cannot start marks the read failed until a read succeeds', async () => {
+    const view = await boot();
+
+    typeMessage();
+    view.render(context);
+
+    expect(renderedCommit?.enabled).toBe(true);
+
+    const before = commitCommands();
+
+    failNextSpawn = true;
+    watchers[0]?.resolve(['/repo/a.ts']);
+    await settle();
+    view.render(context);
+
+    expect(renderedList?.line?.kind).toBe('error');
+    expect(renderedList?.watchLine).toBeNull();
+    expect(renderedCommit?.enabled).toBe(false);
+
+    renderedCommit?.onCommit(context);
+    await settle();
+
+    expect(commitCommands()).toBe(before);
+
+    view.refresh(context);
+    await settle();
+    view.render(context);
+
+    expect(renderedList?.line).toBeNull();
+    expect(renderedCommit?.enabled).toBe(true);
+  });
+
+  test('a commit whose task cannot start clears busy and keeps Commit available', async () => {
+    const view = await boot();
+
+    typeMessage();
+    view.render(context);
+
+    const before = statusReads;
+    const commits = commitCommands();
+
+    failNextSpawn = true;
+    renderedCommit?.onCommit(context);
+    await settle();
+    view.render(context);
+
+    expect(renderedNote).toContain('Commit failed');
+    expect(commitCommands()).toBe(commits);
+    expect(inputValue).toBe('Review fixture');
+    expect(renderedCommit?.enabled).toBe(true);
+
+    view.refresh(context);
+    await settle();
+
+    expect(statusReads).toBeGreaterThan(before);
+  });
+
+  test('a file pick whose task cannot start keeps the open file and its diff', async () => {
+    const view = await boot();
+
+    const paths = (renderedList?.files ?? []).map((file) => file.path);
+    const open = renderedList?.open ?? null;
+    const diff = [...renderedDiff];
+    const diffWidth = renderedDiffWidth;
+
+    failNextSpawn = true;
+    renderedList?.onPick('b.ts', context);
+    await settle();
+    view.render(context);
+
+    expect(renderedNote).toBe('Cannot preview this diff: task limit reached');
+    expect((renderedList?.files ?? []).map((file) => file.path)).toEqual(paths);
+    expect(renderedList?.open).toBe(open);
+    expect(renderedDiff).toEqual(diff);
+    expect(renderedDiffWidth).toBe(diffWidth);
   });
 
   test('a background refresh requests a redraw before its read finishes', async () => {
