@@ -337,13 +337,88 @@ const writeFakeRm = async (folder: string): Promise<string> => {
   await writeProgram(
     join(folder, 'rm'),
     `printf '%s\\n' "$*" >>'${calls}'
-if [ "$1" = -f ]; then
+if [ "$1" = -rf ]; then
   exit 1
 fi
 exit 0`,
   );
 
   return calls;
+};
+
+const writeInterruptingRm = async (folder: string, deleteOne: boolean): Promise<void> => {
+  const removeFirst = deleteOne
+    ? `first=$(/usr/bin/find '${root}/machine.removing' -mindepth 1 -type f -print -quit)
+if [ -n "$first" ]; then
+  /usr/bin/rm -f "$first"
+fi
+`
+    : '';
+
+  await writeProgram(join(folder, 'rm'), `${removeFirst}exit 130`);
+};
+
+const replacementSteps: Record<string, string> = {
+  require_up: 'return 0',
+  check_capability: 'return 0',
+  free_port: 'echo 23456',
+  copy_core: 'return 0',
+  start_service: 'return 0',
+  wait_for_ssh: 'return 0',
+  make_fixture: 'return 0',
+  add_machine: 'return 0',
+};
+
+const upCommand = (interruptedStep: string | null): string => {
+  const steps = Object.entries(replacementSteps).map(([step, body]) =>
+    step === interruptedStep ? `${step}() { exit 130; }` : `${step}() { ${body}; }`,
+  );
+
+  return ['set -euo pipefail', `source '${machineScript}'`, ...steps, 'up'].join('\n');
+};
+
+const downCommand = (overrides: Record<string, string> = {}): string => {
+  const definitions = Object.entries(overrides).map(([step, body]) => `${step}() { ${body}; }`);
+
+  return ['set -euo pipefail', `source '${machineScript}'`, ...definitions, 'down'].join('\n');
+};
+
+const writeGoneServiceFixture = async (): Promise<string> => {
+  const service = serviceName();
+  const manager = await newTemporaryFolder('koja-machine-manager-');
+
+  await writeFakeSystemctl(manager);
+  await writeOwnership(ownership(service));
+  await writeReceipt(receipt(service));
+  await writeFile(join(machine, 'sshd_config'), 'Port 23456\n');
+  await writeFile(join(machine, 'fixture-proof'), 'kept\n');
+
+  return manager;
+};
+
+const writeLiveServiceFixture = async (): Promise<string> => {
+  const service = serviceName();
+  const manager = await newTemporaryFolder('koja-machine-manager-');
+
+  await writeFakeSystemctl(manager);
+  await writeUnit(manager, service, unitProperties(service));
+  await writeOwnership(ownership(service));
+  await writeReceipt(receipt(service));
+  await writeFile(join(machine, 'fixture-proof'), 'kept\n');
+
+  return manager;
+};
+
+const expectNoSetupWithoutRecord = async (): Promise<void> => {
+  const result = await runBash(`
+    set -euo pipefail
+    source '${machineScript}'
+    if [[ ! -e $state_file ]] && fixture_has_artifacts; then
+      exit 1
+    fi
+  `);
+
+  expect(result.exitCode).toBe(0);
 };
 
 const writeInstrumentedSandboxScripts = async (): Promise<string> => {
@@ -1998,20 +2073,16 @@ describe('scripts/sandbox-machine fixture unregistration', () => {
     }
   });
 
-  test('keeps the proof and fails when the first proof removal fails', async () => {
+  test('sets the machine aside and fails when the discarded folder cannot be removed', async () => {
     const service = serviceName();
     const manager = await newTemporaryFolder('koja-machine-manager-');
     const rmFolder = await newTemporaryFolder('koja-machine-rm-');
     const calls = await writeFakeRm(rmFolder);
-    const launched = join(manager, 'launched');
 
     await writeFakeSystemctl(manager);
-    await writeProgram(join(manager, 'systemd-run'), `touch '${launched}'`);
     await writeOwnership(ownership(service));
     await writeReceipt(receipt(service));
     await writeFile(join(machine, 'fixture-proof'), 'kept\n');
-
-    const before = await readFixtureFiles();
 
     const down = await runDown({
       FAKE_MANAGER_DIR: manager,
@@ -2019,11 +2090,15 @@ describe('scripts/sandbox-machine fixture unregistration', () => {
     });
 
     expect(down.exitCode).not.toBe(0);
-    expect(await readFixtureFiles()).toEqual(before);
-    expect(await Bun.file(join(manager, 'calls')).exists()).toBe(false);
-    expect(await Bun.file(launched).exists()).toBe(false);
-    expect(await readFile(calls, 'utf8')).toContain('-f');
-    expect(await readFile(calls, 'utf8')).not.toContain('-rf');
+    expect(await Bun.file(stateFile).exists()).toBe(false);
+    expect(await Bun.file(receiptFile).exists()).toBe(false);
+    expect(await Bun.file(join(machine, 'fixture-proof')).exists()).toBe(false);
+    expect(await readFile(calls, 'utf8')).toContain('-rf');
+
+    const retry = await runDown({ FAKE_MANAGER_DIR: manager, PATH: pathWith(manager) });
+
+    expect(retry.exitCode).toBe(0);
+    expect(await Bun.file(join(root, 'machine.removing')).exists()).toBe(false);
   });
 
   test('treats a reachable valid empty machine list as already unregistered', async () => {
@@ -2753,5 +2828,166 @@ describe('scripts/sandbox-machine unexpected app readiness success', () => {
 
     expect(result.exitCode).toBe(1);
     expect(await Bun.file(cleanup).exists()).toBe(false);
+  });
+});
+
+describe('scripts/sandbox-machine interrupted fixture replacement', () => {
+  test('the next up finishes a replacement that an interruption left without a record', async () => {
+    const manager = await writeGoneServiceFixture();
+    const environment = { FAKE_MANAGER_DIR: manager, PATH: pathWith(manager) };
+
+    const interrupted = await runBash(upCommand('check_capability'), environment);
+
+    expect(interrupted.exitCode).toBe(130);
+    await expectNoSetupWithoutRecord();
+
+    const retry = await runBash(upCommand(null), environment);
+
+    expect(retry.exitCode).toBe(0);
+
+    const down = await runDown(environment);
+
+    expect(down.exitCode).toBe(0);
+  });
+
+  for (const step of [
+    'check_capability',
+    'copy_core',
+    'start_service',
+    'wait_for_ssh',
+    'make_fixture',
+    'add_machine',
+  ]) {
+    test(`the next up resolves an interruption at ${step}`, async () => {
+      const manager = await writeGoneServiceFixture();
+      const environment = { FAKE_MANAGER_DIR: manager, PATH: pathWith(manager) };
+
+      const interrupted = await runBash(upCommand(step), environment);
+
+      expect(interrupted.exitCode).toBe(130);
+      await expectNoSetupWithoutRecord();
+
+      const retry = await runBash(upCommand(null), environment);
+
+      expect(retry.exitCode).toBe(0);
+    });
+  }
+});
+
+describe('scripts/sandbox-machine interrupted fixture removal', () => {
+  test('the next down resolves an interruption while stopping the service', async () => {
+    const manager = await writeLiveServiceFixture();
+    const environment = { FAKE_MANAGER_DIR: manager, PATH: pathWith(manager) };
+
+    const interrupted = await runBash(
+      downCommand({ stop_verified_service: 'exit 130' }),
+      environment,
+    );
+
+    expect(interrupted.exitCode).toBe(130);
+    await expectNoSetupWithoutRecord();
+
+    const retry = await runDown(environment);
+
+    expect(retry.exitCode).toBe(0);
+    expect(await Bun.file(join(machine, 'fixture-proof')).exists()).toBe(false);
+  });
+
+  test('the next down resolves an interruption while unregistering the fixture', async () => {
+    const manager = await writeLiveServiceFixture();
+    const environment = { FAKE_MANAGER_DIR: manager, PATH: pathWith(manager) };
+
+    const interrupted = await runBash(downCommand({ unregister_machine: 'exit 130' }), environment);
+
+    expect(interrupted.exitCode).toBe(130);
+    await expectNoSetupWithoutRecord();
+
+    const retry = await runDown(environment);
+
+    expect(retry.exitCode).toBe(0);
+    expect(await Bun.file(join(machine, 'fixture-proof')).exists()).toBe(false);
+  });
+
+  test('the next down resolves an interruption while setting the machine aside', async () => {
+    const manager = await writeLiveServiceFixture();
+    const mover = await newTemporaryFolder('koja-machine-mv-');
+
+    await writeProgram(join(mover, 'mv'), 'exit 130');
+
+    const interrupted = await runDown({
+      FAKE_MANAGER_DIR: manager,
+      PATH: pathWith(mover, manager),
+    });
+
+    expect(interrupted.exitCode).not.toBe(0);
+    await expectNoSetupWithoutRecord();
+
+    const retry = await runDown({ FAKE_MANAGER_DIR: manager, PATH: pathWith(manager) });
+
+    expect(retry.exitCode).toBe(0);
+    expect(await Bun.file(join(machine, 'fixture-proof')).exists()).toBe(false);
+  });
+
+  test('the next down resolves an interruption before the discarded machine is removed', async () => {
+    const manager = await writeLiveServiceFixture();
+    const remover = await newTemporaryFolder('koja-machine-rm-');
+
+    await writeInterruptingRm(remover, false);
+
+    const interrupted = await runDown({
+      FAKE_MANAGER_DIR: manager,
+      PATH: pathWith(remover, manager),
+    });
+
+    expect(interrupted.exitCode).not.toBe(0);
+    await expectNoSetupWithoutRecord();
+
+    const retry = await runDown({ FAKE_MANAGER_DIR: manager, PATH: pathWith(manager) });
+
+    expect(retry.exitCode).toBe(0);
+    expect(await Bun.file(join(root, 'machine.removing')).exists()).toBe(false);
+  });
+
+  test('the next down resolves an interruption during the removal of the discarded machine', async () => {
+    const manager = await writeLiveServiceFixture();
+    const remover = await newTemporaryFolder('koja-machine-rm-');
+
+    await writeInterruptingRm(remover, true);
+
+    const interrupted = await runDown({
+      FAKE_MANAGER_DIR: manager,
+      PATH: pathWith(remover, manager),
+    });
+
+    expect(interrupted.exitCode).not.toBe(0);
+    await expectNoSetupWithoutRecord();
+
+    const retry = await runDown({ FAKE_MANAGER_DIR: manager, PATH: pathWith(manager) });
+
+    expect(retry.exitCode).toBe(0);
+    expect(await Bun.file(join(root, 'machine.removing')).exists()).toBe(false);
+  });
+
+  test('the next up resolves a removal that an interruption left without a record', async () => {
+    const manager = await writeLiveServiceFixture();
+    const remover = await newTemporaryFolder('koja-machine-rm-');
+
+    await writeInterruptingRm(remover, false);
+
+    const interrupted = await runDown({
+      FAKE_MANAGER_DIR: manager,
+      PATH: pathWith(remover, manager),
+    });
+
+    expect(interrupted.exitCode).not.toBe(0);
+    await expectNoSetupWithoutRecord();
+
+    const retry = await runBash(upCommand(null), {
+      FAKE_MANAGER_DIR: manager,
+      PATH: pathWith(manager),
+    });
+
+    expect(retry.exitCode).toBe(0);
+    expect(await Bun.file(join(root, 'machine.removing')).exists()).toBe(false);
   });
 });

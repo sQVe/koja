@@ -27,6 +27,7 @@ fixture=$machine/home/remote-fixture
 state_file=$machine/ownership.json
 receipt_file=$machine/launch-receipt.json
 lock_file=$root/machine.lock
+discard_folder=$root/machine.removing
 sshd_bin=/usr/bin/sshd
 cgroup_root=/sys/fs/cgroup
 boot_id_file=/proc/sys/kernel/random/boot_id
@@ -1022,21 +1023,38 @@ unregister_machine() {
   fi
 }
 
-remove_fixture() {
-  unregister_machine || return 1
-
-  if ! rm -f "$state_file" "$receipt_file"; then
-    echo "could not remove the fixture proof files; kept $machine" >&2
-    return 1
+remove_discarded_machine() {
+  if [[ ! -e $discard_folder && ! -L $discard_folder ]]; then
+    return 0
   fi
 
-  rm -rf "$machine"
+  if ! rm -rf "$discard_folder"; then
+    echo "could not remove the discarded fixture machine at $discard_folder" >&2
+    return 1
+  fi
+}
+
+# Moving the folder aside keeps the machine and its proofs together, so an
+# interruption never leaves setup files that no ownership record names.
+remove_fixture() {
+  unregister_machine || return 1
+  remove_discarded_machine || return 1
+
+  if [[ -e $machine || -L $machine ]]; then
+    if ! mv "$machine" "$discard_folder"; then
+      echo "could not set the fixture machine aside; kept $machine" >&2
+      return 1
+    fi
+  fi
+
+  remove_discarded_machine
 }
 
 up() {
   local mode=new port status load
 
   require_up
+  remove_discarded_machine || return 1
 
   if [[ ! -e $state_file ]]; then
     refuse_unusable_receipt_without_state || return 1
@@ -1088,7 +1106,9 @@ up() {
           return 1
         fi
 
-        rm -f "$state_file" "$receipt_file"
+        # The record stays until write_state replaces it, so an interruption here
+        # still leaves a record for the setup files it is replaced with.
+        rm -f "$receipt_file"
       fi
     else
       status=$?
@@ -1097,7 +1117,8 @@ up() {
       fi
 
       if (( status == 3 )); then
-        rm -f "$state_file" "$receipt_file"
+        unregister_machine || return 1
+        rm -f "$receipt_file"
       else
         echo "the fixture ownership record is not usable; not starting a second listener" >&2
         return 1
@@ -1166,6 +1187,8 @@ up() {
 
 down() {
   local status
+
+  remove_discarded_machine || return 1
 
   if [[ ! -e $state_file ]]; then
     refuse_unusable_receipt_without_state || return 1
