@@ -1034,8 +1034,6 @@ remove_discarded_machine() {
   fi
 }
 
-# Moving the folder aside keeps the machine and its proofs together, so an
-# interruption never leaves setup files that no ownership record names.
 remove_fixture() {
   unregister_machine || return 1
   remove_discarded_machine || return 1
