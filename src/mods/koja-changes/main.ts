@@ -231,18 +231,28 @@ export default class Changes extends View {
 
     this.loading = true;
 
-    try {
-      this.spawnRead(cx, cwd, where.on, context);
-    } catch (error) {
+    const refusal = this.spawnRead(cx, cwd, where.on, context);
+
+    if (refusal !== null) {
       this.loading = false;
-      this.state = applyRead(this.state, { failure: String(error) }, nowSeconds());
+      this.state = applyRead(this.state, { failure: refusal.message }, nowSeconds());
     }
 
     return true;
   }
 
-  private spawnRead(cx: Context, cwd: string, on: string | null, context: string): void {
-    cx.spawn(async (taskCx) => {
+  private spawnTask(cx: Context, body: (taskCx: AsyncContext) => unknown): Error | null {
+    try {
+      cx.spawn(body);
+
+      return null;
+    } catch (error) {
+      return error instanceof Error ? error : new Error(String(error));
+    }
+  }
+
+  private spawnRead(cx: Context, cwd: string, on: string | null, context: string): Error | null {
+    return this.spawnTask(cx, async (taskCx) => {
       try {
         const result = await readChanges(exec, cwd, on, () => locationKey() === context);
 
@@ -368,7 +378,7 @@ export default class Changes extends View {
       return;
     }
 
-    cx.spawn(async (taskCx) => {
+    const refusal = this.spawnTask(cx, async (taskCx) => {
       try {
         await this.preview.load(
           openPath,
@@ -383,6 +393,10 @@ export default class Changes extends View {
 
       taskCx.notify();
     });
+
+    if (refusal !== null) {
+      this.note = `Cannot preview this diff (too large or unreadable): ${refusal.message}`;
+    }
 
     cx.notify();
   }
@@ -401,7 +415,7 @@ export default class Changes extends View {
     this.busy = true;
     this.note = null;
 
-    cx.spawn(async (taskCx) => {
+    const refusal = this.spawnTask(cx, async (taskCx) => {
       try {
         await commitAll(exec, root, on, message);
 
@@ -419,6 +433,11 @@ export default class Changes extends View {
         taskCx.notify();
       }
     });
+
+    if (refusal !== null) {
+      this.busy = false;
+      this.note = `Commit failed: ${refusal.message}`;
+    }
 
     cx.notify();
   }

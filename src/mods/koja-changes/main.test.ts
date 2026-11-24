@@ -66,6 +66,8 @@ let renderedList: RenderedList | null = null;
 
 let renderedCommit: RenderedCommit | null = null;
 
+let renderedNote: string | null = null;
+
 const commands: string[][] = [];
 
 const watchers: Watch[] = [];
@@ -211,7 +213,11 @@ await mock.module('../../kit/index.ts', () =>
 await mock.module('./rows.ts', () => ({
   headerRow: chainable,
   limitedNotice: chainable,
-  noteRow: chainable,
+  noteRow: (text: string) => {
+    renderedNote = text;
+
+    return chainable();
+  },
   fileList: (options: RenderedList) => {
     renderedList = options;
 
@@ -252,6 +258,7 @@ beforeEach(() => {
   timerHandler = null;
   renderedList = null;
   renderedCommit = null;
+  renderedNote = null;
   commands.length = 0;
   watchers.length = 0;
   spawnErrors.length = 0;
@@ -634,6 +641,7 @@ describe('Changes view', () => {
     view.render(context);
 
     expect(renderedList?.line?.kind).toBe('error');
+    expect(renderedList?.watchLine).toBeNull();
     expect(renderedCommit?.enabled).toBe(false);
 
     renderedCommit?.onCommit(context);
@@ -647,6 +655,28 @@ describe('Changes view', () => {
 
     expect(renderedList?.line).toBeNull();
     expect(renderedCommit?.enabled).toBe(true);
+  });
+
+  test('a commit whose task cannot start clears busy and keeps Commit available', async () => {
+    const view = await boot();
+
+    typeMessage();
+    view.render(context);
+
+    const before = statusReads;
+
+    failNextSpawn = true;
+    renderedCommit?.onCommit(context);
+    await settle();
+    view.render(context);
+
+    expect(renderedNote).toContain('Commit failed');
+    expect(renderedCommit?.enabled).toBe(true);
+
+    view.refresh(context);
+    await settle();
+
+    expect(statusReads).toBeGreaterThan(before);
   });
 
   test('a background refresh requests a redraw before its read finishes', async () => {
