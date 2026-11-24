@@ -147,6 +147,9 @@ if [ "$command" = "--user" ]; then
 fi
 case $command in
   show)
+    if [ -n "\${FAKE_SHOW_MARKER:-}" ]; then
+      : >"$FAKE_SHOW_MARKER"
+    fi
     unit=
     property=
     for argument in "$@"; do
@@ -175,6 +178,9 @@ case $command in
     ;;
   list-jobs)
     if [ -n "\${FAKE_JOB_MARKER:-}" ] && [ -e "$FAKE_JOB_MARKER" ]; then
+      if [ -n "\${FAKE_JOB_SEEN:-}" ]; then
+        : >"$FAKE_JOB_SEEN"
+      fi
       printf '1 job start\\n'
       exit 0
     fi
@@ -3080,6 +3086,7 @@ describe('scripts/sandbox-machine interrupted fixture removal', () => {
 
     expect(interrupted.exitCode).not.toBe(0);
     await expectNoSetupWithoutRecord();
+    expect(await pathExists(join(root, 'machine.removing'))).toBe(true);
 
     const retry = await runBash(upCommand(null), {
       FAKE_MANAGER_DIR: manager,
@@ -3111,10 +3118,40 @@ describe('scripts/sandbox-machine pending start job', () => {
 
     await writeFile(marker, '');
 
-    spawnShell(`sleep 0.4; mv '${pendingUnit}' '${unit}'; rm -f '${marker}'`);
+    const seen = join(await newTemporaryFolder('koja-machine-job-'), 'seen');
+
+    spawnShell(
+      `while [ ! -e '${seen}' ]; do sleep 0.02; done; mv '${pendingUnit}' '${unit}'; rm -f '${marker}'`,
+    );
 
     const down = await runDown({
       FAKE_JOB_MARKER: marker,
+      FAKE_JOB_SEEN: seen,
+      FAKE_MANAGER_DIR: manager,
+      PATH: pathWith(manager),
+    });
+
+    expect(down.exitCode).toBe(0);
+    expect(await Bun.file(stateFile).exists()).toBe(false);
+  }, 30_000);
+
+  test('waits for the launch receipt of a service that is already loaded', async () => {
+    const service = serviceName();
+    const manager = await newTemporaryFolder('koja-machine-manager-');
+    const seen = join(await newTemporaryFolder('koja-machine-seen-'), 'seen');
+    const invocation = 'b'.repeat(32);
+    const lateReceipt = JSON.stringify(receipt(service, { invocationId: invocation }));
+
+    await writeFakeSystemctl(manager);
+    await writeUnit(manager, service, unitProperties(service, { InvocationID: invocation }));
+    await writeOwnership(ownership(service, { invocationId: '', cgroup: '' }));
+
+    spawnShell(
+      `while [ ! -e '${seen}' ]; do sleep 0.02; done; sleep 0.5; printf '%s\\n' '${lateReceipt}' > '${receiptFile}'; chmod 600 '${receiptFile}'`,
+    );
+
+    const down = await runDown({
+      FAKE_SHOW_MARKER: seen,
       FAKE_MANAGER_DIR: manager,
       PATH: pathWith(manager),
     });

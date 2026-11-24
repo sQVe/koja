@@ -424,7 +424,7 @@ read_and_verify_state() {
     fi
 
     if (( $(now_ms) >= deadline )); then
-      echo "fixture service $state_service has an incomplete start job" >&2
+      echo "$settling_notice" >&2
       return 1
     fi
 
@@ -463,6 +463,7 @@ read_and_verify_state_once() {
     fi
 
     if (( job_status == 0 )); then
+      settling_notice="fixture service $state_service has an incomplete start job"
       return 5
     fi
 
@@ -516,8 +517,8 @@ read_and_verify_state_once() {
 
   if [[ -z $state_invocation || -z $state_cgroup ]]; then
     if (( receipt_present == 0 )); then
-      echo "the fixture service $state_service has no launch receipt" >&2
-      return 1
+      settling_notice="the fixture service $state_service has no launch receipt"
+      return 5
     fi
 
     if [[ $service_invocation != "$receipt_invocation" || $service_cgroup != "$receipt_cgroup" ]]; then
