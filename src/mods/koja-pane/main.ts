@@ -159,7 +159,7 @@ export default class PaneHeader extends View {
       .id(`pane-header-${pane.pane}`)
       .size_full()
       .px(spacing.large)
-      .gap(spacing.medium)
+      .gap(paneHeaderWidth.gap)
       .items_center()
       .overflow_hidden()
       .border_b(spacing.hairline)
@@ -277,7 +277,7 @@ export default class PaneHeader extends View {
       const buttons = paneButtons(pane);
 
       if (endAligned && !hasStatus) {
-        const row = h_flex().ml_auto().gap(spacing.medium).children(buttons);
+        const row = h_flex().ml_auto().gap(paneHeaderWidth.gap).children(buttons);
 
         element.child(row);
       } else {
