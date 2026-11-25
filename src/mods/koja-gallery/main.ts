@@ -18,6 +18,7 @@ import { popupSurfaces } from './popup.ts';
 import { rows } from './rows.ts';
 import { searchAndText } from './searchAndText.ts';
 import { sidebarParts } from './sidebarParts.ts';
+import { splitButtons } from './splitButton.ts';
 import { states } from './states.ts';
 import { tabs } from './tabs.ts';
 import { textSizes } from './textSizes.ts';
@@ -108,6 +109,7 @@ export default class Gallery extends View {
       .child(section('Dialogs', dialogs(this.renameField)))
       .child(section('Tabs', tabs()))
       .child(section('Popup surface', popupSurfaces()))
-      .child(section('Search and text', searchAndText(this.search)));
+      .child(section('Search and text', searchAndText(this.search)))
+      .child(section('Split button', splitButtons()));
   }
 }
