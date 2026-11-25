@@ -90,7 +90,7 @@ await mock.module('herdr', () =>
   }),
 );
 
-const { overlayCloseCount, recordOverlayClose } = await import('../../kit/overlayOpen.ts');
+const { overlayCloseCount, recordOverlayClose } = await import('../../kit/overlay/open.ts');
 
 await mock.module('../../kit/index.ts', () =>
   kitIndexFake({

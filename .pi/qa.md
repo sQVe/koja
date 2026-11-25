@@ -6,14 +6,14 @@ user's real Herdr window.
 
 ## Choose sections
 
-| Section              | Test it when the change touches                                                                 |
-| -------------------- | ----------------------------------------------------------------------------------------------- |
-| Normal mode keys     | `koja-modal`, `src/kit/normalKeys.ts`, `config/keys.json`                                       |
-| Close and rename     | `src/kit/askFirst.ts`, `askPlan.ts`, `dialog*.ts`, `koja-confirm`, `koja-prompt`                |
-| Palette and picker   | `koja-palette`, `koja-picker`, `koja-help`, `src/kit/palette.ts`, `overlay*.ts`, `shortcut*.ts` |
-| Sidebar, tabs, panes | `koja-spaces`, `koja-tabs`, `koja-pane`, `koja-menu`, `koja-new-menu`, `koja-worktree`          |
-| Changes panel        | `koja-changes`, `src/kit/fileStatus.ts`, the panel memory in `koja-tabs`                        |
-| Gallery and scenes   | `koja-gallery`, `koja-mocks`, `scripts/capture.ts`                                              |
+| Section              | Test it when the change touches                                                                      |
+| -------------------- | ---------------------------------------------------------------------------------------------------- |
+| Normal mode keys     | `koja-modal`, `src/kit/normalKeys.ts`, `config/keys.json`                                            |
+| Close and rename     | `src/kit/askFirst.ts`, `askPlan.ts`, `dialog*.ts`, `koja-confirm`, `koja-prompt`                     |
+| Palette and picker   | `koja-palette`, `koja-picker`, `koja-help`, `src/kit/palette.ts`, `src/kit/overlay/`, `shortcut*.ts` |
+| Sidebar, tabs, panes | `koja-spaces`, `koja-tabs`, `koja-pane`, `koja-menu`, `koja-new-menu`, `koja-worktree`               |
+| Changes panel        | `koja-changes`, `src/kit/fileStatus.ts`, the panel memory in `koja-tabs`                             |
+| Gallery and scenes   | `koja-gallery`, `koja-mocks`, `scripts/capture.ts`                                                   |
 
 Cross-effects:
 
@@ -52,8 +52,8 @@ No launch, and unclear impact:
 | ------------------------------------------------------------- | -------------------- | ------- | ----------------------------------------------------------------------------------------------------------- |
 | [Normal mode keys](qa/features/normal-keys.md)                | Normal mode keys     | sandbox | `koja-modal`, `src/kit/normalKeys.ts`, `config/keys.json`                                                   |
 | [Close and rename](qa/features/close-and-rename.md)           | Close and rename     | sandbox | `src/kit/askFirst.ts`, `askPlan.ts`, `dialog*.ts`, `koja-confirm`, `koja-prompt`                            |
-| [Command palette](qa/features/palette.md)                     | Palette and picker   | sandbox | `koja-palette`, `koja-help`, `src/kit/palette.ts`, `overlay*.ts`, `shortcut*.ts`                            |
-| [Picker](qa/features/picker.md)                               | Palette and picker   | sandbox | `koja-picker`, `src/kit/palette.ts`, `overlay*.ts`                                                          |
+| [Command palette](qa/features/palette.md)                     | Palette and picker   | sandbox | `koja-palette`, `koja-help`, `src/kit/palette.ts`, `src/kit/overlay/`, `shortcut*.ts`                       |
+| [Picker](qa/features/picker.md)                               | Palette and picker   | sandbox | `koja-picker`, `src/kit/palette.ts`, `src/kit/overlay/`                                                     |
 | [Sidebar, tabs, and panes](qa/features/sidebar-tabs-panes.md) | Sidebar, tabs, panes | sandbox | `koja-spaces`, `koja-tabs`, `koja-pane`, `koja-menu`, `koja-new-menu`, `koja-worktree`, `src/data/pull*.ts` |
 | [Changes panel](qa/features/changes-panel.md)                 | Changes panel        | sandbox | `koja-changes`, `src/kit/fileStatus.ts`, the panel memory in `koja-tabs`                                    |
 | [Gallery and scenes](qa/features/gallery-and-scenes.md)       | Gallery and scenes   | sandbox | `koja-gallery`, `koja-mocks`, `scripts/capture.ts`                                                          |

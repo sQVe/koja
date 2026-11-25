@@ -58,7 +58,7 @@ const kitParts = [
   'hoverTarget',
   'icon',
   'listRow',
-  'overlay',
+  'overlay/overlay',
   'paneHeaderMenu',
   'popupSurface',
   'shortcut',
