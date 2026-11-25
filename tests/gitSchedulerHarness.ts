@@ -222,7 +222,7 @@ export class GitSchedulerHarness {
           const git = this.scheduler.gitFacts();
 
           this.published.push(git);
-          publisher.publish(this.lease, joinFacts(git, {}));
+          publisher.publish(this.lease, joinFacts(git, {}, {}));
         },
       },
       this.lease,

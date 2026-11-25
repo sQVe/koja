@@ -68,7 +68,7 @@ const createSchedulerBinding = (
       return;
     }
 
-    publisher.publish(binding.lease, joinFacts(binding.git.gitFacts(), binding.pulls.pulls()));
+    publisher.publish(binding.lease, joinFacts(binding.git.gitFacts(), binding.pulls.pulls(), {}));
   };
 
   const git = createGitScheduler(

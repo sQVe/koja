@@ -120,7 +120,7 @@ const openGallery = (): FakeView => {
 const liveTasks = (): DeadlineTask[] => tasks.filter((task) => !task.cancelled);
 
 beforeEach(() => {
-  sharedValues = { [snapshotKey]: { version: 4, revision: 1, facts: emptyFacts() } };
+  sharedValues = { [snapshotKey]: { version: 5, revision: 1, facts: emptyFacts() } };
   tasks = [];
   notifyCalls = 0;
   setSystemTime(start);

@@ -187,11 +187,11 @@ const storedFacts = (
     };
   }
 
-  return { git: { places, worktrees }, pulls };
+  return { git: { places, worktrees }, pulls, trackers: {} };
 };
 
 const showFacts = (facts: Facts): void => {
-  sharedValues[snapshotKey] = { version: 4, revision: 1, facts };
+  sharedValues[snapshotKey] = { version: 5, revision: 1, facts };
 };
 
 class HostView {
