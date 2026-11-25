@@ -15,7 +15,12 @@ import { sample } from './sample.ts';
 const ticketFacts: Fact[] = [
   { label: 'Project', value: 'Koja' },
   { label: 'Parent', value: 'ME-1087', link: { source: 'Linear' } },
-  { label: 'Related PR', value: '#52', link: { source: 'GitHub', repository: 'koja' } },
+  {
+    label: 'Related PR',
+    value: '#52',
+    link: { source: 'GitHub', repository: 'koja' },
+    status: 'open',
+  },
 ];
 
 const longTitle =
@@ -33,9 +38,24 @@ const longFacts: Fact[] = [
   { label: 'Assignee', value: 'You' },
   { label: 'Cycle', value: 'Cycle 12' },
   { label: 'Estimate', value: '5 points' },
-  { label: 'Related PRs', value: '#52', link: { source: 'GitHub', repository: 'koja' } },
-  { label: '', value: '#57', link: { source: 'GitHub', repository: 'koja' } },
-  { label: '', value: '#63', link: { source: 'GitHub', repository: 'koja' } },
+  {
+    label: 'Related PRs',
+    value: '#52',
+    link: { source: 'GitHub', repository: 'koja' },
+    status: 'open',
+  },
+  {
+    label: '',
+    value: '#57',
+    link: { source: 'GitHub', repository: 'koja' },
+    status: 'open',
+  },
+  {
+    label: '',
+    value: '#63',
+    link: { source: 'GitHub', repository: 'koja' },
+    status: 'open',
+  },
 ];
 
 const sampleLinks: SourceLinkOptions[] = [
@@ -71,6 +91,34 @@ const ticketHeader = (): Element =>
 const loadingHeader = (): Element =>
   itemHeader({ kind: 'loading', identifier: 'ME-1094', source: 'Linear' });
 
+const reviewHeader = (): Element =>
+  itemHeader({
+    kind: 'ready',
+    identifier: '#41',
+    source: 'GitHub',
+    repository: 'koja',
+    title: 'Review design.md',
+    state: { kind: 'inReview', label: 'in review', age: null },
+  });
+
+const sentHeader = (): Element =>
+  itemHeader({
+    kind: 'ready',
+    identifier: 'ME-1094',
+    source: 'Linear',
+    title: 'Design the ticket view',
+    state: { kind: 'sent', label: 'sent', age: null },
+  });
+
+const stateLessHeader = (): Element =>
+  itemHeader({
+    kind: 'ready',
+    identifier: 'ME-1094',
+    source: 'Linear',
+    title: 'Design the ticket view',
+    state: null,
+  });
+
 const longHeader = (): Element =>
   itemHeader({
     kind: 'ready',
@@ -102,6 +150,9 @@ export const contentParts = (): Element[] => [
   sample('Pull request header', pullHeader()),
   sample('Ticket header', ticketHeader()),
   sample('Loading ticket header', loadingHeader()),
+  sample('Review header', reviewHeader()),
+  sample('Sent review header', sentHeader()),
+  sample('Ticket header without a state', stateLessHeader()),
   sample('Long ticket title and facts, in a pane beside the agent', longTicket()),
   sample('Fact rows in a rail', rail()),
 ];

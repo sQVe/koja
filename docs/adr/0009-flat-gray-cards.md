@@ -186,6 +186,9 @@ The panes, the side panel, and the terminals share the pane body color `#dfe1e5`
 - Link text, such as a ticket or pull request id, draws in the detail role in `foreground`,
   underlined, with a pointer cursor. Plain detail text is `dim`, so the brighter color and the
   underline tell a link from a fact without a second color.
+- A fact row's value is the exception: it draws in `foreground` while its label stays `dim`, so the
+  value reads as the answer and the label as the question. A linked value keeps the underline and
+  pointer cursor, and a state word from its source follows it in `dim`.
 
 ### Popups
 

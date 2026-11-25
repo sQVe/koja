@@ -4,6 +4,7 @@ import type { Element } from 'gpui-kit';
 import { factSize, rowHeight, spacing } from './size.ts';
 import type { LinkTarget } from './sourceLink.ts';
 import { sourceLink } from './sourceLink.ts';
+import { detailText } from './text.ts';
 import { roleText } from './textRole.ts';
 
 export interface Fact {
@@ -11,17 +12,30 @@ export interface Fact {
   value: string;
   // A value that opens its source draws as a link naming that source.
   link?: LinkTarget;
+  // A state word from the value's source, drawn dim after the value.
+  status?: string;
 }
 
-// A fact label is one short word, so it keeps its width and the value takes the cut.
+// A fact label keeps its width, so the value takes the cut.
 const factLabel = (fact: Fact): Element => roleText('detail', fact.label, 'dim').flex_none();
 
 const factValue = (fact: Fact): Element => {
-  if (fact.link !== undefined) {
-    return sourceLink({ identifier: fact.value, ...fact.link });
+  const value =
+    fact.link === undefined
+      ? roleText('detail', fact.value, 'foreground')
+      : sourceLink({ identifier: fact.value, ...fact.link });
+
+  if (fact.status === undefined) {
+    return value;
   }
 
-  return roleText('detail', fact.value, 'foreground');
+  return h_flex()
+    .min_w(0)
+    .flex_shrink(1)
+    .gap(spacing.xsmall)
+    .items_center()
+    .child(value)
+    .child(detailText(`· ${fact.status}`));
 };
 
 const railRow = (fact: Fact): Element => {
