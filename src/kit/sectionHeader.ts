@@ -10,7 +10,6 @@ export interface SectionHeaderOptions {
   label: string;
   size: 'default' | 'bar';
   start?: Element;
-  // Elements drawn right after the label, such as a section's count.
   detail?: Element[];
   end?: Element[];
   interactive?: boolean;

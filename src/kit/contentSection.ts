@@ -9,7 +9,6 @@ import { colors } from './theme.ts';
 
 interface ContentSectionLook {
   name: string;
-  // A dim count after the name, such as the section's number of rows.
   count?: number;
 }
 
@@ -26,7 +25,6 @@ const chevronSlot = (open: boolean): Element => {
 const countDetail = (count: number | undefined): Element[] =>
   count === undefined ? [] : [detailText(String(count))];
 
-// The header's padding and chevron slot put every part at the section label's edge.
 export const contentSection = (options: ContentSectionOptions): Element => {
   const header = sectionHeader({
     label: options.name,

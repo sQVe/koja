@@ -16,7 +16,6 @@ import { colors } from './theme.ts';
 type ShownAttention = Exclude<AttentionStatus, 'idle'>;
 
 export interface StatusMarkOptions {
-  // Draws a working mark still, for a row of a part that failed to refresh.
   still?: boolean;
 }
 

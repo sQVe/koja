@@ -56,7 +56,6 @@ const firstNumber = (element: DrawnElement | undefined, style: string): number =
 
 const headerOf = (section: DrawnElement): DrawnElement => section.kids[0] as DrawnElement;
 
-// The label's left edge: the header's padding, its chevron slot, and its gap.
 const labelEdge = (section: DrawnElement): number => {
   const header = headerOf(section);
 

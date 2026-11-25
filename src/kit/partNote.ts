@@ -7,7 +7,6 @@ import { detailText } from './text.ts';
 import { colors } from './theme.ts';
 
 export interface PartNoteOptions {
-  // The part's name as its section names it, such as `checks`.
   part: string;
   age: string;
 }
