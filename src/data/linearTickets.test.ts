@@ -97,12 +97,19 @@ const readOf = (answer: Answer, stillOwner: () => boolean = () => true) =>
 describe('ticketIdOf', () => {
   test('maps a ticket branch to its id', () => {
     expect(ticketIdOf('me-666-list-tdd-the-query', 'whatever')).toBe('ME-666');
-    expect(ticketIdOf('analyze-mutation-ci-runtime', 'analyze-mutation-ci-runtime')).toBeNull();
   });
 
-  test('falls back to the folder name', () => {
+  test('falls back to the folder name when the branch has no ticket', () => {
     expect(ticketIdOf('main', 'me-666-list-tdd-the-query')).toBe('ME-666');
+  });
+
+  test('falls back to the folder name without a branch', () => {
     expect(ticketIdOf(null, 'me-666-list-tdd-the-query')).toBe('ME-666');
+  });
+
+  test('returns null when neither the branch nor the folder names a ticket', () => {
+    expect(ticketIdOf('analyze-mutation-ci-runtime', 'analyze-mutation-ci-runtime')).toBeNull();
+    expect(ticketIdOf(null, 'analyze-mutation-ci-runtime')).toBeNull();
   });
 });
 

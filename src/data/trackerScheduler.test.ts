@@ -74,20 +74,41 @@ const settle = async (): Promise<void> => {
   }
 };
 
+const pendingRead = () => {
+  let settleRead: ((read: TicketRead) => void) | undefined;
+
+  const promise = new Promise<TicketRead>((resolve) => {
+    settleRead = resolve;
+  });
+
+  return {
+    promise,
+    resolve: (read: TicketRead): void => {
+      settleRead?.(read);
+    },
+  };
+};
+
 let reads: TicketRead[] = [];
 let now = start;
 
-const harnessOf = (run: RunCommand = workspaceRun()): Harness => {
+const harnessOf = (
+  run: RunCommand = workspaceRun(),
+  seed: Record<string, RepositoryTracker> = {},
+): Harness => {
   const sources: TicketSource[] = [];
   let published = 0;
 
-  const scheduler = createTrackerScheduler({
-    run,
-    now: () => now,
-    publish: () => {
-      published += 1;
+  const scheduler = createTrackerScheduler(
+    {
+      run,
+      now: () => now,
+      publish: () => {
+        published += 1;
+      },
     },
-  });
+    seed,
+  );
 
   return {
     scheduler,
@@ -235,6 +256,86 @@ describe('createTrackerScheduler', () => {
     await settle();
 
     expect(harness.sources[0]?.ids).toEqual(['ME-1036']);
+  });
+
+  test('does not read a repository without ticket ids', async () => {
+    const harness = harnessOf();
+    const git = gitFactsOf(['main'], '/code/koja', '/code/koja');
+
+    harness.scheduler.tick(git, readTickets(harness));
+    await settle();
+
+    expect(harness.sources).toHaveLength(0);
+    expect(harness.published).toBe(0);
+    expect(harness.scheduler.trackers()).toEqual({});
+  });
+
+  test('does not start a second read while one is in flight', async () => {
+    const harness = harnessOf();
+    const git = gitFactsOf(['me-1036-title-spaces-with-their-linear-tickets']);
+    const read = pendingRead();
+
+    const runner = async (source: TicketSource): Promise<TicketRead> => {
+      harness.sources.push(source);
+
+      return read.promise;
+    };
+
+    harness.scheduler.tick(git, runner);
+    await settle();
+    harness.scheduler.tick(git, runner);
+    await settle();
+
+    expect(harness.sources).toHaveLength(1);
+
+    read.resolve({ kind: 'read', tickets: [ticket('ME-1036')] });
+    await settle();
+
+    expect(harness.scheduler.trackers()).toEqual({
+      [repository.key]: {
+        workspace: 'sqve',
+        tickets: { 'ME-1036': ticket('ME-1036') },
+        failed: false,
+      },
+    });
+  });
+
+  test('records a failed first read with the workspace and no tickets', async () => {
+    const harness = harnessOf();
+    const git = gitFactsOf(['me-1036-title-spaces-with-their-linear-tickets']);
+
+    reads = [{ kind: 'failed' }];
+
+    harness.scheduler.tick(git, readTickets(harness));
+    await settle();
+
+    expect(harness.scheduler.trackers()).toEqual({
+      [repository.key]: { workspace: 'sqve', tickets: {}, failed: true },
+    });
+  });
+
+  test('keeps the seed tickets on a failed read', async () => {
+    const seeded: RepositoryTracker = {
+      workspace: 'sqve',
+      tickets: { 'ME-1036': ticket('ME-1036') },
+      failed: false,
+    };
+
+    const harness = harnessOf(missingWorkspaceRun, { [repository.key]: seeded });
+    const git = gitFactsOf(['me-1036-title-spaces-with-their-linear-tickets']);
+
+    expect(harness.scheduler.trackers()).toEqual({ [repository.key]: seeded });
+
+    harness.scheduler.tick(git, readTickets(harness));
+    await settle();
+
+    expect(harness.scheduler.trackers()).toEqual({
+      [repository.key]: {
+        workspace: null,
+        tickets: { 'ME-1036': ticket('ME-1036') },
+        failed: true,
+      },
+    });
   });
 
   test('records a repository without a workspace as failed', async () => {
