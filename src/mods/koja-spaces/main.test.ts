@@ -692,8 +692,8 @@ describe('koja-spaces close follow', () => {
     expect(selected()).toEqual(['a']);
   });
 
-  const recordSelection = (id: string | null): void => {
-    const command = id === null ? { name: 'space.next' } : { name: 'space.select', args: { id } };
+  const recordSelection = (id: string): void => {
+    const command = { name: 'space.select', args: { id } };
 
     runSpaceCommand(
       {
