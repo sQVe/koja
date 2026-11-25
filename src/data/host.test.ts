@@ -48,7 +48,7 @@ interface Copy {
   tick: () => void;
 }
 
-const pullPeriodMilliseconds = 180_000;
+const pullPeriodMilliseconds = 60_000;
 
 const sweepMilliseconds = 250;
 const folder = '/code/koja';
@@ -138,6 +138,14 @@ await mock.module('herdr', () =>
     shared: (key: string) => sharedValues.get(key),
     spaces: () => spaceFolders.map((spaceFolder, index) => spaceOf(`s${index + 1}`, spaceFolder)),
     watchFolder: watchFolderFake,
+    window: () => ({
+      platform: 'linux' as const,
+      titlebar: 'none' as const,
+      buttons: false,
+      maximized: false,
+      fullscreen: false,
+      active: true,
+    }),
   }),
 );
 

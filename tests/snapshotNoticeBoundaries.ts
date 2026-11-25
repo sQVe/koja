@@ -46,5 +46,7 @@ export const spaces = (): [] => [];
 
 const neverSettles = (): void => undefined;
 
+export const window = (): null => null;
+
 export const watchFolder = (): FolderWatch =>
   Object.assign(new Promise<string[]>(neverSettles), { cancel: (): void => undefined });

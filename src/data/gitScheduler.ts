@@ -27,6 +27,7 @@ export interface GitSchedulerDependencies {
 export interface GitScheduler {
   tick: (world: GitWorld, cx: Context) => void;
   gitFacts: () => GitFacts;
+  takeRemoteRefEvents: () => Map<string, number>;
   stop: () => void;
 }
 
@@ -100,6 +101,10 @@ class Scheduler implements GitScheduler {
 
   gitFacts(): GitFacts {
     return { places: this.places, worktrees: this.worktrees };
+  }
+
+  takeRemoteRefEvents(): Map<string, number> {
+    return this.watches.takeRemoteRefEvents();
   }
 
   tick(world: GitWorld, cx: Context): void {
