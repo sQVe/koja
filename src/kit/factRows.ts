@@ -1,40 +1,30 @@
 import { h_flex, v_flex } from 'gpui-base';
 import type { Element } from 'gpui-kit';
-import { div } from 'gpui-kit';
 
 import { factSize, rowHeight, spacing } from './size.ts';
-import type { SourceTarget } from './sourceLink.ts';
 import { sourceLink } from './sourceLink.ts';
-import { withTextRole } from './textRole.ts';
+import { roleText } from './textRole.ts';
+
+// A GitHub fact carries the repository its value belongs to, so every linked value names its whole
+// target.
+type FactSource = { source: 'GitHub'; repository: string } | { source: 'Linear' | 'tikk' };
 
 export interface Fact {
   label: string;
   value: string;
   // A value that opens its source draws as a link naming that source.
-  source?: SourceTarget;
-  repository?: string;
+  link?: FactSource;
 }
 
-const factLabel = (fact: Fact): Element => {
-  const box = div().flex_none().min_w(0).truncate();
-
-  return withTextRole(box, 'detail', 'dim').child(fact.label);
-};
+// A fact label is one short word, so it keeps its width and the value takes the cut.
+const factLabel = (fact: Fact): Element => roleText('detail', fact.label, 'dim').flex_none();
 
 const factValue = (fact: Fact): Element => {
-  if (fact.source !== undefined) {
-    const options = {
-      identifier: fact.value,
-      source: fact.source,
-      ...(fact.repository === undefined ? {} : { repository: fact.repository }),
-    };
-
-    return sourceLink(options);
+  if (fact.link !== undefined) {
+    return sourceLink({ identifier: fact.value, ...fact.link });
   }
 
-  const box = div().min_w(0).truncate();
-
-  return withTextRole(box, 'detail', 'foreground').child(fact.value);
+  return roleText('detail', fact.value, 'foreground');
 };
 
 const railRow = (fact: Fact): Element => {

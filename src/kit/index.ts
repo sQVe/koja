@@ -59,6 +59,8 @@ export { searchField } from './searchField.ts';
 
 export { sourceLink } from './sourceLink.ts';
 
+export type { SourceLinkOptions } from './sourceLink.ts';
+
 export { textField } from './textField.ts';
 
 export { sectionHeader } from './sectionHeader.ts';
