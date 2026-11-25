@@ -1,6 +1,14 @@
 {
   "version": 2,
-  "pulls": {
-    "[null,\"/code/koja/.git\"]": 1700000000000
+  "repositories": {
+    "[null,\"/code/koja/.git\"]": {
+      "list": 1700000000000,
+      "checks": {
+        "41": 1700000001000
+      },
+      "threads": {
+        "41": 1700000002000
+      }
+    }
   }
 }

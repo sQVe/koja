@@ -101,17 +101,27 @@ without suggesting an edit.
 ### Snapshot versions
 
 The snapshot is a saved record, so a field change bumps its `version`. The current reader accepts
-version 3, which holds Git facts and per-repository PR facts, and rejects unknown fields. Version 2
-is the previous supported format: its facts held only Git facts, so the reader parses them and
-returns a version 3 snapshot with no PR facts. Version 1 carried no facts: its `facts` was
-`Record<string, never>`, and the next owner publish rewrites it. A version 1 snapshot is therefore
-retired silently, because no user action applies. This is the one exception to the notices that
-[shared ADR 0008](../stomme/shared/adr/0008-backwards-compatibility.md) requires for saved formats.
+version 4, which holds Git facts and per-repository PR facts, and rejects unknown fields. Each PR
+carries its mergeability, merge state, review decision, checks, and threads, and each of the last
+two is a part that is read, failed with its last good value, or unread. Version 3 is the previous
+supported format: its PR facts held only the list fields, so the reader parses them and gives each
+PR the unread parts, from which no need is derived. Version 2 held only Git facts, so the reader
+parses them and returns a version 4 snapshot with no PR facts. Version 1 carried no facts: its
+`facts` was `Record<string, never>`, and the next owner publish rewrites it. A version 1 snapshot is
+therefore retired silently, because no user action applies. This is the one exception to the notices
+that [shared ADR 0008](../stomme/shared/adr/0008-backwards-compatibility.md) requires for saved
+formats.
 
-A malformed version 3 record, a malformed version 2 record, or a present record without a valid
-version, is logged once per mod copy with a message that the host rebuilds the snapshot on its next
-publish. A positive whole version above 3 is logged once per mod copy with a message that names the
-update. Each reason logs once per loaded mod copy, and later reads stay silent.
+A malformed version 4, 3, or 2 record, or a present record without a valid version, is logged once
+per mod copy with a message that the host rebuilds the snapshot on its next publish. A positive
+whole version above 4 is logged once per mod copy with a message that names the update. Each reason
+logs once per loaded mod copy, and later reads stay silent.
+
+PR read times carry their own version. Version 2 keeps, per repository, one list time and a time per
+checks part and per threads part, so a failed part shows its own age while the parts that were read
+move to the new time. Version 1 held one time per repository, which the reader treats as the list
+time with no part times; the next changed publish writes version 2. A part key is a PR number
+written as a positive whole number in canonical form, and any other key makes the record malformed.
 
 ## Consequences
 

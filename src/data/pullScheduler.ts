@@ -1,6 +1,7 @@
 import type { RunCommand } from './gitIdentity.ts';
 import type { Lease, ReadShared } from './lease.ts';
 import { sameHolder } from './lease.ts';
+import type { PullReadTimes } from './pullReadTimes.ts';
 import type { PullRetryOutcome, PullRetryRequest, PullRetryResult } from './pullRetry.ts';
 import {
   answeredRequestKeys,
@@ -25,13 +26,13 @@ export interface PullSchedulerDependencies {
   read: ReadShared;
   notices: RecordNotices;
   publish: () => void;
-  publishReadTimes: (lease: Lease, times: Record<string, number>) => void;
+  publishReadTimes: (lease: Lease, times: PullReadTimes) => void;
   publishOutcomes: (lease: Lease, outcomes: PullRetryOutcome[]) => void;
 }
 
 export interface PullSchedulerSeed {
   pulls: Record<string, RepositoryPulls>;
-  readTimes: Record<string, number>;
+  readTimes: PullReadTimes;
 }
 
 export interface PullScheduler {
@@ -57,7 +58,7 @@ type Spawn = (body: () => Promise<void>) => void;
 const pullPeriodMilliseconds = 180_000;
 
 // A read time without its PR facts would delay the first read of a reopened repository.
-const readTimesWithFacts = (seed: PullSchedulerSeed): Record<string, number> => {
+const readTimesWithFacts = (seed: PullSchedulerSeed): PullReadTimes => {
   const entries = Object.entries(seed.readTimes).filter(([key]) => Object.hasOwn(seed.pulls, key));
 
   return Object.fromEntries(entries);
@@ -65,7 +66,7 @@ const readTimesWithFacts = (seed: PullSchedulerSeed): Record<string, number> => 
 
 class Scheduler implements PullScheduler {
   private readonly pullsByRepository: Record<string, RepositoryPulls>;
-  private readonly readTimes: Record<string, number>;
+  private readonly readTimes: PullReadTimes;
   private readonly triedAt: Record<string, number> = {};
   private readonly answers = new Map<string, Answer>();
   private readonly running = new Map<string, RunningRead>();
@@ -186,7 +187,7 @@ class Scheduler implements PullScheduler {
         continue;
       }
 
-      const last = Math.max(this.readTimes[key] ?? 0, this.triedAt[key] ?? 0);
+      const last = Math.max(this.readTimes[key]?.list ?? 0, this.triedAt[key] ?? 0);
 
       if (now - last < pullPeriodMilliseconds) {
         continue;
@@ -286,7 +287,7 @@ class Scheduler implements PullScheduler {
   private writeRead(key: string, read: SettledPullRead): void {
     if (read.kind === 'read') {
       this.pullsByRepository[key] = { pulls: read.pulls, failed: false };
-      this.readTimes[key] = this.dependencies.now();
+      this.readTimes[key] = { list: this.dependencies.now(), checks: {}, threads: {} };
 
       return;
     }

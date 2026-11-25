@@ -4,6 +4,7 @@ import type { ExecResult, FolderWatch } from 'herdr';
 
 import { spaceOf } from '../../tests/gitSchedulerHarness.ts';
 import { herdrFake } from '../../tests/moduleFakes.ts';
+import { pullFacts } from '../../tests/pullFacts.ts';
 import { runSnapshotNoticeScenario } from '../../tests/snapshotNoticeLifetime.ts';
 import { placeOf, repositoryOf, worktreeOf } from './gitIdentity.ts';
 import type { Heartbeat } from './lease.ts';
@@ -205,7 +206,7 @@ const storedSnapshot = (pulls: Record<string, RepositoryPulls> = {}): Snapshot =
   const worktree = worktreeOf(null, folder);
 
   return {
-    version: 3,
+    version: 4,
     revision: 7,
     facts: {
       git: {
@@ -238,7 +239,7 @@ describe('startDataHost', () => {
     expect(heartbeat()).toMatchObject({ generation: 1, at: start });
 
     expect(sharedValues.get(snapshotKey)).toEqual({
-      version: 3,
+      version: 4,
       revision: 1,
       facts: emptyFacts(),
     });
@@ -352,13 +353,7 @@ describe('startDataHost', () => {
   });
 
   test('a takeover seeds the PR facts and a recent read time so it starts no read', async () => {
-    const pull: Pull = {
-      number: 7,
-      state: 'OPEN',
-      isDraft: false,
-      title: 'Pull 7',
-      headRefName: 'feature-7',
-    };
+    const pull = pullFacts({ number: 7, headRefName: 'feature-7', title: 'Pull 7' });
 
     sharedValues.set(
       snapshotKey,
@@ -394,13 +389,7 @@ describe('startDataHost', () => {
   });
 
   test('a successful Retry clears the failed state and repopulates the titles', async () => {
-    const pull: Pull = {
-      number: 7,
-      state: 'OPEN',
-      isDraft: false,
-      title: 'Pull 7',
-      headRefName: 'feature-7',
-    };
+    const pull = pullFacts({ number: 7, headRefName: 'feature-7', title: 'Pull 7' });
 
     pullList = [pull];
     ghFailures = 1;
@@ -475,7 +464,7 @@ describe('startDataHost', () => {
     expect(record.stages.map((stage) => stage.messageCount)).toEqual([0, 0, 1, 1, 2, 2]);
     expect(snapshotWrites).toHaveLength(2);
     expect(snapshotWrites.map((write) => write.messageCount)).toEqual([1, 2]);
-    expect(record.snapshot).toEqual({ version: 3, revision: 1, facts: emptyFacts() });
+    expect(record.snapshot).toEqual({ version: 4, revision: 1, facts: emptyFacts() });
   });
 
   test('logs again in a fresh loaded copy', async () => {
@@ -488,13 +477,7 @@ describe('startDataHost', () => {
   });
 
   test('an unchanged PR read writes no new snapshot revision', async () => {
-    const pull: Pull = {
-      number: 7,
-      state: 'OPEN',
-      isDraft: false,
-      title: 'Pull 7',
-      headRefName: 'feature-7',
-    };
+    const pull = pullFacts({ number: 7, headRefName: 'feature-7', title: 'Pull 7' });
 
     pullList = [pull];
 
@@ -519,21 +502,17 @@ describe('startDataHost', () => {
     expect(parseSnapshot(sharedValues.get(snapshotKey))?.revision).toBe(revision);
 
     expect(sharedValues.get(pullReadTimesKey)).toEqual({
-      version: 1,
-      pulls: { [repository.key]: start + pullPeriodMilliseconds },
+      version: 2,
+      repositories: {
+        [repository.key]: { list: start + pullPeriodMilliseconds, checks: {}, threads: {} },
+      },
     });
 
     expect(pullCalls()).toHaveLength(2);
   });
 
   test('PR facts and git facts publish in one snapshot', async () => {
-    const pull: Pull = {
-      number: 7,
-      state: 'OPEN',
-      isDraft: false,
-      title: 'Pull 7',
-      headRefName: 'feature-7',
-    };
+    const pull = pullFacts({ number: 7, headRefName: 'feature-7', title: 'Pull 7' });
 
     pullList = [pull];
 
@@ -573,13 +552,7 @@ describe('startDataHost', () => {
   });
 
   test('a git-only facts change keeps the PR facts already read', async () => {
-    const pull: Pull = {
-      number: 7,
-      state: 'OPEN',
-      isDraft: false,
-      title: 'Pull 7',
-      headRefName: 'feature-7',
-    };
+    const pull = pullFacts({ number: 7, headRefName: 'feature-7', title: 'Pull 7' });
 
     pullList = [pull];
 

@@ -1,19 +1,14 @@
 import { describe, expect, test } from 'bun:test';
 
+import { pullFacts } from '../../../tests/pullFacts.ts';
 import { repositoryOf } from '../../data/gitIdentity.ts';
 import type { Pull } from '../../data/pulls.ts';
 import type { RepositoryPulls } from '../../data/snapshot.ts';
 import { pullOf } from './pulls.ts';
 import type { GitInfo } from './tree.ts';
 
-const pull = (fields: Partial<Pull>): Pull => ({
-  number: 1,
-  state: 'OPEN',
-  isDraft: false,
-  title: 'Title',
-  headRefName: 'main',
-  ...fields,
-});
+const pull = (fields: Partial<Pull>): Pull =>
+  pullFacts({ number: 1, headRefName: 'main', title: 'Title', ...fields });
 
 const git = (branch: string): GitInfo => ({
   branch,

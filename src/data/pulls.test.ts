@@ -2,6 +2,7 @@ import { describe, expect, test } from 'bun:test';
 
 import type { ExecResult } from 'herdr';
 
+import { pullFacts } from '../../tests/pullFacts.ts';
 import type { RunCommand } from './gitIdentity.ts';
 import { repositoryOf } from './gitIdentity.ts';
 import type { Pull } from './pulls.ts';
@@ -25,16 +26,15 @@ const throwingRun: RunCommand = async () => {
 
 const repository = repositoryOf('qa-remote', '/repo/.git');
 
+const threadsWith = (unresolved: number): unknown => ({
+  kind: 'read',
+  value: { unresolved, complete: true },
+});
+
 const alwaysOwner = (): boolean => true;
 
-const pull = (fields: Partial<Pull>): Pull => ({
-  number: 1,
-  state: 'OPEN',
-  isDraft: false,
-  title: 'Title',
-  headRefName: 'main',
-  ...fields,
-});
+const pull = (fields: Partial<Pull>): Pull =>
+  pullFacts({ number: 1, headRefName: 'main', title: 'Title', ...fields });
 
 describe('readRepositoryPulls', () => {
   test('passes the repository machine to both commands', async () => {
@@ -235,5 +235,35 @@ describe('parseStoredPull', () => {
 
   test('rejects a stored pull with a wrong field type', () => {
     expect(parseStoredPull({ ...pull({}), isDraft: 'yes' })).toBeNull();
+  });
+
+  test('rejects a value outside a needs union', () => {
+    expect(parseStoredPull({ ...pull({}), mergeable: 'maybe' })).toBeNull();
+    expect(parseStoredPull({ ...pull({}), mergeState: 'waiting' })).toBeNull();
+    expect(parseStoredPull({ ...pull({}), review: 'asked' })).toBeNull();
+    expect(parseStoredPull({ ...pull({}), checks: { kind: 'read', value: 'green' } })).toBeNull();
+  });
+
+  test('rejects a negative or fractional unresolved count', () => {
+    expect(parseStoredPull({ ...pull({}), threads: threadsWith(-1) })).toBeNull();
+    expect(parseStoredPull({ ...pull({}), threads: threadsWith(1.5) })).toBeNull();
+    expect(parseStoredPull({ ...pull({}), threads: threadsWith(0) })).not.toBeNull();
+  });
+
+  test('rejects an unknown key inside a part', () => {
+    expect(parseStoredPull({ ...pull({}), checks: { kind: 'unread', extra: true } })).toBeNull();
+
+    expect(
+      parseStoredPull({
+        ...pull({}),
+        threads: { kind: 'read', value: { unresolved: 0, complete: true, extra: true } },
+      }),
+    ).toBeNull();
+  });
+
+  test('accepts a failed part with no last value', () => {
+    const stored = { ...pull({}), threads: { kind: 'failed', last: null } as const };
+
+    expect(parseStoredPull(stored)).toEqual(stored);
   });
 });

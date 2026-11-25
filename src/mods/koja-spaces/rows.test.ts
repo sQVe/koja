@@ -1,15 +1,10 @@
 import { describe, expect, test } from 'bun:test';
 
+import { pullFacts } from '../../../tests/pullFacts.ts';
 import type { Pull } from '../../data/pulls.ts';
 import { rowCut } from './rows.ts';
 
-const pull = (title: string): Pull => ({
-  number: 1,
-  state: 'OPEN',
-  isDraft: false,
-  title,
-  headRefName: 'main',
-});
+const pull = (title: string): Pull => pullFacts({ number: 1, headRefName: 'main', title });
 
 describe('rowCut', () => {
   test('cuts a named space in the middle even when it has a pull title', () => {

@@ -2,10 +2,12 @@ import { beforeEach, describe, expect, test } from 'bun:test';
 
 import type { ExecResult } from 'herdr';
 
+import { pullFacts } from '../../tests/pullFacts.ts';
 import type { RepositoryIdentity } from './gitIdentity.ts';
 import { placeOf, repositoryOf, worktreeOf } from './gitIdentity.ts';
 import type { Lease, ReadShared, WriteShared } from './lease.ts';
 import { heartbeatKey, leaseKey } from './lease.ts';
+import type { PullReadTimes } from './pullReadTimes.ts';
 import {
   createPullReadTimesPublisher,
   pullReadTimesKey,
@@ -73,14 +75,12 @@ const requestFor = (consumer: string, id: string, at = start): PullRetryRequest 
 });
 
 const pullList = (number: number): Pull[] => [
-  {
-    number,
-    state: 'OPEN',
-    isDraft: false,
-    title: `Pull ${number}`,
-    headRefName: `feature-${number}`,
-  },
+  pullFacts({ number, headRefName: `feature-${number}`, title: `Pull ${number}` }),
 ];
+
+const timesAt = (key: string, time: number): PullReadTimes => ({
+  [key]: { list: time, checks: {}, threads: {} },
+});
 
 const gitFactsOf = (
   source: { repository: RepositoryIdentity; folder: string } = defaultSource,
@@ -107,7 +107,7 @@ class PullSchedulerHarness {
   calls: PendingCall[] = [];
   spawned: Promise<unknown>[] = [];
   published: Record<string, RepositoryPulls>[] = [];
-  publishedTimes: Record<string, number>[] = [];
+  publishedTimes: PullReadTimes[] = [];
   publishedOutcomes: PullRetryOutcome[][] = [];
   now = start;
   lease: Lease = { version: 1, owner: 'owner-a', generation: 1 };
@@ -159,13 +159,13 @@ class PullSchedulerHarness {
     this.store.write(pullRetryOutcomesKey, { version: 1, outcomes });
   }
 
-  setReadTimes(times: Record<string, number>): void {
-    this.store.write(pullReadTimesKey, { version: 1, pulls: times });
+  setReadTimes(times: PullReadTimes): void {
+    this.store.write(pullReadTimesKey, { version: 2, repositories: times });
   }
 
   start(seed?: {
     pulls: Record<string, RepositoryPulls>;
-    readTimes: Record<string, number>;
+    readTimes: PullReadTimes;
   }): PullScheduler {
     const initial = seed ?? { pulls: {}, readTimes: {} };
 
@@ -360,7 +360,7 @@ describe('createPullScheduler', () => {
         [repository.key]: { pulls: [], failed: false },
         [other.key]: { pulls: [], failed: false },
       },
-      readTimes: { [other.key]: start },
+      readTimes: timesAt(other.key, start),
     });
 
     scheduler.tick(git, harness.spawn);
@@ -411,9 +411,9 @@ describe('createPullScheduler', () => {
       [repository.key]: { pulls: pullList(7), failed: false },
     });
 
-    expect(readPullReadTimes(harness.store.read, harness.notices)).toEqual({
-      [repository.key]: start,
-    });
+    expect(readPullReadTimes(harness.store.read, harness.notices)).toEqual(
+      timesAt(repository.key, start),
+    );
 
     harness.setNow(start + pullPeriodMilliseconds);
     scheduler.tick(git, harness.spawn);
@@ -423,9 +423,9 @@ describe('createPullScheduler', () => {
       [repository.key]: { pulls: pullList(7), failed: true },
     });
 
-    expect(readPullReadTimes(harness.store.read, harness.notices)).toEqual({
-      [repository.key]: start,
-    });
+    expect(readPullReadTimes(harness.store.read, harness.notices)).toEqual(
+      timesAt(repository.key, start),
+    );
   });
 
   test('a Retry whose PR read fails is answered failed', async () => {
@@ -443,7 +443,7 @@ describe('createPullScheduler', () => {
   test('reads each repository at most once per 180 s', async () => {
     const scheduler = harness.start({
       pulls: seededRepositoryPulls,
-      readTimes: { [repository.key]: start - 1000 },
+      readTimes: timesAt(repository.key, start - 1000),
     });
 
     const git = gitFactsOf();
@@ -472,7 +472,7 @@ describe('createPullScheduler', () => {
   });
 
   test('a seeded read time without seeded PR facts does not delay the first read', () => {
-    const scheduler = harness.start({ pulls: {}, readTimes: { [repository.key]: start } });
+    const scheduler = harness.start({ pulls: {}, readTimes: timesAt(repository.key, start) });
 
     scheduler.tick(gitFactsOf(), harness.spawn);
 
@@ -604,7 +604,7 @@ describe('createPullScheduler', () => {
 
     const scheduler = harness.start({
       pulls: seededRepositoryPulls,
-      readTimes: { [repository.key]: start },
+      readTimes: timesAt(repository.key, start),
     });
 
     scheduler.tick(gitFactsOf(), harness.spawn);
@@ -623,7 +623,7 @@ describe('createPullScheduler', () => {
 
     const scheduler = harness.start({
       pulls: seededRepositoryPulls,
-      readTimes: { [repository.key]: start },
+      readTimes: timesAt(repository.key, start),
     });
 
     scheduler.tick(gitFactsOf(), harness.spawn);
@@ -648,7 +648,7 @@ describe('createPullScheduler', () => {
 
     const scheduler = harness.start({
       pulls: seededRepositoryPulls,
-      readTimes: { [repository.key]: start },
+      readTimes: timesAt(repository.key, start),
     });
 
     scheduler.tick(gitFactsOf(), harness.spawn);
@@ -706,7 +706,7 @@ describe('createPullScheduler', () => {
 
     const scheduler = harness.start({
       pulls: seededRepositoryPulls,
-      readTimes: { [repository.key]: start },
+      readTimes: timesAt(repository.key, start),
     });
 
     const git = gitFactsOf();

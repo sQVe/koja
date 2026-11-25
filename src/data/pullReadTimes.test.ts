@@ -4,6 +4,7 @@ import { join } from 'node:path';
 
 import type { Lease, ReadShared } from './lease.ts';
 import { claimLease } from './lease.ts';
+import type { PullReadTimes, RepositoryReadTimes } from './pullReadTimes.ts';
 import {
   createPullReadTimesPublisher,
   pullReadTimesKey,
@@ -19,6 +20,10 @@ const fixture = (name: string): unknown =>
   JSON.parse(readFileSync(join(import.meta.dir, 'fixtures', name), 'utf8'));
 
 const repositoryKey = JSON.stringify([null, '/code/koja/.git']);
+
+const listOnly = (time: number): RepositoryReadTimes => ({ list: time, checks: {}, threads: {} });
+
+const timesOf = (time: number): PullReadTimes => ({ [repositoryKey]: listOnly(time) });
 
 const memoryStore = () => {
   const values: Record<string, unknown> = {};
@@ -91,25 +96,70 @@ const claimFor = (store: Store, owner: string, now: number): Lease => {
 };
 
 const malformedRecords: [string, unknown][] = [
-  ['a wrong version', { version: 0, pulls: {} }],
-  ['an unknown key', { version: 1, pulls: {}, extra: true }],
+  ['a wrong version', { version: 0, repositories: {} }],
+  ['an unknown key', { version: 2, repositories: {}, extra: true }],
+  ['repositories that are not a record', { version: 2, repositories: [] }],
+  [
+    'a repository without its part maps',
+    { version: 2, repositories: { [repositoryKey]: { list: start } } },
+  ],
+  [
+    'a repository with an unknown key',
+    { version: 2, repositories: { [repositoryKey]: { ...listOnly(start), extra: true } } },
+  ],
+  [
+    'a part key that is not canonical',
+    {
+      version: 2,
+      repositories: { [repositoryKey]: { ...listOnly(start), checks: { '041': start } } },
+    },
+  ],
+  [
+    'a part key that is not a positive whole number',
+    {
+      version: 2,
+      repositories: { [repositoryKey]: { ...listOnly(start), threads: { '0': start } } },
+    },
+  ],
+  [
+    'a non-finite list time',
+    { version: 2, repositories: { [repositoryKey]: { ...listOnly(start), list: Infinity } } },
+  ],
   ['pulls that are not a record', { version: 1, pulls: [] }],
-  ['a non-finite time', { version: 1, pulls: { [repositoryKey]: Number.POSITIVE_INFINITY } }],
+  ['a non-finite version 1 time', { version: 1, pulls: { [repositoryKey]: Infinity } }],
 ];
 
 describe('readPullReadTimes', () => {
-  test('reads the version 1 fixture', () => {
+  test('reads version 1 times as list times', () => {
     const { messages, notices } = logged();
     const times = readPullReadTimes(storeOf(fixture('pull-read-times-v1.json')), notices);
 
-    expect(times).toEqual({ [repositoryKey]: 1_700_000_000_000 });
+    expect(times).toEqual({
+      [repositoryKey]: { list: 1_700_000_000_000, checks: {}, threads: {} },
+    });
+
     expect(messages).toEqual([]);
   });
 
-  test('ignores the version 2 fixture with the newer notice', () => {
+  test('reads the version 2 fixture with its part times', () => {
+    const { messages, notices } = logged();
+    const times = readPullReadTimes(storeOf(fixture('pull-read-times-v2.json')), notices);
+
+    expect(times).toEqual({
+      [repositoryKey]: {
+        list: 1_700_000_000_000,
+        checks: { '41': 1_700_000_001_000 },
+        threads: { '41': 1_700_000_002_000 },
+      },
+    });
+
+    expect(messages).toEqual([]);
+  });
+
+  test('ignores the version 3 fixture with the newer notice', () => {
     const { messages, notices } = logged();
 
-    expect(readPullReadTimes(storeOf(fixture('pull-read-times-v2.json')), notices)).toEqual({});
+    expect(readPullReadTimes(storeOf(fixture('pull-read-times-v3.json')), notices)).toEqual({});
     expect(messages).toEqual([newerTimesNotice()]);
   });
 
@@ -144,7 +194,7 @@ describe('saved record isolation', () => {
   test('a malformed read-times record does not hide a valid snapshot', () => {
     const store = memoryStore();
     const { messages, notices } = logged();
-    const snapshot = { version: 3, revision: 4, facts: emptyFacts() } satisfies Snapshot;
+    const snapshot = { version: 4, revision: 4, facts: emptyFacts() } satisfies Snapshot;
 
     store.values[snapshotKey] = snapshot;
     store.values[pullReadTimesKey] = fixture('pull-read-times-malformed.json');
@@ -157,9 +207,9 @@ describe('saved record isolation', () => {
   test('a malformed snapshot does not hide valid read times', () => {
     const store = memoryStore();
     const { messages, notices } = logged();
-    const times = { [repositoryKey]: 1_700_000_000_000 };
+    const times = timesOf(1_700_000_000_000);
 
-    store.values[snapshotKey] = { version: 3, revision: 4 };
+    store.values[snapshotKey] = { version: 4, revision: 4 };
     store.values[pullReadTimesKey] = fixture('pull-read-times-v1.json');
 
     expect(readPullReadTimes(store.read, notices)).toEqual(times);
@@ -174,7 +224,7 @@ describe('createPullReadTimesPublisher', () => {
 
     createPullReadTimesPublisher(store.read, store.write, () => start).publish(
       { version: 1, owner: 'window-a', generation: 1 },
-      { [repositoryKey]: start },
+      timesOf(start),
     );
 
     expect(store.writes).toEqual([]);
@@ -183,11 +233,33 @@ describe('createPullReadTimesPublisher', () => {
   test('writes nothing for equal times in another key order', () => {
     const store = memoryStore();
     const lease = claimFor(store, 'window-a', start);
-    const first = { '/one': 1, '/two': 2 };
-    const second = { '/two': 2, '/one': 1 };
 
-    store.values[pullReadTimesKey] = { version: 1, pulls: first };
+    const first: PullReadTimes = {
+      '/one': { list: 1, checks: { '2': 3 }, threads: {} },
+      '/two': { list: 2, checks: {}, threads: { '4': 5 } },
+    };
+
+    const second: PullReadTimes = {
+      '/two': { threads: { '4': 5 }, checks: {}, list: 2 },
+      '/one': { threads: {}, checks: { '2': 3 }, list: 1 },
+    };
+
+    store.values[pullReadTimesKey] = { version: 2, repositories: first };
     createPullReadTimesPublisher(store.read, store.write, () => start).publish(lease, second);
+
+    expect(store.writes).toEqual([]);
+  });
+
+  test('writes nothing when a version 1 record already holds the new times', () => {
+    const store = memoryStore();
+    const lease = claimFor(store, 'window-a', start);
+
+    store.values[pullReadTimesKey] = { version: 1, pulls: { [repositoryKey]: start } };
+
+    createPullReadTimesPublisher(store.read, store.write, () => start).publish(
+      lease,
+      timesOf(start),
+    );
 
     expect(store.writes).toEqual([]);
   });
@@ -195,23 +267,27 @@ describe('createPullReadTimesPublisher', () => {
   test('writes the times when no valid record is stored', () => {
     const store = memoryStore();
     const lease = claimFor(store, 'window-a', start);
-    const times = {};
+    const times: PullReadTimes = {};
 
     createPullReadTimesPublisher(store.read, store.write, () => start).publish(lease, times);
 
-    expect(store.values[pullReadTimesKey]).toEqual({ version: 1, pulls: times });
+    expect(store.values[pullReadTimesKey]).toEqual({ version: 2, repositories: times });
   });
 
   test('writes the times when the stored record differs', () => {
     const store = memoryStore();
     const lease = claimFor(store, 'window-a', start);
 
-    store.values[pullReadTimesKey] = { version: 1, pulls: { '/one': 1 } };
+    store.values[pullReadTimesKey] = { version: 2, repositories: timesOf(start) };
 
-    createPullReadTimesPublisher(store.read, store.write, () => start).publish(lease, {
-      '/one': 2,
+    createPullReadTimesPublisher(store.read, store.write, () => start).publish(
+      lease,
+      timesOf(start + 1),
+    );
+
+    expect(store.values[pullReadTimesKey]).toEqual({
+      version: 2,
+      repositories: timesOf(start + 1),
     });
-
-    expect(store.values[pullReadTimesKey]).toEqual({ version: 1, pulls: { '/one': 2 } });
   });
 });

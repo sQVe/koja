@@ -16,6 +16,7 @@ import {
   herdrFake,
   realKitIndexFake,
 } from '../../../tests/moduleFakes.ts';
+import { pullFacts } from '../../../tests/pullFacts.ts';
 import { placeOf, repositoryOf } from '../../data/gitIdentity.ts';
 import type { Pull } from '../../data/pulls.ts';
 import type { Project } from './projects.ts';
@@ -101,13 +102,11 @@ const git: GitInfo = {
   linked: true,
 };
 
-const pull: Pull = {
+const pull: Pull = pullFacts({
   number: 42,
-  state: 'OPEN',
-  isDraft: false,
-  title: 'Add the login form',
   headRefName: 'feature-login',
-};
+  title: 'Add the login form',
+});
 
 const listedSpace = (named: boolean): ListedSpace => ({
   space: {
