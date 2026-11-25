@@ -125,6 +125,18 @@ export const markSize = {
   quietDot: 4,
 } as const;
 
+export const factSize = {
+  labelWidth: 64,
+  pairGap: 24,
+} as const;
+
+export const contentSize = {
+  // A content pane beside the agent, where the facts wrap under the title.
+  narrowWidth: 568,
+  // The facts rail of a wide content pane.
+  railWidth: 240,
+} as const;
+
 export const progressSize = {
   width: 12,
   height: 3,

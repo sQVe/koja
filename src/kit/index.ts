@@ -11,6 +11,10 @@ export type { DialogButtonKind } from './button.ts';
 
 export { dialogFrame } from './dialog.ts';
 
+export { factPairs, factRows } from './factRows.ts';
+
+export type { Fact } from './factRows.ts';
+
 export { hoverCard } from './hoverCard.ts';
 
 export { icon, iconSlot, programIcon, spinner } from './icon.ts';
@@ -20,6 +24,8 @@ export { iconNames } from './iconNames.ts';
 export type { IconName } from './iconNames.ts';
 
 export { hoveredAfter } from './hoverTarget.ts';
+
+export { itemHeader } from './itemHeader.ts';
 
 export { listRow } from './listRow.ts';
 
@@ -51,6 +57,8 @@ export type { DropMark, RowState } from './listRow.ts';
 
 export { searchField } from './searchField.ts';
 
+export { sourceLink } from './sourceLink.ts';
+
 export { textField } from './textField.ts';
 
 export { sectionHeader } from './sectionHeader.ts';
@@ -67,6 +75,7 @@ export type { WorkNeed } from './workIcon.ts';
 
 export {
   controlSize,
+  contentSize,
   diffSize,
   hoverCardSize,
   overlaySize,
