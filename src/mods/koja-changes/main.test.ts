@@ -854,6 +854,23 @@ describe('Changes view', () => {
     expect(inputValue).toBe('Review fixture');
   });
 
+  test('a queued submit commits nothing once the pane leaves the repository', async () => {
+    const view = await boot();
+
+    typeMessage();
+    view.render(context);
+
+    blockNextStatusRead();
+    view.refresh(context);
+    await settle();
+
+    const before = await submitWhileReadBlocked(view, () => {
+      cwd = '/repo/b';
+    });
+
+    expect(commitCommands()).toBe(before);
+  });
+
   test('a background refresh requests a redraw before its read finishes', async () => {
     await boot();
 
