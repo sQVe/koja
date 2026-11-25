@@ -13,6 +13,7 @@ import {
   renewHeartbeat,
   sameHolder,
 } from './lease.ts';
+import { readTickets } from './linearTickets.ts';
 import type { SnapshotPublisher } from './publisher.ts';
 import { createSnapshotPublisher } from './publisher.ts';
 import type { PullReadTimesPublisher } from './pullReadTimes.ts';
@@ -25,11 +26,15 @@ import { recordNotices } from './recordNotices.ts';
 import type { Facts } from './snapshot.ts';
 import { emptyFacts, joinFacts } from './snapshot.ts';
 import { readStoredSnapshot } from './storedSnapshot.ts';
+import type { TicketRunner, TrackerScheduler } from './trackerScheduler.ts';
+import { createTrackerScheduler } from './trackerScheduler.ts';
 
 interface SchedulerBinding {
   lease: Lease;
   git: GitScheduler;
   pulls: PullScheduler;
+  trackers: TrackerScheduler;
+  readTickets: TicketRunner;
   publish: () => void;
 }
 
@@ -50,6 +55,7 @@ const gitWorld = (): GitWorld => ({ spaces: spaces(), panes: panes(), machines: 
 const stopScheduler = (state: HostState): void => {
   state.binding?.git.stop();
   state.binding?.pulls.stop();
+  state.binding?.trackers.stop();
   state.binding = null;
 };
 
@@ -68,7 +74,10 @@ const createSchedulerBinding = (
       return;
     }
 
-    publisher.publish(binding.lease, joinFacts(binding.git.gitFacts(), binding.pulls.pulls(), {}));
+    publisher.publish(
+      binding.lease,
+      joinFacts(binding.git.gitFacts(), binding.pulls.pulls(), binding.trackers.trackers()),
+    );
   };
 
   const git = createGitScheduler(
@@ -99,7 +108,27 @@ const createSchedulerBinding = (
     { pulls: seed.pulls, readTimes: readPullReadTimes(shared, recordNotices) },
   );
 
-  binding = { lease: held, git, pulls, publish: publishSnapshot };
+  const stillOwner = (): boolean => {
+    const now = heldLease();
+
+    return now !== null && sameHolder(now, held);
+  };
+
+  const readTicketFacts: TicketRunner = (source) => readTickets(exec, source, stillOwner);
+
+  const trackers = createTrackerScheduler(
+    { run: exec, now: Date.now, publish: publishSnapshot },
+    seed.trackers,
+  );
+
+  binding = {
+    lease: held,
+    git,
+    pulls,
+    trackers,
+    readTickets: readTicketFacts,
+    publish: publishSnapshot,
+  };
 
   return binding;
 };
@@ -198,6 +227,8 @@ export const startDataHost = (cx: Context): void => {
     binding.pulls.tick(binding.git.gitFacts(), binding.git.takeRemoteRefEvents(), (body) =>
       timerCx.spawn(body),
     );
+
+    binding.trackers.tick(binding.git.gitFacts(), binding.readTickets);
   };
 
   beat();
