@@ -49,7 +49,7 @@ export const buttons = (): Element[] => {
   return [
     sample('Small 16 px button beside the 22 px button', sizes),
     sample('Icon buttons: normal, hovered, small, small hovered', iconButtons),
-    sample('Icon toggles: active, quiet, hovered', iconToggles),
+    sample('Icon toggles: active, inactive, inactive hovered', iconToggles),
     sample('Toggle buttons: active, normal, hovered, quiet', toggleButtons),
     sample('Mode pill', modePills),
   ];
