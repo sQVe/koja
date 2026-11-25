@@ -71,6 +71,7 @@ const seededDue = (times: PullReadTimes): PullDueState => {
 
   for (const [key, repository] of Object.entries(times)) {
     state.repositories[key] = {
+      host: null,
       lastStart: 0,
       lastSuccess: repository.list,
       failures: 0,

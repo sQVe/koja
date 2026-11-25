@@ -2,26 +2,12 @@ import { describe, expect, test } from 'bun:test';
 
 import type { ExecResult } from 'herdr';
 
-import type { RunCommand } from './gitIdentity.ts';
+import { PullSchedulerHarness } from '../../tests/pullSchedulerHarness.ts';
 import { placeOf, repositoryOf, worktreeOf } from './gitIdentity.ts';
-import type { Lease } from './lease.ts';
-import { heartbeatKey, leaseKey } from './lease.ts';
-import { pullRetryRequestsKey } from './pullRetry.ts';
-import type { PullScheduler, PullSchedulerSeed } from './pullScheduler.ts';
-import { createPullScheduler } from './pullScheduler.ts';
-import type { RecordNotices } from './recordNotices.ts';
+import type { PullRetryRequest } from './pullRetry.ts';
 import type { GitFacts } from './snapshot.ts';
 
-interface PendingCall {
-  command: string;
-  args: string[];
-  cwd: string;
-  respond: (result: ExecResult) => void;
-}
-
 const start = 1_000_000;
-
-const silentNotices: RecordNotices = { report: () => undefined };
 
 const folders = ['/code/a', '/code/b', '/code/c'];
 
@@ -46,96 +32,42 @@ const factsOf = (): GitFacts => {
   return { places, worktrees };
 };
 
-class RetryHarness {
-  values = new Map<string, unknown>();
-  calls: PendingCall[] = [];
-  spawned: Promise<unknown>[] = [];
-  now = start;
-  lease: Lease = { version: 1, owner: 'owner-a', generation: 1 };
-
-  readonly read = (key: string): unknown => this.values.get(key);
-
-  readonly write = (key: string, value: unknown): void => {
-    this.values.set(key, structuredClone(value));
-  };
-
-  readonly run: RunCommand = async (command, args, options) => {
-    const settled = Promise.withResolvers<ExecResult>();
-
-    this.calls.push({ command, args, cwd: options.cwd, respond: settled.resolve });
-
-    return settled.promise;
-  };
-
-  readonly spawn = (body: () => Promise<void>): void => {
-    this.spawned.push(body());
-  };
-
-  start(seed: PullSchedulerSeed): PullScheduler {
-    this.values.set(leaseKey, this.lease);
-    this.values.set(heartbeatKey, { ...this.lease, at: this.now });
-
-    return createPullScheduler(
-      {
-        run: this.run,
-        now: () => this.now,
-        heldLease: () => this.lease,
-        read: this.read,
-        notices: silentNotices,
-        publish: () => undefined,
-        publishReadTimes: () => undefined,
-        publishOutcomes: () => undefined,
-        windowActive: () => true,
-      },
-      this.lease,
-      seed,
-    );
-  }
-
-  setRequests(repository: string, at: number): void {
-    this.values.set(pullRetryRequestsKey, {
-      version: 1,
-      requests: [{ consumer: 'window-a', id: 'r-1', repository, at }],
-    });
-  }
-
-  callsIn(folder: string): PendingCall[] {
-    return this.calls.filter((call) => call.cwd === folder);
-  }
-
-  async settle(): Promise<void> {
-    for (let index = 0; index < 30; index += 1) {
-      await Promise.resolve();
-    }
-  }
-
-  async respond(call: PendingCall, result: ExecResult): Promise<void> {
-    call.respond(result);
-    await this.settle();
-  }
-
-  async respondRemotes(folder: string): Promise<void> {
-    const [names] = this.callsIn(folder);
-
-    await this.respond(names as PendingCall, ok);
-
-    const [, url] = this.callsIn(folder);
-
-    await this.respond(url as PendingCall, remoteUrl);
-  }
-}
-
-const ok: ExecResult = { code: 0, stdout: 'origin\n', stderr: '' };
-
-const remoteUrl: ExecResult = { code: 0, stdout: 'git@github.com:koja/koja.git\n', stderr: '' };
-
 const offline: ExecResult = { code: 1, stdout: '', stderr: 'offline' };
 
 const repositoryAt = (folder: string): string => repositoryOf(null, `${folder}/.git`).key;
 
+const requestFor = (repository: string, at: number): PullRetryRequest => ({
+  consumer: 'window-a',
+  id: 'r-1',
+  repository,
+  at,
+});
+
+const respondRemotesIn = async (harness: PullSchedulerHarness, folder: string): Promise<void> => {
+  const [names] = harness.callsIn(folder);
+
+  if (names === undefined) {
+    throw new Error(`no remote call in ${folder}`);
+  }
+
+  await harness.respondCall(names, { code: 0, stdout: 'origin\n', stderr: '' });
+
+  const [, url] = harness.callsIn(folder);
+
+  if (url === undefined) {
+    throw new Error(`no remote URL call in ${folder}`);
+  }
+
+  await harness.respondCall(url, {
+    code: 0,
+    stdout: 'git@github.com:koja/koja.git\n',
+    stderr: '',
+  });
+};
+
 describe('createPullScheduler Retry', () => {
   test('Retry ignores backoff and the cap', async () => {
-    const harness = new RetryHarness();
+    const harness = new PullSchedulerHarness();
     const scheduler = harness.start({ pulls: {}, readTimes: {} });
     const git = factsOf();
 
@@ -144,13 +76,17 @@ describe('createPullScheduler Retry', () => {
 
     expect(harness.calls.map((call) => call.cwd)).toEqual(['/code/a', '/code/b']);
 
-    await harness.respondRemotes('/code/a');
+    await respondRemotesIn(harness, '/code/a');
 
-    const failedRead = harness.callsIn('/code/a')[2] as PendingCall;
+    const failedRead = harness.callsIn('/code/a')[2];
 
-    await harness.respond(failedRead, offline);
+    if (failedRead === undefined) {
+      throw new Error('no pull read in /code/a');
+    }
 
-    harness.now = start + 60_000;
+    await harness.respondCall(failedRead, offline);
+
+    harness.setNow(start + 60_000);
     scheduler.tick(git, new Map(), harness.spawn);
     await harness.settle();
 
@@ -167,7 +103,7 @@ describe('createPullScheduler Retry', () => {
 
     expect(harness.calls).toHaveLength(5);
 
-    harness.setRequests(repositoryAt('/code/a'), harness.now);
+    harness.setRequests([requestFor(repositoryAt('/code/a'), harness.now)]);
     scheduler.tick(git, new Map(), harness.spawn);
     await harness.settle();
 

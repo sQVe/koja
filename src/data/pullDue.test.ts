@@ -1,21 +1,30 @@
 import { describe, expect, test } from 'bun:test';
 
 import { pick, seededRandom } from '../../tests/gitSchedulerHarness.ts';
+import { repositoryOf } from './gitIdentity.ts';
 import type { PullDueState } from './pullDue.ts';
 import { duePullReads, emptyPullDueState, notePush, noteResult, noteStart } from './pullDue.ts';
 import type { PullRead } from './pulls.ts';
 
 const nothingRunning = new Set<string>();
 
-const goodRead = (): Exclude<PullRead, { kind: 'dropped' }> => ({
+const goodRead = (host: string | null = null): Exclude<PullRead, { kind: 'dropped' }> => ({
   kind: 'read',
   pulls: [],
   rateLimit: null,
+  host,
 });
 
-const failedRead = (): Exclude<PullRead, { kind: 'dropped' }> => ({
-  kind: 'failed',
-  rateLimited: false,
+const failedRead = (
+  host: string | null = null,
+  rateLimited = false,
+): Exclude<PullRead, { kind: 'dropped' }> => ({ kind: 'failed', rateLimited, host });
+
+const rateLimitedRead = (host: string | null): Exclude<PullRead, { kind: 'dropped' }> => ({
+  kind: 'read',
+  pulls: [],
+  rateLimit: { remaining: 50, resetAt: 900_000 },
+  host,
 });
 
 const keysOf = (state: PullDueState, keys: string[]): string[] =>
@@ -62,6 +71,32 @@ describe('duePullReads', () => {
     expect(duePullReads(state, ['a'], nothingRunning, 15_000, false)).toEqual(['a']);
   });
 
+  test('a push read waits for the backoff to end', () => {
+    const state = emptyPullDueState();
+
+    noteStart(state, 'a', 0);
+    noteResult(state, 'a', failedRead(), 0);
+    notePush(state, 'a', 1000);
+
+    expect(duePullReads(state, ['a'], nothingRunning, 15_000, false)).toEqual([]);
+    expect(duePullReads(state, ['a'], nothingRunning, 59_999, false)).toEqual([]);
+    expect(duePullReads(state, ['a'], nothingRunning, 60_000, false)).toEqual(['a']);
+  });
+
+  test('an inactive window due check creates no repository entries', () => {
+    const state = emptyPullDueState();
+
+    expect(duePullReads(state, ['a', 'b'], nothingRunning, 0, false)).toEqual([]);
+    expect(state.repositories).toEqual({});
+  });
+
+  test('sorting due reads creates no repository entries', () => {
+    const state = emptyPullDueState();
+
+    expect(duePullReads(state, ['a', 'b'], nothingRunning, 60_000, true)).toEqual(['a', 'b']);
+    expect(state.repositories).toEqual({});
+  });
+
   test('starts at most two reads, oldest first', () => {
     const state = emptyPullDueState();
 
@@ -96,17 +131,101 @@ describe('duePullReads', () => {
 
     noteStart(state, 'a', 0);
 
-    noteResult(
-      state,
-      'a',
-      { kind: 'read', pulls: [], rateLimit: { remaining: 50, resetAt: 900_000 } },
-      0,
-    );
+    noteResult(state, 'a', rateLimitedRead(null), 0);
 
     notePush(state, 'a', 800_000);
 
     expect(duePullReads(state, ['a'], nothingRunning, 899_999, false)).toEqual([]);
     expect(duePullReads(state, ['a'], nothingRunning, 900_000, true)).toEqual(['a']);
+  });
+
+  test('a rate limit on one GitHub host leaves another host on the same machine readable', () => {
+    const first = repositoryOf(null, '/code/first/.git').key;
+    const second = repositoryOf(null, '/code/second/.git').key;
+    const state = emptyPullDueState();
+
+    noteStart(state, first, 0);
+    noteResult(state, first, goodRead('github.com'), 0);
+    noteStart(state, second, 0);
+    noteResult(state, second, goodRead('ghe.example.com'), 0);
+    noteResult(state, first, rateLimitedRead('github.com'), 0);
+
+    expect(duePullReads(state, [first, second], nothingRunning, 60_000, true)).toEqual([second]);
+    expect(duePullReads(state, [first, second], nothingRunning, 899_999, true)).toEqual([second]);
+
+    expect(duePullReads(state, [first, second], nothingRunning, 900_000, true)).toEqual([
+      first,
+      second,
+    ]);
+  });
+
+  test('a rate-limited failure pauses only the host that reported it', () => {
+    const first = repositoryOf(null, '/code/first/.git').key;
+    const second = repositoryOf(null, '/code/second/.git').key;
+    const state = emptyPullDueState();
+
+    noteStart(state, first, 0);
+    noteResult(state, first, failedRead('github.com', true), 0);
+    noteStart(state, second, 0);
+    noteResult(state, second, goodRead('ghe.example.com'), 0);
+
+    expect(duePullReads(state, [first, second], nothingRunning, 60_000, true)).toEqual([second]);
+    expect(duePullReads(state, [first, second], nothingRunning, 299_999, true)).toEqual([second]);
+
+    expect(duePullReads(state, [first, second], nothingRunning, 300_000, true)).toEqual([
+      first,
+      second,
+    ]);
+  });
+
+  test('a repository with no known host respects the global pause', () => {
+    const unknown = repositoryOf(null, '/code/unknown/.git').key;
+    const known = repositoryOf(null, '/code/known/.git').key;
+    const state = emptyPullDueState();
+
+    noteStart(state, unknown, 0);
+    noteStart(state, known, 0);
+    noteResult(state, known, goodRead('github.com'), 0);
+    noteResult(state, unknown, rateLimitedRead(null), 0);
+
+    expect(duePullReads(state, [unknown, known], nothingRunning, 899_999, true)).toEqual([]);
+
+    expect(duePullReads(state, [unknown, known], nothingRunning, 900_000, true)).toEqual([
+      known,
+      unknown,
+    ]);
+  });
+
+  test('a read with no known host keeps the pause of the host read before', () => {
+    const key = repositoryOf(null, '/code/repo/.git').key;
+    const state = emptyPullDueState();
+
+    noteStart(state, key, 0);
+    noteResult(state, key, rateLimitedRead('github.com'), 0);
+
+    noteStart(state, key, 100_000);
+    noteResult(state, key, goodRead(null), 100_000);
+
+    expect(duePullReads(state, [key], nothingRunning, 899_999, true)).toEqual([]);
+    expect(duePullReads(state, [key], nothingRunning, 900_000, true)).toEqual([key]);
+  });
+
+  test('a rate-limited failure with no known host pauses periodic and push reads', () => {
+    const periodic = repositoryOf(null, '/code/periodic/.git').key;
+    const pushed = repositoryOf(null, '/code/pushed/.git').key;
+    const state = emptyPullDueState();
+
+    noteStart(state, periodic, 0);
+    noteStart(state, pushed, 0);
+    notePush(state, pushed, 1000);
+    noteResult(state, periodic, failedRead(null, true), 0);
+
+    expect(duePullReads(state, [periodic, pushed], nothingRunning, 299_999, true)).toEqual([]);
+
+    expect(duePullReads(state, [periodic, pushed], nothingRunning, 300_000, true)).toEqual([
+      periodic,
+      pushed,
+    ]);
   });
 
   test('the queue keeps its limits for any order of events', () => {

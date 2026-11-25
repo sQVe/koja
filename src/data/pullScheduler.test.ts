@@ -4,59 +4,17 @@ import type { ExecResult } from 'herdr';
 
 import { answerFrom } from '../../tests/pullAnswers.ts';
 import { pullFacts } from '../../tests/pullFacts.ts';
+import { PullSchedulerHarness, pullSchedulerStart } from '../../tests/pullSchedulerHarness.ts';
 import type { RepositoryIdentity } from './gitIdentity.ts';
 import { placeOf, repositoryOf, worktreeOf } from './gitIdentity.ts';
-import type { Lease, ReadShared, WriteShared } from './lease.ts';
-import { heartbeatKey, leaseKey } from './lease.ts';
 import type { PullReadTimes } from './pullReadTimes.ts';
-import {
-  createPullReadTimesPublisher,
-  pullReadTimesKey,
-  readPullReadTimes,
-} from './pullReadTimes.ts';
-import type { PullRetryOutcome, PullRetryRequest } from './pullRetry.ts';
-import {
-  createPullRetryOutcomesPublisher,
-  pullRetryOutcomesKey,
-  pullRetryRequestsKey,
-  readPullRetryOutcomes,
-} from './pullRetry.ts';
+import { readPullReadTimes } from './pullReadTimes.ts';
+import type { PullRetryRequest } from './pullRetry.ts';
+import { pullRetryOutcomesKey, pullRetryRequestsKey } from './pullRetry.ts';
 import type { Pull } from './pulls.ts';
-import type { PullScheduler } from './pullScheduler.ts';
-import { createPullScheduler } from './pullScheduler.ts';
-import type { RecordNotices } from './recordNotices.ts';
-import { createRecordNotices } from './recordNotices.ts';
 import type { GitFacts, RepositoryPulls } from './snapshot.ts';
 
-interface PendingCall {
-  command: string;
-  args: string[];
-  cwd: string;
-  on: string | null;
-  respond: (result: ExecResult) => void;
-}
-
-interface Store {
-  values: Map<string, unknown>;
-  read: ReadShared;
-  write: WriteShared;
-}
-
 const pullPeriodMilliseconds = 60_000;
-
-const memoryStore = (): Store => {
-  const values = new Map<string, unknown>();
-
-  return {
-    values,
-    read: (key) => values.get(key),
-    write: (key, value) => {
-      values.set(key, structuredClone(value));
-    },
-  };
-};
-
-const silentNotices = (): RecordNotices => createRecordNotices(() => {});
 
 const folder = '/code/koja';
 const repository = repositoryOf(null, `${folder}/.git`);
@@ -66,7 +24,7 @@ const seededRepositoryPulls: Record<string, RepositoryPulls> = {
   [repository.key]: { pulls: [], failed: false },
 };
 
-const start = 1_000_000;
+const start = pullSchedulerStart;
 
 const requestFor = (consumer: string, id: string, at = start): PullRetryRequest => ({
   consumer,
@@ -117,188 +75,10 @@ const gitFactsOf = (
   };
 };
 
-class PullSchedulerHarness {
-  store = memoryStore();
-  notices = silentNotices();
-  calls: PendingCall[] = [];
-  spawned: Promise<unknown>[] = [];
-  published: Record<string, RepositoryPulls>[] = [];
-  publishedTimes: PullReadTimes[] = [];
-  publishedOutcomes: PullRetryOutcome[][] = [];
-  now = start;
-  windowActive = true;
-  lease: Lease = { version: 1, owner: 'owner-a', generation: 1 };
-  held: Lease | null = this.lease;
-
-  spawn = (body: () => Promise<void>): void => {
-    this.spawned.push(body());
-  };
-
-  private readonly run = async (
-    command: string,
-    args: string[],
-    options: { cwd: string; on: string | null },
-  ): Promise<ExecResult> => {
-    const settled = Promise.withResolvers<ExecResult>();
-
-    const call: PendingCall = {
-      command,
-      args,
-      cwd: options.cwd,
-      on: options.on,
-      respond: settled.resolve,
-    };
-
-    this.calls.push(call);
-
-    return settled.promise;
-  };
-
-  constructor() {
-    this.seedLease();
-  }
-
-  seedLease(): void {
-    this.store.write(leaseKey, this.lease);
-    this.store.write(heartbeatKey, { ...this.lease, at: this.now });
-  }
-
-  setNow(at: number): void {
-    this.now = at;
-    this.store.write(heartbeatKey, { ...this.lease, at });
-  }
-
-  setRequests(requests: PullRetryRequest[]): void {
-    this.store.write(pullRetryRequestsKey, { version: 1, requests });
-  }
-
-  setOutcomes(outcomes: PullRetryOutcome[]): void {
-    this.store.write(pullRetryOutcomesKey, { version: 1, outcomes });
-  }
-
-  setReadTimes(times: PullReadTimes): void {
-    this.store.write(pullReadTimesKey, { version: 2, repositories: times });
-  }
-
-  start(seed?: {
-    pulls: Record<string, RepositoryPulls>;
-    readTimes: PullReadTimes;
-  }): PullScheduler {
-    const initial = seed ?? { pulls: {}, readTimes: {} };
-
-    const readTimes = createPullReadTimesPublisher(
-      this.store.read,
-      this.store.write,
-      () => this.now,
-    );
-
-    const outcomes = createPullRetryOutcomesPublisher(
-      this.store.read,
-      this.store.write,
-      () => this.now,
-    );
-
-    let scheduler: PullScheduler | null = null;
-
-    const created = createPullScheduler(
-      {
-        run: this.run,
-        now: () => this.now,
-        heldLease: () => this.held,
-        read: this.store.read,
-        notices: this.notices,
-        publish: () => {
-          if (scheduler !== null) {
-            this.published.push(structuredClone(scheduler.pulls()));
-          }
-        },
-        publishReadTimes: (lease, times) => {
-          this.publishedTimes.push(structuredClone(times));
-          readTimes.publish(lease, times);
-        },
-        publishOutcomes: (lease, list) => {
-          this.publishedOutcomes.push(structuredClone(list));
-          outcomes.publish(lease, list);
-        },
-        windowActive: () => this.windowActive,
-      },
-      this.lease,
-      initial,
-    );
-
-    scheduler = created;
-
-    return created;
-  }
-
-  async settle(): Promise<void> {
-    for (let index = 0; index < 30; index += 1) {
-      await Promise.resolve();
-    }
-  }
-
-  call(index: number): PendingCall {
-    const call = this.calls[index];
-
-    if (call === undefined) {
-      throw new Error(`no call at ${index}`);
-    }
-
-    return call;
-  }
-
-  async respond(index: number, result: ExecResult): Promise<void> {
-    this.call(index).respond(result);
-    await this.settle();
-  }
-
-  async respondRemotes(index: number): Promise<void> {
-    await this.respond(index, { code: 0, stdout: 'origin\n', stderr: '' });
-
-    const next = this.calls[index + 1];
-
-    if (next?.command === 'git' && next.args[1] === 'get-url') {
-      await this.respond(index + 1, {
-        code: 0,
-        stdout: 'git@github.com:koja/koja.git\n',
-        stderr: '',
-      });
-    }
-  }
-
-  async respondPulls(index: number, pulls: Pull[]): Promise<void> {
-    const call = this.call(index);
-    const branchCount = call.args.filter((argument) => argument.startsWith('branch')).length;
-
-    await this.respond(index, { code: 0, stdout: answerFrom(branchCount, pulls), stderr: '' });
-  }
-
-  outcomes(): PullRetryOutcome[] {
-    const stored = readPullRetryOutcomes(this.store.read, this.notices);
-
-    if (stored.kind !== 'current') {
-      throw new Error('the store holds a newer outcomes record');
-    }
-
-    return stored.items;
-  }
-}
-
 const harness = new PullSchedulerHarness();
 
 beforeEach(() => {
-  harness.store = memoryStore();
-  harness.notices = silentNotices();
-  harness.calls = [];
-  harness.spawned = [];
-  harness.published = [];
-  harness.publishedTimes = [];
-  harness.publishedOutcomes = [];
-  harness.now = start;
-  harness.windowActive = true;
-  harness.lease = { version: 1, owner: 'owner-a', generation: 1 };
-  harness.held = harness.lease;
-  harness.seedLease();
+  harness.reset();
 });
 
 describe('createPullScheduler', () => {
@@ -511,6 +291,36 @@ describe('createPullScheduler', () => {
     expect(harness.calls).toHaveLength(1);
   });
 
+  test('a remote ref change starts a pull read while the periodic read is not due', () => {
+    const scheduler = harness.start({
+      pulls: seededRepositoryPulls,
+      readTimes: timesAt(repository.key, start),
+    });
+
+    scheduler.tick(gitFactsOf(), new Map([[repository.key, start - 20_000]]), harness.spawn);
+
+    expect(harness.calls).toHaveLength(1);
+    expect(harness.call(0)).toMatchObject({ command: 'git', args: ['remote'] });
+  });
+
+  test('an inactive window suppresses the periodic read', () => {
+    harness.windowActive = false;
+
+    const scheduler = harness.start({
+      pulls: seededRepositoryPulls,
+      readTimes: timesAt(repository.key, start - pullPeriodMilliseconds),
+    });
+
+    const git = gitFactsOf();
+
+    scheduler.tick(git, new Map(), harness.spawn);
+    expect(harness.calls).toHaveLength(0);
+
+    harness.windowActive = true;
+    scheduler.tick(git, new Map(), harness.spawn);
+    expect(harness.calls).toHaveLength(1);
+  });
+
   test('a read for a remote repository runs on its machine from its worktree root', async () => {
     const remote = repositoryOf('qa-remote', '/srv/app/.git');
 
@@ -537,6 +347,90 @@ describe('createPullScheduler', () => {
     await harness.respondPulls(2, pullList(7));
 
     expect(scheduler.pulls()).toEqual({ [remote.key]: { pulls: pullList(7), failed: false } });
+  });
+
+  test('a rate limit on one GitHub host leaves another host on the same machine due', async () => {
+    const firstFolder = '/code/first';
+    const secondFolder = '/code/second';
+    const first = repositoryOf(null, `${firstFolder}/.git`);
+    const second = repositoryOf(null, `${secondFolder}/.git`);
+    const firstPlace = placeOf(null, firstFolder);
+    const firstWorktree = worktreeOf(null, firstFolder);
+    const secondPlace = placeOf(null, secondFolder);
+    const secondWorktree = worktreeOf(null, secondFolder);
+
+    const git: GitFacts = {
+      places: {
+        [firstPlace.key]: { kind: 'repository', worktree: firstWorktree.key },
+        [secondPlace.key]: { kind: 'repository', worktree: secondWorktree.key },
+      },
+      worktrees: {
+        [firstWorktree.key]: {
+          repository: first,
+          root: firstFolder,
+          branch: 'main',
+          linked: false,
+        },
+        [secondWorktree.key]: {
+          repository: second,
+          root: secondFolder,
+          branch: 'main',
+          linked: false,
+        },
+      },
+    };
+
+    const respondIn = async (inFolder: string, result: ExecResult): Promise<void> => {
+      const call = harness.callsIn(inFolder).at(-1);
+
+      if (call === undefined) {
+        throw new Error(`no call in ${inFolder}`);
+      }
+
+      await harness.respondCall(call, result);
+    };
+
+    const scheduler = harness.start();
+
+    scheduler.tick(git, new Map(), harness.spawn);
+    expect(harness.calls).toHaveLength(2);
+
+    await respondIn(firstFolder, { code: 0, stdout: 'origin\n', stderr: '' });
+
+    await respondIn(firstFolder, {
+      code: 0,
+      stdout: 'git@github.com:koja/koja.git\n',
+      stderr: '',
+    });
+
+    await respondIn(firstFolder, {
+      code: 1,
+      stdout: '',
+      stderr: 'API rate limit exceeded for user ID 1',
+    });
+
+    await respondIn(secondFolder, { code: 0, stdout: 'origin\n', stderr: '' });
+
+    await respondIn(secondFolder, {
+      code: 0,
+      stdout: 'git@ghe.example.com:koja/koja.git\n',
+      stderr: '',
+    });
+
+    await respondIn(secondFolder, {
+      code: 0,
+      stdout: answerFrom(1, pullList(7)),
+      stderr: '',
+    });
+
+    expect(scheduler.pulls()[first.key]).toEqual({ pulls: [], failed: true });
+    expect(scheduler.pulls()[second.key]).toEqual({ pulls: pullList(7), failed: false });
+
+    harness.setNow(start + pullPeriodMilliseconds);
+    scheduler.tick(git, new Map(), harness.spawn);
+
+    expect(harness.callsIn(firstFolder)).toHaveLength(3);
+    expect(harness.callsIn(secondFolder)).toHaveLength(4);
   });
 
   test('reads once for one repository with two worktrees', async () => {
