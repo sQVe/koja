@@ -2874,17 +2874,17 @@ describe('scripts/sandbox-machine interrupted fixture replacement', () => {
   test('the next up finishes an interrupted replacement', async () => {
     const manager = await writeGoneServiceFixture();
     const environment = { FAKE_MANAGER_DIR: manager, PATH: pathWith(manager) };
-    const before = (await readState()).launchId;
 
     const interrupted = await runBash(upCommand('check_capability'), environment);
 
     expect(interrupted.exitCode).toBe(130);
     await expectNoSetupWithoutRecord();
 
+    const interruptedLaunch = (await readState()).launchId;
     const retry = await runBash(upCommand(null), environment);
 
     expect(retry.exitCode).toBe(0);
-    expect((await readState()).launchId).not.toBe(before);
+    expect((await readState()).launchId).not.toBe(interruptedLaunch);
 
     const down = await runDown(environment);
 
@@ -2970,17 +2970,17 @@ describe('scripts/sandbox-machine interrupted fixture replacement', () => {
     test(`the next up resolves an interruption at ${step}`, async () => {
       const manager = await writeGoneServiceFixture();
       const environment = { FAKE_MANAGER_DIR: manager, PATH: pathWith(manager) };
-      const before = (await readState()).launchId;
 
       const interrupted = await runBash(upCommand(step), environment);
 
       expect(interrupted.exitCode).toBe(130);
       await expectNoSetupWithoutRecord();
 
+      const interruptedLaunch = (await readState()).launchId;
       const retry = await runBash(upCommand(null), environment);
 
       expect(retry.exitCode).toBe(0);
-      expect((await readState()).launchId).not.toBe(before);
+      expect((await readState()).launchId).not.toBe(interruptedLaunch);
     });
   }
 });
@@ -3212,5 +3212,34 @@ describe('scripts/sandbox-machine discarded folder', () => {
     expect(result.exitCode).not.toBe(0);
     expect(await Bun.file(started).exists()).toBe(false);
     expect(await pathExists(leftover)).toBe(true);
+  });
+});
+
+describe('scripts/sandbox-machine state verification', () => {
+  test('leaves the caller errexit setting alone', async () => {
+    const service = serviceName();
+    const manager = await newTemporaryFolder('koja-machine-manager-');
+
+    await writeFakeSystemctl(manager);
+    await writeUnit(manager, service, unitProperties(service, { InvocationID: 'b'.repeat(32) }));
+    await writeOwnership(ownership(service));
+
+    const result = await runBash(
+      `
+        set -euo pipefail
+        source '${machineScript}'
+        set +e
+        read_and_verify_state
+        status=$?
+        case $- in
+          *e*) exit 1 ;;
+        esac
+        printf 'status=%s\\n' "$status"
+      `,
+      { FAKE_MANAGER_DIR: manager, PATH: pathWith(manager) },
+    );
+
+    expect(result.exitCode).toBe(0);
+    expect(result.output).toContain('status=1');
   });
 });

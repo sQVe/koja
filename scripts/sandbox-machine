@@ -34,6 +34,7 @@ boot_id_file=/proc/sys/kernel/random/boot_id
 stop_timeout=5
 manager_timeout=10
 start_job_timeout=3
+start_service_timeout=5
 
 sandbox() {
   "$checkout/scripts/sandbox" "$@"
@@ -417,10 +418,12 @@ read_and_verify_state() {
   local status
 
   while :; do
-    set +e
-    read_and_verify_state_once
-    status=$?
-    set -e
+    if read_and_verify_state_once; then
+      status=0
+    else
+      status=$?
+    fi
+
     if (( status != 5 && status != 6 )); then
       return "$status"
     fi
@@ -848,7 +851,7 @@ start_service() {
   status=$?
   set -e
 
-  deadline=$(( $(now_ms) + 5000 ))
+  deadline=$(( $(now_ms) + start_service_timeout * 1000 ))
   while (( $(now_ms) < deadline )); do
     set +e
     read_and_verify_state
