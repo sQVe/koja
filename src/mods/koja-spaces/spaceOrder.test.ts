@@ -180,20 +180,26 @@ describe('sidebar order publishing', () => {
     });
   });
 
-  test('reports the order the last publish wrote, and no order before the first publish or after clear', () => {
+  test('reports no order before the first publish and after clear', () => {
     const store = memoryStore();
     const order = createOrderPublisher(store.set);
 
     expect(order.published()).toBeNull();
 
+    order.publish(projectsOf(repoList()), allIds(repoList()));
+    order.clear();
+
+    expect(order.published()).toBeNull();
+  });
+
+  test('reports the order the last publish wrote', () => {
+    const store = memoryStore();
+    const order = createOrderPublisher(store.set);
+
     const written = order.publish(projectsOf(repoList()), allIds(repoList()));
 
     expect(order.published()).toEqual(written);
     expect(readSpaceOrder(store.get)).toEqual(written);
-
-    order.clear();
-
-    expect(order.published()).toBeNull();
   });
 
   test('clears the published order when the sidebar closes', () => {

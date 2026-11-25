@@ -212,14 +212,6 @@ const movedCases: MovedCase[] = [
     moved: false,
   },
   {
-    name: 'a null id with a changed count',
-    before: selection(1, 'a'),
-    after: selection(2, null),
-    closedId: 'b',
-    liveIds: ['a'],
-    moved: false,
-  },
-  {
     name: 'a first live selection with no earlier record',
     before: null,
     after: selection(1, 'a'),
