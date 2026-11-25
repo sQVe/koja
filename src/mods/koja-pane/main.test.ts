@@ -108,6 +108,10 @@ const { paneBranchElement, paneFolderElement, paneOverflowButton, paneTaskElemen
   paneTaskElement: (task: string | undefined, fieldCut: boolean) => DrawnElement | null;
 };
 
+const { paneLeadingSlotWidth } = (await import(overflowModulePath)) as {
+  paneLeadingSlotWidth: (status: string | null, showsProgramIcon: boolean) => number;
+};
+
 const badgeModulePath = '../../kit/roleBadge.ts';
 
 const { roleBadge } = (await import(badgeModulePath)) as {
@@ -135,6 +139,7 @@ await mock.module('../../kit/index.ts', () =>
     paneTaskElement,
     paneHeaderFields,
     paneHeaderWidth,
+    paneLeadingSlotWidth,
     paneOverflowButton,
     programIcon: () => drawn('program.svg'),
     radius: { cardInner: 7 },
@@ -682,7 +687,7 @@ describe('pane header leading slot', () => {
     expect(elementWithIcon(tree, 'program.svg')).toBeNull();
   });
 
-  test('a mark charges its own slot, not the program icon width', () => {
+  test('a mark charges its own slot at 204 px, where an icon drops the folder', () => {
     paneCwd = '/var/tmp/ruta-koja/home/pi-fixture';
     terminalRecords = roleRecord;
     paneProgramValue = piProgram;
@@ -696,7 +701,7 @@ describe('pane header leading slot', () => {
     expect(drawnTexts(renderedAt(204))).not.toContain('~/pi-fixture');
   });
 
-  test('a mark drops a field that an iconless idle pane keeps', () => {
+  test('a mark drops a field at 190 px, where an iconless idle pane keeps it', () => {
     paneCwd = '/var/tmp/ruta-koja/home/pi-fixture';
     terminalRecords = roleRecord;
     paneProgramValue = piProgram;

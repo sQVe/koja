@@ -11,8 +11,8 @@ import type { PaneHeaderFields, PaneHeaderFieldState } from './paneHeaderFields.
 import { paneHeaderFields } from './paneHeaderFields.ts';
 import { paneActions } from './paneHeaderMenuModel.ts';
 import { roleBadge } from './roleBadge.ts';
-import { controlSize, markSize, paneHeaderWidth, radius, spacing } from './size.ts';
-import { attentionMark } from './statusMark.ts';
+import { controlSize, paneHeaderWidth, radius, spacing } from './size.ts';
+import { attentionMark, attentionMarkWidth } from './statusMark.ts';
 import { withTextRole } from './textRole.ts';
 import { colors, focusFill } from './theme.ts';
 
@@ -190,11 +190,25 @@ const actionRow = (
   return options.hovered === true ? row : row.invisible();
 };
 
+/** The width the pane header's leading slot draws: the mark's slot, the program icon, or none. */
+export const paneLeadingSlotWidth = (
+  status: AttentionStatus | null,
+  showsProgramIcon: boolean,
+): number => {
+  const markWidth = attentionMarkWidth(status);
+
+  if (markWidth > 0) {
+    return markWidth;
+  }
+
+  return showsProgramIcon ? paneHeaderWidth.icon : 0;
+};
+
 export const paneHeader = (options: PaneHeaderOptions): Element => {
   const palette = colors();
 
   const mark = attentionMark(options.status);
-  const leadingSlotWidth = mark === null ? paneHeaderWidth.icon : markSize.slot;
+  const leadingSlotWidth = paneLeadingSlotWidth(options.status, true);
 
   const fields = paneHeaderFields({
     ...options,

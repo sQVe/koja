@@ -12,12 +12,12 @@ import {
   colors,
   controlSize,
   iconButton,
-  markSize,
   normalFocusFill,
   overlaySize,
   paneActions,
   paneHeaderFields,
   paneHeaderWidth,
+  paneLeadingSlotWidth,
   paneBranchElement,
   paneFolderElement,
   paneOverflowButton,
@@ -103,14 +103,6 @@ const openPaneMenu = (pane: PaneInfo, details: PaneMenuDetails): void => {
 const spaceBranchOf = (tab: string): string | null =>
   spaces().find((candidate) => candidate.tabs.some((candidateTab) => candidateTab.id === tab))
     ?.branch ?? null;
-
-const leadingSlotOf = (mark: Element | null, programIconPath: string | null): number => {
-  if (mark !== null) {
-    return markSize.slot;
-  }
-
-  return programIconPath === null ? 0 : paneHeaderWidth.icon;
-};
 
 const paneHeaderContext = (
   pane: PaneInfo,
@@ -199,7 +191,7 @@ export default class PaneHeader extends View {
     const program = paneProgram(pane);
     const programIconPath = program?.icon ?? null;
     const mark = attentionMark(pane.status);
-    const leadingSlotWidth = leadingSlotOf(mark, programIconPath);
+    const leadingSlotWidth = paneLeadingSlotWidth(pane.status, programIconPath !== null);
 
     if (mark !== null) {
       element.child(mark);

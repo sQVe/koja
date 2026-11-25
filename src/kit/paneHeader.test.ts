@@ -280,3 +280,24 @@ describe('paneHeader attention mark', () => {
     }
   });
 });
+
+describe('paneHeader leading slot width', () => {
+  const folderAt = (width: number, status: AttentionStatus | null): string[] =>
+    drawnTexts(
+      paneHeader({
+        program: null,
+        name: 'Pi',
+        role: 'lead',
+        folder: '~/code/koja',
+        status,
+        focused: false,
+        zoomed: false,
+        width,
+      }),
+    );
+
+  test('a mark charges its 12 px slot at 198 px, where the 14 px program icon drops the folder', () => {
+    expect(folderAt(198, 'working')).toContain('~/code/koja');
+    expect(folderAt(198, null)).not.toContain('~/code/koja');
+  });
+});

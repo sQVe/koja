@@ -27,6 +27,7 @@ export {
   paneBranchElement,
   paneFolderElement,
   paneHeader,
+  paneLeadingSlotWidth,
   paneOverflowButton,
   paneTaskElement,
 } from './paneHeader.ts';
@@ -69,7 +70,6 @@ export {
   controlSize,
   diffSize,
   hoverCardSize,
-  markSize,
   overlaySize,
   paneHeaderWidth,
   radius,

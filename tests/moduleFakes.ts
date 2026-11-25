@@ -147,6 +147,7 @@ export const kitIndexFake = (overrides: ModuleFake = {}): ModuleFake => ({
   paneHeader: noop,
   paneHeaderFields: noop,
   paneHeaderWidth: {},
+  paneLeadingSlotWidth: () => 0,
   paneOverflowButton: noop,
   paneTaskElement: noop,
   paneHeaderMenu: noop,

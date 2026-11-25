@@ -13,6 +13,8 @@ import { controlSize, markSize, radius, spacing, textSize } from './size.ts';
 import { withTextRole } from './textRole.ts';
 import { colors } from './theme.ts';
 
+type ShownAttention = Exclude<AttentionStatus, 'idle'>;
+
 const dot = (size: number, color: Color): Element =>
   div()
     .size(size)
@@ -72,8 +74,15 @@ export const spaceMark = (status: Status | null): Element => {
   return statusMark(null).child(ring(markSize.dot, colors().border));
 };
 
+const showsAttentionMark = (status: AttentionStatus | null): status is ShownAttention =>
+  status !== null && status !== 'idle';
+
 /** The mark a tab or a pane header leads with, or null when it has nothing to say. */
 export const attentionMark = (status: AttentionStatus | null): Element | null => {
+  if (!showsAttentionMark(status)) {
+    return null;
+  }
+
   if (status === 'blocked') {
     return blockedBubble();
   }
@@ -84,12 +93,12 @@ export const attentionMark = (status: AttentionStatus | null): Element | null =>
     return statusMark(null).child(crashMark);
   }
 
-  if (status === 'working' || status === 'done') {
-    return statusMark(status);
-  }
-
-  return null;
+  return statusMark(status);
 };
+
+/** The width the mark draws in, or 0 when it draws nothing. */
+export const attentionMarkWidth = (status: AttentionStatus | null): number =>
+  showsAttentionMark(status) ? markSize.slot : 0;
 
 export const indicator = (token: ThemeToken): Element => dot(markSize.dot, colors()[token]);
 
