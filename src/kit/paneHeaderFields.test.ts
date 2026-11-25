@@ -20,8 +20,8 @@ const branchFull =
 
 const folderFull = longFolder.length * paneHeaderWidth.glyph + paneHeaderWidth.gap;
 
-const leadingSlotHeaderFields = (input: Omit<PaneHeaderFieldsInput, 'showsLeadingSlot'>) =>
-  paneHeaderFields({ ...input, showsLeadingSlot: true });
+const leadingSlotHeaderFields = (input: Omit<PaneHeaderFieldsInput, 'leadingSlotWidth'>) =>
+  paneHeaderFields({ ...input, leadingSlotWidth: paneHeaderWidth.icon });
 
 describe('paneHeaderFields', () => {
   test('shows every field full at an unmeasured width', () => {
@@ -229,7 +229,7 @@ describe('paneHeaderFields', () => {
 
   test('shows a task at the width where it fits without a leading slot', () => {
     const fields = paneHeaderFields({
-      showsLeadingSlot: false,
+      leadingSlotWidth: 0,
       width: 146,
       name,
       task: 'Header',
@@ -240,7 +240,7 @@ describe('paneHeaderFields', () => {
 
   test('hides a task at the same width when the header draws a leading slot', () => {
     const fields = paneHeaderFields({
-      showsLeadingSlot: true,
+      leadingSlotWidth: paneHeaderWidth.icon,
       width: 146,
       name,
       task: 'Header',

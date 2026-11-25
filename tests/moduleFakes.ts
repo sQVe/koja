@@ -129,6 +129,7 @@ export const kitIndexFake = (overrides: ModuleFake = {}): ModuleFake => ({
   listActionOf: () => null,
   listOf: () => [],
   listRow: noop,
+  markSize: {},
   modName: 'koja',
   modePill: noop,
   openAtTop: () => null,

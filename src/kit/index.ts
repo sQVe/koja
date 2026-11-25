@@ -69,6 +69,7 @@ export {
   controlSize,
   diffSize,
   hoverCardSize,
+  markSize,
   overlaySize,
   paneHeaderWidth,
   radius,

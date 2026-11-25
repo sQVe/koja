@@ -110,6 +110,7 @@ describe('tab attention mark', () => {
     const tab = drawnTab('working');
 
     expect(drawnIcons(tab)[0]).toBe('loader-circle.svg');
+    expect(elementWithIcon(tab.kids[0] ?? drawn(), 'loader-circle.svg')).not.toBeNull();
     expect(elementWithIcon(tab, 'loader-circle.svg')?.textColors).toEqual([themeColors.working]);
     expect(drawnIcons(tab)).not.toContain(iconName);
   });
@@ -118,6 +119,7 @@ describe('tab attention mark', () => {
     const tab = drawnTab('crashed');
 
     expect(drawnIcons(tab)[0]).toBe('triangle-alert.svg');
+    expect(elementWithIcon(tab.kids[0] ?? drawn(), 'triangle-alert.svg')).not.toBeNull();
     expect(elementWithIcon(tab, 'triangle-alert.svg')?.textColors).toEqual([themeColors.blocked]);
     expect(drawnIcons(tab)).not.toContain(iconName);
   });

@@ -224,11 +224,18 @@ const statusHeader = (status: AttentionStatus | null): DrawnElement =>
     width: shellSize.wideSpecimenWidth,
   });
 
+const markCount = (element: DrawnElement, name: string): number =>
+  drawnIcons(element).filter((icon) => icon === name).length;
+
+const leadsWith = (element: DrawnElement, name: string): boolean =>
+  elementWithIcon(element.kids[0] ?? drawn(), name) !== null;
+
 describe('paneHeader attention mark', () => {
   test('blocked leads with the question bubble and draws no program icon', () => {
     const marked = statusHeader('blocked');
 
-    expect(drawnIcons(marked)[0]).toBe('message-circle-question.svg');
+    expect(leadsWith(marked, 'message-circle-question.svg')).toBe(true);
+    expect(markCount(marked, 'message-circle-question.svg')).toBe(1);
     expect(elementWithIcon(marked, 'message-circle-question.svg')?.textColors).toEqual(['#222222']);
     expect(drawnIcons(marked)).not.toContain('terminal.svg');
     expect(drawnTexts(marked)).not.toContain('Needs you');
@@ -237,7 +244,8 @@ describe('paneHeader attention mark', () => {
   test('done leads with the check and draws no program icon', () => {
     const marked = statusHeader('done');
 
-    expect(drawnIcons(marked)[0]).toBe('check.svg');
+    expect(leadsWith(marked, 'check.svg')).toBe(true);
+    expect(markCount(marked, 'check.svg')).toBe(1);
     expect(elementWithIcon(marked, 'check.svg')?.textColors).toEqual(['#444444']);
     expect(drawnIcons(marked)).not.toContain('terminal.svg');
   });
@@ -245,26 +253,30 @@ describe('paneHeader attention mark', () => {
   test('working leads with the spinner and draws no program icon', () => {
     const marked = statusHeader('working');
 
-    expect(drawnIcons(marked)[0]).toBe('loader-circle.svg');
+    expect(leadsWith(marked, 'loader-circle.svg')).toBe(true);
+    expect(markCount(marked, 'loader-circle.svg')).toBe(1);
     expect(drawnIcons(marked)).not.toContain('terminal.svg');
   });
 
   test('crashed leads with the triangle alert and draws no program icon', () => {
     const marked = statusHeader('crashed');
 
-    expect(drawnIcons(marked)[0]).toBe('triangle-alert.svg');
+    expect(leadsWith(marked, 'triangle-alert.svg')).toBe(true);
+    expect(markCount(marked, 'triangle-alert.svg')).toBe(1);
     expect(elementWithIcon(marked, 'triangle-alert.svg')?.textColors).toEqual(['#222222']);
     expect(drawnIcons(marked)).not.toContain('terminal.svg');
   });
 
-  test('idle keeps its program icon and draws no mark', () => {
-    const marked = statusHeader('idle');
-    const icons = drawnIcons(marked);
+  test('idle and no status keep the program icon and draw no mark', () => {
+    for (const status of ['idle', null] as const) {
+      const quiet = statusHeader(status);
+      const icons = drawnIcons(quiet);
 
-    expect(icons[0]).toBe('terminal.svg');
-    expect(icons).not.toContain('message-circle-question.svg');
-    expect(icons).not.toContain('triangle-alert.svg');
-    expect(icons).not.toContain('check.svg');
-    expect(icons).not.toContain('loader-circle.svg');
+      expect(icons[0]).toBe('terminal.svg');
+      expect(icons).not.toContain('message-circle-question.svg');
+      expect(icons).not.toContain('triangle-alert.svg');
+      expect(icons).not.toContain('check.svg');
+      expect(icons).not.toContain('loader-circle.svg');
+    }
   });
 });

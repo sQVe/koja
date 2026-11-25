@@ -17,7 +17,7 @@ export interface PaneHeaderFieldsInput {
   task?: string;
   branch?: string;
   folder?: string;
-  showsLeadingSlot: boolean;
+  leadingSlotWidth: number;
 }
 
 interface FieldSizes {
@@ -41,14 +41,14 @@ const baseWidth = (input: PaneHeaderFieldsInput, actions: number, includeTask: b
   const hasTask = includeTask && isPresent(input.task);
 
   const fieldChildren =
-    (input.showsLeadingSlot ? 1 : 0) + (isPresent(input.role) ? 1 : 0) + (hasTask ? 1 : 0);
+    (input.leadingSlotWidth > 0 ? 1 : 0) + (isPresent(input.role) ? 1 : 0) + (hasTask ? 1 : 0);
 
   // Count the name and one action group even when the buttons are hidden.
   const children = 2 + fieldChildren;
 
   return (
     paneHeaderWidth.padding +
-    (input.showsLeadingSlot ? paneHeaderWidth.icon : 0) +
+    input.leadingSlotWidth +
     Math.min(estimate(input.name), controlSize.paneLabelMaxWidth) +
     roleWidth(input.role) +
     (hasTask ? estimate(input.task ?? '') : 0) +

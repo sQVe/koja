@@ -12,6 +12,7 @@ import {
   colors,
   controlSize,
   iconButton,
+  markSize,
   normalFocusFill,
   overlaySize,
   paneActions,
@@ -103,10 +104,18 @@ const spaceBranchOf = (tab: string): string | null =>
   spaces().find((candidate) => candidate.tabs.some((candidateTab) => candidateTab.id === tab))
     ?.branch ?? null;
 
+const leadingSlotOf = (mark: Element | null, programIconPath: string | null): number => {
+  if (mark !== null) {
+    return markSize.slot;
+  }
+
+  return programIconPath === null ? 0 : paneHeaderWidth.icon;
+};
+
 const paneHeaderContext = (
   pane: PaneInfo,
   width: number | null,
-  showsLeadingSlot: boolean,
+  leadingSlotWidth: number,
 ): PaneHeaderContext => {
   const terminalRecords = pane.terminal === null ? [] : terminals();
 
@@ -128,7 +137,7 @@ const paneHeaderContext = (
     ...(task === null ? {} : { task }),
     ...(branch === null ? {} : { branch }),
     folder: folderText,
-    showsLeadingSlot,
+    leadingSlotWidth,
   });
 
   return { name, role, task, paneBranch, branch, folderText, fields };
@@ -190,7 +199,7 @@ export default class PaneHeader extends View {
     const program = paneProgram(pane);
     const programIconPath = program?.icon ?? null;
     const mark = attentionMark(pane.status);
-    const showsLeadingSlot = mark !== null || programIconPath !== null;
+    const leadingSlotWidth = leadingSlotOf(mark, programIconPath);
 
     if (mark !== null) {
       element.child(mark);
@@ -200,7 +209,7 @@ export default class PaneHeader extends View {
       element.child(programMark);
     }
 
-    const context = paneHeaderContext(pane, this.width, showsLeadingSlot);
+    const context = paneHeaderContext(pane, this.width, leadingSlotWidth);
 
     const titleBox = div()
       .flex_initial()
