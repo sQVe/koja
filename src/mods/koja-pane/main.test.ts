@@ -49,18 +49,6 @@ const textElement = (text: string): DrawnElement => {
   return element;
 };
 
-const fakeStatusMarkWidth = (status: string | null): number => {
-  if (status === 'blocked') {
-    return 66;
-  }
-
-  if (status === 'working' || status === 'done') {
-    return 12;
-  }
-
-  return 0;
-};
-
 const pane = (): Record<string, unknown> => ({
   pane: 'p1',
   terminal: paneTerminal,
@@ -135,10 +123,9 @@ await mock.module('../../kit/index.ts', () =>
     paneActions,
     paneBranchElement,
     paneFolderElement,
-    paneStatusElement: (status: string | null) =>
-      fakeStatusMarkWidth(status) > 0 ? textElement(status ?? '') : null,
+    attentionMark: (status: string | null) =>
+      status === null || status === 'idle' ? null : textElement(status),
     paneTaskElement,
-    statusMarkWidth: fakeStatusMarkWidth,
     paneHeaderFields,
     paneHeaderWidth,
     paneOverflowButton,
@@ -506,27 +493,26 @@ describe('pane header buttons', () => {
     expect(openedOverlays).toMatchObject([{ props: { task: 'Build window shell' } }]);
   });
 
-  test('a wide header ends its trailing group at the right edge without a task, with a task, and with a branch', () => {
+  test('a wide header leads with its mark and ends its trailing group at the right edge without a task, with a task, and with a branch', () => {
     paneProgramValue = piProgram;
     paneCwd = '/var/tmp/ruta-koja/home/pi-fixture';
     paneStatus = 'working';
     terminalRecords = [{ address: 't1', labels: { 'tau.role': 'lead' } }];
 
     const withStatus = renderedHoveredAt(900);
+    const mark = withStatus.kids[0];
     const folder = withStatus.kids.find((kid) => drawnTexts(kid).includes('~/pi-fixture'));
-    const status = withStatus.kids.find((kid) => drawnTexts(kid).includes('working'));
     const badge = withStatus.kids.find((kid) => kid.styles['roleBadge'] !== undefined);
     const autos = withStatus.kids.filter((kid) => kid.styles['ml_auto'] !== undefined);
 
-    expect(folder?.styles['ml_auto']).toBeUndefined();
+    expect(drawnTexts(mark ?? drawn())).toEqual(['working']);
 
     expect(withStatus.kids.indexOf(folder ?? drawn())).toBeGreaterThan(
       withStatus.kids.indexOf(badge ?? drawn()),
     );
 
     expect(autos).toHaveLength(1);
-    expect(autos[0]).toBe(status);
-    expect(elementsWithStyle(withStatus, 'accessibility_label')).toHaveLength(4);
+    expect(elementsWithStyle(autos[0] ?? drawn(), 'accessibility_label')).toHaveLength(4);
 
     paneStatus = null;
     const noStatus = renderedHoveredAt(900);

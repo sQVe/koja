@@ -8,6 +8,7 @@ import { terminalMetadata } from '../../data/terminalRecord.ts';
 import type { PaneHeaderMenuAction } from '../../kit/index.ts';
 import {
   askFirst,
+  attentionMark,
   colors,
   controlSize,
   iconButton,
@@ -19,9 +20,7 @@ import {
   paneBranchElement,
   paneFolderElement,
   paneOverflowButton,
-  paneStatusElement,
   paneTaskElement,
-  statusMarkWidth,
   programIcon,
   radius,
   recordOf,
@@ -107,7 +106,7 @@ const spaceBranchOf = (tab: string): string | null =>
 const paneHeaderContext = (
   pane: PaneInfo,
   width: number | null,
-  showsProgramIcon: boolean,
+  showsLeadingSlot: boolean,
 ): PaneHeaderContext => {
   const terminalRecords = pane.terminal === null ? [] : terminals();
 
@@ -129,8 +128,7 @@ const paneHeaderContext = (
     ...(task === null ? {} : { task }),
     ...(branch === null ? {} : { branch }),
     folder: folderText,
-    showsProgramIcon,
-    statusWidth: statusMarkWidth(pane.status),
+    showsProgramIcon: showsLeadingSlot,
   });
 
   return { name, role, task, paneBranch, branch, folderText, fields };
@@ -191,14 +189,18 @@ export default class PaneHeader extends View {
   ): void {
     const program = paneProgram(pane);
     const programIconPath = program?.icon ?? null;
+    const mark = attentionMark(pane.status);
+    const showsLeadingSlot = mark !== null || programIconPath !== null;
 
-    if (program !== null && programIconPath !== null) {
+    if (mark !== null) {
+      element.child(mark);
+    } else if (program !== null && programIconPath !== null) {
       const programMark = programIcon(program, 'default').text_color(palette[tone.icon]);
 
       element.child(programMark);
     }
 
-    const context = paneHeaderContext(pane, this.width, programIconPath !== null);
+    const context = paneHeaderContext(pane, this.width, showsLeadingSlot);
 
     const titleBox = div()
       .flex_initial()
@@ -219,19 +221,11 @@ export default class PaneHeader extends View {
     const endAligned =
       !taskShown && context.fields.branch !== 'cut' && context.fields.folder !== 'cut';
 
-    const status = paneStatusElement(pane.status);
-
-    this.addHeaderFields(element, context, taskShown, endAligned, status);
-    this.addHeaderActions(element, pane, context, endAligned, status !== null);
+    this.addHeaderFields(element, context, taskShown);
+    this.addHeaderActions(element, pane, context, endAligned);
   }
 
-  private addHeaderFields(
-    element: Element,
-    context: PaneHeaderContext,
-    taskShown: boolean,
-    endAligned: boolean,
-    status: Element | null,
-  ): void {
+  private addHeaderFields(element: Element, context: PaneHeaderContext, taskShown: boolean): void {
     const fieldCut = context.fields.branch === 'cut' || context.fields.folder === 'cut';
     const task = taskShown ? paneTaskElement(context.task ?? undefined, fieldCut) : null;
 
@@ -246,12 +240,6 @@ export default class PaneHeader extends View {
     if (context.fields.folder !== 'dropped') {
       element.child(paneFolderElement(context.folderText, context.fields.folder, false));
     }
-
-    if (status !== null) {
-      const placedStatus = endAligned ? status.ml_auto() : status;
-
-      element.child(placedStatus);
-    }
   }
 
   private addHeaderActions(
@@ -259,7 +247,6 @@ export default class PaneHeader extends View {
     pane: PaneInfo,
     context: PaneHeaderContext,
     endAligned: boolean,
-    hasStatus: boolean,
   ): void {
     if (context.fields.compact) {
       const action = paneOverflowButton(() => {
@@ -270,13 +257,13 @@ export default class PaneHeader extends View {
         });
       });
 
-      const placed = endAligned && !hasStatus ? action.ml_auto() : action;
+      const placed = endAligned ? action.ml_auto() : action;
 
       element.child(placed);
     } else if (this.hovered) {
       const buttons = paneButtons(pane);
 
-      if (endAligned && !hasStatus) {
+      if (endAligned) {
         const row = h_flex().ml_auto().gap(paneHeaderWidth.gap).children(buttons);
 
         element.child(row);

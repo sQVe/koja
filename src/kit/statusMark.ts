@@ -8,9 +8,12 @@ import { fileStatusColor } from './fileStatus.ts';
 import { icon, spinner } from './icon.ts';
 import type { ThemeToken } from './palette.ts';
 import { badgeFillAlpha, withAlpha } from './palette.ts';
-import { controlSize, markSize, paneHeaderWidth, radius, spacing, textSize } from './size.ts';
+import { controlSize, markSize, radius, spacing, textSize } from './size.ts';
 import { withTextRole } from './textRole.ts';
 import { colors } from './theme.ts';
+
+/** The status of a tab or a pane, plus a crash, which Herdr's four statuses cannot say. */
+export type AttentionStatus = Status | 'crashed';
 
 const dot = (size: number, color: Color): Element =>
   div()
@@ -54,11 +57,12 @@ export const statusMark = (status: Status | null): Element => {
   return slot.child(dot(markSize.dot, palette[status]));
 };
 
+const questionBubble = (): Element =>
+  icon('message-circle-question', 'small').text_color(colors().blocked);
+
 export const spaceMark = (status: Status | null): Element => {
   if (status === 'blocked') {
-    const questionMark = icon('message-circle-question', 'small').text_color(colors().blocked);
-
-    return statusMark(null).child(questionMark);
+    return statusMark(null).child(questionBubble());
   }
 
   if (status !== null) {
@@ -66,6 +70,25 @@ export const spaceMark = (status: Status | null): Element => {
   }
 
   return statusMark(null).child(ring(markSize.dot, colors().border));
+};
+
+/** The mark a tab or a pane header leads with, or null when it has nothing to say. */
+export const attentionMark = (status: AttentionStatus | null): Element | null => {
+  if (status === 'blocked') {
+    return statusMark(null).child(questionBubble());
+  }
+
+  if (status === 'crashed') {
+    const crashMark = icon('triangle-alert', 'small').text_color(colors().blocked);
+
+    return statusMark(null).child(crashMark);
+  }
+
+  if (status === 'working' || status === 'done') {
+    return statusMark(status);
+  }
+
+  return null;
 };
 
 export const indicator = (token: ThemeToken): Element => dot(markSize.dot, colors()[token]);
@@ -90,33 +113,4 @@ export const attentionBadge = (label: string): Element => {
     .bg(withAlpha(palette.blocked, badgeFillAlpha));
 
   return withTextRole(badge, 'badge').child(label);
-};
-
-const attentionStatusWidth = 'Needs you'.length * paneHeaderWidth.glyph + spacing.small * 2;
-
-const hasStatusMark = (status: Status | null): status is 'working' | 'blocked' | 'done' =>
-  status === 'blocked' || status === 'working' || status === 'done';
-
-export const statusMarkWidth = (status: Status | null): number => {
-  if (status === 'blocked') {
-    return attentionStatusWidth;
-  }
-
-  if (status === 'working' || status === 'done') {
-    return markSize.slot;
-  }
-
-  return 0;
-};
-
-export const paneStatusElement = (status: Status | null): Element | null => {
-  if (!hasStatusMark(status)) {
-    return null;
-  }
-
-  if (status === 'blocked') {
-    return attentionBadge('Needs you');
-  }
-
-  return statusMark(status);
 };

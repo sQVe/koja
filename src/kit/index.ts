@@ -81,10 +81,9 @@ export {
 
 export {
   attentionBadge,
+  attentionMark,
   fileStatusMark,
   indicator,
-  paneStatusElement,
-  statusMarkWidth,
   spaceMark,
   statusMark,
 } from './statusMark.ts';

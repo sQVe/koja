@@ -1,11 +1,11 @@
 import { afterAll, describe, expect, mock, test } from 'bun:test';
 
-import type { Status } from 'herdr';
-
 import type { DrawnElement } from '../../tests/drawn.ts';
-import { drawn, drawnIcons, drawnTexts } from '../../tests/drawn.ts';
+import { drawn, drawnIcons, drawnTexts, elementWithIcon } from '../../tests/drawn.ts';
 import { gpuiBaseFake, gpuiKitFake, herdrFake } from '../../tests/moduleFakes.ts';
 import { shellSize } from './size.ts';
+
+type AttentionStatus = 'working' | 'blocked' | 'done' | 'idle' | 'crashed';
 
 interface HeaderOptions {
   program: null;
@@ -14,7 +14,7 @@ interface HeaderOptions {
   task?: string;
   branch?: string;
   folder: string;
-  status: Status | null;
+  status: AttentionStatus | null;
   focused: boolean;
   zoomed: boolean;
   width: number;
@@ -29,7 +29,15 @@ await mock.module('gpui-kit', () =>
 );
 
 await mock.module('herdr', () =>
-  herdrFake({ theme: () => ({ foreground: '#000000', muted: '#111111' }) }),
+  herdrFake({
+    theme: () => ({
+      foreground: '#000000',
+      muted: '#111111',
+      blocked: '#222222',
+      working: '#333333',
+      done: '#444444',
+    }),
+  }),
 );
 
 const modulePath = './paneHeader.ts';
@@ -182,23 +190,6 @@ describe('paneHeader role badge', () => {
     expect(folder?.styles['ml_auto']).toBeUndefined();
   });
 
-  test('a status without a task end-aligns first', () => {
-    const element = paneHeader({
-      program: null,
-      name: 'Pi',
-      role: 'lead',
-      folder: '',
-      status: 'blocked',
-      focused: false,
-      zoomed: false,
-      width: shellSize.wideSpecimenWidth,
-    });
-
-    const status = element.kids.find((kid) => drawnTexts(kid).includes('Needs you'));
-
-    expect(status?.styles['ml_auto']).toEqual([]);
-  });
-
   test('a compact header without a task has no empty spacer and ends its action', () => {
     const element = paneHeader({
       program: null,
@@ -223,7 +214,7 @@ describe('paneHeader role badge', () => {
   });
 });
 
-const statusHeader = (status: Status | null): DrawnElement =>
+const statusHeader = (status: AttentionStatus | null): DrawnElement =>
   paneHeader({
     program: null,
     name: 'Pi',
@@ -234,24 +225,47 @@ const statusHeader = (status: Status | null): DrawnElement =>
     width: shellSize.wideSpecimenWidth,
   });
 
-describe('paneHeader status', () => {
-  test('blocked draws the needs-you badge', () => {
-    expect(drawnTexts(statusHeader('blocked'))).toContain('Needs you');
+describe('paneHeader attention mark', () => {
+  test('blocked leads with the question bubble and draws no program icon', () => {
+    const marked = statusHeader('blocked');
+
+    expect(drawnIcons(marked)[0]).toBe('message-circle-question.svg');
+    expect(elementWithIcon(marked, 'message-circle-question.svg')?.textColors).toEqual(['#222222']);
+    expect(drawnIcons(marked)).not.toContain('terminal.svg');
+    expect(drawnTexts(marked)).not.toContain('Needs you');
   });
 
-  test('working and done draw their status mark', () => {
-    expect(drawnIcons(statusHeader('working'))).toContain('loader-circle.svg');
-    expect(drawnIcons(statusHeader('done'))).toContain('check.svg');
+  test('done leads with the check and draws no program icon', () => {
+    const marked = statusHeader('done');
+
+    expect(drawnIcons(marked)[0]).toBe('check.svg');
+    expect(elementWithIcon(marked, 'check.svg')?.textColors).toEqual(['#444444']);
+    expect(drawnIcons(marked)).not.toContain('terminal.svg');
   });
 
-  test('null and idle draw no status mark', () => {
-    const quiet = drawnIcons(statusHeader(null));
-    const idle = drawnIcons(statusHeader('idle'));
+  test('working leads with the spinner and draws no program icon', () => {
+    const marked = statusHeader('working');
 
-    expect(quiet).not.toContain('loader-circle.svg');
-    expect(quiet).not.toContain('check.svg');
-    expect(idle).not.toContain('loader-circle.svg');
-    expect(idle).not.toContain('check.svg');
-    expect(drawnTexts(statusHeader(null))).not.toContain('Needs you');
+    expect(drawnIcons(marked)[0]).toBe('loader-circle.svg');
+    expect(drawnIcons(marked)).not.toContain('terminal.svg');
+  });
+
+  test('crashed leads with the triangle alert and draws no program icon', () => {
+    const marked = statusHeader('crashed');
+
+    expect(drawnIcons(marked)[0]).toBe('triangle-alert.svg');
+    expect(elementWithIcon(marked, 'triangle-alert.svg')?.textColors).toEqual(['#222222']);
+    expect(drawnIcons(marked)).not.toContain('terminal.svg');
+  });
+
+  test('idle keeps its program icon and draws no mark', () => {
+    const marked = statusHeader('idle');
+    const icons = drawnIcons(marked);
+
+    expect(icons[0]).toBe('terminal.svg');
+    expect(icons).not.toContain('message-circle-question.svg');
+    expect(icons).not.toContain('triangle-alert.svg');
+    expect(icons).not.toContain('check.svg');
+    expect(icons).not.toContain('loader-circle.svg');
   });
 });

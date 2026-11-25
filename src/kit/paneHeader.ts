@@ -11,7 +11,7 @@ import { paneHeaderFields } from './paneHeaderFields.ts';
 import { paneActions } from './paneHeaderMenuModel.ts';
 import { roleBadge } from './roleBadge.ts';
 import { controlSize, paneHeaderWidth, radius, spacing } from './size.ts';
-import { paneStatusElement, statusMarkWidth } from './statusMark.ts';
+import { attentionMark } from './statusMark.ts';
 import { withTextRole } from './textRole.ts';
 import { colors, focusFill } from './theme.ts';
 
@@ -39,7 +39,6 @@ export interface PaneHeaderOptions {
 interface TrailingAlignment {
   branch: boolean;
   folder: boolean;
-  status: boolean;
   action: boolean;
 }
 
@@ -134,31 +133,25 @@ const trailingAlignment = (
   hasTask: boolean,
   showsBranch: boolean,
   showsFolder: boolean,
-  showsStatus: boolean,
 ): TrailingAlignment => {
   if (hasTask) {
-    return { branch: false, folder: false, status: false, action: false };
+    return { branch: false, folder: false, action: false };
   }
 
   if (showsBranch) {
-    return { branch: true, folder: false, status: false, action: false };
+    return { branch: true, folder: false, action: false };
   }
 
   if (showsFolder) {
-    return { branch: false, folder: true, status: false, action: false };
+    return { branch: false, folder: true, action: false };
   }
 
-  if (showsStatus) {
-    return { branch: false, folder: false, status: true, action: false };
-  }
-
-  return { branch: false, folder: false, status: false, action: true };
+  return { branch: false, folder: false, action: true };
 };
 
 const trailingChildren = (
   options: PaneHeaderOptions,
   fields: PaneHeaderFields,
-  status: Element | null,
   alignment: TrailingAlignment,
 ): Element[] => {
   const children: Element[] = [];
@@ -171,12 +164,6 @@ const trailingChildren = (
 
   if (isPresent(folder) && fields.folder !== 'dropped') {
     children.push(paneFolderElement(folder, fields.folder, alignment.folder));
-  }
-
-  if (status !== null) {
-    const placedStatus = alignment.status ? status.ml_auto() : status;
-
-    children.push(placedStatus);
   }
 
   return children;
@@ -207,7 +194,6 @@ export const paneHeader = (options: PaneHeaderOptions): Element => {
 
   const fields = paneHeaderFields({
     ...options,
-    statusWidth: statusMarkWidth(options.status),
     showsProgramIcon: true,
   });
 
@@ -234,8 +220,9 @@ export const paneHeader = (options: PaneHeaderOptions): Element => {
   }
 
   const programMark = programIcon(options.program, 'default').text_color(iconColor);
+  const leading = attentionMark(options.status) ?? programMark;
 
-  header.child(programMark);
+  header.child(leading);
   header.child(nameElement(options));
 
   if (isPresent(options.role)) {
@@ -246,8 +233,7 @@ export const paneHeader = (options: PaneHeaderOptions): Element => {
   const hasTask = fields.task === 'shown';
   const showsBranch = fields.branch !== 'dropped' && isPresent(options.branch);
   const showsFolder = fields.folder !== 'dropped' && isPresent(options.folder);
-  const status = paneStatusElement(options.status);
-  const alignment = trailingAlignment(hasTask, showsBranch, showsFolder, status !== null);
+  const alignment = trailingAlignment(hasTask, showsBranch, showsFolder);
 
   const task = hasTask ? paneTaskElement(options.task, fieldCut) : null;
 
@@ -255,7 +241,7 @@ export const paneHeader = (options: PaneHeaderOptions): Element => {
     header.child(task);
   }
 
-  header.children(trailingChildren(options, fields, status, alignment));
+  header.children(trailingChildren(options, fields, alignment));
   header.child(actionRow(fields, options, alignment.action));
 
   return header;
