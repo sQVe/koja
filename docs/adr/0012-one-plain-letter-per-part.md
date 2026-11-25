@@ -40,7 +40,8 @@ Neovim's keys where they fit.
 - `t`: tabs.
 - `s`: spaces.
 - `g`: go to or open a place in the UI. Neovim's `gg`, `gt`, and `gT` stay here. Each new place,
-  such as Changes or a side panel, gets a letter under `g` when it is built.
+  such as Changes or a side panel, gets a letter under `g` when it is built. The picker lists the
+  spaces, tabs, and panes of the window, so it opens with `g p`.
 - `z`: view, such as the sidebar, the layout, and font zoom.
 
 ### Single keys and aliases
