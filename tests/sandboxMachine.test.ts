@@ -446,7 +446,16 @@ const expectNoSetupWithoutRecord = async (): Promise<void> => {
   const result = await runBash(`
     set -euo pipefail
     source '${machineScript}'
-    if [[ ! -e $state_file ]] && fixture_has_artifacts; then
+    if [[ -e $state_file ]]; then
+      exit 0
+    fi
+
+    if fixture_has_artifacts; then
+      status=0
+    else
+      status=$?
+    fi
+    if (( status != 1 )); then
       exit 1
     fi
   `);
