@@ -93,9 +93,11 @@ describe('factPairs', () => {
   });
 
   test('a status follows its value in the dim ink and keeps its width', () => {
-    const pairs = factPairs(facts);
-    const statusPair = pairs.kids[2];
-    const status = elementWithText(pairs, '· open');
+    const statusPair = factPairs(facts).kids[2];
+    const pairTexts = statusPair === undefined ? [] : drawnTexts(statusPair);
+    const status = statusPair === undefined ? null : elementWithText(statusPair, '· open');
+
+    expect(pairTexts).toEqual(['Related PR', 'koja #52 · GitHub', '· open']);
 
     expect(statusPair?.kids[1]?.styles['flex_shrink']).toEqual([1]);
     expect(status?.textColors).toEqual([palette.dim]);

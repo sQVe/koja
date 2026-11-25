@@ -1,7 +1,7 @@
 import { h_flex, v_flex } from 'gpui-base';
 import type { Element } from 'gpui-kit';
 
-import type { Fact, SourceLinkOptions } from '../../kit/index.ts';
+import type { Fact, ItemHeaderOptions, SourceLinkOptions } from '../../kit/index.ts';
 import {
   contentSize,
   factPairs,
@@ -11,6 +11,8 @@ import {
   spacing,
 } from '../../kit/index.ts';
 import { sample } from './sample.ts';
+
+type HeaderState = Extract<ItemHeaderOptions, { kind: 'ready' }>['state'];
 
 const ticketFacts: Fact[] = [
   { label: 'Project', value: 'Koja' },
@@ -79,45 +81,27 @@ const pullHeader = (): Element =>
     state: { kind: 'openPullRequest', label: 'open', age: '1m ago' },
   });
 
-const ticketHeader = (): Element =>
+const ticketHeader = (state: HeaderState): Element =>
   itemHeader({
     kind: 'ready',
     identifier: 'ME-1094',
     source: 'Linear',
     title: 'Design the ticket view',
-    state: { kind: 'inProgress', label: 'In progress', age: '1m ago' },
+    state,
   });
 
-const loadingHeader = (): Element =>
-  itemHeader({ kind: 'loading', identifier: 'ME-1094', source: 'Linear' });
-
-const reviewHeader = (): Element =>
+const reviewHeader = (state: HeaderState): Element =>
   itemHeader({
     kind: 'ready',
     identifier: '#41',
     source: 'GitHub',
     repository: 'koja',
     title: 'Review design.md',
-    state: { kind: 'inReview', label: 'in review', age: null },
+    state,
   });
 
-const sentHeader = (): Element =>
-  itemHeader({
-    kind: 'ready',
-    identifier: 'ME-1094',
-    source: 'Linear',
-    title: 'Design the ticket view',
-    state: { kind: 'sent', label: 'sent', age: null },
-  });
-
-const stateLessHeader = (): Element =>
-  itemHeader({
-    kind: 'ready',
-    identifier: 'ME-1094',
-    source: 'Linear',
-    title: 'Design the ticket view',
-    state: null,
-  });
+const loadingHeader = (): Element =>
+  itemHeader({ kind: 'loading', identifier: 'ME-1094', source: 'Linear' });
 
 const longHeader = (): Element =>
   itemHeader({
@@ -148,11 +132,14 @@ const rail = (): Element => {
 export const contentParts = (): Element[] => [
   sample('Source links', sourceLinks()),
   sample('Pull request header', pullHeader()),
-  sample('Ticket header', ticketHeader()),
+  sample(
+    'Ticket header',
+    ticketHeader({ kind: 'inProgress', label: 'In progress', age: '1m ago' }),
+  ),
   sample('Loading ticket header', loadingHeader()),
-  sample('Review header', reviewHeader()),
-  sample('Sent review header', sentHeader()),
-  sample('Ticket header without a state', stateLessHeader()),
+  sample('Review header', reviewHeader({ kind: 'inReview', label: 'in review', age: null })),
+  sample('Sent review header', reviewHeader({ kind: 'sent', label: 'sent', age: null })),
+  sample('Ticket header without a state', ticketHeader(null)),
   sample('Long ticket title and facts, in a pane beside the agent', longTicket()),
   sample('Fact rows in a rail', rail()),
 ];
