@@ -11,10 +11,10 @@ import type { PaneHeaderFields, PaneHeaderFieldState } from './paneHeaderFields.
 import { paneHeaderFields } from './paneHeaderFields.ts';
 import { paneActions } from './paneHeaderMenuModel.ts';
 import { roleBadge } from './roleBadge.ts';
-import { controlSize, paneHeaderWidth, radius, spacing } from './size.ts';
+import { controlSize, paneHeaderWidth, spacing } from './size.ts';
 import { attentionMark, attentionMarkWidth } from './statusMark.ts';
 import { withTextRole } from './textRole.ts';
-import { colors, focusFill } from './theme.ts';
+import { colors } from './theme.ts';
 
 export interface PaneHeaderOptions {
   program: Program | null;
@@ -232,10 +232,6 @@ export const paneHeader = (options: PaneHeaderOptions): Element => {
     .on_size_change((size) => {
       options.onWidthChange?.(size.width);
     });
-
-  if (options.focused) {
-    header.bg(focusFill()).rounded_t(radius.cardInner);
-  }
 
   const programMark = programIcon(options.program, 'default').text_color(iconColor);
   const leading = mark ?? programMark;
