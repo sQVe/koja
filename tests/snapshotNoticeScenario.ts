@@ -31,7 +31,7 @@ const host = (await import(hostPath)) as { startDataHost: (cx: unknown) => void 
 
 const malformedSnapshot = { version: 2 };
 
-const newerSnapshot = { version: 6, revision: 9, facts: emptyFacts() };
+const newerSnapshot = { version: 7, revision: 9, facts: emptyFacts() };
 
 const retiredSnapshot = { version: 1, revision: 4, facts: {} };
 

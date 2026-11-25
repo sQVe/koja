@@ -49,13 +49,15 @@ export interface Facts {
   trackers: Record<string, RepositoryTracker>;
 }
 
-export const snapshotVersion = 5;
+export const snapshotVersion = 6;
 
 const versionWithGitFactsOnly = 2;
 
 const versionWithoutPullNeeds = 3;
 
 const versionWithoutTrackers = 4;
+
+const versionWithTicketFailures = 5;
 
 export interface Snapshot {
   version: typeof snapshotVersion;
@@ -288,12 +290,24 @@ const parseRepositoryPulls = (
   return { pulls, failed };
 };
 
-const parseTicketFacts = (value: unknown): TicketFacts | null => {
+const ticketKeys = ['id', 'title', 'state', 'url', 'parent'];
+
+const version5TicketKeys = [...ticketKeys, 'failed'];
+
+const parseTicketFacts = (
+  value: unknown,
+  keys: readonly string[],
+  acceptRetiredFailure: boolean,
+): TicketFacts | null => {
   if (!isRecord(value)) {
     return null;
   }
 
-  if (!hasOnlyKeys(value, ['id', 'title', 'state', 'url', 'parent'])) {
+  if (!hasOnlyKeys(value, keys)) {
+    return null;
+  }
+
+  if (acceptRetiredFailure && typeof value.failed !== 'boolean') {
     return null;
   }
 
@@ -330,7 +344,24 @@ const parseTicketFacts = (value: unknown): TicketFacts | null => {
   return { id, title, state, url, parent };
 };
 
-const parseRepositoryTracker = (value: unknown): RepositoryTracker | null => {
+const parseCurrentTicketFacts = (value: unknown): TicketFacts | null =>
+  parseTicketFacts(value, ticketKeys, false);
+
+const parseVersion5TicketFacts = (value: unknown): TicketFacts | null => {
+  if (!isRecord(value)) {
+    return null;
+  }
+
+  const hasRetiredFailure = Object.hasOwn(value, 'failed');
+  const keys = hasRetiredFailure ? version5TicketKeys : ticketKeys;
+
+  return parseTicketFacts(value, keys, hasRetiredFailure);
+};
+
+const parseRepositoryTracker = (
+  value: unknown,
+  parseTicket: (value: unknown) => TicketFacts | null,
+): RepositoryTracker | null => {
   if (!isRecord(value)) {
     return null;
   }
@@ -360,7 +391,7 @@ const parseRepositoryTracker = (value: unknown): RepositoryTracker | null => {
   const entries: [string, TicketFacts][] = [];
 
   for (const [key, ticket] of Object.entries(stored)) {
-    const parsed = parseTicketFacts(ticket);
+    const parsed = parseTicket(ticket);
 
     if (parsed === null) {
       return null;
@@ -410,6 +441,7 @@ const parsePulls = (
 const parseTrackers = (
   value: unknown,
   worktrees: Record<string, WorktreeGit>,
+  parseTicket: (value: unknown) => TicketFacts | null,
 ): Record<string, RepositoryTracker> | null => {
   if (!isRecord(value)) {
     return null;
@@ -423,7 +455,7 @@ const parseTrackers = (
       return null;
     }
 
-    const parsed = parseRepositoryTracker(entry);
+    const parsed = parseRepositoryTracker(entry, parseTicket);
 
     if (parsed === null) {
       return null;
@@ -459,7 +491,11 @@ const parseGitAndPulls = (
   return { git, pulls };
 };
 
-const parseFacts = (value: unknown, parsePull: StoredPullParser): Facts | null => {
+const parseFacts = (
+  value: unknown,
+  parsePull: StoredPullParser,
+  parseTicket: (value: unknown) => TicketFacts | null,
+): Facts | null => {
   if (!isRecord(value)) {
     return null;
   }
@@ -470,7 +506,7 @@ const parseFacts = (value: unknown, parsePull: StoredPullParser): Facts | null =
     return null;
   }
 
-  const trackers = parseTrackers(value.trackers, gitAndPulls.git.worktrees);
+  const trackers = parseTrackers(value.trackers, gitAndPulls.git.worktrees, parseTicket);
 
   if (trackers === null) {
     return null;
@@ -544,8 +580,11 @@ const parseVersion3Snapshot = (fields: Record<string, unknown>): Snapshot | null
 const parseVersion4Snapshot = (fields: Record<string, unknown>): Snapshot | null =>
   snapshotOf(fields, parseFactsWithoutTrackers(fields.facts, parseStoredPull));
 
+const parseVersion5Snapshot = (fields: Record<string, unknown>): Snapshot | null =>
+  snapshotOf(fields, parseFacts(fields.facts, parseStoredPull, parseVersion5TicketFacts));
+
 const parseCurrentSnapshot = (fields: Record<string, unknown>): Snapshot | null =>
-  snapshotOf(fields, parseFacts(fields.facts, parseStoredPull));
+  snapshotOf(fields, parseFacts(fields.facts, parseStoredPull, parseCurrentTicketFacts));
 
 export const parseSnapshot = (value: unknown): Snapshot | null => {
   const fields = recordOf(value);
@@ -560,6 +599,10 @@ export const parseSnapshot = (value: unknown): Snapshot | null => {
 
   if (fields.version === versionWithoutTrackers) {
     return parseVersion4Snapshot(fields);
+  }
+
+  if (fields.version === versionWithTicketFailures) {
+    return parseVersion5Snapshot(fields);
   }
 
   if (fields.version !== snapshotVersion) {

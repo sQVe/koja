@@ -48,7 +48,7 @@ const gitFacts = (): GitFacts => {
 };
 
 const snapshotOf = (git: unknown): unknown => ({
-  version: 5,
+  version: 6,
   revision: 4,
   facts: { git, pulls: {}, trackers: {} },
 });
@@ -76,7 +76,7 @@ const validRaw = () => {
   const key = keyOf(null, '/work');
 
   const snapshot: RawSnapshot = {
-    version: 5,
+    version: 6,
     revision: 4,
     facts: {
       git: {
@@ -246,7 +246,7 @@ describe('parseSnapshot', () => {
     const places: PlaceGit[] = Object.values(git?.places ?? {});
     const worktrees: WorktreeGit[] = Object.values(git?.worktrees ?? {});
 
-    expect(parsed?.version).toBe(5);
+    expect(parsed?.version).toBe(6);
     expect(parsed?.revision).toBe(9);
 
     const storedFacts = recordIn(stored.facts, 'facts');
@@ -292,7 +292,7 @@ describe('parseSnapshot', () => {
       title: 'Read the theme once per turn',
     });
 
-    expect(parsed?.version).toBe(5);
+    expect(parsed?.version).toBe(6);
     expect(parsed?.revision).toBe(8);
     expect(pulls).toEqual([unread]);
     expect(pulls.map((entry) => pullNeeds(entry))).toEqual([[]]);
@@ -358,7 +358,7 @@ describe('parseSnapshot', () => {
     const parsed = parseSnapshot(stored);
     const parsedGit: unknown = parsed?.facts.git;
 
-    expect(parsed?.version).toBe(5);
+    expect(parsed?.version).toBe(6);
     expect(parsed?.revision).toBe(7);
     expect(parsedGit).toEqual(git);
     expect(parsed?.facts.pulls).toEqual({});
@@ -373,7 +373,7 @@ describe('parseSnapshot', () => {
     };
 
     expect(parseSnapshot(stored)).toEqual({
-      version: 5,
+      version: 6,
       revision: 4,
       facts: { git: { places: {}, worktrees: {} }, pulls: {}, trackers: {} },
     });
@@ -450,9 +450,27 @@ describe('parseSnapshot', () => {
   });
 
   test('reads version 4 with no tracker facts', () => {
-    const parsed = parseSnapshot(fixture('snapshot-v5.json'));
+    const parsed = parseSnapshot(fixture('snapshot-v4.json'));
 
     expect(parsed?.facts.trackers).toEqual({});
+  });
+
+  test('reads a version 5 ticket without its retired failed field', () => {
+    const parsed = parseSnapshot(fixture('snapshot-v5.json'));
+    const tracker = parsed?.facts.trackers[keyOf(null, '/code/koja/.git')];
+    const ticket: TicketFacts | undefined = tracker?.tickets['ME-1'];
+
+    expect(parsed?.version).toBe(6);
+
+    expect(ticket).toEqual({
+      id: 'ME-1',
+      title: 'Title spaces with their Linear tickets',
+      state: 'In Progress',
+      url: 'https://linear.app/sqve/issue/ME-1/title-spaces-with-their-linear-tickets',
+      parent: null,
+    });
+
+    expect(Object.hasOwn(ticket ?? {}, 'failed')).toBe(false);
   });
 
   test('reads a ticket in the current snapshot', () => {
@@ -460,7 +478,7 @@ describe('parseSnapshot', () => {
     const tracker = parsed?.facts.trackers[keyOf(null, '/code/koja/.git')];
     const ticket: TicketFacts | undefined = tracker?.tickets['ME-1'];
 
-    expect(parsed?.version).toBe(5);
+    expect(parsed?.version).toBe(6);
     expect(tracker?.workspace).toBe('sqve');
     expect(tracker?.failed).toBe(false);
 
@@ -557,7 +575,7 @@ describe('parseSnapshot', () => {
   });
 
   test('rejects an unknown field in the snapshot', () => {
-    const stored = { version: 5, revision: 4, facts: emptyFacts(), extra: true };
+    const stored = { version: 6, revision: 4, facts: emptyFacts(), extra: true };
 
     expect(parseSnapshot(stored)).toBeNull();
   });
@@ -844,27 +862,27 @@ describe('parseSnapshot', () => {
   });
 
   test('accepts empty maps', () => {
-    const stored = { version: 5, revision: 4, facts: emptyFacts() } satisfies Snapshot;
+    const stored = { version: 6, revision: 4, facts: emptyFacts() } satisfies Snapshot;
 
     expect(parseSnapshot(stored)).toEqual(stored);
   });
 
   test('rejects a missing revision', () => {
-    expect(parseSnapshot({ version: 5, facts: emptyFacts() })).toBeNull();
+    expect(parseSnapshot({ version: 6, facts: emptyFacts() })).toBeNull();
   });
 
   test('rejects a revision that is not a positive whole number', () => {
-    expect(parseSnapshot({ version: 5, revision: 0, facts: emptyFacts() })).toBeNull();
-    expect(parseSnapshot({ version: 5, revision: 1.5, facts: emptyFacts() })).toBeNull();
-    expect(parseSnapshot({ version: 5, revision: '4', facts: emptyFacts() })).toBeNull();
+    expect(parseSnapshot({ version: 6, revision: 0, facts: emptyFacts() })).toBeNull();
+    expect(parseSnapshot({ version: 6, revision: 1.5, facts: emptyFacts() })).toBeNull();
+    expect(parseSnapshot({ version: 6, revision: '4', facts: emptyFacts() })).toBeNull();
   });
 
   test('rejects missing facts', () => {
-    expect(parseSnapshot({ version: 5, revision: 4 })).toBeNull();
+    expect(parseSnapshot({ version: 6, revision: 4 })).toBeNull();
   });
 
   test('rejects facts that are not a record', () => {
-    expect(parseSnapshot({ version: 5, revision: 4, facts: [] })).toBeNull();
+    expect(parseSnapshot({ version: 6, revision: 4, facts: [] })).toBeNull();
   });
 
   test('rejects a value that is not an object', () => {

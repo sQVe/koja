@@ -85,7 +85,7 @@ describe('createSnapshotPublisher', () => {
     store.values[snapshotKey] = { version: 1, revision: 9, facts: {} };
     createSnapshotPublisher(store.read, store.write, () => start).publish(lease, emptyFacts());
 
-    expect(store.values[snapshotKey]).toEqual({ version: 5, revision: 1, facts: emptyFacts() });
+    expect(store.values[snapshotKey]).toEqual({ version: 6, revision: 1, facts: emptyFacts() });
   });
 
   test('writes no shared key when the facts are unchanged', () => {
@@ -112,7 +112,7 @@ describe('createSnapshotPublisher', () => {
     expect(store.values[snapshotKey]).toEqual(stored);
   });
 
-  test('writes version 5 when the facts of a stored version 2 snapshot change', () => {
+  test('writes version 6 when the facts of a stored version 2 snapshot change', () => {
     const store = memoryStore();
     const lease = claimFor(store, 'window-b', start);
 
@@ -124,7 +124,7 @@ describe('createSnapshotPublisher', () => {
     );
 
     expect(store.values[snapshotKey]).toEqual({
-      version: 5,
+      version: 6,
       revision: 6,
       facts: factsWithBranch('trunk'),
     });
@@ -149,7 +149,7 @@ describe('createSnapshotPublisher', () => {
     publisher.publish(lease, second);
 
     expect(writes).toEqual([]);
-    expect(store.values[snapshotKey]).toEqual({ version: 5, revision: 1, facts: first });
+    expect(store.values[snapshotKey]).toEqual({ version: 6, revision: 1, facts: first });
   });
 
   test('writes revision 1 without a malformed notice when the shared key is absent as null', () => {
@@ -168,7 +168,7 @@ describe('createSnapshotPublisher', () => {
 
       expect(messages).toEqual([]);
       expect(store.writes).toEqual([snapshotKey]);
-      expect(store.values[snapshotKey]).toEqual({ version: 5, revision: 1, facts: emptyFacts() });
+      expect(store.values[snapshotKey]).toEqual({ version: 6, revision: 1, facts: emptyFacts() });
     } finally {
       spy.mockRestore();
     }
@@ -198,7 +198,7 @@ describe('createSnapshotPublisher', () => {
     expect(composed.localeCompare(decomposed)).toBe(0);
     expect(Object.keys(first.git.places)).toHaveLength(2);
     expect(writes).toEqual([]);
-    expect(store.values[snapshotKey]).toEqual({ version: 5, revision: 1, facts: first });
+    expect(store.values[snapshotKey]).toEqual({ version: 6, revision: 1, facts: first });
   });
 
   test('writes a new revision when a populated key differs', () => {
@@ -210,7 +210,7 @@ describe('createSnapshotPublisher', () => {
     publisher.publish(lease, populatedFacts(['/two']));
 
     expect(store.values[snapshotKey]).toEqual({
-      version: 5,
+      version: 6,
       revision: 2,
       facts: populatedFacts(['/two']),
     });
@@ -225,7 +225,7 @@ describe('createSnapshotPublisher', () => {
     publisher.publish(lease, factsWithBranch('trunk'));
 
     expect(store.values[snapshotKey]).toEqual({
-      version: 5,
+      version: 6,
       revision: 2,
       facts: factsWithBranch('trunk'),
     });
@@ -238,7 +238,7 @@ describe('createSnapshotPublisher', () => {
     expect(record.messages).toHaveLength(1);
     expect(snapshotWrites).toHaveLength(1);
     expect(snapshotWrites[0]?.messageCount).toBe(1);
-    expect(record.snapshot).toEqual({ version: 5, revision: 1, facts: emptyFacts() });
+    expect(record.snapshot).toEqual({ version: 6, revision: 1, facts: emptyFacts() });
   });
 
   test('reports a newer snapshot before replacing it', async () => {
@@ -248,7 +248,7 @@ describe('createSnapshotPublisher', () => {
     expect(record.messages).toHaveLength(1);
     expect(snapshotWrites).toHaveLength(1);
     expect(snapshotWrites[0]?.messageCount).toBe(1);
-    expect(record.snapshot).toEqual({ version: 5, revision: 1, facts: emptyFacts() });
+    expect(record.snapshot).toEqual({ version: 6, revision: 1, facts: emptyFacts() });
   });
 
   test('stays silent for a missing or retired snapshot', async () => {
@@ -257,7 +257,7 @@ describe('createSnapshotPublisher', () => {
 
     expect(record.messages).toEqual([]);
     expect(snapshotWrites).toHaveLength(2);
-    expect(record.snapshot).toEqual({ version: 5, revision: 1, facts: emptyFacts() });
+    expect(record.snapshot).toEqual({ version: 6, revision: 1, facts: emptyFacts() });
   });
 
   test('writes nothing for an owner that was fenced out', () => {

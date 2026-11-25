@@ -315,7 +315,7 @@ describe('readTickets', () => {
     expect(calls).toHaveLength(1);
   });
 
-  test('fails on an answer with both data and errors that name no id', async () => {
+  test('reads the tickets when data parses even if errors name no id', async () => {
     const calls: string[][] = [];
 
     const body = JSON.stringify({
@@ -329,11 +329,30 @@ describe('readTickets', () => {
       () => true,
     );
 
-    expect(read).toEqual({ kind: 'failed' });
+    expect(read).toEqual({
+      kind: 'read',
+      tickets: [
+        {
+          id: 'ME-1036',
+          title: 'Title spaces with their Linear tickets',
+          state: 'In Progress',
+          url: 'https://linear.app/sqve/issue/ME-1036/title-spaces-with-their-linear-tickets',
+          parent: 'ME-1031',
+        },
+        {
+          id: 'ME-1035',
+          title: 'Read what each PR needs for the sidebar',
+          state: 'Done',
+          url: 'https://linear.app/sqve/issue/ME-1035/read-what-each-pr-needs-for-the-sidebar',
+          parent: 'ME-1031',
+        },
+      ],
+    });
+
     expect(calls).toHaveLength(1);
   });
 
-  test('retries the id named by errors even when the answer also has data', async () => {
+  test('keeps the parsed tickets and retries only the id whose alias is missing', async () => {
     const calls: string[][] = [];
 
     const run: RunCommand = async (_command, args) => {
@@ -341,20 +360,20 @@ describe('readTickets', () => {
 
       const asked = idsOf(args);
 
-      const data = Object.fromEntries(
-        asked.map((id, index) => [`ticket${index}`, ticketNodeOf(id)]),
-      );
-
       if (calls.length === 1) {
         return {
           code: 0,
           stdout: JSON.stringify({
-            data,
-            errors: [{ message: 'Entity not found: Issue', path: ['ticket0'] }],
+            data: { ticket0: ticketNodeOf(asked[0] ?? 'ME-1036') },
+            errors: [{ message: 'Entity not found: Issue', path: ['ticket1'] }],
           }),
           stderr: '',
         };
       }
+
+      const data = Object.fromEntries(
+        asked.map((id, index) => [`ticket${index}`, ticketNodeOf(id)]),
+      );
 
       return { code: 0, stdout: JSON.stringify({ data }), stderr: '' };
     };
@@ -362,7 +381,22 @@ describe('readTickets', () => {
     const read = await readTickets(run, sourceOf(['ME-1036', 'ME-9999']), () => true);
 
     expect(read).toEqual({ kind: 'read', tickets: [ticketOf('ME-1036'), ticketOf('ME-9999')] });
-    expect(calls).toHaveLength(3);
+    expect(calls).toHaveLength(2);
+    expect(idsOf(calls[1] ?? [])).toEqual(['ME-9999']);
+  });
+
+  test('keeps the ticket when a single-id answer carries data and a named error', async () => {
+    const calls: string[][] = [];
+
+    const body = JSON.stringify({
+      data: { ticket0: ticketNodeOf('ME-9999') },
+      errors: [{ message: 'Entity not found: Issue', path: ['ticket0'] }],
+    });
+
+    const read = await readTickets(runWith([{ body }], calls), sourceOf(['ME-9999']), () => true);
+
+    expect(read).toEqual({ kind: 'read', tickets: [ticketOf('ME-9999')] });
+    expect(calls).toHaveLength(1);
   });
 
   test('fails when a retry command fails', async () => {

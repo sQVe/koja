@@ -120,14 +120,21 @@ const cwdOf = (git: GitFacts, repositoryKey: string, worktrees: WorktreeGit[]): 
   return worktrees.map((worktree) => worktree.root).toSorted()[0] ?? '';
 };
 
+const withoutTrailingSlashes = (path: string): string => path.replace(/\/+$/, '');
+
 const isBareWorktree = (worktree: WorktreeGit): boolean =>
-  worktree.root === worktree.repository.commonDirectory;
+  withoutTrailingSlashes(worktree.root) ===
+  withoutTrailingSlashes(worktree.repository.commonDirectory);
+
+const worktreesByRoot = (worktrees: WorktreeGit[]): WorktreeGit[] =>
+  worktrees.toSorted((left, right) => left.root.localeCompare(right.root));
 
 const configCwdOf = (worktrees: WorktreeGit[]): string | null =>
-  worktrees.find((worktree) => !worktree.linked && !isBareWorktree(worktree))?.root ?? null;
+  worktreesByRoot(worktrees).find((worktree) => !worktree.linked && !isBareWorktree(worktree))
+    ?.root ?? null;
 
 const checkoutCwdOf = (worktrees: WorktreeGit[]): string | null =>
-  worktrees.find((worktree) => !isBareWorktree(worktree))?.root ?? null;
+  worktreesByRoot(worktrees).find((worktree) => !isBareWorktree(worktree))?.root ?? null;
 
 const mainWorktreeOf = (porcelain: string): string | null => {
   const [first] = porcelain.split(/\n\s*\n/);
@@ -219,18 +226,22 @@ class Scheduler implements TrackerScheduler {
 
     const now = this.dependencies.now();
     const free = Math.max(0, readLimit - this.running.size);
-    let started = 0;
 
-    for (const source of sourcesOf(git).values()) {
-      if (started >= free) {
-        break;
-      }
+    const due = [...sourcesOf(git).values()]
+      .filter((source) => this.shouldRead(source, now))
+      .toSorted((left, right) => this.byOldestRead(left, right));
 
-      if (this.shouldRead(source, now)) {
-        this.startRead(source, readTickets, now);
-        started += 1;
-      }
+    for (const source of due.slice(0, free)) {
+      this.startRead(source, readTickets, now);
     }
+  }
+
+  private byOldestRead(left: RepositorySource, right: RepositorySource): number {
+    const leftStart = this.reads.get(left.key)?.at ?? 0;
+    const rightStart = this.reads.get(right.key)?.at ?? 0;
+    const difference = leftStart - rightStart;
+
+    return difference === 0 ? left.key.localeCompare(right.key) : difference;
   }
 
   stop(): void {

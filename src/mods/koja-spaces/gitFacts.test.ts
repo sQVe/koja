@@ -55,7 +55,7 @@ const placesFacts = (places: Record<string, PlaceGit>): Facts => {
 };
 
 const stateOf = (facts: Facts, kind: 'live' | 'stale' = 'live'): DataState => {
-  const snapshot: Snapshot = { version: 5, revision: 3, facts };
+  const snapshot: Snapshot = { version: 6, revision: 3, facts };
   const fields = { snapshot, owner: 'window-a', generation: 1, heartbeatAt: 0 };
 
   return kind === 'live' ? { kind, ...fields, staleAt: 30_000 } : { kind, ...fields };

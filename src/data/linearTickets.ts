@@ -18,7 +18,7 @@ export type TicketRead =
 
 type BatchAnswer =
   | { kind: 'tickets'; tickets: TicketFacts[] }
-  | { kind: 'retry'; ids: string[] }
+  | { kind: 'retry'; ids: string[]; tickets: TicketFacts[] }
   | { kind: 'failed' };
 
 type BatchRead =
@@ -26,10 +26,14 @@ type BatchRead =
   | { kind: 'failed' }
   | { kind: 'dropped' };
 
-interface AnswerBody {
-  data: Record<string, unknown> | null;
-  retryIds: string[];
-  hasErrors: boolean;
+type AnswerBody =
+  | { kind: 'data'; data: Record<string, unknown>; retryIds: string[] }
+  | { kind: 'retry'; retryIds: string[] }
+  | { kind: 'failed' };
+
+interface ParsedAliases {
+  tickets: TicketFacts[];
+  missingIds: string[];
 }
 
 export const ticketBatchSize = 50;
@@ -189,34 +193,42 @@ const answerBodyOf = (result: ExecResult, ids: string[]): AnswerBody => {
   try {
     body = JSON.parse(result.stdout);
   } catch {
-    return { data: null, retryIds: [], hasErrors: false };
+    return { kind: 'failed' };
   }
 
   if (!isRecord(body)) {
-    return { data: null, retryIds: [], hasErrors: false };
+    return { kind: 'failed' };
   }
 
-  const errors = body['errors'];
-  const hasErrors = Array.isArray(errors) && errors.length > 0;
+  const retryIds = retryIdsOf(body['errors'], ids);
   const data = result.code === 0 && isRecord(body['data']) ? body['data'] : null;
 
-  return { data, retryIds: retryIdsOf(errors, ids), hasErrors };
+  if (data !== null) {
+    return { kind: 'data', data, retryIds };
+  }
+
+  if (retryIds.length === 0) {
+    return { kind: 'failed' };
+  }
+
+  return { kind: 'retry', retryIds };
 };
 
-const ticketsOfAliases = (data: Record<string, unknown>, ids: string[]): TicketFacts[] | null => {
+const ticketsOfAliases = (data: Record<string, unknown>, ids: string[]): ParsedAliases => {
   const tickets: TicketFacts[] = [];
+  const missingIds: string[] = [];
 
-  for (const index of ids.keys()) {
+  for (const [index, id] of ids.entries()) {
     const facts = ticketFactsOf(data[`ticket${index}`]);
 
     if (facts === null) {
-      return null;
+      missingIds.push(id);
+    } else {
+      tickets.push(facts);
     }
-
-    tickets.push(facts);
   }
 
-  return tickets;
+  return { tickets, missingIds };
 };
 
 const queryTickets = async (
@@ -228,21 +240,28 @@ const queryTickets = async (
   const result = await run('linear', args, { cwd: source.cwd, on: source.machine });
   const answer = answerBodyOf(result, ids);
 
-  if (answer.hasErrors) {
-    if (answer.retryIds.length === 0) {
+  if (answer.kind === 'failed') {
+    return { kind: 'failed' };
+  }
+
+  if (answer.kind === 'data') {
+    const parsed = ticketsOfAliases(answer.data, ids);
+
+    if (parsed.missingIds.length === 0) {
+      return { kind: 'tickets', tickets: parsed.tickets };
+    }
+
+    const missing = new Set(parsed.missingIds);
+    const retryIds = answer.retryIds.filter((id) => missing.has(id));
+
+    if (retryIds.length === 0) {
       return { kind: 'failed' };
     }
 
-    return { kind: 'retry', ids: answer.retryIds };
+    return { kind: 'retry', ids: retryIds, tickets: parsed.tickets };
   }
 
-  if (answer.data !== null) {
-    const tickets = ticketsOfAliases(answer.data, ids);
-
-    return tickets === null ? { kind: 'failed' } : { kind: 'tickets', tickets };
-  }
-
-  return { kind: 'failed' };
+  return { kind: 'retry', ids: answer.retryIds, tickets: [] };
 };
 
 // Linear answers no data for the whole query when one issue id does not exist, and the error path
@@ -271,15 +290,16 @@ const ticketsOfBatch = async (
       return { kind: 'failed' };
     }
 
-    if (answer.kind === 'tickets') {
-      tickets.push(...answer.tickets);
+    tickets.push(...answer.tickets);
 
+    if (answer.kind === 'tickets') {
       return { kind: 'tickets', tickets };
     }
 
-    const named = new Set(answer.ids);
+    const retried = new Set(answer.ids);
+    const parsed = new Set(answer.tickets.map((ticket) => ticket.id));
 
-    pending = asked.filter((id) => !named.has(id));
+    pending = asked.filter((id) => !retried.has(id) && !parsed.has(id));
 
     for (const id of answer.ids) {
       if (asked.length === 1) {
@@ -297,9 +317,7 @@ const ticketsOfBatch = async (
         return { kind: 'failed' };
       }
 
-      if (single.kind === 'tickets') {
-        tickets.push(...single.tickets);
-      }
+      tickets.push(...single.tickets);
     }
   }
 
