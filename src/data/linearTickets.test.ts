@@ -12,6 +12,7 @@ import {
   ticketQueryArgs,
 } from './linearTickets.ts';
 import type { TicketSource } from './linearTickets.ts';
+import type { TicketFacts } from './snapshot.ts';
 
 interface Answer {
   body: string;
@@ -74,6 +75,29 @@ const ticketNodeOf = (id: string): Record<string, unknown> => ({
   state: { name: 'Todo' },
   url: `https://linear.app/sqve/issue/${id}`,
   parent: null,
+});
+
+const ticketOf = (id: string): TicketFacts => ({
+  id,
+  title: `Title of ${id}`,
+  state: 'Todo',
+  url: `https://linear.app/sqve/issue/${id}`,
+  parent: null,
+  failed: false,
+});
+
+const unknownIdAnswer = (index: number): Answer => ({
+  code: 3,
+  body: JSON.stringify({
+    errors: [
+      {
+        message: 'Entity not found: Issue',
+        path: [`ticket${index}`],
+        extensions: { type: 'invalid input', code: 'INPUT_ERROR', statusCode: 400 },
+      },
+    ],
+    data: null,
+  }),
 });
 
 const runAnswering =
@@ -231,6 +255,78 @@ describe('readTickets', () => {
     expect(await readOf({ body, code: 1 })).toEqual({ kind: 'failed' });
   });
 
+  test('keeps the known ticket when another id does not resolve', async () => {
+    const calls: string[][] = [];
+
+    const run: RunCommand = async (_command, args) => {
+      calls.push(args);
+
+      const asked = idsOf(args);
+      const unknown = asked.indexOf('ME-9999');
+
+      if (unknown !== -1) {
+        const answer = unknownIdAnswer(unknown);
+
+        return { code: answer.code ?? 0, stdout: answer.body, stderr: '' };
+      }
+
+      const aliases: [string, Record<string, unknown>][] = asked.map((id, index) => [
+        `ticket${index}`,
+        ticketNodeOf(id),
+      ]);
+
+      return { code: 0, stdout: JSON.stringify({ data: Object.fromEntries(aliases) }), stderr: '' };
+    };
+
+    const read = await readTickets(run, sourceOf(['ME-1036', 'ME-9999']), () => true);
+
+    expect(read).toEqual({ kind: 'read', tickets: [ticketOf('ME-1036')] });
+    expect(calls).toHaveLength(3);
+  });
+
+  test('fails when no id in the batch resolves', async () => {
+    const read = await readTickets(
+      runWith([unknownIdAnswer(0), unknownIdAnswer(0), unknownIdAnswer(0)]),
+      sourceOf(['ME-9998', 'ME-9999']),
+      () => true,
+    );
+
+    expect(read).toEqual({ kind: 'failed' });
+  });
+
+  test('fails without asking each id when the answer has no errors', async () => {
+    const calls: string[][] = [];
+
+    const read = await readTickets(
+      runWith([{ body: JSON.stringify({ data: null }) }], calls),
+      sourceOf(['ME-1', 'ME-2']),
+      () => true,
+    );
+
+    expect(read).toEqual({ kind: 'failed' });
+    expect(calls).toHaveLength(1);
+  });
+
+  test('drops the read when the lease is lost while isolating ids', async () => {
+    const calls: string[][] = [];
+    let ownerChecks = 0;
+
+    const stillOwner = (): boolean => {
+      ownerChecks += 1;
+
+      return ownerChecks === 1;
+    };
+
+    const read = await readTickets(
+      runWith([unknownIdAnswer(0)], calls),
+      sourceOf(['ME-9999', 'ME-1036']),
+      stillOwner,
+    );
+
+    expect(read).toEqual({ kind: 'dropped' });
+    expect(calls).toHaveLength(1);
+  });
+
   test('fails on an answer that is not a JSON object', async () => {
     for (const body of ['not json', 'null', '[]']) {
       const read = await readOf({ body });
@@ -282,5 +378,14 @@ describe('linearWorkspaceOf', () => {
   test('reads the workspace from a toml', () => {
     expect(linearWorkspaceOf('workspace = "sqve"\n')).toBe('sqve');
     expect(linearWorkspaceOf('team = "ME"\n')).toBeNull();
+  });
+
+  test('reads a quoted workspace value with leading whitespace', () => {
+    expect(linearWorkspaceOf('  workspace = "sqve"\n')).toBe('sqve');
+    expect(linearWorkspaceOf('\tworkspace="sqve"\n')).toBe('sqve');
+  });
+
+  test('rejects an unquoted workspace value', () => {
+    expect(linearWorkspaceOf('workspace = sqve\n')).toBeNull();
   });
 });

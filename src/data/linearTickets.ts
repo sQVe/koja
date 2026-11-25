@@ -16,6 +16,13 @@ export type TicketRead =
   | { kind: 'failed' }
   | { kind: 'dropped' };
 
+type BatchAnswer =
+  | { kind: 'tickets'; tickets: TicketFacts[] }
+  | { kind: 'no-data' }
+  | { kind: 'failed' };
+
+type EachIdRead = { kind: 'tickets'; tickets: TicketFacts[] } | { kind: 'dropped' };
+
 export const ticketBatchSize = 50;
 
 const ticketIdPattern = /^([A-Za-z]+)-(\d+)(?:-|$)/;
@@ -42,7 +49,7 @@ export const ticketIdOf = (branch: string | null, folder: string): string | null
   return fromBranch ?? ticketIdIn(folder);
 };
 
-const workspaceLine = /^workspace[ \t]*=[ \t]*"([^"]*)"/m;
+const workspaceLine = /^[ \t]*workspace[ \t]*=[ \t]*"([^"]*)"/m;
 
 export const linearWorkspaceOf = (toml: string): string | null => {
   const match = workspaceLine.exec(toml);
@@ -139,13 +146,7 @@ const dataOf = (result: ExecResult): Record<string, unknown> | null => {
   return isRecord(data) ? data : null;
 };
 
-const batchTicketsOf = (result: ExecResult, ids: string[]): TicketFacts[] | null => {
-  const data = dataOf(result);
-
-  if (data === null) {
-    return null;
-  }
-
+const ticketsOfAliases = (data: Record<string, unknown>, ids: string[]): TicketFacts[] | null => {
   const tickets: TicketFacts[] = [];
 
   for (const index of ids.keys()) {
@@ -159,6 +160,62 @@ const batchTicketsOf = (result: ExecResult, ids: string[]): TicketFacts[] | null
   }
 
   return tickets;
+};
+
+const answersWithErrors = (result: ExecResult): boolean => {
+  let body: unknown;
+
+  try {
+    body = JSON.parse(result.stdout);
+  } catch {
+    return false;
+  }
+
+  return isRecord(body) && Array.isArray(body['errors']);
+};
+
+const queryTickets = async (
+  run: RunCommand,
+  source: TicketSource,
+  ids: string[],
+): Promise<BatchAnswer> => {
+  const args = [...ticketQueryArgs(ids), '--workspace', source.workspace];
+  const result = await run('linear', args, { cwd: source.cwd, on: source.machine });
+  const data = dataOf(result);
+
+  if (data === null) {
+    return answersWithErrors(result) ? { kind: 'no-data' } : { kind: 'failed' };
+  }
+
+  const tickets = ticketsOfAliases(data, ids);
+
+  return tickets === null ? { kind: 'failed' } : { kind: 'tickets', tickets };
+};
+
+// Linear answers no data for the whole query when one issue id does not exist, so a query without
+// data is asked again for each id alone and the ids that do resolve still arrive.
+const ticketsOfEachId = async (
+  run: RunCommand,
+  source: TicketSource,
+  ids: string[],
+  stillOwner: () => boolean,
+): Promise<EachIdRead> => {
+  const tickets: TicketFacts[] = [];
+
+  for (const id of ids) {
+    if (!stillOwner()) {
+      return { kind: 'dropped' };
+    }
+
+    // eslint-disable-next-line no-await-in-loop -- one id at a time, so one unknown id does not hide the rest
+    const answer = await queryTickets(run, source, [id]);
+
+    if (answer.kind === 'tickets') {
+      tickets.push(...answer.tickets);
+    }
+  }
+
+  return { kind: 'tickets', tickets };
 };
 
 const batchesOf = (ids: string[]): string[][] => {
@@ -183,18 +240,31 @@ export const readTickets = async (
       return { kind: 'dropped' };
     }
 
-    const args = [...ticketQueryArgs(batch), '--workspace', source.workspace];
-
     // eslint-disable-next-line no-await-in-loop -- one batch at a time, so a failure stops the read early
-    const result = await run('linear', args, { cwd: source.cwd, on: source.machine });
+    const answer = await queryTickets(run, source, batch);
 
-    const batchTickets = batchTicketsOf(result, batch);
-
-    if (batchTickets === null) {
+    if (answer.kind === 'failed') {
       return { kind: 'failed' };
     }
 
-    tickets.push(...batchTickets);
+    if (answer.kind === 'tickets') {
+      tickets.push(...answer.tickets);
+
+      continue;
+    }
+
+    // eslint-disable-next-line no-await-in-loop -- the ids of this batch are asked one after another
+    const resolved = await ticketsOfEachId(run, source, batch, stillOwner);
+
+    if (resolved.kind === 'dropped') {
+      return { kind: 'dropped' };
+    }
+
+    tickets.push(...resolved.tickets);
+  }
+
+  if (tickets.length === 0 && source.ids.length > 0) {
+    return { kind: 'failed' };
   }
 
   return { kind: 'read', tickets };

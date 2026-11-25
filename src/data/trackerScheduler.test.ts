@@ -1,5 +1,6 @@
 import { beforeEach, describe, expect, test } from 'bun:test';
 
+import { rowTitleOf } from '../mods/koja-spaces/rows.ts';
 import type { RunCommand } from './gitIdentity.ts';
 import { placeOf, repositoryOf, worktreeOf } from './gitIdentity.ts';
 import type { TicketRead, TicketSource } from './linearTickets.ts';
@@ -11,6 +12,14 @@ interface Harness {
   sources: TicketSource[];
   published: number;
   read: () => TicketRead;
+}
+
+interface Checkout {
+  root: string;
+  branch: string | null;
+  linked: boolean;
+  placeFolder?: string;
+  shown?: boolean;
 }
 
 const start = 1_800_000_000_000;
@@ -27,32 +36,42 @@ const ticket = (id: string): TicketFacts => ({
   failed: false,
 });
 
-const gitFactsOf = (
-  branches: (string | null)[],
-  firstRoot: string = folder,
-  firstPlace: string = firstRoot,
-): GitFacts => {
+const gitFactsOfCheckouts = (checkouts: Checkout[]): GitFacts => {
   const places: GitFacts['places'] = {};
   const worktrees: GitFacts['worktrees'] = {};
 
-  for (const [index, branch] of branches.entries()) {
-    const root = index === 0 ? firstRoot : `${folder}-${index}`;
-    const placeFolder = index === 0 ? firstPlace : root;
-    const place = placeOf(null, placeFolder);
-    const worktree = worktreeOf(null, root);
+  for (const checkout of checkouts) {
+    const place = placeOf(null, checkout.placeFolder ?? checkout.root);
+    const worktree = worktreeOf(null, checkout.root);
 
-    places[place.key] = { kind: 'repository', worktree: worktree.key };
+    if (checkout.shown !== false) {
+      places[place.key] = { kind: 'repository', worktree: worktree.key };
+    }
 
     worktrees[worktree.key] = {
       repository,
-      root,
-      branch,
-      linked: index > 0,
+      root: checkout.root,
+      branch: checkout.branch,
+      linked: checkout.linked,
     };
   }
 
   return { places, worktrees };
 };
+
+const gitFactsOf = (
+  branches: (string | null)[],
+  firstRoot: string = folder,
+  firstPlace: string = firstRoot,
+): GitFacts =>
+  gitFactsOfCheckouts(
+    branches.map((branch, index) => ({
+      root: index === 0 ? firstRoot : `${folder}-${index}`,
+      branch,
+      linked: index > 0,
+      ...(index === 0 ? { placeFolder: firstPlace } : {}),
+    })),
+  );
 
 const workspaceRun = (): RunCommand => async (command, args) => {
   if (command !== 'cat') {
@@ -216,6 +235,159 @@ describe('createTrackerScheduler', () => {
     expect(harness.sources).toHaveLength(2);
   });
 
+  test('reads again when a branch changes and the count stays the same', async () => {
+    const harness = harnessOf();
+    const first = gitFactsOf(['me-1036-title-spaces-with-their-linear-tickets'], '/code/koja');
+    const second = gitFactsOf(['me-1035-read-what-each-pr-needs'], '/code/koja');
+
+    reads = [
+      { kind: 'read', tickets: [ticket('ME-1036')] },
+      { kind: 'read', tickets: [ticket('ME-1035')] },
+    ];
+
+    harness.scheduler.tick(first, readTickets(harness));
+    await settle();
+
+    now += 1_000;
+    harness.scheduler.tick(second, readTickets(harness));
+    await settle();
+
+    expect(harness.sources).toHaveLength(2);
+    expect(harness.sources[1]?.ids).toEqual(['ME-1035']);
+  });
+
+  test('does not ask for the folder id when the branch names a ticket', async () => {
+    const harness = harnessOf();
+    const git = gitFactsOf(['me-1035-read-what-each-pr-needs']);
+
+    reads = [{ kind: 'read', tickets: [ticket('ME-1035')] }];
+
+    harness.scheduler.tick(git, readTickets(harness));
+    await settle();
+
+    expect(harness.sources[0]?.ids).toEqual(['ME-1035']);
+  });
+
+  test('does not publish a read that completes after stop', async () => {
+    const harness = harnessOf();
+    const git = gitFactsOf(['me-1036-title-spaces-with-their-linear-tickets']);
+    const read = pendingRead();
+
+    const runner = async (source: TicketSource): Promise<TicketRead> => {
+      harness.sources.push(source);
+
+      return read.promise;
+    };
+
+    harness.scheduler.tick(git, runner);
+    await settle();
+
+    harness.scheduler.stop();
+    read.resolve({ kind: 'read', tickets: [ticket('ME-1036')] });
+    await settle();
+
+    expect(harness.published).toBe(0);
+    expect(harness.scheduler.trackers()).toEqual({});
+  });
+
+  test('does not publish a dropped read and reads again when due', async () => {
+    const harness = harnessOf();
+    const git = gitFactsOf(['me-1036-title-spaces-with-their-linear-tickets']);
+
+    reads = [{ kind: 'dropped' }, { kind: 'read', tickets: [ticket('ME-1036')] }];
+
+    harness.scheduler.tick(git, readTickets(harness));
+    await settle();
+
+    expect(harness.published).toBe(0);
+    expect(harness.scheduler.trackers()).toEqual({});
+
+    now += 60_000;
+    harness.scheduler.tick(git, readTickets(harness));
+    await settle();
+
+    expect(harness.sources).toHaveLength(2);
+    expect(harness.published).toBe(1);
+
+    expect(harness.scheduler.trackers()).toEqual({
+      [repository.key]: {
+        workspace: 'sqve',
+        tickets: { 'ME-1036': ticket('ME-1036') },
+        failed: false,
+      },
+    });
+  });
+
+  test('reads the config from the main checkout when a linked worktree sorts first', async () => {
+    const mainRoot = '/code/koja';
+    const linkedRoot = '/code/aaa-feature';
+
+    const run: RunCommand = async (command, args) => {
+      const configPath = `${mainRoot}/.linear.toml`;
+
+      if (command !== 'cat' || args[0] !== configPath) {
+        return { code: 1, stdout: '', stderr: `no config at ${args.join(' ')}` };
+      }
+
+      return { code: 0, stdout: 'workspace = "sqve"\n', stderr: '' };
+    };
+
+    const harness = harnessOf(run);
+
+    const git = gitFactsOfCheckouts([
+      { root: mainRoot, branch: 'main', linked: false },
+      { root: linkedRoot, branch: 'me-1036-title-spaces-with-their-linear-tickets', linked: true },
+    ]);
+
+    reads = [{ kind: 'read', tickets: [ticket('ME-1036')] }];
+
+    harness.scheduler.tick(git, readTickets(harness));
+    await settle();
+
+    expect(harness.scheduler.trackers()).toEqual({
+      [repository.key]: {
+        workspace: 'sqve',
+        tickets: { 'ME-1036': ticket('ME-1036') },
+        failed: false,
+      },
+    });
+
+    expect(harness.sources).toHaveLength(1);
+  });
+
+  test('reads the config from a linked worktree when the repository has no main checkout', async () => {
+    const linkedRoot = '/code/feature';
+
+    const run: RunCommand = async (command, args) => {
+      const configPath = `${linkedRoot}/.linear.toml`;
+
+      if (command !== 'cat' || args[0] !== configPath) {
+        return { code: 1, stdout: '', stderr: `no config at ${args.join(' ')}` };
+      }
+
+      return { code: 0, stdout: 'workspace = "sqve"\n', stderr: '' };
+    };
+
+    const harness = harnessOf(run);
+
+    const git = gitFactsOfCheckouts([
+      { root: linkedRoot, branch: 'me-1036-title-spaces-with-their-linear-tickets', linked: true },
+    ]);
+
+    reads = [{ kind: 'read', tickets: [ticket('ME-1036')] }];
+
+    harness.scheduler.tick(git, readTickets(harness));
+    await settle();
+
+    expect(harness.scheduler.trackers()).toEqual({
+      [repository.key]: {
+        workspace: 'sqve',
+        tickets: { 'ME-1036': ticket('ME-1036') },
+        failed: false,
+      },
+    });
+  });
+
   test('reads again when a branch changes', async () => {
     const harness = harnessOf();
     const first = gitFactsOf(['me-1036-title-spaces-with-their-linear-tickets']);
@@ -243,12 +415,7 @@ describe('createTrackerScheduler', () => {
 
   test('reads the ticket id from a space folder', async () => {
     const harness = harnessOf();
-
-    const git = gitFactsOf(
-      ['main'],
-      '/code/koja',
-      '/code/me-1036-title-spaces-with-their-linear-tickets',
-    );
+    const git = gitFactsOfCheckouts([{ root: folder, branch: 'main', linked: false }]);
 
     reads = [{ kind: 'read', tickets: [ticket('ME-1036')] }];
 
@@ -256,6 +423,33 @@ describe('createTrackerScheduler', () => {
     await settle();
 
     expect(harness.sources[0]?.ids).toEqual(['ME-1036']);
+  });
+
+  test('does not ask for a place folder id the row does not look up', async () => {
+    const harness = harnessOf();
+
+    const git = gitFactsOfCheckouts([
+      { root: '/code/koja', branch: 'main', linked: false, placeFolder: folder },
+    ]);
+
+    harness.scheduler.tick(git, readTickets(harness));
+    await settle();
+
+    expect(harness.sources).toHaveLength(0);
+  });
+
+  test('does not ask for a worktree no space shows', async () => {
+    const harness = harnessOf();
+
+    const git = gitFactsOfCheckouts([
+      { root: '/code/koja', branch: 'main', linked: false },
+      { root: '/code/me-9999-gone', branch: 'me-9999-gone', linked: true, shown: false },
+    ]);
+
+    harness.scheduler.tick(git, readTickets(harness));
+    await settle();
+
+    expect(harness.sources).toHaveLength(0);
   });
 
   test('does not read a repository without ticket ids', async () => {
@@ -350,5 +544,10 @@ describe('createTrackerScheduler', () => {
     });
 
     expect(harness.sources).toHaveLength(0);
+
+    const title = harness.scheduler.trackers()[repository.key]?.tickets['ME-1036']?.title ?? null;
+    const spaceName = 'me-1036-title-spaces-with-their-linear-tickets';
+
+    expect(rowTitleOf(false, spaceName, null, title)).toBe(spaceName);
   });
 });

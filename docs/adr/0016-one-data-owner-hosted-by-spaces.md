@@ -113,15 +113,16 @@ version 5, which holds Git facts, per-repository PR facts, and per-repository tr
 rejects unknown fields. Each PR carries its mergeability, merge state, review decision, checks, and
 threads, and each of the last two is a part that is read, failed with its last good value, or
 unread. Each tracker carries the workspace the repository names, or null, a map of ticket facts
-keyed by ticket id, and whether the last read failed. Each ticket fact carries its id, title, state,
-URL, parent, and whether the read of that ticket failed. Version 4 is the previous supported format:
-it held Git facts and per-repository PR facts, so the reader parses them and returns a version 5
-snapshot with no tracker facts. Version 3 held only the PR list fields, so the reader parses them
-and gives each PR the unread parts, from which no need is derived. Version 2 held only Git facts, so
-the reader parses them and returns a version 5 snapshot with no PR or tracker facts. Version 1
-carried no facts: its `facts` was `Record<string, never>`, and the next owner publish rewrites it. A
-version 1 snapshot is therefore retired silently, because no user action applies. This is the one
-exception to the notices that
+keyed by ticket id, and whether the last read of that repository failed; a failed read keeps the
+last good tickets and marks the whole repository, not one ticket. Each ticket fact carries its id,
+title, state, URL, parent, and a failure flag that stays false, because a failed read is recorded on
+the tracker. Version 4 is the previous supported format: it held Git facts and per-repository PR
+facts, so the reader parses them and returns a version 5 snapshot with no tracker facts. Version 3
+held only the PR list fields, so the reader parses them and gives each PR the unread parts, from
+which no need is derived. Version 2 held only Git facts, so the reader parses them and returns a
+version 5 snapshot with no PR or tracker facts. Version 1 carried no facts: its `facts` was
+`Record<string, never>`, and the next owner publish rewrites it. A version 1 snapshot is therefore
+retired silently, because no user action applies. This is the one exception to the notices that
 [shared ADR 0008](../stomme/shared/adr/0008-backwards-compatibility.md) requires for saved formats.
 
 A malformed version 5, 4, 3, or 2 record, or a present record without a valid version, is logged

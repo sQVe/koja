@@ -248,6 +248,7 @@ describe('parseSnapshot', () => {
     const worktrees: WorktreeGit[] = Object.values(git?.worktrees ?? {});
 
     expect(parsed?.version).toBe(5);
+    expect(parsed?.revision).toBe(9);
 
     const storedFacts = recordIn(stored.facts, 'facts');
     const storedGit: unknown = storedFacts.git;
@@ -271,6 +272,14 @@ describe('parseSnapshot', () => {
     const read = pulls?.[keyOf(null, '/code/koja/.git')]?.pulls ?? [];
 
     expect(read.map((entry) => pullNeeds(entry))).toEqual([['ready']]);
+  });
+
+  test('rejects an unknown field in version 4 facts', () => {
+    const stored = rawSnapshotOf(fixture('snapshot-v4.json'));
+
+    recordIn(stored.facts, 'facts').extra = true;
+
+    expect(parseSnapshot(stored)).toBeNull();
   });
 
   test('reads version 3 pulls with unread parts', () => {

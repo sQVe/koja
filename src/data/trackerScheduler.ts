@@ -1,5 +1,3 @@
-import { listOf } from '../kit/fields.ts';
-import { parsedJson } from '../kit/parsedJson.ts';
 import type { RunCommand } from './gitIdentity.ts';
 import type { TicketRead, TicketSource } from './linearTickets.ts';
 import { linearWorkspaceOf, ticketIdOf } from './linearTickets.ts';
@@ -28,6 +26,7 @@ interface ReadMemory {
 interface RepositorySource {
   key: string;
   cwd: string;
+  configCwd: string;
   machine: string | null;
   branches: (string | null)[];
   ids: string[];
@@ -37,12 +36,6 @@ type WorkspaceRead = { kind: 'read'; workspace: string } | { kind: 'failed' };
 
 const folderNameOf = (path: string): string =>
   path.split('/').findLast((part) => part !== '') ?? path;
-
-const folderOfPlace = (key: string): string | null => {
-  const folder = listOf(parsedJson(key))[1];
-
-  return typeof folder === 'string' ? folder : null;
-};
 
 const worktreesByRepository = (git: GitFacts): Map<string, WorktreeGit[]> => {
   const grouped = new Map<string, WorktreeGit[]>();
@@ -67,18 +60,10 @@ const branchesOf = (worktrees: WorktreeGit[]): (string | null)[] => {
   return [...branches].toSorted((left, right) => (left ?? '').localeCompare(right ?? ''));
 };
 
-const idsOf = (git: GitFacts, repositoryKey: string, worktrees: WorktreeGit[]): string[] => {
+const idsOf = (git: GitFacts, repositoryKey: string): string[] => {
   const ids = new Set<string>();
 
-  for (const worktree of worktrees) {
-    const id = ticketIdOf(worktree.branch, folderNameOf(worktree.root));
-
-    if (id !== null) {
-      ids.add(id);
-    }
-  }
-
-  for (const [key, place] of Object.entries(git.places)) {
+  for (const place of Object.values(git.places)) {
     if (place.kind !== 'repository') {
       continue;
     }
@@ -89,8 +74,7 @@ const idsOf = (git: GitFacts, repositoryKey: string, worktrees: WorktreeGit[]): 
       continue;
     }
 
-    const folder = folderOfPlace(key);
-    const id = folder === null ? null : ticketIdOf(null, folderNameOf(folder));
+    const id = ticketIdOf(worktree.branch, folderNameOf(worktree.root));
 
     if (id !== null) {
       ids.add(id);
@@ -130,6 +114,9 @@ const cwdOf = (git: GitFacts, repositoryKey: string, worktrees: WorktreeGit[]): 
   return worktrees.map((worktree) => worktree.root).toSorted()[0] ?? '';
 };
 
+const configCwdOf = (worktrees: WorktreeGit[], fallback: string): string =>
+  worktrees.find((worktree) => !worktree.linked)?.root ?? fallback;
+
 const sourcesOf = (git: GitFacts): Map<string, RepositorySource> => {
   const sources = new Map<string, RepositorySource>();
 
@@ -144,9 +131,10 @@ const sourcesOf = (git: GitFacts): Map<string, RepositorySource> => {
     sources.set(key, {
       key,
       cwd,
+      configCwd: configCwdOf(worktrees, cwd),
       machine: first.repository.machine,
       branches: branchesOf(worktrees),
-      ids: idsOf(git, key, worktrees),
+      ids: idsOf(git, key),
     });
   }
 
@@ -265,7 +253,12 @@ class Scheduler implements TrackerScheduler {
       return;
     }
 
-    const read = await readTickets({ ...source, workspace: workspace.workspace });
+    const read = await readTickets({
+      workspace: workspace.workspace,
+      cwd: source.cwd,
+      machine: source.machine,
+      ids: source.ids,
+    });
 
     if (read.kind === 'dropped') {
       this.running.delete(source.key);
@@ -295,10 +288,10 @@ class Scheduler implements TrackerScheduler {
   }
 
   private async workspaceOf(source: RepositorySource): Promise<WorkspaceRead> {
-    const path = `${source.cwd}/.linear.toml`;
+    const path = `${source.configCwd}/.linear.toml`;
 
     const result = await this.dependencies.run('cat', [path], {
-      cwd: source.cwd,
+      cwd: source.configCwd,
       on: source.machine,
     });
 
