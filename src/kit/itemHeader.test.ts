@@ -7,18 +7,18 @@ import { textSize } from './size.ts';
 
 type ItemStateKind = 'openPullRequest' | 'inProgress' | 'inReview' | 'sent';
 
-type ItemSource = 'GitHub' | 'Linear' | 'tikk';
+type LinkTarget = { source: 'GitHub'; repository: string } | { source: 'Linear' | 'tikk' };
 
-interface ReadyOptions {
-  kind: 'ready';
-  identifier: string;
-  source: ItemSource;
-  repository?: string;
-  title: string;
-  state: { kind: ItemStateKind; label: string; age: string | null } | null;
-}
+type ItemHeaderOptions =
+  | (LinkTarget & { kind: 'loading'; identifier: string })
+  | (LinkTarget & {
+      kind: 'ready';
+      identifier: string;
+      title: string;
+      state: { kind: ItemStateKind; label: string; age: string | null } | null;
+    });
 
-type ItemHeaderOptions = ReadyOptions | { kind: 'loading'; identifier: string; source: ItemSource };
+type ReadyOptions = Extract<ItemHeaderOptions, { kind: 'ready' }>;
 
 const palette = {
   blocked: '#0b0b1b',

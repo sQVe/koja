@@ -4,11 +4,9 @@ import type { DrawnElement } from '../../tests/drawn.ts';
 import { drawn, drawnTexts } from '../../tests/drawn.ts';
 import { gpuiBaseFake, gpuiKitFake, herdrFake } from '../../tests/moduleFakes.ts';
 
-interface SourceLinkOptions {
-  identifier: string;
-  source: 'GitHub' | 'Linear' | 'tikk';
-  repository?: string;
-}
+type LinkTarget = { source: 'GitHub'; repository: string } | { source: 'Linear' | 'tikk' };
+
+type SourceLinkOptions = LinkTarget & { identifier: string };
 
 const palette = {
   dim: '#2d2d3d',
