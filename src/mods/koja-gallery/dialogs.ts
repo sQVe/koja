@@ -1,11 +1,9 @@
 import type { InputState } from 'gpui-base';
 import { h_flex, v_flex } from 'gpui-base';
 import type { Element } from 'gpui-kit';
-import { div } from 'gpui-kit';
 
 import type { DialogButtonKind } from '../../kit/index.ts';
 import {
-  colors,
   detailText,
   dialogButton,
   dialogFrame,
@@ -13,7 +11,7 @@ import {
   spacing,
   textField,
 } from '../../kit/index.ts';
-import { sample } from './sample.ts';
+import { sample, surfaceSample } from './sample.ts';
 
 const buttonRow = (hovered: boolean): Element =>
   h_flex()
@@ -25,11 +23,10 @@ const buttonRow = (hovered: boolean): Element =>
 
 const button = (label: string, kind: DialogButtonKind): Element => dialogButton({ label, kind });
 
-// The gallery itself paints `popover`, so each dialog sits on `chrome` to show the popup's edge.
 const dialogSurface = (width: number, height: number, dialog: Element): Element => {
   const frame = v_flex().w(width).h(height).child(dialog);
 
-  return div().p(spacing.medium).bg(colors().chrome).child(frame);
+  return surfaceSample('chrome', frame);
 };
 
 const confirmDialog = (): Element =>

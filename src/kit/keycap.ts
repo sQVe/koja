@@ -1,11 +1,11 @@
 import { h_flex } from 'gpui-base';
 import type { Element } from 'gpui-kit';
 import { div } from 'gpui-kit';
-import { settings } from 'herdr';
 
-import { stringOf } from './fields.ts';
+import { isUpperCaseLetter } from './keys.ts';
 import type { ThemeToken } from './palette.ts';
 import { badgeSize, keycapSize, spacing } from './size.ts';
+import { terminalFont } from './terminalFont.ts';
 import { withTextRole } from './textRole.ts';
 import { colors } from './theme.ts';
 
@@ -16,28 +16,10 @@ export interface OverlayHint {
   insert?: string[];
 }
 
-const defaultTerminalFont = 'JetBrains Mono';
-
 // The font centers its line box, which puts letters without an ascender low in the cap. Raise those
 // by one pixel, and those with a descender as well by one more.
 const tallGlyphs = /[A-Z0-9bdfhijklt↵]/u;
 const descendingGlyphs = /[gjpqy]/u;
-
-// settings() is a host read, so one turn reads the font once, as theme.ts does for the palette.
-let turnTerminalFont: string | null = null;
-
-const clearTurnTerminalFont = (): void => {
-  turnTerminalFont = null;
-};
-
-const terminalFont = (): string => {
-  if (turnTerminalFont === null) {
-    turnTerminalFont = stringOf(settings()['font_family']) ?? defaultTerminalFont;
-    Promise.resolve().then(clearTurnTerminalFont).catch(clearTurnTerminalFont);
-  }
-
-  return turnTerminalFont;
-};
 
 const glyphRaise = (label: string): number => {
   const short = tallGlyphs.test(label) ? 0 : 1;
@@ -46,7 +28,7 @@ const glyphRaise = (label: string): number => {
   return short + descending;
 };
 
-const keyLabel = (key: string): string => (/^[A-Z]$/u.test(key) ? `⇧${key}` : key);
+const keyLabel = (key: string): string => (isUpperCaseLetter(key) ? `⇧${key}` : key);
 
 const keycapFrame = (outline: ThemeToken): Element =>
   h_flex()

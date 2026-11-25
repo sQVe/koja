@@ -4,7 +4,6 @@ import { div } from 'gpui-kit';
 
 import type { OverlayHint, SegmentedChipOptions } from '../../kit/index.ts';
 import {
-  colors,
   footerLine,
   keycap,
   keycaps,
@@ -18,16 +17,15 @@ import {
   spacing,
   statusMark,
 } from '../../kit/index.ts';
-import { sample } from './sample.ts';
+import { sample, surfaceSample } from './sample.ts';
 
 const label = (text: string): Element => roleText('body', text).flex_none();
 
-// The gallery paints `popover`, so a sample sits on the pane fill to show the card's lighter edge.
 const cardSample = (id: string, children: Element[]): Element => {
-  const frame = overlayCard(id).w_full();
-  const shown = frame.children(children);
+  const card = overlayCard(id);
+  const shown = card.children(children);
 
-  return div().p(spacing.medium).bg(colors().background).child(shown);
+  return surfaceSample('background', shown);
 };
 
 const hintRow = (text: string, hint: OverlayHint, normalMode: boolean): Element => {
