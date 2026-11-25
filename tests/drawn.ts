@@ -165,6 +165,11 @@ export const elementsWithStyle = (element: DrawnElement, style: string): DrawnEl
 export const elementWithIcon = (element: DrawnElement, name: string): DrawnElement | null =>
   descendants(element).find((part) => part.path?.split('/').at(-1) === name) ?? null;
 
+export const clickablesWithIcon = (element: DrawnElement, name: string): DrawnElement[] =>
+  descendants(element).filter(
+    (part) => part.clickHandlers.length > 0 && elementWithIcon(part, name) !== null,
+  );
+
 export const click = (element: DrawnElement): void => {
   element.clickHandlers[0]?.({}, { stop_propagation: () => undefined });
 };
