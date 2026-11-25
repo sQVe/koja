@@ -7,11 +7,14 @@ export interface SpaceSelection {
   id: string | null;
 }
 
-export interface SpaceSelectionDeps {
-  run: (command: string, args?: Record<string, unknown>) => void;
+export interface SpaceSelectionStore {
   get: (key: string) => unknown;
   set: (key: string, value: unknown) => void;
   shown: () => string | null;
+}
+
+export interface SpaceSelectionDeps extends SpaceSelectionStore {
+  run: (command: string, args?: Record<string, unknown>) => void;
 }
 
 const spaceSelectionKey = 'spaces.selection';
@@ -47,14 +50,14 @@ const selectedId = (command: SpaceCommand): string | null => {
   return typeof id === 'string' ? id : null;
 };
 
-export const recordSpaceSelection = (deps: SpaceSelectionDeps, id: string | null): void => {
-  if (id !== null && id === deps.shown()) {
+export const recordSpaceSelection = (store: SpaceSelectionStore, id: string): void => {
+  if (id === store.shown()) {
     return;
   }
 
-  const previous = readSpaceSelection(deps.get);
+  const previous = readSpaceSelection(store.get);
 
-  deps.set(spaceSelectionKey, {
+  store.set(spaceSelectionKey, {
     version: 1,
     count: (previous?.count ?? 0) + 1,
     id,
@@ -62,7 +65,11 @@ export const recordSpaceSelection = (deps: SpaceSelectionDeps, id: string | null
 };
 
 export const runSpaceCommand = (deps: SpaceSelectionDeps, command: SpaceCommand): void => {
-  recordSpaceSelection(deps, selectedId(command));
+  const id = selectedId(command);
+
+  if (id !== null) {
+    recordSpaceSelection(deps, id);
+  }
 
   deps.run(command.name, command.args);
 };

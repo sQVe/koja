@@ -4,6 +4,11 @@ import type { SpaceCommand } from '../spaceOrder.ts';
 import type { SpaceSelection } from './spaceSelection.ts';
 import { readSpaceSelection, runSpaceCommand, selectionMoved } from './spaceSelection.ts';
 
+interface RunCall {
+  name: string;
+  args: Record<string, unknown> | undefined;
+}
+
 interface MovedCase {
   name: string;
   before: SpaceSelection | null;
@@ -15,22 +20,27 @@ interface MovedCase {
 
 const memoryStore = () => {
   const values: Record<string, unknown> = {};
+  const runs: RunCall[] = [];
 
   return {
     values,
+    runs,
     get: (key: string): unknown => values[key],
     set: (key: string, value: unknown): void => {
       values[key] = value;
     },
+    run: (name: string, args?: Record<string, unknown>): void => {
+      runs.push({ name, args });
+    },
   };
 };
 
-const select = (id: string): SpaceCommand => ({ name: 'space.select', args: { id } });
+const select = (id: unknown): SpaceCommand => ({ name: 'space.select', args: { id } });
 
 const step: SpaceCommand = { name: 'space.next' };
 
 const depsWith = (store: ReturnType<typeof memoryStore>, shown: string | null = null) => ({
-  run: () => undefined,
+  run: store.run,
   get: store.get,
   set: store.set,
   shown: () => shown,
@@ -55,12 +65,30 @@ describe('space selection', () => {
     expect(readSpaceSelection(store.get)).toEqual({ version: 1, count: 2, id: 'main' });
   });
 
-  test('records no selected id for a space step', () => {
+  test('runs the space select it records', () => {
+    const store = memoryStore();
+
+    runSpaceCommand(depsWith(store), select('notes'));
+
+    expect(store.runs).toEqual([{ name: 'space.select', args: { id: 'notes' } }]);
+  });
+
+  test('runs a space step without recording it', () => {
     const store = memoryStore();
 
     runSpaceCommand(depsWith(store), step);
 
-    expect(readSpaceSelection(store.get)).toEqual({ version: 1, count: 1, id: null });
+    expect(store.runs).toEqual([{ name: 'space.next', args: undefined }]);
+    expect(readSpaceSelection(store.get)).toBeNull();
+  });
+
+  test('runs a space select whose id is not a string without recording it', () => {
+    const store = memoryStore();
+
+    runSpaceCommand(depsWith(store), select(7));
+
+    expect(store.runs).toEqual([{ name: 'space.select', args: { id: 7 } }]);
+    expect(readSpaceSelection(store.get)).toBeNull();
   });
 
   test('records nothing when the command selects the space already shown', () => {
@@ -92,6 +120,12 @@ describe('space selection', () => {
     expect(readSpaceSelection(memoryStore().get)).toBeNull();
   });
 
+  test('reads a selection whose count is zero', () => {
+    const value = { version: 1, count: 0, id: 'notes' } satisfies SpaceSelection;
+
+    expect(readSpaceSelection(() => value)).toEqual(value);
+  });
+
   const malformed: [string, unknown][] = [
     ['the value is not an object', 'notes'],
     ['the version is not one', { version: 2, count: 1, id: 'notes' }],
@@ -106,63 +140,62 @@ describe('space selection', () => {
   });
 });
 
-const selectionLabel = (selection: SpaceSelection | null): string =>
-  selection === null ? 'no record' : `count ${selection.count} of ${selection.id ?? 'none'}`;
-
-const movedByRule = (
-  before: SpaceSelection | null,
-  after: SpaceSelection | null,
-  closedId: string | null,
-  liveIds: readonly string[],
-): boolean => {
-  if (after === null) {
-    return false;
-  }
-
-  if (after.id === null) {
-    return false;
-  }
-
-  const countChanged = before?.count !== after.count;
-
-  return countChanged && after.id !== closedId && liveIds.includes(after.id);
-};
-
 const selection = (count: number, id: string | null): SpaceSelection => ({
   version: 1,
   count,
   id,
 });
 
-const beforeRecords = [null, selection(1, 'a'), selection(1, 'b'), selection(2, 'a')];
-
-const afterRecords = [
-  null,
-  selection(1, null),
-  selection(1, 'a'),
-  selection(2, 'a'),
-  selection(2, 'b'),
-  selection(3, 'gone'),
+const movedCases: MovedCase[] = [
+  {
+    name: 'a new live selection',
+    before: selection(1, 'a'),
+    after: selection(2, 'b'),
+    closedId: 'c',
+    liveIds: ['a', 'b'],
+    moved: true,
+  },
+  {
+    name: 'a selection of the closed space',
+    before: selection(1, 'a'),
+    after: selection(2, 'b'),
+    closedId: 'b',
+    liveIds: ['a', 'b'],
+    moved: false,
+  },
+  {
+    name: 'a step with a null id',
+    before: selection(1, 'a'),
+    after: selection(1, null),
+    closedId: 'b',
+    liveIds: ['a'],
+    moved: false,
+  },
+  {
+    name: 'the same count as the last look',
+    before: selection(2, 'a'),
+    after: selection(2, 'b'),
+    closedId: 'c',
+    liveIds: ['a', 'b'],
+    moved: false,
+  },
+  {
+    name: 'a selected space that is gone',
+    before: selection(1, 'a'),
+    after: selection(2, 'gone'),
+    closedId: 'c',
+    liveIds: ['a', 'b'],
+    moved: false,
+  },
+  {
+    name: 'no record at all',
+    before: selection(1, 'a'),
+    after: null,
+    closedId: 'b',
+    liveIds: ['a'],
+    moved: false,
+  },
 ];
-
-const closedIds = [null, 'a', 'b'];
-
-const liveLists = [['a', 'b'], ['b']];
-
-const movedCases: MovedCase[] = beforeRecords.flatMap((before) =>
-  afterRecords.flatMap((after) =>
-    closedIds.flatMap((closedId) =>
-      liveLists.map((liveIds) => ({
-        name: `${selectionLabel(before)} then ${selectionLabel(after)}, closed ${closedId ?? 'none'}, live ${liveIds.join(',')}`,
-        before,
-        after,
-        closedId,
-        liveIds,
-        moved: movedByRule(before, after, closedId, liveIds),
-      })),
-    ),
-  ),
-);
 
 describe('selectionMoved', () => {
   test.each(movedCases)(

@@ -37,7 +37,7 @@ import {
   spacing,
   withTextRole,
 } from '../../kit/index.ts';
-import type { SpaceSelection } from '../../kit/space/spaceSelection.ts';
+import type { SpaceSelection, SpaceSelectionDeps } from '../../kit/space/spaceSelection.ts';
 import {
   readSpaceSelection,
   runSpaceCommand,
@@ -227,6 +227,8 @@ export default class Spaces extends View {
     this.watched = { focused, order, selection };
 
     if (command !== null && !moved) {
+      // A record here would bump the count selectionMoved reads, and a record naming the closed
+      // space is ignored because its id is not live.
       run(command.name, command.args);
     }
   }
@@ -254,6 +256,10 @@ export default class Spaces extends View {
     });
   }
 
+  private selectionDeps(): SpaceSelectionDeps {
+    return { run, get: shared, set: setShared, shown: activeSpaceId };
+  }
+
   private applyCommand(command: string, cx: Context): void {
     const action = listActionOf(command);
 
@@ -275,10 +281,10 @@ export default class Spaces extends View {
     this.revealCursor = true;
 
     if (result.select !== null) {
-      runSpaceCommand(
-        { run, get: shared, set: setShared, shown: activeSpaceId },
-        { name: 'space.select', args: { id: result.select } },
-      );
+      runSpaceCommand(this.selectionDeps(), {
+        name: 'space.select',
+        args: { id: result.select },
+      });
     }
 
     cx.notify();
@@ -552,10 +558,10 @@ export default class Spaces extends View {
         run('space.move', { id: move.id, index: move.index });
       }
     } else if (action?.kind === 'select' && project.main !== null) {
-      runSpaceCommand(
-        { run, get: shared, set: setShared, shown: activeSpaceId },
-        { name: 'space.select', args: { id: project.main.space.id } },
-      );
+      runSpaceCommand(this.selectionDeps(), {
+        name: 'space.select',
+        args: { id: project.main.space.id },
+      });
     }
 
     cx.notify();
@@ -646,10 +652,10 @@ export default class Spaces extends View {
         run('space.move', { id: move.id, index: move.index });
       }
     } else if (action?.kind === 'select') {
-      runSpaceCommand(
-        { run, get: shared, set: setShared, shown: activeSpaceId },
-        { name: 'space.select', args: { id: action.id } },
-      );
+      runSpaceCommand(this.selectionDeps(), {
+        name: 'space.select',
+        args: { id: action.id },
+      });
     }
 
     cx.notify();

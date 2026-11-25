@@ -12,8 +12,13 @@ export interface OrderPublisher {
 const hiddenIds = (shown: readonly string[], liveIds: readonly string[]): string[] =>
   liveIds.filter((id) => !shown.includes(id));
 
+const sameIds = (left: readonly string[], right: readonly string[]): boolean =>
+  left.length === right.length && left.every((id, index) => id === right[index]);
+
 const sameOrder = (left: SpaceOrder, right: SpaceOrder): boolean =>
-  JSON.stringify(left) === JSON.stringify(right);
+  sameIds(left.shown, right.shown) &&
+  sameIds(left.hidden, right.hidden) &&
+  sameIds(left.roots, right.roots);
 
 // Herdr re-renders every mod on each shared write, so an unchanged order must not be written again.
 export const createOrderPublisher = (

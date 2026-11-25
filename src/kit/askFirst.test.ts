@@ -310,10 +310,10 @@ describe('askFirst', () => {
     expect(sharedValues['spaces.selection']).toEqual({ version: 1, count: 1, id: 's1' });
   });
 
-  test('previous space records no selected id when it falls back to space.prev', () => {
+  test('previous space records no selection when it falls back to space.prev', () => {
     askFirst('space.prev');
 
-    expect(sharedValues['spaces.selection']).toEqual({ version: 1, count: 1, id: null });
+    expect(sharedValues['spaces.selection']).toBeUndefined();
   });
 
   test('previous space runs space.prev when the sidebar published no order', () => {

@@ -14,23 +14,16 @@ const spaceSteps = new Map([
 
 const stepSpace = (step: number): void => {
   const liveIds = spaces().map((space) => space.id);
+  const current = focused()?.space ?? null;
 
   const command = spaceStepCommand(step, {
     order: readSpaceOrder(shared),
     liveIds,
-    current: focused()?.space ?? null,
+    current,
   });
 
   if (command !== null) {
-    runSpaceCommand(
-      {
-        run,
-        get: shared,
-        set: setShared,
-        shown: () => focused()?.space ?? null,
-      },
-      command,
-    );
+    runSpaceCommand({ run, get: shared, set: setShared, shown: () => current }, command);
   }
 };
 

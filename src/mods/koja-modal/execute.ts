@@ -1,6 +1,7 @@
 import { recordOf, stringOf } from '../../kit/fields.ts';
 import type { NormalAction, NormalIntent } from '../../kit/normalKeys.ts';
 import { runSpaceCommand } from '../../kit/space/spaceSelection.ts';
+import type { SpaceSelectionDeps } from '../../kit/space/spaceSelection.ts';
 import { readSpaceOrder, rootStepCommand, visibleSpaceIds } from '../../kit/spaceOrder.ts';
 import type { JumpPane, JumpSpace } from './needsYouJump.ts';
 import { needsYouTarget } from './needsYouJump.ts';
@@ -209,6 +210,13 @@ const focusLastTab = (previous: NormalModeHistory, deps: ExecutorDeps): void => 
   deps.run('tab.select', { id: target });
 };
 
+const selectionDeps = (deps: ExecutorDeps): SpaceSelectionDeps => ({
+  run: deps.run,
+  get: deps.store.get,
+  set: deps.store.set,
+  shown: () => deps.focused()?.space ?? null,
+});
+
 const focusNeedsYou = (step: 1 | -1, deps: ExecutorDeps): void => {
   const current = deps.focused();
   const spaces = deps.spaces();
@@ -228,15 +236,10 @@ const focusNeedsYou = (step: 1 | -1, deps: ExecutorDeps): void => {
   }
 
   if (target.space !== current?.space) {
-    runSpaceCommand(
-      {
-        run: deps.run,
-        get: deps.store.get,
-        set: deps.store.set,
-        shown: () => deps.focused()?.space ?? null,
-      },
-      { name: 'space.select', args: { id: target.space } },
-    );
+    runSpaceCommand(selectionDeps(deps), {
+      name: 'space.select',
+      args: { id: target.space },
+    });
   }
 
   if (target.tab !== current?.tab) {
@@ -256,15 +259,7 @@ const stepRoot = (step: number, deps: ExecutorDeps): void => {
   });
 
   if (command !== null) {
-    runSpaceCommand(
-      {
-        run: deps.run,
-        get: deps.store.get,
-        set: deps.store.set,
-        shown: () => deps.focused()?.space ?? null,
-      },
-      command,
-    );
+    runSpaceCommand(selectionDeps(deps), command);
   }
 };
 

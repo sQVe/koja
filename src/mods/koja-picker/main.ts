@@ -293,15 +293,13 @@ export default class Picker extends View {
     }
 
     const pane = rowPane(row, data);
+    const selection = { run, get: shared, set: setShared, shown: () => focused()?.space ?? null };
 
     this.closePicker();
     history.rememberSpace(row.space.id);
 
     if (row.kind === 'space') {
-      runSpaceCommand(
-        { run, get: shared, set: setShared, shown: () => focused()?.space ?? null },
-        { name: 'space.select', args: { id: row.space.id } },
-      );
+      runSpaceCommand(selection, { name: 'space.select', args: { id: row.space.id } });
 
       if (row.tab === undefined || pane === null) {
         return;
@@ -312,10 +310,7 @@ export default class Picker extends View {
       return;
     }
 
-    recordSpaceSelection(
-      { run, get: shared, set: setShared, shown: () => focused()?.space ?? null },
-      row.space.id,
-    );
+    recordSpaceSelection(selection, row.space.id);
 
     run('tab.select', { id: row.tab.id });
 

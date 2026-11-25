@@ -714,6 +714,7 @@ describe('koja-spaces close follow', () => {
     const view = await loadView();
 
     recordSelection('c');
+    expect(sharedValues['spaces.selection']).toBeUndefined();
     draw(['a', 'b', 'd'], 'a');
     view.render();
 
