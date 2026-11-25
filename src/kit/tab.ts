@@ -2,11 +2,11 @@ import { h_flex } from 'gpui-base';
 import type { Element } from 'gpui-kit';
 import { div } from 'gpui-kit';
 
+import type { AttentionStatus } from './attentionStatus.ts';
 import type { HoverOptions } from './hover.ts';
 import { withHover } from './hover.ts';
 import { clearOf } from './palette.ts';
 import { controlSize, iconSize, radius, spacing, textSize } from './size.ts';
-import type { AttentionStatus } from './statusMark.ts';
 import { attentionMark } from './statusMark.ts';
 import { colors } from './theme.ts';
 

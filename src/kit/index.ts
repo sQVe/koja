@@ -79,6 +79,8 @@ export {
   spacing,
 } from './size.ts';
 
+export type { AttentionStatus } from './attentionStatus.ts';
+
 export {
   attentionBadge,
   attentionMark,

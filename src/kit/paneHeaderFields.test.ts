@@ -20,8 +20,8 @@ const branchFull =
 
 const folderFull = longFolder.length * paneHeaderWidth.glyph + paneHeaderWidth.gap;
 
-const iconHeaderFields = (input: Omit<PaneHeaderFieldsInput, 'showsProgramIcon'>) =>
-  paneHeaderFields({ ...input, showsProgramIcon: true });
+const iconHeaderFields = (input: Omit<PaneHeaderFieldsInput, 'showsLeadingSlot'>) =>
+  paneHeaderFields({ ...input, showsLeadingSlot: true });
 
 describe('paneHeaderFields', () => {
   test('shows every field full at an unmeasured width', () => {
@@ -229,7 +229,7 @@ describe('paneHeaderFields', () => {
 
   test('shows a task at the width where it fits without a program icon', () => {
     const fields = paneHeaderFields({
-      showsProgramIcon: false,
+      showsLeadingSlot: false,
       width: 146,
       name,
       task: 'Header',
@@ -240,7 +240,7 @@ describe('paneHeaderFields', () => {
 
   test('hides a task at the same width when the header draws a program icon', () => {
     const fields = paneHeaderFields({
-      showsProgramIcon: true,
+      showsLeadingSlot: true,
       width: 146,
       name,
       task: 'Header',

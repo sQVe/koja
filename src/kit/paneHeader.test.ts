@@ -3,9 +3,8 @@ import { afterAll, describe, expect, mock, test } from 'bun:test';
 import type { DrawnElement } from '../../tests/drawn.ts';
 import { drawn, drawnIcons, drawnTexts, elementWithIcon } from '../../tests/drawn.ts';
 import { gpuiBaseFake, gpuiKitFake, herdrFake } from '../../tests/moduleFakes.ts';
+import type { AttentionStatus } from './attentionStatus.ts';
 import { shellSize } from './size.ts';
-
-type AttentionStatus = 'working' | 'blocked' | 'done' | 'idle' | 'crashed';
 
 interface HeaderOptions {
   program: null;

@@ -3,8 +3,7 @@ import { afterAll, describe, expect, mock, test } from 'bun:test';
 import type { DrawnElement } from '../../tests/drawn.ts';
 import { drawn, drawnIcons, elementWithIcon } from '../../tests/drawn.ts';
 import { gpuiBaseFake, gpuiKitFake, herdrFake } from '../../tests/moduleFakes.ts';
-
-type AttentionStatus = 'working' | 'blocked' | 'done' | 'idle' | 'crashed';
+import type { AttentionStatus } from './attentionStatus.ts';
 
 interface TabOptions {
   label: string;
@@ -12,7 +11,7 @@ interface TabOptions {
   hovered?: boolean;
   icon: DrawnElement | null;
   status: AttentionStatus | null;
-  close: null;
+  close: DrawnElement | null;
 }
 
 const themeColors = {
@@ -53,6 +52,7 @@ const drawnTab = (
   status: AttentionStatus | null,
   active = false,
   hovered?: boolean,
+  close: DrawnElement | null = null,
 ): DrawnElement =>
   loaded.tab({
     label: 'koja',
@@ -60,7 +60,7 @@ const drawnTab = (
     ...(hovered === undefined ? {} : { hovered }),
     icon: drawn(iconName),
     status,
-    close: null,
+    close,
   });
 
 const drawnIcon = (active: boolean, hovered?: boolean): DrawnElement | null =>
@@ -88,6 +88,7 @@ describe('tab attention mark', () => {
     const tab = drawnTab('blocked');
 
     expect(drawnIcons(tab)[0]).toBe('message-circle-question.svg');
+    expect(elementWithIcon(tab.kids[0] ?? drawn(), 'message-circle-question.svg')).not.toBeNull();
 
     expect(elementWithIcon(tab, 'message-circle-question.svg')?.textColors).toEqual([
       themeColors.blocked,
@@ -100,6 +101,7 @@ describe('tab attention mark', () => {
     const tab = drawnTab('done');
 
     expect(drawnIcons(tab)[0]).toBe('check.svg');
+    expect(elementWithIcon(tab.kids[0] ?? drawn(), 'check.svg')).not.toBeNull();
     expect(elementWithIcon(tab, 'check.svg')?.textColors).toEqual([themeColors.done]);
     expect(drawnIcons(tab)).not.toContain(iconName);
   });
@@ -108,6 +110,7 @@ describe('tab attention mark', () => {
     const tab = drawnTab('working');
 
     expect(drawnIcons(tab)[0]).toBe('loader-circle.svg');
+    expect(elementWithIcon(tab, 'loader-circle.svg')?.textColors).toEqual([themeColors.working]);
     expect(drawnIcons(tab)).not.toContain(iconName);
   });
 
@@ -127,5 +130,17 @@ describe('tab attention mark', () => {
 
   test('a tab with no status keeps its program icon', () => {
     expect(drawnIcons(drawnTab(null))).toEqual([iconName]);
+  });
+
+  test('an active tab draws one leading mark and its close button in the end slot', () => {
+    const close = drawn('x.svg');
+    const tab = drawnTab('blocked', true, undefined, close);
+    const leadingSlot = tab.kids[0] ?? drawn();
+    const endSlot = tab.kids.at(-1);
+    const marks = drawnIcons(tab).filter((name) => name === 'message-circle-question.svg');
+
+    expect(elementWithIcon(leadingSlot, 'message-circle-question.svg')).not.toBeNull();
+    expect(marks).toHaveLength(1);
+    expect(endSlot?.kids).toEqual([close]);
   });
 });

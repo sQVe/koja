@@ -3,6 +3,7 @@ import type { Color, Element } from 'gpui-kit';
 import { div } from 'gpui-kit';
 import type { Status } from 'herdr';
 
+import type { AttentionStatus } from './attentionStatus.ts';
 import type { FileStatus } from './fileStatus.ts';
 import { fileStatusColor } from './fileStatus.ts';
 import { icon, spinner } from './icon.ts';
@@ -11,9 +12,6 @@ import { badgeFillAlpha, withAlpha } from './palette.ts';
 import { controlSize, markSize, radius, spacing, textSize } from './size.ts';
 import { withTextRole } from './textRole.ts';
 import { colors } from './theme.ts';
-
-/** The status of a tab or a pane, plus a crash, which Herdr's four statuses cannot say. */
-export type AttentionStatus = Status | 'crashed';
 
 const dot = (size: number, color: Color): Element =>
   div()
@@ -60,9 +58,11 @@ export const statusMark = (status: Status | null): Element => {
 const questionBubble = (): Element =>
   icon('message-circle-question', 'small').text_color(colors().blocked);
 
+const blockedBubble = (): Element => statusMark(null).child(questionBubble());
+
 export const spaceMark = (status: Status | null): Element => {
   if (status === 'blocked') {
-    return statusMark(null).child(questionBubble());
+    return blockedBubble();
   }
 
   if (status !== null) {
@@ -75,7 +75,7 @@ export const spaceMark = (status: Status | null): Element => {
 /** The mark a tab or a pane header leads with, or null when it has nothing to say. */
 export const attentionMark = (status: AttentionStatus | null): Element | null => {
   if (status === 'blocked') {
-    return statusMark(null).child(questionBubble());
+    return blockedBubble();
   }
 
   if (status === 'crashed') {

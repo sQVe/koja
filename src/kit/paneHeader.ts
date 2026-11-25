@@ -1,8 +1,9 @@
 import { h_flex } from 'gpui-base';
 import type { Element } from 'gpui-kit';
 import { div } from 'gpui-kit';
-import type { Program, Status } from 'herdr';
+import type { Program } from 'herdr';
 
+import type { AttentionStatus } from './attentionStatus.ts';
 import { iconButton } from './button.ts';
 import { icon, programIcon } from './icon.ts';
 import type { IconName } from './iconNames.ts';
@@ -22,7 +23,7 @@ export interface PaneHeaderOptions {
   task?: string;
   branch?: string;
   folder?: string;
-  status: Status | null;
+  status: AttentionStatus | null;
   focused: boolean;
   hovered?: boolean;
   zoomed: boolean;
@@ -194,7 +195,7 @@ export const paneHeader = (options: PaneHeaderOptions): Element => {
 
   const fields = paneHeaderFields({
     ...options,
-    showsProgramIcon: true,
+    showsLeadingSlot: true,
   });
 
   const iconColor = options.focused ? palette.muted : palette.dim;

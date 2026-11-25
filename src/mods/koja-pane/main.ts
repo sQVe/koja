@@ -128,7 +128,7 @@ const paneHeaderContext = (
     ...(task === null ? {} : { task }),
     ...(branch === null ? {} : { branch }),
     folder: folderText,
-    showsProgramIcon: showsLeadingSlot,
+    showsLeadingSlot,
   });
 
   return { name, role, task, paneBranch, branch, folderText, fields };

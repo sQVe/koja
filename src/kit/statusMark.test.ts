@@ -3,6 +3,7 @@ import { afterAll, expect, mock, test } from 'bun:test';
 import type { DrawnElement } from '../../tests/drawn.ts';
 import { drawn, drawnIcons, elementWithIcon } from '../../tests/drawn.ts';
 import { gpuiBaseFake, gpuiKitFake, herdrFake } from '../../tests/moduleFakes.ts';
+import type { AttentionStatus } from './attentionStatus.ts';
 
 Object.assign(globalThis, { kojaModName: 'koja' });
 
@@ -17,9 +18,7 @@ await mock.module('herdr', () => herdrFake({ theme: () => ({ blocked: '#ff0000' 
 const modulePath = './statusMark.ts';
 
 const { attentionMark, spaceMark, statusMark } = (await import(modulePath)) as {
-  attentionMark: (
-    status: 'blocked' | 'working' | 'done' | 'crashed' | 'idle' | null,
-  ) => DrawnElement | null;
+  attentionMark: (status: AttentionStatus | null) => DrawnElement | null;
   spaceMark: (status: 'blocked') => DrawnElement;
   statusMark: (status: 'blocked') => DrawnElement;
 };
