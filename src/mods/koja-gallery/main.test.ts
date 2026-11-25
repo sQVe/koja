@@ -60,6 +60,7 @@ const kitFake = await realKitIndexFake([
   'sectionHeader',
   'size',
   'spaceFooter',
+  'splitButton',
   'stackProgress',
   'stateLine',
   'statusMark',

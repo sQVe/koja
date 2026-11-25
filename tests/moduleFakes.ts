@@ -179,6 +179,8 @@ export const kitIndexFake = (overrides: ModuleFake = {}): ModuleFake => ({
   spaceMark: noop,
   spacing: {},
   spinner: noop,
+  splitButton: noop,
+  splitButtonOpenHeight: () => 0,
   stackProgress: noop,
   stateLine: noop,
   statusMark: noop,
