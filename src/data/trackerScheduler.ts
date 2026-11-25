@@ -26,7 +26,7 @@ interface ReadMemory {
 interface RepositorySource {
   key: string;
   cwd: string;
-  configCwd: string;
+  configCwd: string | null;
   machine: string | null;
   branches: (string | null)[];
   ids: string[];
@@ -114,8 +114,20 @@ const cwdOf = (git: GitFacts, repositoryKey: string, worktrees: WorktreeGit[]): 
   return worktrees.map((worktree) => worktree.root).toSorted()[0] ?? '';
 };
 
-const configCwdOf = (worktrees: WorktreeGit[], fallback: string): string =>
-  worktrees.find((worktree) => !worktree.linked)?.root ?? fallback;
+const configCwdOf = (worktrees: WorktreeGit[]): string | null =>
+  worktrees.find((worktree) => !worktree.linked)?.root ?? null;
+
+const mainWorktreeOf = (porcelain: string): string | null => {
+  const [first] = porcelain.split(/\n\s*\n/);
+  const lines = first?.split('\n') ?? [];
+  const folderLine = lines.find((line) => line.startsWith('worktree '));
+
+  if (folderLine === undefined || lines.includes('bare')) {
+    return null;
+  }
+
+  return folderLine.slice('worktree '.length);
+};
 
 const sourcesOf = (git: GitFacts): Map<string, RepositorySource> => {
   const sources = new Map<string, RepositorySource>();
@@ -131,7 +143,7 @@ const sourcesOf = (git: GitFacts): Map<string, RepositorySource> => {
     sources.set(key, {
       key,
       cwd,
-      configCwd: configCwdOf(worktrees, cwd),
+      configCwd: configCwdOf(worktrees),
       machine: first.repository.machine,
       branches: branchesOf(worktrees),
       ids: idsOf(git, key),
@@ -287,11 +299,29 @@ class Scheduler implements TrackerScheduler {
     this.dependencies.publish();
   }
 
+  private async configCwdFor(source: RepositorySource): Promise<string> {
+    if (source.configCwd !== null) {
+      return source.configCwd;
+    }
+
+    const result = await this.dependencies.run('git', ['worktree', 'list', '--porcelain'], {
+      cwd: source.cwd,
+      on: source.machine,
+    });
+
+    if (result.code !== 0) {
+      return source.cwd;
+    }
+
+    return mainWorktreeOf(result.stdout) ?? source.cwd;
+  }
+
   private async workspaceOf(source: RepositorySource): Promise<WorkspaceRead> {
-    const path = `${source.configCwd}/.linear.toml`;
+    const configCwd = await this.configCwdFor(source);
+    const path = `${configCwd}/.linear.toml`;
 
     const result = await this.dependencies.run('cat', [path], {
-      cwd: source.configCwd,
+      cwd: configCwd,
       on: source.machine,
     });
 

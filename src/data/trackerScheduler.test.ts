@@ -4,6 +4,7 @@ import { rowTitleOf } from '../mods/koja-spaces/rows.ts';
 import type { RunCommand } from './gitIdentity.ts';
 import { placeOf, repositoryOf, worktreeOf } from './gitIdentity.ts';
 import type { TicketRead, TicketSource } from './linearTickets.ts';
+import { readTickets as readLinearTickets } from './linearTickets.ts';
 import type { GitFacts, RepositoryTracker, TicketFacts } from './snapshot.ts';
 import { createTrackerScheduler, mergeTrackers } from './trackerScheduler.ts';
 
@@ -34,6 +35,14 @@ const ticket = (id: string): TicketFacts => ({
   url: `https://linear.app/sqve/issue/${id}`,
   parent: null,
   failed: false,
+});
+
+const ticketNode = (id: string): Record<string, unknown> => ({
+  identifier: id,
+  title: `Title of ${id}`,
+  state: { name: 'In Progress' },
+  url: `https://linear.app/sqve/issue/${id}`,
+  parent: null,
 });
 
 const gitFactsOfCheckouts = (checkouts: Checkout[]): GitFacts => {
@@ -355,6 +364,62 @@ describe('createTrackerScheduler', () => {
     expect(harness.sources).toHaveLength(1);
   });
 
+  test('keeps the last good titles when Linear answers a service error', async () => {
+    const seeded: RepositoryTracker = {
+      workspace: 'sqve',
+      tickets: { 'ME-1035': ticket('ME-1035'), 'ME-1036': ticket('ME-1036') },
+      failed: false,
+    };
+
+    let linearCalls = 0;
+
+    const run: RunCommand = async (command, args) => {
+      if (command === 'cat') {
+        return { code: 0, stdout: 'workspace = "sqve"\n', stderr: '' };
+      }
+
+      if (command !== 'linear') {
+        return { code: 1, stdout: '', stderr: `unexpected ${command}` };
+      }
+
+      linearCalls += 1;
+
+      if (linearCalls !== 2) {
+        const body = JSON.stringify({ errors: [{ message: 'Service unavailable' }], data: null });
+
+        return { code: 3, stdout: body, stderr: '' };
+      }
+
+      const id = args
+        .filter((argument) => /^id\d+=/.test(argument))
+        .map((argument) => argument.slice(argument.indexOf('=') + 1))[0];
+
+      const data = { ticket0: ticketNode(id ?? 'ME-1036') };
+
+      return { code: 0, stdout: JSON.stringify({ data }), stderr: '' };
+    };
+
+    const harness = harnessOf(run, { [repository.key]: seeded });
+
+    const git = gitFactsOf([
+      'me-1035-read-what-each-pr-needs',
+      'me-1036-title-spaces-with-their-linear-tickets',
+    ]);
+
+    harness.scheduler.tick(git, (source) => readLinearTickets(run, source, () => true));
+    await settle();
+
+    expect(harness.scheduler.trackers()).toEqual({
+      [repository.key]: {
+        workspace: 'sqve',
+        tickets: { 'ME-1035': ticket('ME-1035'), 'ME-1036': ticket('ME-1036') },
+        failed: true,
+      },
+    });
+
+    expect(linearCalls).toBe(1);
+  });
+
   test('reads the config from a linked worktree when the repository has no main checkout', async () => {
     const linkedRoot = '/code/feature';
 
@@ -386,6 +451,59 @@ describe('createTrackerScheduler', () => {
         failed: false,
       },
     });
+  });
+
+  test('discovers the main checkout when Git facts hold only a linked worktree', async () => {
+    const mainRoot = '/code/koja';
+    const linkedRoot = '/code/feature';
+
+    const porcelain = [
+      `worktree ${mainRoot}`,
+      'HEAD 1111111',
+      'branch refs/heads/main',
+      '',
+      `worktree ${linkedRoot}`,
+      'HEAD 2222222',
+      'branch refs/heads/me-1036-title-spaces-with-their-linear-tickets',
+      '',
+    ].join('\n');
+
+    const gitCwds: string[] = [];
+
+    const run: RunCommand = async (command, args, options) => {
+      if (command === 'git' && args.join(' ') === 'worktree list --porcelain') {
+        gitCwds.push(options.cwd);
+
+        return { code: 0, stdout: porcelain, stderr: '' };
+      }
+
+      if (command === 'cat' && args[0] === `${mainRoot}/.linear.toml`) {
+        return { code: 0, stdout: 'workspace = "sqve"\n', stderr: '' };
+      }
+
+      return { code: 1, stdout: '', stderr: `unexpected ${command} ${args.join(' ')}` };
+    };
+
+    const harness = harnessOf(run);
+
+    const git = gitFactsOfCheckouts([
+      { root: linkedRoot, branch: 'me-1036-title-spaces-with-their-linear-tickets', linked: true },
+    ]);
+
+    reads = [{ kind: 'read', tickets: [ticket('ME-1036')] }];
+
+    harness.scheduler.tick(git, readTickets(harness));
+    await settle();
+
+    expect(harness.scheduler.trackers()).toEqual({
+      [repository.key]: {
+        workspace: 'sqve',
+        tickets: { 'ME-1036': ticket('ME-1036') },
+        failed: false,
+      },
+    });
+
+    expect(gitCwds).toEqual([linkedRoot]);
   });
 
   test('reads again when a branch changes', async () => {

@@ -100,6 +100,14 @@ const unknownIdAnswer = (index: number): Answer => ({
   }),
 });
 
+const serviceErrorAnswer = (): Answer => ({
+  code: 3,
+  body: JSON.stringify({
+    errors: [{ message: 'Service unavailable' }],
+    data: null,
+  }),
+});
+
 const runAnswering =
   (calls: string[][] = []): RunCommand =>
   async (_command, args) => {
@@ -282,6 +290,33 @@ describe('readTickets', () => {
 
     expect(read).toEqual({ kind: 'read', tickets: [ticketOf('ME-1036')] });
     expect(calls).toHaveLength(3);
+  });
+
+  test('fails on a service error without retrying each id', async () => {
+    const calls: string[][] = [];
+    const ids = Array.from({ length: ticketBatchSize }, (_, index) => `ME-${index + 1}`);
+
+    const read = await readTickets(
+      runWith([serviceErrorAnswer()], calls),
+      sourceOf(ids),
+      () => true,
+    );
+
+    expect(read).toEqual({ kind: 'failed' });
+    expect(calls).toHaveLength(1);
+  });
+
+  test('fails when a retry command fails', async () => {
+    const calls: string[][] = [];
+
+    const read = await readTickets(
+      runWith([unknownIdAnswer(0), { code: 1, body: '' }], calls),
+      sourceOf(['ME-1036', 'ME-9999']),
+      () => true,
+    );
+
+    expect(read).toEqual({ kind: 'failed' });
+    expect(calls).toHaveLength(2);
   });
 
   test('fails when no id in the batch resolves', async () => {

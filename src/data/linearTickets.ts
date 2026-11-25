@@ -18,10 +18,18 @@ export type TicketRead =
 
 type BatchAnswer =
   | { kind: 'tickets'; tickets: TicketFacts[] }
-  | { kind: 'no-data' }
+  | { kind: 'retry'; ids: string[] }
   | { kind: 'failed' };
 
-type EachIdRead = { kind: 'tickets'; tickets: TicketFacts[] } | { kind: 'dropped' };
+type BatchRead =
+  | { kind: 'tickets'; tickets: TicketFacts[] }
+  | { kind: 'failed' }
+  | { kind: 'dropped' };
+
+interface AnswerBody {
+  data: Record<string, unknown> | null;
+  retryIds: string[];
+}
 
 export const ticketBatchSize = 50;
 
@@ -124,26 +132,64 @@ const ticketFactsOf = (value: unknown): TicketFacts | null => {
   return { id, title, state, url, parent, failed: false };
 };
 
-const dataOf = (result: ExecResult): Record<string, unknown> | null => {
-  if (result.code !== 0) {
-    return null;
+const ticketAliasPattern = /^ticket(\d+)$/;
+
+const retryIdsOf = (errors: unknown, ids: string[]): string[] => {
+  if (!Array.isArray(errors)) {
+    return [];
   }
 
+  const named = new Set<string>();
+
+  for (const error of errors) {
+    if (!isRecord(error) || !Array.isArray(error['path'])) {
+      continue;
+    }
+
+    for (const part of error['path']) {
+      if (typeof part !== 'string') {
+        continue;
+      }
+
+      const match = ticketAliasPattern.exec(part);
+
+      if (match === null) {
+        continue;
+      }
+
+      const [, index] = match;
+
+      if (index === undefined) {
+        continue;
+      }
+
+      const id = ids[Number(index)];
+
+      if (id !== undefined) {
+        named.add(id);
+      }
+    }
+  }
+
+  return [...named];
+};
+
+const answerBodyOf = (result: ExecResult, ids: string[]): AnswerBody => {
   let body: unknown;
 
   try {
     body = JSON.parse(result.stdout);
   } catch {
-    return null;
+    return { data: null, retryIds: [] };
   }
 
   if (!isRecord(body)) {
-    return null;
+    return { data: null, retryIds: [] };
   }
 
-  const data = body['data'];
+  const data = result.code === 0 && isRecord(body['data']) ? body['data'] : null;
 
-  return isRecord(data) ? data : null;
+  return { data, retryIds: retryIdsOf(body['errors'], ids) };
 };
 
 const ticketsOfAliases = (data: Record<string, unknown>, ids: string[]): TicketFacts[] | null => {
@@ -162,18 +208,6 @@ const ticketsOfAliases = (data: Record<string, unknown>, ids: string[]): TicketF
   return tickets;
 };
 
-const answersWithErrors = (result: ExecResult): boolean => {
-  let body: unknown;
-
-  try {
-    body = JSON.parse(result.stdout);
-  } catch {
-    return false;
-  }
-
-  return isRecord(body) && Array.isArray(body['errors']);
-};
-
 const queryTickets = async (
   run: RunCommand,
   source: TicketSource,
@@ -181,37 +215,76 @@ const queryTickets = async (
 ): Promise<BatchAnswer> => {
   const args = [...ticketQueryArgs(ids), '--workspace', source.workspace];
   const result = await run('linear', args, { cwd: source.cwd, on: source.machine });
-  const data = dataOf(result);
+  const answer = answerBodyOf(result, ids);
 
-  if (data === null) {
-    return answersWithErrors(result) ? { kind: 'no-data' } : { kind: 'failed' };
+  if (answer.data !== null) {
+    const tickets = ticketsOfAliases(answer.data, ids);
+
+    return tickets === null ? { kind: 'failed' } : { kind: 'tickets', tickets };
   }
 
-  const tickets = ticketsOfAliases(data, ids);
+  if (answer.retryIds.length === 0) {
+    return { kind: 'failed' };
+  }
 
-  return tickets === null ? { kind: 'failed' } : { kind: 'tickets', tickets };
+  return { kind: 'retry', ids: answer.retryIds };
 };
 
-// Linear answers no data for the whole query when one issue id does not exist, so a query without
-// data is asked again for each id alone and the ids that do resolve still arrive.
-const ticketsOfEachId = async (
+// Linear answers no data for the whole query when one issue id does not exist, and the error path
+// names that alias. The read asks the named ids alone and then the rest, so the ids that do resolve
+// still arrive and an error about the service fails the read instead.
+const ticketsOfBatch = async (
   run: RunCommand,
   source: TicketSource,
   ids: string[],
   stillOwner: () => boolean,
-): Promise<EachIdRead> => {
+): Promise<BatchRead> => {
   const tickets: TicketFacts[] = [];
+  let pending = ids;
 
-  for (const id of ids) {
+  while (pending.length > 0) {
+    const asked = pending;
+
     if (!stillOwner()) {
       return { kind: 'dropped' };
     }
 
-    // eslint-disable-next-line no-await-in-loop -- one id at a time, so one unknown id does not hide the rest
-    const answer = await queryTickets(run, source, [id]);
+    // eslint-disable-next-line no-await-in-loop -- one query at a time, so a failure stops the read early
+    const answer = await queryTickets(run, source, asked);
+
+    if (answer.kind === 'failed') {
+      return { kind: 'failed' };
+    }
 
     if (answer.kind === 'tickets') {
       tickets.push(...answer.tickets);
+
+      return { kind: 'tickets', tickets };
+    }
+
+    const named = new Set(answer.ids);
+
+    pending = asked.filter((id) => !named.has(id));
+
+    for (const id of answer.ids) {
+      if (asked.length === 1) {
+        continue;
+      }
+
+      if (!stillOwner()) {
+        return { kind: 'dropped' };
+      }
+
+      // eslint-disable-next-line no-await-in-loop -- one id at a time, so one unknown id does not hide the rest
+      const single = await queryTickets(run, source, [id]);
+
+      if (single.kind === 'failed') {
+        return { kind: 'failed' };
+      }
+
+      if (single.kind === 'tickets') {
+        tickets.push(...single.tickets);
+      }
     }
   }
 
@@ -236,28 +309,15 @@ export const readTickets = async (
   const tickets: TicketFacts[] = [];
 
   for (const batch of batchesOf(source.ids)) {
-    if (!stillOwner()) {
-      return { kind: 'dropped' };
-    }
-
     // eslint-disable-next-line no-await-in-loop -- one batch at a time, so a failure stops the read early
-    const answer = await queryTickets(run, source, batch);
-
-    if (answer.kind === 'failed') {
-      return { kind: 'failed' };
-    }
-
-    if (answer.kind === 'tickets') {
-      tickets.push(...answer.tickets);
-
-      continue;
-    }
-
-    // eslint-disable-next-line no-await-in-loop -- the ids of this batch are asked one after another
-    const resolved = await ticketsOfEachId(run, source, batch, stillOwner);
+    const resolved = await ticketsOfBatch(run, source, batch, stillOwner);
 
     if (resolved.kind === 'dropped') {
       return { kind: 'dropped' };
+    }
+
+    if (resolved.kind === 'failed') {
+      return { kind: 'failed' };
     }
 
     tickets.push(...resolved.tickets);
