@@ -135,6 +135,79 @@ describe('readRepositoryPulls', () => {
     expect(formFieldOf(ghArgs, 'name')).toBe('koja');
   });
 
+  test('passes a numeric owner as text to gh', async () => {
+    const calls: Call[] = [];
+    const run = runWithRemotes('origin', 'https://github.example.com/1234/koja.git', calls);
+
+    await readRepositoryPulls(run, sourceOf(), alwaysOwner);
+
+    const ghArgs = argsOf(calls).at(-1) ?? [];
+    const ownerIndex = ghArgs.indexOf('owner=1234');
+
+    expect(ghArgs[ownerIndex - 1]).toBe('-f');
+    expect(formFieldOf(ghArgs, 'owner')).toBe('1234');
+    expect(formFieldOf(ghArgs, 'name')).toBe('koja');
+  });
+
+  test('maps the ssh port 443 endpoint to github.com', async () => {
+    const calls: Call[] = [];
+    const run = runWithRemotes('origin', 'ssh://git@ssh.github.com:443/koja/koja.git', calls);
+
+    await readRepositoryPulls(run, sourceOf(), alwaysOwner);
+
+    const ghArgs = argsOf(calls).at(-1) ?? [];
+
+    expect(ghArgs.slice(0, 4)).toEqual(['api', 'graphql', '--hostname', 'github.com']);
+    expect(formFieldOf(ghArgs, 'owner')).toBe('koja');
+    expect(formFieldOf(ghArgs, 'name')).toBe('koja');
+  });
+
+  test('keeps a host that only looks like the ssh port 443 endpoint', async () => {
+    const calls: Call[] = [];
+
+    const run = runWithRemotes(
+      'origin',
+      'ssh://git@ssh.github.example.com:443/koja/koja.git',
+      calls,
+    );
+
+    await readRepositoryPulls(run, sourceOf(), alwaysOwner);
+
+    const ghArgs = argsOf(calls).at(-1) ?? [];
+
+    expect(ghArgs.slice(0, 4)).toEqual(['api', 'graphql', '--hostname', 'ssh.github.example.com']);
+  });
+
+  test('decodes percent-encoded owner and repository names', async () => {
+    const calls: Call[] = [];
+
+    const run = runWithRemotes(
+      'origin',
+      'https://github.example.com/koja%2Dteam/koja%2Dapp.git',
+      calls,
+    );
+
+    await readRepositoryPulls(run, sourceOf(), alwaysOwner);
+
+    const ghArgs = argsOf(calls).at(-1) ?? [];
+
+    expect(formFieldOf(ghArgs, 'owner')).toBe('koja-team');
+    expect(formFieldOf(ghArgs, 'name')).toBe('koja-app');
+  });
+
+  test('keeps the placeholders when a path component cannot be decoded', async () => {
+    const calls: Call[] = [];
+    const run = runWithRemotes('origin', 'git@github.example.com:koja%ZZ/koja.git', calls);
+
+    await readRepositoryPulls(run, sourceOf(), alwaysOwner);
+
+    const ghArgs = argsOf(calls).at(-1) ?? [];
+
+    expect(ghArgs).not.toContain('--hostname');
+    expect(formFieldOf(ghArgs, 'owner')).toBe('{owner}');
+    expect(formFieldOf(ghArgs, 'name')).toBe('{repo}');
+  });
+
   test('passes the host of an https remote to gh and prefers origin', async () => {
     const calls: Call[] = [];
     const run = runWithRemotes('upstream\norigin', 'https://ghe.example.com/koja/koja.git', calls);

@@ -12,6 +12,12 @@ const queryTextOf = (args: readonly string[]): string => {
 const branchesOf = (count: number): string[] =>
   Array.from({ length: count }, (_, index) => `branch-${index}`);
 
+const flagBeforeOf = (args: readonly string[], field: string): string | undefined => {
+  const index = args.indexOf(field);
+
+  return index === -1 ? undefined : args[index - 1];
+};
+
 describe('pullQueryArgs', () => {
   test('keeps branch names out of the query text', () => {
     const args = pullQueryArgs(['main', 'a"b'], null);
@@ -32,6 +38,17 @@ describe('pullQueryArgs', () => {
     }
 
     expect(query).not.toContain('open3:');
+  });
+
+  test('sends the owner and repository as raw strings', () => {
+    const args = pullQueryArgs(['main'], {
+      host: 'github.com',
+      owner: '1234',
+      repository: '5678',
+    });
+
+    expect(flagBeforeOf(args, 'owner=1234')).toBe('-f');
+    expect(flagBeforeOf(args, 'name=5678')).toBe('-f');
   });
 
   test('refuses an empty or oversized batch', () => {

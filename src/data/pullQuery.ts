@@ -72,9 +72,9 @@ export const pullQueryArgs = (branches: string[], remote: PullRemote | null): st
   const repository = remote === null ? '{repo}' : remote.repository;
 
   args.push(
-    '-F',
+    '-f',
     `owner=${owner}`,
-    '-F',
+    '-f',
     `name=${repository}`,
     '-f',
     `query=${queryText(branches.length)}`,

@@ -653,6 +653,14 @@ const remoteNameOf = (remotes: string): string | null => {
 
 const withoutGitSuffix = (name: string): string => name.replace(/\.git$/, '');
 
+const decodedComponent = (component: string): string | null => {
+  try {
+    return decodeURIComponent(component);
+  } catch {
+    return null;
+  }
+};
+
 const remotePathOf = (path: string): Pick<PullRemote, 'owner' | 'repository'> | null => {
   const parts = path.split('/').filter((part) => part !== '');
 
@@ -660,14 +668,24 @@ const remotePathOf = (path: string): Pick<PullRemote, 'owner' | 'repository'> | 
     return null;
   }
 
-  const [owner, repository] = parts;
+  const [ownerPart, repositoryPart] = parts;
 
-  if (owner === undefined || repository === undefined) {
+  if (ownerPart === undefined || repositoryPart === undefined) {
+    return null;
+  }
+
+  const owner = decodedComponent(ownerPart);
+  const repository = decodedComponent(repositoryPart);
+
+  if (owner === null || repository === null) {
     return null;
   }
 
   return { owner: withoutGitSuffix(owner), repository: withoutGitSuffix(repository) };
 };
+
+// GitHub serves SSH over 443 at ssh.github.com, but its API is at github.com.
+const apiHostOf = (host: string): string => (host === 'ssh.github.com' ? 'github.com' : host);
 
 const remoteOfUrl = (remoteUrl: string): PullRemote | null => {
   const url = remoteUrl.trim();
@@ -687,7 +705,7 @@ const remoteOfUrl = (remoteUrl: string): PullRemote | null => {
     return null;
   }
 
-  return { host, ...parts };
+  return { host: apiHostOf(host), ...parts };
 };
 
 const remoteLookup = async (

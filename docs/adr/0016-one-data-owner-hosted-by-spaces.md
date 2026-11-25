@@ -66,7 +66,7 @@ Open pull requests are read by the live branch names of the repository's worktre
 list, so a pull request past any page limit is still read. Each repository is read under a
 per-repository budget in three cases. The periodic read runs at most once per minute while the
 window is active. A push read is coalesced into the next due read instead of adding a read beside
-it. The manual Retry reads once when the user asks.
+it. The manual Retry joins the read in flight or starts one when the user asks.
 
 ### Sandbox remote fixture ownership
 
