@@ -116,13 +116,15 @@ The panes, the side panel, and the terminals share the pane body color `#dfe1e5`
 
 ### Corners
 
-- Koja rounds every corner of a part it draws with one radius, 6 px. Panes and the side panel, tabs,
-  inset row pills, buttons, icon toggles, and the mode pill all use it. No mod sets a radius of its
-  own.
+- Koja rounds every corner of a card, row, or control with one radius, 6 px. Panes and the side
+  panel, tabs, inset row pills, buttons, icon toggles, and the mode pill all use it. No mod sets a
+  radius of its own.
+- A circular mark, such as a status dot or the ring of a space with no agent, and the fully rounded
+  ends of the stack progress bar follow their own shape instead: they round at half their size.
 - Badges, such as the role badge and the attention badge, round at 4 px, so a small mark does not
   round away its own shape.
 - A card's inner radius follows its frame: where a header meets the card edge, the kit rounds it one
-  px less than the frame, so the fill stays inside the card's curve.
+  px less than the frame, so a fill stays inside the card's curve.
 - Herdr draws a popup's frame and does not clip the content to it, so popup content and the picker's
   outer corners round to the frame's own radius instead.
 
@@ -307,10 +309,10 @@ Koja would depend on a font the machine may lack.
 
 ### Focus shown by a fill on the header
 
-Draw a faint fill on the focused pane header in both modes, as before. Rejected because the border
-and the brighter title already mark the focused pane in insert mode, and a second kind of fill made
-a focused header read as selected. Normal mode keeps its tint, because Herdr draws no focus border
-while Koja's overlay holds the keyboard.
+Draw a faint fill on the focused pane header in insert mode too. Rejected because the border and the
+brighter title already mark the focused pane, and a second kind of fill made a focused header read
+as selected. Normal mode keeps its tint, because Herdr draws no focus border while Koja's overlay
+holds the keyboard.
 
 ### Done as a green dot
 
