@@ -3224,6 +3224,7 @@ describe('scripts/sandbox-machine state verification', () => {
     await writeUnit(manager, service, unitProperties(service, { InvocationID: 'b'.repeat(32) }));
     await writeOwnership(ownership(service));
 
+    // The unit's invocation differs from the record, so verification fails at once.
     const result = await runBash(
       `
         set -euo pipefail
