@@ -13,7 +13,7 @@ import { recordOf, stringOf } from '../../kit/fields.ts';
 import { normalFocusFill, toPalette } from '../../kit/palette.ts';
 import { paneHeaderFields } from '../../kit/paneHeaderFields.ts';
 import { paneActions } from '../../kit/paneHeaderMenuModel.ts';
-import { controlSize, overlaySize, paneHeaderWidth, spacing } from '../../kit/size.ts';
+import { controlSize, overlaySize, paneHeaderWidth, radius, spacing } from '../../kit/size.ts';
 import { taskOfPane } from '../../kit/tabLabel.ts';
 
 const accent = '#4e4e8f';
@@ -141,7 +141,7 @@ await mock.module('../../kit/index.ts', () =>
     paneLeadingSlotWidth,
     paneOverflowButton,
     programIcon: () => drawn('program.svg'),
-    radius: { cardInner: 5 },
+    radius,
     recordOf,
     roleBadge: (role: string, state?: 'full' | 'cut') => {
       const badge = roleBadge(role, state);
