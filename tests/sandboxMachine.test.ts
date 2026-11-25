@@ -207,7 +207,7 @@ case $command in
       jq '.InvocationID = "b" * 32' "$dir/$unit.json" >"$dir/$unit.json.new"
       mv "$dir/$unit.json.new" "$dir/$unit.json"
     elif [ "\${FAKE_STOP_LEAVES_UNIT:-0}" != 1 ]; then
-      rm -f "$dir/$unit.json"
+      /usr/bin/rm -f "$dir/$unit.json"
     fi
     exit 0
     ;;
@@ -343,13 +343,22 @@ const readProofFiles = async (folder: string): Promise<Buffer[]> =>
 
 const readFixtureFiles = async (): Promise<Buffer[]> => readProofFiles(machine);
 
+const readState = async (): Promise<{ launchId: string }> =>
+  JSON.parse(await readFile(stateFile, 'utf8')) as { launchId: string };
+
 const pathExists = async (path: string): Promise<boolean> => {
   try {
     await lstat(path);
 
     return true;
-  } catch {
-    return false;
+  } catch (error) {
+    const code = (error as { code?: string }).code;
+
+    if (code === 'ENOENT' || code === 'ENOTDIR') {
+      return false;
+    }
+
+    throw error;
   }
 };
 
@@ -418,12 +427,14 @@ const writeGoneServiceFixture = async (): Promise<string> => {
   return manager;
 };
 
-const writeLiveServiceFixture = async (): Promise<string> => {
+const writeLiveServiceFixture = async (
+  properties: Record<string, string> = {},
+): Promise<string> => {
   const service = serviceName();
   const manager = await newTemporaryFolder('koja-machine-manager-');
 
   await writeFakeSystemctl(manager);
-  await writeUnit(manager, service, unitProperties(service));
+  await writeUnit(manager, service, unitProperties(service, properties));
   await writeOwnership(ownership(service));
   await writeReceipt(receipt(service));
   await writeFile(join(machine, 'fixture-proof'), 'kept\n');
@@ -2860,9 +2871,10 @@ describe('scripts/sandbox-machine unexpected app readiness success', () => {
 });
 
 describe('scripts/sandbox-machine interrupted fixture replacement', () => {
-  test('the next up finishes a replacement that an interruption left without a record', async () => {
+  test('the next up finishes an interrupted replacement', async () => {
     const manager = await writeGoneServiceFixture();
     const environment = { FAKE_MANAGER_DIR: manager, PATH: pathWith(manager) };
+    const before = (await readState()).launchId;
 
     const interrupted = await runBash(upCommand('check_capability'), environment);
 
@@ -2872,6 +2884,7 @@ describe('scripts/sandbox-machine interrupted fixture replacement', () => {
     const retry = await runBash(upCommand(null), environment);
 
     expect(retry.exitCode).toBe(0);
+    expect((await readState()).launchId).not.toBe(before);
 
     const down = await runDown(environment);
 
@@ -2879,15 +2892,8 @@ describe('scripts/sandbox-machine interrupted fixture replacement', () => {
   });
 
   test('keeps the record when a replacement is interrupted after stopping a verified service', async () => {
-    const service = serviceName();
-    const manager = await newTemporaryFolder('koja-machine-manager-');
+    const manager = await writeLiveServiceFixture({ ActiveState: 'failed' });
     const environment = { FAKE_MANAGER_DIR: manager, PATH: pathWith(manager) };
-
-    await writeFakeSystemctl(manager);
-    await writeUnit(manager, service, unitProperties(service, { ActiveState: 'failed' }));
-    await writeOwnership(ownership(service));
-    await writeReceipt(receipt(service));
-    await writeFile(join(machine, 'fixture-proof'), 'kept\n');
 
     const interrupted = await runBash(upCommand('check_capability'), environment);
 
@@ -2964,6 +2970,7 @@ describe('scripts/sandbox-machine interrupted fixture replacement', () => {
     test(`the next up resolves an interruption at ${step}`, async () => {
       const manager = await writeGoneServiceFixture();
       const environment = { FAKE_MANAGER_DIR: manager, PATH: pathWith(manager) };
+      const before = (await readState()).launchId;
 
       const interrupted = await runBash(upCommand(step), environment);
 
@@ -2973,6 +2980,7 @@ describe('scripts/sandbox-machine interrupted fixture replacement', () => {
       const retry = await runBash(upCommand(null), environment);
 
       expect(retry.exitCode).toBe(0);
+      expect((await readState()).launchId).not.toBe(before);
     });
   }
 });
@@ -3147,7 +3155,7 @@ describe('scripts/sandbox-machine pending start job', () => {
     await writeOwnership(ownership(service, { invocationId: '', cgroup: '' }));
 
     spawnShell(
-      `while [ ! -e '${seen}' ]; do sleep 0.02; done; sleep 0.5; printf '%s\\n' '${lateReceipt}' > '${receiptFile}'; chmod 600 '${receiptFile}'`,
+      `while [ ! -e '${seen}' ]; do sleep 0.02; done; sleep 0.5; umask 077; printf '%s\\n' '${lateReceipt}' > '${receiptFile}.publishing'; mv '${receiptFile}.publishing' '${receiptFile}'`,
     );
 
     const down = await runDown({
@@ -3166,7 +3174,7 @@ describe('scripts/sandbox-machine discarded folder', () => {
     const rmFolder = await newTemporaryFolder('koja-machine-rm-');
     const leftover = join(root, 'machine.removing', 'leftover');
 
-    await writeProgram(join(rmFolder, 'rm'), 'exit 1');
+    await writeFakeRm(rmFolder);
     await mkdir(join(root, 'machine.removing'), { recursive: true });
     await writeFile(leftover, 'left\n');
 
@@ -3186,7 +3194,7 @@ describe('scripts/sandbox-machine discarded folder', () => {
     const started = join(await newTemporaryFolder('koja-machine-started-'), 'started');
     const leftover = join(root, 'machine.removing', 'leftover');
 
-    await writeProgram(join(rmFolder, 'rm'), 'exit 1');
+    await writeFakeRm(rmFolder);
     await mkdir(join(root, 'machine.removing'), { recursive: true });
     await writeFile(leftover, 'left\n');
 
