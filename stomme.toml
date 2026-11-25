@@ -37,11 +37,6 @@ rule = "no-index-file"
 key = "index.ts"
 
 [[violations]]
-path = "src/kit/overlay.ts"
-rule = "typescript-owner-folder"
-key = "overlayOpen.ts"
-
-[[violations]]
 path = "src/kit/paneHeader.ts"
 rule = "typescript-owner-folder"
 key = "paneHeaderFields.ts"

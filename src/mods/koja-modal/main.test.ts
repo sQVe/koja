@@ -247,7 +247,7 @@ await mock.module('herdr', () =>
   }),
 );
 
-const { overlayCloseCount, recordOverlayClose } = await import('../../kit/overlayOpen.ts');
+const { overlayCloseCount, recordOverlayClose } = await import('../../kit/overlay/open.ts');
 const { readSection, shownSections, writeSection } = await import('../../kit/section.ts');
 
 const herdrHost = {

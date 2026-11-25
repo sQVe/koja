@@ -58,6 +58,15 @@ The panes, the side panel, and the terminals share the pane body color `#dfe1e5`
 - A role fixes size and weight. A caller may change only its tone. The mono role is the one role
   that also fixes its font.
 - Key hints use the detail role, so a hint reads as a detail beside a 13 px label.
+- A key hint draws one keycap per key in its sequence: a 16 px high box, at least 18 px wide, with
+  the badge radius, the overlay surface as its fill, a 1 px `border` outline, and the terminal font.
+  A letter stays lower case, and a shifted key adds the shift mark, as `⇧H`. The glyph is optically
+  centered: x-height letters and descenders get a small lift, because the font centers its line box
+  and leaves them low. A pressed keycap takes the mode pill's look, `accent` ink in a `selected`
+  outline.
+- A hint follows the mode the overlay opened in. A row carries its normal-mode sequence and, when it
+  has one, an insert-mode binding. The hint draws the sequence of the mode that was active when the
+  overlay opened, and draws nothing in insert mode when the row has no binding.
 - Line height stays Herdr's default. The kit adds no line-height value until a part needs wrapped
   text.
 - Geist is wider than most sans fonts, and the smaller scale keeps the sidebar and tab titles about
@@ -213,6 +222,10 @@ The panes, the side panel, and the terminals share the pane body color `#dfe1e5`
 - Popups keep Herdr's overlay frame, which draws on the `popover` color.
 - Koja draws popup content through the kit's popup surface, which rounds the background to the
   frame's radius, because the frame does not clip it.
+- Koja's overlay card is the surface an overlay arranges its rows on: the `popover` fill, one step
+  lighter than the pane fill, a 1 px `border` outline, the pane radius, 6 px padding, and no shadow.
+  The outline keeps the mid gray in both modes, so an overlay edge never reads as the insert-mode
+  focus border or the normal-mode indigo.
 
 Herdr's own dialogs keep Herdr's frame. Koja's popups use the same frame, so popups look the same
 whether Koja or Herdr opens them. The picker is the one exception: its list sits beside a terminal

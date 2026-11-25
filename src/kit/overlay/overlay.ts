@@ -1,7 +1,7 @@
 import type { OverlaySpec } from 'herdr';
 import { closeOverlay as closeHerdrOverlay, openOverlay, props } from 'herdr';
 
-import { recordOf, stringOf } from './fields.ts';
+import { recordOf, stringOf } from '../fields.ts';
 
 export const overlayId = (): string | null => stringOf(recordOf(props())['overlay']);
 
