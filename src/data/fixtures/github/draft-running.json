@@ -1,0 +1,53 @@
+{
+  "data": {
+    "rateLimit": {
+      "cost": 1,
+      "remaining": 4640,
+      "resetAt": "2026-11-25T12:31:04Z"
+    },
+    "repository": {
+      "open0": {
+        "nodes": [
+          {
+            "number": 810,
+            "state": "OPEN",
+            "isDraft": true,
+            "title": "Fixture: draft running",
+            "headRefName": "draft-running",
+            "mergeable": "MERGEABLE",
+            "mergeStateStatus": "BLOCKED",
+            "reviewDecision": null,
+            "commits": {
+              "nodes": [
+                {
+                  "commit": {
+                    "statusCheckRollup": {
+                      "state": "PENDING"
+                    }
+                  }
+                }
+              ]
+            },
+            "reviewThreads": {
+              "pageInfo": {
+                "hasNextPage": false
+              },
+              "nodes": []
+            }
+          }
+        ]
+      },
+      "latest0": {
+        "nodes": [
+          {
+            "number": 810,
+            "state": "OPEN",
+            "isDraft": true,
+            "title": "Fixture: draft running",
+            "headRefName": "draft-running"
+          }
+        ]
+      }
+    }
+  }
+}

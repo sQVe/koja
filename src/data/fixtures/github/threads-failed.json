@@ -1,0 +1,60 @@
+{
+  "data": {
+    "rateLimit": {
+      "cost": 1,
+      "remaining": 4878,
+      "resetAt": "2026-11-25T12:34:13Z"
+    },
+    "repository": {
+      "open0": {
+        "nodes": [
+          {
+            "number": 773,
+            "state": "OPEN",
+            "isDraft": false,
+            "title": "Fixture: threads failed",
+            "headRefName": "threads-failed",
+            "mergeable": "MERGEABLE",
+            "mergeStateStatus": "BLOCKED",
+            "reviewDecision": null,
+            "commits": {
+              "nodes": [
+                {
+                  "commit": {
+                    "statusCheckRollup": {
+                      "state": "FAILURE"
+                    }
+                  }
+                }
+              ]
+            },
+            "reviewThreads": {
+              "pageInfo": {
+                "hasNextPage": false
+              },
+              "nodes": [null]
+            }
+          }
+        ]
+      },
+      "latest0": {
+        "nodes": [
+          {
+            "number": 773,
+            "state": "OPEN",
+            "isDraft": false,
+            "title": "Fixture: threads failed",
+            "headRefName": "threads-failed"
+          }
+        ]
+      }
+    }
+  },
+  "errors": [
+    {
+      "type": "INTERNAL_SERVER_ERROR",
+      "path": ["repository", "open0", "nodes", 0, "reviewThreads", "nodes", 0, "isResolved"],
+      "message": "Fixture: the thread resolver failed"
+    }
+  ]
+}

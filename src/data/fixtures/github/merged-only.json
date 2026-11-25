@@ -1,0 +1,25 @@
+{
+  "data": {
+    "rateLimit": {
+      "cost": 1,
+      "remaining": 4877,
+      "resetAt": "2026-11-25T12:34:13Z"
+    },
+    "repository": {
+      "open0": {
+        "nodes": []
+      },
+      "latest0": {
+        "nodes": [
+          {
+            "number": 807,
+            "state": "MERGED",
+            "isDraft": false,
+            "title": "Fixture: merged only",
+            "headRefName": "merged-only"
+          }
+        ]
+      }
+    }
+  }
+}
