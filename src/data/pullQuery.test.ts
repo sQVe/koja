@@ -13,8 +13,6 @@ const branchesOf = (count: number): string[] =>
   Array.from({ length: count }, (_, index) => `branch-${index}`);
 
 describe('pullQueryArgs', () => {
-  // The rateLimit selection holds the word "remaining", so only a quoted literal can show an
-  // interpolated branch name.
   test('keeps branch names out of the query text', () => {
     const args = pullQueryArgs(['main', 'a"b']);
     const query = queryTextOf(args);
