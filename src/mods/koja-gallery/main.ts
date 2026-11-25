@@ -9,6 +9,7 @@ import { readDataState } from '../../data/consumer.ts';
 import { colors, sectionHeader, spacing, withTextRole } from '../../kit/index.ts';
 import { actions } from './actions.ts';
 import { buttons } from './buttons.ts';
+import { contentParts } from './content.ts';
 import { dataLayer } from './data.ts';
 import { dialogs } from './dialogs.ts';
 import { headers } from './headers.ts';
@@ -108,6 +109,7 @@ export default class Gallery extends View {
       .child(section('Dialogs', dialogs(this.renameField)))
       .child(section('Tabs', tabs()))
       .child(section('Popup surface', popupSurfaces()))
+      .child(section('Content', contentParts()))
       .child(section('Search and text', searchAndText(this.search)));
   }
 }
