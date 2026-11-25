@@ -156,6 +156,8 @@ export { trafficLightsPadding } from './trafficLights.ts';
 
 export { shortcutFor } from './shortcut.ts';
 
+export { terminalFont } from './terminalFont.ts';
+
 export { themeChoices } from './themes.ts';
 
 export { detailText, highlightedText, keyHint, linkText, separator } from './text.ts';

@@ -5,7 +5,8 @@ import { div } from 'gpui-kit';
 import { icon } from '../icon.ts';
 import { keycaps } from '../keycap.ts';
 import { rowHeight, spacing, textSize } from '../size.ts';
-import { withTextRole } from '../textRole.ts';
+import { detailText } from '../text.ts';
+import { roleText } from '../textRole.ts';
 import { colors } from '../theme.ts';
 
 const caretHeight = textSize.default + spacing.xsmall;
@@ -15,19 +16,14 @@ const footerHeight = rowHeight.large + spacing.xxsmall;
 const caret = (): Element =>
   div().w(spacing.hairline).h(caretHeight).flex_none().bg(colors().foreground);
 
-const placeholder = (text: string): Element => {
-  const box = div().flex_none();
-
-  return withTextRole(box, 'body', 'dim').child(text);
-};
-
 export const searchLine = (text: string): Element => {
   const field = h_flex()
-    .flex_none()
+    .flex_1()
+    .min_w(0)
     .gap(spacing.xxsmall)
     .items_center()
     .child(caret())
-    .child(placeholder(text));
+    .child(roleText('body', text, 'dim'));
 
   const searchIcon = icon('search', 'small').text_color(colors().dim);
 
@@ -42,15 +38,8 @@ export const searchLine = (text: string): Element => {
     .child(field);
 };
 
-const footerPart = (part: string | string[]): Element => {
-  if (typeof part === 'string') {
-    const box = div().flex_none();
-
-    return withTextRole(box, 'detail').child(part);
-  }
-
-  return keycaps(part);
-};
+const footerPart = (part: string | string[]): Element =>
+  typeof part === 'string' ? detailText(part) : keycaps(part);
 
 export const footerLine = (parts: (string | string[])[]): Element =>
   h_flex()
@@ -60,6 +49,7 @@ export const footerLine = (parts: (string | string[])[]): Element =>
     .px(spacing.small)
     .gap(spacing.small)
     .items_center()
+    .overflow_hidden()
     .border_t(spacing.hairline)
-    .border_color(colors().selected)
+    .border_color(colors().border)
     .children(parts.map((part) => footerPart(part)));
