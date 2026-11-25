@@ -4,33 +4,39 @@ import type { Project } from './projects.ts';
 import { rootSpaceIds, shownSpaces } from './projects.ts';
 
 export interface OrderPublisher {
-  publish: (projects: Project[], liveIds: readonly string[]) => void;
+  publish: (projects: Project[], liveIds: readonly string[]) => SpaceOrder;
+  published: () => SpaceOrder | null;
   clear: () => void;
 }
 
 const hiddenIds = (shown: readonly string[], liveIds: readonly string[]): string[] =>
   liveIds.filter((id) => !shown.includes(id));
 
+const sameOrder = (left: SpaceOrder, right: SpaceOrder): boolean =>
+  JSON.stringify(left) === JSON.stringify(right);
+
 // Herdr re-renders every mod on each shared write, so an unchanged order must not be written again.
 export const createOrderPublisher = (
   set: (key: string, value: unknown) => void,
 ): OrderPublisher => {
-  let published: string | null = null;
+  let published: SpaceOrder | null = null;
 
   return {
     publish: (projects, liveIds) => {
       const shown = shownSpaces(projects).map((row) => row.space.id);
       const roots = rootSpaceIds(projects);
       const order: SpaceOrder = { shown, hidden: hiddenIds(shown, liveIds), roots };
-      const serialized = JSON.stringify(order);
 
-      if (serialized === published) {
-        return;
+      if (published !== null && sameOrder(order, published)) {
+        return published;
       }
 
-      published = serialized;
+      published = order;
       writeSpaceOrder(set, order);
+
+      return order;
     },
+    published: () => published,
     clear: () => {
       published = null;
       clearSpaceOrder(set);

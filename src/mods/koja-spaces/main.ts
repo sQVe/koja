@@ -37,6 +37,8 @@ import {
   spacing,
   withTextRole,
 } from '../../kit/index.ts';
+import type { SpaceOrder } from '../../kit/spaceOrder.ts';
+import { closedSpaceCommand } from '../../kit/spaceOrder.ts';
 import { cursorRow, halfPageOf, moveCursor } from './cursor.ts';
 import { foldedSet } from './folded.ts';
 import { answeredPlaces, gitInfoAt, pullFailedAt, pullFactsOf } from './gitFacts.ts';
@@ -56,6 +58,11 @@ import type { WaitTimes } from './waitTimes.ts';
 import { advanceWaitTimes, readWaitTimes, waitAge } from './waitTimes.ts';
 
 type SidebarDrag = { kind: 'space'; state: DragState } | { kind: 'project'; state: DragState };
+
+interface SidebarWatch {
+  focused: string | null;
+  order: SpaceOrder | null;
+}
 
 // Herdr's runtime has the Web Crypto global, but its declarations do not name it.
 declare const crypto: { randomUUID: () => string };
@@ -102,6 +109,8 @@ export default class Spaces extends View {
 
   private waitTimes: WaitTimes = readWaitTimes(storage.get(waitTimesKey));
 
+  private watched: SidebarWatch = { focused: null, order: null };
+
   private visibility: VisibilityState = initialVisibility(liveSpaceIds());
 
   private drag: SidebarDrag = { kind: 'space', state: noDrag };
@@ -145,6 +154,11 @@ export default class Spaces extends View {
     this.statuses = rollupStatuses(spaces(), panes(), terminals());
     this.visibility = this.advance(state);
 
+    const projects = this.projects(state);
+    const ids = liveSpaceIds();
+    const order = this.order.publish(projects, ids);
+
+    this.followClose(order);
     this.followMark(isSidebarMarked());
 
     const topStrip = div().flex_none().h(topStripHeight());
@@ -165,7 +179,7 @@ export default class Spaces extends View {
         this.endDrag();
         cx.notify();
       })
-      .children(this.listRows(state));
+      .children(this.listRows(state, projects, ids));
 
     return withTextRole(v_flex(), 'body')
       .size_full()
@@ -184,6 +198,23 @@ export default class Spaces extends View {
       this.pullRetries.settle(Date.now());
       this.checkWaits(timerCx);
     });
+  }
+
+  // Herdr picks the next space by focus history; this puts the sidebar's neighbour in its place.
+  private followClose(order: SpaceOrder | null): void {
+    const focused = activeSpaceId();
+
+    const command = closedSpaceCommand({
+      closedId: this.watched.focused,
+      order: this.watched.order,
+      liveIds: liveSpaceIds(),
+    });
+
+    this.watched = { focused, order };
+
+    if (command !== null) {
+      run(command.name, command.args);
+    }
   }
 
   private followMark(marked: boolean): void {
@@ -276,6 +307,8 @@ export default class Spaces extends View {
     const result = this.advance(readDataState(shared, Date.now()));
 
     this.visibility = result;
+
+    this.followClose(this.order.published());
 
     if (result.changed || result.waiting || waitsChanged) {
       cx.notify();
@@ -415,9 +448,7 @@ export default class Spaces extends View {
     this.pullRetries.request(git.repo.key, Date.now());
   };
 
-  private listRows(state: DataState): Element[] {
-    const projects = this.projects(state);
-    const ids = spaces().map((space) => space.id);
+  private listRows(state: DataState, projects: Project[], ids: readonly string[]): Element[] {
     const cursor = this.cursorRow(projects);
     const now = Date.now();
     const pulls = pullFactsOf(state);
@@ -431,8 +462,6 @@ export default class Spaces extends View {
 
       return element;
     };
-
-    this.order.publish(projects, ids);
 
     const keys = projects.map((project) => project.key);
 
