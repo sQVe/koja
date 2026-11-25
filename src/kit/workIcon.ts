@@ -24,9 +24,17 @@ const workLooks: Record<WorkNeed, WorkLook> = {
 
 export const emptyWorkSlot = (): Element => iconSlot(div());
 
+export const isWorkNeed = (value: string): value is WorkNeed => Object.hasOwn(workLooks, value);
+
+// The icon alone, for a row that brings its own slot.
+export const workNeedIcon = (need: WorkNeed): Element => {
+  const look = workLooks[need];
+
+  return icon(look.icon, 'small').text_color(colors()[look.color]);
+};
+
 export const workIcon = (need: WorkNeed): Element => {
   const look = workLooks[need];
-  const drawnIcon = icon(look.icon, 'small').text_color(colors()[look.color]);
 
-  return iconSlot(drawnIcon).tooltip(look.label).accessibility_label(look.label);
+  return iconSlot(workNeedIcon(need)).tooltip(look.label).accessibility_label(look.label);
 };
