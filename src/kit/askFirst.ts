@@ -23,7 +23,10 @@ const stepSpace = (step: number): void => {
   });
 
   if (command !== null) {
-    runSpaceCommand({ run, get: shared, set: setShared, shown: () => current }, command);
+    runSpaceCommand(
+      { run, get: shared, set: setShared, shown: () => focused()?.space ?? null },
+      command,
+    );
   }
 };
 

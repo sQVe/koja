@@ -149,6 +149,53 @@ describe('sidebar order publishing', () => {
     });
   });
 
+  test('publishes again when the shown list changes length', () => {
+    const store = memoryStore();
+    const order = createOrderPublisher(store.set);
+    const shorter = repoList().filter((row) => row.space.id !== 'second-worktree');
+
+    order.publish(projectsOf(repoList()), allIds(repoList()));
+    order.publish(projectsOf(shorter), allIds(shorter));
+
+    expect(readSpaceOrder(store.get)).toEqual({
+      shown: ['notes', 'koja', 'first-worktree'],
+      hidden: [],
+      roots: ['notes', 'koja'],
+    });
+  });
+
+  test('publishes again when only the hidden list changes', () => {
+    const store = memoryStore();
+    const order = createOrderPublisher(store.set);
+    const folded = [repositoryOf(null, repoPath).key];
+    const shorter = repoList().filter((row) => row.space.id !== 'second-worktree');
+
+    order.publish(projectsOf(repoList(), folded), allIds(repoList()));
+    order.publish(projectsOf(repoList(), folded), allIds(shorter));
+
+    expect(readSpaceOrder(store.get)).toEqual({
+      shown: ['notes', 'koja'],
+      hidden: ['first-worktree'],
+      roots: ['notes', 'koja'],
+    });
+  });
+
+  test('reports the order the last publish wrote, and no order before the first publish or after clear', () => {
+    const store = memoryStore();
+    const order = createOrderPublisher(store.set);
+
+    expect(order.published()).toBeNull();
+
+    const written = order.publish(projectsOf(repoList()), allIds(repoList()));
+
+    expect(order.published()).toEqual(written);
+    expect(readSpaceOrder(store.get)).toEqual(written);
+
+    order.clear();
+
+    expect(order.published()).toBeNull();
+  });
+
   test('clears the published order when the sidebar closes', () => {
     const store = memoryStore();
     const order = createOrderPublisher(store.set);

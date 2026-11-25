@@ -35,7 +35,7 @@ const memoryStore = () => {
   };
 };
 
-const select = (id: unknown): SpaceCommand => ({ name: 'space.select', args: { id } });
+const select = (id: string): SpaceCommand => ({ name: 'space.select', args: { id } });
 
 const step: SpaceCommand = { name: 'space.next' };
 
@@ -73,7 +73,22 @@ describe('space selection', () => {
     expect(store.runs).toEqual([{ name: 'space.select', args: { id: 'notes' } }]);
   });
 
-  test('runs a space step without recording it', () => {
+  test('runs a space step without clearing the recorded selection', () => {
+    const store = memoryStore();
+    const deps = depsWith(store);
+
+    runSpaceCommand(deps, select('notes'));
+    runSpaceCommand(deps, step);
+
+    expect(store.runs).toEqual([
+      { name: 'space.select', args: { id: 'notes' } },
+      { name: 'space.next', args: undefined },
+    ]);
+
+    expect(readSpaceSelection(store.get)).toEqual({ version: 1, count: 1, id: 'notes' });
+  });
+
+  test('runs a space step without recording a selection when nothing was recorded', () => {
     const store = memoryStore();
 
     runSpaceCommand(depsWith(store), step);
@@ -84,8 +99,9 @@ describe('space selection', () => {
 
   test('runs a space select whose id is not a string without recording it', () => {
     const store = memoryStore();
+    const invalidSelect: SpaceCommand = { name: 'space.select', args: { id: 7 } };
 
-    runSpaceCommand(depsWith(store), select(7));
+    runSpaceCommand(depsWith(store), invalidSelect);
 
     expect(store.runs).toEqual([{ name: 'space.select', args: { id: 7 } }]);
     expect(readSpaceSelection(store.get)).toBeNull();
@@ -194,6 +210,30 @@ const movedCases: MovedCase[] = [
     closedId: 'b',
     liveIds: ['a'],
     moved: false,
+  },
+  {
+    name: 'a null id with a changed count',
+    before: selection(1, 'a'),
+    after: selection(2, null),
+    closedId: 'b',
+    liveIds: ['a'],
+    moved: false,
+  },
+  {
+    name: 'a first live selection with no earlier record',
+    before: null,
+    after: selection(1, 'a'),
+    closedId: 'b',
+    liveIds: ['a'],
+    moved: true,
+  },
+  {
+    name: 'a selection when no space was focused before',
+    before: selection(1, 'a'),
+    after: selection(2, 'b'),
+    closedId: null,
+    liveIds: ['a', 'b'],
+    moved: true,
   },
 ];
 
