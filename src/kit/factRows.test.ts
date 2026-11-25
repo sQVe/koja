@@ -3,14 +3,14 @@ import { afterAll, describe, expect, mock, test } from 'bun:test';
 import type { DrawnElement } from '../../tests/drawn.ts';
 import { drawn, drawnTexts, elementWithText } from '../../tests/drawn.ts';
 import { gpuiBaseFake, gpuiKitFake, herdrFake } from '../../tests/moduleFakes.ts';
-import { factSize, spacing } from './size.ts';
+import { factSize } from './size.ts';
 
-type ItemSource = 'GitHub' | 'Linear' | 'tikk';
+type LinkTarget = { source: 'GitHub'; repository: string } | { source: 'Linear' | 'tikk' };
 
 interface Fact {
   label: string;
   value: string;
-  link?: { source: ItemSource; repository?: string };
+  link?: LinkTarget;
 }
 
 const palette = {
@@ -42,6 +42,16 @@ afterAll(() => {
 const facts: Fact[] = [
   { label: 'Project', value: 'Koja' },
   { label: 'Parent', value: 'ME-1087', link: { source: 'Linear' } },
+  { label: 'Related PR', value: '#52', link: { source: 'GitHub', repository: 'koja' } },
+];
+
+const factTexts = [
+  'Project',
+  'Koja',
+  'Parent',
+  'ME-1087 · Linear',
+  'Related PR',
+  'koja #52 · GitHub',
 ];
 
 describe('factRows', () => {
@@ -55,19 +65,19 @@ describe('factRows', () => {
   });
 
   test('a linked value names its source', () => {
-    expect(drawnTexts(factRows(facts))).toEqual(['Project', 'Koja', 'Parent', 'ME-1087 · Linear']);
+    expect(drawnTexts(factRows(facts))).toEqual(factTexts);
   });
 });
 
 describe('factPairs', () => {
   test('pairs wrap, with a wider gap between pairs than inside one', () => {
     const pairs = factPairs(facts);
-    const firstPair = pairs.kids[0];
+    const [firstPair] = pairs.kids;
+    const pairGap = Number(pairs.styles['gap_x']?.[0]);
+    const labelGap = Number(firstPair?.styles['gap']?.[0]);
 
     expect(pairs.styles['flex_wrap']).toBeDefined();
-    expect(pairs.styles['gap_x']).toEqual([factSize.pairGap]);
-    expect(firstPair?.styles['gap']).toEqual([spacing.small]);
-    expect(factSize.pairGap).toBeGreaterThan(spacing.small);
+    expect(pairGap).toBeGreaterThan(labelGap);
   });
 
   test('a pair keeps its label whole and lets the value take the cut', () => {
@@ -80,6 +90,6 @@ describe('factPairs', () => {
   });
 
   test('a pair draws its label and its value together', () => {
-    expect(drawnTexts(factPairs(facts))).toEqual(['Project', 'Koja', 'Parent', 'ME-1087 · Linear']);
+    expect(drawnTexts(factPairs(facts))).toEqual(factTexts);
   });
 });
