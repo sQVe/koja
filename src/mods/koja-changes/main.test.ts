@@ -781,6 +781,68 @@ describe('Changes view', () => {
     expect(inputValue).toBe('');
   });
 
+  test('a submit during the first read of a repository commits once the read finishes', async () => {
+    blockStatus = true;
+
+    const view = await boot();
+
+    expect(statusGate).not.toBeNull();
+
+    typeMessage();
+    view.render(context);
+
+    const before = commitCommands();
+
+    inputHandlers.get('submit')?.({}, context);
+    await settle();
+
+    expect(commitCommands()).toBe(before);
+
+    blockStatus = false;
+    statusGate?.();
+    await settle();
+    view.render(context);
+
+    expect(commitCommands()).toBe(before + 1);
+    expect(inputValue).toBe('');
+  });
+
+  test('a submit during a read after a failed read commits once the read succeeds', async () => {
+    const view = await boot();
+
+    typeMessage();
+    view.render(context);
+
+    failStatus = true;
+    view.refresh(context);
+    await settle();
+    view.render(context);
+
+    expect(renderedCommit?.enabled).toBe(false);
+
+    failStatus = false;
+    blockStatus = true;
+    blockAfterReads = statusReads;
+    view.refresh(context);
+    await settle();
+
+    expect(statusGate).not.toBeNull();
+
+    const before = commitCommands();
+
+    inputHandlers.get('submit')?.({}, context);
+    await settle();
+
+    expect(commitCommands()).toBe(before);
+
+    blockStatus = false;
+    statusGate?.();
+    await settle();
+    view.render(context);
+
+    expect(commitCommands()).toBe(before + 1);
+  });
+
   test('a background refresh requests a redraw before its read finishes', async () => {
     await boot();
 

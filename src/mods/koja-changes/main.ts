@@ -430,21 +430,17 @@ export default class Changes extends View {
   }
 
   private commit(cx: Context): void {
-    const snapshot = this.state.lastGood?.snapshot ?? null;
-
-    if (snapshot === null) {
-      return;
-    }
-
     const request = this.commitRequest();
 
     if (request.loading) {
-      this.pendingCommit = canCommit({ ...request, loading: false });
+      this.pendingCommit = hasText(request.message);
 
       return;
     }
 
-    if (!canCommit(request)) {
+    const snapshot = this.state.lastGood?.snapshot ?? null;
+
+    if (snapshot === null || !canCommit(request)) {
       return;
     }
 
