@@ -3,10 +3,7 @@ import { afterAll, describe, expect, mock, test } from 'bun:test';
 import type { DrawnElement } from '../../tests/drawn.ts';
 import { drawn, drawnTexts } from '../../tests/drawn.ts';
 import { gpuiBaseFake, gpuiKitFake, herdrFake } from '../../tests/moduleFakes.ts';
-
-type LinkTarget = { source: 'GitHub'; repository: string } | { source: 'Linear' | 'tikk' };
-
-type SourceLinkOptions = LinkTarget & { identifier: string };
+import type { SourceLinkOptions } from './sourceLink.ts';
 
 const palette = {
   dim: '#2d2d3d',

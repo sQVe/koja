@@ -3,15 +3,8 @@ import { afterAll, describe, expect, mock, test } from 'bun:test';
 import type { DrawnElement } from '../../tests/drawn.ts';
 import { drawn, drawnTexts, elementWithText } from '../../tests/drawn.ts';
 import { gpuiBaseFake, gpuiKitFake, herdrFake } from '../../tests/moduleFakes.ts';
+import type { Fact } from './factRows.ts';
 import { factSize } from './size.ts';
-
-type LinkTarget = { source: 'GitHub'; repository: string } | { source: 'Linear' | 'tikk' };
-
-interface Fact {
-  label: string;
-  value: string;
-  link?: LinkTarget;
-}
 
 const palette = {
   dim: '#2d2d3d',

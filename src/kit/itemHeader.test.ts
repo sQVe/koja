@@ -3,20 +3,8 @@ import { afterAll, describe, expect, mock, test } from 'bun:test';
 import type { DrawnElement } from '../../tests/drawn.ts';
 import { drawn, drawnIcons, drawnTexts, elementWithText, spinning } from '../../tests/drawn.ts';
 import { gpuiBaseFake, gpuiKitFake, herdrFake } from '../../tests/moduleFakes.ts';
+import type { ItemHeaderOptions } from './itemHeader.ts';
 import { textSize } from './size.ts';
-
-type ItemStateKind = 'openPullRequest' | 'inProgress' | 'inReview' | 'sent';
-
-type LinkTarget = { source: 'GitHub'; repository: string } | { source: 'Linear' | 'tikk' };
-
-type ItemHeaderOptions =
-  | (LinkTarget & { kind: 'loading'; identifier: string })
-  | (LinkTarget & {
-      kind: 'ready';
-      identifier: string;
-      title: string;
-      state: { kind: ItemStateKind; label: string; age: string | null } | null;
-    });
 
 type ReadyOptions = Extract<ItemHeaderOptions, { kind: 'ready' }>;
 
