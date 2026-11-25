@@ -121,6 +121,15 @@ export const badgeSize = {
   horizontal: badgeHorizontal,
 } as const;
 
+export const keycapSize = {
+  height: 16,
+  minimumWidth: 18,
+  padding: spacing.xsmall,
+  // Glyphs sit about 1 px left of the cap's center, so the left padding takes 1 px more.
+  opticalShift: spacing.hairline,
+  gap: spacing.xxsmall,
+} as const;
+
 export const markSize = {
   slot: 12,
   dot: 6,

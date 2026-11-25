@@ -1,6 +1,6 @@
 import { afterAll, beforeEach, describe, expect, mock, test } from 'bun:test';
 
-import { herdrFake } from '../../tests/moduleFakes.ts';
+import { herdrFake } from '../../../tests/moduleFakes.ts';
 
 let storedValue: unknown = undefined;
 
@@ -15,7 +15,7 @@ await mock.module('herdr', () =>
   }),
 );
 
-const { overlayCloseCount, recordOverlayClose } = await import('./overlayOpen.ts');
+const { overlayCloseCount, recordOverlayClose } = await import('./open.ts');
 
 afterAll(() => {
   mock.restore();

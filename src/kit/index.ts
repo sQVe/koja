@@ -21,7 +21,15 @@ export type { IconName } from './iconNames.ts';
 
 export { hoveredAfter } from './hoverTarget.ts';
 
+export { keycap, keycaps, overlayHints, pressedKeycap } from './keycap.ts';
+
+export type { OverlayHint } from './keycap.ts';
+
 export { listRow } from './listRow.ts';
+
+export { overlayCard } from './overlay/card.ts';
+
+export { footerLine, searchLine } from './overlay/lines.ts';
 
 export {
   paneBranchElement,
@@ -69,6 +77,10 @@ export { viewSwitch } from './viewSwitch.ts';
 export { emptyWorkSlot, workIcon } from './workIcon.ts';
 
 export type { WorkNeed } from './workIcon.ts';
+
+export { segmentedChip } from './segmentedChip.ts';
+
+export type { SegmentedChipOptions } from './segmentedChip.ts';
 
 export {
   controlSize,
@@ -152,12 +164,12 @@ export { readDialogCommand } from './dialogPayload.ts';
 
 export { modName } from './modName.ts';
 
-export { closeOverlay, openAtTop, overlayId } from './overlay.ts';
+export { closeOverlay, openAtTop, overlayId } from './overlay/overlay.ts';
 
 export { repeat } from './timer.ts';
 
 export { runNormalKeys, takeNormalKeys } from './normalRun.ts';
 
-export { overlayCloseCount, recordOverlayClose } from './overlayOpen.ts';
+export { overlayCloseCount, recordOverlayClose } from './overlay/open.ts';
 
 export { listActionOf, readSection, shownSections } from './section.ts';
