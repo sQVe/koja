@@ -11,6 +11,7 @@ import {
   elementsWithStyle,
 } from '../../tests/drawn.ts';
 import { gpuiBaseFake, gpuiKitFake, herdrFake } from '../../tests/moduleFakes.ts';
+import { rowHeight, separatorHeight } from './size.ts';
 
 interface SplitButtonChoice {
   label: string;
@@ -48,8 +49,9 @@ await mock.module('herdr', () => herdrFake({ theme: () => palette }));
 
 const modulePath = './splitButton.ts';
 
-const { splitButton } = (await import(modulePath)) as {
+const { splitButton, splitButtonOpenHeight } = (await import(modulePath)) as {
   splitButton: (options: SplitButtonOptions) => DrawnElement;
+  splitButtonOpenHeight: (choices: readonly SplitButtonChoice[]) => number;
 };
 
 afterAll(() => {
@@ -187,6 +189,30 @@ describe('splitButton', () => {
     ]);
 
     expect(drawnIcons(unmarked)).not.toContain('check.svg');
+  });
+
+  test('an open menu leaves room for each row and one more line for a divided choice', () => {
+    const one = [{ label: 'Squash and merge', action: nothing }];
+
+    const two = [...one, { label: 'Merge commit', action: nothing }];
+
+    const divided = [
+      { label: 'Squash and merge', action: nothing },
+      { label: 'Ask agent to merge', divided: true, action: nothing },
+    ];
+
+    expect(splitButtonOpenHeight(two) - splitButtonOpenHeight(one)).toBe(rowHeight.small);
+    expect(splitButtonOpenHeight(divided) - splitButtonOpenHeight(two)).toBe(separatorHeight);
+  });
+
+  test('a divided first choice draws no line above the menu', () => {
+    const divided = openButton([{ label: 'Squash and merge', divided: true, action: nothing }]);
+    const plain = openButton([{ label: 'Squash and merge', action: nothing }]);
+
+    const [dividedMenu] = elementsWithStyle(divided, 'id');
+    const [plainMenu] = elementsWithStyle(plain, 'id');
+
+    expect(dividedMenu?.kids).toHaveLength(plainMenu?.kids.length ?? 0);
   });
 
   test('a divided choice adds one line above the choice', () => {

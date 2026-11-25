@@ -1,5 +1,6 @@
 import { h_flex, v_flex } from 'gpui-base';
 import type { Element } from 'gpui-kit';
+import { div } from 'gpui-kit';
 
 import { icon } from './icon.ts';
 import { listRow } from './listRow.ts';
@@ -62,36 +63,43 @@ const menuRow = (choice: SplitButtonChoice): Element => {
   });
 };
 
+const drawsDivider = (choice: SplitButtonChoice, index: number): boolean =>
+  index > 0 && choice.divided === true;
+
 const menuChildren = (choices: readonly SplitButtonChoice[]): Element[] => {
   const children: Element[] = [];
 
-  for (const choice of choices) {
-    if (choice.divided === true) {
+  choices.forEach((choice, index) => {
+    if (drawsDivider(choice, index)) {
       children.push(separator());
     }
 
     children.push(menuRow(choice));
-  }
+  });
 
   return children;
 };
 
-const labelSegment = (options: SplitButtonOptions): Element =>
-  h_flex()
+const labelSegment = (options: SplitButtonOptions): Element => {
+  const label = div().min_w(0).truncate().child(options.label);
+
+  return h_flex()
     .flex_1()
     .min_w(0)
     .items_center()
     .justify_center()
     .cursor_pointer()
-    .child(options.label)
+    .child(label)
     .on_click((_event, cx) => {
       cx.stop_propagation();
       options.onMainAction();
     });
+};
 
 const chevronSegment = (options: SplitButtonOptions): Element => {
   const palette = colors();
 
+  // As wide as the button is tall, so the segment reads as a square at its right end.
   return h_flex()
     .w(controlSize.dialogButton)
     .flex_none()
@@ -136,7 +144,8 @@ const menu = (options: SplitButtonOptions): Element =>
 // The room an open split button takes, because its menu draws over the content below it.
 export const splitButtonOpenHeight = (choices: readonly SplitButtonChoice[]): number => {
   const rowHeights = choices.reduce(
-    (height, choice) => height + rowHeight.small + (choice.divided === true ? separatorHeight : 0),
+    (height, choice, index) =>
+      height + rowHeight.small + (drawsDivider(choice, index) ? separatorHeight : 0),
     0,
   );
 
