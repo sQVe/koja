@@ -68,13 +68,14 @@ export const pullQueryArgs = (branches: string[], remote: PullRemote | null): st
     args.push('--hostname', remote.host);
   }
 
+  const nameFlag = remote === null ? '-F' : '-f';
   const owner = remote === null ? '{owner}' : remote.owner;
   const repository = remote === null ? '{repo}' : remote.repository;
 
   args.push(
-    '-f',
+    nameFlag,
     `owner=${owner}`,
-    '-f',
+    nameFlag,
     `name=${repository}`,
     '-f',
     `query=${queryText(branches.length)}`,

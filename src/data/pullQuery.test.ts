@@ -51,6 +51,13 @@ describe('pullQueryArgs', () => {
     expect(flagBeforeOf(args, 'name=5678')).toBe('-f');
   });
 
+  test('sends the owner and repository placeholders as fields', () => {
+    const args = pullQueryArgs(['main'], null);
+
+    expect(flagBeforeOf(args, 'owner={owner}')).toBe('-F');
+    expect(flagBeforeOf(args, 'name={repo}')).toBe('-F');
+  });
+
   test('refuses an empty or oversized batch', () => {
     expect(() => pullQueryArgs([], null)).toThrow();
     expect(() => pullQueryArgs(branchesOf(branchesPerQuery + 1), null)).toThrow();

@@ -53,7 +53,11 @@ export const formFieldOf = (args: string[], field: string): string | undefined =
   for (const [index, argument] of args.entries()) {
     const value = args[index + 1];
 
-    if (argument !== '-f' || value === undefined) {
+    if (argument !== '-f' && argument !== '-F') {
+      continue;
+    }
+
+    if (value === undefined) {
       continue;
     }
 
