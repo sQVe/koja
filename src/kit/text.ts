@@ -10,16 +10,21 @@ import { withTextRole } from './textRole.ts';
 import { colors } from './theme.ts';
 import { currentPlatform } from './window.ts';
 
+type LinkCut = 'none' | 'middle';
+
 export const separator = (): Element =>
   div().flex_none().my(spacing.xsmall).h(spacing.hairline).bg(colors().border);
 
 export const detailText = (text: string, color = colors().dim): Element =>
   div().flex_none().text_size(textSize.small).text_color(color).child(text);
 
-export const linkText = (text: string): Element => {
-  const box = div().flex_none();
+// A link that must fit a narrow space cuts in the middle and keeps its whole text on hover.
+export const linkText = (text: string, cut: LinkCut = 'none'): Element => {
+  const cuts = cut === 'middle';
+  const box = cuts ? div().min_w(0) : div().flex_none();
+  const link = withTextRole(box, 'detail', 'foreground').underline().cursor_pointer().child(text);
 
-  return withTextRole(box, 'detail', 'foreground').underline().cursor_pointer().child(text);
+  return cuts ? link.text_ellipsis_middle().flex_shrink(1) : link;
 };
 
 const unbroken = (text: string): string => text.replaceAll(' ', '\u00a0');
