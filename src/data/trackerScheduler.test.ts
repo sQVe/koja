@@ -34,7 +34,6 @@ const ticket = (id: string): TicketFacts => ({
   state: 'In Progress',
   url: `https://linear.app/sqve/issue/${id}`,
   parent: null,
-  failed: false,
 });
 
 const ticketNode = (id: string): Record<string, unknown> => ({
@@ -81,6 +80,30 @@ const gitFactsOf = (
       ...(index === 0 ? { placeFolder: firstPlace } : {}),
     })),
   );
+
+const gitFactsOfRepositories = (
+  entries: { root: string; branch: string; repositoryRoot: string }[],
+): GitFacts => {
+  const places: GitFacts['places'] = {};
+  const worktrees: GitFacts['worktrees'] = {};
+
+  for (const entry of entries) {
+    const entryRepository = repositoryOf(null, `${entry.repositoryRoot}/.git`);
+    const place = placeOf(null, entry.root);
+    const worktree = worktreeOf(null, entry.root);
+
+    places[place.key] = { kind: 'repository', worktree: worktree.key };
+
+    worktrees[worktree.key] = {
+      repository: entryRepository,
+      root: entry.root,
+      branch: entry.branch,
+      linked: false,
+    };
+  }
+
+  return { places, worktrees };
+};
 
 const workspaceRun = (): RunCommand => async (command, args) => {
   if (command !== 'cat') {
@@ -364,6 +387,59 @@ describe('createTrackerScheduler', () => {
     expect(harness.sources).toHaveLength(1);
   });
 
+  test('reads the config from a checkout and not from a bare repository', async () => {
+    const bareRoot = '/code/a.git';
+    const checkoutRoot = '/code/z-checkout';
+    const bareRepository = repositoryOf(null, bareRoot);
+    const barePlace = placeOf(null, bareRoot);
+    const checkoutPlace = placeOf(null, checkoutRoot);
+    const bareWorktree = worktreeOf(null, bareRoot);
+    const checkoutWorktree = worktreeOf(null, checkoutRoot);
+
+    const git: GitFacts = {
+      places: {
+        [barePlace.key]: { kind: 'repository', worktree: bareWorktree.key },
+        [checkoutPlace.key]: { kind: 'repository', worktree: checkoutWorktree.key },
+      },
+      worktrees: {
+        [bareWorktree.key]: {
+          repository: bareRepository,
+          root: bareRoot,
+          branch: 'main',
+          linked: false,
+        },
+        [checkoutWorktree.key]: {
+          repository: bareRepository,
+          root: checkoutRoot,
+          branch: 'me-1036-title-spaces-with-their-linear-tickets',
+          linked: true,
+        },
+      },
+    };
+
+    const configPaths: string[] = [];
+
+    const run: RunCommand = async (command, args) => {
+      if (command !== 'cat') {
+        return { code: 1, stdout: '', stderr: `unexpected ${command} ${args.join(' ')}` };
+      }
+
+      configPaths.push(args[0] ?? '');
+
+      return { code: 0, stdout: 'workspace = "sqve"\n', stderr: '' };
+    };
+
+    const harness = harnessOf(run);
+
+    reads = [{ kind: 'read', tickets: [ticket('ME-1036')] }];
+
+    harness.scheduler.tick(git, readTickets(harness));
+    await settle();
+
+    expect(configPaths).toEqual([`${checkoutRoot}/.linear.toml`]);
+    expect(harness.scheduler.trackers()[bareRepository.key]?.failed).toBe(false);
+  });
+
   test('keeps the last good titles when Linear answers a service error', async () => {
     const seeded: RepositoryTracker = {
       workspace: 'sqve',
@@ -604,6 +680,91 @@ describe('createTrackerScheduler', () => {
     await settle();
 
     expect(harness.scheduler.trackers()).toEqual({
+      [repository.key]: {
+        workspace: 'sqve',
+        tickets: { 'ME-1036': ticket('ME-1036') },
+        failed: false,
+      },
+    });
+  });
+
+  test('starts at most two tracker reads at once', async () => {
+    const harness = harnessOf();
+
+    const git = gitFactsOfRepositories([
+      { root: '/code/a', branch: 'me-1-a', repositoryRoot: '/code/a' },
+      { root: '/code/b', branch: 'me-2-b', repositoryRoot: '/code/b' },
+      { root: '/code/c', branch: 'me-3-c', repositoryRoot: '/code/c' },
+    ]);
+
+    const pending = [pendingRead(), pendingRead(), pendingRead()];
+    let readIndex = 0;
+
+    const runner = async (source: TicketSource): Promise<TicketRead> => {
+      harness.sources.push(source);
+
+      const read = pending[readIndex];
+
+      readIndex += 1;
+
+      if (read === undefined) {
+        throw new Error('unexpected read');
+      }
+
+      return read.promise;
+    };
+
+    harness.scheduler.tick(git, runner);
+    await settle();
+
+    expect(harness.sources).toHaveLength(2);
+
+    harness.scheduler.tick(git, runner);
+    await settle();
+
+    expect(harness.sources).toHaveLength(2);
+
+    pending[0]?.resolve({ kind: 'read', tickets: [ticket('ME-1')] });
+    await settle();
+
+    harness.scheduler.tick(git, runner);
+    await settle();
+
+    expect(harness.sources).toHaveLength(3);
+
+    pending[1]?.resolve({ kind: 'read', tickets: [ticket('ME-2')] });
+    pending[2]?.resolve({ kind: 'read', tickets: [ticket('ME-3')] });
+    await settle();
+  });
+
+  test('keeps a successful read when publish throws', async () => {
+    let published = 0;
+
+    const scheduler = createTrackerScheduler({
+      run: workspaceRun(),
+      now: () => now,
+      publish: () => {
+        published += 1;
+
+        if (published === 1) {
+          throw new Error('publish failed');
+        }
+      },
+    });
+
+    const git = gitFactsOf(['me-1036-title-spaces-with-their-linear-tickets']);
+
+    const runner = async (): Promise<TicketRead> => ({
+      kind: 'read',
+      tickets: [ticket('ME-1036')],
+    });
+
+    scheduler.tick(git, runner);
+    await settle();
+
+    expect(published).toBe(1);
+
+    expect(scheduler.trackers()).toEqual({
       [repository.key]: {
         workspace: 'sqve',
         tickets: { 'ME-1036': ticket('ME-1036') },

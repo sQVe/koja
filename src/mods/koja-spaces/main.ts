@@ -16,6 +16,7 @@ import {
 
 import type { DataState } from '../../data/consumer.ts';
 import { readDataState } from '../../data/consumer.ts';
+import { folderNameOf } from '../../data/fields.ts';
 import { startDataHost } from '../../data/host.ts';
 import { ticketIdOf } from '../../data/linearTickets.ts';
 import { placeOfSpace, placesOf } from '../../data/places.ts';
@@ -90,15 +91,12 @@ const storage = {
   },
 };
 
-const folderName = (path: string): string =>
-  path.split('/').findLast((part) => part !== '') ?? path;
-
 const ticketTitleAt = (state: DataState, row: ListedSpace): string | null => {
   if (state.kind === 'unavailable' || row.git === null) {
     return null;
   }
 
-  const id = ticketIdOf(row.git.branch, folderName(row.git.root));
+  const id = ticketIdOf(row.git.branch, folderNameOf(row.git.root));
 
   if (id === null) {
     return null;

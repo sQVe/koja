@@ -29,6 +29,7 @@ type BatchRead =
 interface AnswerBody {
   data: Record<string, unknown> | null;
   retryIds: string[];
+  hasErrors: boolean;
 }
 
 export const ticketBatchSize = 50;
@@ -86,6 +87,14 @@ const queryText = (ticketCount: number): string => {
 };
 
 export const ticketQueryArgs = (ids: string[]): string[] => {
+  if (ids.length === 0) {
+    throw new Error('ticketQueryArgs takes at least 1 ticket id');
+  }
+
+  if (ids.length > ticketBatchSize) {
+    throw new Error(`ticketQueryArgs takes at most ${ticketBatchSize} ticket ids`);
+  }
+
   const args = ['api'];
 
   for (const [index, id] of ids.entries()) {
@@ -129,7 +138,7 @@ const ticketFactsOf = (value: unknown): TicketFacts | null => {
     return null;
   }
 
-  return { id, title, state, url, parent, failed: false };
+  return { id, title, state, url, parent };
 };
 
 const ticketAliasPattern = /^ticket(\d+)$/;
@@ -180,16 +189,18 @@ const answerBodyOf = (result: ExecResult, ids: string[]): AnswerBody => {
   try {
     body = JSON.parse(result.stdout);
   } catch {
-    return { data: null, retryIds: [] };
+    return { data: null, retryIds: [], hasErrors: false };
   }
 
   if (!isRecord(body)) {
-    return { data: null, retryIds: [] };
+    return { data: null, retryIds: [], hasErrors: false };
   }
 
+  const errors = body['errors'];
+  const hasErrors = Array.isArray(errors) && errors.length > 0;
   const data = result.code === 0 && isRecord(body['data']) ? body['data'] : null;
 
-  return { data, retryIds: retryIdsOf(body['errors'], ids) };
+  return { data, retryIds: retryIdsOf(errors, ids), hasErrors };
 };
 
 const ticketsOfAliases = (data: Record<string, unknown>, ids: string[]): TicketFacts[] | null => {
@@ -217,17 +228,21 @@ const queryTickets = async (
   const result = await run('linear', args, { cwd: source.cwd, on: source.machine });
   const answer = answerBodyOf(result, ids);
 
+  if (answer.hasErrors) {
+    if (answer.retryIds.length === 0) {
+      return { kind: 'failed' };
+    }
+
+    return { kind: 'retry', ids: answer.retryIds };
+  }
+
   if (answer.data !== null) {
     const tickets = ticketsOfAliases(answer.data, ids);
 
     return tickets === null ? { kind: 'failed' } : { kind: 'tickets', tickets };
   }
 
-  if (answer.retryIds.length === 0) {
-    return { kind: 'failed' };
-  }
-
-  return { kind: 'retry', ids: answer.retryIds };
+  return { kind: 'failed' };
 };
 
 // Linear answers no data for the whole query when one issue id does not exist, and the error path

@@ -83,7 +83,6 @@ const ticketOf = (id: string): TicketFacts => ({
   state: 'Todo',
   url: `https://linear.app/sqve/issue/${id}`,
   parent: null,
-  failed: false,
 });
 
 const unknownIdAnswer = (index: number): Answer => ({
@@ -161,6 +160,18 @@ describe('ticketQueryArgs', () => {
     expect(args).toContain('id0=ME-1');
     expect(args).toContain('id1=ME-2');
   });
+
+  test('refuses an empty list', () => {
+    expect(() => ticketQueryArgs([])).toThrow('ticketQueryArgs takes at least 1 ticket id');
+  });
+
+  test('refuses more tickets than one batch', () => {
+    const ids = Array.from({ length: ticketBatchSize + 1 }, (_, index) => `ME-${index + 1}`);
+
+    expect(() => ticketQueryArgs(ids)).toThrow(
+      `ticketQueryArgs takes at most ${ticketBatchSize} ticket ids`,
+    );
+  });
 });
 
 describe('readTickets', () => {
@@ -185,7 +196,6 @@ describe('readTickets', () => {
           state: 'In Progress',
           url: 'https://linear.app/sqve/issue/ME-1036/title-spaces-with-their-linear-tickets',
           parent: 'ME-1031',
-          failed: false,
         },
         {
           id: 'ME-1035',
@@ -193,7 +203,6 @@ describe('readTickets', () => {
           state: 'Done',
           url: 'https://linear.app/sqve/issue/ME-1035/read-what-each-pr-needs-for-the-sidebar',
           parent: 'ME-1031',
-          failed: false,
         },
       ],
     });
@@ -304,6 +313,56 @@ describe('readTickets', () => {
 
     expect(read).toEqual({ kind: 'failed' });
     expect(calls).toHaveLength(1);
+  });
+
+  test('fails on an answer with both data and errors that name no id', async () => {
+    const calls: string[][] = [];
+
+    const body = JSON.stringify({
+      data: ticketsAnswer(),
+      errors: [{ message: 'Service unavailable' }],
+    });
+
+    const read = await readTickets(
+      runWith([{ body }], calls),
+      sourceOf(['ME-1036', 'ME-1035']),
+      () => true,
+    );
+
+    expect(read).toEqual({ kind: 'failed' });
+    expect(calls).toHaveLength(1);
+  });
+
+  test('retries the id named by errors even when the answer also has data', async () => {
+    const calls: string[][] = [];
+
+    const run: RunCommand = async (_command, args) => {
+      calls.push(args);
+
+      const asked = idsOf(args);
+
+      const data = Object.fromEntries(
+        asked.map((id, index) => [`ticket${index}`, ticketNodeOf(id)]),
+      );
+
+      if (calls.length === 1) {
+        return {
+          code: 0,
+          stdout: JSON.stringify({
+            data,
+            errors: [{ message: 'Entity not found: Issue', path: ['ticket0'] }],
+          }),
+          stderr: '',
+        };
+      }
+
+      return { code: 0, stdout: JSON.stringify({ data }), stderr: '' };
+    };
+
+    const read = await readTickets(run, sourceOf(['ME-1036', 'ME-9999']), () => true);
+
+    expect(read).toEqual({ kind: 'read', tickets: [ticketOf('ME-1036'), ticketOf('ME-9999')] });
+    expect(calls).toHaveLength(3);
   });
 
   test('fails when a retry command fails', async () => {

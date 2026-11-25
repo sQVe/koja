@@ -64,7 +64,6 @@ const ticketFacts = (): RawRecord => ({
   state: 'In Progress',
   url: 'https://linear.app/sqve/issue/ME-1',
   parent: null,
-  failed: false,
 });
 
 const trackerFacts = (): RawRecord => ({
@@ -471,7 +470,6 @@ describe('parseSnapshot', () => {
       state: 'In Progress',
       url: 'https://linear.app/sqve/issue/ME-1/title-spaces-with-their-linear-tickets',
       parent: null,
-      failed: false,
     });
   });
 
@@ -805,9 +803,9 @@ describe('parseSnapshot', () => {
       },
     ],
     [
-      'a ticket failed flag that is not a boolean',
+      'a ticket with a retired failed flag',
       (snapshot) => {
-        ticketAt(snapshot, repositoryKey, 'ME-1').failed = 'no';
+        ticketAt(snapshot, repositoryKey, 'ME-1').failed = false;
       },
     ],
     [

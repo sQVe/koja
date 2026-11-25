@@ -35,7 +35,6 @@ export interface TicketFacts {
   state: string;
   url: string;
   parent: string | null;
-  failed: boolean;
 }
 
 export interface RepositoryTracker {
@@ -294,7 +293,7 @@ const parseTicketFacts = (value: unknown): TicketFacts | null => {
     return null;
   }
 
-  if (!hasOnlyKeys(value, ['id', 'title', 'state', 'url', 'parent', 'failed'])) {
+  if (!hasOnlyKeys(value, ['id', 'title', 'state', 'url', 'parent'])) {
     return null;
   }
 
@@ -328,13 +327,7 @@ const parseTicketFacts = (value: unknown): TicketFacts | null => {
     return null;
   }
 
-  const failed = value.failed;
-
-  if (typeof failed !== 'boolean') {
-    return null;
-  }
-
-  return { id, title, state, url, parent, failed };
+  return { id, title, state, url, parent };
 };
 
 const parseRepositoryTracker = (value: unknown): RepositoryTracker | null => {
@@ -442,12 +435,12 @@ const parseTrackers = (
   return Object.fromEntries(entries);
 };
 
-const parseFacts = (value: unknown, parsePull: StoredPullParser): Facts | null => {
-  if (!isRecord(value)) {
-    return null;
-  }
-
-  if (!hasOnlyKeys(value, ['git', 'pulls', 'trackers'])) {
+const parseGitAndPulls = (
+  value: Record<string, unknown>,
+  parsePull: StoredPullParser,
+  keys: readonly string[],
+): Pick<Facts, 'git' | 'pulls'> | null => {
+  if (!hasOnlyKeys(value, keys)) {
     return null;
   }
 
@@ -463,13 +456,27 @@ const parseFacts = (value: unknown, parsePull: StoredPullParser): Facts | null =
     return null;
   }
 
-  const trackers = parseTrackers(value.trackers, git.worktrees);
+  return { git, pulls };
+};
+
+const parseFacts = (value: unknown, parsePull: StoredPullParser): Facts | null => {
+  if (!isRecord(value)) {
+    return null;
+  }
+
+  const gitAndPulls = parseGitAndPulls(value, parsePull, ['git', 'pulls', 'trackers']);
+
+  if (gitAndPulls === null) {
+    return null;
+  }
+
+  const trackers = parseTrackers(value.trackers, gitAndPulls.git.worktrees);
 
   if (trackers === null) {
     return null;
   }
 
-  return { git, pulls, trackers };
+  return { ...gitAndPulls, trackers };
 };
 
 const parseFactsWithoutTrackers = (value: unknown, parsePull: StoredPullParser): Facts | null => {
@@ -477,23 +484,13 @@ const parseFactsWithoutTrackers = (value: unknown, parsePull: StoredPullParser):
     return null;
   }
 
-  if (!hasOnlyKeys(value, ['git', 'pulls'])) {
+  const gitAndPulls = parseGitAndPulls(value, parsePull, ['git', 'pulls']);
+
+  if (gitAndPulls === null) {
     return null;
   }
 
-  const git = parseGitFacts(value.git);
-
-  if (git === null) {
-    return null;
-  }
-
-  const pulls = parsePulls(value.pulls, git.worktrees, parsePull);
-
-  if (pulls === null) {
-    return null;
-  }
-
-  return { git, pulls, trackers: {} };
+  return { ...gitAndPulls, trackers: {} };
 };
 
 const parseGitOnlyFacts = (value: unknown): Facts | null => {

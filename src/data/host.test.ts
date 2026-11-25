@@ -678,7 +678,6 @@ describe('startDataHost', () => {
       state: 'In Progress',
       url: 'https://linear.app/sqve/issue/ME-1036',
       parent: null,
-      failed: false,
     };
 
     gitBranch = 'me-1036-title-spaces-with-their-linear-tickets';

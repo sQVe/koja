@@ -32,8 +32,7 @@
             "title": "Title spaces with their Linear tickets",
             "state": "In Progress",
             "url": "https://linear.app/sqve/issue/ME-1/title-spaces-with-their-linear-tickets",
-            "parent": null,
-            "failed": false
+            "parent": null
           }
         },
         "failed": false

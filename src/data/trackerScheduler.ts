@@ -1,3 +1,4 @@
+import { folderNameOf } from './fields.ts';
 import type { RunCommand } from './gitIdentity.ts';
 import type { TicketRead, TicketSource } from './linearTickets.ts';
 import { linearWorkspaceOf, ticketIdOf } from './linearTickets.ts';
@@ -27,6 +28,7 @@ interface RepositorySource {
   key: string;
   cwd: string;
   configCwd: string | null;
+  checkoutCwd: string | null;
   machine: string | null;
   branches: (string | null)[];
   ids: string[];
@@ -34,8 +36,12 @@ interface RepositorySource {
 
 type WorkspaceRead = { kind: 'read'; workspace: string } | { kind: 'failed' };
 
-const folderNameOf = (path: string): string =>
-  path.split('/').findLast((part) => part !== '') ?? path;
+type ReadOutcome =
+  | { kind: 'tracker'; tracker: RepositoryTracker }
+  | { kind: 'dropped' }
+  | { kind: 'failed' };
+
+const readLimit = 2;
 
 const worktreesByRepository = (git: GitFacts): Map<string, WorktreeGit[]> => {
   const grouped = new Map<string, WorktreeGit[]>();
@@ -114,8 +120,14 @@ const cwdOf = (git: GitFacts, repositoryKey: string, worktrees: WorktreeGit[]): 
   return worktrees.map((worktree) => worktree.root).toSorted()[0] ?? '';
 };
 
+const isBareWorktree = (worktree: WorktreeGit): boolean =>
+  worktree.root === worktree.repository.commonDirectory;
+
 const configCwdOf = (worktrees: WorktreeGit[]): string | null =>
-  worktrees.find((worktree) => !worktree.linked)?.root ?? null;
+  worktrees.find((worktree) => !worktree.linked && !isBareWorktree(worktree))?.root ?? null;
+
+const checkoutCwdOf = (worktrees: WorktreeGit[]): string | null =>
+  worktrees.find((worktree) => !isBareWorktree(worktree))?.root ?? null;
 
 const mainWorktreeOf = (porcelain: string): string | null => {
   const [first] = porcelain.split(/\n\s*\n/);
@@ -144,6 +156,7 @@ const sourcesOf = (git: GitFacts): Map<string, RepositorySource> => {
       key,
       cwd,
       configCwd: configCwdOf(worktrees),
+      checkoutCwd: checkoutCwdOf(worktrees),
       machine: first.repository.machine,
       branches: branchesOf(worktrees),
       ids: idsOf(git, key),
@@ -205,10 +218,17 @@ class Scheduler implements TrackerScheduler {
     }
 
     const now = this.dependencies.now();
+    const free = Math.max(0, readLimit - this.running.size);
+    let started = 0;
 
     for (const source of sourcesOf(git).values()) {
+      if (started >= free) {
+        break;
+      }
+
       if (this.shouldRead(source, now)) {
         this.startRead(source, readTickets, now);
+        started += 1;
       }
     }
   }
@@ -239,30 +259,51 @@ class Scheduler implements TrackerScheduler {
     this.running.add(source.key);
     this.reads.set(source.key, { at: now, branches: source.branches });
 
-    this.read(source, readTickets).catch(() => {
-      this.finish(source.key, {
-        workspace: null,
-        tickets: this.previousTickets(source.key),
-        failed: true,
-      });
-    });
+    // A publish failure must not undo the read that finished before it.
+    this.runRead(source, readTickets).catch(() => undefined);
   }
 
-  private async read(source: RepositorySource, readTickets: TicketRunner): Promise<void> {
-    const workspace = await this.workspaceOf(source);
+  private async runRead(source: RepositorySource, readTickets: TicketRunner): Promise<void> {
+    let outcome: ReadOutcome;
 
-    if (this.stopped) {
+    try {
+      outcome = await this.read(source, readTickets);
+    } catch {
+      outcome = { kind: 'failed' };
+    }
+
+    this.applyRead(source.key, outcome);
+  }
+
+  private applyRead(key: string, outcome: ReadOutcome): void {
+    if (outcome.kind === 'dropped') {
+      this.running.delete(key);
+
       return;
     }
 
-    if (workspace.kind === 'failed') {
-      this.finish(source.key, {
+    if (outcome.kind === 'failed') {
+      this.finish(key, {
         workspace: null,
-        tickets: this.previousTickets(source.key),
+        tickets: this.previousTickets(key),
         failed: true,
       });
 
       return;
+    }
+
+    this.finish(key, outcome.tracker);
+  }
+
+  private async read(source: RepositorySource, readTickets: TicketRunner): Promise<ReadOutcome> {
+    const workspace = await this.workspaceOf(source);
+
+    if (this.stopped) {
+      return { kind: 'dropped' };
+    }
+
+    if (workspace.kind === 'failed') {
+      return { kind: 'failed' };
     }
 
     const read = await readTickets({
@@ -273,15 +314,13 @@ class Scheduler implements TrackerScheduler {
     });
 
     if (read.kind === 'dropped') {
-      this.running.delete(source.key);
-
-      return;
+      return { kind: 'dropped' };
     }
 
     const previous = this.trackersByRepository[source.key];
     const next = trackerAfter(workspace.workspace, read, previous);
 
-    this.finish(source.key, next);
+    return { kind: 'tracker', tracker: next };
   }
 
   private previousTickets(key: string): Record<string, TicketFacts> {
@@ -299,7 +338,7 @@ class Scheduler implements TrackerScheduler {
     this.dependencies.publish();
   }
 
-  private async configCwdFor(source: RepositorySource): Promise<string> {
+  private async configCwdFor(source: RepositorySource): Promise<string | null> {
     if (source.configCwd !== null) {
       return source.configCwd;
     }
@@ -309,15 +348,24 @@ class Scheduler implements TrackerScheduler {
       on: source.machine,
     });
 
-    if (result.code !== 0) {
-      return source.cwd;
+    if (result.code === 0) {
+      const main = mainWorktreeOf(result.stdout);
+
+      if (main !== null) {
+        return main;
+      }
     }
 
-    return mainWorktreeOf(result.stdout) ?? source.cwd;
+    return source.checkoutCwd;
   }
 
   private async workspaceOf(source: RepositorySource): Promise<WorkspaceRead> {
     const configCwd = await this.configCwdFor(source);
+
+    if (configCwd === null) {
+      return { kind: 'failed' };
+    }
+
     const path = `${configCwd}/.linear.toml`;
 
     const result = await this.dependencies.run('cat', [path], {

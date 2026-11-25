@@ -1291,7 +1291,6 @@ const ticketFacts = (id: string, title: string) => ({
   state: 'Todo',
   url: `https://linear.app/koja/issue/${id}`,
   parent: null,
-  failed: false,
 });
 
 const useTicketFacts = (): void => {
