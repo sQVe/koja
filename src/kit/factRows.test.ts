@@ -35,7 +35,12 @@ afterAll(() => {
 const facts: Fact[] = [
   { label: 'Project', value: 'Koja' },
   { label: 'Parent', value: 'ME-1087', link: { source: 'Linear' } },
-  { label: 'Related PR', value: '#52', link: { source: 'GitHub', repository: 'koja' } },
+  {
+    label: 'Related PR',
+    value: '#52',
+    link: { source: 'GitHub', repository: 'koja' },
+    status: 'open',
+  },
 ];
 
 const factTexts = [
@@ -45,6 +50,7 @@ const factTexts = [
   'ME-1087 · Linear',
   'Related PR',
   'koja #52 · GitHub',
+  '· open',
 ];
 
 describe('factRows', () => {
@@ -84,5 +90,15 @@ describe('factPairs', () => {
 
   test('a pair draws its label and its value together', () => {
     expect(drawnTexts(factPairs(facts))).toEqual(factTexts);
+  });
+
+  test('a status follows its value in the dim ink and keeps its width', () => {
+    const pairs = factPairs(facts);
+    const statusPair = pairs.kids[2];
+    const status = elementWithText(pairs, '· open');
+
+    expect(statusPair?.kids[1]?.styles['flex_shrink']).toEqual([1]);
+    expect(status?.textColors).toEqual([palette.dim]);
+    expect(status?.styles['flex_none']).toBeDefined();
   });
 });
