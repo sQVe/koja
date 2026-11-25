@@ -14,6 +14,7 @@ import { dialogs } from './dialogs.ts';
 import { headers } from './headers.ts';
 import { icons } from './icons.ts';
 import { marks } from './marks.ts';
+import { overlays } from './overlays.ts';
 import { popupSurfaces } from './popup.ts';
 import { rows } from './rows.ts';
 import { searchAndText } from './searchAndText.ts';
@@ -108,6 +109,7 @@ export default class Gallery extends View {
       .child(section('Dialogs', dialogs(this.renameField)))
       .child(section('Tabs', tabs()))
       .child(section('Popup surface', popupSurfaces()))
+      .child(section('Overlay parts', overlays()))
       .child(section('Search and text', searchAndText(this.search)));
   }
 }
