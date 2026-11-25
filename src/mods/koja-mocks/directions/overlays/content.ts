@@ -65,11 +65,15 @@ export const paletteGroups: CommandGroup[] = [
     name: 'Spaces',
     letter: 's',
     commands: [
-      { title: 'Find a space…', keys: ['s', 'f'], icon: 'search' },
       { title: 'New space', keys: ['s', 'n'], icon: 'plus' },
       { title: 'Rename space', keys: ['s', 'r'], icon: 'square-pen' },
       { title: 'Next space', keys: ['s', 'j'], icon: 'chevron-right' },
     ],
+  },
+  {
+    name: 'Go to',
+    letter: 'g',
+    commands: [{ title: 'Find a space…', keys: ['g', 'p'], icon: 'search' }],
   },
 ];
 
