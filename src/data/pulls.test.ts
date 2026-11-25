@@ -1,12 +1,13 @@
 import { describe, expect, test } from 'bun:test';
 
-import type { ExecResult } from 'herdr';
-
+import { bodyOf, githubFixture, runWith } from '../../tests/pullAnswers.ts';
 import { pullFacts } from '../../tests/pullFacts.ts';
 import type { RunCommand } from './gitIdentity.ts';
 import { repositoryOf } from './gitIdentity.ts';
+import { pullQueryArgs } from './pullQuery.ts';
 import type { Pull } from './pulls.ts';
-import { parseStoredPull, readPullList, readRepositoryPulls } from './pulls.ts';
+import { parseStoredPull, readRepositoryPulls } from './pulls.ts';
+import type { PullSource } from './pullSources.ts';
 
 interface Call {
   command: string;
@@ -14,27 +15,32 @@ interface Call {
   options: { cwd: string; on: string | null };
 }
 
-const result = (stdout: string): ExecResult => ({ code: 0, stdout, stderr: '' });
-
-const failure = (): ExecResult => ({ code: 1, stdout: '', stderr: '' });
-
-const failureWith = (stdout: string): ExecResult => ({ code: 1, stdout, stderr: '' });
-
-const throwingRun: RunCommand = async () => {
-  throw new Error('git is away');
-};
-
 const repository = repositoryOf('qa-remote', '/repo/.git');
 
-const threadsWith = (unresolved: number): unknown => ({
-  kind: 'read',
-  value: { unresolved, complete: true },
+const sourceOf = (branches: string[] = ['main']): PullSource => ({
+  repository,
+  cwd: '/repo',
+  branches,
 });
 
 const alwaysOwner = (): boolean => true;
 
 const pull = (fields: Partial<Pull>): Pull =>
   pullFacts({ number: 1, headRefName: 'main', title: 'Title', ...fields });
+
+const threadsWith = (unresolved: number): unknown => ({
+  kind: 'read',
+  value: { unresolved, complete: true },
+});
+
+const readOf = (
+  body: string,
+  branches: string[] = ['main'],
+  code = 0,
+): ReturnType<typeof readRepositoryPulls> =>
+  readRepositoryPulls(runWith([{ body, code }]), sourceOf(branches), alwaysOwner);
+
+const emptyBody = (branchCount: number): string => bodyOf(branchCount);
 
 describe('readRepositoryPulls', () => {
   test('passes the repository machine to both commands', async () => {
@@ -43,59 +49,54 @@ describe('readRepositoryPulls', () => {
     const run: RunCommand = async (command, args, options) => {
       calls.push({ command, args, options });
 
-      return command === 'git' ? result('origin\n') : result('[]');
+      return command === 'git'
+        ? { code: 0, stdout: 'origin\n', stderr: '' }
+        : { code: 0, stdout: emptyBody(1), stderr: '' };
     };
 
-    await readRepositoryPulls(run, repository, '/repo', alwaysOwner);
+    await readRepositoryPulls(run, sourceOf(), alwaysOwner);
 
     expect(calls).toEqual([
       { command: 'git', args: ['remote'], options: { cwd: '/repo', on: 'qa-remote' } },
       {
         command: 'gh',
-        args: [
-          'pr',
-          'list',
-          '--state',
-          'all',
-          '--limit',
-          '100',
-          '--json',
-          'number,state,isDraft,title,headRefName',
-        ],
+        args: pullQueryArgs(['main']),
         options: { cwd: '/repo', on: 'qa-remote' },
       },
     ]);
   });
 
   test('reads no PRs for a repository without a remote', async () => {
-    const calls: Call[] = [];
-
-    const run: RunCommand = async (command, args, options) => {
-      calls.push({ command, args, options });
-
-      return result('');
-    };
-
-    expect(await readRepositoryPulls(run, repository, '/repo', alwaysOwner)).toEqual({
-      kind: 'read',
-      pulls: [],
-    });
-
-    expect(calls.map((call) => call.command)).toEqual(['git']);
-  });
-
-  test('reads no PRs when git remote prints only whitespace', async () => {
     const calls: string[] = [];
 
     const run: RunCommand = async (command) => {
       calls.push(command);
 
-      return result(' \n');
+      return { code: 0, stdout: '', stderr: '' };
     };
 
-    expect(await readRepositoryPulls(run, repository, '/repo', alwaysOwner)).toEqual({
+    expect(await readRepositoryPulls(run, sourceOf(), alwaysOwner)).toEqual({
       kind: 'read',
       pulls: [],
+      rateLimit: null,
+    });
+
+    expect(calls).toEqual(['git']);
+  });
+
+  test('reads no PRs for a repository without branches and calls no gh', async () => {
+    const calls: string[] = [];
+
+    const run: RunCommand = async (command) => {
+      calls.push(command);
+
+      return { code: 0, stdout: 'origin\n', stderr: '' };
+    };
+
+    expect(await readRepositoryPulls(run, sourceOf([]), alwaysOwner)).toEqual({
+      kind: 'read',
+      pulls: [],
+      rateLimit: null,
     });
 
     expect(calls).toEqual(['git']);
@@ -107,11 +108,12 @@ describe('readRepositoryPulls', () => {
     const run: RunCommand = async (command) => {
       calls.push(command);
 
-      return failure();
+      return { code: 1, stdout: '', stderr: '' };
     };
 
-    expect(await readRepositoryPulls(run, repository, '/repo', alwaysOwner)).toEqual({
+    expect(await readRepositoryPulls(run, sourceOf(), alwaysOwner)).toEqual({
       kind: 'failed',
+      rateLimited: false,
     });
 
     expect(calls).toEqual(['git']);
@@ -123,104 +125,77 @@ describe('readRepositoryPulls', () => {
     const run: RunCommand = async (command) => {
       calls.push(command);
 
-      return result('origin\n');
+      return { code: 0, stdout: 'origin\n', stderr: '' };
     };
 
-    expect(await readRepositoryPulls(run, repository, '/repo', () => false)).toEqual({
-      kind: 'dropped',
-    });
-
+    expect(await readRepositoryPulls(run, sourceOf(), () => false)).toEqual({ kind: 'dropped' });
     expect(calls).toEqual(['git']);
   });
 
-  test('fails when gh fails', async () => {
-    const run: RunCommand = async (command) => (command === 'git' ? result('origin\n') : failure());
-
-    expect(await readRepositoryPulls(run, repository, '/repo', alwaysOwner)).toEqual({
-      kind: 'failed',
-    });
-  });
-
-  test('fails when gh exits nonzero with valid JSON', async () => {
-    const run: RunCommand = async (command) =>
-      command === 'git' ? result('origin\n') : failureWith('[]');
-
-    expect(await readRepositoryPulls(run, repository, '/repo', alwaysOwner)).toEqual({
-      kind: 'failed',
-    });
-  });
-
   test('fails when the gh output is not JSON', async () => {
-    const run: RunCommand = async (command) =>
-      command === 'git' ? result('origin\n') : result('not json');
+    expect(await readOf('not json')).toEqual({ kind: 'failed', rateLimited: false });
+  });
 
-    expect(await readRepositoryPulls(run, repository, '/repo', alwaysOwner)).toEqual({
+  test('fails when the answer has no repository', async () => {
+    expect(await readOf(JSON.stringify({ data: {} }))).toEqual({
       kind: 'failed',
+      rateLimited: false,
     });
   });
 
-  test('fails when the gh JSON is not a list', async () => {
-    const run: RunCommand = async (command) =>
-      command === 'git' ? result('origin\n') : result('{}');
+  test('fails when an alias is missing', async () => {
+    const body = JSON.stringify({
+      data: { rateLimit: null, repository: { open0: { nodes: [] } } },
+    });
 
-    expect(await readRepositoryPulls(run, repository, '/repo', alwaysOwner)).toEqual({
+    expect(await readOf(body)).toEqual({ kind: 'failed', rateLimited: false });
+  });
+
+  test('fails on an error path outside the check and thread paths', async () => {
+    const body = JSON.stringify({
+      data: {
+        rateLimit: null,
+        repository: { open0: { nodes: [] }, latest0: { nodes: [] } },
+      },
+      errors: [{ path: ['repository', 'open0', 'nodes', 0, 'title'] }],
+    });
+
+    expect(await readOf(body)).toEqual({ kind: 'failed', rateLimited: false });
+  });
+
+  test('fails when an open PR node misses a required field', async () => {
+    expect(await readOf(bodyOf(1, { open: { 0: { number: 1 } } }))).toEqual({
       kind: 'failed',
+      rateLimited: false,
     });
   });
 
-  test('reads an empty gh list as a good empty read', async () => {
-    const run: RunCommand = async (command) =>
-      command === 'git' ? result('origin\n') : result('[]');
+  test('keeps a partial answer as a read with the failed part', async () => {
+    const read = await readOf(githubFixture('threads-failed.json'), ['threads-failed']);
 
-    expect(await readRepositoryPulls(run, repository, '/repo', alwaysOwner)).toEqual({
+    expect(read).toMatchObject({
       kind: 'read',
-      pulls: [],
+      pulls: [
+        { checks: { kind: 'read', value: 'failing' }, threads: { kind: 'failed', last: null } },
+      ],
     });
   });
 
-  test('fails when every item in a non-empty gh list is malformed', async () => {
-    const run: RunCommand = async (command) =>
-      command === 'git'
-        ? result('origin\n')
-        : result('[{"number":"1","state":"OPEN","headRefName":"main"}]');
+  test('reads the rate limit from the last batch', async () => {
+    const read = await readOf(emptyBody(1));
 
-    expect(await readRepositoryPulls(run, repository, '/repo', alwaysOwner)).toEqual({
-      kind: 'failed',
+    expect(read).toMatchObject({
+      kind: 'read',
+      rateLimit: { remaining: 4000, resetAt: Date.parse('2026-11-25T12:00:00Z') },
     });
   });
 
-  test('fails when the run throws', async () => {
-    expect(await readRepositoryPulls(throwingRun, repository, '/repo', alwaysOwner)).toEqual({
-      kind: 'failed',
+  test('reads a missing rate limit as null', async () => {
+    const body = JSON.stringify({
+      data: { repository: { open0: { nodes: [] }, latest0: { nodes: [] } } },
     });
-  });
-});
 
-describe('readPullList', () => {
-  test('drops entries missing a number, state, or branch', () => {
-    const list = [
-      { number: 1, state: 'OPEN', headRefName: 'main' },
-      { number: 2, state: 'OPEN' },
-      { state: 'OPEN', headRefName: 'main' },
-    ];
-
-    expect(readPullList(list)).toEqual([pull({ title: '' })]);
-  });
-
-  test('defaults a missing title and draft flag and tolerates extra fields', () => {
-    const list = [
-      { number: 1, state: 'OPEN', headRefName: 'main', isDraft: 'yes', extra: true },
-      { number: 2, state: 'OPEN', headRefName: 'main', title: 42 },
-    ];
-
-    expect(readPullList(list)).toEqual([
-      pull({ number: 1, title: '', isDraft: false }),
-      pull({ number: 2, title: '', isDraft: false }),
-    ]);
-  });
-
-  test('drops an entry whose number is not a number', () => {
-    expect(readPullList([{ number: '1', state: 'OPEN', headRefName: 'main' }])).toEqual([]);
+    expect(await readOf(body)).toMatchObject({ kind: 'read', rateLimit: null });
   });
 });
 

@@ -2,6 +2,7 @@ import { beforeEach, describe, expect, test } from 'bun:test';
 
 import type { ExecResult } from 'herdr';
 
+import { answerFrom } from '../../tests/pullAnswers.ts';
 import { pullFacts } from '../../tests/pullFacts.ts';
 import type { RepositoryIdentity } from './gitIdentity.ts';
 import { placeOf, repositoryOf, worktreeOf } from './gitIdentity.ts';
@@ -75,12 +76,27 @@ const requestFor = (consumer: string, id: string, at = start): PullRetryRequest 
 });
 
 const pullList = (number: number): Pull[] => [
-  pullFacts({ number, headRefName: `feature-${number}`, title: `Pull ${number}` }),
+  pullFacts({
+    number,
+    headRefName: `feature-${number}`,
+    title: `Pull ${number}`,
+    mergeable: 'mergeable',
+    mergeState: 'clean',
+    review: 'approved',
+    checks: { kind: 'read', value: 'passing' },
+    threads: { kind: 'read', value: { unresolved: 0, complete: true } },
+  }),
 ];
 
 const timesAt = (key: string, time: number): PullReadTimes => ({
   [key]: { list: time, checks: {}, threads: {} },
 });
+
+const timesForPulls = (key: string, time: number, numbers: number[]): PullReadTimes => {
+  const parts = Object.fromEntries(numbers.map((number) => [String(number), time]));
+
+  return { [key]: { list: time, checks: parts, threads: parts } };
+};
 
 const gitFactsOf = (
   source: { repository: RepositoryIdentity; folder: string } = defaultSource,
@@ -239,7 +255,10 @@ class PullSchedulerHarness {
   }
 
   async respondPulls(index: number, pulls: Pull[]): Promise<void> {
-    await this.respond(index, { code: 0, stdout: JSON.stringify(pulls), stderr: '' });
+    const call = this.call(index);
+    const branchCount = call.args.filter((argument) => argument.startsWith('branch')).length;
+
+    await this.respond(index, { code: 0, stdout: answerFrom(branchCount, pulls), stderr: '' });
   }
 
   outcomes(): PullRetryOutcome[] {
@@ -293,7 +312,7 @@ describe('createPullScheduler', () => {
     const pullsCall = harness.call(1);
 
     expect(pullsCall.command).toBe('gh');
-    expect(pullsCall.args.slice(0, 2)).toEqual(['pr', 'list']);
+    expect(pullsCall.args.slice(0, 2)).toEqual(['api', 'graphql']);
 
     await harness.respondPulls(1, pullList(7));
 
@@ -412,7 +431,7 @@ describe('createPullScheduler', () => {
     });
 
     expect(readPullReadTimes(harness.store.read, harness.notices)).toEqual(
-      timesAt(repository.key, start),
+      timesForPulls(repository.key, start, [7]),
     );
 
     harness.setNow(start + pullPeriodMilliseconds);
@@ -424,7 +443,7 @@ describe('createPullScheduler', () => {
     });
 
     expect(readPullReadTimes(harness.store.read, harness.notices)).toEqual(
-      timesAt(repository.key, start),
+      timesForPulls(repository.key, start, [7]),
     );
   });
 

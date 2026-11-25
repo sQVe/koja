@@ -4,6 +4,7 @@ import type { ExecResult, FolderWatch } from 'herdr';
 
 import { spaceOf } from '../../tests/gitSchedulerHarness.ts';
 import { herdrFake } from '../../tests/moduleFakes.ts';
+import { answerFrom } from '../../tests/pullAnswers.ts';
 import { pullFacts } from '../../tests/pullFacts.ts';
 import { runSnapshotNoticeScenario } from '../../tests/snapshotNoticeLifetime.ts';
 import { placeOf, repositoryOf, worktreeOf } from './gitIdentity.ts';
@@ -93,14 +94,16 @@ const runFake = async (
     return { code: 0, stdout: 'origin\n', stderr: '' };
   }
 
-  if (command === 'gh' && args[0] === 'pr' && args[1] === 'list') {
+  if (command === 'gh' && args[0] === 'api' && args[1] === 'graphql') {
     if (ghFailures > 0) {
       ghFailures -= 1;
 
       return { code: 1, stdout: '', stderr: 'offline' };
     }
 
-    return { code: 0, stdout: JSON.stringify(pullList), stderr: '' };
+    const branchCount = args.filter((argument) => argument.startsWith('branch')).length;
+
+    return { code: 0, stdout: answerFrom(branchCount, pullList), stderr: '' };
   }
 
   return mainCheckout(args, cwd);
@@ -219,6 +222,18 @@ const storedSnapshot = (pulls: Record<string, RepositoryPulls> = {}): Snapshot =
     },
   };
 };
+
+const readPull = (number: number): Pull =>
+  pullFacts({
+    number,
+    headRefName: `feature-${number}`,
+    title: `Pull ${number}`,
+    mergeable: 'mergeable',
+    mergeState: 'clean',
+    review: 'approved',
+    checks: { kind: 'read', value: 'passing' },
+    threads: { kind: 'read', value: { unresolved: 0, complete: true } },
+  });
 
 beforeEach(() => {
   sharedValues.clear();
@@ -353,7 +368,7 @@ describe('startDataHost', () => {
   });
 
   test('a takeover seeds the PR facts and a recent read time so it starts no read', async () => {
-    const pull = pullFacts({ number: 7, headRefName: 'feature-7', title: 'Pull 7' });
+    const pull = readPull(7);
 
     sharedValues.set(
       snapshotKey,
@@ -389,7 +404,7 @@ describe('startDataHost', () => {
   });
 
   test('a successful Retry clears the failed state and repopulates the titles', async () => {
-    const pull = pullFacts({ number: 7, headRefName: 'feature-7', title: 'Pull 7' });
+    const pull = readPull(7);
 
     pullList = [pull];
     ghFailures = 1;
@@ -477,7 +492,7 @@ describe('startDataHost', () => {
   });
 
   test('an unchanged PR read writes no new snapshot revision', async () => {
-    const pull = pullFacts({ number: 7, headRefName: 'feature-7', title: 'Pull 7' });
+    const pull = readPull(7);
 
     pullList = [pull];
 
@@ -501,10 +516,12 @@ describe('startDataHost', () => {
 
     expect(parseSnapshot(sharedValues.get(snapshotKey))?.revision).toBe(revision);
 
+    const readTime = start + pullPeriodMilliseconds;
+
     expect(sharedValues.get(pullReadTimesKey)).toEqual({
       version: 2,
       repositories: {
-        [repository.key]: { list: start + pullPeriodMilliseconds, checks: {}, threads: {} },
+        [repository.key]: { list: readTime, checks: { '7': readTime }, threads: { '7': readTime } },
       },
     });
 
@@ -512,7 +529,7 @@ describe('startDataHost', () => {
   });
 
   test('PR facts and git facts publish in one snapshot', async () => {
-    const pull = pullFacts({ number: 7, headRefName: 'feature-7', title: 'Pull 7' });
+    const pull = readPull(7);
 
     pullList = [pull];
 
@@ -552,7 +569,7 @@ describe('startDataHost', () => {
   });
 
   test('a git-only facts change keeps the PR facts already read', async () => {
-    const pull = pullFacts({ number: 7, headRefName: 'feature-7', title: 'Pull 7' });
+    const pull = readPull(7);
 
     pullList = [pull];
 

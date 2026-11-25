@@ -7,6 +7,7 @@ import type { GitFacts } from './snapshot.ts';
 interface Worktree {
   folder: string;
   linked: boolean;
+  branch?: string | null;
 }
 
 const repository = repositoryOf(null, '/code/koja/.git');
@@ -23,7 +24,7 @@ const factsOf = (worktrees: readonly Worktree[]): GitFacts => {
     worktreeFacts[identity.key] = {
       repository,
       root: worktree.folder,
-      branch: 'main',
+      branch: worktree.branch === undefined ? 'main' : worktree.branch,
       linked: worktree.linked,
     };
   }
@@ -41,11 +42,24 @@ describe('pullSources', () => {
   });
 
   test('chooses the worktree root of the smallest place key in both input orders', () => {
-    const source = { repository, cwd: '/code/koja-a' };
+    const source = { repository, cwd: '/code/koja-a', branches: ['main'] };
     const mainFirst = [...pullSources(factsOf([main, linked])).values()];
     const linkedFirst = [...pullSources(factsOf([linked, main])).values()];
 
     expect(mainFirst).toEqual([source]);
     expect(linkedFirst).toEqual([source]);
+  });
+
+  test('collects the sorted unique branches of every worktree of one repository', () => {
+    const facts = factsOf([
+      { folder: '/code/koja-z', linked: false, branch: 'zeta' },
+      { folder: '/code/koja-a', linked: true, branch: 'alpha' },
+      { folder: '/code/koja-m', linked: true, branch: 'zeta' },
+      { folder: '/code/koja-d', linked: true, branch: null },
+    ]);
+
+    const [source] = [...pullSources(facts).values()];
+
+    expect(source?.branches).toEqual(['alpha', 'zeta']);
   });
 });

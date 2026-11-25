@@ -1,6 +1,7 @@
 import type { RunCommand } from './gitIdentity.ts';
 import type { Lease, ReadShared } from './lease.ts';
 import { sameHolder } from './lease.ts';
+import { mergePulls, mergeReadTimes } from './pullMerge.ts';
 import type { PullReadTimes } from './pullReadTimes.ts';
 import type { PullRetryOutcome, PullRetryRequest, PullRetryResult } from './pullRetry.ts';
 import {
@@ -208,11 +209,8 @@ class Scheduler implements PullScheduler {
     this.running.set(key, { sequence, waiters: new Map(waiters) });
 
     spawn(async () => {
-      const read = await readRepositoryPulls(
-        this.dependencies.run,
-        source.repository,
-        source.cwd,
-        () => this.stillOwner(),
+      const read = await readRepositoryPulls(this.dependencies.run, source, () =>
+        this.stillOwner(),
       );
 
       this.apply(key, sequence, read);
@@ -286,8 +284,11 @@ class Scheduler implements PullScheduler {
 
   private writeRead(key: string, read: SettledPullRead): void {
     if (read.kind === 'read') {
-      this.pullsByRepository[key] = { pulls: read.pulls, failed: false };
-      this.readTimes[key] = { list: this.dependencies.now(), checks: {}, threads: {} };
+      const now = this.dependencies.now();
+      const pulls = mergePulls(this.pullsByRepository[key]?.pulls ?? [], read.pulls);
+
+      this.pullsByRepository[key] = { pulls, failed: false };
+      this.readTimes[key] = mergeReadTimes(this.readTimes[key], pulls, now);
 
       return;
     }
