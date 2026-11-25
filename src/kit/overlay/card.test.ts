@@ -3,6 +3,7 @@ import { afterAll, describe, expect, mock, test } from 'bun:test';
 import type { DrawnElement } from '../../../tests/drawn.ts';
 import { drawn } from '../../../tests/drawn.ts';
 import { gpuiBaseFake, gpuiKitFake, herdrFake } from '../../../tests/moduleFakes.ts';
+import { radius, spacing } from '../size.ts';
 
 const palette = {
   border: '#999ca7',
@@ -28,12 +29,12 @@ afterAll(() => {
 });
 
 describe('overlayCard', () => {
-  test('draws the popover fill, the border outline, the pane radius, and 6 px padding', () => {
+  test('draws the popover fill, the border outline, the dialog radius, and the card padding', () => {
     const card = overlayCard('sample');
 
     expect(card.backgroundColors).toContain(palette.popover);
     expect(card.borderColors).toContain(palette.border);
-    expect(card.styles['rounded']).toEqual([8]);
-    expect(card.styles['p']).toEqual([6]);
+    expect(card.styles['rounded']).toEqual([radius.dialog]);
+    expect(card.styles['p']).toEqual([spacing.small]);
   });
 });
