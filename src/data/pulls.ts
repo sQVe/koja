@@ -35,15 +35,6 @@ import {
 } from './pullRemote.ts';
 import type { PullSource } from './pullSources.ts';
 
-export type {
-  PullChecks,
-  PullMergeable,
-  PullMergeState,
-  PullPart,
-  PullReview,
-  PullThreads,
-} from './pullAnswer.ts';
-
 export interface Pull extends PullStatusNames {
   number: number;
   state: string;

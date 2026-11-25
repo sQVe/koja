@@ -1,11 +1,11 @@
 import type {
-  Pull,
   PullChecks,
   PullMergeable,
   PullMergeState,
   PullReview,
   PullThreads,
-} from './pulls.ts';
+} from './pullAnswer.ts';
+import type { Pull } from './pulls.ts';
 import { partValueOf } from './pulls.ts';
 
 export type PullNeed = 'failing' | 'review' | 'conflict' | 'ready';

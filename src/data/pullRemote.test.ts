@@ -16,7 +16,7 @@ import type { PullSource } from './pullSources.ts';
 interface Call {
   command: string;
   args: string[];
-  options: { cwd: string; on: string | null };
+  options: Parameters<RunCommand>[2];
 }
 
 describe('remoteNamesOf', () => {
@@ -190,6 +190,14 @@ describe('remoteLookup', () => {
     const run = recordingRun(calls, { code: 1, stdout: '', stderr: 'no such remote' });
 
     expect(await remoteLookup(run, source, 'origin', () => true)).toEqual({ kind: 'failed' });
+    expect(calls).toEqual([lookupCall]);
+  });
+
+  test('fails when git fails even if ownership was lost', async () => {
+    const calls: Call[] = [];
+    const run = recordingRun(calls, { code: 1, stdout: '', stderr: 'no such remote' });
+
+    expect(await remoteLookup(run, source, 'origin', () => false)).toEqual({ kind: 'failed' });
     expect(calls).toEqual([lookupCall]);
   });
 

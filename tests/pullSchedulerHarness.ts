@@ -49,6 +49,14 @@ const memoryStore = (): Store => {
 
 const silentNotices = (): RecordNotices => createRecordNotices(() => {});
 
+const remoteNamesResult: ExecResult = { code: 0, stdout: 'origin\n', stderr: '' };
+
+const isRemoteUrlCall = (call: PendingCall): boolean =>
+  call.command === 'git' && call.args[0] === 'remote' && call.args[1] === 'get-url';
+
+const describeCall = (call: PendingCall | undefined): string =>
+  call === undefined ? 'no call' : `${call.command} ${call.args.join(' ')}`;
+
 export class PullSchedulerHarness {
   store = memoryStore();
   notices = silentNotices();
@@ -197,17 +205,15 @@ export class PullSchedulerHarness {
   }
 
   async respondRemotes(index: number): Promise<void> {
-    await this.respond(index, { code: 0, stdout: 'origin\n', stderr: '' });
+    await this.respond(index, remoteNamesResult);
 
-    const next = this.calls[index + 1];
+    const next = this.calls.at(-1);
 
-    if (next?.command === 'git' && next.args[1] === 'get-url') {
-      await this.respond(index + 1, {
-        code: 0,
-        stdout: 'git@github.com:koja/koja.git\n',
-        stderr: '',
-      });
+    if (next === undefined || !isRemoteUrlCall(next)) {
+      return;
     }
+
+    await this.respondRemoteUrl(next, 'git@github.com:koja/koja.git');
   }
 
   async respondIn(folder: string, result: ExecResult): Promise<void> {
@@ -221,8 +227,22 @@ export class PullSchedulerHarness {
   }
 
   async respondRemotesIn(folder: string, url: string): Promise<void> {
-    await this.respondIn(folder, { code: 0, stdout: 'origin\n', stderr: '' });
-    await this.respondIn(folder, { code: 0, stdout: `${url}\n`, stderr: '' });
+    const names = this.callsIn(folder).at(-1);
+
+    if (names === undefined) {
+      throw new Error(`no call in ${folder}`);
+    }
+
+    await this.respondCall(names, remoteNamesResult);
+    await this.respondRemoteUrl(this.calls.at(-1), url);
+  }
+
+  private async respondRemoteUrl(call: PendingCall | undefined, url: string): Promise<void> {
+    if (call === undefined || !isRemoteUrlCall(call)) {
+      throw new Error(`expected git remote get-url, got ${describeCall(call)}`);
+    }
+
+    await this.respondCall(call, { code: 0, stdout: `${url}\n`, stderr: '' });
   }
 
   async respondPulls(index: number, pulls: Pull[]): Promise<void> {

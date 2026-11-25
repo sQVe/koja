@@ -1,5 +1,6 @@
+import type { PullPart } from './pullAnswer.ts';
 import type { RepositoryReadTimes } from './pullReadTimes.ts';
-import type { Pull, PullPart } from './pulls.ts';
+import type { Pull } from './pulls.ts';
 import { partValueOf } from './pulls.ts';
 
 const mergePart = <T>(part: PullPart<T>, previous: PullPart<T> | undefined): PullPart<T> => {

@@ -5,12 +5,12 @@ import type { ExecResult } from 'herdr';
 
 import type { RunCommand } from '../src/data/gitIdentity.ts';
 import type {
-  Pull,
   PullChecks,
   PullMergeable,
   PullMergeState,
   PullReview,
-} from '../src/data/pulls.ts';
+} from '../src/data/pullAnswer.ts';
+import type { Pull } from '../src/data/pulls.ts';
 import { partValueOf } from '../src/data/pulls.ts';
 
 export interface Answer {

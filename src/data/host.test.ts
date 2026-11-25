@@ -390,7 +390,8 @@ describe('startDataHost', () => {
     watch?.resolve([`${folder}/.git/refs/remotes/origin/main`]);
     await settle();
 
-    const tickAt = start + pullPeriodMilliseconds - 1;
+    // The watch event at 10 s makes the push read due at 15 s, well before the 60 s period.
+    const tickAt = start + 15_000;
 
     for (
       let at = start + heartbeatIntervalMilliseconds;
