@@ -337,7 +337,10 @@ const blockNextStatusRead = (): void => {
   blockAfterReads = statusReads;
 };
 
-const submitWhileReadBlocked = async (view: ChangesView): Promise<number> => {
+const submitWhileReadBlocked = async (
+  view: ChangesView,
+  beforeRelease: () => void = () => undefined,
+): Promise<number> => {
   await settle();
 
   expect(statusGate).not.toBeNull();
@@ -348,6 +351,8 @@ const submitWhileReadBlocked = async (view: ChangesView): Promise<number> => {
   await settle();
 
   expect(commitCommands()).toBe(before);
+
+  beforeRelease();
 
   blockStatus = false;
   statusGate?.();
@@ -838,21 +843,15 @@ describe('Changes view', () => {
     view.refresh(context);
     await settle();
 
-    expect(statusGate).not.toBeNull();
-
-    const before = commitCommands();
-
     cwd = '/repo/b';
-    inputHandlers.get('submit')?.({}, context);
-    await settle();
 
-    cwd = '/repo/a';
-    blockStatus = false;
-    statusGate?.();
-    await settle();
-    view.render(context);
+    // The pane is back on the repository the read belongs to when it lands, so only the queue can refuse.
+    const before = await submitWhileReadBlocked(view, () => {
+      cwd = '/repo/a';
+    });
 
     expect(commitCommands()).toBe(before);
+    expect(inputValue).toBe('Review fixture');
   });
 
   test('a background refresh requests a redraw before its read finishes', async () => {

@@ -7,7 +7,7 @@ import { checking, exec, watchFolder } from 'herdr';
 import { watchFolderChanges } from '../../data/folderWatch.ts';
 import type { FolderWatchHandle } from '../../data/folderWatch.ts';
 import { colors, repeat, withTextRole } from '../../kit/index.ts';
-import { canCommit, hasText } from './commit.ts';
+import { canCommit, canQueueCommit, hasText } from './commit.ts';
 import type { CommitRequest } from './commit.ts';
 import { DiffPreview } from './diffPreview.ts';
 import { commitAll, readChanges } from './git.ts';
@@ -433,8 +433,7 @@ export default class Changes extends View {
     const request = this.commitRequest();
 
     if (request.loading) {
-      // The read can clear a stale list and fill a missing snapshot, but it cannot move the pane back.
-      this.pendingCommit = hasText(request.message) && request.contextCurrent;
+      this.pendingCommit = canQueueCommit(request);
 
       return;
     }
