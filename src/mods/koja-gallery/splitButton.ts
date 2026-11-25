@@ -10,7 +10,7 @@ const noop = (): void => undefined;
 // The merge menu of the ready PR view: the current method first, then the other methods.
 const mergeChoices = (): SplitButtonChoice[] => [
   { label: 'Squash and merge', current: true, action: noop },
-  { label: 'Ask agent to merge', action: noop },
+  { label: 'Ask agent to merge', divided: true, action: noop },
   { label: 'Merge commit', action: noop },
   { label: 'Rebase and merge', action: noop },
 ];
