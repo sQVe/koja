@@ -209,13 +209,13 @@ export class PullSchedulerHarness {
 
     await this.respondCall(names, remoteNamesResult);
 
-    const url = this.callsIn(names.cwd).at(-1);
+    const remoteUrlCall = this.callsIn(names.cwd).at(-1);
 
-    if (url === undefined || !isRemoteUrlCall(url)) {
+    if (remoteUrlCall === undefined || !isRemoteUrlCall(remoteUrlCall)) {
       return;
     }
 
-    await this.respondRemoteUrl(url, 'git@github.com:koja/koja.git');
+    await this.respondRemoteUrl(remoteUrlCall, 'git@github.com:koja/koja.git');
   }
 
   async respondIn(folder: string, result: ExecResult): Promise<void> {
