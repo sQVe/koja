@@ -63,8 +63,10 @@ answer, so a request answered by a previous owner is never taken again.
 ### Pull reads
 
 Open pull requests are read by the live branch names of the repository's worktrees, not from a paged
-list, so a pull request past any page limit is still read. Each repository is read at most once per
-minute while the window is active, plus once after a push, under a per-repository budget.
+list, so a pull request past any page limit is still read. Each repository is read under a
+per-repository budget in three cases. The periodic read runs at most once per minute while the
+window is active. A push read is coalesced into the next due read instead of adding a read beside
+it. The manual Retry reads once when the user asks.
 
 ### Sandbox remote fixture ownership
 

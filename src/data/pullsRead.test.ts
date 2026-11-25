@@ -1,6 +1,6 @@
 import { describe, expect, test } from 'bun:test';
 
-import { githubFixture, pullNodeOf, runWith } from '../../tests/pullAnswers.ts';
+import { formFieldOf, githubFixture, pullNodeOf, runWith } from '../../tests/pullAnswers.ts';
 import { pullFacts } from '../../tests/pullFacts.ts';
 import type { RunCommand } from './gitIdentity.ts';
 import { repositoryOf } from './gitIdentity.ts';
@@ -102,16 +102,36 @@ const answerOfQuery = (args: string[], history: Pull[]): string => {
   });
 };
 
-const runAnsweringHistory = (history: Pull[]): RunCommand => {
+const runAnsweringHistory = (history: Pull[], remoteUrl = '/srv/git/repo.git'): RunCommand => {
   return async (command, args) => {
     if (command === 'git') {
-      const stdout = args[1] === 'get-url' ? '/srv/git/repo.git\n' : 'origin\n';
+      const stdout = args[1] === 'get-url' ? `${remoteUrl}\n` : 'origin\n';
 
       return { code: 0, stdout, stderr: '' };
     }
 
     return { code: 0, stdout: answerOfQuery(args, history), stderr: '' };
   };
+};
+
+const remoteReadOf = async (remoteUrl: string): Promise<string[]> => {
+  const calls: string[][] = [];
+
+  const run: RunCommand = async (command, args) => {
+    if (command === 'git') {
+      const stdout = args[1] === 'get-url' ? `${remoteUrl}\n` : 'origin\n';
+
+      return { code: 0, stdout, stderr: '' };
+    }
+
+    calls.push(args);
+
+    return { code: 0, stdout: answerOfQuery(args, historyOf()), stderr: '' };
+  };
+
+  await readRepositoryPulls(run, sourceOf(['feature-125']), () => true);
+
+  return calls.at(-1) ?? [];
 };
 
 describe('readRepositoryPulls', () => {
@@ -140,9 +160,15 @@ describe('readRepositoryPulls', () => {
   });
 
   test('reads an open PR that is older than 100 newer PRs on other branches', async () => {
+    const branches = [
+      'feature-125',
+      ...Array.from({ length: 19 }, (_, index) => `live-${index}`),
+      'wanted',
+    ];
+
     const read = await readRepositoryPulls(
       runAnsweringHistory(historyOf()),
-      sourceOf(['feature-125', 'wanted']),
+      sourceOf(branches),
       () => true,
     );
 
@@ -150,6 +176,23 @@ describe('readRepositoryPulls', () => {
 
     expect(pulls.map((pull) => pull.number)).toEqual([125, 1]);
     expect(pullNeeds(pulls[1] as Pull)).toEqual(['ready']);
+  });
+
+  test('reads the host and repository from https, ssh URI, and ssh shorthand remotes', async () => {
+    const remoteUrls = [
+      'https://user@github.example.com/koja/koja.git',
+      'ssh://git@github.example.com:22/koja/koja.git',
+      'ssh://git@github.example.com/koja/koja.git',
+      'git@github.example.com:koja/koja.git',
+    ];
+
+    for (const remoteUrl of remoteUrls) {
+      const ghArgs = await remoteReadOf(remoteUrl);
+
+      expect(ghArgs.slice(0, 4)).toEqual(['api', 'graphql', '--hostname', 'github.example.com']);
+      expect(formFieldOf(ghArgs, 'owner')).toBe('koja');
+      expect(formFieldOf(ghArgs, 'name')).toBe('koja');
+    }
   });
 
   test('marks an incomplete thread page', async () => {

@@ -49,6 +49,22 @@ export const runWith = (answers: Answer[], calls: string[][] = []): RunCommand =
   };
 };
 
+export const formFieldOf = (args: string[], field: string): string | undefined => {
+  for (const [index, argument] of args.entries()) {
+    const value = args[index + 1];
+
+    if (argument !== '-F' || value === undefined) {
+      continue;
+    }
+
+    if (value.startsWith(`${field}=`)) {
+      return value.slice(field.length + 1);
+    }
+  }
+
+  return undefined;
+};
+
 export const bodyOf = (
   branchCount: number,
   nodes: { open?: Record<number, unknown>; latest?: Record<number, unknown> } = {},

@@ -1,3 +1,9 @@
+export interface PullRemote {
+  host: string;
+  owner: string;
+  repository: string;
+}
+
 export const branchesPerQuery = 20;
 
 const openFields = [
@@ -48,7 +54,7 @@ const queryText = (branchCount: number): string => {
   return lines.join('\n');
 };
 
-export const pullQueryArgs = (branches: string[], host: string | null): string[] => {
+export const pullQueryArgs = (branches: string[], remote: PullRemote | null): string[] => {
   const tooFew = branches.length === 0;
   const tooMany = branches.length > branchesPerQuery;
 
@@ -58,15 +64,18 @@ export const pullQueryArgs = (branches: string[], host: string | null): string[]
 
   const args = ['api', 'graphql'];
 
-  if (host !== null) {
-    args.push('--hostname', host);
+  if (remote !== null) {
+    args.push('--hostname', remote.host);
   }
+
+  const owner = remote === null ? '{owner}' : remote.owner;
+  const repository = remote === null ? '{repo}' : remote.repository;
 
   args.push(
     '-F',
-    'owner={owner}',
+    `owner=${owner}`,
     '-F',
-    'name={repo}',
+    `name=${repository}`,
     '-f',
     `query=${queryText(branches.length)}`,
   );

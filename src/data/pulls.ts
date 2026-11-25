@@ -3,6 +3,7 @@ import type { ExecResult } from 'herdr';
 import { hasOnlyKeys, isRecord, numberOf, stringOf } from '../kit/fields.ts';
 import type { RunCommand } from './gitIdentity.ts';
 import { branchesPerQuery, pullQueryArgs } from './pullQuery.ts';
+import type { PullRemote } from './pullQuery.ts';
 import type { PullSource } from './pullSources.ts';
 
 export type PullChecks = 'passing' | 'failing' | 'running' | 'none';
@@ -70,7 +71,10 @@ export type PullRead =
 
 type PullNeedsFields = Pick<Pull, 'mergeable' | 'mergeState' | 'review' | 'checks' | 'threads'>;
 
-type RemoteHost = { kind: 'host'; host: string | null } | { kind: 'failed' } | { kind: 'dropped' };
+type RemoteRead =
+  | { kind: 'remote'; remote: PullRemote | null }
+  | { kind: 'failed' }
+  | { kind: 'dropped' };
 
 const pullFieldNames = ['number', 'state', 'isDraft', 'title', 'headRefName'];
 
@@ -647,25 +651,51 @@ const remoteNameOf = (remotes: string): string | null => {
   return names[0] ?? null;
 };
 
-const hostOfRemoteUrl = (remoteUrl: string): string | null => {
-  const url = remoteUrl.trim();
-  const ssh = /^[^@/\s]+@([^:/\s]+):/.exec(url);
+const withoutGitSuffix = (name: string): string => name.replace(/\.git$/, '');
 
-  if (ssh !== null) {
-    return ssh[1] ?? null;
+const remotePathOf = (path: string): Pick<PullRemote, 'owner' | 'repository'> | null => {
+  const parts = path.split('/').filter((part) => part !== '');
+
+  if (parts.length !== 2) {
+    return null;
   }
 
-  const https = /^https:\/\/([^/\s]+)\//.exec(url);
+  const [owner, repository] = parts;
 
-  return https === null ? null : (https[1] ?? null);
+  if (owner === undefined || repository === undefined) {
+    return null;
+  }
+
+  return { owner: withoutGitSuffix(owner), repository: withoutGitSuffix(repository) };
 };
 
-const remoteHostLookup = async (
+const remoteOfUrl = (remoteUrl: string): PullRemote | null => {
+  const url = remoteUrl.trim();
+  const shorthand = /^[^@/\s]+@([^:/\s]+):(.+)$/.exec(url);
+  const uri = /^(?:https?|ssh|git):\/\/(?:[^@/\s]+@)?([^:/\s]+)(?::\d+)?\/(.+)$/.exec(url);
+  const match = shorthand ?? uri;
+
+  if (match === null) {
+    return null;
+  }
+
+  const host = match[1];
+  const path = match[2];
+  const parts = path === undefined ? null : remotePathOf(path);
+
+  if (host === undefined || parts === null) {
+    return null;
+  }
+
+  return { host, ...parts };
+};
+
+const remoteLookup = async (
   run: RunCommand,
   source: PullSource,
   remote: string,
   stillOwner: () => boolean,
-): Promise<RemoteHost> => {
+): Promise<RemoteRead> => {
   const result = await run('git', ['remote', 'get-url', remote], {
     cwd: source.cwd,
     on: source.repository.machine,
@@ -679,7 +709,7 @@ const remoteHostLookup = async (
     return { kind: 'dropped' };
   }
 
-  return { kind: 'host', host: hostOfRemoteUrl(result.stdout) };
+  return { kind: 'remote', remote: remoteOfUrl(result.stdout) };
 };
 
 export const readRepositoryPulls = async (
@@ -707,13 +737,13 @@ export const readRepositoryPulls = async (
       return { kind: 'read', pulls: [], rateLimit: null };
     }
 
-    const remoteHost = await remoteHostLookup(run, source, remote, stillOwner);
+    const remoteRead = await remoteLookup(run, source, remote, stillOwner);
 
-    if (remoteHost.kind === 'failed') {
+    if (remoteRead.kind === 'failed') {
       return { kind: 'failed', rateLimited: false };
     }
 
-    if (remoteHost.kind === 'dropped') {
+    if (remoteRead.kind === 'dropped') {
       return { kind: 'dropped' };
     }
 
@@ -726,7 +756,7 @@ export const readRepositoryPulls = async (
       }
 
       // eslint-disable-next-line no-await-in-loop -- one batch at a time, so a rate limit stops the read early
-      const result = await run('gh', pullQueryArgs(batch, remoteHost.host), {
+      const result = await run('gh', pullQueryArgs(batch, remoteRead.remote), {
         cwd: source.cwd,
         on: source.repository.machine,
       });

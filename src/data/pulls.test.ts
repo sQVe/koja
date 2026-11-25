@@ -1,6 +1,6 @@
 import { describe, expect, test } from 'bun:test';
 
-import { bodyOf, githubFixture, runWith } from '../../tests/pullAnswers.ts';
+import { bodyOf, formFieldOf, githubFixture, runWith } from '../../tests/pullAnswers.ts';
 import { pullFacts } from '../../tests/pullFacts.ts';
 import type { RunCommand } from './gitIdentity.ts';
 import { repositoryOf } from './gitIdentity.ts';
@@ -87,7 +87,7 @@ describe('readRepositoryPulls', () => {
     ]);
   });
 
-  test('passes the host of an ssh remote to gh', async () => {
+  test('passes the host and repository of an ssh remote to gh', async () => {
     const calls: Call[] = [];
     const run = runWithRemotes('origin', 'git@github.example.com:koja/koja.git', calls);
 
@@ -96,7 +96,43 @@ describe('readRepositoryPulls', () => {
     const ghArgs = argsOf(calls).at(-1) ?? [];
 
     expect(ghArgs.slice(0, 4)).toEqual(['api', 'graphql', '--hostname', 'github.example.com']);
-    expect(ghArgs).toEqual(pullQueryArgs(['main'], 'github.example.com'));
+    expect(formFieldOf(ghArgs, 'owner')).toBe('koja');
+    expect(formFieldOf(ghArgs, 'name')).toBe('koja');
+
+    expect(ghArgs).toEqual(
+      pullQueryArgs(['main'], {
+        host: 'github.example.com',
+        owner: 'koja',
+        repository: 'koja',
+      }),
+    );
+  });
+
+  test('passes the host and repository of an ssh URI with a port to gh', async () => {
+    const calls: Call[] = [];
+    const run = runWithRemotes('origin', 'ssh://git@github.example.com:22/koja/koja.git', calls);
+
+    await readRepositoryPulls(run, sourceOf(), alwaysOwner);
+
+    const ghArgs = argsOf(calls).at(-1) ?? [];
+
+    expect(ghArgs.slice(0, 4)).toEqual(['api', 'graphql', '--hostname', 'github.example.com']);
+    expect(formFieldOf(ghArgs, 'owner')).toBe('koja');
+    expect(formFieldOf(ghArgs, 'name')).toBe('koja');
+  });
+
+  test('passes only the host of an https remote with user info', async () => {
+    const calls: Call[] = [];
+    const run = runWithRemotes('origin', 'https://user@github.example.com/koja/koja.git', calls);
+
+    await readRepositoryPulls(run, sourceOf(), alwaysOwner);
+
+    const ghArgs = argsOf(calls).at(-1) ?? [];
+
+    expect(ghArgs.slice(0, 4)).toEqual(['api', 'graphql', '--hostname', 'github.example.com']);
+    expect(ghArgs).not.toContain('user@github.example.com');
+    expect(formFieldOf(ghArgs, 'owner')).toBe('koja');
+    expect(formFieldOf(ghArgs, 'name')).toBe('koja');
   });
 
   test('passes the host of an https remote to gh and prefers origin', async () => {
@@ -111,7 +147,14 @@ describe('readRepositoryPulls', () => {
     expect(lookupArgs).toEqual([['remote'], ['remote', 'get-url', 'origin']]);
 
     expect(ghArgs.slice(0, 4)).toEqual(['api', 'graphql', '--hostname', 'ghe.example.com']);
-    expect(ghArgs).toEqual(pullQueryArgs(['main'], 'ghe.example.com'));
+
+    expect(ghArgs).toEqual(
+      pullQueryArgs(['main'], {
+        host: 'ghe.example.com',
+        owner: 'koja',
+        repository: 'koja',
+      }),
+    );
   });
 
   test('passes no host for a remote without one and takes the first remote', async () => {
@@ -127,6 +170,8 @@ describe('readRepositoryPulls', () => {
 
     expect(ghArgs.slice(0, 2)).toEqual(['api', 'graphql']);
     expect(ghArgs).not.toContain('--hostname');
+    expect(formFieldOf(ghArgs, 'owner')).toBe('{owner}');
+    expect(formFieldOf(ghArgs, 'name')).toBe('{repo}');
     expect(ghArgs).toEqual(pullQueryArgs(['main'], null));
   });
 
