@@ -1,7 +1,7 @@
 import { h_flex, v_flex } from 'gpui-base';
 import type { Element } from 'gpui-kit';
 
-import type { Fact } from '../../kit/index.ts';
+import type { Fact, SourceLinkOptions } from '../../kit/index.ts';
 import {
   contentSize,
   factPairs,
@@ -14,8 +14,8 @@ import { sample } from './sample.ts';
 
 const ticketFacts: Fact[] = [
   { label: 'Project', value: 'Koja' },
-  { label: 'Parent', value: 'ME-1087', source: 'Linear' },
-  { label: 'Related PR', value: '#52', source: 'GitHub', repository: 'koja' },
+  { label: 'Parent', value: 'ME-1087', link: { source: 'Linear' } },
+  { label: 'Related PR', value: '#52', link: { source: 'GitHub', repository: 'koja' } },
 ];
 
 const longTitle =
@@ -27,23 +27,27 @@ const longFacts: Fact[] = [
     label: 'Parent',
     value:
       'ME-1087 · Build the developer cockpit for agents, tickets, GitHub work, and every active development session in one window',
-    source: 'Linear',
+    link: { source: 'Linear' },
   },
   { label: 'Labels', value: 'design · cockpit · accessibility' },
   { label: 'Assignee', value: 'You' },
   { label: 'Cycle', value: 'Cycle 12' },
   { label: 'Estimate', value: '5 points' },
-  { label: 'Related PRs', value: '#52', source: 'GitHub', repository: 'koja' },
-  { label: '', value: '#57', source: 'GitHub', repository: 'koja' },
-  { label: '', value: '#63', source: 'GitHub', repository: 'koja' },
+  { label: 'Related PRs', value: '#52', link: { source: 'GitHub', repository: 'koja' } },
+  { label: '', value: '#57', link: { source: 'GitHub', repository: 'koja' } },
+  { label: '', value: '#63', link: { source: 'GitHub', repository: 'koja' } },
 ];
 
-const sourceLinks = (): Element =>
-  h_flex()
-    .gap(spacing.large)
-    .items_center()
-    .child(sourceLink({ identifier: 'ME-1090', source: 'Linear' }))
-    .child(sourceLink({ identifier: '#41', source: 'GitHub', repository: 'koja' }));
+const sampleLinks: SourceLinkOptions[] = [
+  { identifier: 'ME-1090', source: 'Linear' },
+  { identifier: '#41', source: 'GitHub', repository: 'koja' },
+];
+
+const sourceLinks = (): Element => {
+  const links = sampleLinks.map((options) => sourceLink(options));
+
+  return h_flex().gap(spacing.large).items_center().children(links);
+};
 
 const pullHeader = (): Element =>
   itemHeader({
@@ -52,8 +56,7 @@ const pullHeader = (): Element =>
     source: 'GitHub',
     repository: 'koja',
     title: 'Design the sidebar',
-    state: { kind: 'open', label: 'open' },
-    age: '1m ago',
+    state: { kind: 'openPullRequest', label: 'open', age: '1m ago' },
   });
 
 const ticketHeader = (): Element =>
@@ -62,8 +65,7 @@ const ticketHeader = (): Element =>
     identifier: 'ME-1094',
     source: 'Linear',
     title: 'Design the ticket view',
-    state: { kind: 'inProgress', label: 'In progress' },
-    age: '1m ago',
+    state: { kind: 'inProgress', label: 'In progress', age: '1m ago' },
   });
 
 const loadingHeader = (): Element =>
@@ -75,8 +77,7 @@ const longHeader = (): Element =>
     identifier: 'ME-1094',
     source: 'Linear',
     title: longTitle,
-    state: { kind: 'inProgress', label: 'In progress' },
-    age: '1m ago',
+    state: { kind: 'inProgress', label: 'In progress', age: '1m ago' },
   });
 
 const narrowFrame = (content: Element): Element =>
