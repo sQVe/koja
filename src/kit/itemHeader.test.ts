@@ -3,27 +3,22 @@ import { afterAll, describe, expect, mock, test } from 'bun:test';
 import type { DrawnElement } from '../../tests/drawn.ts';
 import { drawn, drawnIcons, drawnTexts, elementWithText, spinning } from '../../tests/drawn.ts';
 import { gpuiBaseFake, gpuiKitFake, herdrFake } from '../../tests/moduleFakes.ts';
+import { textSize } from './size.ts';
 
-type ItemStateKind = 'open' | 'inProgress' | 'inReview' | 'sent';
+type ItemStateKind = 'openPullRequest' | 'inProgress' | 'inReview' | 'sent';
 
-interface ItemStateOptions {
-  kind: ItemStateKind;
-  label: string;
+type ItemSource = 'GitHub' | 'Linear' | 'tikk';
+
+interface ReadyOptions {
+  kind: 'ready';
+  identifier: string;
+  source: ItemSource;
+  repository?: string;
+  title: string;
+  state: { kind: ItemStateKind; label: string; age: string | null } | null;
 }
 
-type ItemHeaderOptions = {
-  identifier: string;
-  source: 'GitHub' | 'Linear' | 'tikk';
-  repository?: string;
-} & (
-  | { kind: 'loading' }
-  | {
-      kind: 'ready';
-      title: string;
-      state: ItemStateOptions | null;
-      age: string | null;
-    }
-);
+type ItemHeaderOptions = ReadyOptions | { kind: 'loading'; identifier: string; source: ItemSource };
 
 const palette = {
   blocked: '#0b0b1b',
@@ -58,14 +53,13 @@ afterAll(() => {
   mock.restore();
 });
 
-const readyOptions: ItemHeaderOptions = {
+const readyOptions: ReadyOptions = {
   kind: 'ready',
   identifier: '#41',
   source: 'GitHub',
   repository: 'koja',
   title: 'Design the sidebar',
-  state: { kind: 'open', label: 'open' },
-  age: '1m ago',
+  state: { kind: 'openPullRequest', label: 'open', age: '1m ago' },
 };
 
 describe('itemHeader', () => {
@@ -88,8 +82,8 @@ describe('itemHeader', () => {
   test('the title draws in the heading role and wraps instead of cutting', () => {
     const title = elementWithText(itemHeader(readyOptions), 'Design the sidebar');
 
-    expect(title?.styles['text_size']).toEqual([15]);
-    expect(title?.styles['font_semibold']).toEqual([]);
+    expect(title?.styles['text_size']).toEqual([textSize.large]);
+    expect(title?.styles['font_semibold']).toBeDefined();
     expect(title?.styles['truncate']).toBeUndefined();
     expect(title?.styles['min_w']).toEqual([0]);
   });
@@ -100,24 +94,40 @@ describe('itemHeader', () => {
     expect(elementWithText(header, 'synced 1m ago')?.textColors).toEqual([palette.dim]);
   });
 
-  test('an open pull request draws the open pull request icon', () => {
-    const header = itemHeader(readyOptions);
-
-    expect(drawnIcons(header)).toContain('git-pull-request.svg');
-  });
-
-  test('an item in progress draws a spinning working mark', () => {
+  test.each([
+    ['openPullRequest', 'git-pull-request.svg'],
+    ['inProgress', 'loader-circle.svg'],
+    ['inReview', 'message-circle-question.svg'],
+    ['sent', 'check.svg'],
+  ] as const)('the %s state draws its own mark', (kind, mark) => {
     const header = itemHeader({
       ...readyOptions,
-      state: { kind: 'inProgress', label: 'In progress' },
+      state: { kind, label: 'state', age: null },
     });
 
-    expect(drawnIcons(header)).toContain('loader-circle.svg');
+    expect(drawnIcons(header)).toContain(mark);
+  });
+
+  test('a working state draws a spinning mark', () => {
+    const header = itemHeader({
+      ...readyOptions,
+      state: { kind: 'inProgress', label: 'In progress', age: null },
+    });
+
     expect(spinning(header)).toBe(true);
   });
 
+  test('a state without an age draws no age', () => {
+    const header = itemHeader({
+      ...readyOptions,
+      state: { kind: 'openPullRequest', label: 'open', age: null },
+    });
+
+    expect(drawnTexts(header)).toEqual(['koja #41 · GitHub', 'Design the sidebar', 'open']);
+  });
+
   test('an item without a state draws no chip and no age', () => {
-    const header = itemHeader({ ...readyOptions, state: null, age: null });
+    const header = itemHeader({ ...readyOptions, state: null });
 
     expect(drawnTexts(header)).toEqual(['koja #41 · GitHub', 'Design the sidebar']);
     expect(drawnIcons(header)).toEqual([]);

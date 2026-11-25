@@ -10,7 +10,10 @@ interface SourceLinkOptions {
   repository?: string;
 }
 
-const palette = { foreground: '#4f4f5f' } as const;
+const palette = {
+  dim: '#2d2d3d',
+  foreground: '#4f4f5f',
+} as const;
 
 Object.assign(globalThis, { kojaModName: 'koja' });
 
@@ -43,12 +46,15 @@ describe('sourceLink', () => {
     expect(drawnTexts(link)).toEqual(['koja #41 · GitHub']);
   });
 
-  test('a link is underlined, points, and keeps its whole text on hover', () => {
+  test('a link is underlined, points, cuts in the middle, and keeps its whole text on hover', () => {
     const link = sourceLink({ identifier: 'ME-1090', source: 'Linear' });
 
     expect(link.textColors).toEqual([palette.foreground]);
     expect(link.styles['underline']).toBeDefined();
     expect(link.styles['cursor_pointer']).toBeDefined();
+    expect(link.styles['truncate']).toBeDefined();
+    expect(link.styles['text_ellipsis_middle']).toBeDefined();
+    expect(link.styles['flex_shrink']).toEqual([1]);
     expect(link.tooltipText).toBe('ME-1090 · Linear');
   });
 });
