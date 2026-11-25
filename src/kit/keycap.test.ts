@@ -1,7 +1,7 @@
 import { afterAll, describe, expect, mock, test } from 'bun:test';
 
 import type { DrawnElement } from '../../tests/drawn.ts';
-import { drawn, drawnTexts, drawnTree } from '../../tests/drawn.ts';
+import { drawn, drawnTexts, drawnTree, elementsWithStyle } from '../../tests/drawn.ts';
 import { gpuiBaseFake, gpuiKitFake, herdrFake } from '../../tests/moduleFakes.ts';
 
 interface OverlayHint {
@@ -29,9 +29,10 @@ await mock.module('herdr', () =>
 
 const modulePath = './keycap.ts';
 
-const { keycap, overlayHints } = (await import(modulePath)) as {
+const { keycap, overlayHints, pressedKeycap } = (await import(modulePath)) as {
   keycap: (key: string) => DrawnElement;
   overlayHints: (hint: OverlayHint, normalMode: boolean) => DrawnElement[];
+  pressedKeycap: (key: string) => DrawnElement;
 };
 
 afterAll(() => {
@@ -45,6 +46,31 @@ describe('keycap', () => {
 
   test('draws a shifted key with the shift mark', () => {
     expect(drawnTexts(keycap('H'))).toEqual(['⇧H']);
+  });
+
+  test('draws the dim glyph in the border outline at the terminal font', () => {
+    const cap = keycap('w');
+    const glyph = elementsWithStyle(cap, 'font_family')[0];
+
+    expect(glyph?.textColors).toContain(palette.dim);
+    expect(glyph?.styles['font_family']).toEqual(['Maple Mono']);
+    expect(cap.borderColors).toContain(palette.border);
+  });
+
+  test('a pressed key takes the accent glyph and the selected outline', () => {
+    const cap = pressedKeycap('w');
+    const glyph = elementsWithStyle(cap, 'font_family')[0];
+
+    expect(glyph?.textColors).toContain(palette.accent);
+    expect(cap.borderColors).toContain(palette.selected);
+  });
+
+  test('lifts an x-height glyph by one pixel and a descender by two', () => {
+    const xHeight = elementsWithStyle(keycap('w'), 'top')[0]?.styles['top'];
+    const descender = elementsWithStyle(keycap('g'), 'top')[0]?.styles['top'];
+
+    expect(xHeight).toEqual([-1]);
+    expect(descender).toEqual([-2]);
   });
 });
 

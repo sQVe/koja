@@ -11,24 +11,24 @@ import {
   overlayCard,
   overlayHints,
   pressedKeycap,
+  roleText,
   rowHeight,
   searchLine,
   segmentedChip,
   spacing,
   statusMark,
-  withTextRole,
 } from '../../kit/index.ts';
 import { sample } from './sample.ts';
 
-const label = (text: string): Element => {
-  const box = div().flex_none();
-
-  return withTextRole(box, 'body').child(text);
-};
+const label = (text: string): Element => roleText('body', text).flex_none();
 
 // The gallery paints `popover`, so a sample sits on the pane fill to show the card's lighter edge.
-const onPane = (content: Element): Element =>
-  div().p(spacing.medium).bg(colors().background).child(content);
+const cardSample = (id: string, children: Element[]): Element => {
+  const frame = overlayCard(id).w_full();
+  const shown = frame.children(children);
+
+  return div().p(spacing.medium).bg(colors().background).child(shown);
+};
 
 const hintRow = (text: string, hint: OverlayHint, normalMode: boolean): Element => {
   const spacer = div().flex_1();
@@ -43,15 +43,12 @@ const hintRow = (text: string, hint: OverlayHint, normalMode: boolean): Element 
     .children(overlayHints(hint, normalMode));
 };
 
-const card = (): Element => {
-  const shown = overlayCard('gallery-overlay-card')
-    .w_full()
-    .child(label('Split right'))
-    .child(hintRow('Zoom', { normal: ['w', 'm'] }, true))
-    .child(hintRow('Close pane', { normal: ['w', 'q'] }, true));
-
-  return onPane(shown);
-};
+const card = (): Element =>
+  cardSample('gallery-overlay-card', [
+    label('Split right'),
+    hintRow('Zoom', { normal: ['w', 'm'] }, true),
+    hintRow('Close pane', { normal: ['w', 'q'] }, true),
+  ]);
 
 const keycapsRow = (): Element =>
   h_flex()
@@ -66,21 +63,12 @@ const hintRows = (): Element =>
     .gap(spacing.xxsmall)
     .child(hintRow('Split right in normal mode', { normal: ['w', 'v'], insert: ['tab'] }, true))
     .child(hintRow('Split right in insert mode', { normal: ['w', 'v'], insert: ['tab'] }, false))
-    .child(hintRow('Zoom in insert mode', { normal: ['w', 'm'] }, false));
+    .child(hintRow('Zoom with no insert binding', { normal: ['w', 'm'] }, false));
 
-const search = (): Element => {
-  const frame = overlayCard('gallery-overlay-search').w_full();
-  const shown = frame.child(searchLine('Type a command'));
+const search = (): Element => cardSample('gallery-overlay-search', [searchLine('Type a command')]);
 
-  return onPane(shown);
-};
-
-const footer = (): Element => {
-  const frame = overlayCard('gallery-overlay-footer').w_full();
-  const shown = frame.child(footerLine([['tab'], 'Next filter', ['↵'], 'Go to']));
-
-  return onPane(shown);
-};
+const footer = (): Element =>
+  cardSample('gallery-overlay-footer', [footerLine([['tab'], 'Next filter', ['↵'], 'Go to'])]);
 
 const chips = (): Element => {
   const shownChips: SegmentedChipOptions[] = [
@@ -94,15 +82,12 @@ const chips = (): Element => {
     .items_center()
     .children(shownChips.map((chip) => segmentedChip(chip)));
 
-  const frame = overlayCard('gallery-overlay-chips').w_full();
-  const shown = frame.child(line);
-
-  return onPane(shown);
+  return cardSample('gallery-overlay-chips', [line]);
 };
 
 export const overlays = (): Element[] => [
   sample('Card', card()),
-  sample('Keycaps', keycapsRow()),
+  sample('Keycaps: normal, a group, pressed', keycapsRow()),
   sample('Mode-aware hints', hintRows()),
   sample('Search line', search()),
   sample('Footer line', footer()),
