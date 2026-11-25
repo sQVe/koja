@@ -1,0 +1,26 @@
+{
+  "data": {
+    "ticket0": {
+      "identifier": "ME-1036",
+      "title": "Title spaces with their Linear tickets",
+      "state": {
+        "name": "In Progress"
+      },
+      "url": "https://linear.app/sqve/issue/ME-1036/title-spaces-with-their-linear-tickets",
+      "parent": {
+        "identifier": "ME-1031"
+      }
+    },
+    "ticket1": {
+      "identifier": "ME-1035",
+      "title": "Read what each PR needs for the sidebar",
+      "state": {
+        "name": "Done"
+      },
+      "url": "https://linear.app/sqve/issue/ME-1035/read-what-each-pr-needs-for-the-sidebar",
+      "parent": {
+        "identifier": "ME-1031"
+      }
+    }
+  }
+}
