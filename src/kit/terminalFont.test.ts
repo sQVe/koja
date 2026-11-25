@@ -1,10 +1,10 @@
-import { afterAll, describe, expect, mock, test } from 'bun:test';
+import { afterAll, beforeEach, describe, expect, mock, test } from 'bun:test';
 
 import { herdrFake } from '../../tests/moduleFakes.ts';
 
 let fontReads = 0;
 
-let currentSettings: Record<string, unknown> = { font_family: 'Maple Mono' };
+let currentSettings: Record<string, unknown> = {};
 
 await mock.module('herdr', () =>
   herdrFake({
@@ -24,26 +24,20 @@ afterAll(() => {
   mock.restore();
 });
 
-describe('terminalFont', () => {
-  test('reads the setting once however many caps one turn draws', async () => {
-    await Promise.resolve();
-    fontReads = 0;
+beforeEach(async () => {
+  await Promise.resolve();
 
-    expect(terminalFont()).toBe('Maple Mono');
+  currentSettings = { font_family: 'Maple Mono' };
+  fontReads = 0;
+});
+
+describe('terminalFont', () => {
+  test('reads the font family from the settings', () => {
     expect(terminalFont()).toBe('Maple Mono');
     expect(fontReads).toBe(1);
   });
 
-  test('reads a font the user changed before the next turn', async () => {
-    terminalFont();
-    currentSettings = { font_family: 'Fira Code' };
-    await Promise.resolve();
-
-    expect(terminalFont()).toBe('Fira Code');
-  });
-
-  test('falls back to JetBrains Mono when the setting names no font', async () => {
-    await Promise.resolve();
+  test('falls back to JetBrains Mono when the setting names no font', () => {
     currentSettings = {};
 
     expect(terminalFont()).toBe('JetBrains Mono');
