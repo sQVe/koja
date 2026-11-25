@@ -17,7 +17,7 @@ import {
   parseHeartbeat,
 } from './lease.ts';
 import { pullReadTimesKey } from './pullReadTimes.ts';
-import { pullRetryRequestsKey } from './pullRetry.ts';
+import { pullRetryRequestsKey } from './pullRetry/pullRetry.ts';
 import type { Pull } from './pulls.ts';
 import type { RepositoryPulls, Snapshot } from './snapshot.ts';
 import { emptyFacts, parseSnapshot, snapshotKey } from './snapshot.ts';

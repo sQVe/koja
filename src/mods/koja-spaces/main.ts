@@ -18,7 +18,7 @@ import type { DataState } from '../../data/consumer.ts';
 import { readDataState } from '../../data/consumer.ts';
 import { startDataHost } from '../../data/host.ts';
 import { placeOfSpace, placesOf } from '../../data/places.ts';
-import { createPullRetryClient } from '../../data/pullRetry.ts';
+import { createPullRetryClient } from '../../data/pullRetry/pullRetry.ts';
 import type { RepositoryPulls } from '../../data/snapshot.ts';
 import type { DragState } from '../../kit/drag.ts';
 import { dragLine, dropAction, noDrag, setDragOver, startDrag } from '../../kit/drag.ts';

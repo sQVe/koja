@@ -1,10 +1,10 @@
-import { hasOnlyKeys, isRecord, recordOf } from '../kit/fields.ts';
-import { isPositiveWholeNumber } from './fields.ts';
-import type { Lease, ReadShared, WriteShared } from './lease.ts';
-import { holdsLease } from './lease.ts';
-import type { RecordNotices } from './recordNotices.ts';
-import { recordNotices } from './recordNotices.ts';
-import { sameValue } from './sortedValue.ts';
+import { hasOnlyKeys, isRecord, recordOf } from '../../kit/fields.ts';
+import { isPositiveWholeNumber } from '../fields.ts';
+import type { Lease, ReadShared, WriteShared } from '../lease.ts';
+import { holdsLease } from '../lease.ts';
+import type { RecordNotices } from '../recordNotices.ts';
+import { recordNotices } from '../recordNotices.ts';
+import { sameValue } from '../sortedValue.ts';
 
 export interface PullRetryRequest {
   consumer: string;
@@ -171,37 +171,6 @@ export const readPullRetryOutcomes = (
 
 export const requestKey = (request: { consumer: string; id: string }): string =>
   JSON.stringify([request.consumer, request.id]);
-
-export const freshRequests = (
-  requests: PullRetryRequest[],
-  taken: ReadonlySet<string>,
-  now: number,
-): PullRetryRequest[] =>
-  requests.filter((request) => !isExpired(request.at, now) && !taken.has(requestKey(request)));
-
-export const outcomesFor = (
-  requests: PullRetryRequest[],
-  answers: ReadonlyMap<string, PullRetryResult>,
-  now: number,
-): PullRetryOutcome[] => {
-  const outcomes: PullRetryOutcome[] = [];
-
-  for (const request of requests) {
-    if (isExpired(request.at, now)) {
-      continue;
-    }
-
-    const result = answers.get(requestKey(request));
-
-    if (result === undefined) {
-      continue;
-    }
-
-    outcomes.push({ consumer: request.consumer, id: request.id, result });
-  }
-
-  return outcomes;
-};
 
 export const answeredRequestKeys = (read: ReadShared): Set<string> => {
   const stored = readPullRetryOutcomes(read, recordNotices);

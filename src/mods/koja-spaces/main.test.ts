@@ -23,7 +23,7 @@ import { pullFacts } from '../../../tests/pullFacts.ts';
 import { readDataState } from '../../data/consumer.ts';
 import { placeOf, repositoryOf, worktreeOf } from '../../data/gitIdentity.ts';
 import { heartbeatKey, leaseKey } from '../../data/lease.ts';
-import { pullRetryOutcomesKey, pullRetryRequestsKey } from '../../data/pullRetry.ts';
+import { pullRetryOutcomesKey, pullRetryRequestsKey } from '../../data/pullRetry/pullRetry.ts';
 import type { Facts, PlaceGit, RepositoryPulls, WorktreeGit } from '../../data/snapshot.ts';
 import { snapshotKey } from '../../data/snapshot.ts';
 
