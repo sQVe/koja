@@ -112,4 +112,26 @@ describe('readRepositoryPulls', () => {
 
     expect(read).toEqual({ kind: 'failed', rateLimited: true });
   });
+
+  test('the local PR rows fake answers the reader', async () => {
+    const body =
+      '{"data":{"rateLimit":{"cost":1,"remaining":4999,"resetAt":"2030-01-01T00:00:00Z"},"repository":{"open0":{"nodes":[{"number":7,"state":"OPEN","isDraft":false,"title":"Fixture pull request","headRefName":"fixture-branch","mergeable":"MERGEABLE","mergeStateStatus":"CLEAN","reviewDecision":null,"commits":{"nodes":[{"commit":{"statusCheckRollup":{"state":"SUCCESS"}}}]},"reviewThreads":{"pageInfo":{"hasNextPage":false},"nodes":[]}}]},"latest0":{"nodes":[]}}}}';
+
+    const pulls = pullsOf(await readOf(['fixture-branch'], [{ body }]));
+
+    expect(pulls).toHaveLength(1);
+    expect(pulls[0]).toMatchObject({ number: 7, title: 'Fixture pull request' });
+    expect(pullNeeds(pulls[0] as Pull)).toEqual(['ready']);
+  });
+
+  test('the recovered PR read fake answers the reader', async () => {
+    const body =
+      '{"data":{"rateLimit":{"cost":1,"remaining":4999,"resetAt":"2030-01-01T00:00:00Z"},"repository":{"open0":{"nodes":[]},"latest0":{"nodes":[]}}}}';
+
+    expect(await readOf(['fixture-branch'], [{ body }])).toEqual({
+      kind: 'read',
+      pulls: [],
+      rateLimit: { remaining: 4999, resetAt: Date.parse('2030-01-01T00:00:00Z') },
+    });
+  });
 });
