@@ -2,18 +2,15 @@ import { h_flex, v_flex } from 'gpui-base';
 import type { Element } from 'gpui-kit';
 
 import { factSize, rowHeight, spacing } from './size.ts';
+import type { LinkTarget } from './sourceLink.ts';
 import { sourceLink } from './sourceLink.ts';
 import { roleText } from './textRole.ts';
-
-// A GitHub fact carries the repository its value belongs to, so every linked value names its whole
-// target.
-type FactSource = { source: 'GitHub'; repository: string } | { source: 'Linear' | 'tikk' };
 
 export interface Fact {
   label: string;
   value: string;
   // A value that opens its source draws as a link naming that source.
-  link?: FactSource;
+  link?: LinkTarget;
 }
 
 // A fact label is one short word, so it keeps its width and the value takes the cut.
