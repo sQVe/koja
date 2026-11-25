@@ -205,15 +205,17 @@ export class PullSchedulerHarness {
   }
 
   async respondRemotes(index: number): Promise<void> {
-    await this.respond(index, remoteNamesResult);
+    const names = this.call(index);
 
-    const next = this.calls.at(-1);
+    await this.respondCall(names, remoteNamesResult);
 
-    if (next === undefined || !isRemoteUrlCall(next)) {
+    const url = this.callsIn(names.cwd).at(-1);
+
+    if (url === undefined || !isRemoteUrlCall(url)) {
       return;
     }
 
-    await this.respondRemoteUrl(next, 'git@github.com:koja/koja.git');
+    await this.respondRemoteUrl(url, 'git@github.com:koja/koja.git');
   }
 
   async respondIn(folder: string, result: ExecResult): Promise<void> {
@@ -234,7 +236,10 @@ export class PullSchedulerHarness {
     }
 
     await this.respondCall(names, remoteNamesResult);
-    await this.respondRemoteUrl(this.calls.at(-1), url);
+
+    const remoteUrlCall = this.callsIn(folder).at(-1);
+
+    await this.respondRemoteUrl(remoteUrlCall, url);
   }
 
   private async respondRemoteUrl(call: PendingCall | undefined, url: string): Promise<void> {

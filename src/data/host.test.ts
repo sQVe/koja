@@ -50,6 +50,9 @@ interface Copy {
 
 const pullPeriodMilliseconds = 60_000;
 
+// A push read is due one push gap after the repository's last read start.
+const pushGapMilliseconds = 15_000;
+
 const sweepMilliseconds = 250;
 const folder = '/code/koja';
 const place = placeOf(null, folder);
@@ -390,8 +393,9 @@ describe('startDataHost', () => {
     watch?.resolve([`${folder}/.git/refs/remotes/origin/main`]);
     await settle();
 
-    // The watch event at 10 s makes the push read due at 15 s, well before the 60 s period.
-    const tickAt = start + 15_000;
+    // The watch event at 10 s makes the push read due one push gap after the last read start,
+    // well before the 60 s period.
+    const tickAt = start + pushGapMilliseconds;
 
     for (
       let at = start + heartbeatIntervalMilliseconds;
