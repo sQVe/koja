@@ -63,6 +63,8 @@ export default class Changes extends View {
 
   private pendingRefresh = false;
 
+  private pendingCommit = false;
+
   private busy = false;
 
   private closed = false;
@@ -283,6 +285,11 @@ export default class Changes extends View {
       } finally {
         this.loading = false;
 
+        if (this.pendingCommit) {
+          this.pendingCommit = false;
+          this.commit(taskCx);
+        }
+
         if (this.pendingRefresh) {
           this.pendingRefresh = false;
           this.refresh(taskCx);
@@ -425,7 +432,19 @@ export default class Changes extends View {
   private commit(cx: Context): void {
     const snapshot = this.state.lastGood?.snapshot ?? null;
 
-    if (snapshot === null || !canCommit(this.commitRequest())) {
+    if (snapshot === null) {
+      return;
+    }
+
+    const request = this.commitRequest();
+
+    if (request.loading) {
+      this.pendingCommit = canCommit({ ...request, loading: false });
+
+      return;
+    }
+
+    if (!canCommit(request)) {
       return;
     }
 

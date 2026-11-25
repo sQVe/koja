@@ -750,6 +750,37 @@ describe('Changes view', () => {
     expect(renderedDiffWidth).toBe(diffWidth);
   });
 
+  test('a submit during a read commits once the read finishes', async () => {
+    const view = await boot();
+
+    typeMessage();
+    view.render(context);
+
+    expect(renderedCommit?.enabled).toBe(true);
+
+    blockStatus = true;
+    blockAfterReads = statusReads;
+    view.refresh(context);
+    await settle();
+
+    expect(statusGate).not.toBeNull();
+
+    const before = commitCommands();
+
+    inputHandlers.get('submit')?.({}, context);
+    await settle();
+
+    expect(commitCommands()).toBe(before);
+
+    blockStatus = false;
+    statusGate?.();
+    await settle();
+    view.render(context);
+
+    expect(commitCommands()).toBe(before + 1);
+    expect(inputValue).toBe('');
+  });
+
   test('a background refresh requests a redraw before its read finishes', async () => {
     await boot();
 
