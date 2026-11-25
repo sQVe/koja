@@ -151,6 +151,7 @@ export const kitIndexFake = (overrides: ModuleFake = {}): ModuleFake => ({
   paneTaskElement: noop,
   paneHeaderMenu: noop,
   paneHeaderMenuDetails: noop,
+  popupFrameRadius: 8,
   popupSurface: noop,
   programIcon: noop,
   projectHeader: noop,

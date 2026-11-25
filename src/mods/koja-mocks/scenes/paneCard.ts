@@ -7,6 +7,7 @@ import {
   controlSize,
   paneHeader,
   paneHeaderMenu,
+  popupFrameRadius,
   radius,
   roleText,
   shellSize,
@@ -46,7 +47,7 @@ export const compactWithMenu = (header: PaneHeaderOptions): Element => {
     .absolute()
     .top(controlSize.sectionHeader)
     .right(spacing.none)
-    .rounded(radius.default)
+    .rounded(popupFrameRadius)
     .border(spacing.hairline)
     .border_color(palette.border)
     .child(
