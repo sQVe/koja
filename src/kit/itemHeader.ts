@@ -11,12 +11,14 @@ import { detailText } from './text.ts';
 import { withTextRole } from './textRole.ts';
 import { colors } from './theme.ts';
 
-type ItemStateKind = 'open' | 'inProgress' | 'inReview' | 'sent';
+type ItemStateKind = 'openPullRequest' | 'inProgress' | 'inReview' | 'sent';
 
 interface ItemStateOptions {
   kind: ItemStateKind;
   // The state word comes from the item's source, such as `open` or `In progress`.
   label: string;
+  // The duration since the item was read, drawn as `synced 1m ago`.
+  age: string | null;
 }
 
 export type ItemHeaderOptions = SourceLinkOptions &
@@ -26,13 +28,11 @@ export type ItemHeaderOptions = SourceLinkOptions &
         kind: 'ready';
         title: string;
         state: ItemStateOptions | null;
-        // The duration since the item was read, drawn as `synced 1m ago`.
-        age: string | null;
       }
   );
 
 const stateMark = (kind: ItemStateKind): Element => {
-  if (kind === 'open') {
+  if (kind === 'openPullRequest') {
     return icon('git-pull-request', 'small').text_color(colors().done);
   }
 
@@ -65,22 +65,22 @@ const stateChip = (state: ItemStateOptions): Element => {
   return chip.child(stateMark(state.kind)).child(stateLabel);
 };
 
-const stateRow = (state: ItemStateOptions, age: string | null): Element => {
+const stateRow = (state: ItemStateOptions): Element => {
   const row = h_flex()
     .mt(spacing.xsmall)
     .gap(spacing.medium)
     .items_center()
     .child(stateChip(state));
 
-  if (age !== null) {
-    row.child(detailText(`synced ${age}`));
+  if (state.age !== null) {
+    row.child(detailText(`synced ${state.age}`));
   }
 
   return row;
 };
 
 const titleText = (title: string): Element => {
-  const box = div().min_w(0).flex_1();
+  const box = div().min_w(0);
 
   return withTextRole(box, 'viewTitle').child(title);
 };
@@ -102,7 +102,7 @@ export const itemHeader = (options: ItemHeaderOptions): Element => {
   header.child(titleText(options.title));
 
   if (options.state !== null) {
-    header.child(stateRow(options.state, options.age));
+    header.child(stateRow(options.state));
   }
 
   return header;
