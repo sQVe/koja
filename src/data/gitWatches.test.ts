@@ -40,15 +40,13 @@ const watcher = () => {
 };
 
 const contextOf = () => {
-  const spawned: Promise<unknown>[] = [];
-
   const context = {
     spawn: (body: (taskCx: unknown) => unknown): void => {
-      spawned.push(Promise.resolve(body(context)));
+      void body(context);
     },
   };
 
-  return { context, spawned };
+  return context;
 };
 
 const settle = async (): Promise<void> => {
@@ -57,10 +55,20 @@ const settle = async (): Promise<void> => {
   }
 };
 
-const registryAt = (now: number) => {
+const registryAt = (start: number, tick = 0) => {
   const { watchFolder, fires } = watcher();
-  const { context } = contextOf();
-  const registry = loaded.createWatchRegistry(watchFolder, () => now);
+  const context = contextOf();
+  let current = start;
+
+  const clock = (): number => {
+    const at = current;
+
+    current += tick;
+
+    return at;
+  };
+
+  const registry = loaded.createWatchRegistry(watchFolder, clock);
 
   registry.start(repository, context);
 
@@ -75,7 +83,11 @@ const registryAt = (now: number) => {
     await settle();
   };
 
-  return { registry, fire };
+  const setNow = (value: number): void => {
+    current = value;
+  };
+
+  return { registry, fire, setNow };
 };
 
 const oneEvent = (at: number): Map<string, number> => new Map([[repository.key, at]]);
@@ -90,10 +102,17 @@ describe('createWatchRegistry', () => {
     expect(registry.takeEvents()).toEqual(oneEvent(500));
   });
 
-  test('records a remote-ref event for the common directory and its packed refs', async () => {
+  test('records a remote-ref event for the common directory', async () => {
     const { registry, fire } = registryAt(700);
 
     await fire(['/repo/.git']);
+
+    expect(registry.takeRemoteRefEvents()).toEqual(oneEvent(700));
+  });
+
+  test('records a remote-ref event for packed refs', async () => {
+    const { registry, fire } = registryAt(700);
+
     await fire(['/repo/.git/packed-refs']);
 
     expect(registry.takeRemoteRefEvents()).toEqual(oneEvent(700));
@@ -114,5 +133,25 @@ describe('createWatchRegistry', () => {
     await fire(['/repo/refs/remotes/origin/b']);
 
     expect(registry.takeRemoteRefEvents()).toEqual(new Map());
+  });
+
+  test('keeps the earliest time across folder changes', async () => {
+    const { registry, fire, setNow } = registryAt(500);
+
+    await fire(['/repo/.git/index']);
+
+    setNow(700);
+    await fire(['/repo/.git/index']);
+
+    expect(registry.takeEvents()).toEqual(oneEvent(500));
+  });
+
+  test('records one time for both event lists of a folder change', async () => {
+    const { registry, fire } = registryAt(500, 100);
+
+    await fire(['/repo/.git/refs/remotes/origin/b']);
+
+    expect(registry.takeEvents()).toEqual(oneEvent(500));
+    expect(registry.takeRemoteRefEvents()).toEqual(oneEvent(500));
   });
 });

@@ -2,8 +2,27 @@ import type { ExecResult } from 'herdr';
 
 import { hasOnlyKeys, isRecord, numberOf, stringOf } from '../kit/fields.ts';
 import type { RunCommand } from './gitIdentity.ts';
-import { branchesPerQuery, pullQueryArgs } from './pullQuery.ts';
-import type { PullRemote } from './pullQuery.ts';
+import {
+  batchesOf,
+  batchErrorsOf,
+  bodyOf,
+  checksPartOf,
+  isCount,
+  pullQueryArgs,
+  rateLimitedIn,
+  rateLimitOf,
+  statusNamesOf,
+  threadsPartOf,
+  unknownListOf,
+} from './pullQuery.ts';
+import type { PullRemote } from './pullRemote.ts';
+import {
+  ghResolvedConfigKey,
+  markedRemoteOf,
+  remoteLookup,
+  remoteNameOf,
+  remoteNamesOf,
+} from './pullRemote.ts';
 import type { PullSource } from './pullSources.ts';
 
 export type PullChecks = 'passing' | 'failing' | 'running' | 'none';
@@ -45,7 +64,7 @@ export interface Pull {
   threads: PullPart<PullThreads>;
 }
 
-interface BatchErrors {
+export interface BatchErrors {
   checks: Set<number>;
   threads: Set<number>;
 }
@@ -59,22 +78,35 @@ interface BatchRead {
 
 type BatchAnswer = { kind: 'read'; read: BatchRead } | { kind: 'failed' };
 
-interface PullRateLimit {
+export interface PullRateLimit {
   remaining: number;
   resetAt: number;
 }
 
 export type PullRead =
-  | { kind: 'read'; pulls: Pull[]; rateLimit: PullRateLimit | null }
-  | { kind: 'failed'; rateLimited: boolean }
+  | { kind: 'read'; pulls: Pull[]; rateLimit: PullRateLimit | null; host: string | null }
+  | { kind: 'failed'; rateLimited: boolean; host: string | null }
   | { kind: 'dropped' };
 
 type PullNeedsFields = Pick<Pull, 'mergeable' | 'mergeState' | 'review' | 'checks' | 'threads'>;
 
-type RemoteRead =
-  | { kind: 'remote'; remote: PullRemote | null }
+type RemoteChoice =
+  | { kind: 'remote'; remote: string }
+  | { kind: 'none' }
   | { kind: 'failed' }
   | { kind: 'dropped' };
+
+export const partValueOf = <T>(part: PullPart<T>): T | null => {
+  if (part.kind === 'read') {
+    return part.value;
+  }
+
+  if (part.kind === 'failed') {
+    return part.last;
+  }
+
+  return null;
+};
 
 const pullFieldNames = ['number', 'state', 'isDraft', 'title', 'headRefName'];
 
@@ -101,13 +133,6 @@ const checksValues: readonly PullChecks[] = ['passing', 'failing', 'running', 'n
 
 const isOneOf = <T extends string>(values: readonly T[], value: unknown): value is T =>
   values.some((entry) => entry === value);
-
-const isCount = (value: unknown): value is number =>
-  typeof value === 'number' && Number.isSafeInteger(value) && value >= 0;
-
-// SAFETY: Array.isArray checked the list, so every element is read as unknown from here on.
-const unknownListOf = (value: unknown): unknown[] | null =>
-  Array.isArray(value) ? (value as unknown[]) : null;
 
 export const unreadPullNeeds = (): PullNeedsFields => ({
   mergeable: 'unknown',
@@ -271,145 +296,6 @@ export const parseStoredPull = (value: unknown): Pull | null => {
   return needs === null ? null : { ...pull, ...needs };
 };
 
-const rollupChecks: Record<string, PullChecks> = {
-  SUCCESS: 'passing',
-  FAILURE: 'failing',
-  ERROR: 'failing',
-  PENDING: 'running',
-  EXPECTED: 'running',
-};
-
-const mergeablesByName: Record<string, PullMergeable> = {
-  MERGEABLE: 'mergeable',
-  CONFLICTING: 'conflicting',
-};
-
-const mergeStatesByName: Record<string, PullMergeState> = {
-  CLEAN: 'clean',
-  HAS_HOOKS: 'hasHooks',
-  BLOCKED: 'blocked',
-  BEHIND: 'behind',
-  DIRTY: 'dirty',
-  DRAFT: 'draft',
-  UNSTABLE: 'unstable',
-};
-
-const reviewsByName: Record<string, PullReview> = {
-  APPROVED: 'approved',
-  CHANGES_REQUESTED: 'changesRequested',
-  REVIEW_REQUIRED: 'reviewRequired',
-};
-
-const checksPath: readonly unknown[] = ['commits', 'nodes', 0, 'commit', 'statusCheckRollup'];
-
-const aliasPathLength = 4;
-
-const openAlias = /^open(\d+)$/;
-
-const isPrefixOf = (prefix: readonly unknown[], value: readonly unknown[]): boolean =>
-  prefix.length <= value.length && prefix.every((step, index) => value[index] === step);
-
-const isChecksPath = (path: readonly unknown[]): boolean =>
-  isPrefixOf(checksPath, path) || isPrefixOf(path, checksPath);
-
-const isThreadsPath = (path: readonly unknown[]): boolean =>
-  path[0] === 'reviewThreads' && path[1] === 'nodes' && isCount(path[2]);
-
-const recordOfOrNull = (value: unknown, key: string): Record<string, unknown> | null => {
-  if (!isRecord(value)) {
-    return null;
-  }
-
-  const entry = value[key];
-
-  return isRecord(entry) ? entry : null;
-};
-
-const checksPartOf = (
-  node: Record<string, unknown>,
-  failed: boolean,
-): PullPart<PullChecks> | null => {
-  if (failed) {
-    return { kind: 'failed', last: null };
-  }
-
-  const commits = node['commits'];
-  const commitNodes = isRecord(commits) ? unknownListOf(commits['nodes']) : null;
-
-  if (commitNodes === null) {
-    return null;
-  }
-
-  const [first] = commitNodes;
-
-  if (first === undefined) {
-    return { kind: 'read', value: 'none' };
-  }
-
-  const commit = recordOfOrNull(first, 'commit');
-
-  if (commit === null) {
-    return null;
-  }
-
-  const rollup = commit['statusCheckRollup'];
-
-  if (rollup === null) {
-    return { kind: 'read', value: 'none' };
-  }
-
-  if (!isRecord(rollup)) {
-    return null;
-  }
-
-  const checks = rollupChecks[String(rollup['state'])];
-
-  return checks === undefined ? null : { kind: 'read', value: checks };
-};
-
-const threadsPartOf = (
-  node: Record<string, unknown>,
-  failed: boolean,
-): PullPart<PullThreads> | null => {
-  if (failed) {
-    return { kind: 'failed', last: null };
-  }
-
-  const threads = node['reviewThreads'];
-
-  if (!isRecord(threads)) {
-    return null;
-  }
-
-  const pageInfo = threads['pageInfo'];
-
-  if (!isRecord(pageInfo) || typeof pageInfo['hasNextPage'] !== 'boolean') {
-    return null;
-  }
-
-  const nodes = unknownListOf(threads['nodes']);
-
-  if (nodes === null) {
-    return null;
-  }
-
-  let unresolved = 0;
-
-  for (const entry of nodes) {
-    const isResolved = isRecord(entry) ? entry['isResolved'] : null;
-
-    if (typeof isResolved !== 'boolean') {
-      return null;
-    }
-
-    if (!isResolved) {
-      unresolved += 1;
-    }
-  }
-
-  return { kind: 'read', value: { unresolved, complete: !pageInfo['hasNextPage'] } };
-};
-
 const openPullOf = (node: unknown, errors: BatchErrors, branch: number): Pull | null => {
   if (!isRecord(node)) {
     return null;
@@ -433,11 +319,7 @@ const openPullOf = (node: unknown, errors: BatchErrors, branch: number): Pull | 
     return null;
   }
 
-  const mergeable = mergeablesByName[String(node['mergeable'])] ?? 'unknown';
-  const mergeState = mergeStatesByName[String(node['mergeStateStatus'])] ?? 'unknown';
-  const review = reviewsByName[String(node['reviewDecision'])] ?? 'none';
-
-  return { ...base, mergeable, mergeState, review, checks, threads };
+  return { ...base, ...statusNamesOf(node), checks, threads };
 };
 
 const summaryPullOf = (node: unknown): Pull | null => (isRecord(node) ? decodePull(node) : null);
@@ -446,84 +328,6 @@ const aliasNodesOf = (repository: Record<string, unknown>, alias: string): unkno
   const entry = repository[alias];
 
   return isRecord(entry) ? unknownListOf(entry['nodes']) : null;
-};
-
-const rateLimitOf = (data: Record<string, unknown>): PullRateLimit | null => {
-  const stored = data['rateLimit'];
-
-  if (!isRecord(stored)) {
-    return null;
-  }
-
-  const remaining = stored['remaining'];
-  const resetAt = stringOf(stored['resetAt']);
-  const resetTime = resetAt === null ? Number.NaN : Date.parse(resetAt);
-
-  if (!isCount(remaining) || Number.isNaN(resetTime)) {
-    return null;
-  }
-
-  return { remaining, resetAt: resetTime };
-};
-
-const branchOfPath = (path: readonly unknown[], branchCount: number): number | null => {
-  const [root, alias, nodes, index] = path;
-  const aliasName = typeof alias === 'string' ? alias : null;
-  const match = aliasName === null ? null : openAlias.exec(aliasName);
-  const branch = match === null ? Number.NaN : Number(match[1]);
-  const knownBranch = Number.isSafeInteger(branch) && branch >= 0 && branch < branchCount;
-  const atNode = root === 'repository' && nodes === 'nodes' && index === 0;
-
-  return atNode && knownBranch ? branch : null;
-};
-
-const addErrorOf = (
-  errors: BatchErrors,
-  path: readonly unknown[],
-  branchCount: number,
-): boolean => {
-  const branch = branchOfPath(path, branchCount);
-
-  if (branch === null) {
-    return false;
-  }
-
-  const rest = path.slice(aliasPathLength);
-
-  if (isChecksPath(rest)) {
-    errors.checks.add(branch);
-
-    return true;
-  }
-
-  if (isThreadsPath(rest)) {
-    errors.threads.add(branch);
-
-    return true;
-  }
-
-  return false;
-};
-
-const batchErrorsOf = (body: Record<string, unknown>, branchCount: number): BatchErrors | null => {
-  const entries = unknownListOf(body['errors'] ?? []);
-
-  if (entries === null) {
-    return null;
-  }
-
-  const errors: BatchErrors = { checks: new Set(), threads: new Set() };
-
-  for (const entry of entries) {
-    const stored = isRecord(entry) ? entry['path'] : null;
-    const path = unknownListOf(stored);
-
-    if (path === null || !addErrorOf(errors, path, branchCount)) {
-      return null;
-    }
-  }
-
-  return errors;
 };
 
 const branchPullOf = (
@@ -578,18 +382,6 @@ const repositoryPullsOf = (
   return pulls;
 };
 
-const bodyOf = (result: ExecResult): Record<string, unknown> | null => {
-  let body: unknown;
-
-  try {
-    body = JSON.parse(result.stdout);
-  } catch {
-    return null;
-  }
-
-  return isRecord(body) ? body : null;
-};
-
 const batchAnswerOf = (result: ExecResult, branches: string[]): BatchAnswer => {
   const failed: BatchAnswer = { kind: 'failed' };
   const body = bodyOf(result);
@@ -625,101 +417,19 @@ const batchAnswerOf = (result: ExecResult, branches: string[]): BatchAnswer => {
   return { kind: 'read', read: { pulls, rateLimit: rateLimitOf(data) } };
 };
 
-const batchesOf = (branches: string[]): string[][] => {
-  const batches: string[][] = [];
+const hostOf = (remote: PullRemote | null): string | null => remote?.host ?? null;
 
-  for (let index = 0; index < branches.length; index += branchesPerQuery) {
-    batches.push(branches.slice(index, index + branchesPerQuery));
-  }
-
-  return batches;
-};
-
-const rateLimitedIn = (result: ExecResult): boolean =>
-  result.code !== 0 && /rate limit/i.test(result.stderr);
-
-const remoteNameOf = (remotes: string): string | null => {
-  const names = remotes
-    .split('\n')
-    .map((name) => name.trim())
-    .filter((name) => name !== '');
-
-  if (names.includes('origin')) {
-    return 'origin';
-  }
-
-  return names[0] ?? null;
-};
-
-const withoutGitSuffix = (name: string): string => name.replace(/\.git$/, '');
-
-const decodedComponent = (component: string): string | null => {
-  try {
-    return decodeURIComponent(component);
-  } catch {
-    return null;
-  }
-};
-
-const remotePathOf = (path: string): Pick<PullRemote, 'owner' | 'repository'> | null => {
-  const parts = path.split('/').filter((part) => part !== '');
-
-  if (parts.length !== 2) {
-    return null;
-  }
-
-  const [ownerPart, repositoryPart] = parts;
-
-  if (ownerPart === undefined || repositoryPart === undefined) {
-    return null;
-  }
-
-  const owner = decodedComponent(ownerPart);
-  const repository = decodedComponent(repositoryPart);
-
-  if (owner === null || repository === null) {
-    return null;
-  }
-
-  return { owner: withoutGitSuffix(owner), repository: withoutGitSuffix(repository) };
-};
-
-// GitHub serves SSH over 443 at ssh.github.com, but its API is at github.com.
-const apiHostOf = (host: string): string => (host === 'ssh.github.com' ? 'github.com' : host);
-
-const remoteOfUrl = (remoteUrl: string): PullRemote | null => {
-  const url = remoteUrl.trim();
-  const shorthand = /^[^@/\s]+@([^:/\s]+):(.+)$/.exec(url);
-  const uri = /^(?:https?|ssh|git):\/\/(?:[^@/\s]+@)?([^:/\s]+)(?::\d+)?\/(.+)$/.exec(url);
-  const match = shorthand ?? uri;
-
-  if (match === null) {
-    return null;
-  }
-
-  const host = match[1];
-  const path = match[2];
-  const parts = path === undefined ? null : remotePathOf(path);
-
-  if (host === undefined || parts === null) {
-    return null;
-  }
-
-  return { host: apiHostOf(host), ...parts };
-};
-
-const remoteLookup = async (
+const remoteChoiceOf = async (
   run: RunCommand,
   source: PullSource,
-  remote: string,
   stillOwner: () => boolean,
-): Promise<RemoteRead> => {
-  const result = await run('git', ['remote', 'get-url', remote], {
+): Promise<RemoteChoice> => {
+  const remotes = await run('git', ['remote'], {
     cwd: source.cwd,
     on: source.repository.machine,
   });
 
-  if (result.code !== 0) {
+  if (remotes.code !== 0) {
     return { kind: 'failed' };
   }
 
@@ -727,7 +437,36 @@ const remoteLookup = async (
     return { kind: 'dropped' };
   }
 
-  return { kind: 'remote', remote: remoteOfUrl(result.stdout) };
+  const names = remoteNamesOf(remotes.stdout);
+
+  if (names.length === 0 || source.branches.length === 0) {
+    return { kind: 'none' };
+  }
+
+  const [first] = names;
+
+  // One remote is always the answer, so only a repository with a choice reads the mark.
+  if (first !== undefined && names.length === 1) {
+    return { kind: 'remote', remote: first };
+  }
+
+  const marked = await run('git', ['config', '--get-regexp', ghResolvedConfigKey], {
+    cwd: source.cwd,
+    on: source.repository.machine,
+  });
+
+  // git config exits 1 when no key matches, which means no remote is marked.
+  if (marked.code !== 0 && marked.code !== 1) {
+    return { kind: 'failed' };
+  }
+
+  if (!stillOwner()) {
+    return { kind: 'dropped' };
+  }
+
+  const remote = remoteNameOf(names, markedRemoteOf(marked.stdout));
+
+  return remote === null ? { kind: 'none' } : { kind: 'remote', remote };
 };
 
 export const readRepositoryPulls = async (
@@ -736,34 +475,31 @@ export const readRepositoryPulls = async (
   stillOwner: () => boolean,
 ): Promise<PullRead> => {
   try {
-    const remotes = await run('git', ['remote'], {
-      cwd: source.cwd,
-      on: source.repository.machine,
-    });
+    const choice = await remoteChoiceOf(run, source, stillOwner);
 
-    if (remotes.code !== 0) {
-      return { kind: 'failed', rateLimited: false };
+    if (choice.kind === 'failed') {
+      return { kind: 'failed', rateLimited: false, host: null };
     }
 
-    if (!stillOwner()) {
+    if (choice.kind === 'dropped') {
       return { kind: 'dropped' };
     }
 
-    const remote = remoteNameOf(remotes.stdout);
-
-    if (remote === null || source.branches.length === 0) {
-      return { kind: 'read', pulls: [], rateLimit: null };
+    if (choice.kind === 'none') {
+      return { kind: 'read', pulls: [], rateLimit: null, host: null };
     }
 
-    const remoteRead = await remoteLookup(run, source, remote, stillOwner);
+    const remoteRead = await remoteLookup(run, source, choice.remote, stillOwner);
 
     if (remoteRead.kind === 'failed') {
-      return { kind: 'failed', rateLimited: false };
+      return { kind: 'failed', rateLimited: false, host: null };
     }
 
     if (remoteRead.kind === 'dropped') {
       return { kind: 'dropped' };
     }
+
+    const host = hostOf(remoteRead.remote);
 
     const pulls: Pull[] = [];
     let rateLimit: PullRateLimit | null = null;
@@ -782,15 +518,15 @@ export const readRepositoryPulls = async (
       const answer = batchAnswerOf(result, batch);
 
       if (answer.kind === 'failed') {
-        return { kind: 'failed', rateLimited: rateLimitedIn(result) };
+        return { kind: 'failed', rateLimited: rateLimitedIn(result), host };
       }
 
       pulls.push(...answer.read.pulls);
       rateLimit = answer.read.rateLimit;
     }
 
-    return { kind: 'read', pulls, rateLimit };
+    return { kind: 'read', pulls, rateLimit, host };
   } catch {
-    return { kind: 'failed', rateLimited: false };
+    return { kind: 'failed', rateLimited: false, host: null };
   }
 };

@@ -1,10 +1,18 @@
 import { describe, expect, test } from 'bun:test';
 
-import { formFieldOf, githubFixture, pullNodeOf, runWith } from '../../tests/pullAnswers.ts';
+import type { Answer } from '../../tests/pullAnswers.ts';
+import {
+  answerFrom,
+  formFieldOf,
+  githubFixture,
+  pullNodeOf,
+  runWith,
+} from '../../tests/pullAnswers.ts';
 import { pullFacts } from '../../tests/pullFacts.ts';
 import type { RunCommand } from './gitIdentity.ts';
 import { repositoryOf } from './gitIdentity.ts';
 import { pullNeeds } from './pullNeeds.ts';
+import { pullQueryArgs } from './pullQuery.ts';
 import type { Pull, PullRead } from './pulls.ts';
 import { readRepositoryPulls } from './pulls.ts';
 import type { PullSource } from './pullSources.ts';
@@ -13,12 +21,8 @@ const repository = repositoryOf(null, '/repo/.git');
 
 const sourceOf = (branches: string[]): PullSource => ({ repository, cwd: '/repo', branches });
 
-const readOf = async (
-  branches: string[],
-  answers: { body: string; code?: number; stderr?: string }[],
-  calls: string[][] = [],
-): Promise<PullRead> =>
-  readRepositoryPulls(runWith(answers, calls), sourceOf(branches), () => true);
+const readOf = async (branches: string[], answers: Answer[]): Promise<PullRead> =>
+  readRepositoryPulls(runWith(answers), sourceOf(branches), () => true);
 
 const pullsOf = (read: PullRead): Pull[] => (read.kind === 'read' ? read.pulls : []);
 
@@ -26,7 +30,18 @@ const readFixture = async (name: string): Promise<Pull[]> =>
   pullsOf(await readOf([name], [{ body: githubFixture(`${name}.json`) }]));
 
 const historyOf = (): Pull[] => {
-  const pulls = [pullFacts({ number: 1, headRefName: 'wanted', state: 'OPEN' })];
+  const pulls = [
+    pullFacts({
+      number: 1,
+      headRefName: 'wanted',
+      state: 'OPEN',
+      mergeable: 'mergeable',
+      mergeState: 'clean',
+      review: 'approved',
+      checks: { kind: 'read', value: 'passing' },
+      threads: { kind: 'read', value: { unresolved: 0, complete: true } },
+    }),
+  ];
 
   for (let number = 2; number <= 125; number += 1) {
     const headRefName = number === 2 ? 'wanted' : `feature-${number}`;
@@ -153,6 +168,44 @@ describe('readRepositoryPulls', () => {
     expect(pulls.map((pull) => pullNeeds(pull))).toEqual([['conflict']]);
   });
 
+  test('answers the failing check and conflict of the pulls it is given', async () => {
+    const given = [
+      pullFacts({
+        number: 1,
+        headRefName: 'failing',
+        checks: { kind: 'read', value: 'failing' },
+      }),
+      pullFacts({ number: 2, headRefName: 'conflict', mergeable: 'conflicting' }),
+    ];
+
+    const pulls = pullsOf(await readOf(['failing', 'conflict'], [{ body: answerFrom(2, given) }]));
+
+    expect(pulls.map((pull) => pullNeeds(pull))).toEqual([['failing'], ['conflict']]);
+  });
+
+  test('answers a pull whose state is not open under the latest alias', async () => {
+    const given = [
+      pullFacts({ number: 3, headRefName: 'merged', state: 'MERGED', title: 'Merged' }),
+    ];
+
+    const pulls = pullsOf(await readOf(['merged'], [{ body: answerFrom(1, given) }]));
+
+    expect(pulls).toEqual([
+      {
+        number: 3,
+        state: 'MERGED',
+        isDraft: false,
+        title: 'Merged',
+        headRefName: 'merged',
+        mergeable: 'unknown',
+        mergeState: 'unknown',
+        review: 'none',
+        checks: { kind: 'unread' },
+        threads: { kind: 'unread' },
+      },
+    ]);
+  });
+
   test('never reads unknown mergeability as ready', async () => {
     const pulls = await readFixture('unknown');
 
@@ -225,7 +278,22 @@ describe('readRepositoryPulls', () => {
       [{ body: '', code: 1, stderr: 'API rate limit exceeded for user ID 1' }],
     );
 
-    expect(read).toEqual({ kind: 'failed', rateLimited: true });
+    expect(read).toEqual({ kind: 'failed', rateLimited: true, host: null });
+  });
+
+  test('records a gh call with no answer instead of hiding it behind a failed read', async () => {
+    const calls: string[][] = [];
+    const unexpectedCalls: string[][] = [];
+
+    const read = await readRepositoryPulls(
+      runWith([], calls, unexpectedCalls),
+      sourceOf(['main']),
+      () => true,
+    );
+
+    expect(read).toEqual({ kind: 'failed', rateLimited: false, host: null });
+    expect(calls).toEqual([pullQueryArgs(['main'], null)]);
+    expect(unexpectedCalls).toEqual([pullQueryArgs(['main'], null)]);
   });
 
   test('the local PR rows fake answers the reader', async () => {
@@ -247,6 +315,7 @@ describe('readRepositoryPulls', () => {
       kind: 'read',
       pulls: [],
       rateLimit: { remaining: 4999, resetAt: Date.parse('2030-01-01T00:00:00Z') },
+      host: null,
     });
   });
 });

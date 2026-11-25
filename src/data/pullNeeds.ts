@@ -3,24 +3,12 @@ import type {
   PullChecks,
   PullMergeable,
   PullMergeState,
-  PullPart,
   PullReview,
   PullThreads,
 } from './pulls.ts';
+import { partValueOf } from './pulls.ts';
 
 export type PullNeed = 'failing' | 'review' | 'conflict' | 'ready';
-
-const valueOf = <T>(part: PullPart<T>): T | null => {
-  if (part.kind === 'read') {
-    return part.value;
-  }
-
-  if (part.kind === 'failed') {
-    return part.last;
-  }
-
-  return null;
-};
 
 const hasFailingChecks = (checks: PullChecks | null): boolean => checks === 'failing';
 
@@ -63,11 +51,11 @@ export const pullNeeds = (pull: Pull): PullNeed[] => {
 
   const needs: PullNeed[] = [];
 
-  if (hasFailingChecks(valueOf(pull.checks))) {
+  if (hasFailingChecks(partValueOf(pull.checks))) {
     needs.push('failing');
   }
 
-  if (asksForReview(pull.review, valueOf(pull.threads))) {
+  if (asksForReview(pull.review, partValueOf(pull.threads))) {
     needs.push('review');
   }
 

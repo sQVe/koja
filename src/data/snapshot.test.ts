@@ -238,6 +238,60 @@ describe('parseSnapshot', () => {
     expect(pulls.map((entry) => pullNeeds(entry))).toEqual([[]]);
   });
 
+  test('rejects a version 3 pull with a needs field', () => {
+    const stored = {
+      version: 3,
+      revision: 4,
+      facts: {
+        git: gitFacts(),
+        pulls: {
+          [repositoryKey]: {
+            pulls: [
+              {
+                number: 1,
+                state: 'OPEN',
+                isDraft: false,
+                title: 'Title',
+                headRefName: 'main',
+                checks: { kind: 'unread' },
+              },
+            ],
+            failed: false,
+          },
+        },
+      },
+    };
+
+    expect(parseSnapshot(stored)).toBeNull();
+  });
+
+  test('rejects a version 3 pull with an extra field', () => {
+    const stored = {
+      version: 3,
+      revision: 4,
+      facts: {
+        git: gitFacts(),
+        pulls: {
+          [repositoryKey]: {
+            pulls: [
+              {
+                number: 1,
+                state: 'OPEN',
+                isDraft: false,
+                title: 'Title',
+                headRefName: 'main',
+                extra: true,
+              },
+            ],
+            failed: false,
+          },
+        },
+      },
+    };
+
+    expect(parseSnapshot(stored)).toBeNull();
+  });
+
   test('reads the version 2 fixture without PR facts', () => {
     const stored = recordIn(fixture('snapshot-v2.json'), 'snapshot');
     const git: unknown = recordIn(stored.facts, 'facts').git;

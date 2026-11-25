@@ -32,6 +32,21 @@ describe('pullNeeds', () => {
     expect(pullNeeds(readyPull())).toEqual(['ready']);
   });
 
+  test('asks for review on requested changes even with resolved threads', () => {
+    const pull = readyPull({
+      review: 'changesRequested',
+      threads: { kind: 'read', value: { unresolved: 0, complete: true } },
+    });
+
+    expect(pullNeeds(pull)).toEqual(['review']);
+  });
+
+  test('reports no needs for a pull blocked only by a required review', () => {
+    const pull = readyPull({ mergeState: 'blocked', review: 'reviewRequired' });
+
+    expect(pullNeeds(pull)).toEqual([]);
+  });
+
   test('maps a conflicting PR to conflict and not ready', () => {
     const pull = readyPull({ mergeable: 'conflicting', mergeState: 'dirty' });
 

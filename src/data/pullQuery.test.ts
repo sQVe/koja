@@ -58,9 +58,15 @@ describe('pullQueryArgs', () => {
     expect(flagBeforeOf(args, 'name={repo}')).toBe('-F');
   });
 
-  test('refuses an empty or oversized batch', () => {
-    expect(() => pullQueryArgs([], null)).toThrow();
-    expect(() => pullQueryArgs(branchesOf(branchesPerQuery + 1), null)).toThrow();
+  test('refuses an empty batch with its own message', () => {
+    expect(() => pullQueryArgs([], null)).toThrow('pullQueryArgs takes at least 1 branch');
+  });
+
+  test('refuses an oversized batch with the limit in the message', () => {
+    expect(() => pullQueryArgs(branchesOf(branchesPerQuery + 1), null)).toThrow(
+      `pullQueryArgs takes at most ${branchesPerQuery} branches`,
+    );
+
     expect(() => pullQueryArgs(branchesOf(branchesPerQuery), null)).not.toThrow();
   });
 });

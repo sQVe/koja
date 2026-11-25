@@ -50,10 +50,6 @@ export const createWatchRegistry = (watchFolder: WatchFolder, now: () => number)
   const events = new Map<string, number>();
   const remoteEvents = new Map<string, number>();
 
-  const record = (repositoryKey: string): void => {
-    keepEarliest(events, repositoryKey, now());
-  };
-
   const start = (repository: RepositoryIdentity, cx: Context): void => {
     if (watches.has(repository.key)) {
       return;
@@ -61,10 +57,12 @@ export const createWatchRegistry = (watchFolder: WatchFolder, now: () => number)
 
     const handle = watchFolderChanges(watchFolder, repository.commonDirectory, cx, {
       onChange: (_cx, paths) => {
-        record(repository.key);
+        const at = now();
+
+        keepEarliest(events, repository.key, at);
 
         if (paths.some((path) => isRemoteRefPath(repository.commonDirectory, path))) {
-          keepEarliest(remoteEvents, repository.key, now());
+          keepEarliest(remoteEvents, repository.key, at);
         }
       },
       onError: () => {

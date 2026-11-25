@@ -63,6 +63,7 @@ let spaceFolders: string[] = [folder];
 let pullList: Pull[] = [];
 let ghFailures = 0;
 let checkingNow = false;
+let windowActive = true;
 let intervals: number[] = [];
 
 const mainCheckout = (args: string[], cwd: string): ExecResult => {
@@ -144,7 +145,7 @@ await mock.module('herdr', () =>
       buttons: false,
       maximized: false,
       fullscreen: false,
-      active: true,
+      active: windowActive,
     }),
   }),
 );
@@ -251,6 +252,7 @@ beforeEach(() => {
   pullList = [];
   ghFailures = 0;
   checkingNow = false;
+  windowActive = true;
   intervals = [];
   setSystemTime(start);
 });
@@ -355,6 +357,44 @@ describe('startDataHost', () => {
     const read = gitCalls().some((call) => call.args[0] === 'rev-parse' && call.cwd === folder);
 
     expect(read).toBe(true);
+  });
+
+  test('starts no periodic pull read in a tick while the window is inactive', async () => {
+    windowActive = false;
+
+    const copy = startCopy();
+
+    copy.tick();
+    await settle();
+    copy.tick();
+    await settle();
+
+    expect(pullCalls()).toEqual([]);
+  });
+
+  test('a remote-ref watch starts a pull read before the 60 s period', async () => {
+    const copy = startCopy();
+
+    copy.tick();
+    await settle();
+    copy.tick();
+    await settle();
+
+    expect(pullCalls()).toHaveLength(1);
+
+    const watch = watches.at(-1);
+
+    expect(watch?.folder).toBe(`${folder}/.git`);
+
+    setSystemTime(start + 10_000);
+    watch?.resolve([`${folder}/.git/refs/remotes/origin/main`]);
+    await settle();
+
+    setSystemTime(start + 15_000);
+    copy.tick();
+    await settle();
+
+    expect(pullCalls()).toHaveLength(2);
   });
 
   test('starts from the stored facts when it takes over', () => {

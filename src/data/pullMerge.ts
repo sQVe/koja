@@ -1,24 +1,13 @@
 import type { RepositoryReadTimes } from './pullReadTimes.ts';
 import type { Pull, PullPart } from './pulls.ts';
-
-const readValueOf = <T>(part: PullPart<T>): T | null => {
-  if (part.kind === 'read') {
-    return part.value;
-  }
-
-  if (part.kind === 'failed') {
-    return part.last;
-  }
-
-  return null;
-};
+import { partValueOf } from './pulls.ts';
 
 const mergePart = <T>(part: PullPart<T>, previous: PullPart<T> | undefined): PullPart<T> => {
   if (part.kind !== 'failed' || part.last !== null || previous === undefined) {
     return part;
   }
 
-  const last = readValueOf(previous);
+  const last = partValueOf(previous);
 
   return last === null ? part : { kind: 'failed', last };
 };

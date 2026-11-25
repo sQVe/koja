@@ -4,7 +4,14 @@ import { join } from 'node:path';
 import type { ExecResult } from 'herdr';
 
 import type { RunCommand } from '../src/data/gitIdentity.ts';
-import type { Pull } from '../src/data/pulls.ts';
+import type {
+  Pull,
+  PullChecks,
+  PullMergeable,
+  PullMergeState,
+  PullReview,
+} from '../src/data/pulls.ts';
+import { partValueOf } from '../src/data/pulls.ts';
 
 export interface Answer {
   body: string;
@@ -29,7 +36,11 @@ const gitAnswer = (args: string[]): ExecResult => {
   return { code: 0, stdout: 'origin\n', stderr: '' };
 };
 
-export const runWith = (answers: Answer[], calls: string[][] = []): RunCommand => {
+export const runWith = (
+  answers: Answer[],
+  calls: string[][] = [],
+  unexpectedCalls: string[][] = [],
+): RunCommand => {
   const pending = [...answers];
 
   return async (command, args) => {
@@ -42,7 +53,13 @@ export const runWith = (answers: Answer[], calls: string[][] = []): RunCommand =
     const answer = pending.shift();
 
     if (answer === undefined) {
-      throw new Error(`unexpected gh call: ${args.join(' ')}`);
+      unexpectedCalls.push(args);
+
+      return {
+        code: 1,
+        stdout: '',
+        stderr: `unexpected gh call: ${args.join(' ')}`,
+      };
     }
 
     return answerOf(answer);
@@ -93,20 +110,82 @@ export const bodyOf = (
   return JSON.stringify(body);
 };
 
+const mergeableNames: Record<PullMergeable, string> = {
+  mergeable: 'MERGEABLE',
+  conflicting: 'CONFLICTING',
+  unknown: 'UNKNOWN',
+};
+
+const mergeStateNames: Record<PullMergeState, string> = {
+  clean: 'CLEAN',
+  hasHooks: 'HAS_HOOKS',
+  blocked: 'BLOCKED',
+  behind: 'BEHIND',
+  dirty: 'DIRTY',
+  draft: 'DRAFT',
+  unstable: 'UNSTABLE',
+  unknown: 'UNKNOWN',
+};
+
+const reviewNames: Record<PullReview, string | null> = {
+  approved: 'APPROVED',
+  changesRequested: 'CHANGES_REQUESTED',
+  reviewRequired: 'REVIEW_REQUIRED',
+  none: null,
+};
+
+const checkStates: Record<PullChecks, string | null> = {
+  passing: 'SUCCESS',
+  failing: 'FAILURE',
+  running: 'PENDING',
+  none: null,
+};
+
+const checksNodeOf = (pull: Pull): Record<string, unknown> => {
+  const checks = partValueOf(pull.checks);
+  const state = checks === null ? null : checkStates[checks];
+
+  if (state === null) {
+    return { nodes: [] };
+  }
+
+  return { nodes: [{ commit: { statusCheckRollup: { state } } }] };
+};
+
+const threadsNodeOf = (pull: Pull): Record<string, unknown> => {
+  const threads = partValueOf(pull.threads);
+
+  if (threads === null) {
+    return { pageInfo: { hasNextPage: false }, nodes: [] };
+  }
+
+  const nodes = Array.from({ length: threads.unresolved }, () => ({ isResolved: false }));
+
+  return { pageInfo: { hasNextPage: !threads.complete }, nodes };
+};
+
 export const pullNodeOf = (pull: Pull): Record<string, unknown> => ({
   number: pull.number,
   state: pull.state,
   isDraft: pull.isDraft,
   title: pull.title,
   headRefName: pull.headRefName,
-  mergeable: 'MERGEABLE',
-  mergeStateStatus: 'CLEAN',
-  reviewDecision: 'APPROVED',
-  commits: { nodes: [{ commit: { statusCheckRollup: { state: 'SUCCESS' } } }] },
-  reviewThreads: { pageInfo: { hasNextPage: false }, nodes: [] },
+  mergeable: mergeableNames[pull.mergeable],
+  mergeStateStatus: mergeStateNames[pull.mergeState],
+  reviewDecision: reviewNames[pull.review],
+  commits: checksNodeOf(pull),
+  reviewThreads: threadsNodeOf(pull),
 });
 
-export const answerFrom = (branchCount: number, pulls: Pull[]): string =>
-  bodyOf(branchCount, {
-    open: Object.fromEntries(pulls.map((pull, index) => [index, pullNodeOf(pull)])),
-  });
+export const answerFrom = (branchCount: number, pulls: Pull[]): string => {
+  const open: Record<number, unknown> = {};
+  const latest: Record<number, unknown> = {};
+
+  for (const [index, pull] of pulls.entries()) {
+    const nodes = pull.state === 'OPEN' ? open : latest;
+
+    nodes[index] = pullNodeOf(pull);
+  }
+
+  return bodyOf(branchCount, { open, latest });
+};
