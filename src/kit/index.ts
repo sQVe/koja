@@ -60,6 +60,8 @@ export { searchField } from './searchField.ts';
 
 export { sourceLink } from './sourceLink.ts';
 
+export type { SourceLinkOptions } from './sourceLink.ts';
+
 export { splitButton, splitButtonOpenHeight } from './splitButton.ts';
 
 export type { SplitButtonChoice } from './splitButton.ts';
