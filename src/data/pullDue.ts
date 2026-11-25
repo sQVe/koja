@@ -31,7 +31,7 @@ const rateLimitPauseMilliseconds = 300_000;
 
 const rateLimitFloor = 100;
 
-const emptyRepository = (): PullDueRepository => ({
+export const emptyPullDueRepository = (): PullDueRepository => ({
   host: null,
   lastStart: 0,
   lastSuccess: 0,
@@ -47,7 +47,7 @@ export const emptyPullDueState = (): PullDueState => ({
 });
 
 const repositoryEntry = (state: PullDueState, key: string): PullDueRepository =>
-  state.repositories[key] ?? emptyRepository();
+  state.repositories[key] ?? emptyPullDueRepository();
 
 const repositoryToWrite = (state: PullDueState, key: string): PullDueRepository => {
   const stored = repositoryEntry(state, key);
@@ -57,15 +57,15 @@ const repositoryToWrite = (state: PullDueState, key: string): PullDueRepository 
   return stored;
 };
 
-// A read before the remote is parsed has no host, so its pause applies to every repository.
-const pausedUntilFor = (state: PullDueState, key: string): number => {
-  const host = repositoryEntry(state, key).host;
-
-  if (host === null) {
-    return state.pausedUntil;
+// A repository with no host yet could be on any paused host, so every host pause withholds it.
+const pausedUntilFor = (state: PullDueState, repository: PullDueRepository): number => {
+  if (repository.host !== null) {
+    return Math.max(state.pausedUntil, state.pausedUntilByHost[repository.host] ?? 0);
   }
 
-  return Math.max(state.pausedUntil, state.pausedUntilByHost[host] ?? 0);
+  const hostPauses = Object.values(state.pausedUntilByHost);
+
+  return Math.max(state.pausedUntil, ...hostPauses);
 };
 
 const pauseUntil = (state: PullDueState, host: string | null, until: number): void => {
@@ -92,11 +92,11 @@ const readIsDue = (repository: PullDueRepository, now: number, windowActive: boo
 };
 
 const isDue = (state: PullDueState, key: string, now: number, windowActive: boolean): boolean => {
-  if (now < pausedUntilFor(state, key)) {
+  const repository = repositoryEntry(state, key);
+
+  if (now < pausedUntilFor(state, repository)) {
     return false;
   }
-
-  const repository = repositoryEntry(state, key);
 
   return pushIsDue(repository, now) || readIsDue(repository, now, windowActive);
 };

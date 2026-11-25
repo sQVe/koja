@@ -390,7 +390,18 @@ describe('startDataHost', () => {
     watch?.resolve([`${folder}/.git/refs/remotes/origin/main`]);
     await settle();
 
-    setSystemTime(start + 15_000);
+    const tickAt = start + pullPeriodMilliseconds - 1;
+
+    for (
+      let at = start + heartbeatIntervalMilliseconds;
+      at < tickAt;
+      at += heartbeatIntervalMilliseconds
+    ) {
+      setSystemTime(at);
+      copy.beat();
+    }
+
+    setSystemTime(tickAt);
     copy.tick();
     await settle();
 

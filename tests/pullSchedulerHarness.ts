@@ -210,6 +210,21 @@ export class PullSchedulerHarness {
     }
   }
 
+  async respondIn(folder: string, result: ExecResult): Promise<void> {
+    const call = this.callsIn(folder).at(-1);
+
+    if (call === undefined) {
+      throw new Error(`no call in ${folder}`);
+    }
+
+    await this.respondCall(call, result);
+  }
+
+  async respondRemotesIn(folder: string, url: string): Promise<void> {
+    await this.respondIn(folder, { code: 0, stdout: 'origin\n', stderr: '' });
+    await this.respondIn(folder, { code: 0, stdout: `${url}\n`, stderr: '' });
+  }
+
   async respondPulls(index: number, pulls: Pull[]): Promise<void> {
     const call = this.call(index);
     const branchCount = call.args.filter((argument) => argument.startsWith('branch')).length;

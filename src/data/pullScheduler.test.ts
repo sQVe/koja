@@ -1,7 +1,5 @@
 import { beforeEach, describe, expect, test } from 'bun:test';
 
-import type { ExecResult } from 'herdr';
-
 import { answerFrom } from '../../tests/pullAnswers.ts';
 import { pullFacts } from '../../tests/pullFacts.ts';
 import { PullSchedulerHarness, pullSchedulerStart } from '../../tests/pullSchedulerHarness.ts';
@@ -13,6 +11,11 @@ import type { PullRetryRequest } from './pullRetry.ts';
 import { pullRetryOutcomesKey, pullRetryRequestsKey } from './pullRetry.ts';
 import type { Pull } from './pulls.ts';
 import type { GitFacts, RepositoryPulls } from './snapshot.ts';
+
+interface GitSource {
+  repository: RepositoryIdentity;
+  folder: string;
+}
 
 const pullPeriodMilliseconds = 60_000;
 
@@ -56,23 +59,26 @@ const timesForPulls = (key: string, time: number, numbers: number[]): PullReadTi
   return { [key]: { list: time, checks: parts, threads: parts } };
 };
 
-const gitFactsOf = (
-  source: { repository: RepositoryIdentity; folder: string } = defaultSource,
-): GitFacts => {
-  const sourcePlace = placeOf(source.repository.machine, source.folder);
-  const sourceWorktree = worktreeOf(source.repository.machine, source.folder);
+const gitFactsOf = (...sources: GitSource[]): GitFacts => {
+  const listed = sources.length === 0 ? [defaultSource] : sources;
+  const places: GitFacts['places'] = {};
+  const worktrees: GitFacts['worktrees'] = {};
 
-  return {
-    places: { [sourcePlace.key]: { kind: 'repository', worktree: sourceWorktree.key } },
-    worktrees: {
-      [sourceWorktree.key]: {
-        repository: source.repository,
-        root: source.folder,
-        branch: 'main',
-        linked: false,
-      },
-    },
-  };
+  for (const source of listed) {
+    const sourcePlace = placeOf(source.repository.machine, source.folder);
+    const sourceWorktree = worktreeOf(source.repository.machine, source.folder);
+
+    places[sourcePlace.key] = { kind: 'repository', worktree: sourceWorktree.key };
+
+    worktrees[sourceWorktree.key] = {
+      repository: source.repository,
+      root: source.folder,
+      branch: 'main',
+      linked: false,
+    };
+  }
+
+  return { places, worktrees };
 };
 
 const harness = new PullSchedulerHarness();
@@ -294,7 +300,7 @@ describe('createPullScheduler', () => {
   test('a remote ref change starts a pull read while the periodic read is not due', () => {
     const scheduler = harness.start({
       pulls: seededRepositoryPulls,
-      readTimes: timesAt(repository.key, start),
+      readTimes: timesAt(repository.key, start - 30_000),
     });
 
     scheduler.tick(gitFactsOf(), new Map([[repository.key, start - 20_000]]), harness.spawn);
@@ -354,70 +360,28 @@ describe('createPullScheduler', () => {
     const secondFolder = '/code/second';
     const first = repositoryOf(null, `${firstFolder}/.git`);
     const second = repositoryOf(null, `${secondFolder}/.git`);
-    const firstPlace = placeOf(null, firstFolder);
-    const firstWorktree = worktreeOf(null, firstFolder);
-    const secondPlace = placeOf(null, secondFolder);
-    const secondWorktree = worktreeOf(null, secondFolder);
 
-    const git: GitFacts = {
-      places: {
-        [firstPlace.key]: { kind: 'repository', worktree: firstWorktree.key },
-        [secondPlace.key]: { kind: 'repository', worktree: secondWorktree.key },
-      },
-      worktrees: {
-        [firstWorktree.key]: {
-          repository: first,
-          root: firstFolder,
-          branch: 'main',
-          linked: false,
-        },
-        [secondWorktree.key]: {
-          repository: second,
-          root: secondFolder,
-          branch: 'main',
-          linked: false,
-        },
-      },
-    };
-
-    const respondIn = async (inFolder: string, result: ExecResult): Promise<void> => {
-      const call = harness.callsIn(inFolder).at(-1);
-
-      if (call === undefined) {
-        throw new Error(`no call in ${inFolder}`);
-      }
-
-      await harness.respondCall(call, result);
-    };
+    const git = gitFactsOf(
+      { repository: first, folder: firstFolder },
+      { repository: second, folder: secondFolder },
+    );
 
     const scheduler = harness.start();
 
     scheduler.tick(git, new Map(), harness.spawn);
     expect(harness.calls).toHaveLength(2);
 
-    await respondIn(firstFolder, { code: 0, stdout: 'origin\n', stderr: '' });
+    await harness.respondRemotesIn(firstFolder, 'git@github.com:koja/koja.git');
 
-    await respondIn(firstFolder, {
-      code: 0,
-      stdout: 'git@github.com:koja/koja.git\n',
-      stderr: '',
-    });
-
-    await respondIn(firstFolder, {
+    await harness.respondIn(firstFolder, {
       code: 1,
       stdout: '',
       stderr: 'API rate limit exceeded for user ID 1',
     });
 
-    await respondIn(secondFolder, { code: 0, stdout: 'origin\n', stderr: '' });
+    await harness.respondRemotesIn(secondFolder, 'git@ghe.example.com:koja/koja.git');
 
-    await respondIn(secondFolder, {
-      code: 0,
-      stdout: 'git@ghe.example.com:koja/koja.git\n',
-      stderr: '',
-    });
-
-    await respondIn(secondFolder, {
+    await harness.respondIn(secondFolder, {
       code: 0,
       stdout: answerFrom(1, pullList(7)),
       stderr: '',

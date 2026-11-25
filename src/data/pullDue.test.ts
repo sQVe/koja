@@ -159,6 +159,27 @@ describe('duePullReads', () => {
     ]);
   });
 
+  test('a rate limit on one host withholds every repository on that host', () => {
+    const first = repositoryOf(null, '/code/first/.git').key;
+    const second = repositoryOf(null, '/code/second/.git').key;
+    const other = repositoryOf(null, '/code/other/.git').key;
+    const state = emptyPullDueState();
+
+    noteStart(state, first, 0);
+    noteResult(state, first, goodRead('github.com'), 0);
+    noteStart(state, second, 0);
+    noteResult(state, second, goodRead('github.com'), 0);
+    noteStart(state, other, 0);
+    noteResult(state, other, goodRead('ghe.example.com'), 0);
+    noteResult(state, first, rateLimitedRead('github.com'), 0);
+
+    expect(duePullReads(state, [first, second], nothingRunning, 899_999, true)).toEqual([]);
+    expect(duePullReads(state, [other], nothingRunning, 899_999, true)).toEqual([other]);
+
+    expect(duePullReads(state, [first], nothingRunning, 900_000, true)).toEqual([first]);
+    expect(duePullReads(state, [second], nothingRunning, 900_000, true)).toEqual([second]);
+  });
+
   test('a rate-limited failure pauses only the host that reported it', () => {
     const first = repositoryOf(null, '/code/first/.git').key;
     const second = repositoryOf(null, '/code/second/.git').key;
@@ -176,6 +197,19 @@ describe('duePullReads', () => {
       first,
       second,
     ]);
+  });
+
+  test('a repository with no known host is withheld while any host is paused', () => {
+    const unknown = repositoryOf(null, '/code/unknown/.git').key;
+    const known = repositoryOf(null, '/code/known/.git').key;
+    const state = emptyPullDueState();
+
+    noteStart(state, known, 0);
+    noteResult(state, known, rateLimitedRead('github.com'), 0);
+    noteStart(state, unknown, 0);
+
+    expect(duePullReads(state, [unknown], nothingRunning, 899_999, true)).toEqual([]);
+    expect(duePullReads(state, [unknown], nothingRunning, 900_000, true)).toEqual([unknown]);
   });
 
   test('a repository with no known host respects the global pause', () => {

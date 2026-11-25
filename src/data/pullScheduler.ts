@@ -2,7 +2,14 @@ import type { RunCommand } from './gitIdentity.ts';
 import type { Lease, ReadShared } from './lease.ts';
 import { sameHolder } from './lease.ts';
 import type { PullDueState } from './pullDue.ts';
-import { duePullReads, emptyPullDueState, notePush, noteResult, noteStart } from './pullDue.ts';
+import {
+  duePullReads,
+  emptyPullDueRepository,
+  emptyPullDueState,
+  notePush,
+  noteResult,
+  noteStart,
+} from './pullDue.ts';
 import { mergePulls, mergeReadTimes } from './pullMerge.ts';
 import type { PullReadTimes } from './pullReadTimes.ts';
 import type { PullRetryOutcome, PullRetryRequest, PullRetryResult } from './pullRetry.ts';
@@ -71,12 +78,8 @@ const seededDue = (times: PullReadTimes): PullDueState => {
 
   for (const [key, repository] of Object.entries(times)) {
     state.repositories[key] = {
-      host: null,
-      lastStart: 0,
+      ...emptyPullDueRepository(),
       lastSuccess: repository.list,
-      failures: 0,
-      backoffUntil: 0,
-      pushDueAt: null,
     };
   }
 

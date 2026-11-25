@@ -2,12 +2,10 @@ import { describe, expect, test } from 'bun:test';
 
 import type { ExecResult } from 'herdr';
 
-import { PullSchedulerHarness } from '../../tests/pullSchedulerHarness.ts';
+import { PullSchedulerHarness, pullSchedulerStart } from '../../tests/pullSchedulerHarness.ts';
 import { placeOf, repositoryOf, worktreeOf } from './gitIdentity.ts';
 import type { PullRetryRequest } from './pullRetry.ts';
 import type { GitFacts } from './snapshot.ts';
-
-const start = 1_000_000;
 
 const folders = ['/code/a', '/code/b', '/code/c'];
 
@@ -43,28 +41,6 @@ const requestFor = (repository: string, at: number): PullRetryRequest => ({
   at,
 });
 
-const respondRemotesIn = async (harness: PullSchedulerHarness, folder: string): Promise<void> => {
-  const [names] = harness.callsIn(folder);
-
-  if (names === undefined) {
-    throw new Error(`no remote call in ${folder}`);
-  }
-
-  await harness.respondCall(names, { code: 0, stdout: 'origin\n', stderr: '' });
-
-  const [, url] = harness.callsIn(folder);
-
-  if (url === undefined) {
-    throw new Error(`no remote URL call in ${folder}`);
-  }
-
-  await harness.respondCall(url, {
-    code: 0,
-    stdout: 'git@github.com:koja/koja.git\n',
-    stderr: '',
-  });
-};
-
 describe('createPullScheduler Retry', () => {
   test('Retry ignores backoff and the cap', async () => {
     const harness = new PullSchedulerHarness();
@@ -76,7 +52,7 @@ describe('createPullScheduler Retry', () => {
 
     expect(harness.calls.map((call) => call.cwd)).toEqual(['/code/a', '/code/b']);
 
-    await respondRemotesIn(harness, '/code/a');
+    await harness.respondRemotesIn('/code/a', 'git@github.com:koja/koja.git');
 
     const failedRead = harness.callsIn('/code/a')[2];
 
@@ -86,7 +62,7 @@ describe('createPullScheduler Retry', () => {
 
     await harness.respondCall(failedRead, offline);
 
-    harness.setNow(start + 60_000);
+    harness.setNow(pullSchedulerStart + 60_000);
     scheduler.tick(git, new Map(), harness.spawn);
     await harness.settle();
 
