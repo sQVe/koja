@@ -702,10 +702,36 @@ describe('koja-spaces close follow', () => {
         set: (key, value) => {
           sharedValues[key] = value;
         },
+        shown: () => spaceList.find((candidate) => candidate.active)?.id ?? null,
       },
       command,
     );
   };
+
+  test('a click on the shown space followed by a close of it selects the space above', async () => {
+    draw(['a', 'b', 'c', 'd'], 'c');
+
+    const view = await loadView();
+
+    recordSelection('c');
+    draw(['a', 'b', 'd'], 'a');
+    view.render();
+
+    expect(selected()).toEqual(['b']);
+  });
+
+  test('a selection of the space that then closes still follows the close', async () => {
+    draw(['a', 'b', 'c', 'd'], 'a');
+
+    const view = await loadView();
+
+    recordSelection('b');
+    draw(['b', 'c', 'd'], 'b');
+    recordSelection('a');
+    view.render();
+
+    expect(selected()).toEqual(['b']);
+  });
 
   test('a user selection in the same look as a close keeps the focus the user set', async () => {
     draw(['a', 'b', 'c', 'd'], 'c');

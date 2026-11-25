@@ -37,7 +37,12 @@ import {
   spacing,
   withTextRole,
 } from '../../kit/index.ts';
-import { readSpaceSelection, runSpaceCommand } from '../../kit/space/spaceSelection.ts';
+import type { SpaceSelection } from '../../kit/space/spaceSelection.ts';
+import {
+  readSpaceSelection,
+  runSpaceCommand,
+  selectionMoved,
+} from '../../kit/space/spaceSelection.ts';
 import type { SpaceOrder } from '../../kit/spaceOrder.ts';
 import { closedSpaceCommand } from '../../kit/spaceOrder.ts';
 import { cursorRow, halfPageOf, moveCursor } from './cursor.ts';
@@ -63,7 +68,7 @@ type SidebarDrag = { kind: 'space'; state: DragState } | { kind: 'project'; stat
 interface SidebarWatch {
   focused: string | null;
   order: SpaceOrder | null;
-  selectionCount: number;
+  selection: SpaceSelection | null;
 }
 
 // Herdr's runtime has the Web Crypto global, but its declarations do not name it.
@@ -114,7 +119,7 @@ export default class Spaces extends View {
   private watched: SidebarWatch = {
     focused: null,
     order: null,
-    selectionCount: readSpaceSelection(shared)?.count ?? 0,
+    selection: readSpaceSelection(shared),
   };
 
   private visibility: VisibilityState = initialVisibility(liveSpaceIds());
@@ -208,19 +213,20 @@ export default class Spaces extends View {
 
   private followClose(order: SpaceOrder | null): void {
     const focused = activeSpaceId();
-    const selectionCount = readSpaceSelection(shared)?.count ?? 0;
+    const selection = readSpaceSelection(shared);
+    const liveIds = liveSpaceIds();
 
     const command = closedSpaceCommand({
       closedId: this.watched.focused,
       order: this.watched.order,
-      liveIds: liveSpaceIds(),
+      liveIds,
     });
 
-    const selectionChanged = selectionCount !== this.watched.selectionCount;
+    const moved = selectionMoved(this.watched.selection, selection, this.watched.focused, liveIds);
 
-    this.watched = { focused, order, selectionCount };
+    this.watched = { focused, order, selection };
 
-    if (command !== null && !selectionChanged) {
+    if (command !== null && !moved) {
       run(command.name, command.args);
     }
   }
@@ -270,7 +276,7 @@ export default class Spaces extends View {
 
     if (result.select !== null) {
       runSpaceCommand(
-        { run, get: shared, set: setShared },
+        { run, get: shared, set: setShared, shown: activeSpaceId },
         { name: 'space.select', args: { id: result.select } },
       );
     }
@@ -547,7 +553,7 @@ export default class Spaces extends View {
       }
     } else if (action?.kind === 'select' && project.main !== null) {
       runSpaceCommand(
-        { run, get: shared, set: setShared },
+        { run, get: shared, set: setShared, shown: activeSpaceId },
         { name: 'space.select', args: { id: project.main.space.id } },
       );
     }
@@ -641,7 +647,7 @@ export default class Spaces extends View {
       }
     } else if (action?.kind === 'select') {
       runSpaceCommand(
-        { run, get: shared, set: setShared },
+        { run, get: shared, set: setShared, shown: activeSpaceId },
         { name: 'space.select', args: { id: action.id } },
       );
     }

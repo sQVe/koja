@@ -11,6 +11,7 @@ export interface SpaceSelectionDeps {
   run: (command: string, args?: Record<string, unknown>) => void;
   get: (key: string) => unknown;
   set: (key: string, value: unknown) => void;
+  shown: () => string | null;
 }
 
 const spaceSelectionKey = 'spaces.selection';
@@ -46,14 +47,41 @@ const selectedId = (command: SpaceCommand): string | null => {
   return typeof id === 'string' ? id : null;
 };
 
-export const runSpaceCommand = (deps: SpaceSelectionDeps, command: SpaceCommand): void => {
+export const recordSpaceSelection = (deps: SpaceSelectionDeps, id: string | null): void => {
+  if (id !== null && id === deps.shown()) {
+    return;
+  }
+
   const previous = readSpaceSelection(deps.get);
 
   deps.set(spaceSelectionKey, {
     version: 1,
     count: (previous?.count ?? 0) + 1,
-    id: selectedId(command),
+    id,
   });
+};
+
+export const runSpaceCommand = (deps: SpaceSelectionDeps, command: SpaceCommand): void => {
+  recordSpaceSelection(deps, selectedId(command));
 
   deps.run(command.name, command.args);
+};
+
+export const selectionMoved = (
+  before: SpaceSelection | null,
+  after: SpaceSelection | null,
+  closedId: string | null,
+  liveIds: readonly string[],
+): boolean => {
+  if (after === null) {
+    return false;
+  }
+
+  if (after.id === null) {
+    return false;
+  }
+
+  const countChanged = before?.count !== after.count;
+
+  return countChanged && after.id !== closedId && liveIds.includes(after.id);
 };

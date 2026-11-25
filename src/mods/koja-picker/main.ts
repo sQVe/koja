@@ -24,7 +24,7 @@ import {
   stateLine,
   withTextRole,
 } from '../../kit/index.ts';
-import { runSpaceCommand } from '../../kit/space/spaceSelection.ts';
+import { recordSpaceSelection, runSpaceCommand } from '../../kit/space/spaceSelection.ts';
 import type { StatusFilter } from './filters.ts';
 import { allFilter, statusFilters } from './filters.ts';
 import { footer as statusFooter } from './footer.ts';
@@ -299,7 +299,7 @@ export default class Picker extends View {
 
     if (row.kind === 'space') {
       runSpaceCommand(
-        { run, get: shared, set: setShared },
+        { run, get: shared, set: setShared, shown: () => focused()?.space ?? null },
         { name: 'space.select', args: { id: row.space.id } },
       );
 
@@ -311,6 +311,11 @@ export default class Picker extends View {
 
       return;
     }
+
+    recordSpaceSelection(
+      { run, get: shared, set: setShared, shown: () => focused()?.space ?? null },
+      row.space.id,
+    );
 
     run('tab.select', { id: row.tab.id });
 

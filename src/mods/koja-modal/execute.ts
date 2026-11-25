@@ -229,7 +229,12 @@ const focusNeedsYou = (step: 1 | -1, deps: ExecutorDeps): void => {
 
   if (target.space !== current?.space) {
     runSpaceCommand(
-      { run: deps.run, get: deps.store.get, set: deps.store.set },
+      {
+        run: deps.run,
+        get: deps.store.get,
+        set: deps.store.set,
+        shown: () => deps.focused()?.space ?? null,
+      },
       { name: 'space.select', args: { id: target.space } },
     );
   }
@@ -251,7 +256,15 @@ const stepRoot = (step: number, deps: ExecutorDeps): void => {
   });
 
   if (command !== null) {
-    runSpaceCommand({ run: deps.run, get: deps.store.get, set: deps.store.set }, command);
+    runSpaceCommand(
+      {
+        run: deps.run,
+        get: deps.store.get,
+        set: deps.store.set,
+        shown: () => deps.focused()?.space ?? null,
+      },
+      command,
+    );
   }
 };
 
