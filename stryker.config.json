@@ -30,6 +30,7 @@
     "!src/kit/searchField.ts",
     "!src/kit/sectionHeader.ts",
     "!src/kit/shortcut.ts",
+    "!src/kit/splitButton.ts",
     "!src/kit/spaceFooter.ts",
     "!src/kit/stackProgress.ts",
     "!src/kit/stateLine.ts",
