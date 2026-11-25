@@ -200,7 +200,6 @@ export default class Spaces extends View {
     });
   }
 
-  // Herdr picks the next space by focus history; this puts the sidebar's neighbour in its place.
   private followClose(order: SpaceOrder | null): void {
     const focused = activeSpaceId();
 

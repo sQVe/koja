@@ -122,7 +122,6 @@ const nearestLiveAfter = (
   live: ReadonlySet<string>,
 ): string | null => shown.slice(index + 1).find((id) => live.has(id)) ?? null;
 
-// The order still lists the closed space, so its place there gives the row to show next.
 export const closedSpaceCommand = (facts: SpaceCloseFacts): SpaceCommand | null => {
   const order = facts.order;
   const closedId = facts.closedId;
