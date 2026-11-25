@@ -41,11 +41,16 @@ export const buttons = (): Element[] => {
     .child(iconToggle({ name: 'folder', label: 'Files', active: false }))
     .child(iconToggle({ name: 'git-compare', label: 'Changes', active: false, hovered: true }));
 
+  const modePills = h_flex()
+    .gap(spacing.medium)
+    .items_center()
+    .child(modePill({ label: 'Normal' }));
+
   return [
     sample('Small 16 px button beside the 22 px button', sizes),
     sample('Icon buttons: normal, hovered, small, small hovered', iconButtons),
     sample('Icon toggles: active, quiet, hovered', iconToggles),
     sample('Toggle buttons: active, normal, hovered, quiet', toggleButtons),
-    sample('Mode pill', modePill({ label: 'Normal' })),
+    sample('Mode pill', modePills),
   ];
 };
