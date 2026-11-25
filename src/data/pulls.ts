@@ -70,6 +70,8 @@ export type PullRead =
 
 type PullNeedsFields = Pick<Pull, 'mergeable' | 'mergeState' | 'review' | 'checks' | 'threads'>;
 
+type RemoteHost = { kind: 'host'; host: string | null } | { kind: 'failed' } | { kind: 'dropped' };
+
 const pullFieldNames = ['number', 'state', 'isDraft', 'title', 'headRefName'];
 
 const needsFieldNames = ['mergeable', 'mergeState', 'review', 'checks', 'threads'];
@@ -632,6 +634,54 @@ const batchesOf = (branches: string[]): string[][] => {
 const rateLimitedIn = (result: ExecResult): boolean =>
   result.code !== 0 && /rate limit/i.test(result.stderr);
 
+const remoteNameOf = (remotes: string): string | null => {
+  const names = remotes
+    .split('\n')
+    .map((name) => name.trim())
+    .filter((name) => name !== '');
+
+  if (names.includes('origin')) {
+    return 'origin';
+  }
+
+  return names[0] ?? null;
+};
+
+const hostOfRemoteUrl = (remoteUrl: string): string | null => {
+  const url = remoteUrl.trim();
+  const ssh = /^[^@/\s]+@([^:/\s]+):/.exec(url);
+
+  if (ssh !== null) {
+    return ssh[1] ?? null;
+  }
+
+  const https = /^https:\/\/([^/\s]+)\//.exec(url);
+
+  return https === null ? null : (https[1] ?? null);
+};
+
+const remoteHostLookup = async (
+  run: RunCommand,
+  source: PullSource,
+  remote: string,
+  stillOwner: () => boolean,
+): Promise<RemoteHost> => {
+  const result = await run('git', ['remote', 'get-url', remote], {
+    cwd: source.cwd,
+    on: source.repository.machine,
+  });
+
+  if (result.code !== 0) {
+    return { kind: 'failed' };
+  }
+
+  if (!stillOwner()) {
+    return { kind: 'dropped' };
+  }
+
+  return { kind: 'host', host: hostOfRemoteUrl(result.stdout) };
+};
+
 export const readRepositoryPulls = async (
   run: RunCommand,
   source: PullSource,
@@ -651,8 +701,20 @@ export const readRepositoryPulls = async (
       return { kind: 'dropped' };
     }
 
-    if (remotes.stdout.trim() === '' || source.branches.length === 0) {
+    const remote = remoteNameOf(remotes.stdout);
+
+    if (remote === null || source.branches.length === 0) {
       return { kind: 'read', pulls: [], rateLimit: null };
+    }
+
+    const remoteHost = await remoteHostLookup(run, source, remote, stillOwner);
+
+    if (remoteHost.kind === 'failed') {
+      return { kind: 'failed', rateLimited: false };
+    }
+
+    if (remoteHost.kind === 'dropped') {
+      return { kind: 'dropped' };
     }
 
     const pulls: Pull[] = [];
@@ -664,7 +726,7 @@ export const readRepositoryPulls = async (
       }
 
       // eslint-disable-next-line no-await-in-loop -- one batch at a time, so a rate limit stops the read early
-      const result = await run('gh', pullQueryArgs(batch), {
+      const result = await run('gh', pullQueryArgs(batch, remoteHost.host), {
         cwd: source.cwd,
         on: source.repository.machine,
       });

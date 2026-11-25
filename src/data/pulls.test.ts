@@ -42,8 +42,24 @@ const readOf = (
 
 const emptyBody = (branchCount: number): string => bodyOf(branchCount);
 
+const runWithRemotes = (remotes: string, remoteUrl: string, calls: Call[]): RunCommand => {
+  return async (command, args, options) => {
+    calls.push({ command, args, options });
+
+    if (command === 'git') {
+      const stdout = args[1] === 'get-url' ? `${remoteUrl}\n` : `${remotes}\n`;
+
+      return { code: 0, stdout, stderr: '' };
+    }
+
+    return { code: 0, stdout: emptyBody(1), stderr: '' };
+  };
+};
+
+const argsOf = (calls: Call[]): string[][] => calls.map((call) => call.args);
+
 describe('readRepositoryPulls', () => {
-  test('passes the repository machine to both commands', async () => {
+  test('passes the repository machine to every command', async () => {
     const calls: Call[] = [];
 
     const run: RunCommand = async (command, args, options) => {
@@ -59,11 +75,101 @@ describe('readRepositoryPulls', () => {
     expect(calls).toEqual([
       { command: 'git', args: ['remote'], options: { cwd: '/repo', on: 'qa-remote' } },
       {
+        command: 'git',
+        args: ['remote', 'get-url', 'origin'],
+        options: { cwd: '/repo', on: 'qa-remote' },
+      },
+      {
         command: 'gh',
-        args: pullQueryArgs(['main']),
+        args: pullQueryArgs(['main'], null),
         options: { cwd: '/repo', on: 'qa-remote' },
       },
     ]);
+  });
+
+  test('passes the host of an ssh remote to gh', async () => {
+    const calls: Call[] = [];
+    const run = runWithRemotes('origin', 'git@github.example.com:koja/koja.git', calls);
+
+    await readRepositoryPulls(run, sourceOf(), alwaysOwner);
+
+    const ghArgs = argsOf(calls).at(-1) ?? [];
+
+    expect(ghArgs.slice(0, 4)).toEqual(['api', 'graphql', '--hostname', 'github.example.com']);
+    expect(ghArgs).toEqual(pullQueryArgs(['main'], 'github.example.com'));
+  });
+
+  test('passes the host of an https remote to gh and prefers origin', async () => {
+    const calls: Call[] = [];
+    const run = runWithRemotes('upstream\norigin', 'https://ghe.example.com/koja/koja.git', calls);
+
+    await readRepositoryPulls(run, sourceOf(), alwaysOwner);
+
+    const ghArgs = argsOf(calls).at(-1) ?? [];
+    const lookupArgs = argsOf(calls).slice(0, 2);
+
+    expect(lookupArgs).toEqual([['remote'], ['remote', 'get-url', 'origin']]);
+
+    expect(ghArgs.slice(0, 4)).toEqual(['api', 'graphql', '--hostname', 'ghe.example.com']);
+    expect(ghArgs).toEqual(pullQueryArgs(['main'], 'ghe.example.com'));
+  });
+
+  test('passes no host for a remote without one and takes the first remote', async () => {
+    const calls: Call[] = [];
+    const run = runWithRemotes('upstream', '/srv/git/koja.git', calls);
+
+    await readRepositoryPulls(run, sourceOf(), alwaysOwner);
+
+    const ghArgs = argsOf(calls).at(-1) ?? [];
+    const lookupArgs = argsOf(calls).slice(0, 2);
+
+    expect(lookupArgs).toEqual([['remote'], ['remote', 'get-url', 'upstream']]);
+
+    expect(ghArgs.slice(0, 2)).toEqual(['api', 'graphql']);
+    expect(ghArgs).not.toContain('--hostname');
+    expect(ghArgs).toEqual(pullQueryArgs(['main'], null));
+  });
+
+  test('fails when the remote url read fails without calling gh', async () => {
+    const calls: string[] = [];
+
+    const run: RunCommand = async (command, args) => {
+      calls.push([command, ...args].join(' '));
+
+      return command === 'git' && args[1] !== 'get-url'
+        ? { code: 0, stdout: 'origin\n', stderr: '' }
+        : { code: 1, stdout: '', stderr: '' };
+    };
+
+    expect(await readRepositoryPulls(run, sourceOf(), alwaysOwner)).toEqual({
+      kind: 'failed',
+      rateLimited: false,
+    });
+
+    expect(calls).toEqual(['git remote', 'git remote get-url origin']);
+  });
+
+  test('returns dropped and starts no gh when ownership is lost after the remote url read', async () => {
+    const calls: string[] = [];
+    let ownerChecks = 0;
+
+    const stillOwner = (): boolean => {
+      ownerChecks += 1;
+
+      return ownerChecks === 1;
+    };
+
+    const run: RunCommand = async (command, args) => {
+      calls.push([command, ...args].join(' '));
+
+      const stdout = args[1] === 'get-url' ? 'git@github.example.com:koja/koja.git\n' : 'origin\n';
+
+      return { code: 0, stdout, stderr: '' };
+    };
+
+    expect(await readRepositoryPulls(run, sourceOf(), stillOwner)).toEqual({ kind: 'dropped' });
+
+    expect(calls).toEqual(['git remote', 'git remote get-url origin']);
   });
 
   test('reads no PRs for a repository without a remote', async () => {

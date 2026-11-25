@@ -14,7 +14,7 @@ const branchesOf = (count: number): string[] =>
 
 describe('pullQueryArgs', () => {
   test('keeps branch names out of the query text', () => {
-    const args = pullQueryArgs(['main', 'a"b']);
+    const args = pullQueryArgs(['main', 'a"b'], null);
     const query = queryTextOf(args);
 
     expect(query).not.toContain('"main"');
@@ -24,7 +24,7 @@ describe('pullQueryArgs', () => {
   });
 
   test('asks two aliases per branch', () => {
-    const query = queryTextOf(pullQueryArgs(branchesOf(3)));
+    const query = queryTextOf(pullQueryArgs(branchesOf(3), null));
 
     for (const index of [0, 1, 2]) {
       expect(query).toContain(`open${index}:`);
@@ -35,8 +35,8 @@ describe('pullQueryArgs', () => {
   });
 
   test('refuses an empty or oversized batch', () => {
-    expect(() => pullQueryArgs([])).toThrow();
-    expect(() => pullQueryArgs(branchesOf(branchesPerQuery + 1))).toThrow();
-    expect(() => pullQueryArgs(branchesOf(branchesPerQuery))).not.toThrow();
+    expect(() => pullQueryArgs([], null)).toThrow();
+    expect(() => pullQueryArgs(branchesOf(branchesPerQuery + 1), null)).toThrow();
+    expect(() => pullQueryArgs(branchesOf(branchesPerQuery), null)).not.toThrow();
   });
 });

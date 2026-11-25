@@ -60,6 +60,12 @@ The owner derives the outcome list from the live requests each time, so an outco
 its request and comes back if a client re-asserts it. The owner treats a stored outcome as an
 answer, so a request answered by a previous owner is never taken again.
 
+### Pull reads
+
+Open pull requests are read by the live branch names of the repository's worktrees, not from a paged
+list, so a pull request past any page limit is still read. Each repository is read at most once per
+minute while the window is active, plus once after a push, under a per-repository budget.
+
 ### Sandbox remote fixture ownership
 
 The sandbox remote fixture starts its server in a private, per-run cgroup owned by a transient

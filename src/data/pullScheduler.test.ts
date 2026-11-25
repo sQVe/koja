@@ -254,6 +254,16 @@ class PullSchedulerHarness {
 
   async respondRemotes(index: number): Promise<void> {
     await this.respond(index, { code: 0, stdout: 'origin\n', stderr: '' });
+
+    const next = this.calls[index + 1];
+
+    if (next?.command === 'git' && next.args[1] === 'get-url') {
+      await this.respond(index + 1, {
+        code: 0,
+        stdout: 'git@github.com:koja/koja.git\n',
+        stderr: '',
+      });
+    }
   }
 
   async respondPulls(index: number, pulls: Pull[]): Promise<void> {
@@ -310,14 +320,14 @@ describe('createPullScheduler', () => {
     expect(harness.calls).toHaveLength(1);
 
     await harness.respondRemotes(0);
-    expect(harness.calls).toHaveLength(2);
+    expect(harness.calls).toHaveLength(3);
 
-    const pullsCall = harness.call(1);
+    const pullsCall = harness.call(2);
 
     expect(pullsCall.command).toBe('gh');
     expect(pullsCall.args.slice(0, 2)).toEqual(['api', 'graphql']);
 
-    await harness.respondPulls(1, pullList(7));
+    await harness.respondPulls(2, pullList(7));
 
     expect(harness.calls.filter((call) => call.command === 'gh')).toHaveLength(1);
 
@@ -339,7 +349,7 @@ describe('createPullScheduler', () => {
     harness.setRequests([requestFor('window-a', 'a-1'), requestFor('window-b', 'b-1')]);
 
     await harness.respondRemotes(0);
-    await harness.respondPulls(1, pullList(7));
+    await harness.respondPulls(2, pullList(7));
 
     expect(harness.calls.filter((call) => call.command === 'gh')).toHaveLength(1);
 
@@ -350,7 +360,7 @@ describe('createPullScheduler', () => {
 
     scheduler.tick(git, new Map(), harness.spawn);
 
-    expect(harness.calls.map((call) => call.command)).toEqual(['git', 'gh']);
+    expect(harness.calls.map((call) => call.command)).toEqual(['git', 'git', 'gh']);
   });
 
   test('a read for one repository answers no unanswered request for another', async () => {
@@ -394,7 +404,7 @@ describe('createPullScheduler', () => {
     ]);
 
     await harness.respondRemotes(0);
-    await harness.respondPulls(1, pullList(7));
+    await harness.respondPulls(2, pullList(7));
 
     expect(harness.outcomes()).toEqual([{ consumer: 'window-a', id: 'a-1', result: 'read' }]);
   });
@@ -407,7 +417,7 @@ describe('createPullScheduler', () => {
 
     scheduler.tick(git, new Map(), harness.spawn);
     await harness.respondRemotes(0);
-    await harness.respondPulls(1, pullList(7));
+    await harness.respondPulls(2, pullList(7));
 
     expect(harness.outcomes()).toEqual([{ consumer: 'window-a', id: 'a-1', result: 'read' }]);
 
@@ -417,7 +427,7 @@ describe('createPullScheduler', () => {
     harness.setRequests([requestFor('window-a', 'a-1')]);
     scheduler.tick(git, new Map(), harness.spawn);
 
-    expect(harness.calls.map((call) => call.command)).toEqual(['git', 'gh']);
+    expect(harness.calls.map((call) => call.command)).toEqual(['git', 'git', 'gh']);
     expect(harness.outcomes()).toEqual([{ consumer: 'window-a', id: 'a-1', result: 'read' }]);
   });
 
@@ -427,7 +437,7 @@ describe('createPullScheduler', () => {
 
     scheduler.tick(git, new Map(), harness.spawn);
     await harness.respondRemotes(0);
-    await harness.respondPulls(1, pullList(7));
+    await harness.respondPulls(2, pullList(7));
 
     expect(scheduler.pulls()).toEqual({
       [repository.key]: { pulls: pullList(7), failed: false },
@@ -439,7 +449,7 @@ describe('createPullScheduler', () => {
 
     harness.setNow(start + pullPeriodMilliseconds);
     scheduler.tick(git, new Map(), harness.spawn);
-    await harness.respond(2, { code: 1, stdout: '', stderr: 'offline' });
+    await harness.respond(3, { code: 1, stdout: '', stderr: 'offline' });
 
     expect(scheduler.pulls()).toEqual({
       [repository.key]: { pulls: pullList(7), failed: true },
@@ -457,7 +467,7 @@ describe('createPullScheduler', () => {
 
     scheduler.tick(gitFactsOf(), new Map(), harness.spawn);
     await harness.respondRemotes(0);
-    await harness.respond(1, { code: 1, stdout: '', stderr: 'offline' });
+    await harness.respond(2, { code: 1, stdout: '', stderr: 'offline' });
 
     expect(harness.outcomes()).toEqual([{ consumer: 'window-a', id: 'a-1', result: 'failed' }]);
   });
@@ -482,15 +492,15 @@ describe('createPullScheduler', () => {
     expect(harness.calls).toHaveLength(1);
 
     await harness.respondRemotes(0);
-    await harness.respondPulls(1, pullList(7));
+    await harness.respondPulls(2, pullList(7));
 
     harness.setNow(start + 59_000 + 59_999);
     scheduler.tick(git, new Map(), harness.spawn);
-    expect(harness.calls).toHaveLength(2);
+    expect(harness.calls).toHaveLength(3);
 
     harness.setNow(start + 59_000 + 60_000);
     scheduler.tick(git, new Map(), harness.spawn);
-    expect(harness.calls).toHaveLength(3);
+    expect(harness.calls).toHaveLength(4);
   });
 
   test('a seeded read time without seeded PR facts does not delay the first read', () => {
@@ -520,11 +530,11 @@ describe('createPullScheduler', () => {
 
     await harness.respondRemotes(0);
 
-    const pullsCall = harness.call(1);
+    const pullsCall = harness.call(2);
 
     expect(pullsCall).toMatchObject({ command: 'gh', cwd: '/srv/app', on: 'qa-remote' });
 
-    await harness.respondPulls(1, pullList(7));
+    await harness.respondPulls(2, pullList(7));
 
     expect(scheduler.pulls()).toEqual({ [remote.key]: { pulls: pullList(7), failed: false } });
   });
@@ -552,9 +562,9 @@ describe('createPullScheduler', () => {
 
     await harness.respondRemotes(0);
 
-    expect(harness.calls).toHaveLength(2);
+    expect(harness.calls).toHaveLength(3);
 
-    await harness.respondPulls(1, pullList(7));
+    await harness.respondPulls(2, pullList(7));
 
     expect(scheduler.pulls()).toEqual({ [repository.key]: { pulls: pullList(7), failed: false } });
   });
@@ -591,12 +601,12 @@ describe('createPullScheduler', () => {
     scheduler.tick(gitFactsOf(), new Map(), harness.spawn);
     await harness.respondRemotes(0);
 
-    expect(harness.calls.map((call) => call.command)).toEqual(['git', 'gh']);
+    expect(harness.calls.map((call) => call.command)).toEqual(['git', 'git', 'gh']);
 
     harness.publishedOutcomes = [];
     harness.held = { version: 1, owner: 'owner-b', generation: 2 };
 
-    await harness.respondPulls(1, pullList(7));
+    await harness.respondPulls(2, pullList(7));
 
     expect(harness.published).toEqual([]);
     expect(harness.publishedTimes).toEqual([]);
@@ -698,7 +708,7 @@ describe('createPullScheduler', () => {
     harness.store.write(pullRetryOutcomesKey, newerOutcomes);
 
     await harness.respondRemotes(0);
-    await harness.respondPulls(1, pullList(7));
+    await harness.respondPulls(2, pullList(7));
     await harness.spawned[0];
 
     expect(harness.publishedOutcomes).toEqual([]);
@@ -718,7 +728,7 @@ describe('createPullScheduler', () => {
     harness.store.write(pullRetryRequestsKey, newerRequests);
 
     await harness.respondRemotes(0);
-    await harness.respondPulls(1, pullList(7));
+    await harness.respondPulls(2, pullList(7));
     await harness.spawned[0];
 
     expect(harness.publishedOutcomes).toEqual([]);

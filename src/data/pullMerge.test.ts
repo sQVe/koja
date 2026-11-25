@@ -13,10 +13,10 @@ const repository = repositoryOf(null, '/repo/.git');
 
 const sourceOf = (branches: string[]): PullSource => ({ repository, cwd: '/repo', branches });
 
-const previous = (): Pull =>
+const previous = (headRefName: string): Pull =>
   pullFacts({
     number: 773,
-    headRefName: 'threads-failed',
+    headRefName,
     mergeable: 'mergeable',
     mergeState: 'blocked',
     review: 'reviewRequired',
@@ -39,7 +39,7 @@ describe('mergePulls and mergeReadTimes', () => {
     );
 
     const pulls = read.kind === 'read' ? read.pulls : [];
-    const merged = mergePulls([previous()], pulls);
+    const merged = mergePulls([previous('threads-failed')], pulls);
     const times = mergeReadTimes(previousTimes(), merged, 5000);
 
     expect(merged[0]?.checks).toEqual({ kind: 'read', value: 'failing' });
@@ -50,5 +50,26 @@ describe('mergePulls and mergeReadTimes', () => {
     });
 
     expect(times).toEqual({ list: 5000, checks: { '773': 5000 }, threads: { '773': 1000 } });
+  });
+
+  test('keeps both parts and their ages when threads fail and no new checks arrive', async () => {
+    const read = await readRepositoryPulls(
+      runWith([{ body: githubFixture('checks-and-threads-failed.json'), code: 1 }]),
+      sourceOf(['checks-and-threads-failed']),
+      () => true,
+    );
+
+    const pulls = read.kind === 'read' ? read.pulls : [];
+    const merged = mergePulls([previous('checks-and-threads-failed')], pulls);
+    const times = mergeReadTimes(previousTimes(), merged, 5000);
+
+    expect(merged[0]?.checks).toEqual({ kind: 'failed', last: 'passing' });
+
+    expect(merged[0]?.threads).toEqual({
+      kind: 'failed',
+      last: { unresolved: 2, complete: true },
+    });
+
+    expect(times).toEqual({ list: 5000, checks: { '773': 1000 }, threads: { '773': 1000 } });
   });
 });

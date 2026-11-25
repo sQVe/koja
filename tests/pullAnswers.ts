@@ -12,24 +12,8 @@ export interface Answer {
   stderr?: string;
 }
 
-interface FixtureNodes {
-  open: unknown;
-  latest: unknown;
-}
-
 export const githubFixture = (name: string): string =>
   readFileSync(join(import.meta.dir, '..', 'src', 'data', 'fixtures', 'github', name), 'utf8');
-
-export const fixtureNodes = (name: string): FixtureNodes => {
-  const body = JSON.parse(githubFixture(name)) as {
-    data: { repository: Record<string, { nodes: unknown[] }> };
-  };
-
-  return {
-    open: body.data.repository['open0']?.nodes[0],
-    latest: body.data.repository['latest0']?.nodes[0],
-  };
-};
 
 const answerOf = (answer: Answer): ExecResult => ({
   code: answer.code ?? 0,
@@ -37,12 +21,20 @@ const answerOf = (answer: Answer): ExecResult => ({
   stderr: answer.stderr ?? '',
 });
 
+const gitAnswer = (args: string[]): ExecResult => {
+  if (args[1] === 'get-url') {
+    return { code: 0, stdout: '/srv/git/repo.git\n', stderr: '' };
+  }
+
+  return { code: 0, stdout: 'origin\n', stderr: '' };
+};
+
 export const runWith = (answers: Answer[], calls: string[][] = []): RunCommand => {
   const pending = [...answers];
 
   return async (command, args) => {
     if (command === 'git') {
-      return { code: 0, stdout: 'origin\n', stderr: '' };
+      return gitAnswer(args);
     }
 
     calls.push(args);
@@ -81,7 +73,7 @@ export const bodyOf = (
   return JSON.stringify(body);
 };
 
-const nodeOf = (pull: Pull): Record<string, unknown> => ({
+export const pullNodeOf = (pull: Pull): Record<string, unknown> => ({
   number: pull.number,
   state: pull.state,
   isDraft: pull.isDraft,
@@ -96,5 +88,5 @@ const nodeOf = (pull: Pull): Record<string, unknown> => ({
 
 export const answerFrom = (branchCount: number, pulls: Pull[]): string =>
   bodyOf(branchCount, {
-    open: Object.fromEntries(pulls.map((pull, index) => [index, nodeOf(pull)])),
+    open: Object.fromEntries(pulls.map((pull, index) => [index, pullNodeOf(pull)])),
   });

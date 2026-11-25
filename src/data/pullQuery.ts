@@ -48,7 +48,7 @@ const queryText = (branchCount: number): string => {
   return lines.join('\n');
 };
 
-export const pullQueryArgs = (branches: string[]): string[] => {
+export const pullQueryArgs = (branches: string[], host: string | null): string[] => {
   const tooFew = branches.length === 0;
   const tooMany = branches.length > branchesPerQuery;
 
@@ -56,16 +56,20 @@ export const pullQueryArgs = (branches: string[]): string[] => {
     throw new Error('pullQueryArgs takes 1 to 20 branches');
   }
 
-  const args = [
-    'api',
-    'graphql',
+  const args = ['api', 'graphql'];
+
+  if (host !== null) {
+    args.push('--hostname', host);
+  }
+
+  args.push(
     '-F',
     'owner={owner}',
     '-F',
     'name={repo}',
     '-f',
     `query=${queryText(branches.length)}`,
-  ];
+  );
 
   for (const [index, branch] of branches.entries()) {
     args.push('-f', `branch${index}=${branch}`);

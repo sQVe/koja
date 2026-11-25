@@ -113,9 +113,21 @@ class RetryHarness {
     call.respond(result);
     await this.settle();
   }
+
+  async respondRemotes(folder: string): Promise<void> {
+    const [names] = this.callsIn(folder);
+
+    await this.respond(names as PendingCall, ok);
+
+    const [, url] = this.callsIn(folder);
+
+    await this.respond(url as PendingCall, remoteUrl);
+  }
 }
 
 const ok: ExecResult = { code: 0, stdout: 'origin\n', stderr: '' };
+
+const remoteUrl: ExecResult = { code: 0, stdout: 'git@github.com:koja/koja.git\n', stderr: '' };
 
 const offline: ExecResult = { code: 1, stdout: '', stderr: 'offline' };
 
@@ -132,9 +144,9 @@ describe('createPullScheduler Retry', () => {
 
     expect(harness.calls.map((call) => call.cwd)).toEqual(['/code/a', '/code/b']);
 
-    await harness.respond(harness.callsIn('/code/a')[0] as PendingCall, ok);
+    await harness.respondRemotes('/code/a');
 
-    const failedRead = harness.callsIn('/code/a')[1] as PendingCall;
+    const failedRead = harness.callsIn('/code/a')[2] as PendingCall;
 
     await harness.respond(failedRead, offline);
 
@@ -146,19 +158,20 @@ describe('createPullScheduler Retry', () => {
       '/code/a',
       '/code/b',
       '/code/a',
+      '/code/a',
       '/code/c',
     ]);
 
     scheduler.tick(git, new Map(), harness.spawn);
     await harness.settle();
 
-    expect(harness.calls).toHaveLength(4);
+    expect(harness.calls).toHaveLength(5);
 
     harness.setRequests(repositoryAt('/code/a'), harness.now);
     scheduler.tick(git, new Map(), harness.spawn);
     await harness.settle();
 
-    expect(harness.callsIn('/code/a')).toHaveLength(3);
+    expect(harness.callsIn('/code/a')).toHaveLength(4);
     expect(harness.calls.at(-1)?.cwd).toBe('/code/a');
   });
 });
