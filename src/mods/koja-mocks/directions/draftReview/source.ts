@@ -83,7 +83,7 @@ const lineField = (tokens: DirectionTokens): Element => {
     .ml(-spacing.xsmall - 1)
     .px(spacing.xsmall)
     .items_center()
-    .rounded(radius.pill)
+    .rounded(radius.default)
     .border(1)
     .border_color(tokens.pane.focusedBorder)
     .bg(tokens.pane.fill)

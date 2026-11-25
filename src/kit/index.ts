@@ -76,6 +76,7 @@ export {
   hoverCardSize,
   overlaySize,
   paneHeaderWidth,
+  popupFrameRadius,
   radius,
   rowHeight,
   separatorHeight,

@@ -44,7 +44,7 @@ export const tab = (options: TabOptions): Element => {
     .gap(spacing.small)
     .flex_none()
     .items_center()
-    .rounded(radius.pill)
+    .rounded(radius.default)
     // A clear border on every tab, so the outline a hovered tab draws never shifts its content.
     .border(spacing.hairline)
     .border_color(clearOf(palette.selected))

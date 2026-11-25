@@ -109,7 +109,7 @@ const paneCard = (header: PaneHeaderOptions, lines: string[], grow: number): Ele
     .flex_basis(0)
     .min_w(0)
     .h_full()
-    .rounded(radius.dialog)
+    .rounded(radius.default)
     .border(spacing.hairline)
     .border_color(borderInk)
     .bg(palette.background)

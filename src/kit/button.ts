@@ -54,7 +54,7 @@ export const iconButton = (options: IconButtonOptions): Element => {
     .flex_none()
     .items_center()
     .justify_center()
-    .rounded(radius.pill)
+    .rounded(radius.default)
     .text_color(palette.dim)
     .child(icon(options.name, 'small'));
 
@@ -88,7 +88,7 @@ export const actionButton = (options: ActionButtonOptions): Element => {
     .px(spacing.large)
     .flex_none()
     .items_center()
-    .rounded(radius.pill)
+    .rounded(radius.default)
     .text_size(textSize.small)
     .child(options.label);
 
@@ -114,7 +114,7 @@ const dialogButtonBase = (label: string): Element =>
     .px(spacing.large)
     .flex_none()
     .items_center()
-    .rounded(radius.pill)
+    .rounded(radius.default)
     .text_size(textSize.small)
     .cursor_pointer()
     .child(label);
@@ -167,7 +167,7 @@ export const iconToggle = (options: IconToggleOptions): Element => {
     .flex_none()
     .items_center()
     .justify_center()
-    .rounded(radius.pill)
+    .rounded(radius.default)
     .cursor_pointer()
     // A clear border on every toggle, so the outline a hovered toggle draws never shifts its content.
     .border(spacing.hairline)
@@ -196,7 +196,7 @@ export const modePill = (options: ModePillOptions): Element => {
     .px(spacing.small)
     .flex_none()
     .items_center()
-    .rounded(radius.pill)
+    .rounded(radius.default)
     .border(spacing.hairline)
     .border_color(palette.selected)
     .text_size(textSize.small)
@@ -213,7 +213,7 @@ export const toggleButton = (options: ToggleButtonOptions): Element => {
     .gap(spacing.xsmall)
     .flex_none()
     .items_center()
-    .rounded(radius.pill)
+    .rounded(radius.default)
     .cursor_pointer()
     // A clear border on every toggle, so the outline a hovered toggle draws never shifts its content.
     .border(spacing.hairline)

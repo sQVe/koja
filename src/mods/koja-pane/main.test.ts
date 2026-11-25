@@ -141,7 +141,7 @@ await mock.module('../../kit/index.ts', () =>
     paneLeadingSlotWidth,
     paneOverflowButton,
     programIcon: () => drawn('program.svg'),
-    radius: { cardInner: 7 },
+    radius: { cardInner: 5 },
     recordOf,
     roleBadge: (role: string, state?: 'full' | 'cut') => {
       const badge = roleBadge(role, state);

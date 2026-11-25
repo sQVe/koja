@@ -64,7 +64,7 @@ const panel = (count: string | null, content: Element[]): Element => {
 
   return v_flex()
     .flex_none()
-    .rounded(radius.dialog)
+    .rounded(radius.default)
     .bg(colors().chrome)
     .child(panelHeader(count))
     .child(body);

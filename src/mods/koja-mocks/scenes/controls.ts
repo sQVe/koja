@@ -107,7 +107,7 @@ const paneHeader = (pane: FakePane): Element => {
 
   return v_flex()
     .flex_none()
-    .rounded(radius.dialog)
+    .rounded(radius.default)
     .border(spacing.hairline)
     .border_color(borderInk)
     .bg(palette.background)
@@ -149,7 +149,7 @@ const tabBar = (): Element => {
     .px(spacing.xsmall)
     .gap(spacing.xxsmall)
     .items_center()
-    .rounded(radius.dialog)
+    .rounded(radius.default)
     .bg(colors().chrome)
     .children(fakeTabs.map(tabElement))
     .child(spacer)

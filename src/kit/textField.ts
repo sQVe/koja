@@ -16,7 +16,7 @@ export const textField = (input: InputState, focused: boolean): Element => {
     .flex_none()
     .px(spacing.large)
     .items_center()
-    .rounded(radius.pill)
+    .rounded(radius.default)
     .border(spacing.hairline)
     .border_color(borderColor)
     .on_mouse_down('left', (_event, cx) => {

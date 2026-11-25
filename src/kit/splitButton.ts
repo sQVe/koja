@@ -124,7 +124,7 @@ const button = (options: SplitButtonOptions): Element => {
     .w(controlSize.splitButtonWidth)
     .flex_none()
     .items_stretch()
-    .rounded(radius.pill)
+    .rounded(radius.default)
     .bg(palette.solid)
     .text_color(palette.solid_foreground)
     .text_size(textSize.small)
