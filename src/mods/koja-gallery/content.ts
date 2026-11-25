@@ -1,16 +1,26 @@
 import { h_flex, v_flex } from 'gpui-base';
 import type { Element } from 'gpui-kit';
 
-import type { Fact, ItemStateOptions, SourceLinkOptions } from '../../kit/index.ts';
+import type {
+  ContentSectionOptions,
+  Fact,
+  ItemStateOptions,
+  PartNoteOptions,
+  SourceLinkOptions,
+  StatusRowOptions,
+} from '../../kit/index.ts';
 import {
   actionBlock,
+  contentSection,
   contentSize,
   documentLine,
   factPairs,
   factRows,
   itemHeader,
+  partNote,
   sourceLink,
   spacing,
+  statusRow,
 } from '../../kit/index.ts';
 import { sample } from './sample.ts';
 
@@ -177,6 +187,70 @@ const documentLines = (): Element => {
   return v_flex().children(lines);
 };
 
+const failingCheck = (stale: boolean): StatusRowOptions => ({
+  mark: 'failing',
+  name: 'typecheck',
+  detail: 'Type mismatch in rows.ts:48',
+  state: 'failing',
+  stale,
+});
+
+const runningCheck = (name: string, started: string, stale: boolean): StatusRowOptions => ({
+  mark: 'working',
+  name,
+  detail: `started ${started}`,
+  state: 'running',
+  stale,
+});
+
+const staleChecksNote: PartNoteOptions = { part: 'checks', age: '6m ago' };
+
+const checksSection = (stale: boolean): Element => {
+  const testsAge = stale ? '8m ago' : '2m ago';
+  const styleAge = stale ? '7m ago' : '1m ago';
+
+  const rows = [
+    statusRow(failingCheck(stale)),
+    statusRow(runningCheck('tests', testsAge, stale)),
+    statusRow(runningCheck('style', styleAge, stale)),
+  ];
+
+  const parts = stale ? [partNote(staleChecksNote), ...rows] : rows;
+  const section: ContentSectionOptions = { name: 'Checks', count: 3, open: true, parts };
+
+  return contentSection(section);
+};
+
+const threadRow = (reference: string, detail: string): StatusRowOptions => ({
+  mark: 'review',
+  name: reference,
+  detail,
+  state: 'unresolved',
+});
+
+const threadsSection = (): Element =>
+  contentSection({
+    name: 'Threads',
+    count: 2,
+    open: true,
+    parts: [
+      statusRow(threadRow('rows.ts:48', 'sqve · 2h ago')),
+      statusRow(threadRow('repoLabel.ts:27–31', 'sqve · 1h ago')),
+    ],
+  });
+
+const slicesSection = (): Element =>
+  contentSection({
+    name: 'Slices',
+    count: 3,
+    open: true,
+    parts: [
+      statusRow({ mark: 'done', name: 'Read the ticket snapshot', state: 'done' }),
+      statusRow({ mark: 'working', name: 'Draw the shared content frame', state: 'in progress' }),
+      statusRow({ mark: 'idle', name: 'Check links and empty states', state: 'backlog' }),
+    ],
+  });
+
 export const contentParts = (): Element[] => [
   sample('Source links', sourceLinks()),
   sample('Pull request header', pullHeader()),
@@ -194,4 +268,9 @@ export const contentParts = (): Element[] => [
   sample('Failed save action', railFrame(failedSaveAction())),
   sample('Sent review action', railFrame(sentAction())),
   sample('Document with an edited line and commented lines', narrowFrame(documentLines())),
+  sample('Checks section with live rows', narrowFrame(checksSection(false))),
+  sample('Checks section with stale rows', narrowFrame(checksSection(true))),
+  sample('Threads section', narrowFrame(threadsSection())),
+  sample('Slices section', narrowFrame(slicesSection())),
+  sample('Folded section', narrowFrame(contentSection({ name: 'Files', count: 9, open: false }))),
 ];
