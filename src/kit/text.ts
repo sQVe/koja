@@ -18,10 +18,11 @@ export const detailText = (text: string, color = colors().dim): Element =>
 
 // A link that must fit a narrow space cuts in the middle so both ends stay visible.
 export const linkText = (text: string, cut?: 'middle'): Element => {
-  const box = cut === 'middle' ? div().min_w(0) : div().flex_none();
+  const cuts = cut === 'middle';
+  const box = cuts ? div().min_w(0) : div().flex_none();
   const link = withTextRole(box, 'detail', 'foreground').underline().cursor_pointer().child(text);
 
-  if (cut !== 'middle') {
+  if (!cuts) {
     return link;
   }
 

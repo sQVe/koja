@@ -2,9 +2,10 @@ import type { Element } from 'gpui-kit';
 
 import { linkText } from './text.ts';
 
-export type SourceLinkOptions =
-  | { identifier: string; source: 'GitHub'; repository: string }
-  | { identifier: string; source: 'Linear' | 'tikk' };
+// A GitHub link carries the repository it belongs to, so every link names its whole target.
+export type LinkTarget = { source: 'GitHub'; repository: string } | { source: 'Linear' | 'tikk' };
+
+export type SourceLinkOptions = LinkTarget & { identifier: string };
 
 const identityOf = (options: SourceLinkOptions): string =>
   options.source === 'GitHub' ? `${options.repository} ${options.identifier}` : options.identifier;
