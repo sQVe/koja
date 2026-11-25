@@ -23,7 +23,21 @@ const defaultTerminalFont = 'JetBrains Mono';
 const tallGlyphs = /[A-Z0-9bdfhijklt↵]/u;
 const descendingGlyphs = /[gjpqy]/u;
 
-const terminalFont = (): string => stringOf(settings()['font_family']) ?? defaultTerminalFont;
+// settings() is a host read, so one turn reads the font once, as theme.ts does for the palette.
+let turnTerminalFont: string | null = null;
+
+const clearTurnTerminalFont = (): void => {
+  turnTerminalFont = null;
+};
+
+const terminalFont = (): string => {
+  if (turnTerminalFont === null) {
+    turnTerminalFont = stringOf(settings()['font_family']) ?? defaultTerminalFont;
+    Promise.resolve().then(clearTurnTerminalFont).catch(clearTurnTerminalFont);
+  }
+
+  return turnTerminalFont;
+};
 
 const glyphRaise = (label: string): number => {
   const short = tallGlyphs.test(label) ? 0 : 1;
