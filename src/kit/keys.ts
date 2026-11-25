@@ -20,7 +20,7 @@ const otherModifiers: Record<Modifier, string> = {
   fn: 'Fn',
 };
 
-const isUpperCaseLetter = (key: string): boolean => /^[A-Z]$/.test(key);
+export const isUpperCaseLetter = (key: string): boolean => /^[A-Z]$/.test(key);
 
 const modifierAlias = (modifier: string, platform: Platform): string => {
   const lower = modifier.toLowerCase();

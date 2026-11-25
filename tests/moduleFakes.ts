@@ -199,6 +199,7 @@ export const kitIndexFake = (overrides: ModuleFake = {}): ModuleFake => ({
   taskOfPane: () => null,
   trafficLightsPadding: noop,
   takeNormalKeys: () => null,
+  terminalFont: () => 'JetBrains Mono',
   textField: chainable,
   textRoleNames: [],
   textRoles: {},
