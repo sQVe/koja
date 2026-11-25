@@ -27,6 +27,8 @@ export { hoveredAfter } from './hoverTarget.ts';
 
 export { itemHeader } from './itemHeader.ts';
 
+export type { ItemHeaderOptions } from './itemHeader.ts';
+
 export { listRow } from './listRow.ts';
 
 export {
