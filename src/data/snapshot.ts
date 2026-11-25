@@ -3,7 +3,9 @@ import { isPositiveWholeNumber } from './fields.ts';
 import type { RepositoryIdentity } from './gitIdentity.ts';
 import { repositoryOf, worktreeOf } from './gitIdentity.ts';
 import type { Pull } from './pulls.ts';
-import { parseStoredPull } from './pulls.ts';
+import { parseStoredPull, unreadPullNeeds } from './pulls.ts';
+
+type StoredPullParser = (stored: unknown) => Pull | null;
 
 export type PlaceGit =
   | { kind: 'repository'; worktree: string }
@@ -32,7 +34,11 @@ export interface Facts {
   pulls: Record<string, RepositoryPulls>;
 }
 
-export const snapshotVersion = 3;
+export const snapshotVersion = 4;
+
+const versionWithGitFactsOnly = 2;
+
+const versionWithoutPullNeeds = 3;
 
 export interface Snapshot {
   version: typeof snapshotVersion;
@@ -222,7 +228,10 @@ const parseGitFacts = (value: unknown): GitFacts | null => {
   return { places: Object.fromEntries(placeEntries), worktrees: parsedWorktrees };
 };
 
-const parseRepositoryPulls = (value: unknown): RepositoryPulls | null => {
+const parseRepositoryPulls = (
+  value: unknown,
+  parsePull: StoredPullParser,
+): RepositoryPulls | null => {
   if (!isRecord(value)) {
     return null;
   }
@@ -246,7 +255,7 @@ const parseRepositoryPulls = (value: unknown): RepositoryPulls | null => {
   const pulls: Pull[] = [];
 
   for (const entry of stored) {
-    const parsed = parseStoredPull(entry);
+    const parsed = parsePull(entry);
 
     if (parsed === null) {
       return null;
@@ -267,6 +276,7 @@ const repositoryKeys = (worktrees: Record<string, WorktreeGit>): Set<string> => 
 const parsePulls = (
   value: unknown,
   worktrees: Record<string, WorktreeGit>,
+  parsePull: StoredPullParser,
 ): Record<string, RepositoryPulls> | null => {
   if (!isRecord(value)) {
     return null;
@@ -280,7 +290,7 @@ const parsePulls = (
       return null;
     }
 
-    const parsed = parseRepositoryPulls(entry);
+    const parsed = parseRepositoryPulls(entry, parsePull);
 
     if (parsed === null) {
       return null;
@@ -292,7 +302,7 @@ const parsePulls = (
   return Object.fromEntries(entries);
 };
 
-const parseFacts = (value: unknown): Facts | null => {
+const parseFacts = (value: unknown, parsePull: StoredPullParser): Facts | null => {
   if (!isRecord(value)) {
     return null;
   }
@@ -307,7 +317,7 @@ const parseFacts = (value: unknown): Facts | null => {
     return null;
   }
 
-  const pulls = parsePulls(value.pulls, git.worktrees);
+  const pulls = parsePulls(value.pulls, git.worktrees, parsePull);
 
   if (pulls === null) {
     return null;
@@ -316,7 +326,7 @@ const parseFacts = (value: unknown): Facts | null => {
   return { git, pulls };
 };
 
-const parsePreviousFacts = (value: unknown): Facts | null => {
+const parseGitOnlyFacts = (value: unknown): Facts | null => {
   if (!isRecord(value)) {
     return null;
   }
@@ -334,7 +344,19 @@ const parsePreviousFacts = (value: unknown): Facts | null => {
   return { git, pulls: {} };
 };
 
-const parseCurrentSnapshot = (fields: Record<string, unknown>): Snapshot | null => {
+const parseVersion3Pull: StoredPullParser = (stored) => {
+  if (!isRecord(stored)) {
+    return null;
+  }
+
+  if (!hasOnlyKeys(stored, ['number', 'state', 'isDraft', 'title', 'headRefName'])) {
+    return null;
+  }
+
+  return parseStoredPull({ ...stored, ...unreadPullNeeds() });
+};
+
+const snapshotOf = (fields: Record<string, unknown>, facts: Facts | null): Snapshot | null => {
   if (!hasOnlyKeys(fields, ['version', 'revision', 'facts'])) {
     return null;
   }
@@ -343,38 +365,27 @@ const parseCurrentSnapshot = (fields: Record<string, unknown>): Snapshot | null 
     return null;
   }
 
-  const facts = parseFacts(fields.facts);
-
-  if (facts === null) {
-    return null;
-  }
-
-  return { version: snapshotVersion, revision: fields.revision, facts };
+  return facts === null ? null : { version: snapshotVersion, revision: fields.revision, facts };
 };
 
-const parsePreviousSnapshot = (fields: Record<string, unknown>): Snapshot | null => {
-  if (!hasOnlyKeys(fields, ['version', 'revision', 'facts'])) {
-    return null;
-  }
+const parseVersion2Snapshot = (fields: Record<string, unknown>): Snapshot | null =>
+  snapshotOf(fields, parseGitOnlyFacts(fields.facts));
 
-  if (!isPositiveWholeNumber(fields.revision)) {
-    return null;
-  }
+const parseVersion3Snapshot = (fields: Record<string, unknown>): Snapshot | null =>
+  snapshotOf(fields, parseFacts(fields.facts, parseVersion3Pull));
 
-  const facts = parsePreviousFacts(fields.facts);
-
-  if (facts === null) {
-    return null;
-  }
-
-  return { version: snapshotVersion, revision: fields.revision, facts };
-};
+const parseCurrentSnapshot = (fields: Record<string, unknown>): Snapshot | null =>
+  snapshotOf(fields, parseFacts(fields.facts, parseStoredPull));
 
 export const parseSnapshot = (value: unknown): Snapshot | null => {
   const fields = recordOf(value);
 
-  if (fields.version === 2) {
-    return parsePreviousSnapshot(fields);
+  if (fields.version === versionWithGitFactsOnly) {
+    return parseVersion2Snapshot(fields);
+  }
+
+  if (fields.version === versionWithoutPullNeeds) {
+    return parseVersion3Snapshot(fields);
   }
 
   if (fields.version !== snapshotVersion) {

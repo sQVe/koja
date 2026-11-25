@@ -1,0 +1,57 @@
+{
+  "data": {
+    "rateLimit": {
+      "cost": 1,
+      "remaining": 4642,
+      "resetAt": "2026-11-25T12:31:04Z"
+    },
+    "repository": {
+      "open0": {
+        "nodes": [
+          {
+            "number": 692,
+            "state": "OPEN",
+            "isDraft": false,
+            "title": "Fixture: threads incomplete",
+            "headRefName": "threads-incomplete",
+            "mergeable": "MERGEABLE",
+            "mergeStateStatus": "CLEAN",
+            "reviewDecision": null,
+            "commits": {
+              "nodes": [
+                {
+                  "commit": {
+                    "statusCheckRollup": {
+                      "state": "SUCCESS"
+                    }
+                  }
+                }
+              ]
+            },
+            "reviewThreads": {
+              "pageInfo": {
+                "hasNextPage": true
+              },
+              "nodes": [
+                {
+                  "isResolved": true
+                }
+              ]
+            }
+          }
+        ]
+      },
+      "latest0": {
+        "nodes": [
+          {
+            "number": 692,
+            "state": "OPEN",
+            "isDraft": false,
+            "title": "Fixture: threads incomplete",
+            "headRefName": "threads-incomplete"
+          }
+        ]
+      }
+    }
+  }
+}

@@ -2,7 +2,7 @@ import type { Lease, ReadShared, WriteShared } from './lease.ts';
 import { holdsLease } from './lease.ts';
 import { recordNotices } from './recordNotices.ts';
 import type { Facts, Snapshot } from './snapshot.ts';
-import { snapshotKey } from './snapshot.ts';
+import { snapshotKey, snapshotVersion } from './snapshot.ts';
 import { sameValue } from './sortedValue.ts';
 import { readStoredSnapshot } from './storedSnapshot.ts';
 
@@ -27,7 +27,7 @@ export const createSnapshotPublisher = (
     }
 
     const revision = (stored?.revision ?? 0) + 1;
-    const snapshot: Snapshot = { version: 3, revision, facts };
+    const snapshot: Snapshot = { version: snapshotVersion, revision, facts };
 
     write(snapshotKey, snapshot);
   },

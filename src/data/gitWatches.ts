@@ -9,6 +9,7 @@ export interface WatchRegistry {
   start: (repository: RepositoryIdentity, cx: Context) => void;
   cancelUnused: (used: ReadonlySet<string>) => void;
   takeEvents: () => Map<string, number>;
+  takeRemoteRefEvents: () => Map<string, number>;
   stop: () => void;
 }
 
@@ -29,20 +30,25 @@ export const usedRepositories = (
   return used;
 };
 
+const keepEarliest = (stored: Map<string, number>, key: string, at: number): void => {
+  const first = stored.get(key);
+
+  if (first !== undefined && first <= at) {
+    return;
+  }
+
+  stored.set(key, at);
+};
+
+const isRemoteRefPath = (commonDirectory: string, path: string): boolean =>
+  path === commonDirectory ||
+  path === `${commonDirectory}/packed-refs` ||
+  path.startsWith(`${commonDirectory}/refs/remotes/`);
+
 export const createWatchRegistry = (watchFolder: WatchFolder, now: () => number): WatchRegistry => {
   const watches = new Map<string, FolderWatchHandle>();
   const events = new Map<string, number>();
-
-  const record = (repositoryKey: string): void => {
-    const at = now();
-    const first = events.get(repositoryKey);
-
-    if (first !== undefined && first <= at) {
-      return;
-    }
-
-    events.set(repositoryKey, at);
-  };
+  const remoteEvents = new Map<string, number>();
 
   const start = (repository: RepositoryIdentity, cx: Context): void => {
     if (watches.has(repository.key)) {
@@ -50,8 +56,14 @@ export const createWatchRegistry = (watchFolder: WatchFolder, now: () => number)
     }
 
     const handle = watchFolderChanges(watchFolder, repository.commonDirectory, cx, {
-      onChange: () => {
-        record(repository.key);
+      onChange: (_cx, paths) => {
+        const at = now();
+
+        keepEarliest(events, repository.key, at);
+
+        if (paths.some((path) => isRemoteRefPath(repository.commonDirectory, path))) {
+          keepEarliest(remoteEvents, repository.key, at);
+        }
       },
       onError: () => {
         watches.delete(repository.key);
@@ -80,6 +92,14 @@ export const createWatchRegistry = (watchFolder: WatchFolder, now: () => number)
     return taken;
   };
 
+  const takeRemoteRefEvents = (): Map<string, number> => {
+    const taken = new Map(remoteEvents);
+
+    remoteEvents.clear();
+
+    return taken;
+  };
+
   const stop = (): void => {
     for (const watched of watches.values()) {
       watched.cancel();
@@ -87,7 +107,8 @@ export const createWatchRegistry = (watchFolder: WatchFolder, now: () => number)
 
     watches.clear();
     events.clear();
+    remoteEvents.clear();
   };
 
-  return { start, cancelUnused, takeEvents, stop };
+  return { start, cancelUnused, takeEvents, takeRemoteRefEvents, stop };
 };

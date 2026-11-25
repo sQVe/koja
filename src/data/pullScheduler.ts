@@ -1,6 +1,17 @@
 import type { RunCommand } from './gitIdentity.ts';
 import type { Lease, ReadShared } from './lease.ts';
 import { sameHolder } from './lease.ts';
+import type { PullDueState } from './pullDue.ts';
+import {
+  duePullReads,
+  emptyPullDueRepository,
+  emptyPullDueState,
+  notePush,
+  noteResult,
+  noteStart,
+} from './pullDue.ts';
+import { mergePulls, mergeReadTimes } from './pullMerge.ts';
+import type { PullReadTimes } from './pullReadTimes.ts';
 import type { PullRetryOutcome, PullRetryRequest, PullRetryResult } from './pullRetry.ts';
 import {
   answeredRequestKeys,
@@ -25,17 +36,18 @@ export interface PullSchedulerDependencies {
   read: ReadShared;
   notices: RecordNotices;
   publish: () => void;
-  publishReadTimes: (lease: Lease, times: Record<string, number>) => void;
+  publishReadTimes: (lease: Lease, times: PullReadTimes) => void;
   publishOutcomes: (lease: Lease, outcomes: PullRetryOutcome[]) => void;
+  windowActive: () => boolean;
 }
 
 export interface PullSchedulerSeed {
   pulls: Record<string, RepositoryPulls>;
-  readTimes: Record<string, number>;
+  readTimes: PullReadTimes;
 }
 
 export interface PullScheduler {
-  tick: (git: GitFacts, spawn: Spawn) => void;
+  tick: (git: GitFacts, remoteRefEvents: Map<string, number>, spawn: Spawn) => void;
   pulls: () => Record<string, RepositoryPulls>;
   stop: () => void;
 }
@@ -54,19 +66,30 @@ type SettledPullRead = Exclude<PullRead, { kind: 'dropped' }>;
 
 type Spawn = (body: () => Promise<void>) => void;
 
-const pullPeriodMilliseconds = 180_000;
-
 // A read time without its PR facts would delay the first read of a reopened repository.
-const readTimesWithFacts = (seed: PullSchedulerSeed): Record<string, number> => {
+const readTimesWithFacts = (seed: PullSchedulerSeed): PullReadTimes => {
   const entries = Object.entries(seed.readTimes).filter(([key]) => Object.hasOwn(seed.pulls, key));
 
   return Object.fromEntries(entries);
 };
 
+const seededDue = (times: PullReadTimes): PullDueState => {
+  const state = emptyPullDueState();
+
+  for (const [key, repository] of Object.entries(times)) {
+    state.repositories[key] = {
+      ...emptyPullDueRepository(),
+      lastSuccess: repository.list,
+    };
+  }
+
+  return state;
+};
+
 class Scheduler implements PullScheduler {
   private readonly pullsByRepository: Record<string, RepositoryPulls>;
-  private readonly readTimes: Record<string, number>;
-  private readonly triedAt: Record<string, number> = {};
+  private readonly readTimes: PullReadTimes;
+  private readonly due: PullDueState;
   private readonly answers = new Map<string, Answer>();
   private readonly running = new Map<string, RunningRead>();
   private sequence = 0;
@@ -79,19 +102,27 @@ class Scheduler implements PullScheduler {
   ) {
     this.pullsByRepository = { ...seed.pulls };
     this.readTimes = readTimesWithFacts(seed);
+    this.due = seededDue(this.readTimes);
   }
 
   pulls(): Record<string, RepositoryPulls> {
     return this.pullsByRepository;
   }
 
-  tick(git: GitFacts, spawn: Spawn): void {
+  tick(git: GitFacts, remoteRefEvents: Map<string, number>, spawn: Spawn): void {
     if (this.stopped) {
       return;
     }
 
     const now = this.dependencies.now();
     const sources = pullSources(git);
+
+    for (const [key, at] of remoteRefEvents) {
+      if (sources.has(key)) {
+        notePush(this.due, key, at);
+      }
+    }
+
     const requests = readPullRetryRequests(this.dependencies.read, this.dependencies.notices);
     const outcomes = readPullRetryOutcomes(this.dependencies.read, this.dependencies.notices);
     const newer = requests.kind === 'newer' || outcomes.kind === 'newer';
@@ -181,18 +212,16 @@ class Scheduler implements PullScheduler {
   }
 
   private startDueReads(sources: Map<string, PullSource>, spawn: Spawn, now: number): void {
-    for (const [key, source] of sources) {
-      if (this.running.has(key)) {
-        continue;
+    const running = new Set(this.running.keys());
+    const active = this.dependencies.windowActive();
+    const due = duePullReads(this.due, [...sources.keys()], running, now, active);
+
+    for (const key of due) {
+      const source = sources.get(key);
+
+      if (source !== undefined) {
+        this.startRead(source, new Map(), spawn);
       }
-
-      const last = Math.max(this.readTimes[key] ?? 0, this.triedAt[key] ?? 0);
-
-      if (now - last < pullPeriodMilliseconds) {
-        continue;
-      }
-
-      this.startRead(source, new Map(), spawn);
     }
   }
 
@@ -203,15 +232,12 @@ class Scheduler implements PullScheduler {
 
     const sequence = this.sequence;
 
-    this.triedAt[key] = this.dependencies.now();
+    noteStart(this.due, key, this.dependencies.now());
     this.running.set(key, { sequence, waiters: new Map(waiters) });
 
     spawn(async () => {
-      const read = await readRepositoryPulls(
-        this.dependencies.run,
-        source.repository,
-        source.cwd,
-        () => this.stillOwner(),
+      const read = await readRepositoryPulls(this.dependencies.run, source, () =>
+        this.stillOwner(),
       );
 
       this.apply(key, sequence, read);
@@ -245,7 +271,10 @@ class Scheduler implements PullScheduler {
       return;
     }
 
-    this.writeRead(key, read);
+    const now = this.dependencies.now();
+
+    this.writeRead(key, read, now);
+    noteResult(this.due, key, read, now);
     this.dependencies.publish();
     this.dependencies.publishReadTimes(this.lease, this.readTimes);
 
@@ -283,10 +312,12 @@ class Scheduler implements PullScheduler {
     }
   }
 
-  private writeRead(key: string, read: SettledPullRead): void {
+  private writeRead(key: string, read: SettledPullRead, now: number): void {
     if (read.kind === 'read') {
-      this.pullsByRepository[key] = { pulls: read.pulls, failed: false };
-      this.readTimes[key] = this.dependencies.now();
+      const pulls = mergePulls(this.pullsByRepository[key]?.pulls ?? [], read.pulls);
+
+      this.pullsByRepository[key] = { pulls, failed: false };
+      this.readTimes[key] = mergeReadTimes(this.readTimes[key], pulls, now);
 
       return;
     }

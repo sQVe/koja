@@ -2,6 +2,7 @@ import type { Context } from 'gpui-kit';
 import { checking, exec, machines, panes, setShared, shared, spaces, watchFolder } from 'herdr';
 
 import { repeat } from '../kit/timer.ts';
+import { currentWindow } from '../kit/window.ts';
 import type { GitScheduler, GitWorld } from './gitScheduler.ts';
 import { createGitScheduler } from './gitScheduler.ts';
 import type { Lease } from './lease.ts';
@@ -92,6 +93,7 @@ const createSchedulerBinding = (
       publish: publishSnapshot,
       publishReadTimes: readTimesPublisher.publish,
       publishOutcomes: outcomesPublisher.publish,
+      windowActive: () => currentWindow()?.active ?? false,
     },
     held,
     { pulls: seed.pulls, readTimes: readPullReadTimes(shared, recordNotices) },
@@ -192,7 +194,10 @@ export const startDataHost = (cx: Context): void => {
     );
 
     binding.git.tick(gitWorld(), timerCx);
-    binding.pulls.tick(binding.git.gitFacts(), (body) => timerCx.spawn(body));
+
+    binding.pulls.tick(binding.git.gitFacts(), binding.git.takeRemoteRefEvents(), (body) =>
+      timerCx.spawn(body),
+    );
   };
 
   beat();

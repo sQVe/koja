@@ -4,6 +4,8 @@ import type { ExecResult, FolderWatch } from 'herdr';
 
 import { spaceOf } from '../../tests/gitSchedulerHarness.ts';
 import { herdrFake } from '../../tests/moduleFakes.ts';
+import { answerFrom } from '../../tests/pullAnswers.ts';
+import { pullFacts } from '../../tests/pullFacts.ts';
 import { runSnapshotNoticeScenario } from '../../tests/snapshotNoticeLifetime.ts';
 import { placeOf, repositoryOf, worktreeOf } from './gitIdentity.ts';
 import type { Heartbeat } from './lease.ts';
@@ -46,7 +48,10 @@ interface Copy {
   tick: () => void;
 }
 
-const pullPeriodMilliseconds = 180_000;
+const pullPeriodMilliseconds = 60_000;
+
+// A push read is due one push gap after the repository's last read start.
+const pushGapMilliseconds = 15_000;
 
 const sweepMilliseconds = 250;
 const folder = '/code/koja';
@@ -61,6 +66,7 @@ let spaceFolders: string[] = [folder];
 let pullList: Pull[] = [];
 let ghFailures = 0;
 let checkingNow = false;
+let windowActive = true;
 let intervals: number[] = [];
 
 const mainCheckout = (args: string[], cwd: string): ExecResult => {
@@ -92,14 +98,16 @@ const runFake = async (
     return { code: 0, stdout: 'origin\n', stderr: '' };
   }
 
-  if (command === 'gh' && args[0] === 'pr' && args[1] === 'list') {
+  if (command === 'gh' && args[0] === 'api' && args[1] === 'graphql') {
     if (ghFailures > 0) {
       ghFailures -= 1;
 
       return { code: 1, stdout: '', stderr: 'offline' };
     }
 
-    return { code: 0, stdout: JSON.stringify(pullList), stderr: '' };
+    const branchCount = args.filter((argument) => argument.startsWith('branch')).length;
+
+    return { code: 0, stdout: answerFrom(branchCount, pullList), stderr: '' };
   }
 
   return mainCheckout(args, cwd);
@@ -134,6 +142,14 @@ await mock.module('herdr', () =>
     shared: (key: string) => sharedValues.get(key),
     spaces: () => spaceFolders.map((spaceFolder, index) => spaceOf(`s${index + 1}`, spaceFolder)),
     watchFolder: watchFolderFake,
+    window: () => ({
+      platform: 'linux' as const,
+      titlebar: 'none' as const,
+      buttons: false,
+      maximized: false,
+      fullscreen: false,
+      active: windowActive,
+    }),
   }),
 );
 
@@ -205,7 +221,7 @@ const storedSnapshot = (pulls: Record<string, RepositoryPulls> = {}): Snapshot =
   const worktree = worktreeOf(null, folder);
 
   return {
-    version: 3,
+    version: 4,
     revision: 7,
     facts: {
       git: {
@@ -219,6 +235,18 @@ const storedSnapshot = (pulls: Record<string, RepositoryPulls> = {}): Snapshot =
   };
 };
 
+const readPull = (number: number): Pull =>
+  pullFacts({
+    number,
+    headRefName: `feature-${number}`,
+    title: `Pull ${number}`,
+    mergeable: 'mergeable',
+    mergeState: 'clean',
+    review: 'approved',
+    checks: { kind: 'read', value: 'passing' },
+    threads: { kind: 'read', value: { unresolved: 0, complete: true } },
+  });
+
 beforeEach(() => {
   sharedValues.clear();
   execCalls = [];
@@ -227,6 +255,7 @@ beforeEach(() => {
   pullList = [];
   ghFailures = 0;
   checkingNow = false;
+  windowActive = true;
   intervals = [];
   setSystemTime(start);
 });
@@ -238,7 +267,7 @@ describe('startDataHost', () => {
     expect(heartbeat()).toMatchObject({ generation: 1, at: start });
 
     expect(sharedValues.get(snapshotKey)).toEqual({
-      version: 3,
+      version: 4,
       revision: 1,
       facts: emptyFacts(),
     });
@@ -333,6 +362,57 @@ describe('startDataHost', () => {
     expect(read).toBe(true);
   });
 
+  test('starts no periodic pull read in a tick while the window is inactive', async () => {
+    windowActive = false;
+
+    const copy = startCopy();
+
+    copy.tick();
+    await settle();
+    copy.tick();
+    await settle();
+
+    expect(pullCalls()).toEqual([]);
+  });
+
+  test('a remote-ref watch starts a pull read before the 60 s period', async () => {
+    const copy = startCopy();
+
+    copy.tick();
+    await settle();
+    copy.tick();
+    await settle();
+
+    expect(pullCalls()).toHaveLength(1);
+
+    const watch = watches.at(-1);
+
+    expect(watch?.folder).toBe(`${folder}/.git`);
+
+    setSystemTime(start + 10_000);
+    watch?.resolve([`${folder}/.git/refs/remotes/origin/main`]);
+    await settle();
+
+    // The watch event at 10 s makes the push read due one push gap after the last read start,
+    // well before the 60 s period.
+    const tickAt = start + pushGapMilliseconds;
+
+    for (
+      let at = start + heartbeatIntervalMilliseconds;
+      at < tickAt;
+      at += heartbeatIntervalMilliseconds
+    ) {
+      setSystemTime(at);
+      copy.beat();
+    }
+
+    setSystemTime(tickAt);
+    copy.tick();
+    await settle();
+
+    expect(pullCalls()).toHaveLength(2);
+  });
+
   test('starts from the stored facts when it takes over', () => {
     sharedValues.set(snapshotKey, storedSnapshot());
     sharedValues.set(leaseKey, { version: 1, owner: 'other', generation: 1 });
@@ -352,13 +432,7 @@ describe('startDataHost', () => {
   });
 
   test('a takeover seeds the PR facts and a recent read time so it starts no read', async () => {
-    const pull: Pull = {
-      number: 7,
-      state: 'OPEN',
-      isDraft: false,
-      title: 'Pull 7',
-      headRefName: 'feature-7',
-    };
+    const pull = readPull(7);
 
     sharedValues.set(
       snapshotKey,
@@ -394,13 +468,7 @@ describe('startDataHost', () => {
   });
 
   test('a successful Retry clears the failed state and repopulates the titles', async () => {
-    const pull: Pull = {
-      number: 7,
-      state: 'OPEN',
-      isDraft: false,
-      title: 'Pull 7',
-      headRefName: 'feature-7',
-    };
+    const pull = readPull(7);
 
     pullList = [pull];
     ghFailures = 1;
@@ -475,7 +543,7 @@ describe('startDataHost', () => {
     expect(record.stages.map((stage) => stage.messageCount)).toEqual([0, 0, 1, 1, 2, 2]);
     expect(snapshotWrites).toHaveLength(2);
     expect(snapshotWrites.map((write) => write.messageCount)).toEqual([1, 2]);
-    expect(record.snapshot).toEqual({ version: 3, revision: 1, facts: emptyFacts() });
+    expect(record.snapshot).toEqual({ version: 4, revision: 1, facts: emptyFacts() });
   });
 
   test('logs again in a fresh loaded copy', async () => {
@@ -488,13 +556,7 @@ describe('startDataHost', () => {
   });
 
   test('an unchanged PR read writes no new snapshot revision', async () => {
-    const pull: Pull = {
-      number: 7,
-      state: 'OPEN',
-      isDraft: false,
-      title: 'Pull 7',
-      headRefName: 'feature-7',
-    };
+    const pull = readPull(7);
 
     pullList = [pull];
 
@@ -518,22 +580,20 @@ describe('startDataHost', () => {
 
     expect(parseSnapshot(sharedValues.get(snapshotKey))?.revision).toBe(revision);
 
+    const readTime = start + pullPeriodMilliseconds;
+
     expect(sharedValues.get(pullReadTimesKey)).toEqual({
-      version: 1,
-      pulls: { [repository.key]: start + pullPeriodMilliseconds },
+      version: 2,
+      repositories: {
+        [repository.key]: { list: readTime, checks: { '7': readTime }, threads: { '7': readTime } },
+      },
     });
 
     expect(pullCalls()).toHaveLength(2);
   });
 
   test('PR facts and git facts publish in one snapshot', async () => {
-    const pull: Pull = {
-      number: 7,
-      state: 'OPEN',
-      isDraft: false,
-      title: 'Pull 7',
-      headRefName: 'feature-7',
-    };
+    const pull = readPull(7);
 
     pullList = [pull];
 
@@ -573,13 +633,7 @@ describe('startDataHost', () => {
   });
 
   test('a git-only facts change keeps the PR facts already read', async () => {
-    const pull: Pull = {
-      number: 7,
-      state: 'OPEN',
-      isDraft: false,
-      title: 'Pull 7',
-      headRefName: 'feature-7',
-    };
+    const pull = readPull(7);
 
     pullList = [pull];
 

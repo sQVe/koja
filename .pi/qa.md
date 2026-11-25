@@ -92,7 +92,7 @@ cat > "$fixtureHome/fake-gh" <<'SH'
 #!/bin/sh
 printf '%s\n' "$*" >> "$HOME/gh-calls"
 if [ -f "$HOME/pr-read-ok" ]; then
-  printf '[]\n'
+  printf '%s\n' '{"data":{"rateLimit":{"cost":1,"remaining":4999,"resetAt":"2030-01-01T00:00:00Z"},"repository":{"open0":{"nodes":[]},"latest0":{"nodes":[]}}}}'
   exit 0
 fi
 printf 'fixture read failed\n' >&2
@@ -109,7 +109,7 @@ bun run sandbox identity
   The sandbox puts its `bin` first on `PATH`; the fake `gh` never calls GitHub or the real `gh`.
 - Check that it is up: identity exits 0. Wait for `Could not read PRs` and `Retry` under
   `pr-fixture`. The `pr-fixture` header shows no agent mark, and its one row shows a hollow one.
-  `$fixtureHome/gh-calls` records `pr list`.
+  `$fixtureHome/gh-calls` records `api graphql`.
 
 The manager stops the run with the `verification` tool after the worker reports.
 
@@ -171,14 +171,14 @@ git -C "$fixtureHome/pr-rows" remote add origin https://example.invalid/qa/pr-ro
 cat > "$fixtureHome/fake-gh" <<'SH'
 #!/bin/sh
 printf '%s\n' "$*" >> "$HOME/gh-calls"
-printf '[{"number":7,"state":"OPEN","isDraft":false,"title":"Fixture pull request","headRefName":"fixture-branch"}]\n'
+printf '%s\n' '{"data":{"rateLimit":{"cost":1,"remaining":4999,"resetAt":"2030-01-01T00:00:00Z"},"repository":{"open0":{"nodes":[{"number":7,"state":"OPEN","isDraft":false,"title":"Fixture pull request","headRefName":"fixture-branch","mergeable":"MERGEABLE","mergeStateStatus":"CLEAN","reviewDecision":null,"commits":{"nodes":[{"commit":{"statusCheckRollup":{"state":"SUCCESS"}}}]},"reviewThreads":{"pageInfo":{"hasNextPage":false},"nodes":[]}}]},"latest0":{"nodes":[]}}}}'
 SH
 chmod +x "$fixtureHome/fake-gh"
 ln -s "$fixtureHome/fake-gh" "/var/tmp/ruta-$RUTA_NAME/bin/gh"
 scripts/sandbox-machine up
 cat > "/var/tmp/ruta-$RUTA_NAME/machine/bin/gh" <<'SH'
 #!/bin/sh
-printf '[{"number":8,"state":"OPEN","isDraft":false,"title":"Remote fixture pull request","headRefName":"remote-branch"}]\n'
+printf '%s\n' '{"data":{"rateLimit":{"cost":1,"remaining":4999,"resetAt":"2030-01-01T00:00:00Z"},"repository":{"open0":{"nodes":[{"number":8,"state":"OPEN","isDraft":false,"title":"Remote fixture pull request","headRefName":"remote-branch","mergeable":"MERGEABLE","mergeStateStatus":"CLEAN","reviewDecision":null,"commits":{"nodes":[{"commit":{"statusCheckRollup":{"state":"SUCCESS"}}}]},"reviewThreads":{"pageInfo":{"hasNextPage":false},"nodes":[]}}]},"latest0":{"nodes":[]}}}}'
 SH
 chmod +x "/var/tmp/ruta-$RUTA_NAME/machine/bin/gh"
 bun run sandbox hc exec --on qa-remote sh -c 'cd "$HOME/remote-fixture" && git remote add origin https://example.invalid/qa/remote-fixture.git && git checkout remote-branch'
@@ -194,7 +194,7 @@ bun run sandbox identity
   unnamed row that does. The sandbox puts its `bin` first on `PATH`, and `scripts/sandbox-machine`
   puts `/var/tmp/ruta-<name>/machine/bin` first on the machine's `PATH`, so each read runs a fake
   `gh` and no read reaches GitHub. The local fake appends each call to `$fixtureHome/gh-calls`.
-- Check that it is up: within 180 s of the spaces opening, the row under the `pr-rows` header reads
+- Check that it is up: within 60 s of the spaces opening, the row under the `pr-rows` header reads
   `Fixture pull request`, and the row under the `remote-fixture` header with the `qa-remote` label
   reads `Remote fixture pull request`. No `Could not read PRs` line shows.
 - Shot: `bun run sandbox shot <slice directory>/pr-rows-before.png` before the sidebar change, and

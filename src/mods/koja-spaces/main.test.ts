@@ -19,6 +19,7 @@ import {
   herdrFake,
   realKitIndexFake,
 } from '../../../tests/moduleFakes.ts';
+import { pullFacts } from '../../../tests/pullFacts.ts';
 import { readDataState } from '../../data/consumer.ts';
 import { placeOf, repositoryOf, worktreeOf } from '../../data/gitIdentity.ts';
 import { heartbeatKey, leaseKey } from '../../data/lease.ts';
@@ -190,7 +191,7 @@ const storedFacts = (
 };
 
 const showFacts = (facts: Facts): void => {
-  sharedValues[snapshotKey] = { version: 3, revision: 1, facts };
+  sharedValues[snapshotKey] = { version: 4, revision: 1, facts };
 };
 
 class HostView {
@@ -1148,13 +1149,7 @@ const stubIds = (): void => {
   };
 };
 
-const fixturePull = {
-  number: 7,
-  state: 'OPEN',
-  isDraft: false,
-  title: 'Fixture pull request',
-  headRefName: 'main',
-};
+const fixturePull = pullFacts({ number: 7, headRefName: 'main', title: 'Fixture pull request' });
 
 const kojaRepositoryKey = repositoryOf(null, '/code/koja/.git').key;
 

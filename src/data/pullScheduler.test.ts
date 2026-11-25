@@ -1,59 +1,23 @@
 import { beforeEach, describe, expect, test } from 'bun:test';
 
-import type { ExecResult } from 'herdr';
-
+import { answerFrom } from '../../tests/pullAnswers.ts';
+import { pullFacts } from '../../tests/pullFacts.ts';
+import { PullSchedulerHarness, pullSchedulerStart } from '../../tests/pullSchedulerHarness.ts';
 import type { RepositoryIdentity } from './gitIdentity.ts';
 import { placeOf, repositoryOf, worktreeOf } from './gitIdentity.ts';
-import type { Lease, ReadShared, WriteShared } from './lease.ts';
-import { heartbeatKey, leaseKey } from './lease.ts';
-import {
-  createPullReadTimesPublisher,
-  pullReadTimesKey,
-  readPullReadTimes,
-} from './pullReadTimes.ts';
-import type { PullRetryOutcome, PullRetryRequest } from './pullRetry.ts';
-import {
-  createPullRetryOutcomesPublisher,
-  pullRetryOutcomesKey,
-  pullRetryRequestsKey,
-  readPullRetryOutcomes,
-} from './pullRetry.ts';
+import type { PullReadTimes } from './pullReadTimes.ts';
+import { readPullReadTimes } from './pullReadTimes.ts';
+import type { PullRetryRequest } from './pullRetry.ts';
+import { pullRetryOutcomesKey, pullRetryRequestsKey } from './pullRetry.ts';
 import type { Pull } from './pulls.ts';
-import type { PullScheduler } from './pullScheduler.ts';
-import { createPullScheduler } from './pullScheduler.ts';
-import type { RecordNotices } from './recordNotices.ts';
-import { createRecordNotices } from './recordNotices.ts';
 import type { GitFacts, RepositoryPulls } from './snapshot.ts';
 
-interface PendingCall {
-  command: string;
-  args: string[];
-  cwd: string;
-  on: string | null;
-  respond: (result: ExecResult) => void;
+interface GitSource {
+  repository: RepositoryIdentity;
+  folder: string;
 }
 
-interface Store {
-  values: Map<string, unknown>;
-  read: ReadShared;
-  write: WriteShared;
-}
-
-const pullPeriodMilliseconds = 180_000;
-
-const memoryStore = (): Store => {
-  const values = new Map<string, unknown>();
-
-  return {
-    values,
-    read: (key) => values.get(key),
-    write: (key, value) => {
-      values.set(key, structuredClone(value));
-    },
-  };
-};
-
-const silentNotices = (): RecordNotices => createRecordNotices(() => {});
+const pullPeriodMilliseconds = 60_000;
 
 const folder = '/code/koja';
 const repository = repositoryOf(null, `${folder}/.git`);
@@ -63,7 +27,7 @@ const seededRepositoryPulls: Record<string, RepositoryPulls> = {
   [repository.key]: { pulls: [], failed: false },
 };
 
-const start = 1_000_000;
+const start = pullSchedulerStart;
 
 const requestFor = (consumer: string, id: string, at = start): PullRetryRequest => ({
   consumer,
@@ -73,200 +37,54 @@ const requestFor = (consumer: string, id: string, at = start): PullRetryRequest 
 });
 
 const pullList = (number: number): Pull[] => [
-  {
+  pullFacts({
     number,
-    state: 'OPEN',
-    isDraft: false,
-    title: `Pull ${number}`,
     headRefName: `feature-${number}`,
-  },
+    title: `Pull ${number}`,
+    mergeable: 'mergeable',
+    mergeState: 'clean',
+    review: 'approved',
+    checks: { kind: 'read', value: 'passing' },
+    threads: { kind: 'read', value: { unresolved: 0, complete: true } },
+  }),
 ];
 
-const gitFactsOf = (
-  source: { repository: RepositoryIdentity; folder: string } = defaultSource,
-): GitFacts => {
-  const sourcePlace = placeOf(source.repository.machine, source.folder);
-  const sourceWorktree = worktreeOf(source.repository.machine, source.folder);
+const timesAt = (key: string, time: number): PullReadTimes => ({
+  [key]: { list: time, checks: {}, threads: {} },
+});
 
-  return {
-    places: { [sourcePlace.key]: { kind: 'repository', worktree: sourceWorktree.key } },
-    worktrees: {
-      [sourceWorktree.key]: {
-        repository: source.repository,
-        root: source.folder,
-        branch: 'main',
-        linked: false,
-      },
-    },
-  };
+const timesForPulls = (key: string, time: number, numbers: number[]): PullReadTimes => {
+  const parts = Object.fromEntries(numbers.map((number) => [String(number), time]));
+
+  return { [key]: { list: time, checks: parts, threads: parts } };
 };
 
-class PullSchedulerHarness {
-  store = memoryStore();
-  notices = silentNotices();
-  calls: PendingCall[] = [];
-  spawned: Promise<unknown>[] = [];
-  published: Record<string, RepositoryPulls>[] = [];
-  publishedTimes: Record<string, number>[] = [];
-  publishedOutcomes: PullRetryOutcome[][] = [];
-  now = start;
-  lease: Lease = { version: 1, owner: 'owner-a', generation: 1 };
-  held: Lease | null = this.lease;
+const gitFactsOf = (...sources: GitSource[]): GitFacts => {
+  const listed = sources.length === 0 ? [defaultSource] : sources;
+  const places: GitFacts['places'] = {};
+  const worktrees: GitFacts['worktrees'] = {};
 
-  spawn = (body: () => Promise<void>): void => {
-    this.spawned.push(body());
-  };
+  for (const source of listed) {
+    const sourcePlace = placeOf(source.repository.machine, source.folder);
+    const sourceWorktree = worktreeOf(source.repository.machine, source.folder);
 
-  private readonly run = async (
-    command: string,
-    args: string[],
-    options: { cwd: string; on: string | null },
-  ): Promise<ExecResult> => {
-    const settled = Promise.withResolvers<ExecResult>();
+    places[sourcePlace.key] = { kind: 'repository', worktree: sourceWorktree.key };
 
-    const call: PendingCall = {
-      command,
-      args,
-      cwd: options.cwd,
-      on: options.on,
-      respond: settled.resolve,
+    worktrees[sourceWorktree.key] = {
+      repository: source.repository,
+      root: source.folder,
+      branch: 'main',
+      linked: false,
     };
-
-    this.calls.push(call);
-
-    return settled.promise;
-  };
-
-  constructor() {
-    this.seedLease();
   }
 
-  seedLease(): void {
-    this.store.write(leaseKey, this.lease);
-    this.store.write(heartbeatKey, { ...this.lease, at: this.now });
-  }
-
-  setNow(at: number): void {
-    this.now = at;
-    this.store.write(heartbeatKey, { ...this.lease, at });
-  }
-
-  setRequests(requests: PullRetryRequest[]): void {
-    this.store.write(pullRetryRequestsKey, { version: 1, requests });
-  }
-
-  setOutcomes(outcomes: PullRetryOutcome[]): void {
-    this.store.write(pullRetryOutcomesKey, { version: 1, outcomes });
-  }
-
-  setReadTimes(times: Record<string, number>): void {
-    this.store.write(pullReadTimesKey, { version: 1, pulls: times });
-  }
-
-  start(seed?: {
-    pulls: Record<string, RepositoryPulls>;
-    readTimes: Record<string, number>;
-  }): PullScheduler {
-    const initial = seed ?? { pulls: {}, readTimes: {} };
-
-    const readTimes = createPullReadTimesPublisher(
-      this.store.read,
-      this.store.write,
-      () => this.now,
-    );
-
-    const outcomes = createPullRetryOutcomesPublisher(
-      this.store.read,
-      this.store.write,
-      () => this.now,
-    );
-
-    let scheduler: PullScheduler | null = null;
-
-    const created = createPullScheduler(
-      {
-        run: this.run,
-        now: () => this.now,
-        heldLease: () => this.held,
-        read: this.store.read,
-        notices: this.notices,
-        publish: () => {
-          if (scheduler !== null) {
-            this.published.push(structuredClone(scheduler.pulls()));
-          }
-        },
-        publishReadTimes: (lease, times) => {
-          this.publishedTimes.push(structuredClone(times));
-          readTimes.publish(lease, times);
-        },
-        publishOutcomes: (lease, list) => {
-          this.publishedOutcomes.push(structuredClone(list));
-          outcomes.publish(lease, list);
-        },
-      },
-      this.lease,
-      initial,
-    );
-
-    scheduler = created;
-
-    return created;
-  }
-
-  async settle(): Promise<void> {
-    for (let index = 0; index < 30; index += 1) {
-      await Promise.resolve();
-    }
-  }
-
-  call(index: number): PendingCall {
-    const call = this.calls[index];
-
-    if (call === undefined) {
-      throw new Error(`no call at ${index}`);
-    }
-
-    return call;
-  }
-
-  async respond(index: number, result: ExecResult): Promise<void> {
-    this.call(index).respond(result);
-    await this.settle();
-  }
-
-  async respondRemotes(index: number): Promise<void> {
-    await this.respond(index, { code: 0, stdout: 'origin\n', stderr: '' });
-  }
-
-  async respondPulls(index: number, pulls: Pull[]): Promise<void> {
-    await this.respond(index, { code: 0, stdout: JSON.stringify(pulls), stderr: '' });
-  }
-
-  outcomes(): PullRetryOutcome[] {
-    const stored = readPullRetryOutcomes(this.store.read, this.notices);
-
-    if (stored.kind !== 'current') {
-      throw new Error('the store holds a newer outcomes record');
-    }
-
-    return stored.items;
-  }
-}
+  return { places, worktrees };
+};
 
 const harness = new PullSchedulerHarness();
 
 beforeEach(() => {
-  harness.store = memoryStore();
-  harness.notices = silentNotices();
-  harness.calls = [];
-  harness.spawned = [];
-  harness.published = [];
-  harness.publishedTimes = [];
-  harness.publishedOutcomes = [];
-  harness.now = start;
-  harness.lease = { version: 1, owner: 'owner-a', generation: 1 };
-  harness.held = harness.lease;
-  harness.seedLease();
+  harness.reset();
 });
 
 describe('createPullScheduler', () => {
@@ -276,7 +94,7 @@ describe('createPullScheduler', () => {
     const scheduler = harness.start();
     const git = gitFactsOf();
 
-    scheduler.tick(git, harness.spawn);
+    scheduler.tick(git, new Map(), harness.spawn);
     expect(harness.calls).toHaveLength(1);
 
     const remoteCall = harness.call(0);
@@ -284,18 +102,18 @@ describe('createPullScheduler', () => {
     expect(remoteCall).toMatchObject({ command: 'git', args: ['remote'] });
 
     harness.setRequests([requestFor('window-a', 'a-1'), requestFor('window-b', 'b-1')]);
-    scheduler.tick(git, harness.spawn);
+    scheduler.tick(git, new Map(), harness.spawn);
     expect(harness.calls).toHaveLength(1);
 
     await harness.respondRemotes(0);
-    expect(harness.calls).toHaveLength(2);
+    expect(harness.calls).toHaveLength(3);
 
-    const pullsCall = harness.call(1);
+    const pullsCall = harness.call(2);
 
     expect(pullsCall.command).toBe('gh');
-    expect(pullsCall.args.slice(0, 2)).toEqual(['pr', 'list']);
+    expect(pullsCall.args.slice(0, 2)).toEqual(['api', 'graphql']);
 
-    await harness.respondPulls(1, pullList(7));
+    await harness.respondPulls(2, pullList(7));
 
     expect(harness.calls.filter((call) => call.command === 'gh')).toHaveLength(1);
 
@@ -311,13 +129,13 @@ describe('createPullScheduler', () => {
     const scheduler = harness.start();
     const git = gitFactsOf();
 
-    scheduler.tick(git, harness.spawn);
+    scheduler.tick(git, new Map(), harness.spawn);
     expect(harness.calls).toHaveLength(1);
 
     harness.setRequests([requestFor('window-a', 'a-1'), requestFor('window-b', 'b-1')]);
 
     await harness.respondRemotes(0);
-    await harness.respondPulls(1, pullList(7));
+    await harness.respondPulls(2, pullList(7));
 
     expect(harness.calls.filter((call) => call.command === 'gh')).toHaveLength(1);
 
@@ -326,9 +144,9 @@ describe('createPullScheduler', () => {
       { consumer: 'window-b', id: 'b-1', result: 'read' },
     ]);
 
-    scheduler.tick(git, harness.spawn);
+    scheduler.tick(git, new Map(), harness.spawn);
 
-    expect(harness.calls.map((call) => call.command)).toEqual(['git', 'gh']);
+    expect(harness.calls.map((call) => call.command)).toEqual(['git', 'git', 'gh']);
   });
 
   test('a read for one repository answers no unanswered request for another', async () => {
@@ -360,10 +178,10 @@ describe('createPullScheduler', () => {
         [repository.key]: { pulls: [], failed: false },
         [other.key]: { pulls: [], failed: false },
       },
-      readTimes: { [other.key]: start },
+      readTimes: timesAt(other.key, start),
     });
 
-    scheduler.tick(git, harness.spawn);
+    scheduler.tick(git, new Map(), harness.spawn);
     expect(harness.calls).toHaveLength(1);
 
     harness.setRequests([
@@ -372,7 +190,7 @@ describe('createPullScheduler', () => {
     ]);
 
     await harness.respondRemotes(0);
-    await harness.respondPulls(1, pullList(7));
+    await harness.respondPulls(2, pullList(7));
 
     expect(harness.outcomes()).toEqual([{ consumer: 'window-a', id: 'a-1', result: 'read' }]);
   });
@@ -383,19 +201,19 @@ describe('createPullScheduler', () => {
     const scheduler = harness.start();
     const git = gitFactsOf();
 
-    scheduler.tick(git, harness.spawn);
+    scheduler.tick(git, new Map(), harness.spawn);
     await harness.respondRemotes(0);
-    await harness.respondPulls(1, pullList(7));
+    await harness.respondPulls(2, pullList(7));
 
     expect(harness.outcomes()).toEqual([{ consumer: 'window-a', id: 'a-1', result: 'read' }]);
 
     harness.setRequests([]);
-    scheduler.tick(git, harness.spawn);
+    scheduler.tick(git, new Map(), harness.spawn);
 
     harness.setRequests([requestFor('window-a', 'a-1')]);
-    scheduler.tick(git, harness.spawn);
+    scheduler.tick(git, new Map(), harness.spawn);
 
-    expect(harness.calls.map((call) => call.command)).toEqual(['git', 'gh']);
+    expect(harness.calls.map((call) => call.command)).toEqual(['git', 'git', 'gh']);
     expect(harness.outcomes()).toEqual([{ consumer: 'window-a', id: 'a-1', result: 'read' }]);
   });
 
@@ -403,29 +221,29 @@ describe('createPullScheduler', () => {
     const scheduler = harness.start();
     const git = gitFactsOf();
 
-    scheduler.tick(git, harness.spawn);
+    scheduler.tick(git, new Map(), harness.spawn);
     await harness.respondRemotes(0);
-    await harness.respondPulls(1, pullList(7));
+    await harness.respondPulls(2, pullList(7));
 
     expect(scheduler.pulls()).toEqual({
       [repository.key]: { pulls: pullList(7), failed: false },
     });
 
-    expect(readPullReadTimes(harness.store.read, harness.notices)).toEqual({
-      [repository.key]: start,
-    });
+    expect(readPullReadTimes(harness.store.read, harness.notices)).toEqual(
+      timesForPulls(repository.key, start, [7]),
+    );
 
     harness.setNow(start + pullPeriodMilliseconds);
-    scheduler.tick(git, harness.spawn);
-    await harness.respond(2, { code: 1, stdout: '', stderr: 'offline' });
+    scheduler.tick(git, new Map(), harness.spawn);
+    await harness.respond(3, { code: 1, stdout: '', stderr: 'offline' });
 
     expect(scheduler.pulls()).toEqual({
       [repository.key]: { pulls: pullList(7), failed: true },
     });
 
-    expect(readPullReadTimes(harness.store.read, harness.notices)).toEqual({
-      [repository.key]: start,
-    });
+    expect(readPullReadTimes(harness.store.read, harness.notices)).toEqual(
+      timesForPulls(repository.key, start, [7]),
+    );
   });
 
   test('a Retry whose PR read fails is answered failed', async () => {
@@ -433,49 +251,79 @@ describe('createPullScheduler', () => {
 
     const scheduler = harness.start();
 
-    scheduler.tick(gitFactsOf(), harness.spawn);
+    scheduler.tick(gitFactsOf(), new Map(), harness.spawn);
     await harness.respondRemotes(0);
-    await harness.respond(1, { code: 1, stdout: '', stderr: 'offline' });
+    await harness.respond(2, { code: 1, stdout: '', stderr: 'offline' });
 
     expect(harness.outcomes()).toEqual([{ consumer: 'window-a', id: 'a-1', result: 'failed' }]);
   });
 
-  test('reads each repository at most once per 180 s', async () => {
+  test('reads each repository at most once per 60 s', async () => {
     const scheduler = harness.start({
       pulls: seededRepositoryPulls,
-      readTimes: { [repository.key]: start - 1000 },
+      readTimes: timesAt(repository.key, start - 1000),
     });
 
     const git = gitFactsOf();
 
-    scheduler.tick(git, harness.spawn);
+    scheduler.tick(git, new Map(), harness.spawn);
     expect(harness.calls).toHaveLength(0);
 
-    harness.setNow(start + 178_999);
-    scheduler.tick(git, harness.spawn);
+    harness.setNow(start + 58_999);
+    scheduler.tick(git, new Map(), harness.spawn);
     expect(harness.calls).toHaveLength(0);
 
-    harness.setNow(start + 179_000);
-    scheduler.tick(git, harness.spawn);
+    harness.setNow(start + 59_000);
+    scheduler.tick(git, new Map(), harness.spawn);
     expect(harness.calls).toHaveLength(1);
 
     await harness.respondRemotes(0);
-    await harness.respondPulls(1, pullList(7));
+    await harness.respondPulls(2, pullList(7));
 
-    harness.setNow(start + 179_000 + 179_999);
-    scheduler.tick(git, harness.spawn);
-    expect(harness.calls).toHaveLength(2);
-
-    harness.setNow(start + 179_000 + 180_000);
-    scheduler.tick(git, harness.spawn);
+    harness.setNow(start + 59_000 + 59_999);
+    scheduler.tick(git, new Map(), harness.spawn);
     expect(harness.calls).toHaveLength(3);
+
+    harness.setNow(start + 59_000 + 60_000);
+    scheduler.tick(git, new Map(), harness.spawn);
+    expect(harness.calls).toHaveLength(4);
   });
 
   test('a seeded read time without seeded PR facts does not delay the first read', () => {
-    const scheduler = harness.start({ pulls: {}, readTimes: { [repository.key]: start } });
+    const scheduler = harness.start({ pulls: {}, readTimes: timesAt(repository.key, start) });
 
-    scheduler.tick(gitFactsOf(), harness.spawn);
+    scheduler.tick(gitFactsOf(), new Map(), harness.spawn);
 
+    expect(harness.calls).toHaveLength(1);
+  });
+
+  test('a remote ref change starts a pull read while the periodic read is not due', () => {
+    const scheduler = harness.start({
+      pulls: seededRepositoryPulls,
+      readTimes: timesAt(repository.key, start - 30_000),
+    });
+
+    scheduler.tick(gitFactsOf(), new Map([[repository.key, start - 20_000]]), harness.spawn);
+
+    expect(harness.calls).toHaveLength(1);
+    expect(harness.call(0)).toMatchObject({ command: 'git', args: ['remote'] });
+  });
+
+  test('an inactive window suppresses the periodic read', () => {
+    harness.windowActive = false;
+
+    const scheduler = harness.start({
+      pulls: seededRepositoryPulls,
+      readTimes: timesAt(repository.key, start - pullPeriodMilliseconds),
+    });
+
+    const git = gitFactsOf();
+
+    scheduler.tick(git, new Map(), harness.spawn);
+    expect(harness.calls).toHaveLength(0);
+
+    harness.windowActive = true;
+    scheduler.tick(git, new Map(), harness.spawn);
     expect(harness.calls).toHaveLength(1);
   });
 
@@ -486,7 +334,11 @@ describe('createPullScheduler', () => {
 
     const scheduler = harness.start();
 
-    scheduler.tick(gitFactsOf({ repository: remote, folder: '/srv/app' }), harness.spawn);
+    scheduler.tick(
+      gitFactsOf({ repository: remote, folder: '/srv/app' }),
+      new Map(),
+      harness.spawn,
+    );
 
     const remoteCall = harness.call(0);
 
@@ -494,13 +346,55 @@ describe('createPullScheduler', () => {
 
     await harness.respondRemotes(0);
 
-    const pullsCall = harness.call(1);
+    const pullsCall = harness.call(2);
 
     expect(pullsCall).toMatchObject({ command: 'gh', cwd: '/srv/app', on: 'qa-remote' });
 
-    await harness.respondPulls(1, pullList(7));
+    await harness.respondPulls(2, pullList(7));
 
     expect(scheduler.pulls()).toEqual({ [remote.key]: { pulls: pullList(7), failed: false } });
+  });
+
+  test('a rate limit on one GitHub host leaves another host on the same machine due', async () => {
+    const firstFolder = '/code/first';
+    const secondFolder = '/code/second';
+    const first = repositoryOf(null, `${firstFolder}/.git`);
+    const second = repositoryOf(null, `${secondFolder}/.git`);
+
+    const git = gitFactsOf(
+      { repository: first, folder: firstFolder },
+      { repository: second, folder: secondFolder },
+    );
+
+    const scheduler = harness.start();
+
+    scheduler.tick(git, new Map(), harness.spawn);
+    expect(harness.calls).toHaveLength(2);
+
+    await harness.respondRemotesIn(firstFolder, 'git@github.com:koja/koja.git');
+
+    await harness.respondIn(firstFolder, {
+      code: 1,
+      stdout: '',
+      stderr: 'API rate limit exceeded for user ID 1',
+    });
+
+    await harness.respondRemotesIn(secondFolder, 'git@ghe.example.com:koja/koja.git');
+
+    await harness.respondIn(secondFolder, {
+      code: 0,
+      stdout: answerFrom(1, pullList(7)),
+      stderr: '',
+    });
+
+    expect(scheduler.pulls()[first.key]).toEqual({ pulls: [], failed: true });
+    expect(scheduler.pulls()[second.key]).toEqual({ pulls: pullList(7), failed: false });
+
+    harness.setNow(start + pullPeriodMilliseconds);
+    scheduler.tick(git, new Map(), harness.spawn);
+
+    expect(harness.callsIn(firstFolder)).toHaveLength(3);
+    expect(harness.callsIn(secondFolder)).toHaveLength(4);
   });
 
   test('reads once for one repository with two worktrees', async () => {
@@ -520,15 +414,15 @@ describe('createPullScheduler', () => {
 
     const scheduler = harness.start();
 
-    scheduler.tick(git, harness.spawn);
+    scheduler.tick(git, new Map(), harness.spawn);
 
     expect(harness.calls).toHaveLength(1);
 
     await harness.respondRemotes(0);
 
-    expect(harness.calls).toHaveLength(2);
+    expect(harness.calls).toHaveLength(3);
 
-    await harness.respondPulls(1, pullList(7));
+    await harness.respondPulls(2, pullList(7));
 
     expect(scheduler.pulls()).toEqual({ [repository.key]: { pulls: pullList(7), failed: false } });
   });
@@ -538,7 +432,7 @@ describe('createPullScheduler', () => {
 
     const scheduler = harness.start();
 
-    scheduler.tick(gitFactsOf(), harness.spawn);
+    scheduler.tick(gitFactsOf(), new Map(), harness.spawn);
     expect(harness.calls).toHaveLength(1);
 
     harness.held = { version: 1, owner: 'owner-b', generation: 2 };
@@ -562,15 +456,15 @@ describe('createPullScheduler', () => {
 
     const scheduler = harness.start();
 
-    scheduler.tick(gitFactsOf(), harness.spawn);
+    scheduler.tick(gitFactsOf(), new Map(), harness.spawn);
     await harness.respondRemotes(0);
 
-    expect(harness.calls.map((call) => call.command)).toEqual(['git', 'gh']);
+    expect(harness.calls.map((call) => call.command)).toEqual(['git', 'git', 'gh']);
 
     harness.publishedOutcomes = [];
     harness.held = { version: 1, owner: 'owner-b', generation: 2 };
 
-    await harness.respondPulls(1, pullList(7));
+    await harness.respondPulls(2, pullList(7));
 
     expect(harness.published).toEqual([]);
     expect(harness.publishedTimes).toEqual([]);
@@ -591,7 +485,7 @@ describe('createPullScheduler', () => {
 
     const scheduler = harness.start();
 
-    scheduler.tick({ places: {}, worktrees: {} }, harness.spawn);
+    scheduler.tick({ places: {}, worktrees: {} }, new Map(), harness.spawn);
 
     expect(harness.calls).toEqual([]);
     expect(harness.outcomes()).toEqual([{ consumer: 'window-a', id: 'a-1', result: 'failed' }]);
@@ -604,10 +498,10 @@ describe('createPullScheduler', () => {
 
     const scheduler = harness.start({
       pulls: seededRepositoryPulls,
-      readTimes: { [repository.key]: start },
+      readTimes: timesAt(repository.key, start),
     });
 
-    scheduler.tick(gitFactsOf(), harness.spawn);
+    scheduler.tick(gitFactsOf(), new Map(), harness.spawn);
 
     expect(harness.calls).toEqual([]);
     expect(harness.publishedOutcomes).toEqual([]);
@@ -623,10 +517,10 @@ describe('createPullScheduler', () => {
 
     const scheduler = harness.start({
       pulls: seededRepositoryPulls,
-      readTimes: { [repository.key]: start },
+      readTimes: timesAt(repository.key, start),
     });
 
-    scheduler.tick(gitFactsOf(), harness.spawn);
+    scheduler.tick(gitFactsOf(), new Map(), harness.spawn);
 
     expect(harness.calls).toEqual([]);
     expect(harness.publishedOutcomes).toEqual([]);
@@ -648,10 +542,10 @@ describe('createPullScheduler', () => {
 
     const scheduler = harness.start({
       pulls: seededRepositoryPulls,
-      readTimes: { [repository.key]: start },
+      readTimes: timesAt(repository.key, start),
     });
 
-    scheduler.tick(gitFactsOf(), harness.spawn);
+    scheduler.tick(gitFactsOf(), new Map(), harness.spawn);
 
     expect(harness.calls).toEqual([]);
     expect(harness.publishedOutcomes).toEqual([]);
@@ -665,14 +559,14 @@ describe('createPullScheduler', () => {
     const scheduler = harness.start();
     const git = gitFactsOf();
 
-    scheduler.tick(git, harness.spawn);
+    scheduler.tick(git, new Map(), harness.spawn);
     expect(harness.calls).toHaveLength(1);
 
     harness.publishedOutcomes = [];
     harness.store.write(pullRetryOutcomesKey, newerOutcomes);
 
     await harness.respondRemotes(0);
-    await harness.respondPulls(1, pullList(7));
+    await harness.respondPulls(2, pullList(7));
     await harness.spawned[0];
 
     expect(harness.publishedOutcomes).toEqual([]);
@@ -685,14 +579,14 @@ describe('createPullScheduler', () => {
     const scheduler = harness.start();
     const git = gitFactsOf();
 
-    scheduler.tick(git, harness.spawn);
+    scheduler.tick(git, new Map(), harness.spawn);
     expect(harness.calls).toHaveLength(1);
 
     harness.publishedOutcomes = [];
     harness.store.write(pullRetryRequestsKey, newerRequests);
 
     await harness.respondRemotes(0);
-    await harness.respondPulls(1, pullList(7));
+    await harness.respondPulls(2, pullList(7));
     await harness.spawned[0];
 
     expect(harness.publishedOutcomes).toEqual([]);
@@ -706,13 +600,13 @@ describe('createPullScheduler', () => {
 
     const scheduler = harness.start({
       pulls: seededRepositoryPulls,
-      readTimes: { [repository.key]: start },
+      readTimes: timesAt(repository.key, start),
     });
 
     const git = gitFactsOf();
 
-    scheduler.tick(git, harness.spawn);
-    scheduler.tick(git, harness.spawn);
+    scheduler.tick(git, new Map(), harness.spawn);
+    scheduler.tick(git, new Map(), harness.spawn);
 
     expect(harness.calls).toEqual([]);
     expect(harness.outcomes()).toEqual([{ consumer: 'window-a', id: 'a-1', result: 'read' }]);

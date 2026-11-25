@@ -4,7 +4,7 @@ import type { FolderWatch } from 'herdr';
 export type WatchFolder = (folder: string) => FolderWatch;
 
 export interface FolderChangeListener {
-  onChange: (cx: AsyncContext) => void;
+  onChange: (cx: AsyncContext, paths: string[]) => void;
   onError: (cx: AsyncContext) => void;
 }
 
@@ -29,13 +29,13 @@ export const watchFolderChanges = (
     try {
       for (;;) {
         // eslint-disable-next-line no-await-in-loop -- one folder watch at a time
-        await pending;
+        const paths = await pending;
 
         if (isCancelled()) {
           return;
         }
 
-        listener.onChange(taskCx);
+        listener.onChange(taskCx, paths);
 
         if (isCancelled()) {
           return;
