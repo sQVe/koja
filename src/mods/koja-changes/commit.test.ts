@@ -45,6 +45,10 @@ describe('canQueueCommit', () => {
     expect(canQueueCommit({ ...ready, loading: true })).toBe(true);
   });
 
+  test('queues while the shown list is stale', () => {
+    expect(canQueueCommit({ ...ready, stale: true })).toBe(true);
+  });
+
   test('refuses a blank message', () => {
     expect(canQueueCommit({ ...ready, message: '   ' })).toBe(false);
   });

@@ -358,6 +358,7 @@ const submitWhileReadBlocked = async (
   statusGate?.();
   await settle();
   view.render(context);
+  await settle();
 
   return before;
 };
