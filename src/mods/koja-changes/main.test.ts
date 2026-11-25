@@ -332,6 +332,31 @@ const typeMessage = (): void => {
 
 const commitCommands = (): number => commands.filter((args) => args.includes('commit')).length;
 
+const blockNextStatusRead = (): void => {
+  blockStatus = true;
+  blockAfterReads = statusReads;
+};
+
+const submitWhileReadBlocked = async (view: ChangesView): Promise<number> => {
+  await settle();
+
+  expect(statusGate).not.toBeNull();
+
+  const before = commitCommands();
+
+  inputHandlers.get('submit')?.({}, context);
+  await settle();
+
+  expect(commitCommands()).toBe(before);
+
+  blockStatus = false;
+  statusGate?.();
+  await settle();
+  view.render(context);
+
+  return before;
+};
+
 describe('Changes view', () => {
   test('during herdr-app check, init and render run no git and watch no folder', async () => {
     checkingNow = true;
@@ -758,24 +783,10 @@ describe('Changes view', () => {
 
     expect(renderedCommit?.enabled).toBe(true);
 
-    blockStatus = true;
-    blockAfterReads = statusReads;
+    blockNextStatusRead();
     view.refresh(context);
-    await settle();
 
-    expect(statusGate).not.toBeNull();
-
-    const before = commitCommands();
-
-    inputHandlers.get('submit')?.({}, context);
-    await settle();
-
-    expect(commitCommands()).toBe(before);
-
-    blockStatus = false;
-    statusGate?.();
-    await settle();
-    view.render(context);
+    const before = await submitWhileReadBlocked(view);
 
     expect(commitCommands()).toBe(before + 1);
     expect(inputValue).toBe('');
@@ -786,22 +797,10 @@ describe('Changes view', () => {
 
     const view = await boot();
 
-    expect(statusGate).not.toBeNull();
-
     typeMessage();
     view.render(context);
 
-    const before = commitCommands();
-
-    inputHandlers.get('submit')?.({}, context);
-    await settle();
-
-    expect(commitCommands()).toBe(before);
-
-    blockStatus = false;
-    statusGate?.();
-    await settle();
-    view.render(context);
+    const before = await submitWhileReadBlocked(view);
 
     expect(commitCommands()).toBe(before + 1);
     expect(inputValue).toBe('');
@@ -821,8 +820,21 @@ describe('Changes view', () => {
     expect(renderedCommit?.enabled).toBe(false);
 
     failStatus = false;
-    blockStatus = true;
-    blockAfterReads = statusReads;
+    blockNextStatusRead();
+    view.refresh(context);
+
+    const before = await submitWhileReadBlocked(view);
+
+    expect(commitCommands()).toBe(before + 1);
+  });
+
+  test('a submit during a read commits no repository the pane has left', async () => {
+    const view = await boot();
+
+    typeMessage();
+    view.render(context);
+
+    blockNextStatusRead();
     view.refresh(context);
     await settle();
 
@@ -830,17 +842,17 @@ describe('Changes view', () => {
 
     const before = commitCommands();
 
+    cwd = '/repo/b';
     inputHandlers.get('submit')?.({}, context);
     await settle();
 
-    expect(commitCommands()).toBe(before);
-
+    cwd = '/repo/a';
     blockStatus = false;
     statusGate?.();
     await settle();
     view.render(context);
 
-    expect(commitCommands()).toBe(before + 1);
+    expect(commitCommands()).toBe(before);
   });
 
   test('a background refresh requests a redraw before its read finishes', async () => {

@@ -433,7 +433,8 @@ export default class Changes extends View {
     const request = this.commitRequest();
 
     if (request.loading) {
-      this.pendingCommit = hasText(request.message);
+      // The read can clear a stale list and fill a missing snapshot, but it cannot move the pane back.
+      this.pendingCommit = hasText(request.message) && request.contextCurrent;
 
       return;
     }
