@@ -40,6 +40,7 @@ export const dialogFrameFake = (captureKeyHandler: (handler: KeyHandler) => void
 // module must expose the same names. These helpers hold the union each test file needs; a file
 // passes its own behavior as overrides and gets the rest as defaults.
 export const herdrFake = (overrides: ModuleFake = {}): ModuleFake => ({
+  agents: () => [],
   appHome: () => '',
   checking: () => false,
   closeOverlay: () => null,

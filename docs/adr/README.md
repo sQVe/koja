@@ -39,6 +39,7 @@ run `git show <commit>:docs/adr/<file>` with the commit in its row.
 - [0015: The space menu creates and removes worktrees with Grove](./0015-grove-runs-space-menu-worktrees.md)
 - [0016: One data owner hosted by koja-spaces](./0016-one-data-owner-hosted-by-spaces.md)
 - [0017: The sandbox is a verification target](./0017-sandbox-is-a-verification-target.md)
+- [0018: Koja draws agent asks in its own floating window](./0018-koja-draws-asks-in-its-own-window.md)
 
 ## Retired
 
