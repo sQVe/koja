@@ -141,6 +141,9 @@ const checkStates: Record<PullChecks, string | null> = {
   none: null,
 };
 
+// The answer cannot say a part is unread: an unread part encodes as an empty node list, and the
+// read decodes that back as a read part with no checks or threads. Compare a decoded pull's parts
+// only when the pull you gave had them read.
 const checksNodeOf = (pull: Pull): Record<string, unknown> => {
   const checks = partValueOf(pull.checks);
   const state = checks === null ? null : checkStates[checks];

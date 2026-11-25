@@ -2,19 +2,29 @@ import type { ExecResult } from 'herdr';
 
 import { hasOnlyKeys, isRecord, numberOf, stringOf } from '../kit/fields.ts';
 import type { RunCommand } from './gitIdentity.ts';
+import type {
+  BatchErrors,
+  PullChecks,
+  PullMergeable,
+  PullMergeState,
+  PullPart,
+  PullRateLimit,
+  PullReview,
+  PullStatusNames,
+  PullThreads,
+} from './pullAnswer.ts';
 import {
-  batchesOf,
   batchErrorsOf,
   bodyOf,
   checksPartOf,
   isCount,
-  pullQueryArgs,
   rateLimitedIn,
   rateLimitOf,
   statusNamesOf,
   threadsPartOf,
   unknownListOf,
-} from './pullQuery.ts';
+} from './pullAnswer.ts';
+import { batchesOf, pullQueryArgs } from './pullQuery.ts';
 import type { PullRemote } from './pullRemote.ts';
 import {
   ghResolvedConfigKey,
@@ -25,48 +35,23 @@ import {
 } from './pullRemote.ts';
 import type { PullSource } from './pullSources.ts';
 
-export type PullChecks = 'passing' | 'failing' | 'running' | 'none';
+export type {
+  PullChecks,
+  PullMergeable,
+  PullMergeState,
+  PullPart,
+  PullReview,
+  PullThreads,
+} from './pullAnswer.ts';
 
-export interface PullThreads {
-  unresolved: number;
-  complete: boolean;
-}
-
-export type PullPart<T> =
-  | { kind: 'read'; value: T }
-  | { kind: 'failed'; last: T | null }
-  | { kind: 'unread' };
-
-export type PullMergeable = 'mergeable' | 'conflicting' | 'unknown';
-
-export type PullMergeState =
-  | 'clean'
-  | 'hasHooks'
-  | 'blocked'
-  | 'behind'
-  | 'dirty'
-  | 'draft'
-  | 'unstable'
-  | 'unknown';
-
-export type PullReview = 'approved' | 'changesRequested' | 'reviewRequired' | 'none';
-
-export interface Pull {
+export interface Pull extends PullStatusNames {
   number: number;
   state: string;
   isDraft: boolean;
   title: string;
   headRefName: string;
-  mergeable: PullMergeable;
-  mergeState: PullMergeState;
-  review: PullReview;
   checks: PullPart<PullChecks>;
   threads: PullPart<PullThreads>;
-}
-
-export interface BatchErrors {
-  checks: Set<number>;
-  threads: Set<number>;
 }
 
 type BranchPull = { kind: 'pull'; pull: Pull } | { kind: 'none' } | { kind: 'malformed' };
@@ -77,11 +62,6 @@ interface BatchRead {
 }
 
 type BatchAnswer = { kind: 'read'; read: BatchRead } | { kind: 'failed' };
-
-export interface PullRateLimit {
-  remaining: number;
-  resetAt: number;
-}
 
 export type PullRead =
   | { kind: 'read'; pulls: Pull[]; rateLimit: PullRateLimit | null; host: string | null }

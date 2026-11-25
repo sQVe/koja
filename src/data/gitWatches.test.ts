@@ -55,7 +55,9 @@ const settle = async (): Promise<void> => {
   }
 };
 
-const registryAt = (start: number, tick = 0) => {
+// Each read of the clock advances it by `advancePerRead`, so a second read inside one folder change
+// returns a later time.
+const registryAt = (start: number, advancePerRead = 0) => {
   const { watchFolder, fires } = watcher();
   const context = contextOf();
   let current = start;
@@ -63,7 +65,7 @@ const registryAt = (start: number, tick = 0) => {
   const clock = (): number => {
     const at = current;
 
-    current += tick;
+    current += advancePerRead;
 
     return at;
   };
@@ -144,6 +146,17 @@ describe('createWatchRegistry', () => {
     await fire(['/repo/.git/index']);
 
     expect(registry.takeEvents()).toEqual(oneEvent(500));
+  });
+
+  test('keeps the earliest remote-ref time across folder changes', async () => {
+    const { registry, fire, setNow } = registryAt(500);
+
+    await fire(['/repo/.git/refs/remotes/origin/b']);
+
+    setNow(700);
+    await fire(['/repo/.git/refs/remotes/origin/b']);
+
+    expect(registry.takeRemoteRefEvents()).toEqual(oneEvent(500));
   });
 
   test('records one time for both event lists of a folder change', async () => {

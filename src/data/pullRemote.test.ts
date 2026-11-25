@@ -1,6 +1,23 @@
 import { describe, expect, test } from 'bun:test';
 
-import { markedRemoteOf, remoteNameOf, remoteNamesOf, remoteOfUrl } from './pullRemote.ts';
+import type { ExecResult } from 'herdr';
+
+import type { RunCommand } from './gitIdentity.ts';
+import { repositoryOf } from './gitIdentity.ts';
+import {
+  markedRemoteOf,
+  remoteLookup,
+  remoteNameOf,
+  remoteNamesOf,
+  remoteOfUrl,
+} from './pullRemote.ts';
+import type { PullSource } from './pullSources.ts';
+
+interface Call {
+  command: string;
+  args: string[];
+  options: { cwd: string; on: string | null };
+}
 
 describe('remoteNamesOf', () => {
   test('trims names and drops blank lines', () => {
@@ -115,5 +132,77 @@ describe('remoteOfUrl', () => {
 
   test('returns null for a value that is not a remote URL', () => {
     expect(remoteOfUrl('not a remote')).toBeNull();
+  });
+});
+
+const repository = repositoryOf('qa-remote', '/repo/.git');
+
+const source: PullSource = { repository, cwd: '/repo', branches: ['main'] };
+
+const recordingRun = (calls: Call[], answer: ExecResult): RunCommand => {
+  return async (command, args, options) => {
+    calls.push({ command, args, options });
+
+    return answer;
+  };
+};
+
+const lookupCall: Call = {
+  command: 'git',
+  args: ['remote', 'get-url', 'origin'],
+  options: { cwd: '/repo', on: 'qa-remote' },
+};
+
+describe('remoteLookup', () => {
+  test('reads the remote of the url git answers', async () => {
+    const calls: Call[] = [];
+
+    const run = recordingRun(calls, {
+      code: 0,
+      stdout: 'git@github.example.com:koja/koja.git\n',
+      stderr: '',
+    });
+
+    const read = await remoteLookup(run, source, 'origin', () => true);
+
+    expect(read).toEqual({
+      kind: 'remote',
+      remote: { host: 'github.example.com', owner: 'koja', repository: 'koja' },
+    });
+
+    expect(calls).toEqual([lookupCall]);
+  });
+
+  test('reads a url without an owner and repository as no remote', async () => {
+    const calls: Call[] = [];
+    const run = recordingRun(calls, { code: 0, stdout: '/srv/git/koja.git\n', stderr: '' });
+
+    expect(await remoteLookup(run, source, 'origin', () => true)).toEqual({
+      kind: 'remote',
+      remote: null,
+    });
+
+    expect(calls).toEqual([lookupCall]);
+  });
+
+  test('fails when git cannot read the url', async () => {
+    const calls: Call[] = [];
+    const run = recordingRun(calls, { code: 1, stdout: '', stderr: 'no such remote' });
+
+    expect(await remoteLookup(run, source, 'origin', () => true)).toEqual({ kind: 'failed' });
+    expect(calls).toEqual([lookupCall]);
+  });
+
+  test('drops the answer when ownership is lost', async () => {
+    const calls: Call[] = [];
+
+    const run = recordingRun(calls, {
+      code: 0,
+      stdout: 'git@github.example.com:koja/koja.git\n',
+      stderr: '',
+    });
+
+    expect(await remoteLookup(run, source, 'origin', () => false)).toEqual({ kind: 'dropped' });
+    expect(calls).toEqual([lookupCall]);
   });
 });
