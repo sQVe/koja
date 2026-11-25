@@ -582,6 +582,21 @@ describe('needs you jump', () => {
     ]);
   });
 
+  test('a needs you jump records the space it selects', () => {
+    const session = jumpSession([
+      { pane: 'p1', tab: 'tab-1', status: 'idle' },
+      { pane: 'p2', tab: 'tab-2', status: 'blocked' },
+    ]);
+
+    session.act(intent('nextNeedsYou'));
+
+    expect(session.values['spaces.selection']).toEqual({
+      version: 1,
+      count: 1,
+      id: 'space-2',
+    });
+  });
+
   test('only focuses a pane in the focused tab', () => {
     const session = jumpSession([
       { pane: 'p1', tab: 'tab-1', status: 'idle' },
@@ -685,6 +700,20 @@ describe('repository steps', () => {
     session.act(intent('nextRoot'));
 
     expect(session.calls).toEqual([{ command: 'space.select', args: { id: 'space-2' } }]);
+  });
+
+  test('the next root intent records the space it selects', () => {
+    const session = createSession(twoPanes, 'p1', 'tab-1');
+
+    session.setSpaces(liveSpaces);
+    publishOrder(session);
+    session.act(intent('nextRoot'));
+
+    expect(session.values['spaces.selection']).toEqual({
+      version: 1,
+      count: 1,
+      id: 'space-2',
+    });
   });
 
   test('the previous root intent wraps to the last repository', () => {

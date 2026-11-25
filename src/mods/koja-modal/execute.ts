@@ -1,5 +1,6 @@
 import { recordOf, stringOf } from '../../kit/fields.ts';
 import type { NormalAction, NormalIntent } from '../../kit/normalKeys.ts';
+import { runSpaceCommand } from '../../kit/space/spaceSelection.ts';
 import { readSpaceOrder, rootStepCommand, visibleSpaceIds } from '../../kit/spaceOrder.ts';
 import type { JumpPane, JumpSpace } from './needsYouJump.ts';
 import { needsYouTarget } from './needsYouJump.ts';
@@ -227,7 +228,10 @@ const focusNeedsYou = (step: 1 | -1, deps: ExecutorDeps): void => {
   }
 
   if (target.space !== current?.space) {
-    deps.run('space.select', { id: target.space });
+    runSpaceCommand(
+      { run: deps.run, get: deps.store.get, set: deps.store.set },
+      { name: 'space.select', args: { id: target.space } },
+    );
   }
 
   if (target.tab !== current?.tab) {
@@ -247,7 +251,7 @@ const stepRoot = (step: number, deps: ExecutorDeps): void => {
   });
 
   if (command !== null) {
-    deps.run(command.name, command.args);
+    runSpaceCommand({ run: deps.run, get: deps.store.get, set: deps.store.set }, command);
   }
 };
 

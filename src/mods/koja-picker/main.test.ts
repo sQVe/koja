@@ -10,6 +10,7 @@ Object.assign(globalThis, { kojaModName: 'koja-picker' });
 let keyDownHandler: KeyHandler | null = null;
 let closeOverlayCalls = 0;
 let props: Record<string, unknown> = {};
+let spaceValues: unknown[] = [];
 let sharedValues: Record<string, unknown> = {};
 let sharedWrites: string[] = [];
 let keyBindings: { keystroke: string; action: string; context?: string }[] = [];
@@ -71,12 +72,19 @@ const chainable = (onKeyDown?: (handler: KeyHandler) => void): unknown => {
 
 let inputValue = '';
 let inputChange: ((cx: unknown) => void) | null = null;
+let inputSubmit: (() => void) | null = null;
 
 const inputStub = {
   on: (event: string, handler: (event: unknown, cx: unknown) => void) => {
     if (event === 'change') {
       inputChange = (cx) => {
         handler({}, cx);
+      };
+    }
+
+    if (event === 'submit') {
+      inputSubmit = () => {
+        handler({}, renderedContext);
       };
     }
   },
@@ -135,7 +143,7 @@ await mock.module('herdr', () =>
       return null;
     },
     shared: (key: string) => sharedValues[key],
-    spaces: () => [],
+    spaces: () => spaceValues,
     terminals: () => [],
     writeTextFile: async (...args: unknown[]) => recordEffect('writeTextFile', null)(...args),
   }),
@@ -231,6 +239,8 @@ beforeEach(() => {
   emptyText = '';
   inputValue = '';
   inputChange = null;
+  inputSubmit = null;
+  spaceValues = [];
   checkingNow = false;
   overlayNow = null;
   sideEffects = [];
@@ -424,5 +434,32 @@ describe('picker overlay state', () => {
     view.close();
 
     expect(overlayCloseCount()).toBe(2);
+  });
+});
+
+describe('picker space choice', () => {
+  test('choosing a space records the selection it runs', async () => {
+    spaceValues = [
+      {
+        id: 's1',
+        index: 1,
+        name: 'api',
+        named: true,
+        folder: '/code/api',
+        machine: null,
+        branch: null,
+        active: true,
+        status: null,
+        tabs: [],
+      },
+    ];
+
+    const view = await loadView();
+
+    view.init(undefined, asyncContext);
+    view.render();
+    inputSubmit?.();
+
+    expect(sharedValues['spaces.selection']).toEqual({ version: 1, count: 1, id: 's1' });
   });
 });

@@ -9,7 +9,7 @@ import type {
   ModifiersChangedEvent,
 } from 'gpui-kit';
 import { div, View } from 'gpui-kit';
-import { checking, focused, nextCommand, run } from 'herdr';
+import { checking, focused, nextCommand, run, setShared, shared } from 'herdr';
 
 import { createContextKeys } from '../../kit/contextKeys.ts';
 import {
@@ -24,6 +24,7 @@ import {
   stateLine,
   withTextRole,
 } from '../../kit/index.ts';
+import { runSpaceCommand } from '../../kit/space/spaceSelection.ts';
 import type { StatusFilter } from './filters.ts';
 import { allFilter, statusFilters } from './filters.ts';
 import { footer as statusFooter } from './footer.ts';
@@ -297,7 +298,10 @@ export default class Picker extends View {
     history.rememberSpace(row.space.id);
 
     if (row.kind === 'space') {
-      run('space.select', { id: row.space.id });
+      runSpaceCommand(
+        { run, get: shared, set: setShared },
+        { name: 'space.select', args: { id: row.space.id } },
+      );
 
       if (row.tab === undefined || pane === null) {
         return;

@@ -61,6 +61,11 @@ await mock.module('herdr', () =>
 
       return null;
     },
+    setShared: (key: string, value: unknown) => {
+      sharedValues[key] = value;
+
+      return null;
+    },
     shared: (key: string) => sharedValues[key],
     spaces: () => spaceValues,
     terminals: () => terminalValues,
@@ -293,6 +298,22 @@ describe('askFirst', () => {
 
     expect(opened).toBe(false);
     expect(runCalls).toEqual([{ name: 'space.select', args: { id: 's1' } }]);
+  });
+
+  test('next space records the selection it runs', () => {
+    publishSidebarOrder(['s2', 's1']);
+
+    focusValue = { space: 's2', tab: 't3' };
+
+    askFirst('space.next');
+
+    expect(sharedValues['spaces.selection']).toEqual({ version: 1, count: 1, id: 's1' });
+  });
+
+  test('previous space records no selected id when it falls back to space.prev', () => {
+    askFirst('space.prev');
+
+    expect(sharedValues['spaces.selection']).toEqual({ version: 1, count: 1, id: null });
   });
 
   test('previous space runs space.prev when the sidebar published no order', () => {

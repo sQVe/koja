@@ -26,6 +26,7 @@ import { heartbeatKey, leaseKey } from '../../data/lease.ts';
 import { pullRetryOutcomesKey, pullRetryRequestsKey } from '../../data/pullRetry.ts';
 import type { Facts, PlaceGit, RepositoryPulls, WorktreeGit } from '../../data/snapshot.ts';
 import { snapshotKey } from '../../data/snapshot.ts';
+import { runSpaceCommand } from '../../kit/space/spaceSelection.ts';
 
 type MouseHandler = (event: unknown, cx: unknown) => void;
 
@@ -395,6 +396,15 @@ describe('koja-spaces list cursor', () => {
     expect(selected()).toEqual(['c']);
   });
 
+  test('list-open records the space it selects', async () => {
+    await loadView();
+
+    await send('list-down');
+    await send('list-open');
+
+    expect(sharedValues['spaces.selection']).toEqual({ version: 1, count: 1, id: 'c' });
+  });
+
   test('a marked sidebar outlines the active space before any list key', async () => {
     const view = await loadView();
 
@@ -677,6 +687,48 @@ describe('koja-spaces close follow', () => {
 
     expect(selected()).toEqual(['a']);
 
+    view.render();
+
+    expect(selected()).toEqual(['a']);
+  });
+
+  const recordSelection = (id: string | null): void => {
+    const command = id === null ? { name: 'space.next' } : { name: 'space.select', args: { id } };
+
+    runSpaceCommand(
+      {
+        run: () => undefined,
+        get: (key) => sharedValues[key],
+        set: (key, value) => {
+          sharedValues[key] = value;
+        },
+      },
+      command,
+    );
+  };
+
+  test('a user selection in the same look as a close keeps the focus the user set', async () => {
+    draw(['a', 'b', 'c', 'd'], 'c');
+
+    const view = await loadView();
+
+    recordSelection('a');
+    draw(['a', 'b', 'd'], 'a');
+    view.render();
+
+    expect(selected()).toEqual([]);
+  });
+
+  test('a selection seen in an earlier look does not block a later close follow', async () => {
+    draw(['a', 'b', 'c', 'd'], 'c');
+
+    const view = await loadView();
+
+    recordSelection('b');
+    draw(['a', 'b', 'c', 'd'], 'b');
+    view.render();
+
+    draw(['a', 'c', 'd'], 'a');
     view.render();
 
     expect(selected()).toEqual(['a']);
@@ -1036,6 +1088,16 @@ describe('koja-spaces drag and drop', () => {
     expect(moves()).toEqual([]);
   });
 
+  test('a press and release on a header records the main space it selects', async () => {
+    useSpaces(['alpha', 'alpha-1']);
+
+    const view = await loadView();
+
+    dragAndDrop(view, 'alpha', 'alpha');
+
+    expect(sharedValues['spaces.selection']).toEqual({ version: 1, count: 1, id: 'alpha' });
+  });
+
   test('a right press on a header opens the menu of its main space', async () => {
     useSpaces(['alpha', 'alpha-1']);
 
@@ -1129,6 +1191,16 @@ describe('koja-spaces drag and drop', () => {
 
     expect(selected()).toEqual(['alpha-1']);
     expect(moves()).toEqual([]);
+  });
+
+  test('a press and release on a row records the space it selects', async () => {
+    useSpaces(['alpha', 'alpha-1', 'alpha-2']);
+
+    const view = await loadView();
+
+    dragAndDrop(view, 'alpha-1', 'alpha-1');
+
+    expect(sharedValues['spaces.selection']).toEqual({ version: 1, count: 1, id: 'alpha-1' });
   });
 
   test('a drag over a row in another project shows no drop line and a not-allowed cursor', async () => {
