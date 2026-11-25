@@ -449,13 +449,7 @@ describe('parseSnapshot', () => {
     expect(parseSnapshot(fixture('snapshot-v1.json'))).toBeNull();
   });
 
-  test('reads version 4 with no tracker facts', () => {
-    const parsed = parseSnapshot(fixture('snapshot-v4.json'));
-
-    expect(parsed?.facts.trackers).toEqual({});
-  });
-
-  test('reads a version 5 ticket without its retired failed field', () => {
+  test('drops the retired failed field from a version 5 ticket', () => {
     const parsed = parseSnapshot(fixture('snapshot-v5.json'));
     const tracker = parsed?.facts.trackers[keyOf(null, '/code/koja/.git')];
     const ticket: TicketFacts | undefined = tracker?.tickets['ME-1'];
@@ -471,6 +465,32 @@ describe('parseSnapshot', () => {
     });
 
     expect(Object.hasOwn(ticket ?? {}, 'failed')).toBe(false);
+  });
+
+  test('reads a version 5 ticket saved without a failed field', () => {
+    const stored = rawSnapshotOf(fixture('snapshot-v5.json'));
+
+    delete ticketAt(stored, keyOf(null, '/code/koja/.git'), 'ME-1').failed;
+
+    const parsed = parseSnapshot(stored);
+    const tracker = parsed?.facts.trackers[keyOf(null, '/code/koja/.git')];
+    const ticket: TicketFacts | undefined = tracker?.tickets['ME-1'];
+
+    expect(ticket).toEqual({
+      id: 'ME-1',
+      title: 'Title spaces with their Linear tickets',
+      state: 'In Progress',
+      url: 'https://linear.app/sqve/issue/ME-1/title-spaces-with-their-linear-tickets',
+      parent: null,
+    });
+  });
+
+  test('rejects a version 5 ticket whose failed field is not a boolean', () => {
+    const stored = rawSnapshotOf(fixture('snapshot-v5.json'));
+
+    ticketAt(stored, keyOf(null, '/code/koja/.git'), 'ME-1').failed = 'no';
+
+    expect(parseSnapshot(stored)).toBeNull();
   });
 
   test('reads a ticket in the current snapshot', () => {

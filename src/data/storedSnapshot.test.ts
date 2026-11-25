@@ -2,6 +2,7 @@ import { describe, expect, test } from 'bun:test';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 
+import { repositoryOf } from './gitIdentity.ts';
 import type { RecordNotices, RecordRejection } from './recordNotices.ts';
 import { createRecordNotices } from './recordNotices.ts';
 import type { Snapshot } from './snapshot.ts';
@@ -143,7 +144,7 @@ describe('readStoredSnapshot', () => {
     const { messages, notices } = logged();
     const read = memoryStore(fixture('snapshot-v5.json'));
     const parsed = readStoredSnapshot(read, notices);
-    const tracker = parsed?.facts.trackers['[null,"/code/koja/.git"]'];
+    const tracker = parsed?.facts.trackers[repositoryOf(null, '/code/koja/.git').key];
     const ticket = tracker?.tickets['ME-1'];
 
     expect(ticket?.title).toBe('Title spaces with their Linear tickets');

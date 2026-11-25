@@ -16,12 +16,10 @@ const bareFolder = '.bare';
 
 const trimSlashes = (path: string): string => path.replace(/\/+$/, '');
 
-export const baseName = (path: string): string => folderNameOf(path);
-
 export const workspaceRoot = (commonDirectory: string): string | null => {
   const trimmed = trimSlashes(commonDirectory.trim());
 
-  if (baseName(trimmed) !== bareFolder) {
+  if (folderNameOf(trimmed) !== bareFolder) {
     return null;
   }
 

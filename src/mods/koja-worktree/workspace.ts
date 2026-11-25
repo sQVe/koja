@@ -1,11 +1,11 @@
 import type { SpaceInfo } from 'herdr';
 import { exec, panes, spaces, terminals } from 'herdr';
 
+import { folderNameOf } from '../../data/fields.ts';
 import { readGitIdentity } from '../../data/gitIdentity.ts';
 import { rollupStatuses, spaceFolder } from '../../kit/index.ts';
 import type { RemoveRisk, Workspace } from './grove.ts';
 import {
-  baseName,
   failureText,
   isWorkspaceWorktree,
   removeRisk,
@@ -50,7 +50,7 @@ export const readWorkspace = async (space: SpaceInfo): Promise<Workspace> => {
     throw new Error(`${folder} is not directly in the Grove workspace ${root}.`);
   }
 
-  return { space: space.id, machine: space.machine, folder, root, name: baseName(folder) };
+  return { space: space.id, machine: space.machine, folder, root, name: folderNameOf(folder) };
 };
 
 export const readRisk = async (workspace: Workspace): Promise<RemoveRisk> => {

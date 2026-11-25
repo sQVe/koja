@@ -290,15 +290,13 @@ const parseRepositoryPulls = (
   return { pulls, failed };
 };
 
+const retiredTicketFailureKey = 'failed';
+
 const ticketKeys = ['id', 'title', 'state', 'url', 'parent'];
 
-const version5TicketKeys = [...ticketKeys, 'failed'];
+const version5TicketKeys = [...ticketKeys, retiredTicketFailureKey];
 
-const parseTicketFacts = (
-  value: unknown,
-  keys: readonly string[],
-  acceptRetiredFailure: boolean,
-): TicketFacts | null => {
+const parseTicketFacts = (value: unknown, keys: readonly string[]): TicketFacts | null => {
   if (!isRecord(value)) {
     return null;
   }
@@ -307,7 +305,9 @@ const parseTicketFacts = (
     return null;
   }
 
-  if (acceptRetiredFailure && typeof value.failed !== 'boolean') {
+  const acceptsRetiredFailure = keys.includes(retiredTicketFailureKey);
+
+  if (acceptsRetiredFailure && typeof value.failed !== 'boolean') {
     return null;
   }
 
@@ -345,17 +345,13 @@ const parseTicketFacts = (
 };
 
 const parseCurrentTicketFacts = (value: unknown): TicketFacts | null =>
-  parseTicketFacts(value, ticketKeys, false);
+  parseTicketFacts(value, ticketKeys);
 
 const parseVersion5TicketFacts = (value: unknown): TicketFacts | null => {
-  if (!isRecord(value)) {
-    return null;
-  }
+  const holdsRetiredFailure = isRecord(value) && Object.hasOwn(value, retiredTicketFailureKey);
+  const keys = holdsRetiredFailure ? version5TicketKeys : ticketKeys;
 
-  const hasRetiredFailure = Object.hasOwn(value, 'failed');
-  const keys = hasRetiredFailure ? version5TicketKeys : ticketKeys;
-
-  return parseTicketFacts(value, keys, hasRetiredFailure);
+  return parseTicketFacts(value, keys);
 };
 
 const parseRepositoryTracker = (

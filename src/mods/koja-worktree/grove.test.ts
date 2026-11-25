@@ -1,7 +1,6 @@
 import { describe, expect, test } from 'bun:test';
 
 import {
-  baseName,
   failureText,
   isWorkspaceWorktree,
   removeRisk,
@@ -34,10 +33,6 @@ describe('grove workspace', () => {
     expect(isWorkspaceWorktree('/work/repo/nested/feat-a', '/work/repo')).toBe(false);
     expect(isWorkspaceWorktree('/work/repo', '/work/repo')).toBe(false);
     expect(isWorkspaceWorktree('/work/repository/feat-a', '/work/repo')).toBe(false);
-  });
-
-  test('a worktree is named by its folder', () => {
-    expect(baseName('/work/repo/feat-a/')).toBe('feat-a');
   });
 });
 
