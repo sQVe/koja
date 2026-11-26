@@ -12,7 +12,7 @@ import { parseStacks } from './stacks.ts';
 
 export interface StackSchedulerDependencies {
   run: RunCommand;
-  readTextFile: (path: string) => Promise<string | null>;
+  readTextFile: (path: string, options: { on: string | null }) => Promise<string | null>;
   watchFolder: WatchFolder;
   now: () => number;
   heldLease: () => Lease | null;
@@ -34,21 +34,25 @@ type StackRead = { kind: 'stacks'; stacks: Stack[] } | { kind: 'empty' } | { kin
 
 const recordName = 'gh-stack';
 
+const readLimit = 2;
+
+const debounceMilliseconds = 250;
+
 // `git for-each-ref` answers for the whole repository, so the smallest root of a repository runs it.
-const sourcesOf = (git: GitFacts, used: ReadonlySet<string>): Map<string, StackSource> => {
+const sourcesOf = (git: GitFacts, checkouts: ReadonlySet<string>): Map<string, StackSource> => {
   const roots = new Map<string, { repository: RepositoryIdentity; roots: string[] }>();
 
-  for (const worktree of Object.values(git.worktrees)) {
-    const key = worktree.repository.key;
-
-    if (!used.has(key)) {
+  for (const [key, worktree] of Object.entries(git.worktrees)) {
+    if (!checkouts.has(key)) {
       continue;
     }
 
-    const entry = roots.get(key) ?? { repository: worktree.repository, roots: [] };
+    const repositoryKey = worktree.repository.key;
+
+    const entry = roots.get(repositoryKey) ?? { repository: worktree.repository, roots: [] };
 
     entry.roots.push(worktree.root);
-    roots.set(key, entry);
+    roots.set(repositoryKey, entry);
   }
 
   const sources = new Map<string, StackSource>();
@@ -62,6 +66,16 @@ const sourcesOf = (git: GitFacts, used: ReadonlySet<string>): Map<string, StackS
   }
 
   return sources;
+};
+
+const keepEarliest = (stored: Map<string, number>, key: string, at: number): void => {
+  const first = stored.get(key);
+
+  if (first !== undefined && first <= at) {
+    return;
+  }
+
+  stored.set(key, at);
 };
 
 const headsIn = (stdout: string): Map<string, string> => {
@@ -82,11 +96,10 @@ const headsIn = (stdout: string): Map<string, string> => {
 
 class Scheduler implements StackScheduler {
   private readonly stacksByRepository: Record<string, RepositoryStacks>;
-  private readonly due = new Set<string>();
+  private readonly due = new Map<string, number>();
   private readonly readRepositories = new Set<string>();
-  private readonly running = new Map<string, number>();
+  private readonly running = new Set<string>();
   private readonly watches: WatchRegistry;
-  private sequence = 0;
   private stopped = false;
 
   constructor(
@@ -107,17 +120,22 @@ class Scheduler implements StackScheduler {
       return;
     }
 
-    const used = usedRepositories(git.worktrees, checkoutWorktrees(git.worktrees));
-    const sources = sourcesOf(git, used);
+    const checkouts = checkoutWorktrees(git.worktrees);
+    const sources = sourcesOf(git, checkouts);
+    const watched = usedRepositories(git.worktrees, checkouts);
 
-    this.watches.cancelUnused(used);
+    this.watches.cancelUnused(watched);
 
-    for (const source of sources.values()) {
-      this.watches.start(source.repository, cx);
+    for (const key of watched) {
+      const source = sources.get(key);
+
+      if (source !== undefined) {
+        this.watches.start(source.repository, cx);
+      }
     }
 
-    this.applyEvents(used);
-    this.markNew(used);
+    this.applyEvents(sources);
+    this.markNew(sources);
     this.startReads(sources, cx);
   }
 
@@ -126,60 +144,69 @@ class Scheduler implements StackScheduler {
     this.watches.stop();
   }
 
-  private applyEvents(used: ReadonlySet<string>): void {
-    for (const key of this.watches.takeEvents().keys()) {
-      if (used.has(key)) {
-        this.due.add(key);
+  private applyEvents(sources: Map<string, StackSource>): void {
+    for (const [key, at] of this.watches.takeEvents()) {
+      if (sources.has(key)) {
+        keepEarliest(this.due, key, at + debounceMilliseconds);
       }
     }
 
-    for (const key of this.due) {
-      if (!used.has(key)) {
+    for (const key of this.due.keys()) {
+      if (!sources.has(key)) {
         this.due.delete(key);
       }
     }
   }
 
-  private markNew(used: ReadonlySet<string>): void {
+  private markNew(sources: Map<string, StackSource>): void {
     for (const key of this.readRepositories) {
-      if (!used.has(key)) {
+      if (!sources.has(key)) {
         this.readRepositories.delete(key);
       }
     }
 
-    for (const key of used) {
+    for (const key of sources.keys()) {
       if (!this.readRepositories.has(key)) {
-        this.due.add(key);
+        keepEarliest(this.due, key, this.dependencies.now());
       }
     }
   }
 
   private startReads(sources: Map<string, StackSource>, cx: Context): void {
-    for (const key of this.due) {
+    const now = this.dependencies.now();
+    const free = Math.max(0, readLimit - this.running.size);
+
+    const due = [...this.due.entries()]
+      .filter(([key, at]) => at <= now && !this.running.has(key) && sources.has(key))
+      .toSorted(([leftKey, leftAt], [rightKey, rightAt]) =>
+        leftAt === rightAt ? leftKey.localeCompare(rightKey) : leftAt - rightAt,
+      )
+      .slice(0, free);
+
+    for (const [key] of due) {
       const source = sources.get(key);
 
-      if (source === undefined || this.running.has(key)) {
-        continue;
+      if (source !== undefined) {
+        this.startRead(source, cx);
       }
-
-      this.startRead(source, cx);
     }
   }
 
   private startRead(source: StackSource, cx: Context): void {
-    this.sequence += 1;
-
-    const sequence = this.sequence;
     const key = source.repository.key;
 
     this.due.delete(key);
     this.readRepositories.add(key);
-    this.running.set(key, sequence);
+    this.running.add(key);
 
     cx.spawn(async () => {
-      const read = await this.read(source);
+      try {
+        const read = await this.read(source);
 
-      this.apply(key, sequence, read);
+        this.apply(key, read);
+      } catch {
+        this.running.delete(key);
+      }
     });
   }
 
@@ -189,6 +216,7 @@ class Scheduler implements StackScheduler {
     try {
       text = await this.dependencies.readTextFile(
         `${source.repository.commonDirectory}/${recordName}`,
+        { on: source.repository.machine },
       );
     } catch {
       return { kind: 'failed' };
@@ -217,7 +245,7 @@ class Scheduler implements StackScheduler {
     try {
       const result = await this.dependencies.run('git', ['for-each-ref', format, 'refs/heads'], {
         cwd: source.cwd,
-        on: null,
+        on: source.repository.machine,
       });
 
       return result.code === 0 ? headsIn(result.stdout) : null;
@@ -226,11 +254,7 @@ class Scheduler implements StackScheduler {
     }
   }
 
-  private apply(key: string, sequence: number, read: StackRead): void {
-    if (this.running.get(key) !== sequence) {
-      return;
-    }
-
+  private apply(key: string, read: StackRead): void {
     this.running.delete(key);
 
     if (this.stopped || !this.stillOwner()) {
