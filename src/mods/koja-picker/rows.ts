@@ -299,6 +299,7 @@ const spaceScore = (
   const stackMatch = stackMatchOf(query, stackForSpace(data.stored, space, data.panes));
   const nameScore = fuzzyMatch(query, space.name)?.score ?? 0;
 
+  // An exact PR match is its own tier, so this score only orders matches within that tier.
   if (stackMatch?.tier === 'exact') {
     return { exact: true, score: nameScore, reason: stackMatch.reason };
   }
