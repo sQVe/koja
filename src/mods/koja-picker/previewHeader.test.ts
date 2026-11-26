@@ -36,14 +36,15 @@ await mock.module('herdr', () => herdrFake({ theme: () => palette, shared: () =>
 
 await mock.module('../../kit/index.ts', () =>
   realKitIndexFake([
+    'fileStatus',
     'icon',
     'palette',
+    'paneHeader',
     'size',
     'statusMark',
     'text',
     'textRole',
     'theme',
-    'fileStatus',
   ]),
 );
 
@@ -150,6 +151,12 @@ describe('previewHeader', () => {
 
     expect(drawnTexts(header)).toEqual(['koja', 'Gallery']);
     expect(drawnIcons(header)).not.toContain('git-branch.svg');
+  });
+
+  test('draws an empty band for a pane whose tab belongs to no space', () => {
+    const header = headerOf([{ ...terminalPane(), tab: 'k9' }], 'p1');
+
+    expect(drawnTexts(header)).toEqual([]);
   });
 
   test('draws an empty band for a row with no pane', () => {

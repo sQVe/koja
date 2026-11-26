@@ -3,7 +3,7 @@ import { afterAll, beforeEach, describe, expect, mock, test } from 'bun:test';
 import { herdrFake, kitIndexFake } from '../../../tests/moduleFakes.ts';
 
 let sharedValues: Record<string, unknown> = {};
-let writes: string[] = [];
+let writes: [string, unknown][] = [];
 
 Object.assign(globalThis, { kojaModName: 'koja-picker' });
 
@@ -11,7 +11,7 @@ await mock.module('herdr', () =>
   herdrFake({
     setShared: (key: string, value: unknown) => {
       sharedValues[key] = value;
-      writes.push(key);
+      writes.push([key, value]);
 
       return null;
     },
@@ -45,8 +45,40 @@ describe('selection', () => {
     writeSelection('p1');
     writeSelection('p2');
 
-    expect(writes).toEqual(['koja-picker.selection', 'koja-picker.selection']);
+    expect(writes).toEqual([
+      ['koja-picker.selection', 'p1'],
+      ['koja-picker.selection', 'p2'],
+    ]);
+
     expect(readSelection()).toBe('p2');
+  });
+
+  test('publishes nothing when the picker opens on no pane', () => {
+    writeSelection(null);
+
+    expect(writes).toEqual([]);
+  });
+
+  test('publishes one write per change of the pane it is given', () => {
+    const walks: (string | null)[][] = [
+      ['p1', 'p1', 'p2', 'p1', 'p1'],
+      ['p2', 'p1', 'p1', 'p2', 'p3'],
+      ['p1', 'p2', 'p3', 'p3', 'p3'],
+      [null, 'p1', null, null, 'p2'],
+    ];
+
+    for (const walk of walks) {
+      sharedValues = {};
+      writes = [];
+
+      for (const pane of walk) {
+        writeSelection(pane);
+      }
+
+      const changes = walk.filter((pane, index) => pane !== (index === 0 ? null : walk[index - 1]));
+
+      expect(writes).toEqual(changes.map((pane) => ['koja-picker.selection', pane]));
+    }
   });
 
   test('clears the published pane when the selected row has none', () => {

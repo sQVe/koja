@@ -15,6 +15,7 @@ interface WorktreeFixture {
 interface PullFixture {
   number: number;
   headRefName: string;
+  commonDirectory: string;
   mergeable?: 'conflicting' | 'mergeable' | 'unknown';
   checks?: 'failing' | 'passing' | 'none';
 }
@@ -30,19 +31,19 @@ await mock.module('herdr', () =>
 );
 
 const { repositoryOf, worktreeOf, placeOf } = await import('../../data/gitIdentity.ts');
-const { heartbeatKey, leaseKey } = await import('../../data/lease.ts');
-const { snapshotKey } = await import('../../data/snapshot.ts');
+const { heartbeatKey } = await import('../../data/lease.ts');
+const { snapshotKey, snapshotVersion } = await import('../../data/snapshot.ts');
 
 const { paneFacts, spaceFacts } = (await import('./spaceFacts.ts')) as {
   spaceFacts: (
     spaceList: SpaceInfo[],
     paneList: PaneInfo[],
-  ) => Record<string, { project: string | null; pull: number | null; need: string | null }>;
+  ) => Record<string, { project: string; pull: number | null; need: string | null }>;
   paneFacts: (
     machine: string | null,
     pane: PaneInfo,
     branch: string | null,
-  ) => { project: string | null; pull: number | null; need: string | null } | null;
+  ) => { project: string; pull: number | null; need: string | null } | null;
 };
 
 afterAll(() => {
@@ -123,10 +124,9 @@ const stored = (
   }
 
   const repositories: Record<string, unknown> = {};
-  const first = worktrees[0];
 
   for (const pull of pulls) {
-    const repository = repositoryOf(null, first?.commonDirectory ?? '');
+    const repository = repositoryOf(null, pull.commonDirectory);
 
     const parsed = pullFacts({
       number: pull.number,
@@ -147,7 +147,7 @@ const stored = (
   }
 
   sharedValues[snapshotKey] = {
-    version: 4,
+    version: snapshotVersion,
     revision: 1,
     facts: { git: { places, worktrees: gitWorktrees }, pulls: repositories },
   };
@@ -155,7 +155,6 @@ const stored = (
   const heartbeat = { version: 1, owner: 'test', generation: 1, at: Date.now() };
 
   sharedValues[heartbeatKey] = heartbeat;
-  sharedValues[leaseKey] = { version: 1, owner: 'test', generation: 1 };
 };
 
 describe('spaceFacts', () => {
@@ -169,7 +168,14 @@ describe('spaceFacts', () => {
           linked: true,
         },
       ],
-      [{ number: 41, headRefName: 'me-1189-go-to', mergeable: 'conflicting' }],
+      [
+        {
+          number: 41,
+          headRefName: 'me-1189-go-to',
+          commonDirectory: '/code/koja/.git',
+          mergeable: 'conflicting',
+        },
+      ],
     );
 
     const facts = spaceFacts([spaceAt('s1', '/code/koja/me-1189')], []);
@@ -187,7 +193,7 @@ describe('spaceFacts', () => {
           linked: false,
         },
       ],
-      [{ number: 7, headRefName: 'main' }],
+      [{ number: 7, headRefName: 'main', commonDirectory: '/code/notes/.git' }],
     );
 
     const facts = spaceFacts([spaceAt('s1', '/code/notes')], []);
@@ -206,7 +212,7 @@ describe('spaceFacts', () => {
           linked: false,
         },
       ],
-      [{ number: 7, headRefName: 'main' }],
+      [{ number: 7, headRefName: 'main', commonDirectory: '/code/notes/.git' }],
     );
 
     const facts = spaceFacts([spaceAt('s1', '/code/notes')], []);
@@ -224,12 +230,56 @@ describe('spaceFacts', () => {
           linked: false,
         },
       ],
-      [{ number: 7, headRefName: 'main', mergeable: 'conflicting', checks: 'failing' }],
+      [
+        {
+          number: 7,
+          headRefName: 'main',
+          commonDirectory: '/code/notes/.git',
+          mergeable: 'conflicting',
+          checks: 'failing',
+        },
+      ],
     );
 
     const facts = spaceFacts([spaceAt('s1', '/code/notes')], []);
 
     expect(facts['s1']?.need).toBe('conflict');
+  });
+
+  test('names a bare repository without its .git suffix', () => {
+    stored(
+      [
+        {
+          root: '/code/bare.git',
+          commonDirectory: '/code/bare.git',
+          branch: 'main',
+          linked: false,
+        },
+      ],
+      [],
+    );
+
+    const facts = spaceFacts([spaceAt('s1', '/code/bare.git')], []);
+
+    expect(facts['s1']?.project).toBe('bare');
+  });
+
+  test('names the project of a worktree of a .bare repository after that repository', () => {
+    stored(
+      [
+        {
+          root: '/code/work/repo',
+          commonDirectory: '/code/work/repo/.bare',
+          branch: 'main',
+          linked: true,
+        },
+      ],
+      [],
+    );
+
+    const facts = spaceFacts([spaceAt('s1', '/code/work/repo')], []);
+
+    expect(facts['s1']?.project).toBe('repo');
   });
 
   test('names a folder that is no repository after itself', () => {
@@ -257,8 +307,13 @@ describe('spaceFacts', () => {
         },
       ],
       [
-        { number: 5, headRefName: 'main' },
-        { number: 9, headRefName: 'side', mergeable: 'conflicting' },
+        { number: 5, headRefName: 'main', commonDirectory: '/code/koja/.git' },
+        {
+          number: 9,
+          headRefName: 'side',
+          commonDirectory: '/code/koja/.git',
+          mergeable: 'conflicting',
+        },
       ],
     );
 

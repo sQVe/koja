@@ -3,7 +3,7 @@ import { afterAll, describe, expect, mock, test } from 'bun:test';
 import type { SpaceInfo, Status } from 'herdr';
 
 import type { DrawnElement } from '../../../tests/drawn.ts';
-import { click, drawn, drawnTexts } from '../../../tests/drawn.ts';
+import { click, clickablesWithText, drawn, drawnTexts } from '../../../tests/drawn.ts';
 import {
   gpuiBaseFake,
   gpuiKitFake,
@@ -97,9 +97,10 @@ describe('chips', () => {
 
   test('a filter with no space still shows its chip with a count of zero', () => {
     const row = chips(0, dataWith(['idle']), () => undefined);
+    const waiting = clickablesWithText(row, 'Waiting').at(0);
+    const texts = waiting === undefined ? [] : drawnTexts(waiting);
 
-    expect(drawnTexts(row)).toContain('Waiting');
-    expect(drawnTexts(row)).toContain('0');
+    expect(texts).toEqual(['Waiting', '0']);
   });
 
   test('a click on a chip asks for that filter', () => {
@@ -109,11 +110,9 @@ describe('chips', () => {
       asked.push(index);
     });
 
-    const clickable = row.kids.filter((kid) => kid.clickHandlers.length > 0);
-    const done = clickable.at(2);
+    const done = clickablesWithText(row, 'Done').at(0);
 
-    expect(clickable).toHaveLength(5);
-    expect(drawnTexts(row)).toContain('Done');
+    expect(done).toBeDefined();
 
     if (done !== undefined) {
       click(done);

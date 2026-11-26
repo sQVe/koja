@@ -286,6 +286,65 @@ const settle = async (): Promise<void> => {
   }
 };
 
+const spaceWithOnePane = (id: string): { space: SpaceInfo; pane: PaneInfo } => {
+  const tab = `${id}-tab`;
+  const pane = `${id}-pane`;
+
+  const space: SpaceInfo = {
+    id,
+    index: 1,
+    name: id,
+    named: true,
+    folder: `/home/me/${id}`,
+    machine: null,
+    branch: null,
+    active: false,
+    status: null,
+    tabs: [
+      {
+        id: tab,
+        index: 1,
+        name: '1',
+        named: false,
+        active: true,
+        status: null,
+        panes: 1,
+        zoomed: false,
+        settled: false,
+        settled_at: null,
+        changed_at: null,
+        working_since: null,
+      },
+    ],
+  };
+
+  const paneInfo: PaneInfo = {
+    pane,
+    terminal: 't1',
+    tab,
+    title: 'Pi',
+    cwd: `/home/me/${id}`,
+    branch: null,
+    status: null,
+    app: null,
+    program: {
+      key: 'shell',
+      name: 'zsh',
+      icon: null,
+      tint: false,
+      tile: null,
+      color: null,
+      shell: true,
+      agent: false,
+    },
+    focused: true,
+    zoomed: false,
+    movable: true,
+  };
+
+  return { space, pane: paneInfo };
+};
+
 const resumedPreview = {
   part: 'list',
   preview: {
@@ -363,9 +422,9 @@ describe('picker preview during herdr-app check', () => {
     expect(sideEffects).toEqual([]);
   });
 
-  test('the preview part opens no preview', async () => {
+  test('the launcher opens no preview during a check', async () => {
     checkingNow = true;
-    props = { part: 'preview' };
+    props = {};
     overlayNow = 'overlay-3';
 
     const view = await loadView();
@@ -399,8 +458,8 @@ describe('picker preview during herdr-app check', () => {
     expect(heartbeat).toHaveLength(1);
   });
 
-  test('outside a check, the preview part makes a preview folder', async () => {
-    props = { part: 'preview' };
+  test('outside a check, the launcher makes a preview folder', async () => {
+    props = {};
     overlayNow = 'overlay-3';
 
     const view = await loadView();
@@ -428,18 +487,20 @@ describe('picker preview error', () => {
     view.init(undefined, asyncContext);
     view.render();
 
-    expect(clickHandlers.length).toBeGreaterThan(0);
+    expect(clickHandlers).toHaveLength(1);
 
     clickHandlers.at(-1)?.();
-    await settle();
 
-    expect(sideEffects).toContain('exec mktemp -d -t koja-picker.XXXXXX');
-
-    const attempts = clickHandlers.length;
-
+    // While the attempt runs, the part draws a Retry that takes no click.
     view.render();
 
-    expect(clickHandlers.length).toBe(attempts);
+    expect(clickHandlers).toHaveLength(1);
+
+    await settle();
+
+    const attempts = sideEffects.filter((effect) => effect.startsWith('exec mktemp'));
+
+    expect(attempts).toHaveLength(1);
   });
 });
 
@@ -509,12 +570,18 @@ describe('picker overlay state', () => {
     }
   });
 
-  test('showing the list writes no shared state', async () => {
+  test('showing the list publishes the pane of its first row and no close', async () => {
+    const { space, pane } = spaceWithOnePane('s1');
+
+    spaceValues = [space];
+    paneValues = [pane];
+
     const view = await loadView();
 
     view.init(undefined, asyncContext);
 
-    expect(sharedWrites).toEqual([]);
+    expect(sharedValues['koja-picker.selection']).toBe('s1-pane');
+    expect(sharedWrites).toEqual(['koja-picker.selection']);
     expect(overlayCloseCount()).toBe(0);
   });
 

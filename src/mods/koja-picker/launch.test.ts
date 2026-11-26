@@ -14,6 +14,7 @@ interface OpenedOverlay {
 }
 
 let opened: OpenedOverlay[] = [];
+let spawned: Promise<unknown>[] = [];
 let closed: (string | null)[] = [];
 let ran: string[] = [];
 
@@ -53,6 +54,7 @@ const { launch } = (await import(launchPath)) as unknown as {
     cx: unknown,
     session: unknown,
     rememberPane: (tab: string, pane: string) => void,
+    onSettled?: () => void,
   ) => void;
 };
 
@@ -68,6 +70,7 @@ afterAll(() => {
 
 beforeEach(() => {
   opened = [];
+  spawned = [];
   closed = [];
   ran = [];
 });
@@ -84,14 +87,12 @@ const hostWith = (answer: { code: number; stdout: string }): PreviewHost => ({
 
 const spawnNow = {
   spawn: (body: (cx: unknown) => unknown) => {
-    void body(undefined);
+    spawned.push(Promise.resolve(body(undefined)));
   },
 };
 
 const settle = async (): Promise<void> => {
-  for (let index = 0; index < 20; index += 1) {
-    await Promise.resolve();
-  }
+  await Promise.all(spawned);
 };
 
 const layoutOf = (spec: Record<string, unknown>): LayoutBlock => spec['layout'] as LayoutBlock;
@@ -118,7 +119,12 @@ const terminalsOf = (spec: Record<string, unknown>): string[] =>
 const start = (answer: { code: number; stdout: string }): void => {
   const session = new sessionClass(hostWith(answer));
 
-  launch(spawnNow, session, () => undefined);
+  launch(
+    spawnNow,
+    session,
+    () => undefined,
+    () => undefined,
+  );
 };
 
 describe('launch', () => {
