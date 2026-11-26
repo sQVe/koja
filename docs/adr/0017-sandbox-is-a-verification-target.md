@@ -29,6 +29,11 @@ The sandbox name comes from the run. When Tau sets `TAU_VERIFICATION_RUN`, the n
 lowercased to fit ruta's name pattern. Otherwise the name is `RUTA_NAME`, then `koja`. The run name
 wins over `RUTA_NAME`, because Tau passes the manager's environment to launch and doctor.
 
+A name belongs to the checkout that installed it. `scripts/sandbox` refuses to start, change, or
+remove a sandbox whose install record names another checkout, before it runs ruta, and it names that
+checkout. `identity` reports the same fact instead of refusing, so a session can still ask who holds
+a name.
+
 ## Consequences
 
 ### Positive
@@ -38,6 +43,7 @@ wins over `RUTA_NAME`, because Tau passes the manager's environment to launch an
 - Parallel runs keep separate windows, separate homes, and separate fixture folders.
 - A sandbox that runs a build other than the checkout's fails the doctor, whatever the file times
   say.
+- A second checkout cannot take over, and then remove, the sandbox another checkout is using.
 - The QA recipes become feature files with a target, so the guide declares what to launch.
 
 ### Negative
