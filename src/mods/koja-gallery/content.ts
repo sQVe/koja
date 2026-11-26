@@ -1,5 +1,5 @@
 import { h_flex, v_flex } from 'gpui-base';
-import type { Element } from 'gpui-kit';
+import type { Context, Element } from 'gpui-kit';
 
 import type {
   ContentSectionOptions,
@@ -25,6 +25,11 @@ import {
 import { sample } from './sample.ts';
 
 type HeaderState = ItemStateOptions | null;
+
+export interface ContentPartsOptions {
+  folded: ReadonlySet<string>;
+  onToggle: (name: string, cx: Context) => void;
+}
 
 const ticketFacts: Fact[] = [
   { label: 'Project', value: 'Koja' },
@@ -205,7 +210,15 @@ const runningCheck = (name: string, started: string, stale: boolean): StatusRowO
 
 const staleChecksNote: PartNoteOptions = { part: 'checks', age: '6m ago' };
 
-const checksSection = (stale: boolean): Element => {
+const isOpen = (options: ContentPartsOptions, name: string): boolean => !options.folded.has(name);
+
+const toggle =
+  (options: ContentPartsOptions, name: string): ((cx: Context) => void) =>
+  (cx) => {
+    options.onToggle(name, cx);
+  };
+
+const checksSection = (stale: boolean, options: ContentPartsOptions): Element => {
   const testsAge = stale ? '8m ago' : '2m ago';
   const styleAge = stale ? '7m ago' : '1m ago';
 
@@ -216,7 +229,14 @@ const checksSection = (stale: boolean): Element => {
   ];
 
   const parts = stale ? [partNote(staleChecksNote), ...rows] : rows;
-  const section: ContentSectionOptions = { name: 'Checks', count: 3, open: true, parts };
+
+  const section: ContentSectionOptions = {
+    name: 'Checks',
+    count: 3,
+    open: isOpen(options, 'Checks'),
+    parts,
+    onToggle: toggle(options, 'Checks'),
+  };
 
   return contentSection(section);
 };
@@ -228,22 +248,24 @@ const threadRow = (reference: string, detail: string): StatusRowOptions => ({
   state: 'unresolved',
 });
 
-const threadsSection = (): Element =>
+const threadsSection = (options: ContentPartsOptions): Element =>
   contentSection({
     name: 'Threads',
     count: 2,
-    open: true,
+    open: isOpen(options, 'Threads'),
+    onToggle: toggle(options, 'Threads'),
     parts: [
       statusRow(threadRow('rows.ts:48', 'sqve · 2h ago')),
       statusRow(threadRow('repoLabel.ts:27–31', 'sqve · 1h ago')),
     ],
   });
 
-const slicesSection = (): Element =>
+const slicesSection = (options: ContentPartsOptions): Element =>
   contentSection({
     name: 'Slices',
     count: 3,
-    open: true,
+    open: isOpen(options, 'Slices'),
+    onToggle: toggle(options, 'Slices'),
     parts: [
       statusRow({ mark: 'done', name: 'Read the ticket snapshot', state: 'done' }),
       statusRow({ mark: 'working', name: 'Draw the shared content frame', state: 'in progress' }),
@@ -251,7 +273,33 @@ const slicesSection = (): Element =>
     ],
   });
 
-export const contentParts = (): Element[] => [
+const uncountedSection = (options: ContentPartsOptions): Element =>
+  contentSection({
+    name: 'Slices',
+    open: isOpen(options, 'Slices without a count'),
+    onToggle: toggle(options, 'Slices without a count'),
+    parts: [statusRow({ mark: 'done', name: 'Read the ticket snapshot', state: 'done' })],
+  });
+
+const fileRow = (path: string, counts: string): StatusRowOptions => ({
+  mark: null,
+  name: path,
+  state: counts,
+});
+
+const filesSection = (options: ContentPartsOptions): Element =>
+  contentSection({
+    name: 'Files',
+    count: 9,
+    open: isOpen(options, 'Files'),
+    onToggle: toggle(options, 'Files'),
+    parts: [
+      statusRow(fileRow('src/kit/sectionHeader.ts', '+18 −2')),
+      statusRow(fileRow('src/kit/statusRow.ts', '+59 −0')),
+    ],
+  });
+
+export const contentParts = (options: ContentPartsOptions): Element[] => [
   sample('Source links', sourceLinks()),
   sample('Pull request header', pullHeader()),
   sample(
@@ -268,9 +316,10 @@ export const contentParts = (): Element[] => [
   sample('Failed save action', railFrame(failedSaveAction())),
   sample('Sent review action', railFrame(sentAction())),
   sample('Document with an edited line and commented lines', narrowFrame(documentLines())),
-  sample('Checks section with live rows', narrowFrame(checksSection(false))),
-  sample('Checks section with stale rows', narrowFrame(checksSection(true))),
-  sample('Threads section', narrowFrame(threadsSection())),
-  sample('Slices section', narrowFrame(slicesSection())),
-  sample('Folded section', narrowFrame(contentSection({ name: 'Files', count: 9, open: false }))),
+  sample('Checks section with live rows', narrowFrame(checksSection(false, options))),
+  sample('Checks section with stale rows', narrowFrame(checksSection(true, options))),
+  sample('Threads section', narrowFrame(threadsSection(options))),
+  sample('Slices section', narrowFrame(slicesSection(options))),
+  sample('Section without a count', narrowFrame(uncountedSection(options))),
+  sample('Folded section', narrowFrame(filesSection(options))),
 ];

@@ -1,6 +1,6 @@
 import { afterAll, beforeEach, describe, expect, mock, setSystemTime, test } from 'bun:test';
 
-import { drawn, drawnTexts } from '../../../tests/drawn.ts';
+import { click, drawn, drawnTexts, spinning } from '../../../tests/drawn.ts';
 import type { DrawnElement } from '../../../tests/drawn.ts';
 import {
   chainable,
@@ -82,6 +82,8 @@ const kitFake = await realKitIndexFake([
 ]);
 
 await mock.module('../../kit/index.ts', () => kitFake);
+
+const { contentParts } = await import('./content.ts');
 
 const modulePath = './main.ts';
 
@@ -183,5 +185,76 @@ describe('gallery data layer section', () => {
 
     expect(drawnTexts(view.render(context))).toContain('Unavailable');
     expect(tasks).toEqual([]);
+  });
+});
+
+const sectionOf = (sample: DrawnElement): DrawnElement => {
+  const frame = sample.kids[1] as DrawnElement;
+
+  return frame.kids[0] as DrawnElement;
+};
+
+describe('gallery content samples', () => {
+  const samples = (folded: ReadonlySet<string> = new Set()): DrawnElement[] => {
+    const drawnParts = contentParts({ folded, onToggle: () => undefined });
+
+    return drawnParts as unknown as DrawnElement[];
+  };
+
+  const sampleNamed = (label: string, folded?: ReadonlySet<string>): DrawnElement => {
+    const found = samples(folded).find((sample) => drawnTexts(sample).includes(label));
+
+    if (found === undefined) {
+      throw new Error(`the gallery has no sample named ${label}`);
+    }
+
+    return found;
+  };
+
+  test('the stale Checks sample keeps its rows, note, and still marks', () => {
+    const stale = sampleNamed('Checks section with stale rows');
+    const live = sampleNamed('Checks section with live rows');
+
+    const staleTexts = drawnTexts(stale);
+    const liveTexts = drawnTexts(live);
+
+    expect(staleTexts).toContain('Could not sync checks · showing checks from 6m ago');
+    expect(staleTexts).toContain('started 8m ago');
+    expect(staleTexts).not.toContain('started 2m ago');
+    expect(spinning(stale)).toBe(false);
+
+    expect(liveTexts).toContain('started 2m ago');
+    expect(liveTexts.some((text) => text.startsWith('Could not sync'))).toBe(false);
+    expect(spinning(live)).toBe(true);
+  });
+
+  test('a folded section keeps its header and drops its rows', () => {
+    const folded = sampleNamed('Checks section with stale rows', new Set(['Checks']));
+    const texts = drawnTexts(folded);
+
+    expect(texts).toContain('Checks');
+    expect(texts).not.toContain('typecheck');
+    expect(texts).not.toContain('Could not sync checks · showing checks from 6m ago');
+  });
+
+  test('a section header reports its fold to the gallery', () => {
+    const toggled: string[] = [];
+
+    const drawnParts = contentParts({
+      folded: new Set(),
+      onToggle: (name) => {
+        toggled.push(name);
+      },
+    });
+
+    const sample = (drawnParts as unknown as DrawnElement[]).find((part) =>
+      drawnTexts(part).includes('Checks section with stale rows'),
+    );
+
+    const header = sectionOf(sample as DrawnElement).kids[0] as DrawnElement;
+
+    click(header);
+
+    expect(toggled).toEqual(['Checks']);
   });
 });
