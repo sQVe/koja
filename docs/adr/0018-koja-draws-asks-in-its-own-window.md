@@ -17,7 +17,7 @@ surface itself.
 
 ## Decision
 
-Koja draws an agent ask the user cannot see in its own floating window and owns every alert.
+Koja draws an agent ask the user cannot see in its own floating window, with its own sound.
 
 The window uses `openOverlay({ kind: "window", frame: "none" })`, so Koja draws the card's surface,
 text, and controls. The card never takes keyboard focus. It stays until the ask is handled:
@@ -32,8 +32,10 @@ host compares a content-and-geometry signature on each poll.
 The card is a passive overlay. The normal-mode hold ignores `koja-asks` when it checks whether
 another overlay holds the keyboard, because the card never takes the keyboard.
 
-Koja owns every alert. Herdr's automatic alerts are off, and Koja plays the blocked sound once for
-each ask the user cannot see. No other case plays a sound.
+Koja owns the card and its sound for an ask. Herdr's automatic sound is off through the
+`sounds.enabled` setting the installer writes, and Koja plays the blocked sound once for each ask
+the user cannot see. No other case plays a sound. Herdr's own toast for an ask stays until Koja
+replaces the toast mod, so one ask shows both the card and Herdr's toast.
 
 ## Consequences
 
