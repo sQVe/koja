@@ -1,3 +1,5 @@
+export { actionBlock } from './actionBlock.ts';
+
 export {
   actionButton,
   dialogButton,
@@ -11,9 +13,13 @@ export type { DialogButtonKind } from './button.ts';
 
 export { dialogFrame } from './dialog.ts';
 
+export { documentLine } from './documentLine.ts';
+
 export { factPairs, factRows } from './factRows.ts';
 
 export type { Fact } from './factRows.ts';
+
+export { terminalFont } from './font.ts';
 
 export { hoverCard } from './hoverCard.ts';
 

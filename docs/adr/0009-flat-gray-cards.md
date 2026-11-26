@@ -25,7 +25,9 @@ border for focus. The frame, panes, terminals, sidebar, and tab bar all share th
 ### Text
 
 - Mods draw their text in Geist, Herdr's bundled sans font, set as the layout's `ui_font`. Terminals
-  keep their own monospace font.
+  keep their own monospace font. A document inside a content pane is the one exception: its lines
+  draw in the terminal's font from settings, so a document lines up with the terminal beside it and
+  follows the user's font choice.
 - Herdr bundles only Geist Regular and thickens it for heavier weights, so semibold and bold look
   the same. Koja installs Geist SemiBold and Bold into Herdr's `fonts/` folder so each weight draws
   its real face.
@@ -50,7 +52,10 @@ border for focus. The frame, panes, terminals, sidebar, and tab bar all share th
     colors come from that theme. The role badge uses it. The group colors are `ansi4` for lead,
     `ansi6` for architect, `ansi2` for worker, `ansi3` for scout, reviewer, and checker, `ansi5` for
     qa and browser, and `muted` for any other role. No group uses a status color.
-- A role fixes size and weight. A caller may change only its tone.
+  - Mono: 13 px Regular `foreground`, for a document's lines and their line numbers. It draws in the
+    terminal's font from settings, and falls back to JetBrains Mono when settings name none.
+- A role fixes size and weight. A caller may change only its tone. The mono role is the one role
+  that also fixes its font.
 - Key hints use the detail role, so a hint reads as a detail beside a 13 px label.
 - Line height stays Herdr's default. The kit adds no line-height value until a part needs wrapped
   text.

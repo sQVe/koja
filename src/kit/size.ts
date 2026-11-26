@@ -52,6 +52,20 @@ export const diffSize = {
   fileListHeightMinimum: 44,
 } as const;
 
+// A document's lines: a gutter bar, a right-aligned line number, and the text.
+export const documentSize = {
+  lineHeight: diffSize.rowHeight,
+  // The line's own padding, and the gap between the gutter and the text.
+  inset: spacing.xxlarge,
+  textGap: 12,
+  // The edited line's bar fills the mark slot; a commented line's bar sits inside it, so every
+  // line number stays in one column.
+  markWidth: 4,
+  stripeWidth: 2,
+  markGap: spacing.xsmall,
+  numberWidth: 18,
+} as const;
+
 export const controlSize = {
   badge: 18,
   button: 22,
