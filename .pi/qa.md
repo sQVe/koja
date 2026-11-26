@@ -370,7 +370,8 @@ bun run sandbox identity
 - Check that it is up: identity exits 0, the sidebar shows `stack-space` under the `stack-repo`
   header with `unrelated` selected, and `$fixtureHome/gh-calls` records a read of all three
   branches. Only the middle branch's latest PR is merged, so the reason line of the journey shows
-  `merged`.
+  `merged`. The sandbox window is mapped but never active, and PR reads start there because they
+  follow `visible`, not `active`.
 - Shot: `bun run sandbox shot <slice directory>/stack-fixture.png`.
 - Stop: the `verification` tool, which runs `bun run sandbox down`.
 
