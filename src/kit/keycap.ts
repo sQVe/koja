@@ -3,9 +3,9 @@ import type { Element } from 'gpui-kit';
 import { div } from 'gpui-kit';
 
 import { isUpperCaseLetter } from './keys.ts';
-import type { OverlayHint } from './shortcutBinding.ts';
 import type { Color } from './palette.ts';
 import { keycapOutlineAlpha, withAlpha } from './palette.ts';
+import type { OverlayHint } from './shortcutBinding.ts';
 import { badgeSize, keycapSize, spacing } from './size.ts';
 import { terminalFont } from './terminalFont.ts';
 import { withTextRole } from './textRole.ts';
