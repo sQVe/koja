@@ -29,9 +29,9 @@ export const gitFacts = (): GitFacts => {
 };
 
 export const snapshotOf = (git: unknown): unknown => ({
-  version: 6,
+  version: 7,
   revision: 4,
-  facts: { git, pulls: {}, trackers: {} },
+  facts: { git, pulls: {}, trackers: {}, stacks: {} },
 });
 
 export const pull = (fields: Partial<Pull> = {}): Pull =>
@@ -57,7 +57,7 @@ export const validRaw = (): { snapshot: RawSnapshot; key: string } => {
   const key = placeOf(null, '/work').key;
 
   const snapshot: RawSnapshot = {
-    version: 6,
+    version: 7,
     revision: 4,
     facts: {
       git: {
@@ -77,6 +77,7 @@ export const validRaw = (): { snapshot: RawSnapshot; key: string } => {
       },
       pulls: {},
       trackers: { [repositoryKey]: trackerFacts() },
+      stacks: {},
     },
   };
 

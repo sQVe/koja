@@ -78,7 +78,7 @@ const snapshotFor = (commonDirectory: string): unknown => {
     },
   };
 
-  return { version: 6, revision: 1, facts };
+  return { version: 7, revision: 1, facts };
 };
 
 const context = {

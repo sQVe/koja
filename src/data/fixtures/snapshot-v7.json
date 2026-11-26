@@ -1,0 +1,64 @@
+{
+  "version": 7,
+  "revision": 11,
+  "facts": {
+    "git": {
+      "places": {
+        "[null,\"/code/koja\"]": {
+          "kind": "repository",
+          "worktree": "[null,\"/code/koja\"]"
+        }
+      },
+      "worktrees": {
+        "[null,\"/code/koja\"]": {
+          "repository": {
+            "machine": null,
+            "commonDirectory": "/code/koja/.git",
+            "key": "[null,\"/code/koja/.git\"]"
+          },
+          "root": "/code/koja",
+          "branch": "main",
+          "linked": false
+        }
+      }
+    },
+    "pulls": {},
+    "trackers": {
+      "[null,\"/code/koja/.git\"]": {
+        "workspace": "sqve",
+        "tickets": {
+          "ME-1": {
+            "id": "ME-1",
+            "title": "Title spaces with their Linear tickets",
+            "state": "In Progress",
+            "url": "https://linear.app/sqve/issue/ME-1/title-spaces-with-their-linear-tickets",
+            "parent": null
+          }
+        },
+        "failed": false
+      }
+    },
+    "stacks": {
+      "[null,\"/code/koja/.git\"]": {
+        "stacks": [
+          {
+            "trunk": "main",
+            "branches": [
+              {
+                "branch": "me-1037-read-each-spaces-stack-from-gh-stack",
+                "pullNumber": 141,
+                "restack": "none"
+              },
+              {
+                "branch": "me-1037-draw-the-stack-row",
+                "pullNumber": null,
+                "restack": "needed"
+              }
+            ]
+          }
+        ],
+        "failed": false
+      }
+    }
+  }
+}

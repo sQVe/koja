@@ -177,6 +177,7 @@ await mock.module('herdr', () =>
     },
     shared: (key: string) => sharedValues.get(key),
     spaces: () => spaceFolders.map((spaceFolder, index) => spaceOf(`s${index + 1}`, spaceFolder)),
+    readTextFile: async () => null,
     watchFolder: watchFolderFake,
     window: () => ({
       platform: 'linux' as const,
@@ -257,7 +258,7 @@ const storedSnapshot = (pulls: Record<string, RepositoryPulls> = {}): Snapshot =
   const worktree = worktreeOf(null, folder);
 
   return {
-    version: 6,
+    version: 7,
     revision: 7,
     facts: {
       git: {
@@ -268,6 +269,7 @@ const storedSnapshot = (pulls: Record<string, RepositoryPulls> = {}): Snapshot =
       },
       pulls,
       trackers: {},
+      stacks: {},
     },
   };
 };
@@ -306,7 +308,7 @@ describe('startDataHost', () => {
     expect(heartbeat()).toMatchObject({ generation: 1, at: start });
 
     expect(sharedValues.get(snapshotKey)).toEqual({
-      version: 6,
+      version: 7,
       revision: 1,
       facts: emptyFacts(),
     });
@@ -424,12 +426,16 @@ describe('startDataHost', () => {
 
     expect(pullCalls()).toHaveLength(1);
 
-    const watch = watches.at(-1);
+    const repoWatches = watches.filter((watched) => watched.folder === `${folder}/.git`);
 
-    expect(watch?.folder).toBe(`${folder}/.git`);
+    expect(repoWatches.length).toBeGreaterThan(0);
 
     setSystemTime(start + 10_000);
-    watch?.resolve([`${folder}/.git/refs/remotes/origin/main`]);
+
+    for (const watch of repoWatches) {
+      watch.resolve([`${folder}/.git/refs/remotes/origin/main`]);
+    }
+
     await settle();
 
     // The watch event at 10 s makes the push read due one push gap after the last read start,
@@ -582,7 +588,7 @@ describe('startDataHost', () => {
     expect(record.stages.map((stage) => stage.messageCount)).toEqual([0, 0, 1, 1, 2, 2]);
     expect(snapshotWrites).toHaveLength(2);
     expect(snapshotWrites.map((write) => write.messageCount)).toEqual([1, 2]);
-    expect(record.snapshot).toEqual({ version: 6, revision: 1, facts: emptyFacts() });
+    expect(record.snapshot).toEqual({ version: 7, revision: 1, facts: emptyFacts() });
   });
 
   test('logs again in a fresh loaded copy', async () => {

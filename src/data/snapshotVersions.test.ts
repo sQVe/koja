@@ -19,7 +19,7 @@ describe('parseSnapshot versions', () => {
       title: 'Read the theme once per turn',
     });
 
-    expect(parsed?.version).toBe(6);
+    expect(parsed?.version).toBe(7);
     expect(parsed?.revision).toBe(8);
     expect(pulls).toEqual([unread]);
     expect(pulls.map((entry) => pullNeeds(entry))).toEqual([[]]);
@@ -85,11 +85,12 @@ describe('parseSnapshot versions', () => {
     const parsed = parseSnapshot(stored);
     const parsedGit: unknown = parsed?.facts.git;
 
-    expect(parsed?.version).toBe(6);
+    expect(parsed?.version).toBe(7);
     expect(parsed?.revision).toBe(7);
     expect(parsedGit).toEqual(git);
     expect(parsed?.facts.pulls).toEqual({});
     expect(parsed?.facts.trackers).toEqual({});
+    expect(parsed?.facts.stacks).toEqual({});
   });
 
   test('accepts empty version 2 places and worktrees maps', () => {
@@ -100,9 +101,9 @@ describe('parseSnapshot versions', () => {
     };
 
     expect(parseSnapshot(stored)).toEqual({
-      version: 6,
+      version: 7,
       revision: 4,
-      facts: { git: { places: {}, worktrees: {} }, pulls: {}, trackers: {} },
+      facts: { git: { places: {}, worktrees: {} }, pulls: {}, trackers: {}, stacks: {} },
     });
   });
 

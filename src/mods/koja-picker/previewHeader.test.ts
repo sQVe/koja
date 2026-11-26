@@ -158,6 +158,7 @@ const factsWithPull = (): Facts => {
       },
     },
     trackers: {},
+    stacks: {},
   };
 };
 

@@ -160,7 +160,7 @@ export const storedFacts = (
     };
   }
 
-  return { git: { places, worktrees }, pulls, trackers: {} };
+  return { git: { places, worktrees }, pulls, trackers: {}, stacks: {} };
 };
 
 export const showFacts = (facts: Facts): void => {
