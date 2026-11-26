@@ -13,7 +13,7 @@ import { recordOf, stringOf } from '../../kit/fields.ts';
 import { normalFocusFill, toPalette } from '../../kit/palette.ts';
 import { paneHeaderFields } from '../../kit/paneHeaderFields.ts';
 import { paneActions } from '../../kit/paneHeaderMenuModel.ts';
-import { controlSize, markSize, overlaySize, paneHeaderWidth, spacing } from '../../kit/size.ts';
+import { controlSize, overlaySize, paneHeaderWidth, spacing } from '../../kit/size.ts';
 import { taskOfPane } from '../../kit/tabLabel.ts';
 
 const accent = '#4e4e8f';
@@ -127,7 +127,6 @@ await mock.module('../../kit/index.ts', () =>
     },
     colors: () => toPalette({ accent, foreground: '#1e2028' }),
     controlSize,
-    markSize,
     iconButton: () => drawn(),
     normalFocusFill,
     overlaySize,
