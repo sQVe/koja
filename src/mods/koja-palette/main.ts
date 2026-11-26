@@ -9,7 +9,7 @@ import type {
   ScrollWheelEvent,
 } from 'gpui-kit';
 import { div, View } from 'gpui-kit';
-import { commands, layout, layouts, shared } from 'herdr';
+import { commands, layouts, shared } from 'herdr';
 
 import type { MainColumnInsets } from '../../kit/index.ts';
 import {
@@ -40,7 +40,14 @@ import {
 } from '../../kit/index.ts';
 import { parsedJson } from '../../kit/parsedJson.ts';
 import type { Entry, Row } from './entries.ts';
-import { allEntries, entryHint, headingOf, paletteCount, paletteRows } from './entries.ts';
+import {
+  allEntries,
+  entryHint,
+  headingOf,
+  isEmptyQuery,
+  paletteCount,
+  paletteRows,
+} from './entries.ts';
 import type { RowPlace } from './viewport.ts';
 import {
   clampIndex,
@@ -93,7 +100,7 @@ export default class Palette extends View {
 
   override init(_props: unknown, cx: AsyncContext): void {
     this.normalMode = Boolean(shared('koja-modal'));
-    this.insets = mainColumnInsets(layout());
+    this.insets = mainColumnInsets();
     this.handle = cx.focus_handle();
 
     this.input.on('change', (_event, changeCx) => {
@@ -120,7 +127,7 @@ export default class Palette extends View {
   override render(): Element {
     const all = this.entries();
     const rows = this.rows(all);
-    const grouped = this.query.trim() === '';
+    const grouped = isEmptyQuery(this.query);
 
     const places = placesOf(
       rows.map((row) => row.head),

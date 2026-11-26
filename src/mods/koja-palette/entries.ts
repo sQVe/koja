@@ -384,12 +384,14 @@ export const entryHint = (entry: Entry, hint: HintLookup): ModeHint =>
 export const headingOf = (group: string): GroupHeading =>
   headings[group] ?? { label: group, letter: null };
 
+export const isEmptyQuery = (query: string): boolean => query.trim() === '';
+
 export const paletteCount = (
   all: readonly Entry[],
   rows: readonly Row[],
   query: string,
 ): PaletteCount =>
-  query.trim() === ''
+  isEmptyQuery(query)
     ? { filtered: false, count: all.length }
     : { filtered: true, count: rows.length };
 
@@ -426,7 +428,7 @@ const groupedRows = (all: Entry[], recentIds: readonly string[]): Row[] => {
 export const paletteRows = (all: Entry[], query: string, recentIds: readonly string[]): Row[] => {
   const normalized = query.trim().toLowerCase().replaceAll(/\s+/g, '');
 
-  if (normalized === '') {
+  if (isEmptyQuery(query)) {
     return groupedRows(all, recentIds);
   }
 
