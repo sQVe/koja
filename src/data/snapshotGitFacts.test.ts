@@ -1,9 +1,9 @@
 import { describe, expect, test } from 'bun:test';
 
+import { keyOf } from '../../tests/fixtures.ts';
 import {
   gitAt,
   gitFacts,
-  keyOf,
   placeAt,
   placesAt,
   placesIn,

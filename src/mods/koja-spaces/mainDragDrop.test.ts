@@ -113,6 +113,17 @@ const orderAfterMoves = (): string[] => {
   return order;
 };
 
+const applyMoves = (): void => {
+  const order = orderAfterMoves();
+  const byId = new Map(state.spaceList.map((row) => [row.id, row]));
+
+  state.spaceList = order.flatMap((id) => {
+    const row = byId.get(id);
+
+    return row === undefined ? [] : [row];
+  });
+};
+
 const showsDropLine = (element: DrawnElement): boolean =>
   element.kids.some((kid) => kid.backgroundColors.includes(themeColors.accent));
 
@@ -124,14 +135,7 @@ describe('koja-spaces drag and drop', () => {
 
     dragAndDrop(view, 'alpha', 'beta');
 
-    const order = orderAfterMoves();
-    const byId = new Map(state.spaceList.map((row) => [row.id, row]));
-
-    state.spaceList = order.flatMap((id) => {
-      const row = byId.get(id);
-
-      return row === undefined ? [] : [row];
-    });
+    applyMoves();
 
     const labels = new Set(['alpha', 'beta', 'name-beta-1', 'name-alpha-1', 'name-alpha-2']);
     const drawnOrder = drawnTexts(view.render()).filter((text) => labels.has(text));
@@ -237,14 +241,7 @@ describe('koja-spaces drag and drop', () => {
       handler({}, context);
     }
 
-    const order = orderAfterMoves();
-    const byId = new Map(state.spaceList.map((row) => [row.id, row]));
-
-    state.spaceList = order.flatMap((id) => {
-      const row = byId.get(id);
-
-      return row === undefined ? [] : [row];
-    });
+    applyMoves();
 
     const labels = new Set([
       'alpha',

@@ -7,7 +7,7 @@ import type { GitFacts, RepositoryPulls } from '../src/data/snapshot.ts';
 import { pullFacts } from './pullFacts.ts';
 import { pullSchedulerStart } from './pullSchedulerHarness.ts';
 
-export interface GitSource {
+interface GitSource {
   repository: RepositoryIdentity;
   folder: string;
 }
@@ -24,10 +24,15 @@ export const seededRepositoryPulls: Record<string, RepositoryPulls> = {
 
 export const start = pullSchedulerStart;
 
-export const requestFor = (consumer: string, id: string, at = start): PullRetryRequest => ({
+export const requestFor = (
+  consumer: string,
+  id: string,
+  at = start,
+  repository = schedulerRepository.key,
+): PullRetryRequest => ({
   consumer,
   id,
-  repository: schedulerRepository.key,
+  repository,
   at,
 });
 
@@ -47,12 +52,6 @@ export const pullList = (number: number): Pull[] => [
 export const timesAt = (key: string, time: number): PullReadTimes => ({
   [key]: { list: time, checks: {}, threads: {} },
 });
-
-export const timesForPulls = (key: string, time: number, numbers: number[]): PullReadTimes => {
-  const parts = Object.fromEntries(numbers.map((number) => [String(number), time]));
-
-  return { [key]: { list: time, checks: parts, threads: parts } };
-};
 
 export const gitFactsOf = (...sources: GitSource[]): GitFacts => {
   const listed = sources.length === 0 ? [defaultSource] : sources;

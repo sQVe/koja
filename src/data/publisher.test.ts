@@ -1,5 +1,6 @@
 import { describe, expect, spyOn, test } from 'bun:test';
 
+import { keyOf } from '../../tests/fixtures.ts';
 import { runSnapshotNoticeScenario } from '../../tests/snapshotNoticeLifetime.ts';
 import { placeOf, repositoryOf } from './gitIdentity.ts';
 import type { Lease } from './lease.ts';
@@ -24,8 +25,6 @@ const memoryStore = () => {
 };
 
 type Store = ReturnType<typeof memoryStore>;
-
-const keyOf = (machine: string | null, path: string): string => JSON.stringify([machine, path]);
 
 const populatedFacts = (folders: string[]): Facts => {
   const places: Record<string, PlaceGit> = {};

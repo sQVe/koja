@@ -18,7 +18,7 @@ import { createPullScheduler } from '../src/data/pullScheduler.ts';
 import type { RecordNotices } from '../src/data/recordNotices.ts';
 import { createRecordNotices } from '../src/data/recordNotices.ts';
 import type { RepositoryPulls } from '../src/data/snapshot.ts';
-import { answerFrom } from './pullAnswers.ts';
+import { answerFrom, branchCountOf } from './pullAnswers.ts';
 
 export interface PendingCall {
   command: string;
@@ -54,9 +54,6 @@ const memoryStore = (onRead: (key: string) => void): Store => {
 };
 
 const silentNotices = (): RecordNotices => createRecordNotices(() => {});
-
-export const branchCountOf = (call: PendingCall): number =>
-  call.args.filter((argument) => argument.startsWith('branch')).length;
 
 const remoteNamesResult: ExecResult = { code: 0, stdout: 'origin\n', stderr: '' };
 
@@ -268,7 +265,7 @@ export class PullSchedulerHarness {
 
     await this.respond(index, {
       code: 0,
-      stdout: answerFrom(branchCountOf(call), pulls),
+      stdout: answerFrom(branchCountOf(call.args), pulls),
       stderr: '',
     });
   }

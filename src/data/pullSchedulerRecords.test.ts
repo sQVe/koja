@@ -10,7 +10,7 @@ import {
   timesAt,
 } from '../../tests/pullSchedulerFixtures.ts';
 import { PullSchedulerHarness } from '../../tests/pullSchedulerHarness.ts';
-import { pullRetryOutcomesKey, pullRetryRequestsKey } from './pullRetry.ts';
+import { pullRetryOutcomesKey, pullRetryRequestsKey } from './pullRetry/pullRetry.ts';
 
 const harness = new PullSchedulerHarness();
 

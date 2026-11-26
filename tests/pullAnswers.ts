@@ -180,6 +180,9 @@ export const pullNodeOf = (pull: Pull): Record<string, unknown> => ({
   reviewThreads: threadsNodeOf(pull),
 });
 
+export const branchCountOf = (args: string[]): number =>
+  args.filter((argument) => argument.startsWith('branch')).length;
+
 export const answerFrom = (branchCount: number, pulls: Pull[]): string => {
   const open: Record<number, unknown> = {};
   const latest: Record<number, unknown> = {};

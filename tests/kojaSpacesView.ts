@@ -297,6 +297,7 @@ export const resetKojaSpaces = (): void => {
   state.store.clear();
   state.spaceList = ['a', 'b', 'c', 'd', 'e', 'f', 'g', 'h'].map((id) => space(id, id === 'b'));
   state.timers = [];
+  crypto.randomUUID = realRandomUuid;
   mark('sidebar');
 };
 

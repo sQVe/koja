@@ -18,15 +18,9 @@ import {
 import { pullFacts } from '../../../tests/pullFacts.ts';
 import { repositoryOf } from '../../data/gitIdentity.ts';
 import { heartbeatKey, leaseKey } from '../../data/lease.ts';
+import type { PullRetryRequest } from '../../data/pullRetry/pullRetry.ts';
 import { pullRetryOutcomesKey, pullRetryRequestsKey } from '../../data/pullRetry/pullRetry.ts';
 import type { RepositoryPulls } from '../../data/snapshot.ts';
-
-interface StoredPullRequest {
-  consumer: string;
-  id: string;
-  repository: string;
-  at: number;
-}
 
 await setupKojaSpaces();
 
@@ -64,15 +58,15 @@ const fixturePull = pullFacts({ number: 7, headRefName: 'main', title: 'Fixture 
 
 const kojaRepositoryKey = repositoryOf(null, '/code/koja/.git').key;
 
-const storedPullRequests = (): StoredPullRequest[] => {
+const storedPullRequests = (): PullRetryRequest[] => {
   const stored = state.sharedValues[pullRetryRequestsKey] as
-    | { requests?: StoredPullRequest[] }
+    | { requests?: PullRetryRequest[] }
     | undefined;
 
   return stored?.requests ?? [];
 };
 
-const onlyStoredPullRequest = (): StoredPullRequest => {
+const onlyPullRetryRequest = (): PullRetryRequest => {
   const [request] = storedPullRequests();
 
   if (request === undefined) {
@@ -140,7 +134,7 @@ describe('koja-spaces pull facts', () => {
 
     click(clickablesWithText(view.render(), 'Retry')[0] as DrawnElement);
 
-    const request = onlyStoredPullRequest();
+    const request = onlyPullRetryRequest();
 
     expect(storedPullRequests()).toHaveLength(1);
     expect(request.consumer).toBe(stubId(1));
@@ -174,7 +168,7 @@ describe('koja-spaces pull facts', () => {
 
     click(clickablesWithText(view.render(), 'Retry')[0] as DrawnElement);
 
-    const first = onlyStoredPullRequest();
+    const first = onlyPullRetryRequest();
 
     state.sharedValues[pullRetryOutcomesKey] = {
       version: 1,
@@ -187,7 +181,7 @@ describe('koja-spaces pull facts', () => {
 
     click(clickablesWithText(view.render(), 'Retry')[0] as DrawnElement);
 
-    const second = onlyStoredPullRequest();
+    const second = onlyPullRetryRequest();
 
     expect(second.consumer).toBe(first.consumer);
     expect(second.id).not.toBe(first.id);

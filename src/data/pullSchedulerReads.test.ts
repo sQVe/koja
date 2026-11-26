@@ -6,12 +6,18 @@ import {
   pullPeriodMilliseconds,
   schedulerRepository,
   start,
-  timesForPulls,
 } from '../../tests/pullSchedulerFixtures.ts';
 import { PullSchedulerHarness } from '../../tests/pullSchedulerHarness.ts';
 import { placeOf, repositoryOf, worktreeOf } from './gitIdentity.ts';
+import type { PullReadTimes } from './pullReadTimes.ts';
 import { readPullReadTimes } from './pullReadTimes.ts';
 import type { GitFacts } from './snapshot.ts';
+
+const timesForPulls = (key: string, time: number, numbers: number[]): PullReadTimes => {
+  const parts = Object.fromEntries(numbers.map((number) => [String(number), time]));
+
+  return { [key]: { list: time, checks: parts, threads: parts } };
+};
 
 const harness = new PullSchedulerHarness();
 
@@ -78,7 +84,6 @@ describe('createPullScheduler reads', () => {
   });
 
   test('reads once for one repository with two worktrees', async () => {
-    const repository = schedulerRepository;
     const main = worktreeOf(null, '/code/koja-z');
     const linked = worktreeOf(null, '/code/koja-a');
 
@@ -88,8 +93,18 @@ describe('createPullScheduler reads', () => {
         [placeOf(null, '/code/koja-a').key]: { kind: 'repository', worktree: linked.key },
       },
       worktrees: {
-        [main.key]: { repository, root: '/code/koja-z', branch: 'main', linked: false },
-        [linked.key]: { repository, root: '/code/koja-a', branch: 'main', linked: true },
+        [main.key]: {
+          repository: schedulerRepository,
+          root: '/code/koja-z',
+          branch: 'main',
+          linked: false,
+        },
+        [linked.key]: {
+          repository: schedulerRepository,
+          root: '/code/koja-a',
+          branch: 'main',
+          linked: true,
+        },
       },
     };
 
@@ -105,6 +120,8 @@ describe('createPullScheduler reads', () => {
 
     await harness.respondPulls(2, pullList(7));
 
-    expect(scheduler.pulls()).toEqual({ [repository.key]: { pulls: pullList(7), failed: false } });
+    expect(scheduler.pulls()).toEqual({
+      [schedulerRepository.key]: { pulls: pullList(7), failed: false },
+    });
   });
 });

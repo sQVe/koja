@@ -5,6 +5,7 @@ import { join } from 'node:path';
 
 import type { ExecResult } from 'herdr';
 
+import { keyOf } from '../../tests/fixtures.ts';
 import type { GitIdentity, RunCommand } from './gitIdentity.ts';
 import { readGitIdentity, worktreeKeyOf } from './gitIdentity.ts';
 
@@ -68,8 +69,6 @@ const makeRepository = async (root: string, name = 'main'): Promise<string> => {
 
 const read = (folder: string, machine: string | null = null): Promise<GitIdentity> =>
   readGitIdentity(runGit, machine, folder);
-
-const keyOf = (machine: string | null, path: string): string => JSON.stringify([machine, path]);
 
 const exitWith = (code: number, stdout = '', stderr = ''): ExecResult => ({ code, stdout, stderr });
 

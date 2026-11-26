@@ -1,10 +1,8 @@
-import { readFileSync } from 'node:fs';
-import { join } from 'node:path';
-
 import { placeOf, repositoryOf } from '../src/data/gitIdentity.ts';
 import type { Pull } from '../src/data/pulls.ts';
 import type { GitFacts, WorktreeGit } from '../src/data/snapshot.ts';
 import { isRecord } from '../src/kit/fields.ts';
+import { keyOf } from './fixtures.ts';
 import { pullFacts } from './pullFacts.ts';
 
 export type RawRecord = Record<string, unknown>;
@@ -14,12 +12,6 @@ export interface RawSnapshot {
   revision: unknown;
   facts: RawRecord;
 }
-
-export const fixture = (name: string): unknown =>
-  JSON.parse(readFileSync(join(import.meta.dir, '..', 'src', 'data', 'fixtures', name), 'utf8'));
-
-export const keyOf = (machine: string | null, path: string): string =>
-  JSON.stringify([machine, path]);
 
 export const worktree = (machine: string | null, root: string): WorktreeGit => ({
   repository: repositoryOf(machine, `${root}/.git`),

@@ -1,6 +1,3 @@
-import { readFileSync } from 'node:fs';
-import { join } from 'node:path';
-
 import type { ReadShared } from '../src/data/lease.ts';
 import type { PullRetryRequest } from '../src/data/pullRetry/pullRetry.ts';
 import { readPullRetryRequests } from '../src/data/pullRetry/pullRetry.ts';
@@ -13,8 +10,6 @@ export interface MemoryStore {
   read: (key: string) => unknown;
   write: (key: string, value: unknown) => void;
 }
-
-export type Store = MemoryStore;
 
 export const repositoryKey = JSON.stringify([null, '/code/koja/.git']);
 export const otherRepositoryKey = JSON.stringify([null, '/code/other/.git']);
@@ -36,9 +31,6 @@ export const memoryStore = (): MemoryStore => {
 };
 
 const silentNotices = (): RecordNotices => createRecordNotices(() => {});
-
-export const fixture = (name: string): unknown =>
-  JSON.parse(readFileSync(join(import.meta.dir, '..', 'src', 'data', 'pullRetry', 'fixtures', name), 'utf8'));
 
 export const storeOf =
   (key: string, value: unknown): ReadShared =>
@@ -72,7 +64,7 @@ export const noticeFor = (
   return message;
 };
 
-export const storedRequests = (store: Store): PullRetryRequest[] => {
+export const storedRequests = (store: MemoryStore): PullRetryRequest[] => {
   const stored = readPullRetryRequests(store.read, silentNotices());
 
   if (stored.kind !== 'current') {

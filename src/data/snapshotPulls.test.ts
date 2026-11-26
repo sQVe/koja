@@ -1,5 +1,6 @@
 import { describe, expect, test } from 'bun:test';
 
+import { keyOf } from '../../tests/fixtures.ts';
 import { pull, pullsAt, repositoryKey, validRaw } from '../../tests/snapshotRaw.ts';
 import type { RawSnapshot } from '../../tests/snapshotRaw.ts';
 import { parseSnapshot } from './snapshot.ts';
@@ -68,7 +69,7 @@ describe('parseSnapshot PR facts', () => {
   test('rejects a pulls key no worktree names', () => {
     const { snapshot } = validRaw();
 
-    pullsAt(snapshot)[JSON.stringify([null, '/other/.git'])] = { pulls: [], failed: false };
+    pullsAt(snapshot)[keyOf(null, '/other/.git')] = { pulls: [], failed: false };
 
     expect(parseSnapshot(snapshot)).toBeNull();
   });

@@ -1,7 +1,7 @@
 import { describe, expect, test } from 'bun:test';
 
-import { memoryStore, start } from '../../../tests/pullRetryStore.ts';
-import type { Store } from '../../../tests/pullRetryStore.ts';
+import { memoryStore, requestFor, start } from '../../../tests/pullRetryStore.ts';
+import type { MemoryStore } from '../../../tests/pullRetryStore.ts';
 import type { Lease } from '../lease.ts';
 import { claimLease } from '../lease.ts';
 import type { PullRetryOutcome } from './pullRetry.ts';
@@ -37,7 +37,7 @@ describe('owner helpers', () => {
 
 const outcome: PullRetryOutcome = { consumer: 'window-a', id: 'a-1', result: 'read' };
 
-const claimFor = (store: Store, owner: string): Lease => {
+const claimFor = (store: MemoryStore, owner: string): Lease => {
   const lease = claimLease(store.read, store.write, owner, start);
 
   if (lease === null) {

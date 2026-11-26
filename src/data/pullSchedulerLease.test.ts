@@ -2,7 +2,7 @@ import { beforeEach, describe, expect, test } from 'bun:test';
 
 import { gitFactsOf, pullList, requestFor } from '../../tests/pullSchedulerFixtures.ts';
 import { PullSchedulerHarness } from '../../tests/pullSchedulerHarness.ts';
-import { pullRetryRequestsKey } from './pullRetry.ts';
+import { pullRetryRequestsKey } from './pullRetry/pullRetry.ts';
 
 const harness = new PullSchedulerHarness();
 
