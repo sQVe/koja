@@ -1,6 +1,6 @@
 import { describe, expect, test } from 'bun:test';
 
-import { fixture } from '../../../tests/fixtureJson.ts';
+import { pullRetryFixture } from '../../../tests/fixtureJson.ts';
 import { logged, noticeFor, repositoryKey, start, storeOf } from '../../../tests/pullRetryStore.ts';
 import {
   pullRetryOutcomesKey,
@@ -16,7 +16,7 @@ describe('readPullRetryRequests', () => {
     const { messages, notices } = logged();
 
     const stored = readPullRetryRequests(
-      storeOf(pullRetryRequestsKey, fixture('pull-retry-requests-v1.json')),
+      storeOf(pullRetryRequestsKey, pullRetryFixture('pull-retry-requests-v1.json')),
       notices,
     );
 
@@ -32,7 +32,7 @@ describe('readPullRetryRequests', () => {
 
   test('ignores the version 2 fixture with the newer notice once', () => {
     const { messages, notices } = logged();
-    const read = storeOf(pullRetryRequestsKey, fixture('pull-retry-requests-v2.json'));
+    const read = storeOf(pullRetryRequestsKey, pullRetryFixture('pull-retry-requests-v2.json'));
 
     expect(readPullRetryRequests(read, notices)).toEqual({ kind: 'newer' });
     expect(readPullRetryRequests(read, notices)).toEqual({ kind: 'newer' });
@@ -106,7 +106,7 @@ describe('readPullRetryOutcomes', () => {
     const { messages, notices } = logged();
 
     const stored = readPullRetryOutcomes(
-      storeOf(pullRetryOutcomesKey, fixture('pull-retry-outcomes-v1.json')),
+      storeOf(pullRetryOutcomesKey, pullRetryFixture('pull-retry-outcomes-v1.json')),
       notices,
     );
 
@@ -120,7 +120,7 @@ describe('readPullRetryOutcomes', () => {
 
   test('ignores the version 2 fixture with the newer notice once', () => {
     const { messages, notices } = logged();
-    const read = storeOf(pullRetryOutcomesKey, fixture('pull-retry-outcomes-v2.json'));
+    const read = storeOf(pullRetryOutcomesKey, pullRetryFixture('pull-retry-outcomes-v2.json'));
 
     expect(readPullRetryOutcomes(read, notices)).toEqual({ kind: 'newer' });
     expect(readPullRetryOutcomes(read, notices)).toEqual({ kind: 'newer' });

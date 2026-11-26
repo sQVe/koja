@@ -35,7 +35,7 @@ interface Store {
   write: WriteShared;
 }
 
-const memoryStore = (): Store => {
+const memoryStore = (onRead: (key: string) => void): Store => {
   const values = new Map<string, unknown>();
 
   return {

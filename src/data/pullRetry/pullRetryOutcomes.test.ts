@@ -1,6 +1,6 @@
 import { describe, expect, test } from 'bun:test';
 
-import { memoryStore, requestFor, start } from '../../../tests/pullRetryStore.ts';
+import { memoryStore, start } from '../../../tests/pullRetryStore.ts';
 import type { MemoryStore } from '../../../tests/pullRetryStore.ts';
 import type { Lease } from '../lease.ts';
 import { claimLease } from '../lease.ts';
@@ -8,7 +8,6 @@ import type { PullRetryOutcome } from './pullRetry.ts';
 import {
   answeredRequestKeys,
   createPullRetryOutcomesPublisher,
-  pullRetryLifetimeMilliseconds,
   pullRetryOutcomesKey,
   requestKey,
 } from './pullRetry.ts';

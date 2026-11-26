@@ -14,9 +14,9 @@ import {
 import { PullSchedulerHarness } from '../../../tests/pullSchedulerHarness.ts';
 import type { PendingCall } from '../../../tests/pullSchedulerHarness.ts';
 import { repositoryOf } from '../gitIdentity.ts';
+import type { PullScheduler } from '../pullScheduler.ts';
 import { createPullRetryClient, pullRetryLifetimeMilliseconds, requestKey } from './pullRetry.ts';
 import type { PullRetryClient, PullRetryOutcome, PullRetryRequest } from './pullRetry.ts';
-import type { PullScheduler } from '../pullScheduler.ts';
 
 interface InterleavingState {
   harness: PullSchedulerHarness;
