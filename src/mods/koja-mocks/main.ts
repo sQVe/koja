@@ -279,15 +279,7 @@ export default class Mocks extends View {
       return this.picker();
     }
 
-    const scene = this.scene(name);
-
-    if (scene.readyName !== null && !this.readyLogged) {
-      this.readyLogged = true;
-      // eslint-disable-next-line no-console -- Herdr's mod log is console.log.
-      console.log(sceneReadyLine(scene.readyName));
-    }
-
-    return scene.element;
+    return this.scene(name).element;
   }
 
   private focusSelf(): void {
@@ -358,6 +350,9 @@ export default class Mocks extends View {
 
     const surface = popupSurface('mocks-scene')
       .h_full()
+      .on_size_change((_size, layoutCx) => {
+        this.announceReady(content.readyName, layoutCx);
+      })
       .on_key_down((event, keyCx) => {
         if (event.key === 'escape') {
           keyCx.stop_propagation();
@@ -387,6 +382,21 @@ export default class Mocks extends View {
       element: renderers[lookup.scene.name](this.sceneInputs),
       readyName: lookup.scene.name,
     };
+  }
+
+  private announceReady(name: SceneName | null, cx: Context): void {
+    if (name === null || this.readyLogged) {
+      return;
+    }
+
+    this.readyLogged = true;
+
+    // Layout runs in the frame that draws the scene, so the frame after it is the first one
+    // that shows the scene. A capture that waits for the line then shoots a drawn scene.
+    cx.timer.after(0, () => {
+      // eslint-disable-next-line no-console -- Herdr's mod log is console.log.
+      console.log(sceneReadyLine(name));
+    });
   }
 
   private tracked(element: Element): Element {

@@ -6,6 +6,8 @@ import { findScene, sceneOrigin, sceneReadyLine } from './catalog.ts';
 
 type SubmitHandler = (event: unknown, cx: { notify: () => void }) => void;
 
+type LayoutHandler = (size: { width: number; height: number }, cx: unknown) => void;
+
 interface InputStub {
   handlers: Record<string, SubmitHandler>;
   text: string;
@@ -20,6 +22,8 @@ let sceneProps: Record<string, unknown> = {};
 const shownKinds: string[] = [];
 const shownTexts: string[] = [];
 const createdInputs: InputStub[] = [];
+const layoutHandlers: LayoutHandler[] = [];
+const pendingTimers: (() => void)[] = [];
 
 const createInput = (): InputStub => {
   const stub: InputStub = {
@@ -40,6 +44,30 @@ const chainable = (): unknown =>
     get: (_target, key) => (key === 'then' ? undefined : chainable()),
     apply: () => chainable(),
   });
+
+// The scene's root surface reports its layout once the frame that draws it is laid out.
+const surfaceFake = (): unknown => {
+  const element: unknown = new Proxy(() => undefined, {
+    get: (_target, key) => {
+      if (key === 'then') {
+        return undefined;
+      }
+
+      if (key === 'on_size_change') {
+        return (handler: LayoutHandler) => {
+          layoutHandlers.push(handler);
+
+          return element;
+        };
+      }
+
+      return () => element;
+    },
+    apply: () => element,
+  });
+
+  return element;
+};
 
 await mock.module('gpui-base', () =>
   gpuiBaseFake({
@@ -91,7 +119,7 @@ await mock.module('../../kit/index.ts', () =>
       return chainable();
     },
     modName: 'koja-mocks',
-    popupSurface: chainable,
+    popupSurface: surfaceFake,
     recordOf: (value: unknown) => (typeof value === 'object' && value !== null ? value : {}),
     searchField: chainable,
     spacing: {},
@@ -122,6 +150,26 @@ const asyncContext = {
   timer: { after: () => undefined },
 };
 
+const layoutContext = {
+  timer: {
+    after: (_milliseconds: number, handler: () => void) => {
+      pendingTimers.push(handler);
+    },
+  },
+};
+
+const layOutScene = (): void => {
+  for (const handler of layoutHandlers.splice(0)) {
+    handler({ width: 100, height: 100 }, layoutContext);
+  }
+};
+
+const runTimers = (): void => {
+  for (const timer of pendingTimers.splice(0)) {
+    timer();
+  }
+};
+
 const submitTyped = (text: string): void => {
   const [picker] = createdInputs;
 
@@ -139,7 +187,9 @@ afterAll(() => {
 
 beforeEach(() => {
   createdInputs.length = 0;
+  layoutHandlers.length = 0;
   openedSpecs.length = 0;
+  pendingTimers.length = 0;
   closeCount = 0;
   sceneProps = {};
   shownKinds.length = 0;
@@ -232,7 +282,7 @@ describe('scene picker', () => {
 });
 
 describe('scene readiness', () => {
-  test('a rendered scene writes its canonical ready line once', async () => {
+  test('a scene writes its ready line only after the frame that draws it has run', async () => {
     sceneProps = { scene: ' attention-brief ' };
     const log = spyOn(console, 'log').mockImplementation(() => undefined);
 
@@ -241,9 +291,38 @@ describe('scene readiness', () => {
 
       view.init(undefined, asyncContext);
       view.render();
-      view.render();
+
+      expect(log).not.toHaveBeenCalled();
+
+      layOutScene();
+
+      expect(log).not.toHaveBeenCalled();
+
+      runTimers();
 
       expect(log.mock.calls).toEqual([[sceneReadyLine('attention-brief')]]);
+    } finally {
+      log.mockRestore();
+    }
+  });
+
+  test('a scene laid out again writes no second ready line', async () => {
+    sceneProps = { scene: 'attention-brief' };
+    const log = spyOn(console, 'log').mockImplementation(() => undefined);
+
+    try {
+      const view = await loadView();
+
+      view.init(undefined, asyncContext);
+      view.render();
+      layOutScene();
+      runTimers();
+
+      view.render();
+      layOutScene();
+      runTimers();
+
+      expect(log.mock.calls).toHaveLength(1);
     } finally {
       log.mockRestore();
     }
@@ -257,6 +336,8 @@ describe('scene readiness', () => {
 
       view.init(undefined, asyncContext);
       view.render();
+      layOutScene();
+      runTimers();
 
       expect(log).not.toHaveBeenCalled();
     } finally {
@@ -273,6 +354,8 @@ describe('scene readiness', () => {
 
       view.init(undefined, asyncContext);
       view.render();
+      layOutScene();
+      runTimers();
 
       expect(log).not.toHaveBeenCalled();
     } finally {
@@ -289,6 +372,8 @@ describe('scene readiness', () => {
       view.init(undefined, asyncContext);
       sceneProps = { scene: 'attention-brief' };
       view.render();
+      layOutScene();
+      runTimers();
 
       expect(log).not.toHaveBeenCalled();
     } finally {
