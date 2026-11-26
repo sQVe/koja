@@ -2,7 +2,6 @@ import { describe, expect, test } from 'bun:test';
 
 import { stackOf, stackPullOf } from '../../../tests/pickerFixtures.ts';
 import type { SpaceStack } from '../../data/spaceStack.ts';
-import { scoreCeiling } from './match.ts';
 import { stackMatchOf } from './stackSearch.ts';
 
 const mergedStack = (): SpaceStack =>
@@ -19,11 +18,16 @@ const ticketStack = (): SpaceStack =>
   ]);
 
 describe('stackMatchOf', () => {
-  test('an exact PR number scores above every field match', () => {
-    const match = stackMatchOf('504', mergedStack());
+  test('an exact PR number outranks every field match', () => {
+    const stack = stackOf([
+      stackPullOf({ branch: '504', number: 501 }),
+      stackPullOf({ branch: 'add-search-ui', number: 504, state: 'merged' }),
+    ]);
 
-    expect(match?.reason).toEqual({ value: '#504', position: 2, total: 3, state: 'merged' });
-    expect(match?.score).toBeGreaterThan(2 * scoreCeiling('504'));
+    const match = stackMatchOf('504', stack);
+
+    expect(match?.tier).toBe('exact');
+    expect(match?.reason).toEqual({ value: '#504', position: 2, total: 2, state: 'merged' });
   });
 
   test('a leading # matches the same PR', () => {
@@ -68,6 +72,12 @@ describe('stackMatchOf', () => {
       total: 2,
       state: 'open',
     });
+  });
+
+  test('a ticket wins a tie with a branch inside one PR', () => {
+    const stack = stackOf([stackPullOf({ branch: 'me-1', ticket: 'ME-1' })]);
+
+    expect(stackMatchOf('me-1', stack)?.reason.value).toBe('ME-1');
   });
 
   test('equal scores keep the lower PR', () => {

@@ -3,6 +3,10 @@ export interface Match {
   positions: number[];
 }
 
+export interface FieldMatch extends Match {
+  field: string;
+}
+
 const runScore = 8;
 
 const wordStartScore = 6;
@@ -14,9 +18,6 @@ const longestCountedGap = 5;
 const spreadPerLetter = 2;
 
 const spreadSlack = 4;
-
-export const scoreCeiling = (query: string): number =>
-  Array.from(query).length * (runScore + wordStartScore);
 
 const isWordStart = (text: string, index: number): boolean =>
   index === 0 || /[\s/_.\-~]/.test(text.charAt(index - 1));
@@ -154,19 +155,22 @@ export const fuzzyMatch = (query: string, text: string): Match | null => {
 export const bestFieldMatch = (
   query: string,
   fields: (string | null | undefined)[],
-): Match | null => {
-  let best: Match | null = null;
+): FieldMatch | null => {
+  let best: FieldMatch | null = null;
 
   for (const field of fields) {
-    const match =
-      field === null || field === undefined || field === '' ? null : fuzzyMatch(query, field);
+    if (field === null || field === undefined || field === '') {
+      continue;
+    }
+
+    const match = fuzzyMatch(query, field);
 
     if (match === null) {
       continue;
     }
 
     if (best === null || match.score > best.score) {
-      best = match;
+      best = { ...match, field };
     }
   }
 

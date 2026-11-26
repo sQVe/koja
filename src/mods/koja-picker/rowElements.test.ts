@@ -8,7 +8,14 @@ import {
   herdrFake,
   realKitIndexFake,
 } from '../../../tests/moduleFakes.ts';
-import { pickerData, spaceOf, stackOf, stackPullOf, tabOf } from '../../../tests/pickerFixtures.ts';
+import {
+  factsWithStack,
+  pickerData,
+  spaceOf,
+  stackOf,
+  stackPullOf,
+  tabOf,
+} from '../../../tests/pickerFixtures.ts';
 import type { PickerData } from './rows.ts';
 import { buildRows } from './rows.ts';
 
@@ -95,11 +102,13 @@ const stack = () => stackOf(pullNumbers.map(pullAt));
 
 const dataWith = (stacked: boolean): PickerData => {
   const stackValue = stacked ? stack() : null;
+  const stored = stackValue === null ? null : factsWithStack('/home/me/koja', stackValue);
 
   return pickerData({
     spaces: [spaceOf('a', 1, 'koja', [tabOf('a1', 1, true)])],
     panes: [],
-    facts: { a: { project: 'koja', pull: null, need: null, stack: stackValue } },
+    stored,
+    facts: { a: { project: 'koja', pull: null, need: null } },
   });
 };
 
@@ -110,18 +119,14 @@ const dataWithState = (state: 'open' | 'unknown'): PickerData =>
   pickerData({
     spaces: [spaceOf('a', 1, 'koja', [tabOf('a1', 1, true)])],
     panes: [],
-    facts: {
-      a: {
-        project: 'koja',
-        pull: null,
-        need: null,
-        stack: stackOf([
-          stackPullOf({ branch: 'me-1181-bottom', ticket: 'ME-1181' }),
-          stackPullOf({ branch: 'me-1182-middle', ticket: 'ME-1182', state }),
-          stackPullOf({ branch: 'me-1183-top', ticket: 'ME-1183' }),
-        ]),
-      },
-    },
+    stored: factsWithStack(
+      '/home/me/koja',
+      stackOf([
+        stackPullOf({ branch: 'me-1181-bottom', ticket: 'ME-1181', number: 601 }),
+        stackPullOf({ branch: 'me-1182-middle', ticket: 'ME-1182', number: 602, state }),
+        stackPullOf({ branch: 'me-1183-top', ticket: 'ME-1183', number: 603 }),
+      ]),
+    ),
   });
 
 describe('list with a stack reason', () => {

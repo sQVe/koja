@@ -1,8 +1,13 @@
 import type { PaneInfo, Program, SpaceInfo, Status, TabInfo } from 'herdr';
 
+import { placeOf, repositoryOf, worktreeOf } from '../src/data/gitIdentity.ts';
+import type { Pull } from '../src/data/pulls.ts';
+import type { Facts } from '../src/data/snapshot.ts';
 import type { StackPull, SpaceStack } from '../src/data/spaceStack.ts';
+import type { StackBranch } from '../src/data/stacks.ts';
 import { rollupStatuses } from '../src/kit/statusRollup.ts';
 import type { PickerData } from '../src/mods/koja-picker/rows.ts';
+import { pullFacts } from './pullFacts.ts';
 
 export const shell: Program = {
   key: 'shell',
@@ -106,3 +111,65 @@ export const stackOf = (pulls: StackPull[]): SpaceStack => ({
   merged: pulls.filter((pull) => pull.state === 'merged').length,
   total: pulls.length,
 });
+
+const pullStates: Record<
+  Exclude<StackPull['state'], 'unknown'>,
+  Pick<Pull, 'state' | 'isDraft'>
+> = {
+  draft: { state: 'OPEN', isDraft: true },
+  open: { state: 'OPEN', isDraft: false },
+  merged: { state: 'MERGED', isDraft: false },
+  closed: { state: 'CLOSED', isDraft: false },
+};
+
+const pullOfStack = (pull: StackPull): Pull[] => {
+  if (pull.number === null || pull.state === 'unknown') {
+    return [];
+  }
+
+  return [
+    pullFacts({
+      number: pull.number,
+      headRefName: pull.branch,
+      title: pull.title ?? '',
+      ...pullStates[pull.state],
+    }),
+  ];
+};
+
+const branchOf = (pull: StackPull): StackBranch => ({
+  branch: pull.branch,
+  pullNumber: pull.number,
+  restack: pull.restack,
+});
+
+// Recorded facts for one space, so a row search reads its stack through the same place and worktree
+// branch the data layer stores.
+export const factsWithStack = (folder: string, stack: SpaceStack): Facts => {
+  const place = placeOf(null, folder);
+  const worktree = worktreeOf(null, folder);
+  const repository = repositoryOf(null, `${folder}/.git`);
+
+  return {
+    git: {
+      places: { [place.key]: { kind: 'repository', worktree: worktree.key } },
+      worktrees: {
+        [worktree.key]: {
+          repository,
+          root: folder,
+          branch: stack.pulls[0]?.branch ?? null,
+          linked: false,
+          bare: false,
+        },
+      },
+    },
+    pulls: { [repository.key]: { pulls: stack.pulls.flatMap(pullOfStack), failed: false } },
+    trackers: {},
+    stacks: {
+      [repository.key]: {
+        stacks: [{ trunk: 'main', branches: stack.pulls.map(branchOf) }],
+        failed: false,
+      },
+    },
+  };
+};

@@ -210,7 +210,7 @@ describe('buildRows', () => {
         spaceOf('b', 1, 'xyz', [tabOf('b1', 1, true)]),
       ],
       panes: [],
-      facts: { b: { project: 'koja', pull: null, need: null, stack: null } },
+      facts: { b: { project: 'koja', pull: null, need: null } },
     });
 
     expect(keysOf(buildRows('koja', null, fixture))).toStrictEqual(['space:a', 'space:b']);

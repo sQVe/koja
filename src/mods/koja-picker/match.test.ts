@@ -144,6 +144,7 @@ describe('bestFieldMatch', () => {
   test('answers the best single field and skips empty ones', () => {
     const match = bestFieldMatch('main', [null, '', 'domain-tools', 'main']);
 
+    expect(match?.field).toBe('main');
     expect(match?.positions).toEqual([0, 1, 2, 3]);
   });
 

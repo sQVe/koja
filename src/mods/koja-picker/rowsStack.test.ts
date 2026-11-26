@@ -1,10 +1,19 @@
 import { describe, expect, test } from 'bun:test';
 
-import { pickerData, spaceOf, stackOf, stackPullOf, tabOf } from '../../../tests/pickerFixtures.ts';
+import {
+  factsWithStack,
+  pickerData,
+  spaceOf,
+  stackOf,
+  stackPullOf,
+  tabOf,
+} from '../../../tests/pickerFixtures.ts';
+import type { Facts } from '../../data/snapshot.ts';
 import type { SpaceStack } from '../../data/spaceStack.ts';
 import type { PickerData } from './rows.ts';
 import { buildRows } from './rows.ts';
-import type { SpaceFacts } from './spaceFacts.ts';
+
+const folder = '/home/me/koja';
 
 const branchNames = [
   'add-search',
@@ -30,21 +39,10 @@ const mergedStack = (): SpaceStack => stackOf(pullNumbers.map(pullAt));
 
 const ticketStack = (): SpaceStack =>
   stackOf([
-    stackPullOf({ branch: 'me-1181-bottom', ticket: 'ME-1181' }),
-    stackPullOf({ branch: 'me-1182-middle', ticket: 'ME-1182' }),
-    stackPullOf({ branch: 'me-1183-top', ticket: 'ME-1183' }),
+    stackPullOf({ branch: 'me-1181-bottom', ticket: 'ME-1181', number: 601 }),
+    stackPullOf({ branch: 'me-1182-middle', ticket: 'ME-1182', number: 602 }),
+    stackPullOf({ branch: 'me-1183-top', ticket: 'ME-1183', number: 603 }),
   ]);
-
-const factsAt = ([id, stack]: [string, SpaceStack | null]): [string, SpaceFacts] => [
-  id,
-  { project: id, pull: null, need: null, stack },
-];
-
-const factsOf = (stacks: Record<string, SpaceStack | null>): PickerData['facts'] => {
-  const entries = Object.entries(stacks).map(factsAt);
-
-  return Object.fromEntries(entries);
-};
 
 const reasonOf = (rows: ReturnType<typeof buildRows>, index: number) => {
   const row = rows[index];
@@ -56,19 +54,21 @@ const reasonOf = (rows: ReturnType<typeof buildRows>, index: number) => {
   return row.reason;
 };
 
-const twoSpaces = (stack: SpaceStack | null): PickerData =>
+const twoSpaces = (stored: Facts | null): PickerData =>
   pickerData({
     spaces: [
       spaceOf('b', 1, 'notes', [tabOf('b1', 1, true)]),
       spaceOf('a', 2, 'koja', [tabOf('a1', 1, true)]),
     ],
     panes: [],
-    facts: factsOf({ a: stack, b: null }),
+    stored,
   });
+
+const withStack = (stack: SpaceStack): PickerData => twoSpaces(factsWithStack(folder, stack));
 
 describe('buildRows with stacks', () => {
   test('searching a PR number finds the space whose stack holds it', () => {
-    const rows = buildRows('504', null, twoSpaces(mergedStack()));
+    const rows = buildRows('504', null, withStack(mergedStack()));
 
     expect(rows[0]?.space.id).toBe('a');
 
@@ -80,16 +80,32 @@ describe('buildRows with stacks', () => {
     });
   });
 
+  test('an exact stack PR outranks a space named by the same number', () => {
+    const fixture = pickerData({
+      spaces: [
+        spaceOf('b', 1, '504', [tabOf('b1', 1, true)]),
+        spaceOf('a', 2, 'koja', [tabOf('a1', 1, true)]),
+      ],
+      panes: [],
+      stored: factsWithStack(folder, mergedStack()),
+    });
+
+    const rows = buildRows('504', null, fixture);
+
+    expect(rows[0]?.space.id).toBe('a');
+    expect(reasonOf(rows, 0)?.value).toBe('#504');
+  });
+
   test('a PR number matches only exactly', () => {
-    const fixture = twoSpaces(mergedStack());
+    const fixture = withStack(mergedStack());
 
     expect(buildRows('50', null, fixture)).toEqual([]);
     expect(buildRows('5041', null, fixture)).toEqual([]);
   });
 
   test('a leading # matches the same PR', () => {
-    const plain = buildRows('504', null, twoSpaces(mergedStack()));
-    const hash = buildRows('#504', null, twoSpaces(mergedStack()));
+    const plain = buildRows('504', null, withStack(mergedStack()));
+    const hash = buildRows('#504', null, withStack(mergedStack()));
 
     expect(hash.map((row) => row.key)).toEqual(plain.map((row) => row.key));
     expect(reasonOf(hash, 0)).toEqual(reasonOf(plain, 0));
@@ -97,7 +113,7 @@ describe('buildRows with stacks', () => {
   });
 
   test('a ticket ID or branch in the stack finds the space', () => {
-    const fixture = twoSpaces(ticketStack());
+    const fixture = withStack(ticketStack());
 
     expect(buildRows('ME-1182', null, fixture)[0]?.space.id).toBe('a');
 
@@ -120,29 +136,55 @@ describe('buildRows with stacks', () => {
     const fixture = pickerData({
       spaces: [spaceOf('a', 1, 'koja', [tabOf('a1', 1, true)])],
       panes: [],
-      facts: factsOf({ a: stackOf([stackPullOf({ branch: 'koja-old', number: 601 })]) }),
+      stored: factsWithStack(folder, stackOf([stackPullOf({ branch: 'koja-old', number: 601 })])),
     });
 
     expect(buildRows('koja', null, fixture)[0]?.space.id).toBe('a');
     expect(reasonOf(buildRows('koja', null, fixture), 0)).toBeNull();
   });
 
-  test('a space without a stack keeps today’s search', () => {
+  test('a space without recorded facts keeps today’s search', () => {
     const fixture = pickerData({
       spaces: [spaceOf('a', 1, 'koja', [tabOf('a1', 1, true)])],
       panes: [],
-      facts: factsOf({ a: null }),
+      stored: null,
     });
 
     expect(buildRows('koja', null, fixture)[0]?.space.id).toBe('a');
     expect(reasonOf(buildRows('koja', null, fixture), 0)).toBeNull();
+  });
+
+  test('a recorded place without a stack gives no stack match', () => {
+    const fixture = pickerData({
+      spaces: [spaceOf('a', 1, 'koja', [tabOf('a1', 1, true)])],
+      panes: [],
+      stored: factsWithStack(folder, stackOf([])),
+    });
+
+    expect(buildRows('504', null, fixture)).toEqual([]);
+  });
+
+  test('a checkout branch outside the stack gives no stack match', () => {
+    const stored = factsWithStack(folder, mergedStack());
+
+    for (const worktree of Object.values(stored.git.worktrees)) {
+      worktree.branch = 'elsewhere';
+    }
+
+    expect(buildRows('504', null, twoSpaces(stored))).toEqual([]);
+  });
+
+  test('a space filtered out by status finds no stack match', () => {
+    const fixture = withStack(mergedStack());
+
+    expect(buildRows('504', ['blocked'], fixture)).toEqual([]);
   });
 
   test('sets the reason only when the stack match beats every field of the space', () => {
     const equal = pickerData({
       spaces: [spaceOf('a', 1, 'koja', [tabOf('a1', 1, true)])],
       panes: [],
-      facts: factsOf({ a: stackOf([stackPullOf({ branch: 'koja-old', number: 601 })]) }),
+      stored: factsWithStack(folder, stackOf([stackPullOf({ branch: 'koja-old', number: 601 })])),
     });
 
     expect(reasonOf(buildRows('koja', null, equal), 0)).toBeNull();
@@ -150,15 +192,15 @@ describe('buildRows with stacks', () => {
     const betterField = pickerData({
       spaces: [spaceOf('a', 1, 'koja', [tabOf('a1', 1, true)])],
       panes: [],
-      facts: factsOf({ a: stackOf([stackPullOf({ branch: 'xkoja', number: 602 })]) }),
+      stored: factsWithStack(folder, stackOf([stackPullOf({ branch: 'xkoja', number: 602 })])),
     });
 
     expect(reasonOf(buildRows('koja', null, betterField), 0)).toBeNull();
 
     const betterStack = pickerData({
-      spaces: [spaceOf('a', 1, '504', [tabOf('a1', 1, true)])],
+      spaces: [{ ...spaceOf('a', 1, '504', [tabOf('a1', 1, true)]), folder }],
       panes: [],
-      facts: factsOf({ a: stackOf([stackPullOf({ branch: 'add-search', number: 504 })]) }),
+      stored: factsWithStack(folder, stackOf([stackPullOf({ branch: 'add-search', number: 504 })])),
     });
 
     expect(reasonOf(buildRows('504', null, betterStack), 0)).toEqual({
@@ -171,7 +213,7 @@ describe('buildRows with stacks', () => {
     const noFieldMatch = pickerData({
       spaces: [spaceOf('a', 1, 'koja', [tabOf('a1', 1, true)])],
       panes: [],
-      facts: factsOf({ a: stackOf([stackPullOf({ branch: 'fix-crash', number: 603 })]) }),
+      stored: factsWithStack(folder, stackOf([stackPullOf({ branch: 'fix-crash', number: 603 })])),
     });
 
     expect(reasonOf(buildRows('h', null, noFieldMatch), 0)).toEqual({
@@ -186,14 +228,7 @@ describe('buildRows with stacks', () => {
     const fixture = pickerData({
       spaces: [{ ...spaceOf('a', 1, '', []), folder: '' }],
       panes: [],
-      facts: {
-        a: {
-          project: '',
-          pull: null,
-          need: null,
-          stack: stackOf([stackPullOf({ branch: 'add-search', number: 504 })]),
-        },
-      },
+      stored: factsWithStack('', stackOf([stackPullOf({ branch: 'add-search', number: 504 })])),
     });
 
     const rows = buildRows('', null, fixture);

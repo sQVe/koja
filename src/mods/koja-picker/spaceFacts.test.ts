@@ -27,7 +27,6 @@ interface SpaceFactsShape {
   project: string;
   pull: number | null;
   need: string | null;
-  stack: unknown;
 }
 
 let sharedValues: Record<string, unknown> = {};
@@ -214,7 +213,7 @@ describe('spaceFacts', () => {
 
     const facts = spaceFactsOf([spaceAt('s1', '/code/koja/me-1189')], []);
 
-    expect(facts['s1']).toEqual({ project: 'koja', pull: 41, need: 'conflict', stack: null });
+    expect(facts['s1']).toEqual({ project: 'koja', pull: 41, need: 'conflict' });
   });
 
   test('names the project of a main worktree after its own folder', () => {
@@ -253,7 +252,7 @@ describe('spaceFacts', () => {
 
     const facts = spaceFactsOf([spaceAt('s1', '/code/notes')], []);
 
-    expect(facts['s1']).toEqual({ project: 'notes', pull: null, need: null, stack: null });
+    expect(facts['s1']).toEqual({ project: 'notes', pull: null, need: null });
   });
 
   test('shows the most urgent need of a pull that needs two things', () => {
@@ -326,7 +325,7 @@ describe('spaceFacts', () => {
 
     const facts = spaceFactsOf([spaceAt('s1', '/code/plain')], []);
 
-    expect(facts['s1']).toEqual({ project: 'plain', pull: null, need: null, stack: null });
+    expect(facts['s1']).toEqual({ project: 'plain', pull: null, need: null });
   });
 
   test('answers the pull of the branch the pane is on, not of its space', () => {
@@ -361,7 +360,7 @@ describe('spaceFacts', () => {
     const pane = { ...paneAt('/code/koja-side'), branch: 'side' };
     const facts = paneFactsOf(null, pane, pane.branch);
 
-    expect(facts).toEqual({ project: 'koja', pull: 9, need: 'conflict', stack: null });
+    expect(facts).toEqual({ project: 'koja', pull: 9, need: 'conflict' });
   });
 
   test('answers no pull for a repository whose last refresh failed', () => {
@@ -388,7 +387,7 @@ describe('spaceFacts', () => {
 
     const facts = spaceFactsOf([spaceAt('s1', '/code/notes')], []);
 
-    expect(facts['s1']).toEqual({ project: 'notes', pull: null, need: null, stack: null });
+    expect(facts['s1']).toEqual({ project: 'notes', pull: null, need: null });
   });
 
   test('names both checkouts of one repository after its main checkout', () => {
@@ -438,7 +437,7 @@ describe('spaceFacts', () => {
     const pane = { ...paneAt('/code/widget/src'), branch: 'feature' };
     const facts = paneFactsOf(null, pane, pane.branch);
 
-    expect(facts).toEqual({ project: 'widget', pull: 42, need: null, stack: null });
+    expect(facts).toEqual({ project: 'widget', pull: 42, need: null });
   });
 
   test('answers the pull of the branch the pane reports, not the snapshot branch', () => {
