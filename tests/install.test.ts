@@ -69,7 +69,7 @@ const snapshotHome = async (): Promise<Record<string, string>> => {
 };
 
 const fixtureText = async (name: string): Promise<string> =>
-  readFile(join('tests', 'fixtures', name), 'utf8');
+  readFile(join(import.meta.dir, 'fixtures', name), 'utf8');
 
 beforeEach(async () => {
   root = await mkdtemp(join(tmpdir(), 'koja-install-'));
@@ -1159,7 +1159,8 @@ describe('install', () => {
 
     expect(failure).toBeInstanceOf(Error);
     expect(record?.origin?.completed).toBe(true);
-    expect(record?.origin?.allChecksPassed).toBe(false);
+    // The files are still the earlier, verified install, so its verdict stands.
+    expect(record?.origin?.allChecksPassed).toBe(true);
   });
 
   test('removes the staging folder and half-copied file a killed install left behind', async () => {

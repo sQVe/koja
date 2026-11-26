@@ -179,6 +179,8 @@ describe('install order', () => {
     await firstStarted;
     await rm(join(mods, 'koja-extra'), { recursive: true });
 
+    let secondChecked = false;
+
     // A second checkout leaves only the home lock to serialize the two installs.
     const second = install({
       home,
@@ -186,13 +188,17 @@ describe('install order', () => {
       inputs: [],
       modsDirectory: mods,
       configDirectory: config,
-      check: async () => ({ passed: true, output: 'second' }),
+      check: async () => {
+        secondChecked = true;
+
+        return { passed: true, output: 'second' };
+      },
     });
 
     try {
       await delay(200);
 
-      expect(await exists(join(home, 'mods', 'koja-extra', 'main.js'))).toBe(false);
+      expect(secondChecked).toBe(false);
     } finally {
       releaseFirst();
     }

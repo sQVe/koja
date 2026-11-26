@@ -31,7 +31,7 @@ import {
 } from 'node:path';
 
 import { buildMods, isMissing, outputDirectory, sourceDirectory } from './build.ts';
-import { acquireCheckoutLock, acquireFileLock } from './fileLock.ts';
+import { LockTimeoutError, acquireCheckoutLock, acquireFileLock } from './fileLock.ts';
 
 export interface CheckResult {
   passed: boolean;
@@ -106,6 +106,7 @@ interface RecordPlan {
   checkout: string;
   inputs: InstallInput[];
   earlierCompleted: boolean;
+  earlierOrigin: InstallOrigin | null;
   temporaryName: () => string;
   writeFileTo: (path: string, text: string) => Promise<void>;
   removeStaging: (path: string) => Promise<void>;
@@ -125,6 +126,8 @@ export const recordName = '.koja-install.json';
 export const recordPath = (home: string): string => join(home, recordName);
 
 const lockName = '.koja-install.lock';
+
+const defaultChmodFile = (path: string, mode: number): Promise<void> => chmod(path, mode);
 
 const stagingPrefix = '.koja-check-';
 
@@ -605,8 +608,13 @@ export const isSameFile = async (source: string, destination: string): Promise<b
 
 const temporaryName = (path: string): string => `.${basename(path)}.koja-${randomUUID()}.tmp`;
 
-const temporaryFilePattern =
-  /^\..+\.koja-[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\.tmp$/;
+const uuidPattern = '[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}';
+
+const temporaryFilePattern = new RegExp(`^\\..+\\.koja-${uuidPattern}\\.tmp$`);
+
+const temporaryRecordPattern = new RegExp(
+  `^${recordName.replaceAll('.', '\\.')}\\.${uuidPattern}\\.tmp$`,
+);
 
 const installFile = async (
   home: string,
@@ -716,6 +724,10 @@ const acquireInstallLock = async (
   await removeSymlinkLeaf(lockPath);
 
   return acquireFileLock(lockPath, { timeoutMilliseconds }).catch((error: unknown) => {
+    if (!(error instanceof LockTimeoutError)) {
+      throw error;
+    }
+
     throw new Error(
       `Could not take the install lock ${lockPath} within ${timeoutMilliseconds} ms. Stop other installs for this home, then retry.`,
       { cause: error },
@@ -739,8 +751,24 @@ const acquireInstallLocks = async (
     );
 
     return async () => {
-      await releaseInstall();
-      await releaseCheckout();
+      const failures: unknown[] = [];
+
+      for (const release of [releaseInstall, releaseCheckout]) {
+        try {
+          // eslint-disable-next-line no-await-in-loop -- the second lock is released after the first
+          await release();
+        } catch (error) {
+          failures.push(error);
+        }
+      }
+
+      if (failures.length === 1) {
+        throw failures[0];
+      }
+
+      if (failures.length > 1) {
+        throw new AggregateError(failures, `Could not release the install locks for ${home}`);
+      }
     };
   } catch (error) {
     await releaseCheckout();
@@ -836,16 +864,25 @@ const checkMods = async (
   return Promise.all(mods.map(checkMod));
 };
 
-const stageFile = async (staging: string, path: string, source: string): Promise<void> => {
+const stageFile = async (
+  staging: string,
+  path: string,
+  source: string,
+  chmodFile: (path: string, mode: number) => Promise<void>,
+): Promise<void> => {
   const destination = join(staging, path);
   const sourceStat = await stat(source);
 
   await mkdir(dirname(destination), { recursive: true });
   await copyFile(source, destination);
-  await chmod(destination, sourceStat.mode & permissionBits);
+  await chmodFile(destination, sourceStat.mode & permissionBits);
 };
 
-const stageMods = async (home: string, planned: Map<string, string>): Promise<string> => {
+const stageMods = async (
+  home: string,
+  planned: Map<string, string>,
+  chmodFile: (path: string, mode: number) => Promise<void>,
+): Promise<string> => {
   const staging = await mkdtemp(join(home, stagingPrefix));
 
   try {
@@ -855,7 +892,7 @@ const stageMods = async (home: string, planned: Map<string, string>): Promise<st
       }
 
       // eslint-disable-next-line no-await-in-loop -- files are staged one at a time to bound I/O
-      await stageFile(staging, path, source);
+      await stageFile(staging, path, source, chmodFile);
     }
 
     return staging;
@@ -893,12 +930,16 @@ const adoptPlanned = (owned: Set<string>, planned: Map<string, string>): void =>
 
 // A killed install leaves its staging folder and its half-copied files behind. Both carry this
 // installer's own names, so the next install removes them under the home lock.
+const isTemporaryName = (name: string): boolean =>
+  temporaryFilePattern.test(name) || temporaryRecordPattern.test(name);
+
 const removeLeftovers = async (home: string): Promise<void> => {
   const entries = await readdir(home, { recursive: true, withFileTypes: true });
 
   for (const entry of entries) {
-    const stagingFolder = entry.isDirectory() && entry.name.startsWith(stagingPrefix);
-    const temporaryFile = entry.isFile() && temporaryFilePattern.test(entry.name);
+    const topLevelFolder = entry.isDirectory() && entry.parentPath === home;
+    const stagingFolder = topLevelFolder && entry.name.startsWith(stagingPrefix);
+    const temporaryFile = entry.isFile() && isTemporaryName(entry.name);
 
     if (!stagingFolder && !temporaryFile) {
       continue;
@@ -906,6 +947,13 @@ const removeLeftovers = async (home: string): Promise<void> => {
 
     // eslint-disable-next-line no-await-in-loop -- one leftover is removed at a time
     await rm(join(entry.parentPath, entry.name), { recursive: true, force: true });
+  }
+};
+
+const refuseLinkedDestinations = async (home: string, paths: string[]): Promise<void> => {
+  for (const path of paths) {
+    // eslint-disable-next-line no-await-in-loop -- every destination is checked before anything changes
+    await refuseLinkedFolders(home, path);
   }
 };
 
@@ -1041,6 +1089,29 @@ const completedAfter = (plan: RecordPlan, progress: InstallProgress): boolean =>
   return plan.earlierCompleted && !decided;
 };
 
+const originAfter = (
+  plan: RecordPlan,
+  progress: InstallProgress,
+  completed: boolean,
+): InstallOrigin => {
+  const untouched =
+    progress.written.length === 0 && progress.removed.length === 0 && progress.checks.length === 0;
+
+  const unchanged = !progress.applied && untouched;
+
+  // Nothing ran and nothing changed, so the files still belong to the earlier install.
+  if (unchanged && plan.earlierOrigin !== null) {
+    return plan.earlierOrigin;
+  }
+
+  return {
+    checkout: plan.checkout,
+    allChecksPassed: progress.checksPassed,
+    completed,
+    inputs: plan.inputs,
+  };
+};
+
 const finishInstall = async (plan: RecordPlan, progress: InstallProgress): Promise<void> => {
   let completed = false;
 
@@ -1051,18 +1122,9 @@ const finishInstall = async (plan: RecordPlan, progress: InstallProgress): Promi
 
     completed = completedAfter(plan, progress);
   } finally {
-    await writeRecord(
-      plan.home,
-      plan.files(),
-      {
-        checkout: plan.checkout,
-        allChecksPassed: progress.checksPassed,
-        completed,
-        inputs: plan.inputs,
-      },
-      plan.temporaryName(),
-      plan.writeFileTo,
-    );
+    const origin = originAfter(plan, progress, completed);
+
+    await writeRecord(plan.home, plan.files(), origin, plan.temporaryName(), plan.writeFileTo);
   }
 };
 
@@ -1082,7 +1144,7 @@ const publishPlan = async (
     plan.owned.add(writtenPath);
   };
 
-  progress.staging = await stageMods(home, plan.planned);
+  progress.staging = await stageMods(home, plan.planned, plan.chmodFile);
   progress.checks.push(...(await checkMods(progress.staging, plan.planned, options.check)));
   progress.checksPassed = progress.checks.every((check) => check.passed);
 
@@ -1150,7 +1212,7 @@ const publishAndRecord = async (
 export const install = async (options: InstallOptions): Promise<InstallResult> => {
   const home = resolve(options.home);
   const roots = options.roots ?? { userHome: resolve(homedir()), temporary: resolve(tmpdir()) };
-  const chmodFile = options.chmodFile ?? chmod;
+  const chmodFile = options.chmodFile ?? defaultChmodFile;
   const writeRecordTo = options.writeRecordFile ?? writeRecordFile;
   const temporaryRecordName = options.temporaryRecordName ?? defaultTemporaryRecordName;
   const removeStaging = options.removeStaging ?? removeStagingDirectory;
@@ -1182,10 +1244,7 @@ export const install = async (options: InstallOptions): Promise<InstallResult> =
 
     const owned = await ownedFrom(home, earlier);
 
-    for (const path of [...planned.keys(), ...stale, recordName]) {
-      // eslint-disable-next-line no-await-in-loop -- every destination is checked before anything changes
-      await refuseLinkedFolders(home, path);
-    }
+    await refuseLinkedDestinations(home, [...planned.keys(), ...stale, recordName]);
 
     await publishAndRecord(
       home,
@@ -1198,6 +1257,7 @@ export const install = async (options: InstallOptions): Promise<InstallResult> =
         checkout,
         inputs: options.inputs,
         earlierCompleted: earlierRecord?.origin?.completed === true,
+        earlierOrigin: earlierRecord?.origin ?? null,
         temporaryName: temporaryRecordName,
         writeFileTo: writeRecordTo,
         removeStaging,

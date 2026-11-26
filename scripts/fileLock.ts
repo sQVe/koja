@@ -15,6 +15,11 @@ interface LockChild {
   kill: () => void;
 }
 
+interface PendingTimeout {
+  readonly promise: Promise<never>;
+  cancel: () => void;
+}
+
 const readyMarker = 'koja-checkout-lock-ready\n';
 
 // A free lock is granted at once, so a wait signal this late means the lock is really held.
@@ -43,12 +48,30 @@ const readUntil = async (stream: ReadableStream<Uint8Array>, marker: string): Pr
   }
 };
 
-const timeoutAfter = (milliseconds: number, target: string): Promise<never> =>
-  new Promise((_resolve, reject) => {
-    setTimeout(() => {
-      reject(new Error(`Timed out after ${milliseconds} ms waiting for the lock on ${target}`));
+export class LockTimeoutError extends Error {
+  override name = 'LockTimeoutError';
+
+  constructor(milliseconds: number, target: string) {
+    super(`Timed out after ${milliseconds} ms waiting for the lock on ${target}`);
+  }
+}
+
+const timeoutAfter = (milliseconds: number, target: string): PendingTimeout => {
+  let timer: ReturnType<typeof setTimeout> | undefined;
+
+  const promise = new Promise<never>((_resolve, reject) => {
+    timer = setTimeout(() => {
+      reject(new LockTimeoutError(milliseconds, target));
     }, milliseconds);
   });
+
+  return {
+    promise,
+    cancel: () => {
+      clearTimeout(timer);
+    },
+  };
+};
 
 const readReady = async (
   child: LockChild,
@@ -60,13 +83,16 @@ const readReady = async (
 
   const timeout =
     options.timeoutMilliseconds === undefined
-      ? ready
-      : Promise.race([ready, timeoutAfter(options.timeoutMilliseconds, target)]);
+      ? null
+      : timeoutAfter(options.timeoutMilliseconds, target);
+
+  const settled = timeout === null ? ready : Promise.race([ready, timeout.promise]);
 
   try {
-    return await timeout;
+    return await settled;
   } finally {
     clearTimeout(waitTimer);
+    timeout?.cancel();
   }
 };
 
@@ -77,7 +103,8 @@ export const acquireFileLock = async (
   const target = resolve(path);
 
   const child = Bun.spawn({
-    cmd: ['flock', '--exclusive', target, 'sh', '-c', `printf '${readyMarker}'; cat`],
+    // --close keeps the descriptor out of the shell, so killing flock releases the lock.
+    cmd: ['flock', '--exclusive', '--close', target, 'sh', '-c', `printf '${readyMarker}'; cat`],
     stdin: 'pipe',
     stdout: 'pipe',
     stderr: 'pipe',
@@ -117,8 +144,11 @@ export const acquireCheckoutLock = async (
   checkout: string,
   options: CheckoutLockOptions = {},
 ): Promise<() => Promise<void>> => {
-  // Sandbox launchers already hold this same lock around the whole install command.
-  if (options.held === true || Bun.env['KOJA_CHECKOUT_LOCK_HELD'] === '1') {
+  // Sandbox launchers already hold this same lock around the whole install command, and name the
+  // checkout they locked, so an inherited value never skips the lock of another checkout.
+  const heldByLauncher = Bun.env['KOJA_CHECKOUT_LOCK_HELD'] === resolve(checkout);
+
+  if (options.held === true || heldByLauncher) {
     return () => Promise.resolve();
   }
 

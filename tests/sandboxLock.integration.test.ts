@@ -28,6 +28,7 @@ const environmentFor = (name: string): Record<string, string> => {
 
   delete environment['TAU_VERIFICATION_RUN'];
   delete environment['KOJA_SANDBOX_GENERATION'];
+  delete environment['HERDR_APP_BIN'];
 
   return environment;
 };
@@ -52,6 +53,25 @@ const waitForFile = async (path: string): Promise<void> => {
   }
 
   throw new Error(`The file ${path} never appeared.`);
+};
+
+// The waiter replaces its shell with flock once it has read the generation id, so its process name
+// tells a lock wait apart from a race the test only hoped to win.
+const waitForLockWait = async (process: LockProcess): Promise<void> => {
+  const deadline = Date.now() + 5000;
+
+  while (Date.now() < deadline) {
+    const comm = await readFile(`/proc/${process.pid}/comm`, 'utf8').catch(() => '');
+
+    if (comm.trim() === 'flock') {
+      return;
+    }
+
+    await Bun.sleep(20);
+  }
+
+  // Without /proc the wait cannot be observed, so allow the waiter the time it needs to queue.
+  await Bun.sleep(300);
 };
 
 const writeGeneration = async (folder: string, id: string): Promise<void> => {
@@ -187,6 +207,7 @@ describe('scripts/sandbox lock', () => {
     const holder = spawnLock('alpha', ['sh', '-c', 'exit 0']);
 
     expect(await holder.exited).not.toBe(0);
+    expect(await new Response(holder.stderr).text()).toContain('is not up');
   });
 
   test('a waiter that read the old id aborts when the root is replaced under it', async () => {
@@ -210,7 +231,7 @@ describe('scripts/sandbox lock', () => {
 
       waiter = spawnLock('alpha', ['sh', '-c', `printf second >'${second}'`]);
 
-      await Bun.sleep(300);
+      await waitForLockWait(waiter);
 
       expect(waiter.exitCode).toBeNull();
 
@@ -223,6 +244,7 @@ describe('scripts/sandbox lock', () => {
 
       expect(await first.exited).toBe(0);
       expect(await waiter.exited).not.toBe(0);
+      expect(await new Response(waiter.stderr).text()).toContain('was replaced');
       expect(await Bun.file(second).exists()).toBe(false);
     } finally {
       await writeFile(replace, '').catch(() => undefined);
