@@ -2,6 +2,7 @@ import { h_flex } from 'gpui-base';
 import type { Element } from 'gpui-kit';
 import type { PaneInfo, Program, SpaceInfo, Status } from 'herdr';
 
+import { placeOfSpace } from '../../data/places.ts';
 import type { TextRole } from '../../kit/index.ts';
 import {
   colors,
@@ -14,7 +15,7 @@ import {
   withTextRole,
 } from '../../kit/index.ts';
 import type { PickerData } from './rows.ts';
-import { paneFacts } from './spaceFacts.ts';
+import { factsAtPlace, paneFacts } from './spaceFacts.ts';
 
 // Herdr leaves branch and status out of a mod pane's record, so the header keeps only what it
 // draws, narrowed to the types it draws with. It leaves program out too, and the pane's declared
@@ -34,9 +35,12 @@ const textOf = (value: unknown): string | null =>
 const targetOf = (data: PickerData, space: SpaceInfo, pane: PaneInfo): PreviewTarget => {
   const branch = textOf(pane.branch);
 
-  // A pane the data layer has not read falls back to its space's facts, so a pane in an unobserved
-  // worktree of the same repository still names its branch's pull.
-  const facts = paneFacts(data.stored, space.machine, pane, branch) ?? data.facts[space.id] ?? null;
+  // A pane in a folder the data layer has not read falls back to its space's place, read with the
+  // branch the pane reports, so the pull still belongs to the branch the header names.
+  const facts =
+    paneFacts(data.stored, space.machine, pane, branch) ??
+    factsAtPlace(data.stored, placeOfSpace(space, data.panes), branch);
+
   const pull = facts === null ? null : facts.pull;
 
   return {

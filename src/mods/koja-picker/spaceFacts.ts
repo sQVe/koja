@@ -35,7 +35,8 @@ const projectAt = (git: GitFacts, worktree: WorktreeGit | null, folder: string):
     return folderNameOf(folder);
   }
 
-  const main = mainWorktreeOf(git, worktree.repository);
+  // A non-linked worktree is the main checkout itself, so only a linked one needs the lookup.
+  const main = worktree.linked ? mainWorktreeOf(git, worktree.repository) : worktree;
 
   return repositoryNameOf(main?.root ?? null, worktree.repository.commonDirectory);
 };
@@ -78,30 +79,44 @@ const pullOf = (facts: Facts, worktree: WorktreeGit | null, branch: string | nul
   return pullOfBranch(repository, branch ?? worktree.branch);
 };
 
-const factsAt = (facts: Facts, place: Place, branch: string | null): SpaceFacts | null => {
-  if (!Object.hasOwn(facts.git.places, place.key)) {
-    return null;
-  }
-
-  const worktree = worktreeAt(place, facts.git);
+const factsIn = (
+  facts: Facts,
+  worktree: WorktreeGit | null,
+  folder: string,
+  branch: string | null,
+): SpaceFacts => {
   const pull = pullOf(facts, worktree, branch);
 
   return {
-    project: projectAt(facts.git, worktree, place.folder),
+    project: projectAt(facts.git, worktree, folder),
     pull: pull?.number ?? null,
     need: pull === null ? null : needOf(pull),
   };
 };
 
+const factsAt = (facts: Facts, place: Place, branch: string | null): SpaceFacts | null =>
+  Object.hasOwn(facts.git.places, place.key)
+    ? factsIn(facts, worktreeAt(place, facts.git), place.folder, branch)
+    : null;
+
+// The header asks about one space with another branch than the space's own, so it reads the same
+// place with the branch the pane reports.
+export const factsAtPlace = (
+  facts: Facts | null,
+  place: Place,
+  branch: string | null,
+): SpaceFacts | null => (facts === null ? null : factsAt(facts, place, branch));
+
 // The data layer records the folder of a space, not of every pane in it, so a pane in a
-// subdirectory reads the facts of the checkout it sits in.
+// subdirectory reads the facts of the checkout it sits in. Only a repository place has checkout
+// facts, so a plain or failed one is skipped.
 const recordedPlace = (facts: Facts, machine: string | null, folder: string): Place | null => {
   let current = folder;
 
   for (;;) {
     const place = placeOf(machine, current);
 
-    if (Object.hasOwn(facts.git.places, place.key)) {
+    if (facts.git.places[place.key]?.kind === 'repository') {
       return place;
     }
 
@@ -113,6 +128,24 @@ const recordedPlace = (facts: Facts, machine: string | null, folder: string): Pl
 
     current = current.slice(0, cut);
   }
+};
+
+// A checkout can be known by its worktree without a place for the folder the pane sits in, which is
+// what a space recorded through one of its subfolders leaves behind.
+const worktreeAtFolder = (
+  git: GitFacts,
+  machine: string | null,
+  folder: string,
+): WorktreeGit | null => {
+  const insideCheckout = (entry: WorktreeGit): boolean => {
+    const atOrUnderRoot = folder === entry.root || folder.startsWith(`${entry.root}/`);
+
+    return entry.repository.machine === machine && atOrUnderRoot;
+  };
+
+  const inside = Object.values(git.worktrees).filter(insideCheckout);
+
+  return inside.toSorted((first, second) => second.root.length - first.root.length)[0] ?? null;
 };
 
 export const spaceFacts = (
@@ -145,11 +178,18 @@ export const paneFacts = (
   pane: PaneInfo,
   branch: string | null,
 ): SpaceFacts | null => {
-  if (facts === null || pane.cwd === null || pane.cwd === '') {
+  // A mod pane has no folder at all, so there is nothing to look up.
+  if (facts === null || typeof pane.cwd !== 'string' || pane.cwd === '') {
     return null;
   }
 
   const place = recordedPlace(facts, machine, pane.cwd);
 
-  return place === null ? null : factsAt(facts, place, branch);
+  if (place !== null) {
+    return factsAt(facts, place, branch);
+  }
+
+  const worktree = worktreeAtFolder(facts.git, machine, pane.cwd);
+
+  return worktree === null ? null : factsIn(facts, worktree, pane.cwd, branch);
 };

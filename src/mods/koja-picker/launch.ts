@@ -72,9 +72,11 @@ const pickerLayout = (start: PreviewStart | null): Record<string, unknown> => {
           children: [listBlock(start), previewColumn(start.address)],
         };
 
+  const children = start === null ? [row, errorRow, footerBlock] : [row, footerBlock];
+
   return {
     type: 'column',
-    children: start === null ? [row, errorRow, footerBlock] : [row, footerBlock],
+    children,
   };
 };
 

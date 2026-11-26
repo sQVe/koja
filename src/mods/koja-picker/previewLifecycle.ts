@@ -28,11 +28,13 @@ const stateName = 'state';
 const heartbeatName = 'heartbeat';
 
 // serve writes this once it is watching, so a viewer that exits at startup is a failed start.
+// Three seconds covers a slow process spawn on a loaded machine; a healthy viewer writes the file
+// on its first poll.
 const readyName = 'ready';
 
 const readyPollMilliseconds = 50;
 
-const readyAttempts = 20;
+const readyAttempts = 60;
 
 // The picker writes the heartbeat this often; serve's 1200-poll limit spans 60 seconds, 60x
 // this interval, so a stall or sleep does not end a live viewer and an orphan ends in a minute.
@@ -134,12 +136,10 @@ export class PreviewSession {
         return true;
       }
 
-      // eslint-disable-next-line no-await-in-loop -- the wait is what makes the next read useful
-      await new Promise<void>((resolve) => {
-        cx.timer.after(readyPollMilliseconds, () => {
-          resolve();
-        });
-      });
+      if (attempt + 1 < readyAttempts) {
+        // eslint-disable-next-line no-await-in-loop -- the wait is what makes the next read useful
+        await cx.sleep(readyPollMilliseconds);
+      }
     }
 
     return false;

@@ -41,7 +41,7 @@ import { list as virtualList } from './rowElements.ts';
 import type { PickerData, PickerRow } from './rows.ts';
 import { buildRows, rowPane } from './rows.ts';
 import { keepSearchFocused } from './searchFocus.ts';
-import { readSelection, writeSelection } from './selection.ts';
+import { readSelection, writeSelection, clearSelection } from './selection.ts';
 
 const filterKeys = createContextKeys('KojaPicker', [
   { keystroke: 'tab', action: 'koja-picker-filter-next' },
@@ -140,15 +140,22 @@ export default class Picker extends View {
 
     if (part === null || part === 'list') {
       recordOverlayClose();
+      this.clearSelection();
     }
 
     this.preview?.close();
   }
 
-  private startPreview(
-    cx: AsyncContext | Context,
-    onSettled: () => void = () => undefined,
-  ): boolean {
+  // The key is per popup, so a closed popup leaves nothing for the next one to read.
+  private clearSelection(): void {
+    const overlay = overlayId();
+
+    if (overlay !== null) {
+      clearSelection(overlay);
+    }
+  }
+
+  private startPreview(cx: Context, onSettled: () => void = () => undefined): boolean {
     if (checking() || overlayId() === null) {
       return false;
     }
@@ -157,9 +164,7 @@ export default class Picker extends View {
 
     const session = this.preview;
 
-    launch(cx, session, history.rememberPane, () => {
-      onSettled();
-    });
+    launch(cx, session, history.rememberPane, onSettled);
 
     return true;
   }
@@ -197,7 +202,10 @@ export default class Picker extends View {
   }
 
   private header(): Element {
-    return previewHeader(previewTargetOf(pickerData(), readSelection(overlayId())));
+    const overlay = overlayId();
+    const selected = overlay === null ? null : readSelection(overlay);
+
+    return previewHeader(previewTargetOf(pickerData(), selected));
   }
 
   private error(): Element {
@@ -363,22 +371,34 @@ export default class Picker extends View {
   }
 
   // Live data can move the selected row to another pane without a selection action, so the header,
-  // the preview, and Enter all follow the pane the row resolves to now.
+  // the preview, and Enter all follow the pane the row resolves to now, and the row stays marked.
   private reconcileSelection(rows: PickerRow[], data: PickerData): void {
     const row = this.selectedRow(rows);
+    const overlay = overlayId();
 
-    if (rowPane(row, data)?.pane === readSelection(overlayId())) {
+    if (overlay === null) {
       return;
     }
 
+    if ((rowPane(row, data)?.pane ?? null) === readSelection(overlay)) {
+      this.selectedKey = row?.key ?? this.selectedKey;
+
+      return;
+    }
+
+    this.selectedKey = row?.key ?? null;
     this.updatePreview(row, data);
   }
 
   private updatePreview(row: PickerRow | undefined, data: PickerData): void {
     const pane = rowPane(row, data);
+    const overlay = overlayId();
 
     this.preview?.show(pane?.terminal ?? null);
-    writeSelection(overlayId(), pane?.pane ?? null);
+
+    if (overlay !== null) {
+      writeSelection(overlay, pane?.pane ?? null);
+    }
   }
 
   private closePicker(): void {

@@ -2,6 +2,7 @@ import type { PaneInfo, SpaceInfo, Status, TabInfo } from 'herdr';
 
 import { folderNameOf } from '../../data/fields.ts';
 import type { Facts } from '../../data/snapshot.ts';
+import { folderName } from '../../kit/space.ts';
 import type { StatusRollup } from '../../kit/statusRollup.ts';
 import { statusRank } from '../../kit/statusRollup.ts';
 import { tabLabel, tabName, tabProgram, taskOfPane } from '../../kit/tabLabel.ts';
