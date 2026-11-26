@@ -3,6 +3,7 @@ import type { PaneInfo, SpaceInfo } from 'herdr';
 import type { DataState } from '../../data/consumer.ts';
 import { placeOfSpace } from '../../data/places.ts';
 import type { WorktreeGit } from '../../data/snapshot.ts';
+import { worktreeKeyAtPlace } from '../../data/snapshot.ts';
 import { spaceFolder } from '../../kit/space.ts';
 
 export type AskProjects = Map<string, string>;
@@ -29,13 +30,9 @@ const worktreeOfSpace = (
   }
 
   const place = placeOfSpace(space, panes);
-  const entry = state.snapshot.facts.git.places[place.key];
+  const worktreeKey = worktreeKeyAtPlace(state.snapshot.facts.git, place.key);
 
-  if (entry?.kind !== 'repository') {
-    return null;
-  }
-
-  return state.snapshot.facts.git.worktrees[entry.worktree] ?? null;
+  return worktreeKey === null ? null : (state.snapshot.facts.git.worktrees[worktreeKey] ?? null);
 };
 
 const folderNameOf = (space: SpaceInfo, panes: PaneInfo[]): string => {
