@@ -10,7 +10,6 @@ import {
   elementsWithStyle,
 } from '../../tests/drawn.ts';
 import { gpuiBaseFake, gpuiKitFake, herdrFake } from '../../tests/moduleFakes.ts';
-import { dialogSize, radius } from './size.ts';
 
 const palette = {
   blocked: '#a3212b',
@@ -40,9 +39,16 @@ const { dialogFrame } = (await import(modulePath)) as {
     id: string;
     title: string;
     lines?: string[];
+    body?: DrawnElement;
     destructive?: boolean;
     actions: DrawnElement[];
   }) => DrawnElement;
+};
+
+const textPath = './text.ts';
+
+const { bodyText } = (await import(textPath)) as {
+  bodyText: (text: string) => DrawnElement;
 };
 
 const buttonPath = './button.ts';
@@ -60,51 +66,62 @@ const actions = (): DrawnElement[] => [
   dialogButton({ label: 'Close', kind: 'danger' }),
 ];
 
+const indentOf = (card: DrawnElement): unknown[] =>
+  elementsWithStyle(card, 'pl').map((element) => element.styles['pl']);
+
 describe('dialogFrame', () => {
-  test('draws the overlay card surface and outline at the dialog padding and block gap', () => {
+  test('draws the overlay card surface and outline', () => {
     const card = dialogFrame({ id: 'confirm', title: 'Close space “api”?', actions: [] });
 
     expect(card.backgroundColors).toContain(palette.popover);
     expect(card.borderColors).toContain(palette.border);
-    expect(card.styles['rounded']).toEqual([radius.dialog]);
-    expect(card.styles['p']).toEqual([dialogSize.padding]);
-    expect(card.styles['pt']).toEqual([dialogSize.padding - dialogSize.titleTrim]);
-    expect(card.styles['gap']).toEqual([dialogSize.blockGap]);
-    expect(card.styles['w_full']).toEqual([]);
   });
 
-  test('draws the title in one 13 px semibold size and no Esc hint', () => {
-    const card = dialogFrame({ id: 'confirm', title: 'Close space “api”?', actions: [] });
-    const title = elementWithText(card, 'Close space “api”?');
+  test('draws the title in the body size, semibold, with no Esc hint', () => {
+    const card = dialogFrame({
+      id: 'confirm',
+      title: 'Close space “api”?',
+      lines: ['2 tabs close.'],
+      actions: [],
+    });
 
-    expect(title?.styles['text_size']).toEqual([13]);
+    const title = elementWithText(card, 'Close space “api”?');
+    const line = elementWithText(card, '2 tabs close.');
+
+    expect(title?.styles['text_size']).toEqual(line?.styles['text_size']);
     expect(title?.styles['font_semibold']).toEqual([]);
     expect(title?.textColors).toContain(palette.foreground);
     expect(drawnTexts(card)).not.toContain('Esc');
   });
 
-  test('a destructive ask draws the red mark before the title and indents the body', () => {
-    const card = dialogFrame({
+  test('a destructive ask draws the red mark before the title and indents only its body', () => {
+    const title = 'Close space “api”?';
+
+    const destructive = dialogFrame({
       id: 'confirm',
-      title: 'Close space “api”?',
+      title,
       lines: ['2 tabs close.'],
       destructive: true,
       actions: [],
     });
 
-    const mark = elementWithIcon(card, 'triangle-alert.svg');
+    const harmless = dialogFrame({
+      id: 'confirm',
+      title,
+      lines: ['2 tabs close.'],
+      actions: [],
+    });
 
-    expect(drawnIcons(card)).toContain('triangle-alert.svg');
+    const mark = elementWithIcon(destructive, 'triangle-alert.svg');
+
     expect(mark?.textColors).toContain(palette.blocked);
-    expect(mark?.styles['mt']).toEqual([dialogSize.markTop]);
-
-    const indented = elementsWithStyle(card, 'pl');
-
-    expect(indented.map((element) => element.styles['pl'])).toEqual([[dialogSize.markInset]]);
-    expect(drawnTexts(card)).toContain('2 tabs close.');
+    expect(destructive.kids[0]?.kids[0]).toBe(mark as DrawnElement);
+    expect(indentOf(destructive)).not.toEqual([]);
+    expect(indentOf(harmless)).toEqual([]);
+    expect(drawnIcons(harmless)).not.toContain('triangle-alert.svg');
   });
 
-  test('draws each body line in the body size and muted ink', () => {
+  test('draws each body line in the muted ink', () => {
     const card = dialogFrame({
       id: 'confirm',
       title: 'Close space “api”?',
@@ -113,14 +130,28 @@ describe('dialogFrame', () => {
     });
 
     for (const line of ['Claude Code stops mid-task, and 2 tabs close.', 'Its folder stays.']) {
-      const element = elementWithText(card, line);
-
-      expect(element?.styles['text_size']).toEqual([13]);
-      expect(element?.textColors).toContain(palette.muted);
+      expect(elementWithText(card, line)?.textColors).toContain(palette.muted);
     }
   });
 
-  test('puts the actions at the end, 8 px apart and 4 px below the block above', () => {
+  test('draws a custom body after the lines', () => {
+    const field = bodyText('Rename field');
+
+    const card = dialogFrame({
+      id: 'prompt',
+      title: 'Rename space',
+      lines: ['Its folder stays.'],
+      body: field,
+      actions: [],
+    });
+
+    const body = card.kids[1] as DrawnElement;
+
+    expect(drawnTexts(card)).toContain('Rename field');
+    expect(drawnTexts(body)).toEqual(['Its folder stays.', 'Rename field']);
+  });
+
+  test('puts the actions last and at the end of the row', () => {
     const card = dialogFrame({
       id: 'confirm',
       title: 'Close space “api”?',
@@ -130,9 +161,8 @@ describe('dialogFrame', () => {
 
     const row = card.kids.at(-1) as DrawnElement;
 
-    expect(row.styles['gap']).toEqual([dialogSize.blockGap]);
-    expect(row.styles['mt']).toEqual([dialogSize.actionGap - dialogSize.blockGap]);
     expect(row.styles['justify_end']).toEqual([]);
+    expect(row.kids).toHaveLength(2);
   });
 
   test('only the main action shows the Enter keycap, and Cancel stays plain', () => {

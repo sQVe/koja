@@ -69,6 +69,7 @@ let dialogProps: Record<string, unknown> = {};
 let spaceList: unknown[] = [];
 let spaceStatuses: Record<string, string | null> = {};
 let keyDownHandler: KeyHandler | null = null;
+let frameOptions: Record<string, unknown> = {};
 let buttons = new Map<string, Button>();
 let stateLines: StateLine[] = [];
 let typedValue = '';
@@ -190,10 +191,13 @@ await mock.module('../../kit/index.ts', () =>
     },
     detailText: chainable,
     dialogButton: recordButton,
-    dialogFrame: () =>
-      dialogFrameFake((handler: KeyHandler) => {
+    dialogFrame: (options: Record<string, unknown>) => {
+      frameOptions = options;
+
+      return dialogFrameFake((handler: KeyHandler) => {
         keyDownHandler = handler;
-      }),
+      });
+    },
     recordOf,
     rollupStatuses: () => ({ spaces: spaceStatuses, tabs: {} }),
     spaceFolder,
@@ -244,6 +248,7 @@ beforeEach(() => {
   execResults = defaultResults();
   spaceStatuses = {};
   keyDownHandler = null;
+  frameOptions = {};
   buttons = new Map();
   stateLines = [];
   typedValue = '';
@@ -315,6 +320,18 @@ describe('remove worktree without risk', () => {
     const removeArguments = groveCalls().map((call) => call.args);
 
     expect(removeArguments).toEqual([['remove', '--force', 'feat-a']]);
+  });
+
+  test('a remove that asks draws the destructive mark, and a new worktree does not', async () => {
+    spaceStatuses = { 'space-1': 'working' };
+    await openDialog();
+
+    expect(frameOptions['destructive']).toBe(true);
+
+    dialogProps = { action: 'new', space: 'space-1', overlay: 'overlay-1' };
+    await openDialog();
+
+    expect(frameOptions['destructive']).toBe(false);
   });
 
   test('a failed Grove remove shows its error, keeps the dialog, and keeps the space', async () => {

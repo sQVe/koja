@@ -191,9 +191,7 @@ export const overlaySize = {
   worktreeListWidth: 560,
   worktreeListHeight: 480,
   confirmWidth: dialogSize.width,
-  confirmHeight: 125,
   promptWidth: dialogSize.width,
-  promptHeight: 129,
   groveWidth: 420,
   groveHeight: 280,
   // Leaves room in groveHeight for the field and the buttons; a longer message scrolls.

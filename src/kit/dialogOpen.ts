@@ -9,7 +9,6 @@ export const openConfirm = (dialog: ConfirmDialog): void => {
     kind: 'dialog',
     frame: 'none',
     width: overlaySize.confirmWidth,
-    height: overlaySize.confirmHeight,
     props: { ...dialog },
   });
 };
@@ -20,7 +19,6 @@ export const openPrompt = (dialog: PromptDialog): void => {
     kind: 'dialog',
     frame: 'none',
     width: overlaySize.promptWidth,
-    height: overlaySize.promptHeight,
     props: { ...dialog },
   });
 };
