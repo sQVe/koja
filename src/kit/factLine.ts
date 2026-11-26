@@ -4,7 +4,9 @@ import type { Element } from 'gpui-kit';
 import { controlSize, spacing } from './size.ts';
 import { roleText } from './textRole.ts';
 
-const gapFact = (): Element => roleText('detail', '·', 'dim').flex_none();
+const dimFixed = (text: string): Element => roleText('detail', text, 'dim').flex_none();
+
+const factSeparator = (): Element => dimFixed('·');
 
 const valueText = (value: string): Element =>
   roleText('detail', value, 'foreground')
@@ -18,10 +20,11 @@ export const factLine = (value: string, facts: string[]): Element => {
 
   line.child(valueText(value));
 
+  // A fact is a short label, so it keeps its width and never takes space from the value.
   for (const fact of facts) {
-    const factText = roleText('detail', fact, 'dim').flex_none();
+    const factText = dimFixed(fact);
 
-    line.child(gapFact());
+    line.child(factSeparator());
     line.child(factText);
   }
 
