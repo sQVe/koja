@@ -25,6 +25,11 @@ import {
 } from '../scripts/sandboxIdentity.ts';
 import { replaceOnce } from './scriptCopy.ts';
 
+interface InstallFromOptions {
+  home?: string;
+  check?: () => Promise<CheckResult>;
+}
+
 let root: string;
 let home: string;
 let checkout: string;
@@ -41,17 +46,14 @@ const passingCheck = async (): Promise<CheckResult> => ({ passed: true, output: 
 
 const failingCheck = async (): Promise<CheckResult> => ({ passed: false, output: 'failed' });
 
-const installFrom = async (
-  from: string,
-  check: () => Promise<CheckResult> = passingCheck,
-): Promise<void> => {
+const installFrom = async (from: string, overrides: InstallFromOptions = {}): Promise<void> => {
   await install({
-    home,
+    home: overrides.home ?? home,
     checkout: from,
     inputs: await shippedInputs(from),
     modsDirectory: join(from, 'dist', 'mods'),
     configDirectory: join(from, 'config'),
-    check,
+    check: overrides.check ?? passingCheck,
   });
 };
 
@@ -182,7 +184,7 @@ describe('sandbox identity', () => {
   test('fails when a mod check failed in the last install', async () => {
     await rm(home, { recursive: true });
     await mkdir(home, { recursive: true });
-    await installFrom(checkout, failingCheck);
+    await installFrom(checkout, { check: failingCheck });
 
     expect(await findIdentityFailures(options)).toEqual([
       { kind: 'checkFailed' },
@@ -446,6 +448,25 @@ describe('sandbox name holder', () => {
 
     expect((await nameHolderReport(options)).exitCode).toBe(0);
   });
+
+  test('refuses when the install record cannot be read', async () => {
+    await writeFile(recordPath(), 'not a record\n');
+
+    const report = await nameHolderReport(options);
+
+    expect(report.exitCode).toBe(1);
+    expect(report.lines.join('\n')).toContain(recordPath());
+  });
+
+  test('passes when the checkout that holds the name is gone', async () => {
+    const other = join(root, 'other');
+
+    await writeCheckout(other);
+    await installFrom(other);
+    await rm(other, { recursive: true });
+
+    expect((await nameHolderReport(options)).exitCode).toBe(0);
+  });
 });
 
 const linesOf = (output: string): string[] => output.trim().split('\n');
@@ -539,14 +560,7 @@ describe('scripts/sandbox', () => {
   };
 
   const installIntoSandbox = async (installedFrom: string): Promise<void> => {
-    await install({
-      home: join(sandboxRoot, 'config', 'herdr-app'),
-      checkout: installedFrom,
-      inputs: await shippedInputs(installedFrom),
-      modsDirectory: join(installedFrom, 'dist', 'mods'),
-      configDirectory: join(installedFrom, 'config'),
-      check: passingCheck,
-    });
+    await installFrom(installedFrom, { home: join(sandboxRoot, 'config', 'herdr-app') });
   };
 
   beforeEach(async () => {
@@ -687,7 +701,7 @@ describe('scripts/sandbox', () => {
     expect(await snapshot(sandboxRoot)).toEqual(before);
   });
 
-  test.each(['up', 'restart'])(
+  test.each(['down', 'restart', 'up'])(
     'refuses to %s a sandbox that another checkout holds',
     async (command) => {
       const other = join(root, 'other-checkout');
@@ -698,13 +712,47 @@ describe('scripts/sandbox', () => {
       await writeProgram(program, 'exit 0');
       await writeRuta('ruta is up', 0);
 
-      const result = await runSandbox(command, { RUTA_NAME: name, HERDR_APP_BIN: program });
+      const child = spawnSandbox(command, { RUTA_NAME: name, HERDR_APP_BIN: program });
 
-      expect(result.exitCode).toBe(1);
-      expect(result.output).toContain(other);
+      const [stdout, stderr, exitCode] = await Promise.all([
+        new Response(child.stdout).text(),
+        new Response(child.stderr).text(),
+        child.exited,
+      ]);
+
+      expect(exitCode).toBe(1);
+      expect(stderr).toContain(other);
+      expect(stdout).toBe('');
       expect(await Bun.file(join(fakes, 'calls')).exists()).toBe(false);
     },
   );
+
+  test('reports the holder through identity instead of refusing', async () => {
+    const other = join(root, 'other-checkout');
+
+    await writeCheckout(other);
+    await installIntoSandbox(other);
+    await writeRuta('ruta is up', 0);
+    await writeWindow(0);
+
+    const result = await runSandbox('identity', { RUTA_NAME: name });
+
+    expect(await readFile(join(fakes, 'calls'), 'utf8')).toBe(`${name} ${repository} status\n`);
+    expect(result.output).toContain(other);
+  });
+
+  test('prints the rules through guide instead of refusing', async () => {
+    const other = join(root, 'other-checkout');
+
+    await writeCheckout(other);
+    await installIntoSandbox(other);
+    await writeRuta('ruta is up', 0);
+
+    const result = await runSandbox('guide', { RUTA_NAME: name });
+
+    expect(result.exitCode).toBe(0);
+    expect(await readFile(join(fakes, 'calls'), 'utf8')).toBe(`${name} ${repository} guide\n`);
+  });
 
   test('starts a sandbox that this checkout already holds', async () => {
     const program = join(fakes, 'herdr-app-fake');

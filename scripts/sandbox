@@ -42,14 +42,14 @@ fi
 root=/var/tmp/ruta-$name
 
 # A sandbox name belongs to the checkout that installed it, so this checkout must not start, change,
-# or remove a sandbox that another checkout holds. identity reports the holder, and guide and a bare
-# call only print ruta's rules, so they stay allowed.
+# or remove a sandbox that another checkout holds. identity reports the holder instead, and the
+# commands that only read the window or print rules stay allowed.
 refuse_other_checkout() {
   bun "$checkout/scripts/sandboxIdentity.ts" guard "$name" "$root/config/herdr-app" "$checkout"
 }
 
 case ${1:-} in
-  '' | identity | guide) ;;
+  '' | guide | identity | log | opened | shot | status) ;;
   *) refuse_other_checkout ;;
 esac
 

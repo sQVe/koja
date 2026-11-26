@@ -38,6 +38,13 @@ export interface IdentityReport {
 
 type NameHolderOptions = Omit<IdentityOptions, 'window'>;
 
+type NameHolder =
+  | { kind: 'free' }
+  | { kind: 'held'; checkout: string }
+  | { kind: 'unreadableRecord'; path: string };
+
+type RecordRead = InstallRecord | null | 'unreadable';
+
 const windowStates: WindowState[] = ['answers', 'silent'];
 
 // Pairs of the path inside Herdr home and the path inside the checkout, as the installer plans them.
@@ -212,33 +219,71 @@ export const identityReport = async (options: IdentityOptions): Promise<Identity
   return { exitCode: 1, lines: failures.map((failure) => failureLine(options, failure)) };
 };
 
-const checkoutHoldingName = async (options: NameHolderOptions): Promise<string | null> => {
-  const record = await readRecord(options.home);
+const readRecordOrUnreadable = async (home: string): Promise<RecordRead> => {
+  try {
+    return await readRecord(home);
+  } catch {
+    return 'unreadable';
+  }
+};
+
+const findNameHolder = async (options: NameHolderOptions): Promise<NameHolder> => {
+  const record = await readRecordOrUnreadable(options.home);
+
+  if (record === 'unreadable') {
+    return { kind: 'unreadableRecord', path: join(options.home, recordName) };
+  }
+
   const origin = record?.origin ?? null;
 
   if (origin === null) {
-    return null;
+    return { kind: 'free' };
   }
 
-  const fromThisCheckout = await isFromCheckout(options.checkout, origin);
+  if (await isFromCheckout(options.checkout, origin)) {
+    return { kind: 'free' };
+  }
 
-  return fromThisCheckout ? null : origin.checkout;
+  // A checkout that no longer exists serves nobody, so its name is free to take over or remove.
+  if ((await lstatOrNull(origin.checkout)) === null) {
+    return { kind: 'free' };
+  }
+
+  return { kind: 'held', checkout: origin.checkout };
 };
 
 export const nameHolderReport = async (options: NameHolderOptions): Promise<IdentityReport> => {
-  const holder = await checkoutHoldingName(options);
+  const holder = await findNameHolder(options);
 
-  if (holder === null) {
-    return { exitCode: 0, lines: [] };
+  switch (holder.kind) {
+    case 'free': {
+      return { exitCode: 0, lines: [] };
+    }
+
+    case 'held': {
+      return {
+        exitCode: 1,
+        lines: [
+          `sandbox ${options.name} serves ${holder.checkout}, not ${options.checkout}`,
+          `use another RUTA_NAME, or run this from ${holder.checkout}`,
+        ],
+      };
+    }
+
+    case 'unreadableRecord': {
+      return {
+        exitCode: 1,
+        lines: [
+          `cannot read the install record at ${holder.path}`,
+          'remove the sandbox by hand, or restore its record',
+        ],
+      };
+    }
+
+    default: {
+      return holder satisfies never;
+    }
   }
-
-  return {
-    exitCode: 1,
-    lines: [
-      `sandbox ${options.name} serves ${holder}, not ${options.checkout}`,
-      `use another RUTA_NAME, or run this from ${holder}`,
-    ],
-  };
 };
 
 const isWindowState = (value: string | undefined): value is WindowState =>
@@ -252,10 +297,10 @@ const checkedWindowState = (value: string | undefined): WindowState => {
   return value;
 };
 
-const writeReport = (report: IdentityReport): void => {
+const writeReport = (report: IdentityReport, stream: 'stdout' | 'stderr'): void => {
   const text = report.lines.map((line) => `${line}\n`).join('');
 
-  process.stdout.write(text);
+  process[stream].write(text);
   process.exitCode = report.exitCode;
 };
 
@@ -270,11 +315,11 @@ if (import.meta.main) {
   }
 
   if (command === 'guard') {
-    writeReport(await nameHolderReport({ name, home, checkout }));
+    writeReport(await nameHolderReport({ name, home, checkout }), 'stderr');
   } else if (command === 'identity') {
     const state = checkedWindowState(window);
 
-    writeReport(await identityReport({ name, home, checkout, window: state }));
+    writeReport(await identityReport({ name, home, checkout, window: state }), 'stdout');
   } else {
     throw new Error(`unknown command '${command}'; use identity or guard`);
   }
