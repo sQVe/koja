@@ -36,26 +36,29 @@ export RUTA_NAME=$name
 
 root=/var/tmp/ruta-$name
 
-# ruta runs `capture` in a sandbox of its own, named <name>-capture, and checks that name too.
-guard_name=$name
-guard_root=$root
+# ruta runs `capture` in a sandbox of its own, named <name>-capture, and checks that name against
+# the same 32-character limit, so the suffix counts against the name.
+suffix=''
 if [[ ${1:-} == capture ]]; then
-  guard_name=$name-capture
-  guard_root=$root-capture
+  suffix=-capture
+fi
+
+guard_name=$name$suffix
+guard_root=$root$suffix
+max_name=$((32 - ${#suffix}))
+
+name_limit_note=''
+if [[ -n $suffix ]]; then
+  name_limit_note=", so the name must be at most $max_name"
 fi
 
 if [[ ! $guard_name =~ ^[a-z0-9][a-z0-9-]*$ ]]; then
-  echo "RUTA_NAME must be one name of lowercase letters, digits, and dashes, not '$guard_name'" >&2
-  exit 2
-fi
-
-if (( ${#name} > 32 )); then
-  echo "RUTA_NAME must be at most 32 characters, not '$name'" >&2
+  echo "the sandbox name must be one name of lowercase letters, digits, and dashes, not '$guard_name'" >&2
   exit 2
 fi
 
 if (( ${#guard_name} > 32 )); then
-  echo "sandbox $guard_name must be at most 32 characters, so RUTA_NAME must be at most 24 for capture, not '$name'" >&2
+  echo "sandbox $guard_name must be at most 32 characters$name_limit_note, not '$name'" >&2
   exit 2
 fi
 
