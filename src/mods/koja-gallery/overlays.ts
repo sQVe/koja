@@ -1,3 +1,4 @@
+import type { InputState } from 'gpui-base';
 import { h_flex, v_flex } from 'gpui-base';
 import type { Element } from 'gpui-kit';
 import { div } from 'gpui-kit';
@@ -5,13 +6,18 @@ import { div } from 'gpui-kit';
 import type { OverlayHint, SegmentedChipOptions } from '../../kit/index.ts';
 import {
   footerLine,
+  icon,
   keycap,
   keycaps,
   overlayCard,
+  overlayHeading,
   overlayHints,
+  overlayRow,
   pressedKeycap,
   roleText,
   rowHeight,
+  scrollThumb,
+  searchInputLine,
   searchLine,
   segmentedChip,
   spacing,
@@ -65,6 +71,50 @@ const hintRows = (): Element =>
 
 const search = (): Element => cardSample('gallery-overlay-search', [searchLine('Type a command')]);
 
+const searchInput = (input: InputState): Element =>
+  cardSample('gallery-overlay-search-input', [searchInputLine(input)]);
+
+const overlayRows = (): Element => {
+  const normal = overlayRow({
+    size: 'medium',
+    state: 'normal',
+    start: icon('search', 'small'),
+    label: label('Go to space or tab…'),
+    end: overlayHints({ normal: ['t', 'n'] }, true),
+  });
+
+  const selected = overlayRow({
+    size: 'medium',
+    state: 'selected',
+    start: icon('plus', 'small'),
+    label: label('New tab'),
+    end: overlayHints({ normal: ['t', 'n'] }, true),
+  });
+
+  const disabled = overlayRow({
+    size: 'medium',
+    state: 'disabled',
+    start: icon('circle-x', 'small'),
+    label: label('Delete space'),
+    end: overlayHints({ normal: ['s', 'd'] }, true),
+  });
+
+  return v_flex().gap(spacing.xxsmall).child(normal).child(selected).child(disabled);
+};
+
+const overlayHeadings = (): Element =>
+  v_flex()
+    .gap(spacing.xxsmall)
+    .child(overlayHeading('Tabs', 't'))
+    .child(overlayHeading('Recent', null));
+
+const scrollThumbSample = (): Element => {
+  const thumb = scrollThumb({ top: spacing.small, height: spacing.xxlarge });
+  const track = div().relative().h(rowHeight.large).child(thumb);
+
+  return cardSample('gallery-overlay-scroll-thumb', [track]);
+};
+
 const footer = (): Element =>
   cardSample('gallery-overlay-footer', [footerLine([['tab'], 'Next filter', ['↵'], 'Go to'])]);
 
@@ -83,11 +133,15 @@ const chips = (): Element => {
   return cardSample('gallery-overlay-chips', [line]);
 };
 
-export const overlays = (): Element[] => [
+export const overlays = (input: InputState): Element[] => [
   sample('Card', card()),
   sample('Keycaps: normal, a group, pressed', keycapsRow()),
   sample('Mode-aware hints', hintRows()),
+  sample('Overlay rows: normal, selected, and disabled', overlayRows()),
+  sample('Overlay headings: with and without a part letter', overlayHeadings()),
   sample('Search line', search()),
+  sample('Search input line', searchInput(input)),
   sample('Footer line', footer()),
+  sample('Scroll thumb', scrollThumbSample()),
   sample('Segmented chips', chips()),
 ];
