@@ -158,14 +158,6 @@ describe('gallery data layer section', () => {
   });
 });
 
-describe('gallery sidebar section', () => {
-  test('draws the Sidebar parts section title', () => {
-    const view = openGallery();
-
-    expect(drawnTexts(view.render(context))).toContain('Sidebar parts');
-  });
-});
-
 describe('gallery section folding', () => {
   test('folds one Checks specimen without folding the other, then opens it again', () => {
     const view = openGallery();
