@@ -33,6 +33,10 @@ describe('untab', () => {
     expect(untab('abcd\tx')).toBe('abcd    x');
   });
 
+  test('pads a tab after a wide glyph to the next stop in display columns', () => {
+    expect(untab('名\tx')).toBe('名  x');
+  });
+
   test('pads each of several tabs on one line', () => {
     expect(untab('a\tb\tc')).toBe('a   b   c');
   });

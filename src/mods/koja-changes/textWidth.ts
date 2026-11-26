@@ -19,7 +19,8 @@ export const displayColumns = (text: string): number => {
 export const untab = (text: string): string =>
   text.replace(/[^\t]*\t/g, (run) => {
     const kept = run.slice(0, -1);
-    const stop = kept.length - (kept.length % tabStops) + tabStops;
+    const width = displayColumns(kept);
+    const stop = width - (width % tabStops) + tabStops;
 
-    return kept.padEnd(stop);
+    return kept.padEnd(kept.length + stop - width);
   });
