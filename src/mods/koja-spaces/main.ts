@@ -16,7 +16,9 @@ import {
 
 import type { DataState } from '../../data/consumer.ts';
 import { readDataState } from '../../data/consumer.ts';
+import { folderNameOf } from '../../data/fields.ts';
 import { startDataHost } from '../../data/host.ts';
+import { ticketIdOf } from '../../data/linearTickets.ts';
 import { placeOfSpace, placesOf } from '../../data/places.ts';
 import { createPullRetryClient } from '../../data/pullRetry.ts';
 import type { RepositoryPulls } from '../../data/snapshot.ts';
@@ -101,6 +103,20 @@ const storage = {
   set: (key: string, value: string): void => {
     localStorage.setItem(key, value);
   },
+};
+
+const ticketTitleAt = (state: DataState, row: ListedSpace): string | null => {
+  if (state.kind === 'unavailable' || row.git === null) {
+    return null;
+  }
+
+  const id = ticketIdOf(row.git.branch, folderNameOf(row.git.root));
+
+  if (id === null) {
+    return null;
+  }
+
+  return state.snapshot.facts.trackers[row.git.repo.key]?.tickets[id]?.title ?? null;
 };
 
 export default class Spaces extends View {
@@ -411,6 +427,7 @@ export default class Spaces extends View {
     cursor: string | null,
     now: number,
     pulls: Record<string, RepositoryPulls>,
+    ticketTitle: string | null,
   ): Element {
     const waiting = { id: row.space.id, status: row.status, active: row.space.active };
     const age = waitAge(this.waitTimes, waiting, now);
@@ -427,7 +444,7 @@ export default class Spaces extends View {
 
     const pull = pullOf(row.git, pulls);
 
-    return spaceRow(row, ids, state, pull);
+    return spaceRow(row, ids, state, pull, ticketTitle);
   }
 
   private drawMain(
@@ -491,7 +508,11 @@ export default class Spaces extends View {
     const elements = projectRows({
       projects,
       loading: this.isWaiting(),
-      draw: (row) => keepCursor(row, this.draw(row, ids, cursor, now, pulls)),
+      draw: (row) => {
+        const ticketTitle = ticketTitleAt(state, row);
+
+        return keepCursor(row, this.draw(row, ids, cursor, now, pulls, ticketTitle));
+      },
       drawMain: (project, main) =>
         keepCursor(main, this.drawMain(project, main, ids, keys, cursor, now)),
       foldDrag: (project) => {

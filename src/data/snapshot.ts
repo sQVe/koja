@@ -29,16 +29,35 @@ export interface RepositoryPulls {
   failed: boolean;
 }
 
+export interface TicketFacts {
+  id: string;
+  title: string;
+  state: string;
+  url: string;
+  parent: string | null;
+}
+
+export interface RepositoryTracker {
+  workspace: string | null;
+  tickets: Record<string, TicketFacts>;
+  failed: boolean;
+}
+
 export interface Facts {
   git: GitFacts;
   pulls: Record<string, RepositoryPulls>;
+  trackers: Record<string, RepositoryTracker>;
 }
 
-export const snapshotVersion = 4;
+export const snapshotVersion = 6;
 
 const versionWithGitFactsOnly = 2;
 
 const versionWithoutPullNeeds = 3;
+
+const versionWithoutTrackers = 4;
+
+const versionWithTicketFailures = 5;
 
 export interface Snapshot {
   version: typeof snapshotVersion;
@@ -48,7 +67,11 @@ export interface Snapshot {
 
 export const snapshotKey = 'koja.data.v1.snapshot';
 
-export const emptyFacts = (): Facts => ({ git: { places: {}, worktrees: {} }, pulls: {} });
+export const emptyFacts = (): Facts => ({
+  git: { places: {}, worktrees: {} },
+  pulls: {},
+  trackers: {},
+});
 
 const isNullableString = (value: unknown): value is string | null =>
   value === null || typeof value === 'string';
@@ -267,6 +290,115 @@ const parseRepositoryPulls = (
   return { pulls, failed };
 };
 
+const retiredTicketFailureKey = 'failed';
+
+const ticketKeys = ['id', 'title', 'state', 'url', 'parent'];
+
+const version5TicketKeys = [...ticketKeys, retiredTicketFailureKey];
+
+const parseTicketFacts = (value: unknown, keys: readonly string[]): TicketFacts | null => {
+  if (!isRecord(value)) {
+    return null;
+  }
+
+  if (!hasOnlyKeys(value, keys)) {
+    return null;
+  }
+
+  const acceptsRetiredFailure = keys.includes(retiredTicketFailureKey);
+
+  if (acceptsRetiredFailure && typeof value.failed !== 'boolean') {
+    return null;
+  }
+
+  const id = stringOf(value.id);
+
+  if (id === null) {
+    return null;
+  }
+
+  const title = stringOf(value.title);
+
+  if (title === null) {
+    return null;
+  }
+
+  const state = stringOf(value.state);
+
+  if (state === null) {
+    return null;
+  }
+
+  const url = stringOf(value.url);
+
+  if (url === null) {
+    return null;
+  }
+
+  const parent = value.parent;
+
+  if (!isNullableString(parent)) {
+    return null;
+  }
+
+  return { id, title, state, url, parent };
+};
+
+const parseCurrentTicketFacts = (value: unknown): TicketFacts | null =>
+  parseTicketFacts(value, ticketKeys);
+
+const parseVersion5TicketFacts = (value: unknown): TicketFacts | null => {
+  const holdsRetiredFailure = isRecord(value) && Object.hasOwn(value, retiredTicketFailureKey);
+  const keys = holdsRetiredFailure ? version5TicketKeys : ticketKeys;
+
+  return parseTicketFacts(value, keys);
+};
+
+const parseRepositoryTracker = (
+  value: unknown,
+  parseTicket: (value: unknown) => TicketFacts | null,
+): RepositoryTracker | null => {
+  if (!isRecord(value)) {
+    return null;
+  }
+
+  if (!hasOnlyKeys(value, ['workspace', 'tickets', 'failed'])) {
+    return null;
+  }
+
+  const workspace = value.workspace;
+
+  if (!isNullableString(workspace)) {
+    return null;
+  }
+
+  const failed = value.failed;
+
+  if (typeof failed !== 'boolean') {
+    return null;
+  }
+
+  const stored = value.tickets;
+
+  if (!isRecord(stored)) {
+    return null;
+  }
+
+  const entries: [string, TicketFacts][] = [];
+
+  for (const [key, ticket] of Object.entries(stored)) {
+    const parsed = parseTicket(ticket);
+
+    if (parsed === null) {
+      return null;
+    }
+
+    entries.push([key, parsed]);
+  }
+
+  return { workspace, tickets: Object.fromEntries(entries), failed };
+};
+
 const repositoryKeys = (worktrees: Record<string, WorktreeGit>): Set<string> => {
   const keys = Object.values(worktrees).map((worktree) => worktree.repository.key);
 
@@ -302,12 +434,41 @@ const parsePulls = (
   return Object.fromEntries(entries);
 };
 
-const parseFacts = (value: unknown, parsePull: StoredPullParser): Facts | null => {
+const parseTrackers = (
+  value: unknown,
+  worktrees: Record<string, WorktreeGit>,
+  parseTicket: (value: unknown) => TicketFacts | null,
+): Record<string, RepositoryTracker> | null => {
   if (!isRecord(value)) {
     return null;
   }
 
-  if (!hasOnlyKeys(value, ['git', 'pulls'])) {
+  const known = repositoryKeys(worktrees);
+  const entries: [string, RepositoryTracker][] = [];
+
+  for (const [key, entry] of Object.entries(value)) {
+    if (!known.has(key)) {
+      return null;
+    }
+
+    const parsed = parseRepositoryTracker(entry, parseTicket);
+
+    if (parsed === null) {
+      return null;
+    }
+
+    entries.push([key, parsed]);
+  }
+
+  return Object.fromEntries(entries);
+};
+
+const parseGitAndPulls = (
+  value: Record<string, unknown>,
+  parsePull: StoredPullParser,
+  keys: readonly string[],
+): Pick<Facts, 'git' | 'pulls'> | null => {
+  if (!hasOnlyKeys(value, keys)) {
     return null;
   }
 
@@ -326,6 +487,44 @@ const parseFacts = (value: unknown, parsePull: StoredPullParser): Facts | null =
   return { git, pulls };
 };
 
+const parseFacts = (
+  value: unknown,
+  parsePull: StoredPullParser,
+  parseTicket: (value: unknown) => TicketFacts | null,
+): Facts | null => {
+  if (!isRecord(value)) {
+    return null;
+  }
+
+  const gitAndPulls = parseGitAndPulls(value, parsePull, ['git', 'pulls', 'trackers']);
+
+  if (gitAndPulls === null) {
+    return null;
+  }
+
+  const trackers = parseTrackers(value.trackers, gitAndPulls.git.worktrees, parseTicket);
+
+  if (trackers === null) {
+    return null;
+  }
+
+  return { ...gitAndPulls, trackers };
+};
+
+const parseFactsWithoutTrackers = (value: unknown, parsePull: StoredPullParser): Facts | null => {
+  if (!isRecord(value)) {
+    return null;
+  }
+
+  const gitAndPulls = parseGitAndPulls(value, parsePull, ['git', 'pulls']);
+
+  if (gitAndPulls === null) {
+    return null;
+  }
+
+  return { ...gitAndPulls, trackers: {} };
+};
+
 const parseGitOnlyFacts = (value: unknown): Facts | null => {
   if (!isRecord(value)) {
     return null;
@@ -341,7 +540,7 @@ const parseGitOnlyFacts = (value: unknown): Facts | null => {
     return null;
   }
 
-  return { git, pulls: {} };
+  return { git, pulls: {}, trackers: {} };
 };
 
 const parseVersion3Pull: StoredPullParser = (stored) => {
@@ -372,10 +571,16 @@ const parseVersion2Snapshot = (fields: Record<string, unknown>): Snapshot | null
   snapshotOf(fields, parseGitOnlyFacts(fields.facts));
 
 const parseVersion3Snapshot = (fields: Record<string, unknown>): Snapshot | null =>
-  snapshotOf(fields, parseFacts(fields.facts, parseVersion3Pull));
+  snapshotOf(fields, parseFactsWithoutTrackers(fields.facts, parseVersion3Pull));
+
+const parseVersion4Snapshot = (fields: Record<string, unknown>): Snapshot | null =>
+  snapshotOf(fields, parseFactsWithoutTrackers(fields.facts, parseStoredPull));
+
+const parseVersion5Snapshot = (fields: Record<string, unknown>): Snapshot | null =>
+  snapshotOf(fields, parseFacts(fields.facts, parseStoredPull, parseVersion5TicketFacts));
 
 const parseCurrentSnapshot = (fields: Record<string, unknown>): Snapshot | null =>
-  snapshotOf(fields, parseFacts(fields.facts, parseStoredPull));
+  snapshotOf(fields, parseFacts(fields.facts, parseStoredPull, parseCurrentTicketFacts));
 
 export const parseSnapshot = (value: unknown): Snapshot | null => {
   const fields = recordOf(value);
@@ -388,6 +593,14 @@ export const parseSnapshot = (value: unknown): Snapshot | null => {
     return parseVersion3Snapshot(fields);
   }
 
+  if (fields.version === versionWithoutTrackers) {
+    return parseVersion4Snapshot(fields);
+  }
+
+  if (fields.version === versionWithTicketFailures) {
+    return parseVersion5Snapshot(fields);
+  }
+
   if (fields.version !== snapshotVersion) {
     return null;
   }
@@ -395,9 +608,18 @@ export const parseSnapshot = (value: unknown): Snapshot | null => {
   return parseCurrentSnapshot(fields);
 };
 
-export const joinFacts = (git: GitFacts, pulls: Record<string, RepositoryPulls>): Facts => {
+export const joinFacts = (
+  git: GitFacts,
+  pulls: Record<string, RepositoryPulls>,
+  trackers: Record<string, RepositoryTracker>,
+): Facts => {
   const known = repositoryKeys(git.worktrees);
-  const entries = Object.entries(pulls).filter(([key]) => known.has(key));
+  const keptPulls = Object.entries(pulls).filter(([key]) => known.has(key));
+  const keptTrackers = Object.entries(trackers).filter(([key]) => known.has(key));
 
-  return { git, pulls: Object.fromEntries(entries) };
+  return {
+    git,
+    pulls: Object.fromEntries(keptPulls),
+    trackers: Object.fromEntries(keptTrackers),
+  };
 };

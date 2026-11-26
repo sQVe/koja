@@ -1,5 +1,7 @@
 import type { ExecResult, Status } from 'herdr';
 
+import { folderNameOf } from '../../data/fields.ts';
+
 export interface Workspace {
   space: string;
   machine: string | null;
@@ -14,12 +16,10 @@ const bareFolder = '.bare';
 
 const trimSlashes = (path: string): string => path.replace(/\/+$/, '');
 
-export const baseName = (path: string): string => trimSlashes(path).split('/').at(-1) ?? '';
-
 export const workspaceRoot = (commonDirectory: string): string | null => {
   const trimmed = trimSlashes(commonDirectory.trim());
 
-  if (baseName(trimmed) !== bareFolder) {
+  if (folderNameOf(trimmed) !== bareFolder) {
     return null;
   }
 

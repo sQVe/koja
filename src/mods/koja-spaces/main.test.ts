@@ -58,6 +58,7 @@ interface Checkout {
   machine?: string | null;
   commonDirectory: string;
   linked: boolean;
+  branch?: string;
 }
 
 interface StoredPullRequest {
@@ -183,16 +184,16 @@ const storedFacts = (
     worktrees[worktree.key] = {
       repository: repositoryOf(machine, checkout.commonDirectory),
       root: checkout.folder,
-      branch: 'main',
+      branch: checkout.branch ?? 'main',
       linked: checkout.linked,
     };
   }
 
-  return { git: { places, worktrees }, pulls };
+  return { git: { places, worktrees }, pulls, trackers: {} };
 };
 
 const showFacts = (facts: Facts): void => {
-  sharedValues[snapshotKey] = { version: 4, revision: 1, facts };
+  sharedValues[snapshotKey] = { version: 6, revision: 1, facts };
 };
 
 class HostView {
@@ -1473,5 +1474,51 @@ describe('koja-spaces pull facts', () => {
     expect(second.consumer).toBe(first.consumer);
     expect(second.id).not.toBe(first.id);
     expect(second.repository).toBe(kojaRepositoryKey);
+  });
+});
+
+const ticketFacts = (id: string, title: string) => ({
+  id,
+  title,
+  state: 'Todo',
+  url: `https://linear.app/koja/issue/${id}`,
+  parent: null,
+});
+
+const useTicketFacts = (): void => {
+  const facts = storedFacts([
+    { folder: '/code/koja', commonDirectory: '/code/koja/.git', linked: false },
+    {
+      folder: '/code/me-666-login',
+      commonDirectory: '/code/koja/.git',
+      linked: true,
+      branch: 'me-666-login',
+    },
+  ]);
+
+  facts.trackers = {
+    [kojaRepositoryKey]: {
+      workspace: 'koja',
+      tickets: { 'ME-666': ticketFacts('ME-666', 'Log in with a ticket') },
+      failed: false,
+    },
+  };
+
+  showFacts(facts);
+
+  spaceList = [
+    space('m', true, '/code/koja'),
+    { ...space('w', false, '/code/me-666-login'), named: false },
+  ];
+};
+
+describe('koja-spaces ticket facts', () => {
+  test('titles an unnamed row with the ticket of its branch from the snapshot', async () => {
+    anotherOwner();
+    useTicketFacts();
+
+    const view = await loadView();
+
+    expect(drawnTexts(view.render())).toContain('Log in with a ticket');
   });
 });

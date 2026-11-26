@@ -82,6 +82,7 @@ const loaded = (await import(modulePath)) as {
     ids: readonly string[],
     state: RowStateLike,
     pull: Pull | null,
+    ticketTitle: string | null,
   ) => DrawnElement;
   headerRow: (
     project: Project,
@@ -135,7 +136,7 @@ const stateWith = (age: string | null = null): RowStateLike => ({
 });
 
 const textsOf = (named: boolean, found: Pull | null): string[] =>
-  drawnTexts(loaded.row(listedSpace(named), ['a'], stateWith(), found));
+  drawnTexts(loaded.row(listedSpace(named), ['a'], stateWith(), found, null));
 
 describe('row', () => {
   test('draws the space title and no PR number and no branch', () => {
@@ -313,7 +314,7 @@ const drawnRow = (times: WaitTimes, listed: ListedSpace, now: number): string[] 
     now,
   );
 
-  return drawnTexts(loaded.row(listed, [listed.space.id], stateWith(age), null));
+  return drawnTexts(loaded.row(listed, [listed.space.id], stateWith(age), null, null));
 };
 
 const advanced = (

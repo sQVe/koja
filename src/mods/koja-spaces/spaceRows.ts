@@ -7,7 +7,7 @@ import { dragLine } from '../../kit/drag.ts';
 import type { DropMark } from '../../kit/index.ts';
 import { detailText, listRow, projectHeader, spaceMark } from '../../kit/index.ts';
 import type { Project } from './projects.ts';
-import { rowCut } from './rows.ts';
+import { rowCut, rowTitleOf } from './rows.ts';
 import type { ListedSpace } from './tree.ts';
 
 export interface RowState {
@@ -27,14 +27,12 @@ export interface HeaderState extends RowState {
 const dropMark = (state: RowState, id: string, ids: readonly string[]): DropMark | undefined =>
   state.refused === id ? 'refused' : dragLine(state.drag, id, ids);
 
-const rowTitle = (row: ListedSpace, pull: Pull | null): string =>
-  row.space.named ? row.space.name : (pull?.title ?? row.space.name);
-
 export const row = (
   listed: ListedSpace,
   ids: readonly string[],
   state: RowState,
   pull: Pull | null,
+  ticketTitle: string | null,
 ): Element => {
   const { space } = listed;
   const drop = dropMark(state, space.id, ids);
@@ -47,8 +45,8 @@ export const row = (
     inset: true,
     state: rowState,
     start: spaceMark(listed.status),
-    label: rowTitle(listed, pull),
-    cut: rowCut(space.named, pull),
+    label: rowTitleOf(space.named, space.name, pull, ticketTitle),
+    cut: rowCut(space.named, pull, ticketTitle),
     ...(drop === undefined ? {} : { drop }),
     dragged: state.drag.source === space.id && state.drag.over !== space.id,
     cursor: state.cursor === space.id,

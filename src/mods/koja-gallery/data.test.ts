@@ -51,7 +51,7 @@ afterAll(() => {
 const writtenAt = 1_000_000;
 
 const sharedValues = {
-  [snapshotKey]: { version: 4, revision: 3, facts: emptyFacts() },
+  [snapshotKey]: { version: 6, revision: 3, facts: emptyFacts() },
   [heartbeatKey]: { version: 1, owner: 'window-a', generation: 2, at: writtenAt },
 };
 

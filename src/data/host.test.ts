@@ -19,7 +19,7 @@ import {
 import { pullReadTimesKey } from './pullReadTimes.ts';
 import { pullRetryRequestsKey } from './pullRetry.ts';
 import type { Pull } from './pulls.ts';
-import type { RepositoryPulls, Snapshot } from './snapshot.ts';
+import type { RepositoryPulls, Snapshot, TicketFacts } from './snapshot.ts';
 import { emptyFacts, parseSnapshot, snapshotKey } from './snapshot.ts';
 
 interface ExecCall {
@@ -64,6 +64,8 @@ let execCalls: ExecCall[] = [];
 let watches: WatchFake[] = [];
 let spaceFolders: string[] = [folder];
 let pullList: Pull[] = [];
+let gitBranch = 'main';
+let linearTickets: Record<string, TicketFacts> = {};
 let ghFailures = 0;
 let checkingNow = false;
 let windowActive = true;
@@ -79,7 +81,7 @@ const mainCheckout = (args: string[], cwd: string): ExecResult => {
   }
 
   if (args[0] === 'symbolic-ref') {
-    return { code: 0, stdout: 'main\n', stderr: '' };
+    return { code: 0, stdout: `${gitBranch}\n`, stderr: '' };
   }
 
   return { code: 0, stdout: 'abc1234\n', stderr: '' };
@@ -108,6 +110,40 @@ const runFake = async (
     const branchCount = args.filter((argument) => argument.startsWith('branch')).length;
 
     return { code: 0, stdout: answerFrom(branchCount, pullList), stderr: '' };
+  }
+
+  if (command === 'cat' && args.at(-1)?.endsWith('.linear.toml') === true) {
+    return { code: 0, stdout: 'workspace = "sqve"\n', stderr: '' };
+  }
+
+  if (command === 'linear' && args[0] === 'api') {
+    const ids = args
+      .filter((argument) => /^id\d+=/.test(argument))
+      .map((argument) => argument.slice(argument.indexOf('=') + 1));
+
+    const data = Object.fromEntries(
+      ids.map((id, index) => {
+        const facts = linearTickets[id];
+
+        if (facts === undefined) {
+          return [`ticket${index}`, undefined];
+        }
+
+        const parent = facts.parent === null ? null : { identifier: facts.parent };
+
+        const node = {
+          identifier: facts.id,
+          title: facts.title,
+          state: { name: facts.state },
+          url: facts.url,
+          parent,
+        };
+
+        return [`ticket${index}`, node];
+      }),
+    );
+
+    return { code: 0, stdout: JSON.stringify({ data }), stderr: '' };
   }
 
   return mainCheckout(args, cwd);
@@ -221,7 +257,7 @@ const storedSnapshot = (pulls: Record<string, RepositoryPulls> = {}): Snapshot =
   const worktree = worktreeOf(null, folder);
 
   return {
-    version: 4,
+    version: 6,
     revision: 7,
     facts: {
       git: {
@@ -231,6 +267,7 @@ const storedSnapshot = (pulls: Record<string, RepositoryPulls> = {}): Snapshot =
         },
       },
       pulls,
+      trackers: {},
     },
   };
 };
@@ -253,6 +290,8 @@ beforeEach(() => {
   watches = [];
   spaceFolders = [folder];
   pullList = [];
+  gitBranch = 'main';
+  linearTickets = {};
   ghFailures = 0;
   checkingNow = false;
   windowActive = true;
@@ -267,7 +306,7 @@ describe('startDataHost', () => {
     expect(heartbeat()).toMatchObject({ generation: 1, at: start });
 
     expect(sharedValues.get(snapshotKey)).toEqual({
-      version: 4,
+      version: 6,
       revision: 1,
       facts: emptyFacts(),
     });
@@ -543,7 +582,7 @@ describe('startDataHost', () => {
     expect(record.stages.map((stage) => stage.messageCount)).toEqual([0, 0, 1, 1, 2, 2]);
     expect(snapshotWrites).toHaveLength(2);
     expect(snapshotWrites.map((write) => write.messageCount)).toEqual([1, 2]);
-    expect(record.snapshot).toEqual({ version: 4, revision: 1, facts: emptyFacts() });
+    expect(record.snapshot).toEqual({ version: 6, revision: 1, facts: emptyFacts() });
   });
 
   test('logs again in a fresh loaded copy', async () => {
@@ -630,6 +669,32 @@ describe('startDataHost', () => {
     expect(reopened?.facts.git.worktrees[worktree]).toBeDefined();
     expect(reopened?.facts.pulls[repository.key]).toEqual({ pulls: [pull], failed: false });
     expect(pullCalls()).toHaveLength(reads);
+  });
+
+  test('publishes the tracker facts with the snapshot', async () => {
+    const facts: TicketFacts = {
+      id: 'ME-1036',
+      title: 'Title spaces with their Linear tickets',
+      state: 'In Progress',
+      url: 'https://linear.app/sqve/issue/ME-1036',
+      parent: null,
+    };
+
+    gitBranch = 'me-1036-title-spaces-with-their-linear-tickets';
+    linearTickets = { 'ME-1036': facts };
+
+    const copy = startCopy();
+
+    copy.tick();
+    await settle();
+    copy.tick();
+    await settle();
+
+    expect(parseSnapshot(sharedValues.get(snapshotKey))?.facts.trackers[repository.key]).toEqual({
+      workspace: 'sqve',
+      tickets: { 'ME-1036': facts },
+      failed: false,
+    });
   });
 
   test('a git-only facts change keeps the PR facts already read', async () => {

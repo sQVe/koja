@@ -1,3 +1,4 @@
+import { folderNameOf } from '../../data/fields.ts';
 import { needsYou } from '../../kit/needsYou.ts';
 import type { FoldedKeys, GitInfo, ListedSpace } from './tree.ts';
 import { repoName } from './tree.ts';
@@ -17,14 +18,16 @@ type ProjectRows = [ListedSpace, ...ListedSpace[]];
 
 const projectKey = (row: ListedSpace): string => row.git?.repo.key ?? row.place.key;
 
-const lastPart = (path: string): string | null =>
-  path.split('/').findLast((part) => part !== '') ?? null;
+const lastPart = (path: string): string | null => {
+  const name = folderNameOf(path);
+
+  return name === '' ? null : name;
+};
 
 const repoPathName = (path: string): string => {
-  const parts = path.split('/');
-  const last = parts.at(-1);
+  const last = folderNameOf(path);
   const isGitFolder = last === '.git' || last === '.bare';
-  const checkout = isGitFolder ? parts.slice(0, -1).join('/') : path;
+  const checkout = isGitFolder ? path.slice(0, path.lastIndexOf('/')) : path;
 
   return repoName(checkout);
 };

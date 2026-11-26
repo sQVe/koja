@@ -201,6 +201,48 @@ bun run sandbox identity
   `pr-rows-after.png` in the same directory after it.
 - Stop: the `verification` tool, which runs `bun run sandbox down`.
 
+### Ticket title fixture
+
+For the sidebar title from Linear. Start a fresh sandbox first. Replace `<name>` with its name, then
+run these commands from the worktree:
+
+```sh
+export RUTA_NAME=<name>
+fixtureHome=/var/tmp/ruta-$RUTA_NAME/home
+touch "$fixtureHome/.zshrc"
+mkdir -p "$fixtureHome/ticket-fixture"
+git -C "$fixtureHome/ticket-fixture" init -b me-1036-fixture-title
+git -C "$fixtureHome/ticket-fixture" config user.name 'QA Fixture'
+git -C "$fixtureHome/ticket-fixture" config user.email qa@example.invalid
+git -C "$fixtureHome/ticket-fixture" remote add origin https://example.invalid/qa/ticket-fixture.git
+printf '%s\n' 'workspace = "sqve"' > "$fixtureHome/ticket-fixture/.linear.toml"
+cat > "$fixtureHome/fake-linear" <<'SH'
+#!/bin/sh
+printf '%s\n' "$*" >> "$HOME/linear-calls"
+printf '%s\n' '{"data":{"ticket0":{"identifier":"ME-1036","title":"Fixture ticket title","state":{"name":"In Progress"},"url":"https://linear.app/sqve/issue/ME-1036","parent":null}}}'
+SH
+chmod +x "$fixtureHome/fake-linear"
+ln -s "$fixtureHome/fake-linear" "/var/tmp/ruta-$RUTA_NAME/bin/linear"
+cat > "$fixtureHome/fake-gh" <<'SH'
+#!/bin/sh
+printf '%s\n' '{"data":{"rateLimit":{"cost":1,"remaining":4999,"resetAt":"2030-01-01T00:00:00Z"},"repository":{"open0":{"nodes":[]},"latest0":{"nodes":[]}}}}'
+SH
+chmod +x "$fixtureHome/fake-gh"
+ln -s "$fixtureHome/fake-gh" "/var/tmp/ruta-$RUTA_NAME/bin/gh"
+bun run sandbox do space.new --folder "$fixtureHome/ticket-fixture"
+bun run sandbox do space.new --folder "$fixtureHome/ticket-fixture"
+bun run sandbox identity
+```
+
+- Start: the commands open two spaces on a repository whose branch names ticket `ME-1036` and whose
+  `.linear.toml` names workspace `sqve`. The fake `linear` answers the ticket query and records each
+  call in `$fixtureHome/linear-calls`; the fake `gh` answers an empty pull read, so no read reaches
+  GitHub or Linear.
+- Check that it is up: within 60 s of the spaces opening, the unnamed row under the `ticket-fixture`
+  header reads `Fixture ticket title`, not `ticket-fixture`. A named space keeps its name.
+- Shot: `bun run sandbox shot <slice directory>/ticket-title.png`.
+- Stop: the `verification` tool, which runs `bun run sandbox down`.
+
 ## Rules for every section
 
 - From the worktree, run `RUTA_NAME=<name> bun run sandbox guide`, or `RUTA_NAME=<name> ruta guide`.

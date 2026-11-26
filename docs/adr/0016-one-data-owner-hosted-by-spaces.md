@@ -109,20 +109,26 @@ without suggesting an edit.
 ### Snapshot versions
 
 The snapshot is a saved record, so a field change bumps its `version`. The current reader accepts
-version 4, which holds Git facts and per-repository PR facts, and rejects unknown fields. Each PR
-carries its mergeability, merge state, review decision, checks, and threads, and each of the last
-two is a part that is read, failed with its last good value, or unread. Version 3 is the previous
-supported format: its PR facts held only the list fields, so the reader parses them and gives each
-PR the unread parts, from which no need is derived. Version 2 held only Git facts, so the reader
-parses them and returns a version 4 snapshot with no PR facts. Version 1 carried no facts: its
-`facts` was `Record<string, never>`, and the next owner publish rewrites it. A version 1 snapshot is
-therefore retired silently, because no user action applies. This is the one exception to the notices
-that [shared ADR 0008](../stomme/shared/adr/0008-backwards-compatibility.md) requires for saved
-formats.
+version 6, which holds Git facts, per-repository PR facts, and per-repository tracker facts, and
+rejects unknown fields. Each PR carries its mergeability, merge state, review decision, checks, and
+threads, and each of the last two is a part that is read, failed with its last good value, or
+unread. Each tracker carries the workspace the repository names, or null, a map of ticket facts
+keyed by ticket id, and whether the last read of that repository failed; a failed read keeps the
+last good tickets and marks the whole repository, not one ticket. Each ticket fact carries its id,
+title, state, URL, and parent. Version 5 is the previous supported format: it held the same facts,
+and each ticket also carried a failure flag that stayed false, so the reader drops that retired
+field and returns a version 6 snapshot. Version 4 held Git facts and per-repository PR facts, so the
+reader parses them and returns a version 6 snapshot with no tracker facts. Version 3 held only the
+PR list fields, so the reader parses them and gives each PR the unread parts, from which no need is
+derived. Version 2 held only Git facts, so the reader parses them and returns a version 6 snapshot
+with no PR or tracker facts. Version 1 carried no facts: its `facts` was `Record<string, never>`,
+and the next owner publish rewrites it. A version 1 snapshot is therefore retired silently, because
+no user action applies. This is the one exception to the notices that
+[shared ADR 0008](../stomme/shared/adr/0008-backwards-compatibility.md) requires for saved formats.
 
-A malformed version 4, 3, or 2 record, or a present record without a valid version, is logged once
-per mod copy with a message that the host rebuilds the snapshot on its next publish. A positive
-whole version above 4 is logged once per mod copy with a message that names the update. Each reason
+A malformed version 6, 5, 4, 3, or 2 record, or a present record without a valid version, is logged
+once per mod copy with a message that the host rebuilds the snapshot on its next publish. A positive
+whole version above 6 is logged once per mod copy with a message that names the update. Each reason
 logs once per loaded mod copy, and later reads stay silent.
 
 PR read times carry their own version. Version 2 keeps, per repository, one list time and a time per

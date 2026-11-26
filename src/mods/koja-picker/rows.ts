@@ -1,5 +1,6 @@
 import type { PaneInfo, SpaceInfo, Status, TabInfo } from 'herdr';
 
+import { folderNameOf } from '../../data/fields.ts';
 import type { StatusRollup } from '../../kit/statusRollup.ts';
 import { statusRank } from '../../kit/statusRollup.ts';
 import { tabLabel, tabName, tabProgram, taskOfPane } from '../../kit/tabLabel.ts';
@@ -55,14 +56,11 @@ const statusWords: Record<Status, string> = {
 const statusWord = (status: Status | null): string | null =>
   status === null ? null : statusWords[status];
 
-const folderName = (path: string | null): string =>
-  (path ?? '').split('/').findLast((part) => part !== '') ?? '';
-
 export const paneLabel = (pane: PaneInfo): string =>
   pane.terminal === null ? pane.title : `${pane.program.name} · ${pane.title}`;
 
 export const paneDetail = (pane: PaneInfo): string | null => {
-  const place = [folderName(pane.cwd), pane.branch ?? ''].filter(Boolean).join(' · ');
+  const place = [folderNameOf(pane.cwd), pane.branch ?? ''].filter(Boolean).join(' · ');
 
   return place === '' ? null : place;
 };
@@ -120,7 +118,7 @@ const paneSearchFields = (pane: PaneInfo, data: PickerData): (string | null)[] =
   return [
     pane.title,
     pane.program.name,
-    folderName(pane.cwd),
+    folderNameOf(pane.cwd),
     pane.branch,
     taskOfPane(pane, data.terminals),
   ];
@@ -141,7 +139,7 @@ const tabSearchFields = (
 const spaceSearchFields = (space: SpaceInfo, data: PickerData): (string | null)[] => [
   space.name,
   space.branch,
-  folderName(space.folder),
+  folderNameOf(space.folder),
   space.machine,
   statusWord(data.statuses.spaces[space.id] ?? null),
   ...space.tabs.flatMap((tab) => tabSearchFields(tab, data.statuses.tabs[tab.id] ?? null, data)),
@@ -229,7 +227,7 @@ const matchedPanes = (
 const spaceOwnFields = (space: SpaceInfo, data: PickerData): (string | null)[] => [
   space.name,
   space.branch,
-  folderName(space.folder),
+  folderNameOf(space.folder),
   space.machine,
   statusWord(data.statuses.spaces[space.id] ?? null),
 ];

@@ -15,7 +15,7 @@ export interface PullDueState {
   pausedUntilByHost: Record<string, number>;
 }
 
-const readPeriodMilliseconds = 60_000;
+export const readPeriodMilliseconds = 60_000;
 
 const pushSpacingMilliseconds = 2_000;
 
