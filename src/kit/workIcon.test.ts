@@ -1,7 +1,13 @@
 import { afterAll, describe, expect, mock, test } from 'bun:test';
 
 import type { DrawnElement } from '../../tests/drawn.ts';
-import { drawn, drawnIcons, drawnTooltips, elementWithIcon } from '../../tests/drawn.ts';
+import {
+  drawn,
+  drawnIcons,
+  drawnTooltips,
+  elementWithIcon,
+  elementWithTooltip,
+} from '../../tests/drawn.ts';
 import { gpuiBaseFake, gpuiKitFake, herdrFake } from '../../tests/moduleFakes.ts';
 
 type WorkNeed = 'conflict' | 'failing' | 'review' | 'restack' | 'merge';
@@ -27,7 +33,7 @@ const modulePath = './workIcon.ts';
 
 const { emptyWorkSlot, workIcon } = (await import(modulePath)) as {
   emptyWorkSlot: () => DrawnElement;
-  workIcon: (need: WorkNeed) => DrawnElement;
+  workIcon: (need: WorkNeed, options?: { bare?: boolean }) => DrawnElement;
 };
 
 afterAll(() => {
@@ -56,6 +62,14 @@ describe('workIcon', () => {
     });
 
     expect(drawnNeeds).toEqual(needs);
+  });
+
+  test('a bare need keeps its tooltip on a container that can carry the hover', () => {
+    const bare = workIcon('failing', { bare: true });
+    const tooltip = elementWithTooltip(bare);
+
+    expect(tooltip?.path).toBeNull();
+    expect(tooltip?.tooltipText).toBe('CI failing');
   });
 
   test('the empty slot draws no icon and no tooltip', () => {

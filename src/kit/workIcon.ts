@@ -16,7 +16,7 @@ interface WorkLook {
 
 export interface WorkIconOptions {
   // Draws the icon without its slot, for a row that brings its own.
-  slot?: boolean;
+  bare?: boolean;
 }
 
 const workLooks: Record<WorkNeed, WorkLook> = {
@@ -36,10 +36,8 @@ export const workNeedColor = (need: WorkNeed): ThemeToken => workLooks[need].col
 export const workIcon = (need: WorkNeed, options: WorkIconOptions = {}): Element => {
   const look = workLooks[need];
 
-  const glyph = icon(look.icon, 'small')
-    .text_color(colors()[look.color])
-    .tooltip(look.label)
-    .accessibility_label(look.label);
+  const glyph = icon(look.icon, 'small').text_color(colors()[look.color]);
+  const mark = options.bare === true ? div().flex_none().child(glyph) : iconSlot(glyph);
 
-  return options.slot === false ? glyph : iconSlot(glyph);
+  return mark.tooltip(look.label).accessibility_label(look.label);
 };

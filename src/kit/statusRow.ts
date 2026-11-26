@@ -35,7 +35,7 @@ const markSlot = (mark: StatusRowMark | null, stale: boolean): Element => {
   }
 
   if (isWorkNeed(mark)) {
-    return slot.child(workIcon(mark, { slot: false }));
+    return slot.child(workIcon(mark, { bare: true }));
   }
 
   return slot.child(statusMark(mark, { still: stale }));
