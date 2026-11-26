@@ -144,7 +144,7 @@ describe('parseSnapshot', () => {
 });
 
 describe('joinFacts', () => {
-  test('drops PR and tracker facts of a repository with no worktree', () => {
+  test('drops PR, tracker, and stack facts of a repository with no worktree', () => {
     const named = repositoryOf(null, '/work/.git').key;
     const orphan = repositoryOf(null, '/gone/.git').key;
     const tracker = { workspace: 'sqve', tickets: {}, failed: false };

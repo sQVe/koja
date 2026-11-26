@@ -47,6 +47,16 @@ const ticketFacts = (): RawRecord => ({
   parent: null,
 });
 
+export const stackFacts = (): RawRecord => ({
+  stacks: [
+    {
+      trunk: 'main',
+      branches: [{ branch: 'me-1-one', pullNumber: 1, restack: 'none' }],
+    },
+  ],
+  failed: false,
+});
+
 export const trackerFacts = (): RawRecord => ({
   workspace: 'sqve',
   tickets: { 'ME-1': ticketFacts() },
@@ -109,6 +119,33 @@ export const pullsAt = (snapshot: RawSnapshot): RawRecord =>
 
 export const trackersAt = (snapshot: RawSnapshot): RawRecord =>
   recordIn(snapshot.facts.trackers, 'trackers');
+
+export const stacksAt = (snapshot: RawSnapshot): RawRecord =>
+  recordIn(snapshot.facts.stacks, 'stacks');
+
+export const repositoryStacksAt = (snapshot: RawSnapshot, key: string): RawRecord =>
+  recordIn(stacksAt(snapshot)[key], 'repository stacks');
+
+// The lists are returned live, so a test can replace an entry with a value that is not a record.
+export const stackListAt = (snapshot: RawSnapshot, key: string): unknown[] => {
+  const stored = repositoryStacksAt(snapshot, key).stacks;
+
+  if (!Array.isArray(stored)) {
+    throw new TypeError('the repository stacks are not a list');
+  }
+
+  return stored;
+};
+
+export const branchListAt = (snapshot: RawSnapshot, key: string): unknown[] => {
+  const stored = recordIn(stackListAt(snapshot, key)[0], 'stack').branches;
+
+  if (!Array.isArray(stored)) {
+    throw new TypeError('the stack branches are not a list');
+  }
+
+  return stored;
+};
 
 export const trackerAt = (snapshot: RawSnapshot, key: string): RawRecord =>
   recordIn(trackersAt(snapshot)[key], 'tracker');
