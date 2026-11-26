@@ -28,6 +28,8 @@ let menuProps: Record<string, unknown> = {
 
 let execReply = { code: 128, stdout: '', stderr: 'fatal: not a git repository' };
 
+let gitReplies: Record<string, { code: number; stdout: string; stderr: string }> = {};
+
 let paneList: unknown[] = [];
 
 let terminalList: unknown[] = [];
@@ -84,7 +86,7 @@ await mock.module('herdr', () =>
       execCalls.push([command, ...args]);
       execCwds.push(options.cwd);
 
-      return execReply;
+      return gitReplies[args.join(' ')] ?? execReply;
     },
     panes: () => paneList,
     props: () => menuProps,
@@ -123,10 +125,17 @@ const kitParts = [
 
 const kitFake = await realKitIndexFake(kitParts);
 
+const rightClickLabels = (to: unknown): Record<string, string> =>
+  to === 'program' ? { 'herdr.right-click': 'program' } : {};
+
 await mock.module('../../kit/index.ts', () => ({
   ...kitFake,
   askFirst: (command: string, args: Record<string, unknown>) => {
     askedCommands.push({ command, args });
+
+    if (command === 'terminal.right_click') {
+      terminalList = [{ address: 'terminal-1', labels: rightClickLabels(args['to']) }];
+    }
   },
 }));
 
@@ -160,6 +169,7 @@ beforeEach(() => {
   spaceFolderValue = '/code/koja';
   menuProps = { tab: 'space', target: { id: 'space-1' } };
   execReply = { code: 128, stdout: '', stderr: 'fatal: not a git repository' };
+  gitReplies = {};
   paneList = [];
   terminalList = [];
   sharedNormalMode = false;
@@ -234,19 +244,25 @@ describe('space menu', () => {
     const view = await openMenu();
     const tree = view.render();
 
-    keyDown(tree, 'down', { notify: () => undefined });
-    keyDown(tree, 'enter', { notify: () => undefined });
+    keyDown(tree, { key: 'down' }, { notify: () => undefined });
+    keyDown(tree, { key: 'enter' }, { notify: () => undefined });
 
     expect(askedCommands).toEqual([{ command: 'space.close', args: { id: 'space-1' } }]);
   });
 
-  test('reads the checkout again when the error line asks for a retry', async () => {
+  test('replaces the error line with the worktree rows when Retry succeeds', async () => {
     execReply = { code: 128, stdout: '', stderr: 'fatal: unable to read repository' };
 
     const view = await openMenu();
     const [retry] = clickablesWithText(view.render(), 'Retry');
 
-    execCalls = [];
+    gitReplies = {
+      'rev-parse --is-bare-repository --is-inside-git-dir --path-format=absolute --git-dir --git-common-dir':
+        { code: 0, stdout: 'false\nfalse\n/repo/.git\n/repo/.git\n', stderr: '' },
+      'rev-parse --show-toplevel': { code: 0, stdout: '/repo\n', stderr: '' },
+      'symbolic-ref --quiet --short HEAD': { code: 0, stdout: 'main\n', stderr: '' },
+      'rev-parse --verify --quiet HEAD': { code: 0, stdout: 'abc123\n', stderr: '' },
+    };
 
     if (retry !== undefined) {
       click(retry, context);
@@ -254,8 +270,10 @@ describe('space menu', () => {
 
     await Promise.all(tasks);
 
-    expect(execCalls.length).toBeGreaterThan(0);
-    expect(execCalls.every((call) => call[0] === 'git')).toBe(true);
+    const texts = drawnTexts(view.render());
+
+    expect(texts).toContain('New worktree');
+    expect(texts).not.toContain('Could not read the checkout');
   });
 });
 
@@ -308,8 +326,6 @@ describe('pane menu', () => {
 
     const [row] = clickablesWithText(view.render(), 'Send right-clicks to pane');
 
-    terminalList = [{ address: 'terminal-1', labels: { 'herdr.right-click': 'program' } }];
-
     if (row !== undefined) {
       click(row, context);
     }
@@ -347,7 +363,7 @@ describe('pane menu', () => {
 
     view.init(null, context);
 
-    keyDown(view.render(), 'enter', { notify: () => undefined });
+    keyDown(view.render(), { key: 'enter' }, { notify: () => undefined });
 
     expect(askedCommands).toEqual([
       { command: 'pane.split', args: { direction: 'right', pane: 'pane-1' } },

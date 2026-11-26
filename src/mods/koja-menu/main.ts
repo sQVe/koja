@@ -127,11 +127,7 @@ export default class Menu extends View {
     this.readCheckout(cx);
   }
 
-  private retryCheckout(cx: Context): void {
-    this.readCheckout(cx);
-  }
-
-  // Retry reads the place the failed read named, even when the space has moved since, and a read
+  // A read uses the place the failed read named, even when the space has moved since, and one
   // already under way keeps the error line until it answers.
   private readCheckout(cx: Context): void {
     if (this.reading || this.place === null) {
@@ -143,11 +139,14 @@ export default class Menu extends View {
     this.reading = true;
 
     cx.spawn(async (taskCx) => {
-      const identity = await readGitIdentity(exec, machine, folder);
+      try {
+        const identity = await readGitIdentity(exec, machine, folder);
 
-      this.checkout = checkoutOf(identity);
-      this.reading = false;
-      taskCx.notify();
+        this.checkout = checkoutOf(identity);
+      } finally {
+        this.reading = false;
+        taskCx.notify();
+      }
     });
   }
 
@@ -220,7 +219,7 @@ export default class Menu extends View {
   private errorLine(text: string): Element {
     const retry = toggleButton({ label: 'Retry', active: false }).on_click((_event, cx) => {
       cx.stop_propagation();
-      this.retryCheckout(cx);
+      this.readCheckout(cx);
     });
 
     return stateLine({ kind: 'error', text, action: retry });

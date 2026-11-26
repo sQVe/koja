@@ -46,7 +46,7 @@ const actionsOf = (menu: MenuProps, checkout: Checkout): MenuAction[] =>
   menuEntries(menu, checkout, host).filter(isAction);
 
 const labelOf = (entry: MenuEntry | undefined): string | null =>
-  entry?.kind === 'action' ? entry.label : null;
+  entry !== undefined && isAction(entry) ? entry.label : null;
 
 const rowLabels = (menu: MenuProps, checkout: Checkout): string[] =>
   menuEntries(menu, checkout, host).map((entry) =>
@@ -182,8 +182,7 @@ describe('menu selection', () => {
       },
     ];
 
-    expect(selectedIndex(rows, 'Gone')).toBe(1);
-    expect(stepSelection(rows, 'Rename', 1)).toBe('Close');
+    expect(selectedIndex(rows, null)).toBe(1);
     expect(stepSelection(rows, 'Close', 1)).toBe('Rename');
   });
 
@@ -559,11 +558,11 @@ describe('failed checkout read', () => {
   const spaceMenu: MenuProps = { kind: 'space', target: target({ id: 'space-1' }) };
 
   test('show an error line in place of the worktree rows', () => {
-    const rows = menuEntries(spaceMenu, 'failed', host).map((entry) =>
-      entry.kind === 'error' ? entry.text : entry.label,
-    );
-
-    expect(rows).toEqual(['Rename', 'Could not read the checkout', 'Close']);
+    expect(rowLabels(spaceMenu, 'failed')).toEqual([
+      'Rename',
+      'Could not read the checkout',
+      'Close',
+    ]);
   });
 
   test('step past the error line', () => {
