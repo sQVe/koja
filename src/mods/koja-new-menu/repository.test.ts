@@ -17,7 +17,7 @@ const place = placeOf(null, '/code/koja/me-1191');
 const readWith =
   (git: GitFacts) =>
   (key: string): unknown =>
-    key === snapshotKey ? { version: 4, revision: 1, facts: { ...emptyFacts(), git } } : undefined;
+    key === snapshotKey ? { version: 6, revision: 1, facts: { ...emptyFacts(), git } } : undefined;
 
 const factsOf = (worktrees: WorktreeFixture[], at: Place): GitFacts => {
   const keys = worktrees.map((worktree) => worktreeOf(at.machine, worktree.root));
