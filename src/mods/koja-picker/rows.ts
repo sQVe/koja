@@ -239,18 +239,12 @@ const matchedPanes = (
   return matches.toSorted((first, second) => second.score - first.score);
 };
 
-const spaceRowPane = (
+const matchedPaneTarget = (
   query: string,
-  statuses: Status[] | null,
   space: SpaceInfo,
   data: PickerData,
-  shownPanes: PaneInfo[],
   ownMatch: ReturnType<typeof bestFieldMatch>,
 ): PaneInfo | null => {
-  if (statuses !== null) {
-    return shownPanes[0] ?? null;
-  }
-
   if (query === '') {
     return null;
   }
@@ -295,7 +289,6 @@ const spaceScore = (
   data: PickerData,
   ownMatch: ReturnType<typeof bestFieldMatch>,
 ): SpaceMatch | null => {
-  const fieldScore = fieldScoreOf(space, query, data, ownMatch);
   const stackMatch = stackMatchOf(query, stackForSpace(data.stored, space, data.panes));
   const nameScore = fuzzyMatch(query, space.name)?.score ?? 0;
 
@@ -304,6 +297,7 @@ const spaceScore = (
     return { exact: true, score: nameScore, reason: stackMatch.reason };
   }
 
+  const fieldScore = fieldScoreOf(space, query, data, ownMatch);
   const best = Math.max(fieldScore, stackMatch?.score ?? -Infinity);
 
   if (best === -Infinity) {
@@ -325,12 +319,14 @@ const spaceRows = (
     return null;
   }
 
-  const shownPanes = space.tabs
-    .flatMap((tab) => panesOf(tab, data.panes))
-    .filter((pane) => inStatus(pane, statuses));
+  const tabPanes = space.tabs.flatMap((tab) => panesOf(tab, data.panes));
+  const firstShownPane = tabPanes.find((pane) => inStatus(pane, statuses)) ?? null;
 
   const ownMatch = query === '' ? null : bestFieldMatch(query, spaceOwnFields(space, data));
-  const filteredPane = spaceRowPane(query, statuses, space, data, shownPanes, ownMatch);
+
+  const filteredPane =
+    statuses === null ? matchedPaneTarget(query, space, data, ownMatch) : firstShownPane;
+
   const filteredTab = space.tabs.find((tab) => tab.id === filteredPane?.tab);
   const statusTab = statuses === null ? undefined : statusMatchingTab(space, statuses, data);
 
