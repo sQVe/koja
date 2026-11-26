@@ -14,6 +14,9 @@ export type RiskKind = 'changes' | 'agent';
 
 export type RemoveRisks = RiskKind[];
 
+// The close dialog only warns about an agent, because the worktree is already gone by then.
+export type AgentRisk = 'agent';
+
 export type GroveArguments =
   | { kind: 'arguments'; args: string[] }
   | { kind: 'refused'; name: string; role: 'branch' | 'worktree' };
@@ -84,7 +87,9 @@ export const worktreeFolder = (porcelain: string, branch: string): string | null
   let folder: string | null = null;
 
   for (const field of porcelain.split('\0')) {
-    if (field.startsWith('worktree ')) {
+    if (field === '') {
+      folder = null;
+    } else if (field.startsWith('worktree ')) {
       folder = field.slice('worktree '.length);
     } else if (field === branchField) {
       return folder;

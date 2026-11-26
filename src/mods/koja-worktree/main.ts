@@ -19,7 +19,7 @@ import {
   textField,
 } from '../../kit/index.ts';
 import { closeRiskText, refusedText, riskText } from './dialogText.ts';
-import type { RemoveRisks, Workspace } from './grove.ts';
+import type { AgentRisk, RemoveRisks, Workspace } from './grove.ts';
 import { addArguments, removeArguments, sameRisks } from './grove.ts';
 import {
   findWorktreeFolder,
@@ -32,7 +32,7 @@ import {
 type Phase =
   | { kind: 'checking' }
   | { kind: 'asking'; workspace: Workspace; risks: RemoveRisks }
-  | { kind: 'closing'; workspace: Workspace; risks: RemoveRisks }
+  | { kind: 'closing'; workspace: Workspace; risks: AgentRisk[] }
   | { kind: 'running'; workspace: Workspace }
   | { kind: 'failed'; message: string; retry: Workspace | null }
   | { kind: 'finding'; message: string; workspace: Workspace; branch: string };
@@ -170,6 +170,7 @@ export default class Worktree extends View {
 
   override close(): void {
     this.dismissed = true;
+    recordOverlayClose();
   }
 
   private start(cx: Context): void {
@@ -434,7 +435,9 @@ export default class Worktree extends View {
   private body(): Element {
     const body = v_flex().gap(spacing.small);
 
-    if (this.action === 'new') {
+    // A finding retries the lookup for the branch Grove already added, so its field has nothing to
+    // accept.
+    if (this.action === 'new' && this.phase.kind !== 'finding') {
       body.child(textField(this.input, this.focused));
     }
 

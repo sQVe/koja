@@ -6,11 +6,10 @@ describe('risk text', () => {
   test('each risk kind maps to its own non-empty text', () => {
     const kinds = Object.keys(riskText).toSorted();
     const texts = Object.values(riskText);
-    const unique = new Set(texts);
 
     expect(kinds).toEqual(['agent', 'changes']);
     expect(texts.every((text) => text.length > 0)).toBe(true);
-    expect(unique.size).toBe(2);
+    expect(new Set(texts).size).toBe(kinds.length);
   });
 
   test('the close question has its own text, apart from the remove warning', () => {

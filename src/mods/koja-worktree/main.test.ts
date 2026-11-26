@@ -98,6 +98,8 @@ let keyDownHandler: KeyHandler | null = null;
 let buttons = new Map<string, Button>();
 let stateLines: StateLine[] = [];
 let typedValue = '';
+let overlayCloses = 0;
+let textFields = 0;
 let tasks: Promise<unknown>[] = [];
 const inputHandlers = new Map<string, (event: unknown, cx: unknown) => void>();
 
@@ -263,6 +265,9 @@ await mock.module('../../kit/index.ts', () =>
         keyDownHandler = handler;
       }),
     recordOf,
+    recordOverlayClose: () => {
+      overlayCloses += 1;
+    },
     rollupStatuses: () => ({ spaces: spaceStatuses, tabs: {} }),
     spaceFolder,
     stateLine: (options: StateLine) => {
@@ -271,7 +276,11 @@ await mock.module('../../kit/index.ts', () =>
       return chainable();
     },
     stringOf,
-    textField: chainable,
+    textField: () => {
+      textFields += 1;
+
+      return chainable();
+    },
   }),
 );
 
@@ -363,6 +372,8 @@ const resetState = (): void => {
   buttons = new Map();
   stateLines = [];
   typedValue = '';
+  overlayCloses = 0;
+  textFields = 0;
   tasks = [];
   inputHandlers.clear();
   dialogProps = { action: 'remove', space: 'space-1', overlay: 'overlay-1' };
@@ -375,6 +386,22 @@ afterAll(() => {
 });
 
 beforeEach(resetState);
+
+const reachClosing = async (): Promise<Reach> => {
+  execResults[statusCommand] = ok(' M src/file.ts\n');
+  const gate = gateExec('grove remove --force feat-a', 1);
+  const view = await openDialog();
+
+  deliverKey('enter');
+  await gate.started;
+
+  spaceStatuses = { 'space-1': 'working' };
+  gate.release();
+  await settle();
+  redraw(view);
+
+  return { view, release: () => undefined };
+};
 
 describe('remove worktree', () => {
   test('a dirty worktree asks with a danger button before Grove removes it by force', async () => {
@@ -474,17 +501,7 @@ describe('remove worktree', () => {
   });
 
   test('an agent that starts before the close asks again instead of claiming confirmation', async () => {
-    execResults[statusCommand] = ok(' M src/file.ts\n');
-    const view = await openDialog();
-    const grove = gateExec('grove remove --force feat-a', 1);
-
-    buttons.get('Remove')?.click({}, context);
-    await grove.started;
-
-    spaceStatuses = { 'space-1': 'working' };
-    grove.release();
-    await settle();
-    redraw(view);
+    await reachClosing();
 
     expect(calls).toEqual([]);
     expect(detailTexts).toEqual([closeRiskText.agent]);
@@ -492,17 +509,7 @@ describe('remove worktree', () => {
   });
 
   test('the closing question closes the space after the user confirms the new agent', async () => {
-    execResults[statusCommand] = ok(' M src/file.ts\n');
-    const view = await openDialog();
-    const grove = gateExec('grove remove --force feat-a', 1);
-
-    buttons.get('Remove')?.click({}, context);
-    await grove.started;
-
-    spaceStatuses = { 'space-1': 'working' };
-    grove.release();
-    await settle();
-    redraw(view);
+    const { view } = await reachClosing();
 
     buttons.get('Close')?.click({}, context);
     await settle();
@@ -530,17 +537,7 @@ describe('remove worktree', () => {
   });
 
   test('cancel at the closing question leaves the space open and the checkout gone', async () => {
-    execResults[statusCommand] = ok(' M src/file.ts\n');
-    const view = await openDialog();
-    const grove = gateExec('grove remove --force feat-a', 1);
-
-    buttons.get('Remove')?.click({}, context);
-    await grove.started;
-
-    spaceStatuses = { 'space-1': 'working' };
-    grove.release();
-    await settle();
-    redraw(view);
+    const { view } = await reachClosing();
 
     buttons.get('Cancel')?.click({}, context);
     await settle();
@@ -613,6 +610,7 @@ describe('remove worktree', () => {
     await settle();
 
     expect(calls).toEqual([]);
+    expect(overlayCloses).toBe(1);
   });
 
   test('enter after a dismissal runs no Grove command', async () => {
@@ -1016,6 +1014,19 @@ describe('new worktree', () => {
     expect(calls).toEqual(['close']);
   });
 
+  test('the folder lookup retry shows no branch field', async () => {
+    const view = await openDialog();
+    typedValue = 'feat/c';
+
+    await click(view, 'Create');
+
+    textFields = 0;
+    redraw(view);
+
+    expect(buttons.has('Find folder')).toBe(true);
+    expect(textFields).toBe(0);
+  });
+
   test('a lookup that cannot run offers the same lookup-only retry', async () => {
     const view = await openDialog();
     typedValue = 'feat/c';
@@ -1177,22 +1188,6 @@ const reachLookup = async (): Promise<Reach> => {
   await gate.started;
 
   return { view, release: gate.release };
-};
-
-const reachClosing = async (): Promise<Reach> => {
-  execResults[statusCommand] = ok(' M src/file.ts\n');
-  const gate = gateExec('grove remove --force feat-a', 1);
-  const view = await openDialog();
-
-  deliverKey('enter');
-  await gate.started;
-
-  spaceStatuses = { 'space-1': 'working' };
-  gate.release();
-  await settle();
-  redraw(view);
-
-  return { view, release: () => undefined };
 };
 
 const reaches: { name: string; reach: () => Promise<Reach> }[] = [

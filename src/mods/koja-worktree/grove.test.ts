@@ -1,5 +1,7 @@
 import { describe, expect, test } from 'bun:test';
 
+import type { Status } from 'herdr';
+
 import type { RiskKind } from './grove.ts';
 import {
   addArguments,
@@ -43,7 +45,7 @@ describe('remove risks', () => {
   const cases: {
     label: string;
     dirty: boolean;
-    status: 'working' | 'blocked' | 'done' | 'idle' | null | undefined;
+    status: Status | null | undefined;
     risks: RiskKind[];
   }[] = [
     { label: 'dirty without an agent', dirty: true, status: null, risks: ['changes'] },
@@ -99,6 +101,15 @@ describe('worktree folder', () => {
 
   test('finds nothing for a branch no worktree checks out', () => {
     expect(worktreeFolder(listing, 'feat')).toBeNull();
+  });
+
+  test('a record without its own folder does not borrow the folder of the record before it', () => {
+    const malformed = [
+      `worktree /work/repo/feat-b\0HEAD 2222222\0branch refs/heads/feat/b\0\0`,
+      `branch refs/heads/feat/c\0\0`,
+    ].join('');
+
+    expect(worktreeFolder(malformed, 'feat/c')).toBeNull();
   });
 
   test('keeps a folder path and branch with a non-ASCII character whole', () => {

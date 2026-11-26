@@ -5,7 +5,7 @@ import { folderNameOf } from '../../data/fields.ts';
 import type { RunCommand } from '../../data/gitIdentity.ts';
 import { readGitIdentity } from '../../data/gitIdentity.ts';
 import { rollupStatuses, spaceFolder } from '../../kit/index.ts';
-import type { RemoveRisks, Workspace } from './grove.ts';
+import type { AgentRisk, RemoveRisks, Workspace } from './grove.ts';
 import {
   failureText,
   isWorkspaceWorktree,
@@ -84,10 +84,12 @@ export const readRisk = async (workspace: Workspace): Promise<RemoveRisks> => {
   return removeRisks(status.trim() !== '', statuses.spaces[workspace.space]);
 };
 
-export const readAgentRisks = (workspace: Workspace): RemoveRisks => {
+export const readAgentRisks = (workspace: Workspace): AgentRisk[] => {
   const statuses = rollupStatuses(spaces(), panes(), terminals());
 
-  return removeRisks(false, statuses.spaces[workspace.space]);
+  return removeRisks(false, statuses.spaces[workspace.space]).filter(
+    (risk): risk is AgentRisk => risk === 'agent',
+  );
 };
 
 export const findWorktreeFolder = async (

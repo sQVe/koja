@@ -1,4 +1,4 @@
-import type { GroveArguments, RiskKind } from './grove.ts';
+import type { AgentRisk, GroveArguments, RiskKind } from './grove.ts';
 
 type Refused = Extract<GroveArguments, { kind: 'refused' }>;
 
@@ -7,8 +7,7 @@ export const riskText: Record<RiskKind, string> = {
   agent: 'An agent runs in its space. Removing it stops the agent.',
 };
 
-export const closeRiskText: Record<RiskKind, string> = {
-  changes: 'The worktree is already removed.',
+export const closeRiskText: Record<AgentRisk, string> = {
   agent:
     'The worktree is already removed. Closing the space stops the agent; Cancel leaves the space open and does not restore the worktree.',
 };
