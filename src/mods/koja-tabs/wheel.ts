@@ -58,6 +58,6 @@ export const wheelTurn = (gesture: WheelGesture, event: WheelEvent, now: number)
       at: now,
       last: now,
     },
-    step: direction(event.delta.y),
+    step: direction(accumulated),
   };
 };

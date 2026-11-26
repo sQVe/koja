@@ -72,6 +72,16 @@ describe('wheelTurn', () => {
     expect(wheelTurn(after, pixels(-30), 1200).step).toBe('next');
   });
 
+  test('keeps the step direction of the travel when the latest event carries no delta', () => {
+    const positive = turned(noWheelGesture, [pixels(100)], 1000);
+
+    expect(wheelTurn(positive, pixels(0), 1200).step).toBe('prev');
+
+    const negative = turned(noWheelGesture, [pixels(-100)], 1000);
+
+    expect(wheelTurn(negative, pixels(0), 1200).step).toBe('next');
+  });
+
   test('keeps a gesture that holds no travel yet', () => {
     const after = turned(noWheelGesture, [pixels(100)], 1000);
 
