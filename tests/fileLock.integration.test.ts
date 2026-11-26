@@ -28,7 +28,9 @@ describe('checkout lock', () => {
     try {
       Bun.env['KOJA_CHECKOUT_LOCK_HELD'] = checkout;
 
-      const release = await acquireCheckoutLock(checkout);
+      const release = await acquireCheckoutLock(checkout, { timeoutMilliseconds: 300 });
+
+      expect(release).toBeInstanceOf(Function);
 
       await release();
     } finally {
@@ -50,6 +52,24 @@ describe('checkout lock', () => {
     } finally {
       await held();
     }
+  });
+
+  test('a timed-out wait leaves the lock free for the next caller', async () => {
+    const held = await acquireFileLock(checkout);
+
+    try {
+      const failure = await acquireFileLock(checkout, { timeoutMilliseconds: 300 }).catch(
+        (error: unknown) => error,
+      );
+
+      expect(failure).toBeInstanceOf(LockTimeoutError);
+    } finally {
+      await held();
+    }
+
+    const release = await acquireFileLock(checkout, { timeoutMilliseconds: 2000 });
+
+    await release();
   });
 
   test('releasing a lock twice keeps the second call harmless', async () => {
