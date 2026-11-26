@@ -7,6 +7,7 @@ import type { WorkNeed } from '../../kit/index.ts';
 import {
   colors,
   emptyWorkSlot,
+  factLine,
   highlightedText,
   listRow,
   modName,
@@ -20,6 +21,9 @@ import {
 import { fuzzyMatch } from './match.ts';
 import type { PanePickerRow, PickerData, PickerRow, TabPickerRow } from './rows.ts';
 import { paneDetail, paneLabel, tabRowDisplay } from './rows.ts';
+import type { StackReason } from './stackSearch.ts';
+
+type SpaceRow = Extract<PickerRow, { kind: 'space' }>;
 
 const rowState = (selected: boolean): 'selected' | 'normal' => (selected ? 'selected' : 'normal');
 
@@ -30,7 +34,25 @@ const needLooks: Record<PullNeed, WorkNeed> = {
   ready: 'merge',
 };
 
-const spaceRow = (row: PickerRow, selected: boolean, query: string, data: PickerData): Element => {
+const reasonFacts = (reason: StackReason): string[] => {
+  const facts = [`PR ${reason.position} of ${reason.total}`];
+
+  if (reason.state !== null) {
+    facts.push(reason.state);
+  }
+
+  return facts;
+};
+
+const spaceEnd = (reason: StackReason | null, workSlot: Element): Element[] => {
+  if (reason === null) {
+    return [workSlot];
+  }
+
+  return [factLine(reason.value, reasonFacts(reason)), workSlot];
+};
+
+const spaceRow = (row: SpaceRow, selected: boolean, query: string, data: PickerData): Element => {
   const { space } = row;
   const nameMatch = query === '' ? null : fuzzyMatch(query, space.name);
 
@@ -49,7 +71,7 @@ const spaceRow = (row: PickerRow, selected: boolean, query: string, data: Picker
     start: spaceMark(data.statuses.spaces[space.id] ?? null),
     label,
     ...(project === null ? {} : { detail: project }),
-    end: [workSlot],
+    end: spaceEnd(row.reason, workSlot),
   });
 };
 
