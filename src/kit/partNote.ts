@@ -21,7 +21,7 @@ const retryAction = (onRetry: ((cx: Context) => void) | undefined): Element => {
     .px(spacing.medium)
     .flex_none()
     .items_center()
-    .rounded(radius.pill)
+    .rounded(radius.default)
     .border(spacing.hairline)
     .border_color(palette.border)
     .child(detailText('Retry', palette.muted));
