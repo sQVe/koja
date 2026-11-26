@@ -89,6 +89,8 @@ const otherOverlay = JSON.stringify({ overlays: [{ name: 'koja-palette' }] });
 
 const toastOverlay = JSON.stringify({ overlays: [{ name: 'toast' }] });
 
+const askOverlay = JSON.stringify({ overlays: [{ name: 'koja-asks' }] });
+
 const noOverlay = JSON.stringify({ overlays: [] });
 
 describe('keyboard hold', () => {
@@ -188,6 +190,17 @@ describe('keyboard hold', () => {
   test('takes focus back when the status lists only a toast', async () => {
     const harness = createHarness(
       statusLookup(async () => ({ code: 0, stdout: toastOverlay, stderr: '' })),
+    );
+
+    harness.hold.check();
+    await flush();
+
+    expect(harness.focusCalls()).toBe(1);
+  });
+
+  test('takes focus back when the status lists only the ask card', async () => {
+    const harness = createHarness(
+      statusLookup(async () => ({ code: 0, stdout: askOverlay, stderr: '' })),
     );
 
     harness.hold.check();
