@@ -23,6 +23,7 @@ let sharedValues: Record<string, unknown> = {};
 let zoom = 1;
 let plusButton: DrawnElement | null = null;
 let toggleStates: boolean[] = [];
+let layoutReads = 0;
 
 const context = { notify: () => undefined, stop_propagation: () => undefined };
 
@@ -84,7 +85,11 @@ await mock.module('../../kit/index.ts', () =>
     overlaySize,
     spacing,
     indicator: chainable,
-    layoutRoot: () => ({}),
+    layoutRoot: () => {
+      layoutReads += 1;
+
+      return {};
+    },
     listOf,
     numberOf,
     recordOf,
@@ -125,6 +130,17 @@ beforeEach(() => {
   zoom = 1;
   plusButton = null;
   toggleStates = [];
+  layoutReads = 0;
+});
+
+describe('tabs layout reads', () => {
+  test('parses the layout once for one render', () => {
+    const view = new loaded.default();
+
+    view.render();
+
+    expect(layoutReads).toBe(1);
+  });
 });
 
 describe('tabs saved panels', () => {

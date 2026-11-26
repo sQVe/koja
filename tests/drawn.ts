@@ -23,6 +23,9 @@ const addChild = (parent: DrawnElement, child: unknown): void => {
   }
 };
 
+const hasText = (element: DrawnElement, text: string): boolean =>
+  Array.isArray(element.texts) && element.texts.includes(text);
+
 export const drawn = (path: string | null = null): DrawnElement => {
   const element: DrawnElement = {
     kids: [],
@@ -158,7 +161,41 @@ export const drawnTooltips = (element: DrawnElement): string[] =>
     .filter((tooltip): tooltip is string => tooltip !== null);
 
 export const elementWithText = (element: DrawnElement, text: string): DrawnElement | null =>
-  descendants(element).find((part) => part.texts.includes(text)) ?? null;
+  descendants(element).find((part) => hasText(part, text)) ?? null;
+
+// The element that holds the text as a direct child, such as a heading around its label.
+export const elementAroundText = (element: DrawnElement, text: string): DrawnElement | null =>
+  descendants(element).find(
+    (part) => Array.isArray(part.kids) && part.kids.some((kid) => hasText(kid, text)),
+  ) ?? null;
+
+const inheritedTextColor = (
+  element: DrawnElement,
+  text: string,
+  inherited: string | null,
+): string | null => {
+  const own = Array.isArray(element.textColors)
+    ? (element.textColors.at(-1) ?? inherited)
+    : inherited;
+
+  if (hasText(element, text)) {
+    return own;
+  }
+
+  for (const kid of element.kids) {
+    const found = inheritedTextColor(kid, text, own);
+
+    if (found !== null) {
+      return found;
+    }
+  }
+
+  return null;
+};
+
+// The color a label is drawn in: its nearest text_color, on itself or an ancestor.
+export const textColorOf = (element: DrawnElement, text: string): string | null =>
+  inheritedTextColor(element, text, null);
 
 export const elementsWithStyle = (element: DrawnElement, style: string): DrawnElement[] =>
   descendants(element).filter((part) => part.styles[style] !== undefined);

@@ -36,6 +36,7 @@ export const radius = {
 
 export const rowHeight = {
   small: 24,
+  medium: 26,
   large: 28,
 } as const;
 
@@ -181,6 +182,7 @@ export const overlaySize = {
   groveMessageHeight: 120,
   pickerListWidth: 420,
   pickerInset: 3,
+  paletteWidth: 560,
   pickerWidthShare: 0.6,
   pickerHeightShare: 0.7,
   topOffset: 40,

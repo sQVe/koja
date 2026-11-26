@@ -1,4 +1,5 @@
-import { h_flex } from 'gpui-base';
+import type { InputState } from 'gpui-base';
+import { Input, h_flex } from 'gpui-base';
 import type { Element } from 'gpui-kit';
 import { div } from 'gpui-kit';
 
@@ -16,15 +17,7 @@ const footerHeight = rowHeight.large + spacing.xxsmall;
 const caret = (): Element =>
   div().w(spacing.hairline).h(caretHeight).flex_none().bg(colors().foreground);
 
-export const searchLine = (text: string): Element => {
-  const field = h_flex()
-    .flex_1()
-    .min_w(0)
-    .gap(spacing.xxsmall)
-    .items_center()
-    .child(caret())
-    .child(roleText('body', text, 'dim'));
-
+const searchFrame = (field: Element): Element => {
   const searchIcon = icon('search', 'small').text_color(colors().dim);
 
   return h_flex()
@@ -36,6 +29,28 @@ export const searchLine = (text: string): Element => {
     .items_center()
     .child(searchIcon)
     .child(field);
+};
+
+export const searchLine = (text: string): Element => {
+  const field = h_flex()
+    .flex_1()
+    .min_w(0)
+    .gap(spacing.xxsmall)
+    .items_center()
+    .child(caret())
+    .child(roleText('body', text, 'dim'));
+
+  return searchFrame(field);
+};
+
+export const searchInputLine = (input: InputState): Element => {
+  const field = Input.new(input)
+    .flex_1()
+    .h_full()
+    .text_size(textSize.default)
+    .text_color(colors().foreground);
+
+  return searchFrame(field);
 };
 
 const footerPart = (part: string | string[]): Element =>

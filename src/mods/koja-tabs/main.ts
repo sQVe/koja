@@ -33,6 +33,7 @@ import {
   toggleButton,
   trafficLightsPadding,
 } from '../../kit/index.ts';
+import type { LayoutNode } from '../../kit/layout.ts';
 import { parsedJson } from '../../kit/parsedJson.ts';
 import type { PanelMemory } from './panelMemory.ts';
 import { initialPanelMemory, panelMemory } from './panelMemory.ts';
@@ -102,9 +103,9 @@ const readStoredPanels = (): Record<string, string | null> => {
 const tabIds = (space: SpaceInfo | undefined): string[] =>
   space?.tabs.map((tabInfo) => tabInfo.id) ?? [];
 
-const shownPanel = (): string | null => {
-  const panel = findLayoutNode('panel');
-  const body = findLayoutNode('panel-body');
+const shownPanel = (root: LayoutNode): string | null => {
+  const panel = findLayoutNode('panel', root);
+  const body = findLayoutNode('panel-body', root);
 
   if (panel === null || panel.hidden) {
     return null;
@@ -113,8 +114,10 @@ const shownPanel = (): string | null => {
   return body?.active ?? null;
 };
 
-const enabledPanels = (): string[] => {
-  const offered = new Set((findLayoutNode('panel-body')?.children ?? []).map((child) => child.id));
+const enabledPanels = (root: LayoutNode): string[] => {
+  const offered = new Set(
+    (findLayoutNode('panel-body', root)?.children ?? []).map((child) => child.id),
+  );
 
   const chosen = listOf(shared('workspace.panels') ?? ['files', 'changes']);
 
@@ -134,16 +137,16 @@ const showPanel = (panel: string | null): void => {
 
 const appZoom = (): number => numberOf(settings()['zoom']) ?? 1;
 
-const windowButtonsPadding = (): number => {
+const windowButtonsPadding = (root: LayoutNode): number => {
   const shown = currentWindow();
-  const sidebar = findLayoutNode('sidebar');
+  const sidebar = findLayoutNode('sidebar', root);
   const sidebarWidth = sidebar?.hidden === true ? 0 : (sidebar?.sizePx ?? 0);
 
   return trafficLightsPadding({
     platform: shown?.platform ?? 'linux',
     titlebar: shown?.titlebar ?? 'system',
     fullscreen: shown?.fullscreen ?? false,
-    lights: layoutRoot().trafficLights,
+    lights: root.trafficLights,
     zoom: appZoom(),
     offset: sidebarWidth,
     base: spacing.none,
@@ -172,11 +175,12 @@ export default class Tabs extends View {
     const space = spaces().find((candidate) => candidate.active);
     const shown = space?.tabs ?? [];
     const statuses = rollupStatuses(spaces(), panes(), terminals());
-    const enabled = enabledPanels();
+    const root = layoutRoot();
+    const enabled = enabledPanels(root);
 
-    this.syncPanel(space, enabled);
+    this.syncPanel(space, enabled, root);
 
-    const startPadding = windowButtonsPadding();
+    const startPadding = windowButtonsPadding(root);
     const startSpacer = div().w(startPadding).flex_none();
     const endSpacer = div().flex_1().min_w(0);
 
@@ -213,15 +217,15 @@ export default class Tabs extends View {
       })
       .child(startSpacer)
       .child(scroller)
-      .child(this.controls(enabled));
+      .child(this.controls(enabled, root));
   }
 
-  private syncPanel(space: SpaceInfo | undefined, enabled: string[]): void {
-    if (space === undefined || findLayoutNode('panel') === null) {
+  private syncPanel(space: SpaceInfo | undefined, enabled: string[], root: LayoutNode): void {
+    if (space === undefined || findLayoutNode('panel', root) === null) {
       return;
     }
 
-    const now = shownPanel();
+    const now = shownPanel(root);
 
     const result = panelMemory(this.memory, {
       now,
@@ -311,7 +315,7 @@ export default class Tabs extends View {
       });
   }
 
-  private controls(enabled: string[]): Element {
+  private controls(enabled: string[], root: LayoutNode): Element {
     const newButton = iconToggle({
       name: 'plus',
       label: 'New tab',
@@ -337,7 +341,7 @@ export default class Tabs extends View {
 
     const normalMode = Boolean(shared('koja-modal'));
     const visiblePanels = panels.filter((panel) => enabled.includes(panel.id));
-    const panelButtons = visiblePanels.map((panel) => this.panelButton(panel));
+    const panelButtons = visiblePanels.map((panel) => this.panelButton(panel, root));
     const modeToken = normalMode ? 'blocked' : 'ansi2';
     const modeMark = h_flex().mx(spacing.small).child(indicator(modeToken));
 
@@ -352,8 +356,8 @@ export default class Tabs extends View {
       .child(modeMark);
   }
 
-  private panelButton(panel: Panel): Element {
-    const on = shownPanel() === panel.id;
+  private panelButton(panel: Panel, root: LayoutNode): Element {
+    const on = shownPanel(root) === panel.id;
 
     return toggleButton({ label: panel.label, active: on, start: icon(panel.icon, 'small') })
       .id(`panel-${panel.id}`)

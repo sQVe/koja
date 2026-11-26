@@ -1,6 +1,6 @@
 import { afterAll, beforeEach, describe, expect, mock, setSystemTime, test } from 'bun:test';
 
-import { drawn, drawnTexts } from '../../../tests/drawn.ts';
+import { drawn, drawnTexts, textColorOf } from '../../../tests/drawn.ts';
 import type { DrawnElement } from '../../../tests/drawn.ts';
 import {
   chainable,
@@ -27,6 +27,8 @@ let sharedValues: Record<string, unknown> = {};
 let tasks: DeadlineTask[] = [];
 let notifyCalls = 0;
 
+const dimColor = '#525460';
+
 Object.assign(globalThis, { kojaModName: 'koja' });
 
 await mock.module('gpui-base', () =>
@@ -42,7 +44,7 @@ await mock.module('gpui-kit', () =>
 );
 
 await mock.module('herdr', () =>
-  herdrFake({ shared: (key: string) => sharedValues[key], theme: () => ({}) }),
+  herdrFake({ shared: (key: string) => sharedValues[key], theme: () => ({ dim: dimColor }) }),
 );
 
 const kitFake = await realKitIndexFake([
@@ -55,7 +57,10 @@ const kitFake = await realKitIndexFake([
   'keycap',
   'listRow',
   'overlay/card',
+  'overlay/heading',
   'overlay/lines',
+  'overlay/row',
+  'overlay/scrollThumb',
   'popupSurface',
   'projectHeader',
   'roleBadge',
@@ -179,5 +184,14 @@ describe('gallery data layer section', () => {
 
     expect(drawnTexts(view.render(context))).toContain('Unavailable');
     expect(tasks).toEqual([]);
+  });
+});
+
+describe('gallery overlay rows', () => {
+  test('draws the disabled row label in the dim palette color', () => {
+    const view = openGallery();
+    const tree = view.render(context);
+
+    expect(textColorOf(tree, 'Delete space')).toBe(dimColor);
   });
 });

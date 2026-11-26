@@ -1,7 +1,8 @@
 import { describe, expect, test } from 'bun:test';
 
+import { bindingAction } from './binding.ts';
 import type { KeyBinding } from './shortcutBinding.ts';
-import { bindingFor } from './shortcutBinding.ts';
+import { bindingFor, hintFor } from './shortcutBinding.ts';
 
 const binding = (action: string, keys: string, section = 'global'): KeyBinding => ({
   section,
@@ -72,5 +73,63 @@ describe('bindingFor', () => {
     const bindings = [binding('palette.open', 'ctrl-shift-p')];
 
     expect(bindingFor(bindings, 'unknown.action', 'palette.open')).toBe('ctrl-shift-p');
+  });
+});
+
+describe('hintFor', () => {
+  test('gives a command its fewest-key normal sequence', () => {
+    expect(hintFor([], 'linux', 'tab.new')).toEqual({ normal: ['t', 'n'] });
+    expect(hintFor([], 'linux', 'space.next')).toEqual({ normal: [']'] });
+  });
+
+  test('gives the global binding as formatted keys in insert mode', () => {
+    const bindings = [binding('terminal.copy', 'ctrl-shift-c')];
+
+    expect(hintFor(bindings, 'linux', 'terminal.copy')).toEqual({
+      normal: [],
+      insert: ['Ctrl+Shift+C'],
+    });
+
+    expect(hintFor(bindings, 'macos', 'terminal.copy')).toEqual({
+      normal: [],
+      insert: ['⌃⇧C'],
+    });
+  });
+
+  test('gives one key per stroke of the global binding', () => {
+    const bindings = [binding('palette.open', 'ctrl-b :')];
+
+    expect(hintFor(bindings, 'linux', 'palette.open')).toEqual({
+      normal: [],
+      insert: ['Ctrl+B', ':'],
+    });
+  });
+
+  test('leaves the insert hint out without a global binding', () => {
+    expect(hintFor([], 'linux', 'pane.split:right')).toEqual({ normal: ['w', 'v'] });
+  });
+
+  test('draws a modified normal-mode stroke in its display form', () => {
+    expect(hintFor([], 'linux', bindingAction('terminal.scroll', { pages: -0.5 }))).toEqual({
+      normal: ['Ctrl+U'],
+    });
+  });
+
+  test('keeps a plain shifted normal-mode key whole, so its cap marks the shift', () => {
+    expect(hintFor([], 'linux', bindingAction('tab.move', { by: -1 }))).toEqual({
+      normal: ['t', 'H'],
+    });
+  });
+
+  test('ignores a binding outside the global section in insert mode', () => {
+    const bindings = [binding('palette.open', 'ctrl-shift-p', 'pane')];
+
+    expect(hintFor(bindings, 'linux', 'palette.open')).toEqual({ normal: [] });
+  });
+
+  test('falls back to a later action when the first has no hint', () => {
+    expect(hintFor([], 'linux', 'unknown.action', 'pane.split:right')).toEqual({
+      normal: ['w', 'v'],
+    });
   });
 });

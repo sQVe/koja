@@ -39,6 +39,19 @@ export const dialogFrameFake = (captureKeyHandler: (handler: KeyHandler) => void
 // Bun fixes a mocked module's export names at the first mock.module call, so every mock of a
 // module must expose the same names. These helpers hold the union each test file needs; a file
 // passes its own behavior as overrides and gets the rest as defaults.
+// Herdr's frameless popup frame inset. The fake repeats the real placement so a test that only
+// overrides the insets still gets the frame math.
+const popupFrameInset = 8;
+
+const mainColumnPlacementFake = (
+  insets: { left: number; top: number },
+  topOffset: number,
+): { left: number; right: number; top: number } => ({
+  left: Math.max(0, insets.left - popupFrameInset),
+  right: 2 * popupFrameInset - Math.min(insets.left, popupFrameInset),
+  top: Math.max(0, insets.top + topOffset - popupFrameInset),
+});
+
 export const herdrFake = (overrides: ModuleFake = {}): ModuleFake => ({
   agents: () => [],
   appHome: () => '',
@@ -118,6 +131,7 @@ export const kitIndexFake = (overrides: ModuleFake = {}): ModuleFake => ({
   findLayoutNode: () => null,
   footerLine: noop,
   highlightedText: noop,
+  hintFor: () => ({ normal: [] }),
   hoverCard: noop,
   hoverCardSize: {},
   hoveredAfter: () => null,
@@ -135,6 +149,8 @@ export const kitIndexFake = (overrides: ModuleFake = {}): ModuleFake => ({
   listActionOf: () => null,
   listOf: () => [],
   listRow: noop,
+  mainColumnInsets: () => ({ left: 0, top: 0 }),
+  mainColumnPlacement: mainColumnPlacementFake,
   modName: 'koja',
   newMenuOpenKey: 'koja-new-menu.open',
   modePill: noop,
@@ -147,6 +163,8 @@ export const kitIndexFake = (overrides: ModuleFake = {}): ModuleFake => ({
   normalFocusFill: noop,
   numberOf: () => null,
   overlayCard: noop,
+  overlayHeading: noop,
+  overlayRow: noop,
   overlayHints: noop,
   overlaySize: {},
   paneActions: () => [],
@@ -176,6 +194,7 @@ export const kitIndexFake = (overrides: ModuleFake = {}): ModuleFake => ({
   rowHeight: {},
   runNormalKeys: noop,
   searchField: noop,
+  searchInputLine: noop,
   searchLine: noop,
   sectionHeader: noop,
   segmentedChip: noop,
@@ -183,12 +202,14 @@ export const kitIndexFake = (overrides: ModuleFake = {}): ModuleFake => ({
   shellSize: {},
   shortAge: () => '',
   shortcutFor: () => null,
+  scrollThumb: noop,
   shownSections: () => new Set(['panes']),
   sidebarSize: {},
   spaceFolder: () => '',
   spaceFooter: noop,
   spaceMark: noop,
   spacing: {},
+  thumbPlace: () => null,
   spinner: noop,
   splitButton: noop,
   splitButtonOpenHeight: () => 0,
