@@ -162,6 +162,8 @@ export const kitIndexFake = (overrides: ModuleFake = {}): ModuleFake => ({
   mainColumnPlacement: mainColumnPlacementFake,
   modName: 'koja',
   newMenuOpenKey: 'koja-new-menu.open',
+  inNormalMode: (shared: (key: string) => unknown) => shared('koja-modal') === true,
+  normalModeKey: 'koja-modal',
   modePill: noop,
   openAtTop: () => null,
   openGroveDialog: noop,

@@ -2,7 +2,13 @@ import { afterAll, beforeEach, describe, expect, mock, setSystemTime, test } fro
 
 import { createDeferred } from '../../../tests/deferred.ts';
 import type { DrawnElement } from '../../../tests/drawn.ts';
-import { click, clickablesWithText, drawn, elementsWithStyle } from '../../../tests/drawn.ts';
+import {
+  click,
+  clickablesWithText,
+  drawn,
+  elementsWithId,
+  elementsWithStyle,
+} from '../../../tests/drawn.ts';
 import {
   gpuiBaseFake,
   gpuiKitFake,
@@ -180,7 +186,9 @@ const kitParts = [
   'button',
   'fields',
   'icon',
+  'keycap',
   'layout',
+  'normalRun',
   'overlay/card',
   'overlay/lines',
   'overlay/overlay',
@@ -334,10 +342,30 @@ describe('the ask host', () => {
           question: 'Allow this command?',
           command: 'bun run sandbox up',
         },
+        normalMode: false,
       },
     });
 
     expect(readPaths).toEqual(['/home/test/.config/herdr-app/window.json']);
+  });
+
+  test('reopens the card taller with the jump hint when normal mode starts', async () => {
+    await runHost();
+
+    const insertHeight = Number(opened[0]?.['height']);
+
+    expect(insertHeight).toBeGreaterThan(0);
+
+    values['koja-modal'] = true;
+    await tick();
+
+    expect(opened).toHaveLength(2);
+    expect(closed).toEqual(['overlay-1']);
+    expect(opened[1]?.props).toMatchObject({ normalMode: true });
+
+    const normalHeight = Number(opened[1]?.['height']);
+
+    expect(normalHeight).toBeGreaterThan(insertHeight);
   });
 
   test('keeps one card when a second tick sees the same state', async () => {
@@ -554,6 +582,28 @@ describe('the ask host', () => {
     expect(Number(opened[0]?.height)).toBeGreaterThan(cardHeight);
   });
 
+  test('opens the list with the same height and signature in normal mode and insert mode', async () => {
+    terminalsValue = [blockedTerminal, blockedTerminal2];
+    agentsValue = [agent, agent2];
+    values['koja-asks.list'] = true;
+
+    await runHost();
+
+    const insertHeight = opened[0]?.['height'];
+    const insertOpen = values['koja-asks.open'];
+
+    opened = [];
+    closed = [];
+    values['koja-modal'] = true;
+
+    await tick();
+
+    expect(opened).toHaveLength(0);
+    expect(closed).toHaveLength(0);
+    expect(values['koja-asks.open']).toEqual(insertOpen);
+    expect(insertHeight).toBeGreaterThan(0);
+  });
+
   test('keeps the card when only one ask is unseen', async () => {
     values['koja-asks.list'] = true;
 
@@ -595,8 +645,8 @@ describe('the ask host', () => {
 });
 
 describe('the ask card', () => {
-  const initCard = (): { render: () => DrawnElement } => {
-    propsValue = { ask, more: null, overlay: 'overlay-1' };
+  const initCard = (normalMode = false): { render: () => DrawnElement } => {
+    propsValue = { ask, more: null, rows: null, normalMode, overlay: 'overlay-1' };
 
     const view = new loaded.default();
 
@@ -647,15 +697,23 @@ describe('the ask card', () => {
     expect(values['koja-asks.list']).toBe(true);
   });
 
+  test('draws the jump hint only in normal mode', () => {
+    values['koja-asks.open'] = { id: 'overlay-1', identity: ask.identity, signature: 'sig' };
+
+    const normal = initCard(true).render();
+    const insert = initCard().render();
+
+    expect(elementsWithId(normal, 'koja-ask-hint')).toHaveLength(1);
+    expect(elementsWithId(insert, 'koja-ask-hint')).toHaveLength(0);
+  });
+
   test('the dismiss control marks the ask handled and closes without a jump', () => {
     values['koja-asks.open'] = { id: 'overlay-1', identity: ask.identity, signature: 'sig' };
 
     const view = initCard();
     const card = view.render();
 
-    const dismiss = elementsWithStyle(card, 'id').find(
-      (part) => part.styles['id']?.[0] === 'koja-ask-dismiss',
-    );
+    const dismiss = elementsWithId(card, 'koja-ask-dismiss')[0];
 
     if (dismiss !== undefined) {
       click(dismiss);

@@ -7,6 +7,8 @@ import {
   drawn,
   drawnIcons,
   drawnTexts,
+  elementWithText,
+  elementsWithId,
   elementsWithStyle,
 } from '../../../tests/drawn.ts';
 import {
@@ -15,6 +17,8 @@ import {
   herdrFake,
   realKitIndexFake,
 } from '../../../tests/moduleFakes.ts';
+import type { NeedsYouHint } from '../../kit/needsYou.ts';
+import { needsYouHint } from '../../kit/needsYou.ts';
 import type { Ask } from './askFacts.ts';
 import type { AskRow } from './card.ts';
 import type { CardActions } from './view.ts';
@@ -46,6 +50,7 @@ await mock.module('herdr', () => herdrFake({ settings: () => ({}), theme: () => 
 const kitParts = [
   'button',
   'icon',
+  'keycap',
   'overlay/card',
   'overlay/lines',
   'size',
@@ -65,6 +70,7 @@ const { cardElement, listElement } = (await import(modulePath)) as {
   cardElement: (
     ask: Ask,
     more: { count: number; space: string } | null,
+    hint: NeedsYouHint | null,
     actions: CardActions,
   ) => DrawnElement;
   listElement: (rows: readonly AskRow[], actions: CardActions) => DrawnElement;
@@ -233,7 +239,7 @@ describe('listElement', () => {
 
 describe('cardElement', () => {
   test('draws the space, the agent, the question, and the command', () => {
-    const card = cardElement(ask, null, actions);
+    const card = cardElement(ask, null, null, actions);
 
     expect(drawnTexts(card)).toEqual([
       'Build window shell',
@@ -246,20 +252,44 @@ describe('cardElement', () => {
   });
 
   test('draws a question ask without a command line', () => {
-    const card = cardElement(questionAsk, null, actions);
+    const card = cardElement(questionAsk, null, null, actions);
 
     expect(drawnTexts(card)).toEqual(['Build window shell', 'Claude Code', 'Which judge model?']);
   });
 
+  test('draws the jump key and its hint under the question', () => {
+    const card = cardElement(ask, null, needsYouHint, actions);
+    const texts = drawnTexts(card);
+
+    expect(texts).toEqual([
+      'Build window shell',
+      'Claude Code',
+      'Allow this command?',
+      'bun run sandbox up',
+      ...needsYouHint.keys,
+      needsYouHint.text,
+    ]);
+  });
+
+  test('marks the hint row and its text as shrinkable', () => {
+    const card = cardElement(ask, null, needsYouHint, actions);
+    const text = elementWithText(card, needsYouHint.text);
+
+    const row = elementsWithId(card, 'koja-ask-hint')[0];
+
+    expect(text?.styles['truncate']).toBeDefined();
+    expect(row?.styles['min_w']).toEqual([0]);
+  });
+
   test('draws one more line naming the next ask space', () => {
-    const without = drawnTexts(cardElement(ask, null, actions));
-    const withMore = drawnTexts(cardElement(ask, { count: 2, space: 'Hill-climb' }, actions));
+    const without = drawnTexts(cardElement(ask, null, null, actions));
+    const withMore = drawnTexts(cardElement(ask, { count: 2, space: 'Hill-climb' }, null, actions));
 
     expect(withMore).toEqual([...without, '2 more asks in Hill-climb']);
   });
 
   test('a click on the card goes to the ask', () => {
-    const card = cardElement(ask, null, actions);
+    const card = cardElement(ask, null, null, actions);
 
     const clickable = elementsWithStyle(card, 'cursor_pointer')[0];
 
@@ -273,7 +303,7 @@ describe('cardElement', () => {
   });
 
   test('a click on the more line opens the list without going to the ask', () => {
-    const card = cardElement(ask, { count: 2, space: 'Hill-climb' }, actions);
+    const card = cardElement(ask, { count: 2, space: 'Hill-climb' }, null, actions);
 
     const more = elementsWithStyle(card, 'id').find(
       (part) => part.styles['id']?.[0] === 'koja-ask-more',
@@ -296,11 +326,9 @@ describe('cardElement', () => {
   });
 
   test('the dismiss control marks the ask dismissed without going to it', () => {
-    const card = cardElement(ask, null, actions);
+    const card = cardElement(ask, null, null, actions);
 
-    const dismiss = elementsWithStyle(card, 'id').find(
-      (part) => part.styles['id']?.[0] === 'koja-ask-dismiss',
-    );
+    const dismiss = elementsWithId(card, 'koja-ask-dismiss')[0];
 
     expect(dismiss).toBeDefined();
 

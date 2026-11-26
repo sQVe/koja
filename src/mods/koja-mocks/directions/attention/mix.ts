@@ -2,10 +2,10 @@ import { h_flex, v_flex } from 'gpui-base';
 import type { Element } from 'gpui-kit';
 
 import { wrappedText } from '../dialogs/parts.ts';
-import { footerLine, iconMark, mainLeft, overlayCard } from '../overlays/parts.ts';
+import { iconMark, mainLeft, overlayCard } from '../overlays/parts.ts';
 import { fixedLabel, iconButton, label, terminalFont } from '../parts.ts';
 import type { DirectionTokens, TextStyle } from '../tokens.ts';
-import { attentionWindow, focusedPaneWidth, hiddenAsks } from './data.ts';
+import { attentionWindow, focusedPaneWidth, hiddenAsks, jumpFooter } from './data.ts';
 
 type HiddenAsk = (typeof hiddenAsks)[number];
 
@@ -183,9 +183,7 @@ export const mixCard = (
     .child(content);
 
   if (tokens.normal) {
-    const footer = footerLine([['g', 'n'], 'Go to this ask'], tokens)
-      .px(0)
-      .ml(textInset);
+    const footer = jumpFooter(tokens).px(0).ml(textInset);
 
     card.child(footer);
   }

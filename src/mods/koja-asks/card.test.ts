@@ -1,5 +1,6 @@
 import { describe, expect, test } from 'bun:test';
 
+import { needsYouHint } from '../../kit/needsYou.ts';
 import { askCardSize, spacing } from '../../kit/size.ts';
 import type { Ask } from './askFacts.ts';
 import type { AskRow, CardText, CardWindow } from './card.ts';
@@ -36,6 +37,7 @@ const text: CardText = {
   question: 'Allow this command?',
   command: 'bun run sandbox up',
   more: null,
+  hint: null,
 };
 
 const sources = (
@@ -80,6 +82,12 @@ describe('cardHeight', () => {
     expect(
       cardHeight({ ...text, more: '1 more ask in X' }, askCardSize.maximumWidth),
     ).toBeGreaterThan(cardHeight(text, askCardSize.maximumWidth));
+  });
+
+  test('grows with the jump hint', () => {
+    const withHint = cardHeight({ ...text, hint: needsYouHint }, askCardSize.maximumWidth);
+
+    expect(withHint).toBeGreaterThan(cardHeight(text, askCardSize.maximumWidth));
   });
 });
 
@@ -199,6 +207,19 @@ describe('cardSignature', () => {
     const replacedGeometry = cardGeometry(sources(1280, 820), listHeightAt(replaced));
 
     expect(cardSignature(ask, { text, rows: replaced }, replacedGeometry)).not.toBe(signature);
+  });
+
+  test('changes when the jump hint appears', () => {
+    const geometry = cardGeometry(sources(1280, 820), heightAt(text));
+    const plain = cardSignature(ask, { text, rows: null }, geometry);
+
+    const hinted = cardSignature(
+      ask,
+      { text: { ...text, hint: needsYouHint }, rows: null },
+      geometry,
+    );
+
+    expect(hinted).not.toBe(plain);
   });
 });
 

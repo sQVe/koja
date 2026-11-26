@@ -7,6 +7,7 @@ import {
   drawn,
   drawnIcons,
   drawnTexts,
+  elementsWithId,
 } from '../../../../../tests/drawn.ts';
 import {
   gpuiBaseFake,
@@ -14,6 +15,7 @@ import {
   herdrFake,
   kitIndexFake,
 } from '../../../../../tests/moduleFakes.ts';
+import { needsYouHint } from '../../../../kit/needsYou.ts';
 
 interface Tokens {
   normal: boolean;
@@ -103,10 +105,14 @@ const directRow = (scene: DrawnElement, title: string): DrawnElement => {
   return row;
 };
 
-const hasKeys = (scene: DrawnElement): boolean => {
-  const texts = drawnTexts(scene);
+const footerRows = (scene: DrawnElement): DrawnElement[] => elementsWithId(scene, 'jump-footer');
 
-  return texts.includes('g') && texts.includes('n');
+// Each scene draws the jump footer once, with the key and words the ask card shows.
+const expectJumpFooter = (scene: DrawnElement): void => {
+  const rows = footerRows(scene);
+
+  expect(rows).toHaveLength(1);
+  expect(rows.flatMap((row) => drawnTexts(row))).toEqual([...needsYouHint.keys, needsYouHint.text]);
 };
 
 const headerFields = (header: DrawnElement): string[] => {
@@ -154,7 +160,7 @@ describe('attention scenes', () => {
     expect(texts).toContain('Allow this command?');
     expect(texts).toContain('bun run sandbox up');
     expect(texts).toContain('1 more ask in Hill-climb mode for judges');
-    expect(texts).not.toContain('Go to this ask');
+    expect(footerRows(shellAttentionScene(false, koja))).toHaveLength(0);
   });
 
   test('shell attention open shows both asks newest first', () => {
@@ -172,11 +178,8 @@ describe('attention scenes', () => {
     );
   });
 
-  test('shell attention normal shows the go-to-ask keys', () => {
-    const scene = shellAttentionScene(false, kojaNormal);
-
-    expect(hasKeys(scene)).toBe(true);
-    expect(drawnTexts(scene)).toContain('Go to this ask');
+  test('shell attention normal shows the jump key', () => {
+    expectJumpFooter(shellAttentionScene(false, kojaNormal));
   });
 
   test('shell attention opens the list and dismisses it without removing the terminal', () => {
@@ -212,8 +215,9 @@ describe('attention scenes', () => {
     expect(texts).toContain('Claude Code asks to run bun run sandbox up.');
     expect(texts).toContain('1 more ask');
     expect(texts).not.toContain('Which judge model for round 2?');
-    expect(hasKeys(scene)).toBe(false);
-    expect(hasKeys(cornerScene(kojaNormal))).toBe(true);
+    expect(footerRows(scene)).toHaveLength(0);
+    expectJumpFooter(cornerScene(kojaNormal));
+
     expect(drawnIcons(directRow(scene, 'Mock scenes'))).toEqual(['terminal', 'triangle-alert']);
 
     expect(drawnIcons(directRow(scene, 'Pi'))).toEqual([
@@ -293,7 +297,7 @@ describe('attention scenes', () => {
     expect(texts).toContain('2 asks in other spaces');
     expect(texts).toContain('Claude Code · Allow this command?');
     expect(texts).toContain('Pi · Which judge model for round 2?');
-    expect(hasKeys(scene)).toBe(false);
+    expect(footerRows(scene)).toHaveLength(0);
   });
 
   test.each([
@@ -333,8 +337,9 @@ describe('attention scenes', () => {
   });
 
   test.each(scenes)('$name shows navigation hints only in normal mode', ({ draw }) => {
-    expect(hasKeys(draw(koja))).toBe(false);
-    expect(hasKeys(draw(kojaNormal))).toBe(true);
+    expect(footerRows(draw(koja))).toHaveLength(0);
+
+    expectJumpFooter(draw(kojaNormal));
   });
 
   test.each(headerCases)(

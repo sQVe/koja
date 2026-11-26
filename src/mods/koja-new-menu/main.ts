@@ -11,6 +11,7 @@ import {
   icon,
   listRow,
   overlaySize,
+  inNormalMode,
   newMenuOpenKey,
   openWorktreeDialog,
   overlayCard,
@@ -102,7 +103,7 @@ export default class NewMenu extends View {
   private handle: FocusHandle | null = null;
 
   override init(_props: unknown, cx: AsyncContext): void {
-    this.normalMode = shared('koja-modal') === true;
+    this.normalMode = inNormalMode(shared);
     this.handle = cx.focus_handle();
     this.handle.focus();
     this.target = menuTarget(activeSpace(), focusedFolder());

@@ -97,6 +97,8 @@ const paletteAction = herdrCommand('mod.open', { name: 'koja-palette' });
 
 const pickerAction = herdrCommand('mod.open', { name: 'koja-picker' });
 
+export const nextNeedsYouKey: NormalKey = { keys: [')'], action: intentAction('nextNeedsYou') };
+
 export const normalKeys: NormalKey[] = [
   { keys: ['h'], action: herdrCommand('pane.go', { direction: 'left' }) },
   { keys: ['j'], action: herdrCommand('pane.go', { direction: 'down' }) },
@@ -132,7 +134,7 @@ export const normalKeys: NormalKey[] = [
   { keys: ['g', 'T'], action: herdrCommand('tab.prev') },
   { keys: ['g', 'tab'], action: intentAction('lastTab') },
   { keys: ['g', 'p'], action: pickerAction },
-  { keys: [')'], action: intentAction('nextNeedsYou') },
+  nextNeedsYouKey,
   { keys: ['('], action: intentAction('previousNeedsYou') },
   { keys: ['s', 'n'], action: herdrCommand('space.new') },
   { keys: ['s', 'q'], action: herdrCommand('space.close') },

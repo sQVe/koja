@@ -16,6 +16,7 @@ import {
   icon,
   iconButton,
   iconToggle,
+  inNormalMode,
   indicator,
   layoutRoot,
   listOf,
@@ -339,7 +340,7 @@ export default class Tabs extends View {
         });
       });
 
-    const normalMode = Boolean(shared('koja-modal'));
+    const normalMode = inNormalMode(shared);
     const visiblePanels = panels.filter((panel) => enabled.includes(panel.id));
     const panelButtons = visiblePanels.map((panel) => this.panelButton(panel, root));
     const modeToken = normalMode ? 'blocked' : 'ansi2';

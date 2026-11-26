@@ -1,10 +1,10 @@
 import { h_flex, v_flex } from 'gpui-base';
 import type { Element } from 'gpui-kit';
 
-import { footerLine, iconMark, mainLeft, overlayCard } from '../overlays/parts.ts';
+import { iconMark, mainLeft, overlayCard } from '../overlays/parts.ts';
 import { fixedLabel, iconButton } from '../parts.ts';
 import type { DirectionTokens } from '../tokens.ts';
-import { attentionWindow, focusedPaneWidth, hiddenAsks } from './data.ts';
+import { attentionWindow, focusedPaneWidth, hiddenAsks, jumpFooter } from './data.ts';
 
 const cardWidth = 340;
 const paneClearance = 16;
@@ -41,7 +41,7 @@ const briefCard = (tokens: DirectionTokens): Element => {
     .child(line);
 
   if (tokens.normal) {
-    card.child(footerLine([['g', 'n'], 'Go to'], tokens));
+    card.child(jumpFooter(tokens));
   }
 
   return card;

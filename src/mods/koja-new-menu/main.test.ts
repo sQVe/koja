@@ -143,6 +143,7 @@ const kitParts = [
   'keycap',
   'listRow',
   'normalKeys',
+  'normalRun',
   'overlay/card',
   'overlay/overlay',
   'popupSurface',
