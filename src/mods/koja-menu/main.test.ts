@@ -358,6 +358,7 @@ describe('pane menu', () => {
 
   test('runs the selected row when Enter is pressed', () => {
     menuProps = { tab: 'pane', target: { pane: 'pane-1' } };
+    paneList = [paneOf('pane-1')];
 
     const view = new loaded.default();
 
@@ -365,13 +366,12 @@ describe('pane menu', () => {
 
     keyDown(view.render(), { key: 'enter' }, { notify: () => undefined });
 
-    expect(askedCommands).toEqual([
-      { command: 'pane.split', args: { direction: 'right', pane: 'pane-1' } },
-    ]);
+    expect(askedCommands).toEqual([{ command: 'pane.rename', args: { pane: 'pane-1' } }]);
   });
 
   test('keeps the hints of the mode the menu opened in', () => {
     menuProps = { tab: 'pane', target: { pane: 'pane-1' } };
+    paneList = [paneOf('pane-1')];
     sharedNormalMode = true;
 
     const view = new loaded.default();
@@ -407,6 +407,8 @@ describe('pane menu', () => {
       branch: 'me-1089-window-shell',
       folder: '~/code/koja',
     };
+
+    paneList = [paneOf('pane-1')];
 
     const view = new loaded.default();
 
