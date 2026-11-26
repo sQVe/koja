@@ -259,11 +259,14 @@ export const startDataHost = (cx: Context): void => {
 
     binding.stacks.tick(binding.git.gitFacts(), timerCx);
 
-    binding.pulls.tick(binding.git.gitFacts(), binding.git.takeRemoteRefEvents(), (body) =>
-      timerCx.spawn(body),
+    binding.pulls.tick(
+      binding.git.gitFacts(),
+      binding.stacks.stacks(),
+      binding.git.takeRemoteRefEvents(),
+      (body) => timerCx.spawn(body),
     );
 
-    binding.trackers.tick(binding.git.gitFacts(), binding.readTickets);
+    binding.trackers.tick(binding.git.gitFacts(), binding.stacks.stacks(), binding.readTickets);
   };
 
   beat();

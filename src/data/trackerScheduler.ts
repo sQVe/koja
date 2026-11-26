@@ -1,9 +1,16 @@
 import { folderNameOf } from './fields.ts';
-import type { RunCommand } from './gitIdentity.ts';
+import type { RepositoryIdentity, RunCommand } from './gitIdentity.ts';
 import type { TicketRead, TicketSource } from './linearTickets.ts';
 import { linearWorkspaceOf, ticketIdOf } from './linearTickets.ts';
 import { readPeriodMilliseconds } from './pullDue.ts';
-import type { GitFacts, RepositoryTracker, TicketFacts, WorktreeGit } from './snapshot.ts';
+import { attachedStacks } from './pullSources.ts';
+import type {
+  GitFacts,
+  RepositoryStacks,
+  RepositoryTracker,
+  TicketFacts,
+  WorktreeGit,
+} from './snapshot.ts';
 
 export type TicketRunner = (source: TicketSource) => Promise<TicketRead>;
 
@@ -14,7 +21,11 @@ export interface TrackerSchedulerDependencies {
 }
 
 export interface TrackerScheduler {
-  tick: (git: GitFacts, readTickets: TicketRunner) => void;
+  tick: (
+    git: GitFacts,
+    stacks: Readonly<Record<string, RepositoryStacks>>,
+    readTickets: TicketRunner,
+  ) => void;
   stop: () => void;
   trackers: () => Record<string, RepositoryTracker>;
 }
@@ -22,6 +33,7 @@ export interface TrackerScheduler {
 interface ReadMemory {
   at: number;
   branches: (string | null)[];
+  stackBranches: string[];
 }
 
 interface RepositorySource {
@@ -31,6 +43,7 @@ interface RepositorySource {
   checkoutCwd: string | null;
   machine: string | null;
   branches: (string | null)[];
+  stackBranches: string[];
   ids: string[];
 }
 
@@ -66,7 +79,27 @@ const branchesOf = (worktrees: WorktreeGit[]): (string | null)[] => {
   return [...branches].toSorted((left, right) => (left ?? '').localeCompare(right ?? ''));
 };
 
-const idsOf = (git: GitFacts, repositoryKey: string): string[] => {
+const stackBranchesOf = (
+  git: GitFacts,
+  repository: RepositoryIdentity,
+  stacks: Readonly<Record<string, RepositoryStacks>>,
+): string[] => {
+  const branches = new Set<string>();
+
+  for (const stack of attachedStacks(git, repository, stacks)) {
+    for (const entry of stack.branches) {
+      branches.add(entry.branch);
+    }
+  }
+
+  return [...branches].toSorted();
+};
+
+const idsOf = (
+  git: GitFacts,
+  repository: RepositoryIdentity,
+  stacks: Readonly<Record<string, RepositoryStacks>>,
+): string[] => {
   const ids = new Set<string>();
 
   for (const place of Object.values(git.places)) {
@@ -76,7 +109,7 @@ const idsOf = (git: GitFacts, repositoryKey: string): string[] => {
 
     const worktree = git.worktrees[place.worktree];
 
-    if (worktree?.repository.key !== repositoryKey) {
+    if (worktree?.repository.key !== repository.key) {
       continue;
     }
 
@@ -84,6 +117,16 @@ const idsOf = (git: GitFacts, repositoryKey: string): string[] => {
 
     if (id !== null) {
       ids.add(id);
+    }
+  }
+
+  for (const stack of attachedStacks(git, repository, stacks)) {
+    for (const entry of stack.branches) {
+      const id = ticketIdOf(entry.branch, '');
+
+      if (id !== null) {
+        ids.add(id);
+      }
     }
   }
 
@@ -148,7 +191,10 @@ const mainWorktreeOf = (porcelain: string): string | null => {
   return folderLine.slice('worktree '.length);
 };
 
-const sourcesOf = (git: GitFacts): Map<string, RepositorySource> => {
+const sourcesOf = (
+  git: GitFacts,
+  stacks: Readonly<Record<string, RepositoryStacks>>,
+): Map<string, RepositorySource> => {
   const sources = new Map<string, RepositorySource>();
 
   for (const [key, worktrees] of worktreesByRepository(git)) {
@@ -166,7 +212,8 @@ const sourcesOf = (git: GitFacts): Map<string, RepositorySource> => {
       checkoutCwd: checkoutCwdOf(worktrees),
       machine: first.repository.machine,
       branches: branchesOf(worktrees),
-      ids: idsOf(git, key),
+      stackBranches: stackBranchesOf(git, first.repository, stacks),
+      ids: idsOf(git, first.repository, stacks),
     });
   }
 
@@ -219,7 +266,11 @@ class Scheduler implements TrackerScheduler {
     return this.trackersByRepository;
   }
 
-  tick(git: GitFacts, readTickets: TicketRunner): void {
+  tick(
+    git: GitFacts,
+    stacks: Readonly<Record<string, RepositoryStacks>>,
+    readTickets: TicketRunner,
+  ): void {
     if (this.stopped) {
       return;
     }
@@ -227,7 +278,7 @@ class Scheduler implements TrackerScheduler {
     const now = this.dependencies.now();
     const free = Math.max(0, readLimit - this.running.size);
 
-    const due = [...sourcesOf(git).values()]
+    const due = [...sourcesOf(git, stacks).values()]
       .filter((source) => this.shouldRead(source, now))
       .toSorted((left, right) => this.byOldestRead(left, right));
 
@@ -263,12 +314,21 @@ class Scheduler implements TrackerScheduler {
       return true;
     }
 
+    if (!sameBranches(memory.stackBranches, source.stackBranches)) {
+      return true;
+    }
+
     return now - memory.at >= readPeriodMilliseconds;
   }
 
   private startRead(source: RepositorySource, readTickets: TicketRunner, now: number): void {
     this.running.add(source.key);
-    this.reads.set(source.key, { at: now, branches: source.branches });
+
+    this.reads.set(source.key, {
+      at: now,
+      branches: source.branches,
+      stackBranches: source.stackBranches,
+    });
 
     // A publish failure must not undo the read that finished before it.
     this.runRead(source, readTickets).catch(() => undefined);
@@ -321,7 +381,7 @@ class Scheduler implements TrackerScheduler {
       workspace: workspace.workspace,
       cwd: source.cwd,
       machine: source.machine,
-      ids: source.ids,
+      ids: this.readIdsOf(source),
     });
 
     if (read.kind === 'dropped') {
@@ -332,6 +392,22 @@ class Scheduler implements TrackerScheduler {
     const next = trackerAfter(workspace.workspace, read, previous);
 
     return { kind: 'tracker', tracker: next };
+  }
+
+  // A direct ticket's parent is read in the next round, one level up and no further.
+  private readIdsOf(source: RepositorySource): string[] {
+    const ids = new Set(source.ids);
+    const tickets = this.trackersByRepository[source.key]?.tickets ?? {};
+
+    for (const id of source.ids) {
+      const parent = tickets[id]?.parent;
+
+      if (parent !== null && parent !== undefined) {
+        ids.add(parent);
+      }
+    }
+
+    return [...ids].toSorted();
   }
 
   private previousTickets(key: string): Record<string, TicketFacts> {

@@ -195,7 +195,7 @@ describe('createTrackerScheduler', () => {
 
     reads = [{ kind: 'read', tickets: [good] }, { kind: 'failed' }];
 
-    harness.scheduler.tick(git, readTickets(harness));
+    harness.scheduler.tick(git, {}, readTickets(harness));
     await settle();
 
     expect(harness.scheduler.trackers()).toEqual({
@@ -207,7 +207,7 @@ describe('createTrackerScheduler', () => {
     });
 
     now += 60_000;
-    harness.scheduler.tick(git, readTickets(harness));
+    harness.scheduler.tick(git, {}, readTickets(harness));
     await settle();
 
     expect(harness.scheduler.trackers()).toEqual({
@@ -228,17 +228,17 @@ describe('createTrackerScheduler', () => {
       { kind: 'read', tickets: [ticket('ME-1036')] },
     ];
 
-    harness.scheduler.tick(git, readTickets(harness));
+    harness.scheduler.tick(git, {}, readTickets(harness));
     await settle();
 
     now += 59_999;
-    harness.scheduler.tick(git, readTickets(harness));
+    harness.scheduler.tick(git, {}, readTickets(harness));
     await settle();
 
     expect(harness.sources).toHaveLength(1);
 
     now += 1;
-    harness.scheduler.tick(git, readTickets(harness));
+    harness.scheduler.tick(git, {}, readTickets(harness));
     await settle();
 
     expect(harness.sources).toHaveLength(2);
@@ -254,11 +254,11 @@ describe('createTrackerScheduler', () => {
       { kind: 'read', tickets: [ticket('ME-1035')] },
     ];
 
-    harness.scheduler.tick(first, readTickets(harness));
+    harness.scheduler.tick(first, {}, readTickets(harness));
     await settle();
 
     now += 1_000;
-    harness.scheduler.tick(second, readTickets(harness));
+    harness.scheduler.tick(second, {}, readTickets(harness));
     await settle();
 
     expect(harness.sources).toHaveLength(2);
@@ -271,7 +271,7 @@ describe('createTrackerScheduler', () => {
 
     reads = [{ kind: 'read', tickets: [ticket('ME-1035')] }];
 
-    harness.scheduler.tick(git, readTickets(harness));
+    harness.scheduler.tick(git, {}, readTickets(harness));
     await settle();
 
     expect(harness.sources[0]?.ids).toEqual(['ME-1035']);
@@ -288,7 +288,7 @@ describe('createTrackerScheduler', () => {
       return read.promise;
     };
 
-    harness.scheduler.tick(git, runner);
+    harness.scheduler.tick(git, {}, runner);
     await settle();
 
     harness.scheduler.stop();
@@ -305,14 +305,14 @@ describe('createTrackerScheduler', () => {
 
     reads = [{ kind: 'dropped' }, { kind: 'read', tickets: [ticket('ME-1036')] }];
 
-    harness.scheduler.tick(git, readTickets(harness));
+    harness.scheduler.tick(git, {}, readTickets(harness));
     await settle();
 
     expect(harness.published).toBe(0);
     expect(harness.scheduler.trackers()).toEqual({});
 
     now += 60_000;
-    harness.scheduler.tick(git, readTickets(harness));
+    harness.scheduler.tick(git, {}, readTickets(harness));
     await settle();
 
     expect(harness.sources).toHaveLength(2);
@@ -350,7 +350,7 @@ describe('createTrackerScheduler', () => {
 
     reads = [{ kind: 'read', tickets: [ticket('ME-1036')] }];
 
-    harness.scheduler.tick(git, readTickets(harness));
+    harness.scheduler.tick(git, {}, readTickets(harness));
     await settle();
 
     expect(harness.scheduler.trackers()).toEqual({
@@ -410,7 +410,7 @@ describe('createTrackerScheduler', () => {
 
     reads = [{ kind: 'read', tickets: [ticket('ME-1036')] }];
 
-    harness.scheduler.tick(git, readTickets(harness));
+    harness.scheduler.tick(git, {}, readTickets(harness));
     await settle();
 
     expect(configPaths).toEqual([`${checkoutRoot}/.linear.toml`]);
@@ -465,7 +465,7 @@ describe('createTrackerScheduler', () => {
 
     reads = [{ kind: 'read', tickets: [ticket('ME-1036')] }];
 
-    harness.scheduler.tick(git, readTickets(harness));
+    harness.scheduler.tick(git, {}, readTickets(harness));
     await settle();
 
     expect(gitCwds).toEqual([bareRoot]);
@@ -514,7 +514,7 @@ describe('createTrackerScheduler', () => {
 
     reads = [{ kind: 'read', tickets: [ticket('ME-9999')] }];
 
-    harness.scheduler.tick(git, readTickets(harness));
+    harness.scheduler.tick(git, {}, readTickets(harness));
     await settle();
 
     expect(configPaths).toEqual([]);
@@ -571,7 +571,7 @@ describe('createTrackerScheduler', () => {
       'me-1036-title-spaces-with-their-linear-tickets',
     ]);
 
-    harness.scheduler.tick(git, (source) => readLinearTickets(run, source, () => true));
+    harness.scheduler.tick(git, {}, (source) => readLinearTickets(run, source, () => true));
     await settle();
 
     expect(harness.scheduler.trackers()).toEqual({
@@ -606,7 +606,7 @@ describe('createTrackerScheduler', () => {
 
     reads = [{ kind: 'read', tickets: [ticket('ME-1036')] }];
 
-    harness.scheduler.tick(git, readTickets(harness));
+    harness.scheduler.tick(git, {}, readTickets(harness));
     await settle();
 
     expect(harness.scheduler.trackers()).toEqual({
@@ -657,7 +657,7 @@ describe('createTrackerScheduler', () => {
 
     reads = [{ kind: 'read', tickets: [ticket('ME-1036')] }];
 
-    harness.scheduler.tick(git, readTickets(harness));
+    harness.scheduler.tick(git, {}, readTickets(harness));
     await settle();
 
     expect(harness.scheduler.trackers()).toEqual({
@@ -685,11 +685,11 @@ describe('createTrackerScheduler', () => {
       { kind: 'read', tickets: [ticket('ME-1036'), ticket('ME-1035')] },
     ];
 
-    harness.scheduler.tick(first, readTickets(harness));
+    harness.scheduler.tick(first, {}, readTickets(harness));
     await settle();
 
     now += 1_000;
-    harness.scheduler.tick(second, readTickets(harness));
+    harness.scheduler.tick(second, {}, readTickets(harness));
     await settle();
 
     expect(harness.sources).toHaveLength(2);
@@ -702,7 +702,7 @@ describe('createTrackerScheduler', () => {
 
     reads = [{ kind: 'read', tickets: [ticket('ME-1036')] }];
 
-    harness.scheduler.tick(git, readTickets(harness));
+    harness.scheduler.tick(git, {}, readTickets(harness));
     await settle();
 
     expect(harness.sources[0]?.ids).toEqual(['ME-1036']);
@@ -715,7 +715,7 @@ describe('createTrackerScheduler', () => {
       { root: '/code/koja', branch: 'main', linked: false, placeFolder: folder },
     ]);
 
-    harness.scheduler.tick(git, readTickets(harness));
+    harness.scheduler.tick(git, {}, readTickets(harness));
     await settle();
 
     expect(harness.sources).toHaveLength(0);
@@ -729,7 +729,7 @@ describe('createTrackerScheduler', () => {
       { root: '/code/me-9999-gone', branch: 'me-9999-gone', linked: true, shown: false },
     ]);
 
-    harness.scheduler.tick(git, readTickets(harness));
+    harness.scheduler.tick(git, {}, readTickets(harness));
     await settle();
 
     expect(harness.sources).toHaveLength(0);
@@ -739,7 +739,7 @@ describe('createTrackerScheduler', () => {
     const harness = harnessOf();
     const git = gitFactsOf(['main'], '/code/koja', '/code/koja');
 
-    harness.scheduler.tick(git, readTickets(harness));
+    harness.scheduler.tick(git, {}, readTickets(harness));
     await settle();
 
     expect(harness.sources).toHaveLength(0);
@@ -758,9 +758,9 @@ describe('createTrackerScheduler', () => {
       return read.promise;
     };
 
-    harness.scheduler.tick(git, runner);
+    harness.scheduler.tick(git, {}, runner);
     await settle();
-    harness.scheduler.tick(git, runner);
+    harness.scheduler.tick(git, {}, runner);
     await settle();
 
     expect(harness.sources).toHaveLength(1);
@@ -818,12 +818,12 @@ describe('createTrackerScheduler', () => {
       return read.promise;
     };
 
-    harness.scheduler.tick(git, runner);
+    harness.scheduler.tick(git, {}, runner);
     await settle();
 
     expect(harness.sources).toHaveLength(2);
 
-    harness.scheduler.tick(git, runner);
+    harness.scheduler.tick(git, {}, runner);
     await settle();
 
     expect(harness.sources).toHaveLength(2);
@@ -831,7 +831,7 @@ describe('createTrackerScheduler', () => {
     pending[0]?.resolve({ kind: 'read', tickets: [ticket('ME-1')] });
     await settle();
 
-    harness.scheduler.tick(git, runner);
+    harness.scheduler.tick(git, {}, runner);
     await settle();
 
     expect(harness.sources).toHaveLength(3);
@@ -872,11 +872,11 @@ describe('createTrackerScheduler', () => {
       { kind: 'read', tickets: [ticket('ME-1')] },
     ];
 
-    harness.scheduler.tick(git, readTickets(harness));
+    harness.scheduler.tick(git, {}, readTickets(harness));
     await settle();
 
     now += 60_000;
-    harness.scheduler.tick(git, readTickets(harness));
+    harness.scheduler.tick(git, {}, readTickets(harness));
     await settle();
 
     expect(harness.sources.map((source) => source.cwd)).toEqual([
@@ -909,7 +909,7 @@ describe('createTrackerScheduler', () => {
       tickets: [ticket('ME-1036')],
     });
 
-    scheduler.tick(git, runner);
+    scheduler.tick(git, {}, runner);
     await settle();
 
     expect(published).toBe(1);
@@ -929,7 +929,7 @@ describe('createTrackerScheduler', () => {
 
     reads = [{ kind: 'failed' }];
 
-    harness.scheduler.tick(git, readTickets(harness));
+    harness.scheduler.tick(git, {}, readTickets(harness));
     await settle();
 
     expect(harness.scheduler.trackers()).toEqual({
@@ -949,7 +949,7 @@ describe('createTrackerScheduler', () => {
 
     expect(harness.scheduler.trackers()).toEqual({ [repository.key]: seeded });
 
-    harness.scheduler.tick(git, readTickets(harness));
+    harness.scheduler.tick(git, {}, readTickets(harness));
     await settle();
 
     expect(harness.scheduler.trackers()).toEqual({
@@ -965,7 +965,7 @@ describe('createTrackerScheduler', () => {
     const harness = harnessOf(missingWorkspaceRun);
     const git = gitFactsOf(['me-1036-title-spaces-with-their-linear-tickets']);
 
-    harness.scheduler.tick(git, readTickets(harness));
+    harness.scheduler.tick(git, {}, readTickets(harness));
     await settle();
 
     expect(harness.scheduler.trackers()).toEqual({

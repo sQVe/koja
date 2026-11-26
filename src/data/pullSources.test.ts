@@ -2,7 +2,7 @@ import { describe, expect, test } from 'bun:test';
 
 import { placeOf, repositoryOf, worktreeOf } from './gitIdentity.ts';
 import { pullSources } from './pullSources.ts';
-import type { GitFacts } from './snapshot.ts';
+import type { GitFacts, RepositoryStacks } from './snapshot.ts';
 
 interface Worktree {
   folder: string;
@@ -32,19 +32,38 @@ const factsOf = (worktrees: readonly Worktree[]): GitFacts => {
   return { places, worktrees: worktreeFacts };
 };
 
+const pullSourcesOf = (
+  facts: GitFacts,
+  stacks: Readonly<Record<string, RepositoryStacks>> = {},
+): ReturnType<typeof pullSources> => pullSources(facts, stacks);
+
+const stackOfThree = (): RepositoryStacks => ({
+  stacks: [
+    {
+      trunk: 'main',
+      branches: [
+        { branch: 'add-search', pullNumber: null, restack: 'none' },
+        { branch: 'add-search-ui', pullNumber: null, restack: 'none' },
+        { branch: 'add-search-tests', pullNumber: null, restack: 'none' },
+      ],
+    },
+  ],
+  failed: false,
+});
+
 const main = { folder: '/code/koja-z', linked: false };
 const linked = { folder: '/code/koja-a', linked: true };
 
 describe('pullSources', () => {
   test('gives one source for two worktrees of one repository', () => {
-    expect(pullSources(factsOf([main, linked])).size).toBe(1);
-    expect(pullSources(factsOf([linked, main])).size).toBe(1);
+    expect(pullSourcesOf(factsOf([main, linked])).size).toBe(1);
+    expect(pullSourcesOf(factsOf([linked, main])).size).toBe(1);
   });
 
   test('chooses the worktree root of the smallest place key in both input orders', () => {
     const source = { repository, cwd: '/code/koja-a', branches: ['main'] };
-    const mainFirst = [...pullSources(factsOf([main, linked])).values()];
-    const linkedFirst = [...pullSources(factsOf([linked, main])).values()];
+    const mainFirst = [...pullSourcesOf(factsOf([main, linked])).values()];
+    const linkedFirst = [...pullSourcesOf(factsOf([linked, main])).values()];
 
     expect(mainFirst).toEqual([source]);
     expect(linkedFirst).toEqual([source]);
@@ -58,8 +77,24 @@ describe('pullSources', () => {
       { folder: '/code/koja-d', linked: true, branch: null },
     ]);
 
-    const [source] = [...pullSources(facts).values()];
+    const [source] = [...pullSourcesOf(facts).values()];
 
     expect(source?.branches).toEqual(['alpha', 'zeta']);
+  });
+
+  test('pull sources include every branch of an attached stack', () => {
+    const facts = factsOf([{ folder: '/code/koja-z', linked: false, branch: 'add-search-ui' }]);
+
+    const [source] = [...pullSourcesOf(facts, { [repository.key]: stackOfThree() }).values()];
+
+    expect(source?.branches).toEqual(['add-search', 'add-search-tests', 'add-search-ui']);
+  });
+
+  test('a stack with no checked-out branch adds no pull sources', () => {
+    const facts = factsOf([{ folder: '/code/koja-z', linked: false, branch: 'main' }]);
+
+    const [source] = [...pullSourcesOf(facts, { [repository.key]: stackOfThree() }).values()];
+
+    expect(source?.branches).toEqual(['main']);
   });
 });

@@ -28,7 +28,7 @@ describe('createPullScheduler stored records', () => {
       readTimes: timesAt(schedulerRepository.key, start),
     });
 
-    scheduler.tick(gitFactsOf(), new Map(), harness.spawn);
+    scheduler.tick(gitFactsOf(), {}, new Map(), harness.spawn);
 
     expect(harness.calls).toEqual([]);
     expect(harness.publishedOutcomes).toEqual([]);
@@ -47,7 +47,7 @@ describe('createPullScheduler stored records', () => {
       readTimes: timesAt(schedulerRepository.key, start),
     });
 
-    scheduler.tick(gitFactsOf(), new Map(), harness.spawn);
+    scheduler.tick(gitFactsOf(), {}, new Map(), harness.spawn);
 
     expect(harness.calls).toEqual([]);
     expect(harness.publishedOutcomes).toEqual([]);
@@ -72,7 +72,7 @@ describe('createPullScheduler stored records', () => {
       readTimes: timesAt(schedulerRepository.key, start),
     });
 
-    scheduler.tick(gitFactsOf(), new Map(), harness.spawn);
+    scheduler.tick(gitFactsOf(), {}, new Map(), harness.spawn);
 
     expect(harness.calls).toEqual([]);
     expect(harness.publishedOutcomes).toEqual([]);
@@ -86,7 +86,7 @@ describe('createPullScheduler stored records', () => {
     const scheduler = harness.start();
     const git = gitFactsOf();
 
-    scheduler.tick(git, new Map(), harness.spawn);
+    scheduler.tick(git, {}, new Map(), harness.spawn);
     expect(harness.calls).toHaveLength(1);
 
     harness.publishedOutcomes = [];
@@ -106,7 +106,7 @@ describe('createPullScheduler stored records', () => {
     const scheduler = harness.start();
     const git = gitFactsOf();
 
-    scheduler.tick(git, new Map(), harness.spawn);
+    scheduler.tick(git, {}, new Map(), harness.spawn);
     expect(harness.calls).toHaveLength(1);
 
     harness.publishedOutcomes = [];

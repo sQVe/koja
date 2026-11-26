@@ -26,7 +26,7 @@ describe('createPullScheduler request answering', () => {
     const scheduler = harness.start();
     const git = gitFactsOf();
 
-    scheduler.tick(git, new Map(), harness.spawn);
+    scheduler.tick(git, {}, new Map(), harness.spawn);
     expect(harness.calls).toHaveLength(1);
 
     const remoteCall = harness.call(0);
@@ -34,7 +34,7 @@ describe('createPullScheduler request answering', () => {
     expect(remoteCall).toMatchObject({ command: 'git', args: ['remote'] });
 
     harness.setRequests([requestFor('window-a', 'a-1'), requestFor('window-b', 'b-1')]);
-    scheduler.tick(git, new Map(), harness.spawn);
+    scheduler.tick(git, {}, new Map(), harness.spawn);
     expect(harness.calls).toHaveLength(1);
 
     await harness.respondRemotes(0);
@@ -61,7 +61,7 @@ describe('createPullScheduler request answering', () => {
     const scheduler = harness.start();
     const git = gitFactsOf();
 
-    scheduler.tick(git, new Map(), harness.spawn);
+    scheduler.tick(git, {}, new Map(), harness.spawn);
     expect(harness.calls).toHaveLength(1);
 
     harness.setRequests([requestFor('window-a', 'a-1'), requestFor('window-b', 'b-1')]);
@@ -76,7 +76,7 @@ describe('createPullScheduler request answering', () => {
       { consumer: 'window-b', id: 'b-1', result: 'read' },
     ]);
 
-    scheduler.tick(git, new Map(), harness.spawn);
+    scheduler.tick(git, {}, new Map(), harness.spawn);
 
     expect(harness.calls.map((call) => call.command)).toEqual(['git', 'git', 'gh']);
   });
@@ -113,7 +113,7 @@ describe('createPullScheduler request answering', () => {
       readTimes: timesAt(other.key, start),
     });
 
-    scheduler.tick(git, new Map(), harness.spawn);
+    scheduler.tick(git, {}, new Map(), harness.spawn);
     expect(harness.calls).toHaveLength(1);
 
     harness.setRequests([
@@ -133,19 +133,19 @@ describe('createPullScheduler request answering', () => {
     const scheduler = harness.start();
     const git = gitFactsOf();
 
-    scheduler.tick(git, new Map(), harness.spawn);
+    scheduler.tick(git, {}, new Map(), harness.spawn);
     await harness.respondRemotes(0);
     await harness.respondPulls(2, pullList(7));
 
     expect(harness.outcomes()).toEqual([{ consumer: 'window-a', id: 'a-1', result: 'read' }]);
 
     harness.setRequests([]);
-    scheduler.tick(git, new Map(), harness.spawn);
+    scheduler.tick(git, {}, new Map(), harness.spawn);
 
     expect(harness.outcomes()).toEqual([]);
 
     harness.setRequests([requestFor('window-a', 'a-1')]);
-    scheduler.tick(git, new Map(), harness.spawn);
+    scheduler.tick(git, {}, new Map(), harness.spawn);
 
     expect(harness.calls.map((call) => call.command)).toEqual(['git', 'git', 'gh']);
     expect(harness.outcomes()).toEqual([{ consumer: 'window-a', id: 'a-1', result: 'read' }]);
@@ -167,7 +167,7 @@ describe('createPullScheduler request answering', () => {
 
     const scheduler = harness.start();
 
-    scheduler.tick(gitFactsOf(), new Map(), harness.spawn);
+    scheduler.tick(gitFactsOf(), {}, new Map(), harness.spawn);
     await harness.respondRemotes(0);
 
     harness.setNow(start + pullRetryLifetimeMilliseconds - 2);
@@ -187,7 +187,7 @@ describe('createPullScheduler request answering', () => {
 
     const scheduler = harness.start();
 
-    scheduler.tick(gitFactsOf(), new Map(), harness.spawn);
+    scheduler.tick(gitFactsOf(), {}, new Map(), harness.spawn);
     await harness.respondRemotes(0);
 
     harness.setNow(start + pullRetryLifetimeMilliseconds - 2);
@@ -207,7 +207,7 @@ describe('createPullScheduler request answering', () => {
 
     const scheduler = harness.start();
 
-    scheduler.tick(gitFactsOf(), new Map(), harness.spawn);
+    scheduler.tick(gitFactsOf(), {}, new Map(), harness.spawn);
     await harness.respondRemotes(0);
     await harness.respond(2, { code: 1, stdout: '', stderr: 'offline' });
 
@@ -221,7 +221,7 @@ describe('createPullScheduler request answering', () => {
 
     const scheduler = harness.start();
 
-    scheduler.tick({ places: {}, worktrees: {} }, new Map(), harness.spawn);
+    scheduler.tick({ places: {}, worktrees: {} }, {}, new Map(), harness.spawn);
 
     expect(harness.calls).toEqual([]);
     expect(harness.outcomes()).toEqual([{ consumer: 'window-a', id: 'a-1', result: 'failed' }]);
@@ -238,8 +238,8 @@ describe('createPullScheduler request answering', () => {
 
     const git = gitFactsOf();
 
-    scheduler.tick(git, new Map(), harness.spawn);
-    scheduler.tick(git, new Map(), harness.spawn);
+    scheduler.tick(git, {}, new Map(), harness.spawn);
+    scheduler.tick(git, {}, new Map(), harness.spawn);
 
     expect(harness.calls).toEqual([]);
     expect(harness.outcomes()).toEqual([{ consumer: 'window-a', id: 'a-1', result: 'read' }]);
