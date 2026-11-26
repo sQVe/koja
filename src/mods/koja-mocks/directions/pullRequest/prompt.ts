@@ -52,7 +52,7 @@ export const promptBar = (tokens: DirectionTokens): Element => {
     tokens.ink.text,
   ).flex_1();
 
-  const clearButton = saveRecoveryButton('Clear', tokens).h(controlSize.dialogButton);
+  const clearButton = saveRecoveryButton('Clear', tokens).h(controlSize.sceneAction);
 
   const actions = h_flex()
     .pl(readingInset)

@@ -114,12 +114,15 @@ describe('actionButton', () => {
 });
 
 describe('dialogButton', () => {
-  test('a hovered solid button keeps its dark ink fill and label and draws a foreground border', () => {
+  test('a hovered solid button keeps its dark ink fill and draws a popover ring', () => {
+    const rest = dialogButton({ kind: 'solid', label: 'Save' });
     const button = dialogButton({ hovered: true, kind: 'solid', label: 'Save' });
 
     expect(button.styles['bg']).toBe(palette.foreground);
     expect(button.styles['text_color']).toBe(palette.popover);
-    expect(button.styles['border_color']).toBe(palette.foreground);
+    expect(button.styles['border_color']).toBe(palette.popover);
+    expect(rest.styles['border_color']).toBe(palette.foreground);
+    expect(button.styles['border_color']).not.toBe(rest.styles['border_color']);
     expect(opacityOf(button)).toBeUndefined();
   });
 

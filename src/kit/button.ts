@@ -8,7 +8,7 @@ import type { IconName } from './iconNames.ts';
 import { buttonKeycap } from './keycap.ts';
 import type { Color } from './palette.ts';
 import { clearOf } from './palette.ts';
-import { controlSize, dialogSize, radius, spacing, textSize } from './size.ts';
+import { controlSize, radius, spacing, textSize } from './size.ts';
 import { colors } from './theme.ts';
 
 export type DialogButtonKind = 'solid' | 'danger' | 'outline';
@@ -74,11 +74,15 @@ const toggleTextColor = (options: ToggleButtonOptions): Color => {
   return options.quiet === true ? palette.dim : palette.muted;
 };
 
-const withFillRing = (button: Element, fill: Color, hovered: boolean): Element => {
-  const palette = colors();
+const withFillRing = (
+  button: Element,
+  fill: Color,
+  hovered: boolean,
+  ring = colors().foreground,
+): Element => {
   const ringed = button.border(spacing.hairline).border_color(fill);
 
-  return withHover(ringed, hovered, (element) => element.border_color(palette.foreground));
+  return withHover(ringed, hovered, (element) => element.border_color(ring));
 };
 
 export const actionButton = (options: ActionButtonOptions): Element => {
@@ -111,7 +115,7 @@ export const actionButton = (options: ActionButtonOptions): Element => {
 
 const dialogButtonBase = (label: string): Element =>
   h_flex()
-    .h(dialogSize.buttonHeight)
+    .h(controlSize.dialogButton)
     .px(spacing.large)
     .gap(spacing.medium)
     .flex_none()
@@ -122,9 +126,10 @@ const dialogButtonBase = (label: string): Element =>
     .child(label);
 
 const filledDialogButton = (label: string, fill: Color, ink: Color, hovered: boolean): Element => {
+  const ring = fill === colors().foreground ? colors().popover : colors().foreground;
   const button = dialogButtonBase(label).bg(fill).text_color(ink).child(buttonKeycap('↵', ink));
 
-  return withFillRing(button, fill, hovered);
+  return withFillRing(button, fill, hovered, ring);
 };
 
 const outlineDialogButton = (label: string, hovered: boolean): Element => {

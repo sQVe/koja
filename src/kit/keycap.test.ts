@@ -3,6 +3,7 @@ import { afterAll, describe, expect, mock, test } from 'bun:test';
 import type { DrawnElement } from '../../tests/drawn.ts';
 import { drawn, drawnTexts, drawnTree, elementsWithStyle } from '../../tests/drawn.ts';
 import { gpuiBaseFake, gpuiKitFake, herdrFake } from '../../tests/moduleFakes.ts';
+import { keycapOutlineAlpha } from './palette.ts';
 
 interface OverlayHint {
   normal: string[];
@@ -68,11 +69,11 @@ describe('keycap', () => {
   });
 
   test('a button keycap draws its ink with a half-strength outline and no fill', () => {
-    const cap = buttonKeycap('↵', palette.dim);
+    const cap = buttonKeycap('↵', palette.accent);
     const glyph = elementsWithStyle(cap, 'font_family')[0];
 
-    expect(glyph?.textColors).toContain(palette.dim);
-    expect(cap.borderColors).toContain(`${palette.dim}80`);
+    expect(glyph?.textColors).toContain(palette.accent);
+    expect(cap.borderColors).toContain(`${palette.accent}${keycapOutlineAlpha}`);
     expect(cap.backgroundColors).toEqual([]);
   });
 

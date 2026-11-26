@@ -56,7 +56,8 @@ export const diffSize = {
 export const controlSize = {
   badge: 18,
   button: 22,
-  dialogButton: 28,
+  dialogButton: 24,
+  sceneAction: 28,
   paneLabelMaxWidth: 260,
   // Keeps the pane name, such as "Pi", whole when the header is narrow.
   paneLabelMinWidth: 12,
@@ -162,6 +163,8 @@ export const sidebarSize = {
 
 export const indentWidth = 20;
 
+const dialogMarkGap = spacing.small;
+
 export const dialogSize = {
   width: 360,
   padding: 12,
@@ -169,10 +172,9 @@ export const dialogSize = {
   actionGap: 12,
   // The title's line box is taller than its glyphs, so its top padding takes 6 px less.
   titleTrim: 6,
-  markGap: spacing.small,
+  markGap: dialogMarkGap,
   markTop: spacing.xsmall,
-  markInset: iconSize.small + spacing.small,
-  buttonHeight: 24,
+  markInset: iconSize.small + dialogMarkGap,
 } as const;
 
 export const overlaySize = {
