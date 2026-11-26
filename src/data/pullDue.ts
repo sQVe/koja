@@ -154,7 +154,7 @@ export const noteStart = (state: PullDueState, key: string, now: number): void =
 export const noteBranches = (state: PullDueState, key: string, at: number): void => {
   const repository = repositoryToWrite(state, key);
 
-  repository.branchesDueAt = Math.min(repository.branchesDueAt ?? at, at);
+  repository.branchesDueAt ??= at;
 };
 
 export const noteResult = (

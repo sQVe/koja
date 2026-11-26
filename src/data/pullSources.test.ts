@@ -90,7 +90,7 @@ describe('pullSources', () => {
     expect(source?.branches).toEqual(['add-search', 'add-search-tests', 'add-search-ui']);
   });
 
-  test('a stack with no checked-out branch adds no pull sources', () => {
+  test('a stack with no checked-out branch adds no stack branches', () => {
     const facts = factsOf([{ folder: '/code/koja-z', linked: false, branch: 'main' }]);
 
     const [source] = [...pullSourcesOf(facts, { [repository.key]: stackOfThree() }).values()];

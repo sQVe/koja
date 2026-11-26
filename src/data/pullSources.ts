@@ -1,7 +1,6 @@
 import type { RepositoryIdentity } from './gitIdentity.ts';
 import type { GitFacts, RepositoryStacks } from './snapshot.ts';
-import type { Stack } from './stacks.ts';
-import { stackOfBranch } from './stacks.ts';
+import { attachedStacks } from './stacks.ts';
 
 export interface PullSource {
   repository: RepositoryIdentity;
@@ -25,35 +24,15 @@ const worktreeBranchesOf = (git: GitFacts, repository: RepositoryIdentity): stri
   return [...branches].toSorted();
 };
 
-// A stack joins the reads only when one of its branches is checked out in a worktree of the
-// repository.
-export const attachedStacks = (
-  git: GitFacts,
-  repository: RepositoryIdentity,
-  stacks: Readonly<Record<string, RepositoryStacks>>,
-): Stack[] => {
-  const recorded = stacks[repository.key]?.stacks ?? [];
-  const attached: Stack[] = [];
-
-  for (const branch of worktreeBranchesOf(git, repository)) {
-    const stack = stackOfBranch(recorded, branch);
-
-    if (stack !== null && !attached.includes(stack)) {
-      attached.push(stack);
-    }
-  }
-
-  return attached;
-};
-
 const branchesOf = (
   git: GitFacts,
   repository: RepositoryIdentity,
   stacks: Readonly<Record<string, RepositoryStacks>>,
 ): string[] => {
-  const branches = new Set<string>(worktreeBranchesOf(git, repository));
+  const checkedOut = worktreeBranchesOf(git, repository);
+  const branches = new Set<string>(checkedOut);
 
-  for (const stack of attachedStacks(git, repository, stacks)) {
+  for (const stack of attachedStacks(stacks[repository.key]?.stacks ?? [], checkedOut)) {
     for (const entry of stack.branches) {
       branches.add(entry.branch);
     }

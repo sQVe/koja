@@ -83,6 +83,7 @@ const headsIn = (stdout: string): Map<string, string> => {
 class Scheduler implements StackScheduler {
   private readonly stacksByRepository: Record<string, RepositoryStacks>;
   private readonly due = new Set<string>();
+  private readonly readRepositories = new Set<string>();
   private readonly running = new Map<string, number>();
   private readonly watches: WatchRegistry;
   private sequence = 0;
@@ -140,8 +141,14 @@ class Scheduler implements StackScheduler {
   }
 
   private markNew(used: ReadonlySet<string>): void {
+    for (const key of this.readRepositories) {
+      if (!used.has(key)) {
+        this.readRepositories.delete(key);
+      }
+    }
+
     for (const key of used) {
-      if (!Object.hasOwn(this.stacksByRepository, key)) {
+      if (!this.readRepositories.has(key)) {
         this.due.add(key);
       }
     }
@@ -166,6 +173,7 @@ class Scheduler implements StackScheduler {
     const key = source.repository.key;
 
     this.due.delete(key);
+    this.readRepositories.add(key);
     this.running.set(key, sequence);
 
     cx.spawn(async () => {

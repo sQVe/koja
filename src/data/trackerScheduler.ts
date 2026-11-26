@@ -1,9 +1,9 @@
-import { folderNameOf } from './fields.ts';
+import { folderNameOf, sameItems } from './fields.ts';
 import type { RepositoryIdentity, RunCommand } from './gitIdentity.ts';
+import { isBareWorktree } from './gitWatches.ts';
 import type { TicketRead, TicketSource } from './linearTickets.ts';
 import { linearWorkspaceOf, ticketIdOf } from './linearTickets.ts';
 import { readPeriodMilliseconds } from './pullDue.ts';
-import { attachedStacks } from './pullSources.ts';
 import type {
   GitFacts,
   RepositoryStacks,
@@ -11,6 +11,8 @@ import type {
   TicketFacts,
   WorktreeGit,
 } from './snapshot.ts';
+import type { Stack } from './stacks.ts';
+import { attachedStacks } from './stacks.ts';
 
 export type TicketRunner = (source: TicketSource) => Promise<TicketRead>;
 
@@ -79,14 +81,10 @@ const branchesOf = (worktrees: WorktreeGit[]): (string | null)[] => {
   return [...branches].toSorted((left, right) => (left ?? '').localeCompare(right ?? ''));
 };
 
-const stackBranchesOf = (
-  git: GitFacts,
-  repository: RepositoryIdentity,
-  stacks: Readonly<Record<string, RepositoryStacks>>,
-): string[] => {
+const stackBranchesOf = (attached: readonly Stack[]): string[] => {
   const branches = new Set<string>();
 
-  for (const stack of attachedStacks(git, repository, stacks)) {
+  for (const stack of attached) {
     for (const entry of stack.branches) {
       branches.add(entry.branch);
     }
@@ -98,7 +96,7 @@ const stackBranchesOf = (
 const idsOf = (
   git: GitFacts,
   repository: RepositoryIdentity,
-  stacks: Readonly<Record<string, RepositoryStacks>>,
+  attached: readonly Stack[],
 ): string[] => {
   const ids = new Set<string>();
 
@@ -120,7 +118,7 @@ const idsOf = (
     }
   }
 
-  for (const stack of attachedStacks(git, repository, stacks)) {
+  for (const stack of attached) {
     for (const entry of stack.branches) {
       const id = ticketIdOf(entry.branch, '');
 
@@ -163,12 +161,6 @@ const cwdOf = (git: GitFacts, repositoryKey: string, worktrees: WorktreeGit[]): 
   return worktrees.map((worktree) => worktree.root).toSorted()[0] ?? '';
 };
 
-const withoutTrailingSlashes = (path: string): string => path.replace(/\/+$/, '');
-
-const isBareWorktree = (worktree: WorktreeGit): boolean =>
-  withoutTrailingSlashes(worktree.root) ===
-  withoutTrailingSlashes(worktree.repository.commonDirectory);
-
 const worktreesByRoot = (worktrees: WorktreeGit[]): WorktreeGit[] =>
   worktrees.toSorted((left, right) => left.root.localeCompare(right.root));
 
@@ -205,23 +197,24 @@ const sourcesOf = (
       continue;
     }
 
+    const branches = branchesOf(worktrees);
+    const checkedOut = branches.filter((branch): branch is string => branch !== null);
+    const attached = attachedStacks(stacks[key]?.stacks ?? [], checkedOut);
+
     sources.set(key, {
       key,
       cwd,
       configCwd: configCwdOf(worktrees),
       checkoutCwd: checkoutCwdOf(worktrees),
       machine: first.repository.machine,
-      branches: branchesOf(worktrees),
-      stackBranches: stackBranchesOf(git, first.repository, stacks),
-      ids: idsOf(git, first.repository, stacks),
+      branches,
+      stackBranches: stackBranchesOf(attached),
+      ids: idsOf(git, first.repository, attached),
     });
   }
 
   return sources;
 };
-
-const sameBranches = (left: (string | null)[], right: (string | null)[]): boolean =>
-  left.length === right.length && left.every((branch, index) => branch === right[index]);
 
 const ticketMapOf = (tickets: TicketFacts[]): Record<string, TicketFacts> =>
   Object.fromEntries(tickets.map((ticket) => [ticket.id, ticket]));
@@ -310,11 +303,11 @@ class Scheduler implements TrackerScheduler {
       return true;
     }
 
-    if (!sameBranches(memory.branches, source.branches)) {
+    if (!sameItems(memory.branches, source.branches)) {
       return true;
     }
 
-    if (!sameBranches(memory.stackBranches, source.stackBranches)) {
+    if (!sameItems(memory.stackBranches, source.stackBranches)) {
       return true;
     }
 
@@ -397,7 +390,7 @@ class Scheduler implements TrackerScheduler {
   // A direct ticket's parent is read in the next round, one level up and no further.
   private readIdsOf(source: RepositorySource): string[] {
     const ids = new Set(source.ids);
-    const tickets = this.trackersByRepository[source.key]?.tickets ?? {};
+    const tickets = this.previousTickets(source.key);
 
     for (const id of source.ids) {
       const parent = tickets[id]?.parent;

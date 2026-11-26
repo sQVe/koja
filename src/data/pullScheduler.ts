@@ -1,3 +1,4 @@
+import { sameItems } from './fields.ts';
 import type { RunCommand } from './gitIdentity.ts';
 import type { Lease, ReadShared } from './lease.ts';
 import { sameHolder } from './lease.ts';
@@ -75,9 +76,6 @@ const seededDue = (times: PullReadTimes): PullDueState => {
   return state;
 };
 
-const sameBranches = (left: readonly string[], right: readonly string[]): boolean =>
-  left.length === right.length && left.every((branch, index) => branch === right[index]);
-
 class Scheduler implements PullScheduler {
   private readonly pullsByRepository: Record<string, RepositoryPulls>;
   private readonly readTimes: PullReadTimes;
@@ -125,7 +123,7 @@ class Scheduler implements PullScheduler {
     for (const [key, source] of sources) {
       const previous = this.branches.get(key);
 
-      if (previous !== undefined && !sameBranches(previous, source.branches)) {
+      if (previous !== undefined && !sameItems(previous, source.branches)) {
         noteBranches(this.due, key, now);
       }
 

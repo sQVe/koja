@@ -143,7 +143,7 @@ const createSchedulerBinding = (
   const stacks = createStackScheduler(
     {
       run: exec,
-      readTextFile: (path) => readTextFile(path),
+      readTextFile,
       watchFolder,
       now: Date.now,
       heldLease,

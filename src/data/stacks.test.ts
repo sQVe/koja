@@ -1,17 +1,13 @@
 import { describe, expect, test } from 'bun:test';
-import { readFileSync } from 'node:fs';
-import { join } from 'node:path';
 
+import { ghStackRecord, severalStacksHeads } from '../../tests/stackFixtures.ts';
 import { isRecord } from '../kit/fields.ts';
 import { parsedJson } from '../kit/parsedJson.ts';
 import type { Stack, StackBranch } from './stacks.ts';
 import { parseStacks, stackOfBranch } from './stacks.ts';
 
-const recordText = (name: string): string =>
-  readFileSync(join(import.meta.dir, 'fixtures', 'gh-stack', `${name}.json`), 'utf8');
-
 const parsedStacks = (name: string, heads: ReadonlyMap<string, string>): Stack[] => {
-  const parsed = parseStacks(recordText(name), heads);
+  const parsed = parseStacks(ghStackRecord(name), heads);
 
   if (parsed.kind === 'failed') {
     throw new Error(`${name}.json did not parse`);
@@ -27,7 +23,7 @@ const branchNamesOf = (stack: Stack | null): string[] =>
   stack === null ? [] : stack.branches.map((entry) => entry.branch);
 
 const recordOfSeveralStacks = (): Record<string, unknown> => {
-  const record = parsedJson(recordText('several-stacks'));
+  const record = parsedJson(ghStackRecord('several-stacks'));
 
   if (!isRecord(record)) {
     throw new Error('several-stacks.json is not a record');
@@ -47,18 +43,9 @@ const restackOfBranch = (
 };
 
 // The bases recorded in the fixture, so every branch matches the head of the branch below it.
-const severalStacksHeads = new Map([
-  ['main', 'fcacf79ff51ea778293a32460b14066356f3318d'],
-  ['add-search', 'fece9ea9def9521a9b6628daa0cd7ccb4675d598'],
-  ['add-search-ui', 'd05d6218226bd13d48cbf8d4a00df774dbb45cb2'],
-  ['add-search-tests', 'd05d6218226bd13d48cbf8d4a00df774dbb45cb2'],
-  ['fix-crash', '33cc8d7fd49ff3fd3841498f0a8c3208f7c1f6f9'],
-  ['fix-crash-tests', '33cc8d7fd49ff3fd3841498f0a8c3208f7c1f6f9'],
-]);
-
 describe('stacks', () => {
   test('parseStacks reads every stack of a real record', () => {
-    const parsed = parseStacks(recordText('several-stacks'), severalStacksHeads);
+    const parsed = parseStacks(ghStackRecord('several-stacks'), severalStacksHeads);
 
     expect(parsed).toEqual({
       kind: 'parsed',
@@ -108,7 +95,7 @@ describe('stacks', () => {
   });
 
   test('parseStacks fails a truncated record', () => {
-    expect(parseStacks(recordText('truncated'), severalStacksHeads)).toEqual({ kind: 'failed' });
+    expect(parseStacks(ghStackRecord('truncated'), severalStacksHeads)).toEqual({ kind: 'failed' });
   });
 
   test('parseStacks fails an unknown schema version', () => {
@@ -181,7 +168,7 @@ describe('stacks', () => {
       ['layer-three', 'e30ac897ea56e08c39993411c2a0a3df0888ca23'],
     ]);
 
-    expect(parseStacks(recordText('paused-rebase'), heads)).toEqual({
+    expect(parseStacks(ghStackRecord('paused-rebase'), heads)).toEqual({
       kind: 'parsed',
       stacks: [
         {

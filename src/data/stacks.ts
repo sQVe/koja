@@ -160,3 +160,10 @@ export const stackOfBranch = (stacks: readonly Stack[], branch: string | null): 
 
   return holder;
 };
+
+// A stack joins the reads only when one of its branches is checked out in a worktree.
+export const attachedStacks = (stacks: readonly Stack[], branches: readonly string[]): Stack[] => {
+  const checkedOut = new Set(branches);
+
+  return stacks.filter((stack) => stack.branches.some((entry) => checkedOut.has(entry.branch)));
+};

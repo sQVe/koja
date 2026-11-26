@@ -1,9 +1,8 @@
 import { beforeEach, describe, expect, test } from 'bun:test';
-import { readFileSync } from 'node:fs';
-import { join } from 'node:path';
 
 import type { FolderWatch } from 'herdr';
 
+import { ghStackRecord, severalStacksHeads } from '../../tests/stackFixtures.ts';
 import { placeOf, repositoryOf, worktreeOf } from './gitIdentity.ts';
 import type { Lease } from './lease.ts';
 import type { GitFacts, RepositoryStacks } from './snapshot.ts';
@@ -19,7 +18,6 @@ interface Harness {
   files: Map<string, string | null>;
   heads: Map<string, string>;
   published: () => number;
-  held: () => Lease | null;
   setHeld: (lease: Lease | null) => void;
   deferredRead: () => (text: string | null) => void;
   fire: (paths: string[]) => Promise<void>;
@@ -58,9 +56,6 @@ const folder = '/code/me-1037-read-each-spaces-stack-from-gh-stack';
 const repository = repositoryOf(null, `${folder}/.git`);
 const recordPath = `${repository.commonDirectory}/gh-stack`;
 
-const recordText = (name: string): string =>
-  readFileSync(join(import.meta.dir, 'fixtures', 'gh-stack', `${name}.json`), 'utf8');
-
 const gitFactsOf = (branch: string | null = 'main'): GitFacts => {
   const place = placeOf(null, folder);
   const worktree = worktreeOf(null, folder);
@@ -73,16 +68,6 @@ const gitFactsOf = (branch: string | null = 'main'): GitFacts => {
   };
 };
 
-// The bases recorded in the fixture, so every branch matches the head of the branch below it.
-const severalStacksHeads = new Map([
-  ['main', 'fcacf79ff51ea778293a32460b14066356f3318d'],
-  ['add-search', 'fece9ea9def9521a9b6628daa0cd7ccb4675d598'],
-  ['add-search-ui', 'd05d6218226bd13d48cbf8d4a00df774dbb45cb2'],
-  ['add-search-tests', 'd05d6218226bd13d48cbf8d4a00df774dbb45cb2'],
-  ['fix-crash', '33cc8d7fd49ff3fd3841498f0a8c3208f7c1f6f9'],
-  ['fix-crash-tests', '33cc8d7fd49ff3fd3841498f0a8c3208f7c1f6f9'],
-]);
-
 const settle = async (): Promise<void> => {
   for (let index = 0; index < 30; index += 1) {
     await Promise.resolve();
@@ -92,7 +77,7 @@ const settle = async (): Promise<void> => {
 let lease: Lease = { version: 1, owner: 'owner-a', generation: 1 };
 let held: Lease | null = lease;
 
-const harnessOf = (): Harness => {
+const harnessOf = (seed: Record<string, RepositoryStacks> = {}): Harness => {
   const files = new Map<string, string | null>();
   const heads = new Map<string, string>();
   const fires: ((paths: string[]) => void)[] = [];
@@ -150,6 +135,7 @@ const harnessOf = (): Harness => {
       },
     },
     lease,
+    seed,
   );
 
   return {
@@ -157,7 +143,6 @@ const harnessOf = (): Harness => {
     files,
     heads,
     published: () => published,
-    held: () => held,
     setHeld: (next) => {
       held = next;
     },
@@ -190,7 +175,7 @@ describe('createStackScheduler', () => {
   test('a parse failure keeps the last good stacks', async () => {
     const harness = harnessOf();
 
-    harness.files.set(recordPath, recordText('several-stacks'));
+    harness.files.set(recordPath, ghStackRecord('several-stacks'));
 
     for (const [branch, head] of severalStacksHeads) {
       harness.heads.set(branch, head);
@@ -220,12 +205,32 @@ describe('createStackScheduler', () => {
       failed: false,
     });
 
-    harness.files.set(recordPath, recordText('truncated'));
+    harness.files.set(recordPath, ghStackRecord('truncated'));
     await harness.fire([recordPath]);
     harness.tick();
     await settle();
 
     expect(harness.scheduler.stacks()[repository.key]?.failed).toBe(true);
+    expect(harness.scheduler.stacks()[repository.key]?.stacks).toHaveLength(2);
+  });
+
+  test('a seeded repository still reads the record once', async () => {
+    const seeded: RepositoryStacks = {
+      stacks: [{ trunk: 'main', branches: [] }],
+      failed: false,
+    };
+
+    const harness = harnessOf({ [repository.key]: seeded });
+
+    harness.files.set(recordPath, ghStackRecord('several-stacks'));
+
+    for (const [branch, head] of severalStacksHeads) {
+      harness.heads.set(branch, head);
+    }
+
+    harness.tick();
+    await settle();
+
     expect(harness.scheduler.stacks()[repository.key]?.stacks).toHaveLength(2);
   });
 
@@ -237,7 +242,7 @@ describe('createStackScheduler', () => {
 
     expect(harness.scheduler.stacks()[repository.key]).toEqual({ stacks: [], failed: false });
 
-    harness.files.set(recordPath, recordText('several-stacks'));
+    harness.files.set(recordPath, ghStackRecord('several-stacks'));
     await harness.fire([recordPath]);
     harness.tick();
     await settle();
@@ -255,7 +260,7 @@ describe('createStackScheduler', () => {
   test('a watch event reads the record again', async () => {
     const harness = harnessOf();
 
-    harness.files.set(recordPath, recordText('several-stacks'));
+    harness.files.set(recordPath, ghStackRecord('several-stacks'));
     harness.heads.set('main', 'fcacf79ff51ea778293a32460b14066356f3318d');
     harness.heads.set('add-search', 'fece9ea9def9521a9b6628daa0cd7ccb4675d598');
 
@@ -266,7 +271,7 @@ describe('createStackScheduler', () => {
       'none',
     );
 
-    harness.files.set(recordPath, recordText('no-base'));
+    harness.files.set(recordPath, ghStackRecord('no-base'));
     await harness.fire([`${repository.commonDirectory}/gh-stack`]);
     harness.tick();
     await settle();
@@ -279,7 +284,7 @@ describe('createStackScheduler', () => {
   test('a read after the lease moved publishes nothing', async () => {
     const harness = harnessOf();
 
-    harness.files.set(recordPath, recordText('several-stacks'));
+    harness.files.set(recordPath, ghStackRecord('several-stacks'));
 
     const finish = harness.deferredRead();
 
@@ -289,7 +294,7 @@ describe('createStackScheduler', () => {
     expect(harness.published()).toBe(0);
 
     harness.setHeld({ version: 1, owner: 'owner-b', generation: 2 });
-    finish(recordText('several-stacks'));
+    finish(ghStackRecord('several-stacks'));
     await settle();
 
     expect(harness.published()).toBe(0);

@@ -33,17 +33,17 @@ export const usedRepositories = (
 const withoutTrailingSlashes = (path: string): string => path.replace(/\/+$/, '');
 
 // A bare worktree's root is its common directory, so it has no checked-out branch.
+export const isBareWorktree = (worktree: WorktreeGit): boolean =>
+  withoutTrailingSlashes(worktree.root) ===
+  withoutTrailingSlashes(worktree.repository.commonDirectory);
+
 export const checkoutWorktrees = (
   worktrees: Readonly<Record<string, WorktreeGit>>,
 ): Set<string> => {
   const checkouts = new Set<string>();
 
   for (const [key, worktree] of Object.entries(worktrees)) {
-    const bare =
-      withoutTrailingSlashes(worktree.root) ===
-      withoutTrailingSlashes(worktree.repository.commonDirectory);
-
-    if (!bare) {
+    if (!isBareWorktree(worktree)) {
       checkouts.add(key);
     }
   }

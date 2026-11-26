@@ -1,9 +1,10 @@
 import { beforeEach, describe, expect, test } from 'bun:test';
 
+import { stacksOf } from '../../tests/stackFixtures.ts';
 import type { RunCommand } from './gitIdentity.ts';
 import { placeOf, repositoryOf, worktreeOf } from './gitIdentity.ts';
 import type { TicketRead, TicketSource } from './linearTickets.ts';
-import type { GitFacts, RepositoryStacks, RepositoryTracker, TicketFacts } from './snapshot.ts';
+import type { GitFacts, TicketFacts } from './snapshot.ts';
 import { createTrackerScheduler } from './trackerScheduler.ts';
 
 interface Harness {
@@ -45,18 +46,6 @@ const gitFactsOf = (branches: readonly string[]): GitFacts => {
   return { places, worktrees };
 };
 
-const stacksOf = (branches: readonly string[]): Record<string, RepositoryStacks> => ({
-  [repository.key]: {
-    stacks: [
-      {
-        trunk: 'main',
-        branches: branches.map((branch) => ({ branch, pullNumber: null, restack: 'none' })),
-      },
-    ],
-    failed: false,
-  },
-});
-
 const settle = async (): Promise<void> => {
   for (let index = 0; index < 30; index += 1) {
     await Promise.resolve();
@@ -74,17 +63,14 @@ const workspaceRun: RunCommand = async (command) => {
 let reads: TicketRead[] = [];
 let now = start;
 
-const harnessOf = (seed: Record<string, RepositoryTracker> = {}): Harness => {
+const harnessOf = (): Harness => {
   const sources: TicketSource[] = [];
 
-  const scheduler = createTrackerScheduler(
-    {
-      run: workspaceRun,
-      now: () => now,
-      publish: () => undefined,
-    },
-    seed,
-  );
+  const scheduler = createTrackerScheduler({
+    run: workspaceRun,
+    now: () => now,
+    publish: () => undefined,
+  });
 
   return {
     scheduler,
@@ -118,7 +104,7 @@ describe('createTrackerScheduler stack reads', () => {
   test("ticket reads include stack branches and read tickets' parents", async () => {
     const harness = harnessOf();
     const git = gitFactsOf(['me-1-one']);
-    const stacks = stacksOf(['me-1-one', 'me-2-two']);
+    const stacks = stacksOf(repository, ['me-1-one', 'me-2-two']);
 
     reads = [
       { kind: 'read', tickets: [ticket('ME-1', 'ME-9'), ticket('ME-2', 'ME-9')] },
@@ -140,10 +126,36 @@ describe('createTrackerScheduler stack reads', () => {
     expect(harness.sources[1]?.ids).toEqual(['ME-1', 'ME-2', 'ME-9']);
   });
 
+  test('a stack that joins the reads reads its branches before the period elapses', async () => {
+    const harness = harnessOf();
+    const git = gitFactsOf(['me-1-one']);
+
+    reads = [
+      { kind: 'read', tickets: [ticket('ME-1')] },
+      { kind: 'read', tickets: [ticket('ME-1'), ticket('ME-2')] },
+    ];
+
+    harness.scheduler.tick(git, {}, readTickets(harness));
+    await settle();
+
+    expect(harness.sources).toHaveLength(1);
+
+    harness.scheduler.tick(
+      git,
+      stacksOf(repository, ['me-1-one', 'me-2-two']),
+      readTickets(harness),
+    );
+
+    await settle();
+
+    expect(harness.sources).toHaveLength(2);
+    expect(harness.sources[1]?.ids).toEqual(['ME-1', 'ME-2']);
+  });
+
   test("a parent's parent is not read", async () => {
     const harness = harnessOf();
     const git = gitFactsOf(['me-1-one']);
-    const stacks = stacksOf(['me-1-one', 'me-2-two']);
+    const stacks = stacksOf(repository, ['me-1-one', 'me-2-two']);
 
     reads = [
       { kind: 'read', tickets: [ticket('ME-1', 'ME-9'), ticket('ME-2', 'ME-9')] },
