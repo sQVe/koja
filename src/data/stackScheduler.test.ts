@@ -21,13 +21,16 @@ interface Harness {
   failHeads: boolean;
   published: () => number;
   reads: () => number;
+  readOns: () => (string | null)[];
+  runOns: () => (string | null)[];
   setHeld: (lease: Lease | null) => void;
   advance: (milliseconds: number) => void;
   holdReads: () => void;
   release: () => Promise<void>;
   deferredRead: () => (text: string | null) => void;
   fire: (paths: string[]) => Promise<void>;
-  tick: (folders?: string[]) => void;
+  tick: (folders?: string[], machine?: string | null) => void;
+  tickGit: (git: GitFacts) => void;
 }
 
 // The path stays in a variable so tsc does not pull the module, and its gpui-kit types, into the
@@ -68,25 +71,44 @@ const debounce = 250;
 const recordPathOf = (folderName: string): string =>
   `${repositoryOf(null, `${folderName}/.git`).commonDirectory}/gh-stack`;
 
-const gitFactsOf = (folders: string[] = [folder]): GitFacts => {
+const gitFactsOf = (folders: string[] = [folder], machine: string | null = null): GitFacts => {
   const places: GitFacts['places'] = {};
   const worktrees: GitFacts['worktrees'] = {};
 
   for (const folderName of folders) {
-    const place = placeOf(null, folderName);
-    const worktree = worktreeOf(null, folderName);
+    const place = placeOf(machine, folderName);
+    const worktree = worktreeOf(machine, folderName);
 
     places[place.key] = { kind: 'repository', worktree: worktree.key };
 
     worktrees[worktree.key] = {
-      repository: repositoryOf(null, `${folderName}/.git`),
+      repository: repositoryOf(machine, `${folderName}/.git`),
       root: folderName,
       branch: 'main',
       linked: false,
+      bare: false,
     };
   }
 
   return { places, worktrees };
+};
+
+const bareFactsOf = (project: string): GitFacts => {
+  const place = placeOf(null, project);
+  const worktree = worktreeOf(null, project);
+
+  return {
+    places: { [place.key]: { kind: 'repository', worktree: worktree.key } },
+    worktrees: {
+      [worktree.key]: {
+        repository: repositoryOf(null, `${project}/.bare`),
+        root: project,
+        branch: 'main',
+        linked: false,
+        bare: true,
+      },
+    },
+  };
 };
 
 const settle = async (): Promise<void> => {
@@ -103,6 +125,8 @@ const harnessOf = (seed: Record<string, RepositoryStacks> = {}): Harness => {
   const heads = new Map<string, string>();
   const fires: ((paths: string[]) => void)[] = [];
   const pendingReads: { path: string; settle: (text: string | null) => void }[] = [];
+  const readOns: (string | null)[] = [];
+  const runOns: (string | null)[] = [];
   let published = 0;
   let reads = 0;
   let holding = false;
@@ -135,6 +159,8 @@ const harnessOf = (seed: Record<string, RepositoryStacks> = {}): Harness => {
     failHeads: false,
     published: () => published,
     reads: () => reads,
+    readOns: () => readOns,
+    runOns: () => runOns,
     setHeld: (next) => {
       held = next;
     },
@@ -164,13 +190,17 @@ const harnessOf = (seed: Record<string, RepositoryStacks> = {}): Harness => {
       fires.at(-1)?.(paths);
       await settle();
     },
-    tick: (folders) => {
-      harness.scheduler.tick(gitFactsOf(folders), context);
+    tick: (folders, machine) => {
+      harness.scheduler.tick(gitFactsOf(folders, machine), context);
+    },
+    tickGit: (git) => {
+      harness.scheduler.tick(git, context);
     },
   };
 
-  const readTextFile = (path: string): Promise<string | null> => {
+  const readTextFile = (path: string, options: { on: string | null }): Promise<string | null> => {
     reads += 1;
+    readOns.push(options.on);
 
     if (deferred !== null) {
       return deferred;
@@ -194,7 +224,10 @@ const harnessOf = (seed: Record<string, RepositoryStacks> = {}): Harness => {
   const run = async (
     command: string,
     args: string[],
+    options: { cwd?: string; on?: string | null },
   ): Promise<{ code: number; stdout: string; stderr: string }> => {
+    runOns.push(options.on ?? null);
+
     if (command !== 'git' || args[0] !== 'for-each-ref' || harness.failHeads) {
       return { code: 1, stdout: '', stderr: `unexpected ${command} ${args.join(' ')}` };
     }
@@ -388,6 +421,81 @@ describe('createStackScheduler', () => {
     expect(harness.scheduler.stacks()[repository.key]?.stacks).toHaveLength(2);
   });
 
+  test('a repository on another machine reads through that machine', async () => {
+    const harness = harnessOf();
+    const remoteFolder = '/srv/app';
+
+    harness.files.set(recordPathOf(remoteFolder), ghStackRecord('several-stacks'));
+
+    for (const [branch, head] of severalStacksHeads) {
+      harness.heads.set(branch, head);
+    }
+
+    harness.tick([remoteFolder], 'build-box');
+    await settle();
+
+    expect(harness.readOns()).toEqual(['build-box']);
+    expect(harness.runOns()).toEqual(['build-box']);
+  });
+
+  test('a remote repository is read again after 60 s', async () => {
+    const harness = recordHarness();
+    const remoteFolder = '/srv/app';
+
+    harness.files.set(recordPathOf(remoteFolder), ghStackRecord('several-stacks'));
+    harness.tick([remoteFolder], 'build-box');
+    await settle();
+
+    expect(harness.reads()).toBe(1);
+
+    harness.advance(59_999);
+    harness.tick([remoteFolder], 'build-box');
+    await settle();
+
+    expect(harness.reads()).toBe(1);
+
+    harness.advance(1);
+    harness.tick([remoteFolder], 'build-box');
+    await settle();
+
+    expect(harness.reads()).toBe(2);
+  });
+
+  test('an unreachable machine keeps the last good stacks', async () => {
+    const harness = recordHarness();
+    const remoteFolder = '/srv/app';
+    const remoteKey = repositoryOf('build-box', `${remoteFolder}/.git`).key;
+
+    harness.files.set(recordPathOf(remoteFolder), ghStackRecord('several-stacks'));
+    harness.tick([remoteFolder], 'build-box');
+    await settle();
+
+    const good = harness.scheduler.stacks()[remoteKey];
+
+    expect(good?.failed).toBe(false);
+    expect(good?.stacks.length).toBeGreaterThan(0);
+
+    harness.failRead = true;
+    harness.advance(60_000);
+    harness.tick([remoteFolder], 'build-box');
+    await settle();
+
+    expect(harness.scheduler.stacks()[remoteKey]).toEqual({
+      stacks: good?.stacks ?? [],
+      failed: true,
+    });
+  });
+
+  test('a bare place in the .bare layout is not read', async () => {
+    const harness = harnessOf();
+
+    harness.files.set('/code/project/.bare/gh-stack', ghStackRecord('several-stacks'));
+    harness.tickGit(bareFactsOf('/code/project'));
+    await settle();
+
+    expect(harness.reads()).toBe(0);
+  });
+
   test('a successful read publishes once and repeated ticks do not read again', async () => {
     const harness = recordHarness();
 
@@ -410,15 +518,14 @@ describe('createStackScheduler', () => {
     await settle();
 
     await harness.fire([recordPath]);
-    await harness.fire([recordPath]);
-    await harness.fire([recordPath]);
-
+    harness.advance(debounce / 2);
     harness.tick();
     await settle();
 
     expect(harness.reads()).toBe(1);
 
-    harness.advance(debounce);
+    await harness.fire([recordPath]);
+    harness.advance(debounce / 2);
     harness.tick();
     await settle();
 

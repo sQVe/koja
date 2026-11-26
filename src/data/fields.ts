@@ -6,3 +6,13 @@ export const folderNameOf = (path: string | null): string =>
 
 export const sameItems = <T>(left: readonly T[], right: readonly T[]): boolean =>
   left.length === right.length && left.every((item, index) => item === right[index]);
+
+export const keepEarliest = (stored: Map<string, number>, key: string, at: number): void => {
+  const first = stored.get(key);
+
+  if (first !== undefined && first <= at) {
+    return;
+  }
+
+  stored.set(key, at);
+};

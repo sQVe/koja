@@ -47,7 +47,7 @@ interface DueContext {
   now: number;
 }
 
-const fallbackMilliseconds = 60_000;
+export const fallbackMilliseconds = 60_000;
 
 export const emptyDueState = (): DueState => ({ places: {}, busy: {}, ready: {} });
 

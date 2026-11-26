@@ -1,6 +1,8 @@
 import type { Context } from 'gpui-kit';
 
+import { keepEarliest } from './fields.ts';
 import type { WatchFolder } from './folderWatch.ts';
+import { fallbackMilliseconds } from './gitDue.ts';
 import type { RepositoryIdentity, RunCommand } from './gitIdentity.ts';
 import type { WatchRegistry } from './gitWatches.ts';
 import { checkoutWorktrees, createWatchRegistry, usedRepositories } from './gitWatches.ts';
@@ -68,16 +70,6 @@ const sourcesOf = (git: GitFacts, checkouts: ReadonlySet<string>): Map<string, S
   return sources;
 };
 
-const keepEarliest = (stored: Map<string, number>, key: string, at: number): void => {
-  const first = stored.get(key);
-
-  if (first !== undefined && first <= at) {
-    return;
-  }
-
-  stored.set(key, at);
-};
-
 const headsIn = (stdout: string): Map<string, string> => {
   const heads = new Map<string, string>();
 
@@ -98,6 +90,7 @@ class Scheduler implements StackScheduler {
   private readonly stacksByRepository: Record<string, RepositoryStacks>;
   private readonly due = new Map<string, number>();
   private readonly readRepositories = new Set<string>();
+  private readonly readFinishedAt = new Map<string, number>();
   private readonly running = new Set<string>();
   private readonly watches: WatchRegistry;
   private stopped = false;
@@ -136,6 +129,7 @@ class Scheduler implements StackScheduler {
 
     this.applyEvents(sources);
     this.markNew(sources);
+    this.markRemote(sources);
     this.startReads(sources, cx);
   }
 
@@ -168,6 +162,28 @@ class Scheduler implements StackScheduler {
     for (const key of sources.keys()) {
       if (!this.readRepositories.has(key)) {
         keepEarliest(this.due, key, this.dependencies.now());
+      }
+    }
+  }
+
+  private markRemote(sources: Map<string, StackSource>): void {
+    const now = this.dependencies.now();
+
+    for (const key of this.readFinishedAt.keys()) {
+      if (!sources.has(key)) {
+        this.readFinishedAt.delete(key);
+      }
+    }
+
+    for (const [key, source] of sources) {
+      if (source.repository.machine === null || this.running.has(key)) {
+        continue;
+      }
+
+      const finished = this.readFinishedAt.get(key);
+
+      if (finished === undefined || now - finished >= fallbackMilliseconds) {
+        keepEarliest(this.due, key, now);
       }
     }
   }
@@ -205,7 +221,7 @@ class Scheduler implements StackScheduler {
 
         this.apply(key, read);
       } catch {
-        this.running.delete(key);
+        this.finishRead(key);
       }
     });
   }
@@ -254,8 +270,13 @@ class Scheduler implements StackScheduler {
     }
   }
 
-  private apply(key: string, read: StackRead): void {
+  private finishRead(key: string): void {
     this.running.delete(key);
+    this.readFinishedAt.set(key, this.dependencies.now());
+  }
+
+  private apply(key: string, read: StackRead): void {
+    this.finishRead(key);
 
     if (this.stopped || !this.stillOwner()) {
       return;
