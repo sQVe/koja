@@ -40,6 +40,7 @@ export const dialogFrameFake = (captureKeyHandler: (handler: KeyHandler) => void
 // module must expose the same names. These helpers hold the union each test file needs; a file
 // passes its own behavior as overrides and gets the rest as defaults.
 export const herdrFake = (overrides: ModuleFake = {}): ModuleFake => ({
+  agents: () => [],
   appHome: () => '',
   checking: () => false,
   closeOverlay: () => null,
@@ -99,6 +100,7 @@ export const gpuiKitFake = (overrides: ModuleFake = {}): ModuleFake => ({
 export const kitIndexFake = (overrides: ModuleFake = {}): ModuleFake => ({
   actionBlock: noop,
   actionButton: noop,
+  askCardSize: {},
   askFirst: noop,
   attentionBadge: noop,
   attentionMark: () => null,
@@ -203,6 +205,7 @@ export const kitIndexFake = (overrides: ModuleFake = {}): ModuleFake => ({
   stateLine: noop,
   statusMark: noop,
   statusRow: noop,
+  stringListOf: () => [],
   stringOf: () => null,
   tab: noop,
   tabLabel: noop,

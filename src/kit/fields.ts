@@ -11,5 +11,8 @@ export const stringOf = (value: unknown): string | null =>
 
 export const listOf = (value: unknown): unknown[] => (Array.isArray(value) ? value : []);
 
+export const stringListOf = (value: unknown): string[] =>
+  listOf(value).filter((entry): entry is string => typeof entry === 'string');
+
 export const numberOf = (value: unknown): number | null =>
   typeof value === 'number' ? value : null;
