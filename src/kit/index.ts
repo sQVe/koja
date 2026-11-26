@@ -43,6 +43,8 @@ export { scrollThumb, thumbPlace } from './overlay/scrollThumb.ts';
 
 export { footerLine, footerLineHeight, searchInputLine, searchLine } from './overlay/lines.ts';
 
+export { paneFolder, paneName, paneProgram } from './paneLabel.ts';
+
 export {
   paneBranchElement,
   paneFolderElement,
