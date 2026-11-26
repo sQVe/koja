@@ -72,6 +72,20 @@ describe('wheelTurn', () => {
     expect(wheelTurn(after, pixels(-30), 1200).step).toBe('next');
   });
 
+  test('holds the step interval across a reversal inside it', () => {
+    const down = wheelTurn(noWheelGesture, pixels(20), 1000);
+
+    expect(wheelTurn(down.gesture, pixels(-20), 1050).step).toBeNull();
+    expect(wheelTurn(down.gesture, pixels(-20), 1100).step).toBe('next');
+  });
+
+  test('holds the step interval across a reversal after a 60 px step', () => {
+    const down = turned(noWheelGesture, [pixels(20), pixels(60)], 1000);
+
+    expect(wheelTurn(down, pixels(-20), 1250).step).toBeNull();
+    expect(wheelTurn(down, pixels(-20), 1300).step).toBe('next');
+  });
+
   test('switches on an exact-threshold reversal after the first step', () => {
     const down = wheelTurn(noWheelGesture, pixels(20), 1000);
 

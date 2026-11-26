@@ -41,7 +41,19 @@ const reversed = (gesture: WheelGesture, delta: number): boolean =>
   delta !== 0 && direction(delta) !== gesture.direction;
 
 const restarted = (gesture: WheelGesture, event: WheelEvent, now: number): boolean =>
-  event.touch_phase === 'started' || now - gesture.at > pause || reversed(gesture, event.delta.y);
+  event.touch_phase === 'started' || now - gesture.at > pause;
+
+const restart = (gesture: WheelGesture, event: WheelEvent, now: number): WheelGesture => {
+  if (restarted(gesture, event, now)) {
+    return noWheelGesture;
+  }
+
+  if (!reversed(gesture, event.delta.y)) {
+    return gesture;
+  }
+
+  return { ...noWheelGesture, last: gesture.last };
+};
 
 export const wheelTurn = (gesture: WheelGesture, event: WheelEvent, now: number): WheelTurn => {
   if (event.delta_lines !== undefined) {
@@ -50,7 +62,7 @@ export const wheelTurn = (gesture: WheelGesture, event: WheelEvent, now: number)
     return { gesture, step: lines === 0 ? null : direction(lines) };
   }
 
-  const start = restarted(gesture, event, now) ? noWheelGesture : gesture;
+  const start = restart(gesture, event, now);
   const accumulated = start.accumulated + event.delta.y;
   const need = start.steps === 0 ? firstStep : nextStep;
   const soon = now - start.last < stepInterval;
