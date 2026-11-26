@@ -72,6 +72,46 @@ describe('wheelTurn', () => {
     expect(wheelTurn(after, pixels(-30), 1200).step).toBe('next');
   });
 
+  test('switches on an exact-threshold reversal after the first step', () => {
+    const down = wheelTurn(noWheelGesture, pixels(20), 1000);
+
+    expect(down.gesture.accumulated).toBe(0);
+    expect(wheelTurn(down.gesture, pixels(-20), 1200).step).toBe('next');
+
+    const up = wheelTurn(noWheelGesture, pixels(-20), 1000);
+
+    expect(up.gesture.accumulated).toBe(0);
+    expect(wheelTurn(up.gesture, pixels(20), 1200).step).toBe('prev');
+  });
+
+  test('switches on an exact-threshold reversal after a 60 px step', () => {
+    const down = turned(noWheelGesture, [pixels(20), pixels(60)], 1000);
+
+    expect(down.accumulated).toBe(0);
+    expect(wheelTurn(down, pixels(-20), 1300).step).toBe('next');
+
+    const up = turned(noWheelGesture, [pixels(-20), pixels(-60)], 1000);
+
+    expect(up.accumulated).toBe(0);
+    expect(wheelTurn(up, pixels(20), 1300).step).toBe('prev');
+  });
+
+  test('keeps the direction of a partial reversal', () => {
+    const stepped = wheelTurn(noWheelGesture, pixels(20), 1000);
+    const partial = wheelTurn(stepped.gesture, pixels(-10), 1200);
+
+    expect(partial.step).toBeNull();
+    expect(wheelTurn(partial.gesture, pixels(-10), 1300).step).toBe('next');
+  });
+
+  test('keeps the step direction when an exact step leaves no travel', () => {
+    const stepped = wheelTurn(noWheelGesture, pixels(20), 1000);
+    const still = wheelTurn(stepped.gesture, pixels(0), 1050);
+
+    expect(still.step).toBeNull();
+    expect(wheelTurn(still.gesture, pixels(-20), 1200).step).toBe('next');
+  });
+
   test('keeps the step direction of the travel when the latest event carries no delta', () => {
     const positive = turned(noWheelGesture, [pixels(100)], 1000);
 
