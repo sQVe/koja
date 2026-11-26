@@ -167,13 +167,13 @@ The panes, the side panel, and the terminals share the pane body color `#dfe1e5`
 
 ### Status marks
 
-- Done draws a small check icon in `done` green. A sidebar space that needs you draws the
-  `message-circle-question` icon in `blocked` red. Tabs and picker rows keep the `blocked` dot, or
-  the badge where there is room. Working stays the spinner, so shape as well as color tells the
-  states apart.
-- A sidebar space with no agent shows a hollow ring in the `border` color, so every space row has a
-  mark and the list reads as one column. The ring is quieter than the filled idle dot, so it does
-  not read as a state. Rows outside the sidebar, such as tabs and picker rows, keep an empty slot.
+- Done draws a small check icon in `done` green. A sidebar space or a Go to space row that needs you
+  draws the `message-circle-question` icon in `blocked` red. Tabs and tab rows keep the `blocked`
+  dot, or the badge where there is room. Working stays the spinner, so shape as well as color tells
+  the states apart.
+- A space with no agent shows a hollow ring in the `border` color, in the sidebar and in Go to, so
+  every space row has a mark and the list reads as one column. The ring is quieter than the filled
+  idle dot, so it does not read as a state. Tab rows keep an empty slot.
 - A sidebar project header is the exception to the ring. Every header reserves the mark slot, so
   every project name starts at the same x. A header that is the project's main space shows that
   space's mark only when it is working, blocked, or done, and otherwise keeps the slot empty. A
