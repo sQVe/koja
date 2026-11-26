@@ -2,15 +2,19 @@ import { setShared, shared } from 'herdr';
 
 import { modName, stringOf } from '../../kit/index.ts';
 
-const selectionKey = `${modName}.selection`;
+// One key per popup, so a second Go to cannot move the header of the first, and a closed popup
+// leaves nothing behind that another one would read.
+const selectionKey = (overlay: string | null): string =>
+  overlay === null ? `${modName}.selection` : `${modName}.selection.${overlay}`;
 
-export const readSelection = (): string | null => stringOf(shared(selectionKey));
+export const readSelection = (overlay: string | null): string | null =>
+  stringOf(shared(selectionKey(overlay)));
 
 // Only a changed pane is published, so arrowing within one pane does not re-render every mod.
-export const writeSelection = (pane: string | null): void => {
-  if (readSelection() === pane) {
+export const writeSelection = (overlay: string | null, pane: string | null): void => {
+  if (readSelection(overlay) === pane) {
     return;
   }
 
-  setShared(selectionKey, pane);
+  setShared(selectionKey(overlay), pane);
 };

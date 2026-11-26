@@ -187,7 +187,7 @@ export default class Picker extends View {
   }
 
   private header(): Element {
-    return previewHeader(previewTargetOf(pickerData(), readSelection()));
+    return previewHeader(previewTargetOf(pickerData(), readSelection(overlayId())));
   }
 
   private error(): Element {
@@ -220,6 +220,9 @@ export default class Picker extends View {
     const palette = colors();
     const data = pickerData();
     const rows = this.rowsFrom(data);
+
+    this.reconcileSelection(rows, data);
+
     const empty = stateLine({ kind: 'empty', text: this.emptyText(), wrap: true });
 
     const body = rows.length > 0 ? this.rows(rows, data) : div().flex_1().child(empty);
@@ -348,11 +351,23 @@ export default class Picker extends View {
     cx.notify();
   }
 
+  // Live data can move the selected row to another pane without a selection action, so the header,
+  // the preview, and Enter all follow the pane the row resolves to now.
+  private reconcileSelection(rows: PickerRow[], data: PickerData): void {
+    const row = this.selectedRow(rows);
+
+    if (rowPane(row, data)?.pane === readSelection(overlayId())) {
+      return;
+    }
+
+    this.updatePreview(row, data);
+  }
+
   private updatePreview(row: PickerRow | undefined, data: PickerData): void {
     const pane = rowPane(row, data);
 
     this.preview?.show(pane?.terminal ?? null);
-    writeSelection(pane?.pane ?? null);
+    writeSelection(overlayId(), pane?.pane ?? null);
   }
 
   private closePicker(): void {

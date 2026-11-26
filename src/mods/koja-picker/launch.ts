@@ -54,24 +54,29 @@ const previewColumn = (address: string): Record<string, unknown> => ({
   ],
 });
 
-// Without a viewer there is no terminal to show, so the column holds the error line and its Retry.
-const errorColumn = {
+// The error and its Retry take a row of the whole card, so a narrow or zoomed window cannot clip
+// them behind the list.
+const errorRow = {
   type: 'block',
-  size: { weight: 1 },
+  size: { px: controlSize.button + spacing.large * 2 },
   content: { mod: modName, props: { part: 'preview-error' } },
 };
 
-const pickerLayout = (start: PreviewStart | null): Record<string, unknown> => ({
-  type: 'column',
-  children: [
-    {
-      type: 'row',
-      divider: { width: spacing.hairline, color: 'border' },
-      children: [listBlock(start), start === null ? errorColumn : previewColumn(start.address)],
-    },
-    footerBlock,
-  ],
-});
+const pickerLayout = (start: PreviewStart | null): Record<string, unknown> => {
+  const row =
+    start === null
+      ? { type: 'row', children: [listBlock(null)] }
+      : {
+          type: 'row',
+          divider: { width: spacing.hairline, color: 'border' },
+          children: [listBlock(start), previewColumn(start.address)],
+        };
+
+  return {
+    type: 'column',
+    children: start === null ? [row, errorRow, footerBlock] : [row, footerBlock],
+  };
+};
 
 const openPicker = (start: PreviewStart | null): void => {
   openAtTop(
