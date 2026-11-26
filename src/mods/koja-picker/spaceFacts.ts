@@ -2,11 +2,13 @@ import { shared } from 'herdr';
 import type { PaneInfo, SpaceInfo } from 'herdr';
 
 import { readDataState } from '../../data/consumer.ts';
+import type { Place } from '../../data/gitIdentity.ts';
+import { placeOf } from '../../data/gitIdentity.ts';
 import { placeOfSpace } from '../../data/places.ts';
 import type { PullNeed } from '../../data/pullNeeds.ts';
 import { pullNeeds } from '../../data/pullNeeds.ts';
 import type { Pull } from '../../data/pulls.ts';
-import type { GitFacts, RepositoryPulls, WorktreeGit } from '../../data/snapshot.ts';
+import type { Facts, GitFacts, RepositoryPulls, WorktreeGit } from '../../data/snapshot.ts';
 
 export interface SpaceFacts {
   project: string | null;
@@ -28,16 +30,23 @@ const repoPathName = (path: string): string => {
 };
 
 // A linked worktree sits in a folder of its own, so its project takes the name of the repository
-// it belongs to.
-const projectName = (worktree: WorktreeGit): string =>
-  worktree.linked ? repoPathName(worktree.repository.commonDirectory) : folderName(worktree.root);
+// it belongs to. A folder that is no repository takes its own name, as in the sidebar.
+const projectAt = (worktree: WorktreeGit | null, folder: string): string => {
+  if (worktree === null) {
+    return folderName(folder);
+  }
 
-const pullOfBranch = (worktree: WorktreeGit, repository: RepositoryPulls | null): Pull | null => {
-  if (worktree.branch === null || repository === null) {
+  return worktree.linked
+    ? repoPathName(worktree.repository.commonDirectory)
+    : folderName(worktree.root);
+};
+
+const pullOfBranch = (repository: RepositoryPulls | null, branch: string | null): Pull | null => {
+  if (branch === null || repository === null) {
     return null;
   }
 
-  const mine = repository.pulls.filter((pull) => pull.headRefName === worktree.branch);
+  const mine = repository.pulls.filter((pull) => pull.headRefName === branch);
 
   return mine.find((pull) => pull.state === 'OPEN') ?? mine[0] ?? null;
 };
@@ -48,8 +57,14 @@ const needOf = (pull: Pull): PullNeed | null => {
   return needOrder.find((need) => needs.includes(need)) ?? null;
 };
 
-const worktreeAt = (place: string, git: GitFacts): WorktreeGit | null => {
-  const entry = git.places[place];
+const factsOf = (): Facts | null => {
+  const state = readDataState(shared, Date.now());
+
+  return state.kind === 'unavailable' ? null : state.snapshot.facts;
+};
+
+const worktreeAt = (place: Place, git: GitFacts): WorktreeGit | null => {
+  const entry = git.places[place.key];
 
   if (entry?.kind !== 'repository') {
     return null;
@@ -58,34 +73,60 @@ const worktreeAt = (place: string, git: GitFacts): WorktreeGit | null => {
   return git.worktrees[entry.worktree] ?? null;
 };
 
+const factsAt = (facts: Facts, place: Place, branch: string | null): SpaceFacts | null => {
+  if (!Object.hasOwn(facts.git.places, place.key)) {
+    return null;
+  }
+
+  const worktree = worktreeAt(place, facts.git);
+
+  const pull =
+    worktree === null
+      ? null
+      : pullOfBranch(facts.pulls[worktree.repository.key] ?? null, branch ?? worktree.branch);
+
+  return {
+    project: projectAt(worktree, place.folder),
+    pull: pull?.number ?? null,
+    need: pull === null ? null : needOf(pull),
+  };
+};
+
 export const spaceFacts = (
   spaceList: SpaceInfo[],
   paneList: PaneInfo[],
 ): Record<string, SpaceFacts> => {
-  const state = readDataState(shared, Date.now());
+  const facts = factsOf();
 
-  if (state.kind === 'unavailable') {
+  if (facts === null) {
     return {};
   }
 
-  const { git, pulls } = state.snapshot.facts;
-  const facts: Record<string, SpaceFacts> = {};
+  const bySpace: Record<string, SpaceFacts> = {};
 
   for (const space of spaceList) {
-    const worktree = worktreeAt(placeOfSpace(space, paneList).key, git);
+    const place = placeOfSpace(space, paneList);
+    const found = factsAt(facts, place, null);
 
-    if (worktree === null) {
-      continue;
+    if (found !== null) {
+      bySpace[space.id] = found;
     }
-
-    const pull = pullOfBranch(worktree, pulls[worktree.repository.key] ?? null);
-
-    facts[space.id] = {
-      project: projectName(worktree),
-      pull: pull?.number ?? null,
-      need: pull === null ? null : needOf(pull),
-    };
   }
 
-  return facts;
+  return bySpace;
+};
+
+// The preview header names one pane, which can sit in another worktree than its space's first one.
+export const paneFacts = (
+  machine: string | null,
+  pane: PaneInfo,
+  branch: string | null,
+): SpaceFacts | null => {
+  const facts = factsOf();
+
+  if (facts === null || pane.cwd === null || pane.cwd === '') {
+    return null;
+  }
+
+  return factsAt(facts, placeOf(machine, pane.cwd), branch);
 };

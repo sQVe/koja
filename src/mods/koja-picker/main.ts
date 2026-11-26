@@ -66,6 +66,8 @@ export default class Picker extends View {
 
   private leaving = false;
 
+  private retrying = false;
+
   private handle: FocusHandle | null = null;
 
   private readonly scroll = VirtualListScrollHandle.new();
@@ -185,14 +187,17 @@ export default class Picker extends View {
   }
 
   private header(): Element {
-    const data = pickerData();
-
-    return previewHeader(previewTargetOf(data, readSelection()), data.facts);
+    return previewHeader(previewTargetOf(pickerData(), readSelection()));
   }
 
   private error(): Element {
-    return previewError((cx) => {
-      launch(cx, createPreviewSession(), history.rememberPane);
+    return previewError({
+      enabled: !this.retrying,
+      onRetry: (cx) => {
+        this.retrying = true;
+        cx.notify();
+        launch(cx, createPreviewSession(), history.rememberPane);
+      },
     });
   }
 

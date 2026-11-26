@@ -13,8 +13,10 @@ import {
 } from '../../kit/index.ts';
 import type { PreviewSession, PreviewStart } from './previewLifecycle.ts';
 
-// The header band is as tall as the search line, so the picker's two columns start together.
-const headerHeight = controlSize.searchField;
+// The header band covers the search line and the chip line, so both columns end their top band on
+// one rule, as the scene draws them.
+const headerHeight =
+  controlSize.searchField + controlSize.button + spacing.xsmall + spacing.hairline;
 
 // As tall as the kit's footer line, so the line fills its block.
 const footerHeight = rowHeight.large + spacing.xxsmall;

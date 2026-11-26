@@ -3,11 +3,20 @@ import type { Context, Element } from 'gpui-kit';
 
 import { actionButton, modName, spacing, stateLine } from '../../kit/index.ts';
 
-export const previewError = (onRetry: (cx: Context) => void): Element => {
-  const retry = actionButton({ label: 'Retry', enabled: true }).on_click((_event, cx) => {
-    cx.stop_propagation();
-    onRetry(cx);
-  });
+export interface PreviewErrorOptions {
+  enabled: boolean;
+  onRetry: (cx: Context) => void;
+}
+
+export const previewError = (options: PreviewErrorOptions): Element => {
+  const retry = actionButton({ label: 'Retry', enabled: options.enabled });
+
+  if (options.enabled) {
+    retry.on_click((_event, cx) => {
+      cx.stop_propagation();
+      options.onRetry(cx);
+    });
+  }
 
   return v_flex()
     .id(`${modName}-preview-error`)
