@@ -248,4 +248,32 @@ describe('planCard', () => {
     expect(plan.sounded).toEqual(['a']);
     expect(plan.soundedChanged).toBe(true);
   });
+
+  test('plays the sound again for the same ask after it finished and came back', () => {
+    const gone = planCard({
+      asks: [],
+      live: [],
+      handled: [],
+      sounded: ['a'],
+      visible: [],
+      open: null,
+      signatures: new Map(),
+    });
+
+    expect(gone.sounded).toEqual([]);
+    expect(gone.soundedChanged).toBe(true);
+
+    const back = planCard({
+      asks: [ask('a')],
+      live: [ask('a')],
+      handled: [],
+      sounded: gone.sounded,
+      visible: [],
+      open: null,
+      signatures: signatures('a'),
+    });
+
+    expect(back.sound).toBe(true);
+    expect(back.sounded).toEqual(['a']);
+  });
 });
