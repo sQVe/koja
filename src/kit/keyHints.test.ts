@@ -51,10 +51,13 @@ const keysOfGroups = (part: PartLetter): string[] => {
 };
 
 describe('partKeyHints', () => {
-  test('each part letter is known', () => {
-    const empty = partLetters.filter((part) => partKeyHints(part).groups.length === 0);
+  test('each part letter has a card with groups', () => {
+    const partsWithoutGroups = partLetters.filter((part) => partKeyHints(part).groups.length === 0);
 
-    expect(empty).toEqual([]);
+    expect(partsWithoutGroups).toEqual([]);
+  });
+
+  test('a key outside the parts is not a part letter', () => {
     expect(isPartLetter('x')).toBe(false);
   });
 
