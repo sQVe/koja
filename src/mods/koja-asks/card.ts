@@ -1,5 +1,5 @@
 import { listOf, numberOf, recordOf, stringOf } from '../../kit/fields.ts';
-import { askCardSize, controlSize, spacing } from '../../kit/size.ts';
+import { askCardSize, controlSize, spacing, textSize } from '../../kit/size.ts';
 import type { Ask } from './askFacts.ts';
 
 export interface CardMore {
@@ -52,7 +52,10 @@ const {
 // A conservative advance per character, so the estimate never falls below the height GPUI draws.
 const bodyGlyph = 7.5;
 
-const terminalGlyph = 7.5;
+// The terminal font's advance is about 0.6 em at the body size.
+const terminalGlyphShare = 0.6;
+
+const terminalGlyph = textSize.default * terminalGlyphShare;
 
 export const moreText = (more: CardMore): string => {
   const asks = more.count === 1 ? 'ask' : 'asks';
@@ -135,24 +138,24 @@ export const cardGeometry = (sources: CardGeometrySources, text: CardText): Card
   const panel = boxWidth(sources.panel);
   const mainWidth = Math.max(0, sources.window.width / zoom - left - panel);
   const cardWidth = Math.min(maximumWidth, Math.max(0, mainWidth - 2 * paneClearance));
-  const height = cardHeight(text, cardWidth);
+  const availableHeight = sources.window.height / zoom - spacing.small - paneClearance;
+  const height = Math.min(cardHeight(text, cardWidth), Math.max(0, availableHeight));
   const x = (left + (mainWidth - cardWidth) / 2) * zoom;
-  const y = sources.window.height - (paneClearance + height) * zoom;
+  const y = Math.max(0, sources.window.height - (spacing.small + paneClearance + height) * zoom);
 
   return { width: cardWidth, height, at: { x: Math.round(x), y: Math.round(y) } };
 };
 
 export const cardSignature = (ask: Ask, text: CardText, geometry: CardGeometry): string =>
-  JSON.stringify([
-    ask.spaceName,
-    ask.agent,
-    text.question,
-    text.command,
-    text.more,
-    geometry.width,
-    geometry.height,
-    geometry.at,
-  ]);
+  JSON.stringify({
+    space: ask.spaceName,
+    agent: ask.agent,
+    spaceId: ask.spaceId,
+    tabId: ask.tabId,
+    paneId: ask.paneId,
+    text,
+    geometry,
+  });
 
 export const windowBoundsOf = (value: unknown): WindowBounds | null => {
   const record = recordOf(value);

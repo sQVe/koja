@@ -165,8 +165,13 @@ export const elementsWithStyle = (element: DrawnElement, style: string): DrawnEl
 export const elementWithIcon = (element: DrawnElement, name: string): DrawnElement | null =>
   descendants(element).find((part) => part.path?.split('/').at(-1) === name) ?? null;
 
-export const click = (element: DrawnElement): void => {
-  element.clickHandlers[0]?.({}, { stop_propagation: () => undefined });
+const noPropagation = { stop_propagation: () => undefined };
+
+export const click = (
+  element: DrawnElement,
+  cx: { stop_propagation: () => void } = noPropagation,
+): void => {
+  element.clickHandlers[0]?.({}, cx);
 };
 
 // A left press and release on the element alone; the fake does not pass events to parents.

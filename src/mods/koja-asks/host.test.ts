@@ -131,6 +131,21 @@ describe('planCard', () => {
     expect(plan.open).toBeNull();
   });
 
+  test('prunes a handled ask that is gone while opening another', () => {
+    const plan = planCard({
+      asks: [ask('b')],
+      live: [ask('b')],
+      handled: ['a'],
+      visible: [],
+      open: null,
+      signatures: signatures('b'),
+    });
+
+    expect(plan.open?.identity).toBe('b');
+    expect(plan.handled).toEqual([]);
+    expect(plan.handledChanged).toBe(true);
+  });
+
   test('shows the next unhandled ask when the newest one is handled', () => {
     const plan = planCard({
       asks: [ask('b'), ask('a')],

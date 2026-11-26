@@ -192,6 +192,7 @@ export const kitIndexFake = (overrides: ModuleFake = {}): ModuleFake => ({
   stackProgress: noop,
   stateLine: noop,
   statusMark: noop,
+  stringListOf: () => [],
   stringOf: () => null,
   tab: noop,
   tabLabel: noop,

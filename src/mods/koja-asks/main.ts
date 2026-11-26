@@ -25,11 +25,12 @@ import {
   overlayId,
   recordOf,
   repeat,
+  stringListOf,
   stringOf,
 } from '../../kit/index.ts';
 import { parsedJson } from '../../kit/parsedJson.ts';
 import type { Ask } from './askFacts.ts';
-import { asksOf, identityListOf, unseenAsks } from './askFacts.ts';
+import { asksOf, unseenAsks } from './askFacts.ts';
 import type { CardBox, CardGeometry, CardGeometrySources, CardMore, CardWindow } from './card.ts';
 import { cardGeometry, cardSignature, cardTextOf, windowBoundsOf } from './card.ts';
 import type { CardPlan, OpenCard } from './host.ts';
@@ -93,8 +94,18 @@ const readMore = (value: unknown): CardMore | null => {
   }
 
   const record = recordOf(value);
+  const count = numberOf(record['count']);
+  const space = stringOf(record['space']);
 
-  return { count: numberOf(record['count']) ?? 0, space: stringOf(record['space']) ?? '' };
+  if (count === null || space === null) {
+    return null;
+  }
+
+  if (count <= 0 || space === '') {
+    return null;
+  }
+
+  return { count, space };
 };
 
 const readCardProps = (value: unknown): CardProps | null => {
@@ -118,7 +129,7 @@ const openStateOf = (value: unknown): OpenCard | null => {
 };
 
 const markHandled = (identity: string): void => {
-  const handled = identityListOf(shared(handledKey));
+  const handled = stringListOf(shared(handledKey));
 
   if (!handled.includes(identity)) {
     setShared(handledKey, [...handled, identity]);
@@ -183,7 +194,15 @@ export default class KojaAsks extends View {
   }
 
   override close(): void {
-    this.clearOpen();
+    if (this.card !== null) {
+      this.clearOpen();
+
+      return;
+    }
+
+    if (!checking()) {
+      setShared(openKey, null);
+    }
   }
 
   override render(): Element {
@@ -255,9 +274,20 @@ export default class KojaAsks extends View {
       asks,
       live,
       visible,
-      handled: identityListOf(shared(handledKey)),
+      handled: stringListOf(shared(handledKey)),
       open: openStateOf(shared(openKey)),
     };
+  }
+
+  private planOf(snapshot: Snapshot, signatures: ReadonlyMap<string, string>): CardPlan {
+    return planCard({
+      asks: snapshot.asks,
+      live: snapshot.live,
+      handled: snapshot.handled,
+      visible: snapshot.visible.map((ask) => ask.identity),
+      open: snapshot.open,
+      signatures,
+    });
   }
 
   private applyPlan(plan: CardPlan, contents: ReadonlyMap<string, CardContent>): void {
@@ -290,17 +320,7 @@ export default class KojaAsks extends View {
       const first = this.snapshot();
 
       if (first.asks.length === 0) {
-        this.applyPlan(
-          planCard({
-            asks: first.asks,
-            live: first.live,
-            handled: first.handled,
-            visible: first.visible.map((ask) => ask.identity),
-            open: first.open,
-            signatures: new Map(),
-          }),
-          new Map(),
-        );
+        this.applyPlan(this.planOf(first, new Map()), new Map());
 
         return;
       }
@@ -317,27 +337,17 @@ export default class KojaAsks extends View {
       };
 
       const contents = new Map<string, CardContent>();
-      const signatures = new Map<string, string>();
       const unhandled = current.asks.filter((ask) => !current.handled.includes(ask.identity));
 
       for (const ask of unhandled) {
-        const content = contentOf(ask, moreOf(unhandled, ask), sources);
-
-        contents.set(ask.identity, content);
-        signatures.set(ask.identity, content.signature);
+        contents.set(ask.identity, contentOf(ask, moreOf(unhandled, ask), sources));
       }
 
-      this.applyPlan(
-        planCard({
-          asks: current.asks,
-          live: current.live,
-          handled: current.handled,
-          visible: current.visible.map((ask) => ask.identity),
-          open: current.open,
-          signatures,
-        }),
-        contents,
+      const signatures = new Map(
+        [...contents].map(([identity, content]) => [identity, content.signature]),
       );
+
+      this.applyPlan(this.planOf(current, signatures), contents);
     } finally {
       this.busy = false;
     }

@@ -1,6 +1,6 @@
 import { describe, expect, test } from 'bun:test';
 
-import { listOf, numberOf, recordOf, stringOf } from './fields.ts';
+import { listOf, numberOf, recordOf, stringListOf, stringOf } from './fields.ts';
 
 describe('field readers', () => {
   test('read a nested string through records', () => {
@@ -14,6 +14,8 @@ describe('field readers', () => {
     expect(recordOf(['pane'])).toEqual({});
     expect(stringOf(3)).toBeNull();
     expect(listOf({ length: 1 })).toEqual([]);
+    expect(stringListOf(['a', 2, null, 'b'])).toEqual(['a', 'b']);
+    expect(stringListOf('a')).toEqual([]);
     expect(numberOf('3')).toBeNull();
   });
 });

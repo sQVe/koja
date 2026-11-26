@@ -9,11 +9,7 @@ import {
   realKitIndexFake,
 } from '../../../tests/moduleFakes.ts';
 import type { Ask } from './askFacts.ts';
-
-interface CardActions {
-  goToAsk: () => void;
-  dismiss: () => void;
-}
+import type { CardActions } from './view.ts';
 
 const palette = {
   blocked: '#a81e26',
@@ -76,6 +72,14 @@ const ask: Ask = {
   seq: 1,
 };
 
+const questionAsk: Ask = {
+  ...ask,
+  identity: 't1:question:Which judge model?',
+  kind: 'question',
+  question: 'Which judge model?',
+  command: null,
+};
+
 let calls: string[] = [];
 
 const actions: CardActions = {
@@ -109,6 +113,12 @@ describe('cardElement', () => {
     expect(drawnIcons(card)).toEqual(['message-circle-question.svg', 'x.svg']);
   });
 
+  test('draws a question ask without a command line', () => {
+    const card = cardElement(questionAsk, null, actions);
+
+    expect(drawnTexts(card)).toEqual(['Build window shell', 'Claude Code', 'Which judge model?']);
+  });
+
   test('draws one more line naming the next ask space', () => {
     const without = drawnTexts(cardElement(ask, null, actions));
     const withMore = drawnTexts(cardElement(ask, { count: 1, space: 'Hill-climb' }, actions));
@@ -120,7 +130,13 @@ describe('cardElement', () => {
   test('a click on the card goes to the ask', () => {
     const card = cardElement(ask, null, actions);
 
-    click(elementsWithStyle(card, 'cursor_pointer')[0] ?? card);
+    const clickable = elementsWithStyle(card, 'cursor_pointer')[0];
+
+    expect(clickable).toBeDefined();
+
+    if (clickable !== undefined) {
+      click(clickable);
+    }
 
     expect(calls).toEqual(['go']);
   });
@@ -134,10 +150,17 @@ describe('cardElement', () => {
 
     expect(dismiss).toBeDefined();
 
+    let stopped = 0;
+
     if (dismiss !== undefined) {
-      click(dismiss);
+      click(dismiss, {
+        stop_propagation: () => {
+          stopped += 1;
+        },
+      });
     }
 
+    expect(stopped).toBe(1);
     expect(calls).toEqual(['dismiss']);
   });
 });

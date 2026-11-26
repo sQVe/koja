@@ -139,7 +139,7 @@ export { diffTints, normalFocusFill } from './palette.ts';
 
 export type { Palette } from './palette.ts';
 
-export { listOf, numberOf, recordOf, stringOf } from './fields.ts';
+export { listOf, numberOf, recordOf, stringListOf, stringOf } from './fields.ts';
 
 export { findLayoutNode, layoutRoot } from './layout.ts';
 

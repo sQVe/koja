@@ -190,6 +190,7 @@ export const overlaySize = {
 export const askCardSize = {
   maximumWidth: 420,
   paneClearance: 16,
+  // Aligns the lines under the title with the title's mark and its gap.
   textInset: iconSize.small + spacing.small,
   bodyLineHeight: 18,
   terminalLineHeight: 17,

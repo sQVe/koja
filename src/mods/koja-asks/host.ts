@@ -35,6 +35,7 @@ export const planCard = (sources: PlanSources): CardPlan => {
   );
 
   const handledChanged = !sameSet(handled, sources.handled);
+  // `asks` arrives newest first, so the first unhandled entry is the newest.
   const shown = sources.asks.find((ask) => !handled.includes(ask.identity)) ?? null;
 
   if (shown === null) {

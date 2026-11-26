@@ -1,8 +1,23 @@
 import { describe, expect, test } from 'bun:test';
 
-import { askCardSize } from '../../kit/size.ts';
+import { askCardSize, spacing } from '../../kit/size.ts';
+import type { Ask } from './askFacts.ts';
 import type { CardText, CardWindow } from './card.ts';
-import { cardGeometry, cardHeight, windowBoundsOf } from './card.ts';
+import { cardGeometry, cardHeight, cardSignature, moreText, windowBoundsOf } from './card.ts';
+
+const ask: Ask = {
+  identity: 't1:permission:bun run sandbox up',
+  address: 't1',
+  spaceId: 's1',
+  spaceName: 'Build window shell',
+  tabId: 'k1',
+  paneId: 'p1',
+  agent: 'Claude Code',
+  kind: 'permission',
+  question: 'Allow this command?',
+  command: 'bun run sandbox up',
+  seq: 1,
+};
 
 const text: CardText = {
   question: 'Allow this command?',
@@ -24,6 +39,13 @@ const sources = (
   window: { width, height, maximized, zoom },
   sidebar: { sizePx: 268, hidden: false },
   panel: { sizePx: 368, hidden: panelHidden },
+});
+
+describe('moreText', () => {
+  test('counts one ask and several asks', () => {
+    expect(moreText({ count: 1, space: 'Hill-climb' })).toBe('1 more ask in Hill-climb');
+    expect(moreText({ count: 2, space: 'Hill-climb' })).toBe('2 more asks in Hill-climb');
+  });
 });
 
 describe('cardHeight', () => {
@@ -48,7 +70,7 @@ describe('cardGeometry', () => {
 
     expect(geometry.at).toEqual({
       x: 564,
-      y: 820 - askCardSize.paneClearance - height,
+      y: 820 - spacing.small - askCardSize.paneClearance - height,
     });
   });
 
@@ -72,7 +94,7 @@ describe('cardGeometry', () => {
 
     expect(geometry.at).toEqual({
       x: (268 + (1280 - 268 - askCardSize.maximumWidth) / 2) * 2,
-      y: 1640 - (askCardSize.paneClearance + height) * 2,
+      y: 1640 - (spacing.small + askCardSize.paneClearance + height) * 2,
     });
   });
 
@@ -87,6 +109,17 @@ describe('cardGeometry', () => {
     const geometry = cardGeometry(sources(1280, 820, true, 1, true), text);
 
     expect(geometry.at).toBeNull();
+  });
+});
+
+describe('cardSignature', () => {
+  test('changes when the geometry changes and stays the same for identical inputs', () => {
+    const geometry = cardGeometry(sources(1280, 820), text);
+    const signature = cardSignature(ask, text, geometry);
+    const moved = cardSignature(ask, text, { ...geometry, at: { x: 1, y: 2 } });
+
+    expect(cardSignature(ask, text, { ...geometry })).toBe(signature);
+    expect(moved).not.toBe(signature);
   });
 });
 

@@ -28,7 +28,7 @@ const blocked = (
 });
 
 describe('asksOf', () => {
-  test('reads an unseen permission ask with its space, agent, question, and command', () => {
+  test('reads a permission ask with its space, agent, question, and command', () => {
     const asks = asksOf({ terminals: [blocked()], agents: [agent()] });
 
     expect(asks).toHaveLength(1);
@@ -55,15 +55,52 @@ describe('asksOf', () => {
     });
   });
 
-  test('skips a worker ask and a child terminal ask', () => {
+  test('keeps a question ask without a message as waiting for an answer', () => {
+    const report = { state: 'blocked', kind: 'question', msg: '' };
+    const asks = asksOf({ terminals: [blocked(report)], agents: [agent()] });
+
+    expect(asks[0]).toMatchObject({ question: 'Waiting for your answer', command: null });
+  });
+
+  test('keeps a permission ask without a message and no command', () => {
+    const report = { state: 'blocked', kind: 'permission', msg: '' };
+    const asks = asksOf({ terminals: [blocked(report)], agents: [agent()] });
+
+    expect(asks[0]).toMatchObject({ question: 'Allow this command?', command: null });
+  });
+
+  test('skips a terminal with no agent', () => {
+    expect(asksOf({ terminals: [blocked()], agents: [] })).toEqual([]);
+  });
+
+  test('skips a worker ask', () => {
     const terminals = [
       blocked(undefined, { labels: { 'tau.role': 'worker' } }),
-      blocked(undefined, { address: 't2', parent: 't1' }),
+      blocked(undefined, { address: 't2' }),
     ];
 
-    const agents = [agent(), agent({ address: 't2' })];
+    const asks = asksOf({ terminals, agents: [agent(), agent({ address: 't2' })] });
 
-    expect(asksOf({ terminals, agents })).toEqual([]);
+    expect(asks.map((ask) => ask.address)).toEqual(['t2']);
+  });
+
+  test('skips a worker ask labeled only by profile', () => {
+    const terminals = [
+      blocked(undefined, { labels: { 'tau.profile': 'worker' } }),
+      blocked(undefined, { address: 't2' }),
+    ];
+
+    const asks = asksOf({ terminals, agents: [agent(), agent({ address: 't2' })] });
+
+    expect(asks.map((ask) => ask.address)).toEqual(['t2']);
+  });
+
+  test('skips a child terminal ask', () => {
+    const terminals = [blocked(), blocked(undefined, { address: 't2', parent: 't1' })];
+
+    const asks = asksOf({ terminals, agents: [agent(), agent({ address: 't2' })] });
+
+    expect(asks.map((ask) => ask.address)).toEqual(['t1']);
   });
 
   test('orders the newest ask first', () => {

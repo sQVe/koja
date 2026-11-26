@@ -1,4 +1,8 @@
-import { listOf, recordOf, stringOf } from '../../kit/fields.ts';
+import type { AgentInfo, Program } from 'herdr';
+
+import type { TerminalMetadata } from '../../data/terminalRecord.ts';
+import { terminalMetadata } from '../../data/terminalRecord.ts';
+import { recordOf, stringOf } from '../../kit/fields.ts';
 
 type AskKind = 'permission' | 'question';
 
@@ -16,15 +20,10 @@ export interface Ask {
   seq: number;
 }
 
-export interface AskAgent {
-  address: string;
-  pane: string;
-  space: string;
-  space_name: string;
-  tab: string;
-  seq: number;
-  program: { name: string };
-}
+export type AskAgent = Pick<
+  AgentInfo,
+  'address' | 'pane' | 'space' | 'space_name' | 'tab' | 'seq'
+> & { program: Pick<Program, 'name'> };
 
 export interface AskSources {
   terminals: readonly unknown[];
@@ -54,17 +53,16 @@ const blockedKindOf = (record: Record<string, unknown>): AskKind | null => {
   return stringOf(report['state']) === 'blocked' ? kindOf(report) : null;
 };
 
-const isWorker = (record: Record<string, unknown>): boolean =>
-  stringOf(recordOf(record['labels'])['tau.role']) === workerRole;
-
 const hasParent = (record: Record<string, unknown>): boolean => {
   const parent = record['parent'];
 
   return parent !== null && parent !== undefined;
 };
 
-const answersItself = (record: Record<string, unknown>): boolean =>
-  isWorker(record) || hasParent(record);
+const askedThroughParent = (
+  record: Record<string, unknown>,
+  metadata: Map<unknown, TerminalMetadata>,
+): boolean => metadata.get(record['address'])?.role === workerRole || hasParent(record);
 
 const questionOf = (kind: AskKind, message: string): string => {
   if (kind === 'permission') {
@@ -77,13 +75,12 @@ const questionOf = (kind: AskKind, message: string): string => {
 const commandOf = (kind: AskKind, message: string): string | null =>
   kind === 'permission' && message !== '' ? message : null;
 
-const askOf = (record: Record<string, unknown>, agent: AskAgent, kind: AskKind): Ask | null => {
-  const address = stringOf(record['address']);
-
-  if (address === null) {
-    return null;
-  }
-
+const askOf = (
+  address: string,
+  record: Record<string, unknown>,
+  agent: AskAgent,
+  kind: AskKind,
+): Ask => {
   const message = stringOf(recordOf(record['report'])['msg']) ?? '';
 
   return {
@@ -103,21 +100,22 @@ const askOf = (record: Record<string, unknown>, agent: AskAgent, kind: AskKind):
 
 export const asksOf = (sources: AskSources): Ask[] => {
   const agentsByAddress = new Map(sources.agents.map((agent) => [agent.address, agent]));
+  const metadata = terminalMetadata(sources.terminals);
   const asks: Ask[] = [];
 
   for (const value of sources.terminals) {
     const record = recordOf(value);
     const kind = blockedKindOf(record);
 
-    if (kind === null || answersItself(record)) {
+    if (kind === null || askedThroughParent(record, metadata)) {
       continue;
     }
 
-    const agent = agentsByAddress.get(stringOf(record['address']) ?? '');
-    const ask = agent === undefined ? null : askOf(record, agent, kind);
+    const address = stringOf(record['address']);
+    const agent = address === null ? undefined : agentsByAddress.get(address);
 
-    if (ask !== null) {
-      asks.push(ask);
+    if (address !== null && agent !== undefined) {
+      asks.push(askOf(address, record, agent, kind));
     }
   }
 
@@ -126,6 +124,3 @@ export const asksOf = (sources: AskSources): Ask[] => {
 
 export const unseenAsks = (asks: readonly Ask[], view: AskView): Ask[] =>
   asks.filter((ask) => !view.windowActive || ask.tabId !== view.focusedTab);
-
-export const identityListOf = (value: unknown): string[] =>
-  listOf(value).filter((entry): entry is string => typeof entry === 'string');

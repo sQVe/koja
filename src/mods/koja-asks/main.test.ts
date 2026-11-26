@@ -1,5 +1,6 @@
 import { afterAll, beforeEach, describe, expect, mock, test } from 'bun:test';
 
+import { createDeferred } from '../../../tests/deferred.ts';
 import type { DrawnElement } from '../../../tests/drawn.ts';
 import { click, drawn, elementsWithStyle } from '../../../tests/drawn.ts';
 import {
@@ -67,16 +68,6 @@ const agent2 = {
   program: { name: 'Pi' },
 };
 
-const deferred = <T>(): { promise: Promise<T>; resolve: (value: T) => void } => {
-  let resolveValue!: (value: T) => void;
-
-  const promise = new Promise<T>((resolve) => {
-    resolveValue = resolve;
-  });
-
-  return { promise, resolve: resolveValue };
-};
-
 const layout = {
   id: 'root',
   children: [
@@ -95,6 +86,8 @@ let closed: unknown[] = [];
 let runs: { name: string; args: unknown }[] = [];
 let timerHandler: (() => void) | null = null;
 let readDeferred: { promise: Promise<string>; resolve: (value: string) => void } | null = null;
+let readPaths: string[] = [];
+let boundsValue = { state: 'windowed', bounds: [0, 0, 1280, 820] };
 
 Object.assign(globalThis, { kojaModName: 'koja-asks' });
 
@@ -123,9 +116,11 @@ await mock.module('herdr', () =>
       return 'overlay-1';
     },
     props: () => propsValue,
-    readTextFile: () =>
-      readDeferred?.promise ??
-      Promise.resolve(JSON.stringify({ state: 'windowed', bounds: [0, 0, 1280, 820] })),
+    readTextFile: (path: string) => {
+      readPaths.push(path);
+
+      return readDeferred?.promise ?? Promise.resolve(JSON.stringify(boundsValue));
+    },
     run: (name: string, args: unknown) => {
       runs.push({ name, args });
 
@@ -191,10 +186,16 @@ const context = {
 };
 
 const tick = async (): Promise<void> => {
-  timerHandler?.();
+  const handler = timerHandler;
+
+  if (handler === null) {
+    throw new Error('the ask host registered no timer');
+  }
+
+  handler();
 
   await new Promise((resolve) => {
-    setTimeout(resolve, 10);
+    setTimeout(resolve, 0);
   });
 };
 
@@ -221,6 +222,8 @@ beforeEach(() => {
   runs = [];
   timerHandler = null;
   readDeferred = null;
+  readPaths = [];
+  boundsValue = { state: 'windowed', bounds: [0, 0, 1280, 820] };
 });
 
 describe('the ask host', () => {
@@ -233,6 +236,8 @@ describe('the ask host', () => {
       kind: 'window',
       frame: 'none',
       mod: 'koja-asks',
+      width: 420,
+      at: { x: 564 },
       props: {
         ask: {
           spaceName: 'Build window shell',
@@ -242,6 +247,25 @@ describe('the ask host', () => {
         },
       },
     });
+
+    expect(readPaths).toEqual(['/home/test/.config/herdr-app/window.json']);
+  });
+
+  test('keeps one card when a second tick sees the same state', async () => {
+    await runHost();
+    await tick();
+
+    expect(opened).toHaveLength(1);
+  });
+
+  test('reopens the card when the window bounds change', async () => {
+    await runHost();
+
+    boundsValue = { state: 'windowed', bounds: [0, 0, 1280, 1020] };
+    await tick();
+
+    expect(opened).toHaveLength(2);
+    expect(closed).toEqual(['overlay-1']);
   });
 
   test('opens no card for an ask in the focused tab', async () => {
@@ -301,7 +325,7 @@ describe('the ask host', () => {
 
     view.init({}, context);
 
-    const read = deferred<string>();
+    const read = createDeferred<string>();
 
     readDeferred = read;
     timerHandler?.();
@@ -313,7 +337,7 @@ describe('the ask host', () => {
     read.resolve(JSON.stringify({ state: 'windowed', bounds: [0, 0, 1280, 820] }));
 
     await new Promise((resolve) => {
-      setTimeout(resolve, 10);
+      setTimeout(resolve, 0);
     });
 
     expect(opened).toEqual([]);
