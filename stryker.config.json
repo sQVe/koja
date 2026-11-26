@@ -17,6 +17,7 @@
     "!src/kit/hoverCard.ts",
     "!src/kit/icon.ts",
     "!src/kit/index.ts",
+    "!src/kit/keyHintCard.ts",
     "!src/kit/keycap.ts",
     "!src/kit/layout.ts",
     "!src/kit/listRow.ts",
