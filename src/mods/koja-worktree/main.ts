@@ -41,6 +41,9 @@ type Phase =
   | { kind: 'failed'; message: string; retry: Workspace | null }
   | { kind: 'finding'; message: string; workspace: Workspace; branch: string };
 
+const agentAppeared = (risks: AgentRisk[], shown: RemoveRisks): boolean =>
+  risks.includes('agent') && !shown.includes('agent');
+
 // A refocus after the dialog has drawn, when the input can take the keyboard.
 const refocusMilliseconds = 600;
 
@@ -214,21 +217,17 @@ export default class Worktree extends View {
   private startFinding(phase: FindingPhase, cx: Context): void {
     const { workspace, branch } = phase;
 
-    this.begin(workspace, cx);
-
-    cx.spawn(async (taskCx) => {
-      await this.running(workspace, taskCx, () => this.openFolder(workspace, branch));
-    });
+    this.startTask(workspace, cx, (taskCx) =>
+      this.running(workspace, taskCx, () => this.openFolder(workspace, branch)),
+    );
   }
 
   private startClosing(phase: ClosingPhase, cx: Context): void {
     const { workspace, risks } = phase;
 
-    this.begin(workspace, cx);
-
-    cx.spawn(async (taskCx) => {
-      await this.running(workspace, taskCx, () => this.closeWhenUnchanged(workspace, risks));
-    });
+    this.startTask(workspace, cx, (taskCx) =>
+      this.running(workspace, taskCx, () => this.closeWhenUnchanged(workspace, risks)),
+    );
   }
 
   private startAdd(workspace: Workspace, cx: Context): void {
@@ -238,24 +237,24 @@ export default class Worktree extends View {
       return;
     }
 
-    this.begin(workspace, cx);
-
-    cx.spawn(async (taskCx) => {
-      await this.add(workspace, branch, taskCx);
-    });
+    this.startTask(workspace, cx, (taskCx) => this.add(workspace, branch, taskCx));
   }
 
   private startRemove(workspace: Workspace, shown: RemoveRisks, cx: Context): void {
-    this.begin(workspace, cx);
-
-    cx.spawn(async (taskCx) => {
-      await this.remove(workspace, shown, taskCx);
-    });
+    this.startTask(workspace, cx, (taskCx) => this.remove(workspace, shown, taskCx));
   }
 
-  private begin(workspace: Workspace, cx: Context): void {
+  private startTask(
+    workspace: Workspace,
+    cx: Context,
+    task: (taskCx: AsyncContext) => Promise<void>,
+  ): void {
     this.phase = { kind: 'running', workspace };
     cx.notify();
+
+    cx.spawn(async (taskCx) => {
+      await task(taskCx);
+    });
   }
 
   private workspaceToRun(): Workspace | null {
@@ -295,9 +294,8 @@ export default class Worktree extends View {
       }
 
       const agentRisks = readAgentRisks(workspace);
-      const agentAppeared = agentRisks.includes('agent') && !shown.includes('agent');
 
-      if (agentAppeared) {
+      if (agentAppeared(agentRisks, shown)) {
         return { kind: 'closing', workspace, risks: agentRisks };
       }
 
@@ -315,9 +313,7 @@ export default class Worktree extends View {
       return null;
     }
 
-    const agentAppeared = risks.includes('agent') && !shown.includes('agent');
-
-    if (agentAppeared) {
+    if (agentAppeared(risks, shown)) {
       return { kind: 'closing', workspace, risks };
     }
 
