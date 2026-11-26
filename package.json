@@ -39,7 +39,7 @@
     "@stryker-mutator/core": "10.0.0",
     "@stryker-mutator/instrumenter": "10.0.0",
     "@stryker-mutator/util": "10.0.0",
-    "@types/bun": "1.4.2",
+    "@types/bun": "1.4.5",
     "knip": "6.37.0",
     "oxc-parser": "0.150.0",
     "typescript": "7.0.2",
@@ -51,5 +51,5 @@
   "engines": {
     "bun": ">=1.4.2"
   },
-  "packageManager": "bun@1.4.2"
+  "packageManager": "bun@1.4.5"
 }
