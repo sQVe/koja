@@ -46,6 +46,8 @@ type NameHolder =
 
 type RecordRead = InstallRecord | null | 'unreadable';
 
+const recordPath = (home: string): string => join(home, recordName);
+
 const windowStates: WindowState[] = ['answers', 'silent'];
 
 // Pairs of the path inside Herdr home and the path inside the checkout, as the installer plans them.
@@ -146,7 +148,7 @@ const installFailures = async (options: IdentityOptions): Promise<IdentityFailur
   const record = await readRecordOrUnreadable(options.home);
 
   if (record === 'unreadable') {
-    return [{ kind: 'recordUnreadable', path: join(options.home, recordName) }];
+    return [{ kind: 'recordUnreadable', path: recordPath(options.home) }];
   }
 
   if (record === null) {
@@ -182,7 +184,7 @@ const failureLine = (options: IdentityOptions, failure: IdentityFailure): string
     }
 
     case 'recordMissing': {
-      return `no install record at ${join(options.home, recordName)}`;
+      return `no install record at ${recordPath(options.home)}`;
     }
 
     case 'recordUnreadable': {
@@ -190,7 +192,7 @@ const failureLine = (options: IdentityOptions, failure: IdentityFailure): string
     }
 
     case 'recordWithoutOrigin': {
-      return `the install record at ${join(options.home, recordName)} names no checkout and no check result`;
+      return `the install record at ${recordPath(options.home)} names no checkout and no check result`;
     }
 
     case 'otherCheckout': {
@@ -240,7 +242,7 @@ const findNameHolder = async (options: NameHolderOptions): Promise<NameHolder> =
   const record = await readRecordOrUnreadable(options.home);
 
   if (record === 'unreadable') {
-    return { kind: 'unreadableRecord', path: join(options.home, recordName) };
+    return { kind: 'unreadableRecord', path: recordPath(options.home) };
   }
 
   const origin = record?.origin ?? null;

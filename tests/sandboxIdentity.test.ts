@@ -140,9 +140,10 @@ describe('sandbox identity', () => {
   test('fails when the install record cannot be read', async () => {
     await writeFile(recordPath(), 'not a record\n');
 
-    expect(await findIdentityFailures(options)).toEqual([
-      { kind: 'recordUnreadable', path: recordPath() },
-    ]);
+    const report = await identityReport(options);
+
+    expect(report.exitCode).toBe(1);
+    expect(report.lines.join('\n')).toContain(recordPath());
   });
 
   test('fails when the record names no checkout and no check result', async () => {
@@ -571,6 +572,15 @@ describe('scripts/sandbox', () => {
     await installFrom(installedFrom, { home: join(sandboxRoot, 'config', 'herdr-app') });
   };
 
+  const installOtherCheckout = async (): Promise<string> => {
+    const other = join(root, 'other-checkout');
+
+    await writeCheckout(other);
+    await installIntoSandbox(other);
+
+    return other;
+  };
+
   beforeEach(async () => {
     name = `koja-identity-test-${randomBytes(6).toString('hex')}`;
     sandboxRoot = await mkdtemp(join(tmpdir(), 'koja-identity-root-'));
@@ -712,11 +722,9 @@ describe('scripts/sandbox', () => {
   test.each(['down', 'restart', 'up'])(
     'refuses to %s a sandbox that another checkout holds',
     async (command) => {
-      const other = join(root, 'other-checkout');
       const program = join(fakes, 'herdr-app-fake');
+      const other = await installOtherCheckout();
 
-      await writeCheckout(other);
-      await installIntoSandbox(other);
       await writeProgram(program, 'exit 0');
       await writeRuta('ruta is up', 0);
 
@@ -730,10 +738,8 @@ describe('scripts/sandbox', () => {
   );
 
   test.each(['log', 'opened', 'shot'])('reads through %s without refusing', async (command) => {
-    const other = join(root, 'other-checkout');
+    const other = await installOtherCheckout();
 
-    await writeCheckout(other);
-    await installIntoSandbox(other);
     await writeRuta('ruta is up', 0);
 
     const result = await runSandbox(command, { RUTA_NAME: name });
@@ -745,24 +751,21 @@ describe('scripts/sandbox', () => {
   });
 
   test('reads the window status without refusing', async () => {
-    const other = join(root, 'other-checkout');
+    const other = await installOtherCheckout();
 
-    await writeCheckout(other);
-    await installIntoSandbox(other);
-    await writeWindow(0);
+    await writeProgram(join(sandboxRoot, 'bin', 'herdr-app'), "echo 'window answers'");
 
     const result = await runSandbox('status', { RUTA_NAME: name });
 
     expect(result.exitCode).toBe(0);
+    expect(result.output).toContain('window answers');
     expect(result.output).not.toContain(other);
     expect(await Bun.file(join(fakes, 'calls')).exists()).toBe(false);
   });
 
   test('reports the holder through identity instead of refusing', async () => {
-    const other = join(root, 'other-checkout');
+    const other = await installOtherCheckout();
 
-    await writeCheckout(other);
-    await installIntoSandbox(other);
     await writeRuta('ruta is up', 0);
     await writeWindow(0);
 
@@ -774,10 +777,7 @@ describe('scripts/sandbox', () => {
   });
 
   test('prints the rules through guide instead of refusing', async () => {
-    const other = join(root, 'other-checkout');
-
-    await writeCheckout(other);
-    await installIntoSandbox(other);
+    await installOtherCheckout();
     await writeRuta('ruta is up', 0);
 
     const result = await runSandbox('guide', { RUTA_NAME: name });
