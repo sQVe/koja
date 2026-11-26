@@ -105,7 +105,7 @@ describe('createPullScheduler stack reads', () => {
     expect(harness.calls).toHaveLength(3);
   });
 
-  test('a stack branch change waits for the window to be active', () => {
+  test('a stack branch change waits while the window is hidden', () => {
     const scheduler = harness.start({
       pulls: seededRepositoryPulls,
       readTimes: timesAt(schedulerRepository.key, start - 30_000),

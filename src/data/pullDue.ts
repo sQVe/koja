@@ -150,7 +150,7 @@ export const noteStart = (state: PullDueState, key: string, now: number): void =
 };
 
 // A stack that joins the reads makes the repository due at once, but only while the window is
-// active, as a timed read does.
+// visible, as a timed read does.
 export const noteBranches = (state: PullDueState, key: string, at: number): void => {
   const repository = repositoryToWrite(state, key);
 
