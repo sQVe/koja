@@ -5,6 +5,7 @@ import type { Element } from 'gpui-kit';
 import type { DrawnElement } from '../../tests/drawn.ts';
 import {
   click,
+  clickablesWithText,
   drawn,
   drawnIcons,
   drawnTexts,
@@ -72,7 +73,7 @@ const openChecks: ContentSectionOptions = {
   count: 3,
   open: true,
   parts: [
-    partNote({ part: 'checks', age: '6m ago' }),
+    partNote({ part: 'checks', age: '6m ago', onRetry: () => undefined }),
     statusRow({ mark: 'failing', name: 'typecheck', detail: 'Type mismatch', state: 'failing' }),
   ],
 };
@@ -88,7 +89,8 @@ describe('contentSection', () => {
     expect(texts).toContain('typecheck');
     expect(texts).toContain('failing');
     expect(texts).toContain('Type mismatch');
-    expect(texts.some((text) => text.includes('6m ago'))).toBe(true);
+    expect(drawnIcons(section)).toContain('circle-alert.svg');
+    expect(clickablesWithText(section, 'Retry')).toHaveLength(1);
     expect(drawnIcons(section)[0]).toBe('chevron-down.svg');
   });
 

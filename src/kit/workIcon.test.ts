@@ -7,7 +7,6 @@ import {
   drawnTooltips,
   elementWithIcon,
   elementWithTooltip,
-  elementsWithStyle,
 } from '../../tests/drawn.ts';
 import { gpuiBaseFake, gpuiKitFake, herdrFake } from '../../tests/moduleFakes.ts';
 
@@ -74,8 +73,8 @@ describe('workIcon', () => {
   });
 
   test('a bare need keeps no slot of its own, while the default keeps one', () => {
-    expect(elementsWithStyle(workIcon('failing'), 'size')).toHaveLength(2);
-    expect(elementsWithStyle(workIcon('failing', { bare: true }), 'size')).toHaveLength(1);
+    expect(workIcon('failing').styles['size']).toBeDefined();
+    expect(workIcon('failing', { bare: true }).styles['size']).toBeUndefined();
   });
 
   test('the empty slot draws no icon and no tooltip', () => {

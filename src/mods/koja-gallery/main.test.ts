@@ -1,6 +1,6 @@
 import { afterAll, beforeEach, describe, expect, mock, setSystemTime, test } from 'bun:test';
 
-import { click, clickablesWithText, drawnTexts } from '../../../tests/drawn.ts';
+import { click, clickablesWithText, descendants, drawnTexts } from '../../../tests/drawn.ts';
 import type { DrawnElement } from '../../../tests/drawn.ts';
 import { mockGalleryModules } from '../../../tests/gallery.ts';
 import { heartbeatKey, leaseExpiryMilliseconds } from '../../data/lease.ts';
@@ -73,6 +73,29 @@ const openGallery = (): FakeView => {
 
 const liveTasks = (): DeadlineTask[] => tasks.filter((task) => !task.cancelled);
 
+// The Checks section that draws this age, which tells the live specimen from the stale one.
+const checksSectionWith = (gallery: DrawnElement, age: string): DrawnElement => {
+  const found = descendants(gallery).find(
+    (part) => clickablesWithText(part, 'Checks').length === 1 && drawnTexts(part).includes(age),
+  );
+
+  if (found === undefined) {
+    throw new Error(`The gallery draws no Checks section with ${age}.`);
+  }
+
+  return found;
+};
+
+const checksHeaderOf = (gallery: DrawnElement, age: string): DrawnElement => {
+  const [header] = clickablesWithText(checksSectionWith(gallery, age), 'Checks');
+
+  if (header === undefined) {
+    throw new Error('The Checks section draws no foldable header.');
+  }
+
+  return header;
+};
+
 beforeEach(() => {
   sharedValues = { [snapshotKey]: { version: 6, revision: 1, facts: emptyFacts() } };
   tasks = [];
@@ -135,15 +158,7 @@ describe('gallery section folding', () => {
   test('folds one Checks specimen without folding the other, then opens it again', () => {
     const view = openGallery();
     const before = view.render(context);
-    const headers = clickablesWithText(before, 'Checks');
-
-    expect(headers).toHaveLength(2);
-
-    const [liveHeader] = headers;
-
-    if (liveHeader === undefined) {
-      throw new Error('The gallery draws no Checks header.');
-    }
+    const liveHeader = checksHeaderOf(before, 'started 2m ago');
 
     click(liveHeader, context);
 

@@ -134,7 +134,7 @@ const isDrawn = (value: unknown): value is DrawnElement =>
   value !== null &&
   (value as Partial<DrawnElement>).drawn === drawnBrand;
 
-const descendants = (element: DrawnElement): DrawnElement[] => [
+export const descendants = (element: DrawnElement): DrawnElement[] => [
   element,
   ...element.kids.filter(isDrawn).flatMap(descendants),
 ];
