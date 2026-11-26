@@ -1,0 +1,41 @@
+{
+  "schemaVersion": 1,
+  "repository": "",
+  "stacks": [
+    {
+      "trunk": {
+        "branch": "main",
+        "head": "fcacf79ff51ea778293a32460b14066356f3318d"
+      },
+      "branches": [
+        {
+          "branch": "add-search",
+          "base": "fcacf79ff51ea778293a32460b14066356f3318d"
+        },
+        {
+          "branch": "add-search-ui"
+        },
+        {
+          "branch": "add-search-tests",
+          "base": "d05d6218226bd13d48cbf8d4a00df774dbb45cb2"
+        }
+      ]
+    },
+    {
+      "trunk": {
+        "branch": "main",
+        "head": "fcacf79ff51ea778293a32460b14066356f3318d"
+      },
+      "branches": [
+        {
+          "branch": "fix-crash",
+          "base": "fcacf79ff51ea778293a32460b14066356f3318d"
+        },
+        {
+          "branch": "fix-crash-tests",
+          "base": "33cc8d7fd49ff3fd3841498f0a8c3208f7c1f6f9"
+        }
+      ]
+    }
+  ]
+}
