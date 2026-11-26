@@ -81,6 +81,8 @@ describe('gallery content samples', () => {
     const texts = drawnTexts(retried);
 
     expect(clickablesWithText(retried, 'Retry')).toEqual([]);
+    expect(texts).not.toContain('Retry');
+    expect(texts.some((text) => text.includes('6m ago'))).toBe(false);
     expect(texts).toContain('started 2m ago');
   });
 

@@ -193,9 +193,11 @@ describe('gallery retry wiring', () => {
 
     expect(notifyCalls).toBe(1);
 
-    const after = view.render(context);
+    const after = drawnTexts(view.render(context));
 
-    expect(drawnTexts(after)).not.toContain('started 8m ago');
-    expect(drawnTexts(after)).toContain('started 2m ago');
+    expect(after).not.toContain('started 8m ago');
+    expect(after).not.toContain('started 7m ago');
+    expect(after.some((text) => text.includes('6m ago'))).toBe(false);
+    expect(after).toContain('started 2m ago');
   });
 });
