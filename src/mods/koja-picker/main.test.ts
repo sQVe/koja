@@ -242,7 +242,6 @@ const asyncContext = {
     return bindings.length;
   },
   focus_handle: () => ({ focus: () => undefined, is_focused: () => false }),
-  sleep: async () => undefined,
   spawn: () => undefined,
   timer: {
     after: (_milliseconds: number, handler: (cx: unknown) => void) => {
@@ -641,6 +640,21 @@ describe('picker overlay state', () => {
     view.render();
 
     expect(sharedValues[selectionKey]).toBe('s1-pane-2');
+  });
+
+  test('closing the list clears the pane it published', async () => {
+    const { space, pane } = spaceWithOnePane('s1');
+
+    spaceList = [space];
+    paneList = [pane];
+    overlayNow = 'overlay-3';
+
+    const view = await loadView();
+
+    view.init(undefined, asyncContext);
+    view.close();
+
+    expect(sharedValues[selectionKey]).toBeNull();
   });
 
   test('escape records one close and closes the picker', async () => {

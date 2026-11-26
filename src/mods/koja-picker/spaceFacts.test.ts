@@ -161,7 +161,7 @@ const stored = (
       | undefined;
 
     repositories[repository.key] = {
-      failed: pull.failed === true || existing?.failed === true,
+      failed: pull.failed ?? existing?.failed ?? false,
       pulls: [...(existing?.pulls ?? []), parsed],
     };
   }
@@ -369,6 +369,32 @@ describe('spaceFacts', () => {
     expect(facts['s1']).toEqual({ project: 'notes', pull: null, need: null });
   });
 
+  test('keeps a repository failed when one of its pulls failed to refresh', () => {
+    stored(
+      [
+        {
+          root: '/code/notes',
+          commonDirectory: '/code/notes/.git',
+          branch: 'main',
+          linked: false,
+        },
+      ],
+      [
+        {
+          number: 7,
+          headRefName: 'main',
+          commonDirectory: '/code/notes/.git',
+          failed: true,
+        },
+        { number: 8, headRefName: 'other', commonDirectory: '/code/notes/.git' },
+      ],
+    );
+
+    const facts = spaceFactsOf([spaceAt('s1', '/code/notes')], []);
+
+    expect(facts['s1']).toEqual({ project: 'notes', pull: null, need: null });
+  });
+
   test('names both checkouts of one repository after its main checkout', () => {
     stored(
       [
@@ -435,6 +461,43 @@ describe('spaceFacts', () => {
     const pane = { ...paneAt('/code/koja'), branch: 'side' };
 
     expect(paneFactsOf(null, pane, pane.branch)?.pull).toBe(9);
+  });
+
+  test('answers the pull of a nested checkout over the outer one that records it', () => {
+    stored(
+      [
+        {
+          root: '/code',
+          commonDirectory: '/code/.git',
+          branch: 'outer',
+          linked: false,
+        },
+        {
+          root: '/code/widget',
+          commonDirectory: '/code/widget/.git',
+          branch: 'inner',
+          linked: false,
+        },
+      ],
+      [
+        { number: 11, headRefName: 'outer', commonDirectory: '/code/.git' },
+        { number: 42, headRefName: 'inner', commonDirectory: '/code/widget/.git' },
+      ],
+    );
+
+    const facts = (sharedValues[snapshotKey] as { facts: Facts }).facts;
+    const innerKey = placeOf(null, '/code/widget').key;
+    const entry = facts.git.places[innerKey] as { worktree: string };
+    const subfolder = placeOf(null, '/code/widget/src').key;
+
+    facts.git.places[innerKey] = { kind: 'none' };
+    facts.git.places[subfolder] = { kind: 'repository', worktree: entry.worktree };
+
+    const pane = { ...paneAt('/code/widget/lib'), branch: 'inner' };
+    const factsOfPane = paneFactsOf(null, pane, pane.branch);
+
+    expect(factsOfPane?.project).toBe('widget');
+    expect(factsOfPane?.pull).toBe(42);
   });
 
   test('answers no facts for a pane under a folder that is no repository', () => {

@@ -150,7 +150,10 @@ const factsWithPull = (): Facts => {
     pulls: {
       [repository.key]: {
         failed: false,
-        pulls: [pullFacts({ number: 41, headRefName: 'me-1189-go-to', title: 'Go to' })],
+        pulls: [
+          pullFacts({ number: 41, headRefName: 'me-1189-go-to', title: 'Go to' }),
+          pullFacts({ number: 42, headRefName: 'side', title: 'Side' }),
+        ],
       },
     },
   };
@@ -192,6 +195,23 @@ describe('previewHeader', () => {
 
     expect(drawnTexts(header)).toEqual(['koja', 'Gallery']);
     expect(drawnIcons(header)).not.toContain('git-branch.svg');
+  });
+
+  test('names the pull of the branch a pane reports outside every recorded folder', () => {
+    const first = terminalPane();
+
+    const elsewhere = {
+      ...terminalPane(),
+      pane: 'p2',
+      tab: 'k2',
+      cwd: '/code/elsewhere',
+      branch: 'side',
+    };
+
+    const header = headerOf([first, elsewhere], 'p2', factsWithPull());
+
+    expect(drawnTexts(header)).toContain('side');
+    expect(drawnTexts(header)).toContain('#42');
   });
 
   test('draws a mod pane over stored facts without a folder', () => {

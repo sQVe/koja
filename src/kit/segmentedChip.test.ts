@@ -62,6 +62,8 @@ describe('segmentedChip', () => {
     const hovered = drawn();
     const declare = chip.styles['hover']?.[0] as ((element: DrawnElement) => void) | undefined;
 
+    expect(declare).toBeDefined();
+
     declare?.(hovered);
 
     expect(hovered.borderColors).toContain(palette.selected);
@@ -75,6 +77,9 @@ describe('segmentedChip', () => {
       const part = elementWithText(chip, text);
       const declare = part?.styles['hover']?.[0] as ((element: DrawnElement) => void) | undefined;
 
+      expect(part).not.toBeNull();
+      expect(declare).toBeDefined();
+
       declare?.(ink);
 
       expect(ink.textColors).toContain(palette.foreground);
@@ -83,10 +88,15 @@ describe('segmentedChip', () => {
 
   test('an active chip declares no hover look of its own', () => {
     const chip = segmentedChip({ active: true, count: 8, label: 'All' });
+    const label = elementWithText(chip, 'All');
+    const count = elementWithText(chip, '8');
+
+    expect(label).not.toBeNull();
+    expect(count).not.toBeNull();
 
     expect(chip.styles['hover']).toBeUndefined();
-    expect(elementWithText(chip, 'All')?.styles['hover']).toBeUndefined();
-    expect(elementWithText(chip, '8')?.styles['hover']).toBeUndefined();
+    expect(label?.styles['hover']).toBeUndefined();
+    expect(count?.styles['hover']).toBeUndefined();
   });
 
   test('draws its start element before the label and the count', () => {

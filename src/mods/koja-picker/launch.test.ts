@@ -95,14 +95,7 @@ const hostWith = (answer: { code: number; stdout: string }, watching = true): Pr
   },
 });
 
-const taskContext = {
-  sleep: async () => undefined,
-  timer: {
-    after: (_milliseconds: number, handler: () => void) => {
-      handler();
-    },
-  },
-};
+const taskContext = { sleep: async () => undefined };
 
 const spawnNow = {
   spawn: (body: (cx: unknown) => unknown) => {
@@ -162,6 +155,8 @@ describe('launch', () => {
     expect(listPropsOf(spec)['preview']).toBeUndefined();
     expect(closed).toEqual(['overlay-3']);
     expect(ran).toEqual([]);
+    expect(killed).toEqual([]);
+    expect(removed).toEqual(['/tmp/koja-picker.test']);
     expect(settled).toBe(1);
   });
 
@@ -196,6 +191,9 @@ describe('launch', () => {
     expect(partsOf(spec)).toEqual(['list', 'preview-header', 'footer']);
     expect(terminalsOf(spec)).toEqual(['w1:p1']);
     expect(closed).toEqual(['overlay-3']);
+    // The list that opens next owns the viewer, so the launcher's close leaves it alone.
+    expect(killed).toEqual([]);
+    expect(removed).toEqual([]);
     expect(settled).toBe(1);
   });
 });
