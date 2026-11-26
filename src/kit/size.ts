@@ -57,10 +57,10 @@ export const controlSize = {
   badge: 18,
   button: 22,
   dialogButton: 24,
-  sceneAction: 28,
   paneLabelMaxWidth: 260,
   // Keeps the pane name, such as "Pi", whole when the header is narrow.
   paneLabelMinWidth: 12,
+  sceneAction: 28,
   searchField: 40,
   sectionHeader: 26,
   // One width for a split button and its menu, so the menu lines up with both edges.

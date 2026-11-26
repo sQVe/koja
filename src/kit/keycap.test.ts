@@ -50,7 +50,7 @@ describe('keycap', () => {
     expect(drawnTexts(keycap('H'))).toEqual(['⇧H']);
   });
 
-  test('draws the dim glyph in the border outline at the terminal font', () => {
+  test('draws a dim glyph on the popover fill in the border outline at the terminal font', () => {
     const cap = keycap('w');
     const glyph = elementsWithStyle(cap, 'font_family')[0];
 
@@ -69,11 +69,12 @@ describe('keycap', () => {
   });
 
   test('a button keycap draws its ink with a half-strength outline and no fill', () => {
-    const cap = buttonKeycap('↵', palette.accent);
+    const ink = '#123456';
+    const cap = buttonKeycap('↵', ink);
     const glyph = elementsWithStyle(cap, 'font_family')[0];
 
-    expect(glyph?.textColors).toContain(palette.accent);
-    expect(cap.borderColors).toContain(`${palette.accent}${keycapOutlineAlpha}`);
+    expect(glyph?.textColors).toContain(ink);
+    expect(cap.borderColors).toContain(`${ink}${keycapOutlineAlpha}`);
     expect(cap.backgroundColors).toEqual([]);
   });
 
