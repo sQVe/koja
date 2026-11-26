@@ -7,6 +7,7 @@ import {
   checking,
   focused,
   openOverlay,
+  playSound,
   props,
   readTextFile,
   run,
@@ -54,10 +55,15 @@ interface Snapshot {
   live: Ask[];
   visible: Ask[];
   handled: string[];
+  sounded: string[];
   open: OpenCard | null;
 }
 
 const handledKey = 'koja-asks.handled';
+
+const soundedKey = 'koja-asks.sounded';
+
+const blockedSound = 'blocked';
 
 const openKey = 'koja-asks.open';
 
@@ -275,6 +281,7 @@ export default class KojaAsks extends View {
       live,
       visible,
       handled: stringListOf(shared(handledKey)),
+      sounded: stringListOf(shared(soundedKey)),
       open: openStateOf(shared(openKey)),
     };
   }
@@ -284,6 +291,7 @@ export default class KojaAsks extends View {
       asks: snapshot.asks,
       live: snapshot.live,
       handled: snapshot.handled,
+      sounded: snapshot.sounded,
       visible: snapshot.visible.map((ask) => ask.identity),
       open: snapshot.open,
       signatures,
@@ -293,6 +301,10 @@ export default class KojaAsks extends View {
   private applyPlan(plan: CardPlan, contents: ReadonlyMap<string, CardContent>): void {
     if (plan.handledChanged) {
       setShared(handledKey, plan.handled);
+    }
+
+    if (plan.soundedChanged) {
+      setShared(soundedKey, plan.sounded);
     }
 
     if (plan.close !== null) {
@@ -305,6 +317,10 @@ export default class KojaAsks extends View {
 
       if (content !== undefined) {
         this.openCard(plan.open, content);
+
+        if (plan.sound) {
+          playSound(blockedSound);
+        }
       }
     }
   }
