@@ -58,6 +58,7 @@ describe('previewError', () => {
       },
     });
 
+    expect(drawnTexts(element)).toContain('The preview could not start.');
     expect(drawnIcons(element)).toContain('circle-alert.svg');
 
     const retry = clickablesWithText(element, 'Retry').at(0);

@@ -4,6 +4,7 @@ import type { PaneInfo, SpaceInfo } from 'herdr';
 
 import { herdrFake } from '../../../tests/moduleFakes.ts';
 import { pullFacts } from '../../../tests/pullFacts.ts';
+import type { Facts } from '../../data/snapshot.ts';
 
 interface WorktreeFixture {
   root: string;
@@ -35,17 +36,35 @@ const { repositoryOf, worktreeOf, placeOf } = await import('../../data/gitIdenti
 const { heartbeatKey } = await import('../../data/lease.ts');
 const { snapshotKey, snapshotVersion } = await import('../../data/snapshot.ts');
 
-const { paneFacts, spaceFacts } = (await import('./spaceFacts.ts')) as {
+const { paneFacts, spaceFacts, storedFacts } = (await import('./spaceFacts.ts')) as {
   spaceFacts: (
+    facts: Facts | null,
     spaceList: SpaceInfo[],
     paneList: PaneInfo[],
   ) => Record<string, { project: string; pull: number | null; need: string | null }>;
   paneFacts: (
+    facts: Facts | null,
     machine: string | null,
     pane: PaneInfo,
     branch: string | null,
   ) => { project: string; pull: number | null; need: string | null } | null;
+  storedFacts: () => Facts | null;
 };
+
+const factsOf = (): Facts | null => storedFacts();
+
+const spaceFactsOf = (
+  spaceList: SpaceInfo[],
+  paneList: PaneInfo[],
+): Record<string, { project: string; pull: number | null; need: string | null }> =>
+  spaceFacts(factsOf(), spaceList, paneList);
+
+const paneFactsOf = (
+  machine: string | null,
+  pane: PaneInfo,
+  branch: string | null,
+): { project: string; pull: number | null; need: string | null } | null =>
+  paneFacts(factsOf(), machine, pane, branch);
 
 afterAll(() => {
   mock.restore();
@@ -179,7 +198,7 @@ describe('spaceFacts', () => {
       ],
     );
 
-    const facts = spaceFacts([spaceAt('s1', '/code/koja/me-1189')], []);
+    const facts = spaceFactsOf([spaceAt('s1', '/code/koja/me-1189')], []);
 
     expect(facts['s1']).toEqual({ project: 'koja', pull: 41, need: 'conflict' });
   });
@@ -197,7 +216,7 @@ describe('spaceFacts', () => {
       [{ number: 7, headRefName: 'main', commonDirectory: '/code/notes/.git' }],
     );
 
-    const facts = spaceFacts([spaceAt('s1', '/code/notes')], []);
+    const facts = spaceFactsOf([spaceAt('s1', '/code/notes')], []);
 
     expect(facts['s1']?.project).toBe('notes');
     expect(facts['s1']?.pull).toBe(7);
@@ -216,7 +235,7 @@ describe('spaceFacts', () => {
       [{ number: 7, headRefName: 'main', commonDirectory: '/code/notes/.git' }],
     );
 
-    const facts = spaceFacts([spaceAt('s1', '/code/notes')], []);
+    const facts = spaceFactsOf([spaceAt('s1', '/code/notes')], []);
 
     expect(facts['s1']).toEqual({ project: 'notes', pull: null, need: null });
   });
@@ -242,7 +261,7 @@ describe('spaceFacts', () => {
       ],
     );
 
-    const facts = spaceFacts([spaceAt('s1', '/code/notes')], []);
+    const facts = spaceFactsOf([spaceAt('s1', '/code/notes')], []);
 
     expect(facts['s1']?.need).toBe('conflict');
   });
@@ -260,7 +279,7 @@ describe('spaceFacts', () => {
       [],
     );
 
-    const facts = spaceFacts([spaceAt('s1', '/code/bare.git')], []);
+    const facts = spaceFactsOf([spaceAt('s1', '/code/bare.git')], []);
 
     expect(facts['s1']?.project).toBe('bare');
   });
@@ -278,7 +297,7 @@ describe('spaceFacts', () => {
       [],
     );
 
-    const facts = spaceFacts([spaceAt('s1', '/code/work/repo')], []);
+    const facts = spaceFactsOf([spaceAt('s1', '/code/work/repo')], []);
 
     expect(facts['s1']?.project).toBe('repo');
   });
@@ -286,7 +305,7 @@ describe('spaceFacts', () => {
   test('names a folder that is no repository after itself', () => {
     stored([], [], ['/code/plain']);
 
-    const facts = spaceFacts([spaceAt('s1', '/code/plain')], []);
+    const facts = spaceFactsOf([spaceAt('s1', '/code/plain')], []);
 
     expect(facts['s1']).toEqual({ project: 'plain', pull: null, need: null });
   });
@@ -319,7 +338,7 @@ describe('spaceFacts', () => {
     );
 
     const pane = { ...paneAt('/code/koja-side'), branch: 'side' };
-    const facts = paneFacts(null, pane, pane.branch);
+    const facts = paneFactsOf(null, pane, pane.branch);
 
     expect(facts).toEqual({ project: 'koja', pull: 9, need: 'conflict' });
   });
@@ -345,7 +364,7 @@ describe('spaceFacts', () => {
       ],
     );
 
-    const facts = spaceFacts([spaceAt('s1', '/code/notes')], []);
+    const facts = spaceFactsOf([spaceAt('s1', '/code/notes')], []);
 
     expect(facts['s1']).toEqual({ project: 'notes', pull: null, need: null });
   });
@@ -369,7 +388,7 @@ describe('spaceFacts', () => {
       [],
     );
 
-    const facts = spaceFacts(
+    const facts = spaceFactsOf(
       [spaceAt('s1', '/code/widget'), spaceAt('s2', '/code/widget-feature')],
       [],
     );
@@ -392,18 +411,39 @@ describe('spaceFacts', () => {
     );
 
     const pane = { ...paneAt('/code/widget/src'), branch: 'feature' };
-    const facts = paneFacts(null, pane, pane.branch);
+    const facts = paneFactsOf(null, pane, pane.branch);
 
     expect(facts).toEqual({ project: 'widget', pull: 42, need: null });
+  });
+
+  test('answers the pull of the branch the pane reports, not the snapshot branch', () => {
+    stored(
+      [
+        {
+          root: '/code/koja',
+          commonDirectory: '/code/koja/.git',
+          branch: 'main',
+          linked: false,
+        },
+      ],
+      [
+        { number: 5, headRefName: 'main', commonDirectory: '/code/koja/.git' },
+        { number: 9, headRefName: 'side', commonDirectory: '/code/koja/.git' },
+      ],
+    );
+
+    const pane = { ...paneAt('/code/koja'), branch: 'side' };
+
+    expect(paneFactsOf(null, pane, pane.branch)?.pull).toBe(9);
   });
 
   test('answers no facts for a folder the data layer has not read', () => {
     stored([], []);
 
-    expect(spaceFacts([spaceAt('s1', '/code/unknown')], [])).toEqual({});
+    expect(spaceFactsOf([spaceAt('s1', '/code/unknown')], [])).toEqual({});
   });
 
   test('answers no facts before the data layer has published anything', () => {
-    expect(spaceFacts([spaceAt('s1', '/code/notes')], [])).toEqual({});
+    expect(spaceFactsOf([spaceAt('s1', '/code/notes')], [])).toEqual({});
   });
 });

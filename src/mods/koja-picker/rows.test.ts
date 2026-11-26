@@ -81,6 +81,7 @@ const data = (overrides: Partial<PickerData> = {}, terminalList: unknown[] = [])
     panes,
     terminals: terminalList,
     statuses: rollupStatuses(spaces, panes, terminalList),
+    stored: null,
     facts: {},
     recent: [],
     focus: {},

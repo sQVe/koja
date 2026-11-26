@@ -71,6 +71,7 @@ const dataWith = (statuses: (Status | null)[]): PickerData => ({
     spaces: Object.fromEntries(statuses.map((status, index) => [`s${index}`, status])),
     tabs: {},
   },
+  stored: null,
   facts: {},
   recent: [],
   focus: {},

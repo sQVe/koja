@@ -17,6 +17,7 @@ let opened: OpenedOverlay[] = [];
 let spawned: Promise<unknown>[] = [];
 let closed: (string | null)[] = [];
 let ran: string[] = [];
+let settled = 0;
 
 Object.assign(globalThis, { kojaModName: 'koja-picker' });
 
@@ -73,6 +74,7 @@ beforeEach(() => {
   spawned = [];
   closed = [];
   ran = [];
+  settled = 0;
 });
 
 const hostWith = (answer: { code: number; stdout: string }): PreviewHost => ({
@@ -123,7 +125,9 @@ const start = (answer: { code: number; stdout: string }): void => {
     spawnNow,
     session,
     () => undefined,
-    () => undefined,
+    () => {
+      settled += 1;
+    },
   );
 };
 
@@ -141,6 +145,7 @@ describe('launch', () => {
     expect(listPropsOf(spec)['preview']).toBeUndefined();
     expect(closed).toEqual(['overlay-3']);
     expect(ran).toEqual([]);
+    expect(settled).toBe(1);
   });
 
   test('a preview that starts shows the terminal under the preview header', async () => {
@@ -160,5 +165,6 @@ describe('launch', () => {
     expect(partsOf(spec)).toEqual(['list', 'preview-header', 'footer']);
     expect(terminalsOf(spec)).toEqual(['w1:p1']);
     expect(closed).toEqual(['overlay-3']);
+    expect(settled).toBe(1);
   });
 });

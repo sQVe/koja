@@ -10,6 +10,9 @@ import {
   herdrFake,
   realKitIndexFake,
 } from '../../../tests/moduleFakes.ts';
+import { pullFacts } from '../../../tests/pullFacts.ts';
+import type { Facts } from '../../data/snapshot.ts';
+import type { PreviewTarget } from './previewHeader.ts';
 import type { PickerData } from './rows.ts';
 
 const palette = {
@@ -51,9 +54,11 @@ await mock.module('../../kit/index.ts', () =>
 const modulePath = './previewHeader.ts';
 
 const { previewHeader, previewTargetOf } = (await import(modulePath)) as {
-  previewHeader: (target: unknown) => DrawnElement;
-  previewTargetOf: (data: PickerData, paneId: string | null) => unknown;
+  previewHeader: (target: PreviewTarget | null) => DrawnElement;
+  previewTargetOf: (data: PickerData, paneId: string | null) => PreviewTarget | null;
 };
+
+const { placeOf, repositoryOf, worktreeOf } = await import('../../data/gitIdentity.ts');
 
 afterAll(() => {
   mock.restore();
@@ -125,18 +130,48 @@ const modPane = (): PaneInfo =>
     zoomed: false,
   }) as unknown as PaneInfo;
 
-const dataWith = (paneList: PaneInfo[]): PickerData => ({
+const factsWithPull = (): Facts => {
+  const place = placeOf(null, '/code/koja');
+  const worktree = worktreeOf(null, '/code/koja');
+  const repository = repositoryOf(null, '/code/koja/.git');
+
+  return {
+    git: {
+      places: { [place.key]: { kind: 'repository', worktree: worktree.key } },
+      worktrees: {
+        [worktree.key]: {
+          repository,
+          root: '/code/koja',
+          branch: 'me-1189-go-to',
+          linked: false,
+        },
+      },
+    },
+    pulls: {
+      [repository.key]: {
+        failed: false,
+        pulls: [pullFacts({ number: 41, headRefName: 'me-1189-go-to', title: 'Go to' })],
+      },
+    },
+  };
+};
+
+const dataWith = (paneList: PaneInfo[], stored: Facts | null = null): PickerData => ({
   spaces: [spaceOf([tabOf('k1'), tabOf('k2')])],
   panes: paneList,
   terminals: [],
   statuses: { spaces: {}, tabs: {} },
+  stored,
   facts: {},
   recent: [],
   focus: {},
 });
 
-const headerOf = (paneList: PaneInfo[], paneId: string): DrawnElement =>
-  previewHeader(previewTargetOf(dataWith(paneList), paneId));
+const headerOf = (
+  paneList: PaneInfo[],
+  paneId: string,
+  stored: Facts | null = null,
+): DrawnElement => previewHeader(previewTargetOf(dataWith(paneList, stored), paneId));
 
 describe('previewHeader', () => {
   test('names the space, the pane, and the whole branch of a terminal', () => {
@@ -144,6 +179,12 @@ describe('previewHeader', () => {
 
     expect(drawnTexts(header)).toEqual(['koja', 'Pi', 'me-1189-go-to']);
     expect(drawnIcons(header)).toContain('git-branch.svg');
+  });
+
+  test('names the pull of the branch the pane is on', () => {
+    const header = headerOf([terminalPane()], 'p1', factsWithPull());
+
+    expect(drawnTexts(header)).toContain('#41');
   });
 
   test('draws a mod pane without a branch or a status', () => {

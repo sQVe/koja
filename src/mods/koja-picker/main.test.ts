@@ -31,6 +31,7 @@ let checkingNow = false;
 let overlayNow: string | null = null;
 let sideEffects: string[] = [];
 let clickHandlers: (() => void)[] = [];
+let spawned: Promise<unknown>[] = [];
 
 const recordEffect =
   (name: string, result: unknown) =>
@@ -248,7 +249,7 @@ const asyncContext = {
 const renderedContext = {
   notify: () => undefined,
   spawn: (body: (cx: unknown) => unknown) => {
-    void body(asyncContext);
+    spawned.push(Promise.resolve(body(asyncContext)));
   },
   stop_propagation: () => undefined,
 };
@@ -278,12 +279,11 @@ beforeEach(() => {
   overlayNow = null;
   sideEffects = [];
   clickHandlers = [];
+  spawned = [];
 });
 
 const settle = async (): Promise<void> => {
-  for (let index = 0; index < 20; index += 1) {
-    await Promise.resolve();
-  }
+  await Promise.all(spawned);
 };
 
 const spaceWithOnePane = (id: string): { space: SpaceInfo; pane: PaneInfo } => {
@@ -481,6 +481,7 @@ describe('picker preview during herdr-app check', () => {
 describe('picker preview error', () => {
   test('the Retry on the error part starts the preview again, once', async () => {
     props = { part: 'preview-error' };
+    overlayNow = 'overlay-3';
 
     const view = await loadView();
 
@@ -501,6 +502,29 @@ describe('picker preview error', () => {
     const attempts = sideEffects.filter((effect) => effect.startsWith('exec mktemp'));
 
     expect(attempts).toHaveLength(1);
+
+    // A settled attempt offers Retry again, so a second failure is not a dead end.
+    view.render();
+
+    expect(clickHandlers).toHaveLength(2);
+  });
+
+  test('the Retry starts nothing while Herdr runs its app check', async () => {
+    props = { part: 'preview-error' };
+    overlayNow = 'overlay-3';
+    checkingNow = true;
+
+    const view = await loadView();
+
+    view.init(undefined, asyncContext);
+    view.render();
+
+    expect(clickHandlers).toHaveLength(1);
+
+    clickHandlers.at(-1)?.();
+    await settle();
+
+    expect(sideEffects).toEqual([]);
   });
 });
 
@@ -589,8 +613,8 @@ describe('picker overlay state', () => {
     const { space, pane } = spaceWithOnePane('s1');
     const other = { ...pane, pane: 's1-pane-2', focused: false };
 
-    spaceList = [space];
-    paneList = [pane, other];
+    spaceValues = [space];
+    paneValues = [pane, other];
 
     const view = await loadView();
 
@@ -599,7 +623,7 @@ describe('picker overlay state', () => {
 
     expect(sharedValues['koja-picker.selection']).toBe('s1-pane');
 
-    paneList = [
+    paneValues = [
       { ...pane, focused: false },
       { ...other, focused: true },
     ];
