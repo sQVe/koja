@@ -163,22 +163,31 @@ describe('tabs saved panels', () => {
   });
 });
 
-// A press in the middle of a 22 px button whose right edge sits at x 212 and bottom at y 32.
-const pressPlus = (): void => {
-  if (plusButton === null) {
-    return;
-  }
+const pressedPlus = (): DrawnElement => {
+  expect(plusButton).not.toBeNull();
 
-  for (const handler of plusButton.mouseHandlers['on_mouse_down:left'] ?? []) {
+  return plusButton ?? drawn();
+};
+
+// A press in the middle of a 22 px button whose right edge sits at x 212 and bottom at y 32.
+const pressPlus = (event: Record<string, unknown> = {}): void => {
+  const plus = pressedPlus();
+
+  for (const handler of plus.mouseHandlers['on_mouse_down:left'] ?? []) {
     handler(
       {
         position: { x: 212 - 11, y: 32 - 11 },
         local_position: { x: 11, y: 11 },
         bounds: { width: 22, height: 22 },
+        ...event,
       },
       context,
     );
   }
+};
+
+const clickPlus = (): void => {
+  click(pressedPlus());
 };
 
 describe('the new menu button', () => {
@@ -187,10 +196,7 @@ describe('the new menu button', () => {
 
     view.render();
     pressPlus();
-
-    if (plusButton !== null) {
-      click(plusButton);
-    }
+    clickPlus();
 
     expect(overlaySpecs).toEqual([
       {
@@ -211,10 +217,7 @@ describe('the new menu button', () => {
 
     view.render();
     pressPlus();
-
-    if (plusButton !== null) {
-      click(plusButton);
-    }
+    clickPlus();
 
     const [opened] = overlaySpecs;
 
@@ -228,12 +231,18 @@ describe('the new menu button', () => {
     const view = new loaded.default();
 
     view.render();
+    pressPlus({ bounds: undefined, local_position: undefined });
+    clickPlus();
 
-    if (plusButton !== null) {
-      click(plusButton);
-    }
-
-    expect(overlaySpecs[0]?.['at']).toBeUndefined();
+    expect(overlaySpecs).toEqual([
+      {
+        mod: 'koja-new-menu',
+        kind: 'popup',
+        frame: 'none',
+        width: overlaySize.newMenuWidth,
+        height: overlaySize.wideMenuHeight,
+      },
+    ]);
   });
 
   test('draws the plus pressed while the menu is open', () => {
