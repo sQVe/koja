@@ -1,5 +1,5 @@
 import { h_flex, v_flex } from 'gpui-base';
-import type { AsyncContext, Context, Element, FocusHandle, KeyEvent } from 'gpui-kit';
+import type { AsyncContext, Context, Element, FocusHandle } from 'gpui-kit';
 import { div, View } from 'gpui-kit';
 import { checking, knownAgents, panes, run, setShared, shared, spaces } from 'herdr';
 
@@ -128,9 +128,6 @@ export default class NewMenu extends View {
       .on_mouse_down('left', (_event, cx) => {
         cx.stop_propagation();
       })
-      .on_key_down((event) => {
-        this.onKey(event);
-      })
       .child(heading('New tab'))
       .child(this.row(this.terminalRow(), 'selected'))
       .child(this.agentRows())
@@ -180,12 +177,6 @@ export default class NewMenu extends View {
         taskCx.notify();
       }
     });
-  }
-
-  private onKey(event: KeyEvent): void {
-    if (event.key === 'escape') {
-      closeOverlay();
-    }
   }
 
   private hint(action: string): Element[] {

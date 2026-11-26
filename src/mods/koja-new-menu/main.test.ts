@@ -16,6 +16,7 @@ import {
 } from '../../../tests/moduleFakes.ts';
 import { placeOf, repositoryOf, worktreeOf } from '../../data/gitIdentity.ts';
 import { emptyFacts, snapshotKey } from '../../data/snapshot.ts';
+import { newMenuOpenKey } from '../../kit/newMenu.ts';
 
 Object.assign(globalThis, { kojaModName: 'koja-new-menu' });
 
@@ -136,6 +137,7 @@ await mock.module('herdr', () =>
 const kitParts = [
   'binding',
   'button',
+  'newMenu',
   'hover',
   'icon',
   'keycap',
@@ -157,8 +159,6 @@ const kitParts = [
 const kitFake = await realKitIndexFake(kitParts);
 
 await mock.module('../../kit/index.ts', () => kitFake);
-
-const newMenuOpenKey = 'koja-new-menu.open';
 
 const modulePath = './main.ts';
 
@@ -284,6 +284,7 @@ describe('new menu', () => {
       click(row);
     }
 
+    expect(closedOverlays).toEqual(['overlay-1']);
     expect(runCalls).toEqual([{ command: 'tab.new', args: { space: 'space-1' } }]);
   });
 
@@ -335,19 +336,6 @@ describe('new menu', () => {
     expect(sharedWrites.at(-1)).toEqual({ key: newMenuOpenKey, value: false });
   });
 
-  test('closes the overlay when Escape is pressed', async () => {
-    const view = await openMenu();
-    const [card] = elementsWithStyle(view.render(), 'on_key_down');
-
-    const handler = card?.styles['on_key_down']?.[0] as
-      | ((event: { key: string }) => void)
-      | undefined;
-
-    handler?.({ key: 'escape' });
-
-    expect(closedOverlays).toEqual(['overlay-1']);
-  });
-
   test('keeps every agent of a long list reachable', async () => {
     const many = Array.from({ length: 20 }, (_unused, index) => agentOf(`Agent ${index}`, true));
 
@@ -392,6 +380,8 @@ describe('new menu', () => {
 
     const view = await openMenu();
     const [row] = clickablesWithText(view.render(), 'From a new worktree…');
+
+    expect(row).toBeDefined();
 
     if (row !== undefined) {
       click(row);
