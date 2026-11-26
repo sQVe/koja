@@ -31,9 +31,14 @@ const chainable = (): unknown =>
     apply: () => chainable(),
   });
 
+// Keeps the one element through a chain of style calls, so a handler set late still lands on it.
 const surface = (): unknown => {
   const element: unknown = new Proxy(() => undefined, {
     get: (_target, key) => {
+      if (key === 'then') {
+        return undefined;
+      }
+
       if (key === 'on_key_down') {
         return (handler: KeyHandler) => {
           keyDownHandler = handler;
@@ -42,7 +47,7 @@ const surface = (): unknown => {
         };
       }
 
-      return key === 'then' ? undefined : chainable();
+      return () => element;
     },
     apply: () => element,
   });
@@ -63,7 +68,8 @@ const inputStub = {
 await mock.module('gpui-base', () =>
   gpuiBaseFake({
     InputState: { new: () => inputStub },
-    v_flex: chainable,
+    h_flex: surface,
+    v_flex: surface,
   }),
 );
 
@@ -108,20 +114,33 @@ await mock.module('../../kit/index.ts', () =>
     closeOverlay: () => {
       closeOverlayCalls += 1;
     },
+    colors: () => ({ border: '#999ca7', muted: '#525460' }),
     currentWindow: () => null,
     detailText: chainable,
-    highlightedText: chainable,
+    footerLine: surface,
+    highlightedText: surface,
+    hintFor: () => ({ normal: [] }),
+    icon: surface,
     keyHint: chainable,
     listRow: chainable,
-    overlaySize: {},
+    mainColumnInsets: () => ({ left: 268, top: 34 }),
+    mainColumnPlacement: () => ({ left: 260, right: 8, top: 66 }),
+    overlayCard: surface,
+    overlayHeading: surface,
+    overlayHints: () => [],
+    overlayRow: surface,
+    overlaySize: { paletteWidth: 560, topOffset: 40 },
     popupSurface: surface,
+    scrollThumb: surface,
     searchField: chainable,
+    searchInputLine: surface,
     sectionHeader: chainable,
     shortcutFor: () => null,
-    spacing: {},
-    stateLine: chainable,
+    spacing: { hairline: 1, none: 0 },
+    stateLine: surface,
     stringOf: () => null,
     themeChoices: [],
+    thumbPlace: () => null,
   }),
 );
 

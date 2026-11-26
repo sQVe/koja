@@ -6,6 +6,8 @@ import {
   focusPaneTitles,
   swapPaneTitles,
 } from '../../kit/commandTitles.ts';
+import type { IconName } from '../../kit/iconNames.ts';
+import type { ModeHint } from '../../kit/shortcutBinding.ts';
 import type { ThemeChoice } from '../../kit/themes.ts';
 import type { FuzzyMatch } from './fuzzy.ts';
 import { fuzzyMatch } from './fuzzy.ts';
@@ -30,6 +32,7 @@ export interface Entry {
   group: string;
   title: string;
   words: string;
+  icon: IconName;
 }
 
 export interface Row {
@@ -38,7 +41,17 @@ export interface Row {
   positions: number[];
 }
 
-export type ShortcutLookup = (...actions: string[]) => string | null;
+export type HintLookup = (...actions: string[]) => ModeHint;
+
+export interface GroupHeading {
+  label: string;
+  letter: string | null;
+}
+
+export interface PaletteCount {
+  filtered: boolean;
+  count: number;
+}
 
 interface RankedRow extends Row {
   score: number;
@@ -50,9 +63,24 @@ interface NamedEntry {
   group: string;
   title: string;
   words: string;
+  icon: IconName;
 }
 
 const groups = ['Recent', 'Tab', 'Pane', 'Space', 'Layout', 'Terminal', 'Agent', 'Window', 'App'];
+
+// The part letters are fixed, so they are listed here rather than read from the key table, whose
+// shortest form for a pane is `h`.
+const headings: Record<string, GroupHeading> = {
+  Recent: { label: 'Recent', letter: null },
+  Tab: { label: 'Tabs', letter: 't' },
+  Pane: { label: 'Panes', letter: 'w' },
+  Space: { label: 'Spaces', letter: 's' },
+  Layout: { label: 'Layouts', letter: 'z' },
+  Terminal: { label: 'Terminals', letter: null },
+  Agent: { label: 'Agents', letter: null },
+  Window: { label: 'Window', letter: null },
+  App: { label: 'App', letter: null },
+};
 
 const recentShown = 5;
 
@@ -70,35 +98,44 @@ const shared = (
   { command, args, title }: CommandTitle,
   group: string,
   words: string,
-): NamedEntry => ({ name: command, args, group, title, words });
+  icon: IconName,
+): NamedEntry => ({ name: command, args, group, title, words, icon });
+
+const directionIcon = (direction: unknown): IconName =>
+  direction === 'left' || direction === 'right' ? 'columns-2' : 'rows-2';
 
 const namedEntries: NamedEntry[] = [
-  shared(commandTitles.newTab, 'Tab', 'tab agent new task'),
-  shared(commandTitles.openPicker, 'Tab', 'switch jump find'),
-  shared(commandTitles.renameTab, 'Tab', 'tab'),
-  shared(commandTitles.closeTab, 'Tab', 'tab kill'),
-  shared(commandTitles.nextTab, 'Tab', 'tab'),
-  shared(commandTitles.previousTab, 'Tab', 'tab'),
-  shared(commandTitles.moveTabLeft, 'Tab', 'tab reorder'),
-  shared(commandTitles.moveTabRight, 'Tab', 'tab reorder'),
-  shared(commandTitles.splitRight, 'Pane', 'vertical'),
-  shared(commandTitles.splitDown, 'Pane', 'horizontal'),
-  shared(commandTitles.closePane, 'Pane', 'kill'),
-  shared(commandTitles.zoomPane, 'Pane', 'maximize fullscreen'),
-  ...focusPaneTitles.map((focus) => shared(focus, 'Pane', 'move go')),
-  ...swapPaneTitles.map((swap) => shared(swap, 'Pane', 'move')),
-  shared(commandTitles.newSpace, 'Space', 'workspace'),
-  shared(commandTitles.renameSpace, 'Space', 'workspace'),
-  shared(commandTitles.closeSpace, 'Space', 'workspace kill'),
-  shared(commandTitles.nextSpace, 'Space', 'workspace'),
-  shared(commandTitles.previousSpace, 'Space', 'workspace'),
-  shared(commandTitles.nextLayout, 'Layout', 'look switch'),
+  shared(commandTitles.newTab, 'Tab', 'tab agent new task', 'plus'),
+  shared(commandTitles.openPicker, 'Tab', 'switch jump find', 'search'),
+  shared(commandTitles.renameTab, 'Tab', 'tab', 'square-pen'),
+  shared(commandTitles.closeTab, 'Tab', 'tab kill', 'x'),
+  shared(commandTitles.nextTab, 'Tab', 'tab', 'chevron-right'),
+  shared(commandTitles.previousTab, 'Tab', 'tab', 'chevron-left'),
+  shared(commandTitles.moveTabLeft, 'Tab', 'tab reorder', 'chevron-left'),
+  shared(commandTitles.moveTabRight, 'Tab', 'tab reorder', 'chevron-right'),
+  shared(commandTitles.splitRight, 'Pane', 'vertical', 'panel-right'),
+  shared(commandTitles.splitDown, 'Pane', 'horizontal', 'panel-bottom'),
+  shared(commandTitles.closePane, 'Pane', 'kill', 'x'),
+  shared(commandTitles.zoomPane, 'Pane', 'maximize fullscreen', 'maximize-2'),
+  ...focusPaneTitles.map((focus) =>
+    shared(focus, 'Pane', 'move go', directionIcon(focus.args['direction'])),
+  ),
+  ...swapPaneTitles.map((swap) =>
+    shared(swap, 'Pane', 'move', directionIcon(swap.args['direction'])),
+  ),
+  shared(commandTitles.newSpace, 'Space', 'workspace', 'plus'),
+  shared(commandTitles.renameSpace, 'Space', 'workspace', 'square-pen'),
+  shared(commandTitles.closeSpace, 'Space', 'workspace kill', 'x'),
+  shared(commandTitles.nextSpace, 'Space', 'workspace', 'chevron-right'),
+  shared(commandTitles.previousSpace, 'Space', 'workspace', 'chevron-left'),
+  shared(commandTitles.nextLayout, 'Layout', 'look switch', 'layers'),
   {
     name: 'layout.reset',
     args: {},
     group: 'Layout',
     title: 'Reset layout',
     words: "new version default restore herdr's",
+    icon: 'layers',
   },
   {
     name: 'layout.clone',
@@ -106,6 +143,7 @@ const namedEntries: NamedEntry[] = [
     group: 'Layout',
     title: 'Duplicate layout',
     words: 'clone copy customize',
+    icon: 'layers',
   },
   {
     name: 'mod.clone',
@@ -113,25 +151,63 @@ const namedEntries: NamedEntry[] = [
     group: 'Layout',
     title: 'Duplicate mod',
     words: 'clone copy customize',
+    icon: 'layers',
   },
-  { name: 'terminal.open', args: {}, group: 'Terminal', title: 'New terminal', words: 'shell' },
-  { name: 'terminal.copy', args: {}, group: 'Terminal', title: 'Copy', words: 'clipboard' },
-  { name: 'terminal.paste', args: {}, group: 'Terminal', title: 'Paste', words: 'clipboard' },
-  { name: 'window.minimize', args: {}, group: 'Window', title: 'Minimize window', words: '' },
+  {
+    name: 'terminal.open',
+    args: {},
+    group: 'Terminal',
+    title: 'New terminal',
+    words: 'shell',
+    icon: 'plus',
+  },
+  {
+    name: 'terminal.copy',
+    args: {},
+    group: 'Terminal',
+    title: 'Copy',
+    words: 'clipboard',
+    icon: 'terminal',
+  },
+  {
+    name: 'terminal.paste',
+    args: {},
+    group: 'Terminal',
+    title: 'Paste',
+    words: 'clipboard',
+    icon: 'terminal',
+  },
+  {
+    name: 'window.minimize',
+    args: {},
+    group: 'Window',
+    title: 'Minimize window',
+    words: '',
+    icon: 'minimize-2',
+  },
   {
     name: 'window.maximize',
     args: {},
     group: 'Window',
     title: 'Maximize window',
     words: 'restore',
+    icon: 'maximize-2',
   },
-  { name: 'window.close', args: {}, group: 'Window', title: 'Close window', words: 'quit' },
+  {
+    name: 'window.close',
+    args: {},
+    group: 'Window',
+    title: 'Close window',
+    words: 'quit',
+    icon: 'x',
+  },
   {
     name: 'app.settings',
     args: {},
     group: 'App',
     title: 'Settings',
     words: 'preferences options config look font theme sound',
+    icon: 'command',
   },
   {
     name: 'app.help',
@@ -139,6 +215,7 @@ const namedEntries: NamedEntry[] = [
     group: 'App',
     title: 'Keys',
     words: 'keybindings shortcuts help',
+    icon: 'keyboard',
   },
   {
     name: 'app.welcome',
@@ -146,6 +223,7 @@ const namedEntries: NamedEntry[] = [
     group: 'App',
     title: 'Welcome',
     words: 'intro start onboarding',
+    icon: 'message-square',
   },
   {
     name: 'app.whats_new',
@@ -153,6 +231,7 @@ const namedEntries: NamedEntry[] = [
     group: 'App',
     title: "What's new",
     words: 'release changes news update',
+    icon: 'message-square',
   },
   {
     name: 'app.reset',
@@ -160,17 +239,26 @@ const namedEntries: NamedEntry[] = [
     group: 'App',
     title: 'Reset to the default screen',
     words: 'escape hatch broken restore',
+    icon: 'monitor',
   },
-  shared(commandTitles.zoomIn, 'App', 'bigger font size'),
-  shared(commandTitles.zoomOut, 'App', 'smaller font size'),
-  shared(commandTitles.resetZoom, 'App', 'font size'),
-  { name: 'app.quit', args: {}, group: 'App', title: 'Quit Herdr', words: 'exit' },
+  shared(commandTitles.zoomIn, 'App', 'bigger font size', 'monitor'),
+  shared(commandTitles.zoomOut, 'App', 'smaller font size', 'monitor'),
+  shared(commandTitles.resetZoom, 'App', 'font size', 'monitor'),
+  {
+    name: 'app.quit',
+    args: {},
+    group: 'App',
+    title: 'Quit Herdr',
+    words: 'exit',
+    icon: 'x',
+  },
   {
     name: 'mod.open',
     args: { name: 'koja-gallery' },
     group: 'App',
     title: 'Kit gallery',
     words: 'koja ui components design',
+    icon: 'palette',
   },
 ];
 
@@ -225,6 +313,7 @@ const layoutEntry = (name: string): Entry => {
     group: 'Layout',
     title: `Layout: ${title}`,
     words: `look ${name}`,
+    icon: 'layers',
   };
 };
 
@@ -243,6 +332,7 @@ const otherEntries = (host: PaletteHost): Entry[] =>
         group,
         title,
         words: command.about,
+        icon: 'command',
       };
     });
 
@@ -258,6 +348,7 @@ const themeEntries = (known: ReadonlySet<string>, host: PaletteHost): Entry[] =>
     group: 'App',
     title: theme.label,
     words: 'colors look',
+    icon: 'palette',
   }));
 };
 
@@ -276,6 +367,7 @@ export const allEntries = (host: PaletteHost): Entry[] => {
       group: entry.group,
       title: entry.title,
       words: entry.words,
+      icon: entry.icon,
     }));
 
   return [
@@ -286,8 +378,20 @@ export const allEntries = (host: PaletteHost): Entry[] => {
   ];
 };
 
-export const entryShortcut = (entry: Entry, shortcut: ShortcutLookup): string | null =>
-  shortcut(bindingAction(entry.name, entry.args));
+export const entryHint = (entry: Entry, hint: HintLookup): ModeHint =>
+  hint(bindingAction(entry.name, entry.args));
+
+export const headingOf = (group: string): GroupHeading =>
+  headings[group] ?? { label: group, letter: null };
+
+export const paletteCount = (
+  all: readonly Entry[],
+  rows: readonly Row[],
+  query: string,
+): PaletteCount =>
+  query.trim() === ''
+    ? { filtered: false, count: all.length }
+    : { filtered: true, count: rows.length };
 
 const matchEntry = (query: string, entry: Entry): FuzzyMatch | null => {
   const title = fuzzyMatch(query, entry.title);

@@ -1,7 +1,8 @@
 import { describe, expect, test } from 'bun:test';
 
+import type { ModeHint } from '../../kit/shortcutBinding.ts';
 import type { Entry, PaletteHost } from './entries.ts';
-import { allEntries, entryShortcut, paletteRows } from './entries.ts';
+import { allEntries, entryHint, paletteCount, paletteRows } from './entries.ts';
 
 interface Command {
   name: string;
@@ -14,14 +15,17 @@ let layoutList: string[] = ['main'];
 let platform: string | null = 'linux';
 let themeList: { name: string; label: string }[] = [];
 
-const lookupIn =
-  (bindings: Record<string, string>) =>
-  (...actions: string[]): string | null =>
-    actions.map((action) => bindings[action]).find((keys) => keys !== undefined) ?? null;
+const hintIn =
+  (bindings: Record<string, string[]>) =>
+  (...actions: string[]): ModeHint => {
+    const normal = actions.map((action) => bindings[action]).find((keys) => keys !== undefined);
 
-const splitRightLookup = lookupIn({ 'pane.split:right': 'ctrl-shift-o' });
+    return { normal: normal ?? [] };
+  };
 
-const layoutLookup = lookupIn({ 'layout.switch': 'ctrl-shift-l' });
+const splitRightHint = hintIn({ 'pane.split:right': ['ctrl-shift-o'] });
+
+const layoutHint = hintIn({ 'layout.switch': ['ctrl-shift-l'] });
 
 const host = (): PaletteHost => ({
   commands: () => commandList,
@@ -39,6 +43,7 @@ const entry = (id: string, name: string, group: string, title: string): Entry =>
   group,
   title,
   words: '',
+  icon: 'command',
 });
 
 describe('allEntries', () => {
@@ -390,18 +395,20 @@ describe('paletteRows', () => {
   });
 });
 
-describe('entryShortcut', () => {
+describe('entryHint', () => {
   test('prefers the action with the entry argument', () => {
     const item = {
       ...entry('a', 'pane.split', 'Pane', 'Split right'),
       args: { direction: 'right' },
     };
 
-    expect(entryShortcut(item, splitRightLookup)).toBe('ctrl-shift-o');
+    expect(entryHint(item, splitRightHint)).toEqual({ normal: ['ctrl-shift-o'] });
   });
 
-  test('answers null without a binding', () => {
-    expect(entryShortcut(entry('a', 'pane.split', 'Pane', 'Split right'), () => null)).toBeNull();
+  test('answers an empty normal hint without a binding', () => {
+    expect(
+      entryHint(entry('a', 'pane.split', 'Pane', 'Split right'), () => ({ normal: [] })),
+    ).toEqual({ normal: [] });
   });
 
   test('does not fall back to the bare command for a named layout', () => {
@@ -410,6 +417,30 @@ describe('entryShortcut', () => {
       args: { name: 'main' },
     };
 
-    expect(entryShortcut(item, layoutLookup)).toBeNull();
+    expect(entryHint(item, layoutHint).normal).toEqual([]);
+  });
+});
+
+describe('paletteCount', () => {
+  test('counts every command with an empty query and only the matches with a query', () => {
+    const all = [
+      entry('a', 'tab.new', 'Tab', 'New tab'),
+      entry('b', 'pane.close', 'Pane', 'Close pane'),
+    ];
+
+    expect(paletteCount(all, paletteRows(all, '', []), '')).toEqual({
+      filtered: false,
+      count: 2,
+    });
+
+    expect(paletteCount(all, paletteRows(all, 'close', []), 'close')).toEqual({
+      filtered: true,
+      count: 1,
+    });
+
+    expect(paletteCount(all, paletteRows(all, '   ', []), '   ')).toEqual({
+      filtered: false,
+      count: 2,
+    });
   });
 });
