@@ -5,7 +5,6 @@ import { join } from 'node:path';
 
 import type { ExecResult } from 'herdr';
 
-import { keyOf } from '../../tests/gitKey.ts';
 import { placeOf, readGitIdentity, worktreeKeyOf } from './gitIdentity.ts';
 import type { GitIdentity, RunCommand } from './gitIdentity.ts';
 
@@ -111,17 +110,17 @@ describe('readGitIdentity', () => {
 
       expect(identity).toEqual({
         kind: 'linked',
-        place: { machine: 'box', folder: subfolder, key: keyOf('box', subfolder) },
+        place: { machine: 'box', folder: subfolder, key: placeOf('box', subfolder).key },
         repository: {
           machine: 'box',
           commonDirectory: join(main, '.git'),
-          key: keyOf('box', join(main, '.git')),
+          key: placeOf('box', join(main, '.git')).key,
         },
-        worktree: { machine: 'box', top: linked, key: keyOf('box', linked) },
+        worktree: { machine: 'box', top: linked, key: placeOf('box', linked).key },
         branch: { kind: 'named', name: 'feature' },
       });
 
-      expect(worktree).toBe(keyOf('box', linked));
+      expect(worktree).toBe(placeOf('box', linked).key);
     });
   });
 
@@ -138,7 +137,7 @@ describe('readGitIdentity', () => {
         branch: { kind: 'named', name: 'main' },
       });
 
-      expect(worktree).toBe(keyOf(null, main));
+      expect(worktree).toBe(placeOf(null, main).key);
     });
   });
 
@@ -151,7 +150,7 @@ describe('readGitIdentity', () => {
       expect(identity).toMatchObject({
         kind: 'main',
         repository: { commonDirectory: join(checkout, '.git') },
-        worktree: { top: checkout, key: keyOf(null, checkout) },
+        worktree: { top: checkout, key: placeOf(null, checkout).key },
       });
     });
   });
@@ -185,8 +184,8 @@ describe('readGitIdentity', () => {
 
       expect(identity).toEqual({
         kind: 'bare',
-        place: { machine: null, folder: bare, key: keyOf(null, bare) },
-        repository: { machine: null, commonDirectory: bare, key: keyOf(null, bare) },
+        place: { machine: null, folder: bare, key: placeOf(null, bare).key },
+        repository: { machine: null, commonDirectory: bare, key: placeOf(null, bare).key },
         branch: { kind: 'named', name: 'main' },
       });
     });
@@ -202,7 +201,7 @@ describe('readGitIdentity', () => {
       const identity = await read(bare);
       const worktree = identity.kind === 'bare' ? worktreeKeyOf(identity) : null;
 
-      expect(worktree).toBe(keyOf(null, bare));
+      expect(worktree).toBe(placeOf(null, bare).key);
     });
   });
 
@@ -217,7 +216,7 @@ describe('readGitIdentity', () => {
 
       expect(identity).toMatchObject({
         kind: 'bare',
-        repository: { commonDirectory: bare, key: keyOf(null, bare) },
+        repository: { commonDirectory: bare, key: placeOf(null, bare).key },
       });
     });
   });
@@ -253,7 +252,7 @@ describe('readGitIdentity', () => {
 
       expect(identity).toEqual({
         kind: 'none',
-        place: { machine: null, folder: root, key: keyOf(null, root) },
+        place: { machine: null, folder: root, key: placeOf(null, root).key },
       });
     });
   });
@@ -271,7 +270,7 @@ describe('readGitIdentity', () => {
     await withTemp(async (root) => {
       const main = await makeRepository(root);
       const linked = join(root, 'linked');
-      const repositoryKey = keyOf(null, join(main, '.git'));
+      const repositoryKey = placeOf(null, join(main, '.git')).key;
 
       await git(main, 'worktree', 'add', '--quiet', '-b', 'feature', linked);
 
@@ -280,12 +279,12 @@ describe('readGitIdentity', () => {
 
       expect(first).toMatchObject({
         repository: { key: repositoryKey },
-        worktree: { key: keyOf(null, main) },
+        worktree: { key: placeOf(null, main).key },
       });
 
       expect(second).toMatchObject({
         repository: { key: repositoryKey },
-        worktree: { key: keyOf(null, linked) },
+        worktree: { key: placeOf(null, linked).key },
       });
     });
   });
@@ -315,7 +314,7 @@ describe('readGitIdentity', () => {
 
     expect(identity).toEqual({
       kind: 'failed',
-      place: { machine: null, folder: '/work', key: keyOf(null, '/work') },
+      place: { machine: null, folder: '/work', key: placeOf(null, '/work').key },
       error: 'fatal: detected dubious ownership',
     });
   });

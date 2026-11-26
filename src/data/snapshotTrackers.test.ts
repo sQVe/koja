@@ -1,7 +1,6 @@
 import { describe, expect, test } from 'bun:test';
 
 import { fixture } from '../../tests/fixtureJson.ts';
-import { keyOf } from '../../tests/gitKey.ts';
 import {
   rawSnapshotOf,
   repositoryKey,
@@ -13,10 +12,11 @@ import {
   validRaw,
 } from '../../tests/snapshotRaw.ts';
 import type { RawSnapshot } from '../../tests/snapshotRaw.ts';
+import { placeOf } from './gitIdentity.ts';
 import type { TicketFacts } from './snapshot.ts';
 import { parseSnapshot } from './snapshot.ts';
 
-const fixtureRepositoryKey = keyOf(null, '/code/koja/.git');
+const fixtureRepositoryKey = placeOf(null, '/code/koja/.git').key;
 
 const fixtureTicket = (): TicketFacts => ({
   id: 'ME-1',
@@ -120,7 +120,7 @@ const malformedTrackers: [string, (snapshot: RawSnapshot) => void][] = [
   [
     'a tracker for a repository no worktree names',
     (snapshot) => {
-      trackersAt(snapshot)[keyOf(null, '/other/.git')] = trackerFacts();
+      trackersAt(snapshot)[placeOf(null, '/other/.git').key] = trackerFacts();
     },
   ],
 ];

@@ -1,6 +1,5 @@
 import { describe, expect, spyOn, test } from 'bun:test';
 
-import { keyOf } from '../../tests/gitKey.ts';
 import { runSnapshotNoticeScenario } from '../../tests/snapshotNoticeLifetime.ts';
 import { placeOf, repositoryOf } from './gitIdentity.ts';
 import type { Lease } from './lease.ts';
@@ -31,7 +30,7 @@ const populatedFacts = (folders: string[]): Facts => {
   const worktrees: Record<string, WorktreeGit> = {};
 
   for (const folder of folders) {
-    const key = keyOf(null, folder);
+    const key = placeOf(null, folder).key;
 
     places[placeOf(null, folder).key] = { kind: 'repository', worktree: key };
 
@@ -50,7 +49,7 @@ const factsWithBranch = (branch: string): Facts => ({
   git: {
     places: {},
     worktrees: {
-      [keyOf(null, '/one')]: {
+      [placeOf(null, '/one').key]: {
         repository: repositoryOf(null, '/one/.git'),
         root: '/one',
         branch,

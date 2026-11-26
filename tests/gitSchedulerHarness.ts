@@ -2,12 +2,12 @@ import type { ExecResult, FolderWatch, PaneInfo, Program, SpaceInfo, Status, Tab
 
 import type { GitWorld } from '../src/data/gitDue.ts';
 import type { RunCommand } from '../src/data/gitIdentity.ts';
+import { placeOf } from '../src/data/gitIdentity.ts';
 import type { Lease } from '../src/data/lease.ts';
 import { heartbeatKey, leaseKey } from '../src/data/lease.ts';
 import { createSnapshotPublisher } from '../src/data/publisher.ts';
 import type { GitFacts } from '../src/data/snapshot.ts';
 import { joinFacts, parseSnapshot, snapshotKey } from '../src/data/snapshot.ts';
-import { keyOf } from './gitKey.ts';
 
 interface Dependencies {
   run: RunCommand;
@@ -210,11 +210,11 @@ export class GitSchedulerHarness {
   }
 
   setFolder(machine: string | null, folder: string, git: FolderGit): void {
-    this.folders[keyOf(machine, folder)] = git;
+    this.folders[placeOf(machine, folder).key] = git;
   }
 
   clearFolder(machine: string | null, folder: string): void {
-    Reflect.deleteProperty(this.folders, keyOf(machine, folder));
+    Reflect.deleteProperty(this.folders, placeOf(machine, folder).key);
   }
 
   setNow(at: number): void {
@@ -279,7 +279,7 @@ export class GitSchedulerHarness {
       return { code: 128, stdout: '', stderr: this.failure };
     }
 
-    const git = this.folders[keyOf(machine, folder)];
+    const git = this.folders[placeOf(machine, folder).key];
 
     if (git === undefined) {
       return { code: 128, stdout: '', stderr: 'fatal: not a git repository' };
@@ -301,7 +301,7 @@ export class GitSchedulerHarness {
   }
 
   private async beginRead(machine: string | null, folder: string): Promise<void> {
-    const key = keyOf(machine, folder);
+    const key = placeOf(machine, folder).key;
     const gate = this.gateOf(key);
 
     if (this.open.size >= readLimit) {

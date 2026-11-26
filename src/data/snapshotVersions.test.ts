@@ -1,9 +1,9 @@
 import { describe, expect, test } from 'bun:test';
 
 import { fixture } from '../../tests/fixtureJson.ts';
-import { keyOf } from '../../tests/gitKey.ts';
 import { pullFacts } from '../../tests/pullFacts.ts';
 import { gitFacts, recordIn, repositoryKey } from '../../tests/snapshotRaw.ts';
+import { placeOf } from './gitIdentity.ts';
 import { pullNeeds } from './pullNeeds.ts';
 import { parseSnapshot } from './snapshot.ts';
 
@@ -11,7 +11,7 @@ describe('parseSnapshot versions', () => {
   test('reads version 3 pulls with unread parts', () => {
     const stored = fixture('snapshot-v3.json');
     const parsed = parseSnapshot(stored);
-    const pulls = parsed?.facts.pulls[keyOf(null, '/code/koja/.git')]?.pulls ?? [];
+    const pulls = parsed?.facts.pulls[placeOf(null, '/code/koja/.git').key]?.pulls ?? [];
 
     const unread = pullFacts({
       number: 41,

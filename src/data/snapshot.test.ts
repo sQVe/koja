@@ -1,7 +1,6 @@
 import { describe, expect, test } from 'bun:test';
 
 import { fixture } from '../../tests/fixtureJson.ts';
-import { keyOf } from '../../tests/gitKey.ts';
 import {
   gitFacts,
   pull,
@@ -10,6 +9,7 @@ import {
   snapshotOf,
   validRaw,
 } from '../../tests/snapshotRaw.ts';
+import { placeOf } from './gitIdentity.ts';
 import { pullNeeds } from './pullNeeds.ts';
 import type {
   Facts,
@@ -53,7 +53,7 @@ describe('parseSnapshot', () => {
 
     expect(worktrees.map((tree) => tree.linked)).toEqual([false, true]);
 
-    const read = pulls?.[keyOf(null, '/code/koja/.git')]?.pulls ?? [];
+    const read = pulls?.[placeOf(null, '/code/koja/.git').key]?.pulls ?? [];
 
     expect(read.map((entry) => pullNeeds(entry))).toEqual([['ready']]);
   });
@@ -113,8 +113,8 @@ describe('parseSnapshot', () => {
 
 describe('joinFacts', () => {
   test('drops PR and tracker facts of a repository with no worktree', () => {
-    const named = keyOf(null, '/work/.git');
-    const orphan = keyOf(null, '/gone/.git');
+    const named = placeOf(null, '/work/.git').key;
+    const orphan = placeOf(null, '/gone/.git').key;
     const tracker = { workspace: 'sqve', tickets: {}, failed: false };
 
     const facts = joinFacts(

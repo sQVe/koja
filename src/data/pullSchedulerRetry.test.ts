@@ -2,7 +2,8 @@ import { describe, expect, test } from 'bun:test';
 
 import type { ExecResult } from 'herdr';
 
-import { gitFactsOf, requestFor, start } from '../../tests/pullSchedulerFixtures.ts';
+import { requestFor, start } from '../../tests/pullRetryStore.ts';
+import { gitFactsOf } from '../../tests/pullSchedulerFixtures.ts';
 import { PullSchedulerHarness } from '../../tests/pullSchedulerHarness.ts';
 import { repositoryOf } from './gitIdentity.ts';
 

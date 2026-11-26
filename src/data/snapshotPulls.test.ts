@@ -1,8 +1,8 @@
 import { describe, expect, test } from 'bun:test';
 
-import { keyOf } from '../../tests/gitKey.ts';
 import { pull, pullsAt, repositoryKey, validRaw } from '../../tests/snapshotRaw.ts';
 import type { RawSnapshot } from '../../tests/snapshotRaw.ts';
+import { placeOf } from './gitIdentity.ts';
 import { parseSnapshot } from './snapshot.ts';
 
 const malformedPulls: [string, (snapshot: RawSnapshot) => void][] = [
@@ -69,7 +69,7 @@ describe('parseSnapshot PR facts', () => {
   test('rejects a pulls key no worktree names', () => {
     const { snapshot } = validRaw();
 
-    pullsAt(snapshot)[keyOf(null, '/other/.git')] = { pulls: [], failed: false };
+    pullsAt(snapshot)[placeOf(null, '/other/.git').key] = { pulls: [], failed: false };
 
     expect(parseSnapshot(snapshot)).toBeNull();
   });

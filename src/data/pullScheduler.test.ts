@@ -1,12 +1,11 @@
 import { beforeEach, describe, expect, test } from 'bun:test';
 
+import { requestFor, start } from '../../tests/pullRetryStore.ts';
 import {
   gitFactsOf,
   pullList,
-  requestFor,
   schedulerRepository,
   seededRepositoryPulls,
-  start,
   timesAt,
 } from '../../tests/pullSchedulerFixtures.ts';
 import { PullSchedulerHarness } from '../../tests/pullSchedulerHarness.ts';

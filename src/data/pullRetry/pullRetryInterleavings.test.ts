@@ -4,13 +4,12 @@ import type { ExecResult } from 'herdr';
 
 import { seededRandom } from '../../../tests/gitSchedulerHarness.ts';
 import { answerFrom, branchCountOf } from '../../../tests/pullAnswers.ts';
-import { ids } from '../../../tests/pullRetryStore.ts';
+import { ids, start } from '../../../tests/pullRetryStore.ts';
 import {
   gitFactsOf,
   pullList,
   schedulerRepository,
   seededRepositoryPulls,
-  start,
 } from '../../../tests/pullSchedulerFixtures.ts';
 import { PullSchedulerHarness } from '../../../tests/pullSchedulerHarness.ts';
 import type { PendingCall } from '../../../tests/pullSchedulerHarness.ts';

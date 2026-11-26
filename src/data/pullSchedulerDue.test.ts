@@ -1,17 +1,17 @@
 import { beforeEach, describe, expect, test } from 'bun:test';
 
 import { answerFrom } from '../../tests/pullAnswers.ts';
+import { start } from '../../tests/pullRetryStore.ts';
 import {
   gitFactsOf,
   pullList,
-  pullPeriodMilliseconds,
   schedulerRepository,
   seededRepositoryPulls,
-  start,
   timesAt,
 } from '../../tests/pullSchedulerFixtures.ts';
 import { PullSchedulerHarness } from '../../tests/pullSchedulerHarness.ts';
 import { repositoryOf } from './gitIdentity.ts';
+import { readPeriodMilliseconds } from './pullDue.ts';
 
 const harness = new PullSchedulerHarness();
 
@@ -83,7 +83,7 @@ describe('createPullScheduler due reads', () => {
 
     const scheduler = harness.start({
       pulls: seededRepositoryPulls,
-      readTimes: timesAt(schedulerRepository.key, start - pullPeriodMilliseconds),
+      readTimes: timesAt(schedulerRepository.key, start - readPeriodMilliseconds),
     });
 
     const git = gitFactsOf();
@@ -131,7 +131,7 @@ describe('createPullScheduler due reads', () => {
     expect(scheduler.pulls()[first.key]).toEqual({ pulls: [], failed: true });
     expect(scheduler.pulls()[second.key]).toEqual({ pulls: pullList(7), failed: false });
 
-    harness.setNow(start + pullPeriodMilliseconds);
+    harness.setNow(start + readPeriodMilliseconds);
     scheduler.tick(git, new Map(), harness.spawn);
 
     expect(harness.callsIn(firstFolder)).toHaveLength(3);

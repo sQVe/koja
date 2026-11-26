@@ -1,14 +1,10 @@
 import { beforeEach, describe, expect, test } from 'bun:test';
 
-import {
-  gitFactsOf,
-  pullList,
-  pullPeriodMilliseconds,
-  schedulerRepository,
-  start,
-} from '../../tests/pullSchedulerFixtures.ts';
+import { start } from '../../tests/pullRetryStore.ts';
+import { gitFactsOf, pullList, schedulerRepository } from '../../tests/pullSchedulerFixtures.ts';
 import { PullSchedulerHarness } from '../../tests/pullSchedulerHarness.ts';
 import { placeOf, repositoryOf, worktreeOf } from './gitIdentity.ts';
+import { readPeriodMilliseconds } from './pullDue.ts';
 import type { PullReadTimes } from './pullReadTimes.ts';
 import { readPullReadTimes } from './pullReadTimes.ts';
 import type { GitFacts } from './snapshot.ts';
@@ -42,7 +38,7 @@ describe('createPullScheduler reads', () => {
       timesForPulls(schedulerRepository.key, start, [7]),
     );
 
-    harness.setNow(start + pullPeriodMilliseconds);
+    harness.setNow(start + readPeriodMilliseconds);
     scheduler.tick(git, new Map(), harness.spawn);
     await harness.respond(3, { code: 1, stdout: '', stderr: 'offline' });
 

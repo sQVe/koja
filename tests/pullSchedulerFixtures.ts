@@ -1,19 +1,14 @@
 import type { RepositoryIdentity } from '../src/data/gitIdentity.ts';
 import { placeOf, repositoryOf, worktreeOf } from '../src/data/gitIdentity.ts';
-import { readPeriodMilliseconds } from '../src/data/pullDue.ts';
 import type { PullReadTimes } from '../src/data/pullReadTimes.ts';
 import type { Pull } from '../src/data/pulls.ts';
 import type { GitFacts, RepositoryPulls } from '../src/data/snapshot.ts';
 import { pullFacts } from './pullFacts.ts';
 
-export { requestFor, start } from './pullRetryStore.ts';
-
 interface GitSource {
   repository: RepositoryIdentity;
   folder: string;
 }
-
-export const pullPeriodMilliseconds = readPeriodMilliseconds;
 
 const schedulerFolder = '/code/koja';
 export const schedulerRepository = repositoryOf(null, `${schedulerFolder}/.git`);

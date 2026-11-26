@@ -2,7 +2,6 @@ import { placeOf, repositoryOf } from '../src/data/gitIdentity.ts';
 import type { Pull } from '../src/data/pulls.ts';
 import type { GitFacts, WorktreeGit } from '../src/data/snapshot.ts';
 import { isRecord } from '../src/kit/fields.ts';
-import { keyOf } from './gitKey.ts';
 import { pullFacts } from './pullFacts.ts';
 
 export type RawRecord = Record<string, unknown>;
@@ -24,8 +23,8 @@ export const gitFacts = (): GitFacts => {
   const place = placeOf(null, '/work');
 
   return {
-    places: { [place.key]: { kind: 'repository', worktree: keyOf(null, '/work') } },
-    worktrees: { [keyOf(null, '/work')]: worktree(null, '/work') },
+    places: { [place.key]: { kind: 'repository', worktree: placeOf(null, '/work').key } },
+    worktrees: { [placeOf(null, '/work').key]: worktree(null, '/work') },
   };
 };
 
@@ -38,7 +37,7 @@ export const snapshotOf = (git: unknown): unknown => ({
 export const pull = (fields: Partial<Pull> = {}): Pull =>
   pullFacts({ number: 1, headRefName: 'main', title: 'Title', ...fields });
 
-export const repositoryKey = keyOf(null, '/work/.git');
+export const repositoryKey = placeOf(null, '/work/.git').key;
 
 const ticketFacts = (): RawRecord => ({
   id: 'ME-1',
@@ -55,7 +54,7 @@ export const trackerFacts = (): RawRecord => ({
 });
 
 export const validRaw = (): { snapshot: RawSnapshot; key: string } => {
-  const key = keyOf(null, '/work');
+  const key = placeOf(null, '/work').key;
 
   const snapshot: RawSnapshot = {
     version: 6,
@@ -68,7 +67,7 @@ export const validRaw = (): { snapshot: RawSnapshot; key: string } => {
             repository: {
               machine: null,
               commonDirectory: '/work/.git',
-              key: keyOf(null, '/work/.git'),
+              key: placeOf(null, '/work/.git').key,
             },
             root: '/work',
             branch: 'main',
