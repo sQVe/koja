@@ -174,6 +174,27 @@ describe('spaceStackOf', () => {
     ]);
   });
 
+  test('a fork pull beside the recorded pull keeps the recorded title and merged state', () => {
+    const facts = factsOf({
+      stack: ['me-1-one'],
+      branch: 'me-1-one',
+      pulls: [pullOf('me-1-one', 99, 'OPEN'), pullOf('me-1-one', 11, 'MERGED')],
+      pullNumbers: { 'me-1-one': 11 },
+    });
+
+    expect(spaceStackOf(facts, worktree.key)?.pulls).toEqual([
+      {
+        branch: 'me-1-one',
+        ticket: 'ME-1',
+        number: 11,
+        title: 'Title of 11',
+        state: 'merged',
+        checkedOut: true,
+        restack: 'none',
+      },
+    ]);
+  });
+
   test('a branch with no PR facts has unknown state', () => {
     const facts = factsOf({
       stack: ['me-1-one'],

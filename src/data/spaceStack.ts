@@ -74,8 +74,12 @@ const stackPullOf = (
   const recorded = entry.pullNumber;
 
   // A live pull is found by head branch alone, and a fork can reuse the name. The recorded number
-  // wins when the live pull reports another one.
-  const pull = recorded === null || live?.number === recorded ? live : null;
+  // wins when the live pull reports another one, so read that pull by number.
+  const pull =
+    recorded === null || live?.number === recorded
+      ? live
+      : (facts.pulls[repositoryKey]?.pulls.find((candidate) => candidate.number === recorded) ??
+        null);
 
   return {
     branch: entry.branch,
