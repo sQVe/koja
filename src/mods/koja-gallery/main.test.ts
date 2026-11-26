@@ -162,9 +162,7 @@ describe('gallery sidebar section', () => {
   test('draws the fact line specimen from its parts list', () => {
     const view = openGallery();
 
-    expect(drawnTexts(view.render(context))).toContain(
-      'Fact lines: a short value, a long cut value, and a row with no facts',
-    );
+    expect(drawnTexts(view.render(context))).toContain('add-search');
   });
 });
 

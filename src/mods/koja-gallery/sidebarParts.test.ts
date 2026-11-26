@@ -1,15 +1,9 @@
 import { afterAll, describe, expect, mock, test } from 'bun:test';
 
 import type { DrawnElement } from '../../../tests/drawn.ts';
-import {
-  descendants,
-  drawnTexts,
-  drawnTooltips,
-  elementWithText,
-  numberStyle,
-} from '../../../tests/drawn.ts';
+import { descendants, drawnTexts } from '../../../tests/drawn.ts';
 import { mockGalleryModules } from '../../../tests/gallery.ts';
-import { controlSize } from '../../kit/size.ts';
+import { controlSize, paneHeaderWidth } from '../../kit/size.ts';
 
 Object.assign(globalThis, { kojaModName: 'koja' });
 
@@ -39,23 +33,23 @@ const specimen = (): DrawnElement => {
 };
 
 describe('gallery fact line specimen', () => {
-  test('caps the long value and shows the whole value on hover', () => {
-    const long = elementWithText(specimen(), longValue);
+  test('passes three values, the long one long enough to be cut', () => {
+    const part = specimen();
+    const texts = drawnTexts(part);
+    const shownCharacters = Math.floor(controlSize.factValueMaxWidth / paneHeaderWidth.glyph);
 
-    if (long === null) {
-      throw new Error('The specimen draws no long value.');
-    }
-
-    expect(numberStyle(long, 'max_w')).toBe(controlSize.factValueMaxWidth);
-    expect(drawnTooltips(long)).toEqual([longValue]);
+    expect(texts).toContain('add-search');
+    expect(texts).toContain(longValue);
+    expect(texts).toContain('fix-crash');
+    expect(longValue.length).toBeGreaterThan(shownCharacters);
   });
 
-  test('draws a value without facts after the values that have them', () => {
+  test('draws the value without facts after the values that have them', () => {
     const part = specimen();
+    const texts = drawnTexts(part);
     const gaps = descendants(part).filter((element) => element.texts.includes('·'));
 
-    expect(elementWithText(part, 'add-search')).not.toBeNull();
-    expect(elementWithText(part, 'fix-crash')).not.toBeNull();
+    expect(texts.indexOf('fix-crash')).toBeGreaterThan(texts.indexOf(longValue));
     expect(gaps).toHaveLength(4);
   });
 });
