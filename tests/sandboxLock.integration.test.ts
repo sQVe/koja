@@ -92,11 +92,15 @@ beforeEach(async () => {
     `root="${root}/ruta-$name"`,
   );
 
-  script = join(root, 'sandbox');
+  // The script reads its checkout as the parent of its own folder, so it sits in a scripts folder
+  // beside the stand-in its identity guard runs.
+  script = join(root, 'scripts', 'sandbox');
 
+  await mkdir(join(root, 'scripts'), { recursive: true });
   await writeFile(script, source, { mode: 0o755 });
   await chmod(script, 0o755);
   await mkdir(guards, { recursive: true });
+  await writeFile(join(root, 'scripts', 'sandboxIdentity.ts'), 'process.exitCode = 0;\n');
 
   const alphaRoot = join(root, 'ruta-alpha');
   const betaRoot = join(root, 'ruta-beta');
