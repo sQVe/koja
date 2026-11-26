@@ -79,27 +79,55 @@ describe('parseSnapshot', () => {
   test('a version 7 snapshot infers bareness from the paths', () => {
     const stored = rawSnapshotOf(fixture('snapshot-v8.json'));
     const checkoutKey = worktreeOf(null, '/code/koja').key;
-    const bareKey = worktreeOf(null, '/code/bare').key;
-    const bare = worktreeAt(stored, checkoutKey);
+    const checkout = worktreeAt(stored, checkoutKey);
     const worktrees = worktreesAt(stored);
 
-    delete bare.bare;
+    delete checkout.bare;
 
-    worktrees[bareKey] = {
-      ...bare,
+    worktrees[worktreeOf(null, '/code/bare.git').key] = {
+      repository: {
+        machine: null,
+        commonDirectory: '/code/bare.git',
+        key: repositoryOf(null, '/code/bare.git').key,
+      },
+      root: '/code/bare.git',
+      branch: 'main',
+      linked: false,
+    };
+
+    worktrees[worktreeOf(null, '/code/bare/').key] = {
       repository: {
         machine: null,
         commonDirectory: '/code/bare',
         key: repositoryOf(null, '/code/bare').key,
       },
-      root: '/code/bare',
+      root: '/code/bare/',
+      branch: 'main',
+      linked: false,
+    };
+
+    worktrees[worktreeOf(null, '/code/project').key] = {
+      repository: {
+        machine: null,
+        commonDirectory: '/code/project/.bare',
+        key: repositoryOf(null, '/code/project/.bare').key,
+      },
+      root: '/code/project',
+      branch: 'main',
+      linked: false,
     };
 
     const parsed = parseSnapshot({ ...stored, version: 7 });
+    const parsedWorktrees = parsed?.facts.git.worktrees ?? {};
+
+    const barenessOf = (root: string): boolean | undefined =>
+      parsedWorktrees[worktreeOf(null, root).key]?.bare;
 
     expect(parsed?.version).toBe(8);
-    expect(parsed?.facts.git.worktrees[checkoutKey]?.bare).toBe(false);
-    expect(parsed?.facts.git.worktrees[bareKey]?.bare).toBe(true);
+    expect(barenessOf('/code/koja')).toBe(false);
+    expect(barenessOf('/code/bare.git')).toBe(true);
+    expect(barenessOf('/code/bare/')).toBe(true);
+    expect(barenessOf('/code/project')).toBe(true);
   });
 
   test('a version 6 snapshot reads with empty stacks', () => {

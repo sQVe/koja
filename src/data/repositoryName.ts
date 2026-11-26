@@ -1,9 +1,9 @@
-import { folderNameOf } from './fields.ts';
+import { folderNameOf, withoutTrailingSlashes } from './fields.ts';
 
 // A repository's git folder is a `.git` or `.bare` directory inside its checkout, or a folder of
 // its own when the checkout keeps its git directory elsewhere.
 const checkoutOf = (path: string): string => {
-  const trimmed = path.replace(/\/+$/u, '');
+  const trimmed = withoutTrailingSlashes(path);
   const parts = trimmed.split('/');
   const last = parts.at(-1);
   const isGitFolder = last === '.git' || last === '.bare';

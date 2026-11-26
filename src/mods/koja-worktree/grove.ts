@@ -1,6 +1,6 @@
 import type { ExecResult, Status } from 'herdr';
 
-import { folderNameOf } from '../../data/fields.ts';
+import { folderNameOf, withoutTrailingSlashes } from '../../data/fields.ts';
 
 export interface Workspace {
   space: string;
@@ -23,10 +23,8 @@ export type GroveArguments =
 
 const bareFolder = '.bare';
 
-const trimSlashes = (path: string): string => path.replace(/\/+$/, '');
-
 export const workspaceRoot = (commonDirectory: string): string | null => {
-  const trimmed = trimSlashes(commonDirectory.trim());
+  const trimmed = withoutTrailingSlashes(commonDirectory.trim());
 
   if (folderNameOf(trimmed) !== bareFolder) {
     return null;
@@ -36,9 +34,9 @@ export const workspaceRoot = (commonDirectory: string): string | null => {
 };
 
 export const isWorkspaceWorktree = (folder: string, root: string): boolean => {
-  const parent = trimSlashes(folder).split('/').slice(0, -1).join('/');
+  const parent = withoutTrailingSlashes(folder).split('/').slice(0, -1).join('/');
 
-  return parent === trimSlashes(root);
+  return parent === withoutTrailingSlashes(root);
 };
 
 export const removeRisks = (dirty: boolean, status: Status | null | undefined): RemoveRisks => {
