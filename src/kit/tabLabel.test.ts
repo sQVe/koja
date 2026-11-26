@@ -37,6 +37,7 @@ const terminalPane = (pane: string): PaneInfo => ({
   terminal: `t-${pane}`,
   tab: 't1',
   title: 'shell',
+  name: null,
   cwd: null,
   branch: null,
   status: null,

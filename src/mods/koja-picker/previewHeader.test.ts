@@ -108,6 +108,7 @@ const terminalPane = (): PaneInfo => ({
   terminal: 't1',
   tab: 'k1',
   title: 'Pi',
+  name: null,
   cwd: '/code/koja',
   branch: 'me-1189-go-to',
   status: 'working',

@@ -53,6 +53,7 @@ const terminal = (pane: string, tab: string, status: Status | null): PaneInfo =>
   terminal: `t-${pane}`,
   tab,
   title: 'zsh',
+  name: null,
   cwd: null,
   branch: null,
   status,

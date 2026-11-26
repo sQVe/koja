@@ -70,6 +70,7 @@ const pane = (id: string, status: Status | null): PaneInfo => ({
   terminal: `terminal-${id}`,
   tab: `tab-${id}`,
   title: id,
+  name: null,
   cwd: '/code/notes',
   branch: null,
   status,

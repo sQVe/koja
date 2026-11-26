@@ -273,8 +273,11 @@ declare module "gpui-kit" {
     | "right_center"
     ;
 
-  /** Which pointer button opens a `Popover`. */
-  export type MouseButton = "left" | "right" | "middle";
+  /**
+   * A pointer button, for `on_mouse_down`, `on_mouse_up` and which one opens
+   * a `Popover`. HERDR: `back` and `forward` are the mouse's side buttons.
+   */
+  export type MouseButton = "left" | "right" | "middle" | "back" | "forward";
 
   /**
    * The script-side context for one host call.
@@ -476,6 +479,8 @@ declare module "gpui-kit" {
     local_position: Point;
     bounds: import("gpui-shell").ElementBounds;
     modifiers: Modifiers;
+    /** Left, right, or middle when the move reports one of those buttons as held. */
+    pressed_button?: MouseButton;
   }
 
   /**
@@ -731,6 +736,13 @@ declare module "gpui-kit" {
     on_click<Self extends Element>(this: Self, handler: (event: ClickEvent, cx: Context) => void): Self;
     /** GPUI `InteractiveElement::on_mouse_move`, delivered while this element is hovered. */
     on_mouse_move<Self extends Element>(this: Self, handler: (event: MouseMoveEvent, cx: Context) => void): Self;
+    /**
+     * Every pointer move in the window, wherever the pointer is, with positions
+     * against this element's box. For a drag that should keep following the
+     * pointer after it leaves the element it started on. Passive observer.
+     * Use on div, h_flex, or v_flex.
+     */
+    on_window_mouse_move<Self extends Element>(this: Self, handler: (event: MouseMoveEvent, cx: Context) => void): Self;
     /** div/h_flex/v_flex: initial size and changed layout size, in logical pixels.
      * Runs after layout, even without pointer movement. Use a stable id. */
     on_size_change<Self extends Element>(this: Self, handler: (size: { width: number; height: number }, cx: Context) => void): Self;
@@ -778,6 +790,14 @@ declare module "gpui-kit" {
     ): Self;
     /** GPUI `InteractiveElement::on_mouse_up`, for one button. */
     on_mouse_up<Self extends Element>(this: Self,
+      button: MouseButton,
+      handler: (event: MouseButtonEvent, cx: Context) => void,
+    ): Self;
+    /**
+     * Passively observes releases of `button` anywhere in the window, including
+     * releases handled by terminals. Use on div, h_flex, or v_flex.
+     */
+    on_window_mouse_up<Self extends Element>(this: Self,
       button: MouseButton,
       handler: (event: MouseButtonEvent, cx: Context) => void,
     ): Self;
@@ -20734,12 +20754,43 @@ declare module "gpui-base" {
   export const Checkbox: ComponentType;
   /** A controlled switch. No styling. */
   export const Switch: ComponentType;
+  /** HERDR: a settled selection in a TextView. */
+  export interface TextViewSelection {
+    /** The selected text in this view, trimmed as when copying it. */
+    text: string;
+    /**
+     * UTF-16 offsets into the Markdown source the selection came from, so
+     * `markdown.slice(range.start, range.end)` includes any markup inside it.
+     * Absent in HTML or when the selection doesn't map to the current source.
+     */
+    range?: InputRange;
+    /** Where the selection ended, in logical window pixels. Absent for select-all. */
+    position?: import("gpui-kit").Point;
+  }
   /** Rich HTML or Markdown text. CSS in HTML is not supported. */
   export interface TextViewElement extends NativeElement {
     /** Overrides TextView's default URL opening and reports the resolved URL. */
     on_link_click(handler: (url: string, cx: Context) => void): this;
+    /**
+     * HERDR: called when a selection settles (the pointer is released, a
+     * double or triple click, select-all), and with `null` when a reported
+     * selection is cleared. Whitespace alone reports as `null`.
+     */
+    on_selection_change(handler: (selection: TextViewSelection | null, cx: Context) => void): this;
+    /**
+     * HERDR: paints `color` behind the text rendered from `[start, end)`,
+     * UTF-16 offsets into the Markdown source, like `selection.range`. Chain once
+     * per range; later ones paint over earlier ones. Markdown only.
+     */
+    highlight_range(start: number, end: number, color: Color): this;
     selectable(value?: boolean): this;
     scrollable(value?: boolean): this;
+    /**
+     * Whether raw HTML in Markdown renders as HTML (the default). `false`
+     * shows HTML tags and blocks as literal text. Markdown autolinks outside
+     * the HTML stay clickable. Applies to `TextView.markdown`.
+     */
+    raw_html(value?: boolean): this;
   }
   export const TextView: {
     html(id: string, html: string): TextViewElement;
@@ -21327,8 +21378,28 @@ declare module "gpui-base" {
     render: (range: ItemRange, cx: Context) => Element[],
   ): NativeElement;
 
+  /**
+   * Where a scroll area is, read from its handle. Lengths are in the pixels a
+   * script writes, so a row written `.h(30)` moves `offset()` by 30 at any zoom.
+   * Values are the last layout's, kept while the area is hidden; a `scroll_to_*`
+   * request shows here once it has run. Event positions and `on_size_change` sizes
+   * are window px: divide them by `settings().zoom` before mixing them with these.
+   * Read in an event handler or a task after layout. All zero before the first frame.
+   */
+  export interface ScrollPosition {
+    /** How far the content has scrolled from its start: `{ x: 0, y: 0 }` there, never negative. */
+    offset(): import("gpui-kit").Point;
+    /** The scrollable extent, including padding and at least as large as the viewport. */
+    content_size(): import("gpui-kit").Size;
+    /**
+     * The size of the part on screen. The area is at its end when
+     * `offset().y + viewport_size().height >= content_size().height - 1`.
+     */
+    viewport_size(): import("gpui-kit").Size;
+  }
+
   /** A plain scroll area's position. Create in init() and attach with track_scroll. */
-  export interface ScrollHandle {
+  export interface ScrollHandle extends ScrollPosition {
     /** Reveal the zero-based direct child with the smallest scroll needed.
      * Works on plain overflow_*_scroll and overflow_*_scrollbar elements.
      * Requests are consumed once, after layout; already visible children stay put.
@@ -21346,9 +21417,10 @@ declare module "gpui-base" {
    * it. Create it in `init()` and hand it to the list with `track_scroll`.
    *
    * A list without one still scrolls, and a `Scrollbar` named after the list
-   * still drives it; this is only needed to scroll it from code.
+   * still drives it; this is only needed to scroll it from code, or to read
+   * where it is.
    */
-  export interface VirtualListScrollHandle {
+  export interface VirtualListScrollHandle extends ScrollPosition {
     /**
      * Puts the item at `index` on screen before the next frame. `"top"` (the
      * default) brings it to the near edge, `"center"` to the middle.
@@ -21415,6 +21487,12 @@ declare module "gpui-base" {
     set_loading(loading: boolean): void;
     /** Moves the keyboard onto the input. */
     focus(): void;
+    /**
+     * Gives up the keyboard if the input has focus. The state stays usable
+     * and receives its usual `blur` event as focus moves away.
+     */
+    blur(): void;
+    /** Frees the state; it can't be read or drawn afterwards. Not a blur. */
     release(): boolean;
   }
 
@@ -21475,6 +21553,12 @@ declare module "gpui-base" {
     set_soft_wrap(wrap: boolean): void;
     /** Moves the keyboard onto the textarea. */
     focus(): void;
+    /**
+     * Gives up the keyboard if the textarea has focus. The state stays usable
+     * and receives its usual `blur` event as focus moves away.
+     */
+    blur(): void;
+    /** Frees the state; it can't be read or drawn afterwards. Not a blur. */
     release(): boolean;
   }
 
@@ -21496,8 +21580,18 @@ declare module "gpui-base" {
     /** Replaces the selection with `text`, as typing would (one undo step). */
     replace(text: string): void;
     on(event: "change" | "submit" | "focus" | "blur" | "paste_other", handler: (event: InputEvent, cx: Context) => void): boolean;
+    /** Changes the indent once the file's style is known. `hard_tabs` defaults to false. */
+    set_tab_size(tab_size: number, hard_tabs?: boolean): void;
     /** Moves the keyboard onto the editor. */
     focus(): void;
+    /**
+     * Gives up the keyboard if the editor has focus. The state stays usable
+     * and receives its usual `blur` event as focus moves away.
+     */
+    blur(): void;
+    /** Wraps long lines instead of scrolling sideways, keeping the text and selection. */
+    set_soft_wrap(wrap: boolean): void;
+    /** Frees the state; it can't be read or drawn afterwards. Not a blur. */
     release(): boolean;
   }
   export const EditorState: {
@@ -21516,9 +21610,20 @@ declare module "gpui-base" {
       readonly?: boolean;
       /** Defaults to false. */
       soft_wrap?: boolean;
+      /** Spaces per indent and spacing of the indent guides, from 1 to 16 whole columns.
+       * Defaults to 2. The text renderer chooses the displayed width of tab characters. */
+      tab_size?: number;
+      /** Tab inserts a `\t` instead of spaces. Defaults to false. */
+      hard_tabs?: boolean;
       /** Semantic colors: keyword, string, comment, function, type, number,
        * constant, variable, operator, punctuation, boolean, string.escape.
-       * Values are concrete hex colors; unspecified UI colors follow the theme. */
+       * Markdown ("markdown" or "md") adds heading, strong, emphasis, code,
+       * quote, list and link. Unset heading, strong and list use keyword's color,
+       * code uses string, quote uses comment, and link URLs use function.
+       * Headings and strong text are bold. Emphasis is italic and inherits
+       * the editor foreground unless given its own color.
+       * Values are concrete hex colors. Built-in syntax colors use a dark palette.
+       * Unspecified editor UI colors follow the theme. */
       syntax?: Record<string, string>;
     }) => EditorState;
   };
