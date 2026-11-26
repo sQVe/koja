@@ -1,5 +1,5 @@
-import { listOf, numberOf, recordOf } from '../../kit/fields.ts';
-import { controlSize, rowHeight, spacing } from '../../kit/size.ts';
+import { listOf, numberOf, recordOf, stringOf } from '../../kit/fields.ts';
+import { askCardSize, controlSize, spacing } from '../../kit/size.ts';
 import type { Ask } from './askFacts.ts';
 
 export interface CardMore {
@@ -18,8 +18,18 @@ export interface CardBox {
   hidden: boolean;
 }
 
+export interface WindowBounds {
+  width: number;
+  height: number;
+  maximized: boolean;
+}
+
+export interface CardWindow extends WindowBounds {
+  zoom: number;
+}
+
 export interface CardGeometrySources {
-  window: { width: number; height: number } | null;
+  window: CardWindow | null;
   sidebar: CardBox | null;
   panel: CardBox | null;
 }
@@ -30,26 +40,14 @@ export interface CardGeometry {
   at: { x: number; y: number } | null;
 }
 
-interface MainWidth {
-  left: number;
-  width: number;
-}
-
-const maximumCardWidth = 420;
-
-const paneClearance = 16;
-
-const contentPadding = spacing.small;
-
-const textInset = 18;
-
-const bodyLineHeight = 18;
-
-const terminalLineHeight = 17;
-
-const detailLineHeight = 16;
-
-const footerHeight = rowHeight.large + spacing.xxsmall;
+const {
+  maximumWidth,
+  paneClearance,
+  textInset,
+  bodyLineHeight,
+  terminalLineHeight,
+  detailLineHeight,
+} = askCardSize;
 
 // A conservative advance per character, so the estimate never falls below the height GPUI draws.
 const bodyGlyph = 7.5;
@@ -97,7 +95,7 @@ const wrapLineCount = (text: string, width: number, glyph: number): number => {
 const textWidthOf = (width: number): number =>
   Math.max(1, width - 2 * spacing.small - 2 * spacing.hairline - textInset);
 
-export const cardHeight = (text: CardText, width: number, normal: boolean): number => {
+export const cardHeight = (text: CardText, width: number): number => {
   const textWidth = textWidthOf(width);
 
   let height = 2 * spacing.small + 2 * spacing.hairline + controlSize.button;
@@ -114,10 +112,6 @@ export const cardHeight = (text: CardText, width: number, normal: boolean): numb
     height += spacing.small + detailLineHeight;
   }
 
-  if (normal) {
-    height += spacing.small + footerHeight;
-  }
-
   return height;
 };
 
@@ -129,35 +123,40 @@ const boxWidth = (box: CardBox | null): number => {
   return box.sizePx;
 };
 
-const mainWidthOf = (sources: CardGeometrySources, windowWidth: number): MainWidth => {
-  const left = boxWidth(sources.sidebar);
-  const panel = boxWidth(sources.panel);
+export const cardGeometry = (sources: CardGeometrySources, text: CardText): CardGeometry => {
+  const width = maximumWidth;
 
-  return { left, width: Math.max(0, windowWidth - left - panel) };
-};
-
-export const cardGeometry = (
-  sources: CardGeometrySources,
-  text: CardText,
-  normal: boolean,
-): CardGeometry => {
-  if (sources.window === null) {
-    const width = maximumCardWidth;
-
-    return { width, height: cardHeight(text, width, normal), at: null };
+  if (sources.window === null || sources.window.maximized) {
+    return { width, height: cardHeight(text, width), at: null };
   }
 
-  const main = mainWidthOf(sources, sources.window.width);
-  const width = Math.min(maximumCardWidth, Math.max(0, main.width - 2 * paneClearance));
-  const height = cardHeight(text, width, normal);
-  const x = main.left + (main.width - width) / 2;
-  const y = sources.window.height - contentPadding - paneClearance - height;
+  const zoom = sources.window.zoom > 0 ? sources.window.zoom : 1;
+  const left = boxWidth(sources.sidebar);
+  const panel = boxWidth(sources.panel);
+  const mainWidth = Math.max(0, sources.window.width / zoom - left - panel);
+  const cardWidth = Math.min(maximumWidth, Math.max(0, mainWidth - 2 * paneClearance));
+  const height = cardHeight(text, cardWidth);
+  const x = (left + (mainWidth - cardWidth) / 2) * zoom;
+  const y = sources.window.height - (paneClearance + height) * zoom;
 
-  return { width, height, at: { x: Math.round(x), y: Math.round(y) } };
+  return { width: cardWidth, height, at: { x: Math.round(x), y: Math.round(y) } };
 };
 
-export const windowBoundsOf = (value: unknown): { width: number; height: number } | null => {
-  const bounds = listOf(recordOf(value)['bounds']);
+export const cardSignature = (ask: Ask, text: CardText, geometry: CardGeometry): string =>
+  JSON.stringify([
+    ask.spaceName,
+    ask.agent,
+    text.question,
+    text.command,
+    text.more,
+    geometry.width,
+    geometry.height,
+    geometry.at,
+  ]);
+
+export const windowBoundsOf = (value: unknown): WindowBounds | null => {
+  const record = recordOf(value);
+  const bounds = listOf(record['bounds']);
   const width = numberOf(bounds[2]);
   const height = numberOf(bounds[3]);
 
@@ -169,5 +168,7 @@ export const windowBoundsOf = (value: unknown): { width: number; height: number 
     return null;
   }
 
-  return { width, height };
+  const state = stringOf(record['state']);
+
+  return { width, height, maximized: state === 'maximized' || state === 'fullscreen' };
 };

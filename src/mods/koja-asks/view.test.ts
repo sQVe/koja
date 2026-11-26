@@ -1,14 +1,7 @@
 import { afterAll, beforeEach, describe, expect, mock, test } from 'bun:test';
 
 import type { DrawnElement } from '../../../tests/drawn.ts';
-import {
-  click,
-  drawn,
-  drawnIcons,
-  drawnTexts,
-  elementWithText,
-  elementsWithStyle,
-} from '../../../tests/drawn.ts';
+import { click, drawn, drawnIcons, drawnTexts, elementsWithStyle } from '../../../tests/drawn.ts';
 import {
   gpuiBaseFake,
   gpuiKitFake,
@@ -65,7 +58,6 @@ const { cardElement } = (await import(modulePath)) as {
   cardElement: (
     ask: Ask,
     more: { count: number; space: string } | null,
-    normal: boolean,
     actions: CardActions,
   ) => DrawnElement;
 };
@@ -105,7 +97,7 @@ beforeEach(() => {
 
 describe('cardElement', () => {
   test('draws the space, the agent, the question, and the command', () => {
-    const card = cardElement(ask, null, false, actions);
+    const card = cardElement(ask, null, actions);
 
     expect(drawnTexts(card)).toEqual([
       'Build window shell',
@@ -117,19 +109,16 @@ describe('cardElement', () => {
     expect(drawnIcons(card)).toEqual(['message-circle-question.svg', 'x.svg']);
   });
 
-  test('draws the more line and the normal-mode footer when asked', () => {
-    const card = cardElement(ask, { count: 1, space: 'Hill-climb' }, true, actions);
+  test('draws one more line naming the next ask space', () => {
+    const without = drawnTexts(cardElement(ask, null, actions));
+    const withMore = drawnTexts(cardElement(ask, { count: 1, space: 'Hill-climb' }, actions));
 
-    const texts = drawnTexts(card);
-
-    expect(elementWithText(card, '1 more ask in Hill-climb')).not.toBeNull();
-    expect(texts).toContain('g');
-    expect(texts).toContain('n');
-    expect(texts).toContain('Go to this ask');
+    expect(withMore.length).toBe(without.length + 1);
+    expect(withMore.some((text) => text.includes('Hill-climb'))).toBe(true);
   });
 
   test('a click on the card goes to the ask', () => {
-    const card = cardElement(ask, null, false, actions);
+    const card = cardElement(ask, null, actions);
 
     click(elementsWithStyle(card, 'cursor_pointer')[0] ?? card);
 
@@ -137,7 +126,7 @@ describe('cardElement', () => {
   });
 
   test('the dismiss control marks the ask dismissed without going to it', () => {
-    const card = cardElement(ask, null, false, actions);
+    const card = cardElement(ask, null, actions);
 
     const dismiss = elementsWithStyle(card, 'id').find(
       (part) => part.styles['id']?.[0] === 'koja-ask-dismiss',

@@ -30,9 +30,9 @@ import {
 import { parsedJson } from '../../kit/parsedJson.ts';
 import type { Ask } from './askFacts.ts';
 import { asksOf, identityListOf, unseenAsks } from './askFacts.ts';
-import type { CardBox, CardMore } from './card.ts';
-import { cardGeometry, cardTextOf, windowBoundsOf } from './card.ts';
-import type { CardMode, OpenCard } from './host.ts';
+import type { CardBox, CardGeometry, CardGeometrySources, CardMore, CardWindow } from './card.ts';
+import { cardGeometry, cardSignature, cardTextOf, windowBoundsOf } from './card.ts';
+import type { OpenCard } from './host.ts';
 import { planCard } from './host.ts';
 import type { CardActions } from './view.ts';
 import { cardElement } from './view.ts';
@@ -40,14 +40,17 @@ import { cardElement } from './view.ts';
 interface CardProps {
   ask: Ask;
   more: CardMore | null;
-  normal: boolean;
+}
+
+interface CardContent {
+  more: CardMore | null;
+  geometry: CardGeometry;
+  signature: string;
 }
 
 const handledKey = 'koja-asks.handled';
 
 const openKey = 'koja-asks.open';
-
-const normalModeKey = 'koja-modal';
 
 const tickMilliseconds = 500;
 
@@ -90,23 +93,20 @@ const readCardProps = (value: unknown): CardProps | null => {
   const record = recordOf(value);
   const ask = readAsk(record['ask']);
 
-  return ask === null
-    ? null
-    : { ask, more: readMore(record['more']), normal: record['normal'] === true };
+  return ask === null ? null : { ask, more: readMore(record['more']) };
 };
 
 const openStateOf = (value: unknown): OpenCard | null => {
   const record = recordOf(value);
   const id = stringOf(record['id']);
   const identity = stringOf(record['identity']);
-  const mode = stringOf(record['mode']);
-  const isCardMode = mode === 'insert' || mode === 'normal';
+  const signature = stringOf(record['signature']);
 
-  if (id === null || identity === null || !isCardMode) {
+  if (id === null || identity === null || signature === null) {
     return null;
   }
 
-  return { id, identity, mode };
+  return { id, identity, signature };
 };
 
 const markHandled = (identity: string): void => {
@@ -136,7 +136,7 @@ const layoutBoxOf = (id: string): CardBox | null => {
   return node === null ? null : { sizePx: node.sizePx, hidden: node.hidden };
 };
 
-const windowSize = async (): Promise<{ width: number; height: number } | null> => {
+const windowSize = async (): Promise<CardWindow | null> => {
   const text = await readTextFile(`${appHome()}/window.json`).catch(() => null);
   const bounds = windowBoundsOf(parsedJson(text));
 
@@ -146,7 +146,14 @@ const windowSize = async (): Promise<{ width: number; height: number } | null> =
 
   const zoom = numberOf(settings()['zoom']) ?? 1;
 
-  return zoom > 0 ? { width: bounds.width / zoom, height: bounds.height / zoom } : null;
+  return { ...bounds, zoom: zoom > 0 ? zoom : 1 };
+};
+
+const contentOf = (ask: Ask, more: CardMore | null, sources: CardGeometrySources): CardContent => {
+  const text = cardTextOf(ask, more);
+  const geometry = cardGeometry(sources, text);
+
+  return { more, geometry, signature: cardSignature(ask, text, geometry) };
 };
 
 export default class KojaAsks extends View {
@@ -176,7 +183,7 @@ export default class KojaAsks extends View {
       return div().id('koja-asks-host').size(0);
     }
 
-    return cardElement(this.card.ask, this.card.more, this.card.normal, this.actions());
+    return cardElement(this.card.ask, this.card.more, this.actions());
   }
 
   private actions(): CardActions {
@@ -234,9 +241,6 @@ export default class KojaAsks extends View {
     this.busy = true;
 
     try {
-      const normal = shared(normalModeKey) === true;
-      const mode: CardMode = normal ? 'normal' : 'insert';
-
       const view = {
         focusedTab: focused()?.tab ?? null,
         windowActive: currentWindow()?.active === true,
@@ -246,14 +250,34 @@ export default class KojaAsks extends View {
       const asks = unseenAsks(live, view);
       const visible = live.filter((ask) => !asks.includes(ask));
       const handled = identityListOf(shared(handledKey));
-      const handledWithVisible = [...new Set([...handled, ...visible.map((ask) => ask.identity)])];
+      const unhandled = asks.filter((ask) => !handled.includes(ask.identity));
+      const open = openStateOf(shared(openKey));
+
+      const contents = new Map<string, CardContent>();
+      const signatures = new Map<string, string>();
+
+      if (unhandled.length > 0) {
+        const sources: CardGeometrySources = {
+          window: await windowSize(),
+          sidebar: layoutBoxOf('sidebar'),
+          panel: layoutBoxOf('panel'),
+        };
+
+        for (const ask of unhandled) {
+          const content = contentOf(ask, moreOf(unhandled, ask), sources);
+
+          contents.set(ask.identity, content);
+          signatures.set(ask.identity, content.signature);
+        }
+      }
 
       const plan = planCard({
         asks,
         live,
-        handled: handledWithVisible,
-        open: openStateOf(shared(openKey)),
-        mode,
+        handled,
+        visible: visible.map((ask) => ask.identity),
+        open,
+        signatures,
       });
 
       if (plan.handledChanged) {
@@ -266,40 +290,33 @@ export default class KojaAsks extends View {
       }
 
       if (plan.open !== null) {
-        await this.openCard(plan.open, moreOf(asks, plan.open), normal);
+        const content = contents.get(plan.open.identity);
+
+        if (content !== undefined) {
+          this.openCard(plan.open, content);
+        }
       }
     } finally {
       this.busy = false;
     }
   }
 
-  private async openCard(ask: Ask, more: CardMore | null, normal: boolean): Promise<void> {
-    const geometry = cardGeometry(
-      {
-        window: await windowSize(),
-        sidebar: layoutBoxOf('sidebar'),
-        panel: layoutBoxOf('panel'),
-      },
-      cardTextOf(ask, more),
-      normal,
-    );
-
+  private openCard(ask: Ask, content: CardContent): void {
     const spec: OverlaySpec = {
       mod: modName,
       kind: 'window',
       frame: 'none',
-      width: geometry.width,
-      height: geometry.height,
-      props: { ask, more, normal },
+      width: content.geometry.width,
+      height: content.geometry.height,
+      props: { ask, more: content.more },
     };
 
-    if (geometry.at !== null) {
-      spec.at = geometry.at;
+    if (content.geometry.at !== null) {
+      spec.at = content.geometry.at;
     }
 
     const id = openOverlay(spec);
-    const mode: CardMode = normal ? 'normal' : 'insert';
 
-    setShared(openKey, { id, identity: ask.identity, mode });
+    setShared(openKey, { id, identity: ask.identity, signature: content.signature });
   }
 }

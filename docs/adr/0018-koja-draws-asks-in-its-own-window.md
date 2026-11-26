@@ -23,6 +23,15 @@ The window uses `openOverlay({ kind: "window", frame: "none" })`, so Koja draws 
 text, and controls. The card never takes keyboard focus. It stays until the ask is handled:
 answered, gone to, or dismissed, with no timeout.
 
+The card is placed in physical pixels: Herdr reads `at` as raw pixels and scales only `width` and
+`height` by the zoom, so the mod converts the layout widths and the card size itself. When
+`window.json` holds a maximized or full-screen state, its bounds are the last windowed bounds, so
+the card opens centered instead. A windowed resize reopens the card at the new place, because the
+host compares a content-and-geometry signature on each poll.
+
+The card is a passive overlay. The normal-mode hold ignores `koja-asks` when it checks whether
+another overlay holds the keyboard, because the card never takes the keyboard.
+
 Koja owns every alert. Herdr's automatic alerts are off, and Koja plays the blocked sound once for
 each ask the user cannot see. No other case plays a sound.
 
@@ -38,7 +47,9 @@ each ask the user cannot see. No other case plays a sound.
 
 - A window sits under dialogs, so a dialog covers the card until it closes.
 - A window cannot be placed against the focused pane's rectangle, because Herdr exposes no pane
-  geometry. The card sits at the bottom of the main column instead.
+  geometry. The card sits at the bottom of the main column instead. A maximized window falls back to
+  the centered placement, because its last windowed bounds are stale and a mod cannot read the live
+  viewport.
 - A window cannot pass clicks through its transparent area, so the card's window is kept as small as
   its content.
 

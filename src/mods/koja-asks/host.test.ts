@@ -18,11 +18,14 @@ const ask = (identity: string): Ask => ({
   seq: 1,
 });
 
-const open = (identity: string, mode: OpenCard['mode'] = 'insert'): OpenCard => ({
+const open = (identity: string, signature = `sig-${identity}`): OpenCard => ({
   id: 'overlay-1',
   identity,
-  mode,
+  signature,
 });
+
+const signatures = (...identities: string[]): Map<string, string> =>
+  new Map(identities.map((identity) => [identity, `sig-${identity}`]));
 
 describe('planCard', () => {
   test('opens the newest unhandled ask when no card is open', () => {
@@ -30,8 +33,9 @@ describe('planCard', () => {
       asks: [ask('a')],
       live: [ask('a')],
       handled: [],
+      visible: [],
       open: null,
-      mode: 'insert',
+      signatures: signatures('a'),
     });
 
     expect(plan.open?.identity).toBe('a');
@@ -39,26 +43,28 @@ describe('planCard', () => {
     expect(plan.handled).toEqual([]);
   });
 
-  test('does nothing when the open card already shows the ask in this mode', () => {
+  test('does nothing when the open card already shows the ask with the same signature', () => {
     const plan = planCard({
       asks: [ask('a')],
       live: [ask('a')],
       handled: [],
+      visible: [],
       open: open('a'),
-      mode: 'insert',
+      signatures: signatures('a'),
     });
 
     expect(plan.open).toBeNull();
     expect(plan.close).toBeNull();
   });
 
-  test('reopens the card when the mode changes', () => {
+  test('reopens the card when its content or geometry changes', () => {
     const plan = planCard({
       asks: [ask('a')],
       live: [ask('a')],
       handled: [],
-      open: open('a'),
-      mode: 'normal',
+      visible: [],
+      open: open('a', 'old'),
+      signatures: signatures('a'),
     });
 
     expect(plan.close).toBe('overlay-1');
@@ -70,8 +76,9 @@ describe('planCard', () => {
       asks: [ask('b'), ask('a')],
       live: [ask('b'), ask('a')],
       handled: [],
+      visible: [],
       open: open('a'),
-      mode: 'insert',
+      signatures: signatures('a', 'b'),
     });
 
     expect(plan.close).toBe('overlay-1');
@@ -79,7 +86,14 @@ describe('planCard', () => {
   });
 
   test('closes the card and prunes a handled ask that is gone', () => {
-    const plan = planCard({ asks: [], live: [], handled: ['a'], open: open('a'), mode: 'insert' });
+    const plan = planCard({
+      asks: [],
+      live: [],
+      handled: ['a'],
+      visible: [],
+      open: open('a'),
+      signatures: new Map(),
+    });
 
     expect(plan.close).toBe('overlay-1');
     expect(plan.open).toBeNull();
@@ -92,8 +106,9 @@ describe('planCard', () => {
       asks: [ask('a')],
       live: [ask('a')],
       handled: ['a'],
+      visible: [],
       open: null,
-      mode: 'insert',
+      signatures: signatures('a'),
     });
 
     expect(plan.open).toBeNull();
@@ -101,17 +116,18 @@ describe('planCard', () => {
     expect(plan.handledChanged).toBe(false);
   });
 
-  test('keeps a handled ask that is still live but no longer unseen', () => {
+  test('saves an ask that became visible as handled', () => {
     const plan = planCard({
       asks: [],
       live: [ask('a')],
-      handled: ['a'],
+      handled: [],
+      visible: ['a'],
       open: null,
-      mode: 'insert',
+      signatures: new Map(),
     });
 
     expect(plan.handled).toEqual(['a']);
-    expect(plan.handledChanged).toBe(false);
+    expect(plan.handledChanged).toBe(true);
     expect(plan.open).toBeNull();
   });
 
@@ -120,8 +136,9 @@ describe('planCard', () => {
       asks: [ask('b'), ask('a')],
       live: [ask('b'), ask('a')],
       handled: ['b'],
+      visible: [],
       open: null,
-      mode: 'insert',
+      signatures: signatures('a', 'b'),
     });
 
     expect(plan.open?.identity).toBe('a');

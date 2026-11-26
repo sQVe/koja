@@ -99,6 +99,7 @@ export const gpuiKitFake = (overrides: ModuleFake = {}): ModuleFake => ({
 
 export const kitIndexFake = (overrides: ModuleFake = {}): ModuleFake => ({
   actionButton: noop,
+  askCardSize: {},
   askFirst: noop,
   attentionBadge: noop,
   closeOverlay: noop,

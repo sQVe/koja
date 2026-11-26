@@ -3,9 +3,9 @@ import type { Element } from 'gpui-kit';
 import { div } from 'gpui-kit';
 
 import {
+  askCardSize,
   colors,
   controlSize,
-  footerLine,
   icon,
   iconButton,
   overlayCard,
@@ -23,13 +23,7 @@ export interface CardActions {
   dismiss: () => void;
 }
 
-const textInset = 18;
-
-const bodyLineHeight = 18;
-
-const terminalLineHeight = 17;
-
-const detailLineHeight = 16;
+const { textInset, bodyLineHeight, terminalLineHeight, detailLineHeight } = askCardSize;
 
 const stopPress = (_event: unknown, cx: { stop_propagation: () => void }): void => {
   cx.stop_propagation();
@@ -60,14 +54,14 @@ const titleRow = (ask: Ask, actions: CardActions): Element => {
     .child(dismissButton(actions));
 };
 
-const wrappedLine = (text: string, inset: boolean): Element => {
+const wrappedLine = (text: string): Element => {
   const box = div()
     .w_full()
     .min_w(0)
     .flex_none()
+    .ml(textInset)
     .whitespace_normal()
-    .line_height(`${bodyLineHeight}px`)
-    .when(inset, (element) => element.ml(textInset));
+    .line_height(`${bodyLineHeight}px`);
 
   return withTextRole(box, 'body').child(text);
 };
@@ -99,14 +93,9 @@ const moreLine = (more: CardMore): Element => {
   return h_flex().gap(spacing.xxsmall).items_center().child(text).child(chevron);
 };
 
-const cardChildren = (
-  ask: Ask,
-  more: CardMore | null,
-  normal: boolean,
-  actions: CardActions,
-): Element[] => {
+const cardChildren = (ask: Ask, more: CardMore | null, actions: CardActions): Element[] => {
   const title = titleRow(ask, actions);
-  const question = wrappedLine(ask.question, true);
+  const question = wrappedLine(ask.question);
   const children = [title, question];
 
   if (ask.command !== null) {
@@ -121,23 +110,10 @@ const cardChildren = (
     children.push(moreRow);
   }
 
-  if (normal) {
-    const footer = footerLine([['g', 'n'], 'Go to this ask'])
-      .px(0)
-      .ml(textInset);
-
-    children.push(footer);
-  }
-
   return children;
 };
 
-export const cardElement = (
-  ask: Ask,
-  more: CardMore | null,
-  normal: boolean,
-  actions: CardActions,
-): Element => {
+export const cardElement = (ask: Ask, more: CardMore | null, actions: CardActions): Element => {
   const card = overlayCard('koja-ask-card')
     .gap(spacing.small)
     .cursor_pointer()
@@ -145,7 +121,7 @@ export const cardElement = (
     .on_click(() => {
       actions.goToAsk();
     })
-    .children(cardChildren(ask, more, normal, actions));
+    .children(cardChildren(ask, more, actions));
 
   return v_flex().id('koja-asks').size_full().justify_end().child(card);
 };

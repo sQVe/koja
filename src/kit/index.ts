@@ -78,6 +78,7 @@ export { segmentedChip } from './segmentedChip.ts';
 export type { SegmentedChipOptions } from './segmentedChip.ts';
 
 export {
+  askCardSize,
   controlSize,
   diffSize,
   hoverCardSize,

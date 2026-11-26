@@ -40,6 +40,13 @@ const blockedTerminal = {
   report: { state: 'blocked', kind: 'permission', msg: 'bun run sandbox up' },
 };
 
+const blockedTerminal2 = {
+  address: 't2',
+  parent: null,
+  labels: {},
+  report: { state: 'blocked', kind: 'permission', msg: 'bun run check' },
+};
+
 const agent = {
   address: 't1',
   pane: 'p1',
@@ -48,6 +55,16 @@ const agent = {
   tab: 'k1',
   seq: 1,
   program: { name: 'Claude Code' },
+};
+
+const agent2 = {
+  address: 't2',
+  pane: 'p2',
+  space: 's2',
+  space_name: 'Hill-climb',
+  tab: 'k3',
+  seq: 2,
+  program: { name: 'Pi' },
 };
 
 const layout = {
@@ -59,11 +76,14 @@ const layout = {
 };
 
 let focusedTab = 'k2';
+let terminalsValue = [blockedTerminal];
+let agentsValue = [agent];
 let propsValue: Record<string, unknown> = {};
 let values: Record<string, unknown> = {};
 let opened: Record<string, unknown>[] = [];
 let closed: unknown[] = [];
 let runs: { name: string; args: unknown }[] = [];
+let timerHandler: (() => void) | null = null;
 
 Object.assign(globalThis, { kojaModName: 'koja-asks' });
 
@@ -77,7 +97,7 @@ await mock.module('gpui-kit', () =>
 
 await mock.module('herdr', () =>
   herdrFake({
-    agents: () => [agent],
+    agents: () => agentsValue,
     appHome: () => '/home/test/.config/herdr-app',
     closeOverlay: (id: unknown) => {
       closed.push(id);
@@ -92,7 +112,7 @@ await mock.module('herdr', () =>
       return 'overlay-1';
     },
     props: () => propsValue,
-    readTextFile: async () => JSON.stringify({ bounds: [0, 0, 1280, 820] }),
+    readTextFile: async () => JSON.stringify({ state: 'windowed', bounds: [0, 0, 1280, 820] }),
     run: (name: string, args: unknown) => {
       runs.push({ name, args });
 
@@ -105,7 +125,7 @@ await mock.module('herdr', () =>
     },
     settings: () => ({}),
     shared: (key: string) => values[key],
-    terminals: () => [blockedTerminal],
+    terminals: () => terminalsValue,
     theme: () => palette,
     window: () => ({ active: true, platform: 'linux' }),
   }),
@@ -150,9 +170,19 @@ const context = {
   timer: {
     after: () => undefined,
     every: (_milliseconds: number, handler: (cx: unknown) => void) => {
-      handler(context);
+      timerHandler = () => {
+        handler(context);
+      };
     },
   },
+};
+
+const tick = async (): Promise<void> => {
+  timerHandler?.();
+
+  await new Promise((resolve) => {
+    setTimeout(resolve, 10);
+  });
 };
 
 const runHost = async (): Promise<void> => {
@@ -160,9 +190,7 @@ const runHost = async (): Promise<void> => {
 
   view.init({}, context);
 
-  await new Promise((resolve) => {
-    setTimeout(resolve, 10);
-  });
+  await tick();
 };
 
 afterAll(() => {
@@ -171,11 +199,14 @@ afterAll(() => {
 
 beforeEach(() => {
   focusedTab = 'k2';
+  terminalsValue = [blockedTerminal];
+  agentsValue = [agent];
   propsValue = {};
   values = {};
   opened = [];
   closed = [];
   runs = [];
+  timerHandler = null;
 });
 
 describe('the ask host', () => {
@@ -214,11 +245,47 @@ describe('the ask host', () => {
 
     expect(opened).toEqual([]);
   });
+
+  test('names the next unseen ask in the card props', async () => {
+    terminalsValue = [blockedTerminal, blockedTerminal2];
+    agentsValue = [agent, agent2];
+
+    await runHost();
+
+    expect(opened[0]?.props).toMatchObject({
+      more: { count: 1, space: 'Build window shell' },
+    });
+  });
+
+  test('does not count a handled ask in the more line', async () => {
+    terminalsValue = [blockedTerminal, blockedTerminal2];
+    agentsValue = [agent, agent2];
+    values['koja-asks.handled'] = [ask.identity];
+
+    await runHost();
+
+    expect(opened[0]?.props).toMatchObject({ more: null });
+  });
+
+  test('does not reopen an ask the user saw in its tab', async () => {
+    await runHost();
+
+    expect(opened).toHaveLength(1);
+
+    focusedTab = 'k1';
+    await tick();
+
+    focusedTab = 'k2';
+    await tick();
+
+    expect(opened).toHaveLength(1);
+    expect(values['koja-asks.handled']).toEqual([ask.identity]);
+  });
 });
 
 describe('the ask card', () => {
   const initCard = (): { render: () => DrawnElement } => {
-    propsValue = { ask, more: null, normal: false, overlay: 'overlay-1' };
+    propsValue = { ask, more: null, overlay: 'overlay-1' };
 
     const view = new loaded.default();
 
@@ -228,7 +295,7 @@ describe('the ask card', () => {
   };
 
   test('a click goes to the asking pane, marks the ask handled, and closes the card', () => {
-    values['koja-asks.open'] = { id: 'overlay-1', identity: ask.identity, mode: 'insert' };
+    values['koja-asks.open'] = { id: 'overlay-1', identity: ask.identity, signature: 'sig' };
 
     const view = initCard();
     const card = view.render();
@@ -250,7 +317,7 @@ describe('the ask card', () => {
   });
 
   test('the dismiss control marks the ask handled and closes without a jump', () => {
-    values['koja-asks.open'] = { id: 'overlay-1', identity: ask.identity, mode: 'insert' };
+    values['koja-asks.open'] = { id: 'overlay-1', identity: ask.identity, signature: 'sig' };
 
     const view = initCard();
     const card = view.render();

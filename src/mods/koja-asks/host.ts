@@ -1,11 +1,9 @@
 import type { Ask } from './askFacts.ts';
 
-export type CardMode = 'insert' | 'normal';
-
 export interface OpenCard {
   id: string;
   identity: string;
-  mode: CardMode;
+  signature: string;
 }
 
 export interface CardPlan {
@@ -19,28 +17,38 @@ export interface PlanSources {
   asks: readonly Ask[];
   live: readonly Ask[];
   handled: readonly string[];
+  visible: readonly string[];
   open: OpenCard | null;
-  mode: CardMode;
+  signatures: ReadonlyMap<string, string>;
 }
 
-const sameList = (left: readonly string[], right: readonly string[]): boolean =>
-  left.length === right.length && left.every((value, index) => value === right[index]);
+const unique = (values: readonly string[]): string[] => [...new Set(values)];
+
+const sameSet = (left: readonly string[], right: readonly string[]): boolean =>
+  left.length === right.length && left.every((value) => right.includes(value));
 
 export const planCard = (sources: PlanSources): CardPlan => {
   const live = new Set(sources.live.map((ask) => ask.identity));
-  const handled = sources.handled.filter((identity) => live.has(identity));
-  const handledChanged = !sameList(handled, sources.handled);
+
+  const handled = unique([...sources.handled, ...sources.visible]).filter((identity) =>
+    live.has(identity),
+  );
+
+  const handledChanged = !sameSet(handled, sources.handled);
   const shown = sources.asks.find((ask) => !handled.includes(ask.identity)) ?? null;
 
   if (shown === null) {
     return { close: sources.open?.id ?? null, open: null, handled, handledChanged };
   }
 
-  if (
+  const signature = sources.signatures.get(shown.identity) ?? '';
+
+  const current =
     sources.open !== null &&
     sources.open.identity === shown.identity &&
-    sources.open.mode === sources.mode
-  ) {
+    sources.open.signature === signature;
+
+  if (current) {
     return { close: null, open: null, handled, handledChanged };
   }
 

@@ -187,6 +187,15 @@ export const overlaySize = {
   paneHeadersRolesHeight: 780,
 } as const;
 
+export const askCardSize = {
+  maximumWidth: 420,
+  paneClearance: 16,
+  textInset: iconSize.small + spacing.small,
+  bodyLineHeight: 18,
+  terminalLineHeight: 17,
+  detailLineHeight: 16,
+} as const;
+
 export const trafficLightsWidth = 64;
 
 export const draggedOpacity = 0.5;
