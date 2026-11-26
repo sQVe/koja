@@ -1,7 +1,7 @@
 import { folderNameOf } from '../../data/fields.ts';
+import { repositoryNameOf } from '../../data/repositoryName.ts';
 import { needsYou } from '../../kit/needsYou.ts';
 import type { FoldedKeys, GitInfo, ListedSpace } from './tree.ts';
-import { repoName } from './tree.ts';
 
 export interface Project {
   key: string;
@@ -18,20 +18,6 @@ type ProjectRows = [ListedSpace, ...ListedSpace[]];
 
 const projectKey = (row: ListedSpace): string => row.git?.repo.key ?? row.place.key;
 
-const lastPart = (path: string): string | null => {
-  const name = folderNameOf(path);
-
-  return name === '' ? null : name;
-};
-
-const repoPathName = (path: string): string => {
-  const last = folderNameOf(path);
-  const isGitFolder = last === '.git' || last === '.bare';
-  const checkout = isGitFolder ? path.slice(0, path.lastIndexOf('/')) : path;
-
-  return repoName(checkout);
-};
-
 const isMain = (row: ListedSpace): row is ListedSpace & { git: GitInfo } =>
   row.git !== null && !row.git.linked;
 
@@ -39,14 +25,14 @@ const projectName = (rows: ProjectRows, main: ListedSpace | null): string => {
   const [first] = rows;
 
   if (main?.git) {
-    return repoName(main.git.root);
+    return repositoryNameOf(main.git.root, main.git.repo.commonDirectory);
   }
 
   if (first.git !== null) {
-    return repoPathName(first.git.repo.commonDirectory);
+    return repositoryNameOf(null, first.git.repo.commonDirectory);
   }
 
-  return lastPart(first.place.folder) ?? first.space.name;
+  return folderNameOf(first.place.folder) || first.space.name;
 };
 
 const shownWhenFolded = (row: ListedSpace): boolean => row.space.active || needsYou(row.status);

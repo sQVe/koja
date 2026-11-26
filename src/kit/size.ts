@@ -161,6 +161,8 @@ export const indentWidth = 20;
 export const overlaySize = {
   menuWidth: 200,
   menuHeight: 260,
+  // Wide enough for the new menu's worktree rows.
+  newMenuWidth: 296,
   wideMenuWidth: 250,
   wideMenuHeight: 512,
   // Leaves room for the popup's frame inside wideMenuHeight.
