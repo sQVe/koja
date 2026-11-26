@@ -1,6 +1,6 @@
 import { afterAll, beforeEach, describe, expect, mock, test } from 'bun:test';
 
-import { herdrFake } from '../../../tests/moduleFakes.ts';
+import { herdrFake, kitIndexFake } from '../../../tests/moduleFakes.ts';
 
 let layoutTree: unknown = null;
 
@@ -22,7 +22,11 @@ beforeEach(() => {
   layoutTree = null;
 });
 
-const tree = (sidebar: Record<string, unknown>, padding: unknown = 6): unknown => ({
+const tree = (
+  sidebar: Record<string, unknown>,
+  padding: unknown = 6,
+  tabs: Record<string, unknown> = {},
+): unknown => ({
   id: 'root',
   type: 'row',
   children: [
@@ -31,7 +35,7 @@ const tree = (sidebar: Record<string, unknown>, padding: unknown = 6): unknown =
       id: 'work',
       type: 'column',
       children: [
-        { id: 'tabs', type: 'block', size: { px: 28 }, padding: [0, 6] },
+        { id: 'tabs', type: 'block', size: { px: 28 }, padding: [0, 6], ...tabs },
         { id: 'work-body', type: 'row', padding },
       ],
     },
@@ -60,6 +64,12 @@ describe('mainColumnInsets', () => {
     layoutTree = tree({ hidden: true });
 
     expect(mainColumnInsets().left).toBe(0);
+  });
+
+  test('answers the work padding while the tab bar is hidden', () => {
+    layoutTree = tree({}, 6, { hidden: true });
+
+    expect(mainColumnInsets().top).toBe(6);
   });
 
   test('answers zeros for a missing node', () => {
@@ -103,5 +113,19 @@ describe('mainColumnPlacement', () => {
 
   test('keeps the card inside the root when the insets are smaller than the popup inset', () => {
     expect(mainColumnPlacement({ left: 4, top: 2 }, 0)).toEqual({ left: 0, right: 12, top: 0 });
+  });
+
+  test('places the card as the real function does for the kit fake defaults', () => {
+    const fake = kitIndexFake();
+    const insetsOf = fake['mainColumnInsets'] as () => { left: number; top: number };
+
+    const placeOf = fake['mainColumnPlacement'] as (
+      insets: { left: number; top: number },
+      topOffset: number,
+    ) => { left: number; right: number; top: number };
+
+    const insets = insetsOf();
+
+    expect(placeOf(insets, 40)).toEqual(mainColumnPlacement(insets, 40));
   });
 });
