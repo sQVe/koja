@@ -14,8 +14,8 @@ import {
   pickerData,
   spaceOf,
   stackOf,
-  stackPullOf,
   tabOf,
+  ticketStack,
 } from '../../../tests/pickerFixtures.ts';
 import type { PickerData } from './rows.ts';
 import { buildRows } from './rows.ts';
@@ -105,27 +105,35 @@ const dataWith = (): PickerData => {
 const listOf = (query: string, data: PickerData): DrawnElement =>
   list(buildRows(query, null, data), query, null, data, {}, () => undefined);
 
-const dataWithState = (state: 'open' | 'unknown'): PickerData =>
-  pickerData({
+const dataWithState = (state: 'open' | 'unknown'): PickerData => {
+  const base = ticketStack();
+
+  const pulls = base.pulls.map((pull, index) =>
+    index === 1 ? Object.assign({}, pull, { state }) : pull,
+  );
+
+  return pickerData({
     spaces: [spaceOf('a', 1, 'koja', [tabOf('a1', 1, true)])],
     panes: [],
-    stored: factsWithStack(
-      '/home/me/koja',
-      stackOf([
-        stackPullOf({ branch: 'me-1181-bottom', ticket: 'ME-1181', number: 601 }),
-        stackPullOf({ branch: 'me-1182-middle', ticket: 'ME-1182', number: 602, state }),
-        stackPullOf({ branch: 'me-1183-top', ticket: 'ME-1183', number: 603 }),
-      ]),
-    ),
+    stored: factsWithStack('/home/me/koja', stackOf(pulls)),
   });
+};
 
 describe('list with a stack reason', () => {
   test('a found space row draws its reason', () => {
     const found = listOf('504', dataWith());
 
     expect(elementWithText(found, '#504')).not.toBeNull();
+  });
 
-    const named = listOf('koja', dataWith());
+  test('a name-matched row draws the name and no stack reason', () => {
+    const data = pickerData({
+      spaces: [spaceOf('a', 1, 'koja', [tabOf('a1', 1, true)])],
+      panes: [],
+      stored: factsWithStack('/home/me/koja', mergedStack()),
+    });
+
+    const named = listOf('koja', data);
 
     expect(elementWithText(named, 'koja')).not.toBeNull();
     expect(elementWithText(named, '#504')).toBeNull();

@@ -17,9 +17,17 @@ describe('stackMatchOf', () => {
   });
 
   test('a leading # matches the same PR', () => {
-    expect(stackMatchOf('#504', mergedStack())?.reason).toEqual(
-      stackMatchOf('504', mergedStack())?.reason,
-    );
+    const hash = stackMatchOf('#504', mergedStack())?.reason;
+    const plain = stackMatchOf('504', mergedStack())?.reason;
+
+    expect(hash).toEqual({
+      value: '#504',
+      position: 2,
+      total: 8,
+      state: 'merged',
+    });
+
+    expect(hash).toEqual(plain);
   });
 
   test('a query that equals no stack PR and no field gives no match', () => {
