@@ -1,6 +1,12 @@
 import { afterAll, describe, expect, mock, test } from 'bun:test';
 
-import { drawn, drawnTooltips, elementWithText, numberStyle } from '../../tests/drawn.ts';
+import {
+  drawn,
+  drawnTexts,
+  drawnTooltips,
+  elementWithText,
+  numberStyle,
+} from '../../tests/drawn.ts';
 import { gpuiBaseFake, gpuiKitFake, herdrFake } from '../../tests/moduleFakes.ts';
 import { controlSize } from './size.ts';
 
@@ -37,5 +43,13 @@ describe('factLine', () => {
     expect(value?.styles['text_ellipsis_middle']).toBeDefined();
     expect(drawnTooltips(line)).toEqual([branch]);
     expect(fact?.styles['flex_none']).toBeDefined();
+  });
+
+  test('draws the value and every fact in order', () => {
+    expect(drawnTexts(factLine(branch, facts))).toEqual([branch, '·', 'PR 1 of 2', '·', 'merged']);
+  });
+
+  test('draws only the value when there are no facts', () => {
+    expect(drawnTexts(factLine('add-search', []))).toEqual(['add-search']);
   });
 });
