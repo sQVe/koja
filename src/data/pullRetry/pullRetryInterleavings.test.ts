@@ -3,22 +3,21 @@ import { describe, expect, test } from 'bun:test';
 import type { ExecResult } from 'herdr';
 
 import { answerFrom } from '../../../tests/pullAnswers.ts';
+import { ids } from '../../../tests/pullRetryStore.ts';
 import {
-  ids,
-  otherRepositoryKey,
-  repositoryKey,
-  silentNotices,
+  gitFactsOf,
+  pullList,
+  schedulerRepository,
+  seededRepositoryPulls,
   start,
-} from '../../../tests/pullRetryStore.ts';
-import { gitFactsOf, pullList } from '../../../tests/pullSchedulerFixtures.ts';
-import { PullSchedulerHarness } from '../../../tests/pullSchedulerHarness.ts';
+} from '../../../tests/pullSchedulerFixtures.ts';
+import { branchCountOf, PullSchedulerHarness } from '../../../tests/pullSchedulerHarness.ts';
 import type { PendingCall } from '../../../tests/pullSchedulerHarness.ts';
 import { repositoryOf } from '../gitIdentity.ts';
 import {
   createPullRetryClient,
+  isExpired,
   pullRetryLifetimeMilliseconds,
-  readPullRetryOutcomes,
-  readPullRetryRequests,
   requestKey,
 } from './pullRetry.ts';
 import type { PullRetryOutcome, PullRetryRequest } from './pullRetry.ts';
@@ -28,14 +27,16 @@ interface IssuedRequest {
   expiresAt: number;
 }
 
+const otherRepository = repositoryOf(null, '/code/other/.git');
+
 const gitFacts = gitFactsOf(
-  { repository: repositoryOf(null, '/code/koja/.git'), folder: '/code/koja' },
-  { repository: repositoryOf(null, '/code/other/.git'), folder: '/code/other' },
+  { repository: schedulerRepository, folder: '/code/koja' },
+  { repository: otherRepository, folder: '/code/other' },
 );
 
 const seedPulls = {
-  [repositoryKey]: { pulls: [], failed: false },
-  [otherRepositoryKey]: { pulls: [], failed: false },
+  ...seededRepositoryPulls,
+  [otherRepository.key]: { pulls: [], failed: false },
 };
 
 const seededRandom = (seed: number): (() => number) => {
@@ -48,24 +49,14 @@ const seededRandom = (seed: number): (() => number) => {
   };
 };
 
-const requestsIn = (harness: PullSchedulerHarness): PullRetryRequest[] => {
-  const stored = readPullRetryRequests(harness.store.read, silentNotices());
-
-  if (stored.kind !== 'current') {
-    throw new Error('the store holds a newer request record');
+const repositoryForFolder = (folder: string): string => {
+  for (const worktree of Object.values(gitFacts.worktrees)) {
+    if (worktree.root === folder) {
+      return worktree.repository.key;
+    }
   }
 
-  return stored.items;
-};
-
-const outcomesIn = (harness: PullSchedulerHarness): PullRetryOutcome[] => {
-  const stored = readPullRetryOutcomes(harness.store.read, silentNotices());
-
-  if (stored.kind !== 'current') {
-    throw new Error('the store holds a newer outcome record');
-  }
-
-  return stored.items;
+  throw new Error(`no repository for ${folder}`);
 };
 
 const observeRequests = (
@@ -83,7 +74,6 @@ const observeRequests = (
 const observeOutcomes = (
   outcomes: PullRetryOutcome[],
   recorded: Map<string, Set<string>>,
-  answered: Set<string>,
 ): void => {
   for (const outcome of outcomes) {
     const key = requestKey(outcome);
@@ -91,24 +81,55 @@ const observeOutcomes = (
 
     results.add(outcome.result);
     recorded.set(key, results);
-    answered.add(key);
   }
 };
 
-const branchCountOf = (call: PendingCall): number =>
-  call.args.filter((argument) => argument.startsWith('branch')).length;
+const observeSeen = (outcomes: PullRetryOutcome[], seen: Set<string>): void => {
+  for (const outcome of outcomes) {
+    seen.add(requestKey(outcome));
+  }
+};
+
+const recordRead = (
+  harness: PullSchedulerHarness,
+  call: PendingCall,
+  now: number,
+  decisions: Map<string, number>,
+): void => {
+  const repository = repositoryForFolder(call.cwd);
+  const outcomes = harness.outcomes();
+  const answered = new Set(outcomes.map(requestKey));
+
+  for (const request of harness.requests()) {
+    const key = requestKey(request);
+    const claimable = request.repository === repository && !isExpired(request.at, now);
+
+    if (!claimable || answered.has(key)) {
+      continue;
+    }
+
+    decisions.set(key, (decisions.get(key) ?? 0) + 1);
+  }
+};
 
 const answerCall = (call: PendingCall, random: () => number): ExecResult => {
-  if (call.command === 'git' && call.args[1] === 'get-url') {
-    return { code: 0, stdout: 'git@github.com:koja/koja.git\n', stderr: '' };
-  }
-
   if (call.command === 'git') {
-    return { code: 0, stdout: 'origin\n', stderr: '' };
+    if (call.args[0] === 'remote' && call.args[1] === 'get-url') {
+      return { code: 0, stdout: 'git@github.com:koja/koja.git\n', stderr: '' };
+    }
+
+    if (call.args.length === 1 && call.args[0] === 'remote') {
+      return { code: 0, stdout: 'origin\n', stderr: '' };
+    }
+
+    throw new Error(`unexpected git call ${call.args.join(' ')}`);
   }
 
   if (random() < 0.5) {
-    return { code: 0, stdout: answerFrom(branchCountOf(call), pullList(7)), stderr: '' };
+    const branchCount = branchCountOf(call);
+    const pulls = pullList(7);
+
+    return { code: 0, stdout: answerFrom(branchCount, pulls), stderr: '' };
   }
 
   return { code: 1, stdout: '', stderr: 'offline' };
@@ -117,11 +138,19 @@ const answerCall = (call: PendingCall, random: () => number): ExecResult => {
 const answerPending = async (
   harness: PullSchedulerHarness,
   random: () => number,
+  now: number,
+  decisions: Map<string, number>,
 ): Promise<void> => {
   for (const call of harness.calls) {
-    if (!call.settled) {
-      await harness.respondCall(call, answerCall(call, random));
+    if (call.settled) {
+      continue;
     }
+
+    if (call.command === 'gh') {
+      recordRead(harness, call, now, decisions);
+    }
+
+    await harness.respondCall(call, answerCall(call, random));
   }
 
   await Promise.all(harness.spawned.splice(0));
@@ -134,7 +163,8 @@ const checkInterleaving = async (seed: number, answeredKeys: Set<string>): Promi
   const clientB = createPullRetryClient(harness.store, 'window-b', ids(`b${seed}`));
   const issued = new Map<string, IssuedRequest>();
   const recorded = new Map<string, Set<string>>();
-  const everAnswered = new Set<string>();
+  const decisions = new Map<string, number>();
+  const seenByClient = new Set<string>();
   const steps = 6 + Math.floor(random() * 10);
   let scheduler = harness.start({ pulls: seedPulls, readTimes: {} });
   let now = start;
@@ -151,7 +181,7 @@ const checkInterleaving = async (seed: number, answeredKeys: Set<string>): Promi
     harness.setNow(now);
 
     const action = Math.floor(random() * 6);
-    const repository = random() < 0.5 ? repositoryKey : otherRepositoryKey;
+    const repository = random() < 0.5 ? schedulerRepository.key : otherRepository.key;
 
     if (action === 0) {
       clientA.request(repository, now);
@@ -159,8 +189,10 @@ const checkInterleaving = async (seed: number, answeredKeys: Set<string>): Promi
       clientB.request(repository, now);
     } else if (action === 2) {
       clientA.settle(now);
+      observeSeen(harness.outcomes(), seenByClient);
     } else if (action === 3) {
       clientB.settle(now);
+      observeSeen(harness.outcomes(), seenByClient);
     } else if (action === 4) {
       harness.setRequests([]);
     } else {
@@ -169,22 +201,24 @@ const checkInterleaving = async (seed: number, answeredKeys: Set<string>): Promi
       }
 
       scheduler.tick(gitFacts, new Map(), harness.spawn);
-      await answerPending(harness, random);
+      await answerPending(harness, random, now, decisions);
     }
 
-    observeRequests(requestsIn(harness), issued);
-    observeOutcomes(outcomesIn(harness), recorded, everAnswered);
+    observeRequests(harness.requests(), issued);
+    observeOutcomes(harness.outcomes(), recorded);
   }
 
   clientA.settle(now);
+  observeSeen(harness.outcomes(), seenByClient);
   clientB.settle(now);
+  observeSeen(harness.outcomes(), seenByClient);
 
-  const stored = requestsIn(harness);
-  const outcomes = outcomesIn(harness);
+  const stored = harness.requests();
+  const outcomes = harness.outcomes();
   const answered = new Set(outcomes.map(requestKey));
   const storedKeys = new Set(stored.map(requestKey));
 
-  observeOutcomes(outcomes, recorded, everAnswered);
+  observeOutcomes(outcomes, recorded);
 
   for (const request of stored) {
     const key = requestKey(request);
@@ -200,16 +234,20 @@ const checkInterleaving = async (seed: number, answeredKeys: Set<string>): Promi
   }
 
   for (const [key, results] of recorded) {
+    const reads = decisions.get(key) ?? 0;
+
     expect(
       results.size,
       `seed ${seed}: the owner recorded ${results.size} results for ${key}`,
     ).toBe(1);
 
+    expect(reads, `seed ${seed}: the owner read ${key} ${reads} times`).toBe(1);
+
     answeredKeys.add(key);
   }
 
   for (const [key, entry] of issued) {
-    if (entry.expiresAt <= now || everAnswered.has(key)) {
+    if (entry.expiresAt <= now || seenByClient.has(key)) {
       continue;
     }
 

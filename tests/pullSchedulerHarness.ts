@@ -10,6 +10,7 @@ import {
   pullRetryOutcomesKey,
   pullRetryRequestsKey,
   readPullRetryOutcomes,
+  readPullRetryRequests,
 } from '../src/data/pullRetry/pullRetry.ts';
 import type { Pull } from '../src/data/pulls.ts';
 import type { PullScheduler, PullSchedulerSeed } from '../src/data/pullScheduler.ts';
@@ -53,6 +54,9 @@ const memoryStore = (onRead: (key: string) => void): Store => {
 };
 
 const silentNotices = (): RecordNotices => createRecordNotices(() => {});
+
+export const branchCountOf = (call: PendingCall): number =>
+  call.args.filter((argument) => argument.startsWith('branch')).length;
 
 const remoteNamesResult: ExecResult = { code: 0, stdout: 'origin\n', stderr: '' };
 
@@ -261,9 +265,12 @@ export class PullSchedulerHarness {
 
   async respondPulls(index: number, pulls: Pull[]): Promise<void> {
     const call = this.call(index);
-    const branchCount = call.args.filter((argument) => argument.startsWith('branch')).length;
 
-    await this.respond(index, { code: 0, stdout: answerFrom(branchCount, pulls), stderr: '' });
+    await this.respond(index, {
+      code: 0,
+      stdout: answerFrom(branchCountOf(call), pulls),
+      stderr: '',
+    });
   }
 
   callsIn(folder: string): PendingCall[] {
@@ -275,6 +282,16 @@ export class PullSchedulerHarness {
 
     if (stored.kind !== 'current') {
       throw new Error('the store holds a newer outcomes record');
+    }
+
+    return stored.items;
+  }
+
+  requests(): PullRetryRequest[] {
+    const stored = readPullRetryRequests(this.store.read, this.notices);
+
+    if (stored.kind !== 'current') {
+      throw new Error('the store holds a newer request record');
     }
 
     return stored.items;

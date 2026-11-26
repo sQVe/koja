@@ -164,7 +164,23 @@ export const showFacts = (facts: Facts): void => {
   state.sharedValues[snapshotKey] = { version: 4, revision: 1, facts };
 };
 
+let savedKojaModName: PropertyDescriptor | undefined;
+let savedLocalStorage: PropertyDescriptor | undefined;
+
+const restoreGlobal = (name: string, descriptor: PropertyDescriptor | undefined): void => {
+  if (descriptor === undefined) {
+    Reflect.deleteProperty(globalThis, name);
+
+    return;
+  }
+
+  Object.defineProperty(globalThis, name, descriptor);
+};
+
 export const setupKojaSpaces = async (): Promise<void> => {
+  savedKojaModName = Object.getOwnPropertyDescriptor(globalThis, 'kojaModName');
+  savedLocalStorage = Object.getOwnPropertyDescriptor(globalThis, 'localStorage');
+
   Object.assign(globalThis, {
     kojaModName: 'koja',
     localStorage: {
@@ -254,6 +270,8 @@ export const setupKojaSpaces = async (): Promise<void> => {
 };
 
 export const restoreKojaSpaces = (): void => {
+  restoreGlobal('kojaModName', savedKojaModName);
+  restoreGlobal('localStorage', savedLocalStorage);
   crypto.randomUUID = realRandomUuid;
   mock.restore();
 };

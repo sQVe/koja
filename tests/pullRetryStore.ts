@@ -35,7 +35,7 @@ export const memoryStore = (): MemoryStore => {
   };
 };
 
-export const silentNotices = (): RecordNotices => createRecordNotices(() => {});
+const silentNotices = (): RecordNotices => createRecordNotices(() => {});
 
 export const fixture = (name: string): unknown =>
   JSON.parse(readFileSync(join(import.meta.dir, '..', 'src', 'data', 'pullRetry', 'fixtures', name), 'utf8'));
