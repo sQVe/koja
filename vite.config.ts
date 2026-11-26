@@ -1,6 +1,11 @@
 import { format, lint } from '@sqve/stomme-ts-style';
 import { defineConfig } from 'vite-plus';
 
+const scriptChecks = [
+  'bunx --bun stomme-ts-style',
+  'bunx --bun vp fmt --check --no-error-on-unmatched-pattern',
+];
+
 export default defineConfig({
   lint: {
     extends: [lint],
@@ -17,10 +22,8 @@ export default defineConfig({
   },
   staged: {
     // Declaration files are kept as Herdr wrote them, so lint never gets them.
-    '{!(*.d).ts,*.tsx,*.js,*.jsx,*.mjs,*.cjs}': [
-      'bunx --bun stomme-ts-style',
-      'bunx --bun vp fmt --check --no-error-on-unmatched-pattern',
-    ],
+    '!(*.d).ts': scriptChecks,
+    '*.{tsx,js,jsx,mjs,cjs}': scriptChecks,
     '*.{json,md,yaml,yml,css}': 'bunx --bun vp fmt --check --no-error-on-unmatched-pattern',
   },
 });
