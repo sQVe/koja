@@ -85,9 +85,10 @@ const agent = (
   spaceId: string,
   name: string,
   status: AgentInfo['status'] = 'working',
+  id = name,
 ): AgentInfo => ({
-  address: `a-${name}`,
-  pane: `p-${name}`,
+  address: `a-${id}`,
+  pane: `p-${id}`,
   space: spaceId,
   space_name: '',
   tab: 't1',
@@ -174,10 +175,31 @@ describe('dialogFor', () => {
     });
   });
 
-  test('the close body names one agent once, though it runs in two panes', () => {
+  test('the close body counts the agents of one program', () => {
     const values = facts(spaceValues(), [], focusValue);
 
-    values.agents = [agent('s1', 'Claude Code'), agent('s1', 'Claude Code')];
+    values.agents = [
+      agent('s1', 'Claude Code', 'working', 'claude-1'),
+      agent('s1', 'Claude Code', 'working', 'claude-2'),
+    ];
+
+    const plan = dialogFor('space.close', { id: 's1' }, values);
+
+    expect(plan).toMatchObject({
+      kind: 'confirm',
+      dialog: {
+        body: [
+          '2 Claude Code agents stop mid-task, and 2 tabs close.',
+          'Its folder, uncommitted changes, and branch stay.',
+        ],
+      },
+    });
+  });
+
+  test('a blocked agent stops mid-task', () => {
+    const values = facts(spaceValues(), [], focusValue);
+
+    values.agents = [agent('s1', 'Claude Code', 'blocked')];
 
     const plan = dialogFor('space.close', { id: 's1' }, values);
 
@@ -186,6 +208,28 @@ describe('dialogFor', () => {
       dialog: {
         body: [
           'Claude Code stops mid-task, and 2 tabs close.',
+          'Its folder, uncommitted changes, and branch stay.',
+        ],
+      },
+    });
+  });
+
+  test('three agents join with commas and a final and', () => {
+    const values = facts(spaceValues(), [], focusValue);
+
+    values.agents = [
+      agent('s1', 'Claude Code', 'working', 'claude'),
+      agent('s1', 'Pi', 'working', 'pi'),
+      agent('s1', 'zsh', 'working', 'zsh'),
+    ];
+
+    const plan = dialogFor('space.close', { id: 's1' }, values);
+
+    expect(plan).toMatchObject({
+      kind: 'confirm',
+      dialog: {
+        body: [
+          'Claude Code, Pi, and zsh stop mid-task, and 2 tabs close.',
           'Its folder, uncommitted changes, and branch stay.',
         ],
       },
