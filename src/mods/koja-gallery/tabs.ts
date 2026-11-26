@@ -41,7 +41,24 @@ export const tabs = (): Element[] => {
           hovered: true,
         }),
       )
-      .child(tab({ label: 'Idle', active: false, icon: null, status: 'idle', close: null }))
+      .child(
+        tab({
+          label: 'Idle',
+          active: false,
+          icon: icon('terminal', 'small'),
+          status: 'idle',
+          close: null,
+        }),
+      )
+      .child(
+        tab({
+          label: 'Crashed',
+          active: false,
+          icon: icon('terminal', 'small'),
+          status: 'crashed',
+          close: null,
+        }),
+      )
       .child(spacer),
   ];
 };

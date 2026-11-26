@@ -1,24 +1,22 @@
 import { h_flex } from 'gpui-base';
 import type { Element } from 'gpui-kit';
 import { div } from 'gpui-kit';
-import type { Status } from 'herdr';
 
+import type { AttentionStatus } from './attentionStatus.ts';
 import type { HoverOptions } from './hover.ts';
 import { withHover } from './hover.ts';
 import { clearOf } from './palette.ts';
 import { controlSize, iconSize, radius, spacing, textSize } from './size.ts';
-import { statusMark } from './statusMark.ts';
+import { attentionMark } from './statusMark.ts';
 import { colors } from './theme.ts';
 
 export interface TabOptions extends HoverOptions {
   label: string;
   active: boolean;
   icon: Element | null;
-  status: Status | null;
+  status: AttentionStatus | null;
   close: Element | null;
 }
-
-const shownStatus = (status: Status | null): Status | null => (status === 'idle' ? null : status);
 
 const startSlot = (iconElement: Element | null): Element => {
   const slot = h_flex().size(iconSize.small).flex_none().items_center().justify_center();
@@ -29,11 +27,11 @@ const startSlot = (iconElement: Element | null): Element => {
 const endSlot = (options: TabOptions): Element => {
   const slot = h_flex().size(controlSize.smallButton).flex_none().items_center().justify_center();
 
-  if (options.active) {
-    return options.close === null ? slot : slot.child(options.close);
+  if (options.active && options.close !== null) {
+    return slot.child(options.close);
   }
 
-  return slot.child(statusMark(shownStatus(options.status)));
+  return slot;
 };
 
 export const tab = (options: TabOptions): Element => {
@@ -63,15 +61,10 @@ export const tab = (options: TabOptions): Element => {
   }
 
   const tabIcon = options.icon === null ? null : options.icon.text_color(iconTone);
+  const leading = attentionMark(options.status) ?? tabIcon;
   const label = div().max_w(controlSize.tabLabelMaxWidth).truncate().child(options.label);
 
-  element.child(startSlot(tabIcon)).child(label);
-
-  const status = shownStatus(options.status);
-
-  if (options.active && status !== null) {
-    element.child(statusMark(status));
-  }
+  element.child(startSlot(leading)).child(label);
 
   return element.child(endSlot(options));
 };

@@ -1,7 +1,13 @@
 import { afterAll, afterEach, describe, expect, mock, test } from 'bun:test';
 
 import type { DrawnElement } from '../../../tests/drawn.ts';
-import { click, drawn, drawnTexts, elementsWithStyle } from '../../../tests/drawn.ts';
+import {
+  click,
+  drawn,
+  drawnTexts,
+  elementWithIcon,
+  elementsWithStyle,
+} from '../../../tests/drawn.ts';
 import { gpuiBaseFake, gpuiKitFake, herdrFake, kitIndexFake } from '../../../tests/moduleFakes.ts';
 import { recordOf, stringOf } from '../../kit/fields.ts';
 import { normalFocusFill, toPalette } from '../../kit/palette.ts';
@@ -47,18 +53,6 @@ const textElement = (text: string): DrawnElement => {
   element.texts.push(text);
 
   return element;
-};
-
-const fakeStatusMarkWidth = (status: string | null): number => {
-  if (status === 'blocked') {
-    return 66;
-  }
-
-  if (status === 'working' || status === 'done') {
-    return 12;
-  }
-
-  return 0;
 };
 
 const pane = (): Record<string, unknown> => ({
@@ -114,6 +108,10 @@ const { paneBranchElement, paneFolderElement, paneOverflowButton, paneTaskElemen
   paneTaskElement: (task: string | undefined, fieldCut: boolean) => DrawnElement | null;
 };
 
+const { paneLeadingSlotWidth } = (await import(overflowModulePath)) as {
+  paneLeadingSlotWidth: (status: string | null, showsProgramIcon: boolean) => number;
+};
+
 const badgeModulePath = '../../kit/roleBadge.ts';
 
 const { roleBadge } = (await import(badgeModulePath)) as {
@@ -135,14 +133,14 @@ await mock.module('../../kit/index.ts', () =>
     paneActions,
     paneBranchElement,
     paneFolderElement,
-    paneStatusElement: (status: string | null) =>
-      fakeStatusMarkWidth(status) > 0 ? textElement(status ?? '') : null,
+    attentionMark: (status: string | null) =>
+      status === null || status === 'idle' ? null : textElement(status),
     paneTaskElement,
-    statusMarkWidth: fakeStatusMarkWidth,
     paneHeaderFields,
     paneHeaderWidth,
+    paneLeadingSlotWidth,
     paneOverflowButton,
-    programIcon: () => drawn(),
+    programIcon: () => drawn('program.svg'),
     radius: { cardInner: 7 },
     recordOf,
     roleBadge: (role: string, state?: 'full' | 'cut') => {
@@ -506,27 +504,26 @@ describe('pane header buttons', () => {
     expect(openedOverlays).toMatchObject([{ props: { task: 'Build window shell' } }]);
   });
 
-  test('a wide header ends its trailing group at the right edge without a task, with a task, and with a branch', () => {
+  test('a wide header leads with its mark and ends its trailing group at the right edge without a task, with a task, and with a branch', () => {
     paneProgramValue = piProgram;
     paneCwd = '/var/tmp/ruta-koja/home/pi-fixture';
     paneStatus = 'working';
     terminalRecords = [{ address: 't1', labels: { 'tau.role': 'lead' } }];
 
     const withStatus = renderedHoveredAt(900);
+    const mark = withStatus.kids[0];
     const folder = withStatus.kids.find((kid) => drawnTexts(kid).includes('~/pi-fixture'));
-    const status = withStatus.kids.find((kid) => drawnTexts(kid).includes('working'));
     const badge = withStatus.kids.find((kid) => kid.styles['roleBadge'] !== undefined);
     const autos = withStatus.kids.filter((kid) => kid.styles['ml_auto'] !== undefined);
 
-    expect(folder?.styles['ml_auto']).toBeUndefined();
+    expect(drawnTexts(mark ?? drawn())).toEqual(['working']);
 
     expect(withStatus.kids.indexOf(folder ?? drawn())).toBeGreaterThan(
       withStatus.kids.indexOf(badge ?? drawn()),
     );
 
     expect(autos).toHaveLength(1);
-    expect(autos[0]).toBe(status);
-    expect(elementsWithStyle(withStatus, 'accessibility_label')).toHaveLength(4);
+    expect(elementsWithStyle(autos[0] ?? drawn(), 'accessibility_label')).toHaveLength(4);
 
     paneStatus = null;
     const noStatus = renderedHoveredAt(900);
@@ -665,5 +662,53 @@ describe('pane header buttons', () => {
     }
 
     expect(askedCommands).toEqual([{ command: 'pane.close', args: { pane: 'p1' } }]);
+  });
+});
+
+describe('pane header leading slot', () => {
+  const roleRecord = [{ address: 't1', labels: { 'tau.role': 'lead' } }];
+
+  test('an idle pane with a program icon draws that icon first', () => {
+    paneProgramValue = iconProgram;
+
+    const leading = rendered().kids[0] ?? drawn();
+
+    expect(elementWithIcon(leading, 'program.svg')).not.toBeNull();
+  });
+
+  test('a working pane leads with its mark and drops the program icon', () => {
+    paneProgramValue = iconProgram;
+    paneStatus = 'working';
+
+    const tree = rendered();
+
+    expect(drawnTexts(tree.kids[0] ?? drawn())).toEqual(['working']);
+    expect(elementWithIcon(tree, 'program.svg')).toBeNull();
+  });
+
+  test('a mark charges its own slot at 204 px, where an icon drops the folder', () => {
+    paneCwd = '/var/tmp/ruta-koja/home/pi-fixture';
+    terminalRecords = roleRecord;
+    paneProgramValue = piProgram;
+    paneStatus = 'working';
+
+    expect(drawnTexts(renderedAt(204))).toContain('~/pi-fixture');
+
+    paneStatus = null;
+    paneProgramValue = iconProgram;
+
+    expect(drawnTexts(renderedAt(204))).not.toContain('~/pi-fixture');
+  });
+
+  test('a mark drops a field at 190 px, where an iconless idle pane keeps it', () => {
+    paneCwd = '/var/tmp/ruta-koja/home/pi-fixture';
+    terminalRecords = roleRecord;
+    paneProgramValue = piProgram;
+
+    expect(drawnTexts(renderedAt(190))).toContain('~/pi-fixture');
+
+    paneStatus = 'working';
+
+    expect(drawnTexts(renderedAt(190))).not.toContain('~/pi-fixture');
   });
 });

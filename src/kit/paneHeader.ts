@@ -1,8 +1,9 @@
 import { h_flex } from 'gpui-base';
 import type { Element } from 'gpui-kit';
 import { div } from 'gpui-kit';
-import type { Program, Status } from 'herdr';
+import type { Program } from 'herdr';
 
+import type { AttentionStatus } from './attentionStatus.ts';
 import { iconButton } from './button.ts';
 import { icon, programIcon } from './icon.ts';
 import type { IconName } from './iconNames.ts';
@@ -11,7 +12,7 @@ import { paneHeaderFields } from './paneHeaderFields.ts';
 import { paneActions } from './paneHeaderMenuModel.ts';
 import { roleBadge } from './roleBadge.ts';
 import { controlSize, paneHeaderWidth, radius, spacing } from './size.ts';
-import { paneStatusElement, statusMarkWidth } from './statusMark.ts';
+import { attentionMark, attentionMarkWidth } from './statusMark.ts';
 import { withTextRole } from './textRole.ts';
 import { colors, focusFill } from './theme.ts';
 
@@ -22,7 +23,7 @@ export interface PaneHeaderOptions {
   task?: string;
   branch?: string;
   folder?: string;
-  status: Status | null;
+  status: AttentionStatus | null;
   focused: boolean;
   hovered?: boolean;
   zoomed: boolean;
@@ -39,7 +40,6 @@ export interface PaneHeaderOptions {
 interface TrailingAlignment {
   branch: boolean;
   folder: boolean;
-  status: boolean;
   action: boolean;
 }
 
@@ -134,31 +134,25 @@ const trailingAlignment = (
   hasTask: boolean,
   showsBranch: boolean,
   showsFolder: boolean,
-  showsStatus: boolean,
 ): TrailingAlignment => {
   if (hasTask) {
-    return { branch: false, folder: false, status: false, action: false };
+    return { branch: false, folder: false, action: false };
   }
 
   if (showsBranch) {
-    return { branch: true, folder: false, status: false, action: false };
+    return { branch: true, folder: false, action: false };
   }
 
   if (showsFolder) {
-    return { branch: false, folder: true, status: false, action: false };
+    return { branch: false, folder: true, action: false };
   }
 
-  if (showsStatus) {
-    return { branch: false, folder: false, status: true, action: false };
-  }
-
-  return { branch: false, folder: false, status: false, action: true };
+  return { branch: false, folder: false, action: true };
 };
 
 const trailingChildren = (
   options: PaneHeaderOptions,
   fields: PaneHeaderFields,
-  status: Element | null,
   alignment: TrailingAlignment,
 ): Element[] => {
   const children: Element[] = [];
@@ -171,12 +165,6 @@ const trailingChildren = (
 
   if (isPresent(folder) && fields.folder !== 'dropped') {
     children.push(paneFolderElement(folder, fields.folder, alignment.folder));
-  }
-
-  if (status !== null) {
-    const placedStatus = alignment.status ? status.ml_auto() : status;
-
-    children.push(placedStatus);
   }
 
   return children;
@@ -202,13 +190,29 @@ const actionRow = (
   return options.hovered === true ? row : row.invisible();
 };
 
+/** The width the pane header's leading slot draws: the mark's slot, the program icon, or none. */
+export const paneLeadingSlotWidth = (
+  status: AttentionStatus | null,
+  showsProgramIcon: boolean,
+): number => {
+  const markWidth = attentionMarkWidth(status);
+
+  if (markWidth > 0) {
+    return markWidth;
+  }
+
+  return showsProgramIcon ? paneHeaderWidth.icon : 0;
+};
+
 export const paneHeader = (options: PaneHeaderOptions): Element => {
   const palette = colors();
 
+  const mark = attentionMark(options.status);
+  const leadingSlotWidth = paneLeadingSlotWidth(options.status, true);
+
   const fields = paneHeaderFields({
     ...options,
-    statusWidth: statusMarkWidth(options.status),
-    showsProgramIcon: true,
+    leadingSlotWidth,
   });
 
   const iconColor = options.focused ? palette.muted : palette.dim;
@@ -234,8 +238,9 @@ export const paneHeader = (options: PaneHeaderOptions): Element => {
   }
 
   const programMark = programIcon(options.program, 'default').text_color(iconColor);
+  const leading = mark ?? programMark;
 
-  header.child(programMark);
+  header.child(leading);
   header.child(nameElement(options));
 
   if (isPresent(options.role)) {
@@ -246,8 +251,7 @@ export const paneHeader = (options: PaneHeaderOptions): Element => {
   const hasTask = fields.task === 'shown';
   const showsBranch = fields.branch !== 'dropped' && isPresent(options.branch);
   const showsFolder = fields.folder !== 'dropped' && isPresent(options.folder);
-  const status = paneStatusElement(options.status);
-  const alignment = trailingAlignment(hasTask, showsBranch, showsFolder, status !== null);
+  const alignment = trailingAlignment(hasTask, showsBranch, showsFolder);
 
   const task = hasTask ? paneTaskElement(options.task, fieldCut) : null;
 
@@ -255,7 +259,7 @@ export const paneHeader = (options: PaneHeaderOptions): Element => {
     header.child(task);
   }
 
-  header.children(trailingChildren(options, fields, status, alignment));
+  header.children(trailingChildren(options, fields, alignment));
   header.child(actionRow(fields, options, alignment.action));
 
   return header;

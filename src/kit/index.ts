@@ -27,6 +27,7 @@ export {
   paneBranchElement,
   paneFolderElement,
   paneHeader,
+  paneLeadingSlotWidth,
   paneOverflowButton,
   paneTaskElement,
 } from './paneHeader.ts';
@@ -83,12 +84,13 @@ export {
   spacing,
 } from './size.ts';
 
+export type { AttentionStatus } from './attentionStatus.ts';
+
 export {
   attentionBadge,
+  attentionMark,
   fileStatusMark,
   indicator,
-  paneStatusElement,
-  statusMarkWidth,
   spaceMark,
   statusMark,
 } from './statusMark.ts';

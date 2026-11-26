@@ -1,8 +1,8 @@
 import { h_flex, v_flex } from 'gpui-base';
 import type { Element } from 'gpui-kit';
 import { div } from 'gpui-kit';
-import type { Status } from 'herdr';
 
+import type { AttentionStatus as KitAttentionStatus } from '../../../../kit/index.ts';
 import { icon } from '../../../../kit/index.ts';
 import { agentPane } from '../../scenes/shellContent.ts';
 import { mainWidth } from '../overlays/parts.ts';
@@ -30,7 +30,7 @@ import type { DirectionTokens } from '../tokens.ts';
 import { branchField } from '../window.ts';
 
 type AttentionVariant = 'corner' | 'brief' | 'mix';
-type AttentionStatus = Status | 'crashed' | null;
+type AttentionStatus = KitAttentionStatus | null;
 
 interface AttentionTab {
   label: string;

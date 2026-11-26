@@ -1,10 +1,9 @@
 import { afterAll, describe, expect, mock, test } from 'bun:test';
 
-import type { Status } from 'herdr';
-
 import type { DrawnElement } from '../../tests/drawn.ts';
-import { drawn, drawnIcons, drawnTexts } from '../../tests/drawn.ts';
+import { drawn, drawnIcons, drawnTexts, elementWithIcon } from '../../tests/drawn.ts';
 import { gpuiBaseFake, gpuiKitFake, herdrFake } from '../../tests/moduleFakes.ts';
+import type { AttentionStatus } from './attentionStatus.ts';
 import { shellSize } from './size.ts';
 
 interface HeaderOptions {
@@ -14,7 +13,7 @@ interface HeaderOptions {
   task?: string;
   branch?: string;
   folder: string;
-  status: Status | null;
+  status: AttentionStatus | null;
   focused: boolean;
   zoomed: boolean;
   width: number;
@@ -29,7 +28,15 @@ await mock.module('gpui-kit', () =>
 );
 
 await mock.module('herdr', () =>
-  herdrFake({ theme: () => ({ foreground: '#000000', muted: '#111111' }) }),
+  herdrFake({
+    theme: () => ({
+      foreground: '#000000',
+      muted: '#111111',
+      blocked: '#222222',
+      working: '#333333',
+      done: '#444444',
+    }),
+  }),
 );
 
 const modulePath = './paneHeader.ts';
@@ -182,23 +189,6 @@ describe('paneHeader role badge', () => {
     expect(folder?.styles['ml_auto']).toBeUndefined();
   });
 
-  test('a status without a task end-aligns first', () => {
-    const element = paneHeader({
-      program: null,
-      name: 'Pi',
-      role: 'lead',
-      folder: '',
-      status: 'blocked',
-      focused: false,
-      zoomed: false,
-      width: shellSize.wideSpecimenWidth,
-    });
-
-    const status = element.kids.find((kid) => drawnTexts(kid).includes('Needs you'));
-
-    expect(status?.styles['ml_auto']).toEqual([]);
-  });
-
   test('a compact header without a task has no empty spacer and ends its action', () => {
     const element = paneHeader({
       program: null,
@@ -223,7 +213,7 @@ describe('paneHeader role badge', () => {
   });
 });
 
-const statusHeader = (status: Status | null): DrawnElement =>
+const statusHeader = (status: AttentionStatus | null): DrawnElement =>
   paneHeader({
     program: null,
     name: 'Pi',
@@ -234,24 +224,80 @@ const statusHeader = (status: Status | null): DrawnElement =>
     width: shellSize.wideSpecimenWidth,
   });
 
-describe('paneHeader status', () => {
-  test('blocked draws the needs-you badge', () => {
-    expect(drawnTexts(statusHeader('blocked'))).toContain('Needs you');
+const markCount = (element: DrawnElement, name: string): number =>
+  drawnIcons(element).filter((icon) => icon === name).length;
+
+const leadsWith = (element: DrawnElement, name: string): boolean =>
+  elementWithIcon(element.kids[0] ?? drawn(), name) !== null;
+
+describe('paneHeader attention mark', () => {
+  test('blocked leads with the question bubble and draws no program icon', () => {
+    const marked = statusHeader('blocked');
+
+    expect(leadsWith(marked, 'message-circle-question.svg')).toBe(true);
+    expect(markCount(marked, 'message-circle-question.svg')).toBe(1);
+    expect(elementWithIcon(marked, 'message-circle-question.svg')?.textColors).toEqual(['#222222']);
+    expect(drawnIcons(marked)).not.toContain('terminal.svg');
+    expect(drawnTexts(marked)).not.toContain('Needs you');
   });
 
-  test('working and done draw their status mark', () => {
-    expect(drawnIcons(statusHeader('working'))).toContain('loader-circle.svg');
-    expect(drawnIcons(statusHeader('done'))).toContain('check.svg');
+  test('done leads with the check and draws no program icon', () => {
+    const marked = statusHeader('done');
+
+    expect(leadsWith(marked, 'check.svg')).toBe(true);
+    expect(markCount(marked, 'check.svg')).toBe(1);
+    expect(elementWithIcon(marked, 'check.svg')?.textColors).toEqual(['#444444']);
+    expect(drawnIcons(marked)).not.toContain('terminal.svg');
   });
 
-  test('null and idle draw no status mark', () => {
-    const quiet = drawnIcons(statusHeader(null));
-    const idle = drawnIcons(statusHeader('idle'));
+  test('working leads with the spinner and draws no program icon', () => {
+    const marked = statusHeader('working');
 
-    expect(quiet).not.toContain('loader-circle.svg');
-    expect(quiet).not.toContain('check.svg');
-    expect(idle).not.toContain('loader-circle.svg');
-    expect(idle).not.toContain('check.svg');
-    expect(drawnTexts(statusHeader(null))).not.toContain('Needs you');
+    expect(leadsWith(marked, 'loader-circle.svg')).toBe(true);
+    expect(markCount(marked, 'loader-circle.svg')).toBe(1);
+    expect(drawnIcons(marked)).not.toContain('terminal.svg');
+  });
+
+  test('crashed leads with the triangle alert and draws no program icon', () => {
+    const marked = statusHeader('crashed');
+
+    expect(leadsWith(marked, 'triangle-alert.svg')).toBe(true);
+    expect(markCount(marked, 'triangle-alert.svg')).toBe(1);
+    expect(elementWithIcon(marked, 'triangle-alert.svg')?.textColors).toEqual(['#222222']);
+    expect(drawnIcons(marked)).not.toContain('terminal.svg');
+  });
+
+  test('idle and no status keep the program icon and draw no mark', () => {
+    for (const status of ['idle', null] as const) {
+      const quiet = statusHeader(status);
+      const icons = drawnIcons(quiet);
+
+      expect(icons[0]).toBe('terminal.svg');
+      expect(icons).not.toContain('message-circle-question.svg');
+      expect(icons).not.toContain('triangle-alert.svg');
+      expect(icons).not.toContain('check.svg');
+      expect(icons).not.toContain('loader-circle.svg');
+    }
+  });
+});
+
+describe('paneHeader leading slot width', () => {
+  const folderAt = (width: number, status: AttentionStatus | null): string[] =>
+    drawnTexts(
+      paneHeader({
+        program: null,
+        name: 'Pi',
+        role: 'lead',
+        folder: '~/code/koja',
+        status,
+        focused: false,
+        zoomed: false,
+        width,
+      }),
+    );
+
+  test('a mark charges its 12 px slot at 198 px, where the 14 px program icon drops the folder', () => {
+    expect(folderAt(198, 'working')).toContain('~/code/koja');
+    expect(folderAt(198, null)).not.toContain('~/code/koja');
   });
 });
