@@ -1,5 +1,6 @@
 import type { PaneInfo, SpaceInfo, Status, TabInfo } from 'herdr';
 
+import { lastPart } from '../../data/repositoryName.ts';
 import type { StatusRollup } from '../../kit/statusRollup.ts';
 import { statusRank } from '../../kit/statusRollup.ts';
 import { tabLabel, tabName, tabProgram, taskOfPane } from '../../kit/tabLabel.ts';
@@ -55,8 +56,7 @@ const statusWords: Record<Status, string> = {
 const statusWord = (status: Status | null): string | null =>
   status === null ? null : statusWords[status];
 
-const folderName = (path: string | null): string =>
-  (path ?? '').split('/').findLast((part) => part !== '') ?? '';
+const folderName = (path: string | null): string => lastPart(path ?? '') ?? '';
 
 export const paneLabel = (pane: PaneInfo): string =>
   pane.terminal === null ? pane.title : `${pane.program.name} · ${pane.title}`;

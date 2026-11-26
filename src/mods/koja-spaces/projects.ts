@@ -1,4 +1,4 @@
-import { repoName, repoPathName } from '../../data/repositoryName.ts';
+import { lastPart, repositoryNameOf } from '../../data/repositoryName.ts';
 import { needsYou } from '../../kit/needsYou.ts';
 import type { FoldedKeys, GitInfo, ListedSpace } from './tree.ts';
 
@@ -17,9 +17,6 @@ type ProjectRows = [ListedSpace, ...ListedSpace[]];
 
 const projectKey = (row: ListedSpace): string => row.git?.repo.key ?? row.place.key;
 
-const lastPart = (path: string): string | null =>
-  path.split('/').findLast((part) => part !== '') ?? null;
-
 const isMain = (row: ListedSpace): row is ListedSpace & { git: GitInfo } =>
   row.git !== null && !row.git.linked;
 
@@ -27,11 +24,11 @@ const projectName = (rows: ProjectRows, main: ListedSpace | null): string => {
   const [first] = rows;
 
   if (main?.git) {
-    return repoName(main.git.root);
+    return repositoryNameOf(main.git.root, main.git.repo.commonDirectory);
   }
 
   if (first.git !== null) {
-    return repoPathName(first.git.repo.commonDirectory);
+    return repositoryNameOf(null, first.git.repo.commonDirectory);
   }
 
   return lastPart(first.place.folder) ?? first.space.name;
