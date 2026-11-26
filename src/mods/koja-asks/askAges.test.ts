@@ -1,21 +1,11 @@
 import { describe, expect, test } from 'bun:test';
 
+import { seededRandom } from '../../../tests/gitSchedulerHarness.ts';
 import { askAgeOf, trackAskAges } from './askAges.ts';
 
 const now = 1_700_000_000_000;
 
 const identities = ['a', 'b', 'c', 'd', 'e'];
-
-// A deterministic generator, so a failing run repeats with the same inputs.
-const nextRandom = (seed: number): (() => number) => {
-  let state = seed + 1;
-
-  return () => {
-    state = (state * 1_664_525 + 1_013_904_223) % 4_294_967_296;
-
-    return state / 4_294_967_296;
-  };
-};
 
 const sample = <T>(values: readonly T[], random: () => number): T[] =>
   values.filter(() => random() < 0.5);
@@ -30,7 +20,7 @@ describe('trackAskAges', () => {
   });
 
   test('keeps every known age and prunes only the gone asks', () => {
-    const random = nextRandom(20_261_126);
+    const random = seededRandom(20_261_126);
 
     for (let run = 0; run < 200; run += 1) {
       const before: Record<string, number> = {};

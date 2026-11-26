@@ -7,6 +7,8 @@ import { spaceFolder } from '../../kit/space.ts';
 
 export type AskProjects = Map<string, string>;
 
+type WorktreeGroup = [WorktreeGit, ...WorktreeGit[]];
+
 // A repository's name is its main checkout's folder, or the folder above a `.git` or `.bare`.
 const repoName = (path: string): string => {
   const parts = path.split('/').filter((part) => part !== '');
@@ -45,11 +47,11 @@ const folderNameOf = (space: SpaceInfo, panes: PaneInfo[]): string => {
 };
 
 // A linked worktree takes the name of its repository's main checkout, as the spaces sidebar does.
-const repositoryNameOf = (group: readonly WorktreeGit[]): string => {
+const repositoryNameOf = (group: WorktreeGroup): string => {
   const main = group.find((worktree) => !worktree.linked);
-  const common = group[0]?.repository.commonDirectory ?? '';
+  const path = main === undefined ? group[0].repository.commonDirectory : main.root;
 
-  return repoName(main?.root ?? common);
+  return repoName(path);
 };
 
 export const askProjects = (
@@ -58,24 +60,25 @@ export const askProjects = (
   panes: PaneInfo[],
 ): AskProjects => {
   const worktrees = spaces.map((space) => worktreeOfSpace(state, space, panes));
-  const groups = new Map<string, WorktreeGit[]>();
+  const groups = new Map<string, WorktreeGroup>();
 
   for (const worktree of worktrees) {
     if (worktree === null) {
       continue;
     }
 
-    const group = groups.get(worktree.repository.key) ?? [];
+    const group = groups.get(worktree.repository.key);
+    const next: WorktreeGroup = group === undefined ? [worktree] : [...group, worktree];
 
-    group.push(worktree);
-    groups.set(worktree.repository.key, group);
+    groups.set(worktree.repository.key, next);
   }
 
   return new Map(
     spaces.map((space, index) => {
       const worktree = worktrees[index] ?? null;
-      const group = worktree === null ? [] : (groups.get(worktree.repository.key) ?? []);
-      const name = worktree === null ? folderNameOf(space, panes) : repositoryNameOf(group);
+      const group = worktree === null ? null : (groups.get(worktree.repository.key) ?? null);
+      const repository = group === null ? '' : repositoryNameOf(group);
+      const name = repository === '' ? folderNameOf(space, panes) : repository;
 
       return [space.id, name];
     }),

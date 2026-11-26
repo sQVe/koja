@@ -26,6 +26,7 @@ const palette = {
   border: '#b6bbc4',
   dim: '#43464e',
   foreground: '#1e2028',
+  hover: '#eef0f3',
   muted: '#383b43',
   popover: '#e6e8eb',
 } as const;
@@ -210,8 +211,7 @@ describe('listElement', () => {
       'Hill-climb mode for judges',
     ]);
 
-    expect(fills[0]).not.toEqual([]);
-    expect(fills[1]).toEqual(fills[0]);
+    expect(fills).toEqual([[palette.hover], [palette.hover]]);
   });
 
   test('the list dismiss control dismisses every ask without a jump', () => {

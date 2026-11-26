@@ -9,10 +9,10 @@ import {
   herdrFake,
   realKitIndexFake,
 } from '../../../tests/moduleFakes.ts';
-import { placeOf } from '../../data/gitIdentity.ts';
+import { placeOf, worktreeOf } from '../../data/gitIdentity.ts';
 import { heartbeatKey } from '../../data/lease.ts';
-import type { PlaceGit, WorktreeGit } from '../../data/snapshot.ts';
-import { snapshotKey } from '../../data/snapshot.ts';
+import type { Facts, PlaceGit, WorktreeGit } from '../../data/snapshot.ts';
+import { snapshotKey, snapshotVersion } from '../../data/snapshot.ts';
 import type { Ask } from './askFacts.ts';
 
 const palette = {
@@ -245,8 +245,8 @@ const seedGitFacts = (): void => {
     linked: true,
   } satisfies WorktreeGit;
 
-  const mainKey = placeOf(null, main.root).key;
-  const linkedKey = placeOf(null, linked.root).key;
+  const mainKey = worktreeOf(null, main.root).key;
+  const linkedKey = worktreeOf(null, linked.root).key;
 
   const places: Record<string, PlaceGit> = {
     [placeOf(null, '/code/koja').key]: { kind: 'repository', worktree: mainKey },
@@ -256,9 +256,9 @@ const seedGitFacts = (): void => {
   const facts = {
     git: { places, worktrees: { [mainKey]: main, [linkedKey]: linked } },
     pulls: {},
-  };
+  } satisfies Facts;
 
-  values[snapshotKey] = { version: 4, revision: 1, facts };
+  values[snapshotKey] = { version: snapshotVersion, revision: 1, facts };
   values[heartbeatKey] = { version: 1, owner: 'koja-data', generation: 1, at: Date.now() };
 };
 
@@ -289,6 +289,7 @@ afterAll(() => {
 });
 
 beforeEach(() => {
+  setSystemTime();
   focusedTab = 'k2';
   terminalsValue = [blockedTerminal];
   agentsValue = [agent];
@@ -462,6 +463,7 @@ describe('the ask host', () => {
 
     values['koja-asks.list'] = true;
     setSystemTime(start + 60_000);
+    seedGitFacts();
 
     await tick();
 

@@ -53,6 +53,8 @@ export interface CardGeometry {
 const {
   maximumWidth,
   paneClearance,
+  cardPadding,
+  cardBorder,
   textInset,
   bodyLineHeight,
   terminalLineHeight,
@@ -117,12 +119,12 @@ const wrapLineCount = (text: string, width: number, glyph: number): number => {
 };
 
 const textWidthOf = (width: number): number =>
-  Math.max(1, width - 2 * spacing.small - 2 * spacing.hairline - textInset);
+  Math.max(1, width - 2 * cardPadding - 2 * cardBorder - textInset);
 
 export const cardHeight = (text: CardText, width: number): number => {
   const textWidth = textWidthOf(width);
 
-  let height = 2 * spacing.small + 2 * spacing.hairline + controlSize.button;
+  let height = 2 * cardPadding + 2 * cardBorder + controlSize.button;
 
   height += spacing.small;
   height += wrapLineCount(text.question, textWidth, bodyGlyph) * bodyLineHeight;
@@ -155,9 +157,9 @@ const rowHeight = (row: AskRow, width: number): number => {
 };
 
 export const listHeight = (rows: readonly AskRow[], width: number): number => {
-  const contentWidth = width - 2 * spacing.small - 2 * spacing.hairline;
+  const contentWidth = width - 2 * cardPadding - 2 * cardBorder;
 
-  let height = 2 * spacing.small + 2 * spacing.hairline + listLineHeight;
+  let height = 2 * cardPadding + 2 * cardBorder + listLineHeight;
 
   for (const row of rows) {
     height += listGap;
@@ -206,6 +208,8 @@ const askSignature = (ask: Ask): Record<string, unknown> => ({
   paneId: ask.paneId,
 });
 
+// The age stays out on purpose: it changes every minute, and a new signature would recreate the
+// overlay and reset the list's scroll.
 const rowSignature = (row: AskRow): Record<string, unknown> => ({
   ...askSignature(row.ask),
   identity: row.ask.identity,

@@ -219,6 +219,9 @@ export const askCardSize = {
   bodyLineHeight: 18,
   terminalLineHeight: 17,
   detailLineHeight: 16,
+  // The overlay card's own padding and border, which the height estimate must add to its lines.
+  cardPadding: spacing.small,
+  cardBorder: spacing.hairline,
   // The list under the more line: a row's title line, the gap above each row, and its padding.
   listLineHeight: controlSize.button,
   listGap: spacing.medium,

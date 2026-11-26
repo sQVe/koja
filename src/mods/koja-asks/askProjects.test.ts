@@ -89,28 +89,38 @@ describe('askProjects', () => {
     expect(projects.get('s2')).toBe('herdr');
   });
 
-  test('names a bare repository without its suffix', () => {
-    const checkout = worktreeOf('/code/koja/.bare', '/code/koja', false);
+  test('names a bare repository from its common folder without the suffix', () => {
+    const checkout = worktreeOf('/code/koja/.bare', '/code/koja-checkout', true);
 
     const state = withGit(
-      { [placeKey('/code/koja')]: { kind: 'repository', worktree: worktreeKey(checkout.root) } },
+      {
+        [placeKey('/code/koja-checkout')]: {
+          kind: 'repository',
+          worktree: worktreeKey(checkout.root),
+        },
+      },
       { [worktreeKey(checkout.root)]: checkout },
     );
 
-    const projects = askProjects(state, [spaceOf('s1', '/code/koja')], []);
+    const projects = askProjects(state, [spaceOf('s1', '/code/koja-checkout')], []);
 
     expect(projects.get('s1')).toBe('koja');
   });
 
-  test('names a separate Git folder without its suffix', () => {
-    const checkout = worktreeOf('/code/tau.git', '/code/tau', false);
+  test('names a separate Git folder without the suffix', () => {
+    const checkout = worktreeOf('/code/tau.git', '/code/tau-checkout', true);
 
     const state = withGit(
-      { [placeKey('/code/tau')]: { kind: 'repository', worktree: worktreeKey(checkout.root) } },
+      {
+        [placeKey('/code/tau-checkout')]: {
+          kind: 'repository',
+          worktree: worktreeKey(checkout.root),
+        },
+      },
       { [worktreeKey(checkout.root)]: checkout },
     );
 
-    const projects = askProjects(state, [spaceOf('s1', '/code/tau')], []);
+    const projects = askProjects(state, [spaceOf('s1', '/code/tau-checkout')], []);
 
     expect(projects.get('s1')).toBe('tau');
   });
@@ -122,6 +132,19 @@ describe('askProjects', () => {
 
     const failed = withGit({ [placeKey('/code/koja')]: { kind: 'failed' } }, {});
     const projects = askProjects(failed, [spaceOf('s1', '/code/koja')], []);
+
+    expect(projects.get('s1')).toBe('koja');
+  });
+
+  test('names the folder when a repository name comes out empty', () => {
+    const checkout = worktreeOf('/', '/', false);
+
+    const state = withGit(
+      { [placeKey('/code/koja')]: { kind: 'repository', worktree: worktreeKey(checkout.root) } },
+      { [worktreeKey(checkout.root)]: checkout },
+    );
+
+    const projects = askProjects(state, [spaceOf('s1', '/code/koja')], []);
 
     expect(projects.get('s1')).toBe('koja');
   });
