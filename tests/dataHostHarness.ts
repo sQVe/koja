@@ -3,6 +3,7 @@ import { mock, setSystemTime } from 'bun:test';
 import type { ExecResult, FolderWatch } from 'herdr';
 
 import { placeOf, repositoryOf, worktreeOf } from '../src/data/gitIdentity.ts';
+import { sweepMilliseconds } from '../src/data/host/hostTiming.ts';
 import type { Heartbeat } from '../src/data/lease.ts';
 import { heartbeatIntervalMilliseconds, heartbeatKey, parseHeartbeat } from '../src/data/lease.ts';
 import { pushGapMilliseconds, readPeriodMilliseconds } from '../src/data/pullDue.ts';
@@ -195,11 +196,7 @@ const resetHostState = (state: HostState): void => {
   setSystemTime(start);
 };
 
-const startCopyOf = (
-  state: HostState,
-  startDataHost: (cx: unknown) => void,
-  sweepMilliseconds: number,
-): Copy => {
+const startCopyOf = (state: HostState, startDataHost: (cx: unknown) => void): Copy => {
   const handlers = new Map<number, (() => void)[]>();
 
   const context: HostContext = {
@@ -279,15 +276,11 @@ const readPullOf = (number: number): Pull => {
   });
 };
 
-const controlsOf = (
-  state: HostState,
-  startDataHost: (cx: unknown) => void,
-  sweepMilliseconds: number,
-): HostControls => ({
+const controlsOf = (state: HostState, startDataHost: (cx: unknown) => void): HostControls => ({
   reset: () => {
     resetHostState(state);
   },
-  startCopy: () => startCopyOf(state, startDataHost, sweepMilliseconds),
+  startCopy: () => startCopyOf(state, startDataHost),
   settle: async () => {
     for (let index = 0; index < 30; index += 1) {
       await Promise.resolve();
@@ -300,6 +293,8 @@ const controlsOf = (
   readPull: (number) => readPullOf(number),
   sweepMilliseconds,
 });
+
+const modulePath = '../src/data/host.ts';
 
 // Bun keeps one module registry per worker, so every test file shares this state and the cached host.
 const state = createHostState();
@@ -339,10 +334,9 @@ export const setupDataHost = async (): Promise<DataHostHarness> => {
     }),
   );
 
-  const loaded = (await import('../src/data/host.ts')) as {
+  const loaded = (await import(modulePath)) as {
     startDataHost: (cx: unknown) => void;
-    sweepMilliseconds: number;
   };
 
-  return Object.assign(state, controlsOf(state, loaded.startDataHost, loaded.sweepMilliseconds));
+  return Object.assign(state, controlsOf(state, loaded.startDataHost));
 };
