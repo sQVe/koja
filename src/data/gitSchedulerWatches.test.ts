@@ -6,7 +6,7 @@ import {
   spaceOf,
   worldOf,
 } from '../../tests/gitSchedulerHarness.ts';
-import { placeOf, worktreeOf } from './gitIdentity.ts';
+import { placeOf, repositoryOf, worktreeOf } from './gitIdentity.ts';
 
 const harness = new GitSchedulerHarness();
 
@@ -65,6 +65,26 @@ describe('createGitScheduler watches', () => {
     expect(scheduler.gitFacts().places[placeOf(null, '/code/bare.git').key]).toEqual({
       kind: 'repository',
       worktree: worktreeOf(null, '/code/bare.git').key,
+    });
+  });
+
+  test('records a bare place in the .bare layout as bare', async () => {
+    harness.setFolder(null, '/code/project', {
+      layout: 'true\nfalse\n/code/project/.bare\n/code/project/.bare\n',
+      branch: 'main\n',
+    });
+
+    const scheduler = harness.start();
+
+    scheduler.tick(worldOf([spaceOf('s1', '/code/project')]), harness.context);
+    await harness.complete(harness.startedAt(0));
+
+    expect(scheduler.gitFacts().worktrees[worktreeOf(null, '/code/project').key]).toEqual({
+      repository: repositoryOf(null, '/code/project/.bare'),
+      root: '/code/project',
+      branch: 'main',
+      linked: false,
+      bare: true,
     });
   });
 

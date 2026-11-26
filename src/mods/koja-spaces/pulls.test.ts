@@ -1,7 +1,7 @@
 import { describe, expect, test } from 'bun:test';
 
 import { pullFacts } from '../../../tests/pullFacts.ts';
-import { repositoryOf } from '../../data/gitIdentity.ts';
+import { repositoryOf, worktreeOf } from '../../data/gitIdentity.ts';
 import type { Pull } from '../../data/pulls.ts';
 import type { RepositoryPulls } from '../../data/snapshot.ts';
 import { pullOf } from './pulls.ts';
@@ -12,6 +12,7 @@ const pull = (fields: Partial<Pull>): Pull =>
 
 const git = (branch: string): GitInfo => ({
   branch,
+  worktreeKey: worktreeOf(null, '/repo').key,
   repo: repositoryOf(null, '/repo'),
   root: '/repo',
   linked: false,

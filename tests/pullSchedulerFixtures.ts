@@ -8,11 +8,12 @@ import { pullFacts } from './pullFacts.ts';
 interface GitSource {
   repository: RepositoryIdentity;
   folder: string;
+  branch?: string;
 }
 
 const schedulerFolder = '/code/koja';
 export const schedulerRepository = repositoryOf(null, `${schedulerFolder}/.git`);
-const defaultSource = { repository: schedulerRepository, folder: schedulerFolder };
+const defaultSource: GitSource = { repository: schedulerRepository, folder: schedulerFolder };
 
 export const seededRepositoryPulls: Record<string, RepositoryPulls> = {
   [schedulerRepository.key]: { pulls: [], failed: false },
@@ -49,8 +50,9 @@ export const gitFactsOf = (...sources: GitSource[]): GitFacts => {
     worktrees[sourceWorktree.key] = {
       repository: source.repository,
       root: source.folder,
-      branch: 'main',
+      branch: source.branch ?? 'main',
       linked: false,
+      bare: false,
     };
   }
 

@@ -2,7 +2,12 @@ import { describe, expect, test } from 'bun:test';
 
 import { fixture } from '../../tests/fixtureJson.ts';
 import { pullFacts } from '../../tests/pullFacts.ts';
-import { gitFacts, recordIn, repositoryKey } from '../../tests/snapshotRaw.ts';
+import {
+  recordIn,
+  repositoryKey,
+  version3GitFacts,
+  withBareFalse,
+} from '../../tests/snapshotRaw.ts';
 import { repositoryOf } from './gitIdentity.ts';
 import { pullNeeds } from './pullNeeds.ts';
 import { parseSnapshot } from './snapshot.ts';
@@ -19,7 +24,7 @@ describe('parseSnapshot versions', () => {
       title: 'Read the theme once per turn',
     });
 
-    expect(parsed?.version).toBe(6);
+    expect(parsed?.version).toBe(8);
     expect(parsed?.revision).toBe(8);
     expect(pulls).toEqual([unread]);
     expect(pulls.map((entry) => pullNeeds(entry))).toEqual([[]]);
@@ -30,7 +35,7 @@ describe('parseSnapshot versions', () => {
       version: 3,
       revision: 4,
       facts: {
-        git: gitFacts(),
+        git: version3GitFacts(),
         pulls: {
           [repositoryKey]: {
             pulls: [
@@ -57,7 +62,7 @@ describe('parseSnapshot versions', () => {
       version: 3,
       revision: 4,
       facts: {
-        git: gitFacts(),
+        git: version3GitFacts(),
         pulls: {
           [repositoryKey]: {
             pulls: [
@@ -85,11 +90,12 @@ describe('parseSnapshot versions', () => {
     const parsed = parseSnapshot(stored);
     const parsedGit: unknown = parsed?.facts.git;
 
-    expect(parsed?.version).toBe(6);
+    expect(parsed?.version).toBe(8);
     expect(parsed?.revision).toBe(7);
-    expect(parsedGit).toEqual(git);
+    expect(parsedGit).toEqual(withBareFalse(git));
     expect(parsed?.facts.pulls).toEqual({});
     expect(parsed?.facts.trackers).toEqual({});
+    expect(parsed?.facts.stacks).toEqual({});
   });
 
   test('accepts empty version 2 places and worktrees maps', () => {
@@ -100,9 +106,9 @@ describe('parseSnapshot versions', () => {
     };
 
     expect(parseSnapshot(stored)).toEqual({
-      version: 6,
+      version: 8,
       revision: 4,
-      facts: { git: { places: {}, worktrees: {} }, pulls: {}, trackers: {} },
+      facts: { git: { places: {}, worktrees: {} }, pulls: {}, trackers: {}, stacks: {} },
     });
   });
 

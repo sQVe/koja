@@ -22,7 +22,7 @@ describe('createPullScheduler Retry', () => {
     const harness = new PullSchedulerHarness();
     const scheduler = harness.start({ pulls: {}, readTimes: {} });
 
-    scheduler.tick(git, new Map(), harness.spawn);
+    scheduler.tick(git, {}, new Map(), harness.spawn);
     await harness.settle();
 
     expect(harness.calls.map((call) => call.cwd)).toEqual(['/code/a', '/code/b']);
@@ -38,7 +38,7 @@ describe('createPullScheduler Retry', () => {
     await harness.respondCall(failedRead, offline);
 
     harness.setNow(start + 60_000);
-    scheduler.tick(git, new Map(), harness.spawn);
+    scheduler.tick(git, {}, new Map(), harness.spawn);
     await harness.settle();
 
     expect(harness.calls.map((call) => call.cwd)).toEqual([
@@ -49,13 +49,13 @@ describe('createPullScheduler Retry', () => {
       '/code/c',
     ]);
 
-    scheduler.tick(git, new Map(), harness.spawn);
+    scheduler.tick(git, {}, new Map(), harness.spawn);
     await harness.settle();
 
     expect(harness.calls).toHaveLength(5);
 
     harness.setRequests([requestFor('window-a', 'r-1', harness.now, repositoryAt('/code/a'))]);
-    scheduler.tick(git, new Map(), harness.spawn);
+    scheduler.tick(git, {}, new Map(), harness.spawn);
     await harness.settle();
 
     expect(harness.callsIn('/code/a')).toHaveLength(4);

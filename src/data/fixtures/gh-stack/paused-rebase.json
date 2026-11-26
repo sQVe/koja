@@ -1,0 +1,29 @@
+{
+  "schemaVersion": 1,
+  "repository": "",
+  "stacks": [
+    {
+      "trunk": {
+        "branch": "main",
+        "head": "ea3a03f12aa74c3470bd72a6dcdc1e76e79fcfce"
+      },
+      "branches": [
+        {
+          "branch": "layer-one",
+          "head": "90ed17e4f3a75eb2bb778055373d81fa21ef3b0a",
+          "base": "ea3a03f12aa74c3470bd72a6dcdc1e76e79fcfce"
+        },
+        {
+          "branch": "layer-two",
+          "head": "689716b4b14e26c784b066e5aca98253fb4957cb",
+          "base": "90ed17e4f3a75eb2bb778055373d81fa21ef3b0a"
+        },
+        {
+          "branch": "layer-three",
+          "head": "e30ac897ea56e08c39993411c2a0a3df0888ca23",
+          "base": "689716b4b14e26c784b066e5aca98253fb4957cb"
+        }
+      ]
+    }
+  ]
+}

@@ -4,6 +4,7 @@ import type { Place, RepositoryIdentity } from '../../data/gitIdentity.ts';
 
 export interface GitInfo {
   branch: string | null;
+  worktreeKey: string;
   repo: RepositoryIdentity;
   root: string;
   linked: boolean;

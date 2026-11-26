@@ -8,8 +8,11 @@ import {
   recordIn,
   snapshotOf,
   validRaw,
+  withBareFalse,
+  worktreeAt,
+  worktreesAt,
 } from '../../tests/snapshotRaw.ts';
-import { repositoryOf } from './gitIdentity.ts';
+import { repositoryOf, worktreeOf } from './gitIdentity.ts';
 import { pullNeeds } from './pullNeeds.ts';
 import type {
   Facts,
@@ -31,7 +34,7 @@ describe('parseSnapshot', () => {
     const places: PlaceGit[] = Object.values(git?.places ?? {});
     const worktrees: WorktreeGit[] = Object.values(git?.worktrees ?? {});
 
-    expect(parsed?.version).toBe(6);
+    expect(parsed?.version).toBe(8);
     expect(parsed?.revision).toBe(9);
 
     const storedFacts = recordIn(stored.facts, 'facts');
@@ -40,9 +43,10 @@ describe('parseSnapshot', () => {
     const parsedGit: unknown = parsed?.facts.git;
     const parsedPulls: unknown = parsed?.facts.pulls;
 
-    expect(parsedGit).toEqual(storedGit);
+    expect(parsedGit).toEqual(withBareFalse(storedGit));
     expect(parsedPulls).toEqual(storedPulls);
     expect(parsed?.facts.trackers).toEqual({});
+    expect(parsed?.facts.stacks).toEqual({});
 
     expect(places.map((place) => place.kind)).toEqual([
       'repository',
@@ -67,27 +71,124 @@ describe('parseSnapshot', () => {
   });
 
   test('accepts empty maps', () => {
-    const stored = { version: 6, revision: 4, facts: emptyFacts() } satisfies Snapshot;
+    const stored = { version: 8, revision: 4, facts: emptyFacts() } satisfies Snapshot;
 
     expect(parseSnapshot(stored)).toEqual(stored);
   });
 
+  test('a version 7 snapshot infers bareness from the paths', () => {
+    const stored = rawSnapshotOf(fixture('snapshot-v8.json'));
+    const checkoutKey = worktreeOf(null, '/code/koja').key;
+    const checkout = worktreeAt(stored, checkoutKey);
+    const worktrees = worktreesAt(stored);
+
+    delete checkout.bare;
+
+    worktrees[worktreeOf(null, '/code/bare.git').key] = {
+      repository: {
+        machine: null,
+        commonDirectory: '/code/bare.git',
+        key: repositoryOf(null, '/code/bare.git').key,
+      },
+      root: '/code/bare.git',
+      branch: 'main',
+      linked: false,
+    };
+
+    worktrees[worktreeOf(null, '/code/bare/').key] = {
+      repository: {
+        machine: null,
+        commonDirectory: '/code/bare',
+        key: repositoryOf(null, '/code/bare').key,
+      },
+      root: '/code/bare/',
+      branch: 'main',
+      linked: false,
+    };
+
+    worktrees[worktreeOf(null, '/code/project').key] = {
+      repository: {
+        machine: null,
+        commonDirectory: '/code/project/.bare',
+        key: repositoryOf(null, '/code/project/.bare').key,
+      },
+      root: '/code/project',
+      branch: 'main',
+      linked: false,
+    };
+
+    worktrees[worktreeOf(null, '/code/project/me-1').key] = {
+      repository: {
+        machine: null,
+        commonDirectory: '/code/project/.bare',
+        key: repositoryOf(null, '/code/project/.bare').key,
+      },
+      root: '/code/project/me-1',
+      branch: 'me-1',
+      linked: true,
+    };
+
+    const parsed = parseSnapshot({ ...stored, version: 7 });
+    const parsedWorktrees = parsed?.facts.git.worktrees ?? {};
+
+    const barenessOf = (root: string): boolean | undefined =>
+      parsedWorktrees[worktreeOf(null, root).key]?.bare;
+
+    expect(parsed?.version).toBe(8);
+    expect(barenessOf('/code/koja')).toBe(false);
+    expect(barenessOf('/code/bare.git')).toBe(true);
+    expect(barenessOf('/code/bare/')).toBe(true);
+    expect(barenessOf('/code/project')).toBe(true);
+    expect(barenessOf('/code/project/me-1')).toBe(false);
+  });
+
+  test('a version 6 snapshot reads with empty stacks', () => {
+    const stored = recordIn(fixture('snapshot-v6.json'), 'snapshot');
+    const parsed = parseSnapshot(stored);
+
+    expect(parsed?.version).toBe(8);
+    expect(parsed?.facts.stacks).toEqual({});
+  });
+
+  test('a version 8 snapshot keeps its stacks', () => {
+    const stored = recordIn(fixture('snapshot-v8.json'), 'snapshot');
+    const parsed = parseSnapshot(stored);
+    const key = repositoryOf(null, '/code/koja/.git').key;
+
+    expect(parsed?.version).toBe(8);
+    expect(parsed?.facts.stacks[key]?.failed).toBe(false);
+
+    expect(parsed?.facts.stacks[key]?.stacks).toEqual([
+      {
+        trunk: 'main',
+        branches: [
+          {
+            branch: 'me-1037-read-each-spaces-stack-from-gh-stack',
+            pullNumber: 141,
+            restack: 'none',
+          },
+          { branch: 'me-1037-draw-the-stack-row', pullNumber: null, restack: 'needed' },
+        ],
+      },
+    ]);
+  });
+
   test('rejects a missing revision', () => {
-    expect(parseSnapshot({ version: 6, facts: emptyFacts() })).toBeNull();
+    expect(parseSnapshot({ version: 8, facts: emptyFacts() })).toBeNull();
   });
 
   test('rejects a revision that is not a positive whole number', () => {
-    expect(parseSnapshot({ version: 6, revision: 0, facts: emptyFacts() })).toBeNull();
-    expect(parseSnapshot({ version: 6, revision: 1.5, facts: emptyFacts() })).toBeNull();
-    expect(parseSnapshot({ version: 6, revision: '4', facts: emptyFacts() })).toBeNull();
+    expect(parseSnapshot({ version: 8, revision: 0, facts: emptyFacts() })).toBeNull();
+    expect(parseSnapshot({ version: 8, revision: 1.5, facts: emptyFacts() })).toBeNull();
+    expect(parseSnapshot({ version: 8, revision: '4', facts: emptyFacts() })).toBeNull();
   });
 
   test('rejects missing facts', () => {
-    expect(parseSnapshot({ version: 6, revision: 4 })).toBeNull();
+    expect(parseSnapshot({ version: 8, revision: 4 })).toBeNull();
   });
 
   test('rejects facts that are not a record', () => {
-    expect(parseSnapshot({ version: 6, revision: 4, facts: [] })).toBeNull();
+    expect(parseSnapshot({ version: 8, revision: 4, facts: [] })).toBeNull();
   });
 
   test('rejects a value that is not an object', () => {
@@ -105,14 +206,14 @@ describe('parseSnapshot', () => {
   });
 
   test('rejects an unknown field in the snapshot', () => {
-    const stored = { version: 6, revision: 4, facts: emptyFacts(), extra: true };
+    const stored = { version: 8, revision: 4, facts: emptyFacts(), extra: true };
 
     expect(parseSnapshot(stored)).toBeNull();
   });
 });
 
 describe('joinFacts', () => {
-  test('drops PR and tracker facts of a repository with no worktree', () => {
+  test('drops PR, tracker, and stack facts of a repository with no worktree', () => {
     const named = repositoryOf(null, '/work/.git').key;
     const orphan = repositoryOf(null, '/gone/.git').key;
     const tracker = { workspace: 'sqve', tickets: {}, failed: false };
@@ -124,9 +225,14 @@ describe('joinFacts', () => {
         [orphan]: { pulls: [], failed: true },
       },
       { [named]: tracker, [orphan]: { workspace: null, tickets: {}, failed: true } },
+      {
+        [named]: { stacks: [], failed: false },
+        [orphan]: { stacks: [], failed: true },
+      },
     );
 
     expect(facts.pulls).toEqual({ [named]: { pulls: [pull()], failed: false } });
     expect(facts.trackers).toEqual({ [named]: tracker });
+    expect(facts.stacks).toEqual({ [named]: { stacks: [], failed: false } });
   });
 });

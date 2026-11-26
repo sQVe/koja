@@ -1,5 +1,15 @@
 import type { Context } from 'gpui-kit';
-import { checking, exec, machines, panes, setShared, shared, spaces, watchFolder } from 'herdr';
+import {
+  checking,
+  exec,
+  machines,
+  panes,
+  readTextFile,
+  setShared,
+  shared,
+  spaces,
+  watchFolder,
+} from 'herdr';
 
 import { repeat } from '../kit/timer.ts';
 import { currentWindow } from '../kit/window.ts';
@@ -25,6 +35,8 @@ import { createPullScheduler } from './pullScheduler.ts';
 import { recordNotices } from './recordNotices.ts';
 import type { Facts } from './snapshot.ts';
 import { emptyFacts, joinFacts } from './snapshot.ts';
+import type { StackScheduler } from './stackScheduler.ts';
+import { createStackScheduler } from './stackScheduler.ts';
 import { readStoredSnapshot } from './storedSnapshot.ts';
 import type { TicketRunner, TrackerScheduler } from './trackerScheduler.ts';
 import { createTrackerScheduler } from './trackerScheduler.ts';
@@ -34,6 +46,7 @@ interface SchedulerBinding {
   git: GitScheduler;
   pulls: PullScheduler;
   trackers: TrackerScheduler;
+  stacks: StackScheduler;
   readTickets: TicketRunner;
   publish: () => void;
 }
@@ -56,6 +69,7 @@ const stopScheduler = (state: HostState): void => {
   state.binding?.git.stop();
   state.binding?.pulls.stop();
   state.binding?.trackers.stop();
+  state.binding?.stacks.stop();
   state.binding = null;
 };
 
@@ -76,7 +90,12 @@ const createSchedulerBinding = (
 
     publisher.publish(
       binding.lease,
-      joinFacts(binding.git.gitFacts(), binding.pulls.pulls(), binding.trackers.trackers()),
+      joinFacts(
+        binding.git.gitFacts(),
+        binding.pulls.pulls(),
+        binding.trackers.trackers(),
+        binding.stacks.stacks(),
+      ),
     );
   };
 
@@ -121,11 +140,25 @@ const createSchedulerBinding = (
     seed.trackers,
   );
 
+  const stacks = createStackScheduler(
+    {
+      run: exec,
+      readTextFile,
+      watchFolder,
+      now: Date.now,
+      heldLease,
+      publish: publishSnapshot,
+    },
+    held,
+    seed.stacks,
+  );
+
   binding = {
     lease: held,
     git,
     pulls,
     trackers,
+    stacks,
     readTickets: readTicketFacts,
     publish: publishSnapshot,
   };
@@ -224,11 +257,16 @@ export const startDataHost = (cx: Context): void => {
 
     binding.git.tick(gitWorld(), timerCx);
 
-    binding.pulls.tick(binding.git.gitFacts(), binding.git.takeRemoteRefEvents(), (body) =>
-      timerCx.spawn(body),
+    binding.stacks.tick(binding.git.gitFacts(), timerCx);
+
+    binding.pulls.tick(
+      binding.git.gitFacts(),
+      binding.stacks.stacks(),
+      binding.git.takeRemoteRefEvents(),
+      (body) => timerCx.spawn(body),
     );
 
-    binding.trackers.tick(binding.git.gitFacts(), binding.readTickets);
+    binding.trackers.tick(binding.git.gitFacts(), binding.stacks.stacks(), binding.readTickets);
   };
 
   beat();

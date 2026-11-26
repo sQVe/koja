@@ -1,9 +1,10 @@
 import { hasOnlyKeys, isRecord, recordOf, stringOf } from '../kit/fields.ts';
-import { isPositiveWholeNumber } from './fields.ts';
+import { isPositiveWholeNumber, withoutTrailingSlashes } from './fields.ts';
 import type { RepositoryIdentity } from './gitIdentity.ts';
 import { repositoryOf, worktreeOf } from './gitIdentity.ts';
 import type { Pull } from './pulls.ts';
 import { parseStoredPull, unreadPullNeeds } from './pulls.ts';
+import type { Stack, StackBranch } from './stacks.ts';
 
 type StoredPullParser = (stored: unknown) => Pull | null;
 
@@ -17,6 +18,7 @@ export interface WorktreeGit {
   root: string;
   branch: string | null;
   linked: boolean;
+  bare: boolean;
 }
 
 export interface GitFacts {
@@ -43,13 +45,21 @@ export interface RepositoryTracker {
   failed: boolean;
 }
 
+export interface RepositoryStacks {
+  stacks: Stack[];
+  failed: boolean;
+}
+
 export interface Facts {
   git: GitFacts;
   pulls: Record<string, RepositoryPulls>;
   trackers: Record<string, RepositoryTracker>;
+  stacks: Record<string, RepositoryStacks>;
 }
 
-export const snapshotVersion = 6;
+type FactsShape = 'beforeStacks' | 'beforeBare' | 'current';
+
+export const snapshotVersion = 8;
 
 const versionWithGitFactsOnly = 2;
 
@@ -58,6 +68,10 @@ const versionWithoutPullNeeds = 3;
 const versionWithoutTrackers = 4;
 
 const versionWithTicketFailures = 5;
+
+const versionWithoutStacks = 6;
+
+const versionWithoutBare = 7;
 
 export interface Snapshot {
   version: typeof snapshotVersion;
@@ -71,6 +85,7 @@ export const emptyFacts = (): Facts => ({
   git: { places: {}, worktrees: {} },
   pulls: {},
   trackers: {},
+  stacks: {},
 });
 
 // The pull of a branch: the open one when the repository knows several, else the first it knows.
@@ -140,12 +155,37 @@ const parseRepository = (value: unknown): RepositoryIdentity | null => {
   return repository;
 };
 
-const parseWorktree = (key: string, value: unknown): WorktreeGit | null => {
+// A bare place keeps its root as its common directory, either the folder itself or its `.bare`.
+const inferredBare = (root: string, repository: RepositoryIdentity): boolean => {
+  const place = withoutTrailingSlashes(root);
+  const common = withoutTrailingSlashes(repository.commonDirectory);
+
+  return place === common || common === `${place}/.bare`;
+};
+
+const bareOf = (
+  value: unknown,
+  root: string,
+  repository: RepositoryIdentity,
+  withBare: boolean,
+): boolean | null => {
+  if (!withBare) {
+    return inferredBare(root, repository);
+  }
+
+  return typeof value === 'boolean' ? value : null;
+};
+
+const parseWorktree = (key: string, value: unknown, withBare: boolean): WorktreeGit | null => {
   if (!isRecord(value)) {
     return null;
   }
 
-  if (!hasOnlyKeys(value, ['repository', 'root', 'branch', 'linked'])) {
+  const keys = withBare
+    ? ['repository', 'root', 'branch', 'linked', 'bare']
+    : ['repository', 'root', 'branch', 'linked'];
+
+  if (!hasOnlyKeys(value, keys)) {
     return null;
   }
 
@@ -173,11 +213,17 @@ const parseWorktree = (key: string, value: unknown): WorktreeGit | null => {
     return null;
   }
 
+  const bare = bareOf(value.bare, root, repository, withBare);
+
+  if (bare === null) {
+    return null;
+  }
+
   if (key !== worktreeOf(repository.machine, root).key) {
     return null;
   }
 
-  return { repository, root, branch, linked };
+  return { repository, root, branch, linked, bare };
 };
 
 const parsePlace = (value: unknown, worktrees: Record<string, WorktreeGit>): PlaceGit | null => {
@@ -216,7 +262,7 @@ const parsePlace = (value: unknown, worktrees: Record<string, WorktreeGit>): Pla
   return { kind, worktree };
 };
 
-const parseGitFacts = (value: unknown): GitFacts | null => {
+const parseGitFacts = (value: unknown, shape: FactsShape): GitFacts | null => {
   if (!isRecord(value)) {
     return null;
   }
@@ -240,7 +286,7 @@ const parseGitFacts = (value: unknown): GitFacts | null => {
   const worktreeEntries: [string, WorktreeGit][] = [];
 
   for (const [key, worktree] of Object.entries(worktrees)) {
-    const parsed = parseWorktree(key, worktree);
+    const parsed = parseWorktree(key, worktree, shape === 'current');
 
     if (parsed === null) {
       return null;
@@ -419,24 +465,24 @@ const repositoryKeys = (worktrees: Record<string, WorktreeGit>): Set<string> => 
   return new Set(keys);
 };
 
-const parsePulls = (
+const parseByRepository = <T>(
   value: unknown,
   worktrees: Record<string, WorktreeGit>,
-  parsePull: StoredPullParser,
-): Record<string, RepositoryPulls> | null => {
+  parseEntry: (value: unknown) => T | null,
+): Record<string, T> | null => {
   if (!isRecord(value)) {
     return null;
   }
 
   const known = repositoryKeys(worktrees);
-  const entries: [string, RepositoryPulls][] = [];
+  const entries: [string, T][] = [];
 
   for (const [key, entry] of Object.entries(value)) {
     if (!known.has(key)) {
       return null;
     }
 
-    const parsed = parseRepositoryPulls(entry, parsePull);
+    const parsed = parseEntry(entry);
 
     if (parsed === null) {
       return null;
@@ -447,46 +493,141 @@ const parsePulls = (
 
   return Object.fromEntries(entries);
 };
+
+const parsePulls = (
+  value: unknown,
+  worktrees: Record<string, WorktreeGit>,
+  parsePull: StoredPullParser,
+): Record<string, RepositoryPulls> | null =>
+  parseByRepository(value, worktrees, (entry) => parseRepositoryPulls(entry, parsePull));
 
 const parseTrackers = (
   value: unknown,
   worktrees: Record<string, WorktreeGit>,
   parseTicket: (value: unknown) => TicketFacts | null,
-): Record<string, RepositoryTracker> | null => {
+): Record<string, RepositoryTracker> | null =>
+  parseByRepository(value, worktrees, (entry) => parseRepositoryTracker(entry, parseTicket));
+
+const isRestack = (value: unknown): value is StackBranch['restack'] =>
+  value === 'needed' || value === 'none' || value === 'unknown';
+
+const parseStackBranch = (value: unknown): StackBranch | null => {
   if (!isRecord(value)) {
     return null;
   }
 
-  const known = repositoryKeys(worktrees);
-  const entries: [string, RepositoryTracker][] = [];
+  if (!hasOnlyKeys(value, ['branch', 'pullNumber', 'restack'])) {
+    return null;
+  }
 
-  for (const [key, entry] of Object.entries(value)) {
-    if (!known.has(key)) {
-      return null;
-    }
+  const branch = stringOf(value.branch);
+  const pullNumber = value.pullNumber;
+  const restack = value.restack;
 
-    const parsed = parseRepositoryTracker(entry, parseTicket);
+  if (branch === null) {
+    return null;
+  }
+
+  if (pullNumber !== null && !isPositiveWholeNumber(pullNumber)) {
+    return null;
+  }
+
+  if (!isRestack(restack)) {
+    return null;
+  }
+
+  return { branch, pullNumber, restack };
+};
+
+const parseStack = (value: unknown): Stack | null => {
+  if (!isRecord(value)) {
+    return null;
+  }
+
+  if (!hasOnlyKeys(value, ['trunk', 'branches'])) {
+    return null;
+  }
+
+  const trunk = stringOf(value.trunk);
+
+  if (trunk === null) {
+    return null;
+  }
+
+  const stored = value.branches;
+
+  if (!Array.isArray(stored)) {
+    return null;
+  }
+
+  const branches: StackBranch[] = [];
+
+  for (const entry of stored) {
+    const parsed = parseStackBranch(entry);
 
     if (parsed === null) {
       return null;
     }
 
-    entries.push([key, parsed]);
+    branches.push(parsed);
   }
 
-  return Object.fromEntries(entries);
+  return { trunk, branches };
 };
+
+const parseRepositoryStacks = (value: unknown): RepositoryStacks | null => {
+  if (!isRecord(value)) {
+    return null;
+  }
+
+  if (!hasOnlyKeys(value, ['stacks', 'failed'])) {
+    return null;
+  }
+
+  const failed = value.failed;
+
+  if (typeof failed !== 'boolean') {
+    return null;
+  }
+
+  const stored = value.stacks;
+
+  if (!Array.isArray(stored)) {
+    return null;
+  }
+
+  const stacks: Stack[] = [];
+
+  for (const entry of stored) {
+    const parsed = parseStack(entry);
+
+    if (parsed === null) {
+      return null;
+    }
+
+    stacks.push(parsed);
+  }
+
+  return { stacks, failed };
+};
+
+const parseStacksMap = (
+  value: unknown,
+  worktrees: Record<string, WorktreeGit>,
+): Record<string, RepositoryStacks> | null =>
+  parseByRepository(value, worktrees, parseRepositoryStacks);
 
 const parseGitAndPulls = (
   value: Record<string, unknown>,
   parsePull: StoredPullParser,
   keys: readonly string[],
+  shape: FactsShape,
 ): Pick<Facts, 'git' | 'pulls'> | null => {
   if (!hasOnlyKeys(value, keys)) {
     return null;
   }
 
-  const git = parseGitFacts(value.git);
+  const git = parseGitFacts(value.git, shape);
 
   if (git === null) {
     return null;
@@ -505,12 +646,18 @@ const parseFacts = (
   value: unknown,
   parsePull: StoredPullParser,
   parseTicket: (value: unknown) => TicketFacts | null,
+  shape: FactsShape,
 ): Facts | null => {
   if (!isRecord(value)) {
     return null;
   }
 
-  const gitAndPulls = parseGitAndPulls(value, parsePull, ['git', 'pulls', 'trackers']);
+  const keys =
+    shape === 'beforeStacks'
+      ? ['git', 'pulls', 'trackers']
+      : ['git', 'pulls', 'trackers', 'stacks'];
+
+  const gitAndPulls = parseGitAndPulls(value, parsePull, keys, shape);
 
   if (gitAndPulls === null) {
     return null;
@@ -522,7 +669,13 @@ const parseFacts = (
     return null;
   }
 
-  return { ...gitAndPulls, trackers };
+  if (shape === 'beforeStacks') {
+    return { ...gitAndPulls, trackers, stacks: {} };
+  }
+
+  const stacks = parseStacksMap(value.stacks, gitAndPulls.git.worktrees);
+
+  return stacks === null ? null : { ...gitAndPulls, trackers, stacks };
 };
 
 const parseFactsWithoutTrackers = (value: unknown, parsePull: StoredPullParser): Facts | null => {
@@ -530,13 +683,13 @@ const parseFactsWithoutTrackers = (value: unknown, parsePull: StoredPullParser):
     return null;
   }
 
-  const gitAndPulls = parseGitAndPulls(value, parsePull, ['git', 'pulls']);
+  const gitAndPulls = parseGitAndPulls(value, parsePull, ['git', 'pulls'], 'beforeStacks');
 
   if (gitAndPulls === null) {
     return null;
   }
 
-  return { ...gitAndPulls, trackers: {} };
+  return { ...gitAndPulls, trackers: {}, stacks: {} };
 };
 
 const parseGitOnlyFacts = (value: unknown): Facts | null => {
@@ -548,13 +701,13 @@ const parseGitOnlyFacts = (value: unknown): Facts | null => {
     return null;
   }
 
-  const git = parseGitFacts(value.git);
+  const git = parseGitFacts(value.git, 'beforeStacks');
 
   if (git === null) {
     return null;
   }
 
-  return { git, pulls: {}, trackers: {} };
+  return { git, pulls: {}, trackers: {}, stacks: {} };
 };
 
 const parseVersion3Pull: StoredPullParser = (stored) => {
@@ -591,10 +744,25 @@ const parseVersion4Snapshot = (fields: Record<string, unknown>): Snapshot | null
   snapshotOf(fields, parseFactsWithoutTrackers(fields.facts, parseStoredPull));
 
 const parseVersion5Snapshot = (fields: Record<string, unknown>): Snapshot | null =>
-  snapshotOf(fields, parseFacts(fields.facts, parseStoredPull, parseVersion5TicketFacts));
+  snapshotOf(
+    fields,
+    parseFacts(fields.facts, parseStoredPull, parseVersion5TicketFacts, 'beforeStacks'),
+  );
+
+const parseVersion6Snapshot = (fields: Record<string, unknown>): Snapshot | null =>
+  snapshotOf(
+    fields,
+    parseFacts(fields.facts, parseStoredPull, parseCurrentTicketFacts, 'beforeStacks'),
+  );
+
+const parseVersion7Snapshot = (fields: Record<string, unknown>): Snapshot | null =>
+  snapshotOf(
+    fields,
+    parseFacts(fields.facts, parseStoredPull, parseCurrentTicketFacts, 'beforeBare'),
+  );
 
 const parseCurrentSnapshot = (fields: Record<string, unknown>): Snapshot | null =>
-  snapshotOf(fields, parseFacts(fields.facts, parseStoredPull, parseCurrentTicketFacts));
+  snapshotOf(fields, parseFacts(fields.facts, parseStoredPull, parseCurrentTicketFacts, 'current'));
 
 export const parseSnapshot = (value: unknown): Snapshot | null => {
   const fields = recordOf(value);
@@ -615,6 +783,14 @@ export const parseSnapshot = (value: unknown): Snapshot | null => {
     return parseVersion5Snapshot(fields);
   }
 
+  if (fields.version === versionWithoutStacks) {
+    return parseVersion6Snapshot(fields);
+  }
+
+  if (fields.version === versionWithoutBare) {
+    return parseVersion7Snapshot(fields);
+  }
+
   if (fields.version !== snapshotVersion) {
     return null;
   }
@@ -626,14 +802,17 @@ export const joinFacts = (
   git: GitFacts,
   pulls: Record<string, RepositoryPulls>,
   trackers: Record<string, RepositoryTracker>,
+  stacks: Record<string, RepositoryStacks>,
 ): Facts => {
   const known = repositoryKeys(git.worktrees);
   const keptPulls = Object.entries(pulls).filter(([key]) => known.has(key));
   const keptTrackers = Object.entries(trackers).filter(([key]) => known.has(key));
+  const keptStacks = Object.entries(stacks).filter(([key]) => known.has(key));
 
   return {
     git,
     pulls: Object.fromEntries(keptPulls),
     trackers: Object.fromEntries(keptTrackers),
+    stacks: Object.fromEntries(keptStacks),
   };
 };

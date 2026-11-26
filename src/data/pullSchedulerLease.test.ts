@@ -17,7 +17,7 @@ describe('createPullScheduler lease fences', () => {
 
     const scheduler = harness.start();
 
-    scheduler.tick(gitFactsOf(), new Map(), harness.spawn);
+    scheduler.tick(gitFactsOf(), {}, new Map(), harness.spawn);
     expect(harness.calls).toHaveLength(1);
 
     harness.held = { version: 1, owner: 'owner-b', generation: 2 };
@@ -41,7 +41,7 @@ describe('createPullScheduler lease fences', () => {
 
     const scheduler = harness.start();
 
-    scheduler.tick(gitFactsOf(), new Map(), harness.spawn);
+    scheduler.tick(gitFactsOf(), {}, new Map(), harness.spawn);
     await harness.respondRemotes(0);
 
     expect(harness.calls.map((call) => call.command)).toEqual(['git', 'git', 'gh']);

@@ -1,0 +1,20 @@
+{
+  "schemaVersion": 1,
+  "repository": "",
+  "stacks": [
+    {
+      "trunk": {
+        "branch": "main",
+        "head": "fcacf79ff51ea778293a32460b14066356f3318d"
+      },
+      "branches": [
+        {
+          "branch": "add-search",
+          "base": "fcacf79ff51ea778293a32460b14066356f3318d"
+        },
+        {
+          "branch": "add-search-ui",
+          "base": "fece9ea9def9521a9b6628daa0cd7ccb4675d598"
+        },
+        {
+          "branch": "add-search-tests"

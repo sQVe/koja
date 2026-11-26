@@ -79,6 +79,12 @@ const malformedFields: [string, (snapshot: RawSnapshot, key: string) => void][] 
     },
   ],
   [
+    'a bare flag that is not a boolean',
+    (snapshot, key) => {
+      worktreeAt(snapshot, key).bare = 'yes';
+    },
+  ],
+  [
     'a repository place without a worktree',
     (snapshot, key) => {
       delete placeAt(snapshot, key).worktree;
@@ -206,11 +212,22 @@ describe('parseSnapshot git facts', () => {
       root: '/orphan',
       branch: 'main',
       linked: false,
+      bare: false,
     };
 
     const parsed = parseSnapshot(snapshot);
 
     expect(Object.keys(parsed?.facts.git.worktrees ?? {})).toEqual([key, orphanKey]);
+  });
+
+  test('accepts a worktree the git read found bare', () => {
+    const { snapshot, key } = validRaw();
+
+    worktreeAt(snapshot, key).bare = true;
+
+    const parsed = parseSnapshot(snapshot);
+
+    expect(parsed?.facts.git.worktrees[key]?.bare).toBe(true);
   });
 
   test('accepts a place key that is not canonical', () => {

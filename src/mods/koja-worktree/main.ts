@@ -4,6 +4,7 @@ import type { AsyncContext, Context, Element, FocusHandle, KeyEvent } from 'gpui
 import { div, View } from 'gpui-kit';
 import { checking, props, run, spaces } from 'herdr';
 
+import { sameItems } from '../../data/fields.ts';
 import type { GroveAction } from '../../kit/index.ts';
 import {
   closeOverlay,
@@ -20,7 +21,7 @@ import {
 } from '../../kit/index.ts';
 import { closeRiskText, refusedText, riskText } from './dialogText.ts';
 import type { AgentRisk, RemoveRisks, Workspace } from './grove.ts';
-import { addArguments, removeArguments, sameRisks } from './grove.ts';
+import { addArguments, removeArguments } from './grove.ts';
 import {
   findWorktreeFolder,
   readAgentRisks,
@@ -273,7 +274,7 @@ export default class Worktree extends View {
         return null;
       }
 
-      if (!sameRisks(shown, risks)) {
+      if (!sameItems(shown, risks)) {
         return { kind: 'asking', workspace, risks };
       }
 

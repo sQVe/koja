@@ -7,6 +7,7 @@ interface PullDueRepository {
   failures: number;
   backoffUntil: number;
   pushDueAt: number | null;
+  branchesDueAt: number | null;
 }
 
 export interface PullDueState {
@@ -38,6 +39,7 @@ export const emptyPullDueRepository = (): PullDueRepository => ({
   failures: 0,
   backoffUntil: 0,
   pushDueAt: null,
+  branchesDueAt: null,
 });
 
 export const emptyPullDueState = (): PullDueState => ({
@@ -84,6 +86,10 @@ const pushIsDue = (repository: PullDueRepository, now: number): boolean =>
 const readIsDue = (repository: PullDueRepository, now: number, windowActive: boolean): boolean => {
   if (!windowActive || now < repository.backoffUntil) {
     return false;
+  }
+
+  if (repository.branchesDueAt !== null && repository.branchesDueAt <= now) {
+    return true;
   }
 
   const last = Math.max(repository.lastSuccess, repository.lastStart);
@@ -140,6 +146,15 @@ export const noteStart = (state: PullDueState, key: string, now: number): void =
 
   repository.lastStart = now;
   repository.pushDueAt = null;
+  repository.branchesDueAt = null;
+};
+
+// A stack that joins the reads makes the repository due at once, but only while the window is
+// active, as a timed read does.
+export const noteBranches = (state: PullDueState, key: string, at: number): void => {
+  const repository = repositoryToWrite(state, key);
+
+  repository.branchesDueAt ??= at;
 };
 
 export const noteResult = (

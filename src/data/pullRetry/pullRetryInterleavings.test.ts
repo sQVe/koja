@@ -151,7 +151,7 @@ const applyStep = async (state: InterleavingState): Promise<void> => {
     }
 
     state.tick += 1;
-    state.scheduler.tick(gitFacts, new Map(), state.harness.spawn);
+    state.scheduler.tick(gitFacts, {}, new Map(), state.harness.spawn);
     await answerPending(state);
 
     if (state.harness.outcomes().length > 0) {

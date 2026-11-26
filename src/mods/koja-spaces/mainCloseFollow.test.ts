@@ -14,6 +14,7 @@ import {
 } from '../../../tests/kojaSpacesView.ts';
 import type { FakeView } from '../../../tests/kojaSpacesView.ts';
 import { pick, seededRandom } from '../../../tests/seeded.ts';
+import { sameItems } from '../../data/fields.ts';
 import { runSpaceCommand } from '../../kit/space/spaceSelection.ts';
 
 await setupKojaSpaces();
@@ -45,9 +46,6 @@ const recordSelection = (id: string): void => {
     command,
   );
 };
-
-const sameIds = (left: readonly string[], right: readonly string[]): boolean =>
-  left.length === right.length && left.every((id, index) => id === right[index]);
 
 const nearestLiveNeighbour = (
   order: readonly string[],
@@ -372,7 +370,7 @@ describe('koja-spaces close follow', () => {
     }
 
     const wrongFollows = records
-      .filter((record) => !sameIds(record.issued, record.expected))
+      .filter((record) => !sameItems(record.issued, record.expected))
       .map(({ seed, step, observer, live, order, closedId, picked, expected, issued }) => ({
         seed,
         step,

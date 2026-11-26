@@ -3,7 +3,14 @@ import { describe, expect, test } from 'bun:test';
 import { pick, seededRandom } from '../../tests/seeded.ts';
 import { repositoryOf } from './gitIdentity.ts';
 import type { PullDueState } from './pullDue.ts';
-import { duePullReads, emptyPullDueState, notePush, noteResult, noteStart } from './pullDue.ts';
+import {
+  duePullReads,
+  emptyPullDueState,
+  noteBranches,
+  notePush,
+  noteResult,
+  noteStart,
+} from './pullDue.ts';
 import type { PullRead } from './pulls.ts';
 
 const nothingRunning = new Set<string>();
@@ -124,6 +131,50 @@ describe('duePullReads', () => {
 
     expect(duePullReads(state, ['a'], nothingRunning, nextReadAt - 1, true)).toEqual([]);
     expect(duePullReads(state, ['a'], nothingRunning, nextReadAt, true)).toEqual(['a']);
+  });
+
+  test('a pending branch due makes a read due before the read period ends', () => {
+    const state = emptyPullDueState();
+
+    noteStart(state, 'a', 0);
+    noteResult(state, 'a', goodRead(), 0);
+    noteBranches(state, 'a', 1_000);
+
+    expect(duePullReads(state, ['a'], nothingRunning, 999, true)).toEqual([]);
+    expect(duePullReads(state, ['a'], nothingRunning, 1_000, true)).toEqual(['a']);
+  });
+
+  test('a pending branch due waits for the backoff to end', () => {
+    const state = emptyPullDueState();
+
+    noteStart(state, 'a', 0);
+    noteBranches(state, 'a', 1_000);
+    noteResult(state, 'a', failedRead(), 1_000);
+
+    expect(duePullReads(state, ['a'], nothingRunning, 60_999, true)).toEqual([]);
+    expect(duePullReads(state, ['a'], nothingRunning, 61_000, true)).toEqual(['a']);
+  });
+
+  test('a pending branch due waits for a host pause', () => {
+    const host = 'github.com';
+    const state = emptyPullDueState();
+
+    noteStart(state, 'a', 0);
+    noteResult(state, 'a', goodRead(host), 0);
+    noteBranches(state, 'a', 1_000);
+    noteResult(state, 'a', rateLimitedRead(host), 1_000);
+
+    expect(duePullReads(state, ['a'], nothingRunning, 899_999, true)).toEqual([]);
+    expect(duePullReads(state, ['a'], nothingRunning, 900_000, true)).toEqual(['a']);
+  });
+
+  test('a read start clears a pending branch due', () => {
+    const state = emptyPullDueState();
+
+    noteBranches(state, 'a', 1_000);
+    noteStart(state, 'a', 1_000);
+
+    expect(duePullReads(state, ['a'], nothingRunning, 2_000, true)).toEqual([]);
   });
 
   test('pauses every read until the rate limit resets', () => {
@@ -274,10 +325,14 @@ describe('duePullReads', () => {
       let windowActive = true;
 
       for (let step = 0; step < 60; step += 1) {
-        const action = pick(['push', 'wait', 'window', 'finish', 'tick'], random);
+        const action = pick(['push', 'branches', 'wait', 'window', 'finish', 'tick'], random);
 
         if (action === 'push') {
           notePush(state, pick(keys, random), now);
+        }
+
+        if (action === 'branches') {
+          noteBranches(state, pick(keys, random), now);
         }
 
         if (action === 'wait') {
@@ -309,9 +364,11 @@ describe('duePullReads', () => {
         for (const key of due) {
           const pushDueAt = state.repositories[key]?.pushDueAt ?? null;
           const pushRead = pushDueAt !== null && pushDueAt <= now;
+          const branchesDueAt = state.repositories[key]?.branchesDueAt ?? null;
+          const branchRead = branchesDueAt !== null && branchesDueAt <= now;
           const lastPushStart = pushStartAt[key];
 
-          if (!pushRead && lastPushStart !== undefined) {
+          if (!pushRead && !branchRead && lastPushStart !== undefined) {
             expect(now - lastPushStart).toBeGreaterThanOrEqual(15_000);
           }
 

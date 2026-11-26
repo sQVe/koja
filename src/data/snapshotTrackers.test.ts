@@ -131,7 +131,7 @@ describe('parseSnapshot tracker facts', () => {
     const tracker = parsed?.facts.trackers[fixtureRepositoryKey];
     const ticket: TicketFacts | undefined = tracker?.tickets['ME-1'];
 
-    expect(parsed?.version).toBe(6);
+    expect(parsed?.version).toBe(8);
 
     expect(ticket).toEqual(fixtureTicket());
 
@@ -159,11 +159,11 @@ describe('parseSnapshot tracker facts', () => {
   });
 
   test('reads a ticket in the current snapshot', () => {
-    const parsed = parseSnapshot(fixture('snapshot-v6.json'));
+    const parsed = parseSnapshot(fixture('snapshot-v8.json'));
     const tracker = parsed?.facts.trackers[fixtureRepositoryKey];
     const ticket: TicketFacts | undefined = tracker?.tickets['ME-1'];
 
-    expect(parsed?.version).toBe(6);
+    expect(parsed?.version).toBe(8);
     expect(tracker?.workspace).toBe('sqve');
     expect(tracker?.failed).toBe(false);
 
@@ -171,7 +171,7 @@ describe('parseSnapshot tracker facts', () => {
   });
 
   test('rejects a tracker with a missing title', () => {
-    const stored = rawSnapshotOf(fixture('snapshot-v6.json'));
+    const stored = rawSnapshotOf(fixture('snapshot-v8.json'));
 
     delete ticketAt(stored, fixtureRepositoryKey, 'ME-1').title;
 
@@ -179,7 +179,7 @@ describe('parseSnapshot tracker facts', () => {
   });
 
   test('rejects an unknown tracker key', () => {
-    const stored = rawSnapshotOf(fixture('snapshot-v6.json'));
+    const stored = rawSnapshotOf(fixture('snapshot-v8.json'));
 
     trackerAt(stored, fixtureRepositoryKey).extra = true;
 

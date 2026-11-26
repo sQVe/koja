@@ -5,7 +5,7 @@ import type { SpaceInfo } from 'herdr';
 import { placeOf, repositoryOf, worktreeOf } from '../src/data/gitIdentity.ts';
 import { heartbeatKey, leaseKey } from '../src/data/lease.ts';
 import type { Facts, PlaceGit, RepositoryPulls, WorktreeGit } from '../src/data/snapshot.ts';
-import { snapshotKey, snapshotVersion } from '../src/data/snapshot.ts';
+import { emptyFacts, snapshotKey, snapshotVersion } from '../src/data/snapshot.ts';
 import { writeSection } from '../src/kit/section.ts';
 import { rowHeight } from '../src/kit/size.ts';
 import { drawn, drawnTexts, elementsWithBorder, elementsWithSizeHandler } from './drawn.ts';
@@ -157,10 +157,11 @@ export const storedFacts = (
       root: checkout.folder,
       branch: checkout.branch ?? 'main',
       linked: checkout.linked,
+      bare: false,
     };
   }
 
-  return { git: { places, worktrees }, pulls, trackers: {} };
+  return { ...emptyFacts(), git: { places, worktrees }, pulls };
 };
 
 export const showFacts = (facts: Facts): void => {

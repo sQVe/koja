@@ -190,7 +190,7 @@ describe('saved record isolation', () => {
   test('a malformed read-times record does not hide a valid snapshot', () => {
     const store = memoryStore();
     const { messages, notices } = logged();
-    const snapshot = { version: 6, revision: 4, facts: emptyFacts() } satisfies Snapshot;
+    const snapshot = { version: 8, revision: 4, facts: emptyFacts() } satisfies Snapshot;
 
     store.values[snapshotKey] = snapshot;
     store.values[pullReadTimesKey] = fixture('pull-read-times-malformed.json');

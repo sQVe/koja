@@ -17,6 +17,7 @@ export const worktree = (machine: string | null, root: string): WorktreeGit => (
   root,
   branch: 'main',
   linked: false,
+  bare: false,
 });
 
 export const gitFacts = (): GitFacts => {
@@ -28,10 +29,24 @@ export const gitFacts = (): GitFacts => {
   };
 };
 
+const withBareFalseEntry = ([key, stored]: [string, unknown]): [string, unknown] => {
+  const fields = isRecord(stored) ? stored : {};
+
+  return [key, { ...fields, bare: false }];
+};
+
+export const withBareFalse = (git: unknown): unknown => {
+  const record = isRecord(git) ? git : {};
+  const worktrees = isRecord(record.worktrees) ? record.worktrees : {};
+  const entries = Object.entries(worktrees).map(withBareFalseEntry);
+
+  return { ...record, worktrees: Object.fromEntries(entries) };
+};
+
 export const snapshotOf = (git: unknown): unknown => ({
-  version: 6,
+  version: 8,
   revision: 4,
-  facts: { git, pulls: {}, trackers: {} },
+  facts: { git, pulls: {}, trackers: {}, stacks: {} },
 });
 
 export const pull = (fields: Partial<Pull> = {}): Pull =>
@@ -47,6 +62,16 @@ const ticketFacts = (): RawRecord => ({
   parent: null,
 });
 
+export const stackFacts = (): RawRecord => ({
+  stacks: [
+    {
+      trunk: 'main',
+      branches: [{ branch: 'me-1-one', pullNumber: 1, restack: 'none' }],
+    },
+  ],
+  failed: false,
+});
+
 export const trackerFacts = (): RawRecord => ({
   workspace: 'sqve',
   tickets: { 'ME-1': ticketFacts() },
@@ -57,7 +82,7 @@ export const validRaw = (): { snapshot: RawSnapshot; key: string } => {
   const key = placeOf(null, '/work').key;
 
   const snapshot: RawSnapshot = {
-    version: 6,
+    version: 8,
     revision: 4,
     facts: {
       git: {
@@ -72,11 +97,13 @@ export const validRaw = (): { snapshot: RawSnapshot; key: string } => {
             root: '/work',
             branch: 'main',
             linked: false,
+            bare: false,
           },
         },
       },
       pulls: {},
       trackers: { [repositoryKey]: trackerFacts() },
+      stacks: {},
     },
   };
 
@@ -109,6 +136,33 @@ export const pullsAt = (snapshot: RawSnapshot): RawRecord =>
 export const trackersAt = (snapshot: RawSnapshot): RawRecord =>
   recordIn(snapshot.facts.trackers, 'trackers');
 
+export const stacksAt = (snapshot: RawSnapshot): RawRecord =>
+  recordIn(snapshot.facts.stacks, 'stacks');
+
+export const repositoryStacksAt = (snapshot: RawSnapshot, key: string): RawRecord =>
+  recordIn(stacksAt(snapshot)[key], 'repository stacks');
+
+// The lists are returned live, so a test can replace an entry with a value that is not a record.
+export const stackListAt = (snapshot: RawSnapshot, key: string): unknown[] => {
+  const stored = repositoryStacksAt(snapshot, key).stacks;
+
+  if (!Array.isArray(stored)) {
+    throw new TypeError('the repository stacks are not a list');
+  }
+
+  return stored;
+};
+
+export const branchListAt = (snapshot: RawSnapshot, key: string): unknown[] => {
+  const stored = recordIn(stackListAt(snapshot, key)[0], 'stack').branches;
+
+  if (!Array.isArray(stored)) {
+    throw new TypeError('the stack branches are not a list');
+  }
+
+  return stored;
+};
+
 export const trackerAt = (snapshot: RawSnapshot, key: string): RawRecord =>
   recordIn(trackersAt(snapshot)[key], 'tracker');
 
@@ -129,6 +183,18 @@ export const worktreesAt = (snapshot: RawSnapshot): RawRecord =>
 
 export const worktreeAt = (snapshot: RawSnapshot, key: string): RawRecord =>
   recordIn(worktreesAt(snapshot)[key], 'worktree');
+
+// Version 3 git facts predate the bare flag, so a version 3 record must not carry it.
+export const version3GitFacts = (): RawRecord => {
+  const { snapshot } = validRaw();
+  const worktrees = worktreesAt(snapshot);
+
+  for (const stored of Object.values(worktrees)) {
+    delete recordIn(stored, 'worktree').bare;
+  }
+
+  return gitAt(snapshot);
+};
 
 export const repositoryAt = (snapshot: RawSnapshot, key: string): RawRecord =>
   recordIn(worktreeAt(snapshot, key).repository, 'repository');

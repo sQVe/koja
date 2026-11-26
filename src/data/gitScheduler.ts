@@ -1,5 +1,6 @@
 import type { Context } from 'gpui-kit';
 
+import { keepEarliest } from './fields.ts';
 import type { WatchFolder } from './folderWatch.ts';
 import type { DueState, GitWorld, ReadMemory, ReadReason } from './gitDue.ts';
 import { duePlaces, emptyDueState, worktreeRepresentatives } from './gitDue.ts';
@@ -51,6 +52,7 @@ const worktreeGitOf = (
       root: identity.place.folder,
       branch: branchName(identity.branch),
       linked: false,
+      bare: true,
     };
   }
 
@@ -59,6 +61,7 @@ const worktreeGitOf = (
     root: identity.worktree.top,
     branch: branchName(identity.branch),
     linked: identity.kind === 'linked',
+    bare: false,
   };
 };
 
@@ -255,13 +258,7 @@ class Scheduler implements GitScheduler {
         continue;
       }
 
-      const current = this.watchMarks.get(worktreeKey);
-
-      if (current !== undefined && current <= at) {
-        continue;
-      }
-
-      this.watchMarks.set(worktreeKey, at);
+      keepEarliest(this.watchMarks, worktreeKey, at);
     }
   }
 

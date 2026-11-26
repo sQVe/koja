@@ -17,7 +17,7 @@ import {
   herdrFake,
   realKitIndexFake,
 } from '../../../tests/moduleFakes.ts';
-import { placeOf, repositoryOf } from '../../data/gitIdentity.ts';
+import { placeOf, repositoryOf, worktreeOf } from '../../data/gitIdentity.ts';
 import { sidebarSize, spacing } from '../../kit/size.ts';
 import type { Project } from './projects.ts';
 import type { GitInfo, ListedSpace } from './tree.ts';
@@ -120,6 +120,7 @@ const spaceOf = (id: string, options: SpaceOptions): SpaceInfo => ({
 
 const gitAt = (name: string, machine: string | null, linked: boolean): GitInfo => ({
   branch: 'main',
+  worktreeKey: worktreeOf(machine, `/code/${name}`).key,
   repo: repositoryOf(machine, `/code/${name}/.git`),
   root: `/code/${name}`,
   linked,

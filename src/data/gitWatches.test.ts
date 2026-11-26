@@ -3,7 +3,8 @@ import { describe, expect, test } from 'bun:test';
 import type { FolderWatch } from 'herdr';
 
 import type { RepositoryIdentity } from './gitIdentity.ts';
-import { repositoryOf } from './gitIdentity.ts';
+import { repositoryOf, worktreeOf } from './gitIdentity.ts';
+import type { WorktreeGit } from './snapshot.ts';
 
 interface Registry {
   start: (repository: RepositoryIdentity, cx: unknown) => void;
@@ -17,6 +18,7 @@ const modulePath = './gitWatches.ts';
 
 const loaded = (await import(modulePath)) as {
   createWatchRegistry: (watchFolder: () => FolderWatch, now: () => number) => Registry;
+  checkoutWorktrees: (worktrees: Record<string, WorktreeGit>) => Set<string>;
 };
 
 const repository = repositoryOf(null, '/repo/.git');
@@ -166,5 +168,43 @@ describe('createWatchRegistry', () => {
 
     expect(registry.takeEvents()).toEqual(oneEvent(500));
     expect(registry.takeRemoteRefEvents()).toEqual(oneEvent(500));
+  });
+});
+
+const worktreeAt = (
+  root: string,
+  commonDirectory: string,
+  fields: Partial<WorktreeGit> = {},
+): WorktreeGit => ({
+  repository: repositoryOf(null, commonDirectory),
+  root,
+  branch: 'main',
+  linked: false,
+  bare: false,
+  ...fields,
+});
+
+describe('checkoutWorktrees', () => {
+  test('leaves out a bare place in the .bare layout and keeps its linked worktree', () => {
+    const bare = worktreeAt('/code/project', '/code/project/.bare', { bare: true });
+    const linked = worktreeAt('/code/project/me-1', '/code/project/.bare', { linked: true });
+
+    const worktrees = {
+      [worktreeOf(null, '/code/project').key]: bare,
+      [worktreeOf(null, '/code/project/me-1').key]: linked,
+    };
+
+    expect(loaded.checkoutWorktrees(worktrees)).toEqual(
+      new Set([worktreeOf(null, '/code/project/me-1').key]),
+    );
+  });
+
+  test('keeps a main worktree whose git folder sits outside the checkout', () => {
+    const checkout = worktreeAt('/code/checkout', '/code/elsewhere.git');
+    const worktrees = { [worktreeOf(null, '/code/checkout').key]: checkout };
+
+    expect(loaded.checkoutWorktrees(worktrees)).toEqual(
+      new Set([worktreeOf(null, '/code/checkout').key]),
+    );
   });
 });

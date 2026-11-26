@@ -28,26 +28,26 @@ describe('createPullScheduler due reads', () => {
 
     const git = gitFactsOf();
 
-    scheduler.tick(git, new Map(), harness.spawn);
+    scheduler.tick(git, {}, new Map(), harness.spawn);
     expect(harness.calls).toHaveLength(0);
 
     harness.setNow(start + 58_999);
-    scheduler.tick(git, new Map(), harness.spawn);
+    scheduler.tick(git, {}, new Map(), harness.spawn);
     expect(harness.calls).toHaveLength(0);
 
     harness.setNow(start + 59_000);
-    scheduler.tick(git, new Map(), harness.spawn);
+    scheduler.tick(git, {}, new Map(), harness.spawn);
     expect(harness.calls).toHaveLength(1);
 
     await harness.respondRemotes(0);
     await harness.respondPulls(2, pullList(7));
 
     harness.setNow(start + 59_000 + 59_999);
-    scheduler.tick(git, new Map(), harness.spawn);
+    scheduler.tick(git, {}, new Map(), harness.spawn);
     expect(harness.calls).toHaveLength(3);
 
     harness.setNow(start + 59_000 + 60_000);
-    scheduler.tick(git, new Map(), harness.spawn);
+    scheduler.tick(git, {}, new Map(), harness.spawn);
     expect(harness.calls).toHaveLength(4);
   });
 
@@ -57,7 +57,7 @@ describe('createPullScheduler due reads', () => {
       readTimes: timesAt(schedulerRepository.key, start),
     });
 
-    scheduler.tick(gitFactsOf(), new Map(), harness.spawn);
+    scheduler.tick(gitFactsOf(), {}, new Map(), harness.spawn);
 
     expect(harness.calls).toHaveLength(1);
   });
@@ -70,6 +70,7 @@ describe('createPullScheduler due reads', () => {
 
     scheduler.tick(
       gitFactsOf(),
+      {},
       new Map([[schedulerRepository.key, start - 20_000]]),
       harness.spawn,
     );
@@ -88,11 +89,11 @@ describe('createPullScheduler due reads', () => {
 
     const git = gitFactsOf();
 
-    scheduler.tick(git, new Map(), harness.spawn);
+    scheduler.tick(git, {}, new Map(), harness.spawn);
     expect(harness.calls).toHaveLength(0);
 
     harness.windowActive = true;
-    scheduler.tick(git, new Map(), harness.spawn);
+    scheduler.tick(git, {}, new Map(), harness.spawn);
     expect(harness.calls).toHaveLength(1);
   });
 
@@ -109,7 +110,7 @@ describe('createPullScheduler due reads', () => {
 
     const scheduler = harness.start();
 
-    scheduler.tick(git, new Map(), harness.spawn);
+    scheduler.tick(git, {}, new Map(), harness.spawn);
     expect(harness.calls).toHaveLength(2);
 
     await harness.respondRemotesIn(firstFolder, 'git@github.com:koja/koja.git');
@@ -132,7 +133,7 @@ describe('createPullScheduler due reads', () => {
     expect(scheduler.pulls()[second.key]).toEqual({ pulls: pullList(7), failed: false });
 
     harness.setNow(start + readPeriodMilliseconds);
-    scheduler.tick(git, new Map(), harness.spawn);
+    scheduler.tick(git, {}, new Map(), harness.spawn);
 
     expect(harness.callsIn(firstFolder)).toHaveLength(3);
     expect(harness.callsIn(secondFolder)).toHaveLength(4);

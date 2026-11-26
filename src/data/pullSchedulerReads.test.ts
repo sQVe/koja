@@ -26,7 +26,7 @@ describe('createPullScheduler reads', () => {
     const scheduler = harness.start();
     const git = gitFactsOf();
 
-    scheduler.tick(git, new Map(), harness.spawn);
+    scheduler.tick(git, {}, new Map(), harness.spawn);
     await harness.respondRemotes(0);
     await harness.respondPulls(2, pullList(7));
 
@@ -39,7 +39,7 @@ describe('createPullScheduler reads', () => {
     );
 
     harness.setNow(start + readPeriodMilliseconds);
-    scheduler.tick(git, new Map(), harness.spawn);
+    scheduler.tick(git, {}, new Map(), harness.spawn);
     await harness.respond(3, { code: 1, stdout: '', stderr: 'offline' });
 
     expect(scheduler.pulls()).toEqual({
@@ -60,6 +60,7 @@ describe('createPullScheduler reads', () => {
 
     scheduler.tick(
       gitFactsOf({ repository: remote, folder: '/srv/app' }),
+      {},
       new Map(),
       harness.spawn,
     );
@@ -94,19 +95,21 @@ describe('createPullScheduler reads', () => {
           root: '/code/koja-z',
           branch: 'main',
           linked: false,
+          bare: false,
         },
         [linked.key]: {
           repository: schedulerRepository,
           root: '/code/koja-a',
           branch: 'main',
           linked: true,
+          bare: false,
         },
       },
     };
 
     const scheduler = harness.start();
 
-    scheduler.tick(git, new Map(), harness.spawn);
+    scheduler.tick(git, {}, new Map(), harness.spawn);
 
     expect(harness.calls).toHaveLength(1);
 

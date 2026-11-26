@@ -36,6 +36,8 @@ export const setShared = (key: string, value: unknown): null => {
 
 export const checking = (): boolean => false;
 
+export const readTextFile = async (): Promise<null> => null;
+
 export const exec = async (): Promise<ExecResult> => ({ code: 0, stdout: '', stderr: '' });
 
 export const machines = (): [] => [];

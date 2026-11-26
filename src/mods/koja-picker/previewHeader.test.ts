@@ -145,6 +145,7 @@ const factsWithPull = (): Facts => {
           root: '/code/koja',
           branch: 'me-1189-go-to',
           linked: false,
+          bare: false,
         },
       },
     },
@@ -158,6 +159,7 @@ const factsWithPull = (): Facts => {
       },
     },
     trackers: {},
+    stacks: {},
   };
 };
 

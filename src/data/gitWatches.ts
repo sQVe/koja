@@ -1,5 +1,6 @@
 import type { Context } from 'gpui-kit';
 
+import { keepEarliest } from './fields.ts';
 import type { FolderWatchHandle, WatchFolder } from './folderWatch.ts';
 import { watchFolderChanges } from './folderWatch.ts';
 import type { RepositoryIdentity } from './gitIdentity.ts';
@@ -30,14 +31,20 @@ export const usedRepositories = (
   return used;
 };
 
-const keepEarliest = (stored: Map<string, number>, key: string, at: number): void => {
-  const first = stored.get(key);
+export const isBareWorktree = (worktree: WorktreeGit): boolean => worktree.bare;
 
-  if (first !== undefined && first <= at) {
-    return;
+export const checkoutWorktrees = (
+  worktrees: Readonly<Record<string, WorktreeGit>>,
+): Set<string> => {
+  const checkouts = new Set<string>();
+
+  for (const [key, worktree] of Object.entries(worktrees)) {
+    if (!isBareWorktree(worktree)) {
+      checkouts.add(key);
+    }
   }
 
-  stored.set(key, at);
+  return checkouts;
 };
 
 const isRemoteRefPath = (commonDirectory: string, path: string): boolean =>

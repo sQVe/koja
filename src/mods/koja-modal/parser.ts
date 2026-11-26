@@ -1,3 +1,4 @@
+import { sameItems } from '../../data/fields.ts';
 import type { NormalAction, NormalKey } from '../../kit/normalKeys.ts';
 import { normalKeys } from '../../kit/normalKeys.ts';
 
@@ -16,9 +17,6 @@ export const initialParserState: ParserState = { pending: [], count: null };
 const maxCount = 999;
 
 const countBase = 10;
-
-const sameKeys = (left: string[], right: string[]): boolean =>
-  left.length === right.length && left.every((key, index) => key === right[index]);
 
 const startsWith = (keys: string[], tokens: string[]): boolean =>
   tokens.every((token, index) => keys[index] === token);
@@ -65,7 +63,7 @@ export const parseKey = (
 
   const tokens = [...state.pending, key];
   const rows = [...layer, ...normalKeys];
-  const exact = rows.find((entry) => sameKeys(entry.keys, tokens));
+  const exact = rows.find((entry) => sameItems(entry.keys, tokens));
 
   if (exact !== undefined) {
     return { status: 'action', action: actionFor(exact, state.count), state: initialParserState };

@@ -1,3 +1,4 @@
+import { sameItems } from './fields.ts';
 import type { RunCommand } from './gitIdentity.ts';
 import type { Lease, ReadShared } from './lease.ts';
 import { sameHolder } from './lease.ts';
@@ -6,6 +7,7 @@ import {
   duePullReads,
   emptyPullDueRepository,
   emptyPullDueState,
+  noteBranches,
   notePush,
   noteResult,
   noteStart,
@@ -20,7 +22,7 @@ import { readRepositoryPulls } from './pulls.ts';
 import type { PullSource } from './pullSources.ts';
 import { pullSources } from './pullSources.ts';
 import type { RecordNotices } from './recordNotices.ts';
-import type { GitFacts, RepositoryPulls } from './snapshot.ts';
+import type { GitFacts, RepositoryPulls, RepositoryStacks } from './snapshot.ts';
 
 export interface PullSchedulerDependencies {
   run: RunCommand;
@@ -40,7 +42,12 @@ export interface PullSchedulerSeed {
 }
 
 export interface PullScheduler {
-  tick: (git: GitFacts, remoteRefEvents: Map<string, number>, spawn: Spawn) => void;
+  tick: (
+    git: GitFacts,
+    stacks: Readonly<Record<string, RepositoryStacks>>,
+    remoteRefEvents: Map<string, number>,
+    spawn: Spawn,
+  ) => void;
   pulls: () => Record<string, RepositoryPulls>;
   stop: () => void;
 }
@@ -75,6 +82,7 @@ class Scheduler implements PullScheduler {
   private readonly due: PullDueState;
   private readonly session: PullRetrySession;
   private readonly running = new Map<string, number>();
+  private readonly branches = new Map<string, string[]>();
   private sequence = 0;
   private stopped = false;
 
@@ -99,13 +107,34 @@ class Scheduler implements PullScheduler {
     return this.pullsByRepository;
   }
 
-  tick(git: GitFacts, remoteRefEvents: Map<string, number>, spawn: Spawn): void {
+  tick(
+    git: GitFacts,
+    stacks: Readonly<Record<string, RepositoryStacks>>,
+    remoteRefEvents: Map<string, number>,
+    spawn: Spawn,
+  ): void {
     if (this.stopped) {
       return;
     }
 
     const now = this.dependencies.now();
-    const sources = pullSources(git);
+    const sources = pullSources(git, stacks);
+
+    for (const [key, source] of sources) {
+      const previous = this.branches.get(key);
+
+      if (previous !== undefined && !sameItems(previous, source.branches)) {
+        noteBranches(this.due, key, now);
+      }
+
+      this.branches.set(key, source.branches);
+    }
+
+    for (const key of this.branches.keys()) {
+      if (!sources.has(key)) {
+        this.branches.delete(key);
+      }
+    }
 
     for (const [key, at] of remoteRefEvents) {
       if (sources.has(key)) {
