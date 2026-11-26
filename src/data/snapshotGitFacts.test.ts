@@ -1,5 +1,6 @@
 import { describe, expect, test } from 'bun:test';
 
+import { keyOf } from '../../tests/gitKey.ts';
 import {
   gitAt,
   gitFacts,
@@ -14,7 +15,7 @@ import {
   worktreesAt,
 } from '../../tests/snapshotRaw.ts';
 import type { RawSnapshot } from '../../tests/snapshotRaw.ts';
-import { keyOf, placeOf } from './gitIdentity.ts';
+import { placeOf } from './gitIdentity.ts';
 import { parseSnapshot } from './snapshot.ts';
 
 const malformedFields: [string, (snapshot: RawSnapshot, key: string) => void][] = [

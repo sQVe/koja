@@ -3,6 +3,7 @@ import { afterAll, beforeEach, describe, expect, test } from 'bun:test';
 import { click, clickablesWithText, drawnTexts } from '../../../tests/drawn.ts';
 import type { DrawnElement } from '../../../tests/drawn.ts';
 import {
+  anotherOwner,
   flush,
   loadView,
   resetKojaSpaces,
@@ -17,7 +18,6 @@ import {
 } from '../../../tests/kojaSpacesView.ts';
 import { pullFacts } from '../../../tests/pullFacts.ts';
 import { repositoryOf } from '../../data/gitIdentity.ts';
-import { heartbeatKey, leaseKey } from '../../data/lease.ts';
 import type { PullRetryRequest } from '../../data/pullRetry/pullRetry.ts';
 import { pullRetryOutcomesKey, pullRetryRequestsKey } from '../../data/pullRetry/pullRetry.ts';
 import type { RepositoryPulls } from '../../data/snapshot.ts';
@@ -31,13 +31,6 @@ beforeEach(() => {
 afterAll(() => {
   restoreKojaSpaces();
 });
-
-const anotherOwner = (): void => {
-  const lease = { version: 1, owner: 'window-b', generation: 1 };
-
-  state.sharedValues[leaseKey] = lease;
-  state.sharedValues[heartbeatKey] = { ...lease, at: Date.now() };
-};
 
 let generatedIds = 0;
 

@@ -1,5 +1,6 @@
 import { beforeEach, describe, expect, test } from 'bun:test';
 
+import { keyOf } from '../../tests/gitKey.ts';
 import {
   GitSchedulerHarness,
   mainCheckout,
@@ -7,7 +8,7 @@ import {
   terminal,
   worldOf,
 } from '../../tests/gitSchedulerHarness.ts';
-import { repositoryOf, worktreeOf, keyOf } from './gitIdentity.ts';
+import { repositoryOf, worktreeOf } from './gitIdentity.ts';
 
 const harness = new GitSchedulerHarness();
 

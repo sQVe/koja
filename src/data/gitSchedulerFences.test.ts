@@ -1,12 +1,13 @@
 import { beforeEach, describe, expect, test } from 'bun:test';
 
+import { keyOf } from '../../tests/gitKey.ts';
 import {
   GitSchedulerHarness,
   mainCheckout,
   spaceOf,
   worldOf,
 } from '../../tests/gitSchedulerHarness.ts';
-import { worktreeOf, keyOf } from './gitIdentity.ts';
+import { worktreeOf } from './gitIdentity.ts';
 import type { Lease } from './lease.ts';
 import type { GitFacts } from './snapshot.ts';
 import { emptyFacts } from './snapshot.ts';

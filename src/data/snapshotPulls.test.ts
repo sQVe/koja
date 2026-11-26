@@ -1,8 +1,8 @@
 import { describe, expect, test } from 'bun:test';
 
+import { keyOf } from '../../tests/gitKey.ts';
 import { pull, pullsAt, repositoryKey, validRaw } from '../../tests/snapshotRaw.ts';
 import type { RawSnapshot } from '../../tests/snapshotRaw.ts';
-import { keyOf } from './gitIdentity.ts';
 import { parseSnapshot } from './snapshot.ts';
 
 const malformedPulls: [string, (snapshot: RawSnapshot) => void][] = [

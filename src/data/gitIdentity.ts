@@ -45,8 +45,7 @@ export type GitIdentity =
 
 type Git = (args: string[]) => Promise<ExecResult>;
 
-export const keyOf = (machine: string | null, path: string): string =>
-  JSON.stringify([machine, path]);
+const keyOf = (machine: string | null, path: string): string => JSON.stringify([machine, path]);
 
 export const placeOf = (machine: string | null, folder: string): Place => ({
   machine,

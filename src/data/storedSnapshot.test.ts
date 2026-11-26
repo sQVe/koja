@@ -1,6 +1,7 @@
 import { describe, expect, test } from 'bun:test';
 
 import { fixture } from '../../tests/fixtureJson.ts';
+import { repositoryOf } from './gitIdentity.ts';
 import type { RecordNotices, RecordRejection } from './recordNotices.ts';
 import { createRecordNotices } from './recordNotices.ts';
 import type { Snapshot } from './snapshot.ts';
@@ -46,7 +47,7 @@ const malformedMessage = (): string => messageFor('malformed');
 
 const newerMessage = (): string => messageFor('newer');
 
-const snapshot = { version: 4, revision: 4, facts: emptyFacts() } satisfies Snapshot;
+const snapshot = { version: 6, revision: 4, facts: emptyFacts() } satisfies Snapshot;
 
 describe('readStoredSnapshot', () => {
   test('stays silent when no snapshot was written', () => {
@@ -114,7 +115,7 @@ describe('readStoredSnapshot', () => {
 
   test('reports a newer version once and keeps rejecting it', () => {
     const { messages, notices } = logged();
-    const read = memoryStore({ version: 5, revision: 4, facts: emptyFacts() });
+    const read = memoryStore({ version: 7, revision: 4, facts: emptyFacts() });
 
     expect(readStoredSnapshot(read, notices)).toBeNull();
     expect(readStoredSnapshot(read, notices)).toBeNull();
@@ -135,22 +136,25 @@ describe('readStoredSnapshot', () => {
     expect(messages).toEqual([malformedMessage()]);
   });
 
-  test('skips the version 5 fixture with the newer notice once', () => {
+  test('reads the version 5 fixture without a notice and drops its ticket failure flag', () => {
     const { messages, notices } = logged();
     const read = memoryStore(fixture('snapshot-v5.json'));
+    const parsed = readStoredSnapshot(read, notices);
+    const tracker = parsed?.facts.trackers[repositoryOf(null, '/code/koja/.git').key];
+    const ticket = tracker?.tickets['ME-1'];
 
-    expect(readStoredSnapshot(read, notices)).toBeNull();
-    expect(readStoredSnapshot(read, notices)).toBeNull();
-    expect(messages).toEqual([newerMessage()]);
+    expect(ticket?.title).toBe('Title spaces with their Linear tickets');
+    expect(Object.hasOwn(ticket ?? {}, 'failed')).toBe(false);
+    expect(messages).toEqual([]);
   });
 
   test('reports each reason once in the order they occur', () => {
     const { messages, notices } = logged();
 
     readStoredSnapshot(memoryStore({ version: 2 }), notices);
-    readStoredSnapshot(memoryStore({ version: 5 }), notices);
+    readStoredSnapshot(memoryStore({ version: 7 }), notices);
     readStoredSnapshot(memoryStore({ version: 2 }), notices);
-    readStoredSnapshot(memoryStore({ version: 5 }), notices);
+    readStoredSnapshot(memoryStore({ version: 7 }), notices);
 
     expect(messages).toEqual([malformedMessage(), newerMessage()]);
   });

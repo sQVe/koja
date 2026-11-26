@@ -2,12 +2,12 @@ import type { ExecResult, FolderWatch, PaneInfo, Program, SpaceInfo, Status, Tab
 
 import type { GitWorld } from '../src/data/gitDue.ts';
 import type { RunCommand } from '../src/data/gitIdentity.ts';
-import { keyOf } from '../src/data/gitIdentity.ts';
 import type { Lease } from '../src/data/lease.ts';
 import { heartbeatKey, leaseKey } from '../src/data/lease.ts';
 import { createSnapshotPublisher } from '../src/data/publisher.ts';
 import type { GitFacts } from '../src/data/snapshot.ts';
 import { joinFacts, parseSnapshot, snapshotKey } from '../src/data/snapshot.ts';
+import { keyOf } from './gitKey.ts';
 
 interface Dependencies {
   run: RunCommand;

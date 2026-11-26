@@ -1,7 +1,8 @@
-import { keyOf, placeOf, repositoryOf } from '../src/data/gitIdentity.ts';
+import { placeOf, repositoryOf } from '../src/data/gitIdentity.ts';
 import type { Pull } from '../src/data/pulls.ts';
 import type { GitFacts, WorktreeGit } from '../src/data/snapshot.ts';
 import { isRecord } from '../src/kit/fields.ts';
+import { keyOf } from './gitKey.ts';
 import { pullFacts } from './pullFacts.ts';
 
 export type RawRecord = Record<string, unknown>;
@@ -29,9 +30,9 @@ export const gitFacts = (): GitFacts => {
 };
 
 export const snapshotOf = (git: unknown): unknown => ({
-  version: 4,
+  version: 6,
   revision: 4,
-  facts: { git, pulls: {} },
+  facts: { git, pulls: {}, trackers: {} },
 });
 
 export const pull = (fields: Partial<Pull> = {}): Pull =>
@@ -39,11 +40,25 @@ export const pull = (fields: Partial<Pull> = {}): Pull =>
 
 export const repositoryKey = keyOf(null, '/work/.git');
 
+const ticketFacts = (): RawRecord => ({
+  id: 'ME-1',
+  title: 'Title',
+  state: 'In Progress',
+  url: 'https://linear.app/sqve/issue/ME-1',
+  parent: null,
+});
+
+export const trackerFacts = (): RawRecord => ({
+  workspace: 'sqve',
+  tickets: { 'ME-1': ticketFacts() },
+  failed: false,
+});
+
 export const validRaw = (): { snapshot: RawSnapshot; key: string } => {
   const key = keyOf(null, '/work');
 
   const snapshot: RawSnapshot = {
-    version: 4,
+    version: 6,
     revision: 4,
     facts: {
       git: {
@@ -62,6 +77,7 @@ export const validRaw = (): { snapshot: RawSnapshot; key: string } => {
         },
       },
       pulls: {},
+      trackers: { [repositoryKey]: trackerFacts() },
     },
   };
 
@@ -78,8 +94,33 @@ export const recordIn = (value: unknown, name: string): RawRecord => {
 
 export const gitAt = (snapshot: RawSnapshot): RawRecord => recordIn(snapshot.facts.git, 'git');
 
+export const rawSnapshotOf = (value: unknown): RawSnapshot => {
+  const snapshot = recordIn(value, 'snapshot');
+
+  return {
+    version: snapshot.version,
+    revision: snapshot.revision,
+    facts: recordIn(snapshot.facts, 'facts'),
+  };
+};
+
 export const pullsAt = (snapshot: RawSnapshot): RawRecord =>
   recordIn(snapshot.facts.pulls, 'pulls');
+
+export const trackersAt = (snapshot: RawSnapshot): RawRecord =>
+  recordIn(snapshot.facts.trackers, 'trackers');
+
+export const trackerAt = (snapshot: RawSnapshot, key: string): RawRecord =>
+  recordIn(trackersAt(snapshot)[key], 'tracker');
+
+export const ticketAt = (snapshot: RawSnapshot, repository: string, ticket: string): RawRecord => {
+  const tickets = recordIn(trackerAt(snapshot, repository).tickets, 'tickets');
+
+  return recordIn(tickets[ticket], 'ticket');
+};
+
+export const ticketsAt = (snapshot: RawSnapshot, repository: string): RawRecord =>
+  recordIn(trackerAt(snapshot, repository).tickets, 'tickets');
 
 export const placesAt = (snapshot: RawSnapshot): RawRecord =>
   recordIn(gitAt(snapshot).places, 'places');

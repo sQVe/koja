@@ -1,9 +1,9 @@
 import { describe, expect, test } from 'bun:test';
 
 import { fixture } from '../../tests/fixtureJson.ts';
+import { keyOf } from '../../tests/gitKey.ts';
 import { pullFacts } from '../../tests/pullFacts.ts';
 import { gitFacts, recordIn, repositoryKey } from '../../tests/snapshotRaw.ts';
-import { keyOf } from './gitIdentity.ts';
 import { pullNeeds } from './pullNeeds.ts';
 import { parseSnapshot } from './snapshot.ts';
 
@@ -19,7 +19,7 @@ describe('parseSnapshot versions', () => {
       title: 'Read the theme once per turn',
     });
 
-    expect(parsed?.version).toBe(4);
+    expect(parsed?.version).toBe(6);
     expect(parsed?.revision).toBe(8);
     expect(pulls).toEqual([unread]);
     expect(pulls.map((entry) => pullNeeds(entry))).toEqual([[]]);
@@ -85,10 +85,11 @@ describe('parseSnapshot versions', () => {
     const parsed = parseSnapshot(stored);
     const parsedGit: unknown = parsed?.facts.git;
 
-    expect(parsed?.version).toBe(4);
+    expect(parsed?.version).toBe(6);
     expect(parsed?.revision).toBe(7);
     expect(parsedGit).toEqual(git);
     expect(parsed?.facts.pulls).toEqual({});
+    expect(parsed?.facts.trackers).toEqual({});
   });
 
   test('accepts empty version 2 places and worktrees maps', () => {
@@ -99,9 +100,9 @@ describe('parseSnapshot versions', () => {
     };
 
     expect(parseSnapshot(stored)).toEqual({
-      version: 4,
+      version: 6,
       revision: 4,
-      facts: { git: { places: {}, worktrees: {} }, pulls: {} },
+      facts: { git: { places: {}, worktrees: {} }, pulls: {}, trackers: {} },
     });
   });
 
@@ -145,9 +146,5 @@ describe('parseSnapshot versions', () => {
 
   test('rejects the retired version 1 fixture', () => {
     expect(parseSnapshot(fixture('snapshot-v1.json'))).toBeNull();
-  });
-
-  test('rejects the newer version 5 fixture', () => {
-    expect(parseSnapshot(fixture('snapshot-v5.json'))).toBeNull();
   });
 });

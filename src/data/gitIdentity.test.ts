@@ -5,7 +5,8 @@ import { join } from 'node:path';
 
 import type { ExecResult } from 'herdr';
 
-import { keyOf, readGitIdentity, worktreeKeyOf } from './gitIdentity.ts';
+import { keyOf } from '../../tests/gitKey.ts';
+import { placeOf, readGitIdentity, worktreeKeyOf } from './gitIdentity.ts';
 import type { GitIdentity, RunCommand } from './gitIdentity.ts';
 
 // Git hooks export variables such as GIT_DIR that would point every command at the outer repository.
@@ -91,8 +92,8 @@ const isLayoutRead = (args: string[]): boolean =>
 
 const checkoutLayout = ['false', 'false', '/work/.git', '/work/.git'].join('\n');
 
-test('encodes a key as the machine and path JSON pair', () => {
-  expect(keyOf('box', '/work')).toBe('["box","/work"]');
+test('encodes a place key as the machine and path JSON pair', () => {
+  expect(placeOf('box', '/work').key).toBe('["box","/work"]');
 });
 
 describe('readGitIdentity', () => {

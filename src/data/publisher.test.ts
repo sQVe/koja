@@ -1,7 +1,8 @@
 import { describe, expect, spyOn, test } from 'bun:test';
 
+import { keyOf } from '../../tests/gitKey.ts';
 import { runSnapshotNoticeScenario } from '../../tests/snapshotNoticeLifetime.ts';
-import { keyOf, placeOf, repositoryOf } from './gitIdentity.ts';
+import { placeOf, repositoryOf } from './gitIdentity.ts';
 import type { Lease } from './lease.ts';
 import { claimLease, leaseExpiryMilliseconds } from './lease.ts';
 import { createSnapshotPublisher } from './publisher.ts';

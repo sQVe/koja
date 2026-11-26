@@ -3,6 +3,7 @@ import { mock } from 'bun:test';
 import type { SpaceInfo } from 'herdr';
 
 import { placeOf, repositoryOf, worktreeOf } from '../src/data/gitIdentity.ts';
+import { heartbeatKey, leaseKey } from '../src/data/lease.ts';
 import type { Facts, PlaceGit, RepositoryPulls, WorktreeGit } from '../src/data/snapshot.ts';
 import { snapshotKey } from '../src/data/snapshot.ts';
 import { writeSection } from '../src/kit/section.ts';
@@ -40,6 +41,7 @@ export interface Checkout {
   machine?: string | null;
   commonDirectory: string;
   linked: boolean;
+  branch?: string;
 }
 
 export const themeColors = {
@@ -152,16 +154,23 @@ export const storedFacts = (
     worktrees[worktree.key] = {
       repository: repositoryOf(machine, checkout.commonDirectory),
       root: checkout.folder,
-      branch: 'main',
+      branch: checkout.branch ?? 'main',
       linked: checkout.linked,
     };
   }
 
-  return { git: { places, worktrees }, pulls };
+  return { git: { places, worktrees }, pulls, trackers: {} };
 };
 
 export const showFacts = (facts: Facts): void => {
-  state.sharedValues[snapshotKey] = { version: 4, revision: 1, facts };
+  state.sharedValues[snapshotKey] = { version: 6, revision: 1, facts };
+};
+
+export const anotherOwner = (): void => {
+  const lease = { version: 1, owner: 'window-b', generation: 1 };
+
+  state.sharedValues[leaseKey] = lease;
+  state.sharedValues[heartbeatKey] = { ...lease, at: Date.now() };
 };
 
 const installedGlobals = ['kojaModName', 'localStorage'] as const;

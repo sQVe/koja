@@ -2,6 +2,7 @@ import { afterAll, beforeEach, describe, expect, test } from 'bun:test';
 
 import { drawnTexts } from '../../../tests/drawn.ts';
 import {
+  anotherOwner,
   loadView,
   resetKojaSpaces,
   restoreKojaSpaces,
@@ -13,6 +14,7 @@ import {
   storedFacts,
 } from '../../../tests/kojaSpacesView.ts';
 import { readDataState } from '../../data/consumer.ts';
+import { repositoryOf } from '../../data/gitIdentity.ts';
 
 await setupKojaSpaces();
 
@@ -62,5 +64,53 @@ describe('koja-spaces stored git facts', () => {
     expect(texts.filter((text) => text === 'koja')).toHaveLength(1);
     expect(texts.filter((text) => text === 'app')).toHaveLength(1);
     expect(texts.filter((text) => text === 'build-box')).toHaveLength(1);
+  });
+});
+
+const kojaRepositoryKey = repositoryOf(null, '/code/koja/.git').key;
+
+const ticketFacts = (id: string, title: string) => ({
+  id,
+  title,
+  state: 'Todo',
+  url: `https://linear.app/koja/issue/${id}`,
+  parent: null,
+});
+
+const useTicketFacts = (): void => {
+  const facts = storedFacts([
+    { folder: '/code/koja', commonDirectory: '/code/koja/.git', linked: false },
+    {
+      folder: '/code/me-666-login',
+      commonDirectory: '/code/koja/.git',
+      linked: true,
+      branch: 'me-666-login',
+    },
+  ]);
+
+  facts.trackers = {
+    [kojaRepositoryKey]: {
+      workspace: 'koja',
+      tickets: { 'ME-666': ticketFacts('ME-666', 'Log in with a ticket') },
+      failed: false,
+    },
+  };
+
+  showFacts(facts);
+
+  state.spaceList = [
+    space('m', true, '/code/koja'),
+    { ...space('w', false, '/code/me-666-login'), named: false },
+  ];
+};
+
+describe('koja-spaces ticket facts', () => {
+  test('titles an unnamed row with the ticket of its branch from the snapshot', async () => {
+    anotherOwner();
+    useTicketFacts();
+
+    const view = await loadView();
+
+    expect(drawnTexts(view.render())).toContain('Log in with a ticket');
   });
 });
