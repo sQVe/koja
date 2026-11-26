@@ -292,6 +292,24 @@ describe('repoStatus', () => {
     expect(visited?.started).toBe(1000);
   });
 
+  test('runs no git when the window hides before the task starts', async () => {
+    const h = harness();
+    const answers = [true, false];
+    const host = { ...h.host, visible: () => answers.shift() ?? false };
+
+    const scan = await repoStatus(
+      host,
+      '/repo',
+      null,
+      request({ after: 900 }),
+      h.context,
+      () => true,
+    );
+
+    expect(scan).toBeNull();
+    expect(h.reads).toBe(0);
+  });
+
   test('a failed scan is not reused', async () => {
     const h = harness();
 
