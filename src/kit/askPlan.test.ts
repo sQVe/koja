@@ -81,7 +81,11 @@ const facts = (
   terminals: [],
 });
 
-const agent = (spaceId: string, name: string): AgentInfo => ({
+const agent = (
+  spaceId: string,
+  name: string,
+  status: AgentInfo['status'] = 'working',
+): AgentInfo => ({
   address: `a-${name}`,
   pane: `p-${name}`,
   space: spaceId,
@@ -89,7 +93,7 @@ const agent = (spaceId: string, name: string): AgentInfo => ({
   tab: 't1',
   tab_index: 1,
   tab_name: '',
-  status: 'working',
+  status,
   app: null,
   program: { ...shell, key: name, name, agent: true, shell: false },
   title: name,
@@ -182,6 +186,42 @@ describe('dialogFor', () => {
       dialog: {
         body: [
           'Claude Code stops mid-task, and 2 tabs close.',
+          'Its folder, uncommitted changes, and branch stay.',
+        ],
+      },
+    });
+  });
+
+  test.each(['done', 'idle'] as const)('a %s agent stops without saying mid-task', (status) => {
+    const values = facts(spaceValues(), [], focusValue);
+
+    values.agents = [agent('s1', 'Claude Code', status)];
+
+    const plan = dialogFor('space.close', { id: 's1' }, values);
+
+    expect(plan).toMatchObject({
+      kind: 'confirm',
+      dialog: {
+        body: [
+          'Claude Code stops, and 2 tabs close.',
+          'Its folder, uncommitted changes, and branch stay.',
+        ],
+      },
+    });
+  });
+
+  test('a group with a finished agent stops without saying mid-task', () => {
+    const values = facts(spaceValues(), [], focusValue);
+
+    values.agents = [agent('s1', 'Claude Code'), agent('s1', 'Pi', 'done')];
+
+    const plan = dialogFor('space.close', { id: 's1' }, values);
+
+    expect(plan).toMatchObject({
+      kind: 'confirm',
+      dialog: {
+        body: [
+          'Claude Code and Pi stop, and 2 tabs close.',
           'Its folder, uncommitted changes, and branch stay.',
         ],
       },

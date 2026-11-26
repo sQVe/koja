@@ -284,8 +284,8 @@ describe('askFirst', () => {
 
   test('the confirm props carry the close body with the space agents and tab count', () => {
     agentValues = [
-      { space: 's1', program: { name: 'Claude Code' } },
-      { space: 's2', program: { name: 'Pi' } },
+      { space: 's1', status: 'working', program: { name: 'Claude Code' } },
+      { space: 's2', status: 'working', program: { name: 'Pi' } },
     ];
 
     askFirst('space.close', {});

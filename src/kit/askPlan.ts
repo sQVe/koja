@@ -68,13 +68,15 @@ const tabTarget = (args: Record<string, unknown>, facts: AskFacts): TabPlace | u
   return placeOf(focusedSpaces, facts.focus?.tab);
 };
 
-const agentNames = (space: SpaceInfo, agentList: AgentInfo[]): string[] => {
-  const names = agentList
-    .filter((agent) => agent.space === space.id)
-    .map((agent) => agent.program.name);
+const spaceAgents = (space: SpaceInfo, agentList: AgentInfo[]): AgentInfo[] =>
+  agentList.filter((agent) => agent.space === space.id);
 
-  return [...new Set(names)];
-};
+const agentNames = (agents: AgentInfo[]): string[] => [
+  ...new Set(agents.map((agent) => agent.program.name)),
+];
+
+const isMidTask = (agent: AgentInfo): boolean =>
+  agent.status === 'working' || agent.status === 'blocked';
 
 const joinNames = (names: string[]): string => {
   if (names.length <= 2) {
@@ -86,18 +88,21 @@ const joinNames = (names: string[]): string => {
 
 const tabCount = (count: number): string => `${count} ${count === 1 ? 'tab closes' : 'tabs close'}`;
 
-const closeStops = (names: string[]): string => {
+const closeStops = (agents: AgentInfo[]): string => {
+  const names = agentNames(agents);
+
   if (names.length === 0) {
     return '';
   }
 
   const verb = names.length === 1 ? 'stops' : 'stop';
+  const midTask = agents.every(isMidTask) ? ' mid-task' : '';
 
-  return `${joinNames(names)} ${verb} mid-task, and `;
+  return `${joinNames(names)} ${verb}${midTask}, and `;
 };
 
 const closeBody = (space: SpaceInfo, facts: AskFacts): string[] => {
-  const stops = closeStops(agentNames(space, facts.agents));
+  const stops = closeStops(spaceAgents(space, facts.agents));
 
   return [
     `${stops}${tabCount(space.tabs.length)}.`,
