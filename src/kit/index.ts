@@ -27,6 +27,8 @@ export { statusRow } from './statusRow.ts';
 
 export type { StatusRowOptions } from './statusRow.ts';
 
+export { factLine } from './factLine.ts';
+
 export { factPairs, factRows } from './factRows.ts';
 
 export type { Fact } from './factRows.ts';
