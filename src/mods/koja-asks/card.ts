@@ -53,8 +53,7 @@ export interface CardGeometry {
 const {
   maximumWidth,
   paneClearance,
-  cardPadding,
-  cardBorder,
+  cardInset,
   textInset,
   bodyLineHeight,
   terminalLineHeight,
@@ -118,13 +117,12 @@ const wrapLineCount = (text: string, width: number, glyph: number): number => {
   return lines;
 };
 
-const textWidthOf = (width: number): number =>
-  Math.max(1, width - 2 * cardPadding - 2 * cardBorder - textInset);
+const textWidthOf = (width: number): number => Math.max(1, width - cardInset - textInset);
 
 export const cardHeight = (text: CardText, width: number): number => {
   const textWidth = textWidthOf(width);
 
-  let height = 2 * cardPadding + 2 * cardBorder + controlSize.button;
+  let height = cardInset + controlSize.button;
 
   height += spacing.small;
   height += wrapLineCount(text.question, textWidth, bodyGlyph) * bodyLineHeight;
@@ -157,9 +155,9 @@ const rowHeight = (row: AskRow, width: number): number => {
 };
 
 export const listHeight = (rows: readonly AskRow[], width: number): number => {
-  const contentWidth = width - 2 * cardPadding - 2 * cardBorder;
+  const contentWidth = width - cardInset;
 
-  let height = 2 * cardPadding + 2 * cardBorder + listLineHeight;
+  let height = cardInset + listLineHeight;
 
   for (const row of rows) {
     height += listGap;
