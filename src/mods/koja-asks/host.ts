@@ -47,8 +47,7 @@ export const planCard = (sources: PlanSources): CardPlan => {
   // `asks` arrives newest first, so the first unhandled entry is the newest.
   const shown = sources.asks.find((ask) => !handled.includes(ask.identity)) ?? null;
 
-  // A card shows an ask only after sounding for it, so the shown ask counts as sounded even when
-  // its card was open before this list existed.
+  // An open card has already alerted the user for its ask, even when the sound list predates it.
   const sound = shown !== null && !sounded.includes(shown.identity);
   const nextSounded = sound ? [...sounded, shown.identity] : sounded;
 
