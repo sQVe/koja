@@ -144,6 +144,7 @@ describe('sandbox identity', () => {
     const report = await identityReport(options);
 
     expect(failures).toEqual([{ kind: 'recordUnreadable', path: recordPath() }]);
+    expect(report.exitCode).toBe(1);
     expect(report.lines.join('\n')).toContain(recordPath());
   });
 
