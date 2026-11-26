@@ -8,11 +8,51 @@ import {
   kitIndexFake,
 } from '../../../tests/moduleFakes.ts';
 import { listOf, numberOf, recordOf, stringOf } from '../../kit/fields.ts';
+import { overlaySize, spacing } from '../../kit/size.ts';
 
 const storage = new Map<string, string>();
 let activePanel = 'files';
 let actions: { name: string; args: unknown }[] = [];
 let shownTabs: string[] = [];
+let overlaySpecs: Record<string, unknown>[] = [];
+let sharedWrites: { key: string; value: unknown }[] = [];
+let sharedValues: Record<string, unknown> = {};
+let zoom = 1;
+let plusPress: ((event: unknown, cx: unknown) => void) | null = null;
+let plusClick: (() => void) | null = null;
+
+const plusButton = (): unknown => {
+  const element: unknown = new Proxy(() => undefined, {
+    get: (_target, key) => {
+      if (key === 'on_mouse_down') {
+        return (_button: string, handler: (event: unknown, cx: unknown) => void) => {
+          plusPress = handler;
+
+          return element;
+        };
+      }
+
+      if (key === 'on_click') {
+        return (handler: () => void) => {
+          plusClick = handler;
+
+          return element;
+        };
+      }
+
+      if (key === 'then') {
+        return undefined;
+      }
+
+      return () => element;
+    },
+    apply: () => element,
+  });
+
+  return element;
+};
+
+const context = { notify: () => undefined, stop_propagation: () => undefined };
 
 Object.assign(globalThis, {
   localStorage: {
@@ -28,10 +68,22 @@ await mock.module('gpui-kit', () => gpuiKitFake({ div: chainable }));
 
 await mock.module('herdr', () =>
   herdrFake({
-    spaces: () => [{ id: 'space-1', active: true, tabs: [{ id: 'tab-1', active: true }] }],
+    openOverlay: (spec: Record<string, unknown>) => {
+      overlaySpecs.push(spec);
+
+      return 'overlay-1';
+    },
     run: (name: string, args: unknown) => {
       actions.push({ name, args });
     },
+    setShared: (key: string, value: unknown) => {
+      sharedWrites.push({ key, value });
+
+      return null;
+    },
+    settings: () => ({ zoom }),
+    shared: (key: string) => sharedValues[key],
+    spaces: () => [{ id: 'space-1', active: true, tabs: [{ id: 'tab-1', active: true }] }],
   }),
 );
 
@@ -51,6 +103,9 @@ await mock.module('../../kit/index.ts', () =>
     },
     icon: chainable,
     iconButton: chainable,
+    iconToggle: () => plusButton(),
+    overlaySize,
+    spacing,
     indicator: chainable,
     layoutRoot: () => ({}),
     listOf,
@@ -70,7 +125,13 @@ await mock.module('../../kit/index.ts', () =>
 );
 
 const modulePath = './main.ts';
-const loaded = (await import(modulePath)) as { default: new () => { render: () => unknown } };
+
+const loaded = (await import(modulePath)) as {
+  default: new () => {
+    init: (props: unknown, cx: unknown) => void;
+    render: () => unknown;
+  };
+};
 
 afterAll(() => {
   mock.restore();
@@ -81,6 +142,12 @@ beforeEach(() => {
   activePanel = 'files';
   actions = [];
   shownTabs = [];
+  overlaySpecs = [];
+  sharedWrites = [];
+  sharedValues = {};
+  zoom = 1;
+  plusPress = null;
+  plusClick = null;
 });
 
 describe('tabs saved panels', () => {
@@ -116,5 +183,47 @@ describe('tabs saved panels', () => {
     ]);
 
     expect(storage.get('panels')).toBe('{"space-1":"changes"}');
+  });
+});
+
+describe('the new menu button', () => {
+  test('opens the menu under the plus, scaled by the app zoom', () => {
+    zoom = 1.25;
+
+    const view = new loaded.default();
+
+    view.render();
+
+    plusPress?.(
+      {
+        position: { x: 200, y: 20 },
+        local_position: { x: 10, y: 10 },
+        bounds: { width: 22, height: 22 },
+      },
+      context,
+    );
+
+    plusClick?.();
+
+    expect(overlaySpecs).toEqual([
+      {
+        mod: 'koja-new-menu',
+        kind: 'popup',
+        frame: 'none',
+        width: overlaySize.newMenuWidth,
+        height: overlaySize.wideMenuHeight,
+        at: { x: 212 - overlaySize.newMenuWidth * zoom, y: 32 + spacing.xsmall * zoom },
+      },
+    ]);
+  });
+
+  test('clears a pressed plus left by a session that ended with the menu open', () => {
+    sharedValues['koja-new-menu.open'] = true;
+
+    const view = new loaded.default();
+
+    view.init(null, context);
+
+    expect(sharedWrites).toEqual([{ key: 'koja-new-menu.open', value: false }]);
   });
 });
