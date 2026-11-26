@@ -1,3 +1,4 @@
+import type { AsyncContext } from 'gpui-kit';
 import type { ExecResult } from 'herdr';
 
 import { recordOf, stringOf } from '../../kit/fields.ts';
@@ -25,6 +26,13 @@ const label = 'koja.preview=1';
 const stateName = 'state';
 
 const heartbeatName = 'heartbeat';
+
+// serve writes this once it is watching, so a viewer that exits at startup is a failed start.
+const readyName = 'ready';
+
+const readyPollMilliseconds = 50;
+
+const readyAttempts = 20;
 
 // The picker writes the heartbeat this often; serve's 1200-poll limit spans 60 seconds, 60x
 // this interval, so a stall or sleep does not end a live viewer and an orphan ends in a minute.
@@ -109,6 +117,32 @@ export class PreviewSession {
     }
 
     return { address, folder, statePath: this.statePath };
+  }
+
+  async ready(cx: AsyncContext): Promise<boolean> {
+    if (this.folder === null) {
+      return false;
+    }
+
+    const path = `${this.folder}/${readyName}`;
+
+    for (let attempt = 0; attempt < readyAttempts; attempt += 1) {
+      // eslint-disable-next-line no-await-in-loop -- the file appears between attempts
+      const watching = await this.host.read(path).catch(() => null);
+
+      if (watching !== null) {
+        return true;
+      }
+
+      // eslint-disable-next-line no-await-in-loop -- the wait is what makes the next read useful
+      await new Promise<void>((resolve) => {
+        cx.timer.after(readyPollMilliseconds, () => {
+          resolve();
+        });
+      });
+    }
+
+    return false;
   }
 
   show(address: string | null): void {

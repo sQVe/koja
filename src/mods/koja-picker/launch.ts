@@ -104,11 +104,12 @@ export const launch = (
     rememberPane(here.tab, here.pane);
   }
 
-  cx.spawn(async () => {
+  cx.spawn(async (taskCx) => {
     try {
       const started = await session.open(null).catch(() => null);
+      const watching = started === null ? false : await session.ready(taskCx);
 
-      if (started === null) {
+      if (started === null || !watching) {
         session.close();
         openPicker(null);
         closeOverlay(overlay);
