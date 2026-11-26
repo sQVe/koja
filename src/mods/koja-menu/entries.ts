@@ -308,7 +308,7 @@ const globalEntries = (host: MenuHost): MenuEntry[] => [
     ),
 ];
 
-const isAction = (entry: MenuEntry): entry is MenuAction => entry.kind === 'action';
+export const isAction = (entry: MenuEntry): entry is MenuAction => entry.kind === 'action';
 
 const firstAction = (items: MenuEntry[]): number => {
   const index = items.findIndex(isAction);

@@ -12,6 +12,7 @@ import type {
 } from './entries.ts';
 import {
   checkoutOf,
+  isAction,
   menuDetails,
   menuEntries,
   readMenuProps,
@@ -41,10 +42,11 @@ const host: MenuHost = {
   themes: () => themes,
 };
 
-const isAction = (entry: MenuEntry): entry is MenuAction => entry.kind === 'action';
-
 const actionsOf = (menu: MenuProps, checkout: Checkout): MenuAction[] =>
   menuEntries(menu, checkout, host).filter(isAction);
+
+const labelOf = (entry: MenuEntry | undefined): string | null =>
+  entry?.kind === 'action' ? entry.label : null;
 
 const rowLabels = (menu: MenuProps, checkout: Checkout): string[] =>
   menuEntries(menu, checkout, host).map((entry) =>
@@ -190,14 +192,13 @@ describe('menu selection', () => {
     bindings = {};
 
     const before = menuEntries(spaceMenu, null, host);
-    const selectedLabel = before[selectedIndex(before, 'Close')];
-    const beforeLabel = selectedLabel?.kind === 'action' ? selectedLabel.label : null;
+    const selectedEntry = before[selectedIndex(before, 'Close')];
+    const beforeLabel = labelOf(selectedEntry);
 
     expect(beforeLabel).toBe('Close');
 
     const after = menuEntries(spaceMenu, 'linked', host);
-    const selected = after[selectedIndex(after, beforeLabel)];
-    const afterLabel = selected?.kind === 'action' ? selected.label : null;
+    const afterLabel = labelOf(after[selectedIndex(after, beforeLabel)]);
 
     expect(afterLabel).toBe('Close');
   });
@@ -207,8 +208,7 @@ describe('menu selection', () => {
     bindings = {};
 
     const entries = menuEntries(spaceMenu, null, host);
-    const selected = entries[selectedIndex(entries, 'Remove worktree')];
-    const selectedLabel = selected?.kind === 'action' ? selected.label : null;
+    const selectedLabel = labelOf(entries[selectedIndex(entries, 'Remove worktree')]);
 
     expect(selectedLabel).toBe('Rename');
   });

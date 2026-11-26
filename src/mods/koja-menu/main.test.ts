@@ -30,8 +30,6 @@ let terminalList: unknown[] = [];
 
 let sharedNormalMode = false;
 
-let hintModes: boolean[] = [];
-
 let askedCommands: { command: string; args: Record<string, unknown> }[] = [];
 
 const paneOf = (pane: string): unknown => ({
@@ -98,6 +96,7 @@ const kitParts = [
   'hover',
   'hoverTarget',
   'icon',
+  'keycap',
   'listRow',
   'overlay/card',
   'overlay/overlay',
@@ -123,11 +122,6 @@ await mock.module('../../kit/index.ts', () => ({
   ...kitFake,
   askFirst: (command: string, args: Record<string, unknown>) => {
     askedCommands.push({ command, args });
-  },
-  overlayHints: (_hint: unknown, normalMode: boolean) => {
-    hintModes.push(normalMode);
-
-    return [];
   },
 }));
 
@@ -162,7 +156,6 @@ beforeEach(() => {
   paneList = [];
   terminalList = [];
   sharedNormalMode = false;
-  hintModes = [];
   askedCommands = [];
 });
 
@@ -280,30 +273,26 @@ describe('pane menu', () => {
     const view = new loaded.default();
 
     view.init(null, context);
-    view.render();
+
+    expect(drawnTexts(view.render())).toContain('v');
 
     sharedNormalMode = false;
-    hintModes = [];
-    view.render();
 
-    expect(hintModes.length).toBeGreaterThan(0);
-    expect(hintModes.every((normalMode) => normalMode)).toBe(true);
+    expect(drawnTexts(view.render())).toContain('v');
   });
 
-  test('keeps the hints of insert mode after the mode turns on', () => {
+  test('keeps insert mode free of hints after the mode turns on', () => {
     menuProps = { tab: 'pane', target: { pane: 'pane-1' } };
 
     const view = new loaded.default();
 
     view.init(null, context);
-    view.render();
+
+    expect(drawnTexts(view.render())).not.toContain('v');
 
     sharedNormalMode = true;
-    hintModes = [];
-    view.render();
 
-    expect(hintModes.length).toBeGreaterThan(0);
-    expect(hintModes.every((normalMode) => normalMode)).toBe(false);
+    expect(drawnTexts(view.render())).not.toContain('v');
   });
 
   test('draws the pane details before the actions', () => {
