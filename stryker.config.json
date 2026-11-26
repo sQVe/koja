@@ -10,6 +10,7 @@
     "!src/**/*.test.ts",
     "!src/mods/*/main.ts",
     "!src/data/host.ts",
+    "!src/data/host/hostTiming.ts",
     "!src/kit/actionBlock.ts",
     "!src/kit/askFirst.ts",
     "!src/kit/button.ts",
