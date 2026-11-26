@@ -1,6 +1,6 @@
 import { afterAll, beforeEach, describe, expect, mock, setSystemTime, test } from 'bun:test';
 
-import { click, clickablesWithText, descendants, drawnTexts } from '../../../tests/drawn.ts';
+import { click, clickablesWithText, descendants, drawnTexts, textColorOf } from '../../../tests/drawn.ts';
 import type { DrawnElement } from '../../../tests/drawn.ts';
 import { mockGalleryModules } from '../../../tests/gallery.ts';
 import { heartbeatKey, leaseExpiryMilliseconds } from '../../data/lease.ts';
@@ -21,9 +21,14 @@ let sharedValues: Record<string, unknown> = {};
 let tasks: DeadlineTask[] = [];
 let notifyCalls = 0;
 
+const dimColor = '#525460';
+
 Object.assign(globalThis, { kojaModName: 'koja' });
 
-const kitFake = await mockGalleryModules({ shared: (key: string) => sharedValues[key] });
+const kitFake = await mockGalleryModules({
+  shared: (key: string) => sharedValues[key],
+  theme: () => ({ dim: dimColor }),
+});
 
 await mock.module('../../kit/index.ts', () => kitFake);
 
@@ -207,5 +212,14 @@ describe('gallery retry wiring', () => {
     expect(after).not.toContain('started 7m ago');
     expect(after.some((text) => text.includes('6m ago'))).toBe(false);
     expect(after).toContain('started 2m ago');
+  });
+});
+
+describe('gallery overlay rows', () => {
+  test('draws the disabled row label in the dim palette color', () => {
+    const view = openGallery();
+    const tree = view.render(context);
+
+    expect(textColorOf(tree, 'Delete space')).toBe(dimColor);
   });
 });

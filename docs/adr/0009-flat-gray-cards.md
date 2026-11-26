@@ -113,8 +113,8 @@ The panes, the side panel, and the terminals share the pane body color `#dfe1e5`
 
 ### Rows
 
-- Koja uses one fixed density. Two one-line row classes exist: 24 px in panel lists such as the
-  sidebar, Changes, side panels, and menus, and 28 px in search popups such as the palette and
+- Koja uses one fixed density. Three one-line row classes exist: 24 px in panel lists such as the
+  sidebar, Changes, side panels, and menus, 26 px in the command palette, and 28 px in Go to, the
   picker.
 - A later session may add one kit-owned multi-line row class, measured in its own scenes. No other
   height is added ad hoc.
@@ -220,6 +220,9 @@ The panes, the side panel, and the terminals share the pane body color `#dfe1e5`
 ### Popups
 
 - Popups keep Herdr's overlay frame, which draws on the `popover` color.
+- The command palette is the exception: it opens with `frame: "none"` and draws the kit's overlay
+  card as its only frame. Herdr's frame would double the card's outline and add a shadow the design
+  rules out.
 - Koja draws popup content through the kit's popup surface, which rounds the background to the
   frame's radius, because the frame does not clip it.
 - Koja's overlay card is the surface an overlay arranges its rows on: the `popover` fill, one step
@@ -228,8 +231,9 @@ The panes, the side panel, and the terminals share the pane body color `#dfe1e5`
   focus border or the normal-mode indigo.
 
 Herdr's own dialogs keep Herdr's frame. Koja's popups use the same frame, so popups look the same
-whether Koja or Herdr opens them. The picker is the one exception: its list sits beside a terminal
-preview inside one framed overlay, so the list rounds only its own two outer corners.
+whether Koja or Herdr opens them. Two popups are exceptions. The picker's list sits beside a
+terminal preview inside one framed overlay, so the list rounds only its own two outer corners. The
+command palette opens frameless, and its overlay card is its only frame.
 
 - A hover card is a `popover` card with a 1 px `border` outline and `radius.default` corners. An
   arrow 4 px deep on its left edge points at the row it describes. GPUI cannot rotate a box, so the
@@ -280,7 +284,7 @@ preview inside one framed overlay, so the list rounds only its own two outer cor
 
 ### Negative
 
-- One fixed density and two row heights leave no room for a compact or roomy setting.
+- One fixed density and three row heights leave no room for a compact or roomy setting.
 - Popups and rows appear without a fade, because Herdr cannot animate a first appearance.
 - Hover is a faint outline, so selection and hover rely on fill alone until a second cue is needed.
 - Each mod must track its reads per resource to show error and stale lines, which adds state to
@@ -290,9 +294,10 @@ preview inside one framed overlay, so the list rounds only its own two outer cor
 
 ### Koja draws its own popup frame
 
-Koja would set `frame: "none"` on its popups and copy Herdr's border, radius, and shadow by hand.
-Rejected because Koja would have to follow every Herdr change to that copy, while a rounded
-background inside Herdr's frame already gives clean corners.
+Koja would set `frame: "none"` on every popup that keeps Herdr's frame and copy Herdr's border,
+radius, and shadow by hand. Rejected because Koja would have to follow every Herdr change to that
+copy, while a rounded background inside Herdr's frame already gives clean corners. The command
+palette is the one popup that draws no Herdr frame, and its card carries the only outline.
 
 ### One flat base for the whole window
 

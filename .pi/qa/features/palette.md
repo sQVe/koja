@@ -40,13 +40,20 @@ Take a `shot` after each step that should change the screen.
 ## Observable results
 
 - An empty query shows grouped sections in this order: Recent, Tab, Pane, Space, Layout, Terminal,
-  Agent, Window, App. A section with no entries does not show.
+  Agent, Window, App. A section with no entries does not show. Each heading shows the group's
+  heading name, and the Tabs, Panes, Spaces, and Layouts headings carry their part letter (`t`, `w`,
+  `s`, `z`) in a keycap right after the text.
+- The card is 560 px wide, centered in the main column, and starts 40 px below the pane tops. Its
+  rows are 26 px high, and each row starts with a 12 px icon.
 - The list is 12 rows tall. Section headers take part of that height, so fewer rows show when
-  headers are in view. `Down` past the last shown row scrolls the list. `Page_Down` and `Page_Up`
-  move the selection 12 rows. The wheel scrolls the list and moves the selection into view.
+  headers are in view. A scroll thumb on the list's right edge shows how much of the list is in
+  view. `Down` past the last shown row scrolls the list. `Page_Down` and `Page_Up` move the
+  selection 12 rows. The wheel scrolls the list and moves the selection into view.
 - A query shows fuzzy matches without section headers. The matched letters are highlighted, and the
-  group name shows at the right side of the row.
-- A row with a key binding shows its shortcut at the right side, such as `Z +` for Zoom in.
+  row keeps its icon and its key hint. It no longer shows its group name at the end.
+- A row with a key binding shows its hint at the right side, such as `t n` for New tab in normal
+  mode. In insert mode it shows the row's global binding, or no hint when the row has none.
+- The footer counts the list: `N commands` with an empty query, or `N matches` with a query.
 - A query with no match shows `Nothing matches "<query>". Places are in the picker.`
 - Running an entry, by `Return` or by a click, closes the palette and runs its command.
 - Stored value: running an entry moves it to the top of Recent, which shows at most 5 entries. To

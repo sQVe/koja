@@ -48,6 +48,7 @@ export default class Gallery extends View {
   private readonly focusedField: InputState = InputStates.new({ placeholder: 'Commit message' });
   private readonly filledField: InputState = InputStates.new({ placeholder: 'Commit message' });
   private readonly renameField: InputState = InputStates.new({ placeholder: 'Tab name' });
+  private readonly commandInput: InputState = InputStates.new({ placeholder: 'Type a command' });
 
   private readonly foldedSections = new Set<string>(foldedSectionNames);
 
@@ -145,7 +146,7 @@ export default class Gallery extends View {
           }),
         ),
       )
-      .child(section('Overlay parts', overlays()))
+      .child(section('Overlay parts', overlays(this.commandInput)))
       .child(section('Search and text', searchAndText(this.search)))
       .child(section('Split button', splitButtons()));
   }

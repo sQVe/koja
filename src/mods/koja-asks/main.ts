@@ -21,6 +21,7 @@ import {
   closeOverlay as closeCurrentOverlay,
   currentWindow,
   findLayoutNode,
+  layoutRoot,
   modName,
   numberOf,
   overlayId,
@@ -29,6 +30,7 @@ import {
   stringListOf,
   stringOf,
 } from '../../kit/index.ts';
+import type { LayoutNode } from '../../kit/layout.ts';
 import { parsedJson } from '../../kit/parsedJson.ts';
 import type { Ask } from './askFacts.ts';
 import { asksOf, unseenAsks } from './askFacts.ts';
@@ -155,8 +157,8 @@ const moreOf = (asks: readonly Ask[], shown: Ask): CardMore | null => {
   return next === undefined ? null : { count: others.length, space: next.spaceName };
 };
 
-const layoutBoxOf = (id: string): CardBox | null => {
-  const node = findLayoutNode(id);
+const layoutBoxOf = (id: string, root: LayoutNode): CardBox | null => {
+  const node = findLayoutNode(id, root);
 
   return node === null ? null : { sizePx: node.sizePx, hidden: node.hidden };
 };
@@ -346,10 +348,12 @@ export default class KojaAsks extends View {
       // A dismissal or a new answer can land during the bounds read, so read the state again.
       const current = this.snapshot();
 
+      const root = layoutRoot();
+
       const sources: CardGeometrySources = {
         window,
-        sidebar: layoutBoxOf('sidebar'),
-        panel: layoutBoxOf('panel'),
+        sidebar: layoutBoxOf('sidebar', root),
+        panel: layoutBoxOf('panel', root),
       };
 
       const contents = new Map<string, CardContent>();

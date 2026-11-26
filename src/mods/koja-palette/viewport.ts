@@ -1,4 +1,4 @@
-import { controlSize, rowHeight } from '../../kit/size.ts';
+import { rowHeight, spacing } from '../../kit/size.ts';
 
 export interface RowPlace {
   head: boolean;
@@ -8,23 +8,28 @@ export interface RowPlace {
 
 export const shownRows = 12;
 
-export const rowSize = rowHeight.large;
+export const rowSize = rowHeight.medium;
 
-export const headSize = controlSize.sectionHeader;
+export const headSize = rowHeight.small;
+
+export const groupSpace = spacing.small;
 
 export const listHeight = shownRows * rowSize;
 
 export const placesOf = (headKeys: readonly string[], grouped: boolean): RowPlace[] => {
   const places: RowPlace[] = [];
   let top = 0;
+  let heads = 0;
 
   for (const [index, headKey] of headKeys.entries()) {
     const opensGroup = index === 0 || headKey !== headKeys[index - 1];
     const head = grouped && opensGroup;
+    const space = head && heads > 0 ? groupSpace : 0;
     const headHeight = head ? headSize : 0;
 
-    places.push({ head, title: top, row: top + headHeight });
-    top += headHeight + rowSize;
+    places.push({ head, title: top + space, row: top + space + headHeight });
+    top += space + headHeight + rowSize;
+    heads += head ? 1 : 0;
   }
 
   return places;
@@ -87,13 +92,8 @@ export const wheel = (
   return { scroll: next, at: nextAt };
 };
 
-export const visible = (start: number, end: number, scroll: number, scrolls: boolean): boolean => {
-  if (!scrolls) {
-    return true;
-  }
-
-  return end > scroll && start < scroll + listHeight;
-};
+export const visible = (start: number, end: number, scroll: number): boolean =>
+  end > scroll && start < scroll + listHeight;
 
 export const wheelFrom = (
   places: readonly RowPlace[],

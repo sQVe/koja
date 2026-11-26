@@ -1,6 +1,12 @@
 import { describe, expect, test } from 'bun:test';
 
-import { formatKeys } from './keys.ts';
+import { formatKeys, keyStrokes } from './keys.ts';
+
+describe('keyStrokes', () => {
+  test('splits a sequence on whitespace and drops empty strokes', () => {
+    expect(keyStrokes('  ctrl-k  ctrl-s ')).toEqual(['ctrl-k', 'ctrl-s']);
+  });
+});
 
 describe('formatKeys', () => {
   test('names modifiers in a fixed order, joined by plus', () => {

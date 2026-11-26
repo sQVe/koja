@@ -49,7 +49,7 @@ export type { ItemStateOptions } from './itemHeader.ts';
 
 export { keycap, keycaps, overlayHints, pressedKeycap } from './keycap.ts';
 
-export type { OverlayHint } from './keycap.ts';
+export type { OverlayHint } from './shortcutBinding.ts';
 
 export { listRow } from './listRow.ts';
 
@@ -57,7 +57,17 @@ export { overlayCard } from './overlay/card.ts';
 
 export { newMenuOpenKey } from './newMenu.ts';
 
-export { footerLine, searchLine } from './overlay/lines.ts';
+export { overlayHeading } from './overlay/heading.ts';
+
+export { mainColumnInsets, mainColumnPlacement } from './overlay/place.ts';
+
+export type { MainColumnInsets } from './overlay/place.ts';
+
+export { overlayRow } from './overlay/row.ts';
+
+export { scrollThumb, thumbPlace } from './overlay/scrollThumb.ts';
+
+export { footerLine, searchInputLine, searchLine } from './overlay/lines.ts';
 
 export {
   paneBranchElement,
@@ -156,7 +166,7 @@ export { tabLabel, tabProgram } from './tabLabel.ts';
 
 export { trafficLightsPadding } from './trafficLights.ts';
 
-export { shortcutFor } from './shortcut.ts';
+export { hintFor, shortcutFor } from './shortcut.ts';
 
 export { terminalFont } from './terminalFont.ts';
 
