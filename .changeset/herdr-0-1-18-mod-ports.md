@@ -12,3 +12,6 @@ of them take Herdr's changes:
   header.
 - The new-tab menu opens with the agent list each machine reported last, and keeps listing the
   installed agents it remembers when a check fails, under "Could not check installed agents".
+
+The Changes panel pauses its timed `git status` scans while the window is hidden, and scans again
+once when it is shown again.

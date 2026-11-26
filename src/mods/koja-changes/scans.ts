@@ -13,7 +13,7 @@ export interface RepoScan {
 
 export interface ScanHost {
   now: () => number;
-  active: () => boolean;
+  visible: () => boolean;
   status: (root: string, on: string | null) => Promise<ExecResult>;
 }
 
@@ -132,7 +132,7 @@ const startScan = (
   const task = taskCx.spawn(async (scanCx) => {
     await scanCx.sleep(sleepMilliseconds);
 
-    if (!request.allowInactive && !host.active()) {
+    if (!request.allowHidden && !host.visible()) {
       return;
     }
 
@@ -180,7 +180,7 @@ const chooseScan = (
     return existing;
   }
 
-  if (!request.allowInactive && !host.active()) {
+  if (!request.allowHidden && !host.visible()) {
     return null;
   }
 

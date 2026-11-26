@@ -45,7 +45,7 @@ const previewFailureNote = (error: unknown): string => {
   return `Cannot preview this diff: ${oneLine}`;
 };
 
-const windowActive = (): boolean => window()?.active !== false;
+const windowVisible = (): boolean => window()?.visible !== false;
 
 export default class Changes extends View {
   private state: ReadState = emptyReadState();
@@ -64,7 +64,7 @@ export default class Changes extends View {
 
   private visit = 0;
 
-  private windowWasActive = true;
+  private windowWasVisible = true;
 
   private watched: WatchedRoot | null = null;
 
@@ -201,12 +201,12 @@ export default class Changes extends View {
   }
 
   private world(): DueWorld {
-    const active = windowActive();
-    const refocused = active && !this.windowWasActive;
+    const visible = windowVisible();
+    const shownAgain = visible && !this.windowWasVisible;
 
-    this.windowWasActive = active;
+    this.windowWasVisible = visible;
 
-    return { active, refocused, loading: this.loading, busy: this.busy, now: Date.now() };
+    return { visible, shownAgain, loading: this.loading, busy: this.busy, now: Date.now() };
   }
 
   private tick(cx: Context): boolean {
@@ -337,7 +337,7 @@ export default class Changes extends View {
         const scan = await repoStatus(
           {
             now: () => Date.now(),
-            active: windowActive,
+            visible: windowVisible,
             status: (scanRoot, scanOn) => statusCommand(exec, scanRoot, scanOn),
           },
           root,

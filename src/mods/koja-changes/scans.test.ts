@@ -23,7 +23,7 @@ const request = (changes: Partial<ReadRequest> = {}): ReadRequest => ({
   after: 0,
   visiting: false,
   urgent: false,
-  allowInactive: false,
+  allowHidden: false,
   ...changes,
 });
 
@@ -81,7 +81,7 @@ const harness = (changes: Partial<Harness> = {}): Harness => {
 
   state.host = {
     now: () => clock.now,
-    active: () => true,
+    visible: () => true,
     status: async () => {
       state.reads += 1;
 
@@ -265,7 +265,7 @@ describe('repoStatus', () => {
 
   test('starts no scan while the window is hidden, unless a visit asks for one', async () => {
     const h = harness();
-    const hidden = { ...h.host, active: () => false };
+    const hidden = { ...h.host, visible: () => false };
 
     const skipped = await repoStatus(
       hidden,
@@ -283,7 +283,7 @@ describe('repoStatus', () => {
       hidden,
       '/repo',
       null,
-      request({ after: 1, visiting: true, allowInactive: true }),
+      request({ after: 1, visiting: true, allowHidden: true }),
       h.context,
       () => true,
     );

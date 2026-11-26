@@ -4,8 +4,8 @@ import type { DueState, DueWorld } from './due.ts';
 import { afterScan, emptyDue, markDirty, readDue, readRequest, skipDue, tickDue } from './due.ts';
 
 const world = (changes: Partial<DueWorld> = {}): DueWorld => ({
-  active: true,
-  refocused: false,
+  visible: true,
+  shownAgain: false,
   loading: false,
   busy: false,
   now: 1000,
@@ -15,19 +15,19 @@ const world = (changes: Partial<DueWorld> = {}): DueWorld => ({
 const due = (changes: Partial<DueState> = {}): DueState => ({ ...emptyDue('a'), ...changes });
 
 describe('tickDue', () => {
-  test('catches up on return to the window after an edit a watch could not report', () => {
-    const state = tickDue(due({ dirtyAt: 500 }), world({ refocused: true }), true);
+  test('catches up when the window is shown again after an edit a watch could not report', () => {
+    const state = tickDue(due({ dirtyAt: 500 }), world({ shownAgain: true }), true);
 
     expect(state.catchUp).toBe(true);
   });
 
-  test('catches up on return to the window when no watch runs', () => {
-    const state = tickDue(due(), world({ refocused: true }), false);
+  test('catches up when the window is shown again with no watch running', () => {
+    const state = tickDue(due(), world({ shownAgain: true }), false);
 
     expect(state.catchUp).toBe(true);
   });
 
-  test('catches nothing up when the window stayed in front', () => {
+  test('catches nothing up when the window stayed shown', () => {
     const state = tickDue(due({ dirtyAt: 500 }), world(), true);
 
     expect(state.catchUp).toBe(false);
@@ -36,7 +36,7 @@ describe('tickDue', () => {
 
 describe('readDue', () => {
   test('reads nothing while the window is hidden', () => {
-    expect(readDue(due({ pollAt: 1 }), world({ active: false }))).toBe(false);
+    expect(readDue(due({ pollAt: 1 }), world({ visible: false }))).toBe(false);
   });
 
   test('reads nothing during a load or a commit', () => {
@@ -44,7 +44,7 @@ describe('readDue', () => {
     expect(readDue(due({ pollAt: 1 }), world({ busy: true }))).toBe(false);
   });
 
-  test('reads at once when the window came back', () => {
+  test('reads at once when the window was shown again', () => {
     expect(readDue(due({ catchUp: true, pollAt: 9000 }), world())).toBe(true);
   });
 
@@ -65,7 +65,7 @@ describe('readRequest', () => {
   test('a visit reads at once, even from a hidden window', () => {
     const { request } = readRequest(due(), 1000, true, false);
 
-    expect(request).toEqual({ after: 1001, visiting: true, urgent: true, allowInactive: true });
+    expect(request).toEqual({ after: 1001, visiting: true, urgent: true, allowHidden: true });
   });
 
   test('a repeat read asks for a scan newer than the last one', () => {
@@ -81,7 +81,7 @@ describe('readRequest', () => {
     expect(armed.dirtyAt).toBe(1001);
     expect(request.after).toBe(1001);
     expect(request.urgent).toBe(true);
-    expect(request.allowInactive).toBe(true);
+    expect(request.allowHidden).toBe(true);
   });
 
   test('a request clears the catch-up it used and waits a poll before the next read', () => {
@@ -101,7 +101,7 @@ describe('afterScan', () => {
       after: 901,
       visiting: false,
       urgent: false,
-      allowInactive: false,
+      allowHidden: false,
     });
 
     expect(next.pollAt).toBe(11200);
@@ -113,7 +113,7 @@ describe('afterScan', () => {
       after: 901,
       visiting: false,
       urgent: false,
-      allowInactive: false,
+      allowHidden: false,
     });
 
     expect(next.dirtyAt).toBe(0);
@@ -124,7 +124,7 @@ describe('afterScan', () => {
       after: 1301,
       visiting: false,
       urgent: true,
-      allowInactive: false,
+      allowHidden: false,
     });
 
     expect(next.dirtyAt).toBe(1300);
@@ -135,7 +135,7 @@ describe('afterScan', () => {
       after: 1300,
       visiting: false,
       urgent: true,
-      allowInactive: false,
+      allowHidden: false,
     });
 
     expect(next.catchUp).toBe(true);
@@ -146,7 +146,7 @@ describe('afterScan', () => {
       after: 901,
       visiting: false,
       urgent: true,
-      allowInactive: false,
+      allowHidden: false,
     });
 
     expect(next.catchUp).toBe(false);

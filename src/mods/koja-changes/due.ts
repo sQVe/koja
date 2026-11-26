@@ -8,8 +8,8 @@ export interface DueState {
 }
 
 export interface DueWorld {
-  active: boolean;
-  refocused: boolean;
+  visible: boolean;
+  shownAgain: boolean;
   loading: boolean;
   busy: boolean;
   now: number;
@@ -19,7 +19,7 @@ export interface ReadRequest {
   after: number;
   visiting: boolean;
   urgent: boolean;
-  allowInactive: boolean;
+  allowHidden: boolean;
 }
 
 export interface ScanTiming {
@@ -39,16 +39,16 @@ export const emptyDue = (key: string): DueState => ({
   lastStatus: null,
 });
 
-// A return to the window catches up once: scans were skipped while it was hidden.
+// Showing the window again catches up once: scans were skipped while it was hidden.
 export const tickDue = (due: DueState, world: DueWorld, watched: boolean): DueState => {
   const missed = due.dirtyAt > 0 || !watched;
-  const catchingUp = world.refocused && missed;
+  const catchingUp = world.shownAgain && missed;
 
   return catchingUp ? { ...due, catchUp: true } : due;
 };
 
 export const readDue = (due: DueState, world: DueWorld): boolean => {
-  if (!world.active || world.loading || world.busy) {
+  if (!world.visible || world.loading || world.busy) {
     return false;
   }
 
@@ -80,7 +80,7 @@ export const readRequest = (
     after: visiting ? now + 1 : armed.dirtyAt || previous + 1,
     visiting,
     urgent: force || visiting || armed.catchUp,
-    allowInactive: force || visiting,
+    allowHidden: force || visiting,
   };
 
   return {

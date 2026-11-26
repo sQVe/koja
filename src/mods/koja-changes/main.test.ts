@@ -81,6 +81,8 @@ let renderedFontSize = 0;
 
 let windowActive = true;
 
+let windowVisible = true;
+
 // The view measures time to decide when to read again, so the tests own the clock and each sleep
 // advances it. A sleep that costs nothing would let a scan start in the same millisecond it was
 // asked for, and the panel would read again at once, forever.
@@ -185,7 +187,7 @@ await mock.module('herdr', () =>
   herdrFake({
     checking: () => checkingNow,
     settings: () => ({ font_size: 13 }),
-    window: () => ({ active: windowActive, visible: windowActive }),
+    window: () => ({ active: windowActive, visible: windowVisible }),
     focused: () => ({ pane: null, cwd, terminal: null }),
     watchFolder: () => {
       let settle: Pick<Watch, 'resolve' | 'reject'> | null = null;
@@ -347,6 +349,7 @@ beforeEach(() => {
   renderedDiff = [];
   renderedFontSize = 0;
   windowActive = true;
+  windowVisible = true;
   clock.now = 1000000;
   clearSharedScans();
   commands.length = 0;
@@ -969,19 +972,20 @@ describe('Changes view', () => {
     expect(renderedList?.line).toBeNull();
   });
 
-  test('a hidden window reads nothing, and reads again once it is back', async () => {
+  test('a hidden window reads nothing, and an unfocused but shown window reads again', async () => {
     const view = await boot();
 
     expect(statusReads).toBe(1);
 
-    windowActive = false;
+    windowVisible = false;
     clock.now += 60000;
     timerHandler?.(context);
     await settle();
 
     expect(statusReads).toBe(1);
 
-    windowActive = true;
+    windowVisible = true;
+    windowActive = false;
     timerHandler?.(context);
     await settle();
 
