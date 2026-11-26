@@ -200,13 +200,13 @@ const isInstallInputs = (value: unknown): value is InstallInput[] =>
 const recordedCheckout = (record: RecordFields): string | null => {
   const { checkout } = record;
 
-  return typeof checkout === 'string' ? checkout : null;
+  return typeof checkout === 'string' && isAbsolute(checkout) ? checkout : null;
 };
 
-const recordedOrigin = (record: RecordFields): InstallOrigin | null => {
-  const { checkout, allChecksPassed, inputs } = record;
+const recordedOrigin = (record: RecordFields, checkout: string | null): InstallOrigin | null => {
+  const { allChecksPassed, inputs } = record;
 
-  if (typeof checkout !== 'string' || typeof allChecksPassed !== 'boolean') {
+  if (checkout === null || typeof allChecksPassed !== 'boolean') {
     return null;
   }
 
@@ -232,10 +232,12 @@ export const readRecord = async (home: string): Promise<InstallRecord | null> =>
       return { files: [], checkout: null, origin: null };
     }
 
+    const checkout = recordedCheckout(record);
+
     return {
       files: recordedFiles(record),
-      checkout: recordedCheckout(record),
-      origin: recordedOrigin(record),
+      checkout,
+      origin: recordedOrigin(record, checkout),
     };
   } catch (error) {
     if (isMissing(error)) {

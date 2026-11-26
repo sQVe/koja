@@ -631,6 +631,19 @@ describe('install', () => {
     expect(await readRecord(home)).toEqual({ files: [], checkout: root, origin: null });
   });
 
+  test.each([
+    ['no checkout', {}],
+    ['a checkout that is not a string', { checkout: 2 }],
+    ['a checkout that is not an absolute path', { checkout: 'koja' }],
+  ])('reads a record with %s as a record without a checkout', async (_, fields) => {
+    await writeFile(
+      join(home, '.koja-install.json'),
+      JSON.stringify({ version: 1, allChecksPassed: true, inputs: [], files: [], ...fields }),
+    );
+
+    expect(await readRecord(home)).toEqual({ files: [], checkout: null, origin: null });
+  });
+
   test('runs on a home whose record holds a plain list of input paths', async () => {
     await writeAt(join(home, 'mods', 'koja-old', 'main.js'), 'export default 2;\n');
 

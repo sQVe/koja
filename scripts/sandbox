@@ -34,24 +34,24 @@ fi
 
 export RUTA_NAME=$name
 
-if [[ ! $name =~ ^[a-z0-9][a-z0-9-]*$ ]]; then
-  echo "RUTA_NAME must be one name of lowercase letters, digits, and dashes, not '$name'" >&2
-  exit 2
-fi
-
-if (( ${#name} > 32 )); then
-  echo "RUTA_NAME must be at most 32 characters, not '$name'" >&2
-  exit 2
-fi
-
 root=/var/tmp/ruta-$name
 
-# ruta runs `capture` in a sandbox of its own, named <name>-capture, so guard that root.
+# ruta runs `capture` in a sandbox of its own, named <name>-capture, and checks that name too.
 guard_name=$name
 guard_root=$root
 if [[ ${1:-} == capture ]]; then
   guard_name=$name-capture
   guard_root=$root-capture
+fi
+
+if [[ ! $guard_name =~ ^[a-z0-9][a-z0-9-]*$ ]]; then
+  echo "RUTA_NAME must be one name of lowercase letters, digits, and dashes, not '$guard_name'" >&2
+  exit 2
+fi
+
+if (( ${#guard_name} > 32 )); then
+  echo "RUTA_NAME must be at most 32 characters, not '$guard_name'" >&2
+  exit 2
 fi
 
 # A sandbox name belongs to the checkout that installed it, so this checkout must not start, change,

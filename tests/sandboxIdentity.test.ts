@@ -620,6 +620,7 @@ describe('scripts/sandbox', () => {
 
   afterEach(async () => {
     await rm(sandboxRoot, { recursive: true, force: true });
+    await rm(`${sandboxRoot}-capture`, { recursive: true, force: true });
     await rm(fakes, { recursive: true, force: true });
     await rm(guards, { recursive: true, force: true });
   });
@@ -765,12 +766,24 @@ describe('scripts/sandbox', () => {
     },
   );
 
-  test('refuses a name longer than ruta accepts', async () => {
-    const result = await runSandbox('up', { RUTA_NAME: 'a'.repeat(33) });
+  test.each([
+    ['up', 32, 0],
+    ['up', 33, 2],
+    ['capture', 24, 0],
+    ['capture', 25, 2],
+  ])('takes %s with a %i character name as exit %i', async (command, length, exitCode) => {
+    const program = join(fakes, 'herdr-app-fake');
 
-    expect(result.exitCode).toBe(2);
-    expect(result.stderr).toContain('32');
-    expect(await Bun.file(join(fakes, 'calls')).exists()).toBe(false);
+    await writeProgram(program, 'exit 0');
+    await writeRuta('ruta is up', 0);
+
+    const result = await runSandbox(command, {
+      RUTA_NAME: 'a'.repeat(length),
+      HERDR_APP_BIN: program,
+    });
+
+    expect(result.exitCode).toBe(exitCode);
+    expect(await Bun.file(join(fakes, 'calls')).exists()).toBe(exitCode === 0);
   });
 
   test('prints the rules for a bare call instead of refusing', async () => {
@@ -794,7 +807,7 @@ describe('scripts/sandbox', () => {
     await writeProgram(program, 'exit 0');
     await writeRuta('ruta is up', 0);
 
-    const result = await runSandbox('capture', { RUTA_NAME: name, HERDR_APP_BIN: program });
+    const result = await runSandbox('capture', { RUTA_NAME: 'capture', HERDR_APP_BIN: program });
 
     expect(result.exitCode).toBe(1);
     expect(result.stderr).toContain(other);
@@ -805,10 +818,10 @@ describe('scripts/sandbox', () => {
     await installOtherCheckout();
     await writeRuta('ruta is up', 0);
 
-    const result = await runSandbox('capture', { RUTA_NAME: name });
+    const result = await runSandbox('capture', { RUTA_NAME: 'capture' });
 
     expect(result.exitCode).toBe(0);
-    expect(await readFile(join(fakes, 'calls'), 'utf8')).toBe(`${name} ${repository} capture\n`);
+    expect(await readFile(join(fakes, 'calls'), 'utf8')).toBe(`capture ${repository} capture\n`);
   });
 
   test.each(['log', 'opened', 'shot'])('reads through %s without refusing', async (command) => {
