@@ -32,7 +32,7 @@ import type { Ask } from './askFacts.ts';
 import { asksOf, identityListOf, unseenAsks } from './askFacts.ts';
 import type { CardBox, CardGeometry, CardGeometrySources, CardMore, CardWindow } from './card.ts';
 import { cardGeometry, cardSignature, cardTextOf, windowBoundsOf } from './card.ts';
-import type { OpenCard } from './host.ts';
+import type { CardPlan, OpenCard } from './host.ts';
 import { planCard } from './host.ts';
 import type { CardActions } from './view.ts';
 import { cardElement } from './view.ts';
@@ -46,6 +46,14 @@ interface CardContent {
   more: CardMore | null;
   geometry: CardGeometry;
   signature: string;
+}
+
+interface Snapshot {
+  asks: Ask[];
+  live: Ask[];
+  visible: Ask[];
+  handled: string[];
+  open: OpenCard | null;
 }
 
 const handledKey = 'koja-asks.handled';
@@ -233,6 +241,44 @@ export default class KojaAsks extends View {
     }
   }
 
+  private snapshot(): Snapshot {
+    const view = {
+      focusedTab: focused()?.tab ?? null,
+      windowActive: currentWindow()?.active === true,
+    };
+
+    const live = asksOf({ terminals: terminals(), agents: agents() });
+    const asks = unseenAsks(live, view);
+    const visible = live.filter((ask) => !asks.includes(ask));
+
+    return {
+      asks,
+      live,
+      visible,
+      handled: identityListOf(shared(handledKey)),
+      open: openStateOf(shared(openKey)),
+    };
+  }
+
+  private applyPlan(plan: CardPlan, contents: ReadonlyMap<string, CardContent>): void {
+    if (plan.handledChanged) {
+      setShared(handledKey, plan.handled);
+    }
+
+    if (plan.close !== null) {
+      closeCurrentOverlay(plan.close);
+      setShared(openKey, null);
+    }
+
+    if (plan.open !== null) {
+      const content = contents.get(plan.open.identity);
+
+      if (content !== undefined) {
+        this.openCard(plan.open, content);
+      }
+    }
+  }
+
   private async tick(): Promise<void> {
     if (this.busy) {
       return;
@@ -241,61 +287,57 @@ export default class KojaAsks extends View {
     this.busy = true;
 
     try {
-      const view = {
-        focusedTab: focused()?.tab ?? null,
-        windowActive: currentWindow()?.active === true,
-      };
+      const first = this.snapshot();
 
-      const live = asksOf({ terminals: terminals(), agents: agents() });
-      const asks = unseenAsks(live, view);
-      const visible = live.filter((ask) => !asks.includes(ask));
-      const handled = identityListOf(shared(handledKey));
-      const unhandled = asks.filter((ask) => !handled.includes(ask.identity));
-      const open = openStateOf(shared(openKey));
+      if (first.asks.length === 0) {
+        this.applyPlan(
+          planCard({
+            asks: first.asks,
+            live: first.live,
+            handled: first.handled,
+            visible: first.visible.map((ask) => ask.identity),
+            open: first.open,
+            signatures: new Map(),
+          }),
+          new Map(),
+        );
+
+        return;
+      }
+
+      const window = await windowSize();
+
+      // A dismissal or a new answer can land during the bounds read, so read the state again.
+      const current = this.snapshot();
+
+      const sources: CardGeometrySources = {
+        window,
+        sidebar: layoutBoxOf('sidebar'),
+        panel: layoutBoxOf('panel'),
+      };
 
       const contents = new Map<string, CardContent>();
       const signatures = new Map<string, string>();
+      const unhandled = current.asks.filter((ask) => !current.handled.includes(ask.identity));
 
-      if (unhandled.length > 0) {
-        const sources: CardGeometrySources = {
-          window: await windowSize(),
-          sidebar: layoutBoxOf('sidebar'),
-          panel: layoutBoxOf('panel'),
-        };
+      for (const ask of unhandled) {
+        const content = contentOf(ask, moreOf(unhandled, ask), sources);
 
-        for (const ask of unhandled) {
-          const content = contentOf(ask, moreOf(unhandled, ask), sources);
-
-          contents.set(ask.identity, content);
-          signatures.set(ask.identity, content.signature);
-        }
+        contents.set(ask.identity, content);
+        signatures.set(ask.identity, content.signature);
       }
 
-      const plan = planCard({
-        asks,
-        live,
-        handled,
-        visible: visible.map((ask) => ask.identity),
-        open,
-        signatures,
-      });
-
-      if (plan.handledChanged) {
-        setShared(handledKey, plan.handled);
-      }
-
-      if (plan.close !== null) {
-        closeCurrentOverlay(plan.close);
-        setShared(openKey, null);
-      }
-
-      if (plan.open !== null) {
-        const content = contents.get(plan.open.identity);
-
-        if (content !== undefined) {
-          this.openCard(plan.open, content);
-        }
-      }
+      this.applyPlan(
+        planCard({
+          asks: current.asks,
+          live: current.live,
+          handled: current.handled,
+          visible: current.visible.map((ask) => ask.identity),
+          open: current.open,
+          signatures,
+        }),
+        contents,
+      );
     } finally {
       this.busy = false;
     }
