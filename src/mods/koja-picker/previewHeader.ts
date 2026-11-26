@@ -16,8 +16,9 @@ import {
 import type { PickerData } from './rows.ts';
 import { paneFacts } from './spaceFacts.ts';
 
-// Herdr leaves branch, status, and program out of a mod pane's record, so the header keeps only
-// what it draws, already narrowed to the types it draws with.
+// Herdr leaves branch and status out of a mod pane's record, so the header keeps only what it
+// draws, narrowed to the types it draws with. It leaves program out too, and the pane's declared
+// type does not say so, which is why programIcon reads a missing program as the terminal icon.
 export interface PreviewTarget {
   spaceName: string;
   paneTitle: string;
@@ -30,9 +31,13 @@ export interface PreviewTarget {
 const textOf = (value: unknown): string | null =>
   typeof value === 'string' && value !== '' ? value : null;
 
-const targetOf = (space: SpaceInfo, pane: PaneInfo): PreviewTarget => {
+const targetOf = (data: PickerData, space: SpaceInfo, pane: PaneInfo): PreviewTarget => {
   const branch = textOf(pane.branch);
-  const facts = paneFacts(space.machine, pane, branch);
+
+  // A pane the data layer has not read falls back to its space's facts, so a pane in an unobserved
+  // worktree of the same repository still names its branch's pull.
+  const facts = paneFacts(data.stored, space.machine, pane, branch) ?? data.facts[space.id] ?? null;
+  const pull = facts === null ? null : facts.pull;
 
   return {
     spaceName: space.name,
@@ -40,7 +45,7 @@ const targetOf = (space: SpaceInfo, pane: PaneInfo): PreviewTarget => {
     program: pane.program,
     branch,
     status: pane.status ?? null,
-    pull: facts?.pull ?? null,
+    pull,
   };
 };
 
@@ -53,7 +58,7 @@ export const previewTargetOf = (data: PickerData, paneId: string | null): Previe
 
   const space = data.spaces.find((entry) => entry.tabs.some((tab) => tab.id === pane.tab));
 
-  return space === undefined ? null : targetOf(space, pane);
+  return space === undefined ? null : targetOf(data, space, pane);
 };
 
 const fullLabel = (role: TextRole, text: string, ink: 'foreground' | 'muted' | 'dim'): Element => {

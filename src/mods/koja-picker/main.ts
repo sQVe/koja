@@ -145,13 +145,23 @@ export default class Picker extends View {
     this.preview?.close();
   }
 
-  private startPreview(cx: AsyncContext): void {
+  private startPreview(
+    cx: AsyncContext | Context,
+    onSettled: () => void = () => undefined,
+  ): boolean {
     if (checking() || overlayId() === null) {
-      return;
+      return false;
     }
 
     this.preview = createPreviewSession();
-    launch(cx, this.preview, history.rememberPane);
+
+    const session = this.preview;
+
+    launch(cx, session, history.rememberPane, () => {
+      onSettled();
+    });
+
+    return true;
   }
 
   private watchPreview(cx: AsyncContext): void {
@@ -205,13 +215,14 @@ export default class Picker extends View {
     }
 
     this.retrying = true;
-    this.preview = createPreviewSession();
 
-    const session = this.preview;
-
-    launch(cx, session, history.rememberPane, () => {
+    const started = this.startPreview(cx, () => {
       this.retrying = false;
     });
+
+    if (!started) {
+      this.retrying = false;
+    }
 
     cx.notify();
   }

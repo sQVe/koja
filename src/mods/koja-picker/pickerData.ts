@@ -6,7 +6,7 @@ import { createHistory } from './history.ts';
 import type { PreviewSession } from './previewLifecycle.ts';
 import { resumePreviewSession } from './previewSession.ts';
 import type { PickerData } from './rows.ts';
-import { spaceFacts } from './spaceFacts.ts';
+import { spaceFacts, storedFacts } from './spaceFacts.ts';
 
 const parts = ['list', 'preview-header', 'preview-error', 'footer'] as const;
 
@@ -40,13 +40,15 @@ export const pickerData = (): PickerData => {
   const spaceList = spaces();
   const paneList = panes();
   const terminalList = terminals();
+  const stored = storedFacts();
 
   return {
     spaces: spaceList,
     panes: paneList,
     terminals: terminalList,
     statuses: rollupStatuses(spaceList, paneList, terminalList),
-    facts: spaceFacts(spaceList, paneList),
+    stored,
+    facts: spaceFacts(stored, spaceList, paneList),
     recent: history.recent(),
     focus: history.focus(),
   };

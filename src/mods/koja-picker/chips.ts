@@ -1,7 +1,14 @@
 import { h_flex } from 'gpui-base';
 import type { Context, Element } from 'gpui-kit';
 
-import { colors, modName, segmentedChip, spaceMark, spacing } from '../../kit/index.ts';
+import {
+  chipLineHeight,
+  colors,
+  modName,
+  segmentedChip,
+  spaceMark,
+  spacing,
+} from '../../kit/index.ts';
 import type { StatusFilter } from './filters.ts';
 import { filterMark, statusFilters } from './filters.ts';
 import type { PickerData } from './rows.ts';
@@ -36,6 +43,7 @@ export const chips = (
   };
 
   return h_flex()
+    .h(chipLineHeight)
     .flex_none()
     .min_w(0)
     .px(spacing.large)

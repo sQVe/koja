@@ -2,6 +2,7 @@ import type { Context } from 'gpui-kit';
 import { focused } from 'herdr';
 
 import {
+  chipLineHeight,
   closeOverlay,
   controlSize,
   footerLineHeight,
@@ -15,8 +16,7 @@ import type { PreviewSession, PreviewStart } from './previewLifecycle.ts';
 
 // The header band covers the search line and the chip line, so both columns end their top band on
 // one rule, as the scene draws them.
-const headerHeight =
-  controlSize.searchField + controlSize.button + spacing.xsmall + spacing.hairline;
+const headerHeight = controlSize.searchField + chipLineHeight;
 
 const listBlock = (start: PreviewStart | null): Record<string, unknown> => {
   const preview =
@@ -95,7 +95,7 @@ export const launch = (
   cx: Context,
   session: PreviewSession,
   rememberPane: (tab: string, pane: string) => void,
-  onSettled: () => void = () => undefined,
+  onSettled: () => void,
 ): void => {
   const overlay = overlayId();
   const here = focused();

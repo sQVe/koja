@@ -129,6 +129,7 @@ export const kitIndexFake = (overrides: ModuleFake = {}): ModuleFake => ({
   diffTints: noop,
   fileStatusMark: noop,
   findLayoutNode: () => null,
+  chipLineHeight: 0,
   footerLine: noop,
   footerLineHeight: 0,
   highlightedText: noop,

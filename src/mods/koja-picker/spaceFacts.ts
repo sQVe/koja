@@ -2,13 +2,14 @@ import { shared } from 'herdr';
 import type { PaneInfo, SpaceInfo } from 'herdr';
 
 import { readDataState } from '../../data/consumer.ts';
+import { folderNameOf } from '../../data/fields.ts';
 import type { Place, RepositoryIdentity } from '../../data/gitIdentity.ts';
 import { placeOf } from '../../data/gitIdentity.ts';
 import { placeOfSpace } from '../../data/places.ts';
 import type { PullNeed } from '../../data/pullNeeds.ts';
 import { pullNeeds } from '../../data/pullNeeds.ts';
 import type { Pull } from '../../data/pulls.ts';
-import { repoName, repositoryNameOf } from '../../data/repositoryName.ts';
+import { repositoryNameOf } from '../../data/repositoryName.ts';
 import type { Facts, GitFacts, WorktreeGit } from '../../data/snapshot.ts';
 import { pullOfBranch } from '../../data/snapshot.ts';
 
@@ -31,7 +32,7 @@ const mainWorktreeOf = (git: GitFacts, repository: RepositoryIdentity): Worktree
 // is no repository takes its own name.
 const projectAt = (git: GitFacts, worktree: WorktreeGit | null, folder: string): string => {
   if (worktree === null) {
-    return repoName(folder);
+    return folderNameOf(folder);
   }
 
   const main = mainWorktreeOf(git, worktree.repository);
@@ -45,7 +46,7 @@ const needOf = (pull: Pull): PullNeed | null => {
   return needs[0] ?? null;
 };
 
-const factsOf = (): Facts | null => {
+export const storedFacts = (): Facts | null => {
   const state = readDataState(shared, Date.now());
 
   return state.kind === 'unavailable' ? null : state.snapshot.facts;
@@ -115,11 +116,10 @@ const recordedPlace = (facts: Facts, machine: string | null, folder: string): Pl
 };
 
 export const spaceFacts = (
+  facts: Facts | null,
   spaceList: SpaceInfo[],
   paneList: PaneInfo[],
 ): Record<string, SpaceFacts> => {
-  const facts = factsOf();
-
   if (facts === null) {
     return {};
   }
@@ -140,12 +140,11 @@ export const spaceFacts = (
 
 // The preview header names one pane, which can sit in another worktree than its space's first one.
 export const paneFacts = (
+  facts: Facts | null,
   machine: string | null,
   pane: PaneInfo,
   branch: string | null,
 ): SpaceFacts | null => {
-  const facts = factsOf();
-
   if (facts === null || pane.cwd === null || pane.cwd === '') {
     return null;
   }
