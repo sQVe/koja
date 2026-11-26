@@ -166,7 +166,7 @@ const openScene = async (
 
       if (!log.startsWith(baseline)) {
         throw new Error(
-          `The sandbox log no longer starts with the text read before the scene opened; the log was rotated or truncated.`,
+          'The sandbox log no longer starts with the text read before the scene opened; the log was rotated or truncated.',
         );
       }
 
@@ -351,8 +351,8 @@ const removeNewCaptureFiles = async (
 };
 
 const restoreBackedUpFiles = async (
-  backup: string,
   folder: string,
+  backup: string,
   backedUp: string[],
   move: Move,
 ): Promise<unknown[]> => {
@@ -401,10 +401,9 @@ export const publishCapture = async (
       return removeStagingAfterFailure(staging, error);
     }
 
-    const restoreErrors = [
-      ...(await removeNewCaptureFiles(folder, existing, installed)),
-      ...(await restoreBackedUpFiles(backup, folder, backedUp, move)),
-    ];
+    const removed = await removeNewCaptureFiles(folder, existing, installed);
+    const restored = await restoreBackedUpFiles(folder, backup, backedUp, move);
+    const restoreErrors = [...removed, ...restored];
 
     if (restoreErrors.length > 0) {
       const details = restoreErrors.map(messageOf).join('; ');

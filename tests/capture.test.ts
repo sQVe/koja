@@ -146,7 +146,10 @@ const fakeContext = (overlays: Overlays = [], options: FakeSandboxOptions = {}) 
       return source(read);
     }
 
-    return source?.[read] ?? '';
+    const entries = source ?? [];
+    const last = entries.at(-1) ?? '';
+
+    return entries[read] ?? last;
   };
 
   const context: CaptureContext = {
@@ -383,6 +386,26 @@ describe('mock:capture', () => {
       await capture(['sidebar', folder], context);
 
       expect(await fileExists(join(folder, 'capture.json'))).toBe(true);
+    } finally {
+      await rm(root, { recursive: true, force: true });
+    }
+  });
+
+  test('a log that stops starting with the baseline fails instead of waiting', async () => {
+    const root = await mkdtemp(join(tmpdir(), 'koja-capture-'));
+    const folder = join(root, 'judge', 'sidebar');
+
+    const { context } = successContext({
+      logs: ['earlier\n', 'torn\n'],
+      onShot: writeShot,
+      waitMilliseconds: 2000,
+    });
+
+    try {
+      const message = await failureMessageOf(capture(['sidebar', folder], context));
+
+      expect(message).toContain('rotated or truncated');
+      expect(await anyOutputExists(folder)).toBe(false);
     } finally {
       await rm(root, { recursive: true, force: true });
     }
