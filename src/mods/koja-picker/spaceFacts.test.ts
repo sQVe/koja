@@ -18,6 +18,7 @@ interface PullFixture {
   commonDirectory: string;
   mergeable?: 'conflicting' | 'mergeable' | 'unknown';
   checks?: 'failing' | 'passing' | 'none';
+  failed?: boolean;
 }
 
 let sharedValues: Record<string, unknown> = {};
@@ -141,7 +142,7 @@ const stored = (
       | undefined;
 
     repositories[repository.key] = {
-      failed: false,
+      failed: pull.failed === true,
       pulls: [...(existing?.pulls ?? []), parsed],
     };
   }
@@ -321,6 +322,79 @@ describe('spaceFacts', () => {
     const facts = paneFacts(null, pane, pane.branch);
 
     expect(facts).toEqual({ project: 'koja', pull: 9, need: 'conflict' });
+  });
+
+  test('answers no pull for a repository whose last refresh failed', () => {
+    stored(
+      [
+        {
+          root: '/code/notes',
+          commonDirectory: '/code/notes/.git',
+          branch: 'main',
+          linked: false,
+        },
+      ],
+      [
+        {
+          number: 7,
+          headRefName: 'main',
+          commonDirectory: '/code/notes/.git',
+          mergeable: 'mergeable',
+          failed: true,
+        },
+      ],
+    );
+
+    const facts = spaceFacts([spaceAt('s1', '/code/notes')], []);
+
+    expect(facts['s1']).toEqual({ project: 'notes', pull: null, need: null });
+  });
+
+  test('names both checkouts of one repository after its main checkout', () => {
+    stored(
+      [
+        {
+          root: '/code/widget',
+          commonDirectory: '/git/widget-metadata',
+          branch: 'main',
+          linked: false,
+        },
+        {
+          root: '/code/widget-feature',
+          commonDirectory: '/git/widget-metadata',
+          branch: 'feature',
+          linked: true,
+        },
+      ],
+      [],
+    );
+
+    const facts = spaceFacts(
+      [spaceAt('s1', '/code/widget'), spaceAt('s2', '/code/widget-feature')],
+      [],
+    );
+
+    expect(facts['s1']?.project).toBe('widget');
+    expect(facts['s2']?.project).toBe('widget');
+  });
+
+  test('answers the pull of a pane in a subfolder of a recorded checkout', () => {
+    stored(
+      [
+        {
+          root: '/code/widget',
+          commonDirectory: '/code/widget/.git',
+          branch: 'feature',
+          linked: false,
+        },
+      ],
+      [{ number: 42, headRefName: 'feature', commonDirectory: '/code/widget/.git' }],
+    );
+
+    const pane = { ...paneAt('/code/widget/src'), branch: 'feature' };
+    const facts = paneFacts(null, pane, pane.branch);
+
+    expect(facts).toEqual({ project: 'widget', pull: 42, need: null });
   });
 
   test('answers no facts for a folder the data layer has not read', () => {

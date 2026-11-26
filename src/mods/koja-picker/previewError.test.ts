@@ -1,7 +1,7 @@
 import { afterAll, describe, expect, mock, test } from 'bun:test';
 
 import type { DrawnElement } from '../../../tests/drawn.ts';
-import { click, clickablesWithText, drawn, drawnIcons } from '../../../tests/drawn.ts';
+import { click, clickablesWithText, drawn, drawnIcons, drawnTexts } from '../../../tests/drawn.ts';
 import {
   gpuiBaseFake,
   gpuiKitFake,
@@ -74,6 +74,7 @@ describe('previewError', () => {
   test('draws a Retry that takes no click while an attempt runs', () => {
     const element = previewError({ enabled: false, onRetry: () => undefined });
 
+    expect(drawnTexts(element)).toContain('Retry');
     expect(clickablesWithText(element, 'Retry')).toEqual([]);
   });
 });

@@ -585,6 +585,30 @@ describe('picker overlay state', () => {
     expect(overlayCloseCount()).toBe(0);
   });
 
+  test('a live focus change moves the published pane the header reads', async () => {
+    const { space, pane } = spaceWithOnePane('s1');
+    const other = { ...pane, pane: 's1-pane-2', focused: false };
+
+    spaceList = [space];
+    paneList = [pane, other];
+
+    const view = await loadView();
+
+    view.init(undefined, asyncContext);
+    view.render();
+
+    expect(sharedValues['koja-picker.selection']).toBe('s1-pane');
+
+    paneList = [
+      { ...pane, focused: false },
+      { ...other, focused: true },
+    ];
+
+    view.render();
+
+    expect(sharedValues['koja-picker.selection']).toBe('s1-pane-2');
+  });
+
   test('escape records one close and closes the picker', async () => {
     const view = await loadView();
 

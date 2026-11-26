@@ -26,8 +26,15 @@ await mock.module('../../kit/index.ts', () => kitIndexFake({ modName: 'koja-pick
 const modulePath = './selection.ts';
 
 const { readSelection, writeSelection } = (await import(modulePath)) as {
-  readSelection: () => string | null;
-  writeSelection: (pane: string | null) => void;
+  readSelection: (overlay: string | null) => string | null;
+  writeSelection: (overlay: string | null, pane: string | null) => void;
+};
+
+const overlay = 'overlay-1';
+const key = `koja-picker.selection.${overlay}`;
+
+const publish = (pane: string | null): void => {
+  writeSelection(overlay, pane);
 };
 
 afterAll(() => {
@@ -41,22 +48,31 @@ beforeEach(() => {
 
 describe('selection', () => {
   test('publishes a changed pane once', () => {
-    writeSelection('p1');
-    writeSelection('p1');
-    writeSelection('p2');
+    publish('p1');
+    publish('p1');
+    publish('p2');
 
     expect(writes).toEqual([
-      ['koja-picker.selection', 'p1'],
-      ['koja-picker.selection', 'p2'],
+      [key, 'p1'],
+      [key, 'p2'],
     ]);
 
-    expect(readSelection()).toBe('p2');
+    expect(readSelection(overlay)).toBe('p2');
   });
 
   test('publishes nothing when the picker opens on no pane', () => {
-    writeSelection(null);
+    publish(null);
 
     expect(writes).toEqual([]);
+  });
+
+  test('keeps the selection of each popup apart', () => {
+    writeSelection('overlay-a', 'first-pane');
+    writeSelection('overlay-b', 'second-pane');
+    writeSelection('overlay-b', null);
+
+    expect(readSelection('overlay-a')).toBe('first-pane');
+    expect(readSelection('overlay-b')).toBeNull();
   });
 
   test('publishes one write per change of the pane it is given', () => {
@@ -72,19 +88,19 @@ describe('selection', () => {
       writes = [];
 
       for (const pane of walk) {
-        writeSelection(pane);
+        publish(pane);
       }
 
       const changes = walk.filter((pane, index) => pane !== (index === 0 ? null : walk[index - 1]));
 
-      expect(writes).toEqual(changes.map((pane) => ['koja-picker.selection', pane]));
+      expect(writes).toEqual(changes.map((pane) => [key, pane]));
     }
   });
 
   test('clears the published pane when the selected row has none', () => {
-    writeSelection('p1');
-    writeSelection(null);
+    publish('p1');
+    publish(null);
 
-    expect(readSelection()).toBeNull();
+    expect(readSelection(overlay)).toBeNull();
   });
 });
