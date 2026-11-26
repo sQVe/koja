@@ -7,6 +7,7 @@ import {
   drawnTooltips,
   elementWithIcon,
   elementWithTooltip,
+  elementsWithStyle,
 } from '../../tests/drawn.ts';
 import { gpuiBaseFake, gpuiKitFake, herdrFake } from '../../tests/moduleFakes.ts';
 
@@ -73,8 +74,15 @@ describe('workIcon', () => {
   });
 
   test('a bare need keeps no slot of its own, while the default keeps one', () => {
-    expect(workIcon('failing').styles['size']).toBeDefined();
-    expect(workIcon('failing', { bare: true }).styles['size']).toBeUndefined();
+    const sizedContainers = (need: WorkNeed, options: { bare?: boolean }): number =>
+      elementsWithStyle(workIcon(need, options), 'size').filter((part) => part.path === null)
+        .length;
+
+    expect(sizedContainers('failing', {})).toBe(1);
+    expect(sizedContainers('failing', { bare: true })).toBe(0);
+  });
+
+  test('a work need draws its glyph at the size the icon sets', () => {
     expect(elementWithIcon(workIcon('failing'), 'circle-x.svg')?.styles['size']).toBeDefined();
   });
 
