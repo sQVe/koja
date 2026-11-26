@@ -9,6 +9,7 @@ export interface DrawnElement {
   borderColors: string[];
   isDisabled: boolean;
   clickHandlers: ((event: unknown, cx: unknown) => void)[];
+  keyHandlers: ((event: { key: string }, cx: unknown) => void)[];
   sizeHandlers: ((size: { width: number; height: number }, cx: unknown) => void)[];
   mouseHandlers: Record<string, ((event: unknown, cx: unknown) => void)[]>;
   hoverHandlers: ((hovered: boolean, cx: unknown) => void)[];
@@ -38,6 +39,7 @@ export const drawn = (path: string | null = null): DrawnElement => {
     borderColors: [],
     isDisabled: false,
     clickHandlers: [],
+    keyHandlers: [],
     sizeHandlers: [],
     mouseHandlers: {},
     hoverHandlers: [],
@@ -87,6 +89,10 @@ export const drawn = (path: string | null = null): DrawnElement => {
 
         if (key === 'on_click') {
           target.clickHandlers.push(args[0] as (event: unknown, cx: unknown) => void);
+        }
+
+        if (key === 'on_key_down') {
+          target.keyHandlers.push(args[0] as DrawnElement['keyHandlers'][number]);
         }
 
         if (key === 'on_size_change') {
@@ -206,12 +212,15 @@ export const elementWithIcon = (element: DrawnElement, name: string): DrawnEleme
 export const clickablesWithIcon = (element: DrawnElement, name: string): DrawnElement[] =>
   clickables(element).filter((part) => elementWithIcon(part, name) !== null);
 
+export const keyDown = (element: DrawnElement, event: { key: string }, cx: unknown): void => {
+  for (const handler of element.keyHandlers) {
+    handler(event, cx);
+  }
+};
+
 const noPropagation = { stop_propagation: () => undefined };
 
-export const click = (
-  element: DrawnElement,
-  cx: { stop_propagation: () => void } = noPropagation,
-): void => {
+export const click = (element: DrawnElement, cx: unknown = noPropagation): void => {
   element.clickHandlers[0]?.({}, cx);
 };
 

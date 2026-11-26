@@ -9,7 +9,7 @@ import type { GroveAction, WorktreeAction } from '../../kit/worktree.ts';
 
 type MenuKind = 'pane' | 'tab' | 'space' | 'global';
 
-export type Checkout = 'main' | 'linked' | null;
+export type Checkout = 'main' | 'linked' | 'failed' | null;
 
 export interface MenuTarget {
   pane: string | null;
@@ -28,13 +28,23 @@ export interface MenuProps {
   zoomed?: boolean;
 }
 
-export interface MenuEntry {
+export interface MenuAction {
+  kind: 'action';
   label: string;
   icon: IconName;
   shortcuts: string[];
   group: boolean;
+  state?: 'on' | 'off';
   action: () => void;
 }
+
+// A line that reports a failed read in place of the rows that read would have drawn.
+interface MenuError {
+  kind: 'error';
+  text: string;
+}
+
+export type MenuEntry = MenuAction | MenuError;
 
 export interface TerminalFacts {
   address: string;
@@ -55,8 +65,15 @@ const menuKinds: readonly MenuKind[] = ['pane', 'tab', 'space', 'global'];
 
 const worktreeCommand = 'worktree';
 
-export const checkoutOf = (identity: GitIdentity): Checkout =>
-  identity.kind === 'main' || identity.kind === 'linked' ? identity.kind : null;
+const checkoutErrorText = 'Could not read the checkout';
+
+export const checkoutOf = (identity: GitIdentity): Checkout => {
+  if (identity.kind === 'main' || identity.kind === 'linked') {
+    return identity.kind;
+  }
+
+  return identity.kind === 'failed' ? 'failed' : null;
+};
 
 const isMenuKind = (value: string | null): value is MenuKind =>
   menuKinds.some((kind) => kind === value);
@@ -128,7 +145,8 @@ const commandEntry = (
   command: string,
   args: Record<string, unknown>,
   group = false,
-): MenuEntry => ({
+): MenuAction => ({
+  kind: 'action',
   label,
   icon: iconName,
   shortcuts: menuShortcuts(command, args),
@@ -138,16 +156,21 @@ const commandEntry = (
   },
 });
 
-const rightClickEntry = (host: MenuHost, terminal: TerminalFacts): MenuEntry =>
-  terminal.toProgram
-    ? commandEntry(host, 'Use Herdr right-click menu', 'terminal', 'terminal.right_click', {
-        to: 'menu',
-        terminal: terminal.address,
-      })
-    : commandEntry(host, 'Send right-clicks to pane', 'terminal', 'terminal.right_click', {
-        to: 'program',
-        terminal: terminal.address,
-      });
+const rightClickEntry = (host: MenuHost, terminal: TerminalFacts): MenuAction => {
+  const to = terminal.toProgram ? 'menu' : 'program';
+
+  return {
+    kind: 'action',
+    label: 'Send right-clicks to pane',
+    icon: 'monitor',
+    shortcuts: menuShortcuts('terminal.right_click', { to, terminal: terminal.address }),
+    group: false,
+    state: terminal.toProgram ? 'on' : 'off',
+    action: () => {
+      host.run('terminal.right_click', { to, terminal: terminal.address });
+    },
+  };
+};
 
 const sendBackEntries = (
   host: MenuHost,
@@ -183,6 +206,7 @@ const overflowEntries = (host: MenuHost, target: MenuTarget, zoomed: boolean): M
     const [command, args] = commands[index] ?? ['', {}];
 
     return {
+      kind: 'action',
       label: entry.label,
       icon: entry.icon,
       shortcuts: menuShortcuts(command, args),
@@ -221,6 +245,7 @@ const worktreeEntry = (
   space: string | null,
   action: WorktreeAction,
 ): MenuEntry => ({
+  kind: 'action',
   label,
   icon: 'git-branch',
   shortcuts: menuShortcuts(worktreeCommand, { action, space }),
@@ -236,6 +261,7 @@ const groveEntry = (
   space: string | null,
   action: GroveAction,
 ): MenuEntry => ({
+  kind: 'action',
   label,
   icon: 'git-branch',
   shortcuts: [],
@@ -245,25 +271,32 @@ const groveEntry = (
   },
 });
 
-const spaceEntries = (host: MenuHost, target: MenuTarget, checkout: Checkout): MenuEntry[] => {
-  const worktreeItems =
-    checkout === null
-      ? []
-      : [
-          groveEntry(host, 'New worktree', target.id, 'new'),
-          worktreeEntry(host, 'Open worktree', target.id, 'open'),
-        ];
+const worktreeItems = (host: MenuHost, target: MenuTarget, checkout: Checkout): MenuEntry[] => {
+  if (checkout === 'failed') {
+    return [{ kind: 'error', text: checkoutErrorText }];
+  }
 
-  const removeItems =
-    checkout === 'linked' ? [groveEntry(host, 'Remove worktree', target.id, 'remove')] : [];
+  if (checkout === null) {
+    return [];
+  }
 
-  return [
-    commandEntry(host, 'Rename', 'square-pen', 'space.rename', { id: target.id }),
-    ...worktreeItems,
-    ...removeItems,
-    commandEntry(host, 'Close', 'x', 'space.close', { id: target.id }, true),
+  const rows: MenuEntry[] = [
+    groveEntry(host, 'New worktree', target.id, 'new'),
+    worktreeEntry(host, 'Open worktree', target.id, 'open'),
   ];
+
+  if (checkout === 'linked') {
+    rows.push(groveEntry(host, 'Remove worktree', target.id, 'remove'));
+  }
+
+  return rows;
 };
+
+const spaceEntries = (host: MenuHost, target: MenuTarget, checkout: Checkout): MenuEntry[] => [
+  commandEntry(host, 'Rename', 'square-pen', 'space.rename', { id: target.id }),
+  ...worktreeItems(host, target, checkout),
+  commandEntry(host, 'Close', 'x', 'space.close', { id: target.id }, true),
+];
 
 const globalEntries = (host: MenuHost): MenuEntry[] => [
   commandEntry(host, 'New space', 'plus', 'space.new', {}),
@@ -275,10 +308,18 @@ const globalEntries = (host: MenuHost): MenuEntry[] => [
     ),
 ];
 
-export const selectedIndex = (items: MenuEntry[], label: string | null): number => {
-  const index = items.findIndex((item) => item.label === label);
+export const isAction = (entry: MenuEntry): entry is MenuAction => entry.kind === 'action';
+
+const firstAction = (items: MenuEntry[]): number => {
+  const index = items.findIndex(isAction);
 
   return index === -1 ? 0 : index;
+};
+
+export const selectedIndex = (items: MenuEntry[], label: string | null): number => {
+  const index = items.findIndex((item) => isAction(item) && item.label === label);
+
+  return index === -1 ? firstAction(items) : index;
 };
 
 export const stepSelection = (
@@ -286,9 +327,15 @@ export const stepSelection = (
   label: string | null,
   step: 1 | -1,
 ): string | null => {
-  const next = (selectedIndex(items, label) + step + items.length) % items.length;
+  const actions = items.filter(isAction);
 
-  return items[next]?.label ?? null;
+  if (actions.length === 0) {
+    return null;
+  }
+
+  const next = (selectedIndex(actions, label) + step + actions.length) % actions.length;
+
+  return actions[next]?.label ?? null;
 };
 
 export const menuEntries = (menu: MenuProps, checkout: Checkout, host: MenuHost): MenuEntry[] => {

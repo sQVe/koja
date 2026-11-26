@@ -2,7 +2,7 @@ import { describe, expect, test } from 'bun:test';
 
 import type { PaneInfo, Program } from 'herdr';
 
-import { paneName } from './paneLabel.ts';
+import { paneName } from '../../kit/paneLabel.ts';
 import { paneRole } from './paneRole.ts';
 
 const pi: Program = {
