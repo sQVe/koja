@@ -35,7 +35,7 @@ interface ChangesView {
   init: (props: unknown, cx: unknown) => void;
   close: () => void;
   render: (cx: unknown) => unknown;
-  refresh: (cx: unknown) => void;
+  refresh: (cx: unknown, force?: boolean) => void;
 }
 
 interface SpawnedTask {
@@ -45,9 +45,17 @@ interface SpawnedTask {
 
 let cwd = '/repo/a';
 
+let terminal: string | null = null;
+
 let checkingNow = false;
 
 let failStatus = false;
+
+let failIdentity: string | null = null;
+
+let blockIdentity = false;
+
+let identityGate: (() => void) | null = null;
 
 let statusReads = 0;
 
@@ -190,7 +198,7 @@ await mock.module('herdr', () =>
     checking: () => checkingNow,
     settings: () => ({ font_size: 13 }),
     window: () => ({ active: windowActive, visible: windowVisible }),
-    focused: () => ({ pane: null, cwd, terminal: null }),
+    focused: () => ({ pane: null, cwd, terminal }),
     watchFolder: () => {
       let settle: Pick<Watch, 'resolve' | 'reject'> | null = null;
 
@@ -226,6 +234,16 @@ await mock.module('herdr', () =>
       commands.push([command, ...args]);
 
       if (args.includes('--is-bare-repository')) {
+        if (failIdentity !== null) {
+          return { code: 128, stdout: '', stderr: failIdentity };
+        }
+
+        if (blockIdentity) {
+          await new Promise<void>((resolve) => {
+            identityGate = resolve;
+          });
+        }
+
         return { code: 0, stdout: 'false\nfalse\n/repo/.git\n/repo/.git\n', stderr: '' };
       }
 
@@ -337,8 +355,12 @@ afterAll(() => {
 
 beforeEach(() => {
   cwd = '/repo/a';
+  terminal = null;
   checkingNow = false;
   failStatus = false;
+  failIdentity = null;
+  blockIdentity = false;
+  identityGate = null;
   statusReads = 0;
   statusText = ' M a.ts\0 M b.ts\0';
   blockStatus = false;
@@ -413,6 +435,8 @@ const typeMessage = (): void => {
 };
 
 const commitCommands = (): number => commands.filter((args) => args.includes('commit')).length;
+
+const numstatCommands = (): string[][] => commands.filter((args) => args.includes('--numstat'));
 
 const blockNextStatusRead = (): void => {
   blockStatus = true;
@@ -496,11 +520,14 @@ describe('Changes view', () => {
     expect(renderedCommit?.enabled).toBe(true);
     expect(renderedList?.files).toHaveLength(2);
 
+    const numstatBefore = numstatCommands().length;
+
     failStatus = true;
     view.refresh(context);
     await settle();
     view.render(context);
 
+    expect(numstatCommands()).toHaveLength(numstatBefore);
     expect(renderedList?.files).toHaveLength(2);
     expect(renderedList?.line?.kind).toBe('error');
 
@@ -625,6 +652,21 @@ describe('Changes view', () => {
     expect(watchers.filter((watch) => watch.pending)).toHaveLength(1);
   });
 
+  test('a remote location starts no folder watch, while a local one does', async () => {
+    terminal = 'build/host';
+
+    const view = await boot();
+
+    expect(watchers).toEqual([]);
+
+    terminal = null;
+    cwd = '/repo/b';
+    view.render(context);
+    await settle();
+
+    expect(watchers).toHaveLength(1);
+  });
+
   test('a location change cancels the old watch and reads only the new location', async () => {
     const view = await boot();
 
@@ -647,6 +689,60 @@ describe('Changes view', () => {
     expect(watchers[0]?.cancelled).toBe(true);
     expect(watchers).toHaveLength(1);
     expect(statusReads).toBe(readsBeforeClose);
+  });
+
+  test('a location change during the identity read leaves the panel unchanged', async () => {
+    const view = await boot();
+
+    const readsBefore = statusReads;
+    const numstatBefore = numstatCommands().length;
+
+    blockIdentity = true;
+    view.refresh(context, true);
+    await settle();
+
+    expect(identityGate).not.toBeNull();
+
+    cwd = '/repo/b';
+    statusText = ' M c.ts\0';
+    blockIdentity = false;
+    identityGate?.();
+    await settle();
+
+    expect(statusReads).toBe(readsBefore);
+    expect(numstatCommands()).toHaveLength(numstatBefore);
+
+    cwd = '/repo/a';
+    view.render(context);
+
+    expect(renderedList?.files.map((file) => file.path)).toEqual(['a.ts', 'b.ts']);
+    expect(renderedList?.line).toBeNull();
+  });
+
+  test('a failed read runs no status and no numstat command', async () => {
+    const view = await boot();
+
+    const readsBefore = statusReads;
+    const numstatBefore = numstatCommands().length;
+
+    const expectNoRead = (): void => {
+      expect(statusReads).toBe(readsBefore);
+      expect(numstatCommands()).toHaveLength(numstatBefore);
+    };
+
+    failIdentity = 'fatal: not a git repository';
+    view.refresh(context, true);
+    await settle();
+
+    expectNoRead();
+
+    failIdentity = 'fatal: detected dubious ownership in repository at /repo';
+    view.refresh(context, true);
+    await settle();
+    view.render(context);
+
+    expectNoRead();
+    expect(renderedList?.line?.kind).toBe('error');
   });
 
   test('a folder switch during a blocked read cancels the old watch before the read ends', async () => {
@@ -998,6 +1094,26 @@ describe('Changes view', () => {
 
     expect(statusReads).toBe(2);
 
+    clock.now += 1000;
+    timerHandler?.(context);
+    await settle();
+
+    expect(statusReads).toBe(2);
+    view.render(context);
+  });
+
+  test('a watch event while hidden reads at once when the window is shown, before the poll', async () => {
+    const view = await boot();
+
+    expect(statusReads).toBe(1);
+
+    windowVisible = false;
+    watchers[0]?.resolve(['/repo/a.ts']);
+    await settle();
+
+    expect(statusReads).toBe(1);
+
+    windowVisible = true;
     clock.now += 1000;
     timerHandler?.(context);
     await settle();

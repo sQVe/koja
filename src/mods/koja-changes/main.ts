@@ -225,7 +225,7 @@ export default class Changes extends View {
   }
 
   private isCurrent(key: string, visit: number): boolean {
-    return this.visit === visit && this.due?.key === key;
+    return this.visit === visit && this.due?.key === key && locationKey() === key;
   }
 
   private commitRequest(): CommitRequest {
@@ -331,7 +331,7 @@ export default class Changes extends View {
 
         const root = repository.root;
 
-        this.watch(root, key, taskCx);
+        this.watch(root, on, key, taskCx);
 
         const scan = await repoStatus(
           {
@@ -442,8 +442,8 @@ export default class Changes extends View {
     this.watched = null;
   }
 
-  private watch(root: string, key: string, cx: Context): void {
-    if (this.state.watchFailed || this.watched?.root === root) {
+  private watch(root: string, on: string | null, key: string, cx: Context): void {
+    if (this.state.watchFailed || on !== null || this.watched?.root === root) {
       return;
     }
 
@@ -479,7 +479,7 @@ export default class Changes extends View {
     }
 
     this.state = { ...this.state, watchFailed: false };
-    this.watch(snapshot.root, this.due.key, cx);
+    this.watch(snapshot.root, snapshot.on, this.due.key, cx);
     this.refresh(cx);
     cx.notify();
   }
