@@ -57,7 +57,8 @@ The panes, the side panel, and the terminals share the pane body color `#dfe1e5`
   A letter stays lower case, and a shifted key adds the shift mark, as `⇧H`. The glyph is optically
   centered: x-height letters and descenders get a small lift, because the font centers its line box
   and leaves them low. A pressed keycap takes the mode pill's look, `accent` ink in a `selected`
-  outline.
+  outline. A keycap inside a filled dialog button draws the button's ink, with a half-strength
+  outline and no fill.
 - A hint follows the mode the overlay opened in. A row carries its normal-mode sequence and, when it
   has one, an insert-mode binding. The hint draws the sequence of the mode that was active when the
   overlay opened, and draws nothing in insert mode when the row has no binding.
@@ -136,8 +137,9 @@ The panes, the side panel, and the terminals share the pane body color `#dfe1e5`
 - If people find a selected item hard to tell from a hovered one, the kit adds one second cue to
   selected rows and active toggles, not a second hover style.
 - An icon button has no selected state, so it keeps its hover fill.
-- A hovered solid or danger button keeps its fill and label and draws a 1 px `foreground` ring,
-  because fading would dim the label below AA.
+- A hovered solid or danger button keeps its fill and label, because fading would dim the label
+  below AA, and draws a 1 px ring in a color that contrasts with the fill: `foreground`, or
+  `popover` when the fill is `foreground`.
 - A hover-only control, such as a pane header button, keeps its space, so a row does not shift when
   it appears.
 - Both kinds of sidebar project header end the same way: the hidden count when folded, then the age
@@ -207,6 +209,12 @@ The panes, the side panel, and the terminals share the pane body color `#dfe1e5`
   lighter than the pane fill, a 1 px `border` outline, the pane radius, 6 px padding, and no shadow.
   The outline keeps the mid gray in both modes, so an overlay edge never reads as the insert-mode
   focus border or the normal-mode indigo.
+- The confirm and prompt dialogs are a 360 px overlay card with one 13 px text size. A destructive
+  ask puts the `triangle-alert` icon in `blocked` before the title, and the body lines up with the
+  title text. Their height follows their content, so a long title never pushes the buttons out of
+  the card. Every dialog's main button carries the `↵` keycap; Cancel is a plain outline button with
+  no keycap. Dialogs are the one popup that keeps a close control, because a choice needs a visible
+  way back, and Escape also cancels.
 
 Herdr's own dialogs keep Herdr's frame. Koja's popups use the same frame, so popups look the same
 whether Koja or Herdr opens them. Two popups are exceptions. The picker's list sits beside a

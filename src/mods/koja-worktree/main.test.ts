@@ -69,6 +69,7 @@ let dialogProps: Record<string, unknown> = {};
 let spaceList: unknown[] = [];
 let spaceStatuses: Record<string, string | null> = {};
 let keyDownHandler: KeyHandler | null = null;
+let frameOptions: Record<string, unknown> = {};
 let buttons = new Map<string, Button>();
 let stateLines: StateLine[] = [];
 let typedValue = '';
@@ -190,10 +191,13 @@ await mock.module('../../kit/index.ts', () =>
     },
     detailText: chainable,
     dialogButton: recordButton,
-    dialogFrame: () =>
-      dialogFrameFake((handler: KeyHandler) => {
+    dialogFrame: (options: Record<string, unknown>) => {
+      frameOptions = options;
+
+      return dialogFrameFake((handler: KeyHandler) => {
         keyDownHandler = handler;
-      }),
+      });
+    },
     recordOf,
     rollupStatuses: () => ({ spaces: spaceStatuses, tabs: {} }),
     spaceFolder,
@@ -244,6 +248,7 @@ beforeEach(() => {
   execResults = defaultResults();
   spaceStatuses = {};
   keyDownHandler = null;
+  frameOptions = {};
   buttons = new Map();
   stateLines = [];
   typedValue = '';
@@ -255,6 +260,13 @@ beforeEach(() => {
 });
 
 describe('remove worktree', () => {
+  test('a remove that asks draws the destructive mark', async () => {
+    spaceStatuses = { 'space-1': 'working' };
+    await openDialog();
+
+    expect(frameOptions['destructive']).toBe(true);
+  });
+
   test('a dirty worktree asks with a danger button before Grove removes it by force', async () => {
     execResults[statusCommand] = ok(' M src/file.ts\n');
     const view = await openDialog();
@@ -443,6 +455,12 @@ describe('worktree checks', () => {
 describe('new worktree', () => {
   beforeEach(() => {
     dialogProps = { action: 'new', space: 'space-1', overlay: 'overlay-1' };
+  });
+
+  test('a new worktree draws no destructive mark', async () => {
+    await openDialog();
+
+    expect(frameOptions['destructive']).toBe(false);
   });
 
   test('create runs Grove add from the workspace root, then opens a space on the new folder', async () => {

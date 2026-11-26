@@ -3,7 +3,8 @@ import type { Element } from 'gpui-kit';
 import { div } from 'gpui-kit';
 
 import { isUpperCaseLetter } from './keys.ts';
-import type { ThemeToken } from './palette.ts';
+import type { Color } from './palette.ts';
+import { keycapOutlineAlpha, withAlpha } from './palette.ts';
 import type { OverlayHint } from './shortcutBinding.ts';
 import { badgeSize, keycapSize, spacing } from './size.ts';
 import { terminalFont } from './terminalFont.ts';
@@ -24,8 +25,8 @@ const glyphRaise = (label: string): number => {
 
 const keyLabel = (key: string): string => (isUpperCaseLetter(key) ? `⇧${key}` : key);
 
-const keycapFrame = (outline: ThemeToken): Element =>
-  h_flex()
+const keycapFrame = (outline: Color, fill: Color | null): Element => {
+  const frame = h_flex()
     .h(keycapSize.height)
     .min_w(keycapSize.minimumWidth)
     .pl(keycapSize.padding + keycapSize.opticalShift)
@@ -35,22 +36,30 @@ const keycapFrame = (outline: ThemeToken): Element =>
     .justify_center()
     .rounded(badgeSize.radius)
     .border(spacing.hairline)
-    .border_color(colors()[outline])
-    .bg(colors().popover);
+    .border_color(outline);
 
-const keycapGlyph = (label: string, ink: ThemeToken): Element => {
+  return fill === null ? frame : frame.bg(fill);
+};
+
+const keycapGlyph = (label: string, ink: Color): Element => {
   const box = div().flex_none().relative().top(-glyphRaise(label));
-  const glyph = withTextRole(box, 'detail', ink);
+  const glyph = withTextRole(box, 'detail').text_color(ink);
 
   return glyph.font_family(terminalFont()).child(label);
 };
 
 export const keycap = (key: string): Element =>
-  keycapFrame('border').child(keycapGlyph(keyLabel(key), 'dim'));
+  keycapFrame(colors().border, colors().popover).child(keycapGlyph(keyLabel(key), colors().dim));
 
 // The mode pill's own look: its accent text and its outline, with the overlay surface as the fill.
 export const pressedKeycap = (key: string): Element =>
-  keycapFrame('selected').child(keycapGlyph(keyLabel(key), 'accent'));
+  keycapFrame(colors().selected, colors().popover).child(
+    keycapGlyph(keyLabel(key), colors().accent),
+  );
+
+// A keycap inside a filled button: the button's own ink, with a half-strength outline.
+export const buttonKeycap = (key: string, ink: Color): Element =>
+  keycapFrame(withAlpha(ink, keycapOutlineAlpha), null).child(keycapGlyph(keyLabel(key), ink));
 
 export const keycaps = (keys: string[]): Element =>
   h_flex()

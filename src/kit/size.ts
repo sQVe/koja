@@ -56,10 +56,11 @@ export const diffSize = {
 export const controlSize = {
   badge: 18,
   button: 22,
-  dialogButton: 28,
+  dialogButton: 24,
   paneLabelMaxWidth: 260,
   // Keeps the pane name, such as "Pi", whole when the header is narrow.
   paneLabelMinWidth: 12,
+  sceneAction: 28,
   searchField: 40,
   sectionHeader: 26,
   // One width for a split button and its menu, so the menu lines up with both edges.
@@ -162,6 +163,20 @@ export const sidebarSize = {
 
 export const indentWidth = 20;
 
+const dialogMarkGap = spacing.small;
+
+export const dialogSize = {
+  width: 360,
+  padding: 12,
+  blockGap: spacing.medium,
+  actionGap: 12,
+  // The title's line box is taller than its glyphs, so its top padding takes 6 px less.
+  titleTrim: 6,
+  markGap: dialogMarkGap,
+  markTop: spacing.xsmall,
+  markInset: iconSize.small + dialogMarkGap,
+} as const;
+
 export const overlaySize = {
   // The key hint card sits this far above the bottom of the panes it describes.
   cardGapAbovePanes: 24,
@@ -177,10 +192,8 @@ export const overlaySize = {
   worktreeFormHeight: 260,
   worktreeListWidth: 560,
   worktreeListHeight: 480,
-  confirmWidth: 380,
-  confirmHeight: 120,
-  promptWidth: 380,
-  promptHeight: 150,
+  confirmWidth: dialogSize.width,
+  promptWidth: dialogSize.width,
   groveWidth: 420,
   groveHeight: 280,
   // Leaves room in groveHeight for the field and the buttons; a longer message scrolls.

@@ -54,7 +54,7 @@ export const scrollBody = (name: string): Element =>
 
 export const reviewActionButton = (text: string, tokens: DirectionTokens): Element =>
   h_flex()
-    .h(controlSize.dialogButton)
+    .h(controlSize.sceneAction)
     .px(actionPadding)
     .flex_none()
     .items_center()
@@ -128,7 +128,7 @@ export const itemHeading = (
     const container = div().min_w(0).flex_1();
     const title = styled(container, viewTitle, tokens.ink.text).child(item.title);
 
-    const titleRow = h_flex().min_h(controlSize.dialogButton).min_w(0).items_center().child(title);
+    const titleRow = h_flex().min_h(controlSize.sceneAction).min_w(0).items_center().child(title);
 
     heading.child(titleRow);
   }

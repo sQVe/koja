@@ -16,6 +16,15 @@ export const separator = (): Element =>
 export const detailText = (text: string, color = colors().dim): Element =>
   div().flex_none().text_size(textSize.small).text_color(color).child(text);
 
+export const bodyText = (text: string, color = colors().muted): Element =>
+  div()
+    .flex_none()
+    .min_w(0)
+    .whitespace_normal()
+    .text_size(textSize.default)
+    .text_color(color)
+    .child(text);
+
 export const linkText = (text: string): Element => {
   const box = div().flex_none();
 

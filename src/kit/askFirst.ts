@@ -1,4 +1,4 @@
-import { focused, panes, run, setShared, shared, spaces, terminals } from 'herdr';
+import { agents, focused, panes, run, setShared, shared, spaces, terminals } from 'herdr';
 
 import type { AskFacts } from './askPlan.ts';
 import { dialogFor } from './askPlan.ts';
@@ -57,6 +57,7 @@ export const askFirst = (command: string, args?: Record<string, unknown>): boole
   const plan = dialogFor(command, args ?? {}, {
     spaces: spaces(),
     panes: panes(),
+    agents: agents(),
     focus: focused(),
     terminals: terminalFacts,
   });

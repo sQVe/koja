@@ -7,7 +7,7 @@ import {
   kitIndexFake,
 } from '../../../tests/moduleFakes.ts';
 import { readDialogCommand } from '../../kit/dialogPayload.ts';
-import { recordOf, stringOf } from '../../kit/fields.ts';
+import { recordOf, stringOf, stringListOf } from '../../kit/fields.ts';
 
 type KeyHandler = (
   event: { key: string },
@@ -25,6 +25,7 @@ let calls: Call[] = [];
 let dialogProps: Record<string, unknown> = {};
 let keyDownHandler: KeyHandler | null = null;
 let buttonKinds: string[] = [];
+let frameOptions: Record<string, unknown> = {};
 let stopPropagationCount = 0;
 let sharedValues: Record<string, unknown> = {};
 const buttonHandlers = new Map<string, () => void>();
@@ -70,14 +71,18 @@ await mock.module('../../kit/index.ts', () =>
       calls.push('close');
     },
     dialogButton: recordButton,
-    dialogFrame: () =>
-      dialogFrameFake((handler: KeyHandler) => {
+    dialogFrame: (options: Record<string, unknown>) => {
+      frameOptions = options;
+
+      return dialogFrameFake((handler: KeyHandler) => {
         keyDownHandler = handler;
-      }),
+      });
+    },
     readDialogCommand,
     recordOf,
     recordOverlayClose,
     stringOf,
+    stringListOf,
   }),
 );
 
@@ -117,13 +122,14 @@ beforeEach(() => {
   calls = [];
   keyDownHandler = null;
   buttonKinds = [];
+  frameOptions = {};
   stopPropagationCount = 0;
   sharedValues = {};
   buttonHandlers.clear();
 
   dialogProps = {
     title: 'Close space?',
-    detail: 'Its 2 tabs will close.',
+    body: ['Its 2 tabs will close.'],
     action: 'Close',
     destroys: true,
     command: { name: 'space.close', args: { id: 'space-1', confirmed: true } },
@@ -183,6 +189,26 @@ describe('confirm', () => {
     ]);
 
     expect(overlayCloseCount()).toBe(1);
+  });
+
+  test('the frame draws the body lines and the red mark for a destroying action', async () => {
+    const view = await loadView();
+
+    view.init(undefined, asyncContext);
+    view.render();
+
+    expect(frameOptions['lines']).toEqual(['Its 2 tabs will close.']);
+    expect(frameOptions['destructive']).toBe(true);
+  });
+
+  test('a harmless confirm draws no red mark', async () => {
+    dialogProps = { ...dialogProps, destroys: false };
+    const view = await loadView();
+
+    view.init(undefined, asyncContext);
+    view.render();
+
+    expect(frameOptions['destructive']).toBe(false);
   });
 
   test('a destroying action is drawn as danger, next to an outlined cancel', async () => {

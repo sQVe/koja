@@ -427,7 +427,8 @@ const contrastPairs = (palette: Record<string, string>): ContrastPair[] =>
     ),
     contrastPair('solid_foreground', 'solid', 4.5, 'actionButton label on solid'),
     contrastPair('solid', 'popover', 3, 'actionButton fill on popover'),
-    contrastPair('popover', 'ansi1', 4.5, 'dialogButton danger label on ansi1'),
+    contrastPair('popover', 'blocked', 4.5, 'dialogButton danger label on blocked'),
+    contrastPair('popover', 'foreground', 4.5, 'dialogButton solid label on foreground'),
   ]);
 
 const blendChannel = (
