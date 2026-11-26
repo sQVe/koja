@@ -167,7 +167,7 @@ export const kitIndexFake = (overrides: ModuleFake = {}): ModuleFake => ({
   overlayCard: noop,
   overlayHeading: noop,
   overlayRow: noop,
-  overlayHints: noop,
+  overlayHints: () => [],
   overlaySize: {},
   paneActions: () => [],
   paneBranchElement: noop,
