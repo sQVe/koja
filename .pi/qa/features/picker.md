@@ -33,7 +33,9 @@ Press `key b Control_L` first to enter normal mode.
 - `Return` goes to the row.
 - `Escape` returns focus to the pane that had it.
 - The picker preview types nothing into the source terminal.
-- When the preview cannot start, the picker stays open on an error line with Retry.
+- When the preview cannot start, the picker stays open on an error line across the bottom of the
+  card with Retry, and the error row stays visible at any window width.
+- A viewer that exits at startup counts as a preview that cannot start, so the picker stays open.
 
 ## End state
 
