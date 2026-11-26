@@ -35,7 +35,7 @@ interface SectionLook {
 }
 
 export interface ContentPartsOptions {
-  // Fold keys, which a section may share with another that draws a different label.
+  // Fold keys, which a section may not share with another that draws the same label.
   folded: ReadonlySet<string>;
   onToggle: (key: string, cx: Context) => void;
   // Shows the stale Checks sample with fresh rows, as a part that read again would.

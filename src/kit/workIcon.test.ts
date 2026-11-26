@@ -75,6 +75,7 @@ describe('workIcon', () => {
   test('a bare need keeps no slot of its own, while the default keeps one', () => {
     expect(workIcon('failing').styles['size']).toBeDefined();
     expect(workIcon('failing', { bare: true }).styles['size']).toBeUndefined();
+    expect(elementWithIcon(workIcon('failing'), 'circle-x.svg')?.styles['size']).toBeDefined();
   });
 
   test('the empty slot draws no icon and no tooltip', () => {

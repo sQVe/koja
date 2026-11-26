@@ -73,24 +73,17 @@ const openGallery = (): FakeView => {
 
 const liveTasks = (): DeadlineTask[] => tasks.filter((task) => !task.cancelled);
 
-// The Checks section that draws this age, which tells the live specimen from the stale one.
-const checksSectionWith = (gallery: DrawnElement, age: string): DrawnElement => {
-  const found = descendants(gallery).find(
-    (part) => clickablesWithText(part, 'Checks').length === 1 && drawnTexts(part).includes(age),
+// The Checks specimen is the one whose sample label and single Checks header name it, whatever its
+// fold state draws.
+const checksHeaderOf = (gallery: DrawnElement, label: string): DrawnElement => {
+  const specimen = descendants(gallery).find(
+    (part) => drawnTexts(part).includes(label) && clickablesWithText(part, 'Checks').length === 1,
   );
 
-  if (found === undefined) {
-    throw new Error(`The gallery draws no Checks section with ${age}.`);
-  }
-
-  return found;
-};
-
-const checksHeaderOf = (gallery: DrawnElement, age: string): DrawnElement => {
-  const [header] = clickablesWithText(checksSectionWith(gallery, age), 'Checks');
+  const [header] = specimen === undefined ? [] : clickablesWithText(specimen, 'Checks');
 
   if (header === undefined) {
-    throw new Error('The Checks section draws no foldable header.');
+    throw new Error(`The gallery draws no Checks specimen labelled ${label}.`);
   }
 
   return header;
@@ -158,7 +151,7 @@ describe('gallery section folding', () => {
   test('folds one Checks specimen without folding the other, then opens it again', () => {
     const view = openGallery();
     const before = view.render(context);
-    const liveHeader = checksHeaderOf(before, 'started 2m ago');
+    const liveHeader = checksHeaderOf(before, 'Checks section with live rows');
 
     click(liveHeader, context);
 
