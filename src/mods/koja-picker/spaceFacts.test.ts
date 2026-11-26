@@ -33,11 +33,16 @@ const { repositoryOf, worktreeOf, placeOf } = await import('../../data/gitIdenti
 const { heartbeatKey, leaseKey } = await import('../../data/lease.ts');
 const { snapshotKey } = await import('../../data/snapshot.ts');
 
-const { spaceFacts } = (await import('./spaceFacts.ts')) as {
+const { paneFacts, spaceFacts } = (await import('./spaceFacts.ts')) as {
   spaceFacts: (
     spaceList: SpaceInfo[],
     paneList: PaneInfo[],
   ) => Record<string, { project: string | null; pull: number | null; need: string | null }>;
+  paneFacts: (
+    machine: string | null,
+    pane: PaneInfo,
+    branch: string | null,
+  ) => { project: string | null; pull: number | null; need: string | null } | null;
 };
 
 afterAll(() => {
@@ -61,8 +66,41 @@ const spaceAt = (id: string, folder: string): SpaceInfo => ({
   tabs: [],
 });
 
-const stored = (worktrees: WorktreeFixture[], pulls: PullFixture[]): void => {
+const paneAt = (cwd: string): PaneInfo => ({
+  pane: 'p1',
+  terminal: 't1',
+  tab: 'k1',
+  title: 'Pi',
+  cwd,
+  branch: null,
+  status: null,
+  app: null,
+  program: {
+    key: 'shell',
+    name: 'zsh',
+    icon: null,
+    tint: false,
+    tile: null,
+    color: null,
+    shell: true,
+    agent: false,
+  },
+  focused: true,
+  zoomed: false,
+  movable: true,
+});
+
+const stored = (
+  worktrees: WorktreeFixture[],
+  pulls: PullFixture[],
+  plainFolders: string[] = [],
+): void => {
   const places: Record<string, unknown> = {};
+
+  for (const folder of plainFolders) {
+    places[placeOf(null, folder).key] = { kind: 'none' };
+  }
+
   const gitWorktrees: Record<string, unknown> = {};
 
   for (const fixture of worktrees) {
@@ -192,6 +230,42 @@ describe('spaceFacts', () => {
     const facts = spaceFacts([spaceAt('s1', '/code/notes')], []);
 
     expect(facts['s1']?.need).toBe('conflict');
+  });
+
+  test('names a folder that is no repository after itself', () => {
+    stored([], [], ['/code/plain']);
+
+    const facts = spaceFacts([spaceAt('s1', '/code/plain')], []);
+
+    expect(facts['s1']).toEqual({ project: 'plain', pull: null, need: null });
+  });
+
+  test('answers the pull of the branch the pane is on, not of its space', () => {
+    stored(
+      [
+        {
+          root: '/code/koja',
+          commonDirectory: '/code/koja/.git',
+          branch: 'main',
+          linked: false,
+        },
+        {
+          root: '/code/koja-side',
+          commonDirectory: '/code/koja/.git',
+          branch: 'side',
+          linked: true,
+        },
+      ],
+      [
+        { number: 5, headRefName: 'main' },
+        { number: 9, headRefName: 'side', mergeable: 'conflicting' },
+      ],
+    );
+
+    const pane = { ...paneAt('/code/koja-side'), branch: 'side' };
+    const facts = paneFacts(null, pane, pane.branch);
+
+    expect(facts).toEqual({ project: 'koja', pull: 9, need: 'conflict' });
   });
 
   test('answers no facts for a folder the data layer has not read', () => {

@@ -30,6 +30,7 @@ let emptyText = '';
 let checkingNow = false;
 let overlayNow: string | null = null;
 let sideEffects: string[] = [];
+let clickHandlers: (() => void)[] = [];
 
 const recordEffect =
   (name: string, result: unknown) =>
@@ -49,6 +50,16 @@ const chainable = (onKeyDown?: (handler: KeyHandler) => void): unknown => {
       if (key === 'key_context') {
         return (context: string) => {
           keyContext = context;
+
+          return element;
+        };
+      }
+
+      if (key === 'on_click') {
+        return (handler: (event: unknown, cx: unknown) => void) => {
+          clickHandlers.push(() => {
+            handler({}, renderedContext);
+          });
 
           return element;
         };
@@ -188,6 +199,7 @@ await mock.module('../../kit/index.ts', () =>
     repeat: () => undefined,
     rollupStatuses: () => ({ spaces: {}, tabs: {} }),
     rowHeight: {},
+    actionButton: () => chainable(),
     searchField: () => chainable(),
     segmentedChip: () => chainable(),
     spacing: {},
@@ -235,6 +247,9 @@ const asyncContext = {
 
 const renderedContext = {
   notify: () => undefined,
+  spawn: (body: (cx: unknown) => unknown) => {
+    void body(asyncContext);
+  },
   stop_propagation: () => undefined,
 };
 
@@ -262,6 +277,7 @@ beforeEach(() => {
   checkingNow = false;
   overlayNow = null;
   sideEffects = [];
+  clickHandlers = [];
 });
 
 const settle = async (): Promise<void> => {
@@ -400,6 +416,30 @@ describe('picker preview during herdr-app check', () => {
     await settle();
 
     expect(sideEffects).toContain('exec mktemp -d -t koja-picker.XXXXXX');
+  });
+});
+
+describe('picker preview error', () => {
+  test('the Retry on the error part starts the preview again, once', async () => {
+    props = { part: 'preview-error' };
+
+    const view = await loadView();
+
+    view.init(undefined, asyncContext);
+    view.render();
+
+    expect(clickHandlers.length).toBeGreaterThan(0);
+
+    clickHandlers.at(-1)?.();
+    await settle();
+
+    expect(sideEffects).toContain('exec mktemp -d -t koja-picker.XXXXXX');
+
+    const attempts = clickHandlers.length;
+
+    view.render();
+
+    expect(clickHandlers.length).toBe(attempts);
   });
 });
 

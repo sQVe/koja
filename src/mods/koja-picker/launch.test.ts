@@ -104,6 +104,10 @@ const blocksOf = (node: LayoutBlock): LayoutBlock[] => [
 const partsOf = (spec: Record<string, unknown>): unknown[] =>
   blocksOf(layoutOf(spec)).flatMap((block) => block.content?.props?.['part'] ?? []);
 
+const listPropsOf = (spec: Record<string, unknown>): Record<string, unknown> =>
+  blocksOf(layoutOf(spec)).find((block) => block.content?.props?.['part'] === 'list')?.content
+    ?.props ?? {};
+
 const terminalsOf = (spec: Record<string, unknown>): string[] =>
   blocksOf(layoutOf(spec)).flatMap((block) => {
     const terminal = block.content?.terminal;
@@ -128,6 +132,7 @@ describe('launch', () => {
 
     expect(partsOf(spec)).toEqual(['list', 'preview-error', 'footer']);
     expect(terminalsOf(spec)).toEqual([]);
+    expect(listPropsOf(spec)['preview']).toBeUndefined();
     expect(closed).toEqual(['overlay-3']);
     expect(ran).toEqual([]);
   });
@@ -137,6 +142,14 @@ describe('launch', () => {
     await settle();
 
     const spec = opened[0]?.spec ?? {};
+
+    const preview = listPropsOf(spec)['preview'];
+
+    expect(preview).toEqual({
+      folder: '/tmp/koja-picker.test',
+      state: '/tmp/koja-picker.test/state',
+      viewer: 'w1:p1',
+    });
 
     expect(partsOf(spec)).toEqual(['list', 'preview-header', 'footer']);
     expect(terminalsOf(spec)).toEqual(['w1:p1']);

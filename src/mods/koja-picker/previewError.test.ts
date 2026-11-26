@@ -1,7 +1,7 @@
 import { afterAll, describe, expect, mock, test } from 'bun:test';
 
 import type { DrawnElement } from '../../../tests/drawn.ts';
-import { click, clickablesWithText, drawn, drawnTexts } from '../../../tests/drawn.ts';
+import { click, clickablesWithText, drawn, drawnIcons } from '../../../tests/drawn.ts';
 import {
   gpuiBaseFake,
   gpuiKitFake,
@@ -27,7 +27,9 @@ await mock.module('gpui-base', () =>
   gpuiBaseFake({ h_flex: () => drawn(), v_flex: () => drawn() }),
 );
 
-await mock.module('gpui-kit', () => gpuiKitFake({ div: () => drawn(), svg: () => drawn() }));
+await mock.module('gpui-kit', () =>
+  gpuiKitFake({ div: () => drawn(), svg: (path: string) => drawn(path) }),
+);
 
 await mock.module('herdr', () => herdrFake({ theme: () => palette }));
 
@@ -38,7 +40,7 @@ await mock.module('../../kit/index.ts', () =>
 const modulePath = './previewError.ts';
 
 const { previewError } = (await import(modulePath)) as {
-  previewError: (onRetry: () => void) => DrawnElement;
+  previewError: (options: { enabled: boolean; onRetry: (cx: unknown) => void }) => DrawnElement;
 };
 
 afterAll(() => {
@@ -46,14 +48,17 @@ afterAll(() => {
 });
 
 describe('previewError', () => {
-  test('shows the error line with a Retry that starts the preview again', () => {
+  test('shows an error line whose Retry starts the preview again', () => {
     let retries = 0;
 
-    const element = previewError(() => {
-      retries += 1;
+    const element = previewError({
+      enabled: true,
+      onRetry: () => {
+        retries += 1;
+      },
     });
 
-    expect(drawnTexts(element)).toContain('The preview could not start.');
+    expect(drawnIcons(element)).toContain('circle-alert.svg');
 
     const retry = clickablesWithText(element, 'Retry').at(0);
 
@@ -64,5 +69,11 @@ describe('previewError', () => {
     }
 
     expect(retries).toBe(1);
+  });
+
+  test('draws a Retry that takes no click while an attempt runs', () => {
+    const element = previewError({ enabled: false, onRetry: () => undefined });
+
+    expect(clickablesWithText(element, 'Retry')).toEqual([]);
   });
 });
