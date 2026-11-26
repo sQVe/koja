@@ -1,13 +1,13 @@
 import { recordOf, stringOf } from './fields.ts';
 
-interface DialogCommand {
+export interface DialogCommand {
   name: string;
   args: Record<string, unknown>;
 }
 
 export interface ConfirmDialog {
   title: string;
-  detail: string;
+  body: string[];
   action: string;
   destroys: boolean;
   command: DialogCommand;

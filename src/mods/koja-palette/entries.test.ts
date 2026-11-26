@@ -1,7 +1,8 @@
 import { describe, expect, test } from 'bun:test';
 
+import type { OverlayHint } from '../../kit/shortcutBinding.ts';
 import type { Entry, PaletteHost } from './entries.ts';
-import { allEntries, entryShortcut, paletteRows } from './entries.ts';
+import { allEntries, entryHint, headingOf, paletteCount, paletteRows } from './entries.ts';
 
 interface Command {
   name: string;
@@ -14,14 +15,19 @@ let layoutList: string[] = ['main'];
 let platform: string | null = 'linux';
 let themeList: { name: string; label: string }[] = [];
 
-const lookupIn =
-  (bindings: Record<string, string>) =>
-  (...actions: string[]): string | null =>
-    actions.map((action) => bindings[action]).find((keys) => keys !== undefined) ?? null;
+const hintIn =
+  (bindings: Record<string, OverlayHint>) =>
+  (...actions: string[]): OverlayHint => {
+    const hint = actions.map((action) => bindings[action]).find((found) => found !== undefined);
 
-const splitRightLookup = lookupIn({ 'pane.split:right': 'ctrl-shift-o' });
+    return hint ?? { normal: [] };
+  };
 
-const layoutLookup = lookupIn({ 'layout.switch': 'ctrl-shift-l' });
+const splitRightHint = hintIn({ 'pane.split:right': { normal: ['ctrl-shift-o'] } });
+
+const layoutHint = hintIn({
+  'layout.switch': { normal: ['ctrl-shift-l'], insert: ['tab'] },
+});
 
 const host = (): PaletteHost => ({
   commands: () => commandList,
@@ -39,6 +45,7 @@ const entry = (id: string, name: string, group: string, title: string): Entry =>
   group,
   title,
   words: '',
+  icon: 'command',
 });
 
 describe('allEntries', () => {
@@ -171,6 +178,20 @@ describe('allEntries', () => {
       .map((item) => item.args);
 
     expect(moves).toEqual([{ by: -1 }, { by: 1 }]);
+  });
+
+  test('gives a pane move its direction icon', () => {
+    commandList = [commandOf('pane.go')];
+
+    const moves = allEntries(host()).filter((item) => item.name === 'pane.go');
+    const directionIcons = moves.map((item) => [item.args['direction'], item.icon]);
+
+    expect(directionIcons).toEqual([
+      ['left', 'columns-2'],
+      ['right', 'columns-2'],
+      ['up', 'rows-2'],
+      ['down', 'rows-2'],
+    ]);
   });
 
   test('lists a known command once, from the named catalog', () => {
@@ -390,18 +411,30 @@ describe('paletteRows', () => {
   });
 });
 
-describe('entryShortcut', () => {
+describe('headingOf', () => {
+  test('names a known group with its part letter', () => {
+    expect(headingOf('Tab')).toEqual({ label: 'Tabs', letter: 't' });
+  });
+
+  test('falls back to the group name without a part letter', () => {
+    expect(headingOf('Filler')).toEqual({ label: 'Filler', letter: null });
+  });
+});
+
+describe('entryHint', () => {
   test('prefers the action with the entry argument', () => {
     const item = {
       ...entry('a', 'pane.split', 'Pane', 'Split right'),
       args: { direction: 'right' },
     };
 
-    expect(entryShortcut(item, splitRightLookup)).toBe('ctrl-shift-o');
+    expect(entryHint(item, splitRightHint)).toEqual({ normal: ['ctrl-shift-o'] });
   });
 
-  test('answers null without a binding', () => {
-    expect(entryShortcut(entry('a', 'pane.split', 'Pane', 'Split right'), () => null)).toBeNull();
+  test('answers an empty normal hint without a binding', () => {
+    expect(
+      entryHint(entry('a', 'pane.split', 'Pane', 'Split right'), () => ({ normal: [] })),
+    ).toEqual({ normal: [] });
   });
 
   test('does not fall back to the bare command for a named layout', () => {
@@ -410,6 +443,30 @@ describe('entryShortcut', () => {
       args: { name: 'main' },
     };
 
-    expect(entryShortcut(item, layoutLookup)).toBeNull();
+    expect(entryHint(item, layoutHint)).toEqual({ normal: [] });
+  });
+});
+
+describe('paletteCount', () => {
+  test('counts every command with an empty query and only the matches with a query', () => {
+    const all = [
+      entry('a', 'tab.new', 'Tab', 'New tab'),
+      entry('b', 'pane.close', 'Pane', 'Close pane'),
+    ];
+
+    expect(paletteCount(all, paletteRows(all, '', []), '')).toEqual({
+      filtered: false,
+      count: 2,
+    });
+
+    expect(paletteCount(all, paletteRows(all, 'close', []), 'close')).toEqual({
+      filtered: true,
+      count: 1,
+    });
+
+    expect(paletteCount(all, paletteRows(all, '   ', []), '   ')).toEqual({
+      filtered: false,
+      count: 2,
+    });
   });
 });

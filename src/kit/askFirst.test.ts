@@ -41,6 +41,8 @@ let paneValues: PaneValue[] = [];
 
 let terminalValues: unknown[] = [];
 
+let agentValues: unknown[] = [];
+
 let openedSpecs: OpenedSpec[] = [];
 
 let runCalls: RunCall[] = [];
@@ -49,6 +51,7 @@ let sharedValues: Record<string, unknown> = {};
 
 await mock.module('herdr', () =>
   herdrFake({
+    agents: () => agentValues,
     focused: () => focusValue,
     openOverlay: (spec: OpenedSpec) => {
       openedSpecs.push(spec);
@@ -111,6 +114,8 @@ beforeEach(() => {
   paneValues = [];
 
   terminalValues = [];
+
+  agentValues = [];
 
   openedSpecs = [];
 
@@ -277,16 +282,18 @@ describe('askFirst', () => {
     expect(runCalls).toEqual([{ name: 'tab.close', args: undefined }]);
   });
 
-  test('the confirm detail counts the spaces panes that hold a terminal', () => {
-    paneValues = [
-      { pane: 'm1', terminal: null, tab: 't1' },
-      { pane: 'p1', terminal: 'x1', tab: 't2' },
-      { pane: 'p2', terminal: 'x2', tab: 't2' },
+  test('the confirm props carry the close body with the space agents and tab count', () => {
+    agentValues = [
+      { space: 's1', status: 'working', program: { name: 'Claude Code' } },
+      { space: 's2', status: 'working', program: { name: 'Pi' } },
     ];
 
     askFirst('space.close', {});
 
-    expect(openedSpecs[0]?.props?.['detail']).toBe('api — 2 tabs, 2 terminals');
+    expect(openedSpecs[0]?.props?.['body']).toEqual([
+      'Claude Code stops mid-task, and 2 tabs close.',
+      'Its folder, uncommitted changes, and branch stay.',
+    ]);
   });
 
   test('next space selects the next space in sidebar order, not Herdr order', () => {

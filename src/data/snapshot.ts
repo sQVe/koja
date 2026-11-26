@@ -73,6 +73,20 @@ export const emptyFacts = (): Facts => ({
   trackers: {},
 });
 
+// The pull of a branch: the open one when the repository knows several, else the first it knows.
+export const pullOfBranch = (
+  repository: RepositoryPulls | null,
+  branch: string | null,
+): Pull | null => {
+  if (branch === null || repository === null) {
+    return null;
+  }
+
+  const mine = repository.pulls.filter((pull) => pull.headRefName === branch);
+
+  return mine.find((pull) => pull.state === 'OPEN') ?? mine[0] ?? null;
+};
+
 const isNullableString = (value: unknown): value is string | null =>
   value === null || typeof value === 'string';
 

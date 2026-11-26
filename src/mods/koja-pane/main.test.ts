@@ -13,6 +13,7 @@ import { recordOf, stringOf } from '../../kit/fields.ts';
 import { normalFocusFill, toPalette } from '../../kit/palette.ts';
 import { paneHeaderFields } from '../../kit/paneHeaderFields.ts';
 import { paneActions } from '../../kit/paneHeaderMenuModel.ts';
+import { paneFolder, paneName, paneProgram } from '../../kit/paneLabel.ts';
 import { controlSize, overlaySize, paneHeaderWidth, radius, spacing } from '../../kit/size.ts';
 import { taskOfPane } from '../../kit/tabLabel.ts';
 
@@ -132,6 +133,9 @@ await mock.module('../../kit/index.ts', () =>
     overlaySize,
     paneActions,
     paneBranchElement,
+    paneFolder,
+    paneName,
+    paneProgram,
     paneFolderElement,
     attentionMark: (status: string | null) =>
       status === null || status === 'idle' ? null : textElement(status),
@@ -628,7 +632,7 @@ describe('pane header buttons', () => {
       {
         mod: 'koja-menu',
         kind: 'popup',
-        width: paneHeaderWidth.menuWidth,
+        width: overlaySize.menuWidth,
         height: overlaySize.menuHeight,
         props: {
           tab: 'pane',

@@ -1,5 +1,5 @@
 import type { InputState } from 'gpui-base';
-import { InputState as InputStates, v_flex } from 'gpui-base';
+import { InputState as InputStates, h_flex } from 'gpui-base';
 import type {
   AsyncContext,
   Context,
@@ -11,28 +11,43 @@ import type {
 import { div, View } from 'gpui-kit';
 import { commands, layouts, shared } from 'herdr';
 
+import type { MainColumnInsets } from '../../kit/index.ts';
 import {
   askFirst,
   closeOverlay,
+  colors,
   currentWindow,
-  detailText,
+  footerLine,
   highlightedText,
-  keyHint,
-  listRow,
+  hintFor,
+  icon,
+  mainColumnInsets,
+  mainColumnPlacement,
   openPrompt,
-  popupSurface,
+  overlayCard,
+  overlayHeading,
+  overlayHints,
+  overlayRow,
+  overlaySize,
   recordOverlayClose,
-  searchField,
-  sectionHeader,
-  shortcutFor,
+  scrollThumb,
+  searchInputLine,
   spacing,
   stateLine,
   stringOf,
   themeChoices,
+  thumbPlace,
 } from '../../kit/index.ts';
 import { parsedJson } from '../../kit/parsedJson.ts';
-import type { Entry, Row } from './entries.ts';
-import { allEntries, entryShortcut, paletteRows } from './entries.ts';
+import type { Entry, PaletteCount, Row } from './entries.ts';
+import {
+  allEntries,
+  entryHint,
+  headingOf,
+  isEmptyQuery,
+  paletteCount,
+  paletteRows,
+} from './entries.ts';
 import type { RowPlace } from './viewport.ts';
 import {
   clampIndex,
@@ -63,6 +78,9 @@ const readRecent = (): string[] => {
     : [];
 };
 
+const plural = (count: number, one: string, many: string): string =>
+  `${count} ${count === 1 ? one : many}`;
+
 export default class Palette extends View {
   private query = '';
 
@@ -72,11 +90,17 @@ export default class Palette extends View {
 
   private recent = readRecent();
 
-  private readonly input: InputState = InputStates.new({ placeholder: 'Type a command…' });
+  private normalMode = false;
+
+  private insets: MainColumnInsets = { left: 0, top: 0 };
+
+  private readonly input: InputState = InputStates.new({ placeholder: 'Type a command' });
 
   private handle: FocusHandle | null = null;
 
   override init(_props: unknown, cx: AsyncContext): void {
+    this.normalMode = Boolean(shared('koja-modal'));
+    this.insets = mainColumnInsets();
     this.handle = cx.focus_handle();
 
     this.input.on('change', (_event, changeCx) => {
@@ -86,7 +110,7 @@ export default class Palette extends View {
     });
 
     this.input.on('submit', () => {
-      this.go(rowAt(this.rows(), this.at)?.entry);
+      this.go(rowAt(this.rows(this.entries()), this.at)?.entry);
     });
 
     this.input.focus();
@@ -101,8 +125,9 @@ export default class Palette extends View {
   }
 
   override render(): Element {
-    const rows = this.rows();
-    const grouped = this.query === '';
+    const all = this.entries();
+    const rows = this.rows(all);
+    const grouped = isEmptyQuery(this.query);
 
     const places = placesOf(
       rows.map((row) => row.head),
@@ -110,21 +135,53 @@ export default class Palette extends View {
     );
 
     const max = maxScroll(places);
-    const scrolls = totalHeight(places) > listHeight;
     const at = clampIndex(this.at, rows.length);
     const scroll = scrollToShow(places, at, this.scroll, max);
 
-    const body =
-      rows.length > 0 ? this.list(rows, places, scrolls, at, scroll) : this.nothingMatches();
+    const body = rows.length > 0 ? this.list(rows, places, at, scroll) : this.nothingMatches();
 
-    const palette = popupSurface('palette')
+    const count = paletteCount(all, rows, this.query);
+
+    const card = overlayCard('palette')
+      .w(overlaySize.paletteWidth)
+      .flex_none()
+      .on_mouse_down('left', (_event, cx) => {
+        cx.stop_propagation();
+      })
       .on_key_down((event, cx) => {
         this.onKey(event, rows, places, cx);
       })
-      .child(searchField(this.input, 'command'))
-      .child(body);
+      .child(this.searchRow())
+      .child(body)
+      .child(footerLine([this.countText(count)]));
 
-    return this.handle === null ? palette : palette.track_focus(this.handle);
+    const focused = this.handle === null ? card : card.track_focus(this.handle);
+
+    const backdrop = div()
+      .id('palette-backdrop')
+      .size_full()
+      .on_mouse_down('left', () => {
+        this.closePalette();
+      })
+      .child(this.mainRow(focused));
+
+    return backdrop;
+  }
+
+  private mainRow(card: Element): Element {
+    const place = mainColumnPlacement(this.insets, overlaySize.topOffset);
+    const spacer = div().w(place.left).flex_none();
+    const trailing = div().w(place.right).flex_none();
+
+    const centered = h_flex()
+      .flex_1()
+      .min_w(0)
+      .pt(place.top)
+      .justify_center()
+      .items_start()
+      .child(card);
+
+    return h_flex().size_full().child(spacer).child(centered).child(trailing);
   }
 
   private go(entry: Entry | undefined): void {
@@ -159,7 +216,7 @@ export default class Palette extends View {
     closeOverlay();
   }
 
-  private rows(): Row[] {
+  private entries(): Entry[] {
     const host = {
       commands,
       layouts,
@@ -167,7 +224,25 @@ export default class Palette extends View {
       themes: themeChoices,
     };
 
-    return paletteRows(allEntries(host), this.query, this.recent);
+    return allEntries(host);
+  }
+
+  private rows(all: Entry[]): Row[] {
+    return paletteRows(all, this.query, this.recent);
+  }
+
+  private countText(count: PaletteCount): string {
+    return count.filtered
+      ? plural(count.count, 'match', 'matches')
+      : plural(count.count, 'command', 'commands');
+  }
+
+  private searchRow(): Element {
+    return div()
+      .flex_none()
+      .border_b(spacing.hairline)
+      .border_color(colors().border)
+      .child(searchInputLine(this.input));
   }
 
   private onKey(event: KeyEvent, rows: Row[], places: RowPlace[], cx: Context): void {
@@ -205,49 +280,35 @@ export default class Palette extends View {
     cx.notify();
   }
 
-  // In a scrolling list each item is placed at its edges from the model, not stacked: GPUI
-  // rounds every height to whole pixels, and a stack of rounded heights drifts away from the
-  // model, cutting the selection off. Edges from the model can't add up.
+  // Each item is placed at its edges from the model, not stacked: GPUI rounds every height to
+  // whole pixels, and a stack of rounded heights drifts away from the model, cutting the
+  // selection off. Edges from the model can't add up.
   private placed(
     element: Element,
     start: number,
     end: number,
-    scrolls: boolean,
+    height: number,
     scroll: number,
   ): Element {
-    if (!scrolls) {
-      return element;
-    }
-
     return element
       .absolute()
       .left(spacing.none)
       .right(spacing.none)
       .top(start - scroll)
-      .bottom(listHeight - (end - scroll));
+      .bottom(height - (end - scroll));
   }
 
   private rowElement(row: Row, index: number, at: number): Element {
-    const shortcut = entryShortcut(row.entry, shortcutFor);
     const selected = index === at;
-    const end: Element[] = [];
-
-    if (this.query !== '') {
-      end.push(detailText(row.entry.group));
-    }
-
-    if (shortcut !== null) {
-      end.push(keyHint(shortcut));
-    }
-
     const state = selected ? 'selected' : 'normal';
+    const start = icon(row.entry.icon, 'small').text_color(colors().muted);
 
-    return listRow({
-      size: 'large',
-      inset: true,
+    return overlayRow({
+      size: 'medium',
       state,
+      start,
       label: highlightedText(row.entry.title, row.positions, selected),
-      end,
+      end: overlayHints(entryHint(row.entry, hintFor), this.normalMode),
     })
       .id(`palette-row-${index}`)
       .cursor_pointer()
@@ -256,14 +317,9 @@ export default class Palette extends View {
       });
   }
 
-  private list(
-    rows: Row[],
-    places: RowPlace[],
-    scrolls: boolean,
-    at: number,
-    scroll: number,
-  ): Element {
+  private list(rows: Row[], places: RowPlace[], at: number, scroll: number): Element {
     const items: Element[] = [];
+    const height = Math.min(totalHeight(places), listHeight);
 
     for (const [index, row] of rows.entries()) {
       const place = places[index];
@@ -272,19 +328,20 @@ export default class Palette extends View {
         continue;
       }
 
-      if (place.head && visible(place.title, place.row, scroll, scrolls)) {
-        const head = sectionHeader({ label: row.head, size: 'default' });
+      if (place.head && visible(place.title, place.row, scroll)) {
+        const heading = headingOf(row.head);
+        const head = overlayHeading(heading.label, heading.letter);
 
-        items.push(this.placed(head, place.title, place.row, scrolls, scroll));
+        items.push(this.placed(head, place.title, place.row, height, scroll));
       }
 
-      if (visible(place.row, place.row + rowSize, scroll, scrolls)) {
+      if (visible(place.row, place.row + rowSize, scroll)) {
         items.push(
           this.placed(
             this.rowElement(row, index, at),
             place.row,
             place.row + rowSize,
-            scrolls,
+            height,
             scroll,
           ),
         );
@@ -294,18 +351,17 @@ export default class Palette extends View {
     const list = div()
       .id('palette-rows')
       .relative()
-      .my(spacing.xsmall)
+      .h(height)
+      .overflow_hidden()
       .on_scroll_wheel((event, cx) => {
         this.onWheel(event, places, cx);
-      });
+      })
+      .children(items);
 
-    if (scrolls) {
-      return list.h(listHeight).overflow_hidden().children(items);
-    }
+    const thumb = thumbPlace({ scroll, total: totalHeight(places), view: height });
+    const box = div().relative().flex_none().child(list);
 
-    const column = v_flex().children(items);
-
-    return list.child(column);
+    return thumb === null ? box : box.child(scrollThumb(thumb));
   }
 
   private nothingMatches(): Element {

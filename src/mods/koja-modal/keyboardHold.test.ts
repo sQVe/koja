@@ -1,5 +1,6 @@
 import { describe, expect, test } from 'bun:test';
 
+import { createDeferred } from '../../../tests/deferred.ts';
 import type { KeyboardHold, OverlayStatus } from './keyboardHold.ts';
 import { createKeyboardHold, createStatusLookup } from './keyboardHold.ts';
 
@@ -7,11 +8,6 @@ interface CommandResult {
   code: number;
   stdout: string;
   stderr: string;
-}
-
-interface Deferred<T> {
-  promise: Promise<T>;
-  resolve: (value: T) => void;
 }
 
 interface HoldHarness {
@@ -22,16 +18,6 @@ interface HoldHarness {
   focusCalls: () => number;
   statusCalls: () => number;
 }
-
-const createDeferred = <T>(): Deferred<T> => {
-  let resolveDeferred!: (value: T) => void;
-
-  const promise = new Promise<T>((resolve) => {
-    resolveDeferred = resolve;
-  });
-
-  return { promise, resolve: resolveDeferred };
-};
 
 const flush = (): Promise<void> =>
   new Promise((resolve) => {
@@ -88,6 +74,10 @@ const statusLookup = (result: () => Promise<CommandResult>) =>
 const otherOverlay = JSON.stringify({ overlays: [{ name: 'koja-palette' }] });
 
 const toastOverlay = JSON.stringify({ overlays: [{ name: 'toast' }] });
+
+const askOverlay = JSON.stringify({ overlays: [{ name: 'koja-asks' }] });
+
+const hintsOverlay = JSON.stringify({ overlays: [{ name: 'koja-hints' }] });
 
 const noOverlay = JSON.stringify({ overlays: [] });
 
@@ -185,9 +175,13 @@ describe('keyboard hold', () => {
     expect(harness.focusCalls()).toBe(0);
   });
 
-  test('takes focus back when the status lists only a toast', async () => {
+  test.each([
+    ['a toast', toastOverlay],
+    ['the ask card', askOverlay],
+    ['the key hint card', hintsOverlay],
+  ])('takes focus back when the status lists only %s', async (_name, overlay) => {
     const harness = createHarness(
-      statusLookup(async () => ({ code: 0, stdout: toastOverlay, stderr: '' })),
+      statusLookup(async () => ({ code: 0, stdout: overlay, stderr: '' })),
     );
 
     harness.hold.check();

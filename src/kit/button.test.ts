@@ -1,6 +1,7 @@
 import { afterAll, describe, expect, mock, test } from 'bun:test';
 
 import { gpuiBaseFake, gpuiKitFake, herdrFake } from '../../tests/moduleFakes.ts';
+import { textSize } from './size.ts';
 
 interface RecordedElement {
   hover: RecordedElement | null;
@@ -46,7 +47,8 @@ const recorded = (): RecordedElement => {
 };
 
 const palette = {
-  ansi1: '#2a2a3a',
+  blocked: '#2b2b3b',
+  border: '#3c3c4c',
   foreground: '#3b3b4b',
   muted: '#4c4c5c',
   popover: '#5d5d6d',
@@ -59,7 +61,7 @@ Object.assign(globalThis, { kojaModName: 'koja' });
 
 await mock.module('gpui-base', () => gpuiBaseFake({ h_flex: () => recorded() }));
 
-await mock.module('gpui-kit', () => gpuiKitFake());
+await mock.module('gpui-kit', () => gpuiKitFake({ div: () => recorded() }));
 
 await mock.module('herdr', () => herdrFake({ theme: () => palette }));
 
@@ -74,7 +76,7 @@ const { actionButton, dialogButton } = (await import(modulePath)) as {
   }) => RecordedElement;
   dialogButton: (options: {
     hovered?: boolean;
-    kind: 'danger' | 'solid';
+    kind: 'danger' | 'outline' | 'solid';
     label: string;
   }) => RecordedElement;
 };
@@ -113,19 +115,34 @@ describe('actionButton', () => {
 });
 
 describe('dialogButton', () => {
-  test('a hovered solid button keeps its fill and label and draws a foreground border', () => {
+  test('a hovered solid button keeps its dark ink fill and draws a popover ring', () => {
+    const rest = dialogButton({ kind: 'solid', label: 'Save' });
     const button = dialogButton({ hovered: true, kind: 'solid', label: 'Save' });
 
-    expect(button.styles['bg']).toBe(palette.solid);
-    expect(button.styles['text_color']).toBe(palette.solid_foreground);
-    expect(button.styles['border_color']).toBe(palette.foreground);
+    expect(button.styles['bg']).toBe(palette.foreground);
+    expect(button.styles['text_color']).toBe(palette.popover);
+    expect(button.styles['border_color']).toBe(palette.popover);
+    expect(rest.styles['border_color']).toBe(palette.foreground);
     expect(opacityOf(button)).toBeUndefined();
   });
 
-  test('a hovered danger button keeps its fill and label and draws a foreground border', () => {
+  test('draws its label in the dialog text size', () => {
+    const button = dialogButton({ kind: 'solid', label: 'Save' });
+
+    expect(button.styles['text_size']).toBe(textSize.default);
+  });
+
+  test('a plain cancel keeps the border outline and the muted ink', () => {
+    const button = dialogButton({ kind: 'outline', label: 'Cancel' });
+
+    expect(button.styles['border_color']).toBe(palette.border);
+    expect(button.styles['text_color']).toBe(palette.muted);
+  });
+
+  test('a hovered danger button keeps its red fill and label and draws a foreground border', () => {
     const button = dialogButton({ hovered: true, kind: 'danger', label: 'Close' });
 
-    expect(button.styles['bg']).toBe(palette.ansi1);
+    expect(button.styles['bg']).toBe(palette.blocked);
     expect(button.styles['text_color']).toBe(palette.popover);
     expect(button.styles['border_color']).toBe(palette.foreground);
     expect(opacityOf(button)).toBeUndefined();

@@ -47,7 +47,29 @@ export { itemHeader } from './itemHeader.ts';
 
 export type { ItemStateOptions } from './itemHeader.ts';
 
+export { keycap, keycaps, overlayHints, pressedKeycap } from './keycap.ts';
+
+export type { OverlayHint } from './shortcutBinding.ts';
+
 export { listRow } from './listRow.ts';
+
+export { overlayCard } from './overlay/card.ts';
+
+export { newMenuOpenKey } from './newMenu.ts';
+
+export { overlayHeading } from './overlay/heading.ts';
+
+export { mainColumnInsets, mainColumnPlacement } from './overlay/place.ts';
+
+export type { MainColumnInsets } from './overlay/place.ts';
+
+export { overlayRow } from './overlay/row.ts';
+
+export { scrollThumb, thumbPlace } from './overlay/scrollThumb.ts';
+
+export { footerLine, footerLineHeight, searchInputLine, searchLine } from './overlay/lines.ts';
+
+export { paneFolder, paneName, paneProgram } from './paneLabel.ts';
 
 export {
   paneBranchElement,
@@ -100,7 +122,13 @@ export { emptyWorkSlot, workIcon } from './workIcon.ts';
 
 export type { WorkNeed } from './workIcon.ts';
 
+export { segmentedChip } from './segmentedChip.ts';
+
+export type { SegmentedChipOptions } from './segmentedChip.ts';
+
 export {
+  askCardSize,
+  chipLineHeight,
   controlSize,
   contentSize,
   diffSize,
@@ -110,7 +138,6 @@ export {
   popupFrameRadius,
   radius,
   rowHeight,
-  separatorHeight,
   shellSize,
   sidebarSize,
   spacing,
@@ -142,7 +169,7 @@ export { tabLabel, tabProgram } from './tabLabel.ts';
 
 export { trafficLightsPadding } from './trafficLights.ts';
 
-export { shortcutFor } from './shortcut.ts';
+export { hintFor, shortcutFor } from './shortcut.ts';
 
 export { themeChoices } from './themes.ts';
 
@@ -162,7 +189,7 @@ export { diffTints, normalFocusFill } from './palette.ts';
 
 export type { Palette } from './palette.ts';
 
-export { listOf, numberOf, recordOf, stringOf } from './fields.ts';
+export { listOf, numberOf, recordOf, stringListOf, stringOf } from './fields.ts';
 
 export { findLayoutNode, layoutRoot } from './layout.ts';
 
@@ -184,12 +211,12 @@ export { readDialogCommand } from './dialogPayload.ts';
 
 export { modName } from './modName.ts';
 
-export { closeOverlay, openAtTop, overlayId } from './overlay.ts';
+export { closeOverlay, openAtTop, overlayId } from './overlay/overlay.ts';
 
 export { repeat } from './timer.ts';
 
 export { runNormalKeys, takeNormalKeys } from './normalRun.ts';
 
-export { overlayCloseCount, recordOverlayClose } from './overlayOpen.ts';
+export { overlayCloseCount, recordOverlayClose } from './overlay/open.ts';
 
 export { listActionOf, readSection, shownSections } from './section.ts';

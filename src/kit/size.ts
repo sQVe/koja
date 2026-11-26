@@ -41,6 +41,7 @@ export const popupFrameRadius = 8;
 
 export const rowHeight = {
   small: 24,
+  medium: 26,
   large: 28,
 } as const;
 
@@ -77,10 +78,11 @@ export const documentSize = {
 export const controlSize = {
   badge: 18,
   button: 22,
-  dialogButton: 28,
+  dialogButton: 24,
   paneLabelMaxWidth: 260,
   // Keeps the pane name, such as "Pi", whole when the header is narrow.
   paneLabelMinWidth: 12,
+  sceneAction: 28,
   searchField: 40,
   sectionHeader: 26,
   // One width for a split button and its menu, so the menu lines up with both edges.
@@ -91,6 +93,9 @@ export const controlSize = {
   tabSlot: 14,
   tabLabelMaxWidth: 170,
 } as const;
+
+// A line of segmented chips: the chip, the gap under it, and the rule it draws on the column.
+export const chipLineHeight = controlSize.button + spacing.xsmall + spacing.hairline;
 
 export const shellSize = {
   sidebarWidth: 240,
@@ -143,6 +148,15 @@ export const badgeSize = {
   horizontal: badgeHorizontal,
 } as const;
 
+export const keycapSize = {
+  height: 16,
+  minimumWidth: 18,
+  padding: spacing.xsmall,
+  // Glyphs sit about 1 px left of the cap's center, so the left padding takes 1 px more.
+  opticalShift: spacing.hairline,
+  gap: spacing.xxsmall,
+} as const;
+
 export const markSize = {
   slot: 12,
   dot: 6,
@@ -183,9 +197,33 @@ export const sidebarSize = {
 
 export const indentWidth = 20;
 
+const dialogMarkGap = spacing.small;
+
+export const dialogSize = {
+  width: 360,
+  padding: 12,
+  blockGap: spacing.medium,
+  actionGap: 12,
+  // The title's line box is taller than its glyphs, so its top padding takes 6 px less.
+  titleTrim: 6,
+  markGap: dialogMarkGap,
+  markTop: spacing.xsmall,
+  markInset: iconSize.small + dialogMarkGap,
+} as const;
+
+// The padding and border every overlay card draws, so a card's height estimate can add them.
+export const overlayCardSize = {
+  padding: spacing.small,
+  border: spacing.hairline,
+} as const;
+
 export const overlaySize = {
-  menuWidth: 200,
+  // The key hint card sits this far above the bottom of the panes it describes.
+  cardGapAbovePanes: 24,
+  menuWidth: 248,
   menuHeight: 260,
+  // Wide enough for the new menu's worktree rows.
+  newMenuWidth: 296,
   wideMenuWidth: 250,
   wideMenuHeight: 512,
   // Leaves room for the popup's frame inside wideMenuHeight.
@@ -194,16 +232,15 @@ export const overlaySize = {
   worktreeFormHeight: 260,
   worktreeListWidth: 560,
   worktreeListHeight: 480,
-  confirmWidth: 380,
-  confirmHeight: 120,
-  promptWidth: 380,
-  promptHeight: 150,
+  confirmWidth: dialogSize.width,
+  promptWidth: dialogSize.width,
   groveWidth: 420,
   groveHeight: 280,
   // Leaves room in groveHeight for the field and the buttons; a longer message scrolls.
   groveMessageHeight: 120,
   pickerListWidth: 420,
   pickerInset: 3,
+  paletteWidth: 560,
   pickerWidthShare: 0.6,
   pickerHeightShare: 0.7,
   topOffset: 40,
@@ -212,6 +249,24 @@ export const overlaySize = {
   paneHeadersWidth: 900,
   paneHeadersHeight: 760,
   paneHeadersRolesHeight: 780,
+} as const;
+
+export const askCardSize = {
+  maximumWidth: 420,
+  paneClearance: 16,
+  // Aligns the lines under the title with the title's mark and its gap.
+  textInset: iconSize.small + spacing.small,
+  bodyLineHeight: 18,
+  terminalLineHeight: 17,
+  detailLineHeight: 16,
+  // What the card's own padding and border take from its width and add to its height.
+  cardInset: 2 * (overlayCardSize.padding + overlayCardSize.border),
+  // The list under the more line: a row's title line, the gap above each row, and its padding.
+  listLineHeight: controlSize.button,
+  listGap: spacing.medium,
+  rowPaddingX: spacing.medium,
+  rowPaddingY: spacing.small,
+  rowGap: spacing.xxsmall,
 } as const;
 
 export const trafficLightsWidth = 64;

@@ -8,8 +8,19 @@ export interface LayoutNode {
   active: string | null;
   sizePx: number | null;
   trafficLights: number | null;
+  padding: number;
   children: LayoutNode[];
 }
+
+const paddingOf = (value: unknown): number => {
+  const direct = numberOf(value);
+
+  if (direct !== null) {
+    return direct;
+  }
+
+  return numberOf(listOf(value)[0]) ?? 0;
+};
 
 const nodeOf = (value: unknown): LayoutNode => {
   const fields = recordOf(value);
@@ -22,6 +33,7 @@ const nodeOf = (value: unknown): LayoutNode => {
     active: stringOf(fields['active']),
     sizePx: numberOf(size['px']),
     trafficLights: numberOf(listOf(fields['traffic_lights'])[0]),
+    padding: paddingOf(fields['padding']),
     children,
   };
 };
@@ -44,4 +56,5 @@ const findNode = (id: string, node: LayoutNode): LayoutNode | null => {
   return null;
 };
 
-export const findLayoutNode = (id: string): LayoutNode | null => findNode(id, layoutRoot());
+export const findLayoutNode = (id: string, root: LayoutNode): LayoutNode | null =>
+  findNode(id, root);

@@ -1,17 +1,6 @@
 import { describe, expect, test } from 'bun:test';
 
 import { placeOf, repositoryOf } from '../../data/gitIdentity.ts';
-import { repoName } from './tree.ts';
-
-describe('repository names', () => {
-  test('names a repository after its checkout folder, not its git folder', () => {
-    expect(repoName('/code/koja')).toBe('koja');
-  });
-
-  test('drops the .git ending of a bare repository folder', () => {
-    expect(repoName('/code/koja.git')).toBe('koja');
-  });
-});
 
 describe('places and repositories', () => {
   test('one folder on two machines makes two places', () => {

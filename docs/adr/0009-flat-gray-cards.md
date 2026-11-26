@@ -58,6 +58,16 @@ The panes, the side panel, and the terminals share the pane body color `#dfe1e5`
 - A role fixes size and weight. A caller may change only its tone. The mono role is the one role
   that also fixes its font.
 - Key hints use the detail role, so a hint reads as a detail beside a 13 px label.
+- A key hint draws one keycap per key in its sequence: a 16 px high box, at least 18 px wide, with
+  the badge radius, the overlay surface as its fill, a 1 px `border` outline, and the terminal font.
+  A letter stays lower case, and a shifted key adds the shift mark, as `⇧H`. The glyph is optically
+  centered: x-height letters and descenders get a small lift, because the font centers its line box
+  and leaves them low. A pressed keycap takes the mode pill's look, `accent` ink in a `selected`
+  outline. A keycap inside a filled dialog button draws the button's ink, with a half-strength
+  outline and no fill.
+- A hint follows the mode the overlay opened in. A row carries its normal-mode sequence and, when it
+  has one, an insert-mode binding. The hint draws the sequence of the mode that was active when the
+  overlay opened, and draws nothing in insert mode when the row has no binding.
 - Line height stays Herdr's default. The kit adds no line-height value until a part needs wrapped
   text.
 - Geist is wider than most sans fonts, and the smaller scale keeps the sidebar and tab titles about
@@ -104,8 +114,8 @@ The panes, the side panel, and the terminals share the pane body color `#dfe1e5`
 
 ### Rows
 
-- Koja uses one fixed density. Two one-line row classes exist: 24 px in panel lists such as the
-  sidebar, Changes, side panels, and menus, and 28 px in search popups such as the palette and
+- Koja uses one fixed density. Three one-line row classes exist: 24 px in panel lists such as the
+  sidebar, Changes, side panels, and menus, 26 px in the command palette, and 28 px in Go to, the
   picker.
 - A later session may add one kit-owned multi-line row class, measured in its own scenes. No other
   height is added ad hoc.
@@ -145,8 +155,9 @@ The panes, the side panel, and the terminals share the pane body color `#dfe1e5`
 - If people find a selected item hard to tell from a hovered one, the kit adds one second cue to
   selected rows and active toggles, not a second hover style.
 - An icon button has no selected state, so it keeps its hover fill.
-- A hovered solid or danger button keeps its fill and label and draws a 1 px `foreground` ring,
-  because fading would dim the label below AA.
+- A hovered solid or danger button keeps its fill and label, because fading would dim the label
+  below AA, and draws a 1 px ring in a color that contrasts with the fill: `foreground`, or
+  `popover` when the fill is `foreground`.
 - A hover-only control, such as a pane header button, keeps its space, so a row does not shift when
   it appears.
 - Both kinds of sidebar project header end the same way: the hidden count when folded, then the age
@@ -176,14 +187,14 @@ The panes, the side panel, and the terminals share the pane body color `#dfe1e5`
 
 ### Status marks
 
-- Done draws a small check icon in `done` green. A sidebar space that needs you draws the
-  `message-circle-question` icon in `blocked` red. Tabs and picker rows keep the `blocked` dot, or
-  the badge where there is room. Working stays the spinner, so shape as well as color tells the
-  states apart. A row of a part that failed to refresh draws the working arc still, because nothing
-  stale animates.
-- A sidebar space with no agent shows a hollow ring in the `border` color, so every space row has a
-  mark and the list reads as one column. The ring is quieter than the filled idle dot, so it does
-  not read as a state. Rows outside the sidebar, such as tabs and picker rows, keep an empty slot.
+- Done draws a small check icon in `done` green. A sidebar space or a Go to space row that needs you
+  draws the `message-circle-question` icon in `blocked` red. Tabs and tab rows keep the `blocked`
+  dot, or the badge where there is room. Working stays the spinner, so shape as well as color tells
+  the states apart. A row of a part that failed to refresh draws the working arc still, because
+  nothing stale animates.
+- A space with no agent shows a hollow ring in the `border` color, in the sidebar and in Go to, so
+  every space row has a mark and the list reads as one column. The ring is quieter than the filled
+  idle dot, so it does not read as a state. Tab rows keep an empty slot.
 - A sidebar project header is the exception to the ring. Every header reserves the mark slot, so
   every project name starts at the same x. A header that is the project's main space shows that
   space's mark only when it is working, blocked, or done, and otherwise keeps the slot empty. A
@@ -211,18 +222,52 @@ The panes, the side panel, and the terminals share the pane body color `#dfe1e5`
 ### Popups
 
 - Popups keep Herdr's overlay frame, which draws on the `popover` color.
+- The command palette is the exception: it opens with `frame: "none"` and draws the kit's overlay
+  card as its only frame. Herdr's frame would double the card's outline and add a shadow the design
+  rules out.
 - Koja draws popup content through the kit's popup surface, which rounds the background to the
   frame's radius, because the frame does not clip it.
+- Koja's overlay card is the surface an overlay arranges its rows on: the `popover` fill, one step
+  lighter than the pane fill, a 1 px `border` outline, the pane radius, 6 px padding, and no shadow.
+  The outline keeps the mid gray in both modes, so an overlay edge never reads as the insert-mode
+  focus border or the normal-mode indigo.
+- The confirm and prompt dialogs are a 360 px overlay card with one 13 px text size. A destructive
+  ask puts the `triangle-alert` icon in `blocked` before the title, and the body lines up with the
+  title text. Their height follows their content, so a long title never pushes the buttons out of
+  the card. Every dialog's main button carries the `↵` keycap; Cancel is a plain outline button with
+  no keycap. Dialogs are the one popup that keeps a close control, because a choice needs a visible
+  way back, and Escape also cancels.
 
 Herdr's own dialogs keep Herdr's frame. Koja's popups use the same frame, so popups look the same
-whether Koja or Herdr opens them. The picker is the one exception: its list sits beside a terminal
-preview inside one framed overlay, so the list rounds only its own two outer corners.
+whether Koja or Herdr opens them. Two popups are exceptions. The picker's list sits beside a
+terminal preview inside one framed overlay, so the list rounds only its own two outer corners. The
+command palette opens frameless, and its overlay card is its only frame.
 
 - A hover card is a `popover` card with a 1 px `border` outline and `radius.default` corners. An
   arrow 4 px deep on its left edge points at the row it describes. GPUI cannot rotate a box, so the
   arrow is 1 px columns that grow 2 px each, which keeps both edges at 45 degrees and crisp. A fill
   layer 1 px inside the outline layer covers the card's left border, so arrow and card read as one
   shape.
+
+### Key hint card
+
+- The key hint card opens while normal mode's parser holds a part letter, and closes when the
+  sequence ends, is cancelled, or a press lands on it. It draws as a frameless window overlay, which
+  takes no keyboard from the mode that owns the keys.
+- The card lists one row per action of the part, with the first key sequence the key table gives
+  that action, so it never shows an alias beside the key it stands for. It follows the marked
+  section and a typed count the way the parser does: with a list marked, `g g` names the list
+  action, and `3 g t` names the tab it selects.
+- Its groups, rows, and keys come from the normal-mode key table. A new key of a known action joins
+  the card with no second list to edit. An action that no group claims shows under Other until it is
+  grouped, so a key never disappears from the card.
+- It sits at the bottom center of the main column, 24 px above the pane bottoms, and sizes to its
+  columns. The pressed part letter draws as a pressed keycap before the part's name, a rule runs
+  from text edge to text edge, and the groups stand 32 px apart. Its rows are 4 px shorter than
+  panel rows.
+- Its window spans the whole window, because Herdr reports a window's size only to a mod that fills
+  one, and a card-sized window would need that size to be placed. A press anywhere on it cancels the
+  sequence, so no press during the pending state reaches the tab bar or a pane under it.
 
 ### Motion
 
@@ -267,9 +312,11 @@ preview inside one framed overlay, so the list rounds only its own two outer cor
 
 ### Negative
 
-- One fixed density and two row heights leave no room for a compact or roomy setting.
+- One fixed density and three row heights leave no room for a compact or roomy setting.
 - Popups and rows appear without a fade, because Herdr cannot animate a first appearance.
 - Hover is a faint outline, so selection and hover rely on fill alone until a second cue is needed.
+- A press on the key hint card cancels the sequence instead of reaching what is under it, because
+  the card's window covers the window while it shows. A tab or pane press waits for the next one.
 - Each mod must track its reads per resource to show error and stale lines, which adds state to
   every mod that reads.
 
@@ -277,9 +324,10 @@ preview inside one framed overlay, so the list rounds only its own two outer cor
 
 ### Koja draws its own popup frame
 
-Koja would set `frame: "none"` on its popups and copy Herdr's border, radius, and shadow by hand.
-Rejected because Koja would have to follow every Herdr change to that copy, while a rounded
-background inside Herdr's frame already gives clean corners.
+Koja would set `frame: "none"` on every popup that keeps Herdr's frame and copy Herdr's border,
+radius, and shadow by hand. Rejected because Koja would have to follow every Herdr change to that
+copy, while a rounded background inside Herdr's frame already gives clean corners. The command
+palette is the one popup that draws no Herdr frame, and its card carries the only outline.
 
 ### One flat base for the whole window
 

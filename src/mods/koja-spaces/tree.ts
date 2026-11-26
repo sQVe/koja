@@ -1,6 +1,5 @@
 import type { SpaceInfo, Status } from 'herdr';
 
-import { folderNameOf } from '../../data/fields.ts';
 import type { Place, RepositoryIdentity } from '../../data/gitIdentity.ts';
 
 export interface GitInfo {
@@ -20,6 +19,3 @@ export interface ListedSpace {
 export interface FoldedKeys {
   has: (key: string) => boolean;
 }
-
-// The git folder can sit anywhere under any name, so the checkout folder names the repository.
-export const repoName = (root: string): string => folderNameOf(root).replace(/\.git$/, '');

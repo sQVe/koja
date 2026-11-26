@@ -2,6 +2,7 @@ import { describe, expect, test } from 'bun:test';
 
 import {
   clampIndex,
+  groupSpace,
   headSize,
   listHeight,
   maxScroll,
@@ -22,8 +23,19 @@ describe('placesOf', () => {
     expect(places).toEqual([
       { head: true, title: 0, row: headSize },
       { head: false, title: headSize + rowSize, row: headSize + rowSize },
-      { head: true, title: headSize + 2 * rowSize, row: headSize + 2 * rowSize + headSize },
+      {
+        head: true,
+        title: headSize + 2 * rowSize + groupSpace,
+        row: headSize + 2 * rowSize + groupSpace + headSize,
+      },
     ]);
+  });
+
+  test('adds the group space above every heading after the first', () => {
+    const places = placesOf(['A', 'B'], true);
+
+    expect(places[0]?.title).toBe(0);
+    expect(places[1]?.title).toBe(headSize + rowSize + groupSpace);
   });
 
   test('draws no title while ranking', () => {
@@ -68,6 +80,20 @@ describe('scrollToShow', () => {
 
     expect(scrollToShow(places, 0, 400, maxScroll(places))).toBe(0);
   });
+
+  test('scrolls up to the heading of a selected first row', () => {
+    const heads = [
+      ...Array.from({ length: 10 }, () => 'A'),
+      ...Array.from({ length: 10 }, () => 'B'),
+      ...Array.from({ length: 20 }, () => 'C'),
+    ];
+
+    const places = placesOf(heads, true);
+    const scroll = scrollToShow(places, 20, 700, maxScroll(places));
+
+    expect(scroll).toBe(places[20]?.title ?? 0);
+    expect(scroll).toBeLessThan(places[20]?.row ?? 0);
+  });
 });
 
 describe('wheel', () => {
@@ -76,7 +102,13 @@ describe('wheel', () => {
   });
 
   test('moves a wheel notch by its pixel delta too', () => {
-    expect(wheel(placesOf(['A'], false), 0, 100, 500, rowSize)).toEqual({ scroll: 72, at: 0 });
+    // The notch is an independent pixel input, not a row height.
+    const notchPixels = 28;
+
+    expect(wheel(placesOf(['A'], false), 0, 100, 500, notchPixels)).toEqual({
+      scroll: 72,
+      at: 0,
+    });
   });
 
   test('keeps the selection on screen', () => {
@@ -93,10 +125,9 @@ describe('wheel', () => {
 });
 
 describe('visible', () => {
-  test('clips rows outside the strip only while scrolling', () => {
-    expect(visible(0, rowSize, 0, true)).toBe(true);
-    expect(visible(0, rowSize, rowSize * 2, true)).toBe(false);
-    expect(visible(0, rowSize, rowSize * 2, false)).toBe(true);
+  test('clips rows outside the strip', () => {
+    expect(visible(0, rowSize, 0)).toBe(true);
+    expect(visible(0, rowSize, rowSize * 2)).toBe(false);
   });
 });
 

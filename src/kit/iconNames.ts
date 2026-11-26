@@ -1,6 +1,7 @@
 export const iconNames = [
   'check',
   'chevron-down',
+  'chevron-left',
   'chevron-right',
   'circle-alert',
   'circle-x',

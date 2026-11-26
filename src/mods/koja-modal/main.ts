@@ -1,12 +1,24 @@
 import type { AsyncContext, Context, Element, FocusHandle, KeyEvent } from 'gpui-kit';
 import { div, View } from 'gpui-kit';
-import { checking, exec, focused, nextCommand, panes, run, setShared, shared, spaces } from 'herdr';
+import {
+  checking,
+  exec,
+  focused,
+  nextCommand,
+  openOverlay,
+  panes,
+  run,
+  setShared,
+  shared,
+  spaces,
+} from 'herdr';
 
 import { createContextKeys } from '../../kit/contextKeys.ts';
 import {
   askFirst,
   closeOverlay,
   findLayoutNode,
+  layoutRoot,
   modName,
   overlayCloseCount,
   overlayId,
@@ -14,13 +26,20 @@ import {
   shownSections,
   takeNormalKeys,
 } from '../../kit/index.ts';
+import type { PartLetter } from '../../kit/keyHints.ts';
+import { isPartLetter } from '../../kit/keyHints.ts';
 import type { NormalAction } from '../../kit/normalKeys.ts';
 import { createExecutor } from './execute.ts';
 import { createKeyboardHold, createStatusLookup } from './keyboardHold.ts';
 import { normalizeKey } from './keyEvent.ts';
-import type { ParserState } from './parser.ts';
+import type { ParseResult, ParserState } from './parser.ts';
 import { initialParserState, parseKey } from './parser.ts';
 import { createSections, isSectionKeyAction } from './sections.ts';
+
+interface OpenHints {
+  part: PartLetter;
+  overlay: string;
+}
 
 const sectionKeys = createContextKeys('KojaModal', [
   { keystroke: 'tab', action: 'koja-modal-section-next' },
@@ -52,12 +71,36 @@ const opensOverlay = (action: NormalAction): boolean =>
 const opensInlineInput = (action: NormalAction): boolean =>
   action.kind === 'command' && inlineInputCommands.has(action.command);
 
+const pendingPart = (result: ParseResult): PartLetter | null => {
+  if (result.status !== 'pending' || result.state.pending.length !== 1) {
+    return null;
+  }
+
+  const [key] = result.state.pending;
+
+  return key !== undefined && isPartLetter(key) ? key : null;
+};
+
+const openKeyHints = (part: PartLetter, count: number | null, list: boolean): string =>
+  openOverlay({
+    mod: 'koja-hints',
+    kind: 'window',
+    frame: 'none',
+    width: 1,
+    height: 1,
+    props: { part, count, list },
+  });
+
 export default class KojaModal extends View {
   private handle: FocusHandle | null = null;
 
   private state: ParserState = initialParserState;
 
   private dialogOpened = false;
+
+  private openHints: OpenHints | null = null;
+
+  private batching = false;
 
   private readonly hold = createKeyboardHold({
     isFocused: () => this.handle?.is_focused() ?? false,
@@ -84,7 +127,7 @@ export default class KojaModal extends View {
     run: (command, args) => {
       run(command, args);
     },
-    shown: () => shownSections(findLayoutNode('sidebar')),
+    shown: () => shownSections(findLayoutNode('sidebar', layoutRoot())),
   });
 
   override init(_props: unknown, cx: AsyncContext): void {
@@ -105,6 +148,7 @@ export default class KojaModal extends View {
     this.executor.observe();
     setShared(modeKey, null);
     this.sections.reset();
+    this.closeHints();
     this.hold.close();
 
     const pane = focused()?.pane;
@@ -137,9 +181,11 @@ export default class KojaModal extends View {
   }
 
   private handleKeyName(key: string, cx: Context): void {
-    const result = parseKey(this.state, key, this.sections.layer());
+    const layer = this.sections.layer();
+    const result = parseKey(this.state, key, layer);
 
     this.state = result.state;
+    this.showHints(result, layer.length > 0);
 
     if (result.status !== 'action') {
       return;
@@ -184,15 +230,61 @@ export default class KojaModal extends View {
     }
 
     this.state = initialParserState;
+    this.closeHints();
+    this.batching = true;
 
-    for (const key of keys) {
-      this.handleKeyName(key, cx);
+    try {
+      for (const key of keys) {
+        this.handleKeyName(key, cx);
+      }
+    } finally {
+      this.batching = false;
     }
+  }
+
+  // A press on the key hint card cancels the sequence it shows, so the press is never lost.
+  private cancelKeys(): void {
+    this.state = initialParserState;
+    this.closeHints();
   }
 
   private leave(): void {
     this.sections.reset();
+    this.closeHints();
     closeOverlay(overlayId());
+  }
+
+  private showHints(result: ParseResult, list: boolean): void {
+    // A batch of keys runs at once, so a card for the part it starts with would never be seen.
+    if (this.batching) {
+      return;
+    }
+
+    const part = pendingPart(result);
+
+    if (part === this.openHints?.part) {
+      return;
+    }
+
+    this.closeHints();
+
+    if (part === null) {
+      return;
+    }
+
+    const overlay = openKeyHints(part, result.state.count, list);
+
+    this.openHints = { part, overlay };
+  }
+
+  private closeHints(): void {
+    const open = this.openHints;
+
+    this.openHints = null;
+
+    if (open !== null) {
+      closeOverlay(open.overlay);
+    }
   }
 
   private openedDialog(): boolean {
@@ -228,6 +320,10 @@ export default class KojaModal extends View {
 
         if (command === 'run-keys') {
           this.runPendingKeys(cx);
+        }
+
+        if (command === 'cancel') {
+          this.cancelKeys();
         }
       }
     });

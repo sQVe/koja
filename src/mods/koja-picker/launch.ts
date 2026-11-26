@@ -1,52 +1,103 @@
-import type { AsyncContext } from 'gpui-kit';
-import { focused, run } from 'herdr';
+import type { Context } from 'gpui-kit';
+import { focused } from 'herdr';
 
 import {
+  chipLineHeight,
   closeOverlay,
+  controlSize,
+  footerLineHeight,
   modName,
   openAtTop,
   overlayId,
   overlaySize,
   spacing,
 } from '../../kit/index.ts';
-import type { PreviewSession } from './previewLifecycle.ts';
+import type { PreviewSession, PreviewStart } from './previewLifecycle.ts';
 
-const openPicker = (previewAddress: string, previewState: string, previewFolder: string): void => {
+// The header band covers the search line and the chip line, so both columns end their top band on
+// one rule, as the scene draws them.
+const headerHeight = controlSize.searchField + chipLineHeight;
+
+const listBlock = (start: PreviewStart | null): Record<string, unknown> => {
+  const preview =
+    start === null
+      ? {}
+      : { preview: { folder: start.folder, state: start.statePath, viewer: start.address } };
+
+  return {
+    type: 'block',
+    size: { px: overlaySize.pickerListWidth },
+    content: { mod: modName, props: { part: 'list', ...preview } },
+  };
+};
+
+const footerBlock = {
+  type: 'block',
+  size: { px: footerLineHeight },
+  content: { mod: modName, props: { part: 'footer' } },
+};
+
+const previewColumn = (address: string): Record<string, unknown> => ({
+  type: 'column',
+  size: { weight: 1 },
+  children: [
+    {
+      type: 'block',
+      size: { px: headerHeight },
+      content: { mod: modName, props: { part: 'preview-header' } },
+    },
+    {
+      type: 'block',
+      padding: overlaySize.pickerInset,
+      content: { terminal: address },
+    },
+  ],
+});
+
+// The error and its Retry take a row of the whole card, so a narrow or zoomed window cannot clip
+// them behind the list.
+const errorRow = {
+  type: 'block',
+  size: { px: controlSize.button + spacing.large * 2 },
+  content: { mod: modName, props: { part: 'preview-error' } },
+};
+
+const pickerLayout = (start: PreviewStart | null): Record<string, unknown> => {
+  const row =
+    start === null
+      ? { type: 'row', children: [listBlock(null)] }
+      : {
+          type: 'row',
+          divider: { width: spacing.hairline, color: 'border' },
+          children: [listBlock(start), previewColumn(start.address)],
+        };
+
+  const children = start === null ? [row, errorRow, footerBlock] : [row, footerBlock];
+
+  return {
+    type: 'column',
+    children,
+  };
+};
+
+const openPicker = (start: PreviewStart | null): void => {
   openAtTop(
     {
       width: overlaySize.pickerWidthShare,
       height: overlaySize.pickerHeightShare,
-      layout: {
-        type: 'row',
-        divider: { width: spacing.hairline, color: 'border' },
-        children: [
-          {
-            type: 'block',
-            size: { px: overlaySize.pickerListWidth },
-            content: {
-              mod: modName,
-              props: {
-                part: 'list',
-                preview: { folder: previewFolder, state: previewState, viewer: previewAddress },
-              },
-            },
-          },
-          {
-            type: 'block',
-            padding: overlaySize.pickerInset,
-            content: { terminal: previewAddress },
-          },
-        ],
-      },
+      layout: pickerLayout(start),
     },
     overlaySize.topOffset,
   );
 };
 
+// A preview that cannot start leaves Go to open on the error line, so Retry runs this again from
+// the overlay it shows.
 export const launch = (
-  cx: AsyncContext,
+  cx: Context,
   session: PreviewSession,
   rememberPane: (tab: string, pane: string) => void,
+  onSettled: () => void,
 ): void => {
   const overlay = overlayId();
   const here = focused();
@@ -55,20 +106,25 @@ export const launch = (
     rememberPane(here.tab, here.pane);
   }
 
-  cx.spawn(async () => {
-    const started = await session.open(null).catch(() => null);
+  cx.spawn(async (taskCx) => {
+    try {
+      const started = await session.open(null).catch(() => null);
+      const watching = started === null ? false : await session.ready(taskCx);
 
-    if (started === null) {
-      session.close();
+      if (started === null || !watching) {
+        session.close();
+        openPicker(null);
+        closeOverlay(overlay);
+
+        return;
+      }
+
+      // The list that opens next takes ownership; the launcher's close must not kill it.
+      session.handOff();
+      openPicker(started);
       closeOverlay(overlay);
-      run('mod.open', { name: 'picker' });
-
-      return;
+    } finally {
+      onSettled();
     }
-
-    // The list that opens next takes ownership; the launcher's close must not kill it.
-    session.handOff();
-    openPicker(started.address, started.statePath, started.folder);
-    closeOverlay(overlay);
   });
 };

@@ -13,6 +13,7 @@ export interface DrawnElement {
   borderColors: string[];
   isDisabled: boolean;
   clickHandlers: ((event: unknown, cx: unknown) => void)[];
+  keyHandlers: ((event: { key: string }, cx: unknown) => void)[];
   sizeHandlers: ((size: { width: number; height: number }, cx: unknown) => void)[];
   mouseHandlers: Record<string, ((event: unknown, cx: unknown) => void)[]>;
   hoverHandlers: ((hovered: boolean, cx: unknown) => void)[];
@@ -27,6 +28,9 @@ const addChild = (parent: DrawnElement, child: unknown): void => {
   }
 };
 
+const hasText = (element: DrawnElement, text: string): boolean =>
+  Array.isArray(element.texts) && element.texts.includes(text);
+
 export const drawn = (path: string | null = null): DrawnElement => {
   const element: DrawnElement = {
     drawn: drawnBrand,
@@ -40,6 +44,7 @@ export const drawn = (path: string | null = null): DrawnElement => {
     borderColors: [],
     isDisabled: false,
     clickHandlers: [],
+    keyHandlers: [],
     sizeHandlers: [],
     mouseHandlers: {},
     hoverHandlers: [],
@@ -89,6 +94,10 @@ export const drawn = (path: string | null = null): DrawnElement => {
 
         if (key === 'on_click') {
           target.clickHandlers.push(args[0] as (event: unknown, cx: unknown) => void);
+        }
+
+        if (key === 'on_key_down') {
+          target.keyHandlers.push(args[0] as DrawnElement['keyHandlers'][number]);
         }
 
         if (key === 'on_size_change') {
@@ -181,7 +190,41 @@ export const numberStyle = (element: DrawnElement | undefined, style: string): n
 };
 
 export const elementWithText = (element: DrawnElement, text: string): DrawnElement | null =>
-  descendants(element).find((part) => part.texts.includes(text)) ?? null;
+  descendants(element).find((part) => hasText(part, text)) ?? null;
+
+// The element that holds the text as a direct child, such as a heading around its label.
+export const elementAroundText = (element: DrawnElement, text: string): DrawnElement | null =>
+  descendants(element).find(
+    (part) => Array.isArray(part.kids) && part.kids.some((kid) => hasText(kid, text)),
+  ) ?? null;
+
+const inheritedTextColor = (
+  element: DrawnElement,
+  text: string,
+  inherited: string | null,
+): string | null => {
+  const own = Array.isArray(element.textColors)
+    ? (element.textColors.at(-1) ?? inherited)
+    : inherited;
+
+  if (hasText(element, text)) {
+    return own;
+  }
+
+  for (const kid of element.kids) {
+    const found = inheritedTextColor(kid, text, own);
+
+    if (found !== null) {
+      return found;
+    }
+  }
+
+  return null;
+};
+
+// The color a label is drawn in: its nearest text_color, on itself or an ancestor.
+export const textColorOf = (element: DrawnElement, text: string): string | null =>
+  inheritedTextColor(element, text, null);
 
 export const elementsWithStyle = (element: DrawnElement, style: string): DrawnElement[] =>
   descendants(element).filter((part) => part.styles[style] !== undefined);
@@ -191,6 +234,12 @@ export const elementWithIcon = (element: DrawnElement, name: string): DrawnEleme
 
 export const clickablesWithIcon = (element: DrawnElement, name: string): DrawnElement[] =>
   clickables(element).filter((part) => elementWithIcon(part, name) !== null);
+
+export const keyDown = (element: DrawnElement, event: { key: string }, cx: unknown): void => {
+  for (const handler of element.keyHandlers) {
+    handler(event, cx);
+  }
+};
 
 const quietContext = { stop_propagation: () => undefined };
 

@@ -30,6 +30,8 @@ let emptyText = '';
 let checkingNow = false;
 let overlayNow: string | null = null;
 let sideEffects: string[] = [];
+let clickHandlers: (() => void)[] = [];
+let spawned: Promise<unknown>[] = [];
 
 const recordEffect =
   (name: string, result: unknown) =>
@@ -49,6 +51,16 @@ const chainable = (onKeyDown?: (handler: KeyHandler) => void): unknown => {
       if (key === 'key_context') {
         return (context: string) => {
           keyContext = context;
+
+          return element;
+        };
+      }
+
+      if (key === 'on_click') {
+        return (handler: (event: unknown, cx: unknown) => void) => {
+          clickHandlers.push(() => {
+            handler({}, renderedContext);
+          });
 
           return element;
         };
@@ -163,7 +175,7 @@ await mock.module('herdr', () =>
   }),
 );
 
-const { overlayCloseCount, recordOverlayClose } = await import('../../kit/overlayOpen.ts');
+const { overlayCloseCount, recordOverlayClose } = await import('../../kit/overlay/open.ts');
 
 const { recordOf, stringOf } = await import('../../kit/fields.ts');
 
@@ -188,7 +200,9 @@ await mock.module('../../kit/index.ts', () =>
     repeat: () => undefined,
     rollupStatuses: () => ({ spaces: {}, tabs: {} }),
     rowHeight: {},
+    actionButton: () => chainable(),
     searchField: () => chainable(),
+    segmentedChip: () => chainable(),
     spacing: {},
     stateLine: (state: { text: string }) => {
       emptyText = state.text;
@@ -229,11 +243,19 @@ const asyncContext = {
   },
   focus_handle: () => ({ focus: () => undefined, is_focused: () => false }),
   spawn: () => undefined,
-  timer: { after: () => undefined, every: () => undefined },
+  timer: {
+    after: (_milliseconds: number, handler: (cx: unknown) => void) => {
+      handler(asyncContext);
+    },
+    every: () => undefined,
+  },
 };
 
 const renderedContext = {
   notify: () => undefined,
+  spawn: (body: (cx: unknown) => unknown) => {
+    spawned.push(Promise.resolve(body(asyncContext)));
+  },
   stop_propagation: () => undefined,
 };
 
@@ -261,13 +283,74 @@ beforeEach(() => {
   checkingNow = false;
   overlayNow = null;
   sideEffects = [];
+  clickHandlers = [];
+  spawned = [];
 });
 
 const settle = async (): Promise<void> => {
-  for (let index = 0; index < 20; index += 1) {
-    await Promise.resolve();
-  }
+  await Promise.all(spawned);
 };
+
+const spaceWithOnePane = (id: string): { space: SpaceInfo; pane: PaneInfo } => {
+  const tab = `${id}-tab`;
+  const pane = `${id}-pane`;
+
+  const space: SpaceInfo = {
+    id,
+    index: 1,
+    name: id,
+    named: true,
+    folder: `/home/me/${id}`,
+    machine: null,
+    branch: null,
+    active: false,
+    status: null,
+    tabs: [
+      {
+        id: tab,
+        index: 1,
+        name: '1',
+        named: false,
+        active: true,
+        status: null,
+        panes: 1,
+        zoomed: false,
+        settled: false,
+        settled_at: null,
+        changed_at: null,
+        working_since: null,
+      },
+    ],
+  };
+
+  const paneInfo: PaneInfo = {
+    pane,
+    terminal: 't1',
+    tab,
+    title: 'Pi',
+    cwd: `/home/me/${id}`,
+    branch: null,
+    status: null,
+    app: null,
+    program: {
+      key: 'shell',
+      name: 'zsh',
+      icon: null,
+      tint: false,
+      tile: null,
+      color: null,
+      shell: true,
+      agent: false,
+    },
+    focused: true,
+    zoomed: false,
+    movable: true,
+  };
+
+  return { space, pane: paneInfo };
+};
+
+const selectionKey = 'koja-picker.selection.overlay-3';
 
 const resumedPreview = {
   part: 'list',
@@ -346,9 +429,9 @@ describe('picker preview during herdr-app check', () => {
     expect(sideEffects).toEqual([]);
   });
 
-  test('the preview part opens no preview', async () => {
+  test('the launcher opens no preview during a check', async () => {
     checkingNow = true;
-    props = { part: 'preview' };
+    props = {};
     overlayNow = 'overlay-3';
 
     const view = await loadView();
@@ -382,8 +465,8 @@ describe('picker preview during herdr-app check', () => {
     expect(heartbeat).toHaveLength(1);
   });
 
-  test('outside a check, the preview part makes a preview folder', async () => {
-    props = { part: 'preview' };
+  test('outside a check, the launcher makes a preview folder', async () => {
+    props = {};
     overlayNow = 'overlay-3';
 
     const view = await loadView();
@@ -402,6 +485,56 @@ describe('picker preview during herdr-app check', () => {
   });
 });
 
+describe('picker preview error', () => {
+  test('the Retry on the error part starts the preview again, once', async () => {
+    props = { part: 'preview-error' };
+    overlayNow = 'overlay-3';
+
+    const view = await loadView();
+
+    view.init(undefined, asyncContext);
+    view.render();
+
+    expect(clickHandlers).toHaveLength(1);
+
+    clickHandlers.at(-1)?.();
+
+    // While the attempt runs, the part draws a Retry that takes no click.
+    view.render();
+
+    expect(clickHandlers).toHaveLength(1);
+
+    await settle();
+
+    const attempts = sideEffects.filter((effect) => effect.startsWith('exec mktemp'));
+
+    expect(attempts).toHaveLength(1);
+
+    // A settled attempt offers Retry again, so a second failure is not a dead end.
+    view.render();
+
+    expect(clickHandlers).toHaveLength(2);
+  });
+
+  test('the Retry starts nothing while Herdr runs its app check', async () => {
+    props = { part: 'preview-error' };
+    overlayNow = 'overlay-3';
+    checkingNow = true;
+
+    const view = await loadView();
+
+    view.init(undefined, asyncContext);
+    view.render();
+
+    expect(clickHandlers).toHaveLength(1);
+
+    clickHandlers.at(-1)?.();
+    await settle();
+
+    expect(sideEffects).toEqual([]);
+  });
+});
+
 describe('picker overlay state', () => {
   test('installed tab actions cycle the status filter in the picker context', async () => {
     const view = await loadView();
@@ -414,7 +547,7 @@ describe('picker overlay state', () => {
     expect(emptyText).toBe('No space matches.');
 
     const steps = [
-      { keystroke: 'tab', expected: 'Nothing needs you.' },
+      { keystroke: 'tab', expected: 'Nothing is waiting.' },
       { keystroke: 'shift-tab', expected: 'No space matches.' },
       { keystroke: 'shift-tab', expected: 'Nothing is idle.' },
     ];
@@ -452,8 +585,8 @@ describe('picker overlay state', () => {
     expect(emptyText).toBe(allWithoutQuery);
 
     const presses = [
-      { keystroke: 'tab', label: 'Needs you' },
-      { keystroke: 'tab', label: 'Blocked' },
+      { keystroke: 'tab', label: 'Waiting' },
+      { keystroke: 'tab', label: 'Done' },
     ];
 
     for (const { keystroke, label } of presses) {
@@ -468,13 +601,60 @@ describe('picker overlay state', () => {
     }
   });
 
-  test('showing the list writes no shared state', async () => {
+  test('showing the list publishes the pane of its first row and no close', async () => {
+    const { space, pane } = spaceWithOnePane('s1');
+
+    spaceValues = [space];
+    paneValues = [pane];
+    overlayNow = 'overlay-3';
+
     const view = await loadView();
 
     view.init(undefined, asyncContext);
 
-    expect(sharedWrites).toEqual([]);
+    expect(sharedValues[selectionKey]).toBe('s1-pane');
+    expect(sharedWrites).toEqual([selectionKey]);
     expect(overlayCloseCount()).toBe(0);
+  });
+
+  test('a live focus change moves the published pane the header reads', async () => {
+    const { space, pane } = spaceWithOnePane('s1');
+    const other = { ...pane, pane: 's1-pane-2', focused: false };
+
+    spaceValues = [space];
+    paneValues = [pane, other];
+    overlayNow = 'overlay-3';
+
+    const view = await loadView();
+
+    view.init(undefined, asyncContext);
+    view.render();
+
+    expect(sharedValues[selectionKey]).toBe('s1-pane');
+
+    paneValues = [
+      { ...pane, focused: false },
+      { ...other, focused: true },
+    ];
+
+    view.render();
+
+    expect(sharedValues[selectionKey]).toBe('s1-pane-2');
+  });
+
+  test('closing the list clears the pane it published', async () => {
+    const { space, pane } = spaceWithOnePane('s1');
+
+    spaceValues = [space];
+    paneValues = [pane];
+    overlayNow = 'overlay-3';
+
+    const view = await loadView();
+
+    view.init(undefined, asyncContext);
+    view.close();
+
+    expect(sharedValues[selectionKey]).toBeNull();
   });
 
   test('escape records one close and closes the picker', async () => {

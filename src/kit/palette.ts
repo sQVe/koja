@@ -77,6 +77,10 @@ export const normalFocusFillAlpha = '18';
 
 export const progressTrackAlpha = '33';
 
+export const scrollThumbAlpha = '59';
+
+export const keycapOutlineAlpha = '80';
+
 export const normalFocusFill = (palette: Palette): Color =>
   withAlpha(palette.accent, normalFocusFillAlpha);
 
