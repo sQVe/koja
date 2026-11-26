@@ -89,6 +89,34 @@ describe('stackMatchOf', () => {
     expect(stackMatchOf('me-1', stack)?.reason.value).toBe('me-1-one');
   });
 
+  test('a stronger field match later outranks a weaker one', () => {
+    const stack = stackOf([
+      stackPullOf({ branch: 'some-me-1', number: 601 }),
+      stackPullOf({ branch: 'me-1-two', number: 602 }),
+    ]);
+
+    expect(stackMatchOf('me-1', stack)?.reason).toEqual({
+      value: 'me-1-two',
+      position: 2,
+      total: 2,
+      state: 'open',
+    });
+  });
+
+  test('an exact PR before a later field hit keeps the exact PR', () => {
+    const stack = stackOf([
+      stackPullOf({ branch: 'add-search', number: 504, state: 'merged' }),
+      stackPullOf({ branch: 'x504y', number: 900 }),
+    ]);
+
+    expect(stackMatchOf('504', stack)?.reason).toEqual({
+      value: '#504',
+      position: 1,
+      total: 2,
+      state: 'merged',
+    });
+  });
+
   test('an unknown state gives no state', () => {
     const stack = stackOf([stackPullOf({ branch: 'me-9-nine', ticket: 'ME-9', state: 'unknown' })]);
 
