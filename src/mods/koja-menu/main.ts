@@ -10,11 +10,11 @@ import {
   colors,
   hintFor,
   icon,
-  listRow,
   openGroveDialog,
   openWorktreeDialog,
   overlayCard,
   overlayHints,
+  overlayRow,
   paneHeaderMenuDetails,
   paneName,
   paneProgram,
@@ -26,6 +26,7 @@ import {
   spacing,
   stateLine,
   themeChoices,
+  toggleButton,
   withTextRole,
 } from '../../kit/index.ts';
 import type { Checkout, MenuEntry, MenuHost, MenuProps } from './entries.ts';
@@ -51,9 +52,12 @@ export default class Menu extends View {
 
   private checkout: Checkout = null;
 
+  private normalMode = false;
+
   private handle: FocusHandle | null = null;
 
   override init(_props: unknown, cx: AsyncContext): void {
+    this.normalMode = shared('koja-modal') === true;
     this.handle = cx.focus_handle();
     this.handle.focus();
     this.lookAtCheckout(cx);
@@ -66,7 +70,6 @@ export default class Menu extends View {
     const details = menuProps.kind === 'pane' ? paneHeaderMenuDetails(menuDetails(menuProps)) : [];
 
     const selected = selectedIndex(items, this.selected);
-    const normalMode = shared('koja-modal') === true;
 
     const menu = withTextRole(overlayCard('menu'), 'body')
       .on_key_down((event, cx) => {
@@ -74,7 +77,7 @@ export default class Menu extends View {
       })
       .children(this.title(menuProps))
       .children(details)
-      .children(items.map((_item, index) => this.row(items, index, selected, normalMode)));
+      .children(items.map((_item, index) => this.row(items, index, selected)));
 
     return this.handle === null ? menu : menu.track_focus(this.handle);
   }
@@ -95,7 +98,7 @@ export default class Menu extends View {
     const line = h_flex()
       .h(rowHeight.small)
       .flex_none()
-      .px(spacing.large + spacing.hairline)
+      .px(spacing.medium)
       .gap(spacing.small)
       .items_center()
       .child(mark)
@@ -104,7 +107,7 @@ export default class Menu extends View {
     return [line];
   }
 
-  private lookAtCheckout(cx: AsyncContext): void {
+  private lookAtCheckout(cx: Context): void {
     if (checking()) {
       return;
     }
@@ -155,7 +158,7 @@ export default class Menu extends View {
     cx.notify();
   }
 
-  private row(items: MenuEntry[], index: number, selected: number, normalMode: boolean): Element {
+  private row(items: MenuEntry[], index: number, selected: number): Element {
     const item = items[index];
     const group = v_flex();
 
@@ -164,7 +167,7 @@ export default class Menu extends View {
     }
 
     if (item.kind === 'error') {
-      return group.child(stateLine({ kind: 'error', text: item.text }));
+      return group.child(this.errorLine(item.text));
     }
 
     if (item.group) {
@@ -175,11 +178,10 @@ export default class Menu extends View {
     const start = icon(item.icon).text_color(colors().muted);
     const setting = item.state === undefined ? [] : [roleText('detail', item.state)];
     const hint = hintFor(...item.shortcuts);
-    const end = [...setting, ...overlayHints(hint, normalMode)];
+    const end = [...setting, ...overlayHints(hint, this.normalMode)];
 
-    const row = listRow({
+    const row = overlayRow({
       size: 'small',
-      inset: true,
       state,
       start,
       label: item.label,
@@ -191,5 +193,14 @@ export default class Menu extends View {
       });
 
     return group.child(row);
+  }
+
+  private errorLine(text: string): Element {
+    const retry = toggleButton({ label: 'Retry', active: false }).on_click((_event, cx) => {
+      cx.stop_propagation();
+      this.lookAtCheckout(cx);
+    });
+
+    return stateLine({ kind: 'error', text, action: retry });
   }
 }

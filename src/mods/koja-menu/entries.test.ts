@@ -46,6 +46,11 @@ const isAction = (entry: MenuEntry): entry is MenuAction => entry.kind === 'acti
 const actionsOf = (menu: MenuProps, checkout: Checkout): MenuAction[] =>
   menuEntries(menu, checkout, host).filter(isAction);
 
+const rowLabels = (menu: MenuProps, checkout: Checkout): string[] =>
+  menuEntries(menu, checkout, host).map((entry) =>
+    entry.kind === 'error' ? entry.text : entry.label,
+  );
+
 const runEntries = (menu: MenuProps, checkout: Checkout): void => {
   for (const entry of actionsOf(menu, checkout)) {
     entry.action();
@@ -154,6 +159,32 @@ describe('menu entries', () => {
 describe('menu selection', () => {
   const spaceMenu: MenuProps = { kind: 'space', target: target({ id: 'space-1' }) };
 
+  test('select the first action when the first row is an error line', () => {
+    const rows: MenuEntry[] = [
+      { kind: 'error', text: 'Could not read the checkout' },
+      {
+        kind: 'action',
+        label: 'Rename',
+        icon: 'square-pen',
+        shortcuts: [],
+        group: false,
+        action: () => undefined,
+      },
+      {
+        kind: 'action',
+        label: 'Close',
+        icon: 'x',
+        shortcuts: [],
+        group: true,
+        action: () => undefined,
+      },
+    ];
+
+    expect(selectedIndex(rows, 'Gone')).toBe(1);
+    expect(stepSelection(rows, 'Rename', 1)).toBe('Close');
+    expect(stepSelection(rows, 'Close', 1)).toBe('Rename');
+  });
+
   test('keep Close selected when Git rows load before it', () => {
     terminalList = [];
     bindings = {};
@@ -259,9 +290,7 @@ describe('menu commands', () => {
       target: target({ pane: 'pane-1', terminal: 'terminal-1' }),
     };
 
-    const labels = actionsOf(menu, null).map((entry) => entry.label);
-
-    expect(labels).toEqual(['Split right', 'Split down', 'Zoom pane', 'Close pane']);
+    expect(rowLabels(menu, null)).toEqual(['Split right', 'Split down', 'Zoom pane', 'Close pane']);
   });
 
   test('the compact menu restores a zoomed pane', () => {
@@ -272,9 +301,12 @@ describe('menu commands', () => {
       target: target({ pane: 'pane-1' }),
     };
 
-    const labels = actionsOf(menu, null).map((entry) => entry.label);
-
-    expect(labels).toEqual(['Split right', 'Split down', 'Restore pane', 'Close pane']);
+    expect(rowLabels(menu, null)).toEqual([
+      'Split right',
+      'Split down',
+      'Restore pane',
+      'Close pane',
+    ]);
   });
 
   test('read a terminal name and parent, and a right-click sent to the pane', () => {
@@ -303,6 +335,15 @@ describe('menu commands', () => {
 
     const entries = actionsOf(menu, null);
 
+    expect(rowLabels(menu, null)).toEqual([
+      'Split right',
+      'Split down',
+      'Zoom',
+      'Send right-clicks to pane',
+      'Send back to Parent',
+      'Close pane',
+    ]);
+
     for (const item of entries) {
       item.action();
     }
@@ -327,7 +368,7 @@ describe('menu commands', () => {
     const menu: MenuProps = { kind: 'pane', target: target({ terminal: 'missing' }) };
     const entries = actionsOf(menu, null);
 
-    expect(entries).toHaveLength(4);
+    expect(rowLabels(menu, null)).toEqual(['Split right', 'Split down', 'Zoom', 'Close pane']);
 
     for (const item of entries) {
       item.action();
@@ -395,6 +436,8 @@ describe('menu commands', () => {
     const menu: MenuProps = { kind: 'tab', target: target({ id: 'id-1', space: 'space-1' }) };
     const entries = actionsOf(menu, null);
 
+    expect(rowLabels(menu, null)).toEqual(['Rename', 'New tab', 'Close']);
+
     for (const item of entries) {
       item.action();
     }
@@ -414,7 +457,7 @@ describe('menu commands', () => {
     runCalls = [];
     const withoutCheckout = actionsOf(spaceMenu, null);
 
-    expect(withoutCheckout).toHaveLength(2);
+    expect(rowLabels(spaceMenu, null)).toEqual(['Rename', 'Close']);
 
     runEntries(spaceMenu, null);
 
@@ -428,6 +471,14 @@ describe('menu commands', () => {
     runCalls = [];
     dialogCalls = [];
     groveCalls = [];
+
+    expect(rowLabels(spaceMenu, 'main')).toEqual([
+      'Rename',
+      'New worktree',
+      'Open worktree',
+      'Close',
+    ]);
+
     const main = actionsOf(spaceMenu, 'main');
 
     runEntries(spaceMenu, 'main');
@@ -442,6 +493,14 @@ describe('menu commands', () => {
     runCalls = [];
     dialogCalls = [];
     groveCalls = [];
+
+    expect(rowLabels(spaceMenu, 'linked')).toEqual([
+      'Rename',
+      'New worktree',
+      'Open worktree',
+      'Remove worktree',
+      'Close',
+    ]);
 
     runEntries(spaceMenu, 'linked');
 

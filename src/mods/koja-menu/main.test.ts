@@ -1,7 +1,7 @@
 import { afterAll, beforeEach, describe, expect, mock, test } from 'bun:test';
 
 import type { DrawnElement } from '../../../tests/drawn.ts';
-import { drawn, drawnTexts } from '../../../tests/drawn.ts';
+import { click, clickablesWithText, drawn, drawnTexts, keyDown } from '../../../tests/drawn.ts';
 import {
   gpuiBaseFake,
   gpuiKitFake,
@@ -25,6 +25,14 @@ let menuProps: Record<string, unknown> = {
 let execReply = { code: 128, stdout: '', stderr: 'fatal: not a git repository' };
 
 let paneList: unknown[] = [];
+
+let terminalList: unknown[] = [];
+
+let sharedNormalMode = false;
+
+let hintModes: boolean[] = [];
+
+let askedCommands: { command: string; args: Record<string, unknown> }[] = [];
 
 const paneOf = (pane: string): unknown => ({
   pane,
@@ -53,6 +61,7 @@ const paneOf = (pane: string): unknown => ({
 const context = {
   focus_handle: () => ({ focus: () => undefined }),
   notify: () => undefined,
+  stop_propagation: () => undefined,
   spawn: (body: (cx: unknown) => Promise<void>) => {
     tasks.push(body(context));
   },
@@ -76,19 +85,23 @@ await mock.module('herdr', () =>
     },
     panes: () => paneList,
     props: () => menuProps,
+    shared: (key: string) => (key === 'koja-modal' && sharedNormalMode ? true : undefined),
     spaces: () => [{ id: 'space-1', folder: '/code/koja', machine: null, tabs: [] }],
+    terminals: () => terminalList,
   }),
 );
 
 const kitParts = [
   'askFirst',
   'binding',
+  'button',
   'hover',
   'hoverTarget',
   'icon',
   'listRow',
   'overlay/card',
   'overlay/overlay',
+  'overlay/row',
   'paneHeaderMenu',
   'paneLabel',
   'popupSurface',
@@ -106,7 +119,17 @@ const kitParts = [
 
 const kitFake = await realKitIndexFake(kitParts);
 
-await mock.module('../../kit/index.ts', () => kitFake);
+await mock.module('../../kit/index.ts', () => ({
+  ...kitFake,
+  askFirst: (command: string, args: Record<string, unknown>) => {
+    askedCommands.push({ command, args });
+  },
+  overlayHints: (_hint: unknown, normalMode: boolean) => {
+    hintModes.push(normalMode);
+
+    return [];
+  },
+}));
 
 const modulePath = './main.ts';
 
@@ -137,6 +160,10 @@ beforeEach(() => {
   menuProps = { tab: 'space', target: { id: 'space-1' } };
   execReply = { code: 128, stdout: '', stderr: 'fatal: not a git repository' };
   paneList = [];
+  terminalList = [];
+  sharedNormalMode = false;
+  hintModes = [];
+  askedCommands = [];
 });
 
 describe('space menu', () => {
@@ -162,6 +189,24 @@ describe('space menu', () => {
 
     expect(drawnTexts(view.render())).toContain('Could not read the checkout');
   });
+
+  test('reads the checkout again when the error line asks for a retry', async () => {
+    execReply = { code: 128, stdout: '', stderr: 'fatal: unable to read repository' };
+
+    const view = await openMenu();
+    const [retry] = clickablesWithText(view.render(), 'Retry');
+
+    execCalls = [];
+
+    if (retry !== undefined) {
+      click(retry, context);
+    }
+
+    await Promise.all(tasks);
+
+    expect(execCalls.length).toBeGreaterThan(0);
+    expect(execCalls.every((call) => call[0] === 'git')).toBe(true);
+  });
 });
 
 describe('pane menu', () => {
@@ -182,6 +227,83 @@ describe('pane menu', () => {
 
     expect(texts.indexOf('Claude Code')).toBe(0);
     expect(texts.indexOf('Claude Code')).toBeLessThan(texts.indexOf('Build window shell'));
+  });
+
+  test('draws the right-click row state after right-clicks turn on', () => {
+    menuProps = {
+      tab: 'pane',
+      target: { pane: 'pane-1', terminal: 'terminal-1' },
+    };
+
+    terminalList = [{ address: 'terminal-1', labels: { 'herdr.right-click': 'program' } }];
+
+    const view = new loaded.default();
+
+    view.init(null, context);
+
+    expect(drawnTexts(view.render())).toContain('on');
+  });
+
+  test('draws the right-click row state while right-clicks open the menu', () => {
+    menuProps = {
+      tab: 'pane',
+      target: { pane: 'pane-1', terminal: 'terminal-1' },
+    };
+
+    terminalList = [{ address: 'terminal-1', labels: {} }];
+
+    const view = new loaded.default();
+
+    view.init(null, context);
+
+    expect(drawnTexts(view.render())).toContain('off');
+  });
+
+  test('runs the selected row when Enter is pressed', () => {
+    menuProps = { tab: 'pane', target: { pane: 'pane-1' } };
+
+    const view = new loaded.default();
+
+    view.init(null, context);
+
+    keyDown(view.render(), 'enter', { notify: () => undefined });
+
+    expect(askedCommands).toEqual([
+      { command: 'pane.split', args: { direction: 'right', pane: 'pane-1' } },
+    ]);
+  });
+
+  test('keeps the hints of the mode the menu opened in', () => {
+    menuProps = { tab: 'pane', target: { pane: 'pane-1' } };
+    sharedNormalMode = true;
+
+    const view = new loaded.default();
+
+    view.init(null, context);
+    view.render();
+
+    sharedNormalMode = false;
+    hintModes = [];
+    view.render();
+
+    expect(hintModes.length).toBeGreaterThan(0);
+    expect(hintModes.every((normalMode) => normalMode)).toBe(true);
+  });
+
+  test('keeps the hints of insert mode after the mode turns on', () => {
+    menuProps = { tab: 'pane', target: { pane: 'pane-1' } };
+
+    const view = new loaded.default();
+
+    view.init(null, context);
+    view.render();
+
+    sharedNormalMode = true;
+    hintModes = [];
+    view.render();
+
+    expect(hintModes.length).toBeGreaterThan(0);
+    expect(hintModes.every((normalMode) => normalMode)).toBe(false);
   });
 
   test('draws the pane details before the actions', () => {
