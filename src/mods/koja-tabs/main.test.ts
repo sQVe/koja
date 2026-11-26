@@ -1,5 +1,7 @@
 import { afterAll, beforeEach, describe, expect, mock, test } from 'bun:test';
 
+import type { DrawnElement } from '../../../tests/drawn.ts';
+import { click, drawn } from '../../../tests/drawn.ts';
 import {
   chainable,
   gpuiBaseFake,
@@ -8,6 +10,7 @@ import {
   kitIndexFake,
 } from '../../../tests/moduleFakes.ts';
 import { listOf, numberOf, recordOf, stringOf } from '../../kit/fields.ts';
+import { newMenuOpenKey } from '../../kit/newMenu.ts';
 import { overlaySize, spacing } from '../../kit/size.ts';
 
 const storage = new Map<string, string>();
@@ -18,39 +21,8 @@ let overlaySpecs: Record<string, unknown>[] = [];
 let sharedWrites: { key: string; value: unknown }[] = [];
 let sharedValues: Record<string, unknown> = {};
 let zoom = 1;
-let plusPress: ((event: unknown, cx: unknown) => void) | null = null;
-let plusClick: (() => void) | null = null;
-
-const plusButton = (): unknown => {
-  const element: unknown = new Proxy(() => undefined, {
-    get: (_target, key) => {
-      if (key === 'on_mouse_down') {
-        return (_button: string, handler: (event: unknown, cx: unknown) => void) => {
-          plusPress = handler;
-
-          return element;
-        };
-      }
-
-      if (key === 'on_click') {
-        return (handler: () => void) => {
-          plusClick = handler;
-
-          return element;
-        };
-      }
-
-      if (key === 'then') {
-        return undefined;
-      }
-
-      return () => element;
-    },
-    apply: () => element,
-  });
-
-  return element;
-};
+let plusButton: DrawnElement | null = null;
+let toggleStates: boolean[] = [];
 
 const context = { notify: () => undefined, stop_propagation: () => undefined };
 
@@ -103,7 +75,12 @@ await mock.module('../../kit/index.ts', () =>
     },
     icon: chainable,
     iconButton: chainable,
-    iconToggle: () => plusButton(),
+    iconToggle: (options: { active: boolean }) => {
+      toggleStates.push(options.active);
+      plusButton = drawn();
+
+      return plusButton;
+    },
     overlaySize,
     spacing,
     indicator: chainable,
@@ -146,8 +123,8 @@ beforeEach(() => {
   sharedWrites = [];
   sharedValues = {};
   zoom = 1;
-  plusPress = null;
-  plusClick = null;
+  plusButton = null;
+  toggleStates = [];
 });
 
 describe('tabs saved panels', () => {
@@ -186,24 +163,34 @@ describe('tabs saved panels', () => {
   });
 });
 
-describe('the new menu button', () => {
-  test('opens the menu under the plus, scaled by the app zoom', () => {
-    zoom = 1.25;
+// A press in the middle of a 22 px button whose right edge sits at x 212 and bottom at y 32.
+const pressPlus = (): void => {
+  if (plusButton === null) {
+    return;
+  }
 
-    const view = new loaded.default();
-
-    view.render();
-
-    plusPress?.(
+  for (const handler of plusButton.mouseHandlers['on_mouse_down:left'] ?? []) {
+    handler(
       {
-        position: { x: 200, y: 20 },
-        local_position: { x: 10, y: 10 },
+        position: { x: 212 - 11, y: 32 - 11 },
+        local_position: { x: 11, y: 11 },
         bounds: { width: 22, height: 22 },
       },
       context,
     );
+  }
+};
 
-    plusClick?.();
+describe('the new menu button', () => {
+  test('opens the menu under the plus at its own size', () => {
+    const view = new loaded.default();
+
+    view.render();
+    pressPlus();
+
+    if (plusButton !== null) {
+      click(plusButton);
+    }
 
     expect(overlaySpecs).toEqual([
       {
@@ -212,18 +199,62 @@ describe('the new menu button', () => {
         frame: 'none',
         width: overlaySize.newMenuWidth,
         height: overlaySize.wideMenuHeight,
-        at: { x: 212 - overlaySize.newMenuWidth * zoom, y: 32 + spacing.xsmall * zoom },
+        at: { x: 212 - overlaySize.newMenuWidth, y: 32 + spacing.xsmall },
       },
     ]);
   });
 
-  test('clears a pressed plus left by a session that ended with the menu open', () => {
-    sharedValues['koja-new-menu.open'] = true;
+  test('opens the menu under the plus at twice the zoom', () => {
+    zoom = 2;
 
     const view = new loaded.default();
 
-    view.init(null, context);
+    view.render();
+    pressPlus();
 
-    expect(sharedWrites).toEqual([{ key: 'koja-new-menu.open', value: false }]);
+    if (plusButton !== null) {
+      click(plusButton);
+    }
+
+    const [opened] = overlaySpecs;
+
+    expect(opened?.['at']).toEqual({
+      x: 212 - 2 * overlaySize.newMenuWidth,
+      y: 32 + 2 * spacing.xsmall,
+    });
+  });
+
+  test('opens the menu at the pointer when the press carried no box', () => {
+    const view = new loaded.default();
+
+    view.render();
+
+    if (plusButton !== null) {
+      click(plusButton);
+    }
+
+    expect(overlaySpecs[0]?.['at']).toBeUndefined();
+  });
+
+  test('draws the plus pressed while the menu is open', () => {
+    sharedValues[newMenuOpenKey] = true;
+
+    new loaded.default().render();
+
+    expect(toggleStates).toEqual([true]);
+  });
+
+  test('clears a pressed plus left by a session that ended with the menu open', () => {
+    sharedValues[newMenuOpenKey] = true;
+
+    new loaded.default().init(null, context);
+
+    expect(sharedWrites).toEqual([{ key: newMenuOpenKey, value: false }]);
+  });
+
+  test('leaves the shared state alone when no menu was open at the last end', () => {
+    new loaded.default().init(null, context);
+
+    expect(sharedWrites).toEqual([]);
   });
 });

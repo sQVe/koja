@@ -132,18 +132,19 @@ const showPanel = (panel: string | null): void => {
   run('layout.show', { id: 'panel' });
 };
 
+const appZoom = (): number => numberOf(settings()['zoom']) ?? 1;
+
 const windowButtonsPadding = (): number => {
   const shown = currentWindow();
   const sidebar = findLayoutNode('sidebar');
   const sidebarWidth = sidebar?.hidden === true ? 0 : (sidebar?.sizePx ?? 0);
-  const zoom = numberOf(settings()['zoom']) ?? 1;
 
   return trafficLightsPadding({
     platform: shown?.platform ?? 'linux',
     titlebar: shown?.titlebar ?? 'system',
     fullscreen: shown?.fullscreen ?? false,
     lights: layoutRoot().trafficLights,
-    zoom,
+    zoom: appZoom(),
     offset: sidebarWidth,
     base: spacing.none,
   });
@@ -322,8 +323,7 @@ export default class Tabs extends View {
         this.plusBox = pressedBox(event);
       })
       .on_click(() => {
-        const zoom = numberOf(settings()['zoom']) ?? 1;
-        const at = newMenuPoint(this.plusBox, zoom);
+        const at = newMenuPoint(this.plusBox, appZoom());
 
         openOverlay({
           mod: 'koja-new-menu',
@@ -331,7 +331,7 @@ export default class Tabs extends View {
           frame: 'none',
           width: overlaySize.newMenuWidth,
           height: overlaySize.wideMenuHeight,
-          at: at ?? { x: 400, y: 200 },
+          ...(at === null ? {} : { at }),
         });
       });
 
