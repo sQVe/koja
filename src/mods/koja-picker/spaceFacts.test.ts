@@ -11,7 +11,7 @@ interface WorktreeFixture {
   commonDirectory: string;
   branch: string;
   linked: boolean;
-  bare?: boolean;
+  bare: boolean;
 }
 
 interface PullFixture {
@@ -142,7 +142,7 @@ const stored = (
       root: fixture.root,
       branch: fixture.branch,
       linked: fixture.linked,
-      bare: fixture.bare ?? false,
+      bare: fixture.bare,
     };
   }
 
@@ -286,7 +286,7 @@ describe('spaceFacts', () => {
           commonDirectory: '/code/bare.git',
           branch: 'main',
           linked: false,
-          bare: false,
+          bare: true,
         },
       ],
       [],
