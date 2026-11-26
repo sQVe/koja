@@ -262,7 +262,7 @@ const parsePlace = (value: unknown, worktrees: Record<string, WorktreeGit>): Pla
   return { kind, worktree };
 };
 
-const parseGitFacts = (value: unknown, withBare: boolean): GitFacts | null => {
+const parseGitFacts = (value: unknown, shape: FactsShape): GitFacts | null => {
   if (!isRecord(value)) {
     return null;
   }
@@ -286,7 +286,7 @@ const parseGitFacts = (value: unknown, withBare: boolean): GitFacts | null => {
   const worktreeEntries: [string, WorktreeGit][] = [];
 
   for (const [key, worktree] of Object.entries(worktrees)) {
-    const parsed = parseWorktree(key, worktree, withBare);
+    const parsed = parseWorktree(key, worktree, shape === 'current');
 
     if (parsed === null) {
       return null;
@@ -627,7 +627,7 @@ const parseGitAndPulls = (
     return null;
   }
 
-  const git = parseGitFacts(value.git, shape === 'current');
+  const git = parseGitFacts(value.git, shape);
 
   if (git === null) {
     return null;
@@ -701,7 +701,7 @@ const parseGitOnlyFacts = (value: unknown): Facts | null => {
     return null;
   }
 
-  const git = parseGitFacts(value.git, false);
+  const git = parseGitFacts(value.git, 'beforeStacks');
 
   if (git === null) {
     return null;

@@ -117,6 +117,17 @@ describe('parseSnapshot', () => {
       linked: false,
     };
 
+    worktrees[worktreeOf(null, '/code/project/me-1').key] = {
+      repository: {
+        machine: null,
+        commonDirectory: '/code/project/.bare',
+        key: repositoryOf(null, '/code/project/.bare').key,
+      },
+      root: '/code/project/me-1',
+      branch: 'me-1',
+      linked: true,
+    };
+
     const parsed = parseSnapshot({ ...stored, version: 7 });
     const parsedWorktrees = parsed?.facts.git.worktrees ?? {};
 
@@ -128,6 +139,7 @@ describe('parseSnapshot', () => {
     expect(barenessOf('/code/bare.git')).toBe(true);
     expect(barenessOf('/code/bare/')).toBe(true);
     expect(barenessOf('/code/project')).toBe(true);
+    expect(barenessOf('/code/project/me-1')).toBe(false);
   });
 
   test('a version 6 snapshot reads with empty stacks', () => {
