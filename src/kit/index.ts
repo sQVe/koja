@@ -29,6 +29,8 @@ export { listRow } from './listRow.ts';
 
 export { overlayCard } from './overlay/card.ts';
 
+export { newMenuOpenKey } from './newMenu.ts';
+
 export { footerLine, searchLine } from './overlay/lines.ts';
 
 export {
@@ -85,7 +87,6 @@ export {
   paneHeaderWidth,
   radius,
   rowHeight,
-  separatorHeight,
   shellSize,
   sidebarSize,
   spacing,
