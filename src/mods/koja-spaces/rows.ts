@@ -2,7 +2,7 @@ import type { Pull } from '../../data/pulls.ts';
 
 export type RowCut = 'middle' | 'end';
 
-const showsTitle = (title: string | null): title is string => title !== null && title !== '';
+export const showsTitle = (title: string | null): title is string => title !== null && title !== '';
 
 const showsOwnTitle = (named: boolean, pull: Pull | null, ticketTitle: string | null): boolean => {
   if (named) {

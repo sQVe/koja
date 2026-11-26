@@ -1,7 +1,6 @@
 import { describe, expect, test } from 'bun:test';
 
 import { pullFacts } from '../../tests/pullFacts.ts';
-import { rowTitleOf } from '../mods/koja-spaces/rows.ts';
 import { placeOf, repositoryOf, worktreeOf } from './gitIdentity.ts';
 import { ticketIdOf } from './linearTickets.ts';
 import type { Pull } from './pulls.ts';
@@ -13,7 +12,7 @@ interface Fixture {
   stack: string[];
   branch: string;
   pulls?: Pull[];
-  pullNumber?: number;
+  pullNumbers?: Record<string, number | null>;
   parents?: Record<string, string>;
   readParent?: boolean;
 }
@@ -48,11 +47,9 @@ const factsOf = (fixture: Fixture): Facts => {
     }
   }
 
-  const pullNumber = fixture.pullNumber ?? null;
-
   const branches = fixture.stack.map((branch): StackBranch => ({
     branch,
-    pullNumber,
+    pullNumber: fixture.pullNumbers?.[branch] ?? null,
     restack: 'none',
   }));
 
@@ -94,6 +91,7 @@ describe('spaceStackOf', () => {
       stack: ['me-1-one', 'me-2-two', 'me-3-three'],
       branch: 'me-2-two',
       pulls: [pullOf('me-1-one', 11, 'MERGED'), pullOf('me-2-two', 12, 'OPEN')],
+      pullNumbers: { 'me-3-three': 13 },
     });
 
     expect(spaceStackOf(facts, worktree.key)).toEqual({
@@ -119,7 +117,7 @@ describe('spaceStackOf', () => {
         {
           branch: 'me-3-three',
           ticket: 'ME-3',
-          number: null,
+          number: 13,
           title: null,
           state: 'unknown',
           checkedOut: false,
@@ -135,7 +133,7 @@ describe('spaceStackOf', () => {
     const facts = factsOf({
       stack: ['me-1-one'],
       branch: 'me-1-one',
-      pullNumber: 7,
+      pullNumbers: { 'me-1-one': 7 },
     });
 
     expect(spaceStackOf(facts, worktree.key)?.pulls).toEqual([
@@ -194,18 +192,5 @@ describe('stackTitleOf', () => {
     });
 
     expect(stackTitleOf(facts, worktree.key)).toBeNull();
-  });
-
-  test('a named space keeps its name over the stack title', () => {
-    const facts = factsOf({
-      stack: ['me-1-one', 'me-2-two'],
-      branch: 'me-1-one',
-      parents: { 'ME-1': 'ME-9', 'ME-2': 'ME-9' },
-    });
-
-    const title = stackTitleOf(facts, worktree.key);
-
-    expect(title).toBe('Title of ME-9');
-    expect(rowTitleOf(true, 'My name', null, title)).toBe('My name');
   });
 });

@@ -13,8 +13,10 @@ import {
   state,
   storedFacts,
 } from '../../../tests/kojaSpacesView.ts';
+import { stacksOf } from '../../../tests/stackFixtures.ts';
 import { readDataState } from '../../data/consumer.ts';
 import { repositoryOf } from '../../data/gitIdentity.ts';
+import type { Facts } from '../../data/snapshot.ts';
 
 await setupKojaSpaces();
 
@@ -77,16 +79,27 @@ const ticketFacts = (id: string, title: string, parent: string | null = null) =>
   parent,
 });
 
+const checkouts = [
+  { folder: '/code/koja', commonDirectory: '/code/koja/.git', linked: false },
+  {
+    folder: '/code/me-666-login',
+    commonDirectory: '/code/koja/.git',
+    linked: true,
+    branch: 'me-666-login',
+  },
+];
+
+const showWorktreeFacts = (facts: Facts, named = false): void => {
+  showFacts(facts);
+
+  state.spaceList = [
+    space('m', true, '/code/koja'),
+    { ...space('w', false, '/code/me-666-login'), named },
+  ];
+};
+
 const useTicketFacts = (): void => {
-  const facts = storedFacts([
-    { folder: '/code/koja', commonDirectory: '/code/koja/.git', linked: false },
-    {
-      folder: '/code/me-666-login',
-      commonDirectory: '/code/koja/.git',
-      linked: true,
-      branch: 'me-666-login',
-    },
-  ]);
+  const facts = storedFacts(checkouts);
 
   facts.trackers = {
     [kojaRepositoryKey]: {
@@ -96,28 +109,16 @@ const useTicketFacts = (): void => {
     },
   };
 
-  showFacts(facts);
-
-  state.spaceList = [
-    space('m', true, '/code/koja'),
-    { ...space('w', false, '/code/me-666-login'), named: false },
-  ];
+  showWorktreeFacts(facts);
 };
 
 const useStackFacts = (
   parent: string,
   secondParent: string,
   parentTitle = 'The shared parent',
+  named = false,
 ): void => {
-  const facts = storedFacts([
-    { folder: '/code/koja', commonDirectory: '/code/koja/.git', linked: false },
-    {
-      folder: '/code/me-666-login',
-      commonDirectory: '/code/koja/.git',
-      linked: true,
-      branch: 'me-666-login',
-    },
-  ]);
+  const facts = storedFacts(checkouts);
 
   facts.trackers = {
     [kojaRepositoryKey]: {
@@ -132,28 +133,9 @@ const useStackFacts = (
     },
   };
 
-  facts.stacks = {
-    [kojaRepositoryKey]: {
-      stacks: [
-        {
-          trunk: 'main',
-          branches: ['me-666-login', 'me-667-logout'].map((branch) => ({
-            branch,
-            pullNumber: null,
-            restack: 'none' as const,
-          })),
-        },
-      ],
-      failed: false,
-    },
-  };
+  facts.stacks = stacksOf(repositoryOf(null, '/code/koja/.git'), ['me-666-login', 'me-667-logout']);
 
-  showFacts(facts);
-
-  state.spaceList = [
-    space('m', true, '/code/koja'),
-    { ...space('w', false, '/code/me-666-login'), named: false },
-  ];
+  showWorktreeFacts(facts, named);
 };
 
 describe('koja-spaces stack title', () => {
@@ -174,6 +156,17 @@ describe('koja-spaces stack title', () => {
     const texts = drawnTexts(view.render());
 
     expect(texts).toContain('Log in with a ticket');
+  });
+
+  test('a named space keeps its name over the stack title', async () => {
+    anotherOwner();
+    useStackFacts('ME-100', 'ME-100', 'The shared parent', true);
+
+    const view = await loadView();
+    const texts = drawnTexts(view.render());
+
+    expect(texts).toContain('name-w');
+    expect(texts).not.toContain('The shared parent');
   });
 
   test('titles a stack row with its own ticket when the parents differ', async () => {

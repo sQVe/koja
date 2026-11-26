@@ -12,7 +12,7 @@ interface StackPull {
   title: string | null;
   state: 'open' | 'draft' | 'merged' | 'closed' | 'unknown';
   checkedOut: boolean;
-  restack: 'needed' | 'none' | 'unknown';
+  restack: StackBranch['restack'];
 }
 
 export interface SpaceStack {

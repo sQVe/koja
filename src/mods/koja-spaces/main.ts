@@ -55,6 +55,7 @@ import { projectRows } from './projectRows.ts';
 import type { Project } from './projects.ts';
 import { groupProjects, shownSpaces } from './projects.ts';
 import { pullOf } from './pulls.ts';
+import { showsTitle } from './rows.ts';
 import type { ProjectChildren } from './spaceDrop.ts';
 import { canDrop, dropMoves, projectDropMoves } from './spaceDrop.ts';
 import { createOrderPublisher } from './spaceOrder.ts';
@@ -113,7 +114,7 @@ const ticketTitleAt = (state: DataState, row: ListedSpace): string | null => {
 
   const stackTitle = stackTitleOf(state.snapshot.facts, row.git.worktreeKey);
 
-  if (stackTitle !== null && stackTitle !== '') {
+  if (showsTitle(stackTitle)) {
     return stackTitle;
   }
 
