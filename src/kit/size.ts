@@ -194,6 +194,8 @@ export const sidebarSize = {
 export const indentWidth = 20;
 
 export const overlaySize = {
+  // The key hint card sits this far above the bottom of the panes it describes.
+  cardGapAbovePanes: 24,
   menuWidth: 200,
   menuHeight: 260,
   // Wide enough for the new menu's worktree rows.

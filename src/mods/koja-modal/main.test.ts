@@ -71,6 +71,7 @@ const shiftTab: NormalKeyEvent = {
 let focusedPane: string | null = 'p1';
 let focusedTab = 'tab-1';
 let runCalls: RunCall[] = [];
+let openOverlayCalls: Record<string, unknown>[] = [];
 let askFirstCalls: RunCall[] = [];
 let askFirstOpensDialog = false;
 let closeCalls: (string | null)[] = [];
@@ -226,6 +227,11 @@ await mock.module('herdr', () =>
       cwd: null,
     }),
     nextCommand,
+    openOverlay: (spec: Record<string, unknown>) => {
+      openOverlayCalls.push(spec);
+
+      return 'hints-1';
+    },
     panes: () => [
       { pane: 'p1', tab: 'tab-1' },
       { pane: 'p2', tab: 'tab-1' },
@@ -346,6 +352,7 @@ beforeEach(() => {
   focusedPane = 'p1';
   focusedTab = 'tab-1';
   runCalls = [];
+  openOverlayCalls = [];
   askFirstCalls = [];
   askFirstOpensDialog = false;
   closeCalls = [];
@@ -389,6 +396,126 @@ describe('koja modal view', () => {
     keyDownHandler?.(plain('n'));
 
     expect(runCalls).toEqual([{ command: 'tab.new', args: undefined }]);
+  });
+
+  test('a part letter opens the key hint card for that part', async () => {
+    const view = await loadView();
+
+    view.render();
+
+    keyDownHandler?.(plain('w'));
+
+    expect(openOverlayCalls).toEqual([
+      {
+        mod: 'koja-hints',
+        kind: 'window',
+        frame: 'none',
+        width: 1,
+        height: 1,
+        props: { part: 'w', count: null, list: false },
+      },
+    ]);
+  });
+
+  test('a count before a part letter reaches the card', async () => {
+    const view = await loadView();
+
+    view.render();
+
+    keyDownHandler?.(plain('3'));
+    keyDownHandler?.(plain('g'));
+
+    expect(openOverlayCalls.map((call) => call['props'])).toEqual([
+      { part: 'g', count: 3, list: false },
+    ]);
+  });
+
+  test('a marked list reaches the card', async () => {
+    const view = await loadView();
+
+    view.render();
+
+    markSidebar();
+    keyDownHandler?.(plain('g'));
+
+    expect(openOverlayCalls.map((call) => call['props'])).toEqual([
+      { part: 'g', count: null, list: true },
+    ]);
+  });
+
+  test('the key after a part letter runs its action and closes the card', async () => {
+    const view = await loadView();
+
+    view.render();
+
+    keyDownHandler?.(plain('w'));
+    keyDownHandler?.(plain('v'));
+
+    expect(runCalls).toEqual([{ command: 'pane.split', args: { direction: 'right' } }]);
+    expect(closeCalls).toEqual(['hints-1']);
+  });
+
+  test('a key that cancels the sequence closes the card', async () => {
+    const view = await loadView();
+
+    view.render();
+
+    keyDownHandler?.(plain('w'));
+    keyDownHandler?.(plain('i'));
+
+    expect(runCalls).toEqual([]);
+    expect(closeCalls).toEqual(['hints-1']);
+  });
+
+  test('a cancel command closes the card and drops the pending part', async () => {
+    const view = await loadView();
+
+    view.render();
+    keyDownHandler?.(plain('w'));
+
+    deliverCommand('cancel');
+    await flush();
+
+    expect(closeCalls).toEqual(['hints-1']);
+
+    keyDownHandler?.(plain('v'));
+
+    expect(runCalls).toEqual([]);
+  });
+
+  test('closing normal mode closes the open key hint card', async () => {
+    const view = await loadView();
+
+    view.render();
+    keyDownHandler?.(plain('w'));
+
+    view.close();
+
+    expect(closeCalls).toContain('hints-1');
+  });
+
+  test('a batch of keys opens no card', async () => {
+    const view = await loadView();
+
+    view.render();
+    runNormalKeys(herdrHost, ['w', 'v']);
+    runCalls = [];
+
+    deliverCommand('run-keys');
+    await flush();
+
+    expect(openOverlayCalls).toEqual([]);
+    expect(runCalls).toEqual([{ command: 'pane.split', args: { direction: 'right' } }]);
+  });
+
+  test('a ctrl-w prefix opens no card', async () => {
+    const view = await loadView();
+
+    view.render();
+
+    keyDownHandler?.(control('w', 'ctrl-w'));
+
+    expect(openOverlayCalls).toEqual([]);
   });
 
   test('i closes the overlay', async () => {
