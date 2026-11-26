@@ -212,9 +212,9 @@ export const elementWithIcon = (element: DrawnElement, name: string): DrawnEleme
 export const clickablesWithIcon = (element: DrawnElement, name: string): DrawnElement[] =>
   clickables(element).filter((part) => elementWithIcon(part, name) !== null);
 
-export const keyDown = (element: DrawnElement, key: string, cx: unknown): void => {
+export const keyDown = (element: DrawnElement, event: { key: string }, cx: unknown): void => {
   for (const handler of element.keyHandlers) {
-    handler({ key }, cx);
+    handler(event, cx);
   }
 };
 
