@@ -19,6 +19,7 @@ import {
   terminals,
 } from 'herdr';
 
+import { readDataState } from '../../data/consumer.ts';
 import {
   closeOverlay as closeCurrentOverlay,
   currentWindow,
@@ -36,9 +37,10 @@ import {
 import type { LayoutNode } from '../../kit/layout.ts';
 import { parsedJson } from '../../kit/parsedJson.ts';
 import type { AskAges } from './askAges.ts';
-import { askAgeOf, readAskAges, trackAskAges } from './askAges.ts';
+import { askAgeOf, trackAskAges } from './askAges.ts';
 import type { Ask } from './askFacts.ts';
 import { asksOf, unseenAsks } from './askFacts.ts';
+import { askProjects } from './askProjects.ts';
 import type {
   AskRow,
   CardBox,
@@ -94,16 +96,7 @@ const openKey = 'koja-asks.open';
 
 const listKey = 'koja-asks.list';
 
-const agesKey = 'koja-asks.ages';
-
 const tickMilliseconds = 500;
-
-const storage = {
-  get: (key: string): string | null => localStorage.getItem(key),
-  set: (key: string, value: string): void => {
-    localStorage.setItem(key, value);
-  },
-};
 
 const textOf = (record: Record<string, unknown>, key: string): string =>
   stringOf(record[key]) ?? '';
@@ -273,8 +266,6 @@ export default class KojaAsks extends View {
       return;
     }
 
-    this.ages = readAskAges(storage.get(agesKey));
-
     repeat(cx, tickMilliseconds, () => {
       // A failed read retries on the next tick.
       void this.tick().catch(() => undefined);
@@ -388,19 +379,13 @@ export default class KojaAsks extends View {
   }
 
   private trackAges(live: readonly Ask[]): AskAges {
-    const advance = trackAskAges(
+    this.ages = trackAskAges(
       this.ages,
       live.map((ask) => ask.identity),
       Date.now(),
     );
 
-    this.ages = advance.ages;
-
-    if (advance.changed) {
-      storage.set(agesKey, JSON.stringify(advance.ages));
-    }
-
-    return advance.ages;
+    return this.ages;
   }
 
   private snapshot(): Snapshot {
@@ -409,12 +394,10 @@ export default class KojaAsks extends View {
       windowActive: currentWindow()?.active === true,
     };
 
-    const live = asksOf({
-      terminals: terminals(),
-      agents: agents(),
-      spaces: spaces(),
-      panes: panes(),
-    });
+    const spaceList = spaces();
+    const paneList = panes();
+    const projects = askProjects(readDataState(shared, Date.now()), spaceList, paneList);
+    const live = asksOf({ terminals: terminals(), agents: agents(), projects });
 
     const asks = unseenAsks(live, view);
     const visible = live.filter((ask) => !asks.includes(ask));

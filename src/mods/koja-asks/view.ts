@@ -220,12 +220,24 @@ const rowElement = (row: AskRow, actions: CardActions): Element => {
 };
 
 export const listElement = (rows: readonly AskRow[], actions: CardActions): Element => {
-  const column = v_flex()
+  const body = v_flex()
+    .id('koja-ask-list-rows')
+    .flex_1()
+    .min_h(0)
     .gap(listGap)
-    .child(listTitleRow(rows, actions))
+    .overflow_y_scrollbar()
     .children(rows.map((row) => rowElement(row, actions)));
 
+  const column = v_flex()
+    .flex_1()
+    .min_h(0)
+    .gap(listGap)
+    .child(listTitleRow(rows, actions))
+    .child(body);
+
   const card = overlayCard('koja-ask-list')
+    .h_full()
+    .min_h(0)
     .gap(spacing.none)
     .on_mouse_down('left', stopPress)
     .child(column);

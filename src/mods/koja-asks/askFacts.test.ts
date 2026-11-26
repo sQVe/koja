@@ -1,7 +1,5 @@
 import { describe, expect, test } from 'bun:test';
 
-import type { SpaceInfo } from 'herdr';
-
 import type { AskAgent } from './askFacts.ts';
 import { asksOf, unseenAsks } from './askFacts.ts';
 
@@ -18,14 +16,11 @@ const agent = (overrides: Partial<AskAgent> = {}): AskAgent => ({
 
 const defaultReport = { state: 'blocked', kind: 'permission', msg: 'bun run up' };
 
-const space = (id: string, folder: string): SpaceInfo =>
-  ({ id, folder, tabs: [] }) as unknown as SpaceInfo;
-
 const sources = (
   terminals: readonly unknown[],
   agents: readonly AskAgent[],
-  spaces: readonly SpaceInfo[] = [space('s1', '/code/koja/me-1226')],
-) => ({ terminals, agents, spaces, panes: [] });
+  projects: ReadonlyMap<string, string> = new Map([['s1', 'koja']]),
+) => ({ terminals, agents, projects });
 
 const blocked = (
   report?: Record<string, unknown>,
@@ -56,20 +51,14 @@ describe('asksOf', () => {
     });
   });
 
-  test('names the project from the space folder', () => {
+  test('names the project of the asking space', () => {
     const asks = asksOf(sources([blocked()], [agent()]));
 
-    expect(asks[0]?.project).toBe('me-1226');
+    expect(asks[0]?.project).toBe('koja');
   });
 
-  test('names the space when its folder has no last part', () => {
-    const asks = asksOf(sources([blocked()], [agent()], [space('s1', '/')]));
-
-    expect(asks[0]?.project).toBe('Build window shell');
-  });
-
-  test('names the space when it is not in the space list', () => {
-    const asks = asksOf(sources([blocked()], [agent()], []));
+  test('names the space when it has no project', () => {
+    const asks = asksOf(sources([blocked()], [agent()], new Map()));
 
     expect(asks[0]?.project).toBe('Build window shell');
   });

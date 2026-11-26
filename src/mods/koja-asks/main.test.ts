@@ -97,17 +97,6 @@ const layout = {
   ],
 };
 
-const store = new Map<string, string>();
-
-Object.assign(globalThis, {
-  localStorage: {
-    getItem: (key: string) => store.get(key) ?? null,
-    setItem: (key: string, value: string) => {
-      store.set(key, value);
-    },
-  },
-});
-
 let focusedTab = 'k2';
 let terminalsValue: Record<string, unknown>[] = [blockedTerminal];
 let agentsValue = [agent];
@@ -266,7 +255,6 @@ beforeEach(() => {
   readDeferred = null;
   readPaths = [];
   boundsValue = { state: 'windowed', bounds: [0, 0, 1280, 820] };
-  store.clear();
 });
 
 describe('the ask host', () => {
@@ -400,27 +388,79 @@ describe('the ask host', () => {
     expect(values['koja-asks.handled']).toEqual([ask.identity, 't2:permission:bun run check']);
   });
 
-  test('opens the list of every unseen ask with its project and age', async () => {
+  test('opens the list of every unseen ask with its space, project, age, and command', async () => {
     terminalsValue = [blockedTerminal, blockedTerminal2];
     agentsValue = [agent, agent2];
     values['koja-asks.list'] = true;
-
-    store.set(
-      'koja-asks.ages',
-      JSON.stringify({
-        [secondAsk.identity]: Date.now() - 120_000,
-        [ask.identity]: Date.now() - 300_000,
-      }),
-    );
 
     await runHost();
 
     expect(opened[0]?.props).toMatchObject({
       rows: [
-        { ask: { address: 't2', spaceName: 'Hill-climb' }, project: 'tau', age: '2m' },
-        { ask: { address: 't1', spaceName: 'Build window shell' }, project: 'koja', age: '5m' },
+        {
+          ask: {
+            address: 't2',
+            spaceName: 'Hill-climb',
+            question: 'Allow this command?',
+            command: 'bun run check',
+          },
+          project: 'tau',
+          age: 'now',
+        },
+        {
+          ask: {
+            address: 't1',
+            spaceName: 'Build window shell',
+            question: 'Allow this command?',
+            command: 'bun run sandbox up',
+          },
+          project: 'koja',
+          age: 'now',
+        },
       ],
     });
+  });
+
+  test('lists a third unseen ask and skips a handled one', async () => {
+    const thirdTerminal = {
+      address: 't3',
+      parent: null,
+      labels: {},
+      report: { state: 'blocked', kind: 'question', msg: 'Which judge?' },
+    };
+
+    const thirdAgent = { ...agent2, address: 't3', pane: 'p3', tab: 'k4', seq: 3 };
+
+    terminalsValue = [blockedTerminal, blockedTerminal2, thirdTerminal];
+    agentsValue = [agent, agent2, thirdAgent];
+    values['koja-asks.handled'] = [secondAsk.identity];
+    values['koja-asks.list'] = true;
+
+    await runHost();
+
+    const props = opened[0]?.props as { rows: { ask: { address: string } }[] } | undefined;
+
+    expect(props?.rows.map((row) => row.ask.address)).toEqual(['t3', 't1']);
+  });
+
+  test('does not open a list for a new queue after every ask left', async () => {
+    terminalsValue = [blockedTerminal, blockedTerminal2];
+    agentsValue = [agent, agent2];
+    values['koja-asks.list'] = true;
+
+    await runHost();
+
+    terminalsValue = [];
+    await tick();
+
+    expect(values['koja-asks.list']).toBeNull();
+
+    terminalsValue = [blockedTerminal];
+    opened = [];
+
+    await tick();
+
+    expect(opened[0]?.props).toMatchObject({ rows: null });
   });
 
   test('opens the list taller than the card', async () => {

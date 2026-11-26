@@ -1,38 +1,59 @@
 import { describe, expect, test } from 'bun:test';
 
-import { askAgeOf, readAskAges, trackAskAges } from './askAges.ts';
+import { askAgeOf, trackAskAges } from './askAges.ts';
 
 const now = 1_700_000_000_000;
 
-describe('readAskAges', () => {
-  test('reads the times of stored asks', () => {
-    expect(readAskAges('{"a":1700000000000}')).toEqual({ a: 1_700_000_000_000 });
-  });
+const identities = ['a', 'b', 'c', 'd', 'e'];
 
-  test('drops a value that is not a time and a text that is not a record', () => {
-    expect(readAskAges('{"a":"soon","b":12}')).toEqual({ b: 12 });
-    expect(readAskAges('[[1]]')).toEqual({});
-    expect(readAskAges(null)).toEqual({});
-  });
-});
+// A deterministic generator, so a failing run repeats with the same inputs.
+const nextRandom = (seed: number): (() => number) => {
+  let state = seed;
+
+  return () => {
+    state = (state * 1_103_515_245 + 12_345) % 2_147_483_648;
+
+    return state / 2_147_483_648;
+  };
+};
+
+const sample = <T>(values: readonly T[], random: () => number): T[] =>
+  values.filter(() => random() < 0.5);
 
 describe('trackAskAges', () => {
-  test('keeps a known ask and starts a new one at the current time', () => {
-    const advance = trackAskAges({ a: 1000 }, ['a', 'b'], now);
-
-    expect(advance.ages).toEqual({ a: 1000, b: now });
-    expect(advance.changed).toBe(true);
+  test('starts a new ask at the current time and keeps a known one', () => {
+    expect(trackAskAges({ a: 1000 }, ['a', 'b'], now)).toEqual({ a: 1000, b: now });
   });
 
   test('drops an ask that is gone', () => {
-    const advance = trackAskAges({ a: 1000, b: 2000 }, ['a'], now);
-
-    expect(advance.ages).toEqual({ a: 1000 });
-    expect(advance.changed).toBe(true);
+    expect(trackAskAges({ a: 1000, b: 2000 }, ['a'], now)).toEqual({ a: 1000 });
   });
 
-  test('reports no change when the same asks stay', () => {
-    expect(trackAskAges({ a: 1000 }, ['a'], now)).toEqual({ ages: { a: 1000 }, changed: false });
+  test('keeps every known age and prunes only the gone asks', () => {
+    const random = nextRandom(20_261_126);
+
+    for (let run = 0; run < 200; run += 1) {
+      const before: Record<string, number> = {};
+      const start = Math.floor(random() * 1_000_000);
+
+      for (const identity of sample(identities, random)) {
+        before[identity] = start;
+      }
+
+      const live = sample(identities, random);
+      const next = trackAskAges(before, live, now);
+
+      const expected = [...new Set(live)].toSorted();
+      const keys = Object.keys(next).toSorted();
+
+      expect(keys).toEqual(expected);
+
+      for (const identity of live) {
+        expect(next[identity]).toBe(before[identity] ?? now);
+      }
+
+      expect(trackAskAges(next, live, now + 60_000)).toEqual(next);
+    }
   });
 });
 

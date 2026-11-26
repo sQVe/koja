@@ -160,6 +160,18 @@ describe('listElement', () => {
     ]);
   });
 
+  test('puts the rows in a scrolling body under the title', () => {
+    const list = listElement(rows, actions);
+    const body = elementsWithStyle(list, 'overflow_y_scrollbar')[0];
+
+    expect(body).toBeDefined();
+
+    if (body !== undefined) {
+      expect(drawnTexts(body)).toContain('Build window shell');
+      expect(drawnTexts(body)).not.toContain('2 asks in other spaces');
+    }
+  });
+
   test('a click on a row goes to that ask', () => {
     const list = listElement(rows, actions);
 

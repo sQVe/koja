@@ -97,6 +97,18 @@ describe('listHeight', () => {
     expect(one).toBeGreaterThan(listHeight([row({ command: null })], askCardSize.maximumWidth));
   });
 
+  test('caps a long list to the height above the pane bottom', () => {
+    const many = Array.from({ length: 20 }, (_, index) =>
+      row({ identity: `t${index}:permission:bun run up` }),
+    );
+
+    const geometry = cardGeometry(sources(1280, 820), listHeightAt(many));
+    const available = 820 - spacing.small - askCardSize.paneClearance;
+
+    expect(listHeight(many, askCardSize.maximumWidth)).toBeGreaterThan(available);
+    expect(geometry.height).toBe(available);
+  });
+
   test('grows when a question wraps in a narrower card', () => {
     const long = { question: 'a'.repeat(400) };
     const wide = listHeight([row(long)], askCardSize.maximumWidth);
