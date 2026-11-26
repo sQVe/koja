@@ -3,6 +3,7 @@ import { afterAll, describe, expect, mock, test } from 'bun:test';
 import type { DrawnElement } from '../../tests/drawn.ts';
 import { drawn, drawnTexts, drawnTree, elementsWithStyle } from '../../tests/drawn.ts';
 import { gpuiBaseFake, gpuiKitFake, herdrFake } from '../../tests/moduleFakes.ts';
+import { keycapOutlineAlpha } from './palette.ts';
 
 interface OverlayHint {
   normal: string[];
@@ -29,7 +30,8 @@ await mock.module('herdr', () =>
 
 const modulePath = './keycap.ts';
 
-const { keycap, overlayHints, pressedKeycap } = (await import(modulePath)) as {
+const { buttonKeycap, keycap, overlayHints, pressedKeycap } = (await import(modulePath)) as {
+  buttonKeycap: (key: string, ink: string) => DrawnElement;
   keycap: (key: string) => DrawnElement;
   overlayHints: (hint: OverlayHint, normalMode: boolean) => DrawnElement[];
   pressedKeycap: (key: string) => DrawnElement;
@@ -48,13 +50,14 @@ describe('keycap', () => {
     expect(drawnTexts(keycap('H'))).toEqual(['⇧H']);
   });
 
-  test('draws the dim glyph in the border outline at the terminal font', () => {
+  test('draws a dim glyph on the popover fill in the border outline at the terminal font', () => {
     const cap = keycap('w');
     const glyph = elementsWithStyle(cap, 'font_family')[0];
 
     expect(glyph?.textColors).toContain(palette.dim);
     expect(glyph?.styles['font_family']).toEqual(['Maple Mono']);
     expect(cap.borderColors).toContain(palette.border);
+    expect(cap.backgroundColors).toContain(palette.popover);
   });
 
   test('a pressed key takes the accent glyph and the selected outline', () => {
@@ -63,6 +66,16 @@ describe('keycap', () => {
 
     expect(glyph?.textColors).toContain(palette.accent);
     expect(cap.borderColors).toContain(palette.selected);
+  });
+
+  test('a button keycap draws its ink with a half-strength outline and no fill', () => {
+    const ink = '#123456';
+    const cap = buttonKeycap('↵', ink);
+    const glyph = elementsWithStyle(cap, 'font_family')[0];
+
+    expect(glyph?.textColors).toContain(ink);
+    expect(cap.borderColors).toContain(`${ink}${keycapOutlineAlpha}`);
+    expect(cap.backgroundColors).toEqual([]);
   });
 
   test('lifts an x-height glyph by one pixel and a descender by two', () => {

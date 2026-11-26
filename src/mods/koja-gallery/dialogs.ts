@@ -23,8 +23,8 @@ const buttonRow = (hovered: boolean): Element =>
 
 const button = (label: string, kind: DialogButtonKind): Element => dialogButton({ label, kind });
 
-const dialogSurface = (width: number, height: number, dialog: Element): Element => {
-  const frame = v_flex().w(width).h(height).child(dialog);
+const dialogSurface = (width: number, dialog: Element): Element => {
+  const frame = v_flex().w(width).child(dialog);
 
   return surfaceSample('chrome', frame);
 };
@@ -32,8 +32,12 @@ const dialogSurface = (width: number, height: number, dialog: Element): Element 
 const confirmDialog = (): Element =>
   dialogFrame({
     id: 'dialog-confirm-sample',
-    title: 'Close space?',
-    detail: 'Its 2 tabs will close.',
+    title: 'Close space “Design the sidebar”?',
+    lines: [
+      'Claude Code and Pi stop mid-task, and 4 tabs close.',
+      'Its folder, uncommitted changes, and branch stay.',
+    ],
+    destructive: true,
     actions: [button('Cancel', 'outline'), button('Close', 'danger')],
   });
 
@@ -56,10 +60,10 @@ export const dialogs = (renameField: InputState): Element[] => [
   sample('Dialog buttons: hovered', buttonRow(true)),
   sample(
     'Confirm: a red Close and an outlined Cancel',
-    dialogSurface(overlaySize.confirmWidth, overlaySize.confirmHeight, confirmDialog()),
+    dialogSurface(overlaySize.confirmWidth, confirmDialog()),
   ),
   sample(
     'Prompt: a text field with a value, a hint, and a filled Save',
-    dialogSurface(overlaySize.promptWidth, overlaySize.promptHeight, promptDialog(renameField)),
+    dialogSurface(overlaySize.promptWidth, promptDialog(renameField)),
   ),
 ];

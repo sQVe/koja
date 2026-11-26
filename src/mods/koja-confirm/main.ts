@@ -11,6 +11,7 @@ import {
   recordOf,
   recordOverlayClose,
   stringOf,
+  stringListOf,
 } from '../../kit/index.ts';
 
 const defaultTitle = 'Are you sure?';
@@ -22,7 +23,7 @@ const readDialog = (value: unknown): ConfirmDialog => {
 
   return {
     title: stringOf(record['title']) ?? defaultTitle,
-    detail: stringOf(record['detail']) ?? '',
+    body: stringListOf(record['body']),
     action: stringOf(record['action']) ?? defaultAction,
     destroys: record['destroys'] === true,
     command: readDialogCommand(record['command']),
@@ -81,7 +82,8 @@ export default class Confirm extends View {
     const frame = dialogFrame({
       id: 'confirm',
       title: this.dialog.title,
-      detail: this.dialog.detail,
+      lines: this.dialog.body,
+      destructive: this.dialog.destroys,
       actions: this.actions(),
     }).on_key_down((event, cx) => {
       this.keyDown(event, cx);

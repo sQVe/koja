@@ -38,7 +38,7 @@ const splitAction = (tokens: DirectionTokens): Element => {
     .child(chevron);
 
   return h_flex()
-    .h(controlSize.dialogButton)
+    .h(controlSize.sceneAction)
     .w(mergeActionWidth)
     .flex_none()
     .items_stretch()

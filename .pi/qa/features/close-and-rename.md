@@ -25,7 +25,8 @@ Each key works from normal mode. Press `key b Control_L` to enter it.
 1. Run `bun run sandbox shot <file>` and read the image to see the window.
 2. Use one entry point.
 3. Take a `shot`, and read the dialog or the prompt.
-4. In a close dialog, cancel with `key Escape`. When the brief allows data writes, click `Close`.
+4. In a close dialog, cancel with `key Escape`. When the brief allows data writes, click `Close` or
+   press `key Return`.
 5. In a rename prompt, cancel with `key Escape`. When the brief allows data writes, clear the name
    with `key BackSpace`, once per letter. Type a new name with `bun run sandbox type "<name>"`, then
    run `key Return` or click `Save`. Repeat once with an empty name.
@@ -33,11 +34,16 @@ Each key works from normal mode. Press `key b Control_L` to enter it.
 
 ## Observable results
 
-- `w q` closes only the focused pane, with no dialog, when the pane has siblings.
-- On the last pane of the last tab, the dialog is `Close space?` with the space name, tab count, and
-  terminal count.
+- `w q` closes only the focused pane, with no dialog, when its sibling panes are independent. A pane
+  whose close also ends child panes asks first, and the dialog names the other panes that close.
+- On the last pane of the last tab, the dialog is `Close space “<name>”?`. Its body names the agents
+  that stop and the number of tabs that close, then says the folder, uncommitted changes, and branch
+  stay. A space with no agent names only its tabs.
+- The card has the overlay surface, a red `triangle-alert` before the title, a red `Close ↵` main
+  button, and a plain `Cancel` button.
 - `s q` always asks.
 - `t q` asks only on the last tab of a space.
+- `Return` runs the main action, and `Escape` cancels, in both insert and normal mode.
 - `Escape` cancels, and every space, tab, and pane is still there.
 - `Close` ends exactly what the dialog named.
 - The same dialogs come from the palette, the menus, the tab's close button, and the pane header.
