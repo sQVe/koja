@@ -148,6 +148,9 @@ const worktreeAtFolder = (
   return inside.toSorted((first, second) => second.root.length - first.root.length)[0] ?? null;
 };
 
+const belowPlace = (place: Place | null, worktree: WorktreeGit): boolean =>
+  place === null || worktree.root.length > place.folder.length;
+
 export const spaceFacts = (
   facts: Facts | null,
   spaceList: SpaceInfo[],
@@ -184,12 +187,13 @@ export const paneFacts = (
   }
 
   const place = recordedPlace(facts, machine, pane.cwd);
-
-  if (place !== null) {
-    return factsAt(facts, place, branch);
-  }
-
   const worktree = worktreeAtFolder(facts.git, machine, pane.cwd);
 
-  return worktree === null ? null : factsIn(facts, worktree, pane.cwd, branch);
+  // A worktree whose root sits deeper than the recorded place is the checkout the pane is in, so
+  // an outer repository's place cannot answer for a nested one.
+  if (worktree !== null && belowPlace(place, worktree)) {
+    return factsIn(facts, worktree, pane.cwd, branch);
+  }
+
+  return place === null ? null : factsAt(facts, place, branch);
 };

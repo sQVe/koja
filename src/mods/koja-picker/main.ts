@@ -41,7 +41,7 @@ import { list as virtualList } from './rowElements.ts';
 import type { PickerData, PickerRow } from './rows.ts';
 import { buildRows, rowPane } from './rows.ts';
 import { keepSearchFocused } from './searchFocus.ts';
-import { readSelection, writeSelection, clearSelection } from './selection.ts';
+import { readSelection, writeSelection } from './selection.ts';
 
 const filterKeys = createContextKeys('KojaPicker', [
   { keystroke: 'tab', action: 'koja-picker-filter-next' },
@@ -140,18 +140,17 @@ export default class Picker extends View {
 
     if (part === null || part === 'list') {
       recordOverlayClose();
-      this.clearSelection();
+      this.forgetSelection();
     }
 
     this.preview?.close();
   }
 
-  // The key is per popup, so a closed popup leaves nothing for the next one to read.
-  private clearSelection(): void {
+  private forgetSelection(): void {
     const overlay = overlayId();
 
     if (overlay !== null) {
-      clearSelection(overlay);
+      writeSelection(overlay, null);
     }
   }
 

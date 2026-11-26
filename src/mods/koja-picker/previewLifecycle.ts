@@ -28,12 +28,11 @@ const stateName = 'state';
 const heartbeatName = 'heartbeat';
 
 // serve writes this once it is watching, so a viewer that exits at startup is a failed start.
-// Three seconds covers a slow process spawn on a loaded machine; a healthy viewer writes the file
-// on its first poll.
 const readyName = 'ready';
 
 const readyPollMilliseconds = 50;
 
+// How long the launcher waits for serve to report that it is watching.
 const readyAttempts = 60;
 
 // The picker writes the heartbeat this often; serve's 1200-poll limit spans 60 seconds, 60x

@@ -16,12 +16,3 @@ export const writeSelection = (overlay: string, pane: string | null): void => {
 
   setShared(selectionKey(overlay), pane);
 };
-
-// A closed popup leaves nothing behind for the next one to read.
-export const clearSelection = (overlay: string): void => {
-  if (readSelection(overlay) === null) {
-    return;
-  }
-
-  setShared(selectionKey(overlay), null);
-};
