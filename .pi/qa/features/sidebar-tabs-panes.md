@@ -55,7 +55,8 @@ first.
 - A click selects a tab, a drag reorders the tabs, and the plus button opens the New menu.
 - Each pane has a header with its label, and the focused pane has the accent border.
 - A right click on a space or a tab opens a menu for that item, not for the focused one.
-- The New menu lists terminal, agent, space, and worktree choices.
+- The New menu lists Terminal and the installed agents, then the space actions. With no agent
+  installed it says so, and its worktree rows name the repository they work from.
 
 ## End state
 
