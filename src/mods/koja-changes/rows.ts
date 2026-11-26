@@ -2,7 +2,6 @@ import type { InputState } from 'gpui-base';
 import { h_flex, Scrollbar, v_flex, v_virtual_list } from 'gpui-base';
 import type { Context, Element } from 'gpui-kit';
 import { div } from 'gpui-kit';
-import { settings } from 'herdr';
 
 import type { Palette, StateLineOptions } from '../../kit/index.ts';
 import {
@@ -16,7 +15,7 @@ import {
   rowHeight,
   spacing,
   stateLine,
-  stringOf,
+  terminalFont,
   textField,
   toggleButton,
   withTextRole,
@@ -35,10 +34,6 @@ export interface FileListOptions {
   onRetryWatch: (cx: Context) => void;
   onPick: (path: string, cx: Context) => void;
 }
-
-const defaultFont = 'JetBrains Mono';
-
-const terminalFont = (): string => stringOf(settings()['font_family']) ?? defaultFont;
 
 const fileListHeight = (count: number): number =>
   Math.min(

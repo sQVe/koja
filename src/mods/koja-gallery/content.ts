@@ -3,7 +3,9 @@ import type { Element } from 'gpui-kit';
 
 import type { Fact, ItemHeaderOptions, SourceLinkOptions } from '../../kit/index.ts';
 import {
+  actionBlock,
   contentSize,
+  documentLine,
   factPairs,
   factRows,
   itemHeader,
@@ -129,6 +131,56 @@ const rail = (): Element => {
   return v_flex().w(contentSize.railWidth).child(rows);
 };
 
+const railFrame = (content: Element): Element =>
+  v_flex().w(contentSize.railWidth).p(spacing.xxlarge).child(content);
+
+// The gallery shows the parts, so its actions have nothing to run.
+const noAction = (): void => undefined;
+
+const readyAction = (): Element =>
+  actionBlock({ kind: 'ready', action: 'Send to Tau', onAction: noAction });
+
+const failedSaveAction = (): Element =>
+  actionBlock({
+    kind: 'failed',
+    action: 'Retry save',
+    onAction: noAction,
+    failure: {
+      error: 'Could not save: the folder is read-only',
+      folder: '~/code/koja/.tau/reviews',
+      recovery: [{ label: 'Copy path', onSelect: noAction }],
+      unsaved: '1 line and 2 comments are unsaved. They stay in this pane.',
+      wait: 'Send to Tau waits for a save.',
+    },
+  });
+
+const sentAction = (): Element =>
+  actionBlock({
+    kind: 'sent',
+    action: 'Sent to Tau',
+    detail: 'Tau closes this pane after collecting the review.',
+  });
+
+const documentLines = (): Element => {
+  const lines = [
+    documentLine({ number: 1, text: '# Sidebar design' }),
+    documentLine({ number: 2, text: '' }),
+    documentLine({ number: 3, text: '## Goal' }),
+    documentLine({ number: 4, text: 'Keep projects and spaces easy to scan.' }),
+    documentLine({ number: 5, text: 'Keep the terminal beside the work when useful.' }),
+    documentLine({
+      number: 6,
+      text: 'Keep the selected space visible when groups fold.',
+      bar: 'edited',
+    }),
+    documentLine({ number: 7, text: '## Shared frame' }),
+    documentLine({ number: 8, text: '- Group spaces by project.', bar: 'commented' }),
+    documentLine({ number: 9, text: '- Keep links to the source easy to find.', bar: 'commented' }),
+  ];
+
+  return v_flex().children(lines);
+};
+
 export const contentParts = (): Element[] => [
   sample('Source links', sourceLinks()),
   sample('Pull request header', pullHeader()),
@@ -142,4 +194,8 @@ export const contentParts = (): Element[] => [
   sample('Ticket header without a state', ticketHeader(null)),
   sample('Long ticket title and facts, in a pane beside the agent', longTicket()),
   sample('Fact rows in a rail', rail()),
+  sample('Review action', railFrame(readyAction())),
+  sample('Failed save action', railFrame(failedSaveAction())),
+  sample('Sent review action', railFrame(sentAction())),
+  sample('Document with an edited line and commented lines', narrowFrame(documentLines())),
 ];

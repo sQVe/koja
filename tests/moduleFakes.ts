@@ -97,6 +97,7 @@ export const gpuiKitFake = (overrides: ModuleFake = {}): ModuleFake => ({
 });
 
 export const kitIndexFake = (overrides: ModuleFake = {}): ModuleFake => ({
+  actionBlock: noop,
   actionButton: noop,
   askFirst: noop,
   attentionBadge: noop,
@@ -109,6 +110,7 @@ export const kitIndexFake = (overrides: ModuleFake = {}): ModuleFake => ({
   detailText: noop,
   dialogButton: chainable,
   dialogFrame: noop,
+  documentLine: noop,
   emptyWorkSlot: noop,
   diffSize: {},
   diffTints: noop,
@@ -196,6 +198,7 @@ export const kitIndexFake = (overrides: ModuleFake = {}): ModuleFake => ({
   taskOfPane: () => null,
   trafficLightsPadding: noop,
   takeNormalKeys: () => null,
+  terminalFont: () => '',
   textField: chainable,
   textRoleNames: [],
   textRoles: {},
