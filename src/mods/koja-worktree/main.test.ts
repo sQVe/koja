@@ -260,6 +260,13 @@ beforeEach(() => {
 });
 
 describe('remove worktree', () => {
+  test('a remove that asks draws the destructive mark', async () => {
+    spaceStatuses = { 'space-1': 'working' };
+    await openDialog();
+
+    expect(frameOptions['destructive']).toBe(true);
+  });
+
   test('a dirty worktree asks with a danger button before Grove removes it by force', async () => {
     execResults[statusCommand] = ok(' M src/file.ts\n');
     const view = await openDialog();
@@ -320,18 +327,6 @@ describe('remove worktree without risk', () => {
     const removeArguments = groveCalls().map((call) => call.args);
 
     expect(removeArguments).toEqual([['remove', '--force', 'feat-a']]);
-  });
-
-  test('a remove that asks draws the destructive mark, and a new worktree does not', async () => {
-    spaceStatuses = { 'space-1': 'working' };
-    await openDialog();
-
-    expect(frameOptions['destructive']).toBe(true);
-
-    dialogProps = { action: 'new', space: 'space-1', overlay: 'overlay-1' };
-    await openDialog();
-
-    expect(frameOptions['destructive']).toBe(false);
   });
 
   test('a failed Grove remove shows its error, keeps the dialog, and keeps the space', async () => {
@@ -460,6 +455,12 @@ describe('worktree checks', () => {
 describe('new worktree', () => {
   beforeEach(() => {
     dialogProps = { action: 'new', space: 'space-1', overlay: 'overlay-1' };
+  });
+
+  test('a new worktree draws no destructive mark', async () => {
+    await openDialog();
+
+    expect(frameOptions['destructive']).toBe(false);
   });
 
   test('create runs Grove add from the workspace root, then opens a space on the new folder', async () => {

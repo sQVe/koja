@@ -116,7 +116,12 @@ describe('dialogFrame', () => {
 
     expect(mark?.textColors).toContain(palette.blocked);
     expect(destructive.kids[0]?.kids[0]).toBe(mark as DrawnElement);
-    expect(indentOf(destructive)).not.toEqual([]);
+
+    const titleRow = destructive.kids[0] as DrawnElement;
+    const body = destructive.kids[1] as DrawnElement;
+
+    expect(indentOf(body)).not.toEqual([]);
+    expect(indentOf(titleRow)).toEqual([]);
     expect(indentOf(harmless)).toEqual([]);
     expect(drawnIcons(harmless)).not.toContain('triangle-alert.svg');
   });
