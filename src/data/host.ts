@@ -15,6 +15,7 @@ import { repeat } from '../kit/timer.ts';
 import { currentWindow } from '../kit/window.ts';
 import type { GitScheduler, GitWorld } from './gitScheduler.ts';
 import { createGitScheduler } from './gitScheduler.ts';
+import { sweepMilliseconds } from './host/hostTiming.ts';
 import type { Lease } from './lease.ts';
 import {
   claimLease,
@@ -58,8 +59,6 @@ interface HostState {
 
 // Herdr's runtime has the Web Crypto global, but its declarations do not name it.
 declare const crypto: { randomUUID: () => string };
-
-const sweepMilliseconds = 250;
 
 const seedFacts = (): Facts => readStoredSnapshot(shared, recordNotices)?.facts ?? emptyFacts();
 
@@ -121,7 +120,7 @@ const createSchedulerBinding = (
       publish: publishSnapshot,
       publishReadTimes: readTimesPublisher.publish,
       publishOutcomes: outcomesPublisher.publish,
-      windowActive: () => currentWindow()?.active ?? false,
+      windowVisible: () => currentWindow()?.visible ?? false,
     },
     held,
     { pulls: seed.pulls, readTimes: readPullReadTimes(shared, recordNotices) },

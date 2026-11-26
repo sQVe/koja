@@ -131,6 +131,7 @@ export const kitIndexFake = (overrides: ModuleFake = {}): ModuleFake => ({
   emptyWorkSlot: noop,
   diffSize: {},
   diffTints: noop,
+  factLine: noop,
   factPairs: noop,
   factRows: noop,
   fileStatusMark: noop,

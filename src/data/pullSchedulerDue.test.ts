@@ -80,7 +80,7 @@ describe('createPullScheduler due reads', () => {
   });
 
   test('an inactive window suppresses the periodic read', () => {
-    harness.windowActive = false;
+    harness.windowVisible = false;
 
     const scheduler = harness.start({
       pulls: seededRepositoryPulls,
@@ -92,7 +92,7 @@ describe('createPullScheduler due reads', () => {
     scheduler.tick(git, {}, new Map(), harness.spawn);
     expect(harness.calls).toHaveLength(0);
 
-    harness.windowActive = true;
+    harness.windowVisible = true;
     scheduler.tick(git, {}, new Map(), harness.spawn);
     expect(harness.calls).toHaveLength(1);
   });

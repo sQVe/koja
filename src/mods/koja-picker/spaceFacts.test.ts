@@ -5,6 +5,7 @@ import type { PaneInfo, SpaceInfo } from 'herdr';
 import { herdrFake } from '../../../tests/moduleFakes.ts';
 import { pullFacts } from '../../../tests/pullFacts.ts';
 import type { Facts } from '../../data/snapshot.ts';
+import type { SpaceFacts } from './spaceFacts.ts';
 
 interface WorktreeFixture {
   root: string;
@@ -42,30 +43,26 @@ const { paneFacts, spaceFacts, storedFacts } = (await import('./spaceFacts.ts'))
     facts: Facts | null,
     spaceList: SpaceInfo[],
     paneList: PaneInfo[],
-  ) => Record<string, { project: string; pull: number | null; need: string | null }>;
+  ) => Record<string, SpaceFacts>;
   paneFacts: (
     facts: Facts | null,
     machine: string | null,
     pane: PaneInfo,
     branch: string | null,
-  ) => { project: string; pull: number | null; need: string | null } | null;
+  ) => SpaceFacts | null;
   storedFacts: () => Facts | null;
 };
 
 const factsOf = (): Facts | null => storedFacts();
 
-const spaceFactsOf = (
-  spaceList: SpaceInfo[],
-  paneList: PaneInfo[],
-): Record<string, { project: string; pull: number | null; need: string | null }> =>
+const spaceFactsOf = (spaceList: SpaceInfo[], paneList: PaneInfo[]): Record<string, SpaceFacts> =>
   spaceFacts(factsOf(), spaceList, paneList);
 
 const paneFactsOf = (
   machine: string | null,
   pane: PaneInfo,
   branch: string | null,
-): { project: string; pull: number | null; need: string | null } | null =>
-  paneFacts(factsOf(), machine, pane, branch);
+): SpaceFacts | null => paneFacts(factsOf(), machine, pane, branch);
 
 afterAll(() => {
   mock.restore();

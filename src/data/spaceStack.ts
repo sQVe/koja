@@ -5,7 +5,7 @@ import { pullOfBranch } from './snapshot.ts';
 import type { Stack, StackBranch } from './stacks.ts';
 import { stackOfBranch } from './stacks.ts';
 
-interface StackPull {
+export interface StackPull {
   branch: string;
   ticket: string | null;
   number: number | null;
@@ -64,18 +64,30 @@ const worktreeStackOf = (facts: Facts, worktreeKey: string): WorktreeStack | nul
   return { stack, branch: worktree.branch, repositoryKey: worktree.repository.key };
 };
 
+const pullOfNumber = (facts: Facts, repositoryKey: string, number: number): Pull | null =>
+  facts.pulls[repositoryKey]?.pulls.find((candidate) => candidate.number === number) ?? null;
+
 const stackPullOf = (
   facts: Facts,
   repositoryKey: string,
   entry: StackBranch,
   branch: string | null,
 ): StackPull => {
-  const pull = pullOfBranch(facts.pulls[repositoryKey] ?? null, entry.branch);
+  const live = pullOfBranch(facts.pulls[repositoryKey] ?? null, entry.branch);
+  const recorded = entry.pullNumber;
+
+  // A live pull is found by head branch alone, and a fork can reuse the name. The recorded number
+  // wins when the live pull reports another one, so read that pull by number.
+  let pull = live;
+
+  if (recorded !== null && live?.number !== recorded) {
+    pull = pullOfNumber(facts, repositoryKey, recorded);
+  }
 
   return {
     branch: entry.branch,
     ticket: ticketIdOf(entry.branch, ''),
-    number: pull?.number ?? entry.pullNumber,
+    number: pull?.number ?? recorded,
     title: pull?.title ?? null,
     state: stateOf(pull),
     checkedOut: entry.branch === branch,

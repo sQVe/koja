@@ -219,7 +219,7 @@ const checkInterleaving = async (seed: number): Promise<boolean> => {
 
   const steps = 6 + Math.floor(random() * 10);
 
-  harness.windowActive = false;
+  harness.windowVisible = false;
 
   for (let step = 0; step < steps; step += 1) {
     await applyStep(state);

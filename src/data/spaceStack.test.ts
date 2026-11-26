@@ -13,6 +13,7 @@ interface Fixture {
   branch: string;
   pulls?: Pull[];
   pullNumbers?: Record<string, number | null>;
+  restacks?: Record<string, StackBranch['restack']>;
   parents?: Record<string, string>;
   readParent?: boolean;
 }
@@ -50,7 +51,7 @@ const factsOf = (fixture: Fixture): Facts => {
   const branches = fixture.stack.map((branch): StackBranch => ({
     branch,
     pullNumber: fixture.pullNumbers?.[branch] ?? null,
-    restack: 'none',
+    restack: fixture.restacks?.[branch] ?? 'none',
   }));
 
   return {
@@ -128,6 +129,72 @@ describe('spaceStackOf', () => {
       merged: 1,
       total: 3,
     });
+  });
+
+  test('a live pull whose number the stack records gives its title and state', () => {
+    const facts = factsOf({
+      stack: ['me-1-one'],
+      branch: 'me-1-one',
+      pulls: [pullOf('me-1-one', 11, 'MERGED')],
+      pullNumbers: { 'me-1-one': 11 },
+    });
+
+    expect(spaceStackOf(facts, worktree.key)?.pulls).toEqual([
+      {
+        branch: 'me-1-one',
+        ticket: 'ME-1',
+        number: 11,
+        title: 'Title of 11',
+        state: 'merged',
+        checkedOut: true,
+        restack: 'none',
+      },
+    ]);
+  });
+
+  test('a live pull with another number keeps the recorded number and hides its state', () => {
+    const facts = factsOf({
+      stack: ['me-1-one'],
+      branch: 'me-1-one',
+      pulls: [pullOf('me-1-one', 99, 'MERGED')],
+      pullNumbers: { 'me-1-one': 11 },
+      restacks: { 'me-1-one': 'needed' },
+    });
+
+    expect(spaceStackOf(facts, worktree.key)?.pulls).toEqual([
+      {
+        branch: 'me-1-one',
+        ticket: 'ME-1',
+        number: 11,
+        title: null,
+        state: 'unknown',
+        checkedOut: true,
+        restack: 'needed',
+      },
+    ]);
+  });
+
+  test('a fork pull beside the recorded pull keeps the recorded title and merged state', () => {
+    // The entry's branch was renamed after pull 11 opened, so the live read lists that pull under
+    // another head branch while the fork's pull 99 takes the entry's branch.
+    const facts = factsOf({
+      stack: ['me-1-one'],
+      branch: 'me-1-one',
+      pulls: [pullOf('me-1-old', 11, 'MERGED'), pullOf('me-1-one', 99, 'OPEN')],
+      pullNumbers: { 'me-1-one': 11 },
+    });
+
+    expect(spaceStackOf(facts, worktree.key)?.pulls).toEqual([
+      {
+        branch: 'me-1-one',
+        ticket: 'ME-1',
+        number: 11,
+        title: 'Title of 11',
+        state: 'merged',
+        checkedOut: true,
+        restack: 'none',
+      },
+    ]);
   });
 
   test('a branch with no PR facts has unknown state', () => {

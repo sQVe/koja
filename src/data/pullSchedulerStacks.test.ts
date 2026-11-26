@@ -117,11 +117,11 @@ describe('createPullScheduler stack reads', () => {
     scheduler.tick(git, {}, new Map(), harness.spawn);
     expect(harness.calls).toHaveLength(0);
 
-    harness.windowActive = false;
+    harness.windowVisible = false;
     scheduler.tick(git, stacks, new Map(), harness.spawn);
     expect(harness.calls).toHaveLength(0);
 
-    harness.windowActive = true;
+    harness.windowVisible = true;
     scheduler.tick(git, stacks, new Map(), harness.spawn);
     expect(harness.calls).toHaveLength(1);
   });

@@ -5,6 +5,7 @@ import type { Status } from 'herdr';
 import type { WorkNeed } from '../../kit/index.ts';
 import {
   emptyWorkSlot,
+  factLine,
   hoverCard,
   hoverCardSize,
   linkText,
@@ -145,6 +146,14 @@ export const sidebarParts = (): Element[] => {
     .child(linkText(sampleLink.ticket))
     .child(linkText(pullLabel(sampleLink.pull)));
 
+  const longFactValue = 'me-1181-find-a-space-by-pr-ticket-or-branch-in-the-picker';
+
+  const factLines = v_flex()
+    .gap(spacing.medium)
+    .child(factLine('add-search', ['PR 2 of 8', 'merged']))
+    .child(factLine(longFactValue, ['PR 3 of 8', 'open']))
+    .child(factLine('fix-crash', []));
+
   return [
     sample(
       'Project headers: idle main space, working and selected, hovered, folded, waiting with an age, remote without a main checkout, a group gap apart',
@@ -181,6 +190,7 @@ export const sidebarParts = (): Element[] => {
       'Space rows: cursor with a need, selected, and a row with no need',
       partsFrame(spaceRows()),
     ),
+    sample('Fact lines: a short value, a long cut value, and a row with no facts', factLines),
     sample(
       'Selected-space footer with a stack, then with none',
       partsFrame([

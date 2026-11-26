@@ -20,7 +20,7 @@ export const readPeriodMilliseconds = 60_000;
 
 const pushSpacingMilliseconds = 2_000;
 
-const pushGapMilliseconds = 15_000;
+export const pushGapMilliseconds = 15_000;
 
 const readLimit = 2;
 
@@ -83,8 +83,8 @@ const pauseUntil = (state: PullDueState, host: string | null, until: number): vo
 const pushIsDue = (repository: PullDueRepository, now: number): boolean =>
   repository.backoffUntil <= now && repository.pushDueAt !== null && repository.pushDueAt <= now;
 
-const readIsDue = (repository: PullDueRepository, now: number, windowActive: boolean): boolean => {
-  if (!windowActive || now < repository.backoffUntil) {
+const readIsDue = (repository: PullDueRepository, now: number, windowVisible: boolean): boolean => {
+  if (!windowVisible || now < repository.backoffUntil) {
     return false;
   }
 
@@ -97,14 +97,14 @@ const readIsDue = (repository: PullDueRepository, now: number, windowActive: boo
   return now - last >= readPeriodMilliseconds;
 };
 
-const isDue = (state: PullDueState, key: string, now: number, windowActive: boolean): boolean => {
+const isDue = (state: PullDueState, key: string, now: number, windowVisible: boolean): boolean => {
   const repository = repositoryEntry(state, key);
 
   if (now < pausedUntilFor(state, repository)) {
     return false;
   }
 
-  return pushIsDue(repository, now) || readIsDue(repository, now, windowActive);
+  return pushIsDue(repository, now) || readIsDue(repository, now, windowVisible);
 };
 
 const byOldestStart = (state: PullDueState, left: string, right: string): number => {
@@ -119,11 +119,11 @@ export const duePullReads = (
   sources: string[],
   running: ReadonlySet<string>,
   now: number,
-  windowActive: boolean,
+  windowVisible: boolean,
 ): string[] => {
   const free = Math.max(0, readLimit - running.size);
 
-  const due = sources.filter((key) => !running.has(key) && isDue(state, key, now, windowActive));
+  const due = sources.filter((key) => !running.has(key) && isDue(state, key, now, windowVisible));
 
   return due.toSorted((left, right) => byOldestStart(state, left, right)).slice(0, free);
 };
@@ -150,7 +150,7 @@ export const noteStart = (state: PullDueState, key: string, now: number): void =
 };
 
 // A stack that joins the reads makes the repository due at once, but only while the window is
-// active, as a timed read does.
+// visible, as a timed read does.
 export const noteBranches = (state: PullDueState, key: string, at: number): void => {
   const repository = repositoryToWrite(state, key);
 

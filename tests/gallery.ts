@@ -18,6 +18,7 @@ const galleryKitParts = [
   'contentSection',
   'dialog',
   'documentLine',
+  'factLine',
   'factRows',
   'hoverCard',
   'icon',

@@ -5,9 +5,10 @@ import type { Facts } from '../../data/snapshot.ts';
 import type { StatusRollup } from '../../kit/statusRollup.ts';
 import { statusRank } from '../../kit/statusRollup.ts';
 import { tabLabel, tabName, tabProgram, taskOfPane } from '../../kit/tabLabel.ts';
-import type { Match } from './match.ts';
 import { bestFieldMatch, fuzzyMatch } from './match.ts';
 import type { SpaceFacts } from './spaceFacts.ts';
+import type { StackReason } from './stackSearch.ts';
+import { stackForSpace, stackMatchOf } from './stackSearch.ts';
 
 export interface PickerData {
   spaces: SpaceInfo[];
@@ -29,6 +30,7 @@ interface SpacePickerRow extends PickerRowBase {
   kind: 'space';
   tab: TabInfo | undefined;
   pane: PaneInfo | null;
+  reason: StackReason | null;
 }
 
 export interface TabPickerRow extends PickerRowBase {
@@ -46,8 +48,15 @@ export interface PanePickerRow extends PickerRowBase {
 export type PickerRow = SpacePickerRow | TabPickerRow | PanePickerRow;
 
 interface RowGroup {
+  exact: boolean;
   score: number;
   rows: PickerRow[];
+}
+
+interface SpaceMatch {
+  exact: boolean;
+  score: number;
+  reason: StackReason | null;
 }
 
 const statusWords: Record<Status, string> = {
@@ -148,10 +157,8 @@ const spaceOwnFields = (space: SpaceInfo, data: PickerData): (string | null)[] =
   statusWord(data.statuses.spaces[space.id] ?? null),
 ];
 
-const spaceSearchFields = (space: SpaceInfo, data: PickerData): (string | null)[] => [
-  ...spaceOwnFields(space, data),
-  ...space.tabs.flatMap((tab) => tabSearchFields(tab, data.statuses.tabs[tab.id] ?? null, data)),
-];
+const spaceSearchTabs = (space: SpaceInfo, data: PickerData): (string | null)[] =>
+  space.tabs.flatMap((tab) => tabSearchFields(tab, data.statuses.tabs[tab.id] ?? null, data));
 
 const recentOrder = (data: PickerData): SpaceInfo[] => {
   const position = (space: SpaceInfo): number => {
@@ -232,22 +239,16 @@ const matchedPanes = (
   return matches.toSorted((first, second) => second.score - first.score);
 };
 
-const spaceRowPane = (
+const matchedPaneTarget = (
   query: string,
-  statuses: Status[] | null,
   space: SpaceInfo,
   data: PickerData,
-  shownPanes: PaneInfo[],
+  ownMatch: ReturnType<typeof bestFieldMatch>,
 ): PaneInfo | null => {
-  if (statuses !== null) {
-    return shownPanes[0] ?? null;
-  }
-
   if (query === '') {
     return null;
   }
 
-  const own = bestFieldMatch(query, spaceOwnFields(space, data));
   const matches = matchedPanes(query, space, data);
   const best = matches[0];
   const runnerUp = matches[1];
@@ -261,7 +262,7 @@ const spaceRowPane = (
     return null;
   }
 
-  return own !== null && own.score >= best.score ? null : best.pane;
+  return ownMatch !== null && ownMatch.score >= best.score ? null : best.pane;
 };
 
 const statusMatchingTab = (
@@ -270,6 +271,43 @@ const statusMatchingTab = (
   data: PickerData,
 ): TabInfo | undefined =>
   space.tabs.find((tab) => matchesStatus(data.statuses.tabs[tab.id] ?? null, statuses));
+
+const fieldScoreOf = (
+  space: SpaceInfo,
+  query: string,
+  data: PickerData,
+  ownMatch: ReturnType<typeof bestFieldMatch>,
+): number => {
+  const tabScore = bestFieldMatch(query, spaceSearchTabs(space, data))?.score ?? -Infinity;
+
+  return Math.max(ownMatch?.score ?? -Infinity, tabScore);
+};
+
+const spaceScore = (
+  space: SpaceInfo,
+  query: string,
+  data: PickerData,
+  ownMatch: ReturnType<typeof bestFieldMatch>,
+): SpaceMatch | null => {
+  const stackMatch = stackMatchOf(query, stackForSpace(data.stored, space, data.panes));
+  const nameScore = fuzzyMatch(query, space.name)?.score ?? 0;
+
+  // An exact PR match is its own tier, so this score only orders matches within that tier.
+  if (stackMatch?.tier === 'exact') {
+    return { exact: true, score: nameScore, reason: stackMatch.reason };
+  }
+
+  const fieldScore = fieldScoreOf(space, query, data, ownMatch);
+  const best = Math.max(fieldScore, stackMatch?.score ?? -Infinity);
+
+  if (best === -Infinity) {
+    return null;
+  }
+
+  const reason = stackMatch !== null && stackMatch.score > fieldScore ? stackMatch.reason : null;
+
+  return { exact: false, score: best + nameScore, reason };
+};
 
 const spaceRows = (
   space: SpaceInfo,
@@ -281,16 +319,28 @@ const spaceRows = (
     return null;
   }
 
-  const shownPanes = space.tabs
-    .flatMap((tab) => panesOf(tab, data.panes))
-    .filter((pane) => inStatus(pane, statuses));
+  const tabPanes = space.tabs.flatMap((tab) => panesOf(tab, data.panes));
+  const firstShownPane = tabPanes.find((pane) => inStatus(pane, statuses)) ?? null;
 
-  const filteredPane = spaceRowPane(query, statuses, space, data, shownPanes);
+  const ownMatch = query === '' ? null : bestFieldMatch(query, spaceOwnFields(space, data));
+
+  const filteredPane =
+    statuses === null ? matchedPaneTarget(query, space, data, ownMatch) : firstShownPane;
+
   const filteredTab = space.tabs.find((tab) => tab.id === filteredPane?.tab);
   const statusTab = statuses === null ? undefined : statusMatchingTab(space, statuses, data);
 
   const shownTab =
     filteredTab ?? statusTab ?? space.tabs.find((tab) => tab.active) ?? space.tabs[0];
+
+  const scored =
+    query === ''
+      ? { exact: false, score: 0, reason: null }
+      : spaceScore(space, query, data, ownMatch);
+
+  if (scored === null) {
+    return null;
+  }
 
   const spaceRow: PickerRow = {
     kind: 'space',
@@ -298,23 +348,20 @@ const spaceRows = (
     space,
     tab: shownTab,
     pane: filteredPane,
+    reason: scored.reason,
   };
 
   const rows = [spaceRow, ...space.tabs.flatMap((tab) => tabChildRows(space, tab, statuses, data))];
 
-  if (query === '') {
-    return { score: 0, rows };
+  return { exact: scored.exact, score: scored.score, rows };
+};
+
+const compareGroups = (first: RowGroup, second: RowGroup): number => {
+  if (first.exact !== second.exact) {
+    return first.exact ? -1 : 1;
   }
 
-  const spaceMatch = bestFieldMatch(query, spaceSearchFields(space, data));
-
-  if (spaceMatch === null) {
-    return null;
-  }
-
-  const nameMatch: Match | null = fuzzyMatch(query, space.name);
-
-  return { score: spaceMatch.score + (nameMatch?.score ?? 0), rows };
+  return second.score - first.score;
 };
 
 export const buildRows = (
@@ -326,8 +373,7 @@ export const buildRows = (
     .map((space) => spaceRows(space, query, statuses, data))
     .filter((group): group is RowGroup => group !== null);
 
-  const ordered =
-    query === '' ? groups : groups.toSorted((first, second) => second.score - first.score);
+  const ordered = query === '' ? groups : groups.toSorted(compareGroups);
 
   return ordered.flatMap((group) => group.rows);
 };

@@ -41,10 +41,11 @@ No launch, and unclear impact:
 
 ## Journeys
 
-| Journey                                                                           | Goal                                               | Run it when the change touches                                                                | Test    |
-| --------------------------------------------------------------------------------- | -------------------------------------------------- | --------------------------------------------------------------------------------------------- | ------- |
-| [Triage the spaces that need you](qa/journeys/triage-the-spaces-that-need-you.md) | Read one-line space rows and switch spaces.        | `src/mods/koja-spaces/`, `src/kit/space.ts`, `src/kit/statusMark.ts`, `src/kit/spaceOrder.ts` | by hand |
-| [Recover from a failed PR read](qa/journeys/recover-from-a-failed-pr-read.md)     | Retry a failed read without losing the space rows. | `src/mods/koja-spaces/`, `src/kit/stateLine.ts`, `src/kit/button.ts`, `src/data/pull*.ts`     | by hand |
+| Journey                                                                                             | Goal                                                         | Run it when the change touches                                                                | Test    |
+| --------------------------------------------------------------------------------------------------- | ------------------------------------------------------------ | --------------------------------------------------------------------------------------------- | ------- |
+| [Triage the spaces that need you](qa/journeys/triage-the-spaces-that-need-you.md)                   | Read one-line space rows and switch spaces.                  | `src/mods/koja-spaces/`, `src/kit/space.ts`, `src/kit/statusMark.ts`, `src/kit/spaceOrder.ts` | by hand |
+| [Recover from a failed PR read](qa/journeys/recover-from-a-failed-pr-read.md)                       | Retry a failed read without losing the space rows.           | `src/mods/koja-spaces/`, `src/kit/stateLine.ts`, `src/kit/button.ts`, `src/data/pull*.ts`     | by hand |
+| [Find the space that holds a pull request](qa/journeys/find-the-space-that-holds-a-pull-request.md) | Find a space by a PR number in its stack, then switch to it. | `koja-picker`, `src/data/spaceStack.ts`, `src/data/stacks.ts`                                 | by hand |
 
 ## Features
 
@@ -76,8 +77,10 @@ The manager creates the fixtures after the launch, under `/var/tmp/ruta-<name>/h
 Set `user.name` and `user.email` in each repository. Open a space on each with
 `RUTA_NAME=<name> bun run sandbox do space.new --folder <path>`, with two tabs and a split in one.
 
-For either journey, use this fixture instead of the general fixtures above. Start a fresh sandbox
-first. Replace `<name>` with its name, then run these commands from the worktree:
+For [Triage the spaces that need you](qa/journeys/triage-the-spaces-that-need-you.md) and
+[Recover from a failed PR read](qa/journeys/recover-from-a-failed-pr-read.md), use this fixture
+instead of the general fixtures above. Start a fresh sandbox first. Replace `<name>` with its name,
+then run these commands from the worktree:
 
 ```sh
 export RUTA_NAME=<name>
@@ -243,6 +246,10 @@ bun run sandbox identity
 - Shot: `bun run sandbox shot <slice directory>/ticket-title.png`.
 - Stop: the `verification` tool, which runs `bun run sandbox down`.
 
+### Stack fixture
+
+See the [stack fixture](qa/fixtures/stack.md) page.
+
 ## Rules for every section
 
 - From the worktree, run `RUTA_NAME=<name> bun run sandbox guide`, or `RUTA_NAME=<name> ruta guide`.
@@ -369,8 +376,9 @@ Same as [Normal mode keys](#normal-mode-keys).
 - Real SSH machines, machine login, and a rebuilt machine: they need a real server and credentials.
   The [second machine](#second-machine) fixture tests only the sidebar header of a project on
   `qa-remote`.
-- Live GitHub PR data: the journey fixture tests a failed read and an empty successful read only. It
-  does not test authenticated GitHub reads or populated PR data.
+- Live GitHub PR data: the journey fixtures test a failed read, an empty successful read, and
+  populated PRs from a fake `gh`. They do not test authenticated GitHub reads, or populated PRs that
+  come from GitHub itself.
 - `sandbox up`, `restart`, `install`, and `down`, the build, and the installer: the `qa` worker may
   not run them.
 - The look of a scene: the `judge-mock` skill decides it. Two AI judges pass or fail the scene.

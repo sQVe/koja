@@ -79,6 +79,8 @@ export const controlSize = {
   badge: 18,
   button: 22,
   dialogButton: 24,
+  // Caps a matched value in a line of inline facts, so a long branch still leaves room for the row.
+  factValueMaxWidth: 140,
   paneLabelMaxWidth: 260,
   // Keeps the pane name, such as "Pi", whole when the header is narrow.
   paneLabelMinWidth: 12,

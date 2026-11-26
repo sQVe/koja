@@ -322,7 +322,7 @@ describe('duePullReads', () => {
       const running = new Set<string>();
       const pushStartAt: Record<string, number> = {};
       let now = 0;
-      let windowActive = true;
+      let windowVisible = true;
 
       for (let step = 0; step < 60; step += 1) {
         const action = pick(['push', 'branches', 'wait', 'window', 'finish', 'tick'], random);
@@ -340,7 +340,7 @@ describe('duePullReads', () => {
         }
 
         if (action === 'window') {
-          windowActive = random() < 0.5;
+          windowVisible = random() < 0.5;
         }
 
         if (action === 'finish' && running.size > 0) {
@@ -357,7 +357,7 @@ describe('duePullReads', () => {
           continue;
         }
 
-        const due = duePullReads(state, keys, running, now, windowActive);
+        const due = duePullReads(state, keys, running, now, windowVisible);
 
         expect(due.length + running.size).toBeLessThanOrEqual(2);
 
