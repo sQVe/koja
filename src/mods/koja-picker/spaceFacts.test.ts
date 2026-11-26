@@ -23,6 +23,13 @@ interface PullFixture {
   failed?: boolean;
 }
 
+interface SpaceFactsShape {
+  project: string;
+  pull: number | null;
+  need: string | null;
+  stack: unknown;
+}
+
 let sharedValues: Record<string, unknown> = {};
 
 Object.assign(globalThis, { kojaModName: 'koja-picker' });
@@ -42,13 +49,13 @@ const { paneFacts, spaceFacts, storedFacts } = (await import('./spaceFacts.ts'))
     facts: Facts | null,
     spaceList: SpaceInfo[],
     paneList: PaneInfo[],
-  ) => Record<string, { project: string; pull: number | null; need: string | null }>;
+  ) => Record<string, SpaceFactsShape>;
   paneFacts: (
     facts: Facts | null,
     machine: string | null,
     pane: PaneInfo,
     branch: string | null,
-  ) => { project: string; pull: number | null; need: string | null } | null;
+  ) => SpaceFactsShape | null;
   storedFacts: () => Facts | null;
 };
 
@@ -57,15 +64,13 @@ const factsOf = (): Facts | null => storedFacts();
 const spaceFactsOf = (
   spaceList: SpaceInfo[],
   paneList: PaneInfo[],
-): Record<string, { project: string; pull: number | null; need: string | null }> =>
-  spaceFacts(factsOf(), spaceList, paneList);
+): Record<string, SpaceFactsShape> => spaceFacts(factsOf(), spaceList, paneList);
 
 const paneFactsOf = (
   machine: string | null,
   pane: PaneInfo,
   branch: string | null,
-): { project: string; pull: number | null; need: string | null } | null =>
-  paneFacts(factsOf(), machine, pane, branch);
+): SpaceFactsShape | null => paneFacts(factsOf(), machine, pane, branch);
 
 afterAll(() => {
   mock.restore();
@@ -209,7 +214,7 @@ describe('spaceFacts', () => {
 
     const facts = spaceFactsOf([spaceAt('s1', '/code/koja/me-1189')], []);
 
-    expect(facts['s1']).toEqual({ project: 'koja', pull: 41, need: 'conflict' });
+    expect(facts['s1']).toEqual({ project: 'koja', pull: 41, need: 'conflict', stack: null });
   });
 
   test('names the project of a main worktree after its own folder', () => {
@@ -248,7 +253,7 @@ describe('spaceFacts', () => {
 
     const facts = spaceFactsOf([spaceAt('s1', '/code/notes')], []);
 
-    expect(facts['s1']).toEqual({ project: 'notes', pull: null, need: null });
+    expect(facts['s1']).toEqual({ project: 'notes', pull: null, need: null, stack: null });
   });
 
   test('shows the most urgent need of a pull that needs two things', () => {
@@ -321,7 +326,7 @@ describe('spaceFacts', () => {
 
     const facts = spaceFactsOf([spaceAt('s1', '/code/plain')], []);
 
-    expect(facts['s1']).toEqual({ project: 'plain', pull: null, need: null });
+    expect(facts['s1']).toEqual({ project: 'plain', pull: null, need: null, stack: null });
   });
 
   test('answers the pull of the branch the pane is on, not of its space', () => {
@@ -356,7 +361,7 @@ describe('spaceFacts', () => {
     const pane = { ...paneAt('/code/koja-side'), branch: 'side' };
     const facts = paneFactsOf(null, pane, pane.branch);
 
-    expect(facts).toEqual({ project: 'koja', pull: 9, need: 'conflict' });
+    expect(facts).toEqual({ project: 'koja', pull: 9, need: 'conflict', stack: null });
   });
 
   test('answers no pull for a repository whose last refresh failed', () => {
@@ -383,7 +388,7 @@ describe('spaceFacts', () => {
 
     const facts = spaceFactsOf([spaceAt('s1', '/code/notes')], []);
 
-    expect(facts['s1']).toEqual({ project: 'notes', pull: null, need: null });
+    expect(facts['s1']).toEqual({ project: 'notes', pull: null, need: null, stack: null });
   });
 
   test('names both checkouts of one repository after its main checkout', () => {
@@ -433,7 +438,7 @@ describe('spaceFacts', () => {
     const pane = { ...paneAt('/code/widget/src'), branch: 'feature' };
     const facts = paneFactsOf(null, pane, pane.branch);
 
-    expect(facts).toEqual({ project: 'widget', pull: 42, need: null });
+    expect(facts).toEqual({ project: 'widget', pull: 42, need: null, stack: null });
   });
 
   test('answers the pull of the branch the pane reports, not the snapshot branch', () => {

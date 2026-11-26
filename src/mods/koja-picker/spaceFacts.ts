@@ -12,11 +12,14 @@ import type { Pull } from '../../data/pulls.ts';
 import { repositoryNameOf } from '../../data/repositoryName.ts';
 import type { Facts, GitFacts, WorktreeGit } from '../../data/snapshot.ts';
 import { pullOfBranch } from '../../data/snapshot.ts';
+import type { SpaceStack } from '../../data/spaceStack.ts';
+import { spaceStackOf } from '../../data/spaceStack.ts';
 
 export interface SpaceFacts {
   project: string;
   pull: number | null;
   need: PullNeed | null;
+  stack: SpaceStack | null;
 }
 
 // A row shows one work icon, so the most urgent need wins.
@@ -53,14 +56,10 @@ export const storedFacts = (): Facts | null => {
   return state.kind === 'unavailable' ? null : state.snapshot.facts;
 };
 
-const worktreeAt = (place: Place, git: GitFacts): WorktreeGit | null => {
+const worktreeKeyAt = (place: Place, git: GitFacts): string | null => {
   const entry = git.places[place.key];
 
-  if (entry?.kind !== 'repository') {
-    return null;
-  }
-
-  return git.worktrees[entry.worktree] ?? null;
+  return entry?.kind === 'repository' ? entry.worktree : null;
 };
 
 const pullOf = (facts: Facts, worktree: WorktreeGit | null, branch: string | null): Pull | null => {
@@ -79,24 +78,27 @@ const pullOf = (facts: Facts, worktree: WorktreeGit | null, branch: string | nul
   return pullOfBranch(repository, branch ?? worktree.branch);
 };
 
+// The branch override answers for the pull only, so the stack stays on the worktree's own branch.
 const factsIn = (
   facts: Facts,
-  worktree: WorktreeGit | null,
+  worktreeKey: string | null,
   folder: string,
   branch: string | null,
 ): SpaceFacts => {
+  const worktree = worktreeKey === null ? null : (facts.git.worktrees[worktreeKey] ?? null);
   const pull = pullOf(facts, worktree, branch);
 
   return {
     project: projectAt(facts.git, worktree, folder),
     pull: pull?.number ?? null,
     need: pull === null ? null : needOf(pull),
+    stack: worktreeKey === null ? null : spaceStackOf(facts, worktreeKey),
   };
 };
 
 const factsAt = (facts: Facts, place: Place, branch: string | null): SpaceFacts | null =>
   Object.hasOwn(facts.git.places, place.key)
-    ? factsIn(facts, worktreeAt(place, facts.git), place.folder, branch)
+    ? factsIn(facts, worktreeKeyAt(place, facts.git), place.folder, branch)
     : null;
 
 // The header asks about one space with another branch than the space's own, so it reads the same
@@ -138,20 +140,24 @@ const underFolder = (path: string, folder: string): boolean => {
 
 // A checkout can be known by its worktree without a place for the folder the pane sits in, which is
 // what a space recorded through one of its subfolders leaves behind.
-const worktreeAtFolder = (
+const worktreeKeyAtFolder = (
   git: GitFacts,
   machine: string | null,
   folder: string,
-): WorktreeGit | null => {
-  const insideCheckout = (entry: WorktreeGit): boolean => {
+): string | null => {
+  const insideCheckout = ([, entry]: [string, WorktreeGit]): boolean => {
     const atOrUnderRoot = folder === entry.root || underFolder(folder, entry.root);
 
     return entry.repository.machine === machine && atOrUnderRoot;
   };
 
-  const inside = Object.values(git.worktrees).filter(insideCheckout);
+  const inside = Object.entries(git.worktrees).filter(insideCheckout);
 
-  return inside.toSorted((first, second) => second.root.length - first.root.length)[0] ?? null;
+  const deepest = inside.toSorted(
+    ([, first], [, second]) => second.root.length - first.root.length,
+  )[0];
+
+  return deepest?.[0] ?? null;
 };
 
 const belowPlace = (place: Place | null, worktree: WorktreeGit): boolean =>
@@ -193,12 +199,13 @@ export const paneFacts = (
   }
 
   const place = recordedPlace(facts, machine, pane.cwd);
-  const worktree = worktreeAtFolder(facts.git, machine, pane.cwd);
+  const worktreeKey = worktreeKeyAtFolder(facts.git, machine, pane.cwd);
+  const worktree = worktreeKey === null ? null : (facts.git.worktrees[worktreeKey] ?? null);
 
   // A worktree whose root sits deeper than the recorded place is the checkout the pane is in, so
   // an outer repository's place cannot answer for a nested one.
   if (worktree !== null && belowPlace(place, worktree)) {
-    return factsIn(facts, worktree, pane.cwd, branch);
+    return factsIn(facts, worktreeKey, pane.cwd, branch);
   }
 
   return place === null ? null : factsAt(facts, place, branch);

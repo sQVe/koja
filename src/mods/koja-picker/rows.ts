@@ -5,9 +5,10 @@ import type { Facts } from '../../data/snapshot.ts';
 import type { StatusRollup } from '../../kit/statusRollup.ts';
 import { statusRank } from '../../kit/statusRollup.ts';
 import { tabLabel, tabName, tabProgram, taskOfPane } from '../../kit/tabLabel.ts';
-import type { Match } from './match.ts';
 import { bestFieldMatch, fuzzyMatch } from './match.ts';
 import type { SpaceFacts } from './spaceFacts.ts';
+import type { StackReason } from './stackSearch.ts';
+import { stackMatchOf } from './stackSearch.ts';
 
 export interface PickerData {
   spaces: SpaceInfo[];
@@ -29,6 +30,7 @@ interface SpacePickerRow extends PickerRowBase {
   kind: 'space';
   tab: TabInfo | undefined;
   pane: PaneInfo | null;
+  reason: StackReason | null;
 }
 
 export interface TabPickerRow extends PickerRowBase {
@@ -271,6 +273,48 @@ const statusMatchingTab = (
 ): TabInfo | undefined =>
   space.tabs.find((tab) => matchesStatus(data.statuses.tabs[tab.id] ?? null, statuses));
 
+const betterScore = (first: number | null, second: number | null): number | null => {
+  if (first === null) {
+    return second;
+  }
+
+  return second === null ? first : Math.max(first, second);
+};
+
+// A stack match names the row only when it beats every field of the space, so a space found by its
+// own name keeps no reason.
+const beatsFields = (
+  fieldScore: number | null,
+  stackMatch: { score: number; reason: StackReason } | null,
+): stackMatch is { score: number; reason: StackReason } => {
+  if (stackMatch === null) {
+    return false;
+  }
+
+  return fieldScore === null || stackMatch.score > fieldScore;
+};
+
+const spaceScore = (
+  space: SpaceInfo,
+  query: string,
+  data: PickerData,
+): { score: number; reason: StackReason | null } | null => {
+  const fieldScore = bestFieldMatch(query, spaceSearchFields(space, data))?.score ?? null;
+  const stackMatch = stackMatchOf(query, data.facts[space.id]?.stack ?? null);
+  const raw = betterScore(fieldScore, stackMatch?.score ?? null);
+
+  if (raw === null) {
+    return null;
+  }
+
+  const nameScore = fuzzyMatch(query, space.name)?.score ?? 0;
+
+  return {
+    score: raw + nameScore,
+    reason: beatsFields(fieldScore, stackMatch) ? stackMatch.reason : null,
+  };
+};
+
 const spaceRows = (
   space: SpaceInfo,
   query: string,
@@ -292,29 +336,24 @@ const spaceRows = (
   const shownTab =
     filteredTab ?? statusTab ?? space.tabs.find((tab) => tab.active) ?? space.tabs[0];
 
+  const scored = query === '' ? { score: 0, reason: null } : spaceScore(space, query, data);
+
+  if (scored === null) {
+    return null;
+  }
+
   const spaceRow: PickerRow = {
     kind: 'space',
     key: `space:${space.id}`,
     space,
     tab: shownTab,
     pane: filteredPane,
+    reason: scored.reason,
   };
 
   const rows = [spaceRow, ...space.tabs.flatMap((tab) => tabChildRows(space, tab, statuses, data))];
 
-  if (query === '') {
-    return { score: 0, rows };
-  }
-
-  const spaceMatch = bestFieldMatch(query, spaceSearchFields(space, data));
-
-  if (spaceMatch === null) {
-    return null;
-  }
-
-  const nameMatch: Match | null = fuzzyMatch(query, space.name);
-
-  return { score: spaceMatch.score + (nameMatch?.score ?? 0), rows };
+  return { score: scored.score, rows };
 };
 
 export const buildRows = (

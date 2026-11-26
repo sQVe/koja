@@ -5,7 +5,7 @@ import { pullOfBranch } from './snapshot.ts';
 import type { Stack, StackBranch } from './stacks.ts';
 import { stackOfBranch } from './stacks.ts';
 
-interface StackPull {
+export interface StackPull {
   branch: string;
   ticket: string | null;
   number: number | null;
