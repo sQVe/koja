@@ -47,6 +47,15 @@ export const clampIndex = (index: number, count: number): number =>
 export const rowAt = <T>(rows: readonly T[], at: number): T | undefined =>
   rows[clampIndex(at, rows.length)];
 
+// A row that opens a group is shown with its title, so the title is where the row starts.
+const topOf = (place: RowPlace | undefined): number => {
+  if (place === undefined) {
+    return 0;
+  }
+
+  return place.head ? place.title : place.row;
+};
+
 export const scrollToShow = (
   places: readonly RowPlace[],
   at: number,
@@ -57,7 +66,7 @@ export const scrollToShow = (
   let next = scroll;
 
   if (selected !== undefined) {
-    const from = selected.head ? selected.title : selected.row;
+    const from = topOf(selected);
 
     if (from < next) {
       next = from;
@@ -81,7 +90,7 @@ export const wheel = (
   const next = Math.max(0, Math.min(scroll - delta, max));
   let nextAt = at;
 
-  while (nextAt < places.length - 1 && (places[nextAt]?.row ?? 0) < next) {
+  while (nextAt < places.length - 1 && topOf(places[nextAt]) < next) {
     nextAt += 1;
   }
 

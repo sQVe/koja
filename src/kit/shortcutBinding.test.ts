@@ -1,6 +1,7 @@
 import { describe, expect, test } from 'bun:test';
 
 import { bindingAction } from './binding.ts';
+import { commandIdentity } from './commandTitles.ts';
 import { bindingFor, hintFor } from './shortcutBinding.ts';
 
 describe('hintFor', () => {
@@ -56,5 +57,49 @@ describe('bindingFor', () => {
 
   test('finds the normal-mode key of a command with a string argument', () => {
     expect(bindingFor([], bindingAction('pane.split', { direction: 'right' }))).toBe('w v');
+  });
+
+  test('finds a key whose JSON action runs the same command and arguments', () => {
+    const bindings = [
+      {
+        section: 'global',
+        keys: 'ctrl-alt-r',
+        action: '{"command":"layout.resize","args":{"px":240,"id":"sidebar"}}',
+      },
+    ];
+
+    expect(bindingFor(bindings, commandIdentity('layout.resize', { id: 'sidebar', px: 240 }))).toBe(
+      'ctrl-alt-r',
+    );
+  });
+
+  test('leaves a JSON action with other arguments to its own command', () => {
+    const bindings = [
+      {
+        section: 'global',
+        keys: 'ctrl-alt-r',
+        action: '{"command":"layout.resize","args":{"px":240}}',
+      },
+    ];
+
+    expect(bindingFor(bindings, commandIdentity('layout.resize', { px: 320 }))).toBeNull();
+    expect(bindingFor(bindings, commandIdentity('tab.new', { px: 240 }))).toBeNull();
+  });
+
+  test('draws the key of a JSON action in the row hint', () => {
+    const bindings = [
+      {
+        section: 'global',
+        keys: 'ctrl-alt-r',
+        action: '{"command":"layout.resize","args":{"id":"sidebar","px":240}}',
+      },
+    ];
+
+    expect(
+      hintFor(bindings, 'linux', commandIdentity('layout.resize', { px: 240, id: 'sidebar' })),
+    ).toEqual({
+      normal: [],
+      insert: ['Ctrl+Alt+R'],
+    });
   });
 });

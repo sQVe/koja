@@ -24,7 +24,7 @@ import {
 let bindings: Record<string, string> = {};
 let terminalList: unknown[] = [];
 let paneList: { pane: string }[] = [];
-let themes: { name: string; label: string }[] = [];
+let themes: { name: string; label: string; light: boolean }[] = [];
 let runCalls: { command: string; args: Record<string, unknown> }[] = [];
 let dialogCalls: { action: string; space: string | null }[] = [];
 let groveCalls: { action: string; space: string | null }[] = [];
@@ -154,8 +154,8 @@ describe('menu entries', () => {
     bindings = { 'app.theme:catppuccin-latte-muted': 'ctrl-alt-t' };
 
     themes = [
-      { name: 'graphite', label: 'Theme: graphite' },
-      { name: 'catppuccin-latte-muted', label: 'Theme: catppuccin latte muted' },
+      { name: 'graphite', label: 'Theme: graphite', light: false },
+      { name: 'catppuccin-latte-muted', label: 'Theme: catppuccin latte muted', light: true },
     ];
 
     const menu: MenuProps = { kind: 'global', target: target({}) };
@@ -585,8 +585,8 @@ describe('menu commands', () => {
     terminalList = [];
 
     themes = [
-      { name: 'graphite', label: 'Theme: graphite' },
-      { name: 'latte', label: 'Theme: latte' },
+      { name: 'graphite', label: 'Theme: graphite', light: false },
+      { name: 'latte', label: 'Theme: latte', light: true },
     ];
 
     runCalls = [];

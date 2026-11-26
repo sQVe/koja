@@ -1,6 +1,15 @@
 import { afterAll, beforeEach, describe, expect, mock, test } from 'bun:test';
+import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 
-import { drawn, drawnTexts, elementAroundText, elementsWithStyle } from '../../../tests/drawn.ts';
+import {
+  click,
+  drawn,
+  drawnTexts,
+  elementAroundText,
+  elementsWithStyle,
+} from '../../../tests/drawn.ts';
 import type { DrawnElement } from '../../../tests/drawn.ts';
 import {
   gpuiBaseFake,
@@ -18,6 +27,12 @@ type KeyHandler = (
 ) => void;
 
 type ChangeHandler = (event: unknown, cx: { notify: () => void }) => void;
+
+interface CatalogCommand {
+  name: string;
+  args: { name: string; required: boolean }[];
+  about: string;
+}
 
 interface FakeView {
   init: (props: unknown, cx: unknown) => void;
@@ -45,11 +60,13 @@ const fillerCommands = Array.from({ length: 65 }, (_item, index) => ({
   about: '',
 }));
 
-const catalogCommands = [
+const defaultCommands: CatalogCommand[] = [
   { name: 'tab.new', args: [], about: '' },
   { name: 'tab.close', args: [], about: '' },
   ...fillerCommands,
 ];
+
+let catalogCommands: CatalogCommand[] = defaultCommands;
 
 let changeInput: ChangeHandler | null = null;
 let inputValue = '';
@@ -57,8 +74,14 @@ let closeOverlayCalls = 0;
 let sharedValues: Record<string, unknown> = {};
 let sharedWrites: string[] = [];
 let chosenCommands: string[] = [];
+let chosenArgs: (Record<string, unknown> | undefined)[] = [];
+let prompts: Record<string, unknown>[] = [];
 let submitInput: (() => void) | null = null;
 let keyBindings: KeyBinding[] = [];
+let homeDirectory = '';
+let themeList: { name: string; light: boolean; colors: Record<string, string> }[] = [];
+let darkSetting = false;
+let tasks: Promise<void>[] = [];
 
 const inputStub = {
   on: (event: string, handler: (() => void) | ChangeHandler) => {
@@ -92,7 +115,10 @@ await mock.module('gpui-kit', () =>
 
 await mock.module('herdr', () =>
   herdrFake({
+    appHome: () => homeDirectory,
     commands: () => catalogCommands,
+    settings: () => ({ dark: darkSetting }),
+    themes: () => themeList,
     keys: () => keyBindings,
     layouts: () => [],
     openOverlay: () => 'overlay-2',
@@ -131,8 +157,12 @@ const realKit = await realKitIndexFake([
 
 await mock.module('../../kit/index.ts', () => ({
   ...realKit,
-  askFirst: (name: string) => {
+  askFirst: (name: string, args?: Record<string, unknown>) => {
     chosenCommands.push(name);
+    chosenArgs.push(args);
+  },
+  openPrompt: (dialog: Record<string, unknown>) => {
+    prompts.push(dialog);
   },
   closeOverlay: () => {
     closeOverlayCalls += 1;
@@ -153,6 +183,10 @@ const loadView = async (): Promise<FakeView> => {
 
 const asyncContext = {
   focus_handle: () => ({ focus: () => undefined, is_focused: () => false }),
+  notify: () => undefined,
+  spawn: (body: (cx: unknown) => Promise<void>) => {
+    tasks.push(body(asyncContext));
+  },
   timer: { after: () => undefined },
 };
 
@@ -160,9 +194,41 @@ const openPalette = async (): Promise<FakeView> => {
   const view = await loadView();
 
   view.init(undefined, asyncContext);
+  await Promise.all(tasks);
 
   return view;
 };
+
+const homes: string[] = [];
+
+const homeWithPalette = async (mod: string, palette: unknown[]): Promise<string> => {
+  const home = await mkdtemp(join(tmpdir(), 'koja-palette-'));
+
+  homes.push(home);
+
+  const directory = join(home, 'mods', mod);
+
+  await mkdir(directory, { recursive: true });
+  await writeFile(join(directory, 'main.js'), '');
+  await writeFile(join(directory, 'mod.json'), JSON.stringify({ palette }));
+
+  return home;
+};
+
+// The kit draws a row's spaces as non-breaking ones, so a lookup by words reads them back.
+const drawnWords = (element: DrawnElement): string[] =>
+  drawnTexts(element).map((text) => text.replaceAll('\u00A0', ' '));
+
+const rowIdOf = (element: DrawnElement): string => {
+  const [id] = element.styles['id'] ?? [];
+
+  return typeof id === 'string' ? id : '';
+};
+
+const rowWithText = (tree: DrawnElement, text: string): DrawnElement | null =>
+  elementsWithStyle(tree, 'id')
+    .filter((element) => rowIdOf(element).startsWith('palette-row-'))
+    .find((element) => drawnWords(element).some((words) => words.includes(text))) ?? null;
 
 const renderTree = (view: FakeView): DrawnElement => view.render() as DrawnElement;
 
@@ -202,8 +268,12 @@ const headingKeycaps = (tree: DrawnElement, label: string): string[] => {
   return heading === null ? [] : keycapLabelsOf(heading);
 };
 
-afterAll(() => {
+afterAll(async () => {
   mock.restore();
+
+  for (const home of homes.splice(0)) {
+    await rm(home, { recursive: true, force: true });
+  }
 });
 
 beforeEach(() => {
@@ -213,9 +283,16 @@ beforeEach(() => {
   sharedValues = {};
   sharedWrites = [];
   chosenCommands = [];
+  chosenArgs = [];
+  prompts = [];
   storage.clear();
   submitInput = null;
   keyBindings = [];
+  catalogCommands = defaultCommands;
+  homeDirectory = '';
+  themeList = [];
+  darkSetting = false;
+  tasks = [];
 });
 
 describe('palette overlay state', () => {
@@ -396,5 +473,118 @@ describe('palette scroll thumb', () => {
     setQuery('close');
 
     expect(thumbsOf(renderTree(view))).toEqual([]);
+  });
+});
+
+describe('mod palettes', () => {
+  const withCommand = (name: string, args: { name: string; required: boolean }[] = []): void => {
+    catalogCommands = [...defaultCommands, { name, args, about: '' }];
+  };
+
+  const resizeArgs = [
+    { name: 'id', required: true },
+    { name: 'px', required: true },
+  ];
+
+  const resizeEntry = {
+    title: 'Widen',
+    command: 'layout.resize',
+    args: { id: 'sidebar', px: 240 },
+  };
+
+  test('lists an entry a mod declares in its manifest', async () => {
+    withCommand('layout.resize', resizeArgs);
+    homeDirectory = await homeWithPalette('koja-gallery', [resizeEntry]);
+
+    const view = await openPalette();
+
+    expect(drawnTexts(renderTree(view))).toContain('Widen');
+  });
+
+  test('runs an entry with the arguments its mod declared', async () => {
+    withCommand('layout.resize', resizeArgs);
+    homeDirectory = await homeWithPalette('koja-gallery', [resizeEntry]);
+
+    const view = await openPalette();
+    const row = rowWithText(renderTree(view), 'Widen');
+
+    if (row !== null) {
+      click(row);
+    }
+
+    expect(chosenCommands).toEqual(['layout.resize']);
+    expect(chosenArgs).toEqual([{ id: 'sidebar', px: 240 }]);
+  });
+
+  test('duplicates the layout the entry names', async () => {
+    withCommand('layout.clone', [{ name: 'name', required: false }]);
+    sharedValues['layout'] = 'other';
+
+    homeDirectory = await homeWithPalette('koja-gallery', [
+      { title: 'Copy main', command: 'layout.clone', args: { name: 'main' } },
+    ]);
+
+    const view = await openPalette();
+    const row = rowWithText(renderTree(view), 'Copy main');
+
+    if (row !== null) {
+      click(row);
+    }
+
+    expect(chosenCommands).toEqual(['layout.clone']);
+    expect(chosenArgs).toEqual([{ name: 'main' }]);
+  });
+
+  test('asks which mod to duplicate when the entry names none', async () => {
+    withCommand('mod.clone', [{ name: 'name', required: false }]);
+
+    const view = await openPalette();
+    const row = rowWithText(renderTree(view), 'Duplicate mod');
+
+    if (row !== null) {
+      click(row);
+    }
+
+    expect(prompts).toHaveLength(1);
+    expect(chosenCommands).toEqual([]);
+  });
+
+  test('duplicates the mod the entry names instead of asking', async () => {
+    withCommand('mod.clone', [{ name: 'name', required: false }]);
+
+    homeDirectory = await homeWithPalette('koja-gallery', [
+      { title: 'Copy gallery', command: 'mod.clone', args: { name: 'koja-gallery' } },
+    ]);
+
+    const view = await openPalette();
+    const row = rowWithText(renderTree(view), 'Copy gallery');
+
+    if (row !== null) {
+      click(row);
+    }
+
+    expect(prompts).toEqual([]);
+    expect(chosenCommands).toEqual(['mod.clone']);
+    expect(chosenArgs).toEqual([{ name: 'koja-gallery' }]);
+  });
+
+  test('draws the key of a JSON action on its row', async () => {
+    withCommand('app.theme');
+    darkSetting = true;
+    themeList = [{ name: 'graphite', light: false, colors: {} }];
+
+    keyBindings = [
+      {
+        section: 'global',
+        keys: 'ctrl-alt-t',
+        action: '{"command":"app.theme","args":{"name":"graphite"}}',
+      },
+    ];
+
+    const view = await openPalette();
+    const row = rowWithText(renderTree(view), 'Theme: graphite');
+    const labels = row === null ? [] : keycapLabelsOf(row);
+
+    expect(labels).toEqual(['Ctrl+Alt+T']);
   });
 });

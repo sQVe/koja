@@ -1,4 +1,4 @@
-import { bindingAction, namesBinding } from './binding.ts';
+import { actionIdentity, bindingAction, namesBinding } from './binding.ts';
 import type { Platform } from './keys.ts';
 import { formatStroke, keyStrokes } from './keys.ts';
 import type { NormalKey } from './normalKeys.ts';
@@ -58,9 +58,13 @@ const isPlainKey = (stroke: string): boolean => stroke.length === 1;
 const capLabels = (keys: string, platform: Platform): string[] =>
   keyStrokes(keys).map((stroke) => (isPlainKey(stroke) ? stroke : formatStroke(stroke, platform)));
 
+// A key action names its command and arguments in shorthand or as a JSON object.
+const namesAction = (binding: ActionKeys, action: string): boolean =>
+  binding.action === action || actionIdentity(binding.action) === action;
+
 const normalHint = (platform: Platform, actions: readonly string[]): string[] => {
   for (const action of actions) {
-    const binding = normalBindings.find((candidate) => candidate.action === action);
+    const binding = normalBindings.find((candidate) => namesAction(candidate, action));
 
     if (binding !== undefined) {
       return capLabels(binding.keys, platform);
@@ -78,7 +82,7 @@ const insertHint = (
   const global = globalBindings(bindings);
 
   for (const action of actions) {
-    const binding = global.find((candidate) => candidate.action === action);
+    const binding = global.find((candidate) => namesAction(candidate, action));
 
     if (binding !== undefined) {
       return capLabels(binding.keys, platform);
@@ -96,8 +100,8 @@ export const bindingFor = (
 
   for (const action of actions) {
     const binding =
-      normalBindings.find((candidate) => candidate.action === action) ??
-      global.find((candidate) => candidate.action === action);
+      normalBindings.find((candidate) => namesAction(candidate, action)) ??
+      global.find((candidate) => namesAction(candidate, action));
 
     if (binding !== undefined) {
       return binding.keys;

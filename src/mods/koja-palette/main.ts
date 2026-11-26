@@ -9,7 +9,7 @@ import type {
   ScrollWheelEvent,
 } from 'gpui-kit';
 import { div, View } from 'gpui-kit';
-import { commands, layouts, shared } from 'herdr';
+import { appHome, commands, layouts, settings, shared } from 'herdr';
 
 import type { MainColumnInsets } from '../../kit/index.ts';
 import {
@@ -48,6 +48,8 @@ import {
   paletteCount,
   paletteRows,
 } from './entries.ts';
+import type { ModPalette } from './modPalette.ts';
+import { readModPalettes } from './modPalette.ts';
 import type { RowPlace } from './viewport.ts';
 import {
   clampIndex,
@@ -81,6 +83,12 @@ const readRecent = (): string[] => {
 const plural = (count: number, one: string, many: string): string =>
   `${count} ${count === 1 ? one : many}`;
 
+const hasName = (entry: Entry): boolean => {
+  const name = entry.args['name'];
+
+  return typeof name === 'string' && name.trim() !== '';
+};
+
 export default class Palette extends View {
   private query = '';
 
@@ -95,6 +103,8 @@ export default class Palette extends View {
   private insets: MainColumnInsets = { left: 0, top: 0 };
 
   private readonly input: InputState = InputStates.new({ placeholder: 'Type a command' });
+
+  private mods: ModPalette[] = [];
 
   private handle: FocusHandle | null = null;
 
@@ -114,6 +124,17 @@ export default class Palette extends View {
     });
 
     this.input.focus();
+
+    cx.spawn(async (taskCx) => {
+      const mods = await readModPalettes(appHome());
+
+      if (mods.length === 0) {
+        return;
+      }
+
+      this.mods = mods;
+      taskCx.notify();
+    });
 
     cx.timer.after(refocusMilliseconds, () => {
       this.input.focus();
@@ -193,7 +214,7 @@ export default class Palette extends View {
     localStorage.setItem(recentStorageKey, JSON.stringify(this.recent));
     this.closePalette();
 
-    if (entry.name === 'mod.clone') {
+    if (entry.name === 'mod.clone' && !hasName(entry)) {
       openPrompt({
         title: 'Duplicate mod',
         value: '',
@@ -205,8 +226,8 @@ export default class Palette extends View {
     }
 
     const layoutName = stringOf(shared('layout')) ?? 'main';
-
-    const args = entry.name === 'layout.clone' ? { name: layoutName } : entry.args;
+    const clone = entry.name === 'layout.clone' && !hasName(entry);
+    const args = clone ? { name: layoutName } : entry.args;
 
     askFirst(entry.name, args);
   }
@@ -222,9 +243,11 @@ export default class Palette extends View {
       layouts,
       platform: currentWindow()?.platform ?? null,
       themes: themeChoices,
+      dark: Boolean(settings()['dark']),
+      layout: stringOf(shared('layout')),
     };
 
-    return allEntries(host);
+    return allEntries(host, this.mods);
   }
 
   private rows(all: Entry[]): Row[] {
