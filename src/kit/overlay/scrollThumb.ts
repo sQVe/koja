@@ -21,7 +21,8 @@ export const thumbPlace = (options: ThumbOptions): ThumbPlace | null => {
     return null;
   }
 
-  const height = Math.max(spacing.xxlarge, (options.view * options.view) / options.total);
+  const share = (options.view * options.view) / options.total;
+  const height = Math.min(options.view, Math.max(spacing.xxlarge, share));
   const travel = options.view - height;
   const maxScroll = options.total - options.view;
   const top = Math.max(0, Math.min((options.scroll / maxScroll) * travel, travel));
@@ -36,5 +37,5 @@ export const scrollThumb = (place: ThumbPlace): Element =>
     .right(-spacing.xsmall)
     .w(spacing.xxsmall)
     .h(place.height)
-    .rounded(spacing.hairline)
+    .rounded(spacing.xxsmall / 2)
     .bg(withAlpha(colors().dim, scrollThumbAlpha));

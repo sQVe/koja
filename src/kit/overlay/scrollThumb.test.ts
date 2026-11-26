@@ -1,6 +1,7 @@
 import { afterAll, describe, expect, mock, test } from 'bun:test';
 
 import { drawn } from '../../../tests/drawn.ts';
+import type { DrawnElement } from '../../../tests/drawn.ts';
 import { gpuiKitFake, herdrFake } from '../../../tests/moduleFakes.ts';
 import { spacing } from '../size.ts';
 
@@ -25,7 +26,8 @@ await mock.module('herdr', () => herdrFake({ theme: () => palette }));
 
 const modulePath = './scrollThumb.ts';
 
-const { thumbPlace } = (await import(modulePath)) as {
+const { scrollThumb, thumbPlace } = (await import(modulePath)) as {
+  scrollThumb: (place: ThumbPlace) => DrawnElement;
   thumbPlace: (options: ThumbOptions) => ThumbPlace | null;
 };
 
@@ -57,5 +59,21 @@ describe('thumbPlace', () => {
     const place = thumbPlace({ scroll: 0, total: view * 1000, view });
 
     expect(place?.height).toBe(spacing.xxlarge);
+  });
+
+  test('never draws taller than a view shorter than the minimum', () => {
+    const shortView = 12;
+    const place = thumbPlace({ scroll: 0, total: 40, view: shortView });
+
+    expect(place?.height).toBe(shortView);
+    expect(place?.top).toBe(0);
+  });
+});
+
+describe('scrollThumb', () => {
+  test('rounds the thumb by half its width', () => {
+    const thumb = scrollThumb({ top: 0, height: spacing.xxlarge });
+
+    expect(thumb.styles['rounded']).toEqual([spacing.xxsmall / 2]);
   });
 });
