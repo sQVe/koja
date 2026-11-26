@@ -1172,22 +1172,30 @@ describe('install', () => {
       '.koja-install.json.01234567-89ab-cdef-0123-456789abcdef.tmp',
     );
 
+    const nestedPartial = join(
+      home,
+      'mods',
+      'koja-one',
+      '.main.js.koja-01234567-89ab-cdef-0123-456789abcdef.tmp',
+    );
+
     await mkdir(staging, { recursive: true });
     await writeFile(join(staging, 'main.js'), 'staged\n');
     await writeFile(partial, 'partial\n');
     await writeFile(recordTemporary, '{}\n');
+    await writeAt(nestedPartial, 'partial\n');
 
     await run();
 
     expect(await exists(staging)).toBe(false);
     expect(await exists(partial)).toBe(false);
     expect(await exists(recordTemporary)).toBe(false);
+    expect(await exists(nestedPartial)).toBe(false);
   });
 
   test('keeps a folder below the home that only starts with the staging prefix', async () => {
     const nested = join(home, 'mods', 'koja-one', '.koja-check-kept');
 
-    await run();
     await mkdir(nested, { recursive: true });
     await writeFile(join(nested, 'notes.txt'), 'kept\n');
 

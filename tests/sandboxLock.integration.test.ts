@@ -58,7 +58,8 @@ const waitForFile = async (path: string): Promise<void> => {
 // The waiter replaces its shell with flock once it has read the generation id, so its process name
 // tells a lock wait apart from a race the test only hoped to win.
 const waitForLockWait = async (waiter: LockProcess): Promise<void> => {
-  const deadline = Date.now() + 5000;
+  const observable = await Bun.file(`/proc/${waiter.pid}/comm`).exists();
+  const deadline = observable ? Date.now() + 5000 : 0;
 
   while (Date.now() < deadline) {
     const comm = await readFile(`/proc/${waiter.pid}/comm`, 'utf8').catch(() => '');
