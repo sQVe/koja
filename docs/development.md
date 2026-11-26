@@ -83,9 +83,12 @@ content hash, and prints each reason when it does not. It changes no file and st
 `status` is `herdr-app status`, not `ruta status`. Every other command goes to ruta, so `guide`,
 `log`, `opened`, `drag`, `hold`, and `release` work as `ruta` describes them.
 `bun run sandbox guide` prints ruta's rules for a session that starts a sandbox and for one that
-only drives it. `RUTA_NAME=<name>` runs a second sandbox side by side, and `TAU_VERIFICATION_RUN`
-names it `koja-<run>` for a Tau verification run. `HERDR_APP_BIN` runs another herdr-app binary
-instead of the installed one.
+only drives it. A sandbox name belongs to the checkout that installed it: every command that would
+start, change, or remove a sandbox refuses when another checkout holds the name, and names that
+checkout. A checkout that no longer exists holds nothing, so its sandbox can still be inspected and
+removed. `RUTA_NAME=<name>` runs a second sandbox side by side, and `TAU_VERIFICATION_RUN` names it
+`koja-<run>` for a Tau verification run. `HERDR_APP_BIN` runs another herdr-app binary instead of
+the installed one.
 
 Never use `ydotool`, and never run `herdr-app do`, `hc`, or synthetic input against the user's real
 window or core.

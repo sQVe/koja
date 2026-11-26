@@ -7,7 +7,7 @@ import {
   isSameFile,
   lstatOrNull,
   readRecord,
-  recordName,
+  recordPath,
   shippedInputs,
 } from './install.ts';
 
@@ -23,6 +23,7 @@ export interface IdentityOptions {
 export type IdentityFailure =
   | { kind: 'windowSilent' }
   | { kind: 'recordMissing' }
+  | { kind: 'recordUnreadable'; path: string }
   | { kind: 'recordWithoutOrigin' }
   | { kind: 'otherCheckout'; installedFrom: string }
   | { kind: 'checkFailed' }
@@ -35,6 +36,15 @@ export interface IdentityReport {
   exitCode: 0 | 1;
   lines: string[];
 }
+
+type NameHolderOptions = Omit<IdentityOptions, 'window'>;
+
+type NameHolder =
+  | { kind: 'free' }
+  | { kind: 'held'; checkout: string }
+  | { kind: 'unreadableRecord'; path: string };
+
+type RecordRead = InstallRecord | null | 'unreadable';
 
 const windowStates: WindowState[] = ['answers', 'silent'];
 
@@ -83,14 +93,14 @@ const copyFailures = async (
 const hashesByPath = (inputs: InstallInput[]): Map<string, string> =>
   new Map(inputs.map((input) => [input.path, input.hash]));
 
-const isFromCheckout = async (options: IdentityOptions, origin: InstallOrigin): Promise<boolean> =>
-  origin.checkout === (await realpath(options.checkout));
+const isFromCheckout = async (checkout: string, origin: InstallOrigin): Promise<boolean> =>
+  origin.checkout === (await realpath(checkout));
 
 const changedSinceInstall = async (
   options: IdentityOptions,
   origin: InstallOrigin | null,
 ): Promise<IdentityFailure[]> => {
-  if (origin === null || !(await isFromCheckout(options, origin))) {
+  if (origin === null || !(await isFromCheckout(options.checkout, origin))) {
     return [];
   }
 
@@ -113,7 +123,7 @@ const originFailures = async (
 
   const failures: IdentityFailure[] = [];
 
-  if (!(await isFromCheckout(options, record.origin))) {
+  if (!(await isFromCheckout(options.checkout, record.origin))) {
     failures.push({ kind: 'otherCheckout', installedFrom: record.origin.checkout });
   }
 
@@ -124,8 +134,20 @@ const originFailures = async (
   return failures;
 };
 
+const readRecordOrUnreadable = async (home: string): Promise<RecordRead> => {
+  try {
+    return await readRecord(home);
+  } catch {
+    return 'unreadable';
+  }
+};
+
 const installFailures = async (options: IdentityOptions): Promise<IdentityFailure[]> => {
-  const record = await readRecord(options.home);
+  const record = await readRecordOrUnreadable(options.home);
+
+  if (record === 'unreadable') {
+    return [{ kind: 'recordUnreadable', path: recordPath(options.home) }];
+  }
 
   if (record === null) {
     return [{ kind: 'recordMissing' }];
@@ -160,11 +182,15 @@ const failureLine = (options: IdentityOptions, failure: IdentityFailure): string
     }
 
     case 'recordMissing': {
-      return `no install record at ${join(options.home, recordName)}`;
+      return `no install record at ${recordPath(options.home)}`;
+    }
+
+    case 'recordUnreadable': {
+      return `cannot read the install record at ${failure.path}`;
     }
 
     case 'recordWithoutOrigin': {
-      return `the install record at ${join(options.home, recordName)} names no checkout and no check result`;
+      return `the install record at ${recordPath(options.home)} names no checkout and no check result`;
     }
 
     case 'otherCheckout': {
@@ -210,22 +236,100 @@ export const identityReport = async (options: IdentityOptions): Promise<Identity
   return { exitCode: 1, lines: failures.map((failure) => failureLine(options, failure)) };
 };
 
+const findNameHolder = async (options: NameHolderOptions): Promise<NameHolder> => {
+  const record = await readRecordOrUnreadable(options.home);
+
+  if (record === 'unreadable') {
+    return { kind: 'unreadableRecord', path: recordPath(options.home) };
+  }
+
+  const origin = record?.origin ?? null;
+
+  if (origin === null) {
+    return { kind: 'free' };
+  }
+
+  if (await isFromCheckout(options.checkout, origin)) {
+    return { kind: 'free' };
+  }
+
+  // A checkout that no longer exists serves nobody, so its name is free to take over or remove.
+  if ((await lstatOrNull(origin.checkout)) === null) {
+    return { kind: 'free' };
+  }
+
+  return { kind: 'held', checkout: origin.checkout };
+};
+
+export const nameHolderReport = async (options: NameHolderOptions): Promise<IdentityReport> => {
+  const holder = await findNameHolder(options);
+
+  switch (holder.kind) {
+    case 'free': {
+      return { exitCode: 0, lines: [] };
+    }
+
+    case 'held': {
+      return {
+        exitCode: 1,
+        lines: [
+          `sandbox ${options.name} serves ${holder.checkout}, not ${options.checkout}`,
+          `use another RUTA_NAME, or run this from ${holder.checkout}`,
+        ],
+      };
+    }
+
+    case 'unreadableRecord': {
+      return {
+        exitCode: 1,
+        lines: [
+          `cannot read the install record at ${holder.path}`,
+          'remove the sandbox by hand, or restore its record',
+        ],
+      };
+    }
+
+    default: {
+      return holder satisfies never;
+    }
+  }
+};
+
 const isWindowState = (value: string | undefined): value is WindowState =>
   windowStates.some((state) => state === value);
 
+const checkedWindowState = (value: string | undefined): WindowState => {
+  if (!isWindowState(value)) {
+    throw new Error(`The window state must be one of ${windowStates.join(', ')}, not '${value}'`);
+  }
+
+  return value;
+};
+
+const writeReport = (report: IdentityReport, stream: 'stdout' | 'stderr'): void => {
+  const text = report.lines.map((line) => `${line}\n`).join('');
+
+  process[stream].write(text);
+  process.exitCode = report.exitCode;
+};
+
 if (import.meta.main) {
-  const [name, home, checkout, window] = process.argv.slice(2);
+  const [command, ...args] = process.argv.slice(2);
+  const [name, home, checkout, window] = args;
 
   if (name === undefined || home === undefined || checkout === undefined) {
-    throw new Error('usage: sandboxIdentity.ts <name> <herdr home> <checkout> <window state>');
+    throw new Error(
+      'usage: sandboxIdentity.ts <identity|guard> <name> <herdr home> <checkout> [window state]',
+    );
   }
 
-  if (!isWindowState(window)) {
-    throw new Error(`The window state must be one of ${windowStates.join(', ')}, not '${window}'`);
+  if (command === 'guard') {
+    writeReport(await nameHolderReport({ name, home, checkout }), 'stderr');
+  } else if (command === 'identity') {
+    const state = checkedWindowState(window);
+
+    writeReport(await identityReport({ name, home, checkout, window: state }), 'stdout');
+  } else {
+    throw new Error(`unknown command '${command}'; use identity or guard`);
   }
-
-  const report = await identityReport({ name, home, checkout, window });
-
-  process.stdout.write(`${report.lines.join('\n')}\n`);
-  process.exitCode = report.exitCode;
 }
