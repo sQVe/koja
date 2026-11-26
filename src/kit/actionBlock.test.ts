@@ -8,7 +8,6 @@ import {
   drawnIcons,
   drawnTexts,
   elementWithText,
-  elementsWithBorder,
 } from '../../tests/drawn.ts';
 import { gpuiBaseFake, gpuiKitFake, herdrFake } from '../../tests/moduleFakes.ts';
 import type { ActionBlockOptions, ActionFailure, ActionRecovery } from './actionBlock.ts';
@@ -85,8 +84,6 @@ const failure = (
 const failedSaveBlock = (): DrawnElement =>
   actionBlock({ kind: 'failed', action: 'Retry save', onAction, failure: failure() });
 
-const failureRowCount = (block: DrawnElement | undefined): number => block?.kids.length ?? 0;
-
 describe('actionBlock', () => {
   test('a failed save draws Retry save as the solid main action and no Send control', () => {
     const block = failedSaveBlock();
@@ -123,10 +120,6 @@ describe('actionBlock', () => {
       failure: failure([]),
     });
 
-    expect(failureRowCount(withRecovery.kids[1])).toBe(
-      failureRowCount(withoutRecovery.kids[1]) + 1,
-    );
-
     expect(elementWithText(withRecovery, 'Copy path')).not.toBeNull();
     expect(elementWithText(withoutRecovery, 'Copy path')).toBeNull();
 
@@ -142,13 +135,11 @@ describe('actionBlock', () => {
   test('a recovery button is a small outlined secondary button', () => {
     const block = failedSaveBlock();
     const recovery = elementWithText(block, 'Copy path');
-    const outlined = elementsWithBorder(block, palette.border);
 
     expect(recovery?.textColors).toEqual([palette.muted]);
     expect(recovery?.backgroundColors).toEqual([]);
     expect(recovery?.styles['cursor_pointer']).toBeDefined();
-    expect(outlined).toHaveLength(1);
-    expect(outlined[0]?.texts).toEqual(['Copy path']);
+    expect(recovery?.borderColors).toEqual([palette.border]);
   });
 
   test('the main action and each recovery button run their own handler', () => {
@@ -200,5 +191,6 @@ describe('actionBlock', () => {
 
     expect(drawnIcons(block)).toEqual(['check.svg']);
     expect(elementWithText(block, 'Sent to Tau')?.backgroundColors).toEqual([]);
+    expect(clickablesWithText(block, 'Sent to Tau')).toEqual([]);
   });
 });

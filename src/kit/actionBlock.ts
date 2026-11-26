@@ -18,7 +18,7 @@ export interface ActionRecovery {
 
 export interface ActionFailure {
   error: string;
-  // The folder the save failed on, drawn whole on its own line.
+  // The folder the save failed on, shown on its own line below the error.
   folder: string;
   // The small secondary buttons, such as Copy path.
   recovery: ActionRecovery[];
@@ -112,18 +112,13 @@ const sentRow = (action: string): Element => {
 };
 
 export const actionBlock = (options: ActionBlockOptions): Element => {
+  const block = v_flex().min_w(0).gap(spacing.medium);
+
   if (options.kind === 'sent') {
-    return v_flex()
-      .min_w(0)
-      .gap(spacing.medium)
-      .child(sentRow(options.action))
-      .child(textLine('body', options.detail));
+    return block.child(sentRow(options.action)).child(textLine('body', options.detail));
   }
 
-  const block = v_flex()
-    .min_w(0)
-    .gap(spacing.medium)
-    .child(mainButton(options.action, options.onAction));
+  block.child(mainButton(options.action, options.onAction));
 
   if (options.kind === 'failed') {
     block.child(failureBlock(options.failure));

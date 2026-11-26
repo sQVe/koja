@@ -79,6 +79,9 @@ describe('itemHeader', () => {
   test('the age draws once, in the dim ink', () => {
     const header = itemHeader(readyOptions);
 
+    const ages = drawnTexts(header).filter((text) => text === 'synced 1m ago');
+
+    expect(ages).toHaveLength(1);
     expect(elementWithText(header, 'synced 1m ago')?.textColors).toEqual([palette.dim]);
   });
 

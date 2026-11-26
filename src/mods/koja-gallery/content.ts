@@ -1,7 +1,7 @@
 import { h_flex, v_flex } from 'gpui-base';
 import type { Element } from 'gpui-kit';
 
-import type { Fact, ItemHeaderOptions, SourceLinkOptions } from '../../kit/index.ts';
+import type { Fact, ItemStateOptions, SourceLinkOptions } from '../../kit/index.ts';
 import {
   actionBlock,
   contentSize,
@@ -14,7 +14,7 @@ import {
 } from '../../kit/index.ts';
 import { sample } from './sample.ts';
 
-type HeaderState = Extract<ItemHeaderOptions, { kind: 'ready' }>['state'];
+type HeaderState = ItemStateOptions | null;
 
 const ticketFacts: Fact[] = [
   { label: 'Project', value: 'Koja' },
@@ -125,14 +125,10 @@ const longTicket = (): Element => {
   return narrowFrame(pane);
 };
 
-const rail = (): Element => {
-  const rows = factRows(ticketFacts);
-
-  return v_flex().w(contentSize.railWidth).child(rows);
-};
-
 const railFrame = (content: Element): Element =>
   v_flex().w(contentSize.railWidth).p(spacing.xxlarge).child(content);
+
+const rail = (): Element => railFrame(factRows(ticketFacts));
 
 // The gallery shows the parts, so its actions have nothing to run.
 const noAction = (): void => undefined;

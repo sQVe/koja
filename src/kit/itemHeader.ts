@@ -6,14 +6,14 @@ import { icon } from './icon.ts';
 import { badgeSize, spacing } from './size.ts';
 import type { SourceLinkOptions } from './sourceLink.ts';
 import { sourceLink } from './sourceLink.ts';
-import { statusMark } from './statusMark.ts';
+import { questionBubble, statusMark } from './statusMark.ts';
 import { detailText } from './text.ts';
-import { withTextRole } from './textRole.ts';
+import { roleText, withTextRole } from './textRole.ts';
 import { colors } from './theme.ts';
 
 type ItemStateKind = 'openPullRequest' | 'inProgress' | 'inReview' | 'sent';
 
-interface ItemStateOptions {
+export interface ItemStateOptions {
   kind: ItemStateKind;
   // The state word comes from the item's source, such as `open` or `In progress`.
   label: string;
@@ -31,36 +31,27 @@ export type ItemHeaderOptions = SourceLinkOptions &
       }
   );
 
-const stateMark = (kind: ItemStateKind): Element => {
-  if (kind === 'openPullRequest') {
-    return icon('git-pull-request', 'small').text_color(colors().done);
-  }
-
-  if (kind === 'inReview') {
-    return icon('message-circle-question', 'small').text_color(colors().blocked);
-  }
-
-  if (kind === 'inProgress') {
-    return statusMark('working');
-  }
-
-  return statusMark('done');
+const stateMarks: Record<ItemStateKind, () => Element> = {
+  openPullRequest: () => icon('git-pull-request', 'small').text_color(colors().done),
+  inReview: questionBubble,
+  inProgress: () => statusMark('working'),
+  sent: () => statusMark('done'),
 };
+
+const stateMark = (kind: ItemStateKind): Element => stateMarks[kind]();
 
 const stateChip = (state: ItemStateOptions): Element => {
   const chip = h_flex()
     .h(badgeSize.height)
     .px(badgeSize.padding)
     .gap(spacing.xsmall)
-    .flex_none()
+    .min_w(0)
     .items_center()
     .rounded(badgeSize.radius)
     .border(badgeSize.border)
     .border_color(colors().border);
 
-  const box = div().flex_none();
-  const label = withTextRole(box, 'detail', 'muted');
-  const stateLabel = label.child(state.label);
+  const stateLabel = roleText('detail', state.label, 'muted');
 
   return chip.child(stateMark(state.kind)).child(stateLabel);
 };

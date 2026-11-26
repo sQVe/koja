@@ -73,6 +73,7 @@ describe('documentLine', () => {
     expect(bar?.styles['w']).toEqual([documentSize.markWidth]);
     expect(bar?.styles['h']).toEqual([documentSize.markHeight]);
     expect(drawnTexts(line)).toEqual(['6', 'Keep the space visible.', 'edited']);
+    expect(elementWithText(line, 'edited')?.textColors).toEqual([palette.working]);
   });
 
   test('a commented line draws a neutral bar and no edited word', () => {
@@ -94,10 +95,15 @@ describe('documentLine', () => {
     expect(markHeight).toBeLessThan(rowHeight);
   });
 
-  test('a plain line draws no bar', () => {
+  test('a plain line draws no bar but keeps the mark slot that aligns the numbers', () => {
     const line = documentLine({ number: 1, text: '# Sidebar design' });
 
+    const slot = elementsWithStyle(line, 'w').find(
+      (element) => element.styles['w']?.[0] === documentSize.markWidth,
+    );
+
     expect(barFills(line)).toEqual([]);
+    expect(slot?.styles['h']).toEqual([documentSize.markHeight]);
     expect(drawnTexts(line)).toEqual(['1', '# Sidebar design']);
   });
 

@@ -11,7 +11,8 @@ const identityOf = (options: SourceLinkOptions): string =>
   options.source === 'GitHub' ? `${options.repository} ${options.identifier}` : options.identifier;
 
 export const sourceLink = (options: SourceLinkOptions): Element => {
-  const text = `${identityOf(options)} · ${options.source}`;
+  const identity = identityOf(options);
+  const text = `${identity} · ${options.source}`;
 
   return linkText(text, 'middle').tooltip(text);
 };

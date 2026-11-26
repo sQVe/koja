@@ -17,7 +17,7 @@ await mock.module('herdr', () => herdrFake({ theme: () => palette }));
 const modulePath = './text.ts';
 
 const { linkText } = (await import(modulePath)) as {
-  linkText: (text: string) => DrawnElement;
+  linkText: (text: string, cut?: 'middle') => DrawnElement;
 };
 
 afterAll(() => {
@@ -32,5 +32,21 @@ describe('linkText', () => {
     expect(link.textColors.at(-1)).toBe(palette.foreground);
     expect(link.styles['underline']).toBeDefined();
     expect(link.styles['cursor_pointer']).toBeDefined();
+  });
+
+  test('a link that cuts in the middle shrinks and clips its text there', () => {
+    const link = linkText('ME-1175', 'middle');
+
+    expect(link.styles['truncate']).toBeDefined();
+    expect(link.styles['text_ellipsis_middle']).toBeDefined();
+    expect(link.styles['flex_shrink']).toEqual([1]);
+    expect(link.styles['underline']).toBeDefined();
+  });
+
+  test('a link without a cut keeps its width', () => {
+    const link = linkText('ME-1175');
+
+    expect(link.styles['text_ellipsis_middle']).toBeUndefined();
+    expect(link.styles['flex_none']).toBeDefined();
   });
 });
