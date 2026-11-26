@@ -35,13 +35,14 @@ import type { ParseResult, ParserState } from './parser.ts';
 import { initialParserState, parseKey } from './parser.ts';
 import { createSections, isSectionKeyAction } from './sections.ts';
 
-interface ShownHints {
+interface HintsProps {
   part: PartLetter;
   count: number | null;
   list: boolean;
 }
 
-interface OpenHints extends ShownHints {
+interface OpenHints {
+  part: PartLetter;
   overlay: string;
 }
 
@@ -85,14 +86,14 @@ const pendingPart = (result: ParseResult): PartLetter | null => {
   return key !== undefined && isPartLetter(key) ? key : null;
 };
 
-const openKeyHints = (hints: ShownHints): string =>
+const openKeyHints = (props: HintsProps): string =>
   openOverlay({
     mod: 'koja-hints',
     kind: 'window',
     frame: 'none',
     width: 1,
     height: 1,
-    props: { part: hints.part, count: hints.count, list: hints.list },
+    props: { ...props },
   });
 
 export default class KojaModal extends View {
@@ -276,9 +277,9 @@ export default class KojaModal extends View {
       return;
     }
 
-    const hints = { part, count: result.state.count, list };
+    const props = { part, count: result.state.count, list };
 
-    this.openHints = { ...hints, overlay: openKeyHints(hints) };
+    this.openHints = { part, overlay: openKeyHints(props) };
   }
 
   private closeHints(): void {

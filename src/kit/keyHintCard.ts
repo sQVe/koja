@@ -21,7 +21,7 @@ const cardLine = (height: number, children: Element[]): Element =>
 const titleLine = (hints: PartKeyHints): Element =>
   cardLine(rowHeight.small, [pressedKeycap(hints.letter), roleText('title', hints.title)]);
 
-const rule = (): Element => separator().my(0).mx(textInset);
+const rule = (): Element => separator().my(spacing.none).mx(textInset);
 
 const hintRow = (row: KeyHintRow, height: number): Element =>
   cardLine(height, [keycaps(row.keys), roleText('body', row.label)]);

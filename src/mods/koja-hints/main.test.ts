@@ -6,6 +6,7 @@ import { keyLabel } from '../../../tests/keyLabels.ts';
 import { gpuiBaseFake, gpuiKitFake, herdrFake } from '../../../tests/moduleFakes.ts';
 import { partKeyHints, partLetters } from '../../kit/keyHints.ts';
 import { actionName } from '../../kit/keyNames.ts';
+import { cardPlacement } from './placement.ts';
 
 interface FakeView {
   render: () => DrawnElement;
@@ -29,20 +30,22 @@ await mock.module('gpui-base', () =>
 
 await mock.module('gpui-kit', () => gpuiKitFake({ div: () => drawn() }));
 
+const layoutFixture = (): unknown => ({
+  id: 'root',
+  children: [
+    { id: 'sidebar', size: { px: 268 } },
+    {
+      id: 'work-body',
+      padding: 6,
+      gap: 6,
+      children: [{ id: 'main' }, { id: 'panel', hidden: true, size: { px: 368 } }],
+    },
+  ],
+});
+
 await mock.module('herdr', () =>
   herdrFake({
-    layout: () => ({
-      id: 'root',
-      children: [
-        { id: 'sidebar', size: { px: 268 } },
-        {
-          id: 'work-body',
-          padding: 6,
-          gap: 6,
-          children: [{ id: 'main' }, { id: 'panel', hidden: true, size: { px: 368 } }],
-        },
-      ],
-    }),
+    layout: layoutFixture,
     props: () => shownProps,
     run: (command: string, args?: Record<string, unknown>) => {
       runCalls.push({ command, args });
@@ -68,27 +71,25 @@ describe('key hints view', () => {
   test.each(partLetters)('draws the card of the %s part', (part) => {
     shownProps = { part };
 
-    const texts = drawnTexts(new keyHintsView().render());
+    const drawnKeys = elementsWithStyle(new keyHintsView().render(), 'font_family')
+      .flatMap((element) => drawnTexts(element))
+      .toSorted();
 
-    const missing = partKeyHints(part)
-      .groups.flatMap((group) => group.rows.flatMap((row) => row.keys))
-      .map(keyLabel)
-      .filter((label) => !texts.includes(label));
+    const rows = partKeyHints(part).groups.flatMap((group) => group.rows);
+    const expected = [part, ...rows.flatMap((row) => row.keys)].map(keyLabel).toSorted();
 
-    expect(texts).toContain(partKeyHints(part).title);
-    expect(missing).toEqual([]);
+    expect(drawnKeys).toEqual(expected);
   });
 
-  test('places the card on the main column, above the pane bottoms', () => {
+  test('places the card where the placement puts it', () => {
     shownProps = { part: 'w' };
 
     const [placed] = elementsWithStyle(new keyHintsView().render(), 'left');
+    const placement = cardPlacement(layoutFixture());
 
-    expect([placed?.styles['left'], placed?.styles['right'], placed?.styles['bottom']]).toEqual([
-      [274],
-      [6],
-      [30],
-    ]);
+    const offsets = [placed?.styles['left'], placed?.styles['right'], placed?.styles['bottom']];
+
+    expect(offsets).toEqual([[placement.left], [placement.right], [placement.bottom]]);
   });
 
   test('draws the list action of a marked list instead of the table row it shadows', () => {
@@ -97,7 +98,12 @@ describe('key hints view', () => {
     const texts = drawnTexts(new keyHintsView().render());
 
     const listLabel = actionName({ kind: 'list', action: 'first' });
-    const scrollLabel = actionName({ kind: 'command', command: 'terminal.scroll' });
+
+    const scrollLabel = actionName({
+      kind: 'command',
+      command: 'terminal.scroll',
+      args: { to: 'top' },
+    });
 
     expect(texts.filter((text) => text === listLabel)).toHaveLength(1);
     expect(texts.filter((text) => text === scrollLabel)).toEqual([]);

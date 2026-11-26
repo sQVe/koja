@@ -34,6 +34,10 @@ interface GroupSpec {
   order?: string[];
 }
 
+interface SpecRow extends KeyHintRow {
+  name: string;
+}
+
 export const partLetters: PartLetter[] = ['w', 't', 's', 'g', 'z'];
 
 export const partTitles: Record<PartLetter, string> = {
@@ -182,42 +186,34 @@ const groupSpecs: Record<PartLetter, GroupSpec[]> = {
   z: viewGroupSpecs,
 };
 
-// The parser runs the first row that matches a sequence, so a layer's key shadows the table's own.
-const partEntries = (part: PartLetter, layer: readonly NormalKey[]): NormalKey[] => {
-  const kept = new Map<string, NormalKey>();
+const firstBy = <Item>(
+  items: readonly Item[],
+  keyOf: (item: Item) => string | undefined,
+): Item[] => {
+  const kept = new Map<string, Item>();
 
-  for (const entry of [...layer, ...normalKeys]) {
-    if (entry.keys.length !== 2 || entry.keys[0] !== part) {
-      continue;
-    }
+  for (const item of items) {
+    const key = keyOf(item);
 
-    const sequence = entry.keys.join(' ');
-
-    if (!kept.has(sequence)) {
-      kept.set(sequence, entry);
+    if (key !== undefined && !kept.has(key)) {
+      kept.set(key, item);
     }
   }
 
   return [...kept.values()];
 };
 
+// The parser runs the first row that matches a sequence, so a layer's key shadows the table's own.
+const partEntries = (part: PartLetter, layer: readonly NormalKey[]): NormalKey[] =>
+  firstBy(
+    [...layer, ...normalKeys].filter((entry) => entry.keys.length === 2 && entry.keys[0] === part),
+    (entry) => entry.keys.join(' '),
+  );
+
 // The table repeats an action once per alias, and the parser runs the first row that matches. The
 // card shows that same row, one per action, so it never lists an alias beside the key it stands for.
-const shownEntries = (entries: NormalKey[]): NormalKey[] => {
-  const shown = new Map<string, NormalKey>();
-
-  for (const entry of entries) {
-    const name = actionName(entry.action);
-
-    if (name === undefined || shown.has(name)) {
-      continue;
-    }
-
-    shown.set(name, entry);
-  }
-
-  return [...shown.values()];
-};
+const shownEntries = (entries: NormalKey[]): NormalKey[] =>
+  firstBy(entries, (entry) => actionName(entry.action));
 
 const countedName = (entry: NormalKey, count: number | null | undefined): string | undefined => {
   if (entry.counted !== 'nthTab' || count === null || count === undefined) {
@@ -240,7 +236,7 @@ const specRows = (
   spec: GroupSpec,
   entries: NormalKey[],
   count: number | null | undefined,
-): KeyHintRow[] => {
+): SpecRow[] => {
   const rows = entries.flatMap((entry) => {
     if (!spec.holds(entry.action)) {
       return [];
