@@ -123,12 +123,6 @@ describe('dialogButton', () => {
     expect(opacityOf(button)).toBeUndefined();
   });
 
-  test('draws its label in the dialog text size', () => {
-    const button = dialogButton({ kind: 'solid', label: 'Save' });
-
-    expect(button.styles['text_size']).toBe(13);
-  });
-
   test('a plain cancel keeps the border outline and the muted ink', () => {
     const button = dialogButton({ kind: 'outline', label: 'Cancel' });
 

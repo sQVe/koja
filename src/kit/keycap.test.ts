@@ -56,6 +56,7 @@ describe('keycap', () => {
     expect(glyph?.textColors).toContain(palette.dim);
     expect(glyph?.styles['font_family']).toEqual(['Maple Mono']);
     expect(cap.borderColors).toContain(palette.border);
+    expect(cap.backgroundColors).toContain(palette.popover);
   });
 
   test('a pressed key takes the accent glyph and the selected outline', () => {
