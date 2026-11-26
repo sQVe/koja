@@ -149,7 +149,7 @@ const worktreeAtFolder = (
 };
 
 const belowPlace = (place: Place | null, worktree: WorktreeGit): boolean =>
-  place === null || worktree.root.length > place.folder.length;
+  place === null || worktree.root.startsWith(`${place.folder}/`);
 
 export const spaceFacts = (
   facts: Facts | null,

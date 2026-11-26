@@ -32,7 +32,7 @@ const readyName = 'ready';
 
 const readyPollMilliseconds = 50;
 
-// How long the launcher waits for serve to report that it is watching.
+// The launcher reads the ready file this many times, readyPollMilliseconds apart.
 const readyAttempts = 60;
 
 // The picker writes the heartbeat this often; serve's 1200-poll limit spans 60 seconds, 60x
