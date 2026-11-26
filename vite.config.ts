@@ -17,7 +17,7 @@ export default defineConfig({
   },
   staged: {
     // Declaration files are kept as Herdr wrote them, so lint never gets them.
-    '!(*.d).{ts,tsx,js,jsx,mjs,cjs}': [
+    '{!(*.d).ts,*.tsx,*.js,*.jsx,*.mjs,*.cjs}': [
       'bunx --bun stomme-ts-style',
       'bunx --bun vp fmt --check --no-error-on-unmatched-pattern',
     ],
