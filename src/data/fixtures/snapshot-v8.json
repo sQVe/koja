@@ -1,5 +1,5 @@
 {
-  "version": 7,
+  "version": 8,
   "revision": 11,
   "facts": {
     "git": {
@@ -18,7 +18,8 @@
           },
           "root": "/code/koja",
           "branch": "main",
-          "linked": false
+          "linked": false,
+          "bare": false
         }
       }
     },

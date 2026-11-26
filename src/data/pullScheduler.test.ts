@@ -99,6 +99,7 @@ describe('createPullScheduler request answering', () => {
           root: '/code/other',
           branch: 'main',
           linked: false,
+          bare: false,
         },
       },
     };

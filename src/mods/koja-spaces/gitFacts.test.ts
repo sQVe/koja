@@ -42,6 +42,7 @@ const factsOf = (
       root: checkout.folder,
       branch: 'main',
       linked: checkout.linked,
+      bare: false,
     };
   }
 

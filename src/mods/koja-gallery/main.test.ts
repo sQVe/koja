@@ -101,7 +101,7 @@ const checksHeaderOf = (gallery: DrawnElement, label: string): DrawnElement => {
 };
 
 beforeEach(() => {
-  sharedValues = { [snapshotKey]: { version: 7, revision: 1, facts: emptyFacts() } };
+  sharedValues = { [snapshotKey]: { version: 8, revision: 1, facts: emptyFacts() } };
   tasks = [];
   notifyCalls = 0;
   setSystemTime(start);

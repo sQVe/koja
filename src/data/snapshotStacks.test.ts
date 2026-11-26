@@ -119,7 +119,7 @@ const malformedStacks: [string, (snapshot: RawSnapshot) => void][] = [
 
 describe('parseSnapshot stack facts', () => {
   test('reads the stacks of the current snapshot', () => {
-    const parsed = parseSnapshot(fixture('snapshot-v7.json'));
+    const parsed = parseSnapshot(fixture('snapshot-v8.json'));
     const key = repositoryOf(null, '/code/koja/.git').key;
     const stack = parsed?.facts.stacks[key]?.stacks[0];
 

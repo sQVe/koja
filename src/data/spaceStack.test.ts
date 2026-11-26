@@ -62,6 +62,7 @@ const factsOf = (fixture: Fixture): Facts => {
           root: folder,
           branch: fixture.branch,
           linked: false,
+          bare: false,
         },
       },
     },

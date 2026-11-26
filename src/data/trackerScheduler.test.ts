@@ -19,6 +19,7 @@ interface Checkout {
   root: string;
   branch: string | null;
   linked: boolean;
+  bare?: boolean;
   placeFolder?: string;
   shown?: boolean;
   repository?: RepositoryIdentity;
@@ -62,6 +63,7 @@ const gitFactsOfCheckouts = (checkouts: Checkout[]): GitFacts => {
       root: checkout.root,
       branch: checkout.branch,
       linked: checkout.linked,
+      bare: checkout.bare ?? false,
     };
   }
 
@@ -384,12 +386,14 @@ describe('createTrackerScheduler', () => {
           root: bareRoot,
           branch: 'main',
           linked: false,
+          bare: true,
         },
         [checkoutWorktree.key]: {
           repository: bareRepository,
           root: checkoutRoot,
           branch: 'me-1036-title-spaces-with-their-linear-tickets',
           linked: true,
+          bare: false,
         },
       },
     };
@@ -454,11 +458,12 @@ describe('createTrackerScheduler', () => {
     const harness = harnessOf(run);
 
     const git = gitFactsOfCheckouts([
-      { root: bareRoot, branch: 'main', linked: false, repository: bareRepository },
+      { root: bareRoot, branch: 'main', linked: false, bare: true, repository: bareRepository },
       {
         root: checkoutRoot,
         branch: 'me-1036-title-spaces-with-their-linear-tickets',
         linked: true,
+        bare: false,
         repository: bareRepository,
       },
     ]);
@@ -508,6 +513,7 @@ describe('createTrackerScheduler', () => {
         root: bareRoot,
         branch: 'me-1036-title-spaces-with-their-linear-tickets',
         linked: false,
+        bare: true,
         repository: bareRepository,
       },
     ]);
@@ -785,18 +791,21 @@ describe('createTrackerScheduler', () => {
         root: '/code/a',
         branch: 'me-1-a',
         linked: false,
+        bare: false,
         repository: repositoryOf(null, '/code/a/.git'),
       },
       {
         root: '/code/b',
         branch: 'me-2-b',
         linked: false,
+        bare: false,
         repository: repositoryOf(null, '/code/b/.git'),
       },
       {
         root: '/code/c',
         branch: 'me-3-c',
         linked: false,
+        bare: false,
         repository: repositoryOf(null, '/code/c/.git'),
       },
     ]);
@@ -849,18 +858,21 @@ describe('createTrackerScheduler', () => {
         root: '/code/a',
         branch: 'me-1-a',
         linked: false,
+        bare: false,
         repository: repositoryOf(null, '/code/a/.git'),
       },
       {
         root: '/code/b',
         branch: 'me-2-b',
         linked: false,
+        bare: false,
         repository: repositoryOf(null, '/code/b/.git'),
       },
       {
         root: '/code/c',
         branch: 'me-3-c',
         linked: false,
+        bare: false,
         repository: repositoryOf(null, '/code/c/.git'),
       },
     ]);

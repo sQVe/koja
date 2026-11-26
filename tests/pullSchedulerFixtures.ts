@@ -52,6 +52,7 @@ export const gitFactsOf = (...sources: GitSource[]): GitFacts => {
       root: source.folder,
       branch: source.branch ?? 'main',
       linked: false,
+      bare: false,
     };
   }
 

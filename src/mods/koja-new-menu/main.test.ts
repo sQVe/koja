@@ -73,12 +73,13 @@ const snapshotFor = (commonDirectory: string): unknown => {
           root: folder,
           branch: 'main',
           linked: true,
+          bare: false,
         },
       },
     },
   };
 
-  return { version: 7, revision: 1, facts };
+  return { version: 8, revision: 1, facts };
 };
 
 const context = {

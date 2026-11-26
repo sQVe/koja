@@ -258,13 +258,13 @@ const storedSnapshot = (pulls: Record<string, RepositoryPulls> = {}): Snapshot =
   const worktree = worktreeOf(null, folder);
 
   return {
-    version: 7,
+    version: 8,
     revision: 7,
     facts: {
       git: {
         places: { [place.key]: { kind: 'repository', worktree: worktree.key } },
         worktrees: {
-          [worktree.key]: { repository, root: folder, branch: 'main', linked: false },
+          [worktree.key]: { repository, root: folder, branch: 'main', linked: false, bare: false },
         },
       },
       pulls,
@@ -308,7 +308,7 @@ describe('startDataHost', () => {
     expect(heartbeat()).toMatchObject({ generation: 1, at: start });
 
     expect(sharedValues.get(snapshotKey)).toEqual({
-      version: 7,
+      version: 8,
       revision: 1,
       facts: emptyFacts(),
     });
@@ -588,7 +588,7 @@ describe('startDataHost', () => {
     expect(record.stages.map((stage) => stage.messageCount)).toEqual([0, 0, 1, 1, 2, 2]);
     expect(snapshotWrites).toHaveLength(2);
     expect(snapshotWrites.map((write) => write.messageCount)).toEqual([1, 2]);
-    expect(record.snapshot).toEqual({ version: 7, revision: 1, facts: emptyFacts() });
+    expect(record.snapshot).toEqual({ version: 8, revision: 1, facts: emptyFacts() });
   });
 
   test('logs again in a fresh loaded copy', async () => {

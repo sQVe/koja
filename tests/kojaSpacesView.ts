@@ -157,6 +157,7 @@ export const storedFacts = (
       root: checkout.folder,
       branch: checkout.branch ?? 'main',
       linked: checkout.linked,
+      bare: false,
     };
   }
 

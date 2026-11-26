@@ -133,6 +133,7 @@ describe('createGitScheduler place mapping fallback', () => {
       root: aliasFolder,
       branch: 'feature',
       linked: true,
+      bare: false,
     });
 
     expect(harness.revision()).toBe(revisionBefore + 1);
@@ -172,6 +173,7 @@ describe('createGitScheduler place mapping fallback', () => {
       root: rootFolder,
       branch: 'release',
       linked: true,
+      bare: false,
     });
 
     expect(harness.revision()).toBe(revisionBefore + 1);
@@ -222,6 +224,7 @@ describe('createGitScheduler place mapping fallback', () => {
       root: rootFolder,
       branch: 'feature',
       linked: false,
+      bare: false,
     });
 
     expect(harness.published).toHaveLength(publishedBefore + 1);

@@ -94,7 +94,14 @@ const factsOf = (entries: readonly (readonly [string, string])[]): GitFacts => {
     const key = worktreeOfFolder(worktreeFolder);
 
     places[placeKey(folder)] = { kind: 'repository', worktree: key };
-    worktrees[key] = { repository, root: worktreeFolder, branch: 'main', linked: false };
+
+    worktrees[key] = {
+      repository,
+      root: worktreeFolder,
+      branch: 'main',
+      linked: false,
+      bare: false,
+    };
   }
 
   return { places, worktrees };

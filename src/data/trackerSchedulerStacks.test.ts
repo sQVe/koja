@@ -40,6 +40,7 @@ const gitFactsOf = (branches: readonly string[]): GitFacts => {
       root,
       branch,
       linked: index > 0,
+      bare: false,
     };
   }
 

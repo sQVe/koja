@@ -1,5 +1,6 @@
 import type { Context } from 'gpui-kit';
 
+import { keepEarliest } from './fields.ts';
 import type { FolderWatchHandle, WatchFolder } from './folderWatch.ts';
 import { watchFolderChanges } from './folderWatch.ts';
 import type { RepositoryIdentity } from './gitIdentity.ts';
@@ -30,12 +31,7 @@ export const usedRepositories = (
   return used;
 };
 
-const withoutTrailingSlashes = (path: string): string => path.replace(/\/+$/, '');
-
-// A bare worktree's root is its common directory, so it has no checked-out branch.
-export const isBareWorktree = (worktree: WorktreeGit): boolean =>
-  withoutTrailingSlashes(worktree.root) ===
-  withoutTrailingSlashes(worktree.repository.commonDirectory);
+export const isBareWorktree = (worktree: WorktreeGit): boolean => worktree.bare;
 
 export const checkoutWorktrees = (
   worktrees: Readonly<Record<string, WorktreeGit>>,
@@ -49,16 +45,6 @@ export const checkoutWorktrees = (
   }
 
   return checkouts;
-};
-
-const keepEarliest = (stored: Map<string, number>, key: string, at: number): void => {
-  const first = stored.get(key);
-
-  if (first !== undefined && first <= at) {
-    return;
-  }
-
-  stored.set(key, at);
 };
 
 const isRemoteRefPath = (commonDirectory: string, path: string): boolean =>

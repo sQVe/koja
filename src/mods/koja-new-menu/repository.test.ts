@@ -10,6 +10,7 @@ interface WorktreeFixture {
   commonDirectory: string;
   root: string;
   linked: boolean;
+  bare?: boolean;
 }
 
 const place = placeOf(null, '/code/koja/me-1191');
@@ -17,7 +18,7 @@ const place = placeOf(null, '/code/koja/me-1191');
 const readWith =
   (git: GitFacts) =>
   (key: string): unknown =>
-    key === snapshotKey ? { version: 7, revision: 1, facts: { ...emptyFacts(), git } } : undefined;
+    key === snapshotKey ? { version: 8, revision: 1, facts: { ...emptyFacts(), git } } : undefined;
 
 const factsOf = (worktrees: WorktreeFixture[], at: Place): GitFacts => {
   const keys = worktrees.map((worktree) => worktreeOf(at.machine, worktree.root));
@@ -35,6 +36,7 @@ const factsOf = (worktrees: WorktreeFixture[], at: Place): GitFacts => {
             root: worktree.root,
             branch: 'main',
             linked: worktree.linked,
+            bare: worktree.bare ?? false,
           },
         ];
       }),

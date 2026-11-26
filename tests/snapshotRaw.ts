@@ -17,6 +17,7 @@ export const worktree = (machine: string | null, root: string): WorktreeGit => (
   root,
   branch: 'main',
   linked: false,
+  bare: false,
 });
 
 export const gitFacts = (): GitFacts => {
@@ -28,8 +29,22 @@ export const gitFacts = (): GitFacts => {
   };
 };
 
+const withBareFalseEntry = ([key, stored]: [string, unknown]): [string, unknown] => {
+  const fields = isRecord(stored) ? stored : {};
+
+  return [key, { ...fields, bare: false }];
+};
+
+export const withBareFalse = (git: unknown): unknown => {
+  const record = isRecord(git) ? git : {};
+  const worktrees = isRecord(record.worktrees) ? record.worktrees : {};
+  const entries = Object.entries(worktrees).map(withBareFalseEntry);
+
+  return { ...record, worktrees: Object.fromEntries(entries) };
+};
+
 export const snapshotOf = (git: unknown): unknown => ({
-  version: 7,
+  version: 8,
   revision: 4,
   facts: { git, pulls: {}, trackers: {}, stacks: {} },
 });
@@ -67,7 +82,7 @@ export const validRaw = (): { snapshot: RawSnapshot; key: string } => {
   const key = placeOf(null, '/work').key;
 
   const snapshot: RawSnapshot = {
-    version: 7,
+    version: 8,
     revision: 4,
     facts: {
       git: {
@@ -82,6 +97,7 @@ export const validRaw = (): { snapshot: RawSnapshot; key: string } => {
             root: '/work',
             branch: 'main',
             linked: false,
+            bare: false,
           },
         },
       },

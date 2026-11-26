@@ -30,6 +30,7 @@ const worktreeOf = (commonDirectory: string, root: string, linked: boolean): Wor
   root,
   branch: linked ? 'me-1226-open-the-list' : 'main',
   linked,
+  bare: false,
 });
 
 const withGit = (
@@ -37,7 +38,7 @@ const withGit = (
   worktrees: Record<string, WorktreeGit>,
 ): DataState => {
   const facts = { git: { places, worktrees }, pulls: {}, trackers: {}, stacks: {} };
-  const snapshot: Snapshot = { version: 7, revision: 1, facts };
+  const snapshot: Snapshot = { version: 8, revision: 1, facts };
 
   return {
     kind: 'live',

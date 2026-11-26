@@ -51,6 +51,7 @@ const worktreeGitOf = (
       root: identity.place.folder,
       branch: branchName(identity.branch),
       linked: false,
+      bare: true,
     };
   }
 
@@ -59,6 +60,7 @@ const worktreeGitOf = (
     root: identity.worktree.top,
     branch: branchName(identity.branch),
     linked: identity.kind === 'linked',
+    bare: false,
   };
 };
 

@@ -240,6 +240,7 @@ const seedGitFacts = (): void => {
     root: '/code/koja',
     branch: 'main',
     linked: false,
+    bare: false,
   } satisfies WorktreeGit;
 
   const linked = {
@@ -251,6 +252,7 @@ const seedGitFacts = (): void => {
     root: '/code/tau/feature',
     branch: 'me-1226-open-the-list',
     linked: true,
+    bare: false,
   } satisfies WorktreeGit;
 
   const mainKey = worktreeOf(null, main.root).key;

@@ -206,6 +206,7 @@ describe('parseSnapshot git facts', () => {
       root: '/orphan',
       branch: 'main',
       linked: false,
+      bare: false,
     };
 
     const parsed = parseSnapshot(snapshot);

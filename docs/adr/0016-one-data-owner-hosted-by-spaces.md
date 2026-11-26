@@ -73,12 +73,14 @@ it. The manual Retry joins the read in flight or starts one when the user asks.
 Each space's stack comes from the repository's `gh-stack` record, the file `gh stack` writes at
 `<git-common-dir>/gh-stack`. The lease holder reads it, so one copy serves every consumer, and it
 watches the record's common directory so a change re-reads it. A repository is read when it first
-appears in the Git facts and after such a change; a repository with no checkout is not read. One
-read takes the record and the repository's branch heads from one `git for-each-ref`, so a branch's
-restack need is Koja's own rule: a recorded base that is not the current head of the branch below
-it. A record that does not parse keeps the last good stacks and marks the repository, and a missing
-record clears them without a failure. A branch of a stack that holds a checked-out branch joins that
-repository's PR reads, and its ticket joins the tracker's reads, with one level of parent.
+appears in the Git facts and after such a change. A repository on another machine has no watch, so
+it is read again a minute after its last read finished, and a read that cannot reach the machine
+keeps the last good stacks with a failure. A repository with no checkout is not read. One read takes
+the record and the repository's branch heads from one `git for-each-ref`, so a branch's restack need
+is Koja's own rule: a recorded base that is not the current head of the branch below it. A record
+that does not parse keeps the last good stacks and marks the repository, and a missing record clears
+them without a failure. A branch of a stack that holds a checked-out branch joins that repository's
+PR reads, and its ticket joins the tracker's reads, with one level of parent.
 
 ### Sandbox remote fixture ownership
 
@@ -121,31 +123,34 @@ without suggesting an edit.
 ### Snapshot versions
 
 The snapshot is a saved record, so a field change bumps its `version`. The current reader accepts
-version 7, which holds Git facts, per-repository PR facts, per-repository tracker facts, and
-per-repository stacks, and rejects unknown fields. Each PR carries its mergeability, merge state,
-review decision, checks, and threads, and each of the last two is a part that is read, failed with
-its last good value, or unread. Each tracker carries the workspace the repository names, or null, a
-map of ticket facts keyed by ticket id, and whether the last read of that repository failed; a
-failed read keeps the last good tickets and marks the whole repository, not one ticket. Each ticket
-fact carries its id, title, state, URL, and parent. Each repository's stacks carry the parsed stacks
-and whether the last read failed; a failed read keeps the last good stacks. A stack carries its
-trunk branch and its branches bottom to top, and each branch its name, its pull request number or
-null, and whether it needs a restack. Version 6 is the previous supported format: it held the same
-facts without the stack map, so the reader returns a version 7 snapshot with no stacks. Version 5
-held the same facts as version 6, and each ticket also carried a failure flag that stayed false, so
-the reader drops that retired field and returns a version 7 snapshot. Version 4 held Git facts and
-per-repository PR facts, so the reader parses them and returns a version 7 snapshot with no tracker
+version 8, which holds Git facts, per-repository PR facts, per-repository tracker facts, and
+per-repository stacks, and rejects unknown fields. Each worktree carries its repository, its root,
+its branch or null, whether it is linked, and whether the identity read found it bare, so no reader
+guesses bareness from paths. Each PR carries its mergeability, merge state, review decision, checks,
+and threads, and each of the last two is a part that is read, failed with its last good value, or
+unread. Each tracker carries the workspace the repository names, or null, a map of ticket facts
+keyed by ticket id, and whether the last read of that repository failed; a failed read keeps the
+last good tickets and marks the whole repository, not one ticket. Each ticket fact carries its id,
+title, state, URL, and parent. Each repository's stacks carry the parsed stacks and whether the last
+read failed; a failed read keeps the last good stacks. A stack carries its trunk branch and its
+branches bottom to top, and each branch its name, its pull request number or null, and whether it
+needs a restack. Version 7 is the previous supported format: it held the same facts without the bare
+flag, so the reader treats every worktree it names as a checkout. Version 6 held the same facts
+without the stack map, so the reader returns a version 8 snapshot with no stacks. Version 5 held the
+same facts as version 6, and each ticket also carried a failure flag that stayed false, so the
+reader drops that retired field and returns a version 8 snapshot. Version 4 held Git facts and
+per-repository PR facts, so the reader parses them and returns a version 8 snapshot with no tracker
 or stack facts. Version 3 held only the PR list fields, so the reader parses them and gives each PR
 the unread parts, from which no need is derived. Version 2 held only Git facts, so the reader parses
-them and returns a version 7 snapshot with no PR, tracker, or stack facts. Version 1 carried no
+them and returns a version 8 snapshot with no PR, tracker, or stack facts. Version 1 carried no
 facts: its `facts` was `Record<string, never>`, and the next owner publish rewrites it. A version 1
 snapshot is therefore retired silently, because no user action applies. This is the one exception to
 the notices that [shared ADR 0008](../stomme/shared/adr/0008-backwards-compatibility.md) requires
 for saved formats.
 
-A malformed version 7, 6, 5, 4, 3, or 2 record, or a present record without a valid version, is
+A malformed version 8, 7, 6, 5, 4, 3, or 2 record, or a present record without a valid version, is
 logged once per mod copy with a message that the host rebuilds the snapshot on its next publish. A
-positive whole version above 7 is logged once per mod copy with a message that names the update.
+positive whole version above 8 is logged once per mod copy with a message that names the update.
 Each reason logs once per loaded mod copy, and later reads stay silent.
 
 PR read times carry their own version. Version 2 keeps, per repository, one list time and a time per

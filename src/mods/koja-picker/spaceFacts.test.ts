@@ -11,6 +11,7 @@ interface WorktreeFixture {
   commonDirectory: string;
   branch: string;
   linked: boolean;
+  bare?: boolean;
 }
 
 interface PullFixture {
@@ -141,6 +142,7 @@ const stored = (
       root: fixture.root,
       branch: fixture.branch,
       linked: fixture.linked,
+      bare: fixture.bare ?? false,
     };
   }
 
@@ -192,6 +194,7 @@ describe('spaceFacts', () => {
           commonDirectory: '/code/koja/.git',
           branch: 'me-1189-go-to',
           linked: true,
+          bare: false,
         },
       ],
       [
@@ -217,6 +220,7 @@ describe('spaceFacts', () => {
           commonDirectory: '/code/notes/.git',
           branch: 'main',
           linked: false,
+          bare: false,
         },
       ],
       [{ number: 7, headRefName: 'main', commonDirectory: '/code/notes/.git' }],
@@ -236,6 +240,7 @@ describe('spaceFacts', () => {
           commonDirectory: '/code/notes/.git',
           branch: 'other-branch',
           linked: false,
+          bare: false,
         },
       ],
       [{ number: 7, headRefName: 'main', commonDirectory: '/code/notes/.git' }],
@@ -254,6 +259,7 @@ describe('spaceFacts', () => {
           commonDirectory: '/code/notes/.git',
           branch: 'main',
           linked: false,
+          bare: false,
         },
       ],
       [
@@ -280,6 +286,7 @@ describe('spaceFacts', () => {
           commonDirectory: '/code/bare.git',
           branch: 'main',
           linked: false,
+          bare: false,
         },
       ],
       [],
@@ -298,6 +305,7 @@ describe('spaceFacts', () => {
           commonDirectory: '/code/work/repo/.bare',
           branch: 'main',
           linked: true,
+          bare: false,
         },
       ],
       [],
@@ -324,12 +332,14 @@ describe('spaceFacts', () => {
           commonDirectory: '/code/koja/.git',
           branch: 'main',
           linked: false,
+          bare: false,
         },
         {
           root: '/code/koja-side',
           commonDirectory: '/code/koja/.git',
           branch: 'side',
           linked: true,
+          bare: false,
         },
       ],
       [
@@ -357,6 +367,7 @@ describe('spaceFacts', () => {
           commonDirectory: '/code/notes/.git',
           branch: 'main',
           linked: false,
+          bare: false,
         },
       ],
       [
@@ -383,12 +394,14 @@ describe('spaceFacts', () => {
           commonDirectory: '/git/widget-metadata',
           branch: 'main',
           linked: false,
+          bare: false,
         },
         {
           root: '/code/widget-feature',
           commonDirectory: '/git/widget-metadata',
           branch: 'feature',
           linked: true,
+          bare: false,
         },
       ],
       [],
@@ -411,6 +424,7 @@ describe('spaceFacts', () => {
           commonDirectory: '/code/widget/.git',
           branch: 'feature',
           linked: false,
+          bare: false,
         },
       ],
       [{ number: 42, headRefName: 'feature', commonDirectory: '/code/widget/.git' }],
@@ -430,6 +444,7 @@ describe('spaceFacts', () => {
           commonDirectory: '/code/koja/.git',
           branch: 'main',
           linked: false,
+          bare: false,
         },
       ],
       [
@@ -451,12 +466,14 @@ describe('spaceFacts', () => {
           commonDirectory: '/code/.git',
           branch: 'outer',
           linked: false,
+          bare: false,
         },
         {
           root: '/code/widget',
           commonDirectory: '/code/widget/.git',
           branch: 'inner',
           linked: false,
+          bare: false,
         },
       ],
       [
@@ -495,6 +512,7 @@ describe('spaceFacts', () => {
           commonDirectory: '/code/widget/.git',
           branch: 'feature',
           linked: false,
+          bare: false,
         },
       ],
       [{ number: 42, headRefName: 'feature', commonDirectory: '/code/widget/.git' }],

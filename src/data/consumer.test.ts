@@ -26,7 +26,7 @@ const captureLog = (): { messages: string[]; restore: () => void } => {
 };
 
 const writtenAt = 1_000_000;
-const snapshot = { version: 7, revision: 3, facts: emptyFacts() } satisfies Snapshot;
+const snapshot = { version: 8, revision: 3, facts: emptyFacts() } satisfies Snapshot;
 const heartbeat = { version: 1, owner: 'window-a', generation: 2, at: writtenAt };
 
 describe('readDataState', () => {
@@ -92,7 +92,7 @@ describe('readDataState', () => {
   });
 
   test('is unavailable for a newer snapshot', () => {
-    const newer = { version: 8, revision: 3, facts: emptyFacts() };
+    const newer = { version: 9, revision: 3, facts: emptyFacts() };
     const read = memoryStore({ [snapshotKey]: newer, [heartbeatKey]: heartbeat });
 
     expect(readDataState(read, writtenAt)).toEqual({ kind: 'unavailable' });

@@ -95,12 +95,14 @@ describe('createPullScheduler reads', () => {
           root: '/code/koja-z',
           branch: 'main',
           linked: false,
+          bare: false,
         },
         [linked.key]: {
           repository: schedulerRepository,
           root: '/code/koja-a',
           branch: 'main',
           linked: true,
+          bare: false,
         },
       },
     };
