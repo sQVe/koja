@@ -5,13 +5,12 @@ import type { PaneInfo, SpaceInfo } from 'herdr';
 import {
   GitSchedulerHarness,
   mainCheckout,
-  pick,
-  seededRandom,
   spaceOf,
   terminal,
   worldOf,
 } from '../../tests/gitSchedulerHarness.ts';
 import type { SchedulerLike } from '../../tests/gitSchedulerHarness.ts';
+import { pick, seededRandom } from '../../tests/seeded.ts';
 
 interface Trial {
   harness: GitSchedulerHarness;

@@ -1,6 +1,6 @@
 import { describe, expect, test } from 'bun:test';
 
-import { pick, seededRandom } from '../../tests/gitSchedulerHarness.ts';
+import { pick, seededRandom } from '../../tests/seeded.ts';
 import { repositoryOf } from './gitIdentity.ts';
 import type { PullDueState } from './pullDue.ts';
 import { duePullReads, emptyPullDueState, notePush, noteResult, noteStart } from './pullDue.ts';
