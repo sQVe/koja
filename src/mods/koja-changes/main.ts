@@ -7,7 +7,7 @@ import { checking, exec, watchFolder } from 'herdr';
 import { watchFolderChanges } from '../../data/folderWatch.ts';
 import type { FolderWatchHandle } from '../../data/folderWatch.ts';
 import { colors, repeat, withTextRole } from '../../kit/index.ts';
-import { canCommit, hasText } from './commit.ts';
+import { canCommit, canQueueCommit, hasText } from './commit.ts';
 import type { CommitRequest } from './commit.ts';
 import { DiffPreview } from './diffPreview.ts';
 import { commitAll, readChanges } from './git.ts';
@@ -62,6 +62,8 @@ export default class Changes extends View {
   private loading = false;
 
   private pendingRefresh = false;
+
+  private pendingCommit = false;
 
   private busy = false;
 
@@ -283,6 +285,11 @@ export default class Changes extends View {
       } finally {
         this.loading = false;
 
+        if (this.pendingCommit) {
+          this.pendingCommit = false;
+          this.commit(taskCx);
+        }
+
         if (this.pendingRefresh) {
           this.pendingRefresh = false;
           this.refresh(taskCx);
@@ -423,9 +430,17 @@ export default class Changes extends View {
   }
 
   private commit(cx: Context): void {
+    const request = this.commitRequest();
+
+    if (request.loading) {
+      this.pendingCommit = canQueueCommit(request);
+
+      return;
+    }
+
     const snapshot = this.state.lastGood?.snapshot ?? null;
 
-    if (snapshot === null || !canCommit(this.commitRequest())) {
+    if (snapshot === null || !canCommit(request)) {
       return;
     }
 

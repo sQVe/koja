@@ -15,3 +15,7 @@ const isReady = (request: CommitRequest): boolean =>
 
 export const canCommit = (request: CommitRequest): boolean =>
   hasText(request.message) && isReady(request);
+
+// A read in flight can settle the message's eligibility; it cannot change which repository the pane shows.
+export const canQueueCommit = (request: CommitRequest): boolean =>
+  hasText(request.message) && request.contextCurrent;

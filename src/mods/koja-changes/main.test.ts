@@ -332,6 +332,37 @@ const typeMessage = (): void => {
 
 const commitCommands = (): number => commands.filter((args) => args.includes('commit')).length;
 
+const blockNextStatusRead = (): void => {
+  blockStatus = true;
+  blockAfterReads = statusReads;
+};
+
+const submitWhileReadBlocked = async (
+  view: ChangesView,
+  beforeRelease: () => void = () => undefined,
+): Promise<number> => {
+  await settle();
+
+  expect(statusGate).not.toBeNull();
+
+  const before = commitCommands();
+
+  inputHandlers.get('submit')?.({}, context);
+  await settle();
+
+  expect(commitCommands()).toBe(before);
+
+  beforeRelease();
+
+  blockStatus = false;
+  statusGate?.();
+  await settle();
+  view.render(context);
+  await settle();
+
+  return before;
+};
+
 describe('Changes view', () => {
   test('during herdr-app check, init and render run no git and watch no folder', async () => {
     checkingNow = true;
@@ -748,6 +779,97 @@ describe('Changes view', () => {
     expect(renderedList?.open).toBe(open);
     expect(renderedDiff).toEqual(diff);
     expect(renderedDiffWidth).toBe(diffWidth);
+  });
+
+  test('a submit during a read commits once the read finishes', async () => {
+    const view = await boot();
+
+    typeMessage();
+    view.render(context);
+
+    expect(renderedCommit?.enabled).toBe(true);
+
+    blockNextStatusRead();
+    view.refresh(context);
+
+    const before = await submitWhileReadBlocked(view);
+
+    expect(commitCommands()).toBe(before + 1);
+    expect(inputValue).toBe('');
+  });
+
+  test('a submit during the first read of a repository commits once the read finishes', async () => {
+    blockStatus = true;
+
+    const view = await boot();
+
+    typeMessage();
+    view.render(context);
+
+    const before = await submitWhileReadBlocked(view);
+
+    expect(commitCommands()).toBe(before + 1);
+    expect(inputValue).toBe('');
+  });
+
+  test('a submit during a read after a failed read commits once the read succeeds', async () => {
+    const view = await boot();
+
+    typeMessage();
+    view.render(context);
+
+    failStatus = true;
+    view.refresh(context);
+    await settle();
+    view.render(context);
+
+    expect(renderedCommit?.enabled).toBe(false);
+
+    failStatus = false;
+    blockNextStatusRead();
+    view.refresh(context);
+
+    const before = await submitWhileReadBlocked(view);
+
+    expect(commitCommands()).toBe(before + 1);
+  });
+
+  test('a submit during a read commits no repository the pane has left', async () => {
+    const view = await boot();
+
+    typeMessage();
+    view.render(context);
+
+    blockNextStatusRead();
+    view.refresh(context);
+    await settle();
+
+    cwd = '/repo/b';
+
+    // The pane is back on the repository the read belongs to when it lands, so only the queue can refuse.
+    const before = await submitWhileReadBlocked(view, () => {
+      cwd = '/repo/a';
+    });
+
+    expect(commitCommands()).toBe(before);
+    expect(inputValue).toBe('Review fixture');
+  });
+
+  test('a queued submit commits nothing once the pane leaves the repository', async () => {
+    const view = await boot();
+
+    typeMessage();
+    view.render(context);
+
+    blockNextStatusRead();
+    view.refresh(context);
+    await settle();
+
+    const before = await submitWhileReadBlocked(view, () => {
+      cwd = '/repo/b';
+    });
+
+    expect(commitCommands()).toBe(before);
   });
 
   test('a background refresh requests a redraw before its read finishes', async () => {

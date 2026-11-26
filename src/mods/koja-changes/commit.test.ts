@@ -1,6 +1,6 @@
 import { describe, expect, test } from 'bun:test';
 
-import { canCommit } from './commit.ts';
+import { canCommit, canQueueCommit } from './commit.ts';
 
 const ready = {
   message: 'Fix the login redirect',
@@ -33,5 +33,27 @@ describe('canCommit', () => {
 
   test('refuses while the shown list is stale', () => {
     expect(canCommit({ ...ready, stale: true })).toBe(false);
+  });
+});
+
+describe('canQueueCommit', () => {
+  test('queues a commit with a message for the folder on screen', () => {
+    expect(canQueueCommit(ready)).toBe(true);
+  });
+
+  test('queues while the changes are loading', () => {
+    expect(canQueueCommit({ ...ready, loading: true })).toBe(true);
+  });
+
+  test('queues while the shown list is stale', () => {
+    expect(canQueueCommit({ ...ready, stale: true })).toBe(true);
+  });
+
+  test('refuses a blank message', () => {
+    expect(canQueueCommit({ ...ready, message: '   ' })).toBe(false);
+  });
+
+  test('refuses after the folder changed', () => {
+    expect(canQueueCommit({ ...ready, contextCurrent: false })).toBe(false);
   });
 });
