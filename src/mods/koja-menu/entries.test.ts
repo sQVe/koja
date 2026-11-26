@@ -523,6 +523,14 @@ describe('menu commands', () => {
     runCalls = [];
 
     const menu: MenuProps = { kind: 'global', target: target({}) };
+
+    expect(rowLabels(menu, null)).toEqual([
+      'New space',
+      'Keybinds',
+      'Theme: graphite',
+      'Theme: latte',
+    ]);
+
     const entries = actionsOf(menu, null);
 
     for (const item of entries) {

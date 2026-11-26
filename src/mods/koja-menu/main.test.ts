@@ -228,6 +228,18 @@ describe('space menu', () => {
     expect(execCalls).toHaveLength(1);
   });
 
+  test('steps past the failed checkout line and runs the next row on Enter', async () => {
+    execReply = { code: 128, stdout: '', stderr: 'fatal: unable to read repository' };
+
+    const view = await openMenu();
+    const tree = view.render();
+
+    keyDown(tree, 'down', { notify: () => undefined });
+    keyDown(tree, 'enter', { notify: () => undefined });
+
+    expect(askedCommands).toEqual([{ command: 'space.close', args: { id: 'space-1' } }]);
+  });
+
   test('reads the checkout again when the error line asks for a retry', async () => {
     execReply = { code: 128, stdout: '', stderr: 'fatal: unable to read repository' };
 
@@ -280,6 +292,37 @@ describe('pane menu', () => {
     view.init(null, context);
 
     expect(drawnTexts(view.render())).toContain('on');
+  });
+
+  test('turns the right-click row on when the row is clicked', () => {
+    menuProps = {
+      tab: 'pane',
+      target: { pane: 'pane-1', terminal: 'terminal-1' },
+    };
+
+    terminalList = [{ address: 'terminal-1', labels: {} }];
+
+    const view = new loaded.default();
+
+    view.init(null, context);
+
+    const [row] = clickablesWithText(view.render(), 'Send right-clicks to pane');
+
+    terminalList = [{ address: 'terminal-1', labels: { 'herdr.right-click': 'program' } }];
+
+    if (row !== undefined) {
+      click(row, context);
+    }
+
+    const reopened = new loaded.default();
+
+    reopened.init(null, context);
+
+    expect(askedCommands).toEqual([
+      { command: 'terminal.right_click', args: { to: 'program', terminal: 'terminal-1' } },
+    ]);
+
+    expect(drawnTexts(reopened.render())).toContain('on');
   });
 
   test('draws the right-click row state while right-clicks open the menu', () => {
