@@ -1,6 +1,7 @@
 import { afterAll, describe, expect, mock, test } from 'bun:test';
 
 import { gpuiBaseFake, gpuiKitFake, herdrFake } from '../../tests/moduleFakes.ts';
+import { textSize } from './size.ts';
 
 interface RecordedElement {
   hover: RecordedElement | null;
@@ -122,8 +123,13 @@ describe('dialogButton', () => {
     expect(button.styles['text_color']).toBe(palette.popover);
     expect(button.styles['border_color']).toBe(palette.popover);
     expect(rest.styles['border_color']).toBe(palette.foreground);
-    expect(button.styles['border_color']).not.toBe(rest.styles['border_color']);
     expect(opacityOf(button)).toBeUndefined();
+  });
+
+  test('draws its label in the dialog text size', () => {
+    const button = dialogButton({ kind: 'solid', label: 'Save' });
+
+    expect(button.styles['text_size']).toBe(textSize.default);
   });
 
   test('a plain cancel keeps the border outline and the muted ink', () => {

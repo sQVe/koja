@@ -74,12 +74,7 @@ const toggleTextColor = (options: ToggleButtonOptions): Color => {
   return options.quiet === true ? palette.dim : palette.muted;
 };
 
-const withFillRing = (
-  button: Element,
-  fill: Color,
-  hovered: boolean,
-  ring = colors().foreground,
-): Element => {
+const withFillRing = (button: Element, fill: Color, hovered: boolean, ring: Color): Element => {
   const ringed = button.border(spacing.hairline).border_color(fill);
 
   return withHover(ringed, hovered, (element) => element.border_color(ring));
@@ -103,7 +98,7 @@ export const actionButton = (options: ActionButtonOptions): Element => {
       .text_color(palette.solid_foreground)
       .cursor_pointer();
 
-    return withFillRing(enabledButton, palette.solid, options.hovered === true);
+    return withFillRing(enabledButton, palette.solid, options.hovered === true, palette.foreground);
   }
 
   return button
@@ -125,9 +120,15 @@ const dialogButtonBase = (label: string): Element =>
     .cursor_pointer()
     .child(label);
 
-const filledDialogButton = (label: string, fill: Color, ink: Color, hovered: boolean): Element => {
-  const ring = fill === colors().foreground ? colors().popover : colors().foreground;
-  const button = dialogButtonBase(label).bg(fill).text_color(ink).child(buttonKeycap('↵', ink));
+const filledDialogButton = (label: string, kind: 'solid' | 'danger', hovered: boolean): Element => {
+  const palette = colors();
+  const fill = kind === 'danger' ? palette.blocked : palette.foreground;
+  const ring = kind === 'danger' ? palette.foreground : palette.popover;
+
+  const button = dialogButtonBase(label)
+    .bg(fill)
+    .text_color(palette.popover)
+    .child(buttonKeycap('↵', palette.popover));
 
   return withFillRing(button, fill, hovered, ring);
 };
@@ -144,16 +145,13 @@ const outlineDialogButton = (label: string, hovered: boolean): Element => {
 };
 
 export const dialogButton = (options: DialogButtonOptions): Element => {
-  const palette = colors();
   const hovered = options.hovered === true;
 
   if (options.kind === 'outline') {
     return outlineDialogButton(options.label, hovered);
   }
 
-  const fill = options.kind === 'danger' ? palette.blocked : palette.foreground;
-
-  return filledDialogButton(options.label, fill, palette.popover, hovered);
+  return filledDialogButton(options.label, options.kind, hovered);
 };
 
 export const iconToggle = (options: IconToggleOptions): Element => {
