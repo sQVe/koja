@@ -21,6 +21,7 @@ const paneOf = (terminal: string | null): PaneInfo => ({
   terminal,
   tab: 'tb1',
   title: 'Pi',
+  name: null,
   cwd: null,
   branch: null,
   status: null,

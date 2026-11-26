@@ -92,6 +92,7 @@ const paneAt = (cwd: string): PaneInfo => ({
   terminal: 't1',
   tab: 'k1',
   title: 'Pi',
+  name: null,
   cwd,
   branch: null,
   status: null,

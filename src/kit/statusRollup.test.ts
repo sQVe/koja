@@ -48,6 +48,7 @@ const paneOf = (pane: string, tab: string, status: Status | null = null): PaneIn
   terminal: `t-${pane}`,
   tab,
   title: pane,
+  name: null,
   cwd: null,
   branch: null,
   status,

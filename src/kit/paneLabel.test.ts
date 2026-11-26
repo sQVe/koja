@@ -21,6 +21,7 @@ const paneOf = (title: string, program: Partial<Program>): PaneInfo => ({
   terminal: 't1',
   tab: 'tb1',
   title,
+  name: null,
   cwd: null,
   branch: null,
   status: null,
