@@ -10,6 +10,7 @@ import {
   validRaw,
   withBareFalse,
   worktreeAt,
+  worktreesAt,
 } from '../../tests/snapshotRaw.ts';
 import { repositoryOf, worktreeOf } from './gitIdentity.ts';
 import { pullNeeds } from './pullNeeds.ts';
@@ -75,15 +76,30 @@ describe('parseSnapshot', () => {
     expect(parseSnapshot(stored)).toEqual(stored);
   });
 
-  test('a version 7 snapshot treats every worktree as a checkout', () => {
+  test('a version 7 snapshot infers bareness from the paths', () => {
     const stored = rawSnapshotOf(fixture('snapshot-v8.json'));
-    const key = worktreeOf(null, '/code/koja').key;
-    delete worktreeAt(stored, key).bare;
+    const checkoutKey = worktreeOf(null, '/code/koja').key;
+    const bareKey = worktreeOf(null, '/code/bare').key;
+    const bare = worktreeAt(stored, checkoutKey);
+    const worktrees = worktreesAt(stored);
+
+    delete bare.bare;
+
+    worktrees[bareKey] = {
+      ...bare,
+      repository: {
+        machine: null,
+        commonDirectory: '/code/bare',
+        key: repositoryOf(null, '/code/bare').key,
+      },
+      root: '/code/bare',
+    };
 
     const parsed = parseSnapshot({ ...stored, version: 7 });
 
     expect(parsed?.version).toBe(8);
-    expect(parsed?.facts.git.worktrees[key]?.bare).toBe(false);
+    expect(parsed?.facts.git.worktrees[checkoutKey]?.bare).toBe(false);
+    expect(parsed?.facts.git.worktrees[bareKey]?.bare).toBe(true);
   });
 
   test('a version 6 snapshot reads with empty stacks', () => {
@@ -94,7 +110,7 @@ describe('parseSnapshot', () => {
     expect(parsed?.facts.stacks).toEqual({});
   });
 
-  test('a version 7 snapshot keeps its stacks', () => {
+  test('a version 8 snapshot keeps its stacks', () => {
     const stored = recordIn(fixture('snapshot-v8.json'), 'snapshot');
     const parsed = parseSnapshot(stored);
     const key = repositoryOf(null, '/code/koja/.git').key;

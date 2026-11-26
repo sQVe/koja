@@ -2,7 +2,12 @@ import { describe, expect, test } from 'bun:test';
 
 import { fixture } from '../../tests/fixtureJson.ts';
 import { pullFacts } from '../../tests/pullFacts.ts';
-import { gitFacts, recordIn, repositoryKey, withBareFalse } from '../../tests/snapshotRaw.ts';
+import {
+  recordIn,
+  repositoryKey,
+  version3GitFacts,
+  withBareFalse,
+} from '../../tests/snapshotRaw.ts';
 import { repositoryOf } from './gitIdentity.ts';
 import { pullNeeds } from './pullNeeds.ts';
 import { parseSnapshot } from './snapshot.ts';
@@ -30,7 +35,7 @@ describe('parseSnapshot versions', () => {
       version: 3,
       revision: 4,
       facts: {
-        git: gitFacts(),
+        git: version3GitFacts(),
         pulls: {
           [repositoryKey]: {
             pulls: [
@@ -57,7 +62,7 @@ describe('parseSnapshot versions', () => {
       version: 3,
       revision: 4,
       facts: {
-        git: gitFacts(),
+        git: version3GitFacts(),
         pulls: {
           [repositoryKey]: {
             pulls: [

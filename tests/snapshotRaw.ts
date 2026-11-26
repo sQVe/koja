@@ -184,6 +184,18 @@ export const worktreesAt = (snapshot: RawSnapshot): RawRecord =>
 export const worktreeAt = (snapshot: RawSnapshot, key: string): RawRecord =>
   recordIn(worktreesAt(snapshot)[key], 'worktree');
 
+// Version 3 git facts predate the bare flag, so a version 3 record must not carry it.
+export const version3GitFacts = (): RawRecord => {
+  const { snapshot } = validRaw();
+  const worktrees = worktreesAt(snapshot);
+
+  for (const stored of Object.values(worktrees)) {
+    delete recordIn(stored, 'worktree').bare;
+  }
+
+  return gitAt(snapshot);
+};
+
 export const repositoryAt = (snapshot: RawSnapshot, key: string): RawRecord =>
   recordIn(worktreeAt(snapshot, key).repository, 'repository');
 

@@ -57,6 +57,11 @@ export interface Facts {
   stacks: Record<string, RepositoryStacks>;
 }
 
+interface FactsShape {
+  stacks: boolean;
+  bare: boolean;
+}
+
 export const snapshotVersion = 8;
 
 const versionWithGitFactsOnly = 2;
@@ -153,6 +158,25 @@ const parseRepository = (value: unknown): RepositoryIdentity | null => {
   return repository;
 };
 
+const withoutTrailingSlashes = (path: string): string => path.replace(/\/+$/, '');
+
+// A record that predates the flag marks a bare place by its root beside the common directory.
+const inferredBare = (root: string, repository: RepositoryIdentity): boolean =>
+  withoutTrailingSlashes(root) === withoutTrailingSlashes(repository.commonDirectory);
+
+const bareOf = (
+  value: unknown,
+  root: string,
+  repository: RepositoryIdentity,
+  withBare: boolean,
+): boolean | null => {
+  if (!withBare) {
+    return inferredBare(root, repository);
+  }
+
+  return typeof value === 'boolean' ? value : null;
+};
+
 const parseWorktree = (key: string, value: unknown, withBare: boolean): WorktreeGit | null => {
   if (!isRecord(value)) {
     return null;
@@ -190,9 +214,9 @@ const parseWorktree = (key: string, value: unknown, withBare: boolean): Worktree
     return null;
   }
 
-  const bare = withBare ? value.bare : false;
+  const bare = bareOf(value.bare, root, repository, withBare);
 
-  if (typeof bare !== 'boolean') {
+  if (bare === null) {
     return null;
   }
 
@@ -594,17 +618,23 @@ const parseStacksMap = (
 ): Record<string, RepositoryStacks> | null =>
   parseByRepository(value, worktrees, parseRepositoryStacks);
 
+const shapeBeforeStacks: FactsShape = { stacks: false, bare: false };
+
+const shapeBeforeBare: FactsShape = { stacks: true, bare: false };
+
+const currentShape: FactsShape = { stacks: true, bare: true };
+
 const parseGitAndPulls = (
   value: Record<string, unknown>,
   parsePull: StoredPullParser,
   keys: readonly string[],
-  withBare: boolean,
+  shape: FactsShape,
 ): Pick<Facts, 'git' | 'pulls'> | null => {
   if (!hasOnlyKeys(value, keys)) {
     return null;
   }
 
-  const git = parseGitFacts(value.git, withBare);
+  const git = parseGitFacts(value.git, shape.bare);
 
   if (git === null) {
     return null;
@@ -623,15 +653,14 @@ const parseFacts = (
   value: unknown,
   parsePull: StoredPullParser,
   parseTicket: (value: unknown) => TicketFacts | null,
-  withStacks: boolean,
-  withBare: boolean,
+  shape: FactsShape,
 ): Facts | null => {
   if (!isRecord(value)) {
     return null;
   }
 
-  const keys = withStacks ? ['git', 'pulls', 'trackers', 'stacks'] : ['git', 'pulls', 'trackers'];
-  const gitAndPulls = parseGitAndPulls(value, parsePull, keys, withBare);
+  const keys = shape.stacks ? ['git', 'pulls', 'trackers', 'stacks'] : ['git', 'pulls', 'trackers'];
+  const gitAndPulls = parseGitAndPulls(value, parsePull, keys, shape);
 
   if (gitAndPulls === null) {
     return null;
@@ -643,7 +672,7 @@ const parseFacts = (
     return null;
   }
 
-  if (!withStacks) {
+  if (!shape.stacks) {
     return { ...gitAndPulls, trackers, stacks: {} };
   }
 
@@ -657,7 +686,7 @@ const parseFactsWithoutTrackers = (value: unknown, parsePull: StoredPullParser):
     return null;
   }
 
-  const gitAndPulls = parseGitAndPulls(value, parsePull, ['git', 'pulls'], false);
+  const gitAndPulls = parseGitAndPulls(value, parsePull, ['git', 'pulls'], shapeBeforeStacks);
 
   if (gitAndPulls === null) {
     return null;
@@ -675,7 +704,7 @@ const parseGitOnlyFacts = (value: unknown): Facts | null => {
     return null;
   }
 
-  const git = parseGitFacts(value.git, false);
+  const git = parseGitFacts(value.git, shapeBeforeStacks.bare);
 
   if (git === null) {
     return null;
@@ -720,25 +749,25 @@ const parseVersion4Snapshot = (fields: Record<string, unknown>): Snapshot | null
 const parseVersion5Snapshot = (fields: Record<string, unknown>): Snapshot | null =>
   snapshotOf(
     fields,
-    parseFacts(fields.facts, parseStoredPull, parseVersion5TicketFacts, false, false),
+    parseFacts(fields.facts, parseStoredPull, parseVersion5TicketFacts, shapeBeforeStacks),
   );
 
 const parseVersion6Snapshot = (fields: Record<string, unknown>): Snapshot | null =>
   snapshotOf(
     fields,
-    parseFacts(fields.facts, parseStoredPull, parseCurrentTicketFacts, false, false),
+    parseFacts(fields.facts, parseStoredPull, parseCurrentTicketFacts, shapeBeforeStacks),
   );
 
 const parseVersion7Snapshot = (fields: Record<string, unknown>): Snapshot | null =>
   snapshotOf(
     fields,
-    parseFacts(fields.facts, parseStoredPull, parseCurrentTicketFacts, true, false),
+    parseFacts(fields.facts, parseStoredPull, parseCurrentTicketFacts, shapeBeforeBare),
   );
 
 const parseCurrentSnapshot = (fields: Record<string, unknown>): Snapshot | null =>
   snapshotOf(
     fields,
-    parseFacts(fields.facts, parseStoredPull, parseCurrentTicketFacts, true, true),
+    parseFacts(fields.facts, parseStoredPull, parseCurrentTicketFacts, currentShape),
   );
 
 export const parseSnapshot = (value: unknown): Snapshot | null => {

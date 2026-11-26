@@ -220,6 +220,16 @@ describe('parseSnapshot git facts', () => {
     expect(Object.keys(parsed?.facts.git.worktrees ?? {})).toEqual([key, orphanKey]);
   });
 
+  test('accepts a worktree the git read found bare', () => {
+    const { snapshot, key } = validRaw();
+
+    worktreeAt(snapshot, key).bare = true;
+
+    const parsed = parseSnapshot(snapshot);
+
+    expect(parsed?.facts.git.worktrees[key]?.bare).toBe(true);
+  });
+
   test('accepts a place key that is not canonical', () => {
     const { snapshot } = validRaw();
 
