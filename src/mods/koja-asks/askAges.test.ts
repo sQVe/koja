@@ -8,12 +8,12 @@ const identities = ['a', 'b', 'c', 'd', 'e'];
 
 // A deterministic generator, so a failing run repeats with the same inputs.
 const nextRandom = (seed: number): (() => number) => {
-  let state = seed;
+  let state = seed + 1;
 
   return () => {
-    state = (state * 1_103_515_245 + 12_345) % 2_147_483_648;
+    state = (state * 1_664_525 + 1_013_904_223) % 4_294_967_296;
 
-    return state / 2_147_483_648;
+    return state / 4_294_967_296;
   };
 };
 
@@ -36,22 +36,22 @@ describe('trackAskAges', () => {
       const before: Record<string, number> = {};
       const start = Math.floor(random() * 1_000_000);
 
-      for (const identity of sample(identities, random)) {
-        before[identity] = start;
+      for (const [index, identity] of sample(identities, random).entries()) {
+        before[identity] = start + index * 1_000;
       }
 
       const live = sample(identities, random);
+
+      const expected = Object.fromEntries(
+        live.map((identity) => [identity, before[identity] ?? now]),
+      );
+
       const next = trackAskAges(before, live, now);
-
-      const expected = [...new Set(live)].toSorted();
       const keys = Object.keys(next).toSorted();
+      const expectedKeys = [...new Set(live)].toSorted();
 
-      expect(keys).toEqual(expected);
-
-      for (const identity of live) {
-        expect(next[identity]).toBe(before[identity] ?? now);
-      }
-
+      expect(keys).toEqual(expectedKeys);
+      expect(next).toEqual(expected);
       expect(trackAskAges(next, live, now + 60_000)).toEqual(next);
     }
   });

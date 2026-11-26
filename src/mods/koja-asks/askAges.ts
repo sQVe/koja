@@ -18,5 +18,8 @@ export const trackAskAges = (
   return next;
 };
 
-export const askAgeOf = (ages: Readonly<AskAges>, identity: string, now: number): string =>
-  shortAge((ages[identity] ?? now) / millisecondsPerSecond, now / millisecondsPerSecond);
+export const askAgeOf = (ages: Readonly<AskAges>, identity: string, now: number): string => {
+  const since = ages[identity] ?? now;
+
+  return shortAge(since / millisecondsPerSecond, now / millisecondsPerSecond);
+};

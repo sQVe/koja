@@ -78,7 +78,6 @@ const commandOf = (kind: AskKind, message: string): string | null =>
   kind === 'permission' && message !== '' ? message : null;
 
 const askOf = (
-  address: string,
   record: Record<string, unknown>,
   agent: AskAgent,
   kind: AskKind,
@@ -87,8 +86,8 @@ const askOf = (
   const message = stringOf(recordOf(record['report'])['msg']) ?? '';
 
   return {
-    identity: `${address}:${kind}:${message}`,
-    address,
+    identity: `${agent.address}:${kind}:${message}`,
+    address: agent.address,
     spaceId: agent.space,
     spaceName: agent.space_name,
     project,
@@ -121,7 +120,7 @@ export const asksOf = (sources: AskSources): Ask[] => {
     if (address !== null && agent !== undefined) {
       const project = sources.projects.get(agent.space) ?? agent.space_name;
 
-      asks.push(askOf(address, record, agent, kind, project));
+      asks.push(askOf(record, agent, kind, project));
     }
   }
 

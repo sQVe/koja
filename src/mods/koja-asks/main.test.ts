@@ -1,4 +1,4 @@
-import { afterAll, beforeEach, describe, expect, mock, test } from 'bun:test';
+import { afterAll, beforeEach, describe, expect, mock, setSystemTime, test } from 'bun:test';
 
 import { createDeferred } from '../../../tests/deferred.ts';
 import type { DrawnElement } from '../../../tests/drawn.ts';
@@ -9,6 +9,10 @@ import {
   herdrFake,
   realKitIndexFake,
 } from '../../../tests/moduleFakes.ts';
+import { placeOf } from '../../data/gitIdentity.ts';
+import { heartbeatKey } from '../../data/lease.ts';
+import type { PlaceGit, WorktreeGit } from '../../data/snapshot.ts';
+import { snapshotKey } from '../../data/snapshot.ts';
 import type { Ask } from './askFacts.ts';
 
 const palette = {
@@ -111,6 +115,11 @@ let readDeferred: { promise: Promise<string>; resolve: (value: string) => void }
 let readPaths: string[] = [];
 let boundsValue = { state: 'windowed', bounds: [0, 0, 1280, 820] };
 
+let spacesValue: Record<string, unknown>[] = [
+  { id: 's1', folder: '/code/koja', tabs: [] },
+  { id: 's2', folder: '/code/tau', tabs: [] },
+];
+
 Object.assign(globalThis, { kojaModName: 'koja-asks' });
 
 await mock.module('gpui-base', () =>
@@ -160,10 +169,7 @@ await mock.module('herdr', () =>
     },
     settings: () => ({}),
     shared: (key: string) => values[key],
-    spaces: () => [
-      { id: 's1', folder: '/code/koja', tabs: [] },
-      { id: 's2', folder: '/code/tau', tabs: [] },
-    ],
+    spaces: () => spacesValue,
     terminals: () => terminalsValue,
     theme: () => palette,
     window: () => ({ active: true, platform: 'linux' }),
@@ -215,6 +221,47 @@ const context = {
   },
 };
 
+// A live data snapshot whose Git facts name a linked worktree after its repository.
+const seedGitFacts = (): void => {
+  const main = {
+    repository: {
+      machine: null,
+      commonDirectory: '/code/koja/.git',
+      key: placeOf(null, '/code/koja/.git').key,
+    },
+    root: '/code/koja',
+    branch: 'main',
+    linked: false,
+  } satisfies WorktreeGit;
+
+  const linked = {
+    repository: {
+      machine: null,
+      commonDirectory: '/code/tau/.git',
+      key: placeOf(null, '/code/tau/.git').key,
+    },
+    root: '/code/tau/feature',
+    branch: 'me-1226-open-the-list',
+    linked: true,
+  } satisfies WorktreeGit;
+
+  const mainKey = placeOf(null, main.root).key;
+  const linkedKey = placeOf(null, linked.root).key;
+
+  const places: Record<string, PlaceGit> = {
+    [placeOf(null, '/code/koja').key]: { kind: 'repository', worktree: mainKey },
+    [placeOf(null, '/code/tau/feature').key]: { kind: 'repository', worktree: linkedKey },
+  };
+
+  const facts = {
+    git: { places, worktrees: { [mainKey]: main, [linkedKey]: linked } },
+    pulls: {},
+  };
+
+  values[snapshotKey] = { version: 4, revision: 1, facts };
+  values[heartbeatKey] = { version: 1, owner: 'koja-data', generation: 1, at: Date.now() };
+};
+
 const tick = async (): Promise<void> => {
   const handler = timerHandler;
 
@@ -255,6 +302,15 @@ beforeEach(() => {
   readDeferred = null;
   readPaths = [];
   boundsValue = { state: 'windowed', bounds: [0, 0, 1280, 820] };
+
+  spacesValue = [
+    { id: 's1', folder: '/code/koja', tabs: [] },
+    { id: 's2', folder: '/code/tau', tabs: [] },
+  ];
+});
+
+afterAll(() => {
+  setSystemTime();
 });
 
 describe('the ask host', () => {
@@ -389,13 +445,29 @@ describe('the ask host', () => {
   });
 
   test('opens the list of every unseen ask with its space, project, age, and command', async () => {
+    const start = 1_700_000_000_000;
+
+    setSystemTime(start);
+    seedGitFacts();
+
+    spacesValue = [
+      { id: 's1', folder: '/code/koja', tabs: [] },
+      { id: 's2', folder: '/code/tau/feature', tabs: [] },
+    ];
+
     terminalsValue = [blockedTerminal, blockedTerminal2];
     agentsValue = [agent, agent2];
-    values['koja-asks.list'] = true;
 
     await runHost();
 
-    expect(opened[0]?.props).toMatchObject({
+    values['koja-asks.list'] = true;
+    setSystemTime(start + 60_000);
+
+    await tick();
+
+    expect(opened).toHaveLength(2);
+
+    expect(opened[1]?.props).toMatchObject({
       rows: [
         {
           ask: {
@@ -405,7 +477,7 @@ describe('the ask host', () => {
             command: 'bun run check',
             project: 'tau',
           },
-          age: 'now',
+          age: '1m',
         },
         {
           ask: {
@@ -415,7 +487,7 @@ describe('the ask host', () => {
             command: 'bun run sandbox up',
             project: 'koja',
           },
-          age: 'now',
+          age: '1m',
         },
       ],
     });

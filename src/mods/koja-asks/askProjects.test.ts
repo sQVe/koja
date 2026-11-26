@@ -3,26 +3,45 @@ import { describe, expect, test } from 'bun:test';
 import type { SpaceInfo } from 'herdr';
 
 import type { DataState } from '../../data/consumer.ts';
-import type { Snapshot } from '../../data/snapshot.ts';
+import type { PlaceGit, Snapshot, WorktreeGit } from '../../data/snapshot.ts';
 import { askProjects } from './askProjects.ts';
 
-const space = (id: string, folder: string, name = 'Build window shell'): SpaceInfo =>
-  ({ id, folder, name, tabs: [] }) as unknown as SpaceInfo;
+const spaceOf = (id: string, folder: string, name = 'Build window shell'): SpaceInfo => ({
+  id,
+  index: 1,
+  name,
+  named: false,
+  folder,
+  machine: null,
+  branch: null,
+  active: false,
+  status: null,
+  tabs: [],
+});
 
 const unavailable: DataState = { kind: 'unavailable' };
 
+const placeKey = (folder: string): string => JSON.stringify([null, folder]);
+
+const worktreeKey = (root: string): string => JSON.stringify([null, root]);
+
+const worktreeOf = (commonDirectory: string, root: string, linked: boolean): WorktreeGit => ({
+  repository: { machine: null, commonDirectory, key: worktreeKey(commonDirectory) },
+  root,
+  branch: linked ? 'me-1226-open-the-list' : 'main',
+  linked,
+});
+
 const withGit = (
-  places: Record<string, unknown>,
-  worktrees: Record<string, unknown>,
+  places: Record<string, PlaceGit>,
+  worktrees: Record<string, WorktreeGit>,
 ): DataState => {
-  const facts = {
-    git: { places, worktrees },
-    pulls: {},
-  } as unknown as Snapshot['facts'];
+  const facts = { git: { places, worktrees }, pulls: {} };
+  const snapshot: Snapshot = { version: 4, revision: 1, facts };
 
   return {
     kind: 'live',
-    snapshot: { version: 4, revision: 1, facts },
+    snapshot,
     owner: 'koja-data',
     generation: 1,
     heartbeatAt: 1,
@@ -30,62 +49,85 @@ const withGit = (
   };
 };
 
+const linkedKoja = (): DataState => {
+  const checkout = worktreeOf('/code/koja/.git', '/code/koja/me-1226', true);
+
+  return withGit(
+    {
+      [placeKey('/code/koja/me-1226')]: {
+        kind: 'repository',
+        worktree: worktreeKey(checkout.root),
+      },
+    },
+    { [worktreeKey(checkout.root)]: checkout },
+  );
+};
+
 describe('askProjects', () => {
   test('names the repository of a linked worktree from its common Git folder', () => {
-    const place = JSON.stringify([null, '/code/koja/me-1226']);
-    const repository = JSON.stringify([null, '/code/koja/.git']);
-
-    const state = withGit(
-      { [place]: { kind: 'repository', worktree: repository } },
-      {
-        [repository]: {
-          repository: { machine: null, commonDirectory: '/code/koja/.git', key: repository },
-          root: '/code/koja/me-1226',
-          branch: 'me-1226-open-the-list',
-          linked: true,
-        },
-      },
-    );
-
-    const projects = askProjects(state, [space('s1', '/code/koja/me-1226')], []);
+    const projects = askProjects(linkedKoja(), [spaceOf('s1', '/code/koja/me-1226')], []);
 
     expect(projects.get('s1')).toBe('koja');
   });
 
-  test('names a bare repository without its suffix', () => {
-    const place = JSON.stringify([null, '/code/tau']);
-    const repository = JSON.stringify([null, '/code/tau.git']);
+  test('names a repository from its main checkout when one is open', () => {
+    const main = worktreeOf('/repos/store/upstream.git', '/code/herdr', false);
+    const linked = worktreeOf('/repos/store/upstream.git', '/code/herdr-fix', true);
 
     const state = withGit(
-      { [place]: { kind: 'repository', worktree: repository } },
       {
-        [repository]: {
-          repository: { machine: null, commonDirectory: '/code/tau.git', key: repository },
-          root: '/code/tau',
-          branch: 'main',
-          linked: false,
-        },
+        [placeKey('/code/herdr')]: { kind: 'repository', worktree: worktreeKey(main.root) },
+        [placeKey('/code/herdr-fix')]: { kind: 'repository', worktree: worktreeKey(linked.root) },
       },
+      { [worktreeKey(main.root)]: main, [worktreeKey(linked.root)]: linked },
     );
 
-    const projects = askProjects(state, [space('s1', '/code/tau')], []);
+    const spaces = [spaceOf('s1', '/code/herdr-fix'), spaceOf('s2', '/code/herdr')];
+    const projects = askProjects(state, spaces, []);
+
+    expect(projects.get('s1')).toBe('herdr');
+    expect(projects.get('s2')).toBe('herdr');
+  });
+
+  test('names a bare repository without its suffix', () => {
+    const checkout = worktreeOf('/code/koja/.bare', '/code/koja', false);
+
+    const state = withGit(
+      { [placeKey('/code/koja')]: { kind: 'repository', worktree: worktreeKey(checkout.root) } },
+      { [worktreeKey(checkout.root)]: checkout },
+    );
+
+    const projects = askProjects(state, [spaceOf('s1', '/code/koja')], []);
+
+    expect(projects.get('s1')).toBe('koja');
+  });
+
+  test('names a separate Git folder without its suffix', () => {
+    const checkout = worktreeOf('/code/tau.git', '/code/tau', false);
+
+    const state = withGit(
+      { [placeKey('/code/tau')]: { kind: 'repository', worktree: worktreeKey(checkout.root) } },
+      { [worktreeKey(checkout.root)]: checkout },
+    );
+
+    const projects = askProjects(state, [spaceOf('s1', '/code/tau')], []);
 
     expect(projects.get('s1')).toBe('tau');
   });
 
   test('names the folder when the space has no Git facts', () => {
-    const missing = askProjects(unavailable, [space('s1', '/code/koja')], []);
+    const missing = askProjects(unavailable, [spaceOf('s1', '/code/koja')], []);
 
     expect(missing.get('s1')).toBe('koja');
 
-    const failed = withGit({ [JSON.stringify([null, '/code/koja'])]: { kind: 'failed' } }, {});
-    const projects = askProjects(failed, [space('s1', '/code/koja')], []);
+    const failed = withGit({ [placeKey('/code/koja')]: { kind: 'failed' } }, {});
+    const projects = askProjects(failed, [spaceOf('s1', '/code/koja')], []);
 
     expect(projects.get('s1')).toBe('koja');
   });
 
   test('names the space when its folder has no last part', () => {
-    const projects = askProjects(unavailable, [space('s1', '/')], []);
+    const projects = askProjects(unavailable, [spaceOf('s1', '/')], []);
 
     expect(projects.get('s1')).toBe('Build window shell');
   });
