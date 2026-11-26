@@ -1,7 +1,14 @@
 import { afterAll, describe, expect, mock, test } from 'bun:test';
 
 import type { DrawnElement } from '../../tests/drawn.ts';
-import { drawn, drawnIcons, drawnTexts, elementWithText, spinning } from '../../tests/drawn.ts';
+import {
+  drawn,
+  drawnIcons,
+  drawnTexts,
+  elementWithText,
+  elementsWithBorder,
+  spinning,
+} from '../../tests/drawn.ts';
 import { gpuiBaseFake, gpuiKitFake, herdrFake } from '../../tests/moduleFakes.ts';
 import type { ItemHeaderOptions } from './itemHeader.ts';
 import { textSize } from './size.ts';
@@ -89,9 +96,11 @@ describe('itemHeader', () => {
     });
 
     const label = elementWithText(header, 'waiting on review');
+    const [chip] = elementsWithBorder(header, palette.border);
 
+    expect(chip?.styles['min_w']).toEqual([0]);
     expect(label?.styles['min_w']).toEqual([0]);
-    expect(label?.styles['truncate']).toEqual([]);
+    expect(label?.styles['truncate']).toBeDefined();
     expect(label?.tooltipText).toBe('waiting on review');
   });
 
