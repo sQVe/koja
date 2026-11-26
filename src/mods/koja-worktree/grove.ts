@@ -1,6 +1,6 @@
 import type { ExecResult, Status } from 'herdr';
 
-import { folderNameOf } from '../../data/fields.ts';
+import { folderNameOf, sameItems } from '../../data/fields.ts';
 
 export interface Workspace {
   space: string;
@@ -55,8 +55,7 @@ export const removeRisks = (dirty: boolean, status: Status | null | undefined): 
   return risks;
 };
 
-export const sameRisks = (left: RemoveRisks, right: RemoveRisks): boolean =>
-  left.length === right.length && left.every((risk, index) => risk === right[index]);
+export const sameRisks = (left: RemoveRisks, right: RemoveRisks): boolean => sameItems(left, right);
 
 const refusedName = (name: string, role: 'branch' | 'worktree'): GroveArguments | null => {
   if (!name.startsWith('-')) {
