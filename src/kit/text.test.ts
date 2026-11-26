@@ -40,6 +40,7 @@ describe('linkText', () => {
     expect(link.styles['truncate']).toBeDefined();
     expect(link.styles['text_ellipsis_middle']).toBeDefined();
     expect(link.styles['flex_shrink']).toEqual([1]);
+    expect(link.styles['min_w']).toEqual([0]);
     expect(link.styles['underline']).toBeDefined();
   });
 

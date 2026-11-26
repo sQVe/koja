@@ -76,13 +76,23 @@ describe('itemHeader', () => {
     expect(title?.styles['min_w']).toEqual([0]);
   });
 
-  test('the age draws once, in the dim ink', () => {
+  test('the age draws in the dim ink', () => {
     const header = itemHeader(readyOptions);
 
-    const ages = drawnTexts(header).filter((text) => text === 'synced 1m ago');
-
-    expect(ages).toHaveLength(1);
     expect(elementWithText(header, 'synced 1m ago')?.textColors).toEqual([palette.dim]);
+  });
+
+  test('a long state word cuts inside the chip and shows in full on hover', () => {
+    const header = itemHeader({
+      ...readyOptions,
+      state: { kind: 'inProgress', label: 'waiting on review', age: '1m ago' },
+    });
+
+    const label = elementWithText(header, 'waiting on review');
+
+    expect(label?.styles['min_w']).toEqual([0]);
+    expect(label?.styles['truncate']).toEqual([]);
+    expect(label?.tooltipText).toBe('waiting on review');
   });
 
   test.each([

@@ -51,7 +51,7 @@ const stateChip = (state: ItemStateOptions): Element => {
     .border(badgeSize.border)
     .border_color(colors().border);
 
-  const stateLabel = roleText('detail', state.label, 'muted');
+  const stateLabel = roleText('detail', state.label, 'muted').tooltip(state.label);
 
   return chip.child(stateMark(state.kind)).child(stateLabel);
 };
