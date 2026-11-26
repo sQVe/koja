@@ -49,16 +49,6 @@ const seedPulls = {
   [otherRepository.key]: { pulls: [], failed: false },
 };
 
-const repositoryForFolder = (folder: string): string => {
-  for (const worktree of Object.values(gitFacts.worktrees)) {
-    if (worktree.root === folder) {
-      return worktree.repository.key;
-    }
-  }
-
-  throw new Error(`no repository for ${folder}`);
-};
-
 const observeRequests = (requests: PullRetryRequest[], issued: Map<string, number>): void => {
   for (const request of requests) {
     issued.set(requestKey(request), request.at + pullRetryLifetimeMilliseconds);
@@ -73,27 +63,33 @@ const observeSeen = (outcomes: PullRetryOutcome[], consumer: string, seen: Set<s
   }
 };
 
-const recordRead = (
-  harness: PullSchedulerHarness,
-  call: PendingCall,
-  now: number,
-  reads: Set<string>,
-  duplicates: Set<string>,
-  answeredKeys: Set<string>,
-): void => {
-  const repository = repositoryForFolder(call.cwd);
-  const readId = `${now}:${repository}`;
+const recordTick = (state: InterleavingState, answeredKeys: Set<string>): void => {
+  const outcomes = state.harness.outcomes();
+  const answered = new Set(outcomes.map(requestKey));
+  const repositories = new Set<string>();
 
-  if (reads.has(readId)) {
-    duplicates.add(readId);
+  for (const request of state.harness.requests()) {
+    const key = requestKey(request);
+
+    if (isExpired(request.at, state.now)) {
+      continue;
+    }
+
+    answeredKeys.add(key);
+
+    if (!answered.has(key)) {
+      repositories.add(request.repository);
+    }
   }
 
-  reads.add(readId);
+  for (const repository of repositories) {
+    const readId = `${state.now}:${repository}`;
 
-  for (const request of harness.requests()) {
-    if (request.repository === repository && !isExpired(request.at, now)) {
-      answeredKeys.add(requestKey(request));
+    if (state.reads.has(readId)) {
+      state.duplicates.add(readId);
     }
+
+    state.reads.add(readId);
   }
 };
 
@@ -123,18 +119,10 @@ const answerCall = (call: PendingCall, random: () => number): ExecResult => {
 const answerPending = async (
   harness: PullSchedulerHarness,
   random: () => number,
-  now: number,
-  reads: Set<string>,
-  duplicates: Set<string>,
-  answeredKeys: Set<string>,
 ): Promise<void> => {
   for (const call of harness.calls) {
     if (call.settled) {
       continue;
-    }
-
-    if (call.command === 'gh') {
-      recordRead(harness, call, now, reads, duplicates, answeredKeys);
     }
 
     await harness.respondCall(call, answerCall(call, random));
@@ -181,16 +169,9 @@ const applyStep = async (state: InterleavingState, answeredKeys: Set<string>): P
       state.scheduler = state.harness.start({ pulls: seedPulls, readTimes: {} });
     }
 
+    recordTick(state, answeredKeys);
     state.scheduler.tick(gitFacts, new Map(), state.harness.spawn);
-
-    await answerPending(
-      state.harness,
-      state.random,
-      state.now,
-      state.reads,
-      state.duplicates,
-      answeredKeys,
-    );
+    await answerPending(state.harness, state.random);
   }
 
   observeRequests(state.harness.requests(), state.issued);

@@ -164,8 +164,8 @@ export const showFacts = (facts: Facts): void => {
   state.sharedValues[snapshotKey] = { version: 4, revision: 1, facts };
 };
 
-let savedKojaModName: PropertyDescriptor | undefined;
-let savedLocalStorage: PropertyDescriptor | undefined;
+const installedGlobals = ['kojaModName', 'localStorage'] as const;
+const savedGlobals = new Map<string, PropertyDescriptor | undefined>();
 
 const restoreGlobal = (name: string, descriptor: PropertyDescriptor | undefined): void => {
   if (descriptor === undefined) {
@@ -178,8 +178,13 @@ const restoreGlobal = (name: string, descriptor: PropertyDescriptor | undefined)
 };
 
 export const setupKojaSpaces = async (): Promise<void> => {
-  savedKojaModName = Object.getOwnPropertyDescriptor(globalThis, 'kojaModName');
-  savedLocalStorage = Object.getOwnPropertyDescriptor(globalThis, 'localStorage');
+  if (savedGlobals.size > 0) {
+    throw new Error('setupKojaSpaces is already active');
+  }
+
+  for (const name of installedGlobals) {
+    savedGlobals.set(name, Object.getOwnPropertyDescriptor(globalThis, name));
+  }
 
   Object.assign(globalThis, {
     kojaModName: 'koja',
@@ -270,8 +275,11 @@ export const setupKojaSpaces = async (): Promise<void> => {
 };
 
 export const restoreKojaSpaces = (): void => {
-  restoreGlobal('kojaModName', savedKojaModName);
-  restoreGlobal('localStorage', savedLocalStorage);
+  for (const name of installedGlobals) {
+    restoreGlobal(name, savedGlobals.get(name));
+  }
+
+  savedGlobals.clear();
   crypto.randomUUID = realRandomUuid;
   mock.restore();
 };

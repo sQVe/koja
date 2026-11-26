@@ -10,7 +10,6 @@ import {
   pullRetryOutcomesKey,
   pullRetryRequestsKey,
   readPullRetryOutcomes,
-  readPullRetryRequests,
 } from '../src/data/pullRetry/pullRetry.ts';
 import type { Pull } from '../src/data/pulls.ts';
 import type { PullScheduler, PullSchedulerSeed } from '../src/data/pullScheduler.ts';
@@ -19,6 +18,7 @@ import type { RecordNotices } from '../src/data/recordNotices.ts';
 import { createRecordNotices } from '../src/data/recordNotices.ts';
 import type { RepositoryPulls } from '../src/data/snapshot.ts';
 import { answerFrom, branchCountOf } from './pullAnswers.ts';
+import { storedRequests } from './pullRetryStore.ts';
 
 export interface PendingCall {
   command: string;
@@ -285,12 +285,6 @@ export class PullSchedulerHarness {
   }
 
   requests(): PullRetryRequest[] {
-    const stored = readPullRetryRequests(this.store.read, this.notices);
-
-    if (stored.kind !== 'current') {
-      throw new Error('the store holds a newer request record');
-    }
-
-    return stored.items;
+    return storedRequests(this.store, this.notices);
   }
 }

@@ -64,8 +64,11 @@ export const noticeFor = (
   return message;
 };
 
-export const storedRequests = (store: MemoryStore): PullRetryRequest[] => {
-  const stored = readPullRetryRequests(store.read, silentNotices());
+export const storedRequests = (
+  store: { read: ReadShared },
+  notices: RecordNotices = silentNotices(),
+): PullRetryRequest[] => {
+  const stored = readPullRetryRequests(store.read, notices);
 
   if (stored.kind !== 'current') {
     throw new Error('the store holds a newer request record');
