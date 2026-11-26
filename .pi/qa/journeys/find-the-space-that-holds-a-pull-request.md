@@ -19,9 +19,10 @@ prepares the stack fixture under [Before a launch](../../qa.md#stack-fixture). F
 1. Start with the `unrelated` space selected. Take a shot before typing. In normal mode, press
    `g p`, then type `504`. Take another shot. The picker lists `stack-space` and not `unrelated`,
    and the right end of that row reads `#504 · PR 2 of 3 · merged` with a work icon after it.
-2. Take a shot, then press `Enter`. Take a shot of the sidebar. `stack-space` is the selected space,
-   and the picker is closed.
+2. Take a shot, then press `Enter`. Take a shot of the sidebar. The row under the `stack-repo`
+   header, which reads its pull request's title `Fixture PR 505`, is selected, and the picker is
+   closed.
 
 ## End state
 
-The `stack-space` space is the active space, and the picker is closed.
+The space on the `stack-space` folder is the active space, and the picker is closed.

@@ -367,11 +367,11 @@ bun run sandbox identity
   space on a linked worktree of the top branch plus one space on an empty folder. The sandbox puts
   its `bin` first on `PATH`, so the fake `gh` answers every read and no read reaches GitHub. Do not
   open a space on `stack-repo` itself: the worktree on the top branch is the space under test.
-- Check that it is up: identity exits 0, the sidebar shows `stack-space` under the `stack-repo`
-  header with `unrelated` selected, and `$fixtureHome/gh-calls` records a read of all three
-  branches. Only the middle branch's latest PR is merged, so the reason line of the journey shows
-  `merged`. The sandbox window is mapped but never active, and PR reads start there because they
-  follow `visible`, not `active`.
+- Check that it is up: identity exits 0, the sidebar shows one row under the `stack-repo` header
+  reading its pull request's title, `Fixture PR 505`, with `unrelated` selected, and
+  `$fixtureHome/gh-calls` records a read of all three branches. Only the middle branch's latest PR
+  is merged, so the reason line of the journey shows `merged`. The sandbox window is mapped but
+  never active, and PR reads start there because they follow `visible`, not `active`.
 - Shot: `bun run sandbox shot <slice directory>/stack-fixture.png`.
 - Stop: the `verification` tool, which runs `bun run sandbox down`.
 
