@@ -124,9 +124,20 @@ export const drawnTree = (elements: DrawnElement[]): DrawnElement => {
   return root;
 };
 
-// A mocked field draws no element, so the walk stops at a child that has no drawn children.
-const isDrawn = (value: unknown): value is DrawnElement =>
-  typeof value === 'object' && value !== null && Array.isArray((value as DrawnElement).kids);
+// A mocked field draws no element, so the walk stops at a child that records no drawn fields.
+const isDrawn = (value: unknown): value is DrawnElement => {
+  if (typeof value !== 'object' || value === null) {
+    return false;
+  }
+
+  const candidate = value as Partial<DrawnElement>;
+
+  return (
+    Array.isArray(candidate.kids) &&
+    Array.isArray(candidate.texts) &&
+    Array.isArray(candidate.clickHandlers)
+  );
+};
 
 const descendants = (element: DrawnElement): DrawnElement[] => [
   element,

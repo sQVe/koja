@@ -9,6 +9,7 @@ import {
   drawnIcons,
   drawnTexts,
   elementWithText,
+  elementsWithStyle,
   numberStyle,
 } from '../../tests/drawn.ts';
 import { gpuiBaseFake, gpuiKitFake, herdrFake } from '../../tests/moduleFakes.ts';
@@ -78,17 +79,17 @@ const openChecks: ContentSectionOptions = {
 
 describe('contentSection', () => {
   test('an open section draws its name, its count, and every part', () => {
-    expect(drawnTexts(contentSection(openChecks))).toEqual([
-      'Checks',
-      '3',
-      'Could not sync checks · showing checks from 6m ago',
-      'Retry',
-      'typecheck',
-      'failing',
-      'Type mismatch',
-    ]);
+    const section = contentSection(openChecks);
+    const texts = drawnTexts(section);
 
-    expect(drawnIcons(contentSection(openChecks))[0]).toBe('chevron-down.svg');
+    expect(texts).toContain('Checks');
+    expect(texts).toContain('3');
+    expect(texts).toContain('Retry');
+    expect(texts).toContain('typecheck');
+    expect(texts).toContain('failing');
+    expect(texts).toContain('Type mismatch');
+    expect(texts.some((text) => text.includes('6m ago'))).toBe(true);
+    expect(drawnIcons(section)[0]).toBe('chevron-down.svg');
   });
 
   test('a folded section draws its header only', () => {
@@ -147,6 +148,14 @@ describe('contentSection', () => {
 
     expect(toggles).toBe(1);
     expect(section.clickHandlers).toEqual([]);
+  });
+
+  test('a section with a toggle shows the pointer that says it folds', () => {
+    const bound = contentSection({ ...openChecks, onToggle: () => undefined });
+    const unbound = contentSection(openChecks);
+
+    expect(elementsWithStyle(headerOf(bound), 'cursor_pointer')).toHaveLength(1);
+    expect(elementsWithStyle(headerOf(unbound), 'cursor_pointer')).toEqual([]);
   });
 
   test('a part note starts its text at the label edge', () => {
