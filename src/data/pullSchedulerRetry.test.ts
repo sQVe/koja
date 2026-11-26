@@ -4,7 +4,7 @@ import type { ExecResult } from 'herdr';
 
 import { PullSchedulerHarness, pullSchedulerStart } from '../../tests/pullSchedulerHarness.ts';
 import { placeOf, repositoryOf, worktreeOf } from './gitIdentity.ts';
-import type { PullRetryRequest } from './pullRetry.ts';
+import type { PullRetryRequest } from './pullRetry/pullRetry.ts';
 import type { GitFacts } from './snapshot.ts';
 
 const folders = ['/code/a', '/code/b', '/code/c'];

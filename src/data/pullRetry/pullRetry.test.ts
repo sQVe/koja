@@ -2,15 +2,15 @@ import { describe, expect, test } from 'bun:test';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 
-import type { Lease, ReadShared } from './lease.ts';
-import { claimLease } from './lease.ts';
+import type { Lease, ReadShared } from '../lease.ts';
+import { claimLease } from '../lease.ts';
+import type { RecordNotices, RecordRejection } from '../recordNotices.ts';
+import { createRecordNotices } from '../recordNotices.ts';
 import type { PullRetryOutcome, PullRetryRequest, PullRetryResult } from './pullRetry.ts';
 import {
   answeredRequestKeys,
   createPullRetryClient,
   createPullRetryOutcomesPublisher,
-  freshRequests,
-  outcomesFor,
   pullRetryLifetimeMilliseconds,
   pullRetryOutcomesKey,
   pullRetryRequestsKey,
@@ -18,13 +18,8 @@ import {
   readPullRetryRequests,
   requestKey,
 } from './pullRetry.ts';
-import type { RecordNotices, RecordRejection } from './recordNotices.ts';
-import { createRecordNotices } from './recordNotices.ts';
-
-interface OwnerState {
-  taken: Set<string>;
-  results: Map<string, PullRetryResult>;
-}
+import type { PullRetrySession } from './pullRetrySession.ts';
+import { createPullRetrySession } from './pullRetrySession.ts';
 
 interface IssuedRequest {
   request: PullRetryRequest;
@@ -119,13 +114,6 @@ const ids = (prefix: string): (() => string) => {
     return `${prefix}-${next}`;
   };
 };
-
-const requestFor = (consumer: string, id: string, at: number): PullRetryRequest => ({
-  consumer,
-  id,
-  repository: repositoryKey,
-  at,
-});
 
 describe('createPullRetryClient', () => {
   test('two clients keep both requests for one repository', () => {
@@ -337,38 +325,6 @@ describe('owner helpers', () => {
     store.values[pullRetryOutcomesKey] = { version: 2, outcomes: [] };
 
     expect(answeredRequestKeys(store.read)).toEqual(new Set());
-  });
-
-  test('freshRequests skips taken and expired requests', () => {
-    const fresh = requestFor('window-a', 'a-1', start);
-    const taken = requestFor('window-b', 'b-1', start);
-    const expired = requestFor('window-c', 'c-1', start - pullRetryLifetimeMilliseconds);
-
-    expect(freshRequests([fresh, taken, expired], new Set([requestKey(taken)]), start)).toEqual([
-      fresh,
-    ]);
-  });
-
-  test('outcomesFor answers only present, unexpired, answered requests', () => {
-    const first = requestFor('window-a', 'a-1', start);
-    const second = requestFor('window-b', 'b-1', start);
-    const unanswered = requestFor('window-d', 'd-1', start);
-    const expired = requestFor('window-c', 'c-1', start - pullRetryLifetimeMilliseconds);
-
-    const answers = new Map([
-      [requestKey(first), 'read'],
-      [requestKey(second), 'failed'],
-      [requestKey(expired), 'read'],
-    ] as const);
-
-    expect(outcomesFor([first, expired], answers, start)).toEqual([
-      { consumer: 'window-a', id: 'a-1', result: 'read' },
-    ]);
-
-    expect(outcomesFor([first, expired, second, unanswered], answers, start)).toEqual([
-      { consumer: 'window-a', id: 'a-1', result: 'read' },
-      { consumer: 'window-b', id: 'b-1', result: 'failed' },
-    ]);
   });
 });
 
@@ -605,7 +561,24 @@ const seededRandom = (seed: number): (() => number) => {
   };
 };
 
-const newOwner = (): OwnerState => ({ taken: new Set(), results: new Map() });
+const newOwner = (store: Store): PullRetrySession =>
+  createPullRetrySession({
+    read: store.read,
+    notices: silentNotices(),
+    lease: { version: 1, owner: 'owner', generation: 1 },
+    // The fake keeps the answers of requests that left the key, so the one-answer rule below
+    // checks the client against a stored answer rather than against the owner's live request list.
+    publishOutcomes: (_lease, outcomes) => {
+      const stored = storedOutcomes(store);
+      const merged = new Map(stored.map((outcome) => [requestKey(outcome), outcome]));
+
+      for (const outcome of outcomes) {
+        merged.set(requestKey(outcome), outcome);
+      }
+
+      store.write(pullRetryOutcomesKey, { version: 1, outcomes: [...merged.values()] });
+    },
+  });
 
 const observeRequests = (
   requests: PullRetryRequest[],
@@ -620,40 +593,22 @@ const observeRequests = (
 };
 
 const answerWithOwner = (
-  store: Store,
-  owner: OwnerState,
+  owner: PullRetrySession,
   now: number,
   random: () => number,
-  issued: Map<string, IssuedRequest>,
   answerCounts: Map<string, number>,
 ): void => {
-  const stored = readPullRetryRequests(store.read, silentNotices());
-
-  if (stored.kind !== 'current') {
-    return;
-  }
-
-  observeRequests(stored.items, issued);
-
-  const taken = new Set([...answeredRequestKeys(store.read), ...owner.taken]);
-
-  for (const request of freshRequests(stored.items, taken, now)) {
-    const key = requestKey(request);
+  for (const request of owner.claim(now)) {
     const result: PullRetryResult = random() < 0.5 ? 'read' : 'failed';
 
-    owner.taken.add(key);
-    owner.results.set(key, result);
-    answerCounts.set(key, (answerCounts.get(key) ?? 0) + 1);
+    const key = requestKey(request);
+    const count = (answerCounts.get(key) ?? 0) + 1;
+
+    owner.complete(request, result);
+    answerCounts.set(key, count);
   }
 
-  const existing = storedOutcomes(store);
-  const outcomes = new Map(existing.map((outcome) => [requestKey(outcome), outcome]));
-
-  for (const outcome of outcomesFor(stored.items, owner.results, now)) {
-    outcomes.set(requestKey(outcome), outcome);
-  }
-
-  store.write(pullRetryOutcomesKey, { version: 1, outcomes: [...outcomes.values()] });
+  owner.publish(now);
 };
 
 const checkInterleaving = (seed: number): void => {
@@ -664,8 +619,8 @@ const checkInterleaving = (seed: number): void => {
   const issued = new Map<string, IssuedRequest>();
   const answerCounts = new Map<string, number>();
   const steps = 6 + Math.floor(random() * 10);
-  let owner = newOwner();
   let now = start;
+  let owner = newOwner(store);
 
   for (let step = 0; step < steps; step += 1) {
     const jump =
@@ -690,10 +645,10 @@ const checkInterleaving = (seed: number): void => {
       store.write(pullRetryRequestsKey, { version: 1, requests: [] });
     } else {
       if (random() < 0.4) {
-        owner = newOwner();
+        owner = newOwner(store);
       }
 
-      answerWithOwner(store, owner, now, random, issued, answerCounts);
+      answerWithOwner(owner, now, random, answerCounts);
     }
 
     observeRequests(storedRequests(store), issued);

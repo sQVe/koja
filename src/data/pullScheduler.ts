@@ -12,16 +12,9 @@ import {
 } from './pullDue.ts';
 import { mergePulls, mergeReadTimes } from './pullMerge.ts';
 import type { PullReadTimes } from './pullReadTimes.ts';
-import type { PullRetryOutcome, PullRetryRequest, PullRetryResult } from './pullRetry.ts';
-import {
-  answeredRequestKeys,
-  freshRequests,
-  isExpired,
-  outcomesFor,
-  readPullRetryOutcomes,
-  readPullRetryRequests,
-  requestKey,
-} from './pullRetry.ts';
+import type { PullRetryOutcome, PullRetryResult } from './pullRetry/pullRetry.ts';
+import type { PullRetrySession } from './pullRetry/pullRetrySession.ts';
+import { createPullRetrySession } from './pullRetry/pullRetrySession.ts';
 import type { PullRead } from './pulls.ts';
 import { readRepositoryPulls } from './pulls.ts';
 import type { PullSource } from './pullSources.ts';
@@ -52,16 +45,6 @@ export interface PullScheduler {
   stop: () => void;
 }
 
-interface RunningRead {
-  sequence: number;
-  waiters: Map<string, number>;
-}
-
-interface Answer {
-  result: PullRetryResult | null;
-  at: number;
-}
-
 type SettledPullRead = Exclude<PullRead, { kind: 'dropped' }>;
 
 type Spawn = (body: () => Promise<void>) => void;
@@ -90,8 +73,8 @@ class Scheduler implements PullScheduler {
   private readonly pullsByRepository: Record<string, RepositoryPulls>;
   private readonly readTimes: PullReadTimes;
   private readonly due: PullDueState;
-  private readonly answers = new Map<string, Answer>();
-  private readonly running = new Map<string, RunningRead>();
+  private readonly session: PullRetrySession;
+  private readonly running = new Map<string, number>();
   private sequence = 0;
   private stopped = false;
 
@@ -103,6 +86,13 @@ class Scheduler implements PullScheduler {
     this.pullsByRepository = { ...seed.pulls };
     this.readTimes = readTimesWithFacts(seed);
     this.due = seededDue(this.readTimes);
+
+    this.session = createPullRetrySession({
+      read: dependencies.read,
+      notices: dependencies.notices,
+      lease,
+      publishOutcomes: dependencies.publishOutcomes,
+    });
   }
 
   pulls(): Record<string, RepositoryPulls> {
@@ -123,92 +113,24 @@ class Scheduler implements PullScheduler {
       }
     }
 
-    const requests = readPullRetryRequests(this.dependencies.read, this.dependencies.notices);
-    const outcomes = readPullRetryOutcomes(this.dependencies.read, this.dependencies.notices);
-    const newer = requests.kind === 'newer' || outcomes.kind === 'newer';
-
-    if (!newer) {
-      this.takeRequests(requests.items, outcomes.items, sources, spawn, now);
-    }
-
-    this.startDueReads(sources, spawn, now);
-
-    if (!newer) {
-      this.dependencies.publishOutcomes(this.lease, this.outcomesForAnswers(requests.items, now));
-    }
-  }
-
-  stop(): void {
-    this.stopped = true;
-  }
-
-  private takeRequests(
-    requests: PullRetryRequest[],
-    outcomes: PullRetryOutcome[],
-    sources: Map<string, PullSource>,
-    spawn: Spawn,
-    now: number,
-  ): void {
-    const live = freshRequests(requests, new Set(), now);
-
-    this.dropAnswers(now);
-    this.adoptOutcomes(outcomes, live);
-
-    const taken = new Set(this.answers.keys());
-
-    for (const key of answeredRequestKeys(this.dependencies.read)) {
-      taken.add(key);
-    }
-
-    for (const request of freshRequests(requests, taken, now)) {
-      const key = requestKey(request);
-
-      this.answers.set(key, { result: null, at: request.at });
-
+    for (const request of this.session.claim(now)) {
       const source = sources.get(request.repository);
 
       if (source === undefined) {
-        this.answers.set(key, { result: 'failed', at: request.at });
+        this.session.complete(request, 'failed');
 
         continue;
       }
 
-      this.joinOrStart(source, request, spawn);
+      this.startRead(source, spawn);
     }
+
+    this.startDueReads(sources, spawn, now);
+    this.session.publish(now);
   }
 
-  private dropAnswers(now: number): void {
-    for (const [key, answer] of this.answers) {
-      if (isExpired(answer.at, now)) {
-        this.answers.delete(key);
-      }
-    }
-  }
-
-  private adoptOutcomes(outcomes: PullRetryOutcome[], live: PullRetryRequest[]): void {
-    const requestTimes = new Map(live.map((request) => [requestKey(request), request.at]));
-
-    for (const outcome of outcomes) {
-      const key = requestKey(outcome);
-      const at = requestTimes.get(key);
-
-      if (at !== undefined && !this.answers.has(key)) {
-        this.answers.set(key, { result: outcome.result, at });
-      }
-    }
-  }
-
-  private joinOrStart(source: PullSource, request: PullRetryRequest, spawn: Spawn): void {
-    const key = requestKey(request);
-    const running = this.running.get(source.repository.key);
-
-    if (running !== undefined) {
-      running.waiters.set(key, request.at);
-
-      return;
-    }
-
-    this.startRead(source, new Map([[key, request.at]]), spawn);
+  stop(): void {
+    this.stopped = true;
   }
 
   private startDueReads(sources: Map<string, PullSource>, spawn: Spawn, now: number): void {
@@ -220,20 +142,25 @@ class Scheduler implements PullScheduler {
       const source = sources.get(key);
 
       if (source !== undefined) {
-        this.startRead(source, new Map(), spawn);
+        this.startRead(source, spawn);
       }
     }
   }
 
-  private startRead(source: PullSource, waiters: Map<string, number>, spawn: Spawn): void {
+  private startRead(source: PullSource, spawn: Spawn): void {
     const key = source.repository.key;
+
+    // The read in flight answers the claim when it completes.
+    if (this.running.has(key)) {
+      return;
+    }
 
     this.sequence += 1;
 
     const sequence = this.sequence;
 
     noteStart(this.due, key, this.dependencies.now());
-    this.running.set(key, { sequence, waiters: new Map(waiters) });
+    this.running.set(key, sequence);
 
     spawn(async () => {
       const read = await readRepositoryPulls(this.dependencies.run, source, () =>
@@ -251,9 +178,7 @@ class Scheduler implements PullScheduler {
   }
 
   private apply(key: string, sequence: number, read: PullRead): void {
-    const running = this.running.get(key);
-
-    if (running?.sequence !== sequence) {
+    if (this.running.get(key) !== sequence) {
       return;
     }
 
@@ -279,37 +204,14 @@ class Scheduler implements PullScheduler {
     this.dependencies.publishReadTimes(this.lease, this.readTimes);
 
     const result: PullRetryResult = read.kind === 'read' ? 'read' : 'failed';
+    // An answer is judged when it is published, which is later than when the read finished.
+    const completedAt = this.dependencies.now();
 
-    for (const [waiter, at] of running.waiters) {
-      this.answers.set(waiter, { result, at });
-    }
+    this.session.completeRead(key, result, completedAt);
 
-    this.adoptLateRequests(key, result, this.dependencies.now());
-    this.publishStoredOutcomes();
-  }
+    const publishedAt = this.dependencies.now();
 
-  private adoptLateRequests(key: string, result: PullRetryResult, now: number): void {
-    const stored = readPullRetryRequests(this.dependencies.read, this.dependencies.notices);
-
-    if (stored.kind === 'newer') {
-      return;
-    }
-
-    const taken = answeredRequestKeys(this.dependencies.read);
-
-    for (const [requestId, answer] of this.answers) {
-      if (answer.result !== null) {
-        taken.add(requestId);
-      }
-    }
-
-    for (const request of freshRequests(stored.items, taken, now)) {
-      if (request.repository !== key) {
-        continue;
-      }
-
-      this.answers.set(requestKey(request), { result, at: request.at });
-    }
+    this.session.publish(publishedAt);
   }
 
   private writeRead(key: string, read: SettledPullRead, now: number): void {
@@ -325,32 +227,6 @@ class Scheduler implements PullScheduler {
     const lastGood = this.pullsByRepository[key]?.pulls ?? [];
 
     this.pullsByRepository[key] = { pulls: lastGood, failed: true };
-  }
-
-  private outcomesForAnswers(requests: PullRetryRequest[], now: number): PullRetryOutcome[] {
-    const results = new Map<string, PullRetryResult>();
-
-    for (const [key, answer] of this.answers) {
-      if (answer.result !== null) {
-        results.set(key, answer.result);
-      }
-    }
-
-    return outcomesFor(requests, results, now);
-  }
-
-  private publishStoredOutcomes(): void {
-    const requests = readPullRetryRequests(this.dependencies.read, this.dependencies.notices);
-    const outcomes = readPullRetryOutcomes(this.dependencies.read, this.dependencies.notices);
-
-    if (requests.kind === 'newer' || outcomes.kind === 'newer') {
-      return;
-    }
-
-    const now = this.dependencies.now();
-    const list = this.outcomesForAnswers(requests.items, now);
-
-    this.dependencies.publishOutcomes(this.lease, list);
   }
 }
 

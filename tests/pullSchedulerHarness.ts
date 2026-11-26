@@ -4,13 +4,13 @@ import type { Lease, ReadShared, WriteShared } from '../src/data/lease.ts';
 import { heartbeatKey, leaseKey } from '../src/data/lease.ts';
 import type { PullReadTimes } from '../src/data/pullReadTimes.ts';
 import { createPullReadTimesPublisher } from '../src/data/pullReadTimes.ts';
-import type { PullRetryOutcome, PullRetryRequest } from '../src/data/pullRetry.ts';
+import type { PullRetryOutcome, PullRetryRequest } from '../src/data/pullRetry/pullRetry.ts';
 import {
   createPullRetryOutcomesPublisher,
   pullRetryOutcomesKey,
   pullRetryRequestsKey,
   readPullRetryOutcomes,
-} from '../src/data/pullRetry.ts';
+} from '../src/data/pullRetry/pullRetry.ts';
 import type { Pull } from '../src/data/pulls.ts';
 import type { PullScheduler, PullSchedulerSeed } from '../src/data/pullScheduler.ts';
 import { createPullScheduler } from '../src/data/pullScheduler.ts';
@@ -35,12 +35,16 @@ interface Store {
 
 export const pullSchedulerStart = 1_000_000;
 
-const memoryStore = (): Store => {
+const memoryStore = (onRead: (key: string) => void): Store => {
   const values = new Map<string, unknown>();
 
   return {
     values,
-    read: (key) => values.get(key),
+    read: (key) => {
+      onRead(key);
+
+      return values.get(key);
+    },
     write: (key, value) => {
       values.set(key, structuredClone(value));
     },
@@ -58,7 +62,8 @@ const describeCall = (call: PendingCall | undefined): string =>
   call === undefined ? 'no call' : `${call.command} ${call.args.join(' ')}`;
 
 export class PullSchedulerHarness {
-  store = memoryStore();
+  onStoreRead: ((key: string) => void) | null = null;
+  store = memoryStore((key) => this.onStoreRead?.(key));
   notices = silentNotices();
   calls: PendingCall[] = [];
   spawned: Promise<unknown>[] = [];
@@ -99,7 +104,8 @@ export class PullSchedulerHarness {
   }
 
   reset(): void {
-    this.store = memoryStore();
+    this.onStoreRead = null;
+    this.store = memoryStore((key) => this.onStoreRead?.(key));
     this.notices = silentNotices();
     this.calls = [];
     this.spawned = [];

@@ -7,8 +7,12 @@ import type { RepositoryIdentity } from './gitIdentity.ts';
 import { placeOf, repositoryOf, worktreeOf } from './gitIdentity.ts';
 import type { PullReadTimes } from './pullReadTimes.ts';
 import { readPullReadTimes } from './pullReadTimes.ts';
-import type { PullRetryRequest } from './pullRetry.ts';
-import { pullRetryOutcomesKey, pullRetryRequestsKey } from './pullRetry.ts';
+import type { PullRetryRequest } from './pullRetry/pullRetry.ts';
+import {
+  pullRetryLifetimeMilliseconds,
+  pullRetryOutcomesKey,
+  pullRetryRequestsKey,
+} from './pullRetry/pullRetry.ts';
 import type { Pull } from './pulls.ts';
 import type { GitFacts, RepositoryPulls } from './snapshot.ts';
 
@@ -210,11 +214,60 @@ describe('createPullScheduler', () => {
     harness.setRequests([]);
     scheduler.tick(git, new Map(), harness.spawn);
 
+    expect(harness.outcomes()).toEqual([]);
+
     harness.setRequests([requestFor('window-a', 'a-1')]);
     scheduler.tick(git, new Map(), harness.spawn);
 
     expect(harness.calls.map((call) => call.command)).toEqual(['git', 'git', 'gh']);
     expect(harness.outcomes()).toEqual([{ consumer: 'window-a', id: 'a-1', result: 'read' }]);
+  });
+
+  const expireOnFirstOutcomesRead = (at: number): void => {
+    harness.onStoreRead = (key) => {
+      if (key !== pullRetryOutcomesKey) {
+        return;
+      }
+
+      harness.onStoreRead = null;
+      harness.setNow(at);
+    };
+  };
+
+  test('a Retry that is still live when its answer is published is answered', async () => {
+    harness.setRequests([requestFor('window-a', 'a-1')]);
+
+    const scheduler = harness.start();
+
+    scheduler.tick(gitFactsOf(), new Map(), harness.spawn);
+    await harness.respondRemotes(0);
+
+    harness.setNow(start + pullRetryLifetimeMilliseconds - 2);
+    expireOnFirstOutcomesRead(start + pullRetryLifetimeMilliseconds - 1);
+
+    await harness.respondPulls(2, pullList(7));
+
+    expect(scheduler.pulls()).toEqual({ [repository.key]: { pulls: pullList(7), failed: false } });
+
+    expect(harness.outcomes()).toEqual([{ consumer: 'window-a', id: 'a-1', result: 'read' }]);
+  });
+
+  test('a Retry that expires while its answer is published is not answered', async () => {
+    harness.setRequests([requestFor('window-a', 'a-1')]);
+
+    const scheduler = harness.start();
+
+    scheduler.tick(gitFactsOf(), new Map(), harness.spawn);
+    await harness.respondRemotes(0);
+
+    harness.setNow(start + pullRetryLifetimeMilliseconds - 2);
+    expireOnFirstOutcomesRead(start + pullRetryLifetimeMilliseconds);
+
+    await harness.respondPulls(2, pullList(7));
+
+    expect(scheduler.pulls()).toEqual({ [repository.key]: { pulls: pullList(7), failed: false } });
+
+    expect(harness.outcomes()).toEqual([]);
   });
 
   test('a failed PR read keeps the last good PRs with their read time and error', async () => {
