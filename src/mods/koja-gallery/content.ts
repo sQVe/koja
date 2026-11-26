@@ -26,9 +26,18 @@ import { sample } from './sample.ts';
 
 type HeaderState = ItemStateOptions | null;
 
+interface SectionLook {
+  // The fold key, which every section states so two specimens with one label cannot share it.
+  key: string;
+  name: string;
+  parts: Element[];
+  count?: number;
+}
+
 export interface ContentPartsOptions {
+  // Fold keys, which a section may share with another that draws a different label.
   folded: ReadonlySet<string>;
-  onToggle: (name: string, cx: Context) => void;
+  onToggle: (key: string, cx: Context) => void;
   // Shows the stale Checks sample with fresh rows, as a part that read again would.
   checksRetried: boolean;
   onRetryChecks: (cx: Context) => void;
@@ -221,29 +230,23 @@ const threadsCount = 2;
 const slicesCount = 3;
 const filesCount = 9;
 
-const isOpen = (options: ContentPartsOptions, name: string): boolean => !options.folded.has(name);
+const isOpen = (options: ContentPartsOptions, key: string): boolean => !options.folded.has(key);
 
 const toggle =
-  (options: ContentPartsOptions, name: string): ((cx: Context) => void) =>
+  (options: ContentPartsOptions, key: string): ((cx: Context) => void) =>
   (cx) => {
-    options.onToggle(name, cx);
+    options.onToggle(key, cx);
   };
 
-const sectionOptions = (
-  options: ContentPartsOptions,
-  name: string,
-  parts: Element[],
-  count?: number,
-  key: string = name,
-): ContentSectionOptions => {
-  const look: ContentSectionOptions = {
-    name,
-    open: isOpen(options, key),
-    parts,
-    onToggle: toggle(options, key),
+const sectionOptions = (options: ContentPartsOptions, look: SectionLook): ContentSectionOptions => {
+  const section: ContentSectionOptions = {
+    name: look.name,
+    open: isOpen(options, look.key),
+    parts: look.parts,
+    onToggle: toggle(options, look.key),
   };
 
-  return count === undefined ? look : { ...look, count };
+  return look.count === undefined ? section : { ...section, count: look.count };
 };
 
 const checksSection = (stale: boolean, options: ContentPartsOptions): Element => {
@@ -264,7 +267,9 @@ const checksSection = (stale: boolean, options: ContentPartsOptions): Element =>
   // Both Checks specimens show the same label, so each folds on its own key.
   const key = stale ? 'Checks with stale rows' : 'Checks with live rows';
 
-  return contentSection(sectionOptions(options, 'Checks', parts, checksCount, key));
+  return contentSection(
+    sectionOptions(options, { key, name: 'Checks', parts, count: checksCount }),
+  );
 };
 
 const threadRow = (reference: string, detail: string): StatusRowOptions => ({
@@ -277,23 +282,24 @@ const threadRow = (reference: string, detail: string): StatusRowOptions => ({
 
 const threadsSection = (options: ContentPartsOptions): Element =>
   contentSection(
-    sectionOptions(
-      options,
-      'Threads',
-      [
+    sectionOptions(options, {
+      key: 'Threads',
+      name: 'Threads',
+      parts: [
         statusRow(threadRow('rows.ts:48', 'sqve · 2h ago')),
         statusRow(threadRow('repoLabel.ts:27–31', 'sqve · 1h ago')),
       ],
-      threadsCount,
-    ),
+      count: threadsCount,
+    }),
   );
 
 const slicesSection = (options: ContentPartsOptions): Element =>
   contentSection(
-    sectionOptions(
-      options,
-      'Slices',
-      [
+    sectionOptions(options, {
+      key: 'Slices',
+      name: 'Slices',
+      count: slicesCount,
+      parts: [
         statusRow({
           mark: 'done',
           name: 'Read the ticket snapshot',
@@ -313,18 +319,21 @@ const slicesSection = (options: ContentPartsOptions): Element =>
           stateTone: 'dim',
         }),
       ],
-      slicesCount,
-    ),
+    }),
   );
 
 const descriptionSection = (options: ContentPartsOptions): Element =>
   contentSection(
-    sectionOptions(options, 'Description', [
-      statusRow({
-        mark: null,
-        name: 'Adds project groups, work-need marks, and a quieter selected row.',
-      }),
-    ]),
+    sectionOptions(options, {
+      key: 'Description',
+      name: 'Description',
+      parts: [
+        statusRow({
+          mark: null,
+          name: 'Adds project groups, work-need marks, and a quieter selected row.',
+        }),
+      ],
+    }),
   );
 
 const fileRow = (path: string, counts: string): StatusRowOptions => ({
@@ -336,10 +345,11 @@ const fileRow = (path: string, counts: string): StatusRowOptions => ({
 
 const filesSection = (options: ContentPartsOptions): Element =>
   contentSection(
-    sectionOptions(
-      options,
-      'Files',
-      [
+    sectionOptions(options, {
+      key: 'Files',
+      name: 'Files',
+      count: filesCount,
+      parts: [
         statusRow(fileRow('src/kit/contentSection.ts', '+64 −0')),
         statusRow(fileRow('src/kit/partNote.ts', '+48 −0')),
         statusRow(fileRow('src/kit/sectionHeader.ts', '+18 −2')),
@@ -350,8 +360,7 @@ const filesSection = (options: ContentPartsOptions): Element =>
         statusRow(fileRow('src/mods/koja-gallery/content.ts', '+120 −30')),
         statusRow(fileRow('src/mods/koja-gallery/main.ts', '+18 −2')),
       ],
-      filesCount,
-    ),
+    }),
   );
 
 export const contentParts = (options: ContentPartsOptions): Element[] => [
