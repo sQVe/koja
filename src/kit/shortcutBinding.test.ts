@@ -23,6 +23,15 @@ describe('hintFor', () => {
     });
   });
 
+  test('names a multi-character key and keeps a single key lower case', () => {
+    const bindings = [{ section: 'global', keys: 'tab', action: 'mod.open:koja-picker' }];
+
+    expect(hintFor(bindings, 'linux', 'mod.open:koja-picker')).toEqual({
+      normal: ['ä'],
+      insert: ['Tab'],
+    });
+  });
+
   test('keeps a plain shifted normal-mode key whole, so its cap marks the shift', () => {
     expect(hintFor([], 'linux', bindingAction('tab.move', { by: -1 }))).toEqual({
       normal: ['t', 'H'],
