@@ -8,12 +8,14 @@ import {
   focused,
   openOverlay,
   playSound,
+  panes,
   props,
   readTextFile,
   run,
   setShared,
   settings,
   shared,
+  spaces,
   terminals,
 } from 'herdr';
 
@@ -22,6 +24,7 @@ import {
   currentWindow,
   findLayoutNode,
   layoutRoot,
+  listOf,
   modName,
   numberOf,
   overlayId,
@@ -32,22 +35,40 @@ import {
 } from '../../kit/index.ts';
 import type { LayoutNode } from '../../kit/layout.ts';
 import { parsedJson } from '../../kit/parsedJson.ts';
+import type { AskAges } from './askAges.ts';
+import { askAgeOf, readAskAges, trackAskAges } from './askAges.ts';
 import type { Ask } from './askFacts.ts';
 import { asksOf, unseenAsks } from './askFacts.ts';
-import type { CardBox, CardGeometry, CardGeometrySources, CardMore, CardWindow } from './card.ts';
-import { cardGeometry, cardSignature, cardTextOf, windowBoundsOf } from './card.ts';
+import type {
+  AskRow,
+  CardBox,
+  CardGeometry,
+  CardGeometrySources,
+  CardMore,
+  CardWindow,
+} from './card.ts';
+import {
+  cardGeometry,
+  cardHeight,
+  cardSignature,
+  cardTextOf,
+  listHeight,
+  windowBoundsOf,
+} from './card.ts';
 import type { CardPlan, OpenCard } from './host.ts';
 import { planCard } from './host.ts';
 import type { CardActions } from './view.ts';
-import { cardElement } from './view.ts';
+import { cardElement, listElement } from './view.ts';
 
 interface CardProps {
   ask: Ask;
   more: CardMore | null;
+  rows: readonly AskRow[] | null;
 }
 
 interface CardContent {
   more: CardMore | null;
+  rows: readonly AskRow[] | null;
   geometry: CardGeometry;
   signature: string;
 }
@@ -58,6 +79,8 @@ interface Snapshot {
   visible: Ask[];
   handled: string[];
   sounded: string[];
+  ages: AskAges;
+  listOpen: boolean;
   open: OpenCard | null;
 }
 
@@ -69,7 +92,21 @@ const blockedSound = 'blocked';
 
 const openKey = 'koja-asks.open';
 
+const listKey = 'koja-asks.list';
+
+const agesKey = 'koja-asks.ages';
+
 const tickMilliseconds = 500;
+
+const storage = {
+  get: (key: string): string | null => localStorage.getItem(key),
+  set: (key: string, value: string): void => {
+    localStorage.setItem(key, value);
+  },
+};
+
+const textOf = (record: Record<string, unknown>, key: string): string =>
+  stringOf(record[key]) ?? '';
 
 const readAsk = (value: unknown): Ask | null => {
   const record = recordOf(value);
@@ -83,14 +120,15 @@ const readAsk = (value: unknown): Ask | null => {
 
   return {
     identity,
-    address: stringOf(record['address']) ?? '',
-    spaceId: stringOf(record['spaceId']) ?? '',
-    spaceName: stringOf(record['spaceName']) ?? '',
-    tabId: stringOf(record['tabId']) ?? '',
-    paneId: stringOf(record['paneId']) ?? '',
-    agent: stringOf(record['agent']) ?? '',
+    address: textOf(record, 'address'),
+    spaceId: textOf(record, 'spaceId'),
+    spaceName: textOf(record, 'spaceName'),
+    project: textOf(record, 'project'),
+    tabId: textOf(record, 'tabId'),
+    paneId: textOf(record, 'paneId'),
+    agent: textOf(record, 'agent'),
     kind,
-    question: stringOf(record['question']) ?? '',
+    question: textOf(record, 'question'),
     command: stringOf(record['command']),
     seq: numberOf(record['seq']) ?? 0,
   };
@@ -116,11 +154,38 @@ const readMore = (value: unknown): CardMore | null => {
   return { count, space };
 };
 
+const readRow = (value: unknown): AskRow | null => {
+  const record = recordOf(value);
+  const ask = readAsk(record['ask']);
+  const project = stringOf(record['project']);
+  const age = stringOf(record['age']);
+
+  if (ask === null || project === null || age === null) {
+    return null;
+  }
+
+  return { ask, project, age };
+};
+
+const readRows = (value: unknown): AskRow[] | null => {
+  if (value === null || value === undefined) {
+    return null;
+  }
+
+  const rows = listOf(value)
+    .map(readRow)
+    .filter((row): row is AskRow => row !== null);
+
+  return rows.length === 0 ? null : rows;
+};
+
 const readCardProps = (value: unknown): CardProps | null => {
   const record = recordOf(value);
   const ask = readAsk(record['ask']);
 
-  return ask === null ? null : { ask, more: readMore(record['more']) };
+  return ask === null
+    ? null
+    : { ask, more: readMore(record['more']), rows: readRows(record['rows']) };
 };
 
 const openStateOf = (value: unknown): OpenCard | null => {
@@ -176,11 +241,22 @@ const windowSize = async (): Promise<CardWindow | null> => {
   return { ...bounds, zoom: zoom > 0 ? zoom : 1 };
 };
 
-const contentOf = (ask: Ask, more: CardMore | null, sources: CardGeometrySources): CardContent => {
+const contentOf = (
+  ask: Ask,
+  more: CardMore | null,
+  rows: readonly AskRow[] | null,
+  sources: CardGeometrySources,
+): CardContent => {
   const text = cardTextOf(ask, more);
-  const geometry = cardGeometry(sources, text);
 
-  return { more, geometry, signature: cardSignature(ask, text, geometry) };
+  const heightAt =
+    rows === null
+      ? (width: number): number => cardHeight(text, width)
+      : (width: number): number => listHeight(rows, width);
+
+  const geometry = cardGeometry(sources, heightAt);
+
+  return { more, rows, geometry, signature: cardSignature(ask, { text, rows }, geometry) };
 };
 
 export default class KojaAsks extends View {
@@ -188,12 +264,16 @@ export default class KojaAsks extends View {
 
   private busy = false;
 
+  private ages: AskAges = {};
+
   override init(_props: unknown, cx: AsyncContext): void {
     this.card = readCardProps(props());
 
     if (this.card !== null || checking()) {
       return;
     }
+
+    this.ages = readAskAges(storage.get(agesKey));
 
     repeat(cx, tickMilliseconds, () => {
       // A failed read retries on the next tick.
@@ -218,7 +298,13 @@ export default class KojaAsks extends View {
       return div().id('koja-asks-host').size(0);
     }
 
-    return cardElement(this.card.ask, this.card.more, this.actions());
+    const { ask, more, rows } = this.card;
+
+    if (rows !== null) {
+      return listElement(rows, this.actions());
+    }
+
+    return cardElement(ask, more, this.actions());
   }
 
   private actions(): CardActions {
@@ -228,6 +314,15 @@ export default class KojaAsks extends View {
       },
       dismiss: () => {
         this.dismiss();
+      },
+      openList: () => {
+        setShared(listKey, true);
+      },
+      goToRow: (ask) => {
+        this.goTo(ask);
+      },
+      dismissList: () => {
+        this.dismissList();
       },
     };
   }
@@ -239,11 +334,15 @@ export default class KojaAsks extends View {
       return;
     }
 
-    markHandled(card.ask.identity);
-    this.clearOpen();
-    run('space.select', { id: card.ask.spaceId });
-    run('tab.select', { id: card.ask.tabId });
-    run('pane.focus', { pane: card.ask.paneId });
+    this.goTo(card.ask);
+  }
+
+  private goTo(ask: Ask): void {
+    markHandled(ask.identity);
+    this.clearCard();
+    run('space.select', { id: ask.spaceId });
+    run('tab.select', { id: ask.tabId });
+    run('pane.focus', { pane: ask.paneId });
     closeCurrentOverlay();
   }
 
@@ -255,8 +354,28 @@ export default class KojaAsks extends View {
     }
 
     markHandled(card.ask.identity);
-    this.clearOpen();
+    this.clearCard();
     closeCurrentOverlay();
+  }
+
+  private dismissList(): void {
+    const card = this.card;
+
+    if (card === null) {
+      return;
+    }
+
+    for (const row of card.rows ?? []) {
+      markHandled(row.ask.identity);
+    }
+
+    this.clearCard();
+    closeCurrentOverlay();
+  }
+
+  private clearCard(): void {
+    this.clearOpen();
+    setShared(listKey, null);
   }
 
   private clearOpen(): void {
@@ -268,13 +387,35 @@ export default class KojaAsks extends View {
     }
   }
 
+  private trackAges(live: readonly Ask[]): AskAges {
+    const advance = trackAskAges(
+      this.ages,
+      live.map((ask) => ask.identity),
+      Date.now(),
+    );
+
+    this.ages = advance.ages;
+
+    if (advance.changed) {
+      storage.set(agesKey, JSON.stringify(advance.ages));
+    }
+
+    return advance.ages;
+  }
+
   private snapshot(): Snapshot {
     const view = {
       focusedTab: focused()?.tab ?? null,
       windowActive: currentWindow()?.active === true,
     };
 
-    const live = asksOf({ terminals: terminals(), agents: agents() });
+    const live = asksOf({
+      terminals: terminals(),
+      agents: agents(),
+      spaces: spaces(),
+      panes: panes(),
+    });
+
     const asks = unseenAsks(live, view);
     const visible = live.filter((ask) => !asks.includes(ask));
 
@@ -284,8 +425,20 @@ export default class KojaAsks extends View {
       visible,
       handled: stringListOf(shared(handledKey)),
       sounded: stringListOf(shared(soundedKey)),
+      ages: this.trackAges(live),
+      listOpen: shared(listKey) === true,
       open: openStateOf(shared(openKey)),
     };
+  }
+
+  private syncListFlag(snapshot: Snapshot, unhandledCount: number): boolean {
+    const listOpen = snapshot.listOpen && unhandledCount > 1;
+
+    if (snapshot.listOpen && !listOpen) {
+      setShared(listKey, null);
+    }
+
+    return listOpen;
   }
 
   private planOf(snapshot: Snapshot, signatures: ReadonlyMap<string, string>): CardPlan {
@@ -338,6 +491,7 @@ export default class KojaAsks extends View {
       const first = this.snapshot();
 
       if (first.asks.length === 0) {
+        this.syncListFlag(first, 0);
         this.applyPlan(this.planOf(first, new Map()), new Map());
 
         return;
@@ -358,9 +512,13 @@ export default class KojaAsks extends View {
 
       const contents = new Map<string, CardContent>();
       const unhandled = current.asks.filter((ask) => !current.handled.includes(ask.identity));
+      const listOpen = this.syncListFlag(current, unhandled.length);
+      const shown = unhandled[0];
 
-      for (const ask of unhandled) {
-        contents.set(ask.identity, contentOf(ask, moreOf(unhandled, ask), sources));
+      if (shown !== undefined) {
+        const rows = listOpen ? this.rowsOf(unhandled, current.ages) : null;
+
+        contents.set(shown.identity, contentOf(shown, moreOf(unhandled, shown), rows, sources));
       }
 
       const signatures = new Map(
@@ -373,6 +531,16 @@ export default class KojaAsks extends View {
     }
   }
 
+  private rowsOf(asks: readonly Ask[], ages: AskAges): AskRow[] {
+    const now = Date.now();
+
+    return asks.map((ask) => ({
+      ask,
+      project: ask.project,
+      age: askAgeOf(ages, ask.identity, now),
+    }));
+  }
+
   private openCard(ask: Ask, content: CardContent): void {
     const spec: OverlaySpec = {
       mod: modName,
@@ -380,7 +548,7 @@ export default class KojaAsks extends View {
       frame: 'none',
       width: content.geometry.width,
       height: content.geometry.height,
-      props: { ask, more: content.more },
+      props: { ask, more: content.more, rows: content.rows },
     };
 
     if (content.geometry.at !== null) {

@@ -7,10 +7,21 @@ export interface CardMore {
   space: string;
 }
 
+export interface AskRow {
+  ask: Ask;
+  project: string;
+  age: string;
+}
+
 export interface CardText {
   question: string;
   command: string | null;
   more: string | null;
+}
+
+export interface CardContent {
+  text: CardText;
+  rows: readonly AskRow[] | null;
 }
 
 export interface CardBox {
@@ -49,6 +60,20 @@ const {
   detailLineHeight,
 } = askCardSize;
 
+const rowPaddingX = spacing.medium;
+
+const rowPaddingY = spacing.small;
+
+const rowGap = spacing.xxsmall;
+
+const listGap = spacing.medium;
+
+const cardBorder = spacing.hairline;
+
+const cardPadding = spacing.small;
+
+const listLineHeight = controlSize.button;
+
 // A conservative advance per character, so the estimate never falls below the height GPUI draws.
 const bodyGlyph = 7.5;
 
@@ -62,6 +87,12 @@ export const moreText = (more: CardMore): string => {
 
   return `${more.count} more ${asks} in ${more.space}`;
 };
+
+export const listTitle = (count: number): string => `${count} asks in other spaces`;
+
+export const rowDetail = (row: AskRow): string => `${row.ask.agent} · ${row.ask.question}`;
+
+export const rowMeta = (row: AskRow): string => `${row.project} · ${row.age}`;
 
 export const cardTextOf = (ask: Ask, more: CardMore | null): CardText => ({
   question: ask.question,
@@ -118,6 +149,34 @@ export const cardHeight = (text: CardText, width: number): number => {
   return height;
 };
 
+const rowHeight = (row: AskRow, width: number): number => {
+  const textWidth = width - textInset;
+
+  let height = 2 * rowPaddingY + listLineHeight + rowGap;
+
+  height += wrapLineCount(rowDetail(row), textWidth, bodyGlyph) * bodyLineHeight;
+
+  if (row.ask.command !== null) {
+    height += rowGap;
+    height += wrapLineCount(row.ask.command, textWidth, terminalGlyph) * terminalLineHeight;
+  }
+
+  return height;
+};
+
+export const listHeight = (rows: readonly AskRow[], width: number): number => {
+  const contentWidth = width - 2 * cardPadding - 2 * cardBorder;
+
+  let height = 2 * cardPadding + 2 * cardBorder + listLineHeight;
+
+  for (const row of rows) {
+    height += listGap;
+    height += rowHeight(row, contentWidth - 2 * rowPaddingX);
+  }
+
+  return height;
+};
+
 const boxWidth = (box: CardBox | null): number => {
   if (box === null || box.hidden || box.sizePx === null) {
     return 0;
@@ -126,11 +185,14 @@ const boxWidth = (box: CardBox | null): number => {
   return box.sizePx;
 };
 
-export const cardGeometry = (sources: CardGeometrySources, text: CardText): CardGeometry => {
+export const cardGeometry = (
+  sources: CardGeometrySources,
+  heightAt: (width: number) => number,
+): CardGeometry => {
   const width = maximumWidth;
 
   if (sources.window === null || sources.window.maximized) {
-    return { width, height: cardHeight(text, width), at: null };
+    return { width, height: heightAt(width), at: null };
   }
 
   const zoom = sources.window.zoom > 0 ? sources.window.zoom : 1;
@@ -139,21 +201,35 @@ export const cardGeometry = (sources: CardGeometrySources, text: CardText): Card
   const mainWidth = Math.max(0, sources.window.width / zoom - left - panel);
   const cardWidth = Math.min(maximumWidth, Math.max(0, mainWidth - 2 * paneClearance));
   const availableHeight = sources.window.height / zoom - spacing.small - paneClearance;
-  const height = Math.min(cardHeight(text, cardWidth), Math.max(0, availableHeight));
+  const height = Math.min(heightAt(cardWidth), Math.max(0, availableHeight));
   const x = (left + (mainWidth - cardWidth) / 2) * zoom;
   const y = Math.max(0, sources.window.height - (spacing.small + paneClearance + height) * zoom);
 
   return { width: cardWidth, height, at: { x: Math.round(x), y: Math.round(y) } };
 };
 
-export const cardSignature = (ask: Ask, text: CardText, geometry: CardGeometry): string =>
+const askSignature = (ask: Ask): Record<string, unknown> => ({
+  space: ask.spaceName,
+  agent: ask.agent,
+  spaceId: ask.spaceId,
+  tabId: ask.tabId,
+  paneId: ask.paneId,
+});
+
+const rowSignature = (row: AskRow): Record<string, unknown> => ({
+  ...askSignature(row.ask),
+  identity: row.ask.identity,
+  question: row.ask.question,
+  command: row.ask.command,
+  project: row.project,
+  age: row.age,
+});
+
+export const cardSignature = (ask: Ask, content: CardContent, geometry: CardGeometry): string =>
   JSON.stringify({
-    space: ask.spaceName,
-    agent: ask.agent,
-    spaceId: ask.spaceId,
-    tabId: ask.tabId,
-    paneId: ask.paneId,
-    text,
+    ...askSignature(ask),
+    text: content.text,
+    rows: content.rows?.map(rowSignature) ?? null,
     geometry,
   });
 

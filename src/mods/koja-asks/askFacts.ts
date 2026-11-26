@@ -1,8 +1,9 @@
-import type { AgentInfo, Program } from 'herdr';
+import type { AgentInfo, PaneInfo, Program, SpaceInfo } from 'herdr';
 
 import type { TerminalMetadata } from '../../data/terminalRecord.ts';
 import { terminalMetadata } from '../../data/terminalRecord.ts';
 import { recordOf, stringOf } from '../../kit/fields.ts';
+import { spaceFolder } from '../../kit/space.ts';
 
 type AskKind = 'permission' | 'question';
 
@@ -11,6 +12,7 @@ export interface Ask {
   address: string;
   spaceId: string;
   spaceName: string;
+  project: string;
   tabId: string;
   paneId: string;
   agent: string;
@@ -28,6 +30,8 @@ export type AskAgent = Pick<
 export interface AskSources {
   terminals: readonly unknown[];
   agents: readonly AskAgent[];
+  spaces: readonly SpaceInfo[];
+  panes: readonly PaneInfo[];
 }
 
 export interface AskView {
@@ -75,11 +79,28 @@ const questionOf = (kind: AskKind, message: string): string => {
 const commandOf = (kind: AskKind, message: string): string | null =>
   kind === 'permission' && message !== '' ? message : null;
 
+const lastPart = (path: string): string => path.split('/').findLast((part) => part !== '') ?? '';
+
+const projectOf = (
+  space: SpaceInfo | undefined,
+  spaceName: string,
+  panes: readonly PaneInfo[],
+): string => {
+  if (space === undefined) {
+    return spaceName;
+  }
+
+  const name = lastPart(spaceFolder(space, panes));
+
+  return name === '' ? spaceName : name;
+};
+
 const askOf = (
   address: string,
   record: Record<string, unknown>,
   agent: AskAgent,
   kind: AskKind,
+  project: string,
 ): Ask => {
   const message = stringOf(recordOf(record['report'])['msg']) ?? '';
 
@@ -88,6 +109,7 @@ const askOf = (
     address,
     spaceId: agent.space,
     spaceName: agent.space_name,
+    project,
     tabId: agent.tab,
     paneId: agent.pane,
     agent: agent.program.name,
@@ -100,6 +122,7 @@ const askOf = (
 
 export const asksOf = (sources: AskSources): Ask[] => {
   const agentsByAddress = new Map(sources.agents.map((agent) => [agent.address, agent]));
+  const spacesById = new Map(sources.spaces.map((space) => [space.id, space]));
   const metadata = terminalMetadata(sources.terminals);
   const asks: Ask[] = [];
 
@@ -115,7 +138,9 @@ export const asksOf = (sources: AskSources): Ask[] => {
     const agent = address === null ? undefined : agentsByAddress.get(address);
 
     if (address !== null && agent !== undefined) {
-      asks.push(askOf(address, record, agent, kind));
+      const project = projectOf(spacesById.get(agent.space), agent.space_name, sources.panes);
+
+      asks.push(askOf(address, record, agent, kind, project));
     }
   }
 

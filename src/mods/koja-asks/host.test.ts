@@ -9,6 +9,7 @@ const ask = (identity: string): Ask => ({
   address: identity,
   spaceId: 's1',
   spaceName: 'Build window shell',
+  project: 'koja',
   tabId: 'k1',
   paneId: 'p1',
   agent: 'Claude Code',

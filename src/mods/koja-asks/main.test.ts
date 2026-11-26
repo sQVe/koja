@@ -2,7 +2,7 @@ import { afterAll, beforeEach, describe, expect, mock, test } from 'bun:test';
 
 import { createDeferred } from '../../../tests/deferred.ts';
 import type { DrawnElement } from '../../../tests/drawn.ts';
-import { click, drawn, elementsWithStyle } from '../../../tests/drawn.ts';
+import { click, clickablesWithText, drawn, elementsWithStyle } from '../../../tests/drawn.ts';
 import {
   gpuiBaseFake,
   gpuiKitFake,
@@ -25,6 +25,7 @@ const ask: Ask = {
   address: 't1',
   spaceId: 's1',
   spaceName: 'Build window shell',
+  project: 'koja',
   tabId: 'k1',
   paneId: 'p1',
   agent: 'Claude Code',
@@ -33,6 +34,26 @@ const ask: Ask = {
   command: 'bun run sandbox up',
   seq: 1,
 };
+
+const secondAsk: Ask = {
+  identity: 't2:permission:bun run check',
+  address: 't2',
+  spaceId: 's2',
+  spaceName: 'Hill-climb',
+  project: 'tau',
+  tabId: 'k3',
+  paneId: 'p2',
+  agent: 'Pi',
+  kind: 'permission',
+  question: 'Allow this command?',
+  command: 'bun run check',
+  seq: 2,
+};
+
+const rows = [
+  { ask: secondAsk, project: 'tau', age: '2m' },
+  { ask, project: 'koja', age: '5m' },
+];
 
 const blockedTerminal = {
   address: 't1',
@@ -75,6 +96,17 @@ const layout = {
     { id: 'work', children: [{ id: 'panel', size: { px: 368 }, hidden: true, children: [] }] },
   ],
 };
+
+const store = new Map<string, string>();
+
+Object.assign(globalThis, {
+  localStorage: {
+    getItem: (key: string) => store.get(key) ?? null,
+    setItem: (key: string, value: string) => {
+      store.set(key, value);
+    },
+  },
+});
 
 let focusedTab = 'k2';
 let terminalsValue: Record<string, unknown>[] = [blockedTerminal];
@@ -139,6 +171,10 @@ await mock.module('herdr', () =>
     },
     settings: () => ({}),
     shared: (key: string) => values[key],
+    spaces: () => [
+      { id: 's1', folder: '/code/koja', tabs: [] },
+      { id: 's2', folder: '/code/tau', tabs: [] },
+    ],
     terminals: () => terminalsValue,
     theme: () => palette,
     window: () => ({ active: true, platform: 'linux' }),
@@ -230,6 +266,7 @@ beforeEach(() => {
   readDeferred = null;
   readPaths = [];
   boundsValue = { state: 'windowed', bounds: [0, 0, 1280, 820] };
+  store.clear();
 });
 
 describe('the ask host', () => {
@@ -363,6 +400,69 @@ describe('the ask host', () => {
     expect(values['koja-asks.handled']).toEqual([ask.identity, 't2:permission:bun run check']);
   });
 
+  test('opens the list of every unseen ask with its project and age', async () => {
+    terminalsValue = [blockedTerminal, blockedTerminal2];
+    agentsValue = [agent, agent2];
+    values['koja-asks.list'] = true;
+
+    store.set(
+      'koja-asks.ages',
+      JSON.stringify({
+        [secondAsk.identity]: Date.now() - 120_000,
+        [ask.identity]: Date.now() - 300_000,
+      }),
+    );
+
+    await runHost();
+
+    expect(opened[0]?.props).toMatchObject({
+      rows: [
+        { ask: { address: 't2', spaceName: 'Hill-climb' }, project: 'tau', age: '2m' },
+        { ask: { address: 't1', spaceName: 'Build window shell' }, project: 'koja', age: '5m' },
+      ],
+    });
+  });
+
+  test('opens the list taller than the card', async () => {
+    await runHost();
+
+    const cardHeight = Number(opened[0]?.height);
+
+    opened = [];
+    closed = [];
+    terminalsValue = [blockedTerminal, blockedTerminal2];
+    agentsValue = [agent, agent2];
+    values['koja-asks.list'] = true;
+
+    await runHost();
+
+    expect(Number(opened[0]?.height)).toBeGreaterThan(cardHeight);
+  });
+
+  test('keeps the card when only one ask is unseen', async () => {
+    values['koja-asks.list'] = true;
+
+    await runHost();
+
+    expect(opened[0]?.props).toMatchObject({ rows: null });
+    expect(values['koja-asks.list']).toBeNull();
+  });
+
+  test('goes back to the card when one ask is answered', async () => {
+    terminalsValue = [blockedTerminal, blockedTerminal2];
+    agentsValue = [agent, agent2];
+    values['koja-asks.list'] = true;
+
+    await runHost();
+
+    terminalsValue = [blockedTerminal];
+    await tick();
+
+    expect(opened).toHaveLength(2);
+    expect(opened[1]?.props).toMatchObject({ rows: null });
+    expect(values['koja-asks.list']).toBeNull();
+  });
+
   test('does not reopen an ask the user saw in its tab', async () => {
     await runHost();
 
@@ -412,6 +512,26 @@ describe('the ask card', () => {
     expect(closed).toEqual(['overlay-1']);
   });
 
+  test('the more line asks the host to open the list', () => {
+    propsValue = { ask, more: { count: 1, space: 'Hill-climb' }, rows: null, overlay: 'overlay-1' };
+
+    const view = new loaded.default();
+
+    view.init(propsValue, context);
+
+    const card = view.render();
+
+    const more = elementsWithStyle(card, 'id').find(
+      (part) => part.styles['id']?.[0] === 'koja-ask-more',
+    );
+
+    if (more !== undefined) {
+      click(more);
+    }
+
+    expect(values['koja-asks.list']).toBe(true);
+  });
+
   test('the dismiss control marks the ask handled and closes without a jump', () => {
     values['koja-asks.open'] = { id: 'overlay-1', identity: ask.identity, signature: 'sig' };
 
@@ -428,6 +548,65 @@ describe('the ask card', () => {
 
     expect(runs).toEqual([]);
     expect(values['koja-asks.handled']).toEqual([ask.identity]);
+    expect(closed).toEqual(['overlay-1']);
+  });
+});
+
+describe('the ask list', () => {
+  const initList = (): { render: () => DrawnElement } => {
+    propsValue = { ask: secondAsk, more: null, rows, overlay: 'overlay-1' };
+
+    const view = new loaded.default();
+
+    view.init(propsValue, context);
+
+    return view;
+  };
+
+  test('a click on a row goes to that ask, marks it handled, and closes the list', () => {
+    values['koja-asks.open'] = { id: 'overlay-1', identity: secondAsk.identity, signature: 'sig' };
+    values['koja-asks.list'] = true;
+
+    const view = initList();
+    const list = view.render();
+
+    const row = clickablesWithText(list, 'Build window shell').at(-1);
+
+    if (row !== undefined) {
+      click(row);
+    }
+
+    expect(runs).toEqual([
+      { name: 'space.select', args: { id: 's1' } },
+      { name: 'tab.select', args: { id: 'k1' } },
+      { name: 'pane.focus', args: { pane: 'p1' } },
+    ]);
+
+    expect(values['koja-asks.handled']).toEqual([ask.identity]);
+    expect(values['koja-asks.list']).toBeNull();
+    expect(values['koja-asks.open']).toBeNull();
+    expect(closed).toEqual(['overlay-1']);
+  });
+
+  test('the dismiss control dismisses every ask without a jump', () => {
+    values['koja-asks.open'] = { id: 'overlay-1', identity: secondAsk.identity, signature: 'sig' };
+    values['koja-asks.list'] = true;
+
+    const view = initList();
+    const list = view.render();
+
+    const dismiss = elementsWithStyle(list, 'id').find(
+      (part) => part.styles['id']?.[0] === 'koja-ask-list-dismiss',
+    );
+
+    if (dismiss !== undefined) {
+      click(dismiss);
+    }
+
+    expect(runs).toEqual([]);
+
+    expect(values['koja-asks.handled']).toEqual([secondAsk.identity, ask.identity]);
+    expect(values['koja-asks.list']).toBeNull();
     expect(closed).toEqual(['overlay-1']);
   });
 });

@@ -1,7 +1,14 @@
 import { afterAll, beforeEach, describe, expect, mock, test } from 'bun:test';
 
 import type { DrawnElement } from '../../../tests/drawn.ts';
-import { click, drawn, drawnIcons, drawnTexts, elementsWithStyle } from '../../../tests/drawn.ts';
+import {
+  click,
+  clickablesWithText,
+  drawn,
+  drawnIcons,
+  drawnTexts,
+  elementsWithStyle,
+} from '../../../tests/drawn.ts';
 import {
   gpuiBaseFake,
   gpuiKitFake,
@@ -9,6 +16,7 @@ import {
   realKitIndexFake,
 } from '../../../tests/moduleFakes.ts';
 import type { Ask } from './askFacts.ts';
+import type { AskRow } from './card.ts';
 import type { CardActions } from './view.ts';
 
 const palette = {
@@ -50,12 +58,13 @@ await mock.module('../../kit/index.ts', () => kitFake);
 
 const modulePath = './view.ts';
 
-const { cardElement } = (await import(modulePath)) as {
+const { cardElement, listElement } = (await import(modulePath)) as {
   cardElement: (
     ask: Ask,
     more: { count: number; space: string } | null,
     actions: CardActions,
   ) => DrawnElement;
+  listElement: (rows: readonly AskRow[], actions: CardActions) => DrawnElement;
 };
 
 const ask: Ask = {
@@ -63,6 +72,7 @@ const ask: Ask = {
   address: 't1',
   spaceId: 's1',
   spaceName: 'Build window shell',
+  project: 'koja',
   tabId: 'k1',
   paneId: 'p1',
   agent: 'Claude Code',
@@ -80,6 +90,26 @@ const questionAsk: Ask = {
   command: null,
 };
 
+const secondAsk: Ask = {
+  identity: 't2:question:Which judge model for round 2?',
+  address: 't2',
+  spaceId: 's2',
+  spaceName: 'Hill-climb mode for judges',
+  project: 'tau',
+  tabId: 'k3',
+  paneId: 'p2',
+  agent: 'Pi',
+  kind: 'question',
+  question: 'Which judge model for round 2?',
+  command: null,
+  seq: 2,
+};
+
+const rows: AskRow[] = [
+  { ask, project: 'koja', age: '2m' },
+  { ask: secondAsk, project: 'tau', age: '5m' },
+];
+
 let calls: string[] = [];
 
 const actions: CardActions = {
@@ -89,6 +119,15 @@ const actions: CardActions = {
   dismiss: () => {
     calls.push('dismiss');
   },
+  openList: () => {
+    calls.push('open');
+  },
+  goToRow: (rowAsk) => {
+    calls.push(`row:${rowAsk.address}`);
+  },
+  dismissList: () => {
+    calls.push('dismissList');
+  },
 };
 
 afterAll(() => {
@@ -97,6 +136,69 @@ afterAll(() => {
 
 beforeEach(() => {
   calls = [];
+});
+
+describe('listElement', () => {
+  test('draws the count and every ask with its space, project, age, agent, question, and command', () => {
+    const list = listElement(rows, actions);
+
+    expect(drawnTexts(list)).toEqual([
+      '2 asks in other spaces',
+      'Build window shell',
+      'koja · 2m',
+      'Claude Code · Allow this command?',
+      'bun run sandbox up',
+      'Hill-climb mode for judges',
+      'tau · 5m',
+      'Pi · Which judge model for round 2?',
+    ]);
+
+    expect(drawnIcons(list)).toEqual([
+      'x.svg',
+      'message-circle-question.svg',
+      'message-circle-question.svg',
+    ]);
+  });
+
+  test('a click on a row goes to that ask', () => {
+    const list = listElement(rows, actions);
+
+    const row = clickablesWithText(list, 'Hill-climb mode for judges').at(-1);
+
+    if (row !== undefined) {
+      click(row);
+    }
+
+    expect(calls).toEqual(['row:t2']);
+  });
+
+  test('a row fills on hover and is clickable', () => {
+    const list = listElement(rows, actions);
+    const clickable = new Set(elementsWithStyle(list, 'cursor_pointer'));
+
+    const rowsWithHover = elementsWithStyle(list, 'hover').filter((part) => clickable.has(part));
+
+    expect(rowsWithHover.map((part) => drawnTexts(part)[0])).toEqual([
+      'Build window shell',
+      'Hill-climb mode for judges',
+    ]);
+  });
+
+  test('the list dismiss control dismisses every ask without a jump', () => {
+    const list = listElement(rows, actions);
+
+    const dismiss = elementsWithStyle(list, 'id').find(
+      (part) => part.styles['id']?.[0] === 'koja-ask-list-dismiss',
+    );
+
+    expect(dismiss).toBeDefined();
+
+    if (dismiss !== undefined) {
+      click(dismiss);
+    }
+
+    expect(calls).toEqual(['dismissList']);
+  });
 });
 
 describe('cardElement', () => {
@@ -138,6 +240,29 @@ describe('cardElement', () => {
     }
 
     expect(calls).toEqual(['go']);
+  });
+
+  test('a click on the more line opens the list without going to the ask', () => {
+    const card = cardElement(ask, { count: 2, space: 'Hill-climb' }, actions);
+
+    const more = elementsWithStyle(card, 'id').find(
+      (part) => part.styles['id']?.[0] === 'koja-ask-more',
+    );
+
+    expect(more).toBeDefined();
+
+    let stopped = 0;
+
+    if (more !== undefined) {
+      click(more, {
+        stop_propagation: () => {
+          stopped += 1;
+        },
+      });
+    }
+
+    expect(stopped).toBe(1);
+    expect(calls).toEqual(['open']);
   });
 
   test('the dismiss control marks the ask dismissed without going to it', () => {
