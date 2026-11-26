@@ -299,26 +299,24 @@ const defaultWarn = (message: string): void => {
   process.stderr.write(`${message}\n`);
 };
 
-const isLeftover = (name: string, outputName: string): boolean =>
-  name.startsWith(`${outputName}.staging-`) || name.startsWith(`${outputName}.previous-`);
-
-const removeLeftovers = async (
+// A failed restore names its kept tree in the error, so only a staging tree that no build finished
+// with is removed here. A kept tree stays until someone removes it.
+const removeStagingLeftovers = async (
   parent: string,
   outputName: string,
   removeStaging: (path: string) => Promise<void>,
-  removePrevious: (path: string) => Promise<void>,
   warn: (message: string) => void,
 ): Promise<void> => {
+  const prefix = `${outputName}.staging-`;
   const entries = await readdir(parent);
-  const names = entries.filter((name) => isLeftover(name, outputName));
+  const names = entries.filter((name) => name.startsWith(prefix));
 
   for (const name of names) {
     const path = join(parent, name);
-    const remove = name.startsWith(`${outputName}.previous-`) ? removePrevious : removeStaging;
 
     try {
       // eslint-disable-next-line no-await-in-loop -- one leftover tree is removed at a time
-      await remove(path);
+      await removeStaging(path);
     } catch (error) {
       warn(`Could not remove the leftover ${path}: ${messageOf(error)}`);
     }
@@ -374,7 +372,6 @@ export const buildMods = async (
   });
 
   const removeStaging = hooks.removeStaging ?? removeTree;
-  const removePrevious = hooks.removePrevious ?? removeTree;
   const warn = hooks.warn ?? defaultWarn;
 
   try {
@@ -383,7 +380,7 @@ export const buildMods = async (
     const parent = dirname(outputPath);
 
     await mkdir(parent, { recursive: true });
-    await removeLeftovers(parent, basename(outputPath), removeStaging, removePrevious, warn);
+    await removeStagingLeftovers(parent, basename(outputPath), removeStaging, warn);
 
     const staging = join(parent, `${basename(outputPath)}.staging-${randomUUID()}`);
 

@@ -562,19 +562,19 @@ describe('buildMods', () => {
     expect(messageOf(failure)).toContain('injected restore failure');
   });
 
-  test('removes leftover staging and previous trees before the next build', async () => {
+  test('removes a leftover staging tree before the next build and keeps a kept previous tree', async () => {
     await writeSource('menu/main.ts', 'export const menu = 1;\n');
 
     const leftoverStaging = join(dirname(output), 'mods.staging-leftover');
-    const leftoverPrevious = join(dirname(output), 'mods.previous-leftover');
+    const keptPrevious = join(dirname(output), 'mods.previous-kept');
 
     await mkdir(leftoverStaging, { recursive: true });
-    await mkdir(leftoverPrevious, { recursive: true });
-    await writeFile(join(leftoverPrevious, 'main.js'), 'stranded bundle\n');
+    await mkdir(keptPrevious, { recursive: true });
+    await writeFile(join(keptPrevious, 'main.js'), 'stranded bundle\n');
 
     await buildMods(source, output);
 
-    expect(await readdir(dirname(output))).toEqual(['mods']);
+    expect(await readdir(dirname(output))).toEqual(['mods', 'mods.previous-kept']);
   });
 
   test('publishes the built tree with the default directory mode', async () => {
