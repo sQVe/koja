@@ -111,7 +111,7 @@ const groupLabel = (group: AgentGroup, counted: boolean): string => {
 const isMidTask = (agent: AgentInfo): boolean =>
   agent.status === 'working' || agent.status === 'blocked';
 
-const splitNames = (midTask: AgentInfo[], other: AgentInfo[]): Set<string> => {
+const namesInBothClauses = (midTask: AgentInfo[], other: AgentInfo[]): Set<string> => {
   const midTaskNames = new Set(midTask.map((agent) => agent.program.name));
   const shared = other.map((agent) => agent.program.name).filter((name) => midTaskNames.has(name));
 
@@ -128,14 +128,14 @@ const joinNames = (names: string[]): string => {
 
 const tabCount = (count: number): string => `${count} ${count === 1 ? 'tab closes' : 'tabs close'}`;
 
-const stopsClause = (agents: AgentInfo[], counted: Set<string>): string => {
+const stopsClause = (agents: AgentInfo[], sharedNames: Set<string>, midTask: boolean): string => {
   if (agents.length === 0) {
     return '';
   }
 
-  const labels = agentGroups(agents).map((group) => groupLabel(group, counted.has(group.name)));
+  const labels = agentGroups(agents).map((group) => groupLabel(group, sharedNames.has(group.name)));
   const verb = agents.length === 1 ? 'stops' : 'stop';
-  const warning = agents.every(isMidTask) ? ' mid-task' : '';
+  const warning = midTask ? ' mid-task' : '';
 
   return `${joinNames(labels)} ${verb}${warning}`;
 };
@@ -144,11 +144,12 @@ const closeStops = (agents: AgentInfo[]): string => {
   const unique = uniqueAgents(agents);
   const midTask = unique.filter(isMidTask);
   const other = unique.filter((agent) => !isMidTask(agent));
-  const counted = splitNames(midTask, other);
+  const sharedNames = namesInBothClauses(midTask, other);
 
-  const clauses = [stopsClause(midTask, counted), stopsClause(other, counted)].filter(
-    (clause) => clause !== '',
-  );
+  const clauses = [
+    stopsClause(midTask, sharedNames, true),
+    stopsClause(other, sharedNames, false),
+  ].filter((clause) => clause !== '');
 
   return clauses.length === 0 ? '' : `${clauses.join(', ')}, and `;
 };
