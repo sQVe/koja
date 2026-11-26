@@ -1,8 +1,8 @@
 import { afterAll, beforeEach, describe, expect, mock, setSystemTime, test } from 'bun:test';
 
-import { dataHost, setupDataHost } from '../../tests/dataHostHarness.ts';
+import { setupDataHost } from '../../tests/dataHostHarness.ts';
 
-await setupDataHost();
+const dataHost = await setupDataHost();
 
 afterAll(() => {
   mock.restore();
@@ -25,5 +25,20 @@ describe('startDataHost with the window shown', () => {
     await dataHost.settle();
 
     expect(dataHost.pullCalls()).toHaveLength(1);
+  });
+});
+
+describe('startDataHost with the window hidden', () => {
+  test('starts no periodic pull read in a tick while the window is hidden', async () => {
+    dataHost.window = { active: true, visible: false };
+
+    const copy = dataHost.startCopy();
+
+    copy.tick();
+    await dataHost.settle();
+    copy.tick();
+    await dataHost.settle();
+
+    expect(dataHost.pullCalls()).toEqual([]);
   });
 });

@@ -11,7 +11,7 @@ Find that space in the picker by the number of a pull request in its stack, then
 ## Test
 
 By hand, because the picker overlay and a space switch need the running sandbox window. The manager
-prepares the stack fixture under [Before a launch](../../qa.md#stack-fixture). Follow the
+prepares the stack fixture under [its own page](../fixtures/stack.md). Follow the
 [shared rules](../../qa.md#rules-for-every-section).
 
 ## Steps

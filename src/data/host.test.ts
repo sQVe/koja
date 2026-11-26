@@ -1,7 +1,6 @@
 import { afterAll, beforeEach, describe, expect, mock, setSystemTime, test } from 'bun:test';
 
 import {
-  dataHost,
   folder,
   pullPeriodMilliseconds,
   pushGapMilliseconds,
@@ -23,7 +22,7 @@ import { pullRetryRequestsKey } from './pullRetry/pullRetry.ts';
 import type { TicketFacts } from './snapshot.ts';
 import { emptyFacts, parseSnapshot, snapshotKey } from './snapshot.ts';
 
-await setupDataHost();
+const dataHost = await setupDataHost();
 
 afterAll(() => {
   mock.restore();
@@ -142,19 +141,6 @@ describe('startDataHost', () => {
       .some((call) => call.args[0] === 'rev-parse' && call.cwd === folder);
 
     expect(read).toBe(true);
-  });
-
-  test('starts no periodic pull read in a tick while the window is hidden', async () => {
-    dataHost.window = { active: true, visible: false };
-
-    const copy = dataHost.startCopy();
-
-    copy.tick();
-    await dataHost.settle();
-    copy.tick();
-    await dataHost.settle();
-
-    expect(dataHost.pullCalls()).toEqual([]);
   });
 
   test('a remote-ref watch starts a pull read before the 60 s period', async () => {
