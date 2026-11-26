@@ -1,6 +1,6 @@
 import { afterAll, beforeEach, describe, expect, mock, setSystemTime, test } from 'bun:test';
 
-import { drawn, drawnTexts } from '../../../tests/drawn.ts';
+import { drawn, drawnTexts, elementWithText } from '../../../tests/drawn.ts';
 import type { DrawnElement } from '../../../tests/drawn.ts';
 import {
   chainable,
@@ -182,5 +182,14 @@ describe('gallery data layer section', () => {
 
     expect(drawnTexts(view.render(context))).toContain('Unavailable');
     expect(tasks).toEqual([]);
+  });
+});
+
+describe('gallery overlay rows', () => {
+  test('leaves the disabled row label to the row color', () => {
+    const view = openGallery();
+    const label = elementWithText(view.render(context), 'Delete space');
+
+    expect(label?.textColors).toEqual([]);
   });
 });

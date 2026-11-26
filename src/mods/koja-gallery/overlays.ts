@@ -95,7 +95,7 @@ const overlayRows = (): Element => {
     size: 'medium',
     state: 'disabled',
     start: icon('circle-x', 'small'),
-    label: label('Delete space'),
+    label: 'Delete space',
     end: overlayHints({ normal: ['s', 'd'] }, true),
   });
 
