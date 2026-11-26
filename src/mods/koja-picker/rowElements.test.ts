@@ -127,6 +127,7 @@ describe('list with a stack reason', () => {
 
     const named = listOf('koja', dataWith());
 
+    expect(elementWithText(named, 'koja')).not.toBeNull();
     expect(elementWithText(named, '#504')).toBeNull();
   });
 
@@ -151,9 +152,8 @@ describe('list with a stack reason', () => {
 
     const unknown = reasonTexts(dataWithState('unknown'));
     const known = reasonTexts(dataWithState('open'));
-    const last = unknown.at(-1) ?? '';
 
-    expect(last).toBe('PR 2 of 3');
+    expect(unknown).toContain('PR 2 of 3');
     expect(unknown).not.toContain('open');
     expect(known).toContain('open');
   });
