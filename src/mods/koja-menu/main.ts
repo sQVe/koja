@@ -1,28 +1,34 @@
-import { v_flex } from 'gpui-base';
+import { h_flex, v_flex } from 'gpui-base';
 import type { AsyncContext, Context, Element, FocusHandle, KeyEvent } from 'gpui-kit';
 import { View } from 'gpui-kit';
-import { checking, exec, panes, props, spaces, terminals } from 'herdr';
+import { checking, exec, panes, props, shared, spaces, terminals } from 'herdr';
 
 import { readGitIdentity } from '../../data/gitIdentity.ts';
 import {
   askFirst,
   closeOverlay,
   colors,
+  hintFor,
   icon,
-  keyHint,
   listRow,
   openGroveDialog,
   openWorktreeDialog,
+  overlayCard,
+  overlayHints,
   paneHeaderMenuDetails,
-  popupSurface,
+  paneName,
+  paneProgram,
+  programIcon,
+  roleText,
+  rowHeight,
   separator,
-  shortcutFor,
   spaceFolder,
   spacing,
+  stateLine,
   themeChoices,
   withTextRole,
 } from '../../kit/index.ts';
-import type { Checkout, MenuEntry, MenuHost } from './entries.ts';
+import type { Checkout, MenuEntry, MenuHost, MenuProps } from './entries.ts';
 import {
   checkoutOf,
   menuDetails,
@@ -60,16 +66,42 @@ export default class Menu extends View {
     const details = menuProps.kind === 'pane' ? paneHeaderMenuDetails(menuDetails(menuProps)) : [];
 
     const selected = selectedIndex(items, this.selected);
+    const normalMode = shared('koja-modal') === true;
 
-    const menu = withTextRole(popupSurface('menu'), 'body')
-      .py(spacing.xsmall)
+    const menu = withTextRole(overlayCard('menu'), 'body')
       .on_key_down((event, cx) => {
         this.onKey(event, items, cx);
       })
+      .children(this.title(menuProps))
       .children(details)
-      .children(items.map((_item, index) => this.row(items, index, selected)));
+      .children(items.map((_item, index) => this.row(items, index, selected, normalMode)));
 
     return this.handle === null ? menu : menu.track_focus(this.handle);
+  }
+
+  private title(menu: MenuProps): Element[] {
+    if (menu.kind !== 'pane') {
+      return [];
+    }
+
+    const pane = panes().find((candidate) => candidate.pane === menu.target.pane);
+
+    if (pane === undefined) {
+      return [];
+    }
+
+    const mark = programIcon(paneProgram(pane), 'small').text_color(colors().muted);
+
+    const line = h_flex()
+      .h(rowHeight.small)
+      .flex_none()
+      .px(spacing.large + spacing.hairline)
+      .gap(spacing.small)
+      .items_center()
+      .child(mark)
+      .child(roleText('sectionHeading', paneName(pane)));
+
+    return [line];
   }
 
   private lookAtCheckout(cx: AsyncContext): void {
@@ -95,7 +127,7 @@ export default class Menu extends View {
   }
 
   private choose(item: MenuEntry | undefined): void {
-    if (item === undefined) {
+    if (item === undefined || item.kind === 'error') {
       return;
     }
 
@@ -123,7 +155,7 @@ export default class Menu extends View {
     cx.notify();
   }
 
-  private row(items: MenuEntry[], index: number, selected: number): Element {
+  private row(items: MenuEntry[], index: number, selected: number, normalMode: boolean): Element {
     const item = items[index];
     const group = v_flex();
 
@@ -131,7 +163,9 @@ export default class Menu extends View {
       return group;
     }
 
-    const shortcut = shortcutFor(...item.shortcuts);
+    if (item.kind === 'error') {
+      return group.child(stateLine({ kind: 'error', text: item.text }));
+    }
 
     if (item.group) {
       group.child(separator());
@@ -139,7 +173,9 @@ export default class Menu extends View {
 
     const state = index === selected ? 'selected' : 'normal';
     const start = icon(item.icon).text_color(colors().muted);
-    const end = shortcut === null ? [] : [keyHint(shortcut)];
+    const setting = item.state === undefined ? [] : [roleText('detail', item.state)];
+    const hint = hintFor(...item.shortcuts);
+    const end = [...setting, ...overlayHints(hint, normalMode)];
 
     const row = listRow({
       size: 'small',

@@ -3,6 +3,7 @@ import { describe, expect, test } from 'bun:test';
 import type { GitIdentity } from '../../data/gitIdentity.ts';
 import type {
   Checkout,
+  MenuAction,
   MenuEntry,
   MenuHost,
   MenuProps,
@@ -40,8 +41,13 @@ const host: MenuHost = {
   themes: () => themes,
 };
 
+const isAction = (entry: MenuEntry): entry is MenuAction => entry.kind === 'action';
+
+const actionsOf = (menu: MenuProps, checkout: Checkout): MenuAction[] =>
+  menuEntries(menu, checkout, host).filter(isAction);
+
 const runEntries = (menu: MenuProps, checkout: Checkout): void => {
-  for (const entry of menuEntries(menu, checkout, host)) {
+  for (const entry of actionsOf(menu, checkout)) {
     entry.action();
   }
 };
@@ -62,7 +68,7 @@ const terminal = (address: string, parent: string | null = null): TerminalFacts 
 });
 
 const hintOf = (menu: MenuProps, checkout: Checkout, label: string): string | null => {
-  const entry: MenuEntry | undefined = menuEntries(menu, checkout, host).find(
+  const entry: MenuAction | undefined = actionsOf(menu, checkout).find(
     (candidate) => candidate.label === label,
   );
 
@@ -91,7 +97,26 @@ describe('menu entries', () => {
       target: target({ pane: 'pane-1', terminal: 'terminal-1' }),
     };
 
-    expect(hintOf(menu, null, 'Use Herdr right-click menu')).toBe('ctrl-alt-m');
+    expect(hintOf(menu, null, 'Send right-clicks to pane')).toBe('ctrl-alt-m');
+  });
+
+  test('read the right-click row as on while right-clicks go to the pane', () => {
+    terminalList = [
+      { address: 'terminal-1', labels: { 'herdr.right-click': 'program' } },
+      { address: 'terminal-2', labels: {} },
+    ];
+
+    const menu = (address: string): MenuProps => ({
+      kind: 'pane',
+      target: target({ terminal: address }),
+    });
+
+    const stateOf = (address: string): string | undefined =>
+      actionsOf(menu(address), null).find((entry) => entry.label === 'Send right-clicks to pane')
+        ?.state;
+
+    expect(stateOf('terminal-1')).toBe('on');
+    expect(stateOf('terminal-2')).toBe('off');
   });
 
   test('hint only Open worktree, whose binding opens the same dialog', () => {
@@ -134,13 +159,16 @@ describe('menu selection', () => {
     bindings = {};
 
     const before = menuEntries(spaceMenu, null, host);
-    const selectedLabel = before[selectedIndex(before, 'Close')]?.label ?? null;
+    const selectedLabel = before[selectedIndex(before, 'Close')];
+    const beforeLabel = selectedLabel?.kind === 'action' ? selectedLabel.label : null;
 
-    expect(selectedLabel).toBe('Close');
+    expect(beforeLabel).toBe('Close');
 
     const after = menuEntries(spaceMenu, 'linked', host);
+    const selected = after[selectedIndex(after, beforeLabel)];
+    const afterLabel = selected?.kind === 'action' ? selected.label : null;
 
-    expect(after[selectedIndex(after, selectedLabel)]?.label).toBe('Close');
+    expect(afterLabel).toBe('Close');
   });
 
   test('fall back to the first entry when the selected entry is gone', () => {
@@ -148,8 +176,10 @@ describe('menu selection', () => {
     bindings = {};
 
     const entries = menuEntries(spaceMenu, null, host);
+    const selected = entries[selectedIndex(entries, 'Remove worktree')];
+    const selectedLabel = selected?.kind === 'action' ? selected.label : null;
 
-    expect(entries[selectedIndex(entries, 'Remove worktree')]?.label).toBe('Rename');
+    expect(selectedLabel).toBe('Rename');
   });
 
   test('step the selection by label and wrap around', () => {
@@ -202,7 +232,7 @@ describe('menu commands', () => {
     };
 
     const details = menuDetails(menu);
-    const actions = menuEntries(menu, null, host).map((entry) => entry.label);
+    const actions = actionsOf(menu, null).map((entry) => entry.label);
 
     expect([details.task, details.branch, details.folder]).toEqual([
       'Build window shell',
@@ -229,7 +259,7 @@ describe('menu commands', () => {
       target: target({ pane: 'pane-1', terminal: 'terminal-1' }),
     };
 
-    const labels = menuEntries(menu, null, host).map((entry) => entry.label);
+    const labels = actionsOf(menu, null).map((entry) => entry.label);
 
     expect(labels).toEqual(['Split right', 'Split down', 'Zoom pane', 'Close pane']);
   });
@@ -242,7 +272,7 @@ describe('menu commands', () => {
       target: target({ pane: 'pane-1' }),
     };
 
-    const labels = menuEntries(menu, null, host).map((entry) => entry.label);
+    const labels = actionsOf(menu, null).map((entry) => entry.label);
 
     expect(labels).toEqual(['Split right', 'Split down', 'Restore pane', 'Close pane']);
   });
@@ -271,7 +301,7 @@ describe('menu commands', () => {
       target: target({ pane: 'pane-1', terminal: 'terminal-1' }),
     };
 
-    const entries = menuEntries(menu, null, host);
+    const entries = actionsOf(menu, null);
 
     for (const item of entries) {
       item.action();
@@ -295,7 +325,7 @@ describe('menu commands', () => {
     runCalls = [];
 
     const menu: MenuProps = { kind: 'pane', target: target({ terminal: 'missing' }) };
-    const entries = menuEntries(menu, null, host);
+    const entries = actionsOf(menu, null);
 
     expect(entries).toHaveLength(4);
 
@@ -316,7 +346,7 @@ describe('menu commands', () => {
     runCalls = [];
 
     const menu: MenuProps = { kind: 'pane', target: target({ terminal: 'terminal-1' }) };
-    const entries = menuEntries(menu, null, host);
+    const entries = actionsOf(menu, null);
 
     entries[3]?.action();
 
@@ -363,7 +393,7 @@ describe('menu commands', () => {
     runCalls = [];
 
     const menu: MenuProps = { kind: 'tab', target: target({ id: 'id-1', space: 'space-1' }) };
-    const entries = menuEntries(menu, null, host);
+    const entries = actionsOf(menu, null);
 
     for (const item of entries) {
       item.action();
@@ -382,7 +412,7 @@ describe('menu commands', () => {
     terminalList = [];
 
     runCalls = [];
-    const withoutCheckout = menuEntries(spaceMenu, null, host);
+    const withoutCheckout = actionsOf(spaceMenu, null);
 
     expect(withoutCheckout).toHaveLength(2);
 
@@ -398,7 +428,7 @@ describe('menu commands', () => {
     runCalls = [];
     dialogCalls = [];
     groveCalls = [];
-    const main = menuEntries(spaceMenu, 'main', host);
+    const main = actionsOf(spaceMenu, 'main');
 
     runEntries(spaceMenu, 'main');
 
@@ -434,7 +464,7 @@ describe('menu commands', () => {
     runCalls = [];
 
     const menu: MenuProps = { kind: 'global', target: target({}) };
-    const entries = menuEntries(menu, null, host);
+    const entries = actionsOf(menu, null);
 
     for (const item of entries) {
       item.action();
@@ -455,6 +485,26 @@ describe('menu commands', () => {
 
     expect(themeRows[0]?.group).toBe(true);
     expect(themeRows[1]?.group).toBe(false);
+  });
+});
+
+describe('failed checkout read', () => {
+  const spaceMenu: MenuProps = { kind: 'space', target: target({ id: 'space-1' }) };
+
+  test('show an error line in place of the worktree rows', () => {
+    const rows = menuEntries(spaceMenu, 'failed', host).map((entry) =>
+      entry.kind === 'error' ? entry.text : entry.label,
+    );
+
+    expect(rows).toEqual(['Rename', 'Could not read the checkout', 'Close']);
+  });
+
+  test('step past the error line', () => {
+    const entries = menuEntries(spaceMenu, 'failed', host);
+
+    expect(stepSelection(entries, 'Rename', 1)).toBe('Close');
+    expect(stepSelection(entries, 'Close', 1)).toBe('Rename');
+    expect(stepSelection(entries, 'Close', -1)).toBe('Rename');
   });
 });
 
@@ -480,7 +530,7 @@ describe('checkoutOf', () => {
     {
       kind: 'failed',
       identity: { kind: 'failed', place, error: 'fatal: unreachable' },
-      checkout: null,
+      checkout: 'failed',
     },
   ];
 

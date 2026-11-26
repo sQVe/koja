@@ -22,6 +22,34 @@ let menuProps: Record<string, unknown> = {
   target: { id: 'space-1' },
 };
 
+let execReply = { code: 128, stdout: '', stderr: 'fatal: not a git repository' };
+
+let paneList: unknown[] = [];
+
+const paneOf = (pane: string): unknown => ({
+  pane,
+  terminal: 'terminal-1',
+  tab: 'tab-1',
+  title: '',
+  cwd: null,
+  branch: null,
+  status: null,
+  app: null,
+  program: {
+    key: 'claude',
+    name: 'Claude Code',
+    icon: null,
+    tint: false,
+    tile: null,
+    color: null,
+    shell: false,
+    agent: true,
+  },
+  focused: true,
+  zoomed: false,
+  movable: true,
+});
+
 const context = {
   focus_handle: () => ({ focus: () => undefined }),
   notify: () => undefined,
@@ -44,8 +72,9 @@ await mock.module('herdr', () =>
     exec: async (command: string, args: string[]) => {
       execCalls.push([command, ...args]);
 
-      return { code: 128, stdout: '', stderr: 'fatal: not a git repository' };
+      return execReply;
     },
+    panes: () => paneList,
     props: () => menuProps,
     spaces: () => [{ id: 'space-1', folder: '/code/koja', machine: null, tabs: [] }],
   }),
@@ -58,12 +87,15 @@ const kitParts = [
   'hoverTarget',
   'icon',
   'listRow',
+  'overlay/card',
   'overlay/overlay',
   'paneHeaderMenu',
+  'paneLabel',
   'popupSurface',
   'shortcut',
   'size',
   'space',
+  'stateLine',
   'text',
   'textRole',
   'theme',
@@ -85,9 +117,13 @@ const loaded = (await import(modulePath)) as {
   };
 };
 
-const openMenu = async (): Promise<void> => {
-  new loaded.default().init(null, context);
+const openMenu = async (): Promise<InstanceType<typeof loaded.default>> => {
+  const view = new loaded.default();
+
+  view.init(null, context);
   await Promise.all(tasks);
+
+  return view;
 };
 
 afterAll(() => {
@@ -99,6 +135,8 @@ beforeEach(() => {
   execCalls = [];
   tasks = [];
   menuProps = { tab: 'space', target: { id: 'space-1' } };
+  execReply = { code: 128, stdout: '', stderr: 'fatal: not a git repository' };
+  paneList = [];
 });
 
 describe('space menu', () => {
@@ -116,9 +154,36 @@ describe('space menu', () => {
 
     expect(execCalls).toEqual([]);
   });
+
+  test('show the checkout error line when the read fails', async () => {
+    execReply = { code: 128, stdout: '', stderr: 'fatal: unable to read repository' };
+
+    const view = await openMenu();
+
+    expect(drawnTexts(view.render())).toContain('Could not read the checkout');
+  });
 });
 
 describe('pane menu', () => {
+  test('draws the pane name above the pane details and actions', () => {
+    menuProps = {
+      tab: 'pane',
+      target: { pane: 'pane-1', terminal: 'terminal-1' },
+      task: 'Build window shell',
+    };
+
+    paneList = [paneOf('pane-1')];
+
+    const view = new loaded.default();
+
+    view.init(null, context);
+
+    const texts = drawnTexts(view.render());
+
+    expect(texts.indexOf('Claude Code')).toBe(0);
+    expect(texts.indexOf('Claude Code')).toBeLessThan(texts.indexOf('Build window shell'));
+  });
+
   test('draws the pane details before the actions', () => {
     menuProps = {
       tab: 'pane',
