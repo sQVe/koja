@@ -17,17 +17,23 @@ Press `key b Control_L` first to enter normal mode.
 
 1. Run `bun run sandbox shot <file>` and read the image to see the window.
 2. Open the picker, then take a `shot` before you type.
-3. Type a query with `bun run sandbox type "<text>"`.
-4. Change the filter with `key Tab` and `key Tab Shift_L`.
-5. Go to the selected row with `key Return`, or close the picker with `key Escape`.
+3. Read the chip line under the search line, and the preview header over the terminal.
+4. Type a query with `bun run sandbox type "<text>"`.
+5. Change the filter with `key Tab` and `key Tab Shift_L`, and by clicking a chip.
+6. Go to the selected row with `key Return`, or close the picker with `key Escape`.
 
 ## Observable results
 
-- `g p` opens the picker.
-- A query filters, and `Tab` and shift-tab change the filter.
+- `g p` opens the picker as one card: the search line, a chip per status with its count of spaces, a
+  `Spaces` heading, the rows, and a footer with `tab` and `↵`.
+- Each space row draws its agent mark, the space name, the project, and one work icon.
+- The preview header names the selected row's space, pane, whole branch, and pull request, and the
+  terminal below it follows the selection.
+- A query filters, and `Tab`, shift-tab, and a chip click change the filter.
 - `Return` goes to the row.
 - `Escape` returns focus to the pane that had it.
-- The picker preview follows the selection and types nothing into the source terminal.
+- The picker preview types nothing into the source terminal.
+- When the preview cannot start, the picker stays open on an error line with Retry.
 
 ## End state
 
