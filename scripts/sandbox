@@ -34,18 +34,39 @@ fi
 
 export RUTA_NAME=$name
 
-if [[ ! $name =~ ^[a-z0-9][a-z0-9-]*$ ]]; then
-  echo "RUTA_NAME must be one name of lowercase letters, digits, and dashes, not '$name'" >&2
+root=/var/tmp/ruta-$name
+
+# ruta runs `capture` in a sandbox of its own, named <name>-capture, and checks that name against
+# the same 32-character limit, so the suffix counts against the name.
+suffix=''
+if [[ ${1:-} == capture ]]; then
+  suffix=-capture
+fi
+
+guard_name=$name$suffix
+guard_root=$root$suffix
+max_name=$((32 - ${#suffix}))
+
+name_limit_note=''
+if [[ -n $suffix ]]; then
+  name_limit_note=", so the name must be at most $max_name"
+fi
+
+if [[ ! $guard_name =~ ^[a-z0-9][a-z0-9-]*$ ]]; then
+  echo "the sandbox name must be one name of lowercase letters, digits, and dashes, not '$guard_name'" >&2
   exit 2
 fi
 
-root=/var/tmp/ruta-$name
+if (( ${#guard_name} > 32 )); then
+  echo "sandbox $guard_name must be at most 32 characters$name_limit_note, not '$name'" >&2
+  exit 2
+fi
 
 # A sandbox name belongs to the checkout that installed it, so this checkout must not start, change,
 # or remove a sandbox that another checkout holds. identity reports the holder instead, and the
 # commands that only read the window or print rules stay allowed.
 refuse_other_checkout() {
-  bun "$checkout/scripts/sandboxIdentity.ts" guard "$name" "$root/config/herdr-app" "$checkout"
+  bun "$checkout/scripts/sandboxIdentity.ts" guard "$guard_name" "$guard_root/config/herdr-app" "$checkout"
 }
 
 case ${1:-} in

@@ -61,6 +61,9 @@ export interface InstallOrigin {
 
 export interface InstallRecord {
   files: string[];
+  // Kept apart from the origin: a record from an older version names its checkout but has no input
+  // hashes, so the origin is dropped while the checkout still holds.
+  checkout: string | null;
   origin: InstallOrigin | null;
 }
 
@@ -194,10 +197,16 @@ const isInstallInput = (value: unknown): value is InstallInput => {
 const isInstallInputs = (value: unknown): value is InstallInput[] =>
   Array.isArray(value) && value.every(isInstallInput);
 
-const recordedOrigin = (record: RecordFields): InstallOrigin | null => {
-  const { checkout, allChecksPassed, inputs } = record;
+const recordedCheckout = (record: RecordFields): string | null => {
+  const { checkout } = record;
 
-  if (typeof checkout !== 'string' || typeof allChecksPassed !== 'boolean') {
+  return typeof checkout === 'string' && isAbsolute(checkout) ? checkout : null;
+};
+
+const recordedOrigin = (record: RecordFields, checkout: string | null): InstallOrigin | null => {
+  const { allChecksPassed, inputs } = record;
+
+  if (checkout === null || typeof allChecksPassed !== 'boolean') {
     return null;
   }
 
@@ -220,10 +229,16 @@ export const readRecord = async (home: string): Promise<InstallRecord | null> =>
     const record: unknown = JSON.parse(await readFile(path, 'utf8'));
 
     if (!isRecordFields(record)) {
-      return { files: [], origin: null };
+      return { files: [], checkout: null, origin: null };
     }
 
-    return { files: recordedFiles(record), origin: recordedOrigin(record) };
+    const checkout = recordedCheckout(record);
+
+    return {
+      files: recordedFiles(record),
+      checkout,
+      origin: recordedOrigin(record, checkout),
+    };
   } catch (error) {
     if (isMissing(error)) {
       return null;

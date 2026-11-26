@@ -478,6 +478,26 @@ describe('sandbox name holder', () => {
 
     expect((await nameHolderReport(options)).exitCode).toBe(0);
   });
+
+  test('names the holder of a record from an older installer', async () => {
+    const other = join(root, 'other');
+
+    const record = {
+      version: 1,
+      checkout: other,
+      allChecksPassed: true,
+      inputs: [{ path: 'package.json', modifiedAt: 0 }],
+      files: [],
+    };
+
+    await writeCheckout(other);
+    await writeFile(recordPath(), JSON.stringify(record));
+
+    const report = await nameHolderReport(options);
+
+    expect(report.exitCode).toBe(1);
+    expect(report.lines.join('\n')).toContain(other);
+  });
 });
 
 const linesOf = (output: string): string[] => output.trim().split('\n');
@@ -527,15 +547,18 @@ describe('scripts/sandbox', () => {
     return path;
   };
 
-  const spawnSandbox = (command: string, environment: Record<string, string>) =>
-    Bun.spawn([instrumentedSandbox, command], {
+  const spawnSandbox = (command: string | undefined, environment: Record<string, string>) => {
+    const argv = command === undefined ? [instrumentedSandbox] : [instrumentedSandbox, command];
+
+    return Bun.spawn(argv, {
       env: environmentForSandbox(environment),
       stdout: 'pipe',
       stderr: 'pipe',
     });
+  };
 
   const runSandbox = async (
-    command: string,
+    command: string | undefined,
     environment: Record<string, string>,
   ): Promise<{ exitCode: number; output: string; stdout: string; stderr: string }> => {
     const child = spawnSandbox(command, environment);
@@ -597,6 +620,7 @@ describe('scripts/sandbox', () => {
 
   afterEach(async () => {
     await rm(sandboxRoot, { recursive: true, force: true });
+    await rm(`${sandboxRoot}-capture`, { recursive: true, force: true });
     await rm(fakes, { recursive: true, force: true });
     await rm(guards, { recursive: true, force: true });
   });
@@ -727,17 +751,92 @@ describe('scripts/sandbox', () => {
       const program = join(fakes, 'herdr-app-fake');
       const other = await installOtherCheckout();
 
+      await writeAt(join(sandboxRoot, 'machine', 'ownership.json'), '{}\n');
       await writeProgram(program, 'exit 0');
       await writeRuta('ruta is up', 0);
 
+      const before = await snapshot(sandboxRoot);
       const result = await runSandbox(command, { RUTA_NAME: name, HERDR_APP_BIN: program });
 
       expect(result.exitCode).toBe(1);
       expect(result.stderr).toContain(other);
       expect(result.stdout).toBe('');
+      expect(await snapshot(sandboxRoot)).toEqual(before);
       expect(await Bun.file(join(fakes, 'calls')).exists()).toBe(false);
     },
   );
+
+  test.each([
+    ['up', 32, 0],
+    ['up', 33, 2],
+    ['capture', 24, 0],
+    ['capture', 25, 2],
+  ])('takes %s with a %i character name as exit %i', async (command, length, exitCode) => {
+    const program = join(fakes, 'herdr-app-fake');
+    const given = 'a'.repeat(length);
+
+    await writeProgram(program, 'exit 0');
+    await writeRuta('ruta is up', 0);
+
+    const result = await runSandbox(command, { RUTA_NAME: given, HERDR_APP_BIN: program });
+
+    expect(result.exitCode).toBe(exitCode);
+
+    if (exitCode === 0) {
+      const call = await readFile(join(fakes, 'calls'), 'utf8');
+
+      expect(call).toContain(`${given} ${repository} ${command}`);
+    } else {
+      expect(result.stderr).toContain(given);
+      expect(await Bun.file(join(fakes, 'calls')).exists()).toBe(false);
+    }
+  });
+
+  test('refuses a name with a character ruta does not take', async () => {
+    const result = await runSandbox('up', { RUTA_NAME: 'koja_bad' });
+
+    expect(result.exitCode).toBe(2);
+    expect(result.stderr).toContain('koja_bad');
+    expect(await Bun.file(join(fakes, 'calls')).exists()).toBe(false);
+  });
+
+  test('prints the rules for a bare call instead of refusing', async () => {
+    const other = await installOtherCheckout();
+
+    await writeRuta('ruta is up', 0);
+
+    const result = await runSandbox(undefined, { RUTA_NAME: name });
+
+    expect(result.exitCode).toBe(0);
+    expect(result.output).not.toContain(other);
+    expect(await readFile(join(fakes, 'calls'), 'utf8')).toBe(`${name} ${repository} \n`);
+  });
+
+  test('refuses to capture a capture sandbox that another checkout holds', async () => {
+    const program = join(fakes, 'herdr-app-fake');
+    const other = join(root, 'other-checkout');
+
+    await writeCheckout(other);
+    await installFrom(other, { home: join(`${sandboxRoot}-capture`, 'config', 'herdr-app') });
+    await writeProgram(program, 'exit 0');
+    await writeRuta('ruta is up', 0);
+
+    const result = await runSandbox('capture', { RUTA_NAME: 'capture', HERDR_APP_BIN: program });
+
+    expect(result.exitCode).toBe(1);
+    expect(result.stderr).toContain(other);
+    expect(await Bun.file(join(fakes, 'calls')).exists()).toBe(false);
+  });
+
+  test('captures while another checkout holds the base name', async () => {
+    await installOtherCheckout();
+    await writeRuta('ruta is up', 0);
+
+    const result = await runSandbox('capture', { RUTA_NAME: 'capture' });
+
+    expect(result.exitCode).toBe(0);
+    expect(await readFile(join(fakes, 'calls'), 'utf8')).toBe(`capture ${repository} capture\n`);
+  });
 
   test.each(['log', 'opened', 'shot'])('reads through %s without refusing', async (command) => {
     const other = await installOtherCheckout();
@@ -765,7 +864,20 @@ describe('scripts/sandbox', () => {
     expect(await Bun.file(join(fakes, 'calls')).exists()).toBe(false);
   });
 
-  test('reports the holder through identity instead of refusing', async () => {
+  test('runs identity when ruta reports another starter instead of refusing', async () => {
+    const other = await installOtherCheckout();
+
+    await writeRuta(`ruta ${name} serves ${other}, not ${repository}`, 1);
+    await writeWindow(0);
+
+    const result = await runSandbox('identity', { RUTA_NAME: name });
+
+    expect(result.exitCode).toBe(1);
+    expect(result.output).toContain(other);
+    expect(await readFile(join(fakes, 'calls'), 'utf8')).toBe(`${name} ${repository} status\n`);
+  });
+
+  test('reports the holder from the record through identity instead of refusing', async () => {
     const other = await installOtherCheckout();
 
     await writeRuta('ruta is up', 0);
