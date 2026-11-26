@@ -16,6 +16,12 @@ const agent = (overrides: Partial<AskAgent> = {}): AskAgent => ({
 
 const defaultReport = { state: 'blocked', kind: 'permission', msg: 'bun run up' };
 
+const sources = (
+  terminals: readonly unknown[],
+  agents: readonly AskAgent[],
+  projects: ReadonlyMap<string, string> = new Map([['s1', 'koja']]),
+) => ({ terminals, agents, projects });
+
 const blocked = (
   report?: Record<string, unknown>,
   overrides?: Record<string, unknown>,
@@ -29,7 +35,7 @@ const blocked = (
 
 describe('asksOf', () => {
   test('reads a permission ask with its space, agent, question, and command', () => {
-    const asks = asksOf({ terminals: [blocked()], agents: [agent()] });
+    const asks = asksOf(sources([blocked()], [agent()]));
 
     expect(asks).toHaveLength(1);
 
@@ -45,9 +51,21 @@ describe('asksOf', () => {
     });
   });
 
+  test('names the project of the asking space', () => {
+    const asks = asksOf(sources([blocked()], [agent()]));
+
+    expect(asks[0]?.project).toBe('koja');
+  });
+
+  test('names the space when it has no project', () => {
+    const asks = asksOf(sources([blocked()], [agent()], new Map()));
+
+    expect(asks[0]?.project).toBe('Build window shell');
+  });
+
   test('keeps a question ask without a command', () => {
     const report = { state: 'blocked', kind: 'question', msg: 'Which judge model?' };
-    const asks = asksOf({ terminals: [blocked(report)], agents: [agent()] });
+    const asks = asksOf(sources([blocked(report)], [agent()]));
 
     expect(asks[0]).toMatchObject({
       question: 'Which judge model?',
@@ -57,20 +75,20 @@ describe('asksOf', () => {
 
   test('keeps a question ask without a message as waiting for an answer', () => {
     const report = { state: 'blocked', kind: 'question', msg: '' };
-    const asks = asksOf({ terminals: [blocked(report)], agents: [agent()] });
+    const asks = asksOf(sources([blocked(report)], [agent()]));
 
     expect(asks[0]).toMatchObject({ question: 'Waiting for your answer', command: null });
   });
 
   test('keeps a permission ask without a message and no command', () => {
     const report = { state: 'blocked', kind: 'permission', msg: '' };
-    const asks = asksOf({ terminals: [blocked(report)], agents: [agent()] });
+    const asks = asksOf(sources([blocked(report)], [agent()]));
 
     expect(asks[0]).toMatchObject({ question: 'Allow this command?', command: null });
   });
 
   test('skips a terminal with no agent', () => {
-    expect(asksOf({ terminals: [blocked()], agents: [] })).toEqual([]);
+    expect(asksOf(sources([blocked()], []))).toEqual([]);
   });
 
   test('skips a worker ask', () => {
@@ -79,7 +97,7 @@ describe('asksOf', () => {
       blocked(undefined, { address: 't2' }),
     ];
 
-    const asks = asksOf({ terminals, agents: [agent(), agent({ address: 't2' })] });
+    const asks = asksOf(sources(terminals, [agent(), agent({ address: 't2' })]));
 
     expect(asks.map((ask) => ask.address)).toEqual(['t2']);
   });
@@ -90,7 +108,7 @@ describe('asksOf', () => {
       blocked(undefined, { address: 't2' }),
     ];
 
-    const asks = asksOf({ terminals, agents: [agent(), agent({ address: 't2' })] });
+    const asks = asksOf(sources(terminals, [agent(), agent({ address: 't2' })]));
 
     expect(asks.map((ask) => ask.address)).toEqual(['t2']);
   });
@@ -98,7 +116,7 @@ describe('asksOf', () => {
   test('skips a child terminal ask', () => {
     const terminals = [blocked(), blocked(undefined, { address: 't2', parent: 't1' })];
 
-    const asks = asksOf({ terminals, agents: [agent(), agent({ address: 't2' })] });
+    const asks = asksOf(sources(terminals, [agent(), agent({ address: 't2' })]));
 
     expect(asks.map((ask) => ask.address)).toEqual(['t1']);
   });
@@ -111,7 +129,7 @@ describe('asksOf', () => {
 
     const agents = [agent({ address: 't1', seq: 4 }), agent({ address: 't2', seq: 9 })];
 
-    const addresses = asksOf({ terminals, agents }).map((ask) => ask.address);
+    const addresses = asksOf(sources(terminals, agents)).map((ask) => ask.address);
 
     expect(addresses).toEqual(['t2', 't1']);
   });
@@ -119,7 +137,7 @@ describe('asksOf', () => {
   test('yields nothing once the ask is answered', () => {
     const report = { state: 'working', kind: null, msg: '' };
 
-    expect(asksOf({ terminals: [blocked(report)], agents: [agent()] })).toEqual([]);
+    expect(asksOf(sources([blocked(report)], [agent()]))).toEqual([]);
   });
 });
 
@@ -129,6 +147,7 @@ describe('unseenAsks', () => {
     address: 't1',
     spaceId: 's1',
     spaceName: 'Build window shell',
+    project: 'koja',
     tabId: 'k1',
     paneId: 'p1',
     agent: 'Claude Code',

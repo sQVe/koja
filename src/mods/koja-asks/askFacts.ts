@@ -11,6 +11,7 @@ export interface Ask {
   address: string;
   spaceId: string;
   spaceName: string;
+  project: string;
   tabId: string;
   paneId: string;
   agent: string;
@@ -28,6 +29,7 @@ export type AskAgent = Pick<
 export interface AskSources {
   terminals: readonly unknown[];
   agents: readonly AskAgent[];
+  projects: ReadonlyMap<string, string>;
 }
 
 export interface AskView {
@@ -76,18 +78,19 @@ const commandOf = (kind: AskKind, message: string): string | null =>
   kind === 'permission' && message !== '' ? message : null;
 
 const askOf = (
-  address: string,
   record: Record<string, unknown>,
   agent: AskAgent,
   kind: AskKind,
+  project: string,
 ): Ask => {
   const message = stringOf(recordOf(record['report'])['msg']) ?? '';
 
   return {
-    identity: `${address}:${kind}:${message}`,
-    address,
+    identity: `${agent.address}:${kind}:${message}`,
+    address: agent.address,
     spaceId: agent.space,
     spaceName: agent.space_name,
+    project,
     tabId: agent.tab,
     paneId: agent.pane,
     agent: agent.program.name,
@@ -115,7 +118,9 @@ export const asksOf = (sources: AskSources): Ask[] => {
     const agent = address === null ? undefined : agentsByAddress.get(address);
 
     if (address !== null && agent !== undefined) {
-      asks.push(askOf(address, record, agent, kind));
+      const project = sources.projects.get(agent.space) ?? agent.space_name;
+
+      asks.push(askOf(record, agent, kind, project));
     }
   }
 

@@ -211,6 +211,12 @@ export const dialogSize = {
   markInset: iconSize.small + dialogMarkGap,
 } as const;
 
+// The padding and border every overlay card draws, so a card's height estimate can add them.
+export const overlayCardSize = {
+  padding: spacing.small,
+  border: spacing.hairline,
+} as const;
+
 export const overlaySize = {
   // The key hint card sits this far above the bottom of the panes it describes.
   cardGapAbovePanes: 24,
@@ -253,6 +259,14 @@ export const askCardSize = {
   bodyLineHeight: 18,
   terminalLineHeight: 17,
   detailLineHeight: 16,
+  // What the card's own padding and border take from its width and add to its height.
+  cardInset: 2 * (overlayCardSize.padding + overlayCardSize.border),
+  // The list under the more line: a row's title line, the gap above each row, and its padding.
+  listLineHeight: controlSize.button,
+  listGap: spacing.medium,
+  rowPaddingX: spacing.medium,
+  rowPaddingY: spacing.small,
+  rowGap: spacing.xxsmall,
 } as const;
 
 export const trafficLightsWidth = 64;
