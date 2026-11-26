@@ -246,8 +246,8 @@ preview inside one framed overlay, so the list rounds only its own two outer cor
 - Each mod keeps the pending, failed, stale, and fresh state of each resource apart, keyed by the
   repository or context it read. Retry reads that resource again at once, skipping the normal
   refresh delay. An error clears only when that same resource reads again.
-- A stale list keeps its rows below an error line with the age of the last good read. The note wraps
-  instead of cutting, so a narrow pane still shows the age at its end.
+- A stale list keeps its rows below an error line with the age of the last good read. A content
+  pane's part note wraps instead of cutting, so a narrow pane still shows the age at its end.
 - The sidebar's PR read is the exception. Its line reads `Could not read PRs`, with no repository
   name and no age, because the project header above it names the repository and the sidebar shows
   only what the user should act on. The rows keep their last facts.
