@@ -1,11 +1,11 @@
 import { afterAll, describe, expect, mock, test } from 'bun:test';
 
 import type { DrawnElement } from '../../../tests/drawn.ts';
-import { drawn, drawnTexts } from '../../../tests/drawn.ts';
+import { drawn, drawnTexts, elementsWithStyle } from '../../../tests/drawn.ts';
+import { keyLabel } from '../../../tests/keyLabels.ts';
 import { gpuiBaseFake, gpuiKitFake, herdrFake } from '../../../tests/moduleFakes.ts';
-import { partKeyHints } from '../../kit/keyHints.ts';
+import { partKeyHints, partLetters } from '../../kit/keyHints.ts';
 import { actionName } from '../../kit/keyNames.ts';
-import { isUpperCaseLetter } from '../../kit/keys.ts';
 
 interface FakeView {
   render: () => DrawnElement;
@@ -64,20 +64,43 @@ afterAll(() => {
   mock.restore();
 });
 
-const keyLabel = (key: string): string => (isUpperCaseLetter(key) ? `⇧${key}` : key);
-
 describe('key hints view', () => {
-  test('draws the card of the part it was opened for', () => {
-    shownProps = { part: 'w' };
+  test.each(partLetters)('draws the card of the %s part', (part) => {
+    shownProps = { part };
 
     const texts = drawnTexts(new keyHintsView().render());
 
-    const missing = partKeyHints('w')
+    const missing = partKeyHints(part)
       .groups.flatMap((group) => group.rows.flatMap((row) => row.keys))
       .map(keyLabel)
       .filter((label) => !texts.includes(label));
 
+    expect(texts).toContain(partKeyHints(part).title);
     expect(missing).toEqual([]);
+  });
+
+  test('places the card on the main column, above the pane bottoms', () => {
+    shownProps = { part: 'w' };
+
+    const [placed] = elementsWithStyle(new keyHintsView().render(), 'left');
+
+    expect([placed?.styles['left'], placed?.styles['right'], placed?.styles['bottom']]).toEqual([
+      [274],
+      [6],
+      [30],
+    ]);
+  });
+
+  test('draws the list action of a marked list instead of the table row it shadows', () => {
+    shownProps = { part: 'g', count: null, list: true };
+
+    const texts = drawnTexts(new keyHintsView().render());
+
+    const listLabel = actionName({ kind: 'list', action: 'first' });
+    const scrollLabel = actionName({ kind: 'command', command: 'terminal.scroll' });
+
+    expect(texts.filter((text) => text === listLabel)).toHaveLength(1);
+    expect(texts.filter((text) => text === scrollLabel)).toEqual([]);
   });
 
   test('draws the counted action the next key will run', () => {

@@ -2,10 +2,10 @@ import { afterAll, describe, expect, mock, test } from 'bun:test';
 
 import type { DrawnElement } from '../../tests/drawn.ts';
 import { drawn, drawnTexts, elementsWithStyle } from '../../tests/drawn.ts';
+import { keyLabel } from '../../tests/keyLabels.ts';
 import { gpuiBaseFake, gpuiKitFake, herdrFake } from '../../tests/moduleFakes.ts';
 import { partKeyHints, partLetters } from './keyHints.ts';
 import type { PartKeyHints, PartLetter } from './keyHints.ts';
-import { isUpperCaseLetter } from './keys.ts';
 
 const palette = {
   border: '#999ca7',
@@ -34,8 +34,6 @@ const { keyHintCard } = (await import(modulePath)) as {
 afterAll(() => {
   mock.restore();
 });
-
-const keyLabel = (key: string): string => (isUpperCaseLetter(key) ? `⇧${key}` : key);
 
 // Only the keycap glyphs draw with the terminal font, so this reads the card's keys and no other text.
 const drawnKeys = (part: PartLetter): string[] =>

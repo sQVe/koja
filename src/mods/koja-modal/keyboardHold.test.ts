@@ -175,31 +175,13 @@ describe('keyboard hold', () => {
     expect(harness.focusCalls()).toBe(0);
   });
 
-  test('takes focus back when the status lists only a toast', async () => {
+  test.each([
+    ['a toast', toastOverlay],
+    ['the ask card', askOverlay],
+    ['the key hint card', hintsOverlay],
+  ])('takes focus back when the status lists only %s', async (_name, overlay) => {
     const harness = createHarness(
-      statusLookup(async () => ({ code: 0, stdout: toastOverlay, stderr: '' })),
-    );
-
-    harness.hold.check();
-    await flush();
-
-    expect(harness.focusCalls()).toBe(1);
-  });
-
-  test('takes focus back when the status lists only the ask card', async () => {
-    const harness = createHarness(
-      statusLookup(async () => ({ code: 0, stdout: askOverlay, stderr: '' })),
-    );
-
-    harness.hold.check();
-    await flush();
-
-    expect(harness.focusCalls()).toBe(1);
-  });
-
-  test('takes focus back when the status lists only the key hint card', async () => {
-    const harness = createHarness(
-      statusLookup(async () => ({ code: 0, stdout: hintsOverlay, stderr: '' })),
+      statusLookup(async () => ({ code: 0, stdout: overlay, stderr: '' })),
     );
 
     harness.hold.check();

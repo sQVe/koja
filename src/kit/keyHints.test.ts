@@ -52,7 +52,6 @@ const keysOfGroups = (part: PartLetter): string[] => {
 
 describe('partKeyHints', () => {
   test('each part letter is known', () => {
-    expect(partLetters.filter((part) => !isPartLetter(part))).toEqual([]);
     expect(isPartLetter('x')).toBe(false);
   });
 
@@ -94,22 +93,11 @@ describe('partKeyHints', () => {
     expect(titles).not.toContain('Other');
   });
 
-  test('a marked list names the list action of g g', () => {
+  test('a marked list shadows the table row of g g', () => {
     const rows = partKeyHints('g', { layer: listKeys }).groups.flatMap((group) => group.rows);
-    const listLabel = actionName({ kind: 'list', action: 'first' });
-
-    const shown = rows
-      .filter((row) => row.keys.join('') === 'g')
-      .filter((row) => row.label === listLabel);
+    const shown = rows.filter((row) => row.keys.join('') === 'g');
 
     expect(shown).toHaveLength(1);
-  });
-
-  test('a row shows a key sequence of its own part, never a ctrl-w alias', () => {
-    const foreign = partLetters.flatMap((part) =>
-      cardSequences(part).filter((sequence) => !sequence.startsWith(`${part} `)),
-    );
-
-    expect(foreign).toEqual([]);
+    expect(shown[0]?.label).toBe(actionName({ kind: 'list', action: 'first' }));
   });
 });

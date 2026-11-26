@@ -25,7 +25,8 @@ const findNode = (value: unknown, id: string): Record<string, unknown> | null =>
   return null;
 };
 
-const spacingOf = (value: unknown): number => numberOf(value) ?? numberOf(listOf(value)[0]) ?? 0;
+// Herdr writes one padding and gap per axis as a number here; a list would need both axes.
+const spacingOf = (value: unknown): number => numberOf(value) ?? 0;
 
 const widthOf = (node: Record<string, unknown> | null): number => {
   if (node === null || node['hidden'] === true) {

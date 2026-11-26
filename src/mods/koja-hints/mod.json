@@ -1,5 +1,4 @@
 {
   "place": "none",
-  "title": "Key hints",
-  "overlay": { "kind": "window", "frame": "none", "width": 1, "height": 1 }
+  "title": "Key hints"
 }

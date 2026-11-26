@@ -41,6 +41,10 @@ interface ShownHints {
   list: boolean;
 }
 
+interface OpenHints extends ShownHints {
+  overlay: string;
+}
+
 const sectionKeys = createContextKeys('KojaModal', [
   { keystroke: 'tab', action: 'koja-modal-section-next' },
   { keystroke: 'shift-tab', action: 'koja-modal-section-previous' },
@@ -81,23 +85,6 @@ const pendingPart = (result: ParseResult): PartLetter | null => {
   return key !== undefined && isPartLetter(key) ? key : null;
 };
 
-const pendingHints = (result: ParseResult, list: boolean): ShownHints | null => {
-  const part = pendingPart(result);
-
-  return part === null ? null : { part, count: result.state.count, list };
-};
-
-const sameFields = (first: ShownHints, second: ShownHints): boolean =>
-  first.part === second.part && first.count === second.count && first.list === second.list;
-
-const sameHints = (first: ShownHints | null, second: ShownHints | null): boolean => {
-  if (first === null || second === null) {
-    return first === second;
-  }
-
-  return sameFields(first, second);
-};
-
 const openKeyHints = (hints: ShownHints): string =>
   openOverlay({
     mod: 'koja-hints',
@@ -115,9 +102,7 @@ export default class KojaModal extends View {
 
   private dialogOpened = false;
 
-  private shownHints: ShownHints | null = null;
-
-  private hintOverlay: string | null = null;
+  private openHints: OpenHints | null = null;
 
   private batching = false;
 
@@ -200,10 +185,11 @@ export default class KojaModal extends View {
   }
 
   private handleKeyName(key: string, cx: Context): void {
-    const result = parseKey(this.state, key, this.sections.layer());
+    const layer = this.sections.layer();
+    const result = parseKey(this.state, key, layer);
 
     this.state = result.state;
-    this.showHints(result);
+    this.showHints(result, layer.length > 0);
 
     if (result.status !== 'action') {
       return;
@@ -251,11 +237,13 @@ export default class KojaModal extends View {
     this.closeHints();
     this.batching = true;
 
-    for (const key of keys) {
-      this.handleKeyName(key, cx);
+    try {
+      for (const key of keys) {
+        this.handleKeyName(key, cx);
+      }
+    } finally {
+      this.batching = false;
     }
-
-    this.batching = false;
   }
 
   // A press on the key hint card cancels the sequence it shows, so the press is never lost.
@@ -270,32 +258,36 @@ export default class KojaModal extends View {
     closeOverlay(overlayId());
   }
 
-  private showHints(result: ParseResult): void {
+  private showHints(result: ParseResult, list: boolean): void {
     // A batch of keys runs at once, so a card for the part it starts with would never be seen.
     if (this.batching) {
       return;
     }
 
-    const hints = pendingHints(result, this.sections.layer().length > 0);
+    const part = pendingPart(result);
 
-    if (sameHints(hints, this.shownHints)) {
+    if (part === this.openHints?.part) {
       return;
     }
 
     this.closeHints();
-    this.shownHints = hints;
 
-    if (hints !== null) {
-      this.hintOverlay = openKeyHints(hints);
+    if (part === null) {
+      return;
     }
+
+    const hints = { part, count: result.state.count, list };
+
+    this.openHints = { ...hints, overlay: openKeyHints(hints) };
   }
 
   private closeHints(): void {
-    this.shownHints = null;
+    const open = this.openHints;
 
-    if (this.hintOverlay !== null) {
-      closeOverlay(this.hintOverlay);
-      this.hintOverlay = null;
+    this.openHints = null;
+
+    if (open !== null) {
+      closeOverlay(open.overlay);
     }
   }
 

@@ -425,7 +425,9 @@ describe('koja modal view', () => {
     keyDownHandler?.(plain('3'));
     keyDownHandler?.(plain('g'));
 
-    expect(openOverlayCalls.at(-1)?.props).toEqual({ part: 'g', count: 3, list: false });
+    expect(openOverlayCalls.map((call) => call['props'])).toEqual([
+      { part: 'g', count: 3, list: false },
+    ]);
   });
 
   test('a marked list reaches the card', async () => {
@@ -436,7 +438,9 @@ describe('koja modal view', () => {
     markSidebar();
     keyDownHandler?.(plain('g'));
 
-    expect(openOverlayCalls.at(-1)?.props).toEqual({ part: 'g', count: null, list: true });
+    expect(openOverlayCalls.map((call) => call['props'])).toEqual([
+      { part: 'g', count: null, list: true },
+    ]);
   });
 
   test('the key after a part letter runs its action and closes the card', async () => {
@@ -477,6 +481,31 @@ describe('koja modal view', () => {
     keyDownHandler?.(plain('v'));
 
     expect(runCalls).toEqual([]);
+  });
+
+  test('closing normal mode closes the open key hint card', async () => {
+    const view = await loadView();
+
+    view.render();
+    keyDownHandler?.(plain('w'));
+
+    view.close();
+
+    expect(closeCalls).toContain('hints-1');
+  });
+
+  test('a batch of keys opens no card', async () => {
+    const view = await loadView();
+
+    view.render();
+    runNormalKeys(herdrHost, ['w', 'v']);
+    runCalls = [];
+
+    deliverCommand('run-keys');
+    await flush();
+
+    expect(openOverlayCalls).toEqual([]);
+    expect(runCalls).toEqual([{ command: 'pane.split', args: { direction: 'right' } }]);
   });
 
   test('a ctrl-w prefix opens no card', async () => {

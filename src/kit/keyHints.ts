@@ -182,8 +182,24 @@ const groupSpecs: Record<PartLetter, GroupSpec[]> = {
   z: viewGroupSpecs,
 };
 
-const partEntries = (part: PartLetter, layer: readonly NormalKey[]): NormalKey[] =>
-  [...layer, ...normalKeys].filter((entry) => entry.keys.length === 2 && entry.keys[0] === part);
+// The parser runs the first row that matches a sequence, so a layer's key shadows the table's own.
+const partEntries = (part: PartLetter, layer: readonly NormalKey[]): NormalKey[] => {
+  const kept = new Map<string, NormalKey>();
+
+  for (const entry of [...layer, ...normalKeys]) {
+    if (entry.keys.length !== 2 || entry.keys[0] !== part) {
+      continue;
+    }
+
+    const sequence = entry.keys.join(' ');
+
+    if (!kept.has(sequence)) {
+      kept.set(sequence, entry);
+    }
+  }
+
+  return [...kept.values()];
+};
 
 // The table repeats an action once per alias, and the parser runs the first row that matches. The
 // card shows that same row, one per action, so it never lists an alias beside the key it stands for.
@@ -211,6 +227,9 @@ const countedName = (entry: NormalKey, count: number | null | undefined): string
   return actionName({ kind: 'nthTab', index: count });
 };
 
+const entryName = (entry: NormalKey, count: number | null | undefined): string =>
+  countedName(entry, count) ?? actionName(entry.action) ?? '';
+
 const orderIndex = (order: readonly string[], name: string): number => {
   const index = order.indexOf(name);
 
@@ -227,7 +246,7 @@ const specRows = (
       return [];
     }
 
-    const name = countedName(entry, count) ?? actionName(entry.action) ?? '';
+    const name = entryName(entry, count);
 
     return [{ keys: entry.keys.slice(1), label: spec.label(name), name }];
   });
@@ -254,7 +273,7 @@ const otherRows = (
       return [];
     }
 
-    const name = countedName(entry, count) ?? actionName(entry.action) ?? '';
+    const name = entryName(entry, count);
 
     return name === '' ? [] : [{ keys: entry.keys.slice(1), label: name }];
   });
@@ -264,7 +283,7 @@ export const partKeyHints = (part: PartLetter, options: KeyHintOptions = {}): Pa
   const specs = groupSpecs[part];
 
   const groups = specs.flatMap((spec) => {
-    const rows = specRows(spec, entries, options.count);
+    const rows = specRows(spec, entries, options.count).map(({ keys, label }) => ({ keys, label }));
 
     return rows.length === 0 ? [] : [{ title: spec.title, rows }];
   });
