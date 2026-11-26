@@ -133,6 +133,17 @@ describe('duePullReads', () => {
     expect(duePullReads(state, ['a'], nothingRunning, nextReadAt, true)).toEqual(['a']);
   });
 
+  test('a pending branch due makes a read due before the read period ends', () => {
+    const state = emptyPullDueState();
+
+    noteStart(state, 'a', 0);
+    noteResult(state, 'a', goodRead(), 0);
+    noteBranches(state, 'a', 1_000);
+
+    expect(duePullReads(state, ['a'], nothingRunning, 999, true)).toEqual([]);
+    expect(duePullReads(state, ['a'], nothingRunning, 1_000, true)).toEqual(['a']);
+  });
+
   test('a pending branch due waits for the backoff to end', () => {
     const state = emptyPullDueState();
 

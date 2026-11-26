@@ -160,6 +160,50 @@ describe('stacks', () => {
     expect(restackOfBranch(withoutParentHead, 'add-search-ui')).toBe('unknown');
   });
 
+  test('a base of the wrong type reads like a missing base', () => {
+    const record = recordOfSeveralStacks();
+    const stacks = record['stacks'];
+
+    if (Array.isArray(stacks) && isRecord(stacks[0])) {
+      const branches = stacks[0]['branches'];
+
+      if (Array.isArray(branches) && isRecord(branches[1])) {
+        branches[1]['base'] = 42;
+      }
+    }
+
+    const parsed = parseStacks(JSON.stringify(record), severalStacksHeads);
+
+    expect(parsed.kind).toBe('parsed');
+
+    if (parsed.kind === 'parsed') {
+      expect(restackOfBranch(parsed.stacks, 'add-search-ui')).toBe('unknown');
+    }
+  });
+
+  test('a malformed pull request reads like a missing one', () => {
+    const record = recordOfSeveralStacks();
+    const stacks = record['stacks'];
+
+    if (Array.isArray(stacks) && isRecord(stacks[0])) {
+      const branches = stacks[0]['branches'];
+
+      if (Array.isArray(branches) && isRecord(branches[0])) {
+        branches[0]['pullRequest'] = 42;
+      }
+    }
+
+    const parsed = parseStacks(JSON.stringify(record), severalStacksHeads);
+
+    expect(parsed.kind).toBe('parsed');
+
+    if (parsed.kind === 'parsed') {
+      const [first] = branchesOf(parsed.stacks);
+
+      expect(first?.pullNumber).toBeNull();
+    }
+  });
+
   test('a paused rebase still parses', () => {
     const heads = new Map([
       ['main', 'ea3a03f12aa74c3470bd72a6dcdc1e76e79fcfce'],

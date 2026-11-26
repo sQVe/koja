@@ -38,6 +38,9 @@ const pullNumberOf = (value: unknown): number | null => {
   return isPositiveWholeNumber(number) ? number : null;
 };
 
+// `base`, `head`, and `pullRequest` are optional, so a value the reader cannot read gives null like
+// an absent one. A field a newer gh-stack writes differently must not blank every stack, and
+// `schemaVersion` guards real format changes.
 const recordedBranchOf = (value: unknown): RecordedBranch | null => {
   if (!isRecord(value)) {
     return null;
