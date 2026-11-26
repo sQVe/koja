@@ -22,6 +22,7 @@ import { ticketIdOf } from '../../data/linearTickets.ts';
 import { placeOfSpace, placesOf } from '../../data/places.ts';
 import { createPullRetryClient } from '../../data/pullRetry/pullRetry.ts';
 import type { RepositoryPulls } from '../../data/snapshot.ts';
+import { stackTitleOf } from '../../data/spaceStack.ts';
 import type { DragState } from '../../kit/drag.ts';
 import { dragLine, dropAction, noDrag, setDragOver, startDrag } from '../../kit/drag.ts';
 import type { StatusRollup } from '../../kit/index.ts';
@@ -108,6 +109,14 @@ const storage = {
 const ticketTitleAt = (state: DataState, row: ListedSpace): string | null => {
   if (state.kind === 'unavailable' || row.git === null) {
     return null;
+  }
+
+  const place = state.snapshot.facts.git.places[row.place.key];
+  const worktreeKey = place?.kind === 'repository' ? place.worktree : null;
+  const stackTitle = worktreeKey === null ? null : stackTitleOf(state.snapshot.facts, worktreeKey);
+
+  if (stackTitle !== null) {
+    return stackTitle;
   }
 
   const id = ticketIdOf(row.git.branch, folderNameOf(row.git.root));

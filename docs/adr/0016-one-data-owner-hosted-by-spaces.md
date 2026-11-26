@@ -68,6 +68,18 @@ per-repository budget in three cases. The periodic read runs at most once per mi
 window is active. A push read is coalesced into the next due read instead of adding a read beside
 it. The manual Retry joins the read in flight or starts one when the user asks.
 
+### Stack reads
+
+Each space's stack comes from the repository's `gh-stack` record, the file `gh stack` writes at
+`<git-common-dir>/gh-stack`. The lease holder reads it, so one copy serves every consumer, and it
+watches the record's common directory so a change re-reads it. A repository is read when it first
+appears in the Git facts and after such a change; a repository with no checkout is not read. One
+read takes the record and the repository's branch heads from one `git for-each-ref`, so a branch's
+restack need is Koja's own rule: a recorded base that is not the current head of the branch below
+it. A record that does not parse keeps the last good stacks and marks the repository, and a missing
+record clears them without a failure. A branch of a stack that holds a checked-out branch joins that
+repository's PR reads, and its ticket joins the tracker's reads, with one level of parent.
+
 ### Sandbox remote fixture ownership
 
 The sandbox remote fixture starts its server in a private, per-run cgroup owned by a transient
@@ -109,27 +121,32 @@ without suggesting an edit.
 ### Snapshot versions
 
 The snapshot is a saved record, so a field change bumps its `version`. The current reader accepts
-version 6, which holds Git facts, per-repository PR facts, and per-repository tracker facts, and
-rejects unknown fields. Each PR carries its mergeability, merge state, review decision, checks, and
-threads, and each of the last two is a part that is read, failed with its last good value, or
-unread. Each tracker carries the workspace the repository names, or null, a map of ticket facts
-keyed by ticket id, and whether the last read of that repository failed; a failed read keeps the
-last good tickets and marks the whole repository, not one ticket. Each ticket fact carries its id,
-title, state, URL, and parent. Version 5 is the previous supported format: it held the same facts,
-and each ticket also carried a failure flag that stayed false, so the reader drops that retired
-field and returns a version 6 snapshot. Version 4 held Git facts and per-repository PR facts, so the
-reader parses them and returns a version 6 snapshot with no tracker facts. Version 3 held only the
-PR list fields, so the reader parses them and gives each PR the unread parts, from which no need is
-derived. Version 2 held only Git facts, so the reader parses them and returns a version 6 snapshot
-with no PR or tracker facts. Version 1 carried no facts: its `facts` was `Record<string, never>`,
-and the next owner publish rewrites it. A version 1 snapshot is therefore retired silently, because
-no user action applies. This is the one exception to the notices that
-[shared ADR 0008](../stomme/shared/adr/0008-backwards-compatibility.md) requires for saved formats.
+version 7, which holds Git facts, per-repository PR facts, per-repository tracker facts, and
+per-repository stacks, and rejects unknown fields. Each PR carries its mergeability, merge state,
+review decision, checks, and threads, and each of the last two is a part that is read, failed with
+its last good value, or unread. Each tracker carries the workspace the repository names, or null, a
+map of ticket facts keyed by ticket id, and whether the last read of that repository failed; a
+failed read keeps the last good tickets and marks the whole repository, not one ticket. Each ticket
+fact carries its id, title, state, URL, and parent. Each repository's stacks carry the parsed stacks
+and whether the last read failed; a failed read keeps the last good stacks. A stack carries its
+trunk branch and its branches bottom to top, and each branch its name, its pull request number or
+null, and whether it needs a restack. Version 6 is the previous supported format: it held the same
+facts without the stack map, so the reader returns a version 7 snapshot with no stacks. Version 5
+held the same facts as version 6, and each ticket also carried a failure flag that stayed false, so
+the reader drops that retired field and returns a version 7 snapshot. Version 4 held Git facts and
+per-repository PR facts, so the reader parses them and returns a version 7 snapshot with no tracker
+or stack facts. Version 3 held only the PR list fields, so the reader parses them and gives each PR
+the unread parts, from which no need is derived. Version 2 held only Git facts, so the reader parses
+them and returns a version 7 snapshot with no PR, tracker, or stack facts. Version 1 carried no
+facts: its `facts` was `Record<string, never>`, and the next owner publish rewrites it. A version 1
+snapshot is therefore retired silently, because no user action applies. This is the one exception to
+the notices that [shared ADR 0008](../stomme/shared/adr/0008-backwards-compatibility.md) requires
+for saved formats.
 
-A malformed version 6, 5, 4, 3, or 2 record, or a present record without a valid version, is logged
-once per mod copy with a message that the host rebuilds the snapshot on its next publish. A positive
-whole version above 6 is logged once per mod copy with a message that names the update. Each reason
-logs once per loaded mod copy, and later reads stay silent.
+A malformed version 7, 6, 5, 4, 3, or 2 record, or a present record without a valid version, is
+logged once per mod copy with a message that the host rebuilds the snapshot on its next publish. A
+positive whole version above 7 is logged once per mod copy with a message that names the update.
+Each reason logs once per loaded mod copy, and later reads stay silent.
 
 PR read times carry their own version. Version 2 keeps, per repository, one list time and a time per
 checks part and per threads part, so a failed part shows its own age while the parts that were read
